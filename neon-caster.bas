@@ -829,19 +829,102 @@ bob = 0 : stepDist = STEP_LEN * 0.85 ' First step sounds soon after you start wa
 ShowMsg "Find the keycards. Destroy the monsters."
 RETURN
 
+'=============================================================================
+' MapData - the level. LoadLevel reads it every time the level (re)starts.
+'=============================================================================
+'
+' Coordinates: x runs left to right (0 to MAP_SIZE - 1), y runs top to bottom
+' (row 0 is the top line). Each map cell is one "tile": a wall block, a door,
+' or a square of floor. You walk around in the same units (moving at 0.12
+' tiles a frame), and things on the map stand in the middle of their tile.
+'
+' --- Part 1: floor / ceiling zones -----------------------------------------
+'
+' First a count, then that many lines of: x0, y0, x1, y1, floor, ceiling
+'
+'   x0, y0, x1, y1   a rectangle of tiles, corners included
+'   floor            1 metal grate (floor.png)       2 metal plates (floor-plates.png)
+'                    3 concrete (floor-concrete.png) 4 lab tiles (floor-lab.png)
+'   ceiling          1 purple panels (ceiling.png)   2 light panels (ceiling-lights.png)
+'
+' Every tile starts as grate floor + purple ceiling; each zone then paints its
+' rectangle, in order, so a later zone wins where two overlap. Only floor
+' tiles show this (it's what you see underfoot and overhead), so a zone can
+' safely include the walls around a room.
+'
+' --- Part 2: the map, one string per row ------------------------------------
+'
+' Exactly MAP_SIZE strings of exactly MAP_SIZE characters. Anything not
+' listed below (or a missing character) is plain floor.
+'
+' WALLS - solid blocks; you, monsters, shots and bolts can't pass, and
+' monsters can't see through them. They only differ in looks (texture, and
+' colour on the minimap):
+'   #  metal        (wall.png)            N  neon         (wall2.png)
+'   C  concrete     (wall-concrete.png)   K  server racks (wall-servers.png)
+'   P  pipes        (wall-pipes.png)      G  biolab glass (wall-biolab.png)
+'
+' DOORS - closed until you face one within 2 tiles and press Space; then
+' they open for good (they never close again). They block you, monsters and
+' sight while mostly shut, and count as open once 80% of the way. A door
+' must sit in a wall one tile thick: walls on two opposite sides (left and
+' right, or above and below) and floor on the other two - that's the way
+' you walk through it.
+'   D  sliding door: slides sideways into the wall (~0.4 s). (door.png)
+'   H  heavy shutter: rolls up from the floor, slowly (~0.7 s), with a
+'      rumble; while it rises you can see (and walk, once it's high enough)
+'      under it. (door-shutter.png)
+'   X  split door: the two halves part from the middle, fast (~0.3 s), with
+'      a double hiss. (door-split.png)
+'   R  B  Y  key door (a sliding door) that needs the red / blue / yellow
+'      keycard. Without it, Space just says "Locked" and buzzes. It's drawn
+'      tinted in its card's colour, and on the minimap it's that colour
+'      with a dark dot in the middle.
+'
+' PICKUPS - hover over the floor; walk onto one to take it. Health and ammo
+' stay where they are while you're already full, so you can come back.
+'   r  b  y  red / blue / yellow keycard: kept for the rest of the level, it
+'            opens every door of its colour. Shown top right once you
+'            have it, and blinks on the minimap until then.
+'   +        health pack: +25 health (up to 100)
+'   a        energy cells: +15 cells (up to 99) - ammo for the blaster and
+'            the repeater
+'   e        shells: +8 shells (up to 40) - ammo for the scatter gun
+'   2        scatter gun (+8 shells): 7 pellets in a spread, 1 shot every
+'            2/3 s. You switch to it when you first pick it up.
+'   3        repeater (+30 cells): fast automatic fire, about 12 shots a
+'            second. Picked up again later, a gun is just ammo.
+'
+' MONSTERS - each waits where it stands until it can see you (within 14
+' tiles, with no wall or shut door in the way) or until you shoot it. Then
+' it hunts you for good. Numbers are in the SetMonType lines.
+'   m  drone:  hovers, 3 hits. Flies straight at you (about a third of your
+'              speed) and bites up close for 8-13, about once a second.
+'   g  gunner: walks, 4 hits. Keeps 3.5 to 7 tiles away (backs off if you
+'              get close) and, when it can see you, fires a magenta energy
+'              bolt for 9-14 every 1.5-2 s. Bolts fly straight and burst on
+'              walls - you can dodge them.
+'   h  heavy:  walks slowly, 10 hits. Closes in and smashes for 20-29 about
+'              every 1.3 s. Big enough that a scatter blast hits it with
+'              more pellets.
+'
+' THE START
+'   <  >  ^  v  you start here, facing left / right / up / down. Use one;
+'               with several, the last one read wins.
+'   .           floor (any other character is floor too)
+'
+' Rules: the outer border must be all walls (nothing else stops a ray or a
+' monster from leaving the map). Up to MAX_ITEMS pickups and MAX_MON
+' monsters; extra ones are ignored.
+'
 MapData:
-' Floor / ceiling zones first: how many, then x0, y0, x1, y1, floor, ceiling
-' (floors 1 grate, 2 plates, 3 concrete, 4 lab; ceilings 1 purple, 2 light panels)
 DATA 4
 DATA 19, 19, 28, 28, 2, 1
 DATA 5, 5, 21, 21, 3, 2
 DATA 26, 5, 42, 21, 2, 2
 DATA 30, 26, 42, 42, 4, 2
-' Then one string per row, MAP_SIZE characters each:
-'   walls: # metal  N neon  C concrete  K servers  P pipes  G biolab
-'   doors: D sliding  H shutter (rises)  X split   R B Y need the red / blue / yellow keycard
-'   r b y keycard   + health   a energy cells   e shells   2 scatter gun   3 repeater
-'   m drone   g gunner   h heavy   . floor   < > ^ v start, facing that way
+' The map rows (legend above: walls # N C K P G, doors D H X R B Y, pickups
+' r b y + a e 2 3, monsters m g h, start < > ^ v)
 DATA "################################################"
 DATA "################################################"
 DATA "##...........................................+##"
