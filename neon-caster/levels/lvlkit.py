@@ -13,7 +13,7 @@ N = 48
 WALLS = set("#NCKPG")
 DOORS = set("DHXRBYE")
 DIAG = set("/\\")
-ITEMS = set("rby+ae23u*4")
+ITEMS = set("rby+ae23u*4M")
 MONS = set("mghcs")
 DECO = set("oipt")
 START = set("<>^v")
@@ -23,6 +23,8 @@ class Map:
     def __init__(self, fill="#"):
         self.g = [[fill] * N for _ in range(N)]
         self.zones = []
+        self.ambient = (170, 255, 255, 255)  # brightness 0-256, then r g b
+        self.lights = []
 
     @classmethod
     def from_rows(cls, rows):
@@ -122,6 +124,11 @@ class Map:
             assert x1 - x0 == y1 - y0, "triangle zones must be square"
         self.zones.append((x0, y0, x1, y1, floor, ceil, shape))
 
+    # -- lights (see MapData): effect 0 steady, 1 flicker, 2 pulse, 3 strobe,
+    # 4 fire, 5 dying
+    def light(self, x, y, radius, bright, r, g, b, effect=0):
+        self.lights.append((x, y, radius, bright, r, g, b, effect))
+
     # -- output
     def rows(self):
         return ["".join(r) for r in self.g]
@@ -138,9 +145,13 @@ class Map:
         out.append("DATA " + ", ".join('"%s"' % w for w in walls))
         out.append("DATA " + ", ".join('"%s"' % f for f in floors))
         out.append("DATA " + ", ".join('"%s"' % c for c in ceils))
+        out.append("DATA " + ", ".join(str(v) for v in self.ambient))
         out.append("DATA %d" % len(self.zones))
         for z in self.zones:
             out.append("DATA " + ", ".join(str(v) for v in z))
+        out.append("DATA %d" % len(self.lights))
+        for l in self.lights:
+            out.append("DATA " + ", ".join(str(v) for v in l))
         for r in self.rows():
             out.append('DATA "%s"' % r)
         return out
@@ -254,12 +265,16 @@ def parse_bas(path):
                 break
         strs = lambda l: re.findall(r'"([^"]*)"', l)
         nums = lambda l: [int(v) for v in l.split(",")]
-        nz = int(lines[4])
+        fnums = lambda l: [float(v) for v in l.split(",")]
+        nz = int(lines[5])
+        nl = int(lines[6 + nz])
         levels.append(dict(
             label=m.group(1), name=strs(lines[0])[0], walls=strs(lines[1]),
             floors=strs(lines[2]), ceils=strs(lines[3]),
-            zones=[tuple(nums(l)) for l in lines[5:5 + nz]],
-            rows=[strs(l)[0] for l in lines[5 + nz:5 + nz + N]]))
+            ambient=tuple(nums(lines[4])),
+            zones=[tuple(nums(l)) for l in lines[6:6 + nz]],
+            lights=[tuple(fnums(l)) for l in lines[7 + nz:7 + nz + nl]],
+            rows=[strs(l)[0] for l in lines[7 + nz + nl:7 + nz + nl + N]]))
     return levels
 
 
@@ -283,7 +298,23 @@ def check_level(lv, assets=None):
             errs.append("zone %s: floor 0-4, ceiling 0-2, shape 0-4" % (z,))
         if sh and x1 - x0 != y1 - y0:
             errs.append("zone %s: a triangle needs a square" % (z,))
-    print("%s  %s" % (lv["label"], lv["name"]))
+    amb = lv.get("ambient", ())
+    if len(amb) != 4 or not (0 <= amb[0] <= 256 and all(0 <= c <= 255 for c in amb[1:])):
+        errs.append("ambient %s: brightness 0-256, then r g b 0-255" % (amb,))
+    for l in lv.get("lights", []):
+        if len(l) != 8:
+            errs.append("light %s: needs 8 numbers" % (l,))
+            continue
+        x, y, rad, br, cr, cg, cb, fx = l
+        if not (0 < x < N and 0 < y < N):
+            errs.append("light %s: outside the map" % (l,))
+        elif lv["rows"][int(y)][int(x)] in WALLS:
+            errs.append("light %s: inside a wall" % (l,))
+        if not (0 < rad <= 16 and 0 <= br <= 400 and 0 <= fx <= 5 and all(0 <= c <= 255 for c in (cr, cg, cb))):
+            errs.append("light %s: radius 1-16, brightness 0-400, colour 0-255, effect 0-5" % (l,))
+    if not any("M" in r for r in lv["rows"]):
+        warns.append("no map pickup (M): the minimap never appears on this level")
+    print("%s  %s  (%d lights)" % (lv["label"], lv["name"], len(lv.get("lights", []))))
     for e in errs:
         print("   ERROR", e)
     for w in warns:

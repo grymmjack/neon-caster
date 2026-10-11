@@ -90,6 +90,23 @@ def level1():
     m.zones = [(19, 19, 28, 28, 2, 1, 0), (5, 5, 21, 21, 3, 2, 0),
                (26, 5, 42, 21, 2, 2, 0), (30, 26, 42, 42, 4, 2, 0),
                (30, 30, 42, 42, 2, 0, 3)]  # lab: plates across its lower-right half
+    place(m, [(19, 5, "M")])                    # the map: in the concrete room
+    # light: a cool station, purple in the hub, flickering corridors
+    m.ambient = (165, 225, 220, 255)
+    m.light(23.5, 23.5, 6, 130, 210, 120, 255)        # the hub: neon purple
+    m.light(10.5, 2.5, 5, 150, 220, 230, 255, 1)      # outer corridor tubes,
+    m.light(35.5, 2.5, 5, 150, 220, 230, 255, 1)      #   flickering
+    m.light(2.5, 24.5, 5, 140, 220, 230, 255, 1)
+    m.light(24.5, 45.5, 5, 160, 220, 230, 255, 5)     #   one nearly dead
+    m.light(44.5, 24.5, 5, 140, 220, 230, 255, 0)
+    m.light(8.5, 7.5, 5, 130, 255, 215, 170)          # concrete room: warm
+    m.light(10.5, 16.5, 5, 110, 230, 230, 255, 1)
+    m.light(34.5, 5.5, 6, 140, 110, 220, 255, 2)      # server hall: pulsing cyan
+    m.light(30.5, 14.5, 5, 110, 110, 220, 255, 2)
+    m.light(36.5, 30.5, 7, 150, 130, 255, 160)        # biolab: green
+    m.light(36.5, 33.5, 4, 170, 255, 50, 50, 3)       #   red alarm by the red key
+    m.light(10.5, 30.5, 5, 150, 255, 160, 80, 4)      # pipe rooms: firelight
+    m.light(10.5, 39.5, 5, 130, 255, 160, 80, 4)
     return m
 
 
@@ -165,6 +182,21 @@ def level2():
     m.zone(15, 3, 32, 13, 4, 2)             # control room
     m.zone(3, 35, 45, 45, 2, 1)             # south hall
     m.zone(39, 35, 45, 45, 3, 2)            # armoury
+    place(m, [(6, 9, "M")])                 # the map: in the storage bay
+    # light: dim and orange, the core throbbing, alarms in the hall
+    m.ambient = (115, 255, 190, 150)
+    for (lx, ly) in ((24, 19.5), (24, 28.5), (19.5, 24), (28.5, 24)):
+        m.light(lx, ly, 7, 190, 255, 140, 50, 2)      # the reactor core's glow, all round it
+    m.light(24.5, 8.5, 6, 150, 255, 230, 150)         # control room
+    m.light(17.5, 11.5, 3, 180, 255, 50, 40, 3)       #   an alarm
+    m.light(40.5, 10.5, 6, 130, 120, 220, 255)        # coolant wing: cyan
+    m.light(40.5, 25.5, 6, 130, 120, 220, 255, 1)
+    m.light(8.5, 15.5, 6, 120, 230, 230, 255, 5)      # storage: a dying tube
+    m.light(8.5, 28.5, 5, 120, 255, 220, 170)
+    m.light(6.5, 37.5, 4, 200, 255, 40, 30, 3)        # south hall alarms
+    m.light(33.5, 37.5, 4, 200, 255, 40, 30, 3)
+    m.light(20.5, 42.5, 8, 110, 255, 150, 70, 4)
+    m.light(42.5, 40.5, 5, 170, 240, 240, 255)        # armoury
     return m
 
 
@@ -243,6 +275,18 @@ def level3():
     m.zone(3, 26, 14, 45, 2, 1)      # L2: flooded...
     m.zone(3, 26, 14, 37, 4, 0, 1)   # ...except a dry corner, cut on the diagonal
     m.zone(18, 34, 28, 45, 3, 2)     # L3
+    place(m, [(13, 6, "M")])         # the map: in the store
+    # light: murky green; the lamps along the tunnel glow by themselves
+    m.ambient = (80, 170, 230, 190)
+    m.light(12.5, 12.5, 5, 120, 120, 255, 140, 2)     # slime glow in the channel
+    m.light(36.5, 36.5, 5, 120, 120, 255, 140, 2)
+    m.light(17.5, 5.5, 5, 140, 255, 210, 150, 1)      # store
+    m.light(35.5, 10.5, 8, 140, 200, 255, 200)        # pump hall
+    m.light(43.5, 6.5, 3, 190, 255, 50, 40, 3)        #   an alarm by the yellow key
+    m.light(37.5, 26.5, 6, 130, 120, 230, 255, 2)     # cistern
+    m.light(5.5, 17.5, 4, 110, 255, 80, 60, 4)        # the nest: red, creepy
+    m.light(8.5, 35.5, 7, 120, 140, 220, 255, 5)      # flooded hall: a dying light
+    m.light(23.5, 40.5, 6, 160, 230, 230, 255, 1)     # outflow
     return m
 
 
@@ -330,6 +374,19 @@ def level4():
     m.zone(33, 3, 45, 15, 1, 1)               # NE lab
     m.zone(3, 33, 15, 45, 4, 1)               # SW lab
     m.zone(33, 33, 45, 45, 3, 2)              # SE lab: ice
+    place(m, [(6, 38, "M")])                  # the map: in the SW lab
+    # light: cold and bright, the atrium's core pulsing
+    m.ambient = (175, 200, 225, 255)
+    m.light(24, 28.5, 7, 160, 120, 230, 255, 2)       # atrium, round the core
+    m.light(24, 19.5, 7, 160, 120, 230, 255, 2)
+    m.light(9.5, 9.5, 6, 150, 240, 240, 255)          # NW lab
+    m.light(39.5, 9.5, 6, 150, 120, 230, 255)         # NE lab: cryo cyan
+    m.light(9.5, 39.5, 6, 150, 240, 240, 255, 1)      # SW lab: flickering
+    m.light(36.5, 42.5, 6, 150, 140, 180, 255, 2)     # SE lab: icy blue
+    m.light(24.5, 5.5, 5, 140, 230, 240, 255, 1)      # halls
+    m.light(24.5, 43.5, 5, 140, 230, 240, 255)
+    m.light(5.5, 24.5, 4, 180, 255, 50, 40, 3)        #   an alarm in the west hall
+    m.light(43.5, 24.5, 5, 140, 230, 240, 255, 5)
     return m
 
 
@@ -379,7 +436,8 @@ def main():
             print("\n=== LEVEL %d: %s" % (i, name))
             m.show()
         lv = dict(label="Level%d" % i, name=name, walls=walls, floors=floors,
-                  ceils=ceils, zones=m.zones, rows=m.rows())
+                  ceils=ceils, ambient=m.ambient, zones=m.zones, lights=m.lights,
+                  rows=m.rows())
         ok &= check_level(lv, ASSETS)
         out.append("Level%d:" % i)
         out += m.data(name, walls, floors, ceils, comment)

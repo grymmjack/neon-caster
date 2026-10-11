@@ -40,6 +40,7 @@
 '   1-4 or wheel   choose a gun         Esc       the menu (pause, save,
 '   Right button   hold to aim down                load, settings, exit)
 '                  the sights (zoom)    F5 / F9   quick save / quick load
+'   Tab            the full-screen map (all of it once you find the map)
 '   K, G           testing cheats: every keycard, god mode (see CHEAT_KEYS)
 '
 ' READING THE NAMES
@@ -123,6 +124,10 @@
 '     mi...      the items on the menu screen showing now (chapter 21)
 '     menu...    the menu's state: menuSel, menuScreen, menuInGame...
 '     keyBind&   the key bound to each action (BIND_)
+'     lit...     a cell's light this frame: litR(x, y)        (chapter 14)
+'     light...   one of the level's lights: lightX(l), lightEffect(l)
+'     FX_        a light's effect: FX_FLICKER, FX_STROBE...     (chapter 2)
+'     cellSeen() the cells you've seen, for the map            (chapter 15)
 '
 '   The raycasting maths uses the names from Lode Vandevenne's well-known
 '   raycasting tutorial (lodev.org/cgtutor/raycasting.html): dirX, planeX,
@@ -189,6 +194,37 @@ DIM SHARED floorTex2(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilTex2(MAP_SIZE, MAP_SIZE
 DIM SHARED floorSplit(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilSplit(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' DOOR_ = the kinds of door, the numbers kept in doorType(x, y)
 CONST DOOR_SLIDE = 0, DOOR_SHUTTER = 1, DOOR_SPLIT = 2, DOOR_EXIT = 3
+' Light (chapter 14). Every cell has a light level for red, green and blue
+' (litR, litG, litB): 256 shows a texture in its own colours, less is
+' darker, more is brighter, and different amounts tint it. It's worked out
+' fresh every frame: the level's ambient light, plus each of its lights,
+' plus things that glow (lamps, terminals, the exit, muzzle flashes,
+' explosions, bolts).
+DIM SHARED litR(MAP_SIZE, MAP_SIZE) AS LONG, litG(MAP_SIZE, MAP_SIZE) AS LONG, litB(MAP_SIZE, MAP_SIZE) AS LONG
+DIM SHARED ambientR AS LONG, ambientG AS LONG, ambientB AS LONG
+' The level's lights: where, how far they reach, their light (brightness
+' times colour) for red, green and blue, their effect (FX_ below), and -
+' for a lamp or terminal's own light - which decoration it belongs to (so
+' it goes out when you break it)
+CONST MAX_LIGHTS = 96
+DIM SHARED lightX(MAX_LIGHTS), lightY(MAX_LIGHTS), lightRadius(MAX_LIGHTS)
+DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhase(MAX_LIGHTS)
+DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
+DIM SHARED numLights AS INTEGER
+' FX_ = a light's effect: steady, a flickering fluorescent tube, a slow
+' pulse, an alarm strobe, firelight, or a dying tube that sputters on now
+' and then
+CONST FX_STEADY = 0, FX_FLICKER = 1, FX_PULSE = 2, FX_STROBE = 3, FX_FIRE = 4, FX_DYING = 5
+' Which cells each light reaches, and how strongly - worked out once when
+' the level loads (BuildLights, chapter 23), since walls don't move:
+' light number l's cells are entries lightFirst(l) to lightFirst(l) +
+' lightCount(l) - 1 of the lit... arrays
+CONST MAX_LIT = 16000
+DIM SHARED lightFirst(MAX_LIGHTS) AS LONG, lightCount(MAX_LIGHTS) AS LONG, numLit AS LONG
+DIM SHARED litCellX(MAX_LIT) AS INTEGER, litCellY(MAX_LIT) AS INTEGER, litWeight(MAX_LIT) AS SINGLE
+' The map: which cells you've seen (the raycaster marks every cell a ray
+' passes through - chapter 15), and whether you've found this level's map
+DIM SHARED cellSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, hasMap AS INTEGER
 CONST NUM_LEVELS = 4 ' NUM_ = how many there are
 
 '-----------------------------------------------------------------------------
@@ -209,7 +245,7 @@ CONST NUM_LEVELS = 4 ' NUM_ = how many there are
 ' are the red, blue and yellow keycards (they have no IT_ name - the number
 ' is the card's colour).
 CONST IT_HEALTH = 4, IT_CELLS = 5, IT_SHELLS = 6, IT_SCATTER = 7, IT_REPEATER = 8
-CONST IT_ARMOR = 9, IT_BIGMED = 10, IT_RAIL = 11
+CONST IT_ARMOR = 9, IT_BIGMED = 10, IT_RAIL = 11, IT_MAP = 12
 ' MAX_ = the most there can be: the arrays below have room for this many
 CONST MAX_ITEMS = 64
 DIM SHARED itemX(MAX_ITEMS) AS SINGLE, itemY(MAX_ITEMS) AS SINGLE
@@ -355,8 +391,8 @@ CONST CHEAT_KEYS = -1
 '   1-3 keycards, 4 medkit, 5 cells, 6 shells, 7 scatter gun, 8 repeater,
 '   9/10 drone (/hit), 11/12 gunner, 13/14 heavy, 15/16 crawler, 17/18 sentry,
 '   19 bolt, 20-23 decorations (barrel, lamp, plant, terminal), 24 explosion,
-'   25 armour, 26 big medkit, 27 railgun
-CONST SPR_TEX = 64, SPR_SLOTS = 27
+'   25 armour, 26 big medkit, 27 railgun, 28 map
+CONST SPR_TEX = 64, SPR_SLOTS = 28
 ' S_ = Sprite slot: names for a few of those numbers. S_DECO + kind is a
 ' decoration's slot (barrel = S_DECO + 1 = 20, and so on).
 CONST S_BOLT = 19, S_DECO = 19, S_BLAST = 24
@@ -439,6 +475,7 @@ LoadSprite "explosion.png", S_BLAST
 LoadSprite "armor.png", 25
 LoadSprite "bigmed.png", 26
 LoadSprite "pickup-rail.png", 27
+LoadSprite "map.png", 28
 
 ' The guns you hold are kept as ordinary images (not arrays): they're drawn
 ' over the finished view with _PUTIMAGE, at full size (chapter 18). LoadGun
@@ -504,32 +541,36 @@ mtypeHitSnd&(5) = LoadSnd&("sentry-hit.wav") : mtypeDieSnd&(5) = LoadSnd&("sentr
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 10
+CONST NUM_SETTINGS = 13
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
+CONST SET_XALPHA = 11, SET_XFEEDBACK = 12, SET_HURTDIR = 13
 DIM SHARED setting(NUM_SETTINGS), setDefault(NUM_SETTINGS), setMin(NUM_SETTINGS), setMax(NUM_SETTINGS)
 DIM SHARED setStep(NUM_SETTINGS), setKind(NUM_SETTINGS), setKey$(NUM_SETTINGS), setLabel$(NUM_SETTINGS)
 ' MI_ = Menu Item kinds (what a line of a menu is and does)
 CONST MI_ACTION = 1, MI_SUBMENU = 2, MI_SLIDER = 3, MI_TOGGLE = 4, MI_CHOICE = 5
 CONST MI_KEY = 6, MI_BACK = 7, MI_TEXT = 8
-'             setting     file name          menu label          control    min max  step start
-DefineSetting SET_SFX,    "sfx",             "SFX VOLUME",       MI_SLIDER, 0,  100, 5,   80
-DefineSetting SET_MUSIC,  "music",           "MUSIC VOLUME",     MI_SLIDER, 0,  100, 5,   60
-DefineSetting SET_SPEECH, "speech",          "SPEECH VOLUME",    MI_SLIDER, 0,  100, 5,   80
-DefineSetting SET_FOV,    "fov",             "FIELD OF VIEW",    MI_SLIDER, 50, 110, 2,   66
-DefineSetting SET_XSTYLE, "crosshair_style", "CROSSHAIR STYLE",  MI_CHOICE, 1,  6,   1,   1
-DefineSetting SET_XCOLOR, "crosshair_color", "CROSSHAIR COLOR",  MI_CHOICE, 1,  6,   1,   1
-DefineSetting SET_XSIZE,  "crosshair_size",  "CROSSHAIR SIZE",   MI_SLIDER, 1,  5,   1,   2
-DefineSetting SET_BOB,    "weapon_bob",      "WEAPON BOBBING",   MI_TOGGLE, 0,  1,   1,   1
-DefineSetting SET_SHAKE,  "screen_shake",    "SCREEN SHAKE",     MI_TOGGLE, 0,  1,   1,   1
-DefineSetting SET_MOUSE,  "mouse_speed",     "MOUSE LOOK SPEED", MI_SLIDER, 1,  10,  1,   5
+'             setting        file name             menu label            control    min max  step start
+DefineSetting SET_SFX,       "sfx",                "SFX VOLUME",         MI_SLIDER, 0,  100, 5,   80
+DefineSetting SET_MUSIC,     "music",              "MUSIC VOLUME",       MI_SLIDER, 0,  100, 5,   60
+DefineSetting SET_SPEECH,    "speech",             "SPEECH VOLUME",      MI_SLIDER, 0,  100, 5,   80
+DefineSetting SET_FOV,       "fov",                "FIELD OF VIEW",      MI_SLIDER, 50, 110, 2,   66
+DefineSetting SET_XSTYLE,    "crosshair_style",    "CROSSHAIR STYLE",    MI_CHOICE, 1,  6,   1,   1
+DefineSetting SET_XCOLOR,    "crosshair_color",    "CROSSHAIR COLOR",    MI_CHOICE, 1,  6,   1,   1
+DefineSetting SET_XSIZE,     "crosshair_size",     "CROSSHAIR SIZE",     MI_SLIDER, 1,  5,   1,   2
+DefineSetting SET_BOB,       "weapon_bob",         "WEAPON BOBBING",     MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_SHAKE,     "screen_shake",       "SCREEN SHAKE",       MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_MOUSE,     "mouse_speed",        "MOUSE LOOK SPEED",   MI_SLIDER, 1,  10,  1,   5
+DefineSetting SET_XALPHA,    "crosshair_opacity",  "CROSSHAIR OPACITY",  MI_SLIDER, 10, 100, 10,  100
+DefineSetting SET_XFEEDBACK, "crosshair_feedback", "CROSSHAIR FEEDBACK", MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_HURTDIR,   "damage_indicators",  "DAMAGE INDICATORS",  MI_TOGGLE, 0,  1,   1,   1
 ' BIND_ = a key binding's number: what each one does, its name in the
 ' settings file, its menu label, and its key to start with (a _KEYDOWN
 ' code: letters as lower case, 32 Space, 100306 left Ctrl, 16128 F5,
-' 17152 F9)
-CONST NUM_BINDS = 8
+' 17152 F9, 9 Tab)
+CONST NUM_BINDS = 9
 CONST BIND_FORWARD = 1, BIND_BACK = 2, BIND_LEFT = 3, BIND_RIGHT = 4
-CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8
+CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8, BIND_MAP = 9
 DIM SHARED keyBind&(NUM_BINDS), bindDefault&(NUM_BINDS), bindKey$(NUM_BINDS), bindLabel$(NUM_BINDS)
 '          binding         file name        menu label      key
 DefineBind BIND_FORWARD,   "key_forward",   "MOVE FORWARD", 119
@@ -540,6 +581,7 @@ DefineBind BIND_USE,       "key_use",       "OPEN / USE",   32
 DefineBind BIND_FIRE,      "key_fire",      "FIRE",         100306
 DefineBind BIND_QUICKSAVE, "key_quicksave", "QUICK SAVE",   16128
 DefineBind BIND_QUICKLOAD, "key_quickload", "QUICK LOAD",   17152
+DefineBind BIND_MAP, "key_map", "MAP", 9
 ' SCR_ = the menu's screens; MA_ = Menu Actions (what choosing a button does)
 CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10
@@ -553,16 +595,26 @@ DIM SHARED numMI, menuTitle$, menuSel, menuCapture, menuWide, menuScreen, menuIn
 DIM menuStack(10), menuStackSel(10) ' The screens you came through (for BACK)
 ' MENU_ = where the menu is drawn: the first row, the gap between rows,
 ' where labels start, and where sliders and other controls go
-CONST MENU_TOP = 186, MENU_ROW = 36, MENU_LABEL_X = 140, MENU_WIDGET_X = 470, MENU_WIDGET_W = 200
+CONST MENU_TOP = 176, MENU_ROW = 32, MENU_LABEL_X = 140, MENU_WIDGET_X = 470, MENU_WIDGET_W = 200
 CONST SPLASH_SECONDS = 3.5 ' How long the splash screen stays up (any key skips it)
 ' Saved games: the slots, and the file's first bytes, so a file from
 ' something else (or an older version) is never read as a save
-CONST NUM_SLOTS = 3, SAVE_TAG = "NCSAVE01", SAVE_INFO_LEN = 48
+CONST NUM_SLOTS = 3, SAVE_TAG = "NCSAVE02", SAVE_INFO_LEN = 48
 ' Things the settings change, worked out by ApplySettings: the camera
 ' plane's length (from the field of view) and the mouse turn speed
 DIM SHARED fovPlane, turnSpeed
+' Crosshair feedback (chapter 18): how big it is right now (1 = its size;
+' it shrinks when you fire, grows when you're hit, and eases back), and
+' frames left of its white "you hit something" flash
+DIM SHARED crossScale, crossFlash
+crossScale = 1
+' Damage indicators (chapter 18): where each recent hit came from, and
+' frames left before it fades. HurtPlayer adds one when it's told where
+' the damage came from (hurtFromX, hurtFromY; -1 for nowhere in particular).
+CONST MAX_HURTDIRS = 8, HURTDIR_FRAMES = 70
+DIM SHARED hurtDirX(MAX_HURTDIRS), hurtDirY(MAX_HURTDIRS), hurtDirTime(MAX_HURTDIRS)
 ' Music: one looping track for the title menu and one per level, and the
-' one playing now. (OPL3 FM music, made with soundmon --opl.)
+' one playing now. (Dark techno, made with soundmon's AI music mode.)
 DIM SHARED menuMusic&, levelMusic&(NUM_LEVELS), nowPlaying&
 menuMusic& = LoadMusic&("menu.ogg")
 FOR k = 1 TO NUM_LEVELS : levelMusic&(k) = LoadMusic&("level" + LTRIM$(STR$(k)) + ".ogg") : NEXT
@@ -578,6 +630,8 @@ IF _FILEEXISTS(AssetPath$("splash.png")) THEN splashImg& = _LOADIMAGE(AssetPath$
 
 DIM x AS LONG, y AS LONG, texU AS LONG, texV AS LONG, texX AS LONG
 DIM floorRow AS LONG, ceilRow AS LONG, drawStart AS LONG, drawEnd AS LONG
+DIM cellX AS LONG, cellY AS LONG, lastCellX AS LONG, lastCellY AS LONG, floorSlot AS LONG, ceilSlot AS LONG
+DIM cellFloor AS LONG, cellCeil AS LONG, splitCell AS LONG
 DIM savedHasGun(NUM_GUNS) ' What you had on entering the level (you get it back if you die)
 
 moveSpeed = 0.12 ' Cells a frame
@@ -812,6 +866,9 @@ DO
                         itemOn(i) = 0 : health = health + 25 : IF health > MAX_HP THEN health = MAX_HP
                         PlaySfx sndHealth&, 0.8 : ShowMsg "Health pack (+25)" : pickFlash = 10
                     END IF
+                CASE IT_MAP
+                    itemOn(i) = 0 : hasMap = -1
+                    PlaySfx sndCard&, 0.8 : ShowMsg "You found the map!  (TAB for the full map)" : pickFlash = 10
                 CASE IT_BIGMED
                     IF health < MAX_HP THEN
                         itemOn(i) = 0 : health = health + 50 : IF health > MAX_HP THEN health = MAX_HP
@@ -850,7 +907,8 @@ DO
     kKeyDown = _KEYDOWN(107) OR _KEYDOWN(75)
     IF CHEAT_KEYS AND kKeyDown AND NOT kKeyWas AND NOT dead THEN
         FOR k = 1 TO 3 : hasCard(k) = -1 : NEXT
-        PlaySfx sndCard&, 0.8 : ShowMsg "All keycards"
+        hasMap = -1
+        PlaySfx sndCard&, 0.8 : ShowMsg "All keycards, and the map"
     END IF
     kKeyWas = kKeyDown
     ' G: god mode on / off - no damage, and you walk through walls (testing)
@@ -870,6 +928,10 @@ DO
     qlDown = KeyHeld(BIND_QUICKLOAD)
     IF qlDown AND NOT qlWas THEN saveSlot = 0 : GOSUB LoadGame
     qlWas = qlDown
+    ' Tab: the full-screen map on or off (drawn in chapter 18)
+    mapKeyDown = KeyHeld(BIND_MAP)
+    IF mapKeyDown AND NOT mapKeyWas THEN mapOpen = NOT mapOpen
+    mapKeyWas = mapKeyDown
 
     '-------------------------------------------------------------------------
     ' CHAPTER 11: DOORS
@@ -953,6 +1015,7 @@ DO
             PlaySfx gunSnd&(currentGun), 0.7
             hitDamage = gunDamage(currentGun) : IF gunPierce(currentGun) THEN railBeam = 8
             shake = shake + gunKick(currentGun) * 1.5 ' (a big gun shakes the screen - chapter 17)
+            IF setting(SET_XFEEDBACK) THEN crossScale = 0.6 ' The crosshair tightens as you fire
             invDet = 1 /(planeX * dirY - dirX * planeY)
             FOR pellet = 1 TO gunPellets(currentGun)
                 aim = (RND * 2 - 1) * gunSpread(currentGun) ' Across the view: -1 left edge .. 1 right
@@ -968,7 +1031,7 @@ DO
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
                             IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * mtypeScale(monsterType(i)) * 0.3 THEN
-                                IF gunPierce(currentGun) THEN target = i : GOSUB HitMonster ELSE bestMonster = i : bestDist = transformY
+                                IF gunPierce(currentGun) THEN target = i : GOSUB HitMonster : crossFlash = 6 ELSE bestMonster = i : bestDist = transformY
                             END IF
                         END IF
                     END IF
@@ -988,7 +1051,7 @@ DO
                         END IF
                     END IF
                 NEXT
-                IF bestMonster THEN target = bestMonster : GOSUB HitMonster
+                IF bestMonster THEN target = bestMonster : GOSUB HitMonster : crossFlash = 6 ' (the crosshair flashes: a hit)
                 IF bestDeco THEN targetDeco = bestDeco : GOSUB HitDeco
             NEXT
         ELSEIF NOT fireWas THEN
@@ -1051,7 +1114,7 @@ DO
                     ELSEIF monsterTimer(i) = 0 THEN ' ...and hit
                         damage = mtypeDamage(mtype) + INT(RND * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
                         PlaySfx mtypeAttackSnd&(mtype), 0.9
-                        GOSUB HurtPlayer
+                        hurtFromX = monsterX(i) : hurtFromY = monsterY(i) : GOSUB HurtPlayer
                     END IF
                     IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype), goY * mtypeSpeed(mtype)
                 END IF
@@ -1080,7 +1143,9 @@ DO
             IF NOT Walkable(boltX(i), boltY(i)) THEN
                 boltOn(i) = 0 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
             ELSEIF NOT dead AND (boltX(i) - playerX) ^ 2 + (boltY(i) -playerY) ^ 2 < 0.35 * 0.35 THEN
-                boltOn(i) = 0 : damage = boltDamage(i) : GOSUB HurtPlayer
+                boltOn(i) = 0 : damage = boltDamage(i)
+                hurtFromX = boltX(i) - boltDX(i) * 2 : hurtFromY = boltY(i) - boltDY(i) * 2 ' (back along its path)
+                GOSUB HurtPlayer
             END IF
         END IF
     NEXT
@@ -1105,10 +1170,21 @@ DO
     IF pickFlash > 0 THEN pickFlash = pickFlash - 1
 
     '-------------------------------------------------------------------------
-    ' CHAPTER 14: DRAWING THE FLOOR AND CEILING
+    ' CHAPTER 14: LIGHT, AND DRAWING THE FLOOR AND CEILING
     '-------------------------------------------------------------------------
     ' Now we draw the frame into pixels() - floor and ceiling first, then the
     ' walls on top of them (chapter 15), then the sprites (chapter 16).
+    '
+    ' But first, light. Like Doom, the light is kept per cell: litR(),
+    ' litG() and litB() say how much red, green and blue light each cell
+    ' has this frame. Everything in a cell - its floor and ceiling, the
+    ' faces of the walls around it, the monsters in it - is lit by it.
+    ' UpdateLight starts every cell at the level's ambient light, then adds
+    ' each of the level's lights (a light is brightest where it is and
+    ' fades to nothing at its radius, and it doesn't shine through walls),
+    ' made to flicker, pulse or strobe by its effect. Then muzzle flashes,
+    ' explosions and bolts add their glow. A per-cell light is blocky, like
+    ' Doom's, but it's cheap: 48 x 48 cells, not 120,000 pixels.
     '
     ' The horizon is the middle row of the screen. Your eye is half a wall up
     ' from the floor, so every row below the horizon shows the floor at one
@@ -1133,29 +1209,66 @@ DO
     ' the horizon shows the ceiling at the same distance, straight above the
     ' same floor point. So one pass draws both.
     '
-    ' The fog: light& goes from 256 (full colour) close up down to 0 (black)
-    ' 16 cells away, and Shade~& (chapter 23) darkens each colour by it.
+    ' The light: each pixel takes its cell's light (litR, litG, litB), dimmed
+    ' by the fog - fog& goes from 256 close up down to 0 (black) 16 cells
+    ' away. ShadeRGB~& (chapter 23) multiplies the texture's red, green and
+    ' blue by the light's.
+    ' This frame's light: the level's own (UpdateLight, chapter 23), then
+    ' the flashes - your muzzle, explosions, bolts - each a glow that fades
+    ' out over a few cells (AddGlow, chapter 23)
+    UpdateLight
+    IF muzzleFlash > 0 THEN AddGlow playerX, playerY, 5, 70 * muzzleFlash, 40 * muzzleFlash, 40 * muzzleFlash
+    FOR i = 1 TO MAX_BLASTS
+        IF blastTime(i) > 0 THEN
+            f = blastTime(i) / BLAST_FRAMES * blastSize(i)
+            AddGlow blastX(i), blastY(i), 2 + 5 * blastSize(i), 400 * f, 220 * f, 90 * f
+        END IF
+    NEXT
+    FOR i = 1 TO MAX_BOLTS
+        IF boltOn(i) THEN AddGlow boltX(i), boltY(i), 2.5, 160, 40, 170
+    NEXT
     rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
     rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY
     FOR y = RENDER_H \ 2 TO RENDER_H - 1
         rowDist = (viewH / 2) /(y - RENDER_H / 2 + 0.5)
         floorStepX = rowDist * (rayDirX1 - rayDirX0) / RENDER_W : floorStepY = rowDist * (rayDirY1 - rayDirY0) / RENDER_W
         floorX = playerX + rowDist * rayDirX0 : floorY = playerY + rowDist * rayDirY0
-        light& = 256 - rowDist * 16
-        IF light& < 0 THEN light& = 0
+        fog& = 256 - rowDist * 16
+        IF fog& < 0 THEN fog& = 0
         floorRow = y * RENDER_W : ceilRow = (RENDER_H - 1 - y) * RENDER_W
+        lastCellX = -1 : lastCellY = -1
         FOR x = 0 TO RENDER_W - 1
             cellX = INT(floorX) : cellY = INT(floorY)
-            IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
-                floorSlot = floorTex(cellX, cellY) : ceilSlot = ceilTex(cellX, cellY)
+            ' Neighbouring pixels are nearly always in the same cell, so a
+            ' cell's textures and light are only looked up when we cross
+            ' into a new one
+            IF cellX <> lastCellX OR cellY <> lastCellY THEN
+                lastCellX = cellX : lastCellY = cellY : splitCell = 0
+                IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+                    cellFloor = floorTex(cellX, cellY) : cellCeil = ceilTex(cellX, cellY)
+                    splitCell = floorSplit(cellX, cellY) OR ceilSplit(cellX, cellY)
+                    lightR& = litR(cellX, cellY) * fog& \ 256 : lightG& = litG(cellX, cellY) * fog& \ 256 : lightB& = litB(cellX, cellY) * fog& \ 256
+                ELSE
+                    cellFloor = T_FLOOR + 1 : cellCeil = T_CEIL + 1
+                    lightR& = ambientR * fog& \ 256 : lightG& = ambientG * fog& \ 256 : lightB& = ambientB * fog& \ 256
+                END IF
+                IF lightR& > 256 THEN lightR& = 256 ' (full brightness at most: then the sums below can't overflow)
+                IF lightG& > 256 THEN lightG& = 256
+                IF lightB& > 256 THEN lightB& = 256
+            END IF
+            floorSlot = cellFloor : ceilSlot = cellCeil
+            IF splitCell THEN ' A cell split on the diagonal: which half is this pixel in?
                 IF floorSplit(cellX, cellY) THEN IF InDiagonalWall(floorSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN floorSlot = floorTex2(cellX, cellY)
                 IF ceilSplit(cellX, cellY) THEN IF InDiagonalWall(ceilSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN ceilSlot = ceilTex2(cellX, cellY)
-            ELSE
-                floorSlot = T_FLOOR + 1 : ceilSlot = T_CEIL + 1
             END IF
             texU = INT(floorX * TEX_SIZE) AND (TEX_SIZE - 1) : texV = INT(floorY * TEX_SIZE) AND (TEX_SIZE - 1)
-            pixels(floorRow + x) = Shade~&(texture(texU, texV, floorSlot), light&)
-            pixels(ceilRow + x) = Shade~&(texture(texU, texV, ceilSlot), light&)
+            ' The same sum as ShadeRGB~& (chapter 23), written out here: this
+            ' runs 120,000 times a frame, and calling a FUNCTION each time
+            ' would cost more than the sum itself
+            texel~& = texture(texU, texV, floorSlot)
+            pixels(floorRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+            texel~& = texture(texU, texV, ceilSlot)
+            pixels(ceilRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
             floorX = floorX + floorStepX : floorY = floorY + floorStepY
         NEXT
     NEXT
@@ -1230,6 +1343,7 @@ DO
         cameraX = 2 * x / RENDER_W - 1
         rayDirX = dirX + planeX * cameraX : rayDirY = dirY + planeY * cameraX
         mapX = INT(playerX) : mapY = INT(playerY)
+        cellSeen(mapX, mapY) = -1
         deltaDistX = ABS(1 / rayDirX) : deltaDistY = ABS(1 / rayDirY)
 
         IF rayDirX < 0 THEN stepX = -1 : sideDistX = (playerX - mapX) * deltaDistX ELSE stepX = 1 : sideDistX = (mapX + 1 - playerX) * deltaDistX
@@ -1244,6 +1358,7 @@ DO
         WHILE hit = 0
             IF sideDistX < sideDistY THEN sideDistX = sideDistX + deltaDistX : mapX = mapX + stepX : side = 0 ELSE sideDistY = sideDistY + deltaDistY : mapY = mapY + stepY : side = 1
             cellValue = worldMap(mapX, mapY)
+            cellSeen(mapX, mapY) = -1 ' (for the map: you've seen this cell)
             IF diagCorner(mapX, mapY) THEN
                 ' Diagonal wall: came in through its solid half, that's a plain
                 ' wall face; else it hits the diagonal if it crosses it in here
@@ -1270,6 +1385,7 @@ DO
                             hit = 2
                         ELSEIF doorOpenAmt < 1 AND shutterSeen = 0 THEN
                             shutterSeen = -1 : shutterDist = doorDist : shutterU = doorU : shutterOpen = doorOpenAmt : shutterSide = side
+                            IF side = 0 THEN shutterLitX = mapX - stepX : shutterLitY = mapY ELSE shutterLitX = mapX : shutterLitY = mapY - stepY
                         END IF
                 END SELECT
             ELSEIF cellValue > 0 THEN
@@ -1319,13 +1435,27 @@ DO
         IF drawStart < 0 THEN texPos = texPos - drawStart * texStep : drawStart = 0
         IF drawEnd > RENDER_H - 1 THEN drawEnd = RENDER_H-1
 
-        ' Light: distance fog, y-sides darker, diagonals in between
-        light& = 256 - perpWallDist * 16
-        IF light& < 0 THEN light& = 0
-        IF diagHit THEN light& = light& * 0.85 ELSE IF side = 1 THEN light& = light& * 0.7
+        ' Light: the light of the cell in front of the face we hit (for a
+        ' diagonal, its own cell), dimmed by distance fog, y-sides darker and
+        ' diagonals in between
+        fog& = 256 - perpWallDist * 16
+        IF fog& < 0 THEN fog& = 0
+        IF diagHit THEN fog& = fog& * 0.85 ELSE IF side = 1 THEN fog& = fog& * 0.7
+        IF diagHit THEN
+            litX = mapX : litY = mapY
+        ELSEIF side = 0 THEN
+            litX = mapX - stepX : litY = mapY
+        ELSE
+            litX = mapX : litY = mapY - stepY
+        END IF
+        lightR& = litR(litX, litY) * fog& \ 256 : lightG& = litG(litX, litY) * fog& \ 256 : lightB& = litB(litX, litY) * fog& \ 256
+        IF lightR& > 256 THEN lightR& = 256
+        IF lightG& > 256 THEN lightG& = 256
+        IF lightB& > 256 THEN lightB& = 256
 
-        FOR y = drawStart TO drawEnd
-            pixels(y * RENDER_W + x) = Shade~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), texSlot), light&)
+        FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
+            texel~& = texture(texX, INT(texPos) AND (TEX_SIZE - 1), texSlot)
+            pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
             texPos = texPos + texStep
         NEXT
 
@@ -1338,12 +1468,13 @@ DO
             drawStart = shutterTop
             IF drawStart < 0 THEN texPos = texPos - drawStart * texStep : drawStart = 0
             IF drawEnd > RENDER_H - 1 THEN drawEnd = RENDER_H-1
-            light& = 256 - shutterDist * 16
-            IF light& < 0 THEN light& = 0
-            IF shutterSide = 1 THEN light& = light& * 0.7
+            fog& = 256 - shutterDist * 16
+            IF fog& < 0 THEN fog& = 0
+            IF shutterSide = 1 THEN fog& = fog& * 0.7
+            lightR& = litR(shutterLitX, shutterLitY) * fog& \ 256 : lightG& = litG(shutterLitX, shutterLitY) * fog& \ 256 : lightB& = litB(shutterLitX, shutterLitY) * fog& \ 256
             texX = INT(shutterU * TEX_SIZE) AND (TEX_SIZE - 1)
             FOR y = drawStart TO drawEnd
-                pixels(y * RENDER_W + x) = Shade~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), T_SHUTTER), light&)
+                pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), T_SHUTTER), lightR&, lightG&, lightB&)
                 texPos = texPos + texStep
             NEXT
             IF shutterOpen < 0.5 THEN zBuffer(x) = shutterDist ' Mostly down: things behind it stay hidden
@@ -1446,8 +1577,14 @@ DO
             IF spriteH < 1 THEN spriteH = 1
             spriteTop = INT(RENDER_H / 2 + (0.5 - drawLift(i)) * viewH / transformY) -spriteH ' Bottom edge lifted off the floor
             spriteLeft = INT(RENDER_W / 2 * (1 + transformX / transformY)) - spriteW \ 2
-            light& = 256 - transformY * 10
-            IF light& < drawMinShade(i) THEN light& = drawMinShade(i)
+            ' Lit by the cell it's in, dimmed by fog - but never darker than
+            ' its drawMinShade (things that glow)
+            fog& = 256 - transformY * 10 : IF fog& < 0 THEN fog& = 0
+            litX = INT(drawX(i)) : litY = INT(drawY(i))
+            lightR& = litR(litX, litY) * fog& \ 256 : lightG& = litG(litX, litY) * fog& \ 256 : lightB& = litB(litX, litY) * fog& \ 256
+            IF lightR& < drawMinShade(i) THEN lightR& = drawMinShade(i)
+            IF lightG& < drawMinShade(i) THEN lightG& = drawMinShade(i)
+            IF lightB& < drawMinShade(i) THEN lightB& = drawMinShade(i)
             spriteSz = spriteSize(drawSprite(i)) : spriteSlot = drawSprite(i)
             FOR screenX = spriteLeft TO spriteLeft + spriteW - 1
                 IF screenX >= 0 AND screenX < RENDER_W THEN
@@ -1456,7 +1593,7 @@ DO
                         FOR screenY = spriteTop TO spriteTop + spriteH - 1
                             IF screenY >= 0 AND screenY < RENDER_H THEN
                                 texel~& = spriteTex(spriteU,(screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
-                                IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = Shade~&(texel~&, light&)
+                                IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = ShadeRGB~&(texel~&, lightR&, lightG&, lightB&)
                             END IF
                         NEXT
                     END IF
@@ -1496,6 +1633,9 @@ DO
     ' _PRINTSTRING for text. Colours made with _RGBA32 have an alpha (0
     ' clear .. 255 solid), so a LINE ... BF over the whole screen with a low
     ' alpha tints everything: red when you're hurt, yellow for a pickup.
+    '
+    ' The map comes last: the minimap in the corner once you've found the
+    ' map pickup, and the full-screen map when Tab is on.
     '
     ' The gun sways as you walk (bobPhase, from chapter 9), kicks when it
     ' fires (recoil, which shrinks a quarter every frame), and dips out of
@@ -1539,50 +1679,39 @@ DO
         NEXT
     END IF
 
-    IF NOT dead THEN DrawCrosshair 400, 300 ' (its style, colour and size are settings)
+    ' The crosshair - its style, colour, size and opacity are settings, and
+    ' with CROSSHAIR FEEDBACK it tightens as you fire, jolts wide when
+    ' you're hit and flashes white when your shot hits something, easing
+    ' back each frame - and the damage indicators: a red arc around it for
+    ' each recent hit, pointing where it came from. Each one remembers
+    ' where the hit came from, not which way it pointed, so the arc turns
+    ' as you do - turn until it's at the top, and you're facing it.
+    IF NOT dead THEN DrawCrosshair 400, 300
+    crossScale = 1 + (crossScale - 1) * 0.85
+    IF crossFlash > 0 THEN crossFlash = crossFlash - 1
     IF hurtFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 0, 0, hurtFlash * 9), BF
     IF pickFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 255, 160, pickFlash * 4), BF
+    IF setting(SET_HURTDIR) THEN DrawHurtDirs playerX, playerY, dirX, dirY ' (over the red flash, so they stand out)
     IF godMode THEN HudText 16, 498, "GOD MODE", _RGB32(255, 215, 30)
 
-    ' Minimap: one small square per map cell, straight from worldMap. Walls
-    ' are each kind's texture colour; doors orange (key doors in their
-    ' card's colour, dark centre) when shut, white while opening, green when
-    ' open; the exit blinks green; then keycards, and you with a line
-    ' showing which way you face.
-    LINE (MINIMAP_X - 2, MINIMAP_Y - 2)-(MINIMAP_X + MAP_SIZE * MINIMAP_CELL + 1, MINIMAP_Y + MAP_SIZE * MINIMAP_CELL + 1), _RGBA32(0, 0, 0, 160), BF
-    FOR mapY = 0 TO MAP_SIZE - 1 : FOR mapX = 0 TO MAP_SIZE-1
-        mmColor~& = 0
-        SELECT CASE worldMap(mapX, mapY)
-            CASE 1, 3 TO 7 : mmColor~& = wallMapColor(worldMap(mapX, mapY))
-            CASE 2
-                IF doorType(mapX, mapY) = DOOR_EXIT THEN
-                    IF (TIMER * 4 AND 1) = 0 THEN mmColor~& = _RGB32(80, 255, 120) ELSE mmColor~& = _RGB32(20, 120, 50)
-                ELSEIF doorOpen(mapX, mapY) = 0 THEN
-                    IF doorKey(mapX, mapY) THEN mmColor~& = CardRGB~&(doorKey(mapX, mapY)) ELSE mmColor~& = _RGB32(255, 140, 20)
-                ELSEIF doorOpen(mapX, mapY) < 1 THEN
-                    mmColor~& = _RGB32(230, 230, 230)
-                ELSE
-                    mmColor~& = _RGB32(40, 200, 80)
-                END IF
-        END SELECT
-        IF mmColor~& <> 0 AND diagCorner(mapX, mapY) <> 0 THEN ' Diagonal: just its solid half
-            FOR mmPixY = 0 TO MINIMAP_CELL - 1 : FOR mmPixX = 0 TO MINIMAP_CELL - 1
-                IF InDiagonalWall(diagCorner(mapX, mapY), (mmPixX + 0.5) / MINIMAP_CELL, (mmPixY + 0.5) / MINIMAP_CELL) THEN PSET (MINIMAP_X + mapX * MINIMAP_CELL + mmPixX, MINIMAP_Y + mapY * MINIMAP_CELL + mmPixY), mmColor~&
-            NEXT : NEXT
-        ELSEIF mmColor~& THEN
-            LINE (MINIMAP_X + mapX * MINIMAP_CELL, MINIMAP_Y + mapY * MINIMAP_CELL)-STEP(MINIMAP_CELL - 1, MINIMAP_CELL-1), mmColor~&, BF
-            IF doorKey(mapX, mapY) AND doorOpen(mapX, mapY) = 0 THEN PSET (MINIMAP_X + mapX * MINIMAP_CELL + MINIMAP_CELL \ 2, MINIMAP_Y + mapY * MINIMAP_CELL + MINIMAP_CELL \ 2), _RGB32(0, 0, 0)
-        END IF
-    NEXT : NEXT
-    IF (TIMER * 4 AND 1) = 0 THEN ' Keycards blink (on for a quarter second, off for one)
-        FOR i = 1 TO numItems
-            IF itemOn(i) AND itemKind(i) <= 3 THEN LINE (MINIMAP_X + itemX(i) * MINIMAP_CELL - 1, MINIMAP_Y + itemY(i) * MINIMAP_CELL - 1)-STEP(2, 2), CardRGB~&(itemKind(i)), BF
-        NEXT
+    ' The map (DrawMap, chapter 23). The minimap in the corner only appears
+    ' once you've found this level's map pickup. Tab opens the full-screen
+    ' map: without the pickup it shows only the cells you've seen - you draw
+    ' it as you explore - and with it, the whole level.
+    IF hasMap AND NOT mapOpen THEN
+        DrawMap MINIMAP_X, MINIMAP_Y, MINIMAP_CELL, -1, playerX, playerY, dirX, dirY
+        killsY = MINIMAP_Y + MAP_SIZE * MINIMAP_CELL + 6
+    ELSE
+        killsY = MINIMAP_Y
     END IF
-    mmPlayerX = MINIMAP_X + playerX * MINIMAP_CELL : mmPlayerY = MINIMAP_Y + playerY * MINIMAP_CELL
-    LINE (mmPlayerX, mmPlayerY)-(mmPlayerX + dirX * 6, mmPlayerY + dirY * 6), _RGB32(255, 255, 0)
-    LINE (mmPlayerX - 1, mmPlayerY - 1)-STEP(2, 2), _RGB32(255, 255, 0), BF
-    HudText MINIMAP_X, MINIMAP_Y + MAP_SIZE * MINIMAP_CELL + 6, "KILLS" + STR$(kills) + " /" + STR$(numMonsters), _RGB32(255, 90, 90)
+    IF mapOpen THEN
+        LINE (0, 0)-(799, 599), _RGBA32(0, 4, 14, 225), BF
+        MenuText 400, 14, levelName$, 2, _RGB32(255, 100, 215), 1
+        DrawMap 400 - MAP_SIZE * 5, 60, 10, hasMap, playerX, playerY, dirX, dirY
+        IF hasMap THEN mapNote$ = "TAB  CLOSE THE MAP" ELSE mapNote$ = "NO MAP YET - ONLY WHERE YOU'VE BEEN.   TAB  CLOSE"
+        MenuText 400, 552, mapNote$, 1, _RGB32(170, 170, 200), 1
+    END IF
+    IF NOT mapOpen THEN HudText MINIMAP_X, killsY, "KILLS" + STR$(kills) + " /" + STR$(numMonsters), _RGB32(255, 90, 90)
 
     ' Keycards you hold, top right
     cardX = 800 - 16
@@ -1622,7 +1751,7 @@ DO
     NEXT
 
     ' Message line
-    IF TIMER < messageUntil! AND LEN(message$) THEN
+    IF TIMER < messageUntil! AND LEN(message$) AND NOT mapOpen THEN
         HudText 400 - LEN(message$) * 4, 510, message$, _RGB32(255, 255, 255)
     END IF
 
@@ -1659,9 +1788,14 @@ ELSE
 END IF
 RETURN
 
-' --- You take `damage` (armour soaks up a third of it while it lasts)
+' --- You take `damage` (armour soaks up a third of it while it lasts). If
+' the caller said where it came from (hurtFromX, hurtFromY), a damage
+' indicator points there (chapter 18).
 HurtPlayer:
-IF godMode THEN RETURN
+IF godMode THEN hurtFromX = -1 : RETURN
+IF setting(SET_XFEEDBACK) THEN crossScale = 1.8 ' The crosshair jolts wide
+IF hurtFromX >= 0 THEN AddHurtDir hurtFromX, hurtFromY
+hurtFromX = -1
 absorbed = damage \ 3 : IF absorbed > armor THEN absorbed = armor
 armor = armor - absorbed : damage = damage - absorbed
 health = health - damage : hurtFlash = 14 : shake = shake + damage / 2
@@ -1692,7 +1826,10 @@ FOR j = 1 TO numMonsters
 NEXT
 distance = SQR((playerX - decoX(barrel)) ^ 2 + (playerY - decoY(barrel)) ^ 2)
 IF distance < BLAST_RADIUS AND NOT dead THEN
-    IF CanSee(decoX(barrel), decoY(barrel), playerX, playerY) THEN damage = INT(40 * (1 - distance / BLAST_RADIUS)) + 5 : GOSUB HurtPlayer
+    IF CanSee(decoX(barrel), decoY(barrel), playerX, playerY) THEN
+        damage = INT(40 * (1 - distance / BLAST_RADIUS)) + 5
+        hurtFromX = decoX(barrel) : hurtFromY = decoY(barrel) : GOSUB HurtPlayer
+    END IF
 END IF
 FOR j = 1 TO numDecos
     IF decoOn(j) THEN
@@ -1905,8 +2042,9 @@ LoadLevel:
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
     worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorKey(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0
     floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
+    cellSeen(x, y) = 0
 NEXT : NEXT
-numItems = 0 : numMonsters = 0 : numDecos = 0
+numItems = 0 : numMonsters = 0 : numDecos = 0 : hasMap = 0 : mapOpen = 0
 FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
 FOR i = 1 TO MAX_BLASTS : blastTime(i) = 0 : NEXT
@@ -1920,6 +2058,8 @@ READ levelName$
 FOR k = 1 TO 6 : READ file$ : LoadTex file$, k : NEXT ' Walls # N C K P G
 FOR k = 1 TO 4 : READ file$ : LoadTex file$, T_FLOOR + k : NEXT
 FOR k = 1 TO 2 : READ file$ : LoadTex file$, T_CEIL + k : NEXT
+READ ambientLevel, ambientTintR, ambientTintG, ambientTintB ' The level's ambient light: brightness, then colour
+ambientR = ambientLevel * ambientTintR / 255 : ambientG = ambientLevel * ambientTintG / 255 : ambientB = ambientLevel * ambientTintB / 255
 FOR k = 1 TO 7
     IF k <> 2 THEN wallMapColor(k) = MinimapColor~&(wallTexSlot(k))
 NEXT
@@ -1950,6 +2090,13 @@ FOR k = 1 TO numZones
         END IF
     NEXT : NEXT
 NEXT
+' The level's lights: x, y, radius, brightness, red, green, blue, effect
+numLights = 0
+READ numLightsData
+FOR k = 1 TO numLightsData
+    READ lx, ly, lRadius, lBright, lRed, lGreen, lBlue, lEffect
+    AddLight lx, ly, lRadius, lBright * lRed / 255, lBright * lGreen / 255, lBright * lBlue / 255, lEffect, 0
+NEXT
 FOR y = 0 TO MAP_SIZE - 1
     READ row$
     FOR x = 0 TO MAP_SIZE - 1
@@ -1969,11 +2116,11 @@ FOR y = 0 TO MAP_SIZE - 1
             CASE "E" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_EXIT
             CASE "R", "B", "Y" ' Key door: needs that keycard
                 worldMap(x, y) = 2 : doorKey(x, y) = INSTR("RBY", cell$)
-            CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4" ' Something to pick up
+            CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M" ' Something to pick up
                 IF numItems < MAX_ITEMS THEN
                     numItems = numItems + 1
                     itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
-                    itemKind(numItems) = INSTR("rby+ae23u*4", cell$)
+                    itemKind(numItems) = INSTR("rby+ae23u*4M", cell$)
                 END IF
             CASE "o", "i", "p", "t" ' A decoration
                 IF numDecos < MAX_DECO THEN
@@ -2013,6 +2160,18 @@ FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
         IF IsWall(x, bestNbY) THEN worldMap(x, y) = worldMap(x, bestNbY) ELSE IF IsWall(bestNbX, y) THEN worldMap(x, y) = worldMap(bestNbX, y)
     END IF
 NEXT : NEXT
+' Things that glow by themselves get a light of their own: lamps (cyan;
+' every fourth one flickers), terminals (a faint green pulse), and the exit
+' (green). A lamp or terminal's light belongs to it, so it goes out when
+' it's broken.
+FOR i = 1 TO numDecos
+    IF decoKind(i) = 2 THEN AddLight decoX(i), decoY(i), 4, 110, 190, 220, (i MOD 4 = 0) * -FX_FLICKER, i
+    IF decoKind(i) = 4 THEN AddLight decoX(i), decoY(i), 2.5, 40, 90, 70, FX_PULSE, i
+NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+    IF worldMap(x, y) = 2 AND doorType(x, y) = DOOR_EXIT THEN AddLight x + 0.5, y + 0.5, 3.5, 50, 160, 70, FX_PULSE, 0
+NEXT : NEXT
+BuildLights ' Which cells each light reaches (now the walls are all in place)
 ' The camera plane (chapter 8): your direction turned 90 degrees, fovPlane long
 planeX = dirY * fovPlane : planeY = - dirX * fovPlane
 aimAmount = 0 : zoom = 1 : viewH = RENDER_H
@@ -2020,7 +2179,8 @@ kills = 0 : dead = 0 : swapTimer = 0
 hurtFlash = 0 : pickFlash = 0 : muzzleFlash = 0 : recoil = 0 : railBeam = 0
 fireWait = 20 ' (so the click that started the level doesn't fire)
 bobPhase = 0 : stepDist = STEP_LEN * 0.85 ' The first footstep sounds soon after you start walking
-levelStart! = TIMER : shake = 0
+levelStart! = TIMER : shake = 0 : hurtFromX = -1
+FOR i = 1 TO MAX_HURTDIRS : hurtDirTime(i) = 0 : NEXT
 PlayMusic levelMusic&(level)
 ShowMsg levelName$ + "  -  find the EXIT"
 RETURN
@@ -2296,6 +2456,8 @@ PUT #fileNum, , playerX : PUT #fileNum, , playerY : PUT #fileNum, , dirX : PUT #
 PUT #fileNum, , ammoCount(AM_CELLS) : PUT #fileNum, , ammoCount(AM_SHELLS)
 FOR gun = 1 TO NUM_GUNS : PUT #fileNum, , hasGun(gun) : PUT #fileNum, , savedHasGun(gun) : NEXT
 FOR k = 1 TO 3 : PUT #fileNum, , hasCard(k) : NEXT
+PUT #fileNum, , hasMap
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , cellSeen(x, y) : NEXT : NEXT
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , doorOpen(x, y) : NEXT : NEXT
 PUT #fileNum, , numItems
 FOR i = 1 TO numItems : PUT #fileNum, , itemOn(i) : NEXT
@@ -2330,6 +2492,8 @@ GET #fileNum, , playerX : GET #fileNum, , playerY : GET #fileNum, , dirX : GET #
 GET #fileNum, , ammoCount(AM_CELLS) : GET #fileNum, , ammoCount(AM_SHELLS)
 FOR gun = 1 TO NUM_GUNS : GET #fileNum, , hasGun(gun) : GET #fileNum, , savedHasGun(gun) : NEXT
 FOR k = 1 TO 3 : GET #fileNum, , hasCard(k) : NEXT
+GET #fileNum, , hasMap
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , cellSeen(x, y) : NEXT : NEXT
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , doorOpen(x, y) : NEXT : NEXT
 ' The level must have the same things in it as when it was saved
 GET #fileNum, , savedCount : IF savedCount <> numItems THEN GOSUB LoadMismatch : RETURN
@@ -2372,15 +2536,19 @@ RETURN
 '
 ' Each level is, in order:
 '
-' --- Part 1: its name and textures ------------------------------------------
+' --- Part 1: its name, textures and ambient light -------------------------
 '
 '   DATA "SECTOR 2: REACTOR CORE"            shown as you arrive, and on the tally
 '   DATA six wall pictures                   for # N C K P G, in that order
 '   DATA four floor pictures                 floors 1-4 (for the zones below)
 '   DATA two ceiling pictures                ceilings 1-2
+'   DATA brightness, red, green, blue        the ambient light (chapter 14)
 '
-' (all from neon-caster/, 64x64; doors, keycards and the exit are the same
-' in every level). On the minimap each wall kind is its picture's colour.
+' (pictures from neon-caster/, 64x64; doors, keycards and the exit are the
+' same in every level). On the minimap each wall kind is its picture's
+' colour. The ambient light is the light every cell has before any lights
+' are added: brightness 0 (black) to 256 (textures in their own colours),
+' tinted by red, green and blue (0-255 each; 255, 255, 255 is white).
 '
 ' --- Part 2: floor / ceiling zones -----------------------------------------
 '
@@ -2404,7 +2572,25 @@ RETURN
 ' paint one texture on the far side of one diagonal, then the old texture
 ' back past another diagonal beside it (level 3's water channel does this).
 '
-' --- Part 3: the map, one string per row ------------------------------------
+' --- Part 3: lights ----------------------------------------------------------
+'
+' First a count, then that many lines of:
+'   x, y, radius, brightness, red, green, blue, effect
+'
+'   x, y         where it is, in cells (20.5 is the middle of cell 20). Not
+'                inside a wall.
+'   radius       how far it reaches, in cells: brightest at the light, fading
+'                to nothing at the radius. It doesn't shine through walls.
+'   brightness   0-400, added to the ambient light (256 is a lot)
+'   red, green, blue   its colour, 0-255 each
+'   effect       0 steady   1 a flickering fluorescent tube   2 a slow pulse
+'                3 an alarm strobe (twice a second)   4 firelight
+'                5 a dying tube: dark, sputtering on now and then
+'
+' Lamps (i), terminals (t) and the exit (E) also give off light of their
+' own - you don't list those. Break a lamp and its light goes out.
+'
+' --- Part 4: the map, one string per row ------------------------------------
 '
 ' Exactly MAP_SIZE strings of exactly MAP_SIZE characters. Anything not
 ' listed below (or a missing character) is plain floor.
@@ -2453,6 +2639,9 @@ RETURN
 '   r  b  y  red / blue / yellow keycard: kept for the rest of the level, it
 '            opens every door of its colour. Shown top right once you
 '            have it, and blinks on the minimap until then.
+'   M        the map: it puts the minimap in the corner, and shows the
+'            whole level on the full-screen map (Tab). Without it, Tab
+'            only shows the places you've seen. One a level.
 '   +        health pack: +25 health (up to 100)
 '   *        big medkit: +50 health (up to 100)
 '   u        armour: +50 armour (up to 100). Armour takes a third of the
@@ -2523,18 +2712,34 @@ DATA "SECTOR 1: NEON STATION"
 DATA "wall.png", "wall2.png", "wall-concrete.png", "wall-servers.png", "wall-pipes.png", "wall-biolab.png"
 DATA "floor.png", "floor-plates.png", "floor-concrete.png", "floor-lab.png"
 DATA "ceiling.png", "ceiling-lights.png"
+DATA 165, 225, 220, 255
 DATA 5
 DATA 19, 19, 28, 28, 2, 1, 0
 DATA 5, 5, 21, 21, 3, 2, 0
 DATA 26, 5, 42, 21, 2, 2, 0
 DATA 30, 26, 42, 42, 4, 2, 0
 DATA 30, 30, 42, 42, 2, 0, 3
+DATA 14
+DATA 23.5, 23.5, 6, 130, 210, 120, 255, 0
+DATA 10.5, 2.5, 5, 150, 220, 230, 255, 1
+DATA 35.5, 2.5, 5, 150, 220, 230, 255, 1
+DATA 2.5, 24.5, 5, 140, 220, 230, 255, 1
+DATA 24.5, 45.5, 5, 160, 220, 230, 255, 5
+DATA 44.5, 24.5, 5, 140, 220, 230, 255, 0
+DATA 8.5, 7.5, 5, 130, 255, 215, 170, 0
+DATA 10.5, 16.5, 5, 110, 230, 230, 255, 1
+DATA 34.5, 5.5, 6, 140, 110, 220, 255, 2
+DATA 30.5, 14.5, 5, 110, 110, 220, 255, 2
+DATA 36.5, 30.5, 7, 150, 130, 255, 160, 0
+DATA 36.5, 33.5, 4, 170, 255, 50, 50, 3
+DATA 10.5, 30.5, 5, 150, 255, 160, 80, 4
+DATA 10.5, 39.5, 5, 130, 255, 160, 80, 4
 DATA "################################################"
 DATA "################################################"
 DATA "###/.......................................+\###"
 DATA "##/..........................................\##"
 DATA "##..CCCCHCCCCCCCCCCCCCC..KKKKKKKKKYKKKKKKKKK..##"
-DATA "##..C/....e\C.......a.C..K.................K..##"
+DATA "##..C/....e\C......Ma.C..K.................K..##"
 DATA "##..C.......C.........C..Y..KKK......KKK...K..##"
 DATA "##..C...m...H.........C..K.oo...g.......m..K..##"
 DATA "##..C.......C.....g...H..Ka................K..##"
@@ -2586,6 +2791,7 @@ DATA "SECTOR 2: REACTOR CORE"
 DATA "wall-reactor.png", "wall-coils.png", "wall-rusty.png", "wall-control.png", "wall-hazard.png", "wall-stripes.png"
 DATA "floor-glow.png", "floor-scorched.png", "floor-hazard.png", "floor-plates.png"
 DATA "ceiling-vents.png", "ceiling-warning.png"
+DATA 115, 255, 190, 150
 DATA 11
 DATA 15, 15, 32, 32, 1, 2, 0
 DATA 15, 15, 22, 22, 3, 0, 1
@@ -2598,6 +2804,21 @@ DATA 34, 3, 45, 14, 1, 0, 2
 DATA 15, 3, 32, 13, 4, 2, 0
 DATA 3, 35, 45, 45, 2, 1, 0
 DATA 39, 35, 45, 45, 3, 2, 0
+DATA 14
+DATA 24, 19.5, 7, 190, 255, 140, 50, 2
+DATA 24, 28.5, 7, 190, 255, 140, 50, 2
+DATA 19.5, 24, 7, 190, 255, 140, 50, 2
+DATA 28.5, 24, 7, 190, 255, 140, 50, 2
+DATA 24.5, 8.5, 6, 150, 255, 230, 150, 0
+DATA 17.5, 11.5, 3, 180, 255, 50, 40, 3
+DATA 40.5, 10.5, 6, 130, 120, 220, 255, 0
+DATA 40.5, 25.5, 6, 130, 120, 220, 255, 1
+DATA 8.5, 15.5, 6, 120, 230, 230, 255, 5
+DATA 8.5, 28.5, 5, 120, 255, 220, 170, 0
+DATA 6.5, 37.5, 4, 200, 255, 40, 30, 3
+DATA 33.5, 37.5, 4, 200, 255, 40, 30, 3
+DATA 20.5, 42.5, 8, 110, 255, 150, 70, 4
+DATA 42.5, 40.5, 5, 170, 240, 240, 255, 0
 DATA "################################################"
 DATA "################################################"
 DATA "##CCCCCCCCCCCCKKKKKKKKKKEKKKKKKKKKPPPPPPPPPPPPP#"
@@ -2607,7 +2828,7 @@ DATA "##C.......oo..K/.t............t.\K......y.....P#"
 DATA "##C..r....o...K..................K..s.........P#"
 DATA "##C...........K....K........K....K.../\.......P#"
 DATA "##C...........K....K....h...K....K...\/.......P#"
-DATA "##C.....e.....K....K........K....K............P#"
+DATA "##C...M.e.....K....K........K....K............P#"
 DATA "##C...........K..................K......./\...P#"
 DATA "##C...........K\..g...........g./K...a...\/...P#"
 DATA "##C..oo.......KK\....t.....t.../KK..........s.P#"
@@ -2655,6 +2876,7 @@ DATA "SECTOR 3: UNDERCITY"
 DATA "wall-brick.png", "wall-graffiti.png", "wall-moss.png", "wall-grate.png", "wall-greenpipes.png", "wall-slime.png"
 DATA "floor-cobbles.png", "floor-murky.png", "floor-rustgrate.png", "floor-concrete.png"
 DATA "ceiling-stone.png", "ceiling-pipes.png"
+DATA 80, 170, 230, 190
 DATA 9
 DATA 2, 3, 44, 45, 2, 0, 2
 DATA 3, 2, 45, 44, 1, 0, 2
@@ -2665,13 +2887,23 @@ DATA 3, 12, 7, 22, 4, 1, 0
 DATA 3, 26, 14, 45, 2, 1, 0
 DATA 3, 26, 14, 37, 4, 0, 1
 DATA 18, 34, 28, 45, 3, 2, 0
+DATA 9
+DATA 12.5, 12.5, 5, 120, 120, 255, 140, 2
+DATA 36.5, 36.5, 5, 120, 120, 255, 140, 2
+DATA 17.5, 5.5, 5, 140, 255, 210, 150, 1
+DATA 35.5, 10.5, 8, 140, 200, 255, 200, 0
+DATA 43.5, 6.5, 3, 190, 255, 50, 40, 3
+DATA 37.5, 26.5, 6, 130, 120, 230, 255, 2
+DATA 5.5, 17.5, 4, 110, 255, 80, 60, 4
+DATA 8.5, 35.5, 7, 120, 140, 220, 255, 5
+DATA 23.5, 40.5, 6, 160, 230, 230, 255, 1
 DATA "################################################"
 DATA "#CCCCCCCCCC#############PPPPPPPPPPPPPPPPPPPPPPP#"
 DATA "#CCCCCCCCCC#############PPPPPPPPPPPPPPPPPPPPPPP#"
 DATA "#CC...\CCCC#...........#PPPP/..............\PPP#"
 DATA "#CC....\CCC#..u.....g..#PPP/................\PP#"
 DATA "#CC..>....D.......e....#PP/..oo...h........y.\P#"
-DATA "#CC\.....\C#....o....a.#PP..g.................P#"
+DATA "#CC\.....\C#.M..o....a.#PP..g.................P#"
 DATA "#CCC\.....\#...........#PP..../\.../\.../\....P#"
 DATA "#CCCC\.....\############PP....\/...\/...\/....P#"
 DATA "#CCCCC\..c..\CCCCCCCCCCPPP....................P#"
@@ -2721,6 +2953,7 @@ DATA "SECTOR 4: CRYO LAB"
 DATA "wall-white.png", "wall-terminals.png", "wall-frost.png", "wall-tiles.png", "wall-cryo.png", "wall-ice.png"
 DATA "floor-white.png", "floor-frostgrate.png", "floor-ice.png", "floor-lab.png"
 DATA "ceiling-lights.png", "ceiling-frost.png"
+DATA 175, 200, 225, 255
 DATA 11
 DATA 2, 2, 45, 45, 2, 2, 0
 DATA 12, 12, 36, 36, 1, 1, 0
@@ -2733,6 +2966,17 @@ DATA 3, 3, 15, 15, 4, 1, 0
 DATA 33, 3, 45, 15, 1, 1, 0
 DATA 3, 33, 15, 45, 4, 1, 0
 DATA 33, 33, 45, 45, 3, 2, 0
+DATA 10
+DATA 24, 28.5, 7, 160, 120, 230, 255, 2
+DATA 24, 19.5, 7, 160, 120, 230, 255, 2
+DATA 9.5, 9.5, 6, 150, 240, 240, 255, 0
+DATA 39.5, 9.5, 6, 150, 120, 230, 255, 0
+DATA 9.5, 39.5, 6, 150, 240, 240, 255, 1
+DATA 36.5, 42.5, 6, 150, 140, 180, 255, 2
+DATA 24.5, 5.5, 5, 140, 230, 240, 255, 1
+DATA 24.5, 43.5, 5, 140, 230, 240, 255, 0
+DATA 5.5, 24.5, 4, 180, 255, 50, 40, 3
+DATA 43.5, 24.5, 5, 140, 230, 240, 255, 5
 DATA "################################################"
 DATA "###############KKKKKKKKKKKKKKKKKPPPPPPPPPPPPPPPP"
 DATA "###############KKKKKKKKKKKKKKKKKPPPPPPPEPPPPPPPP"
@@ -2771,7 +3015,7 @@ DATA "####/.........\CCCCCCC\../CCCCCCGG/.........\GGG"
 DATA "###/.......t...\CCCCCCC\/CCCCCCCG/..h........\GG"
 DATA "###..g..e.......CCCCCCCC.CCCCCCCG...........s.GG"
 DATA "###.............CCCCCCCC.CCCCCCCG..a../\......GG"
-DATA "###.............########X#######G..../GG\.....GG"
+DATA "###...M.........########X#######G..../GG\.....GG"
 DATA "###.........m...KKKKKKKK.KKKKKKKG....\GG/.....GG"
 DATA "###.t...........KKKKKKKK.KKKKKKKG.....\/...*..GG"
 DATA "###..........+...D.............B..............GG"
@@ -3325,7 +3569,7 @@ END SUB
 FUNCTION SettingText$(id)
     v$ = LTRIM$(STR$(setting(id)))
     SELECT CASE id
-        CASE SET_SFX, SET_MUSIC, SET_SPEECH : SettingText$ = v$ + "%"
+        CASE SET_SFX, SET_MUSIC, SET_SPEECH, SET_XALPHA : SettingText$ = v$ + "%"
         CASE SET_FOV : SettingText$ = v$ + CHR$(248) ' (a degree sign in QB64PE's font)
         CASE SET_XSTYLE : SettingText$ = CrossStyleName$(setting(id))
         CASE SET_XCOLOR : SettingText$ = CrossColorName$(setting(id))
@@ -3451,7 +3695,8 @@ SUB BuildMenu(scr)
         CASE SCR_GAMEPLAY
             menuTitle$ = "GAMEPLAY" : menuWide = -1
             AddSettingItem SET_FOV : AddSettingItem SET_XSTYLE : AddSettingItem SET_XCOLOR
-            AddSettingItem SET_XSIZE : AddSettingItem SET_BOB : AddSettingItem SET_SHAKE
+            AddSettingItem SET_XSIZE : AddSettingItem SET_XALPHA : AddSettingItem SET_XFEEDBACK
+            AddSettingItem SET_BOB : AddSettingItem SET_SHAKE : AddSettingItem SET_HURTDIR
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_CONTROLS
             menuTitle$ = "CONTROLS" : menuWide = -1
@@ -3466,7 +3711,7 @@ SUB BuildMenu(scr)
             AddMenuItem "RAYCASTING  AFTER LODE VANDEVENNE", MI_TEXT, 0, 0, 0, ""
             AddMenuItem "ART  PIXELMON  (ENDESGA-32)", MI_TEXT, 0, 0, 0, ""
             AddMenuItem "SOUND  PWMSFXR", MI_TEXT, 0, 0, 0, ""
-            AddMenuItem "MUSIC  SOUNDMON  (OPL3 FM)", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "MUSIC  SOUNDMON", MI_TEXT, 0, 0, 0, ""
             AddMenuItem "", MI_TEXT, 0, 0, 0, ""
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_QUIT
@@ -3651,10 +3896,13 @@ SUB MenuText(x, y, text$, scale, col~&, align)
     _FREEIMAGE img&
 END SUB
 
-' The crosshair at (cx, cy), in the style, colour and size the settings say
+' The crosshair at (cx, cy), in the style, colour, size and opacity the
+' settings say - and as big as crossScale and as white as crossFlash say
 SUB DrawCrosshair(cx, cy)
     col~& = CrossColor~&(setting(SET_XCOLOR))
-    armLen = 2 + setting(SET_XSIZE) * 2
+    IF crossFlash > 0 THEN col~& = _RGB32(255, 255, 255) ' A hit!
+    col~& = _RGBA32(_RED32(col~&), _GREEN32(col~&), _BLUE32(col~&), setting(SET_XALPHA) * 255 / 100)
+    armLen = (2 + setting(SET_XSIZE) * 2) * crossScale
     SELECT CASE setting(SET_XSTYLE)
         CASE 1 ' Cross
             LINE (cx - armLen, cy)-(cx + armLen, cy), col~& : LINE (cx, cy - armLen)-(cx, cy + armLen), col~&
@@ -3729,3 +3977,229 @@ SUB PlayMusic(snd&)
     nowPlaying& = snd&
     IF snd& > 0 THEN _SNDVOL snd&, setting(SET_MUSIC) / 100 : _SNDLOOP snd&
 END SUB
+
+' === LIGHT AND THE MAP (chapters 14 and 18) ====================================
+
+' One more light for this level: where, how far it reaches, its light for
+' red, green and blue (brightness times colour), its effect (FX_), and the
+' decoration it belongs to (0 for none)
+SUB AddLight(x, y, radius, r, g, b, effect, deco)
+    IF numLights >= MAX_LIGHTS THEN EXIT SUB
+    numLights = numLights + 1
+    lightX(numLights) = x : lightY(numLights) = y : lightRadius(numLights) = radius
+    lightR(numLights) = r : lightG(numLights) = g : lightB(numLights) = b
+    lightEffect(numLights) = effect : lightDeco(numLights) = deco
+    lightPhase(numLights) = RND * 6.28 : lightTimer(numLights) = 0 ' (so no two flicker in step)
+END SUB
+
+' Work out, once per level, which cells each light reaches and how
+' strongly: every cell within its radius that it can see (LightReaches),
+' brightest at the light and fading to nothing at the radius. Walls don't
+' move, so this never changes - each frame only has to add the lists up.
+SUB BuildLights
+    numLit = 0
+    FOR l = 1 TO numLights
+        lightFirst(l) = numLit + 1 : lightCount(l) = 0 : rad = lightRadius(l)
+        FOR cellY = INT(lightY(l) - rad) TO INT(lightY(l) + rad)
+            FOR cellX = INT(lightX(l) - rad) TO INT(lightX(l) + rad)
+                IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+                    ' Aim at the middle of the cell - or, for a diagonal wall's
+                    ' cell, the middle of its open half
+                    aimX = cellX + 0.5 : aimY = cellY + 0.5
+                    SELECT CASE diagCorner(cellX, cellY)
+                        CASE 1 : aimX = cellX + 0.75 : aimY = cellY + 0.75
+                        CASE 2 : aimX = cellX + 0.25 : aimY = cellY + 0.75
+                        CASE 3 : aimX = cellX + 0.25 : aimY = cellY + 0.25
+                        CASE 4 : aimX = cellX + 0.75 : aimY = cellY + 0.25
+                    END SELECT
+                    d = SQR((aimX - lightX(l)) ^ 2 + (aimY - lightY(l)) ^ 2)
+                    IF d < rad AND numLit < MAX_LIT AND (NOT IsWall(cellX, cellY) OR diagCorner(cellX, cellY) <> 0) THEN
+                        IF LightReaches(lightX(l), lightY(l), aimX, aimY) THEN
+                            numLit = numLit + 1 : lightCount(l) = lightCount(l) + 1
+                            litCellX(numLit) = cellX : litCellY(numLit) = cellY : litWeight(numLit) = (1 - d / rad) ^ 2
+                        END IF
+                    END IF
+                END IF
+            NEXT
+        NEXT
+    NEXT
+END SUB
+
+' Can light get from (x1, y1) to (x2, y2)? Step along the line a quarter of
+' a cell at a time; a wall on the way stops it (doors and decorations don't).
+FUNCTION LightReaches(x1, y1, x2, y2)
+    dist = SQR((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
+    steps = INT(dist / 0.25) + 1
+    FOR i = 1 TO steps - 1
+        IF SolidAt(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps) THEN EXIT FUNCTION
+    NEXT
+    LightReaches = -1
+END FUNCTION
+
+' This frame's light: every cell starts at the level's ambient light, then
+' each light adds its share - times its effect right now: a flickering
+' tube drops out for a few frames now and then, a pulse rises and falls,
+' a strobe blinks twice a second, firelight jitters, and a dying tube is
+' mostly dark but sputters on. A broken lamp's light is out for good.
+SUB UpdateLight
+    FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
+        litR(cellX, cellY) = ambientR : litG(cellX, cellY) = ambientG : litB(cellX, cellY) = ambientB
+    NEXT : NEXT
+    FOR l = 1 TO numLights
+        f = 1
+        SELECT CASE lightEffect(l)
+            CASE FX_FLICKER
+                IF lightTimer(l) > 0 THEN
+                    lightTimer(l) = lightTimer(l) - 1 : f = 0.15
+                ELSEIF RND < 0.025 THEN
+                    lightTimer(l) = 2 + INT(RND * 6)
+                END IF
+            CASE FX_PULSE
+                f = 0.55 + 0.45 * SIN(TIMER * 2.4 + lightPhase(l))
+            CASE FX_STROBE
+                IF INT(TIMER * 2 + lightPhase(l)) MOD 2 = 0 THEN f = 1 ELSE f = 0.05
+            CASE FX_FIRE
+                f = 0.75 + RND * 0.25
+            CASE FX_DYING
+                f = 0.08
+                IF lightTimer(l) > 0 THEN
+                    lightTimer(l) = lightTimer(l) - 1 : f = 0.5 + RND * 0.5
+                ELSEIF RND < 0.03 THEN
+                    lightTimer(l) = 3 + INT(RND * 10)
+                END IF
+        END SELECT
+        IF lightDeco(l) THEN
+            IF NOT decoOn(lightDeco(l)) THEN f = 0
+        END IF
+        IF f > 0 THEN
+            r = lightR(l) * f : g = lightG(l) * f : b = lightB(l) * f
+            FOR e = lightFirst(l) TO lightFirst(l) + lightCount(l) - 1
+                cellX = litCellX(e) : cellY = litCellY(e) : w = litWeight(e)
+                litR(cellX, cellY) = litR(cellX, cellY) + r * w
+                litG(cellX, cellY) = litG(cellX, cellY) + g * w
+                litB(cellX, cellY) = litB(cellX, cellY) + b * w
+            NEXT
+        END IF
+    NEXT
+END SUB
+
+' A quick glow at (x, y) for this frame only - a muzzle flash, a blast, a
+' bolt: brightest in the middle, gone at radius. It doesn't check for walls
+' (it's only for a moment, and that's much cheaper).
+SUB AddGlow(x, y, radius, r, g, b)
+    FOR cellY = INT(y - radius) TO INT(y + radius)
+        FOR cellX = INT(x - radius) TO INT(x + radius)
+            IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+                d = SQR((cellX + 0.5 - x) ^ 2 + (cellY + 0.5 - y) ^ 2)
+                IF d < radius THEN
+                    w = (1 - d / radius) ^ 2
+                    litR(cellX, cellY) = litR(cellX, cellY) + r * w
+                    litG(cellX, cellY) = litG(cellX, cellY) + g * w
+                    litB(cellX, cellY) = litB(cellX, cellY) + b * w
+                END IF
+            END IF
+        NEXT
+    NEXT
+END SUB
+
+' Light a colour: its red, green and blue each times their light / 256
+' (more than 256 brightens, up to full). Each channel is masked out of
+' &HAARRGGBB on its own, multiplied, and put back.
+FUNCTION ShadeRGB~&(col AS _UNSIGNED LONG, lr AS LONG, lg AS LONG, lb AS LONG)
+    red& = ((col AND &HFF0000) \ 65536) * lr \ 256 : IF red& > 255 THEN red& = 255
+    green& = ((col AND &HFF00&) \ 256) * lg \ 256 : IF green& > 255 THEN green& = 255
+    blue& = (col AND 255) * lb \ 256 : IF blue& > 255 THEN blue& = 255
+    ShadeRGB~& = &HFF000000~& OR (red& * 65536) OR (green& * 256) OR blue&
+END FUNCTION
+
+' The map, cellSize pixels a cell, its top-left at (mapLeft, mapTop): all of
+' it (showAll), or only the cells you've seen. Walls are their texture's
+' colour; doors orange (key doors their card's colour, with a dark centre)
+' when shut, white while opening, green when open; the exit blinks green;
+' on the big map the floor you've seen is a dim blue. Then keycards, and
+' you - an arrow pointing the way you face.
+SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
+    LINE (mapLeft - 2, mapTop - 2)-(mapLeft + MAP_SIZE * cellSize + 1, mapTop + MAP_SIZE * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
+    FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
+        IF showAll OR cellSeen(cellX, cellY) THEN
+            mmColor~& = 0
+            SELECT CASE worldMap(cellX, cellY)
+                CASE 0
+                    IF cellSize > 4 THEN mmColor~& = _RGBA32(40, 50, 95, 150)
+                CASE 1, 3 TO 7
+                    mmColor~& = wallMapColor(worldMap(cellX, cellY))
+                CASE 2
+                    IF doorType(cellX, cellY) = DOOR_EXIT THEN
+                        IF (TIMER * 4 AND 1) = 0 THEN mmColor~& = _RGB32(80, 255, 120) ELSE mmColor~& = _RGB32(20, 120, 50)
+                    ELSEIF doorOpen(cellX, cellY) = 0 THEN
+                        IF doorKey(cellX, cellY) THEN mmColor~& = CardRGB~&(doorKey(cellX, cellY)) ELSE mmColor~& = _RGB32(255, 140, 20)
+                    ELSEIF doorOpen(cellX, cellY) < 1 THEN
+                        mmColor~& = _RGB32(230, 230, 230)
+                    ELSE
+                        mmColor~& = _RGB32(40, 200, 80)
+                    END IF
+            END SELECT
+            sx = mapLeft + cellX * cellSize : sy = mapTop + cellY * cellSize
+            IF mmColor~& <> 0 AND diagCorner(cellX, cellY) <> 0 THEN ' Diagonal: just its solid half
+                FOR pixY = 0 TO cellSize - 1 : FOR pixX = 0 TO cellSize - 1
+                    IF InDiagonalWall(diagCorner(cellX, cellY), (pixX + 0.5) / cellSize, (pixY + 0.5) / cellSize) THEN PSET (sx + pixX, sy + pixY), mmColor~&
+                NEXT : NEXT
+            ELSEIF mmColor~& THEN
+                LINE (sx, sy)-STEP(cellSize - 1, cellSize - 1), mmColor~&, BF
+                IF doorKey(cellX, cellY) AND doorOpen(cellX, cellY) = 0 THEN LINE (sx + cellSize \ 3, sy + cellSize \ 3)-STEP(cellSize \ 3, cellSize \ 3), _RGB32(0, 0, 0), BF
+            END IF
+        END IF
+    NEXT : NEXT
+    IF (TIMER * 4 AND 1) = 0 THEN ' Keycards blink
+        FOR i = 1 TO numItems
+            IF itemOn(i) AND itemKind(i) <= 3 AND (showAll OR cellSeen(INT(itemX(i)), INT(itemY(i)))) THEN
+                LINE (mapLeft + itemX(i) * cellSize - cellSize \ 3 - 1, mapTop + itemY(i) * cellSize - cellSize \ 3 - 1)-STEP(cellSize \ 1.5 + 1, cellSize \ 1.5 + 1), CardRGB~&(itemKind(i)), BF
+            END IF
+        NEXT
+    END IF
+    ' You: an arrow - its tip ahead of you, its tail corners behind you
+    ax = mapLeft + px * cellSize : ay = mapTop + py * cellSize : arrow = cellSize * 1.2 + 2
+    tipX = ax + facingX * arrow : tipY = ay + facingY * arrow
+    leftX = ax - facingX * arrow * 0.5 + facingY * arrow * 0.5 : leftY = ay - facingY * arrow * 0.5 - facingX * arrow * 0.5
+    rightX = ax - facingX * arrow * 0.5 - facingY * arrow * 0.5 : rightY = ay - facingY * arrow * 0.5 + facingX * arrow * 0.5
+    LINE (tipX, tipY)-(leftX, leftY), _RGB32(255, 255, 0) : LINE (leftX, leftY)-(rightX, rightY), _RGB32(255, 255, 0)
+    LINE (rightX, rightY)-(tipX, tipY), _RGB32(255, 255, 0)
+END SUB
+
+' A damage indicator for a hit that came from (x, y): into a free slot, or
+' over the one that's nearly faded
+SUB AddHurtDir(x, y)
+    slot = 1
+    FOR i = 1 TO MAX_HURTDIRS
+        IF hurtDirTime(i) < hurtDirTime(slot) THEN slot = i
+    NEXT
+    hurtDirX(slot) = x : hurtDirY(slot) = y : hurtDirTime(slot) = HURTDIR_FRAMES
+END SUB
+
+' The damage indicators, for you at (px, py) facing (facingX, facingY): a
+' red arc round the crosshair for each recent hit, at the angle it came
+' from - straight up is in front of you, right is to your right - fading
+' as it gets older.
+SUB DrawHurtDirs(px, py, facingX, facingY)
+    FOR i = 1 TO MAX_HURTDIRS
+        IF hurtDirTime(i) > 0 THEN
+            hurtDirTime(i) = hurtDirTime(i) - 1
+            relX = hurtDirX(i) - px : relY = hurtDirY(i) - py
+            ahead = relX * facingX + relY * facingY ' How far in front of you...
+            across = relX * facingY - relY * facingX ' ...and to your right (along the camera plane)
+            angle = _ATAN2(across, ahead) ' 0 = straight ahead
+            fade = hurtDirTime(i) / HURTDIR_FRAMES
+            FOR radius = 92 TO 104 STEP 2 ' A thick arc, 40 degrees wide
+                FOR k = -10 TO 9
+                    a1 = angle + k * 0.035 : a2 = a1 + 0.035
+                    LINE (400 + SIN(a1) * radius, 300 - COS(a1) * radius)-(400 + SIN(a2) * radius, 300 - COS(a2) * radius), _RGBA32(255, 30, 30, 230 * fade * (1 - ABS(k + 0.5) / 11))
+                NEXT
+            NEXT
+            ' ...and a small arrowhead at its outer edge, pointing that way
+            tipX = 400 + SIN(angle) * 118 : tipY = 300 - COS(angle) * 118
+            LINE (tipX, tipY)-(400 + SIN(angle - 0.09) * 106, 300 - COS(angle - 0.09) * 106), _RGBA32(255, 80, 60, 255 * fade)
+            LINE (tipX, tipY)-(400 + SIN(angle + 0.09) * 106, 300 - COS(angle + 0.09) * 106), _RGBA32(255, 80, 60, 255 * fade)
+        END IF
+    NEXT
+END SUB
+

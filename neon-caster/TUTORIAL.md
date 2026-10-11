@@ -34,6 +34,7 @@ explained as it comes up.
 | Right button (hold) | aim down the sights (zooms in) |
 | Esc | the menu: pause, new game, save, load, settings, exit |
 | F5 / F9 | quick save / quick load |
+| Tab | the full-screen map (all of it once you've found the map pickup) |
 | K / G | testing cheats: every keycard / god mode |
 
 Every key can be changed in the menu, under **SETTINGS > CONTROLS**. The
@@ -64,7 +65,7 @@ run top to bottom, in the same order as the code:
 | | 11 Doors | finding the door in front of you; animating it |
 | | 12 Shooting | hitscan, using the z-buffer to see past walls |
 | | 13 Monsters, bolts and barrels | a state machine for AI; line of sight; chain reactions |
-| **Drawing it** | 14 The floor and ceiling | floor casting, fog, `AND 63` texture wrapping |
+| **Drawing it** | 14 Light, and the floor and ceiling | per-cell coloured light (Doom-style), flicker and strobe effects, floor casting, fog, `AND 63` texture wrapping |
 | | 15 The walls: the raycaster | rays, the DDA grid walk, fish-eye correction, texturing |
 | | 16 Sprites | camera space, painter's algorithm, hiding behind walls |
 | | 17 Onto the screen | `_MEMCOPY` and `_PUTIMAGE` scaling |
@@ -160,6 +161,10 @@ run it and see what happens. That's the fastest way to learn how it works.
   one `DefineSetting` line plus an `AddSettingItem`.
 - **A splash picture** (ch. 21): drop a `splash.png` (800 x 600) into
   `neon-caster/` and it replaces the title on the splash screen.
+
+- **Your own lights** (ch. 14, 22): add a line to a level's lights - try
+  a red strobe (effect 3) in a dark corridor, or set a level's ambient
+  brightness to 40 and light it only with lamps.
 
 **Bigger projects**
 - **Look up and down** (ch. 14-16): everything uses `RENDER_H / 2` as the
