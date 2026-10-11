@@ -12,6 +12,10 @@ DIM SHARED worldMap(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED doorOffsets(MAP_SIZE, MAP_SIZE) AS SINGLE
 DIM SHARED doorKey(MAP_SIZE, MAP_SIZE) AS INTEGER ' 0 = ANY door, ELSE the keycard it needs
 DIM SHARED doorType(MAP_SIZE, MAP_SIZE) AS INTEGER ' 0 sliding, 1 shutter(rises), 2 split
+' Diagonal walls: the cell is cut corner to corner, and this says which corner's
+' half is solid (0 not diagonal, 1 top-left, 2 top-right, 3 bottom-right,
+' 4 bottom-left). Its worldMap value is the wall it looks like.
+DIM SHARED diagK(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED floorT(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilT(MAP_SIZE, MAP_SIZE) AS INTEGER ' Texture slots
 CONST DOOR_SLIDE = 0, DOOR_SHUTTER = 1, DOOR_SPLIT = 2
 
@@ -60,6 +64,7 @@ wpName$(2) = "SCATTER" : wpAmmo(2) = AM_SHELLS : wpDelay(2) = 40 : wpPellets(2) 
 wpName$(3) = "REPEATER" : wpAmmo(3) = AM_CELLS : wpDelay(3) = 5 : wpPellets(3) = 1 : wpSpread(3) = 0.025 : wpKick(3) = 0.45
 CONST SWAP_FRAMES = 14 ' Lowering one gun AND raising the NEXT
 CONST TEST_ALL_GUNS = -1 ' -1: start with every gun AND full ammo (FOR testing), 0: normal
+CONST CHEAT_KEYS = -1 ' -1: K gives you every keycard (FOR testing), 0: off
 
 ' --- Sprites (billboards): textures, and the list drawn each frame ---
 CONST SPR_TEX = 64, SPR_SLOTS = 15
@@ -231,10 +236,7 @@ DO
     ' Collision (Slide along walls)
     ' Player has a body radius so the camera can't touch the walls
     prevX = pX : prevY = pY
-    edgeX = pX + moveX + SGN(moveX) * PLAYER_R
-    IF Walkable(edgeX, pY - PLAYER_R) AND Walkable(edgeX, pY + PLAYER_R) THEN pX = pX + moveX
-    edgeY = pY + moveY + SGN(moveY) * PLAYER_R
-    IF Walkable(pX - PLAYER_R, edgeY) AND Walkable(pX + PLAYER_R, edgeY) THEN pY = pY + moveY
+    MoveBody pX, pY, moveX, moveY
     ' ...and you can't walk through a monster
     FOR i = 1 TO nMon
         IF mnState(i) < 2 THEN
@@ -296,6 +298,14 @@ DO
         END IF
     NEXT
 
+    ' K: every keycard (testing)
+    kDown = _KEYDOWN(107) OR _KEYDOWN(75)
+    IF CHEAT_KEYS AND kDown AND NOT kWas AND NOT dead THEN
+        FOR k = 1 TO 3 : hasCard(k) = -1 : NEXT
+        PlaySfx sndCard&, 0.8 : ShowMsg "All keycards"
+    END IF
+    kWas = kDown
+
     ' --- 3. Door & World Logic ---
     IF spaceDown AND NOT spaceWas AND NOT dead THEN ' SPACE TO OPEN(once per press)
         ' March along the view ray; open the first closed door within reach, stop at walls
@@ -316,7 +326,7 @@ DO
                 END IF
                 EXIT FOR
             END IF
-            IF IsWall(cX, cY) THEN
+            IF SolidAt(pX + pDirX * reach, pY + pDirY * reach) THEN
                 IF reach <= 1.2 THEN PlaySfx sndHump&, 0.8 ' Trying TO OPEN a plain wall
                 EXIT FOR
             END IF
@@ -403,11 +413,7 @@ DO
                         PlaySfx mtAtk&(t), 0.9
                         GOSUB HurtPlayer
                     END IF
-                    IF goX <> 0 OR goY <> 0 THEN
-                        nx = mnX(i) + goX * mtSpeed(t) : ny = mnY(i) + goY * mtSpeed(t)
-                        IF Walkable(nx + SGN(goX) * PLAYER_R, mnY(i) - PLAYER_R) AND Walkable(nx + SGN(goX) * PLAYER_R, mnY(i) + PLAYER_R) THEN mnX(i) = nx
-                        IF Walkable(mnX(i) - PLAYER_R, ny + SGN(goY) * PLAYER_R) AND Walkable(mnX(i) + PLAYER_R, ny + SGN(goY) * PLAYER_R) THEN mnY(i) = ny
-                    END IF
+                    IF goX <> 0 OR goY <> 0 THEN MoveBody mnX(i), mnY(i), goX * mtSpeed(t), goY * mtSpeed(t)
                 END IF
                 ' Keep a little apart from each other
                 FOR j = 1 TO nMon
@@ -475,11 +481,27 @@ DO
         IF rDX < 0 THEN stX = -1 : sDX = (pX - mX) * ddx ELSE stX = 1 : sDX = (mX + 1 - pX) * ddx
         IF rDY < 0 THEN stY = -1 : sDY = (pY - mY) * ddy ELSE stY = 1 : sDY = (mY + 1 - pY) * ddy
 
-        hit = 0 : side = 0 : ovl = 0
+        hit = 0 : side = 0 : ovl = 0 : dgHit = 0
+        IF diagK(mX, mY) THEN ' Standing in a diagonal wall's open half
+            tOut = sDX : IF sDY < tOut THEN tOut = sDY
+            dgT = DiagHit(diagK(mX, mY), mX, mY, pX, pY, rDX, rDY, 0, tOut)
+            IF dgT >= 0 THEN hit = worldMap(mX, mY) : dgHit = diagK(mX, mY) : dist = dgT
+        END IF
         WHILE hit = 0
             IF sDX < sDY THEN sDX = sDX + ddx : mX = mX + stX : side = 0 ELSE sDY = sDY + ddy : mY = mY + stY : side = 1
             v = worldMap(mX, mY)
-            IF v = 2 THEN
+            IF diagK(mX, mY) THEN
+                ' Diagonal wall: came in through its solid half, that's a plain
+                ' wall face; else it hits the diagonal if it crosses it in here
+                IF side = 0 THEN tIn = sDX - ddx ELSE tIn = sDY - ddy
+                tOut = sDX : IF sDY < tOut THEN tOut = sDY
+                IF DiagIn(diagK(mX, mY), pX + (tIn + 0.001) * rDX - mX, pY + (tIn + 0.001) * rDY - mY) THEN
+                    hit = v
+                ELSE
+                    dgT = DiagHit(diagK(mX, mY), mX, mY, pX, pY, rDX, rDY, tIn, tOut)
+                    IF dgT >= 0 THEN hit = v : dgHit = diagK(mX, mY) : dist = dgT
+                END IF
+            ELSEIF v = 2 THEN
                 IF side = 0 THEN dd = (mX - pX + (1 - stX) / 2) / rDX : wX = pY + dd * rDY ELSE dd = (mY - pY + (1 - stY) / 2) / rDY : wX = pX + dd * rDX
                 wX = wX - INT(wX) : dOpen = doorOffsets(mX, mY)
                 SELECT CASE doorType(mX, mY)
@@ -499,14 +521,20 @@ DO
             END IF
         WEND
 
-        IF side = 0 THEN dist = (mX - pX + (1 - stX) / 2) / rDX ELSE dist = (mY - pY + (1 - stY) / 2) / rDY
+        IF dgHit = 0 THEN
+            IF side = 0 THEN dist = (mX - pX + (1 - stX) / 2) / rDX ELSE dist = (mY - pY + (1 - stY) / 2) / rDY
+        END IF
         IF dist < 0.001 THEN dist = 0.001
         zBuf(x) = dist
 
         ' Texture column and slot (doors move their texture with them)
         IF side = 0 THEN wallX = pY + dist * rDY ELSE wallX = pX + dist * rDX
         wallX = wallX - INT(wallX)
-        IF hit = 2 THEN
+        IF dgHit THEN ' Along the diagonal, left to right as you see it
+            wallX = pX + dist * rDX - mX
+            IF dgHit <= 2 THEN wallX = 1 - wallX
+            tX = INT(wallX * TEX) : tSlot = wallSlot(hit)
+        ELSEIF hit = 2 THEN
             dOpen = doorOffsets(mX, mY)
             SELECT CASE doorType(mX, mY)
                 CASE DOOR_SLIDE
@@ -534,7 +562,7 @@ DO
         ' Shading: distance fog, darker on Y-facing sides
         s& = 256 - dist * 16
         IF s& < 0 THEN s& = 0
-        IF side = 1 THEN s& = s& * 0.7
+        IF dgHit THEN s& = s& * 0.85 ELSE IF side = 1 THEN s& = s& * 0.7
 
         FOR y = lStart TO lEnd
             scr(y * RW + x) = Shade~&(TEX(tX, INT(tPos) AND (TEX - 1), tSlot), s&)
@@ -683,7 +711,11 @@ DO
                     mmC~& = _RGB32(40, 200, 80)
                 END IF
         END SELECT
-        IF mmC~& THEN
+        IF mmC~& <> 0 AND diagK(mX, mY) <> 0 THEN ' Diagonal: just its solid half
+            FOR dqy = 0 TO MM - 1 : FOR dqx = 0 TO MM - 1
+                IF DiagIn(diagK(mX, mY), (dqx + 0.5) / MM, (dqy + 0.5) / MM) THEN PSET (MMX + mX * MM + dqx, MMY + mY * MM + dqy), mmC~&
+            NEXT : NEXT
+        ELSEIF mmC~& THEN
             LINE (MMX + mX * MM, MMY + mY * MM)-STEP(MM - 1, MM-1), mmC~&, BF
             IF doorKey(mX, mY) AND doorOffsets(mX, mY) = 0 THEN PSET (MMX + mX * MM + MM \ 2, MMY + mY * MM + MM \ 2), _RGB32(0, 0, 0)
         END IF
@@ -772,7 +804,7 @@ RETURN
 ' --- Start (or restart) the level: read the map, reset you and everything in it
 LoadLevel:
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
-    worldMap(x, y) = 0 : doorOffsets(x, y) = 0 : doorKey(x, y) = 0 : doorType(x, y) = 0
+    worldMap(x, y) = 0 : doorOffsets(x, y) = 0 : doorKey(x, y) = 0 : doorType(x, y) = 0 : diagK(x, y) = 0
     floorT(x, y) = T_FLOOR : ceilT(x, y) = T_CEIL
 NEXT : NEXT
 nItems = 0 : nMon = 0
@@ -800,6 +832,8 @@ FOR y = 0 TO MAP_SIZE - 1
             CASE "D" : worldMap(x, y) = 2
             CASE "H" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_SHUTTER
             CASE "X" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_SPLIT
+            CASE "/" : diagK(x, y) = -1 ' Diagonal wall (which half is solid: below)
+            CASE "\" : diagK(x, y) = -2
             CASE "R", "B", "Y" ' Key door: needs that keycard
                 worldMap(x, y) = 2 : doorKey(x, y) = INSTR("RBY", cell$)
             CASE "r", "b", "y", "+", "a", "e", "2", "3" ' Something to pick up
@@ -820,6 +854,24 @@ FOR y = 0 TO MAP_SIZE - 1
         END SELECT
     NEXT
 NEXT
+' Diagonal walls: of its two halves, the solid one is the one with more wall
+' beside it (a whole wall counts 2, another diagonal 1). It looks like the
+' wall beside its solid half; standing on its own, neon.
+FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+    IF diagK(x, y) < 0 THEN
+        dSc = -1
+        FOR k = -diagK(x, y) TO 4 STEP 2 ' "/" corners 1 AND 3, "\" 2 AND 4
+            IF k <= 2 THEN ny = y - 1 ELSE ny = y + 1
+            IF k = 2 OR k = 3 THEN nx = x + 1 ELSE nx = x - 1
+            sc = 0
+            IF diagK(x, ny) THEN sc = sc + 1 ELSE IF IsWall(x, ny) THEN sc = sc + 2
+            IF diagK(nx, y) THEN sc = sc + 1 ELSE IF IsWall(nx, y) THEN sc = sc + 2
+            IF sc > dSc THEN dSc = sc : dK = k : dnx = nx : dny = ny
+        NEXT
+        diagK(x, y) = dK : worldMap(x, y) = 3
+        IF IsWall(x, dny) THEN worldMap(x, y) = worldMap(x, dny) ELSE IF IsWall(dnx, y) THEN worldMap(x, y) = worldMap(dnx, y)
+    END IF
+NEXT : NEXT
 ' Camera plane is the view direction turned 90 degrees
 planeX = pDirY * 0.66 : planeY = - pDirX * 0.66
 hp = MAX_HP : kills = 0 : dead = 0
@@ -868,6 +920,17 @@ RETURN
 '   #  metal        (wall.png)            N  neon         (wall2.png)
 '   C  concrete     (wall-concrete.png)   K  server racks (wall-servers.png)
 '   P  pipes        (wall-pipes.png)      G  biolab glass (wall-biolab.png)
+'
+' DIAGONAL WALLS - a cell cut corner to corner at 45 degrees, half wall and
+' half floor. Which half is solid is worked out from what's beside it: the
+' side with more wall. So draw them where a wall turns a corner, and they
+' cut it off. Two make a longer slope (with a wall in the corner behind
+' them); four make a freestanding diamond pillar:  /\
+'                                                  \/
+' The slope looks like the wall beside its solid half (neon if it stands on
+' its own), a little darker, and it's a half-filled cell on the minimap.
+'   /  diagonal from bottom-left to top-right
+'   \  diagonal from top-left to bottom-right
 '
 ' DOORS - closed until you face one within 2 tiles and press Space; then
 ' they open for good (they never close again). They block you, monsters and
@@ -918,6 +981,9 @@ RETURN
 '               with several, the last one read wins.
 '   .           floor (any other character is floor too)
 '
+' TESTING (switched by constants at the top): TEST_ALL_GUNS starts you with
+' every gun and full ammo; CHEAT_KEYS lets K give you every keycard.
+'
 ' Rules: the outer border must be all walls (nothing else stops a ray or a
 ' monster from leaving the map). Up to MAX_ITEMS pickups and MAX_MON
 ' monsters; extra ones are ignored.
@@ -928,19 +994,19 @@ DATA 19, 19, 28, 28, 2, 1
 DATA 5, 5, 21, 21, 3, 2
 DATA 26, 5, 42, 21, 2, 2
 DATA 30, 26, 42, 42, 4, 2
-' The map rows (legend above: walls # N C K P G, doors D H X R B Y, pickups
+' The map rows (legend above: walls # N C K P G, diagonals / \, doors D H X R B Y, pickups
 ' r b y + a e 2 3, monsters m g h, start < > ^ v)
 DATA "################################################"
 DATA "################################################"
-DATA "##...........................................+##"
-DATA "##............................................##"
+DATA "###/.......................................+\###"
+DATA "##/..........................................\##"
 DATA "##..CCCCHCCCCCCCCCCCCCC..KKKKKKKKKYKKKKKKKKK..##"
-DATA "##..C.....e.C.......a.C..K.................K..##"
+DATA "##..C/....e\C.......a.C..K.................K..##"
 DATA "##..C.......C.........C..Y..KKK......KKK...K..##"
 DATA "##..C...m...H.........C..K......g.......m..K..##"
 DATA "##..C.......C.....g...H..Ka................K..##"
 DATA "##..C.+.....C...2.....C..KKKDKKKKKKDKKKKKDKK..##"
-DATA "##..C.......C.........C..K......K......K...K..##"
+DATA "##..C\...../C.........C..K......K......K...K..##"
 DATA "##..CCCCHCCCCCCCCCCCCCC..K......K...g..K.+.K..##"
 DATA "##..C...........aCCCCCC..K.K..K.K..K...Ke..K..##"
 DATA "##..C.m..........CCCCCC..K.K..K.D..K...K...Y..##"
@@ -949,33 +1015,33 @@ DATA "##..C...C....C...CCCCCC..K......K......K.m.K..##"
 DATA "##..H.....y......CCCCCC..K......K......K...K..##"
 DATA "##..C............CCCCCC..KKKKKKKKKKDKKKKKKKK..##"
 DATA "##..C...C....C...CNNNNNXNNNNNNK............K..##"
-DATA "##..C..e.........CNa.........NK.........b..K..##"
-DATA "##..C..........h.CN..........NK..h...3.....K..##"
+DATA "##..C..e.........CNN/......\NNK.........b..K..##"
+DATA "##..C..........h.CN/..a.....\NK..h...3.....K..##"
 DATA "##..C............CN..N....N..NK............K..##"
 DATA "##..CCCCCCHCCCCCCCN..........NKKKKKKKKYKKKKK..##"
 DATA "##................X..........X................##"
 DATA "##................N.>........N..............e.##"
 DATA "##..PPPPPPRPPPPPPPN..........NGGGGGGBGGGGGGG..##"
-DATA "##..P...........aPN..N....N..Na............G..##"
-DATA "##..P............PN........+.N....e........G..##"
-DATA "##..P..m.........PN..........N.g...........G..##"
+DATA "##..PP/.........aPN..N....N..Na............G..##"
+DATA "##..P/...........PN\.......+/N....e........G..##"
+DATA "##..P..m.........PNN\....../NN.g...........G..##"
 DATA "##..P....P..P....PNNNNNXNNNNNN...G.....G...G..##"
 DATA "##..R............PP.........aG...........g.G..##"
 DATA "##..P.........g..PP..........G.............G..##"
-DATA "##..P............PP..........G.............G..##"
-DATA "##..P............PP..........G.............G..##"
+DATA "##..P.........../PP..........G.............G..##"
+DATA "##..P........../PPP..........G.............G..##"
 DATA "##..PPPPHPPPPPPPPPP..........G...G..r..G...B..##"
 DATA "##..P............PP..........G.............G..##"
 DATA "##..P.+..........PP..........B.............G..##"
-DATA "##..P............PP...m......G.............G..##"
-DATA "##..P....P..P....PP..........G.............G..##"
+DATA "##..P............PP...m......G....../\.....G..##"
+DATA "##..P....P..P....PP..........G......\/.....G..##"
 DATA "##..P............PP..........G...G.....G...G..##"
 DATA "##..P.h..........PP........g.G......h......G..##"
 DATA "##..P...e......m.PP..........G.m...........G..##"
 DATA "##..P............PP+.........G............+G..##"
 DATA "##..PPPPPPPPRPPPPPPPPPPPPHPPPGGGGGGGBGGGGGGG..##"
-DATA "##............................................##"
-DATA "##a..........................................a##"
+DATA "##\........................................../##"
+DATA "###\a......................................a/###"
 DATA "################################################"
 DATA "################################################"
 
@@ -999,8 +1065,76 @@ END FUNCTION
 ' True if map point (x, y) is open floor or a mostly-open door
 FUNCTION Walkable%(x, y)
     cX = INT(x) : cY = INT(y)
+    IF diagK(cX, cY) THEN Walkable% = NOT DiagIn(diagK(cX, cY), x - cX, y - cY) : EXIT FUNCTION
     Walkable% = worldMap(cX, cY) <= 0 OR doorOffsets(cX, cY) > 0.8
 END FUNCTION
+
+' Is map point (x, y) inside a wall (doors don't count)?
+FUNCTION SolidAt(x, y)
+    cX = INT(x) : cY = INT(y)
+    IF diagK(cX, cY) THEN SolidAt = DiagIn(diagK(cX, cY), x - cX, y - cY) ELSE SolidAt = IsWall(cX, cY)
+END FUNCTION
+
+' Is (u, v), a point inside a diagonal wall's cell (0-1 each way), in its
+' solid half? k is the solid corner (see diagK).
+FUNCTION DiagIn(k, u, v)
+    SELECT CASE k
+        CASE 1 : DiagIn = u + v < 1
+        CASE 2 : DiagIn = u > v
+        CASE 3 : DiagIn = u + v > 1
+        CASE 4 : DiagIn = u < v
+    END SELECT
+END FUNCTION
+
+' How far along a ray from (px, py) heading (rx, ry) it crosses the diagonal
+' of the diagonal wall cell (cx, cy) with solid corner k, if that's between
+' tIn and tOut (while the ray is inside the cell); -1 if it doesn't
+FUNCTION DiagHit(k, cx, cy, px, py, rx, ry, tIn, tOut)
+    DiagHit = -1
+    IF k = 1 OR k = 3 THEN ' "/" : u + v = 1
+        dn = rx + ry : IF dn = 0 THEN EXIT FUNCTION
+        t = (cx + cy + 1 - px - py) / dn
+    ELSE ' "\" : u = v
+        dn = rx - ry : IF dn = 0 THEN EXIT FUNCTION
+        t = (cx - cy - px + py) / dn
+    END IF
+    IF t >= tIn AND t <= tOut THEN DiagHit = t
+END FUNCTION
+
+' Is the edge from (x1, y1) to (x2, y2) clear? Checks both ends and the
+' middle (the middle catches the point of a diagonal wall poking in between).
+FUNCTION EdgeFree(x1, y1, x2, y2)
+    EdgeFree = Walkable(x1, y1) AND Walkable(x2, y2) AND Walkable((x1 + x2) / 2, (y1 + y2) / 2)
+END FUNCTION
+
+' Is a body (radius PLAYER_R) at (x, y) clear of walls all round?
+FUNCTION BoxFree(x, y)
+    r = PLAYER_R
+    BoxFree = EdgeFree(x - r, y - r, x + r, y - r) AND EdgeFree(x - r, y + r, x + r, y + r) AND Walkable(x - r, y) AND Walkable(x + r, y)
+END FUNCTION
+
+' Any diagonal wall in the 3 x 3 cells around (x, y)?
+FUNCTION NearDiag(x, y)
+    FOR cY = INT(y) - 1 TO INT(y) + 1 : FOR cX = INT(x) - 1 TO INT(x) + 1
+        IF diagK(cX, cY) THEN NearDiag = -1 : EXIT FUNCTION
+    NEXT : NEXT
+END FUNCTION
+
+' Move a body (radius PLAYER_R) at (x, y) by (mx, my). One axis at a time, so
+' it slides along walls; stopped dead by a diagonal wall, it slides along that.
+SUB MoveBody(x, y, mx, my)
+    ox = x : oy = y
+    ex = x + mx + SGN(mx) * PLAYER_R
+    IF EdgeFree(ex, y - PLAYER_R, ex, y + PLAYER_R) THEN x = x + mx
+    ey = y + my + SGN(my) * PLAYER_R
+    IF EdgeFree(x - PLAYER_R, ey, x + PLAYER_R, ey) THEN y = y + my
+    IF x = ox AND y = oy AND (mx <> 0 OR my <> 0) AND NearDiag(x, y) THEN
+        FOR sl = -1 TO 1 STEP 2 ' The move along each 45 degree line, (1, sl)
+            pr = (mx + my * sl) / 2
+            IF BoxFree(x + pr, y + pr * sl) THEN x = x + pr : y = y + pr * sl : EXIT SUB
+        NEXT
+    END IF
+END SUB
 
 ' neon-caster/<f$>, or the same next to the EXE
 FUNCTION AssetPath$(f$)
@@ -1107,7 +1241,7 @@ FUNCTION CanSee(x1, y1, x2, y2)
     n = INT(D / 0.1) + 1
     FOR i = 1 TO n
         cX = INT(x1 + dx * i / n) : cY = INT(y1 + dy * i / n)
-        IF IsWall(cX, cY) THEN EXIT FUNCTION
+        IF SolidAt(x1 + dx * i / n, y1 + dy * i / n) THEN EXIT FUNCTION
         IF worldMap(cX, cY) = 2 AND doorOffsets(cX, cY) <= 0.8 THEN EXIT FUNCTION
     NEXT
     CanSee = -1
