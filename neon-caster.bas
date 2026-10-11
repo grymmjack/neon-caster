@@ -1,129 +1,377 @@
+'=============================================================================
+' NEON-CASTER - a little first-person shooter in QB64PE, written to learn from
+'=============================================================================
+'
+' This is a whole game in one file of plain QB64PE: four levels, five kinds
+' of monster, four guns, doors and keycards, exploding barrels, a minimap.
+' It's also meant to be read. The comments are a course in how it works,
+' chapter by chapter, from opening a window to casting rays.
+'
+' You'll want to know some BASIC already: variables, arrays, loops, SUBs
+' and FUNCTIONs. The 3D ideas, and the QB64PE features the game leans on,
+' are explained as they come up. neon-caster/TUTORIAL.md lists the chapters
+' and has things to try.
+'
+' HOW TO READ IT
+'   Search for "CHAPTER" to jump from one to the next; they follow the code
+'   from top to bottom.
+'     1-6    setting up: the window, the world, the things in it, pictures
+'     7-13   one frame of the game: input, moving, doors, shooting, monsters
+'     14-18  drawing that frame: floor, walls, sprites, the HUD
+'     19-22  game events, levels, the map format, and the helper SUBs
+'
+' THE BIG IDEA: A RAYCASTER
+'   The world is a flat grid of square cells, seen from inside at eye
+'   height. For every column of the screen we send one ray out from you,
+'   across the grid, until it hits a wall. How far it went says how tall to
+'   draw that column of wall: far away is short, close up is tall. 400 rays
+'   make 400 thin slices of wall, side by side, and it looks 3D. This is how
+'   Wolfenstein 3D worked in 1992. The floor, ceiling and sprites (monsters,
+'   pickups) are drawn using the same distances, so it all lines up.
+'
+'   Because the world is really flat, there are no stairs or rooms above
+'   rooms: every wall is the same height and you can't look up or down.
+'   That's the price of being simple and fast.
+'
+' CONTROLS
+'   Mouse          look around          W A S D   walk and strafe
+'   Click or Ctrl  fire                 Space     open doors, use the exit
+'   1-4 or wheel   choose a gun         Esc       quit
+'   K, G           testing cheats: every keycard, god mode (see CHEAT_KEYS)
+'
+' READING THE NAMES
+'   How a name is written tells you what kind of thing it is:
+'
+'     UPPER_CASE   a CONST - a fixed number that never changes while the
+'                  game runs, like MAP_SIZE (48). Change it in one place and
+'                  the whole program follows.
+'     camelCase    a variable, like playerX or monsterHP().
+'     PascalCase   a SUB or FUNCTION, like MoveBody or CanSee - or a GOSUB
+'                  label, like HitMonster: (chapter 19).
+'
+'   Some names end in a symbol. In QB64PE that symbol IS the variable's
+'   type (anything with no symbol, and not DIMmed AS something, is SINGLE):
+'
+'     $    STRING          text: levelName$, gunName$()
+'     &    LONG            a whole number up to about 2 billion. Used for
+'                          image and sound "handles" (renderImg&, sndDoor&)
+'                          - numbers QB64PE gives you to refer to a loaded
+'                          picture or sound.
+'     ~&   _UNSIGNED LONG  a colour, &HAARRGGBB: Shade~&(), texel~&
+'     !    SINGLE          a decimal number - here, times from TIMER, like
+'                          deadAt! (written out to make clear it's a time)
+'     %    INTEGER         a small whole number: Walkable%(), GiveAmmo%()
+'
+'   True and false: BASIC's true is -1 and false is 0, so flags like
+'   hasGun(), itemOn() and godMode hold -1 or 0, and "IF itemOn(i) THEN"
+'   means "if item i is still there".
+'
+'   Many constants and variables start with a prefix that says what group
+'   they belong to. Each group is explained again where it's defined:
+'
+'     Constants (UPPER_CASE)
+'     MAX_       the most there can be at once: MAX_ITEMS, MAX_MON,
+'                MAX_BOLTS, MAX_DECO, MAX_BLASTS (array sizes), and MAX_HP,
+'                MAX_ARMOR (the most health and armour you can have)
+'     NUM_       how many there are: NUM_LEVELS, NUM_GUNS
+'     DOOR_      a kind of door, stored in doorType()           (chapter 2)
+'     IT_        ITem: a kind of pickup, stored in itemKind()   (chapter 3)
+'     MON_       MONster settings shared by every monster       (chapter 3)
+'     DECO_ BLAST_ BOLT_ GUNNER_  settings for decorations, explosions,
+'                bolts and gunners                              (chapter 3)
+'     AM_        AMmo: which kind - AM_CELLS or AM_SHELLS       (chapter 4)
+'     W_         Weapon: which gun - W_BLASTER, W_SCATTER, W_REPEATER,
+'                W_RAIL (guns are numbered 1-4)                 (chapter 4)
+'     SPR_       SPRite picture storage: their size and how many (chapter 5)
+'     S_         Sprite slot: which picture in spriteTex()      (chapter 5)
+'     T_         Texture slot: which picture in texture()       (chapter 5)
+'     RENDER_    the size of the 3D view: RENDER_W x RENDER_H   (chapter 5)
+'     TEX_       TEXture: TEX_SIZE, how big each one is (64)    (chapter 5)
+'     MINIMAP_   where the minimap goes, and its cell size      (chapter 2)
+'     TEST_ CHEAT_  testing switches                            (chapter 4)
+'
+'     Variables (camelCase) - the start of the name says what it's about:
+'     player...  you: playerX, playerY
+'     monster... ONE monster, numbered i: monsterX(i), monsterHP(i)...
+'     mtype...   a TYPE of monster (drone, gunner...), numbered 1-5:
+'                mtypeSpeed(t) is how fast every monster of type t moves
+'     item... deco... bolt... blast...  one pickup / decoration / bolt /
+'                explosion, numbered i: itemX(i), decoFuse(i), boltX(i)...
+'     gun...     a gun, numbered 1-4: gunName$(g), gunDamage(g)...
+'     door... wall... floor... ceil...  one map cell's door, wall, floor or
+'                ceiling, by cell: doorOpen(x, y), floorTex(x, y)...
+'     draw...    the list of sprites to draw this frame        (chapter 16)
+'     snd...&    a loaded sound's handle: sndDoor&, sndExit&
+'     num...     how many are in use right now: numItems, numMonsters
+'     has...     a yes/no flag (-1 or 0): hasGun(g), hasCard(c)
+'     saved...   what you had when the level started          (chapter 20)
+'     total...   added up over the whole game: totalKills
+'     mm...      something on the MiniMap: mmColor~&
+'     zone...    a floor / ceiling zone while it's read in    (chapter 20)
+'
+'   The raycasting maths uses the names from Lode Vandevenne's well-known
+'   raycasting tutorial (lodev.org/cgtutor/raycasting.html): dirX, planeX,
+'   rayDirX, sideDistX, deltaDistX, perpWallDist and so on. Read the two
+'   side by side if you want the maths from another angle.
+'=============================================================================
+
+'-----------------------------------------------------------------------------
+' CHAPTER 1: A WINDOW
+'-----------------------------------------------------------------------------
+' An 800 x 600 window with 32-bit colour: every pixel holds a full RGB
+' colour (an _UNSIGNED LONG, &HAARRGGBB), which we need for textures and
+' for fading things into the dark.
+'
+' _MOUSEHIDE _DISABLE hides the pointer and captures it in the window. Moving
+' the mouse then gives raw movement (_MOUSEMOVEMENTX, chapter 8) instead of
+' a pointer that gets stuck at the edge of the screen - just what mouse look
+' needs. _PRINTMODE _KEEPBACKGROUND prints text without a box behind it.
 _TITLE "NEON-CASTER"
 SCREEN _NEWIMAGE(800, 600, 32)
-_MOUSEHIDE _DISABLE ' Capture the pointer in the WINDOW(raw relative motion)
+_MOUSEHIDE _DISABLE
 _PRINTMODE _KEEPBACKGROUND
 
-CONST MAP_SIZE = 48 ' Map IS MAP_SIZE x MAP_SIZE cells(see MapData)
-CONST MM = 3, MMX = 8, MMY = 8 ' Minimap : cell size AND top - left corner
-CONST PLAYER_R = 0.3 ' Player body radius(keeps the camera OFF the walls)
+'-----------------------------------------------------------------------------
+' CHAPTER 2: THE WORLD IS A GRID
+'-----------------------------------------------------------------------------
+' A level is a 48 x 48 grid of cells (MAP_SIZE). Positions in the world are
+' measured in cells: x runs left to right, y runs top to bottom, and you
+' might be standing at (20.5, 24.5) - the middle of cell (20, 24). Turning a
+' position into its cell is just INT().
+'
+' worldMap() says what each cell is: 0 floor, 2 a door, and 1, 3, 4, 5, 6,
+' 7 the six kinds of wall (they only differ in looks). The other arrays add
+' details for some cells. They're DIM SHARED so every SUB and FUNCTION can
+' use them without passing them in.
+'
+' Diagonal walls cut a cell corner to corner: half wall, half floor.
+' diagCorner() says which corner's half is solid (chapter 15 draws them,
+' chapter 22 has the maths), and the floor and ceiling can be split the same
+' way (floorSplit, ceilSplit) to paint diagonal stripes.
+CONST MAP_SIZE = 48
+' MINIMAP_ = where the minimap is drawn: each map cell is MINIMAP_CELL pixels
+' square, and its top-left corner is at (MINIMAP_X, MINIMAP_Y) on the screen
+CONST MINIMAP_CELL = 3, MINIMAP_X = 8, MINIMAP_Y = 8
+CONST PLAYER_RADIUS = 0.3 ' Your body's half-width, so the camera can't touch a wall
 ' worldMap: 0 floor, 2 door; walls 1 (#), 3 (N), 4 (C), 5 (K), 6 (P), 7 (G):
-' six kinds of wall, whose textures each level picks (see MapData)
+' six kinds of wall, whose textures each level picks (see chapter 21)
 DIM SHARED worldMap(MAP_SIZE, MAP_SIZE) AS INTEGER
-DIM SHARED doorOffsets(MAP_SIZE, MAP_SIZE) AS SINGLE
-DIM SHARED doorKey(MAP_SIZE, MAP_SIZE) AS INTEGER ' 0 = ANY door, ELSE the keycard it needs
-DIM SHARED doorType(MAP_SIZE, MAP_SIZE) AS INTEGER ' 0 sliding, 1 shutter(rises), 2 split
-' Diagonal walls: the cell is cut corner to corner, and this says which corner's
-' half is solid (0 not diagonal, 1 top-left, 2 top-right, 3 bottom-right,
-' 4 bottom-left). Its worldMap value is the wall it looks like.
-DIM SHARED diagK(MAP_SIZE, MAP_SIZE) AS INTEGER
-DIM SHARED floorT(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilT(MAP_SIZE, MAP_SIZE) AS INTEGER ' Texture slots
+' Doors: how far open (0 shut .. 1 open), which keycard opens it (0 any,
+' 1 red, 2 blue, 3 yellow), and what kind it is (DOOR_ constants below)
+DIM SHARED doorOpen(MAP_SIZE, MAP_SIZE) AS SINGLE
+DIM SHARED doorKey(MAP_SIZE, MAP_SIZE) AS INTEGER
+DIM SHARED doorType(MAP_SIZE, MAP_SIZE) AS INTEGER
+' Diagonal walls: which corner's half of the cell is solid - 0 not diagonal,
+' 1 top-left, 2 top-right, 3 bottom-right, 4 bottom-left. Its worldMap value
+' is the wall it looks like.
+DIM SHARED diagCorner(MAP_SIZE, MAP_SIZE) AS INTEGER
+' Each cell's floor and ceiling texture (a texture slot - chapter 5)
+DIM SHARED floorTex(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilTex(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' Floor / ceiling diagonals: a cell's floor (or ceiling) can be split corner
-' to corner like a diagonal wall. fK (cK) is the corner whose half uses
-' floorT2 (ceilT2) instead; 0 = the whole cell is floorT (ceilT).
-DIM SHARED floorT2(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilT2(MAP_SIZE, MAP_SIZE) AS INTEGER
-DIM SHARED fK(MAP_SIZE, MAP_SIZE) AS INTEGER, cK(MAP_SIZE, MAP_SIZE) AS INTEGER
+' to corner like a diagonal wall. floorSplit (ceilSplit) is the corner whose
+' half uses floorTex2 (ceilTex2) instead; 0 = all of it is floorTex (ceilTex).
+DIM SHARED floorTex2(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilTex2(MAP_SIZE, MAP_SIZE) AS INTEGER
+DIM SHARED floorSplit(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilSplit(MAP_SIZE, MAP_SIZE) AS INTEGER
+' DOOR_ = the kinds of door, the numbers kept in doorType(x, y)
 CONST DOOR_SLIDE = 0, DOOR_SHUTTER = 1, DOOR_SPLIT = 2, DOOR_EXIT = 3
-CONST NUM_LEVELS = 4
+CONST NUM_LEVELS = 4 ' NUM_ = how many there are
+
+'-----------------------------------------------------------------------------
+' CHAPTER 3: THINGS IN THE WORLD
+'-----------------------------------------------------------------------------
+' Everything that isn't a wall - pickups, decorations, monsters, bolts - is a
+' list of numbered things kept in "parallel arrays": thing number i is at
+' (itemX(i), itemY(i)), is of kind itemKind(i), and so on. A count says how
+' many are in use (numItems). It's the simplest way to keep lists in BASIC.
+' (QB64PE's TYPE could bundle each thing's fields into one record instead -
+' a nice exercise once you know the code.)
+'
+' Things are never deleted while a level runs; they're switched off
+' (itemOn(i) = 0) so the numbering stays put.
 
 ' --- Pickups lying on the map ---
-CONST IT_HEALTH = 4, IT_CELLS = 5, IT_SHELLS = 6, IT_SCATTER = 7, IT_REPEATER = 8 '(1 - 3 keycards)
+' IT_ = ITem: the kinds of pickup, the numbers kept in itemKind(i). Kinds 1-3
+' are the red, blue and yellow keycards (they have no IT_ name - the number
+' is the card's colour).
+CONST IT_HEALTH = 4, IT_CELLS = 5, IT_SHELLS = 6, IT_SCATTER = 7, IT_REPEATER = 8
 CONST IT_ARMOR = 9, IT_BIGMED = 10, IT_RAIL = 11
+' MAX_ = the most there can be: the arrays below have room for this many
 CONST MAX_ITEMS = 64
-DIM SHARED itX(MAX_ITEMS) AS SINGLE, itY(MAX_ITEMS) AS SINGLE
-DIM SHARED itK(MAX_ITEMS) AS INTEGER, itOn(MAX_ITEMS) AS INTEGER, nItems AS INTEGER
+DIM SHARED itemX(MAX_ITEMS) AS SINGLE, itemY(MAX_ITEMS) AS SINGLE
+DIM SHARED itemKind(MAX_ITEMS) AS INTEGER, itemOn(MAX_ITEMS) AS INTEGER, numItems AS INTEGER
 DIM SHARED hasCard(3) AS INTEGER
 
 ' --- Decorations: 1 barrel (explodes when shot), 2 lamp, 3 plant, 4 terminal.
 ' You, monsters and bolts can't pass through them; shots fly past (except
 ' into barrels). ---
-CONST MAX_DECO = 64, DECO_R = 0.3
-DIM SHARED dcX(MAX_DECO) AS SINGLE, dcY(MAX_DECO) AS SINGLE, dcK(MAX_DECO) AS INTEGER
-DIM SHARED dcOn(MAX_DECO) AS INTEGER, dcFuse(MAX_DECO) AS INTEGER, nDeco AS INTEGER
-DIM SHARED decoCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' Which decoration stands in a cell
-CONST BOOM_R = 2.2 ' A barrel's blast reaches this far
-CONST MAX_BOOM = 8, BOOM_FRAMES = 18 ' Explosions on show at once, AND how long each lasts
-DIM SHARED bmX(MAX_BOOM) AS SINGLE, bmY(MAX_BOOM) AS SINGLE, bmT(MAX_BOOM) AS INTEGER
+' DECO_ = settings for decorations: DECO_RADIUS is how far from its middle a
+' decoration blocks you (in cells)
+CONST MAX_DECO = 64, DECO_RADIUS = 0.3
+DIM SHARED decoX(MAX_DECO) AS SINGLE, decoY(MAX_DECO) AS SINGLE, decoKind(MAX_DECO) AS INTEGER
+DIM SHARED decoOn(MAX_DECO) AS INTEGER, decoFuse(MAX_DECO) AS INTEGER, numDecos AS INTEGER
+DIM SHARED decoCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' Which decoration stands in a cell (0 none)
+' BLAST_ = explosions: how far a blast reaches (in cells), and - for the
+' picture of one - up to MAX_BLASTS on show at once, each fading over
+' BLAST_FRAMES frames
+CONST BLAST_RADIUS = 2.2
+CONST MAX_BLASTS = 8, BLAST_FRAMES = 18
+DIM SHARED blastX(MAX_BLASTS) AS SINGLE, blastY(MAX_BLASTS) AS SINGLE, blastTime(MAX_BLASTS) AS INTEGER
 
 ' --- Monsters: 1 drone (bites), 2 gunner (shoots bolts), 3 heavy (smashes),
 ' 4 crawler (fast, bites), 5 sentry (a turret: stays put, shoots bolts) ---
+' Each monster is in one of four states (chapter 13): 0 idle, 1 hunting,
+' 2 dying, 3 dead. monsterTimer counts frames - down to its next attack while
+' hunting, or through its collapse while dying - and monsterHurt is how many
+' more frames it flashes red after a hit.
+' MON_ = MONster settings shared by every monster: MON_TYPES kinds of monster,
+' MON_SIGHT how far away (in cells) they notice you, MON_DYING how many
+' frames one takes to collapse when killed
 CONST MAX_MON = 64, MON_TYPES = 5
-CONST MON_SIGHT = 14 ' How far away they notice you
-CONST MON_DYING = 24 ' Frames TO collapse when killed
-DIM SHARED mnX(MAX_MON) AS SINGLE, mnY(MAX_MON) AS SINGLE, mnType(MAX_MON) AS INTEGER
-DIM SHARED mnHP(MAX_MON) AS INTEGER, mnState(MAX_MON) AS INTEGER ' 0 idle, 1 hunting, 2 dying, 3 dead
-DIM SHARED mnT(MAX_MON) AS INTEGER, mnHurt(MAX_MON) AS INTEGER ' Attack cooldown / dying frames, hit flash
-DIM SHARED nMon AS INTEGER
-' Per type: hit points, speed (tiles a frame; you walk 0.12), height (of a
+CONST MON_SIGHT = 14
+CONST MON_DYING = 24
+DIM SHARED monsterX(MAX_MON) AS SINGLE, monsterY(MAX_MON) AS SINGLE, monsterType(MAX_MON) AS INTEGER
+DIM SHARED monsterHP(MAX_MON) AS INTEGER, monsterState(MAX_MON) AS INTEGER
+DIM SHARED monsterTimer(MAX_MON) AS INTEGER, monsterHurt(MAX_MON) AS INTEGER
+DIM SHARED numMonsters AS INTEGER
+' A second set of arrays describes each TYPE of monster, numbered 1-5 (the
+' "mtype" arrays, filled in chapter 6). Per type: hit points, speed (tiles a frame; you walk 0.12), height (of a
 ' wall), hover height and bob, attack reach, damage (min + random), frames
 ' between attacks, sprite slots, whether it shoots bolts, and sounds
-DIM SHARED mtHP(MON_TYPES), mtSpeed(MON_TYPES), mtScale(MON_TYPES), mtLift(MON_TYPES), mtBob(MON_TYPES)
-DIM SHARED mtReach(MON_TYPES), mtDmg(MON_TYPES), mtDmgRnd(MON_TYPES), mtCool(MON_TYPES)
-DIM SHARED mtSlot(MON_TYPES), mtName$(MON_TYPES), mtRanged(MON_TYPES)
-DIM SHARED mtAlert&(MON_TYPES), mtAtk&(MON_TYPES), mtHitS&(MON_TYPES), mtDie&(MON_TYPES)
-CONST GUNNER_NEAR = 3.5, GUNNER_FAR = 7 ' Gunners like TO keep this far from you
+DIM SHARED mtypeHP(MON_TYPES), mtypeSpeed(MON_TYPES), mtypeScale(MON_TYPES), mtypeLift(MON_TYPES), mtypeBob(MON_TYPES)
+DIM SHARED mtypeReach(MON_TYPES), mtypeDamage(MON_TYPES), mtypeDamageRnd(MON_TYPES), mtypeCooldown(MON_TYPES)
+DIM SHARED mtypeSprite(MON_TYPES), mtypeName$(MON_TYPES), mtypeRanged(MON_TYPES)
+DIM SHARED mtypeAlertSnd&(MON_TYPES), mtypeAttackSnd&(MON_TYPES), mtypeHitSnd&(MON_TYPES), mtypeDieSnd&(MON_TYPES)
+' GUNNER_ = gunners (and sentries) like to keep between GUNNER_NEAR and
+' GUNNER_FAR cells away from you
+CONST GUNNER_NEAR = 3.5, GUNNER_FAR = 7
 
-' --- Energy bolts (gunner shots) ---
+' --- Energy bolts (what gunners and sentries shoot): a position and a
+' direction each, moved a little every frame ---
+' (BOLT_SPEED is in cells a frame - you walk at 0.12)
 CONST MAX_BOLTS = 32, BOLT_SPEED = 0.14
-DIM SHARED bX(MAX_BOLTS) AS SINGLE, bY(MAX_BOLTS) AS SINGLE, bDX(MAX_BOLTS) AS SINGLE, bDY(MAX_BOLTS) AS SINGLE
-DIM SHARED bOn(MAX_BOLTS) AS INTEGER, bDmg(MAX_BOLTS) AS INTEGER
+DIM SHARED boltX(MAX_BOLTS) AS SINGLE, boltY(MAX_BOLTS) AS SINGLE, boltDX(MAX_BOLTS) AS SINGLE, boltDY(MAX_BOLTS) AS SINGLE
+DIM SHARED boltOn(MAX_BOLTS) AS INTEGER, boltDamage(MAX_BOLTS) AS INTEGER
 
-' --- You: health, armour, two kinds of ammo, four guns ---
+'-----------------------------------------------------------------------------
+' CHAPTER 4: YOU
+'-----------------------------------------------------------------------------
+' Health, armour, two kinds of ammo and four guns. Each gun is a row in a
+' table of numbers (SetGun, below), so the shooting code (chapter 12) works
+' the same way for all of them - a new gun is mostly a new SetGun line and
+' a picture. Your position and the way you face are in chapter 8.
+' The most health (HP = "hit points") and armour you can have
 CONST MAX_HP = 100, MAX_ARMOR = 100
+' AM_ = AMmo: the two kinds. They number the ammo arrays: ammoCount(AM_CELLS)
+' is how many energy cells you have, ammoMax(AM_SHELLS) the most shells
+' you can carry.
 CONST AM_CELLS = 1, AM_SHELLS = 2
-DIM SHARED ammoN(2) AS INTEGER, ammoMax(2) AS INTEGER
+DIM SHARED ammoCount(2) AS INTEGER, ammoMax(2) AS INTEGER
 ammoMax(AM_CELLS) = 99 : ammoMax(AM_SHELLS) = 40
-CONST W_BLASTER = 1, W_SCATTER = 2, W_REPEATER = 3, W_RAIL = 4, NUM_W = 4
-DIM SHARED hasWpn(NUM_W) AS INTEGER
+' W_ = Weapon: the guns, numbered 1-4. They number the gun arrays below
+' (gunName$(W_RAIL) is "RAILGUN") and are the keys you press to pick them.
+CONST W_BLASTER = 1, W_SCATTER = 2, W_REPEATER = 3, W_RAIL = 4, NUM_GUNS = 4
+DIM SHARED hasGun(NUM_GUNS) AS INTEGER
 ' Per gun: name, ammo kind, ammo per shot, frames between shots, pellets,
 ' spread (of the view's width), damage per hit, whether a shot goes through
 ' every monster in its line, recoil, sound, picture, and where its muzzle is
-DIM SHARED wpName$(NUM_W), wpAmmo(NUM_W), wpCost(NUM_W), wpDelay(NUM_W), wpPellets(NUM_W), wpSpread(NUM_W)
-DIM SHARED wpDmg(NUM_W), wpPierce(NUM_W), wpKick(NUM_W)
-DIM SHARED wpSnd&(NUM_W), wpImg&(NUM_W), wpMuzX(NUM_W), wpMuzY(NUM_W), wpScale(NUM_W)
-'           name        ammo       cost delay pellets spread damage pierce recoil
-SetGun 1, "BLASTER", AM_CELLS, 1, 16, 1, 0, 1, 0, 1
-SetGun 2, "SCATTER", AM_SHELLS, 1, 40, 7, 0.12, 1, 0, 1.7
-SetGun 3, "REPEATER", AM_CELLS, 1, 5, 1, 0.025, 1, 0, 0.45
-SetGun 4, "RAILGUN", AM_CELLS, 5, 55, 1, 0, 5, -1, 2.2
-CONST SWAP_FRAMES = 14 ' Lowering one gun AND raising the NEXT
-CONST TEST_ALL_GUNS = -1 ' -1: start with every gun AND full ammo (FOR testing), 0: normal
-CONST CHEAT_KEYS = -1 ' -1: K gives you every keycard, G toggles god mode (FOR testing), 0: off
+DIM SHARED gunName$(NUM_GUNS), gunAmmoType(NUM_GUNS), gunAmmoPerShot(NUM_GUNS), gunDelay(NUM_GUNS), gunPellets(NUM_GUNS), gunSpread(NUM_GUNS)
+DIM SHARED gunDamage(NUM_GUNS), gunPierce(NUM_GUNS), gunKick(NUM_GUNS)
+DIM SHARED gunSnd&(NUM_GUNS), gunImg&(NUM_GUNS), gunMuzzleX(NUM_GUNS), gunMuzzleY(NUM_GUNS), gunScale(NUM_GUNS)
+'      gun name        ammo       cost delay pellets spread damage pierce recoil
+SetGun 1,  "BLASTER",  AM_CELLS,  1,   16,   1,      0,     1,     0,     1
+SetGun 2,  "SCATTER",  AM_SHELLS, 1,   40,   7,      0.12,  1,     0,     1.7
+SetGun 3,  "REPEATER", AM_CELLS,  1,   5,    1,      0.025, 1,     0,     0.45
+SetGun 4,  "RAILGUN",  AM_CELLS,  5,   55,   1,      0,     5,     -1,    2.2
+CONST SWAP_FRAMES = 14 ' Frames to lower one gun and raise the next
+' TEST_ and CHEAT_ = testing aids - set both to 0 for the real game:
+'   TEST_ALL_GUNS  -1 starts you with every gun and full ammo
+'   CHEAT_KEYS     -1 lets K give you every keycard, and G switch god mode
+'                  (no damage, walk through walls) on and off
+CONST TEST_ALL_GUNS = -1
+CONST CHEAT_KEYS = -1
 
-' --- Sprites (billboards): textures, and the list drawn each frame ---
+'-----------------------------------------------------------------------------
+' CHAPTER 5: PICTURES IN ARRAYS
+'-----------------------------------------------------------------------------
+' Drawing 120,000 pixels a frame one PSET at a time would be far too slow, and
+' so would reading textures back with POINT. So the game keeps its pictures
+' in plain arrays of colours and draws the 3D view into another array,
+' pixels(), at half size: 400 x 300. Reading and writing array elements is
+' fast. Once the whole view is in pixels(), it's copied into an image in one
+' go with _MEMCOPY and stretched onto the window with _PUTIMAGE (chapter 17).
+'
+'   texture(x, y, slot)     64 x 64 wall, floor and ceiling pictures,
+'                           numbered by "slot" (the T_ constants below)
+'   spriteTex(x, y, slot)   up to 64 x 64 pictures of things: monsters,
+'                           pickups, decorations (the S_ constants)
+'   pixels(y * 400 + x)     the 3D view being drawn this frame
+'   zBuffer(x)              how far away the wall is in each column - so
+'                           sprites can hide behind walls (chapter 16)
+'
+' The HUD and the gun are drawn later, on the window itself at full size,
+' with ordinary QB64PE graphics (chapter 18).
+
+' --- Sprites (billboards): pictures, and the list drawn each frame ---
+' SPR_ = SPRite picture storage: each picture is up to SPR_TEX pixels square,
+' and there are SPR_SLOTS of them. A "slot" is just a picture's number - the
+' third index of spriteTex(x, y, slot):
+'   1-3 keycards, 4 medkit, 5 cells, 6 shells, 7 scatter gun, 8 repeater,
+'   9/10 drone (/hit), 11/12 gunner, 13/14 heavy, 15/16 crawler, 17/18 sentry,
+'   19 bolt, 20-23 decorations (barrel, lamp, plant, terminal), 24 explosion,
+'   25 armour, 26 big medkit, 27 railgun
 CONST SPR_TEX = 64, SPR_SLOTS = 27
-' 1-3 keycards, 4 medkit, 5 cells, 6 shells, 7 scatter gun, 8 repeater,
-' 9/10 drone (/hit), 11/12 gunner, 13/14 heavy, 15/16 crawler, 17/18 sentry,
-' 19 bolt, 20-23 decorations (barrel, lamp, plant, terminal), 24 explosion,
-' 25 armour, 26 big medkit, 27 railgun
-CONST S_BOLT = 19, S_DECO = 19, S_BOOM = 24
+' S_ = Sprite slot: names for a few of those numbers. S_DECO + kind is a
+' decoration's slot (barrel = S_DECO + 1 = 20, and so on).
+CONST S_BOLT = 19, S_DECO = 19, S_BLAST = 24
+' How tall pickups stand (in walls): keycards, other pickups, guns
 CONST CARD_SCALE = 0.3, ITEM_SCALE = 0.3, GUN_ITEM_SCALE = 0.45
-DIM SHARED sprTex(SPR_TEX - 1, SPR_TEX-1, SPR_SLOTS) AS _UNSIGNED LONG, sprSz(SPR_SLOTS) AS INTEGER
-DIM SHARED cardImg&(3)
-CONST MAX_DRAW = MAX_ITEMS + MAX_MON + MAX_BOLTS + MAX_DECO + MAX_BOOM
-DIM dlX(MAX_DRAW) AS SINGLE, dlY(MAX_DRAW) AS SINGLE, dlD(MAX_DRAW) AS SINGLE
-DIM dlSlot(MAX_DRAW) AS INTEGER, dlScale(MAX_DRAW) AS SINGLE, dlLift(MAX_DRAW) AS SINGLE
-DIM dlSquash(MAX_DRAW) AS SINGLE, dlMinS(MAX_DRAW) AS INTEGER, ord(MAX_DRAW) AS INTEGER
+DIM SHARED spriteTex(SPR_TEX - 1, SPR_TEX-1, SPR_SLOTS) AS _UNSIGNED LONG, spriteSize(SPR_SLOTS) AS INTEGER
+DIM SHARED cardImg&(3) ' The keycards as images, for the HUD
+' The draw list: every sprite to draw this frame (chapter 16)
+CONST MAX_DRAW = MAX_ITEMS + MAX_MON + MAX_BOLTS + MAX_DECO + MAX_BLASTS
+DIM drawX(MAX_DRAW) AS SINGLE, drawY(MAX_DRAW) AS SINGLE, drawDistSq(MAX_DRAW) AS SINGLE
+DIM drawSprite(MAX_DRAW) AS INTEGER, drawScale(MAX_DRAW) AS SINGLE, drawLift(MAX_DRAW) AS SINGLE
+DIM drawSquash(MAX_DRAW) AS SINGLE, drawMinShade(MAX_DRAW) AS INTEGER, drawOrder(MAX_DRAW) AS INTEGER
 
-' --- Render buffer (half-res, scaled 2x to the screen) ---
-CONST RW = 400, RH = 300, TEX = 64
-' Texture slots: 1-6 the level's six walls (# N C K P G), 7 sliding door,
-' 8-10 key doors, 11 shutter, 12 split door, 13 exit, 14-17 the level's four
-' floors, 18-19 its two ceilings
-CONST T_DOOR = 7, T_DOORK = 7 ' KEY doors : slot T_DOORK + card(8 red, 9 blue, 10 yellow)
+' --- The 3D view: drawn at half size, then stretched 2x onto the window ---
+' RENDER_ = the size of the 3D view in pixels (W = width, H = height);
+' TEX_SIZE = every texture is 64 x 64 pixels
+CONST RENDER_W = 400, RENDER_H = 300, TEX_SIZE = 64
+' T_ = Texture slot: which picture in texture(x, y, slot). The slots are:
+'   1-6 the level's six walls (# N C K P G), 7 sliding door, 8-10 key doors,
+'   11 shutter, 12 split door, 13 exit, 14-17 the level's four floors,
+'   18-19 its two ceilings
+' T_DOORK + card is a key door (8 red, 9 blue, 10 yellow); T_FLOOR + n is
+' floor n, and T_CEIL + n ceiling n; T_SLOTS is how many slots there are.
+CONST T_DOOR = 7, T_DOORK = 7
 CONST T_SHUTTER = 11, T_SPLIT = 12, T_EXIT = 13
-CONST T_FLOOR = 13, T_CEIL = 17 ' Floor n is slot T_FLOOR + n, ceiling n T_CEIL + n
+CONST T_FLOOR = 13, T_CEIL = 17
 CONST T_SLOTS = 19
-DIM SHARED TEX(TEX - 1, TEX-1, T_SLOTS) AS _UNSIGNED LONG
-DIM SHARED wallSlot(7) AS INTEGER, wallCol(7) AS _UNSIGNED LONG ' worldMap wall value -> texture slot, minimap colour
-wallSlot(1) = 1 : wallSlot(3) = 2 : wallSlot(4) = 3 : wallSlot(5) = 4 : wallSlot(6) = 5 : wallSlot(7) = 6
-DIM SHARED scr(0 TO RW * RH - 1) AS _UNSIGNED LONG
-DIM SHARED zBuf(RW - 1) AS SINGLE ' wall distance per column(sprites HIDE behind walls)
-buf& = _NEWIMAGE(RW, RH, 32)
-DIM mBuf AS _MEM, mScr AS _MEM
-mBuf = _MEMIMAGE(buf&) : mScr = _MEM(scr())
+DIM SHARED texture(TEX_SIZE - 1, TEX_SIZE-1, T_SLOTS) AS _UNSIGNED LONG
+' For each worldMap wall value: its texture slot, and its colour on the minimap
+DIM SHARED wallTexSlot(7) AS INTEGER, wallMapColor(7) AS _UNSIGNED LONG
+wallTexSlot(1) = 1 : wallTexSlot(3) = 2 : wallTexSlot(4) = 3 : wallTexSlot(5) = 4 : wallTexSlot(6) = 5 : wallTexSlot(7) = 6
+DIM SHARED pixels(0 TO RENDER_W * RENDER_H - 1) AS _UNSIGNED LONG
+DIM SHARED zBuffer(RENDER_W - 1) AS SINGLE
+' The image the view is copied into each frame. _MEMIMAGE and _MEM give us
+' "memory blocks" for the image and the array, so _MEMCOPY can copy all
+' 120,000 colours from one to the other at once.
+renderImg& = _NEWIMAGE(RENDER_W, RENDER_H, 32)
+DIM renderMem AS _MEM, pixelsMem AS _MEM
+renderMem = _MEMIMAGE(renderImg&) : pixelsMem = _MEM(pixels())
 
-' --- Load Textures and sprites (each level loads its own walls, floors and
-' ceilings) ---
+'-----------------------------------------------------------------------------
+' CHAPTER 6: LOADING THE PICTURES AND SOUNDS
+'-----------------------------------------------------------------------------
+' Every picture is a PNG in the neon-caster/ folder. LoadTex and LoadSprite
+' (chapter 22) open one with _LOADIMAGE and copy its colours into the
+' texture() or spriteTex() array. The level's own walls, floors and
+' ceilings are loaded with the level (chapter 20); these are the ones every
+' level shares.
+'
+' Some pictures are made rather than loaded: the keycards and key doors are
+' one picture tinted three colours, each monster gets a second, red-washed
+' copy to flash when it's hit, and the bolt is drawn with maths (MakeBolt).
 LoadTex "door.png", T_DOOR
 LoadTex "door-shutter.png", T_SHUTTER
 LoadTex "door-split.png", T_SPLIT
@@ -139,32 +387,35 @@ LoadSprite "gunner.png", 11
 LoadSprite "heavy.png", 13
 LoadSprite "crawler.png", 15
 LoadSprite "sentry.png", 17
-FOR t = 9 TO 17 STEP 2 ' hit flash : each monster washed hot RED
+FOR slot = 9 TO 17 STEP 2 ' The hit flash: each monster washed hot red, in the next slot
     FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX-1
-        sprTex(x, y, t + 1) = Tint~&(sprTex(x, y, t), _RGB32(255, 90, 70), 0.7)
+        spriteTex(x, y, slot + 1) = Tint~&(spriteTex(x, y, slot), _RGB32(255, 90, 70), 0.7)
     NEXT : NEXT
-    sprSz(t + 1) = sprSz(t)
+    spriteSize(slot + 1) = spriteSize(slot)
 NEXT
 MakeBolt S_BOLT
 LoadSprite "barrel.png", S_DECO + 1
 LoadSprite "lamp.png", S_DECO + 2
 LoadSprite "plant.png", S_DECO + 3
 LoadSprite "terminal.png", S_DECO + 4
-LoadSprite "explosion.png", S_BOOM
+LoadSprite "explosion.png", S_BLAST
 LoadSprite "armor.png", 25
 LoadSprite "bigmed.png", 26
 LoadSprite "pickup-rail.png", 27
 
-' The guns, first person, drawn just as their pictures are (barrel pointing
-' into the screen)
-wpScale(1) = 3 : wpScale(2) = 3.6 : wpScale(3) = 4 : wpScale(4) = 3.6 ' Drawn this many times their size
-CONST GUN_Y = 600 ' Its bottom sits here, its muzzle straight below the crosshair
+' The guns you hold are kept as ordinary images (not arrays): they're drawn
+' over the finished view with _PUTIMAGE, at full size (chapter 18). LoadGun
+' also works out where each one's muzzle is, for the muzzle flash.
+gunScale(1) = 3 : gunScale(2) = 3.6 : gunScale(3) = 4 : gunScale(4) = 3.6 ' Drawn this many times their size
+CONST GUN_Y = 600 ' A gun's bottom sits here, its muzzle straight below the crosshair
 LoadGun 1, "gun.png"
 LoadGun 2, "gun-scatter.png"
 LoadGun 3, "gun-repeater.png"
 LoadGun 4, "gun-rail.png"
 
-' --- Load Sounds (PWMSFXR patches, rendered by neon-caster/sfx/make-sfx.sh) ---
+' Sounds: WAV files from neon-caster/sfx/ (made with PWMSFXR - see
+' make-sfx.sh there). _SNDOPEN loads one and gives back a handle, a number
+' we keep in a & (LONG) variable and play with PlaySfx (chapter 22).
 sndStep1& = LoadSnd&("step1.wav") : sndStep2& = LoadSnd&("step2.wav")
 sndBump& = LoadSnd&("bump.wav") : sndHump& = LoadSnd&("wallhump.wav")
 sndDoor& = LoadSnd&("door.wav") : sndShutter& = LoadSnd&("door-shutter.wav") : sndSplit& = LoadSnd&("door-split.wav")
@@ -173,123 +424,200 @@ sndEmpty& = LoadSnd&("empty.wav") : sndWeapon& = LoadSnd&("weapon.wav")
 sndHealth& = LoadSnd&("health.wav") : sndAmmo& = LoadSnd&("ammo.wav") : sndShells& = LoadSnd&("shells.wav")
 sndBoltWall& = LoadSnd&("bolt-wall.wav")
 sndHurt& = LoadSnd&("hurt.wav") : sndDie& = LoadSnd&("die.wav")
-wpSnd&(1) = LoadSnd&("shoot.wav") : wpSnd&(2) = LoadSnd&("scatter.wav") : wpSnd&(3) = LoadSnd&("repeater.wav")
-wpSnd&(4) = LoadSnd&("rail.wav")
+gunSnd&(1) = LoadSnd&("shoot.wav") : gunSnd&(2) = LoadSnd&("scatter.wav") : gunSnd&(3) = LoadSnd&("repeater.wav")
+gunSnd&(4) = LoadSnd&("rail.wav")
 sndBarrel& = LoadSnd&("barrel.wav") : sndArmor& = LoadSnd&("armor.wav") : sndExit& = LoadSnd&("exit.wav")
-CONST STEP_LEN = 2.6 ' distance walked per footstep(~2.8 steps a second at full speed)
+CONST STEP_LEN = 2.6 ' Cells walked per footstep (about 2.8 a second at full speed)
 
-' Monster types           HP  speed  height lift  bob   reach dmg+rnd cool slot
-SetMonType 1, "drone", 3, 0.045, 0.65, 0.2, 0.05, 0.95, 8, 6, 50, 9
-SetMonType 2, "gunner", 4, 0.035, 0.8, 0, 0, 0, 9, 6, 90, 11
-SetMonType 3, "heavy", 10, 0.028, 0.95, 0, 0, 1.25, 20, 10, 80, 13
-SetMonType 4, "crawler", 2, 0.07, 0.4, 0, 0.02, 0.75, 5, 4, 35, 15
-SetMonType 5, "sentry", 8, 0, 0.75, 0, 0, 0, 7, 5, 50, 17
-mtRanged(2) = -1 : mtRanged(5) = -1
-mtAlert&(1) = LoadSnd&("drone-alert.wav") : mtAtk&(1) = LoadSnd&("drone-attack.wav")
-mtHitS&(1) = LoadSnd&("drone-hit.wav") : mtDie&(1) = LoadSnd&("drone-die.wav")
-mtAlert&(2) = LoadSnd&("gunner-alert.wav") : mtAtk&(2) = LoadSnd&("gunner-shoot.wav")
-mtHitS&(2) = LoadSnd&("gunner-hit.wav") : mtDie&(2) = LoadSnd&("gunner-die.wav")
-mtAlert&(3) = LoadSnd&("heavy-alert.wav") : mtAtk&(3) = LoadSnd&("heavy-attack.wav")
-mtHitS&(3) = LoadSnd&("heavy-hit.wav") : mtDie&(3) = LoadSnd&("heavy-die.wav")
-mtAlert&(4) = LoadSnd&("crawler-alert.wav") : mtAtk&(4) = LoadSnd&("crawler-attack.wav")
-mtHitS&(4) = LoadSnd&("crawler-hit.wav") : mtDie&(4) = LoadSnd&("crawler-die.wav")
-mtAlert&(5) = LoadSnd&("sentry-alert.wav") : mtAtk&(5) = LoadSnd&("sentry-shoot.wav")
-mtHitS&(5) = LoadSnd&("sentry-hit.wav") : mtDie&(5) = LoadSnd&("sentry-die.wav")
+' The monster types table: SetMonType fills in the "mtype" arrays (one
+' entry per TYPE of monster - see chapter 3) for types 1-5. Speed is in
+' cells a frame; height is in walls (1 = as tall as a wall); lift and bob
+' are how high it hovers and how much it bobs; reach is how close it must
+' be to hit you; damage is dmg plus a random 0 to +rnd - 1; cooldown (cool)
+' is frames between attacks; slot is its sprite slot (chapter 5).
+'          type name       HP  speed  height lift bob   reach dmg +rnd cool slot
+SetMonType 1,   "drone",   3,  0.045, 0.65,  0.2, 0.05, 0.95, 8,  6,   50,  9
+SetMonType 2,   "gunner",  4,  0.035, 0.8,   0,   0,    0,    9,  6,   90,  11
+SetMonType 3,   "heavy",   10, 0.028, 0.95,  0,   0,    1.25, 20, 10,  80,  13
+SetMonType 4,   "crawler", 2,  0.07,  0.4,   0,   0.02, 0.75, 5,  4,   35,  15
+SetMonType 5,   "sentry",  8,  0,     0.75,  0,   0,    0,    7,  5,   50,  17
+mtypeRanged(2) = -1 : mtypeRanged(5) = -1
+mtypeAlertSnd&(1) = LoadSnd&("drone-alert.wav") : mtypeAttackSnd&(1) = LoadSnd&("drone-attack.wav")
+mtypeHitSnd&(1) = LoadSnd&("drone-hit.wav") : mtypeDieSnd&(1) = LoadSnd&("drone-die.wav")
+mtypeAlertSnd&(2) = LoadSnd&("gunner-alert.wav") : mtypeAttackSnd&(2) = LoadSnd&("gunner-shoot.wav")
+mtypeHitSnd&(2) = LoadSnd&("gunner-hit.wav") : mtypeDieSnd&(2) = LoadSnd&("gunner-die.wav")
+mtypeAlertSnd&(3) = LoadSnd&("heavy-alert.wav") : mtypeAttackSnd&(3) = LoadSnd&("heavy-attack.wav")
+mtypeHitSnd&(3) = LoadSnd&("heavy-hit.wav") : mtypeDieSnd&(3) = LoadSnd&("heavy-die.wav")
+mtypeAlertSnd&(4) = LoadSnd&("crawler-alert.wav") : mtypeAttackSnd&(4) = LoadSnd&("crawler-attack.wav")
+mtypeHitSnd&(4) = LoadSnd&("crawler-hit.wav") : mtypeDieSnd&(4) = LoadSnd&("crawler-die.wav")
+mtypeAlertSnd&(5) = LoadSnd&("sentry-alert.wav") : mtypeAttackSnd&(5) = LoadSnd&("sentry-shoot.wav")
+mtypeHitSnd&(5) = LoadSnd&("sentry-hit.wav") : mtypeDieSnd&(5) = LoadSnd&("sentry-die.wav")
 
-DIM x AS LONG, y AS LONG, fu AS LONG, fv AS LONG, tX AS LONG
-DIM rowF AS LONG, rowC AS LONG, lStart AS LONG, lEnd AS LONG
-DIM svWpn(NUM_W) ' What you had on entering the level (you get it back if you die)
+' Loop counters and pixel positions used by the drawing code are LONG
+' (whole numbers) - integer maths is quicker in the inner loops. Anything
+' not DIMmed is a SINGLE (a decimal number), QB64PE's default.
+DIM x AS LONG, y AS LONG, texU AS LONG, texV AS LONG, texX AS LONG
+DIM floorRow AS LONG, ceilRow AS LONG, drawStart AS LONG, drawEnd AS LONG
+DIM savedHasGun(NUM_GUNS) ' What you had on entering the level (you get it back if you die)
 
-MoveSpeed = 0.12 : RotSpeed = 0.003 ' Mouse sensitivity
+moveSpeed = 0.12 ' Cells a frame
+turnSpeed = 0.003 ' Mouse sensitivity: radians per mouse step
 GOSUB NewGame
 
+'-----------------------------------------------------------------------------
+' CHAPTER 7: THE GAME LOOP
+'-----------------------------------------------------------------------------
+' Everything from here to LOOP happens once a frame, 60 times a second
+' (_LIMIT 60 waits as needed so it never goes faster). Each frame:
+'
+'   read the mouse and keys          chapter 8
+'   move you, bump into walls        chapter 9
+'   pickups, cheats, doors           chapters 10, 11
+'   shoot                            chapter 12
+'   move the monsters and bolts      chapter 13
+'   draw the floor and ceiling       chapter 14
+'   draw the walls                   chapter 15
+'   draw the sprites                 chapter 16
+'   put it on the screen, + the HUD  chapters 17, 18
+'
+' The window only changes at _DISPLAY, the last line of the loop. Until
+' then we draw out of sight, so you never see a half-drawn frame. (Calling
+' _DISPLAY once is what switches QB64PE into this mode.)
+'
+' Times are counted in frames, not seconds: a gun that waits 16 frames
+' between shots fires about 4 times a second.
 DO
     _LIMIT 60
 
-    ' --- 1. Input ---
-    ' Pointer is captured, so just sum the raw relative motion from each event
-    mDX = 0 : WHEEL = 0
+    '-------------------------------------------------------------------------
+    ' CHAPTER 8: LOOKING AROUND
+    '-------------------------------------------------------------------------
+    ' Where you are and which way you face are two pairs of numbers:
+    '
+    '   (playerX, playerY)  your position on the map
+    '   (dirX, dirY)        a direction one cell long, the way you face
+    '   (planeX, planeY)    the "camera plane": a short line at right angles
+    '                       to dirX, dirY. It's the screen, laid flat in the
+    '                       world - its left end is the left edge of what
+    '                       you see, its right end the right edge.
+    '
+    '              plane          The rays for the screen's columns go from
+    '      <------------------>   you through points along the plane. Its
+    '       \        |       /    length (0.66 each side of dir, set in
+    '        \       | dir  /     LoadLevel) makes the view 66 degrees wide:
+    '         \      |     /      a longer plane is a wider, fish-eye view.
+    '          \     |    /
+    '              you
+    '
+    ' Turning is rotating both pairs by the same small angle. The rotation
+    ' formula for turning a point (x, y) by angle a is:
+    '   newX = x * COS(a) - y * SIN(a)
+    '   newY = x * SIN(a) + y * COS(a)
+    ' (oldDirX keeps dirX's old value, since newY needs it after dirX changed.)
+    '
+    ' The mouse: the pointer is captured (chapter 1), so we add up how far
+    ' it moved since the last frame. QB64PE queues every mouse event;
+    ' WHILE _MOUSEINPUT reads them all, one at a time, until the queue is
+    ' empty. A click that starts and ends between two frames would be
+    ' missed by just checking the button, so "clicked" remembers it.
+    mouseDX = 0 : mouseWheel = 0
     WHILE _MOUSEINPUT
-        mDX = mDX + _MOUSEMOVEMENTX
-        WHEEL = WHEEL + _MOUSEWHEEL
-        IF _MOUSEBUTTON(1) THEN clicked = -1 '(a quick click between Frames still counts)
+        mouseDX = mouseDX + _MOUSEMOVEMENTX
+        mouseWheel = mouseWheel + _MOUSEWHEEL
+        IF _MOUSEBUTTON(1) THEN clicked = -1
     WEND
-    fireDown = _MOUSEBUTTON(1) OR clicked OR _KEYDOWN(100305) OR _KEYDOWN(100306) ' click OR Ctrl
+    ' _KEYDOWN takes a key code: 100305 and 100306 are the two Ctrl keys, 32 Space
+    fireDown = _MOUSEBUTTON(1) OR clicked OR _KEYDOWN(100305) OR _KEYDOWN(100306)
     clicked = 0
     spaceDown = _KEYDOWN(32)
 
     IF dead THEN
         ' Dead: the view stays put; click or Space (after a moment) starts over
         IF TIMER - deadAt! > 1.2 AND ((fireDown AND NOT fireWas) OR (spaceDown AND NOT spaceWas)) THEN GOSUB RestartLevel
-        mDX = 0 : WHEEL = 0
+        mouseDX = 0 : mouseWheel = 0
     END IF
 
-    mDX = mDX / DisplayScale! ' Same turn speed windowed OR FULLSCREEN
-    angle = - mDX * RotSpeed
-    oldDirX = pDirX : pDirX = pDirX * COS(angle) - pDirY * SIN(angle) : pDirY = oldDirX * SIN(angle) + pDirY * COS(angle)
-    oldPX = planeX : planeX = planeX * COS(angle) - planeY * SIN(angle) : planeY = oldPX * SIN(angle) + planeY * COS(angle)
+    mouseDX = mouseDX / DisplayScale! ' The same turn speed in a window or full screen
+    turn = - mouseDX * turnSpeed
+    oldDirX = dirX : dirX = dirX * COS(turn) - dirY * SIN(turn) : dirY = oldDirX * SIN(turn) + dirY * COS(turn)
+    oldPlaneX = planeX : planeX = planeX * COS(turn) - planeY * SIN(turn) : planeY = oldPlaneX * SIN(turn) + planeY * COS(turn)
 
-    ' Guns: 1 / 2 / 3 / 4, or the mouse wheel through the ones you have
-    want = 0
-    IF _KEYDOWN(49) THEN want = 1
-    IF _KEYDOWN(50) THEN want = 2
-    IF _KEYDOWN(51) THEN want = 3
-    IF _KEYDOWN(52) THEN want = 4
-    IF WHEEL <> 0 THEN
-        want = curW
+    ' Guns: 1 / 2 / 3 / 4, or the mouse wheel through the ones you have.
+    ' Swapping takes SWAP_FRAMES: the gun dips out of sight, changes at the
+    ' halfway point, and comes back up (the drawing is in chapter 18).
+    wantGun = 0
+    IF _KEYDOWN(49) THEN wantGun = 1
+    IF _KEYDOWN(50) THEN wantGun = 2
+    IF _KEYDOWN(51) THEN wantGun = 3
+    IF _KEYDOWN(52) THEN wantGun = 4
+    IF mouseWheel <> 0 THEN
+        wantGun = currentGun
         DO
-            want = want + SGN(WHEEL) : IF want > NUM_W THEN want = 1
-            IF want < 1 THEN want = NUM_W
-        LOOP UNTIL hasWpn(want)
+            wantGun = wantGun + SGN(mouseWheel) : IF wantGun > NUM_GUNS THEN wantGun = 1
+            IF wantGun < 1 THEN wantGun = NUM_GUNS
+        LOOP UNTIL hasGun(wantGun)
     END IF
-    IF want > 0 AND want <> curW AND swapT = 0 THEN
-        IF hasWpn(want) THEN nextW = want : swapT = SWAP_FRAMES
+    IF wantGun > 0 AND wantGun <> currentGun AND swapTimer = 0 THEN
+        IF hasGun(wantGun) THEN nextGun = wantGun : swapTimer = SWAP_FRAMES
     END IF
-    IF swapT > 0 THEN
-        swapT = swapT - 1
-        IF swapT = SWAP_FRAMES \ 2 THEN curW = nextW ' Swapped WHILE it's OUT of sight
+    IF swapTimer > 0 THEN
+        swapTimer = swapTimer - 1
+        IF swapTimer = SWAP_FRAMES \ 2 THEN currentGun = nextGun ' (while it's out of sight)
     END IF
 
-    ' --- 2. WASD + Strafe + Backwards ---
-    ' Forward/back and strafe combine into one direction at walking speed, so
-    ' diagonals aren't faster (and opposite keys cancel out)
-    fwd = 0 : strafe = 0
+    '-------------------------------------------------------------------------
+    ' CHAPTER 9: MOVING, AND BUMPING INTO THINGS
+    '-------------------------------------------------------------------------
+    ' W and S move you along (dirX, dirY); A and D move you sideways, along
+    ' (dirY, -dirX) - your direction turned 90 degrees. Pressing W and D
+    ' together adds the two, which would be about 1.4 times as fast, so the
+    ' sum is "normalized": divided by its own length (moveLen) to make it one
+    ' cell long, then scaled to walking speed. Now every direction is the
+    ' same speed, and opposite keys simply cancel out.
+    forward = 0 : strafe = 0
     IF NOT dead THEN
-        IF _KEYDOWN(119) OR _KEYDOWN(87) THEN fwd = fwd + 1 ' W
-        IF _KEYDOWN(115) OR _KEYDOWN(83) THEN fwd = fwd - 1 ' S
-        IF _KEYDOWN(97) OR _KEYDOWN(65) THEN strafe = strafe - 1 ' a(strafe left)
-        IF _KEYDOWN(100) OR _KEYDOWN(68) THEN strafe = strafe + 1 ' D(strafe right)
+        IF _KEYDOWN(119) OR _KEYDOWN(87) THEN forward = forward + 1 ' W
+        IF _KEYDOWN(115) OR _KEYDOWN(83) THEN forward = forward - 1 ' S
+        IF _KEYDOWN(97) OR _KEYDOWN(65) THEN strafe = strafe - 1 ' A (strafe left)
+        IF _KEYDOWN(100) OR _KEYDOWN(68) THEN strafe = strafe + 1 ' D (strafe right)
     END IF
-    moveX = pDirX * fwd + pDirY * strafe : moveY = pDirY * fwd - pDirX * strafe
+    moveX = dirX * forward + dirY * strafe : moveY = dirY * forward - dirX * strafe
     moveLen = SQR(moveX * moveX + moveY * moveY)
     IF moveLen > 0 THEN
-        moveX = moveX / moveLen * MoveSpeed : moveY = moveY / moveLen * MoveSpeed
-        bob = bob + 0.2
+        moveX = moveX / moveLen * moveSpeed : moveY = moveY / moveLen * moveSpeed
+        bobPhase = bobPhase + 0.2
     END IF
 
-    ' Collision (Slide along walls)
-    ' Player has a body radius so the camera can't touch the walls
-    prevX = pX : prevY = pY
+    ' Collision. You're a square, PLAYER_RADIUS from your middle to each
+    ' side, so the camera can never get right up against a wall (it would
+    ' fill the screen with one blurry texel). MoveBody (chapter 22) tries the
+    ' X part of the move and the Y part separately: walk into a wall at an
+    ' angle and the blocked part stops, while the other part carries on -
+    ' so you slide along the wall instead of sticking to it. Monsters move
+    ' with MoveBody too.
+    prevX = playerX : prevY = playerY
     IF godMode THEN ' No clipping: straight through anything, but stay inside the border
-        pX = pX + moveX : pY = pY + moveY
-        IF pX < 1.01 THEN pX = 1.01
-        IF pX > MAP_SIZE - 1.01 THEN pX = MAP_SIZE - 1.01
-        IF pY < 1.01 THEN pY = 1.01
-        IF pY > MAP_SIZE - 1.01 THEN pY = MAP_SIZE - 1.01
+        playerX = playerX + moveX : playerY = playerY + moveY
+        IF playerX < 1.01 THEN playerX = 1.01
+        IF playerX > MAP_SIZE - 1.01 THEN playerX = MAP_SIZE - 1.01
+        IF playerY < 1.01 THEN playerY = 1.01
+        IF playerY > MAP_SIZE - 1.01 THEN playerY = MAP_SIZE - 1.01
     ELSE
-        MoveBody pX, pY, moveX, moveY
+        MoveBody playerX, playerY, moveX, moveY
     END IF
-    ' ...and you can't walk through a monster
-    FOR i = 1 TO nMon
-        IF mnState(i) < 2 AND NOT godMode THEN
-            near = 0.3 + mtScale(mnType(i)) * 0.35
-            dNew = (mnX(i) - pX) ^ 2 + (mnY(i) -pY) ^ 2
-            IF dNew < near * near AND dNew <(mnX(i) - prevX) ^ 2 + (mnY(i) -prevY) ^ 2 THEN pX = prevX : pY = prevY
+    ' ...and you can't walk through a monster: if a step takes you inside one
+    ' (closer than touchDist) and closer than you were, take it back
+    FOR i = 1 TO numMonsters
+        IF monsterState(i) < 2 AND NOT godMode THEN
+            touchDist = 0.3 + mtypeScale(monsterType(i)) * 0.35
+            newDistSq = (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2
+            IF newDistSq < touchDist * touchDist AND newDistSq <(monsterX(i) - prevX) ^ 2 + (monsterY(i) -prevY) ^ 2 THEN playerX = prevX : playerY = prevY
         END IF
     NEXT
 
-    ' Footsteps: one every STEP_LEN actually walked, alternating feet
-    moved = SQR((pX - prevX) ^ 2 + (pY - prevY) ^ 2)
+    ' Footsteps: one every STEP_LEN cells actually walked, alternating feet
+    ' (so walking into a wall makes no footsteps)
+    moved = SQR((playerX - prevX) ^ 2 + (playerY - prevY) ^ 2)
     IF moved > 0 THEN
         stepDist = stepDist + moved
         IF stepDist >= STEP_LEN THEN
@@ -302,476 +630,657 @@ DO
 
     ' Bump: once when you push firmly into a wall (not when sliding along one)
     pushing = 0
-    IF pX = prevX AND ABS(moveX) > MoveSpeed * 0.5 THEN pushing = -1
-    IF pY = prevY AND ABS(moveY) > MoveSpeed * 0.5 THEN pushing = -1
+    IF playerX = prevX AND ABS(moveX) > moveSpeed * 0.5 THEN pushing = -1
+    IF playerY = prevY AND ABS(moveY) > moveSpeed * 0.5 THEN pushing = -1
     IF pushing AND NOT wasPushing THEN PlaySfx sndBump&, 0.8
     wasPushing = pushing
 
-    ' Pickups: walk over one (ones you can't use yet stay put)
-    FOR i = 1 TO nItems
-        IF itOn(i) AND NOT dead AND (itX(i) - pX) ^ 2 + (itY(i) -pY) ^ 2 < 0.45 * 0.45 THEN
-            SELECT CASE itK(i)
+    '-------------------------------------------------------------------------
+    ' CHAPTER 10: PICKUPS AND CHEAT KEYS
+    '-------------------------------------------------------------------------
+    ' A pickup is taken when you're within 0.45 cells of it. Comparing the
+    ' squared distance with 0.45 squared gives the same answer as comparing
+    ' distances, and skips a slow SQR - a trick used all through the game.
+    ' Things you can't use yet (health when you're full) stay where they are.
+    FOR i = 1 TO numItems
+        IF itemOn(i) AND NOT dead AND (itemX(i) - playerX) ^ 2 + (itemY(i) -playerY) ^ 2 < 0.45 * 0.45 THEN
+            SELECT CASE itemKind(i)
                 CASE 1 TO 3
-                    itOn(i) = 0 : hasCard(itK(i)) = -1
+                    itemOn(i) = 0 : hasCard(itemKind(i)) = -1
                     PlaySfx sndCard&, 0.8
-                    ShowMsg "Picked up the " + CardName$(itK(i)) + " keycard"
+                    ShowMsg "Picked up the " + CardName$(itemKind(i)) + " keycard"
                 CASE IT_HEALTH
-                    IF hp < MAX_HP THEN
-                        itOn(i) = 0 : hp = hp + 25 : IF hp > MAX_HP THEN hp = MAX_HP
+                    IF health < MAX_HP THEN
+                        itemOn(i) = 0 : health = health + 25 : IF health > MAX_HP THEN health = MAX_HP
                         PlaySfx sndHealth&, 0.8 : ShowMsg "Health pack (+25)" : pickFlash = 10
                     END IF
                 CASE IT_BIGMED
-                    IF hp < MAX_HP THEN
-                        itOn(i) = 0 : hp = hp + 50 : IF hp > MAX_HP THEN hp = MAX_HP
+                    IF health < MAX_HP THEN
+                        itemOn(i) = 0 : health = health + 50 : IF health > MAX_HP THEN health = MAX_HP
                         PlaySfx sndHealth&, 0.9 : ShowMsg "Big medkit (+50)" : pickFlash = 14
                     END IF
                 CASE IT_ARMOR
                     IF armor < MAX_ARMOR THEN
-                        itOn(i) = 0 : armor = armor + 50 : IF armor > MAX_ARMOR THEN armor = MAX_ARMOR
+                        itemOn(i) = 0 : armor = armor + 50 : IF armor > MAX_ARMOR THEN armor = MAX_ARMOR
                         PlaySfx sndArmor&, 0.8 : ShowMsg "Armour (+50)" : pickFlash = 10
                     END IF
                 CASE IT_CELLS
-                    IF GiveAmmo%(AM_CELLS, 15) THEN itOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Energy cells (+15)" : pickFlash = 10
+                    IF GiveAmmo%(AM_CELLS, 15) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Energy cells (+15)" : pickFlash = 10
                 CASE IT_SHELLS
-                    IF GiveAmmo%(AM_SHELLS, 8) THEN itOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Shells (+8)" : pickFlash = 10
+                    IF GiveAmmo%(AM_SHELLS, 8) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Shells (+8)" : pickFlash = 10
                 CASE IT_SCATTER, IT_REPEATER, IT_RAIL
-                    IF itK(i) = IT_RAIL THEN W = W_RAIL ELSE W = itK(i) - IT_SCATTER + W_SCATTER
-                    IF W = W_SCATTER THEN got = GiveAmmo%(AM_SHELLS, 8) ELSE got = GiveAmmo%(AM_CELLS, 30)
-                    IF NOT hasWpn(W) OR got THEN
-                        itOn(i) = 0 : PlaySfx sndWeapon&, 0.9 : pickFlash = 10
-                        IF NOT hasWpn(W) THEN
-                            hasWpn(W) = -1 : nextW = W : swapT = SWAP_FRAMES
-                            ShowMsg "You got the " + wpName$(w) + "!  (" + LTRIM$(STR$(w)) + " or mouse wheel to switch)"
+                    IF itemKind(i) = IT_RAIL THEN gun = W_RAIL ELSE gun = itemKind(i) - IT_SCATTER + W_SCATTER
+                    IF gun = W_SCATTER THEN taken = GiveAmmo%(AM_SHELLS, 8) ELSE taken = GiveAmmo%(AM_CELLS, 30)
+                    IF NOT hasGun(gun) OR taken THEN
+                        itemOn(i) = 0 : PlaySfx sndWeapon&, 0.9 : pickFlash = 10
+                        IF NOT hasGun(gun) THEN
+                            hasGun(gun) = -1 : nextGun = gun : swapTimer = SWAP_FRAMES
+                            ShowMsg "You got the " + gunName$(gun) + "!  (" + LTRIM$(STR$(gun)) + " or mouse wheel to switch)"
                         ELSE
-                            ShowMsg wpName$(W) + " ammo"
+                            ShowMsg gunName$(gun) + " ammo"
                         END IF
                     END IF
             END SELECT
         END IF
     NEXT
 
+    ' The cheat keys act once per press, not every frame the key is held.
+    ' That's "edge detection": remember last frame's state (kKeyWas) and act
+    ' only when the key is down now and wasn't then. Space and the fire
+    ' button use the same trick.
     ' K: every keycard (testing)
-    kDown = _KEYDOWN(107) OR _KEYDOWN(75)
-    IF CHEAT_KEYS AND kDown AND NOT kWas AND NOT dead THEN
+    kKeyDown = _KEYDOWN(107) OR _KEYDOWN(75)
+    IF CHEAT_KEYS AND kKeyDown AND NOT kKeyWas AND NOT dead THEN
         FOR k = 1 TO 3 : hasCard(k) = -1 : NEXT
         PlaySfx sndCard&, 0.8 : ShowMsg "All keycards"
     END IF
-    kWas = kDown
+    kKeyWas = kKeyDown
     ' G: god mode on / off - no damage, and you walk through walls (testing)
-    gDown = _KEYDOWN(103) OR _KEYDOWN(71)
-    IF CHEAT_KEYS AND gDown AND NOT gWas AND NOT dead THEN
+    gKeyDown = _KEYDOWN(103) OR _KEYDOWN(71)
+    IF CHEAT_KEYS AND gKeyDown AND NOT gKeyWas AND NOT dead THEN
         godMode = NOT godMode
         IF godMode THEN ShowMsg "God mode ON - no damage, no clipping" ELSE ShowMsg "God mode OFF"
         PlaySfx sndCard&, 0.8
     END IF
-    gWas = gDown
+    gKeyWas = gKeyDown
 
-    ' --- 3. Door & World Logic ---
-    IF spaceDown AND NOT spaceWas AND NOT dead THEN ' SPACE TO OPEN(once per press)
-        ' March along the view ray; open the first closed door within reach, stop at walls
+    '-------------------------------------------------------------------------
+    ' CHAPTER 11: DOORS
+    '-------------------------------------------------------------------------
+    ' Space opens the door in front of you. To find it, we take small steps
+    ' (0.05 cells) out from you along (dirX, dirY), up to 2 cells, and look
+    ' at the cell each step lands in: the first shut door is the one, and a
+    ' wall first means there's nothing to open. The exit door is a door that
+    ' never opens - Space on it ends the level (chapter 20).
+    '
+    ' A door's doorOpen() goes from 0 (shut) to 1 (open). Space just nudges
+    ' it off 0; after that the loop below adds a little every frame until it
+    ' reaches 1. The wall drawing (chapter 15) uses the number to slide the
+    ' door aside, raise the shutter, or part the split door's halves.
+    IF spaceDown AND NOT spaceWas AND NOT dead THEN ' (once per press)
         FOR reach = 0.05 TO 2 STEP 0.05
-            cX = INT(pX + pDirX * reach) : cY = INT(pY + pDirY * reach)
-            IF worldMap(cX, cY) = 2 AND doorOffsets(cX, cY) = 0 THEN
-                dk = doorKey(cX, cY)
-                IF doorType(cX, cY) = DOOR_EXIT THEN
+            cellX = INT(playerX + dirX * reach) : cellY = INT(playerY + dirY * reach)
+            IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 THEN
+                keyNeeded = doorKey(cellX, cellY)
+                IF doorType(cellX, cellY) = DOOR_EXIT THEN
                     GOSUB LevelDone
-                ELSEIF dk = 0 OR hasCard(dk) THEN
-                    doorOffsets(cX, cY) = 0.01
-                    SELECT CASE doorType(cX, cY)
+                ELSEIF keyNeeded = 0 OR hasCard(keyNeeded) THEN
+                    doorOpen(cellX, cellY) = 0.01
+                    SELECT CASE doorType(cellX, cellY)
                         CASE DOOR_SHUTTER : PlaySfx sndShutter&, 0.9
                         CASE DOOR_SPLIT : PlaySfx sndSplit&, 0.9
                         CASE ELSE : PlaySfx sndDoor&, 0.9
                     END SELECT
                 ELSE
                     PlaySfx sndLocked&, 0.8
-                    ShowMsg "Locked - you need the " + CardName$(dk) + " keycard"
+                    ShowMsg "Locked - you need the " + CardName$(keyNeeded) + " keycard"
                 END IF
                 EXIT FOR
             END IF
-            IF SolidAt(pX + pDirX * reach, pY + pDirY * reach) THEN
-                IF reach <= 1.2 THEN PlaySfx sndHump&, 0.8 ' Trying TO OPEN a plain wall
+            IF SolidAt(playerX + dirX * reach, playerY + dirY * reach) THEN
+                IF reach <= 1.2 THEN PlaySfx sndHump&, 0.8 ' Trying to open a plain wall
                 EXIT FOR
             END IF
         NEXT
     END IF
-    FOR dy = 0 TO MAP_SIZE - 1 : FOR dx = 0 TO MAP_SIZE-1
-        IF doorOffsets(dx, dy) > 0 AND doorOffsets(dx, dy) < 1 THEN
-            SELECT CASE doorType(dx, dy) ' Shutters are heavy AND slow, split doors snap OPEN
-                CASE DOOR_SHUTTER : doorOffsets(dx, dy) = doorOffsets(dx, dy) + 0.025
-                CASE DOOR_SPLIT : doorOffsets(dx, dy) = doorOffsets(dx, dy) + 0.06
-                CASE ELSE : doorOffsets(dx, dy) = doorOffsets(dx, dy) + 0.04
+    FOR doorY = 0 TO MAP_SIZE - 1 : FOR doorX = 0 TO MAP_SIZE-1
+        IF doorOpen(doorX, doorY) > 0 AND doorOpen(doorX, doorY) < 1 THEN
+            SELECT CASE doorType(doorX, doorY) ' Shutters are heavy and slow, split doors snap open
+                CASE DOOR_SHUTTER : doorOpen(doorX, doorY) = doorOpen(doorX, doorY) + 0.025
+                CASE DOOR_SPLIT : doorOpen(doorX, doorY) = doorOpen(doorX, doorY) + 0.06
+                CASE ELSE : doorOpen(doorX, doorY) = doorOpen(doorX, doorY) + 0.04
             END SELECT
-            IF doorOffsets(dx, dy) > 1 THEN doorOffsets(dx, dy) = 1
+            IF doorOpen(doorX, doorY) > 1 THEN doorOpen(doorX, doorY) = 1
         END IF
     NEXT : NEXT
 
-    ' --- Shooting: hold to fire. Each pellet hits the nearest monster in its
-    ' line, unless a wall is closer
+    '-------------------------------------------------------------------------
+    ' CHAPTER 12: SHOOTING
+    '-------------------------------------------------------------------------
+    ' Shots are "hitscan": they hit instantly, nothing flies. A shot goes
+    ' straight out through one column of the screen - the middle one, or a
+    ' little to the side for a scatter gun's pellets (aim, from -1 at the
+    ' left edge to 1 at the right). What does it hit?
+    '
+    ' For each monster we work out where it is on screen, exactly as
+    ' chapter 16 does to draw it: transformY is how far in front of you it
+    ' is, and transformX / transformY says how far across the screen. If
+    ' the shot's column passes through the monster's sprite, it's in the
+    ' line of fire. The nearest one wins - unless the wall in that column is
+    ' nearer still. zBuffer() still holds each column's wall distance from
+    ' drawing the last frame (chapter 15), so that's a free answer to "is
+    ' there a wall in the way?"
+    '
+    ' Barrels can be hit the same way (chapter 13 blows them up), and the
+    ' railgun's shot doesn't stop at the first thing: it hits everything in
+    ' its line that's nearer than the wall.
+    '
+    ' Hold the button to keep firing: fireWait counts down the frames until
+    ' the gun can fire again.
     IF fireWait > 0 THEN fireWait = fireWait - 1
-    IF fireDown AND NOT dead AND fireWait = 0 AND swapT = 0 THEN
-        am = wpAmmo(curW)
-        IF ammoN(am) >= wpCost(curW) THEN
-            ammoN(am) = ammoN(am) - wpCost(curW) : fireWait = wpDelay(curW) : gunKick = wpKick(curW) : muzzle = 4
-            PlaySfx wpSnd&(curW), 0.7
-            hitDmg = wpDmg(curW) : IF wpPierce(curW) THEN railBeam = 8
-            invDet = 1 /(planeX * pDirY - pDirX * planeY)
-            FOR pel = 1 TO wpPellets(curW)
-                aim = (RND * 2 - 1) * wpSpread(curW) ' Across the view, -1 left edge..1 right
-                IF wpPellets(curW) > 1 THEN aim = ((pel - 1) /(wpPellets(curW) -1) * 2 - 1) * wpSpread(curW) + (RND - 0.5) * 0.02
-                col = INT(RW / 2 * (1 + aim)) : IF col < 0 THEN col = 0
-                IF col > RW - 1 THEN col = RW-1
+    IF fireDown AND NOT dead AND fireWait = 0 AND swapTimer = 0 THEN
+        ammoType = gunAmmoType(currentGun)
+        IF ammoCount(ammoType) >= gunAmmoPerShot(currentGun) THEN
+            ammoCount(ammoType) = ammoCount(ammoType) - gunAmmoPerShot(currentGun) : fireWait = gunDelay(currentGun) : recoil = gunKick(currentGun) : muzzleFlash = 4
+            PlaySfx gunSnd&(currentGun), 0.7
+            hitDamage = gunDamage(currentGun) : IF gunPierce(currentGun) THEN railBeam = 8
+            invDet = 1 /(planeX * dirY - dirX * planeY)
+            FOR pellet = 1 TO gunPellets(currentGun)
+                aim = (RND * 2 - 1) * gunSpread(currentGun) ' Across the view: -1 left edge .. 1 right
+                IF gunPellets(currentGun) > 1 THEN aim = ((pellet - 1) /(gunPellets(currentGun) -1) * 2 - 1) * gunSpread(currentGun) + (RND - 0.5) * 0.02
+                screenCol = INT(RENDER_W / 2 * (1 + aim)) : IF screenCol < 0 THEN screenCol = 0
+                IF screenCol > RENDER_W - 1 THEN screenCol = RENDER_W-1
                 ' (a piercing shot hits everything in its line that's nearer than
-                ' the wall; any other the nearest monster or barrel)
-                best = 0 : bestB = 0 : bestD = zBuf(col)
-                FOR i = 1 TO nMon
-                    IF mnState(i) < 2 THEN
-                        sx = mnX(i) - pX : sy = mnY(i) -pY
-                        trX = invDet * (pDirY * sx - pDirX * sy) : trY = invDet * (-planeY * sx + planeX * sy)
-                        IF trY > 0.2 AND trY < bestD THEN
-                            IF ABS(RW / 2 * (trX / trY - aim)) < RH / trY * mtScale(mnType(i)) * 0.3 THEN
-                                IF wpPierce(curW) THEN hitMon = i : GOSUB HitMonster ELSE best = i : bestD = trY
+                ' the wall; any other shot just the nearest monster or barrel)
+                bestMonster = 0 : bestBarrel = 0 : bestDist = zBuffer(screenCol)
+                FOR i = 1 TO numMonsters
+                    IF monsterState(i) < 2 THEN
+                        relX = monsterX(i) - playerX : relY = monsterY(i) -playerY
+                        transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
+                        IF transformY > 0.2 AND transformY < bestDist THEN
+                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < RENDER_H / transformY * mtypeScale(monsterType(i)) * 0.3 THEN
+                                IF gunPierce(currentGun) THEN target = i : GOSUB HitMonster ELSE bestMonster = i : bestDist = transformY
                             END IF
                         END IF
                     END IF
                 NEXT
-                FOR i = 1 TO nDeco
-                    IF dcOn(i) AND dcK(i) = 1 THEN
-                        sx = dcX(i) - pX : sy = dcY(i) -pY
-                        trX = invDet * (pDirY * sx - pDirX * sy) : trY = invDet * (-planeY * sx + planeX * sy)
-                        IF trY > 0.2 AND trY < bestD THEN
-                            IF ABS(RW / 2 * (trX / trY - aim)) < RH / trY * DecoScale(1) * 0.35 THEN
-                                IF wpPierce(curW) THEN
-                                    IF dcFuse(i) = 0 THEN dcFuse(i) = 1
+                FOR i = 1 TO numDecos
+                    IF decoOn(i) AND decoKind(i) = 1 THEN
+                        relX = decoX(i) - playerX : relY = decoY(i) -playerY
+                        transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
+                        IF transformY > 0.2 AND transformY < bestDist THEN
+                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < RENDER_H / transformY * DecoScale(1) * 0.35 THEN
+                                IF gunPierce(currentGun) THEN
+                                    IF decoFuse(i) = 0 THEN decoFuse(i) = 1
                                 ELSE
-                                    bestB = i : best = 0 : bestD = trY
+                                    bestBarrel = i : bestMonster = 0 : bestDist = transformY
                                 END IF
                             END IF
                         END IF
                     END IF
                 NEXT
-                IF best THEN hitMon = best : GOSUB HitMonster
-                IF bestB THEN IF dcFuse(bestB) = 0 THEN dcFuse(bestB) = 1
+                IF bestMonster THEN target = bestMonster : GOSUB HitMonster
+                IF bestBarrel THEN IF decoFuse(bestBarrel) = 0 THEN decoFuse(bestBarrel) = 1
             NEXT
         ELSEIF NOT fireWas THEN
             PlaySfx sndEmpty&, 0.7
-            IF am = AM_SHELLS THEN ShowMsg "Out of shells" ELSE ShowMsg "Out of energy cells"
+            IF ammoType = AM_SHELLS THEN ShowMsg "Out of shells" ELSE ShowMsg "Out of energy cells"
             fireWait = 20
         END IF
     END IF
     fireWas = fireDown : spaceWas = spaceDown
 
-    ' --- Monsters ---
-    FOR i = 1 TO nMon
-        IF mnHurt(i) > 0 THEN mnHurt(i) = mnHurt(i) -1
-        t = mnType(i)
-        SELECT CASE mnState(i)
-            CASE 0 ' Idle : wake when it can see you
+    '-------------------------------------------------------------------------
+    ' CHAPTER 13: MONSTERS, BOLTS AND BARRELS
+    '-------------------------------------------------------------------------
+    ' Each monster is a little "state machine": what it does depends on
+    ' which state it's in, and things that happen move it to another state.
+    '
+    '   0 idle     waits until it can see you (CanSee walks a line from it
+    '              to you, checking for walls and shut doors - chapter 22)
+    '   1 hunting  forever after: walks at you and attacks when close
+    '              enough - or, if it shoots (mtypeRanged), keeps its
+    '              distance and fires bolts whenever it has a clear line
+    '   2 dying    shrinks into the floor for MON_DYING frames
+    '   3 dead     gone; skipped from now on
+    '
+    ' Shooting an idle monster wakes it too (HitMonster, chapter 19).
+    ' Monsters steer the dumbest way possible - straight at you - and slide
+    ' along walls with MoveBody like you do. They also push gently apart, so
+    ' a pack doesn't merge into one sprite.
+    FOR i = 1 TO numMonsters
+        IF monsterHurt(i) > 0 THEN monsterHurt(i) = monsterHurt(i) -1
+        mtype = monsterType(i)
+        SELECT CASE monsterState(i)
+            CASE 0 ' Idle: wake when it can see you
                 IF NOT dead THEN
-                    IF (mnX(i) - pX) ^ 2 + (mnY(i) -pY) ^ 2 < MON_SIGHT * MON_SIGHT THEN
-                        IF CanSee(mnX(i), mnY(i), pX, pY) THEN
-                            mnState(i) = 1 : mnT(i) = 30
-                            SfxAt mtAlert&(t), mnX(i), mnY(i), pX, pY
+                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2 < MON_SIGHT * MON_SIGHT THEN
+                        IF CanSee(monsterX(i), monsterY(i), playerX, playerY) THEN
+                            monsterState(i) = 1 : monsterTimer(i) = 30
+                            SfxAt mtypeAlertSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
                         END IF
                     END IF
                 END IF
             CASE 1 ' Hunting
-                IF mnT(i) > 0 THEN mnT(i) = mnT(i) -1
-                ddx = pX - mnX(i) : ddy = pY - mnY(i) : D = SQR(ddx * ddx + ddy * ddy)
-                IF NOT dead AND D > 0.01 THEN
+                IF monsterTimer(i) > 0 THEN monsterTimer(i) = monsterTimer(i) -1
+                toPlayerX = playerX - monsterX(i) : toPlayerY = playerY - monsterY(i) : distance = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY)
+                IF NOT dead AND distance > 0.01 THEN
                     goX = 0 : goY = 0
-                    IF mtRanged(t) THEN
+                    IF mtypeRanged(mtype) THEN
                         ' Gunner: keep its distance, shoot when it has a clear line
                         ' (a sentry can't move, so it just shoots)
-                        seen = CanSee(mnX(i), mnY(i), pX, pY)
-                        IF D > GUNNER_FAR OR NOT seen THEN goX = ddx / D : goY = ddy / D
-                        IF D < GUNNER_NEAR THEN goX = - ddx / D : goY = -ddy / D
-                        IF seen AND mnT(i) = 0 AND D < 11 THEN
-                            FireBolt mnX(i), mnY(i), ddx / d, ddy / d, mtDmg(t) + INT(RND * mtDmgRnd(t))
-                            SfxAt mtAtk&(t), mnX(i), mnY(i), pX, pY
-                            mnT(i) = mtCool(t) + INT(RND * 30)
+                        seen = CanSee(monsterX(i), monsterY(i), playerX, playerY)
+                        IF distance > GUNNER_FAR OR NOT seen THEN goX = toPlayerX / distance : goY = toPlayerY / distance
+                        IF distance < GUNNER_NEAR THEN goX = - toPlayerX / distance : goY = -toPlayerY / distance
+                        IF seen AND monsterTimer(i) = 0 AND distance < 11 THEN
+                            FireBolt monsterX(i), monsterY(i), toPlayerX / distance, toPlayerY / distance, mtypeDamage(mtype) + INT(RND * mtypeDamageRnd(mtype))
+                            SfxAt mtypeAttackSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
+                            monsterTimer(i) = mtypeCooldown(mtype) + INT(RND * 30)
                         END IF
-                    ELSEIF D > mtReach(t) THEN
-                        goX = ddx / D : goY = ddy / D ' Drone / heavy : CLOSE in
-                    ELSEIF mnT(i) = 0 THEN '...and hit
-                        dmg = mtDmg(t) + INT(RND * mtDmgRnd(t)) : mnT(i) = mtCool(t)
-                        PlaySfx mtAtk&(t), 0.9
+                    ELSEIF distance > mtypeReach(mtype) THEN
+                        goX = toPlayerX / distance : goY = toPlayerY / distance ' The rest: close in...
+                    ELSEIF monsterTimer(i) = 0 THEN ' ...and hit
+                        damage = mtypeDamage(mtype) + INT(RND * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
+                        PlaySfx mtypeAttackSnd&(mtype), 0.9
                         GOSUB HurtPlayer
                     END IF
-                    IF goX <> 0 OR goY <> 0 THEN MoveBody mnX(i), mnY(i), goX * mtSpeed(t), goY * mtSpeed(t)
+                    IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype), goY * mtypeSpeed(mtype)
                 END IF
                 ' Keep a little apart from each other
-                FOR j = 1 TO nMon
-                    IF j <> i AND mnState(j) < 2 AND mtSpeed(t) > 0 THEN
-                        sx = mnX(i) - mnX(j) : sy = mnY(i) -mnY(j) : d2 = sx * sx + sy * sy
-                        IF d2 < 0.36 AND d2 > 0.0001 THEN
-                            nx = mnX(i) + sx * 0.05 : ny = mnY(i) + sy * 0.05
-                            IF Walkable(nx, ny) THEN mnX(i) = nx : mnY(i) = ny
+                FOR j = 1 TO numMonsters
+                    IF j <> i AND monsterState(j) < 2 AND mtypeSpeed(mtype) > 0 THEN
+                        relX = monsterX(i) - monsterX(j) : relY = monsterY(i) -monsterY(j) : distSq = relX * relX + relY * relY
+                        IF distSq < 0.36 AND distSq > 0.0001 THEN
+                            newX = monsterX(i) + relX * 0.05 : newY = monsterY(i) + relY * 0.05
+                            IF Walkable(newX, newY) THEN monsterX(i) = newX : monsterY(i) = newY
                         END IF
                     END IF
                 NEXT
-            CASE 2 ' dying : collapse
-                mnT(i) = mnT(i) -1
-                IF mnT(i) <= 0 THEN mnState(i) = 3
+            CASE 2 ' Dying: collapse
+                monsterTimer(i) = monsterTimer(i) -1
+                IF monsterTimer(i) <= 0 THEN monsterState(i) = 3
         END SELECT
     NEXT
 
-    ' --- Bolts: fly straight; burst on walls, or on you
+    ' Bolts fly in a straight line, a little each frame, and burst on walls
+    ' or on you. Since they move only 0.14 cells a frame, checking the one
+    ' point where each bolt is can't miss a wall.
     FOR i = 1 TO MAX_BOLTS
-        IF bOn(i) THEN
-            bX(i) = bX(i) + bDX(i) * BOLT_SPEED : bY(i) = bY(i) + bDY(i) * BOLT_SPEED
-            IF NOT Walkable(bX(i), bY(i)) THEN
-                bOn(i) = 0 : SfxAt sndBoltWall&, bX(i), bY(i), pX, pY
-            ELSEIF NOT dead AND (bX(i) - pX) ^ 2 + (bY(i) -pY) ^ 2 < 0.35 * 0.35 THEN
-                bOn(i) = 0 : dmg = bDmg(i) : GOSUB HurtPlayer
+        IF boltOn(i) THEN
+            boltX(i) = boltX(i) + boltDX(i) * BOLT_SPEED : boltY(i) = boltY(i) + boltDY(i) * BOLT_SPEED
+            IF NOT Walkable(boltX(i), boltY(i)) THEN
+                boltOn(i) = 0 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
+            ELSEIF NOT dead AND (boltX(i) - playerX) ^ 2 + (boltY(i) -playerY) ^ 2 < 0.35 * 0.35 THEN
+                boltOn(i) = 0 : damage = boltDamage(i) : GOSUB HurtPlayer
             END IF
         END IF
     NEXT
-    ' --- Barrels: a lit fuse counts down, then it blows; explosions fade ---
-    FOR i = 1 TO nDeco
-        IF dcFuse(i) > 0 THEN
-            dcFuse(i) = dcFuse(i) - 1
-            IF dcFuse(i) = 0 THEN boomI = i : GOSUB Explode
+    ' Barrels: a shot lights a fuse (decoFuse), which counts down frames and
+    ' then the barrel blows up (Explode, chapter 19). A blast lights the
+    ' fuses of barrels near it, so they go off in a quick chain. Explosions
+    ' on show fade out over BLAST_FRAMES.
+    FOR i = 1 TO numDecos
+        IF decoFuse(i) > 0 THEN
+            decoFuse(i) = decoFuse(i) - 1
+            IF decoFuse(i) = 0 THEN barrel = i : GOSUB Explode
         END IF
     NEXT
-    FOR i = 1 TO MAX_BOOM
-        IF bmT(i) > 0 THEN bmT(i) = bmT(i) - 1
+    FOR i = 1 TO MAX_BLASTS
+        IF blastTime(i) > 0 THEN blastTime(i) = blastTime(i) - 1
     NEXT
     IF railBeam > 0 THEN railBeam = railBeam - 1
 
     IF hurtFlash > 0 THEN hurtFlash = hurtFlash - 1
     IF pickFlash > 0 THEN pickFlash = pickFlash - 1
 
-    ' --- 4. Render (into half-res buffer scr()) ---
-    ' Floor + ceiling: cast one row at a time, mirrored about the horizon;
-    ' each map cell has its own floor and ceiling texture
-    rx0 = pDirX - planeX : ry0 = pDirY - planeY
-    rx1 = pDirX + planeX : ry1 = pDirY + planeY
-    FOR y = RH \ 2 TO RH - 1
-        rowDist = (RH / 2) /(y - RH / 2 + 0.5)
-        fsX = rowDist * (rx1 - rx0) / RW : fsY = rowDist * (ry1 - ry0) / RW
-        fX = pX + rowDist * rx0 : fY = pY + rowDist * ry0
-        s& = 256 - rowDist * 16
-        IF s& < 0 THEN s& = 0
-        rowF = y * RW : rowC = (RH - 1 - y) * RW
-        FOR x = 0 TO RW - 1
-            cX = INT(fX) : cY = INT(fY)
-            IF cX >= 0 AND cX < MAP_SIZE AND cY >= 0 AND cY < MAP_SIZE THEN
-                fs = floorT(cX, cY) : cs = ceilT(cX, cY)
-                IF fK(cX, cY) THEN IF DiagIn(fK(cX, cY), fX - cX, fY - cY) THEN fs = floorT2(cX, cY)
-                IF cK(cX, cY) THEN IF DiagIn(cK(cX, cY), fX - cX, fY - cY) THEN cs = ceilT2(cX, cY)
+    '-------------------------------------------------------------------------
+    ' CHAPTER 14: DRAWING THE FLOOR AND CEILING
+    '-------------------------------------------------------------------------
+    ' Now we draw the frame into pixels() - floor and ceiling first, then the
+    ' walls on top of them (chapter 15), then the sprites (chapter 16).
+    '
+    ' The horizon is the middle row of the screen. Your eye is half a wall up
+    ' from the floor, so every row below the horizon shows the floor at one
+    ' fixed distance: the further down the screen, the closer the floor. By
+    ' similar triangles, row y sees the floor at
+    '
+    '     rowDist = (RENDER_H / 2) / (y - RENDER_H / 2)
+    '
+    ' (the + 0.5 below aims at the middle of the row, and keeps us from ever
+    ' dividing by 0). Along that row, the floor point slides in a straight
+    ' line from where the left-most ray (rayDirX0, rayDirY0) meets the floor
+    ' to where the right-most ray (rayDirX1, rayDirY1) does - so we work out
+    ' the step from one pixel to the next once (floorStepX, floorStepY) and
+    ' just add it 400 times. The fraction part of the floor point picks the
+    ' texture pixel: INT(floorX * 64) AND 63 is the same as
+    ' (floorX * 64) MOD 64 for a 64-pixel texture, only faster - which is why
+    ' textures are a power of 2 wide.
+    '
+    ' The ceiling is the same picture upside down: row y's mirror image above
+    ' the horizon shows the ceiling at the same distance, straight above the
+    ' same floor point. So one pass draws both.
+    '
+    ' The fog: light& goes from 256 (full colour) close up down to 0 (black)
+    ' 16 cells away, and Shade~& (chapter 22) darkens each colour by it.
+    rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
+    rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY
+    FOR y = RENDER_H \ 2 TO RENDER_H - 1
+        rowDist = (RENDER_H / 2) /(y - RENDER_H / 2 + 0.5)
+        floorStepX = rowDist * (rayDirX1 - rayDirX0) / RENDER_W : floorStepY = rowDist * (rayDirY1 - rayDirY0) / RENDER_W
+        floorX = playerX + rowDist * rayDirX0 : floorY = playerY + rowDist * rayDirY0
+        light& = 256 - rowDist * 16
+        IF light& < 0 THEN light& = 0
+        floorRow = y * RENDER_W : ceilRow = (RENDER_H - 1 - y) * RENDER_W
+        FOR x = 0 TO RENDER_W - 1
+            cellX = INT(floorX) : cellY = INT(floorY)
+            IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+                floorSlot = floorTex(cellX, cellY) : ceilSlot = ceilTex(cellX, cellY)
+                IF floorSplit(cellX, cellY) THEN IF InDiagonalWall(floorSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN floorSlot = floorTex2(cellX, cellY)
+                IF ceilSplit(cellX, cellY) THEN IF InDiagonalWall(ceilSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN ceilSlot = ceilTex2(cellX, cellY)
             ELSE
-                fs = T_FLOOR + 1 : cs = T_CEIL + 1
+                floorSlot = T_FLOOR + 1 : ceilSlot = T_CEIL + 1
             END IF
-            fu = INT(fX * TEX) AND (TEX - 1) : fv = INT(fY * TEX) AND (TEX - 1)
-            scr(rowF + x) = Shade~&(TEX(fu, fv, fs), s&)
-            scr(rowC + x) = Shade~&(TEX(fu, fv, cs), s&)
-            fX = fX + fsX : fY = fY + fsY
+            texU = INT(floorX * TEX_SIZE) AND (TEX_SIZE - 1) : texV = INT(floorY * TEX_SIZE) AND (TEX_SIZE - 1)
+            pixels(floorRow + x) = Shade~&(texture(texU, texV, floorSlot), light&)
+            pixels(ceilRow + x) = Shade~&(texture(texU, texV, ceilSlot), light&)
+            floorX = floorX + floorStepX : floorY = floorY + floorStepY
         NEXT
     NEXT
 
-    ' Walls + doors
-    FOR x = 0 TO RW - 1
-        camX = 2 * x / RW - 1
-        rDX = pDirX + planeX * camX : rDY = pDirY + planeY * camX
-        mX = INT(pX) : mY = INT(pY)
-        ddx = ABS(1 / rDX) : ddy = ABS(1 / rDY)
+    '-------------------------------------------------------------------------
+    ' CHAPTER 15: DRAWING THE WALLS - THE RAYCASTER
+    '-------------------------------------------------------------------------
+    ' The heart of the game. For each of the 400 columns of the view:
+    '
+    ' 1. THE RAY. cameraX goes from -1 at the left column to +1 at the
+    '    right. The ray's direction is your direction plus that much of the
+    '    camera plane (chapter 8): rayDir = dir + plane * cameraX.
+    '
+    ' 2. WALKING THE GRID (the "DDA"). We want the first wall cell the ray
+    '    enters. Rather than inch along it, we hop from one cell edge to the
+    '    next. The ray crosses a vertical grid line (an "x-side") every
+    '    deltaDistX of travel, and a horizontal one (a "y-side") every
+    '    deltaDistY - for a ray that's (rayDirX, rayDirY), that's
+    '    ABS(1 / rayDirX) and ABS(1 / rayDirY). sideDistX and sideDistY are
+    '    how far along the ray the NEXT x-side and y-side are. Each step,
+    '    whichever is nearer is the edge we cross: move into that cell
+    '    (stepX or stepY is +1 or -1, the way the ray points), push that
+    '    side's distance one deltaDist further, and look at the new cell.
+    '    "side" remembers which kind of edge we came through: 0 = x-side
+    '    (a wall facing east or west), 1 = y-side (north or south).
+    '
+    '                    +-----+-----+-----+
+    '                    |     |     |#####|   The ray crosses edges in
+    '                    |     |    /|#####|   order of distance: x-side,
+    '                    +-----+---/-+-----+   y-side, x-side... and stops
+    '                    |     |  /  |     |   in the first wall cell (#).
+    '                    |     | /   |     |
+    '                    +-----+/----+-----+
+    '                    | you /     |     |
+    '
+    ' 3. HOW FAR? perpWallDist is the distance to the wall measured straight
+    '    ahead (at right angles to the camera plane), NOT along the ray. If
+    '    we used the true ray length, walls at the screen's edges would come
+    '    out too far away and the view would bulge like a fish-eye lens.
+    '    Measured straight ahead, a flat wall stays flat. The DDA hands it
+    '    to us: it's the sideDist of the edge we crossed last (sideDist minus
+    '    one deltaDist, as sideDist has already moved on) - worked out below
+    '    from the cell we stopped in.
+    '
+    ' 4. HOW TALL? A wall one cell high, perpWallDist away, is
+    '    RENDER_H / perpWallDist pixels tall, centred on the horizon.
+    '
+    ' 5. WHICH TEXTURE COLUMN? wallX is where along the wall's face the ray
+    '    hit (0 to 1); times 64 that's the column of the texture to draw.
+    '    Some faces flip it, so textures aren't mirrored when you see them
+    '    from the other side. Down the screen we step through the texture
+    '    by texStep = 64 / lineHeight texels per pixel.
+    '
+    ' 6. LIGHT. Fog by distance as on the floor, and y-sides a bit darker
+    '    than x-sides. It's fake lighting, but it makes corners readable.
+    '
+    ' 7. zBuffer(x) = perpWallDist, for the sprites (chapter 16) and for
+    '    shooting (chapter 12).
+    '
+    ' Some cells aren't simply solid:
+    '   DOORS are drawn on the near face of their cell. The ray stops there
+    '   only where the door still is: a sliding door has slid doorOpen of
+    '   the way across, so a ray hitting the part it slid away from carries
+    '   on into the room beyond. A rising shutter is drawn in a second pass,
+    '   over whatever is behind it ("shutterSeen" remembers it).
+    '   DIAGONAL WALLS: entering one, we check where the ray crosses the
+    '   cell's diagonal (DiagonalHit, chapter 22). If it does before leaving
+    '   the cell, that's the hit, at that distance; otherwise the ray is in
+    '   the open half and carries on.
+    FOR x = 0 TO RENDER_W - 1
+        cameraX = 2 * x / RENDER_W - 1
+        rayDirX = dirX + planeX * cameraX : rayDirY = dirY + planeY * cameraX
+        mapX = INT(playerX) : mapY = INT(playerY)
+        deltaDistX = ABS(1 / rayDirX) : deltaDistY = ABS(1 / rayDirY)
 
-        IF rDX < 0 THEN stX = -1 : sDX = (pX - mX) * ddx ELSE stX = 1 : sDX = (mX + 1 - pX) * ddx
-        IF rDY < 0 THEN stY = -1 : sDY = (pY - mY) * ddy ELSE stY = 1 : sDY = (mY + 1 - pY) * ddy
+        IF rayDirX < 0 THEN stepX = -1 : sideDistX = (playerX - mapX) * deltaDistX ELSE stepX = 1 : sideDistX = (mapX + 1 - playerX) * deltaDistX
+        IF rayDirY < 0 THEN stepY = -1 : sideDistY = (playerY - mapY) * deltaDistY ELSE stepY = 1 : sideDistY = (mapY + 1 - playerY) * deltaDistY
 
-        hit = 0 : side = 0 : ovl = 0 : dgHit = 0
-        IF diagK(mX, mY) THEN ' Standing in a diagonal wall's open half
-            tOut = sDX : IF sDY < tOut THEN tOut = sDY
-            dgT = DiagHit(diagK(mX, mY), mX, mY, pX, pY, rDX, rDY, 0, tOut)
-            IF dgT >= 0 THEN hit = worldMap(mX, mY) : dgHit = diagK(mX, mY) : dist = dgT
+        hit = 0 : side = 0 : shutterSeen = 0 : diagHit = 0
+        IF diagCorner(mapX, mapY) THEN ' Standing in a diagonal wall's open half
+            exitDist = sideDistX : IF sideDistY < exitDist THEN exitDist = sideDistY
+            diagDist = DiagonalHit(diagCorner(mapX, mapY), mapX, mapY, playerX, playerY, rayDirX, rayDirY, 0, exitDist)
+            IF diagDist >= 0 THEN hit = worldMap(mapX, mapY) : diagHit = diagCorner(mapX, mapY) : perpWallDist = diagDist
         END IF
         WHILE hit = 0
-            IF sDX < sDY THEN sDX = sDX + ddx : mX = mX + stX : side = 0 ELSE sDY = sDY + ddy : mY = mY + stY : side = 1
-            v = worldMap(mX, mY)
-            IF diagK(mX, mY) THEN
+            IF sideDistX < sideDistY THEN sideDistX = sideDistX + deltaDistX : mapX = mapX + stepX : side = 0 ELSE sideDistY = sideDistY + deltaDistY : mapY = mapY + stepY : side = 1
+            cellValue = worldMap(mapX, mapY)
+            IF diagCorner(mapX, mapY) THEN
                 ' Diagonal wall: came in through its solid half, that's a plain
                 ' wall face; else it hits the diagonal if it crosses it in here
-                IF side = 0 THEN tIn = sDX - ddx ELSE tIn = sDY - ddy
-                tOut = sDX : IF sDY < tOut THEN tOut = sDY
-                IF DiagIn(diagK(mX, mY), pX + (tIn + 0.001) * rDX - mX, pY + (tIn + 0.001) * rDY - mY) THEN
-                    hit = v
+                IF side = 0 THEN enterDist = sideDistX - deltaDistX ELSE enterDist = sideDistY - deltaDistY
+                exitDist = sideDistX : IF sideDistY < exitDist THEN exitDist = sideDistY
+                IF InDiagonalWall(diagCorner(mapX, mapY), playerX + (enterDist + 0.001) * rayDirX - mapX, playerY + (enterDist + 0.001) * rayDirY - mapY) THEN
+                    hit = cellValue
                 ELSE
-                    dgT = DiagHit(diagK(mX, mY), mX, mY, pX, pY, rDX, rDY, tIn, tOut)
-                    IF dgT >= 0 THEN hit = v : dgHit = diagK(mX, mY) : dist = dgT
+                    diagDist = DiagonalHit(diagCorner(mapX, mapY), mapX, mapY, playerX, playerY, rayDirX, rayDirY, enterDist, exitDist)
+                    IF diagDist >= 0 THEN hit = cellValue : diagHit = diagCorner(mapX, mapY) : perpWallDist = diagDist
                 END IF
-            ELSEIF v = 2 THEN
-                IF side = 0 THEN dd = (mX - pX + (1 - stX) / 2) / rDX : wX = pY + dd * rDY ELSE dd = (mY - pY + (1 - stY) / 2) / rDY : wX = pX + dd * rDX
-                wX = wX - INT(wX) : dOpen = doorOffsets(mX, mY)
-                SELECT CASE doorType(mX, mY)
+            ELSEIF cellValue = 2 THEN
+                IF side = 0 THEN doorDist = (mapX - playerX + (1 - stepX) / 2) / rayDirX : doorU = playerY + doorDist * rayDirY ELSE doorDist = (mapY - playerY + (1 - stepY) / 2) / rayDirY : doorU = playerX + doorDist * rayDirX
+                doorU = doorU - INT(doorU) : doorOpenAmt = doorOpen(mapX, mapY)
+                SELECT CASE doorType(mapX, mapY)
                     CASE DOOR_SLIDE ' Slides sideways
-                        IF wX > dOpen THEN hit = 2
-                    CASE DOOR_SPLIT ' Halves part from the MIDDLE
-                        IF wX < 0.5 - dOpen / 2 OR wX > 0.5 + dOpen / 2 THEN hit = 2
+                        IF doorU > doorOpenAmt THEN hit = 2
+                    CASE DOOR_SPLIT ' Halves part from the middle
+                        IF doorU < 0.5 - doorOpenAmt / 2 OR doorU > 0.5 + doorOpenAmt / 2 THEN hit = 2
                     CASE DOOR_EXIT ' Never opens
                         hit = 2
-                    CASE DOOR_SHUTTER ' rises : shut, it's a wall;rising, you see under it
-                        IF dOpen <= 0 THEN
+                    CASE DOOR_SHUTTER ' Rises: shut, it's a wall; rising, you see under it
+                        IF doorOpenAmt <= 0 THEN
                             hit = 2
-                        ELSEIF dOpen < 1 AND ovl = 0 THEN
-                            ovl = -1 : ovD = dd : ovU = wX : ovOpen = dOpen : ovSide = side
+                        ELSEIF doorOpenAmt < 1 AND shutterSeen = 0 THEN
+                            shutterSeen = -1 : shutterDist = doorDist : shutterU = doorU : shutterOpen = doorOpenAmt : shutterSide = side
                         END IF
                 END SELECT
-            ELSEIF v > 0 THEN
-                hit = v
+            ELSEIF cellValue > 0 THEN
+                hit = cellValue
             END IF
         WEND
 
-        IF dgHit = 0 THEN
-            IF side = 0 THEN dist = (mX - pX + (1 - stX) / 2) / rDX ELSE dist = (mY - pY + (1 - stY) / 2) / rDY
+        IF diagHit = 0 THEN
+            IF side = 0 THEN perpWallDist = (mapX - playerX + (1 - stepX) / 2) / rayDirX ELSE perpWallDist = (mapY - playerY + (1 - stepY) / 2) / rayDirY
         END IF
-        IF dist < 0.001 THEN dist = 0.001
-        zBuf(x) = dist
+        IF perpWallDist < 0.001 THEN perpWallDist = 0.001
+        zBuffer(x) = perpWallDist
 
-        ' Texture column and slot (doors move their texture with them)
-        IF side = 0 THEN wallX = pY + dist * rDY ELSE wallX = pX + dist * rDX
+        ' Texture column and slot (a door's texture slides along with it)
+        IF side = 0 THEN wallX = playerY + perpWallDist * rayDirY ELSE wallX = playerX + perpWallDist * rayDirX
         wallX = wallX - INT(wallX)
-        IF dgHit THEN ' Along the diagonal, left to right as you see it
-            wallX = pX + dist * rDX - mX
-            IF dgHit <= 2 THEN wallX = 1 - wallX
-            tX = INT(wallX * TEX) : tSlot = wallSlot(hit)
+        IF diagHit THEN ' Along the diagonal, left to right as you see it
+            wallX = playerX + perpWallDist * rayDirX - mapX
+            IF diagHit <= 2 THEN wallX = 1 - wallX
+            texX = INT(wallX * TEX_SIZE) : texSlot = wallTexSlot(hit)
         ELSEIF hit = 2 THEN
-            dOpen = doorOffsets(mX, mY)
-            SELECT CASE doorType(mX, mY)
+            doorOpenAmt = doorOpen(mapX, mapY)
+            SELECT CASE doorType(mapX, mapY)
                 CASE DOOR_SLIDE
-                    tX = INT((wallX - dOpen) * TEX)
-                    IF doorKey(mX, mY) THEN tSlot = T_DOORK + doorKey(mX, mY) ELSE tSlot = T_DOOR
+                    texX = INT((wallX - doorOpenAmt) * TEX_SIZE)
+                    IF doorKey(mapX, mapY) THEN texSlot = T_DOORK + doorKey(mapX, mapY) ELSE texSlot = T_DOOR
                 CASE DOOR_SPLIT
-                    IF wallX < 0.5 THEN tX = INT((wallX + dOpen / 2) * TEX) ELSE tX = INT((wallX - dOpen / 2) * TEX)
-                    tSlot = T_SPLIT
+                    IF wallX < 0.5 THEN texX = INT((wallX + doorOpenAmt / 2) * TEX_SIZE) ELSE texX = INT((wallX - doorOpenAmt / 2) * TEX_SIZE)
+                    texSlot = T_SPLIT
                 CASE DOOR_EXIT ' (turned like a wall, so its sign reads the right way)
-                    tX = INT(wallX * TEX) : tSlot = T_EXIT
-                    IF side = 0 AND rDX > 0 THEN tX = TEX - 1 - tX
-                    IF side = 1 AND rDY < 0 THEN tX = TEX - 1 - tX
+                    texX = INT(wallX * TEX_SIZE) : texSlot = T_EXIT
+                    IF side = 0 AND rayDirX > 0 THEN texX = TEX_SIZE - 1 - texX
+                    IF side = 1 AND rayDirY < 0 THEN texX = TEX_SIZE - 1 - texX
                 CASE ELSE
-                    tX = INT(wallX * TEX) : tSlot = T_SHUTTER
+                    texX = INT(wallX * TEX_SIZE) : texSlot = T_SHUTTER
             END SELECT
         ELSE
-            tX = INT(wallX * TEX) : tSlot = wallSlot(hit)
-            IF side = 0 AND rDX > 0 THEN tX = TEX - 1 - tX
-            IF side = 1 AND rDY < 0 THEN tX = TEX - 1 - tX
+            texX = INT(wallX * TEX_SIZE) : texSlot = wallTexSlot(hit)
+            IF side = 0 AND rayDirX > 0 THEN texX = TEX_SIZE - 1 - texX
+            IF side = 1 AND rayDirY < 0 THEN texX = TEX_SIZE - 1 - texX
         END IF
-        tX = tX AND (TEX - 1)
+        texX = texX AND (TEX_SIZE - 1)
 
-        lineH = RH / dist
-        lStart = INT(RH / 2 - lineH / 2) : lEnd = INT(RH / 2 + lineH / 2)
-        tStep = TEX / lineH : tPos = (lStart - RH / 2 + lineH / 2) * tStep
-        IF lStart < 0 THEN tPos = tPos - lStart * tStep : lStart = 0
-        IF lEnd > RH - 1 THEN lEnd = RH-1
+        lineHeight = RENDER_H / perpWallDist
+        drawStart = INT(RENDER_H / 2 - lineHeight / 2) : drawEnd = INT(RENDER_H / 2 + lineHeight / 2)
+        texStep = TEX_SIZE / lineHeight : texPos = (drawStart - RENDER_H / 2 + lineHeight / 2) * texStep
+        IF drawStart < 0 THEN texPos = texPos - drawStart * texStep : drawStart = 0
+        IF drawEnd > RENDER_H - 1 THEN drawEnd = RENDER_H-1
 
-        ' Shading: distance fog, darker on Y-facing sides
-        s& = 256 - dist * 16
-        IF s& < 0 THEN s& = 0
-        IF dgHit THEN s& = s& * 0.85 ELSE IF side = 1 THEN s& = s& * 0.7
+        ' Light: distance fog, y-sides darker, diagonals in between
+        light& = 256 - perpWallDist * 16
+        IF light& < 0 THEN light& = 0
+        IF diagHit THEN light& = light& * 0.85 ELSE IF side = 1 THEN light& = light& * 0.7
 
-        FOR y = lStart TO lEnd
-            scr(y * RW + x) = Shade~&(TEX(tX, INT(tPos) AND (TEX - 1), tSlot), s&)
-            tPos = tPos + tStep
+        FOR y = drawStart TO drawEnd
+            pixels(y * RENDER_W + x) = Shade~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), texSlot), light&)
+            texPos = texPos + texStep
         NEXT
 
-        ' A rising shutter in front: its lower edge has lifted ovOpen of the
-        ' way up, so draw only the part still hanging down
-        IF ovl THEN
-            lineH = RH / ovD
-            oTop = INT(RH / 2 - lineH / 2) : lEnd = INT(RH / 2 + lineH / 2 - ovOpen * lineH)
-            tStep = TEX / lineH : tPos = ovOpen * TEX
-            lStart = oTop
-            IF lStart < 0 THEN tPos = tPos - lStart * tStep : lStart = 0
-            IF lEnd > RH - 1 THEN lEnd = RH-1
-            s& = 256 - ovD * 16
-            IF s& < 0 THEN s& = 0
-            IF ovSide = 1 THEN s& = s& * 0.7
-            tX = INT(ovU * TEX) AND (TEX - 1)
-            FOR y = lStart TO lEnd
-                scr(y * RW + x) = Shade~&(TEX(tX, INT(tPos) AND (TEX - 1), T_SHUTTER), s&)
-                tPos = tPos + tStep
+        ' A rising shutter in front: its lower edge has lifted shutterOpen of
+        ' the way up, so draw only the part still hanging down
+        IF shutterSeen THEN
+            lineHeight = RENDER_H / shutterDist
+            shutterTop = INT(RENDER_H / 2 - lineHeight / 2) : drawEnd = INT(RENDER_H / 2 + lineHeight / 2 - shutterOpen * lineHeight)
+            texStep = TEX_SIZE / lineHeight : texPos = shutterOpen * TEX_SIZE
+            drawStart = shutterTop
+            IF drawStart < 0 THEN texPos = texPos - drawStart * texStep : drawStart = 0
+            IF drawEnd > RENDER_H - 1 THEN drawEnd = RENDER_H-1
+            light& = 256 - shutterDist * 16
+            IF light& < 0 THEN light& = 0
+            IF shutterSide = 1 THEN light& = light& * 0.7
+            texX = INT(shutterU * TEX_SIZE) AND (TEX_SIZE - 1)
+            FOR y = drawStart TO drawEnd
+                pixels(y * RENDER_W + x) = Shade~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), T_SHUTTER), light&)
+                texPos = texPos + texStep
             NEXT
-            IF ovOpen < 0.5 THEN zBuf(x) = ovD ' Mostly down : things behind it stay hidden
+            IF shutterOpen < 0.5 THEN zBuffer(x) = shutterDist ' Mostly down: things behind it stay hidden
         END IF
     NEXT x
 
-    ' --- Sprites: pickups, monsters and bolts, far to near, hidden behind
-    ' walls by zBuf
-    nDraw = 0
-    FOR i = 1 TO nItems
-        IF itOn(i) THEN
-            nDraw = nDraw + 1 : dlX(nDraw) = itX(i) : dlY(nDraw) = itY(i)
-            dlSlot(nDraw) = ItemSlot(itK(i)) : dlSquash(nDraw) = 1 : dlMinS(nDraw) = 96 ' they glow : less fog
-            SELECT CASE itK(i)
-                CASE 1 TO 3 : dlScale(nDraw) = CARD_SCALE
-                CASE IT_SCATTER, IT_REPEATER, IT_RAIL : dlScale(nDraw) = GUN_ITEM_SCALE
-                CASE ELSE : dlScale(nDraw) = ITEM_SCALE
+    '-------------------------------------------------------------------------
+    ' CHAPTER 16: DRAWING SPRITES
+    '-------------------------------------------------------------------------
+    ' Monsters, pickups, decorations, bolts and explosions are "billboards":
+    ' flat pictures that always face you, like cardboard cut-outs that turn
+    ' to follow you around.
+    '
+    ' First every visible thing goes into one list (drawX, drawY, which
+    ' picture, how big, how high off the floor), and the list is sorted
+    ' far to near: drawing the far ones first lets near ones cover them
+    ' (the "painter's algorithm"). A simple swap sort is fine for a few
+    ' dozen sprites.
+    '
+    ' Then, for each one, where is it on screen? (relX, relY) is the sprite
+    ' relative to you. We turn that into "camera space" - how far in front
+    ' of you (transformY) and how far to the side (transformX), measured
+    ' along your direction and the camera plane. That's solving
+    '   rel = plane * transformX + dir * transformY
+    ' for the two unknowns, which is what invDet and the two lines below do
+    ' (it's the inverse of the 2 x 2 matrix [plane dir]). Then:
+    '   - behind you (transformY <= 0): skip it
+    '   - across the screen: RENDER_W / 2 * (1 + transformX / transformY)
+    '     (things further away crowd towards the middle - perspective)
+    '   - size: RENDER_H / transformY, like a wall slice, times its scale
+    '
+    ' Each column of the sprite is drawn only if it's nearer than the wall
+    ' in that column (transformY < zBuffer(x)) - that's how sprites hide
+    ' behind walls and doorframes. Transparent pixels (alpha 128 or less)
+    ' are skipped, so you see the shape, not its square.
+    numDraw = 0
+    FOR i = 1 TO numItems
+        IF itemOn(i) THEN
+            numDraw = numDraw + 1 : drawX(numDraw) = itemX(i) : drawY(numDraw) = itemY(i)
+            drawSprite(numDraw) = ItemSprite(itemKind(i)) : drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 96 ' They glow: less fog
+            SELECT CASE itemKind(i)
+                CASE 1 TO 3 : drawScale(numDraw) = CARD_SCALE
+                CASE IT_SCATTER, IT_REPEATER, IT_RAIL : drawScale(numDraw) = GUN_ITEM_SCALE
+                CASE ELSE : drawScale(numDraw) = ITEM_SCALE
             END SELECT
-            dlLift(nDraw) = 0.12 + 0.04 * SIN(TIMER * 3 + i) ' Hovering, bobbing
+            drawLift(numDraw) = 0.12 + 0.04 * SIN(TIMER * 3 + i) ' Hovering, bobbing
         END IF
     NEXT
-    FOR i = 1 TO nMon
-        IF mnState(i) < 3 THEN
-            t = mnType(i)
-            nDraw = nDraw + 1 : dlX(nDraw) = mnX(i) : dlY(nDraw) = mnY(i)
-            dlScale(nDraw) = mtScale(t) : dlMinS(nDraw) = 40
-            IF mnHurt(i) > 0 THEN dlSlot(nDraw) = mtSlot(t) + 1 ELSE dlSlot(nDraw) = mtSlot(t)
-            IF mnState(i) = 2 THEN ' Collapsing TO the floor
-                dlSquash(nDraw) = mnT(i) / MON_DYING : dlLift(nDraw) = mtLift(t) * dlSquash(nDraw) : dlSlot(nDraw) = mtSlot(t) + 1
+    FOR i = 1 TO numMonsters
+        IF monsterState(i) < 3 THEN
+            mtype = monsterType(i)
+            numDraw = numDraw + 1 : drawX(numDraw) = monsterX(i) : drawY(numDraw) = monsterY(i)
+            drawScale(numDraw) = mtypeScale(mtype) : drawMinShade(numDraw) = 40
+            IF monsterHurt(i) > 0 THEN drawSprite(numDraw) = mtypeSprite(mtype) + 1 ELSE drawSprite(numDraw) = mtypeSprite(mtype)
+            IF monsterState(i) = 2 THEN ' Collapsing to the floor
+                drawSquash(numDraw) = monsterTimer(i) / MON_DYING : drawLift(numDraw) = mtypeLift(mtype) * drawSquash(numDraw) : drawSprite(numDraw) = mtypeSprite(mtype) + 1
             ELSE
-                dlSquash(nDraw) = 1 : dlLift(nDraw) = mtLift(t) + mtBob(t) * SIN(TIMER * 2.5 + i * 1.7)
+                drawSquash(numDraw) = 1 : drawLift(numDraw) = mtypeLift(mtype) + mtypeBob(mtype) * SIN(TIMER * 2.5 + i * 1.7)
             END IF
         END IF
     NEXT
-    FOR i = 1 TO nDeco
-        IF dcOn(i) THEN
-            nDraw = nDraw + 1 : dlX(nDraw) = dcX(i) : dlY(nDraw) = dcY(i)
-            dlSlot(nDraw) = S_DECO + dcK(i) : dlScale(nDraw) = DecoScale(dcK(i)) : dlLift(nDraw) = 0
-            dlSquash(nDraw) = 1 : dlMinS(nDraw) = 40
-            IF dcK(i) = 2 THEN dlMinS(nDraw) = 200 ' Lamps glow
+    FOR i = 1 TO numDecos
+        IF decoOn(i) THEN
+            numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) : drawY(numDraw) = decoY(i)
+            drawSprite(numDraw) = S_DECO + decoKind(i) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = 0
+            drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40
+            IF decoKind(i) = 2 THEN drawMinShade(numDraw) = 200 ' Lamps glow
         END IF
     NEXT
-    FOR i = 1 TO MAX_BOOM
-        IF bmT(i) > 0 THEN ' Explosions swell as they fade
-            nDraw = nDraw + 1 : dlX(nDraw) = bmX(i) : dlY(nDraw) = bmY(i)
-            dlSlot(nDraw) = S_BOOM : dlScale(nDraw) = 0.6 + 0.7 * (1 - bmT(i) / BOOM_FRAMES) : dlLift(nDraw) = 0.05
-            dlSquash(nDraw) = 1 : dlMinS(nDraw) = 256
+    FOR i = 1 TO MAX_BLASTS
+        IF blastTime(i) > 0 THEN ' Explosions swell as they fade
+            numDraw = numDraw + 1 : drawX(numDraw) = blastX(i) : drawY(numDraw) = blastY(i)
+            drawSprite(numDraw) = S_BLAST : drawScale(numDraw) = 0.6 + 0.7 * (1 - blastTime(i) / BLAST_FRAMES) : drawLift(numDraw) = 0.05
+            drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 256
         END IF
     NEXT
     FOR i = 1 TO MAX_BOLTS
-        IF bOn(i) THEN
-            nDraw = nDraw + 1 : dlX(nDraw) = bX(i) : dlY(nDraw) = bY(i)
-            dlSlot(nDraw) = S_BOLT : dlScale(nDraw) = 0.22 : dlLift(nDraw) = 0.38
-            dlSquash(nDraw) = 1 : dlMinS(nDraw) = 256 ' Glowing : no fog at ALL
+        IF boltOn(i) THEN
+            numDraw = numDraw + 1 : drawX(numDraw) = boltX(i) : drawY(numDraw) = boltY(i)
+            drawSprite(numDraw) = S_BOLT : drawScale(numDraw) = 0.22 : drawLift(numDraw) = 0.38
+            drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 256 ' Glowing: no fog at all
         END IF
     NEXT
-    FOR i = 1 TO nDraw
-        ord(i) = i : dlD(i) = (dlX(i) - pX) ^ 2 + (dlY(i) -pY) ^ 2
+    FOR i = 1 TO numDraw
+        drawOrder(i) = i : drawDistSq(i) = (drawX(i) - playerX) ^ 2 + (drawY(i) -playerY) ^ 2
     NEXT
-    FOR a = 1 TO nDraw - 1 : FOR b = a + 1 TO nDraw
-        IF dlD(ord(b)) > dlD(ord(a)) THEN SWAP ord(a), ord(b)
+    FOR a = 1 TO numDraw - 1 : FOR b = a + 1 TO numDraw
+        IF drawDistSq(drawOrder(b)) > drawDistSq(drawOrder(a)) THEN SWAP drawOrder(a), drawOrder(b)
     NEXT : NEXT
-    invDet = 1 /(planeX * pDirY - pDirX * planeY)
-    FOR o = 1 TO nDraw
-        i = ord(o)
-        sx = dlX(i) - pX : sy = dlY(i) -pY
-        trX = invDet * (pDirY * sx - pDirX * sy) ' sideways from the VIEW
-        trY = invDet * ( - planeY * sx + planeX * sy) ' Depth
-        IF trY > 0.1 THEN
-            sprW = INT(RH / trY * dlScale(i)) : sprH = INT(sprW * dlSquash(i))
-            IF sprH < 1 THEN sprH = 1
-            y0 = INT(RH / 2 + (0.5 - dlLift(i)) * RH / trY) -sprH ' bottom edge lifted OFF the floor
-            x0 = INT(RW / 2 * (1 + trX / trY)) - sprW \ 2
-            s& = 256 - trY * 10
-            IF s& < dlMinS(i) THEN s& = dlMinS(i)
-            sz = sprSz(dlSlot(i)) : sl = dlSlot(i)
-            FOR sxp = x0 TO x0 + sprW - 1
-                IF sxp >= 0 AND sxp < RW THEN
-                    IF trY < zBuf(sxp) THEN
-                        u = (sxp - x0) * sz \ sprW
-                        FOR syp = y0 TO y0 + sprH - 1
-                            IF syp >= 0 AND syp < RH THEN
-                                c~& = sprTex(u,(syp - y0) * sz \ sprH, sl)
-                                IF _ALPHA32(c~&) > 128 THEN scr(syp * RW + sxp) = Shade~&(c~&, s&)
+    invDet = 1 /(planeX * dirY - dirX * planeY)
+    FOR drawIdx = 1 TO numDraw
+        i = drawOrder(drawIdx)
+        relX = drawX(i) - playerX : relY = drawY(i) -playerY
+        transformX = invDet * (dirY * relX - dirX * relY) ' Sideways from the view
+        transformY = invDet * ( - planeY * relX + planeX * relY) ' Depth
+        IF transformY > 0.1 THEN
+            spriteW = INT(RENDER_H / transformY * drawScale(i)) : spriteH = INT(spriteW * drawSquash(i))
+            IF spriteH < 1 THEN spriteH = 1
+            spriteTop = INT(RENDER_H / 2 + (0.5 - drawLift(i)) * RENDER_H / transformY) -spriteH ' Bottom edge lifted off the floor
+            spriteLeft = INT(RENDER_W / 2 * (1 + transformX / transformY)) - spriteW \ 2
+            light& = 256 - transformY * 10
+            IF light& < drawMinShade(i) THEN light& = drawMinShade(i)
+            spriteSz = spriteSize(drawSprite(i)) : spriteSlot = drawSprite(i)
+            FOR screenX = spriteLeft TO spriteLeft + spriteW - 1
+                IF screenX >= 0 AND screenX < RENDER_W THEN
+                    IF transformY < zBuffer(screenX) THEN
+                        spriteU = (screenX - spriteLeft) * spriteSz \ spriteW
+                        FOR screenY = spriteTop TO spriteTop + spriteH - 1
+                            IF screenY >= 0 AND screenY < RENDER_H THEN
+                                texel~& = spriteTex(spriteU,(screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
+                                IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = Shade~&(texel~&, light&)
                             END IF
                         NEXT
                     END IF
@@ -780,33 +1289,49 @@ DO
         END IF
     NEXT
 
-    ' Blit buffer -> 2x screen
-    _MEMCOPY mScr, mScr.OFFSET, mScr.SIZE TO mBuf, mBuf.OFFSET
-    _PUTIMAGE (0, 0)-(799, 599), buf&, 0
+    '-------------------------------------------------------------------------
+    ' CHAPTER 17: ONTO THE SCREEN
+    '-------------------------------------------------------------------------
+    ' The view is finished in pixels(). _MEMCOPY copies the whole array into
+    ' renderImg& in one go (an image's pixels are stored the same way: row
+    ' after row of colours), and _PUTIMAGE stretches that 400 x 300 image
+    ' over the 800 x 600 window - drawing at half size and scaling up is the
+    ' easiest speed-up there is, and it gives the chunky look for free.
+    _MEMCOPY pixelsMem, pixelsMem.OFFSET, pixelsMem.SIZE TO renderMem, renderMem.OFFSET
+    _PUTIMAGE (0, 0)-(799, 599), renderImg&, 0
 
-    ' --- 5. Weapon / HUD ---
-    ' The gun sways as you walk, kicks when it fires, and dips out of sight
-    ' to swap
-    IF gunKick > 0 THEN gunKick = gunKick * 0.75 : IF gunKick < 0.02 THEN gunKick = 0
-    gImg& = wpImg&(curW)
-    gw = _WIDTH(gImg&) * wpScale(curW) : gh = _HEIGHT(gImg&) * wpScale(curW)
-    gx = 400 - gw * wpMuzX(curW) + COS(bob / 2) * 10
-    gy = GUN_Y - gh + ABS(SIN(bob / 2)) * 10 + gunKick * 36 + 12
-    IF swapT > 0 THEN gy = gy + (SWAP_FRAMES / 2 - ABS(swapT - SWAP_FRAMES / 2)) * 40
-    IF dead THEN gy = gy + (TIMER - deadAt!) * 400 ' Drops OUT of VIEW
-    IF gy < 600 THEN _PUTIMAGE (gx, gy)-(gx + gw - 1, gy + gh - 1), gImg&
-    IF muzzle > 0 THEN ' muzzle flash, AND a flicker of light ON everything
-        muzzle = muzzle - 1
+    '-------------------------------------------------------------------------
+    ' CHAPTER 18: THE GUN AND THE HUD
+    '-------------------------------------------------------------------------
+    ' Everything from here is drawn straight onto the window, at full size,
+    ' with ordinary QB64PE graphics: _PUTIMAGE for pictures, LINE for boxes,
+    ' _PRINTSTRING for text. Colours made with _RGBA32 have an alpha (0
+    ' clear .. 255 solid), so a LINE ... BF over the whole screen with a low
+    ' alpha tints everything: red when you're hurt, yellow for a pickup.
+    '
+    ' The gun sways as you walk (bobPhase, from chapter 9), kicks when it
+    ' fires (recoil, which shrinks a quarter every frame), and dips out of
+    ' sight to swap.
+    IF recoil > 0 THEN recoil = recoil * 0.75 : IF recoil < 0.02 THEN recoil = 0
+    gunImage& = gunImg&(currentGun)
+    gunW = _WIDTH(gunImage&) * gunScale(currentGun) : gunH = _HEIGHT(gunImage&) * gunScale(currentGun)
+    gunX = 400 - gunW * gunMuzzleX(currentGun) + COS(bobPhase / 2) * 10
+    gunY = GUN_Y - gunH + ABS(SIN(bobPhase / 2)) * 10 + recoil * 36 + 12
+    IF swapTimer > 0 THEN gunY = gunY + (SWAP_FRAMES / 2 - ABS(swapTimer - SWAP_FRAMES / 2)) * 40
+    IF dead THEN gunY = gunY + (TIMER - deadAt!) * 400 ' Drops out of view
+    IF gunY < 600 THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), gunImage&
+    IF muzzleFlash > 0 THEN ' Muzzle flash, and a flicker of light on everything
+        muzzleFlash = muzzleFlash - 1
         LINE (0, 0)-(799, 599), _RGBA32(255, 120, 120, 18), BF
-        fX = gx + gw * wpMuzX(curW) : fY = gy + gh * wpMuzY(curW)
-        FillCircle fx, fy, 30 + muzzle * 4, _RGBA32(255, 40, 40, 90)
-        FillCircle fx, fy, 18 + muzzle * 3, _RGBA32(255, 150, 150, 170)
-        FillCircle fx, fy, 8, _RGBA32(255, 255, 255, 230)
+        flashX = gunX + gunW * gunMuzzleX(currentGun) : flashY = gunY + gunH * gunMuzzleY(currentGun)
+        FillCircle flashX, flashY, 30 + muzzleFlash * 4, _RGBA32(255, 40, 40, 90)
+        FillCircle flashX, flashY, 18 + muzzleFlash * 3, _RGBA32(255, 150, 150, 170)
+        FillCircle flashX, flashY, 8, _RGBA32(255, 255, 255, 230)
     END IF
     IF railBeam > 0 THEN ' The railgun's beam, from the muzzle to the crosshair
-        fX = gx + gw * wpMuzX(curW) : fY = gy + gh * wpMuzY(curW)
+        flashX = gunX + gunW * gunMuzzleX(currentGun) : flashY = gunY + gunH * gunMuzzleY(currentGun)
         FOR k = -3 TO 3
-            LINE (fX + k, fY)-(400 + k / 3, 300), _RGBA32(255, 60 + 30 * (3 - ABS(k)), 60 + 30 * (3 - ABS(k)), railBeam * 28)
+            LINE (flashX + k, flashY)-(400 + k / 3, 300), _RGBA32(255, 60 + 30 * (3 - ABS(k)), 60 + 30 * (3 - ABS(k)), railBeam * 28)
         NEXT
     END IF
 
@@ -815,48 +1340,50 @@ DO
     IF pickFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 255, 160, pickFlash * 4), BF
     IF godMode THEN HudText 16, 498, "GOD MODE", _RGB32(255, 215, 30)
 
-    ' Minimap: walls (each kind its texture's colour); doors orange (key doors
-    ' in their card's colour, dark centre) when shut, white while opening,
-    ' green when open; the exit blinking green; keycards; you
-    LINE (MMX - 2, MMY - 2)-(MMX + MAP_SIZE * MM + 1, MMY + MAP_SIZE * MM + 1), _RGBA32(0, 0, 0, 160), BF
-    FOR mY = 0 TO MAP_SIZE - 1 : FOR mX = 0 TO MAP_SIZE-1
-        mmC~& = 0
-        SELECT CASE worldMap(mX, mY)
-            CASE 1, 3 TO 7 : mmC~& = wallCol(worldMap(mX, mY))
+    ' Minimap: one small square per map cell, straight from worldMap. Walls
+    ' are each kind's texture colour; doors orange (key doors in their
+    ' card's colour, dark centre) when shut, white while opening, green when
+    ' open; the exit blinks green; then keycards, and you with a line
+    ' showing which way you face.
+    LINE (MINIMAP_X - 2, MINIMAP_Y - 2)-(MINIMAP_X + MAP_SIZE * MINIMAP_CELL + 1, MINIMAP_Y + MAP_SIZE * MINIMAP_CELL + 1), _RGBA32(0, 0, 0, 160), BF
+    FOR mapY = 0 TO MAP_SIZE - 1 : FOR mapX = 0 TO MAP_SIZE-1
+        mmColor~& = 0
+        SELECT CASE worldMap(mapX, mapY)
+            CASE 1, 3 TO 7 : mmColor~& = wallMapColor(worldMap(mapX, mapY))
             CASE 2
-                IF doorType(mX, mY) = DOOR_EXIT THEN
-                    IF (TIMER * 4 AND 1) = 0 THEN mmC~& = _RGB32(80, 255, 120) ELSE mmC~& = _RGB32(20, 120, 50)
-                ELSEIF doorOffsets(mX, mY) = 0 THEN
-                    IF doorKey(mX, mY) THEN mmC~& = CardRGB~&(doorKey(mX, mY)) ELSE mmC~& = _RGB32(255, 140, 20)
-                ELSEIF doorOffsets(mX, mY) < 1 THEN
-                    mmC~& = _RGB32(230, 230, 230)
+                IF doorType(mapX, mapY) = DOOR_EXIT THEN
+                    IF (TIMER * 4 AND 1) = 0 THEN mmColor~& = _RGB32(80, 255, 120) ELSE mmColor~& = _RGB32(20, 120, 50)
+                ELSEIF doorOpen(mapX, mapY) = 0 THEN
+                    IF doorKey(mapX, mapY) THEN mmColor~& = CardRGB~&(doorKey(mapX, mapY)) ELSE mmColor~& = _RGB32(255, 140, 20)
+                ELSEIF doorOpen(mapX, mapY) < 1 THEN
+                    mmColor~& = _RGB32(230, 230, 230)
                 ELSE
-                    mmC~& = _RGB32(40, 200, 80)
+                    mmColor~& = _RGB32(40, 200, 80)
                 END IF
         END SELECT
-        IF mmC~& <> 0 AND diagK(mX, mY) <> 0 THEN ' Diagonal: just its solid half
-            FOR dqy = 0 TO MM - 1 : FOR dqx = 0 TO MM - 1
-                IF DiagIn(diagK(mX, mY), (dqx + 0.5) / MM, (dqy + 0.5) / MM) THEN PSET (MMX + mX * MM + dqx, MMY + mY * MM + dqy), mmC~&
+        IF mmColor~& <> 0 AND diagCorner(mapX, mapY) <> 0 THEN ' Diagonal: just its solid half
+            FOR mmPixY = 0 TO MINIMAP_CELL - 1 : FOR mmPixX = 0 TO MINIMAP_CELL - 1
+                IF InDiagonalWall(diagCorner(mapX, mapY), (mmPixX + 0.5) / MINIMAP_CELL, (mmPixY + 0.5) / MINIMAP_CELL) THEN PSET (MINIMAP_X + mapX * MINIMAP_CELL + mmPixX, MINIMAP_Y + mapY * MINIMAP_CELL + mmPixY), mmColor~&
             NEXT : NEXT
-        ELSEIF mmC~& THEN
-            LINE (MMX + mX * MM, MMY + mY * MM)-STEP(MM - 1, MM-1), mmC~&, BF
-            IF doorKey(mX, mY) AND doorOffsets(mX, mY) = 0 THEN PSET (MMX + mX * MM + MM \ 2, MMY + mY * MM + MM \ 2), _RGB32(0, 0, 0)
+        ELSEIF mmColor~& THEN
+            LINE (MINIMAP_X + mapX * MINIMAP_CELL, MINIMAP_Y + mapY * MINIMAP_CELL)-STEP(MINIMAP_CELL - 1, MINIMAP_CELL-1), mmColor~&, BF
+            IF doorKey(mapX, mapY) AND doorOpen(mapX, mapY) = 0 THEN PSET (MINIMAP_X + mapX * MINIMAP_CELL + MINIMAP_CELL \ 2, MINIMAP_Y + mapY * MINIMAP_CELL + MINIMAP_CELL \ 2), _RGB32(0, 0, 0)
         END IF
     NEXT : NEXT
-    IF (TIMER * 4 AND 1) = 0 THEN ' keycards BLINK
-        FOR i = 1 TO nItems
-            IF itOn(i) AND itK(i) <= 3 THEN LINE (MMX + itX(i) * MM - 1, MMY + itY(i) * MM - 1)-STEP(2, 2), CardRGB~&(itK(i)), BF
+    IF (TIMER * 4 AND 1) = 0 THEN ' Keycards blink (on for a quarter second, off for one)
+        FOR i = 1 TO numItems
+            IF itemOn(i) AND itemKind(i) <= 3 THEN LINE (MINIMAP_X + itemX(i) * MINIMAP_CELL - 1, MINIMAP_Y + itemY(i) * MINIMAP_CELL - 1)-STEP(2, 2), CardRGB~&(itemKind(i)), BF
         NEXT
     END IF
-    mpX = MMX + pX * MM : mpY = MMY + pY * MM
-    LINE (mpX, mpY)-(mpX + pDirX * 6, mpY + pDirY * 6), _RGB32(255, 255, 0)
-    LINE (mpX - 1, mpY - 1)-STEP(2, 2), _RGB32(255, 255, 0), BF
-    HudText MMX, MMY + MAP_SIZE * MM + 6, "KILLS" + STR$(kills) + " /" + STR$(nMon), _RGB32(255, 90, 90)
+    mmPlayerX = MINIMAP_X + playerX * MINIMAP_CELL : mmPlayerY = MINIMAP_Y + playerY * MINIMAP_CELL
+    LINE (mmPlayerX, mmPlayerY)-(mmPlayerX + dirX * 6, mmPlayerY + dirY * 6), _RGB32(255, 255, 0)
+    LINE (mmPlayerX - 1, mmPlayerY - 1)-STEP(2, 2), _RGB32(255, 255, 0), BF
+    HudText MINIMAP_X, MINIMAP_Y + MAP_SIZE * MINIMAP_CELL + 6, "KILLS" + STR$(kills) + " /" + STR$(numMonsters), _RGB32(255, 90, 90)
 
     ' Keycards you hold, top right
-    hx = 800 - 16
+    cardX = 800 - 16
     FOR k = 3 TO 1 STEP - 1
-        IF hasCard(k) THEN hx = hx - 68 : _PUTIMAGE (hx, 8)-STEP(63, 63), cardImg&(k)
+        IF hasCard(k) THEN cardX = cardX - 68 : _PUTIMAGE (cardX, 8)-STEP(63, 63), cardImg&(k)
     NEXT
 
     ' Armour and health (bottom left)
@@ -865,34 +1392,34 @@ DO
         LINE (16, 534)-STEP(201, 9), _RGBA32(0, 0, 0, 170), BF
         LINE (17, 535)-STEP(armor * 2 - 1, 7), _RGB32(90, 160, 255), BF
     END IF
-    IF hp > 60 THEN hc~& = _RGB32(60, 230, 90) ELSE IF hp > 25 THEN hc~& = _RGB32(255, 200, 40) ELSE hc~& = _RGB32(255, 50, 50)
-    HudText 16, 552, "HEALTH" + STR$(hp), hc~&
+    IF health > 60 THEN healthColor~& = _RGB32(60, 230, 90) ELSE IF health > 25 THEN healthColor~& = _RGB32(255, 200, 40) ELSE healthColor~& = _RGB32(255, 50, 50)
+    HudText 16, 552, "HEALTH" + STR$(health), healthColor~&
     LINE (16, 570)-STEP(201, 13), _RGBA32(0, 0, 0, 170), BF
-    IF hp > 0 THEN LINE (17, 571)-STEP(hp * 2 - 1, 11), hc~&, BF
+    IF health > 0 THEN LINE (17, 571)-STEP(health * 2 - 1, 11), healthColor~&, BF
 
     ' Gun and its ammo (bottom right), and which guns you have
-    am = wpAmmo(curW)
-    IF ammoN(am) = 0 THEN
-        ac~& = _RGB32(255, 50, 50)
-    ELSEIF am = AM_SHELLS THEN
-        ac~& = _RGB32(255, 150, 40)
+    ammoType = gunAmmoType(currentGun)
+    IF ammoCount(ammoType) = 0 THEN
+        ammoColor~& = _RGB32(255, 50, 50)
+    ELSEIF ammoType = AM_SHELLS THEN
+        ammoColor~& = _RGB32(255, 150, 40)
     ELSE
-        ac~& = _RGB32(60, 220, 255)
+        ammoColor~& = _RGB32(60, 220, 255)
     END IF
-    a$ = wpName$(curW) + "  " + LTRIM$(STR$(ammoN(am)))
-    HudText 800 - 16 - 8 * LEN(a$), 552, a$, ac~&
+    ammoText$ = gunName$(currentGun) + "  " + LTRIM$(STR$(ammoCount(ammoType)))
+    HudText 800 - 16 - 8 * LEN(ammoText$), 552, ammoText$, ammoColor~&
     LINE (800 - 16 - 202, 570)-STEP(201, 13), _RGBA32(0, 0, 0, 170), BF
-    IF ammoN(am) > 0 THEN LINE (800 - 16 - 1 - ammoN(am) * 200 \ ammoMax(am), 571)-(800 - 16 - 1, 582), ac~&, BF
-    FOR W = 1 TO NUM_W
-        wc~& = _RGB32(60, 60, 70)
-        IF hasWpn(W) THEN wc~& = _RGB32(150, 150, 160)
-        IF W = curW THEN wc~& = _RGB32(255, 255, 255)
-        HudText 800 - 16 - 202 + (W - 1) * 20, 534, LTRIM$(STR$(W)), wc~&
+    IF ammoCount(ammoType) > 0 THEN LINE (800 - 16 - 1 - ammoCount(ammoType) * 200 \ ammoMax(ammoType), 571)-(800 - 16 - 1, 582), ammoColor~&, BF
+    FOR gun = 1 TO NUM_GUNS
+        gunNumColor~& = _RGB32(60, 60, 70)
+        IF hasGun(gun) THEN gunNumColor~& = _RGB32(150, 150, 160)
+        IF gun = currentGun THEN gunNumColor~& = _RGB32(255, 255, 255)
+        HudText 800 - 16 - 202 + (gun - 1) * 20, 534, LTRIM$(STR$(gun)), gunNumColor~&
     NEXT
 
     ' Message line
-    IF TIMER < msgUntil! AND LEN(msg$) THEN
-        HudText 400 - LEN(msg$) * 4, 510, msg$, _RGB32(255, 255, 255)
+    IF TIMER < messageUntil! AND LEN(message$) THEN
+        HudText 400 - LEN(message$) * 4, 510, message$, _RGB32(255, 255, 255)
     END IF
 
     IF dead THEN
@@ -901,89 +1428,119 @@ DO
         IF TIMER - deadAt! > 1.2 THEN HudText 400 - 15 * 8, 330, "Click or press Space to try again", _RGB32(255, 255, 255)
     END IF
 
-    _DISPLAY
-LOOP UNTIL _KEYDOWN(27)
+    _DISPLAY ' Show the finished frame (chapter 7)
+LOOP UNTIL _KEYDOWN(27) ' Esc
 SYSTEM
 
-' --- A shot (or blast) hits monster hitMon for hitDmg
+'-----------------------------------------------------------------------------
+' CHAPTER 19: GAME EVENTS
+'-----------------------------------------------------------------------------
+' Things that happen from more than one place - a monster getting hit (by a
+' shot or a blast), you getting hurt (by a bite, a bolt, a blast), a barrel
+' going off - are GOSUB routines: a label, some lines, and RETURN. Unlike a
+' SUB, a GOSUB routine is part of the main program, so it can use all its
+' variables (health, kills, playerX...) directly. The catch is it takes no
+' parameters, so the caller sets a variable first: "target = i : hitDamage
+' = 1 : GOSUB HitMonster".
+
+' --- A shot (or blast) hits monster number target, for hitDamage
 HitMonster:
-mnHP(hitMon) = mnHP(hitMon) - hitDmg : mnHurt(hitMon) = 8
-IF mnState(hitMon) = 0 THEN mnState(hitMon) = 1 : mnT(hitMon) = 30 ' Shot awake
-IF mnHP(hitMon) <= 0 AND mnState(hitMon) < 2 THEN
-    mnState(hitMon) = 2 : mnT(hitMon) = MON_DYING : kills = kills + 1
-    SfxAt mtDie&(mnType(hitMon)), mnX(hitMon), mnY(hitMon), pX, pY
-    IF kills = nMon THEN ShowMsg "SECTOR CLEAR - every monster destroyed!"
+monsterHP(target) = monsterHP(target) - hitDamage : monsterHurt(target) = 8
+IF monsterState(target) = 0 THEN monsterState(target) = 1 : monsterTimer(target) = 30 ' Shot awake (chapter 13)
+IF monsterHP(target) <= 0 AND monsterState(target) < 2 THEN
+    monsterState(target) = 2 : monsterTimer(target) = MON_DYING : kills = kills + 1
+    SfxAt mtypeDieSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
+    IF kills = numMonsters THEN ShowMsg "SECTOR CLEAR - every monster destroyed!"
 ELSE
-    SfxAt mtHitS&(mnType(hitMon)), mnX(hitMon), mnY(hitMon), pX, pY
+    SfxAt mtypeHitSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
 END IF
 RETURN
 
-' --- You take dmg damage (armour soaks up a third of it while it lasts)
+' --- You take `damage` (armour soaks up a third of it while it lasts)
 HurtPlayer:
 IF godMode THEN RETURN
-ab = dmg \ 3 : IF ab > armor THEN ab = armor
-armor = armor - ab : dmg = dmg - ab
-hp = hp - dmg : hurtFlash = 14
-IF hp <= 0 THEN
-    hp = 0 : dead = -1 : deadAt! = TIMER
+absorbed = damage \ 3 : IF absorbed > armor THEN absorbed = armor
+armor = armor - absorbed : damage = damage - absorbed
+health = health - damage : hurtFlash = 14
+IF health <= 0 THEN
+    health = 0 : dead = -1 : deadAt! = TIMER
     PlaySfx sndDie&, 1 : ShowMsg ""
 ELSE
     PlaySfx sndHurt&, 0.8
 END IF
 RETURN
 
-' --- Barrel boomI explodes: it hurts everything near it that it can see,
-' and sets off other barrels close by (a moment later)
+' --- Barrel number `barrel` explodes: it hurts everything near it that it
+' can see (more the closer it is), and lights the fuses of other barrels
+' close by, so they go off a moment later
 Explode:
-dcOn(boomI) = 0 : dcFuse(boomI) = 0 : decoCell(INT(dcX(boomI)), INT(dcY(boomI))) = 0
-SfxAt sndBarrel&, dcX(boomI), dcY(boomI), pX, pY
-FOR j = 1 TO MAX_BOOM
-    IF bmT(j) = 0 THEN bmX(j) = dcX(boomI) : bmY(j) = dcY(boomI) : bmT(j) = BOOM_FRAMES : EXIT FOR
+decoOn(barrel) = 0 : decoFuse(barrel) = 0 : decoCell(INT(decoX(barrel)), INT(decoY(barrel))) = 0
+SfxAt sndBarrel&, decoX(barrel), decoY(barrel), playerX, playerY
+FOR j = 1 TO MAX_BLASTS
+    IF blastTime(j) = 0 THEN blastX(j) = decoX(barrel) : blastY(j) = decoY(barrel) : blastTime(j) = BLAST_FRAMES : EXIT FOR
 NEXT
-FOR j = 1 TO nMon
-    IF mnState(j) < 2 THEN
-        D = SQR((mnX(j) - dcX(boomI)) ^ 2 + (mnY(j) - dcY(boomI)) ^ 2)
-        IF D < BOOM_R THEN
-            IF CanSee(dcX(boomI), dcY(boomI), mnX(j), mnY(j)) THEN hitMon = j : hitDmg = INT(8 * (1 - D / BOOM_R)) + 1 : GOSUB HitMonster
+FOR j = 1 TO numMonsters
+    IF monsterState(j) < 2 THEN
+        distance = SQR((monsterX(j) - decoX(barrel)) ^ 2 + (monsterY(j) - decoY(barrel)) ^ 2)
+        IF distance < BLAST_RADIUS THEN
+            IF CanSee(decoX(barrel), decoY(barrel), monsterX(j), monsterY(j)) THEN target = j : hitDamage = INT(8 * (1 - distance / BLAST_RADIUS)) + 1 : GOSUB HitMonster
         END IF
     END IF
 NEXT
-D = SQR((pX - dcX(boomI)) ^ 2 + (pY - dcY(boomI)) ^ 2)
-IF D < BOOM_R AND NOT dead THEN
-    IF CanSee(dcX(boomI), dcY(boomI), pX, pY) THEN dmg = INT(40 * (1 - D / BOOM_R)) + 5 : GOSUB HurtPlayer
+distance = SQR((playerX - decoX(barrel)) ^ 2 + (playerY - decoY(barrel)) ^ 2)
+IF distance < BLAST_RADIUS AND NOT dead THEN
+    IF CanSee(decoX(barrel), decoY(barrel), playerX, playerY) THEN damage = INT(40 * (1 - distance / BLAST_RADIUS)) + 5 : GOSUB HurtPlayer
 END IF
-FOR j = 1 TO nDeco
-    IF dcOn(j) AND dcK(j) = 1 AND dcFuse(j) = 0 THEN
-        IF (dcX(j) - dcX(boomI)) ^ 2 + (dcY(j) - dcY(boomI)) ^ 2 < BOOM_R * BOOM_R THEN dcFuse(j) = 8
+FOR j = 1 TO numDecos
+    IF decoOn(j) AND decoKind(j) = 1 AND decoFuse(j) = 0 THEN
+        IF (decoX(j) - decoX(barrel)) ^ 2 + (decoY(j) - decoY(barrel)) ^ 2 < BLAST_RADIUS * BLAST_RADIUS THEN decoFuse(j) = 8
     END IF
 NEXT
 RETURN
 
+'-----------------------------------------------------------------------------
+' CHAPTER 20: LEVELS
+'-----------------------------------------------------------------------------
+' A game is four levels in a row. What you carry - health, armour, ammo,
+' guns - goes with you from one to the next, and is remembered as you
+' enter each level (EnterLevel), so dying can put you back at the start of
+' the level with exactly what you had then (RestartLevel).
+'
+' LevelDone shows the tally screen. It's a small game loop of its own,
+' inside the big one: draw, _DISPLAY, read input, until you click. The
+' frame you finished on is kept with _COPYIMAGE(0) (a copy of the screen)
+' and drawn darkened behind the numbers.
+'
+' LoadLevel reads a level from the DATA lines in chapter 21. RESTORE points
+' READ at a label - Level1, Level2... - and READ then takes the values one
+' after another: the name, the texture files, the floor zones, and the 48
+' rows of the map, which it turns into worldMap() and the lists of things.
+
 ' --- A new game: level 1, just the blaster
 NewGame:
-level = 1 : totKills = 0 : totMon = 0 : totTime! = 0
-hp = MAX_HP : armor = 0
-ammoN(AM_CELLS) = 30 : ammoN(AM_SHELLS) = 0
-FOR W = 1 TO NUM_W : hasWpn(W) = 0 : NEXT
-hasWpn(W_BLASTER) = -1 : curW = W_BLASTER
+level = 1 : totalKills = 0 : totalMonsters = 0 : totalTime! = 0
+health = MAX_HP : armor = 0
+ammoCount(AM_CELLS) = 30 : ammoCount(AM_SHELLS) = 0
+FOR gun = 1 TO NUM_GUNS : hasGun(gun) = 0 : NEXT
+hasGun(W_BLASTER) = -1 : currentGun = W_BLASTER
 IF TEST_ALL_GUNS THEN ' Testing: every gun, full ammo
-    FOR W = 1 TO NUM_W : hasWpn(W) = -1 : NEXT
-    ammoN(AM_CELLS) = ammoMax(AM_CELLS) : ammoN(AM_SHELLS) = ammoMax(AM_SHELLS)
+    FOR gun = 1 TO NUM_GUNS : hasGun(gun) = -1 : NEXT
+    ammoCount(AM_CELLS) = ammoMax(AM_CELLS) : ammoCount(AM_SHELLS) = ammoMax(AM_SHELLS)
 END IF
 GOSUB EnterLevel
 RETURN
 
-' --- Into level `level`, remembering what you bring with you
+' --- Into level number `level`, remembering what you bring with you
 EnterLevel:
-svHp = hp : svArmor = armor : svCells = ammoN(AM_CELLS) : svShells = ammoN(AM_SHELLS) : svCur = curW
-FOR W = 1 TO NUM_W : svWpn(W) = hasWpn(W) : NEXT
+savedHealth = health : savedArmor = armor : savedCells = ammoCount(AM_CELLS) : savedShells = ammoCount(AM_SHELLS) : savedGun = currentGun
+FOR gun = 1 TO NUM_GUNS : savedHasGun(gun) = hasGun(gun) : NEXT
 GOSUB LoadLevel
 RETURN
 
 ' --- You died: the level starts over, and you have what you came in with
 RestartLevel:
-hp = svHp : armor = svArmor : ammoN(AM_CELLS) = svCells : ammoN(AM_SHELLS) = svShells : curW = svCur
-FOR W = 1 TO NUM_W : hasWpn(W) = svWpn(W) : NEXT
+health = savedHealth : armor = savedArmor : ammoCount(AM_CELLS) = savedCells : ammoCount(AM_SHELLS) = savedShells : currentGun = savedGun
+FOR gun = 1 TO NUM_GUNS : hasGun(gun) = savedHasGun(gun) : NEXT
 GOSUB LoadLevel
 RETURN
 
@@ -991,29 +1548,29 @@ RETURN
 ' the last, the game's totals, and a new game)
 LevelDone:
 PlaySfx sndExit&, 0.9
-lvTime! = TIMER - lvStart! : IF lvTime! < 0 THEN lvTime! = lvTime! + 86400
-totKills = totKills + kills : totMon = totMon + nMon : totTime! = totTime! + lvTime!
-got = 0
-FOR i = 1 TO nItems
-    IF itOn(i) = 0 THEN got = got + 1
+levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
+totalKills = totalKills + kills : totalMonsters = totalMonsters + numMonsters : totalTime! = totalTime! + levelTime!
+taken = 0
+FOR i = 1 TO numItems
+    IF itemOn(i) = 0 THEN taken = taken + 1
 NEXT
-shot& = _COPYIMAGE(0) : tStart! = TIMER
+screenshot& = _COPYIMAGE(0) : tallyStart! = TIMER
 DO
     _LIMIT 30
-    _PUTIMAGE , shot&, 0
+    _PUTIMAGE , screenshot&, 0
     LINE (0, 0)-(799, 599), _RGBA32(0, 0, 0, 180), BF
     IF level = NUM_LEVELS THEN BigText "YOU ESCAPED!", 110, 5, _RGB32(80, 255, 140) ELSE BigText "SECTOR CLEAR", 110, 5, _RGB32(80, 255, 140)
-    HudText 400 - LEN(lvName$) * 4, 210, lvName$, _RGB32(255, 255, 255)
-    TallyLine 260, "KILLS", LTRIM$(STR$(kills)) + " / " + LTRIM$(STR$(nMon))
-    TallyLine 285, "ITEMS", LTRIM$(STR$(got)) + " / " + LTRIM$(STR$(nItems))
-    TallyLine 310, "TIME", TimeText$(lvTime!)
+    HudText 400 - LEN(levelName$) * 4, 210, levelName$, _RGB32(255, 255, 255)
+    TallyLine 260, "KILLS", LTRIM$(STR$(kills)) + " / " + LTRIM$(STR$(numMonsters))
+    TallyLine 285, "ITEMS", LTRIM$(STR$(taken)) + " / " + LTRIM$(STR$(numItems))
+    TallyLine 310, "TIME", TimeText$(levelTime!)
     IF level = NUM_LEVELS THEN
-        TallyLine 360, "TOTAL KILLS", LTRIM$(STR$(totKills)) + " / " + LTRIM$(STR$(totMon))
-        TallyLine 385, "TOTAL TIME", TimeText$(totTime!)
+        TallyLine 360, "TOTAL KILLS", LTRIM$(STR$(totalKills)) + " / " + LTRIM$(STR$(totalMonsters))
+        TallyLine 385, "TOTAL TIME", TimeText$(totalTime!)
     END IF
-    IF TIMER - tStart! > 1 THEN
-        IF level = NUM_LEVELS THEN c$ = "Click or press Space to play again" ELSE c$ = "Click or press Space for the next sector"
-        HudText 400 - LEN(c$) * 4, 450, c$, _RGB32(255, 255, 255)
+    IF TIMER - tallyStart! > 1 THEN
+        IF level = NUM_LEVELS THEN prompt$ = "Click or press Space to play again" ELSE prompt$ = "Click or press Space for the next sector"
+        HudText 400 - LEN(prompt$) * 4, 450, prompt$, _RGB32(255, 255, 255)
     END IF
     _DISPLAY
     click = 0
@@ -1021,9 +1578,9 @@ DO
         IF _MOUSEBUTTON(1) THEN click = -1
     WEND
     IF _KEYDOWN(27) THEN SYSTEM
-    IF TIMER - tStart! > 1 AND (click OR _KEYDOWN(32)) THEN EXIT DO
+    IF TIMER - tallyStart! > 1 AND (click OR _KEYDOWN(32)) THEN EXIT DO
 LOOP
-_FREEIMAGE shot&
+_FREEIMAGE screenshot&
 IF level >= NUM_LEVELS THEN
     GOSUB NewGame
 ELSE
@@ -1034,46 +1591,50 @@ RETURN
 ' --- Start (or restart) the level: read its map, and reset everything in it
 LoadLevel:
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
-    worldMap(x, y) = 0 : doorOffsets(x, y) = 0 : doorKey(x, y) = 0 : doorType(x, y) = 0 : diagK(x, y) = 0
-    floorT(x, y) = T_FLOOR + 1 : ceilT(x, y) = T_CEIL + 1 : fK(x, y) = 0 : cK(x, y) = 0 : decoCell(x, y) = 0
+    worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorKey(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0
+    floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
 NEXT : NEXT
-nItems = 0 : nMon = 0 : nDeco = 0
+numItems = 0 : numMonsters = 0 : numDecos = 0
 FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT
-FOR i = 1 TO MAX_BOLTS : bOn(i) = 0 : NEXT
-FOR i = 1 TO MAX_BOOM : bmT(i) = 0 : NEXT
+FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
+FOR i = 1 TO MAX_BLASTS : blastTime(i) = 0 : NEXT
 SELECT CASE level
     CASE 1 : RESTORE Level1
     CASE 2 : RESTORE Level2
     CASE 3 : RESTORE Level3
     CASE ELSE : RESTORE Level4
 END SELECT
-READ lvName$
-FOR k = 1 TO 6 : READ f$ : LoadTex f$, k : NEXT ' Walls # N C K P G
-FOR k = 1 TO 4 : READ f$ : LoadTex f$, T_FLOOR + k : NEXT
-FOR k = 1 TO 2 : READ f$ : LoadTex f$, T_CEIL + k : NEXT
+READ levelName$
+FOR k = 1 TO 6 : READ file$ : LoadTex file$, k : NEXT ' Walls # N C K P G
+FOR k = 1 TO 4 : READ file$ : LoadTex file$, T_FLOOR + k : NEXT
+FOR k = 1 TO 2 : READ file$ : LoadTex file$, T_CEIL + k : NEXT
 FOR k = 1 TO 7
-    IF k <> 2 THEN wallCol(k) = MapCol~&(wallSlot(k))
+    IF k <> 2 THEN wallMapColor(k) = MinimapColor~&(wallTexSlot(k))
 NEXT
-READ nZones ' Floor / ceiling zones : x0, y0, x1, y1, floor, ceiling, shape
-FOR k = 1 TO nZones
-    READ zx0, zy0, zx1, zy1, zf, zc, zs
-    zn = zx1 - zx0
-    FOR y = zy0 TO zy1 : FOR x = zx0 TO zx1
+' Floor and ceiling zones (chapter 21): each paints a rectangle - or the
+' triangle on one side of its diagonal - with a floor and/or ceiling texture
+READ numZones
+FOR k = 1 TO numZones
+    READ zoneX0, zoneY0, zoneX1, zoneY1, zoneFloor, zoneCeil, zoneShape
+    zoneSize = zoneX1 - zoneX0
+    FOR y = zoneY0 TO zoneY1 : FOR x = zoneX0 TO zoneX1
         ' Is the cell in the zone (1), outside it (0), or cut by its diagonal
-        ' (2: its zs corner's half is in)?
-        i = x - zx0 : j = y - zy0 : part = 1
-        SELECT CASE zs
-            CASE 1 : IF i + j > zn THEN part = 0 ELSE IF i + j = zn THEN part = 2
-            CASE 2 : IF j > i THEN part = 0 ELSE IF j = i THEN part = 2
-            CASE 3 : IF i + j < zn THEN part = 0 ELSE IF i + j = zn THEN part = 2
-            CASE 4 : IF i > j THEN part = 0 ELSE IF i = j THEN part = 2
+        ' (2: the half on the zoneShape corner's side is in)? i and j are the
+        ' cell's place in the zone; for a triangle, i + j or i - j says which
+        ' side of the diagonal it's on, like the diagonal walls' maths.
+        i = x - zoneX0 : j = y - zoneY0 : zonePart = 1
+        SELECT CASE zoneShape
+            CASE 1 : IF i + j > zoneSize THEN zonePart = 0 ELSE IF i + j = zoneSize THEN zonePart = 2
+            CASE 2 : IF j > i THEN zonePart = 0 ELSE IF j = i THEN zonePart = 2
+            CASE 3 : IF i + j < zoneSize THEN zonePart = 0 ELSE IF i + j = zoneSize THEN zonePart = 2
+            CASE 4 : IF i > j THEN zonePart = 0 ELSE IF i = j THEN zonePart = 2
         END SELECT
-        IF part = 1 THEN
-            IF zf THEN floorT(x, y) = T_FLOOR + zf : fK(x, y) = 0
-            IF zc THEN ceilT(x, y) = T_CEIL + zc : cK(x, y) = 0
-        ELSEIF part = 2 THEN
-            IF zf THEN floorT2(x, y) = T_FLOOR + zf : fK(x, y) = zs
-            IF zc THEN ceilT2(x, y) = T_CEIL + zc : cK(x, y) = zs
+        IF zonePart = 1 THEN
+            IF zoneFloor THEN floorTex(x, y) = T_FLOOR + zoneFloor : floorSplit(x, y) = 0
+            IF zoneCeil THEN ceilTex(x, y) = T_CEIL + zoneCeil : ceilSplit(x, y) = 0
+        ELSEIF zonePart = 2 THEN
+            IF zoneFloor THEN floorTex2(x, y) = T_FLOOR + zoneFloor : floorSplit(x, y) = zoneShape
+            IF zoneCeil THEN ceilTex2(x, y) = T_CEIL + zoneCeil : ceilSplit(x, y) = zoneShape
         END IF
     NEXT : NEXT
 NEXT
@@ -1091,66 +1652,70 @@ FOR y = 0 TO MAP_SIZE - 1
             CASE "D" : worldMap(x, y) = 2
             CASE "H" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_SHUTTER
             CASE "X" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_SPLIT
-            CASE "/" : diagK(x, y) = -1 ' Diagonal wall (which half is solid: below)
-            CASE "\" : diagK(x, y) = -2
+            CASE "/" : diagCorner(x, y) = -1 ' Diagonal wall (which half is solid: below)
+            CASE "\" : diagCorner(x, y) = -2
             CASE "E" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_EXIT
             CASE "R", "B", "Y" ' Key door: needs that keycard
                 worldMap(x, y) = 2 : doorKey(x, y) = INSTR("RBY", cell$)
             CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4" ' Something to pick up
-                IF nItems < MAX_ITEMS THEN
-                    nItems = nItems + 1
-                    itX(nItems) = x + 0.5 : itY(nItems) = y + 0.5 : itOn(nItems) = -1
-                    itK(nItems) = INSTR("rby+ae23u*4", cell$)
+                IF numItems < MAX_ITEMS THEN
+                    numItems = numItems + 1
+                    itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
+                    itemKind(numItems) = INSTR("rby+ae23u*4", cell$)
                 END IF
             CASE "o", "i", "p", "t" ' A decoration
-                IF nDeco < MAX_DECO THEN
-                    nDeco = nDeco + 1 : decoCell(x, y) = nDeco
-                    dcX(nDeco) = x + 0.5 : dcY(nDeco) = y + 0.5 : dcK(nDeco) = INSTR("oipt", cell$) : dcOn(nDeco) = -1 : dcFuse(nDeco) = 0
+                IF numDecos < MAX_DECO THEN
+                    numDecos = numDecos + 1 : decoCell(x, y) = numDecos
+                    decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oipt", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0
                 END IF
             CASE "m", "g", "h", "c", "s" ' A monster
-                IF nMon < MAX_MON THEN
-                    nMon = nMon + 1
-                    mnX(nMon) = x + 0.5 : mnY(nMon) = y + 0.5 : mnType(nMon) = INSTR("mghcs", cell$)
-                    mnHP(nMon) = mtHP(mnType(nMon)) : mnState(nMon) = 0 : mnT(nMon) = 0 : mnHurt(nMon) = 0
+                IF numMonsters < MAX_MON THEN
+                    numMonsters = numMonsters + 1
+                    monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = INSTR("mghcs", cell$)
+                    monsterHP(numMonsters) = mtypeHP(monsterType(numMonsters)) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
                 END IF
             CASE "<", ">", "^", "v" ' Player start, facing the arrow's way
-                pX = x + 0.5 : pY = y + 0.5
-                pDirX = (cell$ = "<") - (cell$ = ">") : pDirY = (cell$ = "^") - (cell$ = "v")
+                playerX = x + 0.5 : playerY = y + 0.5
+                dirX = (cell$ = "<") - (cell$ = ">") : dirY = (cell$ = "^") - (cell$ = "v")
         END SELECT
     NEXT
 NEXT
-' Diagonal walls: of its two halves, the solid one is the one with more wall
-' beside it (a whole wall counts 2, another diagonal 1). It looks like the
-' wall beside its solid half; standing on its own, neon.
+' Diagonal walls: the map only says "/" or "\", so which half is solid?
+' Score each half by the walls beside it (a whole wall counts 2, another
+' diagonal 1) and the better side wins. A "/" can only be solid top-left (1)
+' or bottom-right (3), a "\" top-right (2) or bottom-left (4). It takes the
+' look of the wall beside its solid half (N if there's none).
 FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
-    IF diagK(x, y) < 0 THEN
-        dSc = -1
-        FOR k = -diagK(x, y) TO 4 STEP 2 ' "/" corners 1 AND 3, "\" 2 AND 4
-            IF k <= 2 THEN ny = y - 1 ELSE ny = y + 1
-            IF k = 2 OR k = 3 THEN nx = x + 1 ELSE nx = x - 1
-            sc = 0
-            IF diagK(x, ny) THEN sc = sc + 1 ELSE IF IsWall(x, ny) THEN sc = sc + 2
-            IF diagK(nx, y) THEN sc = sc + 1 ELSE IF IsWall(nx, y) THEN sc = sc + 2
-            IF sc > dSc THEN dSc = sc : dK = k : dnx = nx : dny = ny
+    IF diagCorner(x, y) < 0 THEN
+        bestScore = -1
+        FOR k = -diagCorner(x, y) TO 4 STEP 2 ' "/" (-1) tries corners 1 and 3, "\" (-2) 2 and 4
+            IF k <= 2 THEN nbY = y - 1 ELSE nbY = y + 1
+            IF k = 2 OR k = 3 THEN nbX = x + 1 ELSE nbX = x - 1
+            score = 0
+            IF diagCorner(x, nbY) THEN score = score + 1 ELSE IF IsWall(x, nbY) THEN score = score + 2
+            IF diagCorner(nbX, y) THEN score = score + 1 ELSE IF IsWall(nbX, y) THEN score = score + 2
+            IF score > bestScore THEN bestScore = score : bestCorner = k : bestNbX = nbX : bestNbY = nbY
         NEXT
-        diagK(x, y) = dK : worldMap(x, y) = 3
-        IF IsWall(x, dny) THEN worldMap(x, y) = worldMap(x, dny) ELSE IF IsWall(dnx, y) THEN worldMap(x, y) = worldMap(dnx, y)
+        diagCorner(x, y) = bestCorner : worldMap(x, y) = 3
+        IF IsWall(x, bestNbY) THEN worldMap(x, y) = worldMap(x, bestNbY) ELSE IF IsWall(bestNbX, y) THEN worldMap(x, y) = worldMap(bestNbX, y)
     END IF
 NEXT : NEXT
-' Camera plane is the view direction turned 90 degrees
-planeX = pDirY * 0.66 : planeY = - pDirX * 0.66
-kills = 0 : dead = 0 : swapT = 0
-hurtFlash = 0 : pickFlash = 0 : muzzle = 0 : gunKick = 0 : railBeam = 0
+' The camera plane (chapter 8): your direction turned 90 degrees, 0.66 long
+planeX = dirY * 0.66 : planeY = - dirX * 0.66
+kills = 0 : dead = 0 : swapTimer = 0
+hurtFlash = 0 : pickFlash = 0 : muzzleFlash = 0 : recoil = 0 : railBeam = 0
 fireWait = 20 ' (so the click that started the level doesn't fire)
-bob = 0 : stepDist = STEP_LEN * 0.85 ' First STEP sounds soon after you start walking
-lvStart! = TIMER
-ShowMsg lvName$ + "  -  find the EXIT"
+bobPhase = 0 : stepDist = STEP_LEN * 0.85 ' The first footstep sounds soon after you start walking
+levelStart! = TIMER
+ShowMsg levelName$ + "  -  find the EXIT"
 RETURN
 
-'=============================================================================
-' MapData - the levels (Level1: to Level4:). LoadLevel reads one every time
-' it starts or restarts; you go from one to the next through its exit.
-'=============================================================================
+'-----------------------------------------------------------------------------
+' CHAPTER 21: THE LEVELS' DATA (MapData)
+'-----------------------------------------------------------------------------
+' The levels, Level1: to Level4:, as DATA lines. LoadLevel (chapter 20)
+' reads one every time it starts or restarts; you go from one to the next
+' through its exit. This chapter is the reference for making your own.
 '
 ' Coordinates: x runs left to right (0 to MAP_SIZE - 1), y runs top to bottom
 ' (row 0 is the top line). Each map cell is one "tile": a wall block, a door,
@@ -1567,65 +2132,195 @@ DATA "#####\......./#KKK.............KGGG\......./GGGG"
 DATA "###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG"
 DATA "###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG"
 
-SUB LoadTex(f$, slot AS INTEGER)
-    p$ = AssetPath$(f$)
-    img& = _LOADIMAGE(p$, 32)
-    IF img& >= -1 THEN PRINT "Missing texture: "; p$ : SLEEP : SYSTEM
-    t& = _NEWIMAGE(TEX, TEX, 32) : _PUTIMAGE, img&, t&
-    _SOURCE t&
-    FOR y = 0 TO TEX - 1 : FOR x = 0 TO TEX-1 : TEX(x, y, slot) = POINT(x, y) : NEXT : NEXT
-    _SOURCE 0 : _FREEIMAGE img& : _FREEIMAGE t&
+'-----------------------------------------------------------------------------
+' CHAPTER 22: THE HELPERS
+'-----------------------------------------------------------------------------
+' The SUBs and FUNCTIONs the rest of the game calls, grouped by what they're
+' for. QB64PE doesn't mind what order they're in, and each one only sees its
+' own variables (plus the DIM SHARED ones, and anything it lists as SHARED).
+
+' === PICTURES AND COLOUR ======================================================
+
+' A 64 x 64 texture from neon-caster/ into texture slot `slot`. The picture
+' is first drawn into a 64 x 64 image with _PUTIMAGE, which squashes any size
+' to fit; then POINT reads its pixels into the array. POINT is slow, but this
+' only happens while loading.
+SUB LoadTex(file$, slot AS INTEGER)
+    path$ = AssetPath$(file$)
+    img& = _LOADIMAGE(path$, 32)
+    IF img& >= -1 THEN PRINT "Missing texture: "; path$ : SLEEP : SYSTEM
+    tex& = _NEWIMAGE(TEX_SIZE, TEX_SIZE, 32) : _PUTIMAGE, img&, tex&
+    _SOURCE tex&
+    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE-1 : texture(x, y, slot) = POINT(x, y) : NEXT : NEXT
+    _SOURCE 0 : _FREEIMAGE img& : _FREEIMAGE tex&
 END SUB
 
-' Scale a 32-bit colour's RGB by s/256 (s = 0..256)
-FUNCTION Shade~&(c AS _UNSIGNED LONG, S AS LONG)
-    DIM rb AS _INTEGER64, g AS _INTEGER64
-    rb = c AND &HFF00FF : g = c AND &HFF00&
-    Shade~& = &HFF000000~& OR ((rb * S \ 256) AND &HFF00FF) OR ((g * S \ 256) AND &HFF00&)
+' A sprite picture from neon-caster/ into spriteTex slot `slot` (up to
+' SPR_TEX pixels square - bigger pictures are shrunk). Pixels keep their
+' alpha, so the sprite drawing (chapter 16) can skip the see-through ones.
+SUB LoadSprite(file$, slot)
+    path$ = AssetPath$(file$)
+    img& = _LOADIMAGE(path$, 32)
+    IF img& >= -1 THEN PRINT "Missing texture: "; path$ : SLEEP : SYSTEM
+    sprSize = _WIDTH(img&) : IF sprSize > SPR_TEX THEN sprSize = SPR_TEX
+    spriteSize(slot) = sprSize
+    _SOURCE img&
+    FOR y = 0 TO sprSize - 1 : FOR x = 0 TO sprSize-1
+        spriteTex(x, y, slot) = POINT(x * _WIDTH(img&) \ sprSize, y * _HEIGHT(img&) \ sprSize)
+    NEXT : NEXT
+    _SOURCE 0 : _FREEIMAGE img&
+END SUB
+
+' The keycard picture, tinted red, blue and yellow, into sprite slots 1-3
+' and into images for the HUD; and the key door textures, the door tinted
+' the same three ways. (_DONTBLEND makes PSET store a see-through colour
+' as it is, instead of mixing it with what's under it.)
+SUB LoadCards(file$)
+    LoadSprite file$, 1
+    sprSize = spriteSize(1)
+    FOR card = 1 TO 3
+        spriteSize(card) = sprSize
+        cardImg&(card) = _NEWIMAGE(sprSize, sprSize, 32)
+        _DONTBLEND cardImg&(card)
+        _DEST cardImg&(card)
+        FOR y = 0 TO sprSize - 1 : FOR x = 0 TO sprSize-1
+            IF card = 1 THEN col~& = spriteTex(x, y, 1) ELSE col~& = spriteTex(x, y, 0)
+            IF card = 1 THEN spriteTex(x, y, 0) = col~& '(the untinted card, kept in slot 0)
+            spriteTex(x, y, card) = Tint~&(col~&, CardRGB~&(card), 1)
+            PSET (x, y), spriteTex(x, y, card)
+        NEXT : NEXT
+        _BLEND cardImg&(card)
+        FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE-1
+            texture(x, y, T_DOORK + card) = Tint~&(texture(x, y, T_DOOR), CardRGB~&(card), 0.85)
+        NEXT : NEXT
+    NEXT
+    _DEST 0
+END SUB
+
+' Colour col pushed toward tintCol by amount! (0-1), keeping its light and
+' dark: a bright pixel of a grey card becomes bright red, a dark one dark red.
+FUNCTION Tint~&(col AS _UNSIGNED LONG, tintCol AS _UNSIGNED LONG, amount!)
+    lum! = (_RED32(col) + _GREEN32(col) + _BLUE32(col)) / 3 / 255 * 1.6
+    r! = _RED32(col) * (1 - amount!) + _RED32(tintCol) * lum! * amount!
+    g! = _GREEN32(col) * (1 - amount!) + _GREEN32(tintCol) * lum! * amount!
+    b! = _BLUE32(col) * (1 - amount!) + _BLUE32(tintCol) * lum! * amount!
+    IF r! > 255 THEN r! = 255
+    IF g! > 255 THEN g! = 255
+    IF b! > 255 THEN b! = 255
+    Tint~& = _RGBA32(r!, g!, b!, _ALPHA32(col))
 END FUNCTION
 
-' True if map point (x, y) is open floor or a mostly-open door (and not
-' inside a decoration)
+' Darken a colour: its red, green and blue times amount/256 (amount 0-256).
+' This runs for every pixel of every frame, so it's done with a trick: in
+' &HAARRGGBB, red and blue are 16 bits apart, so masking with &HFF00FF and
+' multiplying darkens both at once without them spilling into each other.
+' Green is done on its own the same way, and alpha is set back to solid.
+FUNCTION Shade~&(col AS _UNSIGNED LONG, amount AS LONG)
+    DIM redBlue AS _INTEGER64, green AS _INTEGER64
+    redBlue = col AND &HFF00FF : green = col AND &HFF00&
+    Shade~& = &HFF000000~& OR ((redBlue * amount \ 256) AND &HFF00FF) OR ((green * amount \ 256) AND &HFF00&)
+END FUNCTION
+
+' The bolt sprite, drawn with maths: a hard-edged glowing magenta ball,
+' white hot in the middle (r is how far each pixel is from the centre).
+SUB MakeBolt(slot)
+    spriteSize(slot) = 16
+    FOR y = 0 TO 15 : FOR x = 0 TO 15
+        r = SQR((x - 7.5) ^ 2 + (y-7.5) ^ 2) / 7.5
+        IF r < 0.45 THEN
+            spriteTex(x, y, slot) = _RGB32(255, 240, 255)
+        ELSEIF r < 0.75 THEN
+            spriteTex(x, y, slot) = _RGB32(255, 110, 235)
+        ELSEIF r < 1 THEN
+            spriteTex(x, y, slot) = _RGB32(200, 30, 200)
+        ELSE
+            spriteTex(x, y, slot) = 0
+        END IF
+    NEXT : NEXT
+END SUB
+
+' Print "EXIT" on a lit sign at the top of the exit door's texture: copy the
+' texture into an image, draw on it with LINE and _PRINTSTRING, and copy
+' it back.
+SUB ExitSign
+    img& = _NEWIMAGE(TEX_SIZE, TEX_SIZE, 32)
+    _DEST img&
+    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1 : PSET (x, y), texture(x, y, T_EXIT) : NEXT : NEXT
+    LINE (13, 5)-(50, 24), _RGB32(10, 40, 20), BF
+    LINE (13, 5)-(50, 24), _RGB32(60, 255, 120), B
+    _PRINTMODE _KEEPBACKGROUND : COLOR _RGB32(110, 255, 150) : _PRINTSTRING (16, 7), "EXIT"
+    _SOURCE img&
+    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1 : texture(x, y, T_EXIT) = POINT(x, y) : NEXT : NEXT
+    _SOURCE 0 : _DEST 0 : _FREEIMAGE img&
+END SUB
+
+' A texture's average colour, a little brighter (each wall kind's minimap
+' colour)
+FUNCTION MinimapColor~&(slot)
+    FOR y = 0 TO TEX_SIZE - 1 STEP 2 : FOR x = 0 TO TEX_SIZE - 1 STEP 2
+        col~& = texture(x, y, slot) : red& = red& + _RED32(col~&) : green& = green& + _GREEN32(col~&) : blue& = blue& + _BLUE32(col~&) : count& = count& + 1
+    NEXT : NEXT
+    MinimapColor~& = _RGB32(red& / count& * 1.4, green& / count& * 1.4, blue& / count& * 1.4)
+END FUNCTION
+
+' === WALLS, COLLISION, AND THE DIAGONAL MATHS =================================
+
+' Any kind of wall (not a door, not floor)? (Diagonal cells count: their
+' worldMap value is a wall. SolidAt asks about a point instead.)
+FUNCTION IsWall(x, y)
+    cellValue = worldMap(x, y)
+    IsWall = cellValue > 0 AND cellValue <> 2
+END FUNCTION
+
+' Can a body be at map point (x, y)? Open floor or a mostly-open door, and
+' not inside a decoration - or, in a diagonal wall's cell, in its open half.
 FUNCTION Walkable%(x, y)
-    cX = INT(x) : cY = INT(y)
-    IF diagK(cX, cY) THEN Walkable% = NOT DiagIn(diagK(cX, cY), x - cX, y - cY) : EXIT FUNCTION
-    i = decoCell(cX, cY)
-    IF i THEN
-        IF (x - dcX(i)) ^ 2 + (y - dcY(i)) ^ 2 < DECO_R * DECO_R THEN EXIT FUNCTION
+    cellX = INT(x) : cellY = INT(y)
+    IF diagCorner(cellX, cellY) THEN Walkable% = NOT InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) : EXIT FUNCTION
+    deco = decoCell(cellX, cellY)
+    IF deco THEN
+        IF (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN EXIT FUNCTION
     END IF
-    Walkable% = worldMap(cX, cY) <= 0 OR doorOffsets(cX, cY) > 0.8
+    Walkable% = worldMap(cellX, cellY) <= 0 OR doorOpen(cellX, cellY) > 0.8
 END FUNCTION
 
-' Is map point (x, y) inside a wall (doors don't count)?
+' Is map point (x, y) inside a wall (doors don't count)? Like IsWall, but
+' for a point, so the open half of a diagonal cell isn't solid.
 FUNCTION SolidAt(x, y)
-    cX = INT(x) : cY = INT(y)
-    IF diagK(cX, cY) THEN SolidAt = DiagIn(diagK(cX, cY), x - cX, y - cY) ELSE SolidAt = IsWall(cX, cY)
+    cellX = INT(x) : cellY = INT(y)
+    IF diagCorner(cellX, cellY) THEN SolidAt = InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) ELSE SolidAt = IsWall(cellX, cellY)
 END FUNCTION
 
-' Is (u, v), a point inside a diagonal wall's cell (0-1 each way), in its
-' solid half? k is the solid corner (see diagK).
-FUNCTION DiagIn(k, u, v)
-    SELECT CASE k
-        CASE 1 : DiagIn = u + v < 1
-        CASE 2 : DiagIn = u > v
-        CASE 3 : DiagIn = u + v > 1
-        CASE 4 : DiagIn = u < v
+' Is (u, v) - a point inside a diagonal wall's cell, 0 to 1 each way - in
+' its solid half? corner is the solid corner (see diagCorner). The diagonal
+' from bottom-left to top-right is the line u + v = 1, and from top-left to
+' bottom-right u = v, so which side a point is on is just a comparison.
+FUNCTION InDiagonalWall(corner, u, v)
+    SELECT CASE corner
+        CASE 1 : InDiagonalWall = u + v < 1
+        CASE 2 : InDiagonalWall = u > v
+        CASE 3 : InDiagonalWall = u + v > 1
+        CASE 4 : InDiagonalWall = u < v
     END SELECT
 END FUNCTION
 
-' How far along a ray from (px, py) heading (rx, ry) it crosses the diagonal
-' of the diagonal wall cell (cx, cy) with solid corner k, if that's between
-' tIn and tOut (while the ray is inside the cell); -1 if it doesn't
-FUNCTION DiagHit(k, cx, cy, px, py, rx, ry, tIn, tOut)
-    DiagHit = -1
-    IF k = 1 OR k = 3 THEN ' "/" : u + v = 1
-        dn = rx + ry : IF dn = 0 THEN EXIT FUNCTION
-        t = (cx + cy + 1 - px - py) / dn
+' How far along a ray from (fromX, fromY), heading (rayX, rayY), it crosses
+' the diagonal of the cell (cellX, cellY) - if that's between enterDist and
+' exitDist, while the ray is inside the cell; -1 if it isn't.
+' A point on the ray is (fromX + t * rayX, fromY + t * rayY). Put it into
+' the diagonal's equation - X + Y = cellX + cellY + 1 for "/", or
+' X - Y = cellX - cellY for "\" - and solve for t. Measured this way t is
+' the same kind of distance as the raycaster's perpWallDist.
+FUNCTION DiagonalHit(corner, cellX, cellY, fromX, fromY, rayX, rayY, enterDist, exitDist)
+    DiagonalHit = -1
+    IF corner = 1 OR corner = 3 THEN ' "/" : u + v = 1
+        denom = rayX + rayY : IF denom = 0 THEN EXIT FUNCTION
+        hitDist = (cellX + cellY + 1 - fromX - fromY) / denom
     ELSE ' "\" : u = v
-        dn = rx - ry : IF dn = 0 THEN EXIT FUNCTION
-        t = (cx - cy - px + py) / dn
+        denom = rayX - rayY : IF denom = 0 THEN EXIT FUNCTION
+        hitDist = (cellX - cellY - fromX + fromY) / denom
     END IF
-    IF t >= tIn AND t <= tOut THEN DiagHit = t
+    IF hitDist >= enterDist AND hitDist <= exitDist THEN DiagonalHit = hitDist
 END FUNCTION
 
 ' Is the edge from (x1, y1) to (x2, y2) clear? Checks both ends and the
@@ -1634,270 +2329,172 @@ FUNCTION EdgeFree(x1, y1, x2, y2)
     EdgeFree = Walkable(x1, y1) AND Walkable(x2, y2) AND Walkable((x1 + x2) / 2, (y1 + y2) / 2)
 END FUNCTION
 
-' Is a body (radius PLAYER_R) at (x, y) clear of walls all round?
+' Is a body (radius PLAYER_RADIUS) at (x, y) clear of walls all round?
 FUNCTION BoxFree(x, y)
-    r = PLAYER_R
-    BoxFree = EdgeFree(x - r, y - r, x + r, y - r) AND EdgeFree(x - r, y + r, x + r, y + r) AND Walkable(x - r, y) AND Walkable(x + r, y)
+    rad = PLAYER_RADIUS
+    BoxFree = EdgeFree(x - rad, y - rad, x + rad, y - rad) AND EdgeFree(x - rad, y + rad, x + rad, y + rad) AND Walkable(x - rad, y) AND Walkable(x + rad, y)
 END FUNCTION
 
 ' Any diagonal wall in the 3 x 3 cells around (x, y)?
-FUNCTION NearDiag(x, y)
-    FOR cY = INT(y) - 1 TO INT(y) + 1 : FOR cX = INT(x) - 1 TO INT(x) + 1
-        IF diagK(cX, cY) THEN NearDiag = -1 : EXIT FUNCTION
+FUNCTION NearDiagonal(x, y)
+    FOR cellY = INT(y) - 1 TO INT(y) + 1 : FOR cellX = INT(x) - 1 TO INT(x) + 1
+        IF diagCorner(cellX, cellY) THEN NearDiagonal = -1 : EXIT FUNCTION
     NEXT : NEXT
 END FUNCTION
 
-' Move a body (radius PLAYER_R) at (x, y) by (mx, my). One axis at a time, so
-' it slides along walls; stopped dead by a diagonal wall, it slides along that.
-SUB MoveBody(x, y, mx, my)
-    ox = x : oy = y
-    ex = x + mx + SGN(mx) * PLAYER_R
-    IF EdgeFree(ex, y - PLAYER_R, ex, y + PLAYER_R) THEN x = x + mx
-    ey = y + my + SGN(my) * PLAYER_R
-    IF EdgeFree(x - PLAYER_R, ey, x + PLAYER_R, ey) THEN y = y + my
-    IF x = ox AND y = oy AND (mx <> 0 OR my <> 0) AND NearDiag(x, y) THEN
-        FOR sl = -1 TO 1 STEP 2 ' The move along each 45 degree line, (1, sl)
-            pr = (mx + my * sl) / 2
-            IF BoxFree(x + pr, y + pr * sl) THEN x = x + pr : y = y + pr * sl : EXIT SUB
+' Move a body (radius PLAYER_RADIUS) at (x, y) by (moveX, moveY) - you, or a
+' monster. One axis at a time, so it slides along walls (chapter 9): the X
+' move happens if the body's leading edge would be clear, then the Y move
+' the same way. Against a diagonal wall both can be blocked at once, so
+' then it tries sliding along each 45-degree line instead: the part of the
+' move that points along (1, slope).
+SUB MoveBody(x, y, moveX, moveY)
+    oldX = x : oldY = y
+    edgeX = x + moveX + SGN(moveX) * PLAYER_RADIUS
+    IF EdgeFree(edgeX, y - PLAYER_RADIUS, edgeX, y + PLAYER_RADIUS) THEN x = x + moveX
+    edgeY = y + moveY + SGN(moveY) * PLAYER_RADIUS
+    IF EdgeFree(x - PLAYER_RADIUS, edgeY, x + PLAYER_RADIUS, edgeY) THEN y = y + moveY
+    IF x = oldX AND y = oldY AND (moveX <> 0 OR moveY <> 0) AND NearDiagonal(x, y) THEN
+        FOR slope = -1 TO 1 STEP 2 ' The move along each 45 degree line, (1, sl)
+            along = (moveX + moveY * slope) / 2
+            IF BoxFree(x + along, y + along * slope) THEN x = x + along : y = y + along * slope : EXIT SUB
         NEXT
     END IF
 END SUB
 
-' neon-caster/<f$>, or the same next to the EXE
-FUNCTION AssetPath$(f$)
-    p$ = "neon-caster/" + f$
-    IF NOT _FILEEXISTS(p$) THEN ' Fall back TO the folder NEXT TO the EXE
-        e$ = COMMAND$(0) : i = _INSTRREV(e$, "/") : IF i = 0 THEN i = _INSTRREV(e$, "\")
-        p$ = LEFT$(e$, i) + "neon-caster/" + f$
-    END IF
-    AssetPath$ = p$
-END FUNCTION
-
-' A sound effect from neon-caster/sfx/ (0 if it's missing: the game runs silent)
-FUNCTION LoadSnd&(f$)
-    p$ = AssetPath$("sfx/" + f$)
-    IF _FILEEXISTS(p$) THEN LoadSnd& = _SNDOPEN(p$)
-END FUNCTION
-
-' Play a copy, so the same sound can overlap itself
-SUB PlaySfx(h&, vol!)
-    IF h& > 0 THEN _SNDPLAYCOPY h&, vol!
-END SUB
-
-' How much the 800x600 screen is stretched on the display. QB64-PE multiplies
-' captured-mouse movement by this, so mouse look divides it back out.
-FUNCTION DisplayScale!
-    DisplayScale! = 1
-    IF _FULLSCREEN = 0 THEN EXIT FUNCTION
-    sx! = _DESKTOPWIDTH / _WIDTH(0) : sy! = _DESKTOPHEIGHT / _HEIGHT(0)
-    IF _FULLSCREEN = 2 AND sy! < sx! THEN sx! = sy! ' _SQUAREPIXELS : letterboxed
-    DisplayScale! = sx!
-END FUNCTION
-
-' Message line at the bottom of the screen, for a few seconds
-SUB ShowMsg(m$)
-    SHARED msg$, msgUntil!
-    msg$ = m$ : msgUntil! = TIMER + 2.5
-END SUB
-
-FUNCTION CardName$(k)
-    CardName$ = RTRIM$(MID$("red   blue  yellow", (k - 1) * 6 + 1, 6))
-END FUNCTION
-
-FUNCTION CardRGB~&(k)
-    SELECT CASE k
-        CASE 1 : CardRGB~& = _RGB32(235, 45, 45)
-        CASE 2 : CardRGB~& = _RGB32(50, 120, 255)
-        CASE 3 : CardRGB~& = _RGB32(255, 215, 30)
-    END SELECT
-END FUNCTION
-
-' Colour c toward tint t by amount a (0-1), keeping its light and dark
-FUNCTION Tint~&(c AS _UNSIGNED LONG, t AS _UNSIGNED LONG, a!)
-    lum! = (_RED32(c) + _GREEN32(c) + _BLUE32(c)) / 3 / 255 * 1.6
-    r! = _RED32(c) * (1 - a!) + _RED32(t) * lum! * a!
-    g! = _GREEN32(c) * (1 - a!) + _GREEN32(t) * lum! * a!
-    b! = _BLUE32(c) * (1 - a!) + _BLUE32(t) * lum! * a!
-    IF r! > 255 THEN r! = 255
-    IF g! > 255 THEN g! = 255
-    IF b! > 255 THEN b! = 255
-    Tint~& = _RGBA32(r!, g!, b!, _ALPHA32(c))
-END FUNCTION
-
-' A sprite from neon-caster/ into sprTex slot (its size up to SPR_TEX)
-SUB LoadSprite(f$, slot)
-    p$ = AssetPath$(f$)
-    img& = _LOADIMAGE(p$, 32)
-    IF img& >= -1 THEN PRINT "Missing texture: "; p$ : SLEEP : SYSTEM
-    sz = _WIDTH(img&) : IF sz > SPR_TEX THEN sz = SPR_TEX
-    sprSz(slot) = sz
-    _SOURCE img&
-    FOR y = 0 TO sz - 1 : FOR x = 0 TO sz-1
-        sprTex(x, y, slot) = POINT(x * _WIDTH(img&) \ sz, y * _HEIGHT(img&) \ sz)
-    NEXT : NEXT
-    _SOURCE 0 : _FREEIMAGE img&
-END SUB
-
-' The keycard sprite, tinted red / blue / yellow (sprite slots 1-3 and HUD
-' images), and the key door textures (the door tinted the same way)
-SUB LoadCards(f$)
-    LoadSprite f$, 1
-    sz = sprSz(1)
-    FOR k = 1 TO 3
-        sprSz(k) = sz
-        cardImg&(k) = _NEWIMAGE(sz, sz, 32)
-        _DONTBLEND cardImg&(k)
-        _DEST cardImg&(k)
-        FOR y = 0 TO sz - 1 : FOR x = 0 TO sz-1
-            IF k = 1 THEN c~& = sprTex(x, y, 1) ELSE c~& = sprTex(x, y, 0)
-            IF k = 1 THEN sprTex(x, y, 0) = c~& '(the untinted card, kept in slot 0)
-            sprTex(x, y, k) = Tint~&(c~&, CardRGB~&(k), 1)
-            PSET (x, y), sprTex(x, y, k)
-        NEXT : NEXT
-        _BLEND cardImg&(k)
-        FOR y = 0 TO TEX - 1 : FOR x = 0 TO TEX-1
-            TEX(x, y, T_DOORK + k) = Tint~&(TEX(x, y, T_DOOR), CardRGB~&(k), 0.85)
-        NEXT : NEXT
-    NEXT
-    _DEST 0
-END SUB
-
-' Can a monster at (x1, y1) see (x2, y2)? Walls and shut doors block the view.
+' Can a monster at (x1, y1) see (x2, y2)? Step along the line between them,
+' a tenth of a cell at a time; any wall or shut door on the way blocks it.
 FUNCTION CanSee(x1, y1, x2, y2)
-    dx = x2 - x1 : dy = y2 - y1 : D = SQR(dx * dx + dy * dy)
-    n = INT(D / 0.1) + 1
-    FOR i = 1 TO n
-        cX = INT(x1 + dx * i / n) : cY = INT(y1 + dy * i / n)
-        IF SolidAt(x1 + dx * i / n, y1 + dy * i / n) THEN EXIT FUNCTION
-        IF worldMap(cX, cY) = 2 AND doorOffsets(cX, cY) <= 0.8 THEN EXIT FUNCTION
+    dx = x2 - x1 : dy = y2 - y1 : dist = SQR(dx * dx + dy * dy)
+    steps = INT(dist / 0.1) + 1
+    FOR i = 1 TO steps
+        cellX = INT(x1 + dx * i / steps) : cellY = INT(y1 + dy * i / steps)
+        IF SolidAt(x1 + dx * i / steps, y1 + dy * i / steps) THEN EXIT FUNCTION
+        IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) <= 0.8 THEN EXIT FUNCTION
     NEXT
     CanSee = -1
 END FUNCTION
 
-' A sound from (x, y), quieter the further it is from you at (lx, ly)
-SUB SfxAt(h&, x, y, lx, ly)
-    v! = 1 - SQR((x - lx) ^ 2 + (y-ly) ^ 2) / 18
-    IF v! < 0.12 THEN v! = 0.12
-    PlaySfx h&, v!
-END SUB
+' === FILES AND SOUND ==========================================================
 
-SUB FillCircle(cX, cy, r, c~&)
-    FOR dy = - r TO r
-        W = SQR(r * r - dy * dy)
-        LINE (cX - w, cY + dy)-(cX + w, cY + dy), c~&
-    NEXT
-END SUB
-
-' HUD text with a drop shadow
-SUB HudText(x, y, t$, c~&)
-    COLOR _RGB32(0, 0, 0) : _PRINTSTRING (x + 1, y + 1), t$
-    COLOR c~& : _PRINTSTRING (x, y), t$
-END SUB
-
-' Big centred text: printed small, then scaled up
-SUB BigText(t$, y, scale, c~&)
-    W = LEN(t$) * 8
-    t& = _NEWIMAGE(w, 16, 32)
-    _DEST t& : _PRINTMODE _KEEPBACKGROUND
-    COLOR _RGB32(0, 0, 0) : _PRINTSTRING (1, 1), t$
-    COLOR c~& : _PRINTSTRING (0, 0), t$
-    _DEST 0
-    _PUTIMAGE (400 - W * scale \ 2, y)-STEP(W * scale - 1, 16 * scale-1), t&
-    _FREEIMAGE t&
-END SUB
-
-' Any kind of wall (not a door, not floor)?
-FUNCTION IsWall(x, y)
-    v = worldMap(x, y)
-    IsWall = v > 0 AND v <> 2
+' The path to neon-caster/<file$>: from the current folder, or else from the
+' folder the program itself is in (COMMAND$(0) is its own path), so the game
+' runs whichever folder you start it from.
+FUNCTION AssetPath$(file$)
+    path$ = "neon-caster/" + file$
+    IF NOT _FILEEXISTS(path$) THEN ' Fall back TO the folder NEXT TO the EXE
+        exe$ = COMMAND$(0) : i = _INSTRREV(exe$, "/") : IF i = 0 THEN i = _INSTRREV(exe$, "\")
+        path$ = LEFT$(exe$, i) + "neon-caster/" + file$
+    END IF
+    AssetPath$ = path$
 END FUNCTION
 
-' A monster type's numbers (see the table in the main program)
-SUB SetMonType(t, n$, hp, speed, scale, lift, bob, reach, dmg, dmgRnd, cool, slot)
-    mtName$(t) = n$ : mtHP(t) = hp : mtSpeed(t) = speed : mtScale(t) = scale
-    mtLift(t) = lift : mtBob(t) = bob : mtReach(t) = reach
-    mtDmg(t) = dmg : mtDmgRnd(t) = dmgRnd : mtCool(t) = cool : mtSlot(t) = slot
+' A sound from neon-caster/sfx/. A missing file gives 0, and PlaySfx skips
+' 0, so the game still runs - silently - without its sounds.
+FUNCTION LoadSnd&(file$)
+    path$ = AssetPath$("sfx/" + file$)
+    IF _FILEEXISTS(path$) THEN LoadSnd& = _SNDOPEN(path$)
+END FUNCTION
+
+' Play a copy of a sound (_SNDPLAYCOPY), so the same one can overlap itself
+' - footsteps, a fast gun. vol! goes from 0 to 1.
+SUB PlaySfx(snd&, vol!)
+    IF snd& > 0 THEN _SNDPLAYCOPY snd&, vol!
 END SUB
 
-' A gunner's energy bolt, from (x, y) heading (dx, dy)
-SUB FireBolt(x, y, dx, dy, dmg)
+' A sound made at (x, y): the further it is from you at (listenX, listenY),
+' the quieter (but never silent)
+SUB SfxAt(snd&, x, y, listenX, listenY)
+    vol! = 1 - SQR((x - listenX) ^ 2 + (y-listenY) ^ 2) / 18
+    IF vol! < 0.12 THEN vol! = 0.12
+    PlaySfx snd&, vol!
+END SUB
+
+' How much the 800 x 600 screen is stretched on the display (2 on a 1600-
+' wide full screen). QB64PE multiplies captured mouse movement by this, so
+' mouse look divides it back out to turn at the same speed either way.
+FUNCTION DisplayScale!
+    DisplayScale! = 1
+    IF _FULLSCREEN = 0 THEN EXIT FUNCTION
+    scaleX! = _DESKTOPWIDTH / _WIDTH(0) : scaleY! = _DESKTOPHEIGHT / _HEIGHT(0)
+    IF _FULLSCREEN = 2 AND scaleY! < scaleX! THEN scaleX! = scaleY! ' _SQUAREPIXELS : letterboxed
+    DisplayScale! = scaleX!
+END FUNCTION
+
+' === GUNS, MONSTERS AND PICKUPS ===============================================
+
+' One row of the guns table (chapter 4)
+SUB SetGun(gun, title$, ammoType, ammoPerShot, delay, pellets, spread, damage, pierce, kick)
+    gunName$(gun) = title$ : gunAmmoType(gun) = ammoType : gunAmmoPerShot(gun) = ammoPerShot : gunDelay(gun) = delay
+    gunPellets(gun) = pellets : gunSpread(gun) = spread : gunDamage(gun) = damage : gunPierce(gun) = pierce : gunKick(gun) = kick
+END SUB
+
+' Gun number `gun`'s first-person picture, and where its muzzle is: the
+' middle of the top-most row of the picture that's at least
+' MUZZLE_MIN_WIDTH solid pixels wide (so a thin sight post sticking up above
+' the barrel doesn't count). The muzzle flash and the railgun's beam start
+' there.
+SUB LoadGun(gun, file$)
+    CONST MUZZLE_MIN_WIDTH = 4
+    path$ = AssetPath$(file$)
+    gunImg&(gun) = _LOADIMAGE(path$, 32)
+    IF gunImg&(gun) >= -1 THEN PRINT "Missing texture: "; path$: SLEEP: SYSTEM
+    _SOURCE gunImg&(gun)
+    imgW = _WIDTH(gunImg&(gun)) : imgH = _HEIGHT(gunImg&(gun))
+    FOR y = 0 TO imgH - 1
+        bestRun = 0 : runLen = 0
+        FOR x = 0 TO imgW ' (one past the edge, to end a run touching it)
+            solid = 0
+            IF x < imgW THEN solid = _ALPHA32(POINT(x, y)) > 128
+            IF solid THEN
+                runLen = runLen + 1
+            ELSE
+                IF runLen > bestRun THEN bestRun = runLen : runEnd = x - 1
+                runLen = 0
+            END IF
+        NEXT
+        IF bestRun >= MUZZLE_MIN_WIDTH THEN EXIT FOR
+    NEXT
+    _SOURCE 0
+    IF bestRun < MUZZLE_MIN_WIDTH THEN y = 0 : runEnd = imgW / 2 : bestRun = 1
+    gunMuzzleX(gun) = (runEnd - bestRun / 2 + 1) / imgW : gunMuzzleY(gun) = (y + 0.5) / imgH
+END SUB
+
+' Add `amount` of ammo type ammoType, up to the most you can carry. Returns
+' FALSE (0) if you were already full, so the pickup stays on the floor.
+FUNCTION GiveAmmo%(ammoType, amount)
+    IF ammoCount(ammoType) >= ammoMax(ammoType) THEN EXIT FUNCTION
+    ammoCount(ammoType) = ammoCount(ammoType) + amount
+    IF ammoCount(ammoType) > ammoMax(ammoType) THEN ammoCount(ammoType) = ammoMax(ammoType)
+    GiveAmmo% = -1
+END FUNCTION
+
+' One row of the monster types table (chapter 6)
+SUB SetMonType(mtype, title$, hitPoints, speed, scale, lift, bob, reach, damage, damageRnd, cooldown, sprite)
+    mtypeName$(mtype) = title$ : mtypeHP(mtype) = hitPoints : mtypeSpeed(mtype) = speed : mtypeScale(mtype) = scale
+    mtypeLift(mtype) = lift : mtypeBob(mtype) = bob : mtypeReach(mtype) = reach
+    mtypeDamage(mtype) = damage : mtypeDamageRnd(mtype) = damageRnd : mtypeCooldown(mtype) = cooldown : mtypeSprite(mtype) = sprite
+END SUB
+
+' A bolt from (x, y), flying along (dirX, dirY), into the first free slot
+SUB FireBolt(x, y, dirX, dirY, damage)
     FOR i = 1 TO MAX_BOLTS
-        IF bOn(i) = 0 THEN
-            bOn(i) = -1 : bX(i) = x + dx * 0.4 : bY(i) = y + dy * 0.4
-            bDX(i) = dx : bDY(i) = dy : bDmg(i) = dmg
+        IF boltOn(i) = 0 THEN
+            boltOn(i) = -1 : boltX(i) = x + dirX * 0.4 : boltY(i) = y + dirY * 0.4
+            boltDX(i) = dirX : boltDY(i) = dirY : boltDamage(i) = damage
             EXIT SUB
         END IF
     NEXT
 END SUB
 
-' The bolt sprite: a hard-edged glowing magenta ball, white hot in the middle
-SUB MakeBolt(slot)
-    sprSz(slot) = 16
-    FOR y = 0 TO 15 : FOR x = 0 TO 15
-        D = SQR((x - 7.5) ^ 2 + (y-7.5) ^ 2) / 7.5
-        IF D < 0.45 THEN
-            sprTex(x, y, slot) = _RGB32(255, 240, 255)
-        ELSEIF D < 0.75 THEN
-            sprTex(x, y, slot) = _RGB32(255, 110, 235)
-        ELSEIF D < 1 THEN
-            sprTex(x, y, slot) = _RGB32(200, 30, 200)
-        ELSE
-            sprTex(x, y, slot) = 0
-        END IF
-    NEXT : NEXT
-END SUB
-
-' Gun w's first-person picture, and where its muzzle is: the middle of the
-' top-most row that's at least MUZ_MIN solid pixels wide (so a thin sight
-' post sticking up above the barrel doesn't count)
-SUB LoadGun(w, f$)
-    CONST MUZ_MIN = 4
-    p$ = AssetPath$(f$)
-    wpImg&(W) = _LOADIMAGE(p$, 32)
-    IF wpImg&(W) >= -1 THEN PRINT "Missing texture: "; p$: SLEEP: SYSTEM
-    _SOURCE wpImg&(W)
-    gw = _WIDTH(wpImg&(W)) : gh = _HEIGHT(wpImg&(W))
-    FOR y = 0 TO gh - 1
-        bestN = 0 : n = 0
-        FOR x = 0 TO gw ' (one past the edge, to end a run touching it)
-            solid = 0
-            IF x < gw THEN solid = _ALPHA32(POINT(x, y)) > 128
-            IF solid THEN
-                n = n + 1
-            ELSE
-                IF n > bestN THEN bestN = n : runEnd = x - 1
-                n = 0
-            END IF
-        NEXT
-        IF bestN >= MUZ_MIN THEN EXIT FOR
-    NEXT
-    _SOURCE 0
-    IF bestN < MUZ_MIN THEN y = 0 : runEnd = gw / 2 : bestN = 1
-    wpMuzX(W) = (runEnd - bestN / 2 + 1) / gw : wpMuzY(W) = (y + 0.5) / gh
-END SUB
-
-' Add n of ammo kind k, up to the most you can carry. FALSE if already full.
-FUNCTION GiveAmmo%(k, n)
-    IF ammoN(k) >= ammoMax(k) THEN EXIT FUNCTION
-    ammoN(k) = ammoN(k) + n
-    IF ammoN(k) > ammoMax(k) THEN ammoN(k) = ammoMax(k)
-    GiveAmmo% = -1
+' Which sprite slot a pickup kind is drawn with
+FUNCTION ItemSprite(kind)
+    IF kind <= IT_REPEATER THEN ItemSprite = kind ELSE ItemSprite = 16 + kind
 END FUNCTION
 
-' A gun's numbers (see the table in the main program)
-SUB SetGun(w, n$, ammo, cost, delay, pellets, spread, dmg, pierce, kick)
-    wpName$(w) = n$ : wpAmmo(w) = ammo : wpCost(w) = cost : wpDelay(w) = delay
-    wpPellets(w) = pellets : wpSpread(w) = spread : wpDmg(w) = dmg : wpPierce(w) = pierce : wpKick(w) = kick
-END SUB
-
-' Pickup kind k's sprite slot
-FUNCTION ItemSlot(k)
-    IF k <= IT_REPEATER THEN ItemSlot = k ELSE ItemSlot = 16 + k
-END FUNCTION
-
-' How tall decoration kind k stands (in walls)
-FUNCTION DecoScale(k)
-    SELECT CASE k
+' How tall a decoration kind stands (in walls)
+FUNCTION DecoScale(kind)
+    SELECT CASE kind
         CASE 1 : DecoScale = 0.45 ' Barrel
         CASE 2 : DecoScale = 0.85 ' Lamp
         CASE 3 : DecoScale = 0.6 ' Plant
@@ -1905,35 +2502,68 @@ FUNCTION DecoScale(k)
     END SELECT
 END FUNCTION
 
-' A texture's average colour, a little brighter (for the minimap)
-FUNCTION MapCol~&(slot)
-    FOR y = 0 TO TEX - 1 STEP 2 : FOR x = 0 TO TEX - 1 STEP 2
-        c~& = TEX(x, y, slot) : r& = r& + _RED32(c~&) : g& = g& + _GREEN32(c~&) : b& = b& + _BLUE32(c~&) : n& = n& + 1
-    NEXT : NEXT
-    MapCol~& = _RGB32(r& / n& * 1.4, g& / n& * 1.4, b& / n& * 1.4)
+' "red", "blue" or "yellow" for keycard 1, 2 or 3
+FUNCTION CardName$(card)
+    CardName$ = RTRIM$(MID$("red   blue  yellow", (card - 1) * 6 + 1, 6))
 END FUNCTION
 
-' Print "EXIT" on a lit sign at the top of the exit door's texture
-SUB ExitSign
-    t& = _NEWIMAGE(TEX, TEX, 32)
-    _DEST t&
-    FOR y = 0 TO TEX - 1 : FOR x = 0 TO TEX - 1 : PSET (x, y), TEX(x, y, T_EXIT) : NEXT : NEXT
-    LINE (13, 5)-(50, 24), _RGB32(10, 40, 20), BF
-    LINE (13, 5)-(50, 24), _RGB32(60, 255, 120), B
-    _PRINTMODE _KEEPBACKGROUND : COLOR _RGB32(110, 255, 150) : _PRINTSTRING (16, 7), "EXIT"
-    _SOURCE t&
-    FOR y = 0 TO TEX - 1 : FOR x = 0 TO TEX - 1 : TEX(x, y, T_EXIT) = POINT(x, y) : NEXT : NEXT
-    _SOURCE 0 : _DEST 0 : _FREEIMAGE t&
+' Keycard 1, 2 or 3's colour
+FUNCTION CardRGB~&(card)
+    SELECT CASE card
+        CASE 1 : CardRGB~& = _RGB32(235, 45, 45)
+        CASE 2 : CardRGB~& = _RGB32(50, 120, 255)
+        CASE 3 : CardRGB~& = _RGB32(255, 215, 30)
+    END SELECT
+END FUNCTION
+
+' === TEXT AND THE HUD =========================================================
+
+' Show a message at the bottom of the screen for a few seconds. message$ and
+' messageUntil! belong to the main program; SHARED inside a SUB lets it use
+' main-program variables by name.
+SUB ShowMsg(text$)
+    SHARED message$, messageUntil!
+    message$ = text$ : messageUntil! = TIMER + 2.5
+END SUB
+
+' HUD text with a drop shadow: printed in black one pixel down and right,
+' then in its colour on top
+SUB HudText(x, y, text$, col~&)
+    COLOR _RGB32(0, 0, 0) : _PRINTSTRING (x + 1, y + 1), text$
+    COLOR col~& : _PRINTSTRING (x, y), text$
+END SUB
+
+' Big centred text: printed at normal size into a small image, then
+' stretched up with _PUTIMAGE (so it's chunky, like the 3D view)
+SUB BigText(text$, y, scale, col~&)
+    textW = LEN(text$) * 8
+    img& = _NEWIMAGE(textW, 16, 32)
+    _DEST img& : _PRINTMODE _KEEPBACKGROUND
+    COLOR _RGB32(0, 0, 0) : _PRINTSTRING (1, 1), text$
+    COLOR col~& : _PRINTSTRING (0, 0), text$
+    _DEST 0
+    _PUTIMAGE (400 - textW * scale \ 2, y)-STEP(textW * scale - 1, 16 * scale-1), img&
+    _FREEIMAGE img&
+END SUB
+
+' A filled circle, one LINE per row: each row is half as wide as Pythagoras
+' says (halfW = SQR(radius^2 - dy^2)). With an _RGBA32 colour it's
+' see-through, which is how the muzzle flash glows.
+SUB FillCircle(centerX, centerY, radius, col~&)
+    FOR dy = - radius TO radius
+        halfW = SQR(radius * radius - dy * dy)
+        LINE (centerX - halfW, centerY + dy)-(centerX + halfW, centerY + dy), col~&
+    NEXT
 END SUB
 
 ' One line of the level-done tally: a label, and its number on the right
-SUB TallyLine(y, l$, v$)
-    HudText 270, y, l$, _RGB32(160, 200, 255)
-    HudText 530 - LEN(v$) * 8, y, v$, _RGB32(255, 255, 255)
+SUB TallyLine(y, label$, value$)
+    HudText 270, y, label$, _RGB32(160, 200, 255)
+    HudText 530 - LEN(value$) * 8, y, value$, _RGB32(255, 255, 255)
 END SUB
 
 ' Seconds as m:ss
-FUNCTION TimeText$(t!)
-    m = INT(t! / 60) : sec = INT(t!) MOD 60
-    TimeText$ = LTRIM$(STR$(m)) + ":" + RIGHT$("0" + LTRIM$(STR$(sec)), 2)
+FUNCTION TimeText$(secs!)
+    mins = INT(secs! / 60) : s = INT(secs!) MOD 60
+    TimeText$ = LTRIM$(STR$(mins)) + ":" + RIGHT$("0" + LTRIM$(STR$(s)), 2)
 END FUNCTION
