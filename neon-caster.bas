@@ -37,6 +37,7 @@
 '   Mouse          look around          W A S D   walk and strafe
 '   Click or Ctrl  fire                 Space     open doors, use the exit
 '   1-4 or wheel   choose a gun         Esc       quit
+'   Right button   hold to aim down the sights (zooms in)
 '   K, G           testing cheats: every keycard, god mode (see CHEAT_KEYS)
 '
 ' READING THE NAMES
@@ -89,6 +90,8 @@
 '     TEX_       TEXture: TEX_SIZE, how big each one is (64)    (chapter 5)
 '     MINIMAP_   where the minimap goes, and its cell size      (chapter 2)
 '     TEST_ CHEAT_  testing switches                            (chapter 4)
+'     ADS_       Aiming Down the Sights: zoom and gun position   (chapter 4)
+'     FOV_       Field Of View: how wide you see                 (chapter 2)
 '
 '     Variables (camelCase) - the start of the name says what it's about:
 '     player...  you: playerX, playerY
@@ -149,6 +152,9 @@ _PRINTMODE _KEEPBACKGROUND
 ' chapter 22 has the maths), and the floor and ceiling can be split the same
 ' way (floorSplit, ceilSplit) to paint diagonal stripes.
 CONST MAP_SIZE = 48
+' FOV_PLANE = how long the camera plane is each side of your direction
+' (chapter 8): 0.66 makes the view about 66 degrees wide
+CONST FOV_PLANE = 0.66
 ' MINIMAP_ = where the minimap is drawn: each map cell is MINIMAP_CELL pixels
 ' square, and its top-left corner is at (MINIMAP_X, MINIMAP_Y) on the screen
 CONST MINIMAP_CELL = 3, MINIMAP_X = 8, MINIMAP_Y = 8
@@ -277,12 +283,24 @@ DIM SHARED hasGun(NUM_GUNS) AS INTEGER
 DIM SHARED gunName$(NUM_GUNS), gunAmmoType(NUM_GUNS), gunAmmoPerShot(NUM_GUNS), gunDelay(NUM_GUNS), gunPellets(NUM_GUNS), gunSpread(NUM_GUNS)
 DIM SHARED gunDamage(NUM_GUNS), gunPierce(NUM_GUNS), gunKick(NUM_GUNS)
 DIM SHARED gunSnd&(NUM_GUNS), gunImg&(NUM_GUNS), gunMuzzleX(NUM_GUNS), gunMuzzleY(NUM_GUNS), gunScale(NUM_GUNS)
-'      gun name        ammo       cost delay pellets spread damage pierce recoil
-SetGun 1,  "BLASTER",  AM_CELLS,  1,   16,   1,      0,     1,     0,     1
-SetGun 2,  "SCATTER",  AM_SHELLS, 1,   40,   7,      0.12,  1,     0,     1.7
-SetGun 3,  "REPEATER", AM_CELLS,  1,   5,    1,      0.025, 1,     0,     0.45
-SetGun 4,  "RAILGUN",  AM_CELLS,  5,   55,   1,      0,     5,     -1,    2.2
+'           name        ammo       cost delay pellets spread damage pierce recoil
+SetGun 1, "BLASTER", AM_CELLS, 1, 16, 1, 0, 1, 0, 1
+SetGun 2, "SCATTER", AM_SHELLS, 1, 40, 7, 0.12, 1, 0, 1.7
+SetGun 3, "REPEATER", AM_CELLS, 1, 5, 1, 0.025, 1, 0, 0.45
+SetGun 4, "RAILGUN", AM_CELLS, 5, 55, 1, 0, 5, -1, 2.2
 CONST SWAP_FRAMES = 14 ' Frames to lower one gun and raise the next
+' ADS_ = Aiming Down the Sights (hold the right mouse button - chapter 8):
+'   ADS_ZOOM       how much the view zooms in (1 = not at all, 2 = twice as
+'                  close)
+'   ADS_FRAMES     frames to raise the gun to your eye, or lower it again
+'   ADS_MUZZLE_Y   where the muzzle comes up to on the screen (the
+'                  crosshair is at y = 300)
+'   ADS_GUN_GROW   how much bigger the gun looks, held up close - at least.
+'                  A gun whose muzzle is low in its picture grows more, so
+'                  its bottom still reaches below the screen; but never more
+'                  than ADS_GUN_GROW_MAX (then its muzzle stops a bit lower)
+CONST ADS_ZOOM = 1.6, ADS_FRAMES = 8, ADS_MUZZLE_Y = 318
+CONST ADS_GUN_GROW = 1.15, ADS_GUN_GROW_MAX = 1.7
 ' TEST_ and CHEAT_ = testing aids - set both to 0 for the real game:
 '   TEST_ALL_GUNS  -1 starts you with every gun and full ammo
 '   CHEAT_KEYS     -1 lets K give you every keycard, and G switch god mode
@@ -336,7 +354,7 @@ DIM drawSquash(MAX_DRAW) AS SINGLE, drawMinShade(MAX_DRAW) AS INTEGER, drawOrder
 ' --- The 3D view: drawn at half size, then stretched 2x onto the window ---
 ' RENDER_ = the size of the 3D view in pixels (W = width, H = height);
 ' TEX_SIZE = every texture is 64 x 64 pixels
-CONST RENDER_W = 400, RENDER_H = 300, TEX_SIZE = 64
+CONST RENDER_W = 400, RENDER_H = 300, TEX_SIZE = 128
 ' T_ = Texture slot: which picture in texture(x, y, slot). The slots are:
 '   1-6 the level's six walls (# N C K P G), 7 sliding door, 8-10 key doors,
 '   11 shutter, 12 split door, 13 exit, 14-17 the level's four floors,
@@ -433,14 +451,14 @@ CONST STEP_LEN = 2.6 ' Cells walked per footstep (about 2.8 a second at full spe
 ' entry per TYPE of monster - see chapter 3) for types 1-5. Speed is in
 ' cells a frame; height is in walls (1 = as tall as a wall); lift and bob
 ' are how high it hovers and how much it bobs; reach is how close it must
-' be to hit you; damage is dmg plus a random 0 to +rnd - 1; cooldown (cool)
+' be to hit you; damage is min + a random extra (dmg+rnd); cooldown (cool)
 ' is frames between attacks; slot is its sprite slot (chapter 5).
-'          type name       HP  speed  height lift bob   reach dmg +rnd cool slot
-SetMonType 1,   "drone",   3,  0.045, 0.65,  0.2, 0.05, 0.95, 8,  6,   50,  9
-SetMonType 2,   "gunner",  4,  0.035, 0.8,   0,   0,    0,    9,  6,   90,  11
-SetMonType 3,   "heavy",   10, 0.028, 0.95,  0,   0,    1.25, 20, 10,  80,  13
-SetMonType 4,   "crawler", 2,  0.07,  0.4,   0,   0.02, 0.75, 5,  4,   35,  15
-SetMonType 5,   "sentry",  8,  0,     0.75,  0,   0,    0,    7,  5,   50,  17
+'                         HP  speed  height lift  bob   reach dmg+rnd cool slot
+SetMonType 1, "drone", 3, 0.045, 0.65, 0.2, 0.05, 0.95, 8, 6, 50, 9
+SetMonType 2, "gunner", 4, 0.035, 0.8, 0, 0, 0, 9, 6, 90, 11
+SetMonType 3, "heavy", 10, 0.028, 0.95, 0, 0, 1.25, 20, 10, 80, 13
+SetMonType 4, "crawler", 2, 0.07, 0.4, 0, 0.02, 0.75, 5, 4, 35, 15
+SetMonType 5, "sentry", 8, 0, 0.75, 0, 0, 0, 7, 5, 50, 17
 mtypeRanged(2) = -1 : mtypeRanged(5) = -1
 mtypeAlertSnd&(1) = LoadSnd&("drone-alert.wav") : mtypeAttackSnd&(1) = LoadSnd&("drone-attack.wav")
 mtypeHitSnd&(1) = LoadSnd&("drone-hit.wav") : mtypeDieSnd&(1) = LoadSnd&("drone-die.wav")
@@ -503,8 +521,8 @@ DO
     '
     '              plane          The rays for the screen's columns go from
     '      <------------------>   you through points along the plane. Its
-    '       \        |       /    length (0.66 each side of dir, set in
-    '        \       | dir  /     LoadLevel) makes the view 66 degrees wide:
+    '       \        |       /    length (FOV_PLANE, 0.66 each side of
+    '        \       | dir  /     dir) makes the view 66 degrees wide:
     '         \      |     /      a longer plane is a wider, fish-eye view.
     '          \     |    /
     '              you
@@ -537,10 +555,30 @@ DO
         mouseDX = 0 : mouseWheel = 0
     END IF
 
+    ' Aiming down the sights: hold the right mouse button (_MOUSEBUTTON(2)).
+    ' aimAmount slides from 0 (hip) to 1 (aimed) over ADS_FRAMES frames, so
+    ' the zoom and the gun ease in and out instead of snapping.
+    IF _MOUSEBUTTON(2) AND NOT dead THEN aimTarget = 1 ELSE aimTarget = 0
+    IF aimAmount < aimTarget THEN aimAmount = aimAmount + 1 / ADS_FRAMES : IF aimAmount > 1 THEN aimAmount = 1
+    IF aimAmount > aimTarget THEN aimAmount = aimAmount - 1 / ADS_FRAMES : IF aimAmount < 0 THEN aimAmount = 0
+    zoom = 1 + (ADS_ZOOM - 1) * aimAmount
+
     mouseDX = mouseDX / DisplayScale! ' The same turn speed in a window or full screen
-    turn = - mouseDX * turnSpeed
+    turn = - mouseDX * turnSpeed / zoom ' (slower when zoomed, so aiming stays steady)
     oldDirX = dirX : dirX = dirX * COS(turn) - dirY * SIN(turn) : dirY = oldDirX * SIN(turn) + dirY * COS(turn)
     oldPlaneX = planeX : planeX = planeX * COS(turn) - planeY * SIN(turn) : planeY = oldPlaneX * SIN(turn) + planeY * COS(turn)
+
+    ' Zooming. The camera plane's length sets how wide the view is, so a
+    ' shorter plane (FOV_PLANE / zoom) is a narrower view - and a narrower
+    ' view stretched across the same screen is a zoom. The plane is always
+    ' your direction turned 90 degrees, so we can simply rebuild it from
+    ' dirX, dirY at the new length (it's the same direction the rotation
+    ' above gave it). Everything must also get taller by the same amount, or
+    ' the picture would only stretch sideways: viewH is how many pixels tall
+    ' a wall one cell away is drawn, and the floor, walls and sprites
+    ' (chapters 14-16) all use it.
+    planeX = dirY * FOV_PLANE / zoom : planeY = - dirX * FOV_PLANE / zoom
+    viewH = RENDER_H * zoom
 
     ' Guns: 1 / 2 / 3 / 4, or the mouse wheel through the ones you have.
     ' Swapping takes SWAP_FRAMES: the gun dips out of sight, changes at the
@@ -798,7 +836,7 @@ DO
                         relX = monsterX(i) - playerX : relY = monsterY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
-                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < RENDER_H / transformY * mtypeScale(monsterType(i)) * 0.3 THEN
+                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * mtypeScale(monsterType(i)) * 0.3 THEN
                                 IF gunPierce(currentGun) THEN target = i : GOSUB HitMonster ELSE bestMonster = i : bestDist = transformY
                             END IF
                         END IF
@@ -809,7 +847,7 @@ DO
                         relX = decoX(i) - playerX : relY = decoY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
-                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < RENDER_H / transformY * DecoScale(1) * 0.35 THEN
+                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * DecoScale(1) * 0.35 THEN
                                 IF gunPierce(currentGun) THEN
                                     IF decoFuse(i) = 0 THEN decoFuse(i) = 1
                                 ELSE
@@ -944,7 +982,9 @@ DO
     ' fixed distance: the further down the screen, the closer the floor. By
     ' similar triangles, row y sees the floor at
     '
-    '     rowDist = (RENDER_H / 2) / (y - RENDER_H / 2)
+    '     rowDist = (viewH / 2) / (y - RENDER_H / 2)
+    '
+    ' (viewH is RENDER_H, times the zoom while you aim - chapter 8)
     '
     ' (the + 0.5 below aims at the middle of the row, and keeps us from ever
     ' dividing by 0). Along that row, the floor point slides in a straight
@@ -965,7 +1005,7 @@ DO
     rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
     rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY
     FOR y = RENDER_H \ 2 TO RENDER_H - 1
-        rowDist = (RENDER_H / 2) /(y - RENDER_H / 2 + 0.5)
+        rowDist = (viewH / 2) /(y - RENDER_H / 2 + 0.5)
         floorStepX = rowDist * (rayDirX1 - rayDirX0) / RENDER_W : floorStepY = rowDist * (rayDirY1 - rayDirY0) / RENDER_W
         floorX = playerX + rowDist * rayDirX0 : floorY = playerY + rowDist * rayDirY0
         light& = 256 - rowDist * 16
@@ -1028,7 +1068,8 @@ DO
     '    from the cell we stopped in.
     '
     ' 4. HOW TALL? A wall one cell high, perpWallDist away, is
-    '    RENDER_H / perpWallDist pixels tall, centred on the horizon.
+    '    viewH / perpWallDist pixels tall, centred on the horizon (viewH
+    '    is RENDER_H, times the zoom while you aim - chapter 8).
     '
     ' 5. WHICH TEXTURE COLUMN? wallX is where along the wall's face the ray
     '    hit (0 to 1); times 64 that's the column of the texture to draw.
@@ -1139,7 +1180,7 @@ DO
         END IF
         texX = texX AND (TEX_SIZE - 1)
 
-        lineHeight = RENDER_H / perpWallDist
+        lineHeight = viewH / perpWallDist
         drawStart = INT(RENDER_H / 2 - lineHeight / 2) : drawEnd = INT(RENDER_H / 2 + lineHeight / 2)
         texStep = TEX_SIZE / lineHeight : texPos = (drawStart - RENDER_H / 2 + lineHeight / 2) * texStep
         IF drawStart < 0 THEN texPos = texPos - drawStart * texStep : drawStart = 0
@@ -1158,7 +1199,7 @@ DO
         ' A rising shutter in front: its lower edge has lifted shutterOpen of
         ' the way up, so draw only the part still hanging down
         IF shutterSeen THEN
-            lineHeight = RENDER_H / shutterDist
+            lineHeight = viewH / shutterDist
             shutterTop = INT(RENDER_H / 2 - lineHeight / 2) : drawEnd = INT(RENDER_H / 2 + lineHeight / 2 - shutterOpen * lineHeight)
             texStep = TEX_SIZE / lineHeight : texPos = shutterOpen * TEX_SIZE
             drawStart = shutterTop
@@ -1199,7 +1240,7 @@ DO
     '   - behind you (transformY <= 0): skip it
     '   - across the screen: RENDER_W / 2 * (1 + transformX / transformY)
     '     (things further away crowd towards the middle - perspective)
-    '   - size: RENDER_H / transformY, like a wall slice, times its scale
+    '   - size: viewH / transformY, like a wall slice, times its scale
     '
     ' Each column of the sprite is drawn only if it's nearer than the wall
     ' in that column (transformY < zBuffer(x)) - that's how sprites hide
@@ -1266,9 +1307,9 @@ DO
         transformX = invDet * (dirY * relX - dirX * relY) ' Sideways from the view
         transformY = invDet * ( - planeY * relX + planeX * relY) ' Depth
         IF transformY > 0.1 THEN
-            spriteW = INT(RENDER_H / transformY * drawScale(i)) : spriteH = INT(spriteW * drawSquash(i))
+            spriteW = INT(viewH / transformY * drawScale(i)) : spriteH = INT(spriteW * drawSquash(i))
             IF spriteH < 1 THEN spriteH = 1
-            spriteTop = INT(RENDER_H / 2 + (0.5 - drawLift(i)) * RENDER_H / transformY) -spriteH ' Bottom edge lifted off the floor
+            spriteTop = INT(RENDER_H / 2 + (0.5 - drawLift(i)) * viewH / transformY) -spriteH ' Bottom edge lifted off the floor
             spriteLeft = INT(RENDER_W / 2 * (1 + transformX / transformY)) - spriteW \ 2
             light& = 256 - transformY * 10
             IF light& < drawMinShade(i) THEN light& = drawMinShade(i)
@@ -1314,9 +1355,24 @@ DO
     ' sight to swap.
     IF recoil > 0 THEN recoil = recoil * 0.75 : IF recoil < 0.02 THEN recoil = 0
     gunImage& = gunImg&(currentGun)
+    ' Aiming (aimAmount, chapter 8) blends the gun from where it hangs at
+    ' your hip up to your eye: bigger, its muzzle risen to ADS_MUZZLE_Y just
+    ' under the crosshair, and hardly swaying. Its picture must still reach
+    ' past the bottom of the screen, or it would float: a gun whose muzzle
+    ' is halfway down its picture has to grow more to get its muzzle up
+    ' there, so "grow" is worked out per gun. hipY is where the gun sits
+    ' with its bottom 12 pixels below the screen, and it never goes higher.
     gunW = _WIDTH(gunImage&) * gunScale(currentGun) : gunH = _HEIGHT(gunImage&) * gunScale(currentGun)
-    gunX = 400 - gunW * gunMuzzleX(currentGun) + COS(bobPhase / 2) * 10
-    gunY = GUN_Y - gunH + ABS(SIN(bobPhase / 2)) * 10 + recoil * 36 + 12
+    grow = (GUN_Y + 12 - ADS_MUZZLE_Y) / (1 - gunMuzzleY(currentGun)) / gunH ' Just tall enough
+    IF grow < ADS_GUN_GROW THEN grow = ADS_GUN_GROW
+    IF grow > ADS_GUN_GROW_MAX THEN grow = ADS_GUN_GROW_MAX
+    grow = 1 + (grow - 1) * aimAmount
+    gunW = gunW * grow : gunH = gunH * grow
+    hipY = GUN_Y - gunH + 12 : eyeY = ADS_MUZZLE_Y - gunH * gunMuzzleY(currentGun)
+    IF eyeY < hipY THEN eyeY = hipY ' (its bottom never comes up into view)
+    sway = 1 - 0.8 * aimAmount
+    gunX = 400 - gunW * gunMuzzleX(currentGun) + COS(bobPhase / 2) * 10 * sway
+    gunY = hipY + (eyeY - hipY) * aimAmount + ABS(SIN(bobPhase / 2)) * 10 * sway + recoil * 36
     IF swapTimer > 0 THEN gunY = gunY + (SWAP_FRAMES / 2 - ABS(swapTimer - SWAP_FRAMES / 2)) * 40
     IF dead THEN gunY = gunY + (TIMER - deadAt!) * 400 ' Drops out of view
     IF gunY < 600 THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), gunImage&
@@ -1700,8 +1756,9 @@ FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
         IF IsWall(x, bestNbY) THEN worldMap(x, y) = worldMap(x, bestNbY) ELSE IF IsWall(bestNbX, y) THEN worldMap(x, y) = worldMap(bestNbX, y)
     END IF
 NEXT : NEXT
-' The camera plane (chapter 8): your direction turned 90 degrees, 0.66 long
-planeX = dirY * 0.66 : planeY = - dirX * 0.66
+' The camera plane (chapter 8): your direction turned 90 degrees, FOV_PLANE long
+planeX = dirY * FOV_PLANE : planeY = - dirX * FOV_PLANE
+aimAmount = 0 : zoom = 1 : viewH = RENDER_H
 kills = 0 : dead = 0 : swapTimer = 0
 hurtFlash = 0 : pickFlash = 0 : muzzleFlash = 0 : recoil = 0 : railBeam = 0
 fireWait = 20 ' (so the click that started the level doesn't fire)

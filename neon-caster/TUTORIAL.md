@@ -29,6 +29,7 @@ explained as it comes up.
 | Click or Ctrl | fire |
 | Space | open doors, use the exit |
 | 1-4 or mouse wheel | choose a gun |
+| Right button (hold) | aim down the sights (zooms in) |
 | K / G | testing cheats: every keycard / god mode |
 | Esc | quit |
 
@@ -111,8 +112,8 @@ Each one is a small change to the code. Look first, then change something,
 run it and see what happens. That's the fastest way to learn how it works.
 
 **Warm-ups**
-- **Wider or narrower view** (ch. 8): in `LoadLevel`, change the `0.66` in
-  `planeX = dirY * 0.66 : planeY = - dirX * 0.66` to `1.0`, then `0.4`.
+- **Wider or narrower view** (ch. 8): change `FOV_PLANE` from `0.66` to
+  `1.0`, then `0.4`. Then try `ADS_ZOOM` at `3` for a sniper scope.
 - **No fog** (ch. 14, 15): set `light& = 256` instead of working it out
   from the distance. Then try fog that reaches 30 cells instead of 16.
 - **Flat lighting** (ch. 15): remove the line that makes y-sides darker.
