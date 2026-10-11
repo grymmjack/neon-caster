@@ -198,6 +198,61 @@ patch shells \
     -voice 2 -on -wave metal -vol 0.5 -delay 0.07 -set base_freq=0.55,sustain=0.02,decay=0.08 \
     -voice 3 -on -wave metal -vol 0.4 -delay 0.14 -set base_freq=0.6,sustain=0.02,decay=0.08
 
+# --- crawler (small fast spider bot) ---
+# spots you: a skittering burst of clicks and a high chitter
+patch crawler-alert \
+    -voice 1 -on -wave metal  -vol 0.5 -set base_freq=0.75,sustain=0.2,decay=0.1,repeat_speed=0.75,hpf_freq=0.3 \
+    -voice 2 -on -wave square -vol 0.4 -set base_freq=0.6,freq_ramp=0.2,duty=0.15,vib_strength=0.6,vib_speed=0.85,sustain=0.15,decay=0.08
+# bites: a sharp snip
+patch crawler-attack \
+    -voice 1 -on -wave metal -vol 0.7 -set base_freq=0.7,sustain=0.02,decay=0.08,punch=0.6 \
+    -voice 2 -on -wave noise -vol 0.4 -set base_freq=0.8,sustain=0.02,decay=0.06,hpf_freq=0.3
+patch crawler-hit \
+    -voice 1 -on -wave metal  -vol 0.6 -set base_freq=0.65,sustain=0.02,decay=0.1 \
+    -voice 2 -on -wave square -vol 0.4 -set base_freq=0.7,freq_ramp=-0.5,duty=0.2,sustain=0.03,decay=0.06
+# dies: a crunch and a little sputter
+patch crawler-die \
+    -voice 1 -on -wave noise  -vol 0.7 -set base_freq=0.5,sustain=0.06,decay=0.25,punch=0.5 \
+    -voice 2 -on -wave square -vol 0.4 -set base_freq=0.6,freq_ramp=-0.4,duty=0.2,sustain=0.08,decay=0.15,repeat_speed=0.7
+# --- sentry turret ---
+# wakes up: a servo whirr and two warning beeps
+patch sentry-alert \
+    -voice 1 -on -wave sawtooth -vol 0.4 -set base_freq=0.25,freq_ramp=0.15,sustain=0.2,decay=0.05,lpf_freq=0.4 \
+    -voice 2 -on -wave square   -vol 0.5 -delay 0.22 -set base_freq=0.55,duty=0.5,sustain=0.06,decay=0.02 \
+    -voice 3 -on -wave square   -vol 0.5 -delay 0.34 -set base_freq=0.55,duty=0.5,sustain=0.06,decay=0.02
+# fires: a hard electric crack
+patch sentry-shoot \
+    -voice 1 -on -wave sine  -vol 0.7 -set base_freq=0.5,freq_ramp=-0.4,vib_strength=0.6,vib_speed=0.9,sustain=0.06,decay=0.15 \
+    -voice 2 -on -wave noise -vol 0.4 -set base_freq=0.6,sustain=0.02,decay=0.1,punch=0.5
+patch sentry-hit \
+    -voice 1 -on -wave metal -vol 0.7 -set base_freq=0.4,sustain=0.04,decay=0.18,punch=0.5 \
+    -voice 2 -on -wave metal -vol 0.4 -set base_freq=0.6,sustain=0.02,decay=0.1
+# destroyed: a blast, then sparking
+patch sentry-die \
+    -voice 1 -on -wave noise  -vol 0.9 -set base_freq=0.3,freq_ramp=-0.1,sustain=0.2,decay=0.5,punch=0.6 \
+    -voice 2 -on -wave brown  -vol 0.9 -set base_freq=0.18,sustain=0.2,decay=0.5 \
+    -voice 3 -on -wave metal  -vol 0.4 -delay 0.3 -set base_freq=0.7,sustain=0.15,decay=0.1,repeat_speed=0.8
+# --- level stuff ---
+# an exploding barrel: a big low boom with a crackling tail
+patch barrel \
+    -voice 1 -on -wave noise    -vol 1   -set base_freq=0.22,freq_ramp=-0.08,sustain=0.25,decay=0.7,punch=0.8 \
+    -voice 2 -on -wave brown    -vol 1   -set base_freq=0.12,sustain=0.3,decay=0.7 \
+    -voice 3 -on -wave sine     -vol 0.8 -set base_freq=0.1,freq_ramp=-0.3,sustain=0.15,decay=0.4,punch=0.7
+# armour: a heavy velcro-and-buckle clunk and a rising shield hum
+patch armor \
+    -voice 1 -on -wave metal    -vol 0.6 -set base_freq=0.3,sustain=0.04,decay=0.15,punch=0.5 \
+    -voice 2 -on -wave sawtooth -vol 0.4 -delay 0.08 -set base_freq=0.25,freq_ramp=0.25,vib_strength=0.2,vib_speed=0.6,sustain=0.2,decay=0.2,lpf_freq=0.5
+# the railgun: a charging whine snapping into a hard crack
+patch rail \
+    -voice 1 -on -wave sine     -vol 0.6 -set base_freq=0.3,freq_ramp=0.5,sustain=0.08,decay=0.02 \
+    -voice 2 -on -wave noise    -vol 0.9 -delay 0.08 -set base_freq=0.7,freq_ramp=-0.2,sustain=0.05,decay=0.45,punch=0.8 \
+    -voice 3 -on -wave square   -vol 0.5 -delay 0.08 -set base_freq=0.75,freq_ramp=-0.5,duty=0.1,sustain=0.06,decay=0.3
+# the exit: a rising four-note "level done" fanfare
+patch exit \
+    -voice 1 -on -wave square   -vol 0.5 -set base_freq=0.35,duty=0.4,arp_mod=0.3,arp_speed=0.6,sustain=0.3,decay=0.3 \
+    -voice 2 -on -wave triangle -vol 0.5 -delay 0.15 -set base_freq=0.45,arp_mod=0.3,arp_speed=0.6,sustain=0.3,decay=0.4 \
+    -voice 3 -on -wave square   -vol 0.4 -delay 0.3 -set base_freq=0.6,duty=0.25,vib_strength=0.3,vib_speed=0.6,sustain=0.3,decay=0.5
+
 # render: every patch through the PC speaker (PWM, cone filter on, louder
 # than the window's default gain) -> .wav
 for p in *.pwmsfx; do
