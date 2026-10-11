@@ -2,9 +2,9 @@
 
 NEON-CASTER is a complete first-person shooter in one file of plain QB64PE:
 four levels, five kinds of monster, four guns, doors and keycards, exploding
-barrels, a minimap. It's built like Wolfenstein 3D, as a *raycaster*, and the
+barrels, a minimap, music, a menu with settings, and saved games. It's built like Wolfenstein 3D, as a *raycaster*, and the
 source is written to be read: its comments are a course in how it all
-works, in 22 chapters, from opening a window to casting rays.
+works, in 23 chapters, from opening a window to casting rays.
 
 This page is the map for that course. The lessons themselves are in
 [`../neon-caster.bas`](../neon-caster.bas), right next to the code they
@@ -16,11 +16,13 @@ explained as it comes up.
 
 ## Running it
 
-1. Install [QB64 Phoenix Edition](https://qb64phoenix.com) (4.x).
+1. Install [QB64 Phoenix Edition](https://qb64phoenix.com) 4.7 or newer
+   (the mouse look needs `_MOUSEHIDE _DISABLE`, new in 4.7).
 2. Open `neon-caster.bas` in the QB64PE IDE and press F5, or compile it from
    a terminal: `qb64pe -x neon-caster.bas`.
-3. Keep the `neon-caster/` folder next to the program. All the pictures and
-   sounds are in there.
+3. Keep the `neon-caster/` folder next to the program. All the pictures,
+   sounds and music are in there. Your settings and saved games go in
+   `neon-caster/saves/`.
 
 | Control | Does |
 |---|---|
@@ -30,8 +32,13 @@ explained as it comes up.
 | Space | open doors, use the exit |
 | 1-4 or mouse wheel | choose a gun |
 | Right button (hold) | aim down the sights (zooms in) |
+| Esc | the menu: pause, new game, save, load, settings, exit |
+| F5 / F9 | quick save / quick load |
 | K / G | testing cheats: every keycard / god mode |
-| Esc | quit |
+
+Every key can be changed in the menu, under **SETTINGS > CONTROLS**. The
+menu works with the arrow keys or W A S D, Enter, and Esc to go back - or
+just point and click.
 
 Two switches near the top of the source are on for testing:
 `TEST_ALL_GUNS` (start with every gun and full ammo) and `CHEAT_KEYS`
@@ -64,8 +71,9 @@ run top to bottom, in the same order as the code:
 | | 18 The gun and the HUD | alpha colours, the minimap, bars and text |
 | **The rest** | 19 Game events | `GOSUB` routines and why they're used here |
 | | 20 Levels | `RESTORE`/`READ`, carrying your gear between levels, the tally screen |
-| | 21 The levels' data | the map format: make your own levels |
-| | 22 The helpers | the SUBs and FUNCTIONs, grouped by topic |
+| | 21 The splash screen, the menu, settings and saved games | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files |
+| | 22 The levels' data | the map format: make your own levels |
+| | 23 The helpers | the SUBs and FUNCTIONs, grouped by topic |
 
 ### Reading the names
 
@@ -96,6 +104,9 @@ The top of the source has the full key. In short:
 | `gun...` | a gun, by number | `gunDamage(g)` |
 | `num...` (variables) | how many are in use now | `numItems` |
 | `has...` | a yes/no flag | `hasCard(c)` |
+| `SET_`, `setting()` | a setting, and the settings table | `setting(SET_FOV)` |
+| `BIND_`, `keyBind&()` | a key binding | `keyBind&(BIND_FIRE)` |
+| `SCR_`, `MI_`, `MA_` | a menu screen, a menu item's kind, a menu action | `SCR_AUDIO`, `MI_SLIDER` |
 | `snd...&` | a loaded sound | `sndDoor&` |
 
 If you only read one chapter, read **15**: it's the raycaster itself.
@@ -112,8 +123,9 @@ Each one is a small change to the code. Look first, then change something,
 run it and see what happens. That's the fastest way to learn how it works.
 
 **Warm-ups**
-- **Wider or narrower view** (ch. 8): change `FOV_PLANE` from `0.66` to
-  `1.0`, then `0.4`. Then try `ADS_ZOOM` at `3` for a sniper scope.
+- **Wider or narrower view** (ch. 8, 21): try the FIELD OF VIEW slider in
+  the menu, then read how `ApplySettings` turns degrees into `fovPlane`.
+  Then try `ADS_ZOOM` at `3` for a sniper scope.
 - **No fog** (ch. 14, 15): set `light& = 256` instead of working it out
   from the distance. Then try fog that reaches 30 cells instead of 16.
 - **Flat lighting** (ch. 15): remove the line that makes y-sides darker.
@@ -139,9 +151,15 @@ run it and see what happens. That's the fastest way to learn how it works.
   letter in `LoadLevel`.
 - **Doors that close** (ch. 11): count down a timer once a door is fully
   open, then let it slide shut again (unless you're standing in it).
-- **Your own level** (ch. 21): draw a map in the `DATA` lines, or build one
+- **Your own level** (ch. 22): draw a map in the `DATA` lines, or build one
   with the level kit in `neon-caster/levels/` (`python3 levels.py --check`
   checks hand-made maps too: doors, keycards, the exit).
+
+- **Your own menu screen** (ch. 21, 23): add a SCR_ constant, a `CASE`
+  for it in `BuildMenu`, and a button that leads to it. A new setting is
+  one `DefineSetting` line plus an `AddSettingItem`.
+- **A splash picture** (ch. 21): drop a `splash.png` (800 x 600) into
+  `neon-caster/` and it replaces the title on the splash screen.
 
 **Bigger projects**
 - **Look up and down** (ch. 14-16): everything uses `RENDER_H / 2` as the

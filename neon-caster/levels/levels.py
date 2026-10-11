@@ -390,8 +390,8 @@ def main():
             print("not writing: fix the problems above first")
             return 1
         src = open(BAS).read()
-        # the level DATA runs from Level1: up to chapter 22's header
-        end = "\n'" + "-" * 77 + "\n' CHAPTER 22"
+        # the level DATA runs from Level1: up to chapter 23's header
+        end = "\n'" + "-" * 77 + "\n' CHAPTER 23"
         a, b = src.index("\nLevel1:") + 1, src.index(end) + 1
         open(BAS, "w").write(src[:a] + "\n".join(out) + "\n" + src[b:])
         print("wrote %d levels into %s" % (len(LEVELS), os.path.normpath(BAS)))

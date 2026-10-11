@@ -274,6 +274,18 @@ patch terminal-break \
     -voice 2 -on -wave metal    -vol 0.4 -delay 0.05 -set base_freq=0.75,sustain=0.15,decay=0.1,repeat_speed=0.8 \
     -voice 3 -on -wave sawtooth -vol 0.4 -set base_freq=0.55,freq_ramp=-0.35,sustain=0.15,decay=0.25
 
+# --- the menus ---
+# moving between options: a short soft blip
+patch menu-move \
+    -voice 1 -on -wave square -vol 0.4 -set base_freq=0.55,duty=0.25,sustain=0.02,decay=0.05
+# choosing one: a bright two-step chirp
+patch menu-select \
+    -voice 1 -on -wave square   -vol 0.5 -set base_freq=0.5,duty=0.3,arp_mod=0.35,arp_speed=0.6,sustain=0.06,decay=0.1 \
+    -voice 2 -on -wave triangle -vol 0.4 -set base_freq=0.65,sustain=0.05,decay=0.12
+# going back: a falling blip
+patch menu-back \
+    -voice 1 -on -wave square -vol 0.45 -set base_freq=0.5,freq_ramp=-0.3,duty=0.3,sustain=0.04,decay=0.08
+
 # render: every patch through the PC speaker (PWM, cone filter on, louder
 # than the window's default gain) -> .wav
 for p in *.pwmsfx; do

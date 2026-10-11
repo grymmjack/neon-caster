@@ -18,7 +18,8 @@
 '     1-6    setting up: the window, the world, the things in it, pictures
 '     7-13   one frame of the game: input, moving, doors, shooting, monsters
 '     14-18  drawing that frame: floor, walls, sprites, the HUD
-'     19-22  game events, levels, the map format, and the helper SUBs
+'     19-23  game events, levels, the splash screen, the menu, settings and
+'            saved games, the map format, and the helper SUBs
 '
 ' THE BIG IDEA: A RAYCASTER
 '   The world is a flat grid of square cells, seen from inside at eye
@@ -33,11 +34,12 @@
 '   rooms: every wall is the same height and you can't look up or down.
 '   That's the price of being simple and fast.
 '
-' CONTROLS
+' CONTROLS (the keys can be changed in the menu: SETTINGS > CONTROLS)
 '   Mouse          look around          W A S D   walk and strafe
 '   Click or Ctrl  fire                 Space     open doors, use the exit
-'   1-4 or wheel   choose a gun         Esc       quit
-'   Right button   hold to aim down the sights (zooms in)
+'   1-4 or wheel   choose a gun         Esc       the menu (pause, save,
+'   Right button   hold to aim down                load, settings, exit)
+'                  the sights (zoom)    F5 / F9   quick save / quick load
 '   K, G           testing cheats: every keycard, god mode (see CHEAT_KEYS)
 '
 ' READING THE NAMES
@@ -91,7 +93,13 @@
 '     MINIMAP_   where the minimap goes, and its cell size      (chapter 2)
 '     TEST_ CHEAT_  testing switches                            (chapter 4)
 '     ADS_       Aiming Down the Sights: zoom and gun position   (chapter 4)
-'     FOV_       Field Of View: how wide you see                 (chapter 2)
+'     SET_       a SETting's number in the settings table       (chapter 6)
+'     BIND_      a key BINDing's number (what the key does)     (chapter 6)
+'     SCR_       a SCReen of the menu                           (chapter 6)
+'     MI_        a Menu Item's kind: button, slider, toggle...  (chapter 6)
+'     MA_        a Menu Action: what choosing a button does     (chapter 6)
+'     MENU_      where the menu is drawn on the screen          (chapter 6)
+'     SAVE_ SPLASH_  saved-game files, the splash screen         (chapter 6)
 '
 '     Variables (camelCase) - the start of the name says what it's about:
 '     player...  you: playerX, playerY
@@ -111,6 +119,10 @@
 '     total...   added up over the whole game: totalKills
 '     mm...      something on the MiniMap: mmColor~&
 '     zone...    a floor / ceiling zone while it's read in    (chapter 20)
+'     set...     the settings table: setting(SET_FOV) is the field of view
+'     mi...      the items on the menu screen showing now (chapter 21)
+'     menu...    the menu's state: menuSel, menuScreen, menuInGame...
+'     keyBind&   the key bound to each action (BIND_)
 '
 '   The raycasting maths uses the names from Lode Vandevenne's well-known
 '   raycasting tutorial (lodev.org/cgtutor/raycasting.html): dirX, planeX,
@@ -149,18 +161,15 @@ _PRINTMODE _KEEPBACKGROUND
 '
 ' Diagonal walls cut a cell corner to corner: half wall, half floor.
 ' diagCorner() says which corner's half is solid (chapter 15 draws them,
-' chapter 22 has the maths), and the floor and ceiling can be split the same
+' chapter 23 has the maths), and the floor and ceiling can be split the same
 ' way (floorSplit, ceilSplit) to paint diagonal stripes.
 CONST MAP_SIZE = 48
-' FOV_PLANE = how long the camera plane is each side of your direction
-' (chapter 8): 0.66 makes the view about 66 degrees wide
-CONST FOV_PLANE = 0.66
 ' MINIMAP_ = where the minimap is drawn: each map cell is MINIMAP_CELL pixels
 ' square, and its top-left corner is at (MINIMAP_X, MINIMAP_Y) on the screen
 CONST MINIMAP_CELL = 3, MINIMAP_X = 8, MINIMAP_Y = 8
 CONST PLAYER_RADIUS = 0.3 ' Your body's half-width, so the camera can't touch a wall
 ' worldMap: 0 floor, 2 door; walls 1 (#), 3 (N), 4 (C), 5 (K), 6 (P), 7 (G):
-' six kinds of wall, whose textures each level picks (see chapter 21)
+' six kinds of wall, whose textures each level picks (see chapter 22)
 DIM SHARED worldMap(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' Doors: how far open (0 shut .. 1 open), which keycard opens it (0 any,
 ' 1 red, 2 blue, 3 yellow), and what kind it is (DOOR_ constants below)
@@ -209,7 +218,7 @@ DIM SHARED hasCard(3) AS INTEGER
 
 ' --- Decorations: 1 barrel, 2 lamp, 3 plant, 4 terminal. You, monsters and
 ' bolts can't pass through them. Shoot one and it breaks: a barrel blows up
-' at once (chapter 13), the others take a few hits (DecoMaxHP, chapter 22)
+' at once (chapter 13), the others take a few hits (DecoMaxHP, chapter 23)
 ' and then collapse into the floor. ---
 ' DECO_ = settings for decorations: DECO_RADIUS is how far from its middle a
 ' decoration blocks you (in cells), DECO_BREAK_FRAMES how long a broken one
@@ -392,7 +401,7 @@ renderMem = _MEMIMAGE(renderImg&) : pixelsMem = _MEM(pixels())
 ' CHAPTER 6: LOADING THE PICTURES AND SOUNDS
 '-----------------------------------------------------------------------------
 ' Every picture is a PNG in the neon-caster/ folder. LoadTex and LoadSprite
-' (chapter 22) open one with _LOADIMAGE and copy its colours into the
+' (chapter 23) open one with _LOADIMAGE and copy its colours into the
 ' texture() or spriteTex() array. The level's own walls, floors and
 ' ceilings are loaded with the level (chapter 20); these are the ones every
 ' level shares.
@@ -443,7 +452,7 @@ LoadGun 4, "gun-rail.png"
 
 ' Sounds: WAV files from neon-caster/sfx/ (made with PWMSFXR - see
 ' make-sfx.sh there). _SNDOPEN loads one and gives back a handle, a number
-' we keep in a & (LONG) variable and play with PlaySfx (chapter 22).
+' we keep in a & (LONG) variable and play with PlaySfx (chapter 23).
 sndStep1& = LoadSnd&("step1.wav") : sndStep2& = LoadSnd&("step2.wav")
 sndBump& = LoadSnd&("bump.wav") : sndHump& = LoadSnd&("wallhump.wav")
 sndDoor& = LoadSnd&("door.wav") : sndShutter& = LoadSnd&("door-shutter.wav") : sndSplit& = LoadSnd&("door-split.wav")
@@ -488,13 +497,94 @@ mtypeHitSnd&(5) = LoadSnd&("sentry-hit.wav") : mtypeDieSnd&(5) = LoadSnd&("sentr
 ' Loop counters and pixel positions used by the drawing code are LONG
 ' (whole numbers) - integer maths is quicker in the inner loops. Anything
 ' not DIMmed is a SINGLE (a decimal number), QB64PE's default.
+' --- Settings, key bindings, the menu and music (all in chapter 21) ---
+' SET_ = a setting's number. The settings live in one table, setting(), so
+' the menu, the settings file and the game can all treat them the same way.
+' Each is defined by one DefineSetting line below: the name it has in the
+' settings file, its label in the menu, what kind of control it gets (a
+' slider, an on/off toggle, or a "< choice >"), its lowest and highest
+' value, how much one press changes it, and its value to start with.
+CONST NUM_SETTINGS = 10
+CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
+CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
+DIM SHARED setting(NUM_SETTINGS), setDefault(NUM_SETTINGS), setMin(NUM_SETTINGS), setMax(NUM_SETTINGS)
+DIM SHARED setStep(NUM_SETTINGS), setKind(NUM_SETTINGS), setKey$(NUM_SETTINGS), setLabel$(NUM_SETTINGS)
+' MI_ = Menu Item kinds (what a line of a menu is and does)
+CONST MI_ACTION = 1, MI_SUBMENU = 2, MI_SLIDER = 3, MI_TOGGLE = 4, MI_CHOICE = 5
+CONST MI_KEY = 6, MI_BACK = 7, MI_TEXT = 8
+'             setting     file name          menu label          control    min max  step start
+DefineSetting SET_SFX,    "sfx",             "SFX VOLUME",       MI_SLIDER, 0,  100, 5,   80
+DefineSetting SET_MUSIC,  "music",           "MUSIC VOLUME",     MI_SLIDER, 0,  100, 5,   60
+DefineSetting SET_SPEECH, "speech",          "SPEECH VOLUME",    MI_SLIDER, 0,  100, 5,   80
+DefineSetting SET_FOV,    "fov",             "FIELD OF VIEW",    MI_SLIDER, 50, 110, 2,   66
+DefineSetting SET_XSTYLE, "crosshair_style", "CROSSHAIR STYLE",  MI_CHOICE, 1,  6,   1,   1
+DefineSetting SET_XCOLOR, "crosshair_color", "CROSSHAIR COLOR",  MI_CHOICE, 1,  6,   1,   1
+DefineSetting SET_XSIZE,  "crosshair_size",  "CROSSHAIR SIZE",   MI_SLIDER, 1,  5,   1,   2
+DefineSetting SET_BOB,    "weapon_bob",      "WEAPON BOBBING",   MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_SHAKE,  "screen_shake",    "SCREEN SHAKE",     MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_MOUSE,  "mouse_speed",     "MOUSE LOOK SPEED", MI_SLIDER, 1,  10,  1,   5
+' BIND_ = a key binding's number: what each one does, its name in the
+' settings file, its menu label, and its key to start with (a _KEYDOWN
+' code: letters as lower case, 32 Space, 100306 left Ctrl, 16128 F5,
+' 17152 F9)
+CONST NUM_BINDS = 8
+CONST BIND_FORWARD = 1, BIND_BACK = 2, BIND_LEFT = 3, BIND_RIGHT = 4
+CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8
+DIM SHARED keyBind&(NUM_BINDS), bindDefault&(NUM_BINDS), bindKey$(NUM_BINDS), bindLabel$(NUM_BINDS)
+'          binding         file name        menu label      key
+DefineBind BIND_FORWARD,   "key_forward",   "MOVE FORWARD", 119
+DefineBind BIND_BACK,      "key_back",      "MOVE BACK",    115
+DefineBind BIND_LEFT,      "key_left",      "STRAFE LEFT",  97
+DefineBind BIND_RIGHT,     "key_right",     "STRAFE RIGHT", 100
+DefineBind BIND_USE,       "key_use",       "OPEN / USE",   32
+DefineBind BIND_FIRE,      "key_fire",      "FIRE",         100306
+DefineBind BIND_QUICKSAVE, "key_quicksave", "QUICK SAVE",   16128
+DefineBind BIND_QUICKLOAD, "key_quickload", "QUICK LOAD",   17152
+' SCR_ = the menu's screens; MA_ = Menu Actions (what choosing a button does)
+CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
+CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10
+CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6
+' The items on the menu screen showing now: label, kind (MI_), what it
+' refers to (a screen, a setting, a binding or a save slot), its action
+' (MA_), whether it can be chosen, and a line of small print beside it
+CONST MAX_MI = 16
+DIM SHARED miLabel$(MAX_MI), miKind(MAX_MI), miRef(MAX_MI), miAct(MAX_MI), miOn(MAX_MI), miInfo$(MAX_MI)
+DIM SHARED numMI, menuTitle$, menuSel, menuCapture, menuWide, menuScreen, menuInGame
+DIM menuStack(10), menuStackSel(10) ' The screens you came through (for BACK)
+' MENU_ = where the menu is drawn: the first row, the gap between rows,
+' where labels start, and where sliders and other controls go
+CONST MENU_TOP = 186, MENU_ROW = 36, MENU_LABEL_X = 140, MENU_WIDGET_X = 470, MENU_WIDGET_W = 200
+CONST SPLASH_SECONDS = 3.5 ' How long the splash screen stays up (any key skips it)
+' Saved games: the slots, and the file's first bytes, so a file from
+' something else (or an older version) is never read as a save
+CONST NUM_SLOTS = 3, SAVE_TAG = "NCSAVE01", SAVE_INFO_LEN = 48
+' Things the settings change, worked out by ApplySettings: the camera
+' plane's length (from the field of view) and the mouse turn speed
+DIM SHARED fovPlane, turnSpeed
+' Music: one looping track for the title menu and one per level, and the
+' one playing now. (OPL3 FM music, made with soundmon --opl.)
+DIM SHARED menuMusic&, levelMusic&(NUM_LEVELS), nowPlaying&
+menuMusic& = LoadMusic&("menu.ogg")
+FOR k = 1 TO NUM_LEVELS : levelMusic&(k) = LoadMusic&("level" + LTRIM$(STR$(k)) + ".ogg") : NEXT
+sndMenuMove& = LoadSnd&("menu-move.wav") : sndMenuSelect& = LoadSnd&("menu-select.wav") : sndMenuBack& = LoadSnd&("menu-back.wav")
+' The splash screen's picture, if there is one (neon-caster/splash.png)
+DIM SHARED splashImg&
+DIM savedCount AS INTEGER ' A count read back from a save (the same type as numItems, so GET reads 2 bytes)
+' The level-done tally's rows (chapter 20): what each says, the number it
+' counts up to, what that's out of (-1: a time, as m:ss), the number shown
+' so far, and frames since it landed (-1: not yet)
+DIM tallyLabel$(5), tallyTarget(5), tallyTotal(5), tallyShown(5), tallySlam(5)
+IF _FILEEXISTS(AssetPath$("splash.png")) THEN splashImg& = _LOADIMAGE(AssetPath$("splash.png"), 32)
+
 DIM x AS LONG, y AS LONG, texU AS LONG, texV AS LONG, texX AS LONG
 DIM floorRow AS LONG, ceilRow AS LONG, drawStart AS LONG, drawEnd AS LONG
 DIM savedHasGun(NUM_GUNS) ' What you had on entering the level (you get it back if you die)
 
 moveSpeed = 0.12 ' Cells a frame
-turnSpeed = 0.003 ' Mouse sensitivity: radians per mouse step
-GOSUB NewGame
+LoadSettings ' Your settings and keys, from neon-caster/saves/settings.ini
+ApplySettings
+GOSUB ShowSplash
+menuInGame = 0 : GOSUB RunMenu ' The title menu: it returns once a game is started or loaded
 
 '-----------------------------------------------------------------------------
 ' CHAPTER 7: THE GAME LOOP
@@ -503,6 +593,8 @@ GOSUB NewGame
 ' (_LIMIT 60 waits as needed so it never goes faster). Each frame:
 '
 '   read the mouse and keys          chapter 8
+'   Esc: open the menu (the game     chapter 21
+'   waits until it closes)
 '   move you, bump into walls        chapter 9
 '   pickups, cheats, doors           chapters 10, 11
 '   shoot                            chapter 12
@@ -535,7 +627,7 @@ DO
     '
     '              plane          The rays for the screen's columns go from
     '      <------------------>   you through points along the plane. Its
-    '       \        |       /    length (FOV_PLANE, 0.66 each side of
+    '       \        |       /    length (fovPlane, 0.66 each side of
     '        \       | dir  /     dir) makes the view 66 degrees wide:
     '         \      |     /      a longer plane is a wider, fish-eye view.
     '          \     |    /
@@ -546,6 +638,8 @@ DO
     '   newX = x * COS(a) - y * SIN(a)
     '   newY = x * SIN(a) + y * COS(a)
     ' (oldDirX keeps dirX's old value, since newY needs it after dirX changed.)
+    ' The field of view is a setting (chapter 21): fovPlane is TAN of half
+    ' the angle, which is how long the plane must be to see that wide.
     '
     ' The mouse: the pointer is captured (chapter 1), so we add up how far
     ' it moved since the last frame. QB64PE queues every mouse event;
@@ -558,10 +652,21 @@ DO
         mouseWheel = mouseWheel + _MOUSEWHEEL
         IF _MOUSEBUTTON(1) THEN clicked = -1
     WEND
-    ' _KEYDOWN takes a key code: 100305 and 100306 are the two Ctrl keys, 32 Space
-    fireDown = _MOUSEBUTTON(1) OR clicked OR _KEYDOWN(100305) OR _KEYDOWN(100306)
+    ' Keys go through the key bindings (chapter 21): KeyHeld(BIND_FIRE) asks
+    ' "is the key you chose for firing held down?" - left Ctrl, unless you
+    ' changed it in the menu.
+    fireDown = _MOUSEBUTTON(1) OR clicked OR KeyHeld(BIND_FIRE)
     clicked = 0
-    spaceDown = _KEYDOWN(32)
+    spaceDown = KeyHeld(BIND_USE)
+
+    ' Esc opens the menu (chapter 21), and the game waits while it's open
+    escDown = _KEYDOWN(27)
+    IF escDown AND NOT escWas THEN
+        menuInGame = -1 : GOSUB RunMenu
+        mouseDX = 0 : mouseWheel = 0 : clicked = 0 : fireDown = 0 : spaceDown = 0
+        fireWait = 15 ' (so the click that closed the menu doesn't fire)
+    END IF
+    escWas = _KEYDOWN(27)
 
     IF dead THEN
         ' Dead: the view stays put; click or Space (after a moment) starts over
@@ -584,7 +689,7 @@ DO
     oldPlaneX = planeX : planeX = planeX * COS(turn) - planeY * SIN(turn) : planeY = oldPlaneX * SIN(turn) + planeY * COS(turn)
 
     ' Zooming. The camera plane's length sets how wide the view is, so a
-    ' shorter plane (FOV_PLANE / zoom) is a narrower view - and a narrower
+    ' shorter plane (fovPlane / zoom) is a narrower view - and a narrower
     ' view stretched across the same screen is a zoom. The plane is always
     ' your direction turned 90 degrees, so we can simply rebuild it from
     ' dirX, dirY at the new length (it's the same direction the rotation
@@ -592,7 +697,7 @@ DO
     ' the picture would only stretch sideways: viewH is how many pixels tall
     ' a wall one cell away is drawn, and the floor, walls and sprites
     ' (chapters 14-16) all use it.
-    planeX = dirY * FOV_PLANE / zoom : planeY = - dirX * FOV_PLANE / zoom
+    planeX = dirY * fovPlane / zoom : planeY = - dirX * fovPlane / zoom
     viewH = RENDER_H * zoom
 
     ' Guns: 1 / 2 / 3 / 4, or the mouse wheel through the ones you have.
@@ -629,10 +734,10 @@ DO
     ' same speed, and opposite keys simply cancel out.
     forward = 0 : strafe = 0
     IF NOT dead THEN
-        IF _KEYDOWN(119) OR _KEYDOWN(87) THEN forward = forward + 1 ' W
-        IF _KEYDOWN(115) OR _KEYDOWN(83) THEN forward = forward - 1 ' S
-        IF _KEYDOWN(97) OR _KEYDOWN(65) THEN strafe = strafe - 1 ' A (strafe left)
-        IF _KEYDOWN(100) OR _KEYDOWN(68) THEN strafe = strafe + 1 ' D (strafe right)
+        IF KeyHeld(BIND_FORWARD) THEN forward = forward + 1 ' W, unless rebound
+        IF KeyHeld(BIND_BACK) THEN forward = forward - 1 ' S
+        IF KeyHeld(BIND_LEFT) THEN strafe = strafe - 1 ' A (strafe left)
+        IF KeyHeld(BIND_RIGHT) THEN strafe = strafe + 1 ' D (strafe right)
     END IF
     moveX = dirX * forward + dirY * strafe : moveY = dirY * forward - dirX * strafe
     moveLen = SQR(moveX * moveX + moveY * moveY)
@@ -643,7 +748,7 @@ DO
 
     ' Collision. You're a square, PLAYER_RADIUS from your middle to each
     ' side, so the camera can never get right up against a wall (it would
-    ' fill the screen with one blurry texel). MoveBody (chapter 22) tries the
+    ' fill the screen with one blurry texel). MoveBody (chapter 23) tries the
     ' X part of the move and the Y part separately: walk into a wall at an
     ' angle and the blocked part stops, while the other part carries on -
     ' so you slide along the wall instead of sticking to it. Monsters move
@@ -756,6 +861,15 @@ DO
         PlaySfx sndCard&, 0.8
     END IF
     gKeyWas = gKeyDown
+    ' Quick save and quick load (F5 and F9 unless you rebind them -
+    ' chapter 21): the same saving and loading as the menu, in the
+    ' "quick" slot
+    qsDown = KeyHeld(BIND_QUICKSAVE)
+    IF qsDown AND NOT qsWas AND NOT dead THEN saveSlot = 0 : GOSUB SaveGame
+    qsWas = qsDown
+    qlDown = KeyHeld(BIND_QUICKLOAD)
+    IF qlDown AND NOT qlWas THEN saveSlot = 0 : GOSUB LoadGame
+    qlWas = qlDown
 
     '-------------------------------------------------------------------------
     ' CHAPTER 11: DOORS
@@ -838,6 +952,7 @@ DO
             ammoCount(ammoType) = ammoCount(ammoType) - gunAmmoPerShot(currentGun) : fireWait = gunDelay(currentGun) : recoil = gunKick(currentGun) : muzzleFlash = 4
             PlaySfx gunSnd&(currentGun), 0.7
             hitDamage = gunDamage(currentGun) : IF gunPierce(currentGun) THEN railBeam = 8
+            shake = shake + gunKick(currentGun) * 1.5 ' (a big gun shakes the screen - chapter 17)
             invDet = 1 /(planeX * dirY - dirX * planeY)
             FOR pellet = 1 TO gunPellets(currentGun)
                 aim = (RND * 2 - 1) * gunSpread(currentGun) ' Across the view: -1 left edge .. 1 right
@@ -891,7 +1006,7 @@ DO
     ' which state it's in, and things that happen move it to another state.
     '
     '   0 idle     waits until it can see you (CanSee walks a line from it
-    '              to you, checking for walls and shut doors - chapter 22)
+    '              to you, checking for walls and shut doors - chapter 23)
     '   1 hunting  forever after: walks at you and attacks when close
     '              enough - or, if it shoots (mtypeRanged), keeps its
     '              distance and fires bolts whenever it has a clear line
@@ -1019,7 +1134,7 @@ DO
     ' same floor point. So one pass draws both.
     '
     ' The fog: light& goes from 256 (full colour) close up down to 0 (black)
-    ' 16 cells away, and Shade~& (chapter 22) darkens each colour by it.
+    ' 16 cells away, and Shade~& (chapter 23) darkens each colour by it.
     rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
     rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY
     FOR y = RENDER_H \ 2 TO RENDER_H - 1
@@ -1108,7 +1223,7 @@ DO
     '   on into the room beyond. A rising shutter is drawn in a second pass,
     '   over whatever is behind it ("shutterSeen" remembers it).
     '   DIAGONAL WALLS: entering one, we check where the ray crosses the
-    '   cell's diagonal (DiagonalHit, chapter 22). If it does before leaving
+    '   cell's diagonal (DiagonalHit, chapter 23). If it does before leaving
     '   the cell, that's the hit, at that distance; otherwise the ray is in
     '   the open half and carries on.
     FOR x = 0 TO RENDER_W - 1
@@ -1358,8 +1473,20 @@ DO
     ' after row of colours), and _PUTIMAGE stretches that 400 x 300 image
     ' over the 800 x 600 window - drawing at half size and scaling up is the
     ' easiest speed-up there is, and it gives the chunky look for free.
+    '
+    ' Screen shake: firing, getting hurt and explosions add to "shake",
+    ' which dies away a little every frame. While it's going, the view is
+    ' drawn a few pixels off in a random direction each frame - and a
+    ' little bigger than the window, so no gap shows at the edges. (It can
+    ' be switched off in the menu's settings - some people find it makes
+    ' them feel ill.)
+    shakeX = 0 : shakeY = 0 : shakeEdge = 0
+    IF shake > 0.3 AND setting(SET_SHAKE) THEN
+        shakeEdge = shake : shakeX = (RND - 0.5) * shake : shakeY = (RND - 0.5) * shake
+    END IF
+    shake = shake * 0.85 : IF shake > 16 THEN shake = 16
     _MEMCOPY pixelsMem, pixelsMem.OFFSET, pixelsMem.SIZE TO renderMem, renderMem.OFFSET
-    _PUTIMAGE (0, 0)-(799, 599), renderImg&, 0
+    _PUTIMAGE (shakeX - shakeEdge, shakeY - shakeEdge)-(799 + shakeX + shakeEdge, 599 + shakeY + shakeEdge), renderImg&, 0
 
     '-------------------------------------------------------------------------
     ' CHAPTER 18: THE GUN AND THE HUD
@@ -1391,8 +1518,9 @@ DO
     hipY = GUN_Y - gunH + 12 : eyeY = ADS_MUZZLE_Y - gunH * gunMuzzleY(currentGun)
     IF eyeY < hipY THEN eyeY = hipY ' (its bottom never comes up into view)
     sway = 1 - 0.8 * aimAmount
-    gunX = 400 - gunW * gunMuzzleX(currentGun) + COS(bobPhase / 2) * 10 * sway
-    gunY = hipY + (eyeY - hipY) * aimAmount + ABS(SIN(bobPhase / 2)) * 10 * sway + recoil * 36
+    IF setting(SET_BOB) = 0 THEN sway = 0 ' Weapon bobbing switched off (chapter 21)
+    gunX = 400 - gunW * gunMuzzleX(currentGun) + COS(bobPhase / 2) * 10 * sway + shakeX
+    gunY = hipY + (eyeY - hipY) * aimAmount + ABS(SIN(bobPhase / 2)) * 10 * sway + recoil * 36 + shakeY
     IF swapTimer > 0 THEN gunY = gunY + (SWAP_FRAMES / 2 - ABS(swapTimer - SWAP_FRAMES / 2)) * 40
     IF dead THEN gunY = gunY + (TIMER - deadAt!) * 400 ' Drops out of view
     IF gunY < 600 THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), gunImage&
@@ -1411,7 +1539,7 @@ DO
         NEXT
     END IF
 
-    IF NOT dead THEN LINE (395, 300)-(405, 300), _RGB32(255, 0, 0) : LINE (400, 295)-(400, 305), _RGB32(255, 0, 0)
+    IF NOT dead THEN DrawCrosshair 400, 300 ' (its style, colour and size are settings)
     IF hurtFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 0, 0, hurtFlash * 9), BF
     IF pickFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 255, 160, pickFlash * 4), BF
     IF godMode THEN HudText 16, 498, "GOD MODE", _RGB32(255, 215, 30)
@@ -1505,16 +1633,15 @@ DO
     END IF
 
     _DISPLAY ' Show the finished frame (chapter 7)
-LOOP UNTIL _KEYDOWN(27) ' Esc
-SYSTEM
+LOOP ' (forever: you leave the game from the menu - chapter 21)
 
 '-----------------------------------------------------------------------------
 ' CHAPTER 19: GAME EVENTS
 '-----------------------------------------------------------------------------
 ' Things that happen from more than one place - a monster or a decoration
 ' getting hit (by a shot or a blast), you getting hurt (by a bite, a bolt,
-' a blast), a barrel going off - are GOSUB routines: a label, some lines, and RETURN. Unlike a
-' SUB, a GOSUB routine is part of the main program, so it can use all its
+' a blast), a barrel going off - are GOSUB routines: a label, some lines,
+' and RETURN. Unlike a SUB, a GOSUB routine is part of the main program, so it can use all its
 ' variables (health, kills, playerX...) directly. The catch is it takes no
 ' parameters, so the caller sets a variable first: "target = i : hitDamage
 ' = 1 : GOSUB HitMonster".
@@ -1537,7 +1664,7 @@ HurtPlayer:
 IF godMode THEN RETURN
 absorbed = damage \ 3 : IF absorbed > armor THEN absorbed = armor
 armor = armor - absorbed : damage = damage - absorbed
-health = health - damage : hurtFlash = 14
+health = health - damage : hurtFlash = 14 : shake = shake + damage / 2
 IF health <= 0 THEN
     health = 0 : dead = -1 : deadAt! = TIMER
     PlaySfx sndDie&, 1 : ShowMsg ""
@@ -1553,6 +1680,8 @@ Explode:
 decoOn(barrel) = 0 : decoFuse(barrel) = 0 : decoCell(INT(decoX(barrel)), INT(decoY(barrel))) = 0
 SfxAt sndBarrel&, decoX(barrel), decoY(barrel), playerX, playerY
 newBlastX = decoX(barrel) : newBlastY = decoY(barrel) : newBlastSize = 1 : GOSUB AddBlast
+distance = SQR((playerX - decoX(barrel)) ^ 2 + (playerY - decoY(barrel)) ^ 2) ' You feel it from a way off
+IF distance < BLAST_RADIUS * 4 THEN shake = shake + 14 * (1 - distance / (BLAST_RADIUS * 4))
 FOR j = 1 TO numMonsters
     IF monsterState(j) < 2 THEN
         distance = SQR((monsterX(j) - decoX(barrel)) ^ 2 + (monsterY(j) - decoY(barrel)) ^ 2)
@@ -1626,9 +1755,14 @@ RETURN
 ' LevelDone shows the tally screen. It's a small game loop of its own,
 ' inside the big one: draw, _DISPLAY, read input, until you click. The
 ' frame you finished on is kept with _COPYIMAGE(0) (a copy of the screen)
-' and drawn darkened behind the numbers.
+' and drawn darkened behind the numbers. Like Doom's, the numbers don't
+' just appear: each one counts up from zero with a gunshot ticking, then
+' lands with a boom - zooming in big and slamming down to size while the
+' screen shakes. Each row is a little table entry (its label, the number
+' it's counting to, what it's out of); one counts at a time, and a press
+' while they count finishes them all.
 '
-' LoadLevel reads a level from the DATA lines in chapter 21. RESTORE points
+' LoadLevel reads a level from the DATA lines in chapter 22. RESTORE points
 ' READ at a label - Level1, Level2... - and READ then takes the values one
 ' after another: the name, the texture files, the floor zones, and the 48
 ' rows of the map, which it turns into worldMap() and the lists of things.
@@ -1671,31 +1805,92 @@ taken = 0
 FOR i = 1 TO numItems
     IF itemOn(i) = 0 THEN taken = taken + 1
 NEXT
-screenshot& = _COPYIMAGE(0) : tallyStart! = TIMER
+' The tally's rows (tallyLabel$ and the rest, chapter 6)
+numTally = 3
+tallyLabel$(1) = "KILLS" : tallyTarget(1) = kills : tallyTotal(1) = numMonsters
+tallyLabel$(2) = "ITEMS" : tallyTarget(2) = taken : tallyTotal(2) = numItems
+tallyLabel$(3) = "TIME" : tallyTarget(3) = INT(levelTime!) : tallyTotal(3) = -1
+IF level = NUM_LEVELS THEN ' The last level adds the whole game's totals
+    numTally = 5
+    tallyLabel$(4) = "TOTAL KILLS" : tallyTarget(4) = totalKills : tallyTotal(4) = totalMonsters
+    tallyLabel$(5) = "TOTAL TIME" : tallyTarget(5) = INT(totalTime!) : tallyTotal(5) = -1
+END IF
+FOR i = 1 TO numTally : tallyShown(i) = 0 : tallySlam(i) = -1 : NEXT
+IF level = NUM_LEVELS THEN tallyTitle$ = "YOU ESCAPED!" ELSE tallyTitle$ = "SECTOR CLEAR"
+' tallyDone counts the rows finished; tallyWait is a pause (in frames) before
+' the next one starts; tallyShake shakes everything after a slam
+tallyDone = 0 : tallyWait = 30 : tallyShake = 10 : tallyFrame = 0 : pressWas = -1
+PlaySfx sndBarrel&, 0.5 ' The title slams in
+screenshot& = _COPYIMAGE(0)
 DO
-    _LIMIT 30
-    _PUTIMAGE , screenshot&, 0
-    LINE (0, 0)-(799, 599), _RGBA32(0, 0, 0, 180), BF
-    IF level = NUM_LEVELS THEN BigText "YOU ESCAPED!", 110, 5, _RGB32(80, 255, 140) ELSE BigText "SECTOR CLEAR", 110, 5, _RGB32(80, 255, 140)
-    HudText 400 - LEN(levelName$) * 4, 210, levelName$, _RGB32(255, 255, 255)
-    TallyLine 260, "KILLS", LTRIM$(STR$(kills)) + " / " + LTRIM$(STR$(numMonsters))
-    TallyLine 285, "ITEMS", LTRIM$(STR$(taken)) + " / " + LTRIM$(STR$(numItems))
-    TallyLine 310, "TIME", TimeText$(levelTime!)
-    IF level = NUM_LEVELS THEN
-        TallyLine 360, "TOTAL KILLS", LTRIM$(STR$(totalKills)) + " / " + LTRIM$(STR$(totalMonsters))
-        TallyLine 385, "TOTAL TIME", TimeText$(totalTime!)
-    END IF
-    IF TIMER - tallyStart! > 1 THEN
-        IF level = NUM_LEVELS THEN prompt$ = "Click or press Space to play again" ELSE prompt$ = "Click or press Space for the next sector"
-        HudText 400 - LEN(prompt$) * 4, 450, prompt$, _RGB32(255, 255, 255)
-    END IF
-    _DISPLAY
+    _LIMIT 60
+    tallyFrame = tallyFrame + 1
     click = 0
     WHILE _MOUSEINPUT
         IF _MOUSEBUTTON(1) THEN click = -1
     WEND
-    IF _KEYDOWN(27) THEN SYSTEM
-    IF TIMER - tallyStart! > 1 AND (click OR _KEYDOWN(32)) THEN EXIT DO
+    pressNow = click OR _KEYDOWN(32) OR _KEYDOWN(13)
+    pressed = pressNow AND NOT pressWas : pressWas = pressNow
+
+    ' Count: the next row climbs to its number, a gunshot every few frames;
+    ' when it gets there it slams down (a barrel boom, and a shake). A press
+    ' while it's counting finishes every row at once.
+    IF tallyDone < numTally THEN
+        IF pressed THEN
+            FOR i = tallyDone + 1 TO numTally : tallyShown(i) = tallyTarget(i) : tallySlam(i) = 0 : NEXT
+            tallyDone = numTally : tallyShake = 10 : PlaySfx sndBarrel&, 0.55
+            pressed = 0
+        ELSEIF tallyWait > 0 THEN
+            tallyWait = tallyWait - 1
+        ELSE
+            n = tallyDone + 1
+            countStep = tallyTarget(n) / 40 : IF countStep < 1 THEN countStep = 1 ' (about 2/3 s a row)
+            tallyShown(n) = tallyShown(n) + countStep
+            IF tallyShown(n) >= tallyTarget(n) THEN
+                tallyShown(n) = tallyTarget(n) : tallySlam(n) = 0 : tallyDone = n
+                tallyWait = 22 : tallyShake = 8 : PlaySfx sndBarrel&, 0.5
+            ELSEIF tallyFrame MOD 4 = 0 THEN
+                PlaySfx gunSnd&(W_BLASTER), 0.3
+            END IF
+        END IF
+    ELSEIF pressed AND tallyWait = 0 THEN
+        EXIT DO
+    ELSEIF tallyWait > 0 THEN
+        tallyWait = tallyWait - 1
+    END IF
+    FOR i = 1 TO numTally
+        IF tallySlam(i) >= 0 THEN tallySlam(i) = tallySlam(i) + 1
+    NEXT
+
+    ' Draw. A slammed number starts big and eases down to its size over 10
+    ' frames - the same ease as the menu's items (chapter 21), backwards.
+    _PUTIMAGE , screenshot&, 0
+    LINE (0, 0)-(799, 599), _RGBA32(0, 0, 0, 180), BF
+    shakeX = (RND - 0.5) * tallyShake * 2 : shakeY = (RND - 0.5) * tallyShake * 2
+    tallyShake = tallyShake * 0.8
+    zoomIn = tallyFrame / 12 : IF zoomIn > 1 THEN zoomIn = 1
+    titleScale = 5 + 4 * (1 - zoomIn) ^ 2
+    MenuText 404 + shakeX, 150 - titleScale * 8 + 4 + shakeY, tallyTitle$, titleScale, _RGBA32(0, 0, 0, 200), 1
+    MenuText 400 + shakeX, 150 - titleScale * 8 + shakeY, tallyTitle$, titleScale, _RGB32(80, 255, 140), 1
+    MenuText 400 + shakeX, 206 + shakeY, levelName$, 2, _RGB32(255, 255, 255), 1
+    FOR i = 1 TO numTally
+        IF i <= tallyDone + 1 AND (i <= tallyDone OR tallyWait = 0) THEN ' Started counting
+            rowY = 262 + (i - 1) * 44 : IF i > 3 THEN rowY = rowY + 20
+            MenuText 230 + shakeX, rowY + shakeY, tallyLabel$(i), 2, _RGB32(160, 200, 255), 0
+            value$ = TallyText$(tallyShown(i), tallyTotal(i))
+            valueScale = 2 : valueCol~& = _RGB32(255, 255, 255)
+            IF tallySlam(i) >= 0 AND tallySlam(i) < 10 THEN
+                valueScale = 2 + 4 * (1 - tallySlam(i) / 10) ^ 2 : valueCol~& = _RGB32(255, 240, 120)
+            END IF
+            ' Centred on the number's middle, so it zooms about itself
+            MenuText 570 - LEN(value$) * 8 + shakeX, rowY + 16 - valueScale * 8 + shakeY, value$, valueScale, valueCol~&, 1
+        END IF
+    NEXT
+    IF tallyDone = numTally AND tallyWait = 0 AND (tallyFrame \ 20) MOD 3 > 0 THEN
+        IF level = NUM_LEVELS THEN prompt$ = "CLICK OR PRESS SPACE TO PLAY AGAIN" ELSE prompt$ = "CLICK OR PRESS SPACE FOR THE NEXT SECTOR"
+        MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
+    END IF
+    _DISPLAY
 LOOP
 _FREEIMAGE screenshot&
 IF level >= NUM_LEVELS THEN
@@ -1728,7 +1923,7 @@ FOR k = 1 TO 2 : READ file$ : LoadTex file$, T_CEIL + k : NEXT
 FOR k = 1 TO 7
     IF k <> 2 THEN wallMapColor(k) = MinimapColor~&(wallTexSlot(k))
 NEXT
-' Floor and ceiling zones (chapter 21): each paints a rectangle - or the
+' Floor and ceiling zones (chapter 22): each paints a rectangle - or the
 ' triangle on one side of its diagonal - with a floor and/or ceiling texture
 READ numZones
 FOR k = 1 TO numZones
@@ -1818,19 +2013,353 @@ FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
         IF IsWall(x, bestNbY) THEN worldMap(x, y) = worldMap(x, bestNbY) ELSE IF IsWall(bestNbX, y) THEN worldMap(x, y) = worldMap(bestNbX, y)
     END IF
 NEXT : NEXT
-' The camera plane (chapter 8): your direction turned 90 degrees, FOV_PLANE long
-planeX = dirY * FOV_PLANE : planeY = - dirX * FOV_PLANE
+' The camera plane (chapter 8): your direction turned 90 degrees, fovPlane long
+planeX = dirY * fovPlane : planeY = - dirX * fovPlane
 aimAmount = 0 : zoom = 1 : viewH = RENDER_H
 kills = 0 : dead = 0 : swapTimer = 0
 hurtFlash = 0 : pickFlash = 0 : muzzleFlash = 0 : recoil = 0 : railBeam = 0
 fireWait = 20 ' (so the click that started the level doesn't fire)
 bobPhase = 0 : stepDist = STEP_LEN * 0.85 ' The first footstep sounds soon after you start walking
-levelStart! = TIMER
+levelStart! = TIMER : shake = 0
+PlayMusic levelMusic&(level)
 ShowMsg levelName$ + "  -  find the EXIT"
 RETURN
 
 '-----------------------------------------------------------------------------
-' CHAPTER 21: THE LEVELS' DATA (MapData)
+' CHAPTER 21: THE SPLASH SCREEN, THE MENU, SETTINGS AND SAVED GAMES
+'-----------------------------------------------------------------------------
+' Everything around the game itself. Like the tally screen (chapter 20),
+' the splash screen and the menu are small loops of their own - draw,
+' _DISPLAY, read input - that run until they're done, with the game
+' waiting outside them.
+'
+' THE MENU is driven by a list. Each screen of it (the SCR_ constants) is
+' just a list of items - a button, a way into another screen, a slider, an
+' on/off toggle, a "< choice >", a key binding, or a line of text (the MI_
+' kinds) - which BuildMenu (chapter 23) fills in. One loop, RunMenu, then
+' draws and drives any screen the same way: move up and down the list,
+' change the item you're on, or choose it. Going into a screen pushes the
+' one you were on onto menuStack(), and BACK pops it off again.
+'
+' Two ways to read the keyboard: _KEYDOWN(code) says whether a key is held
+' down right now - right for walking, where holding the key keeps you
+' going. _KEYHIT hands you each press once, as it happens - right for a
+' menu, where one press should move one line. The mouse: in the game it's
+' captured for mouse look (chapter 1); the menu frees it with _MOUSESHOW,
+' so you can point and click, and _MOUSEHIDE _DISABLE captures it again.
+'
+' The items slide in one after another as a screen opens. Each one's
+' progress p goes from 0 to 1 over 12 frames, a little later than the one
+' above; 1 - (1 - p) ^ 3 "eases" it - quick at first, gently settling - and
+' that moves it in from the right and fades it in.
+'
+' SETTINGS are one table, setting(), made by the DefineSetting lines in
+' chapter 6: the menu shows each one with the control its kind needs, and
+' ApplySettings puts them into effect. They're kept in a plain text file,
+' neon-caster/saves/settings.ini - one "name=value" line each - so you can
+' read and edit it too. Key bindings work the same way (KeyHeld, chapter
+' 23, is how the game asks about a key).
+'
+' SAVED GAMES are BINARY files. PUT writes a variable's bytes into the file
+' and GET reads them back, so LoadGame just GETs the very same variables,
+' in the very same order, that SaveGame PUT. A save holds the level you're
+' on and everything that has changed since it started: you, your gear,
+' every door, pickup, monster and decoration. Loading rebuilds the level
+' from its map (LoadLevel, chapter 20) and then puts all of that back.
+
+' --- The splash screen: up for SPLASH_SECONDS, or until a key or a click.
+' DrawSplash (chapter 23) draws it - its picture if there's a splash.png,
+' or else the title.
+ShowSplash:
+splashStart! = TIMER
+DO
+    _LIMIT 60
+    splashTime! = TIMER - splashStart! : IF splashTime! < 0 THEN splashTime! = splashTime! + 86400
+    DrawSplash splashTime!
+    _DISPLAY
+    anyInput = 0
+    WHILE _MOUSEINPUT
+        IF _MOUSEBUTTON(1) OR _MOUSEBUTTON(2) THEN anyInput = -1
+    WEND
+    IF _KEYHIT > 0 THEN anyInput = -1
+LOOP UNTIL splashTime! > SPLASH_SECONDS OR (anyInput AND splashTime! > 0.3)
+_KEYCLEAR
+RETURN
+
+' --- The menu. menuInGame says where it was opened from: the title (0) or
+' a game (-1, Esc). In a game, the frame you left is kept and shown
+' darkened behind it; at the title it's the synthwave backdrop and music.
+' It runs until you start, load or go back to a game (or quit).
+RunMenu:
+_MOUSESHOW
+IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
+menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen
+menuDone = 0 : menuCapture = 0 : menuDrag = 0 : mouseWasDown = -1
+_KEYCLEAR
+DO
+    _LIMIT 60
+    menuT = menuT + 1
+
+    ' The keyboard: every press since last frame, one at a time
+    keyCode& = _KEYHIT
+    DO WHILE keyCode& <> 0 AND NOT menuDone
+        IF keyCode& > 0 THEN ' (a negative code is a key being let go)
+            IF menuCapture THEN
+                GOSUB CaptureKey
+            ELSE
+                SELECT CASE keyCode&
+                    CASE 18432, 119, 87 : menuMove = -1 : GOSUB MenuMoveSel ' Up, W
+                    CASE 20480, 115, 83 : menuMove = 1 : GOSUB MenuMoveSel ' Down, S
+                    CASE 19200, 97, 65 : menuAdjust = -1 : GOSUB MenuAdjustItem ' Left, A
+                    CASE 19712, 100, 68 : menuAdjust = 1 : GOSUB MenuAdjustItem ' Right, D
+                    CASE 13, 32 : GOSUB MenuActivate ' Enter, Space
+                    CASE 27, 8 : GOSUB MenuBack ' Esc, Backspace
+                END SELECT
+            END IF
+        END IF
+        keyCode& = _KEYHIT
+    LOOP
+
+    ' The mouse: point at an item to pick it, click to choose it, click or
+    ' drag along a slider to set it. (Pointing only takes over when the
+    ' mouse moves, so it doesn't fight the keyboard.)
+    WHILE _MOUSEINPUT : WEND
+    mouseX = _MOUSEX : mouseY = _MOUSEY : mouseDown = _MOUSEBUTTON(1)
+    IF NOT menuDone AND menuCapture = 0 THEN
+        overItem = MenuItemAt(mouseX, mouseY)
+        IF overItem > 0 AND overItem <> menuSel AND (mouseX <> lastMouseX OR mouseY <> lastMouseY) THEN
+            menuSel = overItem : PlaySfx sndMenuMove&, 0.5
+        END IF
+        IF mouseDown AND NOT mouseWasDown AND overItem > 0 THEN
+            menuSel = overItem
+            SELECT CASE miKind(overItem)
+                CASE MI_SLIDER
+                    menuDrag = overItem
+                CASE MI_CHOICE, MI_TOGGLE ' (the left half of a choice goes back)
+                    IF miKind(overItem) = MI_CHOICE AND mouseX < MENU_WIDGET_X + MENU_WIDGET_W / 2 THEN menuAdjust = -1 ELSE menuAdjust = 1
+                    GOSUB MenuAdjustItem
+                CASE ELSE
+                    GOSUB MenuActivate
+            END SELECT
+        END IF
+        IF menuDrag THEN
+            IF mouseDown THEN
+                SliderFromMouse menuDrag, mouseX : ApplySettings
+            ELSE
+                menuDrag = 0 : PlaySfx sndMenuMove&, 0.5
+            END IF
+        END IF
+    END IF
+    mouseWasDown = mouseDown : lastMouseX = mouseX : lastMouseY = mouseY
+
+    ' Draw: what's behind the menu, then the menu itself
+    IF NOT menuDone THEN
+        IF menuInGame THEN
+            _PUTIMAGE , menuBackdrop&, 0
+            LINE (0, 0)-(799, 599), _RGBA32(8, 0, 20, 200), BF
+        ELSE
+            DrawMenuBackdrop menuT
+        END IF
+        DrawMenu menuT
+        _DISPLAY
+    END IF
+LOOP UNTIL menuDone
+IF menuInGame THEN _FREEIMAGE menuBackdrop&
+SaveSettings
+_KEYCLEAR
+_MOUSEHIDE _DISABLE ' Capture the mouse for mouse look again
+WHILE _MOUSEINPUT : WEND
+RETURN
+
+' --- Show menu screen menuScreen: build its items, pick its first item
+' (or "NO", on the "are you sure?" screen), and start its animation
+EnterMenuScreen:
+BuildMenu menuScreen
+menuSel = 0
+FOR i = numMI TO 1 STEP -1
+    IF MenuSelectable(i) THEN menuSel = i
+NEXT
+IF menuScreen = SCR_QUIT THEN menuSel = numMI
+menuT = 0
+RETURN
+
+' --- Move the selection up (menuMove = -1) or down (1), skipping lines of
+' text and items you can't choose, and wrapping round at the ends
+MenuMoveSel:
+i = menuSel
+FOR tries = 1 TO numMI
+    i = i + menuMove
+    IF i < 1 THEN i = numMI
+    IF i > numMI THEN i = 1
+    IF MenuSelectable(i) THEN EXIT FOR
+NEXT
+IF i <> menuSel AND MenuSelectable(i) THEN menuSel = i : PlaySfx sndMenuMove&, 0.5
+RETURN
+
+' --- Left / right (menuAdjust = -1 / 1) on a slider, toggle or choice
+MenuAdjustItem:
+IF menuSel = 0 THEN RETURN
+SELECT CASE miKind(menuSel)
+    CASE MI_SLIDER, MI_TOGGLE, MI_CHOICE
+        ChangeSetting miRef(menuSel), menuAdjust
+        ApplySettings
+        PlaySfx sndMenuMove&, 0.5
+END SELECT
+RETURN
+
+' --- Choose the selected item (Enter, Space, or a click)
+MenuActivate:
+IF menuSel = 0 THEN RETURN
+IF NOT MenuSelectable(menuSel) THEN RETURN
+SELECT CASE miKind(menuSel)
+    CASE MI_SUBMENU ' Into another screen, remembering this one
+        PlaySfx sndMenuSelect&, 0.6
+        menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
+        menuScreen = miRef(menuSel) : GOSUB EnterMenuScreen
+    CASE MI_BACK
+        GOSUB MenuBack
+    CASE MI_TOGGLE, MI_CHOICE
+        menuAdjust = 1 : GOSUB MenuAdjustItem
+    CASE MI_KEY ' Wait for the new key (CaptureKey)
+        menuCapture = menuSel : PlaySfx sndMenuSelect&, 0.6
+    CASE MI_ACTION
+        PlaySfx sndMenuSelect&, 0.6
+        SELECT CASE miAct(menuSel)
+            CASE MA_RESUME
+                menuDone = -1
+            CASE MA_NEW
+                GOSUB NewGame : menuDone = -1
+            CASE MA_SAVE
+                saveSlot = miRef(menuSel) : GOSUB SaveGame : menuDone = -1
+            CASE MA_LOAD
+                saveSlot = miRef(menuSel) : GOSUB LoadGame
+                IF loadOK THEN menuDone = -1
+            CASE MA_QUIT
+                SaveSettings : SYSTEM
+            CASE MA_KEYS_DEFAULT
+                FOR b = 1 TO NUM_BINDS : keyBind&(b) = bindDefault&(b) : NEXT
+        END SELECT
+END SELECT
+RETURN
+
+' --- Back out of a screen (Esc, Backspace, or BACK). From the top: in a
+' game, back to the game; at the title, "do you really want to leave?"
+MenuBack:
+IF menuDepth > 0 THEN
+    PlaySfx sndMenuBack&, 0.6
+    menuScreen = menuStack(menuDepth) : backSel = menuStackSel(menuDepth) : menuDepth = menuDepth - 1
+    GOSUB EnterMenuScreen : menuSel = backSel
+ELSEIF menuInGame THEN
+    PlaySfx sndMenuBack&, 0.6 : menuDone = -1
+ELSEIF menuScreen <> SCR_QUIT THEN
+    PlaySfx sndMenuSelect&, 0.6
+    menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
+    menuScreen = SCR_QUIT : GOSUB EnterMenuScreen
+END IF
+RETURN
+
+' --- A key was pressed while a key binding waits for one: that's its new
+' key (Esc changes nothing). If another action had that key, it gets this
+' one's old key, so no two actions ever share a key.
+CaptureKey:
+IF keyCode& <> 27 THEN
+    newKey& = keyCode& : IF newKey& >= 65 AND newKey& <= 90 THEN newKey& = newKey& + 32 ' Letters: lower case
+    bindNum = miRef(menuCapture) : oldKey& = keyBind&(bindNum)
+    FOR b = 1 TO NUM_BINDS
+        IF b <> bindNum AND keyBind&(b) = newKey& THEN keyBind&(b) = oldKey&
+    NEXT
+    keyBind&(bindNum) = newKey&
+    PlaySfx sndMenuSelect&, 0.6
+ELSE
+    PlaySfx sndMenuBack&, 0.6
+END IF
+menuCapture = 0
+RETURN
+
+' --- Save the game to slot saveSlot (0 is the quick save). The same
+' variables, in the same order, as LoadGame.
+SaveGame:
+saveFile$ = SlotFile$(saveSlot)
+MakeSaveDir
+IF _FILEEXISTS(saveFile$) THEN KILL saveFile$ ' (BINARY would only overwrite the start of an old file)
+fileNum = FREEFILE
+OPEN saveFile$ FOR BINARY AS #fileNum
+saveTag$ = SAVE_TAG : PUT #fileNum, , saveTag$
+saveInfo$ = LEFT$(levelName$ + "  " + DATE$ + " " + LEFT$(TIME$, 5) + SPACE$(SAVE_INFO_LEN), SAVE_INFO_LEN)
+PUT #fileNum, , saveInfo$
+PUT #fileNum, , level
+levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
+PUT #fileNum, , health : PUT #fileNum, , armor : PUT #fileNum, , kills : PUT #fileNum, , currentGun : PUT #fileNum, , levelTime!
+PUT #fileNum, , totalKills : PUT #fileNum, , totalMonsters : PUT #fileNum, , totalTime!
+PUT #fileNum, , savedHealth : PUT #fileNum, , savedArmor : PUT #fileNum, , savedCells : PUT #fileNum, , savedShells : PUT #fileNum, , savedGun
+PUT #fileNum, , playerX : PUT #fileNum, , playerY : PUT #fileNum, , dirX : PUT #fileNum, , dirY
+PUT #fileNum, , ammoCount(AM_CELLS) : PUT #fileNum, , ammoCount(AM_SHELLS)
+FOR gun = 1 TO NUM_GUNS : PUT #fileNum, , hasGun(gun) : PUT #fileNum, , savedHasGun(gun) : NEXT
+FOR k = 1 TO 3 : PUT #fileNum, , hasCard(k) : NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , doorOpen(x, y) : NEXT : NEXT
+PUT #fileNum, , numItems
+FOR i = 1 TO numItems : PUT #fileNum, , itemOn(i) : NEXT
+PUT #fileNum, , numMonsters
+FOR i = 1 TO numMonsters
+    PUT #fileNum, , monsterX(i) : PUT #fileNum, , monsterY(i) : PUT #fileNum, , monsterHP(i)
+    PUT #fileNum, , monsterState(i) : PUT #fileNum, , monsterTimer(i)
+NEXT
+PUT #fileNum, , numDecos
+FOR i = 1 TO numDecos : PUT #fileNum, , decoOn(i) : PUT #fileNum, , decoHP(i) : PUT #fileNum, , decoTimer(i) : NEXT
+CLOSE #fileNum
+IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
+RETURN
+
+' --- Load the game in slot saveSlot: read which level, build that level
+' fresh (LoadLevel), then read back everything that had changed in it.
+' loadOK says whether it worked.
+LoadGame:
+loadOK = 0 : saveFile$ = SlotFile$(saveSlot)
+IF NOT _FILEEXISTS(saveFile$) THEN ShowMsg "Nothing saved there yet" : RETURN
+fileNum = FREEFILE
+OPEN saveFile$ FOR BINARY AS #fileNum
+saveTag$ = SPACE$(LEN(SAVE_TAG)) : GET #fileNum, , saveTag$ ' (GET fills a string as long as it already is)
+IF saveTag$ <> SAVE_TAG THEN CLOSE #fileNum : ShowMsg "That isn't a NEON-CASTER save" : RETURN
+saveInfo$ = SPACE$(SAVE_INFO_LEN) : GET #fileNum, , saveInfo$
+GET #fileNum, , level
+GOSUB LoadLevel
+GET #fileNum, , health : GET #fileNum, , armor : GET #fileNum, , kills : GET #fileNum, , currentGun : GET #fileNum, , levelTime!
+GET #fileNum, , totalKills : GET #fileNum, , totalMonsters : GET #fileNum, , totalTime!
+GET #fileNum, , savedHealth : GET #fileNum, , savedArmor : GET #fileNum, , savedCells : GET #fileNum, , savedShells : GET #fileNum, , savedGun
+GET #fileNum, , playerX : GET #fileNum, , playerY : GET #fileNum, , dirX : GET #fileNum, , dirY
+GET #fileNum, , ammoCount(AM_CELLS) : GET #fileNum, , ammoCount(AM_SHELLS)
+FOR gun = 1 TO NUM_GUNS : GET #fileNum, , hasGun(gun) : GET #fileNum, , savedHasGun(gun) : NEXT
+FOR k = 1 TO 3 : GET #fileNum, , hasCard(k) : NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , doorOpen(x, y) : NEXT : NEXT
+' The level must have the same things in it as when it was saved
+GET #fileNum, , savedCount : IF savedCount <> numItems THEN GOSUB LoadMismatch : RETURN
+FOR i = 1 TO numItems : GET #fileNum, , itemOn(i) : NEXT
+GET #fileNum, , savedCount : IF savedCount <> numMonsters THEN GOSUB LoadMismatch : RETURN
+FOR i = 1 TO numMonsters
+    GET #fileNum, , monsterX(i) : GET #fileNum, , monsterY(i) : GET #fileNum, , monsterHP(i)
+    GET #fileNum, , monsterState(i) : GET #fileNum, , monsterTimer(i)
+NEXT
+GET #fileNum, , savedCount : IF savedCount <> numDecos THEN GOSUB LoadMismatch : RETURN
+FOR i = 1 TO numDecos
+    GET #fileNum, , decoOn(i) : GET #fileNum, , decoHP(i) : GET #fileNum, , decoTimer(i)
+    IF NOT decoOn(i) THEN decoCell(INT(decoX(i)), INT(decoY(i))) = 0 ' Broken ones don't block
+NEXT
+CLOSE #fileNum
+planeX = dirY * fovPlane : planeY = - dirX * fovPlane ' (your direction came from the file)
+levelStart! = TIMER - levelTime! : dead = 0 : swapTimer = 0
+loadOK = -1
+IF saveSlot = 0 THEN ShowMsg "Quick loaded" ELSE ShowMsg "Loaded slot" + STR$(saveSlot) + ": " + levelName$
+RETURN
+
+' --- A save made with a different version of the level: give up on it
+LoadMismatch:
+CLOSE #fileNum
+ShowMsg "That save doesn't fit this version of the level"
+GOSUB NewGame
+RETURN
+
+'-----------------------------------------------------------------------------
+' CHAPTER 22: THE LEVELS' DATA (MapData)
 '-----------------------------------------------------------------------------
 ' The levels, Level1: to Level4:, as DATA lines. LoadLevel (chapter 20)
 ' reads one every time it starts or restarts; you go from one to the next
@@ -2254,7 +2783,7 @@ DATA "###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG"
 DATA "###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG"
 
 '-----------------------------------------------------------------------------
-' CHAPTER 22: THE HELPERS
+' CHAPTER 23: THE HELPERS
 '-----------------------------------------------------------------------------
 ' The SUBs and FUNCTIONs the rest of the game calls, grouped by what they're
 ' for. QB64PE doesn't mind what order they're in, and each one only sees its
@@ -2518,9 +3047,10 @@ FUNCTION LoadSnd&(file$)
 END FUNCTION
 
 ' Play a copy of a sound (_SNDPLAYCOPY), so the same one can overlap itself
-' - footsteps, a fast gun. vol! goes from 0 to 1.
+' - footsteps, a fast gun. vol! goes from 0 to 1, and is turned down by the
+' SFX VOLUME setting.
 SUB PlaySfx(snd&, vol!)
-    IF snd& > 0 THEN _SNDPLAYCOPY snd&, vol!
+    IF snd& > 0 THEN _SNDPLAYCOPY snd&, vol! * setting(SET_SFX) / 100
 END SUB
 
 ' A sound made at (x, y): the further it is from you at (listenX, listenY),
@@ -2688,14 +3218,514 @@ SUB FillCircle(centerX, centerY, radius, col~&)
     NEXT
 END SUB
 
-' One line of the level-done tally: a label, and its number on the right
-SUB TallyLine(y, label$, value$)
-    HudText 270, y, label$, _RGB32(160, 200, 255)
-    HudText 530 - LEN(value$) * 8, y, value$, _RGB32(255, 255, 255)
-END SUB
+' A tally row's number as it's shown: "12 / 23", or a time (total -1) as m:ss
+FUNCTION TallyText$(value, total)
+    IF total < 0 THEN
+        TallyText$ = TimeText$(value)
+    ELSE
+        TallyText$ = LTRIM$(STR$(INT(value))) + " / " + LTRIM$(STR$(total))
+    END IF
+END FUNCTION
 
 ' Seconds as m:ss
 FUNCTION TimeText$(secs!)
     mins = INT(secs! / 60) : s = INT(secs!) MOD 60
     TimeText$ = LTRIM$(STR$(mins)) + ":" + RIGHT$("0" + LTRIM$(STR$(s)), 2)
 END FUNCTION
+
+' === MENUS, SETTINGS AND SAVED GAMES (chapter 21) ==============================
+
+' One row of the settings table (chapter 6): its number, its name in the
+' settings file, its menu label, its kind of control (MI_SLIDER, MI_TOGGLE
+' or MI_CHOICE), lowest and highest value, step, and starting value
+SUB DefineSetting(id, iniName$, label$, kind, lowest, highest, stepSize, start)
+    setKey$(id) = iniName$ : setLabel$(id) = label$ : setKind(id) = kind
+    setMin(id) = lowest : setMax(id) = highest : setStep(id) = stepSize
+    setDefault(id) = start : setting(id) = start
+END SUB
+
+' One key binding (chapter 6): its number, its name in the settings file,
+' its menu label, and its key to start with
+SUB DefineBind(bindNum, iniName$, label$, code&)
+    bindKey$(bindNum) = iniName$ : bindLabel$(bindNum) = label$
+    bindDefault&(bindNum) = code& : keyBind&(bindNum) = code&
+END SUB
+
+' Is the key bound to bindNum held down? Letters are stored lower case, so
+' check the upper-case code too (it's what _KEYDOWN sees with Shift held).
+FUNCTION KeyHeld%(bindNum)
+    code& = keyBind&(bindNum)
+    IF code& >= 97 AND code& <= 122 THEN KeyHeld% = _KEYDOWN(code&) OR _KEYDOWN(code& - 32) ELSE KeyHeld% = _KEYDOWN(code&)
+END FUNCTION
+
+' A key code's name, for the menu and the settings file
+FUNCTION KeyName$(code&)
+    SELECT CASE code&
+        CASE 97 TO 122 : KeyName$ = CHR$(code& - 32)
+        CASE 32 : KeyName$ = "SPACE"
+        CASE 13 : KeyName$ = "ENTER"
+        CASE 9 : KeyName$ = "TAB"
+        CASE 8 : KeyName$ = "BACKSPACE"
+        CASE 18432 : KeyName$ = "UP"
+        CASE 20480 : KeyName$ = "DOWN"
+        CASE 19200 : KeyName$ = "LEFT"
+        CASE 19712 : KeyName$ = "RIGHT"
+        CASE 100306 : KeyName$ = "LEFT CTRL"
+        CASE 100305 : KeyName$ = "RIGHT CTRL"
+        CASE 100304 : KeyName$ = "LEFT SHIFT"
+        CASE 100303 : KeyName$ = "RIGHT SHIFT"
+        CASE 100308 : KeyName$ = "LEFT ALT"
+        CASE 100307 : KeyName$ = "RIGHT ALT"
+        CASE 15104 TO 17408 : KeyName$ = "F" + LTRIM$(STR$((code& - 15104) \ 256 + 1)) ' F1-F10
+        CASE 34048 : KeyName$ = "F11"
+        CASE 34304 : KeyName$ = "F12"
+        CASE 33 TO 126 : KeyName$ = CHR$(code&)
+        CASE ELSE : KeyName$ = "KEY" + STR$(code&)
+    END SELECT
+END FUNCTION
+
+' Put the settings into effect: the camera plane's length for the field of
+' view (TAN of half the angle - chapter 8), the mouse speed, and the music
+' volume. (The rest - sound, crosshair, bobbing, shake - are read straight
+' from setting() where they're used.)
+SUB ApplySettings
+    fovPlane = TAN(setting(SET_FOV) / 2 * 3.14159265 / 180)
+    turnSpeed = setting(SET_MOUSE) * 0.0006
+    IF nowPlaying& > 0 THEN _SNDVOL nowPlaying&, setting(SET_MUSIC) / 100
+END SUB
+
+' Left (-1) or right (1) on setting id: a slider moves a step (and stops at
+' its ends), a choice goes round to the next one, a toggle flips
+SUB ChangeSetting(id, dir)
+    SELECT CASE setKind(id)
+        CASE MI_TOGGLE
+            setting(id) = 1 - setting(id)
+        CASE MI_CHOICE
+            setting(id) = setting(id) + dir
+            IF setting(id) > setMax(id) THEN setting(id) = setMin(id)
+            IF setting(id) < setMin(id) THEN setting(id) = setMax(id)
+        CASE ELSE
+            setting(id) = setting(id) + dir * setStep(id)
+            IF setting(id) > setMax(id) THEN setting(id) = setMax(id)
+            IF setting(id) < setMin(id) THEN setting(id) = setMin(id)
+    END SELECT
+END SUB
+
+' Set a slider from where the mouse is along it, to the nearest step
+SUB SliderFromMouse(item, mouseX)
+    id = miRef(item)
+    f = (mouseX - MENU_WIDGET_X) / MENU_WIDGET_W
+    IF f < 0 THEN f = 0
+    IF f > 1 THEN f = 1
+    v = setMin(id) + f * (setMax(id) - setMin(id))
+    setting(id) = setMin(id) + INT((v - setMin(id)) / setStep(id) + 0.5) * setStep(id)
+END SUB
+
+' A setting's value as the menu shows it
+FUNCTION SettingText$(id)
+    v$ = LTRIM$(STR$(setting(id)))
+    SELECT CASE id
+        CASE SET_SFX, SET_MUSIC, SET_SPEECH : SettingText$ = v$ + "%"
+        CASE SET_FOV : SettingText$ = v$ + CHR$(248) ' (a degree sign in QB64PE's font)
+        CASE SET_XSTYLE : SettingText$ = CrossStyleName$(setting(id))
+        CASE SET_XCOLOR : SettingText$ = CrossColorName$(setting(id))
+        CASE ELSE : SettingText$ = v$
+    END SELECT
+END FUNCTION
+
+' Read the settings file, if there is one. Every setting starts at its
+' default; a "name=value" line for it (with a value in range) changes it.
+SUB LoadSettings
+    FOR i = 1 TO NUM_SETTINGS : setting(i) = setDefault(i) : NEXT
+    FOR i = 1 TO NUM_BINDS : keyBind&(i) = bindDefault&(i) : NEXT
+    file$ = SaveDir$ + "settings.ini"
+    IF NOT _FILEEXISTS(file$) THEN EXIT SUB
+    fileNum = FREEFILE
+    OPEN file$ FOR INPUT AS #fileNum
+    DO UNTIL EOF(fileNum)
+        LINE INPUT #fileNum, text$
+        eq = INSTR(text$, "=")
+        IF eq > 0 THEN
+            iniKey$ = LCASE$(LTRIM$(RTRIM$(LEFT$(text$, eq - 1)))) : v = VAL(MID$(text$, eq + 1))
+            FOR i = 1 TO NUM_SETTINGS
+                IF iniKey$ = setKey$(i) AND v >= setMin(i) AND v <= setMax(i) THEN setting(i) = v
+            NEXT
+            FOR i = 1 TO NUM_BINDS
+                IF iniKey$ = bindKey$(i) AND v > 0 THEN keyBind&(i) = v
+            NEXT
+        END IF
+    LOOP
+    CLOSE #fileNum
+END SUB
+
+' Write every setting and key binding to the settings file
+SUB SaveSettings
+    MakeSaveDir
+    fileNum = FREEFILE
+    OPEN SaveDir$ + "settings.ini" FOR OUTPUT AS #fileNum
+    PRINT #fileNum, "; NEON-CASTER settings: one name and value a line (chapter 21 explains them)"
+    FOR i = 1 TO NUM_SETTINGS : PRINT #fileNum, setKey$(i) + "=" + LTRIM$(STR$(setting(i))) : NEXT
+    FOR i = 1 TO NUM_BINDS
+        PRINT #fileNum, bindKey$(i) + "=" + LTRIM$(STR$(keyBind&(i))) + "   ; " + KeyName$(keyBind&(i))
+    NEXT
+    CLOSE #fileNum
+END SUB
+
+' The folder settings and saved games go in: neon-caster/saves/
+FUNCTION SaveDir$
+    path$ = AssetPath$("door.png")
+    SaveDir$ = LEFT$(path$, LEN(path$) - LEN("door.png")) + "saves/"
+END FUNCTION
+
+SUB MakeSaveDir
+    folder$ = SaveDir$ : folder$ = LEFT$(folder$, LEN(folder$) - 1)
+    IF NOT _DIREXISTS(folder$) THEN MKDIR folder$
+END SUB
+
+' Save slot n's file (0 = the quick save)
+FUNCTION SlotFile$(slot)
+    IF slot = 0 THEN SlotFile$ = SaveDir$ + "quick.sav" ELSE SlotFile$ = SaveDir$ + "slot" + LTRIM$(STR$(slot)) + ".sav"
+END FUNCTION
+
+' What's in a save slot: the level and when, as SaveGame wrote it ("" if
+' it's empty)
+FUNCTION SlotInfo$(slot)
+    file$ = SlotFile$(slot)
+    IF NOT _FILEEXISTS(file$) THEN EXIT FUNCTION
+    fileNum = FREEFILE
+    OPEN file$ FOR BINARY AS #fileNum
+    tag$ = SPACE$(LEN(SAVE_TAG)) : GET #fileNum, , tag$
+    info$ = SPACE$(SAVE_INFO_LEN) : GET #fileNum, , info$
+    CLOSE #fileNum
+    IF tag$ = SAVE_TAG THEN SlotInfo$ = RTRIM$(info$) ELSE SlotInfo$ = "(not a save)"
+END FUNCTION
+
+' Fill in the items for menu screen scr (SCR_ constants). This is where to
+' add a button or a screen: an AddMenuItem line, and - for a new action -
+' a CASE in MenuActivate (chapter 21).
+SUB BuildMenu(scr)
+    numMI = 0 : menuWide = 0
+    SELECT CASE scr
+        CASE SCR_MAIN
+            IF menuInGame THEN menuTitle$ = "PAUSED" ELSE menuTitle$ = "MAIN MENU"
+            IF menuInGame THEN AddMenuItem "RESUME", MI_ACTION, 0, MA_RESUME, -1, ""
+            AddMenuItem "GAME", MI_SUBMENU, SCR_GAME, 0, -1, ""
+            AddMenuItem "SETTINGS", MI_SUBMENU, SCR_SETTINGS, 0, -1, ""
+            AddMenuItem "CREDITS", MI_SUBMENU, SCR_CREDITS, 0, -1, ""
+            AddMenuItem "EXIT", MI_SUBMENU, SCR_QUIT, 0, -1, ""
+        CASE SCR_GAME
+            menuTitle$ = "GAME"
+            AddMenuItem "NEW GAME", MI_ACTION, 0, MA_NEW, -1, ""
+            AddMenuItem "LOAD GAME", MI_SUBMENU, SCR_LOAD, 0, -1, ""
+            AddMenuItem "SAVE GAME", MI_SUBMENU, SCR_SAVE, 0, menuInGame, "" ' (only during a game)
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_SAVE
+            menuTitle$ = "SAVE GAME" : menuWide = -1
+            FOR slot = 1 TO NUM_SLOTS
+                info$ = SlotInfo$(slot) : IF info$ = "" THEN info$ = "- empty -"
+                AddMenuItem "SLOT" + STR$(slot), MI_ACTION, slot, MA_SAVE, -1, info$
+            NEXT
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_LOAD
+            menuTitle$ = "LOAD GAME" : menuWide = -1
+            FOR slot = 0 TO NUM_SLOTS
+                info$ = SlotInfo$(slot)
+                IF slot = 0 THEN label$ = "QUICK SAVE" ELSE label$ = "SLOT" + STR$(slot)
+                IF info$ = "" THEN
+                    AddMenuItem label$, MI_ACTION, slot, MA_LOAD, 0, "- empty -"
+                ELSE
+                    AddMenuItem label$, MI_ACTION, slot, MA_LOAD, -1, info$
+                END IF
+            NEXT
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_SETTINGS
+            menuTitle$ = "SETTINGS"
+            AddMenuItem "AUDIO", MI_SUBMENU, SCR_AUDIO, 0, -1, ""
+            AddMenuItem "GAMEPLAY", MI_SUBMENU, SCR_GAMEPLAY, 0, -1, ""
+            AddMenuItem "CONTROLS", MI_SUBMENU, SCR_CONTROLS, 0, -1, ""
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_AUDIO
+            menuTitle$ = "AUDIO" : menuWide = -1
+            AddSettingItem SET_SFX : AddSettingItem SET_MUSIC : AddSettingItem SET_SPEECH
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_GAMEPLAY
+            menuTitle$ = "GAMEPLAY" : menuWide = -1
+            AddSettingItem SET_FOV : AddSettingItem SET_XSTYLE : AddSettingItem SET_XCOLOR
+            AddSettingItem SET_XSIZE : AddSettingItem SET_BOB : AddSettingItem SET_SHAKE
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_CONTROLS
+            menuTitle$ = "CONTROLS" : menuWide = -1
+            AddSettingItem SET_MOUSE
+            FOR b = 1 TO NUM_BINDS : AddMenuItem bindLabel$(b), MI_KEY, b, 0, -1, "" : NEXT
+            AddMenuItem "RESET KEYS", MI_ACTION, 0, MA_KEYS_DEFAULT, -1, ""
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_CREDITS
+            menuTitle$ = "CREDITS"
+            AddMenuItem "CODE  GRYMMJACK + CLAUDE", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "ENGINE  QB64 PHOENIX EDITION", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "RAYCASTING  AFTER LODE VANDEVENNE", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "ART  PIXELMON  (ENDESGA-32)", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "SOUND  PWMSFXR", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "MUSIC  SOUNDMON  (OPL3 FM)", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_QUIT
+            menuTitle$ = "EXIT"
+            AddMenuItem QuitQuote$, MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "YES", MI_ACTION, 0, MA_QUIT, -1, ""
+            AddMenuItem "NO", MI_BACK, 0, 0, -1, ""
+    END SELECT
+END SUB
+
+' One more item on the menu screen being built (see the mi... arrays)
+SUB AddMenuItem(label$, kind, ref, act, enabled, info$)
+    IF numMI >= MAX_MI THEN EXIT SUB
+    numMI = numMI + 1
+    miLabel$(numMI) = label$ : miKind(numMI) = kind : miRef(numMI) = ref
+    miAct(numMI) = act : miOn(numMI) = enabled : miInfo$(numMI) = info$
+END SUB
+
+' A setting as a menu item: its label, and the control its kind needs
+SUB AddSettingItem(id)
+    AddMenuItem setLabel$(id), setKind(id), id, 0, -1, ""
+END SUB
+
+' Can menu item i be chosen? (Not lines of text, or ones switched off.)
+FUNCTION MenuSelectable%(i)
+    IF i < 1 OR i > numMI THEN EXIT FUNCTION
+    MenuSelectable% = miKind(i) <> MI_TEXT AND miOn(i) <> 0
+END FUNCTION
+
+' Which item (that can be chosen) is the mouse over? 0 if none.
+FUNCTION MenuItemAt(mouseX, mouseY)
+    FOR i = 1 TO numMI
+        rowY = MENU_TOP + (i - 1) * MENU_ROW
+        IF mouseY >= rowY - 3 AND mouseY < rowY + MENU_ROW - 3 AND mouseX >= 100 AND mouseX <= 760 THEN
+            IF MenuSelectable(i) THEN MenuItemAt = i
+            EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
+' Draw the menu screen showing now, t frames after it opened: the title,
+' then each item sliding in (see chapter 21), with the selected one lit up
+' and each control drawn the way its kind needs
+SUB DrawMenu(t)
+    glow = 0.5 + 0.5 * SIN(t * 0.05)
+    MenuText 404, 30, "NEON-CASTER", 6, _RGBA32(255, 40, 200, 110), 1 ' (a magenta shadow, for the glow)
+    MenuText 400, 26, "NEON-CASTER", 6, _RGB32(120 + 120 * glow, 235, 255), 1
+    MenuText 400, 128, menuTitle$, 2, _RGB32(255, 100, 215), 1
+    LINE (250, 162)-(550, 163), _RGBA32(255, 100, 215, 120), BF
+    panelA = t * 12 : IF panelA > 170 THEN panelA = 170 ' A dark panel behind the items, so they read over anything
+    LINE (96, MENU_TOP - 12)-(704, MENU_TOP + numMI * MENU_ROW), _RGBA32(6, 0, 18, panelA), BF
+    FOR i = 1 TO numMI
+        p = (t - (i - 1) * 3) / 12 ' This item's progress in: 0 .. 1
+        IF p < 0 THEN p = 0
+        IF p > 1 THEN p = 1
+        ease = 1 - (1 - p) ^ 3
+        slide = (1 - ease) * 260 : alpha = ease * 255
+        rowY = MENU_TOP + (i - 1) * MENU_ROW
+        selected = (i = menuSel)
+        IF miOn(i) = 0 THEN
+            col~& = _RGBA32(90, 85, 120, alpha)
+        ELSEIF selected THEN
+            col~& = _RGBA32(255, 255, 255, alpha)
+        ELSE
+            col~& = _RGBA32(185, 195, 230, alpha)
+        END IF
+        IF selected AND miKind(i) <> MI_TEXT THEN ' The bar behind the selected item
+            barA = alpha * (0.3 + 0.1 * SIN(t * 0.2))
+            LINE (110 + slide, rowY - 3)-(690 + slide, rowY + MENU_ROW - 5), _RGBA32(255, 40, 170, barA), BF
+            LINE (110 + slide, rowY - 3)-(690 + slide, rowY - 3), _RGBA32(90, 230, 255, alpha), BF
+            LINE (110 + slide, rowY + MENU_ROW - 5)-(690 + slide, rowY + MENU_ROW - 5), _RGBA32(90, 230, 255, alpha), BF
+            IF (t \ 15) MOD 2 = 0 THEN MenuText 118 + slide, rowY, ">", 2, _RGBA32(90, 230, 255, alpha), 0
+        END IF
+        IF miKind(i) = MI_TEXT THEN
+            MenuText 400 + slide, rowY, miLabel$(i), 2, _RGBA32(200, 160, 255, alpha), 1
+        ELSEIF menuWide THEN
+            MenuText MENU_LABEL_X + slide, rowY, miLabel$(i), 2, col~&, 0
+        ELSE
+            MenuText 400 + slide, rowY, miLabel$(i), 2, col~&, 1
+        END IF
+        wx = MENU_WIDGET_X + slide
+        SELECT CASE miKind(i)
+            CASE MI_SLIDER
+                id = miRef(i) : f = (setting(id) - setMin(id)) / (setMax(id) - setMin(id))
+                LINE (wx, rowY + 11)-(wx + MENU_WIDGET_W, rowY + 18), _RGBA32(60, 45, 95, alpha), BF
+                LINE (wx, rowY + 11)-(wx + MENU_WIDGET_W * f, rowY + 18), _RGBA32(80, 220, 255, alpha), BF
+                LINE (wx + MENU_WIDGET_W * f - 4, rowY + 4)-STEP(8, 21), col~&, BF ' The knob
+                MenuText wx + MENU_WIDGET_W + 16, rowY, SettingText$(id), 2, col~&, 0
+            CASE MI_TOGGLE
+                LINE (wx, rowY + 3)-STEP(22, 22), col~&, B
+                IF setting(miRef(i)) THEN LINE (wx + 5, rowY + 8)-STEP(12, 12), _RGBA32(80, 220, 255, alpha), BF
+                IF setting(miRef(i)) THEN MenuText wx + 36, rowY, "ON", 2, col~&, 0 ELSE MenuText wx + 36, rowY, "OFF", 2, col~&, 0
+            CASE MI_CHOICE
+                MenuText wx, rowY, "<  " + SettingText$(miRef(i)) + "  >", 2, col~&, 0
+            CASE MI_KEY
+                IF menuCapture = i THEN
+                    IF (t \ 10) MOD 2 = 0 THEN MenuText wx, rowY, "PRESS A KEY", 2, _RGBA32(255, 230, 60, alpha), 0
+                ELSE
+                    MenuText wx, rowY, KeyName$(keyBind&(miRef(i))), 2, col~&, 0
+                END IF
+        END SELECT
+        IF LEN(miInfo$(i)) THEN MenuText MENU_LABEL_X + 160 + slide, rowY + 9, miInfo$(i), 1, col~&, 0
+    NEXT
+    IF menuScreen = SCR_GAMEPLAY THEN ' What your crosshair looks like
+        LINE (690, 96)-(750, 156), _RGBA32(0, 0, 0, 180), BF
+        LINE (690, 96)-(750, 156), _RGBA32(90, 230, 255, 160), B
+        DrawCrosshair 720, 126
+    END IF
+    MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  CHOOSE     ESC  BACK     OR POINT AND CLICK", 1, _RGB32(140, 135, 175), 1
+END SUB
+
+' The title menu's backdrop, t frames in: a synthwave sunset - a purple sky
+' with twinkling stars, a striped sun on the horizon, and a neon grid
+' rushing towards you (its lines get closer together towards the horizon:
+' 260 / z is the same perspective as the floor in chapter 14)
+SUB DrawMenuBackdrop(t)
+    CONST HORIZON = 330
+    FOR y = 0 TO HORIZON STEP 2
+        f = y / HORIZON
+        LINE (0, y)-(799, y + 1), _RGB32(12 + 80 * f ^ 3, 2 + 14 * f, 30 + 70 * f ^ 2), BF
+    NEXT
+    FOR i = 1 TO 70 ' Stars, at made-up but fixed places
+        starB = 140 + 110 * SIN(t * 0.04 + i * 1.7)
+        PSET ((i * 137) MOD 800, (i * 61) MOD 260), _RGB32(starB, starB, starB)
+    NEXT
+    FOR y = HORIZON - 120 TO HORIZON - 1 ' The sun: its lower half cut into drifting stripes
+        dy = y - (HORIZON - 30) : halfW = SQR(ABS(8100 - dy * dy)) ' (radius 90)
+        IF ABS(dy) <= 90 THEN
+            IF NOT (y > HORIZON - 60 AND ((y + t \ 3) MOD 12) < 3 + (y - (HORIZON - 60)) \ 8) THEN
+                f = (y - (HORIZON - 120)) / 120
+                LINE (400 - halfW, y)-(400 + halfW, y), _RGB32(255, 220 - 160 * f, 90 + 60 * f)
+            END IF
+        END IF
+    NEXT
+    LINE (0, HORIZON)-(799, 599), _RGB32(8, 0, 18), BF
+    FOR k = -24 TO 24 ' The grid's lines running away from you...
+        LINE (400 + k * 14, HORIZON)-(400 + k * 110, 600), _RGBA32(255, 50, 210, 150)
+    NEXT
+    scroll = t * 0.04 - INT(t * 0.04) ' ...and across, moving towards you
+    FOR n = 0 TO 24
+        z = n + 1 - scroll
+        gridY = HORIZON + 260 / z
+        IF gridY < 600 THEN LINE (0, gridY)-(799, gridY), _RGBA32(255, 50, 210, 40 + 200 / z)
+    NEXT
+    LINE (0, HORIZON)-(799, HORIZON + 1), _RGB32(255, 130, 235), BF
+END SUB
+
+' The splash screen, t! seconds in. If there's a neon-caster/splash.png it
+' fills the screen; if not, the title. It fades in, and out at the end.
+SUB DrawSplash(t!)
+    CLS , _RGB32(0, 0, 0)
+    IF splashImg& < -1 THEN
+        _PUTIMAGE (0, 0)-(799, 599), splashImg&
+    ELSE
+        glow = 0.6 + 0.4 * SIN(t! * 4)
+        MenuText 405, 205, "NEON-CASTER", 8, _RGBA32(255, 40, 200, 130), 1
+        MenuText 400, 200, "NEON-CASTER", 8, _RGB32(120 + 130 * glow, 235, 255), 1
+        MenuText 400, 350, "A LITTLE RAYCASTER IN QB64PE", 2, _RGB32(255, 120, 220), 1
+        IF t! > 1 AND INT(t! * 2) MOD 2 = 0 THEN MenuText 400, 520, "PRESS ANY KEY", 1, _RGB32(160, 155, 190), 1
+    END IF
+    fade = 1
+    IF t! < 0.8 THEN fade = t! / 0.8
+    IF t! > SPLASH_SECONDS - 0.6 THEN fade = (SPLASH_SECONDS - t!) / 0.6
+    IF fade < 0 THEN fade = 0
+    IF fade < 1 THEN LINE (0, 0)-(799, 599), _RGBA32(0, 0, 0, 255 * (1 - fade)), BF
+END SUB
+
+' Text at any size and see-through-ness: printed at normal size into a small
+' see-through image, then stretched onto the screen with _PUTIMAGE, which
+' blends it in by its colour's alpha. align: 0 starts at x, 1 centres on x,
+' 2 ends at x.
+SUB MenuText(x, y, text$, scale, col~&, align)
+    IF LEN(text$) = 0 THEN EXIT SUB
+    textW = LEN(text$) * 8
+    img& = _NEWIMAGE(textW, 16, 32)
+    _DEST img& : _PRINTMODE _KEEPBACKGROUND : COLOR col~& : _PRINTSTRING (0, 0), text$ : _DEST 0
+    textX = x
+    IF align = 1 THEN textX = x - textW * scale / 2
+    IF align = 2 THEN textX = x - textW * scale
+    _PUTIMAGE (textX, y)-STEP(textW * scale - 1, 16 * scale - 1), img&, 0
+    _FREEIMAGE img&
+END SUB
+
+' The crosshair at (cx, cy), in the style, colour and size the settings say
+SUB DrawCrosshair(cx, cy)
+    col~& = CrossColor~&(setting(SET_XCOLOR))
+    armLen = 2 + setting(SET_XSIZE) * 2
+    SELECT CASE setting(SET_XSTYLE)
+        CASE 1 ' Cross
+            LINE (cx - armLen, cy)-(cx + armLen, cy), col~& : LINE (cx, cy - armLen)-(cx, cy + armLen), col~&
+        CASE 2 ' Dot
+            LINE (cx - armLen \ 4, cy - armLen \ 4)-(cx + armLen \ 4, cy + armLen \ 4), col~&, BF
+        CASE 3 ' Circle
+            CIRCLE (cx, cy), armLen, col~&
+        CASE 4 ' A cross with a gap in the middle, and a dot
+            gap = armLen \ 2 + 1
+            LINE (cx - armLen - 2, cy)-(cx - gap, cy), col~& : LINE (cx + gap, cy)-(cx + armLen + 2, cy), col~&
+            LINE (cx, cy - armLen - 2)-(cx, cy - gap), col~& : LINE (cx, cy + gap)-(cx, cy + armLen + 2), col~&
+            PSET (cx, cy), col~&
+        CASE 5 ' Chevron
+            LINE (cx - armLen, cy + armLen)-(cx, cy), col~& : LINE (cx, cy)-(cx + armLen, cy + armLen), col~&
+    END SELECT ' (6: none)
+END SUB
+
+FUNCTION CrossStyleName$(n)
+    SELECT CASE n
+        CASE 1 : CrossStyleName$ = "CROSS"
+        CASE 2 : CrossStyleName$ = "DOT"
+        CASE 3 : CrossStyleName$ = "CIRCLE"
+        CASE 4 : CrossStyleName$ = "GAP CROSS"
+        CASE 5 : CrossStyleName$ = "CHEVRON"
+        CASE ELSE : CrossStyleName$ = "NONE"
+    END SELECT
+END FUNCTION
+
+FUNCTION CrossColorName$(n)
+    CrossColorName$ = RTRIM$(MID$("RED    GREEN  CYAN   YELLOW WHITE  MAGENTA", (n - 1) * 7 + 1, 7))
+END FUNCTION
+
+FUNCTION CrossColor~&(n)
+    SELECT CASE n
+        CASE 1 : CrossColor~& = _RGB32(255, 40, 40)
+        CASE 2 : CrossColor~& = _RGB32(60, 255, 90)
+        CASE 3 : CrossColor~& = _RGB32(60, 230, 255)
+        CASE 4 : CrossColor~& = _RGB32(255, 230, 40)
+        CASE 5 : CrossColor~& = _RGB32(255, 255, 255)
+        CASE ELSE : CrossColor~& = _RGB32(255, 60, 220)
+    END SELECT
+END FUNCTION
+
+' Something to ask before you leave, picked at random each time
+FUNCTION QuitQuote$
+    SELECT CASE INT(RND * 10)
+        CASE 0 : QuitQuote$ = "FLEE FROM THIS PLACE?"
+        CASE 1 : QuitQuote$ = "RUN AWAY?"
+        CASE 2 : QuitQuote$ = "ABANDON THE SECTOR?"
+        CASE 3 : QuitQuote$ = "LEAVE IT TO THE DRONES?"
+        CASE 4 : QuitQuote$ = "GIVE UP SO SOON?"
+        CASE 5 : QuitQuote$ = "THE NEON WILL MISS YOU. GO?"
+        CASE 6 : QuitQuote$ = "BACK TO THE REAL WORLD?"
+        CASE 7 : QuitQuote$ = "THE HEAVIES ARE HUNGRY. LEAVE?"
+        CASE 8 : QuitQuote$ = "SURRENDER THE STATION?"
+        CASE ELSE : QuitQuote$ = "LOG OFF, OPERATIVE?"
+    END SELECT
+END FUNCTION
+
+' A music track from neon-caster/music/ (0 if it's missing: no music)
+FUNCTION LoadMusic&(file$)
+    path$ = AssetPath$("music/" + file$)
+    IF _FILEEXISTS(path$) THEN LoadMusic& = _SNDOPEN(path$)
+END FUNCTION
+
+' Play a music track on a loop (_SNDLOOP), at the MUSIC VOLUME setting,
+' stopping the one before. Asking for the track already playing changes
+' nothing, so it doesn't restart.
+SUB PlayMusic(snd&)
+    IF snd& = nowPlaying& THEN EXIT SUB
+    IF nowPlaying& > 0 THEN _SNDSTOP nowPlaying&
+    nowPlaying& = snd&
+    IF snd& > 0 THEN _SNDVOL snd&, setting(SET_MUSIC) / 100 : _SNDLOOP snd&
+END SUB
