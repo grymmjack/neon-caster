@@ -207,21 +207,27 @@ DIM SHARED itemX(MAX_ITEMS) AS SINGLE, itemY(MAX_ITEMS) AS SINGLE
 DIM SHARED itemKind(MAX_ITEMS) AS INTEGER, itemOn(MAX_ITEMS) AS INTEGER, numItems AS INTEGER
 DIM SHARED hasCard(3) AS INTEGER
 
-' --- Decorations: 1 barrel (explodes when shot), 2 lamp, 3 plant, 4 terminal.
-' You, monsters and bolts can't pass through them; shots fly past (except
-' into barrels). ---
+' --- Decorations: 1 barrel, 2 lamp, 3 plant, 4 terminal. You, monsters and
+' bolts can't pass through them. Shoot one and it breaks: a barrel blows up
+' at once (chapter 13), the others take a few hits (DecoMaxHP, chapter 22)
+' and then collapse into the floor. ---
 ' DECO_ = settings for decorations: DECO_RADIUS is how far from its middle a
-' decoration blocks you (in cells)
-CONST MAX_DECO = 64, DECO_RADIUS = 0.3
+' decoration blocks you (in cells), DECO_BREAK_FRAMES how long a broken one
+' takes to collapse
+CONST MAX_DECO = 64, DECO_RADIUS = 0.3, DECO_BREAK_FRAMES = 14
 DIM SHARED decoX(MAX_DECO) AS SINGLE, decoY(MAX_DECO) AS SINGLE, decoKind(MAX_DECO) AS INTEGER
 DIM SHARED decoOn(MAX_DECO) AS INTEGER, decoFuse(MAX_DECO) AS INTEGER, numDecos AS INTEGER
+' decoHP: hits left before it breaks; decoTimer: frames left of its collapse
+DIM SHARED decoHP(MAX_DECO) AS INTEGER, decoTimer(MAX_DECO) AS INTEGER
 DIM SHARED decoCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' Which decoration stands in a cell (0 none)
 ' BLAST_ = explosions: how far a blast reaches (in cells), and - for the
 ' picture of one - up to MAX_BLASTS on show at once, each fading over
-' BLAST_FRAMES frames
+' BLAST_FRAMES frames. blastSize is 1 for a barrel, smaller for the puff of
+' sparks from a broken lamp or terminal.
 CONST BLAST_RADIUS = 2.2
-CONST MAX_BLASTS = 8, BLAST_FRAMES = 18
+CONST MAX_BLASTS = 12, BLAST_FRAMES = 18
 DIM SHARED blastX(MAX_BLASTS) AS SINGLE, blastY(MAX_BLASTS) AS SINGLE, blastTime(MAX_BLASTS) AS INTEGER
+DIM SHARED blastSize(MAX_BLASTS) AS SINGLE
 
 ' --- Monsters: 1 drone (bites), 2 gunner (shoots bolts), 3 heavy (smashes),
 ' 4 crawler (fast, bites), 5 sentry (a turret: stays put, shoots bolts) ---
@@ -279,19 +285,17 @@ CONST W_BLASTER = 1, W_SCATTER = 2, W_REPEATER = 3, W_RAIL = 4, NUM_GUNS = 4
 DIM SHARED hasGun(NUM_GUNS) AS INTEGER
 ' Per gun: name, ammo kind, ammo per shot, frames between shots, pellets,
 ' spread (of the view's width), damage per hit, whether a shot goes through
-' every monster in its line, recoil, sound, picture, and where its muzzle is
+' every monster in its line, recoil, how far it zooms when you aim down its
+' sights (1 = not at all, 2 = twice as close - chapter 8), sound, picture,
+' and where its muzzle is
 DIM SHARED gunName$(NUM_GUNS), gunAmmoType(NUM_GUNS), gunAmmoPerShot(NUM_GUNS), gunDelay(NUM_GUNS), gunPellets(NUM_GUNS), gunSpread(NUM_GUNS)
-DIM SHARED gunDamage(NUM_GUNS), gunPierce(NUM_GUNS), gunKick(NUM_GUNS)
+DIM SHARED gunDamage(NUM_GUNS), gunPierce(NUM_GUNS), gunKick(NUM_GUNS), gunZoom(NUM_GUNS)
 DIM SHARED gunSnd&(NUM_GUNS), gunImg&(NUM_GUNS), gunMuzzleX(NUM_GUNS), gunMuzzleY(NUM_GUNS), gunScale(NUM_GUNS)
-'           name        ammo       cost delay pellets spread damage pierce recoil
-SetGun 1, "BLASTER", AM_CELLS, 1, 16, 1, 0, 1, 0, 1
-SetGun 2, "SCATTER", AM_SHELLS, 1, 40, 7, 0.12, 1, 0, 1.7
-SetGun 3, "REPEATER", AM_CELLS, 1, 5, 1, 0.025, 1, 0, 0.45
-SetGun 4, "RAILGUN", AM_CELLS, 5, 55, 1, 0, 5, -1, 2.2
-CONST SWAP_FRAMES = 14 ' Frames to lower one gun and raise the next
 ' ADS_ = Aiming Down the Sights (hold the right mouse button - chapter 8):
 '   ADS_ZOOM       how much the view zooms in (1 = not at all, 2 = twice as
-'                  close)
+'                  close) - for most guns; each gun's own zoom is the last
+'                  column of the guns table below, so the railgun can zoom
+'                  in like a scope
 '   ADS_FRAMES     frames to raise the gun to your eye, or lower it again
 '   ADS_MUZZLE_Y   where the muzzle comes up to on the screen (the
 '                  crosshair is at y = 300)
@@ -301,6 +305,12 @@ CONST SWAP_FRAMES = 14 ' Frames to lower one gun and raise the next
 '                  than ADS_GUN_GROW_MAX (then its muzzle stops a bit lower)
 CONST ADS_ZOOM = 1.6, ADS_FRAMES = 8, ADS_MUZZLE_Y = 318
 CONST ADS_GUN_GROW = 1.15, ADS_GUN_GROW_MAX = 1.7
+'      gun name        ammo       cost delay pellets spread damage pierce recoil zoom
+SetGun 1,  "BLASTER",  AM_CELLS,  1,   16,   1,      0,     1,     0,     1,     ADS_ZOOM
+SetGun 2,  "SCATTER",  AM_SHELLS, 1,   40,   7,      0.12,  1,     0,     1.7,   ADS_ZOOM
+SetGun 3,  "REPEATER", AM_CELLS,  1,   5,    1,      0.025, 1,     0,     0.45,  ADS_ZOOM
+SetGun 4,  "RAILGUN",  AM_CELLS,  5,   55,   1,      0,     5,     -1,    2.2,   4
+CONST SWAP_FRAMES = 14 ' Frames to lower one gun and raise the next
 ' TEST_ and CHEAT_ = testing aids - set both to 0 for the real game:
 '   TEST_ALL_GUNS  -1 starts you with every gun and full ammo
 '   CHEAT_KEYS     -1 lets K give you every keycard, and G switch god mode
@@ -445,20 +455,24 @@ sndHurt& = LoadSnd&("hurt.wav") : sndDie& = LoadSnd&("die.wav")
 gunSnd&(1) = LoadSnd&("shoot.wav") : gunSnd&(2) = LoadSnd&("scatter.wav") : gunSnd&(3) = LoadSnd&("repeater.wav")
 gunSnd&(4) = LoadSnd&("rail.wav")
 sndBarrel& = LoadSnd&("barrel.wav") : sndArmor& = LoadSnd&("armor.wav") : sndExit& = LoadSnd&("exit.wav")
+' A decoration taking a hit, and breaking (by kind: 2 lamp, 3 plant, 4 terminal)
+DIM decoBreakSnd&(4)
+sndDecoHit& = LoadSnd&("deco-hit.wav")
+decoBreakSnd&(2) = LoadSnd&("lamp-break.wav") : decoBreakSnd&(3) = LoadSnd&("plant-break.wav") : decoBreakSnd&(4) = LoadSnd&("terminal-break.wav")
 CONST STEP_LEN = 2.6 ' Cells walked per footstep (about 2.8 a second at full speed)
 
 ' The monster types table: SetMonType fills in the "mtype" arrays (one
 ' entry per TYPE of monster - see chapter 3) for types 1-5. Speed is in
 ' cells a frame; height is in walls (1 = as tall as a wall); lift and bob
 ' are how high it hovers and how much it bobs; reach is how close it must
-' be to hit you; damage is min + a random extra (dmg+rnd); cooldown (cool)
+' be to hit you; damage is dmg plus a random 0 to +rnd - 1; cooldown (cool)
 ' is frames between attacks; slot is its sprite slot (chapter 5).
-'                         HP  speed  height lift  bob   reach dmg+rnd cool slot
-SetMonType 1, "drone", 3, 0.045, 0.65, 0.2, 0.05, 0.95, 8, 6, 50, 9
-SetMonType 2, "gunner", 4, 0.035, 0.8, 0, 0, 0, 9, 6, 90, 11
-SetMonType 3, "heavy", 10, 0.028, 0.95, 0, 0, 1.25, 20, 10, 80, 13
-SetMonType 4, "crawler", 2, 0.07, 0.4, 0, 0.02, 0.75, 5, 4, 35, 15
-SetMonType 5, "sentry", 8, 0, 0.75, 0, 0, 0, 7, 5, 50, 17
+'          type name       HP  speed  height lift bob   reach dmg +rnd cool slot
+SetMonType 1,   "drone",   3,  0.045, 0.65,  0.2, 0.05, 0.95, 8,  6,   50,  9
+SetMonType 2,   "gunner",  4,  0.035, 0.8,   0,   0,    0,    9,  6,   90,  11
+SetMonType 3,   "heavy",   10, 0.028, 0.95,  0,   0,    1.25, 20, 10,  80,  13
+SetMonType 4,   "crawler", 2,  0.07,  0.4,   0,   0.02, 0.75, 5,  4,   35,  15
+SetMonType 5,   "sentry",  8,  0,     0.75,  0,   0,    0,    7,  5,   50,  17
 mtypeRanged(2) = -1 : mtypeRanged(5) = -1
 mtypeAlertSnd&(1) = LoadSnd&("drone-alert.wav") : mtypeAttackSnd&(1) = LoadSnd&("drone-attack.wav")
 mtypeHitSnd&(1) = LoadSnd&("drone-hit.wav") : mtypeDieSnd&(1) = LoadSnd&("drone-die.wav")
@@ -559,9 +573,10 @@ DO
     ' aimAmount slides from 0 (hip) to 1 (aimed) over ADS_FRAMES frames, so
     ' the zoom and the gun ease in and out instead of snapping.
     IF _MOUSEBUTTON(2) AND NOT dead THEN aimTarget = 1 ELSE aimTarget = 0
+    IF swapTimer > 0 THEN aimTarget = 0 ' Changing guns: lower it (no jump in zoom)
     IF aimAmount < aimTarget THEN aimAmount = aimAmount + 1 / ADS_FRAMES : IF aimAmount > 1 THEN aimAmount = 1
     IF aimAmount > aimTarget THEN aimAmount = aimAmount - 1 / ADS_FRAMES : IF aimAmount < 0 THEN aimAmount = 0
-    zoom = 1 + (ADS_ZOOM - 1) * aimAmount
+    zoom = 1 + (gunZoom(currentGun) - 1) * aimAmount ' (each gun zooms its own amount)
 
     mouseDX = mouseDX / DisplayScale! ' The same turn speed in a window or full screen
     turn = - mouseDX * turnSpeed / zoom ' (slower when zoomed, so aiming stays steady)
@@ -809,7 +824,8 @@ DO
     ' drawing the last frame (chapter 15), so that's a free answer to "is
     ' there a wall in the way?"
     '
-    ' Barrels can be hit the same way (chapter 13 blows them up), and the
+    ' Decorations can be hit the same way: a barrel blows up (chapter 13),
+    ' anything else takes damage and breaks (HitDeco, chapter 19). The
     ' railgun's shot doesn't stop at the first thing: it hits everything in
     ' its line that's nearer than the wall.
     '
@@ -829,8 +845,8 @@ DO
                 screenCol = INT(RENDER_W / 2 * (1 + aim)) : IF screenCol < 0 THEN screenCol = 0
                 IF screenCol > RENDER_W - 1 THEN screenCol = RENDER_W-1
                 ' (a piercing shot hits everything in its line that's nearer than
-                ' the wall; any other shot just the nearest monster or barrel)
-                bestMonster = 0 : bestBarrel = 0 : bestDist = zBuffer(screenCol)
+                ' the wall; any other shot just the nearest monster or decoration)
+                bestMonster = 0 : bestDeco = 0 : bestDist = zBuffer(screenCol)
                 FOR i = 1 TO numMonsters
                     IF monsterState(i) < 2 THEN
                         relX = monsterX(i) - playerX : relY = monsterY(i) -playerY
@@ -843,22 +859,22 @@ DO
                     END IF
                 NEXT
                 FOR i = 1 TO numDecos
-                    IF decoOn(i) AND decoKind(i) = 1 THEN
+                    IF decoOn(i) THEN
                         relX = decoX(i) - playerX : relY = decoY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
-                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * DecoScale(1) * 0.35 THEN
+                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * DecoScale(decoKind(i)) * 0.35 THEN
                                 IF gunPierce(currentGun) THEN
-                                    IF decoFuse(i) = 0 THEN decoFuse(i) = 1
+                                    targetDeco = i : GOSUB HitDeco
                                 ELSE
-                                    bestBarrel = i : bestMonster = 0 : bestDist = transformY
+                                    bestDeco = i : bestMonster = 0 : bestDist = transformY
                                 END IF
                             END IF
                         END IF
                     END IF
                 NEXT
                 IF bestMonster THEN target = bestMonster : GOSUB HitMonster
-                IF bestBarrel THEN IF decoFuse(bestBarrel) = 0 THEN decoFuse(bestBarrel) = 1
+                IF bestDeco THEN targetDeco = bestDeco : GOSUB HitDeco
             NEXT
         ELSEIF NOT fireWas THEN
             PlaySfx sndEmpty&, 0.7
@@ -955,13 +971,15 @@ DO
     NEXT
     ' Barrels: a shot lights a fuse (decoFuse), which counts down frames and
     ' then the barrel blows up (Explode, chapter 19). A blast lights the
-    ' fuses of barrels near it, so they go off in a quick chain. Explosions
-    ' on show fade out over BLAST_FRAMES.
+    ' fuses of barrels near it, so they go off in a quick chain - and breaks
+    ' the lamps, plants and terminals near it. Explosions on show fade out
+    ' over BLAST_FRAMES.
     FOR i = 1 TO numDecos
         IF decoFuse(i) > 0 THEN
             decoFuse(i) = decoFuse(i) - 1
             IF decoFuse(i) = 0 THEN barrel = i : GOSUB Explode
         END IF
+        IF decoTimer(i) > 0 THEN decoTimer(i) = decoTimer(i) - 1 ' A broken one collapsing
     NEXT
     FOR i = 1 TO MAX_BLASTS
         IF blastTime(i) > 0 THEN blastTime(i) = blastTime(i) - 1
@@ -1273,17 +1291,19 @@ DO
         END IF
     NEXT
     FOR i = 1 TO numDecos
-        IF decoOn(i) THEN
+        IF decoOn(i) OR decoTimer(i) > 0 THEN
             numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) : drawY(numDraw) = decoY(i)
             drawSprite(numDraw) = S_DECO + decoKind(i) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = 0
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40
+            IF NOT decoOn(i) THEN drawSquash(numDraw) = decoTimer(i) / DECO_BREAK_FRAMES ' Broken: sinking into the floor
             IF decoKind(i) = 2 THEN drawMinShade(numDraw) = 200 ' Lamps glow
         END IF
     NEXT
     FOR i = 1 TO MAX_BLASTS
         IF blastTime(i) > 0 THEN ' Explosions swell as they fade
             numDraw = numDraw + 1 : drawX(numDraw) = blastX(i) : drawY(numDraw) = blastY(i)
-            drawSprite(numDraw) = S_BLAST : drawScale(numDraw) = 0.6 + 0.7 * (1 - blastTime(i) / BLAST_FRAMES) : drawLift(numDraw) = 0.05
+            drawSprite(numDraw) = S_BLAST : drawScale(numDraw) = (0.6 + 0.7 * (1 - blastTime(i) / BLAST_FRAMES)) * blastSize(i)
+            drawLift(numDraw) = 0.05 + (1 - blastSize(i)) * 0.35 ' (a small puff of sparks floats at the broken thing's middle)
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 256
         END IF
     NEXT
@@ -1491,9 +1511,9 @@ SYSTEM
 '-----------------------------------------------------------------------------
 ' CHAPTER 19: GAME EVENTS
 '-----------------------------------------------------------------------------
-' Things that happen from more than one place - a monster getting hit (by a
-' shot or a blast), you getting hurt (by a bite, a bolt, a blast), a barrel
-' going off - are GOSUB routines: a label, some lines, and RETURN. Unlike a
+' Things that happen from more than one place - a monster or a decoration
+' getting hit (by a shot or a blast), you getting hurt (by a bite, a bolt,
+' a blast), a barrel going off - are GOSUB routines: a label, some lines, and RETURN. Unlike a
 ' SUB, a GOSUB routine is part of the main program, so it can use all its
 ' variables (health, kills, playerX...) directly. The catch is it takes no
 ' parameters, so the caller sets a variable first: "target = i : hitDamage
@@ -1527,14 +1547,12 @@ END IF
 RETURN
 
 ' --- Barrel number `barrel` explodes: it hurts everything near it that it
-' can see (more the closer it is), and lights the fuses of other barrels
-' close by, so they go off a moment later
+' can see (more the closer it is), lights the fuses of other barrels close
+' by, so they go off a moment later, and breaks the other decorations near it
 Explode:
 decoOn(barrel) = 0 : decoFuse(barrel) = 0 : decoCell(INT(decoX(barrel)), INT(decoY(barrel))) = 0
 SfxAt sndBarrel&, decoX(barrel), decoY(barrel), playerX, playerY
-FOR j = 1 TO MAX_BLASTS
-    IF blastTime(j) = 0 THEN blastX(j) = decoX(barrel) : blastY(j) = decoY(barrel) : blastTime(j) = BLAST_FRAMES : EXIT FOR
-NEXT
+newBlastX = decoX(barrel) : newBlastY = decoY(barrel) : newBlastSize = 1 : GOSUB AddBlast
 FOR j = 1 TO numMonsters
     IF monsterState(j) < 2 THEN
         distance = SQR((monsterX(j) - decoX(barrel)) ^ 2 + (monsterY(j) - decoY(barrel)) ^ 2)
@@ -1548,8 +1566,51 @@ IF distance < BLAST_RADIUS AND NOT dead THEN
     IF CanSee(decoX(barrel), decoY(barrel), playerX, playerY) THEN damage = INT(40 * (1 - distance / BLAST_RADIUS)) + 5 : GOSUB HurtPlayer
 END IF
 FOR j = 1 TO numDecos
-    IF decoOn(j) AND decoKind(j) = 1 AND decoFuse(j) = 0 THEN
-        IF (decoX(j) - decoX(barrel)) ^ 2 + (decoY(j) - decoY(barrel)) ^ 2 < BLAST_RADIUS * BLAST_RADIUS THEN decoFuse(j) = 8
+    IF decoOn(j) THEN
+        distance = SQR((decoX(j) - decoX(barrel)) ^ 2 + (decoY(j) - decoY(barrel)) ^ 2)
+        IF distance < BLAST_RADIUS THEN
+            IF decoKind(j) = 1 THEN
+                IF decoFuse(j) = 0 THEN decoFuse(j) = 8 ' Another barrel: it goes off in 8 frames
+            ELSEIF CanSee(decoX(barrel), decoY(barrel), decoX(j), decoY(j)) THEN
+                targetDeco = j : hitDamage = INT(4 * (1 - distance / BLAST_RADIUS)) + 1 : GOSUB HitDeco
+            END IF
+        END IF
+    END IF
+NEXT
+RETURN
+
+' --- A shot (or blast) hits decoration number targetDeco for hitDamage. A
+' barrel's fuse is lit (it blows up next frame); anything else loses that
+' much from decoHP, and at 0 it breaks: it stops blocking the way at once,
+' collapses into the floor over DECO_BREAK_FRAMES (drawn in chapter 16), and
+' lamps and terminals go in a small puff of sparks.
+HitDeco:
+IF decoKind(targetDeco) = 1 THEN
+    IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = 1
+    RETURN
+END IF
+decoHP(targetDeco) = decoHP(targetDeco) - hitDamage
+IF decoHP(targetDeco) > 0 THEN
+    SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY
+ELSE
+    decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES
+    decoCell(INT(decoX(targetDeco)), INT(decoY(targetDeco))) = 0
+    SfxAt decoBreakSnd&(decoKind(targetDeco)), decoX(targetDeco), decoY(targetDeco), playerX, playerY
+    IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
+        newBlastX = decoX(targetDeco) : newBlastY = decoY(targetDeco) : newBlastSize = 0.35 : GOSUB AddBlast
+    END IF
+END IF
+RETURN
+
+' --- An explosion (or puff of sparks) to show at (newBlastX, newBlastY),
+' newBlastSize big, in the first free slot - if all MAX_BLASTS are busy,
+' this one isn't shown
+AddBlast:
+FOR blastSlot = 1 TO MAX_BLASTS
+    IF blastTime(blastSlot) = 0 THEN
+        blastX(blastSlot) = newBlastX : blastY(blastSlot) = newBlastY
+        blastSize(blastSlot) = newBlastSize : blastTime(blastSlot) = BLAST_FRAMES
+        EXIT FOR
     END IF
 NEXT
 RETURN
@@ -1723,6 +1784,7 @@ FOR y = 0 TO MAP_SIZE - 1
                 IF numDecos < MAX_DECO THEN
                     numDecos = numDecos + 1 : decoCell(x, y) = numDecos
                     decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oipt", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0
+                    decoHP(numDecos) = DecoMaxHP(decoKind(numDecos)) : decoTimer(numDecos) = 0
                 END IF
             CASE "m", "g", "h", "c", "s" ' A monster
                 IF numMonsters < MAX_MON THEN
@@ -1896,13 +1958,15 @@ RETURN
 '               fires a bolt for 7-11 about every second.
 '
 ' DECORATIONS - stand on the floor; you, monsters and bolts can't go through
-' them, but they don't block sight, and shots fly past (except barrels).
+' them, but they don't block sight. Shoot them and they break (a barrel's
+' blast breaks them too); a broken one collapses and no longer blocks you.
 '   o  barrel:   explodes when shot: up to 45 damage to you and 8 to
 '                monsters within 2.2 tiles (less further away, and not
-'                through walls), and sets off other barrels near it.
-'   i  lamp      (it glows)
-'   p  plant
-'   t  terminal
+'                through walls), sets off other barrels near it, and
+'                breaks the lamps, plants and terminals near it.
+'   i  lamp      (it glows): 2 hits; goes in a puff of sparks
+'   p  plant:    2 hits
+'   t  terminal: 4 hits; goes in a puff of sparks
 '
 ' THE START
 '   <  >  ^  v  you start here, facing left / right / up / down. Use one;
@@ -2481,9 +2545,10 @@ END FUNCTION
 ' === GUNS, MONSTERS AND PICKUPS ===============================================
 
 ' One row of the guns table (chapter 4)
-SUB SetGun(gun, title$, ammoType, ammoPerShot, delay, pellets, spread, damage, pierce, kick)
+SUB SetGun(gun, title$, ammoType, ammoPerShot, delay, pellets, spread, damage, pierce, kick, zoom)
     gunName$(gun) = title$ : gunAmmoType(gun) = ammoType : gunAmmoPerShot(gun) = ammoPerShot : gunDelay(gun) = delay
     gunPellets(gun) = pellets : gunSpread(gun) = spread : gunDamage(gun) = damage : gunPierce(gun) = pierce : gunKick(gun) = kick
+    gunZoom(gun) = zoom
 END SUB
 
 ' Gun number `gun`'s first-person picture, and where its muzzle is: the
@@ -2547,6 +2612,16 @@ END SUB
 ' Which sprite slot a pickup kind is drawn with
 FUNCTION ItemSprite(kind)
     IF kind <= IT_REPEATER THEN ItemSprite = kind ELSE ItemSprite = 16 + kind
+END FUNCTION
+
+' How many hits a decoration kind takes before it breaks (a barrel: 1)
+FUNCTION DecoMaxHP(kind)
+    SELECT CASE kind
+        CASE 1 : DecoMaxHP = 1 ' Barrel
+        CASE 2 : DecoMaxHP = 2 ' Lamp
+        CASE 3 : DecoMaxHP = 2 ' Plant
+        CASE ELSE : DecoMaxHP = 4 ' Terminal
+    END SELECT
 END FUNCTION
 
 ' How tall a decoration kind stands (in walls)

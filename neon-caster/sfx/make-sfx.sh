@@ -253,6 +253,27 @@ patch exit \
     -voice 2 -on -wave triangle -vol 0.5 -delay 0.15 -set base_freq=0.45,arp_mod=0.3,arp_speed=0.6,sustain=0.3,decay=0.4 \
     -voice 3 -on -wave square   -vol 0.4 -delay 0.3 -set base_freq=0.6,duty=0.25,vib_strength=0.3,vib_speed=0.6,sustain=0.3,decay=0.5
 
+# --- decorations you can shoot to pieces ---
+# a shot thunks into a lamp, plant or terminal that doesn't break yet
+patch deco-hit \
+    -voice 1 -on -wave brown -vol 0.7 -set base_freq=0.3,sustain=0.03,decay=0.12,punch=0.5,lpf_freq=0.4 \
+    -voice 2 -on -wave metal -vol 0.3 -set base_freq=0.45,sustain=0.02,decay=0.08
+# a plant breaks: the pot cracks and soil spills
+patch plant-break \
+    -voice 1 -on -wave noise -vol 0.6 -set base_freq=0.4,sustain=0.05,decay=0.25,punch=0.5,lpf_freq=0.5 \
+    -voice 2 -on -wave metal -vol 0.4 -set base_freq=0.5,sustain=0.02,decay=0.1 \
+    -voice 3 -on -wave pink  -vol 0.4 -delay 0.08 -set base_freq=0.5,sustain=0.1,decay=0.2,hpf_freq=0.2
+# a lamp breaks: glass shatters, the tube fizzles out
+patch lamp-break \
+    -voice 1 -on -wave metal  -vol 0.5 -set base_freq=0.8,sustain=0.05,decay=0.2,repeat_speed=0.7,hpf_freq=0.3 \
+    -voice 2 -on -wave noise  -vol 0.4 -set base_freq=0.75,sustain=0.04,decay=0.2,hpf_freq=0.3 \
+    -voice 3 -on -wave square -vol 0.3 -delay 0.1 -set base_freq=0.5,freq_ramp=-0.4,duty=0.2,sustain=0.1,decay=0.15
+# a terminal breaks: a pop, sparks, and a dying electronic whine
+patch terminal-break \
+    -voice 1 -on -wave noise    -vol 0.8 -set base_freq=0.35,sustain=0.06,decay=0.3,punch=0.6 \
+    -voice 2 -on -wave metal    -vol 0.4 -delay 0.05 -set base_freq=0.75,sustain=0.15,decay=0.1,repeat_speed=0.8 \
+    -voice 3 -on -wave sawtooth -vol 0.4 -set base_freq=0.55,freq_ramp=-0.35,sustain=0.15,decay=0.25
+
 # render: every patch through the PC speaker (PWM, cone filter on, louder
 # than the window's default gain) -> .wav
 for p in *.pwmsfx; do
