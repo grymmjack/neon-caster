@@ -4,7 +4,8 @@ NEON-CASTER is a complete first-person shooter in one file of plain QB64PE:
 four levels, five kinds of monster, four guns, doors and keycards, exploding
 barrels, a minimap, music, a menu with settings, and saved games. It's built like Wolfenstein 3D, as a *raycaster*, and the
 source is written to be read: its comments are a course in how it all
-works, in 23 chapters, from opening a window to casting rays.
+works, in 24 chapters, from opening a window to casting rays - and then
+handing the same 3D view to the graphics card with OpenGL.
 
 This page is the map for that course. The lessons themselves are in
 [`../neon-caster.bas`](../neon-caster.bas), right next to the code they
@@ -20,7 +21,11 @@ explained as it comes up.
    (the mouse look needs `_MOUSEHIDE _DISABLE`, new in 4.7).
 2. Open `neon-caster.bas` in the QB64PE IDE and press F5, or compile it from
    a terminal: `qb64pe -x neon-caster.bas`.
-3. Keep the `neon-caster/` folder next to the program. All the pictures,
+3. The OpenGL renderer's shaders use the GLSL library from
+   [QB64_GJ_LIB](https://github.com/grymmjack/QB64_GJ_LIB): clone it next to
+   this repository (`../../../QB64_GJ_LIB` from the game, as the `$INCLUDE`
+   lines at the top and bottom of the source say).
+4. Keep the `neon-caster/` folder next to the program. All the pictures,
    sounds and music are in there. Your settings and saved games go in
    `neon-caster/saves/`.
 
@@ -75,6 +80,7 @@ run top to bottom, in the same order as the code:
 | | 21 The splash screen, the menu, settings and saved games | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files |
 | | 22 The levels' data | the map format: make your own levels |
 | | 23 The helpers | the SUBs and FUNCTIONs, grouped by topic |
+| **On the GPU** | 24 The same view, drawn by the graphics card | `SUB _GL` and OpenGL: triangles, texture coordinates, a camera matrix and `_glFrustum`, the depth buffer, alpha test; sharing a frame safely with double buffering; batching with `_glDrawArrays`; why OpenGL questions stall; GLSL shaders for bump mapping, specular highlights, self-lit neon, animated textures and moving point lights; smooth (bilinear) light; projected shadows; additive glows and particles; a mirrored pass for wet floors; render targets and post-processing (bloom, heat shimmer, hurt pulse, rail zoom, scanlines, CRT, retro resolution); premultiplied alpha; looking up and down |
 
 ### Reading the names
 
@@ -165,6 +171,39 @@ run it and see what happens. That's the fastest way to learn how it works.
 - **Your own lights** (ch. 14, 22): add a line to a level's lights - try
   a red strobe (effect 3) in a dark corridor, or set a level's ambient
   brightness to 40 and light it only with lamps.
+
+**The graphics card** (set RENDERER to OPENGL and SHOW FPS on, in
+SETTINGS > VIDEO, along with RETRO RESOLUTION and LOOK UP / DOWN; every
+effect has a switch in SETTINGS > EFFECTS)
+- **One at a time** (ch. 24): switch the effects off, then on again one by
+  one, and find each in the code. Which costs the most milliseconds?
+- **Your own post effect** (ch. 24): in `GLBuildShaders`, the last shader
+  (the one ending `glPostProg = ...`) sees the whole finished picture. Try
+  `c = vec3(dot(c, vec3(0.3, 0.59, 0.11)));` just before the HUD line for
+  black and white, or `c = floor(c * 4.0) / 4.0;` for four shades a colour.
+- **Compare** (ch. 17, 24): walk around with each renderer and watch the
+  3D VIEW milliseconds. Then set `RENDER_W = 800` and `RENDER_H = 600`
+  and compare again: the software renderer gets about four times slower,
+  and OpenGL hardly notices (only its rays double).
+- **Smooth textures** (ch. 24): in `GLSendPicture`, change both
+  `_GL_NEAREST`s to `_GL_LINEAR`. Blurry or better?
+- **Smooth light** (ch. 24): give each corner in `GLCorner` the average
+  light of the four cells that meet there, instead of one cell's light.
+  The software renderer couldn't afford that per pixel; the card blends
+  it for free.
+- **Longer shadows, brighter neon** (ch. 24): in `GLShadows`, try `lz =
+  GL_LIGHT_Z * 1.2`; in the world shader, lower the `0.68` in the neon
+  line so more colours light themselves.
+- **Flatter, bumpier, shinier** (ch. 24): change `GL_BUMP` (0 is flat, 5
+  is very craggy), `GL_LIGHT_Z` (lights lower down rake across the walls),
+  or a texture's shine in `GLShine`.
+- **Write a shader** (ch. 24): in `GLBuildShader`, try
+  `gl_FragColor = vec4(nb * 0.5 + 0.5, 1.0);` as the last line to see the
+  bumpy normals as colours. Then try your own ideas with QB64_GJ_LIB's
+  `GLSL/GLSL-TEST.BAS`, which runs any Shadertoy-style `.frag` file.
+- **See the triangles** (ch. 24): add `_glPolygonMode _GL_FRONT_AND_BACK,
+  _GL_LINE` after `_glDisable _GL_CULL_FACE`, to draw only their edges
+  (put it back with `_GL_FILL` at the end of `SUB _GL`).
 
 **Bigger projects**
 - **Look up and down** (ch. 14-16): everything uses `RENDER_H / 2` as the

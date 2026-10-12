@@ -20,6 +20,8 @@
 '     14-18  drawing that frame: floor, walls, sprites, the HUD
 '     19-23  game events, levels, the splash screen, the menu, settings and
 '            saved games, the map format, and the helper SUBs
+'     24     the same 3D view drawn by the graphics card, with OpenGL
+'            (RENDERER in the menu's SETTINGS > VIDEO)
 '
 ' THE BIG IDEA: A RAYCASTER
 '   The world is a flat grid of square cells, seen from inside at eye
@@ -128,6 +130,8 @@
 '     light...   one of the level's lights: lightX(l), lightEffect(l)
 '     FX_        a light's effect: FX_FLICKER, FX_STROBE...     (chapter 2)
 '     cellSeen() the cells you've seen, for the map            (chapter 15)
+'     gl...      the OpenGL renderer: what the game hands it each frame,
+'                and what it keeps for itself                  (chapter 24)
 '
 '   The raycasting maths uses the names from Lode Vandevenne's well-known
 '   raycasting tutorial (lodev.org/cgtutor/raycasting.html): dirX, planeX,
@@ -146,10 +150,22 @@
 ' the mouse then gives raw movement (_MOUSEMOVEMENTX, chapter 8) instead of
 ' a pointer that gets stuck at the edge of the screen - just what mouse look
 ' needs. _PRINTMODE _KEEPBACKGROUND prints text without a box behind it.
+'
+' _DISPLAYORDER says what goes on the window, bottom layer first: whatever
+' OpenGL draws (_GLRENDER), then our screen (_SOFTWARE) on top of it. The
+' game normally covers the whole screen, so the OpenGL layer is hidden. The
+' OpenGL renderer (chapter 24) switches our screen off (GLScreenLayer) and
+' draws it itself, over the 3D view.
+'
+' The OpenGL renderer's shaders (chapter 24) come from the GLSL library in
+' QB64_GJ_LIB, cloned next to this repository: its .BI here, its .BM at the
+' very end of the file.
+'$INCLUDE:'../../../QB64_GJ_LIB/GLSL/GLSL.BI'
 _TITLE "NEON-CASTER"
 SCREEN _NEWIMAGE(800, 600, 32)
 _MOUSEHIDE _DISABLE
 _PRINTMODE _KEEPBACKGROUND
+_DISPLAYORDER _GLRENDER , _SOFTWARE
 
 '-----------------------------------------------------------------------------
 ' CHAPTER 2: THE WORLD IS A GRID
@@ -202,6 +218,11 @@ CONST DOOR_SLIDE = 0, DOOR_SHUTTER = 1, DOOR_SPLIT = 2, DOOR_EXIT = 3
 ' explosions, bolts).
 DIM SHARED litR(MAP_SIZE, MAP_SIZE) AS LONG, litG(MAP_SIZE, MAP_SIZE) AS LONG, litB(MAP_SIZE, MAP_SIZE) AS LONG
 DIM SHARED ambientR AS LONG, ambientG AS LONG, ambientB AS LONG
+' Where each cell's light comes from, for the OpenGL renderer's bump mapping
+' (chapter 24): every light adds its position times its strength, so
+' litSumX / litSumW, litSumY / litSumW is the middle of the light falling
+' on the cell - the way a bump there should face to catch it
+DIM SHARED litSumX(MAP_SIZE, MAP_SIZE) AS SINGLE, litSumY(MAP_SIZE, MAP_SIZE) AS SINGLE, litSumW(MAP_SIZE, MAP_SIZE) AS SINGLE
 ' The level's lights: where, how far they reach, their light (brightness
 ' times colour) for red, green and blue, their effect (FX_ below), and -
 ' for a lamp or terminal's own light - which decoration it belongs to (so
@@ -210,6 +231,7 @@ CONST MAX_LIGHTS = 96
 DIM SHARED lightX(MAX_LIGHTS), lightY(MAX_LIGHTS), lightRadius(MAX_LIGHTS)
 DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhase(MAX_LIGHTS)
 DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
+DIM SHARED lightNow(MAX_LIGHTS) ' How bright its effect has it this frame (0 off .. 1 full): for its glow
 DIM SHARED numLights AS INTEGER
 ' FX_ = a light's effect: steady, a flickering fluorescent tube, a slow
 ' pulse, an alarm strobe, firelight, or a dying tube that sputters on now
@@ -433,6 +455,151 @@ renderImg& = _NEWIMAGE(RENDER_W, RENDER_H, 32)
 DIM renderMem AS _MEM, pixelsMem AS _MEM
 renderMem = _MEMIMAGE(renderImg&) : pixelsMem = _MEM(pixels())
 
+' --- The OpenGL renderer (chapter 24) ---
+' With RENDERER set to OPENGL in the menu, the graphics card draws the 3D
+' view instead of the pixel loops of chapters 14-16. It draws whenever
+' QB64PE puts the window on the screen (SUB _GL), which can happen between
+' any two lines of the game, so the game never makes it look at half-done
+' work. Each frame it fills in a "snapshot" of what to draw, in one half of
+' these arrays (the last index, 0 or 1), while OpenGL may still be drawing
+' the other half, and then switches over: "double buffering".
+'   glReady       -1 when there's a snapshot to draw; 0 in the menus at the
+'                 title, while a level loads, or with the software renderer
+'   glBuf         which half holds the newest snapshot (glWrite: which half
+'                 this frame is filling in - the other one)
+'   glFrameNo     counts frames; glFrame(half) is the frame a snapshot is of
+'   glCam... glDir... glPlaneLen glZoom glShake...   the camera: where you
+'                 are, the way you face, how wide and tall the view is, and
+'                 the screen shake (chapter 17)
+'   glLitR...     every cell's light, and glDoor every door's position
+'   glSeen()      the cells this frame's rays went through (chapter 15):
+'                 glSeen(x, y, half) = glFrame(half) means "seen this frame"
+'   glSpr...      the sprites to draw (chapter 16): where, how big, which
+'                 picture, and how they're lit
+'   glTexVersion  goes up whenever the textures change (a level loads), so
+'                 SUB _GL knows to send them to the graphics card again
+' GL_NEAR and GL_FAR: the nearest and furthest OpenGL draws (in cells)
+CONST GL_NEAR = 0.05, GL_FAR = 100
+' GL_DYN: how many moving lights; MAX_PART: particles; GL_HEAT: explosions
+' for the heat shimmer (all chapter 24)
+CONST GL_DYN = 4, MAX_PART = 400, GL_HEAT = 4
+DIM SHARED glReady AS INTEGER, glBuf AS INTEGER, glFrameNo AS LONG, glMode AS INTEGER
+DIM SHARED glFrame(1) AS LONG, glCamX(1), glCamY(1), glDirX(1), glDirY(1), glPlaneLen(1), glZoom(1)
+DIM SHARED glShakeX(1), glShakeY(1), glShakeEdge(1), glFullMode(1) AS INTEGER
+DIM SHARED glLitR(MAP_SIZE, MAP_SIZE, 1) AS LONG, glLitG(MAP_SIZE, MAP_SIZE, 1) AS LONG, glLitB(MAP_SIZE, MAP_SIZE, 1) AS LONG
+DIM SHARED glDoor(MAP_SIZE, MAP_SIZE, 1) AS SINGLE, glSeen(MAP_SIZE, MAP_SIZE, 1) AS LONG
+DIM SHARED glNumSpr(1) AS INTEGER, glSprX(MAX_DRAW, 1), glSprY(MAX_DRAW, 1), glSprLift(MAX_DRAW, 1)
+DIM SHARED glSprHalfW(MAX_DRAW, 1), glSprH(MAX_DRAW, 1), glSprSlot(MAX_DRAW, 1) AS INTEGER
+DIM SHARED glSprR(MAX_DRAW, 1), glSprG(MAX_DRAW, 1), glSprB(MAX_DRAW, 1)
+DIM SHARED glTexVersion AS LONG
+' Bump mapping (chapter 24): each cell's light middle (glLitCX, glLitCY)
+' and how much of its light comes from somewhere (glLitDir, 0 all ambient
+' .. 1); and the glows - halos round bolts, blasts, lamps and terminals:
+' where, how big, what colour. glBump and glGlowOn: the two VIDEO settings.
+DIM SHARED glLitCX(MAP_SIZE, MAP_SIZE, 1) AS SINGLE, glLitCY(MAP_SIZE, MAP_SIZE, 1) AS SINGLE, glLitDir(MAP_SIZE, MAP_SIZE, 1) AS SINGLE
+CONST MAX_GLOWS = MAX_BOLTS + MAX_BLASTS + MAX_LIGHTS
+DIM SHARED glNumGlow(1) AS INTEGER, glGlowX(MAX_GLOWS, 1), glGlowY(MAX_GLOWS, 1), glGlowZ(MAX_GLOWS, 1), glGlowSize(MAX_GLOWS, 1)
+DIM SHARED glGlowR(MAX_GLOWS, 1), glGlowG(MAX_GLOWS, 1), glGlowB(MAX_GLOWS, 1)
+DIM SHARED glWrite AS INTEGER
+' What SUB _GL keeps for itself: the graphics card's names for the textures
+' (texture slots 1-19, then sprite slots after them), which texture version
+' it has, the cells it's drawing, the camera and light it's drawing with,
+' the camera as a matrix (chapter 24), and how long it took (for SHOW FPS)
+' (one more texture name after the sprites: GL_GLOW_TEX, the glows' soft
+' round spot)
+CONST GL_GLOW_TEX = T_SLOTS + SPR_SLOTS + 1
+DIM SHARED glTexName(GL_GLOW_TEX) AS _UNSIGNED LONG, glTexDone AS LONG
+DIM SHARED glUpload(TEX_SIZE * TEX_SIZE - 1) AS _UNSIGNED LONG ' (a picture on its way to the card)
+' The world shader (chapter 24): the program, where its uniforms and
+' attributes are, whether we've tried to build it, and why it failed (if)
+DIM SHARED glWorldProg AS _UNSIGNED LONG, glWorldTried AS INTEGER, glShaderOn AS INTEGER, glShaderError$
+DIM SHARED glTanLoc AS LONG, glLightLoc AS LONG, glDynLoc AS LONG
+' ...the post-processing shaders and render targets, and how this frame is
+' going: post-processing or not, the mirror image drawn, the floor pass on
+DIM SHARED glPostProg AS _UNSIGNED LONG, glBrightProg AS _UNSIGNED LONG, glBlurProg AS _UNSIGNED LONG
+DIM SHARED glTargScene AS LONG, glTargA AS LONG, glTargB AS LONG, glTargRetro AS INTEGER
+DIM SHARED glPost AS INTEGER, glReflecting AS INTEGER, glFloorPass AS INTEGER, glNeonOn AS INTEGER
+' ...the WORLD MESH (GLBuildMesh): every floor, ceiling and wall face of
+' the level, built once and kept in graphics memory (glMeshBuf), sorted by
+' kind (0 floors, 1 ceilings, 2 walls) and texture, glMeshFirst/Count saying
+' where each kind-and-texture run is; the corners while it's being built
+' (glMB...); the doors (they move, so they're drawn each frame); the light
+' tables' textures; and whether corners are lit from the tables (cellLit)
+CONST MESH_MAX = 60000
+DIM SHARED glMeshBuf AS _UNSIGNED LONG, glMeshN AS LONG, glMeshBuilding AS INTEGER, glMeshKind AS INTEGER
+DIM SHARED glMeshFirst(2, GL_GLOW_TEX) AS LONG, glMeshCount(2, GL_GLOW_TEX) AS LONG
+DIM SHARED glMBPos(MESH_MAX * 3) AS SINGLE, glMBUV(MESH_MAX * 2) AS SINGLE, glMBN(MESH_MAX * 3) AS SINGLE, glMBT(MESH_MAX * 3) AS SINGLE
+DIM SHARED glMBSlot(MESH_MAX) AS INTEGER, glMBKind(MESH_MAX) AS INTEGER, glMeshData(MESH_MAX * 11) AS SINGLE
+DIM SHARED glNumDoors AS INTEGER, glDoorCX(MAP_SIZE * MAP_SIZE) AS INTEGER, glDoorCY(MAP_SIZE * MAP_SIZE) AS INTEGER
+DIM SHARED glLitTex AS _UNSIGNED LONG, glInfoTex AS _UNSIGNED LONG, glDynTex AS _UNSIGNED LONG, glCellLitMode AS INTEGER
+' ...and each texture's effects (GLSendTextures)
+DIM SHARED glTexShine(GL_GLOW_TEX), glTexReflect(GL_GLOW_TEX), glTexNeon(GL_GLOW_TEX), glTexAnim(GL_GLOW_TEX)
+' GL_BUMP: how strongly bumps tilt the light; GL_LIGHT_Z: how high lights
+' hang (in walls: the ceiling is 1)
+CONST GL_BUMP = 2.5, GL_LIGHT_Z = 0.85
+DIM SHARED glVisX(MAP_SIZE * MAP_SIZE) AS INTEGER, glVisY(MAP_SIZE * MAP_SIZE) AS INTEGER, glNumVis AS LONG
+DIM SHARED glEyeX, glEyeY, glEyeDX, glEyeDY, glLR, glLG, glLB, glShade
+' The corners waiting to be drawn (GLCorner puts them here; GLDraw hands
+' them to the card in one go): position (x, y, z), texture spot (u, v) and
+' colour (red, green, blue) for up to GL_BATCH corners
+CONST GL_BATCH = 16000
+DIM SHARED glVerts(GL_BATCH * 3) AS SINGLE, glTexSpots(GL_BATCH * 2) AS SINGLE, glColors(GL_BATCH * 4) AS SINGLE, glNumVerts AS LONG
+' ...and for bump mapping: which way the surface faces (its normal), which
+' way its texture runs across it (its tangent), and the way to its light
+' (x, y, z, and how much of its light that is) - the face's, set by the
+' code drawing it (glFace...), and the corner's (glCornerL...)
+DIM SHARED glNormals(GL_BATCH * 3) AS SINGLE, glTangents(GL_BATCH * 3) AS SINGLE, glLightVecs(GL_BATCH * 4) AS SINGLE
+DIM SHARED glDynMasks(GL_BATCH * 4) AS SINGLE, glShadowA(GL_BATCH) AS SINGLE, glCellDyn(GL_DYN) AS SINGLE
+' ...and each corner's texture (glVertSlot): GLDraw groups the corners by
+' texture with a list of their numbers (glIndex), so each texture is
+' switched to once a pass (glSlotCount, glSlotStart, glSlotFill: how many
+' corners each texture has, and where its part of the list starts)
+DIM SHARED glVertSlot(GL_BATCH) AS INTEGER, glIndex(GL_BATCH) AS _UNSIGNED LONG, glCurSlot AS INTEGER, glBumpOn AS INTEGER
+DIM SHARED glSlotCount(GL_GLOW_TEX) AS LONG, glSlotStart(GL_GLOW_TEX) AS LONG, glSlotFill(GL_GLOW_TEX) AS LONG
+DIM SHARED glFaceNX, glFaceNY, glFaceNZ, glFaceTX, glFaceTY, glFaceTZ, glCellLX, glCellLY, glCellDir
+DIM SHARED glCornerLX, glCornerLY, glCornerLZ
+DIM SHARED glMat(15) AS SINGLE, glMs
+' --- The OpenGL extras (chapter 24): what else each frame hands over ---
+'   glSet(id, half)    every setting (SET_ numbers), so SUB _GL sees this
+'                      frame's choices
+'   glPitch            how far you look up (+) or down (-), in radians
+'   glDyn...           up to GL_DYN moving lights - your muzzle flash, blasts,
+'                      bolts - and glDynReach(x, y, k, half): 1 if moving
+'                      light k reaches cell (x, y), 0 if a wall's in the way
+'   glPart...          the particles: sparks, embers, dust
+'   glHurt, glRail     how hurt you just were, the railgun's flash (0..1)
+'   glHeat...          explosions, for the heat shimmer
+DIM SHARED glSet(40, 1), glPitch(1)
+DIM SHARED glNumDyn(1) AS INTEGER, glDynX(GL_DYN, 1), glDynY(GL_DYN, 1), glDynZ(GL_DYN, 1), glDynRad(GL_DYN, 1)
+DIM SHARED glDynR(GL_DYN, 1), glDynG(GL_DYN, 1), glDynB(GL_DYN, 1), glDynReach(MAP_SIZE, MAP_SIZE, GL_DYN, 1) AS _BYTE
+DIM SHARED glNumPart(1) AS INTEGER, glPartX(MAX_PART, 1), glPartY(MAX_PART, 1), glPartZ(MAX_PART, 1), glPartSize(MAX_PART, 1)
+DIM SHARED glPartR(MAX_PART, 1), glPartG(MAX_PART, 1), glPartB(MAX_PART, 1)
+DIM SHARED glHurt(1), glHeatAmt(GL_HEAT, 1), glRail(1), glNumHeat(1) AS INTEGER, glHeatX(GL_HEAT, 1), glHeatY(GL_HEAT, 1)
+' The light tables (chapter 24): the light for the graphics card to look up
+' itself, every pixel - GL_TABLE x GL_TABLE cells of 4 numbers, for each half
+' of the snapshot (half * GL_TABLE_SIZE onwards):
+'   glLitData    a cell's red, green and blue light, and 1 if it's open
+'   glInfoData   the middle of the light on it (x, y), and how much of its
+'                light that is (glLitDir)
+'   glDynData    which of the 4 moving lights reach it (1 or 0 each)
+CONST GL_TABLE = 64, GL_TABLE_SIZE = 64 * 64 * 4
+DIM SHARED glLitData(2 * GL_TABLE_SIZE) AS SINGLE, glInfoData(2 * GL_TABLE_SIZE) AS SINGLE, glDynData(2 * GL_TABLE_SIZE) AS SINGLE
+' (for the moving lights' flood fill: the cells waiting, and which were
+' reached this time - fillSeen() = fillStamp)
+DIM SHARED fillX(MAP_SIZE * MAP_SIZE) AS INTEGER, fillY(MAP_SIZE * MAP_SIZE) AS INTEGER, fillD(MAP_SIZE * MAP_SIZE) AS INTEGER
+DIM SHARED fillSeen(MAP_SIZE, MAP_SIZE) AS LONG, fillStamp AS LONG
+' The particles themselves (spawned and moved by the game, chapter 13):
+' where, how fast, how long they've left (partLife, 0 = free) out of
+' partMax, colour, size, and kind (PART_)
+CONST PART_SPARK = 1, PART_EMBER = 2, PART_DUST = 3
+DIM SHARED partX(MAX_PART), partY(MAX_PART), partZ(MAX_PART), partVX(MAX_PART), partVY(MAX_PART), partVZ(MAX_PART)
+DIM SHARED partLife(MAX_PART) AS INTEGER, partMax(MAX_PART) AS INTEGER, partR(MAX_PART), partG(MAX_PART), partB(MAX_PART)
+DIM SHARED partSize(MAX_PART), partKind(MAX_PART) AS INTEGER, partNext AS INTEGER, dustCount AS INTEGER
+' Each texture slot's file name (LoadTex), so OpenGL can tell what a
+' texture is - a floor that should shine, a screen that should flicker
+DIM SHARED texName$(T_SLOTS)
+DIM SHARED pitch ' (looking up and down, chapter 8 - OpenGL only)
+
 '-----------------------------------------------------------------------------
 ' CHAPTER 6: LOADING THE PICTURES AND SOUNDS
 '-----------------------------------------------------------------------------
@@ -541,10 +708,12 @@ mtypeHitSnd&(5) = LoadSnd&("sentry-hit.wav") : mtypeDieSnd&(5) = LoadSnd&("sentr
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 13
+CONST NUM_SETTINGS = 28
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
-CONST SET_XALPHA = 11, SET_XFEEDBACK = 12, SET_HURTDIR = 13
+CONST SET_XALPHA = 11, SET_XFEEDBACK = 12, SET_HURTDIR = 13, SET_RENDERER = 14, SET_FPS = 15
+CONST SET_BUMP = 16, SET_GLOW = 17, SET_NEON = 18, SET_SMOOTH = 19, SET_DYNLIGHT = 20, SET_SHADOWS = 21
+CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, SET_HITFX = 26, SET_RETRO = 27, SET_LOOK = 28
 DIM SHARED setting(NUM_SETTINGS), setDefault(NUM_SETTINGS), setMin(NUM_SETTINGS), setMax(NUM_SETTINGS)
 DIM SHARED setStep(NUM_SETTINGS), setKind(NUM_SETTINGS), setKey$(NUM_SETTINGS), setLabel$(NUM_SETTINGS)
 ' MI_ = Menu Item kinds (what a line of a menu is and does)
@@ -564,6 +733,23 @@ DefineSetting SET_MOUSE,     "mouse_speed",        "MOUSE LOOK SPEED",   MI_SLID
 DefineSetting SET_XALPHA,    "crosshair_opacity",  "CROSSHAIR OPACITY",  MI_SLIDER, 10, 100, 10,  100
 DefineSetting SET_XFEEDBACK, "crosshair_feedback", "CROSSHAIR FEEDBACK", MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_HURTDIR,   "damage_indicators",  "DAMAGE INDICATORS",  MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_RENDERER,  "renderer",           "RENDERER",           MI_CHOICE, 1,  2,   1,   1 ' 1 software, 2 OpenGL (chapter 24)
+DefineSetting SET_FPS,       "show_fps",           "SHOW FPS",           MI_TOGGLE, 0,  1,   1,   0
+DefineSetting SET_BUMP,      "bump_mapping",       "BUMP MAPPING",       MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
+DefineSetting SET_GLOW,      "glows",              "GLOWS",              MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
+' The OpenGL effects (chapter 24; SETTINGS > EFFECTS) and the two OpenGL
+' view settings (SETTINGS > VIDEO). SCREEN FX: 1 off, 2 scanlines, 3 CRT.
+DefineSetting SET_NEON,      "neon",               "NEON",               MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_SMOOTH,    "smooth_light",       "SMOOTH LIGHT",       MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_DYNLIGHT,  "moving_lights",      "MOVING LIGHTS",      MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_SHADOWS,   "shadows",            "SHADOWS",            MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_PARTICLES, "particles",          "PARTICLES",          MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_REFLECT,   "reflections",        "WET FLOORS",         MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_BLOOM,     "bloom",              "BLOOM",              MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_SCREENFX,  "screen_fx",          "SCREEN FX",          MI_CHOICE, 1,  3,   1,   1
+DefineSetting SET_HITFX,     "hit_fx",             "HIT FX",             MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_RETRO,     "retro_res",          "RETRO RESOLUTION",   MI_TOGGLE, 0,  1,   1,   0
+DefineSetting SET_LOOK,      "look_up_down",       "LOOK UP / DOWN",     MI_TOGGLE, 0,  1,   1,   1
 ' BIND_ = a key binding's number: what each one does, its name in the
 ' settings file, its menu label, and its key to start with (a _KEYDOWN
 ' code: letters as lower case, 32 Space, 100306 left Ctrl, 16128 F5,
@@ -584,7 +770,7 @@ DefineBind BIND_QUICKLOAD, "key_quickload", "QUICK LOAD",   17152
 DefineBind BIND_MAP, "key_map", "MAP", 9
 ' SCR_ = the menu's screens; MA_ = Menu Actions (what choosing a button does)
 CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
-CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10
+CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
 CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6
 ' The items on the menu screen showing now: label, kind (MI_), what it
 ' refers to (a screen, a setting, a binding or a save slot), its action
@@ -700,9 +886,9 @@ DO
     ' WHILE _MOUSEINPUT reads them all, one at a time, until the queue is
     ' empty. A click that starts and ends between two frames would be
     ' missed by just checking the button, so "clicked" remembers it.
-    mouseDX = 0 : mouseWheel = 0
+    mouseDX = 0 : mouseDY = 0 : mouseWheel = 0
     WHILE _MOUSEINPUT
-        mouseDX = mouseDX + _MOUSEMOVEMENTX
+        mouseDX = mouseDX + _MOUSEMOVEMENTX : mouseDY = mouseDY + _MOUSEMOVEMENTY
         mouseWheel = mouseWheel + _MOUSEWHEEL
         IF _MOUSEBUTTON(1) THEN clicked = -1
     WEND
@@ -717,7 +903,7 @@ DO
     escDown = _KEYDOWN(27)
     IF escDown AND NOT escWas THEN
         menuInGame = -1 : GOSUB RunMenu
-        mouseDX = 0 : mouseWheel = 0 : clicked = 0 : fireDown = 0 : spaceDown = 0
+        mouseDX = 0 : mouseDY = 0 : mouseWheel = 0 : clicked = 0 : fireDown = 0 : spaceDown = 0
         fireWait = 15 ' (so the click that closed the menu doesn't fire)
     END IF
     escWas = _KEYDOWN(27)
@@ -725,7 +911,7 @@ DO
     IF dead THEN
         ' Dead: the view stays put; click or Space (after a moment) starts over
         IF TIMER - deadAt! > 1.2 AND ((fireDown AND NOT fireWas) OR (spaceDown AND NOT spaceWas)) THEN GOSUB RestartLevel
-        mouseDX = 0 : mouseWheel = 0
+        mouseDX = 0 : mouseDY = 0 : mouseWheel = 0
     END IF
 
     ' Aiming down the sights: hold the right mouse button (_MOUSEBUTTON(2)).
@@ -741,6 +927,20 @@ DO
     turn = - mouseDX * turnSpeed / zoom ' (slower when zoomed, so aiming stays steady)
     oldDirX = dirX : dirX = dirX * COS(turn) - dirY * SIN(turn) : dirY = oldDirX * SIN(turn) + dirY * COS(turn)
     oldPlaneX = planeX : planeX = planeX * COS(turn) - planeY * SIN(turn) : planeY = oldPlaneX * SIN(turn) + planeY * COS(turn)
+
+    ' Looking up and down - only with OpenGL (chapter 24), which can tilt
+    ' its camera; the raycaster's world has no up or down to look at
+    ' (LOOK UP / DOWN in SETTINGS > VIDEO). Moving the mouse forward looks
+    ' up, as far as 0.6 radians (about 34 degrees) each way. Shots still go
+    ' straight ahead: like Doom, whatever's in the middle column is hit,
+    ' high or low. Otherwise the view eases back to level.
+    IF glMode AND setting(SET_LOOK) AND NOT dead THEN
+        pitch = pitch - mouseDY / DisplayScale! * turnSpeed / zoom
+        IF pitch > 0.6 THEN pitch = 0.6
+        IF pitch < -0.6 THEN pitch = -0.6
+    ELSE
+        pitch = pitch * 0.8
+    END IF
 
     ' Zooming. The camera plane's length sets how wide the view is, so a
     ' shorter plane (fovPlane / zoom) is a narrower view - and a narrower
@@ -1053,6 +1253,20 @@ DO
                 NEXT
                 IF bestMonster THEN target = bestMonster : GOSUB HitMonster : crossFlash = 6 ' (the crosshair flashes: a hit)
                 IF bestDeco THEN targetDeco = bestDeco : GOSUB HitDeco
+                ' Sparks where it landed (chapter 24's particles): on the
+                ' monster, or on the wall - the shot's ray (dir + plane * aim),
+                ' as far as the wall in that column
+                IF bestMonster THEN
+                    SpawnSparks monsterX(bestMonster), monsterY(bestMonster), 0.45, 8, 255, 150, 60
+                ELSEIF bestDeco = 0 THEN
+                    hitDist = zBuffer(screenCol) * 0.97
+                    SELECT CASE currentGun
+                        CASE W_BLASTER : SpawnSparks playerX + (dirX + planeX * aim) * hitDist, playerY + (dirY + planeY * aim) * hitDist, 0.5, 6, 255, 70, 120
+                        CASE W_SCATTER : SpawnSparks playerX + (dirX + planeX * aim) * hitDist, playerY + (dirY + planeY * aim) * hitDist, 0.5, 3, 255, 180, 70
+                        CASE W_REPEATER : SpawnSparks playerX + (dirX + planeX * aim) * hitDist, playerY + (dirY + planeY * aim) * hitDist, 0.5, 4, 80, 220, 255
+                        CASE ELSE : SpawnSparks playerX + (dirX + planeX * aim) * hitDist, playerY + (dirY + planeY * aim) * hitDist, 0.5, 14, 170, 240, 255
+                    END SELECT
+                END IF
             NEXT
         ELSEIF NOT fireWas THEN
             PlaySfx sndEmpty&, 0.7
@@ -1142,6 +1356,7 @@ DO
             boltX(i) = boltX(i) + boltDX(i) * BOLT_SPEED : boltY(i) = boltY(i) + boltDY(i) * BOLT_SPEED
             IF NOT Walkable(boltX(i), boltY(i)) THEN
                 boltOn(i) = 0 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
+                SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
             ELSEIF NOT dead AND (boltX(i) - playerX) ^ 2 + (boltY(i) -playerY) ^ 2 < 0.35 * 0.35 THEN
                 boltOn(i) = 0 : damage = boltDamage(i)
                 hurtFromX = boltX(i) - boltDX(i) * 2 : hurtFromY = boltY(i) - boltDY(i) * 2 ' (back along its path)
@@ -1165,6 +1380,10 @@ DO
         IF blastTime(i) > 0 THEN blastTime(i) = blastTime(i) - 1
     NEXT
     IF railBeam > 0 THEN railBeam = railBeam - 1
+    ' Particles (sparks, embers and dust, drawn by OpenGL - chapter 24) move
+    ' on; dust drifts in around you with the PARTICLES effect on
+    UpdateParticles
+    IF glMode AND setting(SET_PARTICLES) THEN SpawnDust playerX, playerY
 
     IF hurtFlash > 0 THEN hurtFlash = hurtFlash - 1
     IF pickFlash > 0 THEN pickFlash = pickFlash - 1
@@ -1213,65 +1432,81 @@ DO
     ' by the fog - fog& goes from 256 close up down to 0 (black) 16 cells
     ' away. ShadeRGB~& (chapter 23) multiplies the texture's red, green and
     ' blue by the light's.
+    '
+    ' Which renderer draws this frame (RENDERER in the menu: chapter 21)?
+    ' This code, or the graphics card (OPENGL, chapter 24). With OpenGL the
+    ' light is still worked out here, and the raycaster still runs - for
+    ' the zBuffer, the map, and to find the cells you can see - but the
+    ' loops that colour in pixels one at a time are skipped. glWrite is the
+    ' half of OpenGL's snapshot (chapter 5) this frame fills in.
+    glMode = (setting(SET_RENDERER) = 2)
+    glWrite = 1 - glBuf : glFrameNo = glFrameNo + 1 : glNumSpr(glWrite) = 0
+    viewStart# = TIMER(0.001) ' (for SHOW FPS: how long the 3D view takes)
     ' This frame's light: the level's own (UpdateLight, chapter 23), then
     ' the flashes - your muzzle, explosions, bolts - each a glow that fades
     ' out over a few cells (AddGlow, chapter 23)
+    ' (With OpenGL's MOVING LIGHTS, the flashes are real lights of their own,
+    ' lighting every pixel - chapter 24 - so they're left out of the cells.)
     UpdateLight
-    IF muzzleFlash > 0 THEN AddGlow playerX, playerY, 5, 70 * muzzleFlash, 40 * muzzleFlash, 40 * muzzleFlash
-    FOR i = 1 TO MAX_BLASTS
-        IF blastTime(i) > 0 THEN
-            f = blastTime(i) / BLAST_FRAMES * blastSize(i)
-            AddGlow blastX(i), blastY(i), 2 + 5 * blastSize(i), 400 * f, 220 * f, 90 * f
-        END IF
-    NEXT
-    FOR i = 1 TO MAX_BOLTS
-        IF boltOn(i) THEN AddGlow boltX(i), boltY(i), 2.5, 160, 40, 170
-    NEXT
-    rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
-    rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY
-    FOR y = RENDER_H \ 2 TO RENDER_H - 1
-        rowDist = (viewH / 2) /(y - RENDER_H / 2 + 0.5)
-        floorStepX = rowDist * (rayDirX1 - rayDirX0) / RENDER_W : floorStepY = rowDist * (rayDirY1 - rayDirY0) / RENDER_W
-        floorX = playerX + rowDist * rayDirX0 : floorY = playerY + rowDist * rayDirY0
-        fog& = 256 - rowDist * 16
-        IF fog& < 0 THEN fog& = 0
-        floorRow = y * RENDER_W : ceilRow = (RENDER_H - 1 - y) * RENDER_W
-        lastCellX = -1 : lastCellY = -1
-        FOR x = 0 TO RENDER_W - 1
-            cellX = INT(floorX) : cellY = INT(floorY)
-            ' Neighbouring pixels are nearly always in the same cell, so a
-            ' cell's textures and light are only looked up when we cross
-            ' into a new one
-            IF cellX <> lastCellX OR cellY <> lastCellY THEN
-                lastCellX = cellX : lastCellY = cellY : splitCell = 0
-                IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
-                    cellFloor = floorTex(cellX, cellY) : cellCeil = ceilTex(cellX, cellY)
-                    splitCell = floorSplit(cellX, cellY) OR ceilSplit(cellX, cellY)
-                    lightR& = litR(cellX, cellY) * fog& \ 256 : lightG& = litG(cellX, cellY) * fog& \ 256 : lightB& = litB(cellX, cellY) * fog& \ 256
-                ELSE
-                    cellFloor = T_FLOOR + 1 : cellCeil = T_CEIL + 1
-                    lightR& = ambientR * fog& \ 256 : lightG& = ambientG * fog& \ 256 : lightB& = ambientB * fog& \ 256
-                END IF
-                IF lightR& > 256 THEN lightR& = 256 ' (full brightness at most: then the sums below can't overflow)
-                IF lightG& > 256 THEN lightG& = 256
-                IF lightB& > 256 THEN lightB& = 256
+    IF NOT (glMode AND setting(SET_DYNLIGHT) <> 0) THEN
+        IF muzzleFlash > 0 THEN AddGlow playerX, playerY, 5, 70 * muzzleFlash, 40 * muzzleFlash, 40 * muzzleFlash
+        FOR i = 1 TO MAX_BLASTS
+            IF blastTime(i) > 0 THEN
+                f = blastTime(i) / BLAST_FRAMES * blastSize(i)
+                AddGlow blastX(i), blastY(i), 2 + 5 * blastSize(i), 400 * f, 220 * f, 90 * f
             END IF
-            floorSlot = cellFloor : ceilSlot = cellCeil
-            IF splitCell THEN ' A cell split on the diagonal: which half is this pixel in?
-                IF floorSplit(cellX, cellY) THEN IF InDiagonalWall(floorSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN floorSlot = floorTex2(cellX, cellY)
-                IF ceilSplit(cellX, cellY) THEN IF InDiagonalWall(ceilSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN ceilSlot = ceilTex2(cellX, cellY)
-            END IF
-            texU = INT(floorX * TEX_SIZE) AND (TEX_SIZE - 1) : texV = INT(floorY * TEX_SIZE) AND (TEX_SIZE - 1)
-            ' The same sum as ShadeRGB~& (chapter 23), written out here: this
-            ' runs 120,000 times a frame, and calling a FUNCTION each time
-            ' would cost more than the sum itself
-            texel~& = texture(texU, texV, floorSlot)
-            pixels(floorRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
-            texel~& = texture(texU, texV, ceilSlot)
-            pixels(ceilRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
-            floorX = floorX + floorStepX : floorY = floorY + floorStepY
         NEXT
-    NEXT
+        FOR i = 1 TO MAX_BOLTS
+            IF boltOn(i) THEN AddGlow boltX(i), boltY(i), 2.5, 160, 40, 170
+        NEXT
+    END IF
+    IF NOT glMode THEN ' (OpenGL draws the floor and ceiling itself)
+        rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
+        rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY
+        FOR y = RENDER_H \ 2 TO RENDER_H - 1
+            rowDist = (viewH / 2) /(y - RENDER_H / 2 + 0.5)
+            floorStepX = rowDist * (rayDirX1 - rayDirX0) / RENDER_W : floorStepY = rowDist * (rayDirY1 - rayDirY0) / RENDER_W
+            floorX = playerX + rowDist * rayDirX0 : floorY = playerY + rowDist * rayDirY0
+            fog& = 256 - rowDist * 16
+            IF fog& < 0 THEN fog& = 0
+            floorRow = y * RENDER_W : ceilRow = (RENDER_H - 1 - y) * RENDER_W
+            lastCellX = -1 : lastCellY = -1
+            FOR x = 0 TO RENDER_W - 1
+                cellX = INT(floorX) : cellY = INT(floorY)
+                ' Neighbouring pixels are nearly always in the same cell, so a
+                ' cell's textures and light are only looked up when we cross
+                ' into a new one
+                IF cellX <> lastCellX OR cellY <> lastCellY THEN
+                    lastCellX = cellX : lastCellY = cellY : splitCell = 0
+                    IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+                        cellFloor = floorTex(cellX, cellY) : cellCeil = ceilTex(cellX, cellY)
+                        splitCell = floorSplit(cellX, cellY) OR ceilSplit(cellX, cellY)
+                        lightR& = litR(cellX, cellY) * fog& \ 256 : lightG& = litG(cellX, cellY) * fog& \ 256 : lightB& = litB(cellX, cellY) * fog& \ 256
+                    ELSE
+                        cellFloor = T_FLOOR + 1 : cellCeil = T_CEIL + 1
+                        lightR& = ambientR * fog& \ 256 : lightG& = ambientG * fog& \ 256 : lightB& = ambientB * fog& \ 256
+                    END IF
+                    IF lightR& > 256 THEN lightR& = 256 ' (full brightness at most: then the sums below can't overflow)
+                    IF lightG& > 256 THEN lightG& = 256
+                    IF lightB& > 256 THEN lightB& = 256
+                END IF
+                floorSlot = cellFloor : ceilSlot = cellCeil
+                IF splitCell THEN ' A cell split on the diagonal: which half is this pixel in?
+                    IF floorSplit(cellX, cellY) THEN IF InDiagonalWall(floorSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN floorSlot = floorTex2(cellX, cellY)
+                    IF ceilSplit(cellX, cellY) THEN IF InDiagonalWall(ceilSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN ceilSlot = ceilTex2(cellX, cellY)
+                END IF
+                texU = INT(floorX * TEX_SIZE) AND (TEX_SIZE - 1) : texV = INT(floorY * TEX_SIZE) AND (TEX_SIZE - 1)
+                ' The same sum as ShadeRGB~& (chapter 23), written out here: this
+                ' runs 120,000 times a frame, and calling a FUNCTION each time
+                ' would cost more than the sum itself
+                texel~& = texture(texU, texV, floorSlot)
+                pixels(floorRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                texel~& = texture(texU, texV, ceilSlot)
+                pixels(ceilRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                floorX = floorX + floorStepX : floorY = floorY + floorStepY
+            NEXT
+        NEXT
+    END IF
 
     '-------------------------------------------------------------------------
     ' CHAPTER 15: DRAWING THE WALLS - THE RAYCASTER
@@ -1343,7 +1578,7 @@ DO
         cameraX = 2 * x / RENDER_W - 1
         rayDirX = dirX + planeX * cameraX : rayDirY = dirY + planeY * cameraX
         mapX = INT(playerX) : mapY = INT(playerY)
-        cellSeen(mapX, mapY) = -1
+        cellSeen(mapX, mapY) = -1 : glSeen(mapX, mapY, glWrite) = glFrameNo
         deltaDistX = ABS(1 / rayDirX) : deltaDistY = ABS(1 / rayDirY)
 
         IF rayDirX < 0 THEN stepX = -1 : sideDistX = (playerX - mapX) * deltaDistX ELSE stepX = 1 : sideDistX = (mapX + 1 - playerX) * deltaDistX
@@ -1359,6 +1594,7 @@ DO
             IF sideDistX < sideDistY THEN sideDistX = sideDistX + deltaDistX : mapX = mapX + stepX : side = 0 ELSE sideDistY = sideDistY + deltaDistY : mapY = mapY + stepY : side = 1
             cellValue = worldMap(mapX, mapY)
             cellSeen(mapX, mapY) = -1 ' (for the map: you've seen this cell)
+            glSeen(mapX, mapY, glWrite) = glFrameNo ' (and for OpenGL: a cell to draw - chapter 24)
             IF diagCorner(mapX, mapY) THEN
                 ' Diagonal wall: came in through its solid half, that's a plain
                 ' wall face; else it hits the diagonal if it crosses it in here
@@ -1453,11 +1689,13 @@ DO
         IF lightG& > 256 THEN lightG& = 256
         IF lightB& > 256 THEN lightB& = 256
 
-        FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
-            texel~& = texture(texX, INT(texPos) AND (TEX_SIZE - 1), texSlot)
-            pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
-            texPos = texPos + texStep
-        NEXT
+        IF NOT glMode THEN ' (OpenGL draws the walls itself)
+            FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
+                texel~& = texture(texX, INT(texPos) AND (TEX_SIZE - 1), texSlot)
+                pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                texPos = texPos + texStep
+            NEXT
+        END IF
 
         ' A rising shutter in front: its lower edge has lifted shutterOpen of
         ' the way up, so draw only the part still hanging down
@@ -1473,10 +1711,12 @@ DO
             IF shutterSide = 1 THEN fog& = fog& * 0.7
             lightR& = litR(shutterLitX, shutterLitY) * fog& \ 256 : lightG& = litG(shutterLitX, shutterLitY) * fog& \ 256 : lightB& = litB(shutterLitX, shutterLitY) * fog& \ 256
             texX = INT(shutterU * TEX_SIZE) AND (TEX_SIZE - 1)
-            FOR y = drawStart TO drawEnd
-                pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), T_SHUTTER), lightR&, lightG&, lightB&)
-                texPos = texPos + texStep
-            NEXT
+            IF NOT glMode THEN
+                FOR y = drawStart TO drawEnd
+                    pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), T_SHUTTER), lightR&, lightG&, lightB&)
+                    texPos = texPos + texStep
+                NEXT
+            END IF
             IF shutterOpen < 0.5 THEN zBuffer(x) = shutterDist ' Mostly down: things behind it stay hidden
         END IF
     NEXT x
@@ -1586,19 +1826,34 @@ DO
             IF lightG& < drawMinShade(i) THEN lightG& = drawMinShade(i)
             IF lightB& < drawMinShade(i) THEN lightB& = drawMinShade(i)
             spriteSz = spriteSize(drawSprite(i)) : spriteSlot = drawSprite(i)
-            FOR screenX = spriteLeft TO spriteLeft + spriteW - 1
-                IF screenX >= 0 AND screenX < RENDER_W THEN
-                    IF transformY < zBuffer(screenX) THEN
-                        spriteU = (screenX - spriteLeft) * spriteSz \ spriteW
-                        FOR screenY = spriteTop TO spriteTop + spriteH - 1
-                            IF screenY >= 0 AND screenY < RENDER_H THEN
-                                texel~& = spriteTex(spriteU,(screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
-                                IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = ShadeRGB~&(texel~&, lightR&, lightG&, lightB&)
-                            END IF
-                        NEXT
+            IF glMode THEN
+                ' OpenGL draws it (chapter 24): just note where it stands, how
+                ' big it is, its picture and its light (256 here is 1 there:
+                ' full). It's drawScale cells tall. The loop below draws it as
+                ' wide on the screen as it is tall, and on the screen a cell
+                ' across isn't quite as many pixels as a cell up - so in cells,
+                ' that's fovPlane * RENDER_H / RENDER_W * drawScale either side
+                ' of its middle.
+                n = glNumSpr(glWrite) + 1 : glNumSpr(glWrite) = n
+                glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i)
+                glSprHalfW(n, glWrite) = drawScale(i) * fovPlane * RENDER_H / RENDER_W
+                glSprH(n, glWrite) = drawScale(i) * drawSquash(i) : glSprSlot(n, glWrite) = spriteSlot
+                glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256
+            ELSE
+                FOR screenX = spriteLeft TO spriteLeft + spriteW - 1
+                    IF screenX >= 0 AND screenX < RENDER_W THEN
+                        IF transformY < zBuffer(screenX) THEN
+                            spriteU = (screenX - spriteLeft) * spriteSz \ spriteW
+                            FOR screenY = spriteTop TO spriteTop + spriteH - 1
+                                IF screenY >= 0 AND screenY < RENDER_H THEN
+                                    texel~& = spriteTex(spriteU,(screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
+                                    IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = ShadeRGB~&(texel~&, lightR&, lightG&, lightB&)
+                                END IF
+                            NEXT
+                        END IF
                     END IF
-                END IF
-            NEXT
+                NEXT
+            END IF
         END IF
     NEXT
 
@@ -1622,8 +1877,82 @@ DO
         shakeEdge = shake : shakeX = (RND - 0.5) * shake : shakeY = (RND - 0.5) * shake
     END IF
     shake = shake * 0.85 : IF shake > 16 THEN shake = 16
-    _MEMCOPY pixelsMem, pixelsMem.OFFSET, pixelsMem.SIZE TO renderMem, renderMem.OFFSET
-    _PUTIMAGE (shakeX - shakeEdge, shakeY - shakeEdge)-(799 + shakeX + shakeEdge, 599 + shakeY + shakeEdge), renderImg&, 0
+    '
+    ' With OpenGL (chapter 24) there's no picture to copy: instead we finish
+    ' the snapshot - the camera, every cell's light, every door - and then
+    ' switch glBuf over to it, in one line, so SUB _GL only ever sees a
+    ' whole frame. The screen is cleared to see-through (alpha 0), so the
+    ' graphics card's view shows from underneath (chapter 1) wherever the
+    ' HUD below doesn't draw.
+    IF glMode THEN
+        glCamX(glWrite) = playerX : glCamY(glWrite) = playerY : glDirX(glWrite) = dirX : glDirY(glWrite) = dirY
+        glPlaneLen(glWrite) = fovPlane / zoom : glZoom(glWrite) = zoom : glFullMode(glWrite) = _FULLSCREEN
+        glShakeX(glWrite) = shakeX : glShakeY(glWrite) = shakeY : glShakeEdge(glWrite) = shakeEdge
+        FOR i = 1 TO NUM_SETTINGS : glSet(i, glWrite) = setting(i) : NEXT
+        glPitch(glWrite) = pitch : glHurt(glWrite) = hurtFlash / 14 : glRail(glWrite) = railBeam / 8
+        IF ABS(pitch) > 0.01 THEN GLMarkWide playerX, playerY, dirX, dirY, fovPlane / zoom, zoom ' (tilted, the view sees past the rays' edges)
+        GLHandOverExtras playerX, playerY, dirX, dirY, muzzleFlash ' Moving lights, particles, explosions (chapter 24)
+        FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
+            glLitR(x, y, glWrite) = litR(x, y) : glLitG(x, y, glWrite) = litG(x, y) : glLitB(x, y, glWrite) = litB(x, y)
+            glDoor(x, y, glWrite) = doorOpen(x, y)
+            ' Bumps: the middle of the light on this cell (or the cell's own
+            ' middle, if it has none), and how much of its light that is
+            IF litSumW(x, y) > 0 THEN
+                glLitCX(x, y, glWrite) = litSumX(x, y) / litSumW(x, y) : glLitCY(x, y, glWrite) = litSumY(x, y) / litSumW(x, y)
+                glLitDir(x, y, glWrite) = litSumW(x, y) / (litR(x, y) + litG(x, y) + litB(x, y) + 1)
+            ELSE
+                glLitCX(x, y, glWrite) = x + 0.5 : glLitCY(x, y, glWrite) = y + 0.5 : glLitDir(x, y, glWrite) = 0
+            END IF
+            ' ...and the same into the light tables, for the graphics card
+            ' (chapter 24) - only the map's cells: the rest stay 0
+            IF x < MAP_SIZE AND y < MAP_SIZE THEN
+                t& = glWrite * GL_TABLE_SIZE + (y * GL_TABLE + x) * 4
+                glLitData(t&) = litR(x, y) : glLitData(t& + 1) = litG(x, y) : glLitData(t& + 2) = litB(x, y)
+                v = worldMap(x, y) : glLitData(t& + 3) = (v <= 0 OR v = 2 OR diagCorner(x, y) <> 0) * -1
+                glInfoData(t&) = glLitCX(x, y, glWrite) : glInfoData(t& + 1) = glLitCY(x, y, glWrite) : glInfoData(t& + 2) = glLitDir(x, y, glWrite)
+                FOR k = 1 TO GL_DYN : glDynData(t& + k - 1) = glDynReach(x, y, k, glWrite) : NEXT
+            END IF
+        NEXT : NEXT
+        ' Glows: bolts, explosions, and every lamp and terminal that's lit
+        ' (its light's colour, flickering with it)
+        n = 0
+        FOR i = 1 TO MAX_BOLTS
+            IF boltOn(i) THEN
+                n = n + 1 : glGlowX(n, glWrite) = boltX(i) : glGlowY(n, glWrite) = boltY(i) : glGlowZ(n, glWrite) = 0.49
+                glGlowSize(n, glWrite) = 0.35 : glGlowR(n, glWrite) = 1 : glGlowG(n, glWrite) = 0.25 : glGlowB(n, glWrite) = 0.9
+            END IF
+        NEXT
+        FOR i = 1 TO MAX_BLASTS
+            IF blastTime(i) > 0 THEN
+                f = blastTime(i) / BLAST_FRAMES : blastScale = (0.6 + 0.7 * (1 - f)) * blastSize(i)
+                n = n + 1 : glGlowX(n, glWrite) = blastX(i) : glGlowY(n, glWrite) = blastY(i)
+                glGlowZ(n, glWrite) = 0.05 + (1 - blastSize(i)) * 0.35 + blastScale / 2 : glGlowSize(n, glWrite) = blastScale
+                glGlowR(n, glWrite) = f : glGlowG(n, glWrite) = 0.55 * f : glGlowB(n, glWrite) = 0.2 * f
+            END IF
+        NEXT
+        FOR l = 1 TO numLights
+            IF lightDeco(l) THEN
+                IF decoOn(lightDeco(l)) AND lightNow(l) > 0 THEN
+                    i = lightDeco(l) : brightest = lightR(l) : IF lightG(l) > brightest THEN brightest = lightG(l)
+                    IF lightB(l) > brightest THEN brightest = lightB(l)
+                    n = n + 1 : glGlowX(n, glWrite) = decoX(i) : glGlowY(n, glWrite) = decoY(i)
+                    glGlowZ(n, glWrite) = DecoScale(decoKind(i)) * 0.8
+                    IF decoKind(i) = 2 THEN glGlowSize(n, glWrite) = 0.6 ELSE glGlowSize(n, glWrite) = 0.4 ' (lamps bigger)
+                    f = lightNow(l) / (brightest + 1)
+                    glGlowR(n, glWrite) = lightR(l) * f : glGlowG(n, glWrite) = lightG(l) * f : glGlowB(n, glWrite) = lightB(l) * f
+                END IF
+            END IF
+        NEXT
+        glNumGlow(glWrite) = n
+        glFrame(glWrite) = glFrameNo
+        glBuf = glWrite : glReady = -1 ' (the switch: from now on, SUB _GL draws this one)
+        CLS , _RGBA32(0, 0, 0, 0)
+    ELSE
+        glReady = 0
+        _MEMCOPY pixelsMem, pixelsMem.OFFSET, pixelsMem.SIZE TO renderMem, renderMem.OFFSET
+        _PUTIMAGE (shakeX - shakeEdge, shakeY - shakeEdge)-(799 + shakeX + shakeEdge, 599 + shakeY + shakeEdge), renderImg&, 0
+    END IF
+    viewMs = (TIMER(0.001) - viewStart#) * 1000 ' (for SHOW FPS)
 
     '-------------------------------------------------------------------------
     ' CHAPTER 18: THE GUN AND THE HUD
@@ -1761,6 +2090,26 @@ DO
         IF TIMER - deadAt! > 1.2 THEN HudText 400 - 15 * 8, 330, "Click or press Space to try again", _RGB32(255, 255, 255)
     END IF
 
+    ' SHOW FPS (SETTINGS > VIDEO): frames a second, counted over each
+    ' second, and how long the 3D view takes to draw, smoothed a little -
+    ' for OpenGL, our part of it plus SUB _GL's (glMs, chapter 24). Try
+    ' both renderers and compare. (_LIMIT 60 keeps the frames at 60 at
+    ' most, so the milliseconds tell you more: 16.7 is all of a frame.)
+    fpsFrames = fpsFrames + 1
+    IF TIMER - fpsStart! >= 1 OR TIMER < fpsStart! THEN fpsShown = fpsFrames : fpsFrames = 0 : fpsStart! = TIMER
+    IF glMode THEN viewMs = viewMs + glMs
+    viewAvg = viewAvg * 0.9 + viewMs * 0.1
+    IF setting(SET_FPS) THEN
+        IF glMode THEN fpsText$ = "OPENGL" ELSE fpsText$ = "SOFTWARE"
+        fpsText$ = fpsText$ + "   FPS" + STR$(fpsShown) + "   3D VIEW" + STR$(INT(viewAvg * 10) / 10) + " MS"
+        HudText 400 - LEN(fpsText$) * 4, 8, fpsText$, _RGB32(255, 255, 120)
+    END IF
+
+    ' With OpenGL, the HUD goes to the graphics card as a picture, to be
+    ' laid over the 3D view there (chapter 24): GLSL_filter_capture copies
+    ' the screen for SUB _GL, and our own screen layer is switched off
+    IF glMode THEN GLSL_filter_capture
+    GLScreenLayer glMode
     _DISPLAY ' Show the finished frame (chapter 7)
 LOOP ' (forever: you leave the game from the menu - chapter 21)
 
@@ -1876,6 +2225,7 @@ FOR blastSlot = 1 TO MAX_BLASTS
     IF blastTime(blastSlot) = 0 THEN
         blastX(blastSlot) = newBlastX : blastY(blastSlot) = newBlastY
         blastSize(blastSlot) = newBlastSize : blastTime(blastSlot) = BLAST_FRAMES
+        SpawnEmbers newBlastX, newBlastY, newBlastSize ' (and a burst of embers: chapter 24's particles)
         EXIT FOR
     END IF
 NEXT
@@ -2001,6 +2351,7 @@ DO
 
     ' Draw. A slammed number starts big and eases down to its size over 10
     ' frames - the same ease as the menu's items (chapter 21), backwards.
+    CLS , _RGBA32(0, 0, 0, 0) ' (see-through, for OpenGL's view underneath: chapter 24)
     _PUTIMAGE , screenshot&, 0
     LINE (0, 0)-(799, 599), _RGBA32(0, 0, 0, 180), BF
     shakeX = (RND - 0.5) * tallyShake * 2 : shakeY = (RND - 0.5) * tallyShake * 2
@@ -2027,6 +2378,8 @@ DO
         IF level = NUM_LEVELS THEN prompt$ = "CLICK OR PRESS SPACE TO PLAY AGAIN" ELSE prompt$ = "CLICK OR PRESS SPACE FOR THE NEXT SECTOR"
         MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
     END IF
+    IF glReady THEN GLSL_filter_capture ' (OpenGL draws the tally over its view: chapter 24)
+    GLScreenLayer glReady
     _DISPLAY
 LOOP
 _FREEIMAGE screenshot&
@@ -2039,6 +2392,8 @@ RETURN
 
 ' --- Start (or restart) the level: read its map, and reset everything in it
 LoadLevel:
+glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
+FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
     worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorKey(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0
     floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
@@ -2058,6 +2413,7 @@ READ levelName$
 FOR k = 1 TO 6 : READ file$ : LoadTex file$, k : NEXT ' Walls # N C K P G
 FOR k = 1 TO 4 : READ file$ : LoadTex file$, T_FLOOR + k : NEXT
 FOR k = 1 TO 2 : READ file$ : LoadTex file$, T_CEIL + k : NEXT
+glTexVersion = glTexVersion + 1 ' (new textures: OpenGL needs them again - chapter 24)
 READ ambientLevel, ambientTintR, ambientTintG, ambientTintB ' The level's ambient light: brightness, then colour
 ambientR = ambientLevel * ambientTintR / 255 : ambientG = ambientLevel * ambientTintG / 255 : ambientB = ambientLevel * ambientTintB / 255
 FOR k = 1 TO 7
@@ -2315,12 +2671,15 @@ DO
     ' Draw: what's behind the menu, then the menu itself
     IF NOT menuDone THEN
         IF menuInGame THEN
+            CLS , _RGBA32(0, 0, 0, 0) ' (see-through, for OpenGL's view underneath: chapter 24)
             _PUTIMAGE , menuBackdrop&, 0
             LINE (0, 0)-(799, 599), _RGBA32(8, 0, 20, 200), BF
         ELSE
             DrawMenuBackdrop menuT
         END IF
         DrawMenu menuT
+        IF glReady THEN GLSL_filter_capture ' (OpenGL draws the menu over its view: chapter 24)
+        GLScreenLayer glReady
         _DISPLAY
     END IF
 LOOP UNTIL menuDone
@@ -3040,6 +3399,7 @@ DATA "###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG"
 ' to fit; then POINT reads its pixels into the array. POINT is slow, but this
 ' only happens while loading.
 SUB LoadTex(file$, slot AS INTEGER)
+    texName$(slot) = LCASE$(file$) ' (what it is, for OpenGL's effects - chapter 24)
     path$ = AssetPath$(file$)
     img& = _LOADIMAGE(path$, 32)
     IF img& >= -1 THEN PRINT "Missing texture: "; path$ : SLEEP : SYSTEM
@@ -3573,6 +3933,8 @@ FUNCTION SettingText$(id)
         CASE SET_FOV : SettingText$ = v$ + CHR$(248) ' (a degree sign in QB64PE's font)
         CASE SET_XSTYLE : SettingText$ = CrossStyleName$(setting(id))
         CASE SET_XCOLOR : SettingText$ = CrossColorName$(setting(id))
+        CASE SET_RENDERER : IF setting(id) = 2 THEN SettingText$ = "OPENGL" ELSE SettingText$ = "SOFTWARE"
+        CASE SET_SCREENFX : SettingText$ = MID$("OFF      SCANLINESCRT      ", setting(id) * 9 - 8, 9)
         CASE ELSE : SettingText$ = v$
     END SELECT
 END FUNCTION
@@ -3686,7 +4048,20 @@ SUB BuildMenu(scr)
             menuTitle$ = "SETTINGS"
             AddMenuItem "AUDIO", MI_SUBMENU, SCR_AUDIO, 0, -1, ""
             AddMenuItem "GAMEPLAY", MI_SUBMENU, SCR_GAMEPLAY, 0, -1, ""
+            AddMenuItem "VIDEO", MI_SUBMENU, SCR_VIDEO, 0, -1, ""
+            AddMenuItem "EFFECTS", MI_SUBMENU, SCR_EFFECTS, 0, -1, ""
             AddMenuItem "CONTROLS", MI_SUBMENU, SCR_CONTROLS, 0, -1, ""
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_VIDEO
+            menuTitle$ = "VIDEO" : menuWide = -1
+            AddSettingItem SET_RENDERER : AddSettingItem SET_RETRO : AddSettingItem SET_LOOK : AddSettingItem SET_FPS
+            AddMenuItem "RETRO, LOOK UP / DOWN AND EFFECTS: OPENGL", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_EFFECTS
+            menuTitle$ = "EFFECTS (OPENGL)" : menuWide = -1
+            AddSettingItem SET_BUMP : AddSettingItem SET_SMOOTH : AddSettingItem SET_NEON : AddSettingItem SET_DYNLIGHT
+            AddSettingItem SET_SHADOWS : AddSettingItem SET_GLOW : AddSettingItem SET_PARTICLES : AddSettingItem SET_REFLECT
+            AddSettingItem SET_BLOOM : AddSettingItem SET_SCREENFX : AddSettingItem SET_HITFX
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_AUDIO
             menuTitle$ = "AUDIO" : menuWide = -1
@@ -4044,6 +4419,7 @@ END FUNCTION
 SUB UpdateLight
     FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
         litR(cellX, cellY) = ambientR : litG(cellX, cellY) = ambientG : litB(cellX, cellY) = ambientB
+        litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
     NEXT : NEXT
     FOR l = 1 TO numLights
         f = 1
@@ -4071,6 +4447,7 @@ SUB UpdateLight
         IF lightDeco(l) THEN
             IF NOT decoOn(lightDeco(l)) THEN f = 0
         END IF
+        lightNow(l) = f
         IF f > 0 THEN
             r = lightR(l) * f : g = lightG(l) * f : b = lightB(l) * f
             FOR e = lightFirst(l) TO lightFirst(l) + lightCount(l) - 1
@@ -4078,6 +4455,10 @@ SUB UpdateLight
                 litR(cellX, cellY) = litR(cellX, cellY) + r * w
                 litG(cellX, cellY) = litG(cellX, cellY) + g * w
                 litB(cellX, cellY) = litB(cellX, cellY) + b * w
+                strength = (r + g + b) * w ' (and where it comes from: chapter 24's bumps)
+                litSumX(cellX, cellY) = litSumX(cellX, cellY) + lightX(l) * strength
+                litSumY(cellX, cellY) = litSumY(cellX, cellY) + lightY(l) * strength
+                litSumW(cellX, cellY) = litSumW(cellX, cellY) + strength
             NEXT
         END IF
     NEXT
@@ -4096,6 +4477,10 @@ SUB AddGlow(x, y, radius, r, g, b)
                     litR(cellX, cellY) = litR(cellX, cellY) + r * w
                     litG(cellX, cellY) = litG(cellX, cellY) + g * w
                     litB(cellX, cellY) = litB(cellX, cellY) + b * w
+                    strength = (r + g + b) * w ' (where it comes from, for bumps)
+                    litSumX(cellX, cellY) = litSumX(cellX, cellY) + x * strength
+                    litSumY(cellX, cellY) = litSumY(cellX, cellY) + y * strength
+                    litSumW(cellX, cellY) = litSumW(cellX, cellY) + strength
                 END IF
             END IF
         NEXT
@@ -4203,3 +4588,1459 @@ SUB DrawHurtDirs(px, py, facingX, facingY)
     NEXT
 END SUB
 
+
+'-----------------------------------------------------------------------------
+' CHAPTER 24: THE SAME VIEW, DRAWN BY THE GRAPHICS CARD (OPENGL)
+'-----------------------------------------------------------------------------
+' Chapters 14-16 work out each of the view's 120,000 pixels in BASIC, one
+' at a time. That is exactly the job a graphics card is built for: it has
+' thousands of little processors that colour in pixels side by side.
+' QB64PE puts its window on the screen with OpenGL (the graphics card's
+' language), and it lets us join in. Give the program a SUB called _GL and
+' QB64PE calls it every time it draws the window; inside it, the _gl...
+' commands talk to the card. Set RENDERER to OPENGL in the menu (SETTINGS >
+' VIDEO) and the 3D view is drawn here instead. Turn on SHOW FPS to compare
+' how long the two take.
+'
+' SHAPES, NOT PIXELS. We don't tell the card about pixels. We describe the
+' world as triangles in 3D - two for each wall face, floor tile and ceiling
+' tile - each corner with a position, a spot on a texture and a colour,
+' and the card fills in every pixel in between. Positions are map cells,
+' plus a height: the floor is at 0, the ceiling at 1, your eye at 0.5.
+'
+' THE CAMERA is two matrices (tables of numbers that move points around).
+' The first, glMat, turns a map point into "camera space": how far to your
+' right, how far up, and how far in front - the same sum as chapter 16's
+' transformX and transformY, written as a table. The second, _glFrustum,
+' is the perspective: how far up and across the view reaches at 1 cell
+' away. Across, that's the camera plane's length (chapter 8). Up, half a
+' wall is half the view's height at 1 cell away (a wall one cell away is
+' viewH pixels tall, chapter 15), so the top is 1 / (2 * zoom). These are
+' the raycaster's own numbers, so both renderers show the very same view.
+'
+' TEXTURES go to the card once (GLSendTextures), straight from texture()
+' and spriteTex(). An array keeps its first index changing fastest, so
+' texture(x, y, slot) holds slot's picture in memory row after row, just as
+' the card wants it. A colour &HAARRGGBB is stored as the bytes B, G, R, A
+' (low byte first), which is the card's "BGRA". _GL_NEAREST picks the one
+' nearest texture pixel, with no smoothing, so it stays chunky.
+'
+' LIGHT AND FOG. Every frame the game puts each cell's light into three
+' small tables (glLitData..., chapter 17) that go to the card as textures,
+' and the world shader looks a pixel's light up in them: the cell in front
+' of the surface, times the fog (256 - distance * 16, as in chapters 14 and
+' 15), y-sides darker and diagonals in between, as before. (Without
+' shaders, each corner gets that colour instead, and the card blends it.)
+'
+' WHAT TO DRAW. All of it! The floor and ceiling of every open cell and
+' every wall face that looks onto one go into the WORLD MESH when the level
+' loads (GLBuildMesh), kept in the card's memory, and each frame it's drawn
+' whole - a few dozen commands, one per texture - and the depth buffer
+' hides what you can't see. However big the room, the work is the same.
+' (Without shaders, the raycaster's rays mark the cells they pass - glSeen,
+' chapter 15 - and those cells and their neighbours are drawn corner by
+' corner instead.) Only what moves is built each frame: the doors, and
+' the sprites, shadows, glows and particles. A sliding door is the part of
+' the face it still covers, its texture slid along, and a shutter is the
+' part that's still down. A diagonal wall
+' is one face across its cell, and a split floor is two triangles with
+' different textures. The card keeps a "depth buffer" - the zBuffer idea,
+' kept for every pixel, not just every column - so whatever is nearest
+' ends up in front, whatever order we draw in.
+'
+' SPRITES are rectangles that face you. The "alpha test" skips their see-
+' through pixels (alpha 128 or less, as chapter 16 does) - and since the
+' depth buffer works per pixel, they hide behind walls by themselves.
+'
+' WHEN IT RUNS. QB64PE calls SUB _GL when it's ready to draw the window -
+' the game is paused between two of its lines while it runs, and that can
+' be anywhere. Halfway through UpdateLight, half the cells would have their
+' light and half wouldn't. So SUB _GL only ever reads the finished
+' snapshot that chapter 17 hands over (glBuf), and things that only change
+' as a level loads (worldMap, the textures) - and while a level loads,
+' glReady is 0 and it draws nothing.
+'
+' THE HUD is drawn on our screen, as usual - but then copied to the card
+' as a picture (GLSL_filter_capture, chapter 18) and laid over the 3D view
+' there (GLDrawHUD), with our own screen layer switched off. That way the
+' screen effects below can bend and scanline it too.
+'
+' THE EXTRAS (SETTINGS > EFFECTS): bump mapping, smooth light, neon,
+' moving lights, shadows, glows, particles, wet floors, bloom, screen and
+' hit effects - and in SETTINGS > VIDEO, retro resolution and looking up
+' and down. Most are done with shaders: little programs the card runs for
+' every corner and every pixel (GLBuildShaders, near the end of the
+' chapter, explains them).
+'
+' What's different? The view is drawn at the window's full size, not half
+' size, so its edges are sharp (the textures stay chunky). Sprites can't
+' be lit brighter than their picture (a colour can't go past 1 on the
+' card). Otherwise, it's the same game - same maths, same light.
+SUB _GL
+    IF NOT glReady THEN EXIT SUB ' Nothing to draw (or the software renderer is on)
+    glStart# = TIMER(0.001)
+    b = glBuf ' The newest finished snapshot
+    IF glTexDone <> glTexVersion THEN GLSendTextures : GLBuildMesh ' (a new level)
+    IF glWorldTried = 0 THEN GLBuildShaders
+    glGPU = (glWorldProg <> 0 AND glMeshBuf <> 0) ' The world mesh, lit by the shader from the light tables
+
+    ' Where on the window to draw: all of it - or, in full screen with
+    ' _SQUAREPIXELS, the middle part QB64PE letterboxes the screen into.
+    ' The window's size comes from GLFW (the library QB64PE makes windows
+    ' with), not from asking OpenGL: an OpenGL question makes the program
+    ' wait until the card has caught up, and on Mesa's drivers (Linux) that
+    ' can mean waiting for the screen's next refresh - asked every frame,
+    ' that wait ate whole frames (2 frames a second!).
+    vx = 0 : vy = 0 : vw = GLSL_window_width& : vh = GLSL_window_height&
+    IF vw < 1 OR vh < 1 THEN EXIT SUB
+    IF glFullMode(b) = 2 THEN
+        IF vw * 600 > vh * 800 THEN
+            w = INT(vh * 800 / 600) : vx = INT((vw - w) / 2) : vw = w
+        ELSE
+            h = INT(vw * 600 / 800) : vy = INT((vh - h) / 2) : vh = h
+        END IF
+    END IF
+
+    ' POST-PROCESSING. With BLOOM, a SCREEN FX, HIT FX or RETRO RESOLUTION
+    ' on, the 3D view isn't drawn on the window but into a texture (a
+    ' "render target", from the GLSL library) - so that afterwards a shader
+    ' can read the finished picture and do things to all of it at once
+    ' (GLPostProcess). RETRO RESOLUTION draws it at the software renderer's
+    ' 400 x 300 and blows it up with square pixels, as chapter 17 does.
+    glPost = 0
+    IF glPostProg <> 0 THEN
+        IF glSet(SET_BLOOM, b) OR glSet(SET_SCREENFX, b) > 1 OR glSet(SET_HITFX, b) OR glSet(SET_RETRO, b) THEN glPost = -1
+    END IF
+    IF glPost THEN
+        sw = vw : sh = vh
+        IF glSet(SET_RETRO, b) THEN sw = RENDER_W : sh = RENDER_H
+        IF NOT GLMakeTargets(sw, sh, glSet(SET_RETRO, b) <> 0) THEN glPost = 0
+    END IF
+    IF glPost THEN
+        GLSL_target_use glTargScene : _glViewport 0, 0, sw, sh
+        _glClearColor 0, 0, 0, 1 : _glClear _GL_COLOR_BUFFER_BIT OR _GL_DEPTH_BUFFER_BIT
+    ELSE
+        _glViewport vx, vy, vw, vh
+        _glClear _GL_DEPTH_BUFFER_BIT
+    END IF
+
+    ' The perspective (and the screen shake: the view nudged by shakeX,
+    ' shakeY and made shakeEdge pixels bigger all round, as in chapter 17)
+    _glMatrixMode _GL_PROJECTION
+    _glLoadIdentity
+    _glTranslatef glShakeX(b) / 400, -glShakeY(b) / 300, 0
+    _glScalef 1 + glShakeEdge(b) / 400, 1 + glShakeEdge(b) / 300, 1
+    halfW# = glPlaneLen(b) * GL_NEAR : halfH# = GL_NEAR / (2 * glZoom(b))
+    _glFrustum -halfW#, halfW#, -halfH#, halfH#, GL_NEAR, GL_FAR
+
+    _glEnable _GL_DEPTH_TEST
+    _glEnable _GL_TEXTURE_2D
+    _glDisable _GL_BLEND
+    _glDisable _GL_CULL_FACE
+    _glEnableClientState _GL_VERTEX_ARRAY ' (GLDraw hands over arrays of these three)
+    _glEnableClientState _GL_TEXTURE_COORD_ARRAY
+    _glEnableClientState _GL_COLOR_ARRAY
+
+    ' The cells to draw: the ones this frame's rays reached, and their
+    ' neighbours
+    glEyeX = glCamX(b) : glEyeY = glCamY(b) : glEyeDX = glDirX(b) : glEyeDY = glDirY(b)
+    stamp& = glFrame(b) : glNumVis = 0
+    IF glGPU THEN GOTO SkipVisible ' (the world mesh is drawn whole: the card's depth buffer hides what you can't see)
+    FOR cy = 0 TO MAP_SIZE - 1 : FOR cx = 0 TO MAP_SIZE - 1
+        near = glSeen(cx, cy, b) = stamp& OR glSeen(cx + 1, cy, b) = stamp& OR glSeen(cx, cy + 1, b) = stamp&
+        IF cx > 0 THEN IF glSeen(cx - 1, cy, b) = stamp& THEN near = -1
+        IF cy > 0 THEN IF glSeen(cx, cy - 1, b) = stamp& THEN near = -1
+        IF near THEN glNumVis = glNumVis + 1 : glVisX(glNumVis) = cx : glVisY(glNumVis) = cy
+    NEXT : NEXT
+    SkipVisible:
+    IF glGPU THEN GLSendLightTables b
+
+    ' WET FLOORS: first the whole world upside down, below the floor - a
+    ' mirror image (GLCamera with mirror on flips every height) - then the
+    ' real world over it, its floors a little see-through so the mirror
+    ' image shows in them, more on ice and wet floors than on concrete.
+    glReflecting = 0
+    IF glSet(SET_REFLECT, b) AND glWorldProg <> 0 THEN
+        GLCamera b, -1
+        IF glGPU THEN GLWorldGPU b, -1 ELSE GLWorld b, -1
+        glReflecting = -1
+    END IF
+    GLCamera b, 0
+    IF glGPU THEN GLWorldGPU b, 0 ELSE GLWorld b, 0
+
+    ' Then the finished picture: through the post-processing shader onto
+    ' the window, with the HUD on top - or, without post-processing, just
+    ' the HUD, laid over the view already on the window
+    _glDisableClientState _GL_VERTEX_ARRAY : _glDisableClientState _GL_TEXTURE_COORD_ARRAY : _glDisableClientState _GL_COLOR_ARRAY
+    _glDisable _GL_DEPTH_TEST
+    IF glPost THEN
+        GLSL_target_use 0
+        GLPostProcess b, vx, vy, vw, vh, sw, sh
+    ELSE
+        GLDrawHUD
+    END IF
+
+    ' Leave OpenGL as we found it
+    FOR u = 3 TO 1 STEP -1 : GLSL_texture_unit u : _glBindTexture _GL_TEXTURE_2D, 0 : NEXT : GLSL_texture_unit 0
+    _glDisable _GL_TEXTURE_2D : _glDisable _GL_BLEND
+    _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA
+    _glBindTexture _GL_TEXTURE_2D, 0
+    _glColor4f 1, 1, 1, 1
+    _glMatrixMode _GL_PROJECTION : _glLoadIdentity
+    _glMatrixMode _GL_MODELVIEW : _glLoadIdentity
+    glMs = (TIMER(0.001) - glStart#) * 1000 ' (for SHOW FPS)
+    IF glMs < 0 THEN glMs = 0 ' (TIMER went back to 0 at midnight)
+END SUB
+
+' The camera: a map point (x, y) at height z becomes
+'   right = (x - playerX) * dirY - (y - playerY) * dirX  (along the plane)
+'   up    = z - 0.5                                     (your eye)
+'   ahead = (x - playerX) * dirX + (y - playerY) * dirY
+' and OpenGL looks down its -z, so "ahead" goes in as minus. glMat holds
+' those three sums' numbers, a column at a time. Two twists:
+'   mirror  turns every height upside down first (z becomes -z): the world
+'           reflected in the floor, for WET FLOORS
+'   pitch   tilts the camera up or down (LOOK UP / DOWN): "up" and "ahead"
+'           are turned round each other by the angle, the way chapter 8
+'           turns dirX and dirY round each other to turn you left or right
+SUB GLCamera(b, mirror)
+    glMat(0) = glEyeDY : glMat(4) = -glEyeDX : glMat(8) = 0 : glMat(12) = -(glEyeX * glEyeDY - glEyeY * glEyeDX)
+    glMat(1) = 0 : glMat(5) = 0 : glMat(9) = 1 : glMat(13) = -0.5
+    glMat(2) = -glEyeDX : glMat(6) = -glEyeDY : glMat(10) = 0 : glMat(14) = glEyeX * glEyeDX + glEyeY * glEyeDY
+    glMat(3) = 0 : glMat(7) = 0 : glMat(11) = 0 : glMat(15) = 1
+    IF mirror THEN glMat(9) = -1 ' (z -> -z)
+    c = COS(glPitch(b)) : s = SIN(glPitch(b))
+    FOR col = 0 TO 3
+        up = glMat(col * 4 + 1) : back = glMat(col * 4 + 2)
+        glMat(col * 4 + 1) = c * up + s * back : glMat(col * 4 + 2) = -s * up + c * back
+    NEXT
+    _glMatrixMode _GL_MODELVIEW
+    _glLoadMatrixf _OFFSET(glMat(0))
+END SUB
+
+' THE WORLD, THE FAST WAY (with the world shader). The walls, floors and
+' ceilings don't move, so instead of working out every corner again each
+' frame (GLWorld), they were built once, when the level loaded, into the
+' world mesh (GLBuildMesh) in graphics memory. Each frame just draws it: a
+' few dozen commands - one per kind and texture - however much you can see.
+' The light that changes every frame isn't in the mesh: the shader looks
+' it up per pixel in the light tables (GLSendLightTables), with cellLit on.
+' Only what moves is built each frame: the doors, then the sprites.
+SUB GLWorldGPU(b, mirror)
+    GLShaderStart b
+    glCellLitMode = 1
+    GLSL_buffer_bind glMeshBuf
+    n& = glMeshN
+    _glVertexPointer 3, _GL_FLOAT, 0, 0 ' (offsets into the mesh: positions first...)
+    _glTexCoordPointer 2, _GL_FLOAT, 0, n& * 12 ' (...then texture spots, normals, tangents)
+    _glNormalPointer _GL_FLOAT, 0, n& * 20
+    GLSL_attrib_array glTanLoc, 3, n& * 32
+    GLSL_attrib_off glLightLoc : GLSL_attrib_off glDynLoc
+    _glDisableClientState _GL_COLOR_ARRAY : _glColor4f 1, 1, 1, 1 ' (the light comes from the tables)
+    FOR kind = 0 TO 2 ' Floors (not in the mirror - it's under them), ceilings, walls
+        IF kind = 0 AND mirror THEN GOTO NextKind
+        IF kind = 0 AND glReflecting THEN _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
+        FOR slot = 1 TO T_SLOTS
+            IF glMeshCount(kind, slot) THEN
+                GLBindSlot slot
+                _glDrawArrays _GL_TRIANGLES, glMeshFirst(kind, slot), glMeshCount(kind, slot)
+            END IF
+        NEXT
+        IF glFloorPass THEN glFloorPass = 0 : _glDisable _GL_BLEND
+        NextKind:
+    NEXT
+    GLSL_attrib_off glTanLoc
+    GLSL_buffer_bind 0
+    _glEnableClientState _GL_COLOR_ARRAY
+
+    ' The doors: each side of each door cell, built now (they slide and lift)
+    FOR k = 1 TO glNumDoors
+        FOR side = 1 TO 4 : GLFace glDoorCX(k), glDoorCY(k), side, b : NEXT
+    NEXT
+    GLStopDrawing
+    GLSpritesAndExtras b, mirror
+END SUB
+
+' Send this frame's light tables (chapter 17's glLitData...) to the card,
+' onto texture units 1, 2 and 3, where the world shader reads them
+SUB GLSendLightTables(b)
+    IF glLitTex = 0 THEN
+        glLitTex = GLSL_data_texture_new~&(GL_TABLE, GL_TABLE) : glInfoTex = GLSL_data_texture_new~&(GL_TABLE, GL_TABLE)
+        glDynTex = GLSL_data_texture_new~&(GL_TABLE, GL_TABLE)
+    END IF
+    GLSL_texture_unit 1 : GLSL_data_texture_update glLitTex, GL_TABLE, GL_TABLE, _OFFSET(glLitData(b * GL_TABLE_SIZE))
+    GLSL_texture_unit 2 : GLSL_data_texture_update glInfoTex, GL_TABLE, GL_TABLE, _OFFSET(glInfoData(b * GL_TABLE_SIZE))
+    GLSL_texture_unit 3 : GLSL_data_texture_update glDynTex, GL_TABLE, GL_TABLE, _OFFSET(glDynData(b * GL_TABLE_SIZE))
+    GLSL_texture_unit 0
+END SUB
+
+' Build the world mesh for this level: the same floors, ceilings, walls and
+' diagonals GLWorld draws (the very same SUBs, with glMeshBuilding on so
+' GLCorner keeps just each corner's shape - GLMeshCorner), but all of them,
+' not only what you can see. Then the corners are sorted by kind and texture
+' (a counting sort, as in GLDraw) into one block of numbers - every position,
+' then every texture spot, normal and tangent - and sent to the card once.
+' Doors aren't in it: they move.
+SUB GLBuildMesh
+    glMeshBuilding = -1 : glMeshN = 0 : glNumDoors = 0
+    FOR cy = 0 TO MAP_SIZE - 1 : FOR cx = 0 TO MAP_SIZE - 1
+        IF GLOpenCell(cx, cy) THEN
+            glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0
+            glMeshKind = 0 : glFaceNZ = 1 : GLFlat cx, cy, 0, floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy)
+            glMeshKind = 1 : glFaceNZ = -1 : GLFlat cx, cy, 1, ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy)
+        END IF
+        IF worldMap(cx, cy) = 2 THEN
+            glNumDoors = glNumDoors + 1 : glDoorCX(glNumDoors) = cx : glDoorCY(glNumDoors) = cy
+        ELSEIF worldMap(cx, cy) > 0 THEN
+            glMeshKind = 2
+            corner = diagCorner(cx, cy)
+            IF corner THEN GLDiagonal cx, cy, corner, glBuf
+            FOR side = 1 TO 4
+                IF corner = 0 THEN
+                    GLFace cx, cy, side, glBuf
+                ELSEIF SideTouchesCorner(side, corner) THEN
+                    GLFace cx, cy, side, glBuf
+                END IF
+            NEXT
+        END IF
+    NEXT : NEXT
+    glMeshBuilding = 0
+    n& = glMeshN
+    ' Counting sort, by kind * (number of textures) + texture
+    FOR kind = 0 TO 2 : FOR slot = 0 TO GL_GLOW_TEX : glMeshCount(kind, slot) = 0 : NEXT : NEXT
+    FOR i& = 0 TO n& - 1 : glMeshCount(glMBKind(i&), glMBSlot(i&)) = glMeshCount(glMBKind(i&), glMBSlot(i&)) + 1 : NEXT
+    at& = 0
+    FOR kind = 0 TO 2 : FOR slot = 0 TO GL_GLOW_TEX
+        glMeshFirst(kind, slot) = at& : at& = at& + glMeshCount(kind, slot)
+    NEXT : NEXT
+    FOR kind = 0 TO 2 : FOR slot = 0 TO GL_GLOW_TEX : glSlotFill(slot) = glMeshFirst(kind, slot) : NEXT
+        FOR i& = 0 TO n& - 1
+            IF glMBKind(i&) = kind THEN
+                d& = glSlotFill(glMBSlot(i&)) : glSlotFill(glMBSlot(i&)) = d& + 1
+                glMeshData(d& * 3) = glMBPos(i& * 3) : glMeshData(d& * 3 + 1) = glMBPos(i& * 3 + 1) : glMeshData(d& * 3 + 2) = glMBPos(i& * 3 + 2)
+                glMeshData(n& * 3 + d& * 2) = glMBUV(i& * 2) : glMeshData(n& * 3 + d& * 2 + 1) = glMBUV(i& * 2 + 1)
+                glMeshData(n& * 5 + d& * 3) = glMBN(i& * 3) : glMeshData(n& * 5 + d& * 3 + 1) = glMBN(i& * 3 + 1) : glMeshData(n& * 5 + d& * 3 + 2) = glMBN(i& * 3 + 2)
+                glMeshData(n& * 8 + d& * 3) = glMBT(i& * 3) : glMeshData(n& * 8 + d& * 3 + 1) = glMBT(i& * 3 + 1) : glMeshData(n& * 8 + d& * 3 + 2) = glMBT(i& * 3 + 2)
+            END IF
+        NEXT
+    NEXT
+    IF glMeshBuf THEN GLSL_buffer_delete glMeshBuf : glMeshBuf = 0
+    IF n& > 0 THEN glMeshBuf = GLSL_buffer_new~&(_OFFSET(glMeshData(0)), n& * 44) ' (11 numbers, 44 bytes, a corner)
+END SUB
+
+' One corner of the world mesh, while it's built: its shape only (where,
+' texture spot, normal, tangent), its texture and its kind
+SUB GLMeshCorner(x, y, z, u, v)
+    IF glMeshN >= MESH_MAX THEN EXIT SUB
+    i& = glMeshN
+    glMBPos(i& * 3) = x : glMBPos(i& * 3 + 1) = y : glMBPos(i& * 3 + 2) = z
+    glMBUV(i& * 2) = u : glMBUV(i& * 2 + 1) = v
+    glMBN(i& * 3) = glFaceNX : glMBN(i& * 3 + 1) = glFaceNY : glMBN(i& * 3 + 2) = glFaceNZ
+    glMBT(i& * 3) = glFaceTX : glMBT(i& * 3 + 1) = glFaceTY : glMBT(i& * 3 + 2) = glFaceTZ
+    glMBSlot(i&) = glCurSlot : glMBKind(i&) = glMeshKind
+    glMeshN = i& + 1
+END SUB
+
+' Everything in the world, in the order it has to go: floors (only for
+' the real world - the mirror image is under them), ceilings, walls and
+' doors, sprites, then the things that add light on top - shadows, glows,
+' particles.
+SUB GLWorld(b, mirror)
+    GLShaderStart b
+
+    ' Floors, then ceilings (one at a time, so neighbours mostly share a
+    ' texture - changing texture means stopping and starting again). Over
+    ' a mirror image, the floors are blended over it: GLUseTexture sets
+    ' how see-through each floor texture is (its shader's "reflectAmt").
+    FOR z = 0 TO 1
+        IF z = 0 AND mirror THEN GOTO NextFlat ' (no floor in the mirror)
+        IF z = 0 AND glReflecting THEN _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
+        FOR k = 1 TO glNumVis
+            cx = glVisX(k) : cy = glVisY(k)
+            IF GLOpenCell(cx, cy) THEN
+                GLSetLight cx, cy, 1, b
+                glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0 ' (u runs along x)
+                IF z = 0 THEN
+                    glFaceNZ = 1 ' (the floor faces up...)
+                    GLFlat cx, cy, 0, floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy)
+                ELSE
+                    glFaceNZ = -1 ' (...the ceiling down)
+                    GLFlat cx, cy, 1, ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy)
+                END IF
+            END IF
+        NEXT
+        GLStopDrawing
+        IF glFloorPass THEN glFloorPass = 0 : _glDisable _GL_BLEND ' (the floors' see-through is done)
+        NextFlat:
+    NEXT
+
+    ' Walls, doors and diagonals: each side of a wall cell (1 west, 2 east,
+    ' 3 north, 4 south). A diagonal cell only has the two sides that touch
+    ' its solid corner, plus its slanted face.
+    FOR k = 1 TO glNumVis
+        cx = glVisX(k) : cy = glVisY(k)
+        IF worldMap(cx, cy) > 0 THEN
+            corner = diagCorner(cx, cy)
+            IF corner THEN GLDiagonal cx, cy, corner, b
+            FOR side = 1 TO 4
+                IF corner = 0 THEN
+                    GLFace cx, cy, side, b
+                ELSEIF SideTouchesCorner(side, corner) THEN
+                    GLFace cx, cy, side, b
+                END IF
+            NEXT
+        END IF
+    NEXT
+    GLStopDrawing
+    GLSpritesAndExtras b, mirror
+END SUB
+
+' Sprites, then shadows, glows and particles - the same for both ways of
+' drawing the world (the shader keeps going from the world, if it's on)
+SUB GLSpritesAndExtras(b, mirror)
+    glCellLitMode = 0 ' (sprites have their own light, worked out in chapter 16)
+
+    ' Sprites: a rectangle across your view, right = (dirY, -dirX), one
+    ' colour all over (worked out in chapter 16). With the world shader
+    ' they're bump mapped and lit by moving lights like the walls (its
+    ' isSprite reads height from brightness, and skips see-through
+    ' pixels); without it, OpenGL's "alpha test" skips them.
+    dirLen = SQR(glEyeDX * glEyeDX + glEyeDY * glEyeDY)
+    rightX = glEyeDY / dirLen : rightY = -glEyeDX / dirLen
+    IF glShaderOn = 0 THEN _glEnable _GL_ALPHA_TEST : _glAlphaFunc _GL_GREATER, 128.5 / 255 ' (alpha over 128 of 255)
+    glFaceNX = -glEyeDX / dirLen : glFaceNY = -glEyeDY / dirLen : glFaceNZ = 0 ' (facing you...)
+    glFaceTX = rightX : glFaceTY = rightY : glFaceTZ = 0 ' (...its picture running left to right)
+    FOR i = 1 TO glNumSpr(b)
+        slot = glSprSlot(i, b) : GLUseTexture T_SLOTS + slot
+        uv = spriteSize(slot) / SPR_TEX ' (a smaller picture uses only part of its 64 x 64)
+        sx = glSprX(i, b) : sy = glSprY(i, b) : hw = glSprHalfW(i, b)
+        x0 = sx - rightX * hw : y0 = sy - rightY * hw : x1 = sx + rightX * hw : y1 = sy + rightY * hw
+        zLow = glSprLift(i, b) : zHigh = zLow + glSprH(i, b)
+        red = glSprR(i, b) : green = glSprG(i, b) : blue = glSprB(i, b)
+        GLSetLight INT(sx), INT(sy), 1, b
+        IF glShaderOn = 0 AND glSet(SET_DYNLIGHT, b) THEN ' (no shader: moving lights at its middle)
+            GLDynAt sx, sy, (zLow + zHigh) / 2, dr, dg, db
+            red = red + dr / 256 : green = green + dg / 256 : blue = blue + db / 256
+        END IF
+        GLSpriteCorner x0, y0, zHigh, 0, 0, red, green, blue : GLSpriteCorner x1, y1, zHigh, uv, 0, red, green, blue
+        GLSpriteCorner x1, y1, zLow, uv, uv, red, green, blue : GLSpriteCorner x0, y0, zHigh, 0, 0, red, green, blue
+        GLSpriteCorner x1, y1, zLow, uv, uv, red, green, blue : GLSpriteCorner x0, y0, zLow, 0, uv, red, green, blue
+    NEXT
+    GLStopDrawing
+    _glDisable _GL_ALPHA_TEST
+    GLShaderStop
+
+    IF glSet(SET_SHADOWS, b) AND NOT mirror THEN GLShadows b
+
+    ' Glows: a soft round spot facing you, ADDED to what's behind it
+    ' (_glBlendFunc with _GL_ONE) instead of covering it - light adds up, so
+    ' it brightens and tints whatever is there, like real glare. They're
+    ' hidden by anything in front (the depth test) but don't hide anything
+    ' themselves (_glDepthMask off), so they overlap without seams.
+    ' Particles - sparks, embers, dust - are tiny glows.
+    _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE : _glDepthMask _GL_FALSE
+    IF glSet(SET_GLOW, b) THEN
+        FOR i = 1 TO glNumGlow(b)
+            ' (pulled a little towards you, so the thing glowing - a bolt, a
+            ' lamp, standing in the same spot - doesn't hide its own glow)
+            GLGlowSpot glGlowX(i, b) - glEyeDX * 0.3, glGlowY(i, b) - glEyeDY * 0.3, glGlowZ(i, b), glGlowSize(i, b), glGlowR(i, b), glGlowG(i, b), glGlowB(i, b), rightX, rightY
+        NEXT
+    END IF
+    IF glSet(SET_PARTICLES, b) THEN
+        FOR i = 1 TO glNumPart(b)
+            GLGlowSpot glPartX(i, b), glPartY(i, b), glPartZ(i, b), glPartSize(i, b), glPartR(i, b), glPartG(i, b), glPartB(i, b), rightX, rightY
+        NEXT
+    END IF
+    GLStopDrawing
+    _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
+END SUB
+
+' One glow spot (or particle): a square of the soft round GL_GLOW_TEX
+' facing you, size from its middle to its edge, in colour (r, g, b)
+SUB GLGlowSpot(gx, gy, gz, sz, r, g, bl, rightX, rightY)
+    GLUseTexture GL_GLOW_TEX
+    x0 = gx - rightX * sz : y0 = gy - rightY * sz : x1 = gx + rightX * sz : y1 = gy + rightY * sz
+    GLPutCorner x0, y0, gz + sz, 0, 0, r, g, bl : GLPutCorner x1, y1, gz + sz, 1, 0, r, g, bl
+    GLPutCorner x1, y1, gz - sz, 1, 1, r, g, bl : GLPutCorner x0, y0, gz + sz, 0, 0, r, g, bl
+    GLPutCorner x1, y1, gz - sz, 1, 1, r, g, bl : GLPutCorner x0, y0, gz - sz, 0, 1, r, g, bl
+END SUB
+
+' Does cell (cx, cy) have a floor and ceiling? Open floor, a door, or a
+' diagonal wall's cell (the open half)
+FUNCTION GLOpenCell(cx, cy)
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
+    v = worldMap(cx, cy)
+    GLOpenCell = (v <= 0 OR v = 2 OR diagCorner(cx, cy) <> 0)
+END FUNCTION
+
+' SHADOWS. Each sprite throws its shadow on the floor, away from the light
+' falling on its cell (that cell's light middle, chapter 14's litSum...):
+' its picture is laid flat on the floor, stretched away from the light -
+' each corner of it is moved along the line from the light, through the
+' corner, down to the floor ("projected"). With the light lz up, a corner
+' at height z lands lz / (lz - z) times as far from the light as it is.
+' (lz is twice GL_LIGHT_Z: a lamp's light comes from all over it, not one
+' point, and from that low a point a tall monster's shadow would stretch
+' five times its height.) Drawn black and half see-through, with the
+' alpha test keeping only the shape: it's the monster's own silhouette.
+' Light from everywhere (ambient) casts no shadow, so it's as dark as the
+' cell's light is directional (glLitDir).
+SUB GLShadows(b)
+    _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
+    _glEnable _GL_ALPHA_TEST : _glAlphaFunc _GL_GREATER, 0.05
+    FOR i = 1 TO glNumSpr(b)
+        slot = glSprSlot(i, b)
+        IF slot = S_BOLT OR slot = S_BLAST THEN GOTO NextShadow ' (they glow)
+        sx = glSprX(i, b) : sy = glSprY(i, b) : cx = INT(sx) : cy = INT(sy)
+        strength = glLitDir(cx, cy, b) * 1.2 : IF strength > 0.65 THEN strength = 0.65
+        lx = glLitCX(cx, cy, b) : ly = glLitCY(cx, cy, b)
+        dx = sx - lx : dy = sy - ly : d = SQR(dx * dx + dy * dy)
+        IF strength < 0.08 OR d < 0.15 THEN GOTO NextShadow
+        sideX = -dy / d : sideY = dx / d ' (across the shadow: square to the light)
+        hw = glSprHalfW(i, b) : zLow = glSprLift(i, b) : zHigh = zLow + glSprH(i, b)
+        lz = GL_LIGHT_Z * 2
+        IF zHigh > lz * 0.7 THEN zHigh = lz * 0.7 ' (or it would stretch forever)
+        uv = spriteSize(slot) / SPR_TEX
+        GLUseTexture T_SLOTS + slot
+        tLow = lz / (lz - zLow) : tHigh = lz / (lz - zHigh)
+        ax = sx - sideX * hw : ay = sy - sideY * hw : bx = sx + sideX * hw : by = sy + sideY * hw
+        ' (each corner: from the light, out through the corner, to the floor)
+        x0 = lx + (ax - lx) * tLow : y0 = ly + (ay - ly) * tLow : x1 = lx + (bx - lx) * tLow : y1 = ly + (by - ly) * tLow
+        x2 = lx + (bx - lx) * tHigh : y2 = ly + (by - ly) * tHigh : x3 = lx + (ax - lx) * tHigh : y3 = ly + (ay - ly) * tHigh
+        GLPutCornerA x3, y3, 0.003, 0, 0, strength : GLPutCornerA x2, y2, 0.003, uv, 0, strength : GLPutCornerA x1, y1, 0.003, uv, uv, strength
+        GLPutCornerA x3, y3, 0.003, 0, 0, strength : GLPutCornerA x1, y1, 0.003, uv, uv, strength : GLPutCornerA x0, y0, 0.003, 0, uv, strength
+        NextShadow:
+    NEXT
+    GLStopDrawing
+    _glDisable _GL_ALPHA_TEST : _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
+END SUB
+
+' A shadow corner: black, with see-through-ness a (the colours array has
+' room for 3 numbers a corner, so alpha goes in by drawing these with
+' their own colour pointer - glShadowA() - see GLDraw)
+SUB GLPutCornerA(x, y, z, u, v, a)
+    GLPutCorner x, y, z, u, v, 0, 0, 0
+    glShadowA(glNumVerts - 1) = a
+END SUB
+
+' THE HUD (no post-processing): the captured screen (GLSL_filter_capture,
+' chapter 18) laid over the whole view. Its colours are "premultiplied" -
+' QB64PE's blending onto a see-through screen leaves each colour already
+' multiplied by its alpha - so it goes on with _GL_ONE for the picture and
+' (1 - alpha) for what's under it, which is exactly "this, over that".
+SUB GLDrawHUD
+    hudTex~& = GLSL_filter_texture~&(0)
+    IF hudTex~& = 0 THEN EXIT SUB
+    _glEnable _GL_TEXTURE_2D : _glEnable _GL_BLEND : _glBlendFunc _GL_ONE, _GL_ONE_MINUS_SRC_ALPHA
+    _glColor4f 1, 1, 1, 1
+    GLSL_fullscreen -1
+    _glDisable _GL_BLEND
+END SUB
+
+' Make (or resize) the render targets for post-processing: the scene, w x
+' h with a depth buffer, read with square pixels for RETRO RESOLUTION; and
+' two quarter-size ones the bloom is blurred between. FALSE if the driver
+' can't (then the view goes straight to the window, without post effects).
+FUNCTION GLMakeTargets(w, h, retro)
+    IF glTargScene = 0 THEN
+        IF NOT GLSL_targets_supported% THEN glPostProg = 0 : EXIT FUNCTION
+        glTargScene = GLSL_target_new&(w, h, -1) : glTargA = GLSL_target_new&(w \ 4 + 1, h \ 4 + 1, 0) : glTargB = GLSL_target_new&(w \ 4 + 1, h \ 4 + 1, 0)
+        IF glTargScene = 0 OR glTargA = 0 OR glTargB = 0 THEN glShaderError$ = GLSL_error$ : glPostProg = 0 : EXIT FUNCTION
+        glTargRetro = -2
+    END IF
+    GLSL_target_resize glTargScene, w, h
+    GLSL_target_resize glTargA, w \ 4 + 1, h \ 4 + 1 : GLSL_target_resize glTargB, w \ 4 + 1, h \ 4 + 1
+    IF retro <> glTargRetro THEN GLSL_target_smooth glTargScene, NOT retro : glTargRetro = retro
+    GLMakeTargets = -1
+END FUNCTION
+
+' POST-PROCESSING, from the scene's render target onto the window:
+'   BLOOM       the bright parts (the "bright pass" keeps only them) are
+'               shrunk to a quarter size and blurred - across, then down -
+'               and added back on top: neon light bleeding into the dark
+'   HIT FX      heat shimmer round explosions, a red pulse at the edges
+'               when you're hurt, a zoom blur when the railgun fires
+'   SCREEN FX   scanlines, or a whole curved CRT screen
+' and the HUD goes in between, so a CRT curves it too.
+SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh)
+    aw = GLSL_target_width&(glTargA) : ah = GLSL_target_height&(glTargA)
+    bloomOn = (glSet(SET_BLOOM, b) <> 0) AND glBrightProg <> 0 AND glBlurProg <> 0 ' (TRUE is -1; a setting's "on" is 1)
+    _glEnable _GL_TEXTURE_2D : _glDisable _GL_BLEND : _glColor4f 1, 1, 1, 1
+    IF bloomOn THEN
+        GLSL_target_use glTargA : _glViewport 0, 0, aw, ah ' Bright pass, shrunk
+        _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
+        GLSL_use glBrightProg : GLSL_uniform_1i glBrightProg, "scene", 0 : GLSL_fullscreen 0
+        GLSL_target_use glTargB ' Blur across...
+        _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargA)
+        GLSL_use glBlurProg : GLSL_uniform_1i glBlurProg, "src", 0 : GLSL_uniform_2f glBlurProg, "stepUV", 1 / aw, 0 : GLSL_fullscreen 0
+        GLSL_target_use glTargA ' ...then down
+        _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargB)
+        GLSL_uniform_2f glBlurProg, "stepUV", 0, 1 / ah : GLSL_fullscreen 0
+        GLSL_target_use 0
+    END IF
+
+    ' The final picture: scene (unit 0), bloom (unit 1), HUD (unit 2)
+    _glViewport vx, vy, vw, vh
+    GLSL_texture_unit 2 : hudTex~& = GLSL_filter_texture~&(0)
+    GLSL_texture_unit 1 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargA)
+    GLSL_texture_unit 0 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
+    p~& = glPostProg
+    GLSL_use p~&
+    GLSL_uniform_1i p~&, "scene", 0 : GLSL_uniform_1i p~&, "bloom", 1 : GLSL_uniform_1i p~&, "hud", 2
+    GLSL_uniform_1f p~&, "hudOn", (hudTex~& <> 0) * -1
+    GLSL_uniform_1f p~&, "bloomAmt", bloomOn * -0.9
+    GLSL_uniform_1f p~&, "fxMode", glSet(SET_SCREENFX, b) - 1
+    GLSL_uniform_2f p~&, "res", vw, vh
+    GLSL_uniform_1f p~&, "secs", TIMER(0.001) - INT(TIMER(0.001) / 1000) * 1000
+    hit = (glSet(SET_HITFX, b) <> 0) * -1 ' (1 with HIT FX on, else 0)
+    GLSL_uniform_1f p~&, "hurt", glHurt(b) * hit : GLSL_uniform_1f p~&, "rail", glRail(b) * hit
+    FOR i = 0 TO GL_HEAT - 1 ' Explosions on screen, for the heat shimmer
+        hx = 0 : hy = 0 : hr = 0
+        IF i < glNumHeat(b) AND hit THEN GLProject glHeatX(i + 1, b), glHeatY(i + 1, b), 0.45, b, hx, hy, hr
+        GLSL_uniform_4f p~&, "heat[" + LTRIM$(STR$(i)) + "]", hx, hy, hr, glHeatAmt(i + 1, b) * (hr > 0) * -1
+    NEXT
+    GLSL_fullscreen 0
+    GLSL_use 0
+    GLSL_texture_unit 2 : _glBindTexture _GL_TEXTURE_2D, 0
+    GLSL_texture_unit 1 : _glBindTexture _GL_TEXTURE_2D, 0
+    GLSL_texture_unit 0
+END SUB
+
+' Where map point (x, y) at height z is on the screen, 0..1 across and up
+' (sx, sy), and how big a cell looks there (sr, 0 if it's behind you) -
+' the camera's sums (GLCamera) and the perspective's, done by hand
+SUB GLProject(x, y, z, b, sx, sy, sr)
+    sx = 0 : sy = 0 : sr = 0
+    rx = (x - glEyeX) * glEyeDY - (y - glEyeY) * glEyeDX
+    up = z - 0.5 : ahead = (x - glEyeX) * glEyeDX + (y - glEyeY) * glEyeDY
+    c = COS(glPitch(b)) : s = SIN(glPitch(b))
+    up2 = c * up - s * ahead : depth = s * up + c * ahead
+    IF depth < 0.3 THEN EXIT SUB
+    sx = 0.5 + 0.5 * rx / (depth * glPlaneLen(b)) : sy = 0.5 + up2 * glZoom(b) / depth
+    sr = 0.35 / depth
+END SUB
+
+' The moving lights' light at map point (x, y, z), without the world
+' shader: each light's colour, fading to nothing at its radius, if it
+' reaches that cell (glCellDyn, from GLSetLight). In light units (256 =
+' full), like litR.
+SUB GLDynAt(x, y, z, r, g, bl)
+    r = 0 : g = 0 : bl = 0
+    FOR k = 1 TO glNumDyn(glBuf)
+        IF glCellDyn(k) THEN
+            d = SQR((x - glDynX(k, glBuf)) ^ 2 + (y - glDynY(k, glBuf)) ^ 2 + (z - glDynZ(k, glBuf)) ^ 2)
+            IF d < glDynRad(k, glBuf) THEN
+                w = (1 - d / glDynRad(k, glBuf)) ^ 2
+                r = r + glDynR(k, glBuf) * w : g = g + glDynG(k, glBuf) * w : bl = bl + glDynB(k, glBuf) * w
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' Send every texture and sprite picture to the graphics card. Each gets a
+' name (a number) from _glGenTextures the first time; the textures are
+' names 1-19 of glTexName(), the sprites after them, then the glow spot.
+' Each texture slot's effects come from its file name (texName$):
+'   shine     how shiny (the shader's highlights): metal doors most
+'   reflect   how much of the mirror image a floor shows (WET FLOORS)
+'   neon      how much its bright, colourful pixels light themselves
+'   anim      0 still, 1 flickering screens, 2 chasing lights, 3 pulsing
+SUB GLSendTextures
+    IF glTexName(1) = 0 THEN _glGenTextures GL_GLOW_TEX, _OFFSET(glTexName(1))
+    ' Walls, floors and ceilings are solid, so their alpha is free: it gets
+    ' each pixel's brightness, which the world shader reads as its HEIGHT -
+    ' light parts stand out, dark parts (mortar, cracks, grooves) sink in.
+    ' That's the "bump map", made from the picture itself.
+    FOR slot = 1 TO T_SLOTS
+        FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1
+            col~& = texture(x, y, slot)
+            height = (((col~& \ 65536) AND 255) * 0.3 + ((col~& \ 256) AND 255) * 0.59 + (col~& AND 255) * 0.11)
+            glUpload(y * TEX_SIZE + x) = (col~& AND &HFFFFFF) OR _SHL(INT(height) AND 255, 24)
+        NEXT : NEXT
+        GLSendPicture glTexName(slot), TEX_SIZE, _OFFSET(glUpload(0))
+        n$ = texName$(slot)
+        glTexShine(slot) = 0.2 : glTexReflect(slot) = 0 : glTexNeon(slot) = 1 : glTexAnim(slot) = 0
+        IF slot >= T_DOOR AND slot <= T_SPLIT THEN glTexShine(slot) = 0.6
+        IF INSTR(n$, "plates") OR INSTR(n$, "grate") OR INSTR(n$, "pipes") OR INSTR(n$, "coils") THEN glTexShine(slot) = 0.5
+        IF INSTR(n$, "ice") OR INSTR(n$, "frost") OR INSTR(n$, "cryo") THEN glTexShine(slot) = 0.7
+        IF slot > T_FLOOR AND slot <= T_FLOOR + 4 THEN ' Floors: how wet
+            glTexReflect(slot) = 0.16 : glTexNeon(slot) = 0.5
+            IF INSTR(n$, "ice") THEN glTexReflect(slot) = 0.45
+            IF INSTR(n$, "murky") THEN glTexReflect(slot) = 0.4
+            IF INSTR(n$, "glow") OR INSTR(n$, "frost") THEN glTexReflect(slot) = 0.32
+            IF INSTR(n$, "white") OR INSTR(n$, "lab") OR INSTR(n$, "plates") THEN glTexReflect(slot) = 0.28
+            IF INSTR(n$, "concrete") OR INSTR(n$, "cobbles") OR INSTR(n$, "scorched") THEN glTexReflect(slot) = 0.08
+            IF INSTR(n$, "glow") THEN glTexNeon(slot) = 1
+        END IF
+        IF slot > T_CEIL THEN glTexShine(slot) = 0.1
+        IF INSTR(n$, "white") OR INSTR(n$, "ice") OR INSTR(n$, "frost") THEN glTexNeon(slot) = 0 ' (white isn't neon)
+        IF INSTR(n$, "brick") OR INSTR(n$, "rust") OR INSTR(n$, "moss") OR INSTR(n$, "biolab") OR INSTR(n$, "slime") THEN glTexNeon(slot) = 0.35 ' (nor rust and slime, much)
+        IF INSTR(n$, "servers") OR INSTR(n$, "terminals") OR INSTR(n$, "control") THEN glTexAnim(slot) = 1
+        IF INSTR(n$, "hazard") OR INSTR(n$, "stripes") OR INSTR(n$, "warning") THEN glTexAnim(slot) = 2
+        IF INSTR(n$, "glow") OR INSTR(n$, "lights") OR INSTR(n$, "reactor") OR INSTR(n$, "cryo") OR INSTR(n$, "coils") THEN glTexAnim(slot) = 3
+        IF slot = T_EXIT THEN glTexAnim(slot) = 3
+    NEXT
+    FOR slot = 1 TO SPR_SLOTS
+        GLSendPicture glTexName(T_SLOTS + slot), SPR_TEX, _OFFSET(spriteTex(0, 0, slot))
+        glTexShine(T_SLOTS + slot) = 0.3 : glTexReflect(T_SLOTS + slot) = 0 : glTexNeon(T_SLOTS + slot) = 0.6 : glTexAnim(T_SLOTS + slot) = 0
+    NEXT
+    ' The glows' spot: white, see-through at its edge, solid in the middle
+    FOR y = 0 TO 63 : FOR x = 0 TO 63
+        d = SQR((x - 31.5) ^ 2 + (y - 31.5) ^ 2) / 32 : IF d > 1 THEN d = 1
+        glUpload(y * 64 + x) = _RGBA32(255, 255, 255, 255 * (1 - d) ^ 2)
+    NEXT : NEXT
+    GLSendPicture glTexName(GL_GLOW_TEX), 64, _OFFSET(glUpload(0))
+    glTexDone = glTexVersion
+END SUB
+
+' One square picture, size pixels across, from memory at pixelsAt. Nearest
+' pixel (no smoothing), and "clamp": a texture coordinate of 1 is the last
+' pixel, not the first one again.
+SUB GLSendPicture(texName AS _UNSIGNED LONG, size, pixelsAt AS _OFFSET)
+    _glBindTexture _GL_TEXTURE_2D, texName
+    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST
+    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
+    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_S, _GL_CLAMP
+    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_T, _GL_CLAMP
+    _glTexImage2D _GL_TEXTURE_2D, 0, _GL_RGBA, size, size, 0, _GL_BGRA_EXT, _GL_UNSIGNED_BYTE, pixelsAt
+END SUB
+
+' The next corners use texture slot (-1: none in particular). Nothing is
+' switched yet: GLDraw sorts each pass's corners by texture first.
+SUB GLUseTexture(slot)
+    IF slot >= 0 THEN glCurSlot = slot
+END SUB
+
+' Switch to texture slot - and tell the world shader about it: how bumpy
+' and shiny it is (walls, floors, ceilings and doors only - not sprites),
+' how see-through (a wet floor), neon and animated, its pixel size, and
+' whether it's a sprite
+SUB GLBindSlot(slot)
+    _glBindTexture _GL_TEXTURE_2D, glTexName(slot)
+    IF glShaderOn THEN
+        p~& = glWorldProg
+        GLSL_uniform_1f p~&, "reflectAmt", glTexReflect(slot) * glFloorPass * -1
+        GLSL_uniform_1f p~&, "neon", glTexNeon(slot) * glNeonOn
+        GLSL_uniform_1f p~&, "anim", glTexAnim(slot)
+        GLSL_uniform_1f p~&, "cellLit", glCellLitMode
+        IF slot > T_SLOTS THEN ' A sprite: flat, not shiny
+            GLSL_uniform_1f p~&, "isSprite", 1 : GLSL_uniform_1f p~&, "texel", 1 / SPR_TEX
+            GLSL_uniform_1f p~&, "bump", 0 : GLSL_uniform_1f p~&, "shine", 0
+        ELSE
+            GLSL_uniform_1f p~&, "isSprite", 0 : GLSL_uniform_1f p~&, "texel", 1 / TEX_SIZE
+            GLSL_uniform_1f p~&, "bump", GL_BUMP * glBumpOn : GLSL_uniform_1f p~&, "shine", glTexShine(slot)
+        END IF
+    END IF
+END SUB
+
+SUB GLStopDrawing
+    GLDraw
+END SUB
+
+' The world shader on, with this frame's settings: where you are and face,
+' bump strength, the time (for animations), and the moving lights - each
+' one's place, colour (in 0..1, so light units / 256) and radius. Off
+' (radius 0.001, black) if MOVING LIGHTS is off or there are fewer.
+SUB GLShaderStart(b)
+    glShaderOn = 0
+    IF glWorldProg = 0 THEN EXIT SUB
+    p~& = glWorldProg
+    GLSL_use p~& : glShaderOn = -1
+    GLSL_uniform_3f p~&, "eye", glEyeX, glEyeY, 0.5
+    GLSL_uniform_2f p~&, "viewDir", glEyeDX, glEyeDY
+    glBumpOn = (glSet(SET_BUMP, b) <> 0) * -1 ' (1 or 0: GLBindSlot uses it)
+    GLSL_uniform_1f p~&, "smoothOn", (glSet(SET_SMOOTH, b) <> 0) * -1
+    GLSL_uniform_1f p~&, "secs", TIMER(0.001) - INT(TIMER(0.001) / 1000) * 1000
+    glNeonOn = glSet(SET_NEON, b)
+    FOR k = 1 TO GL_DYN
+        i$ = "[" + LTRIM$(STR$(k - 1)) + "]"
+        IF k <= glNumDyn(b) AND glSet(SET_DYNLIGHT, b) THEN
+            GLSL_uniform_3f p~&, "dynPos" + i$, glDynX(k, b), glDynY(k, b), glDynZ(k, b)
+            GLSL_uniform_3f p~&, "dynCol" + i$, glDynR(k, b) / 256, glDynG(k, b) / 256, glDynB(k, b) / 256
+            GLSL_uniform_1f p~&, "dynRad" + i$, glDynRad(k, b)
+        ELSE
+            GLSL_uniform_3f p~&, "dynCol" + i$, 0, 0, 0 : GLSL_uniform_1f p~&, "dynRad" + i$, 0.001
+        END IF
+    NEXT
+    _glEnableClientState _GL_NORMAL_ARRAY
+END SUB
+
+SUB GLShaderStop
+    IF glShaderOn = 0 THEN EXIT SUB
+    GLStopDrawing
+    GLSL_use 0 : glShaderOn = 0
+    GLSL_attrib_off glTanLoc : GLSL_attrib_off glLightLoc : GLSL_attrib_off glDynLoc
+    _glDisableClientState _GL_NORMAL_ARRAY
+END SUB
+
+' One corner into the batch: where, which texture spot, what colour (and
+' the face's normal and tangent, the way to the light, and which moving
+' lights reach it). A full batch is drawn there and then.
+SUB GLPutCorner(x, y, z, u, v, red, green, blue)
+    IF glNumVerts = GL_BATCH THEN GLDraw
+    n = glNumVerts
+    glVerts(n * 3) = x : glVerts(n * 3 + 1) = y : glVerts(n * 3 + 2) = z
+    glTexSpots(n * 2) = u : glTexSpots(n * 2 + 1) = v
+    glColors(n * 4) = red : glColors(n * 4 + 1) = green : glColors(n * 4 + 2) = blue : glColors(n * 4 + 3) = 1
+    glShadowA(n) = 1
+    glNormals(n * 3) = glFaceNX : glNormals(n * 3 + 1) = glFaceNY : glNormals(n * 3 + 2) = glFaceNZ
+    glTangents(n * 3) = glFaceTX : glTangents(n * 3 + 1) = glFaceTY : glTangents(n * 3 + 2) = glFaceTZ
+    glLightVecs(n * 4) = glCornerLX : glLightVecs(n * 4 + 1) = glCornerLY : glLightVecs(n * 4 + 2) = glCornerLZ : glLightVecs(n * 4 + 3) = glCellDir
+    glDynMasks(n * 4) = glCellDyn(1) : glDynMasks(n * 4 + 1) = glCellDyn(2) : glDynMasks(n * 4 + 2) = glCellDyn(3) : glDynMasks(n * 4 + 3) = glCellDyn(4)
+    glVertSlot(n) = glCurSlot
+    glNumVerts = n + 1
+END SUB
+
+' A sprite's corner: its own colour, and the way to its cell's light
+SUB GLSpriteCorner(x, y, z, u, v, red, green, blue)
+    glCornerLX = glCellLX - x : glCornerLY = glCellLY - y : glCornerLZ = GL_LIGHT_Z - z
+    GLPutCorner x, y, z, u, v, red, green, blue
+END SUB
+
+' Draw the batch: point OpenGL at the arrays, then, a texture at a time,
+' draw its corners, three to a triangle.
+'
+' Why batches? The first version sent each corner as it went, with
+' _glColor3f, _glTexCoord2f and _glVertex3f: three commands a corner, over
+' 10,000 a frame in a long hallway. The driver queues commands up and
+' works through them on its own, while it also waits for the screen to
+' refresh - and once its queue was full, SUB _GL had to wait too, nearly a
+' whole refresh (16 ms) a frame, with the game paused all the while: the
+' frames per second halved. A batch is a handful of commands, however
+' many corners are in it. Then, switching texture (and the shader's
+' settings for it) whenever the texture changed cost a few hundred
+' switches a frame in a busy room - enough to start that queue filling
+' again. So the corners are sorted by texture first ("counting sort":
+' count each texture's corners, give each texture its run of the list,
+' then put each corner's number in its texture's run), and each texture
+' is drawn once, with _glDrawElements reading its run of glIndex().
+' And the arrays themselves: drawn from our memory, the driver copies them
+' at every draw call - in a 450-cell view, tens of megabytes a frame, and
+' the queue filled again. So they go through the GLSL library's "stream"
+' (graphics memory, filled once a batch) and the draws read them there.
+SUB GLDraw
+    IF glNumVerts = 0 THEN EXIT SUB
+    FOR s = 0 TO GL_GLOW_TEX : glSlotCount(s) = 0 : NEXT
+    FOR n = 0 TO glNumVerts - 1
+        glColors(n * 4 + 3) = glShadowA(n) ' (alpha: 1, or a shadow's)
+        s = glVertSlot(n) : glSlotCount(s) = glSlotCount(s) + 1
+    NEXT
+    at& = 0
+    FOR s = 0 TO GL_GLOW_TEX : glSlotStart(s) = at& : glSlotFill(s) = at& : at& = at& + glSlotCount(s) : NEXT
+    FOR n = 0 TO glNumVerts - 1
+        s = glVertSlot(n) : glIndex(glSlotFill(s)) = n : glSlotFill(s) = glSlotFill(s) + 1
+    NEXT
+    ' Into the stream (the GLSL library's buffer in graphics memory) with
+    ' them all, once: the draws below then read from there, with nothing
+    ' more to copy - see GLSL_stream_put in the library for why
+    n = glNumVerts
+    GLSL_stream_bind -1
+    _glVertexPointer 3, _GL_FLOAT, 0, GLSL_stream_put%&(_OFFSET(glVerts(0)), n * 12)
+    _glTexCoordPointer 2, _GL_FLOAT, 0, GLSL_stream_put%&(_OFFSET(glTexSpots(0)), n * 8)
+    _glColorPointer 4, _GL_FLOAT, 0, GLSL_stream_put%&(_OFFSET(glColors(0)), n * 16)
+    IF glShaderOn THEN
+        _glNormalPointer _GL_FLOAT, 0, GLSL_stream_put%&(_OFFSET(glNormals(0)), n * 12)
+        GLSL_attrib_array glTanLoc, 3, GLSL_stream_put%&(_OFFSET(glTangents(0)), n * 12)
+        GLSL_attrib_array glLightLoc, 4, GLSL_stream_put%&(_OFFSET(glLightVecs(0)), n * 16)
+        GLSL_attrib_array glDynLoc, 4, GLSL_stream_put%&(_OFFSET(glDynMasks(0)), n * 16)
+    END IF
+    indexAt%& = GLSL_stream_put%&(_OFFSET(glIndex(0)), n * 4)
+    FOR s = 1 TO GL_GLOW_TEX
+        IF glSlotCount(s) THEN
+            GLBindSlot s
+            _glDrawElements _GL_TRIANGLES, glSlotCount(s), _GL_UNSIGNED_INT, indexAt%& + glSlotStart(s) * 4
+        END IF
+    NEXT
+    GLSL_stream_bind 0 ' (QB64PE's own drawing needs it unbound)
+    glNumVerts = 0
+END SUB
+
+' The light the next corners are lit by: cell (cx, cy)'s, times darken (1,
+' or less for the darker sides) - and that cell's light middle, and which
+' moving lights reach it
+SUB GLSetLight(cx, cy, darken, b)
+    glLR = glLitR(cx, cy, b) : glLG = glLitG(cx, cy, b) : glLB = glLitB(cx, cy, b) : glShade = darken
+    glCellLX = glLitCX(cx, cy, b) : glCellLY = glLitCY(cx, cy, b) : glCellDir = glLitDir(cx, cy, b)
+    FOR k = 1 TO GL_DYN : glCellDyn(k) = glDynReach(cx, cy, k, b) : NEXT
+END SUB
+
+' One corner of a triangle: map point (x, y) at height z, showing texture
+' spot (u, v) (0 to 1 across and down the picture). Its colour is the light
+' times the fog at its distance in front of you - chapter 15's sum, at the
+' corners; the card blends it across the triangle. It goes into the batch
+' (GLPutCorner).
+'
+' SMOOTH LIGHT takes the light from the cells round the corner instead of
+' just this one: the corner's light is blended from the four nearest cell
+' middles, more from the nearer ones ("bilinear" - the way the card blends
+' a texture), skipping walls. Neighbouring triangles then share their
+' corners' light, so it flows across the floor instead of stepping from
+' cell to cell. Without the world shader, the moving lights are added here
+' too, at each corner (GLDynAt).
+SUB GLCorner(x, y, z, u, v)
+    IF glMeshBuilding THEN GLMeshCorner x, y, z, u, v : EXIT SUB ' (building the world mesh: just the shape)
+    lr = glLR : lg = glLG : lb = glLB
+    IF glSet(SET_SMOOTH, glBuf) THEN
+        fx = x - 0.5 : fy = y - 0.5 : ix = INT(fx) : iy = INT(fy) : tx = fx - ix : ty = fy - iy
+        sr = 0 : sg = 0 : sb = 0 : sw = 0
+        FOR j = 0 TO 1 : FOR i = 0 TO 1
+            IF GLOpenCell(ix + i, iy + j) THEN
+                w = (i * tx + (1 - i) * (1 - tx)) * (j * ty + (1 - j) * (1 - ty))
+                sr = sr + glLitR(ix + i, iy + j, glBuf) * w : sg = sg + glLitG(ix + i, iy + j, glBuf) * w : sb = sb + glLitB(ix + i, iy + j, glBuf) * w : sw = sw + w
+            END IF
+        NEXT : NEXT
+        IF sw > 0.0001 THEN lr = sr / sw : lg = sg / sw : lb = sb / sw
+    END IF
+    IF glShaderOn = 0 AND glSet(SET_DYNLIGHT, glBuf) THEN
+        GLDynAt x, y, z, dr, dg, db : lr = lr + dr : lg = lg + dg : lb = lb + db
+    END IF
+    depth = (x - glEyeX) * glEyeDX + (y - glEyeY) * glEyeDY
+    fog = 256 - depth * 16
+    IF fog < 0 THEN fog = 0
+    IF fog > 256 THEN fog = 256 ' (behind you)
+    fog = fog * glShade / 65536 ' (two 256s: the fog's and the light's)
+    red = lr * fog : IF red > 1 THEN red = 1
+    green = lg * fog : IF green > 1 THEN green = 1
+    blue = lb * fog : IF blue > 1 THEN blue = 1
+    glCornerLX = glCellLX - x : glCornerLY = glCellLY - y : glCornerLZ = GL_LIGHT_Z - z ' (the way to the light, for bumps)
+    GLPutCorner x, y, z, u, v, red, green, blue
+END SUB
+
+' A floor (z = 0) or ceiling (z = 1) tile: two triangles, cut along the
+' diagonal its split uses (chapter 2) so each half can have its own texture.
+' The texture lies flat: u runs with x, v with y, as in chapter 14.
+SUB GLFlat(cx, cy, z, tex1, tex2, split)
+    IF split = 1 OR split = 3 THEN ' Cut "/": the top-left half, then the bottom-right
+        IF split = 1 THEN GLUseTexture tex2 ELSE GLUseTexture tex1
+        GLCorner cx, cy, z, 0, 0 : GLCorner cx + 1, cy, z, 1, 0 : GLCorner cx, cy + 1, z, 0, 1
+        IF split = 3 THEN GLUseTexture tex2 ELSE GLUseTexture tex1
+        GLCorner cx + 1, cy, z, 1, 0 : GLCorner cx + 1, cy + 1, z, 1, 1 : GLCorner cx, cy + 1, z, 0, 1
+    ELSE ' Cut "\": the top-right half, then the bottom-left
+        IF split = 2 THEN GLUseTexture tex2 ELSE GLUseTexture tex1
+        GLCorner cx, cy, z, 0, 0 : GLCorner cx + 1, cy, z, 1, 0 : GLCorner cx + 1, cy + 1, z, 1, 1
+        IF split = 4 THEN GLUseTexture tex2 ELSE GLUseTexture tex1
+        GLCorner cx, cy, z, 0, 0 : GLCorner cx + 1, cy + 1, z, 1, 1 : GLCorner cx, cy + 1, z, 0, 1
+    END IF
+END SUB
+
+' Part of an upright face that runs from map point (ax, ay) to (bx, by):
+' from s0 to s1 of the way along it, showing texture u0 to u1 across, and
+' from height zLow up to zHigh, showing texture vTop (at the top) down to
+' vBottom. Two triangles.
+SUB GLStrip(ax, ay, bx, by, s0, s1, u0, u1, zLow, zHigh, vTop, vBottom, slot)
+    x0 = ax + (bx - ax) * s0 : y0 = ay + (by - ay) * s0
+    x1 = ax + (bx - ax) * s1 : y1 = ay + (by - ay) * s1
+    faceLen = SQR((bx - ax) ^ 2 + (by - ay) ^ 2) ' The tangent: along the face, the way u grows
+    glFaceTX = (bx - ax) / faceLen * SGN(u1 - u0) : glFaceTY = (by - ay) / faceLen * SGN(u1 - u0) : glFaceTZ = 0
+    GLUseTexture slot
+    GLCorner x0, y0, zHigh, u0, vTop : GLCorner x1, y1, zHigh, u1, vTop : GLCorner x1, y1, zLow, u1, vBottom
+    GLCorner x0, y0, zHigh, u0, vTop : GLCorner x1, y1, zLow, u1, vBottom : GLCorner x0, y0, zLow, u0, vBottom
+END SUB
+
+' Does side (1 west, 2 east, 3 north, 4 south) of a diagonal wall's cell
+' touch its solid corner (1 top-left, 2 top-right, 3 bottom-right, 4
+' bottom-left)? Those two sides are walls; the other two are open.
+FUNCTION SideTouchesCorner(side, corner)
+    SELECT CASE side
+        CASE 1 : SideTouchesCorner = corner = 1 OR corner = 4
+        CASE 2 : SideTouchesCorner = corner = 2 OR corner = 3
+        CASE 3 : SideTouchesCorner = corner = 1 OR corner = 2
+        CASE 4 : SideTouchesCorner = corner = 3 OR corner = 4
+    END SELECT
+END FUNCTION
+
+' One side of wall cell (cx, cy) - if it looks onto a cell that isn't
+' solid wall, and you're in front of it. Its ends are (ax, ay) and
+' (bx, by), in the direction x or y grows. It's lit by the cell it looks
+' onto, and north and south sides are darker (chapter 15's y-sides).
+'
+' Which way round the texture goes copies chapter 15 exactly. A wall reads
+' left to right from in front, so on west and south sides (where "left"
+' is the far end) it runs backwards, from 1 to 0. Doors don't turn round,
+' so they look mirrored from the other side, as in the software renderer.
+SUB GLFace(cx, cy, side, b)
+    SELECT CASE side
+        CASE 1 : nx = cx - 1 : ny = cy : ax = cx : ay = cy : bx = cx : by = cy + 1 : inFront = glEyeX < cx
+        CASE 2 : nx = cx + 1 : ny = cy : ax = cx + 1 : ay = cy : bx = cx + 1 : by = cy + 1 : inFront = glEyeX > cx + 1
+        CASE 3 : nx = cx : ny = cy - 1 : ax = cx : ay = cy : bx = cx + 1 : by = cy : inFront = glEyeY < cy
+        CASE 4 : nx = cx : ny = cy + 1 : ax = cx : ay = cy + 1 : bx = cx + 1 : by = cy + 1 : inFront = glEyeY > cy + 1
+    END SELECT
+    IF NOT inFront AND NOT glMeshBuilding THEN EXIT SUB ' (the mesh has every side: the depth buffer sorts them out)
+    IF nx < 0 OR ny < 0 OR nx >= MAP_SIZE OR ny >= MAP_SIZE THEN EXIT SUB
+    IF IsWall(nx, ny) AND diagCorner(nx, ny) = 0 THEN EXIT SUB ' Wall against wall: never seen
+    IF side <= 2 THEN GLSetLight nx, ny, 1, b ELSE GLSetLight nx, ny, 0.7, b
+    glFaceNX = nx - cx : glFaceNY = ny - cy : glFaceNZ = 0 ' Facing the cell it looks onto
+    IF side = 1 OR side = 4 THEN u0 = 1 : u1 = 0 ELSE u0 = 0 : u1 = 1
+    IF worldMap(cx, cy) <> 2 THEN ' A wall
+        GLStrip ax, ay, bx, by, 0, 1, u0, u1, 0, 1, 0, 1, wallTexSlot(worldMap(cx, cy))
+        EXIT SUB
+    END IF
+    doorAmt = glDoor(cx, cy, b) ' A door: 0 shut .. 1 open
+    SELECT CASE doorType(cx, cy)
+        CASE DOOR_SLIDE ' What's left of it, from doorAmt to the end, its texture slid along
+            IF doorKey(cx, cy) THEN slot = T_DOORK + doorKey(cx, cy) ELSE slot = T_DOOR
+            IF doorAmt < 1 THEN GLStrip ax, ay, bx, by, doorAmt, 1, 0, 1 - doorAmt, 0, 1, 0, 1, slot
+        CASE DOOR_SPLIT ' Two halves, parting from the middle
+            IF doorAmt < 1 THEN
+                GLStrip ax, ay, bx, by, 0, 0.5 - doorAmt / 2, doorAmt / 2, 0.5, 0, 1, 0, 1, T_SPLIT
+                GLStrip ax, ay, bx, by, 0.5 + doorAmt / 2, 1, 0.5, 1 - doorAmt / 2, 0, 1, 0, 1, T_SPLIT
+            END IF
+        CASE DOOR_EXIT ' Turned like a wall, so its sign reads the right way
+            GLStrip ax, ay, bx, by, 0, 1, u0, u1, 0, 1, 0, 1, T_EXIT
+        CASE ELSE ' A shutter: the part still hanging down, showing the bottom of its texture
+            IF doorAmt < 1 THEN GLStrip ax, ay, bx, by, 0, 1, 0, 1, doorAmt, 1, doorAmt, 1, T_SHUTTER
+    END SELECT
+END SUB
+
+' A diagonal wall's slanted face, corner to corner across its cell, if
+' you're on its open side. Lit by its own cell, between the two sides'
+' darkness (as chapter 15), and textured left to right along x - turned
+' round for corners 1 and 2, as chapter 15 does.
+SUB GLDiagonal(cx, cy, corner, b)
+    IF NOT glMeshBuilding THEN IF InDiagonalWall(corner, glEyeX - cx, glEyeY - cy) THEN EXIT SUB ' You're behind it
+    IF corner = 1 OR corner = 3 THEN
+        ax = cx : ay = cy + 1 : bx = cx + 1 : by = cy ' "/"
+    ELSE
+        ax = cx : ay = cy : bx = cx + 1 : by = cy + 1 ' "\"
+    END IF
+    IF corner <= 2 THEN u0 = 1 : u1 = 0 ELSE u0 = 0 : u1 = 1
+    GLSetLight cx, cy, 0.85, b
+    glFaceNX = -(by - ay) * 0.7071 : glFaceNY = (bx - ax) * 0.7071 : glFaceNZ = 0 ' Square to the diagonal...
+    IF InDiagonalWall(corner, 0.5 + glFaceNX * 0.1, 0.5 + glFaceNY * 0.1) THEN glFaceNX = -glFaceNX : glFaceNY = -glFaceNY ' ...on its open side
+    GLStrip ax, ay, bx, by, 0, 1, u0, u1, 0, 1, 0, 1, wallTexSlot(worldMap(cx, cy))
+END SUB
+
+' THE SHADERS. OpenGL's fixed recipe colours a pixel as texture times the
+' corner colour. A shader is a recipe of our own - a little program in
+' GLSL (OpenGL's shading language, which looks like C) that the graphics
+' card runs for every corner (the vertex shader) and every pixel (the
+' fragment shader). QB64PE's _gl... commands stop before shaders, so the
+' GLSL library from QB64_GJ_LIB (included at the top and bottom of this
+' file) compiles ours and feeds it. There are four:
+'
+' THE WORLD SHADER draws walls, floors, ceilings and sprites. It keeps the
+' lighting and fog the corners already carry, and adds, for every pixel:
+'
+'   BUMPS. Every texture's alpha holds its brightness (GLSendTextures),
+'   read as height (a sprite, which needs its alpha, uses its brightness
+'   directly). Comparing the heights left and right of a pixel, and above
+'   and below, says which way the surface there slopes - so the surface's
+'   normal (the way it faces) is tilted that way, along the texture's own
+'   directions on the face: its tangent (the way u grows) and the way v
+'   grows (down a wall, along y on a floor). Then, how squarely the tilted
+'   surface faces the light, compared with how squarely the flat face does,
+'   brightens slopes facing the light and darkens ones facing away - so on
+'   average the brightness stays the same, and the per-cell light (chapter
+'   14) still decides how bright things are.
+'
+'   Where's the light? Each cell's lights add up into the middle of the
+'   light falling on it (litSumX..., chapter 14), hanging GL_LIGHT_Z up;
+'   each corner gets the way from it to there, and the card blends that
+'   across the triangle, so every pixel knows its own way to the light.
+'   glLitDir is how much of the cell's light comes from lights at all; the
+'   rest, the level's ambient light, is taken to come from straight above,
+'   like the station's ceiling lights - so bumps show everywhere.
+'
+'   SHINE. A highlight where the light would bounce off into your eye
+'   (the "Blinn-Phong" highlight: the bumpy normal against the halfway
+'   between the ways to the light and to you), as strong as the texture's
+'   shine - metal doors most.
+'
+'   MOVING LIGHTS. Up to GL_DYN lights that move every frame - your muzzle
+'   flash, explosions, bolts - lighting each pixel by its own distance and
+'   angle to them, instead of whole cells. Walls in the way are handled the
+'   cell way: glDynReach (chapter 17) says which cells each light reaches,
+'   and every corner carries its cell's answer (the attribute aDyn).
+'
+'   NEON. Bright, strongly coloured pixels - the cyan strips in the walls,
+'   server lights, screens - light themselves: they keep their colour
+'   however dark it is round them, and bloom picks them up. Some textures
+'   animate it (anim): screens flicker block by block, warning stripes
+'   chase along, lights and reactors pulse.
+'
+'   WET FLOORS. A floor pass draws the floors see-through (its alpha is
+'   1 - reflectAmt), over the mirror image drawn under them.
+'
+' THE POST-PROCESSING SHADERS read the finished picture: the bright pass
+' keeps only the bright parts, the blur spreads them out (nine pixels in a
+' line, weighted like a bell curve, across and then down), and the final
+' one puts it all together - heat shimmer, the railgun's zoom blur, the
+' scene, the bloom, the red hurt pulse, the HUD, and scanlines or a CRT.
+'
+' If the driver can't do shaders, or one won't compile, its program stays
+' 0: without the world shader the fixed recipe draws everything (with the
+' moving lights added at the corners); without the post shader the extras
+' that need it are skipped. (Why: glShaderError$.)
+SUB GLBuildShaders
+    glWorldTried = -1
+    IF NOT GLSL_supported% THEN glShaderError$ = "no shaders (OpenGL 2.0) on this driver" : EXIT SUB
+    nl$ = CHR$(10)
+    vs$ = "#version 120" + nl$
+    vs$ = vs$ + "attribute vec3 aTangent;  // the way u grows along the face" + nl$
+    vs$ = vs$ + "attribute vec4 aLight;    // the way to the light, and how much of the light that is" + nl$
+    vs$ = vs$ + "attribute vec4 aDyn;      // which of the moving lights reach this corner's cell" + nl$
+    vs$ = vs$ + "varying vec3 vPos, vNormal, vTangent;" + nl$
+    vs$ = vs$ + "varying vec4 vLight, vDyn;" + nl$
+    vs$ = vs$ + "void main() {" + nl$
+    vs$ = vs$ + "    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;  // the camera, as OpenGL does it" + nl$
+    vs$ = vs$ + "    gl_FrontColor = gl_Color;                                // light x fog, from GLCorner" + nl$
+    vs$ = vs$ + "    gl_TexCoord[0] = gl_MultiTexCoord0;" + nl$
+    vs$ = vs$ + "    vPos = gl_Vertex.xyz; vNormal = gl_Normal; vTangent = aTangent; vLight = aLight; vDyn = aDyn;" + nl$
+    vs$ = vs$ + "}" + nl$
+
+    fs$ = "#version 120" + nl$
+    fs$ = fs$ + "uniform sampler2D tex;      // the texture (alpha = height, except sprites)" + nl$
+    fs$ = fs$ + "uniform vec3 eye;           // where you are" + nl$
+    fs$ = fs$ + "uniform vec2 viewDir;       // the way you face" + nl$
+    fs$ = fs$ + "uniform float bump, texel, shine, reflectAmt, neon, anim, isSprite, secs;" + nl$
+    fs$ = fs$ + "uniform vec3 dynPos[4];     // the moving lights: where..." + nl$
+    fs$ = fs$ + "uniform vec3 dynCol[4];     // ...what colour..." + nl$
+    fs$ = fs$ + "uniform float dynRad[4];    // ...and how far they reach" + nl$
+    fs$ = fs$ + "uniform sampler2D litTex, infoTex, dynTex;  // the light tables (cellLit)" + nl$
+    fs$ = fs$ + "uniform float cellLit, smoothOn;  // light from the tables, not the corners; blended between cells" + nl$
+    fs$ = fs$ + "varying vec3 vPos, vNormal, vTangent;" + nl$
+    fs$ = fs$ + "varying vec4 vLight, vDyn;" + nl$
+    fs$ = fs$ + "float height(vec2 p) {" + nl$
+    fs$ = fs$ + "    vec4 t = texture2D(tex, p);" + nl$
+    fs$ = fs$ + "    return isSprite > 0.5 ? dot(t.rgb, vec3(0.3, 0.59, 0.11)) : t.a;" + nl$
+    fs$ = fs$ + "}" + nl$
+    fs$ = fs$ + "void main() {" + nl$
+    fs$ = fs$ + "    vec2 uv = gl_TexCoord[0].xy;" + nl$
+    fs$ = fs$ + "    vec4 c = texture2D(tex, uv);" + nl$
+    fs$ = fs$ + "    if (isSprite > 0.5 && c.a < 0.502) discard;  // a sprite's see-through pixels" + nl$
+    fs$ = fs$ + "    vec3 n = normalize(vNormal);" + nl$
+    fs$ = fs$ + "    vec3 t = normalize(vTangent);" + nl$
+    fs$ = fs$ + "    vec3 b = abs(n.z) > 0.5 ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, -1.0);  // the way v grows" + nl$
+    fs$ = fs$ + "    float hl = height(uv - vec2(texel, 0.0)), hr = height(uv + vec2(texel, 0.0));" + nl$
+    fs$ = fs$ + "    float hu = height(uv - vec2(0.0, texel)), hd = height(uv + vec2(0.0, texel));" + nl$
+    fs$ = fs$ + "    vec3 nb = normalize(n + (t * (hl - hr) + b * (hu - hd)) * bump);  // tilted down the slope" + nl$
+    fs$ = fs$ + "    float fog = clamp(1.0 - dot(vPos.xy - eye.xy, viewDir) / 16.0, 0.0, 1.0);  // as chapters 14 and 15" + nl$
+    fs$ = fs$ + "    vec3 lightCol = gl_Color.rgb; vec4 lv = vLight; vec4 reach = vDyn;" + nl$
+    fs$ = fs$ + "    if (cellLit > 0.5) {  // the world: look the light up in the tables, at the cell in front of the surface" + nl$
+    fs$ = fs$ + "        vec2 p = vPos.xy + n.xy * 0.02;" + nl$
+    fs$ = fs$ + "        vec2 cuv = (floor(p) + 0.5) / 64.0;" + nl$
+    fs$ = fs$ + "        vec4 info = texture2D(infoTex, cuv);" + nl$
+    fs$ = fs$ + "        reach = texture2D(dynTex, cuv);" + nl$
+    fs$ = fs$ + "        vec3 light = texture2D(litTex, cuv).rgb;" + nl$
+    fs$ = fs$ + "        if (smoothOn > 0.5) {  // blend the four nearest cell middles, skipping walls (alpha 0)" + nl$
+    fs$ = fs$ + "            vec2 f = p - 0.5; vec2 i0 = floor(f); vec2 w = f - i0;" + nl$
+    fs$ = fs$ + "            vec4 a = texture2D(litTex, (i0 + vec2(0.5, 0.5)) / 64.0), bb = texture2D(litTex, (i0 + vec2(1.5, 0.5)) / 64.0);" + nl$
+    fs$ = fs$ + "            vec4 cc = texture2D(litTex, (i0 + vec2(0.5, 1.5)) / 64.0), dd = texture2D(litTex, (i0 + vec2(1.5, 1.5)) / 64.0);" + nl$
+    fs$ = fs$ + "            float wa = (1.0 - w.x) * (1.0 - w.y) * a.a, wb = w.x * (1.0 - w.y) * bb.a, wc = (1.0 - w.x) * w.y * cc.a, wd = w.x * w.y * dd.a;" + nl$
+    fs$ = fs$ + "            float ws = wa + wb + wc + wd;" + nl$
+    fs$ = fs$ + "            if (ws > 0.001) light = (a.rgb * wa + bb.rgb * wb + cc.rgb * wc + dd.rgb * wd) / ws;" + nl$
+    fs$ = fs$ + "        }" + nl$
+    fs$ = fs$ + "        float side = abs(n.z) > 0.5 ? 1.0 : (abs(n.x) > 0.99 ? 1.0 : (abs(n.y) > 0.99 ? 0.7 : 0.85));  // y-sides darker, diagonals between" + nl$
+    fs$ = fs$ + "        lightCol = min(light * fog * side / 256.0, vec3(1.0));" + nl$
+    fs$ = fs$ + "        lv = vec4(info.xy - vPos.xy, 0.85 - vPos.z, info.z);" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    vec3 l = normalize(normalize(lv.xyz + vec3(0.0, 0.0, 0.0001)) * lv.w + vec3(0.0, 0.0, 1.0 - lv.w));" + nl$
+    fs$ = fs$ + "    float shade = clamp(1.0 + (dot(nb, l) - dot(n, l)) * 1.5, 0.4, 1.8);  // brighter facing it, darker facing away" + nl$
+    fs$ = fs$ + "    vec3 toEye = normalize(eye - vPos);" + nl$
+    fs$ = fs$ + "    float highlight = pow(max(dot(nb, normalize(l + toEye)), 0.0), 24.0) * shine * step(0.0, dot(n, l));" + nl$
+    fs$ = fs$ + "    vec3 dyn = vec3(0.0); float dynShine = 0.0;" + nl$
+    fs$ = fs$ + "    for (int i = 0; i < 4; i++) {" + nl$
+    fs$ = fs$ + "        float r = i == 0 ? reach.x : (i == 1 ? reach.y : (i == 2 ? reach.z : reach.w));" + nl$
+    fs$ = fs$ + "        vec3 d = dynPos[i] - vPos; float dist = length(d);" + nl$
+    fs$ = fs$ + "        float fall = clamp(1.0 - dist / dynRad[i], 0.0, 1.0); fall = fall * fall * r;" + nl$
+    fs$ = fs$ + "        vec3 dn = d / max(dist, 0.001);" + nl$
+    fs$ = fs$ + "        float facing = isSprite > 0.5 ? 0.8 : max(dot(nb, dn), 0.0);" + nl$
+    fs$ = fs$ + "        dyn += dynCol[i] * fall * facing;" + nl$
+    fs$ = fs$ + "        dynShine += fall * pow(max(dot(nb, normalize(dn + toEye)), 0.0), 24.0) * (dynCol[i].r + dynCol[i].g + dynCol[i].b);" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    vec3 col = c.rgb * (lightCol * shade + dyn * fog) + lightCol * highlight + vec3(dynShine * shine * fog * 0.3);" + nl$
+    fs$ = fs$ + "    float hi = max(c.r, max(c.g, c.b)), lo = min(c.r, min(c.g, c.b));" + nl$
+    fs$ = fs$ + "    float e = smoothstep(0.68, 0.95, hi) * smoothstep(0.45, 0.75, (hi - lo) / (hi + 0.0001)) * neon;  // neon: bright and colourful" + nl$
+    fs$ = fs$ + "    if (anim > 0.5 && anim < 1.5) e *= 0.45 + 0.55 * step(0.35, fract(sin(dot(floor(uv * 8.0), vec2(12.9898, 78.233)) + floor(secs * 6.0)) * 43758.5453));" + nl$
+    fs$ = fs$ + "    else if (anim > 1.5 && anim < 2.5) e *= 0.55 + 0.45 * sin(uv.x * 12.0 - secs * 4.0);" + nl$
+    fs$ = fs$ + "    else if (anim > 2.5) e *= 0.75 + 0.25 * sin(secs * 2.5 + vPos.x + vPos.y);" + nl$
+    fs$ = fs$ + "    col = mix(col, c.rgb * 1.3 * (0.35 + 0.65 * fog), clamp(e, 0.0, 0.85));" + nl$
+    fs$ = fs$ + "    gl_FragColor = vec4(col, 1.0 - reflectAmt);" + nl$
+    fs$ = fs$ + "}" + nl$
+    glWorldProg = GLSL_program~&(vs$, fs$)
+    IF glWorldProg = 0 THEN glShaderError$ = "world: " + GLSL_error$ : EXIT SUB
+    glTanLoc = GLSL_attrib&(glWorldProg, "aTangent") : glLightLoc = GLSL_attrib&(glWorldProg, "aLight") : glDynLoc = GLSL_attrib&(glWorldProg, "aDyn")
+    GLSL_use glWorldProg ' (the texture is on unit 0, the light tables on 1, 2 and 3)
+    GLSL_uniform_1i glWorldProg, "tex", 0 : GLSL_uniform_1i glWorldProg, "litTex", 1
+    GLSL_uniform_1i glWorldProg, "infoTex", 2 : GLSL_uniform_1i glWorldProg, "dynTex", 3
+    GLSL_use 0
+
+    ' --- Post-processing. All three draw one rectangle over everything
+    ' (GLSL_fullscreen), reading pictures at uv (0..1, up from the bottom).
+    pv$ = GLSL_filter_vertex$
+    fs$ = "#version 120" + nl$ + "uniform sampler2D scene; varying vec2 uv;" + nl$
+    fs$ = fs$ + "void main() {  // the bright pass: only what's brighter than 0.55 survives" + nl$
+    fs$ = fs$ + "    vec3 c = texture2D(scene, uv).rgb;" + nl$
+    fs$ = fs$ + "    gl_FragColor = vec4(c * smoothstep(0.55, 0.95, max(c.r, max(c.g, c.b))), 1.0);" + nl$
+    fs$ = fs$ + "}" + nl$
+    glBrightProg = GLSL_program~&(pv$, fs$)
+    fs$ = "#version 120" + nl$ + "uniform sampler2D src; uniform vec2 stepUV; varying vec2 uv;" + nl$
+    fs$ = fs$ + "void main() {  // nine pixels in a line, weighted like a bell curve" + nl$
+    fs$ = fs$ + "    vec3 c = texture2D(src, uv).rgb * 0.227;" + nl$
+    fs$ = fs$ + "    c += (texture2D(src, uv + stepUV * 1.4).rgb + texture2D(src, uv - stepUV * 1.4).rgb) * 0.316;" + nl$
+    fs$ = fs$ + "    c += (texture2D(src, uv + stepUV * 3.3).rgb + texture2D(src, uv - stepUV * 3.3).rgb) * 0.070;" + nl$
+    fs$ = fs$ + "    gl_FragColor = vec4(c, 1.0);" + nl$
+    fs$ = fs$ + "}" + nl$
+    glBlurProg = GLSL_program~&(pv$, fs$)
+
+    fs$ = "#version 120" + nl$
+    fs$ = fs$ + "uniform sampler2D scene, bloom, hud;" + nl$
+    fs$ = fs$ + "uniform float bloomAmt, fxMode, hurt, rail, secs, hudOn;" + nl$
+    fs$ = fs$ + "uniform vec2 res;         // the window's size in pixels" + nl$
+    fs$ = fs$ + "uniform vec4 heat[4];     // explosions: where (0..1), how big, how strong" + nl$
+    fs$ = fs$ + "varying vec2 uv;" + nl$
+    fs$ = fs$ + "vec2 curve(vec2 p) { p = p * 2.0 - 1.0; p *= 1.0 + 0.06 * dot(p.yx, p.yx); return p * 0.5 + 0.5; }" + nl$
+    fs$ = fs$ + "void main() {" + nl$
+    fs$ = fs$ + "    vec2 p = uv;" + nl$
+    fs$ = fs$ + "    if (fxMode > 1.5) {  // CRT: a curved glass screen" + nl$
+    fs$ = fs$ + "        p = curve(uv);" + nl$
+    fs$ = fs$ + "        if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    vec2 s = p;  // where to read the scene: shimmered by heat" + nl$
+    fs$ = fs$ + "    for (int i = 0; i < 4; i++) {" + nl$
+    fs$ = fs$ + "        vec2 d = (s - heat[i].xy) * vec2(res.x / res.y, 1.0);" + nl$
+    fs$ = fs$ + "        float r = length(d);" + nl$
+    fs$ = fs$ + "        if (heat[i].z > 0.0 && r < heat[i].z) s += vec2(sin(s.y * 90.0 + secs * 9.0), cos(s.x * 90.0 + secs * 7.0)) * 0.006 * heat[i].w * (1.0 - r / heat[i].z);" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    vec3 c = vec3(0.0);" + nl$
+    fs$ = fs$ + "    if (rail > 0.01) {  // the railgun: a blur zooming out from the middle" + nl$
+    fs$ = fs$ + "        for (int i = 0; i < 8; i++) c += texture2D(scene, 0.5 + (s - 0.5) * (1.0 - float(i) * 0.012 * rail)).rgb;" + nl$
+    fs$ = fs$ + "        c /= 8.0;" + nl$
+    fs$ = fs$ + "    } else c = texture2D(scene, s).rgb;" + nl$
+    fs$ = fs$ + "    if (fxMode > 1.5 || hurt > 0.01) {  // colour fringes: on a CRT, and when hurt" + nl$
+    fs$ = fs$ + "        vec2 off = (s - 0.5) * (0.004 * step(1.5, fxMode) + 0.012 * hurt);" + nl$
+    fs$ = fs$ + "        c.r = texture2D(scene, s + off).r; c.b = texture2D(scene, s - off).b;" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    c += texture2D(bloom, s).rgb * bloomAmt;" + nl$
+    fs$ = fs$ + "    float edge = smoothstep(0.3, 0.75, length((p - 0.5) * vec2(1.25, 1.0)));" + nl$
+    fs$ = fs$ + "    c = mix(c, vec3(0.75, 0.0, 0.05), hurt * edge * (0.65 + 0.35 * sin(secs * 18.0)));  // hurt: a red pulse at the edges" + nl$
+    fs$ = fs$ + "    if (hudOn > 0.5) { vec4 h = texture2D(hud, vec2(p.x, 1.0 - p.y)); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied)" + nl$
+    fs$ = fs$ + "    if (fxMode > 0.5) c *= 0.82 + 0.18 * sin(p.y * res.y * 1.5708);  // scanlines" + nl$
+    fs$ = fs$ + "    if (fxMode > 1.5) {  // CRT: a shadow mask and a dark rim" + nl$
+    fs$ = fs$ + "        float m = mod(gl_FragCoord.x, 3.0);" + nl$
+    fs$ = fs$ + "        c *= m < 1.0 ? vec3(1.0, 0.8, 0.8) : (m < 2.0 ? vec3(0.8, 1.0, 0.8) : vec3(0.8, 0.8, 1.0));" + nl$
+    fs$ = fs$ + "        vec2 e2 = p * (1.0 - p.yx); c *= clamp(pow(e2.x * e2.y * 20.0, 0.3), 0.0, 1.0) * 1.2;" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    gl_FragColor = vec4(c, 1.0);" + nl$
+    fs$ = fs$ + "}" + nl$
+    glPostProg = GLSL_program~&(pv$, fs$)
+    IF glPostProg = 0 THEN glShaderError$ = "post: " + GLSL_error$
+END SUB
+
+' === THE GAME'S SIDE OF THE OPENGL EXTRAS ======================================
+' (These run in the game, between frames - not in SUB _GL.)
+
+' Our screen on the window, or not: with OpenGL, SUB _GL draws it itself
+' (over the 3D view), so QB64PE's own layer for it is switched off. Only
+' changed when it needs to be.
+SUB GLScreenLayer(glOn)
+    STATIC shown
+    IF (glOn <> 0) = shown THEN EXIT SUB
+    IF glOn THEN _DISPLAYORDER _GLRENDER ELSE _DISPLAYORDER _GLRENDER , _SOFTWARE
+    shown = (glOn <> 0)
+END SUB
+
+' One more particle: a kind (PART_), where, which way and how fast (cells a
+' frame), for how many frames, its colour (0..1) and size. When all
+' MAX_PART are busy, the oldest-placed is reused.
+SUB SpawnPart(kind, x, y, z, vx, vy, vz, life, r, g, b, size)
+    partNext = partNext MOD MAX_PART + 1
+    i = partNext
+    partKind(i) = kind : partX(i) = x : partY(i) = y : partZ(i) = z
+    partVX(i) = vx : partVY(i) = vy : partVZ(i) = vz
+    partLife(i) = life : partMax(i) = life : partR(i) = r : partG(i) = g : partB(i) = b : partSize(i) = size
+END SUB
+
+' A spray of sparks at (x, y, z), colour (r, g, b) in 0..255: where a shot
+' or a bolt hits
+SUB SpawnSparks(x, y, z, count, r, g, b)
+    FOR k = 1 TO count
+        SpawnPart PART_SPARK, x, y, z, (RND - 0.5) * 0.12, (RND - 0.5) * 0.12, 0.015 + RND * 0.06, 16 + INT(RND * 16), r / 255, g / 255, b / 255, 0.03 + RND * 0.02
+    NEXT
+END SUB
+
+' Embers flying up out of an explosion (size 1: a barrel)
+SUB SpawnEmbers(x, y, size)
+    FOR k = 1 TO INT(26 * size) + 3
+        SpawnPart PART_EMBER, x, y, 0.3 + RND * 0.3, (RND - 0.5) * 0.1, (RND - 0.5) * 0.1, 0.03 + RND * 0.07, 30 + INT(RND * 40), 1, 0.45 + RND * 0.35, 0.1, 0.04 + RND * 0.04
+    NEXT
+END SUB
+
+' Dust motes drifting in the light round you, at (px, py): faint, slow,
+' tinted by the light of the cell they start in - there's always a few
+SUB SpawnDust(px, py)
+    IF dustCount >= 70 OR RND > 0.5 THEN EXIT SUB
+    x = px + (RND - 0.5) * 9 : y = py + (RND - 0.5) * 9
+    IF x < 1 OR y < 1 OR x >= MAP_SIZE - 1 OR y >= MAP_SIZE - 1 THEN EXIT SUB ' (inside the map...)
+    IF NOT Walkable%(x, y) THEN EXIT SUB ' (...and not in a wall)
+    cx = INT(x) : cy = INT(y)
+    SpawnPart PART_DUST, x, y, 0.05 + RND * 0.9, (RND - 0.5) * 0.003, (RND - 0.5) * 0.003, (RND - 0.5) * 0.002, 200 + INT(RND * 150), litR(cx, cy) / 2200, litG(cx, cy) / 2200, litB(cx, cy) / 2200, 0.018
+END SUB
+
+' Move every particle a frame on. Sparks and embers fall (embers slowly,
+' they're hot and light) and bounce off the floor and walls, losing speed;
+' dust just drifts.
+SUB UpdateParticles
+    dustCount = 0
+    FOR i = 1 TO MAX_PART
+        IF partLife(i) > 0 THEN
+            partLife(i) = partLife(i) - 1
+            IF partKind(i) = PART_DUST THEN
+                dustCount = dustCount + 1
+                partVX(i) = partVX(i) + (RND - 0.5) * 0.0004 : partVY(i) = partVY(i) + (RND - 0.5) * 0.0004
+            ELSEIF partKind(i) = PART_EMBER THEN
+                partVZ(i) = partVZ(i) - 0.0015
+            ELSE
+                partVZ(i) = partVZ(i) - 0.0045
+            END IF
+            partX(i) = partX(i) + partVX(i) : partY(i) = partY(i) + partVY(i) : partZ(i) = partZ(i) + partVZ(i)
+            IF partX(i) < 1 OR partY(i) < 1 OR partX(i) >= MAP_SIZE - 1 OR partY(i) >= MAP_SIZE - 1 THEN partLife(i) = 0 : GOTO NextPart ' (off the map: gone)
+            IF partZ(i) < 0.01 THEN partZ(i) = 0.01 : partVZ(i) = -partVZ(i) * 0.35 : partVX(i) = partVX(i) * 0.7 : partVY(i) = partVY(i) * 0.7
+            IF partZ(i) > 0.98 THEN partZ(i) = 0.98 : partVZ(i) = -partVZ(i) * 0.3
+            IF SolidAt(partX(i), partY(i)) THEN ' Back out, and bounce
+                partX(i) = partX(i) - partVX(i) : partY(i) = partY(i) - partVY(i)
+                partVX(i) = -partVX(i) * 0.4 : partVY(i) = -partVY(i) * 0.4
+            END IF
+        END IF
+        NextPart:
+    NEXT
+END SUB
+
+' Looking up or down, the view's top or bottom corners see further to the
+' sides than the rays (chapter 15) went - the picture is a tilted window,
+' and a tilted window's far corners reach wider. So with the view tilted,
+' more rays are cast, across that wider angle, only to mark the cells they
+' pass (glSeen) for OpenGL to draw. (px, py) is you, (dx, dy) your
+' direction, planeLen the camera plane's length and zoom the zoom.
+SUB GLMarkWide(px, py, dx, dy, planeLen, zoom)
+    tanV = 1 / (2 * zoom) : p = ABS(pitch)
+    denom = COS(p) - SIN(p) * tanV : IF denom < 0.25 THEN denom = 0.25
+    wide = planeLen / denom
+    FOR r = 0 TO 159
+        camX = r / 159 * 2 - 1
+        rayX = dx + dy * wide * camX : rayY = dy - dx * wide * camX
+        mapX = INT(px) : mapY = INT(py)
+        deltaX = ABS(1 / (rayX + 0.000001)) : deltaY = ABS(1 / (rayY + 0.000001))
+        IF rayX < 0 THEN stepX = -1 : sideX = (px - mapX) * deltaX ELSE stepX = 1 : sideX = (mapX + 1 - px) * deltaX
+        IF rayY < 0 THEN stepY = -1 : sideY = (py - mapY) * deltaY ELSE stepY = 1 : sideY = (mapY + 1 - py) * deltaY
+        FOR hop = 1 TO 64
+            IF sideX < sideY THEN sideX = sideX + deltaX : mapX = mapX + stepX ELSE sideY = sideY + deltaY : mapY = mapY + stepY
+            IF mapX < 0 OR mapY < 0 OR mapX >= MAP_SIZE OR mapY >= MAP_SIZE THEN EXIT FOR
+            glSeen(mapX, mapY, glWrite) = glFrameNo
+            v = worldMap(mapX, mapY)
+            IF v > 0 AND v <> 2 AND diagCorner(mapX, mapY) = 0 THEN EXIT FOR ' A wall: stop
+            IF v = 2 THEN IF doorOpen(mapX, mapY) < 0.5 THEN EXIT FOR ' A shut door
+        NEXT
+    NEXT
+END SUB
+
+' Hand OpenGL this frame's extras (chapter 17): you're at (px, py) facing
+' (dx, dy), muzzle is the muzzle flash's frames left.
+'
+' MOVING LIGHTS: your muzzle flash, each explosion and each bolt is a
+' light - the same ones AddGlow adds to cells for the software renderer -
+' and the GL_DYN nearest you are handed over, with which cells each one
+' reaches (glDynReach), so walls still stop it. That's found by "flood
+' fill": start at the light's cell, spread to each open neighbour (not
+' through walls or shut doors), and theirs, until the light's radius runs
+' out. Light spreads round a corner a little this way - but a fill touches
+' each cell once, where tracing a line to every cell (LightReaches) did a
+' few thousand wall checks a frame.
+'
+' PARTICLES: the live ones, fading as they die (dust fades in and out).
+' HEAT: the explosions, for the heat shimmer.
+SUB GLHandOverExtras(px, py, dx, dy, muzzle)
+    DIM candX(40), candY(40), candZ(40), candRad(40), candR(40), candG(40), candB(40), candD(40)
+    w = glWrite : n = 0
+    IF muzzle > 0 THEN
+        n = n + 1 : candX(n) = px + dx * 0.4 : candY(n) = py + dy * 0.4 : candZ(n) = 0.5 : candRad(n) = 5
+        candR(n) = 70 * muzzle : candG(n) = 40 * muzzle : candB(n) = 40 * muzzle
+    END IF
+    nHeat = 0
+    FOR i = 1 TO MAX_BLASTS
+        IF blastTime(i) > 0 AND n < 40 THEN
+            f = blastTime(i) / BLAST_FRAMES * blastSize(i)
+            n = n + 1 : candX(n) = blastX(i) : candY(n) = blastY(i) : candZ(n) = 0.45 : candRad(n) = 2 + 5 * blastSize(i)
+            candR(n) = 400 * f : candG(n) = 220 * f : candB(n) = 90 * f
+            IF nHeat < GL_HEAT THEN nHeat = nHeat + 1 : glHeatX(nHeat, w) = blastX(i) : glHeatY(nHeat, w) = blastY(i) : glHeatAmt(nHeat, w) = blastTime(i) / BLAST_FRAMES
+        END IF
+    NEXT
+    glNumHeat(w) = nHeat
+    FOR i = 1 TO MAX_BOLTS
+        IF boltOn(i) AND n < 40 THEN
+            n = n + 1 : candX(n) = boltX(i) : candY(n) = boltY(i) : candZ(n) = 0.49 : candRad(n) = 2.5
+            candR(n) = 160 : candG(n) = 40 : candB(n) = 170
+        END IF
+    NEXT
+    FOR i = 1 TO n : candD(i) = (candX(i) - px) ^ 2 + (candY(i) - py) ^ 2 : NEXT
+    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : FOR k = 1 TO GL_DYN : glDynReach(x, y, k, w) = 0 : NEXT : NEXT : NEXT
+    kept = 0
+    DO WHILE kept < GL_DYN AND kept < n ' The nearest, one at a time
+        best = 0
+        FOR i = 1 TO n
+            IF candD(i) >= 0 THEN
+                IF best = 0 THEN
+                    best = i
+                ELSEIF candD(i) < candD(best) THEN
+                    best = i
+                END IF
+            END IF
+        NEXT
+        IF best = 0 THEN EXIT DO
+        kept = kept + 1 : candD(best) = -1
+        glDynX(kept, w) = candX(best) : glDynY(kept, w) = candY(best) : glDynZ(kept, w) = candZ(best) : glDynRad(kept, w) = candRad(best)
+        glDynR(kept, w) = candR(best) : glDynG(kept, w) = candG(best) : glDynB(kept, w) = candB(best)
+        rad = candRad(best) : lx = candX(best) : ly = candY(best)
+        FloodLight lx, ly, rad, kept, w
+    LOOP
+    glNumDyn(w) = kept
+
+    n = 0
+    FOR i = 1 TO MAX_PART
+        IF partLife(i) > 0 THEN
+            n = n + 1 : f = partLife(i) / partMax(i)
+            IF partKind(i) = PART_DUST THEN f = SIN(f * 3.14159)
+            glPartX(n, w) = partX(i) : glPartY(n, w) = partY(i) : glPartZ(n, w) = partZ(i) : glPartSize(n, w) = partSize(i)
+            glPartR(n, w) = partR(i) * f : glPartG(n, w) = partG(i) * f : glPartB(n, w) = partB(i) * f
+        END IF
+    NEXT
+    glNumPart(w) = n
+END SUB
+
+' Mark the cells moving light k (at (lx, ly), radius rad) reaches, in half
+' w of glDynReach: a flood fill out from its cell through open cells, up to
+' rad + 1 steps and within rad (and a bit) as the crow flies
+SUB FloodLight(lx, ly, rad, k, w)
+    cx = INT(lx) : cy = INT(ly)
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT SUB
+    fillStamp = fillStamp + 1
+    head = 0 : tail = 1 : fillX(0) = cx : fillY(0) = cy : fillD(0) = 0 : fillSeen(cx, cy) = fillStamp
+    reach2 = (rad + 0.8) ^ 2
+    DO WHILE head < tail
+        x = fillX(head) : y = fillY(head) : d = fillD(head) : head = head + 1
+        glDynReach(x, y, k, w) = 1
+        IF d <= rad THEN
+            FOR side = 1 TO 4
+                SELECT CASE side
+                    CASE 1 : nx = x - 1 : ny = y
+                    CASE 2 : nx = x + 1 : ny = y
+                    CASE 3 : nx = x : ny = y - 1
+                    CASE ELSE : nx = x : ny = y + 1
+                END SELECT
+                IF nx >= 0 AND ny >= 0 AND nx < MAP_SIZE AND ny < MAP_SIZE THEN
+                    IF fillSeen(nx, ny) <> fillStamp THEN
+                        fillSeen(nx, ny) = fillStamp
+                        v = worldMap(nx, ny)
+                        lightPasses = (v <= 0 OR diagCorner(nx, ny) <> 0)
+                        IF v = 2 THEN lightPasses = (doorOpen(nx, ny) >= 0.5)
+                        IF lightPasses AND (nx + 0.5 - lx) ^ 2 + (ny + 0.5 - ly) ^ 2 < reach2 AND tail <= MAP_SIZE * MAP_SIZE THEN
+                            fillX(tail) = nx : fillY(tail) = ny : fillD(tail) = d + 1 : tail = tail + 1
+                        END IF
+                    END IF
+                END IF
+            NEXT
+        END IF
+    LOOP
+END SUB
+
+'$INCLUDE:'../../../QB64_GJ_LIB/GLSL/GLSL.BM'
