@@ -1,0 +1,18 @@
+title   = THREAT LEVEL
+lesson  = SELECT CASE: one of several
+chapter = 13
+expect  = HUNTING
+[lines]
+' A monster's state is a number: say what it means
+state = 1
+SELECT CASE state
+    CASE 0 : PRINT "IDLE"
+    CASE 1 : PRINT "HUNTING"
+    CASE 2 : PRINT "DYING"
+END SELECT
+[blanks]
+3 SELECT
+7 END
+[hints]
+SELECT CASE runs the CASE that matches
+A state machine: chapter 13's monsters are 0 idle, 1 hunting, 2 dying

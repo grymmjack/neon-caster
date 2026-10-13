@@ -1,0 +1,14 @@
+title   = WRAP AROUND
+lesson  = AND 63: wrapping a number into 0..63, the way textures repeat
+chapter = 14
+expect  = 6
+[lines]
+' Pixel 70 of a 64-pixel texture is really pixel...
+x = 70
+wrapped = x AND 63
+PRINT wrapped
+[blanks]
+3 AND
+[hints]
+AND 63 keeps the lowest six bits: 0 to 63
+70 is 64 + 6, so it wraps to 6 - chapter 14's floors do this

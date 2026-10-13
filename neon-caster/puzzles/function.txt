@@ -1,0 +1,16 @@
+title   = DOUBLE OR NOTHING
+lesson  = A FUNCTION gives back a value
+chapter = 23
+expect  = 42
+[lines]
+' A FUNCTION is a little program with a value of its own
+PRINT Twice(21)
+FUNCTION Twice (n)
+    Twice = n * 2
+END FUNCTION
+[blanks]
+3 FUNCTION
+4 Twice
+[hints]
+A FUNCTION goes after the main program
+Inside it, its own name = what it gives back

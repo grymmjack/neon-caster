@@ -1,0 +1,18 @@
+title   = MIRROR WRITING
+lesson  = Strings: MID$ takes letters out; LEN counts them
+chapter = 23
+expect  = SUXEN
+[lines]
+' NEXUS, backwards
+w$ = "NEXUS"
+r$ = ""
+FOR k = LEN(w$) TO 1 STEP -1
+    r$ = r$ + MID$(w$, k, 1)
+NEXT
+PRINT r$
+[blanks]
+4 LEN
+5 MID$
+[hints]
+LEN(w$) is how many letters w$ has
+MID$(w$, k, 1) is the k-th letter

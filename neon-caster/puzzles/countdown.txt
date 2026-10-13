@@ -1,0 +1,17 @@
+title   = COUNTDOWN
+lesson  = FOR ... NEXT repeats - STEP -1 counts down
+chapter = 7
+expect  = 3 2 1 LIFTOFF
+[lines]
+' Count down from 3, on one line, then lift off
+FOR i = 3 TO 1 STEP -1
+    PRINT i;
+NEXT
+PRINT "LIFTOFF"
+[blanks]
+2 STEP
+4 NEXT
+[hints]
+FOR i = 3 TO 1 needs a STEP of -1 to count down
+PRINT i; - the ; keeps the next PRINT on the same line
+NEXT goes back up to the FOR, until i has passed 1

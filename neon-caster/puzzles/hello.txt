@@ -1,0 +1,13 @@
+title   = HELLO, NEXUS
+lesson  = PRINT shows text - and a program runs top to bottom
+chapter = 1
+expect  = ACCESS|GRANTED
+[lines]
+' A program runs from the top line down
+PRINT "ACCESS"
+PRINT "GRANTED"
+[blanks]
+3 PRINT
+[hints]
+PRINT puts its text on a line of its own
+ACCESS comes first, then GRANTED

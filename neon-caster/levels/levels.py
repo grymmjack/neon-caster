@@ -2,17 +2,20 @@
 
     python3 levels.py            build every level and check it
     python3 levels.py -show      ...and print the maps
-    python3 levels.py --write    build, check, and (if all is well) replace
-                                 the Level1: .. Level10: DATA in neon-caster.bas
-    python3 levels.py --check    just check the levels already in
-                                 neon-caster.bas (e.g. after editing them
-                                 there by hand)
+    python3 levels.py --write    build, check, and (if all is well) write
+                                 level1.txt .. level10.txt here - the files
+                                 the game loads
+    python3 levels.py --check    just check the level files as they are
+                                 (e.g. after editing one by hand, or in the
+                                 game's editor)
 
---write overwrites the level DATA in the game, so a map edited by hand in
-neon-caster.bas should be copied back here first (or only edited here).
+--write overwrites the level files, so a level edited by hand or in the
+editor is lost - copy what you changed back into its builder here first
+(or stop using --write for that level).
 """
 import os, sys
-from lvlkit import Map, validate, parse_bas, check_level, N
+from lvlkit import Map, validate, parse_bas, check_level, N, write_level_file, level_files
+from collections import deque
 
 PROBLEMS = []
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -534,7 +537,7 @@ def level6():
             if (x0, y0) in ((19, 19), (35, 19)):
                 continue
             for y in (y0 + 2, y0 + 7):
-                for x in (x0 + 2, x0 + 3, x0 + 6, x0 + 7):
+                for x in (x0 + 2, x0 + 7):
                     if m.get(x, y) == "." and (x, y) != (5, 42):
                         m.put(x, y, "p")
     place(m, [
@@ -832,6 +835,568 @@ def level10():
     m.light(23.5, 23.5, 5, 220, 255, 120, 80, 2)                    # the core
     return m
 
+# ============================================================ DRESSING
+# Every level gets dressed after it's built (dress, from LEVELS' table):
+# set pieces against the walls of its rooms, monster closets (secret walls,
+# %, that open as you walk past), traps (pressure plates on the way you
+# must go, laser beams across corridors, a laser cutter sweeping a room),
+# thief bots with a hoard vault carved into the rock, and power failures.
+# Everything is placed by looking at the map - and after each change the
+# level is checked again (every key and the exit still reachable), and
+# the change taken back if it blocks the way.
+import random
+from lvlkit import WALLS, DOORS, DIAG, ITEMS, MONS, DECO, START, GLASS, STATION, PAD
+
+STEPS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+PASS = set(".") | ITEMS | MONS | START | set("DHX") | PAD
+
+
+def _ok(m):
+    errs, _ = validate(m.rows(), "x")
+    return not errs
+
+
+def _reach(m):
+    """Steps from the start to every cell you can walk to (keys and all)."""
+    g = m.g
+    st = [(x, y) for y in range(N) for x in range(N) if g[y][x] in START][0]
+    dist = {st: 0}
+    q = deque([st])
+    while q:
+        x, y = q.popleft()
+        for dx, dy in STEPS:
+            a, b = x + dx, y + dy
+            if (a, b) not in dist and (g[b][a] in PASS or g[b][a] in "RBY"):
+                dist[(a, b)] = dist[(x, y)] + 1
+                q.append((a, b))
+    return st, dist
+
+
+def _count(m, chars):
+    return sum(1 for r in m.g for c in r if c in chars)
+
+
+def _near_door(m, x, y, r=1):
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            if 0 <= x + dx < N and 0 <= y + dy < N and m.g[y + dy][x + dx] in DOORS:
+                return True
+    return False
+
+
+def _open_around(m, x, y):
+    return sum(1 for dx, dy in STEPS if m.g[y + dy][x + dx] == ".")
+
+
+def dress_props(m, rng, chars, n, dist):
+    """Set pieces against the walls of rooms (a floor cell with a wall
+    beside it, not in a corridor, not by a door), spread out."""
+    cand = []
+    for (x, y), d in dist.items():
+        if m.g[y][x] != "." or _near_door(m, x, y, 1) or d < 4:
+            continue
+        walls = sum(1 for dx, dy in STEPS if m.g[y + dy][x + dx] in WALLS)
+        # room edge: one wall beside it, open floor round the rest
+        if walls == 1 and _open_around(m, x, y) == 3:
+            cand.append((x, y))
+    rng.shuffle(cand)
+    placed = []
+    for x, y in cand:
+        if len(placed) >= n or _count(m, DECO) >= 62:
+            break
+        if any(abs(x - a) + abs(y - b) < 3 for a, b in placed):
+            continue
+        m.g[y][x] = rng.choice(chars)
+        if _ok(m):
+            placed.append((x, y))
+        else:
+            m.g[y][x] = "."
+    return len(placed)
+
+
+def _rock(m, x, y):
+    return 0 < x < N - 1 and 0 < y < N - 1 and m.g[y][x] in WALLS
+
+
+def dress_closets(m, rng, n, dist, mons):
+    """Monster closets: a wall cell beside the floor with solid rock behind
+    it (two cells deep, rock on both sides): the wall becomes %, the pocket
+    a monster or two, and an event (6) in front of it springs it."""
+    cand = []
+    for (x, y), d in dist.items():
+        if m.g[y][x] != "." or d < 8 or _near_door(m, x, y, 2):
+            continue
+        for dx, dy in STEPS:
+            wx, wy = x + dx, y + dy
+            px, py = dx and 1 or 0, dy and 1 or 0  # (the sideways direction)
+            sx, sy = (0, 1) if dx else (1, 0)
+            cells = [(wx + dx * k + sx * j, wy + dy * k + sy * j) for k in range(0, 4) for j in (-1, 0, 1)]
+            if all(_rock(m, a, b) for a, b in cells) and m.g[wy][wx] in WALLS:
+                cand.append((x, y, dx, dy))
+    rng.shuffle(cand)
+    made = []
+    for x, y, dx, dy in cand:
+        if len(made) >= n or len(m.events) >= 14 or _count(m, MONS) >= 60:
+            break
+        if any(abs(x - a) + abs(y - b) < 8 for a, b in made):
+            continue
+        wx, wy = x + dx, y + dy
+        old = [(wx, wy, m.g[wy][wx]), (wx + dx, wy + dy, m.g[wy + dy][wx + dx]), (wx + 2 * dx, wy + 2 * dy, m.g[wy + 2 * dy][wx + 2 * dx])]
+        m.g[wy][wx] = "%"
+        m.g[wy + dy][wx + dx] = rng.choice(mons)
+        m.g[wy + 2 * dy][wx + 2 * dx] = rng.choice(mons + ".")
+        # the trigger: the floor in front of it, 4 deep and 5 wide
+        if dx:
+            x0, x1 = sorted((x, x - dx * 3)); y0, y1 = y - 2, y + 2
+        else:
+            y0, y1 = sorted((y, y - dy * 3)); x0, x1 = x - 2, x + 2
+        x0, y0, x1, y1 = max(1, x0), max(1, y0), min(N - 2, x1), min(N - 2, y1)
+        if _ok(m):
+            m.event(6, x0, y0, x1, y1, 0, 0)
+            made.append((x, y))
+        else:
+            for a, b, c in old:
+                m.g[b][a] = c
+    return len(made)
+
+
+# What an observation room can hold: (its props along the back, what's
+# in the middle, its light colour). Bodies (V) and chairs (Z) everywhere.
+OBS_KINDS = {
+    "control": ("FAF", "ZVZ", (90, 200, 255)),
+    "office":  ("dFd", "ZV.", (230, 220, 190)),
+    "lab":     ("IJI", "V.Z", (120, 255, 170)),
+    "cell":    ("UVU", ".h.", (255, 90, 80)),
+    "nest":    ("ISI", "c.c", (200, 120, 255)),
+    "vault":   ("qaj", ".u.", (255, 210, 90)),
+}
+
+
+def dress_observation(m, rng, n, dist, kinds):
+    """Observation rooms: a window of three panes of glass in a corridor's
+    wall, looking into a small room carved out of solid rock behind it -
+    sealed: furnished, dimly lit, with whoever didn't get out (or
+    something that wants to). Shoot the glass to get in. The room is 5
+    wide and 3 deep if the rock allows, else smaller."""
+    cand = []
+    for (x, y), d in dist.items():
+        if m.g[y][x] != "." or d < 5 or _near_door(m, x, y, 2): continue
+        for dx, dy in STEPS:
+            sx, sy = (0, 1) if dx else (1, 0)
+            stand = [(x + sx * j, y + sy * j) for j in (-1, 0, 1)]
+            if not all(m.g[b][a] == "." for a, b in stand): continue
+            for depth, half in ((3, 2), (2, 2), (2, 1)):
+                # the window at k=1, the room at k=2..depth+1, rock all round
+                rock = [(x + dx * k + sx * j, y + dy * k + sy * j) for k in range(1, depth + 3) for j in range(-half - 1, half + 2)]
+                if all(_rock(m, a, b) for a, b in rock):
+                    cand.append((-depth * half, rng.random(), x, y, dx, dy, depth, half))
+                    break
+    cand.sort()  # (the biggest rooms first)
+    made = []
+    for _, _, x, y, dx, dy, depth, half in cand:
+        if len(made) >= n: break
+        if any(abs(x - a) + abs(y - b) < 10 for a, b in made): continue
+        sx, sy = (0, 1) if dx else (1, 0)
+        kind = rng.choice(kinds)
+        if _count(m, MONS) >= 60 and kind in ("cell", "nest"): kind = "office"
+        back, mid, col = OBS_KINDS[kind]
+        cell = lambda k, j: (x + dx * k + sx * j, y + dy * k + sy * j)
+        old = {}
+        for k in range(1, depth + 2):
+            for j in range(-half, half + 1):
+                a, b = cell(k, j)
+                old[(a, b)] = m.g[b][a]
+        for j in (-1, 0, 1):
+            a, b = cell(1, j); m.g[b][a] = "="
+        for k in range(2, depth + 2):
+            for j in range(-half, half + 1):
+                a, b = cell(k, j); m.g[b][a] = "."
+        for j, c in zip((-1, 0, 1), back):  # along the back wall
+            if c != ".":
+                a, b = cell(depth + 1, j); m.g[b][a] = c
+        if depth >= 3:  # and in the middle, if there's room
+            for j, c in zip((-1, 0, 1), mid):
+                if c != ".":
+                    a, b = cell(3, j); m.g[b][a] = c
+        else:  # (a small room: just its one main thing, beside the back)
+            c = mid[1] if mid[1] != "." else mid[0]
+            if c != "." and half >= 2:
+                a, b = cell(depth + 1, 2); m.g[b][a] = c
+        if _ok(m):
+            lx, ly = cell(2, 0)
+            m.light(lx + 0.5, ly + 0.5, 4, 110, col[0], col[1], col[2], rng.choice((0, 1, 5)))
+            made.append((x, y))
+        else:
+            for (a, b), c in old.items():
+                m.g[b][a] = c
+    return len(made)
+
+
+def dress_windows(m, rng, n, dist):
+    """Windows between rooms: three panes of glass let into a wall one cell
+    thick with floor on both sides - you see into the next room (and what's
+    in it) before you find the way in. A chair or a body by it, sometimes."""
+    cand = []
+    for y in range(2, N - 2):
+        for x in range(2, N - 2):
+            for dx, dy in ((1, 0), (0, 1)):  # the wall runs along (dx, dy)
+                nx, ny = dy, dx  # (across it)
+                run = [(x + dx * j, y + dy * j) for j in (-2, -1, 0, 1, 2)]
+                if not all(_rock(m, a, b) and m.g[b][a] in WALLS for a, b in run): continue
+                mid = run[1:4]
+                if not all(m.g[b + ny][a + nx] == "." and m.g[b - ny][a - nx] == "." for a, b in mid): continue
+                if not all((a + nx, b + ny) in dist and (a - nx, b - ny) in dist for a, b in mid): continue
+                if _near_door(m, x, y, 2): continue
+                cand.append((x, y, dx, dy, nx, ny))
+    rng.shuffle(cand)
+    made = []
+    for x, y, dx, dy, nx, ny in cand:
+        if len(made) >= n: break
+        if any(abs(x - a) + abs(y - b) < 9 for a, b in made): continue
+        if any(e[1] - 1 <= x <= e[3] + 1 and e[2] - 1 <= y <= e[4] + 1 for e in m.events): continue
+        old = [(x + dx * j, y + dy * j, m.g[y + dy * j][x + dx * j]) for j in (-1, 0, 1)]
+        for a, b, _ in old: m.g[b][a] = "="
+        extra = None
+        if rng.random() < 0.7:  # a chair or a body, a step back from the glass on the far side
+            side = rng.choice((1, -1))
+            a, b = x + nx * 2 * side + dx * rng.choice((-1, 1)), y + ny * 2 * side + dy * rng.choice((-1, 1))
+            if m.g[b][a] == "." and _count(m, DECO) < 62:
+                extra = (a, b); m.g[b][a] = rng.choice("ZZV")
+        if _ok(m):
+            made.append((x, y))
+        else:
+            for a, b, c in old: m.g[b][a] = c
+            if extra: m.g[extra[1]][extra[0]] = "."
+    return len(made)
+
+
+def dress_station(m, rng, dist):
+    """A data station: a door on the way to the exit (seal it, and the
+    exit can't be reached) - or else one that shuts off a good part of the
+    level, loot behind it - becomes a sealed door (!), and a wall a few
+    steps before it, on your side, becomes the station (@) that opens it."""
+    doors = [(d, x, y) for (x, y), d in dist.items() if m.g[y][x] in "DHX" and d >= 6]
+    rng.shuffle(doors)
+    for want_critical in (True, False):
+        for d, x, y in doors:
+            was = m.g[y][x]
+            m.g[y][x] = "#"
+            critical = not _ok(m)
+            _, before = _reach(m)  # (with the door shut: your side of it)
+            m.g[y][x] = was
+            if want_critical and not critical:
+                continue
+            if not want_critical and (critical or len(dist) - len(before) < 10):
+                continue
+            spots = []
+            for (a, b), dd in before.items():
+                if m.g[b][a] != "." or not (2 <= abs(a - x) + abs(b - y) <= 7) or _near_door(m, a, b, 1):
+                    continue
+                for dx, dy in STEPS:
+                    wa, wb = a + dx, b + dy
+                    if _rock(m, wa, wb) and not _near_door(m, wa, wb, 1):
+                        spots.append((wa, wb))
+            if not spots:
+                continue
+            wa, wb = rng.choice(spots)
+            wall_was = m.g[wb][wa]
+            m.g[y][x] = "!"
+            m.g[wb][wa] = "@"
+            if _ok(m):
+                return 1
+            m.g[y][x] = was
+            m.g[wb][wa] = wall_was
+    return 0
+
+
+HUP = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def dress_heights(m, rng, n_dais, n_ledge):
+    """Heights: a raised dais in the middle of a big room (a ring of steps
+    two eighths up, the middle four), its ceiling lifted; and a loot ledge -
+    a block a whole wall high against a room's wall, too high to step onto,
+    loot on top, an elevator beside it (and the room's ceiling raised
+    over it all)."""
+    made = 0
+    rooms = []
+    for y in range(2, N - 9):
+        for x in range(2, N - 9):
+            for w, h in ((7, 7), (6, 6), (7, 5), (5, 7), (5, 5)):
+                cells = [(a, b) for b in range(y, y + h) for a in range(x, x + w)]
+                if all(m.g[b][a] in ".mghcskwzr" + "b" + "y+ae23u*4Mqj" + "oiptxlnfdAFIJLOQUWZV" for a, b in cells):
+                    if all(m.fh[b][a] == "." for a, b in cells) and not _near_door(m, x + w // 2, y + h // 2, 3):
+                        if not any(e[1] <= x + w and x <= e[3] and e[2] <= y + h and y <= e[4] for e in m.events):
+                            rooms.append((x, y, w, h)); break
+    rng.shuffle(rooms)
+    used = []
+    for x, y, w, h in rooms:
+        if made >= n_dais: break
+        if any(abs(x - a) < 10 and abs(y - b) < 10 for a, b in used): continue
+        for b in range(y, y + h):
+            for a in range(x, x + w):
+                ring = a in (x, x + w - 1) or b in (y, y + h - 1)
+                m.fh[b][a] = "2" if ring else "4"
+        for b in range(y - 1, y + h + 1):
+            for a in range(x - 1, x + w + 1):
+                if 0 < a < N - 1 and 0 < b < N - 1 and m.g[b][a] not in WALLS: m.ch[b][a] = "c"  # (1.5)
+        used.append((x, y)); made += 1
+    ledges = 0
+    for x, y, w, h in rooms:
+        if ledges >= n_ledge: break
+        if any(abs(x - a) < 10 and abs(y - b) < 10 for a, b in used): continue
+        # the ledge: the room's top-left 3 x 2, a wall high; the lift beside it
+        lx, ly = x, y
+        if any(m.g[b][a] != "." for b in range(ly, ly + 2) for a in range(lx, lx + 4)): continue
+        for b in range(ly, ly + 2):
+            for a in range(lx, lx + 3):
+                m.fh[b][a] = "8"
+        loot = rng.choice(("q*", "ju", "a4", "e3", "*u"))
+        m.g[ly][lx] = loot[0]; m.g[ly][lx + 1] = loot[1]
+        m.lifts.append((lx + 3, ly, lx + 3, ly, 0, 8, 2, 6))
+        for b in range(y - 1, y + h + 1):
+            for a in range(x - 1, x + w + 1):
+                if 0 < a < N - 1 and 0 < b < N - 1 and m.g[b][a] not in WALLS: m.ch[b][a] = "k"  # (2.25)
+        used.append((x, y)); ledges += 1
+    return made, ledges
+
+
+def dress_teleport(m, rng):
+    """A pair of teleporter pads: two floor cells you can reach without a
+    key, as far apart (in steps) as a few tries find - a shortcut, never
+    round a locked door."""
+    g = m.g
+    st = [(x, y) for y in range(N) for x in range(N) if g[y][x] in START][0]
+    dist = {st: 0}
+    q = deque([st])
+    while q:  # (no keys: only plain floor and plain doors)
+        x, y = q.popleft()
+        for dx, dy in STEPS:
+            a, b = x + dx, y + dy
+            if (a, b) not in dist and g[b][a] in (set(".") | ITEMS | MONS | START | set("DHX")):
+                dist[(a, b)] = dist[(x, y)] + 1
+                q.append((a, b))
+    spots = [(x, y) for (x, y), d in dist.items() if g[y][x] == "." and d >= 4 and not _near_door(m, x, y, 2)
+             and _open_around(m, x, y) == 4 and m.fh[y][x] == "."]
+    if len(spots) < 2: return 0
+    best = None
+    for _ in range(60):
+        a, b = rng.sample(spots, 2)
+        d = abs(dist[a] - dist[b]) + abs(a[0] - b[0]) + abs(a[1] - b[1])
+        if best is None or d > best[0]: best = (d, a, b)
+    _, a, b = best
+    g[a[1]][a[0]] = "&"; g[b[1]][b[0]] = "&"
+    if _ok(m):
+        return 1
+    g[a[1]][a[0]] = "."; g[b[1]][b[0]] = "."
+    return 0
+
+
+def dress_hints(m):
+    """A few triggers that tell you what you're looking at, the first time
+    you're near: a data station, an elevator, a teleporter"""
+    for y in range(1, N - 1):
+        for x in range(1, N - 1):
+            if m.g[y][x] == "@":
+                for dx, dy in STEPS:
+                    if m.g[y + dy][x + dx] == ".":
+                        m.triggers.append("enter %d %d %d %d : message A DATA STATION - face it and press SPACE to jack in" % (x + dx - 1, y + dy - 1, x + dx + 1, y + dy + 1))
+                        break
+    for l in m.lifts:
+        m.triggers.append("enter %d %d %d %d : message AN ELEVATOR - stand on it" % (l[0] - 1, l[1] - 1, l[2] + 1, l[3] + 1))
+    pads = [(x, y) for y in range(N) for x in range(N) if m.g[y][x] == "&"]
+    if pads:
+        x, y = pads[0]
+        m.triggers.append("enter %d %d %d %d : message A TELEPORTER - step on it" % (x - 1, y - 1, x + 1, y + 1))
+
+
+PUZZLES = {1: "hello", 2: "multiply", 3: "countdown", 4: "password", 5: "sum",
+           6: "pythagoras", 7: "select", 8: "function", 9: "reverse", 10: "wrap"}
+
+
+def dress_terminal(m, rng, dist, lev):
+    """A code terminal ($): a wall beside the floor of a room with a plain
+    door within a few steps (its lockdown has something to lock), well into
+    the level - and the puzzle it asks (PUZZLES, easy to hard)."""
+    cand = []
+    for (x, y), d in dist.items():
+        if m.g[y][x] != "." or d < 6 or _near_door(m, x, y, 1): continue
+        if not any(m.g[b][a] in "DHX" for b in range(max(0, y - 5), min(N, y + 6)) for a in range(max(0, x - 5), min(N, x + 6))): continue
+        for dx, dy in STEPS:
+            wx, wy = x + dx, y + dy
+            if _rock(m, wx, wy) and not _near_door(m, wx, wy, 1) and not any(m.g[wy + b][wx + a] in "@$" for a in (-2, -1, 0, 1, 2) for b in (-2, -1, 0, 1, 2) if 0 <= wx + a < N and 0 <= wy + b < N):
+                cand.append((wx, wy))
+    rng.shuffle(cand)
+    for wx, wy in cand:
+        was = m.g[wy][wx]
+        m.g[wy][wx] = "$"
+        if _ok(m):
+            m.puzzles = PUZZLES.get(lev, "hello")
+            m.triggers.append("enter %d %d %d %d : message A CODE TERMINAL - face it and press SPACE" % (wx - 1, wy - 1, wx + 1, wy + 1))
+            return 1
+        m.g[wy][wx] = was
+    return 0
+
+
+def _runs(m, dist):
+    """Corridor crossings: (x, y0, y1, "v") is a line of floor across a
+    corridor running east-west (walls above and below it), 1-3 cells wide;
+    and the same turned ("h")."""
+    out = []
+    for (x, y), d in dist.items():
+        if m.g[y][x] not in ".": continue
+        if m.g[y - 1][x] in WALLS:  # top of a vertical run
+            y1 = y
+            while m.g[y1 + 1][x] in "." and y1 - y < 4: y1 += 1
+            if m.g[y1 + 1][x] in WALLS and y1 - y <= 2:
+                # a corridor running east-west: floor either side along x
+                if all(m.g[k][x - 1] in "." and m.g[k][x + 1] in "." for k in range(y, y1 + 1)):
+                    out.append((x, y, x, y1, d))
+        if m.g[y][x - 1] in WALLS:
+            x1 = x
+            while m.g[y][x1 + 1] in "." and x1 - x < 4: x1 += 1
+            if m.g[y][x1 + 1] in WALLS and x1 - x <= 2:
+                if all(m.g[y - 1][k] in "." and m.g[y + 1][k] in "." for k in range(x, x1 + 1)):
+                    out.append((x, y, x1, y, d))
+    return out
+
+
+def dress_lasers(m, rng, n, dist):
+    runs = [r for r in _runs(m, dist) if r[4] > 10 and not _near_door(m, r[0], r[1], 2)]
+    rng.shuffle(runs)
+    made = []
+    for x0, y0, x1, y1, d in runs:
+        if len(made) >= n or len(m.events) >= 15: break
+        if any(abs(x0 - a) + abs(y0 - b) < 10 for a, b in made): continue
+        on = rng.choice((60, 75, 90)); off = rng.choice((60, 75, 90))
+        m.event(9, x0, y0, x1, y1, on, off)
+        made.append((x0, y0))
+    return len(made)
+
+
+def dress_plates(m, rng, n, dist):
+    """Pressure plates: on corridor floor, in the middle of a run"""
+    runs = [r for r in _runs(m, dist) if r[4] > 6 and not _near_door(m, r[0], r[1], 2)]
+    rng.shuffle(runs)
+    made = []
+    for x0, y0, x1, y1, d in runs:
+        if len(made) >= n or len(m.events) >= 15: break
+        x, y = (x0 + x1) // 2, (y0 + y1) // 2
+        if any(abs(x - a) + abs(y - b) < 7 for a, b in made): continue
+        if any(e[0] in (8, 9) and e[1] - 2 <= x <= e[3] + 2 and e[2] - 2 <= y <= e[4] + 2 for e in m.events): continue
+        m.event(8, x, y, x, y, 45, 300)
+        made.append((x, y))
+    return len(made)
+
+
+def dress_cutter(m, rng, dist):
+    """A laser cutter: in an open rectangle of floor, 6 x 3 or more"""
+    best = None
+    for (x, y), d in dist.items():
+        if d < 12: continue
+        for w, h in ((7, 3), (3, 7), (6, 4), (4, 6), (6, 3), (3, 6)):
+            if x + w >= N - 1 or y + h >= N - 1: continue
+            cells = [m.g[b][a] for b in range(y, y + h) for a in range(x, x + w)]
+            if all(c == "." for c in cells) and not _near_door(m, x + w // 2, y + h // 2, 3):
+                best = (x, y, x + w - 1, y + h - 1); break
+        if best and rng.random() < 0.15: break
+    if best and len(m.events) < 15:
+        m.event(10, best[0], best[1], best[2], best[3], rng.choice((150, 180, 220)), 0)
+        return 1
+    return 0
+
+
+def dress_hoard(m, rng, dist, thieves):
+    """A thieves' hoard: a vault carved into solid rock behind a door off
+    a floor cell (as far from the start as can be found), stacked with
+    loot; and thief bots out in the level."""
+    cand = []
+    for (x, y), d in dist.items():
+        if m.g[y][x] != "." or d < 15 or _near_door(m, x, y, 2): continue
+        for dx, dy in STEPS:
+            sx, sy = (0, 1) if dx else (1, 0)
+            # door at +1, vault 3 wide and 3 deep at +2..+4, rock round it all
+            cells = [(x + dx * k + sx * j, y + dy * k + sy * j) for k in range(1, 6) for j in (-2, -1, 0, 1, 2)]
+            if all(_rock(m, a, b) for a, b in cells):
+                cand.append((d, x, y, dx, dy))
+    if not cand: return 0
+    cand.sort(reverse=True)
+    d, x, y, dx, dy = cand[min(len(cand) - 1, rng.randrange(3))]
+    sx, sy = (0, 1) if dx else (1, 0)
+    m.g[y + dy][x + dx] = "D"
+    vault = [(x + dx * k + sx * j, y + dy * k + sy * j) for k in (2, 3, 4) for j in (-1, 0, 1)]
+    loot = list("qj*uaaee+") ; rng.shuffle(loot)
+    for (a, b), c in zip(vault, loot):
+        m.g[b][a] = c
+    xs = [a for a, b in vault]; ys = [b for a, b in vault]
+    m.event(7, min(xs), min(ys), max(xs), max(ys), 0, 0)
+    # the thieves: out on the floor, well away from the start
+    spots = [(a, b) for (a, b), dd in dist.items() if m.g[b][a] == "." and 10 < dd and not _near_door(m, a, b, 1)]
+    rng.shuffle(spots)
+    for a, b in spots[:thieves]:
+        m.g[b][a] = "T"
+    return 1
+
+
+def dress_blackout(m, rng, dist, monsters):
+    """A power failure: set off in a big open room, far from the start"""
+    best = None
+    for (x, y), d in sorted(dist.items(), key=lambda kv: -kv[1]):
+        if d < 15: continue
+        if all(m.g[b][a] == "." for b in range(y, y + 4) for a in range(x, x + 4) if 0 < a < N - 1 and 0 < b < N - 1):
+            best = (x, y); break
+    if best and len(m.events) < 16:
+        m.event(11, best[0], best[1], best[0] + 3, best[1] + 3, 20, monsters)
+        return 1
+    return 0
+
+
+# per level: set pieces (and how many), closets (and what's in them),
+# lasers, plates, a cutter, thieves (0: no hoard), a power failure's
+# monsters (0: none)
+DRESS = {
+    1:  ("dAUWFZ", 12, 2, "mc",  1, 2, 0, 1, 0, 3, ("control", "office", "office", "vault")),
+    2:  ("LAFUZ",  12, 3, "gc",  2, 2, 1, 1, 0, 3, ("control", "cell", "vault")),
+    3:  ("WULx",   10, 3, "cch", 2, 2, 0, 2, 5, 2, ("cell", "nest")),
+    4:  ("OIJFQZ", 12, 3, "gk",  2, 2, 1, 2, 0, 4, ("lab", "lab", "nest", "control")),
+    5:  ("LUxA",   10, 3, "hk",  2, 3, 1, 2, 0, 2, ("control", "cell")),
+    6:  ("IJWQ",   10, 2, "wk",  1, 2, 0, 2, 6, 3, ("lab", "nest", "vault")),
+    7:  ("FAdQZ",  12, 3, "kg",  2, 2, 1, 2, 0, 4, ("office", "control", "cell", "vault")),
+    8:  ("WUnFdZ", 12, 3, "kwg", 2, 3, 0, 2, 6, 3, ("office", "cell", "vault")),
+    9:  ("QAOdFZ", 12, 3, "kw",  2, 2, 1, 2, 0, 3, ("control", "lab", "cell")),
+    10: ("LFAI",   10, 3, "kwh", 3, 3, 1, 2, 8, 3, ("control", "nest", "cell")),
+}
+
+
+def dress(m, lev):
+    if lev not in DRESS: return
+    props, nprops, nclos, cmons, nlas, nplate, ncut, nthief, nblack, nobs, obskinds = DRESS[lev]
+    rng = random.Random(1000 + lev)
+    st, dist = _reach(m)
+    got = [dress_hoard(m, rng, dist, nthief) if nthief else 0]
+    st, dist = _reach(m)
+    nobs_made = dress_observation(m, rng, nobs, dist, obskinds)
+    st, dist = _reach(m)
+    nobs_made += dress_windows(m, rng, 2 + max(0, nobs - nobs_made), dist)
+    st, dist = _reach(m)
+    got.append(dress_closets(m, rng, nclos, dist, cmons))
+    st, dist = _reach(m)
+    got.append(dress_props(m, rng, props, nprops, dist))
+    st, dist = _reach(m)
+    got.append(dress_lasers(m, rng, nlas, dist))
+    got.append(dress_plates(m, rng, nplate, dist))
+    got.append(dress_cutter(m, rng, dist) if ncut else 0)
+    got.append(dress_blackout(m, rng, dist, nblack) if nblack else 0)
+    st, dist = _reach(m)
+    nst = dress_station(m, rng, dist)
+    nda, nle = dress_heights(m, rng, 1 if lev >= 2 else 0, 1)
+    ntp = dress_teleport(m, rng)
+    st, dist = _reach(m)
+    nterm = dress_terminal(m, rng, dist, lev)
+    dress_hints(m)
+    print("   dressed L%d: hoard %d, closets %d, props %d, lasers %d, plates %d, cutter %d, blackout %d, windows %d, station %d, dais %d, ledge %d, teleport %d, terminal %d" % tuple([lev] + got + [nobs_made, nst, nda, nle, ntp, nterm]))
+
+
 LEVELS = [
     (level1, "SECTOR 1: NEON STATION",
      ["wall.png", "wall2.png", "wall-concrete.png", "wall-servers.png", "wall-pipes.png", "wall-biolab.png"],
@@ -906,7 +1471,7 @@ def main():
     args = sys.argv[1:]
     ok = True
     if "--check" in args:
-        for lv in parse_bas(BAS):
+        for lv in level_files(HERE):
             if "-show" in args:
                 print("\n=== %s" % lv["name"])
                 Map.from_rows(lv["rows"]).show()
@@ -916,27 +1481,25 @@ def main():
     out = []
     for i, (fn, name, walls, floors, ceils, comment) in enumerate(LEVELS, 1):
         m = fn()
+        dress(m, i)
         if "-show" in args:
             print("\n=== LEVEL %d: %s" % (i, name))
             m.show()
-        lv = dict(label="Level%d" % i, name=name, walls=walls, floors=floors,
+        lv = dict(label="level%d" % i, name=name, walls=walls, floors=floors,
                   ceils=ceils, ambient=m.ambient, zones=m.zones, lights=m.lights,
-                  events=m.events, rows=m.rows())
+                  events=m.events, rows=m.rows(), lifts=m.lifts,
+                  floor=["".join(r) for r in m.fh], ceiling=["".join(r) for r in m.ch], triggers=m.triggers,
+                  puzzles=getattr(m, "puzzles", ""))
         ok &= check_level(lv, ASSETS)
-        out.append("Level%d:" % i)
-        out += m.data(name, walls, floors, ceils, comment)
-        out.append("")
+        out.append((lv, comment))
     ok &= not PROBLEMS
     if "--write" in args:
         if not ok:
             print("not writing: fix the problems above first")
             return 1
-        src = open(BAS).read()
-        # the level DATA runs from Level1: up to chapter 23's header
-        end = "\n'" + "-" * 77 + "\n' CHAPTER 23"
-        a, b = src.index("\nLevel1:") + 1, src.index(end) + 1
-        open(BAS, "w").write(src[:a] + "\n".join(out) + "\n" + src[b:])
-        print("wrote %d levels into %s" % (len(LEVELS), os.path.normpath(BAS)))
+        for i, (lv, comment) in enumerate(out, 1):
+            write_level_file(os.path.join(HERE, "level%d.txt" % i), lv, comment)
+        print("wrote %d level files into %s" % (len(out), os.path.normpath(HERE)))
     return 0 if ok else 1
 
 

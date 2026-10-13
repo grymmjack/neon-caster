@@ -1,8 +1,15 @@
 # NEON-CASTER: make a little FPS in QB64PE
 
 NEON-CASTER is a complete first-person shooter in one file of plain QB64PE:
-ten levels, five kinds of monster, four guns, doors and keycards, exploding
-barrels, a minimap, music, a menu with settings, and saved games. It's built like Wolfenstein 3D, as a *raycaster*, and the
+ten levels, ten kinds of monster (one of them a thief), four guns and a
+kick, doors and keycards, exploding barrels, traps and event rooms, glass
+you can see (and shoot) through, floors and ceilings at different heights
+with lifts and pits, teleporters, data stations that turn the level into a
+neon network, code terminals that lock you in until you repair a real
+QB64 program, a villain who talks to you through a vocoder, sound placed
+around you, a minimap, music, a menu with settings, a console, saved
+games - and editors for its levels, its monsters and its HUD, inside the
+game. It's built like Wolfenstein 3D, as a *raycaster*, and the
 source is written to be read: its comments are a course in how it all
 works, in 24 chapters, from opening a window to casting rays - and then
 handing the same 3D view to the graphics card with OpenGL.
@@ -34,14 +41,16 @@ explained as it comes up.
 | Mouse | look around |
 | W A S D | walk and strafe |
 | Shift (hold) | run |
+| F | kick (Fire with no ammo kicks too) |
 | Click or Ctrl | fire |
-| Space | open or shut doors, use the exit |
+| Space | open or shut doors, use the exit, jack into a data station, use a code terminal |
 | 1-4 or mouse wheel | choose a gun |
 | Right button (hold) | aim down the sights (zooms in) |
 | Esc | the menu: pause, new game, save, load, settings, exit |
 | F5 / F9 | quick save / quick load |
 | Tab | the full-screen map (all of it once you've found the map pickup) |
 | ` (backtick) | the console: type `help` for the commands |
+| F2 | the level editor (see below) |
 | K / G | testing cheats: every keycard / god mode |
 
 **The console and the command line.** The console (`) runs commands for
@@ -49,8 +58,12 @@ nearly everything: `map 7` or `map vault` jumps to a sector, `give all`,
 `god`, `kill`, `respawn`, `summon heavy 3`, `tp 20 24 90`, `save 2`,
 `load quick`, `restart`, `finish`, any setting by its name (`fov 100`,
 `renderer 2`, `display 2` - `settings` lists them), `bind`, `events`,
-`screenshot`. Up and Down bring back earlier lines, Tab finishes a
-command's name, and `;` puts several on one line.
+`screenshot`, `cutscene 4` (a sector's transmission) and `say taunt2`
+(any of NEXUS's lines). There are commands for building too: `edit`, `put
+X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
+`savelevel` - and `door`, `wall`, `light`, `liftgo`, `message`, `sound`,
+which a level's triggers use. Up and Down bring back earlier lines, Tab
+finishes a command's name, and `;` puts several on one line.
 
 Every command also works from the command line, each one starting with a
 `+`. Then the game skips its title, starts a new game and runs them one a
@@ -66,6 +79,17 @@ Settings changed from the command line last only for that run.
 Every key can be changed in the menu, under **SETTINGS > CONTROLS**. The
 menu works with the arrow keys or W A S D, Enter, and Esc to go back - or
 just point and click.
+
+**The editors.** F2 opens the level editor on the level you're in: the map
+from above - paint it with the mouse (the palette on the right; right-click
+picks up what's under the mouse; Shift+drag fills a box; L for lights, H
+for heights) - and Tab to walk round inside it, the game frozen, where you
+click to build onto what you aim at and right-click to knock it down; T, F
+and V change the walls', floor's and ceiling's pictures live, PgUp/PgDn
+raise and lower the floor. Ctrl+S saves the level's file, Ctrl+Z undoes,
+F2 goes back to playing it. M opens the monster editor (every monster's
+numbers, and what it drops: `monsters.txt`), U the HUD layout editor (drag
+the HUD about, over the game: `hud.txt`).
 
 Two switches near the top of the source are on for testing:
 `TEST_ALL_GUNS` (start with every gun and full ammo) and `CHEAT_KEYS`
@@ -90,16 +114,16 @@ run top to bottom, in the same order as the code:
 | | 10 Pickups and cheat keys | distance checks without `SQR`; edge detection |
 | | 11 Doors | finding the door in front of you; animating it; shutting itself, never on anyone; always showing an edge; monsters opening them |
 | | 12 Shooting | hitscan, using the z-buffer to see past walls; where a shot lands, for marks and shooting out lights |
-| | 13 Monsters, bolts and barrels | a state machine for AI; line of sight; chain reactions; animation frames made from one picture; bodies and wreckage that stay where they fell |
+| | 13 Monsters, bolts and barrels | a state machine for AI; line of sight; chain reactions; animation frames made from one picture; bodies and wreckage that stay where they fell; a thief that runs home along a flow field |
 | **Drawing it** | 14 Light, and the floor and ceiling | per-cell coloured light (Doom-style), flicker and strobe effects, floor casting, fog, `AND 63` texture wrapping |
-| | 15 The walls: the raycaster | rays, the DDA grid walk, fish-eye correction, texturing; doors as slabs with edges and tracks |
-| | 16 Sprites | camera space, painter's algorithm, hiding behind walls |
+| | 15 The walls: the raycaster | rays, the DDA grid walk, fish-eye correction, texturing; doors as slabs with edges and tracks; glass you see through; floors and ceilings at different heights, Doom's way (HeightColumn: a column drawn front to back, closing in from above and below) |
+| | 16 Sprites | camera space, painter's algorithm, hiding behind walls - and behind ledges |
 | | 17 Onto the screen | `_MEMCOPY` and `_PUTIMAGE` scaling |
-| | 18 The gun and the HUD | alpha colours, the minimap, bars and text |
-| **The rest** | 19 Game events | `GOSUB` routines and why they're used here; event rooms: ambushes, traps, mini games |
-| | 20 Levels | `RESTORE`/`READ`, carrying your gear between levels, the tally screen, the route map between sectors |
-| | 21 The splash screen, the menu, settings, saved games and the console | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files |
-| | 22 The levels' data | the map format: make your own levels |
+| | 18 The gun and the HUD | alpha colours, the minimap, bars and text; the HUD's layout as data (`hud.txt`) |
+| **The rest** | 19 Game events | `GOSUB` routines and why they're used here; event rooms: ambushes, mini games, monster closets, pressure plates, lasers and cutters, blackouts, the thieves' hoard; glass that cracks and shatters; the data stations' network; triggers (their actions are console commands) and teleporters; code terminals that compile a real QB64 program with `SHELL _DONTWAIT`; sound placed in space (panning, distance, walls) under a limiter; NEXUS's voice, taunts and subtitles |
+| | 20 Levels | reading a level's file and building it, carrying your gear between levels (and starting over clean on a retry), the tally screen, the route map between sectors, the incoming transmission |
+| | 21 The splash screen, the menu, settings, saved games, the console and the editors | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files; the level editor (the map from above, and walking round in it with a cursor ray), the monster editor and the HUD layout editor - changing plain text files live |
+| | 22 The level files | the level file's format - its map, zones, lights, event rooms, heights, lifts, triggers: make your own levels |
 | | 23 The helpers | the SUBs and FUNCTIONs, grouped by topic |
 | **On the GPU** | 24 The same view, drawn by the graphics card | `SUB _GL` and OpenGL: triangles, texture coordinates, a camera matrix and `_glFrustum`, the depth buffer, alpha test; sharing a frame safely with double buffering; batching with `_glDrawArrays`; why OpenGL questions stall; GLSL shaders for bump mapping, specular highlights, self-lit neon, animated textures and moving point lights; smooth (bilinear) light; projected shadows; additive glows and particles; light shafts and dust that swirls round you; a mirrored pass for wet floors; render targets and post-processing (bloom, heat shimmer, hurt pulse, rail zoom, scanlines, CRT); choosing the resolution, supersampling and mipmaps; premultiplied alpha; looking up and down |
 
@@ -182,9 +206,31 @@ run it and see what happens. That's the fastest way to learn how it works.
   two at a time. Draw your own as `<name>-walk1.png` to `-walk4.png` and
   `<name>-attack.png` - each one you add replaces the made one.
 - **Your own event room** (ch. 19, 22): an ambush, survival round, trap,
-  shooting gallery or spawner nest is one DATA line (`m.event(...)` in the
-  level kit). Try an ambush of heavies (type 3) in a small room, or a trap
-  that's live longer than it's safe.
+  shooting gallery, spawner nest, monster closet, pressure plate, laser,
+  laser cutter, blackout or thieves' hoard is one DATA line (`m.event(...)`
+  in the level kit). Try an ambush of heavies (type 3) in a small room, a
+  laser that's always on (b = 0) across a corridor you must run, or a
+  cutter that sweeps faster (a smaller a).
+- **Dress a level differently** (ch. 22): `dress()` in `levels.py` adds
+  the furniture, closets, plates, lasers, cutters, hoards and blackouts.
+  Its `DRESS` table says how many of each a level gets - change a line and
+  run `python3 levels.py --write`.
+- **Teach the thief new tricks** (ch. 13): `ThiefStep` decides what it
+  grabs. Make it take keycards, or only shells. It runs home down
+  `thiefDist`, a map of steps to the hoard worked out by `BuildThiefWay` -
+  a flow field, the way real-time strategy games move armies.
+- **NEXUS says something new** (ch. 19): the lines are DATA in
+  `SpeechLines`, each with a key and its words. A line with no
+  `speech/<key>.wav` still shows its subtitle, so you can write the words
+  first. Record your own voice, and run it through a vocoder - or any
+  robot voice changer - for the sound.
+- **Hear the room** (ch. 19): turn 3D SOUND and the LIMITER off and on
+  in SETTINGS > AUDIO and listen to a fight. Then look at `SfxAt`: how
+  loud is a sound behind a wall? Try a lower `SFX_HEADROOM` for a quieter,
+  squashed mix.
+- **Your own boot** (ch. 12, 18): the kick draws `kick.png`, stretched to
+  360 pixels tall and rising from the bottom of the screen. Redraw it, or
+  tune `KICK_DAMAGE`, `KICK_REACH` and `KICK_PUSH`.
 - **Your own bodies** (ch. 13, 23): a dead monster is drawn from
   `dead-<name>.png` (`dead-drone.png`...), cropped and laid on the floor by
   `MakeCorpse`. Draw your own - delete one and the monster just falls on
@@ -195,9 +241,29 @@ run it and see what happens. That's the fastest way to learn how it works.
 - **Marks that fade** (ch. 12, 24): shot marks and scorches (`AddDecal`)
   stay until 96 newer ones push them out. Fade each one's alpha with age
   instead.
-- **Your own level** (ch. 22): draw a map in the `DATA` lines, or build one
-  with the level kit in `neon-caster/levels/` (`python3 levels.py --check`
-  checks hand-made maps too: doors, keycards, the exit).
+- **Your own level (ch. 21, 22)**: press F2 and build one - paint the
+  map from above, walk round in it, raise floors, add lights and lifts,
+  Ctrl+S. Or open `neon-caster/levels/level1.txt` in a text editor: the
+  map is right there, one character a cell. `python3 levels.py --check`
+  (in `neon-caster/levels/`) checks it: doors, keycards, the exit.
+- **Your own puzzle (ch. 19)**: copy `neon-caster/puzzles/countdown.txt`,
+  write a little program that teaches one thing, say what it prints, pick
+  the words to blank out - and name it in a level's `puzzles =` line.
+  Every program is really compiled: try `puzzle NAME` in the console.
+- **Your own trigger (ch. 19, 22)**: in the console, `trigger enter 20 20
+  22 22 : message AMBUSH! | summon stalker 3` - then walk there. Any
+  console command is an action: lights out, a lift moving, a wall sliding
+  away (`wall X Y .`), a teleport.
+- **Retune the monsters (ch. 3, 21)**: M in the editor - give the drone
+  the heavy's hit points, make the crawler drop medkits - or change
+  `monsters.txt` by hand.
+- **Rearrange the HUD (ch. 18, 21)**: U in the editor, then drag things;
+  S saves `hud.txt`. Delete the file for the game's own layout.
+- **Steps and ledges (ch. 15, 22, 24)**: the two renderers draw heights
+  their own ways - OpenGL builds them into its mesh (`GLStep`), the
+  software renderer walks each column front to back (`HeightColumn`).
+  Raise a floor with PgUp in the editor and compare them (`renderer 1`,
+  `renderer 2`).
 
 - **Your own menu screen** (ch. 21, 23): add a SCR_ constant, a `CASE`
   for it in `BuildMenu`, and a button that leads to it. A new setting is
@@ -275,7 +341,11 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster.bas` | the game and the course |
 | `neon-caster/*.png` | textures (64 x 64), sprites, the guns |
 | `neon-caster/sfx/` | sound effects, made with soundmon; `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
-| `neon-caster/levels/` | the level kit: carves rooms with 45-degree walls and checks maps |
+| `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
+| `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22) and the level kit that builds and checks them (`levels.py`, `lvlkit.py`) |
+| `neon-caster/puzzles/` | the code terminals' QB64 programs, one a file (`README.txt` says how to write one) |
+| `neon-caster/monsters.txt`, `hud.txt` | every monster's numbers and what it drops; the HUD's layout - both changed by their editors, or by hand |
+| `neon-caster/music/` | a track for each sector, the menu's, and the network's (`cyber.flac`) |
 
 ## Further reading
 

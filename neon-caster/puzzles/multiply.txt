@@ -1,0 +1,15 @@
+title   = THE DOOR CODE
+lesson  = Variables hold numbers; * multiplies
+chapter = 4
+expect  = 42
+[lines]
+' The door code is six sevens
+a = 6
+b = 7
+code = a * b
+PRINT code
+[blanks]
+4 *
+[hints]
+A variable is a name that holds a number: a = 6
+code = a * b - set code before you PRINT it

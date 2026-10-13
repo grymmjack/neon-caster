@@ -11,12 +11,15 @@ from collections import deque
 
 N = 48
 WALLS = set("#NCKPG")
-DOORS = set("DHXRBYE")
+DOORS = set("DHXRBYE!")  # ! a door sealed until its data station (@) is hacked
 DIAG = set("/\\")
 ITEMS = set("rby+ae23u*4Mqj")  # ... q overcharge, j damage amp
-MONS = set("mghcskwz")  # ... k stalker, w spitter, z the overseer
-DECO = set("oiptxlnfS")  # ... x crate, l server rack, n vending machine, f coolant tank, S spawner
+MONS = set("mghcskwzT")  # ... k stalker, w spitter, z the overseer, T thief
+DECO = set("oiptxlnfSdAFIJLOQUWZV")  # ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
+GLASS = set("=")  # a pane of glass: see through it, but not walk
+STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle
+PAD = set("&")  # a teleporter pad: they pair up in reading order (1st-2nd, 3rd-4th)
 
 
 class Map:
@@ -26,6 +29,10 @@ class Map:
         self.ambient = (170, 255, 255, 255)  # brightness 0-256, then r g b
         self.lights = []
         self.events = []
+        self.fh = [["."] * N for _ in range(N)]  # [floor]: . or a height character (chapter 22)
+        self.ch = [["."] * N for _ in range(N)]  # [ceiling]
+        self.lifts = []
+        self.triggers = []  # lines: "when ... : commands ; ..." (chapter 19)
 
     @classmethod
     def from_rows(cls, rows):
@@ -131,7 +138,8 @@ class Map:
         self.lights.append((x, y, radius, bright, r, g, b, effect))
 
     # -- event rooms (see EV_ in the game): kind 1 ambush, 2 survive, 3 trap,
-    # 4 shooting gallery, 5 spawner nest; the room x0..x1, y0..y1; two numbers
+    # 4 shooting gallery, 5 spawner nest, 6 closet, 7 hoard, 8 pressure
+    # plate, 9 laser, 10 laser cutter, 11 power failure; the room x0..x1, y0..y1; two numbers
     # whose meaning depends on the kind; the reward (a pickup kind, 0 none:
     # 4 health, 5 cells, 6 shells, 9 armour, 10 big medkit, 13 overcharge,
     # 14 damage amp)
@@ -169,6 +177,112 @@ class Map:
         return out
 
 
+# ---------------------------------------------------------------- level files
+# A level is a plain text file, neon-caster/levels/levelN.txt: some
+# "key = value" lines, then [zones], [lights] and [events] (one per line,
+# numbers split by commas) and the [map] (48 rows of 48 characters).
+# Lines starting with ' are comments (the map's rows start with #).
+LEVEL_HEADER = """' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+"""
+
+
+def _num(v):
+    return str(int(v)) if float(v) == int(float(v)) else ("%g" % float(v))
+
+
+def level_text(lv, comment=()):
+    out = [LEVEL_HEADER.rstrip("\n")]
+    out += ["' " + c for c in comment]
+    out.append("")
+    out.append("name     = %s" % lv["name"])
+    if lv.get("puzzles"):
+        out.append("puzzles  = %s" % lv["puzzles"])
+    out.append("walls    = " + ", ".join(lv["walls"]))
+    out.append("floors   = " + ", ".join(lv["floors"]))
+    out.append("ceilings = " + ", ".join(lv["ceils"]))
+    out.append("ambient  = " + ", ".join(_num(v) for v in lv["ambient"]))
+    for sec, rows, what in (("zones", lv["zones"], "x0, y0, x1, y1, floor, ceiling, shape"),
+                            ("lights", lv["lights"], "x, y, radius, brightness, red, green, blue, effect"),
+                            ("events", lv["events"], "kind, x0, y0, x1, y1, a, b, reward")):
+        out.append("")
+        out.append("[%s]" % sec)
+        out.append("' " + what)
+        for r in rows:
+            out.append(", ".join(_num(v) for v in r))
+    if lv.get("lifts"):
+        out.append("")
+        out.append("[lifts]")
+        out.append("' x0, y0, x1, y1, low, high (eighths of a wall), mode (1 up and down, 2 an elevator), speed (eighths a second)")
+        for r in lv["lifts"]:
+            out.append(", ".join(_num(v) for v in r))
+    if lv.get("triggers"):
+        out.append("")
+        out.append("[triggers]")
+        out.append("' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...")
+        out += list(lv["triggers"])
+    out.append("")
+    out.append("[map]")
+    out += list(lv["rows"])
+    fl = lv.get("floor") or []
+    if any(r.strip(".") for r in fl):
+        out += ["", "[floor]", "' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down"] + list(fl)
+    ce = lv.get("ceiling") or []
+    if any(r.strip(".") for r in ce):
+        out += ["", "[ceiling]", "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's"] + list(ce)
+    return "\n".join(out) + "\n"
+
+
+def write_level_file(path, lv, comment=()):
+    open(path, "w").write(level_text(lv, comment))
+
+
+def read_level_file(path, label=None):
+    """A level file as the dict check_level and level_text use."""
+    lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
+              ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[])
+    sec = None
+    for line in open(path).read().split("\n"):
+        t = line.strip()
+        if sec == "triggers":
+            if t and not t.startswith("'") and not t.startswith("["):
+                lv["triggers"].append(t)
+                continue
+        if sec in ("map", "floor", "ceiling"):
+            if t and not t.startswith("'") and not t.startswith("["):
+                lv["rows" if sec == "map" else sec].append(line.rstrip("\r")[:N])
+                continue
+        if not t or t.startswith("'"):
+            continue
+        if t.startswith("[") and t.endswith("]"):
+            sec = t[1:-1].strip().lower(); continue
+        if sec is None and "=" in t:
+            k, v = [x.strip() for x in t.split("=", 1)]
+            vals = [x.strip() for x in v.split(",")]
+            if k == "name": lv["name"] = v
+            elif k == "puzzles": lv["puzzles"] = v
+            elif k == "walls": lv["walls"] = vals
+            elif k == "floors": lv["floors"] = vals
+            elif k == "ceilings": lv["ceils"] = vals
+            elif k == "ambient": lv["ambient"] = tuple(int(float(x)) for x in vals)
+        elif sec in ("zones", "events", "lifts"):
+            lv[sec].append(tuple(int(float(x)) for x in t.split(",")))
+        elif sec == "lights":
+            lv[sec].append(tuple(float(x) for x in t.split(",")))
+    return lv
+
+
+def level_files(folder):
+    """Every levelN.txt in folder, in order."""
+    out = []
+    n = 1
+    while os.path.exists(os.path.join(folder, "level%d.txt" % n)):
+        out.append(read_level_file(os.path.join(folder, "level%d.txt" % n), "level%d" % n))
+        n += 1
+    return out
+
+
 # ---------------------------------------------------------------- validate
 def validate(rows, name="map", want_exit=True):
     errs, warns = [], []
@@ -184,7 +298,7 @@ def validate(rows, name="map", want_exit=True):
     starts = [(x, y) for y in range(N) for x in range(N) if at(x, y) in START]
     if len(starts) != 1:
         errs.append("need exactly one start, got %d" % len(starts))
-    iswall = lambda c: c in WALLS
+    iswall = lambda c: c in WALLS or c in STATION
     for y in range(1, N - 1):
         for x in range(1, N - 1):
             c = at(x, y)
@@ -198,6 +312,12 @@ def validate(rows, name="map", want_exit=True):
                     errs.append("door %s at %d,%d blocked" % (c, x, y))
                 if v and not h and (at(x - 1, y) in WALLS or at(x + 1, y) in WALLS):
                     errs.append("door %s at %d,%d blocked" % (c, x, y))
+            if c in GLASS:  # in a wall one cell thick, like a door
+                isw = lambda cc: cc in WALLS or cc in GLASS
+                h = isw(at(x - 1, y)) and isw(at(x + 1, y))
+                v = isw(at(x, y - 1)) and isw(at(x, y + 1))
+                if not (h or v) or (h and v):
+                    errs.append("glass at %d,%d not in a straight wall" % (x, y))
             if c in DIAG:
                 ks = (1, 3) if c == "/" else (2, 4)
                 sc = []
@@ -223,6 +343,7 @@ def validate(rows, name="map", want_exit=True):
     # decorations and diagonals block (conservative)
     keys = set()
     keyof = {"R": "r", "B": "b", "Y": "y"}
+    pads = [(x, y) for y in range(N) for x in range(N) if at(x, y) in PAD]
     while True:
         seen = set([starts[0]])
         q = deque([starts[0]])
@@ -233,13 +354,22 @@ def validate(rows, name="map", want_exit=True):
                 if (a, b) in seen:
                     continue
                 c = at(a, b)
-                ok = c == "." or c in ITEMS or c in MONS or c in START or c in "DHX"
+                ok = c == "." or c in ITEMS or c in MONS or c in START or c in "DHX" or c in PAD
                 if c in keyof and keyof[c] in keys:
+                    ok = True
+                if c == "!" and "@" in keys:  # a sealed door: open once a station's reached
                     ok = True
                 if ok:
                     seen.add((a, b))
                     q.append((a, b))
+                    if c in PAD:  # a teleporter: its partner too
+                        k = pads.index((a, b))
+                        o = k + 1 if k % 2 == 0 else k - 1
+                        if 0 <= o < len(pads) and pads[o] not in seen:
+                            seen.add(pads[o]); q.append(pads[o])
         got = {at(x, y) for (x, y) in seen if at(x, y) in "rby"}
+        if any(at(x + dx, y + dy) in STATION for (x, y) in seen for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+            got.add("@")
         if got <= keys:
             break
         keys |= got
@@ -252,6 +382,8 @@ def validate(rows, name="map", want_exit=True):
             c = at(x, y)
             if (c in ITEMS or c in MONS) and (x, y) not in reach:
                 warns.append("unreachable %s at %d,%d" % (c, x, y))
+            if c in STATION and not any(at(x + dx, y + dy) == "." for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                errs.append("station/terminal %s at %d,%d has no floor in front of it" % (c, x, y))
             if c in "RBY" and keyof[c] not in keys:
                 warns.append("key door %s at %d,%d: its key is never reachable" % (c, x, y))
     count = lambda s: sum(1 for r in g for c in r if c in s)
@@ -332,19 +464,21 @@ def check_level(lv, assets=None):
             errs.append("event %s: needs 8 numbers" % (e,))
             continue
         kind, x0, y0, x1, y1, a, b, reward = e
-        if not (1 <= kind <= 5 and 0 < x0 <= x1 < N - 1 and 0 < y0 <= y1 < N - 1):
-            errs.append("event %s: kind 1-5, a room inside the map" % (e,))
+        if not (1 <= kind <= 11 and 0 < x0 <= x1 < N - 1 and 0 < y0 <= y1 < N - 1):
+            errs.append("event %s: kind 1-11, a room inside the map" % (e,))
         if reward not in (0, 4, 5, 6, 9, 10, 13, 14):
             errs.append("event %s: reward must be 0 or a pickup kind" % (e,))
         room = [lv["rows"][y][x] for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]
         if kind == 4 and not any(c in DECO for c in room):
             errs.append("event %s: a shooting gallery needs decorations in its room" % (e,))
+        if kind == 7 and not any(c in DOORS for r in lv["rows"][y0 - 1:y1 + 2] for c in r[x0 - 1:x1 + 2]):
+            errs.append("event %s: a hoard needs a door to seal" % (e,))
         if kind == 5 and "S" not in room:
             errs.append("event %s: a nest needs spawners (S) in its room" % (e,))
         if kind in (1, 2) and not any(c in DOORS for r in lv["rows"][max(0, y0 - 5):y1 + 6] for c in r[max(0, x0 - 5):x1 + 6]):
             warns.append("event %s: no doors to lock round its room" % (e,))
-    if len(lv.get("events", [])) > 8:
-        errs.append("too many events (max 8)")
+    if len(lv.get("events", [])) > 16:
+        errs.append("too many events (max 16)")
     if not any("M" in r for r in lv["rows"]):
         warns.append("no map pickup (M): the minimap never appears on this level")
     print("%s  %s  (%d lights)" % (lv["label"], lv["name"], len(lv.get("lights", []))))

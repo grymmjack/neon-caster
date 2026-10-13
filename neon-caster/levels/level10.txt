@@ -1,0 +1,103 @@
+' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+' Level 10: a square spiral in to the AI core. Red key on the second
+' turn; blue on the third (red); the core (blue) is the overseer's arena,
+' the exit in its far wall.
+
+name     = SECTOR 10: THE CORE
+walls    = wall-core.png, wall-obsidian.png, wall-reactor.png, wall-coils.png, wall-servers.png, wall-hazard.png
+floors   = floor-core.png, floor-scorched.png, floor-glow.png, floor-hazard.png
+ceilings = ceiling-core.png, ceiling-warning.png
+ambient  = 85, 255, 120, 120
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+2, 2, 45, 45, 2, 2, 0
+9, 9, 38, 38, 4, 2, 0
+15, 15, 32, 32, 3, 1, 0
+20, 20, 27, 27, 1, 1, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+24.5, 43.5, 7, 150, 255, 60, 60, 2
+4.5, 24.5, 7, 150, 255, 60, 60, 2
+24.5, 4.5, 7, 150, 255, 60, 60, 2
+43.5, 24.5, 7, 150, 255, 60, 60, 2
+10.5, 24.5, 6, 150, 255, 80, 120, 1
+24.5, 10.5, 6, 150, 255, 80, 120, 1
+37.5, 24.5, 6, 150, 255, 80, 120, 1
+24.5, 37.5, 6, 150, 255, 80, 120, 1
+16.5, 16.5, 5, 170, 255, 40, 40, 3
+31.5, 31.5, 5, 170, 255, 40, 40, 3
+23.5, 23.5, 5, 220, 255, 120, 80, 2
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+1, 20, 20, 27, 27, 6, 0, 13
+6, 11, 36, 15, 39, 0, 0, 0
+6, 32, 36, 36, 39, 0, 0, 0
+6, 42, 5, 45, 9, 0, 0, 0
+9, 30, 36, 30, 38, 60, 60, 0
+9, 42, 16, 44, 16, 90, 75, 0
+9, 17, 36, 17, 38, 90, 90, 0
+8, 4, 7, 4, 7, 45, 300, 0
+8, 15, 43, 15, 43, 45, 300, 0
+8, 10, 16, 10, 16, 45, 300, 0
+10, 12, 42, 17, 44, 180, 0, 0
+11, 22, 24, 25, 27, 20, 8, 0
+
+[triggers]
+' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+enter 7 43 9 45 : message A DATA STATION - face it and press SPACE to jack in
+enter 6 3 8 5 : message A TELEPORTER - step on it
+
+[map]
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNN......I...................................NNN
+NNN....&....e.......c...i...........w.....f..NNN
+NNN...m.........................g............NNN
+NNN...NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN.s.NNN
+NNN...NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNww%...NNN
+NNN...NN################################NN...NNN
+NNN...NN#.....................I........#NN...NNN
+NNN.k.NN#.u.............m...........r..#NN...NNN
+NNN...NN#..............................#NN...NNN
+NNN...NN#..h########################..A#NN.+.NNN
+NNN...NN#...########################...#NN...NNN
+NNN...NN#L..##CCCCCCCCCCCCCCCCCCCC##...#NN...NNN
+NNN..gNN#...##C.............I....C##...#NN...NNN
+NNN...NN#...##C.w.............s..C##.w.#NN...NNN
+NNN...NN#...##C..g........A..F...C##...#NN...NNN
+NNN...NN#...##C...CCCCCCCCCCCC...C##...#NN...NNN
+NNN...NN#...##C...CKKKKKEKKKKC...C##...#NN...NNN
+NNN...NN#...##C...CK........KC...C##.g.#NNh..NNN
+NNN...NN#...##C...CK.c....c.KCI..C##...#NN...NNN
+NNN...NN#...##C.c.CK........KC.*.C##...#NN...NNN
+NNN...NN#...##C...CK....z...KC...C##...#NN...NNN
+NNN.i.NN#...##C....B........KC....R....#NN.i.NNN
+NNN...NN#.g.##C...CK........KC.q.C##...#NN...NNN
+NNN...NN#...##C.j.CK.+....a.KC...C##...#NN...NNN
+NNN...NN#...##C...CK........KC...C##...#NN...NNN
+NNN...NN#...##C...CKKKKKKKKKKC...C##...#NN...NNN
+NNN...NN#...##C...CCCCCCCCCCCC...C##...#NN...NNN
+NNN.h.NN#.k.##C.h.............b..C##.a.#NN..ANNN
+NNN...NN#...##C..+......m.....k..C##...#NN...NNN
+NNN...NN#...##C..................C##...#NN.m.NNN
+NNN...NN#...#wCCCCCCCCCCCCCCCCCCCCh#...#NN...NNN
+NNN...NN#.M.#h####################k#...#NN...NNN
+NNN...NN#...#%####################%#...#NN...NNN
+NNN...NN#.c.........................c..#NN...NNN
+NNN...NN#..f............s..............#NN...NNN
+NNN....!j...........F..................#NN...NNN
+NNN...NN################################NN...NNN
+NNN.a.NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN...NNN
+NNN...NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN...NNN
+NNN...c.............k.........c....q....<....NNN
+NNN...f....2......m.....i...........+......&.NNN
+NNN..........................................NNN
+NNNNNNNN@NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN

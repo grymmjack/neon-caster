@@ -1,0 +1,15 @@
+title   = HOW FAR?
+lesson  = SQR and Pythagoras: the distance between two points
+chapter = 10
+expect  = 5
+[lines]
+' How far is the monster? 3 cells across, 4 cells down
+dx = 3
+dy = 4
+distance = SQR(dx * dx + dy * dy)
+PRINT distance
+[blanks]
+4 SQR
+[hints]
+The distance is the square root of dx squared plus dy squared
+SQR(25) is 5 - the game skips it when it only needs to compare

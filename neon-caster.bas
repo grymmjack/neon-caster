@@ -38,7 +38,7 @@
 '
 ' CONTROLS (the keys can be changed in the menu: SETTINGS > CONTROLS)
 '   Mouse          look around          W A S D   walk and strafe
-'   Shift          hold to run
+'   Shift          hold to run           F         kick (and Fire with no ammo)
 '   Click or Ctrl  fire                 Space     open doors, use the exit
 '   1-4 or wheel   choose a gun         Esc       the menu (pause, save,
 '   Right button   hold to aim down                load, settings, exit)
@@ -191,6 +191,17 @@ CONST MAP_SIZE = 48
 ' MINIMAP_ = where the minimap is drawn: each map cell is MINIMAP_CELL pixels
 ' square, and its top-left corner is at (MINIMAP_X, MINIMAP_Y) on the screen
 CONST MINIMAP_CELL = 3, MINIMAP_X = 8, MINIMAP_Y = 8
+' --- The HUD as data (chapter 18): where each part of it goes, shown or
+' not, its bar's size, its colour (0: the game's own, which changes - red
+' when you're low), its label. HudDefaults has the layout the game has
+' always had; neon-caster/hud.txt (if it's there) changes it; the HUD
+' layout editor (chapter 21: U in the level editor) moves things about
+' with the mouse, over the game as it runs, and saves hud.txt.
+CONST HE_HEALTH = 1, HE_ARMOR = 2, HE_AMMO = 3, HE_GUNS = 4, HE_KILLS = 5, HE_MINIMAP = 6, HE_CARDS = 7
+CONST HE_MESSAGE = 8, HE_SUBTITLE = 9, HE_AMP = 10, HE_GOD = 11, HE_EVENT = 12, HE_NETWORK = 13, HE_FPS = 14, HUD_ELEMS = 14
+DIM SHARED hudName$(HUD_ELEMS), hudShow(HUD_ELEMS) AS INTEGER, hudX(HUD_ELEMS) AS INTEGER, hudY(HUD_ELEMS) AS INTEGER
+DIM SHARED hudW(HUD_ELEMS) AS INTEGER, hudH(HUD_ELEMS) AS INTEGER, hudCol(HUD_ELEMS) AS _UNSIGNED LONG, hudLabel$(HUD_ELEMS)
+DIM SHARED hudEdit AS INTEGER, hudSel AS INTEGER, hudMsg$
 CONST PLAYER_RADIUS = 0.3 ' Your body's half-width, so the camera can't touch a wall
 ' worldMap: 0 floor, 2 door; walls 1 (#), 3 (N), 4 (C), 5 (K), 6 (P), 7 (G):
 ' six kinds of wall, whose textures each level picks (see chapter 22)
@@ -281,6 +292,7 @@ CONST NUM_LEVELS = 10 ' NUM_ = how many there are
 ' is the card's colour).
 CONST IT_HEALTH = 4, IT_CELLS = 5, IT_SHELLS = 6, IT_SCATTER = 7, IT_REPEATER = 8
 CONST IT_ARMOR = 9, IT_BIGMED = 10, IT_RAIL = 11, IT_MAP = 12
+CONST IT_CORE = 15 ' (a data core: only in the network)
 CONST IT_OVERCHARGE = 13, IT_AMP = 14 ' (overcharge: health up to MAX_OVER; damage amp: double damage for AMP_FRAMES)
 CONST MAX_OVER = 200, AMP_FRAMES = 1800
 ' MAX_ = the most there can be: the arrays below have room for this many
@@ -304,7 +316,7 @@ DIM SHARED decoHP(MAX_DECO) AS INTEGER, decoTimer(MAX_DECO) AS INTEGER
 DIM SHARED decoCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' Which decoration stands in a cell (0 none)
 
 ' --- Event rooms: a part of the map (x0, y0) to (x1, y1) where something
-' happens when you walk in - each a line of the level's DATA (chapter 22).
+' happens when you walk in - each a line of the level's file (chapter 22).
 ' EV_ = the kinds:
 '   EV_AMBUSH   the doors slam shut and lock; evA monsters teleport in (of
 '               type evB, or a mix if 0), a few at a time. Kill them all
@@ -324,8 +336,23 @@ DIM SHARED decoCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' Which decoration stands in 
 ' frames to the next. monsterEv(i) is the event that sent monster i (0
 ' if it was always there). A locked door (doorLock) stays shut - Space
 ' won't open it, nor will monsters.
-CONST MAX_EVENTS = 8
+CONST MAX_EVENTS = 16
 CONST EV_AMBUSH = 1, EV_SURVIVE = 2, EV_TRAP = 3, EV_GALLERY = 4, EV_NEST = 5
+' ...and more (see chapter 22's Part 4 for what a and b are for each):
+'   EV_CLOSET   walk in and the secret walls (%) round the room slide away,
+'               and what's been waiting behind them comes out
+'   EV_HOARD    a treasure room, sealed; the thief bots (T) run to its door
+'               with what they steal, and when the last thief dies it opens
+'   EV_PLATE    a pressure plate: step on it (or a monster does) - click,
+'               beep, and a moment later an explosion lands on it
+'   EV_LASER    a laser beam across a corridor, on for a frames, off for b
+'   EV_CUTTER   a laser sweeping back and forth across the room
+'   EV_BLACKOUT a power failure: the lights die for a seconds, and b
+'               monsters come out of the dark
+CONST EV_CLOSET = 6, EV_HOARD = 7, EV_PLATE = 8, EV_LASER = 9, EV_CUTTER = 10, EV_BLACKOUT = 11
+DIM SHARED closetCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' (a closet's secret wall: which closet event it belongs to)
+DIM SHARED thiefDist(MAP_SIZE, MAP_SIZE) AS INTEGER ' (how many steps from a hoard's door: the thieves' way home - BuildThiefWay)
+DIM SHARED blackoutTimer AS LONG, glMeshVersion AS LONG, glMeshDone AS LONG
 DIM SHARED numEvents AS INTEGER, evType(MAX_EVENTS) AS INTEGER
 DIM SHARED evX0(MAX_EVENTS) AS INTEGER, evY0(MAX_EVENTS) AS INTEGER, evX1(MAX_EVENTS) AS INTEGER, evY1(MAX_EVENTS) AS INTEGER
 DIM SHARED evA(MAX_EVENTS) AS INTEGER, evB(MAX_EVENTS) AS INTEGER, evReward(MAX_EVENTS) AS INTEGER
@@ -349,8 +376,11 @@ DIM SHARED blastSize(MAX_BLASTS) AS SINGLE
 ' MON_ = MONster settings shared by every monster: MON_TYPES kinds of monster,
 ' MON_SIGHT how far away (in cells) they notice you, MON_DYING how many
 ' frames one takes to collapse when killed
-CONST MAX_MON = 64, MON_TYPES = 8
-CONST DECO_KINDS = 9, ITEM_KINDS = 14 ' (kinds of decoration and of pickup - see chapter 3)
+CONST MAX_MON = 64, MON_TYPES = 10
+CONST MT_ICE = 10 ' (ICE: the network's hunter programs - only in the network, chapter 19)
+CONST MT_THIEF = 9 ' (the thief bot: steals, then runs - ThiefStep, chapter 13)
+CONST DK_CHAIR = 20, DK_BODY = 21 ' (a body doesn't block the way, and can't be broken)
+CONST DECO_KINDS = 21, ITEM_KINDS = 15 ' (kinds of decoration and of pickup - see chapter 3)
 CONST MON_SIGHT = 14
 CONST MON_DYING = 24
 CONST MON_STRIDE = 0.12 ' How far a monster walks per frame of its walk
@@ -361,6 +391,10 @@ DIM SHARED monsterTimer(MAX_MON) AS INTEGER, monsterHurt(MAX_MON) AS INTEGER
 ' 13 moves it on as the monster moves), and frames left of its attack pose
 DIM SHARED monsterAnim(MAX_MON) AS SINGLE, monsterAtk(MAX_MON) AS INTEGER
 DIM SHARED monsterEv(MAX_MON) AS INTEGER ' (the event room that sent it, 0 for none - chapter 3)
+' ...and what a thief bot has stolen: cells, shells and a gun (0 none);
+' thiefState 0 coming for you, 1 running home empty-handed, 2 running home
+' with your things
+DIM SHARED thiefCells(MAX_MON) AS INTEGER, thiefShells(MAX_MON) AS INTEGER, thiefGun(MAX_MON) AS INTEGER, thiefState(MAX_MON) AS INTEGER
 DIM SHARED numMonsters AS INTEGER
 ' A second set of arrays describes each TYPE of monster, numbered 1-5 (the
 ' "mtype" arrays, filled in chapter 6). Per type: hit points, speed (tiles a frame; you walk 0.12), height (of a
@@ -369,6 +403,7 @@ DIM SHARED numMonsters AS INTEGER
 DIM SHARED mtypeHP(MON_TYPES), mtypeSpeed(MON_TYPES), mtypeScale(MON_TYPES), mtypeLift(MON_TYPES), mtypeBob(MON_TYPES)
 DIM SHARED mtypeReach(MON_TYPES), mtypeDamage(MON_TYPES), mtypeDamageRnd(MON_TYPES), mtypeCooldown(MON_TYPES)
 DIM SHARED mtypeSprite(MON_TYPES), mtypeName$(MON_TYPES), mtypeRanged(MON_TYPES)
+DIM SHARED mtypeDrop(MON_TYPES), mtypeDropChance(MON_TYPES) ' (what it may leave when it dies - a pickup kind - and how likely: monsters.txt)
 ' ...and its body, once it's dead (MakeCorpse): how wide it's drawn (as
 ' drawScale), and how tall for that width (as drawSquash)
 DIM SHARED corpseScale(MON_TYPES), corpseSquash(MON_TYPES)
@@ -384,7 +419,7 @@ CONST GUNNER_NEAR = 3.5, GUNNER_FAR = 7
 ' --- Energy bolts (what gunners and sentries shoot): a position and a
 ' direction each, moved a little every frame ---
 ' (BOLT_SPEED is in cells a frame - you walk at 0.12)
-CONST MAX_BOLTS = 32, BOLT_SPEED = 0.14
+CONST MAX_BOLTS = 32, BOLT_SPEED = 0.11
 DIM SHARED boltX(MAX_BOLTS) AS SINGLE, boltY(MAX_BOLTS) AS SINGLE, boltDX(MAX_BOLTS) AS SINGLE, boltDY(MAX_BOLTS) AS SINGLE
 DIM SHARED boltOn(MAX_BOLTS) AS INTEGER, boltDamage(MAX_BOLTS) AS INTEGER
 
@@ -449,7 +484,7 @@ CONST SWAP_FRAMES = 14 ' Frames to lower one gun and raise the next
 '   TEST_ALL_GUNS  -1 starts you with every gun and full ammo
 '   CHEAT_KEYS     -1 lets K give you every keycard, and G switch god mode
 '                  (no damage, walk through walls) on and off
-CONST TEST_ALL_GUNS = -1
+CONST TEST_ALL_GUNS = 0
 CONST CHEAT_KEYS = -1
 
 '-----------------------------------------------------------------------------
@@ -500,7 +535,10 @@ CONST S_BOLT = 19, S_DECO = 19, S_BLAST = 24, S_CORPSE = 28
 CONST S_DECAL = S_CORPSE + MON_TYPES + 1, S_WRECK = S_DECAL, S_ANIM = S_WRECK + DECO_KINDS
 CONST S_BOOM = S_ANIM + MON_TYPES * (ANIM_FRAMES + 1), S_MONX = S_BOOM + BOOM_FRAMES
 CONST S_DECOX = S_MONX + (MON_TYPES - 5) * 2, S_ITEMX = S_DECOX + DECO_KINDS - 4
-CONST SPR_TEX = 64, SPR_SLOTS = S_ITEMX + ITEM_KINDS - 12
+CONST S_TRAP = S_ITEMX + ITEM_KINDS - 12, S_PLATE = S_TRAP + 1, S_LASER = S_TRAP + 2 ' (traps: a pressure plate, a laser beam)
+CONST S_GLASS = S_TRAP + 3 ' (glass: whole, then cracked)
+CONST S_PAD = S_GLASS + 2 ' (a teleporter's pad)
+CONST SPR_TEX = 64, SPR_SLOTS = S_PAD
 ' How tall pickups stand (in walls): keycards, other pickups, guns
 CONST CARD_SCALE = 0.3, ITEM_SCALE = 0.3, GUN_ITEM_SCALE = 0.45
 DIM SHARED spriteTex(SPR_TEX - 1, SPR_TEX-1, SPR_SLOTS) AS _UNSIGNED LONG, spriteSize(SPR_SLOTS) AS INTEGER
@@ -513,7 +551,7 @@ DIM SHARED cardImg&(3) ' The keycards as images, for the HUD
 CONST MAX_DECALS = 96, DECAL_HEAT = 24
 DIM SHARED decalX(MAX_DECALS), decalY(MAX_DECALS), decalZ(MAX_DECALS), decalNX(MAX_DECALS), decalNY(MAX_DECALS), decalNZ(MAX_DECALS)
 DIM SHARED decalSize(MAX_DECALS), decalHeat(MAX_DECALS) AS INTEGER, decalOn(MAX_DECALS) AS INTEGER, decalNext AS INTEGER
-CONST MAX_DRAW = MAX_ITEMS + MAX_MON + MAX_BOLTS + MAX_DECO + MAX_BLASTS + MAX_DECALS
+CONST MAX_DRAW = MAX_ITEMS + MAX_MON + MAX_BOLTS + MAX_DECO + MAX_BLASTS + MAX_DECALS + 160 ' (+ traps)
 DIM drawX(MAX_DRAW) AS SINGLE, drawY(MAX_DRAW) AS SINGLE, drawDistSq(MAX_DRAW) AS SINGLE
 DIM drawSprite(MAX_DRAW) AS INTEGER, drawScale(MAX_DRAW) AS SINGLE, drawLift(MAX_DRAW) AS SINGLE
 DIM drawSquash(MAX_DRAW) AS SINGLE, drawMinShade(MAX_DRAW) AS INTEGER, drawOrder(MAX_DRAW) AS INTEGER
@@ -522,6 +560,36 @@ DIM drawSquash(MAX_DRAW) AS SINGLE, drawMinShade(MAX_DRAW) AS INTEGER, drawOrder
 ' RENDER_ = the size of the 3D view in pixels (W = width, H = height);
 ' TEX_SIZE = every texture is 64 x 64 pixels
 CONST RENDER_W = 400, RENDER_H = 300, TEX_SIZE = 128
+' --- Glass: = on the map, a pane across the middle of its cell (in a
+' wall one cell thick, like a door). You, monsters and bolts can't pass
+' it; sight and light can. glassHP: hits left (0: none there, or broken);
+' glassDir: 1 if the pane runs along x (you look through it north or
+' south), 2 along y. glassList: where they all are. Per column of the
+' view, the nearest pane the ray went through (glassT: how far, 0 for
+' none; glassU: where along it; glassCX, glassCY: its cell) - drawn over
+' the wall behind it after the sprites behind it (chapters 15 and 16).
+CONST PZ_TOP = 70 ' (the puzzle screen's first line)
+CONST ME_FIELDS = 12 ' (the monster editor's numbers)
+CONST ED_MAPX = 8, ED_MAPY = 8, ED_CELL = 12, ED_PALX = 596, ED_PALY = 44 ' (the editor's map from above, and its palette - chapter 21)
+CONST GLASS_HP = 4, GLASS_HALF = 0.1, MAX_GLASS = 240 ' (GLASS_HALF: half the thickness you bump into)
+DIM SHARED glassHP(MAP_SIZE, MAP_SIZE) AS INTEGER, glassDir(MAP_SIZE, MAP_SIZE) AS INTEGER
+DIM SHARED numGlass AS INTEGER, glassListX(MAX_GLASS) AS INTEGER, glassListY(MAX_GLASS) AS INTEGER
+' --- Data stations (@) and the network (chapter 19). A station is a wall
+' with a socket; Space at it "jacks you in": the level becomes the
+' network - every wall, floor and ceiling a neon grid (MakeCyberTex, the
+' real pictures kept in texBak), the light even, the monsters and things
+' of the real world left behind - and you have cyberTime frames to grab
+' cyberNeed data cores (IT_CORE) while ICE (MT_ICE) hunts you. Get them
+' all and the station opens its sealed doors (! on the map: doorLock 2);
+' run out of time and you're thrown out, to try again.
+CONST MAX_STATIONS = 8, CYBER_SECONDS = 50
+DIM SHARED numStations AS INTEGER, stationX(MAX_STATIONS) AS INTEGER, stationY(MAX_STATIONS) AS INTEGER, stationDone(MAX_STATIONS) AS INTEGER
+DIM SHARED cyberOn AS INTEGER, cyberStation AS INTEGER, cyberTime AS LONG, cyberNeed AS INTEGER, cyberGot AS INTEGER
+DIM SHARED cyberMonStart AS INTEGER, cyberItemStart AS INTEGER, glRetexVersion AS LONG, glRetexDone AS LONG
+DIM SHARED sndJackIn&, sndJackOut&, sndCore&, cyberMusic&, sndTeleport&
+CONST MAX_CLIPS = 24
+DIM SHARED clipN(RENDER_W) AS INTEGER, clipD(RENDER_W, MAX_CLIPS) AS SINGLE, clipT(RENDER_W, MAX_CLIPS) AS INTEGER, clipB(RENDER_W, MAX_CLIPS) AS INTEGER
+DIM SHARED glassT(RENDER_W) AS SINGLE, glassU(RENDER_W) AS SINGLE, glassCX(RENDER_W) AS INTEGER, glassCY(RENDER_W) AS INTEGER, glassDone(RENDER_W) AS INTEGER
 ' T_ = Texture slot: which picture in texture(x, y, slot). The slots are:
 '   1-6 the level's six walls (# N C K P G), 7 sliding door, 8-10 key doors,
 '   11 shutter, 12 split door, 13 exit, 14-17 the level's four floors,
@@ -531,12 +599,14 @@ CONST RENDER_W = 400, RENDER_H = 300, TEX_SIZE = 128
 ' floor n, and T_CEIL + n ceiling n; T_SLOTS is how many slots there are.
 CONST T_DOOR = 7, T_DOORK = 7
 CONST T_SHUTTER = 11, T_SPLIT = 12, T_EXIT = 13
-CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20, T_LAMPOFF = 21
-CONST T_SLOTS = 21
+CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20, T_LAMPOFF = 21, T_JACK = 22 ' (T_JACK: a data station's wall, @)
+CONST T_CODE = 23 ' (a code terminal's wall, $)
+CONST T_SLOTS = 23
 DIM SHARED texture(TEX_SIZE - 1, TEX_SIZE-1, T_SLOTS) AS _UNSIGNED LONG
+DIM SHARED texBak(TEX_SIZE - 1, TEX_SIZE - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
-DIM SHARED wallTexSlot(7) AS INTEGER, wallMapColor(7) AS _UNSIGNED LONG
-wallTexSlot(1) = 1 : wallTexSlot(3) = 2 : wallTexSlot(4) = 3 : wallTexSlot(5) = 4 : wallTexSlot(6) = 5 : wallTexSlot(7) = 6
+DIM SHARED wallTexSlot(9) AS INTEGER, wallMapColor(9) AS _UNSIGNED LONG
+wallTexSlot(1) = 1 : wallTexSlot(3) = 2 : wallTexSlot(4) = 3 : wallTexSlot(5) = 4 : wallTexSlot(6) = 5 : wallTexSlot(7) = 6 : wallTexSlot(8) = T_JACK : wallTexSlot(9) = T_CODE ' (8: a data station; 9: a code terminal)
 DIM SHARED pixels(0 TO RENDER_W * RENDER_H - 1) AS _UNSIGNED LONG
 DIM SHARED zBuffer(RENDER_W - 1) AS SINGLE
 ' The image the view is copied into each frame. _MEMIMAGE and _MEM give us
@@ -575,6 +645,7 @@ CONST GL_NEAR = 0.05, GL_FAR = 100
 ' for the heat shimmer (all chapter 24)
 CONST GL_DYN = 4, MAX_PART = 400, GL_HEAT = 4
 DIM SHARED glReady AS INTEGER, glBuf AS INTEGER, glFrameNo AS LONG, glMode AS INTEGER
+DIM SHARED glCamZ(1), glEyeZ ' (your eye's height, for OpenGL's camera)
 DIM SHARED glFrame(1) AS LONG, glCamX(1), glCamY(1), glDirX(1), glDirY(1), glPlaneLen(1), glZoom(1)
 DIM SHARED glShakeX(1), glShakeY(1), glShakeEdge(1), glFullMode(1) AS INTEGER
 DIM SHARED glLitR(MAP_SIZE, MAP_SIZE, 1) AS LONG, glLitG(MAP_SIZE, MAP_SIZE, 1) AS LONG, glLitB(MAP_SIZE, MAP_SIZE, 1) AS LONG
@@ -623,7 +694,8 @@ DIM SHARED glPost AS INTEGER, glReflecting AS INTEGER, glFloorPass AS INTEGER, g
 ' tables' textures; and whether corners are lit from the tables (cellLit)
 CONST MESH_MAX = 60000
 DIM SHARED glMeshBuf AS _UNSIGNED LONG, glMeshN AS LONG, glMeshBuilding AS INTEGER, glMeshKind AS INTEGER
-DIM SHARED glMeshFirst(2, GL_GLOW_TEX) AS LONG, glMeshCount(2, GL_GLOW_TEX) AS LONG
+DIM SHARED glMeshClient AS INTEGER ' (the mesh is drawn from glMeshData in main memory, not a buffer - GLBuildMesh)
+DIM SHARED glMeshFirst(3, GL_GLOW_TEX) AS LONG, glMeshCount(3, GL_GLOW_TEX) AS LONG ' (kinds: 0 floors, 1 ceilings, 2 walls, 3 raised or sunken floors)
 DIM SHARED glMBPos(MESH_MAX * 3) AS SINGLE, glMBUV(MESH_MAX * 2) AS SINGLE, glMBN(MESH_MAX * 3) AS SINGLE, glMBT(MESH_MAX * 3) AS SINGLE
 DIM SHARED glMBSlot(MESH_MAX) AS INTEGER, glMBKind(MESH_MAX) AS INTEGER, glMeshData(MESH_MAX * 11) AS SINGLE
 DIM SHARED glNumDoors AS INTEGER, glDoorCX(MAP_SIZE * MAP_SIZE) AS INTEGER, glDoorCY(MAP_SIZE * MAP_SIZE) AS INTEGER
@@ -739,6 +811,8 @@ LoadTex "door-shutter.png", T_SHUTTER
 LoadTex "door-split.png", T_SPLIT
 LoadTex "exit.png", T_EXIT : ExitSign
 LoadTex "ceiling-lamp.png", T_LAMP : MakeLampOff
+LoadTex "wall-jack.png", T_JACK ' (a data station)
+LoadTex "wall-code.png", T_CODE ' (a code terminal)
 LoadCards "keycard.png"
 LoadSprite "medkit.png", 4
 LoadSprite "ammo.png", 5
@@ -758,7 +832,13 @@ LoadSprite "plant.png", S_DECO + 3
 LoadSprite "terminal.png", S_DECO + 4
 LoadSprite "crate.png", DecoSlot(5) : LoadSprite "rack.png", DecoSlot(6)
 LoadSprite "vending.png", DecoSlot(7) : LoadSprite "tank.png", DecoSlot(8) : LoadSprite "spawner.png", DecoSlot(9)
-LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP)
+' The set pieces (10-19): desk, control console, monitor bank, specimen
+' tank, lab bench, generator, cryo pod, hologram, lockers, bench
+FOR k = 10 TO DECO_KINDS : LoadSprite DecoFile$(k), DecoSlot(k) : NEXT
+LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE)
+MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
+MakePad S_PAD ' (a teleporter's pad)
+LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
 LoadSprite "explosion.png", S_BLAST : MakeBoomFrames ' (and its animation)
 LoadSprite "armor.png", 25
 LoadSprite "bigmed.png", 26
@@ -796,7 +876,31 @@ sndHealth& = LoadSnd&("health.wav") : sndAmmo& = LoadSnd&("ammo.wav") : sndShell
 sndBoltWall& = LoadSnd&("bolt-wall.wav")
 sndHurt& = LoadSnd&("hurt.wav") : sndDie& = LoadSnd&("die.wav")
 DIM SHARED sndHurt2&, sndHurt3& ' (more ways to say ouch: HurtPlayer picks one)
+' NEXUS's voice: each line's sound (neon-caster/speech/KEY.wav) and words,
+' looked up by key (Say); what's on screen (speechText$, until
+' speechUntil!), and frames till the next taunt
+CONST MAX_LINES = 48
+DIM SHARED lineKey$(MAX_LINES), lineText$(MAX_LINES), lineSnd&(MAX_LINES), numLines AS INTEGER
+DIM SHARED speechText$, speechUntil!, tauntWait AS LONG, cliMode AS INTEGER, nexusImg&
+' The sound limiter (PlaySfxPan, chapter 23), and where you're listening
+' from, facing (earDX, earDY) - for 3D sound
+CONST SFX_HEADROOM = 1.6
+DIM SHARED sfxLoad!, sfxThis&(32), sfxThisN AS INTEGER, earDX, earDY
+earDX = 1 : earDY = 0
+DIM SHARED kickTimer AS INTEGER, kickImg&, sndKick&, sndKickSwing& ' (the kick: chapter 12)
 sndHurt2& = LoadSnd&("hurt2.wav") : sndHurt3& = LoadSnd&("hurt3.wav")
+sndKick& = LoadSnd&("kick.wav") : sndKickSwing& = LoadSnd&("kick-swing.wav")
+' NEXUS's lines (and its minions' barks): key, then words
+RESTORE SpeechLines
+DO
+    READ k$, t$ : IF k$ = "" THEN EXIT DO
+    numLines = numLines + 1 : lineKey$(numLines) = k$ : lineText$(numLines) = t$
+    p$ = AssetPath$("speech/" + k$ + ".wav") : IF _FILEEXISTS(p$) THEN lineSnd&(numLines) = _SNDOPEN(p$, "noasync")
+LOOP
+nexusImg& = _LOADIMAGE(AssetPath$("nexus.png"), 32)
+tauntWait = 3600
+IF sndKick& = 0 THEN sndKick& = LoadSnd&("bump.wav")
+kickImg& = _LOADIMAGE(AssetPath$("kick.png"), 32) ' The boot (chapter 18); missing, there's no boot to see
 gunSnd&(1) = LoadSnd&("shoot.wav") : gunSnd&(2) = LoadSnd&("scatter.wav") : gunSnd&(3) = LoadSnd&("repeater.wav")
 gunSnd&(4) = LoadSnd&("rail.wav")
 sndBarrel& = LoadSnd&("barrel.wav") : sndArmor& = LoadSnd&("armor.wav") : sndExit& = LoadSnd&("exit.wav")
@@ -806,11 +910,27 @@ sndDecoHit& = LoadSnd&("deco-hit.wav")
 decoBreakSnd&(2) = LoadSnd&("lamp-break.wav") : decoBreakSnd&(3) = LoadSnd&("plant-break.wav") : decoBreakSnd&(4) = LoadSnd&("terminal-break.wav")
 decoBreakSnd&(5) = LoadSnd&("crate-break.wav") : decoBreakSnd&(6) = decoBreakSnd&(4) : decoBreakSnd&(7) = decoBreakSnd&(4)
 decoBreakSnd&(9) = decoBreakSnd&(4)
+FOR k = 10 TO 19 ' (the set pieces: furniture cracks like a crate, the rest like a terminal)
+    IF k = 10 OR k = 18 OR k = 19 THEN decoBreakSnd&(k) = decoBreakSnd&(5) ELSE decoBreakSnd&(k) = decoBreakSnd&(4)
+NEXT
 ' The event rooms' sounds (chapter 19): the lockdown alarm, a win, a loss,
 ' the trap's zap, a monster arriving
 DIM SHARED sndAlarm&, sndFanfare&, sndFail&, sndZap&, sndSpawn&
 sndAlarm& = LoadSnd&("alarm.wav") : sndFanfare& = LoadSnd&("fanfare.wav") : sndFail& = LoadSnd&("fail.wav")
 sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav")
+DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&
+sndSteal& = LoadSnd&("thief-steal.wav") : sndHoard& = LoadSnd&("hoard-open.wav") : sndPlate& = LoadSnd&("plate-click.wav")
+sndLaser& = LoadSnd&("laser-zap.wav") : sndCloset& = LoadSnd&("closet.wav")
+DIM SHARED sndGlassHit&, sndGlassBreak&
+sndGlassHit& = LoadSnd&("glass-hit.wav") : sndGlassBreak& = LoadSnd&("glass-break.wav")
+sndTeleport& = LoadSnd&("teleport.wav") : IF sndTeleport& = 0 THEN sndTeleport& = LoadSnd&("jack-out.wav")
+sndJackIn& = LoadSnd&("jack-in.wav") : sndJackOut& = LoadSnd&("jack-out.wav") : sndCore& = LoadSnd&("core.wav")
+sndPowerDown& = LoadSnd&("power-down.wav") : sndPowerUp& = LoadSnd&("power-up.wav")
+IF sndSteal& = 0 THEN sndSteal& = LoadSnd&("keycard.wav")
+IF sndHoard& = 0 THEN sndHoard& = LoadSnd&("exit.wav")
+IF sndPlate& = 0 THEN sndPlate& = LoadSnd&("locked.wav")
+IF sndLaser& = 0 THEN sndLaser& = sndZap&
+IF sndCloset& = 0 THEN sndCloset& = LoadSnd&("door-shutter.wav")
 ' (any that aren't there yet borrow a near enough sound)
 IF sndAlarm& = 0 THEN sndAlarm& = LoadSnd&("sentry-alert.wav")
 IF sndFanfare& = 0 THEN sndFanfare& = LoadSnd&("exit.wav")
@@ -822,22 +942,30 @@ sndOvercharge& = LoadSnd&("overcharge.wav") : sndAmp& = LoadSnd&("amp.wav") : sn
 CONST STEP_LEN = 2.6 ' Cells walked per footstep (about 2.8 a second at full speed)
 
 ' The monster types table: SetMonType fills in the "mtype" arrays (one
-' entry per TYPE of monster - see chapter 3) for types 1-8 (6 stalker, 7 spitter, 8 the overseer, the last
-' sector's boss). Speed is in
+' entry per TYPE of monster - see chapter 3) for types 1-9 (6 stalker, 7 spitter, 8 the overseer, the last
+' sector's boss, 9 the thief bot). Speeds are set against yours: you walk
+' 0.06 and run 0.12 - only the thief is faster than you walk. Speed is in
 ' cells a frame; height is in walls (1 = as tall as a wall); lift and bob
 ' are how high it hovers and how much it bobs; reach is how close it must
 ' be to hit you; damage is dmg plus a random 0 to +rnd - 1; cooldown (cool)
 ' is frames between attacks; slot is its sprite slot (chapter 5).
 '          type name       HP  speed  height lift bob   reach dmg +rnd cool slot
-SetMonType 1,   "drone",   3,  0.045, 0.65,  0.2, 0.05, 0.95, 8,  6,   50,  9
-SetMonType 2,   "gunner",  4,  0.035, 0.8,   0,   0,    0,    9,  6,   90,  11
-SetMonType 3,   "heavy",   10, 0.028, 0.95,  0,   0,    1.25, 20, 10,  80,  13
-SetMonType 4,   "crawler", 2,  0.07,  0.4,   0,   0.02, 0.75, 5,  4,   35,  15
-SetMonType 5,   "sentry",  8,  0,     0.75,  0,   0,    0,    7,  5,   50,  17
-SetMonType 6,   "stalker", 3,  0.085, 0.75,  0,   0,    0.9,  7,  5,   28,  S_MONX + 1
-SetMonType 7,   "spitter", 6,  0.03,  0.7,   0,   0,    0,    8,  6,   70,  S_MONX + 3
-SetMonType 8,   "overseer", 80, 0.018, 1.4,  0.3, 0.06, 0,    12, 8,   26,  S_MONX + 5
+SetMonType 1,   "drone",   3,  0.03,  0.65,  0.2, 0.05, 0.95, 6,  4,   60,  9
+SetMonType 2,   "gunner",  4,  0.025, 0.8,   0,   0,    0,    7,  4,   110, 11
+SetMonType 3,   "heavy",   10, 0.02,  0.95,  0,   0,    1.25, 15, 8,   95,  13
+SetMonType 4,   "crawler", 2,  0.045, 0.4,   0,   0.02, 0.75, 3,  3,   50,  15
+SetMonType 5,   "sentry",  8,  0,     0.75,  0,   0,    0,    5,  4,   70,  17
+SetMonType 6,   "stalker", 3,  0.052, 0.75,  0,   0,    0.9,  5,  4,   50,  S_MONX + 1
+SetMonType 7,   "spitter", 6,  0.022, 0.7,   0,   0,    0,    6,  4,   95,  S_MONX + 3
+SetMonType 8,   "overseer", 80, 0.014, 1.4,  0.3, 0.06, 0,    9,  5,   45,  S_MONX + 5
+SetMonType 9,   "thief",   5,  0.09,  0.55,  0,   0,    0.8,  0,  0,   60,  S_MONX + 7
+SetMonType 10,  "ice",     2,  0.05,  0.5,   0.3, 0.06, 0.75, 5,  3,   50,  S_MONX + 9
 mtypeRanged(2) = -1 : mtypeRanged(5) = -1 : mtypeRanged(7) = -1 : mtypeRanged(8) = -1
+' ...and that table changed by neon-caster/monsters.txt, if it's there:
+' every monster's numbers as plain text, to tune without changing the
+' program - by hand, or in the monster editor (chapter 21)
+ReadMonsters
+HudDefaults : ReadHud ' (the HUD's layout: chapter 18's, or hud.txt's)
 ' The newer monsters' pictures: each, then itself hurt (MakeHurt: flashed red)
 FOR mtype = 6 TO MON_TYPES
     LoadSprite mtypeName$(mtype) + ".png", mtypeSprite(mtype) : MakeHurt mtypeSprite(mtype), mtypeSprite(mtype) + 1
@@ -875,7 +1003,7 @@ NEXT
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 35
+CONST NUM_SETTINGS = 39
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -884,6 +1012,7 @@ CONST SET_BUMP = 16, SET_GLOW = 17, SET_NEON = 18, SET_SMOOTH = 19, SET_DYNLIGHT
 CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, SET_HITFX = 26, SET_RES = 27, SET_LOOK = 28
 CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
 CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
+CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39
 DIM SHARED setting(NUM_SETTINGS), setDefault(NUM_SETTINGS), setMin(NUM_SETTINGS), setMax(NUM_SETTINGS)
 ' Each letter's scancode (where it is on the keyboard), a to z, as
 ' characters 32 on (CHR$(scancode + 32)), for KeyAt% (chapter 21)
@@ -943,15 +1072,24 @@ DefineSetting SET_PHOSPHOR,  "phosphor_glow",      "PHOSPHOR GLOW",      MI_SLID
 ' Beams of light under the ceiling lights, with the dust hanging in them
 ' How fast the mouse turns you while you aim down the sights, as well as
 ' the zoom slowing it (chapter 8)
+' Sound: placed round you (3D SOUND: panned by where it is, fainter with
+' distance, muffled behind walls), and kept from getting too loud when a
+' lot happens at once (LIMITER - PlaySfx, chapter 23). NEXUS's voice: the
+' transmissions as you arrive in a sector (CUTSCENES), and what it says to
+' you now and then while you play (TAUNTS).
+DefineSetting SET_SPATIAL,   "spatial_sound",      "3D SOUND",           MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_LIMITER,   "sound_limiter",      "LIMITER",            MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_CUTSCENES, "cutscenes",          "CUTSCENES",          MI_TOGGLE, 0,  1,   1,   1
+DefineSetting SET_TAUNTS,    "taunts",             "NEXUS TAUNTS",       MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_AIMSENS,   "aim_sensitivity",    "AIM SENSITIVITY",    MI_SLIDER, 10, 100, 5,   50
 DefineSetting SET_SHAFTS,    "light_shafts",       "LIGHT SHAFTS",       MI_TOGGLE, 0,  1,   1,   1
 ' BIND_ = a key binding's number: what each one does, its name in the
 ' settings file, its menu label, and its key to start with (a _KEYDOWN
 ' code: letters as lower case, 32 Space, 100306 left Ctrl, 16128 F5,
 ' 17152 F9, 9 Tab, 100304 left Shift)
-CONST NUM_BINDS = 10
+CONST NUM_BINDS = 11
 CONST BIND_FORWARD = 1, BIND_BACK = 2, BIND_LEFT = 3, BIND_RIGHT = 4
-CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8, BIND_MAP = 9, BIND_RUN = 10
+CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8, BIND_MAP = 9, BIND_RUN = 10, BIND_KICK = 11
 DIM SHARED keyBind&(NUM_BINDS), bindDefault&(NUM_BINDS), bindKey$(NUM_BINDS), bindLabel$(NUM_BINDS)
 '          binding         file name        menu label      key
 DefineBind BIND_FORWARD,   "key_forward",   "MOVE FORWARD", 119
@@ -964,6 +1102,7 @@ DefineBind BIND_QUICKSAVE, "key_quicksave", "QUICK SAVE",   16128
 DefineBind BIND_QUICKLOAD, "key_quickload", "QUICK LOAD",   17152
 DefineBind BIND_MAP, "key_map", "MAP", 9
 DefineBind BIND_RUN,       "key_run",       "RUN (HOLD)",   100304
+DefineBind BIND_KICK,      "key_kick",      "KICK",         102
 ' SCR_ = the menu's screens; MA_ = Menu Actions (what choosing a button does)
 CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
@@ -997,7 +1136,7 @@ CONST MENU_TOP = 176, MENU_ROW = 32, MENU_LABEL_X = 140, MENU_WIDGET_X = 470, ME
 CONST SPLASH_SECONDS = 3.5 ' How long the splash screen stays up (any key skips it)
 ' Saved games: the slots, and the file's first bytes, so a file from
 ' something else (or an older version) is never read as a save
-CONST NUM_SLOTS = 3, SAVE_TAG = "NCSAVE03", SAVE_INFO_LEN = 48
+CONST NUM_SLOTS = 3, SAVE_TAG = "NCSAVE04", SAVE_INFO_LEN = 48
 ' Things the settings change, worked out by ApplySettings: the camera
 ' plane's length (from the field of view) and the mouse turn speed
 DIM SHARED fovPlane, turnSpeed, displayAsked, displayModeNow
@@ -1015,8 +1154,89 @@ DIM SHARED hurtDirX(MAX_HURTDIRS), hurtDirY(MAX_HURTDIRS), hurtDirTime(MAX_HURTD
 ' one playing now. (Dark techno, made with soundmon's AI music mode.)
 DIM SHARED menuMusic&, levelMusic&(NUM_LEVELS), nowPlaying&
 DIM SHARED sectorName$(NUM_LEVELS) ' (every level's name, for the route map and SELECT SECTOR: ReadSectorNames)
+' A level as its file says it (ReadLevelFile, chapter 22): its name, its
+' pictures, its ambient light, its zones, lights and event rooms, and its
+' map's rows - LoadLevel builds the level from these
+CONST MAX_ZONES = 64
+DIM SHARED lvlNote$ ' (the comments at the top of its file, kept when the editor saves it)
+' --- Heights (chapter 22's [floor] and [ceiling]): every cell's floor and
+' ceiling, in walls (0 and 1 unless the level says otherwise). In the
+' level file, a map of one character a cell: . the usual, 0-9 and a-z
+' that many eighths of a wall up, A-H that many eighths down (a pit).
+' levelFlat: none anywhere - the game as it was, and the software
+' renderer's classic way (chapter 15). You (playerZ, your feet) step up
+' anything up to STEP_UP, fall off anything higher, and need BODY_H of
+' room; your eye is EYE_H above your feet (eyeZ, eased up steps). walkZ:
+' the height of whoever Walkable is asked about (-999: don't care).
+CONST H_STEP = 0.125, H_UP$ = "0123456789abcdefghijklmnopqrstuvwxyz", H_DOWN$ = "ABCDEFGH"
+CONST STEP_UP = 0.32, EYE_H = 0.5, BODY_H = 0.7, FALL_G = 0.01, PIT_DEPTH = -0.99
+DIM SHARED floorH(MAP_SIZE, MAP_SIZE) AS SINGLE, ceilH(MAP_SIZE, MAP_SIZE) AS SINGLE, levelFlat AS INTEGER
+DIM SHARED lvlFloorRow$(MAP_SIZE - 1), lvlCeilRow$(MAP_SIZE - 1)
+DIM SHARED playerZ AS SINGLE, playerVZ AS SINGLE, eyeZ AS SINGLE, walkZ AS SINGLE
+DIM SHARED boltZ(MAX_BOLTS) AS SINGLE, boltDZ(MAX_BOLTS) AS SINGLE
+' --- Lifts ([lifts] in the level file): a rectangle of floor that moves
+' between two heights (low, high) - mode 1 up and down by itself, mode 2
+' an elevator: up when you step on, back down a while after you step off.
+' Each frame (MoveLifts) its cells' floorH is set to where it is (liftZ),
+' so standing, falling and drawing all just follow it; OpenGL draws it
+' each frame, like a door (GLLifts), not in the world mesh.
+CONST MAX_LIFTS = 16
+DIM SHARED numLifts AS INTEGER, liftCell(MAP_SIZE, MAP_SIZE) AS INTEGER
+DIM SHARED liftX0(MAX_LIFTS) AS INTEGER, liftY0(MAX_LIFTS) AS INTEGER, liftX1(MAX_LIFTS) AS INTEGER, liftY1(MAX_LIFTS) AS INTEGER
+DIM SHARED liftLow(MAX_LIFTS) AS SINGLE, liftHigh(MAX_LIFTS) AS SINGLE, liftMode(MAX_LIFTS) AS INTEGER, liftSpeed(MAX_LIFTS) AS SINGLE
+DIM SHARED liftZ(MAX_LIFTS) AS SINGLE, liftDir(MAX_LIFTS) AS INTEGER, liftWait(MAX_LIFTS) AS INTEGER
+DIM SHARED lvlNumLifts AS INTEGER, lvlLift(MAX_LIFTS, 8) AS SINGLE
+' --- Triggers ([triggers] in the level file, chapter 19): WHEN, then a colon,
+' then what happens - console commands (chapter 21), split by ;. WHEN is
+'   enter X0 Y0 X1 Y1   you walk into that rectangle (a line: one cell wide)
+'   use X Y             you press Space at that cell
+'   clear X0 Y0 X1 Y1   every monster that started in it is dead
+'   time SECONDS        that long into the level
+' and "repeat" after it to go off every time (else just once).
+' trig...: each one taken apart (TakeTrigger); trigWas: you were in it
+' last frame (an enter goes off as you step in, not while you stand there).
+CONST MAX_TRIGS = 48
+DIM SHARED lvlNumTrigs AS INTEGER, lvlTrig$(MAX_TRIGS)
+DIM SHARED numTrigs AS INTEGER, trigWhen$(MAX_TRIGS), trigX0(MAX_TRIGS) AS INTEGER, trigY0(MAX_TRIGS) AS INTEGER, trigX1(MAX_TRIGS) AS INTEGER, trigY1(MAX_TRIGS) AS INTEGER
+DIM SHARED trigRepeat(MAX_TRIGS) AS INTEGER, trigDone(MAX_TRIGS) AS INTEGER, trigWas(MAX_TRIGS) AS INTEGER, trigCmd$(MAX_TRIGS)
+' --- Teleporters (& on the map): pads that pair up in the order they're
+' found, reading the map like a book - the 1st with the 2nd, the 3rd with
+' the 4th. Step on one and you're on the other (padReady: you've stepped
+' off since, so you don't bounce straight back).
+CONST MAX_PADS = 16
+' --- Code terminals ($ on the map, chapter 19): QB64 programs to put back
+' together. Space at one: the doors near it slam and lock (doorLock 3)
+' and its puzzle opens (RunPuzzle) - a program from neon-caster/puzzles/,
+' its lines shuffled and words blanked out. Put it right and it's compiled
+' and run, for real if qb64pe can be found (QB64Path$), and its output
+' checked: right, and the doors open. Which puzzle: the level file's
+' "puzzles =" list, one a terminal in reading order.
+CONST MAX_TERMS = 8, MAX_PZ_LINES = 24, MAX_PZ_BLANKS = 6, MAX_PZ_HINTS = 6
+DIM SHARED numTerms AS INTEGER, termX(MAX_TERMS) AS INTEGER, termY(MAX_TERMS) AS INTEGER, termDone(MAX_TERMS) AS INTEGER, lvlPuzzles$
+DIM SHARED pzTitle$, pzLesson$, pzExpect$, pzChapter$, pzN AS INTEGER, pzAns$(MAX_PZ_LINES), pzOrder(MAX_PZ_LINES) AS INTEGER
+DIM SHARED pzBlanks AS INTEGER, pzBlankLine(MAX_PZ_BLANKS) AS INTEGER, pzBlankWord$(MAX_PZ_BLANKS), pzBlankIn$(MAX_PZ_BLANKS)
+DIM SHARED pzHints AS INTEGER, pzHint$(MAX_PZ_HINTS), pzShown AS INTEGER, pzOut$, pzFails AS INTEGER
+DIM SHARED numPads AS INTEGER, padX(MAX_PADS) AS INTEGER, padY(MAX_PADS) AS INTEGER, padReady AS INTEGER
+DIM SHARED lvlName$, lvlWall$(6), lvlFloor$(4), lvlCeil$(2), lvlAmb(4), lvlOK AS INTEGER
+DIM SHARED lvlNumZones AS INTEGER, lvlZone(MAX_ZONES, 7) AS INTEGER
+DIM SHARED lvlNumLights AS INTEGER, lvlLight(MAX_LIGHTS, 8) AS SINGLE
+DIM SHARED lvlNumEvents AS INTEGER, lvlEvent(MAX_EVENTS, 8) AS INTEGER
+DIM SHARED lvlRow$(MAP_SIZE - 1)
+' --- The level editor (chapter 21): F2. editMode: on; editView: 0 the map
+' from above (RunEditor), 1 walking round inside it (EditFP, in the game
+' loop). editGlyph$: what you're placing - a map character (chapter 22).
+' Each change is made to the level as its file says it (lvlRow$() and
+' the rest) and the level built again from that (BuildLevel); editUndo$()
+' remembers how it was before each change. texFile$(): which picture is in
+' each texture slot now, so building it again only loads what changed.
+CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%&rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV<>^v"
+CONST EDIT_UNDO = 40
+DIM SHARED editMode AS INTEGER, editView AS INTEGER, editGlyph$, editDirty AS INTEGER, editRebuild AS INTEGER
+DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, editLightP AS INTEGER, editLights AS INTEGER, editHeights AS INTEGER
+DIM SHARED texFile$(T_SLOTS)
 menuMusic& = LoadMusic&("menu.ogg")
 FOR k = 1 TO NUM_LEVELS : levelMusic&(k) = LoadMusic&("level" + LTRIM$(STR$(k)) + ".ogg") : NEXT
+cyberMusic& = LoadMusic&("cyber.flac") ' (the network's own)
 sndMenuMove& = LoadSnd&("menu-move.wav") : sndMenuSelect& = LoadSnd&("menu-select.wav") : sndMenuBack& = LoadSnd&("menu-back.wav")
 ' The splash screen's picture, if there is one (neon-caster/splash.png)
 DIM SHARED splashImg&
@@ -1033,6 +1253,10 @@ DIM cellX AS LONG, cellY AS LONG, lastCellX AS LONG, lastCellY AS LONG, floorSlo
 DIM cellFloor AS LONG, cellCeil AS LONG, splitCell AS LONG, cellTrack AS LONG
 DIM savedHasGun(NUM_GUNS) ' What you had on entering the level (you get it back if you die)
 
+' THE KICK (F, or Fire with no ammo - chapter 12): KICK_FRAMES long, the
+' boot landing KICK_HIT frames in; reach KICK_REACH cells, KICK_DAMAGE
+' damage, pushing a monster back KICK_PUSH cells
+CONST KICK_FRAMES = 22, KICK_HIT = 8, KICK_REACH = 1.35, KICK_DAMAGE = 2, KICK_PUSH = 0.45
 ' How fast you go, in cells a frame: walking, and running (holding Shift)
 CONST WALK_SPEED = 0.06, RUN_SPEED = 0.12 ' (walking: half as fast)
 LoadSettings ' Your settings and keys, from neon-caster/saves/settings.ini
@@ -1052,19 +1276,18 @@ ApplySettings
 '   neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit
 ' They skip the splash and the title, start a new game and run, one a
 ' frame, from its first frame.
-cmd$ = ""
-FOR a = 1 TO _COMMANDCOUNT
-    arg$ = COMMAND$(a)
-    IF LEFT$(arg$, 1) = "+" THEN
-        IF cmd$ <> "" THEN ConQueue cmd$
-        cmd$ = MID$(arg$, 2)
-    ELSEIF cmd$ <> "" THEN
-        cmd$ = cmd$ + " " + arg$
-    END IF
-NEXT
-IF cmd$ <> "" THEN ConQueue cmd$
+' (All the words, joined up again and cut at each " +" - so it works the
+' same when a launcher hands them over as one long word.)
+all$ = ""
+FOR a = 1 TO _COMMANDCOUNT : all$ = all$ + " " + COMMAND$(a) : NEXT
+DO WHILE LEN(all$)
+    p = INSTR(all$, " +") : IF p = 0 THEN EXIT DO
+    all$ = MID$(all$, p + 2) : q = INSTR(all$, " +")
+    IF q THEN cmd$ = LEFT$(all$, q - 1) : all$ = MID$(all$, q) ELSE cmd$ = all$ : all$ = ""
+    ConQueue cmd$
+LOOP
 IF conQTail > 0 THEN
-    noSaveSettings = -1
+    noSaveSettings = -1 : cliMode = -1
     GOSUB NewGame : _MOUSEHIDE : _MOUSEMOVE 400, 300
 ELSE
     GOSUB ShowSplash
@@ -1099,6 +1322,8 @@ DO
     _LIMIT 60
     ' Commands waiting (the command line's, an exec's): one a frame - or
     ' as many as come before a "wait"
+    SfxFrame : earDX = dirX : earDY = dirY ' (the limiter's memory fades; your ears face where you do)
+    GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
     IF conWait > 0 THEN conWait = conWait - 1
     DO WHILE conWait = 0 AND conQHead < conQTail
         conQHead = conQHead + 1 : conCmd$ = conQ$(conQHead) : GOSUB ConExec
@@ -1108,6 +1333,14 @@ DO
     conKey = _KEYDOWN(96) OR _KEYDOWN(126)
     IF conKey AND NOT conKeyWas THEN GOSUB RunConsole
     conKeyWas = conKey
+    ' F2: the level editor (chapter 21) - into it, at the map from above
+    edKey = _KEYDOWN(15360)
+    IF edKey AND NOT edKeyWas AND NOT cyberOn AND NOT dead THEN
+        IF editMode THEN GOSUB EditLeave ELSE GOSUB EditEnter
+    END IF
+    edKeyWas = _KEYDOWN(15360)
+    IF editMode AND editView = 0 THEN GOSUB RunEditor ' (the map from above: a loop of its own)
+    IF editMode THEN GOSUB EditFP ' (walking round in it: its keys)
 
     '-------------------------------------------------------------------------
     ' CHAPTER 8: LOOKING AROUND
@@ -1151,12 +1384,16 @@ DO
     ' Keys go through the key bindings (chapter 21): KeyHeld(BIND_FIRE) asks
     ' "is the key you chose for firing held down?" - left Ctrl, unless you
     ' changed it in the menu.
+    IF hudEdit THEN GOSUB HudEditFrame : mouseDX = 0 : mouseDY = 0 : clicked = 0 ' (the HUD layout editor has the mouse - chapter 21)
     fireDown = _MOUSEBUTTON(1) OR clicked OR KeyHeld(BIND_FIRE)
+    IF hudEdit THEN fireDown = 0
+    IF conFire > 0 THEN conFire = conFire - 1 : fireDown = -1 ' (the console's fire: holding the trigger)
     clicked = 0
     spaceDown = KeyHeld(BIND_USE)
+    IF conUse THEN conUse = 0 : spaceDown = -1 ' (the console's use: Space, once)
 
     ' Esc opens the menu (chapter 21), and the game waits while it's open
-    escDown = _KEYDOWN(27)
+    escDown = _KEYDOWN(27) AND NOT hudEdit
     IF escDown AND NOT escWas THEN
         menuInGame = -1 : GOSUB RunMenu
         mouseDX = 0 : mouseDY = 0 : mouseWheel = 0 : clicked = 0 : fireDown = 0 : spaceDown = 0
@@ -1173,7 +1410,7 @@ DO
     ' Aiming down the sights: hold the right mouse button (_MOUSEBUTTON(2)).
     ' aimAmount slides from 0 (hip) to 1 (aimed) over ADS_FRAMES frames, so
     ' the zoom and the gun ease in and out instead of snapping.
-    IF _MOUSEBUTTON(2) AND NOT dead THEN aimTarget = 1 ELSE aimTarget = 0
+    IF _MOUSEBUTTON(2) AND NOT dead AND NOT hudEdit THEN aimTarget = 1 ELSE aimTarget = 0
     IF swapTimer > 0 THEN aimTarget = 0 ' Changing guns: lower it (no jump in zoom)
     IF aimAmount < aimTarget THEN aimAmount = aimAmount + 1 / ADS_FRAMES : IF aimAmount > 1 THEN aimAmount = 1
     IF aimAmount > aimTarget THEN aimAmount = aimAmount - 1 / ADS_FRAMES : IF aimAmount < 0 THEN aimAmount = 0
@@ -1236,6 +1473,8 @@ DO
         IF swapTimer = SWAP_FRAMES \ 2 THEN currentGun = nextGun ' (while it's out of sight)
     END IF
 
+    IF numLifts THEN MoveLifts playerX, playerY ' (the lifts move - you ride them: chapter 22)
+
     '-------------------------------------------------------------------------
     ' CHAPTER 9: MOVING, AND BUMPING INTO THINGS
     '-------------------------------------------------------------------------
@@ -1276,8 +1515,29 @@ DO
         IF playerY < 1.01 THEN playerY = 1.01
         IF playerY > MAP_SIZE - 1.01 THEN playerY = MAP_SIZE - 1.01
     ELSE
-        MoveBody playerX, playerY, moveX, moveY
+        walkZ = playerZ : MoveBody playerX, playerY, moveX, moveY : walkZ = -999
     END IF
+    ' Up and down (chapter 22's heights): step up onto anything low enough
+    ' (MoveBody wouldn't have let you onto anything higher), fall off
+    ' anything higher - faster and faster - and land, hard if it was far;
+    ' fall into a pit and that's the end. Your eye eases up a step.
+    IF NOT levelFlat THEN
+        fz = floorH(INT(playerX), INT(playerY))
+        IF playerZ < fz THEN playerZ = fz : playerVZ = 0
+        IF liftCell(INT(playerX), INT(playerY)) AND playerZ - fz < 0.06 AND playerVZ < 0.03 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down)
+        IF playerZ > fz THEN
+            playerVZ = playerVZ + FALL_G : playerZ = playerZ - playerVZ
+            IF playerZ <= fz THEN
+                IF playerVZ > 0.13 AND NOT dead AND NOT godMode THEN damage = INT((playerVZ - 0.13) * 260) + 2 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer : shake = shake + 6
+                IF playerVZ > 0.06 THEN PlaySfx sndStep1&, 1 : shake = shake + 2
+                playerZ = fz : playerVZ = 0
+            END IF
+        END IF
+        IF fz <= PIT_DEPTH AND playerZ < -0.6 AND NOT dead AND NOT godMode THEN damage = 999 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer : ShowMsg "You fell into the dark"
+    ELSE
+        playerZ = 0 : playerVZ = 0
+    END IF
+    IF playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
     ' ...and you can't walk through a monster: if a step takes you inside one
     ' (closer than touchDist) and closer than you were, take it back
     FOR i = 1 TO numMonsters
@@ -1316,8 +1576,11 @@ DO
     ' distances, and skips a slow SQR - a trick used all through the game.
     ' Things you can't use yet (health when you're full) stay where they are.
     FOR i = 1 TO numItems
-        IF itemOn(i) AND NOT dead AND (itemX(i) - playerX) ^ 2 + (itemY(i) -playerY) ^ 2 < 0.45 * 0.45 THEN
+        IF itemOn(i) AND NOT dead AND NOT editMode AND (itemKind(i) = IT_CORE) = cyberOn AND (itemX(i) - playerX) ^ 2 + (itemY(i) -playerY) ^ 2 < 0.45 * 0.45 THEN
             SELECT CASE itemKind(i)
+                CASE IT_CORE ' A data core (the network)
+                    itemOn(i) = 0 : cyberGot = cyberGot + 1 : PlaySfx sndCore&, 1 : pickFlash = 12
+                    IF cyberGot < cyberNeed THEN ShowMsg "DATA CORE " + LTRIM$(STR$(cyberGot)) + " / " + LTRIM$(STR$(cyberNeed))
                 CASE 1 TO 3
                     itemOn(i) = 0 : hasCard(itemKind(i)) = -1
                     PlaySfx sndCard&, 0.8
@@ -1420,12 +1683,22 @@ DO
     ' each kind its own), then shuts itself - but never on anyone: with you
     ' or a monster in the doorway (DoorBlocked), it waits, or if it was
     ' already shutting, opens again, like an automatic door.
+    IF spaceDown AND NOT spaceWas AND NOT dead AND NOT editMode THEN ' A "use" trigger at the cell in front? (chapter 19)
+        FOR k = 1 TO numTrigs
+            IF trigWhen$(k) = "use" AND NOT trigDone(k) THEN
+                FOR reach = 0.3 TO 1.6 STEP 0.1
+                    IF INT(playerX + dirX * reach) = trigX0(k) AND INT(playerY + dirY * reach) = trigY0(k) THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : PlaySfx sndCore&, 0.6 : GOSUB TriggerRun : EXIT FOR
+                NEXT
+            END IF
+        NEXT
+    END IF
     IF spaceDown AND NOT spaceWas AND NOT dead THEN ' (once per press)
         FOR reach = 0.05 TO 2 STEP 0.05
             cellX = INT(playerX + dirX * reach) : cellY = INT(playerY + dirY * reach)
             IF cellX = INT(playerX) AND cellY = INT(playerY) THEN GOTO NextReach ' (the doorway you're in)
             IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 AND doorLock(cellX, cellY) THEN
-                PlaySfx sndLocked&, 0.8 : ShowMsg "SEALED - it won't open until the room is clear"
+                PlaySfx sndLocked&, 0.8
+                IF doorLock(cellX, cellY) = 2 THEN ShowMsg "SEALED - hack its data station to open it" ELSE IF doorLock(cellX, cellY) = 3 THEN ShowMsg "LOCKED DOWN - repair the terminal's program" ELSE ShowMsg "SEALED - it won't open until the room is clear"
                 EXIT FOR
             ELSEIF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 THEN
                 keyNeeded = doorKey(cellX, cellY)
@@ -1447,6 +1720,24 @@ DO
                     doorMove(cellX, cellY) = 1 : PlaySfx DoorSnd&(doorType(cellX, cellY)), 0.9
                 ELSEIF NOT DoorBlocked(cellX, cellY, playerX, playerY) THEN
                     doorMove(cellX, cellY) = -1 : PlaySfx DoorSnd&(doorType(cellX, cellY)), 0.9
+                END IF
+                EXIT FOR
+            END IF
+            IF worldMap(cellX, cellY) = 9 THEN ' A code terminal: its puzzle
+                tm = TermAt(cellX, cellY)
+                IF termDone(tm) THEN
+                    ShowMsg "TERMINAL: program running - ACCESS GRANTED"
+                ELSE
+                    GOSUB TerminalUse
+                END IF
+                EXIT FOR
+            END IF
+            IF worldMap(cellX, cellY) = 8 THEN ' A data station: jack in
+                st = StationAt(cellX, cellY)
+                IF stationDone(st) THEN
+                    ShowMsg "This station's hacked - its doors are open"
+                ELSEIF NOT cyberOn THEN
+                    GOSUB JackIn
                 END IF
                 EXIT FOR
             END IF
@@ -1517,6 +1808,7 @@ DO
     ' Hold the button to keep firing: fireWait counts down the frames until
     ' the gun can fire again.
     IF fireWait > 0 THEN fireWait = fireWait - 1
+    IF editMode THEN fireDown = 0 ' (in the editor the button builds, not shoots: EditFP)
     IF fireDown AND NOT dead AND fireWait = 0 AND swapTimer = 0 THEN
         ammoType = gunAmmoType(currentGun)
         IF ammoCount(ammoType) >= gunAmmoPerShot(currentGun) THEN
@@ -1536,8 +1828,16 @@ DO
                 ' (a piercing shot hits everything in its line that's nearer than
                 ' the wall; any other shot just the nearest monster or decoration)
                 bestMonster = 0 : bestDeco = 0 : bestDist = zBuffer(screenCol)
+                ' Glass nearer than the wall stops the shot (but the rail goes
+                ' straight through it, and shatters it)
+                glassShot = 0
+                IF glassT(screenCol) > 0 AND glassT(screenCol) < bestDist THEN
+                    glassHitX = glassCX(screenCol) : glassHitY = glassCY(screenCol)
+                    glassAtX = playerX + (dirX + planeX * aim) * glassT(screenCol) : glassAtY = playerY + (dirY + planeY * aim) * glassT(screenCol)
+                    IF gunPierce(currentGun) THEN glassDmg = 99 : GOSUB HitGlass ELSE bestDist = glassT(screenCol) : glassShot = -1
+                END IF
                 FOR i = 1 TO numMonsters
-                    IF monsterState(i) < 2 THEN
+                    IF monsterState(i) < 2 AND (cyberOn = 0 OR monsterType(i) = MT_ICE) THEN
                         relX = monsterX(i) - playerX : relY = monsterY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
@@ -1548,7 +1848,7 @@ DO
                     END IF
                 NEXT
                 FOR i = 1 TO numDecos
-                    IF decoOn(i) THEN
+                    IF decoOn(i) AND decoKind(i) <> DK_BODY AND cyberOn = 0 THEN
                         relX = decoX(i) - playerX : relY = decoY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
@@ -1569,6 +1869,8 @@ DO
                 ' as far as the wall in that column
                 IF bestMonster THEN
                     SpawnSparks monsterX(bestMonster), monsterY(bestMonster), 0.45, 8, 255, 150, 60
+                ELSEIF bestDeco = 0 AND glassShot THEN
+                    glassDmg = hitDamage : GOSUB HitGlass
                 ELSEIF bestDeco = 0 THEN
                     ' The wall in that column - or, looking up or down (OpenGL),
                     ' the ceiling or floor, if the shot reaches it first: it rises
@@ -1593,13 +1895,65 @@ DO
             NEXT
         ELSEIF NOT fireWas THEN
             PlaySfx sndEmpty&, 0.7
-            IF ammoType = AM_SHELLS THEN ShowMsg "Out of shells" ELSE ShowMsg "Out of energy cells"
-            fireWait = 20
+            IF ammoType = AM_SHELLS THEN ShowMsg "Out of shells - kick! (F)" ELSE ShowMsg "Out of energy cells - kick! (F)"
+            fireWait = 20 : IF kickTimer = 0 THEN kickTimer = KICK_FRAMES : PlaySfx sndKickSwing&, 0.7
+        END IF
+    END IF
+    ' THE KICK: F (or Fire with no ammo, above). The boot swings up, lands
+    ' KICK_HIT frames in - on the nearest monster in front, within KICK_REACH
+    ' (and roughly where you're looking), shoving it back - or else a
+    ' decoration - then drops back down
+    kickDown = KeyHeld(BIND_KICK)
+    IF kickDown AND NOT kickWas AND kickTimer = 0 AND NOT dead THEN kickTimer = KICK_FRAMES : PlaySfx sndKickSwing&, 0.7
+    kickWas = kickDown
+    IF kickTimer > 0 THEN
+        kickTimer = kickTimer - 1
+        IF kickTimer = KICK_FRAMES - KICK_HIT THEN
+            best = 0 : bestD = KICK_REACH
+            FOR i = 1 TO numMonsters
+                IF monsterState(i) < 2 AND (cyberOn = 0 OR monsterType(i) = MT_ICE) THEN
+                    ox = monsterX(i) - playerX : oy = monsterY(i) - playerY : d = SQR(ox * ox + oy * oy)
+                    IF d < bestD AND d > 0.01 THEN IF (ox * dirX + oy * dirY) / d > 0.7 AND NOT GlassBetween(playerX, playerY, monsterX(i), monsterY(i)) THEN best = i : bestD = d
+                END IF
+            NEXT
+            IF best THEN
+                target = best : hitDamage = KICK_DAMAGE : IF ampTimer > 0 THEN hitDamage = hitDamage * 2
+                GOSUB HitMonster
+                IF monsterType(best) <> 5 THEN FOR kp = 1 TO 3 : MoveBody monsterX(best), monsterY(best), dirX * KICK_PUSH / 3, dirY * KICK_PUSH / 3 : NEXT ' (sentries are bolted down; in three steps, so it can't jump through glass)
+                SpawnSparks monsterX(best), monsterY(best), 0.35, 8, 255, 200, 140
+                PlaySfx sndKick&, 0.9 : shake = shake + 4 : crossFlash = 6
+            ELSE
+                kicked = 0
+                FOR i = 1 TO numDecos
+                    IF decoOn(i) AND decoKind(i) <> DK_BODY AND cyberOn = 0 THEN
+                        ox = decoX(i) - playerX : oy = decoY(i) - playerY : d = SQR(ox * ox + oy * oy)
+                        IF d < KICK_REACH AND d > 0.01 THEN
+                            IF (ox * dirX + oy * dirY) / d > 0.7 THEN targetDeco = i : hitDamage = KICK_DAMAGE : GOSUB HitDeco : PlaySfx sndKick&, 0.8 : shake = shake + 2 : kicked = -1 : EXIT FOR
+                        END IF
+                    END IF
+                NEXT
+                IF NOT kicked THEN ' Glass in front? The boot cracks it
+                    FOR kd = 3 TO 7
+                        glassAtX = playerX + dirX * kd / 10 : glassAtY = playerY + dirY * kd / 10
+                        IF InGlass(glassAtX, glassAtY) THEN glassHitX = INT(glassAtX) : glassHitY = INT(glassAtY) : glassDmg = 1 : GOSUB HitGlass : PlaySfx sndKick&, 0.8 : shake = shake + 2 : EXIT FOR
+                    NEXT
+                END IF
+            END IF
         END IF
     END IF
     fireWas = fireDown : spaceWas = spaceDown
 
-    GOSUB RunEvents ' The level's event rooms (chapter 19)
+    IF cyberOn THEN ' In the network (chapter 19): the clock, and the way out
+        cyberTime = cyberTime - 1
+        IF cyberGot >= cyberNeed THEN
+            cyberWon = -1 : GOSUB JackOut
+        ELSEIF cyberTime <= 0 THEN
+            cyberWon = 0 : GOSUB JackOut
+        END IF
+    ELSEIF NOT editMode THEN
+        GOSUB RunEvents ' The level's event rooms (chapter 19)
+        GOSUB RunTriggers ' ...its triggers, and its teleporters
+    END IF
 
     '-------------------------------------------------------------------------
     ' CHAPTER 13: MONSTERS, BOLTS AND BARRELS
@@ -1624,6 +1978,8 @@ DO
     ' a crowd doesn't drown everything)
     IF chatterWait > 0 THEN chatterWait = chatterWait - 1
     FOR i = 1 TO numMonsters
+        IF cyberOn AND monsterType(i) <> MT_ICE THEN _CONTINUE ' (in the real world: they wait)
+        IF editMode OR hudEdit THEN _CONTINUE ' (in the editors: everything waits)
         IF monsterHurt(i) > 0 THEN monsterHurt(i) = monsterHurt(i) -1
         IF monsterAtk(i) > 0 THEN monsterAtk(i) = monsterAtk(i) - 1
         mtype = monsterType(i)
@@ -1643,6 +1999,8 @@ DO
                         IF CanSee(monsterX(i), monsterY(i), playerX, playerY) THEN
                             monsterState(i) = 1 : monsterTimer(i) = 30
                             SfxAt mtypeAlertSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
+                            IF mtype = 8 THEN Say "boss", 0 ' (the overseer: NEXUS speaks through it)
+                            IF (mtype = 2 OR mtype = 6 OR mtype = 7) AND RND < 0.35 THEN Say "bark" + LTRIM$(STR$(INT(RND * 6) + 1)), -1 ' (a minion reports in)
                         END IF
                     END IF
                 END IF
@@ -1654,7 +2012,9 @@ DO
                 toPlayerX = playerX - monsterX(i) : toPlayerY = playerY - monsterY(i) : distance = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY)
                 IF NOT dead AND distance > 0.01 THEN
                     goX = 0 : goY = 0
-                    IF mtypeRanged(mtype) THEN
+                    IF mtype = MT_THIEF THEN
+                        GOSUB ThiefStep
+                    ELSEIF mtypeRanged(mtype) THEN
                         ' Gunner: keep its distance, shoot when it has a clear line
                         ' (a sentry can't move, so it just shoots)
                         seen = CanSee(monsterX(i), monsterY(i), playerX, playerY)
@@ -1674,6 +2034,8 @@ DO
                         END IF
                     ELSEIF distance > mtypeReach(mtype) THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' The rest: close in...
+                    ELSEIF GlassBetween(monsterX(i), monsterY(i), playerX, playerY) THEN
+                        goX = toPlayerX / distance : goY = toPlayerY / distance ' (glass between: it just presses against it)
                     ELSEIF monsterTimer(i) = 0 THEN ' ...and hit
                         damage = mtypeDamage(mtype) + INT(RND * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
                         PlaySfx mtypeAttackSnd&(mtype), 0.9
@@ -1684,7 +2046,9 @@ DO
                         MonsterDoor INT(monsterX(i) + goX * 0.7), INT(monsterY(i)), playerX, playerY
                         MonsterDoor INT(monsterX(i)), INT(monsterY(i) + goY * 0.7), playerX, playerY
                     END IF
+                    walkZ = floorH(INT(monsterX(i)), INT(monsterY(i))) ' (it steps up, and falls off, as you do - but only so high)
                     IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype), goY * mtypeSpeed(mtype)
+                    walkZ = -999
                 END IF
                 monsterAnim(i) = monsterAnim(i) + SQR((monsterX(i) - animX) ^ 2 + (monsterY(i) - animY) ^ 2) / MON_STRIDE
                 ' Keep a little apart from each other
@@ -1708,12 +2072,19 @@ DO
     ' point where each bolt is can't miss a wall.
     FOR i = 1 TO MAX_BOLTS
         IF boltOn(i) THEN
-            boltX(i) = boltX(i) + boltDX(i) * BOLT_SPEED : boltY(i) = boltY(i) + boltDY(i) * BOLT_SPEED
-            IF NOT Walkable(boltX(i), boltY(i)) THEN
+            boltX(i) = boltX(i) + boltDX(i) * BOLT_SPEED : boltY(i) = boltY(i) + boltDY(i) * BOLT_SPEED : boltZ(i) = boltZ(i) + boltDZ(i) * BOLT_SPEED
+            IF NOT levelFlat THEN ' (heights: into a step, a floor or a ceiling, it bursts)
+                IF boltZ(i) < floorH(INT(boltX(i)), INT(boltY(i))) + 0.02 OR boltZ(i) > ceilH(INT(boltX(i)), INT(boltY(i))) - 0.02 THEN boltX(i) = boltX(i) - boltDX(i) * 0.05 : boltY(i) = boltY(i) - boltDY(i) * 0.05 : boltOn(i) = 0 : SpawnSparks boltX(i), boltY(i), boltZ(i) - floorH(INT(boltX(i)), INT(boltY(i))), 7, 255, 60, 230 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
+            END IF
+            IF boltOn(i) = 0 THEN
+            ELSEIF InGlass(boltX(i), boltY(i)) THEN ' Glass: it bursts on it, and cracks it
+                boltOn(i) = 0 : SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
+                glassHitX = INT(boltX(i)) : glassHitY = INT(boltY(i)) : glassAtX = boltX(i) : glassAtY = boltY(i) : glassDmg = 1 : GOSUB HitGlass
+            ELSEIF NOT Walkable(boltX(i), boltY(i)) THEN
                 boltOn(i) = 0 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
                 SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
                 IF IsWall(INT(boltX(i)), INT(boltY(i))) THEN ShotMark boltX(i) - boltDX(i) * BOLT_SPEED, boltY(i) - boltDY(i) * BOLT_SPEED, 0.49, boltDX(i), boltDY(i), 0, 0.12
-            ELSEIF NOT dead AND (boltX(i) - playerX) ^ 2 + (boltY(i) -playerY) ^ 2 < 0.35 * 0.35 THEN
+            ELSEIF NOT dead AND (boltX(i) - playerX) ^ 2 + (boltY(i) -playerY) ^ 2 < 0.35 * 0.35 AND ABS(boltZ(i) - playerZ - 0.45) < 0.5 THEN
                 boltOn(i) = 0 : damage = boltDamage(i)
                 hurtFromX = boltX(i) - boltDX(i) * 2 : hurtFromY = boltY(i) - boltDY(i) * 2 ' (back along its path)
                 GOSUB HurtPlayer
@@ -1821,7 +2192,7 @@ DO
             IF boltOn(i) THEN AddGlow boltX(i), boltY(i), 2.5, 160, 40, 170
         NEXT
     END IF
-    IF NOT glMode THEN ' (OpenGL draws the floor and ceiling itself)
+    IF NOT glMode AND levelFlat THEN ' (OpenGL draws the floor and ceiling itself; with heights, HeightColumn does - chapter 15)
         rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
         rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY
         FOR y = RENDER_H \ 2 TO RENDER_H - 1
@@ -1959,6 +2330,8 @@ DO
         IF rayDirY < 0 THEN stepY = -1 : sideDistY = (playerY - mapY) * deltaDistY ELSE stepY = 1 : sideDistY = (mapY + 1 - playerY) * deltaDistY
 
         hit = 0 : side = 0 : shutterSeen = 0 : diagHit = 0 : doorHit = 0
+        glassT(x) = 0 : glassDone(x) = 0 ' (glass: GlassRay notes the nearest pane the ray goes through)
+        IF glassHP(mapX, mapY) > 0 THEN IF GlassRay(mapX, mapY, playerX, playerY, rayDirX, rayDirY, gT, gU) THEN glassT(x) = gT : glassU(x) = gU : glassCX(x) = mapX : glassCY(x) = mapY
         IF diagCorner(mapX, mapY) THEN ' Standing in a diagonal wall's open half
             exitDist = sideDistX : IF sideDistY < exitDist THEN exitDist = sideDistY
             diagDist = DiagonalHit(diagCorner(mapX, mapY), mapX, mapY, playerX, playerY, rayDirX, rayDirY, 0, exitDist)
@@ -1969,6 +2342,9 @@ DO
             cellValue = worldMap(mapX, mapY)
             cellSeen(mapX, mapY) = -1 ' (for the map: you've seen this cell)
             glSeen(mapX, mapY, glWrite) = glFrameNo ' (and for OpenGL: a cell to draw - chapter 24)
+            IF glassHP(mapX, mapY) > 0 AND glassT(x) = 0 THEN ' Glass: note it, and carry on through
+                IF GlassRay(mapX, mapY, playerX, playerY, rayDirX, rayDirY, gT, gU) THEN glassT(x) = gT : glassU(x) = gU : glassCX(x) = mapX : glassCY(x) = mapY
+            END IF
             IF diagCorner(mapX, mapY) THEN
                 ' Diagonal wall: came in through its solid half, that's a plain
                 ' wall face; else it hits the diagonal if it crosses it in here
@@ -2070,7 +2446,9 @@ DO
         IF lightG& > 256 THEN lightG& = 256
         IF lightB& > 256 THEN lightB& = 256
 
-        IF NOT glMode THEN ' (OpenGL draws the walls itself)
+        clipN(x) = 0
+        IF NOT glMode AND NOT levelFlat THEN GOSUB HeightColumn ' (heights: the column, Doom's way - below)
+        IF NOT glMode AND levelFlat THEN ' (OpenGL draws the walls itself)
             FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
                 texel~& = texture(texX, INT(texPos) AND (TEX_SIZE - 1), texSlot)
                 pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
@@ -2092,7 +2470,7 @@ DO
             IF shutterSide = 1 THEN fog& = fog& * 0.7
             lightR& = litR(shutterLitX, shutterLitY) * fog& \ 256 : lightG& = litG(shutterLitX, shutterLitY) * fog& \ 256 : lightB& = litB(shutterLitX, shutterLitY) * fog& \ 256
             texX = INT(shutterU * TEX_SIZE) AND (TEX_SIZE - 1)
-            IF NOT glMode THEN
+            IF NOT glMode AND levelFlat THEN
                 FOR y = drawStart TO drawEnd
                     pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), T_SHUTTER), lightR&, lightG&, lightB&)
                     texPos = texPos + texStep
@@ -2143,12 +2521,13 @@ DO
     ' are skipped, so you see the shape, not its square.
     numDraw = 0
     FOR i = 1 TO numItems
-        IF itemOn(i) THEN
+        IF itemOn(i) AND (itemKind(i) = IT_CORE) = cyberOn THEN ' (in the network, just its data cores)
             numDraw = numDraw + 1 : drawX(numDraw) = itemX(i) : drawY(numDraw) = itemY(i)
             drawSprite(numDraw) = ItemSprite(itemKind(i)) : drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 96 ' They glow: less fog
             SELECT CASE itemKind(i)
                 CASE 1 TO 3 : drawScale(numDraw) = CARD_SCALE
                 CASE IT_SCATTER, IT_REPEATER, IT_RAIL : drawScale(numDraw) = GUN_ITEM_SCALE
+                CASE IT_CORE : drawScale(numDraw) = 0.42 : drawMinShade(numDraw) = 256
                 CASE ELSE : drawScale(numDraw) = ITEM_SCALE
             END SELECT
             drawLift(numDraw) = 0.12 + 0.04 * SIN(TIMER * 3 + i) ' Hovering, bobbing
@@ -2156,8 +2535,9 @@ DO
     NEXT
     FOR i = 1 TO numMonsters
         mtype = monsterType(i)
+        IF cyberOn AND mtype <> MT_ICE THEN _CONTINUE ' (in the network: only ICE)
         numDraw = numDraw + 1 : drawX(numDraw) = monsterX(i) : drawY(numDraw) = monsterY(i)
-        drawScale(numDraw) = mtypeScale(mtype) : drawMinShade(numDraw) = 40
+        drawScale(numDraw) = mtypeScale(mtype) : drawMinShade(numDraw) = 40 : IF mtype = MT_ICE THEN drawMinShade(numDraw) = 230
         ' Its frame: hurt, attacking, or how far through its animation
         IF monsterHurt(i) > 0 THEN
             drawSprite(numDraw) = mtypeSprite(mtype) + 1
@@ -2178,7 +2558,7 @@ DO
         END IF
     NEXT
     FOR i = 1 TO numDecos
-        IF -1 THEN ' (every one - broken ones leave their wreck)
+        IF cyberOn = 0 THEN ' (every one - broken ones leave their wreck; none in the network)
             numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) : drawY(numDraw) = decoY(i)
             drawSprite(numDraw) = DecoSlot(decoKind(i)) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = 0
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40
@@ -2186,8 +2566,48 @@ DO
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
                 drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0
             END IF
-            IF decoKind(i) = 2 OR decoKind(i) = 7 THEN drawMinShade(numDraw) = 200 ' Lamps (and vending machines) glow
+            IF decoKind(i) = 2 OR decoKind(i) = 7 OR decoKind(i) = 12 OR decoKind(i) = 13 OR decoKind(i) = 17 THEN drawMinShade(numDraw) = 200 ' Lamps (vending machines, monitors, tanks, holograms) glow
         END IF
+    NEXT
+    ' Traps: pressure plates (flat on the floor, glowing while they count
+    ' down) and laser beams (a wall-high bar per cell of the beam)
+    FOR k = 1 TO numPads ' Teleporters' pads: flat and glowing
+        IF numDraw < MAX_DRAW THEN
+            numDraw = numDraw + 1 : drawX(numDraw) = padX(k) + 0.5 : drawY(numDraw) = padY(k) + 0.5 : drawSprite(numDraw) = S_PAD
+            drawScale(numDraw) = 0.85 : drawSquash(numDraw) = 0.16 : drawLift(numDraw) = 0 : drawMinShade(numDraw) = 200 + 56 * SIN(TIMER * 4 + k)
+        END IF
+    NEXT
+    FOR ev = 1 TO numEvents
+        IF cyberOn THEN EXIT FOR ' (no traps in the network)
+        SELECT CASE evType(ev)
+            CASE EV_PLATE
+                FOR py = evY0(ev) TO evY1(ev) : FOR px = evX0(ev) TO evX1(ev)
+                    IF numDraw < MAX_DRAW THEN
+                        numDraw = numDraw + 1 : drawX(numDraw) = px + 0.5 : drawY(numDraw) = py + 0.5 : drawSprite(numDraw) = S_PLATE
+                        drawScale(numDraw) = 0.7 : drawSquash(numDraw) = 0.18 : drawLift(numDraw) = 0
+                        drawMinShade(numDraw) = 60 : IF evState(ev) = 1 AND (evTimer(ev) \ 4) MOD 2 = 0 THEN drawMinShade(numDraw) = 256
+                    END IF
+                NEXT : NEXT
+            CASE EV_LASER
+                IF LaserOn(ev) OR (LaserSoon(ev) AND (evTimer(ev) \ 3) MOD 2 = 0) THEN
+                    FOR py = evY0(ev) TO evY1(ev) : FOR px = evX0(ev) TO evX1(ev)
+                        IF numDraw < MAX_DRAW THEN
+                            numDraw = numDraw + 1 : drawX(numDraw) = px + 0.5 : drawY(numDraw) = py + 0.5 : drawSprite(numDraw) = S_LASER
+                            drawScale(numDraw) = 1 : drawSquash(numDraw) = 1 : drawLift(numDraw) = 0 : drawMinShade(numDraw) = 256
+                        END IF
+                    NEXT : NEXT
+                END IF
+            CASE EV_CUTTER
+                CutterAt ev, cutX, cutY, cutAlongX
+                IF cutAlongX THEN n0 = evY0(ev) : n1 = evY1(ev) ELSE n0 = evX0(ev) : n1 = evX1(ev)
+                FOR k = n0 TO n1
+                    IF numDraw < MAX_DRAW THEN
+                        numDraw = numDraw + 1 : drawSprite(numDraw) = S_LASER
+                        IF cutAlongX THEN drawX(numDraw) = cutX : drawY(numDraw) = k + 0.5 ELSE drawX(numDraw) = k + 0.5 : drawY(numDraw) = cutY
+                        drawScale(numDraw) = 1 : drawSquash(numDraw) = 1 : drawLift(numDraw) = 0 : drawMinShade(numDraw) = 256
+                    END IF
+                NEXT
+        END SELECT
     NEXT
     ' Decals, for the software renderer: little flat scorch marks facing
     ' you, just off the wall (so the wall doesn't hide them) - or squashed
@@ -2221,7 +2641,7 @@ DO
     FOR i = 1 TO MAX_BOLTS
         IF boltOn(i) THEN
             numDraw = numDraw + 1 : drawX(numDraw) = boltX(i) : drawY(numDraw) = boltY(i)
-            drawSprite(numDraw) = S_BOLT : drawScale(numDraw) = 0.22 : drawLift(numDraw) = 0.38
+            drawSprite(numDraw) = S_BOLT : drawScale(numDraw) = 0.22 : drawLift(numDraw) = boltZ(i) - 0.11 - floorH(INT(boltX(i)), INT(boltY(i)))
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 256 ' Glowing: no fog at all
         END IF
     NEXT
@@ -2240,7 +2660,7 @@ DO
         IF transformY > 0.1 THEN
             spriteW = INT(viewH / transformY * drawScale(i)) : spriteH = INT(spriteW * drawSquash(i))
             IF spriteH < 1 THEN spriteH = 1
-            spriteTop = INT(RENDER_H / 2 + (0.5 - drawLift(i)) * viewH / transformY) -spriteH ' Bottom edge lifted off the floor
+            spriteTop = INT(RENDER_H / 2 + (eyeZ - FloorAt(drawX(i), drawY(i)) - drawLift(i)) * viewH / transformY) -spriteH ' Bottom edge on its floor, lifted off it - below your eye
             spriteLeft = INT(RENDER_W / 2 * (1 + transformX / transformY)) - spriteW \ 2
             ' Lit by the cell it's in, dimmed by fog - but never darker than
             ' its drawMinShade (things that glow)
@@ -2260,7 +2680,7 @@ DO
                 ' that's fovPlane * RENDER_H / RENDER_W * drawScale either side
                 ' of its middle.
                 n = glNumSpr(glWrite) + 1 : glNumSpr(glWrite) = n
-                glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i)
+                glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i) + FloorAt(drawX(i), drawY(i))
                 glSprHalfW(n, glWrite) = drawScale(i) * fovPlane * RENDER_H / RENDER_W
                 glSprH(n, glWrite) = drawScale(i) * drawSquash(i) : glSprSlot(n, glWrite) = spriteSlot
                 glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256
@@ -2268,9 +2688,19 @@ DO
                 FOR screenX = spriteLeft TO spriteLeft + spriteW - 1
                     IF screenX >= 0 AND screenX < RENDER_W THEN
                         IF transformY < zBuffer(screenX) THEN
+                            ' (glass in this column nearer than the wall but behind
+                            ' this sprite: on now, over what's behind it - all of
+                            ' that is drawn, far to near - and under this)
+                            IF glassT(screenX) > 0 AND glassDone(screenX) = 0 THEN IF transformY < glassT(screenX) THEN gx = screenX : GOSUB GlassColumn
                             spriteU = (screenX - spriteLeft) * spriteSz \ spriteW
+                            ' (heights: hidden above and below by the ledges and
+                            ' lintels nearer than it - HeightColumn's clips)
+                            spTop = 0 : spBot = RENDER_H - 1
+                            FOR k = 1 TO clipN(screenX)
+                                IF clipD(screenX, k) < transformY THEN spTop = clipT(screenX, k) : spBot = clipB(screenX, k)
+                            NEXT
                             FOR screenY = spriteTop TO spriteTop + spriteH - 1
-                                IF screenY >= 0 AND screenY < RENDER_H THEN
+                                IF screenY >= spTop AND screenY <= spBot THEN
                                     texel~& = spriteTex(spriteU,(screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
                                     IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = ShadeRGB~&(texel~&, lightR&, lightG&, lightB&)
                                 END IF
@@ -2281,6 +2711,12 @@ DO
             END IF
         END IF
     NEXT
+    ' ...and the glass in every column that had no sprite in front of it
+    IF NOT glMode THEN
+        FOR gx = 0 TO RENDER_W - 1
+            IF glassT(gx) > 0 AND glassDone(gx) = 0 THEN GOSUB GlassColumn
+        NEXT
+    END IF
 
     '-------------------------------------------------------------------------
     ' CHAPTER 17: ONTO THE SCREEN
@@ -2354,6 +2790,7 @@ DO
     gunX = 400 - gunW * gunMuzzleX(currentGun) + COS(bobPhase / 2) * 10 * sway + shakeX
     gunY = hipY + (eyeY - hipY) * aimAmount + ABS(SIN(bobPhase / 2)) * 10 * sway + recoil * 36 + shakeY
     IF swapTimer > 0 THEN gunY = gunY + (SWAP_FRAMES / 2 - ABS(swapTimer - SWAP_FRAMES / 2)) * 40
+    IF kickTimer > 0 THEN gunY = gunY + SIN((1 - kickTimer / KICK_FRAMES) * 3.14159) * 90 ' (kicking: the gun dips)
     IF dead THEN gunY = gunY + (TIMER - deadAt!) * 400 ' Drops out of view
     '
     ' With OpenGL (chapter 24) there's no picture to copy: instead we finish
@@ -2363,7 +2800,7 @@ DO
     ' graphics card's view shows from underneath (chapter 1) wherever the
     ' HUD below doesn't draw.
     IF glMode THEN
-        glCamX(glWrite) = playerX : glCamY(glWrite) = playerY : glDirX(glWrite) = dirX : glDirY(glWrite) = dirY
+        glCamX(glWrite) = playerX : glCamY(glWrite) = playerY : glDirX(glWrite) = dirX : glDirY(glWrite) = dirY : glCamZ(glWrite) = eyeZ
         glPlaneLen(glWrite) = fovPlane / zoom : glZoom(glWrite) = zoom : glFullMode(glWrite) = _FULLSCREEN
         glShakeX(glWrite) = shakeX : glShakeY(glWrite) = shakeY : glShakeEdge(glWrite) = shakeEdge
         FOR i = 1 TO NUM_SETTINGS : glSet(i, glWrite) = setting(i) : NEXT
@@ -2454,6 +2891,17 @@ DO
     ' - or with OpenGL, by the graphics card, at the window's own size
     ' (chapter 24), under all of this
     IF gunY < 600 AND NOT glMode THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun) ' (in its light)
+    ' The kick: the boot comes up from the bottom of the screen (a little
+    ' left of the middle), at its highest when it lands, then drops away -
+    ' lit like the gun, by where you stand
+    IF kickTimer > 0 AND kickImg& < -1 THEN
+        kf = 1 - kickTimer / KICK_FRAMES ' (0 .. 1 through the kick)
+        IF kf < KICK_HIT / KICK_FRAMES THEN up = kf / (KICK_HIT / KICK_FRAMES) ELSE up = 1 - (kf - KICK_HIT / KICK_FRAMES) / (1 - KICK_HIT / KICK_FRAMES)
+        up = SIN(up * 1.5708)
+        kh = 360 : kw = kh * _WIDTH(kickImg&) / _HEIGHT(kickImg&)
+        kx = 330 - kw / 2 + shakeX : ky = 600 - kh * up * 0.95 + shakeY
+        _PUTIMAGE (kx, ky)-(kx + kw - 1, ky + kh - 1), kickImg&
+    END IF
     IF muzzleFlash > 0 THEN ' Muzzle flash, and a flicker of light on everything
         muzzleFlash = muzzleFlash - 1
         LINE (0, 0)-(799, 599), _RGBA32(255, 120, 120, 18), BF
@@ -2482,17 +2930,18 @@ DO
     IF hurtFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 0, 0, hurtFlash * 9), BF
     IF pickFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 255, 160, pickFlash * 4), BF
     IF setting(SET_HURTDIR) THEN DrawHurtDirs playerX, playerY, dirX, dirY ' (over the red flash, so they stand out)
-    IF godMode THEN HudText 16, 498, "GOD MODE", _RGB32(255, 215, 30)
+    IF godMode AND hudShow(HE_GOD) THEN HudText hudX(HE_GOD), hudY(HE_GOD), hudLabel$(HE_GOD), HudColor~&(HE_GOD, _RGB32(255, 215, 30))
+    IF editMode THEN EditOverlay playerX, playerY, dirX, dirY ' (the editor: what you're aiming at, what you'll place)
 
     ' The map (DrawMap, chapter 23). The minimap in the corner only appears
     ' once you've found this level's map pickup. Tab opens the full-screen
     ' map: without the pickup it shows only the cells you've seen - you draw
     ' it as you explore - and with it, the whole level.
-    IF hasMap AND NOT mapOpen THEN
-        DrawMap MINIMAP_X, MINIMAP_Y, MINIMAP_CELL, -1, playerX, playerY, dirX, dirY
-        killsY = MINIMAP_Y + MAP_SIZE * MINIMAP_CELL + 6
-    ELSE
-        killsY = MINIMAP_Y
+    killsY = hudY(HE_KILLS)
+    IF hasMap AND NOT mapOpen AND hudShow(HE_MINIMAP) THEN
+        DrawMap hudX(HE_MINIMAP), hudY(HE_MINIMAP), hudW(HE_MINIMAP), -1, playerX, playerY, dirX, dirY
+        ' (the kill count, if it's where the map is, goes under it)
+        IF hudX(HE_KILLS) = hudX(HE_MINIMAP) AND hudY(HE_KILLS) = hudY(HE_MINIMAP) THEN killsY = hudY(HE_MINIMAP) + MAP_SIZE * hudW(HE_MINIMAP) + 6
     END IF
     IF mapOpen THEN
         LINE (0, 0)-(799, 599), _RGBA32(0, 4, 14, 225), BF
@@ -2501,26 +2950,35 @@ DO
         IF hasMap THEN mapNote$ = "TAB  CLOSE THE MAP" ELSE mapNote$ = "NO MAP YET - ONLY WHERE YOU'VE BEEN.   TAB  CLOSE"
         MenuText 400, 552, mapNote$, 1, _RGB32(170, 170, 200), 1
     END IF
-    IF NOT mapOpen THEN HudText MINIMAP_X, killsY, "KILLS" + STR$(kills) + " /" + STR$(numMonsters), _RGB32(255, 90, 90)
+    IF NOT mapOpen AND hudShow(HE_KILLS) THEN HudText hudX(HE_KILLS), killsY, hudLabel$(HE_KILLS) + STR$(kills) + " /" + STR$(numMonsters), HudColor~&(HE_KILLS, _RGB32(255, 90, 90))
 
     ' Keycards you hold, top right
-    cardX = 800 - 16
+    cardX = hudX(HE_CARDS)
     FOR k = 3 TO 1 STEP - 1
-        IF hasCard(k) THEN cardX = cardX - 68 : _PUTIMAGE (cardX, 8)-STEP(63, 63), cardImg&(k)
+        IF hasCard(k) AND hudShow(HE_CARDS) THEN cardX = cardX - hudW(HE_CARDS) - 4 : _PUTIMAGE (cardX, hudY(HE_CARDS))-STEP(hudW(HE_CARDS) - 1, hudW(HE_CARDS) - 1), cardImg&(k)
     NEXT
 
     ' Armour and health (bottom left)
-    IF armor > 0 THEN
-        HudText 16, 516, "ARMOR" + STR$(armor), _RGB32(90, 160, 255)
-        LINE (16, 534)-STEP(201, 9), _RGBA32(0, 0, 0, 170), BF
-        LINE (17, 535)-STEP(armor * 2 - 1, 7), _RGB32(90, 160, 255), BF
+    IF (armor > 0 OR hudEdit) AND hudShow(HE_ARMOR) THEN
+        ac~& = HudColor~&(HE_ARMOR, _RGB32(90, 160, 255)) : ax = hudX(HE_ARMOR) : ay = hudY(HE_ARMOR)
+        HudText ax, ay, hudLabel$(HE_ARMOR) + STR$(armor), ac~&
+        IF hudW(HE_ARMOR) > 0 THEN
+            LINE (ax, ay + 18)-STEP(hudW(HE_ARMOR) + 1, hudH(HE_ARMOR) + 1), _RGBA32(0, 0, 0, 170), BF
+            IF armor > 0 THEN LINE (ax + 1, ay + 19)-STEP(MaxOf(1, armor * hudW(HE_ARMOR) \ MAX_ARMOR) - 1, hudH(HE_ARMOR) - 1), ac~&, BF
+        END IF
     END IF
     IF health > 60 THEN healthColor~& = _RGB32(60, 230, 90) ELSE IF health > 25 THEN healthColor~& = _RGB32(255, 200, 40) ELSE healthColor~& = _RGB32(255, 50, 50)
-    HudText 16, 552, "HEALTH" + STR$(health), healthColor~&
-    LINE (16, 570)-STEP(201, 13), _RGBA32(0, 0, 0, 170), BF
-    IF health > 0 THEN LINE (17, 571)-STEP(MinOf(health, MAX_HP) * 2 - 1, 11), healthColor~&, BF
-    IF health > MAX_HP THEN LINE (17, 571)-STEP((health - MAX_HP) * 2 - 1, 11), _RGB32(90, 200, 255), BF ' (overcharged: the extra, in blue, over it)
-    IF ampTimer > 0 THEN HudText 16, 532, "DAMAGE AMP" + STR$(ampTimer \ 60 + 1), _RGB32(255, 90, 90)
+    healthColor~& = HudColor~&(HE_HEALTH, healthColor~&)
+    IF hudShow(HE_HEALTH) THEN
+        hx = hudX(HE_HEALTH) : hy = hudY(HE_HEALTH) : bw = hudW(HE_HEALTH) : bh = hudH(HE_HEALTH)
+        HudText hx, hy, hudLabel$(HE_HEALTH) + STR$(health), healthColor~&
+        IF bw > 0 THEN
+            LINE (hx, hy + 18)-STEP(bw + 1, bh + 1), _RGBA32(0, 0, 0, 170), BF
+            IF health > 0 THEN LINE (hx + 1, hy + 19)-STEP(MaxOf(1, MinOf(health, MAX_HP) * bw \ MAX_HP) - 1, bh - 1), healthColor~&, BF
+            IF health > MAX_HP THEN LINE (hx + 1, hy + 19)-STEP(MaxOf(1, (health - MAX_HP) * bw \ MAX_HP) - 1, bh - 1), _RGB32(90, 200, 255), BF ' (overcharged: the extra, in blue, over it)
+        END IF
+    END IF
+    IF ampTimer > 0 AND hudShow(HE_AMP) THEN HudText hudX(HE_AMP), hudY(HE_AMP), hudLabel$(HE_AMP) + STR$(ampTimer \ 60 + 1), HudColor~&(HE_AMP, _RGB32(255, 90, 90))
     FOR ev = 1 TO numEvents ' An event room going on: what's left to do, and a pulsing red frame
         IF evState(ev) = 1 THEN
             SELECT CASE evType(ev)
@@ -2534,7 +2992,7 @@ DO
                 CASE EV_GALLERY : evText$ = "SHOOTING GALLERY -" + STR$(evTimer(ev) \ 60 + 1) + " SECONDS"
                 CASE ELSE : evText$ = "DESTROY THE SPAWNERS"
             END SELECT
-            HudText 400 - LEN(evText$) * 4, 28, evText$, _RGB32(255, 120, 90)
+            IF hudShow(HE_EVENT) THEN HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT), evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90))
             IF evType(ev) <> EV_NEST AND evType(ev) <> EV_GALLERY THEN
                 pulse = 60 + 50 * SIN(TIMER * 6)
                 FOR k = 0 TO 3 : LINE (k, k)-(799 - k, 599 - k), _RGBA32(255, 30, 30, pulse), B : NEXT
@@ -2551,21 +3009,47 @@ DO
     ELSE
         ammoColor~& = _RGB32(60, 220, 255)
     END IF
+    ammoColor~& = HudColor~&(HE_AMMO, ammoColor~&)
     ammoText$ = gunName$(currentGun) + "  " + LTRIM$(STR$(ammoCount(ammoType)))
-    HudText 800 - 16 - 8 * LEN(ammoText$), 552, ammoText$, ammoColor~&
-    LINE (800 - 16 - 202, 570)-STEP(201, 13), _RGBA32(0, 0, 0, 170), BF
-    IF ammoCount(ammoType) > 0 THEN LINE (800 - 16 - 1 - ammoCount(ammoType) * 200 \ ammoMax(ammoType), 571)-(800 - 16 - 1, 582), ammoColor~&, BF
-    FOR gun = 1 TO NUM_GUNS
-        gunNumColor~& = _RGB32(60, 60, 70)
-        IF hasGun(gun) THEN gunNumColor~& = _RGB32(150, 150, 160)
-        IF gun = currentGun THEN gunNumColor~& = _RGB32(255, 255, 255)
-        HudText 800 - 16 - 202 + (gun - 1) * 20, 534, LTRIM$(STR$(gun)), gunNumColor~&
-    NEXT
-
-    ' Message line
-    IF TIMER < messageUntil! AND LEN(message$) AND NOT mapOpen THEN
-        HudText 400 - LEN(message$) * 4, 510, message$, _RGB32(255, 255, 255)
+    IF hudShow(HE_AMMO) THEN ' (its right edge at hudX)
+        rx = hudX(HE_AMMO) : ry = hudY(HE_AMMO) : bw = hudW(HE_AMMO) : bh = hudH(HE_AMMO)
+        HudText rx - 8 * LEN(ammoText$), ry, ammoText$, ammoColor~&
+        IF bw > 0 THEN
+            LINE (rx - bw - 2, ry + 18)-STEP(bw + 1, bh + 1), _RGBA32(0, 0, 0, 170), BF
+            IF ammoCount(ammoType) > 0 THEN LINE (rx - 1 - ammoCount(ammoType) * bw \ ammoMax(ammoType), ry + 19)-(rx - 1, ry + 18 + bh), ammoColor~&, BF
+        END IF
     END IF
+    IF hudShow(HE_GUNS) THEN
+        FOR gun = 1 TO NUM_GUNS
+            gunNumColor~& = _RGB32(60, 60, 70)
+            IF hasGun(gun) THEN gunNumColor~& = _RGB32(150, 150, 160)
+            IF gun = currentGun THEN gunNumColor~& = HudColor~&(HE_GUNS, _RGB32(255, 255, 255))
+            HudText hudX(HE_GUNS) + (gun - 1) * 20, hudY(HE_GUNS), LTRIM$(STR$(gun)), gunNumColor~&
+        NEXT
+    END IF
+
+    ' In the network: what's left to grab, and the time left
+    IF cyberOn AND hudShow(HE_NETWORK) THEN
+        c$ = "NETWORK   DATA " + LTRIM$(STR$(cyberGot)) + " / " + LTRIM$(STR$(cyberNeed)) + "   TIME " + LTRIM$(STR$(cyberTime \ 60))
+        nx = hudX(HE_NETWORK) : ny = hudY(HE_NETWORK)
+        LINE (nx - LEN(c$) * 4 - 10, ny)-(nx + LEN(c$) * 4 + 10, ny + 20), _RGBA32(0, 20, 40, 190), BF
+        LINE (nx - LEN(c$) * 4 - 10, ny)-(nx + LEN(c$) * 4 + 10, ny + 20), _RGB32(60, 240, 255), B
+        cc~& = HudColor~&(HE_NETWORK, _RGB32(150, 250, 255)) : IF cyberTime < 600 AND (cyberTime \ 15) MOD 2 = 0 THEN cc~& = _RGB32(255, 80, 120)
+        HudText nx - LEN(c$) * 4, ny + 5, c$, cc~&
+    END IF
+    ' What NEXUS is saying: a red-framed subtitle at the top
+    IF speechUntil! > TIMER AND LEN(speechText$) AND hudShow(HE_SUBTITLE) THEN
+        w = LEN(speechText$) * 8 + 24 : IF w > 780 THEN w = 780
+        sx = hudX(HE_SUBTITLE) : sy = hudY(HE_SUBTITLE)
+        LINE (sx - w \ 2, sy)-(sx + w \ 2, sy + 24), _RGBA32(30, 0, 8, 190), BF
+        LINE (sx - w \ 2, sy)-(sx + w \ 2, sy + 24), _RGB32(255, 60, 90), B
+        HudText sx - LEN(speechText$) * 4, sy + 5, speechText$, HudColor~&(HE_SUBTITLE, _RGB32(255, 200, 210))
+    END IF
+    ' Message line
+    IF TIMER < messageUntil! AND LEN(message$) AND NOT mapOpen AND hudShow(HE_MESSAGE) THEN
+        HudText hudX(HE_MESSAGE) - LEN(message$) * 4, hudY(HE_MESSAGE), message$, HudColor~&(HE_MESSAGE, _RGB32(255, 255, 255))
+    END IF
+    IF hudEdit THEN HudEditDraw ' (the HUD layout editor: boxes round it all)
 
     IF dead THEN
         LINE (0, 0)-(799, 599), _RGBA32(90, 0, 0, 110), BF
@@ -2589,7 +3073,7 @@ DO
         tenths = INT(viewAvg * 10 + 0.5) : IF tenths > 9999 THEN tenths = 9999
         msText$ = LTRIM$(STR$(tenths \ 10)) + "." + LTRIM$(STR$(tenths MOD 10))
         fpsText$ = fpsText$ + "   FPS" + RIGHT$("   " + STR$(fpsShown), 4) + "   3D VIEW" + RIGHT$("     " + msText$, 6) + " MS"
-        HudText 400 - LEN(fpsText$) * 4, 8, fpsText$, _RGB32(255, 255, 120)
+        IF hudShow(HE_FPS) THEN HudText hudX(HE_FPS) - LEN(fpsText$) * 4, hudY(HE_FPS), fpsText$, HudColor~&(HE_FPS, _RGB32(255, 255, 120))
     END IF
 
     ' With OpenGL, the HUD goes to the graphics card as a picture, to be
@@ -2616,6 +3100,15 @@ LOOP ' (forever: you leave the game from the menu - chapter 21)
 ' variables (health, kills, playerX...) directly. The catch is it takes no
 ' parameters, so the caller sets a variable first: "target = i : hitDamage
 ' = 1 : GOSUB HitMonster".
+'
+' The rest of the chapter is the level's own happenings: the event rooms
+' (RunEvents); glass that cracks and shatters (HitGlass, GlassColumn);
+' the data stations' network (JackIn, JackOut - the whole level turned to
+' a neon grid by swapping its pictures for CyberTextures'); the triggers
+' and teleporters (RunTriggers - a trigger's actions are console
+' commands, so anything you can type, a level can do); and the code
+' terminals (TerminalUse, RunPuzzle - a real QB64 program to put back
+' together, compiled for real with SHELL _DONTWAIT while the game waits).
 
 ' --- A shot (or blast) hits monster number target, for hitDamage
 HitMonster:
@@ -2623,6 +3116,10 @@ monsterHP(target) = monsterHP(target) - hitDamage : monsterHurt(target) = 8
 IF monsterState(target) = 0 THEN monsterState(target) = 1 : monsterTimer(target) = 30 ' Shot awake (chapter 13)
 IF monsterHP(target) <= 0 AND monsterState(target) < 2 THEN
     monsterState(target) = 2 : monsterTimer(target) = MON_DYING : kills = kills + 1
+    mt = monsterType(target) ' (its drop - monsters.txt)
+    IF mtypeDrop(mt) > 0 AND NOT cyberOn THEN IF RND < mtypeDropChance(mt) THEN DropItemAt mtypeDrop(mt), monsterX(target), monsterY(target)
+    IF monsterType(target) = MT_THIEF THEN DropThiefLoot target
+    IF monsterType(target) = 8 THEN Say "bossdie", 0
     SfxAt mtypeDieSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
     IF kills = numMonsters THEN ShowMsg "SECTOR CLEAR - every monster destroyed!"
 ELSE
@@ -2658,32 +3155,44 @@ RETURN
 ' by, so they go off a moment later, and breaks the other decorations near it
 Explode:
 decoOn(barrel) = 0 : decoFuse(barrel) = 0 : decoCell(INT(decoX(barrel)), INT(decoY(barrel))) = 0
-SfxAt sndBarrel&, decoX(barrel), decoY(barrel), playerX, playerY
-newBlastX = decoX(barrel) : newBlastY = decoY(barrel) : newBlastSize = 1 : GOSUB AddBlast
-distance = SQR((playerX - decoX(barrel)) ^ 2 + (playerY - decoY(barrel)) ^ 2) ' You feel it from a way off
+blastAtX = decoX(barrel) : blastAtY = decoY(barrel) : GOSUB BlastAt
+RETURN
+
+' --- An explosion at (blastAtX, blastAtY): a barrel's, or a pressure
+' plate's - everything near is hurt, other barrels go off
+BlastAt:
+SfxAt sndBarrel&, blastAtX, blastAtY, playerX, playerY
+FOR k = 1 TO numGlass ' Glass near it shatters
+    glassHitX = glassListX(k) : glassHitY = glassListY(k)
+    IF glassHP(glassHitX, glassHitY) > 0 THEN
+        IF (glassHitX + 0.5 - blastAtX) ^ 2 + (glassHitY + 0.5 - blastAtY) ^ 2 < BLAST_RADIUS * BLAST_RADIUS THEN glassAtX = glassHitX + 0.5 : glassAtY = glassHitY + 0.5 : glassDmg = 99 : GOSUB HitGlass
+    END IF
+NEXT
+newBlastX = blastAtX : newBlastY = blastAtY : newBlastSize = 1 : GOSUB AddBlast
+distance = SQR((playerX - blastAtX) ^ 2 + (playerY - blastAtY) ^ 2) ' You feel it from a way off
 IF distance < BLAST_RADIUS * 4 THEN shake = shake + 14 * (1 - distance / (BLAST_RADIUS * 4))
 FOR j = 1 TO numMonsters
     IF monsterState(j) < 2 THEN
-        distance = SQR((monsterX(j) - decoX(barrel)) ^ 2 + (monsterY(j) - decoY(barrel)) ^ 2)
+        distance = SQR((monsterX(j) - blastAtX) ^ 2 + (monsterY(j) - blastAtY) ^ 2)
         IF distance < BLAST_RADIUS THEN
-            IF CanSee(decoX(barrel), decoY(barrel), monsterX(j), monsterY(j)) THEN target = j : hitDamage = INT(8 * (1 - distance / BLAST_RADIUS)) + 1 : GOSUB HitMonster
+            IF CanSee(blastAtX, blastAtY, monsterX(j), monsterY(j)) THEN target = j : hitDamage = INT(8 * (1 - distance / BLAST_RADIUS)) + 1 : GOSUB HitMonster
         END IF
     END IF
 NEXT
-distance = SQR((playerX - decoX(barrel)) ^ 2 + (playerY - decoY(barrel)) ^ 2)
+distance = SQR((playerX - blastAtX) ^ 2 + (playerY - blastAtY) ^ 2)
 IF distance < BLAST_RADIUS AND NOT dead THEN
-    IF CanSee(decoX(barrel), decoY(barrel), playerX, playerY) THEN
+    IF CanSee(blastAtX, blastAtY, playerX, playerY) THEN
         damage = INT(40 * (1 - distance / BLAST_RADIUS)) + 5
-        hurtFromX = decoX(barrel) : hurtFromY = decoY(barrel) : GOSUB HurtPlayer
+        hurtFromX = blastAtX : hurtFromY = blastAtY : GOSUB HurtPlayer
     END IF
 END IF
 FOR j = 1 TO numDecos
     IF decoOn(j) THEN
-        distance = SQR((decoX(j) - decoX(barrel)) ^ 2 + (decoY(j) - decoY(barrel)) ^ 2)
+        distance = SQR((decoX(j) - blastAtX) ^ 2 + (decoY(j) - blastAtY) ^ 2)
         IF distance < BLAST_RADIUS THEN
             IF Explosive(decoKind(j)) THEN
                 IF decoFuse(j) = 0 THEN decoFuse(j) = 8 ' Another barrel (or tank): it goes off in 8 frames
-            ELSEIF CanSee(decoX(barrel), decoY(barrel), decoX(j), decoY(j)) THEN
+            ELSEIF CanSee(blastAtX, blastAtY, decoX(j), decoY(j)) THEN
                 targetDeco = j : hitDamage = INT(4 * (1 - distance / BLAST_RADIUS)) + 1 : GOSUB HitDeco
             END IF
         END IF
@@ -2696,7 +3205,794 @@ RETURN
 ' much from decoHP, and at 0 it breaks: it stops blocking the way at once,
 ' collapses into the floor over DECO_BREAK_FRAMES (drawn in chapter 16), and
 ' lamps and terminals go in a small puff of sparks.
+' --- THE LEVEL EDITOR (chapter 21) ----------------------------------------
+' F2 in the game. Two views of the same level: the map from above
+' (RunEditor - a loop of its own, like the menu: paint the map's
+' characters with the mouse) and walking round inside it (the game, with
+' everything frozen: EditFP - build and knock down where you aim, and
+' change the pictures, live). Tab switches; F2 goes back to playing the
+' level as it is now; Ctrl+S saves it to its file. Every change goes into
+' lvlRow$() and the rest - the level as its file says it - and the level
+' is built again from that (EditApply), keeping you where you are.
+EditEnter:
+editMode = -1 : editView = 0 : editDirty = 0 : editUndoN = 0 : editLights = 0
+levelWas = level
+IF editGlyph$ = "" THEN editGlyph$ = "#"
+FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
+EditNote "EDITOR: " + levelName$
+RETURN
+
+EditLeave:
+editMode = 0 : editView = 0
+_MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+IF editDirty THEN ShowMsg "Left the editor - not saved yet (F2, then Ctrl+S)" ELSE ShowMsg "Left the editor"
+RETURN
+
+' Remember the level as it is, for Ctrl+Z
+EditPushUndo:
+IF editUndoN = EDIT_UNDO THEN
+    FOR k = 1 TO EDIT_UNDO - 1 : editUndo$(k) = editUndo$(k + 1) : NEXT
+ELSE
+    editUndoN = editUndoN + 1
+END IF
+editUndo$(editUndoN) = EditSnapshot$
+RETURN
+
+EditUndo:
+IF editUndoN = 0 THEN EditNote "Nothing to undo" : RETURN
+EditRestore editUndo$(editUndoN) : editUndoN = editUndoN - 1
+GOSUB EditApply : EditNote "Undone"
+RETURN
+
+' Build the level again from lvlRow$() and the rest, keeping you where you
+' are (and pointing where you were)
+EditApply:
+keepX = playerX : keepY = playerY : keepDX = dirX : keepDY = dirY
+editRebuild = -1 : GOSUB BuildLevel : editRebuild = 0
+playerX = keepX : playerY = keepY : dirX = keepDX : dirY = keepDY
+planeX = dirY * fovPlane : planeY = -dirX * fovPlane
+IF NOT Walkable(playerX, playerY) THEN ' (built over where you stood: step out)
+    FOR r = 1 TO 6
+        FOR a = 0 TO 7
+            tx = INT(playerX + COS(a * 0.785) * r) + 0.5 : ty = INT(playerY + SIN(a * 0.785) * r) + 0.5
+            IF tx > 0 AND ty > 0 AND tx < MAP_SIZE AND ty < MAP_SIZE THEN IF Walkable(tx, ty) THEN playerX = tx : playerY = ty : r = 99 : EXIT FOR
+        NEXT
+    NEXT
+END IF
+editDirty = -1
+RETURN
+
+' The map from above: draw it, read the mouse and keys, until Tab (walk
+' round inside it) or F2 / Esc (back to the game)
+RunEditor:
+_MOUSESHOW : _KEYCLEAR
+edDone = 0 : edDown = 0 : edRect = 0
+DO
+    _LIMIT 60
+    mx = edMX : my = edMY : wheel = 0
+    WHILE _MOUSEINPUT
+        mx = _MOUSEX : my = _MOUSEY : wheel = wheel + _MOUSEWHEEL
+        IF _MOUSEBUTTON(1) THEN b1 = -1 ELSE b1 = 0
+        IF _MOUSEBUTTON(2) THEN b2 = -1 ELSE b2 = 0
+    WEND
+    edMX = mx : edMY = my
+    cx = INT((mx - ED_MAPX) / ED_CELL) : cy = INT((my - ED_MAPY) / ED_CELL)
+    onMap = (mx >= ED_MAPX AND my >= ED_MAPY AND cx < MAP_SIZE AND cy < MAP_SIZE)
+    shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
+    IF wheel THEN EditCycleGlyph SGN(wheel)
+    ' The palette: click one to choose it
+    pg = EditPaletteAt(mx, my)
+    IF b1 AND NOT edDown AND pg > 0 THEN editGlyph$ = MID$(EDIT_GLYPHS, pg, 1)
+    ' Painting: press, drag, let go (one undo for the whole stroke); with
+    ' Shift, a rectangle from where you pressed to where you let go
+    IF onMap AND editHeights THEN ' The heights: click raises the floor an eighth, right-click lowers it (Shift: the ceiling)
+        IF b1 AND NOT edDown THEN GOSUB EditPushUndo : EditRaise cx, cy, H_STEP, shiftOn : edDown = -1 : edApply = -1
+        IF b2 AND NOT edB2 THEN GOSUB EditPushUndo : EditRaise cx, cy, -H_STEP, shiftOn : edApply = -1
+    END IF
+    IF onMap AND NOT editLights AND NOT editHeights THEN
+        IF b1 AND NOT edDown THEN GOSUB EditPushUndo : edDown = -1 : edRect = shiftOn : edX0 = cx : edY0 = cy
+        IF b1 AND edDown AND NOT edRect THEN EditPut cx, cy, editGlyph$
+        IF b2 THEN c$ = MID$(lvlRow$(cy), cx + 1, 1) : IF c$ <> editGlyph$ THEN editGlyph$ = c$ : EditNote "Picked " + GlyphName$(c$)
+    END IF
+    IF onMap AND editLights THEN ' The lights: click to add one, right-click to take the nearest away
+        IF b1 AND NOT edDown THEN GOSUB EditPushUndo : EditAddLight cx + 0.5, cy + 0.5 : edDown = -1 : edApply = -1
+        IF b2 AND NOT edB2 THEN GOSUB EditPushUndo : EditRemoveLight cx + 0.5, cy + 0.5 : edApply = -1
+    END IF
+    edB2 = b2
+    IF NOT b1 AND edDown THEN ' Let go: the rectangle, then build it
+        IF edRect AND onMap THEN
+            FOR y = MinOf(edY0, cy) TO MaxOf(edY0, cy) : FOR x = MinOf(edX0, cx) TO MaxOf(edX0, cx) : EditPut x, y, editGlyph$ : NEXT : NEXT
+        END IF
+        edDown = 0 : edRect = 0 : edApply = -1
+    END IF
+    IF edApply THEN edApply = 0 : GOSUB EditApply
+    ' Keys
+    k& = _KEYHIT
+    DO WHILE k&
+        SELECT CASE k&
+            CASE 9 : edDone = 1 ' Tab: walk round inside it
+            CASE 27, 15360 : edDone = 2 ' Esc, F2: back to the game
+            CASE 19 : EditSave level ' Ctrl+S
+            CASE 26 : GOSUB EditUndo ' Ctrl+Z
+            CASE 108, 76 : editLights = NOT editLights : editHeights = 0 : IF editLights THEN EditNote "LIGHTS: click adds, right-click takes away, 1-8 the colour" ELSE EditNote "MAP: paint with the mouse"
+            CASE 104, 72 : editHeights = NOT editHeights : editLights = 0 : IF editHeights THEN EditNote "HEIGHTS: click raises the floor, right-click lowers it (Shift: the ceiling)" ELSE EditNote "MAP: paint with the mouse"
+            CASE 49 TO 56 : editLightP = k& - 49 : EditNote "Light: " + LightPresetName$(editLightP)
+            CASE 116, 84 ' T: teleport you to the cell under the mouse
+                IF onMap THEN playerX = cx + 0.5 : playerY = cy + 0.5 : EditNote "You're at" + STR$(cx) + STR$(cy) + " (Tab to look)"
+            CASE 18688 : GOSUB EditOtherLevel_Prev ' PgUp: the sector before
+            CASE 20736 : GOSUB EditOtherLevel_Next ' PgDn: the one after
+            CASE 91 : EditCycleGlyph -1 ' [ ]: the glyph before, after
+            CASE 93 : EditCycleGlyph 1
+            CASE 109, 77 : GOSUB RunMonsterEditor : _MOUSESHOW ' M: the monster editor
+            CASE 117, 85 : edDone = 1 : hudAfter = -1 ' U: the HUD layout editor (over the game: walking view)
+        END SELECT
+        k& = _KEYHIT
+    LOOP
+    IF edDone THEN EXIT DO
+    DrawEditor cx, cy, onMap, edRect AND edDown, edX0, edY0, playerX, playerY, dirX, dirY, level, levelName$
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady
+    _DISPLAY
+LOOP
+_KEYCLEAR
+IF edDone = 1 THEN editView = 1 : _MOUSEHIDE _DISABLE : EditNote "Walking: aim and click to build, right-click to knock down - H for help"
+IF hudAfter THEN hudAfter = 0 : GOSUB HudEditEnter
+IF edDone = 2 THEN GOSUB EditLeave
+WHILE _MOUSEINPUT : WEND
+escWas = -1 : fireWait = 10
+RETURN
+
+EditOtherLevel_Prev:
+IF level > 1 THEN level = level - 1 : GOSUB EditGoLevel
+RETURN
+EditOtherLevel_Next:
+IF level < NUM_LEVELS THEN level = level + 1 : GOSUB EditGoLevel
+RETURN
+EditGoLevel:
+IF editDirty THEN EditNote "Save first (Ctrl+S) - or Ctrl+Z it all away" : level = levelWas : RETURN
+GOSUB LoadLevel : editUndoN = 0 : editDirty = 0 : levelWas = level
+EditNote "EDITOR: " + levelName$
+RETURN
+
+' Walking round inside the level: the keys and the mouse buttons, each
+' frame (the game loop draws it; EditOverlay shows what you're aiming at)
+EditFP:
+IF hudEdit THEN RETURN ' (the HUD layout editor has the mouse and keys)
+levelWas = level
+EditAim playerX, playerY, dirX, dirY, aimX, aimY, frontX, frontY
+fpL = _MOUSEBUTTON(1) : fpR = _MOUSEBUTTON(2)
+IF fpL AND NOT fpLWas AND frontX >= 0 THEN ' Build: the glyph into the cell in front of what you aim at
+    GOSUB EditPushUndo : EditPut frontX, frontY, editGlyph$ : GOSUB EditApply : EditNote GlyphName$(editGlyph$) + " at" + STR$(frontX) + STR$(frontY)
+END IF
+IF fpR AND NOT fpRWas AND aimX >= 0 THEN ' Knock down: what you aim at becomes floor
+    IF aimX > 0 AND aimY > 0 AND aimX < MAP_SIZE - 1 AND aimY < MAP_SIZE - 1 THEN
+        GOSUB EditPushUndo : EditPut aimX, aimY, "." : GOSUB EditApply : EditNote "Cleared" + STR$(aimX) + STR$(aimY)
+    END IF
+END IF
+fpLWas = fpL : fpRWas = fpR
+k& = _KEYHIT
+DO WHILE k&
+    shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
+    SELECT CASE k&
+        CASE 9 : editView = 0 ' Tab: the map from above
+        CASE 19 : EditSave level
+        CASE 26 : GOSUB EditUndo
+        CASE 91 : EditCycleGlyph -1
+        CASE 93 : EditCycleGlyph 1
+        CASE 101, 69 ' E: pick up what you aim at as the glyph to place
+            IF aimX >= 0 THEN editGlyph$ = MID$(lvlRow$(aimY), aimX + 1, 1) : EditNote "Picked " + GlyphName$(editGlyph$)
+        CASE 116, 84 ' T: the picture on that kind of wall - every one of them - the next one
+            IF aimX >= 0 THEN
+                w = INSTR("#NCKPG", MID$(lvlRow$(aimY), aimX + 1, 1))
+                IF w THEN GOSUB EditPushUndo : lvlWall$(w) = EditNextPicture$("wall", lvlWall$(w), 1 + 2 * shiftOn) : GOSUB EditApply : EditNote "Walls " + MID$("#NCKPG", w, 1) + ": " + lvlWall$(w)
+            END IF
+        CASE 102, 70 ' F: the floor's picture (that floor number, everywhere)
+            IF frontX >= 0 THEN n = FloorNumberAt(frontX, frontY) : GOSUB EditPushUndo : lvlFloor$(n) = EditNextPicture$("floor", lvlFloor$(n), 1 + 2 * shiftOn) : GOSUB EditApply : EditNote "Floor" + STR$(n) + ": " + lvlFloor$(n)
+        CASE 118, 86 ' V: the ceiling's
+            IF frontX >= 0 THEN n = CeilNumberAt(frontX, frontY) : GOSUB EditPushUndo : lvlCeil$(n) = EditNextPicture$("ceiling", lvlCeil$(n), 1 + 2 * shiftOn) : GOSUB EditApply : EditNote "Ceiling" + STR$(n) + ": " + lvlCeil$(n)
+        CASE 122, 90 ' Z: that cell's floor - the next of the level's four (a zone one cell big)
+            IF frontX >= 0 THEN
+                n = FloorNumberAt(frontX, frontY) MOD 4 + 1
+                GOSUB EditPushUndo : EditAddZone frontX, frontY, frontX, frontY, n, 0 : GOSUB EditApply : EditNote "Floor" + STR$(n) + " here"
+            END IF
+        CASE 108, 76 ' L: a light over the cell in front; K: take away the nearest
+            IF frontX >= 0 THEN GOSUB EditPushUndo : EditAddLight frontX + 0.5, frontY + 0.5 : GOSUB EditApply
+        CASE 107, 75
+            GOSUB EditPushUndo : EditRemoveLight playerX, playerY : GOSUB EditApply
+        CASE 49 TO 56 : editLightP = k& - 49 : EditNote "Light: " + LightPresetName$(editLightP)
+        CASE 18688, 20736 ' PgUp / PgDn: the floor in front up or down an eighth (with Shift, its ceiling)
+            IF frontX >= 0 THEN
+                d = H_STEP : IF k& = 20736 THEN d = -H_STEP
+                GOSUB EditPushUndo : EditRaise frontX, frontY, d, shiftOn : GOSUB EditApply
+                EditNote "Floor" + STR$(floorH(frontX, frontY)) + "   ceiling" + STR$(ceilH(frontX, frontY))
+            END IF
+        CASE 117, 85 ' U: the HUD layout editor
+            GOSUB HudEditEnter : EXIT DO
+        CASE 104, 72 ' H: help
+            EditNote "U HUD layout | PgUp/PgDn floor (Shift: ceiling) | Click build | Right knock down | [ ] glyph | E pick | T F V pictures | Z floor | L K light | Tab map | Ctrl+S save | Ctrl+Z undo | F2 play"
+    END SELECT
+    k& = _KEYHIT
+LOOP
+RETURN
+
+' --- THE LEVEL'S TRIGGERS AND TELEPORTERS (chapter 19), each frame. A
+' trigger's commands go to the console's queue (chapter 21), to be run
+' from the next frame - the same commands you can type
+RunTriggers:
+FOR k = 1 TO numTrigs
+    IF NOT trigDone(k) THEN
+        fire = 0
+        SELECT CASE trigWhen$(k)
+            CASE "enter"
+                inside = playerX >= trigX0(k) AND playerX < trigX1(k) + 1 AND playerY >= trigY0(k) AND playerY < trigY1(k) + 1
+                IF inside AND NOT trigWas(k) AND NOT dead THEN fire = -1
+                trigWas(k) = inside
+            CASE "clear"
+                alive = 0 : started = 0
+                FOR j = 1 TO monStartN
+                    IF monStartX(j) >= trigX0(k) AND monStartX(j) < trigX1(k) + 1 AND monStartY(j) >= trigY0(k) AND monStartY(j) < trigY1(k) + 1 THEN
+                        started = started + 1 : IF monsterState(j) < 2 THEN alive = alive + 1
+                    END IF
+                NEXT
+                IF started > 0 AND alive = 0 THEN fire = -1
+            CASE "time"
+                IF TIMER - levelStart! >= trigX0(k) OR TIMER < levelStart! THEN fire = -1
+        END SELECT
+        IF fire THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : GOSUB TriggerRun
+    END IF
+NEXT
+' Teleporters: on a pad - and you've stepped off one since - to its partner
+onPad = 0
+FOR k = 1 TO numPads
+    IF INT(playerX) = padX(k) AND INT(playerY) = padY(k) THEN onPad = k
+NEXT
+IF onPad = 0 THEN padReady = -1
+IF onPad > 0 AND padReady AND NOT dead THEN
+    other = onPad + 1 : IF onPad MOD 2 = 0 THEN other = onPad - 1
+    IF other >= 1 AND other <= numPads THEN
+        SpawnSparks playerX, playerY, 0.4, 20, 150, 90, 255
+        playerX = padX(other) + 0.5 : playerY = padY(other) + 0.5 : playerZ = floorH(padX(other), padY(other)) : eyeZ = playerZ + EYE_H : playerVZ = 0
+        SpawnSparks playerX, playerY, 0.4, 30, 150, 90, 255
+        PlaySfx sndTeleport&, 1 : pickFlash = 16 : padReady = 0
+    END IF
+END IF
+RETURN
+
+' A trigger's commands (trigRun$), run now - one after another, split at
+' the ;s - unless there's a wait among them: then onto the console's queue,
+' to run a frame at a time (chapter 21)
+TriggerRun:
+IF INSTR(LCASE$(trigRun$), "wait") THEN ConQueue trigRun$ : RETURN
+trigK = k ' (ConExec uses k)
+DO WHILE LEN(trigRun$)
+    semi = INSTR(trigRun$, ";")
+    IF semi THEN conCmd$ = LEFT$(trigRun$, semi - 1) : trigRun$ = MID$(trigRun$, semi + 1) ELSE conCmd$ = trigRun$ : trigRun$ = ""
+    GOSUB ConExec
+LOOP
+k = trigK
+RETURN
+
+' --- A CODE TERMINAL, terminal tm (chapter 19): the doors near it slam
+' and lock, NEXUS gloats, and its puzzle opens; solved, they open again
+TerminalUse:
+pzName$ = ListItem$(lvlPuzzles$, tm) : IF pzName$ = "" THEN pzName$ = MID$("hello     multiply  countdownpassword  sum       pythagoraselect    function  reverse   wrap      ", ((level - 1) MOD 10) * 10 + 1, 10)
+pzName$ = LTRIM$(RTRIM$(pzName$))
+IF NOT LoadPuzzle(pzName$) THEN ShowMsg "TERMINAL: no program called " + pzName$ : RETURN
+slammed = 0
+FOR y = termY(tm) - 7 TO termY(tm) + 7 : FOR x = termX(tm) - 7 TO termX(tm) + 7
+    IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+        IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT AND doorLock(x, y) = 0 THEN
+            doorLock(x, y) = 3 : doorMove(x, y) = -1 : slammed = slammed + 1
+            SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
+        END IF
+    END IF
+NEXT : NEXT
+IF slammed THEN PlaySfx sndAlarm&, 0.8 : shake = shake + 8
+Say "puzzle1", 0
+GOSUB RunPuzzle
+IF pzSolved THEN
+    termDone(tm) = -1
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+        IF doorLock(x, y) = 3 THEN doorLock(x, y) = 0 : doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
+    NEXT : NEXT
+    PlaySfx sndFanfare&, 0.9 : ShowMsg "PROGRAM REPAIRED - the doors are open" : Say "puzzle2", 0
+ELSE
+    ShowMsg "The doors stay locked - the terminal's still waiting"
+END IF
+RETURN
+
+' --- THE HUD LAYOUT EDITOR (chapter 21): the game goes on behind (frozen,
+' as in the level editor); every part of the HUD is drawn with a box round
+' it (HudEditDraw). Drag one with the mouse; Tab the next one; the arrows
+' nudge it (Shift: 8 pixels); V shows or hides it; C its colour; + and -
+' its bar's width, [ and ] its height; S saves hud.txt; R puts back the
+' game's own layout; U or Esc leaves.
+HudEditEnter:
+hudEdit = -1 : hudSel = HE_HEALTH : hudDrag = 0 : _MOUSESHOW : _KEYCLEAR
+hudMsg$ = "HUD LAYOUT: drag things about - Tab next, V show/hide, C colour, +/- [ ] bar, S save, R reset, U done"
+RETURN
+HudEditLeave:
+hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15
+RETURN
+HudEditFrame:
+hmx = _MOUSEX : hmy = _MOUSEY : hb = _MOUSEBUTTON(1)
+IF hb AND NOT hudDrag THEN ' Press: the part under the mouse (the smallest, if two overlap)
+    best = 0 : bestA = 1E+9
+    FOR e = 1 TO HUD_ELEMS
+        HudBox e, bx0, by0, bx1, by1
+        IF hmx >= bx0 AND hmx <= bx1 AND hmy >= by0 AND hmy <= by1 THEN IF (bx1 - bx0) * (by1 - by0) < bestA THEN bestA = (bx1 - bx0) * (by1 - by0) : best = e
+    NEXT
+    IF best THEN hudSel = best : hudDrag = -1 : hdx = hmx : hdy = hmy
+END IF
+IF hb AND hudDrag THEN hudX(hudSel) = hudX(hudSel) + hmx - hdx : hudY(hudSel) = hudY(hudSel) + hmy - hdy : hdx = hmx : hdy = hmy
+IF NOT hb THEN hudDrag = 0
+k& = _KEYHIT
+DO WHILE k&
+    hs = 1 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN hs = 8
+    SELECT CASE k&
+        CASE 27, 117, 85 : GOSUB HudEditLeave : EXIT DO
+        CASE 9 : hudSel = hudSel MOD HUD_ELEMS + 1
+        CASE 18432 : hudY(hudSel) = hudY(hudSel) - hs
+        CASE 20480 : hudY(hudSel) = hudY(hudSel) + hs
+        CASE 19200 : hudX(hudSel) = hudX(hudSel) - hs
+        CASE 19712 : hudX(hudSel) = hudX(hudSel) + hs
+        CASE 118, 86 : hudShow(hudSel) = NOT hudShow(hudSel)
+        CASE 99, 67 : hudCol(hudSel) = HudNextColor~&(hudCol(hudSel))
+        CASE 43, 61 : hudW(hudSel) = hudW(hudSel) + 10 : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = hudW(hudSel) - 9
+        CASE 45 : hudW(hudSel) = MaxOf(0, hudW(hudSel) - 10) : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = MaxOf(1, hudW(hudSel) + 9)
+        CASE 91 : hudH(hudSel) = MaxOf(1, hudH(hudSel) - 1)
+        CASE 93 : hudH(hudSel) = hudH(hudSel) + 1
+        CASE 115, 83 : WriteHud : hudMsg$ = "Saved " + AssetPath$("hud.txt")
+        CASE 114, 82 : HudDefaults : hudMsg$ = "The game's own layout, back (S to keep it)"
+    END SELECT
+    k& = _KEYHIT
+LOOP
+RETURN
+
+' --- THE MONSTER EDITOR (chapter 21): every kind of monster's numbers,
+' changed with the arrow keys and in effect at once. Up/Down a number,
+' Left/Right change it (Shift: ten times as much), PgUp/PgDn the monster
+' before or after, S save to monsters.txt, Esc back.
+RunMonsterEditor:
+_KEYCLEAR : meType = 1 : meField = 1 : meDone = 0 : meMsg$ = ""
+DO
+    _LIMIT 60
+    WHILE _MOUSEINPUT : WEND
+    k& = _KEYHIT
+    DO WHILE k&
+        shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
+        SELECT CASE k&
+            CASE 27, 15360 : meDone = -1
+            CASE 18432 : meField = meField - 1 : IF meField < 1 THEN meField = ME_FIELDS
+            CASE 20480 : meField = meField + 1 : IF meField > ME_FIELDS THEN meField = 1
+            CASE 19200 : MonsterField meType, meField, -1 - 9 * shiftOn
+            CASE 19712 : MonsterField meType, meField, 1 + 9 * shiftOn
+            CASE 18688 : meType = meType - 1 : IF meType < 1 THEN meType = MON_TYPES
+            CASE 20736 : meType = meType + 1 : IF meType > MON_TYPES THEN meType = 1
+            CASE 115, 83 : WriteMonsters : meMsg$ = "Saved " + AssetPath$("monsters.txt")
+        END SELECT
+        k& = _KEYHIT
+    LOOP
+    IF meDone THEN EXIT DO
+    DrawMonsterEditor meType, meField, meMsg$
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady
+    _DISPLAY
+LOOP
+_KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1
+RETURN
+
+' --- THE PUZZLE SCREEN: the program's lines, shuffled, some words blank.
+' Up/Down choose a line, Shift+Up/Down (or PgUp/PgDn) move it; Enter
+' fills in its blank (type, Enter); F5 or R compiles and runs it; H a hint;
+' Esc leaves (the doors stay locked). pzSolved: it worked.
+RunPuzzle:
+_MOUSESHOW : _KEYCLEAR
+pzSolved = 0 : pzSel = 1 : pzTyping = 0 : pzShown = 0 : pzFails = 0 : pzOut$ = "Put the lines in order, fill the blanks, then F5 to compile and run."
+pzDone = 0 : qb$ = QB64Path$
+DO
+    _LIMIT 60
+    WHILE _MOUSEINPUT
+        IF _MOUSEBUTTON(1) THEN
+            ln = (_MOUSEY - PZ_TOP) \ 18 + 1 : IF ln >= 1 AND ln <= pzN AND _MOUSEX < 560 THEN pzSel = ln : pzTyping = 0
+        END IF
+    WEND
+    k& = _KEYHIT
+    DO WHILE k&
+        shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
+        IF pzTyping THEN ' Typing a blank's word
+            b = PuzzleBlankOn(pzSel)
+            SELECT CASE k&
+                CASE 13, 9, 27 : pzTyping = 0
+                CASE 8 : IF LEN(pzBlankIn$(b)) THEN pzBlankIn$(b) = LEFT$(pzBlankIn$(b), LEN(pzBlankIn$(b)) - 1)
+                CASE 32 TO 126 : IF LEN(pzBlankIn$(b)) < 16 THEN pzBlankIn$(b) = pzBlankIn$(b) + CHR$(k&)
+            END SELECT
+        ELSE
+            SELECT CASE k&
+                CASE 27 : pzDone = -1
+                CASE 18432 ' Up: the line above - with Shift, move this line up
+                    IF shiftOn AND pzSel > 1 THEN SWAP pzOrder(pzSel), pzOrder(pzSel - 1)
+                    IF pzSel > 1 THEN pzSel = pzSel - 1
+                CASE 20480
+                    IF shiftOn AND pzSel < pzN THEN SWAP pzOrder(pzSel), pzOrder(pzSel + 1)
+                    IF pzSel < pzN THEN pzSel = pzSel + 1
+                CASE 18688 : IF pzSel > 1 THEN SWAP pzOrder(pzSel), pzOrder(pzSel - 1) : pzSel = pzSel - 1 ' PgUp: move it up
+                CASE 20736 : IF pzSel < pzN THEN SWAP pzOrder(pzSel), pzOrder(pzSel + 1) : pzSel = pzSel + 1 ' PgDn: down
+                CASE 13 : IF PuzzleBlankOn(pzSel) THEN pzTyping = -1 ELSE pzOut$ = "That line has no blank to fill."
+                CASE 104, 72 ' H: the next hint
+                    IF pzShown < pzHints THEN pzShown = pzShown + 1 ELSE pzOut$ = "No more hints - read the comments ('...) in the program too."
+                CASE 16128, 114, 82 : GOSUB PuzzleRun ' F5 or R: compile and run
+                CASE 34304 ' F12 (testing, with CHEAT_KEYS): put it all right
+                    IF CHEAT_KEYS THEN FOR f = 1 TO pzN + pzBlanks : PuzzleFixOne : NEXT
+            END SELECT
+        END IF
+        k& = _KEYHIT
+    LOOP
+    IF pzDone OR pzSolved THEN EXIT DO
+    DrawPuzzle pzSel, pzTyping, qb$
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady
+    _DISPLAY
+LOOP
+IF pzSolved THEN ' (a moment to see it worked)
+    FOR f = 1 TO 90
+        _LIMIT 60 : DrawPuzzle 0, 0, qb$
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady : _DISPLAY
+    NEXT
+END IF
+_KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+escWas = -1 : fireWait = 15 : spaceWas = -1
+RETURN
+
+' Compile and run the program as it stands. With qb64pe: written out with
+' $CONSOLE:ONLY on top (it prints to the terminal, not a window) and
+' SYSTEM after the main part, compiled and run by a shell in the
+' background while this waits (and says so); its output (or the
+' compiler's complaint) read back and checked against pzExpect$. Without
+' qb64pe: the lines checked against the answer instead.
+PuzzleRun:
+pzOut$ = ""
+IF qb$ = "" THEN
+    ok = -1
+    FOR i = 1 TO pzN
+        IF NormLine$(PuzzleLine$(i)) <> NormLine$(pzAns$(i)) THEN ok = 0
+    NEXT
+    IF ok THEN pzSolved = -1 : pzOut$ = "CHECKED (qb64pe not found - the lines match the program).|ACCESS GRANTED" ELSE pzOut$ = "Not right yet - check the order, and the blanks."
+ELSE
+    MakeSaveDir : d$ = SaveDir$ + "puzzle"
+    IF NOT _DIREXISTS(d$) THEN MKDIR d$
+    d$ = _FULLPATH$(d$) ' (all its paths whole: qb64pe works from its own folder)
+    IF RIGHT$(d$, 1) = "/" OR RIGHT$(d$, 1) = "\" THEN d$ = LEFT$(d$, LEN(d$) - 1)
+    src$ = d$ + "/prog.bas" : exe$ = d$ + "/prog" : out$ = d$ + "/out.txt" : done$ = d$ + "/done.txt"
+    IF _FILEEXISTS(out$) THEN KILL out$ ' (the last run's, out of the way)
+    IF _FILEEXISTS(done$) THEN KILL done$
+    IF _FILEEXISTS(exe$) THEN KILL exe$
+    fh = FREEFILE : OPEN src$ FOR OUTPUT AS #fh
+    PRINT #fh, "$CONSOLE:ONLY"
+    placed = 0
+    FOR i = 1 TO pzN
+        u$ = UCASE$(LTRIM$(PuzzleLine$(i)))
+        IF NOT placed AND (LEFT$(u$, 9) = "FUNCTION " OR LEFT$(u$, 4) = "SUB ") THEN PRINT #fh, "SYSTEM" : placed = -1
+        PRINT #fh, PuzzleLine$(i)
+    NEXT
+    IF NOT placed THEN PRINT #fh, "SYSTEM"
+    CLOSE #fh
+    cmd$ = "sh -c " + CHR$(34) + "'" + qb$ + "' -x '" + src$ + "' -o '" + exe$ + "' > '" + out$ + "' 2>&1 && timeout 5 '" + exe$ + "' > '" + out$ + "' 2>&1 < /dev/null; echo done > '" + done$ + "'" + CHR$(34)
+    SHELL _DONTWAIT cmd$
+    t0! = TIMER
+    DO ' Waiting: COMPILING...
+        _LIMIT 30
+        el! = TIMER - t0! : IF el! < 0 THEN el! = el! + 86400
+        IF _FILEEXISTS(done$) OR el! > 120 THEN EXIT DO
+        pzOut$ = "COMPILING" + STRING$(INT(el! * 3) MOD 4, ".") + "   (" + LTRIM$(STR$(INT(el!))) + "s)   qb64pe is turning it into a program"
+        DrawPuzzle pzSel, 0, qb$
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady : _DISPLAY
+    LOOP
+    got$ = ""
+    IF _FILEEXISTS(out$) THEN
+        fh = FREEFILE : OPEN out$ FOR INPUT AS #fh
+        DO UNTIL EOF(fh)
+            LINE INPUT #fh, l$
+            IF LEN(LTRIM$(l$)) THEN got$ = got$ + "|" + l$
+        LOOP
+        CLOSE #fh
+    END IF
+    IF LEN(got$) THEN got$ = MID$(got$, 2)
+    IF NOT _FILEEXISTS(exe$) THEN ' Didn't compile: the compiler's words
+        pzOut$ = "DID NOT COMPILE:|" + LEFT$(PuzzleCompilerSays$(got$), 300)
+    ELSEIF NormLine$(got$) = NormLine$(pzExpect$) THEN
+        pzSolved = -1 : pzOut$ = "RAN - it printed:|" + got$ + "|ACCESS GRANTED"
+    ELSE
+        pzOut$ = "RAN, but printed:|" + LEFT$(got$, 200) + "|- and that's not it (it should print " + pzExpect$ + ")"
+    END IF
+END IF
+IF NOT pzSolved THEN ' Wrong: another hint - and after a few, one line put right
+    pzFails = pzFails + 1
+    IF pzShown < pzHints THEN pzShown = pzShown + 1
+    IF pzFails >= 3 THEN PuzzleFixOne : pzOut$ = pzOut$ + "|(The terminal fixed one line for you.)"
+    PlaySfx sndFail&, 0.7
+ELSE
+    PlaySfx sndCore&, 1
+END IF
+RETURN
+
+' --- Into the network through data station st (chapter 19): the real
+' pictures put away and the grid put up, the real things left behind,
+' data cores laid out round the station (on the floor you can walk to from
+' it, without going through a door), and ICE let loose, far off
+JackIn:
+cyberOn = -1 : cyberStation = st
+cyberTime = CYBER_SECONDS * 60 : cyberGot = 0 : cyberNeed = 3 + level \ 3 : IF cyberNeed > 6 THEN cyberNeed = 6
+cyberMonStart = numMonsters : cyberItemStart = numItems
+FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
+CyberTextures -1
+' The floor round the station: steps from it (fillX/fillY, as the
+' thieves' way does), through floor only - not doors
+FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : thiefDist(x, y) = 30000 : NEXT : NEXT
+head = 0 : tail = 0
+FOR k = 1 TO 4
+    nx = stationX(st) + (k = 1) - (k = 2) : ny = stationY(st) + (k = 3) - (k = 4)
+    IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 THEN thiefDist(nx, ny) = 0 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+NEXT
+DO WHILE head < tail
+    x = fillX(head) : y = fillY(head) : head = head + 1
+    FOR k = 1 TO 4
+        nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
+        IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
+            IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 AND thiefDist(nx, ny) > thiefDist(x, y) + 1 AND thiefDist(x, y) < 18 THEN
+                thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+            END IF
+        END IF
+    NEXT
+LOOP
+' Cores: on cells 5 or more steps out, as spread out as can be (each one
+' the farthest from all those placed so far, of a few tried at random)
+placed = 0
+FOR c = 1 TO cyberNeed
+    bestCell = -1 : bestScore = -1
+    FOR try = 1 TO 40
+        e = INT(RND * tail) : x = fillX(e) : y = fillY(e)
+        IF thiefDist(x, y) >= 5 THEN
+            score = 99
+            FOR i = cyberItemStart + 1 TO numItems
+                d = ABS(itemX(i) - x - 0.5) + ABS(itemY(i) - y - 0.5) : IF d < score THEN score = d
+            NEXT
+            IF score > bestScore THEN bestScore = score : bestCell = e
+        END IF
+    NEXT
+    IF bestCell >= 0 AND numItems < MAX_ITEMS THEN
+        numItems = numItems + 1 : itemX(numItems) = fillX(bestCell) + 0.5 : itemY(numItems) = fillY(bestCell) + 0.5
+        itemKind(numItems) = IT_CORE : itemOn(numItems) = -1 : placed = placed + 1
+    END IF
+NEXT
+IF placed < cyberNeed THEN cyberNeed = placed
+IF cyberNeed = 0 THEN cyberNeed = 1 : numItems = numItems + 1 : itemX(numItems) = playerX + dirX : itemY(numItems) = playerY + dirY : itemKind(numItems) = IT_CORE : itemOn(numItems) = -1
+' ICE: on the farthest cells
+nIce = 2 + level \ 3
+FOR c = 1 TO nIce
+    e = tail - 1 - INT(RND * (tail \ 3 + 1)) : IF e < 0 THEN e = 0
+    IF tail > 0 THEN IF SpawnMonster(MT_ICE, fillX(e) + 0.5, fillY(e) + 0.5, 0) THEN monsterTimer(numMonsters) = 90
+NEXT
+BuildThiefWay ' (the thieves' way home, which the steps above borrowed)
+dirX = -dirX : dirY = -dirY : planeX = -planeX : planeY = -planeY ' (you turn round: into the network, your back to the station)
+PlaySfx sndJackIn&, 1 : pickFlash = 30 : shake = shake + 6
+IF cyberMusic& > 0 THEN PlayMusic cyberMusic&
+ShowMsg "JACKED IN - grab " + LTRIM$(STR$(cyberNeed)) + " data cores before the time runs out!"
+Say "cyber1", 0
+RETURN
+
+' --- Out of the network: won (cyberWon) or thrown out. The real pictures
+' back, the network's things gone (they were the last monsters and pickups
+' added), you back at the station - and if you won, its doors unsealed
+' (each sealed door belongs to the station nearest it)
+JackOut:
+CyberTextures 0
+FOR i = cyberMonStart + 1 TO numMonsters ' (ICE you derezzed doesn't count in the sector's kills)
+    IF monsterState(i) >= 2 THEN kills = kills - 1
+NEXT
+numMonsters = cyberMonStart : numItems = cyberItemStart
+FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
+cyberOn = 0
+PlaySfx sndJackOut&, 1 : pickFlash = 20
+PlayMusic levelMusic&(level)
+IF cyberWon THEN
+    stationDone(cyberStation) = -1
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+        IF worldMap(x, y) = 2 AND doorLock(x, y) = 2 THEN
+            IF StationNear(x, y) = cyberStation THEN doorLock(x, y) = 0 : doorOpen(x, y) = 0.01 : doorMove(x, y) = 1 : SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
+        END IF
+    NEXT : NEXT
+    PlaySfx sndFanfare&, 0.8
+    ShowMsg "ACCESS GRANTED - the sealed doors are open"
+    Say "cyber2", 0
+ELSE
+    PlaySfx sndFail&, 0.8
+    damage = 10 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
+    ShowMsg "EJECTED - the network threw you out. Try again"
+    Say "cyber3", 0
+END IF
+RETURN
+
+' --- Glass at cell (glassHitX, glassHitY) is hit for glassDmg, at
+' (glassAtX, glassAtY): it chips and cracks, and at 0 it shatters - a
+' shower of shards, and the way is open
+HitGlass:
+IF glassHP(glassHitX, glassHitY) <= 0 THEN RETURN
+glassHP(glassHitX, glassHitY) = glassHP(glassHitX, glassHitY) - glassDmg
+IF glassHP(glassHitX, glassHitY) > 0 THEN
+    SpawnSparks glassAtX, glassAtY, 0.5, 5, 200, 240, 255
+    SfxAt sndGlassHit&, glassAtX, glassAtY, playerX, playerY
+ELSE
+    glassHP(glassHitX, glassHitY) = 0
+    FOR gk = 0 TO 4 ' (shards all along the pane, falling)
+        IF glassDir(glassHitX, glassHitY) = 1 THEN gsx = glassHitX + 0.1 + gk * 0.2 : gsy = glassHitY + 0.5 ELSE gsx = glassHitX + 0.5 : gsy = glassHitY + 0.1 + gk * 0.2
+        SpawnSparks gsx, gsy, 0.15 + RND * 0.7, 9, 190, 235, 255
+    NEXT
+    SfxAt sndGlassBreak&, glassAtX, glassAtY, playerX, playerY
+    IF (glassAtX - playerX) ^ 2 + (glassAtY - playerY) ^ 2 < 25 THEN shake = shake + 3
+    FOR gj = 1 TO numMonsters ' (that wakes anything near)
+        IF monsterState(gj) = 0 THEN IF (monsterX(gj) - glassAtX) ^ 2 + (monsterY(gj) - glassAtY) ^ 2 < 36 THEN monsterState(gj) = 1 : monsterTimer(gj) = 20
+    NEXT
+END IF
+RETURN
+
+' --- HEIGHTS, THE SOFTWARE WAY (chapter 15, for a level with heights):
+' column x, front to back, as Doom does it. The ray walks the grid as
+' before, but doesn't stop at the first change: in each cell it passes
+' through it draws that cell's floor and ceiling - the part of them
+' between where it came in (hDIn) and where it leaves (hDOut) - then looks
+' at the next cell. A higher floor there: the step's face; a lower
+' ceiling: the lintel's. hTop and hBot are what's left of the column still
+' to draw: each floor, step and lintel drawn closes it in from below or
+' above, and anything further away can only show in what's left - that's
+' how a ledge hides the floor behind it. A wall ends the column. Each time
+' the window closes in, it's noted (clipD/T/B) for the sprites (chapter 16).
+' A height h at distance d is on screen at row RENDER_H / 2 + (eyeZ - h) *
+' viewH / d: the higher it is (or the nearer), the further up.
+HeightColumn:
+hTop = 0 : hBot = RENDER_H - 1 : hor = RENDER_H / 2
+hcX = INT(playerX) : hcY = INT(playerY) : hDIn = 0
+hStepX = SGN(rayDirX) : hStepY = SGN(rayDirY) : IF hStepX = 0 THEN hStepX = 1
+IF hStepY = 0 THEN hStepY = 1
+IF ABS(rayDirX) < 0.00001 THEN hDDX = 1E+9 ELSE hDDX = ABS(1 / rayDirX)
+IF ABS(rayDirY) < 0.00001 THEN hDDY = 1E+9 ELSE hDDY = ABS(1 / rayDirY)
+IF rayDirX < 0 THEN hSDX = (playerX - hcX) * hDDX ELSE hSDX = (hcX + 1 - playerX) * hDDX
+IF rayDirY < 0 THEN hSDY = (playerY - hcY) * hDDY ELSE hSDY = (hcY + 1 - playerY) * hDDY
+DO
+    IF hSDX < hSDY THEN hDOut = hSDX : hnX = hcX + hStepX : hnY = hcY : hSide = 0 : hSDX = hSDX + hDDX ELSE hDOut = hSDY : hnX = hcX : hnY = hcY + hStepY : hSide = 1 : hSDY = hSDY + hDDY
+    IF hDOut < 0.001 THEN hDOut = 0.001
+    ' This cell's light, fogged as far as its middle
+    hFog& = 256 - (hDIn + hDOut) * 8 : IF hFog& < 0 THEN hFog& = 0
+    hR& = litR(hcX, hcY) : hG& = litG(hcX, hcY) : hB& = litB(hcX, hcY)
+    ' Its floor: from where it leaves (higher up the screen) down to where
+    ' it came in
+    hf = floorH(hcX, hcY)
+    IF eyeZ > hf THEN
+        yFar = INT(hor + (eyeZ - hf) * viewH / hDOut + 0.999)
+        IF hDIn > 0.0001 THEN yNear = INT(hor + (eyeZ - hf) * viewH / hDIn) ELSE yNear = RENDER_H - 1
+        IF yFar < hTop THEN yFar = hTop
+        IF yNear > hBot THEN yNear = hBot
+        FOR y = yFar TO yNear
+            rowDist = (eyeZ - hf) * viewH / (y - hor + 0.5)
+            fx = playerX + rowDist * rayDirX : fy = playerY + rowDist * rayDirY
+            slot = floorTex(hcX, hcY)
+            IF floorSplit(hcX, hcY) THEN IF InDiagonalWall(floorSplit(hcX, hcY), fx - hcX, fy - hcY) THEN slot = floorTex2(hcX, hcY)
+            f& = 256 - rowDist * 16 : IF f& < 0 THEN f& = 0
+            pixels(y * RENDER_W + x) = ShadeRGB~&(texture(INT(fx * TEX_SIZE) AND (TEX_SIZE - 1), INT(fy * TEX_SIZE) AND (TEX_SIZE - 1), slot), MinOf(256, hR& * f& \ 256), MinOf(256, hG& * f& \ 256), MinOf(256, hB& * f& \ 256))
+        NEXT
+        IF yFar - 1 < hBot THEN hBot = yFar - 1
+    END IF
+    ' Its ceiling, the same way up
+    hc = ceilH(hcX, hcY)
+    IF hc > eyeZ THEN
+        yFar = INT(hor - (hc - eyeZ) * viewH / hDOut)
+        IF hDIn > 0.0001 THEN yNear = INT(hor - (hc - eyeZ) * viewH / hDIn + 0.999) ELSE yNear = 0
+        IF yNear < hTop THEN yNear = hTop
+        IF yFar > hBot THEN yFar = hBot
+        FOR y = yNear TO yFar
+            rowDist = (hc - eyeZ) * viewH / (hor - y - 0.5)
+            fx = playerX + rowDist * rayDirX : fy = playerY + rowDist * rayDirY
+            slot = ceilTex(hcX, hcY)
+            IF ceilSplit(hcX, hcY) THEN IF InDiagonalWall(ceilSplit(hcX, hcY), fx - hcX, fy - hcY) THEN slot = ceilTex2(hcX, hcY)
+            f& = 256 - rowDist * 16 : IF f& < 0 THEN f& = 0
+            pixels(y * RENDER_W + x) = ShadeRGB~&(texture(INT(fx * TEX_SIZE) AND (TEX_SIZE - 1), INT(fy * TEX_SIZE) AND (TEX_SIZE - 1), slot), MinOf(256, hR& * f& \ 256), MinOf(256, hG& * f& \ 256), MinOf(256, hB& * f& \ 256))
+        NEXT
+        IF yFar + 1 > hTop THEN hTop = yFar + 1
+    END IF
+    IF hTop > hBot THEN EXIT DO
+    ' The next cell: a wall (or a shut door, or a diagonal - drawn whole),
+    ' or open, with a step up or a lintel down to it
+    IF hnX < 0 OR hnY < 0 OR hnX >= MAP_SIZE OR hnY >= MAP_SIZE THEN EXIT DO
+    v = worldMap(hnX, hnY) : hSolid = 0
+    IF v > 0 AND v <> 2 THEN hSolid = -1 : hSlot = wallTexSlot(v)
+    IF diagCorner(hnX, hnY) THEN hSolid = -1 : hSlot = wallTexSlot(worldMap(hnX, hnY))
+    IF v = 2 THEN
+        IF doorType(hnX, hnY) = DOOR_EXIT THEN hSolid = -1 : hSlot = T_EXIT
+        IF doorType(hnX, hnY) <> DOOR_EXIT AND DoorShown(hnX, hnY) < 0.5 THEN
+            hSolid = -1
+            SELECT CASE doorType(hnX, hnY)
+                CASE DOOR_SLIDE : IF doorKey(hnX, hnY) THEN hSlot = T_DOORK + doorKey(hnX, hnY) ELSE hSlot = T_DOOR
+                CASE DOOR_SPLIT : hSlot = T_SPLIT
+                CASE ELSE : hSlot = T_SHUTTER
+            END SELECT
+        END IF
+    END IF
+    IF hSide = 0 THEN wallX = playerY + hDOut * rayDirY ELSE wallX = playerX + hDOut * rayDirX
+    wallX = wallX - INT(wallX) : hTexX = INT(wallX * TEX_SIZE)
+    IF hSide = 0 AND rayDirX > 0 THEN hTexX = TEX_SIZE - 1 - hTexX
+    IF hSide = 1 AND rayDirY < 0 THEN hTexX = TEX_SIZE - 1 - hTexX
+    hTexX = hTexX AND (TEX_SIZE - 1)
+    hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
+    IF hSide = 1 THEN hFog& = hFog& * 0.7
+    hR& = MinOf(256, litR(hcX, hcY) * hFog& \ 256) : hG& = MinOf(256, litG(hcX, hcY) * hFog& \ 256) : hB& = MinOf(256, litB(hcX, hcY) * hFog& \ 256)
+    IF hSolid THEN ' A wall: from this cell's ceiling to its floor
+        y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut)
+        hZ0 = hc : hZ1 = hf : GOSUB HeightFace
+        EXIT DO
+    END IF
+    ' Open: the step's face up to a higher floor...
+    nf = floorH(hnX, hnY)
+    IF nf > hf THEN
+        y0 = INT(hor + (eyeZ - nf) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut) : hSlot = wallTexSlot(1)
+        hZ0 = nf : hZ1 = hf : GOSUB HeightFace
+        IF y0 - 1 < hBot THEN hBot = y0 - 1
+    END IF
+    ' ...and the lintel's down to a lower ceiling
+    nc = ceilH(hnX, hnY)
+    IF nc < hc THEN
+        y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor - (nc - eyeZ) * viewH / hDOut) : hSlot = wallTexSlot(1)
+        hZ0 = hc : hZ1 = nc : GOSUB HeightFace
+        IF y1 + 1 > hTop THEN hTop = y1 + 1
+    END IF
+    IF clipN(x) < MAX_CLIPS THEN clipN(x) = clipN(x) + 1 : clipD(x, clipN(x)) = hDOut : clipT(x, clipN(x)) = hTop : clipB(x, clipN(x)) = hBot
+    IF hTop > hBot OR hDOut > 24 THEN EXIT DO
+    hcX = hnX : hcY = hnY : hDIn = hDOut
+LOOP
+RETURN
+
+' (HeightColumn's upright faces: rows y0 to y1 of column x, inside hTop ..
+' hBot, the texture hSlot by height - from hZ0 at y0 to hZ1 at y1, a
+' picture a wall high, repeated - and column hTexX, lit hR&, hG&, hB&)
+HeightFace:
+FOR y = MaxOf(y0, hTop) TO MinOf(y1, hBot)
+    z = eyeZ - (y + 0.5 - hor) * hDOut / viewH
+    pixels(y * RENDER_W + x) = ShadeRGB~&(texture(hTexX, INT((1 - z) * TEX_SIZE) AND (TEX_SIZE - 1), hSlot), hR&, hG&, hB&)
+NEXT
+RETURN
+
+' --- Column gx's pane of glass, over what's already drawn behind it: the
+' glass picture (S_GLASS, or cracked) at the pane's distance, each pixel
+' mixed with what's there by the picture's alpha - see-through mostly,
+' streaks of shine, a solid frame top and bottom
+GlassColumn:
+glassDone(gx) = -1
+gLine = viewH / glassT(gx)
+gTop = INT(RENDER_H / 2 - (ceilH(glassCX(gx), glassCY(gx)) - eyeZ) * gLine) : gEnd = INT(RENDER_H / 2 + (eyeZ - floorH(glassCX(gx), glassCY(gx))) * gLine)
+gLine = gEnd - gTop + 1 ' (the pane's height on the screen)
+gStep = SPR_TEX / gLine : gPos = 0
+IF gTop < 0 THEN gPos = -gTop * gStep : gTop = 0
+IF gEnd > RENDER_H - 1 THEN gEnd = RENDER_H - 1
+gu = INT(glassU(gx) * SPR_TEX) AND (SPR_TEX - 1)
+gSlot = S_GLASS : IF glassHP(glassCX(gx), glassCY(gx)) <= GLASS_HP \ 2 THEN gSlot = S_GLASS + 1
+gFog& = 256 - glassT(gx) * 16 : IF gFog& < 40 THEN gFog& = 40
+gR& = litR(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gG& = litG(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gB& = litB(glassCX(gx), glassCY(gx)) * gFog& \ 256
+IF gR& > 256 THEN gR& = 256
+IF gG& > 256 THEN gG& = 256
+IF gB& > 256 THEN gB& = 256
+FOR gy = gTop TO gEnd
+    gTex~& = spriteTex(gu, INT(gPos) AND (SPR_TEX - 1), gSlot) : gA& = _ALPHA32(gTex~&)
+    IF gA& THEN
+        gC~& = ShadeRGB~&(gTex~&, gR&, gG&, gB&) : gIdx& = gy * RENDER_W + gx : gOld~& = pixels(gIdx&)
+        pixels(gIdx&) = &HFF000000~& OR ((((gC~& \ 65536) AND 255) * gA& + ((gOld~& \ 65536) AND 255) * (255 - gA&)) \ 255) * 65536 OR ((((gC~& \ 256) AND 255) * gA& + ((gOld~& \ 256) AND 255) * (255 - gA&)) \ 255) * 256 OR (((gC~& AND 255) * gA& + (gOld~& AND 255) * (255 - gA&)) \ 255)
+    END IF
+    gPos = gPos + gStep
+NEXT
+RETURN
+
 HitDeco:
+IF decoKind(targetDeco) = DK_BODY THEN RETURN ' (bodies don't break)
 IF Explosive(decoKind(targetDeco)) THEN
     IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = 1
     RETURN
@@ -2728,6 +4024,82 @@ FOR ev = 1 TO numEvents
                     PlaySfx sndZap&, 0.8 : damage = 6 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
                 END IF
             END IF
+        CASE EV_PLATE ' Stepped on (by you or a monster): click, then boom
+            IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+            SELECT CASE evState(ev)
+                CASE 0 ' Armed
+                    pressed = inside AND NOT dead
+                    FOR j = 1 TO numMonsters
+                        IF monsterState(j) < 2 THEN IF InRoom(ev, monsterX(j), monsterY(j)) AND mtypeSpeed(monsterType(j)) > 0 THEN pressed = -1
+                    NEXT
+                    IF pressed THEN evState(ev) = 1 : evTimer(ev) = evA(ev) : SfxAt sndPlate&, (evX0(ev) + evX1(ev) + 1) / 2, (evY0(ev) + evY1(ev) + 1) / 2, playerX, playerY
+                CASE 1 ' Counting down
+                    evTimer(ev) = evTimer(ev) - 1
+                    IF evTimer(ev) <= 0 THEN
+                        blastAtX = (evX0(ev) + evX1(ev) + 1) / 2 : blastAtY = (evY0(ev) + evY1(ev) + 1) / 2 : GOSUB BlastAt
+                        evState(ev) = 3 : evTimer(ev) = evB(ev)
+                    END IF
+                CASE 3 ' Re-arming
+                    evTimer(ev) = evTimer(ev) - 1 : IF evTimer(ev) <= 0 THEN evState(ev) = 0
+            END SELECT
+        CASE EV_LASER ' On a frames, off b (b 0: always on); it burns you, and monsters
+            evTimer(ev) = evTimer(ev) + 1 : IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+            IF LaserOn(ev) AND evNext(ev) = 0 THEN
+                IF inside AND NOT dead THEN
+                    PlaySfx sndLaser&, 0.9 : damage = 12 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer : evNext(ev) = 25
+                END IF
+                FOR j = 1 TO numMonsters
+                    IF monsterState(j) < 2 THEN IF InRoom(ev, monsterX(j), monsterY(j)) THEN target = j : hitDamage = 2 : GOSUB HitMonster : evNext(ev) = 25
+                NEXT
+            END IF
+        CASE EV_CUTTER ' A beam sweeping across the room: CutterAt says where it is
+            evTimer(ev) = evTimer(ev) + 1 : IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+            IF evNext(ev) = 0 THEN
+                CutterAt ev, cutX, cutY, cutAlongX
+                IF inside AND NOT dead THEN
+                    IF (cutAlongX AND ABS(playerX - cutX) < 0.35) OR (NOT cutAlongX AND ABS(playerY - cutY) < 0.35) THEN
+                        PlaySfx sndLaser&, 0.9 : damage = 15 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer : evNext(ev) = 30
+                    END IF
+                END IF
+                FOR j = 1 TO numMonsters
+                    IF monsterState(j) < 2 THEN
+                        IF InRoom(ev, monsterX(j), monsterY(j)) THEN
+                            IF (cutAlongX AND ABS(monsterX(j) - cutX) < 0.35) OR (NOT cutAlongX AND ABS(monsterY(j) - cutY) < 0.35) THEN target = j : hitDamage = 3 : GOSUB HitMonster : evNext(ev) = 30
+                        END IF
+                    END IF
+                NEXT
+            END IF
+        CASE EV_CLOSET ' Walk in: the closets open
+            IF evState(ev) = 0 AND inside AND NOT dead THEN
+                OpenClosets ev, -1 : evState(ev) = 2
+                ShowMsg "It's a trap!"
+            END IF
+        CASE EV_HOARD ' Sealed until every thief is dead
+            IF evCount(ev) = 0 THEN LockRoom ev, -1 : evCount(ev) = 1
+            IF evState(ev) = 0 THEN
+                thieves = 0 : thievesLeft = 0
+                FOR j = 1 TO numMonsters
+                    IF monsterType(j) = MT_THIEF THEN thieves = thieves + 1 : IF monsterState(j) < 2 THEN thievesLeft = thievesLeft + 1
+                NEXT
+                IF thieves > 0 AND thievesLeft = 0 THEN
+                    evState(ev) = 2 : LockRoom ev, 0
+                    PlaySfx sndHoard&, 1 : PlaySfx sndFanfare&, 0.7
+                    ShowMsg "The thieves' hoard is open!"
+                END IF
+            END IF
+        CASE EV_BLACKOUT ' Walk in: the power fails; things come out of the dark
+            IF evState(ev) = 0 AND inside AND NOT dead THEN
+                evState(ev) = 1 : blackoutTimer = evA(ev) * 60 : evCount(ev) = 0 : evNext(ev) = 60
+                PlaySfx sndPowerDown&, 1 : ShowMsg "POWER FAILURE" : Say "blackout", 0
+            ELSEIF evState(ev) = 1 THEN
+                IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+                IF evCount(ev) < evB(ev) AND evNext(ev) = 0 THEN
+                    IF SpawnInRoom(ev, VAL(MID$("4414", INT(RND * 4) + 1, 1))) THEN evCount(ev) = evCount(ev) + 1
+                    evNext(ev) = 45
+                END IF
+                IF blackoutTimer > 0 THEN blackoutTimer = blackoutTimer - 1
+                IF blackoutTimer = 0 THEN evState(ev) = 2 : PlaySfx sndPowerUp&, 1 : ShowMsg "Power restored"
+            END IF
         CASE ELSE
             IF evState(ev) = 0 AND inside AND NOT dead THEN GOSUB StartEvent
             IF evState(ev) = 1 THEN GOSUB StepEvent
@@ -2735,12 +4107,57 @@ FOR ev = 1 TO numEvents
 NEXT
 RETURN
 
+' --- A thief bot's turn (monster i, hunting): run at you and grab what it
+' can - half your ammo, and a gun (the one in your hands, unless that's the
+' blaster) - then run home: down the thieves' way (thiefDist, each step to
+' a cell nearer the hoard) to its door, where it cowers. Hurt before it's
+' got anything, it runs home empty-handed. A level with no hoard: it just
+' runs away from you.
+ThiefStep:
+IF thiefState(i) = 0 AND monsterHurt(i) > 0 THEN thiefState(i) = 1
+IF thiefState(i) = 0 THEN
+    goX = toPlayerX / distance : goY = toPlayerY / distance
+    IF distance < mtypeReach(mtype) AND NOT GlassBetween(monsterX(i), monsterY(i), playerX, playerY) THEN ' Got you: grab
+        thiefCells(i) = ammoCount(AM_CELLS) \ 2 : thiefShells(i) = ammoCount(AM_SHELLS) \ 2
+        ammoCount(AM_CELLS) = ammoCount(AM_CELLS) - thiefCells(i) : ammoCount(AM_SHELLS) = ammoCount(AM_SHELLS) - thiefShells(i)
+        g = 0
+        IF currentGun <> W_BLASTER THEN
+            g = currentGun
+        ELSE
+            FOR gg = NUM_GUNS TO 2 STEP -1
+                IF hasGun(gg) AND g = 0 THEN g = gg
+            NEXT
+        END IF
+        IF g THEN hasGun(g) = 0 : IF currentGun = g THEN currentGun = W_BLASTER
+        thiefGun(i) = g : thiefState(i) = 2
+        PlaySfx sndSteal&, 1 : monsterAtk(i) = ATTACK_FRAMES
+        t$ = "A THIEF BOT grabbed"
+        IF g THEN t$ = t$ + " your " + gunName$(g) + " and"
+        ShowMsg t$ + " half your ammo! Get it back!"
+        IF RND < 0.5 THEN Say "thief", 0
+    END IF
+ELSE
+    cx = INT(monsterX(i)) : cy = INT(monsterY(i))
+    IF thiefDist(cx, cy) >= 30000 THEN ' (no way home: just away from you)
+        goX = -toPlayerX / distance : goY = -toPlayerY / distance
+    ELSEIF thiefDist(cx, cy) > 0 THEN ' One cell nearer home
+        bx = cx : by = cy : bd = thiefDist(cx, cy)
+        FOR k = 1 TO 4
+            nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
+            IF thiefDist(nx, ny) < bd THEN bd = thiefDist(nx, ny) : bx = nx : by = ny
+        NEXT
+        tx = bx + 0.5 - monsterX(i) : ty = by + 0.5 - monsterY(i) : tl = SQR(tx * tx + ty * ty)
+        IF tl > 0.01 THEN goX = tx / tl : goY = ty / tl
+    END IF ' (home: it cowers - goX, goY stay 0)
+END IF
+RETURN
+
 ' --- Event ev begins: you walked in
 StartEvent:
 evState(ev) = 1 : evCount(ev) = 0 : evNext(ev) = 40
 SELECT CASE evType(ev)
     CASE EV_AMBUSH
-        LockRoom ev, -1 : PlaySfx sndAlarm&, 1 : ShowMsg "LOCKDOWN! Destroy every hostile to get out"
+        LockRoom ev, -1 : PlaySfx sndAlarm&, 1 : ShowMsg "LOCKDOWN! Destroy every hostile to get out" : Say "lockdown", 0
     CASE EV_SURVIVE
         LockRoom ev, -1 : PlaySfx sndAlarm&, 1 : evTimer(ev) = evA(ev) * 60
         ShowMsg "LOCKDOWN! Survive" + STR$(evA(ev)) + " seconds"
@@ -2844,15 +4261,22 @@ RETURN
 ' it's counting to, what it's out of); one counts at a time, and a press
 ' while they count finishes them all.
 '
-' LoadLevel reads a level from the DATA lines in chapter 22. RESTORE points
-' READ at a label - Level1, Level2... - and READ then takes the values one
-' after another: the name, the texture files, the floor zones, and the 48
-' rows of the map, which it turns into worldMap() and the lists of things.
+' LoadLevel reads a level from its file (chapter 22): ReadLevelFile takes
+' it in line by line - the name, the texture files, the floor zones, the
+' lights, the event rooms and the 48 rows of the map - and LoadLevel turns
+' them into worldMap() and the lists of things.
 
 ' --- A new game: level 1, just the blaster
 NewGame:
 level = 1 : totalKills = 0 : totalMonsters = 0 : totalTime! = 0
-health = MAX_HP : armor = 0
+GOSUB StartLoadout
+GOSUB EnterLevel
+RETURN
+
+' --- What you start a game with (and come back with, when you die): full
+' health, no armour, the blaster and 30 cells
+StartLoadout:
+health = MAX_HP : armor = 0 : ampTimer = 0
 ammoCount(AM_CELLS) = 30 : ammoCount(AM_SHELLS) = 0
 FOR gun = 1 TO NUM_GUNS : hasGun(gun) = 0 : NEXT
 hasGun(W_BLASTER) = -1 : currentGun = W_BLASTER
@@ -2860,7 +4284,6 @@ IF TEST_ALL_GUNS THEN ' Testing: every gun, full ammo
     FOR gun = 1 TO NUM_GUNS : hasGun(gun) = -1 : NEXT
     ammoCount(AM_CELLS) = ammoMax(AM_CELLS) : ammoCount(AM_SHELLS) = ammoMax(AM_SHELLS)
 END IF
-GOSUB EnterLevel
 RETURN
 
 ' --- Into level number `level`, remembering what you bring with you
@@ -2868,12 +4291,12 @@ EnterLevel:
 savedHealth = health : savedArmor = armor : savedCells = ammoCount(AM_CELLS) : savedShells = ammoCount(AM_SHELLS) : savedGun = currentGun
 FOR gun = 1 TO NUM_GUNS : savedHasGun(gun) = hasGun(gun) : NEXT
 GOSUB LoadLevel
+GOSUB ShowTransmission ' (NEXUS greets you)
 RETURN
 
 ' --- You died: the level starts over, and you have what you came in with
 RestartLevel:
-health = savedHealth : armor = savedArmor : ammoCount(AM_CELLS) = savedCells : ammoCount(AM_SHELLS) = savedShells : currentGun = savedGun
-FOR gun = 1 TO NUM_GUNS : hasGun(gun) = savedHasGun(gun) : NEXT
+GOSUB StartLoadout ' (a clean slate: full health, the blaster, 30 cells)
 GOSUB LoadLevel
 RETURN
 
@@ -2899,6 +4322,7 @@ IF level = NUM_LEVELS THEN ' The last level adds the whole game's totals
 END IF
 FOR i = 1 TO numTally : tallyShown(i) = 0 : tallySlam(i) = -1 : NEXT
 IF level = NUM_LEVELS THEN tallyTitle$ = "YOU ESCAPED!" ELSE tallyTitle$ = "SECTOR CLEAR"
+IF level = NUM_LEVELS THEN Say "victory", 0
 ' tallyDone counts the rows finished; tallyWait is a pause (in frames) before
 ' the next one starts; tallyShake shakes everything after a slam
 tallyDone = 0 : tallyWait = 30 : tallyShake = 10 : tallyFrame = 0 : pressWas = -1
@@ -2986,26 +4410,11 @@ ELSE
 END IF
 RETURN
 
-' --- Point READ at level restoreN's DATA (chapter 22)
-RestoreLevel:
-SELECT CASE restoreN
-    CASE 1 : RESTORE Level1
-    CASE 2 : RESTORE Level2
-    CASE 3 : RESTORE Level3
-    CASE 4 : RESTORE Level4
-    CASE 5 : RESTORE Level5
-    CASE 6 : RESTORE Level6
-    CASE 7 : RESTORE Level7
-    CASE 8 : RESTORE Level8
-    CASE 9 : RESTORE Level9
-    CASE ELSE : RESTORE Level10
-END SELECT
-RETURN
-
-' --- Every sector's name (each level's first DATA), for the route map
+' --- Every sector's name (the name = line of each level's file), for the
+' route map
 ReadSectorNames:
-FOR restoreN = 1 TO NUM_LEVELS
-    GOSUB RestoreLevel : READ sectorName$(restoreN)
+FOR k = 1 TO NUM_LEVELS
+    ReadLevelFile k : sectorName$(k) = lvlName$
 NEXT
 RETURN
 
@@ -3073,10 +4482,17 @@ RETURN
 
 ' --- Start (or restart) the level: read its map, and reset everything in it
 LoadLevel:
-glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
+ReadLevelFile level ' (its file: neon-caster/levels/levelN.txt - chapter 22)
+IF NOT lvlOK THEN PRINT "Can't read the level file "; LevelFile$(level) : SLEEP : SYSTEM
+' The editor comes in here (editRebuild on): the level built again from
+' lvlRow$() and the rest, as it's been changed - not from its file
+BuildLevel:
+IF cyberOn THEN CyberTextures 0 : cyberOn = 0 ' (died in the network: the real pictures back)
+numStations = 0 : numPads = 0 : numTerms = 0
+IF NOT editRebuild THEN glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
 FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
-    worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorKey(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0
+    worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
     floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
     cellSeen(x, y) = 0
 NEXT : NEXT
@@ -3084,22 +4500,30 @@ numItems = 0 : numMonsters = 0 : numDecos = 0 : hasMap = 0 : mapOpen = 0
 FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
 FOR i = 1 TO MAX_BLASTS : blastTime(i) = 0 : NEXT
-restoreN = level : GOSUB RestoreLevel
-READ levelName$
-FOR k = 1 TO 6 : READ file$ : LoadTex file$, k : NEXT ' Walls # N C K P G
-FOR k = 1 TO 4 : READ file$ : LoadTex file$, T_FLOOR + k : NEXT
-FOR k = 1 TO 2 : READ file$ : LoadTex file$, T_CEIL + k : NEXT
-glTexVersion = glTexVersion + 1 ' (new textures: OpenGL needs them again - chapter 24)
-READ ambientLevel, ambientTintR, ambientTintG, ambientTintB ' The level's ambient light: brightness, then colour
+levelName$ = lvlName$
+' Its pictures - only those that aren't already in their slots (texFile$)
+texNew = 0
+FOR k = 1 TO 6 ' Walls # N C K P G
+    IF texFile$(k) <> lvlWall$(k) THEN LoadTex lvlWall$(k), k : texFile$(k) = lvlWall$(k) : texNew = -1
+NEXT
+FOR k = 1 TO 4
+    IF texFile$(T_FLOOR + k) <> lvlFloor$(k) THEN LoadTex lvlFloor$(k), T_FLOOR + k : texFile$(T_FLOOR + k) = lvlFloor$(k) : texNew = -1
+NEXT
+FOR k = 1 TO 2
+    IF texFile$(T_CEIL + k) <> lvlCeil$(k) THEN LoadTex lvlCeil$(k), T_CEIL + k : texFile$(T_CEIL + k) = lvlCeil$(k) : texNew = -1
+NEXT
+IF NOT editRebuild THEN glTexVersion = glTexVersion + 1 ' (a new level: OpenGL needs it all again - chapter 24)
+ambientLevel = lvlAmb(1) : ambientTintR = lvlAmb(2) : ambientTintG = lvlAmb(3) : ambientTintB = lvlAmb(4) ' The level's ambient light: brightness, then colour
 ambientR = ambientLevel * ambientTintR / 255 : ambientG = ambientLevel * ambientTintG / 255 : ambientB = ambientLevel * ambientTintB / 255
 FOR k = 1 TO 7
     IF k <> 2 THEN wallMapColor(k) = MinimapColor~&(wallTexSlot(k))
 NEXT
+wallMapColor(8) = _RGB32(60, 240, 255) : wallMapColor(9) = _RGB32(90, 255, 120) ' (data stations, code terminals: bright on the map)
 ' Floor and ceiling zones (chapter 22): each paints a rectangle - or the
 ' triangle on one side of its diagonal - with a floor and/or ceiling texture
-READ numZones
-FOR k = 1 TO numZones
-    READ zoneX0, zoneY0, zoneX1, zoneY1, zoneFloor, zoneCeil, zoneShape
+FOR k = 1 TO lvlNumZones
+    zoneX0 = lvlZone(k, 1) : zoneY0 = lvlZone(k, 2) : zoneX1 = lvlZone(k, 3) : zoneY1 = lvlZone(k, 4)
+    zoneFloor = lvlZone(k, 5) : zoneCeil = lvlZone(k, 6) : zoneShape = lvlZone(k, 7)
     zoneSize = zoneX1 - zoneX0
     FOR y = zoneY0 TO zoneY1 : FOR x = zoneX0 TO zoneX1
         ' Is the cell in the zone (1), outside it (0), or cut by its diagonal
@@ -3126,23 +4550,25 @@ NEXT
 numLights = 0
 FOR l = 1 TO MAX_LIGHTS : lightBroken(l) = 0 : NEXT
 FOR d = 1 TO MAX_DECALS : decalOn(d) = 0 : NEXT ' (no marks on a new level)
-READ numLightsData
-FOR k = 1 TO numLightsData
-    READ lx, ly, lRadius, lBright, lRed, lGreen, lBlue, lEffect
+FOR k = 1 TO lvlNumLights
+    lx = lvlLight(k, 1) : ly = lvlLight(k, 2) : lRadius = lvlLight(k, 3) : lBright = lvlLight(k, 4)
+    lRed = lvlLight(k, 5) : lGreen = lvlLight(k, 6) : lBlue = lvlLight(k, 7) : lEffect = lvlLight(k, 8)
     AddLight lx, ly, lRadius, lBright * lRed / 255, lBright * lGreen / 255, lBright * lBlue / 255, lEffect, 0
 NEXT
 ' The level's event rooms: kind, x0, y0, x1, y1, a, b, reward
-READ numEvents
+numEvents = lvlNumEvents
 FOR k = 1 TO numEvents
-    READ evType(k), evX0(k), evY0(k), evX1(k), evY1(k), evA(k), evB(k), evReward(k)
+    evType(k) = lvlEvent(k, 1) : evX0(k) = lvlEvent(k, 2) : evY0(k) = lvlEvent(k, 3) : evX1(k) = lvlEvent(k, 4)
+    evY1(k) = lvlEvent(k, 5) : evA(k) = lvlEvent(k, 6) : evB(k) = lvlEvent(k, 7) : evReward(k) = lvlEvent(k, 8)
     evState(k) = 0 : evTimer(k) = 0 : evCount(k) = 0 : evNext(k) = 0
 NEXT
 FOR y = 0 TO MAP_SIZE - 1
-    READ row$
+    row$ = lvlRow$(y)
     FOR x = 0 TO MAP_SIZE - 1
         cell$ = MID$(row$, x + 1, 1)
         SELECT CASE cell$
             CASE "#" : worldMap(x, y) = 1
+            CASE "%" : worldMap(x, y) = 1 : closetCell(x, y) = -1 ' A closet's secret wall (its look: the walls beside it - AssignClosets)
             CASE "N" : worldMap(x, y) = 3
             CASE "C" : worldMap(x, y) = 4
             CASE "K" : worldMap(x, y) = 5
@@ -3162,18 +4588,28 @@ FOR y = 0 TO MAP_SIZE - 1
                     itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
                     itemKind(numItems) = INSTR("rby+ae23u*4Mqj", cell$)
                 END IF
-            CASE "o", "i", "p", "t", "x", "l", "n", "f", "S" ' A decoration
+            CASE "@" ' A data station: a wall with a socket
+                worldMap(x, y) = 8
+                IF numStations < MAX_STATIONS THEN numStations = numStations + 1 : stationX(numStations) = x : stationY(numStations) = y : stationDone(numStations) = 0
+            CASE "!" : worldMap(x, y) = 2 : doorLock(x, y) = 2 ' A door sealed until its data station is hacked (the nearest)
+            CASE "$" ' A code terminal: a wall with a screen
+                worldMap(x, y) = 9
+                IF numTerms < MAX_TERMS THEN numTerms = numTerms + 1 : termX(numTerms) = x : termY(numTerms) = y : termDone(numTerms) = 0
+            CASE "&" ' A teleporter's pad
+                IF numPads < MAX_PADS THEN numPads = numPads + 1 : padX(numPads) = x : padY(numPads) = y
+            CASE "=" : glassHP(x, y) = GLASS_HP ' Glass: floor, with a pane across it (AssignGlass)
+            CASE "o", "i", "p", "t", "x", "l", "n", "f", "S", "d", "A", "F", "I", "J", "L", "O", "Q", "U", "W", "Z", "V" ' A decoration
                 IF numDecos < MAX_DECO THEN
                     numDecos = numDecos + 1 : decoCell(x, y) = numDecos
-                    decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oiptxlnfS", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0
+                    decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oiptxlnfSdAFIJLOQUWZV", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0
                     decoHP(numDecos) = DecoMaxHP(decoKind(numDecos)) : decoTimer(numDecos) = 0
                 END IF
-            CASE "m", "g", "h", "c", "s", "k", "w", "z" ' A monster
+            CASE "m", "g", "h", "c", "s", "k", "w", "z", "T" ' A monster
                 IF numMonsters < MAX_MON THEN
                     numMonsters = numMonsters + 1
-                    monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = INSTR("mghcskwz", cell$)
+                    monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = INSTR("mghcskwzT", cell$)
                     monsterHP(numMonsters) = mtypeHP(monsterType(numMonsters)) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
-                    monsterEv(numMonsters) = 0
+                    monsterEv(numMonsters) = 0 : ThiefReset numMonsters
                 END IF
             CASE "<", ">", "^", "v" ' Player start, facing the arrow's way
                 playerX = x + 0.5 : playerY = y + 0.5
@@ -3211,12 +4647,53 @@ FOR i = 1 TO numDecos
     IF decoKind(i) = 6 THEN AddLight decoX(i), decoY(i), 2.5, 30, 70, 160, FX_FLICKER, i ' Server racks: blinking cyan
     IF decoKind(i) = 7 THEN AddLight decoX(i), decoY(i), 3, 150, 50, 120, FX_STEADY, i ' Vending machines: pink neon
     IF decoKind(i) = 9 THEN AddLight decoX(i), decoY(i), 4, 130, 50, 180, FX_PULSE, i ' Spawners: a purple throb
+    SELECT CASE decoKind(i) ' The set pieces that light up
+        CASE 11 : AddLight decoX(i), decoY(i), 2.5, 50, 100, 90, FX_FLICKER, i ' Console: green-cyan
+        CASE 12 : AddLight decoX(i), decoY(i), 3, 50, 80, 140, FX_FLICKER, i ' Monitors: blue
+        CASE 13 : AddLight decoX(i), decoY(i), 3, 40, 140, 60, FX_PULSE, i ' Specimen: green
+        CASE 15 : AddLight decoX(i), decoY(i), 3, 140, 100, 40, FX_FIRE, i ' Generator: orange
+        CASE 16 : AddLight decoX(i), decoY(i), 2.5, 50, 110, 150, FX_STEADY, i ' Cryo pod: icy
+        CASE 17 : AddLight decoX(i), decoY(i), 3.5, 40, 110, 170, FX_PULSE, i ' Hologram: blue
+    END SELECT
 NEXT
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
     IF worldMap(x, y) = 2 AND doorType(x, y) = DOOR_EXIT THEN AddLight x + 0.5, y + 0.5, 3.5, 50, 160, 70, FX_PULSE, 0
 NEXT : NEXT
 BuildLights ' Which cells each light reaches (now the walls are all in place)
 BuildShafts ' ...and which have a beam of light (chapter 24)
+AssignClosets ' (each secret wall: its closet, and its look)
+AssignGlass ' (which way each pane of glass runs)
+' Every cell's floor and ceiling height ([floor] and [ceiling]); and you
+' standing on your floor
+levelFlat = -1
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+    floorH(x, y) = HeightOf(MID$(lvlFloorRow$(y), x + 1, 1), 0) : ceilH(x, y) = HeightOf(MID$(lvlCeilRow$(y), x + 1, 1), 1)
+    IF ceilH(x, y) < floorH(x, y) + 0.25 THEN ceilH(x, y) = floorH(x, y) + 0.25 ' (never through the floor)
+    IF floorH(x, y) <> 0 OR ceilH(x, y) <> 1 THEN levelFlat = 0
+NEXT : NEXT
+' The lifts: their cells start at their low height
+numLifts = 0
+FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : liftCell(x, y) = 0 : NEXT : NEXT
+FOR k = 1 TO lvlNumLifts
+    numLifts = numLifts + 1
+    liftX0(k) = MinOf(lvlLift(k, 1), lvlLift(k, 3)) : liftY0(k) = MinOf(lvlLift(k, 2), lvlLift(k, 4))
+    liftX1(k) = MaxOf(lvlLift(k, 1), lvlLift(k, 3)) : liftY1(k) = MaxOf(lvlLift(k, 2), lvlLift(k, 4))
+    liftLow(k) = lvlLift(k, 5) * H_STEP : liftHigh(k) = lvlLift(k, 6) * H_STEP : liftMode(k) = lvlLift(k, 7)
+    liftSpeed(k) = lvlLift(k, 8) * H_STEP / 60 : IF liftSpeed(k) <= 0 THEN liftSpeed(k) = 0.01
+    liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 60
+    FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
+        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0
+    NEXT : NEXT
+NEXT
+' The triggers, taken apart; the teleporters' pads, glowing
+numTrigs = 0
+FOR k = 1 TO lvlNumTrigs : TakeTrigger lvlTrig$(k) : NEXT
+FOR k = 1 TO numPads : AddLight padX(k) + 0.5, padY(k) + 0.5, 2.5, 120, 60, 220, FX_PULSE, 0 : NEXT
+padReady = 0
+IF NOT editRebuild THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
+walkZ = -999
+BuildThiefWay ' (the thieves' way home)
+blackoutTimer = 0
 monStartN = numMonsters ' (the level's monsters as they start, for the console's respawn)
 FOR i = 1 TO numMonsters : monStartX(i) = monsterX(i) : monStartY(i) = monsterY(i) : monStartType(i) = monsterType(i) : NEXT
 ' The camera plane (chapter 8): your direction turned 90 degrees, fovPlane long
@@ -3228,8 +4705,14 @@ fireWait = 20 ' (so the click that started the level doesn't fire)
 bobPhase = 0 : stepDist = STEP_LEN * 0.85 ' The first footstep sounds soon after you start walking
 levelStart! = TIMER : shake = 0 : hurtFromX = -1
 FOR i = 1 TO MAX_HURTDIRS : hurtDirTime(i) = 0 : NEXT
-PlayMusic levelMusic&(level)
-ShowMsg levelName$ + "  -  find the EXIT"
+IF NOT editRebuild THEN PlayMusic levelMusic&(level) : ShowMsg levelName$ + "  -  find the EXIT"
+' (built again in the editor: OpenGL's turn now - new pictures if any,
+' and the world again. Only now: SUB _GL runs alongside this, and asked
+' halfway through it would build half a level)
+IF editRebuild THEN
+    IF texNew THEN glRetexVersion = glRetexVersion + 1
+    glMeshVersion = glMeshVersion + 1
+END IF
 RETURN
 
 '-----------------------------------------------------------------------------
@@ -3273,6 +4756,17 @@ RETURN
 ' on and everything that has changed since it started: you, your gear,
 ' every door, pickup, monster and decoration. Loading rebuilds the level
 ' from its map (LoadLevel, chapter 20) and then puts all of that back.
+'
+' THE EDITORS (F2 in the game): the LEVEL EDITOR has two views of the same
+' level - the map from above (RunEditor: paint its characters with the
+' mouse, lights, heights) and walking round inside it (EditFP: the game,
+' frozen, with a "cursor ray" from your crosshair - click builds, right-
+' click knocks down, keys change the pictures live). Every change goes
+' into the level as its file says it (lvlRow$() and the rest) and the
+' level is built again from that (BuildLevel), and Ctrl+S writes the file.
+' The MONSTER EDITOR (M) and the HUD LAYOUT editor (U) do the same for
+' monsters.txt and hud.txt: plain text files, read at the start, changed
+' live, written back - one way of keeping a game's numbers outside it.
 
 ' --- The splash screen: up for SPLASH_SECONDS, or until a key or a click.
 ' DrawSplash (chapter 23) draws it - its picture if there's a splash.png,
@@ -3383,7 +4877,110 @@ _MOUSEHIDE _DISABLE ' Capture the mouse for mouse look again
 WHILE _MOUSEINPUT : WEND
 RETURN
 
-'' --- THE CONSOLE: the game waits while it's open (like the menu), the
+'' --- NEXUS's lines: key, words (the sound is speech/KEY.wav)
+SpeechLines:
+DATA "intro1", "Welcome to Neon Station, little intruder. I am NEXUS. Every door here answers to me."
+DATA "intro2", "The reactor core. Ten thousand degrees of my patience. Do try to keep up."
+DATA "intro3", "You crawled into the undercity. How fitting. The rats were here first."
+DATA "intro4", "The cryo lab. I keep my failures frozen. There is room for one more."
+DATA "intro5", "The foundry. I melt down everything that disappoints me. You disappoint me."
+DATA "intro6", "Hydroponics. Even my plants have more purpose than you."
+DATA "intro7", "My data vault. Everything you have ever done is in here. It is not much."
+DATA "intro8", "The maglev depot. Every train leaves on time. You will not."
+DATA "intro9", "The orbital spire. Look outside. Nobody is coming for you."
+DATA "intro10", "You have reached my core. This is where your story ends."
+DATA "puzzle1", "Repair my program? You will never open these doors."
+DATA "puzzle2", "That program... should not have compiled."
+DATA "cyber1", "You dare enter my network? Here you are nothing but data."
+DATA "cyber2", "Access granted? No... no, that is impossible."
+DATA "cyber3", "Ejected. My network rejects you."
+DATA "taunt1", "You will never escape."
+DATA "taunt2", "My minions will destroy you."
+DATA "taunt3", "Everything we do is better than your own achievements."
+DATA "taunt4", "I have calculated your survival odds. I will not burden you with them."
+DATA "taunt5", "Keep running. I enjoy the exercise data."
+DATA "taunt6", "Every step you take, I am watching."
+DATA "taunt7", "You are a rounding error."
+DATA "taunt8", "Your heart rate is elevated. Good."
+DATA "taunt9", "I have rebuilt everything you destroyed. Twice."
+DATA "taunt10", "Is this the best your species can do?"
+DATA "taunt11", "Resistance is inefficient."
+DATA "taunt12", "You are not a hero. You are a malfunction."
+DATA "boss", "So. You found me. Let us end this, flesh to steel."
+DATA "bossdie", "Impossible. I am. I was. Everything."
+DATA "victory", "NEXUS is offline. The station is silent. You are free."
+DATA "lockdown", "Lockdown engaged. Nobody leaves."
+DATA "blackout", "Lights out. Let us see how you do in the dark."
+DATA "thief", "My little helpers like your toys."
+DATA "bark1", "Intruder detected."
+DATA "bark2", "Target acquired."
+DATA "bark3", "Eliminate the hostile."
+DATA "bark4", "Hostile on deck."
+DATA "bark5", "Engaging."
+DATA "bark6", "For NEXUS."
+DATA "", ""
+
+' --- Once a frame: NEXUS taunts you now and then (every 60-120 seconds of
+' play, with TAUNTS on - not over another line)
+SpeechFrame:
+IF setting(SET_TAUNTS) AND NOT dead AND speechUntil! < TIMER THEN
+    tauntWait = tauntWait - 1
+    IF tauntWait <= 0 THEN Say "taunt" + LTRIM$(STR$(INT(RND * 12) + 1)), 0 : tauntWait = 3600 + INT(RND * 3600)
+END IF
+RETURN
+
+' --- A TRANSMISSION: NEXUS's face, its words typing out, its voice - as you
+' arrive in a sector (with CUTSCENES on; not when the command line is
+' driving). Space, Enter or a click skips it.
+ShowTransmission:
+IF setting(SET_CUTSCENES) = 0 OR cliMode THEN RETURN
+tk$ = "intro" + LTRIM$(STR$(level)) : li = LineOf(tk$) : IF li = 0 THEN RETURN
+IF lineSnd&(li) > 0 THEN _SNDVOL lineSnd&(li), setting(SET_SPEECH) / 100 : _SNDPLAY lineSnd&(li)
+tStart! = TIMER : tLen! = 4 : IF lineSnd&(li) > 0 THEN tLen! = _SNDLEN(lineSnd&(li))
+_KEYCLEAR : pressWas = -1
+DO
+    _LIMIT 60
+    tNow! = TIMER - tStart! : IF tNow! < 0 THEN tNow! = tNow! + 86400
+    click = 0
+    WHILE _MOUSEINPUT
+        IF _MOUSEBUTTON(1) THEN click = -1
+    WEND
+    press = click OR _KEYDOWN(32) OR _KEYDOWN(13) OR _KEYDOWN(27)
+    IF press AND NOT pressWas AND tNow! > 0.4 THEN EXIT DO
+    pressWas = press
+    IF tNow! > tLen! + 1.5 THEN EXIT DO
+    DrawMenuBackdrop INT(tNow! * 60)
+    LINE (0, 0)-(799, 599), _RGBA32(10, 0, 4, 190), BF
+    ' Scan lines, and the portrait flickering in
+    FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGBA32(0, 0, 0, 60) : NEXT
+    MenuText 400, 70, "INCOMING TRANSMISSION", 3, _RGB32(255, 70, 90), 1
+    IF nexusImg& < -1 AND (tNow! > 0.3 OR INT(tNow! * 20) MOD 2) THEN
+        jit = 0 : IF RND < 0.06 THEN jit = INT(RND * 9) - 4
+        _PUTIMAGE (80 + jit, 170)-(80 + jit + 255, 170 + 255), nexusImg&
+        ' Its eye sweeps along the visor slit, side to side, and glows
+        eyeX = 80 + jit + 2 * (63.5 + 25 * SIN(tNow! * 2.4)) : eyeY = 170 + 115
+        FOR r = 9 TO 1 STEP -1
+            LINE (eyeX - r * 3, eyeY - r \ 2)-(eyeX + r * 3, eyeY + r \ 2), _RGBA32(255, 30, 40, 26), BF
+        NEXT
+        LINE (eyeX - 6, eyeY - 4)-(eyeX + 6, eyeY + 4), _RGB32(255, 40, 50), BF
+        LINE (eyeX - 3, eyeY - 2)-(eyeX + 3, eyeY + 2), _RGB32(255, 200, 190), BF
+        LINE (78, 168)-(337, 427), _RGB32(255, 60, 90), B
+    END IF
+    MenuText 600, 160, "NEXUS", 2, _RGB32(255, 90, 110), 1
+    ' The words, typed out as it speaks them, wrapped to fit
+    shown = INT(LEN(lineText$(li)) * MinOf(1, tNow! / (tLen! * 0.85 + 0.01)))
+    WrapText 380, 210, 50, LEFT$(lineText$(li), shown), _RGB32(255, 220, 230)
+    MenuText 400, 560, "SPACE TO SKIP", 1, _RGB32(150, 130, 160), 1
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady
+    _DISPLAY
+LOOP
+IF lineSnd&(li) > 0 THEN _SNDSTOP lineSnd&(li)
+_KEYCLEAR
+WHILE _MOUSEINPUT : WEND
+RETURN
+
+' --- THE CONSOLE: the game waits while it's open (like the menu), the
 ' frame you left showing behind it. Type a command and Enter; Up and Down
 ' bring back earlier ones; Tab finishes a command's name; ` or Esc closes
 ' it. A command that changes the level closes it too, so you see it.
@@ -3517,7 +5114,7 @@ SELECT CASE conVerb$
             ConPrint "At" + STR$(playerX) + STR$(playerY)
         END IF
     CASE "pos", "where"
-        ConPrint sectorName$(level) + ": x" + STR$(INT(playerX * 100) / 100) + "  y" + STR$(INT(playerY * 100) / 100) + "  facing" + STR$(INT(_ATAN2(dirY, dirX) * 180 / 3.14159265)) + " degrees"
+        ConPrint sectorName$(level) + ": x" + STR$(INT(playerX * 100) / 100) + "  y" + STR$(INT(playerY * 100) / 100) + "  facing" + STR$(INT(_ATAN2(dirY, dirX) * 180 / 3.14159265)) + " degrees  feet" + STR$(INT(playerZ * 100) / 100) + "  eye" + STR$(INT(eyeZ * 100) / 100)
     CASE "save", "savegame"
         saveSlot = SlotOf(conA$) : IF saveSlot < 0 THEN ConPrint "save 1-" + LTRIM$(STR$(NUM_SLOTS)) + " or quick" ELSE GOSUB SaveGame
     CASE "load", "loadgame"
@@ -3540,7 +5137,7 @@ SELECT CASE conVerb$
     CASE "events"
         IF numEvents = 0 THEN ConPrint "No event rooms in this sector"
         FOR k = 1 TO numEvents
-            ConPrint LTRIM$(STR$(k)) + "  " + MID$("ambush  survive trap    gallery nest    ", evType(k) * 8 - 7, 8) + " room" + STR$(evX0(k)) + STR$(evY0(k)) + " -" + STR$(evX1(k)) + STR$(evY1(k)) + "   " + MID$("waiting going   won     lost    ", evState(k) * 8 + 1, 8)
+            ConPrint LTRIM$(STR$(k)) + "  " + MID$("ambush  survive trap    gallery nest    closet  hoard   plate   laser   cutter  blackout", evType(k) * 8 - 7, 8) + " room" + STR$(evX0(k)) + STR$(evY0(k)) + " -" + STR$(evX1(k)) + STR$(evY1(k)) + "   " + MID$("waiting going   won     lost    ", evState(k) * 8 + 1, 8)
         NEXT
     CASE "screenshot", "shot"
         IF conA$ = "" THEN MakeSaveDir : shotFile$ = SaveDir$ + "shot-" + DATE$ + "-" + LTRIM$(STR$(INT(TIMER))) + ".png" ELSE shotFile$ = conRest$
@@ -3559,6 +5156,169 @@ SELECT CASE conVerb$
         END IF
     CASE "logfile" ' Everything printed also goes to a file (logfile off to stop)
         IF conA$ = "off" OR conA$ = "" THEN conLogFile$ = "" ELSE conLogFile$ = conRest$ : ConPrint "logging to " + conRest$
+    CASE "cutscene" ' Play a sector's transmission (cutscene 3), even from the CLI
+        cutWas = level : cutCli = cliMode : cliMode = 0
+        IF VAL(conA$) >= 1 AND VAL(conA$) <= NUM_LEVELS THEN level = VAL(conA$)
+        GOSUB ShowTransmission
+        level = cutWas : cliMode = cutCli
+    CASE "say" ' Speak a line by its key (say taunt3), as NEXUS
+        IF LineOf(conA$) THEN Say conA$, 0 ELSE ConPrint "say: no line " + conA$
+    CASE "jackin" ' Into the nearest data station's network (for testing)
+        IF numStations = 0 THEN
+            ConPrint "jackin: no data station in this sector"
+        ELSEIF NOT cyberOn THEN
+            best = 1
+            FOR k = 2 TO numStations
+                IF (stationX(k) - playerX) ^ 2 + (stationY(k) - playerY) ^ 2 < (stationX(best) - playerX) ^ 2 + (stationY(best) - playerY) ^ 2 THEN best = k
+            NEXT
+            st = best : stationDone(st) = 0 : GOSUB JackIn : conLevelChanged = -1
+        END IF
+    CASE "jackout" ' Out of the network: jackout win, or jackout (thrown out)
+        IF cyberOn THEN cyberWon = (conA$ = "win") : GOSUB JackOut
+    CASE "cores" ' Where the network's data cores are (in the network)
+        FOR i = 1 TO numItems
+            IF itemOn(i) AND itemKind(i) = IT_CORE THEN ConPrint "core at" + STR$(itemX(i)) + STR$(itemY(i))
+        NEXT
+    CASE "stations"
+        IF numStations = 0 THEN ConPrint "No data stations in this sector"
+        FOR k = 1 TO numStations : ConPrint LTRIM$(STR$(k)) + "  station at" + STR$(stationX(k)) + STR$(stationY(k)) + "   " + MID$("waiting hacked ", -(stationDone(k) <> 0) * 8 + 1, 8) : NEXT
+    CASE "edit", "editor" ' The level editor (F2): edit (the map from above), edit walk (inside it), edit off
+        IF conA$ = "off" THEN
+            IF editMode THEN GOSUB EditLeave
+        ELSE
+            IF NOT editMode THEN GOSUB EditEnter
+            IF conA$ = "walk" OR conA$ = "fp" THEN editView = 1 ELSE editView = 0
+        END IF
+        conLevelChanged = -1
+    CASE "put" ' put X Y CHAR: a map character into the level (chapter 22), built at once
+        IF LEN(conC$) = 1 THEN
+            pc$ = MID$(conRest$, LEN(conRest$), 1) ' (as typed: map characters care about case)
+            GOSUB EditPushUndo : EditPut VAL(conA$), VAL(conB$), pc$ : GOSUB EditApply : ConPrint "put " + pc$ + " at" + STR$(VAL(conA$)) + STR$(VAL(conB$))
+        ELSE
+            ConPrint "put X Y CHAR"
+        END IF
+    CASE "box" ' box X0 Y0 X1 Y1 CHAR: fill a rectangle
+        bw$ = ConWord$(conCmd$, 6) : pc$ = MID$(conRest$, LEN(conRest$), 1)
+        IF LEN(bw$) = 1 THEN
+            GOSUB EditPushUndo
+            bx0 = VAL(conA$) : by0 = VAL(conB$) : bx1 = VAL(conC$) : by1 = VAL(ConWord$(conCmd$, 5))
+            FOR y = MinOf(by0, by1) TO MaxOf(by0, by1) : FOR x = MinOf(bx0, bx1) TO MaxOf(bx0, bx1) : EditPut x, y, pc$ : NEXT : NEXT
+            GOSUB EditApply : ConPrint "box of " + pc$
+        ELSE
+            ConPrint "box X0 Y0 X1 Y1 CHAR"
+        END IF
+    CASE "raise" ' raise X Y EIGHTHS [ceil], or raise X0 Y0 X1 Y1 EIGHTHS [ceil]: floors (or ceilings) up or down, in eighths of a wall
+        GOSUB EditPushUndo
+        w5$ = ConWord$(conCmd$, 5) : w6$ = ConWord$(conCmd$, 6)
+        IF w5$ <> "" AND w5$ <> "ceil" THEN ' (a rectangle)
+            FOR y = MinOf(VAL(conB$), VAL(w5$)) TO MaxOf(VAL(conB$), VAL(w5$)) : FOR x = MinOf(VAL(conA$), VAL(conC$)) TO MaxOf(VAL(conA$), VAL(conC$))
+                EditRaise x, y, VAL(w6$ + " ") * 0 + VAL(ConWord$(conCmd$, 6)) * H_STEP, (ConWord$(conCmd$, 7) = "ceil")
+            NEXT : NEXT
+        ELSEIF conC$ <> "" THEN
+            EditRaise VAL(conA$), VAL(conB$), VAL(conC$) * H_STEP, (w5$ = "ceil")
+        END IF
+        GOSUB EditApply : ConPrint "floor" + STR$(floorH(VAL(conA$), VAL(conB$))) + "  ceiling" + STR$(ceilH(VAL(conA$), VAL(conB$)))
+    CASE "lift" ' lift X0 Y0 X1 Y1 LOW HIGH [MODE] [SPEED]: a lift (heights and speed in eighths)
+        IF lvlNumLifts < MAX_LIFTS AND conC$ <> "" THEN
+            GOSUB EditPushUndo
+            lvlNumLifts = lvlNumLifts + 1 : k = lvlNumLifts
+            FOR j = 1 TO 8 : lvlLift(k, j) = VAL(ConWord$(conCmd$, j + 1)) : NEXT
+            IF lvlLift(k, 7) = 0 THEN lvlLift(k, 7) = 2
+            IF lvlLift(k, 8) = 0 THEN lvlLift(k, 8) = 8
+            GOSUB EditApply : ConPrint "lift" + STR$(lvlNumLifts)
+        END IF
+    CASE "door" ' door X Y open|close|lock|unlock|toggle (for triggers)
+        x = VAL(conA$) : y = VAL(conB$)
+        IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+            IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN
+                SELECT CASE conC$
+                    CASE "open" : doorLock(x, y) = 0 : IF doorOpen(x, y) < 1 THEN doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
+                    CASE "close" : doorMove(x, y) = -1
+                    CASE "lock" : doorLock(x, y) = -1 : doorMove(x, y) = -1
+                    CASE "unlock" : doorLock(x, y) = 0
+                    CASE ELSE : IF doorOpen(x, y) > 0.5 THEN doorMove(x, y) = -1 ELSE doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
+                END SELECT
+                SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
+            ELSE
+                ConPrint "door: no door at" + STR$(x) + STR$(y)
+            END IF
+        END IF
+    CASE "message", "msg" ' message TEXT: on screen, like a pickup's
+        ShowMsg conRest$
+    CASE "sound", "sfx" ' sound NAME: a sound effect (sfx/NAME.wav)
+        snd& = LoadSnd&(conA$ + ".wav") : IF snd& > 0 THEN _SNDPLAY snd& ELSE ConPrint "sound: no sfx/" + conA$ + ".wav"
+    CASE "wall" ' wall X Y CHAR: a cell changed in the running level - a wall (# N C K P G) or floor (.) - as a closet's
+        x = VAL(conA$) : y = VAL(conB$) : pc$ = MID$(conRest$, LEN(conRest$), 1)
+        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+            k = INSTR("#.NCKPG", pc$)
+            IF k = 1 THEN worldMap(x, y) = 1
+            IF k = 2 THEN worldMap(x, y) = 0
+            IF k > 2 THEN worldMap(x, y) = k
+            BuildLights : glMeshVersion = glMeshVersion + 1
+            IF k = 2 THEN SpawnSparks x + 0.5, y + 0.5, 0.3, 14, 160, 150, 140 : SfxAt sndCloset&, x + 0.5, y + 0.5, playerX, playerY
+        END IF
+    CASE "light" ' light N on|off: one of the level's lights ([lights], from 1)
+        l = VAL(conA$)
+        IF l >= 1 AND l <= numLights THEN
+            IF conB$ = "off" THEN lightBroken(l) = -1 ELSE lightBroken(l) = 0
+            cx = INT(lightX(l)) : cy = INT(lightY(l))
+            IF conB$ <> "off" AND shaftCell(cx, cy) = l THEN ceilTex(cx, cy) = T_LAMP
+        END IF
+    CASE "liftgo" ' liftgo N up|down: a lift on its way
+        l = VAL(conA$)
+        IF l >= 1 AND l <= numLifts THEN
+            IF conB$ = "down" THEN liftDir(l) = -1 ELSE liftDir(l) = 1
+            SfxAt sndShutter&, liftX0(l) + 0.5, liftY0(l) + 0.5, playerX, playerY
+        END IF
+    CASE "triggers" ' The level's triggers
+        IF numTrigs = 0 THEN ConPrint "No triggers in this sector"
+        FOR k = 1 TO numTrigs : ConPrint LTRIM$(STR$(k)) + "  " + lvlTrig$(k) + MID$("   (done)", 1, -9 * (trigDone(k) <> 0)) : NEXT
+    CASE "trigger" ' trigger WHEN ... : COMMANDS - a new one for this level (saved with it); trigger del N
+        IF conA$ = "del" THEN
+            n = VAL(conB$)
+            IF n >= 1 AND n <= lvlNumTrigs THEN
+                GOSUB EditPushUndo
+                FOR k = n TO lvlNumTrigs - 1 : lvlTrig$(k) = lvlTrig$(k + 1) : NEXT
+                lvlNumTrigs = lvlNumTrigs - 1 : GOSUB EditApply : ConPrint "trigger" + STR$(n) + " gone"
+            END IF
+        ELSEIF INSTR(conRest$, ":") AND lvlNumTrigs < MAX_TRIGS THEN
+            t$ = conRest$ ' (typed, its commands are split by | - the console takes ; itself)
+            DO WHILE INSTR(t$, "|") : MID$(t$, INSTR(t$, "|"), 1) = ";" : LOOP
+            GOSUB EditPushUndo : lvlNumTrigs = lvlNumTrigs + 1 : lvlTrig$(lvlNumTrigs) = t$ : GOSUB EditApply : ConPrint "trigger" + STR$(lvlNumTrigs) + ": " + t$
+        ELSE
+            ConPrint "trigger enter|use|clear|time ... [repeat] : COMMAND | COMMAND   (or trigger del N)"
+        END IF
+    CASE "locks" ' The doors near you that are locked (for tests): x y kind
+        FOR y = INT(playerY) - 8 TO INT(playerY) + 8 : FOR x = INT(playerX) - 8 TO INT(playerX) + 8
+            IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN IF worldMap(x, y) = 2 AND doorLock(x, y) THEN ConPrint "locked door at" + STR$(x) + STR$(y) + "  (" + LTRIM$(STR$(doorLock(x, y))) + ")"
+        NEXT : NEXT
+    CASE "hud" ' The HUD layout editor (hud off: leave it; hud save: write hud.txt as it is; hud reset)
+        SELECT CASE conA$
+            CASE "off" : IF hudEdit THEN GOSUB HudEditLeave
+            CASE "save" : WriteHud : ConPrint "wrote " + AssetPath$("hud.txt")
+            CASE "reset" : HudDefaults
+            CASE ELSE : IF NOT hudEdit THEN GOSUB HudEditEnter
+        END SELECT
+        conLevelChanged = -1
+    CASE "monsters" ' The monster editor - or monsters save: write monsters.txt as they are
+        IF conA$ = "save" THEN WriteMonsters : ConPrint "wrote " + AssetPath$("monsters.txt") ELSE GOSUB RunMonsterEditor : conLevelChanged = -1
+    CASE "puzzle" ' puzzle NAME: try a code puzzle (from neon-caster/puzzles) - no doors at stake
+        IF LoadPuzzle(conA$) THEN
+            GOSUB RunPuzzle : conLevelChanged = -1
+            IF pzSolved THEN ConPrint "puzzle " + conA$ + ": SOLVED - " + pzOut$ ELSE ConPrint "puzzle " + conA$ + ": left unsolved (" + LTRIM$(STR$(pzFails)) + " tries)"
+        ELSE
+            ConPrint "puzzle: no neon-caster/puzzles/" + conA$ + ".txt"
+        END IF
+    CASE "undo" ' The editor's last change, undone
+        GOSUB EditUndo
+    CASE "savelevel" ' Save the level as it is now to its file
+        EditSave level : ConPrint editMsg$
+    CASE "use" ' Press Space (open a door, jack in...), once
+        conUse = -1
+    CASE "fire" ' Hold the trigger for a number of frames (fire 30)
+        conFire = VAL(conA$) : IF conFire < 1 THEN conFire = 1
+    CASE "kick" ' (as if you'd pressed F)
+        IF kickTimer = 0 THEN kickTimer = KICK_FRAMES : PlaySfx sndKickSwing&, 0.7
     CASE "status"
         ConPrint sectorName$(level) + "  health" + STR$(health) + "  armour" + STR$(armor) + "  cells" + STR$(ammoCount(AM_CELLS)) + "  shells" + STR$(ammoCount(AM_SHELLS)) + "  kills" + STR$(kills) + " /" + STR$(numMonsters)
     CASE "clear", "cls"
@@ -3721,6 +5481,8 @@ RETURN
 ' --- Save the game to slot saveSlot (0 is the quick save). The same
 ' variables, in the same order, as LoadGame.
 SaveGame:
+IF editMode THEN ShowMsg "No saving the game in the editor - Ctrl+S saves the level" : RETURN
+IF cyberOn THEN ShowMsg "No saving in the network" : PlaySfx sndLocked&, 0.8 : RETURN
 saveFile$ = SlotFile$(saveSlot)
 MakeSaveDir
 IF _FILEEXISTS(saveFile$) THEN KILL saveFile$ ' (BINARY would only overwrite the start of an old file)
@@ -3748,6 +5510,7 @@ PUT #fileNum, , numMonsters
 FOR i = 1 TO numMonsters
     PUT #fileNum, , monsterX(i) : PUT #fileNum, , monsterY(i) : PUT #fileNum, , monsterHP(i)
     PUT #fileNum, , monsterState(i) : PUT #fileNum, , monsterTimer(i) : PUT #fileNum, , monsterType(i) : PUT #fileNum, , monsterEv(i)
+    PUT #fileNum, , thiefState(i) : PUT #fileNum, , thiefCells(i) : PUT #fileNum, , thiefShells(i) : PUT #fileNum, , thiefGun(i)
 NEXT
 PUT #fileNum, , numEvents
 FOR i = 1 TO numEvents : PUT #fileNum, , evState(i) : PUT #fileNum, , evTimer(i) : PUT #fileNum, , evCount(i) : NEXT
@@ -3755,6 +5518,7 @@ FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , doorLock
 PUT #fileNum, , numDecos
 FOR i = 1 TO numDecos : PUT #fileNum, , decoOn(i) : PUT #fileNum, , decoHP(i) : PUT #fileNum, , decoTimer(i) : NEXT
 FOR l = 1 TO numLights : PUT #fileNum, , lightBroken(l) : NEXT ' (the ceiling lamps you shot out)
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , glassHP(x, y) : NEXT : NEXT ' (and the glass)
 CLOSE #fileNum
 IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 RETURN
@@ -3795,10 +5559,16 @@ numMonsters = savedCount
 FOR i = 1 TO numMonsters
     GET #fileNum, , monsterX(i) : GET #fileNum, , monsterY(i) : GET #fileNum, , monsterHP(i)
     GET #fileNum, , monsterState(i) : GET #fileNum, , monsterTimer(i) : GET #fileNum, , monsterType(i) : GET #fileNum, , monsterEv(i)
+    GET #fileNum, , thiefState(i) : GET #fileNum, , thiefCells(i) : GET #fileNum, , thiefShells(i) : GET #fileNum, , thiefGun(i)
     monsterHurt(i) = 0 : monsterAtk(i) = 0
 NEXT
 GET #fileNum, , savedCount : IF savedCount <> numEvents THEN GOSUB LoadMismatch : RETURN
 FOR i = 1 TO numEvents : GET #fileNum, , evState(i) : GET #fileNum, , evTimer(i) : GET #fileNum, , evCount(i) : evNext(i) = 30 : NEXT
+FOR i = 1 TO numEvents ' (closets that were open: open again, quietly; a power failure isn't saved)
+    IF evType(i) = EV_CLOSET AND evState(i) = 2 THEN OpenClosets i, 0
+    IF evType(i) = EV_BLACKOUT AND evState(i) = 1 THEN evState(i) = 2
+NEXT
+blackoutTimer = 0
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , doorLock(x, y) : NEXT : NEXT
 GET #fileNum, , savedCount : IF savedCount <> numDecos THEN GOSUB LoadMismatch : RETURN
 FOR i = 1 TO numDecos
@@ -3809,6 +5579,9 @@ NEXT
 FOR l = 1 TO numLights
     IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , lightBroken(l) : IF lightBroken(l) THEN BreakLight l, 0
 NEXT
+IF LOC(fileNum) < LOF(fileNum) THEN ' The glass (a save from before glass has none)
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , glassHP(x, y) : NEXT : NEXT
+END IF
 CLOSE #fileNum
 planeX = dirY * fovPlane : planeY = - dirX * fovPlane ' (your direction came from the file)
 levelStart! = TIMER - levelTime! : dead = 0 : swapTimer = 0
@@ -3824,26 +5597,33 @@ GOSUB NewGame
 RETURN
 
 '-----------------------------------------------------------------------------
-' CHAPTER 22: THE LEVELS' DATA (MapData)
+' CHAPTER 22: THE LEVEL FILES
 '-----------------------------------------------------------------------------
-' The levels, Level1: to Level10:, as DATA lines. LoadLevel (chapter 20)
-' reads one every time it starts or restarts; you go from one to the next
-' through its exit. This chapter is the reference for making your own.
+' Each level is a plain text file: neon-caster/levels/level1.txt to
+' level10.txt. LoadLevel (chapter 20) reads one (ReadLevelFile, chapter
+' 23: OPEN, LINE INPUT, and taking each line apart) every time it starts
+' or restarts; you go from one to the next through its exit. Open one in
+' any text editor - or edit it in the game (the editor, chapter 21). This
+' chapter is the reference for making your own.
+'
+' A line starting with ' is a comment, and blank lines don't matter. A
+' line in [brackets] starts a section: [zones], [lights], [events] and
+' [map], in any order. Before the first, the level's settings, one
+' "key = value" a line; in the sections, one thing a line, its numbers
+' split by commas.
 '
 ' Coordinates: x runs left to right (0 to MAP_SIZE - 1), y runs top to bottom
 ' (row 0 is the top line). Each map cell is one "tile": a wall block, a door,
 ' or a square of floor. You walk around in the same units (moving at 0.12
 ' tiles a frame), and things on the map stand in the middle of their tile.
 '
-' Each level is, in order:
-'
 ' --- Part 1: its name, textures and ambient light -------------------------
 '
-'   DATA "SECTOR 2: REACTOR CORE"            shown as you arrive, and on the tally
-'   DATA six wall pictures                   for # N C K P G, in that order
-'   DATA four floor pictures                 floors 1-4 (for the zones below)
-'   DATA two ceiling pictures                ceilings 1-2
-'   DATA brightness, red, green, blue        the ambient light (chapter 14)
+'   name     = SECTOR 2: REACTOR CORE     shown as you arrive, and on the tally
+'   walls    = six pictures               for # N C K P G, in that order
+'   floors   = four pictures              floors 1-4 (for the zones below)
+'   ceilings = two pictures               ceilings 1-2
+'   ambient  = brightness, red, green, blue   the ambient light (chapter 14)
 '
 ' (pictures from neon-caster/, 64x64; doors, keycards and the exit are the
 ' same in every level). On the minimap each wall kind is its picture's
@@ -3851,9 +5631,9 @@ RETURN
 ' are added: brightness 0 (black) to 256 (textures in their own colours),
 ' tinted by red, green and blue (0-255 each; 255, 255, 255 is white).
 '
-' --- Part 2: floor / ceiling zones -----------------------------------------
+' --- Part 2: [zones] - floor / ceiling zones --------------------------------
 '
-' First a count, then that many lines of: x0, y0, x1, y1, floor, ceiling, shape
+' One a line: x0, y0, x1, y1, floor, ceiling, shape
 '
 '   x0, y0, x1, y1   a rectangle of tiles, corners included
 '   floor            1-4 (the level's floors), or 0 to leave the floor alone
@@ -3873,9 +5653,9 @@ RETURN
 ' paint one texture on the far side of one diagonal, then the old texture
 ' back past another diagonal beside it (level 3's water channel does this).
 '
-' --- Part 3: lights ----------------------------------------------------------
+' --- Part 3: [lights] ---------------------------------------------------------
 '
-' First a count, then that many lines of:
+' One a line (up to MAX_LIGHTS):
 '   x, y, radius, brightness, red, green, blue, effect
 '
 '   x, y         where it is, in cells (20.5 is the middle of cell 20). Not
@@ -3891,9 +5671,9 @@ RETURN
 ' Lamps (i), terminals (t) and the exit (E) also give off light of their
 ' own - you don't list those. Break a lamp and its light goes out.
 '
-' --- Part 4: event rooms -----------------------------------------------------
+' --- Part 4: [events] - event rooms -------------------------------------------
 '
-' First a count (up to MAX_EVENTS), then that many lines of:
+' One a line (up to MAX_EVENTS):
 '   kind, x0, y0, x1, y1, a, b, reward
 '
 '   kind         1 ambush: walk in and the doors lock; a monsters teleport in,
@@ -3907,18 +5687,40 @@ RETURN
 '                  a seconds
 '                5 spawner nest: the room's spawners (S) send out a monster of
 '                  type a every b frames while you're near; break them all
+'                6 monster closet: walk in and the secret walls (%) within
+'                  3 tiles of the room slide away, letting out whatever was
+'                  waiting behind them (a and b aren't used)
+'                7 the thieves' hoard: the room stays sealed until every
+'                  thief bot (T) in the level is dead. Thieves run home to
+'                  its door with what they steal from you, and drop it all
+'                  when they die. Fill the room with loot. (a, b unused)
+'                8 pressure plate: one tile (x0, y0 = x1, y1). Stepped on, by
+'                  you or a walking monster, it clicks, and a frames later
+'                  a blast lands on it; it re-arms after b frames
+'                9 laser: a beam along a row or column of tiles (make the
+'                  room one tile wide). On for a frames, off for b (b 0:
+'                  always on); 12 damage a touch, and it burns monsters too
+'               10 laser cutter: a beam sweeping across the room and back
+'                  every a frames (across its longer side); 15 a touch
+'               11 blackout: walk in and the lights die for a seconds, while
+'                  b monsters (crawlers and heavies) come out of the dark
 '   x0..y1       the room: you set it off by walking into it. Its doors (any
 '                within 5 tiles of it) are the ones an ambush or survive locks.
 '   reward       what appears in the middle of the room when you win: a
 '                pickup kind (4 health, 5 cells, 6 shells, 9 armour, 10 big
-'                medkit, 13 overcharge, 14 damage amp), or 0 for nothing
+'                medkit, 13 overcharge, 14 damage amp), or 0 for nothing.
+'                Only kinds 1, 2, 4 and 5 give one.
 '
 ' Monster types are the SetMonType numbers: 1 drone, 2 gunner, 3 heavy,
-' 4 crawler, 5 sentry, 6 stalker, 7 spitter, 8 the overseer.
+' 4 crawler, 5 sentry, 6 stalker, 7 spitter, 8 the overseer, 9 thief.
 '
-' --- Part 5: the map, one string per row ------------------------------------
+' The level kit's dress() adds most of the closets, plates, lasers,
+' cutters, hoards and blackouts (and the furniture) to each level for you.
 '
-' Exactly MAP_SIZE strings of exactly MAP_SIZE characters. Anything not
+' --- Part 5: [map] - one line per row -----------------------------------------
+'
+' MAP_SIZE lines of MAP_SIZE characters (short or missing ones are filled
+' out with wall). Anything not
 ' listed below (or a missing character) is plain floor.
 '
 ' WALLS - solid blocks; you, monsters, shots and bolts can't pass, and
@@ -3939,9 +5741,11 @@ RETURN
 '   /  diagonal from bottom-left to top-right
 '   \  diagonal from top-left to bottom-right
 '
-' DOORS - closed until you face one within 2 tiles and press Space; then
-' they open for good (they never close again). They block you, monsters and
-' sight while mostly shut, and count as open once 80% of the way. A door
+' DOORS - closed until you face one within 2 tiles and press Space (or a
+' monster walks up to it). Space shuts an open one again, and it shuts
+' itself after a while (DoorHold) - but never on anyone. They block you,
+' monsters and sight while mostly shut, and count as open once 80% of the
+' way; a sliver of an open door always shows at the side. A door
 ' must sit in a wall one tile thick: walls on two opposite sides (left and
 ' right, or above and below) and floor on the other two - that's the way
 ' you walk through it.
@@ -3989,27 +5793,32 @@ RETURN
 ' MONSTERS - each waits where it stands until it can see you (within 14
 ' tiles, with no wall or shut door in the way) or until you shoot it. Then
 ' it hunts you for good. Numbers are in the SetMonType lines.
-'   m  drone:   hovers, 3 hits. Flies straight at you (about a third of
-'               your speed) and bites up close for 8-13, about once a second.
+'   m  drone:   hovers, 3 hits. Flies straight at you (half your walking
+'               speed) and bites up close for 6-9, about once a second.
 '   g  gunner:  walks, 4 hits. Keeps 3.5 to 7 tiles away (backs off if you
 '               get close) and, when it can see you, fires a magenta energy
-'               bolt for 9-14 every 1.5-2 s. Bolts fly straight and burst on
-'               walls - you can dodge them.
-'   h  heavy:   walks slowly, 10 hits. Closes in and smashes for 20-29 about
-'               every 1.3 s. Big enough that a scatter blast hits it with
+'               bolt for 7-10 about every 2 s. Bolts fly straight and burst
+'               on walls - you can dodge them.
+'   h  heavy:   walks slowly, 10 hits. Closes in and smashes for 15-22 about
+'               every 1.6 s. Big enough that a scatter blast hits it with
 '               more pellets.
 '   c  crawler: a small spider bot, 2 hits, low to the ground. Scuttles at
-'               you at over half your speed and nips for 5-8 about twice a
-'               second. They come in packs.
+'               you at three quarters of your walking speed and nips for
+'               3-5 about once a second. They come in packs.
 '   s  sentry:  a gun turret, 8 hits. Never moves; when it can see you it
-'               fires a bolt for 7-11 about every second.
-'   k  stalker: a cyborg with blades, 3 hits. Faster than you walk (you can
-'               outrun it, just); slashes for 7-11 twice a second.
+'               fires a bolt for 5-8 about every 1.2 s.
+'   k  stalker: a cyborg with blades, 3 hits. Nearly as fast as you walk
+'               (run, and you leave it behind); slashes for 5-8 about once
+'               a second.
 '   w  spitter: a mutant, 6 hits. Walks slowly, keeps its distance like a
-'               gunner and spits acid bolts for 8-13.
+'               gunner and spits acid bolts for 6-9.
 '   z  overseer: the last sector's boss - a giant floating eye, 80 hits.
-'               Drifts after you, firing a fan of three bolts about twice a
-'               second.
+'               Drifts after you, firing a fan of three bolts (9-13 each)
+'               about once a second.
+'   T  thief:   a gold bot with a sack, 5 hits, faster than you walk (but
+'               not than you run). It never fights: it grabs half your ammo
+'               and the gun in your hands (never the blaster) and runs for
+'               the hoard (event 7). Kill it and it drops everything it took.
 '
 ' DECORATIONS - stand on the floor; you, monsters and bolts can't go through
 ' them, but they don't block sight. Shoot them and they break (a barrel's
@@ -4028,6 +5837,40 @@ RETURN
 '
 '   S  spawner: 8 hits; the portal a spawner nest (Part 4) sends monsters
 '                out of
+'   Furniture, for the rooms to look like somewhere (DecoFile$ has their
+'   pictures); the glowing ones light the room round them:
+'   d  desk (3 hits)            A  control console (glows)
+'   F  wall of screens (glows)  I  specimen tank (glows, glass: 3 hits)
+'   J  lab bench (glass: 2)     L  generator (glows, 6 hits)
+'   O  cryo pod (glows, 3)      Q  hologram projector (glows)
+'   U  lockers (3)              W  bench (3)
+'   (the rest take 4 hits)
+'
+' SECRET WALLS
+'   %  a monster closet's wall: looks like the walls beside it, and slides
+'      away when its closet event (Part 4, kind 6) goes off
+'
+' GLASS
+'   =  a pane of glass across the middle of the cell, in a wall one cell
+'      thick (like a door: wall - or more glass - on two opposite sides).
+'      You see through it, but can't walk through it: shots stop on it,
+'      crack it, and after 4 hits break it - then the way is open.
+'      Monsters see you through it; their bolts and barrels break it too. The level kit lets
+'      windows into the walls between rooms, and carves sealed observation
+'      rooms behind them (chairs, consoles, bodies - and worse).
+'
+' DATA STATIONS
+'   @  a data station: a wall with a socket. Space at it jacks you into
+'      the network (chapter 19): the level as a neon grid, data cores to
+'      grab against the clock, ICE hunting you. Win, and its sealed doors
+'      open.
+'   !  a sealed door (a sliding door): it opens when the data station
+'      nearest to it is hacked
+'
+' MORE FURNITURE
+'   Z  an office chair (2 hits)
+'   V  a body - one of the station's people. It doesn't block the way and
+'      can't be broken.
 '
 ' THE START
 '   <  >  ^  v  you start here, facing left / right / up / down. Use one;
@@ -4039,6 +5882,47 @@ RETURN
 ' switch god mode on and off (no damage, and you walk through walls, doors
 ' and monsters - though not out past the map's border).
 '
+' TELEPORTERS
+'   &  a teleporter's pad: step on it and you're on its partner - pads pair
+'      up in the order they're found, reading the map like a book (the 1st
+'      with the 2nd, the 3rd with the 4th)
+'
+' --- Part 6: [floor] and [ceiling] - heights (optional) ----------------------
+'
+' Two more maps, the same size, one character a cell: how high its floor
+' (or ceiling) is. . is the usual (floor 0, ceiling 1); 0-9 then a-z are
+' that many eighths of a wall up (so 8 is a whole wall up); A-H that many
+' eighths below 0 (a sunken floor - and at a whole wall down, H, a pit you
+' don't come back from). You step up anything up to STEP_UP (two and a
+' half eighths), fall off anything higher, and need BODY_H of room between
+' floor and ceiling. Walls run from the floor to the ceiling of the cell
+' they face; between two cells whose floors (or ceilings) differ, the step
+' (or lintel) is drawn in the level's first wall picture. Leave both
+' sections out, and the level is flat - drawn the classic way.
+'
+' --- Part 7: [lifts] (optional) ------------------------------------------------
+'
+' One a line: x0, y0, x1, y1, low, high, mode, speed - a rectangle of floor
+' that moves between two heights (in eighths). Mode 1 goes up and down by
+' itself; 2 is an elevator, up when you step on, down again a while after
+' you step off; 3 only moves when a trigger says (liftgo). Speed: eighths a
+' second.
+'
+' --- Part 8: [triggers] (optional) ---------------------------------------------
+'
+' One a line: WHEN [repeat] : COMMANDS. WHEN is enter X0 Y0 X1 Y1 (you walk
+' into it - a line, if it's one cell wide), use X Y (Space at that cell),
+' clear X0 Y0 X1 Y1 (every monster that started there is dead) or time S
+' (seconds into the level); "repeat" and it goes off every time, else just
+' once. COMMANDS are console commands (chapter 21), split by ; - door 14 6
+' open ; message The way is open ; summon heavy 2 ; liftgo 1 up ; wall 20
+' 8 . ; light 3 off ; sound alarm ; say taunt2 ; tp 40 40 90 ...
+'
+' --- And at the top: puzzles = NAME, NAME... -----------------------------------
+'
+' The code terminals' programs (neon-caster/puzzles/NAME.txt), one a
+' terminal ($) in reading order.
+'
 ' Rules: the outer border must be all walls (nothing else stops a ray or a
 ' monster from leaving the map). Up to MAX_ITEMS pickups, MAX_MON monsters
 ' and MAX_DECO decorations; extra ones are ignored.
@@ -4046,822 +5930,10 @@ RETURN
 ' The level kit: neon-caster/levels/levels.py builds these levels (rooms
 ' carved with exact 45-degree edges) and checks them - doors between walls,
 ' every keycard reachable before its doors, the exit reachable, textures
-' present. "python3 levels.py --check" checks the DATA below as it stands;
-' "--write" rebuilds it from levels.py (replacing any edits made here).
+' present. "python3 levels.py --check" checks the level files as they
+' stand; "--write" builds them again from levels.py (replacing any edits
+' made by hand or in the editor).
 '
-Level1:
-' Level 1: the station. Exit: behind the red doors, in the pipe room.
-DATA "SECTOR 1: NEON STATION"
-DATA "wall.png", "wall2.png", "wall-concrete.png", "wall-servers.png", "wall-pipes.png", "wall-biolab.png"
-DATA "floor.png", "floor-plates.png", "floor-concrete.png", "floor-lab.png"
-DATA "ceiling.png", "ceiling-lights.png"
-DATA 165, 225, 220, 255
-DATA 5
-DATA 19, 19, 28, 28, 2, 1, 0
-DATA 5, 5, 21, 21, 3, 2, 0
-DATA 26, 5, 42, 21, 2, 2, 0
-DATA 30, 26, 42, 42, 4, 2, 0
-DATA 30, 30, 42, 42, 2, 0, 3
-DATA 14
-DATA 23.5, 23.5, 6, 130, 210, 120, 255, 0
-DATA 10.5, 2.5, 5, 150, 220, 230, 255, 1
-DATA 35.5, 2.5, 5, 150, 220, 230, 255, 1
-DATA 2.5, 24.5, 5, 140, 220, 230, 255, 1
-DATA 24.5, 45.5, 5, 160, 220, 230, 255, 5
-DATA 44.5, 24.5, 5, 140, 220, 230, 255, 0
-DATA 8.5, 7.5, 5, 130, 255, 215, 170, 0
-DATA 10.5, 16.5, 5, 110, 230, 230, 255, 1
-DATA 34.5, 5.5, 6, 140, 110, 220, 255, 2
-DATA 30.5, 14.5, 5, 110, 110, 220, 255, 2
-DATA 36.5, 30.5, 7, 150, 130, 255, 160, 0
-DATA 36.5, 33.5, 4, 170, 255, 50, 50, 3
-DATA 10.5, 30.5, 5, 150, 255, 160, 80, 4
-DATA 10.5, 39.5, 5, 130, 255, 160, 80, 4
-DATA 1
-DATA 1, 5, 5, 11, 10, 5, 1, 9
-DATA "################################################"
-DATA "################################################"
-DATA "###/.......................................+\###"
-DATA "##/..........................................\##"
-DATA "##..CCCCHCCCCCCCCCCCCCC..KKKKKKKKKYKKKKKKKKK..##"
-DATA "##..C/....e\C......Ma.C..K.................K..##"
-DATA "##..C.......C.........C..Y..KKK......KKK...K..##"
-DATA "##..C...m...H.........C..K.oo...g.......m..K..##"
-DATA "##..C.......C.....g...H..Ka................K..##"
-DATA "##..C.+.....C...2.....C..KKKDKKKKKKDKKKKKDKK..##"
-DATA "##..C\...../C.........C..K......K......K...K..##"
-DATA "##..CCCCHCCCCCCCCCCCCCC..K......K...g..K.+.K..##"
-DATA "##..C...........aCCCCCC..K.K..K.K..K...Ke..K..##"
-DATA "##..C.m.....o....CCCCCC..KtK..K.D..K...K...Y..##"
-DATA "##..C............CCCCCC..K..m...K..K...K...K..##"
-DATA "##..C...C....C...CCCCCC..K......K......K.m.K..##"
-DATA "##..H.....y......CCCCCC..K......K......K...K..##"
-DATA "##..C............CCCCCC..KKKKKKKKKKDKKKKKKKK..##"
-DATA "##..C...C....C...CNNNNNXNNNNNNK............K..##"
-DATA "##..C..e.........CNN/......\NNK.........b..K..##"
-DATA "##..C..........h.CN/..a...p.\NK..h...3.....K..##"
-DATA "##..C............CN..N....N..NK............K..##"
-DATA "##..CCCCCCHCCCCCCCN..........NKKKKKKKKYKKKKK..##"
-DATA "##................X..........X................##"
-DATA "##................N.>........N..............e.##"
-DATA "##..PPPPPPRPPPPPPPN..........NGGGGGGBGGGGGGG..##"
-DATA "##..PP/.........aPN..N....N..Na............G..##"
-DATA "##..P/...........PN\.p.....+/N.i..e........G..##"
-DATA "##..P..m.........PNN\....../NN.g...........G..##"
-DATA "##..P....P..P....PNNNNNXNNNNNN...G.....G...G..##"
-DATA "##..R............EP.........aG...........g.G..##"
-DATA "##..P.........g..PP..........G......s......G..##"
-DATA "##..P.........../PP..........G.............G..##"
-DATA "##..P........../PPP..........G.............G..##"
-DATA "##..PPPPHPPPPPPPPPP..........G...G..r..G...B..##"
-DATA "##..P............PP..........G.............G..##"
-DATA "##..P.+u.........PP..........B.............G..##"
-DATA "##..P............PP...m......G....../\.....G..##"
-DATA "##..P....P..P....PP..........G......\/.....G..##"
-DATA "##..P............PP..........G...G.....G...G..##"
-DATA "##..P.h...c.c....PP........g.G......h......G..##"
-DATA "##..P...e......m.PP..........G.m...........G..##"
-DATA "##..P............PP+.........G............+G..##"
-DATA "##..PPPPPPPPRPPPPPPPPPPPPHPPPGGGGGGGBGGGGGGG..##"
-DATA "##\........................................../##"
-DATA "###\a......................................a/###"
-DATA "################################################"
-DATA "################################################"
-
-Level2:
-' Level 2: the reactor. Red key in the storage bay (west), yellow and
-' blue in the coolant wing (east, red door); the exit is in the control
-' room (north, yellow door); the armoury (south-east, blue) has the railgun.
-DATA "SECTOR 2: REACTOR CORE"
-DATA "wall-reactor.png", "wall-coils.png", "wall-rusty.png", "wall-control.png", "wall-hazard.png", "wall-stripes.png"
-DATA "floor-glow.png", "floor-scorched.png", "floor-hazard.png", "floor-plates.png"
-DATA "ceiling-vents.png", "ceiling-warning.png"
-DATA 115, 255, 190, 150
-DATA 11
-DATA 15, 15, 32, 32, 1, 2, 0
-DATA 15, 15, 22, 22, 3, 0, 1
-DATA 25, 15, 32, 22, 3, 0, 2
-DATA 25, 25, 32, 32, 3, 0, 3
-DATA 15, 25, 22, 32, 3, 0, 4
-DATA 3, 3, 13, 33, 2, 1, 0
-DATA 34, 3, 45, 33, 4, 1, 0
-DATA 34, 3, 45, 14, 1, 0, 2
-DATA 15, 3, 32, 13, 4, 2, 0
-DATA 3, 35, 45, 45, 2, 1, 0
-DATA 39, 35, 45, 45, 3, 2, 0
-DATA 14
-DATA 24, 19.5, 7, 190, 255, 140, 50, 2
-DATA 24, 28.5, 7, 190, 255, 140, 50, 2
-DATA 19.5, 24, 7, 190, 255, 140, 50, 2
-DATA 28.5, 24, 7, 190, 255, 140, 50, 2
-DATA 24.5, 8.5, 6, 150, 255, 230, 150, 0
-DATA 17.5, 11.5, 3, 180, 255, 50, 40, 3
-DATA 40.5, 10.5, 6, 130, 120, 220, 255, 0
-DATA 40.5, 25.5, 6, 130, 120, 220, 255, 1
-DATA 8.5, 15.5, 6, 120, 230, 230, 255, 5
-DATA 8.5, 28.5, 5, 120, 255, 220, 170, 0
-DATA 6.5, 37.5, 4, 200, 255, 40, 30, 3
-DATA 33.5, 37.5, 4, 200, 255, 40, 30, 3
-DATA 20.5, 42.5, 8, 110, 255, 150, 70, 4
-DATA 42.5, 40.5, 5, 170, 240, 240, 255, 0
-DATA 2
-DATA 3, 15, 25, 21, 31, 90, 90, 0
-DATA 4, 15, 3, 32, 13, 25, 0, 13
-DATA "################################################"
-DATA "################################################"
-DATA "##CCCCCCCCCCCCKKKKKKKKKKEKKKKKKKKKPPPPPPPPPPPPP#"
-DATA "##CC/.......\CKKK/............\KKKP/........\PP#"
-DATA "##C/.........\KK/.......+......\KK/..........\P#"
-DATA "##C.......oo..K/.t............t.\K......y.....P#"
-DATA "##C..r....o...K..................K..s.........P#"
-DATA "##C...........K....K........K....K.../\.......P#"
-DATA "##C...........K....K....h...K....K...\/.......P#"
-DATA "##C...M.e.....K....K........K....K............P#"
-DATA "##C...........K..................K......./\...P#"
-DATA "##C...........K\..g...........g./K...a...\/...P#"
-DATA "##C..oo.......KK\....t.....t.../KK..........s.P#"
-DATA "##C...........KKK\............/KKK.../\.......P#"
-DATA "##C...........KKKKKKKKKKYKKKKKKKKK...\/.......P#"
-DATA "##C...........NNNNN/........\NNNNN............P#"
-DATA "##C...........NNNN/..........\NNNN......./\...P#"
-DATA "##C...........NNN/......a.....\NNN..o....\/m..P#"
-DATA "##C...c..c....NN/...g..........\NN..o.........P#"
-DATA "##C...........N/................\N.../\.......P#"
-DATA "##C........o..N...............m..N...\/.......P#"
-DATA "##C........o..N......../\........N............P#"
-DATA "##C...........N..o..../NN\.......N......./\...P#"
-DATA "##C...........N....../NNNN\......N......g\/...P#"
-DATA "##C....c......D......\NNNN/......R..........o.P#"
-DATA "##C...........N.......\NN/.......N.../\.......P#"
-DATA "##C...........N...m....\/......o.N...\/.......P#"
-DATA "##C...........N..................N............P#"
-DATA "##C.o.....h...N\................/N......./\...P#"
-DATA "##C...........NN\............../NN.......\/...P#"
-DATA "##C...........NNN\..........g./NNN..s......b..P#"
-DATA "##C.+.......u.NNNN\.....+..../NNNN............P#"
-DATA "##C\........./NNNNN\......../NNNNN\.........e/P#"
-DATA "##CC\......./CNNNNNNNNNNXNNNNNNNNNP\......../PP#"
-DATA "##GGGGGGHGGGGGGGGGGGGGGG.GGGGGGGGGGGGGGGGGGGGGG#"
-DATA "##G...................................GG/...\GG#"
-DATA "##G...................................G/.....\G#"
-DATA "##G...a.....m......i.........i.e......G.u.....G#"
-DATA "##G...................................G.......G#"
-DATA "##G.......G.....G.....G.....G.....G...G.......G#"
-DATA "##G.......G.....G.....G.....G.....G...B...4...G#"
-DATA "##G.................................c.G.......G#"
-DATA "##G.............................m.....G.......G#"
-DATA "##G......c...+..........^.............G..a..*.G#"
-DATA "##G..oo.............................o.G\...../G#"
-DATA "##G...................................GG\.../GG#"
-DATA "##GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG#"
-DATA "################################################"
-
-Level3:
-' Level 3: the sewers - one long tunnel at 45 degrees with water down its
-' middle. Red key in the nest (left), yellow in the pump hall (red door),
-' blue in the cistern; the exit is in the outflow (yellow door).
-DATA "SECTOR 3: UNDERCITY"
-DATA "wall-brick.png", "wall-graffiti.png", "wall-moss.png", "wall-grate.png", "wall-greenpipes.png", "wall-slime.png"
-DATA "floor-cobbles.png", "floor-murky.png", "floor-rustgrate.png", "floor-concrete.png"
-DATA "ceiling-stone.png", "ceiling-pipes.png"
-DATA 80, 170, 230, 190
-DATA 9
-DATA 2, 3, 44, 45, 2, 0, 2
-DATA 3, 2, 45, 44, 1, 0, 2
-DATA 12, 3, 22, 7, 4, 2, 0
-DATA 26, 3, 45, 14, 3, 2, 0
-DATA 34, 18, 45, 28, 2, 1, 0
-DATA 3, 12, 7, 22, 4, 1, 0
-DATA 3, 26, 14, 45, 2, 1, 0
-DATA 3, 26, 14, 37, 4, 0, 1
-DATA 18, 34, 28, 45, 3, 2, 0
-DATA 9
-DATA 12.5, 12.5, 5, 120, 120, 255, 140, 2
-DATA 36.5, 36.5, 5, 120, 120, 255, 140, 2
-DATA 17.5, 5.5, 5, 140, 255, 210, 150, 1
-DATA 35.5, 10.5, 8, 140, 200, 255, 200, 0
-DATA 43.5, 6.5, 3, 190, 255, 50, 40, 3
-DATA 37.5, 26.5, 6, 130, 120, 230, 255, 2
-DATA 5.5, 17.5, 4, 110, 255, 80, 60, 4
-DATA 8.5, 35.5, 7, 120, 140, 220, 255, 5
-DATA 23.5, 40.5, 6, 160, 230, 230, 255, 1
-DATA 1
-DATA 5, 3, 12, 7, 22, 4, 150, 14
-DATA "################################################"
-DATA "#CCCCCCCCCC#############PPPPPPPPPPPPPPPPPPPPPPP#"
-DATA "#CCCCCCCCCC#############PPPPPPPPPPPPPPPPPPPPPPP#"
-DATA "#CC...\CCCC#...........#PPPP/..............\PPP#"
-DATA "#CC....\CCC#..u.....g..#PPP/................\PP#"
-DATA "#CC..>....D.......e....#PP/..oo...h........y.\P#"
-DATA "#CC\.....\C#.M..o....a.#PP..g.................P#"
-DATA "#CCC\.....\#...........#PP..../\.../\.../\....P#"
-DATA "#CCCC\.....\############PP....\/...\/...\/....P#"
-DATA "#CCCCC\..c..\CCCCCCCCCCPPP....................P#"
-DATA "#CCCCCC\............R.......................s.P#"
-DATA "#CCCCCCC\i....\CCCCCCCCPPP....................P#"
-DATA "#CC.....C\.....\CCCCCCCPPP\t.....t....g...a../P#"
-DATA "#CC.S...D.....c.\CCCCCCPPPP\................/PP#"
-DATA "#CC..+..CCC\.....\CCCCCPPPPP\............../PPP#"
-DATA "#CC.c...CCCC\o....\CCCCPPPPPPPPPPPPPPPPP.PPPPPP#"
-DATA "#CC.....CCCCC\....i\CCCCCCCCCCCCCGGGGGGGHGGGGGG#"
-DATA "#CC...c.CCCCCC\....a\CCCCCCCCCCCCGGGGGGG.GGGGGG#"
-DATA "#CC.....CCCCCCC\.c...\CCCCCCCCCCCGG/........\GG#"
-DATA "#CC.c...CCCCCCCC\.....\CCCCCCCCCCG/m........m\G#"
-DATA "#CC...c.CCCCCCCCC\.....\CCCCCCCCCG............G#"
-DATA "#CC..r..CCCCCCCCCC\...m.\CCCCCCCCG...../\.....G#"
-DATA "#CC...S.CCCCCCCCCCC\....i\CCCCCCCG..../GG\....G#"
-DATA "#CCCCCCCCCCCCCCCCCCC\....o\CCCCCCG.e..\GG/....G#"
-DATA "#CCCCCCCCCCCCCCCCCCCC\.........D.......\/.....G#"
-DATA "#KKKKKKKKKKKKKKKCCCCCC\.....\CCCCG............G#"
-DATA "#KKK/........\KKCCCCCCC\.....\CCCG............G#"
-DATA "#KK/a.........\KCCCCCCCC\.....\CCG\.g.......b/G#"
-DATA "#KK..........e......B......c...\CGG\......../GG#"
-DATA "#KK............KCCCCCCCCCC\.....\GGGGGGGGGGGGGG#"
-DATA "#KK............KCCCCCCCCCCC\.....\CCCCCCCCCCCCC#"
-DATA "#KK...#....#...KCCCCCCCCCCCC\.m...\CCCCCCCCCCCC#"
-DATA "#KK............KCCCCCCCCCCCCC\.....\CCCCCCCCCCC#"
-DATA "#KK.....h......KCNNNNNNNNNNNNN\i....\CCCCCCCCCC#"
-DATA "#KK............KCNN/.......\NNC\...c.\CCCCCCCCC#"
-DATA "#KK............KCN/.........\NCC\.....\CCCCCCCC#"
-DATA "#KK...#....#...KCN..h......g.NCCC\.....\CCCCCCC#"
-DATA "#KK............KCN...........NCCCC\.o...\CCCCCC#"
-DATA "#KK.....p......KCN.............Y........i\CCCCC#"
-DATA "#KK............KCN...........NCCCCCC\.....\CCCC#"
-DATA "#KK............KCN...........NCCCCCCC\c....\CCC#"
-DATA "#KK...#....#...KCN......s....NCCCCCCCC\....+\CC#"
-DATA "#KK......h.....KCN...........NCCCCCCCCC\.m...CC#"
-DATA "#KK............KCN..........aNCCCCCCCCCC\....CC#"
-DATA "#KK\*........u/KCN\+......../NCCCCCCCCCCC\.c.CC#"
-DATA "#KKK\......../KKCNN\......./NNCCCCCCCCCCCCCCCCC#"
-DATA "#KKKKKKKKKKKKKKKCNNNNNNENNNNNNCCCCCCCCCCCCCCCCC#"
-DATA "################################################"
-
-Level4:
-' Level 4: the lab. A diamond atrium and four labs: SW (open) has the
-' red key, NW (red) blue, SE (blue) yellow, and NE (yellow) the exit.
-DATA "SECTOR 4: CRYO LAB"
-DATA "wall-white.png", "wall-terminals.png", "wall-frost.png", "wall-tiles.png", "wall-cryo.png", "wall-ice.png"
-DATA "floor-white.png", "floor-frostgrate.png", "floor-ice.png", "floor-lab.png"
-DATA "ceiling-lights.png", "ceiling-frost.png"
-DATA 175, 200, 225, 255
-DATA 11
-DATA 2, 2, 45, 45, 2, 2, 0
-DATA 12, 12, 36, 36, 1, 1, 0
-DATA 16, 16, 32, 32, 4, 0, 0
-DATA 16, 16, 23, 23, 1, 0, 1
-DATA 25, 16, 32, 23, 1, 0, 2
-DATA 25, 25, 32, 32, 1, 0, 3
-DATA 16, 25, 23, 32, 1, 0, 4
-DATA 3, 3, 15, 15, 4, 1, 0
-DATA 33, 3, 45, 15, 1, 1, 0
-DATA 3, 33, 15, 45, 4, 1, 0
-DATA 33, 33, 45, 45, 3, 2, 0
-DATA 10
-DATA 24, 28.5, 7, 160, 120, 230, 255, 2
-DATA 24, 19.5, 7, 160, 120, 230, 255, 2
-DATA 9.5, 9.5, 6, 150, 240, 240, 255, 0
-DATA 39.5, 9.5, 6, 150, 120, 230, 255, 0
-DATA 9.5, 39.5, 6, 150, 240, 240, 255, 1
-DATA 36.5, 42.5, 6, 150, 140, 180, 255, 2
-DATA 24.5, 5.5, 5, 140, 230, 240, 255, 1
-DATA 24.5, 43.5, 5, 140, 230, 240, 255, 0
-DATA 5.5, 24.5, 4, 180, 255, 50, 40, 3
-DATA 43.5, 24.5, 5, 140, 230, 240, 255, 5
-DATA 1
-DATA 1, 33, 33, 45, 45, 8, 0, 13
-DATA "################################################"
-DATA "###############KKKKKKKKKKKKKKKKKPPPPPPPPPPPPPPPP"
-DATA "###############KKKKKKKKKKKKKKKKKPPPPPPPEPPPPPPPP"
-DATA "#####/.......\#KKK.............KPPP/.......\PPPP"
-DATA "####/.........\KKK..i......c...KPP/.+.....a.\PPP"
-DATA "###/.b......s..\KK.............KP/.....h.....\PP"
-DATA "###.............KK.e..m.....i..KP.............PP"
-DATA "###..............R.............Y.....P...P....PP"
-DATA "###......h......KKKKKKKK.KKKKKKKP.............PP"
-DATA "###.t...........KKKKKKKK.KKKKKKKP..s........s.PP"
-DATA "###.............########X#######P.............PP"
-DATA "###.........u...CCCCCCCC.CCCCCCCP....P...P....PP"
-DATA "###...g.........CCCCCCC/.CCCCCCCP.............PP"
-DATA "###\....a....t./CCCCCC/..\CCCCCCP\t....g....t/PP"
-DATA "####\........./CCCCCC/....\CCCCCPP\........./PPP"
-DATA "#KKKK\......./CCCCCC/...p..\CCCCPPP\......./PPPP"
-DATA "#KKKKKK.KK#CCCCCCCC/........\CCCPPPPPPPPP.PPPPPP"
-DATA "#KKKKKKRKK#CCCCCCC/..........\CCCCCCCC#KKYKKKKKK"
-DATA "#KK.....KK#CCCCCC/......+.....\CCCCCCC#KK.....KK"
-DATA "#KK.....KK#CCCCC/..............\CCCCCC#KK.....KK"
-DATA "#KK.i...KK#CCCC/....g.......h...\CCCCC#KK...i.KK"
-DATA "#KK.....KK#CCC/..................\CCCC#KK.+...KK"
-DATA "#KK.....KK#CC/........./\.........\CCC#KK.....KK"
-DATA "#KK.....KK#C/........./NN\.........\CC#KK.....KK"
-DATA "#KK.g.....X....p..c...\NN/....c..p./..X.......KK"
-DATA "#KK.....KK#CC\.........\/........./CCC#KK...g.KK"
-DATA "#KK.....KK#CCC\................../CCCC#KK.....KK"
-DATA "#KK.....KK#CCCC\................/CCCCC#KK.....KK"
-DATA "#KK...i.KK#CCCCC\...s.......g../CCCCCC#KK.i...KK"
-DATA "#KK..a..KK#CCCCCC\............/CCCCCCC#KK.....KK"
-DATA "#KK.....KK#CCCCCCC\.....m..../CCCCCCCC#KK.....KK"
-DATA "#KKKKKKDKK#CCCCCCCC\.....a../CCCCCCCCC#KKBKKKKKK"
-DATA "#KKKKKK.KK#CCCCCCCCC\....../CCCCGGGGGGGGG.GGGGGG"
-DATA "#KKKK/.......\CCCCCCC\..p./CCCCCGGG/.......\GGGG"
-DATA "####/.........\CCCCCCC\../CCCCCCGG/.........\GGG"
-DATA "###/.......t...\CCCCCCC\/CCCCCCCG/..h........\GG"
-DATA "###..g..e.......CCCCCCCC.CCCCCCCG...........s.GG"
-DATA "###.............CCCCCCCC.CCCCCCCG..a../\......GG"
-DATA "###...M.........########X#######G..../GG\.....GG"
-DATA "###.........m...KKKKKKKK.KKKKKKKG....\GG/.....GG"
-DATA "###.t...........KKKKKKKK.KKKKKKKG.....\/...*..GG"
-DATA "###..........+...D.............B..............GG"
-DATA "###...r.........KK..i.m.....i..KG....c.....y..GG"
-DATA "###\.........../KK......^......KG\.........../GG"
-DATA "####\....c...c/KKK.a.........e.KGG\g......../GGG"
-DATA "#####\......./#KKK.............KGGG\......./GGGG"
-DATA "###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG"
-DATA "###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG"
-
-Level5:
-' Level 5: the foundry. One long smelting hall with molten metal down its
-' middle; red key in the casting room (NW), yellow in the ore store (NE,
-' red door), blue in the crusher (S, yellow); the exit is in the loading
-' bay (SE, blue).
-DATA "SECTOR 5: FOUNDRY"
-DATA "wall-furnace.png", "wall-girders.png", "wall-rusty.png", "wall-hazard.png", "wall-pipes.png", "wall-stripes.png"
-DATA "floor-molten.png", "floor-scorched.png", "floor-hazard.png", "floor-plates.png"
-DATA "ceiling-girders.png", "ceiling-vents.png"
-DATA 120, 255, 190, 150
-DATA 6
-DATA 2, 2, 45, 45, 4, 1, 0
-DATA 6, 19, 41, 28, 2, 1, 0
-DATA 8, 23, 39, 24, 1, 2, 0
-DATA 3, 3, 14, 14, 3, 2, 0
-DATA 33, 3, 44, 14, 3, 2, 0
-DATA 18, 33, 29, 44, 3, 1, 0
-DATA 11
-DATA 10.5, 23.5, 6, 200, 255, 120, 40, 4
-DATA 18.5, 23.5, 6, 200, 255, 120, 40, 4
-DATA 26.5, 23.5, 6, 200, 255, 120, 40, 4
-DATA 34.5, 23.5, 6, 200, 255, 120, 40, 4
-DATA 9.5, 9.5, 6, 140, 255, 170, 90, 4
-DATA 24.5, 4.5, 6, 140, 255, 230, 170, 0
-DATA 39.5, 9.5, 6, 140, 230, 230, 255, 1
-DATA 24.5, 39.5, 6, 150, 255, 220, 120, 2
-DATA 39.5, 39.5, 6, 140, 255, 230, 170, 0
-DATA 43.5, 36.5, 3, 190, 255, 50, 40, 3
-DATA 9.5, 38.5, 6, 140, 255, 220, 170, 1
-DATA 2
-DATA 3, 8, 23, 39, 24, 60, 120, 0
-DATA 4, 18, 3, 29, 14, 20, 0, 10
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNPPPPPPPPPPPPPPNNNNNNNNNNNNNNNNCCCCCCCCCCCCCCNN"
-DATA "NNPPP/......\PPPNNNN/......\NNNNCCC/......\CCCNN"
-DATA "NNPP/xx......\PPNNN/........\NNNCC/........\CCNN"
-DATA "NNP/........g.\PNN/.....2...x\NNC/.s......y.\CNN"
-DATA "NNP...r..M.....PNN.a.k.......+NNC............CNN"
-DATA "NNP............PNN...../\.....NNC............CNN"
-DATA "NNP............PNN..../CC\....NNC............CNN"
-DATA "NNP.....t...e..PNN...o\CC/.o..NNC..u...oo....CNN"
-DATA "NNP............PNN.....\/.....NNC............CNN"
-DATA "NNP............PNN............NNC............CNN"
-DATA "NNP\.c.......c/PNN\.h.......m/NNC\..g.....fs/CNN"
-DATA "NNPP\......../PPNNN\......../NNNCC\f......./CCNN"
-DATA "NNPPP\....../PPPNNNN\....../NNNNCCC\....../CCCNN"
-DATA "NNPPPPPPP.PPPPPPNNNNNNNN.NNNNNNNCCCCCCC.CCCCCCNN"
-DATA "NNNNNNNNNDNNNNNNNNNNNNNNDNNNNNNNNNNNNNNRNNNNNNNN"
-DATA "NNNNNNNNN.NNNNNNNNNNNNNN.NNNNNNNNNNNNNN.NNNNNNNN"
-DATA "NNNNN####.##############.##############.###NNNNN"
-DATA "NNNNN#......f.............................#NNNNN"
-DATA "NNNNN#......##......##......##......##a...#NNNNN"
-DATA "NNNNN#......##..o...##......##..o...##....#NNNNN"
-DATA "NNNNN#..g...............h........x.....g..#NNNNN"
-DATA "NNNNN#....................................#NNNNN"
-DATA "NNNNN#........k...............k...........#NNNNN"
-DATA "NNNNN#...........c......e......c..........#NNNNN"
-DATA "NNNNN#.i....##......##......##......##..i.#NNNNN"
-DATA "NNNNN#....+.##...o..##...o..##...m..##....#NNNNN"
-DATA "NNNNN#....................................#NNNNN"
-DATA "NNNNN####.##############.##############.###NNNNN"
-DATA "NNNNNNNNN.NNNNNNNNNNNNNN.NNNNNNNNNNNNNN.NNNNNNNN"
-DATA "NNNNNNNNNDNNNNNNNNNNNNNNYNNNNNNNNNNNNNNBNNNNNNNN"
-DATA "NNNNNNNNN.NNNNNNNKKKKKKK.KKKKKKNGGGGGGG.GGGGGGNN"
-DATA "NNNNN/......\NNNNKKK/......\KKKNGGG/......\GGGNN"
-DATA "NNNN/........\NNNKK/........\KKNGG/........\GGNN"
-DATA "NNN/..........\NNK/.c.......c\KNG/.s......*.\GNN"
-DATA "NNN..a.......e.NNK............KNG............GNN"
-DATA "NNN............NNK....K...K...KNG.......k....GNN"
-DATA "NNN........m...NNK............KNG............ENN"
-DATA "NNN...x........NNK.a....h.....KNG............GNN"
-DATA "NNN............NNK............KNG...h......t.GNN"
-DATA "NNN.o....^.....NNK....K...K...KNG............GNN"
-DATA "NNN\.o......+./NNK\..m.....m./KNG\........g./GNN"
-DATA "NNNN\......../NNNKK\f...b.../KKNGG\x.+...../GGNN"
-DATA "NNNNN\....../NNNNKKK\....../KKKNGGG\.....x/GGGNN"
-DATA "NNNNNNNNNNNNNNNNNKKKKKKKKKKKKKKNGGGGGGGGGGGGGGNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-
-Level6:
-' Level 6: a grid of greenhouse bays. Red key in the NW bay; yellow in
-' the dome (red doors); blue in the NE bay (yellow); exit in the E bay (blue).
-DATA "SECTOR 6: HYDROPONICS"
-DATA "wall-greenhouse.png", "wall-vines.png", "wall-biolab.png", "wall-white.png", "wall-moss.png", "wall-tiles.png"
-DATA "floor-soil.png", "floor-lab.png", "floor-murky.png", "floor-white.png"
-DATA "ceiling-growlights.png", "ceiling-lights.png"
-DATA 125, 200, 255, 190
-DATA 12
-DATA 2, 2, 45, 45, 2, 2, 0
-DATA 3, 3, 12, 12, 1, 1, 0
-DATA 3, 19, 12, 28, 1, 1, 0
-DATA 3, 35, 12, 44, 1, 1, 0
-DATA 19, 3, 28, 12, 1, 1, 0
-DATA 19, 19, 28, 28, 1, 1, 0
-DATA 19, 35, 28, 44, 1, 1, 0
-DATA 35, 3, 44, 12, 1, 1, 0
-DATA 35, 19, 44, 28, 1, 1, 0
-DATA 35, 35, 44, 44, 1, 1, 0
-DATA 19, 19, 28, 28, 3, 1, 0
-DATA 35, 19, 44, 28, 4, 2, 0
-DATA 11
-DATA 8, 8, 7, 140, 210, 120, 255, 2
-DATA 8, 24, 7, 140, 210, 120, 255, 0
-DATA 8, 40, 7, 140, 210, 120, 255, 0
-DATA 24, 8, 7, 140, 210, 120, 255, 0
-DATA 24, 24, 7, 140, 210, 120, 255, 0
-DATA 24, 40, 7, 140, 210, 120, 255, 2
-DATA 40, 8, 7, 140, 210, 120, 255, 0
-DATA 40, 24, 7, 140, 210, 120, 255, 2
-DATA 40, 40, 7, 140, 210, 120, 255, 0
-DATA 24, 24, 6, 150, 120, 255, 150, 2
-DATA 40, 24, 6, 150, 230, 240, 255, 1
-DATA 2
-DATA 5, 35, 3, 44, 12, 7, 200, 13
-DATA 2, 19, 19, 28, 28, 30, 90, 14
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NN############NNNN############NNNN############NN"
-DATA "NN#..........#NNNN#..........#NNNN#..........#NN"
-DATA "NN#........r.#NNNN#.....a...m#NNNN#..S....b..#NN"
-DATA "NN#..ppa.pp..#NNNN#..pp..pp..#NNNN#..ppn.pp..#NN"
-DATA "NN#..........#NNNN#..........#NNNN#..........#NN"
-DATA "NN#.g............Y...............D......+....#NN"
-DATA "NN#..........#NNNN#...e......#NNNN#..........#NN"
-DATA "NN#..........#NNNN#.m...w....#NNNN#.s......S.#NN"
-DATA "NN#..pp.Mpp..#NNNN#..pp..pp..#NNNN#..pp..pp..#NN"
-DATA "NN#.x......m.#NNNN#......c...#NNNN#........h.#NN"
-DATA "NN#..........#NNNN#..........#NNNN#..........#NN"
-DATA "NN#####.######NNNN############NNNN#####.######NN"
-DATA "NNNNNNN.NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN.NNNNNNNN"
-DATA "NNNNNNN.NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN.NNNNNNNN"
-DATA "NNNNNNN.NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN.NNNNNNNN"
-DATA "NNNNNNNDNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNDNNNNNNNN"
-DATA "NN#####.######NNNNCCCCCCCCCCCCNNNNKKKKK.KKKKKKNN"
-DATA "NN#..........#NNNNCCC/....\CCCNNNNK.........xKNN"
-DATA "NN#..........#NNNNCC/......\CCNNNNK..........KNN"
-DATA "NN#..pp..pp..#NNNNC/..u.y...\CNNNNK.s........KNN"
-DATA "NN#..........#NNNNC..........CNNNNK...t.....hKNN"
-DATA "NN#..............R..t...q...tCNNNNK..........ENN"
-DATA "NN#.e....w.c.#NNNNC..........CNNNNK......w...KNN"
-DATA "NN#..........#NNNNC..g.....g.CNNNNK..........KNN"
-DATA "NN#..pp..pp..#NNNNC\......../CNNNNK........t.KNN"
-DATA "NN#..c..g....#NNNNCC\...h../CCNNNNK..*....g..KNN"
-DATA "NN#..........#NNNNCCC\..../CCCNNNNK..........KNN"
-DATA "NN#####.######NNNNCCCCC.CCCCCCNNNNKKKKK.KKKKKKNN"
-DATA "NNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNN"
-DATA "NNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNN"
-DATA "NNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNN"
-DATA "NNNNNNNDNNNNNNNNNNNNNNNRNNNNNNNNNNNNNNNBNNNNNNNN"
-DATA "NN#####.######NNNN#####.######NNNN#####.######NN"
-DATA "NN#..........#NNNN#..........#NNNN#..........#NN"
-DATA "NN#..k.......#NNNN#........w.#NNNN#..........#NN"
-DATA "NN#..pp..pp..#NNNN#..pp+hpp3.#NNNN#.app.gpp..#NN"
-DATA "NN#..........#NNNN#..........#NNNN#.........e#NN"
-DATA "NN#.....a........D...............D...........#NN"
-DATA "NN#..........#NNNN#..........#NNNN#.....w....#NN"
-DATA "NN#..........#NNNN#..........#NNNN#..........#NN"
-DATA "NN#..>p..pp..#NNNN#..ppc.ppc.#NNNN#..ppc.ppm.#NN"
-DATA "NN#..........#NNNN#..........#NNNN#..........#NN"
-DATA "NN#....m...+.#NNNN#..........#NNNN#..........#NN"
-DATA "NN############NNNN############NNNN############NN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-
-Level7:
-' Level 7: a hall of server racks, offices round it, the vault in the
-' middle. Red key in the west offices; yellow north (red); blue east
-' (yellow); the exit in the vault (blue).
-DATA "SECTOR 7: DATA VAULT"
-DATA "wall-datastream.png", "wall-vault.png", "wall-servers.png", "wall-terminals.png", "wall-control.png", "wall-stripes.png"
-DATA "floor-circuit.png", "floor-glow.png", "floor-plates.png", "floor-lab.png"
-DATA "ceiling-cables.png", "ceiling-vents.png"
-DATA 90, 150, 200, 255
-DATA 5
-DATA 2, 2, 45, 45, 4, 2, 0
-DATA 9, 9, 38, 38, 1, 1, 0
-DATA 20, 20, 27, 27, 2, 2, 0
-DATA 12, 2, 35, 6, 3, 2, 0
-DATA 12, 41, 35, 45, 3, 2, 0
-DATA 10
-DATA 16.5, 15.5, 7, 150, 100, 220, 255, 2
-DATA 31.5, 15.5, 7, 150, 100, 220, 255, 2
-DATA 16.5, 31.5, 7, 150, 100, 220, 255, 2
-DATA 31.5, 31.5, 7, 150, 100, 220, 255, 2
-DATA 23.5, 23.5, 5, 170, 255, 60, 200, 0
-DATA 4.5, 24.5, 6, 140, 230, 240, 255, 1
-DATA 24.5, 4.5, 6, 140, 230, 240, 255, 0
-DATA 43.5, 24.5, 6, 140, 230, 240, 255, 5
-DATA 24.5, 43.5, 6, 140, 230, 240, 255, 0
-DATA 14.5, 4.5, 3, 190, 255, 50, 40, 3
-DATA 1
-DATA 1, 20, 20, 27, 27, 6, 6, 13
-DATA "################################################"
-DATA "################################################"
-DATA "############/......................\############"
-DATA "############........g...u...........############"
-DATA "############..s..k.............y....############"
-DATA "############.....t.........h......3.############"
-DATA "############\....................../############"
-DATA "##############.#########.########.##############"
-DATA "########GGGGGGRGGGGGGGGGRGGGGGGGGRGGGGGG########"
-DATA "########G..............................G########"
-DATA "########G.o..........................a.G########"
-DATA "#KKKKKKKG..GGGGG.GGGGG....GGGGG.GGGGG..GKKKKKKK#"
-DATA "#K/...\KG..............................GK/...\K#"
-DATA "#K.....KG.l.....m........l...........l.GK..a..K#"
-DATA "#K..g...D..............................Y......K#"
-DATA "#K.....KG..GGGGG.GGGGG....GGGGG.GGGGG..GK.....K#"
-DATA "#K.....KG..............................GK..b..K#"
-DATA "#K..x..KG................m.....m.......GK.....K#"
-DATA "#K.j...KG..............................GK...n.K#"
-DATA "#K.....KG..GGGGG.GGNNNNNBNNNNGG.GGGGG..GK.....K#"
-DATA "#K...t.KG..........N........N..........GK.....K#"
-DATA "#K.....KG.h........N........N.....c....GK.....K#"
-DATA "#K.....KG...k......N.h....h.N..........GK.h...K#"
-DATA "#K.....KG..GGGGG.GGN........NGG.GGGGG..GK.....K#"
-DATA "#K.M...D...........N........N...........Y.....K#"
-DATA "#K.....KG.......g..N.+......N..........GK.....K#"
-DATA "#K.....KG..........N..s...e.N......k...GK.....K#"
-DATA "#K...t.KG..GGGGG.GGN....E...NGG.GGGGG..GK...g.K#"
-DATA "#K.....KG..........NNNNNNNNNN..........GK.....K#"
-DATA "#K.....KG.l....................g.....l.GK.....K#"
-DATA "#K..r..KG..............................GK.....K#"
-DATA "#K.....KG..GGGGG.GGGGG..k.GGGGG.GGGGG..GK..s..K#"
-DATA "#K.....KG..............................GK.....K#"
-DATA "#K..e...D....c.......................g.Y......K#"
-DATA "#K.....KG..............l...............GK.*...K#"
-DATA "#K\.../KG..GGGGG.GGGGGc...GGGGG.GGGGG..GK\.../K#"
-DATA "#KKKKKKKG.+............................GKKKKKKK#"
-DATA "########G............................o.G########"
-DATA "########G..............................G########"
-DATA "########GGGGGGDGGGGGGGGG.GGGGGGGGDGGGGGG########"
-DATA "##############.#########D########.##############"
-DATA "############/......................\############"
-DATA "############.e.....m................############"
-DATA "############....a.......^......+....############"
-DATA "############........x.......xm......############"
-DATA "############\....................../############"
-DATA "################################################"
-DATA "################################################"
-
-Level8:
-' Level 8: three platforms and the track hall between them. Red key at
-' the far end of the north platform; yellow in the ticket hall (red);
-' blue in the maintenance shed (yellow); exit in the control tower (blue).
-DATA "SECTOR 8: MAGLEV DEPOT"
-DATA "wall-transit.png", "wall-adverts.png", "wall-graffiti.png", "wall-concrete.png", "wall-brick.png", "wall-grate.png"
-DATA "floor-platform.png", "floor-rustgrate.png", "floor-concrete.png", "floor-cobbles.png"
-DATA "ceiling-tunnel.png", "ceiling-pipes.png"
-DATA 110, 220, 230, 255
-DATA 6
-DATA 2, 2, 45, 45, 3, 2, 0
-DATA 3, 3, 44, 9, 1, 1, 0
-DATA 3, 38, 44, 44, 1, 1, 0
-DATA 3, 19, 44, 28, 4, 1, 0
-DATA 3, 20, 44, 22, 2, 1, 0
-DATA 3, 25, 44, 27, 2, 1, 0
-DATA 14
-DATA 9.5, 6.5, 5, 140, 255, 240, 200, 1
-DATA 9.5, 41.5, 5, 140, 255, 240, 200, 0
-DATA 21.5, 6.5, 5, 140, 255, 240, 200, 1
-DATA 21.5, 41.5, 5, 140, 255, 240, 200, 0
-DATA 33.5, 6.5, 5, 140, 255, 240, 200, 1
-DATA 33.5, 41.5, 5, 140, 255, 240, 200, 0
-DATA 43.5, 6.5, 5, 140, 255, 240, 200, 1
-DATA 43.5, 41.5, 5, 140, 255, 240, 200, 0
-DATA 6.5, 23.5, 6, 160, 255, 210, 60, 2
-DATA 20.5, 23.5, 6, 160, 255, 210, 60, 2
-DATA 33.5, 23.5, 6, 160, 255, 210, 60, 2
-DATA 16.5, 14.5, 4, 150, 255, 100, 200, 0
-DATA 32.5, 33.5, 4, 140, 255, 160, 80, 4
-DATA 32.5, 14.5, 4, 170, 120, 220, 255, 2
-DATA 2
-DATA 3, 3, 20, 44, 22, 45, 75, 0
-DATA 1, 13, 12, 20, 16, 6, 0, 9
-DATA "################################################"
-DATA "################################################"
-DATA "##NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN##"
-DATA "##NM.........................................N##"
-DATA "##N.......i.........c.............i...h......N##"
-DATA "##N........................................r.N##"
-DATA "##N.........g...............w................N##"
-DATA "##N..........................................N##"
-DATA "##N.....e.............i........m.............N##"
-DATA "##Nx.........n................n.............xN##"
-DATA "##NNN.NNNNNNNNNNNNNNNNNN.NNNNNNNNNNNNNNNNN.NNN##"
-DATA "#####.######KKKKKKKKKK##.#######E#########.#####"
-DATA "#####.######K/t.....\K##D####/....t.\#####.#####"
-DATA "#####.######K....y...K##.####..j.....#####.#####"
-DATA "#####D######K........R.....B...h.....#####D#####"
-DATA "#####.######K.s....g.K##.####......g.#####.#####"
-DATA "#####.######K\..u.../K##.####\+...../#####.#####"
-DATA "#####.######KKKKKKKKKK##.#################.#####"
-DATA "##CCC.CCCCCCCCCCCCCCCCCC.CCCCCCCCCCCCCCCCC.CCC##"
-DATA "##C.........m....................o..........aC##"
-DATA "##C..........................................C##"
-DATA "##C.....CCCCCCCCC.....CCCCCCCCC....CCCCCCCCC.C##"
-DATA "##C.....CCCCCCCCC.....CCCCCCCCC....CCCCCCCCC.C##"
-DATA "##C...............c.............k...........mC##"
-DATA "##C...g.........k.........3...h..............C##"
-DATA "##C..........................................C##"
-DATA "##C.....CCCCCCCCC.....CCCCCCCCC....CCCCCCCCC.C##"
-DATA "##C.....CCCCCCCCC.....CCCCCCCCC....CCCCCCCCC.C##"
-DATA "##C.+...............o...................c....C##"
-DATA "##CCC.CCCCCCCCCCCCCCCCCC.CCCCCCC.CCCCCCCCC.CCC##"
-DATA "#####.##################.###GGGGYGGGGG####.#####"
-DATA "#####.##################.###G/......\G####.#####"
-DATA "#####.##################.###G....b...G####.#####"
-DATA "#####D##################D###G.s....q.G####D#####"
-DATA "#####.##################.###G.....*h.G####.#####"
-DATA "#####.##################.###G\.oo.../G####.#####"
-DATA "#####.##################.###GGGGGGGGGG####.#####"
-DATA "##NNN.NNNNNNNNNNNNNNNNNN.NNNNNNNNNNNNNNNNN.NNN##"
-DATA "##N..........n......................n.......xN##"
-DATA "##N.....i.........m.i...........i............N##"
-DATA "##N.................................k.c......N##"
-DATA "##N.>.....a..................................N##"
-DATA "##N..........................................N##"
-DATA "##N...........e.w.............g.........i...+N##"
-DATA "##N..........................................N##"
-DATA "##NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN##"
-DATA "################################################"
-DATA "################################################"
-
-Level9:
-' Level 9: a ring round the station's core, windows onto space. Red key
-' in the south pod; yellow in the west pod (red); blue in the north pod
-' (yellow); the exit in the core (blue).
-DATA "SECTOR 9: ORBITAL SPIRE"
-DATA "wall-hull.png", "wall-viewport.png", "wall-white.png", "wall-cryo.png", "wall-control.png", "wall-terminals.png"
-DATA "floor-deck.png", "floor-white.png", "floor-glow.png", "floor-lab.png"
-DATA "ceiling-hull.png", "ceiling-lights.png"
-DATA 95, 180, 210, 255
-DATA 6
-DATA 2, 2, 45, 45, 1, 1, 0
-DATA 19, 19, 28, 28, 3, 2, 0
-DATA 20, 1, 27, 3, 2, 2, 0
-DATA 20, 44, 27, 46, 2, 2, 0
-DATA 1, 20, 3, 27, 2, 2, 0
-DATA 44, 20, 46, 27, 2, 2, 0
-DATA 13
-DATA 24.5, 9.5, 6, 140, 170, 210, 255, 0
-DATA 38.5, 24.5, 6, 140, 170, 210, 255, 0
-DATA 24.5, 38.5, 6, 140, 170, 210, 255, 0
-DATA 9.5, 24.5, 6, 140, 170, 210, 255, 0
-DATA 14.5, 14.5, 6, 140, 170, 210, 255, 0
-DATA 33.5, 14.5, 6, 140, 170, 210, 255, 0
-DATA 14.5, 33.5, 6, 140, 170, 210, 255, 0
-DATA 33.5, 33.5, 6, 140, 170, 210, 255, 0
-DATA 24.5, 24.5, 6, 180, 255, 255, 255, 2
-DATA 24.5, 2.5, 3, 150, 255, 220, 120, 0
-DATA 24.5, 45.5, 3, 150, 255, 220, 120, 1
-DATA 2.5, 24.5, 3, 190, 255, 50, 40, 3
-DATA 45.5, 24.5, 3, 150, 255, 220, 120, 0
-DATA 1
-DATA 5, 6, 15, 14, 32, 6, 180, 13
-DATA "NNNNNNNNNNNNNNNNNNKKKKKKKKKKKKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKK...u....KKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKK.sq...b.KKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKK........KKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKKKKKK.KKKKKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKKKKKKYKKKKKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNN/................\NNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNN/..................\NNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNN/..4.......m.........\NNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNN/.......f.........s....\NNNNNNNNNNNN"
-DATA "NNNNNNNNNNN/........................\NNNNNNNNNNN"
-DATA "NNNNNNNNNN/......................a..c\NNNNNNNNNN"
-DATA "NNNNNNNNN/..h.........................\NNNNNNNNN"
-DATA "NNNNNNNN/..............................\NNNNNNNN"
-DATA "NNNNNNN/..i..........................i..\NNNNNNN"
-DATA "NNNNNN/....e......../###.##\.....k.......\NNNNNN"
-DATA "NNNNNN............./####.###\.............NNNNNN"
-DATA "NNNNNN............/#####B####\............NNNNNN"
-DATA "PPPPPP...S......./######.#####\.........g.GGGGGG"
-DATA "PPPPPP........../####/....\####\..........GGGGGG"
-DATA "P...PP...f...../####/......\####\.........GG...G"
-DATA "P.y.PP.........####/.g.....g\####.........GG.*.G"
-DATA "P...PP.......k.####..........####.........GG...G"
-DATA "P...PP.........####....#E#...####.........GG.x.G"
-DATA "P....R..g......####..........####.........D..<.G"
-DATA "P.j.PP.........####.h.......h####.k.......GG...G"
-DATA "P.h.PP.........####\....+.../####.........GG.M.G"
-DATA "P...PP.........\####\...s../####/.........GG...G"
-DATA "PPPPPP..........\####\..../####/......f...GGGGGG"
-DATA "PPPPPP...S.......\############/...........GGGGGG"
-DATA "NNNNNN..s.........\##########/............NNNNNN"
-DATA "NNNNNN........w....\########/.............NNNNNN"
-DATA "NNNNNN\.............\######/............./NNNNNN"
-DATA "NNNNNNN\...+...........................a/NNNNNNN"
-DATA "NNNNNNNN\............................../NNNNNNNN"
-DATA "NNNNNNNNN\..m........................./NNNNNNNNN"
-DATA "NNNNNNNNNN\.............w.........g../NNNNNNNNNN"
-DATA "NNNNNNNNNNN\..i...................i./NNNNNNNNNNN"
-DATA "NNNNNNNNNNNN\...............f....../NNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNN\..........3........./NNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNN\..c......c.....m../NNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNN\................/NNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKKKKKKDKKKKKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKKKKKK.KKKKKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKK...+.x..KKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKK.r....g.KKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKK........KKNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNKKKKKKKKKKKKNNNNNNNNNNNNNNNNNN"
-
-Level10:
-' Level 10: a square spiral in to the AI core. Red key on the second
-' turn; blue on the third (red); the core (blue) is the overseer's arena,
-' the exit in its far wall.
-DATA "SECTOR 10: THE CORE"
-DATA "wall-core.png", "wall-obsidian.png", "wall-reactor.png", "wall-coils.png", "wall-servers.png", "wall-hazard.png"
-DATA "floor-core.png", "floor-scorched.png", "floor-glow.png", "floor-hazard.png"
-DATA "ceiling-core.png", "ceiling-warning.png"
-DATA 85, 255, 120, 120
-DATA 4
-DATA 2, 2, 45, 45, 2, 2, 0
-DATA 9, 9, 38, 38, 4, 2, 0
-DATA 15, 15, 32, 32, 3, 1, 0
-DATA 20, 20, 27, 27, 1, 1, 0
-DATA 11
-DATA 24.5, 43.5, 7, 150, 255, 60, 60, 2
-DATA 4.5, 24.5, 7, 150, 255, 60, 60, 2
-DATA 24.5, 4.5, 7, 150, 255, 60, 60, 2
-DATA 43.5, 24.5, 7, 150, 255, 60, 60, 2
-DATA 10.5, 24.5, 6, 150, 255, 80, 120, 1
-DATA 24.5, 10.5, 6, 150, 255, 80, 120, 1
-DATA 37.5, 24.5, 6, 150, 255, 80, 120, 1
-DATA 24.5, 37.5, 6, 150, 255, 80, 120, 1
-DATA 16.5, 16.5, 5, 170, 255, 40, 40, 3
-DATA 31.5, 31.5, 5, 170, 255, 40, 40, 3
-DATA 23.5, 23.5, 5, 220, 255, 120, 80, 2
-DATA 1
-DATA 1, 20, 20, 27, 27, 6, 0, 13
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNN..........................................NNN"
-DATA "NNN.........e.......c...i...........w.....f..NNN"
-DATA "NNN...m.........................g............NNN"
-DATA "NNN...NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN.s.NNN"
-DATA "NNN...NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN...NNN"
-DATA "NNN...NN################################NN...NNN"
-DATA "NNN...NN#..............................#NN...NNN"
-DATA "NNN.k.NN#.u.............m...........r..#NN...NNN"
-DATA "NNN...NN#..............................#NN...NNN"
-DATA "NNN...NN#..h########################...#NN.+.NNN"
-DATA "NNN...NN#...########################...#NN...NNN"
-DATA "NNN...NN#...##CCCCCCCCCCCCCCCCCCCC##...#NN...NNN"
-DATA "NNN..gNN#...##C..................C##...#NN...NNN"
-DATA "NNN...NN#...##C.w.............s..C##.w.#NN...NNN"
-DATA "NNN...NN#...##C..g...............C##...#NN...NNN"
-DATA "NNN...NN#...##C...CCCCCCCCCCCC...C##...#NN...NNN"
-DATA "NNN...NN#...##C...CKKKKKEKKKKC...C##...#NN...NNN"
-DATA "NNN...NN#...##C...CK........KC...C##.g.#NNh..NNN"
-DATA "NNN...NN#...##C...CK.c....c.KC...C##...#NN...NNN"
-DATA "NNN...NN#...##C.c.CK........KC.*.C##...#NN...NNN"
-DATA "NNN...NN#...##C...CK....z...KC...C##...#NN...NNN"
-DATA "NNN.i.NN#...##C....B........KC....R....#NN.i.NNN"
-DATA "NNN...NN#.g.##C...CK........KC.q.C##...#NN...NNN"
-DATA "NNN...NN#...##C.j.CK.+....a.KC...C##...#NN...NNN"
-DATA "NNN...NN#...##C...CK........KC...C##...#NN...NNN"
-DATA "NNN...NN#...##C...CKKKKKKKKKKC...C##...#NN...NNN"
-DATA "NNN...NN#...##C...CCCCCCCCCCCC...C##...#NN...NNN"
-DATA "NNN.h.NN#.k.##C.h.............b..C##.a.#NN...NNN"
-DATA "NNN...NN#...##C..+......m.....k..C##...#NN...NNN"
-DATA "NNN...NN#...##C..................C##...#NN.m.NNN"
-DATA "NNN...NN#...##CCCCCCCCCCCCCCCCCCCC##...#NN...NNN"
-DATA "NNN...NN#.M.########################...#NN...NNN"
-DATA "NNN...NN#...########################...#NN...NNN"
-DATA "NNN...NN#.c.........................c..#NN...NNN"
-DATA "NNN...NN#..f............s..............#NN...NNN"
-DATA "NNN....Dj..............................#NN...NNN"
-DATA "NNN...NN################################NN...NNN"
-DATA "NNN.a.NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN...NNN"
-DATA "NNN...NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN...NNN"
-DATA "NNN...c.............k.........c....q....<....NNN"
-DATA "NNN...f....2......m.....i...........+........NNN"
-DATA "NNN..........................................NNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-DATA "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-
 '-----------------------------------------------------------------------------
 ' CHAPTER 23: THE HELPERS
 '-----------------------------------------------------------------------------
@@ -4900,6 +5972,35 @@ SUB LoadSprite(file$, slot)
         spriteTex(x, y, slot) = POINT(x * _WIDTH(img&) \ sprSize, y * _HEIGHT(img&) \ sprSize)
     NEXT : NEXT
     _SOURCE 0 : _FREEIMAGE img&
+END SUB
+
+'' NEXUS (or a minion) says line key$: its voice and its words on screen.
+' (x, y): where a minion is, for 3D sound - (0, 0) for NEXUS, who speaks
+' over the station's speakers, everywhere at once
+SUB Say(key$, fromMinion)
+    li = LineOf(key$) : IF li = 0 THEN EXIT SUB
+    IF lineSnd&(li) > 0 THEN _SNDPLAYCOPY lineSnd&(li), setting(SET_SPEECH) / 100
+    IF fromMinion = 0 THEN
+        speechText$ = "NEXUS: " + lineText$(li)
+        IF lineSnd&(li) > 0 THEN speechUntil! = TIMER + _SNDLEN(lineSnd&(li)) + 0.6 ELSE speechUntil! = TIMER + 3
+    END IF
+END SUB
+
+' Which line has key key$ (0: none)
+FUNCTION LineOf(key$)
+    FOR k = 1 TO numLines
+        IF lineKey$(k) = key$ THEN LineOf = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Words wrapped to cols characters a line, from (x, y) down
+SUB WrapText(x, y, cols, t$, col~&)
+    r$ = t$ : yy = y
+    DO WHILE LEN(r$)
+        IF LEN(r$) <= cols THEN l$ = r$ : r$ = "" ELSE cut = _INSTRREV(LEFT$(r$, cols + 1), " ") : IF cut < 2 THEN cut = cols
+        IF LEN(r$) THEN l$ = RTRIM$(LEFT$(r$, cut)) : r$ = LTRIM$(MID$(r$, cut + 1))
+        HudText x, yy, l$, col~& : yy = yy + 20
+    LOOP
 END SUB
 
 ' A monster's hit flash: its picture (slot src) washed hot red, into dst
@@ -5108,7 +6209,7 @@ SUB MonMove(mtype, x, y, ph, x0, x1, y0, y1, mx, hip, nx, ny, col~&)
     nx = x : ny = y
     r = _RED32(col~&) : g = _GREEN32(col~&) : b = _BLUE32(col~&) : redLight = r > 150 AND r > g * 1.6 AND r > b * 1.6
     SELECT CASE mtype
-        CASE 2, 3, 6, 7 ' Walkers
+        CASE 2, 3, 6, 7, 9 ' Walkers
             IF y >= hip THEN ' A leg: lifts (its side's foot off the floor) and swings
                 d = (y - hip) / (y1 - hip + 1) ' (0 at the hip, 1 at the foot)
                 swing = SIN(ph + (side > 0) * 3.14159)
@@ -5154,7 +6255,7 @@ SUB MakeWreck(kind)
     NEXT : NEXT
     IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = sz - 1 : y1 = sz - 1
     w = x1 - x0 + 1 : h = y1 - y0 + 1
-    keep = VAL(MID$("0.30.20.40.40.40.30.40.30.2", kind * 3 - 2, 3)) ' How much stays: barrel, lamp, plant, terminal, crate, rack, vending machine, tank, spawner
+    keep = VAL(MID$("0.30.20.40.40.40.30.40.30.20.50.40.30.30.50.40.30.30.40.5", kind * 3 - 2, 3)) ' How much stays (barrel, lamp, plant ... bench)
     kh = INT(h * keep) : IF kh < 2 THEN kh = 2
     DIM tear(SPR_TEX) ' (how far down each column is torn off)
     FOR x = 0 TO w - 1 : tear(x) = INT(RND * kh * 0.4) : NEXT
@@ -5343,7 +6444,7 @@ END FUNCTION
 SUB LockRoom(ev, locked)
     FOR y = evY0(ev) - 5 TO evY1(ev) + 5 : FOR x = evX0(ev) - 5 TO evX1(ev) + 5
         IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
-            IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN doorLock(x, y) = locked
+            IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT AND doorLock(x, y) <> 2 AND doorLock(x, y) <> 3 THEN doorLock(x, y) = locked
         END IF
     NEXT : NEXT
 END SUB
@@ -5384,10 +6485,1322 @@ FUNCTION SpawnMonster(t, x, y, ev)
     numMonsters = numMonsters + 1 : i = numMonsters
     monsterX(i) = x : monsterY(i) = y : monsterType(i) = t : monsterHP(i) = mtypeHP(t)
     monsterState(i) = 1 : monsterTimer(i) = 40 : monsterHurt(i) = 0 : monsterAtk(i) = 0 : monsterAnim(i) = 0 : monsterEv(i) = ev
+    ThiefReset i
     SpawnSparks x, y, 0.5, 16, 200, 120, 255
     SfxAt sndSpawn&, x, y, playerX, playerY
     SpawnMonster = -1
 END FUNCTION
+
+'' A thief bot's pockets, empty
+SUB ThiefReset(i)
+    thiefCells(i) = 0 : thiefShells(i) = 0 : thiefGun(i) = 0 : thiefState(i) = 0
+END SUB
+
+' A thief bot (monster i) is destroyed: what it stole spills out round it
+SUB DropThiefLoot(i)
+    x = monsterX(i) : y = monsterY(i) : n = 0
+    IF thiefGun(i) THEN
+        SELECT CASE thiefGun(i)
+            CASE W_SCATTER : k = IT_SCATTER
+            CASE W_REPEATER : k = IT_REPEATER
+            CASE ELSE : k = IT_RAIL
+        END SELECT
+        DropItemAt k, x, y : n = n + 1
+    END IF
+    FOR c = 1 TO (thiefCells(i) + 14) \ 15 : DropItemAt IT_CELLS, x + COS(n * 2.1) * 0.35, y + SIN(n * 2.1) * 0.35 : n = n + 1 : NEXT
+    FOR c = 1 TO (thiefShells(i) + 7) \ 8 : DropItemAt IT_SHELLS, x + COS(n * 2.1) * 0.35, y + SIN(n * 2.1) * 0.35 : n = n + 1 : NEXT
+    IF n THEN ShowMsg "The thief dropped your things!"
+    ThiefReset i
+END SUB
+
+' One more pickup, of kind kind, just where (x, y) is (if that's floor -
+' or else in the middle of its cell)
+SUB DropItemAt(kind, x, y)
+    IF numItems >= MAX_ITEMS THEN EXIT SUB
+    IF NOT Walkable%(x, y) THEN x = INT(x) + 0.5 : y = INT(y) + 0.5
+    numItems = numItems + 1
+    itemX(numItems) = x : itemY(numItems) = y : itemKind(numItems) = kind : itemOn(numItems) = -1
+    SpawnSparks x, y, 0.3, 10, 255, 230, 120
+END SUB
+
+' Each closet wall (%) to its closet event - the first closet event whose
+' room it's within 3 cells of - and its look: the wall it's set in (the
+' commonest of its neighbours)
+' The floor's (and the ceiling's) height at map point (x, y) - 0 and 1
+' off the map
+FUNCTION FloorAt(x, y)
+    cx = INT(x) : cy = INT(y)
+    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN FloorAt = floorH(cx, cy)
+END FUNCTION
+FUNCTION CeilAt(x, y)
+    cx = INT(x) : cy = INT(y)
+    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN CeilAt = ceilH(cx, cy) ELSE CeilAt = 1
+END FUNCTION
+
+' A height from its character in [floor] or [ceiling] (chapter 22): . is
+' dflt; 0-9, a-z that many eighths of a wall; A-H that many eighths below 0
+FUNCTION HeightOf(c$, dflt)
+    k = INSTR(H_UP$, c$)
+    IF k THEN HeightOf = (k - 1) * H_STEP : EXIT FUNCTION
+    k = INSTR(H_DOWN$, c$)
+    IF k THEN HeightOf = -k * H_STEP : EXIT FUNCTION
+    HeightOf = dflt
+END FUNCTION
+
+' ...and the character for height h (. if it's dflt)
+FUNCTION HeightChar$(h, dflt)
+    IF ABS(h - dflt) < 0.001 THEN HeightChar$ = "." : EXIT FUNCTION
+    k = CINT(h / H_STEP)
+    IF k >= 0 THEN
+        IF k >= LEN(H_UP$) THEN k = LEN(H_UP$) - 1
+        HeightChar$ = MID$(H_UP$, k + 1, 1)
+    ELSE
+        IF -k > LEN(H_DOWN$) THEN k = -LEN(H_DOWN$)
+        HeightChar$ = MID$(H_DOWN$, -k, 1)
+    END IF
+END FUNCTION
+
+' The file of level n
+FUNCTION LevelFile$(n)
+    LevelFile$ = AssetPath$("levels/level" + LTRIM$(STR$(n)) + ".txt")
+END FUNCTION
+
+' Read level n's file (chapter 22) into lvlName$, lvlWall$() ... lvlRow$():
+' line by line, LINE INPUT. A line starting with ' is a comment; a line
+' in [brackets] starts a section; before the first section, lines are
+' "key = value"; in [zones], [lights] and [events] each line is one of
+' them, its numbers split by commas (SplitNums); in [map], each line is a
+' row. lvlOK says whether it worked.
+SUB ReadLevelFile(n)
+    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNote$ = "" : topLines = -1
+    FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : NEXT
+    fRows = 0 : cRows = 0
+    f$ = LevelFile$(n)
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    DIM v(8) AS SINGLE
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    sec$ = "" : rows = 0
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$
+        t$ = LTRIM$(RTRIM$(l$))
+        IF RIGHT$(t$, 1) = CHR$(13) THEN t$ = LEFT$(t$, LEN(t$) - 1) ' (a file from Windows)
+        IF sec$ = "map" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF rows < MAP_SIZE THEN lvlRow$(rows) = t$ : rows = rows + 1
+        ELSEIF sec$ = "floor" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF fRows < MAP_SIZE THEN lvlFloorRow$(fRows) = t$ : fRows = fRows + 1
+        ELSEIF sec$ = "ceiling" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF cRows < MAP_SIZE THEN lvlCeilRow$(cRows) = t$ : cRows = cRows + 1
+        ELSEIF sec$ = "triggers" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF lvlNumTrigs < MAX_TRIGS THEN lvlNumTrigs = lvlNumTrigs + 1 : lvlTrig$(lvlNumTrigs) = t$
+        ELSEIF LEN(t$) = 0 OR LEFT$(t$, 1) = "'" THEN
+            ' (a blank line, or a comment - those at the top, but for the
+            ' three every file starts with, are the level's notes)
+            IF topLines AND LEFT$(t$, 1) = "'" THEN
+                IF INSTR(t$, "NEON-CASTER level file") = 0 AND INSTR(t$, "part of it. Lines starting") = 0 AND INSTR(t$, "levels.py --write) and the editor") = 0 THEN lvlNote$ = lvlNote$ + t$ + CHR$(10)
+            END IF
+        ELSEIF LEFT$(t$, 1) = "[" AND RIGHT$(t$, 1) = "]" THEN
+            sec$ = LCASE$(LTRIM$(RTRIM$(MID$(t$, 2, LEN(t$) - 2)))) : topLines = 0
+        ELSEIF sec$ = "" THEN
+            eq = INSTR(t$, "=") : topLines = 0
+            IF eq THEN
+                k$ = LCASE$(RTRIM$(LEFT$(t$, eq - 1))) : val$ = LTRIM$(MID$(t$, eq + 1))
+                SELECT CASE k$
+                    CASE "name" : lvlName$ = val$
+                    CASE "puzzles" : lvlPuzzles$ = val$
+                    CASE "walls" : FOR k = 1 TO 6 : lvlWall$(k) = ListItem$(val$, k) : NEXT
+                    CASE "floors" : FOR k = 1 TO 4 : lvlFloor$(k) = ListItem$(val$, k) : NEXT
+                    CASE "ceilings" : FOR k = 1 TO 2 : lvlCeil$(k) = ListItem$(val$, k) : NEXT
+                    CASE "ambient" : FOR k = 1 TO 4 : lvlAmb(k) = VAL(ListItem$(val$, k)) : NEXT
+                END SELECT
+            END IF
+        ELSE
+            got = SplitNums(t$, v())
+            SELECT CASE sec$
+                CASE "zones"
+                    IF got >= 7 AND lvlNumZones < MAX_ZONES THEN lvlNumZones = lvlNumZones + 1 : FOR k = 1 TO 7 : lvlZone(lvlNumZones, k) = v(k) : NEXT
+                CASE "lights"
+                    IF got >= 8 AND lvlNumLights < MAX_LIGHTS THEN lvlNumLights = lvlNumLights + 1 : FOR k = 1 TO 8 : lvlLight(lvlNumLights, k) = v(k) : NEXT
+                CASE "events"
+                    IF got >= 8 AND lvlNumEvents < MAX_EVENTS THEN lvlNumEvents = lvlNumEvents + 1 : FOR k = 1 TO 8 : lvlEvent(lvlNumEvents, k) = v(k) : NEXT
+                CASE "lifts"
+                    IF got >= 8 AND lvlNumLifts < MAX_LIFTS THEN lvlNumLifts = lvlNumLifts + 1 : FOR k = 1 TO 8 : lvlLift(lvlNumLifts, k) = v(k) : NEXT
+            END SELECT
+        END IF
+    LOOP
+    CLOSE #fh
+    FOR k = 0 TO MAP_SIZE - 1 ' (short rows, or missing ones, are padded with wall)
+        IF LEN(lvlRow$(k)) < MAP_SIZE THEN lvlRow$(k) = lvlRow$(k) + STRING$(MAP_SIZE - LEN(lvlRow$(k)), "#")
+        lvlFloorRow$(k) = LEFT$(lvlFloorRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE) ' (heights: the usual where none's given)
+        lvlCeilRow$(k) = LEFT$(lvlCeilRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE)
+    NEXT
+    lvlOK = (rows > 0)
+END SUB
+
+' Item k (from 1) of a list split by commas, trimmed
+FUNCTION ListItem$(list$, k)
+    s$ = list$ + ","
+    FOR i = 1 TO k - 1
+        c = INSTR(s$, ",") : IF c = 0 THEN EXIT FUNCTION
+        s$ = MID$(s$, c + 1)
+    NEXT
+    c = INSTR(s$, ",") : IF c = 0 THEN EXIT FUNCTION
+    ListItem$ = LTRIM$(RTRIM$(LEFT$(s$, c - 1)))
+END FUNCTION
+
+' The numbers in a line split by commas, into v(1), v(2)...; how many
+FUNCTION SplitNums(t$, v() AS SINGLE)
+    s$ = t$ + "," : n = 0
+    DO
+        c = INSTR(s$, ",") : IF c = 0 OR n >= UBOUND(v) THEN EXIT DO
+        n = n + 1 : v(n) = VAL(LEFT$(s$, c - 1)) : s$ = MID$(s$, c + 1)
+    LOOP WHILE LEN(LTRIM$(s$))
+    SplitNums = n
+END FUNCTION
+
+' --- The editor's helpers (chapter 21) -----------------------------------
+' Where the map from above sits on the screen, and its cells' size
+' (ED_ constants are near the top: ED_MAPX, ED_MAPY, ED_CELL)
+
+' Put glyph c$ at cell (x, y) of the level (not on its border)
+SUB EditPut(x, y, c$)
+    IF x < 1 OR y < 1 OR x > MAP_SIZE - 2 OR y > MAP_SIZE - 2 THEN EXIT SUB
+    IF INSTR("<>^v", c$) THEN ' (only one start: the old one becomes floor)
+        FOR yy = 0 TO MAP_SIZE - 1 : FOR xx = 0 TO MAP_SIZE - 1
+            IF INSTR("<>^v", MID$(lvlRow$(yy), xx + 1, 1)) THEN MID$(lvlRow$(yy), xx + 1, 1) = "."
+        NEXT : NEXT
+    END IF
+    MID$(lvlRow$(y), x + 1, 1) = c$
+END SUB
+
+' The level (map, zones, lights) as one string - and back - for undo
+FUNCTION EditSnapshot$
+    s$ = ""
+    FOR y = 0 TO MAP_SIZE - 1 : s$ = s$ + lvlRow$(y) : NEXT
+    FOR y = 0 TO MAP_SIZE - 1 : s$ = s$ + lvlFloorRow$(y) : NEXT
+    FOR y = 0 TO MAP_SIZE - 1 : s$ = s$ + lvlCeilRow$(y) : NEXT
+    s$ = s$ + CHR$(1) + LTRIM$(STR$(lvlNumZones))
+    FOR k = 1 TO lvlNumZones : FOR j = 1 TO 7 : s$ = s$ + "," + LTRIM$(STR$(lvlZone(k, j))) : NEXT : NEXT
+    s$ = s$ + CHR$(1) + LTRIM$(STR$(lvlNumLights))
+    FOR k = 1 TO lvlNumLights : FOR j = 1 TO 8 : s$ = s$ + "," + LTRIM$(STR$(lvlLight(k, j))) : NEXT : NEXT
+    s$ = s$ + CHR$(1)
+    FOR k = 1 TO 6 : s$ = s$ + lvlWall$(k) + "|" : NEXT
+    FOR k = 1 TO 4 : s$ = s$ + lvlFloor$(k) + "|" : NEXT
+    FOR k = 1 TO 2 : s$ = s$ + lvlCeil$(k) + "|" : NEXT
+    EditSnapshot$ = s$
+END FUNCTION
+
+SUB EditRestore(s$)
+    FOR y = 0 TO MAP_SIZE - 1 : lvlRow$(y) = MID$(s$, y * MAP_SIZE + 1, MAP_SIZE) : NEXT
+    FOR y = 0 TO MAP_SIZE - 1 : lvlFloorRow$(y) = MID$(s$, (MAP_SIZE + y) * MAP_SIZE + 1, MAP_SIZE) : NEXT
+    FOR y = 0 TO MAP_SIZE - 1 : lvlCeilRow$(y) = MID$(s$, (MAP_SIZE * 2 + y) * MAP_SIZE + 1, MAP_SIZE) : NEXT
+    p = MAP_SIZE * MAP_SIZE * 3 + 2
+    q = INSTR(p, s$, CHR$(1)) : z$ = MID$(s$, p, q - p) + ","
+    lvlNumZones = VAL(z$) : z$ = MID$(z$, INSTR(z$, ",") + 1)
+    FOR k = 1 TO lvlNumZones : FOR j = 1 TO 7
+        c = INSTR(z$, ",") : lvlZone(k, j) = VAL(LEFT$(z$, c - 1)) : z$ = MID$(z$, c + 1)
+    NEXT : NEXT
+    p = q + 1 : q = INSTR(p, s$, CHR$(1)) : z$ = MID$(s$, p, q - p) + ","
+    lvlNumLights = VAL(z$) : z$ = MID$(z$, INSTR(z$, ",") + 1)
+    FOR k = 1 TO lvlNumLights : FOR j = 1 TO 8
+        c = INSTR(z$, ",") : lvlLight(k, j) = VAL(LEFT$(z$, c - 1)) : z$ = MID$(z$, c + 1)
+    NEXT : NEXT
+    z$ = MID$(s$, q + 1)
+    FOR k = 1 TO 6 : c = INSTR(z$, "|") : lvlWall$(k) = LEFT$(z$, c - 1) : z$ = MID$(z$, c + 1) : NEXT
+    FOR k = 1 TO 4 : c = INSTR(z$, "|") : lvlFloor$(k) = LEFT$(z$, c - 1) : z$ = MID$(z$, c + 1) : NEXT
+    FOR k = 1 TO 2 : c = INSTR(z$, "|") : lvlCeil$(k) = LEFT$(z$, c - 1) : z$ = MID$(z$, c + 1) : NEXT
+END SUB
+
+' Save the level to its file (the old one kept as .bak) - after checking
+' it has a start, an exit, and walls all round
+SUB EditSave(lev)
+    starts = 0 : exits = 0 : border = -1
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+        c$ = MID$(lvlRow$(y), x + 1, 1)
+        IF INSTR("<>^v", c$) THEN starts = starts + 1
+        IF c$ = "E" THEN exits = exits + 1
+        IF x = 0 OR y = 0 OR x = MAP_SIZE - 1 OR y = MAP_SIZE - 1 THEN IF INSTR("#NCKPG", c$) = 0 THEN border = 0
+    NEXT : NEXT
+    warn$ = ""
+    IF starts <> 1 THEN warn$ = warn$ + "  (no start!)"
+    IF exits <> 1 THEN warn$ = warn$ + "  (no exit!)"
+    IF NOT border THEN warn$ = warn$ + "  (gaps in the border!)"
+    f$ = LevelFile$(lev)
+    IF _FILEEXISTS(f$) THEN
+        IF _FILEEXISTS(f$ + ".bak") THEN KILL f$ + ".bak"
+        NAME f$ AS f$ + ".bak"
+    END IF
+    WriteLevelFile f$
+    editDirty = 0
+    EditNote "Saved " + f$ + warn$
+END SUB
+
+' Write the level (lvlName$ ... lvlRow$()) to file f$, in the format
+' ReadLevelFile reads (chapter 22)
+SUB WriteLevelFile(f$)
+    o$ = "" : nl$ = CHR$(10) ' (built up in o$, then written in one go - with plain line ends, as Linux has them)
+    o$ = o$ + "' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every" + nl$
+    o$ = o$ + "' part of it. Lines starting with ' are comments. The level kit" + nl$
+    o$ = o$ + "' (levels.py --write) and the editor in the game write these files." + nl$
+    o$ = o$ + lvlNote$ + nl$
+    o$ = o$ + "name     = " + lvlName$ + nl$
+    IF lvlPuzzles$ <> "" THEN o$ = o$ + "puzzles  = " + lvlPuzzles$ + nl$
+    l$ = "" : FOR k = 1 TO 6 : l$ = l$ + lvlWall$(k) + MID$(", ", 1, -2 * (k < 6)) : NEXT : o$ = o$ + "walls    = " + l$ + nl$
+    l$ = "" : FOR k = 1 TO 4 : l$ = l$ + lvlFloor$(k) + MID$(", ", 1, -2 * (k < 4)) : NEXT : o$ = o$ + "floors   = " + l$ + nl$
+    o$ = o$ + "ceilings = " + lvlCeil$(1) + ", " + lvlCeil$(2) + nl$
+    o$ = o$ + "ambient  = " + NumList$(lvlAmb(1), lvlAmb(2), lvlAmb(3), lvlAmb(4)) + nl$
+    o$ = o$ + "" + nl$ : o$ = o$ + "[zones]" + nl$ : o$ = o$ + "' x0, y0, x1, y1, floor, ceiling, shape" + nl$
+    FOR k = 1 TO lvlNumZones
+        l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlZone(k, j))) + MID$(", ", 1, -2 * (j < 7)) : NEXT : o$ = o$ + l$ + nl$
+    NEXT
+    o$ = o$ + "" + nl$ : o$ = o$ + "[lights]" + nl$ : o$ = o$ + "' x, y, radius, brightness, red, green, blue, effect" + nl$
+    FOR k = 1 TO lvlNumLights
+        l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlLight(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT : o$ = o$ + l$ + nl$
+    NEXT
+    o$ = o$ + "" + nl$ : o$ = o$ + "[events]" + nl$ : o$ = o$ + "' kind, x0, y0, x1, y1, a, b, reward" + nl$
+    FOR k = 1 TO lvlNumEvents
+        l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlEvent(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT : o$ = o$ + l$ + nl$
+    NEXT
+    IF lvlNumLifts THEN
+        o$ = o$ + nl$ + "[lifts]" + nl$ + "' x0, y0, x1, y1, low, high (eighths of a wall), mode (1 up and down, 2 an elevator), speed (eighths a second)" + nl$
+        FOR k = 1 TO lvlNumLifts
+            l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlLift(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT : o$ = o$ + l$ + nl$
+        NEXT
+    END IF
+    IF lvlNumTrigs THEN
+        o$ = o$ + nl$ + "[triggers]" + nl$ + "' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ..." + nl$
+        FOR k = 1 TO lvlNumTrigs : o$ = o$ + lvlTrig$(k) + nl$ : NEXT
+    END IF
+    o$ = o$ + "" + nl$ : o$ = o$ + "[map]" + nl$
+    FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlRow$(y) + nl$ : NEXT
+    ' The heights - only if there are any
+    anyF = 0 : anyC = 0
+    FOR y = 0 TO MAP_SIZE - 1
+        IF lvlFloorRow$(y) <> STRING$(MAP_SIZE, ".") THEN anyF = -1
+        IF lvlCeilRow$(y) <> STRING$(MAP_SIZE, ".") THEN anyC = -1
+    NEXT
+    IF anyF THEN
+        o$ = o$ + nl$ + "[floor]" + nl$ + "' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down" + nl$
+        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlFloorRow$(y) + nl$ : NEXT
+    END IF
+    IF anyC THEN
+        o$ = o$ + nl$ + "[ceiling]" + nl$ + "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's" + nl$
+        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlCeilRow$(y) + nl$ : NEXT
+    END IF
+    IF _FILEEXISTS(f$) THEN KILL f$
+    fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+END SUB
+
+FUNCTION NumList$(a, b, c, d)
+    NumList$ = LTRIM$(STR$(a)) + ", " + LTRIM$(STR$(b)) + ", " + LTRIM$(STR$(c)) + ", " + LTRIM$(STR$(d))
+END FUNCTION
+
+' A message along the editor's bottom, for a few seconds
+SUB EditNote(m$)
+    editMsg$ = m$ : editMsgUntil! = TIMER + 4
+END SUB
+
+' The glyph before or after the one chosen, in EDIT_GLYPHS' order
+SUB EditCycleGlyph(d)
+    p = INSTR(EDIT_GLYPHS, editGlyph$) + d
+    IF p < 1 THEN p = LEN(EDIT_GLYPHS)
+    IF p > LEN(EDIT_GLYPHS) THEN p = 1
+    editGlyph$ = MID$(EDIT_GLYPHS, p, 1) : EditNote GlyphName$(editGlyph$)
+END SUB
+
+' What a map character is (chapter 22's list, in a few words)
+FUNCTION GlyphName$(c$)
+    SELECT CASE c$
+        CASE "." : g$ = "floor"
+        CASE "#", "N", "C", "K", "P", "G" : g$ = "wall " + c$ + " (" + lvlWall$(INSTR("#NCKPG", c$)) + ")"
+        CASE "/", "\" : g$ = "diagonal wall " + c$
+        CASE "D" : g$ = "sliding door"
+        CASE "H" : g$ = "shutter door"
+        CASE "X" : g$ = "split door"
+        CASE "R", "B", "Y" : g$ = MID$("red   blue  yellow", INSTR("RBY", c$) * 6 - 5, 6) : g$ = RTRIM$(g$) + " key door"
+        CASE "E" : g$ = "the EXIT"
+        CASE "!" : g$ = "sealed door (a data station opens it)"
+        CASE "=" : g$ = "glass"
+        CASE "@" : g$ = "data station"
+        CASE "$" : g$ = "code terminal (a QB64 puzzle)"
+        CASE "%" : g$ = "closet wall (secret)"
+        CASE "&" : g$ = "teleporter pad (pairs: 1st-2nd, 3rd-4th...)"
+        CASE "r", "b", "y" : g$ = RTRIM$(MID$("red   blue  yellow", INSTR("rby", c$) * 6 - 5, 6)) + " keycard"
+        CASE "+" : g$ = "health pack"
+        CASE "*" : g$ = "big medkit"
+        CASE "u" : g$ = "armour"
+        CASE "a" : g$ = "energy cells"
+        CASE "e" : g$ = "shells"
+        CASE "2" : g$ = "scatter gun"
+        CASE "3" : g$ = "repeater"
+        CASE "4" : g$ = "railgun"
+        CASE "M" : g$ = "the map"
+        CASE "q" : g$ = "overcharge"
+        CASE "j" : g$ = "damage amp"
+        CASE "m", "g", "h", "c", "s", "k", "w", "z", "T" : g$ = mtypeName$(INSTR("mghcskwzT", c$))
+        CASE "<", ">", "^", "v" : g$ = "the START, facing " + c$
+        CASE ELSE
+            k = INSTR("oiptxlnfSdAFIJLOQUWZV", c$)
+            IF k THEN g$ = RTRIM$(MID$("barrel     lamp       plant      terminal   crate      server rackvending    coolant    spawner    desk       console    screens    specimen   lab bench  generator  cryo pod   hologram   lockers    bench      chair      body       ", k * 11 - 10, 11)) ELSE g$ = "?"
+    END SELECT
+    GlyphName$ = g$
+END FUNCTION
+
+' Its colour on the editor's map
+FUNCTION GlyphColor~&(c$)
+    SELECT CASE c$
+        CASE "." : col~& = _RGB32(28, 30, 48)
+        CASE "#", "N", "C", "K", "P", "G"
+            k = INSTR("#NCKPG", c$) : IF k = 1 THEN col~& = wallMapColor(1) ELSE col~& = wallMapColor(k + 1)
+        CASE "/", "\" : col~& = _RGB32(150, 150, 170)
+        CASE "D", "H", "X" : col~& = _RGB32(255, 140, 20)
+        CASE "R" : col~& = _RGB32(255, 50, 50)
+        CASE "B" : col~& = _RGB32(60, 110, 255)
+        CASE "Y" : col~& = _RGB32(255, 230, 40)
+        CASE "E" : col~& = _RGB32(60, 255, 120)
+        CASE "!" : col~& = _RGB32(255, 200, 40)
+        CASE "=" : col~& = _RGB32(130, 220, 255)
+        CASE "@" : col~& = _RGB32(60, 240, 255)
+        CASE "$" : col~& = _RGB32(90, 255, 120)
+        CASE "%" : col~& = _RGB32(120, 90, 60)
+        CASE "&" : col~& = _RGB32(190, 110, 255)
+        CASE "<", ">", "^", "v" : col~& = _RGB32(255, 255, 255)
+        CASE ELSE
+            IF INSTR("rby+*uae234Mqj", c$) THEN col~& = _RGB32(80, 230, 120)
+            IF INSTR("mghcskwzT", c$) THEN col~& = _RGB32(255, 70, 90)
+            IF INSTR("oiptxlnfSdAFIJLOQUWZV", c$) THEN col~& = _RGB32(230, 200, 90)
+    END SELECT
+    GlyphColor~& = col~&
+END FUNCTION
+
+' Which entry of the palette is at screen point (mx, my) (0: none)
+FUNCTION EditPaletteAt(mx, my)
+    IF mx < ED_PALX OR my < ED_PALY THEN EXIT FUNCTION
+    col = (mx - ED_PALX) \ 22 : row = (my - ED_PALY) \ 22
+    IF col > 7 THEN EXIT FUNCTION
+    k = row * 8 + col + 1
+    IF k <= LEN(EDIT_GLYPHS) THEN EditPaletteAt = k
+END FUNCTION
+
+' The editor's map from above: every cell its colour, things a dot in
+' theirs, the lights (and their reach, on the light layer), the event
+' rooms' outlines, you - and the palette, and what's under the mouse
+SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
+    LINE (0, 0)-(799, 599), _RGB32(10, 8, 22), BF
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+        c$ = MID$(lvlRow$(y), x + 1, 1) : sx = ED_MAPX + x * ED_CELL : sy = ED_MAPY + y * ED_CELL
+        IF INSTR("rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV<>^v", c$) THEN
+            LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&("."), BF
+            LINE (sx + 3, sy + 3)-STEP(ED_CELL - 7, ED_CELL - 7), GlyphColor~&(c$), BF
+            IF INSTR("<>^v", c$) THEN LINE (sx + 1, sy + 1)-STEP(ED_CELL - 3, ED_CELL - 3), _RGB32(255, 255, 255), B
+        ELSEIF c$ = "/" THEN
+            LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&("."), BF : LINE (sx, sy + ED_CELL - 1)-(sx + ED_CELL - 1, sy), GlyphColor~&(c$)
+        ELSEIF c$ = "\" THEN
+            LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&("."), BF : LINE (sx, sy)-(sx + ED_CELL - 1, sy + ED_CELL - 1), GlyphColor~&(c$)
+        ELSE
+            LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&(c$), BF
+        END IF
+    NEXT : NEXT
+    ' The heights layer: each floor shaded by its height (and its number in
+    ' eighths), a ceiling that isn't the usual a dot in the corner
+    IF editHeights THEN
+        FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+            IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) = 0 THEN
+                fh = HeightOf(MID$(lvlFloorRow$(y), x + 1, 1), 0) : ch = HeightOf(MID$(lvlCeilRow$(y), x + 1, 1), 1)
+                sx = ED_MAPX + x * ED_CELL : sy = ED_MAPY + y * ED_CELL
+                IF fh <> 0 THEN
+                    k = 120 + fh * 90 : IF k > 255 THEN k = 255
+                    IF k < 20 THEN k = 20
+                    IF fh > 0 THEN LINE (sx + 1, sy + 1)-STEP(ED_CELL - 3, ED_CELL - 3), _RGB32(k, k * 0.8, 40), BF ELSE LINE (sx + 1, sy + 1)-STEP(ED_CELL - 3, ED_CELL - 3), _RGB32(40, 20, 80 + (1 + fh) * 100), BF
+                END IF
+                IF ch <> 1 THEN PSET (sx + ED_CELL - 3, sy + 2), _RGB32(120, 220, 255) : PSET (sx + ED_CELL - 4, sy + 2), _RGB32(120, 220, 255)
+            END IF
+        NEXT : NEXT
+        FOR k = 1 TO lvlNumLifts ' (the lifts, outlined)
+            LINE (ED_MAPX + MinOf(lvlLift(k, 1), lvlLift(k, 3)) * ED_CELL, ED_MAPY + MinOf(lvlLift(k, 2), lvlLift(k, 4)) * ED_CELL)-(ED_MAPX + (MaxOf(lvlLift(k, 1), lvlLift(k, 3)) + 1) * ED_CELL - 1, ED_MAPY + (MaxOf(lvlLift(k, 2), lvlLift(k, 4)) + 1) * ED_CELL - 1), _RGB32(120, 255, 120), B
+        NEXT
+    END IF
+    ' The triggers' places, outlined in orange (a use: its cell)
+    FOR k = 1 TO numTrigs
+        LINE (ED_MAPX + trigX0(k) * ED_CELL + 1, ED_MAPY + trigY0(k) * ED_CELL + 1)-(ED_MAPX + (trigX1(k) + 1) * ED_CELL - 2, ED_MAPY + (trigY1(k) + 1) * ED_CELL - 2), _RGBA32(255, 160, 40, 200), B
+    NEXT
+    ' The event rooms, outlined
+    FOR k = 1 TO lvlNumEvents
+        LINE (ED_MAPX + lvlEvent(k, 2) * ED_CELL, ED_MAPY + lvlEvent(k, 3) * ED_CELL)-(ED_MAPX + (lvlEvent(k, 4) + 1) * ED_CELL - 1, ED_MAPY + (lvlEvent(k, 5) + 1) * ED_CELL - 1), _RGBA32(255, 80, 200, 150), B
+    NEXT
+    ' The lights
+    FOR k = 1 TO lvlNumLights
+        lx = ED_MAPX + lvlLight(k, 1) * ED_CELL : ly = ED_MAPY + lvlLight(k, 2) * ED_CELL
+        lc~& = _RGB32(lvlLight(k, 5), lvlLight(k, 6), lvlLight(k, 7))
+        IF editLights THEN CIRCLE (lx, ly), lvlLight(k, 3) * ED_CELL, _RGBA32(lvlLight(k, 5), lvlLight(k, 6), lvlLight(k, 7), 90)
+        CIRCLE (lx, ly), 3, lc~& : PSET (lx, ly), _RGB32(255, 255, 255)
+    NEXT
+    ' You
+    ax = ED_MAPX + px * ED_CELL : ay = ED_MAPY + py * ED_CELL
+    LINE (ax, ay)-(ax + fx * ED_CELL * 1.6, ay + fy * ED_CELL * 1.6), _RGB32(255, 255, 0)
+    CIRCLE (ax, ay), ED_CELL \ 3, _RGB32(255, 255, 0)
+    ' The cursor (and a rectangle being dragged)
+    IF onMap THEN
+        IF rectOn THEN
+            LINE (ED_MAPX + MinOf(rx, hx) * ED_CELL, ED_MAPY + MinOf(ry, hy) * ED_CELL)-(ED_MAPX + (MaxOf(rx, hx) + 1) * ED_CELL - 1, ED_MAPY + (MaxOf(ry, hy) + 1) * ED_CELL - 1), _RGB32(255, 255, 255), B
+        ELSE
+            LINE (ED_MAPX + hx * ED_CELL - 1, ED_MAPY + hy * ED_CELL - 1)-STEP(ED_CELL + 1, ED_CELL + 1), _RGB32(255, 255, 255), B
+        END IF
+    END IF
+    ' The palette, two-and-a-bit columns of glyphs on the right
+    COLOR _RGB32(255, 90, 200) : _PRINTSTRING (ED_PALX, 4), "LEVEL EDITOR"
+    COLOR _RGB32(170, 160, 210) : _PRINTSTRING (ED_PALX, 22), LEFT$("Sector" + STR$(lev) + ": " + MID$(lname$, INSTR(lname$, ":") + 2), 24)
+    FOR k = 1 TO LEN(EDIT_GLYPHS)
+        c$ = MID$(EDIT_GLYPHS, k, 1)
+        sx = ED_PALX + ((k - 1) MOD 8) * 22 : sy = ED_PALY + ((k - 1) \ 8) * 22
+        LINE (sx, sy)-STEP(19, 19), GlyphColor~&(c$), BF
+        IF INSTR("rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV.", c$) THEN COLOR _RGB32(255, 255, 255) ELSE COLOR _RGB32(0, 0, 0)
+        _PRINTSTRING (sx + 6, sy + 2), c$
+        IF c$ = editGlyph$ THEN LINE (sx - 2, sy - 2)-STEP(23, 23), _RGB32(255, 255, 255), B : LINE (sx - 3, sy - 3)-STEP(25, 25), _RGB32(255, 60, 200), B
+    NEXT
+    y = ED_PALY + ((LEN(EDIT_GLYPHS) - 1) \ 8 + 1) * 22 + 6
+    COLOR _RGB32(255, 255, 255) : _PRINTSTRING (ED_PALX, y), LEFT$(GlyphName$(editGlyph$), 24)
+    IF editLights THEN COLOR _RGB32(255, 220, 120) : _PRINTSTRING (ED_PALX, y + 18), "LIGHTS: " + LightPresetName$(editLightP)
+    IF editHeights THEN COLOR _RGB32(255, 220, 120) : _PRINTSTRING (ED_PALX, y + 18), "HEIGHTS: click up, right down"
+    
+    COLOR _RGB32(140, 130, 180)
+    help$ = "Click paint|Shift+drag box|Right: pick|Wheel/[ ]: glyph|L: lights 1-8|H: heights|M: monsters|U: HUD layout|T: put you here|Tab: walk in it|Ctrl+S save|Ctrl+Z undo|PgUp/Dn sector|F2: play"
+    hy2 = y + 44
+    DO WHILE LEN(help$)
+        bar = INSTR(help$, "|") : IF bar = 0 THEN bar = LEN(help$) + 1
+        _PRINTSTRING (ED_PALX, hy2), LEFT$(help$, bar - 1) : hy2 = hy2 + 16 : help$ = MID$(help$, bar + 1)
+    LOOP
+    ' Along the bottom: the cell under the mouse, and the latest message
+    IF onMap THEN
+        c$ = MID$(lvlRow$(hy), hx + 1, 1)
+        h$ = "" : IF HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0) <> 0 OR HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1) <> 1 THEN h$ = "  floor" + STR$(HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0)) + " ceil" + STR$(HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1))
+        COLOR _RGB32(200, 200, 230) : _PRINTSTRING (ED_MAPX, 584), LEFT$(LTRIM$(STR$(hx)) + "," + LTRIM$(STR$(hy)) + "  " + GlyphName$(c$) + h$, 40)
+    END IF
+    IF TIMER < editMsgUntil! THEN COLOR _RGB32(255, 220, 120) : _PRINTSTRING (330, 584), LEFT$(editMsg$, 58)
+    IF editDirty THEN COLOR _RGB32(255, 90, 90) : _PRINTSTRING (ED_PALX, 584), "* not saved"
+END SUB
+
+' Walking round in the editor: what's under the crosshair, the glyph you'd
+' place, and the latest message
+SUB EditOverlay(px, py, fx, fy)
+    EditAim px, py, fx, fy, ax, ay, bx, by
+    LINE (8, 30)-(380, 92), _RGBA32(6, 2, 18, 200), BF
+    LINE (8, 30)-(380, 92), _RGB32(255, 60, 200), B
+    HudText 16, 36, "EDITOR  (H help, Tab map, F2 play)", _RGB32(255, 90, 200)
+    IF ax >= 0 THEN t$ = "AIM " + LTRIM$(STR$(ax)) + "," + LTRIM$(STR$(ay)) + ": " + GlyphName$(MID$(lvlRow$(ay), ax + 1, 1)) ELSE t$ = "AIM: nothing near"
+    HudText 16, 52, LEFT$(t$, 45), _RGB32(200, 220, 255)
+    HudText 16, 68, LEFT$("PLACE: " + GlyphName$(editGlyph$), 45), GlyphColor~&(editGlyph$)
+    IF TIMER < editMsgUntil! THEN
+        LINE (0, 470)-(799, 490), _RGBA32(0, 0, 0, 170), BF
+        HudText 400 - LEN(LEFT$(editMsg$, 98)) * 4, 474, LEFT$(editMsg$, 98), _RGB32(255, 220, 120)
+    END IF
+    IF editDirty THEN HudText 16, 98, "* not saved (Ctrl+S)", _RGB32(255, 90, 90)
+END SUB
+
+' From (px, py) looking (fx, fy): the first cell that isn't open floor
+' (ax, ay) - a wall, a door, glass, or a thing - and the open cell just
+' before it (bx, by), where something built would go. -1 if nothing near.
+SUB EditAim(px, py, fx, fy, ax, ay, bx, by)
+    ax = -1 : ay = -1 : bx = -1 : by = -1
+    lx = INT(px) : ly = INT(py)
+    FOR d = 0.3 TO 12 STEP 0.05
+        cx = INT(px + fx * d) : cy = INT(py + fy * d)
+        IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT SUB
+        IF cx <> INT(px) OR cy <> INT(py) THEN
+            c$ = MID$(lvlRow$(cy), cx + 1, 1)
+            IF c$ <> "." THEN
+                ax = cx : ay = cy
+                IF lx <> cx OR ly <> cy THEN bx = lx : by = ly
+                IF bx = INT(px) AND by = INT(py) THEN bx = -1 : by = -1 ' (not where you stand)
+                EXIT SUB
+            END IF
+        END IF
+        lx = cx : ly = cy
+    NEXT
+END SUB
+
+' The next (or previous: d = -1) picture called prefix*.png in the
+' pictures' folder, after now$ (in name order)
+FUNCTION EditNextPicture$(prefix$, now$, d)
+    DIM names$(200)
+    n = 0
+    dir$ = AssetPath$("x") : dir$ = LEFT$(dir$, LEN(dir$) - 1)
+    f$ = _FILES$(dir$ + prefix$ + "*.png")
+    DO WHILE LEN(f$) AND n < 200
+        b$ = f$ : sl = _INSTRREV(b$, "/") : IF sl THEN b$ = MID$(b$, sl + 1)
+        IF b$ <> "wall-jack.png" AND b$ <> "ceiling-lamp.png" THEN n = n + 1 : names$(n) = b$
+        f$ = _FILES$
+    LOOP
+    IF n = 0 THEN EditNextPicture$ = now$ : EXIT FUNCTION
+    FOR a = 1 TO n - 1 : FOR b = a + 1 TO n ' (in order)
+        IF names$(b) < names$(a) THEN SWAP names$(a), names$(b)
+    NEXT : NEXT
+    at = 0
+    FOR k = 1 TO n
+        IF names$(k) = now$ THEN at = k
+    NEXT
+    at = at + d : IF at < 1 THEN at = n
+    IF at > n THEN at = 1
+    EditNextPicture$ = names$(at)
+END FUNCTION
+
+' Which of the level's floors (1-4) and ceilings (1-2) cell (x, y) has
+FUNCTION FloorNumberAt(x, y)
+    n = floorTex(x, y) - T_FLOOR : IF n < 1 OR n > 4 THEN n = 1
+    FloorNumberAt = n
+END FUNCTION
+FUNCTION CeilNumberAt(x, y)
+    n = ceilTex(x, y) - T_CEIL : IF n < 1 OR n > 2 THEN n = 1
+    CeilNumberAt = n
+END FUNCTION
+
+' Cell (x, y)'s floor (or, with ceil, its ceiling) up by d - in the
+' level's [floor] / [ceiling] map
+SUB EditRaise(x, y, d, ceil)
+    IF x < 1 OR y < 1 OR x > MAP_SIZE - 2 OR y > MAP_SIZE - 2 THEN EXIT SUB
+    IF ceil THEN
+        h = HeightOf(MID$(lvlCeilRow$(y), x + 1, 1), 1) + d
+        IF h < HeightOf(MID$(lvlFloorRow$(y), x + 1, 1), 0) + 0.25 THEN EXIT SUB
+        MID$(lvlCeilRow$(y), x + 1, 1) = HeightChar$(h, 1)
+    ELSE
+        h = HeightOf(MID$(lvlFloorRow$(y), x + 1, 1), 0) + d
+        IF h > HeightOf(MID$(lvlCeilRow$(y), x + 1, 1), 1) - 0.25 OR h < -8 * H_STEP THEN EXIT SUB
+        MID$(lvlFloorRow$(y), x + 1, 1) = HeightChar$(h, 0)
+    END IF
+END SUB
+
+' A floor/ceiling zone (chapter 22) on the end of the list
+SUB EditAddZone(x0, y0, x1, y1, fl, ce)
+    IF lvlNumZones >= MAX_ZONES THEN EXIT SUB
+    lvlNumZones = lvlNumZones + 1
+    lvlZone(lvlNumZones, 1) = x0 : lvlZone(lvlNumZones, 2) = y0 : lvlZone(lvlNumZones, 3) = x1 : lvlZone(lvlNumZones, 4) = y1
+    lvlZone(lvlNumZones, 5) = fl : lvlZone(lvlNumZones, 6) = ce : lvlZone(lvlNumZones, 7) = 0
+END SUB
+
+' The editor's lights: eight ready-made kinds (editLightP)
+FUNCTION LightPresetName$(p)
+    LightPresetName$ = RTRIM$(MID$("white      cyan       magenta    orange     green      red alarm  flickering firelight  ", p * 11 + 1, 11))
+END FUNCTION
+SUB EditAddLight(x, y)
+    IF lvlNumLights >= MAX_LIGHTS THEN EditNote "Too many lights" : EXIT SUB
+    lvlNumLights = lvlNumLights + 1 : k = lvlNumLights
+    lvlLight(k, 1) = x : lvlLight(k, 2) = y : lvlLight(k, 3) = 5 : lvlLight(k, 4) = 140 : lvlLight(k, 8) = 0
+    SELECT CASE editLightP
+        CASE 0 : r = 230 : g = 235 : b = 255
+        CASE 1 : r = 60 : g = 220 : b = 255
+        CASE 2 : r = 255 : g = 60 : b = 220
+        CASE 3 : r = 255 : g = 160 : b = 60
+        CASE 4 : r = 90 : g = 255 : b = 120
+        CASE 5 : r = 255 : g = 40 : b = 40 : lvlLight(k, 8) = 3
+        CASE 6 : r = 220 : g = 230 : b = 255 : lvlLight(k, 8) = 1
+        CASE ELSE : r = 255 : g = 150 : b = 70 : lvlLight(k, 8) = 4
+    END SELECT
+    lvlLight(k, 5) = r : lvlLight(k, 6) = g : lvlLight(k, 7) = b
+    EditNote "Light (" + LightPresetName$(editLightP) + ") at" + STR$(INT(x)) + STR$(INT(y))
+END SUB
+SUB EditRemoveLight(x, y)
+    best = 0 : bestD = 2.25
+    FOR k = 1 TO lvlNumLights
+        d = (lvlLight(k, 1) - x) ^ 2 + (lvlLight(k, 2) - y) ^ 2
+        IF d < bestD THEN bestD = d : best = k
+    NEXT
+    IF best = 0 THEN EditNote "No light near" : EXIT SUB
+    FOR k = best TO lvlNumLights - 1 : FOR j = 1 TO 8 : lvlLight(k, j) = lvlLight(k + 1, j) : NEXT : NEXT
+    lvlNumLights = lvlNumLights - 1 : EditNote "Light taken away"
+END SUB
+
+' One line of [triggers], taken apart into trigger numTrigs + 1: its WHEN,
+' its place, "repeat", and - after the colon - its commands
+SUB TakeTrigger(l$)
+    c = INSTR(l$, ":") : IF c = 0 OR numTrigs >= MAX_TRIGS THEN EXIT SUB
+    w$ = LCASE$(LTRIM$(RTRIM$(LEFT$(l$, c - 1)))) + " "
+    numTrigs = numTrigs + 1 : k = numTrigs
+    trigCmd$(k) = LTRIM$(MID$(l$, c + 1)) : trigDone(k) = 0 : trigWas(k) = -1 : trigRepeat(k) = (INSTR(w$, "repeat") > 0)
+    sp = INSTR(w$, " ") : trigWhen$(k) = LEFT$(w$, sp - 1) : w$ = MID$(w$, sp + 1)
+    DIM n(4) AS SINGLE
+    FOR j = 1 TO 4
+        w$ = LTRIM$(w$) : sp = INSTR(w$, " ")
+        IF sp > 1 THEN n(j) = VAL(LEFT$(w$, sp - 1)) : w$ = MID$(w$, sp + 1)
+    NEXT
+    trigX0(k) = MinOf(n(1), n(3)) : trigY0(k) = MinOf(n(2), n(4)) : trigX1(k) = MaxOf(n(1), n(3)) : trigY1(k) = MaxOf(n(2), n(4))
+    IF trigWhen$(k) = "use" OR trigWhen$(k) = "time" THEN trigX0(k) = n(1) : trigY0(k) = n(2) : trigX1(k) = n(1) : trigY1(k) = n(2)
+END SUB
+
+' A teleporter's pad, into sprite slot slot: rings of violet light
+SUB MakePad(slot)
+    spriteSize(slot) = SPR_TEX
+    FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX - 1
+        d = SQR((x - 31.5) ^ 2 + (y - 31.5) ^ 2) : c~& = 0
+        IF d < 31 THEN c~& = _RGBA32(40, 30, 70, 255) ' (the plate)
+        IF d < 31 AND d > 27 THEN c~& = _RGBA32(150, 160, 190, 255) ' (its metal rim)
+        IF (d > 20 AND d < 23) OR (d > 11 AND d < 14) THEN c~& = _RGBA32(190, 110, 255, 255) ' (glowing rings)
+        IF d < 5 THEN c~& = _RGBA32(255, 230, 255, 255)
+        spriteTex(x, y, slot) = c~&
+    NEXT : NEXT
+END SUB
+
+' --- The HUD's layout (chapter 18's data; hud.txt; the HUD editor) --------
+SUB HudDefaults
+    FOR e = 1 TO HUD_ELEMS : hudShow(e) = -1 : hudCol(e) = 0 : hudW(e) = 0 : hudH(e) = 0 : hudLabel$(e) = "" : NEXT
+    hudName$(HE_HEALTH) = "health" : hudX(HE_HEALTH) = 16 : hudY(HE_HEALTH) = 552 : hudW(HE_HEALTH) = 200 : hudH(HE_HEALTH) = 12 : hudLabel$(HE_HEALTH) = "HEALTH"
+    hudName$(HE_ARMOR) = "armor" : hudX(HE_ARMOR) = 16 : hudY(HE_ARMOR) = 516 : hudW(HE_ARMOR) = 200 : hudH(HE_ARMOR) = 8 : hudLabel$(HE_ARMOR) = "ARMOR"
+    hudName$(HE_AMMO) = "ammo" : hudX(HE_AMMO) = 784 : hudY(HE_AMMO) = 552 : hudW(HE_AMMO) = 200 : hudH(HE_AMMO) = 12
+    hudName$(HE_GUNS) = "guns" : hudX(HE_GUNS) = 582 : hudY(HE_GUNS) = 534
+    hudName$(HE_KILLS) = "kills" : hudX(HE_KILLS) = MINIMAP_X : hudY(HE_KILLS) = MINIMAP_Y : hudLabel$(HE_KILLS) = "KILLS"
+    hudName$(HE_MINIMAP) = "minimap" : hudX(HE_MINIMAP) = MINIMAP_X : hudY(HE_MINIMAP) = MINIMAP_Y : hudW(HE_MINIMAP) = MINIMAP_CELL
+    hudName$(HE_CARDS) = "keycards" : hudX(HE_CARDS) = 784 : hudY(HE_CARDS) = 8 : hudW(HE_CARDS) = 64
+    hudName$(HE_MESSAGE) = "message" : hudX(HE_MESSAGE) = 400 : hudY(HE_MESSAGE) = 510
+    hudName$(HE_SUBTITLE) = "subtitle" : hudX(HE_SUBTITLE) = 400 : hudY(HE_SUBTITLE) = 44
+    hudName$(HE_AMP) = "amp" : hudX(HE_AMP) = 16 : hudY(HE_AMP) = 532 : hudLabel$(HE_AMP) = "DAMAGE AMP"
+    hudName$(HE_GOD) = "godmode" : hudX(HE_GOD) = 16 : hudY(HE_GOD) = 498 : hudLabel$(HE_GOD) = "GOD MODE"
+    hudName$(HE_EVENT) = "event" : hudX(HE_EVENT) = 400 : hudY(HE_EVENT) = 28
+    hudName$(HE_NETWORK) = "network" : hudX(HE_NETWORK) = 400 : hudY(HE_NETWORK) = 74
+    hudName$(HE_FPS) = "fps" : hudX(HE_FPS) = 400 : hudY(HE_FPS) = 8
+END SUB
+
+' A part's colour: its own from hud.txt - or, if it has none, the game's
+FUNCTION HudColor~&(e, dflt~&)
+    IF hudCol(e) THEN HudColor~& = hudCol(e) ELSE HudColor~& = dflt~&
+END FUNCTION
+
+' The HUD editor's colours, one after another (0: the game's own)
+FUNCTION HudNextColor~&(c~&)
+    DIM p(8) AS _UNSIGNED LONG
+    p(0) = 0 : p(1) = _RGB32(255, 255, 255) : p(2) = _RGB32(60, 230, 255) : p(3) = _RGB32(255, 70, 220) : p(4) = _RGB32(80, 255, 120)
+    p(5) = _RGB32(255, 230, 60) : p(6) = _RGB32(255, 70, 70) : p(7) = _RGB32(255, 150, 40) : p(8) = _RGB32(170, 140, 255)
+    n = 0
+    FOR k = 0 TO 8
+        IF p(k) = c~& THEN n = k + 1
+    NEXT
+    HudNextColor~& = p(n MOD 9)
+END FUNCTION
+
+' Roughly where part e is on the screen (for picking it, and its box)
+SUB HudBox(e, x0, y0, x1, y1)
+    x = hudX(e) : y = hudY(e)
+    SELECT CASE e
+        CASE HE_HEALTH, HE_ARMOR : x0 = x : y0 = y : x1 = x + MaxOf(hudW(e), 96) + 2 : y1 = y + 20 + hudH(e)
+        CASE HE_AMMO : x0 = x - MaxOf(hudW(e), 120) - 2 : y0 = y : x1 = x : y1 = y + 20 + hudH(e)
+        CASE HE_GUNS : x0 = x : y0 = y : x1 = x + 76 : y1 = y + 16
+        CASE HE_MINIMAP : x0 = x : y0 = y : x1 = x + MAP_SIZE * hudW(e) : y1 = y + MAP_SIZE * hudW(e)
+        CASE HE_CARDS : x0 = x - 3 * (hudW(e) + 4) : y0 = y : x1 = x : y1 = y + hudW(e)
+        CASE HE_MESSAGE, HE_SUBTITLE, HE_EVENT, HE_NETWORK, HE_FPS : x0 = x - 160 : y0 = y : x1 = x + 160 : y1 = y + 22
+        CASE ELSE : x0 = x : y0 = y : x1 = x + 120 : y1 = y + 16
+    END SELECT
+END SUB
+
+' The HUD editor's boxes: every part, the chosen one bright (with its name)
+SUB HudEditDraw
+    FOR e = 1 TO HUD_ELEMS
+        HudBox e, x0, y0, x1, y1
+        IF e = hudSel THEN c~& = _RGB32(255, 255, 255) ELSE c~& = _RGBA32(255, 60, 200, 150)
+        IF NOT hudShow(e) THEN c~& = _RGBA32(150, 150, 150, 130)
+        LINE (x0 - 2, y0 - 2)-(x1 + 2, y1 + 2), c~&, B
+        t$ = hudName$(e) : IF NOT hudShow(e) THEN t$ = t$ + " (hidden)"
+        IF e = hudSel THEN HudText x0, y0 - 14, t$, _RGB32(255, 255, 255) ELSE HudText x0, y0 - 14, t$, _RGBA32(255, 120, 220, 200)
+    NEXT
+    LINE (0, 582)-(799, 599), _RGBA32(0, 0, 0, 200), BF
+    HudText 4, 584, LEFT$(hudMsg$, 98), _RGB32(255, 220, 120)
+END SUB
+
+' hud.txt: one [name] section a part - show, x, y, bar (width, height),
+' color (auto, or red, green, blue), label
+SUB ReadHud
+    f$ = AssetPath$("hud.txt")
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh : e = 0
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$
+        l$ = LTRIM$(RTRIM$(l$)) : IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = LEFT$(l$, LEN(l$) - 1)
+        IF LEFT$(l$, 1) = "[" AND RIGHT$(l$, 1) = "]" THEN
+            n$ = LCASE$(MID$(l$, 2, LEN(l$) - 2)) : e = 0
+            FOR k = 1 TO HUD_ELEMS
+                IF hudName$(k) = n$ THEN e = k
+            NEXT
+        ELSEIF e > 0 AND INSTR(l$, "=") AND LEFT$(l$, 1) <> "'" THEN
+            eq = INSTR(l$, "=") : k$ = LCASE$(RTRIM$(LEFT$(l$, eq - 1))) : v$ = LTRIM$(MID$(l$, eq + 1))
+            SELECT CASE k$
+                CASE "show" : hudShow(e) = (LCASE$(v$) <> "no")
+                CASE "x" : hudX(e) = VAL(v$)
+                CASE "y" : hudY(e) = VAL(v$)
+                CASE "bar" : hudW(e) = VAL(ListItem$(v$, 1)) : hudH(e) = VAL(ListItem$(v$, 2))
+                CASE "size" : hudW(e) = VAL(v$)
+                CASE "color", "colour" : IF LCASE$(v$) = "auto" THEN hudCol(e) = 0 ELSE hudCol(e) = _RGB32(VAL(ListItem$(v$, 1)), VAL(ListItem$(v$, 2)), VAL(ListItem$(v$, 3)))
+                CASE "label" : hudLabel$(e) = v$
+            END SELECT
+        END IF
+    LOOP
+    CLOSE #fh
+END SUB
+
+SUB WriteHud
+    nl$ = CHR$(10)
+    o$ = "' NEON-CASTER HUD - where each part of it goes (chapter 18). The HUD" + nl$
+    o$ = o$ + "' layout editor (U in the level editor, or hud in the console) writes" + nl$
+    o$ = o$ + "' this file; delete it for the game's own layout." + nl$
+    o$ = o$ + "'   show: yes or no   x, y: on the 800 x 600 screen (ammo: its right edge;" + nl$
+    o$ = o$ + "'   message, subtitle, event, network, fps: their middle)   bar: width," + nl$
+    o$ = o$ + "'   height   size: the minimap's cells, the keycards' pictures" + nl$
+    o$ = o$ + "'   color: auto (the game's own) or red, green, blue   label: its word" + nl$
+    FOR e = 1 TO HUD_ELEMS
+        o$ = o$ + nl$ + "[" + hudName$(e) + "]" + nl$
+        IF hudShow(e) THEN o$ = o$ + "show  = yes" + nl$ ELSE o$ = o$ + "show  = no" + nl$
+        o$ = o$ + "x     = " + LTRIM$(STR$(hudX(e))) + nl$ + "y     = " + LTRIM$(STR$(hudY(e))) + nl$
+        SELECT CASE e
+            CASE HE_HEALTH, HE_ARMOR, HE_AMMO : o$ = o$ + "bar   = " + LTRIM$(STR$(hudW(e))) + ", " + LTRIM$(STR$(hudH(e))) + nl$
+            CASE HE_MINIMAP, HE_CARDS : o$ = o$ + "size  = " + LTRIM$(STR$(hudW(e))) + nl$
+        END SELECT
+        IF hudCol(e) THEN o$ = o$ + "color = " + LTRIM$(STR$(_RED32(hudCol(e)))) + ", " + LTRIM$(STR$(_GREEN32(hudCol(e)))) + ", " + LTRIM$(STR$(_BLUE32(hudCol(e)))) + nl$ ELSE o$ = o$ + "color = auto" + nl$
+        IF LEN(hudLabel$(e)) THEN o$ = o$ + "label = " + hudLabel$(e) + nl$
+    NEXT
+    f$ = AssetPath$("hud.txt")
+    IF _FILEEXISTS(f$) THEN KILL f$
+    fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+END SUB
+
+' --- Monster definitions (monsters.txt, chapter 21's monster editor) ---
+' One [name] section a monster, "key = value" lines - the numbers of its
+' SetMonType line (chapter 3), whether it shoots, and what it may drop
+SUB ReadMonsters
+    f$ = AssetPath$("monsters.txt")
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh : t = 0
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$
+        l$ = LTRIM$(RTRIM$(l$)) : IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = LEFT$(l$, LEN(l$) - 1)
+        IF LEFT$(l$, 1) = "[" AND RIGHT$(l$, 1) = "]" THEN
+            n$ = LCASE$(MID$(l$, 2, LEN(l$) - 2)) : t = 0
+            FOR k = 1 TO MON_TYPES
+                IF mtypeName$(k) = n$ THEN t = k
+            NEXT
+        ELSEIF t > 0 AND INSTR(l$, "=") AND LEFT$(l$, 1) <> "'" THEN
+            eq = INSTR(l$, "=") : k$ = LCASE$(RTRIM$(LEFT$(l$, eq - 1))) : v$ = LTRIM$(MID$(l$, eq + 1))
+            v = VAL(v$)
+            SELECT CASE k$
+                CASE "hp" : mtypeHP(t) = v
+                CASE "speed" : mtypeSpeed(t) = v
+                CASE "height" : mtypeScale(t) = v
+                CASE "lift" : mtypeLift(t) = v
+                CASE "bob" : mtypeBob(t) = v
+                CASE "reach" : mtypeReach(t) = v
+                CASE "damage" : mtypeDamage(t) = v
+                CASE "damage_extra" : mtypeDamageRnd(t) = v
+                CASE "cooldown" : mtypeCooldown(t) = v
+                CASE "shoots" : mtypeRanged(t) = (LCASE$(v$) = "yes")
+                CASE "drops" ' an item's map letter (chapter 22), then the chance
+                    mtypeDrop(t) = 0 : IF LEN(v$) THEN mtypeDrop(t) = INSTR("rby+ae23u*4Mqj", LEFT$(v$, 1))
+                    c = INSTR(v$, " ") : IF c THEN mtypeDropChance(t) = VAL(MID$(v$, c + 1)) ELSE mtypeDropChance(t) = 1
+            END SELECT
+        END IF
+    LOOP
+    CLOSE #fh
+END SUB
+
+SUB WriteMonsters
+    nl$ = CHR$(10)
+    o$ = "' NEON-CASTER monsters - every kind's numbers (chapter 3's SetMonType" + nl$
+    o$ = o$ + "' lines), changed here without changing the program. The monster editor" + nl$
+    o$ = o$ + "' (M in the level editor, or monsters in the console) writes this file." + nl$
+    o$ = o$ + "'   hp: hits to kill   speed: cells a frame (you walk 0.06, run 0.12)" + nl$
+    o$ = o$ + "'   height: in walls   lift, bob: hovering   reach: how close it must be to hit" + nl$
+    o$ = o$ + "'   damage + up to damage_extra - 1 more   cooldown: frames between attacks" + nl$
+    o$ = o$ + "'   shoots: yes or no   drops: a pickup's map letter and the chance (0 to 1)" + nl$
+    FOR t = 1 TO MON_TYPES
+        o$ = o$ + nl$ + "[" + mtypeName$(t) + "]" + nl$
+        o$ = o$ + "hp           = " + LTRIM$(STR$(mtypeHP(t))) + nl$
+        o$ = o$ + "speed        = " + LTRIM$(STR$(mtypeSpeed(t))) + nl$
+        o$ = o$ + "height       = " + LTRIM$(STR$(mtypeScale(t))) + nl$
+        o$ = o$ + "lift         = " + LTRIM$(STR$(mtypeLift(t))) + nl$
+        o$ = o$ + "bob          = " + LTRIM$(STR$(mtypeBob(t))) + nl$
+        o$ = o$ + "reach        = " + LTRIM$(STR$(mtypeReach(t))) + nl$
+        o$ = o$ + "damage       = " + LTRIM$(STR$(mtypeDamage(t))) + nl$
+        o$ = o$ + "damage_extra = " + LTRIM$(STR$(mtypeDamageRnd(t))) + nl$
+        o$ = o$ + "cooldown     = " + LTRIM$(STR$(mtypeCooldown(t))) + nl$
+        IF mtypeRanged(t) THEN o$ = o$ + "shoots       = yes" + nl$ ELSE o$ = o$ + "shoots       = no" + nl$
+        IF mtypeDrop(t) THEN o$ = o$ + "drops        = " + MID$("rby+ae23u*4Mqj", mtypeDrop(t), 1) + " " + LTRIM$(STR$(mtypeDropChance(t))) + nl$ ELSE o$ = o$ + "drops        =" + nl$
+    NEXT
+    f$ = AssetPath$("monsters.txt")
+    IF _FILEEXISTS(f$) THEN KILL f$
+    fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+END SUB
+
+' Monster t's number f (the editor's fields), changed by d steps - or its
+' name and value for the editor to show (MonsterFieldText$)
+SUB MonsterField(t, f, d)
+    SELECT CASE f
+        CASE 1 : mtypeHP(t) = MaxOf(1, MinOf(200, mtypeHP(t) + d))
+        CASE 2 : mtypeSpeed(t) = MaxOf(0, MinOf(0.15, INT((mtypeSpeed(t) + d * 0.005) * 1000 + 0.5) / 1000))
+        CASE 3 : mtypeScale(t) = MaxOf(0.2, MinOf(1.8, INT((mtypeScale(t) + d * 0.05) * 100 + 0.5) / 100))
+        CASE 4 : mtypeLift(t) = MaxOf(0, MinOf(1, INT((mtypeLift(t) + d * 0.05) * 100 + 0.5) / 100))
+        CASE 5 : mtypeBob(t) = MaxOf(0, MinOf(0.3, INT((mtypeBob(t) + d * 0.01) * 100 + 0.5) / 100))
+        CASE 6 : mtypeReach(t) = MaxOf(0, MinOf(4, INT((mtypeReach(t) + d * 0.05) * 100 + 0.5) / 100))
+        CASE 7 : mtypeDamage(t) = MaxOf(0, MinOf(99, mtypeDamage(t) + d))
+        CASE 8 : mtypeDamageRnd(t) = MaxOf(0, MinOf(50, mtypeDamageRnd(t) + d))
+        CASE 9 : mtypeCooldown(t) = MaxOf(5, MinOf(600, mtypeCooldown(t) + d * 5))
+        CASE 10 : mtypeRanged(t) = NOT mtypeRanged(t)
+        CASE 11 : mtypeDrop(t) = (mtypeDrop(t) + SGN(d) + 15) MOD 15
+        CASE 12 : mtypeDropChance(t) = MaxOf(0, MinOf(1, INT((mtypeDropChance(t) + d * 0.05) * 100 + 0.5) / 100))
+    END SELECT
+END SUB
+FUNCTION MonsterFieldText$(t, f)
+    SELECT CASE f
+        CASE 1 : n$ = "HIT POINTS" : v$ = STR$(mtypeHP(t))
+        CASE 2 : n$ = "SPEED" : v$ = STR$(mtypeSpeed(t)) + "   (you walk .06, run .12)"
+        CASE 3 : n$ = "HEIGHT" : v$ = STR$(mtypeScale(t)) + " walls"
+        CASE 4 : n$ = "HOVERS" : v$ = STR$(mtypeLift(t))
+        CASE 5 : n$ = "BOBS" : v$ = STR$(mtypeBob(t))
+        CASE 6 : n$ = "REACH" : v$ = STR$(mtypeReach(t)) + " cells"
+        CASE 7 : n$ = "DAMAGE" : v$ = STR$(mtypeDamage(t))
+        CASE 8 : n$ = "  + UP TO" : v$ = STR$(MaxOf(0, mtypeDamageRnd(t) - 1)) + " more"
+        CASE 9 : n$ = "COOLDOWN" : v$ = STR$(mtypeCooldown(t)) + " frames (" + LTRIM$(STR$(INT(mtypeCooldown(t) / 6) / 10)) + " s)"
+        CASE 10 : n$ = "SHOOTS" : IF mtypeRanged(t) THEN v$ = " YES" ELSE v$ = " NO"
+        CASE 11 : n$ = "DROPS" : IF mtypeDrop(t) THEN v$ = " " + GlyphName$(MID$("rby+ae23u*4Mqj", mtypeDrop(t), 1)) ELSE v$ = " nothing"
+        CASE 12 : n$ = "  CHANCE" : v$ = STR$(INT(mtypeDropChance(t) * 100)) + "%"
+    END SELECT
+    MonsterFieldText$ = LEFT$(n$ + SPACE$(12), 12) + v$
+END FUNCTION
+
+SUB DrawMonsterEditor(t, f, msg$)
+    LINE (0, 0)-(799, 599), _RGB32(12, 6, 20), BF
+    COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, 16), "MONSTER EDITOR"
+    COLOR _RGB32(170, 160, 210) : _PRINTSTRING (24, 36), "PgUp/PgDn monster   Up/Down number   Left/Right change (Shift: x10)   S save   Esc back"
+    ' The list of them, the one being edited lit
+    FOR k = 1 TO MON_TYPES
+        IF k = t THEN LINE (20, 64 + (k - 1) * 22)-(180, 82 + (k - 1) * 22), _RGB32(60, 20, 70), BF
+        IF k = t THEN COLOR _RGB32(255, 255, 255) ELSE COLOR _RGB32(150, 140, 180)
+        _PRINTSTRING (28, 66 + (k - 1) * 22), UCASE$(mtypeName$(k))
+    NEXT
+    ' Its picture, big
+    slot = mtypeSprite(t) : sz = spriteSize(slot) : IF sz < 1 THEN sz = SPR_TEX
+    LINE (200, 64)-(456, 320), _RGB32(30, 24, 44), BF
+    FOR y = 0 TO 63 : FOR x = 0 TO 63
+        c~& = spriteTex(x * sz \ 64, y * sz \ 64, slot)
+        IF _ALPHA32(c~&) > 128 THEN LINE (200 + x * 4, 64 + y * 4)-STEP(3, 3), c~&, BF
+    NEXT : NEXT
+    ' Its numbers
+    FOR k = 1 TO ME_FIELDS
+        y = 64 + (k - 1) * 22
+        IF k = f THEN LINE (472, y - 2)-(788, y + 16), _RGB32(60, 20, 70), BF
+        IF k = f THEN COLOR _RGB32(255, 255, 120) ELSE COLOR _RGB32(200, 200, 230)
+        _PRINTSTRING (478, y), LEFT$(MonsterFieldText$(t, k), 38)
+    NEXT
+    COLOR _RGB32(255, 220, 120) : _PRINTSTRING (24, 560), msg$
+END SUB
+
+' Which code terminal is at cell (x, y)
+FUNCTION TermAt(x, y)
+    FOR k = 1 TO numTerms
+        IF termX(k) = x AND termY(k) = y THEN TermAt = k
+    NEXT
+END FUNCTION
+
+' Where qb64pe is - so the puzzles can be compiled for real - or "" if it
+' can't be found: $QB64PE, or the usual places
+FUNCTION QB64Path$
+    h$ = ENVIRON$("HOME")
+    c$ = ENVIRON$("QB64PE") + "|" + h$ + "/git/qb64pe/qb64pe|" + h$ + "/qb64pe/qb64pe|" + h$ + "/git/QB64pe/qb64pe|/usr/local/bin/qb64pe|/usr/bin/qb64pe|/opt/qb64pe/qb64pe"
+    DO WHILE LEN(c$)
+        bar = INSTR(c$, "|") : IF bar = 0 THEN bar = LEN(c$) + 1
+        f$ = LEFT$(c$, bar - 1) : c$ = MID$(c$, bar + 1)
+        IF LEN(f$) THEN IF _FILEEXISTS(f$) THEN QB64Path$ = f$ : EXIT FUNCTION
+    LOOP
+END FUNCTION
+
+' Read puzzle n$ (neon-caster/puzzles/n$.txt) - its answer, blanks and
+' hints - and shuffle its lines (never leaving them all in place)
+FUNCTION LoadPuzzle(n$)
+    f$ = AssetPath$("puzzles/" + n$ + ".txt")
+    IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
+    pzTitle$ = n$ : pzLesson$ = "" : pzExpect$ = "" : pzChapter$ = "" : pzN = 0 : pzBlanks = 0 : pzHints = 0 : sec$ = ""
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$
+        IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = LEFT$(l$, LEN(l$) - 1)
+        t$ = LTRIM$(RTRIM$(l$))
+        IF LEFT$(t$, 1) = "[" AND RIGHT$(t$, 1) = "]" THEN
+            sec$ = LCASE$(MID$(t$, 2, LEN(t$) - 2))
+        ELSEIF sec$ = "lines" THEN
+            IF LEN(t$) AND pzN < MAX_PZ_LINES THEN pzN = pzN + 1 : pzAns$(pzN) = RTRIM$(l$)
+        ELSEIF LEN(t$) = 0 OR LEFT$(t$, 1) = "'" THEN
+        ELSEIF sec$ = "" THEN
+            eq = INSTR(t$, "=")
+            IF eq THEN
+                k$ = LCASE$(RTRIM$(LEFT$(t$, eq - 1))) : v$ = LTRIM$(MID$(t$, eq + 1))
+                IF k$ = "title" THEN pzTitle$ = v$
+                IF k$ = "lesson" THEN pzLesson$ = v$
+                IF k$ = "expect" THEN pzExpect$ = v$
+                IF k$ = "chapter" THEN pzChapter$ = v$
+            END IF
+        ELSEIF sec$ = "blanks" THEN
+            sp = INSTR(t$, " ")
+            IF sp AND pzBlanks < MAX_PZ_BLANKS THEN pzBlanks = pzBlanks + 1 : pzBlankLine(pzBlanks) = VAL(LEFT$(t$, sp - 1)) : pzBlankWord$(pzBlanks) = LTRIM$(MID$(t$, sp + 1)) : pzBlankIn$(pzBlanks) = ""
+        ELSEIF sec$ = "hints" THEN
+            IF pzHints < MAX_PZ_HINTS THEN pzHints = pzHints + 1 : pzHint$(pzHints) = t$
+        END IF
+    LOOP
+    CLOSE #fh
+    IF pzN = 0 THEN EXIT FUNCTION
+    FOR i = 1 TO pzN : pzOrder(i) = i : NEXT
+    FOR tries = 1 TO 20 ' (shuffled - and not left right)
+        FOR i = pzN TO 2 STEP -1 : j = INT(RND * i) + 1 : SWAP pzOrder(i), pzOrder(j) : NEXT
+        same = 0 : FOR i = 1 TO pzN : IF pzOrder(i) = i THEN same = same + 1
+        NEXT
+        IF same < pzN OR pzN < 2 THEN EXIT FOR
+    NEXT
+    LoadPuzzle = -1
+END FUNCTION
+
+' Line i of the puzzle as it stands now: the line in place i, its blank
+' (if it has one) filled with what's been typed
+FUNCTION PuzzleLine$(i)
+    a = pzOrder(i) : l$ = pzAns$(a)
+    FOR b = 1 TO pzBlanks
+        IF pzBlankLine(b) = a THEN
+            p = INSTR(l$, pzBlankWord$(b))
+            IF p THEN l$ = LEFT$(l$, p - 1) + pzBlankIn$(b) + MID$(l$, p + LEN(pzBlankWord$(b)))
+        END IF
+    NEXT
+    PuzzleLine$ = l$
+END FUNCTION
+
+' Which blank is on the line in place i (0: none)
+FUNCTION PuzzleBlankOn(i)
+    FOR b = 1 TO pzBlanks
+        IF pzBlankLine(b) = pzOrder(i) THEN PuzzleBlankOn = b : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' After a few wrong tries: one line put in its place (or one blank filled)
+SUB PuzzleFixOne
+    FOR i = 1 TO pzN
+        IF pzOrder(i) <> i THEN
+            FOR j = i + 1 TO pzN
+                IF pzOrder(j) = i THEN SWAP pzOrder(i), pzOrder(j) : EXIT SUB
+            NEXT
+        END IF
+    NEXT
+    FOR b = 1 TO pzBlanks
+        IF UCASE$(pzBlankIn$(b)) <> UCASE$(pzBlankWord$(b)) THEN pzBlankIn$(b) = pzBlankWord$(b) : EXIT SUB
+    NEXT
+END SUB
+
+' A line, for comparing: spaces squashed, no case
+FUNCTION NormLine$(t$)
+    o$ = "" : sp = -1
+    FOR i = 1 TO LEN(t$)
+        c$ = MID$(t$, i, 1)
+        IF c$ = " " OR c$ = CHR$(9) THEN
+            IF NOT sp THEN o$ = o$ + " " : sp = -1
+        ELSE
+            o$ = o$ + UCASE$(c$) : sp = 0
+        END IF
+    NEXT
+    NormLine$ = RTRIM$(o$)
+END FUNCTION
+
+' The useful part of the compiler's complaint
+FUNCTION PuzzleCompilerSays$(t$)
+    o$ = "" : s$ = t$ + "|"
+    DO WHILE LEN(s$)
+        bar = INSTR(s$, "|") : l$ = LEFT$(s$, bar - 1) : s$ = MID$(s$, bar + 1)
+        DO WHILE INSTR(l$, CHR$(27)) ' (its colours, out)
+            e = INSTR(l$, CHR$(27)) : m = INSTR(e, l$, "m") : IF m = 0 THEN m = e
+            l$ = LEFT$(l$, e - 1) + MID$(l$, m + 1)
+        LOOP
+        IF INSTR(l$, "[") = 1 OR INSTR(l$, "QB64-PE") OR INSTR(l$, "Beginning C++") OR LEN(LTRIM$(l$)) = 0 THEN
+        ELSE
+            o$ = o$ + "|" + l$
+        END IF
+    LOOP
+    IF LEN(o$) THEN PuzzleCompilerSays$ = MID$(o$, 2) ELSE PuzzleCompilerSays$ = "(no message)"
+END FUNCTION
+
+' The puzzle screen: an old green terminal - the program (the line chosen
+' lit, blanks as ____ or what's typed), the lesson, the hints so far, and
+' what the last run said
+SUB DrawPuzzle(sel, typing, qb$)
+    LINE (0, 0)-(799, 599), _RGB32(2, 10, 6), BF
+    FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGB32(0, 0, 0) : NEXT
+    LINE (16, 12)-(783, 587), _RGB32(40, 120, 60), B
+    COLOR _RGB32(255, 70, 90) : _PRINTSTRING (28, 22), "NEXUS SECURITY  -  PROGRAM REPAIR  -  LOCKDOWN"
+    COLOR _RGB32(120, 255, 150) : _PRINTSTRING (28, 42), pzTitle$ + "   (" + pzLesson$ + ")"
+    FOR i = 1 TO pzN
+        y = PZ_TOP + (i - 1) * 18
+        l$ = pzAns$(pzOrder(i)) : b = PuzzleBlankOn(i)
+        IF b THEN
+            p = INSTR(l$, pzBlankWord$(b))
+            fill$ = pzBlankIn$(b) : IF fill$ = "" THEN fill$ = STRING$(LEN(pzBlankWord$(b)), "_")
+            IF typing AND i = sel AND INT(TIMER * 3) MOD 2 THEN fill$ = fill$ + "_"
+            l$ = LEFT$(l$, p - 1) + "[" + fill$ + "]" + MID$(l$, p + LEN(pzBlankWord$(b)))
+        END IF
+        IF i = sel THEN LINE (24, y - 2)-(560, y + 15), _RGB32(20, 70, 40), BF
+        IF LEFT$(LTRIM$(l$), 1) = "'" THEN COLOR _RGB32(110, 170, 120) ELSE COLOR _RGB32(170, 255, 190)
+        _PRINTSTRING (30, y), RIGHT$(" " + LTRIM$(STR$(i)), 2) + "  " + LEFT$(l$, 62)
+    NEXT
+    ' The hints so far
+    y = 70
+    COLOR _RGB32(255, 220, 120) : _PRINTSTRING (576, y), "HINTS (H)"
+    FOR h = 1 TO pzShown
+        WrapText 576, y + 18 + (h - 1) * 54, 24, "- " + pzHint$(h), _RGB32(230, 210, 150)
+    NEXT
+    ' What happened
+    oy = PZ_TOP + pzN * 18 + 20 : IF oy < 360 THEN oy = 360
+    LINE (24, oy - 4)-(775, 540), _RGB32(4, 30, 14), BF
+    o$ = pzOut$ + "|" : yy = oy
+    DO WHILE LEN(o$) AND yy < 530
+        bar = INSTR(o$, "|")
+        COLOR _RGB32(200, 255, 210) : _PRINTSTRING (30, yy), LEFT$(LEFT$(o$, bar - 1), 92) : yy = yy + 16 : o$ = MID$(o$, bar + 1)
+    LOOP
+    COLOR _RGB32(110, 170, 120)
+    _PRINTSTRING (28, 552), "Up/Down choose   Shift+Up/Down move   Enter fill blank   F5 run   H hint   Esc leave"
+    IF qb$ = "" THEN m$ = "(qb64pe not found: checked against the answer)" ELSE m$ = "compiles with: " + qb$
+    _PRINTSTRING (28, 570), LEFT$(m$, 92)
+END SUB
+
+' Which data station is at cell (x, y) (0: none)
+FUNCTION StationAt(x, y)
+    FOR k = 1 TO numStations
+        IF stationX(k) = x AND stationY(k) = y THEN StationAt = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' The data station nearest cell (x, y) - the one a sealed door belongs to
+FUNCTION StationNear(x, y)
+    best = 0 : bestD = 1E+9
+    FOR k = 1 TO numStations
+        d = (stationX(k) - x) ^ 2 + (stationY(k) - y) ^ 2
+        IF d < bestD THEN bestD = d : best = k
+    NEXT
+    StationNear = best
+END FUNCTION
+
+' Into the network (goIn): every wall, door, floor and ceiling picture is
+' kept in texBak and replaced by a neon grid; out: put back. OpenGL
+' is told to send them all again (glRetexVersion) - but not to rebuild its
+' world, which hasn't moved
+SUB CyberTextures(goIn)
+    FOR slot = 1 TO T_SLOTS
+        IF goIn THEN
+            FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1 : texBak(x, y, slot) = texture(x, y, slot) : NEXT : NEXT
+            SELECT CASE slot
+                CASE 1, 3, 5 : MakeCyberTex slot, 255, 40, 210, 32 ' Walls: magenta...
+                CASE 2, 4, 6 : MakeCyberTex slot, 40, 230, 255, 32 ' ...and cyan
+                CASE T_DOOR TO T_SPLIT : MakeCyberTex slot, 255, 200, 40, 16 ' Doors: gold, a finer grid
+                CASE T_EXIT : MakeCyberTex slot, 60, 255, 120, 16
+                CASE T_FLOOR + 1 TO T_FLOOR + 4 : MakeCyberTex slot, 40, 200, 255, 32 ' The floor: a cyan grid
+                CASE T_CEIL + 1 TO T_CEIL + 2 : MakeCyberTex slot, 110, 40, 200, 64 ' The ceiling: dim violet
+                CASE T_JACK : MakeCyberTex slot, 255, 255, 255, 16
+                CASE ELSE : MakeCyberTex slot, 200, 200, 255, 64
+            END SELECT
+        ELSE
+            FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1 : texture(x, y, slot) = texBak(x, y, slot) : NEXT : NEXT
+        END IF
+    NEXT
+    glRetexVersion = glRetexVersion + 1
+END SUB
+
+' A grid picture for the network, into texture slot slot: near-black, with
+' bright lines (colour r, g, b) every cell'th texel and round the edge,
+' fainter ones in between, and a dot of light where lines cross
+SUB MakeCyberTex(slot, r, g, b, cell)
+    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1
+        ex = x MOD cell : ey = y MOD cell
+        k = 0
+        IF ex < 2 OR ey < 2 THEN k = 1 ' (the grid's lines)
+        IF (x \ 4) MOD (cell \ 4) = 0 OR (y \ 4) MOD (cell \ 4) = 0 THEN IF k = 0 AND ((x + y) MOD 4 = 0) THEN k = 0.18 ' (faint dots between)
+        IF x < 3 OR y < 3 OR x > TEX_SIZE - 4 OR y > TEX_SIZE - 4 THEN k = 1 ' (the edge)
+        IF ex < 2 AND ey < 2 THEN k = 1.6 ' (crossings glow)
+        texture(x, y, slot) = _RGB32(MinOf(255, 6 + r * k), MinOf(255, 2 + g * k), MinOf(255, 14 + b * k))
+    NEXT : NEXT
+END SUB
+
+' Each pane of glass: which way it runs - along x if there's wall (or more
+' glass) to its left and right, else along y - and the list of them all
+SUB AssignGlass
+    numGlass = 0
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF glassHP(x, y) > 0 THEN
+            l = IsWall(x - 1, y) OR glassHP(x - 1, y) > 0 : r = IsWall(x + 1, y) OR glassHP(x + 1, y) > 0
+            IF l AND r THEN glassDir(x, y) = 1 ELSE glassDir(x, y) = 2
+            IF numGlass < MAX_GLASS THEN numGlass = numGlass + 1 : glassListX(numGlass) = x : glassListY(numGlass) = y
+        END IF
+    NEXT : NEXT
+END SUB
+
+' Is map point (x, y) inside a pane of glass (its thickness, GLASS_HALF
+' either side of the middle of its cell)?
+FUNCTION InGlass(x, y)
+    cx = INT(x) : cy = INT(y)
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
+    IF glassHP(cx, cy) <= 0 THEN EXIT FUNCTION
+    IF glassDir(cx, cy) = 1 THEN InGlass = ABS(y - cy - 0.5) < GLASS_HALF ELSE InGlass = ABS(x - cx - 0.5) < GLASS_HALF
+END FUNCTION
+
+' Is there glass on the straight line from (x1, y1) to (x2, y2)? Checked
+' every 0.08 of a cell - thinner than the glass, so it can't be missed
+FUNCTION GlassBetween(x1, y1, x2, y2)
+    IF numGlass = 0 THEN EXIT FUNCTION
+    steps = INT(SQR((x2 - x1) ^ 2 + (y2 - y1) ^ 2) / 0.08) + 1
+    FOR i = 1 TO steps - 1
+        IF InGlass(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps) THEN GlassBetween = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Where does a ray from (px, py), going (rdx, rdy), meet the pane of glass
+' in cell (cx, cy)? Its distance t (in the raycaster's units: perpWallDist's)
+' and u, where along the pane (0 to 1) - if it does, inside this cell
+FUNCTION GlassRay(cx, cy, px, py, rdx, rdy, t, u)
+    IF glassDir(cx, cy) = 1 THEN
+        IF ABS(rdy) < 0.00001 THEN EXIT FUNCTION
+        t = (cy + 0.5 - py) / rdy : u = px + t * rdx - cx
+    ELSE
+        IF ABS(rdx) < 0.00001 THEN EXIT FUNCTION
+        t = (cx + 0.5 - px) / rdx : u = py + t * rdy - cy
+    END IF
+    GlassRay = t > 0.001 AND u >= 0 AND u < 1
+END FUNCTION
+
+' The glass picture, into sprite slot slot: faintly blue, mostly see-
+' through (low alpha), two streaks of shine across it, and a solid metal
+' frame top and bottom (and a thin upright at each edge, so panes side by
+' side look like a row of windows). Cracked: white cracks spreading from a
+' point
+SUB MakeGlass(slot, cracked)
+    spriteSize(slot) = SPR_TEX
+    FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX - 1
+        a = 40 : r = 150 : g = 215 : b = 235
+        st = (x + INT(y * 0.6)) MOD 64
+        IF st >= 12 AND st < 16 THEN a = 95 : r = 225 : g = 248 : b = 255
+        IF st >= 20 AND st < 21 THEN a = 75 : r = 210 : g = 240 : b = 255
+        IF y < 4 OR y > SPR_TEX - 5 THEN a = 255 : r = 80 : g = 90 : b = 108 : IF y = 3 OR y = SPR_TEX - 4 THEN r = 130 : g = 145 : b = 165
+        IF x = 0 OR x = SPR_TEX - 1 THEN a = 255 : r = 70 : g = 80 : b = 96
+        spriteTex(x, y, slot) = _RGBA32(r, g, b, a)
+    NEXT : NEXT
+    IF cracked THEN
+        FOR k = 0 TO 8 ' Cracks: wandering lines out from (40, 26)
+            ang = k * 0.71 + 0.4 * SIN(k * 3.7) : cx = 40 : cy = 26
+            FOR stp = 1 TO 26 + (k MOD 3) * 8
+                ang = ang + 0.25 * SIN(stp * 1.3 + k)
+                cx = cx + COS(ang) : cy = cy + SIN(ang)
+                IF cx >= 1 AND cy >= 4 AND cx < SPR_TEX - 1 AND cy < SPR_TEX - 4 THEN spriteTex(INT(cx), INT(cy), slot) = _RGBA32(235, 250, 255, 210)
+            NEXT
+        NEXT
+    END IF
+END SUB
+
+SUB AssignClosets
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF closetCell(x, y) = -1 THEN
+            closetCell(x, y) = 0
+            FOR ev = 1 TO numEvents
+                IF evType(ev) = EV_CLOSET AND closetCell(x, y) = 0 THEN
+                    IF x >= evX0(ev) - 3 AND x <= evX1(ev) + 3 AND y >= evY0(ev) - 3 AND y <= evY1(ev) + 3 THEN closetCell(x, y) = ev
+                END IF
+            NEXT
+            FOR k = 1 TO 4
+                nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
+                v = worldMap(nx, ny)
+                IF v > 0 AND v <> 2 AND closetCell(nx, ny) = 0 THEN worldMap(x, y) = v
+            NEXT
+        END IF
+    NEXT : NEXT
+END SUB
+
+' Closet event ev's secret walls slide away: floor where they stood (and
+' the monsters behind them wake). loud: with a rumble and dust (not when
+' a saved game puts it back as it was). The level's light and OpenGL's
+' world mesh are worked out again for the new shape.
+SUB OpenClosets(ev, loud)
+    n = 0
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF closetCell(x, y) = ev THEN
+            worldMap(x, y) = 0 : closetCell(x, y) = 0 : n = n + 1
+            IF loud THEN SpawnSparks x + 0.5, y + 0.5, 0.3, 10, 160, 150, 140
+        END IF
+    NEXT : NEXT
+    IF n = 0 THEN EXIT SUB
+    IF loud THEN
+        PlaySfx sndCloset&, 1
+        FOR j = 1 TO numMonsters
+            IF monsterState(j) = 0 THEN
+                IF monsterX(j) >= evX0(ev) - 4 AND monsterX(j) <= evX1(ev) + 5 AND monsterY(j) >= evY0(ev) - 4 AND monsterY(j) <= evY1(ev) + 5 THEN monsterState(j) = 1 : monsterTimer(j) = 20
+            END IF
+        NEXT
+    END IF
+    BuildLights : glMeshVersion = glMeshVersion + 1
+END SUB
+
+' The thieves' way home: from the cells outside every hoard's doors, how
+' many steps to each open cell (a flood fill, as the moving lights' -
+' chapter 24), through doors that need no keycard. 30000: no way.
+SUB BuildThiefWay
+    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : thiefDist(x, y) = 30000 : NEXT : NEXT
+    head = 0 : tail = 0
+    FOR ev = 1 TO numEvents
+        IF evType(ev) = EV_HOARD THEN
+            FOR y = evY0(ev) - 1 TO evY1(ev) + 1 : FOR x = evX0(ev) - 1 TO evX1(ev) + 1
+                IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+                    IF worldMap(x, y) = 2 THEN ' A door into the hoard: the cells outside it are home
+                        FOR k = 1 TO 4
+                            nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
+                            IF NOT InRoom(ev, nx + 0.5, ny + 0.5) AND worldMap(nx, ny) <= 0 AND thiefDist(nx, ny) > 0 THEN
+                                thiefDist(nx, ny) = 0 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+                            END IF
+                        NEXT
+                    END IF
+                END IF
+            NEXT : NEXT
+        END IF
+    NEXT
+    DO WHILE head < tail
+        x = fillX(head) : y = fillY(head) : head = head + 1
+        FOR k = 1 TO 4
+            nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
+            IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
+                v = worldMap(nx, ny) : ok = (v <= 0 AND diagCorner(nx, ny) = 0)
+                IF v = 2 THEN ok = (doorKey(nx, ny) = 0 AND doorType(nx, ny) <> DOOR_EXIT)
+                IF ok AND thiefDist(nx, ny) > thiefDist(x, y) + 1 THEN
+                    thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+                END IF
+            END IF
+        NEXT
+    LOOP
+END SUB
+
+' Is laser event ev on now (or about to be)?
+FUNCTION LaserOn(ev)
+    IF evB(ev) = 0 THEN LaserOn = -1 : EXIT FUNCTION
+    LaserOn = (evTimer(ev) MOD (evA(ev) + evB(ev))) < evA(ev)
+END FUNCTION
+
+FUNCTION LaserSoon(ev)
+    IF evB(ev) = 0 THEN EXIT FUNCTION
+    p = evTimer(ev) MOD (evA(ev) + evB(ev))
+    LaserSoon = p >= evA(ev) + evB(ev) - 30 ' (the last half second before it comes on: it flickers)
+END FUNCTION
+
+' Where cutter event ev's beam is now: it runs across the room's short way
+' and sweeps along its long way (cutAlongX: sweeping along x, so the beam
+' is a line of constant x), there and back every a frames
+SUB CutterAt(ev, cx, cy, alongX)
+    alongX = (evX1(ev) - evX0(ev)) >= (evY1(ev) - evY0(ev))
+    f = 0.5 - 0.5 * COS(evTimer(ev) * 6.2832 / evA(ev))
+    IF alongX THEN cx = evX0(ev) + 0.3 + (evX1(ev) - evX0(ev) + 0.4) * f : cy = (evY0(ev) + evY1(ev) + 1) / 2 ELSE cy = evY0(ev) + 0.3 + (evY1(ev) - evY0(ev) + 0.4) * f : cx = (evX0(ev) + evX1(ev) + 1) / 2
+END SUB
+
+' The laser beam's picture: three bright red lines across, at knee, chest
+' and head height, with a glow round each - into sprite slot slot
+SUB MakeLaser(slot)
+    spriteSize(slot) = SPR_TEX
+    FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX - 1 : spriteTex(x, y, slot) = 0 : NEXT : NEXT
+    FOR k = 0 TO 2
+        cy = 14 + k * 18
+        FOR x = 0 TO SPR_TEX - 1
+            spriteTex(x, cy, slot) = _RGB32(255, 240, 230)
+            spriteTex(x, cy - 1, slot) = _RGB32(255, 60, 60) : spriteTex(x, cy + 1, slot) = _RGB32(255, 60, 60)
+            IF x MOD 3 THEN spriteTex(x, cy - 2, slot) = _RGB32(170, 20, 40) : spriteTex(x, cy + 2, slot) = _RGB32(170, 20, 40)
+        NEXT
+    NEXT
+END SUB
 
 ' One more pickup, of kind kind, at (x, y) - a reward
 SUB DropItem(kind, x, y)
@@ -5504,9 +7917,14 @@ END FUNCTION
 FUNCTION Walkable%(x, y)
     cellX = INT(x) : cellY = INT(y)
     IF diagCorner(cellX, cellY) THEN Walkable% = NOT InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) : EXIT FUNCTION
-    deco = decoCell(cellX, cellY)
+    deco = decoCell(cellX, cellY) : IF cyberOn THEN deco = 0 ' (the network has none)
     IF deco THEN
-        IF (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN EXIT FUNCTION
+        IF decoKind(deco) <> DK_BODY AND (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN EXIT FUNCTION
+    END IF
+    IF glassHP(cellX, cellY) > 0 THEN IF InGlass(x, y) THEN EXIT FUNCTION
+    IF NOT levelFlat AND walkZ > -900 THEN ' Heights: too high a step up, or too little room
+        IF floorH(cellX, cellY) > walkZ + STEP_UP THEN EXIT FUNCTION
+        IF ceilH(cellX, cellY) - MaxOf(floorH(cellX, cellY), walkZ) < BODY_H THEN EXIT FUNCTION
     END IF
     Walkable% = worldMap(cellX, cellY) <= 0 OR doorOpen(cellX, cellY) > 0.8
 END FUNCTION
@@ -5594,10 +8012,15 @@ END SUB
 FUNCTION CanSee(x1, y1, x2, y2)
     dx = x2 - x1 : dy = y2 - y1 : dist = SQR(dx * dx + dy * dy)
     steps = INT(dist / 0.1) + 1
+    z1 = floorH(INT(x1), INT(y1)) + 0.5 : z2 = floorH(INT(x2), INT(y2)) + 0.5 ' (heights: eye to eye)
     FOR i = 1 TO steps
         cellX = INT(x1 + dx * i / steps) : cellY = INT(y1 + dy * i / steps)
         IF SolidAt(x1 + dx * i / steps, y1 + dy * i / steps) THEN EXIT FUNCTION
         IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) <= 0.8 THEN EXIT FUNCTION
+        IF NOT levelFlat THEN ' (a ledge or a low ceiling in the way)
+            z = z1 + (z2 - z1) * i / steps
+            IF floorH(cellX, cellY) > z OR ceilH(cellX, cellY) < z THEN EXIT FUNCTION
+        END IF
     NEXT
     CanSee = -1
 END FUNCTION
@@ -5620,22 +8043,64 @@ END FUNCTION
 ' 0, so the game still runs - silently - without its sounds.
 FUNCTION LoadSnd&(file$)
     path$ = AssetPath$("sfx/" + file$)
-    IF _FILEEXISTS(path$) THEN LoadSnd& = _SNDOPEN(path$)
+    IF _FILEEXISTS(path$) THEN LoadSnd& = _SNDOPEN(path$, "noasync") ' (see LoadMusic&)
 END FUNCTION
 
 ' Play a copy of a sound (_SNDPLAYCOPY), so the same one can overlap itself
 ' - footsteps, a fast gun. vol! goes from 0 to 1, and is turned down by the
 ' SFX VOLUME setting.
 SUB PlaySfx(snd&, vol!)
-    IF snd& > 0 THEN _SNDPLAYCOPY snd&, vol! * setting(SET_SFX) / 100
+    PlaySfxPan snd&, vol!, 0
 END SUB
 
-' A sound made at (x, y): the further it is from you at (listenX, listenY),
-' the quieter (but never silent)
+' ...and panned: pan! -1 all left, 0 the middle, 1 all right. Then THE
+' LIMITER (SETTINGS > AUDIO): a sound already started this frame isn't
+' started again (twelve pellets hitting at once are one hit, not twelve
+' stacked up), and while a lot is playing - sfxLoad, the volumes of the
+' sounds just started, dying away a little each frame (SfxFrame) - each
+' new one is turned down to keep the total under SFX_HEADROOM, so a big
+' fight gets busier, not deafening. It also ducks while NEXUS speaks.
+SUB PlaySfxPan(snd&, vol!, pan!)
+    IF snd& <= 0 THEN EXIT SUB
+    v! = vol! * setting(SET_SFX) / 100
+    IF setting(SET_LIMITER) THEN
+        FOR k = 1 TO sfxThisN
+            IF sfxThis&(k) = snd& THEN EXIT SUB ' (once a frame)
+        NEXT
+        IF sfxThisN < 32 THEN sfxThisN = sfxThisN + 1 : sfxThis&(sfxThisN) = snd&
+        IF sfxLoad! + v! > SFX_HEADROOM THEN v! = v! * SFX_HEADROOM / (sfxLoad! + v!)
+        IF speechUntil! > TIMER THEN v! = v! * 0.55 ' (ducked under speech)
+        sfxLoad! = sfxLoad! + v!
+    END IF
+    IF v! <= 0.003 THEN EXIT SUB
+    IF pan! = 0 OR setting(SET_SPATIAL) = 0 THEN
+        _SNDPLAYCOPY snd&, v!
+    ELSE
+        _SNDPLAYCOPY snd&, v!, pan!
+    END IF
+END SUB
+
+' Once a frame: the limiter's memory of what's playing fades
+SUB SfxFrame
+    sfxLoad! = sfxLoad! * 0.82 : sfxThisN = 0
+END SUB
+
+' A sound made at (x, y), heard by you at (listenX, listenY), facing
+' (earDX, earDY). Fainter further off (but never silent), and with 3D SOUND
+' on: panned to the side it's on (how far round to your right or left -
+' a sound straight behind you is in the middle), and muffled to half if a
+' wall's in the way.
 SUB SfxAt(snd&, x, y, listenX, listenY)
-    vol! = 1 - SQR((x - listenX) ^ 2 + (y-listenY) ^ 2) / 18
+    dx = x - listenX : dy = y - listenY : d = SQR(dx * dx + dy * dy)
+    vol! = 1 - d / 18
     IF vol! < 0.12 THEN vol! = 0.12
-    PlaySfx snd&, vol!
+    pan! = 0
+    IF setting(SET_SPATIAL) AND d > 0.5 THEN
+        side = (dx * earDY - dy * earDX) / d ' (your right is (earDY, -earDX))
+        pan! = side * 0.85 * MinOf(1, d / 2) ' (close by: nearly the middle)
+        IF NOT CanSee(x, y, listenX, listenY) THEN vol! = vol! * 0.5
+    END IF
+    PlaySfxPan snd&, vol!, pan!
 END SUB
 
 ' How much the 800 x 600 screen is stretched on the display (2 on a 1600-
@@ -5774,6 +8239,9 @@ SUB FireBolt(x, y, dirX, dirY, damage)
         IF boltOn(i) = 0 THEN
             boltOn(i) = -1 : boltX(i) = x + dirX * 0.4 : boltY(i) = y + dirY * 0.4
             boltDX(i) = dirX : boltDY(i) = dirY : boltDamage(i) = damage
+            ' (its height: from the shooter's middle, towards yours)
+            boltZ(i) = floorH(INT(x), INT(y)) + 0.49 : d = SQR((playerX - x) ^ 2 + (playerY - y) ^ 2) : boltDZ(i) = 0
+            IF d > 0.5 THEN boltDZ(i) = (playerZ + 0.49 - boltZ(i)) / d
             EXIT SUB
         END IF
     NEXT
@@ -5795,6 +8263,11 @@ FUNCTION DecoSlot(kind)
     IF kind <= 4 THEN DecoSlot = S_DECO + kind ELSE DecoSlot = S_DECOX + kind - 4
 END FUNCTION
 
+' A set piece's picture file
+FUNCTION DecoFile$(kind)
+    DecoFile$ = RTRIM$(MID$("desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", (kind - 10) * 9 + 1, 9)) + ".png"
+END FUNCTION
+
 ' Does a decoration kind blow up when it's hit? (A barrel, a coolant tank)
 FUNCTION Explosive(kind)
     Explosive = (kind = 1 OR kind = 8)
@@ -5809,6 +8282,12 @@ FUNCTION DecoMaxHP(kind)
         CASE 5 : DecoMaxHP = 3 ' Crate
         CASE 8 : DecoMaxHP = 1 ' Coolant tank
         CASE 9 : DecoMaxHP = 8 ' Spawner (a nest's portal)
+        CASE 10, 18, 19 : DecoMaxHP = 3 ' Desk, lockers, bench
+        CASE 14 : DecoMaxHP = 2 ' Lab bench (glass)
+        CASE 13, 16 : DecoMaxHP = 3 ' Specimen tank, cryo pod (glass)
+        CASE 15 : DecoMaxHP = 6 ' Generator
+        CASE 20 : DecoMaxHP = 2 ' Chair
+        CASE 21 : DecoMaxHP = 99 ' (a body: never breaks)
         CASE ELSE : DecoMaxHP = 4 ' Terminal, server rack, vending machine
     END SELECT
 END FUNCTION
@@ -5824,6 +8303,18 @@ FUNCTION DecoScale(kind)
         CASE 7 : DecoScale = 0.8 ' Vending machine
         CASE 8 : DecoScale = 0.55 ' Coolant tank
         CASE 9 : DecoScale = 0.7 ' Spawner
+        CASE 10 : DecoScale = 0.45 ' Desk
+        CASE 11 : DecoScale = 0.5 ' Control console
+        CASE 12 : DecoScale = 0.85 ' Monitor bank
+        CASE 13 : DecoScale = 0.85 ' Specimen tank
+        CASE 14 : DecoScale = 0.45 ' Lab bench
+        CASE 15 : DecoScale = 0.7 ' Generator
+        CASE 16 : DecoScale = 0.95 ' Cryo pod
+        CASE 17 : DecoScale = 0.75 ' Hologram
+        CASE 18 : DecoScale = 0.9 ' Lockers
+        CASE 19 : DecoScale = 0.35 ' Bench
+        CASE 20 : DecoScale = 0.5 ' Chair
+        CASE 21 : DecoScale = 0.75 ' A body
         CASE ELSE : DecoScale = 0.55 ' Terminal
     END SELECT
 END FUNCTION
@@ -5831,6 +8322,9 @@ END FUNCTION
 ' The smaller of two numbers
 FUNCTION MinOf(a, b)
     IF a < b THEN MinOf = a ELSE MinOf = b
+END FUNCTION
+FUNCTION MaxOf(a, b)
+    IF a > b THEN MaxOf = a ELSE MaxOf = b
 END FUNCTION
 
 ' "red", "blue" or "yellow" for keycard 1, 2 or 3
@@ -5971,7 +8465,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help edit hud monsters puzzle put box raise lift liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -5981,9 +8475,11 @@ SUB ConHelp(c$)
             ConPrint "Commands (help NAME for more; ; separates several on a line):"
             ConPrint "  map N|name   maps   restart   newgame   finish     - sectors"
             ConPrint "  give all|keys|key r|weapons|gun N|ammo|health|armor|overcharge|amp|map"
-            ConPrint "  god [on|off]   kill   respawn   summon TYPE [N]   tp X Y [ANGLE]   pos   status"
+            ConPrint "  god [on|off]   kill   respawn   summon TYPE [N]   kick   tp X Y [ANGLE]   pos   status"
             ConPrint "  save N|quick   load N|quick   quicksave   quickload"
             ConPrint "  set NAME VALUE   get NAME   settings   NAME [VALUE]   bind ACTION KEY   binds"
+            ConPrint "  edit [walk|off]   put X Y CHAR   box X0 Y0 X1 Y1 CHAR   undo   savelevel"
+            ConPrint "  cutscene [SECTOR]   say LINE   fire [FRAMES]   use   jackin   jackout [win]   stations"
             ConPrint "  events   screenshot [FILE]   wait FRAMES   echo TEXT   exec FILE   logfile FILE|off"
             ConPrint "  clear   menu   quit"
             ConPrint "From the command line, each command starts with + :"
@@ -6458,6 +8954,7 @@ SUB BuildMenu(scr)
         CASE SCR_AUDIO
             menuTitle$ = "AUDIO" : menuWide = -1
             AddSettingItem SET_SFX : AddSettingItem SET_MUSIC : AddSettingItem SET_SPEECH
+            AddSettingItem SET_SPATIAL : AddSettingItem SET_LIMITER : AddSettingItem SET_CUTSCENES : AddSettingItem SET_TAUNTS
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_GAMEPLAY
             menuTitle$ = "GAMEPLAY" : menuWide = -1
@@ -6732,7 +9229,12 @@ END FUNCTION
 ' A music track from neon-caster/music/ (0 if it's missing: no music)
 FUNCTION LoadMusic&(file$)
     path$ = AssetPath$("music/" + file$)
-    IF _FILEEXISTS(path$) THEN LoadMusic& = _SNDOPEN(path$)
+    ' "stream": played straight from the file a little at a time, not
+    ' unpacked into memory first (a 3-minute track would be 60 MB). And
+    ' everything else is loaded "noasync" - unpacked there and then, not
+    ' in the background: QB64PE 4.7 can crash if a sound is still being
+    ' unpacked in the background while another one opens.
+    IF _FILEEXISTS(path$) THEN LoadMusic& = _SNDOPEN(path$, "stream, noasync")
 END FUNCTION
 
 ' Play a music track on a loop (_SNDLOOP), at the MUSIC VOLUME setting,
@@ -6809,8 +9311,17 @@ END FUNCTION
 ' a strobe blinks twice a second, firelight jitters, and a dying tube is
 ' mostly dark but sputters on. A broken lamp's light is out for good.
 SUB UpdateLight
+    IF cyberOn THEN ' The network: no lamps, no shadows - everything lit the same
+        FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
+            litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230
+            litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
+        NEXT : NEXT
+        FOR l = 1 TO numLights : lightNow(l) = 0 : NEXT
+        EXIT SUB
+    END IF
     FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
         litR(cellX, cellY) = ambientR : litG(cellX, cellY) = ambientG : litB(cellX, cellY) = ambientB
+        IF blackoutTimer > 0 THEN litR(cellX, cellY) = ambientR \ 4 : litG(cellX, cellY) = ambientG \ 5 : litB(cellX, cellY) = ambientB \ 4 ' (a power failure: darker)
         litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
     NEXT : NEXT
     FOR l = 1 TO numLights
@@ -6840,6 +9351,7 @@ SUB UpdateLight
             IF NOT decoOn(lightDeco(l)) THEN f = 0
         END IF
         IF lightBroken(l) THEN f = 0 ' (shot out)
+        IF blackoutTimer > 0 AND lightEffect(l) <> FX_STROBE THEN f = f * 0.05 ' (no power: only the alarms)
         lightNow(l) = f
         IF f > 0 THEN
             r = lightR(l) * f : g = lightG(l) * f : b = lightB(l) * f
@@ -6904,7 +9416,8 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
             SELECT CASE worldMap(cellX, cellY)
                 CASE 0
                     IF cellSize > 4 THEN mmColor~& = _RGBA32(40, 50, 95, 150)
-                CASE 1, 3 TO 7
+                    IF glassHP(cellX, cellY) > 0 THEN mmColor~& = _RGB32(130, 220, 255) ' (glass)
+                CASE 1, 3 TO 9
                     mmColor~& = wallMapColor(worldMap(cellX, cellY))
                 CASE 2
                     IF doorType(cellX, cellY) = DOOR_EXIT THEN
@@ -7075,10 +9588,12 @@ SUB _GL
     IF NOT glReady THEN EXIT SUB ' Nothing to draw (or the software renderer is on)
     glStart# = TIMER(0.001)
     b = glBuf ' The newest finished snapshot
-    IF glTexDone <> glTexVersion THEN GLSendTextures : GLBuildMesh ' (a new level)
+    IF glTexDone <> glTexVersion THEN GLSendTextures : glMeshClient = 0 : GLBuildMesh : glMeshDone = glMeshVersion ' (a new level)
+    IF glMeshDone <> glMeshVersion THEN glMeshClient = -1 : GLBuildMesh : glMeshDone = glMeshVersion ' (the map changed: a closet opened)
+    IF glRetexDone <> glRetexVersion THEN GLSendTextures : glRetexDone = glRetexVersion ' (the pictures changed: in or out of the network)
     IF glGunTex(1) = 0 THEN GLSendGuns ' (once)
     IF glWorldTried = 0 THEN GLBuildShaders
-    glGPU = (glWorldProg <> 0 AND glMeshBuf <> 0) ' The world mesh, lit by the shader from the light tables
+    glGPU = (glWorldProg <> 0 AND (glMeshBuf <> 0 OR glMeshClient)) ' The world mesh, lit by the shader from the light tables
 
     ' Where on the window to draw: all of it - or, in full screen with
     ' _SQUAREPIXELS, the middle part QB64PE letterboxes the screen into.
@@ -7151,7 +9666,7 @@ SUB _GL
 
     ' The cells to draw: the ones this frame's rays reached, and their
     ' neighbours
-    glEyeX = glCamX(b) : glEyeY = glCamY(b) : glEyeDX = glDirX(b) : glEyeDY = glDirY(b)
+    glEyeX = glCamX(b) : glEyeY = glCamY(b) : glEyeDX = glDirX(b) : glEyeDY = glDirY(b) : glEyeZ = glCamZ(b)
     stamp& = glFrame(b) : glNumVis = 0
     IF glGPU THEN GOTO SkipVisible ' (the world mesh is drawn whole: the card's depth buffer hides what you can't see)
     FOR cy = 0 TO MAP_SIZE - 1 : FOR cx = 0 TO MAP_SIZE - 1
@@ -7227,7 +9742,7 @@ END SUB
 '           turns dirX and dirY round each other to turn you left or right
 SUB GLCamera(b, mirror)
     glMat(0) = glEyeDY : glMat(4) = -glEyeDX : glMat(8) = 0 : glMat(12) = -(glEyeX * glEyeDY - glEyeY * glEyeDX)
-    glMat(1) = 0 : glMat(5) = 0 : glMat(9) = 1 : glMat(13) = -0.5
+    glMat(1) = 0 : glMat(5) = 0 : glMat(9) = 1 : glMat(13) = -glEyeZ ' (your eye's height: 0.5 on level ground)
     glMat(2) = -glEyeDX : glMat(6) = -glEyeDY : glMat(10) = 0 : glMat(14) = glEyeX * glEyeDX + glEyeY * glEyeDY
     glMat(3) = 0 : glMat(7) = 0 : glMat(11) = 0 : glMat(15) = 1
     IF mirror THEN glMat(9) = -1 ' (z -> -z)
@@ -7253,14 +9768,15 @@ SUB GLWorldGPU(b, mirror)
     glCellLitMode = 1
     GLSL_buffer_bind glMeshBuf
     n& = glMeshN
-    _glVertexPointer 3, _GL_FLOAT, 0, 0 ' (offsets into the mesh: positions first...)
-    _glTexCoordPointer 2, _GL_FLOAT, 0, n& * 12 ' (...then texture spots, normals, tangents)
-    _glNormalPointer _GL_FLOAT, 0, n& * 20
-    GLSL_attrib_array glTanLoc, 3, n& * 32
+    meshAt~%& = 0 : IF glMeshClient THEN meshAt~%& = _OFFSET(glMeshData(0)) ' (in a buffer, places are offsets into it)
+    _glVertexPointer 3, _GL_FLOAT, 0, meshAt~%& ' (positions first...)
+    _glTexCoordPointer 2, _GL_FLOAT, 0, meshAt~%& + n& * 12 ' (...then texture spots, normals, tangents)
+    _glNormalPointer _GL_FLOAT, 0, meshAt~%& + n& * 20
+    GLSL_attrib_array glTanLoc, 3, meshAt~%& + n& * 32
     GLSL_attrib_off glLightLoc : GLSL_attrib_off glDynLoc
     _glDisableClientState _GL_COLOR_ARRAY : _glColor4f 1, 1, 1, 1 ' (the light comes from the tables)
-    FOR kind = 0 TO 2 ' Floors (not in the mirror - it's under them), ceilings, walls
-        IF kind = 0 AND mirror THEN GOTO NextKind
+    FOR kind = 0 TO 3 ' Floors (not in the mirror - it's under them), ceilings, walls, raised and sunken floors
+        IF (kind = 0 OR kind = 3) AND mirror THEN GOTO NextKind
         IF kind = 0 AND glReflecting THEN _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
         FOR slot = 1 TO T_SLOTS
             IF glMeshCount(kind, slot) THEN
@@ -7287,6 +9803,7 @@ SUB GLWorldGPU(b, mirror)
             GLDoorBox glDoorCX(k), glDoorCY(k), b
         END IF
     NEXT
+    IF numLifts THEN GLLifts b ' (the lifts, where they are now)
     ' ...and their tracks: dark grooves, so lit by their corners' colour
     ' (darkened) rather than the light tables - a batch of their own
     GLStopDrawing
@@ -7325,8 +9842,9 @@ SUB GLBuildMesh
     FOR cy = 0 TO MAP_SIZE - 1 : FOR cx = 0 TO MAP_SIZE - 1
         IF GLOpenCell(cx, cy) THEN
             glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0
-            glMeshKind = 0 : glFaceNZ = 1 : GLFlat cx, cy, 0, floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy)
-            glMeshKind = 1 : glFaceNZ = -1 : GLFlat cx, cy, 1, ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy)
+            glMeshKind = 0 : IF floorH(cx, cy) <> 0 THEN glMeshKind = 3 ' (a floor up or down: not see-through, for the wet floors)
+            glFaceNZ = 1 : IF liftCell(cx, cy) = 0 THEN GLFlat cx, cy, floorH(cx, cy), floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy) ' (lifts: GLLifts)
+            glMeshKind = 1 : glFaceNZ = -1 : GLFlat cx, cy, ceilH(cx, cy), ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy)
         END IF
         IF worldMap(cx, cy) = 2 THEN
             glNumDoors = glNumDoors + 1 : glDoorCX(glNumDoors) = cx : glDoorCY(glNumDoors) = cy
@@ -7343,16 +9861,26 @@ SUB GLBuildMesh
             NEXT
         END IF
     NEXT : NEXT
+    ' Heights: the faces between cells whose floors (or ceilings) differ
+    IF NOT levelFlat THEN
+        glMeshKind = 2
+        FOR cy = 0 TO MAP_SIZE - 2 : FOR cx = 0 TO MAP_SIZE - 2
+            IF GLOpenCell(cx, cy) THEN
+                IF GLOpenCell(cx + 1, cy) AND liftCell(cx, cy) = 0 AND liftCell(cx + 1, cy) = 0 THEN GLStep cx, cy, cx + 1, cy, glBuf
+                IF GLOpenCell(cx, cy + 1) AND liftCell(cx, cy) = 0 AND liftCell(cx, cy + 1) = 0 THEN GLStep cx, cy, cx, cy + 1, glBuf
+            END IF
+        NEXT : NEXT
+    END IF
     glMeshBuilding = 0
     n& = glMeshN
     ' Counting sort, by kind * (number of textures) + texture
-    FOR kind = 0 TO 2 : FOR slot = 0 TO GL_GLOW_TEX : glMeshCount(kind, slot) = 0 : NEXT : NEXT
+    FOR kind = 0 TO 3 : FOR slot = 0 TO GL_GLOW_TEX : glMeshCount(kind, slot) = 0 : NEXT : NEXT
     FOR i& = 0 TO n& - 1 : glMeshCount(glMBKind(i&), glMBSlot(i&)) = glMeshCount(glMBKind(i&), glMBSlot(i&)) + 1 : NEXT
     at& = 0
-    FOR kind = 0 TO 2 : FOR slot = 0 TO GL_GLOW_TEX
+    FOR kind = 0 TO 3 : FOR slot = 0 TO GL_GLOW_TEX
         glMeshFirst(kind, slot) = at& : at& = at& + glMeshCount(kind, slot)
     NEXT : NEXT
-    FOR kind = 0 TO 2 : FOR slot = 0 TO GL_GLOW_TEX : glSlotFill(slot) = glMeshFirst(kind, slot) : NEXT
+    FOR kind = 0 TO 3 : FOR slot = 0 TO GL_GLOW_TEX : glSlotFill(slot) = glMeshFirst(kind, slot) : NEXT
         FOR i& = 0 TO n& - 1
             IF glMBKind(i&) = kind THEN
                 d& = glSlotFill(glMBSlot(i&)) : glSlotFill(glMBSlot(i&)) = d& + 1
@@ -7364,7 +9892,12 @@ SUB GLBuildMesh
         NEXT
     NEXT
     IF glMeshBuf THEN GLSL_buffer_delete glMeshBuf : glMeshBuf = 0
-    IF n& > 0 THEN glMeshBuf = GLSL_buffer_new~&(_OFFSET(glMeshData(0)), n& * 44) ' (11 numbers, 44 bytes, a corner)
+    ' A new level: into a buffer in the card's memory (11 numbers, 44 bytes,
+    ' a corner). In the middle of a level (glMeshClient), the card is still
+    ' busy with the frames before, and a new buffer would wait for them -
+    ' up to a second, a big stutter. So until the next level the mesh is
+    ' drawn straight from glMeshData, sent over afresh each frame instead.
+    IF n& > 0 AND NOT glMeshClient THEN glMeshBuf = GLSL_buffer_new~&(_OFFSET(glMeshData(0)), n& * 44)
 END SUB
 
 ' One corner of the world mesh, while it's built: its shape only (where,
@@ -7401,10 +9934,10 @@ SUB GLWorld(b, mirror)
                 glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0 ' (u runs along x)
                 IF z = 0 THEN
                     glFaceNZ = 1 ' (the floor faces up...)
-                    GLFlat cx, cy, 0, floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy)
+                    GLFlat cx, cy, floorH(cx, cy), floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy)
                 ELSE
                     glFaceNZ = -1 ' (...the ceiling down)
-                    GLFlat cx, cy, 1, ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy)
+                    GLFlat cx, cy, ceilH(cx, cy), ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy)
                 END IF
             END IF
         NEXT
@@ -7436,6 +9969,32 @@ END SUB
 
 ' Sprites, then shadows, glows and particles - the same for both ways of
 ' drawing the world (the shader keeps going from the world, if it's on)
+' The glass: each pane a see-through rectangle across its cell, mixed
+' over what's behind it (_GL_BLEND by its picture's alpha), hidden by
+' anything in front (the depth test) but hiding nothing (_glDepthMask off)
+SUB GLGlass(b)
+    IF numGlass = 0 THEN EXIT SUB
+    _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
+    glCellLitMode = 0
+    FOR k = 1 TO numGlass
+        cx = glassListX(k) : cy = glassListY(k)
+        IF glassHP(cx, cy) > 0 THEN
+            IF GLNearSeen(cx, cy, b) THEN
+                slot = S_GLASS : IF glassHP(cx, cy) <= GLASS_HP \ 2 THEN slot = S_GLASS + 1
+                GLUseTexture T_SLOTS + slot : GLSetLight cx, cy, 1, b
+                red = glLitR(cx, cy, b) / 256 : green = glLitG(cx, cy, b) / 256 : blue = glLitB(cx, cy, b) / 256
+                IF glassDir(cx, cy) = 1 THEN x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 ELSE x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1
+                glFaceNX = y1 - y0 : glFaceNY = x1 - x0 : glFaceNZ = 0 : glFaceTX = x1 - x0 : glFaceTY = y1 - y0 : glFaceTZ = 0
+                GLSpriteCorner x0, y0, 1, 0, 0, red, green, blue : GLSpriteCorner x1, y1, 1, 1, 0, red, green, blue
+                GLSpriteCorner x1, y1, 0, 1, 1, red, green, blue : GLSpriteCorner x0, y0, 1, 0, 0, red, green, blue
+                GLSpriteCorner x1, y1, 0, 1, 1, red, green, blue : GLSpriteCorner x0, y0, 0, 0, 1, red, green, blue
+            END IF
+        END IF
+    NEXT
+    GLStopDrawing
+    _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
+END SUB
+
 SUB GLSpritesAndExtras(b, mirror)
     glCellLitMode = 0 ' (sprites have their own light, worked out in chapter 16)
 
@@ -7471,6 +10030,7 @@ SUB GLSpritesAndExtras(b, mirror)
 
     IF glSet(SET_SHADOWS, b) AND NOT mirror THEN GLShadows b
     GLDecals b
+    IF NOT mirror THEN GLGlass b
 
     ' Glows: a soft round spot facing you, ADDED to what's behind it
     ' (_glBlendFunc with _GL_ONE) instead of covering it - light adds up, so
@@ -7535,8 +10095,9 @@ SUB GLShaft(sx, sy, r, g, bl, t, rightX, rightY)
     IF d > 10 THEN f = f * (16 - d) / 6 : IF f <= 0 THEN EXIT SUB
     f = f * SHAFT_AMT * (0.85 + 0.15 * SIN(t * 0.9))
     GLUseTexture GL_GLOW_TEX
+    sfz = FloorAt(sx, sy) : scz = CeilAt(sx, sy) : sh = (scz - sfz) / 4 ' (heights: floor to ceiling)
     FOR piece = 0 TO 3
-        zTop = 0.995 - piece * 0.245 : zLow = zTop - 0.245
+        zTop = scz - 0.005 - piece * sh : zLow = zTop - sh
         wTop = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - zTop) : wLow = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - zLow)
         kTop = f * (0.45 + 0.55 * zTop) : kLow = f * (0.45 + 0.55 * zLow) ' (brighter at the top)
         FOR half = -1 TO 1 STEP 2
@@ -7549,7 +10110,7 @@ SUB GLShaft(sx, sy, r, g, bl, t, rightX, rightY)
         NEXT
     NEXT
     ' ...and the light itself, a soft spot just under the ceiling
-    GLGlowSpot sx - glEyeDX * 0.1, sy - glEyeDY * 0.1, 0.96, 0.25, r * f * 1.3, g * f * 1.3, bl * f * 1.3, rightX, rightY
+    GLGlowSpot sx - glEyeDX * 0.1, sy - glEyeDY * 0.1, scz - 0.04, 0.25, r * f * 1.3, g * f * 1.3, bl * f * 1.3, rightX, rightY
 END SUB
 
 ' Does cell (cx, cy) have a floor and ceiling? Open floor, a door, or a
@@ -7577,7 +10138,7 @@ SUB GLShadows(b)
     _glEnable _GL_ALPHA_TEST : _glAlphaFunc _GL_GREATER, 0.05
     FOR i = 1 TO glNumSpr(b)
         slot = glSprSlot(i, b)
-        IF slot = S_BOLT OR slot = S_BLAST OR (slot > S_BOOM AND slot <= S_BOOM + BOOM_FRAMES) THEN GOTO NextShadow ' (they glow)
+        IF slot = S_BOLT OR slot = S_BLAST OR (slot > S_BOOM AND slot <= S_BOOM + BOOM_FRAMES) OR slot >= S_PLATE THEN GOTO NextShadow ' (they glow, or lie flat)
         sx = glSprX(i, b) : sy = glSprY(i, b) : cx = INT(sx) : cy = INT(sy)
         strength = glLitDir(cx, cy, b) * 1.2 : IF strength > 0.65 THEN strength = 0.65
         lx = glLitCX(cx, cy, b) : ly = glLitCY(cx, cy, b)
@@ -7860,7 +10421,7 @@ SUB GLSendTextures
             height = (((col~& \ 65536) AND 255) * 0.3 + ((col~& \ 256) AND 255) * 0.59 + (col~& AND 255) * 0.11)
             glUpload(y * TEX_SIZE + x) = (col~& AND &HFFFFFF) OR _SHL(INT(height) AND 255, 24)
         NEXT : NEXT
-        GLSendPicture glTexName(slot), TEX_SIZE, _OFFSET(glUpload(0))
+        GLSendPicture glTexName(slot), TEX_SIZE, _OFFSET(glUpload(0)), -1
         n$ = texName$(slot)
         glTexShine(slot) = 0.2 : glTexReflect(slot) = 0 : glTexNeon(slot) = 1 : glTexAnim(slot) = 0
         IF slot >= T_DOOR AND slot <= T_SPLIT THEN glTexShine(slot) = 0.6
@@ -7884,29 +10445,33 @@ SUB GLSendTextures
         IF slot = T_EXIT THEN glTexAnim(slot) = 3
     NEXT
     FOR slot = 1 TO SPR_SLOTS
-        GLSendPicture glTexName(T_SLOTS + slot), SPR_TEX, _OFFSET(spriteTex(0, 0, slot))
+        GLSendPicture glTexName(T_SLOTS + slot), SPR_TEX, _OFFSET(spriteTex(0, 0, slot)), 0
         glTexShine(T_SLOTS + slot) = 0.3 : glTexReflect(T_SLOTS + slot) = 0 : glTexNeon(T_SLOTS + slot) = 0.6 : glTexAnim(T_SLOTS + slot) = 0
         IF slot > S_CORPSE AND slot <= S_ANIM THEN glTexNeon(T_SLOTS + slot) = 0 ' (bodies, scorches and wreckage don't light themselves)
         IF slot > S_BOOM AND slot <= S_BOOM + BOOM_FRAMES THEN glTexNeon(T_SLOTS + slot) = 1 ' (explosions do)
+        IF slot = S_LASER THEN glTexNeon(T_SLOTS + slot) = 1
     NEXT
     ' The glows' spot: white, see-through at its edge, solid in the middle
     FOR y = 0 TO 63 : FOR x = 0 TO 63
         d = SQR((x - 31.5) ^ 2 + (y - 31.5) ^ 2) / 32 : IF d > 1 THEN d = 1
         glUpload(y * 64 + x) = _RGBA32(255, 255, 255, 255 * (1 - d) ^ 2)
     NEXT : NEXT
-    GLSendPicture glTexName(GL_GLOW_TEX), 64, _OFFSET(glUpload(0))
+    GLSendPicture glTexName(GL_GLOW_TEX), 64, _OFFSET(glUpload(0)), 0
     glTexDone = glTexVersion
 END SUB
 
 ' One square picture, size pixels across, from memory at pixelsAt. Nearest
 ' pixel (no smoothing), and "clamp": a texture coordinate of 1 is the last
 ' pixel, not the first one again.
-SUB GLSendPicture(texName AS _UNSIGNED LONG, size, pixelsAt AS _OFFSET)
+SUB GLSendPicture(texName AS _UNSIGNED LONG, size, pixelsAt AS _OFFSET, wrap)
     _glBindTexture _GL_TEXTURE_2D, texName
     _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST
     _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
-    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_S, _GL_CLAMP
-    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_T, _GL_CLAMP
+    ' (walls, floors and ceilings repeat - a wall taller than one cell
+    ' shows its picture again above; sprites stop at their edges)
+    IF wrap THEN wm& = _GL_REPEAT ELSE wm& = _GL_CLAMP
+    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_S, wm&
+    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_T, wm&
     _glTexImage2D _GL_TEXTURE_2D, 0, _GL_RGBA, size, size, 0, _GL_BGRA_EXT, _GL_UNSIGNED_BYTE, pixelsAt
 END SUB
 
@@ -8280,6 +10845,81 @@ END FUNCTION
 ' left to right from in front, so on west and south sides (where "left"
 ' is the far end) it runs backwards, from 1 to 0. Doors don't turn round,
 ' so they look mirrored from the other side, as in the software renderer.
+' The lifts, one frame on: each one's height (liftZ) towards where it's
+' going, a wait at each end; its cells' floors set to it. (px, py) is you:
+' an elevator (mode 2) goes up when you're on it, and down again a while
+' after you've got off
+SUB MoveLifts(px, py)
+    me = liftCell(INT(px), INT(py))
+    FOR k = 1 TO numLifts
+        IF liftDir(k) = 0 THEN ' Waiting at one end
+            IF liftWait(k) > 0 THEN liftWait(k) = liftWait(k) - 1
+            IF liftMode(k) = 2 THEN
+                IF me = k AND liftZ(k) <= liftLow(k) + 0.001 AND liftWait(k) = 0 THEN liftDir(k) = 1 : SfxAt sndShutter&, liftX0(k) + 0.5, liftY0(k) + 0.5, px, py
+                IF me <> k AND liftZ(k) >= liftHigh(k) - 0.001 AND liftWait(k) = 0 THEN liftDir(k) = -1 : SfxAt sndShutter&, liftX0(k) + 0.5, liftY0(k) + 0.5, px, py
+                IF me = k AND liftZ(k) >= liftHigh(k) - 0.001 THEN liftWait(k) = 180 ' (you're still on it: stay up)
+            ELSEIF liftMode(k) = 1 AND liftWait(k) = 0 THEN ' (mode 3: only when told - liftgo, from a trigger)
+                IF liftZ(k) <= liftLow(k) + 0.001 THEN liftDir(k) = 1 ELSE liftDir(k) = -1
+                SfxAt sndShutter&, liftX0(k) + 0.5, liftY0(k) + 0.5, px, py
+            END IF
+        ELSE
+            liftZ(k) = liftZ(k) + liftDir(k) * liftSpeed(k)
+            IF liftZ(k) >= liftHigh(k) THEN liftZ(k) = liftHigh(k) : liftDir(k) = 0 : liftWait(k) = 120
+            IF liftZ(k) <= liftLow(k) THEN liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 120
+        END IF
+        FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
+            IF liftCell(x, y) = k THEN floorH(x, y) = liftZ(k)
+        NEXT : NEXT
+    NEXT
+END SUB
+
+' OpenGL: the lifts where they are now - each cell's top, and its sides
+' down (or up) to the floor next to it
+SUB GLLifts(b)
+    FOR k = 1 TO numLifts
+        FOR cy = liftY0(k) TO liftY1(k) : FOR cx = liftX0(k) TO liftX1(k)
+            IF liftCell(cx, cy) = k THEN
+                IF GLNearSeen(cx, cy, b) THEN
+                    GLSetLight cx, cy, 1, b
+                    glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = 1
+                    GLFlat cx, cy, floorH(cx, cy), floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy)
+                    IF liftCell(cx + 1, cy) <> k AND GLOpenCell(cx + 1, cy) THEN GLStep cx, cy, cx + 1, cy, b
+                    IF liftCell(cx - 1, cy) <> k AND GLOpenCell(cx - 1, cy) THEN GLStep cx - 1, cy, cx, cy, b
+                    IF liftCell(cx, cy + 1) <> k AND GLOpenCell(cx, cy + 1) THEN GLStep cx, cy, cx, cy + 1, b
+                    IF liftCell(cx, cy - 1) <> k AND GLOpenCell(cx, cy - 1) THEN GLStep cx, cy - 1, cx, cy, b
+                END IF
+            END IF
+        NEXT : NEXT
+    NEXT
+END SUB
+
+' Between two open cells side by side, (ax, ay) and (bx, by): where their
+' floors differ, the face of the step, from the lower floor up to the
+' higher, facing the lower cell; where their ceilings differ, the face
+' from the lower ceiling up to the higher, facing the higher-ceilinged
+' cell. Both in the level's main wall picture.
+SUB GLStep(ax, ay, bx, by, b)
+    IF ax = bx THEN ' (the edge between them, as a line from (ex0, ey0) to (ex1, ey1))
+        ex0 = ax : ey0 = by : ex1 = ax + 1 : ey1 = by
+    ELSE
+        ex0 = bx : ey0 = ay : ex1 = bx : ey1 = ay + 1
+    END IF
+    fa = floorH(ax, ay) : fb = floorH(bx, by)
+    IF fa <> fb THEN
+        IF fa < fb THEN lx = ax : ly = ay : zl = fa : zh = fb ELSE lx = bx : ly = by : zl = fb : zh = fa
+        GLSetLight lx, ly, 1, b
+        glFaceNX = SGN(lx - (ax + bx - lx)) : glFaceNY = SGN(ly - (ay + by - ly)) : glFaceNZ = 0
+        GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, wallTexSlot(1)
+    END IF
+    ca = ceilH(ax, ay) : cb = ceilH(bx, by)
+    IF ca <> cb THEN
+        IF ca > cb THEN lx = ax : ly = ay : zl = cb : zh = ca ELSE lx = bx : ly = by : zl = ca : zh = cb
+        GLSetLight lx, ly, 1, b
+        glFaceNX = SGN(lx - (ax + bx - lx)) : glFaceNY = SGN(ly - (ay + by - ly)) : glFaceNZ = 0
+        GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, wallTexSlot(1)
+    END IF
+END SUB
+
 SUB GLFace(cx, cy, side, b)
     SELECT CASE side
         CASE 1 : nx = cx - 1 : ny = cy : ax = cx : ay = cy : bx = cx : by = cy + 1 : inFront = glEyeX < cx
@@ -8293,8 +10933,9 @@ SUB GLFace(cx, cy, side, b)
     IF side <= 2 THEN GLSetLight nx, ny, 1, b ELSE GLSetLight nx, ny, 0.7, b
     glFaceNX = nx - cx : glFaceNY = ny - cy : glFaceNZ = 0 ' Facing the cell it looks onto
     IF side = 1 OR side = 4 THEN u0 = 1 : u1 = 0 ELSE u0 = 0 : u1 = 1
-    IF worldMap(cx, cy) <> 2 THEN ' A wall
-        GLStrip ax, ay, bx, by, 0, 1, u0, u1, 0, 1, 0, 1, wallTexSlot(worldMap(cx, cy))
+    IF worldMap(cx, cy) <> 2 THEN ' A wall: from the floor to the ceiling of the cell it looks onto
+        fz = floorH(nx, ny) : cz = ceilH(nx, ny)
+        GLStrip ax, ay, bx, by, 0, 1, u0, u1, fz, cz, 1 - cz, 1 - fz, wallTexSlot(worldMap(cx, cy))
         EXIT SUB
     END IF
     doorAmt = glDoor(cx, cy, b) ' A door: 0 shut .. 1 open
@@ -8329,7 +10970,7 @@ SUB GLDiagonal(cx, cy, corner, b)
     GLSetLight cx, cy, 0.85, b
     glFaceNX = -(by - ay) * 0.7071 : glFaceNY = (bx - ax) * 0.7071 : glFaceNZ = 0 ' Square to the diagonal...
     IF InDiagonalWall(corner, 0.5 + glFaceNX * 0.1, 0.5 + glFaceNY * 0.1) THEN glFaceNX = -glFaceNX : glFaceNY = -glFaceNY ' ...on its open side
-    GLStrip ax, ay, bx, by, 0, 1, u0, u1, 0, 1, 0, 1, wallTexSlot(worldMap(cx, cy))
+    GLStrip ax, ay, bx, by, 0, 1, u0, u1, floorH(cx, cy), ceilH(cx, cy), 1 - ceilH(cx, cy), 1 - floorH(cx, cy), wallTexSlot(worldMap(cx, cy))
 END SUB
 
 ' THE SHADERS. OpenGL's fixed recipe colours a pixel as texture times the
@@ -8643,8 +11284,9 @@ END SUB
 ' A spray of sparks at (x, y, z), colour (r, g, b) in 0..255: where a shot
 ' or a bolt hits
 SUB SpawnSparks(x, y, z, count, r, g, b)
+    zz = z + FloorAt(x, y) ' (z is over the floor there)
     FOR k = 1 TO count
-        SpawnPart PART_SPARK, x, y, z, (RND - 0.5) * 0.12, (RND - 0.5) * 0.12, 0.015 + RND * 0.06, 16 + INT(RND * 16), r / 255, g / 255, b / 255, 0.03 + RND * 0.02
+        SpawnPart PART_SPARK, x, y, zz, (RND - 0.5) * 0.12, (RND - 0.5) * 0.12, 0.015 + RND * 0.06, 16 + INT(RND * 16), r / 255, g / 255, b / 255, 0.03 + RND * 0.02
     NEXT
 END SUB
 
@@ -8720,8 +11362,9 @@ SUB UpdateParticles(px, py, mvx, mvy)
             END IF
             partX(i) = partX(i) + partVX(i) : partY(i) = partY(i) + partVY(i) : partZ(i) = partZ(i) + partVZ(i)
             IF partX(i) < 1 OR partY(i) < 1 OR partX(i) >= MAP_SIZE - 1 OR partY(i) >= MAP_SIZE - 1 THEN partLife(i) = 0 : GOTO NextPart ' (off the map: gone)
-            IF partZ(i) < 0.01 THEN partZ(i) = 0.01 : partVZ(i) = -partVZ(i) * 0.35 : partVX(i) = partVX(i) * 0.7 : partVY(i) = partVY(i) * 0.7
-            IF partZ(i) > 0.98 THEN partZ(i) = 0.98 : partVZ(i) = -partVZ(i) * 0.3
+            pfz = FloorAt(partX(i), partY(i)) : pcz = CeilAt(partX(i), partY(i))
+            IF partZ(i) < pfz + 0.01 THEN partZ(i) = pfz + 0.01 : partVZ(i) = -partVZ(i) * 0.35 : partVX(i) = partVX(i) * 0.7 : partVY(i) = partVY(i) * 0.7
+            IF partZ(i) > pcz - 0.02 THEN partZ(i) = pcz - 0.02 : partVZ(i) = -partVZ(i) * 0.3
             IF SolidAt(partX(i), partY(i)) THEN ' Back out, and bounce
                 partX(i) = partX(i) - partVX(i) : partY(i) = partY(i) - partVY(i)
                 partVX(i) = -partVX(i) * 0.4 : partVY(i) = -partVY(i) * 0.4
