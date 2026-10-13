@@ -13,9 +13,9 @@ N = 48
 WALLS = set("#NCKPG")
 DOORS = set("DHXRBYE")
 DIAG = set("/\\")
-ITEMS = set("rby+ae23u*4M")
-MONS = set("mghcs")
-DECO = set("oipt")
+ITEMS = set("rby+ae23u*4Mqj")  # ... q overcharge, j damage amp
+MONS = set("mghcskwz")  # ... k stalker, w spitter, z the overseer
+DECO = set("oiptxlnfS")  # ... x crate, l server rack, n vending machine, f coolant tank, S spawner
 START = set("<>^v")
 
 
@@ -25,6 +25,7 @@ class Map:
         self.zones = []
         self.ambient = (170, 255, 255, 255)  # brightness 0-256, then r g b
         self.lights = []
+        self.events = []
 
     @classmethod
     def from_rows(cls, rows):
@@ -129,6 +130,14 @@ class Map:
     def light(self, x, y, radius, bright, r, g, b, effect=0):
         self.lights.append((x, y, radius, bright, r, g, b, effect))
 
+    # -- event rooms (see EV_ in the game): kind 1 ambush, 2 survive, 3 trap,
+    # 4 shooting gallery, 5 spawner nest; the room x0..x1, y0..y1; two numbers
+    # whose meaning depends on the kind; the reward (a pickup kind, 0 none:
+    # 4 health, 5 cells, 6 shells, 9 armour, 10 big medkit, 13 overcharge,
+    # 14 damage amp)
+    def event(self, kind, x0, y0, x1, y1, a, b, reward=0):
+        self.events.append((kind, x0, y0, x1, y1, a, b, reward))
+
     # -- output
     def rows(self):
         return ["".join(r) for r in self.g]
@@ -152,6 +161,9 @@ class Map:
         out.append("DATA %d" % len(self.lights))
         for l in self.lights:
             out.append("DATA " + ", ".join(str(v) for v in l))
+        out.append("DATA %d" % len(self.events))
+        for e in self.events:
+            out.append("DATA " + ", ".join(str(v) for v in e))
         for r in self.rows():
             out.append('DATA "%s"' % r)
         return out
@@ -268,13 +280,16 @@ def parse_bas(path):
         fnums = lambda l: [float(v) for v in l.split(",")]
         nz = int(lines[5])
         nl = int(lines[6 + nz])
+        ne = int(lines[7 + nz + nl])
+        ev0 = 8 + nz + nl
         levels.append(dict(
             label=m.group(1), name=strs(lines[0])[0], walls=strs(lines[1]),
             floors=strs(lines[2]), ceils=strs(lines[3]),
             ambient=tuple(nums(lines[4])),
             zones=[tuple(nums(l)) for l in lines[6:6 + nz]],
             lights=[tuple(fnums(l)) for l in lines[7 + nz:7 + nz + nl]],
-            rows=[strs(l)[0] for l in lines[7 + nz + nl:7 + nz + nl + N]]))
+            events=[tuple(nums(l)) for l in lines[ev0:ev0 + ne]],
+            rows=[strs(l)[0] for l in lines[ev0 + ne:ev0 + ne + N]]))
     return levels
 
 
@@ -312,6 +327,24 @@ def check_level(lv, assets=None):
             errs.append("light %s: inside a wall" % (l,))
         if not (0 < rad <= 16 and 0 <= br <= 400 and 0 <= fx <= 5 and all(0 <= c <= 255 for c in (cr, cg, cb))):
             errs.append("light %s: radius 1-16, brightness 0-400, colour 0-255, effect 0-5" % (l,))
+    for e in lv.get("events", []):
+        if len(e) != 8:
+            errs.append("event %s: needs 8 numbers" % (e,))
+            continue
+        kind, x0, y0, x1, y1, a, b, reward = e
+        if not (1 <= kind <= 5 and 0 < x0 <= x1 < N - 1 and 0 < y0 <= y1 < N - 1):
+            errs.append("event %s: kind 1-5, a room inside the map" % (e,))
+        if reward not in (0, 4, 5, 6, 9, 10, 13, 14):
+            errs.append("event %s: reward must be 0 or a pickup kind" % (e,))
+        room = [lv["rows"][y][x] for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]
+        if kind == 4 and not any(c in DECO for c in room):
+            errs.append("event %s: a shooting gallery needs decorations in its room" % (e,))
+        if kind == 5 and "S" not in room:
+            errs.append("event %s: a nest needs spawners (S) in its room" % (e,))
+        if kind in (1, 2) and not any(c in DOORS for r in lv["rows"][max(0, y0 - 5):y1 + 6] for c in r[max(0, x0 - 5):x1 + 6]):
+            warns.append("event %s: no doors to lock round its room" % (e,))
+    if len(lv.get("events", [])) > 8:
+        errs.append("too many events (max 8)")
     if not any("M" in r for r in lv["rows"]):
         warns.append("no map pickup (M): the minimap never appears on this level")
     print("%s  %s  (%d lights)" % (lv["label"], lv["name"], len(lv.get("lights", []))))

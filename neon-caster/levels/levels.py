@@ -3,7 +3,7 @@
     python3 levels.py            build every level and check it
     python3 levels.py -show      ...and print the maps
     python3 levels.py --write    build, check, and (if all is well) replace
-                                 the Level1: .. Level4: DATA in neon-caster.bas
+                                 the Level1: .. Level10: DATA in neon-caster.bas
     python3 levels.py --check    just check the levels already in
                                  neon-caster.bas (e.g. after editing them
                                  there by hand)
@@ -28,6 +28,29 @@ def place(m, spec, allowed="."):
             PROBLEMS.append(1)
             continue
         m.put(x, y, c)
+
+
+def near(m, spec, radius=3):
+    """Like place, but each thing goes on the nearest free floor cell to
+    (x, y) - for scattering props and monsters without counting cells."""
+    for x, y, c in spec:
+        best = None
+        for r in range(radius + 1):
+            for dy in range(-r, r + 1):
+                for dx in range(-r, r + 1):
+                    if max(abs(dx), abs(dy)) != r:
+                        continue
+                    a, b = x + dx, y + dy
+                    if 0 < a < N - 1 and 0 < b < N - 1 and m.get(a, b) == ".":
+                        best = (a, b)
+                        break
+                if best: break
+            if best: break
+        if best:
+            m.put(best[0], best[1], c)
+        else:
+            print("NO ROOM for %s near %d,%d" % (c, x, y))
+            PROBLEMS.append(1)
 
 
 # ============================================================ LEVEL 1
@@ -91,6 +114,7 @@ def level1():
                (26, 5, 42, 21, 2, 2, 0), (30, 26, 42, 42, 4, 2, 0),
                (30, 30, 42, 42, 2, 0, 3)]  # lab: plates across its lower-right half
     place(m, [(19, 5, "M")])                    # the map: in the concrete room
+    m.event(1, 5, 5, 11, 10, 5, 1, 9)           # ambush: 5 drones in the little room, armour
     # light: a cool station, purple in the hub, flickering corridors
     m.ambient = (165, 225, 220, 255)
     m.light(23.5, 23.5, 6, 130, 210, 120, 255)        # the hub: neon purple
@@ -150,7 +174,7 @@ def level2():
     place(m, [  # south hall: a gentle start
         (6, 37, "a"), (31, 37, "e"), (13, 43, "+"), (19, 37, "i"), (29, 37, "i"),
         (5, 44, "o"), (6, 44, "o"), (36, 44, "o"),
-        (12, 37, "m"), (32, 42, "m"), (20, 43, "c"), (26, 43, "c"),
+        (12, 37, "m"), (32, 42, "m"), (9, 43, "c"), (36, 41, "c"),
         # reactor hall: gunners around the core, hazard all over
         (20, 18, "g"), (28, 30, "g"), (18, 26, "m"), (30, 20, "m"),
         (24, 17, "a"), (24, 31, "+"), (17, 22, "o"), (31, 26, "o"),
@@ -183,6 +207,8 @@ def level2():
     m.zone(3, 35, 45, 45, 2, 1)             # south hall
     m.zone(39, 35, 45, 45, 3, 2)            # armoury
     place(m, [(6, 9, "M")])                 # the map: in the storage bay
+    m.event(3, 15, 25, 21, 31, 90, 90)      # the hazard corner (SW) is live: on 1.5 s, off 1.5 s
+    m.event(4, 15, 3, 32, 13, 25, 0, 13)    # control room: smash its terminals in 25 s, overcharge
     # light: dim and orange, the core throbbing, alarms in the hall
     m.ambient = (115, 255, 190, 150)
     for (lx, ly) in ((24, 19.5), (24, 28.5), (19.5, 24), (28.5, 24)):
@@ -276,6 +302,8 @@ def level3():
     m.zone(3, 26, 14, 37, 4, 0, 1)   # ...except a dry corner, cut on the diagonal
     m.zone(18, 34, 28, 45, 3, 2)     # L3
     place(m, [(13, 6, "M")])         # the map: in the store
+    near(m, [(4, 13, "S"), (6, 22, "S")])
+    m.event(5, 3, 12, 7, 22, 4, 150, 14)   # the nest: crawlers from two spawners, damage amp
     # light: murky green; the lamps along the tunnel glow by themselves
     m.ambient = (80, 170, 230, 190)
     m.light(12.5, 12.5, 5, 120, 120, 255, 140, 2)     # slime glow in the channel
@@ -375,6 +403,7 @@ def level4():
     m.zone(3, 33, 15, 45, 4, 1)               # SW lab
     m.zone(33, 33, 45, 45, 3, 2)              # SE lab: ice
     place(m, [(6, 38, "M")])                  # the map: in the SW lab
+    m.event(1, 33, 33, 45, 45, 8, 0, 13)      # SE lab: an ambush, 8 of a mix, overcharge
     # light: cold and bright, the atrium's core pulsing
     m.ambient = (175, 200, 225, 255)
     m.light(24, 28.5, 7, 160, 120, 230, 255, 2)       # atrium, round the core
@@ -389,6 +418,419 @@ def level4():
     m.light(43.5, 24.5, 5, 140, 230, 240, 255, 5)
     return m
 
+
+# ============================================================ LEVEL 5
+def level5():
+    """FOUNDRY: one long smelting hall, a channel of molten metal down its
+    middle and furnaces standing in it; three workshops north, three
+    south. Casting room (NW) has red; ore store (NE, red) yellow; crusher
+    (S, yellow) blue; the exit is in the loading bay (SE, blue)."""
+    m = Map("#")
+    m.rect(6, 19, 41, 28)                       # the smelting hall
+    for x in (12, 20, 28, 36):                  # furnaces standing in it
+        m.rect(x, 20, x + 1, 21, "#")
+        m.rect(x, 26, x + 1, 27, "#")
+    for i, x0 in enumerate((3, 18, 33)):        # workshops north and south
+        m.octagon(x0, 3, x0 + 11, 14, 3)
+        m.octagon(x0, 33, x0 + 11, 44, 3)
+    for x in (9, 24, 39):                       # corridors to them
+        m.rect(x, 15, x, 18)
+        m.rect(x, 29, x, 32)
+    m.paint(0, 0, 47, 47, "N")                  # girders round the outside
+    m.paint(5, 18, 42, 29, "#")                 # furnace brick round the hall
+    m.paint(2, 2, 15, 15, "P"); m.paint(32, 2, 45, 15, "C")
+    m.paint(17, 32, 30, 45, "K"); m.paint(32, 32, 45, 45, "G")
+    m.pillar(24, 9, 2, "C")                     # pattern shop: a casting mould
+    for (x, y) in ((22, 37), (26, 37), (22, 41), (26, 41)):
+        m.rect(x, y, x, y, "K")                 # crusher: its rams
+    place(m, [(9, 16, "D"), (24, 16, "D"), (39, 16, "R"),
+              (9, 31, "D"), (24, 31, "Y"), (39, 31, "B")], ".")
+    place(m, [(45, 38, "E")], "#NCKPG")
+    place(m, [(9, 41, "^")])
+    place(m, [
+        # loading start (SW)
+        (5, 36, "a"), (13, 36, "e"), (12, 42, "+"), (4, 41, "o"), (5, 42, "o"), (11, 38, "m"),
+        # the hall: gunners on the far side of the channel, crawlers in the heat
+        (8, 22, "g"), (17, 25, "c"), (24, 22, "h"), (31, 25, "c"), (39, 22, "g"), (33, 27, "m"),
+        (16, 21, "o"), (32, 21, "o"), (17, 27, "o"), (25, 27, "o"), (40, 26, "i"), (7, 26, "i"),
+        (10, 27, "+"), (38, 20, "a"), (24, 25, "e"),
+        # casting room (NW): the red key
+        (6, 6, "r"), (12, 5, "g"), (5, 12, "c"), (13, 12, "c"), (8, 9, "t"), (12, 9, "e"), (9, 6, "M"),
+        # pattern shop (N): the scatter gun, a heavy
+        (24, 5, "2"), (20, 12, "h"), (28, 12, "m"), (19, 6, "a"), (29, 6, "+"), (21, 9, "o"), (27, 9, "o"),
+        # ore store (NE, red): the yellow key, sentries
+        (42, 5, "y"), (35, 5, "s"), (43, 12, "s"), (36, 12, "g"), (39, 9, "o"), (40, 9, "o"), (35, 9, "u"),
+        # crusher (S, yellow): the blue key, a pack
+        (24, 43, "b"), (20, 35, "c"), (28, 35, "c"), (21, 42, "m"), (27, 42, "m"), (24, 39, "h"), (19, 39, "a"),
+        # loading bay (SE, blue): the exit, the last guard
+        (42, 35, "*"), (36, 40, "h"), (42, 42, "g"), (35, 35, "s"), (37, 43, "+"), (43, 40, "t"),
+    ])
+    near(m, [(5, 4, "x"), (6, 4, "x"), (30, 4, "x"), (43, 13, "f"), (35, 13, "f"),
+             (13, 20, "f"), (33, 22, "x"), (41, 44, "x"), (34, 44, "x"), (19, 44, "f"),
+             (14, 24, "k"), (30, 24, "k"), (21, 6, "k"), (40, 37, "k"), (6, 39, "x")])
+    # floors: 1 molten grate, 2 scorched, 3 hazard, 4 plates; ceilings: 1 girders, 2 vents
+    m.zone(2, 2, 45, 45, 4, 1)
+    m.zone(6, 19, 41, 28, 2, 1)
+    m.zone(8, 23, 39, 24, 1, 2)                 # the molten channel
+    m.event(3, 8, 23, 39, 24, 60, 120)          # ...live: cross while it's off
+    m.event(4, 18, 3, 29, 14, 20, 0, 10)        # pattern shop: smash it all in 20 s, big medkit
+    m.zone(3, 3, 14, 14, 3, 2); m.zone(33, 3, 44, 14, 3, 2)
+    m.zone(18, 33, 29, 44, 3, 1)
+    # light: hot and orange, the channel glowing, furnaces flickering
+    m.ambient = (120, 255, 190, 150)
+    for x in (10.5, 18.5, 26.5, 34.5):
+        m.light(x, 23.5, 6, 200, 255, 120, 40, 4)
+    m.light(9.5, 9.5, 6, 140, 255, 170, 90, 4)
+    m.light(24.5, 4.5, 6, 140, 255, 230, 170)
+    m.light(39.5, 9.5, 6, 140, 230, 230, 255, 1)
+    m.light(24.5, 39.5, 6, 150, 255, 220, 120, 2)
+    m.light(39.5, 39.5, 6, 140, 255, 230, 170)
+    m.light(43.5, 36.5, 3, 190, 255, 50, 40, 3)
+    m.light(9.5, 38.5, 6, 140, 255, 220, 170, 1)
+    return m
+
+
+# ============================================================ LEVEL 6
+def level6():
+    """HYDROPONICS: a three by three grid of greenhouse bays, rows of plants
+    in each, a dome in the middle. Red key in the NW bay; the dome (red)
+    has yellow; NE (yellow, by way of N) blue; the exit is in the E bay
+    (blue)."""
+    m = Map("#")
+    xs = (3, 19, 35)
+    for cx, x0 in enumerate(xs):
+        for cy, y0 in enumerate(xs):
+            if (cx, cy) == (1, 1):
+                m.octagon(x0, y0, x0 + 9, y0 + 9, 3)      # the dome
+            else:
+                m.rect(x0, y0, x0 + 9, y0 + 9)
+    def hlink(cx, cy):      # bay (cx, cy) to the one east of it
+        x0 = xs[cx] + 10; y = xs[cy] + 4
+        m.rect(x0, y, x0 + 8, y)
+        return x0 + 4, y
+    def vlink(cx, cy):      # bay (cx, cy) to the one south of it
+        y0 = xs[cy] + 10; x = xs[cx] + 4
+        m.rect(x, y0, x, y0 + 8)
+        return x, y0 + 4
+    doors = []
+    for (a, b, d) in (((0, 0), "v", "D"), ((0, 1), "v", "D"), ((0, 2), "h", "D"),
+                      ((1, 2), "h", "D"), ((1, 1), "v", "R"), ((0, 1), "h", "R"),
+                      ((0, 0), "h", "Y"), ((1, 0), "h", "D"), ((2, 1), "v", "B"),
+                      ((2, 0), "v", "D")):
+        x, y = hlink(*a) if b == "h" else vlink(*a)
+        doors.append((x, y, d))
+    m.paint(0, 0, 47, 47, "N")                  # vines outside
+    for x0 in xs:
+        for y0 in xs:
+            m.paint(x0 - 1, y0 - 1, x0 + 10, y0 + 10, "#")   # greenhouse glass round the bays
+    m.paint(18, 18, 29, 29, "C")                # the dome: biolab
+    m.paint(34, 18, 45, 29, "K")                # the E bay: white lab
+    place(m, doors, ".")
+    place(m, [(45, 23, "E")], "#NCKPG")
+    place(m, [(5, 42, ">")])
+    # rows of plants in the outer bays (every other row, gaps to walk)
+    for x0 in xs:
+        for y0 in xs:
+            if (x0, y0) in ((19, 19), (35, 19)):
+                continue
+            for y in (y0 + 2, y0 + 7):
+                for x in (x0 + 2, x0 + 3, x0 + 6, x0 + 7):
+                    if m.get(x, y) == "." and (x, y) != (5, 42):
+                        m.put(x, y, "p")
+    place(m, [
+        (8, 39, "a"), (11, 44, "+"), (7, 44, "m"),                  # SW: start
+        (5, 27, "c"), (11, 24, "c"), (8, 27, "g"), (4, 24, "e"),    # W
+        (11, 4, "r"), (4, 7, "g"), (11, 11, "m"), (7, 5, "a"), (8, 10, "M"),   # NW: red key
+        (24, 37, "h"), (23, 42, "c"), (27, 42, "c"), (23, 37, "+"), (27, 37, "3"),  # S
+        (24, 21, "y"), (21, 25, "g"), (27, 25, "g"), (24, 27, "h"), (22, 21, "u"), (20, 23, "t"), (28, 23, "t"),  # dome
+        (24, 4, "a"), (20, 9, "m"), (28, 4, "m"), (25, 11, "c"), (22, 8, "e"),   # N
+        (42, 4, "b"), (36, 9, "s"), (43, 11, "h"), (40, 7, "+"),    # NE: blue key
+        (40, 37, "g"), (39, 42, "c"), (43, 42, "m"), (44, 38, "e"), (36, 37, "a"),   # SE
+        (44, 22, "h"), (36, 21, "s"), (42, 27, "g"), (37, 27, "*"), (38, 22, "t"), (43, 26, "t"),  # E: the exit
+    ], ".")
+    near(m, [(9, 24, "w"), (24, 9, "w"), (27, 36, "w"), (40, 40, "w"), (41, 24, "w"),
+             (24, 23, "q"), (39, 5, "n"), (4, 11, "x"), (44, 19, "x"), (5, 36, "k")])
+    near(m, [(37, 4, "S"), (43, 9, "S")])
+    m.event(5, 35, 3, 44, 12, 7, 200, 13)       # NE bay: a spitter nest, overcharge
+    m.event(2, 19, 19, 28, 28, 30, 90, 14)      # the dome: survive 30 s, damage amp
+    # floors: 1 soil, 2 lab, 3 murky, 4 white; ceilings: 1 grow lights, 2 lights
+    m.zone(2, 2, 45, 45, 2, 2)
+    for x0 in xs:
+        for y0 in xs:
+            m.zone(x0, y0, x0 + 9, y0 + 9, 1, 1)
+    m.zone(19, 19, 28, 28, 3, 1)                # the dome: a pond
+    m.zone(35, 19, 44, 28, 4, 2)                # the E bay: a lab
+    m.ambient = (125, 200, 255, 190)
+    for x0 in xs:
+        for y0 in xs:
+            fx = 0 if (x0 + y0) % 3 else 2
+            m.light(x0 + 5, y0 + 5, 7, 140, 210, 120, 255, fx)       # grow lights: purple
+    m.light(24, 24, 6, 150, 120, 255, 150, 2)                       # the dome: green
+    m.light(40, 24, 6, 150, 230, 240, 255, 1)
+    return m
+
+
+# ============================================================ LEVEL 7
+def level7():
+    """DATA VAULT: a great hall of server racks in rows, offices round its
+    edge, the vault itself in the middle. Red key in the west offices;
+    the north offices (red) have yellow; the east (yellow) blue; the vault
+    (blue) has the exit."""
+    m = Map("#")
+    m.rect(9, 9, 38, 38)                        # the hall
+    for y in range(11, 37, 4):                  # rows of racks, gaps to cross
+        for x0 in (11, 26):
+            m.rect(x0, y, x0 + 10, y, "C")
+            m.put(x0 + 5, y, ".")
+    m.rect(19, 19, 28, 28, "N")                 # the vault: a block in the middle...
+    m.rect(20, 20, 27, 27)                      # ...hollow
+    m.octagon(2, 12, 6, 35, 1)                  # offices: west,
+    m.octagon(12, 2, 35, 6, 1)                  #   north,
+    m.octagon(41, 12, 45, 35, 1)                #   east,
+    m.octagon(12, 41, 35, 45, 1)                #   south
+    for y in (14, 33):
+        m.rect(7, y, 8, y); m.rect(39, y, 40, y)
+    for x in (14, 33):
+        m.rect(x, 7, x, 8); m.rect(x, 39, x, 40)
+    m.rect(7, 24, 8, 24); m.rect(39, 24, 40, 24)
+    m.rect(24, 7, 24, 8); m.rect(24, 39, 24, 40)
+    m.paint(0, 0, 47, 47, "#")
+    m.paint(8, 8, 39, 39, "G")                  # the hall: stripes
+    m.paint(19, 19, 28, 28, "N")                # the vault: chrome
+    m.paint(1, 11, 7, 36, "K"); m.paint(40, 11, 46, 36, "K")
+    place(m, [(24, 19, "B")], "N")              # the vault's door
+    place(m, [(7, 24, "D"), (8, 14, "D"), (8, 33, "D"),        # west offices: open
+              (14, 8, "R"), (33, 8, "R"), (24, 8, "R"),        # north (red)
+              (39, 14, "Y"), (39, 33, "Y"), (40, 24, "Y"),     # east (yellow)
+              (14, 39, "D"), (33, 39, "D"), (24, 40, "D")], ".")  # south: open
+    place(m, [(24, 27, "E")], ".")
+    place(m, [(24, 43, "^")])
+    place(m, [
+        (16, 43, "a"), (31, 43, "+"), (19, 42, "m"), (29, 44, "m"), (13, 42, "e"),   # south offices
+        # the hall: drones over the racks, gunners in the aisles
+        (16, 13, "m"), (31, 17, "m"), (16, 25, "g"), (31, 29, "g"), (13, 33, "c"), (34, 21, "c"),
+        (10, 21, "h"), (37, 33, "g"), (22, 35, "c"), (25, 17, "m"), (10, 36, "+"), (37, 10, "a"),
+        (10, 10, "o"), (37, 37, "o"),
+        # west offices: the red key
+        (4, 30, "r"), (4, 14, "g"), (5, 20, "t"), (5, 27, "t"), (3, 24, "M"), (4, 33, "e"),
+        # north offices (red): the yellow key, sentries
+        (31, 4, "y"), (14, 4, "s"), (20, 3, "g"), (27, 5, "h"), (17, 5, "t"), (24, 3, "u"), (34, 5, "3"),
+        # east offices (yellow): the blue key
+        (43, 16, "b"), (43, 31, "s"), (42, 22, "h"), (44, 27, "g"), (42, 34, "*"), (43, 13, "a"),
+        # the vault (blue): the exit, its guards
+        (21, 22, "h"), (26, 22, "h"), (22, 26, "s"), (21, 25, "+"), (26, 26, "e"),
+    ])
+    near(m, [(10, 13, "l"), (37, 13, "l"), (10, 29, "l"), (37, 29, "l"), (23, 34, "l"),
+             (25, 13, "l"), (12, 22, "k"), (35, 26, "k"), (24, 31, "k"), (17, 4, "k"),
+             (3, 18, "j"), (44, 18, "n"), (20, 44, "x"), (28, 44, "x"), (4, 17, "x")])
+    m.event(1, 20, 20, 27, 27, 6, 6, 13)        # the vault: 6 stalkers, overcharge
+    # floors: 1 circuit, 2 glow, 3 plates, 4 lab; ceilings: 1 cables, 2 vents
+    m.zone(2, 2, 45, 45, 4, 2)
+    m.zone(9, 9, 38, 38, 1, 1)
+    m.zone(20, 20, 27, 27, 2, 2)
+    m.zone(12, 2, 35, 6, 3, 2); m.zone(12, 41, 35, 45, 3, 2)
+    m.ambient = (90, 150, 200, 255)
+    for (x, y) in ((16.5, 15.5), (31.5, 15.5), (16.5, 31.5), (31.5, 31.5)):
+        m.light(x, y, 7, 150, 100, 220, 255, 2)                     # racks: cyan, pulsing
+    m.light(23.5, 23.5, 5, 170, 255, 60, 200)                       # the vault: magenta
+    m.light(4.5, 24.5, 6, 140, 230, 240, 255, 1)
+    m.light(24.5, 4.5, 6, 140, 230, 240, 255)
+    m.light(43.5, 24.5, 6, 140, 230, 240, 255, 5)
+    m.light(24.5, 43.5, 6, 140, 230, 240, 255)
+    m.light(14.5, 4.5, 3, 190, 255, 50, 40, 3)
+    return m
+
+
+# ============================================================ LEVEL 8
+def level8():
+    """MAGLEV DEPOT: three long platforms one above the other, the track hall
+    between them full of train cars, stairs at the ends. Red key at the far
+    end of the north platform; the ticket hall (red) has yellow; the
+    maintenance shed (yellow) blue; the control tower (blue) the exit."""
+    m = Map("#")
+    m.rect(3, 3, 44, 9)                         # north platform
+    m.rect(3, 19, 44, 28)                       # the track hall
+    m.rect(3, 38, 44, 44)                       # south platform
+    for y in (21, 26):                          # train cars on the tracks
+        for x0 in (8, 22, 35):
+            m.rect(x0, y, x0 + 8, y + 1, "P")
+    for x in (5, 42):                           # stairs between them
+        m.rect(x, 10, x, 18); m.rect(x, 29, x, 37)
+    m.rect(24, 10, 24, 18); m.rect(24, 29, 24, 37)
+    m.octagon(13, 12, 20, 16, 1)                # ticket hall
+    m.octagon(29, 31, 36, 35, 1)                # maintenance shed
+    m.octagon(29, 12, 36, 16, 1)                # control tower
+    m.rect(21, 14, 23, 14); m.rect(25, 14, 28, 14)
+    m.rect(32, 29, 32, 30)                      # the shed opens off the track hall
+    m.paint(0, 0, 47, 47, "#")
+    m.paint(2, 2, 45, 10, "N"); m.paint(2, 37, 45, 45, "N")   # platforms: adverts
+    m.paint(2, 18, 45, 29, "C"); m.paint(12, 11, 21, 17, "K"); m.paint(28, 30, 37, 36, "G")
+    m.paint(28, 11, 37, 17, "#")
+    place(m, [(5, 14, "D"), (42, 14, "D"), (24, 12, "D"), (5, 33, "D"), (42, 33, "D"),
+              (24, 33, "D"), (21, 14, "R"), (32, 30, "Y"), (27, 14, "B")], ".")
+    place(m, [(32, 11, "E")], "#NCKPG")
+    place(m, [(4, 41, ">")])
+    place(m, [
+        # south platform: the start
+        (10, 41, "a"), (18, 39, "m"), (30, 43, "g"), (38, 40, "c"), (44, 43, "+"), (14, 43, "e"),
+        (8, 39, "i"), (20, 39, "i"), (32, 39, "i"), (40, 43, "i"),
+        # the track hall: between the cars
+        (6, 24, "g"), (18, 23, "c"), (30, 24, "h"), (44, 23, "m"), (12, 19, "m"), (40, 28, "c"),
+        (20, 28, "o"), (33, 19, "o"), (4, 28, "+"), (44, 19, "a"), (26, 24, "3"),
+        # north platform: the red key at its far end
+        (43, 5, "r"), (12, 6, "g"), (20, 4, "c"), (31, 8, "m"), (38, 4, "h"), (8, 8, "e"),
+        (10, 4, "i"), (22, 8, "i"), (34, 4, "i"), (3, 3, "M"),
+        # ticket hall (red): the yellow key
+        (17, 13, "y"), (14, 15, "s"), (19, 15, "g"), (16, 16, "u"), (14, 12, "t"),
+        # maintenance shed (yellow): the blue key
+        (33, 32, "b"), (35, 34, "h"), (30, 33, "s"), (34, 34, "*"), (31, 35, "o"), (32, 35, "o"),
+        # control tower (blue): the exit
+        (31, 14, "h"), (35, 15, "g"), (34, 12, "t"), (30, 16, "+"),
+    ])
+    near(m, [(13, 9, "n"), (30, 9, "n"), (13, 38, "n"), (36, 38, "n"), (44, 9, "x"),
+             (3, 9, "x"), (44, 38, "x"), (16, 24, "k"), (32, 23, "k"), (28, 6, "w"),
+             (16, 43, "w"), (36, 40, "k"), (35, 33, "q"), (31, 13, "j")])
+    m.event(3, 3, 20, 44, 22, 45, 75)           # the north track's third rail is live
+    m.event(1, 13, 12, 20, 16, 6, 0, 9)         # ticket hall: an ambush, armour
+    # floors: 1 platform, 2 rust grate, 3 concrete, 4 cobbles; ceilings: 1 tunnel, 2 pipes
+    m.zone(2, 2, 45, 45, 3, 2)
+    m.zone(3, 3, 44, 9, 1, 1); m.zone(3, 38, 44, 44, 1, 1)
+    m.zone(3, 19, 44, 28, 4, 1)
+    m.zone(3, 20, 44, 22, 2, 1); m.zone(3, 25, 44, 27, 2, 1)   # the tracks
+    m.ambient = (110, 220, 230, 255)
+    for x in (9.5, 21.5, 33.5, 43.5):
+        m.light(x, 6.5, 5, 140, 255, 240, 200, 1)
+        m.light(x, 41.5, 5, 140, 255, 240, 200)
+    for x in (6.5, 20.5, 33.5):
+        m.light(x, 23.5, 6, 160, 255, 210, 60, 2)                   # the tracks: yellow
+    m.light(16.5, 14.5, 4, 150, 255, 100, 200)
+    m.light(32.5, 33.5, 4, 140, 255, 160, 80, 4)
+    m.light(32.5, 14.5, 4, 170, 120, 220, 255, 2)
+    return m
+
+
+# ============================================================ LEVEL 9
+def level9():
+    """ORBITAL SPIRE: a ring round the station's core, windows onto space all
+    round its outside; four pods off it, and the core in the middle. Red
+    key in the south pod; the west pod (red) has yellow; the north pod
+    (yellow) blue; the core (blue) has the exit."""
+    m = Map("#")
+    m.octagon(6, 6, 41, 41, 10)                 # the ring...
+    m.solid(15, 15, 33, 33, s1=15 + 15 + 6, s2=33 + 33 - 6, d1=15 - 33 + 6, d2=33 - 15 - 6, wall="C")   # ...round the core
+    m.octagon(19, 19, 28, 28, 3)                # the core room
+    for (x0, y0, x1, y1) in ((20, 1, 27, 3), (20, 44, 27, 46), (1, 20, 3, 27), (44, 20, 46, 27)):
+        m.rect(x0, y0, x1, y1)                  # pods N S W E
+    m.paint(0, 0, 47, 47, "N")                  # windows onto space
+    m.paint(14, 14, 33, 33, "#")                # the core's hull
+    m.paint(18, 0, 29, 5, "K"); m.paint(18, 42, 29, 47, "K")
+    m.paint(0, 18, 5, 29, "P"); m.paint(42, 18, 47, 29, "G")
+    for (x, y) in ((24, 4), (24, 5), (24, 42), (24, 43), (4, 24), (5, 24), (42, 24), (43, 24)):
+        m.put(x, y, ".")
+    for (x, y) in ((24, 15), (24, 16), (24, 17), (24, 18)):
+        m.put(x, y, ".")
+    place(m, [(24, 5, "Y"), (24, 42, "D"), (5, 24, "R"), (42, 24, "D"), (24, 17, "B")], ".")
+    place(m, [(24, 23, "E")], "N#CKPG.")
+    m.rect(23, 23, 23, 23, "#"); m.rect(25, 23, 25, 23, "#")
+    place(m, [(45, 24, "<")])                   # in the east pod, its door shut
+    place(m, [
+        # the ring: patrols all the way round
+        (34, 36, "g"), (24, 40, "c"), (12, 35, "m"), (8, 24, "g"), (12, 12, "h"), (24, 8, "m"),
+        (36, 11, "c"), (40, 18, "g"), (30, 40, "m"), (17, 40, "c"), (8, 30, "s"), (30, 9, "s"),
+        (39, 33, "a"), (11, 33, "+"), (11, 15, "e"), (33, 11, "a"), (24, 39, "3"), (16, 8, "4"),
+        (14, 37, "i"), (34, 37, "i"), (10, 14, "i"), (37, 14, "i"),
+        # east pod: armour, the map
+        (45, 21, "*"), (45, 26, "M"),
+        # south pod: the red key
+        (21, 45, "r"), (26, 45, "g"), (23, 44, "+"),
+        # west pod (red): the yellow key
+        (2, 21, "y"), (2, 26, "h"),
+        # north pod (yellow): the blue key
+        (26, 2, "b"), (21, 2, "s"), (23, 1, "u"),
+        # the core (blue): the exit, its guardians
+        (20, 25, "h"), (28, 25, "h"), (24, 27, "s"), (21, 21, "g"), (27, 21, "g"), (24, 26, "+"),
+    ])
+    near(m, [(20, 9, "f"), (28, 38, "f"), (9, 20, "f"), (38, 28, "f"), (13, 22, "k"),
+             (34, 25, "k"), (24, 36, "w"), (14, 31, "w"), (33, 15, "k"), (26, 45, "x"),
+             (2, 25, "j"), (45, 23, "x"), (22, 2, "q")])
+    near(m, [(9, 18, "S"), (9, 29, "S")])
+    m.event(5, 6, 15, 14, 32, 6, 180, 13)       # the west ring: a stalker nest, overcharge
+    # floors: 1 deck, 2 white, 3 glow, 4 lab; ceilings: 1 hull, 2 lights
+    m.zone(2, 2, 45, 45, 1, 1)
+    m.zone(19, 19, 28, 28, 3, 2)
+    for (x0, y0, x1, y1) in ((20, 1, 27, 3), (20, 44, 27, 46), (1, 20, 3, 27), (44, 20, 46, 27)):
+        m.zone(x0, y0, x1, y1, 2, 2)
+    m.ambient = (95, 180, 210, 255)
+    for (x, y) in ((24.5, 9.5), (38.5, 24.5), (24.5, 38.5), (9.5, 24.5), (14.5, 14.5), (33.5, 14.5), (14.5, 33.5), (33.5, 33.5)):
+        m.light(x, y, 6, 140, 170, 210, 255)                        # the ring: cold blue
+    m.light(24.5, 24.5, 6, 180, 255, 255, 255, 2)                   # the core
+    m.light(24.5, 2.5, 3, 150, 255, 220, 120)
+    m.light(24.5, 45.5, 3, 150, 255, 220, 120, 1)
+    m.light(2.5, 24.5, 3, 190, 255, 50, 40, 3)
+    m.light(45.5, 24.5, 3, 150, 255, 220, 120)
+    return m
+
+
+# ============================================================ LEVEL 10
+def level10():
+    """THE CORE: a square spiral winding in to the AI core - every turn
+    tighter, every turn guarded. Red key on the second turn; blue on the
+    third (red); the core (blue) is an arena where the overseer waits, and
+    the way out is in its far wall."""
+    m = Map("#")
+    # rings of corridor, three wide, joined at one corner each so you spiral in
+    rings = [(3, 44), (9, 38), (15, 32)]
+    for (a, b) in rings:
+        m.rect(a, a, b, a + 2); m.rect(a, b - 2, b, b)
+        m.rect(a, a, a + 2, b); m.rect(b - 2, a, b, b)
+    m.rect(20, 20, 27, 27)                      # the core room: an arena
+    # the joins, through the walls between the rings (a door in each): ring
+    # 1 to 2 bottom left, 2 to 3 on the right, 3 to the core on the left,
+    # and from the core up to the way out
+    m.rect(6, 38, 8, 38)
+    m.rect(33, 24, 35, 24)
+    m.rect(18, 24, 19, 24)
+    m.paint(0, 0, 47, 47, "N")                  # obsidian outside
+    m.paint(8, 8, 39, 39, "#")                  # glowing circuits further in
+    m.paint(14, 14, 33, 33, "C")
+    m.paint(19, 19, 28, 28, "K")
+    place(m, [(7, 38, "D"), (34, 24, "R"), (19, 24, "B")], ".")
+    place(m, [(24, 19, "E")], "#NCKPG")         # the way out: in the core's far wall
+    place(m, [(40, 42, "<")])
+    place(m, [
+        # ring 1 (outer): the long way round
+        (30, 42, "c"), (18, 43, "m"), (6, 42, "c"), (4, 30, "h"), (5, 15, "g"), (6, 5, "m"),
+        (20, 4, "c"), (32, 5, "g"), (43, 6, "s"), (42, 20, "h"), (43, 32, "m"), (36, 43, "+"),
+        (4, 40, "a"), (12, 4, "e"), (43, 12, "+"), (24, 43, "i"), (4, 24, "i"), (24, 4, "i"), (43, 24, "i"),
+        (11, 43, "2"),
+        # ring 2: the red key at its far corner, a pack on the way
+        (10, 36, "c"), (10, 25, "g"), (11, 12, "h"), (24, 10, "m"), (36, 10, "r"), (37, 20, "g"),
+        (36, 36, "c"), (24, 37, "s"), (10, 10, "u"), (37, 30, "a"), (10, 34, "M"),
+        # ring 3 (red): the yellow key
+        (16, 30, "h"), (17, 17, "g"), (30, 16, "s"), (30, 30, "b"), (24, 31, "m"), (16, 22, "c"),
+        (31, 22, "*"), (17, 31, "+"),
+        # the core (blue... reached by yellow first): blue key, the last stand
+        (21, 26, "+"), (26, 26, "a"), (21, 21, "c"), (26, 21, "c"),
+    ])
+    # the overseer, the last sector's boss, holds the core (its guards make room)
+    place(m, [(24, 23, "z")])
+    near(m, [(35, 42, "q"), (10, 40, "j"), (16, 26, "j"), (31, 25, "q"), (20, 42, "k"),
+             (4, 10, "k"), (36, 4, "w"), (10, 30, "k"), (37, 16, "w"), (30, 31, "k"),
+             (16, 16, "w"), (6, 43, "f"), (42, 4, "f"), (11, 37, "f")])
+    m.event(1, 20, 20, 27, 27, 6, 0, 13)        # the arena seals: the overseer's guard teleports in
+    m.zone(2, 2, 45, 45, 2, 2)
+    m.zone(9, 9, 38, 38, 4, 2)
+    m.zone(15, 15, 32, 32, 3, 1)
+    m.zone(20, 20, 27, 27, 1, 1)
+    m.ambient = (85, 255, 120, 120)
+    for (x, y) in ((24.5, 43.5), (4.5, 24.5), (24.5, 4.5), (43.5, 24.5)):
+        m.light(x, y, 7, 150, 255, 60, 60, 2)                       # red, throbbing
+    for (x, y) in ((10.5, 24.5), (24.5, 10.5), (37.5, 24.5), (24.5, 37.5)):
+        m.light(x, y, 6, 150, 255, 80, 120, 1)
+    m.light(16.5, 16.5, 5, 170, 255, 40, 40, 3)
+    m.light(31.5, 31.5, 5, 170, 255, 40, 40, 3)
+    m.light(23.5, 23.5, 5, 220, 255, 120, 80, 2)                    # the core
+    return m
 
 LEVELS = [
     (level1, "SECTOR 1: NEON STATION",
@@ -416,6 +858,48 @@ LEVELS = [
      ["ceiling-lights.png", "ceiling-frost.png"],
      ["Level 4: the lab. A diamond atrium and four labs: SW (open) has the",
       "red key, NW (red) blue, SE (blue) yellow, and NE (yellow) the exit."]),
+    (level5, "SECTOR 5: FOUNDRY",
+     ["wall-furnace.png", "wall-girders.png", "wall-rusty.png", "wall-hazard.png", "wall-pipes.png", "wall-stripes.png"],
+     ["floor-molten.png", "floor-scorched.png", "floor-hazard.png", "floor-plates.png"],
+     ["ceiling-girders.png", "ceiling-vents.png"],
+     ["Level 5: the foundry. One long smelting hall with molten metal down its",
+      "middle; red key in the casting room (NW), yellow in the ore store (NE,",
+      "red door), blue in the crusher (S, yellow); the exit is in the loading",
+      "bay (SE, blue)."]),
+    (level6, "SECTOR 6: HYDROPONICS",
+     ["wall-greenhouse.png", "wall-vines.png", "wall-biolab.png", "wall-white.png", "wall-moss.png", "wall-tiles.png"],
+     ["floor-soil.png", "floor-lab.png", "floor-murky.png", "floor-white.png"],
+     ["ceiling-growlights.png", "ceiling-lights.png"],
+     ["Level 6: a grid of greenhouse bays. Red key in the NW bay; yellow in",
+      "the dome (red doors); blue in the NE bay (yellow); exit in the E bay (blue)."]),
+    (level7, "SECTOR 7: DATA VAULT",
+     ["wall-datastream.png", "wall-vault.png", "wall-servers.png", "wall-terminals.png", "wall-control.png", "wall-stripes.png"],
+     ["floor-circuit.png", "floor-glow.png", "floor-plates.png", "floor-lab.png"],
+     ["ceiling-cables.png", "ceiling-vents.png"],
+     ["Level 7: a hall of server racks, offices round it, the vault in the",
+      "middle. Red key in the west offices; yellow north (red); blue east",
+      "(yellow); the exit in the vault (blue)."]),
+    (level8, "SECTOR 8: MAGLEV DEPOT",
+     ["wall-transit.png", "wall-adverts.png", "wall-graffiti.png", "wall-concrete.png", "wall-brick.png", "wall-grate.png"],
+     ["floor-platform.png", "floor-rustgrate.png", "floor-concrete.png", "floor-cobbles.png"],
+     ["ceiling-tunnel.png", "ceiling-pipes.png"],
+     ["Level 8: three platforms and the track hall between them. Red key at",
+      "the far end of the north platform; yellow in the ticket hall (red);",
+      "blue in the maintenance shed (yellow); exit in the control tower (blue)."]),
+    (level9, "SECTOR 9: ORBITAL SPIRE",
+     ["wall-hull.png", "wall-viewport.png", "wall-white.png", "wall-cryo.png", "wall-control.png", "wall-terminals.png"],
+     ["floor-deck.png", "floor-white.png", "floor-glow.png", "floor-lab.png"],
+     ["ceiling-hull.png", "ceiling-lights.png"],
+     ["Level 9: a ring round the station's core, windows onto space. Red key",
+      "in the south pod; yellow in the west pod (red); blue in the north pod",
+      "(yellow); the exit in the core (blue)."]),
+    (level10, "SECTOR 10: THE CORE",
+     ["wall-core.png", "wall-obsidian.png", "wall-reactor.png", "wall-coils.png", "wall-servers.png", "wall-hazard.png"],
+     ["floor-core.png", "floor-scorched.png", "floor-glow.png", "floor-hazard.png"],
+     ["ceiling-core.png", "ceiling-warning.png"],
+     ["Level 10: a square spiral in to the AI core. Red key on the second",
+      "turn; blue on the third (red); the core (blue) is the overseer's arena,",
+      "the exit in its far wall."]),
 ]
 
 def main():
@@ -437,7 +921,7 @@ def main():
             m.show()
         lv = dict(label="Level%d" % i, name=name, walls=walls, floors=floors,
                   ceils=ceils, ambient=m.ambient, zones=m.zones, lights=m.lights,
-                  rows=m.rows())
+                  events=m.events, rows=m.rows())
         ok &= check_level(lv, ASSETS)
         out.append("Level%d:" % i)
         out += m.data(name, walls, floors, ceils, comment)

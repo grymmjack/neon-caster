@@ -2,9 +2,12 @@
 # make-sfx.sh - NEON-CASTER's sound effects, made with PWMSFXR's command line
 #
 # Each sound is a .pwmsfx patch (made here the first time, then yours to
-# tweak: open it in PWMSFXR, save over it) rendered to a .wav the game loads.
+# tweak: open it in PWMSFXR, save over it) rendered to a .wav in pwmsfxr/.
+# These were the game's first sounds; it now plays the ones made with
+# soundmon, in this folder - copy one from pwmsfxr/ over its namesake to
+# have the PC speaker version back.
 #
-#   ./make-sfx.sh          make missing patches, render every .wav
+#   ./make-sfx.sh          make missing patches, render every .wav (into pwmsfxr/)
 #   ./make-sfx.sh -new     remake every patch from the recipes below too
 #
 # QB64PE=/path/to/qb64pe to build PWMSFXR with another compiler.
@@ -288,7 +291,8 @@ patch menu-back \
 
 # render: every patch through the PC speaker (PWM, cone filter on, louder
 # than the window's default gain) -> .wav
+mkdir -p pwmsfxr
 for p in *.pwmsfx; do
-    "$PWMSFXR" -load "$p" -cone on -gain 0.5 -wav "${p%.pwmsfx}.wav" >/dev/null
-    echo "rendered ${p%.pwmsfx}.wav"
+    "$PWMSFXR" -load "$p" -cone on -gain 0.5 -wav "pwmsfxr/${p%.pwmsfx}.wav" >/dev/null
+    echo "rendered pwmsfxr/${p%.pwmsfx}.wav"
 done

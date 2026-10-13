@@ -1,7 +1,7 @@
 # NEON-CASTER: make a little FPS in QB64PE
 
 NEON-CASTER is a complete first-person shooter in one file of plain QB64PE:
-four levels, five kinds of monster, four guns, doors and keycards, exploding
+ten levels, five kinds of monster, four guns, doors and keycards, exploding
 barrels, a minimap, music, a menu with settings, and saved games. It's built like Wolfenstein 3D, as a *raycaster*, and the
 source is written to be read: its comments are a course in how it all
 works, in 24 chapters, from opening a window to casting rays - and then
@@ -41,7 +41,27 @@ explained as it comes up.
 | Esc | the menu: pause, new game, save, load, settings, exit |
 | F5 / F9 | quick save / quick load |
 | Tab | the full-screen map (all of it once you've found the map pickup) |
+| ` (backtick) | the console: type `help` for the commands |
 | K / G | testing cheats: every keycard / god mode |
+
+**The console and the command line.** The console (`) runs commands for
+nearly everything: `map 7` or `map vault` jumps to a sector, `give all`,
+`god`, `kill`, `respawn`, `summon heavy 3`, `tp 20 24 90`, `save 2`,
+`load quick`, `restart`, `finish`, any setting by its name (`fov 100`,
+`renderer 2`, `display 2` - `settings` lists them), `bind`, `events`,
+`screenshot`. Up and Down bring back earlier lines, Tab finishes a
+command's name, and `;` puts several on one line.
+
+Every command also works from the command line, each one starting with a
+`+`. Then the game skips its title, starts a new game and runs them one a
+frame - `wait` holds the rest back - so a test can drive it with no hands:
+
+```
+./neon-caster.run +map 5 +give all +god on +wait 120 +screenshot five.png +quit
+./neon-caster.run +logfile test.log +exec mytest.cfg
+```
+
+Settings changed from the command line last only for that run.
 
 Every key can be changed in the menu, under **SETTINGS > CONTROLS**. The
 menu works with the arrow keys or W A S D, Enter, and Esc to go back - or
@@ -70,15 +90,15 @@ run top to bottom, in the same order as the code:
 | | 10 Pickups and cheat keys | distance checks without `SQR`; edge detection |
 | | 11 Doors | finding the door in front of you; animating it; shutting itself, never on anyone; always showing an edge; monsters opening them |
 | | 12 Shooting | hitscan, using the z-buffer to see past walls; where a shot lands, for marks and shooting out lights |
-| | 13 Monsters, bolts and barrels | a state machine for AI; line of sight; chain reactions; bodies and wreckage that stay where they fell |
+| | 13 Monsters, bolts and barrels | a state machine for AI; line of sight; chain reactions; animation frames made from one picture; bodies and wreckage that stay where they fell |
 | **Drawing it** | 14 Light, and the floor and ceiling | per-cell coloured light (Doom-style), flicker and strobe effects, floor casting, fog, `AND 63` texture wrapping |
 | | 15 The walls: the raycaster | rays, the DDA grid walk, fish-eye correction, texturing; doors as slabs with edges and tracks |
 | | 16 Sprites | camera space, painter's algorithm, hiding behind walls |
 | | 17 Onto the screen | `_MEMCOPY` and `_PUTIMAGE` scaling |
 | | 18 The gun and the HUD | alpha colours, the minimap, bars and text |
-| **The rest** | 19 Game events | `GOSUB` routines and why they're used here |
-| | 20 Levels | `RESTORE`/`READ`, carrying your gear between levels, the tally screen |
-| | 21 The splash screen, the menu, settings and saved games | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files |
+| **The rest** | 19 Game events | `GOSUB` routines and why they're used here; event rooms: ambushes, traps, mini games |
+| | 20 Levels | `RESTORE`/`READ`, carrying your gear between levels, the tally screen, the route map between sectors |
+| | 21 The splash screen, the menu, settings, saved games and the console | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files |
 | | 22 The levels' data | the map format: make your own levels |
 | | 23 The helpers | the SUBs and FUNCTIONs, grouped by topic |
 | **On the GPU** | 24 The same view, drawn by the graphics card | `SUB _GL` and OpenGL: triangles, texture coordinates, a camera matrix and `_glFrustum`, the depth buffer, alpha test; sharing a frame safely with double buffering; batching with `_glDrawArrays`; why OpenGL questions stall; GLSL shaders for bump mapping, specular highlights, self-lit neon, animated textures and moving point lights; smooth (bilinear) light; projected shadows; additive glows and particles; light shafts and dust that swirls round you; a mirrored pass for wet floors; render targets and post-processing (bloom, heat shimmer, hurt pulse, rail zoom, scanlines, CRT); choosing the resolution, supersampling and mipmaps; premultiplied alpha; looking up and down |
@@ -157,6 +177,14 @@ run it and see what happens. That's the fastest way to learn how it works.
   `MON_TYPES`, load a sprite into two new slots (raise `SPR_SLOTS`, and
   stretch the hit-flash loop in chapter 6 to cover them), and give it a map
   letter in `LoadLevel`.
+- **Hand-drawn animation** (ch. 13, 23): each monster's walk and attack
+  frames are made from its picture (`MakeMonFrames`, `MonMove`), a pixel or
+  two at a time. Draw your own as `<name>-walk1.png` to `-walk4.png` and
+  `<name>-attack.png` - each one you add replaces the made one.
+- **Your own event room** (ch. 19, 22): an ambush, survival round, trap,
+  shooting gallery or spawner nest is one DATA line (`m.event(...)` in the
+  level kit). Try an ambush of heavies (type 3) in a small room, or a trap
+  that's live longer than it's safe.
 - **Your own bodies** (ch. 13, 23): a dead monster is drawn from
   `dead-<name>.png` (`dead-drone.png`...), cropped and laid on the floor by
   `MakeCorpse`. Draw your own - delete one and the monster just falls on
@@ -246,7 +274,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 |---|---|
 | `neon-caster.bas` | the game and the course |
 | `neon-caster/*.png` | textures (64 x 64), sprites, the guns |
-| `neon-caster/sfx/` | sound effects, and `make-sfx.sh`, which builds them with PWMSFXR |
+| `neon-caster/sfx/` | sound effects, made with soundmon; `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
 | `neon-caster/levels/` | the level kit: carves rooms with 45-degree walls and checks maps |
 
 ## Further reading
