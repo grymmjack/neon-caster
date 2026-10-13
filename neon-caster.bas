@@ -1142,6 +1142,7 @@ CONST STEP_UP = 0.32, EYE_H = 0.5, BODY_H = 0.7, FALL_G = 0.01, PIT_DEPTH = -0.9
 ' Monsters won't walk into the burning ones (walkFromHaz, Walkable).
 CONST HAZ_BURN = 1, HAZ_WADE = 2, BURN_DAMAGE = 5, BURN_EVERY = 30, SLOW_WADE = 0.7
 DIM SHARED burnWait AS INTEGER, walkFromHaz AS INTEGER ' (sndSizzle&: with the other sounds, chapter 6)
+DIM SHARED rowF(RENDER_H - 1) AS SINGLE, rowC(RENDER_H - 1) AS SINGLE ' (HeightColumn: each row's distance per unit of height)
 DIM SHARED floorH(MAP_SIZE, MAP_SIZE) AS SINGLE, ceilH(MAP_SIZE, MAP_SIZE) AS SINGLE, levelFlat AS INTEGER
 DIM SHARED lvlFloorRow$(MAP_SIZE - 1), lvlCeilRow$(MAP_SIZE - 1)
 DIM SHARED playerZ AS SINGLE, playerVZ AS SINGLE, eyeZ AS SINGLE, walkZ AS SINGLE
@@ -2236,6 +2237,14 @@ DO
                 END IF
                 floorX = floorX + floorStepX : floorY = floorY + floorStepY
             NEXT
+        NEXT
+    END IF
+
+    ' (HeightColumn's floors and ceilings: each row's distance-per-height,
+    ' worked out once a frame instead of once a pixel - see HeightColumn)
+    IF NOT glMode AND NOT levelFlat THEN
+        FOR y = 0 TO RENDER_H - 1
+            rowF(y) = viewH / (y - RENDER_H / 2 + 0.5) : rowC(y) = viewH / (RENDER_H / 2 - y - 0.5)
         NEXT
     END IF
 
@@ -3755,7 +3764,11 @@ ELSE
     IF NOT _DIREXISTS(d$) THEN MKDIR d$
     d$ = _FULLPATH$(d$) ' (all its paths whole: qb64pe works from its own folder)
     IF RIGHT$(d$, 1) = "/" OR RIGHT$(d$, 1) = "\" THEN d$ = LEFT$(d$, LEN(d$) - 1)
+    win = INSTR(_OS$, "[WINDOWS]") > 0
     src$ = d$ + "/prog.bas" : exe$ = d$ + "/prog" : out$ = d$ + "/out.txt" : done$ = d$ + "/done.txt"
+    IF win THEN ' (Windows: its own slashes, and a program ends in .exe)
+        src$ = Slashes$(src$) : exe$ = Slashes$(exe$ + ".exe") : out$ = Slashes$(out$) : done$ = Slashes$(done$)
+    END IF
     IF _FILEEXISTS(out$) THEN KILL out$ ' (the last run's, out of the way)
     IF _FILEEXISTS(done$) THEN KILL done$
     IF _FILEEXISTS(exe$) THEN KILL exe$
@@ -3769,8 +3782,30 @@ ELSE
     NEXT
     IF NOT placed THEN PRINT #fh, "SYSTEM"
     CLOSE #fh
-    cmd$ = "sh -c " + CHR$(34) + "'" + qb$ + "' -x '" + src$ + "' -o '" + exe$ + "' > '" + out$ + "' 2>&1 && timeout 5 '" + exe$ + "' > '" + out$ + "' 2>&1 < /dev/null; echo done > '" + done$ + "'" + CHR$(34)
-    SHELL _DONTWAIT cmd$
+    ' The compile and the run go in a little script (a batch file on
+    ' Windows, sh elsewhere), started in the background: compile; if that
+    ' worked, run it (on Linux, timeout stops it after 5 seconds if it
+    ' never ends - macOS hasn't got timeout); either way, leave done.txt
+    q$ = CHR$(34) : fh = FREEFILE
+    IF win THEN
+        script$ = Slashes$(d$ + "/run.cmd")
+        OPEN script$ FOR OUTPUT AS #fh
+        PRINT #fh, "@echo off"
+        PRINT #fh, q$ + Slashes$(qb$) + q$ + " -x " + q$ + src$ + q$ + " -o " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1"
+        PRINT #fh, "if exist " + q$ + exe$ + q$ + " " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < NUL"
+        PRINT #fh, "echo done > " + q$ + done$ + q$
+        CLOSE #fh
+        SHELL _DONTWAIT q$ + script$ + q$
+    ELSE
+        script$ = d$ + "/run.sh" : lf$ = CHR$(10) ' (PRINT # ends lines with CR LF everywhere - sh wants LF alone)
+        t$ = "if " + q$ + qb$ + q$ + " -x " + q$ + src$ + q$ + " -o " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1; then" + lf$
+        t$ = t$ + "  if command -v timeout > /dev/null 2>&1; then timeout 5 " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < /dev/null" + lf$
+        t$ = t$ + "  else " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < /dev/null; fi" + lf$
+        t$ = t$ + "fi" + lf$ + "echo done > " + q$ + done$ + q$ + lf$
+        IF _FILEEXISTS(script$) THEN KILL script$
+        OPEN script$ FOR BINARY AS #fh : PUT #fh, , t$ : CLOSE #fh
+        SHELL _DONTWAIT "sh " + q$ + script$ + q$
+    END IF
     t0! = TIMER
     DO ' Waiting: COMPILING...
         _LIMIT 30
@@ -3965,13 +4000,20 @@ DO
         IF hDIn > 0.0001 THEN yNear = INT(hor + (eyeZ - hf) * viewH / hDIn) ELSE yNear = RENDER_H - 1
         IF yFar < hTop THEN yFar = hTop
         IF yNear > hBot THEN yNear = hBot
+        ' (the loop that colours the most pixels: everything a cell needs is
+        ' looked up once, before it, and ShadeRGB's sum is written out - a
+        ' FUNCTION call a pixel costs more than the sum)
+        hk = eyeZ - hf : slot = floorTex(hcX, hcY) : hSplit = floorSplit(hcX, hcY) : tMask = texSize - 1
         FOR y = yFar TO yNear
-            rowDist = (eyeZ - hf) * viewH / (y - hor + 0.5)
+            rowDist = hk * rowF(y)
             fx = playerX + rowDist * rayDirX : fy = playerY + rowDist * rayDirY
-            slot = floorTex(hcX, hcY)
-            IF floorSplit(hcX, hcY) THEN IF InDiagonalWall(floorSplit(hcX, hcY), fx - hcX, fy - hcY) THEN slot = floorTex2(hcX, hcY)
+            s2 = slot : IF hSplit THEN IF InDiagonalWall(hSplit, fx - hcX, fy - hcY) THEN s2 = floorTex2(hcX, hcY)
             f& = 256 - rowDist * 16 : IF f& < 0 THEN f& = 0
-            pixels(y * RENDER_W + x) = ShadeRGB~&(texture(INT(fx * texSize) AND (texSize - 1), INT(fy * texSize) AND (texSize - 1), slot), MinOf(256, hR& * f& \ 256), MinOf(256, hG& * f& \ 256), MinOf(256, hB& * f& \ 256))
+            lR& = hR& * f& \ 256 : IF lR& > 256 THEN lR& = 256
+            lG& = hG& * f& \ 256 : IF lG& > 256 THEN lG& = 256
+            lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
+            texel~& = texture(INT(fx * texSize) AND tMask, INT(fy * texSize) AND tMask, s2)
+            pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
         NEXT
         IF yFar - 1 < hBot THEN hBot = yFar - 1
     END IF
@@ -3982,13 +4024,17 @@ DO
         IF hDIn > 0.0001 THEN yNear = INT(hor - (hc - eyeZ) * viewH / hDIn + 0.999) ELSE yNear = 0
         IF yNear < hTop THEN yNear = hTop
         IF yFar > hBot THEN yFar = hBot
+        hk = hc - eyeZ : slot = ceilTex(hcX, hcY) : hSplit = ceilSplit(hcX, hcY) : tMask = texSize - 1
         FOR y = yNear TO yFar
-            rowDist = (hc - eyeZ) * viewH / (hor - y - 0.5)
+            rowDist = hk * rowC(y)
             fx = playerX + rowDist * rayDirX : fy = playerY + rowDist * rayDirY
-            slot = ceilTex(hcX, hcY)
-            IF ceilSplit(hcX, hcY) THEN IF InDiagonalWall(ceilSplit(hcX, hcY), fx - hcX, fy - hcY) THEN slot = ceilTex2(hcX, hcY)
+            s2 = slot : IF hSplit THEN IF InDiagonalWall(hSplit, fx - hcX, fy - hcY) THEN s2 = ceilTex2(hcX, hcY)
             f& = 256 - rowDist * 16 : IF f& < 0 THEN f& = 0
-            pixels(y * RENDER_W + x) = ShadeRGB~&(texture(INT(fx * texSize) AND (texSize - 1), INT(fy * texSize) AND (texSize - 1), slot), MinOf(256, hR& * f& \ 256), MinOf(256, hG& * f& \ 256), MinOf(256, hB& * f& \ 256))
+            lR& = hR& * f& \ 256 : IF lR& > 256 THEN lR& = 256
+            lG& = hG& * f& \ 256 : IF lG& > 256 THEN lG& = 256
+            lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
+            texel~& = texture(INT(fx * texSize) AND tMask, INT(fy * texSize) AND tMask, s2)
+            pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
         NEXT
         IF yFar + 1 > hTop THEN hTop = yFar + 1
     END IF
@@ -4047,9 +4093,15 @@ RETURN
 ' hBot, the texture hSlot by height - from hZ0 at y0 to hZ1 at y1, a
 ' picture a wall high, repeated - and column hTexX, lit hR&, hG&, hB&)
 HeightFace:
-FOR y = MaxOf(y0, hTop) TO MinOf(y1, hBot)
-    z = eyeZ - (y + 0.5 - hor) * hDOut / viewH
-    pixels(y * RENDER_W + x) = ShadeRGB~&(texture(hTexX, INT((1 - z) * texSize) AND (texSize - 1), hSlot), hR&, hG&, hB&)
+yA = y0 : IF yA < hTop THEN yA = hTop
+yB = y1 : IF yB > hBot THEN yB = hBot
+' The picture's row runs evenly down the face: work out the first, then
+' step (the height at row y is eyeZ - (y + 0.5 - hor) * hDOut / viewH)
+vStep = hDOut / viewH * texSize : v = (1 - eyeZ + (yA + 0.5 - hor) * hDOut / viewH) * texSize : tMask = texSize - 1
+FOR y = yA TO yB
+    texel~& = texture(hTexX, INT(v) AND tMask, hSlot)
+    pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * hR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * hG& \ 256) * 256 OR ((texel~& AND 255) * hB& \ 256)
+    v = v + vStep
 NEXT
 RETURN
 
@@ -4072,11 +4124,15 @@ gR& = litR(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gG& = litG(glassCX(gx), gla
 IF gR& > 256 THEN gR& = 256
 IF gG& > 256 THEN gG& = 256
 IF gB& > 256 THEN gB& = 256
+' (A pane can cover the whole view, so this loop can run 100,000 times a
+' frame: the shading and the mix are written out, not FUNCTION calls)
+gMask = sprTex - 1
 FOR gy = gTop TO gEnd
-    gTex~& = spriteTex(gu, INT(gPos) AND (sprTex - 1), gSlot) : gA& = _ALPHA32(gTex~&)
+    gTex~& = spriteTex(gu, INT(gPos) AND gMask, gSlot) : gA& = (gTex~& \ &H1000000) AND 255
     IF gA& THEN
-        gC~& = ShadeRGB~&(gTex~&, gR&, gG&, gB&) : gIdx& = gy * RENDER_W + gx : gOld~& = pixels(gIdx&)
-        pixels(gIdx&) = &HFF000000~& OR ((((gC~& \ 65536) AND 255) * gA& + ((gOld~& \ 65536) AND 255) * (255 - gA&)) \ 255) * 65536 OR ((((gC~& \ 256) AND 255) * gA& + ((gOld~& \ 256) AND 255) * (255 - gA&)) \ 255) * 256 OR (((gC~& AND 255) * gA& + (gOld~& AND 255) * (255 - gA&)) \ 255)
+        gIdx& = gy * RENDER_W + gx : gOld~& = pixels(gIdx&) : gK& = 255 - gA&
+        gCR& = ((gTex~& \ 65536) AND 255) * gR& \ 256 : gCG& = ((gTex~& \ 256) AND 255) * gG& \ 256 : gCB& = (gTex~& AND 255) * gB& \ 256
+        pixels(gIdx&) = &HFF000000~& OR ((gCR& * gA& + ((gOld~& \ 65536) AND 255) * gK&) \ 255) * 65536 OR ((gCG& * gA& + ((gOld~& \ 256) AND 255) * gK&) \ 255) * 256 OR ((gCB& * gA& + (gOld~& AND 255) * gK&) \ 255)
     END IF
     gPos = gPos + gStep
 NEXT
@@ -7534,9 +7590,20 @@ END FUNCTION
 
 ' Where qb64pe is - so the puzzles can be compiled for real - or "" if it
 ' can't be found: $QB64PE, or the usual places
+FUNCTION Slashes$(p$) ' (a path with Windows' backslashes)
+    o$ = p$
+    FOR i = 1 TO LEN(o$) : IF MID$(o$, i, 1) = "/" THEN MID$(o$, i, 1) = "\"
+    NEXT
+    Slashes$ = o$
+END FUNCTION
+
 FUNCTION QB64Path$
-    h$ = ENVIRON$("HOME")
-    c$ = ENVIRON$("QB64PE") + "|" + h$ + "/git/qb64pe/qb64pe|" + h$ + "/qb64pe/qb64pe|" + h$ + "/git/QB64pe/qb64pe|/usr/local/bin/qb64pe|/usr/bin/qb64pe|/opt/qb64pe/qb64pe"
+    ' (Windows has no HOME, but USERPROFILE; its compiler is qb64pe.exe)
+    h$ = ENVIRON$("HOME") : IF h$ = "" THEN h$ = ENVIRON$("USERPROFILE")
+    x$ = "" : IF INSTR(_OS$, "[WINDOWS]") THEN x$ = ".exe"
+    c$ = ENVIRON$("QB64PE") + "|" + h$ + "/git/qb64pe/qb64pe" + x$ + "|" + h$ + "/qb64pe/qb64pe" + x$ + "|" + h$ + "/git/QB64pe/qb64pe" + x$
+    c$ = c$ + "|C:/qb64pe/qb64pe.exe|" + ENVIRON$("ProgramFiles") + "/qb64pe/qb64pe.exe|/Applications/qb64pe/qb64pe|" + h$ + "/Applications/qb64pe/qb64pe"
+    c$ = c$ + "|/usr/local/bin/qb64pe|/usr/bin/qb64pe|/opt/qb64pe/qb64pe"
     DO WHILE LEN(c$)
         bar = INSTR(c$, "|") : IF bar = 0 THEN bar = LEN(c$) + 1
         f$ = LEFT$(c$, bar - 1) : c$ = MID$(c$, bar + 1)
@@ -10516,6 +10583,9 @@ SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
         GLSL_texture_unit 4 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargC)
         GLSL_texture_unit 0 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
         GLSL_use p~&
+    ELSE ' (glow off: its sampler still wants a picture - macOS's OpenGL complains of an empty one)
+        GLSL_texture_unit 4 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
+        GLSL_texture_unit 0
     END IF
     GLSL_uniform_1f p~&, "passMode", 0
     _glViewport vx, vy, vw, vh
