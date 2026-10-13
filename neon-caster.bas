@@ -886,7 +886,8 @@ NEXT
 ' the trap's zap, a monster arriving
 DIM SHARED sndAlarm&, sndFanfare&, sndFail&, sndZap&, sndSpawn&
 sndAlarm& = LoadSnd&("alarm.wav") : sndFanfare& = LoadSnd&("fanfare.wav") : sndFail& = LoadSnd&("fail.wav")
-sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav")
+DIM SHARED sndSizzle& ' (a burning floor - chapter 22's heights)
+sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav") : sndSizzle& = LoadSnd&("sizzle.wav")
 DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&
 sndSteal& = LoadSnd&("thief-steal.wav") : sndHoard& = LoadSnd&("hoard-open.wav") : sndPlate& = LoadSnd&("plate-click.wav")
 sndLaser& = LoadSnd&("laser-zap.wav") : sndCloset& = LoadSnd&("closet.wav")
@@ -1135,6 +1136,12 @@ DIM SHARED lvlNote$ ' (the comments at the top of its file, kept when the editor
 ' the height of whoever Walkable is asked about (-999: don't care).
 CONST H_STEP = 0.125, H_UP$ = "0123456789abcdefghijklmnopqrstuvwxyz", H_DOWN$ = "ABCDEFGH"
 CONST STEP_UP = 0.32, EYE_H = 0.5, BODY_H = 0.7, FALL_G = 0.01, PIT_DEPTH = -0.99
+' Floors that do something (FloorHazard, by the floor's picture): molten or
+' lava burns (BURN_DAMAGE every BURN_EVERY frames you stand in it); murky
+' water or slime slows you (SLOW_WADE: how much of your speed you keep).
+' Monsters won't walk into the burning ones (walkFromHaz, Walkable).
+CONST HAZ_BURN = 1, HAZ_WADE = 2, BURN_DAMAGE = 5, BURN_EVERY = 30, SLOW_WADE = 0.7
+DIM SHARED burnWait AS INTEGER, walkFromHaz AS INTEGER ' (sndSizzle&: with the other sounds, chapter 6)
 DIM SHARED floorH(MAP_SIZE, MAP_SIZE) AS SINGLE, ceilH(MAP_SIZE, MAP_SIZE) AS SINGLE, levelFlat AS INTEGER
 DIM SHARED lvlFloorRow$(MAP_SIZE - 1), lvlCeilRow$(MAP_SIZE - 1)
 DIM SHARED playerZ AS SINGLE, playerVZ AS SINGLE, eyeZ AS SINGLE, walkZ AS SINGLE
@@ -1463,6 +1470,7 @@ DO
     moveX = dirX * forward + dirY * strafe : moveY = dirY * forward - dirX * strafe
     moveLen = SQR(moveX * moveX + moveY * moveY)
     moveSpeed = WALK_SPEED : IF KeyHeld(BIND_RUN) THEN moveSpeed = RUN_SPEED ' (Shift: run)
+    IF FloorHazard(INT(playerX), INT(playerY)) = HAZ_WADE THEN IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.05 THEN moveSpeed = moveSpeed * SLOW_WADE ' (wading)
     IF moveLen > 0 THEN
         moveX = moveX / moveLen * moveSpeed : moveY = moveY / moveLen * moveSpeed
         bobPhase = bobPhase + 0.2 * moveSpeed / RUN_SPEED ' (the gun sways slower as you walk)
@@ -1502,9 +1510,17 @@ DO
             END IF
         END IF
         IF fz <= PIT_DEPTH AND playerZ < -0.6 AND NOT dead AND NOT godMode THEN damage = 999 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer : ShowMsg "You fell into the dark"
-    ELSE
-        playerZ = 0 : playerVZ = 0
     END IF
+    ' A burning floor (molten metal, lava): it hurts while you stand in it
+    IF burnWait > 0 THEN burnWait = burnWait - 1
+    IF FloorHazard(INT(playerX), INT(playerY)) = HAZ_BURN AND playerZ - floorH(INT(playerX), INT(playerY)) < 0.05 AND NOT dead THEN
+        IF burnWait = 0 THEN
+            burnWait = BURN_EVERY : PlaySfx sndSizzle&, 0.9
+            SpawnSparks playerX + dirX * 0.3, playerY + dirY * 0.3, floorH(INT(playerX), INT(playerY)) + 0.05, 12, 255, 120, 30
+            IF NOT godMode THEN damage = BURN_DAMAGE : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
+        END IF
+    END IF
+    IF levelFlat THEN playerZ = 0 : playerVZ = 0
     IF playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
     ' ...and you can't walk through a monster: if a step takes you inside one
     ' (closer than touchDist) and closer than you were, take it back
@@ -1950,6 +1966,11 @@ DO
         IF editMode OR hudEdit THEN _CONTINUE ' (in the editors: everything waits)
         IF monsterHurt(i) > 0 THEN monsterHurt(i) = monsterHurt(i) -1
         IF monsterAtk(i) > 0 THEN monsterAtk(i) = monsterAtk(i) - 1
+        ' Kicked over the edge of a pit with no bottom (it never walks off
+        ' one): gone into the dark
+        IF monsterState(i) < 2 AND NOT levelFlat THEN
+            IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH THEN target = i : hitDamage = 9999 : GOSUB HitMonster : ShowMsg "Over the edge!"
+        END IF
         mtype = monsterType(i)
         ' Its animation moves on: walkers and the crawler as far as they
         ' walked (a frame every MON_STRIDE of a cell), the drone and the
@@ -2015,8 +2036,9 @@ DO
                         MonsterDoor INT(monsterX(i)), INT(monsterY(i) + goY * 0.7), playerX, playerY
                     END IF
                     walkZ = floorH(INT(monsterX(i)), INT(monsterY(i))) ' (it steps up, and falls off, as you do - but only so high)
+                    walkFromHaz = FloorHazard(INT(monsterX(i)), INT(monsterY(i))) + 10 ' (and keeps out of fire, unless it's in it already)
                     IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype), goY * mtypeSpeed(mtype)
-                    walkZ = -999
+                    walkZ = -999 : walkFromHaz = 0
                 END IF
                 monsterAnim(i) = monsterAnim(i) + SQR((monsterX(i) - animX) ^ 2 + (monsterY(i) - animY) ^ 2) / MON_STRIDE
                 ' Keep a little apart from each other
@@ -6594,7 +6616,8 @@ END FUNCTION
 ' event ev. It arrives in a flash of sparks.
 FUNCTION SpawnMonster(t, x, y, ev)
     IF numMonsters >= MAX_MON THEN EXIT FUNCTION
-    IF NOT Walkable%(x, y) THEN EXIT FUNCTION
+    walkFromHaz = 10 : ok = Walkable%(x, y) : walkFromHaz = 0 ' (as a monster would: not in fire, not over a pit)
+    IF NOT ok THEN EXIT FUNCTION
     FOR j = 1 TO numMonsters
         IF monsterState(j) < 2 THEN IF (monsterX(j) - x) ^ 2 + (monsterY(j) - y) ^ 2 < 0.6 THEN EXIT FUNCTION
     NEXT
@@ -8044,11 +8067,23 @@ FUNCTION Walkable%(x, y)
         IF decoKind(deco) <> DK_BODY AND (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN EXIT FUNCTION
     END IF
     IF glassHP(cellX, cellY) > 0 THEN IF InGlass(x, y) THEN EXIT FUNCTION
+    IF walkFromHaz = 10 THEN IF FloorHazard(cellX, cellY) = HAZ_BURN THEN EXIT FUNCTION ' (a monster, not in fire: it won't step in)
+    IF walkFromHaz >= 10 THEN IF floorH(cellX, cellY) <= PIT_DEPTH THEN EXIT FUNCTION ' (...nor off the edge of a pit with no bottom)
     IF NOT levelFlat AND walkZ > -900 THEN ' Heights: too high a step up, or too little room
         IF floorH(cellX, cellY) > walkZ + STEP_UP THEN EXIT FUNCTION
         IF ceilH(cellX, cellY) - MaxOf(floorH(cellX, cellY), walkZ) < BODY_H THEN EXIT FUNCTION
     END IF
     Walkable% = worldMap(cellX, cellY) <= 0 OR doorOpen(cellX, cellY) > 0.8
+END FUNCTION
+
+' What a cell's floor does to you, by its picture's name: HAZ_BURN (molten,
+' lava), HAZ_WADE (murky water, slime) - or 0. (Not in the network.)
+FUNCTION FloorHazard(cx, cy)
+    IF cyberOn OR cx < 0 OR cy < 0 OR cx > MAP_SIZE OR cy > MAP_SIZE THEN EXIT FUNCTION
+    IF worldMap(cx, cy) > 0 THEN EXIT FUNCTION
+    n$ = texName$(floorTex(cx, cy))
+    IF INSTR(n$, "molten") OR INSTR(n$, "lava") THEN FloorHazard = HAZ_BURN : EXIT FUNCTION
+    IF INSTR(n$, "murky") OR INSTR(n$, "slime") THEN FloorHazard = HAZ_WADE
 END FUNCTION
 
 ' Is map point (x, y) inside a wall (doors don't count)? Like IsWall, but
@@ -10563,6 +10598,7 @@ SUB GLSendTextures
             glTexReflect(slot) = 0.16 : glTexNeon(slot) = 0.5
             IF INSTR(n$, "ice") THEN glTexReflect(slot) = 0.45
             IF INSTR(n$, "murky") THEN glTexReflect(slot) = 0.4
+            IF INSTR(n$, "molten") OR INSTR(n$, "lava") THEN glTexNeon(slot) = 1 : glTexAnim(slot) = 3 : glTexReflect(slot) = 0.05 ' (it glows, and pulses)
             IF INSTR(n$, "glow") OR INSTR(n$, "frost") THEN glTexReflect(slot) = 0.32
             IF INSTR(n$, "white") OR INSTR(n$, "lab") OR INSTR(n$, "plates") THEN glTexReflect(slot) = 0.28
             IF INSTR(n$, "concrete") OR INSTR(n$, "cobbles") OR INSTR(n$, "scorched") THEN glTexReflect(slot) = 0.08

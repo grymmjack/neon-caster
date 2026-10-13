@@ -146,6 +146,84 @@ class Map:
     def event(self, kind, x0, y0, x1, y1, a, b, reward=0):
         self.events.append((kind, x0, y0, x1, y1, a, b, reward))
 
+    # -- heights (chapter 22): each cell's floor and ceiling, in eighths of a
+    # wall. A floor of 0 is the zone's own; up to 35 eighths up, 8 down (a
+    # floor 8 down is a pit with no bottom - you fall into the dark). A
+    # ceiling is measured from the same 0: it's 8 (one wall) unless set.
+    # You step up 2 eighths at most (STEP_UP), drop any distance, and need
+    # BODY eighths of room; a lift carries you between its low and high.
+    def floor_at(self, x, y):
+        return hval(self.fh[y][x], 0)
+
+    def ceil_at(self, x, y):
+        return hval(self.ch[y][x], 8)
+
+    def floor(self, x0, y0, x1, y1, e, only_open=True):
+        """Floors in a rectangle e eighths up (or down, if e < 0)."""
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                if not only_open or self.g[y][x] not in WALLS:
+                    self.fh[y][x] = hchar(e)
+
+    def ceiling(self, x0, y0, x1, y1, e, only_raise=True):
+        """Ceilings in a rectangle at e eighths (only ever raised, unless
+        only_raise is off - for a low tunnel)."""
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                if self.g[y][x] in WALLS:
+                    continue
+                if not only_raise or e > self.ceil_at(x, y):
+                    self.ch[y][x] = hchar(e, ceiling=True)
+
+    def stairs(self, x0, y0, x1, y1, up, e0, e1, rise=2):
+        """A flight of stairs filling the rectangle, climbing toward `up`
+        (N, S, E or W) from e0 to e1, `rise` eighths a step (2 is as much as
+        you can step), then level at e1 to the far edge. Works down too."""
+        horiz = up in "EW"
+        n = (x1 - x0 + 1) if horiz else (y1 - y0 + 1)
+        step = rise if e1 >= e0 else -rise
+        for i in range(n):
+            e = e0 + step * i
+            if (step > 0 and e > e1) or (step < 0 and e < e1):
+                e = e1
+            if up == "E": self.floor(x0 + i, y0, x0 + i, y1, e)
+            elif up == "W": self.floor(x1 - i, y0, x1 - i, y1, e)
+            elif up == "S": self.floor(x0, y0 + i, x1, y0 + i, e)
+            else: self.floor(x0, y1 - i, x1, y1 - i, e)
+
+    def pit(self, x0, y0, x1, y1, depth, steps=None, rise=2, width=1):
+        """A sunken floor `depth` eighths down (8 or more: bottomless). With
+        steps (N, S, E or W: the side you climb out by), a flight `width`
+        cells wide in the middle of that side, from the bottom back up to 0."""
+        self.floor(x0, y0, x1, y1, -depth)
+        if not steps or depth >= 8:
+            return
+        n = (depth - 1) // rise  # stair cells inside the pit (the last step is onto the rim)
+        for i in range(n):
+            e = -depth + rise * (n - i)  # i = 0 at the rim: the highest step
+            if steps in "NS":
+                cx = (x0 + x1) // 2 - (width - 1) // 2
+                yy = y0 + i if steps == "N" else y1 - i
+                self.floor(cx, yy, cx + width - 1, yy, e)
+            else:
+                cy = (y0 + y1) // 2 - (width - 1) // 2
+                xx = x0 + i if steps == "W" else x1 - i
+                self.floor(xx, cy, xx, cy + width - 1, e)
+
+    def lift(self, x0, y0, x1, y1, low, high, mode=2, speed=6):
+        """A lift: its cells ride between low and high (eighths). Mode 1
+        goes up and down by itself, 2 is an elevator (up while you're on
+        it), 3 waits for a trigger's liftgo."""
+        self.lifts.append((x0, y0, x1, y1, low, high, mode, speed))
+        self.floor(x0, y0, x1, y1, low)
+
+    def headroom(self, gap=8):
+        """Raise any ceiling closer than gap eighths above its floor."""
+        for y in range(N):
+            for x in range(N):
+                if self.g[y][x] not in WALLS and self.ceil_at(x, y) - self.floor_at(x, y) < gap:
+                    self.ch[y][x] = hchar(self.floor_at(x, y) + gap, ceiling=True)
+
     # -- output
     def rows(self):
         return ["".join(r) for r in self.g]
@@ -175,6 +253,157 @@ class Map:
         for r in self.rows():
             out.append('DATA "%s"' % r)
         return out
+
+
+# ---------------------------------------------------------------- heights
+H_UP = "0123456789abcdefghijklmnopqrstuvwxyz"
+H_DOWN = "ABCDEFGH"
+STEP_UP = 2      # eighths you can step up (the game's STEP_UP, 0.32 of a wall)
+BODY = 6         # eighths of room you need (BODY_H, 0.7)
+DEADLY = -8      # a floor this far down has no bottom (PIT_DEPTH)
+
+
+def hchar(e, ceiling=False):
+    """The [floor] / [ceiling] character for e eighths."""
+    e = int(e)
+    if e == (8 if ceiling else 0):
+        return "."
+    if e >= 0:
+        return H_UP[min(e, len(H_UP) - 1)]
+    return H_DOWN[min(-e, 8) - 1]
+
+
+def hval(c, default):
+    if c == "." or c == " ":
+        return default
+    if c in H_UP:
+        return H_UP.index(c)
+    if c in H_DOWN:
+        return -(H_DOWN.index(c) + 1)
+    return default
+
+
+def check_heights(lv):
+    """Heights, walked the way the game walks them: step up STEP_UP at most,
+    drop any distance (not into a bottomless pit), need BODY of room; lifts
+    carry you from their low to their high; doors by key order as validate.
+    Errors: the exit unreachable, a key unreachable, a stuck spot (somewhere
+    you can get to but can't get from to the exit). Warnings: a pickup out of
+    reach, a monster with no room, a melee monster that can never reach you."""
+    rows = lv["rows"]
+    fl = lv.get("floor") or []
+    ce = lv.get("ceiling") or []
+    g = [list(r) for r in rows]
+    F = [[hval(fl[y][x] if y < len(fl) and x < len(fl[y]) else ".", 0) for x in range(N)] for y in range(N)]
+    C = [[hval(ce[y][x] if y < len(ce) and x < len(ce[y]) else ".", 8) for x in range(N)] for y in range(N)]
+    lift = {}
+    for (x0, y0, x1, y1, lo, hi, mode, sp) in lv.get("lifts", []):
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                lift[(x, y)] = (lo, hi)
+    errs, warns = [], []
+    keyof = {"R": "r", "B": "b", "Y": "y"}
+    pads = [(x, y) for y in range(N) for x in range(N) if g[y][x] in PAD]
+    st = [(x, y) for y in range(N) for x in range(N) if g[y][x] in START]
+    ex = [(x, y) for y in range(N) for x in range(N) if g[y][x] == "E"]
+    if not st:
+        return ["no start"], []
+
+    def heights(x, y):
+        return range(lift[(x, y)][0], lift[(x, y)][1] + 1) if (x, y) in lift else (F[y][x],)
+
+    def can_enter(x, y, keys):
+        c = g[y][x]
+        ok = c == "." or c in ITEMS or c in MONS or c in START or c in "DHX" or c in PAD or c == "E"
+        if c in keyof and keyof[c] in keys: ok = True
+        if c == "!" and "@" in keys: ok = True
+        return ok
+
+    def moves(state, keys):
+        x, y, z = state
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            a, b = x + dx, y + dy
+            if not (0 <= a < N and 0 <= b < N) or not can_enter(a, b, keys):
+                continue
+            if (a, b) in lift:
+                lo, hi = lift[(a, b)]
+                if lo - z <= STEP_UP and C[b][a] - max(z, lo) >= BODY:
+                    for zz in range(lo, hi + 1):  # on it, it carries you anywhere between
+                        yield (a, b, zz)
+                continue
+            fb = F[b][a]
+            if fb <= DEADLY or fb - z > STEP_UP or C[b][a] - max(z, fb) < BODY:
+                continue
+            yield (a, b, fb)
+        if g[y][x] in PAD:  # a teleporter: to its partner
+            k = pads.index((x, y)); o = k + 1 if k % 2 == 0 else k - 1
+            if 0 <= o < len(pads):
+                a, b = pads[o]
+                yield (a, b, F[b][a])
+
+    def walk():
+        keys = set()
+        s0 = (st[0][0], st[0][1], F[st[0][1]][st[0][0]])
+        while True:
+            seen = {s0}; q = deque([s0])
+            while q:
+                for n in moves(q.popleft(), keys):
+                    if n not in seen:
+                        seen.add(n); q.append(n)
+            cells = {(x, y) for x, y, z in seen}
+            got = {g[y][x] for (x, y) in cells if g[y][x] in "rby"}
+            if any(g[y + dy][x + dx] in STATION for (x, y) in cells for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                got.add("@")
+            if got <= keys:
+                return keys, seen, cells
+            keys |= got
+
+    # first flat (no heights at all: what the doors and walls allow), then
+    # with the heights - anything lost between the two is the heights' doing
+    realF, realC, reallift = F, C, lift
+    F = [[0] * N for _ in range(N)]; C = [[8] * N for _ in range(N)]; lift = {}
+    fkeys, fseen, flat = walk()
+    F, C, lift = realF, realC, reallift
+    keys, seen, cells = walk()
+    for (x, y) in ex:  # (you use the exit from beside it, as validate has it)
+        if not any((x + dx, y + dy) in cells for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+            errs.append("exit at %d,%d unreachable (heights)" % (x, y))
+    for c in "RBY":
+        if any(c in r for r in rows) and keyof[c] not in keys:
+            errs.append("key %s unreachable (heights)" % keyof[c])
+    # stuck spots: from where (with every key) can't you get to the exit?
+    if ex:
+        nex = {(x + dx, y + dy) for (x, y) in ex for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))}
+        back = {s for s in seen if (s[0], s[1]) in ex or (s[0], s[1]) in nex}
+        rev = {}
+        for s in seen:
+            for n in moves(s, keys):
+                rev.setdefault(n, []).append(s)
+        q = deque(back)
+        while q:
+            for p in rev.get(q.popleft(), []):
+                if p not in back:
+                    back.add(p); q.append(p)
+        stuck = sorted({(x, y) for (x, y, z) in seen if (x, y, z) not in back and (x, y) not in lift})
+        if stuck:
+            errs.append("%d stuck spot(s) - you get in, you can't get out: %s" % (len(stuck), " ".join("%d,%d" % c for c in stuck[:12])))
+    for y in range(N):
+        for x in range(N):
+            c = g[y][x]
+            if c in ITEMS and (x, y) not in cells and (x, y) in flat:
+                warns.append("pickup %s at %d,%d out of reach (heights)" % (c, x, y))
+            if c in MONS:
+                if F[y][x] <= DEADLY or C[y][x] - F[y][x] < BODY:
+                    errs.append("monster %s at %d,%d has no room to stand" % (c, x, y))
+                elif (x, y) not in cells and (x, y) in flat and c in "mchkT":
+                    warns.append("melee monster %s at %d,%d can never reach you" % (c, x, y))
+    lost = sorted(c for c in flat - cells if F[c[1]][c[0]] > DEADLY)  # (a pit with no bottom is meant to be out of reach)
+    if lost:
+        warns.append("%d cell(s) a flat walk reaches but the heights cut off: %s" % (len(lost), " ".join("%d,%d" % c for c in lost[:16])))
+    used = sorted({F[y][x] for y in range(N) for x in range(N) if g[y][x] not in WALLS})
+    raised = sum(1 for y in range(N) for x in range(N) if g[y][x] not in WALLS and F[y][x] != 0)
+    warns.append("heights: %d cells off the ground, floor levels %s, %d lift(s), reach %d cells" % (raised, used, len(lift and lv.get("lifts", [])), len(cells)))
+    return errs, warns
 
 
 # ---------------------------------------------------------------- level files
@@ -354,7 +583,7 @@ def validate(rows, name="map", want_exit=True):
                 if (a, b) in seen:
                     continue
                 c = at(a, b)
-                ok = c == "." or c in ITEMS or c in MONS or c in START or c in "DHX" or c in PAD
+                ok = c == "." or c == "~" or c in ITEMS or c in MONS or c in START or c in "DHX" or c in PAD  # (~: a lift, while dressing)
                 if c in keyof and keyof[c] in keys:
                     ok = True
                 if c == "!" and "@" in keys:  # a sealed door: open once a station's reached
@@ -481,6 +710,9 @@ def check_level(lv, assets=None):
         errs.append("too many events (max 16)")
     if not any("M" in r for r in lv["rows"]):
         warns.append("no map pickup (M): the minimap never appears on this level")
+    if not errs:
+        he, hw = check_heights(lv)
+        errs += he; warns += hw
     print("%s  %s  (%d lights)" % (lv["label"], lv["name"], len(lv.get("lights", []))))
     for e in errs:
         print("   ERROR", e)

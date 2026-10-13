@@ -169,6 +169,32 @@ The maths uses the same names as Lode Vandevenne's classic
 `planeX`, `rayDirX`, `sideDistX`, `deltaDistX`, `perpWallDist`...), so you
 can read the two side by side.
 
+## The sectors, and their heights
+
+Each sector is built around floors and ceilings at different heights
+(chapter 22's `[floor]` and `[ceiling]` grids). `levels.py` builds them all:
+
+| Sector | Its heights |
+|---|---|
+| 1 Neon Station | a sunken atrium in the hub; a mezzanine a wall up in the bio-lab, by elevator |
+| 2 Reactor Core | a raised control deck with the exit at its back; a bowl sunk round the core; a walkway along the south hall |
+| 3 Undercity | a low tunnel with a channel to wade; a raised gantry; a flooded cistern pit; a hall that terraces down into the water |
+| 4 Cryo Lab | an observation deck round the atrium's core, by elevator; split-level labs, the ice lab sunk |
+| 5 Foundry | a hall four walls tall; a molten trough that burns, with bridges; a pouring floor up by stairs and elevators |
+| 6 Hydroponics | every bay a stepped pyramid of planters; a pool under the dome |
+| 7 Data Vault | a canyon between racks five walls tall, a catwalk round its edge |
+| 8 Maglev Depot | galleries over both platforms for the snipers; track trenches to duck into |
+| 9 Orbital Spire | an amphitheatre stepping down to the core; sniper ledges with elevators |
+| 10 The Core | a spiral climbing as it winds in; an arena with a ring of pit (kick them in) round the overseer's dais |
+
+The level kit's height helpers (`lvlkit.py`): `m.floor`, `m.ceiling`,
+`m.stairs` (two eighths a step, as much as you can climb), `m.pit` (with
+steps out), `m.lift` and `m.headroom`. `python3 levels.py --check` walks
+every level the way you would - step up two eighths, drop any distance,
+need room for your body, ride the lifts and pads, pick up keys in order -
+and fails a level with an exit or a key out of reach, or a *stuck spot*:
+somewhere you can get into and not out of.
+
 ## Things to try
 
 Each one is a small change to the code. Look first, then change something,
@@ -271,6 +297,12 @@ run it and see what happens. That's the fastest way to learn how it works.
 - **A splash picture** (ch. 21): drop a `splash.png` (800 x 600) into
   `neon-caster/` and it replaces the title on the splash screen.
 
+- **Floors that bite** (ch. 22): a floor whose picture is called
+  `*molten*` or `*lava*` burns whoever stands in it (`FloorHazard`,
+  `BURN_DAMAGE`), and `*murky*` or `*slime*` slows you to `SLOW_WADE`.
+  Monsters won't step into fire. Give a sunken pit a molten floor, or
+  invent your own kind: ice that slides you along?
+
 - **Your own lights** (ch. 14, 22): add a line to a level's lights - try
   a red strobe (effect 3) in a dark corridor, or set a level's ambient
   brightness to 40 and light it only with lamps.
@@ -331,6 +363,11 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
   (put it back with `_GL_FILL` at the end of `SUB _GL`).
 
 **Bigger projects**
+- **A height design of your own** (ch. 22): in `levels.py`, give a sector a
+  new shape with `m.floor`, `m.stairs`, `m.pit` and `m.lift`, then run
+  `python3 levels.py` - the check tells you if you've made a spot you
+  can't get out of - and `--write` to play it. Try a pit with no bottom
+  (`m.pit(..., 8)`) and a bridge across it.
 - **Look up and down** (ch. 14-16): everything uses `RENDER_H / 2` as the
   horizon. Make it a variable, move it with the mouse's Y movement, and
   fix up the floor, walls and sprites to use it. ("Y-shearing", as in

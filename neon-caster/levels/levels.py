@@ -134,6 +134,22 @@ def level1():
     m.light(36.5, 33.5, 4, 170, 255, 50, 50, 3)       #   red alarm by the red key
     m.light(10.5, 30.5, 5, 150, 255, 160, 80, 4)      # pipe rooms: firelight
     m.light(10.5, 39.5, 5, 130, 255, 160, 80, 4)
+    # heights: the hub is a sunken atrium - terraces two eighths a step,
+    # down to the middle, half a wall below the doors, under a ceiling two
+    # and a half walls up
+    m.floor(21, 21, 26, 26, -2)
+    m.floor(22, 22, 25, 25, -4)
+    m.ceiling(19, 19, 28, 28, 20)
+    m.light(23.5, 23.5, 4, 120, 120, 255, 230, 2)     #   cyan in the pit
+    # ...and the bio-lab has a mezzanine: a walkway a wall up along its east
+    # wall, past the windows, an elevator up to it; loot and a sniper on it
+    m.floor(41, 26, 42, 33, 8)
+    m.lift(40, 26, 40, 26, 0, 8)
+    m.ceiling(30, 26, 42, 42, 24)
+    place(m, [(42, 26, "q"), (42, 32, "e"), (41, 27, "g")])
+    m.light(41.5, 29.5, 5, 140, 120, 255, 200)
+    m.headroom()
+    m.heights_done = True
     return m
 
 
@@ -226,6 +242,28 @@ def level2():
     m.light(33.5, 37.5, 4, 200, 255, 40, 30, 3)
     m.light(20.5, 42.5, 8, 110, 255, 150, 70, 4)
     m.light(42.5, 40.5, 5, 170, 240, 240, 255)        # armoury
+    # heights: the control room is a raised deck - its back half half a
+    # wall up, a step across the room - the exit at the back of the deck
+    m.floor(15, 3, 32, 8, 4)
+    m.floor(24, 2, 24, 2, 4)  # (the exit door, at the deck's height)
+    m.floor(15, 9, 32, 9, 2)
+    m.ceiling(15, 3, 32, 13, 16)
+    # ...the reactor hall sinks round the core in a bowl, two steps down,
+    # under a ceiling three walls up
+    for y in range(15, 33):
+        for x in range(15, 33):
+            d = abs(x - 24) + abs(y - 24)
+            if d <= 7: m.floor(x, y, x, y, -4)
+            elif d <= 9: m.floor(x, y, x, y, -2)
+    m.ceiling(15, 15, 32, 32, 24)
+    # ...and a walkway a wall up runs the length of the south hall's south
+    # wall, stairs at its west end: loot along it, a sniper at the far end
+    m.stairs(3, 44, 37, 45, "E", 2, 8)
+    m.ceiling(3, 35, 37, 45, 20)
+    place(m, [(20, 45, "a"), (30, 45, "e"), (35, 45, "g")])
+    m.light(18.5, 44.5, 5, 130, 255, 150, 70, 4)
+    m.headroom()
+    m.heights_done = True
     return m
 
 
@@ -318,6 +356,38 @@ def level3():
     m.light(5.5, 17.5, 4, 110, 255, 80, 60, 4)        # the nest: red, creepy
     m.light(8.5, 35.5, 7, 120, 140, 220, 255, 5)      # flooded hall: a dying light
     m.light(23.5, 40.5, 6, 160, 230, 230, 255, 1)     # outflow
+    # heights: the tunnel is low (seven eighths), the water channel down
+    # its middle two eighths down - you wade in it, and climb out anywhere
+    rooms = [(12, 3, 22, 7), (26, 3, 45, 14), (34, 18, 45, 28), (3, 12, 7, 22), (3, 26, 14, 45), (18, 34, 28, 45)]
+    inroom = lambda x, y: any(a <= x <= c and b <= y <= d for a, b, c, d in rooms)
+    for y in range(1, N - 1):
+        for x in range(1, N - 1):
+            if abs(x - y) <= 3 and not inroom(x, y) and m.g[y][x] not in "#NCKPG":
+                m.ceiling(x, y, x, y, 7, only_raise=False)
+                if x - y in (0, 1):
+                    m.floor(x, y, x, y, -2)
+    # ...the pump hall's north end is a raised gantry, a step up from the
+    # pillars, under a high roof
+    m.floor(26, 3, 45, 5, 4)
+    m.floor(26, 6, 45, 6, 2)
+    m.ceiling(26, 3, 45, 14, 18)
+    # ...the cistern is a flooded pit half a wall deep, a step down inside
+    # each of its doors
+    m.floor(34, 18, 45, 28, -4)
+    m.floor(40, 18, 40, 18, -2)
+    m.floor(34, 24, 34, 24, -2)
+    m.ceiling(34, 18, 45, 28, 16)
+    # ...and the flooded hall sinks from its dry corner, terrace by terrace
+    for y in range(26, 46):
+        for x in range(3, 14 if y < 30 else 15):  # (its east column stays dry by the way out, along row 28)
+            k = (x - 3) + (y - 26)
+            if k >= 13: m.floor(x, y, x, y, -4)
+            elif k >= 12: m.floor(x, y, x, y, -2)
+    m.ceiling(3, 26, 14, 45, 16)
+    m.light(36.5, 21.5, 5, 140, 120, 255, 160, 2)     # the cistern glows under water
+    m.headroom(7)
+    m.min_room = 7  # (the tunnels stay low)
+    m.heights_done = True
     return m
 
 
@@ -419,6 +489,27 @@ def level4():
     m.light(24.5, 43.5, 5, 140, 230, 240, 255)
     m.light(5.5, 24.5, 4, 180, 255, 50, 40, 3)        #   an alarm in the west hall
     m.light(43.5, 24.5, 5, 140, 230, 240, 255, 5)
+    # heights: an observation deck rings the atrium's terminal core a wall
+    # up (an elevator on its north side), under a ceiling three walls high
+    for y in range(12, 37):
+        for x in range(12, 37):
+            if abs(x - 24) + abs(y - 24) <= 6:
+                m.floor(x, y, x, y, 8)
+    m.lift(24, 17, 24, 17, 0, 8)
+    m.ceiling(12, 12, 36, 36, 24)
+    m.light(24.5, 19.5, 4, 150, 200, 240, 255)
+    # ...and each lab is split-level: a raised end half a wall up, a step
+    # between (NW: its north end, the blue key up there; NE: its north-east
+    # corner by the exit; SW: its south-west corner, the map up there), and
+    # the SE ice lab sunk in two terraces
+    m.floor(3, 3, 15, 5, 4); m.floor(3, 6, 15, 6, 2)
+    m.floor(40, 3, 45, 9, 4); m.floor(39, 3, 39, 10, 2); m.floor(40, 10, 45, 10, 2)
+    m.floor(3, 37, 8, 45, 4); m.floor(9, 36, 9, 45, 2); m.floor(3, 36, 8, 36, 2)
+    m.floor(33, 33, 45, 45, -2); m.floor(35, 35, 43, 43, -4)
+    for (a, b) in ((3, 3), (32, 3), (3, 33), (32, 33)):
+        m.ceiling(a, b, a + 13, b + 12, 16)
+    m.headroom()
+    m.heights_done = True
     return m
 
 
@@ -490,6 +581,30 @@ def level5():
     m.light(39.5, 39.5, 6, 140, 255, 230, 170)
     m.light(43.5, 36.5, 3, 190, 255, 50, 40, 3)
     m.light(9.5, 38.5, 6, 140, 255, 220, 170, 1)
+    # heights: the smelting hall is tall (four walls), and its molten
+    # metal runs in a trough two eighths down - it burns (FloorHazard) -
+    # with three plate bridges across it; the hall's east end is a pouring
+    # floor a wall up: stairs at its west edge, lifts by the north and south
+    # doors, and the loot alcove behind the east door up there with it
+    m.ceiling(6, 19, 41, 28, 32)
+    m.floor(8, 23, 32, 24, -2)
+    for bx in (14, 24):
+        m.floor(bx, 23, bx, 24, 0)
+        m.zone(bx, 23, bx, 24, 4, 0)
+    m.floor(33, 19, 41, 28, 8)
+    m.zone(33, 23, 41, 24, 4, 0)
+    m.floor(42, 20, 45, 21, 8); m.floor(43, 19, 45, 19, 8)
+    m.ceiling(42, 19, 45, 21, 16)
+    m.stairs(29, 19, 32, 19, "E", 2, 8)
+    m.stairs(29, 25, 32, 25, "E", 2, 8)
+    m.lift(39, 19, 39, 19, 0, 8)
+    m.lift(39, 28, 39, 28, 0, 8)
+    for (a, b, c, d) in ((2, 2, 15, 15), (32, 2, 45, 15), (2, 32, 15, 45), (17, 32, 30, 45), (32, 32, 45, 45), (17, 2, 30, 15)):
+        m.ceiling(a, b, c, d, 16)
+    m.light(20.5, 23.5, 6, 170, 255, 120, 40, 4)      # the trough glows
+    m.light(37.5, 25.5, 5, 140, 255, 200, 140)        # the pouring floor
+    m.headroom()
+    m.heights_done = True
     return m
 
 
@@ -570,6 +685,27 @@ def level6():
             m.light(x0 + 5, y0 + 5, 7, 140, 210, 120, 255, fx)       # grow lights: purple
     m.light(24, 24, 6, 150, 120, 255, 150, 2)                       # the dome: green
     m.light(40, 24, 6, 150, 230, 240, 255, 1)
+    # heights: each greenhouse bay's beds rise in terraces to its middle, a
+    # step at a time (a stepped pyramid of planters you can climb), under a
+    # high glass roof; the dome in the middle is a pool, sunk in two steps
+    for bx in (3, 19, 35):
+        for by in (3, 19, 35):
+            if (bx, by) == (19, 19):
+                continue
+            for y in range(by, by + 10):
+                for x in range(bx, bx + 10):
+                    d = min(x - bx, bx + 9 - x, y - by, by + 9 - y)
+                    if d >= 2:
+                        m.floor(x, y, x, y, (d - 1) * 2)
+            m.ceiling(bx, by, bx + 9, by + 9, 20)
+    for y in range(19, 29):
+        for x in range(19, 29):
+            d = min(x - 19, 28 - x, y - 19, 28 - y)
+            if d >= 1:
+                m.floor(x, y, x, y, -2 if d < 3 else -4)
+    m.ceiling(18, 18, 29, 29, 20)
+    m.headroom()
+    m.heights_done = True
     return m
 
 
@@ -641,6 +777,22 @@ def level7():
     m.light(43.5, 24.5, 6, 140, 230, 240, 255, 5)
     m.light(24.5, 43.5, 6, 140, 230, 240, 255)
     m.light(14.5, 4.5, 3, 190, 255, 50, 40, 3)
+    # heights: the server hall is a canyon - its aisles between the racks
+    # three quarters of a wall down, the racks towering five walls up -
+    # with a catwalk round its edge at the doors' height, and a flight of
+    # stairs down from the middle of each side; the vault is down there too
+    m.floor(11, 11, 36, 36, -6)
+    m.stairs(11, 12, 13, 12, "W", -6, -2)
+    m.stairs(34, 30, 36, 30, "E", -6, -2)
+    m.stairs(23, 11, 23, 13, "N", -6, -2)
+    m.stairs(24, 34, 24, 36, "S", -6, -2)
+    m.ceiling(9, 9, 38, 38, 40)
+    for (a, b, c, d) in ((9, 9, 38, 10), (9, 37, 38, 38), (9, 11, 10, 36), (37, 11, 38, 36)):
+        m.zone(a, b, c, d, 3, 0)  # (the catwalk: plates)
+    m.light(23.5, 12.5, 5, 140, 120, 220, 255, 2)
+    m.light(12.5, 24.5, 5, 140, 120, 220, 255, 2)
+    m.headroom()
+    m.heights_done = True
     return m
 
 
@@ -709,6 +861,24 @@ def level8():
     m.light(16.5, 14.5, 4, 150, 255, 100, 200)
     m.light(32.5, 33.5, 4, 140, 255, 160, 80, 4)
     m.light(32.5, 14.5, 4, 170, 120, 220, 255, 2)
+    # heights: both platforms have a gallery a wall up along their back
+    # wall, stairs at each end - the gunners and spitters up there have the
+    # drop on you - and the track beds in the hall are sunk a step, a
+    # trench to duck into
+    m.floor(3, 3, 44, 5, 8)
+    m.stairs(3, 6, 4, 9, "N", 2, 8)
+    m.stairs(43, 6, 44, 9, "N", 2, 8)
+    m.floor(3, 42, 44, 44, 8)
+    m.stairs(6, 38, 6, 41, "S", 2, 8)
+    m.stairs(42, 38, 42, 41, "S", 2, 8)
+    m.ceiling(3, 3, 44, 9, 22)
+    m.ceiling(3, 38, 44, 44, 22)
+    m.floor(3, 20, 44, 22, -2)
+    m.floor(3, 25, 44, 27, -2)
+    m.ceiling(3, 19, 44, 28, 16)
+    place(m, [(20, 3, "w"), (30, 44, "g")])
+    m.headroom()
+    m.heights_done = True
     return m
 
 
@@ -771,6 +941,30 @@ def level9():
     m.light(24.5, 45.5, 3, 150, 255, 220, 120, 1)
     m.light(2.5, 24.5, 3, 190, 255, 50, 40, 3)
     m.light(45.5, 24.5, 3, 150, 255, 220, 120)
+    # heights: the ring round the core is an amphitheatre, stepping down in
+    # tiers from its outer wall (where the pods' doors are) to the core,
+    # which sits three quarters of a wall down at the bottom; and in two of
+    # the ring's corners a sniper's ledge a wall up, each with an elevator
+    oct_r = lambda x, y: max(abs(x - 23.5), abs(y - 23.5), (abs(x - 23.5) + abs(y - 23.5)) * 0.75)
+    for y in range(1, N - 1):
+        for x in range(1, N - 1):
+            if 6 <= x <= 41 and 6 <= y <= 41:
+                r = oct_r(x, y)
+                m.floor(x, y, x, y, 0 if r >= 15 else -2 if r >= 13 else -4 if r >= 11 else -6)
+    m.ceiling(6, 6, 41, 41, 24)
+    for (bx0, by0, bx1, by1) in ((29, 6, 41, 14), (6, 33, 18, 41)):
+        ledge = [(x, y) for y in range(by0, by1 + 1) for x in range(bx0, bx1 + 1)
+                 if m.g[y][x] not in "#NCKPG/\\" and oct_r(x, y) >= 16.2]
+        for (x, y) in ledge:
+            m.floor(x, y, x, y, 8)
+        ls = set(ledge)
+        lift = next((x + dx, y + dy) for (x, y) in sorted(ledge) for dx, dy in STEPS
+                    if (x + dx, y + dy) not in ls and m.g[y + dy][x + dx] == "." and m.floor_at(x + dx, y + dy) == 0)
+        m.lift(lift[0], lift[1], lift[0], lift[1], 0, 8)
+        near(m, [(ledge[len(ledge) // 2][0], ledge[len(ledge) // 2][1], "g")], 2)
+    m.light(23.5, 21.5, 5, 160, 140, 220, 255, 2)
+    m.headroom()
+    m.heights_done = True
     return m
 
 
@@ -813,7 +1007,7 @@ def level10():
         (16, 30, "h"), (17, 17, "g"), (30, 16, "s"), (30, 30, "b"), (24, 31, "m"), (16, 22, "c"),
         (31, 22, "*"), (17, 31, "+"),
         # the core (blue... reached by yellow first): blue key, the last stand
-        (21, 26, "+"), (26, 26, "a"), (21, 21, "c"), (26, 21, "c"),
+        (20, 27, "+"), (27, 27, "a"), (20, 20, "c"), (27, 20, "c"),  # (in the corners: the ring between is a pit)
     ])
     # the overseer, the last sector's boss, holds the core (its guards make room)
     place(m, [(24, 23, "z")])
@@ -833,6 +1027,24 @@ def level10():
     m.light(16.5, 16.5, 5, 170, 255, 40, 40, 3)
     m.light(31.5, 31.5, 5, 170, 255, 40, 40, 3)
     m.light(23.5, 23.5, 5, 220, 255, 120, 80, 2)                    # the core
+    # heights: the spiral climbs as it winds in - each ring a step up from
+    # the one outside it - to the core: an arena with a walkway round its
+    # wall, then a ring of pit with no bottom (kick them in), four bridges
+    # across, and the overseer's dais in the middle, half a wall up
+    m.floor(9, 9, 38, 38, 2)
+    m.floor(15, 15, 32, 32, 4)
+    for y in range(20, 28):
+        for x in range(20, 28):
+            c = max(abs(x - 23.5), abs(y - 23.5))
+            if c >= 3.5: m.floor(x, y, x, y, 4)
+            elif c >= 2.5: m.floor(x, y, x, y, 6 if (x in (23, 24) or y in (23, 24)) else -8)
+            else: m.floor(x, y, x, y, 8)
+    m.ceiling(9, 9, 38, 38, 16)
+    m.ceiling(15, 15, 32, 32, 22)
+    m.ceiling(20, 20, 27, 27, 32)
+    m.light(23.5, 23.5, 3, 200, 255, 60, 40, 2)       # the dais: red, throbbing
+    m.headroom()
+    m.heights_done = True
     return m
 
 # ============================================================ DRESSING
@@ -848,7 +1060,7 @@ import random
 from lvlkit import WALLS, DOORS, DIAG, ITEMS, MONS, DECO, START, GLASS, STATION, PAD
 
 STEPS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
-PASS = set(".") | ITEMS | MONS | START | set("DHX") | PAD
+PASS = set(".~") | ITEMS | MONS | START | set("DHX") | PAD
 
 
 def _ok(m):
@@ -1372,6 +1584,8 @@ def dress(m, lev):
     if lev not in DRESS: return
     props, nprops, nclos, cmons, nlas, nplate, ncut, nthief, nblack, nobs, obskinds = DRESS[lev]
     rng = random.Random(1000 + lev)
+    keep = [(x, y) for (x0, y0, x1, y1, *_r) in m.lifts for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]
+    for x, y in keep: m.g[y][x] = "~"  # (a lift: nothing goes on it - put back below)
     st, dist = _reach(m)
     got = [dress_hoard(m, rng, dist, nthief) if nthief else 0]
     st, dist = _reach(m)
@@ -1389,12 +1603,35 @@ def dress(m, lev):
     got.append(dress_blackout(m, rng, dist, nblack) if nblack else 0)
     st, dist = _reach(m)
     nst = dress_station(m, rng, dist)
-    nda, nle = dress_heights(m, rng, 1 if lev >= 2 else 0, 1)
+    nda, nle = (0, 0) if getattr(m, "heights_done", False) else dress_heights(m, rng, 1 if lev >= 2 else 0, 1)
     ntp = dress_teleport(m, rng)
     st, dist = _reach(m)
     nterm = dress_terminal(m, rng, dist, lev)
     dress_hints(m)
+    for x, y in keep: m.g[y][x] = "."
+    level_rooms(m)
+    m.headroom(getattr(m, "min_room", 8))
     print("   dressed L%d: hoard %d, closets %d, props %d, lasers %d, plates %d, cutter %d, blackout %d, windows %d, station %d, dais %d, ledge %d, teleport %d, terminal %d" % tuple([lev] + got + [nobs_made, nst, nda, nle, ntp, nterm]))
+
+
+def level_rooms(m):
+    """Rooms the dressing cut into the walls (a hoard, a closet) take the
+    height of the floor outside their door - so one opening off a raised
+    floor isn't a pit you can't climb out of."""
+    for e in m.events:
+        if e[0] not in (6, 7):
+            continue
+        kind, x0, y0, x1, y1 = e[:5]
+        room = [(x, y) for y in range(y0, y1 + 1) for x in range(x0, x1 + 1) if m.g[y][x] not in WALLS]
+        doors = {(x + dx, y + dy) for (x, y) in room for dx, dy in STEPS
+                 if 0 < x + dx < N - 1 and 0 < y + dy < N - 1 and m.g[y + dy][x + dx] in "DHX" and not (x0 <= x + dx <= x1 and y0 <= y + dy <= y1)}
+        for (dx_, dy_) in doors:
+            outside = [(dx_ + a, dy_ + b) for a, b in STEPS if m.g[dy_ + b][dx_ + a] not in WALLS and not (x0 <= dx_ + a <= x1 and y0 <= dy_ + b <= y1)]
+            if outside:
+                e_out = m.floor_at(*outside[0])
+                for (x, y) in room + [(dx_, dy_)]:
+                    m.fh[y][x] = m.fh[outside[0][1]][outside[0][0]]
+                break
 
 
 LEVELS = [
