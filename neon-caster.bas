@@ -38,6 +38,7 @@
 '
 ' CONTROLS (the keys can be changed in the menu: SETTINGS > CONTROLS)
 '   Mouse          look around          W A S D   walk and strafe
+'   Shift          hold to run
 '   Click or Ctrl  fire                 Space     open doors, use the exit
 '   1-4 or wheel   choose a gun         Esc       the menu (pause, save,
 '   Right button   hold to aim down                load, settings, exit)
@@ -195,6 +196,9 @@ DIM SHARED worldMap(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' Doors: how far open (0 shut .. 1 open), which keycard opens it (0 any,
 ' 1 red, 2 blue, 3 yellow), and what kind it is (DOOR_ constants below)
 DIM SHARED doorOpen(MAP_SIZE, MAP_SIZE) AS SINGLE
+' ...which way it's going (1 opening, -1 shutting, 0 still), and how many
+' frames more it stays open before shutting itself (chapter 11)
+DIM SHARED doorMove(MAP_SIZE, MAP_SIZE) AS INTEGER, doorWait(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED doorKey(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED doorType(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' Diagonal walls: which corner's half of the cell is solid - 0 not diagonal,
@@ -210,6 +214,11 @@ DIM SHARED floorTex2(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilTex2(MAP_SIZE, MAP_SIZE
 DIM SHARED floorSplit(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilSplit(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' DOOR_ = the kinds of door, the numbers kept in doorType(x, y)
 CONST DOOR_SLIDE = 0, DOOR_SHUTTER = 1, DOOR_SPLIT = 2, DOOR_EXIT = 3
+CONST DOOR_LIP = 0.15 ' How much of an open door still shows (DoorShown, chapter 11)
+' A door is a slab DOOR_THICK thick across the middle of its doorway
+' (DoorRay, chapter 15), running in a track in the floor and ceiling
+' TRACK_HALF either side of its middle line
+CONST DOOR_THICK = 0.12, TRACK_HALF = 0.09
 ' Light (chapter 14). Every cell has a light level for red, green and blue
 ' (litR, litG, litB): 256 shows a texture in its own colours, less is
 ' darker, more is brighter, and different amounts tint it. It's worked out
@@ -357,7 +366,17 @@ DIM SHARED hasGun(NUM_GUNS) AS INTEGER
 ' and where its muzzle is
 DIM SHARED gunName$(NUM_GUNS), gunAmmoType(NUM_GUNS), gunAmmoPerShot(NUM_GUNS), gunDelay(NUM_GUNS), gunPellets(NUM_GUNS), gunSpread(NUM_GUNS)
 DIM SHARED gunDamage(NUM_GUNS), gunPierce(NUM_GUNS), gunKick(NUM_GUNS), gunZoom(NUM_GUNS)
-DIM SHARED gunSnd&(NUM_GUNS), gunImg&(NUM_GUNS), gunMuzzleX(NUM_GUNS), gunMuzzleY(NUM_GUNS), gunScale(NUM_GUNS)
+DIM SHARED gunSnd&(NUM_GUNS), gunImg&(NUM_GUNS), gunMuzzleX(NUM_GUNS), gunMuzzleY(NUM_GUNS), gunSize(NUM_GUNS)
+' ...the light on the gun (1 = as bright as its picture; chapter 17), and
+' for the software renderer, each gun's picture no taller than
+' GUN_SOFT_MAX (it's shrunk to our 800 x 600 screen anyway) to tint
+DIM SHARED gunLightR, gunLightG, gunLightB, gunSoftImg&(NUM_GUNS)
+CONST GUN_SOFT_MAX = 512, GUN_DARKEST = 0.22, GUN_BRIGHTEST = 1.3
+CONST GUN_TINT = 1.6 ' How strongly coloured light colours the gun (1 = just as it is)
+gunLightR = 1 : gunLightG = 1 : gunLightB = 1
+' ...and each gun's picture for OpenGL (chapter 24): a copy with its colours
+' "premultiplied" (see GLDrawHUD), and its size
+DIM SHARED gunGLMem(NUM_GUNS) AS _MEM, gunGLW(NUM_GUNS) AS LONG, gunGLH(NUM_GUNS) AS LONG
 ' ADS_ = Aiming Down the Sights (hold the right mouse button - chapter 8):
 '   ADS_ZOOM       how much the view zooms in (1 = not at all, 2 = twice as
 '                  close) - for most guns; each gun's own zoom is the last
@@ -435,13 +454,14 @@ CONST RENDER_W = 400, RENDER_H = 300, TEX_SIZE = 128
 ' T_ = Texture slot: which picture in texture(x, y, slot). The slots are:
 '   1-6 the level's six walls (# N C K P G), 7 sliding door, 8-10 key doors,
 '   11 shutter, 12 split door, 13 exit, 14-17 the level's four floors,
-'   18-19 its two ceilings
+'   18-19 its two ceilings, 20 a ceiling lamp (over each of the level's
+'   lights - BuildShafts, chapter 24)
 ' T_DOORK + card is a key door (8 red, 9 blue, 10 yellow); T_FLOOR + n is
 ' floor n, and T_CEIL + n ceiling n; T_SLOTS is how many slots there are.
 CONST T_DOOR = 7, T_DOORK = 7
 CONST T_SHUTTER = 11, T_SPLIT = 12, T_EXIT = 13
-CONST T_FLOOR = 13, T_CEIL = 17
-CONST T_SLOTS = 19
+CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20
+CONST T_SLOTS = 20
 DIM SHARED texture(TEX_SIZE - 1, TEX_SIZE-1, T_SLOTS) AS _UNSIGNED LONG
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
 DIM SHARED wallTexSlot(7) AS INTEGER, wallMapColor(7) AS _UNSIGNED LONG
@@ -502,13 +522,17 @@ DIM SHARED glNumGlow(1) AS INTEGER, glGlowX(MAX_GLOWS, 1), glGlowY(MAX_GLOWS, 1)
 DIM SHARED glGlowR(MAX_GLOWS, 1), glGlowG(MAX_GLOWS, 1), glGlowB(MAX_GLOWS, 1)
 DIM SHARED glWrite AS INTEGER
 ' What SUB _GL keeps for itself: the graphics card's names for the textures
-' (texture slots 1-19, then sprite slots after them), which texture version
+' (texture slots 1-20, then sprite slots after them), which texture version
 ' it has, the cells it's drawing, the camera and light it's drawing with,
 ' the camera as a matrix (chapter 24), and how long it took (for SHOW FPS)
 ' (one more texture name after the sprites: GL_GLOW_TEX, the glows' soft
 ' round spot)
 CONST GL_GLOW_TEX = T_SLOTS + SPR_SLOTS + 1
 DIM SHARED glTexName(GL_GLOW_TEX) AS _UNSIGNED LONG, glTexDone AS LONG
+' ...the guns' pictures (GLSendGuns), and two OpenGL numbers QB64PE has no
+' name for (it knows OpenGL 1.1's; these came later)
+DIM SHARED glGunTex(NUM_GUNS) AS _UNSIGNED LONG
+CONST GL_GENERATE_MIPMAP = &H8191&, GL_CLAMP_TO_EDGE = &H812F&
 DIM SHARED glUpload(TEX_SIZE * TEX_SIZE - 1) AS _UNSIGNED LONG ' (a picture on its way to the card)
 ' The world shader (chapter 24): the program, where its uniforms and
 ' attributes are, whether we've tried to build it, and why it failed (if)
@@ -518,6 +542,7 @@ DIM SHARED glTanLoc AS LONG, glLightLoc AS LONG, glDynLoc AS LONG
 ' going: post-processing or not, the mirror image drawn, the floor pass on
 DIM SHARED glPostProg AS _UNSIGNED LONG, glBrightProg AS _UNSIGNED LONG, glBlurProg AS _UNSIGNED LONG
 DIM SHARED glTargScene AS LONG, glTargA AS LONG, glTargB AS LONG, glTargRetro AS INTEGER
+DIM SHARED glTargC AS LONG, glTargD AS LONG ' (the phosphor glow's, 400 x 300)
 DIM SHARED glPost AS INTEGER, glReflecting AS INTEGER, glFloorPass AS INTEGER, glNeonOn AS INTEGER
 ' ...the WORLD MESH (GLBuildMesh): every floor, ceiling and wall face of
 ' the level, built once and kept in graphics memory (glMeshBuf), sorted by
@@ -569,7 +594,21 @@ DIM SHARED glMat(15) AS SINGLE, glMs
 '   glPart...          the particles: sparks, embers, dust
 '   glHurt, glRail     how hurt you just were, the railgun's flash (0..1)
 '   glHeat...          explosions, for the heat shimmer
+'   glShaft...         the light shafts near you: where, colour (as bright
+'                      as their light is this frame) and a phase for each
+'                      one's slow shimmer
+'   glWide             how much wider than 4:3 the view is (WideView: FULL
+'                      WIDE), and glSideDim how much to darken the view
+'                      beside our 4:3 screen (the menu's darkening only
+'                      covers our screen)
+'   glGun...           which gun you're holding (0: none in sight) and where
+'                      on our 800 x 600 screen, from top left to bottom right,
+'                      and the light on it (1 = as bright as its picture)
 DIM SHARED glSet(40, 1), glPitch(1)
+DIM SHARED glWide(1), glSideDim(1), glAspectK
+DIM SHARED glGun(1) AS INTEGER, glGunX0(1), glGunY0(1), glGunX1(1), glGunY1(1), glGunR(1), glGunG(1), glGunB(1)
+DIM SHARED glNumShaft(1) AS INTEGER, glShaftX(MAX_LIGHTS, 1), glShaftY(MAX_LIGHTS, 1), glShaftPh(MAX_LIGHTS, 1)
+DIM SHARED glShaftR(MAX_LIGHTS, 1), glShaftG(MAX_LIGHTS, 1), glShaftB(MAX_LIGHTS, 1)
 DIM SHARED glNumDyn(1) AS INTEGER, glDynX(GL_DYN, 1), glDynY(GL_DYN, 1), glDynZ(GL_DYN, 1), glDynRad(GL_DYN, 1)
 DIM SHARED glDynR(GL_DYN, 1), glDynG(GL_DYN, 1), glDynB(GL_DYN, 1), glDynReach(MAP_SIZE, MAP_SIZE, GL_DYN, 1) AS _BYTE
 DIM SHARED glNumPart(1) AS INTEGER, glPartX(MAX_PART, 1), glPartY(MAX_PART, 1), glPartZ(MAX_PART, 1), glPartSize(MAX_PART, 1)
@@ -595,6 +634,15 @@ CONST PART_SPARK = 1, PART_EMBER = 2, PART_DUST = 3
 DIM SHARED partX(MAX_PART), partY(MAX_PART), partZ(MAX_PART), partVX(MAX_PART), partVY(MAX_PART), partVZ(MAX_PART)
 DIM SHARED partLife(MAX_PART) AS INTEGER, partMax(MAX_PART) AS INTEGER, partR(MAX_PART), partG(MAX_PART), partB(MAX_PART)
 DIM SHARED partSize(MAX_PART), partKind(MAX_PART) AS INTEGER, partNext AS INTEGER, dustCount AS INTEGER
+' LIGHT SHAFTS: a beam under each of the level's own lights (not a lamp's or
+' a terminal's) standing in an open cell - shaftCell(x, y) is the light
+' whose beam starts in that cell (0: none), from BuildShafts. A beam is
+' SHAFT_TOP wide (from its middle to its edge) at the ceiling, spreading to
+' SHAFT_FOOT at the floor; SHAFT_AMT is how much light it adds.
+CONST SHAFT_TOP = 0.22, SHAFT_FOOT = 0.75, SHAFT_AMT = 1.1
+DIM SHARED shaftCell(MAP_SIZE, MAP_SIZE) AS INTEGER
+' The dust stirred by you: how far round you your walking moves it
+CONST WAKE_REACH = 1.1
 ' Each texture slot's file name (LoadTex), so OpenGL can tell what a
 ' texture is - a floor that should shine, a screen that should flicker
 DIM SHARED texName$(T_SLOTS)
@@ -616,6 +664,7 @@ LoadTex "door.png", T_DOOR
 LoadTex "door-shutter.png", T_SHUTTER
 LoadTex "door-split.png", T_SPLIT
 LoadTex "exit.png", T_EXIT : ExitSign
+LoadTex "ceiling-lamp.png", T_LAMP
 LoadCards "keycard.png"
 LoadSprite "medkit.png", 4
 LoadSprite "ammo.png", 5
@@ -647,7 +696,15 @@ LoadSprite "map.png", 28
 ' The guns you hold are kept as ordinary images (not arrays): they're drawn
 ' over the finished view with _PUTIMAGE, at full size (chapter 18). LoadGun
 ' also works out where each one's muzzle is, for the muzzle flash.
-gunScale(1) = 3 : gunScale(2) = 3.6 : gunScale(3) = 4 : gunScale(4) = 3.6 ' Drawn this many times their size
+'
+' gunSize is how tall each one is drawn, in screen pixels - whatever size
+' its picture is. So a gun can be drawn again in more detail (twice, four
+' times, eight times as many pixels across) and dropped in as it is: it
+' comes out the same size. More detail shows with OpenGL, which draws the
+' gun at the window's full size (chapter 24); the software renderer
+' shrinks it to our 800 x 600 screen. Keep the picture square, and its
+' muzzle in the same place, and aiming down the sights still lines up.
+gunSize(1) = 288 : gunSize(2) = 346 : gunSize(3) = 384 : gunSize(4) = 346
 CONST GUN_Y = 600 ' A gun's bottom sits here, its muzzle straight below the crosshair
 LoadGun 1, "gun.png"
 LoadGun 2, "gun-scatter.png"
@@ -659,6 +716,7 @@ LoadGun 4, "gun-rail.png"
 ' we keep in a & (LONG) variable and play with PlaySfx (chapter 23).
 sndStep1& = LoadSnd&("step1.wav") : sndStep2& = LoadSnd&("step2.wav")
 sndBump& = LoadSnd&("bump.wav") : sndHump& = LoadSnd&("wallhump.wav")
+DIM SHARED sndDoor&, sndShutter&, sndSplit& ' (shared: DoorSnd& picks one - chapter 11)
 sndDoor& = LoadSnd&("door.wav") : sndShutter& = LoadSnd&("door-shutter.wav") : sndSplit& = LoadSnd&("door-split.wav")
 sndCard& = LoadSnd&("keycard.wav") : sndLocked& = LoadSnd&("locked.wav")
 sndEmpty& = LoadSnd&("empty.wav") : sndWeapon& = LoadSnd&("weapon.wav")
@@ -708,37 +766,47 @@ mtypeHitSnd&(5) = LoadSnd&("sentry-hit.wav") : mtypeDieSnd&(5) = LoadSnd&("sentr
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 28
+CONST NUM_SETTINGS = 35
+CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
 CONST SET_XALPHA = 11, SET_XFEEDBACK = 12, SET_HURTDIR = 13, SET_RENDERER = 14, SET_FPS = 15
 CONST SET_BUMP = 16, SET_GLOW = 17, SET_NEON = 18, SET_SMOOTH = 19, SET_DYNLIGHT = 20, SET_SHADOWS = 21
-CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, SET_HITFX = 26, SET_RETRO = 27, SET_LOOK = 28
+CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, SET_HITFX = 26, SET_RES = 27, SET_LOOK = 28
+CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
+CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 DIM SHARED setting(NUM_SETTINGS), setDefault(NUM_SETTINGS), setMin(NUM_SETTINGS), setMax(NUM_SETTINGS)
+' Each letter's scancode (where it is on the keyboard), a to z, as
+' characters 32 on (CHR$(scancode + 32)), for KeyAt% (chapter 21)
+CONST LETTER_SCANS = ">PN@2ABC7DEFRQ8903?46O1M5L"
+DIM SHARED keyDevice AS INTEGER, keyTrusted AS INTEGER, keyScanAdd AS INTEGER
 DIM SHARED setStep(NUM_SETTINGS), setKind(NUM_SETTINGS), setKey$(NUM_SETTINGS), setLabel$(NUM_SETTINGS)
 ' MI_ = Menu Item kinds (what a line of a menu is and does)
 CONST MI_ACTION = 1, MI_SUBMENU = 2, MI_SLIDER = 3, MI_TOGGLE = 4, MI_CHOICE = 5
 CONST MI_KEY = 6, MI_BACK = 7, MI_TEXT = 8
 '             setting        file name             menu label            control    min max  step start
-DefineSetting SET_SFX,       "sfx",                "SFX VOLUME",         MI_SLIDER, 0,  100, 5,   80
-DefineSetting SET_MUSIC,     "music",              "MUSIC VOLUME",       MI_SLIDER, 0,  100, 5,   60
-DefineSetting SET_SPEECH,    "speech",             "SPEECH VOLUME",      MI_SLIDER, 0,  100, 5,   80
-DefineSetting SET_FOV,       "fov",                "FIELD OF VIEW",      MI_SLIDER, 50, 110, 2,   66
-DefineSetting SET_XSTYLE,    "crosshair_style",    "CROSSHAIR STYLE",    MI_CHOICE, 1,  6,   1,   1
+DefineSetting SET_SFX,       "sfx",                "SFX VOLUME",         MI_SLIDER, 0,  100, 5,   100
+DefineSetting SET_MUSIC,     "music",              "MUSIC VOLUME",       MI_SLIDER, 0,  100, 5,   50
+DefineSetting SET_SPEECH,    "speech",             "SPEECH VOLUME",      MI_SLIDER, 0,  100, 5,   100
+DefineSetting SET_FOV,       "fov",                "FIELD OF VIEW",      MI_SLIDER, 50, 110, 2,   80
+DefineSetting SET_XSTYLE,    "crosshair_style",    "CROSSHAIR STYLE",    MI_CHOICE, 1,  6,   1,   4
 DefineSetting SET_XCOLOR,    "crosshair_color",    "CROSSHAIR COLOR",    MI_CHOICE, 1,  6,   1,   1
-DefineSetting SET_XSIZE,     "crosshair_size",     "CROSSHAIR SIZE",     MI_SLIDER, 1,  5,   1,   2
+DefineSetting SET_XSIZE,     "crosshair_size",     "CROSSHAIR SIZE",     MI_SLIDER, 1,  5,   1,   5
 DefineSetting SET_BOB,       "weapon_bob",         "WEAPON BOBBING",     MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_SHAKE,     "screen_shake",       "SCREEN SHAKE",       MI_TOGGLE, 0,  1,   1,   1
-DefineSetting SET_MOUSE,     "mouse_speed",        "MOUSE LOOK SPEED",   MI_SLIDER, 1,  10,  1,   5
+DefineSetting SET_MOUSE,     "mouse_speed",        "MOUSE LOOK SPEED",   MI_SLIDER, 1,  10,  1,   2
 DefineSetting SET_XALPHA,    "crosshair_opacity",  "CROSSHAIR OPACITY",  MI_SLIDER, 10, 100, 10,  100
 DefineSetting SET_XFEEDBACK, "crosshair_feedback", "CROSSHAIR FEEDBACK", MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_HURTDIR,   "damage_indicators",  "DAMAGE INDICATORS",  MI_TOGGLE, 0,  1,   1,   1
-DefineSetting SET_RENDERER,  "renderer",           "RENDERER",           MI_CHOICE, 1,  2,   1,   1 ' 1 software, 2 OpenGL (chapter 24)
+DefineSetting SET_RENDERER,  "renderer",           "RENDERER",           MI_CHOICE, 1,  2,   1,   2 ' 1 software, 2 OpenGL (chapter 24)
 DefineSetting SET_FPS,       "show_fps",           "SHOW FPS",           MI_TOGGLE, 0,  1,   1,   0
 DefineSetting SET_BUMP,      "bump_mapping",       "BUMP MAPPING",       MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
 DefineSetting SET_GLOW,      "glows",              "GLOWS",              MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
 ' The OpenGL effects (chapter 24; SETTINGS > EFFECTS) and the two OpenGL
 ' view settings (SETTINGS > VIDEO). SCREEN FX: 1 off, 2 scanlines, 3 CRT.
+' RESOLUTION: what size OpenGL draws the 3D view, 1 (RES_NATIVE: the
+' window's own pixels) to 7 (RES_RETRO: the software renderer's 400 x 300) -
+' ResSize, chapter 24, has the sizes in between (2160P 4K down to 480P).
 DefineSetting SET_NEON,      "neon",               "NEON",               MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_SMOOTH,    "smooth_light",       "SMOOTH LIGHT",       MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_DYNLIGHT,  "moving_lights",      "MOVING LIGHTS",      MI_TOGGLE, 0,  1,   1,   1
@@ -746,17 +814,35 @@ DefineSetting SET_SHADOWS,   "shadows",            "SHADOWS",            MI_TOGG
 DefineSetting SET_PARTICLES, "particles",          "PARTICLES",          MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_REFLECT,   "reflections",        "WET FLOORS",         MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_BLOOM,     "bloom",              "BLOOM",              MI_TOGGLE, 0,  1,   1,   1
-DefineSetting SET_SCREENFX,  "screen_fx",          "SCREEN FX",          MI_CHOICE, 1,  3,   1,   1
+DefineSetting SET_SCREENFX,  "screen_fx",          "SCREEN FX",          MI_CHOICE, 1,  3,   1,   2
 DefineSetting SET_HITFX,     "hit_fx",             "HIT FX",             MI_TOGGLE, 0,  1,   1,   1
-DefineSetting SET_RETRO,     "retro_res",          "RETRO RESOLUTION",   MI_TOGGLE, 0,  1,   1,   0
+DefineSetting SET_RES,       "resolution",         "RESOLUTION",         MI_CHOICE, 1,  7,   1,   2
 DefineSetting SET_LOOK,      "look_up_down",       "LOOK UP / DOWN",     MI_TOGGLE, 0,  1,   1,   1
+' How dark the scanlines are (with SCREEN FX on), and how much light bleeds
+' round bright things, as on a real tube's glass (both 0..100%)
+DefineSetting SET_SCANLINES, "scanlines",          "SCANLINE DARKNESS",  MI_SLIDER, 0,  100, 5,   50
+' ...and how far apart they are (in the window's own pixels) and how thick
+' (how much of that gap is dark)
+DefineSetting SET_SCANGAP,   "scanline_spacing",   "SCANLINE SPACING",   MI_SLIDER, 2,  16,  1,   3
+DefineSetting SET_SCANTHICK, "scanline_thickness", "SCANLINE THICKNESS", MI_SLIDER, 10, 90,  5,   35
+' DISPLAY: 1 in a window; full screen 2 WIDE (with OpenGL, the 3D view
+' fills a widescreen and sees more to the sides; the HUD stays 4:3 in the
+' middle), 3 4:3 (our shape, black bars at the sides), 4 STRETCH (all of
+' it stretched to fill the screen) - ApplyDisplay, chapter 21
+DefineSetting SET_DISPLAY,   "display",            "DISPLAY",            MI_CHOICE, 1,  4,   1,   1
+DefineSetting SET_PHOSPHOR,  "phosphor_glow",      "PHOSPHOR GLOW",      MI_SLIDER, 0,  100, 5,   50
+' Beams of light under the ceiling lights, with the dust hanging in them
+' How fast the mouse turns you while you aim down the sights, as well as
+' the zoom slowing it (chapter 8)
+DefineSetting SET_AIMSENS,   "aim_sensitivity",    "AIM SENSITIVITY",    MI_SLIDER, 10, 100, 5,   50
+DefineSetting SET_SHAFTS,    "light_shafts",       "LIGHT SHAFTS",       MI_TOGGLE, 0,  1,   1,   1
 ' BIND_ = a key binding's number: what each one does, its name in the
 ' settings file, its menu label, and its key to start with (a _KEYDOWN
 ' code: letters as lower case, 32 Space, 100306 left Ctrl, 16128 F5,
-' 17152 F9, 9 Tab)
-CONST NUM_BINDS = 9
+' 17152 F9, 9 Tab, 100304 left Shift)
+CONST NUM_BINDS = 10
 CONST BIND_FORWARD = 1, BIND_BACK = 2, BIND_LEFT = 3, BIND_RIGHT = 4
-CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8, BIND_MAP = 9
+CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8, BIND_MAP = 9, BIND_RUN = 10
 DIM SHARED keyBind&(NUM_BINDS), bindDefault&(NUM_BINDS), bindKey$(NUM_BINDS), bindLabel$(NUM_BINDS)
 '          binding         file name        menu label      key
 DefineBind BIND_FORWARD,   "key_forward",   "MOVE FORWARD", 119
@@ -768,6 +854,7 @@ DefineBind BIND_FIRE,      "key_fire",      "FIRE",         100306
 DefineBind BIND_QUICKSAVE, "key_quicksave", "QUICK SAVE",   16128
 DefineBind BIND_QUICKLOAD, "key_quickload", "QUICK LOAD",   17152
 DefineBind BIND_MAP, "key_map", "MAP", 9
+DefineBind BIND_RUN,       "key_run",       "RUN (HOLD)",   100304
 ' SCR_ = the menu's screens; MA_ = Menu Actions (what choosing a button does)
 CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
@@ -788,7 +875,7 @@ CONST SPLASH_SECONDS = 3.5 ' How long the splash screen stays up (any key skips 
 CONST NUM_SLOTS = 3, SAVE_TAG = "NCSAVE02", SAVE_INFO_LEN = 48
 ' Things the settings change, worked out by ApplySettings: the camera
 ' plane's length (from the field of view) and the mouse turn speed
-DIM SHARED fovPlane, turnSpeed
+DIM SHARED fovPlane, turnSpeed, displayAsked, displayModeNow
 ' Crosshair feedback (chapter 18): how big it is right now (1 = its size;
 ' it shrinks when you fire, grows when you're hit, and eases back), and
 ' frames left of its white "you hit something" flash
@@ -817,11 +904,22 @@ IF _FILEEXISTS(AssetPath$("splash.png")) THEN splashImg& = _LOADIMAGE(AssetPath$
 DIM x AS LONG, y AS LONG, texU AS LONG, texV AS LONG, texX AS LONG
 DIM floorRow AS LONG, ceilRow AS LONG, drawStart AS LONG, drawEnd AS LONG
 DIM cellX AS LONG, cellY AS LONG, lastCellX AS LONG, lastCellY AS LONG, floorSlot AS LONG, ceilSlot AS LONG
-DIM cellFloor AS LONG, cellCeil AS LONG, splitCell AS LONG
+DIM cellFloor AS LONG, cellCeil AS LONG, splitCell AS LONG, cellTrack AS LONG
 DIM savedHasGun(NUM_GUNS) ' What you had on entering the level (you get it back if you die)
 
-moveSpeed = 0.12 ' Cells a frame
+' How fast you go, in cells a frame: walking, and running (holding Shift)
+CONST WALK_SPEED = 0.06, RUN_SPEED = 0.12 ' (walking: half as fast)
 LoadSettings ' Your settings and keys, from neon-caster/saves/settings.ini
+' The keyboard "device", for keys by where they are (KeyAt%, chapter 21):
+' _DEVICES finds the devices; the first is the keyboard. Its key numbers
+' are the system's: Windows uses the PC's scancodes, Linux adds 8 (macOS
+' has its own - there we do without)
+IF INSTR(_OS$, "[WINDOWS]") THEN keyScanAdd = 0 : keyDevice = -1
+IF INSTR(_OS$, "[LINUX]") THEN keyScanAdd = 8 : keyDevice = -1
+IF keyDevice THEN
+    keyDevice = 0
+    IF _DEVICES >= 1 THEN IF INSTR(_DEVICE$(1), "[KEYBOARD]") THEN keyDevice = -1
+END IF
 ApplySettings
 GOSUB ShowSplash
 menuInGame = 0 : GOSUB RunMenu ' The title menu: it returns once a game is started or loaded
@@ -924,7 +1022,10 @@ DO
     zoom = 1 + (gunZoom(currentGun) - 1) * aimAmount ' (each gun zooms its own amount)
 
     mouseDX = mouseDX / DisplayScale! ' The same turn speed in a window or full screen
-    turn = - mouseDX * turnSpeed / zoom ' (slower when zoomed, so aiming stays steady)
+    ' (slower when zoomed, so aiming stays steady - and slower still the
+    ' more you're aiming, by AIM SENSITIVITY)
+    aimSlow = 1 - aimAmount * (1 - setting(SET_AIMSENS) / 100)
+    turn = - mouseDX * turnSpeed / zoom * aimSlow
     oldDirX = dirX : dirX = dirX * COS(turn) - dirY * SIN(turn) : dirY = oldDirX * SIN(turn) + dirY * COS(turn)
     oldPlaneX = planeX : planeX = planeX * COS(turn) - planeY * SIN(turn) : planeY = oldPlaneX * SIN(turn) + planeY * COS(turn)
 
@@ -935,7 +1036,7 @@ DO
     ' straight ahead: like Doom, whatever's in the middle column is hit,
     ' high or low. Otherwise the view eases back to level.
     IF glMode AND setting(SET_LOOK) AND NOT dead THEN
-        pitch = pitch - mouseDY / DisplayScale! * turnSpeed / zoom
+        pitch = pitch - mouseDY / DisplayScale! * turnSpeed / zoom * aimSlow
         IF pitch > 0.6 THEN pitch = 0.6
         IF pitch < -0.6 THEN pitch = -0.6
     ELSE
@@ -958,10 +1059,10 @@ DO
     ' Swapping takes SWAP_FRAMES: the gun dips out of sight, changes at the
     ' halfway point, and comes back up (the drawing is in chapter 18).
     wantGun = 0
-    IF _KEYDOWN(49) THEN wantGun = 1
-    IF _KEYDOWN(50) THEN wantGun = 2
-    IF _KEYDOWN(51) THEN wantGun = 3
-    IF _KEYDOWN(52) THEN wantGun = 4
+    IF DigitHeld%(49) THEN wantGun = 1 ' (by place: Shift + 1 types "!", and you might be running)
+    IF DigitHeld%(50) THEN wantGun = 2
+    IF DigitHeld%(51) THEN wantGun = 3
+    IF DigitHeld%(52) THEN wantGun = 4
     IF mouseWheel <> 0 THEN
         wantGun = currentGun
         DO
@@ -984,8 +1085,9 @@ DO
     ' (dirY, -dirX) - your direction turned 90 degrees. Pressing W and D
     ' together adds the two, which would be about 1.4 times as fast, so the
     ' sum is "normalized": divided by its own length (moveLen) to make it one
-    ' cell long, then scaled to walking speed. Now every direction is the
-    ' same speed, and opposite keys simply cancel out.
+    ' cell long, then scaled to your speed - walking, or running while you
+    ' hold Shift. Now every direction is the same speed, and opposite keys
+    ' simply cancel out.
     forward = 0 : strafe = 0
     IF NOT dead THEN
         IF KeyHeld(BIND_FORWARD) THEN forward = forward + 1 ' W, unless rebound
@@ -995,9 +1097,10 @@ DO
     END IF
     moveX = dirX * forward + dirY * strafe : moveY = dirY * forward - dirX * strafe
     moveLen = SQR(moveX * moveX + moveY * moveY)
+    moveSpeed = WALK_SPEED : IF KeyHeld(BIND_RUN) THEN moveSpeed = RUN_SPEED ' (Shift: run)
     IF moveLen > 0 THEN
         moveX = moveX / moveLen * moveSpeed : moveY = moveY / moveLen * moveSpeed
-        bobPhase = bobPhase + 0.2
+        bobPhase = bobPhase + 0.2 * moveSpeed / RUN_SPEED ' (the gun sways slower as you walk)
     END IF
 
     ' Collision. You're a square, PLAYER_RADIUS from your middle to each
@@ -1136,33 +1239,42 @@ DO
     '-------------------------------------------------------------------------
     ' CHAPTER 11: DOORS
     '-------------------------------------------------------------------------
-    ' Space opens the door in front of you. To find it, we take small steps
-    ' (0.05 cells) out from you along (dirX, dirY), up to 2 cells, and look
-    ' at the cell each step lands in: the first shut door is the one, and a
-    ' wall first means there's nothing to open. The exit door is a door that
-    ' never opens - Space on it ends the level (chapter 20).
+    ' Space opens the door in front of you - or shuts it, if it's open. To
+    ' find it, we take small steps (0.05 cells) out from you along (dirX,
+    ' dirY), up to 2 cells, and look at the cell each step lands in: the
+    ' first door is the one (not one you're standing in), and a wall first
+    ' means there's nothing to open. The exit door is a door that never
+    ' opens - Space on it ends the level (chapter 20).
     '
-    ' A door's doorOpen() goes from 0 (shut) to 1 (open). Space just nudges
-    ' it off 0; after that the loop below adds a little every frame until it
-    ' reaches 1. The wall drawing (chapter 15) uses the number to slide the
-    ' door aside, raise the shutter, or part the split door's halves.
+    ' A door's doorOpen() goes from 0 (shut) to 1 (open), and doorMove()
+    ' says which way it's going: Space sets it going, and the loop below
+    ' moves it a little every frame. The wall drawing (chapter 15) uses the
+    ' number to slide the door aside, raise the shutter, or part the split
+    ' door's halves. An open door waits a while (doorWait, DoorHold frames:
+    ' each kind its own), then shuts itself - but never on anyone: with you
+    ' or a monster in the doorway (DoorBlocked), it waits, or if it was
+    ' already shutting, opens again, like an automatic door.
     IF spaceDown AND NOT spaceWas AND NOT dead THEN ' (once per press)
         FOR reach = 0.05 TO 2 STEP 0.05
             cellX = INT(playerX + dirX * reach) : cellY = INT(playerY + dirY * reach)
+            IF cellX = INT(playerX) AND cellY = INT(playerY) THEN GOTO NextReach ' (the doorway you're in)
             IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 THEN
                 keyNeeded = doorKey(cellX, cellY)
                 IF doorType(cellX, cellY) = DOOR_EXIT THEN
                     GOSUB LevelDone
                 ELSEIF keyNeeded = 0 OR hasCard(keyNeeded) THEN
-                    doorOpen(cellX, cellY) = 0.01
-                    SELECT CASE doorType(cellX, cellY)
-                        CASE DOOR_SHUTTER : PlaySfx sndShutter&, 0.9
-                        CASE DOOR_SPLIT : PlaySfx sndSplit&, 0.9
-                        CASE ELSE : PlaySfx sndDoor&, 0.9
-                    END SELECT
+                    doorOpen(cellX, cellY) = 0.01 : doorMove(cellX, cellY) = 1
+                    PlaySfx DoorSnd&(doorType(cellX, cellY)), 0.9
                 ELSE
                     PlaySfx sndLocked&, 0.8
                     ShowMsg "Locked - you need the " + CardName$(keyNeeded) + " keycard"
+                END IF
+                EXIT FOR
+            ELSEIF worldMap(cellX, cellY) = 2 THEN ' Open (or on the move): shut it - or open it again
+                IF doorMove(cellX, cellY) = -1 THEN
+                    doorMove(cellX, cellY) = 1 : PlaySfx DoorSnd&(doorType(cellX, cellY)), 0.9
+                ELSEIF NOT DoorBlocked(cellX, cellY, playerX, playerY) THEN
+                    doorMove(cellX, cellY) = -1 : PlaySfx DoorSnd&(doorType(cellX, cellY)), 0.9
                 END IF
                 EXIT FOR
             END IF
@@ -1170,16 +1282,37 @@ DO
                 IF reach <= 1.2 THEN PlaySfx sndHump&, 0.8 ' Trying to open a plain wall
                 EXIT FOR
             END IF
+            NextReach:
         NEXT
     END IF
     FOR doorY = 0 TO MAP_SIZE - 1 : FOR doorX = 0 TO MAP_SIZE-1
-        IF doorOpen(doorX, doorY) > 0 AND doorOpen(doorX, doorY) < 1 THEN
-            SELECT CASE doorType(doorX, doorY) ' Shutters are heavy and slow, split doors snap open
-                CASE DOOR_SHUTTER : doorOpen(doorX, doorY) = doorOpen(doorX, doorY) + 0.025
-                CASE DOOR_SPLIT : doorOpen(doorX, doorY) = doorOpen(doorX, doorY) + 0.06
-                CASE ELSE : doorOpen(doorX, doorY) = doorOpen(doorX, doorY) + 0.04
+        IF worldMap(doorX, doorY) = 2 AND doorOpen(doorX, doorY) > 0 THEN
+            ' (a door part-open with nowhere to go - from an old saved game - opens)
+            IF doorMove(doorX, doorY) = 0 AND doorOpen(doorX, doorY) < 1 THEN doorMove(doorX, doorY) = 1
+            SELECT CASE doorMove(doorX, doorY)
+                CASE 1 ' Opening
+                    doorOpen(doorX, doorY) = doorOpen(doorX, doorY) + DoorSpeed(doorType(doorX, doorY))
+                    IF doorOpen(doorX, doorY) >= 1 THEN
+                        doorOpen(doorX, doorY) = 1 : doorMove(doorX, doorY) = 0 : doorWait(doorX, doorY) = DoorHold(doorType(doorX, doorY))
+                    END IF
+                CASE -1 ' Shutting - unless someone's in the way: then it opens again
+                    IF DoorBlocked(doorX, doorY, playerX, playerY) THEN
+                        doorMove(doorX, doorY) = 1
+                    ELSE
+                        doorOpen(doorX, doorY) = doorOpen(doorX, doorY) - DoorSpeed(doorType(doorX, doorY))
+                        IF doorOpen(doorX, doorY) <= 0 THEN doorOpen(doorX, doorY) = 0 : doorMove(doorX, doorY) = 0
+                    END IF
+                CASE ELSE ' Open, waiting - then shutting itself, when the doorway's clear
+                    IF doorWait(doorX, doorY) > 0 THEN
+                        doorWait(doorX, doorY) = doorWait(doorX, doorY) - 1
+                    ELSEIF NOT DoorBlocked(doorX, doorY, playerX, playerY) THEN
+                        doorMove(doorX, doorY) = -1
+                        far = SQR((doorX + 0.5 - playerX) ^ 2 + (doorY + 0.5 - playerY) ^ 2) ' (quieter further off)
+                        IF far < 14 THEN PlaySfx DoorSnd&(doorType(doorX, doorY)), 0.9 * (1 - far / 14)
+                    ELSE
+                        doorWait(doorX, doorY) = 30 ' (someone's in it: look again in half a second)
+                    END IF
             END SELECT
-            IF doorOpen(doorX, doorY) > 1 THEN doorOpen(doorX, doorY) = 1
         END IF
     NEXT : NEXT
 
@@ -1213,6 +1346,7 @@ DO
         IF ammoCount(ammoType) >= gunAmmoPerShot(currentGun) THEN
             ammoCount(ammoType) = ammoCount(ammoType) - gunAmmoPerShot(currentGun) : fireWait = gunDelay(currentGun) : recoil = gunKick(currentGun) : muzzleFlash = 4
             PlaySfx gunSnd&(currentGun), 0.7
+            StirDust playerX, playerY, dirX, dirY, 5, 0.02 * gunKick(currentGun) ' (the shot's wind blows the dust along - chapter 24)
             hitDamage = gunDamage(currentGun) : IF gunPierce(currentGun) THEN railBeam = 8
             shake = shake + gunKick(currentGun) * 1.5 ' (a big gun shakes the screen - chapter 17)
             IF setting(SET_XFEEDBACK) THEN crossScale = 0.6 ' The crosshair tightens as you fire
@@ -1381,8 +1515,10 @@ DO
     NEXT
     IF railBeam > 0 THEN railBeam = railBeam - 1
     ' Particles (sparks, embers and dust, drawn by OpenGL - chapter 24) move
-    ' on; dust drifts in around you with the PARTICLES effect on
-    UpdateParticles
+    ' on; dust drifts in around you with the PARTICLES effect on, and swirls
+    ' out of your way as you walk through it (playerX - prevX: this frame's
+    ' step, from chapter 9)
+    UpdateParticles playerX, playerY, playerX - prevX, playerY - prevY
     IF glMode AND setting(SET_PARTICLES) THEN SpawnDust playerX, playerY
 
     IF hurtFlash > 0 THEN hurtFlash = hurtFlash - 1
@@ -1481,9 +1617,11 @@ DO
                     IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
                         cellFloor = floorTex(cellX, cellY) : cellCeil = ceilTex(cellX, cellY)
                         splitCell = floorSplit(cellX, cellY) OR ceilSplit(cellX, cellY)
+                        cellTrack = 0 ' A door's track: 1 running along x, 2 along y (DoorAcross + 1)
+                        IF worldMap(cellX, cellY) = 2 THEN IF doorType(cellX, cellY) <> DOOR_EXIT THEN cellTrack = DoorAcross(cellX, cellY) + 1
                         lightR& = litR(cellX, cellY) * fog& \ 256 : lightG& = litG(cellX, cellY) * fog& \ 256 : lightB& = litB(cellX, cellY) * fog& \ 256
                     ELSE
-                        cellFloor = T_FLOOR + 1 : cellCeil = T_CEIL + 1
+                        cellFloor = T_FLOOR + 1 : cellCeil = T_CEIL + 1 : cellTrack = 0
                         lightR& = ambientR * fog& \ 256 : lightG& = ambientG * fog& \ 256 : lightB& = ambientB * fog& \ 256
                     END IF
                     IF lightR& > 256 THEN lightR& = 256 ' (full brightness at most: then the sums below can't overflow)
@@ -1503,6 +1641,13 @@ DO
                 pixels(floorRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                 texel~& = texture(texU, texV, ceilSlot)
                 pixels(ceilRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                IF cellTrack THEN ' In a doorway: its door's track, a dark groove (a quarter as bright)
+                    IF cellTrack = 1 THEN trackD = ABS(floorY - cellY - 0.5) ELSE trackD = ABS(floorX - cellX - 0.5)
+                    IF trackD < TRACK_HALF THEN
+                        pixels(floorRow + x) = ((pixels(floorRow + x) AND &HFCFCFC) \ 4) OR &HFF000000~&
+                        pixels(ceilRow + x) = ((pixels(ceilRow + x) AND &HFCFCFC) \ 4) OR &HFF000000~&
+                    END IF
+                END IF
                 floorX = floorX + floorStepX : floorY = floorY + floorStepY
             NEXT
         NEXT
@@ -1565,11 +1710,15 @@ DO
     '    shooting (chapter 12).
     '
     ' Some cells aren't simply solid:
-    '   DOORS are drawn on the near face of their cell. The ray stops there
+    '   DOORS are slabs DOOR_THICK thick across the middle of their cell
+    '   (DoorRay works out where a ray meets one). The ray stops at the slab
     '   only where the door still is: a sliding door has slid doorOpen of
-    '   the way across, so a ray hitting the part it slid away from carries
-    '   on into the room beyond. A rising shutter is drawn in a second pass,
-    '   over whatever is behind it ("shutterSeen" remembers it).
+    '   the way across, so a ray crossing where it slid away from carries on
+    '   into the room beyond - unless it meets the door's edge on the way.
+    '   A rising shutter is drawn in a second pass, over whatever is behind
+    '   it ("shutterSeen" remembers it) - and its underside, once it's above
+    '   your eyes. (The exit door, which never opens, stays on its cell's
+    '   face, like a wall.)
     '   DIAGONAL WALLS: entering one, we check where the ray crosses the
     '   cell's diagonal (DiagonalHit, chapter 23). If it does before leaving
     '   the cell, that's the hit, at that distance; otherwise the ray is in
@@ -1584,7 +1733,7 @@ DO
         IF rayDirX < 0 THEN stepX = -1 : sideDistX = (playerX - mapX) * deltaDistX ELSE stepX = 1 : sideDistX = (mapX + 1 - playerX) * deltaDistX
         IF rayDirY < 0 THEN stepY = -1 : sideDistY = (playerY - mapY) * deltaDistY ELSE stepY = 1 : sideDistY = (mapY + 1 - playerY) * deltaDistY
 
-        hit = 0 : side = 0 : shutterSeen = 0 : diagHit = 0
+        hit = 0 : side = 0 : shutterSeen = 0 : diagHit = 0 : doorHit = 0
         IF diagCorner(mapX, mapY) THEN ' Standing in a diagonal wall's open half
             exitDist = sideDistX : IF sideDistY < exitDist THEN exitDist = sideDistY
             diagDist = DiagonalHit(diagCorner(mapX, mapY), mapX, mapY, playerX, playerY, rayDirX, rayDirY, 0, exitDist)
@@ -1607,29 +1756,26 @@ DO
                     IF diagDist >= 0 THEN hit = cellValue : diagHit = diagCorner(mapX, mapY) : perpWallDist = diagDist
                 END IF
             ELSEIF cellValue = 2 THEN
-                IF side = 0 THEN doorDist = (mapX - playerX + (1 - stepX) / 2) / rayDirX : doorU = playerY + doorDist * rayDirY ELSE doorDist = (mapY - playerY + (1 - stepY) / 2) / rayDirY : doorU = playerX + doorDist * rayDirX
-                doorU = doorU - INT(doorU) : doorOpenAmt = doorOpen(mapX, mapY)
-                SELECT CASE doorType(mapX, mapY)
-                    CASE DOOR_SLIDE ' Slides sideways
-                        IF doorU > doorOpenAmt THEN hit = 2
-                    CASE DOOR_SPLIT ' Halves part from the middle
-                        IF doorU < 0.5 - doorOpenAmt / 2 OR doorU > 0.5 + doorOpenAmt / 2 THEN hit = 2
-                    CASE DOOR_EXIT ' Never opens
-                        hit = 2
-                    CASE DOOR_SHUTTER ' Rises: shut, it's a wall; rising, you see under it
-                        IF doorOpenAmt <= 0 THEN
-                            hit = 2
-                        ELSEIF doorOpenAmt < 1 AND shutterSeen = 0 THEN
-                            shutterSeen = -1 : shutterDist = doorDist : shutterU = doorU : shutterOpen = doorOpenAmt : shutterSide = side
-                            IF side = 0 THEN shutterLitX = mapX - stepX : shutterLitY = mapY ELSE shutterLitX = mapX : shutterLitY = mapY - stepY
+                IF doorType(mapX, mapY) = DOOR_EXIT THEN ' Never opens: a wall, on its cell's face
+                    hit = 2
+                ELSE ' A slab across the doorway's middle (DoorRay)
+                    doorHit = DoorRay(mapX, mapY, playerX, playerY, rayDirX, rayDirY, doorDist, doorU, doorSide, doorLitX, doorLitY, doorBack)
+                    IF doorHit = 3 THEN ' A rising shutter: drawn afterwards, over what's behind
+                        IF shutterSeen = 0 THEN
+                            shutterSeen = -1 : shutterDist = doorDist : shutterBack = doorBack : shutterU = doorU : shutterOpen = DoorShown(mapX, mapY)
+                            shutterSide = doorSide : shutterLitX = doorLitX : shutterLitY = doorLitY
                         END IF
-                END SELECT
+                        doorHit = 0
+                    ELSEIF doorHit THEN
+                        hit = 2 : side = doorSide : perpWallDist = doorDist
+                    END IF
+                END IF
             ELSEIF cellValue > 0 THEN
                 hit = cellValue
             END IF
         WEND
 
-        IF diagHit = 0 THEN
+        IF diagHit = 0 AND doorHit = 0 THEN
             IF side = 0 THEN perpWallDist = (mapX - playerX + (1 - stepX) / 2) / rayDirX ELSE perpWallDist = (mapY - playerY + (1 - stepY) / 2) / rayDirY
         END IF
         IF perpWallDist < 0.001 THEN perpWallDist = 0.001
@@ -1642,8 +1788,16 @@ DO
             wallX = playerX + perpWallDist * rayDirX - mapX
             IF diagHit <= 2 THEN wallX = 1 - wallX
             texX = INT(wallX * TEX_SIZE) : texSlot = wallTexSlot(hit)
+        ELSEIF doorHit = 2 THEN ' A door's edge: a thin slice of its picture
+            texX = INT(doorU * DOOR_THICK * TEX_SIZE)
+            SELECT CASE doorType(mapX, mapY)
+                CASE DOOR_SLIDE : IF doorKey(mapX, mapY) THEN texSlot = T_DOORK + doorKey(mapX, mapY) ELSE texSlot = T_DOOR
+                CASE DOOR_SPLIT : texSlot = T_SPLIT
+                CASE ELSE : texSlot = T_SHUTTER
+            END SELECT
         ELSEIF hit = 2 THEN
-            doorOpenAmt = doorOpen(mapX, mapY)
+            IF doorHit THEN wallX = doorU ' (where along the slab)
+            doorOpenAmt = DoorShown(mapX, mapY)
             SELECT CASE doorType(mapX, mapY)
                 CASE DOOR_SLIDE
                     texX = INT((wallX - doorOpenAmt) * TEX_SIZE)
@@ -1677,7 +1831,9 @@ DO
         fog& = 256 - perpWallDist * 16
         IF fog& < 0 THEN fog& = 0
         IF diagHit THEN fog& = fog& * 0.85 ELSE IF side = 1 THEN fog& = fog& * 0.7
-        IF diagHit THEN
+        IF doorHit THEN
+            litX = doorLitX : litY = doorLitY
+        ELSEIF diagHit THEN
             litX = mapX : litY = mapY
         ELSEIF side = 0 THEN
             litX = mapX - stepX : litY = mapY
@@ -1716,6 +1872,16 @@ DO
                     pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), T_SHUTTER), lightR&, lightG&, lightB&)
                     texPos = texPos + texStep
                 NEXT
+                ' Lifted above your eyes, you see its underside: from its front
+                ' edge down to its back edge (further away, so nearer the
+                ' middle of the view), darker
+                IF shutterOpen > 0.5 AND shutterBack > shutterDist THEN
+                    underEnd = INT(RENDER_H / 2 + viewH / shutterBack * (0.5 - shutterOpen))
+                    IF underEnd > RENDER_H - 1 THEN underEnd = RENDER_H - 1
+                    FOR y = drawEnd + 1 TO underEnd
+                        IF y >= 0 THEN pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, TEX_SIZE - 2, T_SHUTTER), lightR& \ 2, lightG& \ 2, lightB& \ 2)
+                    NEXT
+                END IF
             END IF
             IF shutterOpen < 0.5 THEN zBuffer(x) = shutterDist ' Mostly down: things behind it stay hidden
         END IF
@@ -1878,6 +2044,59 @@ DO
     END IF
     shake = shake * 0.85 : IF shake > 16 THEN shake = 16
     '
+    ' Where the gun goes this frame. It's drawn in chapter 18, over the view
+    ' - but placed now, so OpenGL's snapshot (below) can take it along.
+    '
+    ' The gun is lit by where you stand: the light round you (LightAt), in
+    ' its colour - plus your muzzle flash, if OpenGL's moving lights took it
+    ' out of the cells (chapter 14) - its colour made a little stronger
+    ' (GUN_TINT: the level's light is mostly white, which would wash it
+    ' out). It follows the light a fifth of the
+    ' way each frame, so it eases rather than flickers, and never goes
+    ' darker than GUN_DARKEST (it's right in front of your eyes) or brighter
+    ' than GUN_BRIGHTEST.
+    LightAt playerX, playerY, wantR, wantG, wantB
+    IF glMode AND setting(SET_DYNLIGHT) <> 0 AND muzzleFlash > 0 THEN
+        wantR = wantR + 70 * muzzleFlash : wantG = wantG + 40 * muzzleFlash : wantB = wantB + 40 * muzzleFlash
+    END IF
+    wantR = wantR / 256 : wantG = wantG / 256 : wantB = wantB / 256
+    grey = (wantR + wantG + wantB) / 3 ' (its colour pushed further from grey - GUN_TINT - so a coloured light shows)
+    wantR = grey + (wantR - grey) * GUN_TINT : wantG = grey + (wantG - grey) * GUN_TINT : wantB = grey + (wantB - grey) * GUN_TINT
+    IF wantR < GUN_DARKEST THEN wantR = GUN_DARKEST
+    IF wantG < GUN_DARKEST THEN wantG = GUN_DARKEST
+    IF wantB < GUN_DARKEST THEN wantB = GUN_DARKEST
+    IF wantR > GUN_BRIGHTEST THEN wantR = GUN_BRIGHTEST
+    IF wantG > GUN_BRIGHTEST THEN wantG = GUN_BRIGHTEST
+    IF wantB > GUN_BRIGHTEST THEN wantB = GUN_BRIGHTEST
+    gunLightR = gunLightR + (wantR - gunLightR) * 0.2 : gunLightG = gunLightG + (wantG - gunLightG) * 0.2 : gunLightB = gunLightB + (wantB - gunLightB) * 0.2
+    '
+    ' The gun sways as you walk (bobPhase, from chapter 9), kicks when it
+    ' fires (recoil, which shrinks a quarter every frame), and dips out of
+    ' sight to swap.
+    IF recoil > 0 THEN recoil = recoil * 0.75 : IF recoil < 0.02 THEN recoil = 0
+    gunImage& = gunImg&(currentGun)
+    ' Aiming (aimAmount, chapter 8) blends the gun from where it hangs at
+    ' your hip up to your eye: bigger, its muzzle risen to ADS_MUZZLE_Y just
+    ' under the crosshair, and hardly swaying. Its picture must still reach
+    ' past the bottom of the screen, or it would float: a gun whose muzzle
+    ' is halfway down its picture has to grow more to get its muzzle up
+    ' there, so "grow" is worked out per gun. hipY is where the gun sits
+    ' with its bottom 12 pixels below the screen, and it never goes higher.
+    gunH = gunSize(currentGun) : gunW = gunH * _WIDTH(gunImage&) / _HEIGHT(gunImage&)
+    grow = (GUN_Y + 12 - ADS_MUZZLE_Y) / (1 - gunMuzzleY(currentGun)) / gunH ' Just tall enough
+    IF grow < ADS_GUN_GROW THEN grow = ADS_GUN_GROW
+    IF grow > ADS_GUN_GROW_MAX THEN grow = ADS_GUN_GROW_MAX
+    grow = 1 + (grow - 1) * aimAmount
+    gunW = gunW * grow : gunH = gunH * grow
+    hipY = GUN_Y - gunH + 12 : eyeY = ADS_MUZZLE_Y - gunH * gunMuzzleY(currentGun)
+    IF eyeY < hipY THEN eyeY = hipY ' (its bottom never comes up into view)
+    sway = 1 - 0.8 * aimAmount
+    IF setting(SET_BOB) = 0 THEN sway = 0 ' Weapon bobbing switched off (chapter 21)
+    gunX = 400 - gunW * gunMuzzleX(currentGun) + COS(bobPhase / 2) * 10 * sway + shakeX
+    gunY = hipY + (eyeY - hipY) * aimAmount + ABS(SIN(bobPhase / 2)) * 10 * sway + recoil * 36 + shakeY
+    IF swapTimer > 0 THEN gunY = gunY + (SWAP_FRAMES / 2 - ABS(swapTimer - SWAP_FRAMES / 2)) * 40
+    IF dead THEN gunY = gunY + (TIMER - deadAt!) * 400 ' Drops out of view
+    '
     ' With OpenGL (chapter 24) there's no picture to copy: instead we finish
     ' the snapshot - the camera, every cell's light, every door - and then
     ' switch glBuf over to it, in one line, so SUB _GL only ever sees a
@@ -1890,11 +2109,17 @@ DO
         glShakeX(glWrite) = shakeX : glShakeY(glWrite) = shakeY : glShakeEdge(glWrite) = shakeEdge
         FOR i = 1 TO NUM_SETTINGS : glSet(i, glWrite) = setting(i) : NEXT
         glPitch(glWrite) = pitch : glHurt(glWrite) = hurtFlash / 14 : glRail(glWrite) = railBeam / 8
-        IF ABS(pitch) > 0.01 THEN GLMarkWide playerX, playerY, dirX, dirY, fovPlane / zoom, zoom ' (tilted, the view sees past the rays' edges)
+        glGun(glWrite) = 0 : IF gunY < 600 THEN glGun(glWrite) = currentGun ' The gun (0: out of sight), where on our screen
+        glGunX0(glWrite) = gunX : glGunY0(glWrite) = gunY : glGunX1(glWrite) = gunX + gunW : glGunY1(glWrite) = gunY + gunH
+        glGunR(glWrite) = gunLightR : glGunG(glWrite) = gunLightG : glGunB(glWrite) = gunLightB
+        glSideDim(glWrite) = 0 ' (the menu dims the sides of a wide view: GLLiveSettings)
+        ' (tilted, or wide, the view sees past the rays' edges)
+        wideK = WideView : glWide(glWrite) = wideK
+        IF ABS(pitch) > 0.01 OR wideK > 1.01 THEN GLMarkWide playerX, playerY, dirX, dirY, fovPlane / zoom * wideK, zoom
         GLHandOverExtras playerX, playerY, dirX, dirY, muzzleFlash ' Moving lights, particles, explosions (chapter 24)
         FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
             glLitR(x, y, glWrite) = litR(x, y) : glLitG(x, y, glWrite) = litG(x, y) : glLitB(x, y, glWrite) = litB(x, y)
-            glDoor(x, y, glWrite) = doorOpen(x, y)
+            glDoor(x, y, glWrite) = DoorShown(x, y)
             ' Bumps: the middle of the light on this cell (or the cell's own
             ' middle, if it has none), and how much of its light that is
             IF litSumW(x, y) > 0 THEN
@@ -1966,33 +2191,10 @@ DO
     ' The map comes last: the minimap in the corner once you've found the
     ' map pickup, and the full-screen map when Tab is on.
     '
-    ' The gun sways as you walk (bobPhase, from chapter 9), kicks when it
-    ' fires (recoil, which shrinks a quarter every frame), and dips out of
-    ' sight to swap.
-    IF recoil > 0 THEN recoil = recoil * 0.75 : IF recoil < 0.02 THEN recoil = 0
-    gunImage& = gunImg&(currentGun)
-    ' Aiming (aimAmount, chapter 8) blends the gun from where it hangs at
-    ' your hip up to your eye: bigger, its muzzle risen to ADS_MUZZLE_Y just
-    ' under the crosshair, and hardly swaying. Its picture must still reach
-    ' past the bottom of the screen, or it would float: a gun whose muzzle
-    ' is halfway down its picture has to grow more to get its muzzle up
-    ' there, so "grow" is worked out per gun. hipY is where the gun sits
-    ' with its bottom 12 pixels below the screen, and it never goes higher.
-    gunW = _WIDTH(gunImage&) * gunScale(currentGun) : gunH = _HEIGHT(gunImage&) * gunScale(currentGun)
-    grow = (GUN_Y + 12 - ADS_MUZZLE_Y) / (1 - gunMuzzleY(currentGun)) / gunH ' Just tall enough
-    IF grow < ADS_GUN_GROW THEN grow = ADS_GUN_GROW
-    IF grow > ADS_GUN_GROW_MAX THEN grow = ADS_GUN_GROW_MAX
-    grow = 1 + (grow - 1) * aimAmount
-    gunW = gunW * grow : gunH = gunH * grow
-    hipY = GUN_Y - gunH + 12 : eyeY = ADS_MUZZLE_Y - gunH * gunMuzzleY(currentGun)
-    IF eyeY < hipY THEN eyeY = hipY ' (its bottom never comes up into view)
-    sway = 1 - 0.8 * aimAmount
-    IF setting(SET_BOB) = 0 THEN sway = 0 ' Weapon bobbing switched off (chapter 21)
-    gunX = 400 - gunW * gunMuzzleX(currentGun) + COS(bobPhase / 2) * 10 * sway + shakeX
-    gunY = hipY + (eyeY - hipY) * aimAmount + ABS(SIN(bobPhase / 2)) * 10 * sway + recoil * 36 + shakeY
-    IF swapTimer > 0 THEN gunY = gunY + (SWAP_FRAMES / 2 - ABS(swapTimer - SWAP_FRAMES / 2)) * 40
-    IF dead THEN gunY = gunY + (TIMER - deadAt!) * 400 ' Drops out of view
-    IF gunY < 600 THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), gunImage&
+    ' The gun was placed in chapter 17 (gunX, gunY, gunW, gunH): drawn here
+    ' - or with OpenGL, by the graphics card, at the window's own size
+    ' (chapter 24), under all of this
+    IF gunY < 600 AND NOT glMode THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun) ' (in its light)
     IF muzzleFlash > 0 THEN ' Muzzle flash, and a flicker of light on everything
         muzzleFlash = muzzleFlash - 1
         LINE (0, 0)-(799, 599), _RGBA32(255, 120, 120, 18), BF
@@ -2100,8 +2302,12 @@ DO
     IF glMode THEN viewMs = viewMs + glMs
     viewAvg = viewAvg * 0.9 + viewMs * 0.1
     IF setting(SET_FPS) THEN
-        IF glMode THEN fpsText$ = "OPENGL" ELSE fpsText$ = "SOFTWARE"
-        fpsText$ = fpsText$ + "   FPS" + STR$(fpsShown) + "   3D VIEW" + STR$(INT(viewAvg * 10) / 10) + " MS"
+        ' Every part padded to the same width (RIGHT$ of spaces and the number),
+        ' so the line doesn't shift about as the numbers grow and shrink
+        IF glMode THEN fpsText$ = "  OPENGL" ELSE fpsText$ = "SOFTWARE"
+        tenths = INT(viewAvg * 10 + 0.5) : IF tenths > 9999 THEN tenths = 9999
+        msText$ = LTRIM$(STR$(tenths \ 10)) + "." + LTRIM$(STR$(tenths MOD 10))
+        fpsText$ = fpsText$ + "   FPS" + RIGHT$("   " + STR$(fpsShown), 4) + "   3D VIEW" + RIGHT$("     " + msText$, 6) + " MS"
         HudText 400 - LEN(fpsText$) * 4, 8, fpsText$, _RGB32(255, 255, 120)
     END IF
 
@@ -2110,6 +2316,7 @@ DO
     ' the screen for SUB _GL, and our own screen layer is switched off
     IF glMode THEN GLSL_filter_capture
     GLScreenLayer glMode
+    DisplayFollow ' (Alt + Enter changes the DISPLAY setting - chapter 21)
     _DISPLAY ' Show the finished frame (chapter 7)
 LOOP ' (forever: you leave the game from the menu - chapter 21)
 
@@ -2226,6 +2433,7 @@ FOR blastSlot = 1 TO MAX_BLASTS
         blastX(blastSlot) = newBlastX : blastY(blastSlot) = newBlastY
         blastSize(blastSlot) = newBlastSize : blastTime(blastSlot) = BLAST_FRAMES
         SpawnEmbers newBlastX, newBlastY, newBlastSize ' (and a burst of embers: chapter 24's particles)
+        StirDust newBlastX, newBlastY, 0, 0, 1 + 3 * newBlastSize, 0.09 * newBlastSize ' (and blows the dust away)
         EXIT FOR
     END IF
 NEXT
@@ -2395,7 +2603,7 @@ LoadLevel:
 glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
 FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
-    worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorKey(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0
+    worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorKey(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0
     floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
     cellSeen(x, y) = 0
 NEXT : NEXT
@@ -2528,6 +2736,7 @@ FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
     IF worldMap(x, y) = 2 AND doorType(x, y) = DOOR_EXIT THEN AddLight x + 0.5, y + 0.5, 3.5, 50, 160, 70, FX_PULSE, 0
 NEXT : NEXT
 BuildLights ' Which cells each light reaches (now the walls are all in place)
+BuildShafts ' ...and which have a beam of light (chapter 24)
 ' The camera plane (chapter 8): your direction turned 90 degrees, fovPlane long
 planeX = dirY * fovPlane : planeY = - dirX * fovPlane
 aimAmount = 0 : zoom = 1 : viewH = RENDER_H
@@ -2614,6 +2823,7 @@ menuDone = 0 : menuCapture = 0 : menuDrag = 0 : mouseWasDown = -1
 _KEYCLEAR
 DO
     _LIMIT 60
+    DisplayFollow ' (Alt + Enter changes DISPLAY)
     menuT = menuT + 1
 
     ' The keyboard: every press since last frame, one at a time
@@ -2640,7 +2850,7 @@ DO
     ' drag along a slider to set it. (Pointing only takes over when the
     ' mouse moves, so it doesn't fight the keyboard.)
     WHILE _MOUSEINPUT : WEND
-    mouseX = _MOUSEX : mouseY = _MOUSEY : mouseDown = _MOUSEBUTTON(1)
+    mouseX = WideMouseX(_MOUSEX) : mouseY = _MOUSEY : mouseDown = _MOUSEBUTTON(1)
     IF NOT menuDone AND menuCapture = 0 THEN
         overItem = MenuItemAt(mouseX, mouseY)
         IF overItem > 0 AND overItem <> menuSel AND (mouseX <> lastMouseX OR mouseY <> lastMouseY) THEN
@@ -2678,6 +2888,7 @@ DO
             DrawMenuBackdrop menuT
         END IF
         DrawMenu menuT
+        IF glReady THEN GLLiveSettings ' (so OpenGL shows a change as you make it: chapter 24)
         IF glReady THEN GLSL_filter_capture ' (OpenGL draws the menu over its view: chapter 24)
         GLScreenLayer glReady
         _DISPLAY
@@ -2854,6 +3065,9 @@ FOR k = 1 TO 3 : GET #fileNum, , hasCard(k) : NEXT
 GET #fileNum, , hasMap
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , cellSeen(x, y) : NEXT : NEXT
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , doorOpen(x, y) : NEXT : NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (open doors wait their full time again, then shut)
+    doorMove(x, y) = 0 : doorWait(x, y) = 0 : IF doorOpen(x, y) >= 1 THEN doorWait(x, y) = DoorHold(doorType(x, y))
+NEXT : NEXT
 ' The level must have the same things in it as when it was saved
 GET #fileNum, , savedCount : IF savedCount <> numItems THEN GOSUB LoadMismatch : RETURN
 FOR i = 1 TO numItems : GET #fileNum, , itemOn(i) : NEXT
@@ -3528,6 +3742,124 @@ END FUNCTION
 
 ' Can a body be at map point (x, y)? Open floor or a mostly-open door, and
 ' not inside a decoration - or, in a diagonal wall's cell, in its open half.
+' Each kind of door's own ways (chapter 11): how much it opens or shuts a
+' frame (shutters are heavy and slow, split doors snap), how many frames it
+' stays open before shutting itself, and its sound
+FUNCTION DoorSpeed(kind)
+    SELECT CASE kind
+        CASE DOOR_SHUTTER : DoorSpeed = 0.025
+        CASE DOOR_SPLIT : DoorSpeed = 0.06
+        CASE ELSE : DoorSpeed = 0.04
+    END SELECT
+END FUNCTION
+
+FUNCTION DoorHold(kind)
+    SELECT CASE kind
+        CASE DOOR_SHUTTER : DoorHold = 360 ' 6 seconds
+        CASE DOOR_SPLIT : DoorHold = 180 ' 3
+        CASE ELSE : DoorHold = 240 ' 4
+    END SELECT
+END FUNCTION
+
+' How open door (x, y) LOOKS: never all the way - DOOR_LIP of it always
+' shows (a shutter's bottom edge hangs at the top of the doorway, a
+' sliding door's edge stands at the side, a split door's two edges at
+' both), so an open door is still there. Walking through goes by
+' doorOpen itself.
+FUNCTION DoorShown(x, y)
+    DoorShown = doorOpen(x, y) * (1 - DOOR_LIP)
+END FUNCTION
+
+' Which way door (cx, cy) runs: 0 along x (walls at its ends, west and
+' east; its faces look north and south), 1 along y
+FUNCTION DoorAcross(cx, cy)
+    IF cx > 0 AND cx < MAP_SIZE - 1 THEN
+        IF IsWall(cx - 1, cy) OR IsWall(cx + 1, cy) THEN EXIT FUNCTION
+    END IF
+    DoorAcross = 1
+END FUNCTION
+
+' Where does a ray from (px, py), going (rdx, rdy), meet door (cx, cy)'s
+' slab? It's easiest in the door's own directions: "a" along the door (0
+' at one end of the doorway, 1 at the other) and "n" through it (0 on its
+' middle line, the slab's faces at -half and +half). Then:
+'   its face: the one towards the ray, at n = -half (or +half) - hit if
+'   the door's still there at that a (a sliding door covers a from
+'   DoorShown to 1; a split door's halves cover the two ends)
+'   an edge: missing the face, the ray goes through the gap - and meets a
+'   door's edge if it crosses that edge's a between the faces
+' Returns 0 (missed), 1 (its face), 2 (an edge) or 3 (a lifted shutter:
+' drawn later). t: how far (in the ray's own steps, so as perpWallDist);
+' u: where along the face (or across the edge, 0..1); side: 0 for a face
+' looking east or west, 1 north or south (chapter 15 shades those
+' darker); (litX, litY): the cell whose light falls on it; back: how far
+' to the far face (for a shutter's underside).
+FUNCTION DoorRay(cx, cy, px, py, rdx, rdy, t, u, side, litX, litY, back)
+    half = DOOR_THICK / 2 : shown = DoorShown(cx, cy) : kind = doorType(cx, cy)
+    IF DoorAcross(cx, cy) = 0 THEN
+        pa = px - cx : pn = py - cy - 0.5 : da = rdx : dn = rdy : faceSide = 1 : edgeSide = 0
+    ELSE
+        pa = py - cy : pn = px - cx - 0.5 : da = rdy : dn = rdx : faceSide = 0 : edgeSide = 1
+    END IF
+    IF dn <> 0 THEN ' Its face
+        tFace = (-half * SGN(dn) - pn) / dn
+        IF tFace > 0 THEN
+            a = pa + tFace * da
+            IF a >= 0 AND a <= 1 THEN
+                covered = 0
+                SELECT CASE kind
+                    CASE DOOR_SLIDE : covered = a >= shown
+                    CASE DOOR_SPLIT : covered = a <= 0.5 - shown / 2 OR a >= 0.5 + shown / 2
+                    CASE ELSE : covered = -1
+                END SELECT
+                IF covered THEN
+                    t = tFace : u = a : side = faceSide : back = (half * SGN(dn) - pn) / dn
+                    IF faceSide = 1 THEN litX = cx : litY = cy - SGN(dn) ELSE litX = cx - SGN(dn) : litY = cy
+                    DoorRay = 1
+                    IF kind = DOOR_SHUTTER AND shown > 0 THEN DoorRay = 3
+                    EXIT FUNCTION
+                END IF
+            END IF
+        END IF
+    END IF
+    IF da <> 0 AND kind <> DOOR_SHUTTER THEN ' An edge, seen through the gap
+        IF kind = DOOR_SLIDE THEN
+            IF da > 0 THEN e = shown ELSE EXIT FUNCTION ' (its one edge faces back towards a = 0)
+        ELSE
+            IF da > 0 THEN e = 0.5 + shown / 2 ELSE e = 0.5 - shown / 2
+        END IF
+        tEdge = (e - pa) / da
+        IF tEdge > 0 THEN
+            n = pn + tEdge * dn
+            IF ABS(n) <= half THEN
+                t = tEdge : u = (n + half) / (2 * half) : side = edgeSide : litX = cx : litY = cy
+                DoorRay = 2
+            END IF
+        END IF
+    END IF
+END FUNCTION
+
+FUNCTION DoorSnd&(kind)
+    SELECT CASE kind
+        CASE DOOR_SHUTTER : DoorSnd& = sndShutter&
+        CASE DOOR_SPLIT : DoorSnd& = sndSplit&
+        CASE ELSE : DoorSnd& = sndDoor&
+    END SELECT
+END FUNCTION
+
+' Is anyone in door (dx, dy)'s doorway - you (at px, py) or a monster
+' still standing - so it mustn't shut? (Your body reaches PLAYER_RADIUS
+' past your middle, so you can be in it while your middle is next door.)
+FUNCTION DoorBlocked(dx, dy, px, py)
+    edge = 0.5 + PLAYER_RADIUS
+    IF ABS(px - (dx + 0.5)) < edge AND ABS(py - (dy + 0.5)) < edge THEN DoorBlocked = -1 : EXIT FUNCTION
+    FOR i = 1 TO numMonsters
+        IF monsterState(i) < 2 THEN
+            IF ABS(monsterX(i) - (dx + 0.5)) < 0.85 AND ABS(monsterY(i) - (dy + 0.5)) < 0.85 THEN DoorBlocked = -1 : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
 FUNCTION Walkable%(x, y)
     cellX = INT(x) : cellY = INT(y)
     IF diagCorner(cellX, cellY) THEN Walkable% = NOT InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) : EXIT FUNCTION
@@ -3714,6 +4046,69 @@ SUB LoadGun(gun, file$)
     _SOURCE 0
     IF bestRun < MUZZLE_MIN_WIDTH THEN y = 0 : runEnd = imgW / 2 : bestRun = 1
     gunMuzzleX(gun) = (runEnd - bestRun / 2 + 1) / imgW : gunMuzzleY(gun) = (y + 0.5) / imgH
+    ' OpenGL's copy: each colour times its alpha (so a half see-through
+    ' pixel is also half as bright), the way GLDrawHUD lays pictures on
+    ' - then a smoothed edge blends into what's behind, not into black
+    DIM picture AS _MEM, col AS _UNSIGNED LONG
+    picture = _MEMIMAGE(gunImg&(gun))
+    gunGLW(gun) = imgW : gunGLH(gun) = imgH : gunGLMem(gun) = _MEMNEW(imgW * imgH * 4)
+    FOR i& = 0 TO imgW * imgH - 1
+        col = _MEMGET(picture, picture.OFFSET + i& * 4, _UNSIGNED LONG) : a& = _SHR(col, 24)
+        r& = (_SHR(col, 16) AND 255) * a& \ 255 : g& = (_SHR(col, 8) AND 255) * a& \ 255 : b& = (col AND 255) * a& \ 255
+        _MEMPUT gunGLMem(gun), gunGLMem(gun).OFFSET + i& * 4, _RGBA32(r&, g&, b&, a&) AS _UNSIGNED LONG
+    NEXT
+    _MEMFREE picture
+    ' The software renderer's copy, shrunk if it's very big (TintedGun&
+    ' colours it, often - the fewer pixels the better)
+    IF imgH > GUN_SOFT_MAX THEN
+        gunSoftImg&(gun) = _NEWIMAGE(imgW * GUN_SOFT_MAX \ imgH, GUN_SOFT_MAX, 32)
+        _PUTIMAGE , gunImg&(gun), gunSoftImg&(gun)
+    ELSE
+        gunSoftImg&(gun) = _COPYIMAGE(gunImg&(gun), 32)
+    END IF
+END SUB
+
+' The gun in its light, for the software renderer: gun's picture with each
+' pixel's red, green and blue times the light on it (gunLightR...). Doing
+' that to every pixel takes a moment, so it's kept, and only done again
+' when the light has changed by a sixteenth or more (or it's another gun).
+FUNCTION TintedGun&(gun)
+    STATIC tinted&, lastGun, lastR, lastG, lastB
+    qr = INT(gunLightR * 16) : qg = INT(gunLightG * 16) : qb = INT(gunLightB * 16)
+    IF tinted& <> 0 AND gun = lastGun AND qr = lastR AND qg = lastG AND qb = lastB THEN TintedGun& = tinted& : EXIT FUNCTION
+    IF tinted& <> 0 AND gun <> lastGun THEN _FREEIMAGE tinted& : tinted& = 0
+    IF tinted& = 0 THEN tinted& = _COPYIMAGE(gunSoftImg&(gun), 32)
+    lastGun = gun : lastR = qr : lastG = qg : lastB = qb
+    DIM src AS _MEM, dst AS _MEM, col AS _UNSIGNED LONG
+    src = _MEMIMAGE(gunSoftImg&(gun)) : dst = _MEMIMAGE(tinted&)
+    mr& = qr * 16 : mg& = qg * 16 : mb& = qb * 16 ' (times 256: whole numbers are quicker)
+    FOR i& = 0 TO src.SIZE \ 4 - 1
+        col = _MEMGET(src, src.OFFSET + i& * 4, _UNSIGNED LONG)
+        r& = (_SHR(col, 16) AND 255) * mr& \ 256 : IF r& > 255 THEN r& = 255
+        g& = (_SHR(col, 8) AND 255) * mg& \ 256 : IF g& > 255 THEN g& = 255
+        b& = (col AND 255) * mb& \ 256 : IF b& > 255 THEN b& = 255
+        _MEMPUT dst, dst.OFFSET + i& * 4, _RGBA32(r&, g&, b&, _SHR(col, 24)) AS _UNSIGNED LONG
+    NEXT
+    _MEMFREE src : _MEMFREE dst
+    TintedGun& = tinted&
+END FUNCTION
+
+' The light at map point (x, y): the four nearest cells' light (litR...),
+' blended by how near each one's middle is, skipping walls - so it doesn't
+' jump as you step from one cell to the next. 256 = full.
+SUB LightAt(x, y, r, g, b)
+    fx = x - 0.5 : fy = y - 0.5 : ix = INT(fx) : iy = INT(fy) : tx = fx - ix : ty = fy - iy
+    r = 0 : g = 0 : b = 0 : sw = 0
+    FOR j = 0 TO 1 : FOR i = 0 TO 1
+        cx = ix + i : cy = iy + j
+        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+            IF NOT IsWall(cx, cy) OR diagCorner(cx, cy) <> 0 THEN
+                w = (i * tx + (1 - i) * (1 - tx)) * (j * ty + (1 - j) * (1 - ty))
+                r = r + litR(cx, cy) * w : g = g + litG(cx, cy) * w : b = b + litB(cx, cy) * w : sw = sw + w
+            END IF
+        END IF
+    NEXT : NEXT
+    IF sw > 0.0001 THEN r = r / sw : g = g / sw : b = b / sw ELSE r = ambientR : g = ambientG : b = ambientB
 END SUB
 
 ' Add `amount` of ammo type ammoType, up to the most you can carry. Returns
@@ -3857,9 +4252,56 @@ END SUB
 
 ' Is the key bound to bindNum held down? Letters are stored lower case, so
 ' check the upper-case code too (it's what _KEYDOWN sees with Shift held).
+'
+' A letter key is two codes - "w" and, with Shift, "W" - so either counts.
+' But QB64PE can lose one: hold W, press or let go of Shift, and the key's
+' repeats switch from one code to the other; letting go of W then lets go
+' of the new one only, and the old one stays "held" forever (you'd keep
+' walking). So a letter also has to be held where it sits on the keyboard
+' (KeyAt%) - and holding Shift to run works. (Only once the keyboard device
+' has shown it works - keyTrusted, the first time it agrees with a key
+' that's really down. Until then, or without it, letters work as before.)
 FUNCTION KeyHeld%(bindNum)
     code& = keyBind&(bindNum)
-    IF code& >= 97 AND code& <= 122 THEN KeyHeld% = _KEYDOWN(code&) OR _KEYDOWN(code& - 32) ELSE KeyHeld% = _KEYDOWN(code&)
+    IF code& >= 97 AND code& <= 122 THEN
+        typed = _KEYDOWN(code&) OR _KEYDOWN(code& - 32)
+        IF keyDevice THEN
+            here = KeyAt%(code&)
+            IF here AND typed THEN keyTrusted = -1
+            IF keyTrusted THEN typed = typed AND here
+        END IF
+        KeyHeld% = typed
+    ELSE
+        KeyHeld% = _KEYDOWN(code&)
+    END IF
+END FUNCTION
+
+' A digit key (1-9, 0): by what it types, or - since Shift + 1 types "!",
+' and you might be running - by where it is
+FUNCTION DigitHeld%(code&)
+    DigitHeld% = _KEYDOWN(code&)
+    IF keyTrusted THEN IF KeyAt%(code&) THEN DigitHeld% = -1
+END FUNCTION
+
+' Is the key that types code& (a lower case letter, or a digit) held down
+' - by where it is on the keyboard, not what it types, so Shift doesn't
+' change it (Shift + 1 types "!")? QB64PE's keyboard "device" (_DEVICES,
+' found at the start: keyDevice) reports keys by their scancode, a number
+' for each place on the keyboard: _DEVICEINPUT(1) takes its news (we take
+' all of it, to be up to date), and _BUTTON(n) is a key. Which n is the
+' system's own number for the key, plus 1: on Windows the PC's scancode,
+' on Linux the same plus 8 (keyScanAdd, set at the start). 0 without the
+' device.
+FUNCTION KeyAt%(code&)
+    IF keyDevice = 0 THEN EXIT FUNCTION
+    SELECT CASE code&
+        CASE 97 TO 122 : scan = ASC(MID$(LETTER_SCANS, code& - 96, 1)) - 32
+        CASE 49 TO 57 : scan = code& - 47 ' 1-9 sit at scancodes 2-10
+        CASE 48 : scan = 11
+        CASE ELSE : EXIT FUNCTION
+    END SELECT
+    DO WHILE _DEVICEINPUT(1) : LOOP
+    KeyAt% = _BUTTON(scan + keyScanAdd + 1)
 END FUNCTION
 
 ' A key code's name, for the menu and the settings file
@@ -3896,7 +4338,79 @@ SUB ApplySettings
     fovPlane = TAN(setting(SET_FOV) / 2 * 3.14159265 / 180)
     turnSpeed = setting(SET_MOUSE) * 0.0006
     IF nowPlaying& > 0 THEN _SNDVOL nowPlaying&, setting(SET_MUSIC) / 100
+    ApplyDisplay
 END SUB
+
+' DISPLAY: a window, or full screen - switched only when it needs to be
+' (displayAsked, displayModeNow: what was last put into effect), as switching
+' blanks the screen for a moment. _FULLSCREEN _STRETCH fills the screen;
+' _SQUAREPIXELS keeps our 4:3 shape - and puts black bars over the sides,
+' after everything else is drawn. So FULL WIDE, with OpenGL, is stretched:
+' OpenGL draws the 3D view across all of it, and puts our screen (the
+' HUD, the menus) in the 4:3 middle itself (chapter 24); WideMouseX moves
+' the mouse to match. (The software renderer can't draw wider than 4:3,
+' so for it FULL WIDE is 4:3.)
+SUB ApplyDisplay
+    want = DisplayMode(setting(SET_DISPLAY))
+    IF setting(SET_DISPLAY) = displayAsked AND want = displayModeNow THEN EXIT SUB
+    displayAsked = setting(SET_DISPLAY) : displayModeNow = want
+    SELECT CASE want
+        CASE 1 : _FULLSCREEN _STRETCH
+        CASE 2 : _FULLSCREEN _SQUAREPIXELS
+        CASE ELSE : _FULLSCREEN _OFF
+    END SELECT
+END SUB
+
+' QB64PE's _FULLSCREEN number for DISPLAY choice d: 0 off, 1 stretched, 2
+' square pixels
+FUNCTION DisplayMode(d)
+    SELECT CASE d
+        CASE 2 : IF setting(SET_RENDERER) = 2 THEN DisplayMode = 1 ELSE DisplayMode = 2
+        CASE 3 : DisplayMode = 2
+        CASE 4 : DisplayMode = 1
+    END SELECT
+END FUNCTION
+
+' With FULL WIDE, our screen is stretched across the whole display, but
+' drawn in its 4:3 middle - so QB64PE's mouse x (mx, across the stretched
+' screen) is moved to where that is on our screen
+FUNCTION WideMouseX(mx)
+    WideMouseX = mx
+    IF WideView <= 1.01 OR _DESKTOPHEIGHT < 1 THEN EXIT FUNCTION
+    winX = mx * _DESKTOPWIDTH / 800 ' (where on the display)
+    middleW = _DESKTOPHEIGHT * 4 / 3 : edge = (_DESKTOPWIDTH - middleW) / 2
+    WideMouseX = (winX - edge) * 800 / middleW
+END FUNCTION
+
+' Alt + Enter switches full screen too (QB64PE does that itself). So once
+' a frame: if _FULLSCREEN has changed, and not to what we asked for, it was
+' Alt + Enter - and DISPLAY follows it (and is saved with the settings).
+SUB DisplayFollow
+    STATIC lastMode
+    nowMode = _FULLSCREEN
+    IF nowMode <> lastMode THEN
+        IF nowMode <> DisplayMode(displayAsked) THEN
+            SELECT CASE nowMode
+                CASE 1 : displayAsked = 4
+                CASE 2 : displayAsked = 3
+                CASE ELSE : displayAsked = 1
+            END SELECT
+            setting(SET_DISPLAY) = displayAsked : displayModeNow = nowMode
+        END IF
+        lastMode = nowMode
+    END IF
+END SUB
+
+' How much wider than 4:3 the 3D view is: with DISPLAY at FULL WIDE, in
+' full screen, with OpenGL, the screen's shape over 4:3 (1.33 on a 16:9
+' screen); otherwise 1
+FUNCTION WideView
+    WideView = 1
+    IF setting(SET_DISPLAY) <> 2 OR _FULLSCREEN <> 1 OR setting(SET_RENDERER) <> 2 THEN EXIT FUNCTION
+    IF _DESKTOPHEIGHT < 1 THEN EXIT FUNCTION
+    k = _DESKTOPWIDTH / _DESKTOPHEIGHT * 3 / 4
+    IF k > 1 THEN WideView = k
+END FUNCTION
 
 ' Left (-1) or right (1) on setting id: a slider moves a step (and stops at
 ' its ends), a choice goes round to the next one, a toggle flips
@@ -3929,12 +4443,15 @@ END SUB
 FUNCTION SettingText$(id)
     v$ = LTRIM$(STR$(setting(id)))
     SELECT CASE id
-        CASE SET_SFX, SET_MUSIC, SET_SPEECH, SET_XALPHA : SettingText$ = v$ + "%"
+        CASE SET_SFX, SET_MUSIC, SET_SPEECH, SET_XALPHA, SET_SCANLINES, SET_PHOSPHOR, SET_SCANTHICK, SET_AIMSENS : SettingText$ = v$ + "%"
+        CASE SET_SCANGAP : SettingText$ = v$ + " PX"
         CASE SET_FOV : SettingText$ = v$ + CHR$(248) ' (a degree sign in QB64PE's font)
         CASE SET_XSTYLE : SettingText$ = CrossStyleName$(setting(id))
         CASE SET_XCOLOR : SettingText$ = CrossColorName$(setting(id))
         CASE SET_RENDERER : IF setting(id) = 2 THEN SettingText$ = "OPENGL" ELSE SettingText$ = "SOFTWARE"
         CASE SET_SCREENFX : SettingText$ = MID$("OFF      SCANLINESCRT      ", setting(id) * 9 - 8, 9)
+        CASE SET_RES : SettingText$ = ResName$(setting(id))
+        CASE SET_DISPLAY : SettingText$ = RTRIM$(MID$("WINDOWED    FULL WIDE   FULL 4:3    FULL STRETCH", setting(id) * 12 - 11, 12))
         CASE ELSE : SettingText$ = v$
     END SELECT
 END FUNCTION
@@ -3956,6 +4473,7 @@ SUB LoadSettings
             FOR i = 1 TO NUM_SETTINGS
                 IF iniKey$ = setKey$(i) AND v >= setMin(i) AND v <= setMax(i) THEN setting(i) = v
             NEXT
+            IF iniKey$ = "retro_res" AND v = 1 THEN setting(SET_RES) = RES_RETRO ' (what RESOLUTION was called once)
             FOR i = 1 TO NUM_BINDS
                 IF iniKey$ = bindKey$(i) AND v > 0 THEN keyBind&(i) = v
             NEXT
@@ -4054,14 +4572,17 @@ SUB BuildMenu(scr)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_VIDEO
             menuTitle$ = "VIDEO" : menuWide = -1
-            AddSettingItem SET_RENDERER : AddSettingItem SET_RETRO : AddSettingItem SET_LOOK : AddSettingItem SET_FPS
-            AddMenuItem "RETRO, LOOK UP / DOWN AND EFFECTS: OPENGL", MI_TEXT, 0, 0, 0, ""
+            AddSettingItem SET_DISPLAY : AddSettingItem SET_RENDERER : AddSettingItem SET_FPS
+            AddMenuItem "OPENGL ONLY:", MI_TEXT, 0, 0, 0, ""
+            AddSettingItem SET_RES : AddSettingItem SET_LOOK
+            AddSettingItem SET_SCREENFX : AddSettingItem SET_SCANLINES : AddSettingItem SET_SCANGAP
+            AddSettingItem SET_SCANTHICK : AddSettingItem SET_PHOSPHOR
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_EFFECTS
             menuTitle$ = "EFFECTS (OPENGL)" : menuWide = -1
             AddSettingItem SET_BUMP : AddSettingItem SET_SMOOTH : AddSettingItem SET_NEON : AddSettingItem SET_DYNLIGHT
-            AddSettingItem SET_SHADOWS : AddSettingItem SET_GLOW : AddSettingItem SET_PARTICLES : AddSettingItem SET_REFLECT
-            AddSettingItem SET_BLOOM : AddSettingItem SET_SCREENFX : AddSettingItem SET_HITFX
+            AddSettingItem SET_SHADOWS : AddSettingItem SET_GLOW : AddSettingItem SET_PARTICLES : AddSettingItem SET_SHAFTS : AddSettingItem SET_REFLECT
+            AddSettingItem SET_BLOOM : AddSettingItem SET_HITFX
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_AUDIO
             menuTitle$ = "AUDIO" : menuWide = -1
@@ -4071,7 +4592,7 @@ SUB BuildMenu(scr)
             menuTitle$ = "GAMEPLAY" : menuWide = -1
             AddSettingItem SET_FOV : AddSettingItem SET_XSTYLE : AddSettingItem SET_XCOLOR
             AddSettingItem SET_XSIZE : AddSettingItem SET_XALPHA : AddSettingItem SET_XFEEDBACK
-            AddSettingItem SET_BOB : AddSettingItem SET_SHAKE : AddSettingItem SET_HURTDIR
+            AddSettingItem SET_BOB : AddSettingItem SET_SHAKE : AddSettingItem SET_HURTDIR : AddSettingItem SET_AIMSENS
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_CONTROLS
             menuTitle$ = "CONTROLS" : menuWide = -1
@@ -4667,13 +5188,15 @@ END SUB
 '
 ' THE EXTRAS (SETTINGS > EFFECTS): bump mapping, smooth light, neon,
 ' moving lights, shadows, glows, particles, wet floors, bloom, screen and
-' hit effects - and in SETTINGS > VIDEO, retro resolution and looking up
+' hit effects - and in SETTINGS > VIDEO, the resolution and looking up
 ' and down. Most are done with shaders: little programs the card runs for
 ' every corner and every pixel (GLBuildShaders, near the end of the
 ' chapter, explains them).
 '
-' What's different? The view is drawn at the window's full size, not half
-' size, so its edges are sharp (the textures stay chunky). Sprites can't
+' What's different? The view is drawn at the window's full size (or the
+' RESOLUTION you pick), not half size, so its edges are sharp (the
+' textures stay chunky). So is the gun - it gets its own picture on the
+' card (GLDrawGun), so a gun drawn in more detail shows it. Sprites can't
 ' be lit brighter than their picture (a colour can't go past 1 on the
 ' card). Otherwise, it's the same game - same maths, same light.
 SUB _GL
@@ -4681,6 +5204,7 @@ SUB _GL
     glStart# = TIMER(0.001)
     b = glBuf ' The newest finished snapshot
     IF glTexDone <> glTexVersion THEN GLSendTextures : GLBuildMesh ' (a new level)
+    IF glGunTex(1) = 0 THEN GLSendGuns ' (once)
     IF glWorldTried = 0 THEN GLBuildShaders
     glGPU = (glWorldProg <> 0 AND glMeshBuf <> 0) ' The world mesh, lit by the shader from the light tables
 
@@ -4700,21 +5224,33 @@ SUB _GL
             h = INT(vw * 600 / 800) : vy = INT((vh - h) / 2) : vh = h
         END IF
     END IF
+    ' That's where our screen is (the HUD, the gun, the menus: hx, hy, hw,
+    ' hh). FULL WIDE: the 3D view fills the whole window, and sees as much
+    ' more to the sides as the window is wider than 4:3 (glAspectK).
+    hx = vx : hy = vy : hw = vw : hh = vh : glAspectK = 1
+    IF glWide(b) > 1.01 AND glFullMode(b) = 1 AND vw * 3 > vh * 4 THEN
+        hw = INT(vh * 4 / 3) : hx = INT((vw - hw) / 2) ' (the window, stretched: our screen in its middle)
+        glAspectK = vw / vh * 3 / 4
+    END IF
 
-    ' POST-PROCESSING. With BLOOM, a SCREEN FX, HIT FX or RETRO RESOLUTION
-    ' on, the 3D view isn't drawn on the window but into a texture (a
-    ' "render target", from the GLSL library) - so that afterwards a shader
-    ' can read the finished picture and do things to all of it at once
-    ' (GLPostProcess). RETRO RESOLUTION draws it at the software renderer's
-    ' 400 x 300 and blows it up with square pixels, as chapter 17 does.
-    glPost = 0
+    ' POST-PROCESSING. With BLOOM, a SCREEN FX, HIT FX or a RESOLUTION
+    ' other than NATIVE on, the 3D view isn't drawn on the window but into
+    ' a texture (a "render target", from the GLSL library) - so that
+    ' afterwards a shader can read the finished picture and do things to
+    ' all of it at once (GLPostProcess). With a RESOLUTION, that texture is
+    ' its size (ResSize) and gets stretched over the window: smoothly - or
+    ' for RETRO, the software renderer's 400 x 300, with square pixels, as
+    ' chapter 17 does. A size bigger than the window is smoother than the
+    ' window's own: each pixel is the average of the several drawn for it
+    ' ("supersampling" - the dearest way to get smooth edges).
+    glPost = 0 : res = glSet(SET_RES, b)
     IF glPostProg <> 0 THEN
-        IF glSet(SET_BLOOM, b) OR glSet(SET_SCREENFX, b) > 1 OR glSet(SET_HITFX, b) OR glSet(SET_RETRO, b) THEN glPost = -1
+        IF glSet(SET_BLOOM, b) OR glSet(SET_SCREENFX, b) > 1 OR glSet(SET_HITFX, b) OR glSet(SET_PHOSPHOR, b) OR res <> RES_NATIVE THEN glPost = -1
     END IF
     IF glPost THEN
         sw = vw : sh = vh
-        IF glSet(SET_RETRO, b) THEN sw = RENDER_W : sh = RENDER_H
-        IF NOT GLMakeTargets(sw, sh, glSet(SET_RETRO, b) <> 0) THEN glPost = 0
+        IF res <> RES_NATIVE THEN ResSize res, sw, sh
+        IF NOT GLMakeTargets(sw, sh, res = RES_RETRO) THEN glPost = 0
     END IF
     IF glPost THEN
         GLSL_target_use glTargScene : _glViewport 0, 0, sw, sh
@@ -4730,7 +5266,7 @@ SUB _GL
     _glLoadIdentity
     _glTranslatef glShakeX(b) / 400, -glShakeY(b) / 300, 0
     _glScalef 1 + glShakeEdge(b) / 400, 1 + glShakeEdge(b) / 300, 1
-    halfW# = glPlaneLen(b) * GL_NEAR : halfH# = GL_NEAR / (2 * glZoom(b))
+    halfW# = glPlaneLen(b) * GL_NEAR * glAspectK : halfH# = GL_NEAR / (2 * glZoom(b))
     _glFrustum -halfW#, halfW#, -halfH#, halfH#, GL_NEAR, GL_FAR
 
     _glEnable _GL_DEPTH_TEST
@@ -4775,8 +5311,10 @@ SUB _GL
     _glDisable _GL_DEPTH_TEST
     IF glPost THEN
         GLSL_target_use 0
-        GLPostProcess b, vx, vy, vw, vh, sw, sh
+        GLPostProcess b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh
     ELSE
+        _glViewport hx, hy, hw, hh ' (our screen: all of the view, but for FULL WIDE)
+        GLDrawGun b
         GLDrawHUD
     END IF
 
@@ -4853,10 +5391,27 @@ SUB GLWorldGPU(b, mirror)
     GLSL_buffer_bind 0
     _glEnableClientState _GL_COLOR_ARRAY
 
-    ' The doors: each side of each door cell, built now (they slide and lift)
+    ' The doors, built now (they slide and lift): a slab each (GLDoorBox) -
+    ' or the exit, on its cell's sides like a wall. Only the ones this
+    ' frame's rays reached (or came next to: glSeen) - the rest are out of
+    ' sight, and a door is a few dozen corners worked out in BASIC.
     FOR k = 1 TO glNumDoors
-        FOR side = 1 TO 4 : GLFace glDoorCX(k), glDoorCY(k), side, b : NEXT
+        IF NOT GLNearSeen(glDoorCX(k), glDoorCY(k), b) THEN
+        ELSEIF doorType(glDoorCX(k), glDoorCY(k)) = DOOR_EXIT THEN
+            FOR side = 1 TO 4 : GLFace glDoorCX(k), glDoorCY(k), side, b : NEXT
+        ELSE
+            GLDoorBox glDoorCX(k), glDoorCY(k), b
+        END IF
     NEXT
+    ' ...and their tracks: dark grooves, so lit by their corners' colour
+    ' (darkened) rather than the light tables - a batch of their own
+    GLStopDrawing
+    litMode = glCellLitMode : glCellLitMode = 0
+    FOR k = 1 TO glNumDoors
+        IF doorType(glDoorCX(k), glDoorCY(k)) <> DOOR_EXIT THEN IF GLNearSeen(glDoorCX(k), glDoorCY(k), b) THEN GLDoorTrack glDoorCX(k), glDoorCY(k), b
+    NEXT
+    GLStopDrawing
+    glCellLitMode = litMode
     GLStopDrawing
     GLSpritesAndExtras b, mirror
 END SUB
@@ -5039,6 +5594,12 @@ SUB GLSpritesAndExtras(b, mirror)
     ' themselves (_glDepthMask off), so they overlap without seams.
     ' Particles - sparks, embers, dust - are tiny glows.
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE : _glDepthMask _GL_FALSE
+    IF glSet(SET_SHAFTS, b) THEN
+        secs = TIMER(0.001)
+        FOR i = 1 TO glNumShaft(b)
+            GLShaft glShaftX(i, b), glShaftY(i, b), glShaftR(i, b), glShaftG(i, b), glShaftB(i, b), glShaftPh(i, b) + secs, rightX, rightY
+        NEXT
+    END IF
     IF glSet(SET_GLOW, b) THEN
         FOR i = 1 TO glNumGlow(b)
             ' (pulled a little towards you, so the thing glowing - a bolt, a
@@ -5063,6 +5624,41 @@ SUB GLGlowSpot(gx, gy, gz, sz, r, g, bl, rightX, rightY)
     GLPutCorner x0, y0, gz + sz, 0, 0, r, g, bl : GLPutCorner x1, y1, gz + sz, 1, 0, r, g, bl
     GLPutCorner x1, y1, gz - sz, 1, 1, r, g, bl : GLPutCorner x0, y0, gz + sz, 0, 0, r, g, bl
     GLPutCorner x1, y1, gz - sz, 1, 1, r, g, bl : GLPutCorner x0, y0, gz - sz, 0, 1, r, g, bl
+END SUB
+
+' A LIGHT SHAFT under the light at (sx, sy), colour (r, g, bl): a beam
+' from the ceiling to the floor, widening as it goes (SHAFT_TOP to
+' SHAFT_FOOT) and fading towards the floor, ADDED like a glow. It's flat,
+' turned to face you, like a sprite - from the side, a cone and a flat
+' shape look the same when they're see-through and soft-edged. Its sides
+' fade out: the glow spot's middle row is the soft edge, so u runs across
+' the beam (0 at one edge, 0.5 the middle, 1 the other) and v stays 0.5.
+' It's built in four pieces down, each split in two at the middle, so the
+' widening doesn't bend the soft edges. It shimmers slowly (t, a time with
+' the light's own phase added), and fades when you're near enough to stand
+' in it (or it would fill your view) or far away.
+SUB GLShaft(sx, sy, r, g, bl, t, rightX, rightY)
+    d = SQR((sx - glEyeX) ^ 2 + (sy - glEyeY) ^ 2)
+    f = 1
+    IF d < 1.3 THEN f = (d - 0.35) / 0.95 : IF f <= 0 THEN EXIT SUB
+    IF d > 10 THEN f = f * (16 - d) / 6 : IF f <= 0 THEN EXIT SUB
+    f = f * SHAFT_AMT * (0.85 + 0.15 * SIN(t * 0.9))
+    GLUseTexture GL_GLOW_TEX
+    FOR piece = 0 TO 3
+        zTop = 0.995 - piece * 0.245 : zLow = zTop - 0.245
+        wTop = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - zTop) : wLow = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - zLow)
+        kTop = f * (0.45 + 0.55 * zTop) : kLow = f * (0.45 + 0.55 * zLow) ' (brighter at the top)
+        FOR half = -1 TO 1 STEP 2
+            eTopX = sx + rightX * wTop * half : eTopY = sy + rightY * wTop * half
+            eLowX = sx + rightX * wLow * half : eLowY = sy + rightY * wLow * half
+            u = 0.5 + 0.5 * half
+            GLPutCorner sx, sy, zTop, 0.5, 0.5, r * kTop, g * kTop, bl * kTop : GLPutCorner eTopX, eTopY, zTop, u, 0.5, r * kTop, g * kTop, bl * kTop
+            GLPutCorner eLowX, eLowY, zLow, u, 0.5, r * kLow, g * kLow, bl * kLow : GLPutCorner sx, sy, zTop, 0.5, 0.5, r * kTop, g * kTop, bl * kTop
+            GLPutCorner eLowX, eLowY, zLow, u, 0.5, r * kLow, g * kLow, bl * kLow : GLPutCorner sx, sy, zLow, 0.5, 0.5, r * kLow, g * kLow, bl * kLow
+        NEXT
+    NEXT
+    ' ...and the light itself, a soft spot just under the ceiling
+    GLGlowSpot sx - glEyeDX * 0.1, sy - glEyeDY * 0.1, 0.96, 0.25, r * f * 1.3, g * f * 1.3, bl * f * 1.3, rightX, rightY
 END SUB
 
 ' Does cell (cx, cy) have a floor and ceiling? Open floor, a door, or a
@@ -5137,15 +5733,85 @@ SUB GLDrawHUD
     _glDisable _GL_BLEND
 END SUB
 
+' RESOLUTION (SETTINGS > VIDEO): the size OpenGL draws the 3D view at for
+' choice res. NATIVE is the window's own pixels. The rest are heights, as
+' screens are sold: 2160 lines (4K), 1440 (2K), 1080, 720 and 480 - the
+' width follows the view's shape, so on a widescreen monitor 1080P is
+' 1920 x 1080 (or 1440 x 1080, letterboxed to our 4:3 with _SQUAREPIXELS).
+' RETRO is the software renderer's 400 x 300. ResSize gets w and h as the
+' view's size and changes them (NATIVE leaves them be).
+SUB ResSize(res, w, h)
+    IF res <= RES_NATIVE OR res > RES_RETRO OR h < 1 THEN EXIT SUB
+    IF res = RES_RETRO THEN w = RENDER_W : h = RENDER_H : EXIT SUB
+    tall = VAL(MID$("216014401080720 480 ", (res - 2) * 4 + 1, 4))
+    w = INT(tall * w / h) : h = tall
+END SUB
+
+FUNCTION ResName$(res)
+    ResName$ = RTRIM$(MID$("NATIVE   2160P 4K 1440P 2K 1080P    720P     480P     RETRO    ", (res - 1) * 9 + 1, 9))
+END FUNCTION
+
+' THE GUN, at the window's own size - its picture can have more detail than
+' our 800 x 600 screen does. It goes under the HUD (the muzzle flash is
+' drawn there, over it). Chapter 17 placed it on our screen (glGun...), so
+' the sums for where that is on the window are OpenGL's: _glOrtho makes
+' the view's corners (0, 0) top left and (800, 600) bottom right. With
+' post-processing, the post shader lays it on instead (GLPostProcess).
+SUB GLDrawGun(b)
+    g = glGun(b) : IF g = 0 THEN EXIT SUB
+    IF glGunTex(g) = 0 THEN EXIT SUB
+    GLSL_use 0
+    _glMatrixMode _GL_PROJECTION : _glLoadIdentity : _glOrtho 0, 800, 600, 0, -1, 1
+    _glMatrixMode _GL_MODELVIEW : _glLoadIdentity
+    _glEnable _GL_TEXTURE_2D : _glEnable _GL_BLEND : _glBlendFunc _GL_ONE, _GL_ONE_MINUS_SRC_ALPHA ' (premultiplied, as GLDrawHUD's)
+    _glBindTexture _GL_TEXTURE_2D, glGunTex(g) : _glColor4f glGunR(b), glGunG(b), glGunB(b), 1 ' (in its light)
+    _glBegin _GL_QUADS
+    _glTexCoord2f 0, 0 : _glVertex2f glGunX0(b), glGunY0(b)
+    _glTexCoord2f 1, 0 : _glVertex2f glGunX1(b), glGunY0(b)
+    _glTexCoord2f 1, 1 : _glVertex2f glGunX1(b), glGunY1(b)
+    _glTexCoord2f 0, 1 : _glVertex2f glGunX0(b), glGunY1(b)
+    _glEnd
+    _glDisable _GL_BLEND
+END SUB
+
+' Send the guns' pictures (LoadGun's premultiplied copies) to the card,
+' once. Each gets "mipmaps": copies at half size, quarter size and so on,
+' made by the card - drawn smaller than it is, a detailed picture is read
+' from the nearest-sized copy and stays smooth instead of sparkling. Drawn
+' bigger, a small picture (pixel art) keeps its square pixels; a big one
+' (128 pixels tall or more) is smoothed.
+SUB GLSendGuns
+    FOR g = 1 TO NUM_GUNS
+        IF gunGLW(g) > 0 THEN
+            _glGenTextures 1, _OFFSET(glGunTex(g))
+            _glBindTexture _GL_TEXTURE_2D, glGunTex(g)
+            _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_LINEAR_MIPMAP_LINEAR
+            IF gunGLH(g) >= 128 THEN
+                _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_LINEAR
+            ELSE
+                _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
+            END IF
+            _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE
+            _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE
+            _glTexParameteri _GL_TEXTURE_2D, GL_GENERATE_MIPMAP, _GL_TRUE
+            _glTexImage2D _GL_TEXTURE_2D, 0, _GL_RGBA, gunGLW(g), gunGLH(g), 0, _GL_BGRA_EXT, _GL_UNSIGNED_BYTE, gunGLMem(g).OFFSET
+        END IF
+    NEXT
+    _glBindTexture _GL_TEXTURE_2D, 0
+END SUB
+
 ' Make (or resize) the render targets for post-processing: the scene, w x
-' h with a depth buffer, read with square pixels for RETRO RESOLUTION; and
-' two quarter-size ones the bloom is blurred between. FALSE if the driver
+' h with a depth buffer, read with square pixels for RETRO resolution; two
+' quarter-size ones the bloom is blurred between; and two 400 x 300 ones
+' for the phosphor glow (always that size: half our screen's, so the glow
+' spreads as far, in our screen's pixels, at any resolution). FALSE if the driver
 ' can't (then the view goes straight to the window, without post effects).
 FUNCTION GLMakeTargets(w, h, retro)
     IF glTargScene = 0 THEN
         IF NOT GLSL_targets_supported% THEN glPostProg = 0 : EXIT FUNCTION
         glTargScene = GLSL_target_new&(w, h, -1) : glTargA = GLSL_target_new&(w \ 4 + 1, h \ 4 + 1, 0) : glTargB = GLSL_target_new&(w \ 4 + 1, h \ 4 + 1, 0)
-        IF glTargScene = 0 OR glTargA = 0 OR glTargB = 0 THEN glShaderError$ = GLSL_error$ : glPostProg = 0 : EXIT FUNCTION
+        glTargC = GLSL_target_new&(400, 300, 0) : glTargD = GLSL_target_new&(400, 300, 0)
+        IF glTargScene = 0 OR glTargA = 0 OR glTargB = 0 OR glTargC = 0 OR glTargD = 0 THEN glShaderError$ = GLSL_error$ : glPostProg = 0 : EXIT FUNCTION
         glTargRetro = -2
     END IF
     GLSL_target_resize glTargScene, w, h
@@ -5161,8 +5827,11 @@ END FUNCTION
 '   HIT FX      heat shimmer round explosions, a red pulse at the edges
 '               when you're hurt, a zoom blur when the railgun fires
 '   SCREEN FX   scanlines, or a whole curved CRT screen
+'   SCANLINES   how dark the scanlines are, how far apart, how thick
+'   PHOSPHOR GLOW  light bleeding round everything bright, as it did
+'               on a tube's glass - and into the dark between the lines
 ' and the HUD goes in between, so a CRT curves it too.
-SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh)
+SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
     aw = GLSL_target_width&(glTargA) : ah = GLSL_target_height&(glTargA)
     bloomOn = (glSet(SET_BLOOM, b) <> 0) AND glBrightProg <> 0 AND glBlurProg <> 0 ' (TRUE is -1; a setting's "on" is 1)
     _glEnable _GL_TEXTURE_2D : _glDisable _GL_BLEND : _glColor4f 1, 1, 1, 1
@@ -5179,17 +5848,58 @@ SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh)
         GLSL_target_use 0
     END IF
 
-    ' The final picture: scene (unit 0), bloom (unit 1), HUD (unit 2)
-    _glViewport vx, vy, vw, vh
+    ' The final picture: scene (unit 0), bloom (unit 1), HUD (unit 2), gun
+    ' (unit 3: where it goes is gunRect, its corners as parts of the screen),
+    ' phosphor glow (unit 4)
+    g = glGun(b) : IF g > 0 THEN IF glGunTex(g) = 0 THEN g = 0
+    IF g > 0 THEN GLSL_texture_unit 3 : _glBindTexture _GL_TEXTURE_2D, glGunTex(g)
     GLSL_texture_unit 2 : hudTex~& = GLSL_filter_texture~&(0)
     GLSL_texture_unit 1 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargA)
     GLSL_texture_unit 0 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
     p~& = glPostProg
     GLSL_use p~&
+    glowOn = glSet(SET_PHOSPHOR, b) > 0 AND glBlurProg <> 0
     GLSL_uniform_1i p~&, "scene", 0 : GLSL_uniform_1i p~&, "bloom", 1 : GLSL_uniform_1i p~&, "hud", 2
     GLSL_uniform_1f p~&, "hudOn", (hudTex~& <> 0) * -1
+    GLSL_uniform_1i p~&, "gun", 3 : GLSL_uniform_1f p~&, "gunOn", (g > 0) * -1
+    IF g > 0 THEN GLSL_uniform_4f p~&, "gunRect", glGunX0(b) / 800, glGunY0(b) / 600, glGunX1(b) / 800, glGunY1(b) / 600
+    GLSL_uniform_3f p~&, "gunLight", glGunR(b), glGunG(b), glGunB(b)
+    ' Where our screen (HUD, gun) is in the picture: all of it - or for FULL
+    ' WIDE, the 4:3 middle of the wider view (and how much to darken beside it)
+    GLSL_uniform_4f p~&, "hudRect", (hx - vx) / vw, (hy - vy) / vh, (hx + hw - vx) / vw, (hy + hh - vy) / vh
+    GLSL_uniform_1f p~&, "sideDim", glSideDim(b) * (glAspectK > 1.01) * -1
     GLSL_uniform_1f p~&, "bloomAmt", bloomOn * -0.9
     GLSL_uniform_1f p~&, "fxMode", glSet(SET_SCREENFX, b) - 1
+    ' Scanlines: how dark, how many of the window's pixels apart (a whole
+    ' number, or they'd shimmer in bands) and how thick (part of that gap)
+    GLSL_uniform_1f p~&, "scanDark", glSet(SET_SCANLINES, b) / 100 : GLSL_uniform_1f p~&, "linePx", glSet(SET_SCANGAP, b)
+    GLSL_uniform_1f p~&, "lineThick", glSet(SET_SCANTHICK, b) / 100
+    GLSL_uniform_1f p~&, "glow", glSet(SET_PHOSPHOR, b) / 100 * (glowOn <> 0) * -1
+    GLSL_uniform_1i p~&, "glowTex", 4
+    ' PHOSPHOR GLOW: on a picture tube, light spreads in the glass round
+    ' anything bright, and a bright line is drawn wider, filling the dark gap
+    ' to the next. So: the picture (view, gun and HUD, no screen effects -
+    ' passMode 1) drawn small, into glTargC, then blurred across and down
+    ' (the bloom's blur, twice: wider and smoother), to be read back,
+    ' smoothly stretched, by the final picture
+    IF glowOn THEN
+        GLSL_target_use glTargC : _glViewport 0, 0, 400, 300
+        GLSL_uniform_1f p~&, "passMode", 1 : GLSL_fullscreen 0
+        GLSL_use glBlurProg : GLSL_uniform_1i glBlurProg, "src", 0
+        GLSL_texture_unit 0
+        FOR k = 1 TO 2
+            GLSL_target_use glTargD : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargC)
+            GLSL_uniform_2f glBlurProg, "stepUV", k / 400, 0 : GLSL_fullscreen 0
+            GLSL_target_use glTargC : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargD)
+            GLSL_uniform_2f glBlurProg, "stepUV", 0, k / 300 : GLSL_fullscreen 0
+        NEXT
+        GLSL_target_use 0
+        GLSL_texture_unit 4 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargC)
+        GLSL_texture_unit 0 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
+        GLSL_use p~&
+    END IF
+    GLSL_uniform_1f p~&, "passMode", 0
+    _glViewport vx, vy, vw, vh
     GLSL_uniform_2f p~&, "res", vw, vh
     GLSL_uniform_1f p~&, "secs", TIMER(0.001) - INT(TIMER(0.001) / 1000) * 1000
     hit = (glSet(SET_HITFX, b) <> 0) * -1 ' (1 with HIT FX on, else 0)
@@ -5201,6 +5911,8 @@ SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh)
     NEXT
     GLSL_fullscreen 0
     GLSL_use 0
+    GLSL_texture_unit 4 : _glBindTexture _GL_TEXTURE_2D, 0
+    GLSL_texture_unit 3 : _glBindTexture _GL_TEXTURE_2D, 0
     GLSL_texture_unit 2 : _glBindTexture _GL_TEXTURE_2D, 0
     GLSL_texture_unit 1 : _glBindTexture _GL_TEXTURE_2D, 0
     GLSL_texture_unit 0
@@ -5216,7 +5928,7 @@ SUB GLProject(x, y, z, b, sx, sy, sr)
     c = COS(glPitch(b)) : s = SIN(glPitch(b))
     up2 = c * up - s * ahead : depth = s * up + c * ahead
     IF depth < 0.3 THEN EXIT SUB
-    sx = 0.5 + 0.5 * rx / (depth * glPlaneLen(b)) : sy = 0.5 + up2 * glZoom(b) / depth
+    sx = 0.5 + 0.5 * rx / (depth * glPlaneLen(b) * glAspectK) : sy = 0.5 + up2 * glZoom(b) / depth
     sr = 0.35 / depth
 END SUB
 
@@ -5239,7 +5951,7 @@ END SUB
 
 ' Send every texture and sprite picture to the graphics card. Each gets a
 ' name (a number) from _glGenTextures the first time; the textures are
-' names 1-19 of glTexName(), the sprites after them, then the glow spot.
+' names 1-20 of glTexName(), the sprites after them, then the glow spot.
 ' Each texture slot's effects come from its file name (texName$):
 '   shine     how shiny (the shader's highlights): metal doors most
 '   reflect   how much of the mirror image a floor shows (WET FLOORS)
@@ -5537,6 +6249,97 @@ SUB GLStrip(ax, ay, bx, by, s0, s1, u0, u1, zLow, zHigh, vTop, vBottom, slot)
     GLCorner x0, y0, zHigh, u0, vTop : GLCorner x1, y1, zLow, u1, vBottom : GLCorner x0, y0, zLow, u0, vBottom
 END SUB
 
+' A door (not the exit) as a slab across the middle of its doorway (as
+' chapter 15's DoorRay): its two faces, lit from the cells they look onto;
+' the edges of what's left of it (a sliding door's one, a split door's
+' two), a thin slice of its picture; and a lifted shutter's underside.
+' (Its track is GLDoorTrack's.)
+SUB GLDoorBox(cx, cy, b)
+    half = DOOR_THICK / 2 : amt = glDoor(cx, cy, b) : kind = doorType(cx, cy) : across = DoorAcross(cx, cy)
+    SELECT CASE kind
+        CASE DOOR_SLIDE : IF doorKey(cx, cy) THEN slot = T_DOORK + doorKey(cx, cy) ELSE slot = T_DOOR
+        CASE DOOR_SPLIT : slot = T_SPLIT
+        CASE ELSE : slot = T_SHUTTER
+    END SELECT
+    FOR f = -1 TO 1 STEP 2 ' Its faces: f = -1 the north (or west) one, 1 the south (or east)
+        IF across = 0 THEN
+            ax = cx : bx = cx + 1 : ay = cy + 0.5 + f * half : by = ay
+            GLSetLight cx, cy + f, 0.7, b : glFaceNX = 0 : glFaceNY = f
+        ELSE
+            ay = cy : by = cy + 1 : ax = cx + 0.5 + f * half : bx = ax
+            GLSetLight cx + f, cy, 1, b : glFaceNX = f : glFaceNY = 0
+        END IF
+        glFaceNZ = 0
+        SELECT CASE kind
+            CASE DOOR_SLIDE
+                IF amt < 1 THEN GLStrip ax, ay, bx, by, amt, 1, 0, 1 - amt, 0, 1, 0, 1, slot
+            CASE DOOR_SPLIT
+                IF amt < 1 THEN
+                    GLStrip ax, ay, bx, by, 0, 0.5 - amt / 2, amt / 2, 0.5, 0, 1, 0, 1, slot
+                    GLStrip ax, ay, bx, by, 0.5 + amt / 2, 1, 0.5, 1 - amt / 2, 0, 1, 0, 1, slot
+                END IF
+            CASE ELSE
+                IF amt < 1 THEN GLStrip ax, ay, bx, by, 0, 1, 0, 1, amt, 1, amt, 1, slot
+        END SELECT
+    NEXT
+    GLSetLight cx, cy, 0.85, b
+    SELECT CASE kind ' Its edges
+        CASE DOOR_SLIDE : GLDoorEdge cx, cy, across, amt, -1, slot
+        CASE DOOR_SPLIT : GLDoorEdge cx, cy, across, 0.5 - amt / 2, 1, slot : GLDoorEdge cx, cy, across, 0.5 + amt / 2, -1, slot
+        CASE ELSE ' A shutter's underside, at the height it's lifted to
+            IF amt > 0 THEN
+                glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = -1
+                GLDoorFlat cx, cy, across, -half, half, amt, 0.96, 1, slot
+            END IF
+    END SELECT
+END SUB
+
+' Did this frame's rays reach cell (cx, cy), or a cell beside it?
+FUNCTION GLNearSeen(cx, cy, b)
+    stamp& = glFrame(b)
+    IF glSeen(cx, cy, b) = stamp& OR glSeen(cx + 1, cy, b) = stamp& OR glSeen(cx, cy + 1, b) = stamp& THEN GLNearSeen = -1 : EXIT FUNCTION
+    IF cx > 0 THEN IF glSeen(cx - 1, cy, b) = stamp& THEN GLNearSeen = -1 : EXIT FUNCTION
+    IF cy > 0 THEN IF glSeen(cx, cy - 1, b) = stamp& THEN GLNearSeen = -1
+END FUNCTION
+
+' The track door (cx, cy) runs in: a dark groove across the floor and the
+' ceiling, a quarter as bright as the cell (as chapter 14's floor does it)
+SUB GLDoorTrack(cx, cy, b)
+    across = DoorAcross(cx, cy)
+    GLSetLight cx, cy, 0.25, b
+    glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = 1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, 0.004, 0.4, 0.5, T_SHUTTER
+    glFaceNZ = -1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, 0.996, 0.4, 0.5, T_SHUTTER
+END SUB
+
+' A door's edge: square to the door, at e along it (0..1), across its
+' thickness, floor to ceiling, facing along it (facing 1 or -1)
+SUB GLDoorEdge(cx, cy, across, e, facing, slot)
+    half = DOOR_THICK / 2
+    IF across = 0 THEN
+        ax = cx + e : bx = ax : ay = cy + 0.5 - half : by = cy + 0.5 + half : glFaceNX = facing : glFaceNY = 0
+    ELSE
+        ay = cy + e : by = ay : ax = cx + 0.5 - half : bx = cx + 0.5 + half : glFaceNX = 0 : glFaceNY = facing
+    END IF
+    glFaceNZ = 0
+    GLStrip ax, ay, bx, by, 0, 1, 0, DOOR_THICK, 0, 1, 0, 1, slot
+END SUB
+
+' A flat strip across a doorway at height z: the whole way along the door,
+' from n0 to n1 through it (from its middle line), showing texture rows v0
+' to v1 (for a shutter's underside, and the tracks)
+SUB GLDoorFlat(cx, cy, across, n0, n1, z, v0, v1, slot)
+    GLUseTexture slot
+    IF across = 0 THEN
+        glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0
+        GLCorner cx, cy + 0.5 + n0, z, 0, v0 : GLCorner cx + 1, cy + 0.5 + n0, z, 1, v0 : GLCorner cx + 1, cy + 0.5 + n1, z, 1, v1
+        GLCorner cx, cy + 0.5 + n0, z, 0, v0 : GLCorner cx + 1, cy + 0.5 + n1, z, 1, v1 : GLCorner cx, cy + 0.5 + n1, z, 0, v1
+    ELSE
+        glFaceTX = 0 : glFaceTY = 1 : glFaceTZ = 0
+        GLCorner cx + 0.5 + n0, cy, z, 0, v0 : GLCorner cx + 0.5 + n0, cy + 1, z, 1, v0 : GLCorner cx + 0.5 + n1, cy + 1, z, 1, v1
+        GLCorner cx + 0.5 + n0, cy, z, 0, v0 : GLCorner cx + 0.5 + n1, cy + 1, z, 1, v1 : GLCorner cx + 0.5 + n1, cy, z, 0, v1
+    END IF
+END SUB
+
 ' Does side (1 west, 2 east, 3 north, 4 south) of a diagonal wall's cell
 ' touch its solid corner (1 top-left, 2 top-right, 3 bottom-right, 4
 ' bottom-left)? Those two sides are walls; the other two are open.
@@ -5784,13 +6587,34 @@ SUB GLBuildShaders
     glBlurProg = GLSL_program~&(pv$, fs$)
 
     fs$ = "#version 120" + nl$
-    fs$ = fs$ + "uniform sampler2D scene, bloom, hud;" + nl$
-    fs$ = fs$ + "uniform float bloomAmt, fxMode, hurt, rail, secs, hudOn;" + nl$
+    fs$ = fs$ + "uniform sampler2D scene, bloom, hud, gun;" + nl$
+    fs$ = fs$ + "uniform float bloomAmt, fxMode, hurt, rail, secs, hudOn, gunOn;" + nl$
+    fs$ = fs$ + "uniform vec4 gunRect;     // the gun: its top left and bottom right, 0..1 from the top left" + nl$
+    fs$ = fs$ + "uniform vec3 gunLight;    // ...and the light on it" + nl$
+    fs$ = fs$ + "uniform vec4 hudRect;     // where our 4:3 screen is (0..1, from the bottom left): all of it, but for FULL WIDE" + nl$
+    fs$ = fs$ + "uniform float sideDim;    // how much to darken the view beside it (in the menu)" + nl$
+    fs$ = fs$ + "vec2 onHud(vec2 q) { vec2 h = (q - hudRect.xy) / (hudRect.zw - hudRect.xy); return vec2(h.x, 1.0 - h.y); }  // q on our screen, from its top left" + nl$
+    fs$ = fs$ + "float inside(vec2 t) { return step(0.0, t.x) * step(t.x, 1.0) * step(0.0, t.y) * step(t.y, 1.0); }" + nl$
+    fs$ = fs$ + "uniform float scanDark, linePx, lineThick;  // scanlines: how dark, how many pixels apart, how thick" + nl$
+    fs$ = fs$ + "uniform float glow, passMode;  // phosphor glow: how much; passMode 1 draws just the picture, for it" + nl$
+    fs$ = fs$ + "uniform sampler2D glowTex;" + nl$
     fs$ = fs$ + "uniform vec2 res;         // the window's size in pixels" + nl$
     fs$ = fs$ + "uniform vec4 heat[4];     // explosions: where (0..1), how big, how strong" + nl$
     fs$ = fs$ + "varying vec2 uv;" + nl$
     fs$ = fs$ + "vec2 curve(vec2 p) { p = p * 2.0 - 1.0; p *= 1.0 + 0.06 * dot(p.yx, p.yx); return p * 0.5 + 0.5; }" + nl$
+    fs$ = fs$ + "vec3 under(vec2 q) {  // the picture at q - view, gun, HUD - for the phosphor glow" + nl$
+    fs$ = fs$ + "    vec3 c = texture2D(scene, q).rgb + texture2D(bloom, q).rgb * bloomAmt;" + nl$
+    fs$ = fs$ + "    vec2 t = onHud(q); float onScreen = inside(t);" + nl$
+    fs$ = fs$ + "    c *= mix(1.0 - sideDim, 1.0, onScreen);" + nl$
+    fs$ = fs$ + "    if (gunOn > 0.5) {" + nl$
+    fs$ = fs$ + "        vec2 g = (t - gunRect.xy) / (gunRect.zw - gunRect.xy); vec4 k = texture2D(gun, g);" + nl$
+    fs$ = fs$ + "        if (g.x >= 0.0 && g.x <= 1.0 && g.y >= 0.0 && g.y <= 1.0) c = k.rgb * gunLight + c * (1.0 - k.a);" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    if (hudOn > 0.5 && onScreen > 0.5) { vec4 h = texture2D(hud, t); c = h.rgb + c * (1.0 - h.a); }" + nl$
+    fs$ = fs$ + "    return c;" + nl$
+    fs$ = fs$ + "}" + nl$
     fs$ = fs$ + "void main() {" + nl$
+    fs$ = fs$ + "    if (passMode > 0.5) { gl_FragColor = vec4(under(uv), 1.0); return; }" + nl$
     fs$ = fs$ + "    vec2 p = uv;" + nl$
     fs$ = fs$ + "    if (fxMode > 1.5) {  // CRT: a curved glass screen" + nl$
     fs$ = fs$ + "        p = curve(uv);" + nl$
@@ -5814,8 +6638,23 @@ SUB GLBuildShaders
     fs$ = fs$ + "    c += texture2D(bloom, s).rgb * bloomAmt;" + nl$
     fs$ = fs$ + "    float edge = smoothstep(0.3, 0.75, length((p - 0.5) * vec2(1.25, 1.0)));" + nl$
     fs$ = fs$ + "    c = mix(c, vec3(0.75, 0.0, 0.05), hurt * edge * (0.65 + 0.35 * sin(secs * 18.0)));  // hurt: a red pulse at the edges" + nl$
-    fs$ = fs$ + "    if (hudOn > 0.5) { vec4 h = texture2D(hud, vec2(p.x, 1.0 - p.y)); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied)" + nl$
-    fs$ = fs$ + "    if (fxMode > 0.5) c *= 0.82 + 0.18 * sin(p.y * res.y * 1.5708);  // scanlines" + nl$
+    fs$ = fs$ + "    vec2 hp = onHud(p); float onScreen = inside(hp);  // where this is on our screen (the HUD's)" + nl$
+    fs$ = fs$ + "    c *= mix(1.0 - sideDim, 1.0, onScreen);  // (beside it, in the menu: darker, as the menu darkens our screen)" + nl$
+    fs$ = fs$ + "    if (gunOn > 0.5) {  // the gun (premultiplied), read from its own picture at the window's size" + nl$
+    fs$ = fs$ + "        vec2 g = (hp - gunRect.xy) / (gunRect.zw - gunRect.xy);" + nl$
+    fs$ = fs$ + "        vec4 t = texture2D(gun, g);" + nl$
+    fs$ = fs$ + "        if (g.x >= 0.0 && g.x <= 1.0 && g.y >= 0.0 && g.y <= 1.0) c = t.rgb * gunLight + c * (1.0 - t.a);  // (in its light)" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    if (hudOn > 0.5 && onScreen > 0.5) { vec4 h = texture2D(hud, hp); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied)" + nl$
+    fs$ = fs$ + "    vec3 halo = vec3(0.0);  // phosphor glow: the picture, blurred" + nl$
+    fs$ = fs$ + "    if (glow > 0.001) halo = texture2D(glowTex, p).rgb;" + nl$
+    fs$ = fs$ + "    float lit = clamp(dot(halo, vec3(0.3, 0.59, 0.11)) * 2.0, 0.0, 1.0);  // how bright it is round here" + nl$
+    fs$ = fs$ + "    if (fxMode > 0.5) {  // scanlines: a dark band lineThick of each linePx pixels, its edges a pixel soft" + nl$
+    fs$ = fs$ + "        float d = abs(fract(p.y * res.y / linePx) - 0.5) * linePx;  // pixels from the band's middle" + nl$
+    fs$ = fs$ + "        float band = lineThick * linePx * 0.5;  // (half the band; 'half' is a word GLSL keeps for itself)" + nl$
+    fs$ = fs$ + "        c *= 1.0 - scanDark * (1.0 - smoothstep(band - 0.5, band + 0.5, d)) * (1.0 - glow * lit * 0.8);  // (bright fills the dark lines)" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    c += halo * halo * glow * 1.2;  // light spreading round bright things (squared: the bright parts, not the dim)" + nl$
     fs$ = fs$ + "    if (fxMode > 1.5) {  // CRT: a shadow mask and a dark rim" + nl$
     fs$ = fs$ + "        float m = mod(gl_FragCoord.x, 3.0);" + nl$
     fs$ = fs$ + "        c *= m < 1.0 ? vec3(1.0, 0.8, 0.8) : (m < 2.0 ? vec3(0.8, 1.0, 0.8) : vec3(0.8, 0.8, 1.0));" + nl$
@@ -5838,6 +6677,20 @@ SUB GLScreenLayer(glOn)
     IF (glOn <> 0) = shown THEN EXIT SUB
     IF glOn THEN _DISPLAYORDER _GLRENDER ELSE _DISPLAYORDER _GLRENDER , _SOFTWARE
     shown = (glOn <> 0)
+END SUB
+
+' In the menu, the game stands still, so no new frame goes to OpenGL - and
+' the last one has the settings as they were. So the menu hands over its
+' settings itself, into both halves (SUB _GL is drawing one of them), and
+' the field of view with them: a change shows behind the menu as you make
+' it. (A frame might start with a setting from before and finish with the
+' new one - for one frame, behind a menu, nobody will see that.)
+SUB GLLiveSettings
+    FOR k = 0 TO 1
+        FOR i = 1 TO NUM_SETTINGS : glSet(i, k) = setting(i) : NEXT
+        IF glZoom(k) > 0 THEN glPlaneLen(k) = fovPlane / glZoom(k)
+        glWide(k) = WideView : glSideDim(k) = 0.78 ' (as dark as the menu's own darkening)
+    NEXT
 END SUB
 
 ' One more particle: a kind (PART_), where, which way and how fast (cells a
@@ -5867,9 +6720,27 @@ SUB SpawnEmbers(x, y, size)
 END SUB
 
 ' Dust motes drifting in the light round you, at (px, py): faint, slow,
-' tinted by the light of the cell they start in - there's always a few
+' tinted by the light of the cell they start in - there's always a few.
+' With LIGHT SHAFTS on, half of them start in a beam near you, so the beams
+' are full of dust (a light picked at random: if it has no beam, or it's
+' too far, the mote goes anywhere instead).
 SUB SpawnDust(px, py)
-    IF dustCount >= 70 OR RND > 0.5 THEN EXIT SUB
+    IF dustCount >= 80 OR RND > 0.55 THEN EXIT SUB
+    IF setting(SET_SHAFTS) AND RND < 0.5 AND numLights > 0 THEN
+        l = INT(RND * numLights) + 1
+        IF ShaftOf%(l) AND (lightX(l) - px) ^ 2 + (lightY(l) - py) ^ 2 < 64 THEN
+            z = 0.05 + RND * 0.9 : a = RND * 6.2832
+            spread = SQR(RND) * (SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - z)) * 0.9
+            x = lightX(l) + COS(a) * spread : y = lightY(l) + SIN(a) * spread
+            cx = INT(x) : cy = INT(y)
+            IF x >= 1 AND y >= 1 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+                IF Walkable%(x, y) THEN
+                    SpawnPart PART_DUST, x, y, z, (RND - 0.5) * 0.002, (RND - 0.5) * 0.002, (RND - 0.5) * 0.001, 220 + INT(RND * 160), litR(cx, cy) / 2200, litG(cx, cy) / 2200, litB(cx, cy) / 2200, 0.018
+                    EXIT SUB
+                END IF
+            END IF
+        END IF
+    END IF
     x = px + (RND - 0.5) * 9 : y = py + (RND - 0.5) * 9
     IF x < 1 OR y < 1 OR x >= MAP_SIZE - 1 OR y >= MAP_SIZE - 1 THEN EXIT SUB ' (inside the map...)
     IF NOT Walkable%(x, y) THEN EXIT SUB ' (...and not in a wall)
@@ -5879,15 +6750,31 @@ END SUB
 
 ' Move every particle a frame on. Sparks and embers fall (embers slowly,
 ' they're hot and light) and bounce off the floor and walls, losing speed;
-' dust just drifts.
-SUB UpdateParticles
+' dust drifts - nudged a little at random each frame, and slowed a little
+' (the air holds it back), so a push (StirDust, or you) dies away. You're
+' at (px, py) and just moved (mvx, mvy): dust within WAKE_REACH of you is
+' pushed aside, dragged along a bit behind you, and lifted - your wake.
+SUB UpdateParticles(px, py, mvx, mvy)
     dustCount = 0
+    speed = SQR(mvx * mvx + mvy * mvy) : IF speed > 0.3 THEN speed = 0 ' (a jump - a new level, a loaded game - isn't a step)
     FOR i = 1 TO MAX_PART
         IF partLife(i) > 0 THEN
             partLife(i) = partLife(i) - 1
             IF partKind(i) = PART_DUST THEN
                 dustCount = dustCount + 1
-                partVX(i) = partVX(i) + (RND - 0.5) * 0.0004 : partVY(i) = partVY(i) + (RND - 0.5) * 0.0004
+                partVX(i) = partVX(i) * 0.97 + (RND - 0.5) * 0.0007 : partVY(i) = partVY(i) * 0.97 + (RND - 0.5) * 0.0007
+                partVZ(i) = partVZ(i) * 0.97 + (RND - 0.5) * 0.0003
+                IF speed > 0.004 THEN
+                    ddx = partX(i) - px : ddy = partY(i) - py : d = SQR(ddx * ddx + ddy * ddy)
+                    IF d < WAKE_REACH AND d > 0.01 THEN
+                        w = (1 - d / WAKE_REACH) ^ 2
+                        partVX(i) = partVX(i) + (ddx / d * speed * 0.25 + mvx * 0.2) * w
+                        partVY(i) = partVY(i) + (ddy / d * speed * 0.25 + mvy * 0.2) * w
+                        partVZ(i) = partVZ(i) + speed * 0.06 * w * (RND - 0.25)
+                    END IF
+                END IF
+                v = SQR(partVX(i) ^ 2 + partVY(i) ^ 2 + partVZ(i) ^ 2)
+                IF v > 0.06 THEN partVX(i) = partVX(i) * 0.06 / v : partVY(i) = partVY(i) * 0.06 / v : partVZ(i) = partVZ(i) * 0.06 / v
             ELSEIF partKind(i) = PART_EMBER THEN
                 partVZ(i) = partVZ(i) - 0.0015
             ELSE
@@ -5905,6 +6792,81 @@ SUB UpdateParticles
         NextPart:
     NEXT
 END SUB
+
+' Blow the dust about: a shot from (x, y) going (dx, dy) pushes the dust
+' along its line, up to reach cells away; an explosion at (x, y) - dx and
+' dy both 0 - pushes it out all round, up to reach. strength is the push
+' (cells a frame) right at the start, less further out.
+SUB StirDust(x, y, dx, dy, reach, strength)
+    FOR i = 1 TO MAX_PART
+        IF partLife(i) > 0 AND partKind(i) = PART_DUST THEN
+            ox = partX(i) - x : oy = partY(i) - y
+            IF dx = 0 AND dy = 0 THEN ' Out all round
+                d = SQR(ox * ox + oy * oy)
+                IF d < reach AND d > 0.01 THEN
+                    w = 1 - d / reach
+                    partVX(i) = partVX(i) + ox / d * strength * w : partVY(i) = partVY(i) + oy / d * strength * w
+                    partVZ(i) = partVZ(i) + strength * 0.3 * w
+                END IF
+            ELSE ' Along the shot: how far along it, and how far to its side
+                along = ox * dx + oy * dy : across = ox * dy - oy * dx
+                IF along > 0 AND along < reach AND ABS(across) < 0.3 + along * 0.12 THEN
+                    w = 1 - along / reach
+                    partVX(i) = partVX(i) + (dx + dy * SGN(across) * 0.4) * strength * w
+                    partVY(i) = partVY(i) + (dy - dx * SGN(across) * 0.4) * strength * w
+                END IF
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' LIGHT SHAFTS: work out, once per level, which lights have a beam - the
+' level's own (a lamp or terminal's light is its glow), standing in an
+' open cell (not a door, a wall or a diagonal) - into shaftCell(). Each
+' one hangs from a lamp: its cell's ceiling is the lamp's picture (T_LAMP),
+' so a light (and its beam) comes from somewhere - with the cell's light
+' falling on it, it glows its light's colour.
+SUB BuildShafts
+    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : shaftCell(x, y) = 0 : NEXT : NEXT
+    FOR l = 1 TO numLights
+        cx = INT(lightX(l)) : cy = INT(lightY(l))
+        IF lightDeco(l) = 0 AND cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+            IF worldMap(cx, cy) <= 0 AND diagCorner(cx, cy) = 0 THEN
+                shaftCell(cx, cy) = l : ceilTex(cx, cy) = T_LAMP : ceilSplit(cx, cy) = 0
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' Does light l have a beam?
+FUNCTION ShaftOf%(l)
+    IF l < 1 OR l > numLights THEN EXIT FUNCTION
+    cx = INT(lightX(l)) : cy = INT(lightY(l))
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
+    ShaftOf% = (shaftCell(cx, cy) = l)
+END FUNCTION
+
+' How far inside a beam (x, y, z) is: 0 outside, up to 1 in the middle of
+' it - times how bright its light is this frame - and which light's beam
+' that is (l). A beam is narrower than a cell, so only the cell's own and
+' its neighbours' beams can reach.
+FUNCTION InShaft(x, y, z, l)
+    l = 0 : best = 0 : cx = INT(x) : cy = INT(y)
+    r = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - z) ' (the beam's width at this height)
+    FOR ny = cy - 1 TO cy + 1 : FOR nx = cx - 1 TO cx + 1
+        IF nx >= 0 AND ny >= 0 AND nx < MAP_SIZE AND ny < MAP_SIZE THEN
+            k = shaftCell(nx, ny)
+            IF k THEN
+                d = SQR((x - lightX(k)) ^ 2 + (y - lightY(k)) ^ 2)
+                IF d < r THEN
+                    f = (1 - d / r) * lightNow(k)
+                    IF f > best THEN best = f : l = k
+                END IF
+            END IF
+        END IF
+    NEXT : NEXT
+    InShaft = best
+END FUNCTION
 
 ' Looking up or down, the view's top or bottom corners see further to the
 ' sides than the rays (chapter 15) went - the picture is a tilted window,
@@ -5995,16 +6957,38 @@ SUB GLHandOverExtras(px, py, dx, dy, muzzle)
     LOOP
     glNumDyn(w) = kept
 
-    n = 0
+    n = 0 : shafts = setting(SET_SHAFTS) <> 0
     FOR i = 1 TO MAX_PART
         IF partLife(i) > 0 THEN
             n = n + 1 : f = partLife(i) / partMax(i)
-            IF partKind(i) = PART_DUST THEN f = SIN(f * 3.14159)
+            r = partR(i) : g = partG(i) : bl = partB(i)
+            IF partKind(i) = PART_DUST THEN
+                f = SIN(f * 3.14159)
+                IF shafts THEN ' Dust in a beam catches its light, and shines
+                    lit = InShaft(partX(i), partY(i), partZ(i), l)
+                    IF lit > 0 THEN r = r + lightR(l) * lit / 450 : g = g + lightG(l) * lit / 450 : bl = bl + lightB(l) * lit / 450
+                END IF
+            END IF
             glPartX(n, w) = partX(i) : glPartY(n, w) = partY(i) : glPartZ(n, w) = partZ(i) : glPartSize(n, w) = partSize(i)
-            glPartR(n, w) = partR(i) * f : glPartG(n, w) = partG(i) * f : glPartB(n, w) = partB(i) * f
+            glPartR(n, w) = r * f : glPartG(n, w) = g * f : glPartB(n, w) = bl * f
         END IF
     NEXT
     glNumPart(w) = n
+
+    ' LIGHT SHAFTS: every beam within 16 cells, as bright as its light is
+    ' this frame (so they flicker, pulse and strobe with it)
+    n = 0
+    IF shafts THEN
+        FOR l = 1 TO numLights
+            IF lightNow(l) > 0 AND ShaftOf%(l) THEN
+                IF (lightX(l) - px) ^ 2 + (lightY(l) - py) ^ 2 < 256 THEN
+                    n = n + 1 : glShaftX(n, w) = lightX(l) : glShaftY(n, w) = lightY(l) : glShaftPh(n, w) = lightPhase(l)
+                    glShaftR(n, w) = lightR(l) * lightNow(l) / 256 : glShaftG(n, w) = lightG(l) * lightNow(l) / 256 : glShaftB(n, w) = lightB(l) * lightNow(l) / 256
+                END IF
+            END IF
+        NEXT
+    END IF
+    glNumShaft(w) = n
 END SUB
 
 ' Mark the cells moving light k (at (lx, ly), radius rad) reaches, in half

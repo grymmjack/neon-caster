@@ -33,8 +33,9 @@ explained as it comes up.
 |---|---|
 | Mouse | look around |
 | W A S D | walk and strafe |
+| Shift (hold) | run |
 | Click or Ctrl | fire |
-| Space | open doors, use the exit |
+| Space | open or shut doors, use the exit |
 | 1-4 or mouse wheel | choose a gun |
 | Right button (hold) | aim down the sights (zooms in) |
 | Esc | the menu: pause, new game, save, load, settings, exit |
@@ -67,11 +68,11 @@ run top to bottom, in the same order as the code:
 | | 8 Looking around | direction and camera plane vectors; rotating them |
 | | 9 Moving, and bumping into things | normalized movement; sliding along walls |
 | | 10 Pickups and cheat keys | distance checks without `SQR`; edge detection |
-| | 11 Doors | finding the door in front of you; animating it |
+| | 11 Doors | finding the door in front of you; animating it; shutting itself, never on anyone; always showing an edge |
 | | 12 Shooting | hitscan, using the z-buffer to see past walls |
 | | 13 Monsters, bolts and barrels | a state machine for AI; line of sight; chain reactions |
 | **Drawing it** | 14 Light, and the floor and ceiling | per-cell coloured light (Doom-style), flicker and strobe effects, floor casting, fog, `AND 63` texture wrapping |
-| | 15 The walls: the raycaster | rays, the DDA grid walk, fish-eye correction, texturing |
+| | 15 The walls: the raycaster | rays, the DDA grid walk, fish-eye correction, texturing; doors as slabs with edges and tracks |
 | | 16 Sprites | camera space, painter's algorithm, hiding behind walls |
 | | 17 Onto the screen | `_MEMCOPY` and `_PUTIMAGE` scaling |
 | | 18 The gun and the HUD | alpha colours, the minimap, bars and text |
@@ -80,7 +81,7 @@ run top to bottom, in the same order as the code:
 | | 21 The splash screen, the menu, settings and saved games | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files |
 | | 22 The levels' data | the map format: make your own levels |
 | | 23 The helpers | the SUBs and FUNCTIONs, grouped by topic |
-| **On the GPU** | 24 The same view, drawn by the graphics card | `SUB _GL` and OpenGL: triangles, texture coordinates, a camera matrix and `_glFrustum`, the depth buffer, alpha test; sharing a frame safely with double buffering; batching with `_glDrawArrays`; why OpenGL questions stall; GLSL shaders for bump mapping, specular highlights, self-lit neon, animated textures and moving point lights; smooth (bilinear) light; projected shadows; additive glows and particles; a mirrored pass for wet floors; render targets and post-processing (bloom, heat shimmer, hurt pulse, rail zoom, scanlines, CRT, retro resolution); premultiplied alpha; looking up and down |
+| **On the GPU** | 24 The same view, drawn by the graphics card | `SUB _GL` and OpenGL: triangles, texture coordinates, a camera matrix and `_glFrustum`, the depth buffer, alpha test; sharing a frame safely with double buffering; batching with `_glDrawArrays`; why OpenGL questions stall; GLSL shaders for bump mapping, specular highlights, self-lit neon, animated textures and moving point lights; smooth (bilinear) light; projected shadows; additive glows and particles; light shafts and dust that swirls round you; a mirrored pass for wet floors; render targets and post-processing (bloom, heat shimmer, hurt pulse, rail zoom, scanlines, CRT); choosing the resolution, supersampling and mipmaps; premultiplied alpha; looking up and down |
 
 ### Reading the names
 
@@ -156,8 +157,10 @@ run it and see what happens. That's the fastest way to learn how it works.
   `MON_TYPES`, load a sprite into two new slots (raise `SPR_SLOTS`, and
   stretch the hit-flash loop in chapter 6 to cover them), and give it a map
   letter in `LoadLevel`.
-- **Doors that close** (ch. 11): count down a timer once a door is fully
-  open, then let it slide shut again (unless you're standing in it).
+- **Doors monsters open** (ch. 11, 13): doors already shut themselves
+  (`DoorHold`) and wait for whoever is in the doorway (`DoorBlocked`). Let a
+  chasing monster set `doorMove` to 1 when its next step is a shut door
+  that needs no keycard.
 - **Your own level** (ch. 22): draw a map in the `DATA` lines, or build one
   with the level kit in `neon-caster/levels/` (`python3 levels.py --check`
   checks hand-made maps too: doors, keycards, the exit).
@@ -172,9 +175,23 @@ run it and see what happens. That's the fastest way to learn how it works.
   a red strobe (effect 3) in a dark corridor, or set a level's ambient
   brightness to 40 and light it only with lamps.
 
-**The graphics card** (set RENDERER to OPENGL and SHOW FPS on, in
-SETTINGS > VIDEO, along with RETRO RESOLUTION and LOOK UP / DOWN; every
-effect has a switch in SETTINGS > EFFECTS)
+**The graphics card** (the game starts with RENDERER on OPENGL - turn
+SHOW FPS on to see what each effect costs; both are in SETTINGS > VIDEO,
+along with DISPLAY (a window, or full screen: WIDE, 4:3 or stretched),
+RESOLUTION, LOOK UP / DOWN and the screen effects - SCREEN FX, the
+scanlines' darkness, spacing and thickness, and PHOSPHOR GLOW; every other
+effect has a switch in SETTINGS > EFFECTS. Settings change behind the menu
+as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
+- **Sharper guns** (ch. 6, 24): `gunSize` is how tall a gun is drawn,
+  whatever size its picture is. Draw `gun.png` again at 4 or 8 times the
+  pixels (384 or 768 across, still square, the muzzle in the same place)
+  and with OPENGL in full screen every extra pixel shows.
+- **The gun in its light** (ch. 17): the gun takes the colour and
+  brightness of the light where you stand (`LightAt`). Try `GUN_TINT = 3`
+  for strongly coloured light, or `GUN_DARKEST = 0` to lose it in the dark.
+- **Your own lamp** (ch. 24): every ceiling light hangs from
+  `ceiling-lamp.png` (`BuildShafts`). Draw your own - it's tinted by its
+  light, so keep it pale.
 - **One at a time** (ch. 24): switch the effects off, then on again one by
   one, and find each in the code. Which costs the most milliseconds?
 - **Your own post effect** (ch. 24): in `GLBuildShaders`, the last shader
@@ -212,9 +229,10 @@ effect has a switch in SETTINGS > EFFECTS)
   Heretic and Duke Nukem 3D.)
 - **Records instead of parallel arrays** (ch. 3): rewrite the monsters as
   one array of a `TYPE` with `x`, `y`, `kind`, `hp`, `state` fields.
-- **Doors in the middle of their cell** (ch. 15): Wolfenstein's doors sit
-  half a cell back from the wall face. Move the hit half a cell along the
-  ray.
+- **Door jambs** (ch. 15, 24): doors are slabs across the middle of their
+  doorway now (`DoorRay`, `GLDoorBox`), so the walls either side show.
+  Wolfenstein gave those a texture of their own - in `DoorRay`'s
+  neighbours, use a door-frame texture when the wall beside a door is hit.
 
 ## What's in the folder
 
