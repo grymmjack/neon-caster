@@ -1325,7 +1325,7 @@ DO
     SfxFrame : earDX = dirX : earDY = dirY ' (the limiter's memory fades; your ears face where you do)
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
     IF conWait > 0 THEN conWait = conWait - 1
-    DO WHILE conWait = 0 AND conQHead < conQTail
+    DO WHILE conWait = 0 AND conQHead < conQTail AND glShotReq = 0 ' (a screenshot asked for: the rest waits until it's saved)
         conQHead = conQHead + 1 : conCmd$ = conQ$(conQHead) : GOSUB ConExec
     LOOP
     IF conQHead >= conQTail THEN conQHead = 0 : conQTail = 0
@@ -1379,7 +1379,8 @@ DO
     WHILE _MOUSEINPUT
         mouseDX = mouseDX + _MOUSEMOVEMENTX : mouseDY = mouseDY + _MOUSEMOVEMENTY
         mouseWheel = mouseWheel + _MOUSEWHEEL
-        IF _MOUSEBUTTON(1) THEN clicked = -1
+        IF _MOUSEBUTTON(1) THEN clicked = -1 : edClickL = -1 ' (edClick: the editor's own, kept until it looks - EditFP)
+        IF _MOUSEBUTTON(2) THEN edClickR = -1
     WEND
     ' Keys go through the key bindings (chapter 21): KeyHeld(BIND_FIRE) asks
     ' "is the key you chose for firing held down?" - left Ctrl, unless you
@@ -3309,6 +3310,10 @@ DO
     ' Keys
     k& = _KEYHIT
     DO WHILE k&
+        IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z - however the key arrives)
+            IF k& = 115 OR k& = 83 THEN k& = 19
+            IF k& = 122 OR k& = 90 THEN k& = 26
+        END IF
         SELECT CASE k&
             CASE 9 : edDone = 1 ' Tab: walk round inside it
             CASE 27, 15360 : edDone = 2 ' Esc, F2: back to the game
@@ -3360,7 +3365,10 @@ EditFP:
 IF hudEdit THEN RETURN ' (the HUD layout editor has the mouse and keys)
 levelWas = level
 EditAim playerX, playerY, dirX, dirY, aimX, aimY, frontX, frontY
-fpL = _MOUSEBUTTON(1) : fpR = _MOUSEBUTTON(2)
+fpL = _MOUSEBUTTON(1) OR edClickL : fpR = _MOUSEBUTTON(2) OR edClickR ' (a click between two frames counts too)
+IF edClickL AND fpLWas THEN fpLWas = 0 ' (a fresh click, even if the button looked held)
+IF edClickR AND fpRWas THEN fpRWas = 0
+edClickL = 0 : edClickR = 0
 IF fpL AND NOT fpLWas AND frontX >= 0 THEN ' Build: the glyph into the cell in front of what you aim at
     GOSUB EditPushUndo : EditPut frontX, frontY, editGlyph$ : GOSUB EditApply : EditNote GlyphName$(editGlyph$) + " at" + STR$(frontX) + STR$(frontY)
 END IF
@@ -3373,6 +3381,10 @@ fpLWas = fpL : fpRWas = fpR
 k& = _KEYHIT
 DO WHILE k&
     shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
+    IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z - however the key arrives)
+        IF k& = 115 OR k& = 83 THEN k& = 19
+        IF k& = 122 OR k& = 90 THEN k& = 26
+    END IF
     SELECT CASE k&
         CASE 9 : editView = 0 ' Tab: the map from above
         CASE 19 : EditSave level
@@ -5207,6 +5219,10 @@ SELECT CASE conVerb$
         ELSE
             ConPrint "box X0 Y0 X1 Y1 CHAR"
         END IF
+    CASE "lamp" ' lamp X Y [1-8]: a light over cell X Y - white, cyan, magenta, orange, green, red alarm, flickering, firelight
+        GOSUB EditPushUndo
+        editLightP = VAL(conC$) - 1 : IF editLightP < 0 OR editLightP > 7 THEN editLightP = 0
+        EditAddLight VAL(conA$) + 0.5, VAL(conB$) + 0.5 : GOSUB EditApply : ConPrint editMsg$
     CASE "raise" ' raise X Y EIGHTHS [ceil], or raise X0 Y0 X1 Y1 EIGHTHS [ceil]: floors (or ceilings) up or down, in eighths of a wall
         GOSUB EditPushUndo
         w5$ = ConWord$(conCmd$, 5) : w6$ = ConWord$(conCmd$, 6)
@@ -8465,7 +8481,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help edit hud monsters puzzle put box raise lift liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -9985,9 +10001,10 @@ SUB GLGlass(b)
                 red = glLitR(cx, cy, b) / 256 : green = glLitG(cx, cy, b) / 256 : blue = glLitB(cx, cy, b) / 256
                 IF glassDir(cx, cy) = 1 THEN x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 ELSE x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1
                 glFaceNX = y1 - y0 : glFaceNY = x1 - x0 : glFaceNZ = 0 : glFaceTX = x1 - x0 : glFaceTY = y1 - y0 : glFaceTZ = 0
-                GLSpriteCorner x0, y0, 1, 0, 0, red, green, blue : GLSpriteCorner x1, y1, 1, 1, 0, red, green, blue
-                GLSpriteCorner x1, y1, 0, 1, 1, red, green, blue : GLSpriteCorner x0, y0, 1, 0, 0, red, green, blue
-                GLSpriteCorner x1, y1, 0, 1, 1, red, green, blue : GLSpriteCorner x0, y0, 0, 0, 1, red, green, blue
+                gz0 = floorH(cx, cy) : gz1 = ceilH(cx, cy) ' (floor to ceiling, however high)
+                GLSpriteCorner x0, y0, gz1, 0, 0, red, green, blue : GLSpriteCorner x1, y1, gz1, 1, 0, red, green, blue
+                GLSpriteCorner x1, y1, gz0, 1, 1, red, green, blue : GLSpriteCorner x0, y0, gz1, 0, 0, red, green, blue
+                GLSpriteCorner x1, y1, gz0, 1, 1, red, green, blue : GLSpriteCorner x0, y0, gz0, 0, 1, red, green, blue
             END IF
         END IF
     NEXT
