@@ -277,7 +277,8 @@ run it and see what happens. That's the fastest way to learn how it works.
 
 **The graphics card** (the game starts with RENDERER on OPENGL - turn
 SHOW FPS on to see what each effect costs; both are in SETTINGS > VIDEO,
-along with DISPLAY (a window, or full screen: WIDE, 4:3 or stretched),
+along with ART (CLASSIC: the pixel art; MODERN: high-resolution paintings
+of the same things, from `neon-caster/hd/`), DISPLAY (a window, or full screen: WIDE, 4:3 or stretched),
 RESOLUTION, LOOK UP / DOWN and the screen effects - SCREEN FX, the
 scanlines' darkness, spacing and thickness, and PHOSPHOR GLOW; every other
 effect has a switch in SETTINGS > EFFECTS. Settings change behind the menu
@@ -303,7 +304,14 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
   and compare again: the software renderer gets about four times slower,
   and OpenGL hardly notices (only its rays double).
 - **Smooth textures** (ch. 24): in `GLSendPicture`, change both
-  `_GL_NEAREST`s to `_GL_LINEAR`. Blurry or better?
+  `_GL_NEAREST`s to `_GL_LINEAR`. Blurry or better? (MODERN art is drawn
+  smooth already - compare the two.)
+- **Your own modern art** (ch. 6, 23): every picture in `neon-caster/hd/`
+  has the same name as its pixel-art twin in `neon-caster/`. Paint your own
+  (textures 512 x 512, sprites 256 x 256 on a see-through background,
+  standing where the old one stood), drop it in `hd/`, and set ART to
+  MODERN. `ArtPath$` picks it; `ReadPicture` shrinks it for the software
+  renderer; delete it and the pixel art comes back.
 - **Smooth light** (ch. 24): give each corner in `GLCorner` the average
   light of the four cells that meet there, instead of one cell's light.
   The software renderer couldn't afford that per pixel; the card blends
@@ -339,7 +347,8 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | Path | What |
 |---|---|
 | `neon-caster.bas` | the game and the course |
-| `neon-caster/*.png` | textures (64 x 64), sprites, the guns |
+| `neon-caster/*.png` | textures (64 x 64), sprites, the guns: the CLASSIC pixel art |
+| `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
 | `neon-caster/sfx/` | sound effects, made with soundmon; `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
 | `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22) and the level kit that builds and checks them (`levels.py`, `lvlkit.py`) |

@@ -95,7 +95,7 @@
 '     S_         Sprite slot: which picture in spriteTex()      (chapter 5)
 '     T_         Texture slot: which picture in texture()       (chapter 5)
 '     RENDER_    the size of the 3D view: RENDER_W x RENDER_H   (chapter 5)
-'     TEX_       TEXture: TEX_SIZE, how big each one is (64)    (chapter 5)
+'     texSize    how big each texture is: 128, MODERN 512      (chapter 5)
 '     MINIMAP_   where the minimap goes, and its cell size      (chapter 2)
 '     TEST_ CHEAT_  testing switches                            (chapter 4)
 '     ADS_       Aiming Down the Sights: zoom and gun position   (chapter 4)
@@ -509,7 +509,8 @@ CONST CHEAT_KEYS = -1
 ' with ordinary QB64PE graphics (chapter 18).
 
 ' --- Sprites (billboards): pictures, and the list drawn each frame ---
-' SPR_ = SPRite picture storage: each picture is up to SPR_TEX pixels square,
+' SPR_ = SPRite picture storage: each picture is up to sprTex pixels square
+' (64, or 256 for MODERN art with OpenGL - ArtReload, chapter 23),
 ' and there are SPR_SLOTS of them. A "slot" is just a picture's number - the
 ' third index of spriteTex(x, y, slot):
 '   1-3 keycards, 4 medkit, 5 cells, 6 shells, 7 scatter gun, 8 repeater,
@@ -538,10 +539,21 @@ CONST S_DECOX = S_MONX + (MON_TYPES - 5) * 2, S_ITEMX = S_DECOX + DECO_KINDS - 4
 CONST S_TRAP = S_ITEMX + ITEM_KINDS - 12, S_PLATE = S_TRAP + 1, S_LASER = S_TRAP + 2 ' (traps: a pressure plate, a laser beam)
 CONST S_GLASS = S_TRAP + 3 ' (glass: whole, then cracked)
 CONST S_PAD = S_GLASS + 2 ' (a teleporter's pad)
-CONST SPR_TEX = 64, SPR_SLOTS = S_PAD
+CONST SPR_SLOTS = S_PAD
+' How big each picture is kept: textures texSize, sprites up to sprTex
+' pixels across. ART (SETTINGS > VIDEO) picks them: CLASSIC, the pixel art
+' in neon-caster/, at 128 and 64; MODERN, the paintings in neon-caster/hd/,
+' at 512 and 256 with OpenGL (shrunk to 128 and 64 for the software
+' renderer). artNow: what's loaded (0 classic, 1 modern small, 2 modern
+' big); artWant: what the settings ask for (ApplySettings); artHold: the
+' pictures are being reloaded - OpenGL keeps its hands off (glArtAck: it has)
+DIM SHARED texSize AS LONG, sprTex AS LONG, artNow AS INTEGER, artWant AS INTEGER, artHold AS INTEGER, glArtAck AS INTEGER
+texSize = 128 : sprTex = 64 : artNow = -1
+DIM SHARED glGunVersion AS LONG, glGunDone AS LONG, monK ' (monK: MakeMonFrames' picture size over 64)
 ' How tall pickups stand (in walls): keycards, other pickups, guns
 CONST CARD_SCALE = 0.3, ITEM_SCALE = 0.3, GUN_ITEM_SCALE = 0.45
-DIM SHARED spriteTex(SPR_TEX - 1, SPR_TEX-1, SPR_SLOTS) AS _UNSIGNED LONG, spriteSize(SPR_SLOTS) AS INTEGER
+REDIM SHARED spriteTex(sprTex - 1, sprTex - 1, SPR_SLOTS) AS _UNSIGNED LONG
+DIM SHARED spriteSize(SPR_SLOTS) AS INTEGER
 DIM SHARED cardImg&(3) ' The keycards as images, for the HUD
 ' The draw list: every sprite to draw this frame (chapter 16)
 ' DECALS: marks left where shots and explosions hit - where (x, y, z),
@@ -558,8 +570,8 @@ DIM drawSquash(MAX_DRAW) AS SINGLE, drawMinShade(MAX_DRAW) AS INTEGER, drawOrder
 
 ' --- The 3D view: drawn at half size, then stretched 2x onto the window ---
 ' RENDER_ = the size of the 3D view in pixels (W = width, H = height);
-' TEX_SIZE = every texture is 64 x 64 pixels
-CONST RENDER_W = 400, RENDER_H = 300, TEX_SIZE = 128
+' (texSize: how big each texture is - see sprTex above)
+CONST RENDER_W = 400, RENDER_H = 300
 ' --- Glass: = on the map, a pane across the middle of its cell (in a
 ' wall one cell thick, like a door). You, monsters and bolts can't pass
 ' it; sight and light can. glassHP: hits left (0: none there, or broken);
@@ -602,8 +614,8 @@ CONST T_SHUTTER = 11, T_SPLIT = 12, T_EXIT = 13
 CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20, T_LAMPOFF = 21, T_JACK = 22 ' (T_JACK: a data station's wall, @)
 CONST T_CODE = 23 ' (a code terminal's wall, $)
 CONST T_SLOTS = 23
-DIM SHARED texture(TEX_SIZE - 1, TEX_SIZE-1, T_SLOTS) AS _UNSIGNED LONG
-DIM SHARED texBak(TEX_SIZE - 1, TEX_SIZE - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
+REDIM SHARED texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
+REDIM SHARED texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
 DIM SHARED wallTexSlot(9) AS INTEGER, wallMapColor(9) AS _UNSIGNED LONG
 wallTexSlot(1) = 1 : wallTexSlot(3) = 2 : wallTexSlot(4) = 3 : wallTexSlot(5) = 4 : wallTexSlot(6) = 5 : wallTexSlot(7) = 6 : wallTexSlot(8) = T_JACK : wallTexSlot(9) = T_CODE ' (8: a data station; 9: a code terminal)
@@ -675,7 +687,7 @@ DIM SHARED glTexName(GL_GLOW_TEX) AS _UNSIGNED LONG, glTexDone AS LONG
 ' name for (it knows OpenGL 1.1's; these came later)
 DIM SHARED glGunTex(NUM_GUNS) AS _UNSIGNED LONG
 CONST GL_GENERATE_MIPMAP = &H8191&, GL_CLAMP_TO_EDGE = &H812F&
-DIM SHARED glUpload(TEX_SIZE * TEX_SIZE - 1) AS _UNSIGNED LONG ' (a picture on its way to the card)
+REDIM SHARED glUpload(texSize * texSize - 1) AS _UNSIGNED LONG ' (a picture on its way to the card)
 ' The world shader (chapter 24): the program, where its uniforms and
 ' attributes are, whether we've tried to build it, and why it failed (if)
 DIM SHARED glWorldProg AS _UNSIGNED LONG, glWorldTried AS INTEGER, glShaderOn AS INTEGER, glShaderError$
@@ -792,6 +804,7 @@ CONST WAKE_REACH = 1.1
 ' Each texture slot's file name (LoadTex), so OpenGL can tell what a
 ' texture is - a floor that should shine, a screen that should flicker
 DIM SHARED texName$(T_SLOTS)
+DIM SHARED texHD(T_SLOTS) AS INTEGER ' (each texture slot: a MODERN painting from hd/? OpenGL draws those smooth)
 DIM SHARED pitch ' (looking up and down, chapter 8 - OpenGL only)
 
 '-----------------------------------------------------------------------------
@@ -801,49 +814,10 @@ DIM SHARED pitch ' (looking up and down, chapter 8 - OpenGL only)
 ' (chapter 23) open one with _LOADIMAGE and copy its colours into the
 ' texture() or spriteTex() array. The level's own walls, floors and
 ' ceilings are loaded with the level (chapter 20); these are the ones every
-' level shares.
-'
-' Some pictures are made rather than loaded: the keycards and key doors are
-' one picture tinted three colours, each monster gets a second, red-washed
-' copy to flash when it's hit, and the bolt is drawn with maths (MakeBolt).
-LoadTex "door.png", T_DOOR
-LoadTex "door-shutter.png", T_SHUTTER
-LoadTex "door-split.png", T_SPLIT
-LoadTex "exit.png", T_EXIT : ExitSign
-LoadTex "ceiling-lamp.png", T_LAMP : MakeLampOff
-LoadTex "wall-jack.png", T_JACK ' (a data station)
-LoadTex "wall-code.png", T_CODE ' (a code terminal)
-LoadCards "keycard.png"
-LoadSprite "medkit.png", 4
-LoadSprite "ammo.png", 5
-LoadSprite "shells.png", 6
-LoadSprite "pickup-scatter.png", 7
-LoadSprite "pickup-repeater.png", 8
-LoadSprite "drone.png", 9
-LoadSprite "gunner.png", 11
-LoadSprite "heavy.png", 13
-LoadSprite "crawler.png", 15
-LoadSprite "sentry.png", 17
-FOR slot = 9 TO 17 STEP 2 : MakeHurt slot, slot + 1 : NEXT ' (each one's hit flash, in the next slot)
-MakeBolt S_BOLT
-LoadSprite "barrel.png", S_DECO + 1
-LoadSprite "lamp.png", S_DECO + 2
-LoadSprite "plant.png", S_DECO + 3
-LoadSprite "terminal.png", S_DECO + 4
-LoadSprite "crate.png", DecoSlot(5) : LoadSprite "rack.png", DecoSlot(6)
-LoadSprite "vending.png", DecoSlot(7) : LoadSprite "tank.png", DecoSlot(8) : LoadSprite "spawner.png", DecoSlot(9)
-' The set pieces (10-19): desk, control console, monitor bank, specimen
-' tank, lab bench, generator, cryo pod, hologram, lockers, bench
-FOR k = 10 TO DECO_KINDS : LoadSprite DecoFile$(k), DecoSlot(k) : NEXT
-LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE)
-MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
-MakePad S_PAD ' (a teleporter's pad)
-LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
-LoadSprite "explosion.png", S_BLAST : MakeBoomFrames ' (and its animation)
-LoadSprite "armor.png", 25
-LoadSprite "bigmed.png", 26
-LoadSprite "pickup-rail.png", 27
-LoadSprite "map.png", 28
+' level shares - all loaded by LoadPictures (at the end of the main
+' program), once the settings are read: ART (SETTINGS > VIDEO) picks the
+' pixel art in neon-caster/ (CLASSIC) or the paintings in neon-caster/hd/
+' (MODERN), and how big they're kept (ArtReload).
 
 ' The guns you hold are kept as ordinary images (not arrays): they're drawn
 ' over the finished view with _PUTIMAGE, at full size (chapter 18). LoadGun
@@ -858,10 +832,7 @@ LoadSprite "map.png", 28
 ' muzzle in the same place, and aiming down the sights still lines up.
 gunSize(1) = 288 : gunSize(2) = 346 : gunSize(3) = 384 : gunSize(4) = 346
 CONST GUN_Y = 600 ' A gun's bottom sits here, its muzzle straight below the crosshair
-LoadGun 1, "gun.png"
-LoadGun 2, "gun-scatter.png"
-LoadGun 3, "gun-repeater.png"
-LoadGun 4, "gun-rail.png"
+' (LoadGun 1 to 4: in LoadPictures)
 
 ' Sounds: WAV files from neon-caster/sfx/ (made with PWMSFXR - see
 ' make-sfx.sh there). _SNDOPEN loads one and gives back a handle, a number
@@ -897,10 +868,8 @@ DO
     numLines = numLines + 1 : lineKey$(numLines) = k$ : lineText$(numLines) = t$
     p$ = AssetPath$("speech/" + k$ + ".wav") : IF _FILEEXISTS(p$) THEN lineSnd&(numLines) = _SNDOPEN(p$, "noasync")
 LOOP
-nexusImg& = _LOADIMAGE(AssetPath$("nexus.png"), 32)
 tauntWait = 3600
 IF sndKick& = 0 THEN sndKick& = LoadSnd&("bump.wav")
-kickImg& = _LOADIMAGE(AssetPath$("kick.png"), 32) ' The boot (chapter 18); missing, there's no boot to see
 gunSnd&(1) = LoadSnd&("shoot.wav") : gunSnd&(2) = LoadSnd&("scatter.wav") : gunSnd&(3) = LoadSnd&("repeater.wav")
 gunSnd&(4) = LoadSnd&("rail.wav")
 sndBarrel& = LoadSnd&("barrel.wav") : sndArmor& = LoadSnd&("armor.wav") : sndExit& = LoadSnd&("exit.wav")
@@ -967,13 +936,7 @@ mtypeRanged(2) = -1 : mtypeRanged(5) = -1 : mtypeRanged(7) = -1 : mtypeRanged(8)
 ReadMonsters
 HudDefaults : ReadHud ' (the HUD's layout: chapter 18's, or hud.txt's)
 ' The newer monsters' pictures: each, then itself hurt (MakeHurt: flashed red)
-FOR mtype = 6 TO MON_TYPES
-    LoadSprite mtypeName$(mtype) + ".png", mtypeSprite(mtype) : MakeHurt mtypeSprite(mtype), mtypeSprite(mtype) + 1
-NEXT
-FOR mtype = 1 TO MON_TYPES : MakeCorpse mtype : NEXT ' (each one's body, for when it's dead)
-FOR k = 1 TO DECO_KINDS : MakeWreck k : NEXT ' (each decoration, broken)
-FOR mtype = 1 TO MON_TYPES : MakeMonFrames mtype : NEXT ' (each one's animation)
-MakeScorch ' (a scorch mark, for the software renderer's decals)
+' (and their pictures: LoadPictures)
 mtypeAlertSnd&(1) = LoadSnd&("drone-alert.wav") : mtypeAttackSnd&(1) = LoadSnd&("drone-attack.wav")
 mtypeHitSnd&(1) = LoadSnd&("drone-hit.wav") : mtypeDieSnd&(1) = LoadSnd&("drone-die.wav")
 mtypeAlertSnd&(2) = LoadSnd&("gunner-alert.wav") : mtypeAttackSnd&(2) = LoadSnd&("gunner-shoot.wav")
@@ -1003,7 +966,7 @@ NEXT
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 39
+CONST NUM_SETTINGS = 40
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -1012,7 +975,7 @@ CONST SET_BUMP = 16, SET_GLOW = 17, SET_NEON = 18, SET_SMOOTH = 19, SET_DYNLIGHT
 CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, SET_HITFX = 26, SET_RES = 27, SET_LOOK = 28
 CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
 CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
-CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39
+CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
 DIM SHARED setting(NUM_SETTINGS), setDefault(NUM_SETTINGS), setMin(NUM_SETTINGS), setMax(NUM_SETTINGS)
 ' Each letter's scancode (where it is on the keyboard), a to z, as
 ' characters 32 on (CHR$(scancode + 32)), for KeyAt% (chapter 21)
@@ -1040,6 +1003,8 @@ DefineSetting SET_RENDERER,  "renderer",           "RENDERER",           MI_CHOI
 DefineSetting SET_FPS,       "show_fps",           "SHOW FPS",           MI_TOGGLE, 0,  1,   1,   0
 DefineSetting SET_BUMP,      "bump_mapping",       "BUMP MAPPING",       MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
 DefineSetting SET_GLOW,      "glows",              "GLOWS",              MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
+' ART: 1 CLASSIC (the pixel art), 2 MODERN (neon-caster/hd/'s paintings)
+DefineSetting SET_ART,       "art",                "ART",                MI_CHOICE, 1,  2,   1,   1
 ' The OpenGL effects (chapter 24; SETTINGS > EFFECTS) and the two OpenGL
 ' view settings (SETTINGS > VIDEO). SCREEN FX: 1 off, 2 scanlines, 3 CRT.
 ' RESOLUTION: what size OpenGL draws the 3D view, 1 (RES_NATIVE: the
@@ -1272,6 +1237,7 @@ IF keyDevice THEN
     IF _DEVICES >= 1 THEN IF INSTR(_DEVICE$(1), "[KEYBOARD]") THEN keyDevice = -1
 END IF
 ApplySettings
+GOSUB ArtReload ' Every picture, as ART asks (chapter 6's list: LoadPictures)
 ' Commands on the command line (chapter 21): each starts with a + -
 '   neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit
 ' They skip the splash and the title, start a new game and run, one a
@@ -1375,6 +1341,7 @@ DO
     ' WHILE _MOUSEINPUT reads them all, one at a time, until the queue is
     ' empty. A click that starts and ends between two frames would be
     ' missed by just checking the button, so "clicked" remembers it.
+    IF artWant <> artNow THEN GOSUB ArtReload ' (ART or the renderer changed: chapter 23)
     mouseDX = 0 : mouseDY = 0 : mouseWheel = 0
     WHILE _MOUSEINPUT
         mouseDX = mouseDX + _MOUSEMOVEMENTX : mouseDY = mouseDY + _MOUSEMOVEMENTY
@@ -2230,7 +2197,7 @@ DO
                     IF floorSplit(cellX, cellY) THEN IF InDiagonalWall(floorSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN floorSlot = floorTex2(cellX, cellY)
                     IF ceilSplit(cellX, cellY) THEN IF InDiagonalWall(ceilSplit(cellX, cellY), floorX - cellX, floorY - cellY) THEN ceilSlot = ceilTex2(cellX, cellY)
                 END IF
-                texU = INT(floorX * TEX_SIZE) AND (TEX_SIZE - 1) : texV = INT(floorY * TEX_SIZE) AND (TEX_SIZE - 1)
+                texU = INT(floorX * texSize) AND (texSize - 1) : texV = INT(floorY * texSize) AND (texSize - 1)
                 ' The same sum as ShadeRGB~& (chapter 23), written out here: this
                 ' runs 120,000 times a frame, and calling a FUNCTION each time
                 ' would cost more than the sum itself
@@ -2389,9 +2356,9 @@ DO
         IF diagHit THEN ' Along the diagonal, left to right as you see it
             wallX = playerX + perpWallDist * rayDirX - mapX
             IF diagHit <= 2 THEN wallX = 1 - wallX
-            texX = INT(wallX * TEX_SIZE) : texSlot = wallTexSlot(hit)
+            texX = INT(wallX * texSize) : texSlot = wallTexSlot(hit)
         ELSEIF doorHit = 2 THEN ' A door's edge: a thin slice of its picture
-            texX = INT(doorU * DOOR_THICK * TEX_SIZE)
+            texX = INT(doorU * DOOR_THICK * texSize)
             SELECT CASE doorType(mapX, mapY)
                 CASE DOOR_SLIDE : IF doorKey(mapX, mapY) THEN texSlot = T_DOORK + doorKey(mapX, mapY) ELSE texSlot = T_DOOR
                 CASE DOOR_SPLIT : texSlot = T_SPLIT
@@ -2402,28 +2369,28 @@ DO
             doorOpenAmt = DoorShown(mapX, mapY)
             SELECT CASE doorType(mapX, mapY)
                 CASE DOOR_SLIDE
-                    texX = INT((wallX - doorOpenAmt) * TEX_SIZE)
+                    texX = INT((wallX - doorOpenAmt) * texSize)
                     IF doorKey(mapX, mapY) THEN texSlot = T_DOORK + doorKey(mapX, mapY) ELSE texSlot = T_DOOR
                 CASE DOOR_SPLIT
-                    IF wallX < 0.5 THEN texX = INT((wallX + doorOpenAmt / 2) * TEX_SIZE) ELSE texX = INT((wallX - doorOpenAmt / 2) * TEX_SIZE)
+                    IF wallX < 0.5 THEN texX = INT((wallX + doorOpenAmt / 2) * texSize) ELSE texX = INT((wallX - doorOpenAmt / 2) * texSize)
                     texSlot = T_SPLIT
                 CASE DOOR_EXIT ' (turned like a wall, so its sign reads the right way)
-                    texX = INT(wallX * TEX_SIZE) : texSlot = T_EXIT
-                    IF side = 0 AND rayDirX > 0 THEN texX = TEX_SIZE - 1 - texX
-                    IF side = 1 AND rayDirY < 0 THEN texX = TEX_SIZE - 1 - texX
+                    texX = INT(wallX * texSize) : texSlot = T_EXIT
+                    IF side = 0 AND rayDirX > 0 THEN texX = texSize - 1 - texX
+                    IF side = 1 AND rayDirY < 0 THEN texX = texSize - 1 - texX
                 CASE ELSE
-                    texX = INT(wallX * TEX_SIZE) : texSlot = T_SHUTTER
+                    texX = INT(wallX * texSize) : texSlot = T_SHUTTER
             END SELECT
         ELSE
-            texX = INT(wallX * TEX_SIZE) : texSlot = wallTexSlot(hit)
-            IF side = 0 AND rayDirX > 0 THEN texX = TEX_SIZE - 1 - texX
-            IF side = 1 AND rayDirY < 0 THEN texX = TEX_SIZE - 1 - texX
+            texX = INT(wallX * texSize) : texSlot = wallTexSlot(hit)
+            IF side = 0 AND rayDirX > 0 THEN texX = texSize - 1 - texX
+            IF side = 1 AND rayDirY < 0 THEN texX = texSize - 1 - texX
         END IF
-        texX = texX AND (TEX_SIZE - 1)
+        texX = texX AND (texSize - 1)
 
         lineHeight = viewH / perpWallDist
         drawStart = INT(RENDER_H / 2 - lineHeight / 2) : drawEnd = INT(RENDER_H / 2 + lineHeight / 2)
-        texStep = TEX_SIZE / lineHeight : texPos = (drawStart - RENDER_H / 2 + lineHeight / 2) * texStep
+        texStep = texSize / lineHeight : texPos = (drawStart - RENDER_H / 2 + lineHeight / 2) * texStep
         IF drawStart < 0 THEN texPos = texPos - drawStart * texStep : drawStart = 0
         IF drawEnd > RENDER_H - 1 THEN drawEnd = RENDER_H-1
 
@@ -2451,7 +2418,7 @@ DO
         IF NOT glMode AND NOT levelFlat THEN GOSUB HeightColumn ' (heights: the column, Doom's way - below)
         IF NOT glMode AND levelFlat THEN ' (OpenGL draws the walls itself)
             FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
-                texel~& = texture(texX, INT(texPos) AND (TEX_SIZE - 1), texSlot)
+                texel~& = texture(texX, INT(texPos) AND (texSize - 1), texSlot)
                 pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                 texPos = texPos + texStep
             NEXT
@@ -2462,7 +2429,7 @@ DO
         IF shutterSeen THEN
             lineHeight = viewH / shutterDist
             shutterTop = INT(RENDER_H / 2 - lineHeight / 2) : drawEnd = INT(RENDER_H / 2 + lineHeight / 2 - shutterOpen * lineHeight)
-            texStep = TEX_SIZE / lineHeight : texPos = shutterOpen * TEX_SIZE
+            texStep = texSize / lineHeight : texPos = shutterOpen * texSize
             drawStart = shutterTop
             IF drawStart < 0 THEN texPos = texPos - drawStart * texStep : drawStart = 0
             IF drawEnd > RENDER_H - 1 THEN drawEnd = RENDER_H-1
@@ -2470,10 +2437,10 @@ DO
             IF fog& < 0 THEN fog& = 0
             IF shutterSide = 1 THEN fog& = fog& * 0.7
             lightR& = litR(shutterLitX, shutterLitY) * fog& \ 256 : lightG& = litG(shutterLitX, shutterLitY) * fog& \ 256 : lightB& = litB(shutterLitX, shutterLitY) * fog& \ 256
-            texX = INT(shutterU * TEX_SIZE) AND (TEX_SIZE - 1)
+            texX = INT(shutterU * texSize) AND (texSize - 1)
             IF NOT glMode AND levelFlat THEN
                 FOR y = drawStart TO drawEnd
-                    pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, INT(texPos) AND (TEX_SIZE - 1), T_SHUTTER), lightR&, lightG&, lightB&)
+                    pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, INT(texPos) AND (texSize - 1), T_SHUTTER), lightR&, lightG&, lightB&)
                     texPos = texPos + texStep
                 NEXT
                 ' Lifted above your eyes, you see its underside: from its front
@@ -2483,7 +2450,7 @@ DO
                     underEnd = INT(RENDER_H / 2 + viewH / shutterBack * (0.5 - shutterOpen))
                     IF underEnd > RENDER_H - 1 THEN underEnd = RENDER_H - 1
                     FOR y = drawEnd + 1 TO underEnd
-                        IF y >= 0 THEN pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, TEX_SIZE - 2, T_SHUTTER), lightR& \ 2, lightG& \ 2, lightB& \ 2)
+                        IF y >= 0 THEN pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, texSize - 2, T_SHUTTER), lightR& \ 2, lightG& \ 2, lightB& \ 2)
                     NEXT
                 END IF
             END IF
@@ -3347,6 +3314,96 @@ WHILE _MOUSEINPUT : WEND
 escWas = -1 : fireWait = 10
 RETURN
 
+' --- CHAPTER 6's pictures, all of them (and again when ART changes) -----
+' These are the ones every level shares. Some pictures are made rather than loaded: the keycards and key doors are
+' one picture tinted three colours, each monster gets a second, red-washed
+' copy to flash when it's hit, and the bolt is drawn with maths (MakeBolt).
+LoadPictures:
+LoadTex "door.png", T_DOOR
+LoadTex "door-shutter.png", T_SHUTTER
+LoadTex "door-split.png", T_SPLIT
+LoadTex "exit.png", T_EXIT : ExitSign
+LoadTex "ceiling-lamp.png", T_LAMP : MakeLampOff
+LoadTex "wall-jack.png", T_JACK ' (a data station)
+LoadTex "wall-code.png", T_CODE ' (a code terminal)
+LoadCards "keycard.png"
+LoadSprite "medkit.png", 4
+LoadSprite "ammo.png", 5
+LoadSprite "shells.png", 6
+LoadSprite "pickup-scatter.png", 7
+LoadSprite "pickup-repeater.png", 8
+LoadSprite "drone.png", 9
+LoadSprite "gunner.png", 11
+LoadSprite "heavy.png", 13
+LoadSprite "crawler.png", 15
+LoadSprite "sentry.png", 17
+FOR slot = 9 TO 17 STEP 2 : MakeHurt slot, slot + 1 : NEXT ' (each one's hit flash, in the next slot)
+MakeBolt S_BOLT
+LoadSprite "barrel.png", S_DECO + 1
+LoadSprite "lamp.png", S_DECO + 2
+LoadSprite "plant.png", S_DECO + 3
+LoadSprite "terminal.png", S_DECO + 4
+LoadSprite "crate.png", DecoSlot(5) : LoadSprite "rack.png", DecoSlot(6)
+LoadSprite "vending.png", DecoSlot(7) : LoadSprite "tank.png", DecoSlot(8) : LoadSprite "spawner.png", DecoSlot(9)
+' The set pieces (10-19): desk, control console, monitor bank, specimen
+' tank, lab bench, generator, cryo pod, hologram, lockers, bench
+FOR k = 10 TO DECO_KINDS : LoadSprite DecoFile$(k), DecoSlot(k) : NEXT
+LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE)
+MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
+MakePad S_PAD ' (a teleporter's pad)
+LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
+LoadSprite "explosion.png", S_BLAST : MakeBoomFrames ' (and its animation)
+LoadSprite "armor.png", 25
+LoadSprite "bigmed.png", 26
+LoadSprite "pickup-rail.png", 27
+LoadSprite "map.png", 28
+' The newer monsters' pictures: each, then itself hurt (MakeHurt: flashed red)
+FOR mtype = 6 TO MON_TYPES
+    LoadSprite mtypeName$(mtype) + ".png", mtypeSprite(mtype) : MakeHurt mtypeSprite(mtype), mtypeSprite(mtype) + 1
+NEXT
+FOR mtype = 1 TO MON_TYPES : MakeCorpse mtype : NEXT ' (each one's body, for when it's dead)
+FOR k = 1 TO DECO_KINDS : MakeWreck k : NEXT ' (each decoration, broken)
+FOR mtype = 1 TO MON_TYPES : MakeMonFrames mtype : NEXT ' (each one's animation)
+MakeScorch ' (a scorch mark, for the software renderer's decals)
+LoadGun 1, "gun.png"
+LoadGun 2, "gun-scatter.png"
+LoadGun 3, "gun-repeater.png"
+LoadGun 4, "gun-rail.png"
+glGunVersion = glGunVersion + 1 ' (OpenGL's copies of them, again)
+IF nexusImg& < -1 THEN _FREEIMAGE nexusImg&
+nexusImg& = _LOADIMAGE(ArtPath$("nexus.png"), 32)
+IF kickImg& < -1 THEN _FREEIMAGE kickImg&
+kickImg& = _LOADIMAGE(ArtPath$("kick.png"), 32) ' The boot (chapter 18); missing, there's no boot to see
+RETURN
+
+' --- ART (SETTINGS > VIDEO): every picture again, the size the setting
+' wants (artWant: ApplySettings) - CLASSIC: textures 128 and sprites 64
+' pixels across, the pixel art in neon-caster/; MODERN: the paintings in
+' neon-caster/hd/ (ArtPath$), at 512 and 256 with OpenGL (which draws them
+' smooth), shrunk to 128 and 64 for the software renderer. OpenGL is held
+' off first (artHold, till it says so - glArtAck): it reads these arrays
+' from its own thread, and REDIM moves them.
+ArtReload:
+artHold = -1 : glArtAck = 0
+IF glReady THEN
+    artT0! = TIMER
+    DO WHILE glArtAck = 0 AND ABS(TIMER - artT0!) < 1 : _LIMIT 500 : LOOP
+END IF
+artNow = artWant
+IF artNow = 2 THEN texSize = 512 : sprTex = 256 ELSE texSize = 128 : sprTex = 64
+REDIM texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
+REDIM texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
+REDIM glUpload(texSize * texSize - 1) AS _UNSIGNED LONG
+REDIM spriteTex(sprTex - 1, sprTex - 1, SPR_SLOTS) AS _UNSIGNED LONG
+GOSUB LoadPictures
+FOR k = 1 TO T_SLOTS ' The level's own walls, floors and ceilings, again
+    IF texFile$(k) <> "" THEN LoadTex texFile$(k), k
+NEXT
+IF cyberOn THEN CyberTextures -1 ' (in the network: its grid, at the new size)
+glTexVersion = glTexVersion + 1 : glRetexVersion = glRetexVersion + 1
+artHold = 0
+RETURN
+
 EditOtherLevel_Prev:
 IF level > 1 THEN level = level - 1 : GOSUB EditGoLevel
 RETURN
@@ -3892,7 +3949,7 @@ DO
             slot = floorTex(hcX, hcY)
             IF floorSplit(hcX, hcY) THEN IF InDiagonalWall(floorSplit(hcX, hcY), fx - hcX, fy - hcY) THEN slot = floorTex2(hcX, hcY)
             f& = 256 - rowDist * 16 : IF f& < 0 THEN f& = 0
-            pixels(y * RENDER_W + x) = ShadeRGB~&(texture(INT(fx * TEX_SIZE) AND (TEX_SIZE - 1), INT(fy * TEX_SIZE) AND (TEX_SIZE - 1), slot), MinOf(256, hR& * f& \ 256), MinOf(256, hG& * f& \ 256), MinOf(256, hB& * f& \ 256))
+            pixels(y * RENDER_W + x) = ShadeRGB~&(texture(INT(fx * texSize) AND (texSize - 1), INT(fy * texSize) AND (texSize - 1), slot), MinOf(256, hR& * f& \ 256), MinOf(256, hG& * f& \ 256), MinOf(256, hB& * f& \ 256))
         NEXT
         IF yFar - 1 < hBot THEN hBot = yFar - 1
     END IF
@@ -3909,7 +3966,7 @@ DO
             slot = ceilTex(hcX, hcY)
             IF ceilSplit(hcX, hcY) THEN IF InDiagonalWall(ceilSplit(hcX, hcY), fx - hcX, fy - hcY) THEN slot = ceilTex2(hcX, hcY)
             f& = 256 - rowDist * 16 : IF f& < 0 THEN f& = 0
-            pixels(y * RENDER_W + x) = ShadeRGB~&(texture(INT(fx * TEX_SIZE) AND (TEX_SIZE - 1), INT(fy * TEX_SIZE) AND (TEX_SIZE - 1), slot), MinOf(256, hR& * f& \ 256), MinOf(256, hG& * f& \ 256), MinOf(256, hB& * f& \ 256))
+            pixels(y * RENDER_W + x) = ShadeRGB~&(texture(INT(fx * texSize) AND (texSize - 1), INT(fy * texSize) AND (texSize - 1), slot), MinOf(256, hR& * f& \ 256), MinOf(256, hG& * f& \ 256), MinOf(256, hB& * f& \ 256))
         NEXT
         IF yFar + 1 > hTop THEN hTop = yFar + 1
     END IF
@@ -3932,10 +3989,10 @@ DO
         END IF
     END IF
     IF hSide = 0 THEN wallX = playerY + hDOut * rayDirY ELSE wallX = playerX + hDOut * rayDirX
-    wallX = wallX - INT(wallX) : hTexX = INT(wallX * TEX_SIZE)
-    IF hSide = 0 AND rayDirX > 0 THEN hTexX = TEX_SIZE - 1 - hTexX
-    IF hSide = 1 AND rayDirY < 0 THEN hTexX = TEX_SIZE - 1 - hTexX
-    hTexX = hTexX AND (TEX_SIZE - 1)
+    wallX = wallX - INT(wallX) : hTexX = INT(wallX * texSize)
+    IF hSide = 0 AND rayDirX > 0 THEN hTexX = texSize - 1 - hTexX
+    IF hSide = 1 AND rayDirY < 0 THEN hTexX = texSize - 1 - hTexX
+    hTexX = hTexX AND (texSize - 1)
     hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
     IF hSide = 1 THEN hFog& = hFog& * 0.7
     hR& = MinOf(256, litR(hcX, hcY) * hFog& \ 256) : hG& = MinOf(256, litG(hcX, hcY) * hFog& \ 256) : hB& = MinOf(256, litB(hcX, hcY) * hFog& \ 256)
@@ -3970,7 +4027,7 @@ RETURN
 HeightFace:
 FOR y = MaxOf(y0, hTop) TO MinOf(y1, hBot)
     z = eyeZ - (y + 0.5 - hor) * hDOut / viewH
-    pixels(y * RENDER_W + x) = ShadeRGB~&(texture(hTexX, INT((1 - z) * TEX_SIZE) AND (TEX_SIZE - 1), hSlot), hR&, hG&, hB&)
+    pixels(y * RENDER_W + x) = ShadeRGB~&(texture(hTexX, INT((1 - z) * texSize) AND (texSize - 1), hSlot), hR&, hG&, hB&)
 NEXT
 RETURN
 
@@ -3983,10 +4040,10 @@ glassDone(gx) = -1
 gLine = viewH / glassT(gx)
 gTop = INT(RENDER_H / 2 - (ceilH(glassCX(gx), glassCY(gx)) - eyeZ) * gLine) : gEnd = INT(RENDER_H / 2 + (eyeZ - floorH(glassCX(gx), glassCY(gx))) * gLine)
 gLine = gEnd - gTop + 1 ' (the pane's height on the screen)
-gStep = SPR_TEX / gLine : gPos = 0
+gStep = sprTex / gLine : gPos = 0
 IF gTop < 0 THEN gPos = -gTop * gStep : gTop = 0
 IF gEnd > RENDER_H - 1 THEN gEnd = RENDER_H - 1
-gu = INT(glassU(gx) * SPR_TEX) AND (SPR_TEX - 1)
+gu = INT(glassU(gx) * sprTex) AND (sprTex - 1)
 gSlot = S_GLASS : IF glassHP(glassCX(gx), glassCY(gx)) <= GLASS_HP \ 2 THEN gSlot = S_GLASS + 1
 gFog& = 256 - glassT(gx) * 16 : IF gFog& < 40 THEN gFog& = 40
 gR& = litR(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gG& = litG(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gB& = litB(glassCX(gx), glassCY(gx)) * gFog& \ 256
@@ -3994,7 +4051,7 @@ IF gR& > 256 THEN gR& = 256
 IF gG& > 256 THEN gG& = 256
 IF gB& > 256 THEN gB& = 256
 FOR gy = gTop TO gEnd
-    gTex~& = spriteTex(gu, INT(gPos) AND (SPR_TEX - 1), gSlot) : gA& = _ALPHA32(gTex~&)
+    gTex~& = spriteTex(gu, INT(gPos) AND (sprTex - 1), gSlot) : gA& = _ALPHA32(gTex~&)
     IF gA& THEN
         gC~& = ShadeRGB~&(gTex~&, gR&, gG&, gB&) : gIdx& = gy * RENDER_W + gx : gOld~& = pixels(gIdx&)
         pixels(gIdx&) = &HFF000000~& OR ((((gC~& \ 65536) AND 255) * gA& + ((gOld~& \ 65536) AND 255) * (255 - gA&)) \ 255) * 65536 OR ((((gC~& \ 256) AND 255) * gA& + ((gOld~& \ 256) AND 255) * (255 - gA&)) \ 255) * 256 OR (((gC~& AND 255) * gA& + (gOld~& AND 255) * (255 - gA&)) \ 255)
@@ -5959,35 +6016,68 @@ RETURN
 
 ' === PICTURES AND COLOUR ======================================================
 
-' A 64 x 64 texture from neon-caster/ into texture slot `slot`. The picture
-' is first drawn into a 64 x 64 image with _PUTIMAGE, which squashes any size
-' to fit; then POINT reads its pixels into the array. POINT is slow, but this
-' only happens while loading.
+' A texture from neon-caster/ (or hd/ - ArtPath$) into texture slot `slot`,
+' texSize pixels square whatever size the picture is (ReadPicture).
 SUB LoadTex(file$, slot AS INTEGER)
     texName$(slot) = LCASE$(file$) ' (what it is, for OpenGL's effects - chapter 24)
-    path$ = AssetPath$(file$)
+    path$ = ArtPath$(file$) : texHD(slot) = INSTR(path$, "hd/") > 0
     img& = _LOADIMAGE(path$, 32)
     IF img& >= -1 THEN PRINT "Missing texture: "; path$ : SLEEP : SYSTEM
-    tex& = _NEWIMAGE(TEX_SIZE, TEX_SIZE, 32) : _PUTIMAGE, img&, tex&
-    _SOURCE tex&
-    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE-1 : texture(x, y, slot) = POINT(x, y) : NEXT : NEXT
-    _SOURCE 0 : _FREEIMAGE img& : _FREEIMAGE tex&
+    ReadPicture img&, texSize, 0, slot
+    _FREEIMAGE img&
 END SUB
 
-' A sprite picture from neon-caster/ into spriteTex slot `slot` (up to
-' SPR_TEX pixels square - bigger pictures are shrunk). Pixels keep their
-' alpha, so the sprite drawing (chapter 16) can skip the see-through ones.
+' A sprite picture from neon-caster/ (or hd/) into spriteTex slot `slot`
+' (up to sprTex pixels square - bigger pictures are shrunk). Pixels keep
+' their alpha, so the sprite drawing (chapter 16) can skip the see-through
+' ones.
 SUB LoadSprite(file$, slot)
-    path$ = AssetPath$(file$)
+    path$ = ArtPath$(file$)
     img& = _LOADIMAGE(path$, 32)
     IF img& >= -1 THEN PRINT "Missing texture: "; path$ : SLEEP : SYSTEM
-    sprSize = _WIDTH(img&) : IF sprSize > SPR_TEX THEN sprSize = SPR_TEX
+    sprSize = _WIDTH(img&) : IF sprSize > sprTex THEN sprSize = sprTex
     spriteSize(slot) = sprSize
-    _SOURCE img&
-    FOR y = 0 TO sprSize - 1 : FOR x = 0 TO sprSize-1
-        spriteTex(x, y, slot) = POINT(x * _WIDTH(img&) \ sprSize, y * _HEIGHT(img&) \ sprSize)
-    NEXT : NEXT
-    _SOURCE 0 : _FREEIMAGE img&
+    ReadPicture img&, sprSize, 1, slot
+    _FREEIMAGE img&
+END SUB
+
+' Where a picture is: with MODERN art (ART, SETTINGS > VIDEO), its
+' painting in neon-caster/hd/ if there is one - else the pixel art in
+' neon-caster/. Same name in both folders.
+FUNCTION ArtPath$(file$)
+    IF artNow > 0 THEN
+        p$ = AssetPath$("hd/" + file$)
+        IF _FILEEXISTS(p$) THEN ArtPath$ = p$ : EXIT FUNCTION
+    END IF
+    ArtPath$ = AssetPath$(file$)
+END FUNCTION
+
+' Picture img& into a size x size square of texture() (dst 0) or
+' spriteTex() (dst 1), slot slot. Shrinking, each new pixel is the
+' average of the old ones it covers (a MODERN painting shrinks smoothly,
+' not in jagged steps), see-through ones counting for nothing (so edges
+' don't darken); growing, each is just the old pixel under it (pixel art
+' keeps its square pixels). _MEMIMAGE reads the picture's memory - far
+' quicker than POINT, which matters for a 1024-pixel painting.
+SUB ReadPicture(img&, size, dst, slot)
+    DIM m AS _MEM, c AS _UNSIGNED LONG, w AS LONG, h AS LONG, x AS LONG, y AS LONG, sx AS LONG, sy AS LONG
+    DIM sx0 AS LONG, sx1 AS LONG, sy0 AS LONG, sy1 AS LONG, ca AS LONG, r AS LONG, g AS LONG, b AS LONG, a AS LONG, n AS LONG
+    m = _MEMIMAGE(img&) : w = _WIDTH(img&) : h = _HEIGHT(img&)
+    FOR y = 0 TO size - 1
+        sy0 = y * h \ size : sy1 = (y + 1) * h \ size - 1 : IF sy1 < sy0 THEN sy1 = sy0
+        FOR x = 0 TO size - 1
+            sx0 = x * w \ size : sx1 = (x + 1) * w \ size - 1 : IF sx1 < sx0 THEN sx1 = sx0
+            r = 0 : g = 0 : b = 0 : a = 0 : n = 0
+            FOR sy = sy0 TO sy1 : FOR sx = sx0 TO sx1
+                c = _MEMGET(m, m.OFFSET + (sy * w + sx) * 4, _UNSIGNED LONG) : ca = _SHR(c, 24)
+                r = r + (_SHR(c, 16) AND 255) * ca : g = g + (_SHR(c, 8) AND 255) * ca : b = b + (c AND 255) * ca
+                a = a + ca : n = n + 1
+            NEXT : NEXT
+            IF a > 0 THEN c = _RGBA32(r \ a, g \ a, b \ a, a \ n) ELSE c = 0
+            IF dst = 0 THEN texture(x, y, slot) = c ELSE spriteTex(x, y, slot) = c
+        NEXT
+    NEXT
+    _MEMFREE m
 END SUB
 
 '' NEXUS (or a minion) says line key$: its voice and its words on screen.
@@ -6021,7 +6111,7 @@ END SUB
 
 ' A monster's hit flash: its picture (slot src) washed hot red, into dst
 SUB MakeHurt(src, dst)
-    FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX - 1
+    FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
         spriteTex(x, y, dst) = Tint~&(spriteTex(x, y, src), _RGB32(255, 90, 70), 0.7)
     NEXT : NEXT
     spriteSize(dst) = spriteSize(src)
@@ -6058,7 +6148,7 @@ SUB MakeCorpse(mtype)
         NEXT : NEXT
         IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = dsz - 1 : y1 = dsz - 1
         w = x1 - x0 + 1 : h = y1 - y0 + 1
-        DIM crop(SPR_TEX - 1, SPR_TEX - 1) AS _UNSIGNED LONG
+        DIM crop(sprTex - 1, sprTex - 1) AS _UNSIGNED LONG
         FOR ny = 0 TO w - 1 : FOR nx = 0 TO w - 1
             crop(nx, ny) = spriteTex(x0 + nx, y0 + ny * h \ w, dst)
         NEXT : NEXT
@@ -6108,17 +6198,18 @@ SUB MakeBoomFrames
         END IF
     NEXT : NEXT
     cx = (x0 + x1) / 2 : cy = y0 + (y1 - y0) * 0.6 : far = SQR(((x1 - x0) / 2) ^ 2 + ((y1 - y0) * 0.6) ^ 2) + 1
-    DIM clump(SPR_TEX \ 4, SPR_TEX \ 4) ' (it breaks up in clumps of 4 x 4 pixels, not single ones)
+    cl = sz \ 16 : IF cl < 1 THEN cl = 1 ' (it breaks up in clumps - 4 x 4 pixels of a 64-pixel picture - not single pixels)
+    DIM clump(sprTex \ cl, sprTex \ cl)
     FOR k = 1 TO BOOM_FRAMES
         dst = S_BOOM + k : file$ = "explosion-" + LTRIM$(STR$(k)) + ".png"
         IF _FILEEXISTS(AssetPath$(file$)) THEN
             LoadSprite file$, dst
         ELSE
             spriteSize(dst) = sz : t = (k - 1) / (BOOM_FRAMES - 1)
-            FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX - 1 : spriteTex(x, y, dst) = 0 : NEXT : NEXT
+            FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1 : spriteTex(x, y, dst) = 0 : NEXT : NEXT
             reach = 0.3 + 0.7 * t * 2.5 : IF reach > 1 THEN reach = 1
-            rise = 0 : IF t > 0.5 THEN rise = INT((t - 0.5) * 10)
-            FOR cy2 = 0 TO SPR_TEX \ 4 : FOR cx2 = 0 TO SPR_TEX \ 4 : clump(cx2, cy2) = RND : NEXT : NEXT
+            rise = 0 : IF t > 0.5 THEN rise = INT((t - 0.5) * 10 * sz / 64)
+            FOR cy2 = 0 TO sprTex \ cl : FOR cx2 = 0 TO sprTex \ cl : clump(cx2, cy2) = RND : NEXT : NEXT
             FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
                 col~& = spriteTex(x, y, src)
                 IF _ALPHA32(col~&) > 128 AND SQR((x - cx) ^ 2 + (y - cy) ^ 2) / far <= reach THEN
@@ -6131,7 +6222,7 @@ SUB MakeBoomFrames
                         r = r + (grey - r) * k2 : g = g + (grey * 0.95 - g) * k2 : b = b + (grey * 1.05 - b) * k2
                     END IF
                     gone = (t - 0.45) * 1.3 ' (how much has broken up)
-                    IF clump(x \ 4, y \ 4) >= gone AND y - rise >= 0 THEN spriteTex(x, y - rise, dst) = _RGB32(r, g, b)
+                    IF clump(x \ cl, y \ cl) >= gone AND y - rise >= 0 THEN spriteTex(x, y - rise, dst) = _RGB32(r, g, b)
                 END IF
             NEXT : NEXT
         END IF
@@ -6178,6 +6269,7 @@ SUB MakeMonFrames(mtype)
     NEXT : NEXT
     IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = sz - 1 : y1 = sz - 1
     mx = (x0 + x1) / 2 : w = x1 - x0 + 1 : h = y1 - y0 + 1 : hip = y0 + h * 0.62
+    monK = sz / 64 : IF monK < 1 THEN monK = 1 ' (MonMove's moves are in a 64-pixel picture's pixels)
     FOR f = 0 TO ANIM_FRAMES
         dst = MonFrame(mtype, f)
         IF f < ANIM_FRAMES THEN file$ = nm$ + "-walk" + LTRIM$(STR$(f + 1)) + ".png" ELSE file$ = nm$ + "-attack.png"
@@ -6185,7 +6277,7 @@ SUB MakeMonFrames(mtype)
             LoadSprite file$, dst
         ELSE
             spriteSize(dst) = sz
-            FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX - 1 : spriteTex(x, y, dst) = 0 : NEXT : NEXT
+            FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1 : spriteTex(x, y, dst) = 0 : NEXT : NEXT
             ph = f * 1.5708 ' (a quarter of the cycle a frame)
             FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
                 col~& = spriteTex(x, y, src)
@@ -6230,25 +6322,25 @@ SUB MonMove(mtype, x, y, ph, x0, x1, y0, y1, mx, hip, nx, ny, col~&)
                 d = (y - hip) / (y1 - hip + 1) ' (0 at the hip, 1 at the foot)
                 swing = SIN(ph + (side > 0) * 3.14159)
                 lift = swing : IF lift < 0 THEN lift = 0
-                nx = x + INT(COS(ph + (side > 0) * 3.14159) * 3 * d + 0.5) : ny = y - INT(lift * 3 * d + 0.5)
+                nx = x + INT(COS(ph + (side > 0) * 3.14159) * 3 * d * monK + 0.5) : ny = y - INT(lift * 3 * d * monK + 0.5)
             ELSE ' The body bobs as a foot lands; arms (its outer quarter) swing against the legs
-                IF ph = 1.5708 OR ph > 4.7 THEN ny = y - 1
-                IF edge > 0.55 AND y > y0 + h * 0.25 THEN ny = ny + INT(SIN(ph + (side < 0) * 3.14159) * 1.5 + 0.5)
+                IF ph = 1.5708 OR ph > 4.7 THEN ny = y - INT(monK)
+                IF edge > 0.55 AND y > y0 + h * 0.25 THEN ny = ny + INT(SIN(ph + (side < 0) * 3.14159) * 1.5 * monK + 0.5)
             END IF
         CASE 1, 8 ' The drone (and the overseer): hovers, flaps, its eye pulses
-            ny = y + INT(SIN(ph) * 1.5 + 0.5)
-            IF edge > 0.45 THEN ny = ny + INT(SIN(ph * 2) * 2 * edge + 0.5)
+            ny = y + INT(SIN(ph) * 1.5 * monK + 0.5)
+            IF edge > 0.45 THEN ny = ny + INT(SIN(ph * 2) * 2 * edge * monK + 0.5)
             IF redLight THEN k = 0.75 + 0.25 * SIN(ph) : col~& = _RGB32(r * k + 60 * (1 - k), g * k, b * k)
         CASE 4 ' The crawler: legs scuttle in alternate pairs
             IF edge > 0.4 THEN
                 pair = INT(edge * 3) MOD 2 ' (inner and outer legs out of step)
-                ny = y + INT(SIN(ph + pair * 3.14159 + (side > 0) * 1.5708) * 2 + 0.5)
-                nx = x + INT(COS(ph + pair * 3.14159) * side + 0.5)
+                ny = y + INT(SIN(ph + pair * 3.14159 + (side > 0) * 1.5708) * 2 * monK + 0.5)
+                nx = x + INT(COS(ph + pair * 3.14159) * side * monK + 0.5)
             ELSE
-                ny = y + INT(SIN(ph * 2) * 0.6 + 0.5)
+                ny = y + INT(SIN(ph * 2) * 0.6 * monK + 0.5)
             END IF
         CASE 5 ' The sentry: its head turns, its light blinks
-            IF y < y0 + h * 0.5 THEN nx = x + INT(SIN(ph) * 1.6 + 0.5)
+            IF y < y0 + h * 0.5 THEN nx = x + INT(SIN(ph) * 1.6 * monK + 0.5)
             IF redLight THEN IF ph > 3 THEN col~& = _RGB32(r * 0.35, g * 0.35, b * 0.35)
     END SELECT
 END SUB
@@ -6273,7 +6365,7 @@ SUB MakeWreck(kind)
     w = x1 - x0 + 1 : h = y1 - y0 + 1
     keep = VAL(MID$("0.30.20.40.40.40.30.40.30.20.50.40.30.30.50.40.30.30.40.5", kind * 3 - 2, 3)) ' How much stays (barrel, lamp, plant ... bench)
     kh = INT(h * keep) : IF kh < 2 THEN kh = 2
-    DIM tear(SPR_TEX) ' (how far down each column is torn off)
+    DIM tear(sprTex) ' (how far down each column is torn off)
     FOR x = 0 TO w - 1 : tear(x) = INT(RND * kh * 0.4) : NEXT
     spriteSize(dst) = w
     FOR ny = 0 TO w - 1 : FOR nx = 0 TO w - 1
@@ -6305,18 +6397,21 @@ END SUB
 ' The ceiling lamp, shot out: its picture copied (from T_LAMP) with the
 ' bright panel gone dark and cracked, into texture slot T_LAMPOFF
 SUB MakeLampOff
-    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
         col~& = texture(x, y, T_LAMP)
         bright = (_RED32(col~&) + _GREEN32(col~&) + _BLUE32(col~&)) / 3
         IF bright > 150 THEN col~& = _RGB32(_RED32(col~&) * 0.18, _GREEN32(col~&) * 0.18, _BLUE32(col~&) * 0.2) ' (the panel, dark)
         texture(x, y, T_LAMPOFF) = col~&
     NEXT : NEXT
+    texHD(T_LAMPOFF) = texHD(T_LAMP)
     FOR crack = 1 TO 5 ' A few cracks across it, from near the middle
-        cx = TEX_SIZE / 2 + (RND - 0.5) * TEX_SIZE * 0.3 : cy = TEX_SIZE / 2 + (RND - 0.5) * TEX_SIZE * 0.3
+        cx = texSize / 2 + (RND - 0.5) * texSize * 0.3 : cy = texSize / 2 + (RND - 0.5) * texSize * 0.3
         a = RND * 6.2832
-        FOR stp = 0 TO TEX_SIZE * 0.35
+        FOR stp = 0 TO texSize * 0.35 STEP texSize \ 128
             px = INT(cx + COS(a) * stp) : py = INT(cy + SIN(a) * stp) : a = a + (RND - 0.5) * 0.4
-            IF px >= 0 AND py >= 0 AND px < TEX_SIZE AND py < TEX_SIZE THEN texture(px, py, T_LAMPOFF) = _RGB32(70, 70, 82)
+            FOR ty = py TO py + texSize \ 128 - 1 : FOR tx = px TO px + texSize \ 128 - 1 ' (as thick in a bigger picture)
+                IF tx >= 0 AND ty >= 0 AND tx < texSize AND ty < texSize THEN texture(tx, ty, T_LAMPOFF) = _RGB32(70, 70, 82)
+            NEXT : NEXT
         NEXT
     NEXT
     texName$(T_LAMPOFF) = "ceiling-lamp-off"
@@ -6331,6 +6426,7 @@ SUB LoadCards(file$)
     sprSize = spriteSize(1)
     FOR card = 1 TO 3
         spriteSize(card) = sprSize
+        IF cardImg&(card) < -1 THEN _FREEIMAGE cardImg&(card) ' (made before: ART changed)
         cardImg&(card) = _NEWIMAGE(sprSize, sprSize, 32)
         _DONTBLEND cardImg&(card)
         _DEST cardImg&(card)
@@ -6341,9 +6437,10 @@ SUB LoadCards(file$)
             PSET (x, y), spriteTex(x, y, card)
         NEXT : NEXT
         _BLEND cardImg&(card)
-        FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE-1
+        FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize-1
             texture(x, y, T_DOORK + card) = Tint~&(texture(x, y, T_DOOR), CardRGB~&(card), 0.85)
         NEXT : NEXT
+        texHD(T_DOORK + card) = texHD(T_DOOR)
     NEXT
     _DEST 0
 END SUB
@@ -6394,21 +6491,24 @@ END SUB
 ' texture into an image, draw on it with LINE and _PRINTSTRING, and copy
 ' it back.
 SUB ExitSign
-    img& = _NEWIMAGE(TEX_SIZE, TEX_SIZE, 32)
+    k = texSize / 128 ' (the sign is placed for a 128-pixel picture)
+    img& = _NEWIMAGE(texSize, texSize, 32)
     _DEST img&
-    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1 : PSET (x, y), texture(x, y, T_EXIT) : NEXT : NEXT
-    LINE (13, 5)-(50, 24), _RGB32(10, 40, 20), BF
-    LINE (13, 5)-(50, 24), _RGB32(60, 255, 120), B
-    _PRINTMODE _KEEPBACKGROUND : COLOR _RGB32(110, 255, 150) : _PRINTSTRING (16, 7), "EXIT"
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : PSET (x, y), texture(x, y, T_EXIT) : NEXT : NEXT
+    sign& = _NEWIMAGE(38, 20, 32) : _DEST sign&
+    LINE (0, 0)-(37, 19), _RGB32(10, 40, 20), BF
+    LINE (0, 0)-(37, 19), _RGB32(60, 255, 120), B
+    _PRINTMODE _KEEPBACKGROUND : COLOR _RGB32(110, 255, 150) : _PRINTSTRING (3, 2), "EXIT"
+    _PUTIMAGE (13 * k, 5 * k)-(51 * k - 1, 25 * k - 1), sign&, img& ' (bigger for a bigger picture)
     _SOURCE img&
-    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1 : texture(x, y, T_EXIT) = POINT(x, y) : NEXT : NEXT
-    _SOURCE 0 : _DEST 0 : _FREEIMAGE img&
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texture(x, y, T_EXIT) = POINT(x, y) : NEXT : NEXT
+    _SOURCE 0 : _DEST 0 : _FREEIMAGE img& : _FREEIMAGE sign&
 END SUB
 
 ' A texture's average colour, a little brighter (each wall kind's minimap
 ' colour)
 FUNCTION MinimapColor~&(slot)
-    FOR y = 0 TO TEX_SIZE - 1 STEP 2 : FOR x = 0 TO TEX_SIZE - 1 STEP 2
+    FOR y = 0 TO texSize - 1 STEP 2 : FOR x = 0 TO texSize - 1 STEP 2
         col~& = texture(x, y, slot) : red& = red& + _RED32(col~&) : green& = green& + _GREEN32(col~&) : blue& = blue& + _BLUE32(col~&) : count& = count& + 1
     NEXT : NEXT
     MinimapColor~& = _RGB32(red& / count& * 1.4, green& / count& * 1.4, blue& / count& * 1.4)
@@ -7143,9 +7243,9 @@ END SUB
 
 ' A teleporter's pad, into sprite slot slot: rings of violet light
 SUB MakePad(slot)
-    spriteSize(slot) = SPR_TEX
-    FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX - 1
-        d = SQR((x - 31.5) ^ 2 + (y - 31.5) ^ 2) : c~& = 0
+    spriteSize(slot) = sprTex : k = sprTex / 64 ' (designed 64 pixels across)
+    FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
+        d = SQR(((x + 0.5) / k - 32) ^ 2 + ((y + 0.5) / k - 32) ^ 2) : c~& = 0
         IF d < 31 THEN c~& = _RGBA32(40, 30, 70, 255) ' (the plate)
         IF d < 31 AND d > 27 THEN c~& = _RGBA32(150, 160, 190, 255) ' (its metal rim)
         IF (d > 20 AND d < 23) OR (d > 11 AND d < 14) THEN c~& = _RGBA32(190, 110, 255, 255) ' (glowing rings)
@@ -7386,7 +7486,7 @@ SUB DrawMonsterEditor(t, f, msg$)
         _PRINTSTRING (28, 66 + (k - 1) * 22), UCASE$(mtypeName$(k))
     NEXT
     ' Its picture, big
-    slot = mtypeSprite(t) : sz = spriteSize(slot) : IF sz < 1 THEN sz = SPR_TEX
+    slot = mtypeSprite(t) : sz = spriteSize(slot) : IF sz < 1 THEN sz = sprTex
     LINE (200, 64)-(456, 320), _RGB32(30, 24, 44), BF
     FOR y = 0 TO 63 : FOR x = 0 TO 63
         c~& = spriteTex(x * sz \ 64, y * sz \ 64, slot)
@@ -7596,7 +7696,7 @@ END FUNCTION
 SUB CyberTextures(goIn)
     FOR slot = 1 TO T_SLOTS
         IF goIn THEN
-            FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1 : texBak(x, y, slot) = texture(x, y, slot) : NEXT : NEXT
+            FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texBak(x, y, slot) = texture(x, y, slot) : NEXT : NEXT
             SELECT CASE slot
                 CASE 1, 3, 5 : MakeCyberTex slot, 255, 40, 210, 32 ' Walls: magenta...
                 CASE 2, 4, 6 : MakeCyberTex slot, 40, 230, 255, 32 ' ...and cyan
@@ -7608,7 +7708,7 @@ SUB CyberTextures(goIn)
                 CASE ELSE : MakeCyberTex slot, 200, 200, 255, 64
             END SELECT
         ELSE
-            FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1 : texture(x, y, slot) = texBak(x, y, slot) : NEXT : NEXT
+            FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texture(x, y, slot) = texBak(x, y, slot) : NEXT : NEXT
         END IF
     NEXT
     glRetexVersion = glRetexVersion + 1
@@ -7618,14 +7718,16 @@ END SUB
 ' bright lines (colour r, g, b) every cell'th texel and round the edge,
 ' fainter ones in between, and a dot of light where lines cross
 SUB MakeCyberTex(slot, r, g, b, cell)
-    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1
+    sk = texSize \ 128 ' (designed 128 pixels across)
+    FOR yy = 0 TO texSize - 1 : FOR xx = 0 TO texSize - 1
+        x = xx \ sk : y = yy \ sk
         ex = x MOD cell : ey = y MOD cell
         k = 0
         IF ex < 2 OR ey < 2 THEN k = 1 ' (the grid's lines)
         IF (x \ 4) MOD (cell \ 4) = 0 OR (y \ 4) MOD (cell \ 4) = 0 THEN IF k = 0 AND ((x + y) MOD 4 = 0) THEN k = 0.18 ' (faint dots between)
-        IF x < 3 OR y < 3 OR x > TEX_SIZE - 4 OR y > TEX_SIZE - 4 THEN k = 1 ' (the edge)
+        IF x < 3 OR y < 3 OR x > 124 OR y > 124 THEN k = 1 ' (the edge)
         IF ex < 2 AND ey < 2 THEN k = 1.6 ' (crossings glow)
-        texture(x, y, slot) = _RGB32(MinOf(255, 6 + r * k), MinOf(255, 2 + g * k), MinOf(255, 14 + b * k))
+        texture(xx, yy, slot) = _RGB32(MinOf(255, 6 + r * k), MinOf(255, 2 + g * k), MinOf(255, 14 + b * k))
     NEXT : NEXT
 END SUB
 
@@ -7681,15 +7783,16 @@ END FUNCTION
 ' side look like a row of windows). Cracked: white cracks spreading from a
 ' point
 SUB MakeGlass(slot, cracked)
-    spriteSize(slot) = SPR_TEX
-    FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX - 1
+    spriteSize(slot) = sprTex : gk = sprTex \ 64 ' (designed 64 pixels across: each of those gk x gk)
+    FOR yy = 0 TO sprTex - 1 : FOR xx = 0 TO sprTex - 1
+        x = xx \ gk : y = yy \ gk
         a = 40 : r = 150 : g = 215 : b = 235
         st = (x + INT(y * 0.6)) MOD 64
         IF st >= 12 AND st < 16 THEN a = 95 : r = 225 : g = 248 : b = 255
         IF st >= 20 AND st < 21 THEN a = 75 : r = 210 : g = 240 : b = 255
-        IF y < 4 OR y > SPR_TEX - 5 THEN a = 255 : r = 80 : g = 90 : b = 108 : IF y = 3 OR y = SPR_TEX - 4 THEN r = 130 : g = 145 : b = 165
-        IF x = 0 OR x = SPR_TEX - 1 THEN a = 255 : r = 70 : g = 80 : b = 96
-        spriteTex(x, y, slot) = _RGBA32(r, g, b, a)
+        IF y < 4 OR y > 59 THEN a = 255 : r = 80 : g = 90 : b = 108 : IF y = 3 OR y = 60 THEN r = 130 : g = 145 : b = 165
+        IF x = 0 OR x = 63 THEN a = 255 : r = 70 : g = 80 : b = 96
+        spriteTex(xx, yy, slot) = _RGBA32(r, g, b, a)
     NEXT : NEXT
     IF cracked THEN
         FOR k = 0 TO 8 ' Cracks: wandering lines out from (40, 26)
@@ -7697,7 +7800,9 @@ SUB MakeGlass(slot, cracked)
             FOR stp = 1 TO 26 + (k MOD 3) * 8
                 ang = ang + 0.25 * SIN(stp * 1.3 + k)
                 cx = cx + COS(ang) : cy = cy + SIN(ang)
-                IF cx >= 1 AND cy >= 4 AND cx < SPR_TEX - 1 AND cy < SPR_TEX - 4 THEN spriteTex(INT(cx), INT(cy), slot) = _RGBA32(235, 250, 255, 210)
+                IF cx >= 1 AND cy >= 4 AND cx < 63 AND cy < 60 THEN
+                    FOR yy = 0 TO gk - 1 : FOR xx = 0 TO gk - 1 : spriteTex(INT(cx) * gk + xx, INT(cy) * gk + yy, slot) = _RGBA32(235, 250, 255, 210) : NEXT : NEXT
+                END IF
             NEXT
         NEXT
     END IF
@@ -7806,16 +7911,17 @@ END SUB
 ' The laser beam's picture: three bright red lines across, at knee, chest
 ' and head height, with a glow round each - into sprite slot slot
 SUB MakeLaser(slot)
-    spriteSize(slot) = SPR_TEX
-    FOR y = 0 TO SPR_TEX - 1 : FOR x = 0 TO SPR_TEX - 1 : spriteTex(x, y, slot) = 0 : NEXT : NEXT
-    FOR k = 0 TO 2
-        cy = 14 + k * 18
-        FOR x = 0 TO SPR_TEX - 1
-            spriteTex(x, cy, slot) = _RGB32(255, 240, 230)
-            spriteTex(x, cy - 1, slot) = _RGB32(255, 60, 60) : spriteTex(x, cy + 1, slot) = _RGB32(255, 60, 60)
-            IF x MOD 3 THEN spriteTex(x, cy - 2, slot) = _RGB32(170, 20, 40) : spriteTex(x, cy + 2, slot) = _RGB32(170, 20, 40)
+    spriteSize(slot) = sprTex : k = sprTex \ 64 ' (designed 64 pixels across: each of those k x k)
+    FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
+        col~& = 0 : yd = y \ k : xd = x \ k
+        FOR beam = 0 TO 2 ' Three beams: white-hot, red either side, a dotted dark red edge
+            dy = ABS(yd - (14 + beam * 18))
+            IF dy = 0 THEN col~& = _RGB32(255, 240, 230)
+            IF dy = 1 THEN col~& = _RGB32(255, 60, 60)
+            IF dy = 2 AND (xd MOD 3) THEN col~& = _RGB32(170, 20, 40)
         NEXT
-    NEXT
+        spriteTex(x, y, slot) = col~&
+    NEXT : NEXT
 END SUB
 
 ' One more pickup, of kind kind, at (x, y) - a reward
@@ -8146,7 +8252,10 @@ END SUB
 ' there.
 SUB LoadGun(gun, file$)
     CONST MUZZLE_MIN_WIDTH = 4
-    path$ = AssetPath$(file$)
+    IF gunImg&(gun) < -1 THEN _FREEIMAGE gunImg&(gun) ' (loaded before: ART changed)
+    IF gunSoftImg&(gun) < -1 THEN _FREEIMAGE gunSoftImg&(gun)
+    IF gunGLW(gun) > 0 THEN _MEMFREE gunGLMem(gun) : gunGLW(gun) = 0
+    path$ = ArtPath$(file$)
     gunImg&(gun) = _LOADIMAGE(path$, 32)
     IF gunImg&(gun) >= -1 THEN PRINT "Missing texture: "; path$: SLEEP: SYSTEM
     _SOURCE gunImg&(gun)
@@ -8195,9 +8304,10 @@ END SUB
 ' that to every pixel takes a moment, so it's kept, and only done again
 ' when the light has changed by a sixteenth or more (or it's another gun).
 FUNCTION TintedGun&(gun)
-    STATIC tinted&, lastGun, lastR, lastG, lastB
+    STATIC tinted&, lastGun, lastR, lastG, lastB, lastArt AS LONG
     qr = INT(gunLightR * 16) : qg = INT(gunLightG * 16) : qb = INT(gunLightB * 16)
-    IF tinted& <> 0 AND gun = lastGun AND qr = lastR AND qg = lastG AND qb = lastB THEN TintedGun& = tinted& : EXIT FUNCTION
+    IF tinted& <> 0 AND gun = lastGun AND qr = lastR AND qg = lastG AND qb = lastB AND lastArt = glGunVersion THEN TintedGun& = tinted& : EXIT FUNCTION
+    lastArt = glGunVersion ' (new pictures since: ART changed)
     IF tinted& <> 0 AND gun <> lastGun THEN _FREEIMAGE tinted& : tinted& = 0
     IF tinted& = 0 THEN tinted& = _COPYIMAGE(gunSoftImg&(gun), 32)
     lastGun = gun : lastR = qr : lastG = qg : lastB = qb
@@ -8712,6 +8822,8 @@ SUB ApplySettings
     fovPlane = TAN(setting(SET_FOV) / 2 * 3.14159265 / 180)
     turnSpeed = setting(SET_MOUSE) * 0.0006
     IF nowPlaying& > 0 THEN _SNDVOL nowPlaying&, setting(SET_MUSIC) / 100
+    ' ART: which pictures, how big (the game loop reloads them - ArtReload)
+    artWant = 0 : IF setting(SET_ART) = 2 THEN artWant = 1 : IF setting(SET_RENDERER) = 2 THEN artWant = 2
     ApplyDisplay
 END SUB
 
@@ -8823,6 +8935,7 @@ FUNCTION SettingText$(id)
         CASE SET_XSTYLE : SettingText$ = CrossStyleName$(setting(id))
         CASE SET_XCOLOR : SettingText$ = CrossColorName$(setting(id))
         CASE SET_RENDERER : IF setting(id) = 2 THEN SettingText$ = "OPENGL" ELSE SettingText$ = "SOFTWARE"
+        CASE SET_ART : IF setting(id) = 2 THEN SettingText$ = "MODERN" ELSE SettingText$ = "CLASSIC"
         CASE SET_SCREENFX : SettingText$ = MID$("OFF      SCANLINESCRT      ", setting(id) * 9 - 8, 9)
         CASE SET_RES : SettingText$ = ResName$(setting(id))
         CASE SET_DISPLAY : SettingText$ = RTRIM$(MID$("WINDOWED    FULL WIDE   FULL 4:3    FULL STRETCH", setting(id) * 12 - 11, 12))
@@ -8955,7 +9068,7 @@ SUB BuildMenu(scr)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_VIDEO
             menuTitle$ = "VIDEO" : menuWide = -1
-            AddSettingItem SET_DISPLAY : AddSettingItem SET_RENDERER : AddSettingItem SET_FPS
+            AddSettingItem SET_DISPLAY : AddSettingItem SET_RENDERER : AddSettingItem SET_ART : AddSettingItem SET_FPS
             AddMenuItem "OPENGL ONLY:", MI_TEXT, 0, 0, 0, ""
             AddSettingItem SET_RES : AddSettingItem SET_LOOK
             AddSettingItem SET_SCREENFX : AddSettingItem SET_SCANLINES : AddSettingItem SET_SCANGAP
@@ -9602,12 +9715,13 @@ END SUB
 ' card). Otherwise, it's the same game - same maths, same light.
 SUB _GL
     IF NOT glReady THEN EXIT SUB ' Nothing to draw (or the software renderer is on)
+    IF artHold THEN glArtAck = -1 : EXIT SUB ' (the pictures are being reloaded: ArtReload)
     glStart# = TIMER(0.001)
     b = glBuf ' The newest finished snapshot
     IF glTexDone <> glTexVersion THEN GLSendTextures : glMeshClient = 0 : GLBuildMesh : glMeshDone = glMeshVersion ' (a new level)
     IF glMeshDone <> glMeshVersion THEN glMeshClient = -1 : GLBuildMesh : glMeshDone = glMeshVersion ' (the map changed: a closet opened)
     IF glRetexDone <> glRetexVersion THEN GLSendTextures : glRetexDone = glRetexVersion ' (the pictures changed: in or out of the network)
-    IF glGunTex(1) = 0 THEN GLSendGuns ' (once)
+    IF glGunDone <> glGunVersion THEN GLSendGuns : glGunDone = glGunVersion ' (the guns' pictures: at the start, and when ART changes)
     IF glWorldTried = 0 THEN GLBuildShaders
     glGPU = (glWorldProg <> 0 AND (glMeshBuf <> 0 OR glMeshClient)) ' The world mesh, lit by the shader from the light tables
 
@@ -10027,7 +10141,7 @@ SUB GLSpritesAndExtras(b, mirror)
     glFaceTX = rightX : glFaceTY = rightY : glFaceTZ = 0 ' (...its picture running left to right)
     FOR i = 1 TO glNumSpr(b)
         slot = glSprSlot(i, b) : GLUseTexture T_SLOTS + slot
-        uv = spriteSize(slot) / SPR_TEX ' (a smaller picture uses only part of its 64 x 64)
+        uv = spriteSize(slot) / sprTex ' (a smaller picture uses only part of its 64 x 64)
         sx = glSprX(i, b) : sy = glSprY(i, b) : hw = glSprHalfW(i, b)
         x0 = sx - rightX * hw : y0 = sy - rightY * hw : x1 = sx + rightX * hw : y1 = sy + rightY * hw
         zLow = glSprLift(i, b) : zHigh = zLow + glSprH(i, b)
@@ -10165,7 +10279,7 @@ SUB GLShadows(b)
         hw = glSprHalfW(i, b) : zLow = glSprLift(i, b) : zHigh = zLow + glSprH(i, b)
         lz = GL_LIGHT_Z * 2
         IF zHigh > lz * 0.7 THEN zHigh = lz * 0.7 ' (or it would stretch forever)
-        uv = spriteSize(slot) / SPR_TEX
+        uv = spriteSize(slot) / sprTex
         GLUseTexture T_SLOTS + slot
         tLow = lz / (lz - zLow) : tHigh = lz / (lz - zHigh)
         ax = sx - sideX * hw : ay = sy - sideY * hw : bx = sx + sideX * hw : by = sy + sideY * hw
@@ -10252,6 +10366,7 @@ END SUB
 SUB GLSendGuns
     FOR g = 1 TO NUM_GUNS
         IF gunGLW(g) > 0 THEN
+            IF glGunTex(g) THEN _glDeleteTextures 1, _OFFSET(glGunTex(g))
             _glGenTextures 1, _OFFSET(glGunTex(g))
             _glBindTexture _GL_TEXTURE_2D, glGunTex(g)
             _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_LINEAR_MIPMAP_LINEAR
@@ -10433,12 +10548,12 @@ SUB GLSendTextures
     ' light parts stand out, dark parts (mortar, cracks, grooves) sink in.
     ' That's the "bump map", made from the picture itself.
     FOR slot = 1 TO T_SLOTS
-        FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1
+        FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
             col~& = texture(x, y, slot)
             height = (((col~& \ 65536) AND 255) * 0.3 + ((col~& \ 256) AND 255) * 0.59 + (col~& AND 255) * 0.11)
-            glUpload(y * TEX_SIZE + x) = (col~& AND &HFFFFFF) OR _SHL(INT(height) AND 255, 24)
+            glUpload(y * texSize + x) = (col~& AND &HFFFFFF) OR _SHL(INT(height) AND 255, 24)
         NEXT : NEXT
-        GLSendPicture glTexName(slot), TEX_SIZE, _OFFSET(glUpload(0)), -1
+        GLSendPicture glTexName(slot), texSize, _OFFSET(glUpload(0)), -1, texHD(slot) AND NOT cyberOn
         n$ = texName$(slot)
         glTexShine(slot) = 0.2 : glTexReflect(slot) = 0 : glTexNeon(slot) = 1 : glTexAnim(slot) = 0
         IF slot >= T_DOOR AND slot <= T_SPLIT THEN glTexShine(slot) = 0.6
@@ -10462,7 +10577,13 @@ SUB GLSendTextures
         IF slot = T_EXIT THEN glTexAnim(slot) = 3
     NEXT
     FOR slot = 1 TO SPR_SLOTS
-        GLSendPicture glTexName(T_SLOTS + slot), SPR_TEX, _OFFSET(spriteTex(0, 0, slot)), 0
+        sz = spriteSize(slot) ' (a smaller picture's unused part cleared: smoothed, it would bleed in)
+        IF artNow = 2 AND sz > 0 AND sz < sprTex THEN
+            FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
+                IF x >= sz OR y >= sz THEN spriteTex(x, y, slot) = 0
+            NEXT : NEXT
+        END IF
+        GLSendPicture glTexName(T_SLOTS + slot), sprTex, _OFFSET(spriteTex(0, 0, slot)), 0, sz >= 128 ' (a MODERN painting: 128 pixels or more)
         glTexShine(T_SLOTS + slot) = 0.3 : glTexReflect(T_SLOTS + slot) = 0 : glTexNeon(T_SLOTS + slot) = 0.6 : glTexAnim(T_SLOTS + slot) = 0
         IF slot > S_CORPSE AND slot <= S_ANIM THEN glTexNeon(T_SLOTS + slot) = 0 ' (bodies, scorches and wreckage don't light themselves)
         IF slot > S_BOOM AND slot <= S_BOOM + BOOM_FRAMES THEN glTexNeon(T_SLOTS + slot) = 1 ' (explosions do)
@@ -10473,17 +10594,25 @@ SUB GLSendTextures
         d = SQR((x - 31.5) ^ 2 + (y - 31.5) ^ 2) / 32 : IF d > 1 THEN d = 1
         glUpload(y * 64 + x) = _RGBA32(255, 255, 255, 255 * (1 - d) ^ 2)
     NEXT : NEXT
-    GLSendPicture glTexName(GL_GLOW_TEX), 64, _OFFSET(glUpload(0)), 0
+    GLSendPicture glTexName(GL_GLOW_TEX), 64, _OFFSET(glUpload(0)), 0, 0
     glTexDone = glTexVersion
 END SUB
 
-' One square picture, size pixels across, from memory at pixelsAt. Nearest
-' pixel (no smoothing), and "clamp": a texture coordinate of 1 is the last
-' pixel, not the first one again.
-SUB GLSendPicture(texName AS _UNSIGNED LONG, size, pixelsAt AS _OFFSET, wrap)
+' One square picture, size pixels across, from memory at pixelsAt. Pixel
+' art: nearest pixel (no smoothing); a MODERN painting (smooth): smoothed,
+' with mipmaps. And "clamp" (wrap off): a texture coordinate of 1 is the
+' last pixel, not the first one again.
+SUB GLSendPicture(texName AS _UNSIGNED LONG, size, pixelsAt AS _OFFSET, wrap, smooth)
     _glBindTexture _GL_TEXTURE_2D, texName
-    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST
-    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
+    IF smooth THEN ' A MODERN painting: smooth, with smaller copies for far away (mipmaps), not pixels
+        _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_LINEAR_MIPMAP_LINEAR
+        _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_LINEAR
+        _glTexParameteri _GL_TEXTURE_2D, GL_GENERATE_MIPMAP, _GL_TRUE
+    ELSE
+        _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST
+        _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
+        _glTexParameteri _GL_TEXTURE_2D, GL_GENERATE_MIPMAP, _GL_FALSE
+    END IF
     ' (walls, floors and ceilings repeat - a wall taller than one cell
     ' shows its picture again above; sprites stop at their edges)
     IF wrap THEN wm& = _GL_REPEAT ELSE wm& = _GL_CLAMP
@@ -10511,10 +10640,10 @@ SUB GLBindSlot(slot)
         GLSL_uniform_1f p~&, "anim", glTexAnim(slot)
         GLSL_uniform_1f p~&, "cellLit", glCellLitMode
         IF slot > T_SLOTS THEN ' A sprite: flat, not shiny
-            GLSL_uniform_1f p~&, "isSprite", 1 : GLSL_uniform_1f p~&, "texel", 1 / SPR_TEX
+            GLSL_uniform_1f p~&, "isSprite", 1 : GLSL_uniform_1f p~&, "texel", 1 / sprTex
             GLSL_uniform_1f p~&, "bump", 0 : GLSL_uniform_1f p~&, "shine", 0
         ELSE
-            GLSL_uniform_1f p~&, "isSprite", 0 : GLSL_uniform_1f p~&, "texel", 1 / TEX_SIZE
+            GLSL_uniform_1f p~&, "isSprite", 0 : GLSL_uniform_1f p~&, "texel", 1 / texSize
             GLSL_uniform_1f p~&, "bump", GL_BUMP * glBumpOn : GLSL_uniform_1f p~&, "shine", glTexShine(slot)
         END IF
     END IF
@@ -10733,7 +10862,7 @@ SUB GLDecals(b)
     GLStopDrawing
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
     _glEnable _GL_POLYGON_OFFSET_FILL : _glPolygonOffset -2, -2
-    GLUseTexture T_SLOTS + S_DECAL : uv = spriteSize(S_DECAL) / SPR_TEX
+    GLUseTexture T_SLOTS + S_DECAL : uv = spriteSize(S_DECAL) / sprTex
     FOR i = 1 TO glNumDecal(b)
         nx = glDecNX(i, b) : ny = glDecNY(i, b) : nz = glDecNZ(i, b) : sz = glDecSize(i, b) / 2
         cx = glDecX(i, b) + nx * 0.003 : cy = glDecY(i, b) + ny * 0.003 : cz = glDecZ(i, b) + nz * 0.003
