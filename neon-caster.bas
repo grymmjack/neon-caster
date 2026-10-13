@@ -242,6 +242,8 @@ DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhas
 DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
 DIM SHARED lightNow(MAX_LIGHTS) ' How bright its effect has it this frame (0 off .. 1 full): for its glow
 DIM SHARED numLights AS INTEGER
+' ...and which of the level's ceiling lamps you've shot out (BreakLight)
+DIM SHARED lightBroken(MAX_LIGHTS) AS INTEGER
 ' FX_ = a light's effect: steady, a flickering fluorescent tube, a slow
 ' pulse, an alarm strobe, firelight, or a dying tube that sputters on now
 ' and then
@@ -328,6 +330,11 @@ DIM SHARED numMonsters AS INTEGER
 DIM SHARED mtypeHP(MON_TYPES), mtypeSpeed(MON_TYPES), mtypeScale(MON_TYPES), mtypeLift(MON_TYPES), mtypeBob(MON_TYPES)
 DIM SHARED mtypeReach(MON_TYPES), mtypeDamage(MON_TYPES), mtypeDamageRnd(MON_TYPES), mtypeCooldown(MON_TYPES)
 DIM SHARED mtypeSprite(MON_TYPES), mtypeName$(MON_TYPES), mtypeRanged(MON_TYPES)
+' ...and its body, once it's dead (MakeCorpse): how wide it's drawn (as
+' drawScale), and how tall for that width (as drawSquash)
+DIM SHARED corpseScale(MON_TYPES), corpseSquash(MON_TYPES)
+' ...and each decoration's wreck, the same way (MakeWreck)
+DIM SHARED wreckScale(4), wreckSquash(4)
 DIM SHARED mtypeAlertSnd&(MON_TYPES), mtypeAttackSnd&(MON_TYPES), mtypeHitSnd&(MON_TYPES), mtypeDieSnd&(MON_TYPES)
 ' GUNNER_ = gunners (and sentries) like to keep between GUNNER_NEAR and
 ' GUNNER_FAR cells away from you
@@ -432,17 +439,27 @@ CONST CHEAT_KEYS = -1
 '   1-3 keycards, 4 medkit, 5 cells, 6 shells, 7 scatter gun, 8 repeater,
 '   9/10 drone (/hit), 11/12 gunner, 13/14 heavy, 15/16 crawler, 17/18 sentry,
 '   19 bolt, 20-23 decorations (barrel, lamp, plant, terminal), 24 explosion,
-'   25 armour, 26 big medkit, 27 railgun, 28 map
-CONST SPR_TEX = 64, SPR_SLOTS = 28
+'   25 armour, 26 big medkit, 27 railgun, 28 map, 29-33 the five monsters'
+'   bodies, lying where they fell (MakeCorpse makes them), 34 a scorch mark
+'   (the software renderer's decals), 35-38 the four decorations, broken
+'   (MakeWreck)
+CONST SPR_TEX = 64, SPR_SLOTS = 38
 ' S_ = Sprite slot: names for a few of those numbers. S_DECO + kind is a
 ' decoration's slot (barrel = S_DECO + 1 = 20, and so on).
-CONST S_BOLT = 19, S_DECO = 19, S_BLAST = 24
+CONST S_BOLT = 19, S_DECO = 19, S_BLAST = 24, S_CORPSE = 28, S_DECAL = 34, S_WRECK = 34
 ' How tall pickups stand (in walls): keycards, other pickups, guns
 CONST CARD_SCALE = 0.3, ITEM_SCALE = 0.3, GUN_ITEM_SCALE = 0.45
 DIM SHARED spriteTex(SPR_TEX - 1, SPR_TEX-1, SPR_SLOTS) AS _UNSIGNED LONG, spriteSize(SPR_SLOTS) AS INTEGER
 DIM SHARED cardImg&(3) ' The keycards as images, for the HUD
 ' The draw list: every sprite to draw this frame (chapter 16)
-CONST MAX_DRAW = MAX_ITEMS + MAX_MON + MAX_BOLTS + MAX_DECO + MAX_BLASTS
+' DECALS: marks left where shots and explosions hit - where (x, y, z),
+' which way the surface faces (nx, ny, nz), how big, and how many frames
+' more it glows hot (decalHeat). The oldest is reused when they're all
+' taken (decalNext). AddDecal makes one.
+CONST MAX_DECALS = 96, DECAL_HEAT = 24
+DIM SHARED decalX(MAX_DECALS), decalY(MAX_DECALS), decalZ(MAX_DECALS), decalNX(MAX_DECALS), decalNY(MAX_DECALS), decalNZ(MAX_DECALS)
+DIM SHARED decalSize(MAX_DECALS), decalHeat(MAX_DECALS) AS INTEGER, decalOn(MAX_DECALS) AS INTEGER, decalNext AS INTEGER
+CONST MAX_DRAW = MAX_ITEMS + MAX_MON + MAX_BOLTS + MAX_DECO + MAX_BLASTS + MAX_DECALS
 DIM drawX(MAX_DRAW) AS SINGLE, drawY(MAX_DRAW) AS SINGLE, drawDistSq(MAX_DRAW) AS SINGLE
 DIM drawSprite(MAX_DRAW) AS INTEGER, drawScale(MAX_DRAW) AS SINGLE, drawLift(MAX_DRAW) AS SINGLE
 DIM drawSquash(MAX_DRAW) AS SINGLE, drawMinShade(MAX_DRAW) AS INTEGER, drawOrder(MAX_DRAW) AS INTEGER
@@ -455,13 +472,13 @@ CONST RENDER_W = 400, RENDER_H = 300, TEX_SIZE = 128
 '   1-6 the level's six walls (# N C K P G), 7 sliding door, 8-10 key doors,
 '   11 shutter, 12 split door, 13 exit, 14-17 the level's four floors,
 '   18-19 its two ceilings, 20 a ceiling lamp (over each of the level's
-'   lights - BuildShafts, chapter 24)
+'   lights - BuildShafts, chapter 24), 21 the lamp, shot out (MakeLampOff)
 ' T_DOORK + card is a key door (8 red, 9 blue, 10 yellow); T_FLOOR + n is
 ' floor n, and T_CEIL + n ceiling n; T_SLOTS is how many slots there are.
 CONST T_DOOR = 7, T_DOORK = 7
 CONST T_SHUTTER = 11, T_SPLIT = 12, T_EXIT = 13
-CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20
-CONST T_SLOTS = 20
+CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20, T_LAMPOFF = 21
+CONST T_SLOTS = 21
 DIM SHARED texture(TEX_SIZE - 1, TEX_SIZE-1, T_SLOTS) AS _UNSIGNED LONG
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
 DIM SHARED wallTexSlot(7) AS INTEGER, wallMapColor(7) AS _UNSIGNED LONG
@@ -597,6 +614,7 @@ DIM SHARED glMat(15) AS SINGLE, glMs
 '   glShaft...         the light shafts near you: where, colour (as bright
 '                      as their light is this frame) and a phase for each
 '                      one's slow shimmer
+'   glDec...           the decals: shot and scorch marks (as decalX...)
 '   glWide             how much wider than 4:3 the view is (WideView: FULL
 '                      WIDE), and glSideDim how much to darken the view
 '                      beside our 4:3 screen (the menu's darkening only
@@ -606,6 +624,8 @@ DIM SHARED glMat(15) AS SINGLE, glMs
 '                      and the light on it (1 = as bright as its picture)
 DIM SHARED glSet(40, 1), glPitch(1)
 DIM SHARED glWide(1), glSideDim(1), glAspectK
+DIM SHARED glNumDecal(1) AS INTEGER, glDecX(MAX_DECALS, 1), glDecY(MAX_DECALS, 1), glDecZ(MAX_DECALS, 1)
+DIM SHARED glDecNX(MAX_DECALS, 1), glDecNY(MAX_DECALS, 1), glDecNZ(MAX_DECALS, 1), glDecSize(MAX_DECALS, 1), glDecHeat(MAX_DECALS, 1)
 DIM SHARED glGun(1) AS INTEGER, glGunX0(1), glGunY0(1), glGunX1(1), glGunY1(1), glGunR(1), glGunG(1), glGunB(1)
 DIM SHARED glNumShaft(1) AS INTEGER, glShaftX(MAX_LIGHTS, 1), glShaftY(MAX_LIGHTS, 1), glShaftPh(MAX_LIGHTS, 1)
 DIM SHARED glShaftR(MAX_LIGHTS, 1), glShaftG(MAX_LIGHTS, 1), glShaftB(MAX_LIGHTS, 1)
@@ -664,7 +684,7 @@ LoadTex "door.png", T_DOOR
 LoadTex "door-shutter.png", T_SHUTTER
 LoadTex "door-split.png", T_SPLIT
 LoadTex "exit.png", T_EXIT : ExitSign
-LoadTex "ceiling-lamp.png", T_LAMP
+LoadTex "ceiling-lamp.png", T_LAMP : MakeLampOff
 LoadCards "keycard.png"
 LoadSprite "medkit.png", 4
 LoadSprite "ammo.png", 5
@@ -727,7 +747,7 @@ gunSnd&(1) = LoadSnd&("shoot.wav") : gunSnd&(2) = LoadSnd&("scatter.wav") : gunS
 gunSnd&(4) = LoadSnd&("rail.wav")
 sndBarrel& = LoadSnd&("barrel.wav") : sndArmor& = LoadSnd&("armor.wav") : sndExit& = LoadSnd&("exit.wav")
 ' A decoration taking a hit, and breaking (by kind: 2 lamp, 3 plant, 4 terminal)
-DIM decoBreakSnd&(4)
+DIM SHARED decoBreakSnd&(4) ' (shared: BreakLight uses the lamp's)
 sndDecoHit& = LoadSnd&("deco-hit.wav")
 decoBreakSnd&(2) = LoadSnd&("lamp-break.wav") : decoBreakSnd&(3) = LoadSnd&("plant-break.wav") : decoBreakSnd&(4) = LoadSnd&("terminal-break.wav")
 CONST STEP_LEN = 2.6 ' Cells walked per footstep (about 2.8 a second at full speed)
@@ -745,6 +765,9 @@ SetMonType 3,   "heavy",   10, 0.028, 0.95,  0,   0,    1.25, 20, 10,  80,  13
 SetMonType 4,   "crawler", 2,  0.07,  0.4,   0,   0.02, 0.75, 5,  4,   35,  15
 SetMonType 5,   "sentry",  8,  0,     0.75,  0,   0,    0,    7,  5,   50,  17
 mtypeRanged(2) = -1 : mtypeRanged(5) = -1
+FOR mtype = 1 TO MON_TYPES : MakeCorpse mtype : NEXT ' (each one's body, for when it's dead)
+FOR k = 1 TO 4 : MakeWreck k : NEXT ' (each decoration, broken)
+MakeScorch ' (a scorch mark, for the software renderer's decals)
 mtypeAlertSnd&(1) = LoadSnd&("drone-alert.wav") : mtypeAttackSnd&(1) = LoadSnd&("drone-attack.wav")
 mtypeHitSnd&(1) = LoadSnd&("drone-hit.wav") : mtypeDieSnd&(1) = LoadSnd&("drone-die.wav")
 mtypeAlertSnd&(2) = LoadSnd&("gunner-alert.wav") : mtypeAttackSnd&(2) = LoadSnd&("gunner-shoot.wav")
@@ -1393,13 +1416,25 @@ DO
                 IF bestMonster THEN
                     SpawnSparks monsterX(bestMonster), monsterY(bestMonster), 0.45, 8, 255, 150, 60
                 ELSEIF bestDeco = 0 THEN
-                    hitDist = zBuffer(screenCol) * 0.97
+                    ' The wall in that column - or, looking up or down (OpenGL),
+                    ' the ceiling or floor, if the shot reaches it first: it rises
+                    ' TAN(pitch) for each cell it goes (the ray's length, rayLen,
+                    ' as its steps are a little longer than a cell off-centre)
+                    rayX = dirX + planeX * aim : rayY = dirY + planeY * aim : rayLen = SQR(rayX * rayX + rayY * rayY)
+                    hitDist = zBuffer(screenCol) : surface = 0 : rise = TAN(pitch) * rayLen
+                    IF rise > 0.01 THEN IF 0.5 / rise < hitDist THEN hitDist = 0.5 / rise : surface = 1 ' (the ceiling)
+                    IF rise < -0.01 THEN IF 0.5 / -rise < hitDist THEN hitDist = 0.5 / -rise : surface = 2 ' (the floor)
+                    hitX = playerX + rayX * hitDist : hitY = playerY + rayY * hitDist : hitZ = 0.5 + rise * hitDist
+                    IF hitZ < 0.03 THEN hitZ = 0.03
+                    IF hitZ > 0.97 THEN hitZ = 0.97
                     SELECT CASE currentGun
-                        CASE W_BLASTER : SpawnSparks playerX + (dirX + planeX * aim) * hitDist, playerY + (dirY + planeY * aim) * hitDist, 0.5, 6, 255, 70, 120
-                        CASE W_SCATTER : SpawnSparks playerX + (dirX + planeX * aim) * hitDist, playerY + (dirY + planeY * aim) * hitDist, 0.5, 3, 255, 180, 70
-                        CASE W_REPEATER : SpawnSparks playerX + (dirX + planeX * aim) * hitDist, playerY + (dirY + planeY * aim) * hitDist, 0.5, 4, 80, 220, 255
-                        CASE ELSE : SpawnSparks playerX + (dirX + planeX * aim) * hitDist, playerY + (dirY + planeY * aim) * hitDist, 0.5, 14, 170, 240, 255
+                        CASE W_BLASTER : sparkN = 6 : sparkR = 255 : sparkG = 70 : sparkB = 120
+                        CASE W_SCATTER : sparkN = 3 : sparkR = 255 : sparkG = 180 : sparkB = 70
+                        CASE W_REPEATER : sparkN = 4 : sparkR = 80 : sparkG = 220 : sparkB = 255
+                        CASE ELSE : sparkN = 14 : sparkR = 170 : sparkG = 240 : sparkB = 255
                     END SELECT
+                    SpawnSparks hitX - rayX / rayLen * 0.03, hitY - rayY / rayLen * 0.03, hitZ, sparkN, sparkR, sparkG, sparkB
+                    ShotMark hitX, hitY, hitZ, rayX / rayLen, rayY / rayLen, surface, 0.1 + 0.06 * (currentGun = W_RAIL) * -1
                 END IF
             NEXT
         ELSEIF NOT fireWas THEN
@@ -1421,8 +1456,9 @@ DO
     '   1 hunting  forever after: walks at you and attacks when close
     '              enough - or, if it shoots (mtypeRanged), keeps its
     '              distance and fires bolts whenever it has a clear line
-    '   2 dying    shrinks into the floor for MON_DYING frames
-    '   3 dead     gone; skipped from now on
+    '   2 dying    falls for MON_DYING frames: sinks to the floor, then
+    '              lies there (its body: MakeCorpse, chapter 23)
+    '   3 dead     a body on the floor; skipped by everything else
     '
     ' Shooting an idle monster wakes it too (HitMonster, chapter 19).
     ' Monsters steer the dumbest way possible - straight at you - and slide
@@ -1464,6 +1500,10 @@ DO
                         PlaySfx mtypeAttackSnd&(mtype), 0.9
                         hurtFromX = monsterX(i) : hurtFromY = monsterY(i) : GOSUB HurtPlayer
                     END IF
+                    IF (goX <> 0 OR goY <> 0) AND mtypeSpeed(mtype) > 0 THEN ' A door in the way? Open it (MonsterDoor, chapter 11)
+                        MonsterDoor INT(monsterX(i) + goX * 0.7), INT(monsterY(i)), playerX, playerY
+                        MonsterDoor INT(monsterX(i)), INT(monsterY(i) + goY * 0.7), playerX, playerY
+                    END IF
                     IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype), goY * mtypeSpeed(mtype)
                 END IF
                 ' Keep a little apart from each other
@@ -1491,6 +1531,7 @@ DO
             IF NOT Walkable(boltX(i), boltY(i)) THEN
                 boltOn(i) = 0 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
                 SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
+                IF IsWall(INT(boltX(i)), INT(boltY(i))) THEN ShotMark boltX(i) - boltDX(i) * BOLT_SPEED, boltY(i) - boltDY(i) * BOLT_SPEED, 0.49, boltDX(i), boltDY(i), 0, 0.12
             ELSEIF NOT dead AND (boltX(i) - playerX) ^ 2 + (boltY(i) -playerY) ^ 2 < 0.35 * 0.35 THEN
                 boltOn(i) = 0 : damage = boltDamage(i)
                 hurtFromX = boltX(i) - boltDX(i) * 2 : hurtFromY = boltY(i) - boltDY(i) * 2 ' (back along its path)
@@ -1930,27 +1971,51 @@ DO
         END IF
     NEXT
     FOR i = 1 TO numMonsters
-        IF monsterState(i) < 3 THEN
-            mtype = monsterType(i)
-            numDraw = numDraw + 1 : drawX(numDraw) = monsterX(i) : drawY(numDraw) = monsterY(i)
-            drawScale(numDraw) = mtypeScale(mtype) : drawMinShade(numDraw) = 40
-            IF monsterHurt(i) > 0 THEN drawSprite(numDraw) = mtypeSprite(mtype) + 1 ELSE drawSprite(numDraw) = mtypeSprite(mtype)
-            IF monsterState(i) = 2 THEN ' Collapsing to the floor
-                drawSquash(numDraw) = monsterTimer(i) / MON_DYING : drawLift(numDraw) = mtypeLift(mtype) * drawSquash(numDraw) : drawSprite(numDraw) = mtypeSprite(mtype) + 1
-            ELSE
-                drawSquash(numDraw) = 1 : drawLift(numDraw) = mtypeLift(mtype) + mtypeBob(mtype) * SIN(TIMER * 2.5 + i * 1.7)
-            END IF
+        mtype = monsterType(i)
+        numDraw = numDraw + 1 : drawX(numDraw) = monsterX(i) : drawY(numDraw) = monsterY(i)
+        drawScale(numDraw) = mtypeScale(mtype) : drawMinShade(numDraw) = 40
+        IF monsterHurt(i) > 0 THEN drawSprite(numDraw) = mtypeSprite(mtype) + 1 ELSE drawSprite(numDraw) = mtypeSprite(mtype)
+        fallen = monsterState(i) = 3 OR (monsterState(i) = 2 AND monsterTimer(i) <= MON_DYING \ 2)
+        IF fallen THEN ' Dead (or half way through falling): its body, lying on the floor
+            drawSprite(numDraw) = S_CORPSE + mtype : drawScale(numDraw) = corpseScale(mtype)
+            drawSquash(numDraw) = corpseSquash(mtype) : drawLift(numDraw) = 0 : drawMinShade(numDraw) = 0
+        ELSEIF monsterState(i) = 2 THEN ' Falling: it sinks to the floor and crumples, hurt
+            f = (monsterTimer(i) - MON_DYING / 2) / (MON_DYING / 2) ' (1 just hit .. 0 down)
+            drawSquash(numDraw) = 0.55 + 0.45 * f : drawLift(numDraw) = mtypeLift(mtype) * f : drawSprite(numDraw) = mtypeSprite(mtype) + 1
+        ELSE
+            drawSquash(numDraw) = 1 : drawLift(numDraw) = mtypeLift(mtype) + mtypeBob(mtype) * SIN(TIMER * 2.5 + i * 1.7)
         END IF
     NEXT
     FOR i = 1 TO numDecos
-        IF decoOn(i) OR decoTimer(i) > 0 THEN
+        IF -1 THEN ' (every one - broken ones leave their wreck)
             numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) : drawY(numDraw) = decoY(i)
             drawSprite(numDraw) = S_DECO + decoKind(i) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = 0
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40
-            IF NOT decoOn(i) THEN drawSquash(numDraw) = decoTimer(i) / DECO_BREAK_FRAMES ' Broken: sinking into the floor
+            IF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
+                drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
+                drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0
+            END IF
             IF decoKind(i) = 2 THEN drawMinShade(numDraw) = 200 ' Lamps glow
         END IF
     NEXT
+    ' Decals, for the software renderer: little flat scorch marks facing
+    ' you, just off the wall (so the wall doesn't hide them) - or squashed
+    ' flat on the floor or ceiling. (OpenGL lays them on the surface itself:
+    ' GLDecals, chapter 24.)
+    IF NOT glMode THEN
+        FOR i = 1 TO MAX_DECALS
+            IF decalOn(i) THEN
+                numDraw = numDraw + 1 : drawSprite(numDraw) = S_DECAL : drawScale(numDraw) = decalSize(i) : drawMinShade(numDraw) = 0
+                drawX(numDraw) = decalX(i) + decalNX(i) * 0.03 : drawY(numDraw) = decalY(i) + decalNY(i) * 0.03
+                IF ABS(decalNZ(i)) > 0.5 THEN
+                    drawSquash(numDraw) = 0.35
+                    IF decalNZ(i) > 0 THEN drawLift(numDraw) = 0.004 ELSE drawLift(numDraw) = 0.996 - decalSize(i) * 0.35
+                ELSE
+                    drawSquash(numDraw) = 1 : drawLift(numDraw) = decalZ(i) - decalSize(i) / 2
+                END IF
+            END IF
+        NEXT
+    END IF
     FOR i = 1 TO MAX_BLASTS
         IF blastTime(i) > 0 THEN ' Explosions swell as they fade
             numDraw = numDraw + 1 : drawX(numDraw) = blastX(i) : drawY(numDraw) = blastY(i)
@@ -2433,6 +2498,7 @@ FOR blastSlot = 1 TO MAX_BLASTS
         blastX(blastSlot) = newBlastX : blastY(blastSlot) = newBlastY
         blastSize(blastSlot) = newBlastSize : blastTime(blastSlot) = BLAST_FRAMES
         SpawnEmbers newBlastX, newBlastY, newBlastSize ' (and a burst of embers: chapter 24's particles)
+        AddDecal newBlastX, newBlastY, 0, 0, 0, 1, 0.4 + 0.9 * newBlastSize ' (and a scorch mark on the floor)
         StirDust newBlastX, newBlastY, 0, 0, 1 + 3 * newBlastSize, 0.09 * newBlastSize ' (and blows the dust away)
         EXIT FOR
     END IF
@@ -2656,6 +2722,8 @@ FOR k = 1 TO numZones
 NEXT
 ' The level's lights: x, y, radius, brightness, red, green, blue, effect
 numLights = 0
+FOR l = 1 TO MAX_LIGHTS : lightBroken(l) = 0 : NEXT
+FOR d = 1 TO MAX_DECALS : decalOn(d) = 0 : NEXT ' (no marks on a new level)
 READ numLightsData
 FOR k = 1 TO numLightsData
     READ lx, ly, lRadius, lBright, lRed, lGreen, lBlue, lEffect
@@ -3038,6 +3106,7 @@ FOR i = 1 TO numMonsters
 NEXT
 PUT #fileNum, , numDecos
 FOR i = 1 TO numDecos : PUT #fileNum, , decoOn(i) : PUT #fileNum, , decoHP(i) : PUT #fileNum, , decoTimer(i) : NEXT
+FOR l = 1 TO numLights : PUT #fileNum, , lightBroken(l) : NEXT ' (the ceiling lamps you shot out)
 CLOSE #fileNum
 IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 RETURN
@@ -3080,6 +3149,10 @@ GET #fileNum, , savedCount : IF savedCount <> numDecos THEN GOSUB LoadMismatch :
 FOR i = 1 TO numDecos
     GET #fileNum, , decoOn(i) : GET #fileNum, , decoHP(i) : GET #fileNum, , decoTimer(i)
     IF NOT decoOn(i) THEN decoCell(INT(decoX(i)), INT(decoY(i))) = 0 ' Broken ones don't block
+NEXT
+' The ceiling lamps you shot out (a save from before you could has none)
+FOR l = 1 TO numLights
+    IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , lightBroken(l) : IF lightBroken(l) THEN BreakLight l, 0
 NEXT
 CLOSE #fileNum
 planeX = dirY * fovPlane : planeY = - dirX * fovPlane ' (your direction came from the file)
@@ -3639,6 +3712,138 @@ SUB LoadSprite(file$, slot)
     _SOURCE 0 : _FREEIMAGE img&
 END SUB
 
+' A monster's body, for when it's dead, into sprite slot S_CORPSE + mtype:
+' its own picture, dead-<name>.png (a heap of wreckage, drawn in the same
+' style), if there is one - else its living picture turned on its side,
+' as if it fell over. Either way it's cropped to what's there (the
+' see-through edges cut off) and stretched to fill the square (a sprite's
+' picture is square - chapter 16), then drawn squashed back (corpseSquash:
+' its height over its width) at its own width (corpseScale).
+SUB MakeCorpse(mtype)
+    src = mtypeSprite(mtype) : sz = spriteSize(src) : dst = S_CORPSE + mtype
+    IF _FILEEXISTS(AssetPath$("dead-" + mtypeName$(mtype) + ".png")) THEN
+        ' How wide the monster is in its picture: its body is drawn that wide
+        mx0 = sz : mx1 = -1
+        FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+            IF _ALPHA32(spriteTex(x, y, src)) > 128 THEN
+                IF x < mx0 THEN mx0 = x
+                IF x > mx1 THEN mx1 = x
+            END IF
+        NEXT : NEXT
+        IF mx1 < mx0 THEN mx0 = 0 : mx1 = sz - 1
+        LoadSprite "dead-" + mtypeName$(mtype) + ".png", dst
+        dsz = spriteSize(dst) : x0 = dsz : y0 = dsz : x1 = -1 : y1 = -1
+        FOR y = 0 TO dsz - 1 : FOR x = 0 TO dsz - 1
+            IF _ALPHA32(spriteTex(x, y, dst)) > 128 THEN
+                IF x < x0 THEN x0 = x
+                IF x > x1 THEN x1 = x
+                IF y < y0 THEN y0 = y
+                IF y > y1 THEN y1 = y
+            END IF
+        NEXT : NEXT
+        IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = dsz - 1 : y1 = dsz - 1
+        w = x1 - x0 + 1 : h = y1 - y0 + 1
+        DIM crop(SPR_TEX - 1, SPR_TEX - 1) AS _UNSIGNED LONG
+        FOR ny = 0 TO w - 1 : FOR nx = 0 TO w - 1
+            crop(nx, ny) = spriteTex(x0 + nx, y0 + ny * h \ w, dst)
+        NEXT : NEXT
+        FOR ny = 0 TO w - 1 : FOR nx = 0 TO w - 1 : spriteTex(nx, ny, dst) = crop(nx, ny) : NEXT : NEXT
+        spriteSize(dst) = w
+        corpseScale(mtype) = mtypeScale(mtype) * (mx1 - mx0 + 1) / sz * 1.15 : corpseSquash(mtype) = h / w
+        EXIT SUB
+    END IF
+    x0 = sz : y0 = sz : x1 = -1 : y1 = -1 ' The monster's own edges
+    FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+        IF _ALPHA32(spriteTex(x, y, src)) > 128 THEN
+            IF x < x0 THEN x0 = x
+            IF x > x1 THEN x1 = x
+            IF y < y0 THEN y0 = y
+            IF y > y1 THEN y1 = y
+        END IF
+    NEXT : NEXT
+    IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = sz - 1 : y1 = sz - 1 ' (an empty picture: all of it)
+    w = x1 - x0 + 1 : h = y1 - y0 + 1
+    ' Turned: the new picture is h across and w down; across it runs from
+    ' the monster's feet (left) to its head (right)
+    cs = h : spriteSize(dst) = cs
+    FOR ny = 0 TO cs - 1 : FOR nx = 0 TO cs - 1
+        down = ny * w \ cs ' (stretched down to fill the square)
+        col~& = spriteTex(x0 + down, y1 - nx, src)
+        IF _ALPHA32(col~&) > 128 THEN col~& = _RGBA32(_RED32(col~&) * 0.6, _GREEN32(col~&) * 0.6, _BLUE32(col~&) * 0.6, 255)
+        spriteTex(nx, ny, dst) = col~&
+    NEXT : NEXT
+    corpseScale(mtype) = mtypeScale(mtype) * h / sz : corpseSquash(mtype) = w / h
+END SUB
+
+' A decoration's wreck: what's left standing once it's broken - the bottom
+' of its picture (how much depends on what it was), its top edge torn
+' ragged, darkened and sooty - into sprite slot S_WRECK + kind, squared up
+' like a monster's body (MakeCorpse): stretched to fill the square, drawn
+' squashed back (wreckSquash) at its own width (wreckScale).
+SUB MakeWreck(kind)
+    src = S_DECO + kind : sz = spriteSize(src) : dst = S_WRECK + kind
+    x0 = sz : y0 = sz : x1 = -1 : y1 = -1
+    FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+        IF _ALPHA32(spriteTex(x, y, src)) > 128 THEN
+            IF x < x0 THEN x0 = x
+            IF x > x1 THEN x1 = x
+            IF y < y0 THEN y0 = y
+            IF y > y1 THEN y1 = y
+        END IF
+    NEXT : NEXT
+    IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = sz - 1 : y1 = sz - 1
+    w = x1 - x0 + 1 : h = y1 - y0 + 1
+    keep = VAL(MID$("0.30.20.40.4", kind * 3 - 2, 3)) ' How much stays: barrel, lamp, plant, terminal
+    kh = INT(h * keep) : IF kh < 2 THEN kh = 2
+    DIM tear(SPR_TEX) ' (how far down each column is torn off)
+    FOR x = 0 TO w - 1 : tear(x) = INT(RND * kh * 0.4) : NEXT
+    spriteSize(dst) = w
+    FOR ny = 0 TO w - 1 : FOR nx = 0 TO w - 1
+        down = ny * kh \ w ' (rows of what's left, stretched down the square)
+        col~& = spriteTex(x0 + nx, y1 - kh + 1 + down, src)
+        IF down < tear(nx) THEN col~& = 0 ' Torn away
+        IF _ALPHA32(col~&) > 128 THEN
+            soot = 0.25 + RND * 0.25
+            col~& = _RGBA32(_RED32(col~&) * soot, _GREEN32(col~&) * soot, _BLUE32(col~&) * soot, 255)
+        END IF
+        spriteTex(nx, ny, dst) = col~&
+    NEXT : NEXT
+    wreckScale(kind) = DecoScale(kind) * w / sz : wreckSquash(kind) = kh / w
+END SUB
+
+' The scorch mark drawn for a decal: a ragged dark blob, into sprite slot
+' S_DECAL
+SUB MakeScorch
+    spriteSize(S_DECAL) = 32
+    FOR y = 0 TO 31 : FOR x = 0 TO 31
+        d = SQR((x - 15.5) ^ 2 + (y - 15.5) ^ 2) / 16 + (RND - 0.5) * 0.18 ' (ragged)
+        a = 255 : IF d > 0.45 THEN a = 255 * (1 - (d - 0.45) / 0.5) ' Solid in the middle, fading out
+        IF a < 0 THEN a = 0
+        k = 1 - d * 0.6 : IF k < 0.3 THEN k = 0.3 ' (blackest in the middle)
+        spriteTex(x, y, S_DECAL) = _RGBA32((26 + RND * 14) * (1.6 - k), (18 + RND * 8) * (1.6 - k), (16 + RND * 8) * (1.6 - k), a)
+    NEXT : NEXT
+END SUB
+
+' The ceiling lamp, shot out: its picture copied (from T_LAMP) with the
+' bright panel gone dark and cracked, into texture slot T_LAMPOFF
+SUB MakeLampOff
+    FOR y = 0 TO TEX_SIZE - 1 : FOR x = 0 TO TEX_SIZE - 1
+        col~& = texture(x, y, T_LAMP)
+        bright = (_RED32(col~&) + _GREEN32(col~&) + _BLUE32(col~&)) / 3
+        IF bright > 150 THEN col~& = _RGB32(_RED32(col~&) * 0.18, _GREEN32(col~&) * 0.18, _BLUE32(col~&) * 0.2) ' (the panel, dark)
+        texture(x, y, T_LAMPOFF) = col~&
+    NEXT : NEXT
+    FOR crack = 1 TO 5 ' A few cracks across it, from near the middle
+        cx = TEX_SIZE / 2 + (RND - 0.5) * TEX_SIZE * 0.3 : cy = TEX_SIZE / 2 + (RND - 0.5) * TEX_SIZE * 0.3
+        a = RND * 6.2832
+        FOR stp = 0 TO TEX_SIZE * 0.35
+            px = INT(cx + COS(a) * stp) : py = INT(cy + SIN(a) * stp) : a = a + (RND - 0.5) * 0.4
+            IF px >= 0 AND py >= 0 AND px < TEX_SIZE AND py < TEX_SIZE THEN texture(px, py, T_LAMPOFF) = _RGB32(70, 70, 82)
+        NEXT
+    NEXT
+    texName$(T_LAMPOFF) = "ceiling-lamp-off"
+END SUB
+
 ' The keycard picture, tinted red, blue and yellow, into sprite slots 1-3
 ' and into images for the HUD; and the key door textures, the door tinted
 ' the same three ways. (_DONTBLEND makes PSET store a see-through colour
@@ -3838,6 +4043,20 @@ FUNCTION DoorRay(cx, cy, px, py, rdx, rdy, t, u, side, litX, litY, back)
         END IF
     END IF
 END FUNCTION
+
+' A hunting monster about to step into door (cx, cy): open it - unless it
+' needs a keycard (or it's the exit). An open door being shut opens again,
+' and one waiting starts its wait again, so it's open while they come
+' through. (You hear it, quieter further away: you're at (px, py).)
+SUB MonsterDoor(cx, cy, px, py)
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT SUB
+    IF worldMap(cx, cy) <> 2 OR doorType(cx, cy) = DOOR_EXIT OR doorKey(cx, cy) <> 0 THEN EXIT SUB
+    IF doorMove(cx, cy) = 1 THEN EXIT SUB ' (opening already)
+    IF doorOpen(cx, cy) >= 1 THEN doorWait(cx, cy) = DoorHold(doorType(cx, cy)) : EXIT SUB
+    IF doorOpen(cx, cy) = 0 THEN doorOpen(cx, cy) = 0.01
+    doorMove(cx, cy) = 1
+    SfxAt DoorSnd&(doorType(cx, cy)), cx + 0.5, cy + 0.5, px, py
+END SUB
 
 FUNCTION DoorSnd&(kind)
     SELECT CASE kind
@@ -4968,6 +5187,7 @@ SUB UpdateLight
         IF lightDeco(l) THEN
             IF NOT decoOn(lightDeco(l)) THEN f = 0
         END IF
+        IF lightBroken(l) THEN f = 0 ' (shot out)
         lightNow(l) = f
         IF f > 0 THEN
             r = lightR(l) * f : g = lightG(l) * f : b = lightB(l) * f
@@ -5586,6 +5806,7 @@ SUB GLSpritesAndExtras(b, mirror)
     GLShaderStop
 
     IF glSet(SET_SHADOWS, b) AND NOT mirror THEN GLShadows b
+    GLDecals b
 
     ' Glows: a soft round spot facing you, ADDED to what's behind it
     ' (_glBlendFunc with _GL_ONE) instead of covering it - light adds up, so
@@ -5601,6 +5822,12 @@ SUB GLSpritesAndExtras(b, mirror)
         NEXT
     END IF
     IF glSet(SET_GLOW, b) THEN
+        FOR i = 1 TO glNumDecal(b) ' Fresh marks glow hot for a moment
+            IF glDecHeat(i, b) > 0 THEN
+                hot = glDecHeat(i, b) * 0.8
+                GLGlowSpot glDecX(i, b) + glDecNX(i, b) * 0.02, glDecY(i, b) + glDecNY(i, b) * 0.02, glDecZ(i, b) + glDecNZ(i, b) * 0.02, glDecSize(i, b) * 0.9, hot, hot * 0.45, hot * 0.15, rightX, rightY
+            END IF
+        NEXT
         FOR i = 1 TO glNumGlow(b)
             ' (pulled a little towards you, so the thing glowing - a bolt, a
             ' lamp, standing in the same spot - doesn't hide its own glow)
@@ -5995,6 +6222,7 @@ SUB GLSendTextures
     FOR slot = 1 TO SPR_SLOTS
         GLSendPicture glTexName(T_SLOTS + slot), SPR_TEX, _OFFSET(spriteTex(0, 0, slot))
         glTexShine(T_SLOTS + slot) = 0.3 : glTexReflect(T_SLOTS + slot) = 0 : glTexNeon(T_SLOTS + slot) = 0.6 : glTexAnim(T_SLOTS + slot) = 0
+        IF slot > S_CORPSE THEN glTexNeon(T_SLOTS + slot) = 0 ' (bodies, scorches and wreckage don't light themselves)
     NEXT
     ' The glows' spot: white, see-through at its edge, solid in the middle
     FOR y = 0 TO 63 : FOR x = 0 TO 63
@@ -6247,6 +6475,32 @@ SUB GLStrip(ax, ay, bx, by, s0, s1, u0, u1, zLow, zHigh, vTop, vBottom, slot)
     GLUseTexture slot
     GLCorner x0, y0, zHigh, u0, vTop : GLCorner x1, y1, zHigh, u1, vTop : GLCorner x1, y1, zLow, u1, vBottom
     GLCorner x0, y0, zHigh, u0, vTop : GLCorner x1, y1, zLow, u1, vBottom : GLCorner x0, y0, zLow, u0, vBottom
+END SUB
+
+' DECALS: each mark laid flat on its surface - the scorch picture
+' (MakeScorch), 0.003 off the surface (and "polygon offset": the card
+' nudges it nearer in its depth test, so the surface never shows through
+' it), see-through where the picture is.
+SUB GLDecals(b)
+    IF glNumDecal(b) = 0 THEN EXIT SUB
+    GLStopDrawing
+    _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
+    _glEnable _GL_POLYGON_OFFSET_FILL : _glPolygonOffset -2, -2
+    GLUseTexture T_SLOTS + S_DECAL : uv = spriteSize(S_DECAL) / SPR_TEX
+    FOR i = 1 TO glNumDecal(b)
+        nx = glDecNX(i, b) : ny = glDecNY(i, b) : nz = glDecNZ(i, b) : sz = glDecSize(i, b) / 2
+        cx = glDecX(i, b) + nx * 0.003 : cy = glDecY(i, b) + ny * 0.003 : cz = glDecZ(i, b) + nz * 0.003
+        IF ABS(nz) > 0.5 THEN ' On the floor or ceiling: its sides along x and y
+            ux = sz : uy = 0 : uz = 0 : vx = 0 : vy = sz : vz = 0
+        ELSE ' On a wall: across it, and up it
+            ux = -ny * sz : uy = nx * sz : uz = 0 : vx = 0 : vy = 0 : vz = sz
+        END IF
+        GLPutCorner cx - ux - vx, cy - uy - vy, cz - uz - vz, 0, 0, 1, 1, 1 : GLPutCorner cx + ux - vx, cy + uy - vy, cz + uz - vz, uv, 0, 1, 1, 1
+        GLPutCorner cx + ux + vx, cy + uy + vy, cz + uz + vz, uv, uv, 1, 1, 1 : GLPutCorner cx - ux - vx, cy - uy - vy, cz - uz - vz, 0, 0, 1, 1, 1
+        GLPutCorner cx + ux + vx, cy + uy + vy, cz + uz + vz, uv, uv, 1, 1, 1 : GLPutCorner cx - ux + vx, cy - uy + vy, cz - uz + vz, 0, uv, 1, 1, 1
+    NEXT
+    GLStopDrawing
+    _glDisable _GL_POLYGON_OFFSET_FILL : _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
 END SUB
 
 ' A door (not the exit) as a slab across the middle of its doorway (as
@@ -6755,6 +7009,8 @@ END SUB
 ' at (px, py) and just moved (mvx, mvy): dust within WAKE_REACH of you is
 ' pushed aside, dragged along a bit behind you, and lifted - your wake.
 SUB UpdateParticles(px, py, mvx, mvy)
+    FOR d = 1 TO MAX_DECALS : IF decalHeat(d) > 0 THEN decalHeat(d) = decalHeat(d) - 1
+    NEXT ' (fresh marks cool)
     dustCount = 0
     speed = SQR(mvx * mvx + mvy * mvy) : IF speed > 0.3 THEN speed = 0 ' (a jump - a new level, a loaded game - isn't a step)
     FOR i = 1 TO MAX_PART
@@ -6791,6 +7047,67 @@ SUB UpdateParticles(px, py, mvx, mvy)
         END IF
         NextPart:
     NEXT
+END SUB
+
+' One more decal (DECALS): at (x, y, z) on a surface facing (nx, ny, nz),
+' size across, glowing hot for its first DECAL_HEAT frames. When all
+' MAX_DECALS are taken, the oldest goes.
+SUB AddDecal(x, y, z, nx, ny, nz, size)
+    decalNext = decalNext MOD MAX_DECALS + 1 : d = decalNext
+    decalX(d) = x : decalY(d) = y : decalZ(d) = z : decalNX(d) = nx : decalNY(d) = ny : decalNZ(d) = nz
+    decalSize(d) = size : decalHeat(d) = DECAL_HEAT : decalOn(d) = -1
+END SUB
+
+' Where a shot lands: (x, y, z), having come along (dx, dy) (one cell
+' long), on the wall (surface 0), the ceiling (1) or the floor (2) -
+' leave a mark size across. On a wall, which way it faces: the hit is on
+' a cell's edge, and the nearer of the two grid lines (x or y a whole
+' number) says which edge - facing back the way the shot came. Not on
+' doors (they move) - and on a diagonal wall, just facing back at you.
+' A shot into the ceiling at one of the level's lamps breaks it.
+SUB ShotMark(x, y, z, dx, dy, surface, size)
+    SELECT CASE surface
+        CASE 1
+            cx = INT(x) : cy = INT(y)
+            IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+                l = shaftCell(cx, cy)
+                IF l THEN
+                    IF NOT lightBroken(l) AND ABS(x - lightX(l)) < 0.32 AND ABS(y - lightY(l)) < 0.32 THEN BreakLight l, -1 : EXIT SUB
+                END IF
+            END IF
+            AddDecal x, y, 0.999, 0, 0, -1, size
+        CASE 2
+            AddDecal x, y, 0.001, 0, 0, 1, size
+        CASE ELSE
+            bx = INT(x + dx * 0.02) : by = INT(y + dy * 0.02) ' (the cell it went into)
+            IF bx < 0 OR by < 0 OR bx >= MAP_SIZE OR by >= MAP_SIZE THEN EXIT SUB
+            IF worldMap(bx, by) = 2 THEN EXIT SUB
+            IF diagCorner(bx, by) THEN
+                nx = -dx : ny = -dy
+            ELSEIF ABS(x - INT(x + 0.5)) < ABS(y - INT(y + 0.5)) THEN
+                nx = -SGN(dx) : ny = 0
+            ELSE
+                nx = 0 : ny = -SGN(dy)
+            END IF
+            AddDecal x, y, z, nx, ny, 0, size
+    END SELECT
+END SUB
+
+' Ceiling lamp l, shot out: its light goes off for good (UpdateLight), its
+' beam with it; its picture goes dark and cracked (T_LAMPOFF - the software
+' renderer's ceiling; OpenGL's ceiling is built once a level, so a dark
+' mark goes over it) - and if loud, glass and sparks rain down, with a
+' crash. (Not loud: loading a game where it was already broken.)
+SUB BreakLight(l, loud)
+    lightBroken(l) = -1
+    cx = INT(lightX(l)) : cy = INT(lightY(l))
+    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN ceilTex(cx, cy) = T_LAMPOFF
+    AddDecal lightX(l), lightY(l), 0.999, 0, 0, -1, 0.75 : decalHeat(decalNext) = 0
+    IF loud THEN
+        SpawnSparks lightX(l), lightY(l), 0.95, 24, 255, 240, 200
+        SpawnSparks lightX(l), lightY(l), 0.95, 16, 160, 200, 255 ' (glass)
+        PlaySfx decoBreakSnd&(2), 0.9
+    END IF
 END SUB
 
 ' Blow the dust about: a shot from (x, y) going (dx, dy) pushes the dust
@@ -6974,6 +7291,17 @@ SUB GLHandOverExtras(px, py, dx, dy, muzzle)
         END IF
     NEXT
     glNumPart(w) = n
+
+    ' DECALS: all of them (they're few, and cheap to draw)
+    n = 0
+    FOR i = 1 TO MAX_DECALS
+        IF decalOn(i) THEN
+            n = n + 1 : glDecX(n, w) = decalX(i) : glDecY(n, w) = decalY(i) : glDecZ(n, w) = decalZ(i)
+            glDecNX(n, w) = decalNX(i) : glDecNY(n, w) = decalNY(i) : glDecNZ(n, w) = decalNZ(i)
+            glDecSize(n, w) = decalSize(i) : glDecHeat(n, w) = decalHeat(i) / DECAL_HEAT
+        END IF
+    NEXT
+    glNumDecal(w) = n
 
     ' LIGHT SHAFTS: every beam within 16 cells, as bright as its light is
     ' this frame (so they flicker, pulse and strobe with it)

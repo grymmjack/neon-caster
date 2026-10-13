@@ -68,9 +68,9 @@ run top to bottom, in the same order as the code:
 | | 8 Looking around | direction and camera plane vectors; rotating them |
 | | 9 Moving, and bumping into things | normalized movement; sliding along walls |
 | | 10 Pickups and cheat keys | distance checks without `SQR`; edge detection |
-| | 11 Doors | finding the door in front of you; animating it; shutting itself, never on anyone; always showing an edge |
-| | 12 Shooting | hitscan, using the z-buffer to see past walls |
-| | 13 Monsters, bolts and barrels | a state machine for AI; line of sight; chain reactions |
+| | 11 Doors | finding the door in front of you; animating it; shutting itself, never on anyone; always showing an edge; monsters opening them |
+| | 12 Shooting | hitscan, using the z-buffer to see past walls; where a shot lands, for marks and shooting out lights |
+| | 13 Monsters, bolts and barrels | a state machine for AI; line of sight; chain reactions; bodies and wreckage that stay where they fell |
 | **Drawing it** | 14 Light, and the floor and ceiling | per-cell coloured light (Doom-style), flicker and strobe effects, floor casting, fog, `AND 63` texture wrapping |
 | | 15 The walls: the raycaster | rays, the DDA grid walk, fish-eye correction, texturing; doors as slabs with edges and tracks |
 | | 16 Sprites | camera space, painter's algorithm, hiding behind walls |
@@ -157,10 +157,16 @@ run it and see what happens. That's the fastest way to learn how it works.
   `MON_TYPES`, load a sprite into two new slots (raise `SPR_SLOTS`, and
   stretch the hit-flash loop in chapter 6 to cover them), and give it a map
   letter in `LoadLevel`.
-- **Doors monsters open** (ch. 11, 13): doors already shut themselves
-  (`DoorHold`) and wait for whoever is in the doorway (`DoorBlocked`). Let a
-  chasing monster set `doorMove` to 1 when its next step is a shut door
-  that needs no keycard.
+- **Your own bodies** (ch. 13, 23): a dead monster is drawn from
+  `dead-<name>.png` (`dead-drone.png`...), cropped and laid on the floor by
+  `MakeCorpse`. Draw your own - delete one and the monster just falls on
+  its side instead.
+- **Monsters with keycards** (ch. 11, 13): monsters open plain doors
+  (`MonsterDoor`) but never keycard doors. Give a heavy the red card, so
+  red doors are no longer safe.
+- **Marks that fade** (ch. 12, 24): shot marks and scorches (`AddDecal`)
+  stay until 96 newer ones push them out. Fade each one's alpha with age
+  instead.
 - **Your own level** (ch. 22): draw a map in the `DATA` lines, or build one
   with the level kit in `neon-caster/levels/` (`python3 levels.py --check`
   checks hand-made maps too: doors, keycards, the exit).
