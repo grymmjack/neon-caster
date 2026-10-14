@@ -1302,7 +1302,9 @@ CONST PK_TABS = 9, PK_MAX = 160, PK_COLS = 8, PK_ROWS = 2, PK_SIZE = 50
 CONST PK_X = 8, PK_Y = 438 ' (the picker's top left, in 3D: tabs, then the thumbnails under them)
 DIM SHARED edPkN AS INTEGER, edPkKind(PK_MAX) AS INTEGER, edPkVal$(PK_MAX), edPkImg&(PK_MAX), edPkKey$
 DIM SHARED edPickOn AS INTEGER, edBrushKind AS INTEGER, edBrushTex$, edBrushImg&
-edPickOn = -1 : edBrushKind = PK_GLYPH
+DIM SHARED edPickOpen AS INTEGER ' (edPickOn: 1 tucked away till the pointer comes down to it, -1 always open, 0 off; edPickOpen: open now)
+CONST PK_TUCK = 580 ' (tucked away: a strip along the bottom from here)
+edPickOn = 1 : edBrushKind = PK_GLYPH
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
 DIM SHARED texFile$(T_SLOTS)
 menuMusic& = LoadMusic&("menu.ogg")
@@ -3072,8 +3074,12 @@ DO
     IF editMode THEN EditOverlay playerX, playerY, dirX, dirY ' (the editor: what you're aiming at, what you'll place)
     IF editMode AND editView = 1 THEN EditDrawFaces ' (the face under the pointer, and the ones selected, outlined)
     IF editMode AND editView = 1 AND NOT hudEdit THEN ' The toolbar (and the help, when it's up)
-        IF edPickOn THEN
+        IF edPickOpen THEN
             IF edLooking THEN EditDrawPicker -1, -1 ELSE EditDrawPicker edCurX, edCurY
+        ELSEIF edPickOn THEN ' (tucked away: a strip saying what the brush is)
+            LINE (0, PK_TUCK)-(799, 599), _RGBA32(6, 2, 18, 200), BF : LINE (0, PK_TUCK)-(799, PK_TUCK), _RGBA32(255, 60, 200, 160)
+            IF edTool = ET_PAINT THEN t$ = edBrushTex$ ELSE IF edTool = ET_LIGHT THEN t$ = "light: " + LightPresetName$(editLightP) ELSE t$ = GlyphName$(editGlyph$)
+            HudText 8, PK_TUCK + 2, LEFT$("^ PICKER  (point here to open it)   brush: " + t$, 98), _RGB32(190, 180, 230)
         END IF
         IF edLooking THEN EditDrawTB 1, -1, -1 ELSE EditDrawTB 1, edCurX, edCurY
         IF edHelp THEN EditDrawHelp 1
@@ -3419,7 +3425,7 @@ SELECT CASE tbHit
     CASE TB_VIEW : IF editView = 1 THEN editView = 0 ELSE edDone = 1
     CASE TB_HELP : edHelp = NOT edHelp
     CASE TB_PAINT : edTool = ET_PAINT : EditNote EditTBTip$(tbHit)
-    CASE TB_PICK : edPickOn = NOT edPickOn
+    CASE TB_PICK : GOSUB EditPickMode
 END SELECT
 editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT) ' (the map from above's own names for two of the tools)
 RETURN
@@ -3461,6 +3467,16 @@ FOR k = 1 TO edSelN
     EditPaintFace edSelX(k), edSelY(k), EditFaceCode(edSelKind(k), edSelSide(k)), edSelPart(k), edBrushTex$
 NEXT
 GOSUB EditApply : EditNote edBrushTex$ + " on" + STR$(edSelN) + " faces"
+RETURN
+
+' The picker: tucked away (opening when the pointer comes down to it) ->
+' always open -> off -> tucked away
+EditPickMode:
+SELECT CASE edPickOn
+    CASE 1 : edPickOn = -1 : EditNote "Picker: always open (P)"
+    CASE -1 : edPickOn = 0 : EditNote "Picker: off (P)"
+    CASE ELSE : edPickOn = 1 : EditNote "Picker: tucked away - move the pointer to the bottom to open it (P)"
+END SELECT
 RETURN
 
 ' The grid slider, dragged: how strong, from where the pointer is along it
@@ -3812,6 +3828,17 @@ IF hudEdit THEN RETURN ' (the HUD layout editor has the mouse and keys)
 levelWas = level
 edCamPX = playerX : edCamPY = playerY : edCamDX = dirX : edCamDY = dirY : edCamPlane = fovPlane / zoom : edCamZoom = zoom
 IF edLooking THEN EditPick 400, 300 ELSE EditPick edCurX, edCurY ' (looking round: the crosshair picks)
+' The picker, tucked away, opens when the pointer comes to the bottom of
+' the screen and tucks itself away again when it goes back up to the world
+IF edPickOn = -1 THEN edPickOpen = -1
+IF edPickOn = 0 THEN edPickOpen = 0
+IF edPickOn = 1 AND NOT edLooking THEN
+    IF edPickOpen THEN
+        IF edCurY < PK_Y - 40 THEN edPickOpen = 0
+    ELSE
+        IF edCurY >= PK_TUCK THEN edPickOpen = -1
+    END IF
+END IF
 IF NOT edLooking AND EditOverUI(edCurX, edCurY) THEN edHovKind = 0 ' (over the toolbar or picker: no face)
 EditAim playerX, playerY, dirX, dirY, aimX, aimY, frontX, frontY
 fpL = _MOUSEBUTTON(1) OR edClickL : fpR = _MOUSEBUTTON(2) OR edClickR ' (a click between two frames counts too)
@@ -3829,7 +3856,7 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND edHelp THEN
     edHelp = 0 : fpLWas = -1 ' (the help was up: the click puts it away)
 ELSEIF fpL AND NOT fpLWas AND tbHit THEN
     GOSUB EditTBClick
-ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND edPickOn THEN
+ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND edPickOpen THEN
     EditPkHit edCurX, edCurY, pkWhat, pkIdx
     SELECT CASE pkWhat
         CASE 1 : edPickTab = pkIdx : edPickScroll = 0
@@ -3897,7 +3924,7 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) THEN
     END IF
 END IF
 fpLWas = fpL : fpRWas = fpR
-IF edWheel <> 0 AND edPickOn AND edCurY >= PK_Y - 4 AND NOT edLooking THEN ' (over the picker: the wheel scrolls it)
+IF edWheel <> 0 AND edPickOpen AND edCurY >= PK_Y - 4 AND NOT edLooking THEN ' (over the picker: the wheel scrolls it)
     edPickScroll = edPickScroll + SGN(edWheel) ' (down the wheel: down the list)
     IF (edPickScroll + PK_ROWS - 1) * PK_COLS >= edPkN THEN edPickScroll = edPickScroll - 1
     IF edPickScroll < 0 THEN edPickScroll = 0
@@ -3919,7 +3946,7 @@ DO WHILE k&
         CASE 21248 ' Del: delete what's selected
             IF edSelN THEN GOSUB EditPushUndo : EditDeleteSel : GOSUB EditApply ELSE EditNote "Select something to delete first"
         CASE 15104 : edHelp = NOT edHelp ' F1: the help
-        CASE 112, 80 : edPickOn = NOT edPickOn ' P: the picker
+        CASE 112, 80 : GOSUB EditPickMode ' P: the picker - tucked away, always open, off
         CASE 18432, 20480, 19200, 19712 ' The arrows: nudge the selection a cell - away, back, left, right of the way you face
             IF edSelN THEN
                 fwX = 0 : fwY = 0 : IF ABS(edCamDX) >= ABS(edCamDY) THEN fwX = SGN(edCamDX) ELSE fwY = SGN(edCamDY)
@@ -8205,7 +8232,8 @@ FUNCTION EditOverUI(x, y)
     EditOverUI = 0
     IF edHelp THEN EditOverUI = -1 : EXIT FUNCTION ' (the help is up: a click closes it)
     IF EditTBAt(x, y, editView) THEN EditOverUI = -1
-    IF editView = 1 AND edPickOn AND y >= PK_Y - 4 THEN EditOverUI = -1 ' (the picker: the bottom of the screen)
+    IF editView = 1 AND edPickOpen AND y >= PK_Y - 4 THEN EditOverUI = -1 ' (the picker: the bottom of the screen)
+    IF editView = 1 AND edPickOn AND NOT edPickOpen AND y >= PK_TUCK THEN EditOverUI = -1 ' (tucked away: its strip)
 END FUNCTION
 
 ' --- THE TOOLBAR: the editor's buttons, in both views - along the top in
@@ -8267,7 +8295,7 @@ FUNCTION EditTBTip$(id)
         CASE TB_VIEW : IF editView = 1 THEN t$ = "The map from above (Tab)" ELSE t$ = "Walk round inside it (Tab)"
         CASE TB_HELP : t$ = "Every key and click (F1)"
         CASE TB_PAINT : t$ = "Paint: click a face to give it the brush's picture"
-        CASE TB_PICK : t$ = "The picker: walls, floors, things... (P)"
+        CASE TB_PICK : t$ = "The picker: tucked away / always open / off (P)"
     END SELECT
     EditTBTip$ = t$
 END FUNCTION
@@ -8291,7 +8319,7 @@ FUNCTION EditTBOn(id)
         CASE TB_GRID : EditTBOn = edGrid
         CASE TB_HELP : EditTBOn = edHelp
         CASE TB_PAINT : EditTBOn = (edTool = ET_PAINT)
-        CASE TB_PICK : EditTBOn = edPickOn
+        CASE TB_PICK : EditTBOn = (edPickOn <> 0)
         CASE ELSE : EditTBOn = 0
     END SELECT
 END FUNCTION
@@ -8537,7 +8565,7 @@ END FUNCTION
 ' 2 a thumbnail (idx: its entry), 3 scroll up, 4 scroll down; 0 nothing
 SUB EditPkHit(x, y, what, idx)
     what = 0 : idx = 0
-    IF NOT edPickOn OR editView <> 1 THEN EXIT SUB
+    IF NOT edPickOpen OR editView <> 1 THEN EXIT SUB
     tx = PK_X
     FOR t = 1 TO PK_TABS
         w = LEN(EditPkTabName$(t)) * 8 + 10
@@ -8990,7 +9018,8 @@ SUB EditOverlay(px, py, fx, fy)
     IF edSelN THEN HudText 16, 92, LTRIM$(STR$(edSelN)) + " selected (Ctrl+D: none)", _RGB32(255, 190, 80) ELSE HudText 16, 92, "Nothing selected", _RGB32(140, 130, 180)
     IF editDirty THEN HudText 16, 108, "* not saved (Ctrl+S)", _RGB32(255, 90, 90) ELSE HudText 16, 108, "Saved", _RGB32(140, 130, 180)
     IF TIMER < editMsgUntil! THEN
-        my = 470 : IF edPickOn AND editView = 1 THEN my = PK_Y - 30 ' (above the picker)
+        my = 470 : IF edPickOpen AND editView = 1 THEN my = PK_Y - 30 ' (above the picker)
+        IF edPickOn AND NOT edPickOpen AND editView = 1 THEN my = PK_TUCK - 24
         LINE (0, my)-(799, my + 20), _RGBA32(0, 0, 0, 170), BF
         HudText 400 - LEN(LEFT$(editMsg$, 98)) * 4, my + 4, LEFT$(editMsg$, 98), _RGB32(255, 220, 120)
     END IF
