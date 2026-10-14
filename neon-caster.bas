@@ -619,7 +619,8 @@ CONST T_DOOR = 7, T_DOORK = 7
 CONST T_SHUTTER = 11, T_SPLIT = 12, T_EXIT = 13
 CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20, T_LAMPOFF = 21, T_JACK = 22 ' (T_JACK: a data station's wall, @)
 CONST T_CODE = 23 ' (a code terminal's wall, $)
-CONST T_SLOTS = 23
+CONST T_LIFT = 24, T_LIFTSIDE = 25 ' (a lift's top and sides: made from the level's own - MakeLiftTex)
+CONST T_SLOTS = 25
 REDIM SHARED texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
 REDIM SHARED texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
@@ -847,6 +848,8 @@ sndStep1& = LoadSnd&("step1.wav") : sndStep2& = LoadSnd&("step2.wav")
 sndBump& = LoadSnd&("bump.wav") : sndHump& = LoadSnd&("wallhump.wav")
 DIM SHARED sndDoor&, sndShutter&, sndSplit& ' (shared: DoorSnd& picks one - chapter 11)
 sndDoor& = LoadSnd&("door.wav") : sndShutter& = LoadSnd&("door-shutter.wav") : sndSplit& = LoadSnd&("door-split.wav")
+DIM SHARED sndLiftStart&, sndLiftMove&, sndLiftStop& ' (a lift setting off, moving - looped - and stopping)
+sndLiftStart& = LoadSnd&("lift-start.wav") : sndLiftMove& = LoadSnd&("lift-move.wav") : sndLiftStop& = LoadSnd&("lift-stop.wav")
 sndCard& = LoadSnd&("keycard.wav") : sndLocked& = LoadSnd&("locked.wav")
 sndEmpty& = LoadSnd&("empty.wav") : sndWeapon& = LoadSnd&("weapon.wav")
 sndHealth& = LoadSnd&("health.wav") : sndAmmo& = LoadSnd&("ammo.wav") : sndShells& = LoadSnd&("shells.wav")
@@ -1183,6 +1186,7 @@ CONST MAX_LIFTS = 16
 DIM SHARED numLifts AS INTEGER, liftCell(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED liftX0(MAX_LIFTS) AS INTEGER, liftY0(MAX_LIFTS) AS INTEGER, liftX1(MAX_LIFTS) AS INTEGER, liftY1(MAX_LIFTS) AS INTEGER
 DIM SHARED liftLow(MAX_LIFTS) AS SINGLE, liftHigh(MAX_LIFTS) AS SINGLE, liftMode(MAX_LIFTS) AS INTEGER, liftSpeed(MAX_LIFTS) AS SINGLE
+DIM SHARED liftWasDir(MAX_LIFTS) AS INTEGER, liftHum&(MAX_LIFTS) ' (which way it went last frame; its motor - its own looping copy of lift-move.wav: LiftSound)
 DIM SHARED liftZ(MAX_LIFTS) AS SINGLE, liftDir(MAX_LIFTS) AS INTEGER, liftWait(MAX_LIFTS) AS INTEGER
 DIM SHARED lvlNumLifts AS INTEGER, lvlLift(MAX_LIFTS, 8) AS SINGLE
 ' --- Triggers ([triggers] in the level file, chapter 19): WHEN, then a colon,
@@ -3465,6 +3469,7 @@ FOR k = 1 TO T_SLOTS ' The level's own walls, floors and ceilings, again
     IF texFile$(k) <> "" THEN LoadTex texFile$(k), k
 NEXT
 IF cyberOn THEN CyberTextures -1 ' (in the network: its grid, at the new size)
+MakeLiftTex ' (the lifts' pictures, made again from the new ones)
 glTexVersion = glTexVersion + 1 : glRetexVersion = glRetexVersion + 1
 artHold = 0
 RETURN
@@ -3725,6 +3730,7 @@ RETURN
 ' fills in its blank (type, Enter); F5 or R compiles and runs it; H a hint;
 ' Esc leaves (the doors stay locked). pzSolved: it worked.
 RunPuzzle:
+LiftHumsOff
 _MOUSESHOW : _KEYCLEAR
 pzSolved = 0 : pzSel = 1 : pzTyping = 0 : pzShown = 0 : pzFails = 0 : pzOut$ = "Put the lines in order, fill the blanks, then F5 to compile and run."
 pzDone = 0 : qb$ = QB64Path$
@@ -4104,13 +4110,14 @@ DO
     hR& = MinOf(256, litR(hcX, hcY) * hFog& \ 256) : hG& = MinOf(256, litG(hcX, hcY) * hFog& \ 256) : hB& = MinOf(256, litB(hcX, hcY) * hFog& \ 256)
     IF hSolid THEN ' A wall: from this cell's ceiling to its floor
         y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut)
-        hZ0 = hc : hZ1 = hf : GOSUB HeightFace
+        hZ0 = hc : hZ1 = hf : hVOff = 0 : GOSUB HeightFace
         EXIT DO
     END IF
     ' Open: the step's face up to a higher floor...
     nf = floorH(hnX, hnY)
     IF nf > hf THEN
-        y0 = INT(hor + (eyeZ - nf) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut) : hSlot = wallTexSlot(1)
+        y0 = INT(hor + (eyeZ - nf) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut) : hSlot = wallTexSlot(1) : hVOff = 0
+        IF liftCell(hnX, hnY) THEN hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
         hZ0 = nf : hZ1 = hf : GOSUB HeightFace
         IF y0 - 1 < hBot THEN hBot = y0 - 1
     END IF
@@ -4118,7 +4125,7 @@ DO
     nc = ceilH(hnX, hnY)
     IF nc < hc THEN
         y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor - (nc - eyeZ) * viewH / hDOut) : hSlot = wallTexSlot(1)
-        hZ0 = hc : hZ1 = nc : GOSUB HeightFace
+        hZ0 = hc : hZ1 = nc : hVOff = 0 : GOSUB HeightFace
         IF y1 + 1 > hTop THEN hTop = y1 + 1
     END IF
     IF clipN(x) < MAX_CLIPS THEN clipN(x) = clipN(x) + 1 : clipD(x, clipN(x)) = hDOut : clipT(x, clipN(x)) = hTop : clipB(x, clipN(x)) = hBot
@@ -4129,13 +4136,14 @@ RETURN
 
 ' (HeightColumn's upright faces: rows y0 to y1 of column x, inside hTop ..
 ' hBot, the texture hSlot by height - from hZ0 at y0 to hZ1 at y1, a
-' picture a wall high, repeated - and column hTexX, lit hR&, hG&, hB&)
+' picture a wall high, repeated, moved down by hVOff (a lift's side hangs
+' from its top) - and column hTexX, lit hR&, hG&, hB&)
 HeightFace:
 yA = y0 : IF yA < hTop THEN yA = hTop
 yB = y1 : IF yB > hBot THEN yB = hBot
 ' The picture's row runs evenly down the face: work out the first, then
 ' step (the height at row y is eyeZ - (y + 0.5 - hor) * hDOut / viewH)
-vStep = hDOut / viewH * texSize : v = (1 - eyeZ + (yA + 0.5 - hor) * hDOut / viewH) * texSize : tMask = texSize - 1
+vStep = hDOut / viewH * texSize : v = (hVOff + 1 - eyeZ + (yA + 0.5 - hor) * hDOut / viewH) * texSize : tMask = texSize - 1
 FOR y = yA TO yB
     texel~& = texture(hTexX, INT(v) AND tMask, hSlot)
     pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * hR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * hG& \ 256) * 256 OR ((texel~& AND 255) * hB& \ 256)
@@ -4490,6 +4498,7 @@ RETURN
 ' --- You used the exit: the level's tally, then on to the next level (after
 ' the last, the game's totals, and a new game)
 LevelDone:
+LiftHumsOff
 PlaySfx sndExit&, 0.9
 levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
 totalKills = totalKills + kills : totalMonsters = totalMonsters + numMonsters : totalTime! = totalTime! + levelTime!
@@ -4720,6 +4729,7 @@ NEXT
 FOR k = 1 TO 2
     IF texFile$(T_CEIL + k) <> lvlCeil$(k) THEN LoadTex lvlCeil$(k), T_CEIL + k : texFile$(T_CEIL + k) = lvlCeil$(k) : texNew = -1
 NEXT
+IF texNew OR NOT editRebuild THEN MakeLiftTex ' (the lifts' pictures, from these)
 IF NOT editRebuild THEN glTexVersion = glTexVersion + 1 ' (a new level: OpenGL needs it all again - chapter 24)
 ambientLevel = lvlAmb(1) : ambientTintR = lvlAmb(2) : ambientTintG = lvlAmb(3) : ambientTintB = lvlAmb(4) ' The level's ambient light: brightness, then colour
 ambientR = ambientLevel * ambientTintR / 255 : ambientG = ambientLevel * ambientTintG / 255 : ambientB = ambientLevel * ambientTintB / 255
@@ -4882,15 +4892,16 @@ NEXT : NEXT
 ' The lifts: their cells start at their low height
 numLifts = 0
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : liftCell(x, y) = 0 : NEXT : NEXT
+LiftHumsOff ' (the last level's lifts' motors)
 FOR k = 1 TO lvlNumLifts
     numLifts = numLifts + 1
     liftX0(k) = MinOf(lvlLift(k, 1), lvlLift(k, 3)) : liftY0(k) = MinOf(lvlLift(k, 2), lvlLift(k, 4))
     liftX1(k) = MaxOf(lvlLift(k, 1), lvlLift(k, 3)) : liftY1(k) = MaxOf(lvlLift(k, 2), lvlLift(k, 4))
     liftLow(k) = lvlLift(k, 5) * H_STEP : liftHigh(k) = lvlLift(k, 6) * H_STEP : liftMode(k) = lvlLift(k, 7)
     liftSpeed(k) = lvlLift(k, 8) * H_STEP / 60 : IF liftSpeed(k) <= 0 THEN liftSpeed(k) = 0.01
-    liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 60
+    liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 60 : liftWasDir(k) = 0
     FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
-        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0
+        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0 : floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0 ' (a lift's top: its own plate - MakeLiftTex)
     NEXT : NEXT
 NEXT
 ' The triggers, taken apart; the teleporters' pads, glowing
@@ -5022,6 +5033,7 @@ RETURN
 ' darkened behind it; at the title it's the synthwave backdrop and music.
 ' It runs until you start, load or go back to a game (or quit).
 RunMenu:
+LiftHumsOff ' (the game waits: so do the lifts' motors)
 _MOUSESHOW
 IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
 menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen
@@ -5537,8 +5549,7 @@ SELECT CASE conVerb$
     CASE "liftgo" ' liftgo N up|down: a lift on its way
         l = VAL(conA$)
         IF l >= 1 AND l <= numLifts THEN
-            IF conB$ = "down" THEN liftDir(l) = -1 ELSE liftDir(l) = 1
-            SfxAt sndShutter&, liftX0(l) + 0.5, liftY0(l) + 0.5, playerX, playerY
+            IF conB$ = "down" THEN liftDir(l) = -1 ELSE liftDir(l) = 1 ' (its sound: LiftSound, next frame)
         END IF
     CASE "triggers" ' The level's triggers
         IF numTrigs = 0 THEN ConPrint "No triggers in this sector"
@@ -6261,6 +6272,38 @@ RETURN
 
 ' A texture from neon-caster/ (or hd/ - ArtPath$) into texture slot `slot`,
 ' texSize pixels square whatever size the picture is (ReadPicture).
+' A lift's own pictures, made from the level's so they match it - and so
+' a lift doesn't look like any other bit of floor. Its top (T_LIFT): floor
+' 1, a little darker, inside a yellow-and-black hazard border. Its sides
+' (T_LIFTSIDE): wall 1, darker, with a hazard band along the top edge -
+' the sides are drawn hanging from the platform's top (GLStep, and
+' HeightColumn's hVOff), so the band rides up and down with it.
+SUB MakeLiftTex
+    t = texSize : b = MaxOf(2, t \ 8) : seam = MaxOf(1, t \ 64)
+    FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
+        stripe = ((x + y) \ b) MOD 2 ' (diagonal bands, b wide)
+        c~& = texture(x, y, T_FLOOR + 1)
+        r = ((c~& \ 65536) AND 255) * 0.7 : g = ((c~& \ 256) AND 255) * 0.7 : bl = (c~& AND 255) * 0.7
+        edge = MinOf(MinOf(x, y), MinOf(t - 1 - x, t - 1 - y))
+        IF edge < b THEN
+            IF stripe THEN r = 25 : g = 22 : bl = 20 ELSE r = 235 : g = 185 : bl = 30
+        ELSEIF edge < b + seam THEN
+            r = r * 0.35 : g = g * 0.35 : bl = bl * 0.35 ' (a dark seam inside it)
+        END IF
+        texture(x, y, T_LIFT) = _RGB32(r, g, bl)
+        c~& = texture(x, y, 1)
+        r = ((c~& \ 65536) AND 255) * 0.75 : g = ((c~& \ 256) AND 255) * 0.75 : bl = (c~& AND 255) * 0.75
+        IF y < t \ 4 THEN
+            IF stripe THEN r = 25 : g = 22 : bl = 20 ELSE r = 235 : g = 185 : bl = 30
+        ELSEIF y < t \ 4 + seam THEN
+            r = r * 0.35 : g = g * 0.35 : bl = bl * 0.35
+        END IF
+        texture(x, y, T_LIFTSIDE) = _RGB32(r, g, bl)
+    NEXT : NEXT
+    texName$(T_LIFT) = "lift" : texName$(T_LIFTSIDE) = "lift" ' (for OpenGL's effects: shiny metal)
+    texHD(T_LIFT) = texHD(T_FLOOR + 1) : texHD(T_LIFTSIDE) = texHD(1)
+END SUB
+
 SUB LoadTex(file$, slot AS INTEGER)
     texName$(slot) = LCASE$(file$) ' (what it is, for OpenGL's effects - chapter 24)
     path$ = ArtPath$(file$) : texHD(slot) = INSTR(path$, "hd/") > 0
@@ -8586,10 +8629,8 @@ SUB SfxAt(snd&, x, y, listenX, listenY)
 END SUB
 
 SUB SfxAtRange(snd&, x, y, listenX, listenY, range)
+    vol! = SfxVolAt!(x, y, listenX, listenY, range) : IF vol! <= 0 THEN EXIT SUB ' (too far off to hear)
     dx = x - listenX : dy = y - listenY : d = SQR(dx * dx + dy * dy)
-    IF d >= range THEN EXIT SUB ' (too far off to hear)
-    vol! = (1 - d / range) ^ 2
-    IF d > 0.5 THEN IF NOT CanSee(x, y, listenX, listenY) THEN vol! = vol! * 0.35
     pan! = 0
     IF setting(SET_SPATIAL) AND d > 0.5 THEN
         side = (dx * earDY - dy * earDX) / d ' (your right is (earDY, -earDX))
@@ -8597,6 +8638,16 @@ SUB SfxAtRange(snd&, x, y, listenX, listenY, range)
     END IF
     PlaySfxPan snd&, vol!, pan!
 END SUB
+
+' How loud a sound at (x, y) is where you are (0 to 1): silent range cells
+' off, louder nearer as (1 - d / range) squared, a third through a wall
+FUNCTION SfxVolAt!(x, y, listenX, listenY, range)
+    dx = x - listenX : dy = y - listenY : d = SQR(dx * dx + dy * dy)
+    IF d >= range THEN EXIT FUNCTION
+    v! = (1 - d / range) ^ 2
+    IF d > 0.5 THEN IF NOT CanSee(x, y, listenX, listenY) THEN v! = v! * 0.35
+    SfxVolAt! = v!
+END FUNCTION
 
 ' How much the 800 x 600 screen is stretched on the display (2 on a 1600-
 ' wide full screen). QB64PE multiplies captured mouse movement by this, so
@@ -11075,6 +11126,7 @@ SUB GLSendTextures
             IF INSTR(n$, "glow") THEN glTexNeon(slot) = 1
         END IF
         IF slot > T_CEIL THEN glTexShine(slot) = 0.1
+        IF slot = T_LIFT OR slot = T_LIFTSIDE THEN glTexShine(slot) = 0.5 : glTexNeon(slot) = 0.35 ' (a lift: metal, its stripes faintly lit)
         IF INSTR(n$, "white") OR INSTR(n$, "ice") OR INSTR(n$, "frost") THEN glTexNeon(slot) = 0 ' (white isn't neon)
         IF INSTR(n$, "brick") OR INSTR(n$, "rust") OR INSTR(n$, "moss") OR INSTR(n$, "biolab") OR INSTR(n$, "slime") THEN glTexNeon(slot) = 0.35 ' (nor rust and slime, much)
         IF INSTR(n$, "servers") OR INSTR(n$, "terminals") OR INSTR(n$, "control") THEN glTexAnim(slot) = 1
@@ -11507,12 +11559,11 @@ SUB MoveLifts(px, py)
         IF liftDir(k) = 0 THEN ' Waiting at one end
             IF liftWait(k) > 0 THEN liftWait(k) = liftWait(k) - 1
             IF liftMode(k) = 2 THEN
-                IF me = k AND liftZ(k) <= liftLow(k) + 0.001 AND liftWait(k) = 0 THEN liftDir(k) = 1 : SfxAt sndShutter&, liftX0(k) + 0.5, liftY0(k) + 0.5, px, py
-                IF me <> k AND liftZ(k) >= liftHigh(k) - 0.001 AND liftWait(k) = 0 THEN liftDir(k) = -1 : SfxAt sndShutter&, liftX0(k) + 0.5, liftY0(k) + 0.5, px, py
+                IF me = k AND liftZ(k) <= liftLow(k) + 0.001 AND liftWait(k) = 0 THEN liftDir(k) = 1
+                IF me <> k AND liftZ(k) >= liftHigh(k) - 0.001 AND liftWait(k) = 0 THEN liftDir(k) = -1
                 IF me = k AND liftZ(k) >= liftHigh(k) - 0.001 THEN liftWait(k) = 180 ' (you're still on it: stay up)
             ELSEIF liftMode(k) = 1 AND liftWait(k) = 0 THEN ' (mode 3: only when told - liftgo, from a trigger)
                 IF liftZ(k) <= liftLow(k) + 0.001 THEN liftDir(k) = 1 ELSE liftDir(k) = -1
-                SfxAt sndShutter&, liftX0(k) + 0.5, liftY0(k) + 0.5, px, py
             END IF
         ELSE
             liftZ(k) = liftZ(k) + liftDir(k) * liftSpeed(k)
@@ -11522,6 +11573,37 @@ SUB MoveLifts(px, py)
         FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
             IF liftCell(x, y) = k THEN floorH(x, y) = liftZ(k)
         NEXT : NEXT
+        LiftSound k, px, py
+    NEXT
+END SUB
+
+' A lift's sound, as DOOM's: the motor starting as it sets off, running
+' while it moves - its own looping copy of lift-move.wav (liftHum&), as
+' loud as where it is says - and a clunk when it stops at either end.
+' Done by what changed since last frame, so it's the same however it was
+' set going (riding it, by itself, or a trigger's liftgo).
+SUB LiftSound(k, px, py)
+    cx = (liftX0(k) + liftX1(k) + 1) / 2 : cy = (liftY0(k) + liftY1(k) + 1) / 2
+    IF liftDir(k) <> 0 AND liftWasDir(k) = 0 THEN SfxAt sndLiftStart&, cx, cy, px, py
+    IF liftDir(k) = 0 AND liftWasDir(k) <> 0 THEN SfxAt sndLiftStop&, cx, cy, px, py
+    liftWasDir(k) = liftDir(k)
+    IF sndLiftMove& <= 0 THEN EXIT SUB
+    IF liftDir(k) <> 0 THEN
+        IF liftHum&(k) = 0 THEN liftHum&(k) = _SNDCOPY(sndLiftMove&)
+        IF liftHum&(k) > 0 THEN
+            _SNDVOL liftHum&(k), SfxVolAt!(cx, cy, px, py, SFX_RANGE) * 0.7 * setting(SET_SFX) / 100
+            IF NOT _SNDPLAYING(liftHum&(k)) THEN _SNDLOOP liftHum&(k)
+        END IF
+    ELSEIF liftHum&(k) > 0 THEN
+        _SNDSTOP liftHum&(k)
+    END IF
+END SUB
+
+' Every lift's motor quiet - a new level, the menu, the sector tally (a
+' lift still moving starts it again when the game goes on)
+SUB LiftHumsOff
+    FOR k = 1 TO MAX_LIFTS
+        IF liftHum&(k) > 0 THEN _SNDSTOP liftHum&(k)
     NEXT
 END SUB
 
@@ -11561,7 +11643,14 @@ SUB GLStep(ax, ay, bx, by, b)
         IF fa < fb THEN lx = ax : ly = ay : zl = fa : zh = fb ELSE lx = bx : ly = by : zl = fb : zh = fa
         GLSetLight lx, ly, 1, b
         glFaceNX = SGN(lx - (ax + bx - lx)) : glFaceNY = SGN(ly - (ay + by - ly)) : glFaceNZ = 0
-        GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, wallTexSlot(1)
+        ' The picture by height, as the walls'... but a lift's side (the
+        ' higher cell is a lift) hangs from its top edge in its own picture,
+        ' so it rides up and down with it instead of sliding past
+        IF liftCell(ax + bx - lx, ay + by - ly) THEN
+            GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 0, zh - zl, T_LIFTSIDE
+        ELSE
+            GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, wallTexSlot(1)
+        END IF
     END IF
     ca = ceilH(ax, ay) : cb = ceilH(bx, by)
     IF ca <> cb THEN
