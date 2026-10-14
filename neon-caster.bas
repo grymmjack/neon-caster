@@ -1330,7 +1330,7 @@ edLR = 230 : edLG = 235 : edLB = 255 : edLFx = FX_STEADY : edLRad = 3 : edLBri =
 ' teleporter's pad, a lift, a floor - and its buttons, down the right
 CONST PN_X = 592, PN_Y = 58, PN_W = 200
 DIM SHARED edPnN AS INTEGER, edPnId(40) AS INTEGER, edPnX(40) AS INTEGER, edPnY(40) AS INTEGER, edPnW(40) AS INTEGER, edPnLab$(40), edPnLit(40) AS INTEGER
-DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnCol(40) AS _UNSIGNED LONG
+DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnEvent AS INTEGER, edPnCol(40) AS _UNSIGNED LONG
 DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick AS INTEGER, edTypeFresh AS INTEGER ' (the SECTOR pane; typing its name; which of its pictures the picker's choosing - 1-6 a wall kind, 7-10 a floor, 11-12 a ceiling)
 DIM SHARED edPnX0 AS INTEGER, edPnY0 AS INTEGER ' (where the pane is: down the right in 3D, over the map's right from above)
 DIM SHARED edLinkPad AS INTEGER, edLinkX AS INTEGER, edLinkY AS INTEGER ' (LINK: waiting for the pad this one's to go to)
@@ -3687,6 +3687,51 @@ SELECT CASE pnHit
         IF edSlotPick <= 6 THEN edPickTab = 1 ELSE IF edSlotPick <= 10 THEN edPickTab = 2 ELSE edPickTab = 3
         edPickScroll = 0 : IF edPickOn = 0 THEN edPickOn = 1
         edPickOpen = -1 : EditNote "Now click a picture in the picker - every one of these changes"
+    CASE 150 TO 161 ' An event's kind - with numbers that make sense for it
+        ev = edPnEvent
+        IF ev THEN
+            GOSUB EditPushUndo : kd = pnHit - 149 : lvlEvent(ev, 1) = kd
+            lvlEvent(ev, 6) = VAL(MID$("4  30 60 20 1  0  0  45 75 18020 60 ", kd * 3 - 2, 3)) : lvlEvent(ev, 7) = VAL(MID$("0  1201200  2400  0  30090 0  4  120", kd * 3 - 2, 3)) ' (each kind's own: its first number, then its second)
+            IF kd > 4 THEN lvlEvent(ev, 8) = 0
+            GOSUB EditApply : EditNote "Now " + EvKindName$(kd)
+        END IF
+    CASE 162 TO 165 ' Its two numbers, down and up
+        ev = edPnEvent
+        IF ev THEN
+            w = (pnHit - 162) \ 2 + 1 : EvField lvlEvent(ev, 1), w, lab$, unit, stp, mn, mx
+            v = lvlEvent(ev, 5 + w) + stp * (2 * ((pnHit - 162) MOD 2) - 1)
+            IF v < mn THEN v = mn
+            IF v > mx THEN v = mx
+            GOSUB EditPushUndo : lvlEvent(ev, 5 + w) = v : GOSUB EditApply
+        END IF
+    CASE 166, 167 ' Its prize
+        ev = edPnEvent
+        IF ev THEN
+            GOSUB EditPushUndo
+            IF pnHit = 166 THEN r = lvlEvent(ev, 8) - 1 ELSE r = lvlEvent(ev, 8) + 1
+            IF r < 0 THEN r = 14
+            IF r > 14 THEN r = 0
+            lvlEvent(ev, 8) = r : GOSUB EditApply
+        END IF
+    CASE 168 ' No event here any more
+        ev = edPnEvent
+        IF ev THEN
+            GOSUB EditPushUndo
+            FOR k = ev TO lvlNumEvents - 1 : FOR j = 1 TO 8 : lvlEvent(k, j) = lvlEvent(k + 1, j) : NEXT : NEXT
+            lvlNumEvents = lvlNumEvents - 1 : GOSUB EditApply : EditNote "Event taken away"
+        END IF
+    CASE 169 ' An event room of the floor selected: an ambush to start with
+        x0 = MAP_SIZE : y0 = MAP_SIZE : x1 = 0 : y1 = 0
+        FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_FLOOR AND EditCellOpen(edSelX(k), edSelY(k)) THEN x0 = MinOf(x0, edSelX(k)) : y0 = MinOf(y0, edSelY(k)) : x1 = MaxOf(x1, edSelX(k)) : y1 = MaxOf(y1, edSelY(k))
+        NEXT
+        IF x1 >= x0 AND lvlNumEvents < MAX_EVENTS THEN
+            GOSUB EditPushUndo
+            lvlNumEvents = lvlNumEvents + 1 : k = lvlNumEvents
+            lvlEvent(k, 1) = EV_AMBUSH : lvlEvent(k, 2) = x0 : lvlEvent(k, 3) = y0 : lvlEvent(k, 4) = x1 : lvlEvent(k, 5) = y1
+            lvlEvent(k, 6) = 4 : lvlEvent(k, 7) = 0 : lvlEvent(k, 8) = 4
+            GOSUB EditApply : EditNote "An event room: an ambush - choose its kind in the pane"
+        END IF
     CASE 30 ' LINK: the next pad clicked is where this one goes
         edLinkPad = NOT edLinkPad : edLinkX = edPnCX : edLinkY = edPnCY
         IF edLinkPad THEN EditNote "Click the pad this one goes to (LINK again: never mind)"
@@ -8307,6 +8352,8 @@ FUNCTION EditSnapshot$
     FOR k = 1 TO lvlMonN : FOR j = 1 TO 7 : s$ = s$ + LTRIM$(STR$(lvlMon(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(7) + lvlName$ + CHR$(3) ' (its name and its light)
     FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlAmb(j))) + "," : NEXT
+    s$ = s$ + CHR$(8) ' (the event rooms)
+    FOR k = 1 TO lvlNumEvents : FOR j = 1 TO 8 : s$ = s$ + LTRIM$(STR$(lvlEvent(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     EditSnapshot$ = s$
 END FUNCTION
 
@@ -8317,6 +8364,16 @@ SUB EditRestore(s0$)
     c5 = INSTR(l$, CHR$(5)) : IF c5 THEN p$ = MID$(l$, c5 + 1) : l$ = LEFT$(l$, c5 - 1)
     m$ = "" : c6 = INSTR(p$, CHR$(6)) : IF c6 THEN m$ = MID$(p$, c6 + 1) : p$ = LEFT$(p$, c6 - 1)
     a$ = "" : c7 = INSTR(m$, CHR$(7)) : IF c7 THEN a$ = MID$(m$, c7 + 1) : m$ = LEFT$(m$, c7 - 1)
+    e$ = "" : c8 = INSTR(a$, CHR$(8)) : IF c8 THEN e$ = MID$(a$, c8 + 1) : a$ = LEFT$(a$, c8 - 1)
+    IF c8 THEN ' (the event rooms)
+        lvlNumEvents = 0
+        DIM ev(8) AS SINGLE
+        DO WHILE LEN(e$)
+            c3 = INSTR(e$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+            IF SplitNums(LEFT$(e$, c3 - 1), ev()) >= 8 THEN lvlNumEvents = lvlNumEvents + 1 : FOR j = 1 TO 8 : lvlEvent(lvlNumEvents, j) = ev(j) : NEXT
+            e$ = MID$(e$, c3 + 1)
+        LOOP
+    END IF
     c3 = INSTR(a$, CHR$(3))
     IF c3 THEN ' (its name and its light)
         lvlName$ = LEFT$(a$, c3 - 1)
@@ -8942,8 +8999,8 @@ SUB EditDrawHelp(v)
         h$ = h$ + "Wall + Ctrl+Shift+wheel: a block on the floor (its top)|"
         h$ = h$ + "Wall + Alt+Shift+wheel: a block from the ceiling (bottom)|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
-        h$ = h$ + "Selected door, pad, light, monster, lift: its pane. SECTOR:|"
-        h$ = h$ + "  the sector's name, its light, its walls'/floors' pictures|"
+        h$ = h$ + "Selected door, pad, light, monster, event, lift: its pane;|"
+        h$ = h$ + "  SECTOR: its name, its light, its walls'/floors' pictures|"
         h$ = h$ + "H divide a face left/right, V top/bottom (again: whole)|"
         h$ = h$ + "G grid, Shift+G stronger;  T F pictures;  Z floor no.|"
         h$ = h$ + "L K light here/away;  PgUp/PgDn floor (Shift: ceiling)|"
@@ -8963,7 +9020,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "The picker: a tab, a picture - the brush (and the selection's)|"
         h$ = h$ + "Wheel: over the picker, scrolls; over the map, the selected|"
         h$ = h$ + "  floors up/down (Ctrl: ceilings); else the brush ([ ] too)|"
-        h$ = h$ + "Selected door, pad, light, monster, lift: its pane|"
+        h$ = h$ + "Selected door, pad, light, monster, event, lift: its pane|"
         h$ = h$ + "SECTOR: its name, its light, its walls'/floors' pictures|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
         h$ = h$ + "G grid, Shift+G stronger;  T: put you here|"
@@ -9319,7 +9376,7 @@ END SUB
 
 SUB EditPaneBuild
     IF editView = 1 THEN edPnX0 = PN_X : edPnY0 = PN_Y ELSE edPnX0 = 380 : edPnY0 = 12
-    edPnN = 0 : edPnTitle$ = "" : edPnBot = edPnY0 : edPnLift = 0 : edPnLight = 0
+    edPnN = 0 : edPnTitle$ = "" : edPnBot = edPnY0 : edPnLift = 0 : edPnLight = 0 : edPnEvent = 0
     x0 = edPnX0 : y = edPnY0 + 24
     IF edSectorPane THEN ' The sector itself: its name, its light, its pictures
         edPnTitle$ = "THE SECTOR"
@@ -9430,6 +9487,35 @@ SUB EditPaneBuild
             EXIT SUB
         END IF
     NEXT
+    ' An event room: the first selected cell inside one - its kind, its two
+    ' numbers (as that kind means them), its reward
+    FOR k = 1 TO edSelN
+        ev = EditEventAt(edSelX(k), edSelY(k))
+        IF ev THEN
+            edPnEvent = ev : kd = lvlEvent(ev, 1)
+            edPnTitle$ = "EVENT: " + EvKindName$(kd)
+            EditPaneAdd -1, x0, y, PN_W, "room" + STR$(lvlEvent(ev, 2)) + "," + LTRIM$(STR$(lvlEvent(ev, 3))) + " to" + STR$(lvlEvent(ev, 4)) + "," + LTRIM$(STR$(lvlEvent(ev, 5))), 0 : y = y + 22
+            FOR t = 1 TO 12
+                EditPaneAdd 149 + t, x0 + ((t - 1) MOD 3) * 67, y + ((t - 1) \ 3) * 23, 65, LEFT$(EvKindName$(t), 8), (t = kd)
+            NEXT
+            y = y + 96
+            FOR w = 1 TO 2
+                EvField kd, w, lab$, unit, stp, mn, mx
+                IF unit >= 0 THEN
+                    EditPaneAdd -1, x0, y + 2, 140, LEFT$(lab$ + " " + EvValue$(unit, lvlEvent(ev, 5 + w)), 17), 0
+                    EditPaneAdd 160 + w * 2, x0 + 146, y, 24, "-", 0 : EditPaneAdd 161 + w * 2, x0 + 174, y, 24, "+", 0
+                    y = y + 23
+                END IF
+            NEXT
+            IF kd <= 4 THEN
+                EditPaneAdd -1, x0, y + 2, 140, LEFT$("PRIZE " + RewardName$(lvlEvent(ev, 8)), 17), 0
+                EditPaneAdd 166, x0 + 146, y, 24, "-", 0 : EditPaneAdd 167, x0 + 174, y, 24, "+", 0
+                y = y + 23
+            END IF
+            EditPaneAdd 168, x0, y, PN_W, "REMOVE THE EVENT", 0
+            EXIT SUB
+        END IF
+    NEXT
     ' A lift: the first selected floor that's on one
     FOR k = 1 TO edSelN
         IF (edSelKind(k) = ED_FLOOR OR edSelKind(k) = ED_STEP) AND liftCell(edSelX(k), edSelY(k)) THEN
@@ -9457,6 +9543,7 @@ SUB EditPaneBuild
     IF n THEN
         edPnTitle$ = "FLOOR (" + LTRIM$(STR$(n)) + " cell" + MID$("s", 1, -(n > 1)) + ")"
         EditPaneAdd 20, x0, y, PN_W, "MAKE A LIFT OF IT", 0 : y = y + 23
+        IF lvlNumEvents < MAX_EVENTS THEN EditPaneAdd 169, x0, y, PN_W, "MAKE AN EVENT ROOM", 0 : y = y + 23
     ELSE
         edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
     END IF
@@ -9533,6 +9620,56 @@ SUB EditRing(cx, cy, r, z, col~&)
         EditLine3D px, py, z, nx, ny, z, col~& : px = nx : py = ny
     NEXT
 END SUB
+
+' The event room cell (x, y) is in - the first - or 0
+FUNCTION EditEventAt(x, y)
+    EditEventAt = 0
+    FOR k = 1 TO lvlNumEvents
+        IF x >= lvlEvent(k, 2) AND x <= lvlEvent(k, 4) AND y >= lvlEvent(k, 3) AND y <= lvlEvent(k, 5) THEN EditEventAt = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+FUNCTION EvKindName$(k)
+    EvKindName$ = RTRIM$(MID$("AMBUSH   SURVIVE  TRAP     GALLERY  NEST     CLOSET   HOARD    PLATE    LASER    CUTTER   BLACKOUT FIRETRAP ", k * 9 - 8, 9))
+END FUNCTION
+
+' What an event kind's number `which` (1: a, 2: b) means: its name, its
+' unit (-1: none, 0 a count, 1 seconds, 2 frames - shown as seconds, 3 a
+' monster kind), the step it goes up and down by, and how far
+SUB EvField(kind, which, lab$, unit, stp, mn, mx)
+    unit = -1 : stp = 1 : mn = 0 : mx = 0 : lab$ = ""
+    SELECT CASE kind * 10 + which
+        CASE 11 : lab$ = "MONSTERS" : unit = 0 : mn = 1 : mx = 20
+        CASE 12 : lab$ = "OF" : unit = 3 : mn = 0 : mx = 9
+        CASE 21, 41 : lab$ = "LASTS" : unit = 1 : stp = 5 : mn = 5 : mx = 300
+        CASE 22 : lab$ = "EVERY" : unit = 2 : stp = 15 : mn = 15 : mx = 600
+        CASE 31, 121 : lab$ = "LIVE" : unit = 2 : stp = 15 : mn = 15 : mx = 600
+        CASE 32, 122 : lab$ = "SAFE" : unit = 2 : stp = 15 : mn = 15 : mx = 600
+        CASE 51 : lab$ = "OF" : unit = 3 : mn = 1 : mx = 9
+        CASE 52 : lab$ = "EVERY" : unit = 2 : stp = 30 : mn = 30 : mx = 1200
+        CASE 81 : lab$ = "BLAST IN" : unit = 2 : stp = 15 : mn = 15 : mx = 300
+        CASE 82 : lab$ = "RE-ARM" : unit = 2 : stp = 30 : mn = 30 : mx = 1200
+        CASE 91 : lab$ = "ON" : unit = 2 : stp = 15 : mn = 15 : mx = 600
+        CASE 92 : lab$ = "OFF" : unit = 2 : stp = 15 : mn = 0 : mx = 600
+        CASE 101 : lab$ = "SWEEP" : unit = 2 : stp = 15 : mn = 30 : mx = 600
+        CASE 111 : lab$ = "LASTS" : unit = 1 : stp = 5 : mn = 5 : mx = 120
+        CASE 112 : lab$ = "MONSTERS" : unit = 0 : mn = 0 : mx = 20
+    END SELECT
+END SUB
+
+FUNCTION EvValue$(unit, v)
+    SELECT CASE unit
+        CASE 1 : EvValue$ = LTRIM$(STR$(v)) + "s"
+        CASE 2 : EvValue$ = LTRIM$(STR$(INT(v / 6) / 10)) + "s"
+        CASE 3 : IF v < 1 THEN EvValue$ = "a mix" ELSE EvValue$ = mtypeName$(v)
+        CASE ELSE : EvValue$ = LTRIM$(STR$(v))
+    END SELECT
+END FUNCTION
+
+FUNCTION RewardName$(r)
+    IF r < 1 OR r > 14 THEN RewardName$ = "none" : EXIT FUNCTION
+    RewardName$ = RTRIM$(MID$("red card   blue card  yellow cardhealth     cells      shells     scatter    repeater   armour     medkit     railgun    the map    overcharge amp        ", r * 11 - 10, 11))
+END FUNCTION
 
 ' A picture's name, short: no "wall-" (floor-, ceiling-), no ".png"
 FUNCTION EditPicShort$(f$)
