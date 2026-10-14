@@ -108,9 +108,9 @@ pixelmon (Stable Diffusion XL, guided by the pixel art); the sound effects
 and music were synthesized; NEXUS's voice is text-to-speech through a
 vocoder.
 
-The footsteps (`neon-caster/sfx/step1.wav` and `step2.wav`) are from
-Imphenzia's Universal Sound FX pack, used under its licence, and are not
-covered by the MIT licence.
+The footsteps and your death cry (`neon-caster/sfx/step1.wav`,
+`step2.wav` and `die.wav`) are from Imphenzia's Universal Sound FX pack,
+used under its licence, and are not covered by the MIT licence.
 
 MIT licensed - see [LICENSE](LICENSE). The GLSL library in `lib/glsl` is
 MIT licensed too.
