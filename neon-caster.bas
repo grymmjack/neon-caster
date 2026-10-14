@@ -275,6 +275,12 @@ DIM SHARED litCellX(MAX_LIT) AS INTEGER, litCellY(MAX_LIT) AS INTEGER, litWeight
 ' passes through - chapter 15), and whether you've found this level's map
 DIM SHARED cellSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, hasMap AS INTEGER
 CONST NUM_LEVELS = 10 ' NUM_ = how many there are
+' How far a body or a wreck sinks into the floor, as a share of its height.
+' Its picture stands upright at its middle, but its bottom edge is the near
+' side of the heap - which, lying flat, would meet the floor nearer you.
+' Sunk a little, it sits on the floor instead of hovering over it (OpenGL
+' hides what's under the floor).
+CONST CORPSE_SINK = 0.18
 ' Your own sectors (GAME > YOUR SECTORS - chapter 22): up to MAX_CUSTOM,
 ' numbered on from the game's - sector 11 is levels/custom/custom1.txt
 CONST MAX_CUSTOM = 10
@@ -2586,7 +2592,7 @@ DO
         fallen = monsterState(i) = 3 OR (monsterState(i) = 2 AND monsterTimer(i) <= MON_DYING \ 2)
         IF fallen THEN ' Dead (or half way through falling): its body, lying on the floor
             drawSprite(numDraw) = S_CORPSE + mtype : drawScale(numDraw) = corpseScale(mtype)
-            drawSquash(numDraw) = corpseSquash(mtype) : drawLift(numDraw) = 0 : drawMinShade(numDraw) = 0
+            drawSquash(numDraw) = corpseSquash(mtype) : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw) : drawMinShade(numDraw) = 0
         ELSEIF monsterState(i) = 2 THEN ' Falling: it sinks to the floor and crumples, hurt
             f = (monsterTimer(i) - MON_DYING / 2) / (MON_DYING / 2) ' (1 just hit .. 0 down)
             drawSquash(numDraw) = 0.55 + 0.45 * f : drawLift(numDraw) = mtypeLift(mtype) * f : drawSprite(numDraw) = mtypeSprite(mtype) + 1
@@ -2601,7 +2607,7 @@ DO
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40
             IF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
-                drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0
+                drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0 : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw)
             END IF
             IF decoKind(i) = 2 OR decoKind(i) = 7 OR decoKind(i) = 12 OR decoKind(i) = 13 OR decoKind(i) = 17 THEN drawMinShade(numDraw) = 200 ' Lamps (vending machines, monitors, tanks, holograms) glow
         END IF
