@@ -862,7 +862,7 @@ DIM SHARED speechText$, speechUntil!, tauntWait AS LONG, cliMode AS INTEGER, nex
 ' The sound limiter (PlaySfxPan, chapter 23), and where you're listening
 ' from, facing (earDX, earDY) - for 3D sound
 CONST SFX_HEADROOM = 1.6
-DIM SHARED sfxLoad!, sfxThis&(32), sfxThisN AS INTEGER, earDX, earDY
+DIM SHARED sfxLoad!, sfxThis&(32), sfxThisN AS INTEGER, earDX, earDY, sfxFrameT! ' (sfxFrameT!: when SfxFrame last ran)
 earDX = 1 : earDY = 0
 DIM SHARED kickTimer AS INTEGER, kickImg&, sndKick&, sndKickSwing& ' (the kick: chapter 12)
 sndHurt2& = LoadSnd&("hurt2.wav") : sndHurt3& = LoadSnd&("hurt3.wav")
@@ -8538,6 +8538,15 @@ SUB PlaySfxPan(snd&, vol!, pan!)
     IF snd& <= 0 THEN EXIT SUB
     v! = vol! * setting(SET_SFX) / 100
     IF setting(SET_LIMITER) THEN
+        ' (The game loop calls SfxFrame every frame; loops of their own -
+        ' the menu, the sector tally, the editor - don't. So if a frame's
+        ' worth of time has gone by without one, it catches up here first,
+        ' or every sound since would count as "this frame" and be dropped.)
+        t! = TIMER(0.001)
+        IF t! - sfxFrameT! > 0.015 OR t! < sfxFrameT! THEN
+            frames = (t! - sfxFrameT!) * 60 : IF frames < 0 OR frames > 600 THEN frames = 600
+            sfxLoad! = sfxLoad! * 0.82 ^ frames : sfxThisN = 0 : sfxFrameT! = t!
+        END IF
         FOR k = 1 TO sfxThisN
             IF sfxThis&(k) = snd& THEN EXIT SUB ' (once a frame)
         NEXT
@@ -8556,7 +8565,7 @@ END SUB
 
 ' Once a frame: the limiter's memory of what's playing fades
 SUB SfxFrame
-    sfxLoad! = sfxLoad! * 0.82 : sfxThisN = 0
+    sfxLoad! = sfxLoad! * 0.82 : sfxThisN = 0 : sfxFrameT! = TIMER(0.001)
 END SUB
 
 ' A sound made at (x, y), heard by you at (listenX, listenY), facing
