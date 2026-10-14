@@ -3873,21 +3873,48 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
         EditNote "Point at a face"
     ELSE
         EditFaceCell edHovKind, edHovX, edHovY, edHovSide, tx, ty
+        edAlt = _KEYDOWN(100307) OR _KEYDOWN(100308)
         SELECT CASE edTool
-            CASE ET_PLACE
+            CASE ET_PLACE ' (Shift+click: take away what's there; Alt+click: pick it up as the brush; held: on along the floor)
                 IF tx < 1 OR ty < 1 OR tx > MAP_SIZE - 2 OR ty > MAP_SIZE - 2 THEN
                     EditNote "Not in the border"
+                ELSEIF edAlt THEN
+                    editGlyph$ = MID$(lvlRow$(ty), tx + 1, 1) : edBrushKind = PK_GLYPH : EditNote "Picked up " + GlyphName$(editGlyph$)
+                ELSEIF edShift THEN
+                    c$ = MID$(lvlRow$(ty), tx + 1, 1)
+                    IF c$ = "." OR INSTR("<>^v", c$) THEN
+                        EditNote "Nothing to take away there"
+                    ELSE
+                        GOSUB EditPushUndo : EditPut tx, ty, "." : GOSUB EditApply : EditNote GlyphName$(c$) + " taken away"
+                    END IF
                 ELSE
                     GOSUB EditPushUndo : EditPut tx, ty, editGlyph$ : GOSUB EditApply
-                    EditNote GlyphName$(editGlyph$) + " at" + STR$(tx) + STR$(ty)
+                    EditNote GlyphName$(editGlyph$) + " at" + STR$(tx) + STR$(ty) + EditPlaceInfo$(tx, ty)
+                    edDragX = tx : edDragY = ty : edDragOn = -1
                 END IF
             CASE ET_LIGHT
                 GOSUB EditPushUndo
                 IF edShift THEN EditRemoveLight tx + 0.5, ty + 0.5 ELSE EditAddLight tx + 0.5, ty + 0.5
                 GOSUB EditApply
-            CASE ET_PAINT ' The brush's picture on the face (Shift: back to the usual; Ctrl: the whole floor or ceiling it's part of)
+            CASE ET_PAINT ' The brush's picture on the face (Shift: back to the usual; Ctrl: the whole floor or ceiling it's part of; Alt: pick its picture up)
                 fc = EditFaceCode(edHovKind, edHovSide)
-                IF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) AND edBrushTex$ <> "" THEN
+                IF edAlt THEN
+                    k = FaceIndex(edHovX, edHovY, fc) : pic$ = ""
+                    IF k THEN IF edHovPart = 2 THEN pic$ = lvlFaceP2$(k) ELSE pic$ = lvlFaceP1$(k)
+                    IF pic$ = "" THEN ' (the usual one: the level's own picture for it)
+                        SELECT CASE edHovKind
+                            CASE ED_FLOOR : pic$ = texFile$(floorTex(edHovX, edHovY))
+                            CASE ED_CEIL : pic$ = texFile$(ceilTex(edHovX, edHovY))
+                            CASE ED_WALL : w = INSTR("#NCKPG", MID$(lvlRow$(edHovY), edHovX + 1, 1)) : IF w THEN pic$ = lvlWall$(w)
+                            CASE ELSE : pic$ = lvlWall$(1)
+                        END SELECT
+                    END IF
+                    IF pic$ <> "" THEN
+                        edBrushTex$ = pic$ : edBrushKind = PK_TEX
+                        IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+                        edBrushImg& = EditFileThumb&(edBrushTex$) : EditNote "Picked up " + pic$
+                    END IF
+                ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) AND edBrushTex$ <> "" THEN
                     EditSelFlood edHovKind, edHovX, edHovY : GOSUB EditPaintSel : edSelN = 0
                 ELSEIF edShift THEN
                     GOSUB EditPushUndo : EditPaintFace edHovX, edHovY, fc, edHovPart, "" : GOSUB EditApply : EditNote "The usual picture again"
@@ -3907,6 +3934,14 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
         END SELECT
     END IF
     fpLWas = -1
+END IF
+' PLACE, the button held: on into each new floor cell the pointer crosses
+IF NOT fpL THEN edDragOn = 0
+IF fpL AND edDragOn AND edTool = ET_PLACE AND edHovKind = ED_FLOOR AND NOT edLooking THEN
+    IF (edHovX <> edDragX OR edHovY <> edDragY) AND MID$(lvlRow$(edHovY), edHovX + 1, 1) <> editGlyph$ THEN
+        IF edHovX > 0 AND edHovY > 0 AND edHovX < MAP_SIZE - 1 AND edHovY < MAP_SIZE - 1 THEN EditPut edHovX, edHovY, editGlyph$ : GOSUB EditApply
+        edDragX = edHovX : edDragY = edHovY
+    END IF
 END IF
 IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) THEN
     edShift = _KEYDOWN(100304) OR _KEYDOWN(100303) : edCtrl = _KEYDOWN(100305) OR _KEYDOWN(100306)
@@ -8384,11 +8419,12 @@ SUB EditDrawHelp(v)
         h$ = h$ + "|"
         h$ = h$ + "SELECT  click a face; Shift+click adds or takes it out;|"
         h$ = h$ + "        Ctrl+click: the whole floor/ceiling; Ctrl+D: none|"
-        h$ = h$ + "PLACE   click: the brush there ([ ] change it, E pick up)|"
+        h$ = h$ + "PLACE   click: the brush there (drag: along the floor);|"
+        h$ = h$ + "        Shift+click takes it away; Alt+click picks it up|"
         h$ = h$ + "LIGHT   click: a light there (1-8 colour); Shift+click: away|"
         h$ = h$ + "HEIGHT  click raises a floor/ceiling an eighth; Shift lowers|"
         h$ = h$ + "PAINT   click: the brush's picture on that face; Ctrl+click:|"
-        h$ = h$ + "        the whole floor/ceiling; Shift+click: the usual again|"
+        h$ = h$ + "        the whole floor/ceiling; Shift: the usual; Alt: pick up|"
         h$ = h$ + "PICKER (P): a tab, then a picture - it's the brush (and the|"
         h$ = h$ + "        selection's, if any); the wheel scrolls it|"
         h$ = h$ + "Wheel: the selection (or face under the pointer) up/down|"
@@ -8726,6 +8762,21 @@ FUNCTION EditFaceCode(kind, side)
     END SELECT
 END FUNCTION
 
+' What a cell just placed means, said after it: a teleporter's partner, a
+' second start's warning...
+FUNCTION EditPlaceInfo$(x, y)
+    c$ = MID$(lvlRow$(y), x + 1, 1) : EditPlaceInfo$ = ""
+    IF c$ = "&" THEN ' (pads pair up in the order they're read: across each row, top to bottom)
+        n = 0 : me = 0
+        FOR yy = 0 TO MAP_SIZE - 1 : FOR xx = 0 TO MAP_SIZE - 1
+            IF MID$(lvlRow$(yy), xx + 1, 1) = "&" THEN n = n + 1 : IF xx = x AND yy = y THEN me = n
+        NEXT : NEXT
+        IF me MOD 2 = 1 THEN other = me + 1 ELSE other = me - 1
+        IF other > n THEN EditPlaceInfo$ = " - pad" + STR$(me) + ": put another for it to go to" ELSE EditPlaceInfo$ = " - pad" + STR$(me) + ", paired with pad" + STR$(other)
+    END IF
+    IF INSTR("<>^v", c$) THEN EditPlaceInfo$ = " - you start here now"
+END FUNCTION
+
 ' Where a click with PLACE or LIGHT goes for a face: a floor or ceiling's
 ' own cell; a wall's (a step's, a lintel's) the open cell in front of it
 SUB EditFaceCell(kind, x, y, side, tx, ty)
@@ -8937,6 +8988,14 @@ SUB EditCam(wx, wy, wz, cr, cu, ca)
     cr = r : cu = c * u0 + sn * bk : ca = -(-sn * u0 + c * bk)
 END SUB
 
+' A point in the world on the screen: (sx, sy), ok = 0 if it's behind you
+SUB EditPoint(wx, wy, wz, sx, sy, ok)
+    EditCam wx, wy, wz, r, u, a : ok = 0
+    IF a < 0.05 THEN EXIT SUB
+    ak = 1 : IF glMode THEN ak = glAspectK
+    sx = (r / (a * edCamPlane * ak) + 1) * 400 : sy = (1 - u * 2 * edCamZoom / a) * 300 : ok = -1
+END SUB
+
 ' A line in the world, on the screen: cut where it passes behind you (so
 ' half of a face behind you still draws its front half)
 SUB EditLine3D(x1, y1, z1, x2, y2, z2, col~&)
@@ -8988,6 +9047,26 @@ END SUB
 ' The 3D editor's outlines, over the view: the face under the pointer
 ' (cyan, pulsing) - and what it is, by the pointer
 SUB EditDrawFaces
+    IF edTool = ET_PLACE AND edHovKind AND NOT edLooking THEN ' PLACE: where it would go - a box on that cell's floor, and up from it
+        EditFaceCell edHovKind, edHovX, edHovY, edHovSide, tx, ty
+        IF tx > 0 AND ty > 0 AND tx < MAP_SIZE - 1 AND ty < MAP_SIZE - 1 THEN
+            z = floorH(tx, ty) : zt = z + 0.6 : IF zt > ceilH(tx, ty) THEN zt = ceilH(tx, ty)
+            c~& = _RGBA32(255, 60, 200, 200)
+            EditLine3D tx, ty, z, tx + 1, ty, z, c~& : EditLine3D tx + 1, ty, z, tx + 1, ty + 1, z, c~&
+            EditLine3D tx + 1, ty + 1, z, tx, ty + 1, z, c~& : EditLine3D tx, ty + 1, z, tx, ty, z, c~&
+            FOR cx = 0 TO 1 : FOR cy = 0 TO 1 : EditLine3D tx + cx, ty + cy, z, tx + cx, ty + cy, zt, _RGBA32(255, 60, 200, 110) : NEXT : NEXT
+            EditPoint tx + 0.5, ty + 0.5, z + 0.3, sx, sy, ok
+            IF ok THEN
+                STATIC ghostOf$, ghostImg&
+                IF ghostOf$ <> editGlyph$ + STR$(artNow) THEN
+                    IF ghostImg& < -1 THEN _FREEIMAGE ghostImg&
+                    ghostImg& = EditGlyphThumb&(editGlyph$) : ghostOf$ = editGlyph$ + STR$(artNow)
+                    IF ghostImg& < -1 THEN _SETALPHA 150, &H01000000~& TO &HFFFFFFFF~&, ghostImg& ' (see-through: a ghost of it - its clear parts stay clear)
+                END IF
+                IF ghostImg& < -1 THEN _PUTIMAGE (sx - 20, sy - 20)-STEP(39, 39), ghostImg&
+            END IF
+        END IF
+    END IF
     FOR k = 1 TO edSelN ' The selection: orange
         EditFaceOutline edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), edSelPart(k), _RGB32(255, 170, 40)
     NEXT
