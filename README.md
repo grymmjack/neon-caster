@@ -19,7 +19,8 @@ effects. Every picture comes in pixel art or a high-resolution painting
 |---|---|
 | ![The cryo lab's control room](docs/screenshots/cryo-lab.jpg) | ![The boss arena](docs/screenshots/boss-arena.jpg) |
 | ![Jacked into the network](docs/screenshots/network.jpg) | ![The data vault's server canyon](docs/screenshots/data-vault.jpg) |
-| ![A code terminal: a real QB64 program, compiled and run](docs/screenshots/code-terminal.jpg) | ![The level editor's map view](docs/screenshots/editor-map.jpg) |
+| ![A code terminal: a real QB64 program, compiled and run](docs/screenshots/code-terminal.jpg) | ![The level editor in 3D: a statue's pane, the picker, a lit painting](docs/screenshots/editor-walk.jpg) |
+| ![The level editor's map view: a door's pane, the picker](docs/screenshots/editor-map.jpg) | ![The Conservatory's light lab, built with the editor](docs/screenshots/light-lab.jpg) |
 
 ## Play it
 
