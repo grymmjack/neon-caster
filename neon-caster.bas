@@ -12445,7 +12445,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "        vec3 an = abs(n);" + nl$
     fs$ = fs$ + "        vec2 g2 = an.z > 0.5 ? vPos.xy : (an.x > an.y ? vPos.yz : vPos.xz);" + nl$
     fs$ = fs$ + "        vec2 d = abs(fract(g2 - 0.5) - 0.5) / max(fwidth(g2), vec2(0.0001));" + nl$
-    fs$ = fs$ + "        float gl = 1.0 - clamp(min(d.x, d.y) - 0.5, 0.0, 1.0);" + nl$
+    fs$ = fs$ + "        float gl = 1.0 - clamp(min(d.x, d.y) - 1.0, 0.0, 1.0);  // two pixels wide, whatever the distance" + nl$
     fs$ = fs$ + "        col = mix(col, vec3(0.35, 0.9, 1.0), gl * gridAmt);" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    gl_FragColor = vec4(col, 1.0 - reflectAmt);" + nl$
