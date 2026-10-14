@@ -281,9 +281,9 @@ CONST NUM_LEVELS = 10 ' NUM_ = how many there are
 ' Sunk a little, it sits on the floor instead of hovering over it (OpenGL
 ' hides what's under the floor).
 CONST CORPSE_SINK = 0.18
-' Your own sectors (GAME > YOUR SECTORS - chapter 22): up to MAX_CUSTOM,
+' Your own sectors (GAME > YOUR SECTORS - chapter 22; MORE SECTORS past ten): up to MAX_CUSTOM,
 ' numbered on from the game's - sector 11 is levels/custom/custom1.txt
-CONST MAX_CUSTOM = 10
+CONST MAX_CUSTOM = 20 ' (YOUR SECTORS shows ten a page: MORE SECTORS the rest)
 
 '-----------------------------------------------------------------------------
 ' CHAPTER 3: THINGS IN THE WORLD
@@ -1126,7 +1126,7 @@ DefineBind BIND_KICK,      "key_kick",      "KICK",         102
 CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
 CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6, MA_SECTOR = 7
-CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15
+CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15, SCR_CUSTOM2 = 16
 CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11
 ' --- The console (` opens it, like Quake's; chapter 21): what's been
 ' printed (conLog$, the last CON_LOG lines), the line being typed, the
@@ -12429,12 +12429,17 @@ SUB BuildMenu(scr)
                 AddMenuItem LTRIM$(STR$(n)) + "  " + nm$, MI_ACTION, n, MA_SECTOR, -1, ""
             NEXT
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
-        CASE SCR_CUSTOM ' Your own sectors (chapter 22): play one, or make a new one
-            menuTitle$ = "YOUR SECTORS" : menuWide = -1 : free = 0
+        CASE SCR_CUSTOM, SCR_CUSTOM2 ' Your own sectors (chapter 22): play one, or make a new one - ten a page
+            IF scr = SCR_CUSTOM THEN menuTitle$ = "YOUR SECTORS" : n0 = NUM_LEVELS + 1 ELSE menuTitle$ = "MORE SECTORS" : n0 = NUM_LEVELS + 11
+            menuWide = -1 : free = 0
             FOR n = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM
                 sectorName$(n) = SectorNameOf$(n) ' (a name may have changed: Ctrl+S, or by hand)
-                IF LEN(sectorName$(n)) THEN AddMenuItem LTRIM$(STR$(n)) + "  " + sectorName$(n), MI_ACTION, n, MA_SECTOR, -1, "" ELSE free = free + 1
+                IF LEN(sectorName$(n)) = 0 THEN free = free + 1
             NEXT
+            FOR n = n0 TO MinOf(n0 + 9, NUM_LEVELS + MAX_CUSTOM)
+                IF LEN(sectorName$(n)) THEN AddMenuItem LTRIM$(STR$(n)) + "  " + sectorName$(n), MI_ACTION, n, MA_SECTOR, -1, ""
+            NEXT
+            IF scr = SCR_CUSTOM AND MAX_CUSTOM > 10 THEN AddMenuItem "MORE SECTORS", MI_SUBMENU, SCR_CUSTOM2, 0, -1, ""
             AddMenuItem "NEW SECTOR", MI_ACTION, 0, MA_NEWSECTOR, free > 0, "" ' (a blank slate, opened in the editor - while there's room)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_SAVE
