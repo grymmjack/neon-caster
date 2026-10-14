@@ -47,6 +47,17 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   loop and stalls the command queue until a key (Tab) is pressed.
 - To check a sound plays without listening, build a throwaway copy with a
   `ConPrint` probe in `PlaySfxPan` and count the log lines.
+- **Check a compile by its `Output:` line**, not by the absence of the word
+  "error": QB64PE reports most mistakes as e.g. `Name already in use (base)`
+  plus a `LINE nnnn:` - grep for `Output:|in use|LINE|Caused`. If `Output:`
+  is missing, the old binary is still there and tests run against it.
+- **xdotool in the editor:** letter keys don't reach the game by `type` (bind
+  movement to the arrows), and a mouse move to exactly the screen centre
+  (400, 300) isn't seen - the game warps the pointer there. OpenGL under
+  Xvfb is too slow for click timing; drive clicks with `+renderer 1`.
+- **Saving in a `cp -as` copy** replaces the symlinked level file with a real
+  one (the repo's is untouched): put the symlink back before the next test,
+  or later tests start from the edited level.
 
 ## Code gotchas
 
