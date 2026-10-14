@@ -1273,6 +1273,7 @@ DIM SHARED edTool AS INTEGER, edGrid AS INTEGER, edGridAlpha AS INTEGER, edPickT
 DIM SHARED edLooking AS INTEGER ' (the right button held in the 3D view: the mouse turns you instead of moving the cursor)
 DIM SHARED edMouseFix AS INTEGER, edWheel AS INTEGER, edCurX AS INTEGER, edCurY AS INTEGER ' (put the pointer right again; the wheel's turns for the editor; where the pointer is)
 DIM SHARED edCamPX, edCamPY, edCamDX, edCamDY, edCamPlane, edCamZoom ' (the camera, this frame: EditFP copies it here for the picking and outlines)
+DIM SHARED edWheelT! ' (when the wheel last moved something: a run of turns is one undo)
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
 DIM SHARED texFile$(T_SLOTS)
 menuMusic& = LoadMusic&("menu.ogg")
@@ -3552,6 +3553,80 @@ GOSUB LoadLevel : editUndoN = 0 : editDirty = 0 : levelWas = level
 EditNote "EDITOR: " + levelName$
 RETURN
 
+' --- THE WHEEL in the 3D editor: on the selection - or, with nothing
+' selected, on the face under the pointer. Up raises, down lowers, an
+' eighth of a wall a turn (Ctrl: a whole wall):
+'   a floor, a step's face        its floor (the step's top)
+'   a ceiling, a lintel's face    its ceiling (the lintel's bottom)
+'   a wall's side                 nothing on its own - with a key held:
+'     Shift          pull it out a cell towards you (up) / push it back (down)
+'     Alt            push it back a cell (up) / pull it out (down)
+'     Ctrl+Shift     make it a block standing on the floor, and set its top
+'     Alt+Shift      make it a block hanging from the ceiling, and set its bottom
+' The selection follows a face that moves, so turning on keeps going. One
+' undo for a run of turns (a pause of half a second starts a new one).
+EditWheel:
+ticks = -SGN(edWheel) * MinOf(ABS(edWheel), 8) : IF ticks = 0 THEN RETURN
+wShift = _KEYDOWN(100304) OR _KEYDOWN(100303) : wCtrl = _KEYDOWN(100305) OR _KEYDOWN(100306) : wAlt = _KEYDOWN(100307) OR _KEYDOWN(100308)
+IF edSelN = 0 AND edHovKind = 0 THEN EditNote "Point at a face (or select some) to change it with the wheel" : RETURN
+IF ABS(TIMER - edWheelT!) > 0.5 THEN GOSUB EditPushUndo
+edWheelT! = TIMER
+IF edSelN = 0 THEN EditSelToggle edHovKind, edHovX, edHovY, edHovSide, 0 ' (nothing selected: the face under the pointer - and it stays selected, so turning on keeps working on it)
+dz = ticks * H_STEP : IF wCtrl AND NOT wShift THEN dz = ticks * 1
+wCount = 0
+FOR wk = 1 TO edSelN
+    wx = edSelX(wk) : wy = edSelY(wk) : ws = edSelSide(wk)
+    SELECT CASE edSelKind(wk)
+        CASE ED_FLOOR, ED_STEP : EditRaise wx, wy, dz, 0 : wCount = wCount + 1
+        CASE ED_CEIL, ED_LINTEL : EditRaise wx, wy, dz, -1 : wCount = wCount + 1
+        CASE ED_WALL
+          FOR wt = 1 TO ABS(ticks) ' (a cell a turn)
+            wx = edSelX(wk) : wy = edSelY(wk) : IF edSelKind(wk) <> ED_WALL THEN EXIT FOR
+            EditFaceFront wx, wy, ws, fx, fy ' (the open cell the face looks into)
+            wDir = 0
+            IF wShift AND NOT wCtrl AND NOT wAlt THEN wDir = SGN(ticks) ' (+1 pull, -1 push)
+            IF wAlt AND NOT wShift THEN wDir = -SGN(ticks)
+            IF wDir > 0 AND fx > 0 AND fy > 0 AND fx < MAP_SIZE - 1 AND fy < MAP_SIZE - 1 THEN ' Pull: the cell in front becomes this wall
+                EditPut fx, fy, MID$(lvlRow$(wy), wx + 1, 1) : edSelX(wk) = fx : edSelY(wk) = fy : wCount = wCount + 1
+            ELSEIF wDir < 0 AND wx > 0 AND wy > 0 AND wx < MAP_SIZE - 1 AND wy < MAP_SIZE - 1 THEN ' Push: this wall's cell opens, like the one in front
+                EditPut wx, wy, "."
+                MID$(lvlFloorRow$(wy), wx + 1, 1) = MID$(lvlFloorRow$(fy), fx + 1, 1) : MID$(lvlCeilRow$(wy), wx + 1, 1) = MID$(lvlCeilRow$(fy), fx + 1, 1)
+                bx = wx + (wx - fx) : by = wy + (wy - fy) : edSelX(wk) = bx : edSelY(wk) = by : wCount = wCount + 1 ' (the face is now the cell behind's - if it's a wall)
+            ELSEIF wCtrl AND wShift AND wx > 0 AND wy > 0 AND wx < MAP_SIZE - 1 AND wy < MAP_SIZE - 1 THEN ' A block on the floor: open, its floor just under the ceiling
+                EditPut wx, wy, "."
+                MID$(lvlCeilRow$(wy), wx + 1, 1) = MID$(lvlCeilRow$(fy), fx + 1, 1)
+                MID$(lvlFloorRow$(wy), wx + 1, 1) = HeightChar$(ceilH(fx, fy) - 0.25 + MinOf(0, dz), 0)
+                edSelKind(wk) = ED_STEP : wCount = wCount + 1
+            ELSEIF wAlt AND wShift AND wx > 0 AND wy > 0 AND wx < MAP_SIZE - 1 AND wy < MAP_SIZE - 1 THEN ' A block from the ceiling: open, its ceiling just over the floor
+                EditPut wx, wy, "."
+                MID$(lvlFloorRow$(wy), wx + 1, 1) = MID$(lvlFloorRow$(fy), fx + 1, 1)
+                MID$(lvlCeilRow$(wy), wx + 1, 1) = HeightChar$(floorH(fx, fy) + 0.25 + MaxOf(0, dz), 1)
+                edSelKind(wk) = ED_LINTEL : wCount = wCount + 1
+            END IF
+            IF wCtrl OR (wAlt AND wShift) THEN EXIT FOR ' (a block's made once; turning on moves its top or bottom)
+          NEXT
+    END SELECT
+NEXT
+' (a pushed face whose new cell isn't a wall is no face at all: drop it)
+FOR wk = edSelN TO 1 STEP -1
+    IF edSelKind(wk) = ED_WALL THEN
+        IF worldMap(edSelX(wk), edSelY(wk)) <= 0 AND MID$(lvlRow$(edSelY(wk)), edSelX(wk) + 1, 1) = "." THEN EditSelToggle ED_WALL, edSelX(wk), edSelY(wk), edSelSide(wk), edSelPart(wk)
+    END IF
+NEXT
+GOSUB EditApply
+IF wCount = 0 THEN
+    EditNote "Walls: Shift+wheel pulls out / pushes back a cell, Alt pushes, Ctrl+Shift a block's top, Alt+Shift a block's bottom"
+ELSEIF edSelN = 1 THEN
+    SELECT CASE edSelKind(1)
+        CASE ED_FLOOR, ED_STEP : EditNote "Floor" + STR$(floorH(edSelX(1), edSelY(1)) * 8) + " eighths"
+        CASE ED_CEIL, ED_LINTEL : EditNote "Ceiling" + STR$(ceilH(edSelX(1), edSelY(1)) * 8) + " eighths"
+        CASE ELSE : EditNote "Wall at" + STR$(edSelX(1)) + STR$(edSelY(1))
+    END SELECT
+ELSE
+    EditNote LTRIM$(STR$(wCount)) + " faces changed"
+END IF
+RETURN
+
 ' Walking round inside the level: the keys and the mouse buttons, each
 ' frame (the game loop draws it; EditOverlay shows what you're aiming at)
 EditFP:
@@ -3584,6 +3659,8 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) THEN
     END IF
 END IF
 fpLWas = fpL : fpRWas = fpR
+IF edWheel <> 0 AND NOT EditOverUI(edCurX, edCurY) THEN GOSUB EditWheel
+edWheel = 0
 k& = _KEYHIT
 DO WHILE k&
     shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
@@ -7707,6 +7784,18 @@ SUB EditDrawSelMap
                 END SELECT
         END SELECT
     NEXT
+END SUB
+
+' The open cell a side of cell (x, y) looks into (side 1 east, 2 south,
+' 3 west, 4 north)
+SUB EditFaceFront(x, y, side, fx, fy)
+    fx = x : fy = y
+    SELECT CASE side
+        CASE 1 : fx = x + 1
+        CASE 2 : fy = y + 1
+        CASE 3 : fx = x - 1
+        CASE ELSE : fy = y - 1
+    END SELECT
 END SUB
 
 SUB EditHit(kind, x, y, side, hx, hy, hz)
