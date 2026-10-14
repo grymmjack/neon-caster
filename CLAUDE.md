@@ -31,8 +31,15 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
 - **Never drive the user's display.** Run GUI tests under `Xvfb :99` and find
   windows by the PID you started (`xdotool search --pid`), never by title:
   the user often has their own NEON-CASTER window open.
-- **Mute every test run.** Xvfb hides the window, not the sound. Start with
-  `+sfx 0 +music 0 +speech 0`; command-line settings last only for that run.
+- **Silence every test run.** Xvfb hides the window, not the sound, and
+  `+sfx 0` applies a few frames too late. Send the game's audio to a silent
+  sink instead:
+  ```
+  pactl list short sinks | grep -q claude_mute || pactl load-module module-null-sink sink_name=claude_mute
+  PULSE_SINK=claude_mute DISPLAY=:99 ./neon-caster.run ...
+  ```
+  (Checked: the stream lands on `claude_mute`, and WirePlumber saves no
+  device for `neon-caster.run`, so the player's own game still plays aloud.)
 - **Prefer the game's own command line** to xdotool:
   `./neon-caster.run +logfile out.log +map 5 +give all +wait 60 +screenshot five.png +quit`.
   `ConPrint` output goes to the log. A game started with `+` commands never
