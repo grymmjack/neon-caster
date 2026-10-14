@@ -1277,9 +1277,20 @@ DIM SHARED edWheelT! ' (when the wheel last moved something: a run of turns is o
 DIM SHARED gridOn AS INTEGER, gridW AS INTEGER ' (the software renderer's grid this frame, and its lines' width in texels)
 ' THE TOOLBAR (EditTBLayout): its buttons this frame - which (TB_), where -
 ' the one under the pointer, the slider being dragged, the help panel
-CONST TB_SELECT = 1, TB_PLACE = 2, TB_LIGHT = 3, TB_HEIGHT = 4, TB_DELETE = 5, TB_UNDO = 6, TB_SAVE = 7, TB_GRID = 8, TB_ALPHA = 9, TB_VIEW = 10, TB_HELP = 11
+CONST TB_SELECT = 1, TB_PLACE = 2, TB_LIGHT = 3, TB_HEIGHT = 4, TB_DELETE = 5, TB_UNDO = 6, TB_SAVE = 7, TB_GRID = 8, TB_ALPHA = 9, TB_VIEW = 10, TB_HELP = 11, TB_PAINT = 12, TB_PICK = 13
 DIM SHARED edTbN AS INTEGER, edTbId(16) AS INTEGER, edTbX(16) AS INTEGER, edTbY(16) AS INTEGER, edTbW(16) AS INTEGER, edTbH(16) AS INTEGER
 DIM SHARED edTbDrag AS INTEGER, edHelp AS INTEGER
+' THE PICKER (EditPkBuild): the tab's entries - each a kind (PK_), what it
+' is (a map character, a picture's file name, a light's number) and its
+' thumbnail, made once per tab (and again when the level or ART changes:
+' edPkKey$) - the brush (what PLACE puts, PAINT paints), and whether the
+' picker's up at all
+CONST PK_GLYPH = 1, PK_TEX = 2, PK_LIGHT = 3
+CONST PK_TABS = 9, PK_MAX = 160, PK_COLS = 8, PK_ROWS = 2, PK_SIZE = 50
+CONST PK_X = 8, PK_Y = 438 ' (the picker's top left, in 3D: tabs, then the thumbnails under them)
+DIM SHARED edPkN AS INTEGER, edPkKind(PK_MAX) AS INTEGER, edPkVal$(PK_MAX), edPkImg&(PK_MAX), edPkKey$
+DIM SHARED edPickOn AS INTEGER, edBrushKind AS INTEGER, edBrushTex$, edBrushImg&
+edPickOn = -1 : edBrushKind = PK_GLYPH
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
 DIM SHARED texFile$(T_SLOTS)
 menuMusic& = LoadMusic&("menu.ogg")
@@ -3040,6 +3051,9 @@ DO
     IF editMode THEN EditOverlay playerX, playerY, dirX, dirY ' (the editor: what you're aiming at, what you'll place)
     IF editMode AND editView = 1 THEN EditDrawFaces ' (the face under the pointer, and the ones selected, outlined)
     IF editMode AND editView = 1 AND NOT hudEdit THEN ' The toolbar (and the help, when it's up)
+        IF edPickOn THEN
+            IF edLooking THEN EditDrawPicker -1, -1 ELSE EditDrawPicker edCurX, edCurY
+        END IF
         IF edLooking THEN EditDrawTB 1, -1, -1 ELSE EditDrawTB 1, edCurX, edCurY
         IF edHelp THEN EditDrawHelp 1
     END IF
@@ -3066,11 +3080,11 @@ DO
     ' Keycards you hold, top right
     cardX = hudX(HE_CARDS)
     FOR k = 3 TO 1 STEP - 1
-        IF hasCard(k) AND hudShow(HE_CARDS) THEN cardX = cardX - hudW(HE_CARDS) - 4 : _PUTIMAGE (cardX, hudY(HE_CARDS))-STEP(hudW(HE_CARDS) - 1, hudW(HE_CARDS) - 1), cardImg&(k)
+        IF hasCard(k) AND hudShow(HE_CARDS) AND NOT (editMode AND NOT hudEdit) THEN cardX = cardX - hudW(HE_CARDS) - 4 : _PUTIMAGE (cardX, hudY(HE_CARDS))-STEP(hudW(HE_CARDS) - 1, hudW(HE_CARDS) - 1), cardImg&(k)
     NEXT
 
     ' Armour and health (bottom left)
-    IF (armor > 0 OR hudEdit) AND hudShow(HE_ARMOR) THEN
+    IF (armor > 0 OR hudEdit) AND hudShow(HE_ARMOR) AND NOT (editMode AND NOT hudEdit) THEN
         ac~& = HudColor~&(HE_ARMOR, _RGB32(90, 160, 255)) : ax = hudX(HE_ARMOR) : ay = hudY(HE_ARMOR)
         HudText ax, ay, hudLabel$(HE_ARMOR) + STR$(armor), ac~&
         IF hudW(HE_ARMOR) > 0 THEN
@@ -3080,7 +3094,7 @@ DO
     END IF
     IF health > 60 THEN healthColor~& = _RGB32(60, 230, 90) ELSE IF health > 25 THEN healthColor~& = _RGB32(255, 200, 40) ELSE healthColor~& = _RGB32(255, 50, 50)
     healthColor~& = HudColor~&(HE_HEALTH, healthColor~&)
-    IF hudShow(HE_HEALTH) THEN
+    IF hudShow(HE_HEALTH) AND NOT (editMode AND NOT hudEdit) THEN
         hx = hudX(HE_HEALTH) : hy = hudY(HE_HEALTH) : bw = hudW(HE_HEALTH) : bh = hudH(HE_HEALTH)
         HudText hx, hy, hudLabel$(HE_HEALTH) + STR$(health), healthColor~&
         IF bw > 0 THEN
@@ -3122,7 +3136,7 @@ DO
     END IF
     ammoColor~& = HudColor~&(HE_AMMO, ammoColor~&)
     ammoText$ = gunName$(currentGun) + "  " + LTRIM$(STR$(ammoCount(ammoType)))
-    IF hudShow(HE_AMMO) THEN ' (its right edge at hudX)
+    IF hudShow(HE_AMMO) AND NOT (editMode AND NOT hudEdit) THEN ' (its right edge at hudX)
         rx = hudX(HE_AMMO) : ry = hudY(HE_AMMO) : bw = hudW(HE_AMMO) : bh = hudH(HE_AMMO)
         HudText rx - 8 * LEN(ammoText$), ry, ammoText$, ammoColor~&
         IF bw > 0 THEN
@@ -3130,7 +3144,7 @@ DO
             IF ammoCount(ammoType) > 0 THEN LINE (rx - 1 - ammoCount(ammoType) * bw \ ammoMax(ammoType), ry + 19)-(rx - 1, ry + 18 + bh), ammoColor~&, BF
         END IF
     END IF
-    IF hudShow(HE_GUNS) THEN
+    IF hudShow(HE_GUNS) AND NOT (editMode AND NOT hudEdit) THEN
         FOR gun = 1 TO NUM_GUNS
             gunNumColor~& = _RGB32(60, 60, 70)
             IF hasGun(gun) THEN gunNumColor~& = _RGB32(150, 150, 160)
@@ -3383,8 +3397,45 @@ SELECT CASE tbHit
     CASE TB_ALPHA : edTbDrag = -1 ' (dragged from here, while the button's held)
     CASE TB_VIEW : IF editView = 1 THEN editView = 0 ELSE edDone = 1
     CASE TB_HELP : edHelp = NOT edHelp
+    CASE TB_PAINT : edTool = ET_PAINT : EditNote EditTBTip$(tbHit)
+    CASE TB_PICK : edPickOn = NOT edPickOn
 END SELECT
 editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT) ' (the map from above's own names for two of the tools)
+RETURN
+
+' A picker entry clicked (pkIdx): it's the brush now, and the tool that
+' uses it - and with something selected, it's done to the selection: a
+' map character put in each cell (a wall's: the cell in front of it), a
+' picture painted on each face (PAINT, EditPaintSel)
+EditPkClick:
+SELECT CASE edPkKind(pkIdx)
+    CASE PK_GLYPH
+        editGlyph$ = edPkVal$(pkIdx) : edBrushKind = PK_GLYPH : edTool = ET_PLACE
+        IF edSelN THEN
+            GOSUB EditPushUndo : n = 0
+            FOR k = 1 TO edSelN
+                EditFaceCell edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), tx, ty
+                IF tx > 0 AND ty > 0 AND tx < MAP_SIZE - 1 AND ty < MAP_SIZE - 1 THEN EditPut tx, ty, editGlyph$ : n = n + 1
+            NEXT
+            GOSUB EditApply : EditNote GlyphName$(editGlyph$) + ": put in" + STR$(n) + " cells"
+        ELSE
+            EditNote "PLACE " + GlyphName$(editGlyph$) + ": click where it goes"
+        END IF
+    CASE PK_TEX
+        edBrushTex$ = edPkVal$(pkIdx) : edBrushKind = PK_TEX : edTool = ET_PAINT
+        IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+        edBrushImg& = EditFileThumb&(edBrushTex$)
+        IF edSelN THEN GOSUB EditPaintSel ELSE EditNote "PAINT " + edBrushTex$ + ": click a face"
+    CASE PK_LIGHT
+        editLightP = VAL(edPkVal$(pkIdx)) : edBrushKind = PK_LIGHT : edTool = ET_LIGHT
+        EditNote "LIGHT " + LightPresetName$(editLightP) + ": click a face to light it"
+END SELECT
+editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT)
+RETURN
+
+' The brush's picture on every face selected (per-face pictures: item 9)
+EditPaintSel:
+EditNote "PAINT: " + edBrushTex$
 RETURN
 
 ' The grid slider, dragged: how strong, from where the pointer is along it
@@ -3736,6 +3787,7 @@ IF hudEdit THEN RETURN ' (the HUD layout editor has the mouse and keys)
 levelWas = level
 edCamPX = playerX : edCamPY = playerY : edCamDX = dirX : edCamDY = dirY : edCamPlane = fovPlane / zoom : edCamZoom = zoom
 IF edLooking THEN EditPick 400, 300 ELSE EditPick edCurX, edCurY ' (looking round: the crosshair picks)
+IF NOT edLooking AND EditOverUI(edCurX, edCurY) THEN edHovKind = 0 ' (over the toolbar or picker: no face)
 EditAim playerX, playerY, dirX, dirY, aimX, aimY, frontX, frontY
 fpL = _MOUSEBUTTON(1) OR edClickL : fpR = _MOUSEBUTTON(2) OR edClickR ' (a click between two frames counts too)
 IF edClickL AND fpLWas THEN fpLWas = 0 ' (a fresh click, even if the button looked held)
@@ -3752,6 +3804,14 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND edHelp THEN
     edHelp = 0 : fpLWas = -1 ' (the help was up: the click puts it away)
 ELSEIF fpL AND NOT fpLWas AND tbHit THEN
     GOSUB EditTBClick
+ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND edPickOn THEN
+    EditPkHit edCurX, edCurY, pkWhat, pkIdx
+    SELECT CASE pkWhat
+        CASE 1 : edPickTab = pkIdx : edPickScroll = 0
+        CASE 2 : GOSUB EditPkClick
+        CASE 3 : edPickScroll = MaxOf(0, edPickScroll - 1)
+        CASE 4 : IF (edPickScroll + PK_ROWS) * PK_COLS < edPkN THEN edPickScroll = edPickScroll + 1
+    END SELECT
 END IF
 IF fpL AND edTbDrag THEN tbMX = edCurX : GOSUB EditTBSlide
 IF NOT fpL THEN edTbDrag = 0
@@ -3800,6 +3860,12 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) THEN
     END IF
 END IF
 fpLWas = fpL : fpRWas = fpR
+IF edWheel <> 0 AND edPickOn AND edCurY >= PK_Y - 4 AND NOT edLooking THEN ' (over the picker: the wheel scrolls it)
+    edPickScroll = edPickScroll + SGN(edWheel) ' (down the wheel: down the list)
+    IF (edPickScroll + PK_ROWS - 1) * PK_COLS >= edPkN THEN edPickScroll = edPickScroll - 1
+    IF edPickScroll < 0 THEN edPickScroll = 0
+    edWheel = 0
+END IF
 IF edWheel <> 0 AND NOT EditOverUI(edCurX, edCurY) THEN GOSUB EditWheel
 edWheel = 0
 k& = _KEYHIT
@@ -3816,6 +3882,7 @@ DO WHILE k&
         CASE 21248 ' Del: delete what's selected
             IF edSelN THEN GOSUB EditPushUndo : EditDeleteSel : GOSUB EditApply ELSE EditNote "Select something to delete first"
         CASE 15104 : edHelp = NOT edHelp ' F1: the help
+        CASE 112, 80 : edPickOn = NOT edPickOn ' P: the picker
         CASE 18432, 20480, 19200, 19712 ' The arrows: nudge the selection a cell - away, back, left, right of the way you face
             IF edSelN THEN
                 fwX = 0 : fwY = 0 : IF ABS(edCamDX) >= ABS(edCamDY) THEN fwX = SGN(edCamDX) ELSE fwY = SGN(edCamDY)
@@ -7926,6 +7993,7 @@ FUNCTION EditOverUI(x, y)
     EditOverUI = 0
     IF edHelp THEN EditOverUI = -1 : EXIT FUNCTION ' (the help is up: a click closes it)
     IF EditTBAt(x, y, editView) THEN EditOverUI = -1
+    IF editView = 1 AND edPickOn AND y >= PK_Y - 4 THEN EditOverUI = -1 ' (the picker: the bottom of the screen)
 END FUNCTION
 
 ' --- THE TOOLBAR: the editor's buttons, in both views - along the top in
@@ -7936,20 +8004,20 @@ END FUNCTION
 ' how strong it is (a slider), then the other view and the help. In the
 ' order string a | is a gap between groups, a / a new row.
 SUB EditTBLayout(v)
-    IF v = 1 THEN o$ = "SPLH|DUW|GA|VQ" : x = 8 : y = 4 ELSE o$ = "SPL/HDU/WVQ/GA" : x = ED_PALX : y = 296
+    IF v = 1 THEN o$ = "SPTLH|DUW|GA|KVQ" : x = 8 : y = 4 ELSE o$ = "SPL/HDU/WVQ/GA" : x = ED_PALX : y = 296
     x0 = x : edTbN = 0
     FOR k = 1 TO LEN(o$)
         c$ = MID$(o$, k, 1)
         IF c$ = "|" THEN
-            x = x + 10
+            x = x + 8
         ELSEIF c$ = "/" THEN
             x = x0 : y = y + 24
         ELSE
-            id = INSTR("SPLHDUWGAVQ", c$)
-            IF v = 1 THEN w = LEN(EditTBLabel$(id)) * 8 + 14 ELSE w = 64
-            IF id = TB_ALPHA THEN w = 84 : IF v = 0 THEN w = 132
+            id = INSTR("SPLHDUWGAVQTK", c$)
+            IF v = 1 THEN w = LEN(EditTBLabel$(id)) * 8 + 10 ELSE w = 64
+            IF id = TB_ALPHA THEN w = 72 : IF v = 0 THEN w = 132
             edTbN = edTbN + 1 : edTbId(edTbN) = id : edTbX(edTbN) = x : edTbY(edTbN) = y : edTbW(edTbN) = w : edTbH(edTbN) = 20
-            x = x + w + 4
+            x = x + w + 3 : IF v = 0 THEN x = x + 1
         END IF
     NEXT
 END SUB
@@ -7966,6 +8034,8 @@ FUNCTION EditTBLabel$(id)
         CASE TB_GRID : t$ = "GRID"
         CASE TB_VIEW : IF editView = 1 THEN t$ = "2D MAP" ELSE t$ = "3D"
         CASE TB_HELP : t$ = "HELP"
+        CASE TB_PAINT : t$ = "PAINT"
+        CASE TB_PICK : t$ = "PICKER"
     END SELECT
     EditTBLabel$ = t$
 END FUNCTION
@@ -7984,6 +8054,8 @@ FUNCTION EditTBTip$(id)
         CASE TB_ALPHA : t$ = "How strong the grid is: drag (Shift+G)"
         CASE TB_VIEW : IF editView = 1 THEN t$ = "The map from above (Tab)" ELSE t$ = "Walk round inside it (Tab)"
         CASE TB_HELP : t$ = "Every key and click (F1)"
+        CASE TB_PAINT : t$ = "Paint: click a face to give it the brush's picture"
+        CASE TB_PICK : t$ = "The picker: walls, floors, things... (P)"
     END SELECT
     EditTBTip$ = t$
 END FUNCTION
@@ -8006,6 +8078,8 @@ FUNCTION EditTBOn(id)
         CASE TB_HEIGHT : EditTBOn = (edTool = ET_HEIGHT)
         CASE TB_GRID : EditTBOn = edGrid
         CASE TB_HELP : EditTBOn = edHelp
+        CASE TB_PAINT : EditTBOn = (edTool = ET_PAINT)
+        CASE TB_PICK : EditTBOn = edPickOn
         CASE ELSE : EditTBOn = 0
     END SELECT
 END FUNCTION
@@ -8073,7 +8147,9 @@ SUB EditDrawHelp(v)
         h$ = h$ + "PLACE   click: the brush there ([ ] change it, E pick up)|"
         h$ = h$ + "LIGHT   click: a light there (1-8 colour); Shift+click: away|"
         h$ = h$ + "HEIGHT  click raises a floor/ceiling an eighth; Shift lowers|"
-        h$ = h$ + "|"
+        h$ = h$ + "PAINT   click: the brush's picture on that face|"
+        h$ = h$ + "PICKER (P): a tab, then a picture - it's the brush (and the|"
+        h$ = h$ + "        selection's, if any); the wheel scrolls it|"
         h$ = h$ + "Wheel: the selection (or face under the pointer) up/down|"
         h$ = h$ + "  an eighth; Ctrl: a whole wall high|"
         h$ = h$ + "Wall + Shift+wheel: pull it out / push it back a cell|"
@@ -8111,6 +8187,290 @@ SUB EditDrawHelp(v)
         HudText 126, y, LEFT$(h$, bar - 1), c~& : y = y + 18 : h$ = MID$(h$, bar + 1) : first = 0
     LOOP
     HudText 126, y + 4, "(click anywhere to close)", _RGB32(140, 130, 180)
+END SUB
+
+' --- THE PICKER: along the bottom of the 3D view, a tab for each kind of
+' thing (WALLS... LIGHTS), and under it the tab's things as pictures, two
+' rows of eight at a time - the wheel (or the arrows beside them) scrolls.
+' Click one and it's the brush: PLACE puts a map character, PAINT paints a
+' picture, LIGHT lights - and if something's selected, it's done to the
+' selection there and then.
+FUNCTION EditPkTabName$(t)
+    EditPkTabName$ = RTRIM$(MID$("WALLS    FLOORS   CEILINGS DOORS    ITEMS    MONSTERS DECOR    SPECIAL  LIGHTS   ", t * 9 - 8, 9))
+END FUNCTION
+
+' The tab's entries, and their thumbnails - made again only when the tab,
+' the level, its wall pictures or ART have changed
+SUB EditPkBuild
+    key$ = STR$(edPickTab) + STR$(level) + STR$(artNow) + lvlWall$(1) + lvlWall$(2) + lvlWall$(3) + lvlWall$(4) + lvlWall$(5) + lvlWall$(6)
+    IF key$ = edPkKey$ THEN EXIT SUB
+    edPkKey$ = key$
+    FOR k = 1 TO edPkN
+        IF edPkImg&(k) < -1 THEN _FREEIMAGE edPkImg&(k)
+        edPkImg&(k) = 0
+    NEXT
+    edPkN = 0
+    SELECT CASE edPickTab
+        CASE 1 : g$ = "#NCKPG/\%=" : pre$ = "wall"
+        CASE 2 : pre$ = "floor"
+        CASE 3 : pre$ = "ceiling"
+        CASE 4 : g$ = "DHXRBY!E"
+        CASE 5 : g$ = "rby+*uae234Mqj"
+        CASE 6 : g$ = "mghcskwzT"
+        CASE 7 : g$ = "oiptxlnfSdAFIJLOQUWZV"
+        CASE 8 : g$ = "<>^v&@$."
+    END SELECT
+    FOR k = 1 TO LEN(g$)
+        edPkN = edPkN + 1 : edPkKind(edPkN) = PK_GLYPH : edPkVal$(edPkN) = MID$(g$, k, 1) : edPkImg&(edPkN) = EditGlyphThumb&(MID$(g$, k, 1))
+    NEXT
+    IF LEN(pre$) THEN ' Every picture called wall*.png (floor*, ceiling*), in name order
+        dir$ = AssetPath$("x") : dir$ = LEFT$(dir$, LEN(dir$) - 1)
+        first = edPkN + 1
+        f$ = _FILES$(dir$ + pre$ + "*.png")
+        DO WHILE LEN(f$) AND edPkN < PK_MAX
+            b$ = f$ : sl = _INSTRREV(b$, "/") : IF sl THEN b$ = MID$(b$, sl + 1)
+            IF b$ <> "wall-jack.png" AND b$ <> "wall-code.png" AND b$ <> "ceiling-lamp.png" THEN edPkN = edPkN + 1 : edPkKind(edPkN) = PK_TEX : edPkVal$(edPkN) = b$
+            f$ = _FILES$
+        LOOP
+        FOR a = first TO edPkN - 1 : FOR b = a + 1 TO edPkN
+            IF LCASE$(edPkVal$(b)) < LCASE$(edPkVal$(a)) THEN SWAP edPkVal$(a), edPkVal$(b)
+        NEXT : NEXT
+        FOR k = first TO edPkN : edPkImg&(k) = EditFileThumb&(edPkVal$(k)) : NEXT
+    END IF
+    IF edPickTab = 9 THEN
+        FOR k = 0 TO 7 : edPkN = edPkN + 1 : edPkKind(edPkN) = PK_LIGHT : edPkVal$(edPkN) = LTRIM$(STR$(k)) : edPkImg&(edPkN) = 0 : NEXT
+    END IF
+    IF edPickScroll > MaxOf(0, (edPkN - 1) \ PK_COLS - PK_ROWS + 1) THEN edPickScroll = 0
+END SUB
+
+' A thumbnail (PK_SIZE - 4 square) of a texture slot (spr = 0) or a sprite
+' slot (spr = -1), from the pictures the game's already loaded
+FUNCTION EditSlotThumb&(slot, spr)
+    n = PK_SIZE - 4 : img& = _NEWIMAGE(n, n, 32) : d& = _DEST
+    IF spr THEN ts = spriteSize(slot) : IF ts <= 0 THEN ts = sprTex
+    IF NOT spr THEN ts = texSize
+    _DEST img& : _DONTBLEND img&
+    FOR y = 0 TO n - 1 : FOR x = 0 TO n - 1
+        IF spr THEN PSET (x, y), spriteTex(x * ts \ n, y * ts \ n, slot) ELSE PSET (x, y), texture(x * ts \ n, y * ts \ n, slot)
+    NEXT : NEXT
+    _BLEND img& : _DEST d&
+    EditSlotThumb& = img&
+END FUNCTION
+
+' A thumbnail of a picture file (wall-*.png...): loaded, shrunk
+FUNCTION EditFileThumb&(f$)
+    EditFileThumb& = 0
+    src& = _LOADIMAGE(ArtPath$(f$), 32) : IF src& >= -1 THEN EXIT FUNCTION
+    n = PK_SIZE - 4 : img& = _NEWIMAGE(n, n, 32)
+    _PUTIMAGE (0, 0)-(n - 1, n - 1), src&, img&
+    _FREEIMAGE src&
+    EditFileThumb& = img&
+END FUNCTION
+
+' A map character's thumbnail: the picture it's drawn with in the game
+' (a wall's or door's texture, a thing's sprite) - 0 for the start, drawn
+' as an arrow instead
+FUNCTION EditGlyphThumb&(c$)
+    t = 0 : sp = 0
+    SELECT CASE c$
+        CASE "#", "N", "C", "K", "P", "G" : t = INSTR("#NCKPG", c$)
+        CASE "/", "\", "%" : t = 1
+        CASE "D", "!" : t = T_DOOR
+        CASE "H" : t = T_SHUTTER
+        CASE "X" : t = T_SPLIT
+        CASE "R", "B", "Y" : t = T_DOORK + INSTR("RBY", c$)
+        CASE "E" : t = T_EXIT
+        CASE "@" : t = T_JACK
+        CASE "$" : t = T_CODE
+        CASE "." : t = T_FLOOR + 1
+        CASE "=" : sp = S_GLASS
+        CASE "&" : sp = S_PAD
+        CASE "r", "b", "y" : sp = INSTR("rby", c$)
+        CASE "+" : sp = 4
+        CASE "*" : sp = 26
+        CASE "u" : sp = 25
+        CASE "a" : sp = 5
+        CASE "e" : sp = 6
+        CASE "2" : sp = 7
+        CASE "3" : sp = 8
+        CASE "4" : sp = 27
+        CASE "M" : sp = 28
+        CASE "q" : sp = ItemSprite(IT_OVERCHARGE)
+        CASE "j" : sp = ItemSprite(IT_AMP)
+        CASE ELSE
+            k = INSTR("mghcskwzT", c$) : IF k THEN sp = mtypeSprite(k)
+            k = INSTR("oiptxlnfSdAFIJLOQUWZV", c$) : IF k THEN sp = DecoSlot(k)
+    END SELECT
+    IF t THEN EditGlyphThumb& = EditSlotThumb&(t, 0) ELSE IF sp THEN EditGlyphThumb& = EditSlotThumb&(sp, -1) ELSE EditGlyphThumb& = 0
+END FUNCTION
+
+' A light preset's colour (1-8 in the editor: 0-7 here)
+FUNCTION EditLightRGB~&(p)
+    SELECT CASE p
+        CASE 0 : c~& = _RGB32(230, 235, 255)
+        CASE 1 : c~& = _RGB32(60, 220, 255)
+        CASE 2 : c~& = _RGB32(255, 60, 220)
+        CASE 3 : c~& = _RGB32(255, 160, 60)
+        CASE 4 : c~& = _RGB32(90, 255, 120)
+        CASE 5 : c~& = _RGB32(255, 40, 40)
+        CASE 6 : c~& = _RGB32(220, 230, 255)
+        CASE ELSE : c~& = _RGB32(255, 150, 70)
+    END SELECT
+    EditLightRGB~& = c~&
+END FUNCTION
+
+' What's at screen point (x, y) on the picker: what = 1 a tab (idx: which),
+' 2 a thumbnail (idx: its entry), 3 scroll up, 4 scroll down; 0 nothing
+SUB EditPkHit(x, y, what, idx)
+    what = 0 : idx = 0
+    IF NOT edPickOn OR editView <> 1 THEN EXIT SUB
+    tx = PK_X
+    FOR t = 1 TO PK_TABS
+        w = LEN(EditPkTabName$(t)) * 8 + 10
+        IF x >= tx AND x < tx + w AND y >= PK_Y AND y < PK_Y + 18 THEN what = 1 : idx = t : EXIT SUB
+        tx = tx + w + 3
+    NEXT
+    gy = PK_Y + 22
+    IF x >= PK_X AND x < PK_X + PK_COLS * (PK_SIZE + 4) AND y >= gy AND y < gy + PK_ROWS * (PK_SIZE + 4) THEN
+        k = edPickScroll * PK_COLS + ((y - gy) \ (PK_SIZE + 4)) * PK_COLS + (x - PK_X) \ (PK_SIZE + 4) + 1
+        IF k <= edPkN THEN what = 2 : idx = k
+        EXIT SUB
+    END IF
+    sx = PK_X + PK_COLS * (PK_SIZE + 4)
+    IF x >= sx AND x < sx + 20 AND y >= gy AND y < gy + PK_SIZE THEN what = 3
+    IF x >= sx AND x < sx + 20 AND y >= gy + PK_SIZE + 4 AND y < gy + 2 * PK_SIZE + 4 THEN what = 4
+END SUB
+
+' Is picker entry k the brush?
+FUNCTION EditPkIsBrush(k)
+    EditPkIsBrush = 0
+    SELECT CASE edPkKind(k)
+        CASE PK_GLYPH : EditPkIsBrush = (edBrushKind = PK_GLYPH AND edPkVal$(k) = editGlyph$)
+        CASE PK_TEX : EditPkIsBrush = (edBrushKind = PK_TEX AND edPkVal$(k) = edBrushTex$)
+        CASE PK_LIGHT : EditPkIsBrush = (edBrushKind = PK_LIGHT AND VAL(edPkVal$(k)) = editLightP)
+    END SELECT
+END FUNCTION
+
+FUNCTION EditPkName$(k)
+    SELECT CASE edPkKind(k)
+        CASE PK_GLYPH : EditPkName$ = GlyphName$(edPkVal$(k))
+        CASE PK_TEX : EditPkName$ = edPkVal$(k)
+        CASE PK_LIGHT : EditPkName$ = "light: " + LightPresetName$(VAL(edPkVal$(k)))
+    END SELECT
+END FUNCTION
+
+' One entry's picture in the box at (x, y), n square: its thumbnail - or a
+' light glowing its colour (pulsing, flickering as it will), or the start's
+' arrow
+SUB EditPkPicture(k, x, y, n)
+    IF edPkImg&(k) < -1 THEN _PUTIMAGE (x, y)-STEP(n - 1, n - 1), edPkImg&(k) : EXIT SUB
+    cx = x + n \ 2 : cy = y + n \ 2
+    IF edPkKind(k) = PK_LIGHT THEN
+        p = VAL(edPkVal$(k)) : c~& = EditLightRGB~&(p) : b = 1
+        IF p = 5 THEN b = 0.55 + 0.45 * SIN(TIMER * 4) ' (an alarm: pulsing)
+        IF p = 6 THEN IF RND < 0.25 THEN b = 0.25 ' (flickering)
+        IF p = 7 THEN b = 0.8 + 0.2 * SIN(TIMER * 11) ' (firelight)
+        r = _RED32(c~&) * b : g = _GREEN32(c~&) * b : bl = _BLUE32(c~&) * b
+        FOR rr = n \ 2 - 2 TO 2 STEP -2
+            a = 40 + 200 * (1 - rr / (n / 2))
+            CIRCLE (cx, cy), rr, _RGBA32(r, g, bl, a)
+        NEXT
+        FillCircle cx, cy, n \ 8, _RGB32(MinOf(255, r + 60), MinOf(255, g + 60), MinOf(255, bl + 60))
+    ELSEIF edPkKind(k) = PK_GLYPH THEN
+        a = (INSTR(">v<^", edPkVal$(k)) - 1) * 1.5708 ' (the start: an arrow the way it faces)
+        IF a >= 0 THEN
+            ax = COS(a) : ay = SIN(a) : h = n * 0.36
+            LINE (cx - ax * h, cy - ay * h)-(cx + ax * h, cy + ay * h), _RGB32(255, 255, 255)
+            LINE (cx + ax * h, cy + ay * h)-(cx + ax * h * 0.3 - ay * h * 0.5, cy + ay * h * 0.3 + ax * h * 0.5), _RGB32(255, 255, 255)
+            LINE (cx + ax * h, cy + ay * h)-(cx + ax * h * 0.3 + ay * h * 0.5, cy + ay * h * 0.3 - ax * h * 0.5), _RGB32(255, 255, 255)
+            HudText cx - 20, y + n - 14, "START", _RGB32(255, 255, 255)
+        ELSE
+            LINE (x + 4, y + 4)-STEP(n - 9, n - 9), GlyphColor~&(edPkVal$(k)), BF
+        END IF
+    END IF
+END SUB
+
+' The picker, drawn - the pointer at (mx, my)
+SUB EditDrawPicker(mx, my)
+    EditPkBuild
+    LINE (0, PK_Y - 4)-(799, 599), _RGBA32(6, 2, 18, 215), BF
+    LINE (0, PK_Y - 5)-(799, PK_Y - 5), _RGBA32(255, 60, 200, 160)
+    EditPkHit mx, my, hw, hi
+    tx = PK_X ' The tabs
+    FOR t = 1 TO PK_TABS
+        t$ = EditPkTabName$(t) : w = LEN(t$) * 8 + 10
+        IF t = edPickTab THEN bg~& = _RGBA32(120, 20, 100, 240) ELSE bg~& = _RGBA32(20, 10, 40, 230)
+        IF hw = 1 AND hi = t THEN bg~& = _RGBA32(40, 70, 110, 240)
+        LINE (tx, PK_Y)-STEP(w - 1, 17), bg~&, BF
+        IF t = edPickTab THEN LINE (tx, PK_Y)-STEP(w - 1, 17), _RGB32(255, 60, 200), B
+        IF t = edPickTab THEN c~& = _RGB32(255, 255, 255) ELSE c~& = _RGB32(190, 180, 230)
+        HudText tx + 5, PK_Y + 1, t$, c~&
+        tx = tx + w + 3
+    NEXT
+    gy = PK_Y + 22 ' The thumbnails
+    FOR r = 0 TO PK_ROWS - 1 : FOR c = 0 TO PK_COLS - 1
+        k = (edPickScroll + r) * PK_COLS + c + 1
+        x = PK_X + c * (PK_SIZE + 4) : y = gy + r * (PK_SIZE + 4)
+        LINE (x, y)-STEP(PK_SIZE - 1, PK_SIZE - 1), _RGBA32(16, 12, 30, 240), BF
+        IF k <= edPkN THEN
+            EditPkPicture k, x + 2, y + 2, PK_SIZE - 4
+            IF EditPkIsBrush(k) THEN
+                LINE (x, y)-STEP(PK_SIZE - 1, PK_SIZE - 1), _RGB32(255, 60, 200), B : LINE (x + 1, y + 1)-STEP(PK_SIZE - 3, PK_SIZE - 3), _RGB32(255, 60, 200), B
+            ELSEIF hw = 2 AND hi = k THEN
+                LINE (x, y)-STEP(PK_SIZE - 1, PK_SIZE - 1), _RGB32(150, 240, 255), B
+            ELSE
+                LINE (x, y)-STEP(PK_SIZE - 1, PK_SIZE - 1), _RGB32(60, 50, 90), B
+            END IF
+        ELSE
+            LINE (x, y)-STEP(PK_SIZE - 1, PK_SIZE - 1), _RGB32(30, 26, 50), B
+        END IF
+    NEXT : NEXT
+    ' The scroll arrows, and how far down the list this is
+    sx = PK_X + PK_COLS * (PK_SIZE + 4) : rows = (edPkN + PK_COLS - 1) \ PK_COLS
+    FOR b = 0 TO 1
+        by = gy + b * (PK_SIZE + 4)
+        IF hw = 3 + b THEN c~& = _RGBA32(40, 70, 110, 240) ELSE c~& = _RGBA32(20, 10, 40, 230)
+        LINE (sx, by)-STEP(19, PK_SIZE - 1), c~&, BF : LINE (sx, by)-STEP(19, PK_SIZE - 1), _RGB32(90, 70, 140), B
+        IF (b = 0 AND edPickScroll > 0) OR (b = 1 AND edPickScroll + PK_ROWS < rows) THEN c~& = _RGB32(255, 255, 255) ELSE c~& = _RGB32(70, 60, 100)
+        ay = by + PK_SIZE \ 2 : d = 1 - 2 * b
+        LINE (sx + 4, ay + 3 * d)-(sx + 10, ay - 3 * d), c~& : LINE (sx + 10, ay - 3 * d)-(sx + 16, ay + 3 * d), c~&
+    NEXT
+    IF rows > PK_ROWS THEN ' (a bar: where these two rows are in all of them)
+        bh = 2 * PK_SIZE + 4 : LINE (sx + 22, gy)-STEP(3, bh - 1), _RGBA32(60, 50, 90, 200), BF
+        LINE (sx + 22, gy + bh * edPickScroll \ rows)-STEP(3, bh * PK_ROWS \ rows - 1), _RGB32(255, 60, 200), BF
+    END IF
+    ' On the right: the brush, big, and what the pointer's over
+    bx = sx + 34
+    HudText bx, gy, "BRUSH", _RGB32(255, 90, 200)
+    LINE (bx, gy + 18)-STEP(67, 67), _RGBA32(16, 12, 30, 240), BF : LINE (bx, gy + 18)-STEP(67, 67), _RGB32(255, 60, 200), B
+    SELECT CASE edBrushKind
+        CASE PK_TEX
+            IF edBrushImg& < -1 THEN _PUTIMAGE (bx + 2, gy + 20)-STEP(63, 63), edBrushImg&
+            n$ = edBrushTex$
+        CASE PK_LIGHT
+            c~& = EditLightRGB~&(editLightP) : FillCircle bx + 34, gy + 52, 16, c~& : n$ = "light: " + LightPresetName$(editLightP)
+        CASE ELSE ' (a map character: its picture, made again when the brush changes - [ ] or E too)
+            STATIC thumbOf$, thumbImg&
+            IF thumbOf$ <> editGlyph$ + STR$(artNow) + lvlWall$(1) THEN
+                IF thumbImg& < -1 THEN _FREEIMAGE thumbImg&
+                thumbImg& = EditGlyphThumb&(editGlyph$) : thumbOf$ = editGlyph$ + STR$(artNow) + lvlWall$(1)
+            END IF
+            IF thumbImg& < -1 THEN
+                _PUTIMAGE (bx + 2, gy + 20)-STEP(63, 63), thumbImg&
+            ELSE
+                k = 0 : FOR j = 1 TO edPkN : IF edPkKind(j) = PK_GLYPH AND edPkVal$(j) = editGlyph$ THEN k = j
+                NEXT
+                IF k THEN EditPkPicture k, bx + 2, gy + 20, 64 ELSE LINE (bx + 6, gy + 24)-STEP(55, 55), GlyphColor~&(editGlyph$), BF
+            END IF
+            n$ = GlyphName$(editGlyph$)
+    END SELECT
+    tw = (792 - bx - 76) \ 8 ' (its name beside it, in lines that fit)
+    ty = gy + 18
+    DO WHILE LEN(n$) AND ty < gy + 86
+        l$ = LEFT$(n$, tw) : HudText bx + 76, ty, l$, _RGB32(255, 255, 255) : ty = ty + 16 : n$ = MID$(n$, tw + 1)
+    LOOP
+    IF hw = 2 THEN h$ = EditPkName$(hi) ELSE h$ = "Click one: it's the brush" + MID$(" (and the selection's)", 1, -22 * (edSelN > 0))
+    HudText PK_X, gy + 2 * (PK_SIZE + 4) + 2, LEFT$(h$, 98), _RGB32(150, 240, 255)
 END SUB
 
 ' Where a click with PLACE or LIGHT goes for a face: a floor or ceiling's
@@ -8315,14 +8675,17 @@ SUB EditOverlay(px, py, fx, fy)
     HudText 16, 60, "TOOL: " + RTRIM$(MID$("SELECTPLACE PAINT LIGHT HEIGHT", edTool * 6 - 5, 6)), _RGB32(255, 90, 200)
     IF edTool = ET_LIGHT THEN
         HudText 16, 76, "LIGHT: " + LightPresetName$(editLightP) + " (1-8)", _RGB32(255, 220, 120)
+    ELSEIF edTool = ET_PAINT THEN
+        HudText 16, 76, LEFT$("PICTURE: " + edBrushTex$, 38), _RGB32(150, 240, 255)
     ELSE
         HudText 16, 76, LEFT$("BRUSH: " + GlyphName$(editGlyph$), 38), GlyphColor~&(editGlyph$)
     END IF
     IF edSelN THEN HudText 16, 92, LTRIM$(STR$(edSelN)) + " selected (Ctrl+D: none)", _RGB32(255, 190, 80) ELSE HudText 16, 92, "Nothing selected", _RGB32(140, 130, 180)
     IF editDirty THEN HudText 16, 108, "* not saved (Ctrl+S)", _RGB32(255, 90, 90) ELSE HudText 16, 108, "Saved", _RGB32(140, 130, 180)
     IF TIMER < editMsgUntil! THEN
-        LINE (0, 470)-(799, 490), _RGBA32(0, 0, 0, 170), BF
-        HudText 400 - LEN(LEFT$(editMsg$, 98)) * 4, 474, LEFT$(editMsg$, 98), _RGB32(255, 220, 120)
+        my = 470 : IF edPickOn AND editView = 1 THEN my = PK_Y - 30 ' (above the picker)
+        LINE (0, my)-(799, my + 20), _RGBA32(0, 0, 0, 170), BF
+        HudText 400 - LEN(LEFT$(editMsg$, 98)) * 4, my + 4, LEFT$(editMsg$, 98), _RGB32(255, 220, 120)
     END IF
 END SUB
 
