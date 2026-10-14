@@ -861,6 +861,9 @@ DIM SHARED lineKey$(MAX_LINES), lineText$(MAX_LINES), lineSnd&(MAX_LINES), numLi
 DIM SHARED speechText$, speechUntil!, tauntWait AS LONG, cliMode AS INTEGER, nexusImg&
 ' The sound limiter (PlaySfxPan, chapter 23), and where you're listening
 ' from, facing (earDX, earDY) - for 3D sound
+' How far a sound in the world carries, in cells (SfxAt): most things -
+' doors, shots, explosions - and a monster's muttering and growling
+CONST SFX_RANGE = 20, SFX_CHATTER = 12
 CONST SFX_HEADROOM = 1.6
 DIM SHARED sfxLoad!, sfxThis&(32), sfxThisN AS INTEGER, earDX, earDY, sfxFrameT! ' (sfxFrameT!: when SfxFrame last ran)
 earDX = 1 : earDY = 0
@@ -2010,9 +2013,10 @@ DO
         IF mtype = 1 OR mtype = 5 OR mtype = 8 THEN IF monsterState(i) < 2 THEN monsterAnim(i) = monsterAnim(i) + 0.12 - 0.06 * (monsterState(i) = 0) ' (hovering, scanning: slower asleep)
         SELECT CASE monsterState(i)
             CASE 0 ' Idle: wake when it can see you - and mutter now and then
-                ' (a sound about every 8 seconds, if you're near enough to hear)
+                ' (a sound about every 8 seconds, if you're near enough to hear:
+                ' SFX_CHATTER cells)
                 IF RND < 0.002 AND chatterWait = 0 THEN
-                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < 144 THEN SfxAt mtypeIdleSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY : chatterWait = 30
+                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < SFX_CHATTER * SFX_CHATTER THEN SfxAtRange mtypeIdleSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY, SFX_CHATTER : chatterWait = 30
                 END IF
                 IF NOT dead THEN
                     IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2 < MON_SIGHT * MON_SIGHT THEN
@@ -2027,7 +2031,7 @@ DO
             CASE 1 ' Hunting - growling or whirring as it comes (about every 4 seconds)
                 IF monsterTimer(i) > 0 THEN monsterTimer(i) = monsterTimer(i) -1
                 IF RND < 0.004 AND chatterWait = 0 THEN
-                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < 196 THEN SfxAt mtypeHuntSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY : chatterWait = 30
+                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < SFX_CHATTER * SFX_CHATTER THEN SfxAtRange mtypeHuntSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY, SFX_CHATTER : chatterWait = 30
                 END IF
                 toPlayerX = playerX - monsterX(i) : toPlayerY = playerY - monsterY(i) : distance = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY)
                 IF NOT dead AND distance > 0.01 THEN
@@ -8572,19 +8576,24 @@ SUB SfxFrame
 END SUB
 
 ' A sound made at (x, y), heard by you at (listenX, listenY), facing
-' (earDX, earDY). Fainter further off (but never silent), and with 3D SOUND
-' on: panned to the side it's on (how far round to your right or left -
-' a sound straight behind you is in the middle), and muffled to half if a
-' wall's in the way.
+' (earDX, earDY): SFX_RANGE cells away it's silent (SfxAtRange for another
+' reach). Nearer, it gets louder the way sound does - quickly at first,
+' (1 - d / range) squared - and a wall in the way muffles it to a third.
+' With 3D SOUND on it's also panned to the side it's on (how far round to
+' your right or left - a sound straight behind you is in the middle).
 SUB SfxAt(snd&, x, y, listenX, listenY)
+    SfxAtRange snd&, x, y, listenX, listenY, SFX_RANGE
+END SUB
+
+SUB SfxAtRange(snd&, x, y, listenX, listenY, range)
     dx = x - listenX : dy = y - listenY : d = SQR(dx * dx + dy * dy)
-    vol! = 1 - d / 18
-    IF vol! < 0.12 THEN vol! = 0.12
+    IF d >= range THEN EXIT SUB ' (too far off to hear)
+    vol! = (1 - d / range) ^ 2
+    IF d > 0.5 THEN IF NOT CanSee(x, y, listenX, listenY) THEN vol! = vol! * 0.35
     pan! = 0
     IF setting(SET_SPATIAL) AND d > 0.5 THEN
         side = (dx * earDY - dy * earDX) / d ' (your right is (earDY, -earDX))
         pan! = side * 0.85 * MinOf(1, d / 2) ' (close by: nearly the middle)
-        IF NOT CanSee(x, y, listenX, listenY) THEN vol! = vol! * 0.5
     END IF
     PlaySfxPan snd&, vol!, pan!
 END SUB
