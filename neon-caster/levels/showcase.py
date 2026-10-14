@@ -1,5 +1,5 @@
-"""Showcase sectors for the level editor: YOUR SECTORS 11-16
-(custom/custom1..6.txt here). Each uses the editor's level-file sections -
+"""Showcase sectors for the level editor: YOUR SECTORS 11-17
+(custom/custom1..7.txt here). Each uses the editor's level-file sections -
 [faces] (pictures on single faces, divided ones), lights on faces (they
 tint their face), [pads] (teleporters linked by hand), [monsters] (a
 monster's own sight, hearing, health, speed, waking) - on top of the
@@ -7,7 +7,7 @@ usual. Built with the level kit, and checked by it.
 
     python3 showcase.py [OUTDIR]     (OUTDIR: custom/ unless you say)
 
-This writes over custom1-6.txt: once you've changed one of them in the
+This writes over custom1-7.txt: once you've changed one of them in the
 game's editor, don't run it again (or give it another OUTDIR).
 """
 import os, sys
@@ -613,6 +613,70 @@ def observatory():
         ["ceiling-stone.png", "ceiling-girders.png"], observatory.__doc__
 
 
+# ---------------------------------------------------------------- 17
+def archive():
+    """SECTOR 17: THE FLOODED ARCHIVE. The record hall is a step under
+    murky water: its floor is painted floor-murky cell by cell ([faces]),
+    and a floor's picture says what it does - you wade, slowed. The stacks
+    stand in rows, lit at their ends; the catwalk down the middle has
+    fallen in halfway, so into the water you go, where the crawlers
+    between the shelves wait for you to come near. The red card is at the
+    hall's west end; the blue in the reading room behind the red door,
+    where the spitters hear any shot; the exit's through the blue door,
+    east. Lights die and flicker over the water."""
+    m = Show("#")
+    m.ambient = (105, 170, 230, 210)
+    # The landing (south), dry; you facing the hall
+    m.rect(19, 39, 28, 44); m.put(23, 43, "^")
+    m.put(20, 44, "M"); m.put(27, 44, "+"); m.put(19, 40, "U"); m.put(28, 40, "U")
+    # The hall, a step under the water
+    m.rect(6, 12, 41, 36); m.floor(6, 12, 41, 36, -2); m.ceiling(6, 12, 41, 36, 12)
+    for x in (9, 13, 17, 21, 26, 30, 34, 38):     # the stacks
+        for (y0, y1) in ((15, 22), (26, 33)):
+            m.rect(x, y0, x, y1, "N")
+    m.rect(23, 37, 24, 38)                        # the way down from the landing...
+    m.floor(23, 12, 24, 38, 0)                    # ...becomes the catwalk, dry
+    m.floor(23, 23, 24, 25, -2)                   # (fallen in, halfway)
+    for y in range(12, 37):
+        for x in range(6, 42):
+            if m.g[y][x] not in lvlkit.WALLS and m.floor_at(x, y) == -2:
+                m.face(x, y, "F", "floor-murky.png")
+    for x in (9, 13, 17, 21, 26, 30, 34, 38):     # each stack's ends lit cyan
+        m.wall_light(x, 33, "S", 60, 220, 255, fx=0, rad=2.5, bright=150)
+        m.wall_light(x, 15, "N", 60, 220, 255, fx=0, rad=2.5, bright=150)
+    m.put(7, 24, "r")
+    for (x, y) in ((11, 19), (15, 30), (28, 18), (32, 29), (36, 21), (19, 25)):
+        m.mon(x, y, "c", sight=2, wake="near", speed=120)
+    m.mon(11, 28, "m"); m.mon(36, 16, "m")
+    m.mon(24, 13, "g", hear=14)
+    m.put(15, 24, "e"); m.put(32, 24, "a"); m.put(40, 34, "2"); m.put(7, 13, "+")
+    m.triggers.append("enter 22 34 25 36 : message THE WATER SLOWS YOU - AND IT HIDES THEM")
+    # The reading room (north), behind the red door
+    m.put(23, 11, "R"); m.put(23, 10, ".")
+    m.rect(16, 3, 31, 9); m.ceiling(16, 3, 31, 9, 10)
+    m.put(24, 5, "b")
+    m.mon(17, 4, "w", hear=12, sight=6); m.mon(30, 4, "w", hear=12, sight=6)
+    for x in (19, 22, 25, 28):
+        m.put(x, 7, "d")
+    m.put(16, 9, "t"); m.put(31, 9, "t"); m.put(20, 3, "*")
+    # The exit (east), through the blue door
+    m.put(42, 24, "B"); m.rect(43, 24, 44, 24); m.put(45, 24, "E")
+    # Light: dying and flickering over the water
+    for (x, fx) in ((11, 5), (19, 1), (28, 5), (36, 1)):
+        m.light(x + 0.5, 24.5, 6, 140, 170, 230, 255, fx)
+    m.light(23.5, 41.5, 6, 150, 255, 230, 190, 0)
+    m.light(23.5, 6.5, 7, 140, 255, 220, 160, 1)
+    m.light(43.5, 24.5, 3, 140, 90, 255, 120, 0)
+    m.light(23.5, 18.5, 4, 110, 200, 220, 255, 0); m.light(23.5, 31.5, 4, 110, 200, 220, 255, 0)
+    m.zone(6, 12, 41, 36, 1, 1)
+    m.zone(23, 12, 24, 38, 2, 0)
+    m.zone(16, 3, 31, 9, 4, 2)
+    return m, "custom7", "SECTOR 17: THE FLOODED ARCHIVE", \
+        ["wall-rusty.png", "wall-vault.png", "wall-tiles.png", "wall-pipes.png", "wall-moss.png", "wall-concrete.png"], \
+        ["floor-concrete.png", "floor-rustgrate.png", "floor-plates.png", "floor-deck.png"], \
+        ["ceiling-pipes.png", "ceiling-vents.png"], archive.__doc__
+
+
 def build(fn, outdir):
     m, label, name, walls, floors, ceils, doc = fn()
     lv = m.level(label, name, walls, floors, ceils)
@@ -637,7 +701,7 @@ if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "custom")
     os.makedirs(out, exist_ok=True)
     good = True
-    for fn in (gallery, depot, relay, conservatory, listening, observatory):
+    for fn in (gallery, depot, relay, conservatory, listening, observatory, archive):
         print(fn.__name__)
         good = build(fn, out) and good
     print("ALL GOOD" if good else "PROBLEMS")

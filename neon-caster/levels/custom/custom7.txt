@@ -1,0 +1,954 @@
+' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+' SECTOR 17: THE FLOODED ARCHIVE. The record hall is a step under
+' murky water: its floor is painted floor-murky cell by cell ([faces]),
+' and a floor's picture says what it does - you wade, slowed. The stacks
+' stand in rows, lit at their ends; the catwalk down the middle has
+' fallen in halfway, so into the water you go, where the crawlers
+' between the shelves wait for you to come near. The red card is at the
+' hall's west end; the blue in the reading room behind the red door,
+' where the spitters hear any shot; the exit's through the blue door,
+' east. Lights die and flicker over the water.
+
+name     = SECTOR 17: THE FLOODED ARCHIVE
+walls    = wall-rusty.png, wall-vault.png, wall-tiles.png, wall-pipes.png, wall-moss.png, wall-concrete.png
+floors   = floor-concrete.png, floor-rustgrate.png, floor-plates.png, floor-deck.png
+ceilings = ceiling-pipes.png, ceiling-vents.png
+ambient  = 105, 170, 230, 210
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+6, 12, 41, 36, 1, 1, 0
+23, 12, 24, 38, 2, 0, 0
+16, 3, 31, 9, 4, 2, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+9.5, 34.12, 2.5, 150, 60, 220, 255, 0
+9.5, 14.88, 2.5, 150, 60, 220, 255, 0
+13.5, 34.12, 2.5, 150, 60, 220, 255, 0
+13.5, 14.88, 2.5, 150, 60, 220, 255, 0
+17.5, 34.12, 2.5, 150, 60, 220, 255, 0
+17.5, 14.88, 2.5, 150, 60, 220, 255, 0
+21.5, 34.12, 2.5, 150, 60, 220, 255, 0
+21.5, 14.88, 2.5, 150, 60, 220, 255, 0
+26.5, 34.12, 2.5, 150, 60, 220, 255, 0
+26.5, 14.88, 2.5, 150, 60, 220, 255, 0
+30.5, 34.12, 2.5, 150, 60, 220, 255, 0
+30.5, 14.88, 2.5, 150, 60, 220, 255, 0
+34.5, 34.12, 2.5, 150, 60, 220, 255, 0
+34.5, 14.88, 2.5, 150, 60, 220, 255, 0
+38.5, 34.12, 2.5, 150, 60, 220, 255, 0
+38.5, 14.88, 2.5, 150, 60, 220, 255, 0
+11.5, 24.5, 6, 140, 170, 230, 255, 5
+19.5, 24.5, 6, 140, 170, 230, 255, 1
+28.5, 24.5, 6, 140, 170, 230, 255, 5
+36.5, 24.5, 6, 140, 170, 230, 255, 1
+23.5, 41.5, 6, 150, 255, 230, 190, 0
+23.5, 6.5, 7, 140, 255, 220, 160, 1
+43.5, 24.5, 3, 140, 90, 255, 120, 0
+23.5, 18.5, 4, 110, 200, 220, 255, 0
+23.5, 31.5, 4, 110, 200, 220, 255, 0
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+
+[triggers]
+' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+enter 22 34 25 36 : message THE WATER SLOWS YOU - AND IT HIDES THEM
+
+[monsters]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+17, 4, 6, 12, 100, 100, 0
+30, 4, 6, 12, 100, 100, 0
+24, 13, 14, 14, 100, 100, 0
+28, 18, 2, 0, 100, 120, 1
+11, 19, 2, 0, 100, 120, 1
+36, 21, 2, 0, 100, 120, 1
+19, 25, 2, 0, 100, 120, 1
+32, 29, 2, 0, 100, 120, 1
+15, 30, 2, 0, 100, 120, 1
+
+[faces]
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+6, 12, F, 0, floor-murky.png
+7, 12, F, 0, floor-murky.png
+8, 12, F, 0, floor-murky.png
+9, 12, F, 0, floor-murky.png
+10, 12, F, 0, floor-murky.png
+11, 12, F, 0, floor-murky.png
+12, 12, F, 0, floor-murky.png
+13, 12, F, 0, floor-murky.png
+14, 12, F, 0, floor-murky.png
+15, 12, F, 0, floor-murky.png
+16, 12, F, 0, floor-murky.png
+17, 12, F, 0, floor-murky.png
+18, 12, F, 0, floor-murky.png
+19, 12, F, 0, floor-murky.png
+20, 12, F, 0, floor-murky.png
+21, 12, F, 0, floor-murky.png
+22, 12, F, 0, floor-murky.png
+25, 12, F, 0, floor-murky.png
+26, 12, F, 0, floor-murky.png
+27, 12, F, 0, floor-murky.png
+28, 12, F, 0, floor-murky.png
+29, 12, F, 0, floor-murky.png
+30, 12, F, 0, floor-murky.png
+31, 12, F, 0, floor-murky.png
+32, 12, F, 0, floor-murky.png
+33, 12, F, 0, floor-murky.png
+34, 12, F, 0, floor-murky.png
+35, 12, F, 0, floor-murky.png
+36, 12, F, 0, floor-murky.png
+37, 12, F, 0, floor-murky.png
+38, 12, F, 0, floor-murky.png
+39, 12, F, 0, floor-murky.png
+40, 12, F, 0, floor-murky.png
+41, 12, F, 0, floor-murky.png
+6, 13, F, 0, floor-murky.png
+7, 13, F, 0, floor-murky.png
+8, 13, F, 0, floor-murky.png
+9, 13, F, 0, floor-murky.png
+10, 13, F, 0, floor-murky.png
+11, 13, F, 0, floor-murky.png
+12, 13, F, 0, floor-murky.png
+13, 13, F, 0, floor-murky.png
+14, 13, F, 0, floor-murky.png
+15, 13, F, 0, floor-murky.png
+16, 13, F, 0, floor-murky.png
+17, 13, F, 0, floor-murky.png
+18, 13, F, 0, floor-murky.png
+19, 13, F, 0, floor-murky.png
+20, 13, F, 0, floor-murky.png
+21, 13, F, 0, floor-murky.png
+22, 13, F, 0, floor-murky.png
+25, 13, F, 0, floor-murky.png
+26, 13, F, 0, floor-murky.png
+27, 13, F, 0, floor-murky.png
+28, 13, F, 0, floor-murky.png
+29, 13, F, 0, floor-murky.png
+30, 13, F, 0, floor-murky.png
+31, 13, F, 0, floor-murky.png
+32, 13, F, 0, floor-murky.png
+33, 13, F, 0, floor-murky.png
+34, 13, F, 0, floor-murky.png
+35, 13, F, 0, floor-murky.png
+36, 13, F, 0, floor-murky.png
+37, 13, F, 0, floor-murky.png
+38, 13, F, 0, floor-murky.png
+39, 13, F, 0, floor-murky.png
+40, 13, F, 0, floor-murky.png
+41, 13, F, 0, floor-murky.png
+6, 14, F, 0, floor-murky.png
+7, 14, F, 0, floor-murky.png
+8, 14, F, 0, floor-murky.png
+9, 14, F, 0, floor-murky.png
+10, 14, F, 0, floor-murky.png
+11, 14, F, 0, floor-murky.png
+12, 14, F, 0, floor-murky.png
+13, 14, F, 0, floor-murky.png
+14, 14, F, 0, floor-murky.png
+15, 14, F, 0, floor-murky.png
+16, 14, F, 0, floor-murky.png
+17, 14, F, 0, floor-murky.png
+18, 14, F, 0, floor-murky.png
+19, 14, F, 0, floor-murky.png
+20, 14, F, 0, floor-murky.png
+21, 14, F, 0, floor-murky.png
+22, 14, F, 0, floor-murky.png
+25, 14, F, 0, floor-murky.png
+26, 14, F, 0, floor-murky.png
+27, 14, F, 0, floor-murky.png
+28, 14, F, 0, floor-murky.png
+29, 14, F, 0, floor-murky.png
+30, 14, F, 0, floor-murky.png
+31, 14, F, 0, floor-murky.png
+32, 14, F, 0, floor-murky.png
+33, 14, F, 0, floor-murky.png
+34, 14, F, 0, floor-murky.png
+35, 14, F, 0, floor-murky.png
+36, 14, F, 0, floor-murky.png
+37, 14, F, 0, floor-murky.png
+38, 14, F, 0, floor-murky.png
+39, 14, F, 0, floor-murky.png
+40, 14, F, 0, floor-murky.png
+41, 14, F, 0, floor-murky.png
+6, 15, F, 0, floor-murky.png
+7, 15, F, 0, floor-murky.png
+8, 15, F, 0, floor-murky.png
+10, 15, F, 0, floor-murky.png
+11, 15, F, 0, floor-murky.png
+12, 15, F, 0, floor-murky.png
+14, 15, F, 0, floor-murky.png
+15, 15, F, 0, floor-murky.png
+16, 15, F, 0, floor-murky.png
+18, 15, F, 0, floor-murky.png
+19, 15, F, 0, floor-murky.png
+20, 15, F, 0, floor-murky.png
+22, 15, F, 0, floor-murky.png
+25, 15, F, 0, floor-murky.png
+27, 15, F, 0, floor-murky.png
+28, 15, F, 0, floor-murky.png
+29, 15, F, 0, floor-murky.png
+31, 15, F, 0, floor-murky.png
+32, 15, F, 0, floor-murky.png
+33, 15, F, 0, floor-murky.png
+35, 15, F, 0, floor-murky.png
+36, 15, F, 0, floor-murky.png
+37, 15, F, 0, floor-murky.png
+39, 15, F, 0, floor-murky.png
+40, 15, F, 0, floor-murky.png
+41, 15, F, 0, floor-murky.png
+6, 16, F, 0, floor-murky.png
+7, 16, F, 0, floor-murky.png
+8, 16, F, 0, floor-murky.png
+10, 16, F, 0, floor-murky.png
+11, 16, F, 0, floor-murky.png
+12, 16, F, 0, floor-murky.png
+14, 16, F, 0, floor-murky.png
+15, 16, F, 0, floor-murky.png
+16, 16, F, 0, floor-murky.png
+18, 16, F, 0, floor-murky.png
+19, 16, F, 0, floor-murky.png
+20, 16, F, 0, floor-murky.png
+22, 16, F, 0, floor-murky.png
+25, 16, F, 0, floor-murky.png
+27, 16, F, 0, floor-murky.png
+28, 16, F, 0, floor-murky.png
+29, 16, F, 0, floor-murky.png
+31, 16, F, 0, floor-murky.png
+32, 16, F, 0, floor-murky.png
+33, 16, F, 0, floor-murky.png
+35, 16, F, 0, floor-murky.png
+36, 16, F, 0, floor-murky.png
+37, 16, F, 0, floor-murky.png
+39, 16, F, 0, floor-murky.png
+40, 16, F, 0, floor-murky.png
+41, 16, F, 0, floor-murky.png
+6, 17, F, 0, floor-murky.png
+7, 17, F, 0, floor-murky.png
+8, 17, F, 0, floor-murky.png
+10, 17, F, 0, floor-murky.png
+11, 17, F, 0, floor-murky.png
+12, 17, F, 0, floor-murky.png
+14, 17, F, 0, floor-murky.png
+15, 17, F, 0, floor-murky.png
+16, 17, F, 0, floor-murky.png
+18, 17, F, 0, floor-murky.png
+19, 17, F, 0, floor-murky.png
+20, 17, F, 0, floor-murky.png
+22, 17, F, 0, floor-murky.png
+25, 17, F, 0, floor-murky.png
+27, 17, F, 0, floor-murky.png
+28, 17, F, 0, floor-murky.png
+29, 17, F, 0, floor-murky.png
+31, 17, F, 0, floor-murky.png
+32, 17, F, 0, floor-murky.png
+33, 17, F, 0, floor-murky.png
+35, 17, F, 0, floor-murky.png
+36, 17, F, 0, floor-murky.png
+37, 17, F, 0, floor-murky.png
+39, 17, F, 0, floor-murky.png
+40, 17, F, 0, floor-murky.png
+41, 17, F, 0, floor-murky.png
+6, 18, F, 0, floor-murky.png
+7, 18, F, 0, floor-murky.png
+8, 18, F, 0, floor-murky.png
+10, 18, F, 0, floor-murky.png
+11, 18, F, 0, floor-murky.png
+12, 18, F, 0, floor-murky.png
+14, 18, F, 0, floor-murky.png
+15, 18, F, 0, floor-murky.png
+16, 18, F, 0, floor-murky.png
+18, 18, F, 0, floor-murky.png
+19, 18, F, 0, floor-murky.png
+20, 18, F, 0, floor-murky.png
+22, 18, F, 0, floor-murky.png
+25, 18, F, 0, floor-murky.png
+27, 18, F, 0, floor-murky.png
+28, 18, F, 0, floor-murky.png
+29, 18, F, 0, floor-murky.png
+31, 18, F, 0, floor-murky.png
+32, 18, F, 0, floor-murky.png
+33, 18, F, 0, floor-murky.png
+35, 18, F, 0, floor-murky.png
+36, 18, F, 0, floor-murky.png
+37, 18, F, 0, floor-murky.png
+39, 18, F, 0, floor-murky.png
+40, 18, F, 0, floor-murky.png
+41, 18, F, 0, floor-murky.png
+6, 19, F, 0, floor-murky.png
+7, 19, F, 0, floor-murky.png
+8, 19, F, 0, floor-murky.png
+10, 19, F, 0, floor-murky.png
+11, 19, F, 0, floor-murky.png
+12, 19, F, 0, floor-murky.png
+14, 19, F, 0, floor-murky.png
+15, 19, F, 0, floor-murky.png
+16, 19, F, 0, floor-murky.png
+18, 19, F, 0, floor-murky.png
+19, 19, F, 0, floor-murky.png
+20, 19, F, 0, floor-murky.png
+22, 19, F, 0, floor-murky.png
+25, 19, F, 0, floor-murky.png
+27, 19, F, 0, floor-murky.png
+28, 19, F, 0, floor-murky.png
+29, 19, F, 0, floor-murky.png
+31, 19, F, 0, floor-murky.png
+32, 19, F, 0, floor-murky.png
+33, 19, F, 0, floor-murky.png
+35, 19, F, 0, floor-murky.png
+36, 19, F, 0, floor-murky.png
+37, 19, F, 0, floor-murky.png
+39, 19, F, 0, floor-murky.png
+40, 19, F, 0, floor-murky.png
+41, 19, F, 0, floor-murky.png
+6, 20, F, 0, floor-murky.png
+7, 20, F, 0, floor-murky.png
+8, 20, F, 0, floor-murky.png
+10, 20, F, 0, floor-murky.png
+11, 20, F, 0, floor-murky.png
+12, 20, F, 0, floor-murky.png
+14, 20, F, 0, floor-murky.png
+15, 20, F, 0, floor-murky.png
+16, 20, F, 0, floor-murky.png
+18, 20, F, 0, floor-murky.png
+19, 20, F, 0, floor-murky.png
+20, 20, F, 0, floor-murky.png
+22, 20, F, 0, floor-murky.png
+25, 20, F, 0, floor-murky.png
+27, 20, F, 0, floor-murky.png
+28, 20, F, 0, floor-murky.png
+29, 20, F, 0, floor-murky.png
+31, 20, F, 0, floor-murky.png
+32, 20, F, 0, floor-murky.png
+33, 20, F, 0, floor-murky.png
+35, 20, F, 0, floor-murky.png
+36, 20, F, 0, floor-murky.png
+37, 20, F, 0, floor-murky.png
+39, 20, F, 0, floor-murky.png
+40, 20, F, 0, floor-murky.png
+41, 20, F, 0, floor-murky.png
+6, 21, F, 0, floor-murky.png
+7, 21, F, 0, floor-murky.png
+8, 21, F, 0, floor-murky.png
+10, 21, F, 0, floor-murky.png
+11, 21, F, 0, floor-murky.png
+12, 21, F, 0, floor-murky.png
+14, 21, F, 0, floor-murky.png
+15, 21, F, 0, floor-murky.png
+16, 21, F, 0, floor-murky.png
+18, 21, F, 0, floor-murky.png
+19, 21, F, 0, floor-murky.png
+20, 21, F, 0, floor-murky.png
+22, 21, F, 0, floor-murky.png
+25, 21, F, 0, floor-murky.png
+27, 21, F, 0, floor-murky.png
+28, 21, F, 0, floor-murky.png
+29, 21, F, 0, floor-murky.png
+31, 21, F, 0, floor-murky.png
+32, 21, F, 0, floor-murky.png
+33, 21, F, 0, floor-murky.png
+35, 21, F, 0, floor-murky.png
+36, 21, F, 0, floor-murky.png
+37, 21, F, 0, floor-murky.png
+39, 21, F, 0, floor-murky.png
+40, 21, F, 0, floor-murky.png
+41, 21, F, 0, floor-murky.png
+6, 22, F, 0, floor-murky.png
+7, 22, F, 0, floor-murky.png
+8, 22, F, 0, floor-murky.png
+10, 22, F, 0, floor-murky.png
+11, 22, F, 0, floor-murky.png
+12, 22, F, 0, floor-murky.png
+14, 22, F, 0, floor-murky.png
+15, 22, F, 0, floor-murky.png
+16, 22, F, 0, floor-murky.png
+18, 22, F, 0, floor-murky.png
+19, 22, F, 0, floor-murky.png
+20, 22, F, 0, floor-murky.png
+22, 22, F, 0, floor-murky.png
+25, 22, F, 0, floor-murky.png
+27, 22, F, 0, floor-murky.png
+28, 22, F, 0, floor-murky.png
+29, 22, F, 0, floor-murky.png
+31, 22, F, 0, floor-murky.png
+32, 22, F, 0, floor-murky.png
+33, 22, F, 0, floor-murky.png
+35, 22, F, 0, floor-murky.png
+36, 22, F, 0, floor-murky.png
+37, 22, F, 0, floor-murky.png
+39, 22, F, 0, floor-murky.png
+40, 22, F, 0, floor-murky.png
+41, 22, F, 0, floor-murky.png
+6, 23, F, 0, floor-murky.png
+7, 23, F, 0, floor-murky.png
+8, 23, F, 0, floor-murky.png
+9, 23, F, 0, floor-murky.png
+10, 23, F, 0, floor-murky.png
+11, 23, F, 0, floor-murky.png
+12, 23, F, 0, floor-murky.png
+13, 23, F, 0, floor-murky.png
+14, 23, F, 0, floor-murky.png
+15, 23, F, 0, floor-murky.png
+16, 23, F, 0, floor-murky.png
+17, 23, F, 0, floor-murky.png
+18, 23, F, 0, floor-murky.png
+19, 23, F, 0, floor-murky.png
+20, 23, F, 0, floor-murky.png
+21, 23, F, 0, floor-murky.png
+22, 23, F, 0, floor-murky.png
+23, 23, F, 0, floor-murky.png
+24, 23, F, 0, floor-murky.png
+25, 23, F, 0, floor-murky.png
+26, 23, F, 0, floor-murky.png
+27, 23, F, 0, floor-murky.png
+28, 23, F, 0, floor-murky.png
+29, 23, F, 0, floor-murky.png
+30, 23, F, 0, floor-murky.png
+31, 23, F, 0, floor-murky.png
+32, 23, F, 0, floor-murky.png
+33, 23, F, 0, floor-murky.png
+34, 23, F, 0, floor-murky.png
+35, 23, F, 0, floor-murky.png
+36, 23, F, 0, floor-murky.png
+37, 23, F, 0, floor-murky.png
+38, 23, F, 0, floor-murky.png
+39, 23, F, 0, floor-murky.png
+40, 23, F, 0, floor-murky.png
+41, 23, F, 0, floor-murky.png
+6, 24, F, 0, floor-murky.png
+7, 24, F, 0, floor-murky.png
+8, 24, F, 0, floor-murky.png
+9, 24, F, 0, floor-murky.png
+10, 24, F, 0, floor-murky.png
+11, 24, F, 0, floor-murky.png
+12, 24, F, 0, floor-murky.png
+13, 24, F, 0, floor-murky.png
+14, 24, F, 0, floor-murky.png
+15, 24, F, 0, floor-murky.png
+16, 24, F, 0, floor-murky.png
+17, 24, F, 0, floor-murky.png
+18, 24, F, 0, floor-murky.png
+19, 24, F, 0, floor-murky.png
+20, 24, F, 0, floor-murky.png
+21, 24, F, 0, floor-murky.png
+22, 24, F, 0, floor-murky.png
+23, 24, F, 0, floor-murky.png
+24, 24, F, 0, floor-murky.png
+25, 24, F, 0, floor-murky.png
+26, 24, F, 0, floor-murky.png
+27, 24, F, 0, floor-murky.png
+28, 24, F, 0, floor-murky.png
+29, 24, F, 0, floor-murky.png
+30, 24, F, 0, floor-murky.png
+31, 24, F, 0, floor-murky.png
+32, 24, F, 0, floor-murky.png
+33, 24, F, 0, floor-murky.png
+34, 24, F, 0, floor-murky.png
+35, 24, F, 0, floor-murky.png
+36, 24, F, 0, floor-murky.png
+37, 24, F, 0, floor-murky.png
+38, 24, F, 0, floor-murky.png
+39, 24, F, 0, floor-murky.png
+40, 24, F, 0, floor-murky.png
+41, 24, F, 0, floor-murky.png
+6, 25, F, 0, floor-murky.png
+7, 25, F, 0, floor-murky.png
+8, 25, F, 0, floor-murky.png
+9, 25, F, 0, floor-murky.png
+10, 25, F, 0, floor-murky.png
+11, 25, F, 0, floor-murky.png
+12, 25, F, 0, floor-murky.png
+13, 25, F, 0, floor-murky.png
+14, 25, F, 0, floor-murky.png
+15, 25, F, 0, floor-murky.png
+16, 25, F, 0, floor-murky.png
+17, 25, F, 0, floor-murky.png
+18, 25, F, 0, floor-murky.png
+19, 25, F, 0, floor-murky.png
+20, 25, F, 0, floor-murky.png
+21, 25, F, 0, floor-murky.png
+22, 25, F, 0, floor-murky.png
+23, 25, F, 0, floor-murky.png
+24, 25, F, 0, floor-murky.png
+25, 25, F, 0, floor-murky.png
+26, 25, F, 0, floor-murky.png
+27, 25, F, 0, floor-murky.png
+28, 25, F, 0, floor-murky.png
+29, 25, F, 0, floor-murky.png
+30, 25, F, 0, floor-murky.png
+31, 25, F, 0, floor-murky.png
+32, 25, F, 0, floor-murky.png
+33, 25, F, 0, floor-murky.png
+34, 25, F, 0, floor-murky.png
+35, 25, F, 0, floor-murky.png
+36, 25, F, 0, floor-murky.png
+37, 25, F, 0, floor-murky.png
+38, 25, F, 0, floor-murky.png
+39, 25, F, 0, floor-murky.png
+40, 25, F, 0, floor-murky.png
+41, 25, F, 0, floor-murky.png
+6, 26, F, 0, floor-murky.png
+7, 26, F, 0, floor-murky.png
+8, 26, F, 0, floor-murky.png
+10, 26, F, 0, floor-murky.png
+11, 26, F, 0, floor-murky.png
+12, 26, F, 0, floor-murky.png
+14, 26, F, 0, floor-murky.png
+15, 26, F, 0, floor-murky.png
+16, 26, F, 0, floor-murky.png
+18, 26, F, 0, floor-murky.png
+19, 26, F, 0, floor-murky.png
+20, 26, F, 0, floor-murky.png
+22, 26, F, 0, floor-murky.png
+25, 26, F, 0, floor-murky.png
+27, 26, F, 0, floor-murky.png
+28, 26, F, 0, floor-murky.png
+29, 26, F, 0, floor-murky.png
+31, 26, F, 0, floor-murky.png
+32, 26, F, 0, floor-murky.png
+33, 26, F, 0, floor-murky.png
+35, 26, F, 0, floor-murky.png
+36, 26, F, 0, floor-murky.png
+37, 26, F, 0, floor-murky.png
+39, 26, F, 0, floor-murky.png
+40, 26, F, 0, floor-murky.png
+41, 26, F, 0, floor-murky.png
+6, 27, F, 0, floor-murky.png
+7, 27, F, 0, floor-murky.png
+8, 27, F, 0, floor-murky.png
+10, 27, F, 0, floor-murky.png
+11, 27, F, 0, floor-murky.png
+12, 27, F, 0, floor-murky.png
+14, 27, F, 0, floor-murky.png
+15, 27, F, 0, floor-murky.png
+16, 27, F, 0, floor-murky.png
+18, 27, F, 0, floor-murky.png
+19, 27, F, 0, floor-murky.png
+20, 27, F, 0, floor-murky.png
+22, 27, F, 0, floor-murky.png
+25, 27, F, 0, floor-murky.png
+27, 27, F, 0, floor-murky.png
+28, 27, F, 0, floor-murky.png
+29, 27, F, 0, floor-murky.png
+31, 27, F, 0, floor-murky.png
+32, 27, F, 0, floor-murky.png
+33, 27, F, 0, floor-murky.png
+35, 27, F, 0, floor-murky.png
+36, 27, F, 0, floor-murky.png
+37, 27, F, 0, floor-murky.png
+39, 27, F, 0, floor-murky.png
+40, 27, F, 0, floor-murky.png
+41, 27, F, 0, floor-murky.png
+6, 28, F, 0, floor-murky.png
+7, 28, F, 0, floor-murky.png
+8, 28, F, 0, floor-murky.png
+10, 28, F, 0, floor-murky.png
+11, 28, F, 0, floor-murky.png
+12, 28, F, 0, floor-murky.png
+14, 28, F, 0, floor-murky.png
+15, 28, F, 0, floor-murky.png
+16, 28, F, 0, floor-murky.png
+18, 28, F, 0, floor-murky.png
+19, 28, F, 0, floor-murky.png
+20, 28, F, 0, floor-murky.png
+22, 28, F, 0, floor-murky.png
+25, 28, F, 0, floor-murky.png
+27, 28, F, 0, floor-murky.png
+28, 28, F, 0, floor-murky.png
+29, 28, F, 0, floor-murky.png
+31, 28, F, 0, floor-murky.png
+32, 28, F, 0, floor-murky.png
+33, 28, F, 0, floor-murky.png
+35, 28, F, 0, floor-murky.png
+36, 28, F, 0, floor-murky.png
+37, 28, F, 0, floor-murky.png
+39, 28, F, 0, floor-murky.png
+40, 28, F, 0, floor-murky.png
+41, 28, F, 0, floor-murky.png
+6, 29, F, 0, floor-murky.png
+7, 29, F, 0, floor-murky.png
+8, 29, F, 0, floor-murky.png
+10, 29, F, 0, floor-murky.png
+11, 29, F, 0, floor-murky.png
+12, 29, F, 0, floor-murky.png
+14, 29, F, 0, floor-murky.png
+15, 29, F, 0, floor-murky.png
+16, 29, F, 0, floor-murky.png
+18, 29, F, 0, floor-murky.png
+19, 29, F, 0, floor-murky.png
+20, 29, F, 0, floor-murky.png
+22, 29, F, 0, floor-murky.png
+25, 29, F, 0, floor-murky.png
+27, 29, F, 0, floor-murky.png
+28, 29, F, 0, floor-murky.png
+29, 29, F, 0, floor-murky.png
+31, 29, F, 0, floor-murky.png
+32, 29, F, 0, floor-murky.png
+33, 29, F, 0, floor-murky.png
+35, 29, F, 0, floor-murky.png
+36, 29, F, 0, floor-murky.png
+37, 29, F, 0, floor-murky.png
+39, 29, F, 0, floor-murky.png
+40, 29, F, 0, floor-murky.png
+41, 29, F, 0, floor-murky.png
+6, 30, F, 0, floor-murky.png
+7, 30, F, 0, floor-murky.png
+8, 30, F, 0, floor-murky.png
+10, 30, F, 0, floor-murky.png
+11, 30, F, 0, floor-murky.png
+12, 30, F, 0, floor-murky.png
+14, 30, F, 0, floor-murky.png
+15, 30, F, 0, floor-murky.png
+16, 30, F, 0, floor-murky.png
+18, 30, F, 0, floor-murky.png
+19, 30, F, 0, floor-murky.png
+20, 30, F, 0, floor-murky.png
+22, 30, F, 0, floor-murky.png
+25, 30, F, 0, floor-murky.png
+27, 30, F, 0, floor-murky.png
+28, 30, F, 0, floor-murky.png
+29, 30, F, 0, floor-murky.png
+31, 30, F, 0, floor-murky.png
+32, 30, F, 0, floor-murky.png
+33, 30, F, 0, floor-murky.png
+35, 30, F, 0, floor-murky.png
+36, 30, F, 0, floor-murky.png
+37, 30, F, 0, floor-murky.png
+39, 30, F, 0, floor-murky.png
+40, 30, F, 0, floor-murky.png
+41, 30, F, 0, floor-murky.png
+6, 31, F, 0, floor-murky.png
+7, 31, F, 0, floor-murky.png
+8, 31, F, 0, floor-murky.png
+10, 31, F, 0, floor-murky.png
+11, 31, F, 0, floor-murky.png
+12, 31, F, 0, floor-murky.png
+14, 31, F, 0, floor-murky.png
+15, 31, F, 0, floor-murky.png
+16, 31, F, 0, floor-murky.png
+18, 31, F, 0, floor-murky.png
+19, 31, F, 0, floor-murky.png
+20, 31, F, 0, floor-murky.png
+22, 31, F, 0, floor-murky.png
+25, 31, F, 0, floor-murky.png
+27, 31, F, 0, floor-murky.png
+28, 31, F, 0, floor-murky.png
+29, 31, F, 0, floor-murky.png
+31, 31, F, 0, floor-murky.png
+32, 31, F, 0, floor-murky.png
+33, 31, F, 0, floor-murky.png
+35, 31, F, 0, floor-murky.png
+36, 31, F, 0, floor-murky.png
+37, 31, F, 0, floor-murky.png
+39, 31, F, 0, floor-murky.png
+40, 31, F, 0, floor-murky.png
+41, 31, F, 0, floor-murky.png
+6, 32, F, 0, floor-murky.png
+7, 32, F, 0, floor-murky.png
+8, 32, F, 0, floor-murky.png
+10, 32, F, 0, floor-murky.png
+11, 32, F, 0, floor-murky.png
+12, 32, F, 0, floor-murky.png
+14, 32, F, 0, floor-murky.png
+15, 32, F, 0, floor-murky.png
+16, 32, F, 0, floor-murky.png
+18, 32, F, 0, floor-murky.png
+19, 32, F, 0, floor-murky.png
+20, 32, F, 0, floor-murky.png
+22, 32, F, 0, floor-murky.png
+25, 32, F, 0, floor-murky.png
+27, 32, F, 0, floor-murky.png
+28, 32, F, 0, floor-murky.png
+29, 32, F, 0, floor-murky.png
+31, 32, F, 0, floor-murky.png
+32, 32, F, 0, floor-murky.png
+33, 32, F, 0, floor-murky.png
+35, 32, F, 0, floor-murky.png
+36, 32, F, 0, floor-murky.png
+37, 32, F, 0, floor-murky.png
+39, 32, F, 0, floor-murky.png
+40, 32, F, 0, floor-murky.png
+41, 32, F, 0, floor-murky.png
+6, 33, F, 0, floor-murky.png
+7, 33, F, 0, floor-murky.png
+8, 33, F, 0, floor-murky.png
+10, 33, F, 0, floor-murky.png
+11, 33, F, 0, floor-murky.png
+12, 33, F, 0, floor-murky.png
+14, 33, F, 0, floor-murky.png
+15, 33, F, 0, floor-murky.png
+16, 33, F, 0, floor-murky.png
+18, 33, F, 0, floor-murky.png
+19, 33, F, 0, floor-murky.png
+20, 33, F, 0, floor-murky.png
+22, 33, F, 0, floor-murky.png
+25, 33, F, 0, floor-murky.png
+27, 33, F, 0, floor-murky.png
+28, 33, F, 0, floor-murky.png
+29, 33, F, 0, floor-murky.png
+31, 33, F, 0, floor-murky.png
+32, 33, F, 0, floor-murky.png
+33, 33, F, 0, floor-murky.png
+35, 33, F, 0, floor-murky.png
+36, 33, F, 0, floor-murky.png
+37, 33, F, 0, floor-murky.png
+39, 33, F, 0, floor-murky.png
+40, 33, F, 0, floor-murky.png
+41, 33, F, 0, floor-murky.png
+6, 34, F, 0, floor-murky.png
+7, 34, F, 0, floor-murky.png
+8, 34, F, 0, floor-murky.png
+9, 34, F, 0, floor-murky.png
+10, 34, F, 0, floor-murky.png
+11, 34, F, 0, floor-murky.png
+12, 34, F, 0, floor-murky.png
+13, 34, F, 0, floor-murky.png
+14, 34, F, 0, floor-murky.png
+15, 34, F, 0, floor-murky.png
+16, 34, F, 0, floor-murky.png
+17, 34, F, 0, floor-murky.png
+18, 34, F, 0, floor-murky.png
+19, 34, F, 0, floor-murky.png
+20, 34, F, 0, floor-murky.png
+21, 34, F, 0, floor-murky.png
+22, 34, F, 0, floor-murky.png
+25, 34, F, 0, floor-murky.png
+26, 34, F, 0, floor-murky.png
+27, 34, F, 0, floor-murky.png
+28, 34, F, 0, floor-murky.png
+29, 34, F, 0, floor-murky.png
+30, 34, F, 0, floor-murky.png
+31, 34, F, 0, floor-murky.png
+32, 34, F, 0, floor-murky.png
+33, 34, F, 0, floor-murky.png
+34, 34, F, 0, floor-murky.png
+35, 34, F, 0, floor-murky.png
+36, 34, F, 0, floor-murky.png
+37, 34, F, 0, floor-murky.png
+38, 34, F, 0, floor-murky.png
+39, 34, F, 0, floor-murky.png
+40, 34, F, 0, floor-murky.png
+41, 34, F, 0, floor-murky.png
+6, 35, F, 0, floor-murky.png
+7, 35, F, 0, floor-murky.png
+8, 35, F, 0, floor-murky.png
+9, 35, F, 0, floor-murky.png
+10, 35, F, 0, floor-murky.png
+11, 35, F, 0, floor-murky.png
+12, 35, F, 0, floor-murky.png
+13, 35, F, 0, floor-murky.png
+14, 35, F, 0, floor-murky.png
+15, 35, F, 0, floor-murky.png
+16, 35, F, 0, floor-murky.png
+17, 35, F, 0, floor-murky.png
+18, 35, F, 0, floor-murky.png
+19, 35, F, 0, floor-murky.png
+20, 35, F, 0, floor-murky.png
+21, 35, F, 0, floor-murky.png
+22, 35, F, 0, floor-murky.png
+25, 35, F, 0, floor-murky.png
+26, 35, F, 0, floor-murky.png
+27, 35, F, 0, floor-murky.png
+28, 35, F, 0, floor-murky.png
+29, 35, F, 0, floor-murky.png
+30, 35, F, 0, floor-murky.png
+31, 35, F, 0, floor-murky.png
+32, 35, F, 0, floor-murky.png
+33, 35, F, 0, floor-murky.png
+34, 35, F, 0, floor-murky.png
+35, 35, F, 0, floor-murky.png
+36, 35, F, 0, floor-murky.png
+37, 35, F, 0, floor-murky.png
+38, 35, F, 0, floor-murky.png
+39, 35, F, 0, floor-murky.png
+40, 35, F, 0, floor-murky.png
+41, 35, F, 0, floor-murky.png
+6, 36, F, 0, floor-murky.png
+7, 36, F, 0, floor-murky.png
+8, 36, F, 0, floor-murky.png
+9, 36, F, 0, floor-murky.png
+10, 36, F, 0, floor-murky.png
+11, 36, F, 0, floor-murky.png
+12, 36, F, 0, floor-murky.png
+13, 36, F, 0, floor-murky.png
+14, 36, F, 0, floor-murky.png
+15, 36, F, 0, floor-murky.png
+16, 36, F, 0, floor-murky.png
+17, 36, F, 0, floor-murky.png
+18, 36, F, 0, floor-murky.png
+19, 36, F, 0, floor-murky.png
+20, 36, F, 0, floor-murky.png
+21, 36, F, 0, floor-murky.png
+22, 36, F, 0, floor-murky.png
+25, 36, F, 0, floor-murky.png
+26, 36, F, 0, floor-murky.png
+27, 36, F, 0, floor-murky.png
+28, 36, F, 0, floor-murky.png
+29, 36, F, 0, floor-murky.png
+30, 36, F, 0, floor-murky.png
+31, 36, F, 0, floor-murky.png
+32, 36, F, 0, floor-murky.png
+33, 36, F, 0, floor-murky.png
+34, 36, F, 0, floor-murky.png
+35, 36, F, 0, floor-murky.png
+36, 36, F, 0, floor-murky.png
+37, 36, F, 0, floor-murky.png
+38, 36, F, 0, floor-murky.png
+39, 36, F, 0, floor-murky.png
+40, 36, F, 0, floor-murky.png
+41, 36, F, 0, floor-murky.png
+
+[map]
+################################################
+################################################
+################################################
+################....*...........################
+################.w............w.################
+################........b.......################
+################................################
+################...d..d..d..d...################
+################................################
+################t..............t################
+#######################.########################
+#######################R########################
+######....................................######
+######.+................g.................######
+######....................................######
+######...N...N...N...N....N...N...N...N...######
+######...N...N...N...N....N...N...N.m.N...######
+######...N...N...N...N....N...N...N...N...######
+######...N...N...N...N....N.c.N...N...N...######
+######...N.c.N...N...N....N...N...N...N...######
+######...N...N...N...N....N...N...N...N...######
+######...N...N...N...N....N...N...N.c.N...######
+######...N...N...N...N....N...N...N...N...######
+######....................................######
+######.r.......e................a.........B..E##
+######.............c......................######
+######...N...N...N...N....N...N...N...N...######
+######...N...N...N...N....N...N...N...N...######
+######...N.m.N...N...N....N...N...N...N...######
+######...N...N...N...N....N...N.c.N...N...######
+######...N...N.c.N...N....N...N...N...N...######
+######...N...N...N...N....N...N...N...N...######
+######...N...N...N...N....N...N...N...N...######
+######...N...N...N...N....N...N...N...N...######
+######..................................2.######
+######....................................######
+######....................................######
+#######################..#######################
+#######################..#######################
+###################..........###################
+###################U........U###################
+###################..........###################
+###################..........###################
+###################....^.....###################
+###################.M......+.###################
+################################################
+################################################
+################################################
+
+[floor]
+' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+......BBBBBBBBBBBBBBBBB..BBBBBBBBBBBBBBBBB......
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+
+[ceiling]
+' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's
+................................................
+................................................
+................................................
+................aaaaaaaaaaaaaaaa................
+................aaaaaaaaaaaaaaaa................
+................aaaaaaaaaaaaaaaa................
+................aaaaaaaaaaaaaaaa................
+................aaaaaaaaaaaaaaaa................
+................aaaaaaaaaaaaaaaa................
+................aaaaaaaaaaaaaaaa................
+................................................
+................................................
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+......cccccccccccccccccccccccccccccccccccc......
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
