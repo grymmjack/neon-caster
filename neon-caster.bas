@@ -915,7 +915,7 @@ IF sndZap& = 0 THEN sndZap& = LoadSnd&("bolt-wall.wav")
 IF sndSpawn& = 0 THEN sndSpawn& = LoadSnd&("drone-alert.wav")
 DIM SHARED sndOvercharge&, sndAmp&, sndAmpEnd&, ampTimer ' (ampTimer: frames left of the damage amp)
 sndOvercharge& = LoadSnd&("overcharge.wav") : sndAmp& = LoadSnd&("amp.wav") : sndAmpEnd& = LoadSnd&("amp-end.wav")
-CONST STEP_LEN = 2.6 ' Cells walked per footstep (about 2.8 a second at full speed)
+CONST STEP_WALK = 1.4, STEP_RUN = 2.2 ' Cells walked per footstep: walking (about 2.6 steps a second) and running (3.3 - longer strides)
 
 ' The monster types table: SetMonType fills in the "mtype" arrays (one
 ' entry per TYPE of monster - see chapter 3) for types 1-9 (6 stalker, 7 spitter, 8 the overseer, the last
@@ -1499,7 +1499,6 @@ DO
     IF FloorHazard(INT(playerX), INT(playerY)) = HAZ_WADE THEN IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.05 THEN moveSpeed = moveSpeed * SLOW_WADE ' (wading)
     IF moveLen > 0 THEN
         moveX = moveX / moveLen * moveSpeed : moveY = moveY / moveLen * moveSpeed
-        bobPhase = bobPhase + 0.2 * moveSpeed / RUN_SPEED ' (the gun sways slower as you walk)
     END IF
 
     ' Collision. You're a square, PLAYER_RADIUS from your middle to each
@@ -1558,17 +1557,21 @@ DO
         END IF
     NEXT
 
-    ' Footsteps: one every STEP_LEN cells actually walked, alternating feet
-    ' (so walking into a wall makes no footsteps)
+    ' Footsteps and the gun's bob keep one clock, bobPhase. It moves on by
+    ' 2 pi for each stride actually walked (so walking into a wall makes
+    ' no footsteps), the gun dips once each 2 pi (chapter 18), and a foot
+    ' lands, alternately, at the bottom of each dip - when bobPhase passes
+    ' an odd multiple of pi. A stride is STEP_WALK cells walking and up to
+    ' STEP_RUN running: you run with longer strides, not just quicker ones.
     moved = SQR((playerX - prevX) ^ 2 + (playerY - prevY) ^ 2)
     IF moved > 0 THEN
-        stepDist = stepDist + moved
-        IF stepDist >= STEP_LEN THEN
-            stepDist = stepDist - STEP_LEN : stepFoot = 1 - stepFoot
+        stride = STEP_WALK + (STEP_RUN - STEP_WALK) * MaxOf(0, MinOf(1, (moveSpeed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)))
+        beatWas = INT((bobPhase - 3.14159265) / 6.2831853)
+        bobPhase = bobPhase + 6.2831853 * moved / stride
+        IF INT((bobPhase - 3.14159265) / 6.2831853) <> beatWas THEN
+            stepFoot = 1 - stepFoot
             IF stepFoot THEN PlaySfx sndStep1&, 0.35 ELSE PlaySfx sndStep2&, 0.35
         END IF
-    ELSE
-        stepDist = STEP_LEN * 0.85
     END IF
 
     ' Bump: once when you push firmly into a wall (not when sliding along one)
@@ -4903,7 +4906,7 @@ aimAmount = 0 : zoom = 1 : viewH = RENDER_H
 kills = 0 : dead = 0 : swapTimer = 0
 hurtFlash = 0 : pickFlash = 0 : muzzleFlash = 0 : recoil = 0 : railBeam = 0
 fireWait = 20 ' (so the click that started the level doesn't fire)
-bobPhase = 0 : stepDist = STEP_LEN * 0.85 ' The first footstep sounds soon after you start walking
+bobPhase = 2.2 ' The first footstep sounds soon after you start walking (a foot lands at pi)
 levelStart! = TIMER : shake = 0 : hurtFromX = -1
 FOR i = 1 TO MAX_HURTDIRS : hurtDirTime(i) = 0 : NEXT
 IF NOT editRebuild THEN PlayMusic SectorMusic&(level) : ShowMsg levelName$ + "  -  find the EXIT"
