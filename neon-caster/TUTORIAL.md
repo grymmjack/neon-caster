@@ -117,29 +117,38 @@ The console does the same: `qb64pe` shows which one it's using,
 `qb64pe ~/tools/qb64pe` chooses one, and `qb64pe auto` goes back to
 looking. Your choice is kept in `settings.ini` as `qb64pe=`.
 
-**The editors.** F2 opens the level editor on the level you're in: the map
-from above - paint it with the mouse (the palette on the right; right-click
-picks up what's under the mouse; Shift+drag fills a box; L for lights, H
-for heights) - and Tab to walk round inside it, the game frozen, where you
-click to build onto what you aim at and right-click to knock it down; T, F
-and V change the walls', floor's and ceiling's pictures live, PgUp/PgDn
-raise and lower the floor. Ctrl+S saves the level's file, Ctrl+Z undoes,
-F2 goes back to playing it. M opens the monster editor (every monster's
+**The editors.** F2 opens the level editor on the level you're in, and Tab
+switches between its two views of it: the map from above, and inside it in
+3D - the game frozen, nothing hurting you, flying through walls (Space up,
+C down), with a mouse pointer that picks out the face under it (a wall, a
+floor, a ceiling, the face of a step) or the monster or thing; hold the
+right button to look round. A toolbar has the tools - SELECT, PLACE, PAINT,
+LIGHT, HEIGHT - and a picker has everything you can put in a level as
+pictures, in tabs (walls, floors, ceilings, doors, items, monsters,
+decorations, specials, lights). Click faces to select them, then the wheel
+raises and lowers floors and ceilings, and with Shift pushes walls back or
+pulls them out a cell; the arrows slide the selection along; H and V divide
+a face in two for its pictures; PAINT puts any picture on any face; LIGHT
+puts a light on one, in any colour, steady, pulsing or flickering. Select a
+door, a teleporter, a lift or a monster and a pane sets it up - a monster's
+own sight, hearing, health, speed and what wakes it, for staging ambushes.
+Ctrl+S saves the level's file, Ctrl+Z undoes, F1 lists every key, F2 goes
+back to playing it. M opens the monster kinds editor (every kind's
 numbers, and what it drops: `monsters.txt`), U the HUD layout editor (drag
 the HUD about, over the game: `hud.txt`).
 
 **Your own sectors.** To start from nothing, **GAME > YOUR SECTORS > NEW
 SECTOR** makes a blank one - solid wall, with one lit room in the middle,
 you facing the exit - and opens the editor on it. Carve rooms outwards by
-painting floor (`.`), add doors, keycards, monsters, lights and heights,
-and Ctrl+S saves it. Your sectors are numbered on from the game's (11, 12
+pushing walls back or placing floor (`.`), add doors, keycards,
+monsters, lights and heights, and Ctrl+S saves it. Your sectors are numbered on from the game's (11, 12
 and so on, up to 20) and kept in `neon-caster/levels/custom/` (`custom1.txt`
 is sector 11), where the level kit never touches them. YOUR SECTORS lists
 them to play; finishing one starts it again. In the console, `newsector`
 makes one, `sectorname NAME` renames the sector you're in (then
 `savelevel`), `map 11` goes there and `maps` lists them all. In the
 editor, PgUp/PgDn steps through every sector, yours included. The whole
-editor - every key, map character, height, light, event and trigger - is in
+editor - every tool, key, map character, height, light, event and trigger - is in
 [LEVEL-EDITOR-GUIDE.md](../LEVEL-EDITOR-GUIDE.md).
 
 Two switches near the top of the source are on for testing:
@@ -319,8 +328,9 @@ run it and see what happens. That's the fastest way to learn how it works.
   stay until 96 newer ones push them out. Fade each one's alpha with age
   instead.
 - **Your own level (ch. 21, 22)**: GAME > YOUR SECTORS > NEW SECTOR, and
-  build from a blank slate - paint the map from above, walk round in it,
-  raise floors, add lights and lifts, Ctrl+S. Or open
+  build from a blank slate - push walls back with Shift+wheel, wheel
+  floors down into pits, paint pictures on single faces, light them,
+  stage an ambush in a monster's pane, Ctrl+S. Or open
   `neon-caster/levels/custom/custom1.txt` (or any `level1.txt`) in a text
   editor: the map is right there, one character a cell. For the game's
   own sectors, `python3 levels.py --check` (in `neon-caster/levels/`)

@@ -1,11 +1,15 @@
 # NEON-CASTER Level Editor Guide
 
-A sector takes five minutes to start: **GAME > YOUR SECTORS > NEW SECTOR**, paint floor (`.`) into the solid wall, **Tab** to walk it, **Ctrl+S** to save. Everything below is checked against `neon-caster.bas`.
+A sector takes five minutes to start: **GAME > YOUR SECTORS > NEW SECTOR**, then carve rooms, put things in them and save. You can build from above on the map, or from inside, pointing at walls and floors with the mouse. Everything below is checked against `neon-caster.bas`.
 
 - [Your first sector](#your-first-sector)
 - [How the editor fits together](#how-the-editor-fits-together)
-- [Map view](#map-view)
-- [Walk view](#walk-view)
+- [The toolbar and the picker](#the-toolbar-and-the-picker)
+- [The 3D view](#the-3d-view)
+- [Shaping: the wheel, the arrows, Delete](#shaping-the-wheel-the-arrows-delete)
+- [Pictures on faces, and Divide](#pictures-on-faces-and-divide)
+- [The properties pane](#the-properties-pane)
+- [The map view](#the-map-view)
 - [Every map character](#every-map-character)
 - [Heights](#heights)
 - [Lights](#lights)
@@ -19,73 +23,204 @@ A sector takes five minutes to start: **GAME > YOUR SECTORS > NEW SECTOR**, pain
 A playable sector needs only four things: walls all round the edge, one start, one exit, and a way to walk from the start to the exit. NEW SECTOR gives you all four. Everything else is decoration.
 
 1. Open **GAME > YOUR SECTORS > NEW SECTOR**. You get sector 11 (then 12, up to 20), saved as `neon-caster/levels/custom/custom1.txt`. It's solid wall with one lit 8 × 8 room in the middle, cells 20 to 27 each way. You stand at (21, 24) facing east, and the exit `E` is at (28, 24).
-2. You land in the **map view**: the level from above, with the palette on the right. The glyph you paint with is `#` (wall). Click `.` in the palette, the top-left square, to paint floor instead.
-3. **Carve a room.** Hold **Shift**, press the left button on one corner, drag to the other corner and let go. The whole box becomes floor. Make sure it touches the starting room, or it's a sealed cave.
-4. **Add a door** where the two rooms meet: pick `D` and click a wall cell that has floor on both sides and wall on the other two. Doors need a wall either side to slide into.
-5. **Move the exit** if you like: right-click `E` to pick it up, paint it into a wall at the far end of your new room, and paint the old `E` back to `#`. A level should have exactly one exit.
-6. **Put things in it.** Pick `m` (a drone), `+` (health) or `a` (energy cells), and click floor cells.
-7. **Light it.** Press **L** for lights mode, press **1**-**8** for a colour (1 is white), and click where you want a light. Press **L** again to go back to painting.
-8. **Walk it.** Press **Tab**. You're inside your level, frozen in time: monsters don't move and pickups aren't taken. Look around, then press **Tab** to go back to the map.
-9. **Save** with **Ctrl+S**. The message warns you if there's no start, no exit, or a gap in the border, but it saves either way.
-10. **Play it.** Press **Esc** to leave the editor, and the sector plays as a real level. Take the exit and it starts again. To come back later, it's in **GAME > YOUR SECTORS**.
+2. You land in the **map view**: the level from above. Press **Tab** (or the **3D** button) to be inside it instead. Either way, the **toolbar** has the tools and the **picker** has everything you can put in a level.
+3. **Push a wall back.** In the 3D view, point at a wall and hold **Shift** while you turn the wheel down: the wall goes back a cell at a time and the room grows. Wheel up with Shift pulls a wall out towards you.
+4. **Carve a room from above.** In the map view, choose **PLACE**, open the picker's **SPECIAL** tab and click the floor tile, then hold **Shift** and drag a box. The whole box becomes floor. Make sure it touches the first room.
+5. **Add a door.** Picker, **DOORS** tab, click the sliding door, then click the wall cell between the rooms. Doors need a wall either side to slide into.
+6. **Put things in it.** The **MONSTERS** and **ITEMS** tabs. In the 3D view a see-through copy shows where each one will go before you click.
+7. **Light it.** The **LIGHTS** tab: click an effect and a colour, then click a wall or a floor.
+8. **Save** with **SAVE** or **Ctrl+S**. The message warns you if there's no start, no exit, or a gap in the border, but it saves either way.
+9. **Play it.** **F2** leaves the editor and the sector plays as a real level. To come back later, it's in **GAME > YOUR SECTORS**.
 
 To rename it, open the console (`` ` ``), type `sectorname MY FIRST MAP`, then `savelevel`.
 
-Undo is **Ctrl+Z**, up to 40 steps, and one drag counts as one step.
+Undo is **UNDO** or **Ctrl+Z**, up to 40 steps. One drag, or one run of wheel turns, counts as one step. **F1** (or **HELP**) shows every key for the view you're in.
 
 ## How the editor fits together
 
 ```mermaid
 flowchart LR
     play["Playing the level<br/><small>the game as normal</small>"]
-    map["<b>Map view</b><br/><small>paint the map from above</small>"]
-    walk["Walk view<br/><small>build where you look</small>"]
+    map["<b>Map view</b><br/><small>the level from above</small>"]
+    walk["3D view<br/><small>inside it, pointing at faces</small>"]
     new["NEW SECTOR<br/><small>in GAME, YOUR SECTORS</small>"]
-    mon["Monster editor<br/><small>numbers for every monster</small>"]
+    mon["Monster kinds editor<br/><small>numbers for every kind</small>"]
     hud["HUD layout editor<br/><small>move the displays</small>"]
     play -- F2 --> map
     map -- "Esc or F2" --> play
-    map -- Tab --> walk
-    walk -- Tab --> map
+    map -- "Tab, 3D" --> walk
+    walk -- "Tab, 2D MAP" --> map
     walk -- F2 --> play
     new --> map
-    map -- M --> mon
+    map -- "M, MONSTER KINDS" --> mon
     mon -- "Esc or F2" --> map
     walk -- U --> hud
     hud -- "U or Esc" --> walk
 ```
 
-F2 in the game opens the map view; Tab flips between the map and walk views. M opens the monster editor from the map view, and U opens the HUD editor from either view (from the map view it opens over the walk view). Esc in the walk view opens the pause menu instead of leaving.
+Both views edit the same level and share one **selection**, one **tool** and one **brush**, so you can select from above and shape from inside. Esc in the 3D view opens the pause menu instead of leaving.
 
-## Map view
+The world is a grid of cells, 48 × 48. Walls fill whole cells, and each cell has one floor height and one ceiling height. So walls move a whole cell at a time, heights move an eighth of a wall at a time, and **Divide** (below) splits a face's *picture* in two, not the wall itself.
 
-The map view is where you shape the level: the whole 48 × 48 map from above, one square per cell, with a palette of 70 glyphs on the right. It has three modes. **Paint** is the normal one, **L** switches to lights, and **H** to heights; each of L and H switches the other off.
+## The toolbar and the picker
 
-| Input | Paint mode | Lights mode (L) | Heights mode (H) |
-| --- | --- | --- | --- |
-| Left button | Paint the glyph; drag to keep painting (one undo step per drag) | Add a light in the cell, in the current preset | Raise the floor one eighth; with Shift, the ceiling |
-| Shift + drag | Fill a box when you let go | | |
-| Right button | Pick up the glyph under the mouse | Remove the nearest light within 1.5 cells | Lower the floor one eighth; with Shift, the ceiling |
-| Wheel, `[` `]` | Previous / next glyph | Same | Same |
-| Palette click | Choose that glyph | Same | Same |
+**The toolbar** runs along the top of the 3D view, and down the panel on the right of the map view. Point at a button for a line saying what it does.
 
-| Key | Does |
+| Button | Does |
 | --- | --- |
-| Tab | Walk view |
+| SELECT | A click selects (the default tool) |
+| PLACE | A click puts the brush there: a wall, a door, a thing |
+| PAINT | A click gives a face the brush's picture |
+| LIGHT | A click puts a light on a face |
+| HEIGHT | A click raises a floor or ceiling an eighth; Shift+click lowers it |
+| DELETE | Deletes the selection (also **Del**) |
+| UNDO, SAVE | Ctrl+Z, Ctrl+S |
+| GRID, and the slider | Lines on every cell's edge, drawn into the world, and how strong they are (also **G**, and **Shift+G**) |
+| PICKER | 3D only: the picker tucked away (it opens when the pointer reaches the bottom of the screen), always open, or off (also **P**) |
+| 2D MAP / 3D | The other view (also **Tab**) |
+| HELP | Every key for this view (also **F1**); click anywhere to close it |
+| < SECT, SECT > | Map view only: the sector before or after (PgUp, PgDn). Refused while there are unsaved changes. |
+| MONSTER KINDS | Map view only: the monster kinds editor (M) |
+
+**The picker** is everything you can put in a level, as pictures: along the bottom in the 3D view (two rows of eight), and under the title in the map view (three rows of four). The wheel over it, or the arrows beside it, scroll it.
+
+| Tab | Has |
+| --- | --- |
+| WALLS | The six wall types `#` `N` `C` `K` `P` `G` in their pictures, the diagonals, the secret wall, glass; then every wall picture there is |
+| FLOORS, CEILINGS | Every floor and ceiling picture |
+| DOORS | Sliding, shutter, split, the three key doors, the sealed door, the exit |
+| ITEMS | Keycards, health, armour, ammo, guns, the map, overcharge, the amp |
+| MONSTERS | All nine |
+| DECOR | All 21 decorations |
+| SPECIAL | The start (four ways round), the teleporter pad, the data station, the code terminal, plain floor |
+| LIGHTS | The six ways a light can go (steady, flicker, pulse, strobe, fire, dying), each shown going, in the brush's colour; then twelve colours |
+
+Click one and it's the **brush**, and the tool that uses it is chosen for you: a map character picks PLACE, a picture picks PAINT, an effect or colour picks LIGHT. If something is **selected** when you click, it's done to the selection at once: the character is put in every selected cell (for a wall face, the cell in front of it), the picture painted on every selected face, the effect or colour given to every selected face's light.
+
+## The 3D view
+
+The game, frozen, with a mouse pointer. Monsters don't move, pickups aren't taken, events and triggers don't run, nothing hurts you, the gun is put away and you fly.
+
+| Input | Does |
+| --- | --- |
+| Mouse | Points. Whatever's under the pointer is outlined in pulsing cyan and named: a WALL, FLOOR, CEILING, STEP (the face of a floor stepping up) or LINTEL (the face of a ceiling stepping down), its cell and side - or a monster, pickup or decoration by name |
+| Right button (hold) | Look round instead; the crosshair picks while you do |
+| Your walk keys | Fly, straight through walls |
+| Space, C | Up, down (Shift: faster) |
+| Left click | The tool (below) |
+| Wheel | Shape what's selected, or what's under the pointer (next section) |
+| Ctrl+D | Select nothing |
+| Del | Delete the selection |
+| H, V | Divide a face left / right, top / bottom |
+| G, Shift+G | The grid, and how strong it is |
+| P | The picker: tucked away, always open, off |
+| F1 | Help |
+| Tab | The map view |
+| F2 | Leave the editor and play |
+
+**The tools, in 3D:**
+
+| Tool | Click | With Shift | With Ctrl | With Alt |
+| --- | --- | --- | --- | --- |
+| SELECT | Select the face (or thing) | Add it to the selection, or take it out | The whole floor or ceiling it's part of: every cell joined to it at the same height | |
+| PLACE | Put the brush in the cell: a floor's own cell, a wall's the cell in front. Hold the button and sweep to place along the floor. | Take away the thing there | | Pick it up as the brush |
+| PAINT | The brush's picture on the face (on the half, if it's divided) | The usual picture again | The whole floor or ceiling | Pick its picture up as the brush |
+| LIGHT | A light on the face, as the light brush is. A face that has one is selected instead, for its pane. | Take the face's light away | | |
+| HEIGHT | Raise the floor or ceiling an eighth | Lower it | | |
+
+In PLACE, a magenta box on the floor and a see-through copy of the brush show where it will go before you click. Monsters, pickups and decorations can be clicked: they select their cell.
+
+The older keys still work, aimed along the middle of the view: **T** steps every wall of the aimed letter through the wall pictures (Shift: back), **F** the front cell's floor picture, **Z** gives the front cell the next of the level's four floors, **L** a light over the front cell and **K** takes away the light nearest you, **PgUp**/**PgDn** the front cell's floor (Shift: its ceiling), **E** picks up the aimed cell's character, `[` `]` step the brush, **1**-**8** a light preset, **U** the HUD layout editor.
+
+**Every change rebuilds the level.** Killed monsters come back, pickups reappear, doors shut, and your keycards and map are taken away. You stay where you are.
+
+## Shaping: the wheel, the arrows, Delete
+
+**The wheel** works on the selection; with nothing selected, on the face under the pointer, which then stays selected so you can keep turning. A pause of half a second starts a new undo step.
+
+| On | Wheel up / down |
+| --- | --- |
+| A floor, a step's face | Its floor up / down an eighth (Ctrl: a whole wall) |
+| A ceiling, a lintel's face | Its ceiling up / down an eighth (Ctrl: a whole wall) |
+| A wall, with Shift | Pull the wall out towards you a cell / push it back. Pushing opens the cell and gives it the floor and ceiling of the cell in front. |
+| A wall, with Alt | Push it back / pull it out |
+| A wall, with Ctrl+Shift | Make it a block standing on the floor; keep turning to set its top |
+| A wall, with Alt+Shift | Make it a block hanging from the ceiling; keep turning to set its bottom |
+
+Rough a level out this way: Shift+wheel walls back to make rooms and corridors, wheel floors down for pits and up for platforms, Ctrl+Shift for a counter or a crate-sized block, Alt+Shift for a low beam to duck under.
+
+**The arrows** move the selection's cells a cell: in 3D, away from you, back, left and right as you face (whichever way along the grid is nearest); on the map, up the screen is north. Everything in a cell goes with it: what's there, its floor and ceiling, a monster's own settings. A cell left behind becomes like the cell behind it, so a platform slides along leaving floor like the floor round it. Nothing moves into the border, and a start is never copied.
+
+**Delete** (Del, or DELETE): a selected wall is opened up (its floor and ceiling like the cell in front), a thing on a selected floor is taken away (never the start), and a selected step or lintel is flattened to the floor or ceiling in front of it.
+
+## Pictures on faces, and Divide
+
+Any face can have a picture of its own: a wall's side, a step's or lintel's face, a floor, a ceiling. Pick a picture in the picker (it chooses PAINT) and click faces. **Ctrl+click** paints a whole floor or ceiling, **Shift+click** puts back the usual picture, **Alt+click** picks a face's picture up. Picking a picture with faces selected paints them all. From above, PAINT paints a cell's floor (Ctrl: its ceiling), or all four sides of a wall.
+
+**Divide** splits a face in two for pictures. Point at a face (or select some) and press **H** for left | right or **V** for top | bottom; press it again to make the face whole. The halves start with the face's picture. Each half is outlined on its own when you point at it ("half 1", "half 2"), can be selected on its own, and painted on its own. A floor or ceiling divides west | east (H) or north | south (V). Top | bottom splits at the face's middle height, so on a tall wall it may be above your eye.
+
+Both renderers draw every picture and half. A sector can use up to **24** pictures of its own on faces, counting the tinted copies lights make (below); past that, extra ones are ignored without a message.
+
+## The properties pane
+
+Select something and its pane opens: on the right in the 3D view, over the map's right side in the map view. Changes apply to everything selected of that kind.
+
+| Selected | The pane |
+| --- | --- |
+| A door | Its kind: SLIDING, SHUTTER, SPLIT, SEALED, RED KEY, BLUE KEY, YELLOW KEY, EXIT |
+| A teleporter pad | Where it goes. **LINK...** and then click another pad to pair the two (saved as `[pads]`); **UNLINK** returns it to pairing in reading order. In 3D every pair is joined by a purple line. |
+| A face with a light | Its colour (twelve), effect (six), REACH and BRIGHT, REMOVE THE LIGHT. The swatch in the corner shows it going. |
+| A monster | SIGHT, HEARING, HEALTH and SPEED, and what WAKES it; AS ITS KIND IS resets it. Its sight (cyan) and hearing (yellow) are drawn as rings on the floor round it. |
+| A floor of a lift | LOW, HIGH and SPEED in eighths, UP AND DOWN or ELEVATOR, REMOVE |
+| Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), and ADD A LIGHT TO IT |
+| Any other face | ADD A LIGHT TO IT |
+
+**Monsters, for ambushes.** Each monster can be set apart from its kind:
+
+| Setting | Means | As its kind |
+| --- | --- | --- |
+| SIGHT | How far away it notices you, in cells | 14 |
+| HEARING | How far away your shots wake it, in cells; 0 is deaf | deaf |
+| HEALTH, SPEED | Against its kind's, in % | 100% |
+| WAKES WHEN: IT SEES YOU | Seeing you within its sight | yes |
+| YOU'RE NEAR | You coming within its sight, seen or not: round a corner, behind a door | |
+| IT'S HIT | Only being hit; nothing else wakes it | |
+| HUNTING | Nothing: it's hunting you from the start | |
+
+A closet of YOU'RE NEAR crawlers with a sight of 2 springs as you pass; a heavy with HEARING 12 comes running at the first shot. The settings are kept by the cell the monster starts in, so moving it with the arrows takes them along, but deleting it and placing a new one doesn't.
+
+## The map view
+
+The whole 48 × 48 map from above, one square per cell, with the picker, the toolbar and the help line in the panel on the right.
+
+| Tool | Left button | Right button | Shift |
+| --- | --- | --- | --- |
+| SELECT | Select the cell; drag a box to select it all | | Add to the selection (Shift+click one cell: in or out) |
+| PLACE | Put the brush in the cell; drag to keep going | Pick up what's in the cell as the brush | Drag a box: fill it when you let go |
+| PAINT | The picture on the cell's floor, or a wall's four sides; drag on across cells (Ctrl: the ceiling) | | The usual picture again |
+| LIGHT | A light in the middle of the cell, as the light brush is | Take away the nearest light within 1.5 cells | |
+| HEIGHT | Raise the floor an eighth | Lower it | The ceiling instead |
+
+| Input | Does |
+| --- | --- |
+| Wheel | Over the picker: scroll it. Over the map, with something selected: the selected floors up / down an eighth (Ctrl: ceilings). Otherwise the brush, back and forth. |
+| `[` `]` | The brush, back and forth |
+| Arrows | Move the selection a cell (up the screen is north) |
+| Del, Ctrl+D | Delete the selection, select nothing |
+| L, H | The LIGHT tool, the HEIGHT tool (again: back to PLACE) |
+| 1–8 | A light preset (below) |
+| G, Shift+G | The grid lines, and how strong |
+| T | Move yourself to the cell under the mouse. It doesn't check for walls. |
+| PgUp / PgDn | Previous / next sector |
+| M | The monster kinds editor |
+| U | The HUD layout editor |
+| Tab | The 3D view |
 | Esc, F2 | Leave the editor and play |
-| Ctrl+S | Save |
-| Ctrl+Z | Undo (40 steps) |
-| L | Lights mode on or off |
-| H | Heights mode on or off. In this view H is **not** help; the help list is always on the right. |
-| 1–8 | Light preset (below) |
-| T | Move yourself to the cell under the mouse. It doesn't check for walls, so you can land inside one. |
-| PgUp / PgDn | Previous / next sector, yours included. Refused while there are unsaved changes. |
-| M | Monster editor |
-| U | HUD layout editor |
+| F1 | Help |
 
-You can't paint the outer ring of cells (x or y of 0 or 47), so the border always stays wall. Painting a new start (`<` `>` `^` `v`) turns the old one into floor, so there's never more than one.
+You can't change the outer ring of cells (x or y of 0 or 47), so the border always stays wall. Placing a new start (`<` `>` `^` `v`) turns the old one into floor, so there's never more than one.
 
-**Light presets** all have radius 5 and brightness 140:
+**Light presets** (the keys 1–8) are room lights, radius 5 and brightness 140:
 
 | Key | Preset | Colour | Effect |
 | --- | --- | --- | --- |
@@ -98,52 +233,13 @@ You can't paint the outer ring of cells (x or y of 0 or 47), so the border alway
 | 7 | flickering | 220, 230, 255 | flicker |
 | 8 | firelight | 255, 150, 70 | fire |
 
-**What the map shows.** Walls are drawn in their picture's average colour and floor is dark blue. Pickups are green squares, monsters red, decorations gold, and you're a yellow circle with a line showing which way you face. Lights are a ring in their colour; in lights mode their full reach is drawn too. Event rooms have a magenta outline and triggers an orange one. In heights mode, raised floors are shaded brown (brighter is higher), sunken floors purple, an unusual ceiling gets two cyan dots, and lifts get a green outline.
+**What the map shows.** Walls are drawn in their picture's average colour and floor is dark blue. Pickups are green squares, monsters red, decorations gold, and you're a yellow circle with a line showing which way you face. Lights are a ring in their colour; with the LIGHT tool their full reach is drawn too. Event rooms have a magenta outline and triggers an orange one. With the HEIGHT tool, raised floors are shaded brown (brighter is higher), sunken floors purple, an unusual ceiling gets two cyan dots, and lifts get a green outline. The selection is outlined in orange.
 
-The line under the map names the cell under the mouse, as `x,y name`. x counts 0–47 left to right and y counts 0–47 top to bottom. Messages there are cut at 58 characters, so a long save warning can lose its end.
-
-## Walk view
-
-The walk view is the game, frozen, with a building cursor: you build onto whatever you're looking at. Monsters don't move, pickups aren't taken, events and triggers don't run, and the fire button doesn't shoot. You can still walk, open doors with Space, and ride lifts.
-
-**How aiming works.** The editor looks up to 12 cells ahead along your view and stops at the first cell that isn't plain floor. That can be a wall, a door, glass, a pickup, a monster or a decoration; that's the **aimed** cell. The open cell just before it is the **front** cell. Building happens in the front cell and knocking down in the aimed cell. If nothing is within 12 cells, most keys do nothing. The box at the top left always says what you're aiming at and what you'd place.
-
-| Input | Does |
-| --- | --- |
-| Left click | Place the selected glyph in the front cell |
-| Right click | Turn the aimed cell into floor (never the border) |
-| Tab | Back to the map view |
-| F2 | Leave the editor and play |
-| Ctrl+S, Ctrl+Z | Save, undo |
-| `[` `]` | Previous / next glyph |
-| E | Pick up the aimed cell's character as the glyph to place |
-| T | Next picture for that kind of wall (`#` `N` `C` `K` `P` `G`). Every wall of that letter changes. Shift goes backwards. |
-| F | Next picture for the front cell's floor (1–4), wherever that floor is used. Shift goes backwards. |
-| V | Same for its ceiling (1–2) |
-| Z | Give the front cell the next of the level's four floors |
-| L | Add a light over the front cell, in the current preset |
-| K | Remove the light nearest **you**, within 1.5 cells |
-| 1–8 | Light preset |
-| PgUp / PgDn | Front cell's floor up / down one eighth. Shift: its ceiling. |
-| U | HUD layout editor |
-| H | A help line |
-
-**Every change rebuilds the level.** Killed monsters come back, pickups reappear, doors shut, and your keycards and map are taken away. You keep your position; if you end up inside something, you're moved to the nearest open cell.
-
-**Game keys that still work here**, so mind them:
-
-- **Esc** opens the pause menu; it doesn't leave the editor.
-- **F** kicks as well as changing the floor picture, and the kick can hurt monsters and break decorations.
-- **1–4** and the mouse wheel change guns as well as light presets.
-- **G** toggles god mode, which lets you fly through walls: handy for getting into sealed rooms. **K** gives every keycard and the map as well as removing a light. Both are the testing cheats, on in this build.
-- **Space on the exit** finishes the level, and the next one loads from its file, so unsaved edits are lost.
-- **F9** quick-loads a saved game over your edits.
-- You can still fall, burn and die, and dying reloads the level from its file.
-- The console (`` ` ``) works here, but not in the map view.
+The line under the map names the cell under the mouse, as `x,y name`, with its floor and ceiling if they're not the usual. x counts 0–47 left to right and y counts 0–47 top to bottom.
 
 ## Every map character
 
-Each cell of the map is one character, and case matters: `m` is a drone, `M` is the map pickup. Any character not listed here is plain floor. The palette shows them all in this order:
+Each cell of the map is one character, and case matters: `m` is a drone, `M` is the map pickup. Any character not listed here is plain floor. In the file, in this order (the picker shows them as pictures, by tab):
 
 ```
 . # N C K P G /
@@ -230,8 +326,8 @@ Every cell has its own floor and ceiling height, measured in **eighths of a wall
 
 **Raising and lowering**
 
-- **Map view:** press **H**, then click to raise a cell's floor one eighth and right-click to lower it. Hold **Shift** to move the ceiling instead.
-- **Walk view:** look at the cell and press **PgUp** or **PgDn**. Hold **Shift** for the ceiling.
+- **3D view:** point at a floor or ceiling (or select some) and turn the **wheel**; Ctrl moves a whole wall at a time. Or the HEIGHT tool: click to raise, Shift+click to lower.
+- **Map view:** select cells and turn the wheel (Ctrl: ceilings); or the HEIGHT tool: click to raise a cell's floor, right-click to lower it, Shift for the ceiling.
 - **Console:** `raise X Y EIGHTHS` for one cell, or `raise X0 Y0 X1 Y1 EIGHTHS` for a box; add `ceil` for the ceiling.
 
 | Rule | Value |
@@ -258,7 +354,11 @@ Case matters here too: `a` is 10 up, `A` is 1 down. A level with neither section
 
 ## Lights
 
-A level is lit by one **ambient** level everywhere, plus up to 96 **lights** that stop at walls. The editor places lights from the 8 presets; for any other colour, size or effect, edit the numbers in the level file.
+A level is lit by one **ambient** level everywhere, plus up to 96 **lights** that stop at walls.
+
+**Lights on faces.** With the LIGHT tool, a click puts a light just in front of the middle of the face you click, in the light brush's colour and effect. The **LIGHTS** tab sets the brush (each effect is shown going, as it will in the game), and a face's pane sets its light's colour, effect, reach (in cells) and brightness, or removes it. A light on a wall's face also **tints the face itself** its colour: a coloured copy of its picture, which OpenGL lights by itself and pulses or flickers with the light. So a red light shows red on its wall even in a room already as bright as it can be, where light alone would add nothing. A light on a floor or ceiling, or in the middle of a cell, lights the room round it the usual way. Each light is a little star in its colour in the 3D view.
+
+Lights add to what's there, and the brightest a pixel can be is its picture's own colours. So in a brightly lit room a coloured light shows mostly on the face it's on. For moody colour, lower the ambient.
 
 **`ambient = brightness, red, green, blue`** sets the base light. Brightness runs 0–256, where 256 shows every picture in its own colours; the other three tint it (0–255). NEW SECTOR uses `165, 225, 220, 255`, a cool dim blue.
 
@@ -266,13 +366,11 @@ A level is lit by one **ambient** level everywhere, plus up to 96 **lights** tha
 
 | Field | Meaning |
 | --- | --- |
-| `x`, `y` | Where, in cells. `20.5` is the middle of cell 20. |
+| `x`, `y` | Where, in cells. `20.5` is the middle of cell 20. A light on a wall's face sits 0.12 in front of it (`26.12`, `19.88`...), and that's how the game knows to tint the face. |
 | `radius` | How far it reaches, in cells. It fades to nothing at the edge. |
 | `brightness` | 0–400, added on top of the ambient light |
 | `red`, `green`, `blue` | Its colour, 0–255 each |
 | `effect` | 0 steady · 1 flickering tube · 2 slow pulse · 3 alarm strobe · 4 firelight · 5 dying tube |
-
-No preset uses effects 2 or 5; set those by hand.
 
 **The 96-light budget includes automatic lights.** Lamps, terminals, server racks, glowing decorations, the exit and teleporter pads each add a light of their own. Past 96, extra lights are dropped without a message, and the editor can't warn you because it only counts the level's own list. If a light you placed doesn't show, you've probably hit the limit.
 
@@ -280,7 +378,7 @@ The console can switch a light while you play: `light N on` or `light N off`, wh
 
 ## Beyond the editor: the level file
 
-Some things have no editor tool yet: events, lifts, triggers, the name and the puzzles. Write them into the level file, `neon-caster/levels/custom/customN.txt`, in any text editor, then reload the sector. The file is plain text: `key = value` lines at the top, then `[sections]`, and lines starting with `'` are comments.
+Some things have no editor tool yet: events, triggers, the name, the ambient light and the puzzles. Write them into the level file, `neon-caster/levels/custom/customN.txt`, in any text editor, then reload the sector. The file is plain text: `key = value` lines at the top, then `[sections]`, and lines starting with `'` are comments.
 
 Ctrl+S rewrites the whole file in a fixed layout. Only the comments at the very top survive, so keep your notes there.
 
@@ -290,9 +388,9 @@ Ctrl+S rewrites the whole file in a fixed layout. Only the comments at the very 
 - **Floors:** floor, floor-circuit, floor-cobbles, floor-concrete, floor-core, floor-deck, floor-frostgrate, floor-glow, floor-hazard, floor-ice, floor-lab, floor-molten (burns), floor-murky (slows), floor-plates, floor-platform, floor-rustgrate, floor-scorched, floor-soil, floor-white.
 - **Ceilings:** ceiling, ceiling-cables, ceiling-core, ceiling-frost, ceiling-girders, ceiling-growlights, ceiling-hull, ceiling-lights, ceiling-pipes, ceiling-stone, ceiling-tunnel, ceiling-vents, ceiling-warning.
 
-All end in `.png`. In the walk view, **T**, **F** and **V** step through these without typing anything.
+All end in `.png`. The picker's WALLS, FLOORS and CEILINGS tabs show them all, and PAINT puts any of them on any face (`[faces]`, below) without changing the lists.
 
-**`[zones]`** choose which of the 4 floor and 2 ceiling pictures each area uses: `x0, y0, x1, y1, floor, ceiling, shape`. `floor` is 1–4 and `ceiling` 1–2 (0 leaves it alone). `shape` 0 is the whole rectangle; 1–4 is the top-left, top-right, bottom-right or bottom-left triangle of a square. Later zones win where they overlap. The walk view's **Z** adds a one-cell zone. Up to 64.
+**`[zones]`** choose which of the 4 floor and 2 ceiling pictures each area uses: `x0, y0, x1, y1, floor, ceiling, shape`. `floor` is 1–4 and `ceiling` 1–2 (0 leaves it alone). `shape` 0 is the whole rectangle; 1–4 is the top-left, top-right, bottom-right or bottom-left triangle of a square. Later zones win where they overlap. The 3D view's **Z** adds a one-cell zone. Up to 64.
 
 **`puzzles = NAME, NAME, …`** gives each `$` code terminal its puzzle, in reading order, from `neon-caster/puzzles/`: countdown, function, hello, multiply, password, pythagoras, reverse, select, sum, wrap.
 
@@ -317,7 +415,19 @@ A trap's floor gets its own picture (a glowing wire grid, or a burner grate), an
 
 Monster types are numbered in the order of the monster table: 1 drone to 9 thief. `reward` is a pickup given when you win, numbered in this order: 1 red card, 2 blue card, 3 yellow card, 4 health, 5 cells, 6 shells, 7 scatter gun, 8 repeater, 9 armour, 10 medkit, 11 railgun, 12 map, 13 overcharge, 14 amp. Use 0 for none. Only ambush, survive, trap and gallery give one. A trap or cutter with `a` of 0 is a mistake: it logs an error.
 
-**`[lifts]`**: `x0, y0, x1, y1, low, high, mode, speed`. `low` and `high` are in eighths and `speed` is eighths a second. `mode` 1 goes up and down by itself, 2 is an elevator (up when you step on, down after you step off), and 3 moves only when a `liftgo` command says so. Up to 16.
+**`[lifts]`** (MAKE A LIFT, and a lift's pane): `x0, y0, x1, y1, low, high, mode, speed`. `low` and `high` are in eighths and `speed` is eighths a second. `mode` 1 goes up and down by itself, 2 is an elevator (up when you step on, down after you step off), and 3 moves only when a `liftgo` command says so. Up to 16.
+
+**`[faces]`** (PAINT and Divide): a picture of its own on one face, one line each: `x, y, face, divided, picture, second picture`. `face` is `E` `S` `W` `N` for a side of the cell (a wall's, or a step's face), `LE` `LS` `LW` `LN` for a lintel's, `F` the floor, `C` the ceiling. `divided` is 0 for the whole face, 1 for left | right, 2 for top | bottom; the second picture is the second half's (left out: the usual picture). Up to 4000.
+
+```
+26, 26, W, 0, wall-adverts.png
+25, 18, S, 2, wall-adverts.png, wall-brick.png
+24, 23, F, 1, floor-circuit.png, floor-cobbles.png
+```
+
+**`[pads]`** (LINK): teleporter pads paired by hand, `x1, y1, x2, y2`. Pads in no pair here pair up as ever, in reading order. Up to 16.
+
+**`[monsters]`** (a monster's pane): `x, y, sight, hearing, health, speed, wake`, by the cell the monster starts in. Sight and hearing are in cells, health and speed in % of its kind's, and wake is 0 seeing you, 1 you near, 2 being hit, 3 hunting from the start.
 
 **`[triggers]`** run console commands when something happens: `WHEN [repeat] : COMMAND ; COMMAND`.
 
@@ -337,17 +447,17 @@ use 30 14 : door 31 14 open ; sound alarm
 
 ## Building from the console
 
-The console (`` ` ``, in the game or the walk view) can build with exact coordinates, which is quicker than clicking for big shapes. Put several commands on one line with `;`, and press Tab to finish a command's name. The building commands work even outside the editor, but each one rebuilds the level, so monsters and pickups reset.
+The console (`` ` ``, in the game or the 3D view) can build with exact coordinates, which is quicker than clicking for big shapes. Put several commands on one line with `;`, and press Tab to finish a command's name. The building commands work even outside the editor, but each one rebuilds the level, so monsters and pickups reset.
 
 | Command | Does | Kept by Ctrl+S? |
 | --- | --- | --- |
-| `edit` / `edit walk` / `edit off` | Open the editor at the map or walk view, or close it | |
+| `edit` / `edit walk` / `edit off` | Open the editor at the map or 3D view, or close it | |
 | `put X Y CHAR` | Put one character in a cell | Yes |
 | `box X0 Y0 X1 Y1 CHAR` | Fill a rectangle (one undo step) | Yes |
 | `raise X Y EIGHTHS [ceil]` | Raise (or lower, with a minus) one cell's floor or ceiling | Yes |
 | `raise X0 Y0 X1 Y1 EIGHTHS [ceil]` | The same for a rectangle | Yes |
 | `lamp X Y [1-8]` | A light over a cell, in a preset | Yes |
-| `lift X0 Y0 X1 Y1 LOW HIGH [MODE] [SPEED]` | Add a lift (mode 2 and speed 8 unless you say) | Yes, but Ctrl+Z can't remove it |
+| `lift X0 Y0 X1 Y1 LOW HIGH [MODE] [SPEED]` | Add a lift (mode 2 and speed 8 unless you say) | Yes |
 | `trigger WHEN : CMD \| CMD` | Add a trigger; `\|` separates its commands. `trigger del N` removes one. | Yes, but Ctrl+Z can't remove it |
 | `triggers` | List the level's triggers | |
 | `undo` / `savelevel` | Same as Ctrl+Z / Ctrl+S | |
@@ -380,7 +490,7 @@ That carves a second room east of the first (both corners are included), turns t
 
 Both change files that every sector shares, not the sector you're in.
 
-**Monster editor** (**M** in the map view, or `monsters` in the console) sets the numbers for each kind of monster, saved to `neon-caster/monsters.txt`. Changes take effect at once, except hit points, which apply to monsters placed after the change.
+**Monster kinds editor** (**M** or MONSTER KINDS in the map view, or `monsters` in the console) sets the numbers for each kind of monster (one monster's own settings are its pane, above), saved to `neon-caster/monsters.txt`. Changes take effect at once, except hit points, which apply to monsters placed after the change.
 
 | Key | Does |
 | --- | --- |
@@ -422,7 +532,7 @@ The editor trusts you: it saves a level with no start, no exit or a gap in its w
 - [ ] Glass is in a straight wall one cell thick
 - [ ] Steps are 2 eighths or less, and gaps you walk under are at least 6 eighths
 - [ ] A map pickup `M` somewhere, or the minimap never appears
-- [ ] Picture names in the file are spelled right (a wrong one quits the game)
+- [ ] Picture names in the file are spelled right (a wrong one in `walls =`, `floors =` or `ceilings =` quits the game; in `[faces]` it's just ignored)
 
 **Check it with the level kit.** `levels.py --check` only checks the game's own ten sectors, but its checker works on one of yours too. From `neon-caster/levels/`:
 
@@ -430,20 +540,22 @@ The editor trusts you: it saves a level with no start, no exit or a gap in its w
 python3 -c "import lvlkit; lvlkit.check_level(lvlkit.read_level_file('custom/custom1.txt','custom1'), '..')"
 ```
 
-It reports anything you can't reach, doors without walls, a missing start or exit, and more. Never run `levels.py --write` on a level you've edited by hand or in the editor: it regenerates all ten game sectors from the kit and overwrites them. Your own sectors in `custom/` are safe from it.
+It reports anything you can't reach (following your `[pads]` pairs), doors without walls, a missing start or exit, and more. Never run `levels.py --write` on a level you've edited by hand or in the editor: it regenerates all ten game sectors from the kit and overwrites them. Your own sectors in `custom/` are safe from it.
 
 **Things that lose your work:**
 
 - Leaving the editor doesn't save. You play the edited level, but dying, taking the exit, loading a game or quitting reloads it from the file.
 - Ctrl+Z can't undo you back to "saved": after any undo, PgUp/PgDn still says to save first. Save, or leave and accept losing the edits.
 - Going back into the editor clears the "not saved" marker even though the edits are still unsaved.
-- In the walk view, Space on the exit and F9 (quick-load) both reload the level from its file.
+- In the 3D view, F9 (quick-load) reloads the level from its file.
 
 **Other surprises:**
 
 - Every edit rebuilds the level: dead monsters come back and your keycards are taken away.
-- The walk view's aim stops at the first thing that isn't floor, including pickups and monsters, so you may build in front of a crate rather than the wall behind it.
+- Walls, heights and collision are per cell, so a wall moves a cell at a time and Divide only splits pictures.
 - Ctrl+S keeps only the comments at the very top of the file; everything else is rewritten in a fixed layout.
-- Lights over 96 in total (automatic ones included) are dropped silently.
-- Undo doesn't cover lifts, triggers, events, the name or the ambient light.
+- Lights over 96 in total (automatic ones included), and pictures on faces past 24 different ones, are dropped silently.
+- Undo covers the map, heights, zones, lights, lifts, faces, pad pairs and monsters' settings, but not triggers, events, the name or the ambient light.
+- A monster's own settings belong to the cell it starts in: put a different monster there and it gets them.
+- Esc in the 3D view opens the pause menu; the editor keeps going underneath it.
 - There's no in-game way to delete one of your sectors: delete its file in `neon-caster/levels/custom/`. The `.bak` file next to it is the editor's backup copy of the level.

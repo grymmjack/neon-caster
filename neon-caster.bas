@@ -1586,6 +1586,7 @@ DO
             IF wantGun < 1 THEN wantGun = NUM_GUNS
         LOOP UNTIL hasGun(wantGun)
     END IF
+    IF editMode THEN wantGun = 0 ' (in the editor 1-8 are the lights')
     IF wantGun > 0 AND wantGun <> currentGun AND swapTimer = 0 THEN
         IF hasGun(wantGun) THEN nextGun = wantGun : swapTimer = SWAP_FRAMES
     END IF
@@ -2050,7 +2051,7 @@ DO
     ' KICK_HIT frames in - on the nearest monster in front, within KICK_REACH
     ' (and roughly where you're looking), shoving it back - or else a
     ' decoration - then drops back down
-    kickDown = KeyHeld(BIND_KICK)
+    kickDown = KeyHeld(BIND_KICK) AND NOT editMode ' (in the editor F is the floor's picture, not a kick)
     IF kickDown AND NOT kickWas AND kickTimer = 0 AND NOT dead THEN kickTimer = KICK_FRAMES : PlaySfx sndKickSwing&, 0.7
     kickWas = kickDown
     IF kickTimer > 0 THEN

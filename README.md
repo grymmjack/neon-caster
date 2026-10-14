@@ -6,7 +6,9 @@ monster, four guns and a kick, glass you can shoot through, floors and
 ceilings at every height, lifts and bottomless pits, teleporters, data
 stations that turn the level into a wireframe network, code terminals that
 lock you in until you fix a real QB64 program, and a villain who talks to
-you. With a level editor, a monster editor and a HUD editor built in.
+you. With a level editor built in - point and click inside the level in 3D
+or on the map from above, with a picker of every wall, floor, door, item,
+monster and light - and a monster editor and a HUD editor.
 
 It draws its 3D two ways: a software raycaster, like Wolfenstein 3D, and an
 OpenGL renderer with bump mapping, moving lights, wet floors, bloom and CRT
@@ -59,9 +61,10 @@ nothing is compiled or run.
 
 **Make your own:** **GAME > YOUR SECTORS > NEW SECTOR** gives you a
 blank sector (one room in solid wall) and opens the level editor on it.
-Paint rooms out, add doors, monsters and lights, and Ctrl+S saves it to
+Push walls back, sink pits, add doors, monsters and lights, paint any
+picture on any face, set up ambushes, and Ctrl+S saves it to
 `neon-caster/levels/custom/`. The [level editor guide](LEVEL-EDITOR-GUIDE.md)
-explains every key, map character and level-file field.
+explains every tool, key, map character and level-file field.
 
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting
 at once. OLDSCHOOL is chunky pixels with no effects, 90S is 720P with
