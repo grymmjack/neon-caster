@@ -1255,6 +1255,23 @@ CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%&rby+*uae234MqjmghcskwzToiptxlnfSdAFIJ
 CONST EDIT_UNDO = 40
 DIM SHARED editMode AS INTEGER, editView AS INTEGER, editGlyph$, editDirty AS INTEGER, editRebuild AS INTEGER
 DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, editLightP AS INTEGER, editLights AS INTEGER, editHeights AS INTEGER
+' THE EDITOR'S OWN STATE, the same in both views (the map from above and
+' the 3D view), so switching between them loses nothing:
+'   ed hover...   the face under the cursor (kind, cell, side, part) - ED_ kinds
+'   edSel...      the faces selected (up to ED_MAXSEL), kept until Ctrl+D
+'   edTool        what a click does (ET_ tools); edBrush... what it places
+'   edGrid...     the wireframe grid over the world, and how strong it is
+'   edPick...     the picker panel: its tab and how far it's scrolled
+CONST ED_WALL = 1, ED_FLOOR = 2, ED_CEIL = 3, ED_STEP = 4, ED_LINTEL = 5 ' (a face: a wall's side, a floor, a ceiling, the face of a step up, the face of a ceiling stepping down)
+CONST ED_MAXSEL = 256
+CONST ET_SELECT = 1, ET_PLACE = 2, ET_PAINT = 3, ET_LIGHT = 4
+DIM SHARED edHovKind AS INTEGER, edHovX AS INTEGER, edHovY AS INTEGER, edHovSide AS INTEGER, edHovPart AS INTEGER
+DIM SHARED edHovPX, edHovPY, edHovPZ ' (exactly where the cursor's ray met it)
+DIM SHARED edSelN AS INTEGER, edSelKind(ED_MAXSEL) AS INTEGER, edSelX(ED_MAXSEL) AS INTEGER, edSelY(ED_MAXSEL) AS INTEGER
+DIM SHARED edSelSide(ED_MAXSEL) AS INTEGER, edSelPart(ED_MAXSEL) AS INTEGER
+DIM SHARED edTool AS INTEGER, edGrid AS INTEGER, edGridAlpha AS INTEGER, edPickTab AS INTEGER, edPickScroll AS INTEGER
+DIM SHARED edLooking AS INTEGER ' (the right button held in the 3D view: the mouse turns you instead of moving the cursor)
+edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
 DIM SHARED texFile$(T_SLOTS)
 menuMusic& = LoadMusic&("menu.ogg")
 FOR k = 1 TO NUM_LEVELS : levelMusic&(k) = LoadMusic&("level" + LTRIM$(STR$(k)) + ".ogg") : NEXT
@@ -1414,7 +1431,7 @@ DO
     IF hudEdit THEN fireDown = 0
     IF conFire > 0 THEN conFire = conFire - 1 : fireDown = -1 ' (the console's fire: holding the trigger)
     clicked = 0
-    spaceDown = KeyHeld(BIND_USE)
+    spaceDown = KeyHeld(BIND_USE) AND NOT editMode ' (in the editor Space flies you up)
     IF conUse THEN conUse = 0 : spaceDown = -1 ' (the console's use: Space, once)
 
     ' Esc opens the menu (chapter 21), and the game waits while it's open
@@ -1533,7 +1550,7 @@ DO
     ' so you slide along the wall instead of sticking to it. Monsters move
     ' with MoveBody too.
     prevX = playerX : prevY = playerY
-    IF godMode THEN ' No clipping: straight through anything, but stay inside the border
+    IF godMode OR editMode THEN ' No clipping (god mode, or the editor): straight through anything, but stay inside the border
         playerX = playerX + moveX : playerY = playerY + moveY
         IF playerX < 1.01 THEN playerX = 1.01
         IF playerX > MAP_SIZE - 1.01 THEN playerX = MAP_SIZE - 1.01
@@ -1546,7 +1563,14 @@ DO
     ' (MoveBody wouldn't have let you onto anything higher), fall off
     ' anything higher - faster and faster - and land, hard if it was far;
     ' fall into a pit and that's the end. Your eye eases up a step.
-    IF NOT levelFlat THEN
+    IF editMode THEN ' The editor: you fly - Space up, C down (Shift faster) - no falling, nothing to stand on
+        flySpeed = 0.04 : IF KeyHeld(BIND_RUN) THEN flySpeed = 0.1
+        IF _KEYDOWN(32) THEN playerZ = playerZ + flySpeed
+        IF _KEYDOWN(99) OR _KEYDOWN(67) THEN playerZ = playerZ - flySpeed
+        IF playerZ < -1.4 THEN playerZ = -1.4
+        IF playerZ > 4.5 THEN playerZ = 4.5
+        playerVZ = 0
+    ELSEIF NOT levelFlat THEN
         fz = floorH(INT(playerX), INT(playerY))
         IF playerZ < fz THEN playerZ = fz : playerVZ = 0
         IF liftCell(INT(playerX), INT(playerY)) AND playerZ - fz < 0.06 AND playerVZ < 0.03 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down)
@@ -1569,12 +1593,12 @@ DO
             IF NOT godMode THEN damage = BURN_DAMAGE : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
         END IF
     END IF
-    IF levelFlat THEN playerZ = 0 : playerVZ = 0
-    IF playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
+    IF levelFlat AND NOT editMode THEN playerZ = 0 : playerVZ = 0
+    IF editMode OR playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
     ' ...and you can't walk through a monster: if a step takes you inside one
     ' (closer than touchDist) and closer than you were, take it back
     FOR i = 1 TO numMonsters
-        IF monsterState(i) < 2 AND NOT godMode THEN
+        IF monsterState(i) < 2 AND NOT godMode AND NOT editMode THEN
             touchDist = 0.3 + mtypeScale(monsterType(i)) * 0.35
             newDistSq = (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2
             IF newDistSq < touchDist * touchDist AND newDistSq <(monsterX(i) - prevX) ^ 2 + (monsterY(i) -prevY) ^ 2 THEN playerX = prevX : playerY = prevY
@@ -3185,7 +3209,7 @@ RETURN
 ' the caller said where it came from (hurtFromX, hurtFromY), a damage
 ' indicator points there (chapter 18).
 HurtPlayer:
-IF godMode THEN hurtFromX = -1 : hurtElectric = 0 : RETURN
+IF godMode OR editMode THEN hurtFromX = -1 : hurtElectric = 0 : RETURN ' (nothing hurts in god mode, or in the editor)
 IF setting(SET_XFEEDBACK) THEN crossScale = 1.8 ' The crosshair jolts wide
 IF hurtFromX >= 0 THEN AddHurtDir hurtFromX, hurtFromY
 hurtFromX = -1
@@ -3281,6 +3305,15 @@ RETURN
 
 EditLeave:
 editMode = 0 : editView = 0
+IF NOT Walkable(playerX, playerY) THEN ' (left inside something: step out to the nearest open cell)
+    FOR r = 1 TO 8
+        FOR a = 0 TO 15
+            tx = INT(playerX + COS(a * 0.3927) * r) + 0.5 : ty = INT(playerY + SIN(a * 0.3927) * r) + 0.5
+            IF tx > 0 AND ty > 0 AND tx < MAP_SIZE AND ty < MAP_SIZE THEN IF Walkable(tx, ty) THEN playerX = tx : playerY = ty : r = 99 : EXIT FOR
+        NEXT
+    NEXT
+END IF
+IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 ELSE playerZ = 0 ' (down to the floor)
 _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
 IF editDirty THEN ShowMsg "Left the editor - not saved yet (F2, then Ctrl+S)" ELSE ShowMsg "Left the editor"
 RETURN
@@ -3307,15 +3340,7 @@ EditApply:
 keepX = playerX : keepY = playerY : keepDX = dirX : keepDY = dirY
 editRebuild = -1 : GOSUB BuildLevel : editRebuild = 0
 playerX = keepX : playerY = keepY : dirX = keepDX : dirY = keepDY
-planeX = dirY * fovPlane : planeY = -dirX * fovPlane
-IF NOT Walkable(playerX, playerY) THEN ' (built over where you stood: step out)
-    FOR r = 1 TO 6
-        FOR a = 0 TO 7
-            tx = INT(playerX + COS(a * 0.785) * r) + 0.5 : ty = INT(playerY + SIN(a * 0.785) * r) + 0.5
-            IF tx > 0 AND ty > 0 AND tx < MAP_SIZE AND ty < MAP_SIZE THEN IF Walkable(tx, ty) THEN playerX = tx : playerY = ty : r = 99 : EXIT FOR
-        NEXT
-    NEXT
-END IF
+planeX = dirY * fovPlane : planeY = -dirX * fovPlane ' (in the editor you fly through walls, so building over where you are is fine)
 editDirty = -1
 RETURN
 
