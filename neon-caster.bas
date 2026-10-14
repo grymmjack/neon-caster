@@ -6310,6 +6310,11 @@ SELECT CASE conVerb$
         ConBind conA$, conB$
     CASE "binds", "bindlist"
         FOR k = 1 TO NUM_BINDS : ConPrint bindKey$(k) + " = " + KeyName$(keyBind&(k)) + "  (" + LTRIM$(STR$(keyBind&(k))) + ")" : NEXT
+    CASE "mons", "monlist" ' Every monster: where, how it is, and its own settings (the editor's monster pane)
+        IF numMonsters = 0 THEN ConPrint "No monsters in this sector"
+        FOR k = 1 TO numMonsters
+            ConPrint LTRIM$(STR$(k)) + "  " + mtypeName$(monsterType(k)) + " at" + STR$(INT(monsterX(k))) + STR$(INT(monsterY(k))) + "  " + RTRIM$(MID$("asleep  hunting dying   dead    ", monsterState(k) * 8 + 1, 8)) + "  hp" + STR$(monsterHP(k)) + "  sight" + STR$(monSight(k)) + "  hearing" + STR$(monHear(k)) + "  speed" + STR$(INT(monSpd(k) * 100)) + "%  wakes " + RTRIM$(MID$("seeing  near    hit     hunting ", monWake(k) * 8 + 1, 8))
+        NEXT
     CASE "events"
         IF numEvents = 0 THEN ConPrint "No event rooms in this sector"
         FOR k = 1 TO numEvents
@@ -11468,7 +11473,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon mons tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -11478,7 +11483,7 @@ SUB ConHelp(c$)
             ConPrint "Commands (help NAME for more; ; separates several on a line):"
             ConPrint "  map N|name   maps   restart   newgame   finish     - sectors"
             ConPrint "  give all|keys|key r|weapons|gun N|ammo|health|armor|overcharge|amp|map"
-            ConPrint "  god [on|off]   kill   respawn   summon TYPE [N]   kick   tp X Y [ANGLE]   pos   status"
+            ConPrint "  god [on|off]   kill   respawn   summon TYPE [N]   mons   kick   tp X Y [ANGLE]   pos   status"
             ConPrint "  save N|quick   load N|quick   quicksave   quickload"
             ConPrint "  set NAME VALUE   get NAME   settings   NAME [VALUE]   bind ACTION KEY   binds"
             ConPrint "  edit [walk|off]   put X Y CHAR   box X0 Y0 X1 Y1 CHAR   undo   savelevel"

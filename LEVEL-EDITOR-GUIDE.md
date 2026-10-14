@@ -189,7 +189,7 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | IT'S HIT | Only being hit; nothing else wakes it | |
 | HUNTING | Nothing: it's hunting you from the start | |
 
-A closet of YOU'RE NEAR crawlers with a sight of 2 springs as you pass; a heavy with HEARING 12 comes running at the first shot. The settings are kept by the cell the monster starts in, so moving it with the arrows takes them along, but deleting it and placing a new one doesn't.
+To check an ambush, play it and type `mons` in the console: it says which monsters are still asleep. A closet of YOU'RE NEAR crawlers with a sight of 2 springs as you pass; a heavy with HEARING 12 comes running at the first shot. The settings are kept by the cell the monster starts in, so moving it with the arrows takes them along, but deleting it and placing a new one doesn't.
 
 ## The map view
 
@@ -476,6 +476,7 @@ These only change the running level, so they're for testing and for triggers rat
 | `light N on\|off` | Switch one of the level's lights |
 | `liftgo N up\|down` | Send a lift |
 | `message TEXT` | Show a message |
+| `mons` | List every monster: where it is, asleep or hunting, its health, and its own sight, hearing, speed and waking |
 | `sound NAME` | Play `sfx/NAME.wav` |
 
 `help` doesn't list most of these yet, but Tab completes them all. Two worth knowing for testing: `summon TYPE [N]` puts monsters in front of you, and `god` stops them hurting you.
