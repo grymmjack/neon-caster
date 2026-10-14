@@ -66,7 +66,7 @@ Push walls back, sink pits, add doors, monsters and lights, paint any
 picture on any face, set up ambushes, and Ctrl+S saves it to
 `neon-caster/levels/custom/`. The [level editor guide](LEVEL-EDITOR-GUIDE.md)
 explains every tool, key, map character and level-file field, and YOUR
-SECTORS starts with eight example sectors built with the editor to take
+SECTORS starts with eleven example sectors (three of them outdoors, under skies) built with the editor to take
 apart.
 
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting

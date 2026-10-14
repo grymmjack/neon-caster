@@ -1,5 +1,5 @@
-"""Showcase sectors for the level editor: YOUR SECTORS 11-18
-(custom/custom1..8.txt here). Each uses the editor's level-file sections -
+"""Showcase sectors for the level editor: YOUR SECTORS 11-21
+(custom/custom1..11.txt here; 19-21 are outdoors, under sky-*.png). Each uses the editor's level-file sections -
 [faces] (pictures on single faces, divided ones), lights on faces (they
 tint their face), [pads] (teleporters linked by hand), [monsters] (a
 monster's own sight, hearing, health, speed, waking) - on top of the
@@ -7,7 +7,7 @@ usual. Built with the level kit, and checked by it.
 
     python3 showcase.py [OUTDIR]     (OUTDIR: custom/ unless you say)
 
-This writes over custom1-8.txt: once you've changed one of them in the
+This writes over custom1-11.txt: once you've changed one of them in the
 game's editor, don't run it again (or give it another OUTDIR).
 """
 import os, sys
@@ -745,6 +745,189 @@ def core():
         ["ceiling-warning.png", "ceiling-girders.png"], core.__doc__
 
 
+# ---------------------------------------------------------------- 19
+def rooftops():
+    """SECTOR 19: THE ROOFTOPS. Night over the neon city, open to the sky
+    (a ceiling picture called sky-*.png is a sky). Six roofs two walls up,
+    joined by narrow bridges; the alleys between them are a death pit - fall
+    and you die on the street below. One bridge is out: its middle is a lift
+    that rises and falls, so cross while it's up. Keys wait in the rooftop
+    huts; the guards hear every shot across the gaps; the exit is in the
+    north-east tower."""
+    m = Show("#")
+    m.ambient = (110, 170, 150, 255)
+    m.rect(1, 1, 46, 46)                         # the whole city: alleys at the bottom
+    m.ceiling(1, 1, 46, 46, 32)
+    m.zone(1, 1, 46, 46, 1, 2)                   # ceiling 2: the sky
+    roofs = {"A": (4, 32, 14, 43), "B": (19, 31, 29, 41), "C": (34, 27, 43, 38),
+             "D": (4, 4, 15, 16), "E": (20, 5, 29, 14), "F": (34, 4, 43, 17)}
+    for (x0, y0, x1, y1) in roofs.values():
+        m.floor(x0, y0, x1, y1, 16)
+        m.zone(x0, y0, x1, y1, 2, 0)
+    for (x0, y0, x1, y1) in (                    # the bridges, a roof high
+            (15, 37, 18, 37), (30, 35, 33, 35),  # A-B, B-C
+            (9, 17, 9, 31), (16, 9, 19, 9),      # A-D, D-E
+            (38, 18, 38, 26)):                   # C-F
+        m.floor(x0, y0, x1, y1, 16)
+        m.zone(x0, y0, x1, y1, 3, 0)
+    m.floor(30, 9, 33, 9, 16); m.zone(30, 9, 33, 9, 3, 0)   # E-F, broken in the middle:
+    m.lift(31, 9, 32, 9, 8, 16, mode=1, speed=3)            # ...a lift there, rising and falling
+    m.event(13, 1, 1, 46, 46, 0, 0, 0)          # the alleys kill (the lowest floor in the room)
+    m.put(8, 40, "^")
+    # huts: small indoor rooms on the roofs, a normal ceiling (1)
+    for (x0, y0, x1, y1, door, key) in ((22, 33, 26, 36, (24, 37), "r"), (36, 30, 40, 33, (38, 34), "b"),
+                                       (6, 6, 10, 9, (8, 10), "y")):
+        m.rect(x0 - 1, y0 - 1, x1 + 1, y1 + 1, "C")
+        m.rect(x0, y0, x1, y1)
+        m.ceiling(x0, y0, x1, y1, 24, only_raise=False)
+        m.zone(x0, y0, x1, y1, 4, 1)
+        m.put(door[0], door[1], "D")
+        m.put((x0 + x1) // 2, y0, key)
+        m.light((x0 + x1) / 2 + 0.5, (y0 + y1) / 2 + 0.5, 3, 150, 255, 210, 140, 1)
+        m.wall_light(door[0] - 1, door[1], "S", 255, 60, 220, fx=2, rad=2.5, bright=170)
+    for y in range(32, 44):                      # the roofs' edges in pictures: lit windows
+        m.face(14, y, "E", "wall-terminals.png")
+    for x in range(19, 30):
+        m.face(x, 41, "S", "wall-adverts.png")
+    # the exit tower (F), behind the yellow door, then red and blue
+    m.rect(39, 6, 42, 9, "K"); m.rect(40, 7, 41, 8)
+    m.ceiling(40, 7, 41, 8, 24, only_raise=False); m.zone(40, 7, 41, 8, 4, 1)
+    m.put(40, 10 - 1, "Y"); m.put(41, 6, "E")
+    m.put(38, 18, "B"); m.put(16, 9, "R")
+    for (x, y) in ((37, 18), (39, 18), (16, 8), (16, 10)):
+        m.put(x, y, "K")  # (doors need a wall either side: the gateposts)
+    # monsters: guards that hear across the gaps, drones over the alleys
+    m.mon(27, 39, "g", hear=16, sight=10); m.mon(41, 28, "g", hear=16, sight=10)
+    m.mon(25, 7, "g", hear=16); m.mon(12, 14, "k", sight=5, wake="near")
+    m.mon(42, 15, "h", wake="hit", health=150)
+    m.mon(9, 24, "m"); m.mon(38, 22, "m"); m.mon(27, 12, "m")
+    m.put(12, 34, "a"); m.put(28, 32, "e"); m.put(42, 36, "+"); m.put(5, 14, "*"); m.put(21, 12, "M")
+    m.put(13, 42, "l"); m.put(5, 33, "x"); m.put(28, 6, "x"); m.put(43, 5, "f")
+    for (x, y) in ((9, 38), (24, 38), (39, 36), (13, 13), (24, 9), (37, 13)):
+        m.light(x + 0.5, y + 0.5, 6, 120, 255, 120, 220, 0)
+    m.triggers.append("enter 7 39 9 41 : message THE ALLEYS ARE A LONG WAY DOWN - KEEP TO THE BRIDGES")
+    m.triggers.append("enter 29 8 30 10 : message THE BRIDGE IS OUT - WAIT FOR THE LIFT")
+    return m, "custom9", "SECTOR 19: THE ROOFTOPS", \
+        ["wall-concrete.png", "wall-hull.png", "wall-transit.png", "wall-vault.png", "wall-pipes.png", "wall-adverts.png"], \
+        ["floor-scorched.png", "floor-concrete.png", "floor-plates.png", "floor-deck.png"], \
+        ["ceiling-vents.png", "sky-neon-night.png"], rooftops.__doc__
+
+
+# ---------------------------------------------------------------- 20
+def stormyard():
+    """SECTOR 20: THE STORM YARD. A shipyard under a storm sky, lightning in
+    the clouds and strobing on the cranes. Containers stand in rows, one and
+    two walls high; the red card is up on the tallest stack, reached by a
+    stair of crates. Rain has pooled into murky puddles that slow you
+    (painted floor-murky), and crawlers wait in them. The red door opens the
+    warehouse, where the blue card is; the blue door opens the dock gate,
+    and the exit is at the end of the pier."""
+    m = Show("#")
+    m.ambient = (120, 180, 210, 205)
+    m.rect(2, 12, 45, 45)                        # the yard, open to the sky
+    m.ceiling(2, 12, 45, 45, 24)
+    m.zone(2, 12, 45, 45, 1, 2)
+    m.put(5, 42, ">")
+    # containers: blocks one or two walls high, their sides in their own colours
+    boxes = [(8, 16, 13, 18, 8, "wall-rusty.png"), (8, 22, 13, 24, 16, "wall-hazard.png"), (8, 28, 13, 30, 8, "wall-stripes.png"),
+             (18, 16, 23, 18, 16, "wall-rusty.png"), (18, 28, 23, 30, 8, "wall-hazard.png"), (28, 16, 33, 18, 8, "wall-stripes.png"),
+             (28, 22, 33, 24, 16, "wall-rusty.png"), (28, 34, 33, 36, 8, "wall-hazard.png"), (18, 34, 23, 36, 16, "wall-stripes.png")]
+    for (x0, y0, x1, y1, h, pic) in boxes:
+        m.floor(x0, y0, x1, y1, h)
+        m.zone(x0, y0, x1, y1, 3, 0)
+        for x in range(x0, x1 + 1):
+            m.face(x, y0, "N", pic); m.face(x, y1, "S", pic)
+        for y in range(y0, y1 + 1):
+            m.face(x0, y, "W", pic); m.face(x1, y, "E", pic)
+    m.stairs(24, 29, 27, 29, "W", 2, 8)          # crates up onto a one-high container...
+    m.stairs(20, 31, 20, 33, "S", 10, 14)        # ...and on up to the two-high stack south of it
+    for (x, y) in ((24, 29), (25, 29), (26, 29), (27, 29), (20, 31), (20, 32), (20, 33)):
+        m.face(x, y, "F", "floor-rustgrate.png")
+    m.put(21, 35, "r")                           # the red card, on the tall stack
+    m.put(6, 14, "M")
+    m.put(22, 29, "a"); m.put(19, 35, "*")
+    # puddles: murky (slow), crawlers in them
+    for (x0, y0, x1, y1) in ((3, 33, 6, 38), (24, 40, 30, 43), (36, 26, 41, 30)):
+        m.floor_pic(x0, y0, x1, y1, "floor-murky.png")
+    m.mon(5, 35, "c", sight=3, wake="near"); m.mon(27, 42, "c", sight=3, wake="near"); m.mon(38, 28, "c", sight=3, wake="near")
+    m.mon(20, 35, "w", hear=14); m.mon(30, 17, "w", hear=14); m.mon(11, 17, "g")
+    m.put(40, 40, "o"); m.put(41, 40, "o"); m.put(16, 40, "x"); m.put(17, 40, "x"); m.put(35, 14, "x")
+    # the warehouse (north), behind the red door: indoors
+    m.rect(4, 3, 26, 10); m.ceiling(4, 3, 26, 10, 12); m.zone(4, 3, 26, 10, 4, 1)
+    m.put(15, 11, "R"); m.put(15, 12, ".")
+    m.put(25, 4, "b")
+    for x in range(6, 25, 4):
+        m.put(x, 6, "U"); m.put(x, 8, "x")
+    m.mon(24, 9, "h"); m.mon(5, 4, "k", sight=5, wake="near")
+    m.light(10.5, 6.5, 6, 130, 230, 230, 200, 1); m.light(21.5, 6.5, 6, 130, 230, 230, 200, 5)
+    # the dock (east), behind the blue door; the pier out to the exit
+    m.rect(36, 3, 45, 10); m.ceiling(36, 3, 45, 10, 24); m.zone(36, 3, 45, 10, 2, 2)
+    m.put(40, 11, "B"); m.put(39, 11, "#"); m.put(41, 11, "#")
+    m.put(46, 6, "E")
+    m.mon(44, 4, "s", sight=16); m.put(38, 4, "+")
+    # lightning: strobing white on the crane posts; flickering yard lamps
+    for (x, y) in ((25, 20), (25, 32), (36, 20), (8, 38)):
+        m.put(x, y, "N")
+        m.wall_light(x, y, "S", 200, 220, 255, fx=3, rad=5, bright=200)
+    for (x, y) in ((15, 31), (34, 30), (6, 20), (40, 36)):
+        m.light(x + 0.5, y + 0.5, 6, 110, 200, 230, 255, 1)
+    m.triggers.append("enter 4 40 7 44 : message THE STORM YARD - THE PUDDLES SLOW YOU, AND THEY ARE NOT EMPTY")
+    return m, "custom10", "SECTOR 20: THE STORM YARD", \
+        ["wall-concrete.png", "wall-girders.png", "wall-rusty.png", "wall-pipes.png", "wall-hull.png", "wall-hazard.png"], \
+        ["floor-concrete.png", "floor-rustgrate.png", "floor-plates.png", "floor-deck.png"], \
+        ["ceiling-girders.png", "sky-storm.png"], stormyard.__doc__
+
+
+# ---------------------------------------------------------------- 21
+def drift():
+    """SECTOR 21: THE DRIFT. A station's platforms adrift in orbit, a ringed
+    planet hanging in the sky and nothing underneath: step off and you fall
+    for ever. Narrow catwalks join the platforms; one crossing is a row of
+    lifts rising and falling out of step, so pick your moment. Teleporter
+    pads (LINKed by hand) jump the widest gaps. Keys on the far platforms;
+    the exit is on the command deck."""
+    m = Show("#")
+    m.ambient = (130, 200, 210, 255)
+    m.rect(1, 1, 46, 46); m.ceiling(1, 1, 46, 46, 32); m.zone(1, 1, 46, 46, 1, 2)
+    m.floor(1, 1, 46, 46, -8)                    # the void
+    plats = [(4, 36, 13, 44), (22, 34, 30, 42), (37, 30, 44, 40), (4, 16, 12, 24), (20, 4, 30, 12), (36, 4, 44, 14), (18, 18, 28, 26)]
+    for (x0, y0, x1, y1) in plats:
+        m.floor(x0, y0, x1, y1, 0); m.zone(x0, y0, x1, y1, 2, 0)
+        for x in range(x0, x1 + 1):
+            m.face(x, y0, "N", "wall-hull.png"); m.face(x, y1, "S", "wall-hull.png")
+        for y in range(y0, y1 + 1):
+            m.face(x0, y, "W", "wall-hull.png"); m.face(x1, y, "E", "wall-hull.png")
+    for (x0, y0, x1, y1) in ((14, 39, 21, 39), (31, 37, 36, 37), (8, 25, 8, 35), (23, 27, 23, 33), (29, 22, 35, 22)):
+        m.floor(x0, y0, x1, y1, 0); m.zone(x0, y0, x1, y1, 3, 0)   # catwalks
+    for i, y in enumerate(range(15, 30)):        # the crossing from the centre to the north-east: lifts out of step
+        pass
+    for i, x in enumerate(range(31, 36)):
+        m.lift(x, 13, x, 13, -6, 0, mode=1, speed=(3, 5, 4, 6, 3)[i])
+    m.floor(28, 13, 30, 13, 0); m.floor(29, 13, 29, 17, 0)        # (out to the lifts from the centre)
+    m.put(7, 41, "^")
+    # pads: the south-west to the north platform, the west to the north-east
+    for (x, y) in ((11, 42), (25, 6), (6, 17), (42, 12)):
+        m.put(x, y, "&")
+    m.pads += [(11, 42, 25, 6), (6, 17, 42, 12)]
+    m.put(42, 38, "r"); m.put(27, 6, "b")
+    # the command deck (north-east): the red door, then blue, then the exit
+    m.rect(38, 5, 43, 9, "K"); m.rect(39, 6, 42, 8); m.ceiling(39, 6, 42, 8, 12, only_raise=False); m.zone(39, 6, 42, 8, 4, 1)
+    m.put(40, 9, "R"); m.put(41, 5, "B"); m.put(41, 4, "."); m.put(41, 3, "E"); m.floor(41, 3, 41, 4, 0)
+    m.rect(40, 1, 42, 3, "K"); m.put(41, 3, "E"); m.put(41, 4, "."); m.put(40, 4, "K"); m.put(42, 4, "K")
+    m.mon(26, 38, "g", hear=12); m.mon(40, 35, "h", wake="hunt"); m.mon(24, 9, "w"); m.mon(9, 20, "k", sight=4, wake="near")
+    m.mon(22, 22, "m"); m.mon(42, 6 + 1, "s", sight=12)
+    m.put(10, 38, "a"); m.put(26, 22, "+"); m.put(39, 32, "e"); m.put(5, 20, "*"); m.put(28, 10, "M")
+    for (x, y) in ((8, 40), (26, 38), (40, 35), (8, 20), (25, 8), (23, 22)):
+        m.light(x + 0.5, y + 0.5, 6, 140, 90, 220, 255, 0)
+    m.light(40.5, 7.5, 4, 150, 255, 80, 200, 2)
+    m.triggers.append("enter 5 39 9 43 : message NOTHING UNDERNEATH - STEP OFF AND YOU FALL FOR EVER")
+    m.triggers.append("enter 28 12 30 14 : message THE LIFTS RISE AND FALL - WAIT FOR THEM")
+    return m, "custom11", "SECTOR 21: THE DRIFT", \
+        ["wall-hull.png", "wall-core.png", "wall-control.png", "wall-viewport.png", "wall-terminals.png", "wall-obsidian.png"], \
+        ["floor-platform.png", "floor-deck.png", "floor-circuit.png", "floor-core.png"], \
+        ["ceiling-hull.png", "sky-orbit.png"], drift.__doc__
+
+
 def build(fn, outdir):
     m, label, name, walls, floors, ceils, doc = fn()
     lv = m.level(label, name, walls, floors, ceils)
@@ -769,7 +952,7 @@ if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "custom")
     os.makedirs(out, exist_ok=True)
     good = True
-    for fn in (gallery, depot, relay, conservatory, listening, observatory, archive, core):
+    for fn in (gallery, depot, relay, conservatory, listening, observatory, archive, core, rooftops, stormyard, drift):
         print(fn.__name__)
         good = build(fn, out) and good
     print("ALL GOOD" if good else "PROBLEMS")

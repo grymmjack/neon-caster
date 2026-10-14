@@ -1,0 +1,467 @@
+' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+' SECTOR 20: THE STORM YARD. A shipyard under a storm sky, lightning in
+' the clouds and strobing on the cranes. Containers stand in rows, one and
+' two walls high; the red card is up on the tallest stack, reached by a
+' stair of crates. Rain has pooled into murky puddles that slow you
+' (painted floor-murky), and crawlers wait in them. The red door opens the
+' warehouse, where the blue card is; the blue door opens the dock gate,
+' and the exit is at the end of the pier.
+
+name     = SECTOR 20: THE STORM YARD
+walls    = wall-concrete.png, wall-girders.png, wall-rusty.png, wall-pipes.png, wall-hull.png, wall-hazard.png
+floors   = floor-concrete.png, floor-rustgrate.png, floor-plates.png, floor-deck.png
+ceilings = ceiling-girders.png, sky-storm.png
+ambient  = 120, 180, 210, 205
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+2, 12, 45, 45, 1, 2, 0
+8, 16, 13, 18, 3, 0, 0
+8, 22, 13, 24, 3, 0, 0
+8, 28, 13, 30, 3, 0, 0
+18, 16, 23, 18, 3, 0, 0
+18, 28, 23, 30, 3, 0, 0
+28, 16, 33, 18, 3, 0, 0
+28, 22, 33, 24, 3, 0, 0
+28, 34, 33, 36, 3, 0, 0
+18, 34, 23, 36, 3, 0, 0
+4, 3, 26, 10, 4, 1, 0
+36, 3, 45, 10, 2, 2, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+10.5, 6.5, 6, 130, 230, 230, 200, 1
+21.5, 6.5, 6, 130, 230, 230, 200, 5
+25.5, 21.12, 5, 200, 200, 220, 255, 3
+25.5, 33.12, 5, 200, 200, 220, 255, 3
+36.5, 21.12, 5, 200, 200, 220, 255, 3
+8.5, 39.12, 5, 200, 200, 220, 255, 3
+15.5, 31.5, 6, 110, 200, 230, 255, 1
+34.5, 30.5, 6, 110, 200, 230, 255, 1
+6.5, 20.5, 6, 110, 200, 230, 255, 1
+40.5, 36.5, 6, 110, 200, 230, 255, 1
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+
+[triggers]
+' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+enter 4 40 7 44 : message THE STORM YARD - THE PUDDLES SLOW YOU, AND THEY ARE NOT EMPTY
+
+[monsters]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+5, 4, 5, 0, 100, 100, 1
+44, 4, 16, 0, 100, 100, 0
+30, 17, 14, 14, 100, 100, 0
+38, 28, 3, 0, 100, 100, 1
+5, 35, 3, 0, 100, 100, 1
+20, 35, 14, 14, 100, 100, 0
+27, 42, 3, 0, 100, 100, 1
+
+[faces]
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+8, 16, N, 0, wall-rusty.png
+8, 16, W, 0, wall-rusty.png
+9, 16, N, 0, wall-rusty.png
+10, 16, N, 0, wall-rusty.png
+11, 16, N, 0, wall-rusty.png
+12, 16, N, 0, wall-rusty.png
+13, 16, E, 0, wall-rusty.png
+13, 16, N, 0, wall-rusty.png
+18, 16, N, 0, wall-rusty.png
+18, 16, W, 0, wall-rusty.png
+19, 16, N, 0, wall-rusty.png
+20, 16, N, 0, wall-rusty.png
+21, 16, N, 0, wall-rusty.png
+22, 16, N, 0, wall-rusty.png
+23, 16, E, 0, wall-rusty.png
+23, 16, N, 0, wall-rusty.png
+28, 16, N, 0, wall-stripes.png
+28, 16, W, 0, wall-stripes.png
+29, 16, N, 0, wall-stripes.png
+30, 16, N, 0, wall-stripes.png
+31, 16, N, 0, wall-stripes.png
+32, 16, N, 0, wall-stripes.png
+33, 16, E, 0, wall-stripes.png
+33, 16, N, 0, wall-stripes.png
+8, 17, W, 0, wall-rusty.png
+13, 17, E, 0, wall-rusty.png
+18, 17, W, 0, wall-rusty.png
+23, 17, E, 0, wall-rusty.png
+28, 17, W, 0, wall-stripes.png
+33, 17, E, 0, wall-stripes.png
+8, 18, S, 0, wall-rusty.png
+8, 18, W, 0, wall-rusty.png
+9, 18, S, 0, wall-rusty.png
+10, 18, S, 0, wall-rusty.png
+11, 18, S, 0, wall-rusty.png
+12, 18, S, 0, wall-rusty.png
+13, 18, E, 0, wall-rusty.png
+13, 18, S, 0, wall-rusty.png
+18, 18, S, 0, wall-rusty.png
+18, 18, W, 0, wall-rusty.png
+19, 18, S, 0, wall-rusty.png
+20, 18, S, 0, wall-rusty.png
+21, 18, S, 0, wall-rusty.png
+22, 18, S, 0, wall-rusty.png
+23, 18, E, 0, wall-rusty.png
+23, 18, S, 0, wall-rusty.png
+28, 18, S, 0, wall-stripes.png
+28, 18, W, 0, wall-stripes.png
+29, 18, S, 0, wall-stripes.png
+30, 18, S, 0, wall-stripes.png
+31, 18, S, 0, wall-stripes.png
+32, 18, S, 0, wall-stripes.png
+33, 18, E, 0, wall-stripes.png
+33, 18, S, 0, wall-stripes.png
+8, 22, N, 0, wall-hazard.png
+8, 22, W, 0, wall-hazard.png
+9, 22, N, 0, wall-hazard.png
+10, 22, N, 0, wall-hazard.png
+11, 22, N, 0, wall-hazard.png
+12, 22, N, 0, wall-hazard.png
+13, 22, E, 0, wall-hazard.png
+13, 22, N, 0, wall-hazard.png
+28, 22, N, 0, wall-rusty.png
+28, 22, W, 0, wall-rusty.png
+29, 22, N, 0, wall-rusty.png
+30, 22, N, 0, wall-rusty.png
+31, 22, N, 0, wall-rusty.png
+32, 22, N, 0, wall-rusty.png
+33, 22, E, 0, wall-rusty.png
+33, 22, N, 0, wall-rusty.png
+8, 23, W, 0, wall-hazard.png
+13, 23, E, 0, wall-hazard.png
+28, 23, W, 0, wall-rusty.png
+33, 23, E, 0, wall-rusty.png
+8, 24, S, 0, wall-hazard.png
+8, 24, W, 0, wall-hazard.png
+9, 24, S, 0, wall-hazard.png
+10, 24, S, 0, wall-hazard.png
+11, 24, S, 0, wall-hazard.png
+12, 24, S, 0, wall-hazard.png
+13, 24, E, 0, wall-hazard.png
+13, 24, S, 0, wall-hazard.png
+28, 24, S, 0, wall-rusty.png
+28, 24, W, 0, wall-rusty.png
+29, 24, S, 0, wall-rusty.png
+30, 24, S, 0, wall-rusty.png
+31, 24, S, 0, wall-rusty.png
+32, 24, S, 0, wall-rusty.png
+33, 24, E, 0, wall-rusty.png
+33, 24, S, 0, wall-rusty.png
+36, 26, F, 0, floor-murky.png
+37, 26, F, 0, floor-murky.png
+38, 26, F, 0, floor-murky.png
+39, 26, F, 0, floor-murky.png
+40, 26, F, 0, floor-murky.png
+41, 26, F, 0, floor-murky.png
+36, 27, F, 0, floor-murky.png
+37, 27, F, 0, floor-murky.png
+38, 27, F, 0, floor-murky.png
+39, 27, F, 0, floor-murky.png
+40, 27, F, 0, floor-murky.png
+41, 27, F, 0, floor-murky.png
+8, 28, N, 0, wall-stripes.png
+8, 28, W, 0, wall-stripes.png
+9, 28, N, 0, wall-stripes.png
+10, 28, N, 0, wall-stripes.png
+11, 28, N, 0, wall-stripes.png
+12, 28, N, 0, wall-stripes.png
+13, 28, E, 0, wall-stripes.png
+13, 28, N, 0, wall-stripes.png
+18, 28, N, 0, wall-hazard.png
+18, 28, W, 0, wall-hazard.png
+19, 28, N, 0, wall-hazard.png
+20, 28, N, 0, wall-hazard.png
+21, 28, N, 0, wall-hazard.png
+22, 28, N, 0, wall-hazard.png
+23, 28, E, 0, wall-hazard.png
+23, 28, N, 0, wall-hazard.png
+36, 28, F, 0, floor-murky.png
+37, 28, F, 0, floor-murky.png
+38, 28, F, 0, floor-murky.png
+39, 28, F, 0, floor-murky.png
+40, 28, F, 0, floor-murky.png
+41, 28, F, 0, floor-murky.png
+8, 29, W, 0, wall-stripes.png
+13, 29, E, 0, wall-stripes.png
+18, 29, W, 0, wall-hazard.png
+23, 29, E, 0, wall-hazard.png
+24, 29, F, 0, floor-rustgrate.png
+25, 29, F, 0, floor-rustgrate.png
+26, 29, F, 0, floor-rustgrate.png
+27, 29, F, 0, floor-rustgrate.png
+36, 29, F, 0, floor-murky.png
+37, 29, F, 0, floor-murky.png
+38, 29, F, 0, floor-murky.png
+39, 29, F, 0, floor-murky.png
+40, 29, F, 0, floor-murky.png
+41, 29, F, 0, floor-murky.png
+8, 30, S, 0, wall-stripes.png
+8, 30, W, 0, wall-stripes.png
+9, 30, S, 0, wall-stripes.png
+10, 30, S, 0, wall-stripes.png
+11, 30, S, 0, wall-stripes.png
+12, 30, S, 0, wall-stripes.png
+13, 30, E, 0, wall-stripes.png
+13, 30, S, 0, wall-stripes.png
+18, 30, S, 0, wall-hazard.png
+18, 30, W, 0, wall-hazard.png
+19, 30, S, 0, wall-hazard.png
+20, 30, S, 0, wall-hazard.png
+21, 30, S, 0, wall-hazard.png
+22, 30, S, 0, wall-hazard.png
+23, 30, E, 0, wall-hazard.png
+23, 30, S, 0, wall-hazard.png
+36, 30, F, 0, floor-murky.png
+37, 30, F, 0, floor-murky.png
+38, 30, F, 0, floor-murky.png
+39, 30, F, 0, floor-murky.png
+40, 30, F, 0, floor-murky.png
+41, 30, F, 0, floor-murky.png
+20, 31, F, 0, floor-rustgrate.png
+20, 32, F, 0, floor-rustgrate.png
+3, 33, F, 0, floor-murky.png
+4, 33, F, 0, floor-murky.png
+5, 33, F, 0, floor-murky.png
+6, 33, F, 0, floor-murky.png
+20, 33, F, 0, floor-rustgrate.png
+3, 34, F, 0, floor-murky.png
+4, 34, F, 0, floor-murky.png
+5, 34, F, 0, floor-murky.png
+6, 34, F, 0, floor-murky.png
+18, 34, N, 0, wall-stripes.png
+18, 34, W, 0, wall-stripes.png
+19, 34, N, 0, wall-stripes.png
+20, 34, N, 0, wall-stripes.png
+21, 34, N, 0, wall-stripes.png
+22, 34, N, 0, wall-stripes.png
+23, 34, E, 0, wall-stripes.png
+23, 34, N, 0, wall-stripes.png
+28, 34, N, 0, wall-hazard.png
+28, 34, W, 0, wall-hazard.png
+29, 34, N, 0, wall-hazard.png
+30, 34, N, 0, wall-hazard.png
+31, 34, N, 0, wall-hazard.png
+32, 34, N, 0, wall-hazard.png
+33, 34, E, 0, wall-hazard.png
+33, 34, N, 0, wall-hazard.png
+3, 35, F, 0, floor-murky.png
+4, 35, F, 0, floor-murky.png
+5, 35, F, 0, floor-murky.png
+6, 35, F, 0, floor-murky.png
+18, 35, W, 0, wall-stripes.png
+23, 35, E, 0, wall-stripes.png
+28, 35, W, 0, wall-hazard.png
+33, 35, E, 0, wall-hazard.png
+3, 36, F, 0, floor-murky.png
+4, 36, F, 0, floor-murky.png
+5, 36, F, 0, floor-murky.png
+6, 36, F, 0, floor-murky.png
+18, 36, S, 0, wall-stripes.png
+18, 36, W, 0, wall-stripes.png
+19, 36, S, 0, wall-stripes.png
+20, 36, S, 0, wall-stripes.png
+21, 36, S, 0, wall-stripes.png
+22, 36, S, 0, wall-stripes.png
+23, 36, E, 0, wall-stripes.png
+23, 36, S, 0, wall-stripes.png
+28, 36, S, 0, wall-hazard.png
+28, 36, W, 0, wall-hazard.png
+29, 36, S, 0, wall-hazard.png
+30, 36, S, 0, wall-hazard.png
+31, 36, S, 0, wall-hazard.png
+32, 36, S, 0, wall-hazard.png
+33, 36, E, 0, wall-hazard.png
+33, 36, S, 0, wall-hazard.png
+3, 37, F, 0, floor-murky.png
+4, 37, F, 0, floor-murky.png
+5, 37, F, 0, floor-murky.png
+6, 37, F, 0, floor-murky.png
+3, 38, F, 0, floor-murky.png
+4, 38, F, 0, floor-murky.png
+5, 38, F, 0, floor-murky.png
+6, 38, F, 0, floor-murky.png
+24, 40, F, 0, floor-murky.png
+25, 40, F, 0, floor-murky.png
+26, 40, F, 0, floor-murky.png
+27, 40, F, 0, floor-murky.png
+28, 40, F, 0, floor-murky.png
+29, 40, F, 0, floor-murky.png
+30, 40, F, 0, floor-murky.png
+24, 41, F, 0, floor-murky.png
+25, 41, F, 0, floor-murky.png
+26, 41, F, 0, floor-murky.png
+27, 41, F, 0, floor-murky.png
+28, 41, F, 0, floor-murky.png
+29, 41, F, 0, floor-murky.png
+30, 41, F, 0, floor-murky.png
+24, 42, F, 0, floor-murky.png
+25, 42, F, 0, floor-murky.png
+26, 42, F, 0, floor-murky.png
+27, 42, F, 0, floor-murky.png
+28, 42, F, 0, floor-murky.png
+29, 42, F, 0, floor-murky.png
+30, 42, F, 0, floor-murky.png
+24, 43, F, 0, floor-murky.png
+25, 43, F, 0, floor-murky.png
+26, 43, F, 0, floor-murky.png
+27, 43, F, 0, floor-murky.png
+28, 43, F, 0, floor-murky.png
+29, 43, F, 0, floor-murky.png
+30, 43, F, 0, floor-murky.png
+
+[map]
+################################################
+################################################
+################################################
+####.......................#########..........##
+####.k...................b.#########..+.....s.##
+####.......................#########..........##
+####..U...U...U...U...U....#########..........E#
+####.......................#########..........##
+####..x...x...x...x...x....#########..........##
+####....................h..#########..........##
+####.......................#########..........##
+###############R########################B#######
+##............................................##
+##............................................##
+##....M............................x..........##
+##............................................##
+##............................................##
+##.........g..................w...............##
+##............................................##
+##............................................##
+##.......................N..........N.........##
+##............................................##
+##............................................##
+##............................................##
+##............................................##
+##............................................##
+##............................................##
+##............................................##
+##....................................c.......##
+##....................a.......................##
+##............................................##
+##............................................##
+##.......................N....................##
+##............................................##
+##............................................##
+##...c.............*wr........................##
+##............................................##
+##............................................##
+##......N.....................................##
+##............................................##
+##..............xx......................oo....##
+##............................................##
+##...>.....................c..................##
+##............................................##
+##............................................##
+##............................................##
+################################################
+################################################
+
+[floor]
+' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+........888888....gggggg....888888..............
+........888888....gggggg....888888..............
+........888888....gggggg....888888..............
+................................................
+................................................
+................................................
+........gggggg..............gggggg..............
+........gggggg..............gggggg..............
+........gggggg..............gggggg..............
+................................................
+................................................
+................................................
+........888888....888888........................
+........888888....8888888642....................
+........888888....888888........................
+....................a...........................
+....................c...........................
+....................e...........................
+..................gggggg....888888..............
+..................gggggg....888888..............
+..................gggggg....888888..............
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+
+[ceiling]
+' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's
+................................................
+................................................
+................................................
+....ccccccccccccccccccccccc.........oooooooooo..
+....ccccccccccccccccccccccc.........oooooooooo..
+....ccccccccccccccccccccccc.........oooooooooo..
+....ccccccccccccccccccccccc.........oooooooooo..
+....ccccccccccccccccccccccc.........oooooooooo..
+....ccccccccccccccccccccccc.........oooooooooo..
+....ccccccccccccccccccccccc.........oooooooooo..
+....ccccccccccccccccccccccc.........oooooooooo..
+................................................
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+..oooooooooooooooooooooooooooooooooooooooooooo..
+................................................
+................................................

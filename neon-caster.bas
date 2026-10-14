@@ -364,8 +364,9 @@ CONST EV_AMBUSH = 1, EV_SURVIVE = 2, EV_TRAP = 3, EV_GALLERY = 4, EV_NEST = 5
 CONST EV_CLOSET = 6, EV_HOARD = 7, EV_PLATE = 8, EV_LASER = 9, EV_CUTTER = 10, EV_BLACKOUT = 11
 '   EV_FIRETRAP the same as EV_TRAP, but a burner grate: flames, not sparks
 CONST EV_FIRETRAP = 12
-'   EV_DEATHPIT a floor that kills: land on it (from any height) and you die -
-'               a pit with a bottom you can see. Never locks, never ends.
+'   EV_DEATHPIT a floor that kills: land on its lowest floor (from any height)
+'               and you die - a pit with a bottom you can see, an alley under
+'               the rooftops. Higher floors in its room are safe.
 CONST EV_DEATHPIT = 13, EV_KINDS = 13
 ' A trap gives itself away: its floor is its own picture (MakeTrapTex), it
 ' smokes or crackles for TRAP_WARN frames before it goes live, and while
@@ -837,7 +838,7 @@ CONST WAKE_REACH = 1.1
 ' Each texture slot's file name (LoadTex), so OpenGL can tell what a
 ' texture is - a floor that should shine, a screen that should flicker
 DIM SHARED texName$(T_SLOTS)
-DIM SHARED texHD(T_SLOTS) AS INTEGER ' (each texture slot: a MODERN painting from hd/? OpenGL draws those smooth)
+DIM SHARED texHD(T_SLOTS) AS INTEGER, texSky(T_SLOTS) AS INTEGER ' (each texture slot: a MODERN painting from hd/? OpenGL draws those smooth)
 DIM SHARED pitch ' (looking up and down, chapter 8 - OpenGL only)
 
 '-----------------------------------------------------------------------------
@@ -1201,6 +1202,15 @@ CONST STEP_UP = 0.32, EYE_H = 0.5, BODY_H = 0.7, FALL_G = 0.01, PIT_DEPTH = -0.9
 CONST HAZ_BURN = 1, HAZ_WADE = 2, BURN_DAMAGE = 5, BURN_EVERY = 30, SLOW_WADE = 0.7
 DIM SHARED burnWait AS INTEGER, walkFromHaz AS INTEGER ' (sndSizzle&: with the other sounds, chapter 6)
 DIM SHARED rowF(RENDER_H - 1) AS SINGLE, rowC(RENDER_H - 1) AS SINGLE ' (HeightColumn: each row's distance per unit of height)
+' SKY: a ceiling picture called sky-*.png isn't laid on the ceiling - it's
+' drawn by the way you look, like Doom's sky, so it seems endlessly far
+' off: across, the whole way round (SKY_REPEAT copies); up, its bottom row
+' at the horizon and its top SKY_EL radians (72 degrees) up. (Painted five
+' times as wide as it's tall and squeezed square - levels/skies.py.)
+' texSky(slot): that slot is a sky. skyU / skyV: the software renderer's
+' column and row into it, worked out once a frame.
+CONST SKY_REPEAT = 1, SKY_EL = 1.2566 ' (a panorama: the whole way round across, 72 degrees up)
+DIM SHARED skyU(RENDER_W - 1) AS INTEGER, skyV(RENDER_H - 1) AS INTEGER
 DIM SHARED floorH(MAP_SIZE, MAP_SIZE) AS SINGLE, ceilH(MAP_SIZE, MAP_SIZE) AS SINGLE, levelFlat AS INTEGER
 DIM SHARED lvlFloorRow$(MAP_SIZE - 1), lvlCeilRow$(MAP_SIZE - 1)
 DIM SHARED playerZ AS SINGLE, playerVZ AS SINGLE, eyeZ AS SINGLE, walkZ AS SINGLE
@@ -2360,6 +2370,17 @@ DO
             IF boltOn(i) THEN AddGlow boltX(i), boltY(i), 2.5, 160, 40, 170
         NEXT
     END IF
+    IF NOT glMode THEN ' The sky's column for each screen column (by its ray's angle) and row for each screen row (by how far above the horizon)
+        FOR x = 0 TO RENDER_W - 1
+            cameraX = 2 * x / RENDER_W - 1 : a = _ATAN2(dirY + planeY * cameraX, dirX + planeX * cameraX) / 6.2831853 * SKY_REPEAT
+            skyU(x) = INT((a - INT(a)) * texSize) AND (texSize - 1)
+        NEXT
+        FOR y = 0 TO RENDER_H - 1
+            el = ATN((RENDER_H / 2 - y - 0.5) / viewH) / SKY_EL : IF el < 0 THEN el = 0
+            IF el > 1 THEN el = 1
+            skyV(y) = INT((1 - el) * (texSize - 1))
+        NEXT
+    END IF
     IF NOT glMode AND levelFlat THEN ' (OpenGL draws the floor and ceiling itself; with heights, HeightColumn does - chapter 15)
         rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
         rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY
@@ -2403,8 +2424,12 @@ DO
                 ' would cost more than the sum itself
                 texel~& = texture(texU, texV, floorSlot)
                 pixels(floorRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
-                texel~& = texture(texU, texV, ceilSlot)
-                pixels(ceilRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                IF texSky(ceilSlot) THEN ' (a sky: by the way you look, full bright)
+                    pixels(ceilRow + x) = texture(skyU(x), skyV(RENDER_H - 1 - y), ceilSlot) OR &HFF000000~&
+                ELSE
+                    texel~& = texture(texU, texV, ceilSlot)
+                    pixels(ceilRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                END IF
                 IF gridOn THEN IF texU < gridW OR texV < gridW THEN pixels(floorRow + x) = GridMix~&(pixels(floorRow + x)) : pixels(ceilRow + x) = GridMix~&(pixels(ceilRow + x)) ' (the editor's grid: chapter 21)
                 IF cellTrack THEN ' In a doorway: its door's track, a dark groove (a quarter as bright)
                     IF cellTrack = 1 THEN trackD = ABS(floorY - cellY - 0.5) ELSE trackD = ABS(floorX - cellX - 0.5)
@@ -4999,6 +5024,10 @@ DO
         IF yNear < hTop THEN yNear = hTop
         IF yFar > hBot THEN yFar = hBot
         hk = hc - eyeZ : slot = ceilTex(hcX, hcY) : hSplit = ceilSplit(hcX, hcY) : tMask = texSize - 1
+        IF texSky(slot) THEN ' (a sky: by the way you look, full bright - its rows, and on to the next cell)
+            FOR y = yNear TO yFar : pixels(y * RENDER_W + x) = texture(skyU(x), skyV(y), slot) OR &HFF000000~& : NEXT
+            yNear = yFar + 1
+        END IF
         FOR y = yNear TO yFar
             rowDist = hk * rowC(y)
             fx = playerX + rowDist * rayDirX : fy = playerY + rowDist * rayDirY
@@ -5048,6 +5077,7 @@ DO
     IF hSolid THEN ' A wall: from this cell's ceiling to its floor
         y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut)
         hZ0 = hc : hZ1 = hf : hVOff = 0 : GOSUB HeightFace
+        hTop = hBot + 1 ' (the column's done: nothing left to fill)
         EXIT DO
     END IF
     ' Open: the step's face up to a higher floor...
@@ -5064,13 +5094,25 @@ DO
     IF nc < hc THEN
         y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor - (nc - eyeZ) * viewH / hDOut) : hSlot = wallTexSlot(1)
         IF hSd THEN hSlot2 = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 0, hSlot)
-        hZ0 = hc : hZ1 = nc : hVOff = 0 : GOSUB HeightFace
+        IF texSky(ceilTex(hcX, hcY)) AND texSky(ceilTex(hnX, hnY)) THEN ' (between two skies: sky, not a wall hanging in the air)
+            yA = y0 : IF yA < hTop THEN yA = hTop
+            yB = y1 : IF yB > hBot THEN yB = hBot
+            FOR y = yA TO yB : pixels(y * RENDER_W + x) = texture(skyU(x), skyV(y), ceilTex(hcX, hcY)) OR &HFF000000~& : NEXT
+        ELSE
+            hZ0 = hc : hZ1 = nc : hVOff = 0 : GOSUB HeightFace
+        END IF
         IF y1 + 1 > hTop THEN hTop = y1 + 1
     END IF
     IF clipN(x) < MAX_CLIPS THEN clipN(x) = clipN(x) + 1 : clipD(x, clipN(x)) = hDOut : clipT(x, clipN(x)) = hTop : clipB(x, clipN(x)) = hBot
     IF hTop > hBot OR hDOut > 24 THEN EXIT DO
     hcX = hnX : hcY = hnY : hDIn = hDOut
 LOOP
+IF hTop <= hBot THEN ' Rows left when the column gave up (24 cells out - in the open, under a sky): sky above the horizon, the dark below
+    sk = 0 : IF hcX >= 0 AND hcY >= 0 AND hcX < MAP_SIZE AND hcY < MAP_SIZE THEN IF texSky(ceilTex(hcX, hcY)) THEN sk = ceilTex(hcX, hcY)
+    FOR y = hTop TO hBot
+        IF sk AND y < hor THEN pixels(y * RENDER_W + x) = texture(skyU(x), skyV(y), sk) OR &HFF000000~& ELSE pixels(y * RENDER_W + x) = &HFF000000~&
+    NEXT
+END IF
 RETURN
 
 ' (HeightColumn's upright faces: rows y0 to y1 of column x, inside hTop ..
@@ -5214,9 +5256,16 @@ FOR ev = 1 TO numEvents
                     END IF
                 NEXT
             END IF
-        CASE EV_DEATHPIT ' Its floor kills: touch it and you're gone (not in god mode, nor in the editor)
+        CASE EV_DEATHPIT ' Its floor kills - its lowest floor (roofs and ledges over it in the room are safe): touch it and you're gone (not in god mode, nor in the editor)
+            IF evCount(ev) = 0 THEN ' (the lowest floor in the room, in eighths, worked out once: kept + 1000)
+                lo = 99
+                FOR yy = evY0(ev) TO evY1(ev) : FOR xx = evX0(ev) TO evX1(ev)
+                    IF worldMap(xx, yy) <= 0 THEN IF floorH(xx, yy) < lo THEN lo = floorH(xx, yy)
+                NEXT : NEXT
+                evCount(ev) = INT(lo * 8 + 0.5) + 1000
+            END IF
             IF inside AND NOT dead AND NOT godMode AND NOT editMode THEN
-                IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.02 THEN
+                IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.02 AND floorH(INT(playerX), INT(playerY)) * 8 <= evCount(ev) - 1000 + 0.5 THEN
                     health = 0 : dead = -1 : deadAt! = TIMER : hurtFlash = 14 : shake = shake + 12
                     PlaySfx sndStep1&, 1 : PlaySfx sndDie&, 1 : ShowMsg "You hit the bottom"
                 END IF
@@ -6432,6 +6481,13 @@ SELECT CASE conVerb$
         GOSUB NewGame : conLevelChanged = -1
     CASE "finish", "exitlevel", "nextlevel" ' As if you'd reached the exit
         conLevelChanged = -1 : GOSUB LevelDone
+    CASE "item", "drop" ' item KIND X Y: a pickup appears in cell X Y (KIND: a map character - r b y + * u a e 2 3 4 M q j - or health, armor, cells, shells, medkit, map...)
+        ik = ItemOf(conA$)
+        IF ik = 0 OR conC$ = "" THEN
+            ConPrint "item KIND X Y - KIND: health medkit armor cells shells scatter repeater rail map overcharge amp red blue yellow (or its map character)"
+        ELSE
+            DropItemAt ik, VAL(conB$) + 0.5, VAL(conC$) + 0.5 : SfxAt sndTeleport&, VAL(conB$) + 0.5, VAL(conC$) + 0.5, playerX, playerY
+        END IF
     CASE "give"
         GOSUB ConGive
     CASE "take"
@@ -6456,9 +6512,20 @@ SELECT CASE conVerb$
             MonOwn i, INT(monStartX(i)), INT(monStartY(i))
         NEXT
         kills = 0 : ConPrint "Respawned" + STR$(numMonsters) + " monsters"
-    CASE "summon", "spawn" ' A monster (by number or name) in front of you
+    CASE "summon", "spawn" ' A monster (by number or name) in front of you - or, given a cell (spawn TYPE X Y [N]), there: teleported in, hunting (a trigger's ambush)
         t = MonTypeOf(conA$) : cnt = VAL(conB$) : IF cnt < 1 THEN cnt = 1
-        IF t = 0 THEN
+        IF t > 0 AND LEN(conC$) > 0 AND VAL(conC$) > 0 THEN
+            sx0 = VAL(conB$) + 0.5 : sy0 = VAL(conC$) + 0.5 : cnt = VAL(ConWord$(conCmd$, 5)) : IF cnt < 1 THEN cnt = 1
+            n = 0
+            FOR k = 1 TO cnt ' (the cell itself, then round it)
+                FOR try = 0 TO 8
+                    sx = sx0 + (try MOD 3 - 1) * (try > 0) * -0.9 : sy = sy0 + ((try \ 3) - 1) * (try > 0) * -0.9
+                    IF SpawnMonster(t, sx, sy, 0) THEN n = n + 1 : SpawnSparks sx, sy, 0.4, 24, 150, 90, 255 : EXIT FOR
+                NEXT
+            NEXT
+            IF n THEN SfxAt sndTeleport&, sx0, sy0, playerX, playerY
+            ConPrint "Spawned" + STR$(n) + " " + mtypeName$(t) + " at" + STR$(INT(sx0)) + STR$(INT(sy0))
+        ELSEIF t = 0 THEN
             ConPrint "summon: a monster type - 1 drone, 2 gunner, 3 heavy, 4 crawler, 5 sentry, 6 stalker, 7 spitter, 8 overseer"
         ELSE
             n = 0
@@ -7517,6 +7584,7 @@ END SUB
 
 SUB LoadTex(file$, slot AS INTEGER)
     texName$(slot) = LCASE$(file$) ' (what it is, for OpenGL's effects - chapter 24)
+    texSky(slot) = (LEFT$(LCASE$(file$), 4) = "sky-") ' (a sky: drawn by the way you look)
     path$ = ArtPath$(file$) : texHD(slot) = INSTR(path$, "hd/") > 0
     img& = _LOADIMAGE(path$, 32)
     IF img& >= -1 THEN PRINT "Missing texture: "; path$ : SLEEP : SYSTEM
@@ -9186,7 +9254,7 @@ SUB EditPkBuild
     SELECT CASE edPickTab
         CASE 1 : g$ = "#NCKPG/\%=" : pre$ = "wall"
         CASE 2 : pre$ = "floor"
-        CASE 3 : pre$ = "ceiling"
+        CASE 3 : pre$ = "ceiling" : pre2$ = "sky-" ' (and the skies: a ceiling that's open to the sky)
         CASE 4 : g$ = "DHXRBY!E"
         CASE 5 : g$ = "rby+*uae234Mqj"
         CASE 6 : g$ = "mghcskwzT"
@@ -9196,15 +9264,20 @@ SUB EditPkBuild
     FOR k = 1 TO LEN(g$)
         edPkN = edPkN + 1 : edPkKind(edPkN) = PK_GLYPH : edPkVal$(edPkN) = MID$(g$, k, 1) : edPkImg&(edPkN) = EditGlyphThumb&(MID$(g$, k, 1))
     NEXT
-    IF LEN(pre$) THEN ' Every picture called wall*.png (floor*, ceiling*), in name order
+    IF LEN(pre$) THEN ' Every picture called wall*.png (floor*, ceiling* and sky-*), in name order
         dir$ = AssetPath$("x") : dir$ = LEFT$(dir$, LEN(dir$) - 1)
         first = edPkN + 1
-        f$ = _FILES$(dir$ + pre$ + "*.png")
-        DO WHILE LEN(f$) AND edPkN < PK_MAX
-            b$ = f$ : sl = _INSTRREV(b$, "/") : IF sl THEN b$ = MID$(b$, sl + 1)
-            IF b$ <> "wall-jack.png" AND b$ <> "wall-code.png" AND b$ <> "ceiling-lamp.png" THEN edPkN = edPkN + 1 : edPkKind(edPkN) = PK_TEX : edPkVal$(edPkN) = b$
-            f$ = _FILES$
-        LOOP
+        FOR pass = 1 TO 2
+            IF pass = 1 THEN pp$ = pre$ ELSE pp$ = pre2$
+            IF LEN(pp$) THEN
+                f$ = _FILES$(dir$ + pp$ + "*.png")
+                DO WHILE LEN(f$) AND edPkN < PK_MAX
+                    b$ = f$ : sl = _INSTRREV(b$, "/") : IF sl THEN b$ = MID$(b$, sl + 1)
+                    IF b$ <> "wall-jack.png" AND b$ <> "wall-code.png" AND b$ <> "ceiling-lamp.png" THEN edPkN = edPkN + 1 : edPkKind(edPkN) = PK_TEX : edPkVal$(edPkN) = b$
+                    f$ = _FILES$
+                LOOP
+            END IF
+        NEXT
         FOR a = first TO edPkN - 1 : FOR b = a + 1 TO edPkN
             IF LCASE$(edPkVal$(b)) < LCASE$(edPkVal$(a)) THEN SWAP edPkVal$(a), edPkVal$(b)
         NEXT : NEXT
@@ -9827,6 +9900,29 @@ FUNCTION TrigAction$(q, cmd)
         CASE ELSE : l$ = "TAKE ALL" : c$ = "take all"
     END SELECT
     IF cmd THEN TrigAction$ = c$ ELSE TrigAction$ = l$
+END FUNCTION
+
+' A pickup kind by its map character or a name (as the map has them: 1-3
+' keycards, 4 health... IT_), 0 for none
+FUNCTION ItemOf(v$)
+    ItemOf = 0
+    IF LEN(v$) = 1 THEN ItemOf = INSTR("rby+ae23u*4Mqj", v$) : EXIT FUNCTION
+    SELECT CASE LCASE$(v$)
+        CASE "red" : ItemOf = 1
+        CASE "blue" : ItemOf = 2
+        CASE "yellow" : ItemOf = 3
+        CASE "health" : ItemOf = IT_HEALTH
+        CASE "cells", "ammo" : ItemOf = IT_CELLS
+        CASE "shells" : ItemOf = IT_SHELLS
+        CASE "scatter" : ItemOf = IT_SCATTER
+        CASE "repeater" : ItemOf = IT_REPEATER
+        CASE "armor", "armour" : ItemOf = IT_ARMOR
+        CASE "medkit", "bigmed" : ItemOf = IT_BIGMED
+        CASE "rail", "railgun" : ItemOf = IT_RAIL
+        CASE "map" : ItemOf = IT_MAP
+        CASE "overcharge" : ItemOf = IT_OVERCHARGE
+        CASE "amp" : ItemOf = IT_AMP
+    END SELECT
 END FUNCTION
 
 ' An ammo kind by name (cells, shells - or 1, 2), 0 for none
@@ -11996,7 +12092,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon spawn item mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -12022,6 +12118,8 @@ SUB ConHelp(c$)
         CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-4 | ammo [cells|shells N] | health [N] | armor [N] | overcharge | amp | map"
         CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-4 | ammo [cells|shells N] | health N | armor [N] | map"
         CASE "die" : ConPrint "die [MESSAGE]: you die (a trigger's death trap); never in god mode or the editor"
+        CASE "spawn" : ConPrint "spawn TYPE X Y [N]: N monsters teleported into cell X Y, hunting (summon TYPE [N]: in front of you)"
+        CASE "item" : ConPrint "item KIND X Y: a pickup appears in cell X Y (health medkit armor cells shells scatter repeater rail map overcharge amp red blue yellow)"
         CASE "summon" : ConPrint "summon TYPE [COUNT]: drone gunner heavy crawler sentry stalker spitter overseer (or 1-8), in front of you"
         CASE "set" : ConPrint "set NAME VALUE: any setting (settings lists them); NAME on its own shows it. on/off work for switches"
         CASE "wait" : ConPrint "wait FRAMES: hold back the commands after it (60 frames = 1 second) - for scripts and the command line"
@@ -14125,6 +14223,7 @@ SUB GLSendTextures
         IF INSTR(n$, "hazard") OR INSTR(n$, "stripes") OR INSTR(n$, "warning") THEN glTexAnim(slot) = 2
         IF INSTR(n$, "glow") OR INSTR(n$, "lights") OR INSTR(n$, "reactor") OR INSTR(n$, "cryo") OR INSTR(n$, "coils") THEN glTexAnim(slot) = 3
         IF slot = T_EXIT THEN glTexAnim(slot) = 3
+        IF texSky(slot) THEN glTexAnim(slot) = 4 : glTexNeon(slot) = 0 : glTexShine(slot) = 0 : glTexReflect(slot) = 0 ' (a sky: the shader draws it by the way you look)
         IF LEFT$(n$, 9) = "faceglow-" THEN ' A face with a light on it: lit by itself, going as the light goes
             glTexNeon(slot) = 1 : glTexShine(slot) = 0.3 : glTexAnim(slot) = 0
             IF INSTR(n$, "pulse") OR INSTR(n$, "fire") THEN glTexAnim(slot) = 3
@@ -14218,6 +14317,7 @@ SUB GLShaderStart(b)
     p~& = glWorldProg
     GLSL_use p~& : glShaderOn = -1
     GLSL_uniform_3f p~&, "eye", glEyeX, glEyeY, 0.5
+    GLSL_uniform_1f p~&, "eyeZ", glEyeZ ' (the sky's: where the eye really is, up and down)
     GLSL_uniform_2f p~&, "viewDir", glEyeDX, glEyeDY
     glBumpOn = (glSet(SET_BUMP, b) <> 0) * -1 ' (1 or 0: GLBindSlot uses it)
     GLSL_uniform_1f p~&, "smoothOn", (glSet(SET_SMOOTH, b) <> 0) * -1
@@ -14751,7 +14851,11 @@ SUB GLStep(ax, ay, bx, by, b)
         glFaceNX = SGN(lx - (ax + bx - lx)) : glFaceNY = SGN(ly - (ay + by - ly)) : glFaceNZ = 0
         hx = ax + bx - lx : hy = ay + by - ly ' (the lintel's the lower ceiling's side, towards the higher)
         su0 = 0 : su1 = 1 : IF (ax = bx AND ly > hy) OR (ay = by AND lx < hx) THEN su0 = 1 : su1 = 0
-        GLFaceStrip ex0, ey0, ex1, ey1, su0, su1, zl, zh, 1 - zh, 1 - zl, hx, hy, SideToward(hx, hy, lx, ly) + 4, wallTexSlot(1)
+        IF texSky(ceilTex(ax, ay)) AND texSky(ceilTex(bx, by)) THEN ' (between two skies: sky)
+            GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 0, 1, ceilTex(lx, ly)
+        ELSE
+            GLFaceStrip ex0, ey0, ex1, ey1, su0, su1, zl, zh, 1 - zh, 1 - zl, hx, hy, SideToward(hx, hy, lx, ly) + 4, wallTexSlot(1)
+        END IF
     END IF
 END SUB
 
@@ -14892,6 +14996,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform vec2 viewDir;       // the way you face" + nl$
     fs$ = fs$ + "uniform float bump, texel, shine, reflectAmt, neon, anim, isSprite, secs;" + nl$
     fs$ = fs$ + "uniform float mirrorCut;    // the mirror image: leave out what's below the floor" + nl$
+    fs$ = fs$ + "uniform float eyeZ;         // the eye's real height (for a sky)" + nl$
     fs$ = fs$ + "uniform float gridAmt;      // the editor's grid: how strong (0 off)" + nl$
     fs$ = fs$ + "uniform vec3 dynPos[4];     // the moving lights: where..." + nl$
     fs$ = fs$ + "uniform vec3 dynCol[4];     // ...what colour..." + nl$
@@ -14906,6 +15011,12 @@ SUB GLBuildShaders
     fs$ = fs$ + "}" + nl$
     fs$ = fs$ + "void main() {" + nl$
     fs$ = fs$ + "    if (mirrorCut > 0.5 && vPos.z < 0.0) discard;  // WET FLOORS: a pit's sides would reflect up into the room" + nl$
+    fs$ = fs$ + "    if (anim > 3.5) {  // A SKY: by the way you look, not where the ceiling is - so it's endlessly far off" + nl$
+    fs$ = fs$ + "        vec3 d = vPos - vec3(eye.xy, eyeZ);" + nl$
+    fs$ = fs$ + "        float el = clamp(atan(d.z, length(d.xy)) / 1.2566, 0.0, 1.0);" + nl$
+    fs$ = fs$ + "        gl_FragColor = vec4(texture2D(tex, vec2(atan(d.y, d.x) / 6.2831853, 1.0 - el)).rgb, 1.0);" + nl$
+    fs$ = fs$ + "        return;" + nl$
+    fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    vec2 uv = gl_TexCoord[0].xy;" + nl$
     fs$ = fs$ + "    vec4 c = texture2D(tex, uv);" + nl$
     fs$ = fs$ + "    if (isSprite > 0.5 && c.a < 0.502) discard;  // a sprite's see-through pixels" + nl$
@@ -15325,7 +15436,7 @@ SUB BuildShafts
     FOR l = 1 TO numLights
         cx = INT(lightX(l)) : cy = INT(lightY(l))
         IF lightDeco(l) = 0 AND cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
-            IF worldMap(cx, cy) <= 0 AND diagCorner(cx, cy) = 0 THEN
+            IF worldMap(cx, cy) <= 0 AND diagCorner(cx, cy) = 0 AND texSky(ceilTex(cx, cy)) = 0 THEN ' (under a sky: no lamp hanging in the air, no beam)
                 shaftCell(cx, cy) = l : ceilTex(cx, cy) = T_LAMP : ceilSplit(cx, cy) = 0
             END IF
         END IF

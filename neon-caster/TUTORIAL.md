@@ -142,7 +142,7 @@ SECTOR** makes a blank one - solid wall, with one lit room in the middle,
 you facing the exit - and opens the editor on it. Carve rooms outwards by
 pushing walls back or placing floor (`.`), add doors, keycards,
 monsters, lights and heights, and Ctrl+S saves it. Your sectors are numbered on from the game's (11, 12
-and so on, up to 30 - the first eight are examples built with the editor) and kept in `neon-caster/levels/custom/` (`custom1.txt`
+and so on, up to 30 - the first eleven are examples built with the editor) and kept in `neon-caster/levels/custom/` (`custom1.txt`
 is sector 11), where the level kit never touches them. YOUR SECTORS lists
 them to play; finishing one starts it again. In the console, `newsector`
 makes one, `sectorname NAME` renames the sector you're in (then

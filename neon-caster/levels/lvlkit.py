@@ -298,10 +298,12 @@ def check_heights(lv):
     g = [list(r) for r in rows]
     F = [[hval(fl[y][x] if y < len(fl) and x < len(fl[y]) else ".", 0) for x in range(N)] for y in range(N)]
     C = [[hval(ce[y][x] if y < len(ce) and x < len(ce[y]) else ".", 8) for x in range(N)] for y in range(N)]
-    for e in lv.get("events", []):  # a death pit (13): its floor kills, as a pit with no bottom does
+    for e in lv.get("events", []):  # a death pit (13): its lowest floor kills, as a pit with no bottom does
         if len(e) == 8 and e[0] == 13:
-            for y in range(e[2], e[4] + 1):
-                for x in range(e[1], e[3] + 1):
+            cells = [(x, y) for y in range(e[2], e[4] + 1) for x in range(e[1], e[3] + 1) if g[y][x] not in WALLS]
+            lo = min((F[y][x] for (x, y) in cells), default=0)
+            for (x, y) in cells:
+                if F[y][x] <= lo:
                     F[y][x] = min(F[y][x], DEADLY)
     lift = {}
     for (x0, y0, x1, y1, lo, hi, mode, sp) in lv.get("lifts", []):

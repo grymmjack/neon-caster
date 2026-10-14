@@ -22,7 +22,7 @@ A sector takes five minutes to start: **GAME > YOUR SECTORS > NEW SECTOR**, then
 
 A playable sector needs only four things: walls all round the edge, one start, one exit, and a way to walk from the start to the exit. NEW SECTOR gives you all four. Everything else is decoration.
 
-1. Open **GAME > YOUR SECTORS > NEW SECTOR**. You get the first free sector number - 19, since the eight examples below are 11 to 18 - up to 30 (past 20 they're under **MORE SECTORS**), saved as `neon-caster/levels/custom/customN.txt`, N ten less than the sector (sector 19 is `custom9.txt`). It's solid wall with one lit 8 × 8 room in the middle, cells 20 to 27 each way. You stand at (21, 24) facing east, and the exit `E` is at (28, 24).
+1. Open **GAME > YOUR SECTORS > NEW SECTOR**. You get the first free sector number - 22, since the eleven examples below are 11 to 21 - up to 30 (past 20 they're under **MORE SECTORS**), saved as `neon-caster/levels/custom/customN.txt`, N ten less than the sector (sector 22 is `custom12.txt`). It's solid wall with one lit 8 × 8 room in the middle, cells 20 to 27 each way. You stand at (21, 24) facing east, and the exit `E` is at (28, 24).
 2. You land in the **map view**: the level from above. Press **Tab** (or the **3D** button) to be inside it instead. Either way, the **toolbar** has the tools and the **picker** has everything you can put in a level.
 3. **Push a wall back.** In the 3D view, point at a wall and hold **Shift** while you turn the wheel down: the wall goes back a cell at a time and the room grows. Wheel up with Shift pulls a wall out towards you.
 4. **Carve a room from above.** In the map view, choose **PLACE**, open the picker's **SPECIAL** tab and click the floor tile, then hold **Shift** and drag a box. The whole box becomes floor. Make sure it touches the first room.
@@ -34,7 +34,7 @@ A playable sector needs only four things: walls all round the edge, one start, o
 
 To rename it, open the console (`` ` ``), type `sectorname MY FIRST MAP`, then `savelevel`.
 
-**Eight examples to take apart.** YOUR SECTORS starts with eight sectors built to show the editor off (so your first NEW SECTOR is number 19, and there's room for twelve of yours; delete an example's file in `neon-caster/levels/custom/` for more): **11, THE GALLERY** (pictures on single faces, a checkerboard floor laid cell by cell, two-tone pillars, paintings lit and tinted by lights on their faces, statues that wake only when shot and guards that hear it), **12, THE SUNKEN DEPOT** (a walkway a wall up, a shaft with no bottom and a causeway across it, beams hanging from the dark, firelight on the furnace wall, crawler closets, a stalker hunting you from the start), **13, THE RELAY** (chambers only teleporters reach, each pad LINKed to its own, each chamber in pictures of its own), **14, THE CONSERVATORY** (a floor woven from divided cells, a bottomless pond crossed on lifts that each rise and fall at their own pace, a garden behind glass, and the light lab: all six ways a light can go, side by side), **15, THE LISTENING POST** (guards that see four cells but hear a shot from fourteen, crawler closets, a room you must survive for the blue card, an archive locked by a timed trigger and opened by a USE trigger on a terminal) **16, THE OBSERVATORY** (a tower climbed by stairs, an elevator and a lift that rises and falls by itself, glass windows, each ledge lit its own colour, and pads LINKed out of reading order), **17, THE FLOODED ARCHIVE** (a hall under murky water - its floor painted `floor-murky` cell by cell, and a floor's picture says what it does: you wade - crawlers among the shelves, a fallen catwalk, dying lights) and **18, THE CORE** (a reactor glowing red on an island in a ring of molten metal painted to burn, bridges that are lifts rising and falling each at its own pace, fire traps, strobing alarms). Open one with F2 and click about: the panes show how each thing is set up. They're made by `neon-caster/levels/showcase.py`, which writes them again from scratch, so don't run it once you've changed them.
+**Eleven examples to take apart.** YOUR SECTORS starts with eleven sectors built to show the editor off (so your first NEW SECTOR is number 22, and there's room for nine of yours; delete an example's file in `neon-caster/levels/custom/` for more): **11, THE GALLERY** (pictures on single faces, a checkerboard floor laid cell by cell, two-tone pillars, paintings lit and tinted by lights on their faces, statues that wake only when shot and guards that hear it), **12, THE SUNKEN DEPOT** (a walkway a wall up, a shaft with no bottom and a causeway across it, beams hanging from the dark, firelight on the furnace wall, crawler closets, a stalker hunting you from the start), **13, THE RELAY** (chambers only teleporters reach, each pad LINKed to its own, each chamber in pictures of its own), **14, THE CONSERVATORY** (a floor woven from divided cells, a bottomless pond crossed on lifts that each rise and fall at their own pace, a garden behind glass, and the light lab: all six ways a light can go, side by side), **15, THE LISTENING POST** (guards that see four cells but hear a shot from fourteen, crawler closets, a room you must survive for the blue card, an archive locked by a timed trigger and opened by a USE trigger on a terminal) **16, THE OBSERVATORY** (a tower climbed by stairs, an elevator and a lift that rises and falls by itself, glass windows, each ledge lit its own colour, and pads LINKed out of reading order), **17, THE FLOODED ARCHIVE** (a hall under murky water - its floor painted `floor-murky` cell by cell, and a floor's picture says what it does: you wade - crawlers among the shelves, a fallen catwalk, dying lights), **18, THE CORE** (a reactor glowing red on an island in a ring of molten metal painted to burn, bridges that are lifts rising and falling each at its own pace, fire traps, strobing alarms), and three outdoors under skies: **19, THE ROOFTOPS** (night over the neon city, roofs joined by bridges over alleys that are a death pit), **20, THE STORM YARD** (a shipyard under lightning, containers to climb, puddles that slow you) and **21, THE DRIFT** (platforms adrift in orbit over a bottomless void, crossed by catwalks, lifts and LINKed pads). Open one with F2 and click about: the panes show how each thing is set up. They're made by `neon-caster/levels/showcase.py`, which writes them again from scratch, so don't run it once you've changed them.
 
 Undo is **UNDO** or **Ctrl+Z**, up to 40 steps. One drag, or one run of wheel turns, counts as one step. **F1** (or **HELP**) shows every key for the view you're in.
 
@@ -357,6 +357,8 @@ With the usual ceiling, a floor tops out at 6 eighths. Raise the ceiling first t
 
 Case matters here too: `a` is 10 up, `A` is 1 down. A level with neither section is flat and draws the fast classic way.
 
+**Outdoors: skies.** A ceiling picture whose name starts `sky-` isn't laid on the ceiling: it's drawn by the way you look, like Doom's sky, so it seems endlessly far off and stays put as you walk. Four come with the game: `sky-neon-night` (the city at night, a moon), `sky-dusk` (a sunset behind the skyline), `sky-storm` (clouds and lightning) and `sky-orbit` (a ringed planet in a nebula). Put one in the sector's ceilings (the SECTOR pane, or `ceilings =`) and give the open-air cells that ceiling with a zone (or PAINT single ceilings with it from the CEILINGS tab); everywhere else keeps a roof. Raise those ceilings well up (two to four walls) so walls don't hide the horizon. Under a sky there are no lamp fixtures or light beams, and a step in the ceiling between two sky cells is sky, not a wall in the air. A sky is a panorama: 360 degrees across, from the horizon to 72 degrees up; `neon-caster/levels/skies.py` paints them (2560 × 512, squeezed square), so copy it to make your own.
+
 **Floor hazards** come from the floor picture's name: a floor whose picture name contains `molten` or `lava` burns you, and `murky` or `slime` slows you down. That goes for a picture PAINTed on a single floor too, so a river of lava or a flooded aisle is a matter of painting it.
 
 ## Lights
@@ -417,7 +419,7 @@ All end in `.png`. The picker's WALLS, FLOORS and CEILINGS tabs show them all, a
 | 10 | Cutter | Frames per sweep | |
 | 11 | Blackout | Seconds | Number of monsters |
 | 12 | Trap (fire) | Frames live | Frames safe |
-| 13 | Death pit: land on its floor, from any height, and you die. A pit with a bottom you can see; never locks or ends. | | |
+| 13 | Death pit: land on its lowest floor, from any height, and you die - a pit with a bottom you can see, or the streets under rooftops (higher floors in its room are safe). Never locks or ends. | | |
 
 A trap's floor gets its own picture (a glowing wire grid, or a burner grate), and it warns you for half a second before it goes live: crackles and short arcs, or smoke and embers. While live it arcs or blazes, lights the room and buzzes or roars. Use kind 12 in hot places (reactors, foundries), kind 3 elsewhere.
 
@@ -449,9 +451,12 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 Without `repeat`, a trigger fires once. Don't put `repeat` on `time` or `clear`: once true they stay true, so the trigger fires every frame. If you start inside an `enter` rectangle, it waits until you leave and come back. Up to 48. For example:
 
 ```
-enter 20 20 22 22 : message AMBUSH! ; summon stalker 3
-use 30 14 : door 31 14 open ; sound alarm
+enter 20 20 22 22 : message AMBUSH! ; spawn stalker 24 21 3
+enter 12 30 12 34 : door 15 32 open ; spawn crawler 16 32 4
+use 30 14 : door 31 14 open ; sound alarm ; item medkit 31 16
 ```
+
+A trigger box one cell thick across a corridor (the second line) is a line: cross it and the closet door beside it opens, with its crawlers already inside.
 
 ## Building from the console
 
@@ -485,6 +490,8 @@ These only change the running level, so they're for testing and for triggers rat
 | `give health N` / `give armor N` / `give ammo cells N` / `give ammo shells N` | N more (no N: full); `give all` everything |
 | `take health N` / `take armor N` / `take ammo cells N` / `take ammo shells N` | N less: `take health` ignores armour and can kill; `take all` leaves only the blaster; `take keys`, `take key red`, `take gun N`, `take map` |
 | `die [MESSAGE]` | You die (never in god mode or the editor) |
+| `spawn TYPE X Y [N]` | N monsters teleported into cell X Y, hunting (sparks and a sound): an ambush from nowhere. `summon TYPE [N]` puts them in front of you instead |
+| `item KIND X Y` | A pickup appears in cell X Y: health, medkit, armor, cells, shells, scatter, repeater, rail, map, overcharge, amp, red, blue, yellow (or its map character) |
 | `mons` | List every monster: where it is, asleep or hunting, its health, and its own sight, hearing, speed and waking |
 | `sound NAME` | Play `sfx/NAME.wav` |
 
