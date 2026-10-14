@@ -49,6 +49,13 @@ rays and handing the 3D to the graphics card with shaders.
 [`neon-caster/TUTORIAL.md`](neon-caster/TUTORIAL.md) is the map for it,
 with dozens of things to try.
 
+## How it was built
+
+[`docs/`](docs) has two illustrated write-ups made during development: a
+[showcase](docs/showcase/index.html) of every system with real frames from
+the game, animations, sounds and performance heat maps, and the earlier
+[roadmap run](docs/roadmap-run/index.html) report.
+
 ## Build it yourself
 
 1. Install [QB64 Phoenix Edition](https://qb64phoenix.com) 4.7 or newer.

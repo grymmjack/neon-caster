@@ -1,0 +1,1197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Neon Caster Field Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=VT323&display=swap">
+<style>
+/* Layout: one long field report, a sticky sector bar, each section a "level" with a wide screen and notes beside it.
+   A deliberate single dark theme: the game's own night-city neon. */
+:root {
+  color-scheme: dark;
+  --bg: #0a0916;
+  --panel: #13112a;
+  --panel-2: #1b1838;
+  --line: #2c2856;
+  --fg: #e7e3ff;
+  --muted: #9c95cc;
+  --magenta: #ff4fd8;
+  --cyan: #4ff3ff;
+  --amber: #ffc857;
+  --green: #5cff9d;
+  --red: #ff5a6e;
+  --display: "Chakra Petch", "Bahnschrift", "Arial Narrow", sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "VT323", "Consolas", ui-monospace, monospace;
+  --s1: .875rem; --s2: 1rem; --s3: 1.25rem; --s4: 1.6rem; --s5: 2.3rem; --s6: 3.4rem;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 17px; line-height: 1.6;
+  background-image: linear-gradient(var(--bg) 0 0), repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.012) 3px 4px);
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h2 { font-size: var(--s5); letter-spacing: .01em; }
+h3 { font-size: var(--s3); color: var(--cyan); margin-top: .2rem; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--cyan); }
+code, kbd, .mono { font-family: var(--mono); font-size: 1.15em; }
+code { color: var(--amber); }
+kbd {
+  display: inline-block; padding: 0 .4em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px;
+  background: var(--panel-2); color: var(--fg); line-height: 1.25; font-size: 1.1em;
+}
+
+/* sector bar */
+nav.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: rgba(10,9,22,.92);
+  backdrop-filter: blur(6px); border-bottom: 1px solid var(--line);
+}
+nav.bar .wrap { display: flex; gap: .3rem; overflow-x: auto; padding-block: .55rem; scrollbar-width: thin; }
+nav.bar a {
+  flex: none; text-decoration: none; color: var(--muted); font-family: var(--display); font-size: var(--s1);
+  letter-spacing: .06em; text-transform: uppercase; padding: .25rem .6rem; border-radius: 3px; border: 1px solid transparent;
+}
+nav.bar a:hover, nav.bar a:focus-visible { color: var(--fg); border-color: var(--line); outline: none; }
+nav.bar a b { color: var(--magenta); font-weight: 700; margin-right: .3em; }
+
+/* hero */
+header.hero { padding-block: 2.5rem 2rem; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 2rem; align-items: center; }
+.kicker { font-family: var(--mono); color: var(--magenta); font-size: 1.35rem; letter-spacing: .04em; }
+.hero h1 { font-size: clamp(2.4rem, 6vw, 4.4rem); font-weight: 700; letter-spacing: -.01em; margin-block: .3rem .9rem; }
+.hero h1 span { color: var(--cyan); text-shadow: 0 0 18px rgba(79,243,255,.45); }
+.hero p { color: var(--fg); font-size: 1.08rem; }
+.hero p + p { margin-top: .8rem; color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 1.6rem; }
+.stats div { background: var(--panel); padding: .7rem .8rem; }
+.stats b { display: block; font-family: var(--display); font-size: var(--s4); color: var(--amber); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stats span { font-size: var(--s1); color: var(--muted); }
+
+/* screens */
+figure { margin: 0; min-width: 0; }
+.screen { position: relative; background: #000; border: 1px solid var(--line); overflow: hidden; }
+.screen img { display: block; width: 100%; height: auto; cursor: zoom-in; }
+.screen.glow { box-shadow: 0 0 0 1px rgba(255,79,216,.35), 0 0 40px -8px rgba(255,79,216,.45); }
+.screen .live {
+  position: absolute; top: .5rem; right: .5rem; font-family: var(--mono); font-size: 1.05rem; color: #000; background: var(--magenta);
+  padding: 0 .45rem; letter-spacing: .05em;
+}
+figcaption { font-size: var(--s1); color: var(--muted); padding-top: .45rem; line-height: 1.45; }
+figcaption b { color: var(--fg); }
+figcaption .tag { font-family: var(--mono); font-size: 1.05rem; color: var(--cyan); margin-right: .35em; }
+
+/* sections */
+section.lvl { padding-block: 3.5rem 1rem; border-top: 1px solid var(--line); scroll-margin-top: 3.2rem; }
+.lvl-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .3rem 1rem; align-items: baseline; margin-bottom: 1.4rem; }
+.lvl-no { font-family: var(--mono); font-size: 1.6rem; color: var(--magenta); grid-row: span 2; }
+.lvl-head p { color: var(--muted); grid-column: 2; font-size: 1.05rem; }
+.split { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1.6rem; align-items: start; margin-block: 1.6rem; }
+.split.rev { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+.notes { display: flex; flex-direction: column; gap: .8rem; min-width: 0; }
+.notes ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .35rem; }
+.notes li::marker { color: var(--magenta); }
+.grid2, .grid3, .grid4 { display: grid; gap: 1rem; margin-block: 1.2rem; }
+.grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sub { margin-top: 2.6rem; display: flex; flex-direction: column; gap: .6rem; }
+.sub > h3 { font-size: var(--s4); color: var(--fg); }
+.sub > h3 small { font-family: var(--mono); font-size: 1.2rem; color: var(--cyan); font-weight: 400; margin-left: .4rem; }
+
+/* keymap */
+.keys { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .3rem .9rem; margin: 0; font-size: .97rem; }
+.keys dt { white-space: nowrap; }
+.keys dd { margin: 0; color: var(--muted); }
+
+/* console and file listings */
+pre.term {
+  margin: 0; background: #07060f; border: 1px solid var(--line); padding: .8rem 1rem; overflow-x: auto;
+  font-family: var(--mono); font-size: 1.12rem; line-height: 1.3; color: #c9f7d8;
+}
+pre.term .c { color: #6c6797; }
+pre.term .k { color: var(--magenta); }
+pre.term .v { color: var(--amber); }
+pre.term .p { color: var(--cyan); }
+
+/* step list for the live build */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.1rem; margin-top: 1.2rem; counter-reset: st; }
+.steps figure { display: flex; flex-direction: column; }
+.steps figcaption code { display: block; color: var(--amber); font-size: 1.05rem; margin-block: .15rem .1rem; word-break: break-word; }
+.steps .n { font-family: var(--mono); color: var(--magenta); font-size: 1.1rem; }
+
+/* sound board */
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .6rem; margin-top: 1rem; }
+.snd {
+  display: flex; align-items: center; gap: .6rem; text-align: left; width: 100%; padding: .55rem .7rem; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); color: var(--fg); font: inherit; font-size: .95rem; border-radius: 3px;
+}
+.snd:hover, .snd:focus-visible { border-color: var(--cyan); outline: none; }
+.snd i { flex: none; width: 1.7rem; height: 1.7rem; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); color: var(--cyan); font-style: normal; font-size: .8rem; }
+.snd.on { border-color: var(--magenta); }
+.snd.on i { background: var(--magenta); color: #000; }
+.snd span small { display: block; color: var(--muted); font-size: .8rem; line-height: 1.3; }
+
+.callout { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber); padding: .9rem 1.1rem; display: flex; flex-direction: column; gap: .5rem; }
+.callout h3 { color: var(--amber); font-size: var(--s2); text-transform: uppercase; letter-spacing: .08em; }
+.sheet { background: #000; border: 1px solid var(--line); overflow-x: auto; padding: .6rem; }
+.sheet img { image-rendering: pixelated; max-width: none; height: 132px; width: auto; display: block; }
+table.t { border-collapse: collapse; width: 100%; font-size: .95rem; }
+table.t th, table.t td { text-align: left; padding: .45rem .7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.t th { font-family: var(--display); font-size: var(--s1); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 500; }
+table.t td:first-child { white-space: nowrap; color: var(--cyan); font-family: var(--mono); font-size: 1.15rem; }
+.tbl { overflow-x: auto; }
+footer { padding-block: 3rem 4rem; color: var(--muted); border-top: 1px solid var(--line); margin-top: 3rem; font-size: .95rem; }
+
+/* classic / modern compare */
+.cmp { position: relative; background: #000; border: 1px solid var(--line); overflow: hidden; --pos: 50%; }
+.cmp img { display: block; width: 100%; height: auto; }
+.cmp .top { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--pos)); }
+.cmp .bar { position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; background: var(--magenta); box-shadow: 0 0 12px var(--magenta); pointer-events: none; }
+.cmp .lab { position: absolute; top: .5rem; font-family: var(--mono); font-size: 1.05rem; padding: 0 .45rem; color: #000; pointer-events: none; }
+.cmp .lab.l { left: .5rem; background: var(--amber); }
+.cmp .lab.r { right: .5rem; background: var(--cyan); }
+.cmp input[type=range] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
+.cmp input[type=range]:focus-visible + .bar { box-shadow: 0 0 0 3px var(--fg); }
+.pill { display: inline-block; font-family: var(--mono); font-size: 1.1rem; padding: 0 .5rem; border: 1px solid var(--line); background: var(--panel-2); }
+
+/* lightbox */
+dialog#lb { padding: 0; border: 1px solid var(--magenta); background: #000; max-width: 96vw; max-height: 94vh; }
+dialog#lb::backdrop { background: rgba(4,3,10,.88); }
+dialog#lb img { display: block; max-width: 96vw; max-height: 86vh; width: auto; height: auto; }
+dialog#lb p { padding: .5rem .8rem; color: var(--fg); font-size: .9rem; max-width: none; background: var(--panel); }
+dialog#lb button { position: absolute; top: .4rem; right: .4rem; background: var(--magenta); color: #000; border: 0; font: 700 1rem var(--display); padding: .2rem .6rem; cursor: pointer; }
+
+@media (max-width: 900px) {
+  .hero-grid, .split, .split.rev { grid-template-columns: minmax(0, 1fr); }
+  .split.rev > .notes { order: 2; }
+  .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid3, .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  .wrap { padding-inline: 16px; }
+  .grid2, .grid3, .grid4, .steps { grid-template-columns: minmax(0, 1fr); }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  h2 { font-size: 1.9rem; }
+  .keys { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .keys dd { margin-bottom: .45rem; }
+}
+</style>
+</head>
+<body>
+
+<nav class="bar" aria-label="Sections">
+  <div class="wrap">
+    <a href="#perf"><b>NEW</b>Performance &amp; platforms</a>
+    <a href="#depth"><b>NEW</b>Sectors with depth</a>
+    <a href="#art-modes"><b>NEW</b>Classic vs modern</a>
+    <a href="#editor"><b>01</b>Level editor</a>
+    <a href="#build"><b>02</b>Live build</a>
+    <a href="#glass"><b>03</b>Glass</a>
+    <a href="#network"><b>04</b>The network</a>
+    <a href="#heights"><b>05</b>Heights &amp; lifts</a>
+    <a href="#teleport"><b>06</b>Teleporters</a>
+    <a href="#triggers"><b>07</b>Triggers</a>
+    <a href="#terminals"><b>08</b>Code terminals</a>
+    <a href="#monsters"><b>09</b>Monster &amp; HUD editors</a>
+    <a href="#nexus"><b>10</b>NEXUS</a>
+    <a href="#art"><b>11</b>Art &amp; sound</a>
+    <a href="#tour"><b>12</b>Sector tour</a>
+    <a href="#hood"><b>13</b>Under the hood</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="kicker">QB64PE · SUB _GL · 11,700 lines</div>
+      <h1>Neon Caster, <span>everything new</span></h1>
+      <p>Everything added in this round, captured from the running game: the level editor that changes the world while you stand in it, glass you can see and shoot through, a neon wireframe network behind every data station, floors and ceilings at any height, lifts, teleporters, triggers, and code terminals that compile your QBasic with the real qb64pe.</p>
+      <p>Every image here is a real frame from the game. Stills were taken on your GPU through a headless compositor or on a virtual X display, with keys and mouse clicks sent there and never to your desktop. Click any picture to see it full size.</p>
+      <div class="stats">
+        <div><b>10</b><span>sectors, all rebuilt</span></div>
+        <div><b>62.6</b><span>fps on every sector (GPU)</span></div>
+        <div><b>10</b><span>QB64 code puzzles</span></div>
+        <div><b>28</b><span>new console commands</span></div>
+      </div>
+    </div>
+    <figure>
+      <div class="screen glow"><span class="live">LIVE BUILD</span><img src="anim/build.webp" alt="A room in sector 1 built step by step through console commands: floor cleared, walls, glass, a dais, a high ceiling, lamps with light shafts, props, a lift, teleport pads, monsters" data-cap="A room built live: twelve console commands, one frame each, the camera never moves."></div>
+      <figcaption><span class="tag">GPU</span>One room in Sector 1 built live, one console command per frame. Section 02 goes through every step.</figcaption>
+    </figure>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ============================ NEW: PERFORMANCE ============================ -->
+<section class="lvl" id="perf">
+  <div class="lvl-head">
+    <span class="lvl-no">NEW</span>
+    <h2>Where it's slow, and Windows and macOS</h2>
+    <p>Benchmarks of both renderers at every resolution and effect setting, and a sweep of every sector for its slow spots. Then the same game built and run on a Mac and a Windows laptop.</p>
+  </div>
+
+  <div class="sub">
+    <h3>Every place in every sector <small>green fast · yellow near 60 fps · red slow</small></h3>
+    <p>Each dot is a spot on a three-cell grid, coloured by its slowest look of four (north, east, south, west). The game-loop time is measured on Linux with an RX 6600M and a Ryzen 7 7840HS. Drag to compare the software renderer (left) with OpenGL at 2160p (right). OpenGL is green everywhere.</p>
+  </div>
+  <div class="grid2">
+    <figure><div class="cmp"><img src="perf/heat_sw_1.png" alt="Sector 1: software renderer frame times by place"><img class="top" src="perf/heat_gl_1.png" alt="Sector 1: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 1"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+    <figure><div class="cmp"><img src="perf/heat_sw_2.png" alt="Sector 2: software renderer frame times by place"><img class="top" src="perf/heat_gl_2.png" alt="Sector 2: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 2"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+    <figure><div class="cmp"><img src="perf/heat_sw_3.png" alt="Sector 3: software renderer frame times by place"><img class="top" src="perf/heat_gl_3.png" alt="Sector 3: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 3"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+    <figure><div class="cmp"><img src="perf/heat_sw_4.png" alt="Sector 4: software renderer frame times by place"><img class="top" src="perf/heat_gl_4.png" alt="Sector 4: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 4"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+    <figure><div class="cmp"><img src="perf/heat_sw_5.png" alt="Sector 5: software renderer frame times by place"><img class="top" src="perf/heat_gl_5.png" alt="Sector 5: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 5"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+    <figure><div class="cmp"><img src="perf/heat_sw_6.png" alt="Sector 6: software renderer frame times by place"><img class="top" src="perf/heat_gl_6.png" alt="Sector 6: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 6"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+    <figure><div class="cmp"><img src="perf/heat_sw_7.png" alt="Sector 7: software renderer frame times by place"><img class="top" src="perf/heat_gl_7.png" alt="Sector 7: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 7"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+    <figure><div class="cmp"><img src="perf/heat_sw_8.png" alt="Sector 8: software renderer frame times by place"><img class="top" src="perf/heat_gl_8.png" alt="Sector 8: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 8"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+    <figure><div class="cmp"><img src="perf/heat_sw_9.png" alt="Sector 9: software renderer frame times by place"><img class="top" src="perf/heat_gl_9.png" alt="Sector 9: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 9"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+    <figure><div class="cmp"><img src="perf/heat_sw_10.png" alt="Sector 10: software renderer frame times by place"><img class="top" src="perf/heat_gl_10.png" alt="Sector 10: OpenGL frame times by place"><input type="range" min="0" max="100" value="50" aria-label="Compare software and OpenGL frame times, Sector 10"><span class="bar"></span><span class="lab l">SOFTWARE</span><span class="lab r">OPENGL</span></div></figure>
+  </div>
+
+  <div class="grid2">
+    <div class="notes">
+      <h3>What was slow, and what changed</h3>
+      <ul>
+        <li><b>Floors and ceilings with heights (software).</b> Since the redesign every sector has heights, and that path called a FUNCTION and divided per pixel. Now each cell is looked up once and the texture row is stepped. <b>38–50% faster everywhere</b>: Sector 7 went from 57 to 86 fps, Sector 1 from 72 to 100. Same picture.</li>
+        <li><b>Looking through glass up close (software).</b> The slowest view in the game, at 25–28 ms, because every pixel of the pane is blended over the room behind it. That blend is now written out too, about 20% faster. It's still the worst spot, but under 30 ms.</li>
+        <li><b>OpenGL has no slow spots.</b> Its frame time barely moves from 480p to 2160p with every effect on. The GPU has over three times the headroom 60 fps needs.</li>
+      </ul>
+    </div>
+    <div class="notes">
+      <h3>The costliest OpenGL effects <small>Sector 5, 2160p, game loop fps</small></h3>
+      <div class="tbl"><table class="t">
+        <thead><tr><th>Setting</th><th>fps</th></tr></thead>
+        <tbody>
+          <tr><td>every effect on</td><td>~225</td></tr>
+          <tr><td>without wet floors</td><td>276</td></tr>
+          <tr><td>without particles</td><td>262</td></tr>
+          <tr><td>without light shafts</td><td>241</td></tr>
+          <tr><td>every effect off</td><td>320</td></tr>
+        </tbody>
+      </table></div>
+      <p style="color:var(--muted);font-size:.95rem">Uncapped, vsync off. Runs with the same settings varied by up to 25%, so smaller differences are noise.</p>
+    </div>
+  </div>
+
+  <div class="sub"><h3>The slowest views <small>software renderer</small></h3></div>
+  <div class="grid3">
+    <figure><div class="screen"><img src="perf/hot_s6_20_14.jpg" alt="Sector 6: standing at a greenhouse window" data-cap="Sector 6, at a window"></div><figcaption>Sector 6, nose to a greenhouse window.</figcaption></figure>
+    <figure><div class="screen"><img src="perf/hot_s4_11_17.jpg" alt="Sector 4: at a lab window" data-cap="Sector 4, at a lab window"></div><figcaption>Sector 4, at a lab window.</figcaption></figure>
+    <figure><div class="screen"><img src="perf/hot_s2_32_20.jpg" alt="Sector 2: a window into the control room" data-cap="Sector 2, through a window"></div><figcaption>Sector 2, through a window.</figcaption></figure>
+  </div>
+
+  <div class="sub">
+    <h3>The same game on three systems</h3>
+    <p>Built with QB64-PE from the same commit on each machine, run on its own desktop, and played through the same script: OpenGL with MODERN art, the software renderer, the network, the boss arena, and a code terminal really compiling and running the player's program (it printed 42 on all three).</p>
+  </div>
+  <div class="tbl"><table class="t">
+    <thead><tr><th>Machine</th><th>Software 400×300</th><th>OpenGL 2160p, every effect</th></tr></thead>
+    <tbody>
+      <tr><td>Linux · RX 6600M</td><td>86–100 fps</td><td>220–245 game loop · GPU ~209</td></tr>
+      <tr><td>macOS 26 · M2 Pro</td><td>104–122 fps</td><td>~400 game loop · holds 125 (its 120 Hz screen)</td></tr>
+      <tr><td>Windows 11 · i9 + RTX 3000</td><td>66–76 fps</td><td>240–340 game loop · holds 60 (vsync)</td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid2">
+    <figure><div class="cmp"><img src="perf/win_gl_s10.jpg" alt="Windows: the boss arena"><img class="top" src="perf/mac_gl_s10.jpg" alt="macOS: the boss arena"><input type="range" min="0" max="100" value="50" aria-label="Compare Windows and macOS: the boss arena"><span class="bar"></span><span class="lab l">WINDOWS</span><span class="lab r">MACOS</span></div><figcaption>The boss arena, Windows left, Mac right.</figcaption></figure>
+    <figure><div class="cmp"><img src="perf/win_net.jpg" alt="Windows: the network"><img class="top" src="perf/mac_net.jpg" alt="macOS: the network"><input type="range" min="0" max="100" value="50" aria-label="Compare Windows and macOS: the network"><span class="bar"></span><span class="lab l">WINDOWS</span><span class="lab r">MACOS</span></div><figcaption>Jacked into the network.</figcaption></figure>
+    <figure><div class="cmp"><img src="perf/win_gl_s5.jpg" alt="Windows: the foundry"><img class="top" src="perf/mac_gl_s5.jpg" alt="macOS: the foundry"><input type="range" min="0" max="100" value="50" aria-label="Compare Windows and macOS: the foundry"><span class="bar"></span><span class="lab l">WINDOWS</span><span class="lab r">MACOS</span></div><figcaption>The foundry in OpenGL.</figcaption></figure>
+    <figure><div class="cmp"><img src="perf/win_sw_s5.jpg" alt="Windows: software renderer"><img class="top" src="perf/mac_sw_s5.jpg" alt="macOS: software renderer"><input type="range" min="0" max="100" value="50" aria-label="Compare Windows and macOS: software renderer"><span class="bar"></span><span class="lab l">WINDOWS</span><span class="lab r">MACOS</span></div><figcaption>The same spot in the software renderer.</figcaption></figure>
+  </div>
+  <div class="callout">
+    <h3>Fixed to make it work everywhere</h3>
+    <p>Code terminals now find <code>qb64pe.exe</code> on Windows by themselves and compile through a batch file there. On Linux and the Mac they use an sh script with plain line endings; the Mac has no <code>timeout</code>, so the program runs without the 5-second limit. macOS's OpenGL warned of an empty texture when phosphor glow was off; it now always gets a picture. The game now lives in its own repository, <code>grymmjack/neon-caster</code>, where GitHub Actions builds Windows, macOS and Linux releases.</p>
+  </div>
+</section>
+
+<!-- ============================ NEW: DEPTH ============================ -->
+<section class="lvl" id="depth">
+  <div class="lvl-head">
+    <span class="lvl-no">NEW</span>
+    <h2>Sectors with depth</h2>
+    <p>The engine could do floors and ceilings at any height, but the sectors barely used it: one small dais and one ledge each, and Sector 10 was flat. Now every sector is built around its own height design. Drag the heights maps to see before and after.</p>
+  </div>
+  <div class="tbl">
+  <table class="t">
+    <thead><tr><th>Sector</th><th>Raised cells</th><th>Sunk cells</th><th>Tall ceilings</th><th>Low ceilings</th><th>Floor heights</th><th>Lifts</th></tr></thead>
+    <tbody>
+<tr><td>1 Neon Station</td><td>6 → <b>16</b></td><td>0 → <b>32</b></td><td>63 → <b>307</b></td><td>0 → <b>0</b></td><td>1 → <b>3</b></td><td>1 → <b>1</b></td></tr>
+<tr><td>2 Reactor Core</td><td>31 → <b>185</b></td><td>0 → <b>167</b></td><td>121 → <b>828</b></td><td>0 → <b>0</b></td><td>3 → <b>6</b></td><td>1 → <b>0</b></td></tr>
+<tr><td>3 Undercity</td><td>41 → <b>74</b></td><td>0 → <b>359</b></td><td>111 → <b>582</b></td><td>0 → <b>282</b></td><td>3 → <b>4</b></td><td>1 → <b>0</b></td></tr>
+<tr><td>4 Cryo Lab</td><td>41 → <b>246</b></td><td>0 → <b>153</b></td><td>111 → <b>934</b></td><td>0 → <b>0</b></td><td>3 → <b>5</b></td><td>1 → <b>1</b></td></tr>
+<tr><td>5 Foundry</td><td>55 → <b>98</b></td><td>0 → <b>46</b></td><td>144 → <b>1129</b></td><td>0 → <b>0</b></td><td>3 → <b>5</b></td><td>1 → <b>2</b></td></tr>
+<tr><td>6 Hydroponics</td><td>41 → <b>288</b></td><td>0 → <b>64</b></td><td>122 → <b>890</b></td><td>0 → <b>0</b></td><td>3 → <b>5</b></td><td>1 → <b>0</b></td></tr>
+<tr><td>7 Data Vault</td><td>41 → <b>0</b></td><td>0 → <b>519</b></td><td>82 → <b>743</b></td><td>0 → <b>0</b></td><td>3 → <b>3</b></td><td>1 → <b>0</b></td></tr>
+<tr><td>8 Maglev Depot</td><td>55 → <b>276</b></td><td>0 → <b>144</b></td><td>106 → <b>900</b></td><td>0 → <b>0</b></td><td>3 → <b>5</b></td><td>1 → <b>0</b></td></tr>
+<tr><td>9 Orbital Spire</td><td>55 → <b>70</b></td><td>0 → <b>530</b></td><td>158 → <b>966</b></td><td>0 → <b>0</b></td><td>3 → <b>4</b></td><td>1 → <b>2</b></td></tr>
+<tr><td>10 The Core</td><td>0 → <b>562</b></td><td>0 → <b>12</b></td><td>0 → <b>574</b></td><td>0 → <b>0</b></td><td>0 → <b>5</b></td><td>0 → <b>0</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="sub"><h3>Sector 1: Neon Station</h3><p>The hub is a sunken atrium: terraces step down half a wall to its middle, under a ceiling two and a half walls up. The bio-lab has a mezzanine a wall up along its east wall, reached by an elevator. A gunner sniper and an overcharge wait up there.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap1_before.jpg" alt="Sector 1 heights map before"><img class="top" src="depth/hmap1_after.jpg" alt="Sector 1 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 1 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s1a.jpg" alt="Sector 1: Sunken atrium" data-cap="Sector 1: Sunken atrium"></div><figcaption>Sunken atrium</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s1b.jpg" alt="Sector 1: Mezzanine, from the elevator" data-cap="Sector 1: Mezzanine, from the elevator"></div><figcaption>Mezzanine, from the elevator</figcaption></figure>
+  </div>
+  <div class="sub"><h3>Sector 2: Reactor Core</h3><p>The control room is a raised deck with the exit at its back. The reactor hall sinks in a bowl around the core. The south hall has a walkway a wall up along its south wall, with stairs from the west end.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap2_before.jpg" alt="Sector 2 heights map before"><img class="top" src="depth/hmap2_after.jpg" alt="Sector 2 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 2 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s2a.jpg" alt="Sector 2: The control deck" data-cap="Sector 2: The control deck"></div><figcaption>The control deck</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s2b.jpg" alt="Sector 2: The bowl round the core" data-cap="Sector 2: The bowl round the core"></div><figcaption>The bowl round the core</figcaption></figure>
+  </div>
+  <div class="sub"><h3>Sector 3: Undercity</h3><p>The 45° tunnel is low, seven eighths of a wall, with its water channel sunk a step to wade through. The pump hall has a raised gantry. The cistern is a flooded pit, and the flooded hall terraces down into the water.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap3_before.jpg" alt="Sector 3 heights map before"><img class="top" src="depth/hmap3_after.jpg" alt="Sector 3 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 3 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s3a.jpg" alt="Sector 3: The low tunnel and its channel" data-cap="Sector 3: The low tunnel and its channel"></div><figcaption>The low tunnel and its channel</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s3b.jpg" alt="Sector 3: Into the flooded cistern" data-cap="Sector 3: Into the flooded cistern"></div><figcaption>Into the flooded cistern</figcaption></figure>
+  </div>
+  <div class="sub"><h3>Sector 4: Cryo Lab</h3><p>An observation deck rings the atrium's terminal core a wall up, with an elevator on its north side. Each lab is split-level, with the blue key and the map up on raised ends. The ice lab sinks in two terraces.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap4_before.jpg" alt="Sector 4 heights map before"><img class="top" src="depth/hmap4_after.jpg" alt="Sector 4 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 4 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s4a.jpg" alt="Sector 4: The observation deck" data-cap="Sector 4: The observation deck"></div><figcaption>The observation deck</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s4b.jpg" alt="Sector 4: On the deck" data-cap="Sector 4: On the deck"></div><figcaption>On the deck</figcaption></figure>
+  </div>
+  <div class="sub"><h3>Sector 5: Foundry</h3><p>The smelting hall is four walls tall. Its molten metal runs in a trough that burns, crossed by plate bridges. The east end is a pouring floor a wall up, reached by stairs and two elevators.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap5_before.jpg" alt="Sector 5 heights map before"><img class="top" src="depth/hmap5_after.jpg" alt="Sector 5 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 5 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s5a.jpg" alt="Sector 5: The smelting hall" data-cap="Sector 5: The smelting hall"></div><figcaption>The smelting hall</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s5b.jpg" alt="Sector 5: The burning trough" data-cap="Sector 5: The burning trough"></div><figcaption>The burning trough</figcaption></figure>
+  </div>
+  <div class="sub"><h3>Sector 6: Hydroponics</h3><p>Every greenhouse bay is a stepped pyramid of planters you can climb from any side. The dome in the middle is a pool sunk in two steps, and its murky water slows you.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap6_before.jpg" alt="Sector 6 heights map before"><img class="top" src="depth/hmap6_after.jpg" alt="Sector 6 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 6 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s6a.jpg" alt="Sector 6: Terraced planters" data-cap="Sector 6: Terraced planters"></div><figcaption>Terraced planters</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s6b.jpg" alt="Sector 6: The pool under the dome" data-cap="Sector 6: The pool under the dome"></div><figcaption>The pool under the dome</figcaption></figure>
+  </div>
+  <div class="sub"><h3>Sector 7: Data Vault</h3><p>The server hall is a canyon. Its aisles are three quarters of a wall down between racks that tower five walls up. A catwalk runs round the edge at the doors' height, with stairs down from the middle of each side.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap7_before.jpg" alt="Sector 7 heights map before"><img class="top" src="depth/hmap7_after.jpg" alt="Sector 7 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 7 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s7a.jpg" alt="Sector 7: Down in the canyon" data-cap="Sector 7: Down in the canyon"></div><figcaption>Down in the canyon</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s7b.jpg" alt="Sector 7: On the catwalk" data-cap="Sector 7: On the catwalk"></div><figcaption>On the catwalk</figcaption></figure>
+  </div>
+  <div class="sub"><h3>Sector 8: Maglev Depot</h3><p>Both platforms have a gallery a wall up along the back wall, where the gunners and spitters have the drop on you. The track beds are sunk a step, a trench to duck into.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap8_before.jpg" alt="Sector 8 heights map before"><img class="top" src="depth/hmap8_after.jpg" alt="Sector 8 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 8 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s8a.jpg" alt="Sector 8: The gallery over the platform" data-cap="Sector 8: The gallery over the platform"></div><figcaption>The gallery over the platform</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s8b.jpg" alt="Sector 8: The track trenches" data-cap="Sector 8: The track trenches"></div><figcaption>The track trenches</figcaption></figure>
+  </div>
+  <div class="sub"><h3>Sector 9: Orbital Spire</h3><p>The ring around the core is an amphitheatre that steps down in tiers from the pods to the core at the bottom. Sniper ledges a wall up in two corners each have an elevator.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap9_before.jpg" alt="Sector 9 heights map before"><img class="top" src="depth/hmap9_after.jpg" alt="Sector 9 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 9 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s9a.jpg" alt="Sector 9: Down the tiers" data-cap="Sector 9: Down the tiers"></div><figcaption>Down the tiers</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s9b.jpg" alt="Sector 9: From the rim" data-cap="Sector 9: From the rim"></div><figcaption>From the rim</figcaption></figure>
+  </div>
+  <div class="sub"><h3>Sector 10: The Core</h3><p>The spiral climbs a step per ring as it winds in. The core arena has a walkway, a ring of pit with no bottom (kick them in), four bridges, and the overseer's dais in the middle.</p></div>
+  <div class="grid3">
+    <figure><div class="cmp"><img src="depth/hmap10_before.jpg" alt="Sector 10 heights map before"><img class="top" src="depth/hmap10_after.jpg" alt="Sector 10 heights map after"><input type="range" min="0" max="100" value="50" aria-label="Compare Sector 10 heights before and after"><span class="bar"></span><span class="lab l">BEFORE</span><span class="lab r">AFTER</span></div>
+      <figcaption>Heights map. Yellow is raised (brighter is higher), blue is sunk.</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s10a.jpg" alt="Sector 10: The arena: walkway, pit, dais" data-cap="Sector 10: The arena: walkway, pit, dais"></div><figcaption>The arena: walkway, pit, dais</figcaption></figure>
+    <figure><div class="screen"><img src="depth/s10b.jpg" alt="Sector 10: The overseer on its dais" data-cap="Sector 10: The overseer on its dais"></div><figcaption>The overseer on its dais</figcaption></figure>
+  </div>
+
+  <div class="grid2">
+    <div class="notes">
+      <h3>New in the engine</h3>
+      <ul>
+        <li><b>Floors that bite.</b> Molten and lava floors burn (5 health every half second, with a sizzle and sparks), and murky water or slime slows you to 70% speed. The game decides by the floor picture's name, so any level gets it for free.</li>
+        <li><b>Monsters keep out of fire and never walk off into a pit with no bottom.</b> Events can't spawn them over one either. Kick one over the edge and it's gone: <span class="mono">Over the edge!</span></li>
+      </ul>
+    </div>
+    <div class="notes">
+      <h3>New in the level kit</h3>
+      <ul>
+        <li><b>Height helpers</b> in <code>lvlkit.py</code>: <code>floor</code>, <code>ceiling</code>, <code>stairs</code>, <code>pit</code> (with steps out), <code>lift</code> and <code>headroom</code>.</li>
+        <li><b>A height-aware check</b> that walks every level by the game's rules: step up two eighths at most, drop any distance, keep a body's height of headroom, ride lifts and pads, and collect keys in order. It fails a level on an unreachable key or exit, or a <i>stuck spot</i>: anywhere you can get into but can't get out of.</li>
+        <li><b>A real walk test.</b> A route planner sends an autopilot through each sector using the game's own movement, via its highest and lowest floors and every lift. All ten sectors walk from start to keys to exit.</li>
+        <li>The GPU bench still holds <b>62.6 fps</b> on every sector, in both CLASSIC and MODERN art.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ NEW: ART ============================ -->
+<section class="lvl" id="art-modes">
+  <div class="lvl-head">
+    <span class="lvl-no">NEW</span>
+    <h2>Classic or modern: every picture painted again</h2>
+    <p>The pixel art stays, and every one of the game's 137 pictures now has a high-resolution twin. Switch between them in SETTINGS &gt; VIDEO &gt; ART, even in the middle of a fight. Drag across any scene below: <span class="pill" style="color:var(--amber)">CLASSIC</span> on the left, <span class="pill" style="color:var(--cyan)">MODERN</span> on the right.</p>
+  </div>
+
+  <div class="grid2">
+    <figure><div class="cmp"><img src="art/l4_control_1.jpg" alt="Sector 4's control room in classic pixel art"><img class="top" src="art/l4_control_2.jpg" alt="The same view in modern art"><input type="range" min="0" max="100" value="50" aria-label="Compare classic and modern: Sector 4 control room"><span class="bar"></span><span class="lab l">CLASSIC</span><span class="lab r">MODERN</span></div>
+      <figcaption><b>Sector 4, the cryo lab's control room.</b> Frost ceiling, glass, consoles and screens behind it.</figcaption></figure>
+    <figure><div class="cmp"><img src="art/l1_hall_1.jpg" alt="Sector 1 lockdown hall in classic art"><img class="top" src="art/l1_hall_2.jpg" alt="The same in modern art"><input type="range" min="0" max="100" value="50" aria-label="Compare: Sector 1 hall"><span class="bar"></span><span class="lab l">CLASSIC</span><span class="lab r">MODERN</span></div>
+      <figcaption><b>Sector 1 under lockdown.</b> The drone, the teleport pad, the shutter door, and the painted pistol.</figcaption></figure>
+    <figure><div class="cmp"><img src="art/l3_nest_1.jpg" alt="Sector 3 nest classic"><img class="top" src="art/l3_nest_2.jpg" alt="Sector 3 nest modern"><input type="range" min="0" max="100" value="50" aria-label="Compare: Sector 3 nest"><span class="bar"></span><span class="lab l">CLASSIC</span><span class="lab r">MODERN</span></div>
+      <figcaption><b>Sector 3, Undercity.</b> Specimen tanks, the hologram, crawlers.</figcaption></figure>
+    <figure><div class="cmp"><img src="art/l5_cell_1.jpg" alt="Sector 5 foundry classic"><img class="top" src="art/l5_cell_2.jpg" alt="Sector 5 foundry modern"><input type="range" min="0" max="100" value="50" aria-label="Compare: Sector 5 foundry"><span class="bar"></span><span class="lab l">CLASSIC</span><span class="lab r">MODERN</span></div>
+      <figcaption><b>Sector 5, the foundry.</b> Girders overhead, lockers, a heavy behind the glass.</figcaption></figure>
+    <figure><div class="cmp"><img src="art/l6_vault_1.jpg" alt="Sector 6 hydroponics classic"><img class="top" src="art/l6_vault_2.jpg" alt="Sector 6 hydroponics modern"><input type="range" min="0" max="100" value="50" aria-label="Compare: Sector 6 hydroponics"><span class="bar"></span><span class="lab l">CLASSIC</span><span class="lab r">MODERN</span></div>
+      <figcaption><b>Sector 6, hydroponics.</b> Vines, grow lights, mossy floors.</figcaption></figure>
+    <figure><div class="cmp"><img src="art/l7_control_1.jpg" alt="Sector 7 data vault classic"><img class="top" src="art/l7_control_2.jpg" alt="Sector 7 data vault modern"><input type="range" min="0" max="100" value="50" aria-label="Compare: Sector 7 data vault"><span class="bar"></span><span class="lab l">CLASSIC</span><span class="lab r">MODERN</span></div>
+      <figcaption><b>Sector 7, the data vault.</b> Data streams on every wall.</figcaption></figure>
+    <figure><div class="cmp"><img src="art/l1_station_1.jpg" alt="A data station classic"><img class="top" src="art/l1_station_2.jpg" alt="A data station modern"><input type="range" min="0" max="100" value="50" aria-label="Compare: a data station"><span class="bar"></span><span class="lab l">CLASSIC</span><span class="lab r">MODERN</span></div>
+      <figcaption><b>A data station.</b> The JACK IN screen kept its lettering. Its walls are now bolted panels.</figcaption></figure>
+    <figure><div class="cmp"><img src="art/l1_room_1.jpg" alt="The live-built room classic"><img class="top" src="art/l1_room_2.jpg" alt="The live-built room modern"><input type="range" min="0" max="100" value="50" aria-label="Compare: Sector 1 room"><span class="bar"></span><span class="lab l">CLASSIC</span><span class="lab r">MODERN</span></div>
+      <figcaption><b>Sector 1's south-east room.</b> The bio-lab walls glow green.</figcaption></figure>
+  </div>
+
+  <div class="grid3">
+    <figure><div class="screen"><img src="art/e_net_modern.jpg" alt="The network in modern art: the grid stays sharp, ICE is a glossy spiked sphere" data-cap="The network, MODERN: the grid stays crisp, ICE is painted"></div>
+      <figcaption><span class="tag">NETWORK</span>Jacked in with MODERN art. The grid stays crisp, and the ICE is painted.</figcaption></figure>
+    <figure><div class="screen"><img src="art/e_net_classic.jpg" alt="The same moment after switching to classic: ICE is pixel art again" data-cap="Switched to CLASSIC while jacked in"></div>
+      <figcaption><span class="tag">SWITCHED</span>The same moment after switching to CLASSIC while still jacked in.</figcaption></figure>
+    <figure><div class="screen"><img src="art/e_soft_modern.jpg" alt="The software renderer showing modern art shrunk to its texture size" data-cap="Software renderer with MODERN art"></div>
+      <figcaption><span class="tag">SOFTWARE</span>The software renderer uses the paintings too, shrunk smoothly to its own size.</figcaption></figure>
+  </div>
+
+  <div class="sub">
+    <h3>Every texture <small>left half classic · right half modern</small></h3>
+    <div class="screen" style="border:0"><img src="art/textures.jpg" alt="All 75 wall, floor, ceiling and door textures, each split down the middle: pixel art on the left, the painting on the right" data-cap="All 75 textures: classic left, modern right"></div>
+  </div>
+  <div class="sub">
+    <h3>Every sprite, gun and pickup <small>classic above · modern below</small></h3>
+    <div class="screen" style="border:0"><img src="art/sprites.jpg" alt="All 62 sprites, guns and pickups, each with the pixel art above and the painting below" data-cap="All 62 sprites, guns and pickups: classic above, modern below"></div>
+  </div>
+
+  <div class="grid2">
+    <div class="notes">
+      <h3>How the art was made</h3>
+      <ul>
+        <li><b>Pixelmon on rtx</b>, in full-resolution art mode (SDXL at 1024 pixels), back up and running at about 18 seconds a picture.</li>
+        <li><b>Guided by the old art.</b> Each painting started from its pixel-art picture (img2img at 0.8 denoise), so the layout, colours and silhouette carry over. A green server wall stays a green server wall, and the gunner keeps his rifle.</li>
+        <li><b>Walls repeat sideways, floors and ceilings both ways</b>, so they tile seamlessly.</li>
+        <li><b>Two candidates of everything</b>, 274 renders, picked side by side. The 9 that came out wrong were re-rolled with clearer prompts, such as rock where there should be station panels, or crumpled foil from noisy pixel textures.</li>
+        <li><b>Sprites are cut out with BiRefNet</b>, a background-removal model on rtx. Each is then fitted into its old picture's exact footprint at four times the size, so monsters stand on the same line and are the same size in the game. Three pieces as grey as the background also used a colour key.</li>
+        <li><b>137 pictures, 26 MB</b>, in <code>neon-caster/hd/</code> under the same names as the pixel art. Delete one and that picture falls back to classic.</li>
+      </ul>
+    </div>
+    <div class="notes">
+      <h3>How the engine does it</h3>
+      <ul>
+        <li><b>Texture size is a variable now.</b> <code>texSize</code> and <code>sprTex</code> are 128 and 64 for CLASSIC, and 512 and 256 for MODERN with OpenGL. Every derived picture follows: key doors, the EXIT sign, the shot-out lamp, corpses, wrecks, hit flashes, explosion frames, and the monsters' walk animation, whose leg swings scale with the picture.</li>
+        <li><b><code>ArtReload</code></b> holds the OpenGL thread off, resizes the arrays, and reloads every picture, including the level's own. If you're jacked in, it rebuilds the network grid at the new size.</li>
+        <li><b><code>ReadPicture</code></b> shrinks a painting by averaging, so the software renderer gets smooth 128-pixel versions, not jagged ones.</li>
+        <li><b>Paintings are drawn smooth with mipmaps</b>, while pixel art keeps its crisp square pixels, even in MODERN mode where a picture has no painting.</li>
+        <li><b>No cost.</b> The GPU bench holds 62.6 fps on all ten sectors in both modes.</li>
+      </ul>
+<pre class="term"><span class="c">' in the console, or on the command line</span>
+<span class="k">set</span> art <span class="v">2</span>     <span class="c">' MODERN</span>
+<span class="k">set</span> art <span class="v">1</span>     <span class="c">' CLASSIC</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 01 EDITOR ============================ -->
+<section class="lvl" id="editor">
+  <div class="lvl-head">
+    <span class="lvl-no">01</span>
+    <h2>The level editor</h2>
+    <p>Two views of one level. A CAD-style map from above, and the real 3D game you walk around in while you build. Every edit rebuilds the level in place, so you see the change in the engine the moment you make it.</p>
+  </div>
+
+  <div class="callout">
+    <h3>How a single edit reaches the 3D view</h3>
+    <p>A click, a key or a console command changes the level's text rows (<code>lvlRow$</code>), its zones, lights or lifts. Then <code>GOSUB EditApply</code> runs <code>BuildLevel</code> with <code>editRebuild</code> set. That rebuilds the map arrays the software raycaster reads, the floor and ceiling heights, the glass, the doors, the light map, and every OpenGL mesh: floors, ceilings, walls and raised steps. The GL side swaps in the new meshes as client arrays on the very next frame, without waiting on the GPU, and only bumps the mesh version once the build is finished, so it never draws half a level. Your position, health, monsters and pickups stay put. Ctrl+Z puts the whole previous level back, so every change can be undone.</p>
+  </div>
+
+  <div class="sub">
+    <h3>Getting in <small>F2 · Tab · edit</small></h3>
+    <p>Press <kbd>F2</kbd> in the game (or type <code>edit</code> in the console, or start the game with <code>+edit</code>). The game pauses and the map view opens on the sector you're in. <kbd>Tab</kbd> flips between the map and walking. <kbd>F2</kbd> again goes back to playing, and the level you play is the one you just edited. <kbd>Ctrl</kbd>+<kbd>S</kbd> writes it to <code>neon-caster/levels/levelN.txt</code>, the same plain-text file the level kit writes.</p>
+  </div>
+
+  <div class="sub">
+    <h3>The map view <small>CAD mode</small></h3>
+  </div>
+  <div class="split">
+    <figure>
+      <div class="screen"><img src="img/ed_map.jpg" alt="The editor's map view of Sector 1: every cell drawn from above, coloured by zone, with a palette of glyphs on the right and key help underneath" data-cap="The map view: Sector 1 from above, the glyph palette on the right, the cell under the mouse in the status line."></div>
+      <figcaption><b>The whole sector from above.</b> Walls in each zone's colour, doors as bars, props and monsters as coloured dots, lights as small squares, the player as the arrow at the bottom. The status line reads <span class="mono">36,36 floor floor 0 ceil 2.25</span>: the cell under the mouse, what's in it, and its floor and ceiling height in walls.</figcaption>
+    </figure>
+    <div class="notes">
+      <p><b>The palette</b> on the right holds every map glyph the game knows. Each square is drawn in the colour the map uses for it.</p>
+      <ul>
+        <li>Walls <code>#</code> <code>N</code> <code>C</code> <code>K</code> <code>P</code> <code>G</code>, each kind with its own picture.</li>
+        <li>Doors <code>D</code> <code>H</code> <code>X</code>, key doors <code>R</code> <code>B</code> <code>Y</code>.</li>
+        <li>Glass <code>=</code>, data station <code>@</code>, sealed door <code>!</code>, code terminal <code>$</code>, teleport pad <code>&amp;</code>.</li>
+        <li>Props, monsters, pickups, weapons, and the start arrows <code>&lt; &gt; ^ v</code>.</li>
+      </ul>
+      <dl class="keys">
+        <dt><kbd>Click</kbd></dt><dd>paint the selected glyph</dd>
+        <dt><kbd>Shift</kbd>+drag</dt><dd>fill a box</dd>
+        <dt><kbd>Right</kbd> click</dt><dd>pick up the glyph under the mouse</dd>
+        <dt><kbd>Wheel</kbd> <kbd>[</kbd> <kbd>]</kbd></dt><dd>step through glyphs</dd>
+        <dt><kbd>H</kbd></dt><dd>heights layer</dd>
+        <dt><kbd>L</kbd> <kbd>1</kbd>–<kbd>8</kbd></dt><dd>lights layer and the light's colour</dd>
+        <dt><kbd>M</kbd></dt><dd>monster editor</dd>
+        <dt><kbd>U</kbd></dt><dd>HUD layout editor</dd>
+        <dt><kbd>T</kbd></dt><dd>put the player at the mouse</dd>
+        <dt><kbd>PgUp</kbd> <kbd>PgDn</kbd></dt><dd>edit another sector</dd>
+        <dt><kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>Z</kbd></dt><dd>save / undo</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <figure>
+      <div class="screen"><img src="img/ed_heights.jpg" alt="The heights layer: raised cells drawn as yellow squares, brighter for higher, with the dais in the south-east room" data-cap="H: the heights layer. Brighter yellow is higher; click raises a floor an eighth, right-click lowers it, Shift does the ceiling."></div>
+      <figcaption><span class="tag">H</span><b>Heights layer.</b> Every raised floor shows as a yellow square, brighter the higher it is. Here the two-step dais in the south-east room stands out. Click raises a floor by an eighth of a wall, right-click lowers it, and with <kbd>Shift</kbd> held it moves the ceiling instead.</figcaption>
+    </figure>
+    <figure>
+      <div class="screen"><img src="img/ed_lights.jpg" alt="The lights layer: each light drawn as a circle showing its radius, over the map" data-cap="L: the lights layer. Each light is a circle the size of its reach; click adds one, right-click removes, 1-8 picks the colour."></div>
+      <figcaption><span class="tag">L</span><b>Lights layer.</b> Every light is drawn as a circle the size of its reach. Click adds one, right-click takes the nearest away, and keys <kbd>1</kbd>–<kbd>8</kbd> pick white, cyan, magenta, orange, green, red alarm, flickering or firelight.</figcaption>
+    </figure>
+  </div>
+
+  <div class="sub">
+    <h3>Painting a window with Shift-drag</h3>
+    <p>Pick glass from the palette, hold <kbd>Shift</kbd> and drag across the room. The outline follows the mouse, and when you let go the whole box fills in.</p>
+  </div>
+  <div class="grid3">
+    <figure>
+      <div class="screen"><img src="img/ed_pick.jpg" alt="Glass selected in the palette" data-cap="1. Glass (=) picked from the palette."></div>
+      <figcaption><span class="tag">1</span>Glass <code>=</code> picked from the palette. The panel under it names it.</figcaption>
+    </figure>
+    <figure>
+      <div class="screen"><img src="img/ed_drag.jpg" alt="A white rectangle outline being dragged across the south-east room" data-cap="2. Shift held and dragging: the outline of the box to fill."></div>
+      <figcaption><span class="tag">2</span><kbd>Shift</kbd>+drag: a white outline shows the cells that will fill.</figcaption>
+    </figure>
+    <figure>
+      <div class="screen"><img src="img/ed_painted.jpg" alt="The dragged row now filled with glass, and the status line marked not saved" data-cap="3. Let go: a row of glass, and the status line says not saved."></div>
+      <figcaption><span class="tag">3</span>Let go: a row of glass, already built into the 3D level. The status line now reads <span class="mono" style="color:var(--red)">not saved</span>.</figcaption>
+    </figure>
+  </div>
+  <figure style="margin-top:1rem">
+    <div class="screen" style="max-width:820px"><img src="anim/cad.webp" alt="The map view cycling through the plain map, the heights layer, the lights layer, picking glass, dragging and the painted result" data-cap="The map view in motion: layers, pick, drag, paint."></div>
+    <figcaption>The same steps as an animation: plain map, heights layer, lights layer, pick, drag, paint.</figcaption>
+  </figure>
+
+  <div class="sub">
+    <h3>Walking inside it <small>Tab · realtime edits in the 3D view</small></h3>
+    <p>Press <kbd>Tab</kbd> and you're standing in the level, in whichever renderer you play with. A panel at the top left says what you're aiming at (<span class="mono">AIM 36,34: wall # (wall.png)</span>) and what a click will put down (<span class="mono">PLACE: wall #</span>). The line at the bottom reports the last thing you did. Each frame below is the actual game, a second or so after one key or click.</p>
+  </div>
+  <div class="split">
+    <figure>
+      <div class="screen glow"><span class="live">EDITING</span><img src="anim/walkedit.webp" alt="Walking edit mode: three clicks build a wall block by block, T changes the wall picture three times, right-click knocks one down, PgUp raises the floor, F changes the floor picture, Ctrl+Z undoes" data-cap="Walking edit mode, one key or click per frame."></div>
+      <figcaption>One key or click per frame. Build, build, build. Retexture ×3. Knock down. Raise. New floor. Undo.</figcaption>
+    </figure>
+    <div class="notes">
+      <dl class="keys">
+        <dt><kbd>Click</kbd></dt><dd>build the glyph into the cell in front of what you aim at</dd>
+        <dt><kbd>Right</kbd> click</dt><dd>knock down what you aim at (it becomes floor)</dd>
+        <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>step through glyphs</dd>
+        <dt><kbd>E</kbd></dt><dd>pick up what you aim at as the glyph</dd>
+        <dt><kbd>T</kbd></dt><dd>next picture for that kind of wall, everywhere (<kbd>Shift</kbd> goes back)</dd>
+        <dt><kbd>F</kbd> / <kbd>V</kbd></dt><dd>next floor / ceiling picture</dd>
+        <dt><kbd>Z</kbd></dt><dd>give that cell the next of the level's four floors</dd>
+        <dt><kbd>PgUp</kbd> <kbd>PgDn</kbd></dt><dd>floor in front up or down an eighth (<kbd>Shift</kbd>: ceiling)</dd>
+        <dt><kbd>L</kbd> / <kbd>K</kbd></dt><dd>add a light in front / remove the nearest</dd>
+        <dt><kbd>1</kbd>–<kbd>8</kbd></dt><dd>light colour</dd>
+        <dt><kbd>U</kbd></dt><dd>HUD layout editor</dd>
+        <dt><kbd>Tab</kbd> · <kbd>F2</kbd></dt><dd>back to the map · play</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="grid4">
+    <figure><div class="screen"><img src="img/ed_build1.jpg" alt="First click: a wall block appears behind the glass" data-cap="Click 1: wall # (wall.png) at 36 34"></div>
+      <figcaption><span class="tag">click</span><span class="mono">wall # at 36 34</span>. A block appears behind the window under the lamp.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_build2.jpg" alt="Second click: a second block nearer" data-cap="Click 2: wall # at 36 35"></div>
+      <figcaption><span class="tag">click</span><span class="mono">36 35</span>. Each click builds into the cell in front of the last one.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_build3.jpg" alt="Third click: a column of wall now stands right in front" data-cap="Click 3: wall # at 36 36"></div>
+      <figcaption><span class="tag">click</span><span class="mono">36 36</span>. Three clicks make a short wall.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_retex1.jpg" alt="T pressed: every # wall in the sector now uses wall12.png, pink and dark" data-cap="T: Walls #: wall12.png - every # wall in the sector at once"></div>
+      <figcaption><span class="tag">T</span><span class="mono">Walls #: wall12.png</span>. Every <code>#</code> wall in the sector changes at once.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_retex2.jpg" alt="T again: wall-adverts.png, dark with bright cyan and pink signs" data-cap="T: Walls #: wall-adverts.png"></div>
+      <figcaption><span class="tag">T</span><span class="mono">wall-adverts.png</span>. Lit up in the 3D view straight away, glow and bump map included.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_retex3.jpg" alt="T a third time: wall-biolab.png, green panels" data-cap="T: Walls #: wall-biolab.png"></div>
+      <figcaption><span class="tag">T</span><span class="mono">wall-biolab.png</span>. The low wall on the right changes too.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_knock.jpg" alt="Right-click: the nearest block cleared, the light shaft shows again" data-cap="Right-click: Cleared 36 36"></div>
+      <figcaption><span class="tag">right</span><span class="mono">Cleared 36 36</span>. The light shaft behind it shows through again.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_raise.jpg" alt="PgUp four times: the floor in front raised half a wall" data-cap="PgUp x4: Floor .5 ceiling 2.25"></div>
+      <figcaption><span class="tag">PgUp×4</span><span class="mono">Floor .5 ceiling 2.25</span>. Four eighths up, half a wall.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_floor.jpg" alt="F: the floor picture changes to floor-molten.png" data-cap="F: Floor 4: floor-molten.png"></div>
+      <figcaption><span class="tag">F</span><span class="mono">Floor 4: floor-molten.png</span>. That floor number changes everywhere it's used.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_undo.jpg" alt="Ctrl+Z twice: the floor change and the raise undone" data-cap="Ctrl+Z twice: undo"></div>
+      <figcaption><span class="tag">Ctrl+Z×2</span>Both changes undone. Undo keeps whole snapshots of the level.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_help.jpg" alt="H: the help line across the bottom of the screen" data-cap="H: the walking editor's keys"></div>
+      <figcaption><span class="tag">H</span>The key list, across the bottom of the screen.</figcaption></figure>
+    <figure><div class="screen"><img src="img/ed_play.jpg" alt="F2: back to playing in the edited room" data-cap="F2: back to the game, in the room as you left it"></div>
+      <figcaption><span class="tag">F2</span>Back to playing, in the room exactly as you left it.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================ 02 LIVE BUILD ============================ -->
+<section class="lvl" id="build">
+  <div class="lvl-head">
+    <span class="lvl-no">02</span>
+    <h2>A room built live, from the console</h2>
+    <p>The same editing engine is in the console (<kbd>`</kbd>). Each command below was typed into the running game on your GPU, and each frame was taken from the same spot right after it. Nothing was reloaded.</p>
+  </div>
+  <div class="steps">
+    <figure><div class="screen"><img src="img/build_0.jpg" alt="Sector 1's south-east room as it was" data-cap="0. The room as it was"></div>
+      <figcaption><span class="n">00</span><b>Before.</b> Sector 1's south-east room, from 36.5, 42.2 facing north.<code>kill</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_1.jpg" alt="The room emptied: bare floor to the far wall" data-cap="1. box 30 26 42 42 ."></div>
+      <figcaption><span class="n">01</span><b>Clear it.</b> A 13×17 box of floor.<code>box 30 26 42 42 .</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_2.jpg" alt="A low dark wall across the room" data-cap="2. box 31 33 41 33 C"></div>
+      <figcaption><span class="n">02</span><b>A wall</b> across the room, kind <code>C</code>.<code>box 31 33 41 33 C</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_3.jpg" alt="Three cells of the wall turned to glass, a window into the far half" data-cap="3. box 35 33 37 33 ="></div>
+      <figcaption><span class="n">03</span><b>A window.</b> Three cells of it become glass.<code>box 35 33 37 33 =</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_4.jpg" alt="A raised dais appears in front of the window" data-cap="4. raise 32 36 35 39 2 / raise 33 37 34 38 2"></div>
+      <figcaption><span class="n">04</span><b>A two-step dais</b>, two eighths, then two more.<code>raise 32 36 35 39 2</code><code>raise 33 37 34 38 2</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_5.jpg" alt="The ceiling lifted high over the whole room; the window now runs floor to ceiling" data-cap="5. raise 30 26 42 42 10 ceil"></div>
+      <figcaption><span class="n">05</span><b>A high ceiling.</b> Ten eighths up. The glass grows with it.<code>raise 30 26 42 42 10 ceil</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_6.jpg" alt="Lamps with visible light shafts, cyan and magenta" data-cap="6. lamp x4"></div>
+      <figcaption><span class="n">06</span><b>Four lamps</b>: cyan, magenta, white, alarm red. Each casts a light shaft.<code>lamp 33 40 2 · lamp 39 40 3</code><code>lamp 36 36 1 · lamp 36 30 6</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_7.jpg" alt="A hologram on the dais" data-cap="7. put 33 37 Q"></div>
+      <figcaption><span class="n">07</span><b>A hologram</b> <code>Q</code> on the dais.<code>put 33 37 Q</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_8.jpg" alt="Console, screens, a chair and a body" data-cap="8. console, screens, chair, body"></div>
+      <figcaption><span class="n">08</span><b>An office</b>: console, screens, chair, and a body.<code>put 38 35 A · put 39 35 F</code><code>put 38 37 Z · put 39 38 V</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_9.jpg" alt="A lift in the corner" data-cap="9. lift 41 39 41 39 0 8 1 6"></div>
+      <figcaption><span class="n">09</span><b>A lift</b> from the floor to a full wall up, cycling.<code>lift 41 39 41 39 0 8 1 6</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_10.jpg" alt="Two teleport pads" data-cap="10. two teleport pads"></div>
+      <figcaption><span class="n">10</span><b>A teleporter pair.</b> Pads link in reading order.<code>put 31 40 &amp; · put 41 35 &amp;</code></figcaption></figure>
+    <figure><div class="screen"><img src="img/build_11.jpg" alt="A heavy and a gunner behind the glass" data-cap="11. monsters behind the glass"></div>
+      <figcaption><span class="n">11</span><b>Company.</b> A heavy and a gunner behind the glass.<code>put 36 30 h · put 34 30 g</code></figcaption></figure>
+  </div>
+  <figure style="margin-top:1.4rem">
+    <div class="screen glow"><img src="img/build_12.jpg" alt="The finished room from the corner: high ceiling, light shafts, the dais and hologram, the window, the teleport pad in front" data-cap="The finished room, from the corner. Every piece came from a console command a minute earlier."></div>
+    <figcaption><b>The finished room</b>, seen from the corner at 30.6, 41.4. The high ceiling, the light shafts, the hologram on the dais, the glass, and a teleport pad in front. Type <code>savelevel</code> (or press <kbd>Ctrl</kbd>+<kbd>S</kbd> in the editor) and it's in <code>level1.txt</code>.</figcaption>
+  </figure>
+  <div class="sub">
+    <h3>Every editing command</h3>
+    <div class="tbl">
+    <table class="t">
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>put X Y CH</td><td>Put any map glyph in a cell, built at once (case matters: <code>h</code> is a heavy, <code>H</code> a door).</td></tr>
+        <tr><td>box X0 Y0 X1 Y1 CH</td><td>Fill a rectangle.</td></tr>
+        <tr><td>raise … N [ceil]</td><td>Floors (or ceilings) up or down, in eighths of a wall, for one cell or a box.</td></tr>
+        <tr><td>lift X0 Y0 X1 Y1 LOW HIGH [MODE] [SPEED]</td><td>A lift: mode 1 cycles, 2 is an elevator you ride, 3 waits for a trigger.</td></tr>
+        <tr><td>lamp X Y [1-8]</td><td>A light over a cell, in one of the eight presets.</td></tr>
+        <tr><td>wall CH PICTURE · light N on|off</td><td>Change a wall kind's picture; switch a light.</td></tr>
+        <tr><td>trigger … · triggers</td><td>Add a trigger; list them.</td></tr>
+        <tr><td>undo · savelevel · edit</td><td>Take back the last edit; write the level file; open the editor.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 03 GLASS ============================ -->
+<section class="lvl" id="glass">
+  <div class="lvl-head">
+    <span class="lvl-no">03</span>
+    <h2>Glass and observation rooms</h2>
+    <p>Your shower idea: windows into rooms you can't reach yet, with computers, chairs, monsters and the dead on the other side. Glass is map glyph <code>=</code>. It takes three hits, cracks first, then shatters and becomes floor.</p>
+  </div>
+  <div class="split">
+    <figure>
+      <div class="screen glow"><img src="anim/glass.webp" alt="Shooting a window: clean, cracked, more cracks, shattered with shards falling, and an open gap" data-cap="Three shots: cracks, more cracks, then it shatters."></div>
+      <figcaption><span class="tag">GL</span>Clean, cracked, cracked further, then gone. The thieves' hoard in Sector 1 sits behind this one.</figcaption>
+    </figure>
+    <div class="notes">
+      <ul>
+        <li><b>Both renderers draw it.</b> The software raycaster keeps going through a glass cell (<code>GlassRay</code>) and blends the pane over what's behind it (<code>GlassColumn</code>). OpenGL draws the pane as a tinted quad after the opaque world (<code>GLGlass</code>).</li>
+        <li><b>Floor to ceiling.</b> A pane runs from the cell's floor to its ceiling, however high they are. That fix went in while these shots were taken.</li>
+        <li><b>Monsters see you through it</b>, and their shots hit the glass and can break it. Nobody walks through it while it stands.</li>
+        <li><b>Three hits.</b> <code>glassHP</code> counts down with more cracks each time, then shards fall all along the pane and the cell becomes floor. A kick counts, the railgun goes straight through, and a barrel blast takes out every pane near it.</li>
+        <li><b>Breaking it is loud.</b> The crash wakes every sleeping monster within six cells.</li>
+        <li>Every sector now has observation rooms built by the level kit (<code>levels.py</code>): labs, cells, offices and control rooms with props and bodies placed inside.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="grid3">
+    <figure><div class="screen"><img src="img/l1_window.jpg" alt="Sector 1: a long window into a dark server room" data-cap="Sector 1: a window into the server room"></div><figcaption>Sector 1. A long window into a server room, a cyan sentry inside.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l1_cell.jpg" alt="Sector 1: a holding cell with a heavy inside, seen through the glass" data-cap="Sector 1: a holding cell"></div><figcaption>Sector 1. A holding cell with a heavy waiting in it.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l4_lab.jpg" alt="Sector 4: a cryo lab through glass, with specimen tanks" data-cap="Sector 4: the cryo lab"></div><figcaption>Sector 4. The cryo lab, specimen tanks glowing green.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l4_cell.jpg" alt="Sector 4: a cell with a drone behind glass" data-cap="Sector 4: a drone in a cell"></div><figcaption>Sector 4. A drone in a cell, under the frost ceiling.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l4_control.jpg" alt="Sector 4: a control room with consoles and bright lights behind glass" data-cap="Sector 4: the control room"></div><figcaption>Sector 4. A control room with consoles and screens.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l3_nest.jpg" alt="Sector 3: a nest with a hologram and specimen pods" data-cap="Sector 3: the nest"></div><figcaption>Sector 3. A hologram between two specimen pods.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l5_cell.jpg" alt="Sector 5: the foundry, a cell lit orange" data-cap="Sector 5: the foundry"></div><figcaption>Sector 5. The foundry's cell in firelight.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l6_vault.jpg" alt="Sector 6: hydroponics vault in green light" data-cap="Sector 6: hydroponics"></div><figcaption>Sector 6. Hydroponics, under grow lights.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l7_control.jpg" alt="Sector 7: the data vault's control room, blue" data-cap="Sector 7: the data vault"></div><figcaption>Sector 7. The data vault's control room.</figcaption></figure>
+  </div>
+  <div class="grid2">
+    <figure><div class="screen"><img src="img/glass_sw_crack.jpg" alt="The software renderer drawing cracked glass" data-cap="Software renderer: cracked glass"></div><figcaption><span class="tag">SOFTWARE</span>The software raycaster draws the same cracks.</figcaption></figure>
+    <figure><div class="screen"><img src="img/glass_sw_lab.jpg" alt="The software renderer showing the lab through glass" data-cap="Software renderer: the lab through glass"></div><figcaption><span class="tag">SOFTWARE</span>The cryo lab through glass, without OpenGL.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================ 04 NETWORK ============================ -->
+<section class="lvl" id="network">
+  <div class="lvl-head">
+    <span class="lvl-no">04</span>
+    <h2>Data stations and the network</h2>
+    <p>Your other idea from the car: walk up to a station on the wall, press use, and the whole level turns into a bright neon wireframe. Grab the data cores before the timer runs out, dodge the ICE, jack out, and the sealed door opens.</p>
+  </div>
+  <div class="grid2">
+    <figure><div class="screen"><img src="img/l1_station.jpg" alt="A data station on the wall: a JACK IN screen, status lights and a glowing neural socket" data-cap="A data station (@): face it and press SPACE"></div><figcaption><span class="tag">@</span>A data station. <span class="mono">A DATA STATION - face it and press SPACE to jack in</span>.</figcaption></figure>
+    <figure><div class="screen"><img src="img/net_enter.jpg" alt="Jacked in: the level drawn as magenta walls and a cyan floor grid on black, ICE in the distance" data-cap="Jacked in. NEXUS: You dare enter my network?"></div><figcaption><span class="tag">JACKED IN</span><span class="mono">NEXUS: You dare enter my network? Here you are nothing but data.</span></figcaption></figure>
+  </div>
+  <div class="split">
+    <figure>
+      <div class="screen glow"><span class="live">360°</span><img src="anim/net360.webp" alt="A full turn inside the network: magenta grid walls, cyan floor grid, yellow data cores, red spiked ICE" data-cap="A full turn in the network."></div>
+      <figcaption>A full turn in the open room. The level's own walls, redrawn as grid. Yellow walls hold data cores, and the red spiked balls are ICE.</figcaption>
+    </figure>
+    <div class="notes">
+      <ul>
+        <li><b>The same level, different pictures.</b> <code>JackIn</code> swaps every wall, floor and ceiling texture for generated grid textures (<code>CyberTextures</code>), keeps the real ones aside, and turns the lighting flat and bright. <code>JackOut</code> puts it all back.</li>
+        <li><b>Data cores</b> are scattered on the floor you can walk to from the station, without going through a door. You need 3 plus one per three sectors, up to 6. The HUD shows <span class="mono">NETWORK DATA 0/3 TIME 49</span>.</li>
+        <li><b>ICE</b> (monster type 10) hunts you down. It's faceted, spiked, and has a white-hot scanning eye.</li>
+        <li><b>Run out of time</b> and you're thrown out with the door still sealed. Jack in again to retry.</li>
+        <li><b>Its own music:</b> a synthwave loop at 124 bpm, written for it. Play it below.</li>
+      </ul>
+      <button class="snd" type="button" data-src="snd/cyber.mp3" aria-pressed="false"><i>▶</i><span>cyber.flac <small>The network's music, first 46 s</small></span></button>
+      <div class="board" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <button class="snd" type="button" data-src="snd/jack-in.mp3" aria-pressed="false"><i>▶</i><span>jack-in</span></button>
+        <button class="snd" type="button" data-src="snd/jack-out.mp3" aria-pressed="false"><i>▶</i><span>jack-out</span></button>
+        <button class="snd" type="button" data-src="snd/core.mp3" aria-pressed="false"><i>▶</i><span>core</span></button>
+        <button class="snd" type="button" data-src="snd/ice-alert.mp3" aria-pressed="false"><i>▶</i><span>ice-alert</span></button>
+      </div>
+    </div>
+  </div>
+  <div class="grid3">
+    <figure><div class="screen"><img src="img/net_ice.jpg" alt="Two ICE programs close up, pink and red, spiked" data-cap="ICE, close up"></div><figcaption>ICE, close up.</figcaption></figure>
+    <figure><div class="screen"><img src="img/net_core.jpg" alt="A data core: a cyan crystal in front of a yellow grid wall" data-cap="A data core"></div><figcaption>A data core in front of a yellow core wall.</figcaption></figure>
+    <figure><div class="screen"><img src="img/net_dooropen.jpg" alt="Back in the real level, the sealed door open. NEXUS: Access granted? No... no, that is impossible." data-cap="Jacked out: the sealed door is open"></div><figcaption>Jacked out. <span class="mono">NEXUS: Access granted? No... no, that is impossible.</span> The sealed door <code>!</code> is open.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================ 05 HEIGHTS ============================ -->
+<section class="lvl" id="heights">
+  <div class="lvl-head">
+    <span class="lvl-no">05</span>
+    <h2>Floors and ceilings at any height, pits and lifts</h2>
+    <p>Every cell now has its own floor and ceiling height, in eighths of a wall. Steps you can walk up, ledges you have to jump to, pits you fall into, ceilings that soar, and lifts that carry you between them.</p>
+  </div>
+  <div class="grid3">
+    <figure><div class="screen"><img src="img/l4_dais.jpg" alt="Sector 4: a raised dais with lit edges and a plant on top" data-cap="Sector 4: the dais from below"></div><figcaption>Sector 4. A raised dais, from below.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l4_dais_top.jpg" alt="Standing on top of the dais, looking over the room" data-cap="Sector 4: on top of the dais"></div><figcaption>Standing on top of it. Your eye height follows the floor.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l4_ledge.jpg" alt="Sector 4: a ledge with tall walls and a raised floor" data-cap="Sector 4: a ledge"></div><figcaption>A ledge. Monsters walk the same heights you do.</figcaption></figure>
+  </div>
+  <div class="split">
+    <figure>
+      <div class="screen glow"><span class="live">LIFT</span><img src="anim/lift.webp" alt="Riding an elevator: the wall slides past, then the view clears over the upper floor" data-cap="Riding an elevator up a full wall."></div>
+      <figcaption>Riding an elevator a full wall up. It's mode 2: it rises when you're on it and comes back down a while after you leave.</figcaption>
+    </figure>
+    <div class="notes">
+      <ul>
+        <li><b>In the level file</b>, the <code>[floor]</code> and <code>[ceiling]</code> grids give each cell's height: <code>.</code> is the zone's default, <code>0</code>–<code>9</code> then <code>a</code>–<code>z</code> are eighths up, and <code>A</code>–<code>H</code> are eighths down (pits).</li>
+        <li><b>You step up</b> anything under 0.32 of a wall without jumping. Anything higher is a ledge. Your body is 0.7 tall, so you can't fit under a low ceiling.</li>
+        <li><b>The software renderer</b> draws heights the Doom way: each column keeps a clip window, and step faces, floors and sprites are all clipped to it.</li>
+        <li><b>OpenGL</b> builds step faces (<code>GLStep</code>) as a fourth mesh kind and rebuilds them when a lift moves.</li>
+        <li><b>Lifts</b> live in <code>[lifts]</code>: <code>x0, y0, x1, y1, low, high, mode, speed</code>. Mode 1 cycles, 2 is an elevator, 3 waits for a trigger's <code>liftgo</code>.</li>
+      </ul>
+<pre class="term"><span class="c">[lifts]</span>
+<span class="c">' x0, y0, x1, y1, low, high, mode, speed</span>
+13, 6, 13, 6, 0, 8, <span class="v">2</span>, 6</pre>
+    </div>
+  </div>
+  <div class="grid3">
+    <figure><div class="screen"><img src="img/h_gl_a.jpg" alt="OpenGL: a raised walkway with lit edges" data-cap="OpenGL: a raised walkway"></div><figcaption><span class="tag">GL</span>A raised walkway.</figcaption></figure>
+    <figure><div class="screen"><img src="img/h_gl_b.jpg" alt="OpenGL: a room corner with a pit below" data-cap="OpenGL: a pit room"></div><figcaption><span class="tag">GL</span>A sunken room and its walls.</figcaption></figure>
+    <figure><div class="screen"><img src="img/h_gl_c.jpg" alt="OpenGL: a high-ceilinged room" data-cap="OpenGL: high ceiling"></div><figcaption><span class="tag">GL</span>A high ceiling.</figcaption></figure>
+    <figure><div class="screen"><img src="img/h_sw_a.jpg" alt="Software: the same raised walkway" data-cap="Software: the same walkway"></div><figcaption><span class="tag">SOFTWARE</span>The same spot, software.</figcaption></figure>
+    <figure><div class="screen"><img src="img/h_sw_b.jpg" alt="Software: the same pit room" data-cap="Software: the same pit room"></div><figcaption><span class="tag">SOFTWARE</span>Same, software.</figcaption></figure>
+    <figure><div class="screen"><img src="img/h_sw_c.jpg" alt="Software: the same high ceiling" data-cap="Software: the same high ceiling"></div><figcaption><span class="tag">SOFTWARE</span>Same, software.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================ 06 TELEPORT ============================ -->
+<section class="lvl" id="teleport">
+  <div class="lvl-head">
+    <span class="lvl-no">06</span>
+    <h2>Teleporters</h2>
+    <p>Glyph <code>&amp;</code> is a pad. Pads pair up in reading order: first with second, third with fourth. Step on one and you come out on its partner, facing the way you were going.</p>
+  </div>
+  <div class="split">
+    <figure>
+      <div class="screen glow"><img src="anim/tele.webp" alt="Standing before a glowing magenta ring pad, then a flash, then arriving in a different corridor" data-cap="Step on, flash, arrive."></div>
+      <figcaption>Step on the ring, a flash, and you're in another part of the sector.</figcaption>
+    </figure>
+    <div class="notes">
+      <ul>
+        <li>The pad is a pulsing ring of light on the floor, in both renderers.</li>
+        <li>You have to step off before it sends you back, so no ping-pong.</li>
+        <li>Monsters don't use them, which makes a good escape.</li>
+        <li>A trigger can move you too: <code>tp X Y ANGLE</code>.</li>
+      </ul>
+      <button class="snd" type="button" data-src="snd/teleport.mp3" aria-pressed="false"><i>▶</i><span>teleport <small>The sound it makes</small></span></button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 07 TRIGGERS ============================ -->
+<section class="lvl" id="triggers">
+  <div class="lvl-head">
+    <span class="lvl-no">07</span>
+    <h2>Triggers and events</h2>
+    <p>A <code>[triggers]</code> section in the level file runs console commands when something happens. Anything you can type in the console, a level can do by itself.</p>
+  </div>
+  <div class="split rev">
+    <div class="notes">
+<pre class="term"><span class="c">[triggers]</span>
+<span class="c">' when [repeat] : command ; command ; ...</span>
+<span class="k">enter</span> <span class="v">10 23 10 23</span> : message HELLO FROM A TRIGGER ; wall 12 22 . ; light 1 off
+<span class="k">use</span>   <span class="v">4 22</span>        : message SWITCH ; door 18 23 open
+<span class="k">time</span>  <span class="v">1</span>           : say taunt1
+<span class="k">clear</span> <span class="v">33 33 45 45</span> : message ROOM CLEAR ; liftgo 1 up</pre>
+      <ul>
+        <li><b><code>enter</code></b> a box of cells. <b><code>use</code></b> a cell (face it, press <kbd>Space</kbd>). <b><code>clear</code></b>: every monster in a box is dead. <b><code>time</code></b>: so many seconds into the sector.</li>
+        <li>Add <code>repeat</code> and it fires every time instead of once.</li>
+        <li>Commands include <code>message</code>, <code>sound</code>, <code>say</code> (a NEXUS line), <code>door</code>, <code>wall</code>, <code>put</code>, <code>light</code>, <code>liftgo</code>, <code>tp</code>, <code>cutscene</code>, <code>jackin</code> and more.</li>
+        <li>Trigger commands run straight away, in the same frame, even while a startup script is still queued. A trigger with a <code>wait</code> in it runs a frame at a time instead, so a trigger can stage a little scene.</li>
+      </ul>
+    </div>
+    <div class="grid3" style="margin:0">
+      <figure><div class="screen"><img src="img/trig_time.jpg" alt="A timed trigger: NEXUS says You will never escape" data-cap="time 1 : say taunt1"></div><figcaption><span class="tag">time</span>One second in: <span class="mono">NEXUS: You will never escape.</span></figcaption></figure>
+      <figure><div class="screen"><img src="img/trig_enter.jpg" alt="An enter trigger: HELLO FROM A TRIGGER, a wall removed" data-cap="enter : message, wall, light off"></div><figcaption><span class="tag">enter</span>Walk in: a message, a wall gone, a light off.</figcaption></figure>
+      <figure><div class="screen"><img src="img/trig_use.jpg" alt="A use trigger: a switch opened a door down the corridor" data-cap="use : door open"></div><figcaption><span class="tag">use</span>Press use on a wall: a door down the hall opens.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 08 TERMINALS ============================ -->
+<section class="lvl" id="terminals">
+  <div class="lvl-head">
+    <span class="lvl-no">08</span>
+    <h2>Code terminals: real QB64 puzzles</h2>
+    <p>NEXUS locks the doors, and the only way through is to repair a program. The lines are shuffled and some words are blanked out. Put them back in order, fill the blanks, press <kbd>F5</kbd>, and the game hands it to the real qb64pe, compiles it, runs it, and checks what it prints.</p>
+  </div>
+  <div class="split">
+    <figure>
+      <div class="screen glow"><span class="live">F5</span><img src="anim/terminal.webp" alt="The terminal: shuffled lines, a hint, a compile error, the lines fixed, COMPILING, then RAN - it printed 42 - ACCESS GRANTED" data-cap="Open, hint, wrong, fixed, compiling, granted."></div>
+      <figcaption>Open, hint, a compile error from qb64pe, fixed, compiling, <span class="mono" style="color:var(--green)">RAN - it printed: 42 - ACCESS GRANTED</span>.</figcaption>
+    </figure>
+    <div class="notes">
+      <ul>
+        <li><b>Glyph <code>$</code></b> is a terminal on the wall. Using it starts a lockdown: every door within seven cells slams and locks, and stays locked until the program runs.</li>
+        <li><b>Each puzzle teaches one thing</b>, tied to a chapter of the tutorial, in the order the sectors come: PRINT first, the AND 63 texture trick last.</li>
+        <li><b>Compiling is real.</b> The program is written out with <code>$CONSOLE:ONLY</code>, then <code>qb64pe -x</code> builds it in the background while the screen counts the seconds. The game finds qb64pe by itself.</li>
+        <li><b>Errors are qb64pe's own</b>, trimmed to the line that matters.</li>
+        <li><b>Each wrong try reveals a hint.</b> After three, the terminal puts one line right for you.</li>
+        <li><b>No qb64pe?</b> It checks your lines against the answer instead.</li>
+      </ul>
+      <dl class="keys">
+        <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>choose a line</dd>
+        <dt><kbd>Shift</kbd>+<kbd>↑</kbd><kbd>↓</kbd></dt><dd>move it</dd>
+        <dt><kbd>Enter</kbd></dt><dd>fill its blank</dd>
+        <dt><kbd>F5</kbd> · <kbd>H</kbd> · <kbd>Esc</kbd></dt><dd>run · hint · leave</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="grid3">
+    <figure><div class="screen"><img src="img/term_open.jpg" alt="DOUBLE OR NOTHING: five shuffled lines with two blanks" data-cap="DOUBLE OR NOTHING: the lines as NEXUS left them"></div><figcaption><span class="tag">1</span><b>DOUBLE OR NOTHING.</b> Five lines, two blanks, shuffled.</figcaption></figure>
+    <figure><div class="screen"><img src="img/term_hint.jpg" alt="A hint shown on the right: A FUNCTION goes after the main program" data-cap="H: a hint"></div><figcaption><span class="tag">2</span><kbd>H</kbd>: <span class="mono">A FUNCTION goes after the main program</span>.</figcaption></figure>
+    <figure><div class="screen"><img src="img/term_error.jpg" alt="DID NOT COMPILE: Syntax error, caused by := N * 2, LINE 3" data-cap="F5 too soon: qb64pe says no"></div><figcaption><span class="tag">3</span><kbd>F5</kbd> too soon: <span class="mono" style="color:var(--red)">DID NOT COMPILE: Syntax error</span>, straight from qb64pe.</figcaption></figure>
+    <figure><div class="screen"><img src="img/term_fixed.jpg" alt="The lines in the right order with FUNCTION and Twice filled in" data-cap="Lines in order, blanks filled"></div><figcaption><span class="tag">4</span>In order, blanks filled: <code>FUNCTION</code> and <code>Twice</code>.</figcaption></figure>
+    <figure><div class="screen"><img src="img/term_compiling.jpg" alt="COMPILING (0s) qb64pe is turning it into a program" data-cap="COMPILING..."></div><figcaption><span class="tag">5</span><span class="mono">COMPILING (0s) qb64pe is turning it into a program</span></figcaption></figure>
+    <figure><div class="screen"><img src="img/term_granted.jpg" alt="RAN - it printed: 42 - ACCESS GRANTED" data-cap="RAN - it printed 42 - ACCESS GRANTED"></div><figcaption><span class="tag">6</span><span class="mono" style="color:var(--green)">RAN - it printed: 42 · ACCESS GRANTED</span></figcaption></figure>
+  </div>
+  <div class="grid2">
+    <div class="notes">
+      <h3>A puzzle is a plain text file</h3>
+<pre class="term"><span class="p">title</span>   = DOUBLE OR NOTHING
+<span class="p">lesson</span>  = A FUNCTION gives back a value
+<span class="p">chapter</span> = 23
+<span class="p">expect</span>  = 42
+<span class="c">[lines]</span>
+' A FUNCTION is a little program with a value of its own
+PRINT Twice(21)
+FUNCTION Twice (n)
+    Twice = n * 2
+END FUNCTION
+<span class="c">[blanks]</span>
+3 <span class="v">FUNCTION</span>
+4 <span class="v">Twice</span>
+<span class="c">[hints]</span>
+A FUNCTION goes after the main program
+Inside it, its own name = what it gives back</pre>
+    </div>
+    <div class="notes">
+      <h3>The ten puzzles</h3>
+      <div class="tbl">
+      <table class="t">
+        <thead><tr><th>File</th><th>Teaches</th></tr></thead>
+        <tbody>
+          <tr><td>hello</td><td>PRINT shows text, and a program runs top to bottom</td></tr>
+          <tr><td>multiply</td><td>Variables hold numbers; * multiplies</td></tr>
+          <tr><td>countdown</td><td>FOR … NEXT repeats; STEP -1 counts down</td></tr>
+          <tr><td>password</td><td>IF … THEN … ELSE chooses</td></tr>
+          <tr><td>sum</td><td>Arrays: a list of numbers, one name, an index</td></tr>
+          <tr><td>pythagoras</td><td>SQR and Pythagoras: the distance between two points</td></tr>
+          <tr><td>select</td><td>SELECT CASE: one of several</td></tr>
+          <tr><td>function</td><td>A FUNCTION gives back a value</td></tr>
+          <tr><td>reverse</td><td>Strings: MID$ takes letters out; LEN counts them</td></tr>
+          <tr><td>wrap</td><td>AND 63: wrapping a number into 0..63, the way textures repeat</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p style="color:var(--muted);font-size:.95rem">All ten were checked by compiling them with qb64pe. A level's <code>puzzles =</code> line names its puzzle. Sector 10 has no terminal.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 09 MONSTER & HUD ============================ -->
+<section class="lvl" id="monsters">
+  <div class="lvl-head">
+    <span class="lvl-no">09</span>
+    <h2>Monster editor and HUD editor</h2>
+    <p>Two more editors, both inside the game. One tunes every monster's numbers, the other rearranges the HUD while you play.</p>
+  </div>
+  <div class="split">
+    <figure><div class="screen"><img src="img/monster_editor.jpg" alt="The monster editor: a list of eleven monster kinds, the heavy selected and drawn large, with its numbers on the right" data-cap="The monster editor (M in the level editor, or monsters in the console)"></div>
+      <figcaption><span class="tag">M</span><b>The monster editor.</b> All ten kinds on the left, from drone to ICE. The selected one is drawn big, and every number sits on the right. Some values are explained in game terms, like speed: <span class="mono">.02 (you walk .06, run .12)</span>.</figcaption></figure>
+    <div class="notes">
+      <dl class="keys">
+        <dt><kbd>PgUp</kbd> <kbd>PgDn</kbd></dt><dd>next or previous monster</dd>
+        <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>choose a number</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>change it (<kbd>Shift</kbd>: ×10)</dd>
+        <dt><kbd>S</kbd> · <kbd>Esc</kbd></dt><dd>save · back</dd>
+      </dl>
+      <p>It writes <code>neon-caster/monsters.txt</code>, which the game reads at start. Change a monster's numbers without touching the program:</p>
+<pre class="term"><span class="c">[heavy]</span>
+<span class="p">hp</span>           = 10
+<span class="p">speed</span>        = .02
+<span class="p">height</span>       = .95
+<span class="p">damage</span>       = 15
+<span class="p">damage_extra</span> = 8
+<span class="p">cooldown</span>     = 95
+<span class="p">shoots</span>       = no
+<span class="p">drops</span>        = <span class="v">e 0.4</span></pre>
+      <p style="color:var(--muted);font-size:.95rem"><code>drops</code> is new: a pickup's map letter and the chance it falls when the monster dies. Here <code>e</code> is shells, 40% of the time.</p>
+    </div>
+  </div>
+  <div class="sub">
+    <h3>The HUD layout editor <small>U</small></h3>
+    <p>Press <kbd>U</kbd> in the editor (or type <code>hud</code>). The game keeps running underneath, and every HUD element gets a labelled box you can drag. <kbd>Tab</kbd> picks the next one, <kbd>V</kbd> shows or hides it, <kbd>C</kbd> changes its colour, <kbd>+</kbd>/<kbd>-</kbd> and <kbd>[</kbd> <kbd>]</kbd> size its bar, <kbd>S</kbd> saves to <code>hud.txt</code>, <kbd>R</kbd> resets, and <kbd>U</kbd> finishes.</p>
+  </div>
+  <div class="grid3">
+    <figure><div class="screen"><img src="img/hud_before.jpg" alt="The HUD as it was: map top left, keys top right, health and armor bars bottom left" data-cap="Before"></div><figcaption><span class="tag">before</span>The default layout.</figcaption></figure>
+    <figure><div class="screen"><img src="img/hud_drag.jpg" alt="The HUD editor: every element boxed and labelled; the health bar being dragged to the middle" data-cap="Dragging the health bar"></div><figcaption><span class="tag">drag</span>Every element boxed and named. The health bar is being dragged up to the middle.</figcaption></figure>
+    <figure><div class="screen"><img src="img/hud_after.jpg" alt="The HUD after: the health bar sitting in the middle of the screen" data-cap="After"></div><figcaption><span class="tag">after</span>Saved, and the game plays on with the new layout.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================ 10 NEXUS ============================ -->
+<section class="lvl" id="nexus">
+  <div class="lvl-head">
+    <span class="lvl-no">10</span>
+    <h2>NEXUS talks</h2>
+    <p>The station's AI has a face and a voice. Cutscenes open sectors, lockdowns and the network, and it taunts you in the middle of fights.</p>
+  </div>
+  <div class="split">
+    <figure><div class="screen glow"><img src="img/cutscene.jpg" alt="INCOMING TRANSMISSION: NEXUS, a chrome face with a red visor: Welcome to Neon Station, little intruder. I am NEXUS." data-cap="INCOMING TRANSMISSION"></div>
+      <figcaption><span class="mono" style="color:var(--red)">INCOMING TRANSMISSION</span>. NEXUS: <span class="mono">Welcome to Neon Station, little intruder. I am NEXUS.</span> The text types out in time with the voice.</figcaption></figure>
+    <div class="notes">
+      <ul>
+        <li><b>Cutscenes</b> play at the start of a sector, or from a trigger or the console (<code>cutscene N</code>). <kbd>Space</kbd> skips.</li>
+        <li><b>Lines in play</b> appear as a red NEXUS box at the top of the screen, with speech (<code>say</code>).</li>
+        <li><b>Every sector</b> has an intro line, and there are barks for lockdowns, blackouts, the boss and its death.</li>
+      </ul>
+      <div class="board" style="grid-template-columns:minmax(0,1fr)">
+        <button class="snd" type="button" data-src="snd/nexus-intro1.mp3" aria-pressed="false"><i>▶</i><span>intro1 <small>Sector 1's welcome</small></span></button>
+        <button class="snd" type="button" data-src="snd/nexus-blackout.mp3" aria-pressed="false"><i>▶</i><span>blackout <small>When the lights go out</small></span></button>
+        <button class="snd" type="button" data-src="snd/nexus-boss.mp3" aria-pressed="false"><i>▶</i><span>boss <small>Before the overseer</small></span></button>
+        <button class="snd" type="button" data-src="snd/nexus-bark1.mp3" aria-pressed="false"><i>▶</i><span>bark1 <small>A taunt mid-fight</small></span></button>
+      </div>
+    </div>
+  </div>
+  <figure><div class="screen" style="max-width:820px"><img src="img/l1_pad.jpg" alt="Sector 1 under lockdown: a red border, LOCKDOWN - HOSTILES LEFT 5, NEXUS: Lockdown engaged. Nobody leaves." data-cap="Lockdown"></div>
+    <figcaption><b>Lockdown.</b> A red frame, a count of hostiles left, and <span class="mono">NEXUS: Lockdown engaged. Nobody leaves.</span> Kill them all and the doors unlock.</figcaption></figure>
+</section>
+
+<!-- ============================ 11 ART & SOUND ============================ -->
+<section class="lvl" id="art">
+  <div class="lvl-head">
+    <span class="lvl-no">11</span>
+    <h2>New art and sound</h2>
+    <p>Pixelmon on rtx was down all night (ComfyUI's CLIPLoader fails), so every new picture was drawn by Python scripts pixel by pixel in the game's palette, and every sound was synthesized. They can be replaced with Pixelmon art when rtx is back.</p>
+  </div>
+  <div class="sub"><h3>Props for the observation rooms <small>drawprops.py</small></h3></div>
+  <div class="sheet"><img src="img/sheet_props.png" alt="Props: desk, console, screens, specimen tank, lab bench, generator, cryo pod, hologram, lockers, bench, chair, body" data-cap="Props for the observation rooms"></div>
+  <div class="grid2">
+    <div class="sub"><h3>Characters <small>drawchars.py</small></h3><div class="sheet"><img src="img/sheet_chars.png" alt="The thief bot and NEXUS's face" data-cap="The thief and NEXUS"></div></div>
+    <div class="sub"><h3>The network <small>drawcyber.py</small></h3><div class="sheet"><img src="img/sheet_cyber.png" alt="ICE, dead ICE, a data core, the data station wall and the code terminal wall" data-cap="ICE, a core, the station and terminal walls"></div></div>
+  </div>
+  <div class="sub"><h3>Sound board <small>synthsfx.py · click to play</small></h3></div>
+  <div class="board">
+    <button class="snd" type="button" data-src="snd/glass-hit.mp3" aria-pressed="false"><i>▶</i><span>glass-hit <small>a crack</small></span></button>
+    <button class="snd" type="button" data-src="snd/glass-break.mp3" aria-pressed="false"><i>▶</i><span>glass-break <small>the pane goes</small></span></button>
+    <button class="snd" type="button" data-src="snd/jack-in.mp3" aria-pressed="false"><i>▶</i><span>jack-in <small>into the network</small></span></button>
+    <button class="snd" type="button" data-src="snd/jack-out.mp3" aria-pressed="false"><i>▶</i><span>jack-out <small>back to the world</small></span></button>
+    <button class="snd" type="button" data-src="snd/core.mp3" aria-pressed="false"><i>▶</i><span>core <small>a data core, or access granted</small></span></button>
+    <button class="snd" type="button" data-src="snd/fail.mp3" aria-pressed="false"><i>▶</i><span>fail <small>the program was wrong</small></span></button>
+    <button class="snd" type="button" data-src="snd/teleport.mp3" aria-pressed="false"><i>▶</i><span>teleport</span></button>
+    <button class="snd" type="button" data-src="snd/ice-alert.mp3" aria-pressed="false"><i>▶</i><span>ice-alert <small>ICE has seen you</small></span></button>
+    <button class="snd" type="button" data-src="snd/ice-die.mp3" aria-pressed="false"><i>▶</i><span>ice-die</span></button>
+    <button class="snd" type="button" data-src="snd/power-down.mp3" aria-pressed="false"><i>▶</i><span>power-down <small>blackout</small></span></button>
+    <button class="snd" type="button" data-src="snd/power-up.mp3" aria-pressed="false"><i>▶</i><span>power-up <small>lights back</small></span></button>
+    <button class="snd" type="button" data-src="snd/hoard-open.mp3" aria-pressed="false"><i>▶</i><span>hoard-open <small>the thieves' stash</small></span></button>
+    <button class="snd" type="button" data-src="snd/thief-steal.mp3" aria-pressed="false"><i>▶</i><span>thief-steal</span></button>
+    <button class="snd" type="button" data-src="snd/plate-click.mp3" aria-pressed="false"><i>▶</i><span>plate-click <small>pressure plate</small></span></button>
+    <button class="snd" type="button" data-src="snd/cyber.mp3" aria-pressed="false"><i>▶</i><span>cyber <small>network music</small></span></button>
+  </div>
+</section>
+
+<!-- ============================ 12 TOUR ============================ -->
+<section class="lvl" id="tour">
+  <div class="lvl-head">
+    <span class="lvl-no">12</span>
+    <h2>Sector tour</h2>
+    <p>A walk through the rebuilt sectors, all on your GPU in OpenGL with bump mapping, neon glow, wet floors and bloom.</p>
+  </div>
+  <div class="grid3">
+    <figure><div class="screen"><img src="img/l1_term.jpg" alt="Sector 1: a code terminal on the wall, green code on a CRT" data-cap="Sector 1: a code terminal ($)"></div><figcaption>Sector 1. A code terminal <code>$</code>.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l1_ledge.jpg" alt="Sector 1: a ledge in a cyan-lit server corridor" data-cap="Sector 1: a ledge"></div><figcaption>Sector 1. A ledge along the server corridor.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l4_station.jpg" alt="Sector 4: a data station in the white lab walls" data-cap="Sector 4: a data station"></div><figcaption>Sector 4. A data station in the lab.</figcaption></figure>
+    <figure><div class="screen"><img src="img/l3_cell.jpg" alt="Sector 3: Undercity, a cell in green gloom" data-cap="Sector 3: Undercity"></div><figcaption>Sector 3, Undercity.</figcaption></figure>
+    <figure><div class="screen"><img src="img/tele_1.jpg" alt="A teleport arrival: an orange corridor with a cyan lamp" data-cap="A teleport's far end"></div><figcaption>The far end of a teleport, in red-lit lockdown.</figcaption></figure>
+    <figure><div class="screen"><img src="img/cut_sub.jpg" alt="A purple room in Sector 1 with server racks and a ceiling lamp" data-cap="Sector 1"></div><figcaption>Sector 1, under its magenta ceiling.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================ 13 HOOD ============================ -->
+<section class="lvl" id="hood">
+  <div class="lvl-head">
+    <span class="lvl-no">13</span>
+    <h2>Under the hood</h2>
+    <p>What changed in the code, how it was tested, and what's left.</p>
+  </div>
+  <div class="grid2">
+    <div class="notes">
+      <h3>Done from the roadmap</h3>
+      <ul>
+        <li>Door slices audited in both renderers.</li>
+        <li>Dual-view level editor: map and walking, with undo and save.</li>
+        <li>Floor and ceiling heights, pits, ledges and lifts.</li>
+        <li>Teleporters.</li>
+        <li>Triggers and events.</li>
+        <li>HUD layout editor and <code>hud.txt</code>.</li>
+        <li>Monster editor and <code>monsters.txt</code>, with drops.</li>
+        <li>QB64 code puzzles compiled by the real qb64pe.</li>
+        <li>Plus your car ideas: glass observation rooms and data stations with the network.</li>
+      </ul>
+      <h3 style="margin-top:.8rem">Still to do</h3>
+      <ul>
+        <li>Swap the hand-drawn art for Pixelmon renders once rtx's ComfyUI is working again.</li>
+        <li>Deferred on purpose: WAD import, room-over-room and skyboxes.</li>
+      </ul>
+    </div>
+    <div class="notes">
+      <h3>Fixes found along the way</h3>
+      <ul>
+        <li><b>Audio crash.</b> QB64PE's async decode could race and crash. Effects now load with <code>"noasync"</code>, and music with <code>"stream, noasync"</code>.</li>
+        <li><b>Half-built GL frames.</b> The mesh version now bumps only when <code>BuildLevel</code> finishes.</li>
+        <li><b>Mid-game GPU stall.</b> Rebuilt meshes draw from client arrays, so editing never waits on VBO uploads.</li>
+        <li><b>Glass under high ceilings</b> was drawn only one wall tall in GL. It now runs from floor to ceiling.</li>
+        <li><b>Quick clicks in the walking editor</b> could be missed between frames. They're now latched, and <kbd>Ctrl</kbd>+<kbd>S</kbd>/<kbd>Z</kbd> work however the key arrives.</li>
+        <li><b>Screenshots</b> could be skipped when the command queue got ahead of the GL capture. The queue now waits for each one.</li>
+        <li>Plus a new console command, <code>lamp</code>.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="sub">
+    <h3>Level file at a glance</h3>
+    <p>Sector 4's file. The editor and <code>levels.py</code> both read and write it, and so can you in any text editor.</p>
+<pre class="term"><span class="p">name</span>     = SECTOR 4: CRYO LAB
+<span class="p">puzzles</span>  = password
+<span class="p">walls</span>    = wall-white.png, wall-terminals.png, wall-frost.png, wall-tiles.png, wall-cryo.png, wall-ice.png
+<span class="p">floors</span>   = floor-white.png, floor-frostgrate.png, floor-ice.png, floor-lab.png
+<span class="p">ceilings</span> = ceiling-lights.png, ceiling-frost.png
+<span class="p">ambient</span>  = 175, 200, 225, 255
+<span class="c">[zones]   ' x0, y0, x1, y1, floor, ceiling, shape</span>
+<span class="c">[lights]  ' x, y, radius, brightness, red, green, blue, effect</span>
+<span class="c">[events]  ' kind, x0, y0, x1, y1, a, b, reward</span>
+<span class="c">[lifts]   ' x0, y0, x1, y1, low, high, mode, speed</span>
+<span class="c">[triggers]</span>
+<span class="c">[map]</span>
+###.......a4....KK.e..m.....i..KP.............PP
+###..............R.............Y.....P...P....PP
+###......h......KKKKKKKK.KKKDKKKP....J........PP
+<span class="c">[floor]   ' . default · 0-9 a-z eighths up · A-H eighths down</span>
+<span class="c">[ceiling]</span></pre>
+  </div>
+  <div class="sub">
+    <h3>How these pictures were made</h3>
+    <p>The GPU shots ran the game on your AMD card through a headless Weston compositor, rendered at double resolution and scaled down. The editor, terminal and HUD shots ran on a virtual X display (Xvfb), with xdotool sending keys and clicks to that display only. Every run used a test build that logs any error and quits, and your desktop was never touched. The GPU benchmark held 62.6 fps on all ten sectors.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>NEON-CASTER · <span class="mono">qb64/GAMES/neon-caster.bas</span> · captured 13 October 2026 · modern art and sectors with depth added the same day.</p>
+  </div>
+</footer>
+
+<dialog id="lb" aria-label="Full-size picture">
+  <button type="button" id="lbx" aria-label="Close">✕</button>
+  <img id="lbi" alt="">
+  <p id="lbc"></p>
+</dialog>
+
+<script>
+(function () {
+  var lb = document.getElementById('lb'), lbi = document.getElementById('lbi'), lbc = document.getElementById('lbc');
+  document.querySelectorAll('.screen img, .sheet img').forEach(function (im) {
+    im.loading = 'lazy';
+    im.tabIndex = 0;
+    function open() {
+      lbi.src = im.src; lbi.alt = im.alt; lbc.textContent = im.dataset.cap || im.alt;
+      if (lb.showModal) lb.showModal();
+    }
+    im.addEventListener('click', open);
+    im.addEventListener('keydown', function (e) { if (e.key === 'Enter') open(); });
+  });
+  document.getElementById('lbx').addEventListener('click', function () { lb.close(); });
+  lb.addEventListener('click', function (e) { if (e.target === lb) lb.close(); });
+
+  document.querySelectorAll('.cmp').forEach(function (c) {
+    var r = c.querySelector('input');
+    r.addEventListener('input', function () { c.style.setProperty('--pos', r.value + '%'); });
+  });
+
+  var cur = null, curBtn = null;
+  function stop() {
+    if (cur) { cur.pause(); cur = null; }
+    document.querySelectorAll('.snd.on').forEach(function (b) { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); b.querySelector('i').textContent = '▶'; });
+    curBtn = null;
+  }
+  document.querySelectorAll('.snd').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var same = curBtn === b;
+      stop();
+      if (same) return;
+      var a = new Audio(b.dataset.src);
+      a.addEventListener('ended', stop);
+      a.play().catch(stop);
+      cur = a; curBtn = b;
+      b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); b.querySelector('i').textContent = '■';
+    });
+  });
+})();
+</script>
+</body>
+</html>

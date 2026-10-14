@@ -164,7 +164,9 @@
 ' QB64_GJ_LIB (github.com/grymmjack/QB64_GJ_LIB), a copy of it in lib/glsl:
 ' its .BI here, its .BM at the very end of the file.
 '$INCLUDE:'lib/glsl/GLSL.BI'
-_TITLE "NEON-CASTER"
+' Which release this is (the create-release skill bumps it: major.minor.patch)
+CONST GAME_VERSION$ = "0.0.1"
+_TITLE "NEON-CASTER " + GAME_VERSION$
 SCREEN _NEWIMAGE(800, 600, 32)
 _MOUSEHIDE _DISABLE
 _PRINTMODE _KEEPBACKGROUND
@@ -5199,6 +5201,8 @@ sp = INSTR(conCmd$, " ") : IF sp THEN conRest$ = LTRIM$(MID$(conCmd$, sp + 1)) E
 SELECT CASE conVerb$
     CASE "help", "?", "commands"
         ConHelp conA$
+    CASE "version"
+        ConPrint "NEON-CASTER " + GAME_VERSION$
     CASE "map", "level", "sector" ' Go to a sector, keeping what you carry
         n = VAL(conA$)
         IF n < 1 THEN ' (or by name: the first whose name has it)
@@ -8693,7 +8697,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -9255,6 +9259,7 @@ SUB DrawMenu(t)
     glow = 0.5 + 0.5 * SIN(t * 0.05)
     MenuText 404, 30, "NEON-CASTER", 6, _RGBA32(255, 40, 200, 110), 1 ' (a magenta shadow, for the glow)
     MenuText 400, 26, "NEON-CASTER", 6, _RGB32(120 + 120 * glow, 235, 255), 1
+    MenuText 792, 584, "v" + GAME_VERSION$, 1, _RGBA32(150, 140, 200, 160), 2 ' (the version, bottom right)
     MenuText 400, 128, menuTitle$, 2, _RGB32(255, 100, 215), 1
     LINE (250, 162)-(550, 163), _RGBA32(255, 100, 215, 120), BF
     panelA = t * 12 : IF panelA > 170 THEN panelA = 170 ' A dark panel behind the items, so they read over anything
