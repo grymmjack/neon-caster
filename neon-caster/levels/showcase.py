@@ -1,5 +1,5 @@
-"""Showcase sectors for the level editor: YOUR SECTORS 11-14
-(custom/custom1..4.txt here). Each uses the editor's level-file sections -
+"""Showcase sectors for the level editor: YOUR SECTORS 11-15
+(custom/custom1..5.txt here). Each uses the editor's level-file sections -
 [faces] (pictures on single faces, divided ones), lights on faces (they
 tint their face), [pads] (teleporters linked by hand), [monsters] (a
 monster's own sight, hearing, health, speed, waking) - on top of the
@@ -7,7 +7,7 @@ usual. Built with the level kit, and checked by it.
 
     python3 showcase.py [OUTDIR]     (OUTDIR: custom/ unless you say)
 
-This writes over custom1-4.txt: once you've changed one of them in the
+This writes over custom1-5.txt: once you've changed one of them in the
 game's editor, don't run it again (or give it another OUTDIR).
 """
 import os, sys
@@ -462,6 +462,83 @@ def conservatory():
         ["ceiling-growlights.png", "ceiling-pipes.png"], conservatory.__doc__
 
 
+# ---------------------------------------------------------------- 15
+def listening():
+    """SECTOR 15: THE LISTENING POST. A station that hears everything. The
+    guards in the server hall see four cells in the gloom - but hear a
+    shot from fourteen: kick, or creep. Crawlers wait in the closets off
+    the west corridor; the blue card is in the relay room, and you have to
+    last thirty seconds in there to get out with it (a survive room). The
+    red card is at the statue's feet - and the statue wakes if you hit it.
+    A terminal on the hall's north wall unlocks the archive (a USE
+    trigger); a timed one locks it as you arrive."""
+    m = Show("#")
+    m.ambient = (95, 170, 210, 255)
+    # The gate, and the corridor north
+    m.rect(20, 40, 27, 44); m.put(23, 43, "^")
+    m.put(21, 44, "M"); m.put(26, 44, "+"); m.put(20, 41, "U"); m.put(27, 41, "U")
+    m.rect(23, 34, 24, 39)
+    m.triggers.append("enter 22 34 25 36 : message THEY HEAR EVERY SHOT - KICK (F), AND THEY MIGHT NOT")
+    # The server hall: racks in rows, guards that hear
+    m.rect(8, 20, 39, 33)
+    m.ceiling(8, 20, 39, 33, 12)
+    for x in range(11, 37, 5):
+        for y in (23, 26, 29):
+            if (x, y) != (36, 26):
+                m.put(x, y, "l")
+    for (x, y) in ((12, 21), (25, 21), (35, 21), (12, 32), (35, 32)):
+        m.mon(x, y, "g", sight=4, hear=14)
+    m.mon(37, 27, "h", wake="hit", health=150)      # the statue
+    m.put(38, 27, "r")
+    m.put(20, 31, "e"); m.put(30, 22, "a")
+    for x in (14, 22, 34):                          # the hall's north wall: screens, flickering green
+        m.face(x, 19, "S", "wall-terminals.png")
+        m.wall_light(x, 19, "S", 90, 255, 120, fx=1, rad=3, bright=170)
+    m.face(30, 19, "S", "wall-control.png")         # the archive's terminal: USE it
+    m.wall_light(30, 19, "S", 60, 220, 255, fx=2, rad=3, bright=190)
+    m.triggers.append("time 0 : door 40 24 lock")
+    m.triggers.append("use 30 19 : door 40 24 unlock ; message THE ARCHIVE IS OPEN ; sound door")
+    for x in (10, 18, 26, 34):                      # its south wall: servers, steady cyan
+        m.face(x, 34, "N", "wall-servers.png")
+    # The archive (east), locked till the terminal's used
+    m.rect(41, 18, 45, 30); m.put(40, 24, "H")
+    m.put(43, 20, "3"); m.put(44, 28, "u"); m.put(42, 28, "*"); m.put(45, 24, "F")
+    # The west corridor, closets off it - crawlers that spring
+    m.put(7, 27, "D"); m.put(6, 27, "."); m.rect(2, 12, 5, 38)
+    for y in (16, 22, 30, 36):
+        m.put(1, y, "."); m.mon(1, y, "c", sight=2, wake="near", speed=130)
+    m.put(4, 26, "a"); m.put(3, 34, "+")
+    # The relay room (north-west): the blue card - survive thirty seconds for it
+    m.rect(2, 3, 12, 10); m.put(4, 11, "D")
+    m.put(7, 5, "b")
+    m.event(2, 2, 3, 12, 10, 30, 120, 9)
+    for x in (3, 11):
+        m.put(x, 3, "A")
+    # North: the red door, the blue door, the exit
+    m.put(23, 19, "R"); m.rect(23, 13, 24, 18)
+    m.put(23, 12, "B"); m.put(24, 12, "#")
+    m.rect(18, 2, 29, 11); m.put(24, 1, "E")
+    m.mon(18, 2, "k", sight=3, wake="near"); m.mon(29, 2, "k", sight=3, wake="near")
+    m.put(20, 10, "*"); m.put(27, 10, "e")
+    m.triggers.append("enter 21 13 26 18 : message THE LAST DOOR - SOMETHING'S BREATHING BEHIND IT")
+    # Light: low, cold; the relay room red
+    for x in (12, 24, 35):
+        m.light(x + 0.5, 27.5, 6, 90, 120, 160, 255, 0)
+    m.light(23.5, 42.5, 5, 120, 200, 220, 255, 0)
+    m.light(3.5, 24.5, 5, 80, 140, 160, 255, 5)
+    m.light(7.5, 6.5, 6, 150, 255, 40, 40, 3)
+    m.light(43.5, 24.5, 5, 130, 255, 200, 120, 0)
+    m.light(23.5, 6.5, 6, 130, 230, 235, 255, 0)
+    m.light(23.5, 15.5, 3, 100, 255, 60, 60, 2)
+    m.zone(8, 20, 39, 33, 1, 1)
+    m.zone(2, 3, 12, 10, 3, 2)
+    m.zone(18, 2, 29, 11, 2, 2)
+    return m, "custom5", "SECTOR 15: THE LISTENING POST", \
+        ["wall-servers.png", "wall-terminals.png", "wall-control.png", "wall-hull.png", "wall-vault.png", "wall-transit.png"], \
+        ["floor-circuit.png", "floor-deck.png", "floor-hazard.png", "floor-plates.png"], \
+        ["ceiling-cables.png", "ceiling-vents.png"], listening.__doc__
+
+
 def build(fn, outdir):
     m, label, name, walls, floors, ceils, doc = fn()
     lv = m.level(label, name, walls, floors, ceils)
@@ -486,7 +563,7 @@ if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "custom")
     os.makedirs(out, exist_ok=True)
     good = True
-    for fn in (gallery, depot, relay, conservatory):
+    for fn in (gallery, depot, relay, conservatory, listening):
         print(fn.__name__)
         good = build(fn, out) and good
     print("ALL GOOD" if good else "PROBLEMS")
