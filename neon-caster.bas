@@ -1305,7 +1305,7 @@ DIM SHARED edWheelT! ' (when the wheel last moved something: a run of turns is o
 DIM SHARED gridOn AS INTEGER, gridW AS INTEGER ' (the software renderer's grid this frame, and its lines' width in texels)
 ' THE TOOLBAR (EditTBLayout): its buttons this frame - which (TB_), where -
 ' the one under the pointer, the slider being dragged, the help panel
-CONST TB_SELECT = 1, TB_PLACE = 2, TB_LIGHT = 3, TB_HEIGHT = 4, TB_DELETE = 5, TB_UNDO = 6, TB_SAVE = 7, TB_GRID = 8, TB_ALPHA = 9, TB_VIEW = 10, TB_HELP = 11, TB_PAINT = 12, TB_PICK = 13, TB_PREV = 14, TB_NEXT = 15, TB_KINDS = 16
+CONST TB_SELECT = 1, TB_PLACE = 2, TB_LIGHT = 3, TB_HEIGHT = 4, TB_DELETE = 5, TB_UNDO = 6, TB_SAVE = 7, TB_GRID = 8, TB_ALPHA = 9, TB_VIEW = 10, TB_HELP = 11, TB_PAINT = 12, TB_PICK = 13, TB_PREV = 14, TB_NEXT = 15, TB_KINDS = 16, TB_SECTOR = 17
 DIM SHARED edTbN AS INTEGER, edTbId(16) AS INTEGER, edTbX(16) AS INTEGER, edTbY(16) AS INTEGER, edTbW(16) AS INTEGER, edTbH(16) AS INTEGER
 DIM SHARED edTbDrag AS INTEGER, edHelp AS INTEGER
 ' THE PICKER (EditPkBuild): the tab's entries - each a kind (PK_), what it
@@ -1331,6 +1331,7 @@ edLR = 230 : edLG = 235 : edLB = 255 : edLFx = FX_STEADY : edLRad = 3 : edLBri =
 CONST PN_X = 592, PN_Y = 58, PN_W = 200
 DIM SHARED edPnN AS INTEGER, edPnId(40) AS INTEGER, edPnX(40) AS INTEGER, edPnY(40) AS INTEGER, edPnW(40) AS INTEGER, edPnLab$(40), edPnLit(40) AS INTEGER
 DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnCol(40) AS _UNSIGNED LONG
+DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick AS INTEGER, edTypeFresh AS INTEGER ' (the SECTOR pane; typing its name; which of its pictures the picker's choosing - 1-6 a wall kind, 7-10 a floor, 11-12 a ceiling)
 DIM SHARED edPnX0 AS INTEGER, edPnY0 AS INTEGER ' (where the pane is: down the right in 3D, over the map's right from above)
 DIM SHARED edLinkPad AS INTEGER, edLinkX AS INTEGER, edLinkY AS INTEGER ' (LINK: waiting for the pad this one's to go to)
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
@@ -1514,13 +1515,13 @@ DO
     IF conUse THEN conUse = 0 : spaceDown = -1 ' (the console's use: Space, once)
 
     ' Esc opens the menu (chapter 21), and the game waits while it's open
-    escDown = _KEYDOWN(27) AND NOT hudEdit
+    escDown = _KEYDOWN(27) AND NOT hudEdit AND NOT edTyping
     IF escDown AND NOT escWas THEN
         menuInGame = -1 : GOSUB RunMenu : edMouseFix = -1 ' (the menu captured the mouse: the editor's pointer back)
         mouseDX = 0 : mouseDY = 0 : mouseWheel = 0 : clicked = 0 : fireDown = 0 : spaceDown = 0
         fireWait = 15 ' (so the click that closed the menu doesn't fire)
     END IF
-    escWas = _KEYDOWN(27)
+    escWas = _KEYDOWN(27) OR edTyping
 
     IF dead THEN
         ' Dead: the view stays put; click or Space (after a moment) starts over
@@ -1608,7 +1609,7 @@ DO
     ' hold Shift. Now every direction is the same speed, and opposite keys
     ' simply cancel out.
     forward = 0 : strafe = 0
-    IF NOT dead THEN
+    IF NOT dead AND NOT edTyping THEN ' (typing a name in the editor: the keys aren't for walking)
         IF KeyHeld(BIND_FORWARD) THEN forward = forward + 1 ' W, unless rebound
         IF KeyHeld(BIND_BACK) THEN forward = forward - 1 ' S
         IF KeyHeld(BIND_LEFT) THEN strafe = strafe - 1 ' A (strafe left)
@@ -1645,8 +1646,8 @@ DO
     ' fall into a pit and that's the end. Your eye eases up a step.
     IF editMode THEN ' The editor: you fly - Space up, C down (Shift faster) - no falling, nothing to stand on
         flySpeed = 0.04 : IF KeyHeld(BIND_RUN) THEN flySpeed = 0.1
-        IF _KEYDOWN(32) THEN playerZ = playerZ + flySpeed
-        IF _KEYDOWN(99) OR _KEYDOWN(67) THEN playerZ = playerZ - flySpeed
+        IF _KEYDOWN(32) AND NOT edTyping THEN playerZ = playerZ + flySpeed
+        IF (_KEYDOWN(99) OR _KEYDOWN(67)) AND NOT edTyping THEN playerZ = playerZ - flySpeed
         IF playerZ < -1.4 THEN playerZ = -1.4
         IF playerZ > 4.5 THEN playerZ = 4.5
         playerVZ = 0
@@ -3464,6 +3465,7 @@ SELECT CASE tbHit
     CASE TB_PREV : GOSUB EditOtherLevel_Prev
     CASE TB_NEXT : GOSUB EditOtherLevel_Next
     CASE TB_KINDS : GOSUB RunMonsterEditor : _MOUSESHOW
+    CASE TB_SECTOR : edSectorPane = NOT edSectorPane : edTyping = 0 : edSlotPick = 0
 END SELECT
 editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT) ' (the map from above's own names for two of the tools)
 RETURN
@@ -3487,6 +3489,16 @@ SELECT CASE edPkKind(pkIdx)
             EditNote "PLACE " + GlyphName$(editGlyph$) + ": click where it goes"
         END IF
     CASE PK_TEX
+        IF edSlotPick THEN ' (the SECTOR pane's: one of the sector's own pictures - every wall of that kind, that floor, that ceiling)
+            GOSUB EditPushUndo
+            SELECT CASE edSlotPick
+                CASE 1 TO 6 : lvlWall$(edSlotPick) = edPkVal$(pkIdx)
+                CASE 7 TO 10 : lvlFloor$(edSlotPick - 6) = edPkVal$(pkIdx)
+                CASE ELSE : lvlCeil$(edSlotPick - 10) = edPkVal$(pkIdx)
+            END SELECT
+            edSlotPick = 0 : GOSUB EditApply : EditNote "The sector's picture changed: " + edPkVal$(pkIdx)
+            RETURN
+        END IF
         edBrushTex$ = edPkVal$(pkIdx) : edBrushKind = PK_TEX : edTool = ET_PAINT
         IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
         edBrushImg& = EditFileThumb&(edBrushTex$)
@@ -3523,6 +3535,27 @@ FOR k = 1 TO edSelN
     END IF
 NEXT
 GOSUB EditApply : EditNote edBrushTex$ + " on" + STR$(edSelN) + " faces"
+RETURN
+
+' Typing the sector's name: a key (k&) - Enter keeps it, Esc doesn't
+EditTypeKey:
+SELECT CASE k&
+    CASE 13 : GOSUB EditTypeDone
+    CASE 27 : edTyping = 0 : EditNote "Name unchanged"
+    CASE 8 : IF LEN(edTypeBuf$) THEN edTypeBuf$ = LEFT$(edTypeBuf$, LEN(edTypeBuf$) - 1)
+    CASE 32 TO 126
+        IF edTypeFresh THEN edTypeBuf$ = "" ' (the first letter typed starts it afresh - Backspace first to change the old one)
+        IF LEN(edTypeBuf$) < 30 THEN edTypeBuf$ = edTypeBuf$ + UCASE$(CHR$(k&))
+END SELECT
+edTypeFresh = 0
+RETURN
+EditTypeDone:
+edTyping = 0
+IF LEN(LTRIM$(edTypeBuf$)) THEN
+    c = INSTR(lvlName$, ": ") : IF c THEN pre$ = LEFT$(lvlName$, c + 1) ELSE pre$ = "SECTOR" + STR$(level) + ": "
+    lvlName$ = pre$ + LTRIM$(edTypeBuf$) : levelName$ = lvlName$ : sectorName$(level) = lvlName$ : editDirty = -1
+    EditNote "Now it's " + lvlName$ + " (save to keep it)"
+END IF
 RETURN
 
 ' A properties pane button pressed (pnHit)
@@ -3627,6 +3660,20 @@ SELECT CASE pnHit
             END IF
         NEXT
         editDirty = -1 ' (nothing to build again: the game reads them when the level starts)
+    CASE 100 ' The name: start typing it - or done
+        IF edTyping THEN GOSUB EditTypeDone ELSE edTyping = -1 : edTypeFresh = -1 : edTypeBuf$ = SectorShort$ : EditNote "Type the sector's name - Enter keeps it, Esc doesn't"
+    CASE 101, 102 ' Its light, brighter or darker
+        IF pnHit = 102 THEN lvlAmb(1) = lvlAmb(1) + 10 ELSE lvlAmb(1) = lvlAmb(1) - 10
+        IF lvlAmb(1) < 0 THEN lvlAmb(1) = 0
+        IF lvlAmb(1) > 256 THEN lvlAmb(1) = 256
+        GOSUB EditApply
+    CASE 110 TO 121 ' Its light's colour
+        c~& = EditPaletteRGB~&(pnHit - 109) : lvlAmb(2) = _RED32(c~&) : lvlAmb(3) = _GREEN32(c~&) : lvlAmb(4) = _BLUE32(c~&) : GOSUB EditApply
+    CASE 130 TO 141 ' One of its pictures: the picker shows the kind, and the next picture clicked goes there
+        edSlotPick = pnHit - 129
+        IF edSlotPick <= 6 THEN edPickTab = 1 ELSE IF edSlotPick <= 10 THEN edPickTab = 2 ELSE edPickTab = 3
+        edPickScroll = 0 : IF edPickOn = 0 THEN edPickOn = 1
+        edPickOpen = -1 : EditNote "Now click a picture in the picker - every one of these changes"
     CASE 30 ' LINK: the next pad clicked is where this one goes
         edLinkPad = NOT edLinkPad : edLinkX = edPnCX : edLinkY = edPnCY
         IF edLinkPad THEN EditNote "Click the pad this one goes to (LINK again: never mind)"
@@ -3803,6 +3850,10 @@ DO
     ' Keys
     k& = _KEYHIT
     DO WHILE k&
+        IF edTyping THEN ' (typing the sector's name: the keys are its)
+            IF k& > 0 THEN GOSUB EditTypeKey
+            k& = _KEYHIT : _CONTINUE
+        END IF
         IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z - however the key arrives)
             IF k& = 115 OR k& = 83 THEN k& = 19
             IF k& = 122 OR k& = 90 THEN k& = 26
@@ -4062,7 +4113,8 @@ IF edLooking THEN EditPick 400, 300 : EditPickThing 400, 300 ELSE EditPick edCur
 ' the screen and tucks itself away again when it goes back up to the world
 IF edPickOn = -1 THEN edPickOpen = -1
 IF edPickOn = 0 THEN edPickOpen = 0
-IF edPickOn = 1 AND NOT edLooking THEN
+IF edSlotPick AND edPickOn THEN edPickOpen = -1 ' (choosing one of the sector's pictures: it stays open till one's chosen)
+IF edPickOn = 1 AND NOT edLooking AND edSlotPick = 0 THEN
     IF edPickOpen THEN
         IF edCurY < PK_Y - 40 THEN edPickOpen = 0
     ELSE
@@ -4221,6 +4273,10 @@ IF edWheel <> 0 AND NOT EditOverUI(edCurX, edCurY) THEN GOSUB EditWheel
 edWheel = 0
 k& = _KEYHIT
 DO WHILE k&
+    IF edTyping THEN ' (typing the sector's name: the keys are its)
+        IF k& > 0 THEN GOSUB EditTypeKey
+        k& = _KEYHIT : _CONTINUE
+    END IF
     shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
     IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z, Ctrl+D - however the key arrives)
         IF k& = 115 OR k& = 83 THEN k& = 19
@@ -8687,7 +8743,7 @@ END FUNCTION
 ' how strong it is (a slider), then the other view and the help. In the
 ' order string a | is a gap between groups, a / a new row.
 SUB EditTBLayout(v)
-    IF v = 1 THEN o$ = "SPTLH|DUW|GA|KVQ" : x = 8 : y = 4 ELSE o$ = "SPT/LHD/UWQ/GA/V<>/B" : x = ED_PALX : y = 290
+    IF v = 1 THEN o$ = "SPTLH|DUW|GA|ZKVQ" : x = 8 : y = 4 ELSE o$ = "SPT/LHD/UWQ/GA/V<>/BZ" : x = ED_PALX : y = 290
     x0 = x : edTbN = 0
     FOR k = 1 TO LEN(o$)
         c$ = MID$(o$, k, 1)
@@ -8696,10 +8752,10 @@ SUB EditTBLayout(v)
         ELSEIF c$ = "/" THEN
             x = x0 : y = y + 24
         ELSE
-            id = INSTR("SPLHDUWGAVQTK<>B", c$)
-            IF v = 1 THEN w = LEN(EditTBLabel$(id)) * 8 + 10 ELSE w = 64
-            IF id = TB_ALPHA THEN w = 72 : IF v = 0 THEN w = 132
-            IF id = TB_KINDS AND v = 0 THEN w = 200
+            id = INSTR("SPLHDUWGAVQTK<>BZ", c$)
+            IF v = 1 THEN w = LEN(EditTBLabel$(id)) * 8 + 8 ELSE w = 64
+            IF id = TB_ALPHA THEN w = 64 : IF v = 0 THEN w = 132
+            IF id = TB_KINDS AND v = 0 THEN w = 132
             edTbN = edTbN + 1 : edTbId(edTbN) = id : edTbX(edTbN) = x : edTbY(edTbN) = y : edTbW(edTbN) = w : edTbH(edTbN) = 20
             x = x + w + 3 : IF v = 0 THEN x = x + 1
         END IF
@@ -8723,6 +8779,7 @@ FUNCTION EditTBLabel$(id)
         CASE TB_PREV : t$ = "< SECT"
         CASE TB_NEXT : t$ = "SECT >"
         CASE TB_KINDS : t$ = "MONSTER KINDS"
+        CASE TB_SECTOR : t$ = "SECTOR"
     END SELECT
     EditTBLabel$ = t$
 END FUNCTION
@@ -8746,6 +8803,7 @@ FUNCTION EditTBTip$(id)
         CASE TB_PREV : t$ = "The sector before (PgUp) - save first"
         CASE TB_NEXT : t$ = "The sector after (PgDn) - save first"
         CASE TB_KINDS : t$ = "Every monster kind's numbers - monsters.txt (M)"
+        CASE TB_SECTOR : t$ = "The sector: its name, its light, its pictures"
     END SELECT
     EditTBTip$ = t$
 END FUNCTION
@@ -8770,6 +8828,7 @@ FUNCTION EditTBOn(id)
         CASE TB_HELP : EditTBOn = edHelp
         CASE TB_PAINT : EditTBOn = (edTool = ET_PAINT)
         CASE TB_PICK : EditTBOn = (edPickOn <> 0)
+        CASE TB_SECTOR : EditTBOn = edSectorPane
         CASE ELSE : EditTBOn = 0
     END SELECT
 END FUNCTION
@@ -8849,7 +8908,8 @@ SUB EditDrawHelp(v)
         h$ = h$ + "Wall + Ctrl+Shift+wheel: a block on the floor (its top)|"
         h$ = h$ + "Wall + Alt+Shift+wheel: a block from the ceiling (bottom)|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
-        h$ = h$ + "A door, pad, light, monster, lift selected: its pane, right|"
+        h$ = h$ + "Selected door, pad, light, monster, lift: its pane. SECTOR:|"
+        h$ = h$ + "  the sector's name, its light, its walls'/floors' pictures|"
         h$ = h$ + "H divide a face left/right, V top/bottom (again: whole)|"
         h$ = h$ + "G grid, Shift+G stronger;  T F pictures;  Z floor no.|"
         h$ = h$ + "L K light here/away;  PgUp/PgDn floor (Shift: ceiling)|"
@@ -8869,7 +8929,8 @@ SUB EditDrawHelp(v)
         h$ = h$ + "The picker: a tab, a picture - the brush (and the selection's)|"
         h$ = h$ + "Wheel: over the picker, scrolls; over the map, the selected|"
         h$ = h$ + "  floors up/down (Ctrl: ceilings); else the brush ([ ] too)|"
-        h$ = h$ + "A door, pad, light, monster, lift selected: its pane|"
+        h$ = h$ + "Selected door, pad, light, monster, lift: its pane|"
+        h$ = h$ + "SECTOR: its name, its light, its walls'/floors' pictures|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
         h$ = h$ + "G grid, Shift+G stronger;  T: put you here|"
         h$ = h$ + "M monsters;  U HUD layout;  PgUp/PgDn: other sectors|"
@@ -9225,8 +9286,34 @@ END SUB
 SUB EditPaneBuild
     IF editView = 1 THEN edPnX0 = PN_X : edPnY0 = PN_Y ELSE edPnX0 = 380 : edPnY0 = 12
     edPnN = 0 : edPnTitle$ = "" : edPnBot = edPnY0 : edPnLift = 0 : edPnLight = 0
-    IF edSelN = 0 THEN EXIT SUB
     x0 = edPnX0 : y = edPnY0 + 24
+    IF edSectorPane THEN ' The sector itself: its name, its light, its pictures
+        edPnTitle$ = "THE SECTOR"
+        IF edTyping THEN n$ = edTypeBuf$ + "_" ELSE n$ = SectorShort$
+        EditPaneAdd -1, x0, y + 2, 140, LEFT$(n$, 17), 0
+        IF edTyping THEN EditPaneAdd 100, x0 + 146, y, 54, "OK", -1 ELSE EditPaneAdd 100, x0 + 146, y, 54, "NAME", 0
+        y = y + 24
+        EditPaneAdd -1, x0, y + 2, 140, "LIGHT" + STR$(lvlAmb(1)), 0 : EditPaneAdd 101, x0 + 146, y, 24, "-", 0 : EditPaneAdd 102, x0 + 174, y, 24, "+", 0
+        y = y + 24
+        FOR c = 1 TO 12
+            cl~& = EditPaletteRGB~&(c)
+            EditPaneAdd 109 + c, x0 + ((c - 1) MOD 6) * 34, y + ((c - 1) \ 6) * 23, 30, "", (cl~& = _RGB32(lvlAmb(2), lvlAmb(3), lvlAmb(4)))
+            edPnCol(edPnN) = cl~&
+        NEXT
+        y = y + 50
+        EditPaneAdd -1, x0, y, PN_W, "ITS PICTURES: click one,", 0 : EditPaneAdd -1, x0, y + 16, PN_W, "then one in the picker", 0
+        y = y + 36
+        FOR k = 1 TO 12
+            SELECT CASE k
+                CASE 1 TO 6 : t$ = MID$("#NCKPG", k, 1) + " " + EditPicShort$(lvlWall$(k))
+                CASE 7 TO 10 : t$ = "F" + LTRIM$(STR$(k - 6)) + " " + EditPicShort$(lvlFloor$(k - 6))
+                CASE ELSE : t$ = "C" + LTRIM$(STR$(k - 10)) + " " + EditPicShort$(lvlCeil$(k - 10))
+            END SELECT
+            EditPaneAdd 129 + k, x0 + ((k - 1) MOD 2) * 101, y + ((k - 1) \ 2) * 23, 99, LEFT$(t$, 12), (edSlotPick = k)
+        NEXT
+        EXIT SUB
+    END IF
+    IF edSelN = 0 THEN EXIT SUB
     ' A door: the first selected face that's a door's
     FOR k = 1 TO edSelN
         c$ = MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)
@@ -9412,6 +9499,18 @@ SUB EditRing(cx, cy, r, z, col~&)
         EditLine3D px, py, z, nx, ny, z, col~& : px = nx : py = ny
     NEXT
 END SUB
+
+' A picture's name, short: no "wall-" (floor-, ceiling-), no ".png"
+FUNCTION EditPicShort$(f$)
+    t$ = f$ : IF LCASE$(RIGHT$(t$, 4)) = ".png" THEN t$ = LEFT$(t$, LEN(t$) - 4)
+    c = INSTR(t$, "-") : IF c THEN t$ = MID$(t$, c + 1)
+    EditPicShort$ = t$
+END FUNCTION
+
+' The sector's name without its "SECTOR n: "
+FUNCTION SectorShort$
+    c = INSTR(lvlName$, ": ") : IF c THEN SectorShort$ = MID$(lvlName$, c + 2) ELSE SectorShort$ = lvlName$
+END FUNCTION
 
 ' Pad (x, y) out of any pair made by hand
 SUB EditUnpair(x, y)

@@ -79,6 +79,7 @@ The world is a grid of cells, 48 × 48. Walls fill whole cells, and each cell ha
 | UNDO, SAVE | Ctrl+Z, Ctrl+S |
 | GRID, and the slider | Lines on every cell's edge, drawn into the world, and how strong they are (also **G**, and **Shift+G**) |
 | PICKER | 3D only: the picker tucked away (it opens when the pointer reaches the bottom of the screen), always open, or off (also **P**) |
+| SECTOR | The sector's own pane: its name, its light, and the pictures of its six kinds of wall, four floors and two ceilings |
 | 2D MAP / 3D | The other view (also **Tab**) |
 | HELP | Every key for this view (also **F1**); click anywhere to close it |
 | < SECT, SECT > | Map view only: the sector before or after (PgUp, PgDn). Refused while there are unsaved changes. |
@@ -176,6 +177,7 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | A floor of a lift | LOW, HIGH and SPEED in eighths, UP AND DOWN or ELEVATOR, REMOVE |
 | Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), and ADD A LIGHT TO IT |
 | Any other face | ADD A LIGHT TO IT |
+| Nothing (the SECTOR button) | NAME: type the sector's name, Enter to keep it (Esc not). LIGHT: the ambient light, brighter or darker, and twelve colours to tint it. ITS PICTURES: the six kinds of wall (`#` `N` `C` `K` `P` `G`), the four floors and two ceilings the level's zones use - click one, and the picker opens at its tab: the next picture you click is that one's, everywhere it's used. |
 
 **Monsters, for ambushes.** Each monster can be set apart from its kind:
 
@@ -380,7 +382,7 @@ The console can switch a light while you play: `light N on` or `light N off`, wh
 
 ## Beyond the editor: the level file
 
-Some things have no editor tool yet: events, triggers, the name, the ambient light and the puzzles. Write them into the level file, `neon-caster/levels/custom/customN.txt`, in any text editor, then reload the sector. The file is plain text: `key = value` lines at the top, then `[sections]`, and lines starting with `'` are comments.
+Some things have no editor tool yet: events, triggers and the puzzles. Write them into the level file, `neon-caster/levels/custom/customN.txt`, in any text editor, then reload the sector. The file is plain text: `key = value` lines at the top, then `[sections]`, and lines starting with `'` are comments.
 
 Ctrl+S rewrites the whole file in a fixed layout. Only the comments at the very top survive, so keep your notes there.
 
