@@ -1650,10 +1650,11 @@ DO
     ' (MoveBody wouldn't have let you onto anything higher), fall off
     ' anything higher - faster and faster - and land, hard if it was far;
     ' fall into a pit and that's the end. Your eye eases up a step.
-    IF editMode THEN ' The editor: you fly - Space up, C down (Shift faster) - no falling, nothing to stand on
+    IF editMode THEN ' The editor: you fly - Space up, C down (Shift faster), or on the way you look - no falling, nothing to stand on
         flySpeed = 0.04 : IF KeyHeld(BIND_RUN) THEN flySpeed = 0.1
         IF _KEYDOWN(32) AND NOT edTyping THEN playerZ = playerZ + flySpeed
         IF (_KEYDOWN(99) OR _KEYDOWN(67)) AND NOT edTyping THEN playerZ = playerZ - flySpeed
+        IF forward <> 0 THEN playerZ = playerZ + forward * moveSpeed * SIN(pitch) * 1.5 ' (and the way you look: look up and walk on, and you climb - OpenGL's look up and down)
         IF playerZ < -1.4 THEN playerZ = -1.4
         IF playerZ > 4.5 THEN playerZ = 4.5
         playerVZ = 0
@@ -9035,73 +9036,54 @@ SUB EditDrawTB(v, mx, my)
     END IF
 END SUB
 
-' The help: every key and click for the view you're in, on a panel over it
-' (HELP, F1); a click anywhere puts it away
+' The cheatsheet (HELP, F1): every key, click and turn of the wheel for
+' the view you're in, by what it's for - two columns over the view. Each
+' line is "#A HEADING" or "KEYS~what they do"; a click anywhere puts it away.
 SUB EditDrawHelp(v)
     IF v = 1 THEN
-        h$ = "THE 3D EDITOR|"
-        h$ = h$ + "Mouse: point at a face;  hold Right: look round|"
-        h$ = h$ + "Move as you'd walk; Space flies up, C down (Shift: faster)|"
-        h$ = h$ + "|"
-        h$ = h$ + "SELECT  click a face; Shift+click adds or takes it out;|"
-        h$ = h$ + "        Ctrl+click: the whole floor/ceiling; Ctrl+D: none|"
-        h$ = h$ + "PLACE   click: the brush there (drag: along the floor);|"
-        h$ = h$ + "        Shift+click takes it away; Alt+click picks it up|"
-        h$ = h$ + "LIGHT   click: a light on the face (picker: colour, effect;|"
-        h$ = h$ + "        its pane: reach, brightness); Shift+click: away|"
-        h$ = h$ + "HEIGHT  click raises a floor/ceiling an eighth; Shift lowers|"
-        h$ = h$ + "PAINT   click: the brush's picture on that face; Ctrl+click:|"
-        h$ = h$ + "        the whole floor/ceiling; Shift: the usual; Alt: pick up|"
-        h$ = h$ + "PICKER (P): a tab, then a picture - it's the brush (and the|"
-        h$ = h$ + "        selection's, if any); the wheel scrolls it|"
-        h$ = h$ + "Wheel: the selection (or face under the pointer) up/down|"
-        h$ = h$ + "  an eighth; Ctrl: a whole wall high|"
-        h$ = h$ + "Wall + Shift+wheel: pull it out / push it back a cell|"
-        h$ = h$ + "Wall + Ctrl+Shift+wheel: a block on the floor (its top)|"
-        h$ = h$ + "Wall + Alt+Shift+wheel: a block from the ceiling (bottom)|"
-        h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
-        h$ = h$ + "Selected door, pad, light, monster, event, lift: its pane,|"
-        h$ = h$ + "  and TRIGGERS... on a door's, floor's or wall's;|"
-        h$ = h$ + "  SECTOR: its name, its light, its walls'/floors' pictures|"
-        h$ = h$ + "H divide a face left/right, V top/bottom (again: whole)|"
-        h$ = h$ + "G grid, Shift+G stronger;  T F pictures;  Z floor no.|"
-        h$ = h$ + "L K light here/away;  PgUp/PgDn floor (Shift: ceiling)|"
-        h$ = h$ + "Tab map;  U HUD layout;  Ctrl+S save;  Ctrl+Z undo;  F2 play"
+        h$ = "#MOVE AND LOOK|walk keys~fly that way - through walls|look up + walk~climb (look down: sink)|Space / C~straight up / down|Shift~faster|hold Right~look round (crosshair picks)|Tab~the map from above|F2~play the level as it is|"
+        h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor or ceiling|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
+        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / Alt~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / Alt~the usual / pick it up|LIGHT~a light on the face|  Shift~take it away|HEIGHT~floor/ceiling up; Shift down|"
+        h$ = h$ + "#THE WHEEL (selection or pointer)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
+        h$ = h$ + "#FACES|H~divide left / right|V~divide top / bottom|H or V again~whole again|click a half~select / paint it alone|"
+        h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
+        h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Ctrl+S~save|Ctrl+Z~undo|U~the HUD layout editor|F1~this sheet|"
+        h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|E~pick up what you aim at|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|1-8~light presets|PgUp/PgDn~floor up/down (Shift: ceil)"
+        t$ = "EDITOR CHEATSHEET - 3D VIEW"
     ELSE
-        h$ = "THE MAP FROM ABOVE|"
-        h$ = h$ + "|"
-        h$ = h$ + "SELECT  click a cell, drag a box; Shift adds; Ctrl+D: none|"
-        h$ = h$ + "PLACE   click/drag paints the brush; Shift+drag a box;|"
-        h$ = h$ + "        right-click picks up what's there|"
-        h$ = h$ + "LIGHT   click adds a light (1-8 colour); right-click: away|"
-        h$ = h$ + "HEIGHT  click raises the floor, right-click lowers it;|"
-        h$ = h$ + "        with Shift: the ceiling|"
-        h$ = h$ + "|"
-        h$ = h$ + "PAINT   click/drag: the picture on a floor (Ctrl: ceiling)|"
-        h$ = h$ + "        or a wall's four sides; Shift: the usual again|"
-        h$ = h$ + "The picker: a tab, a picture - the brush (and the selection's)|"
-        h$ = h$ + "Wheel: over the picker, scrolls; over the map, the selected|"
-        h$ = h$ + "  floors up/down (Ctrl: ceilings); else the brush ([ ] too)|"
-        h$ = h$ + "Selected door, pad, light, monster, event, lift: its pane|"
-        h$ = h$ + "  (TRIGGERS... on a door's or a floor's)|"
-        h$ = h$ + "SECTOR: its name, its light, its walls'/floors' pictures|"
-        h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
-        h$ = h$ + "G grid, Shift+G stronger;  T: put you here|"
-        h$ = h$ + "M monsters;  U HUD layout;  PgUp/PgDn: other sectors|"
-        h$ = h$ + "Tab: walk in it;  Ctrl+S save;  Ctrl+Z undo;  F2 play"
+        h$ = "#THE TOOLS (toolbar)|SELECT~click a cell, drag a box|  Shift~add to the selection|PLACE~paint the brush; drag on|  Shift+drag~a box of it|  Right click~pick up what's there|PAINT~picture on a floor, or|~  on a wall's four sides|  Ctrl / Shift~ceiling / the usual|LIGHT~a light; Right: take away|HEIGHT~floor up; Right: down|  Shift~the ceiling|"
+        h$ = h$ + "#THE WHEEL|on the picker~scroll it|on the map~selected floors up / down|  Ctrl~their ceilings|elsewhere~the brush back / on|"
+        h$ = h$ + "#THE SELECTION|arrows~move it a cell (up is north)|Del~delete it|Ctrl+D~select nothing|its pane~door, pad, light, monster,|~  event, lift, floor, triggers|"
+        h$ = h$ + "#KEYS|L / H~the LIGHT / HEIGHT tool|[ ]~the brush back / on|1-8~light presets|G / Shift+G~grid on-off / stronger|T~put yourself at the mouse|PgUp/PgDn~the sector before / after|M~the monster kinds editor|U~the HUD layout editor|"
+        h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Ctrl+S~save|Ctrl+Z~undo|F1~this sheet"
+        t$ = "EDITOR CHEATSHEET - THE MAP FROM ABOVE"
     END IF
-    n = 1 : FOR k = 1 TO LEN(h$) : IF MID$(h$, k, 1) = "|" THEN n = n + 1
-    NEXT
-    y0 = 300 - (n * 18 + 36) \ 2
-    LINE (110, y0)-(690, y0 + n * 18 + 36), _RGBA32(6, 2, 18, 235), BF
-    LINE (110, y0)-(690, y0 + n * 18 + 36), _RGB32(255, 60, 200), B
-    y = y0 + 12 : first = -1
+    y0 = 32 : IF v = 0 THEN y0 = 4
+    LINE (8, y0)-(791, 594), _RGBA32(6, 2, 18, 238), BF
+    LINE (8, y0)-(791, 594), _RGB32(255, 60, 200), B
+    HudText 400 - LEN(t$) * 4, y0 + 6, t$, _RGB32(255, 90, 200)
+    x = 18 : y = y0 + 26 : col = 0
     DO WHILE LEN(h$)
         bar = INSTR(h$, "|") : IF bar = 0 THEN bar = LEN(h$) + 1
-        IF first THEN c~& = _RGB32(255, 90, 200) ELSE c~& = _RGB32(210, 220, 255)
-        HudText 126, y, LEFT$(h$, bar - 1), c~& : y = y + 18 : h$ = MID$(h$, bar + 1) : first = 0
+        l$ = LEFT$(h$, bar - 1) : h$ = MID$(h$, bar + 1)
+        IF LEFT$(l$, 1) = "#" AND col = 0 THEN ' (a group that won't fit under it: the next column, so a group stays together)
+            n = 0 : r$ = h$ + "|"
+            DO WHILE LEN(r$) AND LEFT$(r$, 1) <> "#" : n = n + 1 : r$ = MID$(r$, INSTR(r$, "|") + 1) : LOOP
+            IF y + 22 + n * 15 > 574 THEN col = 1 : x = 404 : y = y0 + 26
+        END IF
+        IF LEFT$(l$, 1) = "#" THEN
+            IF y > y0 + 28 THEN y = y + 4
+            HudText x, y, MID$(l$, 2), _RGB32(255, 220, 120) : LINE (x, y + 16)-STEP(370, 0), _RGBA32(255, 220, 120, 90)
+            y = y + 18
+        ELSE
+            c = INSTR(l$, "~")
+            HudText x, y, LEFT$(l$, c - 1), _RGB32(150, 240, 255)
+            HudText x + 136, y, LEFT$(MID$(l$, c + 1), 31), _RGB32(225, 230, 255)
+            y = y + 15
+        END IF
+        IF y > 556 AND col = 0 THEN col = 1 : x = 404 : y = y0 + 26
     LOOP
-    HudText 126, y + 4, "(click anywhere to close)", _RGB32(140, 130, 180)
+    HudText 791 - 21 * 8, 578, "F1 or a click: close", _RGB32(140, 130, 180)
 END SUB
 
 ' --- THE PICKER: along the bottom of the 3D view, a tab for each kind of

@@ -81,7 +81,7 @@ The world is a grid of cells, 48 × 48. Walls fill whole cells, and each cell ha
 | PICKER | 3D only: the picker tucked away (it opens when the pointer reaches the bottom of the screen), always open, or off (also **P**) |
 | SECTOR | The sector's own pane: its name, its light, and the pictures of its six kinds of wall, four floors and two ceilings |
 | 2D MAP / 3D | The other view (also **Tab**) |
-| HELP | Every key for this view (also **F1**); click anywhere to close it |
+| HELP | The cheatsheet for this view (also **F1**): every key, click and wheel turn, grouped; F1 or a click closes it |
 | < SECT, SECT > | Map view only: the sector before or after (PgUp, PgDn). Refused while there are unsaved changes. |
 | MONSTER KINDS | Map view only: the monster kinds editor (M) |
 
@@ -110,6 +110,7 @@ The game, frozen, with a mouse pointer. Monsters don't move, pickups aren't take
 | Right button (hold) | Look round instead; the crosshair picks while you do |
 | Your walk keys | Fly, straight through walls |
 | Space, C | Up, down (Shift: faster) |
+| Look up (or down) and walk | Climb (or sink) as you go - OpenGL, with LOOK UP / DOWN on |
 | Left click | The tool (below) |
 | Wheel | Shape what's selected, or what's under the pointer (next section) |
 | Ctrl+D | Select nothing |
@@ -117,7 +118,7 @@ The game, frozen, with a mouse pointer. Monsters don't move, pickups aren't take
 | H, V | Divide a face left / right, top / bottom |
 | G, Shift+G | The grid, and how strong it is |
 | P | The picker: tucked away, always open, off |
-| F1 | Help |
+| F1 | The cheatsheet: every key, click and wheel turn, by what it's for |
 | Tab | The map view |
 | F2 | Leave the editor and play |
 
