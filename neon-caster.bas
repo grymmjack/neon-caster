@@ -1231,6 +1231,7 @@ CONST MAX_FACES = 4000
 DIM SHARED lvlNumPairs AS INTEGER, lvlPair(16, 4) AS INTEGER
 DIM SHARED lvlNumFaces AS INTEGER, lvlFaceX(MAX_FACES) AS INTEGER, lvlFaceY(MAX_FACES) AS INTEGER, lvlFaceS(MAX_FACES) AS INTEGER, lvlFaceD(MAX_FACES) AS INTEGER
 DIM SHARED lvlFaceP1$(MAX_FACES), lvlFaceP2$(MAX_FACES)
+DIM SHARED faceAny AS INTEGER ' (any face with a slot of its own this level: the renderers ask faceTex only then)
 DIM SHARED faceTex(MAP_SIZE, MAP_SIZE, 8) AS INTEGER, faceTex2(MAP_SIZE, MAP_SIZE, 8) AS INTEGER, faceDiv(MAP_SIZE, MAP_SIZE, 8) AS INTEGER
 DIM SHARED numTrigs AS INTEGER, trigWhen$(MAX_TRIGS), trigX0(MAX_TRIGS) AS INTEGER, trigY0(MAX_TRIGS) AS INTEGER, trigX1(MAX_TRIGS) AS INTEGER, trigY1(MAX_TRIGS) AS INTEGER
 DIM SHARED trigRepeat(MAX_TRIGS) AS INTEGER, trigDone(MAX_TRIGS) AS INTEGER, trigWas(MAX_TRIGS) AS INTEGER, trigCmd$(MAX_TRIGS)
@@ -1308,11 +1309,16 @@ DIM SHARED edPickOn AS INTEGER, edBrushKind AS INTEGER, edBrushTex$, edBrushImg&
 DIM SHARED edPickOpen AS INTEGER ' (edPickOn: 1 tucked away till the pointer comes down to it, -1 always open, 0 off; edPickOpen: open now)
 CONST PK_TUCK = 580 ' (tucked away: a strip along the bottom from here)
 edPickOn = 1 : edBrushKind = PK_GLYPH
+' The light brush: what LIGHT puts on a face (colour, effect - FX_ -
+' reach in cells, brightness): set by the picker's LIGHTS tab, the keys
+' 1-8 (EditLightPreset) and a light's pane
+DIM SHARED edLR AS INTEGER, edLG AS INTEGER, edLB AS INTEGER, edLFx AS INTEGER, edLRad, edLBri AS INTEGER
+edLR = 230 : edLG = 235 : edLB = 255 : edLFx = FX_STEADY : edLRad = 3 : edLBri = 150
 ' THE PROPERTIES PANE (EditPaneBuild): what's selected - a door, a
 ' teleporter's pad, a lift, a floor - and its buttons, down the right
 CONST PN_X = 592, PN_Y = 58, PN_W = 200
 DIM SHARED edPnN AS INTEGER, edPnId(40) AS INTEGER, edPnX(40) AS INTEGER, edPnY(40) AS INTEGER, edPnW(40) AS INTEGER, edPnLab$(40), edPnLit(40) AS INTEGER
-DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER
+DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnCol(40) AS _UNSIGNED LONG
 DIM SHARED edLinkPad AS INTEGER, edLinkX AS INTEGER, edLinkY AS INTEGER ' (LINK: waiting for the pad this one's to go to)
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
 DIM SHARED texFile$(T_SLOTS)
@@ -2557,7 +2563,7 @@ DO
             texX = INT(wallX * texSize) : texSlot = wallTexSlot(hit)
             IF side = 0 AND rayDirX > 0 THEN texX = texSize - 1 - texX
             IF side = 1 AND rayDirY < 0 THEN texX = texSize - 1 - texX
-            IF lvlNumFaces THEN ' (a side with a picture of its own - the editor's PAINT)
+            IF faceAny THEN ' (a side with a picture of its own - the editor's PAINT, or a light's tint)
                 IF side = 0 THEN IF rayDirX > 0 THEN sd = 3 ELSE sd = 1
                 IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
                 IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, texX / texSize, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, texX / texSize, 0, texSlot)
@@ -3087,7 +3093,7 @@ DO
             IF edLooking THEN EditDrawPicker -1, -1 ELSE EditDrawPicker edCurX, edCurY
         ELSEIF edPickOn THEN ' (tucked away: a strip saying what the brush is)
             LINE (0, PK_TUCK)-(799, 599), _RGBA32(6, 2, 18, 200), BF : LINE (0, PK_TUCK)-(799, PK_TUCK), _RGBA32(255, 60, 200, 160)
-            IF edTool = ET_PAINT THEN t$ = edBrushTex$ ELSE IF edTool = ET_LIGHT THEN t$ = "light: " + LightPresetName$(editLightP) ELSE t$ = GlyphName$(editGlyph$)
+            IF edTool = ET_PAINT THEN t$ = edBrushTex$ ELSE IF edTool = ET_LIGHT THEN t$ = "light: " + LCASE$(EditFxName$(edLFx)) ELSE t$ = GlyphName$(editGlyph$)
             HudText 8, PK_TUCK + 2, LEFT$("^ PICKER  (point here to open it)   brush: " + t$, 98), _RGB32(190, 180, 230)
         END IF
         IF edLooking THEN EditDrawPane -1, -1 ELSE EditDrawPane edCurX, edCurY
@@ -3424,7 +3430,7 @@ EditTBClick:
 SELECT CASE tbHit
     CASE TB_SELECT : edTool = ET_SELECT : EditNote EditTBTip$(tbHit)
     CASE TB_PLACE : edTool = ET_PLACE : EditNote EditTBTip$(tbHit)
-    CASE TB_LIGHT : edTool = ET_LIGHT : EditNote EditTBTip$(tbHit) + " - " + LightPresetName$(editLightP)
+    CASE TB_LIGHT : edTool = ET_LIGHT : EditNote EditTBTip$(tbHit)
     CASE TB_HEIGHT : edTool = ET_HEIGHT : EditNote EditTBTip$(tbHit)
     CASE TB_DELETE
         IF edSelN THEN GOSUB EditPushUndo : EditDeleteSel : GOSUB EditApply ELSE EditNote "Select something to delete first"
@@ -3463,9 +3469,23 @@ SELECT CASE edPkKind(pkIdx)
         IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
         edBrushImg& = EditFileThumb&(edBrushTex$)
         IF edSelN THEN GOSUB EditPaintSel ELSE EditNote "PAINT " + edBrushTex$ + ": click a face"
-    CASE PK_LIGHT
-        editLightP = VAL(edPkVal$(pkIdx)) : edBrushKind = PK_LIGHT : edTool = ET_LIGHT
-        EditNote "LIGHT " + LightPresetName$(editLightP) + ": click a face to light it"
+    CASE PK_LIGHT ' An effect or a colour for the light brush - and the lights on the faces selected
+        v = VAL(MID$(edPkVal$(pkIdx), 2)) : edBrushKind = PK_LIGHT : edTool = ET_LIGHT
+        IF LEFT$(edPkVal$(pkIdx), 1) = "F" THEN
+            edLFx = v
+        ELSE
+            c~& = EditPaletteRGB~&(v) : edLR = _RED32(c~&) : edLG = _GREEN32(c~&) : edLB = _BLUE32(c~&)
+        END IF
+        n = 0
+        FOR k = 1 TO edSelN
+            lt = EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
+            IF lt THEN
+                IF n = 0 THEN GOSUB EditPushUndo
+                n = n + 1
+                IF LEFT$(edPkVal$(pkIdx), 1) = "F" THEN lvlLight(lt, 8) = edLFx ELSE lvlLight(lt, 5) = edLR : lvlLight(lt, 6) = edLG : lvlLight(lt, 7) = edLB
+            END IF
+        NEXT
+        IF n THEN GOSUB EditApply : EditNote LTRIM$(STR$(n)) + " light(s) changed" ELSE EditNote "LIGHT: click a face to light it - " + LCASE$(EditFxName$(edLFx))
 END SELECT
 editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT)
 RETURN
@@ -3526,6 +3546,39 @@ SELECT CASE pnHit
             FOR k = lf TO lvlNumLifts - 1 : FOR j = 1 TO 8 : lvlLift(k, j) = lvlLift(k + 1, j) : NEXT : NEXT
             lvlNumLifts = lvlNumLifts - 1 : GOSUB EditApply : EditNote "Lift taken away"
         END IF
+    CASE 40 ' A light on each face selected that hasn't one, as the light brush is
+        GOSUB EditPushUndo : n = 0
+        FOR k = 1 TO edSelN
+            IF EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k)) = 0 THEN EditFaceAnchor edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), ax, ay : EditAddLight ax, ay : n = n + 1
+        NEXT
+        GOSUB EditApply : EditNote LTRIM$(STR$(n)) + " light(s) added - set them in the pane"
+    CASE 41 TO 52, 60 TO 65, 70 TO 73 ' A light's colour, effect, reach, brightness: every selected face's light (and the brush, for the next)
+        GOSUB EditPushUndo
+        FOR k = 1 TO edSelN
+            lt = EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
+            IF lt THEN
+                SELECT CASE pnHit
+                    CASE 41 TO 52 : c~& = EditPaletteRGB~&(pnHit - 40) : lvlLight(lt, 5) = _RED32(c~&) : lvlLight(lt, 6) = _GREEN32(c~&) : lvlLight(lt, 7) = _BLUE32(c~&)
+                    CASE 60 TO 65 : lvlLight(lt, 8) = pnHit - 60
+                    CASE 70 : lvlLight(lt, 3) = MaxOf(1, lvlLight(lt, 3) - 0.5)
+                    CASE 71 : lvlLight(lt, 3) = MinOf(12, lvlLight(lt, 3) + 0.5)
+                    CASE 72 : lvlLight(lt, 4) = MaxOf(20, lvlLight(lt, 4) - 10)
+                    CASE 73 : lvlLight(lt, 4) = MinOf(255, lvlLight(lt, 4) + 10)
+                END SELECT
+                edLR = lvlLight(lt, 5) : edLG = lvlLight(lt, 6) : edLB = lvlLight(lt, 7) : edLFx = lvlLight(lt, 8) : edLRad = lvlLight(lt, 3) : edLBri = lvlLight(lt, 4)
+            END IF
+        NEXT
+        GOSUB EditApply
+    CASE 74 ' The selected faces' lights, gone
+        GOSUB EditPushUndo
+        FOR k = 1 TO edSelN
+            lt = EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
+            IF lt THEN
+                FOR i = lt TO lvlNumLights - 1 : FOR j = 1 TO 8 : lvlLight(i, j) = lvlLight(i + 1, j) : NEXT : NEXT
+                lvlNumLights = lvlNumLights - 1
+            END IF
+        NEXT
+        GOSUB EditApply : EditNote "Light taken away"
     CASE 30 ' LINK: the next pad clicked is where this one goes
         edLinkPad = NOT edLinkPad : edLinkX = edPnCX : edLinkY = edPnCY
         IF edLinkPad THEN EditNote "Click the pad this one goes to (LINK again: never mind)"
@@ -3676,7 +3729,7 @@ DO
             CASE 104, 72 ' H: the height tool
                 IF edTool = ET_HEIGHT THEN edTool = ET_PLACE ELSE edTool = ET_HEIGHT
                 IF edTool = ET_HEIGHT THEN EditNote "HEIGHTS: click raises the floor, right-click lowers it (Shift: the ceiling)" ELSE EditNote "PLACE: paint with the mouse"
-            CASE 49 TO 56 : editLightP = k& - 49 : EditNote "Light: " + LightPresetName$(editLightP)
+            CASE 49 TO 56 : EditLightPreset k& - 49 : EditNote "Light: " + LightPresetName$(editLightP)
             CASE 116, 84 ' T: teleport you to the cell under the mouse
                 IF onMap THEN playerX = cx + 0.5 : playerY = cy + 0.5 : EditNote "You're at" + STR$(cx) + STR$(cy) + " (Tab to look)"
             CASE 18688 : GOSUB EditOtherLevel_Prev ' PgUp: the sector before
@@ -3788,7 +3841,10 @@ REDIM glUpload(texSize * texSize - 1) AS _UNSIGNED LONG
 REDIM spriteTex(sprTex - 1, sprTex - 1, SPR_SLOTS) AS _UNSIGNED LONG
 GOSUB LoadPictures
 FOR k = 1 TO T_SLOTS ' The level's own walls, floors and ceilings, again
-    IF texFile$(k) <> "" THEN LoadTex texFile$(k), k
+    IF texFile$(k) <> "" AND LEFT$(texFile$(k), 5) <> "glow:" THEN LoadTex texFile$(k), k
+NEXT
+FOR k = 1 TO T_SLOTS ' (and the tinted copies of them, made again from them)
+    IF LEFT$(texFile$(k), 5) = "glow:" THEN MakeGlowTex k
 NEXT
 IF cyberOn THEN CyberTextures -1 ' (in the network: its grid, at the new size)
 MakeLiftTex ' (the lifts' pictures, made again from the new ones)
@@ -3970,10 +4026,22 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
                     EditNote GlyphName$(editGlyph$) + " at" + STR$(tx) + STR$(ty) + EditPlaceInfo$(tx, ty)
                     edDragX = tx : edDragY = ty : edDragOn = -1
                 END IF
-            CASE ET_LIGHT
-                GOSUB EditPushUndo
-                IF edShift THEN EditRemoveLight tx + 0.5, ty + 0.5 ELSE EditAddLight tx + 0.5, ty + 0.5
-                GOSUB EditApply
+            CASE ET_LIGHT ' A light on the face (just in front of it); Shift: the face's light taken away
+                lt = EditFaceLight(edHovKind, edHovX, edHovY, edHovSide)
+                IF edShift THEN
+                    IF lt THEN
+                        GOSUB EditPushUndo
+                        FOR k = lt TO lvlNumLights - 1 : FOR j = 1 TO 8 : lvlLight(k, j) = lvlLight(k + 1, j) : NEXT : NEXT
+                        lvlNumLights = lvlNumLights - 1 : GOSUB EditApply : EditNote "Light taken away"
+                    ELSE
+                        EditNote "No light on that face"
+                    END IF
+                ELSEIF lt THEN
+                    edSelN = 0 : EditSelToggle edHovKind, edHovX, edHovY, edHovSide, 0 : EditNote "That face has a light - its pane is on the right"
+                ELSE
+                    EditFaceAnchor edHovKind, edHovX, edHovY, edHovSide, ax, ay
+                    GOSUB EditPushUndo : EditAddLight ax, ay : GOSUB EditApply
+                END IF
             CASE ET_PAINT ' The brush's picture on the face (Shift: back to the usual; Ctrl: the whole floor or ceiling it's part of; Alt: pick its picture up)
                 fc = EditFaceCode(edHovKind, edHovSide)
                 IF edAlt THEN
@@ -4120,7 +4188,7 @@ DO WHILE k&
             IF frontX >= 0 THEN GOSUB EditPushUndo : EditAddLight frontX + 0.5, frontY + 0.5 : GOSUB EditApply
         CASE 107, 75
             GOSUB EditPushUndo : EditRemoveLight playerX, playerY : GOSUB EditApply
-        CASE 49 TO 56 : editLightP = k& - 49 : EditNote "Light: " + LightPresetName$(editLightP)
+        CASE 49 TO 56 : EditLightPreset k& - 49 : EditNote "Light: " + LightPresetName$(editLightP)
         CASE 18688, 20736 ' PgUp / PgDn: the floor in front up or down an eighth (with Shift, its ceiling)
             IF frontX >= 0 THEN
                 d = H_STEP : IF k& = 20736 THEN d = -H_STEP
@@ -4685,7 +4753,7 @@ DO
     IF hSide = 1 AND rayDirY < 0 THEN hTexX = texSize - 1 - hTexX
     hTexX = hTexX AND (texSize - 1)
     hSd = 0 ' (which side of the next cell this is - for a picture of its own: [faces])
-    IF lvlNumFaces THEN
+    IF faceAny THEN
         IF hSide = 0 THEN IF rayDirX > 0 THEN hSd = 3 ELSE hSd = 1
         IF hSide = 1 THEN IF rayDirY > 0 THEN hSd = 4 ELSE hSd = 2
         IF hSolid AND v <> 2 THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
@@ -5367,7 +5435,7 @@ FOR k = 1 TO lvlNumZones
 NEXT
 ' Single faces' own pictures ([faces]): each picture a slot of its own
 ' (T_CUSTOM + 1...), loaded only if it isn't there already
-customN = 0
+customN = 0 : faceAny = (lvlNumFaces > 0)
 FOR k = 1 TO lvlNumFaces
     x = lvlFaceX(k) : y = lvlFaceY(k) : f = lvlFaceS(k)
     IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
@@ -5405,6 +5473,45 @@ FOR k = 1 TO lvlNumFaces
                 END IF
             CASE 1 TO 8 : faceTex(x, y, f) = slot1 : faceTex2(x, y, f) = slot2 : faceDiv(x, y, f) = d
         END SELECT
+    END IF
+NEXT
+' A light on a wall's face (the editor's LIGHT puts it just in front of the
+' face's middle) tints that face its colour: a copy of the face's picture,
+' coloured (MakeGlowTex), in a slot of its own - OpenGL lights it itself
+' and makes it pulse or flicker as the light does. So a red light shows
+' red on its wall even in a room already as bright as it gets.
+FOR k = 1 TO lvlNumLights
+    lx = lvlLight(k, 1) : ly = lvlLight(k, 2) : fx = lx - INT(lx) : fy = ly - INT(ly) : gx = -1
+    IF ABS(fy - 0.5) < 0.03 AND ABS(fx - 0.12) < 0.03 THEN gx = INT(lx) - 1 : gy = INT(ly) : gs = 1
+    IF ABS(fy - 0.5) < 0.03 AND ABS(fx - 0.88) < 0.03 THEN gx = INT(lx) + 1 : gy = INT(ly) : gs = 3
+    IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.12) < 0.03 THEN gx = INT(lx) : gy = INT(ly) - 1 : gs = 2
+    IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.88) < 0.03 THEN gx = INT(lx) : gy = INT(ly) + 1 : gs = 4
+    IF gx >= 0 AND gy >= 0 AND gx < MAP_SIZE AND gy < MAP_SIZE THEN
+        IF worldMap(gx, gy) <> 2 THEN ' (not a door)
+            amt = 0.35 + 0.55 * lvlLight(k, 4) / 255
+            key$ = ":" + LTRIM$(STR$(lvlLight(k, 5))) + "," + LTRIM$(STR$(lvlLight(k, 6))) + "," + LTRIM$(STR$(lvlLight(k, 7))) + ":" + LTRIM$(STR$(INT(amt * 100))) + ":" + LTRIM$(STR$(lvlLight(k, 8)))
+            FOR g = gs TO gs + 4 STEP 4 ' (its side - and a lintel's, the same side higher up)
+                IF g = gs OR worldMap(gx, gy) <= 0 THEN
+                    IF worldMap(gx, gy) > 0 THEN dflt = wallTexSlot(worldMap(gx, gy)) ELSE dflt = wallTexSlot(1)
+                    FOR half = 1 TO 2
+                        IF half = 1 THEN glBaseSl = faceTex(gx, gy, g) ELSE glBaseSl = faceTex2(gx, gy, g)
+                        IF glBaseSl = 0 THEN glBaseSl = dflt
+                        want$ = "glow:" + LTRIM$(STR$(glBaseSl)) + key$ + ":" + texFile$(glBaseSl) : slot = 0 ' (the picture it's made from, named too: a new picture there, a new copy)
+                        FOR j = T_CUSTOM + 1 TO T_CUSTOM + customN
+                            IF texFile$(j) = want$ THEN slot = j
+                        NEXT
+                        IF slot = 0 AND customN < T_CUSTOMN THEN
+                            customN = customN + 1 : slot = T_CUSTOM + customN
+                            IF texFile$(slot) <> want$ THEN texFile$(slot) = want$ : MakeGlowTex slot : texNew = -1
+                        END IF
+                        IF slot THEN
+                            faceAny = -1
+                            IF half = 1 THEN faceTex(gx, gy, g) = slot ELSE faceTex2(gx, gy, g) = slot
+                        END IF
+                    NEXT
+                END IF
+            NEXT
+        END IF
     END IF
 NEXT
 ' The level's lights: x, y, radius, brightness, red, green, blue, effect
@@ -6151,8 +6258,8 @@ SELECT CASE conVerb$
         END IF
     CASE "lamp" ' lamp X Y [1-8]: a light over cell X Y - white, cyan, magenta, orange, green, red alarm, flickering, firelight
         GOSUB EditPushUndo
-        editLightP = VAL(conC$) - 1 : IF editLightP < 0 OR editLightP > 7 THEN editLightP = 0
-        EditAddLight VAL(conA$) + 0.5, VAL(conB$) + 0.5 : GOSUB EditApply : ConPrint editMsg$
+        p = VAL(conC$) - 1 : IF p < 0 OR p > 7 THEN p = 0
+        EditLightPreset p : EditAddLight VAL(conA$) + 0.5, VAL(conB$) + 0.5 : GOSUB EditApply : ConPrint editMsg$
     CASE "raise" ' raise X Y EIGHTHS [ceil], or raise X0 Y0 X1 Y1 EIGHTHS [ceil]: floors (or ceilings) up or down, in eighths of a wall
         GOSUB EditPushUndo
         w5$ = ConWord$(conCmd$, 5) : w6$ = ConWord$(conCmd$, 6)
@@ -7004,6 +7111,32 @@ SUB MakeTrapTex
     NEXT : NEXT
     texName$(T_TRAP) = "trap" : texName$(T_FIRE) = "trap" ' (not "lava": the grate itself doesn't burn - the trap does, when it's live)
     texHD(T_TRAP) = texHD(T_FLOOR + 1) : texHD(T_FIRE) = texHD(T_FLOOR + 1)
+END SUB
+
+' A tinted copy of a picture, for a face with a light on it: texFile$(slot)
+' says which and how - "glow:BASE:R,G,B:AMOUNT:EFFECT" - each pixel mixed
+' AMOUNT% towards the colour (by how bright the pixel is, so the picture
+' shows through). Named for OpenGL: "faceglow-" and the effect
+' (GLSendTextures lights it itself, and moves it as the light moves).
+SUB MakeGlowTex(slot)
+    k$ = texFile$(slot) + ":" : k$ = MID$(k$, 6)
+    c = INSTR(k$, ":") : baseSl = VAL(LEFT$(k$, c - 1)) : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : rgb$ = LEFT$(k$, c - 1) : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : a = VAL(LEFT$(k$, c - 1)) / 100 : fx = VAL(MID$(k$, c + 1))
+    tr = VAL(ListItem$(rgb$, 1)) : tg = VAL(ListItem$(rgb$, 2)) : tb = VAL(ListItem$(rgb$, 3))
+    IF baseSl < 1 OR baseSl > T_SLOTS THEN baseSl = 1
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
+        col~& = texture(x, y, baseSl)
+        r = (col~& \ 65536) AND 255 : g = (col~& \ 256) AND 255 : b = col~& AND 255
+        lum = (r * 0.3 + g * 0.59 + b * 0.11) / 255 * 0.7 + 0.5
+        r = r + (tr * lum - r) * a : g = g + (tg * lum - g) * a : b = b + (tb * lum - b) * a
+        IF r > 255 THEN r = 255
+        IF g > 255 THEN g = 255
+        IF b > 255 THEN b = 255
+        texture(x, y, slot) = &HFF000000~& OR (INT(r) * 65536) OR (INT(g) * 256) OR INT(b)
+    NEXT : NEXT
+    texHD(slot) = texHD(baseSl)
+    texName$(slot) = "faceglow-" + LCASE$(RTRIM$(MID$("steady  flicker pulse   strobe  fire    dying   ", fx * 8 + 1, 8)))
 END SUB
 
 SUB LoadTex(file$, slot AS INTEGER)
@@ -8440,7 +8573,7 @@ FUNCTION EditTBTip$(id)
     SELECT CASE id
         CASE TB_SELECT : IF editView = 1 THEN t$ = "Select: click a face - Shift adds, Ctrl a whole floor" ELSE t$ = "Select: click a cell or drag a box - Shift adds"
         CASE TB_PLACE : IF editView = 1 THEN t$ = "Place: click to put " + GlyphName$(editGlyph$) + " there ([ ] change)" ELSE t$ = "Place: paint " + GlyphName$(editGlyph$) + " - Shift+drag a box"
-        CASE TB_LIGHT : t$ = "Light: click adds a light (1-8 colour), Shift+click takes one"
+        CASE TB_LIGHT : t$ = "Light: click a face to light it (LIGHTS tab: colour, effect)"
         CASE TB_HEIGHT : t$ = "Height: click raises a floor/ceiling, Shift+click lowers"
         CASE TB_DELETE : t$ = "Delete the selection: walls opened, things gone (Del)"
         CASE TB_UNDO : t$ = "Undo (Ctrl+Z)"
@@ -8541,7 +8674,8 @@ SUB EditDrawHelp(v)
         h$ = h$ + "        Ctrl+click: the whole floor/ceiling; Ctrl+D: none|"
         h$ = h$ + "PLACE   click: the brush there (drag: along the floor);|"
         h$ = h$ + "        Shift+click takes it away; Alt+click picks it up|"
-        h$ = h$ + "LIGHT   click: a light there (1-8 colour); Shift+click: away|"
+        h$ = h$ + "LIGHT   click: a light on the face (picker: colour, effect;|"
+        h$ = h$ + "        its pane: reach, brightness); Shift+click: away|"
         h$ = h$ + "HEIGHT  click raises a floor/ceiling an eighth; Shift lowers|"
         h$ = h$ + "PAINT   click: the brush's picture on that face; Ctrl+click:|"
         h$ = h$ + "        the whole floor/ceiling; Shift: the usual; Alt: pick up|"
@@ -8554,7 +8688,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "Wall + Alt+Shift+wheel: a block from the ceiling (bottom)|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
         h$ = h$ + "A door, pad, lift or floor selected: its pane, on the right|"
-        h$ = h$ + "H divide a face left|right, V top|bottom (again: whole)|"
+        h$ = h$ + "H divide a face left/right, V top/bottom (again: whole)|"
         h$ = h$ + "G grid, Shift+G stronger;  T F pictures;  Z floor no.|"
         h$ = h$ + "L K light here/away;  PgUp/PgDn floor (Shift: ceiling)|"
         h$ = h$ + "Tab map;  U HUD layout;  Ctrl+S save;  Ctrl+Z undo;  F2 play"
@@ -8636,8 +8770,9 @@ SUB EditPkBuild
         NEXT : NEXT
         FOR k = first TO edPkN : edPkImg&(k) = EditFileThumb&(edPkVal$(k)) : NEXT
     END IF
-    IF edPickTab = 9 THEN
-        FOR k = 0 TO 7 : edPkN = edPkN + 1 : edPkKind(edPkN) = PK_LIGHT : edPkVal$(edPkN) = LTRIM$(STR$(k)) : edPkImg&(edPkN) = 0 : NEXT
+    IF edPickTab = 9 THEN ' The lights: the six ways one can go (in the brush's colour, moving as they will), then twelve colours
+        FOR k = 0 TO 5 : edPkN = edPkN + 1 : edPkKind(edPkN) = PK_LIGHT : edPkVal$(edPkN) = "F" + LTRIM$(STR$(k)) : edPkImg&(edPkN) = 0 : NEXT
+        FOR k = 1 TO 12 : edPkN = edPkN + 1 : edPkKind(edPkN) = PK_LIGHT : edPkVal$(edPkN) = "C" + LTRIM$(STR$(k)) : edPkImg&(edPkN) = 0 : NEXT
     END IF
     IF edPickScroll > MaxOf(0, (edPkN - 1) \ PK_COLS - PK_ROWS + 1) THEN edPickScroll = 0
 END SUB
@@ -8746,7 +8881,9 @@ FUNCTION EditPkIsBrush(k)
     SELECT CASE edPkKind(k)
         CASE PK_GLYPH : EditPkIsBrush = (edBrushKind = PK_GLYPH AND edPkVal$(k) = editGlyph$)
         CASE PK_TEX : EditPkIsBrush = (edBrushKind = PK_TEX AND edPkVal$(k) = edBrushTex$)
-        CASE PK_LIGHT : EditPkIsBrush = (edBrushKind = PK_LIGHT AND VAL(edPkVal$(k)) = editLightP)
+        CASE PK_LIGHT
+            v = VAL(MID$(edPkVal$(k), 2))
+            IF LEFT$(edPkVal$(k), 1) = "F" THEN EditPkIsBrush = (v = edLFx) ELSE EditPkIsBrush = (EditPaletteRGB~&(v) = _RGB32(edLR, edLG, edLB))
     END SELECT
 END FUNCTION
 
@@ -8754,7 +8891,8 @@ FUNCTION EditPkName$(k)
     SELECT CASE edPkKind(k)
         CASE PK_GLYPH : EditPkName$ = GlyphName$(edPkVal$(k))
         CASE PK_TEX : EditPkName$ = edPkVal$(k)
-        CASE PK_LIGHT : EditPkName$ = "light: " + LightPresetName$(VAL(edPkVal$(k)))
+        CASE PK_LIGHT
+            IF LEFT$(edPkVal$(k), 1) = "F" THEN EditPkName$ = "light that's " + LCASE$(EditFxName$(VAL(MID$(edPkVal$(k), 2)))) ELSE EditPkName$ = "light colour" + MID$(edPkVal$(k), 2)
     END SELECT
 END FUNCTION
 
@@ -8765,16 +8903,13 @@ SUB EditPkPicture(k, x, y, n)
     IF edPkImg&(k) < -1 THEN _PUTIMAGE (x, y)-STEP(n - 1, n - 1), edPkImg&(k) : EXIT SUB
     cx = x + n \ 2 : cy = y + n \ 2
     IF edPkKind(k) = PK_LIGHT THEN
-        p = VAL(edPkVal$(k)) : c~& = EditLightRGB~&(p) : b = 1
-        IF p = 5 THEN b = 0.55 + 0.45 * SIN(TIMER * 4) ' (an alarm: pulsing)
-        IF p = 6 THEN IF RND < 0.25 THEN b = 0.25 ' (flickering)
-        IF p = 7 THEN b = 0.8 + 0.2 * SIN(TIMER * 11) ' (firelight)
-        r = _RED32(c~&) * b : g = _GREEN32(c~&) * b : bl = _BLUE32(c~&) * b
-        FOR rr = n \ 2 - 2 TO 2 STEP -2
-            a = 40 + 200 * (1 - rr / (n / 2))
-            CIRCLE (cx, cy), rr, _RGBA32(r, g, bl, a)
-        NEXT
-        FillCircle cx, cy, n \ 8, _RGB32(MinOf(255, r + 60), MinOf(255, g + 60), MinOf(255, bl + 60))
+        v = VAL(MID$(edPkVal$(k), 2))
+        IF LEFT$(edPkVal$(k), 1) = "F" THEN ' An effect: the brush's colour, going as it goes, and its name
+            EditGlow x, y, n, _RGB32(edLR, edLG, edLB), EditFxNow(v)
+            t$ = EditFxName$(v) : HudText x + (n - LEN(t$) * 8) \ 2, y + n - 15, t$, _RGB32(255, 255, 255)
+        ELSE
+            EditGlow x, y, n, EditPaletteRGB~&(v), 1
+        END IF
     ELSEIF edPkKind(k) = PK_GLYPH THEN
         a = (INSTR(">v<^", edPkVal$(k)) - 1) * 1.5708 ' (the start: an arrow the way it faces)
         IF a >= 0 THEN
@@ -8847,7 +8982,8 @@ SUB EditDrawPicker(mx, my)
             IF edBrushImg& < -1 THEN _PUTIMAGE (bx + 2, gy + 20)-STEP(63, 63), edBrushImg&
             n$ = edBrushTex$
         CASE PK_LIGHT
-            c~& = EditLightRGB~&(editLightP) : FillCircle bx + 34, gy + 52, 16, c~& : n$ = "light: " + LightPresetName$(editLightP)
+            EditGlow bx + 2, gy + 20, 64, _RGB32(edLR, edLG, edLB), EditFxNow(edLFx)
+            n$ = "light: " + LCASE$(EditFxName$(edLFx)) + ", reach" + STR$(edLRad) + ", bright" + STR$(edLBri)
         CASE ELSE ' (a map character: its picture, made again when the brush changes - [ ] or E too)
             STATIC thumbOf$, thumbImg&
             IF thumbOf$ <> editGlyph$ + STR$(artNow) + lvlWall$(1) THEN
@@ -8879,12 +9015,12 @@ END SUB
 ' list, made again each time it's asked: edPn...); id < 0 is just words.
 SUB EditPaneAdd(id, x, y, w, l$, lit)
     IF edPnN >= 40 THEN EXIT SUB
-    edPnN = edPnN + 1 : edPnId(edPnN) = id : edPnX(edPnN) = x : edPnY(edPnN) = y : edPnW(edPnN) = w : edPnLab$(edPnN) = l$ : edPnLit(edPnN) = lit
+    edPnN = edPnN + 1 : edPnId(edPnN) = id : edPnX(edPnN) = x : edPnY(edPnN) = y : edPnW(edPnN) = w : edPnLab$(edPnN) = l$ : edPnLit(edPnN) = lit : edPnCol(edPnN) = 0
     IF y + 20 > edPnBot THEN edPnBot = y + 20
 END SUB
 
 SUB EditPaneBuild
-    edPnN = 0 : edPnTitle$ = "" : edPnBot = PN_Y : edPnLift = 0
+    edPnN = 0 : edPnTitle$ = "" : edPnBot = PN_Y : edPnLift = 0 : edPnLight = 0
     IF edSelN = 0 OR editView <> 1 THEN EXIT SUB
     x0 = PN_X : y = PN_Y + 24
     ' A door: the first selected face that's a door's
@@ -8920,6 +9056,28 @@ SUB EditPaneBuild
             EXIT SUB
         END IF
     NEXT
+    ' A light: the first selected face with one on it - its colour, how it
+    ' goes, how far it reaches, how bright
+    FOR k = 1 TO edSelN
+        lt = EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
+        IF lt THEN
+            edPnLight = lt : edPnTitle$ = "LIGHT on " + RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edSelKind(k) * 7 - 6, 7))
+            FOR c = 1 TO 12
+                cl~& = EditPaletteRGB~&(c)
+                EditPaneAdd 40 + c, x0 + ((c - 1) MOD 6) * 34, y + ((c - 1) \ 6) * 23, 30, "", (cl~& = _RGB32(lvlLight(lt, 5), lvlLight(lt, 6), lvlLight(lt, 7)))
+                edPnCol(edPnN) = cl~&
+            NEXT
+            y = y + 50
+            FOR f = 0 TO 5
+                EditPaneAdd 60 + f, x0 + (f MOD 3) * 67, y + (f \ 3) * 23, 65, EditFxName$(f), (lvlLight(lt, 8) = f)
+            NEXT
+            y = y + 50
+            EditPaneAdd -1, x0, y + 2, 140, "REACH " + LTRIM$(STR$(lvlLight(lt, 3))), 0 : EditPaneAdd 70, x0 + 146, y, 24, "-", 0 : EditPaneAdd 71, x0 + 174, y, 24, "+", 0 : y = y + 23
+            EditPaneAdd -1, x0, y + 2, 140, "BRIGHT" + STR$(lvlLight(lt, 4)), 0 : EditPaneAdd 72, x0 + 146, y, 24, "-", 0 : EditPaneAdd 73, x0 + 174, y, 24, "+", 0 : y = y + 23
+            EditPaneAdd 74, x0, y, PN_W, "REMOVE THE LIGHT", 0
+            EXIT SUB
+        END IF
+    NEXT
     ' A lift: the first selected floor that's on one
     FOR k = 1 TO edSelN
         IF (edSelKind(k) = ED_FLOOR OR edSelKind(k) = ED_STEP) AND liftCell(edSelX(k), edSelY(k)) THEN
@@ -8946,8 +9104,11 @@ SUB EditPaneBuild
     NEXT
     IF n THEN
         edPnTitle$ = "FLOOR (" + LTRIM$(STR$(n)) + " cell" + MID$("s", 1, -(n > 1)) + ")"
-        EditPaneAdd 20, x0, y, PN_W, "MAKE A LIFT OF IT", 0
+        EditPaneAdd 20, x0, y, PN_W, "MAKE A LIFT OF IT", 0 : y = y + 23
+    ELSE
+        edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
     END IF
+    EditPaneAdd 40, x0, y, PN_W, "ADD A LIGHT TO IT", 0
 END SUB
 
 ' The pane's button at (x, y) - its id - or 0
@@ -8973,10 +9134,12 @@ SUB EditDrawPane(mx, my)
             IF over THEN bg~& = _RGBA32(40, 70, 110, 240)
             LINE (x, y)-STEP(w - 1, 19), bg~&, BF
             IF over THEN bc~& = _RGB32(150, 240, 255) ELSE IF edPnLit(k) THEN bc~& = _RGB32(255, 60, 200) ELSE bc~& = _RGB32(90, 70, 140)
+            IF edPnCol(k) THEN LINE (x + 3, y + 3)-STEP(w - 7, 13), edPnCol(k), BF ' (a colour to choose)
             LINE (x, y)-STEP(w - 1, 19), bc~&, B
             HudText x + (w - LEN(edPnLab$(k)) * 8) \ 2, y + 2, edPnLab$(k), _RGB32(255, 255, 255)
         END IF
     NEXT
+    IF edPnLight THEN EditGlow 762, PN_Y + 1, 30, _RGB32(lvlLight(edPnLight, 5), lvlLight(edPnLight, 6), lvlLight(edPnLight, 7)), EditFxNow(lvlLight(edPnLight, 8)) ' (the light as it'll go)
 END SUB
 
 ' Pad (x, y) out of any pair made by hand
@@ -9305,6 +9468,13 @@ SUB EditDrawFaces
             END IF
         END IF
     END IF
+    FOR k = 1 TO lvlNumLights ' The lights: a little star each, in its colour, halfway up its cell
+        lx = lvlLight(k, 1) : ly = lvlLight(k, 2) : cx = INT(lx) : cy = INT(ly)
+        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+            lz = (floorH(cx, cy) + ceilH(cx, cy)) / 2 : c~& = _RGB32(lvlLight(k, 5), lvlLight(k, 6), lvlLight(k, 7))
+            EditLine3D lx - 0.1, ly, lz, lx + 0.1, ly, lz, c~& : EditLine3D lx, ly - 0.1, lz, lx, ly + 0.1, lz, c~& : EditLine3D lx, ly, lz - 0.1, lx, ly, lz + 0.1, c~&
+        END IF
+    NEXT
     FOR k = 1 TO numPads - 1 STEP 2 ' Teleporters: each pad joined to the one it goes to
         EditLine3D padX(k) + 0.5, padY(k) + 0.5, floorH(padX(k), padY(k)) + 0.05, padX(k + 1) + 0.5, padY(k + 1) + 0.5, floorH(padX(k + 1), padY(k + 1)) + 0.05, _RGBA32(190, 110, 255, 170)
     NEXT
@@ -9329,7 +9499,7 @@ SUB EditOverlay(px, py, fx, fy)
     LINE (8, 56)-(330, 124), _RGB32(255, 60, 200), B
     HudText 16, 60, "TOOL: " + RTRIM$(MID$("SELECTPLACE PAINT LIGHT HEIGHT", edTool * 6 - 5, 6)), _RGB32(255, 90, 200)
     IF edTool = ET_LIGHT THEN
-        HudText 16, 76, "LIGHT: " + LightPresetName$(editLightP) + " (1-8)", _RGB32(255, 220, 120)
+        HudText 16, 76, "LIGHT: " + EditFxName$(edLFx) + " reach" + STR$(edLRad), _RGB32(edLR, edLG, edLB)
     ELSEIF edTool = ET_PAINT THEN
         HudText 16, 76, LEFT$("PICTURE: " + edBrushTex$, 38), _RGB32(150, 240, 255)
     ELSE
@@ -9429,23 +9599,100 @@ END SUB
 FUNCTION LightPresetName$(p)
     LightPresetName$ = RTRIM$(MID$("white      cyan       magenta    orange     green      red alarm  flickering firelight  ", p * 11 + 1, 11))
 END FUNCTION
+' Preset p (0-7: the keys 1-8) as the light brush - a room's light, five
+' cells across
+SUB EditLightPreset(p)
+    editLightP = p : edLRad = 5 : edLBri = 140 : edLFx = FX_STEADY
+    SELECT CASE p
+        CASE 0 : edLR = 230 : edLG = 235 : edLB = 255
+        CASE 1 : edLR = 60 : edLG = 220 : edLB = 255
+        CASE 2 : edLR = 255 : edLG = 60 : edLB = 220
+        CASE 3 : edLR = 255 : edLG = 160 : edLB = 60
+        CASE 4 : edLR = 90 : edLG = 255 : edLB = 120
+        CASE 5 : edLR = 255 : edLG = 40 : edLB = 40 : edLFx = FX_STROBE
+        CASE 6 : edLR = 220 : edLG = 230 : edLB = 255 : edLFx = FX_FLICKER
+        CASE ELSE : edLR = 255 : edLG = 150 : edLB = 70 : edLFx = FX_FIRE
+    END SELECT
+END SUB
+
+' A light at (x, y), as the light brush is
 SUB EditAddLight(x, y)
     IF lvlNumLights >= MAX_LIGHTS THEN EditNote "Too many lights" : EXIT SUB
     lvlNumLights = lvlNumLights + 1 : k = lvlNumLights
-    lvlLight(k, 1) = x : lvlLight(k, 2) = y : lvlLight(k, 3) = 5 : lvlLight(k, 4) = 140 : lvlLight(k, 8) = 0
-    SELECT CASE editLightP
-        CASE 0 : r = 230 : g = 235 : b = 255
-        CASE 1 : r = 60 : g = 220 : b = 255
-        CASE 2 : r = 255 : g = 60 : b = 220
-        CASE 3 : r = 255 : g = 160 : b = 60
-        CASE 4 : r = 90 : g = 255 : b = 120
-        CASE 5 : r = 255 : g = 40 : b = 40 : lvlLight(k, 8) = 3
-        CASE 6 : r = 220 : g = 230 : b = 255 : lvlLight(k, 8) = 1
-        CASE ELSE : r = 255 : g = 150 : b = 70 : lvlLight(k, 8) = 4
-    END SELECT
-    lvlLight(k, 5) = r : lvlLight(k, 6) = g : lvlLight(k, 7) = b
-    EditNote "Light (" + LightPresetName$(editLightP) + ") at" + STR$(INT(x)) + STR$(INT(y))
+    lvlLight(k, 1) = x : lvlLight(k, 2) = y : lvlLight(k, 3) = edLRad : lvlLight(k, 4) = edLBri : lvlLight(k, 8) = edLFx
+    lvlLight(k, 5) = edLR : lvlLight(k, 6) = edLG : lvlLight(k, 7) = edLB
+    EditNote "Light (" + EditFxName$(edLFx) + ") at" + STR$(INT(x)) + STR$(INT(y))
 END SUB
+
+' An effect's name (FX_)
+FUNCTION EditFxName$(fx)
+    EditFxName$ = RTRIM$(MID$("STEADY  FLICKER PULSE   STROBE  FIRE    DYING   ", fx * 8 + 1, 8))
+END FUNCTION
+
+' Colour n (1-12) of the picker's lights
+FUNCTION EditPaletteRGB~&(n)
+    SELECT CASE n
+        CASE 1 : c~& = _RGB32(230, 235, 255) ' white
+        CASE 2 : c~& = _RGB32(255, 215, 160) ' warm white
+        CASE 3 : c~& = _RGB32(60, 220, 255) ' cyan
+        CASE 4 : c~& = _RGB32(60, 110, 255) ' blue
+        CASE 5 : c~& = _RGB32(255, 60, 220) ' magenta
+        CASE 6 : c~& = _RGB32(170, 80, 255) ' purple
+        CASE 7 : c~& = _RGB32(255, 40, 40) ' red
+        CASE 8 : c~& = _RGB32(255, 150, 60) ' orange
+        CASE 9 : c~& = _RGB32(255, 230, 60) ' yellow
+        CASE 10 : c~& = _RGB32(90, 255, 120) ' green
+        CASE 11 : c~& = _RGB32(40, 255, 210) ' teal
+        CASE ELSE : c~& = _RGB32(255, 120, 170) ' pink
+    END SELECT
+    EditPaletteRGB~& = c~&
+END FUNCTION
+
+' How bright effect fx is now, 0-1 - as the game's lights go (LightCells),
+' for the picker's and the pane's moving previews
+FUNCTION EditFxNow(fx)
+    f = 1
+    SELECT CASE fx
+        CASE FX_FLICKER : IF (INT(TIMER * 9) MOD 11) = 3 OR (INT(TIMER * 13) MOD 17) = 5 THEN f = 0.15
+        CASE FX_PULSE : f = 0.55 + 0.45 * SIN(TIMER * 2.4)
+        CASE FX_STROBE : IF INT(TIMER * 2) MOD 2 = 0 THEN f = 1 ELSE f = 0.05
+        CASE FX_FIRE : f = 0.75 + RND * 0.25
+        CASE FX_DYING : f = 0.08 : IF (INT(TIMER * 7) MOD 9) < 2 THEN f = 0.5 + RND * 0.5
+    END SELECT
+    EditFxNow = f
+END FUNCTION
+
+' A glowing light swatch: colour c~& at brightness f, in the box at (x, y), n square
+SUB EditGlow(x, y, n, c~&, f)
+    cx = x + n \ 2 : cy = y + n \ 2
+    r = _RED32(c~&) * f : g = _GREEN32(c~&) * f : bl = _BLUE32(c~&) * f
+    FOR rr = n \ 2 - 2 TO 2 STEP -2
+        a = 40 + 200 * (1 - rr / (n / 2))
+        CIRCLE (cx, cy), rr, _RGBA32(r, g, bl, a)
+    NEXT
+    FillCircle cx, cy, n \ 8, _RGB32(MinOf(255, r + 60), MinOf(255, g + 60), MinOf(255, bl + 60))
+END SUB
+
+' Where a light on a face sits: just in front of the middle of it (a
+' floor's or ceiling's: the middle of its cell)
+SUB EditFaceAnchor(kind, x, y, side, ax, ay)
+    ax = x + 0.5 : ay = y + 0.5
+    IF kind = ED_FLOOR OR kind = ED_CEIL THEN EXIT SUB
+    SELECT CASE side
+        CASE 1 : ax = x + 1.12
+        CASE 2 : ay = y + 1.12
+        CASE 3 : ax = x - 0.12
+        CASE ELSE : ay = y - 0.12
+    END SELECT
+END SUB
+
+' The light on a face - the one sitting at its anchor - or 0
+FUNCTION EditFaceLight(kind, x, y, side)
+    EditFaceAnchor kind, x, y, side, ax, ay : EditFaceLight = 0
+    FOR k = 1 TO lvlNumLights
+        IF ABS(lvlLight(k, 1) - ax) < 0.2 AND ABS(lvlLight(k, 2) - ay) < 0.2 THEN EditFaceLight = k
+    NEXT
+END FUNCTION
 SUB EditRemoveLight(x, y)
     best = 0 : bestD = 2.25
     FOR k = 1 TO lvlNumLights
@@ -13025,6 +13272,11 @@ SUB GLSendTextures
         IF INSTR(n$, "hazard") OR INSTR(n$, "stripes") OR INSTR(n$, "warning") THEN glTexAnim(slot) = 2
         IF INSTR(n$, "glow") OR INSTR(n$, "lights") OR INSTR(n$, "reactor") OR INSTR(n$, "cryo") OR INSTR(n$, "coils") THEN glTexAnim(slot) = 3
         IF slot = T_EXIT THEN glTexAnim(slot) = 3
+        IF LEFT$(n$, 9) = "faceglow-" THEN ' A face with a light on it: lit by itself, going as the light goes
+            glTexNeon(slot) = 1 : glTexShine(slot) = 0.3 : glTexAnim(slot) = 0
+            IF INSTR(n$, "pulse") OR INSTR(n$, "fire") THEN glTexAnim(slot) = 3
+            IF INSTR(n$, "flicker") OR INSTR(n$, "dying") OR INSTR(n$, "strobe") THEN glTexAnim(slot) = 1
+        END IF
     NEXT
     FOR slot = 1 TO SPR_SLOTS
         sz = spriteSize(slot) ' (a smaller picture's unused part cleared: smoothed, it would bleed in)
