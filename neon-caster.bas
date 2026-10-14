@@ -1655,9 +1655,11 @@ DO
     qlDown = KeyHeld(BIND_QUICKLOAD)
     IF qlDown AND NOT qlWas THEN saveSlot = 0 : GOSUB LoadGame
     qlWas = qlDown
-    ' Tab: the full-screen map on or off (drawn in chapter 18)
+    ' Tab: the full-screen map on or off (drawn in chapter 18). In the
+    ' editor Tab is its own (the map from above / walking round), and the
+    ' editor reads it first - so it mustn't open this map as well.
     mapKeyDown = KeyHeld(BIND_MAP)
-    IF mapKeyDown AND NOT mapKeyWas THEN mapOpen = NOT mapOpen
+    IF mapKeyDown AND NOT mapKeyWas AND NOT editMode THEN mapOpen = NOT mapOpen
     mapKeyWas = mapKeyDown
 
     '-------------------------------------------------------------------------
@@ -3224,7 +3226,7 @@ RETURN
 ' lvlRow$() and the rest - the level as its file says it - and the level
 ' is built again from that (EditApply), keeping you where you are.
 EditEnter:
-editMode = -1 : editView = 0 : editDirty = 0 : editUndoN = 0 : editLights = 0
+editMode = -1 : editView = 0 : editDirty = 0 : editUndoN = 0 : editLights = 0 : mapOpen = 0
 levelWas = level
 IF editGlyph$ = "" THEN editGlyph$ = "#"
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
@@ -10067,6 +10069,9 @@ SUB _GL
     ' mirror image (GLCamera with mirror on flips every height) - then the
     ' real world over it, its floors a little see-through so the mirror
     ' image shows in them, more on ice and wet floors than on concrete.
+    ' The mirror flips round the main floor (height 0), so anything really
+    ' below it - a pit's sides, a sunken room's walls - would come out
+    ' above it, hanging in the air: the shader leaves those out (mirrorCut).
     glReflecting = 0
     IF glSet(SET_REFLECT, b) AND glWorldProg <> 0 THEN
         GLCamera b, -1
@@ -10150,6 +10155,7 @@ END SUB
 ' Only what moves is built each frame: the doors, then the sprites.
 SUB GLWorldGPU(b, mirror)
     GLShaderStart b
+    IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
     glCellLitMode = 1
     GLSL_buffer_bind glMeshBuf
     n& = glMeshN
@@ -10304,6 +10310,7 @@ END SUB
 ' particles.
 SUB GLWorld(b, mirror)
     GLShaderStart b
+    IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
 
     ' Floors, then ceilings (one at a time, so neighbours mostly share a
     ' texture - changing texture means stopping and starting again). Over
@@ -11461,6 +11468,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform vec3 eye;           // where you are" + nl$
     fs$ = fs$ + "uniform vec2 viewDir;       // the way you face" + nl$
     fs$ = fs$ + "uniform float bump, texel, shine, reflectAmt, neon, anim, isSprite, secs;" + nl$
+    fs$ = fs$ + "uniform float mirrorCut;    // the mirror image: leave out what's below the floor" + nl$
     fs$ = fs$ + "uniform vec3 dynPos[4];     // the moving lights: where..." + nl$
     fs$ = fs$ + "uniform vec3 dynCol[4];     // ...what colour..." + nl$
     fs$ = fs$ + "uniform float dynRad[4];    // ...and how far they reach" + nl$
@@ -11473,6 +11481,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "    return isSprite > 0.5 ? dot(t.rgb, vec3(0.3, 0.59, 0.11)) : t.a;" + nl$
     fs$ = fs$ + "}" + nl$
     fs$ = fs$ + "void main() {" + nl$
+    fs$ = fs$ + "    if (mirrorCut > 0.5 && vPos.z < 0.0) discard;  // WET FLOORS: a pit's sides would reflect up into the room" + nl$
     fs$ = fs$ + "    vec2 uv = gl_TexCoord[0].xy;" + nl$
     fs$ = fs$ + "    vec4 c = texture2D(tex, uv);" + nl$
     fs$ = fs$ + "    if (isSprite > 0.5 && c.a < 0.502) discard;  // a sprite's see-through pixels" + nl$
