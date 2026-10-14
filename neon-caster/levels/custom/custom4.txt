@@ -1,0 +1,652 @@
+' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+' SECTOR 14: THE CONSERVATORY. A glasshouse gone wild. Its courtyard
+' floor is woven - every cell divided, soil against white stone, one way then
+' the other ([faces], divided). The pond has no bottom: cross it on the
+' stepping lifts, rising and falling each at its own pace, for the red
+' card. Through the glass wall the specimen garden sleeps - the heavy in
+' it wakes only if you hit it - and the blue card is in there, behind the
+' red door. The corridor from the gate is the light lab: the six ways a
+' light can go, side by side, each on its own wall. Crawlers hide in the
+' planters; spitters in the courtyard hear every shot.
+
+name     = SECTOR 14: THE CONSERVATORY
+walls    = wall-greenhouse.png, wall-vines.png, wall-moss.png, wall-pipes.png, wall-white.png, wall-biolab.png
+floors   = floor-deck.png, floor-platform.png, floor-concrete.png, floor-soil.png
+ceilings = ceiling-growlights.png, ceiling-pipes.png
+ambient  = 150, 215, 255, 200
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+19, 40, 28, 44, 2, 1, 0
+21, 32, 26, 39, 3, 1, 0
+3, 18, 12, 31, 2, 2, 0
+19, 4, 28, 9, 2, 1, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+21.12, 34.5, 2.5, 210, 230, 235, 255, 0
+21.12, 36.5, 2.5, 210, 60, 220, 255, 1
+21.12, 38.5, 2.5, 210, 255, 60, 220, 2
+26.88, 34.5, 2.5, 210, 255, 40, 40, 3
+26.88, 36.5, 2.5, 210, 255, 150, 60, 4
+26.88, 38.5, 2.5, 210, 90, 255, 120, 5
+23.5, 42.5, 6, 150, 255, 235, 200, 0
+18.5, 24.5, 7, 140, 160, 255, 140, 2
+24.5, 21.5, 7, 140, 160, 255, 140, 2
+24.5, 28.5, 7, 140, 160, 255, 140, 2
+30.5, 24.5, 7, 140, 160, 255, 140, 2
+7.5, 24.5, 7, 150, 90, 160, 255, 0
+3.5, 24.5, 4, 150, 255, 60, 60, 2
+39.5, 24.5, 7, 140, 200, 120, 255, 0
+23.5, 6.5, 6, 150, 230, 255, 230, 0
+23.5, 13.5, 4, 110, 200, 255, 200, 1
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+
+[lifts]
+' x0, y0, x1, y1, low, high (eighths of a wall), mode (1 up and down, 2 an elevator), speed (eighths a second)
+5, 24, 5, 24, 0, 6, 1, 3
+6, 24, 6, 24, 0, 6, 1, 5
+7, 24, 7, 24, 0, 6, 1, 4
+8, 24, 8, 24, 0, 6, 1, 6
+9, 24, 9, 24, 0, 6, 1, 3
+10, 24, 10, 24, 0, 6, 1, 5
+
+[triggers]
+' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+enter 21 37 26 39 : message THE LIGHT LAB - STEADY, FLICKER, PULSE / STROBE, FIRE, DYING
+
+[monsters]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+19, 4, 4, 0, 100, 100, 1
+28, 4, 4, 0, 100, 100, 1
+22, 19, 14, 16, 100, 100, 0
+26, 19, 14, 16, 100, 100, 0
+16, 22, 2, 0, 100, 100, 1
+40, 24, 14, 0, 200, 100, 2
+31, 27, 2, 0, 100, 100, 1
+43, 29, 3, 0, 100, 100, 1
+
+[faces]
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+14, 18, F, 2, floor-white.png, floor-soil.png
+15, 18, F, 1, floor-soil.png, floor-white.png
+16, 18, F, 2, floor-white.png, floor-soil.png
+17, 18, F, 1, floor-soil.png, floor-white.png
+18, 18, F, 2, floor-white.png, floor-soil.png
+19, 18, F, 1, floor-soil.png, floor-white.png
+20, 18, F, 2, floor-white.png, floor-soil.png
+21, 18, F, 1, floor-soil.png, floor-white.png
+22, 18, F, 2, floor-white.png, floor-soil.png
+23, 18, F, 1, floor-soil.png, floor-white.png
+24, 18, F, 2, floor-white.png, floor-soil.png
+25, 18, F, 1, floor-soil.png, floor-white.png
+26, 18, F, 2, floor-white.png, floor-soil.png
+27, 18, F, 1, floor-soil.png, floor-white.png
+28, 18, F, 2, floor-white.png, floor-soil.png
+29, 18, F, 1, floor-soil.png, floor-white.png
+30, 18, F, 2, floor-white.png, floor-soil.png
+31, 18, F, 1, floor-soil.png, floor-white.png
+32, 18, F, 2, floor-white.png, floor-soil.png
+33, 18, F, 1, floor-soil.png, floor-white.png
+35, 18, F, 0, floor-soil.png
+36, 18, F, 0, floor-soil.png
+37, 18, F, 0, floor-soil.png
+38, 18, F, 0, floor-soil.png
+39, 18, F, 0, floor-soil.png
+40, 18, F, 0, floor-soil.png
+41, 18, F, 0, floor-soil.png
+42, 18, F, 0, floor-soil.png
+43, 18, F, 0, floor-soil.png
+44, 18, F, 0, floor-soil.png
+14, 19, F, 1, floor-soil.png, floor-white.png
+15, 19, F, 2, floor-white.png, floor-soil.png
+16, 19, F, 1, floor-soil.png, floor-white.png
+17, 19, F, 2, floor-white.png, floor-soil.png
+18, 19, F, 1, floor-soil.png, floor-white.png
+19, 19, F, 2, floor-white.png, floor-soil.png
+20, 19, F, 1, floor-soil.png, floor-white.png
+21, 19, F, 2, floor-white.png, floor-soil.png
+22, 19, F, 1, floor-soil.png, floor-white.png
+23, 19, F, 2, floor-white.png, floor-soil.png
+24, 19, F, 1, floor-soil.png, floor-white.png
+25, 19, F, 2, floor-white.png, floor-soil.png
+26, 19, F, 1, floor-soil.png, floor-white.png
+27, 19, F, 2, floor-white.png, floor-soil.png
+28, 19, F, 1, floor-soil.png, floor-white.png
+29, 19, F, 2, floor-white.png, floor-soil.png
+30, 19, F, 1, floor-soil.png, floor-white.png
+31, 19, F, 2, floor-white.png, floor-soil.png
+32, 19, F, 1, floor-soil.png, floor-white.png
+33, 19, F, 2, floor-white.png, floor-soil.png
+35, 19, F, 0, floor-soil.png
+36, 19, F, 0, floor-soil.png
+37, 19, F, 0, floor-soil.png
+38, 19, F, 0, floor-soil.png
+39, 19, F, 0, floor-soil.png
+40, 19, F, 0, floor-soil.png
+41, 19, F, 0, floor-soil.png
+42, 19, F, 0, floor-soil.png
+43, 19, F, 0, floor-soil.png
+44, 19, F, 0, floor-soil.png
+14, 20, F, 2, floor-white.png, floor-soil.png
+15, 20, F, 1, floor-soil.png, floor-white.png
+16, 20, F, 0, floor-soil.png
+17, 20, F, 0, floor-soil.png
+18, 20, F, 0, floor-soil.png
+19, 20, F, 1, floor-soil.png, floor-white.png
+20, 20, F, 2, floor-white.png, floor-soil.png
+21, 20, F, 1, floor-soil.png, floor-white.png
+22, 20, F, 2, floor-white.png, floor-soil.png
+23, 20, F, 1, floor-soil.png, floor-white.png
+24, 20, F, 2, floor-white.png, floor-soil.png
+25, 20, F, 1, floor-soil.png, floor-white.png
+26, 20, F, 2, floor-white.png, floor-soil.png
+27, 20, F, 1, floor-soil.png, floor-white.png
+28, 20, F, 2, floor-white.png, floor-soil.png
+29, 20, F, 0, floor-soil.png
+30, 20, F, 0, floor-soil.png
+31, 20, F, 0, floor-soil.png
+32, 20, F, 2, floor-white.png, floor-soil.png
+33, 20, F, 1, floor-soil.png, floor-white.png
+35, 20, F, 0, floor-soil.png
+36, 20, F, 0, floor-soil.png
+37, 20, F, 0, floor-soil.png
+38, 20, F, 0, floor-soil.png
+39, 20, F, 0, floor-soil.png
+40, 20, F, 0, floor-soil.png
+41, 20, F, 0, floor-soil.png
+42, 20, F, 0, floor-soil.png
+43, 20, F, 0, floor-soil.png
+44, 20, F, 0, floor-soil.png
+14, 21, F, 1, floor-soil.png, floor-white.png
+15, 21, F, 2, floor-white.png, floor-soil.png
+16, 21, F, 0, floor-soil.png
+17, 21, F, 0, floor-soil.png
+18, 21, F, 0, floor-soil.png
+19, 21, F, 2, floor-white.png, floor-soil.png
+20, 21, F, 1, floor-soil.png, floor-white.png
+21, 21, F, 2, floor-white.png, floor-soil.png
+22, 21, F, 1, floor-soil.png, floor-white.png
+23, 21, F, 2, floor-white.png, floor-soil.png
+24, 21, F, 1, floor-soil.png, floor-white.png
+25, 21, F, 2, floor-white.png, floor-soil.png
+26, 21, F, 1, floor-soil.png, floor-white.png
+27, 21, F, 2, floor-white.png, floor-soil.png
+28, 21, F, 1, floor-soil.png, floor-white.png
+29, 21, F, 0, floor-soil.png
+30, 21, F, 0, floor-soil.png
+31, 21, F, 0, floor-soil.png
+32, 21, F, 1, floor-soil.png, floor-white.png
+33, 21, F, 2, floor-white.png, floor-soil.png
+35, 21, F, 0, floor-soil.png
+36, 21, F, 0, floor-soil.png
+37, 21, F, 0, floor-soil.png
+38, 21, F, 0, floor-soil.png
+39, 21, F, 0, floor-soil.png
+40, 21, F, 0, floor-soil.png
+41, 21, F, 0, floor-soil.png
+42, 21, F, 0, floor-soil.png
+43, 21, F, 0, floor-soil.png
+44, 21, F, 0, floor-soil.png
+14, 22, F, 2, floor-white.png, floor-soil.png
+15, 22, F, 1, floor-soil.png, floor-white.png
+16, 22, F, 0, floor-soil.png
+17, 22, F, 0, floor-soil.png
+18, 22, F, 0, floor-soil.png
+19, 22, F, 1, floor-soil.png, floor-white.png
+20, 22, F, 2, floor-white.png, floor-soil.png
+21, 22, F, 1, floor-soil.png, floor-white.png
+22, 22, F, 2, floor-white.png, floor-soil.png
+23, 22, F, 1, floor-soil.png, floor-white.png
+24, 22, F, 2, floor-white.png, floor-soil.png
+25, 22, F, 1, floor-soil.png, floor-white.png
+26, 22, F, 2, floor-white.png, floor-soil.png
+27, 22, F, 1, floor-soil.png, floor-white.png
+28, 22, F, 2, floor-white.png, floor-soil.png
+29, 22, F, 0, floor-soil.png
+30, 22, F, 0, floor-soil.png
+31, 22, F, 0, floor-soil.png
+32, 22, F, 2, floor-white.png, floor-soil.png
+33, 22, F, 1, floor-soil.png, floor-white.png
+35, 22, F, 0, floor-soil.png
+36, 22, F, 0, floor-soil.png
+37, 22, F, 0, floor-soil.png
+38, 22, F, 0, floor-soil.png
+39, 22, F, 0, floor-soil.png
+40, 22, F, 0, floor-soil.png
+41, 22, F, 0, floor-soil.png
+42, 22, F, 0, floor-soil.png
+43, 22, F, 0, floor-soil.png
+44, 22, F, 0, floor-soil.png
+14, 23, F, 1, floor-soil.png, floor-white.png
+15, 23, F, 2, floor-white.png, floor-soil.png
+16, 23, F, 1, floor-soil.png, floor-white.png
+17, 23, F, 2, floor-white.png, floor-soil.png
+18, 23, F, 1, floor-soil.png, floor-white.png
+19, 23, F, 2, floor-white.png, floor-soil.png
+20, 23, F, 1, floor-soil.png, floor-white.png
+21, 23, F, 2, floor-white.png, floor-soil.png
+22, 23, F, 1, floor-soil.png, floor-white.png
+23, 23, F, 2, floor-white.png, floor-soil.png
+24, 23, F, 1, floor-soil.png, floor-white.png
+25, 23, F, 2, floor-white.png, floor-soil.png
+26, 23, F, 1, floor-soil.png, floor-white.png
+27, 23, F, 2, floor-white.png, floor-soil.png
+28, 23, F, 1, floor-soil.png, floor-white.png
+29, 23, F, 2, floor-white.png, floor-soil.png
+30, 23, F, 1, floor-soil.png, floor-white.png
+31, 23, F, 2, floor-white.png, floor-soil.png
+32, 23, F, 1, floor-soil.png, floor-white.png
+33, 23, F, 2, floor-white.png, floor-soil.png
+35, 23, F, 0, floor-soil.png
+36, 23, F, 0, floor-soil.png
+37, 23, F, 0, floor-soil.png
+38, 23, F, 0, floor-soil.png
+39, 23, F, 0, floor-soil.png
+40, 23, F, 0, floor-soil.png
+41, 23, F, 0, floor-soil.png
+42, 23, F, 0, floor-soil.png
+43, 23, F, 0, floor-soil.png
+44, 23, F, 0, floor-soil.png
+14, 24, F, 2, floor-white.png, floor-soil.png
+15, 24, F, 1, floor-soil.png, floor-white.png
+16, 24, F, 2, floor-white.png, floor-soil.png
+17, 24, F, 1, floor-soil.png, floor-white.png
+18, 24, F, 2, floor-white.png, floor-soil.png
+19, 24, F, 1, floor-soil.png, floor-white.png
+20, 24, F, 2, floor-white.png, floor-soil.png
+21, 24, F, 1, floor-soil.png, floor-white.png
+22, 24, F, 2, floor-white.png, floor-soil.png
+23, 24, F, 1, floor-soil.png, floor-white.png
+24, 24, F, 2, floor-white.png, floor-soil.png
+25, 24, F, 1, floor-soil.png, floor-white.png
+26, 24, F, 2, floor-white.png, floor-soil.png
+27, 24, F, 1, floor-soil.png, floor-white.png
+28, 24, F, 2, floor-white.png, floor-soil.png
+29, 24, F, 1, floor-soil.png, floor-white.png
+30, 24, F, 2, floor-white.png, floor-soil.png
+31, 24, F, 1, floor-soil.png, floor-white.png
+32, 24, F, 2, floor-white.png, floor-soil.png
+33, 24, F, 1, floor-soil.png, floor-white.png
+35, 24, F, 0, floor-soil.png
+36, 24, F, 0, floor-soil.png
+37, 24, F, 0, floor-soil.png
+38, 24, F, 0, floor-soil.png
+39, 24, F, 0, floor-soil.png
+40, 24, F, 0, floor-soil.png
+41, 24, F, 0, floor-soil.png
+42, 24, F, 0, floor-soil.png
+43, 24, F, 0, floor-soil.png
+44, 24, F, 0, floor-soil.png
+14, 25, F, 1, floor-soil.png, floor-white.png
+15, 25, F, 2, floor-white.png, floor-soil.png
+16, 25, F, 1, floor-soil.png, floor-white.png
+17, 25, F, 2, floor-white.png, floor-soil.png
+18, 25, F, 1, floor-soil.png, floor-white.png
+19, 25, F, 2, floor-white.png, floor-soil.png
+20, 25, F, 1, floor-soil.png, floor-white.png
+21, 25, F, 2, floor-white.png, floor-soil.png
+22, 25, F, 1, floor-soil.png, floor-white.png
+23, 25, F, 2, floor-white.png, floor-soil.png
+24, 25, F, 1, floor-soil.png, floor-white.png
+25, 25, F, 2, floor-white.png, floor-soil.png
+26, 25, F, 1, floor-soil.png, floor-white.png
+27, 25, F, 2, floor-white.png, floor-soil.png
+28, 25, F, 1, floor-soil.png, floor-white.png
+29, 25, F, 2, floor-white.png, floor-soil.png
+30, 25, F, 1, floor-soil.png, floor-white.png
+31, 25, F, 2, floor-white.png, floor-soil.png
+32, 25, F, 1, floor-soil.png, floor-white.png
+33, 25, F, 2, floor-white.png, floor-soil.png
+35, 25, F, 0, floor-soil.png
+36, 25, F, 0, floor-soil.png
+37, 25, F, 0, floor-soil.png
+38, 25, F, 0, floor-soil.png
+39, 25, F, 0, floor-soil.png
+40, 25, F, 0, floor-soil.png
+41, 25, F, 0, floor-soil.png
+42, 25, F, 0, floor-soil.png
+43, 25, F, 0, floor-soil.png
+44, 25, F, 0, floor-soil.png
+14, 26, F, 2, floor-white.png, floor-soil.png
+15, 26, F, 1, floor-soil.png, floor-white.png
+16, 26, F, 2, floor-white.png, floor-soil.png
+17, 26, F, 1, floor-soil.png, floor-white.png
+18, 26, F, 2, floor-white.png, floor-soil.png
+19, 26, F, 1, floor-soil.png, floor-white.png
+20, 26, F, 2, floor-white.png, floor-soil.png
+21, 26, F, 1, floor-soil.png, floor-white.png
+22, 26, F, 2, floor-white.png, floor-soil.png
+23, 26, F, 1, floor-soil.png, floor-white.png
+24, 26, F, 2, floor-white.png, floor-soil.png
+25, 26, F, 1, floor-soil.png, floor-white.png
+26, 26, F, 2, floor-white.png, floor-soil.png
+27, 26, F, 1, floor-soil.png, floor-white.png
+28, 26, F, 2, floor-white.png, floor-soil.png
+29, 26, F, 1, floor-soil.png, floor-white.png
+30, 26, F, 2, floor-white.png, floor-soil.png
+31, 26, F, 1, floor-soil.png, floor-white.png
+32, 26, F, 2, floor-white.png, floor-soil.png
+33, 26, F, 1, floor-soil.png, floor-white.png
+35, 26, F, 0, floor-soil.png
+36, 26, F, 0, floor-soil.png
+37, 26, F, 0, floor-soil.png
+38, 26, F, 0, floor-soil.png
+39, 26, F, 0, floor-soil.png
+40, 26, F, 0, floor-soil.png
+41, 26, F, 0, floor-soil.png
+42, 26, F, 0, floor-soil.png
+43, 26, F, 0, floor-soil.png
+44, 26, F, 0, floor-soil.png
+14, 27, F, 1, floor-soil.png, floor-white.png
+15, 27, F, 2, floor-white.png, floor-soil.png
+16, 27, F, 0, floor-soil.png
+17, 27, F, 0, floor-soil.png
+18, 27, F, 0, floor-soil.png
+19, 27, F, 2, floor-white.png, floor-soil.png
+20, 27, F, 1, floor-soil.png, floor-white.png
+21, 27, F, 2, floor-white.png, floor-soil.png
+22, 27, F, 1, floor-soil.png, floor-white.png
+23, 27, F, 2, floor-white.png, floor-soil.png
+24, 27, F, 1, floor-soil.png, floor-white.png
+25, 27, F, 2, floor-white.png, floor-soil.png
+26, 27, F, 1, floor-soil.png, floor-white.png
+27, 27, F, 2, floor-white.png, floor-soil.png
+28, 27, F, 1, floor-soil.png, floor-white.png
+29, 27, F, 0, floor-soil.png
+30, 27, F, 0, floor-soil.png
+31, 27, F, 0, floor-soil.png
+32, 27, F, 1, floor-soil.png, floor-white.png
+33, 27, F, 2, floor-white.png, floor-soil.png
+35, 27, F, 0, floor-soil.png
+36, 27, F, 0, floor-soil.png
+37, 27, F, 0, floor-soil.png
+38, 27, F, 0, floor-soil.png
+39, 27, F, 0, floor-soil.png
+40, 27, F, 0, floor-soil.png
+41, 27, F, 0, floor-soil.png
+42, 27, F, 0, floor-soil.png
+43, 27, F, 0, floor-soil.png
+44, 27, F, 0, floor-soil.png
+14, 28, F, 2, floor-white.png, floor-soil.png
+15, 28, F, 1, floor-soil.png, floor-white.png
+16, 28, F, 0, floor-soil.png
+17, 28, F, 0, floor-soil.png
+18, 28, F, 0, floor-soil.png
+19, 28, F, 1, floor-soil.png, floor-white.png
+20, 28, F, 2, floor-white.png, floor-soil.png
+21, 28, F, 1, floor-soil.png, floor-white.png
+22, 28, F, 2, floor-white.png, floor-soil.png
+23, 28, F, 1, floor-soil.png, floor-white.png
+24, 28, F, 2, floor-white.png, floor-soil.png
+25, 28, F, 1, floor-soil.png, floor-white.png
+26, 28, F, 2, floor-white.png, floor-soil.png
+27, 28, F, 1, floor-soil.png, floor-white.png
+28, 28, F, 2, floor-white.png, floor-soil.png
+29, 28, F, 0, floor-soil.png
+30, 28, F, 0, floor-soil.png
+31, 28, F, 0, floor-soil.png
+32, 28, F, 2, floor-white.png, floor-soil.png
+33, 28, F, 1, floor-soil.png, floor-white.png
+35, 28, F, 0, floor-soil.png
+36, 28, F, 0, floor-soil.png
+37, 28, F, 0, floor-soil.png
+38, 28, F, 0, floor-soil.png
+39, 28, F, 0, floor-soil.png
+40, 28, F, 0, floor-soil.png
+41, 28, F, 0, floor-soil.png
+42, 28, F, 0, floor-soil.png
+43, 28, F, 0, floor-soil.png
+44, 28, F, 0, floor-soil.png
+14, 29, F, 1, floor-soil.png, floor-white.png
+15, 29, F, 2, floor-white.png, floor-soil.png
+16, 29, F, 0, floor-soil.png
+17, 29, F, 0, floor-soil.png
+18, 29, F, 0, floor-soil.png
+19, 29, F, 2, floor-white.png, floor-soil.png
+20, 29, F, 1, floor-soil.png, floor-white.png
+21, 29, F, 2, floor-white.png, floor-soil.png
+22, 29, F, 1, floor-soil.png, floor-white.png
+23, 29, F, 2, floor-white.png, floor-soil.png
+24, 29, F, 1, floor-soil.png, floor-white.png
+25, 29, F, 2, floor-white.png, floor-soil.png
+26, 29, F, 1, floor-soil.png, floor-white.png
+27, 29, F, 2, floor-white.png, floor-soil.png
+28, 29, F, 1, floor-soil.png, floor-white.png
+29, 29, F, 0, floor-soil.png
+30, 29, F, 0, floor-soil.png
+31, 29, F, 0, floor-soil.png
+32, 29, F, 1, floor-soil.png, floor-white.png
+33, 29, F, 2, floor-white.png, floor-soil.png
+35, 29, F, 0, floor-soil.png
+36, 29, F, 0, floor-soil.png
+37, 29, F, 0, floor-soil.png
+38, 29, F, 0, floor-soil.png
+39, 29, F, 0, floor-soil.png
+40, 29, F, 0, floor-soil.png
+41, 29, F, 0, floor-soil.png
+42, 29, F, 0, floor-soil.png
+43, 29, F, 0, floor-soil.png
+44, 29, F, 0, floor-soil.png
+14, 30, F, 2, floor-white.png, floor-soil.png
+15, 30, F, 1, floor-soil.png, floor-white.png
+16, 30, F, 2, floor-white.png, floor-soil.png
+17, 30, F, 1, floor-soil.png, floor-white.png
+18, 30, F, 2, floor-white.png, floor-soil.png
+19, 30, F, 1, floor-soil.png, floor-white.png
+20, 30, F, 2, floor-white.png, floor-soil.png
+21, 30, F, 1, floor-soil.png, floor-white.png
+22, 30, F, 2, floor-white.png, floor-soil.png
+23, 30, F, 1, floor-soil.png, floor-white.png
+24, 30, F, 2, floor-white.png, floor-soil.png
+25, 30, F, 1, floor-soil.png, floor-white.png
+26, 30, F, 2, floor-white.png, floor-soil.png
+27, 30, F, 1, floor-soil.png, floor-white.png
+28, 30, F, 2, floor-white.png, floor-soil.png
+29, 30, F, 1, floor-soil.png, floor-white.png
+30, 30, F, 2, floor-white.png, floor-soil.png
+31, 30, F, 1, floor-soil.png, floor-white.png
+32, 30, F, 2, floor-white.png, floor-soil.png
+33, 30, F, 1, floor-soil.png, floor-white.png
+35, 30, F, 0, floor-soil.png
+36, 30, F, 0, floor-soil.png
+37, 30, F, 0, floor-soil.png
+38, 30, F, 0, floor-soil.png
+39, 30, F, 0, floor-soil.png
+40, 30, F, 0, floor-soil.png
+41, 30, F, 0, floor-soil.png
+42, 30, F, 0, floor-soil.png
+43, 30, F, 0, floor-soil.png
+44, 30, F, 0, floor-soil.png
+14, 31, F, 1, floor-soil.png, floor-white.png
+15, 31, F, 2, floor-white.png, floor-soil.png
+16, 31, F, 1, floor-soil.png, floor-white.png
+17, 31, F, 2, floor-white.png, floor-soil.png
+18, 31, F, 1, floor-soil.png, floor-white.png
+19, 31, F, 2, floor-white.png, floor-soil.png
+20, 31, F, 1, floor-soil.png, floor-white.png
+21, 31, F, 2, floor-white.png, floor-soil.png
+22, 31, F, 1, floor-soil.png, floor-white.png
+23, 31, F, 2, floor-white.png, floor-soil.png
+24, 31, F, 1, floor-soil.png, floor-white.png
+25, 31, F, 2, floor-white.png, floor-soil.png
+26, 31, F, 1, floor-soil.png, floor-white.png
+27, 31, F, 2, floor-white.png, floor-soil.png
+28, 31, F, 1, floor-soil.png, floor-white.png
+29, 31, F, 2, floor-white.png, floor-soil.png
+30, 31, F, 1, floor-soil.png, floor-white.png
+31, 31, F, 2, floor-white.png, floor-soil.png
+32, 31, F, 1, floor-soil.png, floor-white.png
+33, 31, F, 2, floor-white.png, floor-soil.png
+35, 31, F, 0, floor-soil.png
+36, 31, F, 0, floor-soil.png
+37, 31, F, 0, floor-soil.png
+38, 31, F, 0, floor-soil.png
+39, 31, F, 0, floor-soil.png
+40, 31, F, 0, floor-soil.png
+41, 31, F, 0, floor-soil.png
+42, 31, F, 0, floor-soil.png
+43, 31, F, 0, floor-soil.png
+44, 31, F, 0, floor-soil.png
+20, 34, E, 0, wall-white.png
+27, 34, W, 0, wall-white.png
+20, 36, E, 0, wall-white.png
+27, 36, W, 0, wall-white.png
+20, 38, E, 0, wall-white.png
+27, 38, W, 0, wall-white.png
+
+[map]
+################################################
+################################################
+################################################
+########################E#######################
+###################w........w###################
+###################..........###################
+###################..........###################
+###################..........###################
+###################..........###################
+###################.*......a.###################
+#######################.########################
+#######################.########################
+#######################.########################
+#######################.########################
+#######################.########################
+#######################.########################
+#######################.########################
+#######################B########################
+###..........#....................#..........###
+###..........#........w...w.......#..........###
+###........m.#....................=..p.....b.###
+###..........#...p............p...=......p...###
+###..........#..c.................=..........###
+###..........#....................=..........###
+###r................e......M......#.....h....###
+###....................WW.........R.........I###
+###..........#....................#..........###
+###..........#.................c..=.......p..###
+###..........#...p............p...=.p........###
+###.+......m.#....................=........c.###
+###..........#....................#...p......###
+###..........#....................#..........###
+#####################......#####################
+#####################......#####################
+#####################......#####################
+#####################......#####################
+#####################......#####################
+#####################......#####################
+#####################......#####################
+#####################......#####################
+###################..........###################
+###################p........p###################
+###################..........###################
+###################....^.....###################
+###################.+......a.###################
+################################################
+################################################
+################################################
+
+[floor]
+' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+.....HHHHHH.....................................
+.....HHHHHH.....222..........222................
+.....HHHHHH.....222..........222................
+.....HHHHHH.....222..........222................
+.....HHHHHH.....................................
+................................................
+.....HHHHHH.....................................
+.....HHHHHH.....................................
+.....HHHHHH.....222..........222................
+.....HHHHHH.....222..........222................
+.....HHHHHH.....222..........222................
+.....HHHHHH.....................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+
+[ceiling]
+' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+...gggggggggg.gggggggggggggggggggg.gggggggggg...
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................

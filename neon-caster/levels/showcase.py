@@ -1,5 +1,5 @@
-"""Showcase sectors for the level editor: YOUR SECTORS 11-13
-(custom/custom1..3.txt here). Each uses the editor's level-file sections -
+"""Showcase sectors for the level editor: YOUR SECTORS 11-14
+(custom/custom1..4.txt here). Each uses the editor's level-file sections -
 [faces] (pictures on single faces, divided ones), lights on faces (they
 tint their face), [pads] (teleporters linked by hand), [monsters] (a
 monster's own sight, hearing, health, speed, waking) - on top of the
@@ -7,7 +7,7 @@ usual. Built with the level kit, and checked by it.
 
     python3 showcase.py [OUTDIR]     (OUTDIR: custom/ unless you say)
 
-This writes over custom1-3.txt: once you've changed one of them in the
+This writes over custom1-4.txt: once you've changed one of them in the
 game's editor, don't run it again (or give it another OUTDIR).
 """
 import os, sys
@@ -376,6 +376,92 @@ def relay():
         ["ceiling-tunnel.png", "ceiling-cables.png"], relay.__doc__
 
 
+# ---------------------------------------------------------------- 14
+def conservatory():
+    """SECTOR 14: THE CONSERVATORY. A glasshouse gone wild. Its courtyard
+    floor is woven - every cell divided, soil against white stone, one way then
+    the other ([faces], divided). The pond has no bottom: cross it on the
+    stepping lifts, rising and falling each at its own pace, for the red
+    card. Through the glass wall the specimen garden sleeps - the heavy in
+    it wakes only if you hit it - and the blue card is in there, behind the
+    red door. The corridor from the gate is the light lab: the six ways a
+    light can go, side by side, each on its own wall. Crawlers hide in the
+    planters; spitters in the courtyard hear every shot."""
+    m = Show("#")
+    m.ambient = (150, 215, 255, 200)
+    # The gate (south), and the light lab up to the courtyard
+    m.rect(19, 40, 28, 44); m.put(23, 43, "^")
+    m.put(20, 44, "+"); m.put(27, 44, "a"); m.put(19, 41, "p"); m.put(28, 41, "p")
+    m.rect(21, 32, 26, 39)
+    lab = [(20, 34, "E", (230, 235, 255), 0), (20, 36, "E", (60, 220, 255), 1), (20, 38, "E", (255, 60, 220), 2),
+           (27, 34, "W", (255, 40, 40), 3), (27, 36, "W", (255, 150, 60), 4), (27, 38, "W", (90, 255, 120), 5)]
+    for (x, y, sd, rgb, fx) in lab:
+        m.face(x, y, sd, "wall-white.png")
+        m.wall_light(x, y, sd, *rgb, fx=fx, rad=2.5, bright=210)
+    m.triggers.append("enter 21 37 26 39 : message THE LIGHT LAB - STEADY, FLICKER, PULSE / STROBE, FIRE, DYING")
+    # The courtyard: woven floor, planters, a glass roof two walls up
+    m.rect(14, 18, 33, 31)
+    m.ceiling(14, 18, 33, 31, 16)
+    for y in range(18, 32):
+        for x in range(14, 34):
+            if (x + y) % 2:
+                m.face(x, y, "F", "floor-soil.png", "floor-white.png", div=1)
+            else:
+                m.face(x, y, "F", "floor-white.png", "floor-soil.png", div=2)
+    for (x0, y0) in ((16, 20), (29, 20), (16, 27), (29, 27)):  # planters: raised beds, a step up
+        m.floor(x0, y0, x0 + 2, y0 + 2, 2)
+        for y in range(y0, y0 + 3):
+            for x in range(x0, x0 + 3):
+                m.face(x, y, "F", "floor-soil.png")
+        m.put(x0 + 1, y0 + 1, "p")
+    m.mon(16, 22, "c", sight=2, wake="near"); m.mon(31, 27, "c", sight=2, wake="near")
+    m.mon(22, 19, "w", hear=16); m.mon(26, 19, "w", hear=16)
+    m.put(23, 25, "W"); m.put(24, 25, "W"); m.put(20, 24, "e"); m.put(27, 24, "M")
+    # The pond (west): no bottom - six lifts to step across, each at its own pace
+    m.rect(3, 18, 12, 31)
+    m.ceiling(3, 18, 12, 31, 16)
+    m.rect(13, 24, 13, 25)
+    m.floor(5, 19, 10, 30, -8)
+    for i, x in enumerate(range(5, 11)):
+        m.lift(x, 24, x, 24, 0, 6, mode=1, speed=(3, 5, 4, 6, 3, 5)[i])
+    m.put(3, 24, "r"); m.put(4, 29, "+")
+    m.mon(11, 20, "m"); m.mon(11, 29, "m")
+    # The specimen garden (east), seen through the glass - in by the red door
+    m.rect(35, 18, 44, 31)
+    m.ceiling(35, 18, 44, 31, 16)
+    for y in list(range(20, 24)) + list(range(27, 30)):
+        m.put(34, y, "=")
+    m.put(34, 25, "R")
+    m.floor_pic(35, 18, 44, 31, "floor-soil.png")
+    m.mon(40, 24, "h", wake="hit", health=200)
+    m.put(43, 20, "b"); m.mon(43, 29, "c", sight=3, wake="near")
+    for (x, y) in ((37, 20), (41, 21), (36, 28), (42, 27), (38, 30)):
+        m.put(x, y, "p")
+    m.put(44, 25, "I")
+    # North: the blue door, and the exit
+    m.put(23, 17, "B"); m.rect(23, 10, 23, 16)
+    m.rect(19, 4, 28, 9); m.put(24, 3, "E")
+    m.mon(19, 4, "w", sight=4, wake="near"); m.mon(28, 4, "w", sight=4, wake="near")
+    m.put(20, 9, "*"); m.put(27, 9, "a")
+    # Light
+    m.light(23.5, 42.5, 6, 150, 255, 235, 200, 0)
+    for (x, y) in ((18, 24), (24, 21), (24, 28), (30, 24)):
+        m.light(x + 0.5, y + 0.5, 7, 140, 160, 255, 140, 2)
+    m.light(7.5, 24.5, 7, 150, 90, 160, 255, 0)
+    m.light(3.5, 24.5, 4, 150, 255, 60, 60, 2)
+    m.light(39.5, 24.5, 7, 140, 200, 120, 255, 0)
+    m.light(23.5, 6.5, 6, 150, 230, 255, 230, 0)
+    m.light(23.5, 13.5, 4, 110, 200, 255, 200, 1)
+    m.zone(19, 40, 28, 44, 2, 1)
+    m.zone(21, 32, 26, 39, 3, 1)
+    m.zone(3, 18, 12, 31, 2, 2)
+    m.zone(19, 4, 28, 9, 2, 1)
+    return m, "custom4", "SECTOR 14: THE CONSERVATORY", \
+        ["wall-greenhouse.png", "wall-vines.png", "wall-moss.png", "wall-pipes.png", "wall-white.png", "wall-biolab.png"], \
+        ["floor-deck.png", "floor-platform.png", "floor-concrete.png", "floor-soil.png"], \
+        ["ceiling-growlights.png", "ceiling-pipes.png"], conservatory.__doc__
+
+
 def build(fn, outdir):
     m, label, name, walls, floors, ceils, doc = fn()
     lv = m.level(label, name, walls, floors, ceils)
@@ -400,7 +486,7 @@ if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "custom")
     os.makedirs(out, exist_ok=True)
     good = True
-    for fn in (gallery, depot, relay):
+    for fn in (gallery, depot, relay, conservatory):
         print(fn.__name__)
         good = build(fn, out) and good
     print("ALL GOOD" if good else "PROBLEMS")
