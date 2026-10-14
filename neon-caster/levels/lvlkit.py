@@ -452,6 +452,12 @@ def level_text(lv, comment=()):
         out.append("[triggers]")
         out.append("' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...")
         out += list(lv["triggers"])
+    if lv.get("monsters"):  # monsters' own settings, from the editor's monster pane
+        out.append("")
+        out.append("[monsters]")
+        out.append("' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)")
+        for r in lv["monsters"]:
+            out.append(", ".join(_num(v) for v in r))
     if lv.get("pads"):  # teleporters paired by hand in the editor
         out.append("")
         out.append("[pads]")
@@ -495,7 +501,7 @@ def write_level_file(path, lv, comment=()):
 def read_level_file(path, label=None):
     """A level file as the dict check_level and level_text use."""
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
-              ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[])
+              ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[])
     sec = None
     for line in open(path).read().split("\n"):
         t = line.strip()
@@ -520,7 +526,7 @@ def read_level_file(path, label=None):
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals
             elif k == "ambient": lv["ambient"] = tuple(int(float(x)) for x in vals)
-        elif sec in ("zones", "events", "lifts", "pads"):
+        elif sec in ("zones", "events", "lifts", "pads", "monsters"):
             lv[sec].append(tuple(int(float(x)) for x in t.split(",")))
         elif sec == "lights":
             lv[sec].append(tuple(float(x) for x in t.split(",")))

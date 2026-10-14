@@ -401,6 +401,13 @@ CONST MT_THIEF = 9 ' (the thief bot: steals, then runs - ThiefStep, chapter 13)
 CONST DK_CHAIR = 20, DK_BODY = 21 ' (a body doesn't block the way, and can't be broken)
 CONST DECO_KINDS = 21, ITEM_KINDS = 15 ' (kinds of decoration and of pickup - see chapter 3)
 CONST MON_SIGHT = 14
+' Each monster's own (the level's [monsters] - the editor's monster pane -
+' else as every monster is): how far it sees you, how far it hears your
+' shots (0: not at all), how fast (times its kind's speed), and what wakes
+' it - WAKE_SEE seeing you, WAKE_NEAR you coming within its sight (round a
+' corner too: an ambush), WAKE_HIT only being hit, WAKE_HUNT nothing: it's
+' hunting from the start
+CONST WAKE_SEE = 0, WAKE_NEAR = 1, WAKE_HIT = 2, WAKE_HUNT = 3
 CONST MON_DYING = 24
 CONST MON_STRIDE = 0.12 ' How far a monster walks per frame of its walk
 DIM SHARED monsterX(MAX_MON) AS SINGLE, monsterY(MAX_MON) AS SINGLE, monsterType(MAX_MON) AS INTEGER
@@ -409,6 +416,7 @@ DIM SHARED monsterTimer(MAX_MON) AS INTEGER, monsterHurt(MAX_MON) AS INTEGER
 ' ...where each one is in its animation (frames of it, as a decimal: chapter
 ' 13 moves it on as the monster moves), and frames left of its attack pose
 DIM SHARED monsterAnim(MAX_MON) AS SINGLE, monsterAtk(MAX_MON) AS INTEGER
+DIM SHARED monSight(MAX_MON), monHear(MAX_MON), monSpd(MAX_MON), monWake(MAX_MON) AS INTEGER
 DIM SHARED monsterEv(MAX_MON) AS INTEGER ' (the event room that sent it, 0 for none - chapter 3)
 ' ...and what a thief bot has stolen: cells, shells and a gun (0 none);
 ' thiefState 0 coming for you, 1 running home empty-handed, 2 running home
@@ -1229,6 +1237,9 @@ CONST MAX_FACES = 4000
 ' [pads]: teleporters paired by hand (the editor's LINK) - x1, y1, x2, y2.
 ' Pads in no pair here pair up as ever, in reading order.
 DIM SHARED lvlNumPairs AS INTEGER, lvlPair(16, 4) AS INTEGER
+' [monsters]: one monster's own settings, by the cell it starts in - x, y,
+' sight, hearing (cells), health, speed (% of its kind's), wake (WAKE_)
+DIM SHARED lvlMonN AS INTEGER, lvlMon(MAX_MON, 7) AS SINGLE
 DIM SHARED lvlNumFaces AS INTEGER, lvlFaceX(MAX_FACES) AS INTEGER, lvlFaceY(MAX_FACES) AS INTEGER, lvlFaceS(MAX_FACES) AS INTEGER, lvlFaceD(MAX_FACES) AS INTEGER
 DIM SHARED lvlFaceP1$(MAX_FACES), lvlFaceP2$(MAX_FACES)
 DIM SHARED faceAny AS INTEGER ' (any face with a slot of its own this level: the renderers ask faceTex only then)
@@ -1283,6 +1294,7 @@ CONST ED_MAXSEL = 256
 CONST ET_SELECT = 1, ET_PLACE = 2, ET_PAINT = 3, ET_LIGHT = 4, ET_HEIGHT = 5
 DIM SHARED edHovKind AS INTEGER, edHovX AS INTEGER, edHovY AS INTEGER, edHovSide AS INTEGER, edHovPart AS INTEGER
 DIM SHARED edHovPX, edHovPY, edHovPZ ' (exactly where the cursor's ray met it)
+DIM SHARED edHovThing AS INTEGER ' (the pointer's on a thing standing in a cell - a monster, a pickup... - not a face: EditPickThing)
 DIM SHARED edSelN AS INTEGER, edSelKind(ED_MAXSEL) AS INTEGER, edSelX(ED_MAXSEL) AS INTEGER, edSelY(ED_MAXSEL) AS INTEGER
 DIM SHARED edSelSide(ED_MAXSEL) AS INTEGER, edSelPart(ED_MAXSEL) AS INTEGER
 DIM SHARED edTool AS INTEGER, edGrid AS INTEGER, edGridAlpha AS INTEGER, edPickTab AS INTEGER, edPickScroll AS INTEGER
@@ -1943,6 +1955,11 @@ DO
         IF ammoCount(ammoType) >= gunAmmoPerShot(currentGun) THEN
             ammoCount(ammoType) = ammoCount(ammoType) - gunAmmoPerShot(currentGun) : fireWait = gunDelay(currentGun) : recoil = gunKick(currentGun) : muzzleFlash = 4
             PlaySfx gunSnd&(currentGun), 0.7
+            FOR j = 1 TO numMonsters ' (heard: a monster that hears this far wakes - [monsters])
+                IF monsterState(j) = 0 AND monHear(j) > 0 AND monWake(j) <> WAKE_HIT THEN
+                    IF (monsterX(j) - playerX) ^ 2 + (monsterY(j) - playerY) ^ 2 < monHear(j) * monHear(j) THEN monsterState(j) = 1 : monsterTimer(j) = 30 : SfxAt mtypeAlertSnd&(monsterType(j)), monsterX(j), monsterY(j), playerX, playerY
+                END IF
+            NEXT
             StirDust playerX, playerY, dirX, dirY, 5, 0.02 * gunKick(currentGun) ' (the shot's wind blows the dust along - chapter 24)
             hitDamage = gunDamage(currentGun) : IF gunPierce(currentGun) THEN railBeam = 8
             IF ampTimer > 0 THEN hitDamage = hitDamage * 2 ' (the damage amp: double)
@@ -2129,9 +2146,9 @@ DO
                 IF RND < 0.002 AND chatterWait = 0 THEN
                     IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < SFX_CHATTER * SFX_CHATTER THEN SfxAtRange mtypeIdleSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY, SFX_CHATTER : chatterWait = 30
                 END IF
-                IF NOT dead THEN
-                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2 < MON_SIGHT * MON_SIGHT THEN
-                        IF CanSee(monsterX(i), monsterY(i), playerX, playerY) THEN
+                IF NOT dead AND monWake(i) <> WAKE_HIT THEN ' (asleep till it's hit: nothing else wakes it)
+                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2 < monSight(i) * monSight(i) THEN
+                        IF monWake(i) = WAKE_NEAR OR CanSee(monsterX(i), monsterY(i), playerX, playerY) THEN ' (an ambush: you near enough, seen or not)
                             monsterState(i) = 1 : monsterTimer(i) = 30
                             SfxAt mtypeAlertSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
                             IF mtype = 8 THEN Say "boss", 0 ' (the overseer: NEXUS speaks through it)
@@ -2183,7 +2200,7 @@ DO
                     END IF
                     walkZ = floorH(INT(monsterX(i)), INT(monsterY(i))) ' (it steps up, and falls off, as you do - but only so high)
                     walkFromHaz = FloorHazard(INT(monsterX(i)), INT(monsterY(i))) + 10 ' (and keeps out of fire, unless it's in it already)
-                    IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype), goY * mtypeSpeed(mtype)
+                    IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype) * monSpd(i), goY * mtypeSpeed(mtype) * monSpd(i)
                     walkZ = -999 : walkFromHaz = 0
                 END IF
                 monsterAnim(i) = monsterAnim(i) + SQR((monsterX(i) - animX) ^ 2 + (monsterY(i) - animY) ^ 2) / MON_STRIDE
@@ -3579,6 +3596,28 @@ SELECT CASE pnHit
             END IF
         NEXT
         GOSUB EditApply : EditNote "Light taken away"
+    CASE 80 TO 94 ' A monster's own settings: every monster selected
+        GOSUB EditPushUndo
+        FOR k = 1 TO edSelN
+            mx = edSelX(k) : my = edSelY(k)
+            IF INSTR("mghcskwzT", MID$(lvlRow$(my), mx + 1, 1)) THEN
+                EditMonGet mx, my, ms, mh, mhp, msp, mw
+                SELECT CASE pnHit
+                    CASE 80 : ms = MaxOf(1, ms - 1)
+                    CASE 81 : ms = MinOf(40, ms + 1)
+                    CASE 82 : mh = MaxOf(0, mh - 1)
+                    CASE 83 : mh = MinOf(40, mh + 1)
+                    CASE 84 : mhp = MaxOf(25, mhp - 25)
+                    CASE 85 : mhp = MinOf(500, mhp + 25)
+                    CASE 86 : msp = MaxOf(25, msp - 10)
+                    CASE 87 : msp = MinOf(300, msp + 10)
+                    CASE 90 TO 93 : mw = pnHit - 90
+                    CASE 94 : ms = MON_SIGHT : mh = 0 : mhp = 100 : msp = 100 : mw = WAKE_SEE
+                END SELECT
+                EditMonPut mx, my, ms, mh, mhp, msp, mw
+            END IF
+        NEXT
+        editDirty = -1 ' (nothing to build again: the game reads them when the level starts)
     CASE 30 ' LINK: the next pad clicked is where this one goes
         edLinkPad = NOT edLinkPad : edLinkX = edPnCX : edLinkY = edPnCY
         IF edLinkPad THEN EditNote "Click the pad this one goes to (LINK again: never mind)"
@@ -3948,7 +3987,7 @@ EditFP:
 IF hudEdit THEN RETURN ' (the HUD layout editor has the mouse and keys)
 levelWas = level
 edCamPX = playerX : edCamPY = playerY : edCamDX = dirX : edCamDY = dirY : edCamPlane = fovPlane / zoom : edCamZoom = zoom
-IF edLooking THEN EditPick 400, 300 ELSE EditPick edCurX, edCurY ' (looking round: the crosshair picks)
+IF edLooking THEN EditPick 400, 300 : EditPickThing 400, 300 ELSE EditPick edCurX, edCurY : EditPickThing edCurX, edCurY ' (looking round: the crosshair picks)
 ' The picker, tucked away, opens when the pointer comes to the bottom of
 ' the screen and tucks itself away again when it goes back up to the world
 IF edPickOn = -1 THEN edPickOpen = -1
@@ -5583,6 +5622,7 @@ FOR y = 0 TO MAP_SIZE - 1
                     monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = INSTR("mghcskwzT", cell$)
                     monsterHP(numMonsters) = mtypeHP(monsterType(numMonsters)) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
                     monsterEv(numMonsters) = 0 : ThiefReset numMonsters
+                    MonOwn numMonsters, x, y ' (its own sight, hearing, health, speed, waking - [monsters])
                 END IF
             CASE "<", ">", "^", "v" ' Player start, facing the arrow's way
                 playerX = x + 0.5 : playerY = y + 0.5
@@ -6138,6 +6178,7 @@ SELECT CASE conVerb$
             monsterX(i) = monStartX(i) : monsterY(i) = monStartY(i) : monsterType(i) = monStartType(i)
             monsterHP(i) = mtypeHP(monsterType(i)) : monsterState(i) = 0 : monsterTimer(i) = 0
             monsterHurt(i) = 0 : monsterAtk(i) = 0 : monsterAnim(i) = 0 : monsterEv(i) = 0
+            MonOwn i, INT(monStartX(i)), INT(monStartY(i))
         NEXT
         kills = 0 : ConPrint "Respawned" + STR$(numMonsters) + " monsters"
     CASE "summon", "spawn" ' A monster (by number or name) in front of you
@@ -7723,6 +7764,7 @@ FUNCTION SpawnMonster(t, x, y, ev)
     numMonsters = numMonsters + 1 : i = numMonsters
     monsterX(i) = x : monsterY(i) = y : monsterType(i) = t : monsterHP(i) = mtypeHP(t)
     monsterState(i) = 1 : monsterTimer(i) = 40 : monsterHurt(i) = 0 : monsterAtk(i) = 0 : monsterAnim(i) = 0 : monsterEv(i) = ev
+    monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE
     ThiefReset i
     SpawnSparks x, y, 0.5, 16, 200, 120, 255
     SfxAt sndSpawn&, x, y, playerX, playerY
@@ -7730,6 +7772,19 @@ FUNCTION SpawnMonster(t, x, y, ev)
 END FUNCTION
 
 '' A thief bot's pockets, empty
+' Monster i, starting in cell (x, y): as every monster of its kind is - or
+' as the level's [monsters] says this one is
+SUB MonOwn(i, x, y)
+    monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE
+    FOR k = 1 TO lvlMonN
+        IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN
+            monSight(i) = lvlMon(k, 3) : monHear(i) = lvlMon(k, 4) : monSpd(i) = lvlMon(k, 6) / 100 : monWake(i) = lvlMon(k, 7)
+            monsterHP(i) = MaxOf(1, INT(mtypeHP(monsterType(i)) * lvlMon(k, 5) / 100))
+            IF monWake(i) = WAKE_HUNT THEN monsterState(i) = 1 : monsterTimer(i) = 60
+        END IF
+    NEXT
+END SUB
+
 SUB ThiefReset(i)
     thiefCells(i) = 0 : thiefShells(i) = 0 : thiefGun(i) = 0 : thiefState(i) = 0
 END SUB
@@ -7869,7 +7924,7 @@ END FUNCTION
 ' them, its numbers split by commas (SplitNums); in [map], each line is a
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
-    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlNote$ = "" : topLines = -1
+    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNote$ = "" : topLines = -1
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0
     f$ = LevelFile$(n)
@@ -7923,6 +7978,8 @@ SUB ReadLevelFile(n)
                     IF got >= 8 AND lvlNumEvents < MAX_EVENTS THEN lvlNumEvents = lvlNumEvents + 1 : FOR k = 1 TO 8 : lvlEvent(lvlNumEvents, k) = v(k) : NEXT
                 CASE "lifts"
                     IF got >= 8 AND lvlNumLifts < MAX_LIFTS THEN lvlNumLifts = lvlNumLifts + 1 : FOR k = 1 TO 8 : lvlLift(lvlNumLifts, k) = v(k) : NEXT
+                CASE "monsters"
+                    IF got >= 7 AND lvlMonN < MAX_MON THEN lvlMonN = lvlMonN + 1 : FOR k = 1 TO 7 : lvlMon(lvlMonN, k) = v(k) : NEXT
                 CASE "pads"
                     IF got >= 4 AND lvlNumPairs < 16 THEN lvlNumPairs = lvlNumPairs + 1 : FOR k = 1 TO 4 : lvlPair(lvlNumPairs, k) = v(k) : NEXT
             END SELECT
@@ -8074,6 +8131,8 @@ FUNCTION EditSnapshot$
     FOR k = 1 TO lvlNumLifts : FOR j = 1 TO 8 : s$ = s$ + LTRIM$(STR$(lvlLift(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(5)
     FOR k = 1 TO lvlNumPairs : FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlPair(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
+    s$ = s$ + CHR$(6) ' (the monsters' own settings)
+    FOR k = 1 TO lvlMonN : FOR j = 1 TO 7 : s$ = s$ + LTRIM$(STR$(lvlMon(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     EditSnapshot$ = s$
 END FUNCTION
 
@@ -8082,7 +8141,14 @@ SUB EditRestore(s0$)
     IF c2 THEN s$ = LEFT$(s0$, c2 - 1) : f$ = MID$(s0$, c2 + 1)
     c4 = INSTR(f$, CHR$(4)) : IF c4 THEN l$ = MID$(f$, c4 + 1) : f$ = LEFT$(f$, c4 - 1)
     c5 = INSTR(l$, CHR$(5)) : IF c5 THEN p$ = MID$(l$, c5 + 1) : l$ = LEFT$(l$, c5 - 1)
+    m$ = "" : c6 = INSTR(p$, CHR$(6)) : IF c6 THEN m$ = MID$(p$, c6 + 1) : p$ = LEFT$(p$, c6 - 1)
     DIM v(8) AS SINGLE
+    lvlMonN = 0
+    DO WHILE LEN(m$)
+        c3 = INSTR(m$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+        IF SplitNums(LEFT$(m$, c3 - 1), v()) >= 7 THEN lvlMonN = lvlMonN + 1 : FOR j = 1 TO 7 : lvlMon(lvlMonN, j) = v(j) : NEXT
+        m$ = MID$(m$, c3 + 1)
+    LOOP
     lvlNumLifts = 0
     DO WHILE LEN(l$)
         c3 = INSTR(l$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
@@ -8179,6 +8245,12 @@ SUB WriteLevelFile(f$)
     IF lvlNumTrigs THEN
         o$ = o$ + nl$ + "[triggers]" + nl$ + "' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ..." + nl$
         FOR k = 1 TO lvlNumTrigs : o$ = o$ + lvlTrig$(k) + nl$ : NEXT
+    END IF
+    IF lvlMonN THEN
+        o$ = o$ + nl$ + "[monsters]" + nl$ + "' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)" + nl$
+        FOR k = 1 TO lvlMonN
+            l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlMon(k, j))) + MID$(", ", 1, -2 * (j < 7)) : NEXT : o$ = o$ + l$ + nl$
+        NEXT
     END IF
     IF lvlNumPairs THEN
         o$ = o$ + nl$ + "[pads]" + nl$ + "' teleporters paired by hand: x1, y1, x2, y2 (the rest pair up in reading order)" + nl$
@@ -8687,7 +8759,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "Wall + Ctrl+Shift+wheel: a block on the floor (its top)|"
         h$ = h$ + "Wall + Alt+Shift+wheel: a block from the ceiling (bottom)|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
-        h$ = h$ + "A door, pad, lift or floor selected: its pane, on the right|"
+        h$ = h$ + "A door, pad, light, monster, lift selected: its pane, right|"
         h$ = h$ + "H divide a face left/right, V top/bottom (again: whole)|"
         h$ = h$ + "G grid, Shift+G stronger;  T F pictures;  Z floor no.|"
         h$ = h$ + "L K light here/away;  PgUp/PgDn floor (Shift: ceiling)|"
@@ -9078,6 +9150,33 @@ SUB EditPaneBuild
             EXIT SUB
         END IF
     NEXT
+    ' A monster: the first selected cell with one in it - how far it sees and
+    ' hears, how tough and quick, what wakes it
+    FOR k = 1 TO edSelN
+        c$ = MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)
+        IF INSTR("mghcskwzT", c$) THEN
+            edPnCX = edSelX(k) : edPnCY = edSelY(k)
+            EditMonGet edPnCX, edPnCY, ms, mh, mhp, msp, mw
+            edPnTitle$ = UCASE$(GlyphName$(c$)) + STR$(edPnCX) + "," + LTRIM$(STR$(edPnCY))
+            FOR r = 0 TO 3
+                SELECT CASE r
+                    CASE 0 : t$ = "SIGHT  " + LTRIM$(STR$(ms)) + " cells"
+                    CASE 1 : IF mh = 0 THEN t$ = "HEARING  deaf" ELSE t$ = "HEARING" + STR$(mh) + " cells"
+                    CASE 2 : t$ = "HEALTH " + LTRIM$(STR$(mhp)) + "%"
+                    CASE 3 : t$ = "SPEED  " + LTRIM$(STR$(msp)) + "%"
+                END SELECT
+                EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 80 + r * 2, x0 + 146, y, 24, "-", 0 : EditPaneAdd 81 + r * 2, x0 + 174, y, 24, "+", 0
+                y = y + 23
+            NEXT
+            EditPaneAdd -1, x0, y + 2, PN_W, "WAKES WHEN:", 0 : y = y + 20
+            FOR w = 0 TO 3
+                EditPaneAdd 90 + w, x0 + (w MOD 2) * 101, y + (w \ 2) * 23, 99, RTRIM$(MID$("IT SEES YOUYOU'RE NEARIT'S HIT   HUNTING    ", w * 11 + 1, 11)), (mw = w)
+            NEXT
+            y = y + 48
+            EditPaneAdd 94, x0, y, PN_W, "AS ITS KIND IS", 0
+            EXIT SUB
+        END IF
+    NEXT
     ' A lift: the first selected floor that's on one
     FOR k = 1 TO edSelN
         IF (edSelKind(k) = ED_FLOOR OR edSelKind(k) = ED_STEP) AND liftCell(edSelX(k), edSelY(k)) THEN
@@ -9140,6 +9239,46 @@ SUB EditDrawPane(mx, my)
         END IF
     NEXT
     IF edPnLight THEN EditGlow 762, PN_Y + 1, 30, _RGB32(lvlLight(edPnLight, 5), lvlLight(edPnLight, 6), lvlLight(edPnLight, 7)), EditFxNow(lvlLight(edPnLight, 8)) ' (the light as it'll go)
+END SUB
+
+' The monster starting in (x, y): its sight, hearing, health %, speed %,
+' waking - its own ([monsters]) or as every one is
+SUB EditMonGet(x, y, ms, mh, mhp, msp, mw)
+    ms = MON_SIGHT : mh = 0 : mhp = 100 : msp = 100 : mw = WAKE_SEE
+    FOR k = 1 TO lvlMonN
+        IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN ms = lvlMon(k, 3) : mh = lvlMon(k, 4) : mhp = lvlMon(k, 5) : msp = lvlMon(k, 6) : mw = lvlMon(k, 7)
+    NEXT
+END SUB
+
+' ...and set: as every one is again, it's taken out of [monsters]
+SUB EditMonPut(x, y, ms, mh, mhp, msp, mw)
+    k = 0
+    FOR j = 1 TO lvlMonN
+        IF lvlMon(j, 1) = x AND lvlMon(j, 2) = y THEN k = j
+    NEXT
+    IF ms = MON_SIGHT AND mh = 0 AND mhp = 100 AND msp = 100 AND mw = WAKE_SEE THEN
+        IF k THEN
+            FOR j = k TO lvlMonN - 1 : FOR c = 1 TO 7 : lvlMon(j, c) = lvlMon(j + 1, c) : NEXT : NEXT
+            lvlMonN = lvlMonN - 1
+        END IF
+        EXIT SUB
+    END IF
+    IF k = 0 THEN
+        IF lvlMonN >= MAX_MON THEN EXIT SUB
+        lvlMonN = lvlMonN + 1 : k = lvlMonN
+    END IF
+    lvlMon(k, 1) = x : lvlMon(k, 2) = y : lvlMon(k, 3) = ms : lvlMon(k, 4) = mh : lvlMon(k, 5) = mhp : lvlMon(k, 6) = msp : lvlMon(k, 7) = mw
+END SUB
+
+' A ring on the floor round (cx, cy), r cells, at height z (the monster's
+' sight and hearing, in the editor)
+SUB EditRing(cx, cy, r, z, col~&)
+    IF r <= 0 THEN EXIT SUB
+    n = 48 : px = cx + r : py = cy
+    FOR k = 1 TO n
+        a = k * 6.2832 / n : nx = cx + r * COS(a) : ny = cy + r * SIN(a)
+        EditLine3D px, py, z, nx, ny, z, col~& : px = nx : py = ny
+    NEXT
 END SUB
 
 ' Pad (x, y) out of any pair made by hand
@@ -9263,6 +9402,10 @@ SUB EditNudge(dx, dy)
         END IF
     NEXT : NEXT
     FOR k = 1 TO edSelN : edSelX(k) = edSelX(k) + dx : edSelY(k) = edSelY(k) + dy : NEXT
+    FOR k = 1 TO lvlMonN ' (a monster's own settings go with it)
+        x = lvlMon(k, 1) : y = lvlMon(k, 2)
+        IF x >= 0 AND y >= 0 AND x <= MAP_SIZE AND y <= MAP_SIZE THEN IF mv(x, y) THEN lvlMon(k, 1) = x + dx : lvlMon(k, 2) = y + dy
+    NEXT
 END SUB
 
 ' G: the grid over the world on or off; Shift+G: stronger (25, 50, 75, 100%,
@@ -9389,6 +9532,32 @@ SUB EditCam(wx, wy, wz, cr, cu, ca)
     cr = r : cu = c * u0 + sn * bk : ca = -(-sn * u0 + c * bk)
 END SUB
 
+' A thing standing in a cell (a monster, a pickup, a decoration, a pad)
+' under the screen point (sx, sy), nearer than the face picked: then it's
+' what's picked - its cell's floor - so clicking a monster selects it
+SUB EditPickThing(sx, sy)
+    edHovThing = 0
+    faceA = 999 : IF edHovKind THEN EditCam edHovPX, edHovPY, edHovPZ, r, u, faceA
+    best = 0 : bestA = faceA + 0.3
+    x0 = MaxOf(0, INT(edCamPX) - 16) : x1 = MinOf(MAP_SIZE - 1, INT(edCamPX) + 16)
+    y0 = MaxOf(0, INT(edCamPY) - 16) : y1 = MinOf(MAP_SIZE - 1, INT(edCamPY) + 16)
+    FOR y = y0 TO y1 : FOR x = x0 TO x1
+        c$ = MID$(lvlRow$(y), x + 1, 1)
+        IF INSTR("mghcskwzTrby+*uae234MqjoiptxlnfSdAFIJLOQUWZV&", c$) THEN
+            EditCam x + 0.5, y + 0.5, floorH(x, y) + 0.35, r, u, a
+            IF a > 0.3 AND a < bestA THEN
+                EditPoint x + 0.5, y + 0.5, floorH(x, y) + 0.35, px, py, ok
+                rp = 0.38 * 600 * edCamZoom / a ' (about the size of a sprite, on the screen)
+                IF ok AND ABS(sx - px) < rp * 0.75 AND ABS(sy - py) < rp THEN best = -1 : bestA = a : bx = x : by = y
+            END IF
+        END IF
+    NEXT : NEXT
+    IF best THEN
+        edHovKind = ED_FLOOR : edHovX = bx : edHovY = by : edHovSide = 0 : edHovPart = 0 : edHovThing = -1
+        edHovPX = bx + 0.5 : edHovPY = by + 0.5 : edHovPZ = floorH(bx, by)
+    END IF
+END SUB
+
 ' A point in the world on the screen: (sx, sy), ok = 0 if it's behind you
 SUB EditPoint(wx, wy, wz, sx, sy, ok)
     EditCam wx, wy, wz, r, u, a : ok = 0
@@ -9478,6 +9647,14 @@ SUB EditDrawFaces
     FOR k = 1 TO numPads - 1 STEP 2 ' Teleporters: each pad joined to the one it goes to
         EditLine3D padX(k) + 0.5, padY(k) + 0.5, floorH(padX(k), padY(k)) + 0.05, padX(k + 1) + 0.5, padY(k + 1) + 0.5, floorH(padX(k + 1), padY(k + 1)) + 0.05, _RGBA32(190, 110, 255, 170)
     NEXT
+    FOR k = 1 TO edSelN ' A monster selected: how far it sees (cyan) and hears (yellow), on the floor round it
+        IF INSTR("mghcskwzT", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN
+            EditMonGet edSelX(k), edSelY(k), ms, mh, mhp, msp, mw
+            z = floorH(edSelX(k), edSelY(k)) + 0.02
+            IF mw <> WAKE_HIT AND mw <> WAKE_HUNT THEN EditRing edSelX(k) + 0.5, edSelY(k) + 0.5, ms, z, _RGBA32(90, 230, 255, 190)
+            IF mw <> WAKE_HIT AND mw <> WAKE_HUNT THEN EditRing edSelX(k) + 0.5, edSelY(k) + 0.5, mh, z, _RGBA32(255, 220, 60, 190)
+        END IF
+    NEXT
     FOR k = 1 TO edSelN ' The selection: orange
         EditFaceOutline edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), edSelPart(k), _RGB32(255, 170, 40)
     NEXT
@@ -9486,6 +9663,7 @@ SUB EditDrawFaces
         EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, edHovPart, _RGB32(60, k, 255)
         IF NOT edLooking THEN
             n$ = MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edHovKind * 7 - 6, 7)
+            IF edHovThing THEN n$ = UCASE$(LEFT$(GlyphName$(MID$(lvlRow$(edHovY), edHovX + 1, 1)), 20))
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
             IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
             IF edHovPart THEN n$ = n$ + " half" + STR$(edHovPart)
