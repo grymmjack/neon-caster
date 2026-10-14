@@ -80,4 +80,6 @@ macOS and Linux and publish the release. To re-release the same version:
 save the notes, `gh release delete vX -R grymmjack/neon-caster --yes`,
 `git tag -fa vX`, `git push --force origin vX`, wait for CI, then
 `gh release edit vX -R grymmjack/neon-caster --notes-file ...`.
-Always pass `-R grymmjack/neon-caster` to `gh`.
+Always pass `-R grymmjack/neon-caster` to `gh`. Let the previous build
+finish first (`gh run list -R grymmjack/neon-caster`): while one is running
+there's no release to delete yet, and it publishes over whatever comes next.
