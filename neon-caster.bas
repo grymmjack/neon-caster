@@ -3696,8 +3696,8 @@ DO
             CASE 27, 15360 : meDone = -1
             CASE 18432 : meField = meField - 1 : IF meField < 1 THEN meField = ME_FIELDS
             CASE 20480 : meField = meField + 1 : IF meField > ME_FIELDS THEN meField = 1
-            CASE 19200 : MonsterField meType, meField, -1 - 9 * shiftOn
-            CASE 19712 : MonsterField meType, meField, 1 + 9 * shiftOn
+            CASE 19200 : MonsterField meType, meField, -1 + 9 * shiftOn ' (shiftOn is -1 held: Shift makes it -10...
+            CASE 19712 : MonsterField meType, meField, 1 - 9 * shiftOn ' ...and +10)
             CASE 18688 : meType = meType - 1 : IF meType < 1 THEN meType = MON_TYPES
             CASE 20736 : meType = meType + 1 : IF meType > MON_TYPES THEN meType = 1
             CASE 115, 83 : WriteMonsters : meMsg$ = "Saved " + AssetPath$("monsters.txt")

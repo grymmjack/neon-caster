@@ -138,7 +138,9 @@ is sector 11), where the level kit never touches them. YOUR SECTORS lists
 them to play; finishing one starts it again. In the console, `newsector`
 makes one, `sectorname NAME` renames the sector you're in (then
 `savelevel`), `map 11` goes there and `maps` lists them all. In the
-editor, PgUp/PgDn steps through every sector, yours included.
+editor, PgUp/PgDn steps through every sector, yours included. The whole
+editor - every key, map character, height, light, event and trigger - is in
+[LEVEL-EDITOR-GUIDE.md](../LEVEL-EDITOR-GUIDE.md).
 
 Two switches near the top of the source are on for testing:
 `TEST_ALL_GUNS` (start with every gun and full ammo) and `CHEAT_KEYS`

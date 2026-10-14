@@ -60,7 +60,8 @@ nothing is compiled or run.
 **Make your own:** **GAME > YOUR SECTORS > NEW SECTOR** gives you a
 blank sector (one room in solid wall) and opens the level editor on it.
 Paint rooms out, add doors, monsters and lights, and Ctrl+S saves it to
-`neon-caster/levels/custom/`. The tutorial explains the editor.
+`neon-caster/levels/custom/`. The [level editor guide](LEVEL-EDITOR-GUIDE.md)
+explains every key, map character and level-file field.
 
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting
 at once. OLDSCHOOL is chunky pixels with no effects, 90S is 720P with
