@@ -487,7 +487,10 @@ def pad_order(g, pairs):
     reading order."""
     rd = [(x, y) for y in range(N) for x in range(N) if g[y][x] in PAD]
     out, used = [], set()
-    for (x1, y1, x2, y2) in pairs:
+    for pr in pairs:
+        if len(pr) < 4:
+            continue
+        x1, y1, x2, y2 = (int(v) for v in pr[:4])
         a, b = (x1, y1), (x2, y2)
         if a in rd and b in rd and a != b and a not in used and b not in used:
             out += [a, b]; used |= {a, b}

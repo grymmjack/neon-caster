@@ -1290,7 +1290,7 @@ DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, 
 '   edGrid...     the wireframe grid over the world, and how strong it is
 '   edPick...     the picker panel: its tab and how far it's scrolled
 CONST ED_WALL = 1, ED_FLOOR = 2, ED_CEIL = 3, ED_STEP = 4, ED_LINTEL = 5 ' (a face: a wall's side, a floor, a ceiling, the face of a step up, the face of a ceiling stepping down)
-CONST ED_MAXSEL = 256
+CONST ED_MAXSEL = 2304 ' (the whole map, if it comes to it)
 CONST ET_SELECT = 1, ET_PLACE = 2, ET_PAINT = 3, ET_LIGHT = 4, ET_HEIGHT = 5
 DIM SHARED edHovKind AS INTEGER, edHovX AS INTEGER, edHovY AS INTEGER, edHovSide AS INTEGER, edHovPart AS INTEGER
 DIM SHARED edHovPX, edHovPY, edHovPZ ' (exactly where the cursor's ray met it)
@@ -1434,12 +1434,12 @@ DO
     LOOP
     IF conQHead >= conQTail THEN conQHead = 0 : conQTail = 0
     ' ` (or ~): the console
-    conKey = _KEYDOWN(96) OR _KEYDOWN(126)
+    conKey = (_KEYDOWN(96) OR _KEYDOWN(126)) AND NOT edTyping ' (typing a name in the editor: not the console)
     IF conKey AND NOT conKeyWas THEN GOSUB RunConsole
     conKeyWas = conKey
     ' F2: the level editor (chapter 21) - into it, at the map from above
     edKey = _KEYDOWN(15360)
-    IF edKey AND NOT edKeyWas AND NOT cyberOn AND NOT dead THEN
+    IF edKey AND NOT edKeyWas AND NOT cyberOn AND NOT dead AND NOT edTyping THEN
         IF editMode THEN GOSUB EditLeave ELSE GOSUB EditEnter
     END IF
     edKeyWas = _KEYDOWN(15360)
@@ -1485,8 +1485,8 @@ DO
         mouseDX = mouseDX + _MOUSEMOVEMENTX : mouseDY = mouseDY + _MOUSEMOVEMENTY
         mouseWheel = mouseWheel + _MOUSEWHEEL
         IF _MOUSEBUTTON(1) THEN clicked = -1
-        IF _MOUSEBUTTON(1) AND NOT edQ1 THEN edClickL = -1 ' (edClick: the editor's own - a press, not a button held while the mouse moves - kept until it looks: EditFP)
-        IF _MOUSEBUTTON(2) AND NOT edQ2 THEN edClickR = -1
+        IF _MOUSEBUTTON(1) AND NOT edQ1 AND editMode AND editView = 1 AND NOT hudEdit THEN edClickL = -1 ' (edClick: the 3D editor's own - a press, not a button held while the mouse moves - kept until it looks: EditFP)
+        IF _MOUSEBUTTON(2) AND NOT edQ2 AND editMode AND editView = 1 AND NOT hudEdit THEN edClickR = -1
         edQ1 = _MOUSEBUTTON(1) : edQ2 = _MOUSEBUTTON(2)
     WEND
     ' The 3D editor: the mouse is a pointer, free to point at anything (the
@@ -1796,10 +1796,10 @@ DO
     ' Quick save and quick load (F5 and F9 unless you rebind them -
     ' chapter 21): the same saving and loading as the menu, in the
     ' "quick" slot
-    qsDown = KeyHeld(BIND_QUICKSAVE)
+    qsDown = KeyHeld(BIND_QUICKSAVE) AND NOT edTyping
     IF qsDown AND NOT qsWas AND NOT dead THEN saveSlot = 0 : GOSUB SaveGame
     qsWas = qsDown
-    qlDown = KeyHeld(BIND_QUICKLOAD)
+    qlDown = KeyHeld(BIND_QUICKLOAD) AND NOT edTyping
     IF qlDown AND NOT qlWas THEN saveSlot = 0 : GOSUB LoadGame
     qlWas = qlDown
     ' Tab: the full-screen map on or off (drawn in chapter 18). In the
@@ -3406,6 +3406,7 @@ RETURN
 ' is built again from that (EditApply), keeping you where you are.
 EditEnter:
 WorldLoopsOff ' (the world stops: so do its sounds)
+GOSUB EditReset
 editMode = -1 : editView = 0 : editDirty = 0 : editUndoN = 0 : editLights = 0 : mapOpen = 0
 levelWas = level
 IF editGlyph$ = "" THEN editGlyph$ = "#"
@@ -3414,7 +3415,7 @@ EditNote "EDITOR: " + levelName$
 RETURN
 
 EditLeave:
-editMode = 0 : editView = 0
+editMode = 0 : editView = 0 : GOSUB EditReset
 IF NOT Walkable(playerX, playerY) THEN ' (left inside something: step out to the nearest open cell)
     FOR r = 1 TO 8
         FOR a = 0 TO 15
@@ -3426,6 +3427,12 @@ END IF
 IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 ELSE playerZ = 0 ' (down to the floor)
 _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
 IF editDirty THEN ShowMsg "Left the editor - not saved yet (F2, then Ctrl+S)" ELSE ShowMsg "Left the editor"
+RETURN
+
+' What the editor was in the middle of, forgotten: in and out of it, and
+' on to another sector (the selection's cells would be another level's)
+EditReset:
+edSelN = 0 : edHovKind = 0 : edLinkPad = 0 : edSlotPick = 0 : edTyping = 0 : edDragOn = 0 : edTbDrag = 0 : edClickL = 0 : edClickR = 0
 RETURN
 
 ' Remember the level as it is, for Ctrl+Z
@@ -3441,6 +3448,7 @@ RETURN
 EditUndo:
 IF editUndoN = 0 THEN EditNote "Nothing to undo" : RETURN
 EditRestore editUndo$(editUndoN) : editUndoN = editUndoN - 1
+sectorName$(level) = lvlName$
 GOSUB EditApply : EditNote "Undone"
 RETURN
 
@@ -3477,6 +3485,7 @@ RETURN
 EditPkClick:
 SELECT CASE edPkKind(pkIdx)
     CASE PK_GLYPH
+        edSlotPick = 0 ' (a sector picture being chosen: not any more)
         editGlyph$ = edPkVal$(pkIdx) : edBrushKind = PK_GLYPH : edTool = ET_PLACE
         IF edSelN THEN
             GOSUB EditPushUndo : n = 0
@@ -3504,6 +3513,7 @@ SELECT CASE edPkKind(pkIdx)
         edBrushImg& = EditFileThumb&(edBrushTex$)
         IF edSelN THEN GOSUB EditPaintSel ELSE EditNote "PAINT " + edBrushTex$ + ": click a face"
     CASE PK_LIGHT ' An effect or a colour for the light brush - and the lights on the faces selected
+        edSlotPick = 0
         v = VAL(MID$(edPkVal$(pkIdx), 2)) : edBrushKind = PK_LIGHT : edTool = ET_LIGHT
         IF LEFT$(edPkVal$(pkIdx), 1) = "F" THEN
             edLFx = v
@@ -3528,9 +3538,9 @@ RETURN
 EditPaintSel:
 GOSUB EditPushUndo
 FOR k = 1 TO edSelN
-    IF editView = 0 THEN ' (from above: the cell - a floor, or a wall's four sides)
+    IF edSelKind(k) = ED_FLOOR AND NOT EditCellOpen(edSelX(k), edSelY(k)) THEN ' (a wall cell selected from above: its four sides)
         EditPaintCell edSelX(k), edSelY(k), edBrushTex$, 0
-    ELSE
+    ELSE ' (the face selected - from above, a cell's floor)
         EditPaintFace edSelX(k), edSelY(k), EditFaceCode(edSelKind(k), edSelSide(k)), edSelPart(k), edBrushTex$
     END IF
 NEXT
@@ -3552,6 +3562,7 @@ RETURN
 EditTypeDone:
 edTyping = 0
 IF LEN(LTRIM$(edTypeBuf$)) THEN
+    GOSUB EditPushUndo
     c = INSTR(lvlName$, ": ") : IF c THEN pre$ = LEFT$(lvlName$, c + 1) ELSE pre$ = "SECTOR" + STR$(level) + ": "
     lvlName$ = pre$ + LTRIM$(edTypeBuf$) : levelName$ = lvlName$ : sectorName$(level) = lvlName$ : editDirty = -1
     EditNote "Now it's " + lvlName$ + " (save to keep it)"
@@ -3573,7 +3584,7 @@ SELECT CASE pnHit
         ELSE
             x0 = MAP_SIZE : y0 = MAP_SIZE : x1 = 0 : y1 = 0 : fz = 0
             FOR k = 1 TO edSelN
-                IF edSelKind(k) = ED_FLOOR THEN
+                IF edSelKind(k) = ED_FLOOR AND EditCellOpen(edSelX(k), edSelY(k)) THEN
                     x0 = MinOf(x0, edSelX(k)) : y0 = MinOf(y0, edSelY(k)) : x1 = MaxOf(x1, edSelX(k)) : y1 = MaxOf(y1, edSelY(k)) : fz = floorH(edSelX(k), edSelY(k))
                 END IF
             NEXT
@@ -3608,6 +3619,7 @@ SELECT CASE pnHit
     CASE 40 ' A light on each face selected that hasn't one, as the light brush is
         GOSUB EditPushUndo : n = 0
         FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_FLOOR AND NOT EditCellOpen(edSelX(k), edSelY(k)) THEN _CONTINUE ' (not inside a wall)
             IF EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k)) = 0 THEN EditFaceAnchor edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), ax, ay : EditAddLight ax, ay : n = n + 1
         NEXT
         GOSUB EditApply : EditNote LTRIM$(STR$(n)) + " light(s) added - set them in the pane"
@@ -3663,12 +3675,13 @@ SELECT CASE pnHit
     CASE 100 ' The name: start typing it - or done
         IF edTyping THEN GOSUB EditTypeDone ELSE edTyping = -1 : edTypeFresh = -1 : edTypeBuf$ = SectorShort$ : EditNote "Type the sector's name - Enter keeps it, Esc doesn't"
     CASE 101, 102 ' Its light, brighter or darker
+        GOSUB EditPushUndo
         IF pnHit = 102 THEN lvlAmb(1) = lvlAmb(1) + 10 ELSE lvlAmb(1) = lvlAmb(1) - 10
         IF lvlAmb(1) < 0 THEN lvlAmb(1) = 0
         IF lvlAmb(1) > 256 THEN lvlAmb(1) = 256
         GOSUB EditApply
     CASE 110 TO 121 ' Its light's colour
-        c~& = EditPaletteRGB~&(pnHit - 109) : lvlAmb(2) = _RED32(c~&) : lvlAmb(3) = _GREEN32(c~&) : lvlAmb(4) = _BLUE32(c~&) : GOSUB EditApply
+        GOSUB EditPushUndo : c~& = EditPaletteRGB~&(pnHit - 109) : lvlAmb(2) = _RED32(c~&) : lvlAmb(3) = _GREEN32(c~&) : lvlAmb(4) = _BLUE32(c~&) : GOSUB EditApply
     CASE 130 TO 141 ' One of its pictures: the picker shows the kind, and the next picture clicked goes there
         edSlotPick = pnHit - 129
         IF edSlotPick <= 6 THEN edPickTab = 1 ELSE IF edSlotPick <= 10 THEN edPickTab = 2 ELSE edPickTab = 3
@@ -3829,8 +3842,9 @@ DO
         IF b2 AND NOT edB2 THEN GOSUB EditPushUndo : EditRemoveLight cx + 0.5, cy + 0.5 : edApply = -1
     END IF
     edB2 = b2
-    IF NOT b1 AND edDown THEN ' Let go: the rectangle, then build it (or select it)
-        IF edRect AND onMap AND edTool = ET_SELECT THEN
+    IF NOT b1 AND edDown THEN ' Let go: the rectangle, then build it (or select it) - let go off the map, to its edge
+        IF NOT onMap THEN cx = MaxOf(0, MinOf(MAP_SIZE - 1, cx)) : cy = MaxOf(0, MinOf(MAP_SIZE - 1, cy))
+        IF edRect AND edTool = ET_SELECT THEN
             IF NOT edSelAdd THEN edSelN = 0
             IF edSelAdd AND edX0 = cx AND edY0 = cy THEN
                 EditSelToggle ED_FLOOR, cx, cy, 0, 0 ' (Shift+click one cell: in or out)
@@ -3840,10 +3854,10 @@ DO
                 NEXT : NEXT
             END IF
             EditNote LTRIM$(STR$(edSelN)) + " selected"
-        ELSEIF edRect AND onMap AND edTool = ET_PLACE THEN
+        ELSEIF edRect AND edTool = ET_PLACE THEN
             FOR y = MinOf(edY0, cy) TO MaxOf(edY0, cy) : FOR x = MinOf(edX0, cx) TO MaxOf(edX0, cx) : EditPut x, y, editGlyph$ : NEXT : NEXT
         END IF
-        IF edTool <> ET_SELECT THEN edApply = -1
+        IF edTool = ET_PLACE THEN edApply = -1 ' (the others built as they went)
         edDown = 0 : edRect = 0
     END IF
     IF edApply THEN edApply = 0 : GOSUB EditApply
@@ -3911,7 +3925,7 @@ DO
     _DISPLAY
 LOOP
 _KEYCLEAR
-IF edDone = 1 THEN editView = 1 : edMouseFix = -1 : fpLWas = -1 : EditNote "3D: point at a face - hold the right button to look round - H for help"
+IF edDone = 1 THEN editView = 1 : edMouseFix = -1 : fpLWas = -1 : edClickL = 0 : edClickR = 0 : EditNote "3D: point at a face - hold the right button to look round - F1 for help"
 IF hudAfter THEN hudAfter = 0 : GOSUB HudEditEnter
 IF edDone = 2 THEN GOSUB EditLeave
 WHILE _MOUSEINPUT : WEND
@@ -4024,7 +4038,7 @@ NEXT
 RETURN
 EditGoLevel:
 IF editDirty THEN EditNote "Save first (Ctrl+S) - or Ctrl+Z it all away" : level = levelWas : RETURN
-GOSUB LoadLevel : editUndoN = 0 : editDirty = 0 : levelWas = level
+GOSUB LoadLevel : editUndoN = 0 : editDirty = 0 : levelWas = level : GOSUB EditReset
 EditNote "EDITOR: " + levelName$
 RETURN
 
@@ -4052,8 +4066,8 @@ wCount = 0
 FOR wk = 1 TO edSelN
     wx = edSelX(wk) : wy = edSelY(wk) : ws = edSelSide(wk)
     SELECT CASE edSelKind(wk)
-        CASE ED_FLOOR, ED_STEP : EditRaise wx, wy, dz, 0 : wCount = wCount + 1
-        CASE ED_CEIL, ED_LINTEL : EditRaise wx, wy, dz, -1 : wCount = wCount + 1
+        CASE ED_FLOOR, ED_STEP : IF EditCellOpen(wx, wy) THEN EditRaise wx, wy, dz, 0 : wCount = wCount + 1 ' (not a wall cell a box from above took in)
+        CASE ED_CEIL, ED_LINTEL : IF EditCellOpen(wx, wy) THEN EditRaise wx, wy, dz, -1 : wCount = wCount + 1
         CASE ED_WALL
           FOR wt = 1 TO ABS(ticks) ' (a cell a turn)
             wx = edSelX(wk) : wy = edSelY(wk) : IF edSelKind(wk) <> ED_WALL THEN EXIT FOR
@@ -4113,7 +4127,7 @@ IF edLooking THEN EditPick 400, 300 : EditPickThing 400, 300 ELSE EditPick edCur
 ' the screen and tucks itself away again when it goes back up to the world
 IF edPickOn = -1 THEN edPickOpen = -1
 IF edPickOn = 0 THEN edPickOpen = 0
-IF edSlotPick AND edPickOn THEN edPickOpen = -1 ' (choosing one of the sector's pictures: it stays open till one's chosen)
+IF edSlotPick > 0 AND edPickOn <> 0 THEN edPickOpen = -1 ' (choosing one of the sector's pictures: it stays open till one's chosen)
 IF edPickOn = 1 AND NOT edLooking AND edSlotPick = 0 THEN
     IF edPickOpen THEN
         IF edCurY < PK_Y - 40 THEN edPickOpen = 0
@@ -4137,7 +4151,7 @@ tbHit = 0 : IF NOT edLooking THEN tbHit = EditTBAt(edCurX, edCurY, 1)
 IF fpL AND NOT fpLWas AND NOT edLooking AND edHelp THEN
     edHelp = 0 : fpLWas = -1 ' (the help was up: the click puts it away)
 ELSEIF fpL AND NOT fpLWas AND tbHit THEN
-    GOSUB EditTBClick
+    GOSUB EditTBClick : fpLWas = -1 ' (the toolbar's - never the world's too, even when it changed the view)
 ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND EditPaneAt(edCurX, edCurY) THEN
     pnHit = EditPaneAt(edCurX, edCurY) : GOSUB EditPaneClick : fpLWas = -1
 ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND edLinkPad AND NOT EditOverUI(edCurX, edCurY) THEN ' LINK: this is the pad it goes to
@@ -4205,7 +4219,9 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
                 END IF
             CASE ET_PAINT ' The brush's picture on the face (Shift: back to the usual; Ctrl: the whole floor or ceiling it's part of; Alt: pick its picture up)
                 fc = EditFaceCode(edHovKind, edHovSide)
-                IF edAlt THEN
+                IF edHovKind = ED_WALL AND INSTR("/\", MID$(lvlRow$(edHovY), edHovX + 1, 1)) THEN
+                    EditNote "A diagonal wall takes the look of the walls by it - paint those"
+                ELSEIF edAlt THEN
                     k = FaceIndex(edHovX, edHovY, fc) : pic$ = ""
                     IF k THEN IF edHovPart = 2 THEN pic$ = lvlFaceP2$(k) ELSE pic$ = lvlFaceP1$(k)
                     IF pic$ = "" THEN ' (the usual one: the level's own picture for it)
@@ -4918,7 +4934,7 @@ DO
     IF faceAny THEN
         IF hSide = 0 THEN IF rayDirX > 0 THEN hSd = 3 ELSE hSd = 1
         IF hSide = 1 THEN IF rayDirY > 0 THEN hSd = 4 ELSE hSd = 2
-        IF hSolid AND v <> 2 THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
+        IF hSolid AND v <> 2 AND diagCorner(hnX, hnY) = 0 THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot) ' (a diagonal: its neighbours' look, always)
     END IF
     hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
     IF hSide = 1 THEN hFog& = hFog& * 0.7
@@ -5651,7 +5667,7 @@ FOR k = 1 TO lvlNumLights
     IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.88) < 0.03 THEN gx = INT(lx) : gy = INT(ly) + 1 : gs = 4
     IF gx >= 0 AND gy >= 0 AND gx < MAP_SIZE AND gy < MAP_SIZE THEN
         gc$ = MID$(lvlRow$(gy), gx + 1, 1) : lc = INT(lx) : lr = INT(ly) ' (the map isn't built yet: its characters, and its height rows, say what's there)
-        IF INSTR("DHXRBY!E", gc$) = 0 THEN ' (not a door)
+        IF INSTR("DHXRBY!E%/\", gc$) = 0 THEN ' (not a door - nor a secret wall, which a tint would give away, nor a diagonal, which takes its neighbours' look)
             gWall = INSTR("#NCKPG@$%/\", gc$) > 0
             amt = 0.35 + 0.55 * lvlLight(k, 4) / 255
             key$ = ":" + LTRIM$(STR$(lvlLight(k, 5))) + "," + LTRIM$(STR$(lvlLight(k, 6))) + "," + LTRIM$(STR$(lvlLight(k, 7))) + ":" + LTRIM$(STR$(INT(amt * 100))) + ":" + LTRIM$(STR$(lvlLight(k, 8)))
@@ -5854,7 +5870,7 @@ IF lvlNumPairs THEN ' Pads paired by hand ([pads]) first, in their pairs; the re
             IF NOT pUsed(k) AND pOX(k) = lvlPair(j, 1) AND pOY(k) = lvlPair(j, 2) THEN a = k
             IF NOT pUsed(k) AND pOX(k) = lvlPair(j, 3) AND pOY(k) = lvlPair(j, 4) THEN b = k
         NEXT
-        IF a AND b AND a <> b THEN pUsed(a) = -1 : pUsed(b) = -1 : n = n + 1 : padX(n) = pOX(a) : padY(n) = pOY(a) : n = n + 1 : padX(n) = pOX(b) : padY(n) = pOY(b)
+        IF a > 0 AND b > 0 AND a <> b THEN pUsed(a) = -1 : pUsed(b) = -1 : n = n + 1 : padX(n) = pOX(a) : padY(n) = pOY(a) : n = n + 1 : padX(n) = pOX(b) : padY(n) = pOY(b)
     NEXT
     FOR k = 1 TO numPads
         IF NOT pUsed(k) THEN n = n + 1 : padX(n) = pOX(k) : padY(n) = pOY(k)
@@ -8188,7 +8204,7 @@ SUB EditSetFace(x, y, f, d, p1$, p2$)
         EXIT SUB
     END IF
     IF k = 0 THEN
-        IF lvlNumFaces >= MAX_FACES THEN EXIT SUB
+        IF lvlNumFaces >= MAX_FACES THEN EditNote "That's" + STR$(MAX_FACES) + " faces with pictures of their own - no more" : EXIT SUB
         lvlNumFaces = lvlNumFaces + 1 : k = lvlNumFaces
     END IF
     lvlFaceX(k) = x : lvlFaceY(k) = y : lvlFaceS(k) = f : lvlFaceD(k) = d : lvlFaceP1$(k) = p1$ : lvlFaceP2$(k) = p2$
@@ -8248,6 +8264,15 @@ END FUNCTION
 ' Put glyph c$ at cell (x, y) of the level (not on its border)
 SUB EditPut(x, y, c$)
     IF x < 1 OR y < 1 OR x > MAP_SIZE - 2 OR y > MAP_SIZE - 2 THEN EXIT SUB
+    IF MID$(lvlRow$(y), x + 1, 1) <> c$ THEN ' (something else there now: the old one's own settings go with it - a monster's, a pad's link)
+        FOR k = lvlMonN TO 1 STEP -1
+            IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN
+                FOR j = k TO lvlMonN - 1 : FOR c = 1 TO 7 : lvlMon(j, c) = lvlMon(j + 1, c) : NEXT : NEXT
+                lvlMonN = lvlMonN - 1
+            END IF
+        NEXT
+        IF c$ <> "&" THEN EditUnpair x, y
+    END IF
     IF INSTR("<>^v", c$) THEN ' (only one start: the old one becomes floor)
         FOR yy = 0 TO MAP_SIZE - 1 : FOR xx = 0 TO MAP_SIZE - 1
             IF INSTR("<>^v", MID$(lvlRow$(yy), xx + 1, 1)) THEN MID$(lvlRow$(yy), xx + 1, 1) = "."
@@ -8280,6 +8305,8 @@ FUNCTION EditSnapshot$
     FOR k = 1 TO lvlNumPairs : FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlPair(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(6) ' (the monsters' own settings)
     FOR k = 1 TO lvlMonN : FOR j = 1 TO 7 : s$ = s$ + LTRIM$(STR$(lvlMon(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
+    s$ = s$ + CHR$(7) + lvlName$ + CHR$(3) ' (its name and its light)
+    FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlAmb(j))) + "," : NEXT
     EditSnapshot$ = s$
 END FUNCTION
 
@@ -8289,6 +8316,13 @@ SUB EditRestore(s0$)
     c4 = INSTR(f$, CHR$(4)) : IF c4 THEN l$ = MID$(f$, c4 + 1) : f$ = LEFT$(f$, c4 - 1)
     c5 = INSTR(l$, CHR$(5)) : IF c5 THEN p$ = MID$(l$, c5 + 1) : l$ = LEFT$(l$, c5 - 1)
     m$ = "" : c6 = INSTR(p$, CHR$(6)) : IF c6 THEN m$ = MID$(p$, c6 + 1) : p$ = LEFT$(p$, c6 - 1)
+    a$ = "" : c7 = INSTR(m$, CHR$(7)) : IF c7 THEN a$ = MID$(m$, c7 + 1) : m$ = LEFT$(m$, c7 - 1)
+    c3 = INSTR(a$, CHR$(3))
+    IF c3 THEN ' (its name and its light)
+        lvlName$ = LEFT$(a$, c3 - 1)
+        DIM av(4) AS SINGLE
+        IF SplitNums(MID$(a$, c3 + 1), av()) >= 4 THEN FOR j = 1 TO 4 : lvlAmb(j) = av(j) : NEXT
+    END IF
     DIM v(8) AS SINGLE
     lvlMonN = 0
     DO WHILE LEN(m$)
@@ -9418,7 +9452,7 @@ SUB EditPaneBuild
         END IF
     NEXT
     ' Floor, not a lift yet
-    n = 0 : FOR k = 1 TO edSelN : IF edSelKind(k) = ED_FLOOR THEN n = n + 1
+    n = 0 : FOR k = 1 TO edSelN : IF edSelKind(k) = ED_FLOOR THEN IF EditCellOpen(edSelX(k), edSelY(k)) THEN n = n + 1
     NEXT
     IF n THEN
         edPnTitle$ = "FLOOR (" + LTRIM$(STR$(n)) + " cell" + MID$("s", 1, -(n > 1)) + ")"
@@ -9633,9 +9667,34 @@ SUB EditNudge(dx, dy)
         END IF
     NEXT : NEXT
     FOR k = 1 TO edSelN : edSelX(k) = edSelX(k) + dx : edSelY(k) = edSelY(k) + dy : NEXT
-    FOR k = 1 TO lvlMonN ' (a monster's own settings go with it)
+    ' What belongs to a cell goes with it - a monster's own settings, the
+    ' faces' pictures, a pad's link; a cell moved onto loses its own
+    FOR k = lvlMonN TO 1 STEP -1
         x = lvlMon(k, 1) : y = lvlMon(k, 2)
-        IF x >= 0 AND y >= 0 AND x <= MAP_SIZE AND y <= MAP_SIZE THEN IF mv(x, y) THEN lvlMon(k, 1) = x + dx : lvlMon(k, 2) = y + dy
+        IF x >= 0 AND y >= 0 AND x <= MAP_SIZE AND y <= MAP_SIZE THEN
+            IF mv(x, y) THEN
+                lvlMon(k, 1) = x + dx : lvlMon(k, 2) = y + dy
+            ELSEIF dest(x, y) THEN
+                FOR j = k TO lvlMonN - 1 : FOR c = 1 TO 7 : lvlMon(j, c) = lvlMon(j + 1, c) : NEXT : NEXT
+                lvlMonN = lvlMonN - 1
+            END IF
+        END IF
+    NEXT
+    FOR k = lvlNumFaces TO 1 STEP -1
+        x = lvlFaceX(k) : y = lvlFaceY(k)
+        IF x >= 0 AND y >= 0 AND x <= MAP_SIZE AND y <= MAP_SIZE THEN
+            IF mv(x, y) THEN
+                lvlFaceX(k) = x + dx : lvlFaceY(k) = y + dy
+            ELSEIF dest(x, y) THEN
+                EditSetFace x, y, lvlFaceS(k), 0, "", ""
+            END IF
+        END IF
+    NEXT
+    FOR k = 1 TO lvlNumPairs
+        FOR e = 0 TO 2 STEP 2
+            x = lvlPair(k, 1 + e) : y = lvlPair(k, 2 + e)
+            IF x >= 0 AND y >= 0 AND x <= MAP_SIZE AND y <= MAP_SIZE THEN IF mv(x, y) THEN lvlPair(k, 1 + e) = x + dx : lvlPair(k, 2 + e) = y + dy
+        NEXT
     NEXT
 END SUB
 
@@ -9739,10 +9798,17 @@ SUB EditDivideFace(x, y, f, d)
     END IF
 END SUB
 
+' Is cell (x, y) open - floor, or a thing on floor - rather than a wall, a
+' door, a station? (A box from above selects every cell in it, walls too.)
+FUNCTION EditCellOpen(x, y)
+    EditCellOpen = INSTR("#NCKPG%@$/\DHXRBY!E", MID$(lvlRow$(y), x + 1, 1)) = 0
+END FUNCTION
+
 ' From above: the picture pic$ on cell (x, y) - a wall's (or a closet's,
 ' a diagonal's) four sides, else its floor (ceil: its ceiling)
 SUB EditPaintCell(x, y, pic$, ceil)
-    IF INSTR("#NCKPG/\%@$", MID$(lvlRow$(y), x + 1, 1)) THEN
+    IF INSTR("/\", MID$(lvlRow$(y), x + 1, 1)) THEN EditNote "A diagonal wall takes the look of the walls by it - paint those" : EXIT SUB
+    IF INSTR("#NCKPG%@$", MID$(lvlRow$(y), x + 1, 1)) THEN
         FOR f = 1 TO 4 : EditPaintFace x, y, f, 0, pic$ : NEXT
     ELSEIF ceil THEN
         EditPaintFace x, y, 10, 0, pic$

@@ -560,7 +560,7 @@ It reports anything you can't reach (following your `[pads]` pairs), doors witho
 - Walls, heights and collision are per cell, so a wall moves a cell at a time and Divide only splits pictures.
 - Ctrl+S keeps only the comments at the very top of the file; everything else is rewritten in a fixed layout.
 - Lights over 96 in total (automatic ones included), and pictures on faces past 24 different ones, are dropped silently.
-- Undo covers the map, heights, zones, lights, lifts, faces, pad pairs and monsters' settings, but not triggers, events, the name or the ambient light.
-- A monster's own settings belong to the cell it starts in: put a different monster there and it gets them.
+- Undo covers the map, heights, zones, lights, lifts, faces, pad pairs, monsters' settings, the name and the ambient light, but not triggers or events.
+- A monster's own settings belong to the cell it starts in: the arrows carry them along, and putting something else in the cell drops them.
 - Esc in the 3D view opens the pause menu; the editor keeps going underneath it.
 - There's no in-game way to delete one of your sectors: delete its file in `neon-caster/levels/custom/`. The `.bak` file next to it is the editor's backup copy of the level.
