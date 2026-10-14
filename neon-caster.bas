@@ -167,6 +167,7 @@
 ' Which release this is (the create-release skill bumps it: major.minor.patch)
 CONST GAME_VERSION$ = "0.0.1"
 _TITLE "NEON-CASTER " + GAME_VERSION$
+ON ERROR GOTO GameError ' (a runtime error: logged, and the game carries on - chapter 21)
 SCREEN _NEWIMAGE(800, 600, 32)
 _MOUSEHIDE _DISABLE
 _PRINTMODE _KEEPBACKGROUND
@@ -274,6 +275,9 @@ DIM SHARED litCellX(MAX_LIT) AS INTEGER, litCellY(MAX_LIT) AS INTEGER, litWeight
 ' passes through - chapter 15), and whether you've found this level's map
 DIM SHARED cellSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, hasMap AS INTEGER
 CONST NUM_LEVELS = 10 ' NUM_ = how many there are
+' Your own sectors (GAME > YOUR SECTORS - chapter 22): up to MAX_CUSTOM,
+' numbered on from the game's - sector 11 is levels/custom/custom1.txt
+CONST MAX_CUSTOM = 10
 
 '-----------------------------------------------------------------------------
 ' CHAPTER 3: THINGS IN THE WORLD
@@ -762,7 +766,7 @@ DIM SHARED glMat(15) AS SINGLE, glMs
 '   glGun...           which gun you're holding (0: none in sight) and where
 '                      on our 800 x 600 screen, from top left to bottom right,
 '                      and the light on it (1 = as bright as its picture)
-DIM SHARED glSet(40, 1), glPitch(1)
+DIM SHARED glPitch(1) ' (glSet, the settings: with them, chapter 21)
 DIM SHARED glWide(1), glSideDim(1), glAspectK
 DIM SHARED glNumDecal(1) AS INTEGER, glDecX(MAX_DECALS, 1), glDecY(MAX_DECALS, 1), glDecZ(MAX_DECALS, 1)
 DIM SHARED glDecNX(MAX_DECALS, 1), glDecNY(MAX_DECALS, 1), glDecNZ(MAX_DECALS, 1), glDecSize(MAX_DECALS, 1), glDecHeat(MAX_DECALS, 1)
@@ -969,7 +973,7 @@ NEXT
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 40
+CONST NUM_SETTINGS = 41
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -979,7 +983,12 @@ CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, S
 CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
 CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
+CONST SET_MODE = 41
+' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
+' don't all match one
+CONST MODE_CUSTOM = 0, MODE_OLDSCHOOL = 1, MODE_90S = 2, MODE_NEWSCHOOL = 3
 DIM SHARED setting(NUM_SETTINGS), setDefault(NUM_SETTINGS), setMin(NUM_SETTINGS), setMax(NUM_SETTINGS)
+DIM SHARED glSet(NUM_SETTINGS, 1) ' (OpenGL's copy of them, each frame: chapter 24)
 ' Each letter's scancode (where it is on the keyboard), a to z, as
 ' characters 32 on (CHR$(scancode + 32)), for KeyAt% (chapter 21)
 CONST LETTER_SCANS = ">PN@2ABC7DEFRQ8903?46O1M5L"
@@ -1055,6 +1064,12 @@ DefineSetting SET_CUTSCENES, "cutscenes",          "CUTSCENES",          MI_TOGG
 DefineSetting SET_TAUNTS,    "taunts",             "NEXUS TAUNTS",       MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_AIMSENS,   "aim_sensitivity",    "AIM SENSITIVITY",    MI_SLIDER, 10, 100, 5,   50
 DefineSetting SET_SHAFTS,    "light_shafts",       "LIGHT SHAFTS",       MI_TOGGLE, 0,  1,   1,   1
+' MODE: OLDSCHOOL, 90S or NEWSCHOOL - every video and effects setting at
+' once (ModeWants, chapter 21). It isn't kept as itself: what it shows is
+' worked out from the others (ModeNow), so it says CUSTOM after you change
+' one by hand.
+DefineSetting SET_MODE,      "mode",               "MODE",               MI_CHOICE, 0,  3,   1,   0
+DIM SHARED modeWas ' (the MODE last put into effect: ApplySettings)
 ' BIND_ = a key binding's number: what each one does, its name in the
 ' settings file, its menu label, and its key to start with (a _KEYDOWN
 ' code: letters as lower case, 32 Space, 100306 left Ctrl, 16128 F5,
@@ -1079,8 +1094,8 @@ DefineBind BIND_KICK,      "key_kick",      "KICK",         102
 CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
 CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6, MA_SECTOR = 7
-CONST SCR_SECTOR = 13, SCR_QB64 = 14
-CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10
+CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15
+CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11
 ' --- The console (` opens it, like Quake's; chapter 21): what's been
 ' printed (conLog$, the last CON_LOG lines), the line being typed, the
 ' lines typed before (conHist$, for Up and Down), and the commands waiting
@@ -1126,8 +1141,8 @@ CONST MAX_HURTDIRS = 8, HURTDIR_FRAMES = 70
 DIM SHARED hurtDirX(MAX_HURTDIRS), hurtDirY(MAX_HURTDIRS), hurtDirTime(MAX_HURTDIRS)
 ' Music: one looping track for the title menu and one per level, and the
 ' one playing now. (Dark techno, made with soundmon's AI music mode.)
-DIM SHARED menuMusic&, levelMusic&(NUM_LEVELS), nowPlaying&
-DIM SHARED sectorName$(NUM_LEVELS) ' (every level's name, for the route map and SELECT SECTOR: ReadSectorNames)
+DIM SHARED menuMusic&, levelMusic&(NUM_LEVELS), nowPlaying& ' (your own sectors borrow these: SectorMusic&)
+DIM SHARED sectorName$(NUM_LEVELS + MAX_CUSTOM) ' (every level's name, for the route map and SELECT SECTOR: ReadSectorNames - "" for a sector of yours not made yet)
 ' A level as its file says it (ReadLevelFile, chapter 22): its name, its
 ' pictures, its ambient light, its zones, lights and event rooms, and its
 ' map's rows - LoadLevel builds the level from these
@@ -3447,11 +3462,15 @@ glTexVersion = glTexVersion + 1 : glRetexVersion = glRetexVersion + 1
 artHold = 0
 RETURN
 
-EditOtherLevel_Prev:
-IF level > 1 THEN level = level - 1 : GOSUB EditGoLevel
+EditOtherLevel_Prev: ' (the one before - past any of yours not made)
+FOR n = level - 1 TO 1 STEP -1
+    IF SectorExists(n) THEN level = n : GOSUB EditGoLevel : RETURN
+NEXT
 RETURN
 EditOtherLevel_Next:
-IF level < NUM_LEVELS THEN level = level + 1 : GOSUB EditGoLevel
+FOR n = level + 1 TO NUM_LEVELS + MAX_CUSTOM
+    IF SectorExists(n) THEN level = n : GOSUB EditGoLevel : RETURN
+NEXT
 RETURN
 EditGoLevel:
 IF editDirty THEN EditNote "Save first (Ctrl+S) - or Ctrl+Z it all away" : level = levelWas : RETURN
@@ -3934,7 +3953,7 @@ numMonsters = cyberMonStart : numItems = cyberItemStart
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
 cyberOn = 0
 PlaySfx sndJackOut&, 1 : pickFlash = 20
-PlayMusic levelMusic&(level)
+PlayMusic SectorMusic&(level)
 IF cyberWon THEN
     stationDone(cyberStation) = -1
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
@@ -4427,7 +4446,9 @@ RETURN
 
 ' --- A new game: level 1, just the blaster
 NewGame:
-level = 1 : totalKills = 0 : totalMonsters = 0 : totalTime! = 0
+level = 1
+NewGameHere: ' (a new game in sector `level` - SELECT SECTOR, YOUR SECTORS)
+totalKills = 0 : totalMonsters = 0 : totalTime! = 0
 GOSUB StartLoadout
 GOSUB EnterLevel
 RETURN
@@ -4553,7 +4574,7 @@ DO
         END IF
     NEXT
     IF tallyDone = numTally AND tallyWait = 0 AND (tallyFrame \ 20) MOD 3 > 0 THEN
-        IF level = NUM_LEVELS THEN prompt$ = "CLICK OR PRESS SPACE TO PLAY AGAIN" ELSE prompt$ = "CLICK OR PRESS SPACE FOR THE NEXT SECTOR"
+        IF level >= NUM_LEVELS THEN prompt$ = "CLICK OR PRESS SPACE TO PLAY AGAIN" ELSE prompt$ = "CLICK OR PRESS SPACE FOR THE NEXT SECTOR"
         MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
     END IF
     IF glReady THEN GLSL_filter_capture ' (OpenGL draws the tally over its view: chapter 24)
@@ -4561,7 +4582,9 @@ DO
     _DISPLAY
 LOOP
 _FREEIMAGE screenshot&
-IF level >= NUM_LEVELS THEN
+IF level > NUM_LEVELS THEN ' (your own sector: again, from the start)
+    GOSUB RestartLevel
+ELSEIF level = NUM_LEVELS THEN
     GOSUB NewGame
 ELSE
     GOSUB ShowRoute ' (where you've been, where you're going)
@@ -4575,6 +4598,25 @@ ReadSectorNames:
 FOR k = 1 TO NUM_LEVELS
     ReadLevelFile k : sectorName$(k) = lvlName$
 NEXT
+FOR k = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM : sectorName$(k) = SectorNameOf$(k) : NEXT
+RETURN
+
+' --- A new sector of your own (GAME > YOUR SECTORS > NEW SECTOR, or the
+' newsector command): the first free number's file, made blank
+' (WriteBlankSector), then a game in it - in the editor. level stays as
+' it was if there's no room for another.
+NewSector:
+newN = 0
+FOR k = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM
+    IF newN = 0 AND NOT _FILEEXISTS(LevelFile$(k)) THEN newN = k
+NEXT
+IF newN = 0 THEN ShowMsg "No room for another sector - there can be" + STR$(MAX_CUSTOM) : ConPrint "newsector: all" + STR$(MAX_CUSTOM) + " are made" : RETURN
+WriteBlankSector newN
+sectorName$(newN) = SectorNameOf$(newN)
+level = newN : GOSUB NewGameHere
+GOSUB EditEnter
+EditNote "NEW SECTOR " + LTRIM$(STR$(newN)) + ": carve out rooms with . - Ctrl+S saves"
+ConPrint "newsector: " + LevelFile$(newN)
 RETURN
 
 ' --- THE ROUTE: between sectors, a map of all of them (like DOOM's between
@@ -4864,7 +4906,7 @@ fireWait = 20 ' (so the click that started the level doesn't fire)
 bobPhase = 0 : stepDist = STEP_LEN * 0.85 ' The first footstep sounds soon after you start walking
 levelStart! = TIMER : shake = 0 : hurtFromX = -1
 FOR i = 1 TO MAX_HURTDIRS : hurtDirTime(i) = 0 : NEXT
-IF NOT editRebuild THEN PlayMusic levelMusic&(level) : ShowMsg levelName$ + "  -  find the EXIT"
+IF NOT editRebuild THEN PlayMusic SectorMusic&(level) : ShowMsg levelName$ + "  -  find the EXIT"
 ' (built again in the editor: OpenGL's turn now - new pictures if any,
 ' and the world again. Only now: SUB _GL runs alongside this, and asked
 ' halfway through it would build half a level)
@@ -4928,6 +4970,27 @@ RETURN
 ' monsters.txt and hud.txt: plain text files, read at the start, changed
 ' live, written back - one way of keeping a game's numbers outside it.
 
+' --- A runtime error, anywhere (ON ERROR GOTO GameError, at the very
+' start). Without this QB64PE stops the game with a "Continue?" box -
+' behind a full-screen window, where you may not even see it. Instead: a
+' line in neon-caster/saves/errors.log (which error, and the line it was
+' on - _ERRORLINE), the same in the console, a message the first time,
+' and on from the statement after it (RESUME NEXT). Most are one bad
+' number in one frame; carrying on beats stopping. (No more than 100 are
+' written, so one in a loop can't fill the disk.)
+GameError:
+errCount = errCount + 1
+errText$ = "ERROR" + STR$(ERR) + " (" + _ERRORMESSAGE$(ERR) + ") at line" + STR$(_ERRORLINE)
+IF errCount <= 100 THEN
+    ConPrint errText$
+    MakeSaveDir : errNum = FREEFILE
+    OPEN SaveDir$ + "errors.log" FOR APPEND AS #errNum
+    PRINT #errNum, DATE$ + " " + TIME$ + "  NEON-CASTER " + GAME_VERSION$ + "  " + errText$
+    CLOSE #errNum
+END IF
+IF errCount = 1 THEN ShowMsg "Something went wrong - written to saves/errors.log. Carrying on."
+RESUME NEXT
+
 ' --- The splash screen: up for SPLASH_SECONDS, or until a key or a click.
 ' DrawSplash (chapter 23) draws it - its picture if there's a splash.png,
 ' or else the title.
@@ -4955,7 +5018,7 @@ RunMenu:
 _MOUSESHOW
 IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
 menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen
-menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1
+menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1 : menuDispWas = displayModeNow : menuPointWait = 0
 _KEYCLEAR
 DO
     _LIMIT 60
@@ -4989,6 +5052,11 @@ DO
     ' mouse moves, so it doesn't fight the keyboard.)
     WHILE _MOUSEINPUT : WEND
     mouseX = WideMouseX(_MOUSEX) : mouseY = _MOUSEY : mouseDown = _MOUSEBUTTON(1)
+    ' (The display switching - DISPLAY, or a MODE - moves where the mouse
+    ' seems to be without it moving: so for half a second after, pointing
+    ' doesn't count, or it would pick whatever item is under it now.)
+    IF displayModeNow <> menuDispWas THEN menuDispWas = displayModeNow : menuPointWait = 30
+    IF menuPointWait > 0 THEN menuPointWait = menuPointWait - 1 : lastMouseX = mouseX : lastMouseY = mouseY
     IF NOT menuDone AND menuCapture = 0 AND menuTyping = 0 THEN
         overItem = MenuItemAt(mouseX, mouseY)
         IF overItem > 0 AND overItem <> menuSel AND (mouseX <> lastMouseX OR mouseY <> lastMouseY) THEN
@@ -5000,7 +5068,8 @@ DO
                 CASE MI_SLIDER
                     menuDrag = overItem
                 CASE MI_CHOICE, MI_TOGGLE ' (the left half of a choice goes back)
-                    IF miKind(overItem) = MI_CHOICE AND mouseX < MENU_WIDGET_X + MENU_WIDGET_W / 2 THEN menuAdjust = -1 ELSE menuAdjust = 1
+                    half = MENU_WIDGET_X + MENU_WIDGET_W / 2 : IF NOT menuWide THEN half = 400 ' (centred: its middle)
+                    IF miKind(overItem) = MI_CHOICE AND mouseX < half THEN menuAdjust = -1 ELSE menuAdjust = 1
                     GOSUB MenuAdjustItem
                 CASE ELSE
                     GOSUB MenuActivate
@@ -5233,17 +5302,29 @@ SELECT CASE conVerb$
     CASE "map", "level", "sector" ' Go to a sector, keeping what you carry
         n = VAL(conA$)
         IF n < 1 THEN ' (or by name: the first whose name has it)
-            FOR k = 1 TO NUM_LEVELS
-                IF conA$ <> "" AND INSTR(LCASE$(sectorName$(k)), LCASE$(conRest$)) THEN n = k : EXIT FOR
+            FOR k = 1 TO NUM_LEVELS + MAX_CUSTOM
+                IF conA$ <> "" AND LEN(sectorName$(k)) THEN IF INSTR(LCASE$(sectorName$(k)), LCASE$(conRest$)) THEN n = k : EXIT FOR
             NEXT
         END IF
-        IF n >= 1 AND n <= NUM_LEVELS THEN
+        IF SectorExists(n) THEN
             level = n : GOSUB EnterLevel : conLevelChanged = -1 : ConPrint "-> " + sectorName$(n)
         ELSE
-            ConPrint "map: 1 to" + STR$(NUM_LEVELS) + ", or part of a name (maps lists them)"
+            ConPrint "map: 1 to" + STR$(NUM_LEVELS) + " (or one of yours, from" + STR$(NUM_LEVELS + 1) + "), or part of a name (maps lists them)"
         END IF
     CASE "maps", "levels", "sectors"
-        FOR k = 1 TO NUM_LEVELS : ConPrint LTRIM$(STR$(k)) + "  " + sectorName$(k) : NEXT
+        FOR k = 1 TO NUM_LEVELS + MAX_CUSTOM
+            IF k = NUM_LEVELS + 1 THEN ConPrint "-- yours (newsector makes one) --"
+            IF LEN(sectorName$(k)) THEN ConPrint LTRIM$(STR$(k)) + "  " + sectorName$(k)
+        NEXT
+    CASE "newsector" ' A blank sector of your own, in the editor
+        GOSUB NewSector : conLevelChanged = -1
+    CASE "sectorname" ' Rename the sector you're in (savelevel or Ctrl+S keeps it)
+        IF conRest$ = "" THEN
+            ConPrint "sectorname: " + lvlName$
+        ELSE
+            lvlName$ = UCASE$(conRest$) : levelName$ = lvlName$ : sectorName$(level) = lvlName$ : editDirty = -1
+            ConPrint "sectorname: " + lvlName$ + "   (savelevel or Ctrl+S in the editor to keep it)"
+        END IF
     CASE "restart", "reset", "resetlevel" ' This sector again, from the start
         GOSUB RestartLevel : conLevelChanged = -1 : ConPrint "Level reset"
     CASE "newgame"
@@ -5609,10 +5690,11 @@ SELECT CASE miKind(menuSel)
                 menuDone = -1
             CASE MA_NEW
                 GOSUB NewGame : menuDone = -1
-            CASE MA_SECTOR ' A new game, in sector miRef
-                startN = miRef(menuSel) : GOSUB NewGame
-                IF startN > 1 THEN level = startN : GOSUB EnterLevel
+            CASE MA_SECTOR ' A new game, in sector miRef (straight there: no stop in sector 1)
+                level = miRef(menuSel) : GOSUB NewGameHere
                 menuDone = -1
+            CASE MA_NEWSECTOR ' A blank sector of your own, straight into the editor
+                GOSUB NewSector : IF level > NUM_LEVELS THEN menuDone = -1
             CASE MA_SAVE
                 saveSlot = miRef(menuSel) : GOSUB SaveGame : menuDone = -1
             CASE MA_LOAD
@@ -6832,7 +6914,66 @@ FUNCTION HeightChar$(h, dflt)
 END FUNCTION
 
 ' The file of level n
+' Where your own sectors' files go: neon-caster/levels/custom/ (made if
+' it isn't there yet)
+FUNCTION CustomDir$
+    f$ = AssetPath$("levels/level1.txt") : d$ = LEFT$(f$, LEN(f$) - LEN("level1.txt")) + "custom"
+    IF NOT _DIREXISTS(d$) THEN MKDIR d$
+    CustomDir$ = d$ + "/"
+END FUNCTION
+
+' Sector n's name, from its file's name = line, without reading the rest
+' (ReadLevelFile fills in the level being played) - "" if there's no file
+FUNCTION SectorNameOf$(n)
+    f$ = LevelFile$(n) : IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$ : t$ = LTRIM$(RTRIM$(l$))
+        IF LEFT$(t$, 1) = "[" THEN EXIT DO
+        eq = INSTR(t$, "=")
+        IF eq THEN IF LCASE$(RTRIM$(LEFT$(t$, eq - 1))) = "name" THEN SectorNameOf$ = LTRIM$(MID$(t$, eq + 1)) : EXIT DO
+    LOOP
+    CLOSE #fh
+END FUNCTION
+
+' Is there a sector n? (The game's are always there; yours once made.)
+FUNCTION SectorExists(n)
+    IF n >= 1 AND n <= NUM_LEVELS THEN SectorExists = -1 ELSE IF n > NUM_LEVELS AND n <= NUM_LEVELS + MAX_CUSTOM THEN SectorExists = _FILEEXISTS(LevelFile$(n))
+END FUNCTION
+
+' A sector's music: its own - or, for one of yours, one of the game's in turn
+FUNCTION SectorMusic&(n)
+    IF n > NUM_LEVELS THEN SectorMusic& = levelMusic&((n - NUM_LEVELS - 1) MOD NUM_LEVELS + 1) ELSE SectorMusic& = levelMusic&(n)
+END FUNCTION
+
+' A blank slate for sector n: solid wall, with one lit room in the middle
+' to carve outwards from - you facing east, the exit in the far wall
+SUB WriteBlankSector(n)
+    nl$ = CHR$(10) : q$ = "' "
+    o$ = q$ + "NEON-CASTER level file - see chapter 22 of neon-caster.bas for every" + nl$
+    o$ = o$ + q$ + "part of it. Lines starting with ' are comments. The level kit" + nl$
+    o$ = o$ + q$ + "(levels.py --write) and the editor in the game write these files." + nl$
+    o$ = o$ + q$ + "Your own sector, made blank by NEW SECTOR: one room in solid wall." + nl$
+    o$ = o$ + nl$ + "name     = MY SECTOR " + LTRIM$(STR$(n - NUM_LEVELS)) + nl$
+    o$ = o$ + "walls    = wall.png, wall2.png, wall-concrete.png, wall-servers.png, wall-pipes.png, wall-biolab.png" + nl$
+    o$ = o$ + "floors   = floor.png, floor-plates.png, floor-concrete.png, floor-lab.png" + nl$
+    o$ = o$ + "ceilings = ceiling.png, ceiling-lights.png" + nl$
+    o$ = o$ + "ambient  = 165, 225, 220, 255" + nl$
+    o$ = o$ + nl$ + "[lights]" + nl$ + "' x, y, radius, brightness, red, green, blue, effect" + nl$
+    o$ = o$ + "24, 24, 7, 150, 220, 230, 255, 0" + nl$
+    o$ = o$ + nl$ + "[map]" + nl$
+    FOR y = 0 TO MAP_SIZE - 1
+        r$ = STRING$(MAP_SIZE, "#")
+        IF y >= 20 AND y <= 27 THEN MID$(r$, 21, 8) = STRING$(8, ".") ' The room: cells 20 to 27 each way
+        IF y = 24 THEN MID$(r$, 22, 1) = ">" : MID$(r$, 29, 1) = "E" ' You at (21, 24), the exit at (28, 24)
+        o$ = o$ + r$ + nl$
+    NEXT
+    f$ = LevelFile$(n) : fh = FREEFILE
+    OPEN f$ FOR OUTPUT AS #fh : PRINT #fh, o$; : CLOSE #fh
+END SUB
+
 FUNCTION LevelFile$(n)
+    IF n > NUM_LEVELS THEN LevelFile$ = CustomDir$ + "custom" + LTRIM$(STR$(n - NUM_LEVELS)) + ".txt" : EXIT FUNCTION
     LevelFile$ = AssetPath$("levels/level" + LTRIM$(STR$(n)) + ".txt")
 END FUNCTION
 
@@ -7219,7 +7360,8 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     END IF
     ' The palette, two-and-a-bit columns of glyphs on the right
     COLOR _RGB32(255, 90, 200) : _PRINTSTRING (ED_PALX, 4), "LEVEL EDITOR"
-    COLOR _RGB32(170, 160, 210) : _PRINTSTRING (ED_PALX, 22), LEFT$("Sector" + STR$(lev) + ": " + MID$(lname$, INSTR(lname$, ":") + 2), 24)
+    shortName$ = lname$ : c = INSTR(lname$, ": ") : IF c THEN shortName$ = MID$(lname$, c + 2) ' ("SECTOR 1: NEON STATION" - just its name)
+    COLOR _RGB32(170, 160, 210) : _PRINTSTRING (ED_PALX, 22), LEFT$("Sector" + STR$(lev) + ": " + shortName$, 24)
     FOR k = 1 TO LEN(EDIT_GLYPHS)
         c$ = MID$(EDIT_GLYPHS, k, 1)
         sx = ED_PALX + ((k - 1) MOD 8) * 22 : sy = ED_PALY + ((k - 1) \ 8) * 22
@@ -8801,7 +8943,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version qb64pe edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -8817,11 +8959,13 @@ SUB ConHelp(c$)
             ConPrint "  edit [walk|off]   put X Y CHAR   box X0 Y0 X1 Y1 CHAR   undo   savelevel"
             ConPrint "  cutscene [SECTOR]   say LINE   fire [FRAMES]   use   jackin   jackout [win]   stations"
             ConPrint "  events   screenshot [FILE]   wait FRAMES   echo TEXT   exec FILE   logfile FILE|off"
-            ConPrint "  qb64pe [PATH|auto]   version"
+            ConPrint "  qb64pe [PATH|auto]   version   newsector   sectorname NAME"
             ConPrint "  clear   menu   quit"
             ConPrint "From the command line, each command starts with + :"
             ConPrint "  neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit"
-        CASE "map" : ConPrint "map N (1-" + LTRIM$(STR$(NUM_LEVELS)) + ") or map NAME (part of one): go to that sector, keeping what you carry"
+        CASE "map" : ConPrint "map N (1-" + LTRIM$(STR$(NUM_LEVELS)) + ", yours from" + STR$(NUM_LEVELS + 1) + ") or map NAME (part of one): go to that sector, keeping what you carry"
+        CASE "newsector" : ConPrint "newsector: a blank sector of your own (levels/custom/), opened in the editor - carve rooms out with . (floor), Ctrl+S saves"
+        CASE "sectorname" : ConPrint "sectorname NAME: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it"
         CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-4 | ammo | health | armor | overcharge | amp | map"
         CASE "summon" : ConPrint "summon TYPE [COUNT]: drone gunner heavy crawler sentry stalker spitter overseer (or 1-8), in front of you"
         CASE "set" : ConPrint "set NAME VALUE: any setting (settings lists them); NAME on its own shows it. on/off work for switches"
@@ -9031,6 +9175,14 @@ END FUNCTION
 ' volume. (The rest - sound, crosshair, bobbing, shake - are read straight
 ' from setting() where they're used.)
 SUB ApplySettings
+    ' MODE: a new one chosen (menu, console) - its settings go in. Then
+    ' which mode they all match now (CUSTOM if none).
+    IF setting(SET_MODE) <> modeWas AND setting(SET_MODE) <> MODE_CUSTOM THEN
+        FOR i = 1 TO NUM_SETTINGS
+            v = ModeWants(setting(SET_MODE), i) : IF v >= 0 THEN setting(i) = v
+        NEXT
+    END IF
+    setting(SET_MODE) = ModeNow : modeWas = setting(SET_MODE)
     fovPlane = TAN(setting(SET_FOV) / 2 * 3.14159265 / 180)
     turnSpeed = setting(SET_MOUSE) * 0.0006
     IF nowPlaying& > 0 THEN _SNDVOL nowPlaying&, setting(SET_MUSIC) / 100
@@ -9038,6 +9190,53 @@ SUB ApplySettings
     artWant = 0 : IF setting(SET_ART) = 2 THEN artWant = 1 : IF setting(SET_RENDERER) = 2 THEN artWant = 2
     ApplyDisplay
 END SUB
+
+' What MODE m sets setting id to - or -1 if it leaves it alone (sound,
+' controls, gameplay). All three are OpenGL, full screen 4:3:
+'   OLDSCHOOL  RETRO resolution, the pixel art, every effect off, no
+'              scanlines
+'   90S        720P, the pixel art, every effect but NEON and WET FLOORS,
+'              scanlines and phosphor glow
+'   NEWSCHOOL  as sharp as the display goes (BestRes), the modern
+'              paintings, every effect, scanlines and phosphor glow
+FUNCTION ModeWants(m, id)
+    ModeWants = -1
+    IF m < MODE_OLDSCHOOL OR m > MODE_NEWSCHOOL THEN EXIT FUNCTION
+    fx = 0 : IF m > MODE_OLDSCHOOL THEN fx = 1 ' (the effects: on for 90S and NEWSCHOOL)
+    SELECT CASE id
+        CASE SET_RENDERER : ModeWants = 2
+        CASE SET_DISPLAY : ModeWants = 3 ' FULL 4:3
+        CASE SET_ART : IF m = MODE_NEWSCHOOL THEN ModeWants = 2 ELSE ModeWants = 1
+        CASE SET_RES
+            IF m = MODE_OLDSCHOOL THEN ModeWants = RES_RETRO ELSE IF m = MODE_90S THEN ModeWants = 5 ELSE ModeWants = BestRes ' (5: 720P)
+        CASE SET_BUMP, SET_SMOOTH, SET_DYNLIGHT, SET_SHADOWS, SET_GLOW, SET_PARTICLES, SET_SHAFTS, SET_BLOOM, SET_HITFX
+            ModeWants = fx
+        CASE SET_NEON, SET_REFLECT : IF m = MODE_NEWSCHOOL THEN ModeWants = 1 ELSE ModeWants = 0
+        CASE SET_SCREENFX : ModeWants = 1 + fx ' off, or scanlines
+        CASE SET_SCANLINES : IF fx THEN ModeWants = 100
+        CASE SET_PHOSPHOR : IF fx THEN ModeWants = 25
+        CASE SET_SCANGAP : IF fx THEN ModeWants = 4
+        CASE SET_SCANTHICK : IF fx THEN ModeWants = 50
+    END SELECT
+END FUNCTION
+
+' The MODE every setting matches now (MODE_CUSTOM if none)
+FUNCTION ModeNow
+    FOR m = MODE_OLDSCHOOL TO MODE_NEWSCHOOL
+        ok = -1
+        FOR i = 1 TO NUM_SETTINGS
+            v = ModeWants(m, i) : IF v >= 0 AND setting(i) <> v THEN ok = 0 : EXIT FOR
+        NEXT
+        IF ok THEN ModeNow = m : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' The sharpest RESOLUTION the display can show: the named one as tall as
+' it is (on a 4K display, 2160P)
+FUNCTION BestRes
+    h = _DESKTOPHEIGHT
+    IF h >= 2160 THEN BestRes = 2 ELSE IF h >= 1440 THEN BestRes = 3 ELSE IF h >= 1080 THEN BestRes = 4 ELSE IF h >= 720 THEN BestRes = 5 ELSE BestRes = 6
+END FUNCTION
 
 ' DISPLAY: a window, or full screen - switched only when it needs to be
 ' (displayAsked, displayModeNow: what was last put into effect), as switching
@@ -9113,6 +9312,12 @@ END FUNCTION
 ' Left (-1) or right (1) on setting id: a slider moves a step (and stops at
 ' its ends), a choice goes round to the next one, a toggle flips
 SUB ChangeSetting(id, dir)
+    IF id = SET_MODE THEN ' (round the three looks - CUSTOM isn't one you choose)
+        setting(id) = setting(id) + dir
+        IF setting(id) > MODE_NEWSCHOOL THEN setting(id) = MODE_OLDSCHOOL
+        IF setting(id) < MODE_OLDSCHOOL THEN setting(id) = MODE_NEWSCHOOL
+        EXIT SUB
+    END IF
     SELECT CASE setKind(id)
         CASE MI_TOGGLE
             setting(id) = 1 - setting(id)
@@ -9148,6 +9353,7 @@ FUNCTION SettingText$(id)
         CASE SET_XCOLOR : SettingText$ = CrossColorName$(setting(id))
         CASE SET_RENDERER : IF setting(id) = 2 THEN SettingText$ = "OPENGL" ELSE SettingText$ = "SOFTWARE"
         CASE SET_ART : IF setting(id) = 2 THEN SettingText$ = "MODERN" ELSE SettingText$ = "CLASSIC"
+        CASE SET_MODE : SettingText$ = RTRIM$(MID$("CUSTOM   OLDSCHOOL90S      NEWSCHOOL", setting(id) * 9 + 1, 9))
         CASE SET_SCREENFX : SettingText$ = MID$("OFF      SCANLINESCRT      ", setting(id) * 9 - 8, 9)
         CASE SET_RES : SettingText$ = ResName$(setting(id))
         CASE SET_DISPLAY : SettingText$ = RTRIM$(MID$("WINDOWED    FULL WIDE   FULL 4:3    FULL STRETCH", setting(id) * 12 - 11, 12))
@@ -9184,6 +9390,7 @@ SUB LoadSettings
         END IF
     LOOP
     CLOSE #fileNum
+    setting(SET_MODE) = ModeNow : modeWas = setting(SET_MODE) ' (worked out from the rest - not put into effect)
 END SUB
 
 ' Write every setting and key binding to the settings file
@@ -9250,6 +9457,7 @@ SUB BuildMenu(scr)
             menuTitle$ = "GAME"
             AddMenuItem "NEW GAME", MI_ACTION, 0, MA_NEW, -1, ""
             AddMenuItem "SELECT SECTOR", MI_SUBMENU, SCR_SECTOR, 0, -1, ""
+            AddMenuItem "YOUR SECTORS", MI_SUBMENU, SCR_CUSTOM, 0, -1, ""
             AddMenuItem "LOAD GAME", MI_SUBMENU, SCR_LOAD, 0, -1, ""
             AddMenuItem "SAVE GAME", MI_SUBMENU, SCR_SAVE, 0, menuInGame, "" ' (only during a game)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
@@ -9259,6 +9467,14 @@ SUB BuildMenu(scr)
                 nm$ = sectorName$(n) : c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2)
                 AddMenuItem LTRIM$(STR$(n)) + "  " + nm$, MI_ACTION, n, MA_SECTOR, -1, ""
             NEXT
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_CUSTOM ' Your own sectors (chapter 22): play one, or make a new one
+            menuTitle$ = "YOUR SECTORS" : menuWide = -1 : free = 0
+            FOR n = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM
+                sectorName$(n) = SectorNameOf$(n) ' (a name may have changed: Ctrl+S, or by hand)
+                IF LEN(sectorName$(n)) THEN AddMenuItem LTRIM$(STR$(n)) + "  " + sectorName$(n), MI_ACTION, n, MA_SECTOR, -1, "" ELSE free = free + 1
+            NEXT
+            AddMenuItem "NEW SECTOR", MI_ACTION, 0, MA_NEWSECTOR, free > 0, "" ' (a blank slate, opened in the editor - while there's room)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_SAVE
             menuTitle$ = "SAVE GAME" : menuWide = -1
@@ -9281,6 +9497,7 @@ SUB BuildMenu(scr)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_SETTINGS
             menuTitle$ = "SETTINGS"
+            AddSettingItem SET_MODE
             AddMenuItem "AUDIO", MI_SUBMENU, SCR_AUDIO, 0, -1, ""
             AddMenuItem "GAMEPLAY", MI_SUBMENU, SCR_GAMEPLAY, 0, -1, ""
             AddMenuItem "VIDEO", MI_SUBMENU, SCR_VIDEO, 0, -1, ""
@@ -9431,6 +9648,8 @@ SUB DrawMenu(t)
             MenuText 400 + slide, rowY, miLabel$(i), 2, _RGBA32(200, 160, 255, alpha), 1
         ELSEIF menuWide THEN
             MenuText MENU_LABEL_X + slide, rowY, miLabel$(i), 2, col~&, 0
+        ELSEIF miKind(i) = MI_CHOICE THEN ' (a choice on a centred screen - MODE: its value beside it)
+            MenuText 400 + slide, rowY, miLabel$(i) + ":  <  " + SettingText$(miRef(i)) + "  >", 2, col~&, 1
         ELSE
             MenuText 400 + slide, rowY, miLabel$(i), 2, col~&, 1
         END IF
@@ -9447,7 +9666,7 @@ SUB DrawMenu(t)
                 IF setting(miRef(i)) THEN LINE (wx + 5, rowY + 8)-STEP(12, 12), _RGBA32(80, 220, 255, alpha), BF
                 IF setting(miRef(i)) THEN MenuText wx + 36, rowY, "ON", 2, col~&, 0 ELSE MenuText wx + 36, rowY, "OFF", 2, col~&, 0
             CASE MI_CHOICE
-                MenuText wx, rowY, "<  " + SettingText$(miRef(i)) + "  >", 2, col~&, 0
+                IF menuWide THEN MenuText wx, rowY, "<  " + SettingText$(miRef(i)) + "  >", 2, col~&, 0
             CASE MI_KEY
                 IF menuCapture = i THEN
                     IF (t \ 10) MOD 2 = 0 THEN MenuText wx, rowY, "PRESS A KEY", 2, _RGBA32(255, 230, 60, alpha), 0

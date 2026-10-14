@@ -41,14 +41,32 @@ right button to aim, Space to open and use things, F to kick, 1-4 for guns,
 Tab for the map, Esc for the menu and settings, ` for the console, F2 for
 the level editor. The full list is in the tutorial.
 
-**Code terminals and QB64PE:** a code terminal locks you in until you fix a
-little QB64 program. If [QB64 Phoenix Edition](https://qb64phoenix.com) is
-installed, your fix is really compiled and run, and its output has to be
-right. Without it, the terminals still work: your lines are checked
-against the answer instead. The game looks for `qb64pe` in `$QB64PE`, on
-your `PATH` and in the usual folders. If it's somewhere else, point to it
-in **SETTINGS > QB64PE COMPILER** (type the path or its folder, or browse
-for it), or type `qb64pe /path/to/qb64pe` in the console.
+**The programming puzzles need QB64PE.** A code terminal locks you in
+until you fix a little QB64 program, and to really compile and run your
+fix the game needs [QB64 Phoenix Edition](https://qb64phoenix.com)
+installed:
+
+1. Install QB64PE 4.7 or newer.
+2. In the game, open **SETTINGS > QB64PE COMPILER** and point it at your
+   `qb64pe` (type its path or its folder, or BROWSE for it). The screen
+   says **COMPILING WITH YOURS** when it's found. In the console,
+   `qb64pe /path/to/qb64pe` does the same.
+
+The game looks for it by itself too (`$QB64PE`, your `PATH` and the usual
+folders), so you may find it's already set. Without QB64PE the terminals
+still let you through, but they only check your lines against the answer:
+nothing is compiled or run.
+
+**Make your own:** **GAME > YOUR SECTORS > NEW SECTOR** gives you a
+blank sector (one room in solid wall) and opens the level editor on it.
+Paint rooms out, add doors, monsters and lights, and Ctrl+S saves it to
+`neon-caster/levels/custom/`. The tutorial explains the editor.
+
+**Quick looks:** **SETTINGS > MODE** sets every video and effects setting
+at once. OLDSCHOOL is chunky pixels with no effects, 90S is 720P with
+scanlines and most effects, and NEWSCHOOL is as sharp as your display goes
+with everything on. All three are full screen 4:3. Change any setting
+afterwards and MODE shows CUSTOM.
 
 ## Learn from it
 

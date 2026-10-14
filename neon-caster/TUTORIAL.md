@@ -85,6 +85,18 @@ Every key can be changed in the menu, under **SETTINGS > CONTROLS**. The
 menu works with the arrow keys or W A S D, Enter, and Esc to go back - or
 just point and click.
 
+**MODE** (the top of **SETTINGS**) sets every video and effects setting in
+one go: OLDSCHOOL (RETRO resolution, the pixel art, no effects), 90S (720P,
+the pixel art, scanlines and phosphor glow, every effect but NEON and WET
+FLOORS) or NEWSCHOOL (as sharp as your display goes, the modern paintings,
+everything on) - all full screen 4:3. It isn't kept as itself: it shows
+the mode your settings all match, and CUSTOM once you change one.
+(`ModeWants` lists what each one sets.)
+
+If something goes wrong while the game runs, it doesn't stop: the error
+and the line it was on go into `neon-caster/saves/errors.log` (and the
+console), and it carries on.
+
 **The code terminals and qb64pe.** A code terminal ($ on a map) locks the
 doors until you put a little QB64 program back together. When the game can
 find qb64pe, pressing F5 really compiles and runs your program, and its
@@ -115,6 +127,18 @@ raise and lower the floor. Ctrl+S saves the level's file, Ctrl+Z undoes,
 F2 goes back to playing it. M opens the monster editor (every monster's
 numbers, and what it drops: `monsters.txt`), U the HUD layout editor (drag
 the HUD about, over the game: `hud.txt`).
+
+**Your own sectors.** To start from nothing, **GAME > YOUR SECTORS > NEW
+SECTOR** makes a blank one - solid wall, with one lit room in the middle,
+you facing the exit - and opens the editor on it. Carve rooms outwards by
+painting floor (`.`), add doors, keycards, monsters, lights and heights,
+and Ctrl+S saves it. Your sectors are numbered on from the game's (11, 12
+and so on, up to 20) and kept in `neon-caster/levels/custom/` (`custom1.txt`
+is sector 11), where the level kit never touches them. YOUR SECTORS lists
+them to play; finishing one starts it again. In the console, `newsector`
+makes one, `sectorname NAME` renames the sector you're in (then
+`savelevel`), `map 11` goes there and `maps` lists them all. In the
+editor, PgUp/PgDn steps through every sector, yours included.
 
 Two switches near the top of the source are on for testing:
 `TEST_ALL_GUNS` (start with every gun and full ammo) and `CHEAT_KEYS`
@@ -292,11 +316,13 @@ run it and see what happens. That's the fastest way to learn how it works.
 - **Marks that fade** (ch. 12, 24): shot marks and scorches (`AddDecal`)
   stay until 96 newer ones push them out. Fade each one's alpha with age
   instead.
-- **Your own level (ch. 21, 22)**: press F2 and build one - paint the
-  map from above, walk round in it, raise floors, add lights and lifts,
-  Ctrl+S. Or open `neon-caster/levels/level1.txt` in a text editor: the
-  map is right there, one character a cell. `python3 levels.py --check`
-  (in `neon-caster/levels/`) checks it: doors, keycards, the exit.
+- **Your own level (ch. 21, 22)**: GAME > YOUR SECTORS > NEW SECTOR, and
+  build from a blank slate - paint the map from above, walk round in it,
+  raise floors, add lights and lifts, Ctrl+S. Or open
+  `neon-caster/levels/custom/custom1.txt` (or any `level1.txt`) in a text
+  editor: the map is right there, one character a cell. For the game's
+  own sectors, `python3 levels.py --check` (in `neon-caster/levels/`)
+  checks them: doors, keycards, the exit.
 - **Your own puzzle (ch. 19)**: copy `neon-caster/puzzles/countdown.txt`,
   write a little program that teaches one thing, say what it prints, pick
   the words to blank out - and name it in a level's `puzzles =` line.
@@ -415,6 +441,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/sfx/` | sound effects, made with soundmon; `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
 | `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22) and the level kit that builds and checks them (`levels.py`, `lvlkit.py`) |
+| `neon-caster/levels/custom/` | your own sectors (`custom1.txt` is sector 11), made by NEW SECTOR - the level kit leaves them alone |
 | `neon-caster/puzzles/` | the code terminals' QB64 programs, one a file (`README.txt` says how to write one) |
 | `neon-caster/monsters.txt`, `hud.txt` | every monster's numbers and what it drops; the HUD's layout - both changed by their editors, or by hand |
 | `neon-caster/music/` | a track for each sector, the menu's, and the network's (`cyber.flac`) |
