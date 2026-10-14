@@ -302,7 +302,7 @@ All end in `.png`. In the walk view, **T**, **F** and **V** step through these w
 | --- | --- | --- | --- |
 | 1 | Ambush | How many monsters | Monster type (0 = a mix) |
 | 2 | Survive | Seconds | Frames between arrivals |
-| 3 | Trap | Frames live | Frames safe |
+| 3 | Trap (electric) | Frames live | Frames safe |
 | 4 | Gallery | Seconds to break every decoration in the room | |
 | 5 | Nest | Monster type | Frames between spawns |
 | 6 | Closet | | (opens `%` walls within 3 cells) |
@@ -311,6 +311,9 @@ All end in `.png`. In the walk view, **T**, **F** and **V** step through these w
 | 9 | Laser | Frames on | Frames off (0 = always on) |
 | 10 | Cutter | Frames per sweep | |
 | 11 | Blackout | Seconds | Number of monsters |
+| 12 | Trap (fire) | Frames live | Frames safe |
+
+A trap's floor gets its own picture (a glowing wire grid, or a burner grate), and it warns you for half a second before it goes live: crackles and short arcs, or smoke and embers. While live it arcs or blazes, lights the room and buzzes or roars. Use kind 12 in hot places (reactors, foundries), kind 3 elsewhere.
 
 Monster types are numbered in the order of the monster table: 1 drone to 9 thief. `reward` is a pickup given when you win, numbered in this order: 1 red card, 2 blue card, 3 yellow card, 4 health, 5 cells, 6 shells, 7 scatter gun, 8 repeater, 9 armour, 10 medkit, 11 railgun, 12 map, 13 overcharge, 14 amp. Use 0 for none. Only ambush, survive, trap and gallery give one. A trap or cutter with `a` of 0 is a mistake: it logs an error.
 

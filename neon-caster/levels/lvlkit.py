@@ -139,7 +139,8 @@ class Map:
 
     # -- event rooms (see EV_ in the game): kind 1 ambush, 2 survive, 3 trap,
     # 4 shooting gallery, 5 spawner nest, 6 closet, 7 hoard, 8 pressure
-    # plate, 9 laser, 10 laser cutter, 11 power failure; the room x0..x1, y0..y1; two numbers
+    # plate, 9 laser, 10 laser cutter, 11 power failure, 12 fire trap (3, burning);
+    # the room x0..x1, y0..y1; two numbers
     # whose meaning depends on the kind; the reward (a pickup kind, 0 none:
     # 4 health, 5 cells, 6 shells, 9 armour, 10 big medkit, 13 overcharge,
     # 14 damage amp)
@@ -693,8 +694,8 @@ def check_level(lv, assets=None):
             errs.append("event %s: needs 8 numbers" % (e,))
             continue
         kind, x0, y0, x1, y1, a, b, reward = e
-        if not (1 <= kind <= 11 and 0 < x0 <= x1 < N - 1 and 0 < y0 <= y1 < N - 1):
-            errs.append("event %s: kind 1-11, a room inside the map" % (e,))
+        if not (1 <= kind <= 12 and 0 < x0 <= x1 < N - 1 and 0 < y0 <= y1 < N - 1):
+            errs.append("event %s: kind 1-12, a room inside the map" % (e,))
         if reward not in (0, 4, 5, 6, 9, 10, 13, 14):
             errs.append("event %s: reward must be 0 or a pickup kind" % (e,))
         room = [lv["rows"][y][x] for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]

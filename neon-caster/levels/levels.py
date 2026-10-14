@@ -226,7 +226,7 @@ def level2():
     m.zone(3, 35, 45, 45, 2, 1)             # south hall
     m.zone(39, 35, 45, 45, 3, 2)            # armoury
     place(m, [(6, 9, "M")])                 # the map: in the storage bay
-    m.event(3, 15, 25, 21, 31, 90, 90)      # the hazard corner (SW) is live: on 1.5 s, off 1.5 s
+    m.event(12, 15, 25, 21, 31, 90, 90)     # the burner corner (SW) is live: on 1.5 s, off 1.5 s
     m.event(4, 15, 3, 32, 13, 25, 0, 13)    # control room: smash its terminals in 25 s, overcharge
     # light: dim and orange, the core throbbing, alarms in the hall
     m.ambient = (115, 255, 190, 150)
@@ -566,7 +566,7 @@ def level5():
     m.zone(2, 2, 45, 45, 4, 1)
     m.zone(6, 19, 41, 28, 2, 1)
     m.zone(8, 23, 39, 24, 1, 2)                 # the molten channel
-    m.event(3, 8, 23, 39, 24, 60, 120)          # ...live: cross while it's off
+    m.event(12, 8, 23, 39, 24, 60, 120)         # ...a burner strip: cross while it's off
     m.event(4, 18, 3, 29, 14, 20, 0, 10)        # pattern shop: smash it all in 20 s, big medkit
     m.zone(3, 3, 14, 14, 3, 2); m.zone(33, 3, 44, 14, 3, 2)
     m.zone(18, 33, 29, 44, 3, 1)

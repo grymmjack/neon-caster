@@ -362,6 +362,13 @@ CONST EV_AMBUSH = 1, EV_SURVIVE = 2, EV_TRAP = 3, EV_GALLERY = 4, EV_NEST = 5
 '   EV_BLACKOUT a power failure: the lights die for a seconds, and b
 '               monsters come out of the dark
 CONST EV_CLOSET = 6, EV_HOARD = 7, EV_PLATE = 8, EV_LASER = 9, EV_CUTTER = 10, EV_BLACKOUT = 11
+'   EV_FIRETRAP the same as EV_TRAP, but a burner grate: flames, not sparks
+CONST EV_FIRETRAP = 12
+' A trap gives itself away: its floor is its own picture (MakeTrapTex), it
+' smokes or crackles for TRAP_WARN frames before it goes live, and while
+' live it blazes or arcs, lights the room and roars or buzzes (TrapFx)
+CONST TRAP_WARN = 30
+DIM SHARED evGlow(MAX_EVENTS) AS SINGLE, evHum&(MAX_EVENTS) ' (how lit a trap is now, 0 to 1; its own looping copy of its sound)
 DIM SHARED closetCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' (a closet's secret wall: which closet event it belongs to)
 DIM SHARED thiefDist(MAP_SIZE, MAP_SIZE) AS INTEGER ' (how many steps from a hoard's door: the thieves' way home - BuildThiefWay)
 DIM SHARED blackoutTimer AS LONG, glMeshVersion AS LONG, glMeshDone AS LONG
@@ -626,7 +633,8 @@ CONST T_SHUTTER = 11, T_SPLIT = 12, T_EXIT = 13
 CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20, T_LAMPOFF = 21, T_JACK = 22 ' (T_JACK: a data station's wall, @)
 CONST T_CODE = 23 ' (a code terminal's wall, $)
 CONST T_LIFT = 24, T_LIFTSIDE = 25 ' (a lift's top and sides: made from the level's own - MakeLiftTex)
-CONST T_SLOTS = 25
+CONST T_TRAP = 26, T_FIRE = 27 ' (a trap's floor: a live wire grid, a burner grate - MakeTrapTex)
+CONST T_SLOTS = 27
 REDIM SHARED texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
 REDIM SHARED texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
@@ -668,7 +676,7 @@ renderMem = _MEMIMAGE(renderImg&) : pixelsMem = _MEM(pixels())
 CONST GL_NEAR = 0.05, GL_FAR = 100
 ' GL_DYN: how many moving lights; MAX_PART: particles; GL_HEAT: explosions
 ' for the heat shimmer (all chapter 24)
-CONST GL_DYN = 4, MAX_PART = 400, GL_HEAT = 4
+CONST GL_DYN = 4, MAX_PART = 800, GL_HEAT = 4
 DIM SHARED glReady AS INTEGER, glBuf AS INTEGER, glFrameNo AS LONG, glMode AS INTEGER
 DIM SHARED glCamZ(1), glEyeZ ' (your eye's height, for OpenGL's camera)
 DIM SHARED glFrame(1) AS LONG, glCamX(1), glCamY(1), glDirX(1), glDirY(1), glPlaneLen(1), glZoom(1)
@@ -801,7 +809,7 @@ DIM SHARED fillSeen(MAP_SIZE, MAP_SIZE) AS LONG, fillStamp AS LONG
 ' The particles themselves (spawned and moved by the game, chapter 13):
 ' where, how fast, how long they've left (partLife, 0 = free) out of
 ' partMax, colour, size, and kind (PART_)
-CONST PART_SPARK = 1, PART_EMBER = 2, PART_DUST = 3
+CONST PART_SPARK = 1, PART_EMBER = 2, PART_DUST = 3, PART_FLAME = 4, PART_SMOKE = 5, PART_ARC = 6 ' (flames rise, smoke drifts up and spreads, an arc's points hang still a moment)
 DIM SHARED partX(MAX_PART), partY(MAX_PART), partZ(MAX_PART), partVX(MAX_PART), partVY(MAX_PART), partVZ(MAX_PART)
 DIM SHARED partLife(MAX_PART) AS INTEGER, partMax(MAX_PART) AS INTEGER, partR(MAX_PART), partG(MAX_PART), partB(MAX_PART)
 DIM SHARED partSize(MAX_PART), partKind(MAX_PART) AS INTEGER, partNext AS INTEGER, dustCount AS INTEGER
@@ -856,6 +864,8 @@ DIM SHARED sndDoor&, sndShutter&, sndSplit& ' (shared: DoorSnd& picks one - chap
 sndDoor& = LoadSnd&("door.wav") : sndShutter& = LoadSnd&("door-shutter.wav") : sndSplit& = LoadSnd&("door-split.wav")
 DIM SHARED sndLiftStart&, sndLiftMove&, sndLiftStop& ' (a lift setting off, moving - looped - and stopping)
 sndLiftStart& = LoadSnd&("lift-start.wav") : sndLiftMove& = LoadSnd&("lift-move.wav") : sndLiftStop& = LoadSnd&("lift-stop.wav")
+DIM SHARED sndTrapFire&, sndTrapElec& ' (a trap's roar or buzz, looped while it's lit)
+sndTrapFire& = LoadSnd&("trap-fire.wav") : sndTrapElec& = LoadSnd&("trap-electric.wav")
 sndCard& = LoadSnd&("keycard.wav") : sndLocked& = LoadSnd&("locked.wav")
 sndEmpty& = LoadSnd&("empty.wav") : sndWeapon& = LoadSnd&("weapon.wav")
 sndHealth& = LoadSnd&("health.wav") : sndAmmo& = LoadSnd&("ammo.wav") : sndShells& = LoadSnd&("shells.wav")
@@ -3258,6 +3268,7 @@ RETURN
 ' lvlRow$() and the rest - the level as its file says it - and the level
 ' is built again from that (EditApply), keeping you where you are.
 EditEnter:
+WorldLoopsOff ' (the world stops: so do its sounds)
 editMode = -1 : editView = 0 : editDirty = 0 : editUndoN = 0 : editLights = 0 : mapOpen = 0
 levelWas = level
 IF editGlyph$ = "" THEN editGlyph$ = "#"
@@ -3736,7 +3747,7 @@ RETURN
 ' fills in its blank (type, Enter); F5 or R compiles and runs it; H a hint;
 ' Esc leaves (the doors stay locked). pzSolved: it worked.
 RunPuzzle:
-LiftHumsOff
+WorldLoopsOff
 _MOUSESHOW : _KEYCLEAR
 pzSolved = 0 : pzSel = 1 : pzTyping = 0 : pzShown = 0 : pzFails = 0 : pzOut$ = "Put the lines in order, fill the blanks, then F5 to compile and run."
 pzDone = 0 : qb$ = QB64Path$
@@ -3899,6 +3910,7 @@ RETURN
 ' data cores laid out round the station (on the floor you can walk to from
 ' it, without going through a door), and ICE let loose, far off
 JackIn:
+WorldLoopsOff
 cyberOn = -1 : cyberStation = st
 cyberTime = CYBER_SECONDS * 60 : cyberGot = 0 : cyberNeed = 3 + level \ 3 : IF cyberNeed > 6 THEN cyberNeed = 6
 cyberMonStart = numMonsters : cyberItemStart = numItems
@@ -4215,14 +4227,22 @@ RunEvents:
 FOR ev = 1 TO numEvents
     inside = playerX >= evX0(ev) AND playerX < evX1(ev) + 1 AND playerY >= evY0(ev) AND playerY < evY1(ev) + 1
     SELECT CASE evType(ev)
-        CASE EV_TRAP ' Always on: pulsing, and hurting you if you're on it while it's live
-            evTimer(ev) = evTimer(ev) + 1 : phase = evTimer(ev) MOD (evA(ev) + evB(ev)) ' (its own clock)
+        CASE EV_TRAP, EV_FIRETRAP ' Always on: live for evA frames, safe for evB - warning you for the last
+            ' TRAP_WARN of those - and hurting you if you're on it while it's live
+            evTimer(ev) = evTimer(ev) + 1 : cyc = evA(ev) + evB(ev) : IF cyc < 1 THEN cyc = 1
+            phase = evTimer(ev) MOD cyc ' (its own clock)
             IF phase < evA(ev) THEN
-                IF RND < 0.25 THEN SpawnSparks evX0(ev) + RND * (evX1(ev) - evX0(ev) + 1), evY0(ev) + RND * (evY1(ev) - evY0(ev) + 1), 0.02, 2, 120, 200, 255
+                evGlow(ev) = 1
                 IF inside AND NOT dead AND phase MOD 15 = 0 THEN
-                    PlaySfx sndZap&, 0.8 : damage = 6 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
+                    IF evType(ev) = EV_FIRETRAP THEN PlaySfx sndSizzle&, 0.8 ELSE PlaySfx sndZap&, 0.8
+                    damage = 6 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
                 END IF
+            ELSEIF phase >= cyc - TRAP_WARN THEN
+                evGlow(ev) = 0.35 * (phase - (cyc - TRAP_WARN)) / TRAP_WARN ' (warming up)
+            ELSE
+                evGlow(ev) = 0
             END IF
+            TrapFx ev
         CASE EV_PLATE ' Stepped on (by you or a monster): click, then boom
             IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
             SELECT CASE evState(ev)
@@ -4504,7 +4524,7 @@ RETURN
 ' --- You used the exit: the level's tally, then on to the next level (after
 ' the last, the game's totals, and a new game)
 LevelDone:
-LiftHumsOff
+WorldLoopsOff
 PlaySfx sndExit&, 0.9
 levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
 totalKills = totalKills + kills : totalMonsters = totalMonsters + numMonsters : totalTime! = totalTime! + levelTime!
@@ -4784,7 +4804,12 @@ numEvents = lvlNumEvents
 FOR k = 1 TO numEvents
     evType(k) = lvlEvent(k, 1) : evX0(k) = lvlEvent(k, 2) : evY0(k) = lvlEvent(k, 3) : evX1(k) = lvlEvent(k, 4)
     evY1(k) = lvlEvent(k, 5) : evA(k) = lvlEvent(k, 6) : evB(k) = lvlEvent(k, 7) : evReward(k) = lvlEvent(k, 8)
-    evState(k) = 0 : evTimer(k) = 0 : evCount(k) = 0 : evNext(k) = 0
+    evState(k) = 0 : evTimer(k) = 0 : evCount(k) = 0 : evNext(k) = 0 : evGlow(k) = 0
+    IF evType(k) = EV_TRAP OR evType(k) = EV_FIRETRAP THEN ' (its floor: its own picture, so you can see where it is)
+        FOR y = evY0(k) TO evY1(k) : FOR x = evX0(k) TO evX1(k)
+            IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN floorSplit(x, y) = 0 : IF evType(k) = EV_FIRETRAP THEN floorTex(x, y) = T_FIRE ELSE floorTex(x, y) = T_TRAP
+        NEXT : NEXT
+    END IF
 NEXT
 FOR y = 0 TO MAP_SIZE - 1
     row$ = lvlRow$(y)
@@ -4898,7 +4923,7 @@ NEXT : NEXT
 ' The lifts: their cells start at their low height
 numLifts = 0
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : liftCell(x, y) = 0 : NEXT : NEXT
-LiftHumsOff ' (the last level's lifts' motors)
+WorldLoopsOff ' (the last level's lifts' motors)
 FOR k = 1 TO lvlNumLifts
     numLifts = numLifts + 1
     liftX0(k) = MinOf(lvlLift(k, 1), lvlLift(k, 3)) : liftY0(k) = MinOf(lvlLift(k, 2), lvlLift(k, 4))
@@ -5039,7 +5064,7 @@ RETURN
 ' darkened behind it; at the title it's the synthwave backdrop and music.
 ' It runs until you start, load or go back to a game (or quit).
 RunMenu:
-LiftHumsOff ' (the game waits: so do the lifts' motors)
+WorldLoopsOff ' (the game waits: so do the lifts' motors)
 _MOUSESHOW
 IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
 menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen
@@ -5421,7 +5446,7 @@ SELECT CASE conVerb$
     CASE "events"
         IF numEvents = 0 THEN ConPrint "No event rooms in this sector"
         FOR k = 1 TO numEvents
-            ConPrint LTRIM$(STR$(k)) + "  " + MID$("ambush  survive trap    gallery nest    closet  hoard   plate   laser   cutter  blackout", evType(k) * 8 - 7, 8) + " room" + STR$(evX0(k)) + STR$(evY0(k)) + " -" + STR$(evX1(k)) + STR$(evY1(k)) + "   " + MID$("waiting going   won     lost    ", evState(k) * 8 + 1, 8)
+            ConPrint LTRIM$(STR$(k)) + "  " + MID$("ambush  survive trap    gallery nest    closet  hoard   plate   laser   cutter  blackoutfiretrap", evType(k) * 8 - 7, 8) + " room" + STR$(evX0(k)) + STR$(evY0(k)) + " -" + STR$(evX1(k)) + STR$(evY1(k)) + "   " + MID$("waiting going   won     lost    ", evState(k) * 8 + 1, 8)
         NEXT
     CASE "screenshot", "shot"
         IF conA$ = "" THEN MakeSaveDir : shotFile$ = SaveDir$ + "shot-" + DATE$ + "-" + LTRIM$(STR$(INT(TIMER))) + ".png" ELSE shotFile$ = conRest$
@@ -6015,7 +6040,10 @@ RETURN
 '                2 survive: locked in for a seconds, a monster arriving every
 '                  b frames
 '                3 trap: the floor is live for a frames, then safe for b, over
-'                  and over - it hurts while it's live (no reward)
+'                  and over - it hurts while it's live (no reward). It warns
+'                  you: its floor is a wired grid, and it crackles for half
+'                  a second before it goes live
+'                12 fire trap: the same, a burner grate - smoke before, flames
 '                4 shooting gallery: break every decoration in the room within
 '                  a seconds
 '                5 spawner nest: the room's spawners (S) send out a monster of
@@ -6308,6 +6336,41 @@ SUB MakeLiftTex
     NEXT : NEXT
     texName$(T_LIFT) = "lift" : texName$(T_LIFTSIDE) = "lift" ' (for OpenGL's effects: shiny metal)
     texHD(T_LIFT) = texHD(T_FLOOR + 1) : texHD(T_LIFTSIDE) = texHD(1)
+    MakeTrapTex
+END SUB
+
+' A trap's floor, from the level's floor 1 (so it matches) but plainly not
+' safe. T_TRAP: darkened, with a grid of glowing blue wires and a stud at
+' each crossing. T_FIRE: a burner grate - dark bars over slots full of
+' embers, brightest in the middle of each. (OpenGL makes the bright parts
+' flicker or pulse: GLSendTextures.)
+SUB MakeTrapTex
+    t = texSize : cell = MaxOf(4, t \ 4) : wire = MaxOf(1, t \ 64) : slotH = MaxOf(2, t \ 12)
+    FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
+        c~& = texture(x, y, T_FLOOR + 1)
+        r = ((c~& \ 65536) AND 255) : g = ((c~& \ 256) AND 255) : bl = (c~& AND 255)
+        ' The wires: distance to the nearest grid wire, glowing round it
+        dx = (x + cell \ 2) MOD cell : dx = MinOf(dx, cell - dx) : dy = (y + cell \ 2) MOD cell : dy = MinOf(dy, cell - dy)
+        dw = MinOf(dx, dy)
+        er = r * 0.4 : eg = g * 0.4 : eb = bl * 0.45
+        IF dw <= wire THEN
+            er = 90 : eg = 190 : eb = 255
+        ELSEIF dw <= wire * 3 THEN
+            k = 1 - (dw - wire) / (wire * 2) : er = er + 30 * k : eg = eg + 80 * k : eb = eb + 140 * k
+        END IF
+        IF dx <= wire * 2 AND dy <= wire * 2 THEN er = 200 : eg = 220 : eb = 230 ' (a stud)
+        texture(x, y, T_TRAP) = _RGB32(MinOf(255, er), MinOf(255, eg), MinOf(255, eb))
+        ' The grate: a slot every cell/2 rows, embers in it, dark bars between
+        fr = r * 0.3 : fg = g * 0.28 : fb = bl * 0.26
+        sy = y MOD (cell \ 2)
+        IF sy >= wire * 2 AND sy < wire * 2 + slotH AND (x MOD cell) > wire AND (x MOD cell) < cell - wire THEN
+            k = 1 - ABS((sy - wire * 2) / slotH - 0.5) * 2 ' (brightest in the middle of the slot)
+            fr = 140 + 115 * k : fg = 40 + 90 * k * k : fb = 10 + 20 * k * k * k
+        END IF
+        texture(x, y, T_FIRE) = _RGB32(MinOf(255, fr), MinOf(255, fg), MinOf(255, fb))
+    NEXT : NEXT
+    texName$(T_TRAP) = "trap" : texName$(T_FIRE) = "trap" ' (not "lava": the grate itself doesn't burn - the trap does, when it's live)
+    texHD(T_TRAP) = texHD(T_FLOOR + 1) : texHD(T_FIRE) = texHD(T_FLOOR + 1)
 END SUB
 
 SUB LoadTex(file$, slot AS INTEGER)
@@ -11133,6 +11196,8 @@ SUB GLSendTextures
         END IF
         IF slot > T_CEIL THEN glTexShine(slot) = 0.1
         IF slot = T_LIFT OR slot = T_LIFTSIDE THEN glTexShine(slot) = 0.5 : glTexNeon(slot) = 0.35 ' (a lift: metal, its stripes faintly lit)
+        IF slot = T_TRAP THEN glTexShine(slot) = 0.4 : glTexNeon(slot) = 0.9 : glTexAnim(slot) = 1 ' (live wires: flickering)
+        IF slot = T_FIRE THEN glTexShine(slot) = 0.2 : glTexNeon(slot) = 1 : glTexAnim(slot) = 3 ' (embers: pulsing)
         IF INSTR(n$, "white") OR INSTR(n$, "ice") OR INSTR(n$, "frost") THEN glTexNeon(slot) = 0 ' (white isn't neon)
         IF INSTR(n$, "brick") OR INSTR(n$, "rust") OR INSTR(n$, "moss") OR INSTR(n$, "biolab") OR INSTR(n$, "slime") THEN glTexNeon(slot) = 0.35 ' (nor rust and slime, much)
         IF INSTR(n$, "servers") OR INSTR(n$, "terminals") OR INSTR(n$, "control") THEN glTexAnim(slot) = 1
@@ -11605,12 +11670,74 @@ SUB LiftSound(k, px, py)
     END IF
 END SUB
 
-' Every lift's motor quiet - a new level, the menu, the sector tally (a
-' lift still moving starts it again when the game goes on)
-SUB LiftHumsOff
+' Every lift's motor and trap's roar quiet - a new level, the menu, the
+' sector tally (a lift still moving, or a trap still lit, starts its sound
+' again when the game goes on)
+SUB WorldLoopsOff
     FOR k = 1 TO MAX_LIFTS
         IF liftHum&(k) > 0 THEN _SNDSTOP liftHum&(k)
     NEXT
+    FOR k = 1 TO MAX_EVENTS
+        IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k)
+    NEXT
+END SUB
+
+' A trap's show, each frame, by how lit it is (evGlow): nothing when it's
+' safe but for a rare wisp or spark (it's always a bit alive); warming up,
+' smoke and embers (fire) or the odd crackle (electric); live, the whole
+' floor blazing - flames, and smoke rising off them - or arcing, sparks
+' flying. More for a bigger trap. Then its sound: SoundAt, as loud as lit.
+SUB TrapFx(ev)
+    w = evX1(ev) - evX0(ev) + 1 : h = evY1(ev) - evY0(ev) + 1 : area = w * h
+    fire = evType(ev) = EV_FIRETRAP : g = evGlow(ev)
+    cx = evX0(ev) + w / 2 : cy = evY0(ev) + h / 2
+    IF g = 0 THEN
+        IF RND < 0.02 THEN
+            x = evX0(ev) + RND * w : y = evY0(ev) + RND * h
+            IF fire THEN SpawnPart PART_SMOKE, x, y, FloorAt(x, y) + 0.05, 0, 0, 0.006, 70, 0.12, 0.11, 0.1, 0.1 ELSE SpawnSparks x, y, 0.02, 1, 90, 170, 255
+        END IF
+    ELSE
+        IF fire THEN
+            nFlame = area * 0.5 * g : IF g < 1 THEN nFlame = area * 0.04
+            FOR k = 1 TO INT(nFlame) + (RND < nFlame - INT(nFlame))
+                x = evX0(ev) + RND * w : y = evY0(ev) + RND * h
+                SpawnPart PART_FLAME, x, y, FloorAt(x, y) + 0.02, (RND - 0.5) * 0.008, (RND - 0.5) * 0.008, 0.015 + RND * 0.025, 20 + INT(RND * 20), 1, 0.35 + RND * 0.35, 0.06, 0.12 + RND * 0.1
+            NEXT
+            nSmoke = area * 0.08 * (0.4 + g) ' (smoke off the fire - and warning before it)
+            FOR k = 1 TO INT(nSmoke) + (RND < nSmoke - INT(nSmoke))
+                x = evX0(ev) + RND * w : y = evY0(ev) + RND * h
+                SpawnPart PART_SMOKE, x, y, FloorAt(x, y) + 0.2 + RND * 0.25, (RND - 0.5) * 0.004, (RND - 0.5) * 0.004, 0.006 + RND * 0.008, 70 + INT(RND * 50), 0.32, 0.3, 0.28, 0.14 + RND * 0.1
+            NEXT
+        ELSE
+            IF RND < area * 0.2 * g THEN SpawnSparks evX0(ev) + RND * w, evY0(ev) + RND * h, 0.02, 2 + INT(3 * g), 120, 200, 255
+            FOR arcs = 1 TO 1 + INT(g * area / 12) ' Arcs: crooked lines of bright points, arching up between two places on it
+                IF RND < 0.1 + 0.6 * g THEN
+                    ax = evX0(ev) + RND * w : ay = evY0(ev) + RND * h : bx = evX0(ev) + RND * w : by = evY0(ev) + RND * h
+                    d = SQR((bx - ax) ^ 2 + (by - ay) ^ 2) : IF d > 3 THEN bx = ax + (bx - ax) * 3 / d : by = ay + (by - ay) * 3 / d : d = 3
+                    IF g < 1 THEN bx = ax + (bx - ax) * 0.3 : by = ay + (by - ay) * 0.3 : d = d * 0.3 ' (warming up: short ones)
+                    steps = INT(d * 14) + 5 : tall = 0.15 + d * 0.12 : jx = 0 : jy = 0 : jz = 0
+                    FOR k = 0 TO steps
+                        f = k / steps
+                        jx = jx + (RND - 0.5) * 0.1 : jy = jy + (RND - 0.5) * 0.1 : jz = jz + (RND - 0.5) * 0.06 ' (wandering off its curve)
+                        x = ax + (bx - ax) * f + jx * SIN(f * 3.14159) : y = ay + (by - ay) * f + jy * SIN(f * 3.14159)
+                        z = 0.02 + (tall + jz) * SIN(f * 3.14159) : IF z < 0.02 THEN z = 0.02
+                        SpawnPart PART_ARC, x, y, FloorAt(x, y) + z, 0, 0, 0, 3 + INT(RND * 4), 0.8, 0.92, 1, 0.06
+                    NEXT
+                END IF
+            NEXT
+        END IF
+    END IF
+    IF fire THEN snd& = sndTrapFire& ELSE snd& = sndTrapElec&
+    IF snd& <= 0 THEN EXIT SUB
+    IF g > 0 THEN
+        IF evHum&(ev) = 0 THEN evHum&(ev) = _SNDCOPY(snd&)
+        IF evHum&(ev) > 0 THEN
+            _SNDVOL evHum&(ev), SfxVolAt!(cx, cy, playerX, playerY, SFX_RANGE) * 0.8 * g * setting(SET_SFX) / 100
+            IF NOT _SNDPLAYING(evHum&(ev)) THEN _SNDLOOP evHum&(ev)
+        END IF
+    ELSEIF evHum&(ev) > 0 THEN
+        _SNDSTOP evHum&(ev)
+    END IF
 END SUB
 
 ' OpenGL: the lifts where they are now - each cell's top, and its sides
@@ -12106,6 +12233,13 @@ SUB UpdateParticles(px, py, mvx, mvy)
                 IF v > 0.06 THEN partVX(i) = partVX(i) * 0.06 / v : partVY(i) = partVY(i) * 0.06 / v : partVZ(i) = partVZ(i) * 0.06 / v
             ELSEIF partKind(i) = PART_EMBER THEN
                 partVZ(i) = partVZ(i) - 0.0015
+            ELSEIF partKind(i) = PART_FLAME THEN ' (hot: rising faster, wavering, shrinking)
+                partVZ(i) = partVZ(i) + 0.0008 : partVX(i) = partVX(i) * 0.94 + (RND - 0.5) * 0.004 : partVY(i) = partVY(i) * 0.94 + (RND - 0.5) * 0.004
+                partSize(i) = partSize(i) * 0.97
+            ELSEIF partKind(i) = PART_SMOKE THEN ' (rising slowly, drifting, spreading out)
+                partVZ(i) = partVZ(i) * 0.99 + 0.0001 : partVX(i) = partVX(i) * 0.98 + (RND - 0.5) * 0.001 : partVY(i) = partVY(i) * 0.98 + (RND - 0.5) * 0.001
+                partSize(i) = partSize(i) + 0.003
+            ELSEIF partKind(i) = PART_ARC THEN ' (still)
             ELSE
                 partVZ(i) = partVZ(i) - 0.0045
             END IF
@@ -12316,6 +12450,19 @@ SUB GLHandOverExtras(px, py, dx, dy, muzzle)
             n = n + 1 : candX(n) = blastX(i) : candY(n) = blastY(i) : candZ(n) = 0.45 : candRad(n) = 2 + 5 * blastSize(i)
             candR(n) = 400 * f : candG(n) = 220 * f : candB(n) = 90 * f
             IF nHeat < GL_HEAT THEN nHeat = nHeat + 1 : glHeatX(nHeat, w) = blastX(i) : glHeatY(nHeat, w) = blastY(i) : glHeatAmt(nHeat, w) = blastTime(i) / BLAST_FRAMES
+        END IF
+    NEXT
+    FOR i = 1 TO numEvents ' A lit trap lights the room: orange flames, flickering blue arcs
+        IF evGlow(i) > 0 AND n < 40 THEN
+            g = evGlow(i) : n = n + 1
+            candX(n) = (evX0(i) + evX1(i) + 1) / 2 : candY(n) = (evY0(i) + evY1(i) + 1) / 2 : candZ(n) = 0.3
+            candRad(n) = MaxOf(evX1(i) - evX0(i), evY1(i) - evY0(i)) / 2 + 2.5
+            IF evType(i) = EV_FIRETRAP THEN
+                fl = g * (0.85 + 0.15 * RND) : candR(n) = 380 * fl : candG(n) = 160 * fl : candB(n) = 40 * fl
+                IF g >= 1 AND nHeat < GL_HEAT THEN nHeat = nHeat + 1 : glHeatX(nHeat, w) = candX(n) : glHeatY(nHeat, w) = candY(n) : glHeatAmt(nHeat, w) = 0.5
+            ELSE
+                fl = g * (0.4 + 0.6 * RND) : candR(n) = 90 * fl : candG(n) = 170 * fl : candB(n) = 330 * fl
+            END IF
         END IF
     NEXT
     glNumHeat(w) = nHeat
