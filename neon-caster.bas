@@ -2511,6 +2511,7 @@ DO
         zBuffer(x) = perpWallDist
 
         ' Texture column and slot (a door's texture slides along with it)
+        texSlot2 = 0 ' (a face divided top | bottom in the editor: the bottom half's)
         IF side = 0 THEN wallX = playerY + perpWallDist * rayDirY ELSE wallX = playerX + perpWallDist * rayDirX
         wallX = wallX - INT(wallX)
         IF diagHit THEN ' Along the diagonal, left to right as you see it
@@ -2548,7 +2549,7 @@ DO
             IF lvlNumFaces THEN ' (a side with a picture of its own - the editor's PAINT)
                 IF side = 0 THEN IF rayDirX > 0 THEN sd = 3 ELSE sd = 1
                 IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
-                IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot = FaceSlot(mapX, mapY, sd, texX / texSize, 0, texSlot)
+                IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, texX / texSize, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, texX / texSize, 0, texSlot)
             END IF
         END IF
         texX = texX AND (texSize - 1)
@@ -2582,8 +2583,11 @@ DO
         clipN(x) = 0
         IF NOT glMode AND NOT levelFlat THEN GOSUB HeightColumn ' (heights: the column, Doom's way - below)
         IF NOT glMode AND levelFlat THEN ' (OpenGL draws the walls itself)
+            IF texSlot2 = 0 THEN texSlot2 = texSlot
+            wSl = texSlot : texMid = texSize / 2
             FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
-                texel~& = texture(texX, INT(texPos) AND (texSize - 1), texSlot)
+                IF texPos >= texMid THEN wSl = texSlot2
+                texel~& = texture(texX, INT(texPos) AND (texSize - 1), wSl)
                 pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                 IF gridOn THEN IF texX < gridW OR (INT(texPos) AND (texSize - 1)) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
                 texPos = texPos + texStep
@@ -3454,7 +3458,7 @@ RETURN
 EditPaintSel:
 GOSUB EditPushUndo
 FOR k = 1 TO edSelN
-    EditSetFace edSelX(k), edSelY(k), EditFaceCode(edSelKind(k), edSelSide(k)), 0, edBrushTex$, ""
+    EditPaintFace edSelX(k), edSelY(k), EditFaceCode(edSelKind(k), edSelSide(k)), edSelPart(k), edBrushTex$
 NEXT
 GOSUB EditApply : EditNote edBrushTex$ + " on" + STR$(edSelN) + " faces"
 RETURN
@@ -3859,11 +3863,11 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
                 IF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) AND edBrushTex$ <> "" THEN
                     EditSelFlood edHovKind, edHovX, edHovY : GOSUB EditPaintSel : edSelN = 0
                 ELSEIF edShift THEN
-                    GOSUB EditPushUndo : EditSetFace edHovX, edHovY, fc, 0, "", "" : GOSUB EditApply : EditNote "The usual picture again"
+                    GOSUB EditPushUndo : EditPaintFace edHovX, edHovY, fc, edHovPart, "" : GOSUB EditApply : EditNote "The usual picture again"
                 ELSEIF edBrushTex$ = "" THEN
                     EditNote "Pick a picture first (the picker: WALLS, FLOORS, CEILINGS)"
                 ELSE
-                    GOSUB EditPushUndo : EditSetFace edHovX, edHovY, fc, 0, edBrushTex$, "" : GOSUB EditApply
+                    GOSUB EditPushUndo : EditPaintFace edHovX, edHovY, fc, edHovPart, edBrushTex$ : GOSUB EditApply
                     EditNote edBrushTex$ + " on " + FaceName$(fc) + " of" + STR$(edHovX) + STR$(edHovY)
                 END IF
             CASE ET_HEIGHT
@@ -3944,8 +3948,29 @@ DO WHILE k&
             END IF
         CASE 102, 70 ' F: the floor's picture (that floor number, everywhere)
             IF frontX >= 0 THEN n = FloorNumberAt(frontX, frontY) : GOSUB EditPushUndo : lvlFloor$(n) = EditNextPicture$("floor", lvlFloor$(n), 1 + 2 * shiftOn) : GOSUB EditApply : EditNote "Floor" + STR$(n) + ": " + lvlFloor$(n)
-        CASE 118, 86 ' V: the ceiling's
-            IF frontX >= 0 THEN n = CeilNumberAt(frontX, frontY) : GOSUB EditPushUndo : lvlCeil$(n) = EditNextPicture$("ceiling", lvlCeil$(n), 1 + 2 * shiftOn) : GOSUB EditApply : EditNote "Ceiling" + STR$(n) + ": " + lvlCeil$(n)
+        CASE 104, 72, 118, 86 ' H: divide the face left | right, V: top | bottom (again: whole) - the selection's, or the one under the pointer
+            dv = 1 : IF k& = 118 OR k& = 86 THEN dv = 2
+            IF edSelN = 0 AND edHovKind = 0 THEN
+                EditNote "Point at a face (or select some) to divide it"
+            ELSE
+                GOSUB EditPushUndo
+                IF edSelN THEN
+                    FOR j = 1 TO edSelN ' (each face once - both its halves may be selected)
+                        dup = 0
+                        FOR i = 1 TO j - 1
+                            IF edSelKind(i) = edSelKind(j) AND edSelX(i) = edSelX(j) AND edSelY(i) = edSelY(j) AND edSelSide(i) = edSelSide(j) THEN dup = -1
+                        NEXT
+                        IF NOT dup THEN EditDivideFace edSelX(j), edSelY(j), EditFaceCode(edSelKind(j), edSelSide(j)), dv
+                    NEXT
+                    FOR j = edSelN TO 1 STEP -1 ' (the halves selected are halves no more: the faces, whole)
+                        IF edSelPart(j) = 2 THEN EditSelToggle edSelKind(j), edSelX(j), edSelY(j), edSelSide(j), 2 ELSE edSelPart(j) = 0
+                    NEXT
+                ELSE
+                    EditDivideFace edHovX, edHovY, EditFaceCode(edHovKind, edHovSide), dv
+                END IF
+                GOSUB EditApply
+                IF dv = 1 THEN EditNote "Left | right (H again: whole) - click a half to select it, PAINT it on its own" ELSE EditNote "Top | bottom (V again: whole) - click a half to select it, PAINT it on its own"
+            END IF
         CASE 122, 90 ' Z: that cell's floor - the next of the level's four (a zone one cell big)
             IF frontX >= 0 THEN
                 n = FloorNumberAt(frontX, frontY) MOD 4 + 1
@@ -3964,7 +3989,6 @@ DO WHILE k&
             END IF
         CASE 117, 85 ' U: the HUD layout editor
             GOSUB HudEditEnter : EXIT DO
-        CASE 104, 72 : edHelp = NOT edHelp ' H: the help
     END SELECT
     k& = _KEYHIT
 LOOP
@@ -4524,7 +4548,7 @@ DO
     IF lvlNumFaces THEN
         IF hSide = 0 THEN IF rayDirX > 0 THEN hSd = 3 ELSE hSd = 1
         IF hSide = 1 THEN IF rayDirY > 0 THEN hSd = 4 ELSE hSd = 2
-        IF hSolid AND v <> 2 THEN hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
+        IF hSolid AND v <> 2 THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
     END IF
     hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
     IF hSide = 1 THEN hFog& = hFog& * 0.7
@@ -4538,8 +4562,8 @@ DO
     nf = floorH(hnX, hnY)
     IF nf > hf THEN
         y0 = INT(hor + (eyeZ - nf) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut) : hSlot = wallTexSlot(1) : hVOff = 0
-        IF hSd THEN hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
-        IF liftCell(hnX, hnY) THEN hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
+        IF hSd THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
+        IF liftCell(hnX, hnY) THEN hSlot2 = 0 : hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
         hZ0 = nf : hZ1 = hf : GOSUB HeightFace
         IF y0 - 1 < hBot THEN hBot = y0 - 1
     END IF
@@ -4547,7 +4571,7 @@ DO
     nc = ceilH(hnX, hnY)
     IF nc < hc THEN
         y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor - (nc - eyeZ) * viewH / hDOut) : hSlot = wallTexSlot(1)
-        IF hSd THEN hSlot = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 0, hSlot)
+        IF hSd THEN hSlot2 = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 0, hSlot)
         hZ0 = hc : hZ1 = nc : hVOff = 0 : GOSUB HeightFace
         IF y1 + 1 > hTop THEN hTop = y1 + 1
     END IF
@@ -4567,12 +4591,16 @@ yB = y1 : IF yB > hBot THEN yB = hBot
 ' The picture's row runs evenly down the face: work out the first, then
 ' step (the height at row y is eyeZ - (y + 0.5 - hor) * hDOut / viewH)
 vStep = hDOut / viewH * texSize : v = (hVOff + 1 - eyeZ + (yA + 0.5 - hor) * hDOut / viewH) * texSize : tMask = texSize - 1
+IF hSlot2 = 0 THEN hSlot2 = hSlot
+hMidY = (y0 + y1) / 2 : hSl = hSlot ' (divided top | bottom: hSlot2 below the middle)
 FOR y = yA TO yB
-    texel~& = texture(hTexX, INT(v) AND tMask, hSlot)
+    IF y > hMidY THEN hSl = hSlot2
+    texel~& = texture(hTexX, INT(v) AND tMask, hSl)
     pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * hR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * hG& \ 256) * 256 OR ((texel~& AND 255) * hB& \ 256)
     IF gridOn THEN IF hTexX < gridW OR (INT(v) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
     v = v + vStep
 NEXT
+hSlot2 = 0
 RETURN
 
 ' --- Column gx's pane of glass, over what's already drawn behind it: the
@@ -5217,11 +5245,25 @@ FOR k = 1 TO lvlNumFaces
             END IF
             IF half = 1 THEN slot1 = slot ELSE slot2 = slot
         NEXT
-        IF slot2 = 0 THEN slot2 = slot1
+        d = lvlFaceD(k) ' (divided: a half with no picture of its own keeps the usual)
         SELECT CASE f
-            CASE 9 : IF slot1 THEN floorTex(x, y) = slot1 : floorSplit(x, y) = 0
-            CASE 10 : IF slot1 THEN ceilTex(x, y) = slot1 : ceilSplit(x, y) = 0
-            CASE 1 TO 8 : faceTex(x, y, f) = slot1 : faceTex2(x, y, f) = slot2 : faceDiv(x, y, f) = lvlFaceD(k)
+            CASE 9
+                IF d THEN
+                    IF slot2 THEN floorTex2(x, y) = slot2 ELSE floorTex2(x, y) = floorTex(x, y)
+                    IF slot1 THEN floorTex(x, y) = slot1
+                    floorSplit(x, y) = 4 + d
+                ELSEIF slot1 THEN
+                    floorTex(x, y) = slot1 : floorSplit(x, y) = 0
+                END IF
+            CASE 10
+                IF d THEN
+                    IF slot2 THEN ceilTex2(x, y) = slot2 ELSE ceilTex2(x, y) = ceilTex(x, y)
+                    IF slot1 THEN ceilTex(x, y) = slot1
+                    ceilSplit(x, y) = 4 + d
+                ELSEIF slot1 THEN
+                    ceilTex(x, y) = slot1 : ceilSplit(x, y) = 0
+                END IF
+            CASE 1 TO 8 : faceTex(x, y, f) = slot1 : faceTex2(x, y, f) = slot2 : faceDiv(x, y, f) = d
         END SELECT
     END IF
 NEXT
@@ -8305,7 +8347,7 @@ SUB EditDrawTB(v, mx, my)
 END SUB
 
 ' The help: every key and click for the view you're in, on a panel over it
-' (HELP, F1 - and H in 3D); a click anywhere puts it away
+' (HELP, F1); a click anywhere puts it away
 SUB EditDrawHelp(v)
     IF v = 1 THEN
         h$ = "THE 3D EDITOR|"
@@ -8327,7 +8369,8 @@ SUB EditDrawHelp(v)
         h$ = h$ + "Wall + Ctrl+Shift+wheel: a block on the floor (its top)|"
         h$ = h$ + "Wall + Alt+Shift+wheel: a block from the ceiling (bottom)|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
-        h$ = h$ + "G grid, Shift+G stronger;  T F V pictures;  Z floor no.|"
+        h$ = h$ + "H divide a face left|right, V top|bottom (again: whole)|"
+        h$ = h$ + "G grid, Shift+G stronger;  T F pictures;  Z floor no.|"
         h$ = h$ + "L K light here/away;  PgUp/PgDn floor (Shift: ceiling)|"
         h$ = h$ + "Tab map;  U HUD layout;  Ctrl+S save;  Ctrl+Z undo;  F2 play"
     ELSE
@@ -8776,8 +8819,84 @@ SUB EditFaceFront(x, y, side, fx, fy)
 END SUB
 
 SUB EditHit(kind, x, y, side, hx, hy, hz)
-    edHovKind = kind : edHovX = x : edHovY = y : edHovSide = side : edHovPart = 0
+    edHovKind = kind : edHovX = x : edHovY = y : edHovSide = side
     edHovPX = hx : edHovPY = hy : edHovPZ = hz
+    edHovPart = EditFacePart(kind, x, y, side, hx, hy, hz)
+END SUB
+
+' How face f of (x, y) is divided ([faces]: 0 not, 1 left | right, 2 top |
+' bottom)
+FUNCTION EditFaceDiv(x, y, f)
+    k = FaceIndex(x, y, f) : IF k THEN EditFaceDiv = lvlFaceD(k) ELSE EditFaceDiv = 0
+END FUNCTION
+
+' An upright face's place: the edge it's on, (ax, ay) to (bx, by), and its
+' bottom and top, z0 and z1
+SUB EditFaceRect(kind, x, y, side, ax, ay, bx, by, z0, z1, ok)
+    ok = 0
+    SELECT CASE side ' (the edge, and the open cell on its far side)
+        CASE 1 : ax = x + 1 : ay = y : bx = x + 1 : by = y + 1 : ox = x + 1 : oy = y
+        CASE 2 : ax = x : ay = y + 1 : bx = x + 1 : by = y + 1 : ox = x : oy = y + 1
+        CASE 3 : ax = x : ay = y : bx = x : by = y + 1 : ox = x - 1 : oy = y
+        CASE ELSE : ax = x : ay = y : bx = x + 1 : by = y : ox = x : oy = y - 1
+    END SELECT
+    IF ox < 0 OR oy < 0 OR ox >= MAP_SIZE OR oy >= MAP_SIZE THEN EXIT SUB
+    SELECT CASE kind
+        CASE ED_WALL : z0 = floorH(ox, oy) : z1 = ceilH(ox, oy)
+        CASE ED_STEP : z0 = floorH(ox, oy) : z1 = floorH(x, y)
+        CASE ELSE : z0 = ceilH(x, y) : z1 = ceilH(ox, oy)
+    END SELECT
+    ok = -1
+END SUB
+
+' Which half of a divided face the point (hx, hy, hz) on it is in - 1 or 2
+' (0: it isn't divided). Left | right is by the picture's u - it runs with
+' the edge on east and north faces, against it on south and west, as the
+' renderers draw it; on a floor, west | east and north | south.
+FUNCTION EditFacePart(kind, x, y, side, hx, hy, hz)
+    EditFacePart = 0
+    d = EditFaceDiv(x, y, EditFaceCode(kind, side)) : IF d = 0 THEN EXIT FUNCTION
+    IF kind = ED_FLOOR OR kind = ED_CEIL THEN
+        IF d = 1 THEN EditFacePart = 1 - (hx - x >= 0.5) ELSE EditFacePart = 1 - (hy - y >= 0.5)
+        EXIT FUNCTION
+    END IF
+    EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT FUNCTION
+    IF d = 1 THEN
+        IF side = 1 OR side = 3 THEN t = hy - y ELSE t = hx - x
+        IF side = 1 OR side = 4 THEN u = t ELSE u = 1 - t
+        EditFacePart = 1 - (u >= 0.5)
+    ELSE
+        IF z1 - z0 > 0.001 THEN vt = (z1 - hz) / (z1 - z0) ELSE vt = 0
+        EditFacePart = 1 - (vt >= 0.5)
+    END IF
+END FUNCTION
+
+' Divide face f of (x, y): d 1 left | right, 2 top | bottom - both halves
+' starting with the picture it had. Divided that way already: whole again
+' (the first half's picture on it all).
+SUB EditDivideFace(x, y, f, d)
+    k = FaceIndex(x, y, f) : od = 0 : p1$ = "" : p2$ = ""
+    IF k THEN od = lvlFaceD(k) : p1$ = lvlFaceP1$(k) : p2$ = lvlFaceP2$(k)
+    IF od = d THEN
+        EditSetFace x, y, f, 0, p1$, ""
+    ELSE
+        IF od = 0 THEN p2$ = p1$
+        EditSetFace x, y, f, d, p1$, p2$
+    END IF
+END SUB
+
+' The picture pic$ on face f of (x, y) - on half `part` of it, if it's
+' divided (part 0: the whole of it). "" is the usual picture.
+SUB EditPaintFace(x, y, f, part, pic$)
+    k = FaceIndex(x, y, f) : d = 0 : p1$ = "" : p2$ = ""
+    IF k THEN d = lvlFaceD(k) : p1$ = lvlFaceP1$(k) : p2$ = lvlFaceP2$(k)
+    IF d = 0 THEN
+        EditSetFace x, y, f, 0, pic$, ""
+    ELSE
+        IF part <> 2 THEN p1$ = pic$
+        IF part <> 1 THEN p2$ = pic$
+        EditSetFace x, y, f, d, p1$, p2$
+    END IF
 END SUB
 
 ' A point in the world on the screen (sx, sy) - or ok = 0 if it's behind
@@ -8809,25 +8928,30 @@ END SUB
 ' A face's outline: a floor or ceiling's square, or a side's rectangle -
 ' from the open cell's floor to its ceiling, for a wall; the step's height,
 ' for a step or a lintel (the open cell beside it is on its other side)
-SUB EditFaceOutline(kind, x, y, side, col~&)
+SUB EditFaceOutline(kind, x, y, side, part, col~&)
+    d = EditFaceDiv(x, y, EditFaceCode(kind, side))
     SELECT CASE kind
         CASE ED_FLOOR, ED_CEIL
             IF kind = ED_FLOOR THEN z = floorH(x, y) ELSE z = ceilH(x, y)
-            EditLine3D x, y, z, x + 1, y, z, col~& : EditLine3D x + 1, y, z, x + 1, y + 1, z, col~&
-            EditLine3D x + 1, y + 1, z, x, y + 1, z, col~& : EditLine3D x, y + 1, z, x, y, z, col~&
+            x0 = x : y0 = y : x1 = x + 1 : y1 = y + 1
+            IF d = 1 THEN EditLine3D x + 0.5, y, z, x + 0.5, y + 1, z, _RGBA32(255, 255, 255, 140) ' (the line it's divided on)
+            IF d = 2 THEN EditLine3D x, y + 0.5, z, x + 1, y + 0.5, z, _RGBA32(255, 255, 255, 140)
+            IF d = 1 AND part = 1 THEN x1 = x + 0.5
+            IF d = 1 AND part = 2 THEN x0 = x + 0.5
+            IF d = 2 AND part = 1 THEN y1 = y + 0.5
+            IF d = 2 AND part = 2 THEN y0 = y + 0.5
+            EditLine3D x0, y0, z, x1, y0, z, col~& : EditLine3D x1, y0, z, x1, y1, z, col~&
+            EditLine3D x1, y1, z, x0, y1, z, col~& : EditLine3D x0, y1, z, x0, y0, z, col~&
         CASE ED_WALL, ED_STEP, ED_LINTEL
-            SELECT CASE side ' (the edge, and the open cell on its far side)
-                CASE 1 : ax = x + 1 : ay = y : bx = x + 1 : by = y + 1 : ox = x + 1 : oy = y
-                CASE 2 : ax = x : ay = y + 1 : bx = x + 1 : by = y + 1 : ox = x : oy = y + 1
-                CASE 3 : ax = x : ay = y : bx = x : by = y + 1 : ox = x - 1 : oy = y
-                CASE ELSE : ax = x : ay = y : bx = x + 1 : by = y : ox = x : oy = y - 1
-            END SELECT
-            IF ox < 0 OR oy < 0 OR ox >= MAP_SIZE OR oy >= MAP_SIZE THEN EXIT SUB
-            SELECT CASE kind
-                CASE ED_WALL : z0 = floorH(ox, oy) : z1 = ceilH(ox, oy)
-                CASE ED_STEP : z0 = floorH(ox, oy) : z1 = floorH(x, y)
-                CASE ELSE : z0 = ceilH(x, y) : z1 = ceilH(ox, oy)
-            END SELECT
+            EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
+            zm = (z0 + z1) / 2 : mx = (ax + bx) / 2 : my = (ay + by) / 2
+            IF d = 1 THEN EditLine3D mx, my, z0, mx, my, z1, _RGBA32(255, 255, 255, 140)
+            IF d = 2 THEN EditLine3D ax, ay, zm, bx, by, zm, _RGBA32(255, 255, 255, 140)
+            IF d = 1 AND part > 0 THEN ' (half 1 is u < 0.5: the edge's first half on east and north faces, its second on south and west)
+                IF (part = 1) = (side = 1 OR side = 4) THEN bx = mx : by = my ELSE ax = mx : ay = my
+            END IF
+            IF d = 2 AND part = 1 THEN z0 = zm
+            IF d = 2 AND part = 2 THEN z1 = zm
             EditLine3D ax, ay, z0, bx, by, z0, col~& : EditLine3D bx, by, z0, bx, by, z1, col~&
             EditLine3D bx, by, z1, ax, ay, z1, col~& : EditLine3D ax, ay, z1, ax, ay, z0, col~&
     END SELECT
@@ -8837,15 +8961,16 @@ END SUB
 ' (cyan, pulsing) - and what it is, by the pointer
 SUB EditDrawFaces
     FOR k = 1 TO edSelN ' The selection: orange
-        EditFaceOutline edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), _RGB32(255, 170, 40)
+        EditFaceOutline edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), edSelPart(k), _RGB32(255, 170, 40)
     NEXT
     IF edHovKind THEN
         k = 160 + 95 * SIN(TIMER * 6)
-        EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, _RGB32(60, k, 255)
+        EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, edHovPart, _RGB32(60, k, 255)
         IF NOT edLooking THEN
             n$ = MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edHovKind * 7 - 6, 7)
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
             IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
+            IF edHovPart THEN n$ = n$ + " half" + STR$(edHovPart)
             COLOR _RGB32(150, 230, 255) : _PRINTSTRING (edCurX + 14, edCurY + 10), n$
         END IF
     END IF
@@ -9882,6 +10007,8 @@ FUNCTION InDiagonalWall(corner, u, v)
         CASE 2 : InDiagonalWall = u > v
         CASE 3 : InDiagonalWall = u + v > 1
         CASE 4 : InDiagonalWall = u < v
+        CASE 5 : InDiagonalWall = u >= 0.5 ' (a floor or ceiling divided in the editor: west | east...
+        CASE 6 : InDiagonalWall = v >= 0.5 ' ...north | south - the second picture on the second half)
     END SELECT
 END FUNCTION
 
@@ -12800,7 +12927,12 @@ END SUB
 ' diagonal its split uses (chapter 2) so each half can have its own texture.
 ' The texture lies flat: u runs with x, v with y, as in chapter 14.
 SUB GLFlat(cx, cy, z, tex1, tex2, split)
-    IF split = 1 OR split = 3 THEN ' Cut "/": the top-left half, then the bottom-right
+    IF split = 5 OR split = 6 THEN ' Divided in the editor: west | east, or north | south
+        GLUseTexture tex1
+        IF split = 5 THEN GLFlatPart cx, cy, z, 0, 0, 0.5, 1 ELSE GLFlatPart cx, cy, z, 0, 0, 1, 0.5
+        GLUseTexture tex2
+        IF split = 5 THEN GLFlatPart cx, cy, z, 0.5, 0, 1, 1 ELSE GLFlatPart cx, cy, z, 0, 0.5, 1, 1
+    ELSEIF split = 1 OR split = 3 THEN ' Cut "/": the top-left half, then the bottom-right
         IF split = 1 THEN GLUseTexture tex2 ELSE GLUseTexture tex1
         GLCorner cx, cy, z, 0, 0 : GLCorner cx + 1, cy, z, 1, 0 : GLCorner cx, cy + 1, z, 0, 1
         IF split = 3 THEN GLUseTexture tex2 ELSE GLUseTexture tex1
@@ -12811,6 +12943,32 @@ SUB GLFlat(cx, cy, z, tex1, tex2, split)
         IF split = 4 THEN GLUseTexture tex2 ELSE GLUseTexture tex1
         GLCorner cx, cy, z, 0, 0 : GLCorner cx + 1, cy + 1, z, 1, 1 : GLCorner cx, cy + 1, z, 0, 1
     END IF
+END SUB
+
+' The part (u0, v0)-(u1, v1) of a floor or ceiling cell: two triangles, as
+' GLFlat's whole one
+SUB GLFlatPart(cx, cy, z, u0, v0, u1, v1)
+    GLCorner cx + u0, cy + v0, z, u0, v0 : GLCorner cx + u1, cy + v0, z, u1, v0 : GLCorner cx + u0, cy + v1, z, u0, v1
+    GLCorner cx + u1, cy + v0, z, u1, v0 : GLCorner cx + u1, cy + v1, z, u1, v1 : GLCorner cx + u0, cy + v1, z, u0, v1
+END SUB
+
+' An upright face of cell (x, y) - its face f in [faces] - as GLStrip
+' draws it, in its own picture (or the usual, deflt); divided, as two
+' strips: left | right (by the picture's u, as the software renderer has
+' it) or top | bottom
+SUB GLFaceStrip(ax, ay, bx, by, u0, u1, zLow, zHigh, vTop, vBottom, x, y, f, deflt)
+    SELECT CASE faceDiv(x, y, f)
+        CASE 1
+            um = (u0 + u1) / 2
+            GLStrip ax, ay, bx, by, 0, 0.5, u0, um, zLow, zHigh, vTop, vBottom, FaceSlot(x, y, f, (u0 + um) / 2, 0, deflt)
+            GLStrip ax, ay, bx, by, 0.5, 1, um, u1, zLow, zHigh, vTop, vBottom, FaceSlot(x, y, f, (um + u1) / 2, 0, deflt)
+        CASE 2
+            zm = (zLow + zHigh) / 2 : vm = (vTop + vBottom) / 2
+            GLStrip ax, ay, bx, by, 0, 1, u0, u1, zm, zHigh, vTop, vm, FaceSlot(x, y, f, 0, 0, deflt)
+            GLStrip ax, ay, bx, by, 0, 1, u0, u1, zLow, zm, vm, vBottom, FaceSlot(x, y, f, 0, 1, deflt)
+        CASE ELSE
+            GLStrip ax, ay, bx, by, 0, 1, u0, u1, zLow, zHigh, vTop, vBottom, FaceSlot(x, y, f, 0, 0, deflt)
+    END SELECT
 END SUB
 
 ' Part of an upright face that runs from map point (ax, ay) to (bx, by):
@@ -13126,9 +13284,10 @@ SUB GLStep(ax, ay, bx, by, b)
         ' so it rides up and down with it instead of sliding past
         IF liftCell(ax + bx - lx, ay + by - ly) THEN
             GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 0, zh - zl, T_LIFTSIDE
-        ELSE ' (the step's face is the higher cell's side towards the lower one - its own picture, if it has one)
+        ELSE ' (the step's face is the higher cell's side towards the lower one - its own picture, if it has one - the picture turned as the software renderer turns it)
             hx = ax + bx - lx : hy = ay + by - ly
-            GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, FaceSlot(hx, hy, SideToward(hx, hy, lx, ly), 0, 0, wallTexSlot(1))
+            su0 = 0 : su1 = 1 : IF (ax = bx AND ly > hy) OR (ay = by AND lx < hx) THEN su0 = 1 : su1 = 0
+            GLFaceStrip ex0, ey0, ex1, ey1, su0, su1, zl, zh, 1 - zh, 1 - zl, hx, hy, SideToward(hx, hy, lx, ly), wallTexSlot(1)
         END IF
     END IF
     ca = ceilH(ax, ay) : cb = ceilH(bx, by)
@@ -13137,7 +13296,8 @@ SUB GLStep(ax, ay, bx, by, b)
         GLSetLight lx, ly, 1, b
         glFaceNX = SGN(lx - (ax + bx - lx)) : glFaceNY = SGN(ly - (ay + by - ly)) : glFaceNZ = 0
         hx = ax + bx - lx : hy = ay + by - ly ' (the lintel's the lower ceiling's side, towards the higher)
-        GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, FaceSlot(hx, hy, SideToward(hx, hy, lx, ly) + 4, 0, 0, wallTexSlot(1))
+        su0 = 0 : su1 = 1 : IF (ax = bx AND ly > hy) OR (ay = by AND lx < hx) THEN su0 = 1 : su1 = 0
+        GLFaceStrip ex0, ey0, ex1, ey1, su0, su1, zl, zh, 1 - zh, 1 - zl, hx, hy, SideToward(hx, hy, lx, ly) + 4, wallTexSlot(1)
     END IF
 END SUB
 
@@ -13156,7 +13316,7 @@ SUB GLFace(cx, cy, side, b)
     IF side = 1 OR side = 4 THEN u0 = 1 : u1 = 0 ELSE u0 = 0 : u1 = 1
     IF worldMap(cx, cy) <> 2 THEN ' A wall: from the floor to the ceiling of the cell it looks onto
         fz = floorH(nx, ny) : cz = ceilH(nx, ny)
-        GLStrip ax, ay, bx, by, 0, 1, u0, u1, fz, cz, 1 - cz, 1 - fz, FaceSlot(cx, cy, VAL(MID$("3142", side, 1)), 0, 0, wallTexSlot(worldMap(cx, cy))) ' (GLFace's sides 1-4 are west, east, north, south - [faces]' are east, south, west, north)
+        GLFaceStrip ax, ay, bx, by, u0, u1, fz, cz, 1 - cz, 1 - fz, cx, cy, VAL(MID$("3142", side, 1)), wallTexSlot(worldMap(cx, cy)) ' (GLFace's sides 1-4 are west, east, north, south - [faces]' are east, south, west, north)
         EXIT SUB
     END IF
     doorAmt = glDoor(cx, cy, b) ' A door: 0 shut .. 1 open
