@@ -3564,23 +3564,36 @@ fpL = _MOUSEBUTTON(1) OR edClickL : fpR = _MOUSEBUTTON(2) OR edClickR ' (a click
 IF edClickL AND fpLWas THEN fpLWas = 0 ' (a fresh click, even if the button looked held)
 IF edClickR AND fpRWas THEN fpRWas = 0
 edClickL = 0 : edClickR = 0
-IF fpL AND NOT fpLWas AND frontX >= 0 THEN ' Build: the glyph into the cell in front of what you aim at
-    GOSUB EditPushUndo : EditPut frontX, frontY, editGlyph$ : GOSUB EditApply : EditNote GlyphName$(editGlyph$) + " at" + STR$(frontX) + STR$(frontY)
-END IF
-IF fpR AND NOT fpRWas AND aimX >= 0 THEN ' Knock down: what you aim at becomes floor
-    IF aimX > 0 AND aimY > 0 AND aimX < MAP_SIZE - 1 AND aimY < MAP_SIZE - 1 THEN
-        GOSUB EditPushUndo : EditPut aimX, aimY, "." : GOSUB EditApply : EditNote "Cleared" + STR$(aimX) + STR$(aimY)
+' A click selects the face under the pointer - it never builds anything.
+' Shift+click adds it to the selection (or takes it out); Ctrl+click takes
+' the whole floor (or ceiling) it's part of - every cell joined to it at
+' the same height; clicking nothing clears the selection.
+IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) THEN
+    edShift = _KEYDOWN(100304) OR _KEYDOWN(100303) : edCtrl = _KEYDOWN(100305) OR _KEYDOWN(100306)
+    IF edHovKind THEN
+        IF edShift THEN
+            EditSelToggle edHovKind, edHovX, edHovY, edHovSide, edHovPart
+        ELSEIF edCtrl AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) THEN
+            EditSelFlood edHovKind, edHovX, edHovY
+        ELSE
+            edSelN = 0 : EditSelToggle edHovKind, edHovX, edHovY, edHovSide, edHovPart
+        END IF
+        EditNote LTRIM$(STR$(edSelN)) + " selected"
+    ELSEIF NOT edShift THEN
+        edSelN = 0
     END IF
 END IF
 fpLWas = fpL : fpRWas = fpR
 k& = _KEYHIT
 DO WHILE k&
     shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
-    IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z - however the key arrives)
+    IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z, Ctrl+D - however the key arrives)
         IF k& = 115 OR k& = 83 THEN k& = 19
         IF k& = 122 OR k& = 90 THEN k& = 26
+        IF k& = 100 OR k& = 68 THEN k& = 4
     END IF
     SELECT CASE k&
+        CASE 4 : edSelN = 0 : EditNote "Selection cleared" ' Ctrl+D
         CASE 9 : editView = 0 ' Tab: the map from above
         CASE 19 : EditSave level
         CASE 26 : GOSUB EditUndo
@@ -7556,6 +7569,7 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     END IF
     IF TIMER < editMsgUntil! THEN COLOR _RGB32(255, 220, 120) : _PRINTSTRING (330, 584), LEFT$(editMsg$, 58)
     IF editDirty THEN COLOR _RGB32(255, 90, 90) : _PRINTSTRING (ED_PALX, 584), "* not saved"
+    EditDrawSelMap ' (the selection - the same one the 3D view has)
 END SUB
 
 ' Walking round in the editor: what's under the crosshair, the glyph you'd
@@ -7628,6 +7642,73 @@ SUB EditPick(sx, sy)
     NEXT
 END SUB
 
+' THE SELECTION: faces, by kind, cell, side and part. EditSelToggle puts
+' one in (or takes it out, if it's there); EditSelFlood takes every floor
+' (or ceiling) cell joined to (x, y) at the same height - a room's floor in
+' one click. Nothing needs them in order.
+FUNCTION EditSelIndex(kind, x, y, side, part)
+    FOR k = 1 TO edSelN
+        IF edSelKind(k) = kind AND edSelX(k) = x AND edSelY(k) = y AND edSelSide(k) = side AND edSelPart(k) = part THEN EditSelIndex = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+SUB EditSelToggle(kind, x, y, side, part)
+    k = EditSelIndex(kind, x, y, side, part)
+    IF k THEN ' (there: out it goes - the last one moved into its place)
+        edSelKind(k) = edSelKind(edSelN) : edSelX(k) = edSelX(edSelN) : edSelY(k) = edSelY(edSelN)
+        edSelSide(k) = edSelSide(edSelN) : edSelPart(k) = edSelPart(edSelN) : edSelN = edSelN - 1
+    ELSEIF edSelN < ED_MAXSEL THEN
+        edSelN = edSelN + 1 : edSelKind(edSelN) = kind : edSelX(edSelN) = x : edSelY(edSelN) = y
+        edSelSide(edSelN) = side : edSelPart(edSelN) = part
+    END IF
+END SUB
+
+SUB EditSelFlood(kind, x0, y0)
+    DIM qx(MAP_SIZE * MAP_SIZE) AS INTEGER, qy(MAP_SIZE * MAP_SIZE) AS INTEGER, seen(MAP_SIZE, MAP_SIZE) AS INTEGER
+    IF kind = ED_FLOOR THEN h = floorH(x0, y0) ELSE h = ceilH(x0, y0)
+    edSelN = 0 : qn = 1 : qx(1) = x0 : qy(1) = y0 : seen(x0, y0) = -1 : qi = 0
+    DO WHILE qi < qn AND edSelN < ED_MAXSEL
+        qi = qi + 1 : x = qx(qi) : y = qy(qi)
+        EditSelToggle kind, x, y, 0, 0
+        FOR d = 0 TO 3
+            nx = x + (d = 0) - (d = 1) : ny = y + (d = 2) - (d = 3)
+            IF nx >= 0 AND ny >= 0 AND nx < MAP_SIZE AND ny < MAP_SIZE THEN
+                IF NOT seen(nx, ny) AND worldMap(nx, ny) <= 0 THEN
+                    IF kind = ED_FLOOR THEN hh = floorH(nx, ny) ELSE hh = ceilH(nx, ny)
+                    IF ABS(hh - h) < 0.001 THEN seen(nx, ny) = -1 : qn = qn + 1 : qx(qn) = nx : qy(qn) = ny
+                END IF
+            END IF
+        NEXT
+    LOOP
+END SUB
+
+' Is the screen point (x, y) on the editor's own buttons and panels? (Then
+' a click there is for them, not for picking a face.) Nothing yet: the
+' toolbar and picker add their rectangles here.
+FUNCTION EditOverUI(x, y)
+    EditOverUI = 0
+END FUNCTION
+
+' The selection on the map from above: a floor or ceiling as a box inside
+' its cell, a side as a thick line along that edge of it
+SUB EditDrawSelMap
+    FOR k = 1 TO edSelN
+        sx = ED_MAPX + edSelX(k) * ED_CELL : sy = ED_MAPY + edSelY(k) * ED_CELL : c~& = _RGB32(255, 170, 40)
+        SELECT CASE edSelKind(k)
+            CASE ED_FLOOR, ED_CEIL
+                LINE (sx + 1, sy + 1)-STEP(ED_CELL - 3, ED_CELL - 3), c~&, B
+                IF edSelKind(k) = ED_CEIL THEN LINE (sx + 3, sy + 3)-STEP(ED_CELL - 7, ED_CELL - 7), c~&, B ' (a ceiling: a box in a box)
+            CASE ELSE
+                SELECT CASE edSelSide(k)
+                    CASE 1 : LINE (sx + ED_CELL - 2, sy)-STEP(1, ED_CELL - 1), c~&, BF
+                    CASE 2 : LINE (sx, sy + ED_CELL - 2)-STEP(ED_CELL - 1, 1), c~&, BF
+                    CASE 3 : LINE (sx, sy)-STEP(1, ED_CELL - 1), c~&, BF
+                    CASE 4 : LINE (sx, sy)-STEP(ED_CELL - 1, 1), c~&, BF
+                END SELECT
+        END SELECT
+    NEXT
+END SUB
+
 SUB EditHit(kind, x, y, side, hx, hy, hz)
     edHovKind = kind : edHovX = x : edHovY = y : edHovSide = side : edHovPart = 0
     edHovPX = hx : edHovPY = hy : edHovPZ = hz
@@ -7689,6 +7770,10 @@ END SUB
 ' The 3D editor's outlines, over the view: the face under the pointer
 ' (cyan, pulsing) - and what it is, by the pointer
 SUB EditDrawFaces
+    FOR k = 1 TO edSelN ' The selection: orange
+        EditFaceOutline edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), _RGB32(255, 170, 40)
+    NEXT
+    IF edSelN THEN COLOR _RGB32(255, 190, 80) : _PRINTSTRING (8, 100), LTRIM$(STR$(edSelN)) + " selected  (Ctrl+D clears)"
     IF edHovKind THEN
         k = 160 + 95 * SIN(TIMER * 6)
         EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, _RGB32(60, k, 255)
