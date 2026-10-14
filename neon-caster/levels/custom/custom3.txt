@@ -1,0 +1,984 @@
+' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+' SECTOR 13: THE RELAY. Four chambers sealed in the rock, and only one
+' way into each: a teleporter in the hub, LINKed to it by hand (in
+' reading order the hub's pads would only go to each other - [pads]).
+' Each chamber is dressed in pictures of its own ([faces]: walls, floor
+' and ceiling) and lit in its colour on its walls. The ice holds the red
+' card and crawlers that spring when you're near; the biolab the blue,
+' and gunners that hear every shot; the reactor the yellow, a sentry that
+' sees it all and a heavy twice as tough; the vault the guns, and a heavy
+' already hunting. The three cards open the corridor north to the exit.
+
+name     = SECTOR 13: THE RELAY
+walls    = wall-transit.png, wall-hull.png, wall-control.png, wall-servers.png, wall-terminals.png, wall-obsidian.png
+floors   = floor-circuit.png, floor-deck.png, floor-plates.png, floor-core.png
+ceilings = ceiling-tunnel.png, ceiling-cables.png
+ambient  = 140, 220, 225, 255
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+18, 18, 29, 29, 1, 1, 0
+23, 6, 24, 17, 2, 2, 0
+19, 2, 28, 5, 2, 2, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+4.12, 8.5, 4, 190, 60, 220, 255, 0
+12.88, 8.5, 4, 190, 60, 220, 255, 0
+8.5, 4.12, 4, 190, 60, 220, 255, 0
+8.5, 12.88, 4, 190, 60, 220, 255, 0
+8.5, 8.5, 6, 110, 60, 220, 255, 0
+35.12, 8.5, 4, 190, 90, 255, 120, 2
+43.88, 8.5, 4, 190, 90, 255, 120, 2
+39.5, 4.12, 4, 190, 90, 255, 120, 2
+39.5, 12.88, 4, 190, 90, 255, 120, 2
+39.5, 8.5, 6, 110, 90, 255, 120, 0
+4.12, 39.5, 4, 190, 255, 50, 40, 3
+12.88, 39.5, 4, 190, 255, 50, 40, 3
+8.5, 35.12, 4, 190, 255, 50, 40, 3
+8.5, 43.88, 4, 190, 255, 50, 40, 3
+8.5, 39.5, 6, 110, 255, 50, 40, 0
+35.12, 39.5, 4, 190, 255, 200, 80, 4
+43.88, 39.5, 4, 190, 255, 200, 80, 4
+39.5, 35.12, 4, 190, 255, 200, 80, 4
+39.5, 43.88, 4, 190, 255, 200, 80, 4
+39.5, 39.5, 6, 110, 255, 200, 80, 0
+23.5, 7.5, 4, 120, 220, 230, 255, 1
+23.5, 12.5, 4, 120, 220, 230, 255, 1
+23.5, 15.5, 4, 120, 220, 230, 255, 1
+23.5, 3.5, 6, 150, 255, 255, 255, 0
+23.5, 23.5, 7, 160, 200, 180, 255, 2
+20.5, 20.5, 4, 120, 60, 220, 255, 0
+27.5, 27.5, 4, 120, 255, 60, 220, 0
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+
+[triggers]
+' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+enter 22 19 24 21 : message NORTH PAD: THE ICE
+enter 26 22 28 24 : message EAST PAD: THE BIOLAB
+enter 19 23 21 25 : message WEST PAD: THE REACTOR
+enter 23 26 25 28 : message SOUTH PAD: THE VAULT
+
+[monsters]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+20, 3, 6, 0, 100, 100, 0
+27, 3, 6, 0, 100, 100, 0
+4, 4, 3, 0, 100, 140, 1
+12, 4, 3, 0, 100, 140, 1
+36, 6, 6, 20, 100, 100, 0
+42, 6, 6, 20, 100, 100, 0
+36, 11, 6, 20, 100, 100, 0
+42, 11, 6, 20, 100, 100, 0
+4, 12, 3, 0, 100, 140, 1
+12, 12, 3, 0, 100, 140, 1
+4, 35, 30, 0, 100, 100, 0
+11, 38, 14, 0, 200, 80, 0
+42, 42, 14, 0, 100, 100, 3
+12, 43, 30, 0, 100, 100, 0
+
+[pads]
+' teleporters paired by hand: x1, y1, x2, y2 (the rest pair up in reading order)
+23, 20, 8, 8
+27, 23, 39, 8
+20, 24, 8, 39
+24, 27, 39, 39
+
+[faces]
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+4, 3, S, 0, wall-frost.png
+5, 3, S, 0, wall-frost.png
+6, 3, S, 0, wall-frost.png
+7, 3, S, 0, wall-frost.png
+8, 3, S, 0, wall-frost.png
+9, 3, S, 0, wall-frost.png
+10, 3, S, 0, wall-frost.png
+11, 3, S, 0, wall-frost.png
+12, 3, S, 0, wall-frost.png
+35, 3, S, 0, wall-biolab.png
+36, 3, S, 0, wall-biolab.png
+37, 3, S, 0, wall-biolab.png
+38, 3, S, 0, wall-biolab.png
+39, 3, S, 0, wall-biolab.png
+40, 3, S, 0, wall-biolab.png
+41, 3, S, 0, wall-biolab.png
+42, 3, S, 0, wall-biolab.png
+43, 3, S, 0, wall-biolab.png
+3, 4, E, 0, wall-frost.png
+4, 4, C, 0, ceiling-frost.png
+4, 4, F, 0, floor-ice.png
+5, 4, C, 0, ceiling-frost.png
+5, 4, F, 0, floor-ice.png
+6, 4, C, 0, ceiling-frost.png
+6, 4, F, 0, floor-ice.png
+7, 4, C, 0, ceiling-frost.png
+7, 4, F, 0, floor-ice.png
+8, 4, C, 0, ceiling-frost.png
+8, 4, F, 0, floor-ice.png
+9, 4, C, 0, ceiling-frost.png
+9, 4, F, 0, floor-ice.png
+10, 4, C, 0, ceiling-frost.png
+10, 4, F, 0, floor-ice.png
+11, 4, C, 0, ceiling-frost.png
+11, 4, F, 0, floor-ice.png
+12, 4, C, 0, ceiling-frost.png
+12, 4, F, 0, floor-ice.png
+13, 4, W, 0, wall-frost.png
+34, 4, E, 0, wall-biolab.png
+35, 4, C, 0, ceiling-growlights.png
+35, 4, F, 0, floor-lab.png
+36, 4, C, 0, ceiling-growlights.png
+36, 4, F, 0, floor-lab.png
+37, 4, C, 0, ceiling-growlights.png
+37, 4, F, 0, floor-lab.png
+38, 4, C, 0, ceiling-growlights.png
+38, 4, F, 0, floor-lab.png
+39, 4, C, 0, ceiling-growlights.png
+39, 4, F, 0, floor-lab.png
+40, 4, C, 0, ceiling-growlights.png
+40, 4, F, 0, floor-lab.png
+41, 4, C, 0, ceiling-growlights.png
+41, 4, F, 0, floor-lab.png
+42, 4, C, 0, ceiling-growlights.png
+42, 4, F, 0, floor-lab.png
+43, 4, C, 0, ceiling-growlights.png
+43, 4, F, 0, floor-lab.png
+44, 4, W, 0, wall-biolab.png
+3, 5, E, 0, wall-frost.png
+4, 5, C, 0, ceiling-frost.png
+4, 5, F, 0, floor-ice.png
+5, 5, C, 0, ceiling-frost.png
+5, 5, F, 0, floor-ice.png
+6, 5, C, 0, ceiling-frost.png
+6, 5, F, 0, floor-ice.png
+7, 5, C, 0, ceiling-frost.png
+7, 5, F, 0, floor-ice.png
+8, 5, C, 0, ceiling-frost.png
+8, 5, F, 0, floor-ice.png
+9, 5, C, 0, ceiling-frost.png
+9, 5, F, 0, floor-ice.png
+10, 5, C, 0, ceiling-frost.png
+10, 5, F, 0, floor-ice.png
+11, 5, C, 0, ceiling-frost.png
+11, 5, F, 0, floor-ice.png
+12, 5, C, 0, ceiling-frost.png
+12, 5, F, 0, floor-ice.png
+13, 5, W, 0, wall-frost.png
+34, 5, E, 0, wall-biolab.png
+35, 5, C, 0, ceiling-growlights.png
+35, 5, F, 0, floor-lab.png
+36, 5, C, 0, ceiling-growlights.png
+36, 5, F, 0, floor-lab.png
+37, 5, C, 0, ceiling-growlights.png
+37, 5, F, 0, floor-lab.png
+38, 5, C, 0, ceiling-growlights.png
+38, 5, F, 0, floor-lab.png
+39, 5, C, 0, ceiling-growlights.png
+39, 5, F, 0, floor-lab.png
+40, 5, C, 0, ceiling-growlights.png
+40, 5, F, 0, floor-lab.png
+41, 5, C, 0, ceiling-growlights.png
+41, 5, F, 0, floor-lab.png
+42, 5, C, 0, ceiling-growlights.png
+42, 5, F, 0, floor-lab.png
+43, 5, C, 0, ceiling-growlights.png
+43, 5, F, 0, floor-lab.png
+44, 5, W, 0, wall-biolab.png
+3, 6, E, 0, wall-frost.png
+4, 6, C, 0, ceiling-frost.png
+4, 6, F, 0, floor-ice.png
+5, 6, C, 0, ceiling-frost.png
+5, 6, F, 0, floor-ice.png
+6, 6, C, 0, ceiling-frost.png
+6, 6, F, 0, floor-ice.png
+7, 6, C, 0, ceiling-frost.png
+7, 6, F, 0, floor-ice.png
+8, 6, C, 0, ceiling-frost.png
+8, 6, F, 0, floor-ice.png
+9, 6, C, 0, ceiling-frost.png
+9, 6, F, 0, floor-ice.png
+10, 6, C, 0, ceiling-frost.png
+10, 6, F, 0, floor-ice.png
+11, 6, C, 0, ceiling-frost.png
+11, 6, F, 0, floor-ice.png
+12, 6, C, 0, ceiling-frost.png
+12, 6, F, 0, floor-ice.png
+13, 6, W, 0, wall-frost.png
+34, 6, E, 0, wall-biolab.png
+35, 6, C, 0, ceiling-growlights.png
+35, 6, F, 0, floor-lab.png
+36, 6, C, 0, ceiling-growlights.png
+36, 6, F, 0, floor-lab.png
+37, 6, C, 0, ceiling-growlights.png
+37, 6, F, 0, floor-lab.png
+38, 6, C, 0, ceiling-growlights.png
+38, 6, F, 0, floor-lab.png
+39, 6, C, 0, ceiling-growlights.png
+39, 6, F, 0, floor-lab.png
+40, 6, C, 0, ceiling-growlights.png
+40, 6, F, 0, floor-lab.png
+41, 6, C, 0, ceiling-growlights.png
+41, 6, F, 0, floor-lab.png
+42, 6, C, 0, ceiling-growlights.png
+42, 6, F, 0, floor-lab.png
+43, 6, C, 0, ceiling-growlights.png
+43, 6, F, 0, floor-lab.png
+44, 6, W, 0, wall-biolab.png
+3, 7, E, 0, wall-frost.png
+4, 7, C, 0, ceiling-frost.png
+4, 7, F, 0, floor-ice.png
+5, 7, C, 0, ceiling-frost.png
+5, 7, F, 0, floor-ice.png
+6, 7, C, 0, ceiling-frost.png
+6, 7, F, 0, floor-ice.png
+7, 7, C, 0, ceiling-frost.png
+7, 7, F, 0, floor-ice.png
+8, 7, C, 0, ceiling-frost.png
+8, 7, F, 0, floor-ice.png
+9, 7, C, 0, ceiling-frost.png
+9, 7, F, 0, floor-ice.png
+10, 7, C, 0, ceiling-frost.png
+10, 7, F, 0, floor-ice.png
+11, 7, C, 0, ceiling-frost.png
+11, 7, F, 0, floor-ice.png
+12, 7, C, 0, ceiling-frost.png
+12, 7, F, 0, floor-ice.png
+13, 7, W, 0, wall-frost.png
+34, 7, E, 0, wall-biolab.png
+35, 7, C, 0, ceiling-growlights.png
+35, 7, F, 0, floor-lab.png
+36, 7, C, 0, ceiling-growlights.png
+36, 7, F, 0, floor-lab.png
+37, 7, C, 0, ceiling-growlights.png
+37, 7, F, 0, floor-lab.png
+38, 7, C, 0, ceiling-growlights.png
+38, 7, F, 0, floor-lab.png
+39, 7, C, 0, ceiling-growlights.png
+39, 7, F, 0, floor-lab.png
+40, 7, C, 0, ceiling-growlights.png
+40, 7, F, 0, floor-lab.png
+41, 7, C, 0, ceiling-growlights.png
+41, 7, F, 0, floor-lab.png
+42, 7, C, 0, ceiling-growlights.png
+42, 7, F, 0, floor-lab.png
+43, 7, C, 0, ceiling-growlights.png
+43, 7, F, 0, floor-lab.png
+44, 7, W, 0, wall-biolab.png
+3, 8, E, 0, wall-frost.png
+4, 8, C, 0, ceiling-frost.png
+4, 8, F, 0, floor-ice.png
+5, 8, C, 0, ceiling-frost.png
+5, 8, F, 0, floor-ice.png
+6, 8, C, 0, ceiling-frost.png
+6, 8, F, 0, floor-ice.png
+7, 8, C, 0, ceiling-frost.png
+7, 8, F, 0, floor-ice.png
+8, 8, C, 0, ceiling-frost.png
+8, 8, F, 0, floor-ice.png
+9, 8, C, 0, ceiling-frost.png
+9, 8, F, 0, floor-ice.png
+10, 8, C, 0, ceiling-frost.png
+10, 8, F, 0, floor-ice.png
+11, 8, C, 0, ceiling-frost.png
+11, 8, F, 0, floor-ice.png
+12, 8, C, 0, ceiling-frost.png
+12, 8, F, 0, floor-ice.png
+13, 8, W, 0, wall-frost.png
+34, 8, E, 0, wall-biolab.png
+35, 8, C, 0, ceiling-growlights.png
+35, 8, F, 0, floor-lab.png
+36, 8, C, 0, ceiling-growlights.png
+36, 8, F, 0, floor-lab.png
+37, 8, C, 0, ceiling-growlights.png
+37, 8, F, 0, floor-lab.png
+38, 8, C, 0, ceiling-growlights.png
+38, 8, F, 0, floor-lab.png
+39, 8, C, 0, ceiling-growlights.png
+39, 8, F, 0, floor-lab.png
+40, 8, C, 0, ceiling-growlights.png
+40, 8, F, 0, floor-lab.png
+41, 8, C, 0, ceiling-growlights.png
+41, 8, F, 0, floor-lab.png
+42, 8, C, 0, ceiling-growlights.png
+42, 8, F, 0, floor-lab.png
+43, 8, C, 0, ceiling-growlights.png
+43, 8, F, 0, floor-lab.png
+44, 8, W, 0, wall-biolab.png
+3, 9, E, 0, wall-frost.png
+4, 9, C, 0, ceiling-frost.png
+4, 9, F, 0, floor-ice.png
+5, 9, C, 0, ceiling-frost.png
+5, 9, F, 0, floor-ice.png
+6, 9, C, 0, ceiling-frost.png
+6, 9, F, 0, floor-ice.png
+7, 9, C, 0, ceiling-frost.png
+7, 9, F, 0, floor-ice.png
+8, 9, C, 0, ceiling-frost.png
+8, 9, F, 0, floor-ice.png
+9, 9, C, 0, ceiling-frost.png
+9, 9, F, 0, floor-ice.png
+10, 9, C, 0, ceiling-frost.png
+10, 9, F, 0, floor-ice.png
+11, 9, C, 0, ceiling-frost.png
+11, 9, F, 0, floor-ice.png
+12, 9, C, 0, ceiling-frost.png
+12, 9, F, 0, floor-ice.png
+13, 9, W, 0, wall-frost.png
+34, 9, E, 0, wall-biolab.png
+35, 9, C, 0, ceiling-growlights.png
+35, 9, F, 0, floor-lab.png
+36, 9, C, 0, ceiling-growlights.png
+36, 9, F, 0, floor-lab.png
+37, 9, C, 0, ceiling-growlights.png
+37, 9, F, 0, floor-lab.png
+38, 9, C, 0, ceiling-growlights.png
+38, 9, F, 0, floor-lab.png
+39, 9, C, 0, ceiling-growlights.png
+39, 9, F, 0, floor-lab.png
+40, 9, C, 0, ceiling-growlights.png
+40, 9, F, 0, floor-lab.png
+41, 9, C, 0, ceiling-growlights.png
+41, 9, F, 0, floor-lab.png
+42, 9, C, 0, ceiling-growlights.png
+42, 9, F, 0, floor-lab.png
+43, 9, C, 0, ceiling-growlights.png
+43, 9, F, 0, floor-lab.png
+44, 9, W, 0, wall-biolab.png
+3, 10, E, 0, wall-frost.png
+4, 10, C, 0, ceiling-frost.png
+4, 10, F, 0, floor-ice.png
+5, 10, C, 0, ceiling-frost.png
+5, 10, F, 0, floor-ice.png
+6, 10, C, 0, ceiling-frost.png
+6, 10, F, 0, floor-ice.png
+7, 10, C, 0, ceiling-frost.png
+7, 10, F, 0, floor-ice.png
+8, 10, C, 0, ceiling-frost.png
+8, 10, F, 0, floor-ice.png
+9, 10, C, 0, ceiling-frost.png
+9, 10, F, 0, floor-ice.png
+10, 10, C, 0, ceiling-frost.png
+10, 10, F, 0, floor-ice.png
+11, 10, C, 0, ceiling-frost.png
+11, 10, F, 0, floor-ice.png
+12, 10, C, 0, ceiling-frost.png
+12, 10, F, 0, floor-ice.png
+13, 10, W, 0, wall-frost.png
+34, 10, E, 0, wall-biolab.png
+35, 10, C, 0, ceiling-growlights.png
+35, 10, F, 0, floor-lab.png
+36, 10, C, 0, ceiling-growlights.png
+36, 10, F, 0, floor-lab.png
+37, 10, C, 0, ceiling-growlights.png
+37, 10, F, 0, floor-lab.png
+38, 10, C, 0, ceiling-growlights.png
+38, 10, F, 0, floor-lab.png
+39, 10, C, 0, ceiling-growlights.png
+39, 10, F, 0, floor-lab.png
+40, 10, C, 0, ceiling-growlights.png
+40, 10, F, 0, floor-lab.png
+41, 10, C, 0, ceiling-growlights.png
+41, 10, F, 0, floor-lab.png
+42, 10, C, 0, ceiling-growlights.png
+42, 10, F, 0, floor-lab.png
+43, 10, C, 0, ceiling-growlights.png
+43, 10, F, 0, floor-lab.png
+44, 10, W, 0, wall-biolab.png
+3, 11, E, 0, wall-frost.png
+4, 11, C, 0, ceiling-frost.png
+4, 11, F, 0, floor-ice.png
+5, 11, C, 0, ceiling-frost.png
+5, 11, F, 0, floor-ice.png
+6, 11, C, 0, ceiling-frost.png
+6, 11, F, 0, floor-ice.png
+7, 11, C, 0, ceiling-frost.png
+7, 11, F, 0, floor-ice.png
+8, 11, C, 0, ceiling-frost.png
+8, 11, F, 0, floor-ice.png
+9, 11, C, 0, ceiling-frost.png
+9, 11, F, 0, floor-ice.png
+10, 11, C, 0, ceiling-frost.png
+10, 11, F, 0, floor-ice.png
+11, 11, C, 0, ceiling-frost.png
+11, 11, F, 0, floor-ice.png
+12, 11, C, 0, ceiling-frost.png
+12, 11, F, 0, floor-ice.png
+13, 11, W, 0, wall-frost.png
+34, 11, E, 0, wall-biolab.png
+35, 11, C, 0, ceiling-growlights.png
+35, 11, F, 0, floor-lab.png
+36, 11, C, 0, ceiling-growlights.png
+36, 11, F, 0, floor-lab.png
+37, 11, C, 0, ceiling-growlights.png
+37, 11, F, 0, floor-lab.png
+38, 11, C, 0, ceiling-growlights.png
+38, 11, F, 0, floor-lab.png
+39, 11, C, 0, ceiling-growlights.png
+39, 11, F, 0, floor-lab.png
+40, 11, C, 0, ceiling-growlights.png
+40, 11, F, 0, floor-lab.png
+41, 11, C, 0, ceiling-growlights.png
+41, 11, F, 0, floor-lab.png
+42, 11, C, 0, ceiling-growlights.png
+42, 11, F, 0, floor-lab.png
+43, 11, C, 0, ceiling-growlights.png
+43, 11, F, 0, floor-lab.png
+44, 11, W, 0, wall-biolab.png
+3, 12, E, 0, wall-frost.png
+4, 12, C, 0, ceiling-frost.png
+4, 12, F, 0, floor-ice.png
+5, 12, C, 0, ceiling-frost.png
+5, 12, F, 0, floor-ice.png
+6, 12, C, 0, ceiling-frost.png
+6, 12, F, 0, floor-ice.png
+7, 12, C, 0, ceiling-frost.png
+7, 12, F, 0, floor-ice.png
+8, 12, C, 0, ceiling-frost.png
+8, 12, F, 0, floor-ice.png
+9, 12, C, 0, ceiling-frost.png
+9, 12, F, 0, floor-ice.png
+10, 12, C, 0, ceiling-frost.png
+10, 12, F, 0, floor-ice.png
+11, 12, C, 0, ceiling-frost.png
+11, 12, F, 0, floor-ice.png
+12, 12, C, 0, ceiling-frost.png
+12, 12, F, 0, floor-ice.png
+13, 12, W, 0, wall-frost.png
+34, 12, E, 0, wall-biolab.png
+35, 12, C, 0, ceiling-growlights.png
+35, 12, F, 0, floor-lab.png
+36, 12, C, 0, ceiling-growlights.png
+36, 12, F, 0, floor-lab.png
+37, 12, C, 0, ceiling-growlights.png
+37, 12, F, 0, floor-lab.png
+38, 12, C, 0, ceiling-growlights.png
+38, 12, F, 0, floor-lab.png
+39, 12, C, 0, ceiling-growlights.png
+39, 12, F, 0, floor-lab.png
+40, 12, C, 0, ceiling-growlights.png
+40, 12, F, 0, floor-lab.png
+41, 12, C, 0, ceiling-growlights.png
+41, 12, F, 0, floor-lab.png
+42, 12, C, 0, ceiling-growlights.png
+42, 12, F, 0, floor-lab.png
+43, 12, C, 0, ceiling-growlights.png
+43, 12, F, 0, floor-lab.png
+44, 12, W, 0, wall-biolab.png
+4, 13, N, 0, wall-frost.png
+5, 13, N, 0, wall-frost.png
+6, 13, N, 0, wall-frost.png
+7, 13, N, 0, wall-frost.png
+8, 13, N, 0, wall-frost.png
+9, 13, N, 0, wall-frost.png
+10, 13, N, 0, wall-frost.png
+11, 13, N, 0, wall-frost.png
+12, 13, N, 0, wall-frost.png
+35, 13, N, 0, wall-biolab.png
+36, 13, N, 0, wall-biolab.png
+37, 13, N, 0, wall-biolab.png
+38, 13, N, 0, wall-biolab.png
+39, 13, N, 0, wall-biolab.png
+40, 13, N, 0, wall-biolab.png
+41, 13, N, 0, wall-biolab.png
+42, 13, N, 0, wall-biolab.png
+43, 13, N, 0, wall-biolab.png
+4, 34, S, 0, wall-reactor.png
+5, 34, S, 0, wall-reactor.png
+6, 34, S, 0, wall-reactor.png
+7, 34, S, 0, wall-reactor.png
+8, 34, S, 0, wall-reactor.png
+9, 34, S, 0, wall-reactor.png
+10, 34, S, 0, wall-reactor.png
+11, 34, S, 0, wall-reactor.png
+12, 34, S, 0, wall-reactor.png
+35, 34, S, 0, wall-vault.png
+36, 34, S, 0, wall-vault.png
+37, 34, S, 0, wall-vault.png
+38, 34, S, 0, wall-vault.png
+39, 34, S, 0, wall-vault.png
+40, 34, S, 0, wall-vault.png
+41, 34, S, 0, wall-vault.png
+42, 34, S, 0, wall-vault.png
+43, 34, S, 0, wall-vault.png
+3, 35, E, 0, wall-reactor.png
+4, 35, C, 0, ceiling-warning.png
+4, 35, F, 0, floor-scorched.png
+5, 35, C, 0, ceiling-warning.png
+5, 35, F, 0, floor-scorched.png
+6, 35, C, 0, ceiling-warning.png
+6, 35, F, 0, floor-scorched.png
+7, 35, C, 0, ceiling-warning.png
+7, 35, F, 0, floor-scorched.png
+8, 35, C, 0, ceiling-warning.png
+8, 35, F, 0, floor-scorched.png
+9, 35, C, 0, ceiling-warning.png
+9, 35, F, 0, floor-scorched.png
+10, 35, C, 0, ceiling-warning.png
+10, 35, F, 0, floor-scorched.png
+11, 35, C, 0, ceiling-warning.png
+11, 35, F, 0, floor-scorched.png
+12, 35, C, 0, ceiling-warning.png
+12, 35, F, 0, floor-scorched.png
+13, 35, W, 0, wall-reactor.png
+34, 35, E, 0, wall-vault.png
+35, 35, C, 0, ceiling-core.png
+35, 35, F, 0, floor-platform.png
+36, 35, C, 0, ceiling-core.png
+36, 35, F, 0, floor-platform.png
+37, 35, C, 0, ceiling-core.png
+37, 35, F, 0, floor-platform.png
+38, 35, C, 0, ceiling-core.png
+38, 35, F, 0, floor-platform.png
+39, 35, C, 0, ceiling-core.png
+39, 35, F, 0, floor-platform.png
+40, 35, C, 0, ceiling-core.png
+40, 35, F, 0, floor-platform.png
+41, 35, C, 0, ceiling-core.png
+41, 35, F, 0, floor-platform.png
+42, 35, C, 0, ceiling-core.png
+42, 35, F, 0, floor-platform.png
+43, 35, C, 0, ceiling-core.png
+43, 35, F, 0, floor-platform.png
+44, 35, W, 0, wall-vault.png
+3, 36, E, 0, wall-reactor.png
+4, 36, C, 0, ceiling-warning.png
+4, 36, F, 0, floor-scorched.png
+5, 36, C, 0, ceiling-warning.png
+5, 36, F, 0, floor-scorched.png
+6, 36, C, 0, ceiling-warning.png
+6, 36, F, 0, floor-scorched.png
+7, 36, C, 0, ceiling-warning.png
+7, 36, F, 0, floor-scorched.png
+8, 36, C, 0, ceiling-warning.png
+8, 36, F, 0, floor-scorched.png
+9, 36, C, 0, ceiling-warning.png
+9, 36, F, 0, floor-scorched.png
+10, 36, C, 0, ceiling-warning.png
+10, 36, F, 0, floor-scorched.png
+11, 36, C, 0, ceiling-warning.png
+11, 36, F, 0, floor-scorched.png
+12, 36, C, 0, ceiling-warning.png
+12, 36, F, 0, floor-scorched.png
+13, 36, W, 0, wall-reactor.png
+34, 36, E, 0, wall-vault.png
+35, 36, C, 0, ceiling-core.png
+35, 36, F, 0, floor-platform.png
+36, 36, C, 0, ceiling-core.png
+36, 36, F, 0, floor-platform.png
+37, 36, C, 0, ceiling-core.png
+37, 36, F, 0, floor-platform.png
+38, 36, C, 0, ceiling-core.png
+38, 36, F, 0, floor-platform.png
+39, 36, C, 0, ceiling-core.png
+39, 36, F, 0, floor-platform.png
+40, 36, C, 0, ceiling-core.png
+40, 36, F, 0, floor-platform.png
+41, 36, C, 0, ceiling-core.png
+41, 36, F, 0, floor-platform.png
+42, 36, C, 0, ceiling-core.png
+42, 36, F, 0, floor-platform.png
+43, 36, C, 0, ceiling-core.png
+43, 36, F, 0, floor-platform.png
+44, 36, W, 0, wall-vault.png
+3, 37, E, 0, wall-reactor.png
+4, 37, C, 0, ceiling-warning.png
+4, 37, F, 0, floor-scorched.png
+5, 37, C, 0, ceiling-warning.png
+5, 37, F, 0, floor-scorched.png
+6, 37, C, 0, ceiling-warning.png
+6, 37, F, 0, floor-scorched.png
+7, 37, C, 0, ceiling-warning.png
+7, 37, F, 0, floor-scorched.png
+8, 37, C, 0, ceiling-warning.png
+8, 37, F, 0, floor-scorched.png
+9, 37, C, 0, ceiling-warning.png
+9, 37, F, 0, floor-scorched.png
+10, 37, C, 0, ceiling-warning.png
+10, 37, F, 0, floor-scorched.png
+11, 37, C, 0, ceiling-warning.png
+11, 37, F, 0, floor-scorched.png
+12, 37, C, 0, ceiling-warning.png
+12, 37, F, 0, floor-scorched.png
+13, 37, W, 0, wall-reactor.png
+34, 37, E, 0, wall-vault.png
+35, 37, C, 0, ceiling-core.png
+35, 37, F, 0, floor-platform.png
+36, 37, C, 0, ceiling-core.png
+36, 37, F, 0, floor-platform.png
+37, 37, C, 0, ceiling-core.png
+37, 37, F, 0, floor-platform.png
+38, 37, C, 0, ceiling-core.png
+38, 37, F, 0, floor-platform.png
+39, 37, C, 0, ceiling-core.png
+39, 37, F, 0, floor-platform.png
+40, 37, C, 0, ceiling-core.png
+40, 37, F, 0, floor-platform.png
+41, 37, C, 0, ceiling-core.png
+41, 37, F, 0, floor-platform.png
+42, 37, C, 0, ceiling-core.png
+42, 37, F, 0, floor-platform.png
+43, 37, C, 0, ceiling-core.png
+43, 37, F, 0, floor-platform.png
+44, 37, W, 0, wall-vault.png
+3, 38, E, 0, wall-reactor.png
+4, 38, C, 0, ceiling-warning.png
+4, 38, F, 0, floor-scorched.png
+5, 38, C, 0, ceiling-warning.png
+5, 38, F, 0, floor-scorched.png
+6, 38, C, 0, ceiling-warning.png
+6, 38, F, 0, floor-scorched.png
+7, 38, C, 0, ceiling-warning.png
+7, 38, F, 0, floor-scorched.png
+8, 38, C, 0, ceiling-warning.png
+8, 38, F, 0, floor-scorched.png
+9, 38, C, 0, ceiling-warning.png
+9, 38, F, 0, floor-scorched.png
+10, 38, C, 0, ceiling-warning.png
+10, 38, F, 0, floor-scorched.png
+11, 38, C, 0, ceiling-warning.png
+11, 38, F, 0, floor-scorched.png
+12, 38, C, 0, ceiling-warning.png
+12, 38, F, 0, floor-scorched.png
+13, 38, W, 0, wall-reactor.png
+34, 38, E, 0, wall-vault.png
+35, 38, C, 0, ceiling-core.png
+35, 38, F, 0, floor-platform.png
+36, 38, C, 0, ceiling-core.png
+36, 38, F, 0, floor-platform.png
+37, 38, C, 0, ceiling-core.png
+37, 38, F, 0, floor-platform.png
+38, 38, C, 0, ceiling-core.png
+38, 38, F, 0, floor-platform.png
+39, 38, C, 0, ceiling-core.png
+39, 38, F, 0, floor-platform.png
+40, 38, C, 0, ceiling-core.png
+40, 38, F, 0, floor-platform.png
+41, 38, C, 0, ceiling-core.png
+41, 38, F, 0, floor-platform.png
+42, 38, C, 0, ceiling-core.png
+42, 38, F, 0, floor-platform.png
+43, 38, C, 0, ceiling-core.png
+43, 38, F, 0, floor-platform.png
+44, 38, W, 0, wall-vault.png
+3, 39, E, 0, wall-reactor.png
+4, 39, C, 0, ceiling-warning.png
+4, 39, F, 0, floor-scorched.png
+5, 39, C, 0, ceiling-warning.png
+5, 39, F, 0, floor-scorched.png
+6, 39, C, 0, ceiling-warning.png
+6, 39, F, 0, floor-scorched.png
+7, 39, C, 0, ceiling-warning.png
+7, 39, F, 0, floor-scorched.png
+8, 39, C, 0, ceiling-warning.png
+8, 39, F, 0, floor-scorched.png
+9, 39, C, 0, ceiling-warning.png
+9, 39, F, 0, floor-scorched.png
+10, 39, C, 0, ceiling-warning.png
+10, 39, F, 0, floor-scorched.png
+11, 39, C, 0, ceiling-warning.png
+11, 39, F, 0, floor-scorched.png
+12, 39, C, 0, ceiling-warning.png
+12, 39, F, 0, floor-scorched.png
+13, 39, W, 0, wall-reactor.png
+34, 39, E, 0, wall-vault.png
+35, 39, C, 0, ceiling-core.png
+35, 39, F, 0, floor-platform.png
+36, 39, C, 0, ceiling-core.png
+36, 39, F, 0, floor-platform.png
+37, 39, C, 0, ceiling-core.png
+37, 39, F, 0, floor-platform.png
+38, 39, C, 0, ceiling-core.png
+38, 39, F, 0, floor-platform.png
+39, 39, C, 0, ceiling-core.png
+39, 39, F, 0, floor-platform.png
+40, 39, C, 0, ceiling-core.png
+40, 39, F, 0, floor-platform.png
+41, 39, C, 0, ceiling-core.png
+41, 39, F, 0, floor-platform.png
+42, 39, C, 0, ceiling-core.png
+42, 39, F, 0, floor-platform.png
+43, 39, C, 0, ceiling-core.png
+43, 39, F, 0, floor-platform.png
+44, 39, W, 0, wall-vault.png
+3, 40, E, 0, wall-reactor.png
+4, 40, C, 0, ceiling-warning.png
+4, 40, F, 0, floor-scorched.png
+5, 40, C, 0, ceiling-warning.png
+5, 40, F, 0, floor-scorched.png
+6, 40, C, 0, ceiling-warning.png
+6, 40, F, 0, floor-scorched.png
+7, 40, C, 0, ceiling-warning.png
+7, 40, F, 0, floor-scorched.png
+8, 40, C, 0, ceiling-warning.png
+8, 40, F, 0, floor-scorched.png
+9, 40, C, 0, ceiling-warning.png
+9, 40, F, 0, floor-scorched.png
+10, 40, C, 0, ceiling-warning.png
+10, 40, F, 0, floor-scorched.png
+11, 40, C, 0, ceiling-warning.png
+11, 40, F, 0, floor-scorched.png
+12, 40, C, 0, ceiling-warning.png
+12, 40, F, 0, floor-scorched.png
+13, 40, W, 0, wall-reactor.png
+34, 40, E, 0, wall-vault.png
+35, 40, C, 0, ceiling-core.png
+35, 40, F, 0, floor-platform.png
+36, 40, C, 0, ceiling-core.png
+36, 40, F, 0, floor-platform.png
+37, 40, C, 0, ceiling-core.png
+37, 40, F, 0, floor-platform.png
+38, 40, C, 0, ceiling-core.png
+38, 40, F, 0, floor-platform.png
+39, 40, C, 0, ceiling-core.png
+39, 40, F, 0, floor-platform.png
+40, 40, C, 0, ceiling-core.png
+40, 40, F, 0, floor-platform.png
+41, 40, C, 0, ceiling-core.png
+41, 40, F, 0, floor-platform.png
+42, 40, C, 0, ceiling-core.png
+42, 40, F, 0, floor-platform.png
+43, 40, C, 0, ceiling-core.png
+43, 40, F, 0, floor-platform.png
+44, 40, W, 0, wall-vault.png
+3, 41, E, 0, wall-reactor.png
+4, 41, C, 0, ceiling-warning.png
+4, 41, F, 0, floor-scorched.png
+5, 41, C, 0, ceiling-warning.png
+5, 41, F, 0, floor-scorched.png
+6, 41, C, 0, ceiling-warning.png
+6, 41, F, 0, floor-scorched.png
+7, 41, C, 0, ceiling-warning.png
+7, 41, F, 0, floor-scorched.png
+8, 41, C, 0, ceiling-warning.png
+8, 41, F, 0, floor-scorched.png
+9, 41, C, 0, ceiling-warning.png
+9, 41, F, 0, floor-scorched.png
+10, 41, C, 0, ceiling-warning.png
+10, 41, F, 0, floor-scorched.png
+11, 41, C, 0, ceiling-warning.png
+11, 41, F, 0, floor-scorched.png
+12, 41, C, 0, ceiling-warning.png
+12, 41, F, 0, floor-scorched.png
+13, 41, W, 0, wall-reactor.png
+34, 41, E, 0, wall-vault.png
+35, 41, C, 0, ceiling-core.png
+35, 41, F, 0, floor-platform.png
+36, 41, C, 0, ceiling-core.png
+36, 41, F, 0, floor-platform.png
+37, 41, C, 0, ceiling-core.png
+37, 41, F, 0, floor-platform.png
+38, 41, C, 0, ceiling-core.png
+38, 41, F, 0, floor-platform.png
+39, 41, C, 0, ceiling-core.png
+39, 41, F, 0, floor-platform.png
+40, 41, C, 0, ceiling-core.png
+40, 41, F, 0, floor-platform.png
+41, 41, C, 0, ceiling-core.png
+41, 41, F, 0, floor-platform.png
+42, 41, C, 0, ceiling-core.png
+42, 41, F, 0, floor-platform.png
+43, 41, C, 0, ceiling-core.png
+43, 41, F, 0, floor-platform.png
+44, 41, W, 0, wall-vault.png
+3, 42, E, 0, wall-reactor.png
+4, 42, C, 0, ceiling-warning.png
+4, 42, F, 0, floor-scorched.png
+5, 42, C, 0, ceiling-warning.png
+5, 42, F, 0, floor-scorched.png
+6, 42, C, 0, ceiling-warning.png
+6, 42, F, 0, floor-scorched.png
+7, 42, C, 0, ceiling-warning.png
+7, 42, F, 0, floor-scorched.png
+8, 42, C, 0, ceiling-warning.png
+8, 42, F, 0, floor-scorched.png
+9, 42, C, 0, ceiling-warning.png
+9, 42, F, 0, floor-scorched.png
+10, 42, C, 0, ceiling-warning.png
+10, 42, F, 0, floor-scorched.png
+11, 42, C, 0, ceiling-warning.png
+11, 42, F, 0, floor-scorched.png
+12, 42, C, 0, ceiling-warning.png
+12, 42, F, 0, floor-scorched.png
+13, 42, W, 0, wall-reactor.png
+34, 42, E, 0, wall-vault.png
+35, 42, C, 0, ceiling-core.png
+35, 42, F, 0, floor-platform.png
+36, 42, C, 0, ceiling-core.png
+36, 42, F, 0, floor-platform.png
+37, 42, C, 0, ceiling-core.png
+37, 42, F, 0, floor-platform.png
+38, 42, C, 0, ceiling-core.png
+38, 42, F, 0, floor-platform.png
+39, 42, C, 0, ceiling-core.png
+39, 42, F, 0, floor-platform.png
+40, 42, C, 0, ceiling-core.png
+40, 42, F, 0, floor-platform.png
+41, 42, C, 0, ceiling-core.png
+41, 42, F, 0, floor-platform.png
+42, 42, C, 0, ceiling-core.png
+42, 42, F, 0, floor-platform.png
+43, 42, C, 0, ceiling-core.png
+43, 42, F, 0, floor-platform.png
+44, 42, W, 0, wall-vault.png
+3, 43, E, 0, wall-reactor.png
+4, 43, C, 0, ceiling-warning.png
+4, 43, F, 0, floor-scorched.png
+5, 43, C, 0, ceiling-warning.png
+5, 43, F, 0, floor-scorched.png
+6, 43, C, 0, ceiling-warning.png
+6, 43, F, 0, floor-scorched.png
+7, 43, C, 0, ceiling-warning.png
+7, 43, F, 0, floor-scorched.png
+8, 43, C, 0, ceiling-warning.png
+8, 43, F, 0, floor-scorched.png
+9, 43, C, 0, ceiling-warning.png
+9, 43, F, 0, floor-scorched.png
+10, 43, C, 0, ceiling-warning.png
+10, 43, F, 0, floor-scorched.png
+11, 43, C, 0, ceiling-warning.png
+11, 43, F, 0, floor-scorched.png
+12, 43, C, 0, ceiling-warning.png
+12, 43, F, 0, floor-scorched.png
+13, 43, W, 0, wall-reactor.png
+34, 43, E, 0, wall-vault.png
+35, 43, C, 0, ceiling-core.png
+35, 43, F, 0, floor-platform.png
+36, 43, C, 0, ceiling-core.png
+36, 43, F, 0, floor-platform.png
+37, 43, C, 0, ceiling-core.png
+37, 43, F, 0, floor-platform.png
+38, 43, C, 0, ceiling-core.png
+38, 43, F, 0, floor-platform.png
+39, 43, C, 0, ceiling-core.png
+39, 43, F, 0, floor-platform.png
+40, 43, C, 0, ceiling-core.png
+40, 43, F, 0, floor-platform.png
+41, 43, C, 0, ceiling-core.png
+41, 43, F, 0, floor-platform.png
+42, 43, C, 0, ceiling-core.png
+42, 43, F, 0, floor-platform.png
+43, 43, C, 0, ceiling-core.png
+43, 43, F, 0, floor-platform.png
+44, 43, W, 0, wall-vault.png
+4, 44, N, 0, wall-reactor.png
+5, 44, N, 0, wall-reactor.png
+6, 44, N, 0, wall-reactor.png
+7, 44, N, 0, wall-reactor.png
+8, 44, N, 0, wall-reactor.png
+9, 44, N, 0, wall-reactor.png
+10, 44, N, 0, wall-reactor.png
+11, 44, N, 0, wall-reactor.png
+12, 44, N, 0, wall-reactor.png
+35, 44, N, 0, wall-vault.png
+36, 44, N, 0, wall-vault.png
+37, 44, N, 0, wall-vault.png
+38, 44, N, 0, wall-vault.png
+39, 44, N, 0, wall-vault.png
+40, 44, N, 0, wall-vault.png
+41, 44, N, 0, wall-vault.png
+42, 44, N, 0, wall-vault.png
+43, 44, N, 0, wall-vault.png
+
+[map]
+################################################
+########################E#######################
+###################..........###################
+###################.k......k.###################
+####c.......c######..........######.........####
+####....r....######..........######....b....####
+####.........##########..##########.g.....g.####
+####.........##########..##########.........####
+####.e..&....##########..##########I...&...J####
+####.........##########..##########.........####
+####.........##########Y###########.........####
+####.........##########..##########.g..w..g.####
+####c.......c##########..##########.........####
+#######################B########################
+#######################..#######################
+#######################..#######################
+#######################R########################
+#######################..#######################
+####################/......\####################
+###################/........\###################
+##################/....&..a..\##################
+##################.m..........##################
+##################....Q.......##################
+##################.........&..##################
+##################..&.........##################
+##################.....^.Q....##################
+##################..........m.##################
+##################\..+..&..../##################
+###################\......../###################
+####################\....../####################
+################################################
+################################################
+################################################
+################################################
+################################################
+####s........######################.........####
+####....a....######################.4.....*.####
+####.........######################.........####
+####.......h.######################.........####
+####.L..&...L######################U.M.&...U####
+####.........######################.........####
+####.........######################.........####
+####....y....######################.u..3..h.####
+####........s######################.........####
+################################################
+################################################
+################################################
+################################################
+
+[ceiling]
+' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's
+................................................
+................................................
+...................cccccccccc...................
+...................cccccccccc...................
+....ccccccccc......cccccccccc......ccccccccc....
+....ccccccccc......cccccccccc......ccccccccc....
+....ccccccccc..........cc..........ccccccccc....
+....ccccccccc..........cc..........ccccccccc....
+....ccccccccc..........cc..........ccccccccc....
+....ccccccccc..........cc..........ccccccccc....
+....ccccccccc..........cc..........ccccccccc....
+....ccccccccc..........cc..........ccccccccc....
+....ccccccccc..........cc..........ccccccccc....
+.......................cc.......................
+.......................cc.......................
+.......................cc.......................
+.......................cc.......................
+.......................cc.......................
+....................gggggggg....................
+...................gggggggggg...................
+..................gggggggggggg..................
+..................gggggggggggg..................
+..................gggggggggggg..................
+..................gggggggggggg..................
+..................gggggggggggg..................
+..................gggggggggggg..................
+..................gggggggggggg..................
+..................gggggggggggg..................
+...................gggggggggg...................
+....................gggggggg....................
+................................................
+................................................
+................................................
+................................................
+................................................
+....ccccccccc......................ccccccccc....
+....ccccccccc......................ccccccccc....
+....ccccccccc......................ccccccccc....
+....ccccccccc......................ccccccccc....
+....ccccccccc......................ccccccccc....
+....ccccccccc......................ccccccccc....
+....ccccccccc......................ccccccccc....
+....ccccccccc......................ccccccccc....
+....ccccccccc......................ccccccccc....
+................................................
+................................................
+................................................
+................................................

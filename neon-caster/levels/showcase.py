@@ -1,0 +1,406 @@
+"""Showcase sectors for the level editor: YOUR SECTORS 11-13
+(custom/custom1..3.txt here). Each uses the editor's level-file sections -
+[faces] (pictures on single faces, divided ones), lights on faces (they
+tint their face), [pads] (teleporters linked by hand), [monsters] (a
+monster's own sight, hearing, health, speed, waking) - on top of the
+usual. Built with the level kit, and checked by it.
+
+    python3 showcase.py [OUTDIR]     (OUTDIR: custom/ unless you say)
+
+This writes over custom1-3.txt: once you've changed one of them in the
+game's editor, don't run it again (or give it another OUTDIR).
+"""
+import os, sys
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import lvlkit
+from lvlkit import Map, N
+
+ASSETS = os.path.dirname(HERE)  # (neon-caster/: the pictures)
+SIDES = {"E": 1, "S": 2, "W": 3, "N": 4}
+WAKE = {"sees": 0, "near": 1, "hit": 2, "hunt": 3}
+
+
+class Show(Map):
+    """A kit Map plus the editor's sections."""
+
+    def __init__(self, fill="#"):
+        super().__init__(fill)
+        self.faces = {}    # (x, y, face) -> (divided, pic1, pic2)
+        self.pads = []     # (x1, y1, x2, y2)
+        self.mons = {}     # (x, y) -> (sight, hearing, health, speed, wake)
+
+    def face(self, x, y, f, pic, pic2="", div=0):
+        """A picture on face f (E S W N, LE LS LW LN, F, C) of cell (x, y)."""
+        self.faces[(x, y, f)] = (div, pic, pic2)
+
+    def floor_pic(self, x0, y0, x1, y1, pic, checker=None):
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                if self.g[y][x] not in lvlkit.WALLS:
+                    p = checker if checker and (x + y) % 2 else pic
+                    self.face(x, y, "F", p)
+
+    def wall_light(self, x, y, side, r, g, b, fx=0, rad=3, bright=150):
+        """A light on side `side` of wall cell (x, y), where the editor's
+        LIGHT puts it: 0.12 in front of the face's middle (it tints the face)."""
+        ax, ay = x + 0.5, y + 0.5
+        if side == "E": ax = x + 1.12
+        if side == "S": ay = y + 1.12
+        if side == "W": ax = x - 0.12
+        if side == "N": ay = y - 0.12
+        self.light(round(ax, 2), round(ay, 2), rad, bright, r, g, b, fx)
+
+    def painting(self, x, y, side, pic, rgb, fx=0):
+        """A wall face with a picture of its own, lit and tinted."""
+        self.face(x, y, side, pic)
+        self.wall_light(x, y, side, *rgb, fx=fx, rad=2.5, bright=170)
+
+    def mon(self, x, y, c, sight=14, hear=0, health=100, speed=100, wake="sees"):
+        self.g[y][x] = c
+        if (sight, hear, health, speed, wake) != (14, 0, 100, 100, "sees"):
+            self.mons[(x, y)] = (sight, hear, health, speed, WAKE[wake])
+
+    def level(self, label, name, walls, floors, ceils):
+        lv = dict(label=label, name=name, walls=walls, floors=floors, ceils=ceils,
+                  ambient=self.ambient, zones=self.zones, lights=self.lights, events=self.events,
+                  rows=self.rows(), lifts=self.lifts, floor=["".join(r) for r in self.fh],
+                  ceiling=["".join(r) for r in self.ch], triggers=self.triggers)
+        lv["faces"] = ["%d, %d, %s, %d, %s%s" % (x, y, f, d, p1, (", " + p2) if p2 else "")
+                       for (x, y, f), (d, p1, p2) in sorted(self.faces.items(), key=lambda t: (t[0][1], t[0][0], t[0][2]))]
+        lv["pads"] = list(self.pads)
+        lv["monsters"] = [(x, y) + v for (x, y), v in sorted(self.mons.items(), key=lambda t: (t[0][1], t[0][0]))]
+        return lv
+
+    def slots(self):
+        """How many of the sector's 24 slots its own pictures take: each
+        picture on a face, and each tinted copy a wall light makes."""
+        pics = set()
+        for (d, p1, p2) in self.faces.values():
+            pics.add(p1)
+            if p2: pics.add(p2)
+        glows = set()  # (as the game makes them: one per picture, colour, strength and effect)
+        for (x, y, rad, br, r, g, b, fx) in self.lights:
+            fx_, fy_ = x - int(x), y - int(y)
+            wx = wy = None
+            if abs(fy_ - 0.5) < 0.03 and abs(fx_ - 0.12) < 0.03: wx, wy, sd = int(x) - 1, int(y), "E"
+            if abs(fy_ - 0.5) < 0.03 and abs(fx_ - 0.88) < 0.03: wx, wy, sd = int(x) + 1, int(y), "W"
+            if abs(fx_ - 0.5) < 0.03 and abs(fy_ - 0.12) < 0.03: wx, wy, sd = int(x), int(y) - 1, "S"
+            if abs(fx_ - 0.5) < 0.03 and abs(fy_ - 0.88) < 0.03: wx, wy, sd = int(x), int(y) + 1, "N"
+            if wx is None:
+                continue
+            d, p1, p2 = self.faces.get((wx, wy, sd), (0, self.g[wy][wx], ""))
+            amt = int((0.35 + 0.55 * br / 255) * 100)
+            glows.add((p1, r, g, b, amt, fx))
+            if d:
+                glows.add((p2, r, g, b, amt, fx))
+        return len(pics), len(glows)
+
+
+# ---------------------------------------------------------------- 11
+def gallery():
+    """SECTOR 11: THE GALLERY. A museum after hours: a hall three walls
+    high, its floor a checkerboard laid cell by cell, its pillars two-tone
+    (divided top | bottom), eight paintings each lit and tinted by a light
+    of its own colour. The statues are heavies that wake only when shot -
+    and the gunners on the mezzanine hear every shot. The red card is up
+    there (the lift); the blue in the vault behind the red door, where
+    crawlers spring when you come near; the exit behind the blue door."""
+    m = Show("#")
+    m.ambient = (150, 235, 230, 255)
+    # The foyer (south), you facing north
+    m.rect(19, 37, 28, 44)
+    m.put(23, 43, "^")
+    m.rect(23, 36, 24, 36)  # (an arch into the hall)
+    for x, c in ((19, "W"), (28, "W"), (20, "p"), (27, "p")):
+        m.put(x, 41 if c == "W" else 37, c)
+    m.put(19, 44, "U"); m.put(28, 44, "U")
+    m.put(21, 39, "+"); m.put(26, 39, "M"); m.put(22, 44, "a"); m.put(25, 44, "a")
+    # The hall: three walls high
+    m.rect(9, 15, 38, 35)
+    m.ceiling(9, 15, 38, 35, 24)
+    for px in (12, 18, 29, 35):  # pillars, 2 x 2, in two rows
+        for py in (19, 30):
+            m.rect(px, py, px + 1, py + 1, "N")
+            for (x, y) in ((px, py), (px + 1, py), (px, py + 1), (px + 1, py + 1)):
+                for s in "ESWN":
+                    m.face(x, y, s, "wall-tiles.png", "wall-brick.png", div=2)
+    m.floor_pic(21, 15, 26, 35, "floor-white.png", checker="floor-plates.png")  # the checkerboard aisle
+    # Eight paintings: the north wall and both ends
+    art = [(12, 14, "S", "wall-adverts.png", (255, 60, 200), 2), (16, 14, "S", "wall-graffiti.png", (255, 150, 60), 0),
+           (31, 14, "S", "wall-datastream.png", (60, 220, 255), 2), (35, 14, "S", "wall-greenhouse.png", (90, 255, 120), 0),
+           (8, 19, "E", "wall-viewport.png", (60, 110, 255), 0), (8, 31, "E", "wall-vines.png", (90, 255, 120), 1),
+           (39, 16, "W", "wall-reactor.png", (255, 40, 40), 2), (39, 20, "W", "wall-cryo.png", (40, 255, 210), 0)]
+    for (x, y, s, pic, rgb, fx) in art:
+        m.painting(x, y, s, pic, rgb, fx)
+    # The statues: heavies before the north paintings - they wake only when shot
+    for x in (12, 16, 31, 35):
+        m.mon(x, 16, "h", wake="hit", health=150)
+    m.put(24, 25, "2")  # a scatter gun on the aisle
+    m.put(10, 34, "e"); m.put(37, 34, "e")
+    m.put(15, 25, "Q"); m.put(32, 25, "Q")  # holograms
+    # The mezzanine (east, two walls up) - the lift in the hall's corner
+    m.rect(39, 22, 45, 35)
+    m.floor(39, 22, 45, 35, 16)
+    m.ceiling(39, 22, 45, 35, 24)
+    for y in range(22, 36):
+        m.face(39, y, "W", "wall-hazard.png", "wall-girders.png", div=2)  # its edge: girders over hazard stripes
+    m.lift(38, 34, 38, 35, 0, 16, mode=2, speed=8)
+    m.put(44, 24, "r")
+    m.put(43, 33, "u")
+    m.mon(42, 27, "g", hear=18, sight=20)  # the guards: they hear every shot in the hall
+    m.mon(42, 31, "g", hear=18, sight=20)
+    # The vault (west), behind the red door
+    m.rect(2, 21, 7, 29)
+    m.put(8, 25, "R")
+    m.put(4, 25, "b")
+    m.put(3, 22, "&")  # a teleporter: to the exit room - the way out once the blue card's yours
+    for (x, y) in ((2, 21), (2, 29), (7, 21), (7, 29)):
+        m.mon(x, y, "c", sight=3, wake="near", speed=130)  # crawlers in the corners: they spring when you're near
+    m.floor_pic(2, 21, 7, 29, "floor-hazard.png")
+    # The exit room (north), behind the blue door
+    m.rect(19, 4, 28, 12)
+    m.rect(23, 13, 24, 13)
+    m.put(23, 14, "B"); m.put(24, 14, "#")
+    m.put(23, 13, "."); m.put(24, 13, ".")
+    m.put(24, 3, "E")
+    m.mon(19, 4, "k", sight=5, wake="near")
+    m.mon(28, 4, "k", sight=5, wake="near")
+    m.put(20, 11, "*"); m.put(27, 11, "a")
+    m.put(26, 6, "&")
+    m.put(19, 8, "F"); m.put(28, 8, "F")
+    # Light
+    for x in (14, 24, 33):
+        for y in (17, 25, 33):
+            m.light(x + 0.5, y + 0.5, 8, 150, 230, 235, 255, 0)
+    m.light(23.5, 40.5, 6, 150, 255, 220, 170, 0)
+    m.light(42.5, 28.5, 6, 120, 220, 230, 255, 1)
+    m.light(4.5, 25.5, 5, 140, 255, 40, 40, 2)
+    m.light(23.5, 8.5, 6, 130, 60, 220, 255, 0)
+    m.zone(9, 15, 38, 35, 3, 1)
+    m.zone(19, 37, 28, 44, 4, 1)
+    m.zone(39, 22, 45, 35, 4, 2)
+    m.zone(19, 4, 28, 12, 2, 2)
+    m.triggers.append("enter 9 15 38 17 : message THE STATUES SLEEP - UNLESS YOU SHOOT THEM")
+    return m, "custom1", "SECTOR 11: THE GALLERY", \
+        ["wall-white.png", "wall-tiles.png", "wall-vault.png", "wall-control.png", "wall-viewport.png", "wall-graffiti.png"], \
+        ["floor-white.png", "floor-lab.png", "floor-plates.png", "floor-deck.png"], \
+        ["ceiling-lights.png", "ceiling-vents.png"], gallery.__doc__
+
+
+# ---------------------------------------------------------------- 12
+def depot():
+    """SECTOR 12: THE SUNKEN DEPOT. A cargo depot four walls high, built
+    round a shaft with no bottom. A walkway rings it a wall up (its edge
+    hazard-striped over concrete: faces divided top | bottom); beams hang
+    from the dark; the furnace wall flickers with firelight (lights on its
+    faces). A causeway winds across the shaft to the island where the
+    yellow card is - and the stalker there is already hunting you. Crawlers
+    wait in the closets off the west walkway; the sentry in the north-east
+    corner sees the whole depot. The exit is through the yellow door, up
+    off the north walkway."""
+    m = Show("#")
+    m.ambient = (150, 255, 205, 165)
+    m.rect(4, 9, 43, 43)                 # the depot
+    m.ceiling(4, 9, 43, 43, 32)
+    m.floor(4, 9, 43, 12, 8); m.floor(4, 40, 43, 43, 8)      # the walkway: north, south...
+    m.floor(4, 9, 7, 43, 8); m.floor(40, 9, 43, 43, 8)       # ...west, east
+    m.put(5, 42, ">")
+    m.floor(15, 18, 32, 34, -8)          # the shaft
+    path = [(23, 34), (23, 33), (23, 32), (22, 32), (21, 32), (20, 32), (20, 31), (20, 30), (20, 29), (21, 29),
+            (22, 29), (23, 29), (24, 29), (25, 29), (26, 29), (27, 29), (27, 28), (27, 27), (26, 27)]
+    for (x, y) in path:
+        m.fh[y][x] = "."                   # the causeway: back up to the floor
+    m.floor(22, 22, 26, 26, 4)           # the island, half a wall up...
+    m.floor(22, 22, 26, 22, 2); m.floor(22, 26, 26, 26, 2); m.floor(22, 22, 22, 26, 2); m.floor(26, 22, 26, 26, 2)  # ...its rim a step
+    m.fh[27][26] = "."; m.fh[26][26] = "2"  # (the causeway reaches its rim)
+    m.put(24, 24, "y")
+    m.mon(24, 23, "k", wake="hunt")      # hunting you from the start
+    m.put(23, 25, "*")
+    # The walkway's edge: hazard stripes over concrete (each face divided)
+    for y in range(13, 40):
+        m.face(7, y, "E", "wall-hazard.png", "wall-concrete.png", div=2)
+        m.face(40, y, "W", "wall-hazard.png", "wall-concrete.png", div=2)
+    for x in range(8, 40):
+        m.face(x, 12, "S", "wall-hazard.png", "wall-concrete.png", div=2)
+        m.face(x, 40, "N", "wall-hazard.png", "wall-concrete.png", div=2)
+    # Down: two elevators and the south stairs
+    m.lift(8, 30, 8, 30, 0, 8, mode=2, speed=8)
+    m.lift(39, 13, 39, 13, 0, 8, mode=2, speed=8)
+    m.stairs(23, 36, 25, 39, "S", 2, 8)
+    for x in (23, 24, 25):
+        m.face(x, 40, "N", "wall-concrete.png")  # (behind the stairs: plain)
+    # Beams hanging from the dark, over the lower floor
+    for y in (16, 37):
+        m.ceiling(8, y, 39, y, 12, only_raise=False)
+    # Blocks standing on the lower floor - and a stack you can climb to the walkway
+    for (x, y) in ((11, 15), (36, 15), (11, 37), (36, 37), (12, 24), (35, 24)):
+        m.fh[y][x] = "6"
+    for i, e in enumerate((2, 4, 6)):
+        m.fh[13][37 - i] = str(e)
+    # The furnace wall: firelight on its faces
+    m.paint(4, 8, 43, 8, "C")
+    for x in (8, 14, 20, 28, 34, 40):
+        m.wall_light(x, 8, "S", 255, 140, 50, fx=4, rad=5, bright=230)
+    # The exit: through the yellow door, up off the north walkway
+    m.rect(20, 2, 28, 6)
+    m.floor(20, 2, 28, 7, 8)
+    m.ceiling(20, 2, 28, 7, 16)
+    m.put(24, 7, "."); m.put(24, 8, "Y")
+    m.fh[7][24] = "8"; m.fh[8][24] = "8"     # (the door, and the way through, a wall up like the walkway)
+    m.ch[8][24] = m.ch[7][24] = lvlkit.hchar(16, ceiling=True)
+    m.put(24, 1, "E")
+    m.put(21, 3, "u"); m.put(27, 3, "+")
+    # Closets off the west walkway: crawlers that spring when you pass
+    for y in (14, 20, 26, 34):
+        m.put(3, y, ".")
+        m.fh[y][3] = "8"
+        m.mon(3, y, "c", sight=2, wake="near", speed=120)
+    m.ceiling(3, 9, 3, 43, 32)
+    # The sentry sees the whole depot; the gunners hear the shots
+    m.mon(42, 10, "s", sight=30)
+    m.mon(30, 41, "g", hear=14); m.mon(16, 41, "g", hear=14)
+    m.mon(10, 20, "m"); m.mon(37, 33, "m")
+    m.put(20, 42, "3"); m.put(6, 11, "M"); m.put(41, 42, "a"); m.put(9, 38, "e"); m.put(38, 18, "+"); m.put(10, 32, "a")
+    m.put(13, 14, "o"); m.put(34, 38, "o"); m.put(9, 14, "x"); m.put(38, 38, "x"); m.put(42, 30, "L")
+    # Light
+    for x in (12, 24, 35):
+        for y in (14, 24, 36):
+            if not (x == 24 and y == 24):
+                m.light(x + 0.5, y + 0.5, 9, 170, 255, 215, 170, 0)
+    m.light(24.5, 24.5, 6, 160, 255, 60, 40, 2)    # the island: red, pulsing
+    for (x, y) in ((6, 10), (6, 41), (41, 10), (41, 41), (24, 10), (24, 41), (6, 26), (41, 26)):
+        m.light(x + 0.5, y + 0.5, 7, 150, 200, 220, 255, 0)
+    m.light(24.5, 4.5, 6, 160, 90, 255, 120, 0)
+    m.zone(4, 9, 43, 43, 1, 1)
+    m.zone(8, 13, 39, 39, 2, 2)
+    m.zone(20, 2, 28, 7, 4, 2)
+    m.zone(22, 22, 26, 26, 3, 0)
+    m.triggers.append("enter 4 38 9 43 : message THE STALKER ON THE ISLAND IS ALREADY HUNTING YOU")
+    return m, "custom2", "SECTOR 12: THE SUNKEN DEPOT", \
+        ["wall-girders.png", "wall-rusty.png", "wall-furnace.png", "wall-hazard.png", "wall-pipes.png", "wall-concrete.png"], \
+        ["floor-platform.png", "floor-concrete.png", "floor-hazard.png", "floor-rustgrate.png"], \
+        ["ceiling-girders.png", "ceiling-pipes.png"], depot.__doc__
+
+
+# ---------------------------------------------------------------- 13
+def relay():
+    """SECTOR 13: THE RELAY. Four chambers sealed in the rock, and only one
+    way into each: a teleporter in the hub, LINKed to it by hand (in
+    reading order the hub's pads would only go to each other - [pads]).
+    Each chamber is dressed in pictures of its own ([faces]: walls, floor
+    and ceiling) and lit in its colour on its walls. The ice holds the red
+    card and crawlers that spring when you're near; the biolab the blue,
+    and gunners that hear every shot; the reactor the yellow, a sentry that
+    sees it all and a heavy twice as tough; the vault the guns, and a heavy
+    already hunting. The three cards open the corridor north to the exit."""
+    m = Show("#")
+    m.ambient = (140, 220, 225, 255)
+
+    def chamber(x0, y0, x1, y1, wall, floor, ceil, rgb, fx):
+        m.rect(x0, y0, x1, y1)
+        m.ceiling(x0, y0, x1, y1, 12)
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                m.face(x, y, "F", floor); m.face(x, y, "C", ceil)
+        for y in range(y0, y1 + 1):
+            m.face(x0 - 1, y, "E", wall); m.face(x1 + 1, y, "W", wall)
+        for x in range(x0, x1 + 1):
+            m.face(x, y0 - 1, "S", wall); m.face(x, y1 + 1, "N", wall)
+        cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+        for (x, y, sd) in ((x0 - 1, cy, "E"), (x1 + 1, cy, "W"), (cx, y0 - 1, "S"), (cx, y1 + 1, "N")):
+            m.wall_light(x, y, sd, *rgb, fx=fx, rad=4, bright=190)
+        m.light(cx + 0.5, cy + 0.5, 6, 110, *rgb, 0)
+        return cx, cy
+
+    # The hub, you in the middle; its four pads N E S W
+    m.octagon(18, 18, 29, 29, 3)
+    m.ceiling(18, 18, 29, 29, 16)
+    m.put(23, 25, "^")
+    hub = {"N": (23, 20), "E": (27, 23), "S": (24, 27), "W": (20, 24)}
+    for (x, y) in hub.values():
+        m.put(x, y, "&")
+    m.mon(19, 21, "m"); m.mon(28, 26, "m")
+    m.put(21, 27, "+"); m.put(26, 20, "a"); m.put(22, 22, "Q"); m.put(25, 25, "Q")
+    # The chambers - and which hub pad goes to which (by hand: LINK)
+    a = chamber(4, 4, 12, 12, "wall-frost.png", "floor-ice.png", "ceiling-frost.png", (60, 220, 255), 0)
+    b = chamber(35, 4, 43, 12, "wall-biolab.png", "floor-lab.png", "ceiling-growlights.png", (90, 255, 120), 2)
+    c = chamber(4, 35, 12, 43, "wall-reactor.png", "floor-scorched.png", "ceiling-warning.png", (255, 50, 40), 3)
+    d = chamber(35, 35, 43, 43, "wall-vault.png", "floor-platform.png", "ceiling-core.png", (255, 200, 80), 4)
+    for (hk, (cx, cy)) in (("N", a), ("E", b), ("W", c), ("S", d)):
+        m.put(cx, cy, "&")
+        m.pads.append(hub[hk] + (cx, cy))
+    # The ice: the red card; crawlers in the corners, springing when you're near
+    m.put(8, 5, "r")
+    for (x, y) in ((4, 4), (12, 4), (4, 12), (12, 12)):
+        m.mon(x, y, "c", sight=3, wake="near", speed=140)
+    m.put(5, 8, "e")
+    # The biolab: the blue card; gunners that hear every shot in it
+    m.put(39, 5, "b")
+    for (x, y) in ((36, 6), (42, 6), (36, 11), (42, 11)):
+        m.mon(x, y, "g", hear=20, sight=6)
+    m.put(39, 11, "w"); m.put(43, 8, "J"); m.put(35, 8, "I")
+    # The reactor: the yellow card; a sentry that sees it all, a heavy twice as tough
+    m.put(8, 42, "y")
+    m.mon(4, 35, "s", sight=30); m.mon(12, 43, "s", sight=30)
+    m.mon(11, 38, "h", health=200, speed=80)
+    m.put(5, 39, "L"); m.put(12, 39, "L"); m.put(8, 36, "a")
+    # The vault: the guns - and a heavy already hunting
+    m.mon(42, 42, "h", wake="hunt")
+    m.put(36, 36, "4"); m.put(42, 36, "*"); m.put(36, 42, "u"); m.put(39, 42, "3"); m.put(37, 39, "M")
+    m.put(43, 39, "U"); m.put(35, 39, "U")
+    # North: the corridor of three doors, then the exit
+    m.rect(23, 6, 24, 17)
+    m.ceiling(23, 6, 24, 17, 12)
+    for (y, door) in ((16, "R"), (13, "B"), (10, "Y")):
+        m.put(23, y, door); m.put(24, y, "#")
+    m.rect(19, 2, 28, 5)
+    m.ceiling(19, 2, 28, 5, 12)
+    m.put(24, 1, "E")
+    m.mon(20, 3, "k", sight=6); m.mon(27, 3, "k", sight=6)
+    for y in (7, 12, 15):
+        m.light(23.5, y + 0.5, 4, 120, 220, 230, 255, 1)
+    m.light(23.5, 3.5, 6, 150, 255, 255, 255, 0)
+    m.light(23.5, 23.5, 7, 160, 200, 180, 255, 2)
+    m.light(20.5, 20.5, 4, 120, 60, 220, 255, 0); m.light(27.5, 27.5, 4, 120, 255, 60, 220, 0)
+    m.zone(18, 18, 29, 29, 1, 1)
+    m.zone(23, 6, 24, 17, 2, 2)
+    m.zone(19, 2, 28, 5, 2, 2)
+    m.triggers.append("enter 22 19 24 21 : message NORTH PAD: THE ICE")
+    m.triggers.append("enter 26 22 28 24 : message EAST PAD: THE BIOLAB")
+    m.triggers.append("enter 19 23 21 25 : message WEST PAD: THE REACTOR")
+    m.triggers.append("enter 23 26 25 28 : message SOUTH PAD: THE VAULT")
+    return m, "custom3", "SECTOR 13: THE RELAY", \
+        ["wall-transit.png", "wall-hull.png", "wall-control.png", "wall-servers.png", "wall-terminals.png", "wall-obsidian.png"], \
+        ["floor-circuit.png", "floor-deck.png", "floor-plates.png", "floor-core.png"], \
+        ["ceiling-tunnel.png", "ceiling-cables.png"], relay.__doc__
+
+
+def build(fn, outdir):
+    m, label, name, walls, floors, ceils, doc = fn()
+    lv = m.level(label, name, walls, floors, ceils)
+    path = os.path.join(outdir, label + ".txt")
+    comment = [l.strip() for l in doc.strip().splitlines()]
+    lvlkit.write_level_file(path, lv, comment)
+    back = lvlkit.read_level_file(path, label)
+    ok = lvlkit.check_level(back, ASSETS)
+    errs, warns = lvlkit.check_heights(back)
+    for e in errs: print("  HEIGHTS ERROR", e)
+    for w in warns: print("  ", w)
+    pics, glows = m.slots()
+    print("  slots: %d pictures + %d tinted = %d of 24" % (pics, glows, pics + glows))
+    for (x, y, f), (d, p1, p2) in m.faces.items():
+        for p in (p1, p2):
+            if p and not os.path.exists(os.path.join(ASSETS, p)):
+                print("  MISSING picture", p)
+    return ok and not errs and pics + glows <= 24
+
+
+if __name__ == "__main__":
+    out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "custom")
+    os.makedirs(out, exist_ok=True)
+    good = True
+    for fn in (gallery, depot, relay):
+        print(fn.__name__)
+        good = build(fn, out) and good
+    print("ALL GOOD" if good else "PROBLEMS")

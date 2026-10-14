@@ -34,6 +34,8 @@ A playable sector needs only four things: walls all round the edge, one start, o
 
 To rename it, open the console (`` ` ``), type `sectorname MY FIRST MAP`, then `savelevel`.
 
+**Three examples to take apart.** YOUR SECTORS starts with three sectors built to show the editor off (so your first NEW SECTOR is number 14): **11, THE GALLERY** (pictures on single faces, a checkerboard floor laid cell by cell, two-tone pillars, paintings lit and tinted by lights on their faces, statues that wake only when shot and guards that hear it), **12, THE SUNKEN DEPOT** (a walkway a wall up, a shaft with no bottom and a causeway across it, beams hanging from the dark, firelight on the furnace wall, crawler closets, a stalker hunting you from the start) and **13, THE RELAY** (chambers only teleporters reach, each pad LINKed to its own, each chamber in pictures of its own). Open one with F2 and click about: the panes show how each thing is set up. They're made by `neon-caster/levels/showcase.py`, which writes them again from scratch, so don't run it once you've changed them.
+
 Undo is **UNDO** or **Ctrl+Z**, up to 40 steps. One drag, or one run of wheel turns, counts as one step. **F1** (or **HELP**) shows every key for the view you're in.
 
 ## How the editor fits together

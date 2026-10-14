@@ -544,7 +544,7 @@ def level_files(folder):
 
 
 # ---------------------------------------------------------------- validate
-def validate(rows, name="map", want_exit=True):
+def validate(rows, name="map", want_exit=True, pairs=()):
     errs, warns = [], []
     g = [list(r) for r in rows]
     if len(g) != N or any(len(r) != N for r in g):
@@ -603,7 +603,7 @@ def validate(rows, name="map", want_exit=True):
     # decorations and diagonals block (conservative)
     keys = set()
     keyof = {"R": "r", "B": "b", "Y": "y"}
-    pads = [(x, y) for y in range(N) for x in range(N) if at(x, y) in PAD]
+    pads = pad_order([list(r) for r in rows], pairs)  # (the editor's [pads] first, then reading order)
     while True:
         seen = set([starts[0]])
         q = deque([starts[0]])
@@ -687,7 +687,7 @@ def parse_bas(path):
 
 def check_level(lv, assets=None):
     """Print what's wrong with a level (and a summary); True if it's fine."""
-    errs, warns = validate(lv["rows"], lv["label"])
+    errs, warns = validate(lv["rows"], lv["label"], pairs=lv.get("pads", []))
     if (len(lv["walls"]), len(lv["floors"]), len(lv["ceils"])) != (6, 4, 2):
         errs.append("need 6 walls, 4 floors, 2 ceilings")
     if assets:

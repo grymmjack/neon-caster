@@ -64,7 +64,9 @@ blank sector (one room in solid wall) and opens the level editor on it.
 Push walls back, sink pits, add doors, monsters and lights, paint any
 picture on any face, set up ambushes, and Ctrl+S saves it to
 `neon-caster/levels/custom/`. The [level editor guide](LEVEL-EDITOR-GUIDE.md)
-explains every tool, key, map character and level-file field.
+explains every tool, key, map character and level-file field, and YOUR
+SECTORS starts with three example sectors built with the editor to take
+apart.
 
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting
 at once. OLDSCHOOL is chunky pixels with no effects, 90S is 720P with

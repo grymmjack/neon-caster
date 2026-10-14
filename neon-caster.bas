@@ -5541,7 +5541,7 @@ FOR k = 1 TO lvlNumZones
 NEXT
 ' Single faces' own pictures ([faces]): each picture a slot of its own
 ' (T_CUSTOM + 1...), loaded only if it isn't there already
-customN = 0 : faceAny = (lvlNumFaces > 0)
+customN = 0 : faceAny = (lvlNumFaces > 0) : facesFull = 0
 FOR k = 1 TO lvlNumFaces
     x = lvlFaceX(k) : y = lvlFaceY(k) : f = lvlFaceS(k)
     IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
@@ -5552,6 +5552,7 @@ FOR k = 1 TO lvlNumFaces
                 FOR j = T_CUSTOM + 1 TO T_CUSTOM + customN
                     IF texFile$(j) = pic$ THEN slot = j
                 NEXT
+                IF slot = 0 AND customN >= T_CUSTOMN THEN facesFull = -1
                 IF slot = 0 AND customN < T_CUSTOMN AND _FILEEXISTS(ArtPath$(pic$)) THEN
                     customN = customN + 1 : slot = T_CUSTOM + customN
                     IF texFile$(slot) <> pic$ THEN LoadTex pic$, slot : texFile$(slot) = pic$ : texNew = -1
@@ -5593,19 +5594,36 @@ FOR k = 1 TO lvlNumLights
     IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.12) < 0.03 THEN gx = INT(lx) : gy = INT(ly) - 1 : gs = 2
     IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.88) < 0.03 THEN gx = INT(lx) : gy = INT(ly) + 1 : gs = 4
     IF gx >= 0 AND gy >= 0 AND gx < MAP_SIZE AND gy < MAP_SIZE THEN
-        IF worldMap(gx, gy) <> 2 THEN ' (not a door)
+        gc$ = MID$(lvlRow$(gy), gx + 1, 1) : lc = INT(lx) : lr = INT(ly) ' (the map isn't built yet: its characters, and its height rows, say what's there)
+        IF INSTR("DHXRBY!E", gc$) = 0 THEN ' (not a door)
+            gWall = INSTR("#NCKPG@$%/\", gc$) > 0
             amt = 0.35 + 0.55 * lvlLight(k, 4) / 255
             key$ = ":" + LTRIM$(STR$(lvlLight(k, 5))) + "," + LTRIM$(STR$(lvlLight(k, 6))) + "," + LTRIM$(STR$(lvlLight(k, 7))) + ":" + LTRIM$(STR$(INT(amt * 100))) + ":" + LTRIM$(STR$(lvlLight(k, 8)))
-            FOR g = gs TO gs + 4 STEP 4 ' (its side - and a lintel's, the same side higher up)
-                IF g = gs OR worldMap(gx, gy) <= 0 THEN
-                    IF worldMap(gx, gy) > 0 THEN dflt = wallTexSlot(worldMap(gx, gy)) ELSE dflt = wallTexSlot(1)
-                    FOR half = 1 TO 2
+            FOR g = gs TO gs + 4 STEP 4 ' (its side - a wall's, or a step's - and a lintel's, the same side higher up)
+                there = 0
+                IF gWall THEN
+                    there = (g = gs)
+                ELSEIF g = gs THEN
+                    there = HeightOf(MID$(lvlFloorRow$(gy), gx + 1, 1), 0) > HeightOf(MID$(lvlFloorRow$(lr), lc + 1, 1), 0) ' (a step up from the light's cell)
+                ELSE
+                    there = HeightOf(MID$(lvlCeilRow$(gy), gx + 1, 1), 1) < HeightOf(MID$(lvlCeilRow$(lr), lc + 1, 1), 1) ' (a lintel down)
+                END IF
+                IF there THEN
+                    SELECT CASE gc$
+                        CASE "#", "N", "C", "K", "P", "G" : dflt = INSTR("#NCKPG", gc$)
+                        CASE "@" : dflt = T_JACK
+                        CASE "$" : dflt = T_CODE
+                        CASE ELSE : dflt = wallTexSlot(1)
+                    END SELECT
+                    hMax = 1 : IF faceDiv(gx, gy, g) THEN hMax = 2 ' (divided: each half its own copy)
+                    FOR half = 1 TO hMax
                         IF half = 1 THEN glBaseSl = faceTex(gx, gy, g) ELSE glBaseSl = faceTex2(gx, gy, g)
                         IF glBaseSl = 0 THEN glBaseSl = dflt
                         want$ = "glow:" + LTRIM$(STR$(glBaseSl)) + key$ + ":" + texFile$(glBaseSl) : slot = 0 ' (the picture it's made from, named too: a new picture there, a new copy)
                         FOR j = T_CUSTOM + 1 TO T_CUSTOM + customN
                             IF texFile$(j) = want$ THEN slot = j
                         NEXT
+                        IF slot = 0 AND customN >= T_CUSTOMN THEN facesFull = -1
                         IF slot = 0 AND customN < T_CUSTOMN THEN
                             customN = customN + 1 : slot = T_CUSTOM + customN
                             IF texFile$(slot) <> want$ THEN texFile$(slot) = want$ : MakeGlowTex slot : texNew = -1
@@ -5620,6 +5638,7 @@ FOR k = 1 TO lvlNumLights
         END IF
     END IF
 NEXT
+IF facesFull AND editMode THEN EditNote "More than" + STR$(T_CUSTOMN) + " pictures on faces (lights' tints too) - the rest show as usual"
 ' The level's lights: x, y, radius, brightness, red, green, blue, effect
 numLights = 0
 FOR l = 1 TO MAX_LIGHTS : lightBroken(l) = 0 : NEXT
@@ -9783,7 +9802,8 @@ SUB EditDrawFaces
         EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, edHovPart, _RGB32(60, k, 255)
         IF NOT edLooking THEN
             n$ = MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edHovKind * 7 - 6, 7)
-            IF edHovThing THEN n$ = UCASE$(LEFT$(GlyphName$(MID$(lvlRow$(edHovY), edHovX + 1, 1)), 20))
+            IF edHovThing THEN n$ = GlyphName$(MID$(lvlRow$(edHovY), edHovX + 1, 1)) : IF INSTR(n$, " (") THEN n$ = LEFT$(n$, INSTR(n$, " (") - 1) ' (its name, not the note after it)
+            IF edHovThing THEN n$ = UCASE$(LEFT$(n$, 20))
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
             IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
             IF edHovPart THEN n$ = n$ + " half" + STR$(edHovPart)
