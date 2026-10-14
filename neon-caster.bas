@@ -871,6 +871,7 @@ sndEmpty& = LoadSnd&("empty.wav") : sndWeapon& = LoadSnd&("weapon.wav")
 sndHealth& = LoadSnd&("health.wav") : sndAmmo& = LoadSnd&("ammo.wav") : sndShells& = LoadSnd&("shells.wav")
 sndBoltWall& = LoadSnd&("bolt-wall.wav")
 sndHurt& = LoadSnd&("hurt.wav") : sndDie& = LoadSnd&("die.wav")
+DIM SHARED sndHurtZap& : sndHurtZap& = LoadSnd&("hurt-zap.wav") ' (a shock on top of the grunt: hurtElectric)
 DIM SHARED sndHurt2&, sndHurt3& ' (more ways to say ouch: HurtPlayer picks one)
 ' NEXUS's voice: each line's sound (neon-caster/speech/KEY.wav) and words,
 ' looked up by key (Say); what's on screen (speechText$, until
@@ -3184,7 +3185,7 @@ RETURN
 ' the caller said where it came from (hurtFromX, hurtFromY), a damage
 ' indicator points there (chapter 18).
 HurtPlayer:
-IF godMode THEN hurtFromX = -1 : RETURN
+IF godMode THEN hurtFromX = -1 : hurtElectric = 0 : RETURN
 IF setting(SET_XFEEDBACK) THEN crossScale = 1.8 ' The crosshair jolts wide
 IF hurtFromX >= 0 THEN AddHurtDir hurtFromX, hurtFromY
 hurtFromX = -1
@@ -3201,6 +3202,8 @@ ELSE
         CASE ELSE : PlaySfx sndHurt&, 0.8
     END SELECT
 END IF
+IF hurtElectric THEN PlaySfx sndHurtZap&, 1 ' (a shock - a laser, a live floor: the zap as well as the cry)
+hurtElectric = 0
 RETURN
 
 ' --- Barrel number `barrel` explodes: it hurts everything near it that it
@@ -3997,7 +4000,7 @@ IF cyberWon THEN
     Say "cyber2", 0
 ELSE
     PlaySfx sndFail&, 0.8
-    damage = 10 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
+    damage = 10 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = -1 : GOSUB HurtPlayer
     ShowMsg "EJECTED - the network threw you out. Try again"
     Say "cyber3", 0
 END IF
@@ -4235,7 +4238,7 @@ FOR ev = 1 TO numEvents
                 evGlow(ev) = 1
                 IF inside AND NOT dead AND phase MOD 15 = 0 THEN
                     IF evType(ev) = EV_FIRETRAP THEN PlaySfx sndSizzle&, 0.8 ELSE PlaySfx sndZap&, 0.8
-                    damage = 6 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
+                    damage = 6 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = (evType(ev) = EV_TRAP) : GOSUB HurtPlayer
                 END IF
             ELSEIF phase >= cyc - TRAP_WARN THEN
                 evGlow(ev) = 0.35 * (phase - (cyc - TRAP_WARN)) / TRAP_WARN ' (warming up)
@@ -4265,7 +4268,7 @@ FOR ev = 1 TO numEvents
             evTimer(ev) = evTimer(ev) + 1 : IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
             IF LaserOn(ev) AND evNext(ev) = 0 THEN
                 IF inside AND NOT dead THEN
-                    PlaySfx sndLaser&, 0.9 : damage = 12 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer : evNext(ev) = 25
+                    PlaySfx sndLaser&, 0.9 : damage = 12 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = -1 : GOSUB HurtPlayer : evNext(ev) = 25
                 END IF
                 FOR j = 1 TO numMonsters
                     IF monsterState(j) < 2 THEN IF InRoom(ev, monsterX(j), monsterY(j)) THEN target = j : hitDamage = 2 : GOSUB HitMonster : evNext(ev) = 25
@@ -4277,7 +4280,7 @@ FOR ev = 1 TO numEvents
                 CutterAt ev, cutX, cutY, cutAlongX
                 IF inside AND NOT dead THEN
                     IF (cutAlongX AND ABS(playerX - cutX) < 0.35) OR (NOT cutAlongX AND ABS(playerY - cutY) < 0.35) THEN
-                        PlaySfx sndLaser&, 0.9 : damage = 15 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer : evNext(ev) = 30
+                        PlaySfx sndLaser&, 0.9 : damage = 15 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = -1 : GOSUB HurtPlayer : evNext(ev) = 30
                     END IF
                 END IF
                 FOR j = 1 TO numMonsters

@@ -108,8 +108,9 @@ pixelmon (Stable Diffusion XL, guided by the pixel art); the sound effects
 and music were synthesized; NEXUS's voice is text-to-speech through a
 vocoder.
 
-The footsteps, your death cry, the glass, the lifts and the traps
-(`neon-caster/sfx/step1.wav`, `step2.wav`, `die.wav`, `glass-hit.wav`,
+The footsteps, your cries when hurt or killed, the shock, the glass, the
+lifts and the traps (`neon-caster/sfx/step1.wav`, `step2.wav`, `hurt.wav`,
+`hurt2.wav`, `hurt3.wav`, `hurt-zap.wav`, `die.wav`, `glass-hit.wav`,
 `glass-break.wav`, `lift-start.wav`, `lift-move.wav`, `lift-stop.wav`,
 `trap-fire.wav` and `trap-electric.wav`) are from Imphenzia's Universal
 Sound FX pack, used under its licence, and are not covered by the MIT
