@@ -1271,6 +1271,8 @@ DIM SHARED edSelN AS INTEGER, edSelKind(ED_MAXSEL) AS INTEGER, edSelX(ED_MAXSEL)
 DIM SHARED edSelSide(ED_MAXSEL) AS INTEGER, edSelPart(ED_MAXSEL) AS INTEGER
 DIM SHARED edTool AS INTEGER, edGrid AS INTEGER, edGridAlpha AS INTEGER, edPickTab AS INTEGER, edPickScroll AS INTEGER
 DIM SHARED edLooking AS INTEGER ' (the right button held in the 3D view: the mouse turns you instead of moving the cursor)
+DIM SHARED edMouseFix AS INTEGER, edWheel AS INTEGER, edCurX AS INTEGER, edCurY AS INTEGER ' (put the pointer right again; the wheel's turns for the editor; where the pointer is)
+DIM SHARED edCamPX, edCamPY, edCamDX, edCamDY, edCamPlane, edCamZoom ' (the camera, this frame: EditFP copies it here for the picking and outlines)
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
 DIM SHARED texFile$(T_SLOTS)
 menuMusic& = LoadMusic&("menu.ogg")
@@ -1423,6 +1425,20 @@ DO
         IF _MOUSEBUTTON(1) THEN clicked = -1 : edClickL = -1 ' (edClick: the editor's own, kept until it looks - EditFP)
         IF _MOUSEBUTTON(2) THEN edClickR = -1
     WEND
+    ' The 3D editor: the mouse is a pointer, free to point at anything (the
+    ' face under it is picked - EditPick). Hold the right button to look
+    ' round instead: the pointer is captured while you do (chapter 1). The
+    ' wheel is the editor's (EditFP), not for changing guns.
+    IF editMode AND editView = 1 AND NOT hudEdit THEN
+        lookNow = _MOUSEBUTTON(2)
+        IF lookNow <> edLooking OR edMouseFix THEN
+            IF lookNow THEN _MOUSEHIDE _DISABLE ELSE _MOUSESHOW
+            edLooking = lookNow : edMouseFix = 0
+        END IF
+        IF NOT edLooking THEN mouseDX = 0 : mouseDY = 0
+        edWheel = edWheel + mouseWheel : mouseWheel = 0
+        edCurX = WideMouseX(_MOUSEX) : edCurY = _MOUSEY
+    END IF
     ' Keys go through the key bindings (chapter 21): KeyHeld(BIND_FIRE) asks
     ' "is the key you chose for firing held down?" - left Ctrl, unless you
     ' changed it in the menu.
@@ -1437,7 +1453,7 @@ DO
     ' Esc opens the menu (chapter 21), and the game waits while it's open
     escDown = _KEYDOWN(27) AND NOT hudEdit
     IF escDown AND NOT escWas THEN
-        menuInGame = -1 : GOSUB RunMenu
+        menuInGame = -1 : GOSUB RunMenu : edMouseFix = -1 ' (the menu captured the mouse: the editor's pointer back)
         mouseDX = 0 : mouseDY = 0 : mouseWheel = 0 : clicked = 0 : fireDown = 0 : spaceDown = 0
         fireWait = 15 ' (so the click that closed the menu doesn't fire)
     END IF
@@ -1452,7 +1468,7 @@ DO
     ' Aiming down the sights: hold the right mouse button (_MOUSEBUTTON(2)).
     ' aimAmount slides from 0 (hip) to 1 (aimed) over ADS_FRAMES frames, so
     ' the zoom and the gun ease in and out instead of snapping.
-    IF _MOUSEBUTTON(2) AND NOT dead AND NOT hudEdit THEN aimTarget = 1 ELSE aimTarget = 0
+    IF _MOUSEBUTTON(2) AND NOT dead AND NOT hudEdit AND NOT editMode THEN aimTarget = 1 ELSE aimTarget = 0
     IF swapTimer > 0 THEN aimTarget = 0 ' Changing guns: lower it (no jump in zoom)
     IF aimAmount < aimTarget THEN aimAmount = aimAmount + 1 / ADS_FRAMES : IF aimAmount > 1 THEN aimAmount = 1
     IF aimAmount > aimTarget THEN aimAmount = aimAmount - 1 / ADS_FRAMES : IF aimAmount < 0 THEN aimAmount = 0
@@ -2883,7 +2899,7 @@ DO
         glShakeX(glWrite) = shakeX : glShakeY(glWrite) = shakeY : glShakeEdge(glWrite) = shakeEdge
         FOR i = 1 TO NUM_SETTINGS : glSet(i, glWrite) = setting(i) : NEXT
         glPitch(glWrite) = pitch : glHurt(glWrite) = hurtFlash / 14 : glRail(glWrite) = railBeam / 8
-        glGun(glWrite) = 0 : IF gunY < 600 THEN glGun(glWrite) = currentGun ' The gun (0: out of sight), where on our screen
+        glGun(glWrite) = 0 : IF gunY < 600 AND NOT editMode THEN glGun(glWrite) = currentGun ' The gun (0: out of sight - and in the editor), where on our screen
         glGunX0(glWrite) = gunX : glGunY0(glWrite) = gunY : glGunX1(glWrite) = gunX + gunW : glGunY1(glWrite) = gunY + gunH
         glGunR(glWrite) = gunLightR : glGunG(glWrite) = gunLightG : glGunB(glWrite) = gunLightB
         glSideDim(glWrite) = 0 ' (the menu dims the sides of a wide view: GLLiveSettings)
@@ -2968,7 +2984,7 @@ DO
     ' The gun was placed in chapter 17 (gunX, gunY, gunW, gunH): drawn here
     ' - or with OpenGL, by the graphics card, at the window's own size
     ' (chapter 24), under all of this
-    IF gunY < 600 AND NOT glMode THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun) ' (in its light)
+    IF gunY < 600 AND NOT glMode AND NOT editMode THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun) ' (in its light - not in the editor: nothing to shoot, and it's in the way)
     ' The kick: the boot comes up from the bottom of the screen (a little
     ' left of the middle), at its highest when it lands, then drops away -
     ' lit like the gun, by where you stand
@@ -3010,6 +3026,7 @@ DO
     IF setting(SET_HURTDIR) THEN DrawHurtDirs playerX, playerY, dirX, dirY ' (over the red flash, so they stand out)
     IF godMode AND hudShow(HE_GOD) THEN HudText hudX(HE_GOD), hudY(HE_GOD), hudLabel$(HE_GOD), HudColor~&(HE_GOD, _RGB32(255, 215, 30))
     IF editMode THEN EditOverlay playerX, playerY, dirX, dirY ' (the editor: what you're aiming at, what you'll place)
+    IF editMode AND editView = 1 THEN EditDrawFaces ' (the face under the pointer, and the ones selected, outlined)
 
     ' The map (DrawMap, chapter 23). The minimap in the corner only appears
     ' once you've found this level's map pickup. Tab opens the full-screen
@@ -3421,7 +3438,7 @@ DO
     _DISPLAY
 LOOP
 _KEYCLEAR
-IF edDone = 1 THEN editView = 1 : _MOUSEHIDE _DISABLE : EditNote "Walking: aim and click to build, right-click to knock down - H for help"
+IF edDone = 1 THEN editView = 1 : edMouseFix = -1 : EditNote "3D: point at a face - hold the right button to look round - H for help"
 IF hudAfter THEN hudAfter = 0 : GOSUB HudEditEnter
 IF edDone = 2 THEN GOSUB EditLeave
 WHILE _MOUSEINPUT : WEND
@@ -3540,6 +3557,8 @@ RETURN
 EditFP:
 IF hudEdit THEN RETURN ' (the HUD layout editor has the mouse and keys)
 levelWas = level
+edCamPX = playerX : edCamPY = playerY : edCamDX = dirX : edCamDY = dirY : edCamPlane = fovPlane / zoom : edCamZoom = zoom
+IF edLooking THEN EditPick 400, 300 ELSE EditPick edCurX, edCurY ' (looking round: the crosshair picks)
 EditAim playerX, playerY, dirX, dirY, aimX, aimY, frontX, frontY
 fpL = _MOUSEBUTTON(1) OR edClickL : fpR = _MOUSEBUTTON(2) OR edClickR ' (a click between two frames counts too)
 IF edClickL AND fpLWas THEN fpLWas = 0 ' (a fresh click, even if the button looked held)
@@ -3700,7 +3719,7 @@ hudEdit = -1 : hudSel = HE_HEALTH : hudDrag = 0 : _MOUSESHOW : _KEYCLEAR
 hudMsg$ = "HUD LAYOUT: drag things about - Tab next, V show/hide, C colour, +/- [ ] bar, S save, R reset, U done"
 RETURN
 HudEditLeave:
-hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15
+hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : edMouseFix = -1
 RETURN
 HudEditFrame:
 hmx = _MOUSEX : hmy = _MOUSEY : hb = _MOUSEBUTTON(1)
@@ -7541,6 +7560,147 @@ END SUB
 
 ' Walking round in the editor: what's under the crosshair, the glyph you'd
 ' place, and the latest message
+' --- THE 3D EDITOR'S POINTER (chapter 21). A point on the screen is a ray
+' into the world: the same sums that put the world on the screen, run
+' backwards. Across, the camera plane (chapter 8) - so many cells right
+' for each cell ahead; up, half a wall per cell ahead at the top edge
+' (chapter 15's viewH); then tilted by how far you look up or down (OpenGL
+' only - chapter 24). EditPick follows that ray cell by cell through the
+' map, the way the walls are found (chapter 15) but in 3D: in each open
+' cell, does it go down through the floor or up through the ceiling before
+' it leaves? Leaving, does it hit a wall, the face of a step up, or a
+' ceiling stepping down? The first face it meets is edHov...: its kind
+' (ED_), the cell it belongs to, which side (1 east, 2 south, 3 west, 4
+' north) and the point it was hit.
+SUB EditRay(sx, sy, rdx, rdy, rdz)
+    ndcX = sx / 400 - 1 : ndcY = 1 - sy / 300
+    ak = 1 : IF glMode THEN ak = glAspectK
+    r = ndcX * edCamPlane * ak : u = ndcY / (2 * edCamZoom)
+    c = COS(pitch) : sn = SIN(pitch)
+    rdx = r * edCamDY - u * sn * edCamDX + c * edCamDX
+    rdy = -r * edCamDX - u * sn * edCamDY + c * edCamDY
+    rdz = u * c + sn
+END SUB
+
+SUB EditPick(sx, sy)
+    edHovKind = 0
+    EditRay sx, sy, rdx, rdy, rdz
+    ex = edCamPX : ey = edCamPY : ez = eyeZ
+    mx = INT(ex) : my = INT(ey)
+    IF rdx = 0 THEN rdx = 0.00001
+    IF rdy = 0 THEN rdy = 0.00001
+    ddx = ABS(1 / rdx) : ddy = ABS(1 / rdy)
+    IF rdx < 0 THEN stx = -1 : sdx = (ex - mx) * ddx ELSE stx = 1 : sdx = (mx + 1 - ex) * ddx
+    IF rdy < 0 THEN sty = -1 : sdy = (ey - my) * ddy ELSE sty = 1 : sdy = (my + 1 - ey) * ddy
+    tIn = 0
+    FOR stepN = 1 TO 90
+        IF mx < 0 OR my < 0 OR mx >= MAP_SIZE OR my >= MAP_SIZE THEN EXIT SUB
+        IF sdx < sdy THEN tOut = sdx ELSE tOut = sdy
+        IF worldMap(mx, my) <= 0 THEN ' An open cell: through its floor or ceiling, on the way across?
+            f = floorH(mx, my) : cz = ceilH(mx, my) : zOut = ez + rdz * tOut
+            IF rdz < 0 AND zOut < f THEN
+                t = (f - ez) / rdz
+                IF t >= tIn - 0.001 THEN EditHit ED_FLOOR, mx, my, 0, ex + rdx * t, ey + rdy * t, f : EXIT SUB
+            END IF
+            IF rdz > 0 AND zOut > cz THEN
+                t = (cz - ez) / rdz
+                IF t >= tIn - 0.001 THEN EditHit ED_CEIL, mx, my, 0, ex + rdx * t, ey + rdy * t, cz : EXIT SUB
+            END IF
+        END IF
+        ' On to the next cell, across its edge
+        IF sdx < sdy THEN
+            sdx = sdx + ddx : nx = mx + stx : ny = my : IF stx > 0 THEN side = 3 ELSE side = 1 ' (the new cell's side we came in by)
+        ELSE
+            sdy = sdy + ddy : nx = mx : ny = my + sty : IF sty > 0 THEN side = 4 ELSE side = 2
+        END IF
+        IF nx < 0 OR ny < 0 OR nx >= MAP_SIZE OR ny >= MAP_SIZE THEN EXIT SUB
+        zOut = ez + rdz * tOut : hx = ex + rdx * tOut : hy = ey + rdy * tOut
+        IF worldMap(mx, my) <= 0 THEN ' (from an open cell - a face is only a face seen from the open side)
+            IF worldMap(nx, ny) > 0 THEN
+                EditHit ED_WALL, nx, ny, side, hx, hy, zOut : EXIT SUB
+            ELSEIF zOut < floorH(nx, ny) THEN
+                EditHit ED_STEP, nx, ny, side, hx, hy, zOut : EXIT SUB
+            ELSEIF zOut > ceilH(nx, ny) THEN
+                EditHit ED_LINTEL, nx, ny, side, hx, hy, zOut : EXIT SUB
+            END IF
+        END IF
+        mx = nx : my = ny : tIn = tOut
+    NEXT
+END SUB
+
+SUB EditHit(kind, x, y, side, hx, hy, hz)
+    edHovKind = kind : edHovX = x : edHovY = y : edHovSide = side : edHovPart = 0
+    edHovPX = hx : edHovPY = hy : edHovPZ = hz
+END SUB
+
+' A point in the world on the screen (sx, sy) - or ok = 0 if it's behind
+' you. The pointer's sums the right way round: how far right, up and ahead
+' of the camera it is, divided by how far ahead.
+SUB EditCam(wx, wy, wz, cr, cu, ca)
+    rx = wx - edCamPX : ry = wy - edCamPY : rz = wz - eyeZ
+    r = rx * edCamDY - ry * edCamDX : u0 = rz : bk = -(rx * edCamDX + ry * edCamDY)
+    c = COS(pitch) : sn = SIN(pitch)
+    cr = r : cu = c * u0 + sn * bk : ca = -(-sn * u0 + c * bk)
+END SUB
+
+' A line in the world, on the screen: cut where it passes behind you (so
+' half of a face behind you still draws its front half)
+SUB EditLine3D(x1, y1, z1, x2, y2, z2, col~&)
+    EditCam x1, y1, z1, r1, u1, a1 : EditCam x2, y2, z2, r2, u2, a2
+    nr = 0.05
+    IF a1 < nr AND a2 < nr THEN EXIT SUB
+    IF a1 < nr THEN f = (nr - a1) / (a2 - a1) : r1 = r1 + (r2 - r1) * f : u1 = u1 + (u2 - u1) * f : a1 = nr
+    IF a2 < nr THEN f = (nr - a2) / (a1 - a2) : r2 = r2 + (r1 - r2) * f : u2 = u2 + (u1 - u2) * f : a2 = nr
+    ak = 1 : IF glMode THEN ak = glAspectK
+    sx1 = (r1 / (a1 * edCamPlane * ak) + 1) * 400 : sy1 = (1 - u1 * 2 * edCamZoom / a1) * 300
+    sx2 = (r2 / (a2 * edCamPlane * ak) + 1) * 400 : sy2 = (1 - u2 * 2 * edCamZoom / a2) * 300
+    IF ABS(sx1) > 20000 OR ABS(sy1) > 20000 OR ABS(sx2) > 20000 OR ABS(sy2) > 20000 THEN EXIT SUB
+    LINE (sx1, sy1)-(sx2, sy2), col~&
+    LINE (sx1 + 1, sy1)-(sx2 + 1, sy2), col~& ' (two pixels wide)
+END SUB
+
+' A face's outline: a floor or ceiling's square, or a side's rectangle -
+' from the open cell's floor to its ceiling, for a wall; the step's height,
+' for a step or a lintel (the open cell beside it is on its other side)
+SUB EditFaceOutline(kind, x, y, side, col~&)
+    SELECT CASE kind
+        CASE ED_FLOOR, ED_CEIL
+            IF kind = ED_FLOOR THEN z = floorH(x, y) ELSE z = ceilH(x, y)
+            EditLine3D x, y, z, x + 1, y, z, col~& : EditLine3D x + 1, y, z, x + 1, y + 1, z, col~&
+            EditLine3D x + 1, y + 1, z, x, y + 1, z, col~& : EditLine3D x, y + 1, z, x, y, z, col~&
+        CASE ED_WALL, ED_STEP, ED_LINTEL
+            SELECT CASE side ' (the edge, and the open cell on its far side)
+                CASE 1 : ax = x + 1 : ay = y : bx = x + 1 : by = y + 1 : ox = x + 1 : oy = y
+                CASE 2 : ax = x : ay = y + 1 : bx = x + 1 : by = y + 1 : ox = x : oy = y + 1
+                CASE 3 : ax = x : ay = y : bx = x : by = y + 1 : ox = x - 1 : oy = y
+                CASE ELSE : ax = x : ay = y : bx = x + 1 : by = y : ox = x : oy = y - 1
+            END SELECT
+            IF ox < 0 OR oy < 0 OR ox >= MAP_SIZE OR oy >= MAP_SIZE THEN EXIT SUB
+            SELECT CASE kind
+                CASE ED_WALL : z0 = floorH(ox, oy) : z1 = ceilH(ox, oy)
+                CASE ED_STEP : z0 = floorH(ox, oy) : z1 = floorH(x, y)
+                CASE ELSE : z0 = ceilH(x, y) : z1 = ceilH(ox, oy)
+            END SELECT
+            EditLine3D ax, ay, z0, bx, by, z0, col~& : EditLine3D bx, by, z0, bx, by, z1, col~&
+            EditLine3D bx, by, z1, ax, ay, z1, col~& : EditLine3D ax, ay, z1, ax, ay, z0, col~&
+    END SELECT
+END SUB
+
+' The 3D editor's outlines, over the view: the face under the pointer
+' (cyan, pulsing) - and what it is, by the pointer
+SUB EditDrawFaces
+    IF edHovKind THEN
+        k = 160 + 95 * SIN(TIMER * 6)
+        EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, _RGB32(60, k, 255)
+        IF NOT edLooking THEN
+            n$ = MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edHovKind * 7 - 6, 7)
+            n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
+            IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
+            COLOR _RGB32(150, 230, 255) : _PRINTSTRING (edCurX + 14, edCurY + 10), n$
+        END IF
+    END IF
+END SUB
+
 SUB EditOverlay(px, py, fx, fy)
     EditAim px, py, fx, fy, ax, ay, bx, by
     LINE (8, 30)-(380, 92), _RGBA32(6, 2, 18, 200), BF
