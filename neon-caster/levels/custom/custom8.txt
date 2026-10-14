@@ -1,0 +1,340 @@
+' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+' SECTOR 18: THE CORE. The reactor, its sides glowing red and pulsing
+' (lights on its faces), stands on an island in a ring of molten metal -
+' painted floor-molten cell by cell, so it burns like any lava. The four
+' bridges are lifts, each rising and falling at its own pace between the
+' melt and the floor: cross while they're up. Fire traps guard the
+' island's corners, and the heavy there springs when you come near. The
+' yellow card is on the island; the red in the hall's far corner, under
+' the sentry's long sight, opens the armoury; the exit is through the
+' yellow door, east. Alarms strobe on the walls.
+
+name     = SECTOR 18: THE CORE
+walls    = wall-furnace.png, wall-girders.png, wall-control.png, wall-reactor.png, wall-pipes.png, wall-hazard.png
+floors   = floor-scorched.png, floor-plates.png, floor-hazard.png, floor-rustgrate.png
+ceilings = ceiling-warning.png, ceiling-girders.png
+ambient  = 120, 255, 190, 150
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+12, 8, 40, 40, 1, 1, 0
+20, 18, 31, 29, 3, 0, 0
+3, 20, 10, 27, 2, 2, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+22.88, 23.5, 4, 200, 255, 50, 40, 2
+29.12, 24.5, 4, 200, 255, 50, 40, 2
+25.5, 20.88, 4, 200, 255, 50, 40, 2
+26.5, 27.12, 4, 200, 255, 50, 40, 2
+16.5, 8.12, 3, 170, 255, 40, 40, 3
+26.5, 8.12, 3, 170, 255, 40, 40, 3
+36.5, 8.12, 3, 170, 255, 40, 40, 3
+16.5, 40.88, 3, 170, 255, 40, 40, 3
+36.5, 40.88, 3, 170, 255, 40, 40, 3
+25.5, 16.5, 5, 150, 255, 120, 40, 4
+25.5, 31.5, 5, 150, 255, 120, 40, 4
+18.5, 23.5, 5, 150, 255, 120, 40, 4
+33.5, 24.5, 5, 150, 255, 120, 40, 4
+19.5, 17.5, 5, 150, 255, 120, 40, 4
+32.5, 17.5, 5, 150, 255, 120, 40, 4
+19.5, 30.5, 5, 150, 255, 120, 40, 4
+32.5, 30.5, 5, 150, 255, 120, 40, 4
+6.5, 23.5, 6, 150, 200, 230, 255, 0
+26.5, 43.5, 5, 140, 255, 230, 190, 0
+14.5, 9.5, 4, 120, 255, 200, 160, 1
+42.5, 24.5, 3, 140, 90, 255, 120, 0
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+12, 20, 18, 21, 19, 60, 120, 0
+12, 30, 18, 31, 19, 60, 120, 0
+12, 20, 28, 21, 29, 60, 120, 0
+12, 30, 28, 31, 29, 60, 120, 0
+
+[lifts]
+' x0, y0, x1, y1, low, high (eighths of a wall), mode (1 up and down, 2 an elevator), speed (eighths a second)
+25, 16, 25, 17, -2, 0, 1, 3
+25, 30, 25, 31, -2, 0, 1, 4
+18, 23, 19, 23, -2, 0, 1, 5
+32, 23, 33, 23, -2, 0, 1, 3
+
+[triggers]
+' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+enter 12 20 16 27 : message THE MELT BURNS - CROSS ON THE BRIDGES WHILE THEY'RE UP
+
+[monsters]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+39, 9, 22, 0, 100, 100, 0
+26, 19, 4, 0, 200, 100, 1
+14, 38, 14, 12, 100, 100, 0
+38, 38, 14, 12, 100, 100, 0
+
+[faces]
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+18, 16, F, 0, floor-molten.png
+19, 16, F, 0, floor-molten.png
+20, 16, F, 0, floor-molten.png
+21, 16, F, 0, floor-molten.png
+22, 16, F, 0, floor-molten.png
+23, 16, F, 0, floor-molten.png
+24, 16, F, 0, floor-molten.png
+25, 16, F, 0, floor-molten.png
+26, 16, F, 0, floor-molten.png
+27, 16, F, 0, floor-molten.png
+28, 16, F, 0, floor-molten.png
+29, 16, F, 0, floor-molten.png
+30, 16, F, 0, floor-molten.png
+31, 16, F, 0, floor-molten.png
+32, 16, F, 0, floor-molten.png
+33, 16, F, 0, floor-molten.png
+18, 17, F, 0, floor-molten.png
+19, 17, F, 0, floor-molten.png
+20, 17, F, 0, floor-molten.png
+21, 17, F, 0, floor-molten.png
+22, 17, F, 0, floor-molten.png
+23, 17, F, 0, floor-molten.png
+24, 17, F, 0, floor-molten.png
+25, 17, F, 0, floor-molten.png
+26, 17, F, 0, floor-molten.png
+27, 17, F, 0, floor-molten.png
+28, 17, F, 0, floor-molten.png
+29, 17, F, 0, floor-molten.png
+30, 17, F, 0, floor-molten.png
+31, 17, F, 0, floor-molten.png
+32, 17, F, 0, floor-molten.png
+33, 17, F, 0, floor-molten.png
+18, 18, F, 0, floor-molten.png
+19, 18, F, 0, floor-molten.png
+32, 18, F, 0, floor-molten.png
+33, 18, F, 0, floor-molten.png
+18, 19, F, 0, floor-molten.png
+19, 19, F, 0, floor-molten.png
+32, 19, F, 0, floor-molten.png
+33, 19, F, 0, floor-molten.png
+18, 20, F, 0, floor-molten.png
+19, 20, F, 0, floor-molten.png
+32, 20, F, 0, floor-molten.png
+33, 20, F, 0, floor-molten.png
+18, 21, F, 0, floor-molten.png
+19, 21, F, 0, floor-molten.png
+32, 21, F, 0, floor-molten.png
+33, 21, F, 0, floor-molten.png
+18, 22, F, 0, floor-molten.png
+19, 22, F, 0, floor-molten.png
+32, 22, F, 0, floor-molten.png
+33, 22, F, 0, floor-molten.png
+18, 23, F, 0, floor-molten.png
+19, 23, F, 0, floor-molten.png
+32, 23, F, 0, floor-molten.png
+33, 23, F, 0, floor-molten.png
+18, 24, F, 0, floor-molten.png
+19, 24, F, 0, floor-molten.png
+32, 24, F, 0, floor-molten.png
+33, 24, F, 0, floor-molten.png
+18, 25, F, 0, floor-molten.png
+19, 25, F, 0, floor-molten.png
+32, 25, F, 0, floor-molten.png
+33, 25, F, 0, floor-molten.png
+18, 26, F, 0, floor-molten.png
+19, 26, F, 0, floor-molten.png
+32, 26, F, 0, floor-molten.png
+33, 26, F, 0, floor-molten.png
+18, 27, F, 0, floor-molten.png
+19, 27, F, 0, floor-molten.png
+32, 27, F, 0, floor-molten.png
+33, 27, F, 0, floor-molten.png
+18, 28, F, 0, floor-molten.png
+19, 28, F, 0, floor-molten.png
+32, 28, F, 0, floor-molten.png
+33, 28, F, 0, floor-molten.png
+18, 29, F, 0, floor-molten.png
+19, 29, F, 0, floor-molten.png
+32, 29, F, 0, floor-molten.png
+33, 29, F, 0, floor-molten.png
+18, 30, F, 0, floor-molten.png
+19, 30, F, 0, floor-molten.png
+20, 30, F, 0, floor-molten.png
+21, 30, F, 0, floor-molten.png
+22, 30, F, 0, floor-molten.png
+23, 30, F, 0, floor-molten.png
+24, 30, F, 0, floor-molten.png
+25, 30, F, 0, floor-molten.png
+26, 30, F, 0, floor-molten.png
+27, 30, F, 0, floor-molten.png
+28, 30, F, 0, floor-molten.png
+29, 30, F, 0, floor-molten.png
+30, 30, F, 0, floor-molten.png
+31, 30, F, 0, floor-molten.png
+32, 30, F, 0, floor-molten.png
+33, 30, F, 0, floor-molten.png
+18, 31, F, 0, floor-molten.png
+19, 31, F, 0, floor-molten.png
+20, 31, F, 0, floor-molten.png
+21, 31, F, 0, floor-molten.png
+22, 31, F, 0, floor-molten.png
+23, 31, F, 0, floor-molten.png
+24, 31, F, 0, floor-molten.png
+25, 31, F, 0, floor-molten.png
+26, 31, F, 0, floor-molten.png
+27, 31, F, 0, floor-molten.png
+28, 31, F, 0, floor-molten.png
+29, 31, F, 0, floor-molten.png
+30, 31, F, 0, floor-molten.png
+31, 31, F, 0, floor-molten.png
+32, 31, F, 0, floor-molten.png
+33, 31, F, 0, floor-molten.png
+
+[map]
+################################################
+################################################
+################################################
+################################################
+################################################
+################################################
+################################################
+################################################
+############.............................#######
+############..r........................s.#######
+############.............................#######
+############.............................#######
+############..................k..........#######
+############.............................#######
+############.............................#######
+############...L....................L....#######
+############.............................#######
+############.............................#######
+############.............................#######
+############..............h..............#######
+###A......F#..........f......f...........#######
+###.....M..#...........KKKKKK............#######
+###........#...........KKKKKK............#######
+###.>..................KKKKKK............#######
+###....................KKKKKK............Y..E###
+###........#...........KKKKKK............#######
+###..+.....#...........KKKKKK.........a..#######
+###A.......#..........y..................#######
+############.............................#######
+############.............................#######
+############.e...........................#######
+############.............................#######
+############.............................#######
+############...L....................L....#######
+############.............................#######
+############.............................#######
+############......................+......#######
+############.............................#######
+############..g.......................g..#######
+############.............................#######
+############.............................#######
+##########################R#####################
+######################.........#################
+######################.4.....u.#################
+######################....*....#################
+######################U.......U#################
+################################################
+################################################
+
+[floor]
+' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+..................BBBBBBBBBBBBBBBB..............
+..................BBBBBBBBBBBBBBBB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BB............BB..............
+..................BBBBBBBBBBBBBBBB..............
+..................BBBBBBBBBBBBBBBB..............
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+
+[ceiling]
+' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+............ooooooooooooooooooooooooooooo.......
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................

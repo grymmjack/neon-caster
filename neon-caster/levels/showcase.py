@@ -1,5 +1,5 @@
-"""Showcase sectors for the level editor: YOUR SECTORS 11-17
-(custom/custom1..7.txt here). Each uses the editor's level-file sections -
+"""Showcase sectors for the level editor: YOUR SECTORS 11-18
+(custom/custom1..8.txt here). Each uses the editor's level-file sections -
 [faces] (pictures on single faces, divided ones), lights on faces (they
 tint their face), [pads] (teleporters linked by hand), [monsters] (a
 monster's own sight, hearing, health, speed, waking) - on top of the
@@ -7,7 +7,7 @@ usual. Built with the level kit, and checked by it.
 
     python3 showcase.py [OUTDIR]     (OUTDIR: custom/ unless you say)
 
-This writes over custom1-7.txt: once you've changed one of them in the
+This writes over custom1-8.txt: once you've changed one of them in the
 game's editor, don't run it again (or give it another OUTDIR).
 """
 import os, sys
@@ -677,6 +677,74 @@ def archive():
         ["ceiling-pipes.png", "ceiling-vents.png"], archive.__doc__
 
 
+# ---------------------------------------------------------------- 18
+def core():
+    """SECTOR 18: THE CORE. The reactor, its sides glowing red and pulsing
+    (lights on its faces), stands on an island in a ring of molten metal -
+    painted floor-molten cell by cell, so it burns like any lava. The four
+    bridges are lifts, each rising and falling at its own pace between the
+    melt and the floor: cross while they're up. Fire traps guard the
+    island's corners, and the heavy there springs when you come near. The
+    yellow card is on the island; the red in the hall's far corner, under
+    the sentry's long sight, opens the armoury; the exit is through the
+    yellow door, east. Alarms strobe on the walls."""
+    m = Show("#")
+    m.ambient = (120, 255, 190, 150)
+    # The control room (west); you facing the hall
+    m.rect(3, 20, 10, 27); m.put(4, 23, ">")
+    m.put(3, 20, "A"); m.put(3, 27, "A"); m.put(10, 20, "F"); m.put(5, 26, "+"); m.put(8, 21, "M")
+    m.rect(11, 23, 11, 24)
+    # The hall
+    m.rect(12, 8, 40, 40); m.ceiling(12, 8, 40, 40, 24)
+    # The ring of melt round the island, a step down, burning
+    for y in range(16, 32):
+        for x in range(18, 34):
+            if not (20 <= x <= 31 and 18 <= y <= 29):
+                m.fh[y][x] = lvlkit.hchar(-2)
+                m.face(x, y, "F", "floor-molten.png")
+    for (x0, y0, x1, y1, sp) in ((25, 16, 25, 17, 3), (25, 30, 25, 31, 4), (18, 23, 19, 23, 5), (32, 23, 33, 23, 3)):
+        m.lift(x0, y0, x1, y1, -2, 0, mode=1, speed=sp)     # the bridges: up, down, each its own pace
+    # The island, and the reactor on it
+    m.rect(23, 21, 28, 26, "K")
+    for (x, y, sd) in ((23, 23, "W"), (28, 24, "E"), (25, 21, "N"), (26, 26, "S")):
+        m.wall_light(x, y, sd, 255, 50, 40, fx=2, rad=4, bright=200)
+    for (x0, y0) in ((20, 18), (30, 18), (20, 28), (30, 28)):
+        m.event(12, x0, y0, x0 + 1, y0 + 1, 60, 120, 0)      # fire traps at its corners
+    m.put(22, 27, "y")
+    m.mon(26, 19, "h", sight=4, wake="near", health=200)
+    m.put(29, 20, "f"); m.put(22, 20, "f")
+    # The hall round it
+    m.put(14, 9, "r"); m.mon(39, 9, "s", sight=22)
+    m.mon(14, 38, "g", hear=12); m.mon(38, 38, "g", hear=12); m.mon(30, 12, "k")
+    for (x, y) in ((15, 15), (36, 15), (15, 33), (36, 33)):
+        m.put(x, y, "L")
+    m.put(38, 26, "a"); m.put(13, 30, "e"); m.put(34, 36, "+")
+    for x in (16, 26, 36):                       # alarms strobing on the walls
+        m.wall_light(x, 7, "S", 255, 40, 40, fx=3, rad=3, bright=170)
+    for x in (16, 36):
+        m.wall_light(x, 41, "N", 255, 40, 40, fx=3, rad=3, bright=170)
+    # The armoury (south), behind the red door
+    m.put(26, 41, "R"); m.rect(22, 42, 30, 45)
+    m.put(23, 43, "4"); m.put(26, 44, "*"); m.put(29, 43, "u"); m.put(22, 45, "U"); m.put(30, 45, "U")
+    # The exit (east), through the yellow door
+    m.put(41, 24, "Y"); m.rect(42, 24, 43, 24); m.put(44, 24, "E")
+    # Light: the melt glows; the control room cool
+    for (x, y) in ((25, 16), (25, 31), (18, 23), (33, 24), (19, 17), (32, 17), (19, 30), (32, 30)):
+        m.light(x + 0.5, y + 0.5, 5, 150, 255, 120, 40, 4)
+    m.light(6.5, 23.5, 6, 150, 200, 230, 255, 0)
+    m.light(26.5, 43.5, 5, 140, 255, 230, 190, 0)
+    m.light(14.5, 9.5, 4, 120, 255, 200, 160, 1)
+    m.light(42.5, 24.5, 3, 140, 90, 255, 120, 0)
+    m.zone(12, 8, 40, 40, 1, 1)
+    m.zone(20, 18, 31, 29, 3, 0)
+    m.zone(3, 20, 10, 27, 2, 2)
+    m.triggers.append("enter 12 20 16 27 : message THE MELT BURNS - CROSS ON THE BRIDGES WHILE THEY'RE UP")
+    return m, "custom8", "SECTOR 18: THE CORE", \
+        ["wall-furnace.png", "wall-girders.png", "wall-control.png", "wall-reactor.png", "wall-pipes.png", "wall-hazard.png"], \
+        ["floor-scorched.png", "floor-plates.png", "floor-hazard.png", "floor-rustgrate.png"], \
+        ["ceiling-warning.png", "ceiling-girders.png"], core.__doc__
+
+
 def build(fn, outdir):
     m, label, name, walls, floors, ceils, doc = fn()
     lv = m.level(label, name, walls, floors, ceils)
@@ -701,7 +769,7 @@ if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "custom")
     os.makedirs(out, exist_ok=True)
     good = True
-    for fn in (gallery, depot, relay, conservatory, listening, observatory, archive):
+    for fn in (gallery, depot, relay, conservatory, listening, observatory, archive, core):
         print(fn.__name__)
         good = build(fn, out) and good
     print("ALL GOOD" if good else "PROBLEMS")
