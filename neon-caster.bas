@@ -6914,12 +6914,11 @@ FUNCTION HeightChar$(h, dflt)
 END FUNCTION
 
 ' The file of level n
-' Where your own sectors' files go: neon-caster/levels/custom/ (made if
-' it isn't there yet)
+' Where your own sectors' files go: neon-caster/levels/custom/ (made by
+' the first NEW SECTOR - WriteBlankSector)
 FUNCTION CustomDir$
-    f$ = AssetPath$("levels/level1.txt") : d$ = LEFT$(f$, LEN(f$) - LEN("level1.txt")) + "custom"
-    IF NOT _DIREXISTS(d$) THEN MKDIR d$
-    CustomDir$ = d$ + "/"
+    f$ = AssetPath$("levels/level1.txt")
+    CustomDir$ = LEFT$(f$, LEN(f$) - LEN("level1.txt")) + "custom/"
 END FUNCTION
 
 ' Sector n's name, from its file's name = line, without reading the rest
@@ -6968,6 +6967,7 @@ SUB WriteBlankSector(n)
         IF y = 24 THEN MID$(r$, 22, 1) = ">" : MID$(r$, 29, 1) = "E" ' You at (21, 24), the exit at (28, 24)
         o$ = o$ + r$ + nl$
     NEXT
+    d$ = CustomDir$ : d$ = LEFT$(d$, LEN(d$) - 1) : IF NOT _DIREXISTS(d$) THEN MKDIR d$
     f$ = LevelFile$(n) : fh = FREEFILE
     OPEN f$ FOR OUTPUT AS #fh : PRINT #fh, o$; : CLOSE #fh
 END SUB
