@@ -178,6 +178,7 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | A cell in an event room | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT. The table under `[events]` below says what each kind does. |
 | Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with), and ADD A LIGHT TO IT |
 | Any other face | ADD A LIGHT TO IT |
+| TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead) or TIME (seconds into the level); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them; ADD IT. |
 | Nothing (the SECTOR button) | NAME: type the sector's name, Enter to keep it (Esc not). LIGHT: the ambient light, brighter or darker, and twelve colours to tint it. ITS PICTURES: the six kinds of wall (`#` `N` `C` `K` `P` `G`), the four floors and two ceilings the level's zones use - click one, and the picker opens at its tab: the next picture you click is that one's, everywhere it's used. |
 
 **Monsters, for ambushes.** Each monster can be set apart from its kind:
@@ -383,7 +384,7 @@ The console can switch a light while you play: `light N on` or `light N off`, wh
 
 ## Beyond the editor: the level file
 
-Some things have no editor tool yet: triggers and the puzzles. Write them into the level file, `neon-caster/levels/custom/customN.txt`, in any text editor, then reload the sector. The file is plain text: `key = value` lines at the top, then `[sections]`, and lines starting with `'` are comments.
+Only the puzzles have no editor tool yet. Write them into the level file, `neon-caster/levels/custom/customN.txt`, in any text editor, then reload the sector. The file is plain text: `key = value` lines at the top, then `[sections]`, and lines starting with `'` are comments.
 
 Ctrl+S rewrites the whole file in a fixed layout. Only the comments at the very top survive, so keep your notes there.
 
@@ -434,7 +435,7 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 
 **`[monsters]`** (a monster's pane): `x, y, sight, hearing, health, speed, wake`, by the cell the monster starts in. Sight and hearing are in cells, health and speed in % of its kind's, and wake is 0 seeing you, 1 you near, 2 being hit, 3 hunting from the start.
 
-**`[triggers]`** run console commands when something happens: `WHEN [repeat] : COMMAND ; COMMAND`.
+**`[triggers]`** (TRIGGERS... in a pane) run console commands when something happens: `WHEN [repeat] : COMMAND ; COMMAND`.
 
 | WHEN | Fires when |
 | --- | --- |
@@ -561,7 +562,7 @@ It reports anything you can't reach (following your `[pads]` pairs), doors witho
 - Walls, heights and collision are per cell, so a wall moves a cell at a time and Divide only splits pictures.
 - Ctrl+S keeps only the comments at the very top of the file; everything else is rewritten in a fixed layout.
 - Lights over 96 in total (automatic ones included), and pictures on faces past 24 different ones, are dropped silently.
-- Undo covers the map, heights, zones, lights, lifts, events, faces, pad pairs, monsters' settings, the name and the ambient light, but not triggers.
+- Undo covers everything the editor changes: the map, heights, zones, lights, lifts, events, triggers, faces, pad pairs, monsters' settings, the name and the ambient light.
 - A monster's own settings belong to the cell it starts in: the arrows carry them along, and putting something else in the cell drops them.
 - Esc in the 3D view opens the pause menu; the editor keeps going underneath it.
 - There's no in-game way to delete one of your sectors: delete its file in `neon-caster/levels/custom/`. The `.bak` file next to it is the editor's backup copy of the level.

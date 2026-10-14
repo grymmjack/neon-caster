@@ -1331,7 +1331,13 @@ edLR = 230 : edLG = 235 : edLB = 255 : edLFx = FX_STEADY : edLRad = 3 : edLBri =
 CONST PN_X = 592, PN_Y = 58, PN_W = 200
 DIM SHARED edPnN AS INTEGER, edPnId(40) AS INTEGER, edPnX(40) AS INTEGER, edPnY(40) AS INTEGER, edPnW(40) AS INTEGER, edPnLab$(40), edPnLit(40) AS INTEGER
 DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnEvent AS INTEGER, edPnCol(40) AS _UNSIGNED LONG
-DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick AS INTEGER, edTypeFresh AS INTEGER ' (the SECTOR pane; typing its name; which of its pictures the picker's choosing - 1-6 a wall kind, 7-10 a floor, 11-12 a ceiling)
+DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick AS INTEGER, edTypeFresh AS INTEGER
+' The TRIGGER pane: open on the selection; the trigger being made - when
+' (1 enter, 2 use, 3 clear, 4 time), again each time?, after how long (time),
+' its commands; what's being typed (edTypeFor: 1 the sector's name, 2 the
+' commands); the triggers listed (edTrigIdx: their numbers in lvlTrig$)
+DIM SHARED edTrigPane AS INTEGER, edTrigWhen AS INTEGER, edTrigRepeat AS INTEGER, edTrigTime AS INTEGER, edTrigCmd$, edTypeFor AS INTEGER, edTrigIdx(8) AS INTEGER
+edTrigWhen = 1 : edTrigTime = 10 ' (the SECTOR pane; typing its name; which of its pictures the picker's choosing - 1-6 a wall kind, 7-10 a floor, 11-12 a ceiling)
 DIM SHARED edPnX0 AS INTEGER, edPnY0 AS INTEGER ' (where the pane is: down the right in 3D, over the map's right from above)
 DIM SHARED edLinkPad AS INTEGER, edLinkX AS INTEGER, edLinkY AS INTEGER ' (LINK: waiting for the pad this one's to go to)
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
@@ -3432,7 +3438,7 @@ RETURN
 ' What the editor was in the middle of, forgotten: in and out of it, and
 ' on to another sector (the selection's cells would be another level's)
 EditReset:
-edSelN = 0 : edHovKind = 0 : edLinkPad = 0 : edSlotPick = 0 : edTyping = 0 : edDragOn = 0 : edTbDrag = 0 : edClickL = 0 : edClickR = 0
+edSelN = 0 : edHovKind = 0 : edLinkPad = 0 : edSlotPick = 0 : edTyping = 0 : edDragOn = 0 : edTbDrag = 0 : edClickL = 0 : edClickR = 0 : edTrigPane = 0
 RETURN
 
 ' Remember the level as it is, for Ctrl+Z
@@ -3555,12 +3561,17 @@ SELECT CASE k&
     CASE 8 : IF LEN(edTypeBuf$) THEN edTypeBuf$ = LEFT$(edTypeBuf$, LEN(edTypeBuf$) - 1)
     CASE 32 TO 126
         IF edTypeFresh THEN edTypeBuf$ = "" ' (the first letter typed starts it afresh - Backspace first to change the old one)
-        IF LEN(edTypeBuf$) < 30 THEN edTypeBuf$ = edTypeBuf$ + UCASE$(CHR$(k&))
+        IF edTypeFor = 2 THEN
+            IF LEN(edTypeBuf$) < 120 THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (commands: as typed)
+        ELSE
+            IF LEN(edTypeBuf$) < 30 THEN edTypeBuf$ = edTypeBuf$ + UCASE$(CHR$(k&))
+        END IF
 END SELECT
 edTypeFresh = 0
 RETURN
 EditTypeDone:
 edTyping = 0
+IF edTypeFor = 2 THEN edTrigCmd$ = LTRIM$(RTRIM$(edTypeBuf$)) : EditNote "Now ADD IT" : RETURN ' (a trigger's commands: kept for ADD IT)
 IF LEN(LTRIM$(edTypeBuf$)) THEN
     GOSUB EditPushUndo
     c = INSTR(lvlName$, ": ") : IF c THEN pre$ = LEFT$(lvlName$, c + 1) ELSE pre$ = "SECTOR" + STR$(level) + ": "
@@ -3673,7 +3684,7 @@ SELECT CASE pnHit
         NEXT
         editDirty = -1 ' (nothing to build again: the game reads them when the level starts)
     CASE 100 ' The name: start typing it - or done
-        IF edTyping THEN GOSUB EditTypeDone ELSE edTyping = -1 : edTypeFresh = -1 : edTypeBuf$ = SectorShort$ : EditNote "Type the sector's name - Enter keeps it, Esc doesn't"
+        IF edTyping THEN GOSUB EditTypeDone ELSE edTyping = -1 : edTypeFor = 1 : edTypeFresh = -1 : edTypeBuf$ = SectorShort$ : EditNote "Type the sector's name - Enter keeps it, Esc doesn't"
     CASE 101, 102 ' Its light, brighter or darker
         GOSUB EditPushUndo
         IF pnHit = 102 THEN lvlAmb(1) = lvlAmb(1) + 10 ELSE lvlAmb(1) = lvlAmb(1) - 10
@@ -3731,6 +3742,45 @@ SELECT CASE pnHit
             lvlEvent(k, 1) = EV_AMBUSH : lvlEvent(k, 2) = x0 : lvlEvent(k, 3) = y0 : lvlEvent(k, 4) = x1 : lvlEvent(k, 5) = y1
             lvlEvent(k, 6) = 4 : lvlEvent(k, 7) = 0 : lvlEvent(k, 8) = 4
             GOSUB EditApply : EditNote "An event room: an ambush - choose its kind in the pane"
+        END IF
+    CASE 170 : edTrigPane = NOT edTrigPane ' TRIGGERS...: the selection's
+    CASE 190 : edTrigPane = 0 : edTyping = 0
+    CASE 171 TO 174 : edTrigWhen = pnHit - 170
+    CASE 175 : edTrigRepeat = NOT edTrigRepeat
+    CASE 178 : edTrigTime = MaxOf(1, edTrigTime - 5)
+    CASE 179 : edTrigTime = MinOf(900, edTrigTime + 5)
+    CASE 176 ' Its commands: start typing them - or done
+        IF edTyping AND edTypeFor = 2 THEN
+            GOSUB EditTypeDone
+        ELSE
+            edTyping = -1 : edTypeFor = 2 : edTypeFresh = 0 : edTypeBuf$ = edTrigCmd$
+            EditNote "Type its commands, as in the console (; between them) - Enter keeps them"
+        END IF
+    CASE 177 ' The trigger made: when, where, again?, what
+        IF edTyping AND edTypeFor = 2 THEN GOSUB EditTypeDone
+        IF LEN(LTRIM$(edTrigCmd$)) = 0 THEN
+            EditNote "Type its commands first (TYPE) - message HELLO ; sound alarm, say"
+        ELSEIF lvlNumTrigs >= MAX_TRIGS THEN
+            EditNote "Too many triggers already"
+        ELSE
+            EditTrigPlace tx0, ty0, tx1, ty1, ux, uy
+            SELECT CASE edTrigWhen
+                CASE 1 : w$ = "enter" + STR$(tx0) + STR$(ty0) + STR$(tx1) + STR$(ty1)
+                CASE 2 : w$ = "use" + STR$(ux) + STR$(uy)
+                CASE 3 : w$ = "clear" + STR$(tx0) + STR$(ty0) + STR$(tx1) + STR$(ty1)
+                CASE ELSE : w$ = "time" + STR$(edTrigTime)
+            END SELECT
+            IF edTrigRepeat AND edTrigWhen <= 2 THEN w$ = w$ + " repeat" ' (not time or clear: once true, they stay true)
+            GOSUB EditPushUndo
+            lvlNumTrigs = lvlNumTrigs + 1 : lvlTrig$(lvlNumTrigs) = w$ + " : " + LTRIM$(edTrigCmd$)
+            GOSUB EditApply : EditNote "Trigger: " + LEFT$(lvlTrig$(lvlNumTrigs), 80)
+        END IF
+    CASE 180 TO 185 ' One of them, gone
+        t = edTrigIdx(pnHit - 179)
+        IF t >= 1 AND t <= lvlNumTrigs THEN
+            GOSUB EditPushUndo
+            FOR k = t TO lvlNumTrigs - 1 : lvlTrig$(k) = lvlTrig$(k + 1) : NEXT
+            lvlNumTrigs = lvlNumTrigs - 1 : GOSUB EditApply : EditNote "Trigger taken away"
         END IF
     CASE 30 ' LINK: the next pad clicked is where this one goes
         edLinkPad = NOT edLinkPad : edLinkX = edPnCX : edLinkY = edPnCY
@@ -8354,6 +8404,8 @@ FUNCTION EditSnapshot$
     FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlAmb(j))) + "," : NEXT
     s$ = s$ + CHR$(8) ' (the event rooms)
     FOR k = 1 TO lvlNumEvents : FOR j = 1 TO 8 : s$ = s$ + LTRIM$(STR$(lvlEvent(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
+    s$ = s$ + CHR$(9) ' (the triggers)
+    FOR k = 1 TO lvlNumTrigs : s$ = s$ + lvlTrig$(k) + CHR$(3) : NEXT
     EditSnapshot$ = s$
 END FUNCTION
 
@@ -8365,6 +8417,15 @@ SUB EditRestore(s0$)
     m$ = "" : c6 = INSTR(p$, CHR$(6)) : IF c6 THEN m$ = MID$(p$, c6 + 1) : p$ = LEFT$(p$, c6 - 1)
     a$ = "" : c7 = INSTR(m$, CHR$(7)) : IF c7 THEN a$ = MID$(m$, c7 + 1) : m$ = LEFT$(m$, c7 - 1)
     e$ = "" : c8 = INSTR(a$, CHR$(8)) : IF c8 THEN e$ = MID$(a$, c8 + 1) : a$ = LEFT$(a$, c8 - 1)
+    t$ = "" : c9 = INSTR(e$, CHR$(9)) : IF c9 THEN t$ = MID$(e$, c9 + 1) : e$ = LEFT$(e$, c9 - 1)
+    IF c9 THEN ' (the triggers)
+        lvlNumTrigs = 0
+        DO WHILE LEN(t$)
+            c3 = INSTR(t$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+            IF lvlNumTrigs < MAX_TRIGS THEN lvlNumTrigs = lvlNumTrigs + 1 : lvlTrig$(lvlNumTrigs) = LEFT$(t$, c3 - 1)
+            t$ = MID$(t$, c3 + 1)
+        LOOP
+    END IF
     IF c8 THEN ' (the event rooms)
         lvlNumEvents = 0
         DIM ev(8) AS SINGLE
@@ -8999,7 +9060,8 @@ SUB EditDrawHelp(v)
         h$ = h$ + "Wall + Ctrl+Shift+wheel: a block on the floor (its top)|"
         h$ = h$ + "Wall + Alt+Shift+wheel: a block from the ceiling (bottom)|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
-        h$ = h$ + "Selected door, pad, light, monster, event, lift: its pane;|"
+        h$ = h$ + "Selected door, pad, light, monster, event, lift: its pane,|"
+        h$ = h$ + "  and TRIGGERS... on a door's, floor's or wall's;|"
         h$ = h$ + "  SECTOR: its name, its light, its walls'/floors' pictures|"
         h$ = h$ + "H divide a face left/right, V top/bottom (again: whole)|"
         h$ = h$ + "G grid, Shift+G stronger;  T F pictures;  Z floor no.|"
@@ -9021,6 +9083,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "Wheel: over the picker, scrolls; over the map, the selected|"
         h$ = h$ + "  floors up/down (Ctrl: ceilings); else the brush ([ ] too)|"
         h$ = h$ + "Selected door, pad, light, monster, event, lift: its pane|"
+        h$ = h$ + "  (TRIGGERS... on a door's or a floor's)|"
         h$ = h$ + "SECTOR: its name, its light, its walls'/floors' pictures|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
         h$ = h$ + "G grid, Shift+G stronger;  T: put you here|"
@@ -9404,7 +9467,39 @@ SUB EditPaneBuild
         NEXT
         EXIT SUB
     END IF
-    IF edSelN = 0 THEN EXIT SUB
+    IF edSelN = 0 THEN edTrigPane = 0 : EXIT SUB
+    IF edTrigPane THEN ' The selection's triggers - and a new one
+        EditTrigPlace tx0, ty0, tx1, ty1, ux, uy
+        edPnTitle$ = "TRIGGERS" + STR$(tx0) + "," + LTRIM$(STR$(ty0)) + MID$(" +", 1, -2 * (tx1 > tx0 OR ty1 > ty0))
+        n = 0
+        FOR k = 1 TO lvlNumTrigs
+            IF n < 6 AND EditTrigHere(lvlTrig$(k), tx0, ty0, tx1, ty1, ux, uy) THEN
+                n = n + 1 : edTrigIdx(n) = k
+                EditPaneAdd -1, x0, y + 2, 172, LEFT$(lvlTrig$(k), 21), 0 : EditPaneAdd 179 + n, x0 + 176, y, 24, "x", 0
+                y = y + 22
+            END IF
+        NEXT
+        IF n = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "none here yet", 0 : y = y + 22
+        y = y + 4
+        FOR w = 1 TO 4
+            EditPaneAdd 170 + w, x0 + (w - 1) * 51, y, 48, RTRIM$(MID$("ENTERUSE  CLEARTIME ", w * 5 - 4, 5)), (edTrigWhen = w)
+        NEXT
+        y = y + 23
+        IF edTrigWhen = 4 THEN
+            EditPaneAdd -1, x0, y + 2, 140, "AFTER" + STR$(edTrigTime) + "s", 0 : EditPaneAdd 178, x0 + 146, y, 24, "-", 0 : EditPaneAdd 179, x0 + 174, y, 24, "+", 0
+        ELSE
+            IF edTrigRepeat THEN t$ = "EVERY TIME" ELSE t$ = "JUST ONCE"
+            EditPaneAdd 175, x0, y, PN_W, t$, edTrigRepeat
+        END IF
+        y = y + 23
+        IF edTyping AND edTypeFor = 2 THEN n$ = edTypeBuf$ + "_" ELSE n$ = edTrigCmd$ : IF n$ = "" THEN n$ = "(its commands)"
+        EditPaneAdd -1, x0, y + 2, PN_W, LEFT$(RIGHT$(n$, 25), 25), 0 : y = y + 20
+        IF edTyping AND edTypeFor = 2 THEN t$ = "OK" ELSE t$ = "TYPE"
+        EditPaneAdd 176, x0, y, 99, t$, (edTyping AND edTypeFor = 2) : EditPaneAdd 177, x0 + 101, y, 99, "ADD IT", 0
+        y = y + 23
+        EditPaneAdd 190, x0, y, PN_W, "BACK", 0
+        EXIT SUB
+    END IF
     ' A door: the first selected face that's a door's
     FOR k = 1 TO edSelN
         c$ = MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)
@@ -9416,6 +9511,7 @@ SUB EditPaneBuild
                 g$ = MID$("DHX!RBYE", t, 1)
                 EditPaneAdd t, x0 + ((t - 1) MOD 2) * 101, y + ((t - 1) \ 2) * 23, 99, RTRIM$(MID$("SLIDING SHUTTER SPLIT   SEALED  RED KEY BLUE KEYYELLOW  EXIT    ", t * 8 - 7, 8)), (g$ = c$)
             NEXT
+            EditPaneAdd 170, x0, y + 96, PN_W, "TRIGGERS...", 0
             EXIT SUB
         END IF
     NEXT
@@ -9548,6 +9644,7 @@ SUB EditPaneBuild
         edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
     END IF
     EditPaneAdd 40, x0, y, PN_W, "ADD A LIGHT TO IT", 0
+    EditPaneAdd 170, x0, y + 23, PN_W, "TRIGGERS...", 0
 END SUB
 
 ' The pane's button at (x, y) - its id - or 0
@@ -9620,6 +9717,38 @@ SUB EditRing(cx, cy, r, z, col~&)
         EditLine3D px, py, z, nx, ny, z, col~& : px = nx : py = ny
     NEXT
 END SUB
+
+' Where the selection's triggers are: the box round it (x0, y0)-(x1, y1) -
+' where you'd stand: a wall's face, the cell in front of it - and the cell
+' you'd use (ux, uy): the first face's own (a wall, a door: you face it)
+SUB EditTrigPlace(x0, y0, x1, y1, ux, uy)
+    x0 = MAP_SIZE : y0 = MAP_SIZE : x1 = 0 : y1 = 0
+    FOR k = 1 TO edSelN
+        EditFaceCell edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), tx, ty
+        IF edSelKind(k) = ED_FLOOR AND NOT EditCellOpen(edSelX(k), edSelY(k)) THEN tx = edSelX(k) : ty = edSelY(k)
+        x0 = MinOf(x0, tx) : y0 = MinOf(y0, ty) : x1 = MaxOf(x1, tx) : y1 = MaxOf(y1, ty)
+    NEXT
+    ux = edSelX(1) : uy = edSelY(1)
+END SUB
+
+' Is trigger line l$ about this place: an enter / clear box that takes in
+' (x0, y0), a use of (ux, uy) - or a time, which is everywhere?
+FUNCTION EditTrigHere(l$, x0, y0, x1, y1, ux, uy)
+    EditTrigHere = 0
+    c = INSTR(l$, ":") : IF c = 0 THEN EXIT FUNCTION
+    w$ = LCASE$(LTRIM$(LEFT$(l$, c - 1))) + " "
+    DIM n(4) AS SINGLE
+    sp = INSTR(w$, " ") : kind$ = LEFT$(w$, sp - 1) : w$ = MID$(w$, sp + 1)
+    FOR j = 1 TO 4
+        w$ = LTRIM$(w$) : sp = INSTR(w$, " ")
+        IF sp > 1 THEN n(j) = VAL(LEFT$(w$, sp - 1)) : w$ = MID$(w$, sp + 1)
+    NEXT
+    SELECT CASE kind$
+        CASE "time" : EditTrigHere = -1
+        CASE "use" : EditTrigHere = (n(1) = ux AND n(2) = uy)
+        CASE "enter", "clear" : EditTrigHere = NOT (MaxOf(n(1), n(3)) < x0 OR MinOf(n(1), n(3)) > x1 OR MaxOf(n(2), n(4)) < y0 OR MinOf(n(2), n(4)) > y1)
+    END SELECT
+END FUNCTION
 
 ' The event room cell (x, y) is in - the first - or 0
 FUNCTION EditEventAt(x, y)
