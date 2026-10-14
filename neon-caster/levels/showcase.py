@@ -1,5 +1,5 @@
-"""Showcase sectors for the level editor: YOUR SECTORS 11-15
-(custom/custom1..5.txt here). Each uses the editor's level-file sections -
+"""Showcase sectors for the level editor: YOUR SECTORS 11-16
+(custom/custom1..6.txt here). Each uses the editor's level-file sections -
 [faces] (pictures on single faces, divided ones), lights on faces (they
 tint their face), [pads] (teleporters linked by hand), [monsters] (a
 monster's own sight, hearing, health, speed, waking) - on top of the
@@ -7,7 +7,7 @@ usual. Built with the level kit, and checked by it.
 
     python3 showcase.py [OUTDIR]     (OUTDIR: custom/ unless you say)
 
-This writes over custom1-5.txt: once you've changed one of them in the
+This writes over custom1-6.txt: once you've changed one of them in the
 game's editor, don't run it again (or give it another OUTDIR).
 """
 import os, sys
@@ -539,6 +539,80 @@ def listening():
         ["ceiling-cables.png", "ceiling-vents.png"], listening.__doc__
 
 
+# ---------------------------------------------------------------- 16
+def observatory():
+    """SECTOR 16: THE OBSERVATORY. A tower four walls high in a moonlit
+    garden, windows of glass in its wall. Climb it: the stairs to the first
+    ledge, a wall up; the elevator to the second; the lift that rises and
+    falls by itself to the third - each ledge's edge in pictures of its own
+    and lit its own colour. The yellow card is at the summit, and the pad
+    there is LINKed to the vestibule behind the yellow door, where the exit
+    is. Two more pads cross the garden. (In reading order the four would
+    pair the wrong way: [pads] says which goes where.)"""
+    m = Show("#")
+    m.ambient = (110, 150, 180, 255)
+    # The garden, round the tower; you in the south
+    m.rect(4, 4, 43, 43); m.ceiling(4, 4, 43, 43, 24)
+    m.rect(13, 13, 34, 34, "N")                  # the tower: a wall one cell thick...
+    m.rect(14, 14, 33, 33)                       # ...round its insides
+    m.ceiling(14, 14, 33, 33, 32)
+    m.put(23, 41, "^")
+    m.put(24, 34, "D")                           # its door
+    for x in list(range(17, 21)) + list(range(28, 32)):
+        m.put(x, 34, "=")                        # windows
+    for y in list(range(18, 22)) + list(range(26, 30)):
+        m.put(13, y, "="); m.put(34, y, "=")
+    m.put(5, 24, "&"); m.put(42, 24, "&")        # across the garden
+    m.mon(8, 8, "g", hear=10); m.mon(39, 8, "g", hear=10); m.mon(39, 39, "k", wake="hunt")
+    m.put(6, 40, "+"); m.put(41, 40, "a"); m.put(24, 39, "M")
+    for (x, y) in ((8, 30), (39, 16), (10, 12), (37, 35), (6, 18)):
+        m.put(x, y, "p")
+    # Inside: the ground, and the ledges up the walls
+    m.floor(31, 14, 33, 33, 8)                   # ledge 1 (east), a wall up
+    m.floor(14, 14, 33, 16, 16)                  # ledge 2 (north), two walls up
+    m.floor(14, 17, 16, 33, 24)                  # ledge 3 (west), three
+    m.stairs(27, 30, 30, 32, "E", 2, 8)          # up to ledge 1
+    m.lift(32, 17, 32, 17, 8, 16, mode=2, speed=8)     # ledge 1 to 2: an elevator
+    m.lift(15, 17, 15, 17, 16, 24, mode=1, speed=4)    # 2 to 3: rising and falling by itself
+    for y in range(17, 34):                       # ledge 1's edge
+        if not 30 <= y <= 32:
+            m.face(31, y, "W", "wall-girders.png")
+            if y % 4 == 1:
+                m.wall_light(31, y, "W", 60, 220, 255, fx=0, rad=2.5, bright=160)
+    for x in range(17, 31):                       # ledge 2's edge: viewports over hull plates
+        m.face(x, 16, "S", "wall-viewport.png", "wall-hull.png", div=2)
+        if x % 4 == 1:
+            m.wall_light(x, 16, "S", 255, 60, 220, fx=2, rad=3, bright=170)
+    for y in range(18, 34):                       # ledge 3's edge
+        m.face(16, y, "E", "wall-vault.png")
+        if y % 4 == 2:
+            m.wall_light(16, y, "E", 255, 160, 50, fx=4, rad=3, bright=180)
+    m.put(15, 32, "y"); m.put(14, 33, "&"); m.put(16, 30, "*")   # the summit
+    m.mon(24, 15, "s", sight=20); m.mon(15, 24, "w", sight=10)
+    for (x, y) in ((20, 22), (27, 25), (22, 28)):
+        m.mon(x, y, "m")
+    m.put(24, 24, "Q"); m.put(32, 25, "a"); m.put(20, 15, "e")
+    # North: the yellow door, the vestibule, the exit
+    m.rect(21, 1, 25, 2); m.put(23, 3, "Y"); m.put(26, 1, "E"); m.put(21, 1, "&")
+    m.pads.append((14, 33, 21, 1))               # the summit's pad: to the vestibule
+    m.pads.append((5, 24, 42, 24))               # and across the garden
+    # Light: moonlight outside; inside, a beam from the dome
+    for (x, y) in ((8, 8), (39, 8), (8, 39), (39, 39), (24, 8), (24, 40), (8, 24), (39, 24)):
+        m.light(x + 0.5, y + 0.5, 7, 110, 150, 190, 255, 0)
+    m.light(23.5, 23.5, 8, 170, 200, 220, 255, 2)
+    m.light(24.5, 15.5, 5, 120, 255, 120, 220, 0)
+    m.light(15.5, 31.5, 4, 160, 255, 220, 120, 2)
+    m.light(23.5, 1.5, 3, 140, 90, 255, 120, 0)
+    m.zone(4, 4, 43, 43, 1, 1)
+    m.zone(14, 14, 33, 33, 2, 2)
+    m.triggers.append("enter 22 35 26 37 : message THE OBSERVATORY - THE YELLOW CARD IS AT THE TOP")
+    m.triggers.append("enter 14 30 16 33 : message THE PAD HERE GOES TO THE VESTIBULE")
+    return m, "custom6", "SECTOR 16: THE OBSERVATORY", \
+        ["wall-hull.png", "wall-obsidian.png", "wall-girders.png", "wall-viewport.png", "wall-vault.png", "wall-moss.png"], \
+        ["floor-soil.png", "floor-platform.png", "floor-deck.png", "floor-plates.png"], \
+        ["ceiling-stone.png", "ceiling-girders.png"], observatory.__doc__
+
+
 def build(fn, outdir):
     m, label, name, walls, floors, ceils, doc = fn()
     lv = m.level(label, name, walls, floors, ceils)
@@ -563,7 +637,7 @@ if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "custom")
     os.makedirs(out, exist_ok=True)
     good = True
-    for fn in (gallery, depot, relay, conservatory, listening):
+    for fn in (gallery, depot, relay, conservatory, listening, observatory):
         print(fn.__name__)
         good = build(fn, out) and good
     print("ALL GOOD" if good else "PROBLEMS")
