@@ -985,6 +985,10 @@ DIM SHARED setting(NUM_SETTINGS), setDefault(NUM_SETTINGS), setMin(NUM_SETTINGS)
 CONST LETTER_SCANS = ">PN@2ABC7DEFRQ8903?46O1M5L"
 DIM SHARED keyDevice AS INTEGER, keyTrusted AS INTEGER, keyScanAdd AS INTEGER
 DIM SHARED setStep(NUM_SETTINGS), setKind(NUM_SETTINGS), setKey$(NUM_SETTINGS), setLabel$(NUM_SETTINGS)
+' Your qb64pe, if you've said where it is (SETTINGS > QB64PE COMPILER, or
+' the qb64pe console command) - kept as "qb64pe=" in the settings file; ""
+' means look for it (QB64Path$, chapter 19)
+DIM SHARED qbChosen$
 ' MI_ = Menu Item kinds (what a line of a menu is and does)
 CONST MI_ACTION = 1, MI_SUBMENU = 2, MI_SLIDER = 3, MI_TOGGLE = 4, MI_CHOICE = 5
 CONST MI_KEY = 6, MI_BACK = 7, MI_TEXT = 8
@@ -1075,7 +1079,8 @@ DefineBind BIND_KICK,      "key_kick",      "KICK",         102
 CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
 CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6, MA_SECTOR = 7
-CONST SCR_SECTOR = 13
+CONST SCR_SECTOR = 13, SCR_QB64 = 14
+CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10
 ' --- The console (` opens it, like Quake's; chapter 21): what's been
 ' printed (conLog$, the last CON_LOG lines), the line being typed, the
 ' lines typed before (conHist$, for Up and Down), and the commands waiting
@@ -1097,6 +1102,7 @@ DIM SHARED monStartN AS INTEGER, monStartX(MAX_MON), monStartY(MAX_MON), monStar
 CONST MAX_MI = 16
 DIM SHARED miLabel$(MAX_MI), miKind(MAX_MI), miRef(MAX_MI), miAct(MAX_MI), miOn(MAX_MI), miInfo$(MAX_MI)
 DIM SHARED numMI, menuTitle$, menuSel, menuCapture, menuWide, menuScreen, menuInGame
+DIM SHARED menuTyping, menuTyped$, menuTypeBad ' (typing qb64pe's path: MenuTypeKey)
 DIM menuStack(10), menuStackSel(10) ' The screens you came through (for BACK)
 ' MENU_ = where the menu is drawn: the first row, the gap between rows,
 ' where labels start, and where sliders and other controls go
@@ -1183,8 +1189,10 @@ CONST MAX_PADS = 16
 ' together. Space at one: the doors near it slam and lock (doorLock 3)
 ' and its puzzle opens (RunPuzzle) - a program from neon-caster/puzzles/,
 ' its lines shuffled and words blanked out. Put it right and it's compiled
-' and run, for real if qb64pe can be found (QB64Path$), and its output
-' checked: right, and the doors open. Which puzzle: the level file's
+' and run, for real if qb64pe can be found (QB64Path$ - or where you've
+' told it, in SETTINGS > QB64PE COMPILER), and its output checked: right,
+' and the doors open. No qb64pe: the lines are checked against the answer
+' instead. Which puzzle: the level file's
 ' "puzzles =" list, one a terminal in reading order.
 CONST MAX_TERMS = 8, MAX_PZ_LINES = 24, MAX_PZ_BLANKS = 6, MAX_PZ_HINTS = 6
 DIM SHARED numTerms AS INTEGER, termX(MAX_TERMS) AS INTEGER, termY(MAX_TERMS) AS INTEGER, termDone(MAX_TERMS) AS INTEGER, lvlPuzzles$
@@ -4896,7 +4904,8 @@ RETURN
 ' chapter 6: the menu shows each one with the control its kind needs, and
 ' ApplySettings puts them into effect. They're kept in a plain text file,
 ' neon-caster/saves/settings.ini - one "name=value" line each - so you can
-' read and edit it too. Key bindings work the same way (KeyHeld, chapter
+' read and edit it too. (One isn't a number: qb64pe=, where the compiler
+' the code terminals use is - qbChosen$, SETTINGS > QB64PE COMPILER.) Key bindings work the same way (KeyHeld, chapter
 ' 23, is how the game asks about a key).
 '
 ' SAVED GAMES are BINARY files. PUT writes a variable's bytes into the file
@@ -4944,7 +4953,7 @@ RunMenu:
 _MOUSESHOW
 IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
 menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen
-menuDone = 0 : menuCapture = 0 : menuDrag = 0 : mouseWasDown = -1
+menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1
 _KEYCLEAR
 DO
     _LIMIT 60
@@ -4957,6 +4966,8 @@ DO
         IF keyCode& > 0 THEN ' (a negative code is a key being let go)
             IF menuCapture THEN
                 GOSUB CaptureKey
+            ELSEIF menuTyping THEN
+                GOSUB MenuTypeKey
             ELSE
                 SELECT CASE keyCode&
                     CASE 18432, 119, 87 : menuMove = -1 : GOSUB MenuMoveSel ' Up, W
@@ -4976,7 +4987,7 @@ DO
     ' mouse moves, so it doesn't fight the keyboard.)
     WHILE _MOUSEINPUT : WEND
     mouseX = WideMouseX(_MOUSEX) : mouseY = _MOUSEY : mouseDown = _MOUSEBUTTON(1)
-    IF NOT menuDone AND menuCapture = 0 THEN
+    IF NOT menuDone AND menuCapture = 0 AND menuTyping = 0 THEN
         overItem = MenuItemAt(mouseX, mouseY)
         IF overItem > 0 AND overItem <> menuSel AND (mouseX <> lastMouseX OR mouseY <> lastMouseY) THEN
             menuSel = overItem : PlaySfx sndMenuMove&, 0.5
@@ -5203,6 +5214,20 @@ SELECT CASE conVerb$
         ConHelp conA$
     CASE "version"
         ConPrint "NEON-CASTER " + GAME_VERSION$
+    CASE "qb64pe" ' The code terminals' compiler: qb64pe PATH (or a folder), qb64pe auto, or qb64pe to see it
+        IF conA$ = "auto" THEN
+            qbChosen$ = "" : SaveSettings
+        ELSEIF LEN(conRest$) THEN
+            IF LEN(QB64At$(conRest$)) THEN qbChosen$ = QB64At$(conRest$) : SaveSettings ELSE ConPrint "qb64pe: there's no qb64pe at " + conRest$
+        END IF
+        qbNow$ = QB64Path$
+        IF qbNow$ = "" THEN
+            ConPrint "qb64pe: not found - code terminals check the lines against the answer (qb64pe PATH to point to it)"
+        ELSEIF qbNow$ = QB64At$(qbChosen$) THEN
+            ConPrint "qb64pe: " + qbNow$ + "   (yours - qb64pe auto to look for it instead)"
+        ELSE
+            ConPrint "qb64pe: " + qbNow$ + "   (found - qb64pe PATH for another)"
+        END IF
     CASE "map", "level", "sector" ' Go to a sector, keeping what you carry
         n = VAL(conA$)
         IF n < 1 THEN ' (or by name: the first whose name has it)
@@ -5595,7 +5620,52 @@ SELECT CASE miKind(menuSel)
                 SaveSettings : SYSTEM
             CASE MA_KEYS_DEFAULT
                 FOR b = 1 TO NUM_BINDS : keyBind&(b) = bindDefault&(b) : NEXT
+            CASE MA_QB64_TYPE ' Type qb64pe's path in (MenuTypeKey)
+                menuTyping = -1 : menuTyped$ = qbChosen$ : menuTypeBad = 0
+            CASE MA_QB64_BROWSE ' Pick it in the system's file window
+                IF INSTR(_OS$, "[WINDOWS]") THEN qbPat$ = "*.exe" ELSE qbPat$ = ""
+                qbF$ = _OPENFILEDIALOG$("Where is qb64pe?", QB64Path$, qbPat$, "qb64pe", 0)
+                IF LEN(qbF$) THEN
+                    IF LEN(QB64At$(qbF$)) THEN qbChosen$ = QB64At$(qbF$) : SaveSettings
+                END IF
+                _KEYCLEAR : WHILE _MOUSEINPUT : WEND : mouseWasDown = -1
+                qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
+            CASE MA_QB64_AUTO ' Forget yours: look for it again
+                qbChosen$ = "" : SaveSettings
+                qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
         END SELECT
+END SELECT
+RETURN
+
+' --- A key while typing qb64pe's path (MA_QB64_TYPE): a character goes on
+' the end, Backspace takes one off, Ctrl+V pastes. Enter keeps it - if
+' there's a qb64pe there (a folder with one in it will do; nothing at all
+' means look for it) - and Esc leaves it as it was.
+MenuTypeKey:
+menuTypeBad = 0
+IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' Ctrl
+    IF keyCode& = 118 OR keyCode& = 86 OR keyCode& = 22 THEN ' V: the clipboard's first line
+        qbClip$ = _CLIPBOARD$ : qbCut = INSTR(qbClip$, CHR$(10)) : IF qbCut THEN qbClip$ = LEFT$(qbClip$, qbCut - 1)
+        qbCut = INSTR(qbClip$, CHR$(13)) : IF qbCut THEN qbClip$ = LEFT$(qbClip$, qbCut - 1)
+        menuTyped$ = LEFT$(menuTyped$ + qbClip$, 250)
+    END IF
+    RETURN
+END IF
+SELECT CASE keyCode&
+    CASE 13 ' Enter
+        qbF$ = QB64At$(menuTyped$)
+        IF LEN(qbF$) OR LTRIM$(menuTyped$) = "" THEN
+            qbChosen$ = qbF$ : SaveSettings : menuTyping = 0 : PlaySfx sndMenuSelect&, 0.6
+            qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
+        ELSE
+            menuTypeBad = -1 : PlaySfx sndMenuBack&, 0.6 ' (no qb64pe there: say so, keep typing)
+        END IF
+    CASE 27 ' Esc
+        menuTyping = 0 : PlaySfx sndMenuBack&, 0.6
+    CASE 8 ' Backspace
+        IF LEN(menuTyped$) THEN menuTyped$ = LEFT$(menuTyped$, LEN(menuTyped$) - 1)
+    CASE 32 TO 126
+        IF LEN(menuTyped$) < 250 THEN menuTyped$ = menuTyped$ + CHR$(keyCode&)
 END SELECT
 RETURN
 
@@ -7592,8 +7662,6 @@ FUNCTION TermAt(x, y)
     NEXT
 END FUNCTION
 
-' Where qb64pe is - so the puzzles can be compiled for real - or "" if it
-' can't be found: $QB64PE, or the usual places
 FUNCTION Slashes$(p$) ' (a path with Windows' backslashes)
     o$ = p$
     FOR i = 1 TO LEN(o$) : IF MID$(o$, i, 1) = "/" THEN MID$(o$, i, 1) = "\"
@@ -7601,18 +7669,52 @@ FUNCTION Slashes$(p$) ' (a path with Windows' backslashes)
     Slashes$ = o$
 END FUNCTION
 
+' Where qb64pe is - so the puzzles can be compiled for real - or "" if it
+' can't be found: the one you chose (qbChosen$), $QB64PE, every folder on
+' the PATH, then the usual places
 FUNCTION QB64Path$
-    ' (Windows has no HOME, but USERPROFILE; its compiler is qb64pe.exe)
+    ' (Windows has no HOME, but USERPROFILE; its compiler is qb64pe.exe, and
+    ' its PATH has ; between the folders, not :)
     h$ = ENVIRON$("HOME") : IF h$ = "" THEN h$ = ENVIRON$("USERPROFILE")
-    x$ = "" : IF INSTR(_OS$, "[WINDOWS]") THEN x$ = ".exe"
-    c$ = ENVIRON$("QB64PE") + "|" + h$ + "/git/qb64pe/qb64pe" + x$ + "|" + h$ + "/qb64pe/qb64pe" + x$ + "|" + h$ + "/git/QB64pe/qb64pe" + x$
+    x$ = "" : sep$ = ":" : IF INSTR(_OS$, "[WINDOWS]") THEN x$ = ".exe" : sep$ = ";"
+    c$ = qbChosen$ + "|" + ENVIRON$("QB64PE") + "|"
+    p$ = ENVIRON$("PATH")
+    DO WHILE LEN(p$)
+        s = INSTR(p$, sep$) : IF s = 0 THEN s = LEN(p$) + 1
+        IF s > 1 THEN c$ = c$ + LEFT$(p$, s - 1) + "/qb64pe" + x$ + "|"
+        p$ = MID$(p$, s + 1)
+    LOOP
+    c$ = c$ + h$ + "/git/qb64pe/qb64pe" + x$ + "|" + h$ + "/qb64pe/qb64pe" + x$ + "|" + h$ + "/git/QB64pe/qb64pe" + x$
     c$ = c$ + "|C:/qb64pe/qb64pe.exe|" + ENVIRON$("ProgramFiles") + "/qb64pe/qb64pe.exe|/Applications/qb64pe/qb64pe|" + h$ + "/Applications/qb64pe/qb64pe"
     c$ = c$ + "|/usr/local/bin/qb64pe|/usr/bin/qb64pe|/opt/qb64pe/qb64pe"
     DO WHILE LEN(c$)
         bar = INSTR(c$, "|") : IF bar = 0 THEN bar = LEN(c$) + 1
-        f$ = LEFT$(c$, bar - 1) : c$ = MID$(c$, bar + 1)
-        IF LEN(f$) THEN IF _FILEEXISTS(f$) THEN QB64Path$ = f$ : EXIT FUNCTION
+        f$ = QB64At$(LEFT$(c$, bar - 1)) : c$ = MID$(c$, bar + 1)
+        IF LEN(f$) THEN QB64Path$ = f$ : EXIT FUNCTION
     LOOP
+END FUNCTION
+
+' The qb64pe at p$ - p$ itself, or the one in it if it's a folder - or ""
+' if there isn't one. Quotes round it (as Windows' "Copy as path" puts
+' them) and ~ for your home folder are fine.
+FUNCTION QB64At$(p$)
+    f$ = LTRIM$(RTRIM$(p$))
+    IF LEN(f$) > 1 AND LEFT$(f$, 1) = CHR$(34) AND RIGHT$(f$, 1) = CHR$(34) THEN f$ = MID$(f$, 2, LEN(f$) - 2)
+    IF LEFT$(f$, 1) = "~" THEN
+        h$ = ENVIRON$("HOME") : IF h$ = "" THEN h$ = ENVIRON$("USERPROFILE")
+        f$ = h$ + MID$(f$, 2)
+    END IF
+    IF f$ = "" THEN EXIT FUNCTION
+    IF _DIREXISTS(f$) THEN
+        IF RIGHT$(f$, 1) <> "/" AND RIGHT$(f$, 1) <> "\" THEN f$ = f$ + "/"
+        f$ = f$ + "qb64pe" : IF INSTR(_OS$, "[WINDOWS]") THEN f$ = f$ + ".exe"
+    END IF
+    IF _FILEEXISTS(f$) THEN QB64At$ = f$
+END FUNCTION
+
+' The end of path p$, at most n characters ("..." where it's cut)
+FUNCTION PathTail$(p$, n)
+    IF LEN(p$) > n THEN PathTail$ = "..." + RIGHT$(p$, n - 3) ELSE PathTail$ = p$
 END FUNCTION
 
 ' Read puzzle n$ (neon-caster/puzzles/n$.txt) - its answer, blanks and
@@ -7762,7 +7864,7 @@ SUB DrawPuzzle(sel, typing, qb$)
     LOOP
     COLOR _RGB32(110, 170, 120)
     _PRINTSTRING (28, 552), "Up/Down choose   Shift+Up/Down move   Enter fill blank   F5 run   H hint   Esc leave"
-    IF qb$ = "" THEN m$ = "(qb64pe not found: checked against the answer)" ELSE m$ = "compiles with: " + qb$
+    IF qb$ = "" THEN m$ = "(no qb64pe: checked against the answer - Esc, SETTINGS > QB64PE COMPILER to add yours)" ELSE m$ = "compiles with: " + PathTail$(qb$, 77)
     _PRINTSTRING (28, 570), LEFT$(m$, 92)
 END SUB
 
@@ -8697,7 +8799,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version qb64pe edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -8713,6 +8815,7 @@ SUB ConHelp(c$)
             ConPrint "  edit [walk|off]   put X Y CHAR   box X0 Y0 X1 Y1 CHAR   undo   savelevel"
             ConPrint "  cutscene [SECTOR]   say LINE   fire [FRAMES]   use   jackin   jackout [win]   stations"
             ConPrint "  events   screenshot [FILE]   wait FRAMES   echo TEXT   exec FILE   logfile FILE|off"
+            ConPrint "  qb64pe [PATH|auto]   version"
             ConPrint "  clear   menu   quit"
             ConPrint "From the command line, each command starts with + :"
             ConPrint "  neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit"
@@ -8723,6 +8826,7 @@ SUB ConHelp(c$)
         CASE "wait" : ConPrint "wait FRAMES: hold back the commands after it (60 frames = 1 second) - for scripts and the command line"
         CASE "exec" : ConPrint "exec FILE: run every line of a file as a command (// starts a comment)"
         CASE "screenshot" : ConPrint "screenshot [FILE.png]: the next frame, to FILE (or to the saves folder)"
+        CASE "qb64pe" : ConPrint "qb64pe PATH: the qb64pe the code terminals compile with (a folder with it in will do); qb64pe auto: look for it; qb64pe: which"
         CASE "respawn" : ConPrint "respawn: every one of the level's monsters back where it started, alive"
         CASE ELSE : ConPrint "help: no more about " + c$
     END SELECT
@@ -9054,6 +9158,7 @@ END FUNCTION
 SUB LoadSettings
     FOR i = 1 TO NUM_SETTINGS : setting(i) = setDefault(i) : NEXT
     FOR i = 1 TO NUM_BINDS : keyBind&(i) = bindDefault&(i) : NEXT
+    qbChosen$ = ""
     file$ = SaveDir$ + "settings.ini"
     IF NOT _FILEEXISTS(file$) THEN EXIT SUB
     fileNum = FREEFILE
@@ -9066,6 +9171,10 @@ SUB LoadSettings
             FOR i = 1 TO NUM_SETTINGS
                 IF iniKey$ = setKey$(i) AND v >= setMin(i) AND v <= setMax(i) THEN setting(i) = v
             NEXT
+            IF iniKey$ = "qb64pe" THEN ' (a path, not a number)
+                qbChosen$ = MID$(text$, eq + 1) : IF RIGHT$(qbChosen$, 1) = CHR$(13) THEN qbChosen$ = LEFT$(qbChosen$, LEN(qbChosen$) - 1)
+                qbChosen$ = LTRIM$(RTRIM$(qbChosen$))
+            END IF
             IF iniKey$ = "retro_res" AND v = 1 THEN setting(SET_RES) = RES_RETRO ' (what RESOLUTION was called once)
             FOR i = 1 TO NUM_BINDS
                 IF iniKey$ = bindKey$(i) AND v > 0 THEN keyBind&(i) = v
@@ -9083,6 +9192,10 @@ SUB SaveSettings
     OPEN SaveDir$ + "settings.ini" FOR OUTPUT AS #fileNum
     PRINT #fileNum, "; NEON-CASTER settings: one name and value a line (chapter 21 explains them)"
     FOR i = 1 TO NUM_SETTINGS : PRINT #fileNum, setKey$(i) + "=" + LTRIM$(STR$(setting(i))) : NEXT
+    PRINT #fileNum, "; qb64pe: the compiler the code terminals use - its path, or the folder it's in."
+    PRINT #fileNum, "; Left empty, the game looks for it ($QB64PE, the PATH, the usual folders);"
+    PRINT #fileNum, "; with none, a terminal checks your lines against the answer instead."
+    PRINT #fileNum, "qb64pe=" + qbChosen$
     FOR i = 1 TO NUM_BINDS
         PRINT #fileNum, bindKey$(i) + "=" + LTRIM$(STR$(keyBind&(i))) + "   ; " + KeyName$(keyBind&(i))
     NEXT
@@ -9171,6 +9284,32 @@ SUB BuildMenu(scr)
             AddMenuItem "VIDEO", MI_SUBMENU, SCR_VIDEO, 0, -1, ""
             AddMenuItem "EFFECTS", MI_SUBMENU, SCR_EFFECTS, 0, -1, ""
             AddMenuItem "CONTROLS", MI_SUBMENU, SCR_CONTROLS, 0, -1, ""
+            AddMenuItem "QB64PE COMPILER", MI_SUBMENU, SCR_QB64, 0, -1, ""
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_QB64 ' The qb64pe the code terminals compile with (chapter 19)
+            menuTitle$ = "QB64PE COMPILER" : menuWide = -1
+            AddMenuItem "CODE TERMINALS COMPILE YOUR FIX WITH IT", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "NONE? THEY CHECK YOUR LINES INSTEAD", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "", MI_TEXT, 0, 0, 0, ""
+            IF LEN(qbChosen$) THEN info$ = PathTail$(qbChosen$, 58) ELSE info$ = "its path, or its folder (Ctrl+V pastes)"
+            AddMenuItem "TYPE IT", MI_ACTION, 0, MA_QB64_TYPE, -1, info$
+            AddMenuItem "BROWSE", MI_ACTION, 0, MA_QB64_BROWSE, -1, "pick it in a file window"
+            AddMenuItem "FIND IT", MI_ACTION, 0, MA_QB64_AUTO, -1, "look for it: $QB64PE, the PATH, the usual places"
+            AddMenuItem "", MI_TEXT, 0, 0, 0, ""
+            qb$ = QB64Path$
+            IF qb$ = "" THEN
+                AddMenuItem "NOT FOUND", MI_TEXT, 0, 0, 0, ""
+                AddMenuItem "GET IT AT QB64PHOENIX.COM", MI_TEXT, 0, 0, 0, ""
+            ELSE
+                IF qb$ = QB64At$(qbChosen$) THEN
+                    AddMenuItem "COMPILING WITH YOURS", MI_TEXT, 0, 0, 0, ""
+                ELSEIF LEN(qbChosen$) THEN ' (one you chose once, not there now)
+                    AddMenuItem "YOURS IS GONE - USING ONE FOUND", MI_TEXT, 0, 0, 0, ""
+                ELSE
+                    AddMenuItem "COMPILING WITH THE ONE FOUND", MI_TEXT, 0, 0, 0, ""
+                END IF
+                AddMenuItem PathTail$(qb$, 46), MI_TEXT, 0, 0, 0, ""
+            END IF
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_VIDEO
             menuTitle$ = "VIDEO" : menuWide = -1
@@ -9314,7 +9453,16 @@ SUB DrawMenu(t)
                     MenuText wx, rowY, KeyName$(keyBind&(miRef(i))), 2, col~&, 0
                 END IF
         END SELECT
-        IF LEN(miInfo$(i)) THEN MenuText MENU_LABEL_X + 160 + slide, rowY + 9, miInfo$(i), 1, col~&, 0
+        IF menuTyping AND miAct(i) = MA_QB64_TYPE AND miKind(i) = MI_ACTION THEN ' The path being typed, and a cursor
+            IF menuTypeBad THEN
+                MenuText MENU_LABEL_X + 160 + slide, rowY + 9, "no qb64pe there: " + PathTail$(menuTyped$, 40), 1, _RGBA32(255, 90, 90, alpha), 0
+            ELSE
+                cur$ = " " : IF (t \ 15) MOD 2 = 0 THEN cur$ = "_"
+                MenuText MENU_LABEL_X + 160 + slide, rowY + 9, PathTail$(menuTyped$, 56) + cur$, 1, _RGBA32(255, 230, 60, alpha), 0
+            END IF
+        ELSEIF LEN(miInfo$(i)) THEN
+            MenuText MENU_LABEL_X + 160 + slide, rowY + 9, miInfo$(i), 1, col~&, 0
+        END IF
     NEXT
     IF menuScreen = SCR_GAMEPLAY THEN ' What your crosshair looks like
         LINE (690, 96)-(750, 156), _RGBA32(0, 0, 0, 180), BF

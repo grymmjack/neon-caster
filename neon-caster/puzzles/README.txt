@@ -3,7 +3,9 @@
 ' shuffles its lines and blanks out the words in [blanks]; you put it back
 ' together, and it's compiled and run for real (if qb64pe is found) - its
 ' output must be what "expect" says (lines split by |, spaces and case not
-' minded). Lines starting with ' in a section are comments - except in
+' minded). Without qb64pe the lines are checked against [lines] instead,
+' so test a new puzzle with it: SETTINGS > QB64PE COMPILER, or the console's
+' qb64pe command, says where it is. Lines starting with ' in a section are comments - except in
 ' [lines], where they're part of the program (hints the player can read).
 '
 '   title  = what it's called          lesson = the one idea it teaches

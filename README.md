@@ -41,6 +41,15 @@ right button to aim, Space to open and use things, F to kick, 1-4 for guns,
 Tab for the map, Esc for the menu and settings, ` for the console, F2 for
 the level editor. The full list is in the tutorial.
 
+**Code terminals and QB64PE:** a code terminal locks you in until you fix a
+little QB64 program. If [QB64 Phoenix Edition](https://qb64phoenix.com) is
+installed, your fix is really compiled and run, and its output has to be
+right. Without it, the terminals still work: your lines are checked
+against the answer instead. The game looks for `qb64pe` in `$QB64PE`, on
+your `PATH` and in the usual folders. If it's somewhere else, point to it
+in **SETTINGS > QB64PE COMPILER** (type the path or its folder, or browse
+for it), or type `qb64pe /path/to/qb64pe` in the console.
+
 ## Learn from it
 
 The source, [`neon-caster.bas`](neon-caster.bas), is written to be read:

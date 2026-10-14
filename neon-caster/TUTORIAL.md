@@ -66,7 +66,8 @@ nearly everything: `map 7` or `map vault` jumps to a sector, `give all`,
 (any of NEXUS's lines). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 `savelevel` - and `door`, `wall`, `light`, `liftgo`, `message`, `sound`,
-which a level's triggers use. Up and Down bring back earlier lines, Tab
+which a level's triggers use. `qb64pe` says which compiler the code
+terminals use (see below). Up and Down bring back earlier lines, Tab
 finishes a command's name, and `;` puts several on one line.
 
 Every command also works from the command line, each one starting with a
@@ -83,6 +84,26 @@ Settings changed from the command line last only for that run.
 Every key can be changed in the menu, under **SETTINGS > CONTROLS**. The
 menu works with the arrow keys or W A S D, Enter, and Esc to go back - or
 just point and click.
+
+**The code terminals and qb64pe.** A code terminal ($ on a map) locks the
+doors until you put a little QB64 program back together. When the game can
+find qb64pe, pressing F5 really compiles and runs your program, and its
+output has to match. When it can't, nothing breaks: your lines are checked
+against the puzzle's answer instead (so a fix that works but is written
+differently won't pass), and the bottom of the puzzle screen says so. It
+looks in the order:
+
+1. the one you chose: **SETTINGS > QB64PE COMPILER** - TYPE IT (the path
+   to qb64pe, or the folder it's in; Ctrl+V pastes), BROWSE (a file
+   window), or FIND IT (forget yours and look again)
+2. `$QB64PE`, if you set it
+3. every folder on your `PATH`
+4. the usual places: `~/git/qb64pe/`, `~/qb64pe/`, `C:\qb64pe\`,
+   `Program Files\qb64pe\`, `/Applications/qb64pe/`, `/usr/local/bin/`...
+
+The console does the same: `qb64pe` shows which one it's using,
+`qb64pe ~/tools/qb64pe` chooses one, and `qb64pe auto` goes back to
+looking. Your choice is kept in `settings.ini` as `qb64pe=`.
 
 **The editors.** F2 opens the level editor on the level you're in: the map
 from above - paint it with the mouse (the palette on the right; right-click
@@ -279,7 +300,8 @@ run it and see what happens. That's the fastest way to learn how it works.
 - **Your own puzzle (ch. 19)**: copy `neon-caster/puzzles/countdown.txt`,
   write a little program that teaches one thing, say what it prints, pick
   the words to blank out - and name it in a level's `puzzles =` line.
-  Every program is really compiled: try `puzzle NAME` in the console.
+  With qb64pe, every program is really compiled: try `puzzle NAME` in
+  the console.
 - **Your own trigger (ch. 19, 22)**: in the console, `trigger enter 20 20
   22 22 : message AMBUSH! | summon stalker 3` - then walk there. Any
   console command is an action: lights out, a lift moving, a wall sliding
