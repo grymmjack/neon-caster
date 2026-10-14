@@ -1274,6 +1274,7 @@ DIM SHARED edLooking AS INTEGER ' (the right button held in the 3D view: the mou
 DIM SHARED edMouseFix AS INTEGER, edWheel AS INTEGER, edCurX AS INTEGER, edCurY AS INTEGER ' (put the pointer right again; the wheel's turns for the editor; where the pointer is)
 DIM SHARED edCamPX, edCamPY, edCamDX, edCamDY, edCamPlane, edCamZoom ' (the camera, this frame: EditFP copies it here for the picking and outlines)
 DIM SHARED edWheelT! ' (when the wheel last moved something: a run of turns is one undo)
+DIM SHARED gridOn AS INTEGER, gridW AS INTEGER ' (the software renderer's grid this frame, and its lines' width in texels)
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
 DIM SHARED texFile$(T_SLOTS)
 menuMusic& = LoadMusic&("menu.ogg")
@@ -1366,6 +1367,7 @@ DO
     ' Commands waiting (the command line's, an exec's): one a frame - or
     ' as many as come before a "wait"
     SfxFrame : earDX = dirX : earDY = dirY ' (the limiter's memory fades; your ears face where you do)
+    gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
     IF conWait > 0 THEN conWait = conWait - 1
     DO WHILE conWait = 0 AND conQHead < conQTail AND glShotReq = 0 ' (a screenshot asked for: the rest waits until it's saved)
@@ -1715,7 +1717,7 @@ DO
     ' button use the same trick.
     ' K: every keycard (testing)
     kKeyDown = _KEYDOWN(107) OR _KEYDOWN(75)
-    IF CHEAT_KEYS AND kKeyDown AND NOT kKeyWas AND NOT dead THEN
+    IF CHEAT_KEYS AND kKeyDown AND NOT kKeyWas AND NOT dead AND NOT editMode THEN
         FOR k = 1 TO 3 : hasCard(k) = -1 : NEXT
         hasMap = -1
         PlaySfx sndCard&, 0.8 : ShowMsg "All keycards, and the map"
@@ -1723,7 +1725,7 @@ DO
     kKeyWas = kKeyDown
     ' G: god mode on / off - no damage, and you walk through walls (testing)
     gKeyDown = _KEYDOWN(103) OR _KEYDOWN(71)
-    IF CHEAT_KEYS AND gKeyDown AND NOT gKeyWas AND NOT dead THEN
+    IF CHEAT_KEYS AND gKeyDown AND NOT gKeyWas AND NOT dead AND NOT editMode THEN
         godMode = NOT godMode
         IF godMode THEN ShowMsg "God mode ON - no damage, no clipping" ELSE ShowMsg "God mode OFF"
         PlaySfx sndCard&, 0.8
@@ -2324,6 +2326,7 @@ DO
                 pixels(floorRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                 texel~& = texture(texU, texV, ceilSlot)
                 pixels(ceilRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                IF gridOn THEN IF texU < gridW OR texV < gridW THEN pixels(floorRow + x) = GridMix~&(pixels(floorRow + x)) : pixels(ceilRow + x) = GridMix~&(pixels(ceilRow + x)) ' (the editor's grid: chapter 21)
                 IF cellTrack THEN ' In a doorway: its door's track, a dark groove (a quarter as bright)
                     IF cellTrack = 1 THEN trackD = ABS(floorY - cellY - 0.5) ELSE trackD = ABS(floorX - cellX - 0.5)
                     IF trackD < TRACK_HALF THEN
@@ -2547,6 +2550,7 @@ DO
             FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
                 texel~& = texture(texX, INT(texPos) AND (texSize - 1), texSlot)
                 pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                IF gridOn THEN IF texX < gridW OR (INT(texPos) AND (texSize - 1)) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
                 texPos = texPos + texStep
             NEXT
         END IF
@@ -3428,6 +3432,7 @@ DO
             CASE 91 : EditCycleGlyph -1 ' [ ]: the glyph before, after
             CASE 93 : EditCycleGlyph 1
             CASE 109, 77 : GOSUB RunMonsterEditor : _MOUSESHOW ' M: the monster editor
+            CASE 103, 71 : EditGridKey shiftOn ' G: the grid on / off (Shift+G: how strong)
             CASE 117, 85 : edDone = 1 : hudAfter = -1 ' U: the HUD layout editor (over the game: walking view)
         END SELECT
         k& = _KEYHIT
@@ -3671,6 +3676,7 @@ DO WHILE k&
     END IF
     SELECT CASE k&
         CASE 4 : edSelN = 0 : EditNote "Selection cleared" ' Ctrl+D
+        CASE 103, 71 : EditGridKey shiftOn ' G: the grid on / off (Shift+G: how strong)
         CASE 18432, 20480, 19200, 19712 ' The arrows: nudge the selection a cell - away, back, left, right of the way you face
             IF edSelN THEN
                 fwX = 0 : fwY = 0 : IF ABS(edCamDX) >= ABS(edCamDY) THEN fwX = SGN(edCamDX) ELSE fwY = SGN(edCamDY)
@@ -4227,6 +4233,7 @@ DO
             lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
             texel~& = texture(INT(fx * texSize) AND tMask, INT(fy * texSize) AND tMask, s2)
             pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
+            IF gridOn THEN IF (INT(fx * texSize) AND tMask) < gridW OR (INT(fy * texSize) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
         NEXT
         IF yFar - 1 < hBot THEN hBot = yFar - 1
     END IF
@@ -4248,6 +4255,7 @@ DO
             lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
             texel~& = texture(INT(fx * texSize) AND tMask, INT(fy * texSize) AND tMask, s2)
             pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
+            IF gridOn THEN IF (INT(fx * texSize) AND tMask) < gridW OR (INT(fy * texSize) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
         NEXT
         IF yFar + 1 > hTop THEN hTop = yFar + 1
     END IF
@@ -4316,6 +4324,7 @@ vStep = hDOut / viewH * texSize : v = (hVOff + 1 - eyeZ + (yA + 0.5 - hor) * hDO
 FOR y = yA TO yB
     texel~& = texture(hTexX, INT(v) AND tMask, hSlot)
     pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * hR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * hG& \ 256) * 256 OR ((texel~& AND 255) * hB& \ 256)
+    IF gridOn THEN IF hTexX < gridW OR (INT(v) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
     v = v + vStep
 NEXT
 RETURN
@@ -7582,6 +7591,12 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
             LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&(c$), BF
         END IF
     NEXT : NEXT
+    IF edGrid THEN ' The grid: every cell's edge, as strong as it's set (G, Shift+G)
+        FOR k = 0 TO MAP_SIZE
+            LINE (ED_MAPX + k * ED_CELL, ED_MAPY)-(ED_MAPX + k * ED_CELL, ED_MAPY + MAP_SIZE * ED_CELL), _RGBA32(90, 230, 255, edGridAlpha \ 2)
+            LINE (ED_MAPX, ED_MAPY + k * ED_CELL)-(ED_MAPX + MAP_SIZE * ED_CELL, ED_MAPY + k * ED_CELL), _RGBA32(90, 230, 255, edGridAlpha \ 2)
+        NEXT
+    END IF
     ' The heights layer: each floor shaded by its height (and its number in
     ' eighths), a ceiling that isn't the usual a dot in the corner
     IF editHeights THEN
@@ -7831,6 +7846,27 @@ SUB EditNudge(dx, dy)
     NEXT : NEXT
     FOR k = 1 TO edSelN : edSelX(k) = edSelX(k) + dx : edSelY(k) = edSelY(k) + dy : NEXT
 END SUB
+
+' G: the grid over the world on or off; Shift+G: stronger (25, 50, 75, 100%,
+' round again)
+SUB EditGridKey(shiftOn)
+    IF shiftOn THEN
+        edGrid = -1 : edGridAlpha = edGridAlpha + 64 : IF edGridAlpha > 255 THEN edGridAlpha = 63
+        EditNote "Grid" + STR$(INT(edGridAlpha * 100 / 255 + 0.5)) + "%"
+    ELSE
+        edGrid = NOT edGrid : IF edGrid THEN EditNote "Grid on (Shift+G: stronger)" ELSE EditNote "Grid off"
+    END IF
+END SUB
+
+' THE GRID, in the software renderer: a texel on a cell's edge (or where a
+' wall's picture starts again, a wall high) mixed towards cyan by how
+' strong the grid is - EditGridOn (and gridW, how thick in texels) set
+' once a frame, so the drawing only asks one question when it's off
+FUNCTION GridMix~&(pix~&)
+    a = edGridAlpha / 255
+    r = (pix~& \ 65536) AND 255 : g = (pix~& \ 256) AND 255 : b = pix~& AND 255
+    GridMix~& = &HFF000000~& OR (INT(r + (90 - r) * a) * 65536) OR (INT(g + (230 - g) * a) * 256) OR INT(b + (255 - b) * a)
+END FUNCTION
 
 ' The open cell a side of cell (x, y) looks into (side 1 east, 2 south,
 ' 3 west, 4 north)
@@ -10924,6 +10960,7 @@ END SUB
 SUB GLWorldGPU(b, mirror)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
+    IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
     glCellLitMode = 1
     GLSL_buffer_bind glMeshBuf
     n& = glMeshN
@@ -11079,6 +11116,7 @@ END SUB
 SUB GLWorld(b, mirror)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
+    IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
 
     ' Floors, then ceilings (one at a time, so neighbours mostly share a
     ' texture - changing texture means stopping and starting again). Over
@@ -12339,6 +12377,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform vec2 viewDir;       // the way you face" + nl$
     fs$ = fs$ + "uniform float bump, texel, shine, reflectAmt, neon, anim, isSprite, secs;" + nl$
     fs$ = fs$ + "uniform float mirrorCut;    // the mirror image: leave out what's below the floor" + nl$
+    fs$ = fs$ + "uniform float gridAmt;      // the editor's grid: how strong (0 off)" + nl$
     fs$ = fs$ + "uniform vec3 dynPos[4];     // the moving lights: where..." + nl$
     fs$ = fs$ + "uniform vec3 dynCol[4];     // ...what colour..." + nl$
     fs$ = fs$ + "uniform float dynRad[4];    // ...and how far they reach" + nl$
@@ -12402,6 +12441,13 @@ SUB GLBuildShaders
     fs$ = fs$ + "    else if (anim > 1.5 && anim < 2.5) e *= 0.55 + 0.45 * sin(uv.x * 12.0 - secs * 4.0);" + nl$
     fs$ = fs$ + "    else if (anim > 2.5) e *= 0.75 + 0.25 * sin(secs * 2.5 + vPos.x + vPos.y);" + nl$
     fs$ = fs$ + "    col = mix(col, c.rgb * 1.3 * (0.35 + 0.65 * fog), clamp(e, 0.0, 0.85));" + nl$
+    fs$ = fs$ + "    if (gridAmt > 0.0 && isSprite < 0.5) {  // the editor's grid: a line where each cell (and each wall-high picture) starts" + nl$
+    fs$ = fs$ + "        vec3 an = abs(n);" + nl$
+    fs$ = fs$ + "        vec2 g2 = an.z > 0.5 ? vPos.xy : (an.x > an.y ? vPos.yz : vPos.xz);" + nl$
+    fs$ = fs$ + "        vec2 d = abs(fract(g2 - 0.5) - 0.5) / max(fwidth(g2), vec2(0.0001));" + nl$
+    fs$ = fs$ + "        float gl = 1.0 - clamp(min(d.x, d.y) - 0.5, 0.0, 1.0);" + nl$
+    fs$ = fs$ + "        col = mix(col, vec3(0.35, 0.9, 1.0), gl * gridAmt);" + nl$
+    fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    gl_FragColor = vec4(col, 1.0 - reflectAmt);" + nl$
     fs$ = fs$ + "}" + nl$
     glWorldProg = GLSL_program~&(vs$, fs$)
