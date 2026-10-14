@@ -1,0 +1,13 @@
+# built programs
+neon-caster.run
+neon-caster-mac
+neon-caster.exe
+*.exe
+# your settings and saved games, and the code terminals' scratch files
+neon-caster/saves/
+# Python's caches (the level kit)
+__pycache__/
+# build output
+pkg/
+qb64pe/
+compilelog.txt

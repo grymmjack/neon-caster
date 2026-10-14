@@ -161,9 +161,9 @@
 ' draws it itself, over the 3D view.
 '
 ' The OpenGL renderer's shaders (chapter 24) come from the GLSL library in
-' QB64_GJ_LIB, cloned next to this repository: its .BI here, its .BM at the
-' very end of the file.
-'$INCLUDE:'../../../QB64_GJ_LIB/GLSL/GLSL.BI'
+' QB64_GJ_LIB (github.com/grymmjack/QB64_GJ_LIB), a copy of it in lib/glsl:
+' its .BI here, its .BM at the very end of the file.
+'$INCLUDE:'lib/glsl/GLSL.BI'
 _TITLE "NEON-CASTER"
 SCREEN _NEWIMAGE(800, 600, 32)
 _MOUSEHIDE _DISABLE
@@ -11932,4 +11932,4 @@ SUB FloodLight(lx, ly, rad, k, w)
     LOOP
 END SUB
 
-'$INCLUDE:'../../../QB64_GJ_LIB/GLSL/GLSL.BM'
+'$INCLUDE:'lib/glsl/GLSL.BM'

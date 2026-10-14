@@ -1,0 +1,242 @@
+name: Build NEON-CASTER
+
+on:
+  # Build + release for version tags (vX.Y.Z). Run it by hand from the
+  # Actions tab (workflow_dispatch) to test a build without tagging.
+  push:
+    tags: [ 'v*.*.*' ]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a GitHub release after building'
+        type: boolean
+        default: false
+      tag:
+        description: 'Tag name for the release (e.g. v1.0.0)'
+        type: string
+        default: ''
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # The game needs QB64-PE 4.7's GLFW build (_MOUSEHIDE _DISABLE, and the GLSL
+  # library calls GLFW directly). Pinned to the exact commit it's developed and
+  # tested with, so every release is built the same way. That commit carries
+  # its generated compiler source, so setup builds a working qb64pe directly.
+  QB64PE_REPO: https://github.com/QB64-Phoenix-Edition/QB64pe.git
+  QB64PE_REF: 8d8e9e475d240c8914e33916f1820021a21c3a37
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04   # (an older glibc: the binary runs on more distros)
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential x11-utils mesa-common-dev libglu1-mesa-dev libgl1-mesa-dri \
+            libasound2-dev libpng-dev pulseaudio dbus-x11 libportaudio2 \
+            libcurl4-openssl-dev libx11-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libwayland-dev libxkbcommon-dev \
+            wayland-protocols xvfb rsync
+
+      - name: Build QB64-PE (pinned)
+        run: |
+          mkdir -p "$HOME/.local/share/applications" "$HOME/.local/share/icons"
+          git init -q qb64pe && cd qb64pe
+          git fetch -q --depth 1 "$QB64PE_REPO" "$QB64PE_REF" && git checkout -q FETCH_HEAD
+          chmod +x ./setup_lnx.sh
+          # A non-blank argument: setup doesn't launch the IDE afterwards.
+          ./setup_lnx.sh nogui
+          test -x ./qb64pe || { echo "::error::qb64pe compiler was not built"; exit 1; }
+
+      - name: Compile NEON-CASTER
+        run: xvfb-run -a ./qb64pe/qb64pe -w -x -o neon-caster.run neon-caster.bas
+
+      - name: Dump C++ compile log on failure
+        if: failure()
+        run: |
+          for f in $(find . -name 'compilelog.txt' 2>/dev/null); do echo "--- $f ---"; cat "$f"; done
+
+      - name: Smoke test (a sector in each renderer, under Xvfb)
+        run: |
+          dbus-launch pulseaudio --start || true
+          xvfb-run -a -s "-screen 0 800x600x24" ./neon-caster.run +set cutscenes 0 \
+            +set renderer 2 +map 1 +wait 90 +screenshot "$PWD/smoke-opengl.png" +wait 5 \
+            +set renderer 1 +map 5 +wait 90 +screenshot "$PWD/smoke-software.png" +wait 5 +quit
+          test -f smoke-opengl.png && test -f smoke-software.png || { echo "::error::the game didn't run"; exit 1; }
+          rm -rf neon-caster/saves
+
+      - name: Upload smoke-test screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-screenshots
+          path: smoke-*.png
+
+      - name: Package
+        run: |
+          PKG=neon-caster
+          mkdir -p "pkg/$PKG"
+          cp neon-caster.run neon-caster.bas README.md LICENSE "pkg/$PKG/"
+          rsync -a --exclude saves --exclude __pycache__ neon-caster lib "pkg/$PKG/"
+          tar -czf neon-caster-linux-x64.tar.gz -C pkg "$PKG"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: neon-caster-linux
+          path: neon-caster-linux-x64.tar.gz
+          if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-latest   # Apple silicon
+
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build QB64-PE (pinned)
+        run: |
+          git init -q qb64pe && cd qb64pe
+          git fetch -q --depth 1 "$QB64PE_REPO" "$QB64PE_REF" && git checkout -q FETCH_HEAD
+          chmod +x ./setup_osx.command
+          # A non-blank argument: setup doesn't launch the IDE (it would hang the step).
+          ./setup_osx.command nogui
+          test -x ./qb64pe || { echo "::error::qb64pe compiler was not built"; exit 1; }
+
+      - name: Compile NEON-CASTER
+        # (not "neon-caster": macOS's filesystem ignores case, and the game's
+        # folder of pictures and sounds is called that)
+        run: ./qb64pe/qb64pe -w -x -o neon-caster-mac neon-caster.bas
+
+      - name: Dump C++ compile log on failure
+        if: failure()
+        run: |
+          for f in $(find . -name 'compilelog.txt' 2>/dev/null); do echo "--- $f ---"; cat "$f"; done
+
+      - name: Package
+        run: |
+          test -x ./neon-caster-mac || { echo "::error::neon-caster-mac was not produced"; exit 1; }
+          PKG=neon-caster
+          mkdir -p "pkg/$PKG"
+          cp neon-caster-mac neon-caster.bas README.md LICENSE "pkg/$PKG/"
+          rsync -a --exclude saves --exclude __pycache__ neon-caster lib "pkg/$PKG/"
+          # ditto keeps the program's "can run" permission inside the zip
+          (cd pkg && ditto -c -k --keepParent "$PKG" "../neon-caster-macos-arm64.zip")
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: neon-caster-macos-arm64
+          path: neon-caster-macos-arm64.zip
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fetch QB64-PE (pinned)
+        shell: bash
+        run: |
+          git init -q qb64pe && cd qb64pe
+          git fetch -q --depth 1 "$QB64PE_REPO" "$QB64PE_REF" && git checkout -q FETCH_HEAD
+
+      # Upstream QB64-PE's internal/c/parts/audio/extras/qoa_ma_vtable.cpp uses
+      # malloc/free without #include <cstdlib>, which llvm-mingw doesn't pull in
+      # by itself, so any program with sound fails to compile on Windows. Add the
+      # include (only if it's missing). From grymmjack/DRAW's workflow.
+      - name: Patch qoa_ma_vtable.cpp (missing <cstdlib>)
+        shell: bash
+        run: |
+          F=qb64pe/internal/c/parts/audio/extras/qoa_ma_vtable.cpp
+          if [ -f "$F" ] && ! grep -q '<cstdlib>' "$F"; then
+            { echo '#include <cstdlib>'; cat "$F"; } > "$F.tmp" && mv "$F.tmp" "$F"
+            echo "patched"
+          fi
+
+      - name: Build QB64-PE (bundled MinGW)
+        shell: cmd
+        run: |
+          cd qb64pe
+          call setup_win.cmd
+          if not exist qb64pe.exe exit /b 1
+
+      - name: Compile NEON-CASTER
+        shell: cmd
+        run: qb64pe\qb64pe.exe -w -x -o neon-caster.exe neon-caster.bas
+
+      - name: Dump C++ compile log on failure
+        if: failure()
+        shell: bash
+        run: |
+          for f in $(find . -name 'compilelog.txt' 2>/dev/null); do echo "--- $f ---"; cat "$f"; done
+
+      - name: Package
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "neon-caster.exe")) { Write-Error "neon-caster.exe was not produced"; exit 1 }
+          $pkg = "pkg\neon-caster"
+          New-Item -ItemType Directory -Force -Path $pkg | Out-Null
+          Copy-Item neon-caster.exe, neon-caster.bas, README.md, LICENSE -Destination $pkg
+          Copy-Item lib -Destination $pkg -Recurse
+          Copy-Item neon-caster -Destination $pkg -Recurse
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "$pkg\neon-caster\saves", "$pkg\neon-caster\levels\__pycache__"
+          Compress-Archive -Path $pkg -DestinationPath neon-caster-windows-x64.zip -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: neon-caster-windows
+          path: neon-caster-windows-x64.zip
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.create_release == true
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: neon-caster-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: List release files
+        run: ls -lh artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: NEON-CASTER ${{ inputs.tag || github.ref_name }}
+          draft: false
+          files: artifacts/*
+          generate_release_notes: true
+          body: |
+            Download the one for your computer, unzip it, and run the program inside
+            (keep it next to its `neon-caster` folder - that's all the pictures,
+            sounds, music and levels):
+
+            | | File | Run |
+            |---|---|---|
+            | Windows 10/11 | `neon-caster-windows-x64.zip` | `neon-caster.exe` |
+            | Mac with Apple silicon (M1 and later) | `neon-caster-macos-arm64.zip` | `neon-caster-mac` |
+            | Linux (x86-64) | `neon-caster-linux-x64.tar.gz` | `neon-caster.run` |
+
+            **macOS:** the program isn't signed, so the first time, right-click it and
+            choose **Open** (or run `xattr -dr com.apple.quarantine neon-caster` on
+            the unzipped folder).
+
+            The source - `neon-caster.bas`, the game and a 24-chapter course in how
+            it works - is in every download. See `neon-caster/TUTORIAL.md`.

@@ -24,14 +24,18 @@ explained as it comes up.
 
 ## Running it
 
+Just to play: download a ready-built copy for Windows, macOS or Linux from
+the [releases](https://github.com/grymmjack/neon-caster/releases). To build
+it yourself:
+
 1. Install [QB64 Phoenix Edition](https://qb64phoenix.com) 4.7 or newer
    (the mouse look needs `_MOUSEHIDE _DISABLE`, new in 4.7).
 2. Open `neon-caster.bas` in the QB64PE IDE and press F5, or compile it from
    a terminal: `qb64pe -x neon-caster.bas`.
 3. The OpenGL renderer's shaders use the GLSL library from
-   [QB64_GJ_LIB](https://github.com/grymmjack/QB64_GJ_LIB): clone it next to
-   this repository (`../../../QB64_GJ_LIB` from the game, as the `$INCLUDE`
-   lines at the top and bottom of the source say).
+   [QB64_GJ_LIB](https://github.com/grymmjack/QB64_GJ_LIB); a copy of it is
+   in `lib/glsl/`, which the `$INCLUDE` lines at the top and bottom of the
+   source point to.
 4. Keep the `neon-caster/` folder next to the program. All the pictures,
    sounds and music are in there. Your settings and saved games go in
    `neon-caster/saves/`.
