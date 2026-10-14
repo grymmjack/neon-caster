@@ -3671,6 +3671,20 @@ DO WHILE k&
     END IF
     SELECT CASE k&
         CASE 4 : edSelN = 0 : EditNote "Selection cleared" ' Ctrl+D
+        CASE 18432, 20480, 19200, 19712 ' The arrows: nudge the selection a cell - away, back, left, right of the way you face
+            IF edSelN THEN
+                fwX = 0 : fwY = 0 : IF ABS(edCamDX) >= ABS(edCamDY) THEN fwX = SGN(edCamDX) ELSE fwY = SGN(edCamDY)
+                SELECT CASE k&
+                    CASE 18432 : ndx = fwX : ndy = fwY
+                    CASE 20480 : ndx = -fwX : ndy = -fwY
+                    CASE 19200 : ndx = fwY : ndy = -fwX ' (left of facing (fwX, fwY) on the map is (fwY, -fwX))
+                    CASE ELSE : ndx = -fwY : ndy = fwX
+                END SELECT
+                GOSUB EditPushUndo : EditNudge ndx, ndy : GOSUB EditApply
+                EditNote "Moved the selection a cell " + RTRIM$(MID$("east  west  south north ", 1 + 6 * (-(ndx < 0) - 2 * (ndy > 0) - 3 * (ndy < 0)), 6))
+            ELSE
+                EditNote "Select something first: the arrows move it a cell"
+            END IF
         CASE 9 : editView = 0 ' Tab: the map from above
         CASE 19 : EditSave level
         CASE 26 : GOSUB EditUndo
@@ -7784,6 +7798,38 @@ SUB EditDrawSelMap
                 END SELECT
         END SELECT
     NEXT
+END SUB
+
+' The arrows' nudge: every cell the selection is on moves a cell along
+' (dx, dy) - what it is (wall, floor, a thing on it), its floor and ceiling
+' heights. A cell it leaves takes after the one behind it (so a platform
+' slides along, leaving floor like the floor round it). Not into the
+' border. The selection moves with it.
+SUB EditNudge(dx, dy)
+    DIM r$(MAP_SIZE - 1), f$(MAP_SIZE - 1), c$(MAP_SIZE - 1), mv(MAP_SIZE, MAP_SIZE) AS INTEGER, dest(MAP_SIZE, MAP_SIZE) AS INTEGER
+    FOR y = 0 TO MAP_SIZE - 1 : r$(y) = lvlRow$(y) : f$(y) = lvlFloorRow$(y) : c$(y) = lvlCeilRow$(y) : NEXT
+    FOR k = 1 TO edSelN
+        x = edSelX(k) : y = edSelY(k)
+        IF x + dx < 1 OR y + dy < 1 OR x + dx > MAP_SIZE - 2 OR y + dy > MAP_SIZE - 2 THEN EditNote "Can't move into the border" : EXIT SUB
+        mv(x, y) = -1
+    NEXT
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF mv(x, y) THEN dest(x + dx, y + dy) = -1
+    NEXT : NEXT
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF mv(x, y) AND NOT dest(x, y) THEN ' (left behind: like the cell behind it)
+            bx = x - dx : by = y - dy
+            DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < MAP_SIZE - 1 AND by < MAP_SIZE - 1 : bx = bx - dx : by = by - dy : LOOP
+            MID$(lvlRow$(y), x + 1, 1) = MID$(r$(by), bx + 1, 1) : MID$(lvlFloorRow$(y), x + 1, 1) = MID$(f$(by), bx + 1, 1) : MID$(lvlCeilRow$(y), x + 1, 1) = MID$(c$(by), bx + 1, 1)
+            IF INSTR("<>^v", MID$(lvlRow$(y), x + 1, 1)) THEN MID$(lvlRow$(y), x + 1, 1) = "." ' (never a second start)
+        END IF
+    NEXT : NEXT
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF mv(x, y) THEN
+            MID$(lvlRow$(y + dy), x + dx + 1, 1) = MID$(r$(y), x + 1, 1) : MID$(lvlFloorRow$(y + dy), x + dx + 1, 1) = MID$(f$(y), x + 1, 1) : MID$(lvlCeilRow$(y + dy), x + dx + 1, 1) = MID$(c$(y), x + 1, 1)
+        END IF
+    NEXT : NEXT
+    FOR k = 1 TO edSelN : edSelX(k) = edSelX(k) + dx : edSelY(k) = edSelY(k) + dy : NEXT
 END SUB
 
 ' The open cell a side of cell (x, y) looks into (side 1 east, 2 south,
