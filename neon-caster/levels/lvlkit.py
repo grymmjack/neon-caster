@@ -452,6 +452,11 @@ def level_text(lv, comment=()):
         out.append("[triggers]")
         out.append("' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...")
         out += list(lv["triggers"])
+    if lv.get("faces"):  # pictures on single faces, from the editor's PAINT - kept as they are
+        out.append("")
+        out.append("[faces]")
+        out.append("' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture")
+        out += list(lv["faces"])
     out.append("")
     out.append("[map]")
     out += list(lv["rows"])
@@ -471,13 +476,13 @@ def write_level_file(path, lv, comment=()):
 def read_level_file(path, label=None):
     """A level file as the dict check_level and level_text use."""
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
-              ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[])
+              ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[])
     sec = None
     for line in open(path).read().split("\n"):
         t = line.strip()
-        if sec == "triggers":
+        if sec in ("triggers", "faces"):
             if t and not t.startswith("'") and not t.startswith("["):
-                lv["triggers"].append(t)
+                lv[sec].append(t)
                 continue
         if sec in ("map", "floor", "ceiling"):
             if t and not t.startswith("'") and not t.startswith("["):

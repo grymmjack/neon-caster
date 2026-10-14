@@ -634,7 +634,8 @@ CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20, T_LAMPOFF = 21, T_JACK = 22 ' (T_J
 CONST T_CODE = 23 ' (a code terminal's wall, $)
 CONST T_LIFT = 24, T_LIFTSIDE = 25 ' (a lift's top and sides: made from the level's own - MakeLiftTex)
 CONST T_TRAP = 26, T_FIRE = 27 ' (a trap's floor: a live wire grid, a burner grate - MakeTrapTex)
-CONST T_SLOTS = 27
+CONST T_CUSTOM = 27, T_CUSTOMN = 24 ' (after those: slots for pictures put on single faces in the editor - [faces])
+CONST T_SLOTS = T_CUSTOM + T_CUSTOMN
 REDIM SHARED texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
 REDIM SHARED texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
@@ -1217,6 +1218,17 @@ DIM SHARED lvlNumLifts AS INTEGER, lvlLift(MAX_LIFTS, 8) AS SINGLE
 ' last frame (an enter goes off as you step in, not while you stand there).
 CONST MAX_TRIGS = 48
 DIM SHARED lvlNumTrigs AS INTEGER, lvlTrig$(MAX_TRIGS)
+' [faces]: a picture on one face - a wall's side, a step's or a lintel's,
+' a floor, a ceiling - instead of the usual. lvlFaceS: 1-4 a side (east,
+' south, west, north - a wall's, or a step's face), 5-8 a lintel's side,
+' 9 the floor, 10 the ceiling. lvlFaceD: 0 the whole face; 1 divided
+' left | right, 2 top | bottom - the second picture on the second half.
+' BuildLevel gives each picture a slot (T_CUSTOM + n) and the cells
+' faceTex(x, y, 1-8) - 0: the usual - floorTex, ceilTex.
+CONST MAX_FACES = 4000
+DIM SHARED lvlNumFaces AS INTEGER, lvlFaceX(MAX_FACES) AS INTEGER, lvlFaceY(MAX_FACES) AS INTEGER, lvlFaceS(MAX_FACES) AS INTEGER, lvlFaceD(MAX_FACES) AS INTEGER
+DIM SHARED lvlFaceP1$(MAX_FACES), lvlFaceP2$(MAX_FACES)
+DIM SHARED faceTex(MAP_SIZE, MAP_SIZE, 8) AS INTEGER, faceTex2(MAP_SIZE, MAP_SIZE, 8) AS INTEGER, faceDiv(MAP_SIZE, MAP_SIZE, 8) AS INTEGER
 DIM SHARED numTrigs AS INTEGER, trigWhen$(MAX_TRIGS), trigX0(MAX_TRIGS) AS INTEGER, trigY0(MAX_TRIGS) AS INTEGER, trigX1(MAX_TRIGS) AS INTEGER, trigY1(MAX_TRIGS) AS INTEGER
 DIM SHARED trigRepeat(MAX_TRIGS) AS INTEGER, trigDone(MAX_TRIGS) AS INTEGER, trigWas(MAX_TRIGS) AS INTEGER, trigCmd$(MAX_TRIGS)
 ' --- Teleporters (& on the map): pads that pair up in the order they're
@@ -2533,6 +2545,11 @@ DO
             texX = INT(wallX * texSize) : texSlot = wallTexSlot(hit)
             IF side = 0 AND rayDirX > 0 THEN texX = texSize - 1 - texX
             IF side = 1 AND rayDirY < 0 THEN texX = texSize - 1 - texX
+            IF lvlNumFaces THEN ' (a side with a picture of its own - the editor's PAINT)
+                IF side = 0 THEN IF rayDirX > 0 THEN sd = 3 ELSE sd = 1
+                IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
+                IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot = FaceSlot(mapX, mapY, sd, texX / texSize, 0, texSlot)
+            END IF
         END IF
         texX = texX AND (texSize - 1)
 
@@ -3433,9 +3450,13 @@ END SELECT
 editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT)
 RETURN
 
-' The brush's picture on every face selected (per-face pictures: item 9)
+' The brush's picture on every face selected
 EditPaintSel:
-EditNote "PAINT: " + edBrushTex$
+GOSUB EditPushUndo
+FOR k = 1 TO edSelN
+    EditSetFace edSelX(k), edSelY(k), EditFaceCode(edSelKind(k), edSelSide(k)), 0, edBrushTex$, ""
+NEXT
+GOSUB EditApply : EditNote edBrushTex$ + " on" + STR$(edSelN) + " faces"
 RETURN
 
 ' The grid slider, dragged: how strong, from where the pointer is along it
@@ -3833,6 +3854,18 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
                 GOSUB EditPushUndo
                 IF edShift THEN EditRemoveLight tx + 0.5, ty + 0.5 ELSE EditAddLight tx + 0.5, ty + 0.5
                 GOSUB EditApply
+            CASE ET_PAINT ' The brush's picture on the face (Shift: back to the usual; Ctrl: the whole floor or ceiling it's part of)
+                fc = EditFaceCode(edHovKind, edHovSide)
+                IF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) AND edBrushTex$ <> "" THEN
+                    EditSelFlood edHovKind, edHovX, edHovY : GOSUB EditPaintSel : edSelN = 0
+                ELSEIF edShift THEN
+                    GOSUB EditPushUndo : EditSetFace edHovX, edHovY, fc, 0, "", "" : GOSUB EditApply : EditNote "The usual picture again"
+                ELSEIF edBrushTex$ = "" THEN
+                    EditNote "Pick a picture first (the picker: WALLS, FLOORS, CEILINGS)"
+                ELSE
+                    GOSUB EditPushUndo : EditSetFace edHovX, edHovY, fc, 0, edBrushTex$, "" : GOSUB EditApply
+                    EditNote edBrushTex$ + " on " + FaceName$(fc) + " of" + STR$(edHovX) + STR$(edHovY)
+                END IF
             CASE ET_HEIGHT
                 d = H_STEP : IF edShift THEN d = -H_STEP
                 SELECT CASE edHovKind
@@ -4487,6 +4520,12 @@ DO
     IF hSide = 0 AND rayDirX > 0 THEN hTexX = texSize - 1 - hTexX
     IF hSide = 1 AND rayDirY < 0 THEN hTexX = texSize - 1 - hTexX
     hTexX = hTexX AND (texSize - 1)
+    hSd = 0 ' (which side of the next cell this is - for a picture of its own: [faces])
+    IF lvlNumFaces THEN
+        IF hSide = 0 THEN IF rayDirX > 0 THEN hSd = 3 ELSE hSd = 1
+        IF hSide = 1 THEN IF rayDirY > 0 THEN hSd = 4 ELSE hSd = 2
+        IF hSolid AND v <> 2 THEN hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
+    END IF
     hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
     IF hSide = 1 THEN hFog& = hFog& * 0.7
     hR& = MinOf(256, litR(hcX, hcY) * hFog& \ 256) : hG& = MinOf(256, litG(hcX, hcY) * hFog& \ 256) : hB& = MinOf(256, litB(hcX, hcY) * hFog& \ 256)
@@ -4499,6 +4538,7 @@ DO
     nf = floorH(hnX, hnY)
     IF nf > hf THEN
         y0 = INT(hor + (eyeZ - nf) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut) : hSlot = wallTexSlot(1) : hVOff = 0
+        IF hSd THEN hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
         IF liftCell(hnX, hnY) THEN hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
         hZ0 = nf : hZ1 = hf : GOSUB HeightFace
         IF y0 - 1 < hBot THEN hBot = y0 - 1
@@ -4507,6 +4547,7 @@ DO
     nc = ceilH(hnX, hnY)
     IF nc < hc THEN
         y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor - (nc - eyeZ) * viewH / hDOut) : hSlot = wallTexSlot(1)
+        IF hSd THEN hSlot = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 0, hSlot)
         hZ0 = hc : hZ1 = nc : hVOff = 0 : GOSUB HeightFace
         IF y1 + 1 > hTop THEN hTop = y1 + 1
     END IF
@@ -5102,6 +5143,7 @@ FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
     worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
     floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
+    FOR f = 1 TO 8 : faceTex(x, y, f) = 0 : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
     cellSeen(x, y) = 0
 NEXT : NEXT
 numItems = 0 : numMonsters = 0 : numDecos = 0 : hasMap = 0 : mapOpen = 0
@@ -5154,6 +5196,34 @@ FOR k = 1 TO lvlNumZones
             IF zoneCeil THEN ceilTex2(x, y) = T_CEIL + zoneCeil : ceilSplit(x, y) = zoneShape
         END IF
     NEXT : NEXT
+NEXT
+' Single faces' own pictures ([faces]): each picture a slot of its own
+' (T_CUSTOM + 1...), loaded only if it isn't there already
+customN = 0
+FOR k = 1 TO lvlNumFaces
+    x = lvlFaceX(k) : y = lvlFaceY(k) : f = lvlFaceS(k)
+    IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+        FOR half = 1 TO 2
+            IF half = 1 THEN pic$ = lvlFaceP1$(k) ELSE pic$ = lvlFaceP2$(k)
+            slot = 0
+            IF pic$ <> "" THEN
+                FOR j = T_CUSTOM + 1 TO T_CUSTOM + customN
+                    IF texFile$(j) = pic$ THEN slot = j
+                NEXT
+                IF slot = 0 AND customN < T_CUSTOMN AND _FILEEXISTS(ArtPath$(pic$)) THEN
+                    customN = customN + 1 : slot = T_CUSTOM + customN
+                    IF texFile$(slot) <> pic$ THEN LoadTex pic$, slot : texFile$(slot) = pic$ : texNew = -1
+                END IF
+            END IF
+            IF half = 1 THEN slot1 = slot ELSE slot2 = slot
+        NEXT
+        IF slot2 = 0 THEN slot2 = slot1
+        SELECT CASE f
+            CASE 9 : IF slot1 THEN floorTex(x, y) = slot1 : floorSplit(x, y) = 0
+            CASE 10 : IF slot1 THEN ceilTex(x, y) = slot1 : ceilSplit(x, y) = 0
+            CASE 1 TO 8 : faceTex(x, y, f) = slot1 : faceTex2(x, y, f) = slot2 : faceDiv(x, y, f) = lvlFaceD(k)
+        END SELECT
+    END IF
 NEXT
 ' The level's lights: x, y, radius, brightness, red, green, blue, effect
 numLights = 0
@@ -7468,7 +7538,7 @@ END FUNCTION
 ' them, its numbers split by commas (SplitNums); in [map], each line is a
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
-    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNote$ = "" : topLines = -1
+    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNote$ = "" : topLines = -1
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0
     f$ = LevelFile$(n)
@@ -7488,6 +7558,8 @@ SUB ReadLevelFile(n)
             IF cRows < MAP_SIZE THEN lvlCeilRow$(cRows) = t$ : cRows = cRows + 1
         ELSEIF sec$ = "triggers" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
             IF lvlNumTrigs < MAX_TRIGS THEN lvlNumTrigs = lvlNumTrigs + 1 : lvlTrig$(lvlNumTrigs) = t$
+        ELSEIF sec$ = "faces" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            TakeFace t$
         ELSEIF LEN(t$) = 0 OR LEFT$(t$, 1) = "'" THEN
             ' (a blank line, or a comment - those at the top, but for the
             ' three every file starts with, are the level's notes)
@@ -7531,6 +7603,85 @@ SUB ReadLevelFile(n)
     NEXT
     lvlOK = (rows > 0)
 END SUB
+
+' One line of [faces]: x, y, face (E S W N, LE LS LW LN, F or C), how it's
+' divided (0, 1 left|right, 2 top|bottom), its picture - and the second
+' half's
+SUB TakeFace(l$)
+    f = FaceCode(ListItem$(l$, 3)) : IF f = 0 THEN EXIT SUB
+    EditSetFace VAL(ListItem$(l$, 1)), VAL(ListItem$(l$, 2)), f, VAL(ListItem$(l$, 4)), ListItem$(l$, 5), ListItem$(l$, 6)
+END SUB
+
+FUNCTION FaceCode(f$)
+    FaceCode = 0
+    SELECT CASE UCASE$(f$)
+        CASE "E" : FaceCode = 1
+        CASE "S" : FaceCode = 2
+        CASE "W" : FaceCode = 3
+        CASE "N" : FaceCode = 4
+        CASE "LE" : FaceCode = 5
+        CASE "LS" : FaceCode = 6
+        CASE "LW" : FaceCode = 7
+        CASE "LN" : FaceCode = 8
+        CASE "F" : FaceCode = 9
+        CASE "C" : FaceCode = 10
+    END SELECT
+END FUNCTION
+
+FUNCTION FaceName$(f)
+    FaceName$ = RTRIM$(MID$("E S W N LELSLWLNF C ", f * 2 - 1, 2))
+END FUNCTION
+
+' Face f of cell (x, y): its picture p1$ (and, divided - d 1 or 2 - the
+' second half's, p2$). No picture at all: back to the usual (taken out of
+' [faces])
+SUB EditSetFace(x, y, f, d, p1$, p2$)
+    k = 0
+    FOR j = 1 TO lvlNumFaces
+        IF lvlFaceX(j) = x AND lvlFaceY(j) = y AND lvlFaceS(j) = f THEN k = j : EXIT FOR
+    NEXT
+    IF p1$ = "" AND p2$ = "" AND d = 0 THEN ' (taken away)
+        IF k THEN
+            FOR j = k TO lvlNumFaces - 1
+                lvlFaceX(j) = lvlFaceX(j + 1) : lvlFaceY(j) = lvlFaceY(j + 1) : lvlFaceS(j) = lvlFaceS(j + 1) : lvlFaceD(j) = lvlFaceD(j + 1)
+                lvlFaceP1$(j) = lvlFaceP1$(j + 1) : lvlFaceP2$(j) = lvlFaceP2$(j + 1)
+            NEXT
+            lvlNumFaces = lvlNumFaces - 1
+        END IF
+        EXIT SUB
+    END IF
+    IF k = 0 THEN
+        IF lvlNumFaces >= MAX_FACES THEN EXIT SUB
+        lvlNumFaces = lvlNumFaces + 1 : k = lvlNumFaces
+    END IF
+    lvlFaceX(k) = x : lvlFaceY(k) = y : lvlFaceS(k) = f : lvlFaceD(k) = d : lvlFaceP1$(k) = p1$ : lvlFaceP2$(k) = p2$
+END SUB
+
+' The picture slot for face f of cell (x, y) at (u, v) on it - u across as
+' you see it, v down from the top, 0 to 1 - its own (or its half's, if
+' it's divided), else deflt, the usual
+FUNCTION FaceSlot(x, y, f, u, v, deflt)
+    sl = faceTex(x, y, f)
+    SELECT CASE faceDiv(x, y, f)
+        CASE 1 : IF u >= 0.5 THEN sl = faceTex2(x, y, f)
+        CASE 2 : IF v >= 0.5 THEN sl = faceTex2(x, y, f)
+    END SELECT
+    IF sl THEN FaceSlot = sl ELSE FaceSlot = deflt
+END FUNCTION
+
+' Which side of cell (x, y) looks towards the cell next to it, (tx, ty):
+' 1 east, 2 south, 3 west, 4 north
+FUNCTION SideToward(x, y, tx, ty)
+    IF tx > x THEN SideToward = 1 ELSE IF ty > y THEN SideToward = 2 ELSE IF tx < x THEN SideToward = 3 ELSE SideToward = 4
+END FUNCTION
+
+' Which face of [faces] is (x, y)'s f - 0: none of its own
+FUNCTION FaceIndex(x, y, f)
+    FaceIndex = 0
+    FOR j = 1 TO lvlNumFaces
+        IF lvlFaceX(j) = x AND lvlFaceY(j) = y AND lvlFaceS(j) = f THEN FaceIndex = j : EXIT FUNCTION
+    NEXT
+END FUNCTION
 
 ' Item k (from 1) of a list split by commas, trimmed
 FUNCTION ListItem$(list$, k)
@@ -7582,10 +7733,21 @@ FUNCTION EditSnapshot$
     FOR k = 1 TO 6 : s$ = s$ + lvlWall$(k) + "|" : NEXT
     FOR k = 1 TO 4 : s$ = s$ + lvlFloor$(k) + "|" : NEXT
     FOR k = 1 TO 2 : s$ = s$ + lvlCeil$(k) + "|" : NEXT
+    s$ = s$ + CHR$(2) ' (the faces' own pictures)
+    FOR k = 1 TO lvlNumFaces
+        s$ = s$ + LTRIM$(STR$(lvlFaceX(k))) + "," + LTRIM$(STR$(lvlFaceY(k))) + "," + FaceName$(lvlFaceS(k)) + "," + LTRIM$(STR$(lvlFaceD(k))) + "," + lvlFaceP1$(k) + "," + lvlFaceP2$(k) + CHR$(3)
+    NEXT
     EditSnapshot$ = s$
 END FUNCTION
 
-SUB EditRestore(s$)
+SUB EditRestore(s0$)
+    c2 = INSTR(s0$, CHR$(2)) : s$ = s0$ : f$ = ""
+    IF c2 THEN s$ = LEFT$(s0$, c2 - 1) : f$ = MID$(s0$, c2 + 1)
+    lvlNumFaces = 0
+    DO WHILE LEN(f$)
+        c3 = INSTR(f$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+        TakeFace LEFT$(f$, c3 - 1) : f$ = MID$(f$, c3 + 1)
+    LOOP
     FOR y = 0 TO MAP_SIZE - 1 : lvlRow$(y) = MID$(s$, y * MAP_SIZE + 1, MAP_SIZE) : NEXT
     FOR y = 0 TO MAP_SIZE - 1 : lvlFloorRow$(y) = MID$(s$, (MAP_SIZE + y) * MAP_SIZE + 1, MAP_SIZE) : NEXT
     FOR y = 0 TO MAP_SIZE - 1 : lvlCeilRow$(y) = MID$(s$, (MAP_SIZE * 2 + y) * MAP_SIZE + 1, MAP_SIZE) : NEXT
@@ -7665,6 +7827,14 @@ SUB WriteLevelFile(f$)
     IF lvlNumTrigs THEN
         o$ = o$ + nl$ + "[triggers]" + nl$ + "' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ..." + nl$
         FOR k = 1 TO lvlNumTrigs : o$ = o$ + lvlTrig$(k) + nl$ : NEXT
+    END IF
+    IF lvlNumFaces THEN
+        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture" + nl$
+        FOR k = 1 TO lvlNumFaces
+            o$ = o$ + LTRIM$(STR$(lvlFaceX(k))) + ", " + LTRIM$(STR$(lvlFaceY(k))) + ", " + FaceName$(lvlFaceS(k)) + ", " + LTRIM$(STR$(lvlFaceD(k))) + ", " + lvlFaceP1$(k)
+            IF lvlFaceP2$(k) <> "" THEN o$ = o$ + ", " + lvlFaceP2$(k)
+            o$ = o$ + nl$
+        NEXT
     END IF
     o$ = o$ + "" + nl$ : o$ = o$ + "[map]" + nl$
     FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlRow$(y) + nl$ : NEXT
@@ -8147,7 +8317,8 @@ SUB EditDrawHelp(v)
         h$ = h$ + "PLACE   click: the brush there ([ ] change it, E pick up)|"
         h$ = h$ + "LIGHT   click: a light there (1-8 colour); Shift+click: away|"
         h$ = h$ + "HEIGHT  click raises a floor/ceiling an eighth; Shift lowers|"
-        h$ = h$ + "PAINT   click: the brush's picture on that face|"
+        h$ = h$ + "PAINT   click: the brush's picture on that face; Ctrl+click:|"
+        h$ = h$ + "        the whole floor/ceiling; Shift+click: the usual again|"
         h$ = h$ + "PICKER (P): a tab, then a picture - it's the brush (and the|"
         h$ = h$ + "        selection's, if any); the wheel scrolls it|"
         h$ = h$ + "Wheel: the selection (or face under the pointer) up/down|"
@@ -8472,6 +8643,17 @@ SUB EditDrawPicker(mx, my)
     IF hw = 2 THEN h$ = EditPkName$(hi) ELSE h$ = "Click one: it's the brush" + MID$(" (and the selection's)", 1, -22 * (edSelN > 0))
     HudText PK_X, gy + 2 * (PK_SIZE + 4) + 2, LEFT$(h$, 98), _RGB32(150, 240, 255)
 END SUB
+
+' A face's number in [faces]: a wall's or step's side 1-4, a lintel's 5-8,
+' the floor 9, the ceiling 10
+FUNCTION EditFaceCode(kind, side)
+    SELECT CASE kind
+        CASE ED_FLOOR : EditFaceCode = 9
+        CASE ED_CEIL : EditFaceCode = 10
+        CASE ED_LINTEL : EditFaceCode = side + 4
+        CASE ELSE : EditFaceCode = side
+    END SELECT
+END FUNCTION
 
 ' Where a click with PLACE or LIGHT goes for a face: a floor or ceiling's
 ' own cell; a wall's (a step's, a lintel's) the open cell in front of it
@@ -12347,7 +12529,7 @@ SUB GLSendTextures
         IF slot >= T_DOOR AND slot <= T_SPLIT THEN glTexShine(slot) = 0.6
         IF INSTR(n$, "plates") OR INSTR(n$, "grate") OR INSTR(n$, "pipes") OR INSTR(n$, "coils") THEN glTexShine(slot) = 0.5
         IF INSTR(n$, "ice") OR INSTR(n$, "frost") OR INSTR(n$, "cryo") THEN glTexShine(slot) = 0.7
-        IF slot > T_FLOOR AND slot <= T_FLOOR + 4 THEN ' Floors: how wet
+        IF (slot > T_FLOOR AND slot <= T_FLOOR + 4) OR (slot > T_CUSTOM AND LEFT$(n$, 5) = "floor") THEN ' Floors: how wet (a single face's floor picture too)
             glTexReflect(slot) = 0.16 : glTexNeon(slot) = 0.5
             IF INSTR(n$, "ice") THEN glTexReflect(slot) = 0.45
             IF INSTR(n$, "murky") THEN glTexReflect(slot) = 0.4
@@ -12357,7 +12539,7 @@ SUB GLSendTextures
             IF INSTR(n$, "concrete") OR INSTR(n$, "cobbles") OR INSTR(n$, "scorched") THEN glTexReflect(slot) = 0.08
             IF INSTR(n$, "glow") THEN glTexNeon(slot) = 1
         END IF
-        IF slot > T_CEIL THEN glTexShine(slot) = 0.1
+        IF (slot > T_CEIL AND slot <= T_CUSTOM) OR (slot > T_CUSTOM AND LEFT$(n$, 7) = "ceiling") THEN glTexShine(slot) = 0.1
         IF slot = T_LIFT OR slot = T_LIFTSIDE THEN glTexShine(slot) = 0.5 : glTexNeon(slot) = 0.35 ' (a lift: metal, its stripes faintly lit)
         IF slot = T_TRAP THEN glTexShine(slot) = 0.4 : glTexNeon(slot) = 0.9 : glTexAnim(slot) = 1 ' (live wires: flickering)
         IF slot = T_FIRE THEN glTexShine(slot) = 0.2 : glTexNeon(slot) = 1 : glTexAnim(slot) = 3 ' (embers: pulsing)
@@ -12944,8 +13126,9 @@ SUB GLStep(ax, ay, bx, by, b)
         ' so it rides up and down with it instead of sliding past
         IF liftCell(ax + bx - lx, ay + by - ly) THEN
             GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 0, zh - zl, T_LIFTSIDE
-        ELSE
-            GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, wallTexSlot(1)
+        ELSE ' (the step's face is the higher cell's side towards the lower one - its own picture, if it has one)
+            hx = ax + bx - lx : hy = ay + by - ly
+            GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, FaceSlot(hx, hy, SideToward(hx, hy, lx, ly), 0, 0, wallTexSlot(1))
         END IF
     END IF
     ca = ceilH(ax, ay) : cb = ceilH(bx, by)
@@ -12953,7 +13136,8 @@ SUB GLStep(ax, ay, bx, by, b)
         IF ca > cb THEN lx = ax : ly = ay : zl = cb : zh = ca ELSE lx = bx : ly = by : zl = ca : zh = cb
         GLSetLight lx, ly, 1, b
         glFaceNX = SGN(lx - (ax + bx - lx)) : glFaceNY = SGN(ly - (ay + by - ly)) : glFaceNZ = 0
-        GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, wallTexSlot(1)
+        hx = ax + bx - lx : hy = ay + by - ly ' (the lintel's the lower ceiling's side, towards the higher)
+        GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 1 - zh, 1 - zl, FaceSlot(hx, hy, SideToward(hx, hy, lx, ly) + 4, 0, 0, wallTexSlot(1))
     END IF
 END SUB
 
@@ -12972,7 +13156,7 @@ SUB GLFace(cx, cy, side, b)
     IF side = 1 OR side = 4 THEN u0 = 1 : u1 = 0 ELSE u0 = 0 : u1 = 1
     IF worldMap(cx, cy) <> 2 THEN ' A wall: from the floor to the ceiling of the cell it looks onto
         fz = floorH(nx, ny) : cz = ceilH(nx, ny)
-        GLStrip ax, ay, bx, by, 0, 1, u0, u1, fz, cz, 1 - cz, 1 - fz, wallTexSlot(worldMap(cx, cy))
+        GLStrip ax, ay, bx, by, 0, 1, u0, u1, fz, cz, 1 - cz, 1 - fz, FaceSlot(cx, cy, VAL(MID$("3142", side, 1)), 0, 0, wallTexSlot(worldMap(cx, cy))) ' (GLFace's sides 1-4 are west, east, north, south - [faces]' are east, south, west, north)
         EXIT SUB
     END IF
     doorAmt = glDoor(cx, cy, b) ' A door: 0 shut .. 1 open
