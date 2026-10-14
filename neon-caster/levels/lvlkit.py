@@ -304,7 +304,7 @@ def check_heights(lv):
                 lift[(x, y)] = (lo, hi)
     errs, warns = [], []
     keyof = {"R": "r", "B": "b", "Y": "y"}
-    pads = [(x, y) for y in range(N) for x in range(N) if g[y][x] in PAD]
+    pads = pad_order(g, lv.get("pads", []))
     st = [(x, y) for y in range(N) for x in range(N) if g[y][x] in START]
     ex = [(x, y) for y in range(N) for x in range(N) if g[y][x] == "E"]
     if not st:
@@ -452,6 +452,12 @@ def level_text(lv, comment=()):
         out.append("[triggers]")
         out.append("' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...")
         out += list(lv["triggers"])
+    if lv.get("pads"):  # teleporters paired by hand in the editor
+        out.append("")
+        out.append("[pads]")
+        out.append("' teleporters paired by hand: x1, y1, x2, y2 (the rest pair up in reading order)")
+        for r in lv["pads"]:
+            out.append(", ".join(_num(v) for v in r))
     if lv.get("faces"):  # pictures on single faces, from the editor's PAINT - kept as they are
         out.append("")
         out.append("[faces]")
@@ -469,6 +475,19 @@ def level_text(lv, comment=()):
     return "\n".join(out) + "\n"
 
 
+def pad_order(g, pairs):
+    """The teleporter pads in the order the game pairs them (1st-2nd, 3rd-4th):
+    the [pads] pairs made by hand in the editor first, then the rest in
+    reading order."""
+    rd = [(x, y) for y in range(N) for x in range(N) if g[y][x] in PAD]
+    out, used = [], set()
+    for (x1, y1, x2, y2) in pairs:
+        a, b = (x1, y1), (x2, y2)
+        if a in rd and b in rd and a != b and a not in used and b not in used:
+            out += [a, b]; used |= {a, b}
+    return out + [p for p in rd if p not in used]
+
+
 def write_level_file(path, lv, comment=()):
     open(path, "w").write(level_text(lv, comment))
 
@@ -476,7 +495,7 @@ def write_level_file(path, lv, comment=()):
 def read_level_file(path, label=None):
     """A level file as the dict check_level and level_text use."""
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
-              ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[])
+              ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[])
     sec = None
     for line in open(path).read().split("\n"):
         t = line.strip()
@@ -501,7 +520,7 @@ def read_level_file(path, label=None):
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals
             elif k == "ambient": lv["ambient"] = tuple(int(float(x)) for x in vals)
-        elif sec in ("zones", "events", "lifts"):
+        elif sec in ("zones", "events", "lifts", "pads"):
             lv[sec].append(tuple(int(float(x)) for x in t.split(",")))
         elif sec == "lights":
             lv[sec].append(tuple(float(x) for x in t.split(",")))

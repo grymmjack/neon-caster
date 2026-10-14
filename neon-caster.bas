@@ -1226,6 +1226,9 @@ DIM SHARED lvlNumTrigs AS INTEGER, lvlTrig$(MAX_TRIGS)
 ' BuildLevel gives each picture a slot (T_CUSTOM + n) and the cells
 ' faceTex(x, y, 1-8) - 0: the usual - floorTex, ceilTex.
 CONST MAX_FACES = 4000
+' [pads]: teleporters paired by hand (the editor's LINK) - x1, y1, x2, y2.
+' Pads in no pair here pair up as ever, in reading order.
+DIM SHARED lvlNumPairs AS INTEGER, lvlPair(16, 4) AS INTEGER
 DIM SHARED lvlNumFaces AS INTEGER, lvlFaceX(MAX_FACES) AS INTEGER, lvlFaceY(MAX_FACES) AS INTEGER, lvlFaceS(MAX_FACES) AS INTEGER, lvlFaceD(MAX_FACES) AS INTEGER
 DIM SHARED lvlFaceP1$(MAX_FACES), lvlFaceP2$(MAX_FACES)
 DIM SHARED faceTex(MAP_SIZE, MAP_SIZE, 8) AS INTEGER, faceTex2(MAP_SIZE, MAP_SIZE, 8) AS INTEGER, faceDiv(MAP_SIZE, MAP_SIZE, 8) AS INTEGER
@@ -1305,6 +1308,12 @@ DIM SHARED edPickOn AS INTEGER, edBrushKind AS INTEGER, edBrushTex$, edBrushImg&
 DIM SHARED edPickOpen AS INTEGER ' (edPickOn: 1 tucked away till the pointer comes down to it, -1 always open, 0 off; edPickOpen: open now)
 CONST PK_TUCK = 580 ' (tucked away: a strip along the bottom from here)
 edPickOn = 1 : edBrushKind = PK_GLYPH
+' THE PROPERTIES PANE (EditPaneBuild): what's selected - a door, a
+' teleporter's pad, a lift, a floor - and its buttons, down the right
+CONST PN_X = 592, PN_Y = 58, PN_W = 200
+DIM SHARED edPnN AS INTEGER, edPnId(40) AS INTEGER, edPnX(40) AS INTEGER, edPnY(40) AS INTEGER, edPnW(40) AS INTEGER, edPnLab$(40), edPnLit(40) AS INTEGER
+DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER
+DIM SHARED edLinkPad AS INTEGER, edLinkX AS INTEGER, edLinkY AS INTEGER ' (LINK: waiting for the pad this one's to go to)
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
 DIM SHARED texFile$(T_SLOTS)
 menuMusic& = LoadMusic&("menu.ogg")
@@ -3081,6 +3090,7 @@ DO
             IF edTool = ET_PAINT THEN t$ = edBrushTex$ ELSE IF edTool = ET_LIGHT THEN t$ = "light: " + LightPresetName$(editLightP) ELSE t$ = GlyphName$(editGlyph$)
             HudText 8, PK_TUCK + 2, LEFT$("^ PICKER  (point here to open it)   brush: " + t$, 98), _RGB32(190, 180, 230)
         END IF
+        IF edLooking THEN EditDrawPane -1, -1 ELSE EditDrawPane edCurX, edCurY
         IF edLooking THEN EditDrawTB 1, -1, -1 ELSE EditDrawTB 1, edCurX, edCurY
         IF edHelp THEN EditDrawHelp 1
     END IF
@@ -3467,6 +3477,61 @@ FOR k = 1 TO edSelN
     EditPaintFace edSelX(k), edSelY(k), EditFaceCode(edSelKind(k), edSelSide(k)), edSelPart(k), edBrushTex$
 NEXT
 GOSUB EditApply : EditNote edBrushTex$ + " on" + STR$(edSelN) + " faces"
+RETURN
+
+' A properties pane button pressed (pnHit)
+EditPaneClick:
+SELECT CASE pnHit
+    CASE 1 TO 8 ' A door's kind: every door selected
+        GOSUB EditPushUndo : g$ = MID$("DHX!RBYE", pnHit, 1)
+        FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_WALL AND INSTR("DHXRBY!E", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN EditPut edSelX(k), edSelY(k), g$
+        NEXT
+        GOSUB EditApply : EditNote "Now a " + GlyphName$(g$)
+    CASE 20 ' A lift of the floor selected: its box, from its floor up a wall
+        IF lvlNumLifts >= MAX_LIFTS THEN
+            EditNote "Too many lifts already"
+        ELSE
+            x0 = MAP_SIZE : y0 = MAP_SIZE : x1 = 0 : y1 = 0 : fz = 0
+            FOR k = 1 TO edSelN
+                IF edSelKind(k) = ED_FLOOR THEN
+                    x0 = MinOf(x0, edSelX(k)) : y0 = MinOf(y0, edSelY(k)) : x1 = MaxOf(x1, edSelX(k)) : y1 = MaxOf(y1, edSelY(k)) : fz = floorH(edSelX(k), edSelY(k))
+                END IF
+            NEXT
+            GOSUB EditPushUndo
+            lvlNumLifts = lvlNumLifts + 1 : k = lvlNumLifts
+            lvlLift(k, 1) = x0 : lvlLift(k, 2) = y0 : lvlLift(k, 3) = x1 : lvlLift(k, 4) = y1
+            lvlLift(k, 5) = INT(fz * 8 + 0.5) : lvlLift(k, 6) = lvlLift(k, 5) + 8 : lvlLift(k, 7) = 1 : lvlLift(k, 8) = 6
+            GOSUB EditApply : EditNote "A lift: up and down a wall - set it in the pane"
+        END IF
+    CASE 21 TO 26 ' A lift's low, high, speed: down or up an eighth
+        lf = edPnLift : j = 5 + (pnHit - 21) \ 2 : IF j = 7 THEN j = 8
+        d = 1 : IF (pnHit - 21) MOD 2 = 0 THEN d = -1
+        IF lf THEN
+            GOSUB EditPushUndo
+            lvlLift(lf, j) = lvlLift(lf, j) + d
+            IF lvlLift(lf, 5) < -8 THEN lvlLift(lf, 5) = -8
+            IF lvlLift(lf, 6) > 36 THEN lvlLift(lf, 6) = 36
+            IF lvlLift(lf, 6) <= lvlLift(lf, 5) THEN IF j = 5 THEN lvlLift(lf, 5) = lvlLift(lf, 6) - 1 ELSE lvlLift(lf, 6) = lvlLift(lf, 5) + 1
+            IF lvlLift(lf, 8) < 1 THEN lvlLift(lf, 8) = 1
+            IF lvlLift(lf, 8) > 32 THEN lvlLift(lf, 8) = 32
+            GOSUB EditApply
+        END IF
+    CASE 27 ' Up and down by itself, or an elevator (stand on it)
+        lf = edPnLift : IF lf THEN GOSUB EditPushUndo : lvlLift(lf, 7) = 3 - lvlLift(lf, 7) : GOSUB EditApply
+    CASE 28 ' No lift here any more
+        lf = edPnLift
+        IF lf THEN
+            GOSUB EditPushUndo
+            FOR k = lf TO lvlNumLifts - 1 : FOR j = 1 TO 8 : lvlLift(k, j) = lvlLift(k + 1, j) : NEXT : NEXT
+            lvlNumLifts = lvlNumLifts - 1 : GOSUB EditApply : EditNote "Lift taken away"
+        END IF
+    CASE 30 ' LINK: the next pad clicked is where this one goes
+        edLinkPad = NOT edLinkPad : edLinkX = edPnCX : edLinkY = edPnCY
+        IF edLinkPad THEN EditNote "Click the pad this one goes to (LINK again: never mind)"
+    CASE 31 ' UNLINK: back to pairing in reading order
+        GOSUB EditPushUndo : EditUnpair edPnCX, edPnCY : GOSUB EditApply : EditNote "Unlinked - pads pair up in reading order"
+END SELECT
 RETURN
 
 ' The picker: tucked away (opening when the pointer comes down to it) ->
@@ -3856,6 +3921,19 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND edHelp THEN
     edHelp = 0 : fpLWas = -1 ' (the help was up: the click puts it away)
 ELSEIF fpL AND NOT fpLWas AND tbHit THEN
     GOSUB EditTBClick
+ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND EditPaneAt(edCurX, edCurY) THEN
+    pnHit = EditPaneAt(edCurX, edCurY) : GOSUB EditPaneClick : fpLWas = -1
+ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND edLinkPad AND NOT EditOverUI(edCurX, edCurY) THEN ' LINK: this is the pad it goes to
+    IF edHovKind = ED_FLOOR AND MID$(lvlRow$(edHovY), edHovX + 1, 1) = "&" AND (edHovX <> edLinkX OR edHovY <> edLinkY) THEN
+        GOSUB EditPushUndo
+        EditUnpair edLinkX, edLinkY : EditUnpair edHovX, edHovY
+        IF lvlNumPairs < 16 THEN lvlNumPairs = lvlNumPairs + 1 : lvlPair(lvlNumPairs, 1) = edLinkX : lvlPair(lvlNumPairs, 2) = edLinkY : lvlPair(lvlNumPairs, 3) = edHovX : lvlPair(lvlNumPairs, 4) = edHovY
+        GOSUB EditApply : EditNote "Linked: pad" + STR$(edLinkX) + "," + LTRIM$(STR$(edLinkY)) + " <->" + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
+        edLinkPad = 0
+    ELSE
+        EditNote "That's not another pad - click one (LINK again: never mind)"
+    END IF
+    fpLWas = -1
 ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND edPickOpen THEN
     EditPkHit edCurX, edCurY, pkWhat, pkIdx
     SELECT CASE pkWhat
@@ -5477,6 +5555,22 @@ NEXT
 ' The triggers, taken apart; the teleporters' pads, glowing
 numTrigs = 0
 FOR k = 1 TO lvlNumTrigs : TakeTrigger lvlTrig$(k) : NEXT
+IF lvlNumPairs THEN ' Pads paired by hand ([pads]) first, in their pairs; the rest after, in reading order
+    REDIM pOX(MAX_PADS) AS INTEGER, pOY(MAX_PADS) AS INTEGER, pUsed(MAX_PADS) AS INTEGER
+    FOR k = 1 TO numPads : pOX(k) = padX(k) : pOY(k) = padY(k) : pUsed(k) = 0 : NEXT
+    n = 0
+    FOR j = 1 TO lvlNumPairs
+        a = 0 : b = 0
+        FOR k = 1 TO numPads
+            IF NOT pUsed(k) AND pOX(k) = lvlPair(j, 1) AND pOY(k) = lvlPair(j, 2) THEN a = k
+            IF NOT pUsed(k) AND pOX(k) = lvlPair(j, 3) AND pOY(k) = lvlPair(j, 4) THEN b = k
+        NEXT
+        IF a AND b AND a <> b THEN pUsed(a) = -1 : pUsed(b) = -1 : n = n + 1 : padX(n) = pOX(a) : padY(n) = pOY(a) : n = n + 1 : padX(n) = pOX(b) : padY(n) = pOY(b)
+    NEXT
+    FOR k = 1 TO numPads
+        IF NOT pUsed(k) THEN n = n + 1 : padX(n) = pOX(k) : padY(n) = pOY(k)
+    NEXT
+END IF
 FOR k = 1 TO numPads : AddLight padX(k) + 0.5, padY(k) + 0.5, 2.5, 120, 60, 220, FX_PULSE, 0 : NEXT
 padReady = 0
 IF NOT editRebuild THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
@@ -7642,7 +7736,7 @@ END FUNCTION
 ' them, its numbers split by commas (SplitNums); in [map], each line is a
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
-    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNote$ = "" : topLines = -1
+    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlNote$ = "" : topLines = -1
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0
     f$ = LevelFile$(n)
@@ -7696,6 +7790,8 @@ SUB ReadLevelFile(n)
                     IF got >= 8 AND lvlNumEvents < MAX_EVENTS THEN lvlNumEvents = lvlNumEvents + 1 : FOR k = 1 TO 8 : lvlEvent(lvlNumEvents, k) = v(k) : NEXT
                 CASE "lifts"
                     IF got >= 8 AND lvlNumLifts < MAX_LIFTS THEN lvlNumLifts = lvlNumLifts + 1 : FOR k = 1 TO 8 : lvlLift(lvlNumLifts, k) = v(k) : NEXT
+                CASE "pads"
+                    IF got >= 4 AND lvlNumPairs < 16 THEN lvlNumPairs = lvlNumPairs + 1 : FOR k = 1 TO 4 : lvlPair(lvlNumPairs, k) = v(k) : NEXT
             END SELECT
         END IF
     LOOP
@@ -7841,12 +7937,31 @@ FUNCTION EditSnapshot$
     FOR k = 1 TO lvlNumFaces
         s$ = s$ + LTRIM$(STR$(lvlFaceX(k))) + "," + LTRIM$(STR$(lvlFaceY(k))) + "," + FaceName$(lvlFaceS(k)) + "," + LTRIM$(STR$(lvlFaceD(k))) + "," + lvlFaceP1$(k) + "," + lvlFaceP2$(k) + CHR$(3)
     NEXT
+    s$ = s$ + CHR$(4) ' (the lifts, and the pads paired by hand)
+    FOR k = 1 TO lvlNumLifts : FOR j = 1 TO 8 : s$ = s$ + LTRIM$(STR$(lvlLift(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
+    s$ = s$ + CHR$(5)
+    FOR k = 1 TO lvlNumPairs : FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlPair(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     EditSnapshot$ = s$
 END FUNCTION
 
 SUB EditRestore(s0$)
-    c2 = INSTR(s0$, CHR$(2)) : s$ = s0$ : f$ = ""
+    c2 = INSTR(s0$, CHR$(2)) : s$ = s0$ : f$ = "" : l$ = "" : p$ = ""
     IF c2 THEN s$ = LEFT$(s0$, c2 - 1) : f$ = MID$(s0$, c2 + 1)
+    c4 = INSTR(f$, CHR$(4)) : IF c4 THEN l$ = MID$(f$, c4 + 1) : f$ = LEFT$(f$, c4 - 1)
+    c5 = INSTR(l$, CHR$(5)) : IF c5 THEN p$ = MID$(l$, c5 + 1) : l$ = LEFT$(l$, c5 - 1)
+    DIM v(8) AS SINGLE
+    lvlNumLifts = 0
+    DO WHILE LEN(l$)
+        c3 = INSTR(l$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+        IF SplitNums(LEFT$(l$, c3 - 1), v()) >= 8 THEN lvlNumLifts = lvlNumLifts + 1 : FOR j = 1 TO 8 : lvlLift(lvlNumLifts, j) = v(j) : NEXT
+        l$ = MID$(l$, c3 + 1)
+    LOOP
+    lvlNumPairs = 0
+    DO WHILE LEN(p$)
+        c3 = INSTR(p$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+        IF SplitNums(LEFT$(p$, c3 - 1), v()) >= 4 THEN lvlNumPairs = lvlNumPairs + 1 : FOR j = 1 TO 4 : lvlPair(lvlNumPairs, j) = v(j) : NEXT
+        p$ = MID$(p$, c3 + 1)
+    LOOP
     lvlNumFaces = 0
     DO WHILE LEN(f$)
         c3 = INSTR(f$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
@@ -7931,6 +8046,10 @@ SUB WriteLevelFile(f$)
     IF lvlNumTrigs THEN
         o$ = o$ + nl$ + "[triggers]" + nl$ + "' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ..." + nl$
         FOR k = 1 TO lvlNumTrigs : o$ = o$ + lvlTrig$(k) + nl$ : NEXT
+    END IF
+    IF lvlNumPairs THEN
+        o$ = o$ + nl$ + "[pads]" + nl$ + "' teleporters paired by hand: x1, y1, x2, y2 (the rest pair up in reading order)" + nl$
+        FOR k = 1 TO lvlNumPairs : o$ = o$ + LTRIM$(STR$(lvlPair(k, 1))) + ", " + LTRIM$(STR$(lvlPair(k, 2))) + ", " + LTRIM$(STR$(lvlPair(k, 3))) + ", " + LTRIM$(STR$(lvlPair(k, 4))) + nl$ : NEXT
     END IF
     IF lvlNumFaces THEN
         o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture" + nl$
@@ -8268,6 +8387,7 @@ FUNCTION EditOverUI(x, y)
     IF edHelp THEN EditOverUI = -1 : EXIT FUNCTION ' (the help is up: a click closes it)
     IF EditTBAt(x, y, editView) THEN EditOverUI = -1
     IF editView = 1 AND edPickOpen AND y >= PK_Y - 4 THEN EditOverUI = -1 ' (the picker: the bottom of the screen)
+    IF editView = 1 AND x >= PN_X - 6 AND y >= PN_Y AND y <= edPnBot AND edPnTitle$ <> "" THEN EditOverUI = -1 ' (the properties pane)
     IF editView = 1 AND edPickOn AND NOT edPickOpen AND y >= PK_TUCK THEN EditOverUI = -1 ' (tucked away: its strip)
 END FUNCTION
 
@@ -8433,6 +8553,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "Wall + Ctrl+Shift+wheel: a block on the floor (its top)|"
         h$ = h$ + "Wall + Alt+Shift+wheel: a block from the ceiling (bottom)|"
         h$ = h$ + "Arrows: move the selection a cell;  Del: delete it|"
+        h$ = h$ + "A door, pad, lift or floor selected: its pane, on the right|"
         h$ = h$ + "H divide a face left|right, V top|bottom (again: whole)|"
         h$ = h$ + "G grid, Shift+G stronger;  T F pictures;  Z floor no.|"
         h$ = h$ + "L K light here/away;  PgUp/PgDn floor (Shift: ceiling)|"
@@ -8751,6 +8872,123 @@ SUB EditDrawPicker(mx, my)
     HudText PK_X, gy + 2 * (PK_SIZE + 4) + 2, LEFT$(h$, 98), _RGB32(150, 240, 255)
 END SUB
 
+' --- THE PROPERTIES PANE: down the right of the 3D view, for what's
+' selected - a door (what kind, which key), a teleporter's pad (where it
+' goes - LINK it to another), a lift (how low, how high, how fast, how it
+' goes) - or MAKE A LIFT of the floor selected. Rows of buttons (a TB-like
+' list, made again each time it's asked: edPn...); id < 0 is just words.
+SUB EditPaneAdd(id, x, y, w, l$, lit)
+    IF edPnN >= 40 THEN EXIT SUB
+    edPnN = edPnN + 1 : edPnId(edPnN) = id : edPnX(edPnN) = x : edPnY(edPnN) = y : edPnW(edPnN) = w : edPnLab$(edPnN) = l$ : edPnLit(edPnN) = lit
+    IF y + 20 > edPnBot THEN edPnBot = y + 20
+END SUB
+
+SUB EditPaneBuild
+    edPnN = 0 : edPnTitle$ = "" : edPnBot = PN_Y : edPnLift = 0
+    IF edSelN = 0 OR editView <> 1 THEN EXIT SUB
+    x0 = PN_X : y = PN_Y + 24
+    ' A door: the first selected face that's a door's
+    FOR k = 1 TO edSelN
+        c$ = MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)
+        IF edSelKind(k) = ED_WALL AND INSTR("DHXRBY!E", c$) THEN
+            edPnCX = edSelX(k) : edPnCY = edSelY(k)
+            edPnTitle$ = "DOOR" + STR$(edPnCX) + "," + LTRIM$(STR$(edPnCY))
+            EditPaneAdd -1, x0, y, PN_W, LEFT$(GlyphName$(c$), 25), 0 : y = y + 22
+            FOR t = 1 TO 8
+                g$ = MID$("DHX!RBYE", t, 1)
+                EditPaneAdd t, x0 + ((t - 1) MOD 2) * 101, y + ((t - 1) \ 2) * 23, 99, RTRIM$(MID$("SLIDING SHUTTER SPLIT   SEALED  RED KEY BLUE KEYYELLOW  EXIT    ", t * 8 - 7, 8)), (g$ = c$)
+            NEXT
+            EXIT SUB
+        END IF
+    NEXT
+    ' A teleporter's pad
+    FOR k = 1 TO edSelN
+        IF MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1) = "&" THEN
+            edPnCX = edSelX(k) : edPnCY = edSelY(k) : me = 0
+            FOR j = 1 TO numPads : IF padX(j) = edPnCX AND padY(j) = edPnCY THEN me = j
+            NEXT
+            edPnTitle$ = "TELEPORTER" + STR$(edPnCX) + "," + LTRIM$(STR$(edPnCY))
+            IF me MOD 2 = 1 THEN other = me + 1 ELSE other = me - 1
+            IF me = 0 OR other < 1 OR other > numPads THEN t$ = "goes nowhere yet" ELSE t$ = "goes to" + STR$(padX(other)) + "," + LTRIM$(STR$(padY(other)))
+            EditPaneAdd -1, x0, y, PN_W, t$, 0 : y = y + 22
+            EditPaneAdd 30, x0, y, 99, "LINK...", edLinkPad
+            hand = 0 : FOR j = 1 TO lvlNumPairs
+                IF (lvlPair(j, 1) = edPnCX AND lvlPair(j, 2) = edPnCY) OR (lvlPair(j, 3) = edPnCX AND lvlPair(j, 4) = edPnCY) THEN hand = -1
+            NEXT
+            IF hand THEN EditPaneAdd 31, x0 + 101, y, 99, "UNLINK", 0
+            IF edLinkPad THEN EditPaneAdd -1, x0, y + 24, PN_W, "now click the pad it goes to", 0
+            EXIT SUB
+        END IF
+    NEXT
+    ' A lift: the first selected floor that's on one
+    FOR k = 1 TO edSelN
+        IF (edSelKind(k) = ED_FLOOR OR edSelKind(k) = ED_STEP) AND liftCell(edSelX(k), edSelY(k)) THEN
+            lf = liftCell(edSelX(k), edSelY(k)) : edPnLift = lf
+            edPnTitle$ = "LIFT" + STR$(lf)
+            EditPaneAdd -1, x0, y, PN_W, LTRIM$(STR$(lvlLift(lf, 1))) + "," + LTRIM$(STR$(lvlLift(lf, 2))) + " to" + STR$(lvlLift(lf, 3)) + "," + LTRIM$(STR$(lvlLift(lf, 4))), 0 : y = y + 24
+            FOR r = 0 TO 2
+                SELECT CASE r
+                    CASE 0 : t$ = "LOW  " + STR$(lvlLift(lf, 5)) + " /8"
+                    CASE 1 : t$ = "HIGH " + STR$(lvlLift(lf, 6)) + " /8"
+                    CASE 2 : t$ = "SPEED" + STR$(lvlLift(lf, 8)) + " /8 s"
+                END SELECT
+                EditPaneAdd -1, x0, y + 2, 140, t$, 0
+                EditPaneAdd 21 + r * 2, x0 + 146, y, 24, "-", 0 : EditPaneAdd 22 + r * 2, x0 + 174, y, 24, "+", 0
+                y = y + 23
+            NEXT
+            IF lvlLift(lf, 7) = 2 THEN t$ = "ELEVATOR" ELSE t$ = "UP AND DOWN"
+            EditPaneAdd 27, x0, y, 130, t$, 0 : EditPaneAdd 28, x0 + 134, y, 66, "REMOVE", 0
+            EXIT SUB
+        END IF
+    NEXT
+    ' Floor, not a lift yet
+    n = 0 : FOR k = 1 TO edSelN : IF edSelKind(k) = ED_FLOOR THEN n = n + 1
+    NEXT
+    IF n THEN
+        edPnTitle$ = "FLOOR (" + LTRIM$(STR$(n)) + " cell" + MID$("s", 1, -(n > 1)) + ")"
+        EditPaneAdd 20, x0, y, PN_W, "MAKE A LIFT OF IT", 0
+    END IF
+END SUB
+
+' The pane's button at (x, y) - its id - or 0
+FUNCTION EditPaneAt(x, y)
+    EditPaneAt = 0 : EditPaneBuild
+    FOR k = 1 TO edPnN
+        IF edPnId(k) > 0 AND x >= edPnX(k) AND y >= edPnY(k) AND x < edPnX(k) + edPnW(k) AND y < edPnY(k) + 20 THEN EditPaneAt = edPnId(k) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+SUB EditDrawPane(mx, my)
+    EditPaneBuild : IF edPnTitle$ = "" THEN EXIT SUB
+    LINE (PN_X - 6, PN_Y)-(799, edPnBot + 6), _RGBA32(6, 2, 18, 200), BF
+    LINE (PN_X - 6, PN_Y)-(799, edPnBot + 6), _RGB32(255, 60, 200), B
+    HudText PN_X, PN_Y + 5, edPnTitle$, _RGB32(255, 90, 200)
+    FOR k = 1 TO edPnN
+        x = edPnX(k) : y = edPnY(k) : w = edPnW(k)
+        IF edPnId(k) < 0 THEN
+            HudText x, y + 2, edPnLab$(k), _RGB32(210, 220, 255)
+        ELSE
+            over = (mx >= x AND my >= y AND mx < x + w AND my < y + 20)
+            IF edPnLit(k) THEN bg~& = _RGBA32(120, 20, 100, 230) ELSE bg~& = _RGBA32(14, 6, 30, 230)
+            IF over THEN bg~& = _RGBA32(40, 70, 110, 240)
+            LINE (x, y)-STEP(w - 1, 19), bg~&, BF
+            IF over THEN bc~& = _RGB32(150, 240, 255) ELSE IF edPnLit(k) THEN bc~& = _RGB32(255, 60, 200) ELSE bc~& = _RGB32(90, 70, 140)
+            LINE (x, y)-STEP(w - 1, 19), bc~&, B
+            HudText x + (w - LEN(edPnLab$(k)) * 8) \ 2, y + 2, edPnLab$(k), _RGB32(255, 255, 255)
+        END IF
+    NEXT
+END SUB
+
+' Pad (x, y) out of any pair made by hand
+SUB EditUnpair(x, y)
+    FOR j = lvlNumPairs TO 1 STEP -1
+        IF (lvlPair(j, 1) = x AND lvlPair(j, 2) = y) OR (lvlPair(j, 3) = x AND lvlPair(j, 4) = y) THEN
+            FOR i = j TO lvlNumPairs - 1 : FOR c = 1 TO 4 : lvlPair(i, c) = lvlPair(i + 1, c) : NEXT : NEXT
+            lvlNumPairs = lvlNumPairs - 1
+        END IF
+    NEXT
+END SUB
+
 ' A face's number in [faces]: a wall's or step's side 1-4, a lintel's 5-8,
 ' the floor 9, the ceiling 10
 FUNCTION EditFaceCode(kind, side)
@@ -9067,6 +9305,9 @@ SUB EditDrawFaces
             END IF
         END IF
     END IF
+    FOR k = 1 TO numPads - 1 STEP 2 ' Teleporters: each pad joined to the one it goes to
+        EditLine3D padX(k) + 0.5, padY(k) + 0.5, floorH(padX(k), padY(k)) + 0.05, padX(k + 1) + 0.5, padY(k + 1) + 0.5, floorH(padX(k + 1), padY(k + 1)) + 0.05, _RGBA32(190, 110, 255, 170)
+    NEXT
     FOR k = 1 TO edSelN ' The selection: orange
         EditFaceOutline edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), edSelPart(k), _RGB32(255, 170, 40)
     NEXT
