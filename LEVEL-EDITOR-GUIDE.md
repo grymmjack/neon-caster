@@ -179,7 +179,7 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | A cell in an event room | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT. The table under `[events]` below says what each kind does. |
 | Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with), and ADD A LIGHT TO IT |
 | Any other face | ADD A LIGHT TO IT |
-| TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead) or TIME (seconds into the level); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them; ADD IT. |
+| TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead) or TIME (seconds into the level); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them, or click the action buttons (+25 HP, -25 HP, DIE, +CELLS, -CELLS, +SHELLS, -SHELLS, GIVE ALL, TAKE ALL) to add theirs; ADD IT. |
 | Nothing (the SECTOR button) | NAME: type the sector's name, Enter to keep it (Esc not). LIGHT: the ambient light, brighter or darker, and twelve colours to tint it. ITS PICTURES: the six kinds of wall (`#` `N` `C` `K` `P` `G`), the four floors and two ceilings the level's zones use - click one, and the picker opens at its tab: the next picture you click is that one's, everywhere it's used. |
 
 **Monsters, for ambushes.** Each monster can be set apart from its kind:
@@ -343,7 +343,7 @@ Every cell has its own floor and ceiling height, measured in **eighths of a wall
 | Lowest gap you can walk under | 6 eighths of room between floor and ceiling |
 | A floor can't go above | its ceiling minus 2 eighths |
 | A floor can't go below | −8, a bottomless pit: fall in and you die |
-| A drop that hurts | about 8 eighths (a whole wall); 7 doesn't |
+| A drop that hurts | about 8 eighths (a whole wall); 7 doesn't. Only a fall that hurts lands with a thud; stepping down is silent but for your footsteps. |
 
 With the usual ceiling, a floor tops out at 6 eighths. Raise the ceiling first to build higher. When the editor refuses a change, it says nothing, so if a click seems to do nothing, check the ceiling.
 
@@ -417,6 +417,7 @@ All end in `.png`. The picker's WALLS, FLOORS and CEILINGS tabs show them all, a
 | 10 | Cutter | Frames per sweep | |
 | 11 | Blackout | Seconds | Number of monsters |
 | 12 | Trap (fire) | Frames live | Frames safe |
+| 13 | Death pit: land on its floor, from any height, and you die. A pit with a bottom you can see; never locks or ends. | | |
 
 A trap's floor gets its own picture (a glowing wire grid, or a burner grate), and it warns you for half a second before it goes live: crackles and short arcs, or smoke and embers. While live it arcs or blazes, lights the room and buzzes or roars. Use kind 12 in hot places (reactors, foundries), kind 3 elsewhere.
 
@@ -481,6 +482,9 @@ These only change the running level, so they're for testing and for triggers rat
 | `light N on\|off` | Switch one of the level's lights |
 | `liftgo N up\|down` | Send a lift |
 | `message TEXT` | Show a message |
+| `give health N` / `give armor N` / `give ammo cells N` / `give ammo shells N` | N more (no N: full); `give all` everything |
+| `take health N` / `take armor N` / `take ammo cells N` / `take ammo shells N` | N less: `take health` ignores armour and can kill; `take all` leaves only the blaster; `take keys`, `take key red`, `take gun N`, `take map` |
+| `die [MESSAGE]` | You die (never in god mode or the editor) |
 | `mons` | List every monster: where it is, asleep or hunting, its health, and its own sight, hearing, speed and waking |
 | `sound NAME` | Play `sfx/NAME.wav` |
 

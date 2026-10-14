@@ -364,6 +364,9 @@ CONST EV_AMBUSH = 1, EV_SURVIVE = 2, EV_TRAP = 3, EV_GALLERY = 4, EV_NEST = 5
 CONST EV_CLOSET = 6, EV_HOARD = 7, EV_PLATE = 8, EV_LASER = 9, EV_CUTTER = 10, EV_BLACKOUT = 11
 '   EV_FIRETRAP the same as EV_TRAP, but a burner grate: flames, not sparks
 CONST EV_FIRETRAP = 12
+'   EV_DEATHPIT a floor that kills: land on it (from any height) and you die -
+'               a pit with a bottom you can see. Never locks, never ends.
+CONST EV_DEATHPIT = 13, EV_KINDS = 13
 ' A trap gives itself away: its floor is its own picture (MakeTrapTex), it
 ' smokes or crackles for TRAP_WARN frames before it goes live, and while
 ' live it blazes or arcs, lights the room and roars or buzzes (TrapFx)
@@ -1665,8 +1668,10 @@ DO
         IF playerZ > fz THEN
             playerVZ = playerVZ + FALL_G : playerZ = playerZ - playerVZ
             IF playerZ <= fz THEN
-                IF playerVZ > 0.13 AND NOT dead AND NOT godMode THEN damage = INT((playerVZ - 0.13) * 260) + 2 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer : shake = shake + 6
-                IF playerVZ > 0.06 THEN PlaySfx sndStep1&, 1 : shake = shake + 2
+                IF playerVZ > 0.13 AND NOT dead AND NOT godMode THEN ' (a fall that hurts - about a wall's drop or more: the thud, the jolt; anything less is just a step down, and the footsteps carry on)
+                    damage = INT((playerVZ - 0.13) * 260) + 2 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
+                    PlaySfx sndStep1&, 1 : shake = shake + 8
+                END IF
                 playerZ = fz : playerVZ = 0
             END IF
         END IF
@@ -3699,7 +3704,7 @@ SELECT CASE pnHit
         IF edSlotPick <= 6 THEN edPickTab = 1 ELSE IF edSlotPick <= 10 THEN edPickTab = 2 ELSE edPickTab = 3
         edPickScroll = 0 : IF edPickOn = 0 THEN edPickOn = 1
         edPickOpen = -1 : EditNote "Now click a picture in the picker - every one of these changes"
-    CASE 150 TO 161 ' An event's kind - with numbers that make sense for it
+    CASE 150 TO 149 + EV_KINDS ' An event's kind - with numbers that make sense for it
         ev = edPnEvent
         IF ev THEN
             GOSUB EditPushUndo : kd = pnHit - 149 : lvlEvent(ev, 1) = kd
@@ -3746,6 +3751,11 @@ SELECT CASE pnHit
         END IF
     CASE 170 : edTrigPane = NOT edTrigPane ' TRIGGERS...: the selection's
     CASE 190 : edTrigPane = 0 : edTyping = 0
+    CASE 191 TO 199 ' An action onto its commands
+        IF edTyping AND edTypeFor = 2 THEN GOSUB EditTypeDone
+        a$ = TrigAction$(pnHit - 190, -1)
+        IF LEN(edTrigCmd$) THEN edTrigCmd$ = edTrigCmd$ + " ; " + a$ ELSE edTrigCmd$ = a$
+        EditNote "Commands: " + LEFT$(edTrigCmd$, 80) + "  (ADD IT when it's ready)"
     CASE 171 TO 174 : edTrigWhen = pnHit - 170
     CASE 175 : edTrigRepeat = NOT edTrigRepeat
     CASE 178 : edTrigTime = MaxOf(1, edTrigTime - 5)
@@ -5204,6 +5214,13 @@ FOR ev = 1 TO numEvents
                     END IF
                 NEXT
             END IF
+        CASE EV_DEATHPIT ' Its floor kills: touch it and you're gone (not in god mode, nor in the editor)
+            IF inside AND NOT dead AND NOT godMode AND NOT editMode THEN
+                IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.02 THEN
+                    health = 0 : dead = -1 : deadAt! = TIMER : hurtFlash = 14 : shake = shake + 12
+                    PlaySfx sndStep1&, 1 : PlaySfx sndDie&, 1 : ShowMsg "You hit the bottom"
+                END IF
+            END IF
         CASE EV_CLOSET ' Walk in: the closets open
             IF evState(ev) = 0 AND inside AND NOT dead THEN
                 OpenClosets ev, -1 : evState(ev) = 2
@@ -6417,6 +6434,10 @@ SELECT CASE conVerb$
         conLevelChanged = -1 : GOSUB LevelDone
     CASE "give"
         GOSUB ConGive
+    CASE "take"
+        GOSUB ConTake
+    CASE "die", "suicide" ' You die, here and now (a trigger's death trap; not in god mode or the editor)
+        IF NOT dead AND NOT godMode AND NOT editMode THEN health = 0 : dead = -1 : deadAt! = TIMER : hurtFlash = 14 : PlaySfx sndDie&, 1 : IF LEN(conRest$) THEN ShowMsg conRest$
     CASE "god", "noclip", "iddqd"
         IF conA$ = "" THEN godMode = NOT godMode ELSE godMode = ConOn(conA$)
         IF godMode THEN ConPrint "God mode ON (no damage, no clipping)" ELSE ConPrint "God mode OFF"
@@ -6704,12 +6725,21 @@ SELECT CASE conA$
         FOR g = 1 TO NUM_GUNS : hasGun(g) = -1 : NEXT : ConPrint "All guns"
     CASE "weapon", "gun"
         g = VAL(conB$) : IF g >= 1 AND g <= NUM_GUNS THEN hasGun(g) = -1 : currentGun = g : ConPrint gunName$(g) ELSE ConPrint "give gun 1-" + LTRIM$(STR$(NUM_GUNS))
-    CASE "ammo"
-        ammoCount(AM_CELLS) = ammoMax(AM_CELLS) : ammoCount(AM_SHELLS) = ammoMax(AM_SHELLS) : ConPrint "Full ammo"
-    CASE "health"
-        health = MAX_HP : ConPrint "Full health"
+    CASE "ammo" ' give ammo: full; give ammo cells|shells [N]: that kind - full, or N more
+        am = AmmoKind(conB$) : n = VAL(conC$)
+        IF am = 0 THEN
+            ammoCount(AM_CELLS) = ammoMax(AM_CELLS) : ammoCount(AM_SHELLS) = ammoMax(AM_SHELLS) : ConPrint "Full ammo"
+        ELSE
+            IF n <= 0 THEN n = ammoMax(am)
+            ammoCount(am) = MinOf(ammoMax(am), ammoCount(am) + n) : PlaySfx sndAmmo&, 0.7
+            ConPrint "+" + LTRIM$(STR$(n)) + " " + AmmoName$(am) + "  (" + LTRIM$(STR$(ammoCount(am))) + ")"
+        END IF
+    CASE "health" ' give health: full; give health N: N more, up to the most
+        n = VAL(conB$)
+        IF n <= 0 THEN health = MaxOf(health, MAX_HP) : ConPrint "Full health" ELSE health = MinOf(MaxOf(health, MAX_HP), health + n) : PlaySfx sndHealth&, 0.8 : pickFlash = 10 : ConPrint "+" + LTRIM$(STR$(n)) + " health"
     CASE "armor", "armour"
-        armor = MAX_ARMOR : ConPrint "Full armour"
+        n = VAL(conB$)
+        IF n <= 0 THEN armor = MAX_ARMOR : ConPrint "Full armour" ELSE armor = MinOf(MAX_ARMOR, armor + n) : PlaySfx sndArmor&, 0.8 : ConPrint "+" + LTRIM$(STR$(n)) + " armour"
     CASE "overcharge"
         health = MAX_OVER : ConPrint "Overcharged"
     CASE "amp", "damage"
@@ -6717,7 +6747,53 @@ SELECT CASE conA$
     CASE "map"
         hasMap = -1 : ConPrint "The map"
     CASE ELSE
-        ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo / health / armor / overcharge / amp / map"
+        ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo [cells|shells N] / health [N] / armor [N] / overcharge / amp / map"
+END SELECT
+RETURN
+
+' take - give's opposite (for triggers: a toll, a trap, a thief room). take
+' health N hurts you N (armour doesn't help; it can kill), take all leaves
+' you the blaster and nothing else.
+ConTake:
+SELECT CASE conA$
+    CASE "all", "everything"
+        FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT
+        FOR g = 2 TO NUM_GUNS : hasGun(g) = 0 : NEXT
+        currentGun = W_BLASTER : ammoCount(AM_CELLS) = 0 : ammoCount(AM_SHELLS) = 0 : armor = 0 : hasMap = 0 : ampTimer = 0
+        PlaySfx sndSteal&, 1 : ConPrint "Everything taken"
+    CASE "keys", "keycards", "cards"
+        FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT : ConPrint "Keycards taken"
+    CASE "key", "card", "keycard"
+        k = INSTR("rby", LEFT$(conB$, 1)) : IF k THEN hasCard(k) = 0 : ConPrint "The " + CardName$(k) + " keycard taken" ELSE ConPrint "take key red / blue / yellow"
+    CASE "weapons", "guns"
+        FOR g = 2 TO NUM_GUNS : hasGun(g) = 0 : NEXT : currentGun = W_BLASTER : ConPrint "Guns taken (the blaster stays)"
+    CASE "weapon", "gun"
+        g = VAL(conB$) : IF g >= 2 AND g <= NUM_GUNS THEN hasGun(g) = 0 : IF currentGun = g THEN currentGun = W_BLASTER
+    CASE "ammo" ' take ammo: all of it; take ammo cells|shells [N]
+        am = AmmoKind(conB$) : n = VAL(conC$)
+        IF am = 0 THEN
+            ammoCount(AM_CELLS) = 0 : ammoCount(AM_SHELLS) = 0 : ConPrint "Ammo taken"
+        ELSE
+            IF n <= 0 THEN n = ammoCount(am)
+            ammoCount(am) = MaxOf(0, ammoCount(am) - n) : ConPrint "-" + LTRIM$(STR$(n)) + " " + AmmoName$(am) + "  (" + LTRIM$(STR$(ammoCount(am))) + ")"
+        END IF
+    CASE "health" ' take health N: N off (god mode and the editor are spared)
+        n = VAL(conB$) : IF n <= 0 THEN n = 10
+        IF NOT godMode AND NOT editMode AND NOT dead THEN
+            health = health - n : hurtFlash = 14 : shake = shake + n / 4
+            IF health <= 0 THEN
+                health = 0 : dead = -1 : deadAt! = TIMER : PlaySfx sndDie&, 1
+            ELSE
+                PlaySfx sndHurt&, 0.8
+            END IF
+        END IF
+        ConPrint "-" + LTRIM$(STR$(n)) + " health"
+    CASE "armor", "armour"
+        n = VAL(conB$) : IF n <= 0 THEN armor = 0 ELSE armor = MaxOf(0, armor - n)
+    CASE "map"
+        hasMap = 0 : mapOpen = 0
+    CASE ELSE
+        ConPrint "take all / keys / key r|b|y / weapons / gun N / ammo [cells|shells N] / health N / armor [N] / map"
 END SELECT
 RETURN
 
@@ -9476,6 +9552,10 @@ SUB EditPaneBuild
         y = y + 23
         IF edTyping AND edTypeFor = 2 THEN n$ = edTypeBuf$ + "_" ELSE n$ = edTrigCmd$ : IF n$ = "" THEN n$ = "(its commands)"
         EditPaneAdd -1, x0, y + 2, PN_W, LEFT$(RIGHT$(n$, 25), 25), 0 : y = y + 20
+        FOR q = 1 TO 9 ' (actions to add to its commands with a click)
+            EditPaneAdd 190 + q, x0 + ((q - 1) MOD 3) * 67, y + ((q - 1) \ 3) * 23, 65, TrigAction$(q, 0), 0
+        NEXT
+        y = y + 70
         IF edTyping AND edTypeFor = 2 THEN t$ = "OK" ELSE t$ = "TYPE"
         EditPaneAdd 176, x0, y, 99, t$, (edTyping AND edTypeFor = 2) : EditPaneAdd 177, x0 + 101, y, 99, "ADD IT", 0
         y = y + 23
@@ -9573,10 +9653,10 @@ SUB EditPaneBuild
             edPnEvent = ev : kd = lvlEvent(ev, 1)
             edPnTitle$ = "EVENT: " + EvKindName$(kd)
             EditPaneAdd -1, x0, y, PN_W, "room" + STR$(lvlEvent(ev, 2)) + "," + LTRIM$(STR$(lvlEvent(ev, 3))) + " to" + STR$(lvlEvent(ev, 4)) + "," + LTRIM$(STR$(lvlEvent(ev, 5))), 0 : y = y + 22
-            FOR t = 1 TO 12
+            FOR t = 1 TO EV_KINDS
                 EditPaneAdd 149 + t, x0 + ((t - 1) MOD 3) * 67, y + ((t - 1) \ 3) * 23, 65, LEFT$(EvKindName$(t), 8), (t = kd)
             NEXT
-            y = y + 96
+            y = y + ((EV_KINDS + 2) \ 3) * 23 + 4
             FOR w = 1 TO 2
                 EvField kd, w, lab$, unit, stp, mn, mx
                 IF unit >= 0 THEN
@@ -9732,6 +9812,36 @@ FUNCTION EditTrigHere(l$, x0, y0, x1, y1, ux, uy)
     END SELECT
 END FUNCTION
 
+' The trigger pane's ready-made actions: button q's label (cmd 0) or its
+' console command (cmd -1)
+FUNCTION TrigAction$(q, cmd)
+    SELECT CASE q
+        CASE 1 : l$ = "+25 HP" : c$ = "give health 25"
+        CASE 2 : l$ = "-25 HP" : c$ = "take health 25"
+        CASE 3 : l$ = "DIE" : c$ = "die YOU DIED"
+        CASE 4 : l$ = "+CELLS" : c$ = "give ammo cells 20"
+        CASE 5 : l$ = "-CELLS" : c$ = "take ammo cells 20"
+        CASE 6 : l$ = "+SHELLS" : c$ = "give ammo shells 8"
+        CASE 7 : l$ = "-SHELLS" : c$ = "take ammo shells 8"
+        CASE 8 : l$ = "GIVE ALL" : c$ = "give all"
+        CASE ELSE : l$ = "TAKE ALL" : c$ = "take all"
+    END SELECT
+    IF cmd THEN TrigAction$ = c$ ELSE TrigAction$ = l$
+END FUNCTION
+
+' An ammo kind by name (cells, shells - or 1, 2), 0 for none
+FUNCTION AmmoKind(a$)
+    SELECT CASE LCASE$(a$)
+        CASE "cells", "cell", "energy", "1" : AmmoKind = AM_CELLS
+        CASE "shells", "shell", "2" : AmmoKind = AM_SHELLS
+        CASE ELSE : AmmoKind = 0
+    END SELECT
+END FUNCTION
+
+FUNCTION AmmoName$(am)
+    IF am = AM_SHELLS THEN AmmoName$ = "shells" ELSE AmmoName$ = "cells"
+END FUNCTION
+
 ' The event room cell (x, y) is in - the first - or 0
 FUNCTION EditEventAt(x, y)
     EditEventAt = 0
@@ -9741,7 +9851,7 @@ FUNCTION EditEventAt(x, y)
 END FUNCTION
 
 FUNCTION EvKindName$(k)
-    EvKindName$ = RTRIM$(MID$("AMBUSH   SURVIVE  TRAP     GALLERY  NEST     CLOSET   HOARD    PLATE    LASER    CUTTER   BLACKOUT FIRETRAP ", k * 9 - 8, 9))
+    EvKindName$ = RTRIM$(MID$("AMBUSH   SURVIVE  TRAP     GALLERY  NEST     CLOSET   HOARD    PLATE    LASER    CUTTER   BLACKOUT FIRETRAP DEATHPIT ", k * 9 - 8, 9))
 END FUNCTION
 
 ' What an event kind's number `which` (1: a, 2: b) means: its name, its
@@ -11886,7 +11996,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon mons tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -11909,7 +12019,9 @@ SUB ConHelp(c$)
         CASE "map" : ConPrint "map N (1-" + LTRIM$(STR$(NUM_LEVELS)) + ", yours from" + STR$(NUM_LEVELS + 1) + ") or map NAME (part of one): go to that sector, keeping what you carry"
         CASE "newsector" : ConPrint "newsector: a blank sector of your own (levels/custom/), opened in the editor - carve rooms out with . (floor), Ctrl+S saves"
         CASE "sectorname" : ConPrint "sectorname NAME: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it"
-        CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-4 | ammo | health | armor | overcharge | amp | map"
+        CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-4 | ammo [cells|shells N] | health [N] | armor [N] | overcharge | amp | map"
+        CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-4 | ammo [cells|shells N] | health N | armor [N] | map"
+        CASE "die" : ConPrint "die [MESSAGE]: you die (a trigger's death trap); never in god mode or the editor"
         CASE "summon" : ConPrint "summon TYPE [COUNT]: drone gunner heavy crawler sentry stalker spitter overseer (or 1-8), in front of you"
         CASE "set" : ConPrint "set NAME VALUE: any setting (settings lists them); NAME on its own shows it. on/off work for switches"
         CASE "wait" : ConPrint "wait FRAMES: hold back the commands after it (60 frames = 1 second) - for scripts and the command line"

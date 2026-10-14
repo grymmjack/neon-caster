@@ -139,7 +139,8 @@ class Map:
 
     # -- event rooms (see EV_ in the game): kind 1 ambush, 2 survive, 3 trap,
     # 4 shooting gallery, 5 spawner nest, 6 closet, 7 hoard, 8 pressure
-    # plate, 9 laser, 10 laser cutter, 11 power failure, 12 fire trap (3, burning);
+    # plate, 9 laser, 10 laser cutter, 11 power failure, 12 fire trap (3, burning),
+    # 13 death pit (its floor kills - a pit with a bottom you can see);
     # the room x0..x1, y0..y1; two numbers
     # whose meaning depends on the kind; the reward (a pickup kind, 0 none:
     # 4 health, 5 cells, 6 shells, 9 armour, 10 big medkit, 13 overcharge,
@@ -297,6 +298,11 @@ def check_heights(lv):
     g = [list(r) for r in rows]
     F = [[hval(fl[y][x] if y < len(fl) and x < len(fl[y]) else ".", 0) for x in range(N)] for y in range(N)]
     C = [[hval(ce[y][x] if y < len(ce) and x < len(ce[y]) else ".", 8) for x in range(N)] for y in range(N)]
+    for e in lv.get("events", []):  # a death pit (13): its floor kills, as a pit with no bottom does
+        if len(e) == 8 and e[0] == 13:
+            for y in range(e[2], e[4] + 1):
+                for x in range(e[1], e[3] + 1):
+                    F[y][x] = min(F[y][x], DEADLY)
     lift = {}
     for (x0, y0, x1, y1, lo, hi, mode, sp) in lv.get("lifts", []):
         for y in range(y0, y1 + 1):
@@ -727,8 +733,8 @@ def check_level(lv, assets=None):
             errs.append("event %s: needs 8 numbers" % (e,))
             continue
         kind, x0, y0, x1, y1, a, b, reward = e
-        if not (1 <= kind <= 12 and 0 < x0 <= x1 < N - 1 and 0 < y0 <= y1 < N - 1):
-            errs.append("event %s: kind 1-12, a room inside the map" % (e,))
+        if not (1 <= kind <= 13 and 0 < x0 <= x1 < N - 1 and 0 < y0 <= y1 < N - 1):
+            errs.append("event %s: kind 1-13, a room inside the map" % (e,))
         if reward not in (0, 4, 5, 6, 9, 10, 13, 14):
             errs.append("event %s: reward must be 0 or a pickup kind" % (e,))
         room = [lv["rows"][y][x] for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]
