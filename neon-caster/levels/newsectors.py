@@ -976,6 +976,78 @@ def coldstorage():
     finish(m, 7, dict(closets=1, cmons="c", props=2, propchars="xp"))
     return m
 
+
+# ---------------------------------------------------------------- 8
+@sector("SECTOR 8: THE SKYWAY",
+        ["wall-concrete.png", "wall-adverts.png", "wall-transit.png", "wall-grate.png", "wall-hull.png", "wall-graffiti.png"],
+        ["floor-platform.png", "floor-rustgrate.png", "floor-concrete.png", "floor-deck.png"],
+        ["ceiling-hull.png", "sky-storm.png"])
+def skyway():
+    """NEW 8: THE SKYWAY. Over the city in a storm: rooftops at different
+    heights, bridges and stairs between them, and the street far below -
+    step off and you fall to your death. A lift rides between two roofs;
+    a laser cutter sweeps the long gantry north. Sentries hold the roofs.
+    The red card is on the east roof; the blue in the shed on the north-west
+    tower (red door); the exit in the shed on the highest roof (blue door)."""
+    m = Sector("#")
+    m.ambient = (160, 190, 210, 255)
+    m.puzzles = "function"
+    m.room(1, 1, 46, 46, ceil=34, zone=(3, 2))   # (the street, under the sky - as high as a height goes, nearly)
+    m.event(13, 1, 1, 46, 46, 0, 0)
+    roofs = ((3, 34, 14, 44, 16), (3, 20, 11, 30, 16), (17, 18, 30, 30, 12), (3, 3, 14, 14, 20),
+             (33, 3, 44, 12, 24), (34, 18, 44, 30, 16), (20, 36, 44, 44, 16))
+    for (x0, y0, x1, y1, h) in roofs:
+        m.floor(x0, y0, x1, y1, h, only_open=False)
+        m.zone(x0, y0, x1, y1, 1, 0)
+    def bridge(x0, y0, x1, y1, h):
+        m.floor(x0, y0, x1, y1, h, only_open=False); m.zone(x0, y0, x1, y1, 2, 0)
+    bridge(6, 31, 7, 33, 16)                 # start roof - west tower
+    bridge(15, 39, 19, 40, 16)               # start roof - south-east roof
+    bridge(38, 31, 39, 35, 16)               # south-east roof - east roof
+    m.stairs(12, 24, 16, 24, "E", 16, 12)    # west tower - plaza
+    m.zone(12, 24, 16, 24, 2, 0)
+    m.stairs(6, 15, 7, 19, "N", 16, 20)      # west tower - north-west tower
+    m.zone(6, 15, 7, 19, 2, 0)
+    bridge(15, 8, 30, 8, 20)                 # the gantry...
+    m.stairs(31, 8, 32, 8, "E", 22, 24)      # ...up to the high roof
+    m.zone(31, 8, 32, 8, 2, 0)
+    m.event(10, 15, 8, 30, 8, 100, 0)        # (the cutter sweeping it)
+    m.lift(31, 23, 33, 24, 12, 16, mode=1, speed=4)   # plaza - east roof
+    m.start_at = (8, 43)
+    m.put(8, 43, "^")
+    # the street's dark below; lamps and lit posts on the roofs
+    for (x, y) in ((4, 35), (13, 43), (10, 21), (18, 19), (29, 29), (35, 19), (43, 29), (21, 43), (43, 37), (34, 4)):
+        m.put(x, y, "i")
+    for (x, y, a, c) in ((17, 24, "W", PINK), (30, 24, "E", CYAN), (23, 18, "N", AMBER), (23, 30, "S", AMBER)):
+        m.post(x, y, a, at=4, w=2, d=2, wall=2, glow=c, fx=0)
+    m.pool(24, 25, 26, 26, "w", sink=1, depth=1); m.pool(37, 40, 39, 41, "w", sink=1, depth=1)
+    for (x, y, c) in ((8, 37, "M"), (12, 41, "a"), (10, 28, "e"), (25, 20, "s"), (40, 27, "s"), (21, 27, "g"), (28, 22, "g"),
+                      (6, 26, "k"), (36, 40, "k"), (25, 27, "m"), (12, 12, "m"), (40, 11, "m"), (30, 42, "+"), (42, 20, "r"),
+                      (19, 21, "u"), (28, 28, "a"), (5, 22, "e"), (43, 39, "*"), (37, 21, "f"), (5, 42, "x"), (6, 42, "x")):
+        m.put(x, y, c)
+    m.light(23.5, 24.5, 9, 140, 200, 220, 255, 0)
+    # the north-west tower's shed (red door): the blue card
+    m.room(4, 4, 9, 8, floor=20, ceil=30, zone=(4, 1))
+    m.rect(4, 9, 9, 9, "C"); m.rect(10, 4, 10, 9, "C")
+    m.put(7, 9, "R")
+    for (x, y, c) in ((4, 4, "b"), (9, 4, "U"), (5, 7, "j")):
+        m.put(x, y, c)
+    m.light(6.5, 6.5, 4, 150, 255, 200, 120, 1)
+    # the high roof's shed (blue door): the exit
+    m.room(36, 4, 43, 8, floor=24, ceil=33, zone=(4, 1))
+    m.rect(35, 4, 35, 9, "C"); m.rect(36, 9, 43, 9, "C")
+    m.put(35, 6, "B"); m.put(44, 6, "E")
+    m.post(43, 5, "E", at=7, w=2, d=2, wall=5, glow=GREEN); m.post(43, 7, "E", at=1, w=2, d=2, wall=5, glow=GREEN)
+    m.put(39, 9, "$")
+    for (x, y, c) in ((38, 5, "h"), (37, 8, "e"), (42, 4, "F")):
+        m.put(x, y, c)
+    m.light(39.5, 6.5, 5, 150, 200, 255, 220, 0)
+    m.triggers.append("enter 3 34 14 44 : message THE STREET IS A LONG WAY DOWN - DON'T STEP OFF")
+    m.loot_line("crate    = ammo:25, shells:25, medkit:20, armor:15")
+    m.loot_line("tank     = ammo:20, -, -, -")
+    finish(m, 8, dict(props=2, propchars="xo"))
+    return m
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
