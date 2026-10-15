@@ -807,6 +807,85 @@ def forge():
     finish(m, 5, dict(closets=1, cmons="c", blackout=4, props=2, propchars="xo"))
     return m
 
+
+# ---------------------------------------------------------------- 6
+@sector("SECTOR 6: THE CHAPEL",
+        ["wall-vault.png", "wall-obsidian.png", "wall-core.png", "wall-tiles.png", "wall-datastream.png", "wall-white.png"],
+        ["floor-white.png", "floor-circuit.png", "floor-glow.png", "floor-lab.png"],
+        ["ceiling-core.png", "ceiling-lights.png"])
+def chapel():
+    """NEW 6: THE CHAPEL. NEXUS built itself a cathedral. The nave is four
+    walls high between two rows of slim lit pillars, low aisles outside
+    them with holograms in their shrines, a font of poison in the middle.
+    Up the steps, the apse: spawner portals - break them. The west crypt
+    locks you in to survive (the red card is there); the east crypt (red
+    door) has the blue. The sacristy, off the apse (blue door), has the exit."""
+    m = Sector("#")
+    m.ambient = (150, 215, 200, 255)
+    m.puzzles = "select"
+    # The narthex: you, facing north
+    m.room(19, 40, 28, 44, ceil=12, zone=(4, 1))
+    m.put(23, 43, "^")
+    m.rect(23, 38, 24, 39)
+    for (x, y, c) in ((19, 40, "i"), (28, 40, "i"), (20, 44, "M"), (27, 44, "a"), (19, 44, "W"), (28, 44, "W")):
+        m.put(x, y, c)
+    # The nave and its aisles
+    m.room(13, 10, 34, 37, ceil=12, zone=(1, 1))
+    m.ceiling(17, 10, 30, 37, 32, only_raise=False)
+    m.room(18, 4, 29, 9, ceil=32)   # (the apse)
+    for y in range(13, 37, 3):
+        lit = (y // 3) % 2 == 0
+        m.column(17, y, size=2, wall=2, pic=LIT if lit else None, glow=VIOLET if lit else None)
+        m.column(30, y, size=2, wall=2, pic=LIT if lit else None, glow=VIOLET if lit else None)
+    for y in (14, 20, 26, 32):
+        m.alcove(12, y, "E", depth=4, floor=2, ceil=7, deco="Q", glow=PINK, fx=2)
+        m.alcove(35, y, "W", depth=4, floor=2, ceil=7, deco="Q", glow=CYAN, fx=2)
+    m.pool(22, 22, 25, 25, "p", sink=2, depth=1)
+    for (x, y, a) in ((21, 21, "N"), (26, 21, "N"), (21, 26, "S"), (26, 26, "S")):
+        m.post(x, y, a, at=4, w=2, d=2, wall=5, glow=GREEN, fx=2)
+    for (x, y) in ((23, 15), (23, 31), (14, 23), (33, 23)):
+        m.light(x + 0.5, y + 0.5, 8, 150, 190, 120, 255, 0)
+    # the apse: up the steps, the spawner nest
+    m.floor(18, 4, 29, 9, 4); m.floor(18, 10, 29, 10, 2)
+    m.zone(18, 4, 29, 9, 3, 2)
+    for x in (20, 27):
+        m.put(x, 5, "S")
+    m.event(5, 18, 4, 29, 9, 6, 240)
+    m.light(23.5, 6.5, 8, 170, 255, 60, 200, 2)
+    for (x, y, c) in ((15, 10, "k"), (32, 30, "k"), (20, 30, "k"), (27, 16, "w"), (15, 34, "w"), (24, 12, "m"), (19, 27, "m"),
+                      (28, 19, "m"), (32, 12, "g"), (14, 18, "g"), (14, 36, "+"), (33, 36, "e"), (19, 8, "a"), (28, 8, "u")):
+        m.put(x, y, c)
+    # The west crypt: survive - and the red card
+    m.room(3, 14, 10, 32, ceil=10, zone=(2, 2))
+    m.put(12, 23, "D"); m.rect(11, 23, 11, 23)
+    for y in (17, 22, 27):
+        m.alcove(2, y, "E", depth=5, floor=0, ceil=7, deco="O", glow=CYAN, fx=5)
+    m.put(2, 30, "$")
+    for (x, y, c) in ((10, 15, "r"), (9, 31, "*"), (5, 15, "V"), (7, 31, "V")):
+        m.put(x, y, c)
+    m.event(2, 3, 14, 10, 32, 30, 80, 10)
+    m.light(6.5, 23.5, 6, 150, 120, 200, 255, 5)
+    # The east crypt (red door): the blue card
+    m.room(37, 14, 44, 32, ceil=10, zone=(2, 2))
+    m.put(35, 23, "R"); m.rect(36, 23, 36, 23)
+    for y in (17, 22, 27):
+        m.alcove(45, y, "W", depth=5, floor=0, ceil=7, deco="O", glow=PINK, fx=5)
+    for (x, y, c) in ((44, 31, "b"), (38, 15, "V"), (41, 30, "w"), (42, 16, "k"), (38, 31, "e")):
+        m.put(x, y, c)
+    m.light(40.5, 23.5, 6, 150, 255, 120, 200, 5)
+    # The sacristy (off the apse, blue door): the exit
+    m.room(32, 2, 40, 9, floor=4, ceil=14, zone=(3, 2))
+    m.put(30, 6, "B"); m.rect(31, 6, 31, 6); m.floor(30, 6, 31, 6, 4, only_open=False)
+    m.put(41, 6, "E")
+    m.post(40, 5, "E", at=7, w=2, d=2, wall=5, glow=GREEN); m.post(40, 7, "E", at=1, w=2, d=2, wall=5, glow=GREEN)
+    for (x, y, c) in ((33, 3, "F"), (39, 3, "F"), (36, 8, "h"), (34, 8, "j")):
+        m.put(x, y, c)
+    m.light(36.5, 5.5, 6, 150, 255, 220, 160, 0)
+    m.loot_line("crate    = ammo:20, shells:20, medkit:20, armor:15")
+    m.loot_line("hologram = overcharge:20, amp:10, -, -")
+    finish(m, 6, dict(closets=2, cmons="kc", props=2, propchars="xp"))
+    return m
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
