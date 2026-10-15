@@ -13472,7 +13472,7 @@ SUB LaserFx(ev, px, py)
     IF onNow THEN
         IF evHum&(ev) = 0 THEN evHum&(ev) = _SNDCOPY(sndTrapElec&)
         IF evHum&(ev) > 0 THEN
-            _SNDVOL evHum&(ev), SfxVolAt!(cx, cy, px, py, SFX_RANGE) * 0.6 * setting(SET_SFX) / 100
+            _SNDVOL evHum&(ev), SfxVolAt!(cx, cy, px, py, SFX_RANGE) * 0.6 * setting(SET_SFX) / 100 : HumPan evHum&(ev), cx, cy
             IF NOT _SNDPLAYING(evHum&(ev)) THEN _SNDLOOP evHum&(ev)
         END IF
     ELSEIF evHum&(ev) > 0 THEN
@@ -13933,6 +13933,15 @@ END SUB
 ' your right or left - a sound straight behind you is in the middle).
 SUB SfxAt(snd&, x, y, listenX, listenY)
     SfxAtRange snd&, x, y, listenX, listenY, SFX_RANGE
+END SUB
+
+' A looping sound's side (a lift's motor, a trap's buzz), from where it is
+' at (x, y) - as SfxAtRange pans a sound - or the middle, without 3D SOUND
+SUB HumPan(h&, x, y)
+    IF h& <= 0 THEN EXIT SUB
+    dx = x - playerX : dy = y - playerY : d = SQR(dx * dx + dy * dy) : pan! = 0
+    IF setting(SET_SPATIAL) AND d > 0.5 THEN pan! = (dx * earDY - dy * earDX) / d * 0.85 * MinOf(1, d / 2)
+    _SNDBAL h&, pan!
 END SUB
 
 SUB SfxAtRange(snd&, x, y, listenX, listenY, range)
@@ -17117,7 +17126,7 @@ SUB LiftSound(k, px, py)
     IF liftDir(k) <> 0 THEN
         IF liftHum&(k) = 0 THEN liftHum&(k) = _SNDCOPY(sndLiftMove&)
         IF liftHum&(k) > 0 THEN
-            _SNDVOL liftHum&(k), SfxVolAt!(cx, cy, px, py, SFX_RANGE) * 0.7 * setting(SET_SFX) / 100
+            _SNDVOL liftHum&(k), SfxVolAt!(cx, cy, px, py, SFX_RANGE) * 0.7 * setting(SET_SFX) / 100 : HumPan liftHum&(k), cx, cy
             IF NOT _SNDPLAYING(liftHum&(k)) THEN _SNDLOOP liftHum&(k)
         END IF
     ELSEIF liftHum&(k) > 0 THEN
@@ -17217,7 +17226,7 @@ SUB TrapFx(ev)
     IF g > 0 THEN
         IF evHum&(ev) = 0 THEN evHum&(ev) = _SNDCOPY(snd&)
         IF evHum&(ev) > 0 THEN
-            _SNDVOL evHum&(ev), SfxVolAt!(cx, cy, playerX, playerY, SFX_RANGE) * 0.8 * g * setting(SET_SFX) / 100
+            _SNDVOL evHum&(ev), SfxVolAt!(cx, cy, playerX, playerY, SFX_RANGE) * 0.8 * g * setting(SET_SFX) / 100 : HumPan evHum&(ev), cx, cy
             IF NOT _SNDPLAYING(evHum&(ev)) THEN _SNDLOOP evHum&(ev)
         END IF
     ELSEIF evHum&(ev) > 0 THEN
