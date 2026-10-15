@@ -15598,7 +15598,12 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
             mmColor~& = 0
             SELECT CASE worldMap(cellX, cellY)
                 CASE 0
-                    IF cellSize > 4 THEN mmColor~& = _RGBA32(40, 50, 95, 150)
+                    IF cellSize > 4 THEN ' (the full map: the floor - and what's on it that matters)
+                        mmColor~& = _RGBA32(40, 50, 95, 150)
+                        IF liqKind(cellX, cellY) THEN k = liqKind(cellX, cellY) : mmColor~& = _RGBA32(lqR(k) * 0.7, lqG(k) * 0.7, lqB(k) * 0.7, 210) ' (a pool, its colour: lava orange, acid green...)
+                        IF floorH(cellX, cellY) <= PIT_DEPTH THEN mmColor~& = _RGBA32(10, 0, 20, 230) ' (a pit with no bottom: black)
+                        IF liftCell(cellX, cellY) THEN mmColor~& = _RGBA32(70, 150, 90, 190) ' (a lift)
+                    END IF
                     IF glassHP(cellX, cellY) > 0 THEN mmColor~& = _RGB32(130, 220, 255) ' (glass)
                 CASE 1, 3 TO 9
                     mmColor~& = wallMapColor(worldMap(cellX, cellY))
@@ -15627,6 +15632,11 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
             END IF
         END IF
     NEXT : NEXT
+    IF cellSize > 4 THEN ' Teleporter pads: a violet ring each
+        FOR k = 1 TO numPads
+            IF showAll OR cellSeen(padX(k), padY(k)) THEN CIRCLE (mapLeft + (padX(k) + 0.5) * cellSize, mapTop + (padY(k) + 0.5) * cellSize), cellSize * 0.4, _RGB32(190, 110, 255)
+        NEXT
+    END IF
     IF (TIMER * 4 AND 1) = 0 THEN ' Keycards blink
         FOR i = 1 TO numItems
             IF itemOn(i) AND itemKind(i) <= 3 AND (showAll OR cellSeen(INT(itemX(i)), INT(itemY(i)))) THEN
