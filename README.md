@@ -83,6 +83,16 @@ explains every tool, key, map character and level-file field, and YOUR
 SECTORS starts with twelve example sectors (three of them outdoors, under skies) built with the editor to take
 apart.
 
+**Achievements and records:** 45 achievements, from finishing sector 1 to
+a thousand kills, a sector without a scratch, or kicking a machine into a
+bottomless pit, each with its own badge. **GAME > ACHIEVEMENTS** shows
+them all and how close you are, and its RECORDS page has your best time,
+kills and items for every sector. They're Steam achievements, through the
+STEAM library in QB64_GJ_LIB. Until the game is on Steam they're kept in
+`neon-caster/saves/achievements.txt`, and the game shows its own pop-up.
+`steam/README.md` says what's needed to go live. Cheats (god mode,
+`give`, the editor) hold them until your next new game.
+
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting
 at once. OLDSCHOOL is chunky pixels with no effects, 90S is 720P with
 scanlines and most effects, and NEWSCHOOL is as sharp as your display goes

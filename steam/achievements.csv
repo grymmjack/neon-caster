@@ -1,0 +1,46 @@
+API name,Display name,Description,Hidden,Progress stat,Goal,Achieved icon,Unachieved icon
+NC_SECTOR_1,First Steps,Finish sector 1.,no,,,achievements/NC_SECTOR_1.jpg,achievements/NC_SECTOR_1_locked.jpg
+NC_ESCAPED,You Escaped,Finish the original ten sectors.,no,,,achievements/NC_ESCAPED.jpg,achievements/NC_ESCAPED_locked.jpg
+NC_NEW_BLOOD,New Blood,Finish all ten NEW SECTORS.,no,,,achievements/NC_NEW_BLOOD.jpg,achievements/NC_NEW_BLOOD_locked.jpg
+NC_REMASTERED,"Old Haunts, New Paint",Finish all ten OLD SECTORS NEW.,no,,,achievements/NC_REMASTERED.jpg,achievements/NC_REMASTERED_locked.jpg
+NC_FULL_TOUR,The Full Tour,Finish all three sets of ten.,no,SetsDone,3,achievements/NC_FULL_TOUR.jpg,achievements/NC_FULL_TOUR_locked.jpg
+NC_OVERSEER,Flesh to Steel,Destroy the overseer.,no,,,achievements/NC_OVERSEER.jpg,achievements/NC_OVERSEER_locked.jpg
+NC_EXPO,Every Wonder,Finish THE NEON EXPO (sector 24).,no,,,achievements/NC_EXPO.jpg,achievements/NC_EXPO_locked.jpg
+NC_SHOWCASE,Gallery Visitor,Finish five of the showcase sectors.,no,Showcases,5,achievements/NC_SHOWCASE.jpg,achievements/NC_SHOWCASE_locked.jpg
+NC_FIRST_KILL,Hostile Takeover,Destroy your first machine.,no,Kills,1,achievements/NC_FIRST_KILL.jpg,achievements/NC_FIRST_KILL_locked.jpg
+NC_KILLS_100,Centurion,Destroy 100 machines.,no,Kills,100,achievements/NC_KILLS_100.jpg,achievements/NC_KILLS_100_locked.jpg
+NC_KILLS_1000,Decommissioned,"Destroy 1,000 machines.",no,Kills,1000,achievements/NC_KILLS_1000.jpg,achievements/NC_KILLS_1000_locked.jpg
+NC_HEADSHOT,Right Between the Optics,Land a headshot.,no,Headshots,1,achievements/NC_HEADSHOT.jpg,achievements/NC_HEADSHOT_locked.jpg
+NC_HEADSHOTS_100,Marksman,Land 100 headshots.,no,Headshots,100,achievements/NC_HEADSHOTS_100.jpg,achievements/NC_HEADSHOTS_100_locked.jpg
+NC_KICK_KILL,Boot to the Head,Finish off a machine with a kick.,no,,,achievements/NC_KICK_KILL.jpg,achievements/NC_KICK_KILL_locked.jpg
+NC_OVER_EDGE,Over the Edge,Send a machine into a bottomless pit.,no,,,achievements/NC_OVER_EDGE.jpg,achievements/NC_OVER_EDGE_locked.jpg
+NC_CHAIN,Chain Reaction,Three machines in one explosion.,no,,,achievements/NC_CHAIN.jpg,achievements/NC_CHAIN_locked.jpg
+NC_ARSENAL,Arsenal,Carry all four guns at once.,no,,,achievements/NC_ARSENAL.jpg,achievements/NC_ARSENAL_locked.jpg
+NC_AMPED,Overclocked,Five kills on one damage amp.,no,,,achievements/NC_AMPED.jpg,achievements/NC_AMPED_locked.jpg
+NC_BESTIARY,Bestiary,Destroy one of every kind of machine.,no,KillKinds,9,achievements/NC_BESTIARY.jpg,achievements/NC_BESTIARY_locked.jpg
+NC_THIEF,"Stop, Thief!",Destroy a thief.,no,,,achievements/NC_THIEF.jpg,achievements/NC_THIEF_locked.jpg
+NC_UNTOUCHED,Untouchable,Finish a sector without a scratch.,no,,,achievements/NC_UNTOUCHED.jpg,achievements/NC_UNTOUCHED_locked.jpg
+NC_CLEAN_SWEEP,Clean Sweep,"Finish a sector, every machine down.",no,,,achievements/NC_CLEAN_SWEEP.jpg,achievements/NC_CLEAN_SWEEP_locked.jpg
+NC_PACKRAT,Packrat,Finish a sector with every item.,no,,,achievements/NC_PACKRAT.jpg,achievements/NC_PACKRAT_locked.jpg
+NC_PERFECT,Perfectionist,Every kill and item in one sector.,no,,,achievements/NC_PERFECT.jpg,achievements/NC_PERFECT_locked.jpg
+NC_SPEEDRUN,Speedrunner,Finish a sector in under a minute.,no,,,achievements/NC_SPEEDRUN.jpg,achievements/NC_SPEEDRUN_locked.jpg
+NC_PEASHOOTER,Peashooter,"5+ kills in a sector, blaster only.",no,,,achievements/NC_PEASHOOTER.jpg,achievements/NC_PEASHOOTER_locked.jpg
+NC_LUB_DUB,Lub-Dub,Finish a sector with 10 health or less.,no,,,achievements/NC_LUB_DUB.jpg,achievements/NC_LUB_DUB_locked.jpg
+NC_LOCKDOWN,Lockdown Lifted,Win a lockdown.,no,,,achievements/NC_LOCKDOWN.jpg,achievements/NC_LOCKDOWN_locked.jpg
+NC_SURVIVOR,Survivor,Survive a lockdown to the end.,no,,,achievements/NC_SURVIVOR.jpg,achievements/NC_SURVIVOR_locked.jpg
+NC_GALLERY,Shooting Gallery,Smash a shooting gallery in time.,no,,,achievements/NC_GALLERY.jpg,achievements/NC_GALLERY_locked.jpg
+NC_HOARD,Robbing the Robbers,Open a thieves' hoard.,no,,,achievements/NC_HOARD.jpg,achievements/NC_HOARD_locked.jpg
+NC_PEST,Pest Control,Destroy every portal in a nest.,no,,,achievements/NC_PEST.jpg,achievements/NC_PEST_locked.jpg
+NC_JACKED,Jacked In,Hack a data station.,no,,,achievements/NC_JACKED.jpg,achievements/NC_JACKED_locked.jpg
+NC_HELLO,"Hello, NEXUS",Fix a code terminal's program.,no,Puzzles,1,achievements/NC_HELLO.jpg,achievements/NC_HELLO_locked.jpg
+NC_PROGRAMMER,Programmer,Fix ten code terminals' programs.,no,Puzzles,10,achievements/NC_PROGRAMMER.jpg,achievements/NC_PROGRAMMER_locked.jpg
+NC_HOT_FOOT,Hot Foot,Climb out of lava alive.,no,,,achievements/NC_HOT_FOOT.jpg,achievements/NC_HOT_FOOT_locked.jpg
+NC_CORRODED,Corroded,Let acid eat your armour.,no,,,achievements/NC_CORRODED.jpg,achievements/NC_CORRODED_locked.jpg
+NC_BEAM,Frequent Flyer,Teleport 25 times.,no,Teleports,25,achievements/NC_BEAM.jpg,achievements/NC_BEAM_locked.jpg
+NC_LOOT,Treasure Hunter,Find 25 things in breakables.,no,LootDrops,25,achievements/NC_LOOT.jpg,achievements/NC_LOOT_locked.jpg
+NC_VANDAL,Vandal,Smash 100 decorations.,no,Smashed,100,achievements/NC_VANDAL.jpg,achievements/NC_VANDAL_locked.jpg
+NC_ARCHITECT,Architect,Save a sector in the level editor.,no,,,achievements/NC_ARCHITECT.jpg,achievements/NC_ARCHITECT_locked.jpg
+NC_BOXED,Thinking Inside the Box,Stand a block in the level editor.,no,,,achievements/NC_BOXED.jpg,achievements/NC_BOXED_locked.jpg
+NC_HMPH,Hmph,Search 25 walls for secrets.,yes,Searches,25,achievements/NC_HMPH.jpg,achievements/NC_HMPH_locked.jpg
+NC_DEATHS,Respawn Enthusiast,Die ten times.,yes,Deaths,10,achievements/NC_DEATHS.jpg,achievements/NC_DEATHS_locked.jpg
+NC_GLASS,Bull in a China Shop,Shatter ten panes of glass.,yes,Glass,10,achievements/NC_GLASS.jpg,achievements/NC_GLASS_locked.jpg

@@ -249,6 +249,39 @@ Each sector is built around floors and ceilings at different heights
 | 9 Orbital Spire | an amphitheatre stepping down to the core; sniper ledges with elevators |
 | 10 The Core | a spiral climbing as it winds in; an arena with a ring of pit (kick them in) round the overseer's dais |
 
+## Achievements and records
+
+45 achievements, and each sector's best time, kills and items, in **GAME >
+ACHIEVEMENTS** (Tab switches to the records). They're Steam's: chapter 23's
+ACHIEVEMENTS section uses the STEAM library from QB64_GJ_LIB (`lib/steam`),
+which loads Valve's `steam_api` while the game runs, once it has a Steam
+App ID. Until then the library's stand-in keeps them in
+`saves/achievements.txt`, and records go in `saves/records.txt`.
+
+How they work, to read alongside the code:
+
+- **Achieve.** Each achievement is unlocked by its API name.
+- **Counted ones.** `AchAdd` adds to a stat (kills, headshots) and unlocks
+  every achievement that stat's goal now reaches.
+- **Sets of things.** `AchBit` ticks one bit of a stat (each kind of machine
+  killed, each set finished) and counts the bits.
+- **Where they're unlocked.** The hooks sit where things happen:
+  `HitMonster` for kills, `WinEvent` for the event rooms, `LevelDone` for
+  how a sector was finished.
+- **Cheats.** God mode, `give`, the editor and the like set `achCheat`, which
+  holds achievements and records until a new game. A level's own triggers
+  don't count: `TriggerRun` sets `conFromTrig` while they run.
+
+In the console:
+
+- `achievements` lists them all.
+- `achieve NAME` unlocks one (as a cheat).
+- `resetachievements` starts over.
+- `NEON_ACH_TEST=1` in the environment lets scripted test runs count with
+  cheats on.
+
+`steam/README.md` covers what Steamworks needs to go live.
+
 ## The other two sets
 
 **NEW SECTORS** (GAME > NEW SECTORS, `levels/new/`) are ten more, built by
@@ -494,6 +527,8 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/levels/new/`, `remix/` | NEW SECTORS and OLD SECTORS NEW, `level1.txt`... each |
 | `neon-caster/levels/custom/` | your own sectors (`customN.txt` is sector 10+N), made by NEW SECTOR - the level kit leaves them alone; 1-11 are the showcase sectors (19-21 outdoors), 14 is THE NEON EXPO (sector 24: every feature in one, built by `levels/megasector.py`) |
 | `neon-caster/puzzles/` | the code terminals' QB64 programs, one a file (`README.txt` says how to write one) |
+| `neon-caster/achievements/` | each achievement's badge (`NAME.png`) and its grey, locked one (`NAME_locked.png`) |
+| `neon-caster/saves/achievements.txt`, `records.txt` | the achievements and stats (Steam's stand-in, until the game is on Steam) and each sector's best |
 | `neon-caster/monsters.txt`, `hud.txt` | every monster's numbers and what it drops; the HUD's layout - both changed by their editors, or by hand |
 | `neon-caster/music/` | a track for each sector, the menu's, and the network's (`cyber.flac`) |
 

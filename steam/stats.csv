@@ -1,0 +1,13 @@
+API name,Type,Set by,Increment only,Notes
+SetsDone,INT,Client,yes,"a set of things, one bit each (count the bits)"
+Showcases,INT,Client,yes,"a set of things, one bit each (count the bits)"
+Kills,INT,Client,yes,a count
+Headshots,INT,Client,yes,a count
+KillKinds,INT,Client,yes,"a set of things, one bit each (count the bits)"
+Puzzles,INT,Client,yes,a count
+Teleports,INT,Client,yes,a count
+LootDrops,INT,Client,yes,a count
+Smashed,INT,Client,yes,a count
+Searches,INT,Client,yes,a count
+Deaths,INT,Client,yes,a count
+Glass,INT,Client,yes,a count

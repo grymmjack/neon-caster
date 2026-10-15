@@ -665,4 +665,5 @@ It reports anything you can't reach (following your `[pads]` pairs), doors witho
 - A block and a moved decoration belong to their cell, like a monster's settings: the arrows carry them along, and putting a wall or a door in the cell takes its block away.
 - A monster's own settings belong to the cell it starts in: the arrows carry them along, and putting something else in the cell drops them.
 - Esc in the 3D view opens the pause menu; the editor keeps going underneath it.
+- Opening the editor puts cheats on for that game: achievements and records wait until the next new game. The editor's own two achievements, Architect (save a sector) and Thinking Inside the Box (stand a block), still count.
 - There's no in-game way to delete one of your sectors: delete its file in `neon-caster/levels/custom/`. The `.bak` file next to it is the editor's backup copy of the level.
