@@ -498,6 +498,25 @@ def r7(m, rng):
             m.wall_light(x, y, side, *VIOLET, fx=2, rad=2.5, bright=160)
 
 
+@remaster(8)
+def r8(m, rng):
+    """MAGLEV DEPOT: neon adverts along both platforms' back walls, rain
+    puddles on the platforms."""
+    cols = (PINK, CYAN, AMBER)
+    i = 0
+    for x in range(6, 44, 8):
+        for (y, side) in ((2, "S"), (45, "N")):
+            fy = y + (1 if side == "S" else -1)
+            if m.g[y][x] in lvlkit.WALLS and m.g[fy][x] == ".":
+                neon_sign(m, x, y, side, cols[i % 3])
+                i += 1
+    for (x0, y0, x1, y1) in ((16, 5, 18, 6), (32, 7, 34, 8), (8, 41, 10, 42), (25, 40, 27, 41)):
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                if m.g[y][x] == "." and m.lq[y][x] == ".":
+                    m.pool(x, y, x, y, "w", sink=1, depth=1)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
