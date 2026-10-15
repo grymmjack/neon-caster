@@ -368,13 +368,14 @@ def build_all(write=False, show=False):
 # =====================================================================
 
 
-def lit_pillar(m, x, y, glow, pic=LIT, fx=0):
-    """A wall cell standing alone (a pillar): its open sides in `pic`, each
-    lit and tinted `glow`."""
+def lit_pillar(m, x, y, glow, pic=LIT, fx=0, lit="NSEW"):
+    """A wall cell standing alone (a pillar): its open sides in `pic`, those
+    in `lit` lit and tinted `glow`."""
     for side, (dx, dy) in (("E", (1, 0)), ("W", (-1, 0)), ("S", (0, 1)), ("N", (0, -1))):
         if m.g[y + dy][x + dx] == ".":
             m.face(x, y, side, pic)
-            m.wall_light(x, y, side, *glow, fx=fx, rad=2.5, bright=150)
+            if side in lit:
+                m.wall_light(x, y, side, *glow, fx=fx, rad=2.5, bright=150)
 
 
 def neon_sign(m, x, y, side, glow, pic="wall-adverts.png", fx=0):
@@ -451,6 +452,17 @@ def r4(m, rng):
     for (x, y) in ((17, 23), (30, 23), (23, 17), (23, 30)):
         if m.g[y][x] == ".":
             m.column(x, y, size=2, wall=5, pic=LIT, glow=CYAN, fx=1)
+
+
+@remaster(5)
+def r5(m, rng):
+    """FOUNDRY: the smelting hall's paired pillars wrapped in amber light,
+    flickering like the fire."""
+    for x0 in (12, 20, 28, 36):
+        for y0 in (20, 26):
+            for (x, y) in ((x0, y0), (x0 + 1, y0), (x0, y0 + 1), (x0 + 1, y0 + 1)):
+                if m.g[y][x] in lvlkit.WALLS:
+                    lit_pillar(m, x, y, AMBER, fx=4, lit="S" if y0 == 20 else "N")   # (lit toward the hall's middle)
 
 
 if __name__ == "__main__":

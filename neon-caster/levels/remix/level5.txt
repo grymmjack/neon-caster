@@ -38,6 +38,20 @@ ambient  = 120, 255, 190, 150
 37.5, 25.5, 5, 140, 255, 200, 140, 0
 16.5, 17.5, 4, 110, 255, 90, 80, 5
 31.5, 17.5, 4, 110, 90, 200, 255, 0
+12.5, 22.12, 2.5, 150, 255, 180, 60, 4
+13.5, 22.12, 2.5, 150, 255, 180, 60, 4
+12.5, 25.88, 2.5, 150, 255, 180, 60, 4
+13.5, 25.88, 2.5, 150, 255, 180, 60, 4
+20.5, 22.12, 2.5, 150, 255, 180, 60, 4
+21.5, 22.12, 2.5, 150, 255, 180, 60, 4
+20.5, 25.88, 2.5, 150, 255, 180, 60, 4
+21.5, 25.88, 2.5, 150, 255, 180, 60, 4
+28.5, 22.12, 2.5, 150, 255, 180, 60, 4
+28.5, 25.88, 2.5, 150, 255, 180, 60, 4
+29.5, 25.88, 2.5, 150, 255, 180, 60, 4
+36.5, 22.12, 2.5, 150, 255, 180, 60, 4
+36.5, 25.88, 2.5, 150, 255, 180, 60, 4
+37.5, 25.88, 2.5, 150, 255, 180, 60, 4
 32.8, 6.5, 2.5, 170, 255, 180, 60, 2
 40.5, 45.2, 2.5, 170, 255, 60, 50, 2
 17.8, 41.5, 2.5, 170, 255, 180, 60, 2
@@ -122,6 +136,62 @@ crate    = ammo:20, shells:30, medkit:20, armor:10
 5, 9, BN, 0, wall-lightstrip.png
 5, 9, BS, 0, wall-lightstrip.png
 5, 9, BW, 0, wall-lightstrip.png
+12, 20, W, 0, wall-lightstrip.png
+13, 20, E, 0, wall-lightstrip.png
+13, 20, N, 0, wall-lightstrip.png
+20, 20, N, 0, wall-lightstrip.png
+20, 20, W, 0, wall-lightstrip.png
+21, 20, E, 0, wall-lightstrip.png
+21, 20, N, 0, wall-lightstrip.png
+28, 20, N, 0, wall-lightstrip.png
+28, 20, W, 0, wall-lightstrip.png
+29, 20, E, 0, wall-lightstrip.png
+29, 20, N, 0, wall-lightstrip.png
+36, 20, N, 0, wall-lightstrip.png
+37, 20, N, 0, wall-lightstrip.png
+12, 21, S, 0, wall-lightstrip.png
+13, 21, E, 0, wall-lightstrip.png
+13, 21, S, 0, wall-lightstrip.png
+20, 21, S, 0, wall-lightstrip.png
+20, 21, W, 0, wall-lightstrip.png
+21, 21, E, 0, wall-lightstrip.png
+21, 21, S, 0, wall-lightstrip.png
+28, 21, S, 0, wall-lightstrip.png
+29, 21, E, 0, wall-lightstrip.png
+36, 21, S, 0, wall-lightstrip.png
+36, 21, W, 0, wall-lightstrip.png
+37, 21, E, 0, wall-lightstrip.png
+12, 26, N, 0, wall-lightstrip.png
+12, 26, W, 0, wall-lightstrip.png
+13, 26, E, 0, wall-lightstrip.png
+13, 26, N, 0, wall-lightstrip.png
+20, 26, N, 0, wall-lightstrip.png
+20, 26, W, 0, wall-lightstrip.png
+21, 26, E, 0, wall-lightstrip.png
+21, 26, N, 0, wall-lightstrip.png
+28, 26, N, 0, wall-lightstrip.png
+28, 26, W, 0, wall-lightstrip.png
+29, 26, E, 0, wall-lightstrip.png
+29, 26, N, 0, wall-lightstrip.png
+36, 26, N, 0, wall-lightstrip.png
+36, 26, W, 0, wall-lightstrip.png
+37, 26, N, 0, wall-lightstrip.png
+12, 27, S, 0, wall-lightstrip.png
+12, 27, W, 0, wall-lightstrip.png
+13, 27, E, 0, wall-lightstrip.png
+13, 27, S, 0, wall-lightstrip.png
+20, 27, S, 0, wall-lightstrip.png
+20, 27, W, 0, wall-lightstrip.png
+21, 27, E, 0, wall-lightstrip.png
+21, 27, S, 0, wall-lightstrip.png
+28, 27, S, 0, wall-lightstrip.png
+28, 27, W, 0, wall-lightstrip.png
+29, 27, E, 0, wall-lightstrip.png
+29, 27, S, 0, wall-lightstrip.png
+36, 27, S, 0, wall-lightstrip.png
+36, 27, W, 0, wall-lightstrip.png
+37, 27, E, 0, wall-lightstrip.png
+37, 27, S, 0, wall-lightstrip.png
 44, 37, BN, 0, wall-lightstrip.png
 44, 37, BS, 0, wall-lightstrip.png
 44, 37, BW, 0, wall-lightstrip.png
