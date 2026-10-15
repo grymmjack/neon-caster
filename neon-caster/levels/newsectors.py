@@ -886,6 +886,96 @@ def chapel():
     finish(m, 6, dict(closets=2, cmons="kc", props=2, propchars="xp"))
     return m
 
+
+# ---------------------------------------------------------------- 7
+@sector("SECTOR 7: COLD STORAGE",
+        ["wall-white.png", "wall-frost.png", "wall-cryo.png", "wall-tiles.png", "wall-ice.png", "wall-terminals.png"],
+        ["floor-white.png", "floor-frostgrate.png", "floor-ice.png", "floor-lab.png"],
+        ["ceiling-frost.png", "ceiling-lights.png"])
+def coldstorage():
+    """NEW 7: COLD STORAGE. Receiving (south-west) leads into the ice hall -
+    and in its corner the freezer shaft, which has no bottom. North, a
+    corridor runs past three cryo vaults behind glass: the first has the
+    red card and locks you in; the middle one is sealed (look, don't
+    touch); the last (red door) has the blue. The specimen lab (west) keeps
+    its tanks in alcoves; the offices (east) are cubicles of thin walls.
+    The loading dock (north-west, blue door) has the exit."""
+    m = Sector("#")
+    m.ambient = (165, 190, 225, 255)
+    m.puzzles = "pythagoras"
+    # Receiving: you, facing north
+    m.room(4, 38, 11, 44, ceil=10, zone=(4, 1))
+    m.put(7, 43, "^")
+    m.put(13, 39, "D"); m.rect(12, 39, 12, 39)
+    for (x, y, c) in ((4, 39, "x"), (5, 39, "x"), (11, 44, "x"), (9, 41, "M"), (5, 44, "a"), (10, 43, "c")):
+        m.put(x, y, c)
+    # The ice hall, and the freezer shaft in its corner
+    m.room(14, 20, 33, 40, ceil=14, zone=(3, 1))
+    m.rect(23, 19, 24, 19)
+    m.pit(15, 35, 18, 39, 9)
+    m.event(13, 15, 35, 18, 39, 0, 0)
+    for (x, y) in ((14, 34), (19, 34), (19, 40)):
+        m.post(x, y, "S" if y == 34 else "W", at=4, w=2, d=2, wall=3, glow=CYAN, fx=1)
+    for x in (21, 26):
+        for y in (24, 30, 36):
+            m.column(x, y, size=2, wall=5, pic=LIT if y == 30 else None, glow=CYAN if y == 30 else None)
+    for (x, y) in ((23, 22), (23, 33), (30, 27), (16, 27)):
+        m.light(x + 0.5, y + 0.5, 7, 150, 150, 210, 255, 0)
+    for (x, y, c) in ((30, 22, "c"), (28, 38, "c"), (17, 23, "k"), (31, 33, "g"), (24, 27, "m"), (32, 39, "+"), (15, 21, "e"), (32, 21, "u")):
+        m.put(x, y, c)
+    # The vault corridor, and the vaults behind glass
+    m.room(14, 16, 33, 18, ceil=10, zone=(2, 2))
+    m.room(14, 6, 19, 14, ceil=12, zone=(4, 2))
+    m.room(21, 6, 26, 14, ceil=12, zone=(4, 2))
+    m.room(28, 6, 33, 14, ceil=12, zone=(4, 2))
+    for x in (16, 17, 18, 22, 23, 24, 25, 29, 30, 31):
+        m.put(x, 15, "=")
+    m.put(14, 15, "D"); m.put(33, 15, "R")
+    for (x0, x1) in ((14, 19), (21, 26), (28, 33)):
+        for x in range(x0 + 1, x1, 2):
+            m.put(x, 7, "O")
+        m.light((x0 + x1) / 2 + 0.5, 10.5, 5, 140, 120, 220, 255, 5)
+    for (x, y, c) in ((15, 13, "r"), (18, 10, "V"), (23, 11, "V"), (22, 12, "k"), (25, 9, "g"), (32, 13, "b"), (29, 11, "V"), (31, 9, "*")):
+        m.put(x, y, c)
+    m.event(1, 14, 6, 19, 14, 4, 4, 9)
+    # The specimen lab (west): tanks in alcoves, benches
+    m.room(2, 20, 11, 36, ceil=12, zone=(4, 1))
+    m.put(12, 30, "D"); m.rect(13, 30, 13, 30)
+    for y in (22, 26, 30, 34):
+        m.alcove(1, y, "E", depth=4, floor=0, ceil=7, deco="I", glow=GREEN, fx=2)
+    for y in (23, 29, 35):
+        m.put(6, y, "J"); m.put(7, y, "J")
+    for (x, y, c) in ((10, 21, "w"), (4, 33, "w"), (10, 35, "e"), (3, 21, "q")):
+        m.put(x, y, c)
+    m.light(6.5, 27.5, 7, 150, 150, 255, 200, 0)
+    # The offices (east): cubicles
+    m.room(36, 20, 45, 40, ceil=10, zone=(2, 1))
+    m.put(34, 32, "D"); m.rect(35, 32, 35, 32)
+    for y in (23, 27, 31, 35, 39):
+        for (x0, x1) in ((38, 40), (42, 44)):
+            m.thin_wall(x0, y, x1, y, "N", t=1, wall=6)
+        m.blk(41, y, 0, 0, 1, 8, wall=6)
+    for (y, xs) in ((24, (38, 43)), (28, (39, 44)), (32, (38, 42)), (36, (40, 44))):
+        for x in xs:
+            m.put(x, y, "d"); m.put(x, y + 1, "Z")
+    m.put(46, 30, "$")
+    for (x, y, c) in ((37, 22, "k"), (44, 34, "k"), (43, 21, "t"), (37, 38, "e"), (45, 40, "+")):
+        m.put(x, y, c)
+    m.nudge(43, 21, 0, -2)
+    m.light(40.5, 26.5, 6, 140, 255, 255, 255, 1); m.light(40.5, 36.5, 6, 140, 255, 255, 255, 0)
+    # The loading dock (north-west, blue door): the exit
+    m.room(3, 4, 10, 16, ceil=12, zone=(1, 2))
+    m.put(13, 16, "B"); m.rect(11, 16, 12, 16)
+    m.put(2, 9, "E")
+    m.post(3, 8, "W", at=7, w=2, d=2, wall=3, glow=GREEN); m.post(3, 10, "W", at=1, w=2, d=2, wall=3, glow=GREEN)
+    for (x, y, c) in ((9, 5, "x"), (10, 5, "x"), (9, 15, "o"), (6, 6, "h"), (8, 12, "a")):
+        m.put(x, y, c)
+    m.light(6.5, 9.5, 6, 140, 200, 230, 255, 0)
+    m.loot_line("desk     = ammo:15, shells:10, medkit:15, -")
+    m.loot_line("cryopod  = overcharge:15, medkit:30, -, -")
+    finish(m, 7, dict(closets=1, cmons="c", props=2, propchars="xp"))
+    return m
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
