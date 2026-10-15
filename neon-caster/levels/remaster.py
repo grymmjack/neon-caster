@@ -368,6 +368,38 @@ def build_all(write=False, show=False):
 # =====================================================================
 
 
+def lit_pillar(m, x, y, glow, pic=LIT, fx=0):
+    """A wall cell standing alone (a pillar): its open sides in `pic`, each
+    lit and tinted `glow`."""
+    for side, (dx, dy) in (("E", (1, 0)), ("W", (-1, 0)), ("S", (0, 1)), ("N", (0, -1))):
+        if m.g[y + dy][x + dx] == ".":
+            m.face(x, y, side, pic)
+            m.wall_light(x, y, side, *glow, fx=fx, rad=2.5, bright=150)
+
+
+def neon_sign(m, x, y, side, glow, pic="wall-adverts.png", fx=0):
+    """A lit sign on one face of a wall."""
+    m.face(x, y, side, pic)
+    m.wall_light(x, y, side, *glow, fx=fx, rad=3, bright=170)
+
+
+@remaster(1)
+def r1(m, rng):
+    """NEON STATION: a fountain in the hub, the hall's pillars wrapped in
+    light, neon signs and posts round the ring."""
+    for (x, y) in ((33, 29), (39, 29), (33, 34), (39, 34), (33, 39), (39, 39)):
+        if m.g[y][x] in lvlkit.WALLS:
+            lit_pillar(m, x, y, CYAN)
+    m.pool(22, 21, 25, 22, "w", sink=2, depth=2)
+    m.light(23.5, 21.5, 4, 140, 60, 170, 255, 2)
+    for (x, y, side, g) in ((1, 12, "E", PINK), (1, 36, "E", AMBER), (46, 12, "W", CYAN), (46, 36, "W", PINK)):
+        if m.g[y][x] in lvlkit.WALLS and m.g[y][x + (1 if side == "E" else -1)] == ".":
+            neon_sign(m, x, y, side, g)
+    for (x, y, a) in ((2, 20, "W"), (2, 32, "W"), (45, 16, "E"), (45, 30, "E")):
+        if m.g[y][x] == ".":
+            m.post(x, y, a, at=4, w=2, d=2, wall=5, glow=VIOLET)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:

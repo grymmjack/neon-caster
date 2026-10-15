@@ -1,0 +1,280 @@
+' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+' OLD SECTORS NEW: SECTOR 4: CRYO LAB, remade by remaster.py from level4.txt
+
+name     = SECTOR 4: CRYO LAB
+puzzles  = password
+walls    = wall-white.png, wall-terminals.png, wall-frost.png, wall-tiles.png, wall-cryo.png, wall-ice.png
+floors   = floor-white.png, floor-frostgrate.png, floor-ice.png, floor-lab.png
+ceilings = ceiling-lights.png, ceiling-frost.png
+ambient  = 175, 200, 225, 255
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+2, 2, 45, 45, 2, 2, 0
+12, 12, 36, 36, 1, 1, 0
+16, 16, 32, 32, 4, 0, 0
+16, 16, 23, 23, 1, 0, 1
+25, 16, 32, 23, 1, 0, 2
+25, 25, 32, 32, 1, 0, 3
+16, 25, 23, 32, 1, 0, 4
+3, 3, 15, 15, 4, 1, 0
+33, 3, 45, 15, 1, 1, 0
+3, 33, 15, 45, 4, 1, 0
+33, 33, 45, 45, 3, 2, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+24, 28.5, 7, 160, 120, 230, 255, 2
+24, 19.5, 7, 160, 120, 230, 255, 2
+9.5, 9.5, 6, 150, 240, 240, 255, 0
+39.5, 9.5, 6, 150, 120, 230, 255, 0
+9.5, 39.5, 6, 150, 240, 240, 255, 1
+36.5, 42.5, 6, 150, 140, 180, 255, 2
+24.5, 5.5, 5, 140, 230, 240, 255, 1
+24.5, 43.5, 5, 140, 230, 240, 255, 0
+5.5, 24.5, 4, 180, 255, 50, 40, 3
+43.5, 24.5, 5, 140, 230, 240, 255, 5
+24.5, 19.5, 4, 150, 200, 240, 255, 0
+39.5, 20.5, 4, 110, 120, 255, 170, 5
+9.5, 28.5, 4, 110, 90, 200, 255, 5
+31.5, 37.5, 4, 110, 120, 255, 170, 5
+11.5, 17.5, 4, 110, 120, 255, 170, 5
+40.8, 28.5, 2.5, 170, 80, 220, 255, 2
+42.5, 2.8, 2.5, 170, 80, 255, 140, 2
+2.8, 37.5, 2.5, 170, 80, 220, 255, 2
+11.5, 31.2, 2.5, 170, 80, 255, 140, 2
+3.5, 17.8, 2.5, 170, 80, 220, 255, 2
+28.5, 40.8, 2.5, 170, 80, 255, 140, 2
+38.875, 3.37, 2, 160, 80, 255, 140, 0
+40.125, 3.37, 2, 160, 80, 255, 140, 0
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+1, 33, 33, 45, 45, 8, 0, 13
+7, 27, 9, 29, 11, 0, 0, 0
+6, 12, 36, 15, 40, 0, 0, 0
+6, 12, 9, 15, 13, 0, 0, 0
+6, 19, 4, 23, 7, 0, 0, 0
+9, 38, 11, 40, 11, 60, 75, 0
+8, 39, 7, 39, 7, 45, 300, 0
+10, 36, 43, 42, 45, 150, 0, 0
+
+[lifts]
+' x0, y0, x1, y1, low, high (eighths of a wall), mode (1 up and down, 2 an elevator), speed (eighths a second)
+24, 17, 24, 17, 0, 8, 2, 6
+
+[triggers]
+' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+enter 11 24 13 26 : message A CODE TERMINAL - face it and press SPACE
+enter 17 44 19 46 : message A DATA STATION - face it and press SPACE to jack in
+
+[blocks]
+' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)
+40, 28, 0, 0, 4, 8, 4
+42, 2, 0, 0, 8, 4, 5
+2, 37, 0, 0, 4, 8, 1
+11, 31, 0, 4, 8, 8, 3
+3, 17, 0, 0, 8, 4, 4
+28, 40, 0, 0, 8, 4, 4
+38, 3, 6, 0, 8, 2, 5
+40, 3, 0, 0, 2, 2, 5
+
+[nudges]
+' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3)
+40, 28, 3, 0
+42, 2, 0, 3
+2, 37, 3, 0
+11, 31, 0, -3
+3, 17, 0, 3
+28, 40, 0, 3
+11, 3, 0, -2
+22, 3, 0, -2
+42, 7, -2, 0
+37, 8, 0, -2
+38, 15, 0, 2
+5, 18, 0, -2
+43, 18, 0, -2
+10, 19, 0, 2
+11, 19, 0, 2
+12, 19, 0, 2
+37, 19, -2, 0
+37, 20, -2, 0
+37, 21, -2, 0
+41, 23, -2, 0
+7, 26, 2, 0
+11, 27, 2, 0
+11, 28, 2, 0
+11, 29, 2, 0
+38, 33, 0, -2
+29, 36, -2, 0
+29, 37, -2, 0
+45, 37, 2, 0
+29, 38, -2, 0
+3, 41, -2, 0
+
+[loot]
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+cryopod  = overcharge:15, medkit:30, -, -
+
+[faces]
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+38, 3, BE, 0, wall-lightstrip.png
+38, 3, BS, 0, wall-lightstrip.png
+38, 3, BW, 0, wall-lightstrip.png
+40, 3, BE, 0, wall-lightstrip.png
+40, 3, BS, 0, wall-lightstrip.png
+40, 3, BW, 0, wall-lightstrip.png
+
+[map]
+################################################
+###############KKKKKKKKKKKKKKKKKPPPPPPPPPPPPPPPP
+###############KKKKKKKKKKKKKKKKKPPPPPPPEPPOPPPPP
+#####/.....I.\#KKK....I........KPPP/.......\PPPP
+####/.........\KKK..i......c...KPP/.+.....a.\PPP
+###/.b......s..\KK.............KP/.....h.....\PP
+###.............KK.e..m.....i..KP.............PP
+###..............R.............Y.....P...PJ...PP
+###......h......KKKKK%KK.KKKDKKKP....J........PP
+###.t...........KKKKKgKK.KKaeaKKP..s........s.PP
+###.............#####.##X##q*+##P.............PP
+###.........u...%g.CCCCC.CCeujCCP....P...P....PP
+###...g.........CCCCCCC/.CCCCCCCP.............PP
+###\....a....t./CCCCCC/..\CCCCCCP\t....g....t/PP
+####\........./CCCCCC/....\CCCCCPP\........./PPP
+#KKKK\...T.../CCCCCC/...p..\CCCCPPP\..Z..../PPPP
+#KKKKKK.KK===CCCCCC/........\CCCPPPPPPPPP.PPPPPP
+#KKIKKKRK.....CCCC/..........\CCCCCCCC#KKYKKKKKK
+#KK..F..K.V.Z.CCC/......+.....\CCCCCC...K..J..KK
+#KK.....K.IJI.CC/..............\CCCCCIV.=.....KK
+#KK.i...KK#CCCC/....g.......h...\CCCCJ..=...i.KK
+#KK.....KK#CCC/..................\CCCIZ.=.+...KK
+#KK.....KK#CC/........./\.........\CC...K.....KK
+#KK.....KK#C/........./NN\.........\CC#KKQ....KK
+#KK.g.....X....p..c...\NN/....c..p./..X.......KK
+#KK.....KK#C$\.........\/........./CCC#KK...g.KK
+#KK....OK...CC\................../CCCC#KK.....KK
+#KK.....=.ZFCCC\................/CCCCC#KK.....KK
+#KK...i.=.VACCCC\...s.......g../CCCCCC#KI.i...KK
+#KK..a..=.ZFCCCCC\............/CCCCCCC#KK.....KK
+#KK.....K...CCCCCC\.....m..../CCCCCCCC#KK.....KK
+#KKKKKKDKK#OCCCCCCC\.....a../CCCCCCCCC#KKBKKKKKK
+#KKKKKK.KK#CCCCCCCCC\....../CCCCGGGGGGGGG.GGGGGG
+#KKKK/.......\CCCCCCC\..p./CCCCCGGG/..Q....\GGGG
+####/.........\CCCCCCC\../CCCCCCGG/.........\GGG
+###/.......t...\CCCCCCC\/CCCC...G/..h........\GG
+###..g..e.......CCCCCCCC.CCCCIV.=...........s.GG
+##I.............CCCCCCCC.CCCCJ..=..a../\.....IGG
+###...M.........%gk#####X####IZ.=..T./GG\.....GG
+###.........m...KKKKKKKK.KKKK...G....\GG/.....GG
+###.t...........KKKKKKKK.KKKOKKKG.....\/...*..GG
+###I.........+...!.............B..............GG
+###...r.........KK..i.m.....i..KG....c.....y..GG
+###\.........../KK......^......KG\.........../GG
+####\....c...c/KKK.a.&.....&.e.KGG\g......../GGG
+#####\......./#KKK.............KGGG\......./GGGG
+###############KKK@KKKKKKKKKKKKKGGGGGGGGGGGGGGGG
+###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG
+
+[floor]
+' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down
+................................................
+................................................
+..........................................7.....
+.....444444444.........................24444....
+....44444444444........................244444...
+...4444444444444.......................2444444..
+...2222222222222.......................2444444..
+.......................................24.4444..
+.......................................2444444..
+.......................................2444444..
+.......................................2222222..
+................................................
+................................................
+................................................
+................................................
+................................................
+................................................
+...3............................................
+........................8.......................
+.......................888......................
+......................88888.....................
+.....................8888888....................
+....................888888888...................
+...................8888..88888..................
+..................88888..888888.................
+...................88888888888..................
+....................888888888...................
+.....................8888888....................
+......................88888.............3.......
+.......................888......................
+........................8.......................
+...........3....................................
+................................................
+...................................BBBBBBBBB....
+..................................BBBBBBBBBBB...
+.................................BBDDDDDDDDDBB..
+...2222222.......................BBDDDDDDDDDBB..
+..74444442.......................BBDDDDDDDDDBB..
+...4444442.......................BBDDD..DDDDBB..
+...4444442.......................BBDDD..DDDDBB..
+...4444442..................3....BBDDDDDDDDDBB..
+...4444442.......................BBDDDDDDDDDBB..
+...4444442.......................BBDDDDDDDDDBB..
+...4444442.......................BBDDDDDDDDDBB..
+....444442........................BBBBBBBBBBB...
+.....44442.........................BBBBBBBBB....
+................................................
+................................................
+
+[ceiling]
+' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's
+................................................
+................................................
+..........................................f.....
+.....ggggggggg.....................ggggggggg....
+....ggggggggggg...................ggggggggggg...
+...ggggggggggggg.................ggggggggggggg..
+...ggggggggggggg.................ggggggggggggg..
+...gggggggggggggg...............ggggg.ggg.gggg..
+...ggggggggggggg.................ggggggggggggg..
+...ggggggggggggg.................ggggggggggggg..
+...ggggggggggggg.................ggggggggggggg..
+...ggggggggggggg.................gggg.ggg.gggg..
+...gggggggggoooo.......oo........ooooggggggggg..
+...gggggggggoooo......oooo.......ooooggggggggg..
+....ggggggggooo......oooooo.......ooogggggggg...
+.....gggggggoo......oooooooo.......ooggggggg....
+...................oooooooooo...................
+...b..............oooooooooooo..................
+.................oooooooooooooo.................
+................oooooooooooooooo................
+...............oooooooooooooooooo...............
+..............oooooooooooooooooooo..............
+.............oooooooooooooooooooooo.............
+............ooooooooooo..ooooooooooo............
+............ooooooooooo..oooooooooooo...........
+.............oooooooooooooooooooooo.............
+..............oooooooooooooooooooo..............
+...............oooooooooooooooooo...............
+................oooooooooooooooo........b.......
+.................oooooooooooooo.................
+..................oooooooooooo..................
+...........b.......oooooooooo...................
+....................oooooooo....................
+.....gggggggoo.......oooooo........ooggggggg....
+....ggggggggooo.......oooo........ooogggggggg...
+...gggggggggoooo.......oo........ooooggggggggg..
+...gggggggggoooo........o........ooooggggggggg..
+..fggggggggggggg.................ggggggggggggg..
+...ggggggggggggg.................ggggg..gggggg..
+...ggggggggggggg.................ggggg..gggggg..
+...ggggggggggggg............b....ggggggggggggg..
+...gggggggggggggg...............gggggggggggggg..
+...ggggggggggggg.................ggggggggggggg..
+...ggggggggggggg.................ggggggggggggg..
+....ggggggggggg...................ggggggggggg...
+.....ggggggggg.....................ggggggggg....
+................................................
+................................................
