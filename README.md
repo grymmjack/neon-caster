@@ -88,7 +88,8 @@ a thousand kills, a sector without a scratch, or kicking a machine into a
 bottomless pit, each with its own badge. **GAME > ACHIEVEMENTS** shows
 them all and how close you are, its RECORDS page has your best time,
 kills and items for every sector, and STATS gives you a rank and your
-lifetime totals. They're Steam achievements, through the
+lifetime totals. **SETTINGS > GAMEPLAY > SECTOR TIMER** puts the clock on
+screen, green while you're inside your best time and red once past it. They're Steam achievements, through the
 STEAM library in QB64_GJ_LIB. Until the game is on Steam they're kept in
 `neon-caster/saves/achievements.txt`, and the game shows its own pop-up.
 `steam/README.md` says what's needed to go live. Cheats (god mode,

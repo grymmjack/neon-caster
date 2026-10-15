@@ -205,7 +205,7 @@ CONST MINIMAP_CELL = 3, MINIMAP_X = 8, MINIMAP_Y = 8
 ' layout editor (chapter 21: U in the level editor) moves things about
 ' with the mouse, over the game as it runs, and saves hud.txt.
 CONST HE_HEALTH = 1, HE_ARMOR = 2, HE_AMMO = 3, HE_GUNS = 4, HE_KILLS = 5, HE_MINIMAP = 6, HE_CARDS = 7
-CONST HE_MESSAGE = 8, HE_SUBTITLE = 9, HE_AMP = 10, HE_GOD = 11, HE_EVENT = 12, HE_NETWORK = 13, HE_FPS = 14, HUD_ELEMS = 14
+CONST HE_MESSAGE = 8, HE_SUBTITLE = 9, HE_AMP = 10, HE_GOD = 11, HE_EVENT = 12, HE_NETWORK = 13, HE_FPS = 14, HE_TIMER = 15, HUD_ELEMS = 15
 DIM SHARED hudName$(HUD_ELEMS), hudShow(HUD_ELEMS) AS INTEGER, hudX(HUD_ELEMS) AS INTEGER, hudY(HUD_ELEMS) AS INTEGER
 DIM SHARED hudW(HUD_ELEMS) AS INTEGER, hudH(HUD_ELEMS) AS INTEGER, hudCol(HUD_ELEMS) AS _UNSIGNED LONG, hudLabel$(HUD_ELEMS)
 DIM SHARED hudEdit AS INTEGER, hudSel AS INTEGER, hudMsg$
@@ -1126,7 +1126,7 @@ sndHeadshot& = LoadSnd&("headshot.wav")
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 41
+CONST NUM_SETTINGS = 42
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -1136,7 +1136,7 @@ CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, S
 CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
 CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
-CONST SET_MODE = 41
+CONST SET_MODE = 41, SET_TIMER = 42
 ' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
 ' don't all match one
 CONST MODE_CUSTOM = 0, MODE_OLDSCHOOL = 1, MODE_90S = 2, MODE_NEWSCHOOL = 3
@@ -1170,6 +1170,7 @@ DefineSetting SET_XFEEDBACK, "crosshair_feedback", "CROSSHAIR FEEDBACK", MI_TOGG
 DefineSetting SET_HURTDIR,   "damage_indicators",  "DAMAGE INDICATORS",  MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_RENDERER,  "renderer",           "RENDERER",           MI_CHOICE, 1,  2,   1,   2 ' 1 software, 2 OpenGL (chapter 24)
 DefineSetting SET_FPS,       "show_fps",           "SHOW FPS",           MI_TOGGLE, 0,  1,   1,   0
+DefineSetting SET_TIMER,     "sector_timer",       "SECTOR TIMER",       MI_TOGGLE, 0,  1,   1,   0 ' (the sector's clock, and your best: HE_TIMER)
 DefineSetting SET_BUMP,      "bump_mapping",       "BUMP MAPPING",       MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
 DefineSetting SET_GLOW,      "glows",              "GLOWS",              MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
 ' ART: 1 CLASSIC (the pixel art), 2 MODERN (neon-caster/hd/'s paintings)
@@ -1606,6 +1607,12 @@ DO
     ' as many as come before a "wait"
     SfxFrame : earDX = dirX : earDY = dirY ' (the limiter's memory fades; your ears face where you do)
     STEAM_update : achFrame = achFrame + 1 ' (Steam's callbacks: achievements and stats arriving)
+    ' The sector's clock stops while the game does: a frame that took over
+    ' half a second was a loop of its own (the menu, the console, the
+    ' editor, a terminal) - that time doesn't count
+    frameGap! = TIMER - frameAt! : IF frameGap! < 0 THEN frameGap! = frameGap! + 86400
+    IF frameAt! <> 0 AND frameGap! > 0.5 THEN levelStart! = levelStart! + frameGap! - 1 / 60
+    frameAt! = TIMER
     IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
@@ -3613,6 +3620,18 @@ DO
         msText$ = LTRIM$(STR$(tenths \ 10)) + "." + LTRIM$(STR$(tenths MOD 10))
         fpsText$ = fpsText$ + "   FPS" + RIGHT$("   " + STR$(fpsShown), 4) + "   3D VIEW" + RIGHT$("     " + msText$, 6) + " MS"
         IF hudShow(HE_FPS) THEN HudText hudX(HE_FPS) - LEN(fpsText$) * 4, hudY(HE_FPS), fpsText$, HudColor~&(HE_FPS, _RGB32(255, 255, 120))
+    END IF
+    ' The sector timer (SECTOR TIMER): how long you've been in it, the
+    ' clock green while you're inside your best and red once past it
+    IF setting(SET_TIMER) AND hudShow(HE_TIMER) AND NOT editMode AND NOT cyberOn THEN
+        lt! = TIMER - levelStart! : IF lt! < 0 THEN lt! = lt! + 86400
+        rk = level : IF level <= NUM_LEVELS THEN rk = sectorSet * 100 + level
+        best! = RecordBest!(rk) : tc~& = _RGB32(240, 240, 255)
+        IF best! > 0 THEN IF lt! <= best! THEN tc~& = _RGB32(90, 255, 140) ELSE tc~& = _RGB32(255, 90, 90)
+        IF achCheat AND NOT achTest THEN tc~& = _RGB32(150, 140, 170) ' (cheats on: it can't make a record)
+        tmr$ = TimeText$(INT(lt!)) + "." + LTRIM$(STR$(INT((lt! - INT(lt!)) * 10)))
+        MenuText hudX(HE_TIMER), hudY(HE_TIMER), tmr$, 2, HudColor~&(HE_TIMER, tc~&), 2
+        IF best! > 0 THEN tmr$ = "BEST " + TimeText$(INT(best!)) : HudText hudX(HE_TIMER) - LEN(tmr$) * 8, hudY(HE_TIMER) + 34, tmr$, _RGB32(255, 220, 80)
     END IF
 
     ' With OpenGL, the HUD goes to the graphics card as a picture, to be
@@ -7003,7 +7022,7 @@ kills = 0 : dead = 0 : swapTimer = 0
 hurtFlash = 0 : pickFlash = 0 : muzzleFlash = 0 : recoil = 0 : railBeam = 0
 fireWait = 20 ' (so the click that started the level doesn't fire)
 bobPhase = 2.2 ' The first footstep sounds soon after you start walking (a foot lands at pi)
-levelStart! = TIMER : shake = 0 : hurtFromX = -1
+levelStart! = TIMER : frameAt! = TIMER : shake = 0 : hurtFromX = -1
 FOR i = 1 TO MAX_HURTDIRS : hurtDirTime(i) = 0 : NEXT
 IF NOT editRebuild THEN PlayMusic SectorMusic&(level) : ShowMsg levelName$ + "  -  find the EXIT"
 ' (built again in the editor: OpenGL's turn now - new pictures if any,
@@ -8253,7 +8272,7 @@ IF LOC(fileNum) < LOF(fileNum) THEN ' The doors' owners, and the blocks
 END IF
 CLOSE #fileNum
 planeX = dirY * fovPlane : planeY = - dirX * fovPlane ' (your direction came from the file)
-levelStart! = TIMER - levelTime! : dead = 0 : swapTimer = 0
+levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0
 loadOK = -1
 IF saveSlot = 0 THEN ShowMsg "Quick loaded" ELSE ShowMsg "Loaded slot" + STR$(saveSlot) + ": " + levelName$
 RETURN
@@ -12609,6 +12628,7 @@ SUB HudDefaults
     hudName$(HE_EVENT) = "event" : hudX(HE_EVENT) = 400 : hudY(HE_EVENT) = 28
     hudName$(HE_NETWORK) = "network" : hudX(HE_NETWORK) = 400 : hudY(HE_NETWORK) = 74
     hudName$(HE_FPS) = "fps" : hudX(HE_FPS) = 400 : hudY(HE_FPS) = 8
+    hudName$(HE_TIMER) = "timer" : hudX(HE_TIMER) = 784 : hudY(HE_TIMER) = 80
 END SUB
 
 ' A part's colour: its own from hud.txt - or, if it has none, the game's
@@ -12637,6 +12657,7 @@ SUB HudBox(e, x0, y0, x1, y1)
         CASE HE_GUNS : x0 = x : y0 = y : x1 = x + 76 : y1 = y + 16
         CASE HE_MINIMAP : x0 = x : y0 = y : x1 = x + MAP_SIZE * hudW(e) : y1 = y + MAP_SIZE * hudW(e)
         CASE HE_CARDS : x0 = x - 3 * (hudW(e) + 4) : y0 = y : x1 = x : y1 = y + hudW(e)
+        CASE HE_TIMER : x0 = x - 112 : y0 = y : x1 = x : y1 = y + 34
         CASE HE_MESSAGE, HE_SUBTITLE, HE_EVENT, HE_NETWORK, HE_FPS : x0 = x - 160 : y0 = y : x1 = x + 160 : y1 = y + 22
         CASE ELSE : x0 = x : y0 = y : x1 = x + 120 : y1 = y + 16
     END SELECT
@@ -14785,6 +14806,7 @@ SUB BuildMenu(scr)
             AddSettingItem SET_FOV : AddSettingItem SET_XSTYLE : AddSettingItem SET_XCOLOR
             AddSettingItem SET_XSIZE : AddSettingItem SET_XALPHA : AddSettingItem SET_XFEEDBACK
             AddSettingItem SET_BOB : AddSettingItem SET_SHAKE : AddSettingItem SET_HURTDIR : AddSettingItem SET_AIMSENS
+            AddSettingItem SET_TIMER
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_CONTROLS
             menuTitle$ = "CONTROLS" : menuWide = -1
@@ -18119,6 +18141,14 @@ SUB RecordsSave
 END SUB
 
 ' Sector key's record line (a new, empty one if it has none) - 0 if full
+' A sector's best time so far (0: none yet) - looking only, not making
+' it a record as RecordFor does
+FUNCTION RecordBest!(sectorKey)
+    FOR k = 1 TO recN
+        IF recKey(k) = sectorKey THEN RecordBest! = recTime!(k) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
 FUNCTION RecordFor(sectorKey)
     FOR k = 1 TO recN
         IF recKey(k) = sectorKey THEN RecordFor = k : EXIT FUNCTION
