@@ -1236,7 +1236,7 @@ CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
 CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6, MA_SECTOR = 7
 CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15, SCR_CUSTOM2 = 16, SCR_SET1 = 17 ' (SCR_SET1 + s - 1: set s's sectors)
-CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11
+CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11, MA_ACHIEVE = 12
 ' --- The console (` opens it, like Quake's; chapter 21): what's been
 ' printed (conLog$, the last CON_LOG lines), the line being typed, the
 ' lines typed before (conHist$, for Up and Down), and the commands waiting
@@ -6241,6 +6241,89 @@ EditNote "NEW SECTOR " + LTRIM$(STR$(newN)) + ": carve out rooms with . - Ctrl+S
 ConPrint "newsector: " + LevelFile$(newN)
 RETURN
 
+' --- THE ACHIEVEMENTS SCREEN (GAME > ACHIEVEMENTS): every achievement as a
+' card, two across - a gold trophy and a bright frame once it's yours, a
+' bar for a counted one's progress, a hidden one's words kept secret till
+' then. The wheel, the arrows and PgUp/PgDn scroll; Esc, Backspace, the
+' right button or a click on BACK go back.
+ShowAchievements:
+achT = 0 : achRow = 0 : pressWas = -1 : _KEYCLEAR
+DO
+    _LIMIT 60
+    achT = achT + 1
+    wheel = 0 : click = 0 : rclick = 0
+    WHILE _MOUSEINPUT
+        wheel = wheel + _MOUSEWHEEL
+        IF _MOUSEBUTTON(1) THEN click = -1
+        IF _MOUSEBUTTON(2) THEN rclick = -1
+    WEND
+    kh& = _KEYHIT
+    rows = (achN + 1) \ 2 : maxRow = MaxOf(0, rows - 6)
+    SELECT CASE kh&
+        CASE 27, 8 : EXIT DO
+        CASE 18432 : achRow = achRow - 1
+        CASE 20480 : achRow = achRow + 1
+        CASE 18688 : achRow = achRow - 6
+        CASE 20736 : achRow = achRow + 6
+    END SELECT
+    IF rclick THEN EXIT DO
+    achRow = achRow + wheel : IF achRow < 0 THEN achRow = 0
+    IF achRow > maxRow THEN achRow = maxRow
+    IF click AND NOT pressWas AND _MOUSEY > 556 AND ABS(_MOUSEX - 400) < 60 THEN EXIT DO
+    pressWas = click
+    DrawMenuBackdrop achT
+    LINE (0, 0)-(799, 599), _RGBA32(6, 0, 16, 190), BF
+    got = 0 : FOR i = 1 TO achN : IF STEAM_is_unlocked%(achApi$(i)) THEN got = got + 1
+    NEXT
+    MenuText 400, 18, "ACHIEVEMENTS", 3, _RGB32(255, 90, 210), 1
+    sub$ = LTRIM$(STR$(got)) + " OF" + STR$(achN) + " UNLOCKED  -  " : IF STEAM_is_steam% THEN sub$ = sub$ + "STEAM" ELSE sub$ = sub$ + "KEPT IN SAVES/ACHIEVEMENTS.TXT"
+    MenuText 400, 70, sub$, 1, _RGB32(150, 230, 255), 1
+    LINE (200, 92)-(600, 97), _RGB32(40, 30, 70), BF
+    IF achN THEN LINE (200, 92)-(200 + 400 * got / achN, 97), _RGB32(255, 200, 60), BF
+    FOR r = 0 TO 5 : FOR c = 0 TO 1
+        i = (achRow + r) * 2 + c + 1
+        IF i <= achN THEN
+            x0 = 24 + c * 380 : y0 = 112 + r * 72
+            own = STEAM_is_unlocked%(achApi$(i))
+            LINE (x0, y0)-(x0 + 368, y0 + 64), _RGBA32(14, 8, 34, 230), BF
+            IF own THEN LINE (x0, y0)-(x0 + 368, y0 + 64), _RGB32(255, 70, 210), B ELSE LINE (x0, y0)-(x0 + 368, y0 + 64), _RGB32(60, 50, 100), B
+            IF own THEN tc~& = _RGB32(255, 200, 60) ELSE tc~& = _RGB32(70, 64, 100)
+            LINE (x0 + 14, y0 + 14)-(x0 + 38, y0 + 30), tc~&, BF ' (a trophy: gold, or grey)
+            CIRCLE (x0 + 26, y0 + 30), 12, tc~&, 3.1416, 0
+            CIRCLE (x0 + 12, y0 + 21), 5, tc~& : CIRCLE (x0 + 40, y0 + 21), 5, tc~&
+            LINE (x0 + 24, y0 + 40)-(x0 + 28, y0 + 45), tc~&, BF : LINE (x0 + 18, y0 + 45)-(x0 + 34, y0 + 49), tc~&, BF
+            IF own OR NOT achHidden(i) THEN
+                ttl$ = achTitle$(i) : dsc$ = achDesc$(i)
+            ELSE
+                ttl$ = "???" : dsc$ = "A hidden achievement - keep playing"
+            END IF
+            IF own THEN ttlc~& = _RGB32(255, 255, 255) ELSE ttlc~& = _RGB32(160, 150, 190)
+            MenuText x0 + 54, y0 + 8, LEFT$(ttl$, 38), 1, ttlc~&, 0
+            HudText x0 + 54, y0 + 30, LEFT$(dsc$, 39), _RGB32(190, 180, 220)
+            IF achGoal(i) > 1 AND NOT own THEN ' (a count: how far)
+                pr& = AchProgress&(i) : IF pr& > achGoal(i) THEN pr& = achGoal(i)
+                LINE (x0 + 54, y0 + 46)-(x0 + 300, y0 + 52), _RGB32(40, 30, 70), BF
+                LINE (x0 + 54, y0 + 46)-(x0 + 54 + 246 * pr& / achGoal(i), y0 + 52), _RGB32(90, 230, 255), BF
+                HudText x0 + 306, y0 + 45, LTRIM$(STR$(pr&)) + "/" + LTRIM$(STR$(achGoal(i))), _RGB32(150, 230, 255)
+            ELSEIF own THEN
+                HudText x0 + 54, y0 + 46, "UNLOCKED", _RGB32(255, 200, 60)
+            END IF
+        END IF
+    NEXT : NEXT
+    IF maxRow > 0 THEN ' (where in the list: a bar down the right)
+        LINE (788, 112)-(792, 540), _RGB32(40, 30, 70), BF
+        sy = 112 + 428 * achRow / (maxRow + 6) : LINE (788, sy)-(792, sy + 428 * 6 / (maxRow + 6)), _RGB32(255, 90, 210), BF
+    END IF
+    MenuText 400, 562, "BACK", 2, _RGB32(220, 220, 240), 1
+    MenuText 400, 548, "WHEEL OR ARROWS TO SCROLL  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady
+    _DISPLAY
+LOOP
+_KEYCLEAR
+WHILE _MOUSEINPUT : WEND
+RETURN
+
 ' --- THE ROUTE: between sectors, a map of all of them (like DOOM's between
 ' episodes' levels) - the way you've come lit up, a marker travelling from
 ' the sector you've cleared to the next one, which then blinks YOU ARE
@@ -7113,7 +7196,7 @@ conVerb$ = ConWord$(conCmd$, 1) : conA$ = ConWord$(conCmd$, 2) : conB$ = ConWord
 sp = INSTR(conCmd$, " ") : IF sp THEN conRest$ = LTRIM$(MID$(conCmd$, sp + 1)) ELSE conRest$ = ""
 IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
     SELECT CASE conVerb$
-        CASE "god", "noclip", "iddqd", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo"
+        CASE "god", "noclip", "iddqd", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve"
             IF NOT achCheat AND NOT achTest THEN ConPrint "(cheats on: achievements wait for a new game)"
             achCheat = -1
     END SELECT
@@ -7166,6 +7249,18 @@ SELECT CASE conVerb$
             END IF
         END IF
         ConPrint "sector set" + STR$(sectorSet) + ": " + SetName$(sectorSet) + " (map 1-" + LTRIM$(STR$(NUM_LEVELS)) + " go there)"
+    CASE "achievements", "ach" ' Every achievement: got it or not, and how far a counted one's got
+        n = 0
+        FOR i = 1 TO achN
+            IF STEAM_is_unlocked%(achApi$(i)) THEN st$ = "[X] " : n = n + 1 ELSE st$ = "[ ] "
+            pr$ = "" : IF achGoal(i) > 1 THEN pr$ = "  (" + LTRIM$(STR$(AchProgress&(i))) + "/" + LTRIM$(STR$(achGoal(i))) + ")"
+            ConPrint st$ + achApi$(i) + "  " + achTitle$(i) + " - " + achDesc$(i) + pr$
+        NEXT
+        ConPrint LTRIM$(STR$(n)) + " of" + STR$(achN) + " unlocked - " + STEAM_backend_name$ + " (" + STEAM_status$ + ")" : IF achCheat THEN ConPrint "(cheats are on this game: no more till a new one)"
+    CASE "achieve" ' achieve NAME: unlock one by its API name (testing - it counts as a cheat, so only it)
+        IF conA$ = "" THEN ConPrint "achieve NAME (achievements lists them)" ELSE Achieve UCASE$(conA$), -1
+    CASE "resetachievements" ' Every achievement and stat back to nothing
+        IF achReady THEN ok = STEAM_reset_all%(-1) : ok = STEAM_store% : ConPrint "Achievements and stats reset"
     CASE "maps", "levels", "sectors"
         ConPrint "-- " + SetName$(sectorSet) + " (sectorset changes it) --"
         FOR k = 1 TO NUM_LEVELS + MAX_CUSTOM
@@ -7707,6 +7802,8 @@ SELECT CASE miKind(menuSel)
                 menuDone = -1
             CASE MA_NEW
                 sectorSet = 0 : GOSUB ReadSectorNames : GOSUB NewGame : menuDone = -1
+            CASE MA_ACHIEVE ' The achievements (and records): a screen of their own, then back here
+                GOSUB ShowAchievements
             CASE MA_SECTOR ' A new game, in sector miRef (straight there: no stop in sector 1) - over 100, another set's
                 level = miRef(menuSel) : sectorSet = 0
                 IF level > 100 THEN sectorSet = level \ 100 : level = level MOD 100
@@ -13791,6 +13888,7 @@ SUB ConHelp(c$)
         CASE ""
             ConPrint "Commands (help NAME for more; ; separates several on a line):"
             ConPrint "  map N|name   maps   sectorset 0|1|2   restart   newgame   finish     - sectors"
+            ConPrint "  achievements   achieve NAME   resetachievements"
             ConPrint "  give all|keys|key r|weapons|gun N|ammo|health|armor|overcharge|amp|map"
             ConPrint "  god [on|off]   kill   respawn   summon TYPE [N]   mons   kick   tp X Y [ANGLE]   pos   status"
             ConPrint "  save N|quick   load N|quick   quicksave   quickload"
@@ -13805,6 +13903,7 @@ SUB ConHelp(c$)
             ConPrint "From the command line, each command starts with + :"
             ConPrint "  neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit"
         CASE "map" : ConPrint "map N (1-" + LTRIM$(STR$(NUM_LEVELS)) + ", yours from" + STR$(NUM_LEVELS + 1) + ") or map NAME (part of one): go to that sector, keeping what you carry"
+        CASE "achievements", "achieve", "resetachievements" : ConPrint "achievements: list them all (got, and progress); achieve NAME: unlock one (testing); resetachievements: all back to nothing"
         CASE "sectorset", "campaign" : ConPrint "sectorset 0|1|2 (original, new, remix): which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS or OLD SECTORS NEW"
         CASE "newsector" : ConPrint "newsector: a blank sector of your own (levels/custom/), opened in the editor - carve rooms out with . (floor), Ctrl+S saves"
         CASE "sectorname" : ConPrint "sectorname NAME: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it"
@@ -14321,6 +14420,7 @@ SUB BuildMenu(scr)
                 AddMenuItem SetName$(s), MI_SUBMENU, SCR_SET1 + s - 1, 0, LEN(SetSectorName$(s, 1)) > 0, ""
             NEXT
             AddMenuItem "YOUR SECTORS", MI_SUBMENU, SCR_CUSTOM, 0, -1, ""
+            AddMenuItem "ACHIEVEMENTS", MI_ACTION, 0, MA_ACHIEVE, -1, ""
             AddMenuItem "LOAD GAME", MI_SUBMENU, SCR_LOAD, 0, -1, ""
             AddMenuItem "SAVE GAME", MI_SUBMENU, SCR_SAVE, 0, menuInGame, "" ' (only during a game)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
@@ -17544,26 +17644,26 @@ SUB AchSetup
     AchDef "NC_HEADSHOT", "Right Between the Optics", "Land a headshot.", 0, "Headshots", 1
     AchDef "NC_HEADSHOTS_100", "Marksman", "Land 100 headshots.", 0, "Headshots", 100
     AchDef "NC_KICK_KILL", "Boot to the Head", "Finish off a machine with a kick.", 0, "", 0
-    AchDef "NC_OVER_EDGE", "Over the Edge", "Send a machine into a pit with no bottom.", 0, "", 0
-    AchDef "NC_CHAIN", "Chain Reaction", "Destroy three machines with one explosion.", 0, "", 0
+    AchDef "NC_OVER_EDGE", "Over the Edge", "Send a machine into a bottomless pit.", 0, "", 0
+    AchDef "NC_CHAIN", "Chain Reaction", "Three machines in one explosion.", 0, "", 0
     AchDef "NC_ARSENAL", "Arsenal", "Carry all four guns at once.", 0, "", 0
-    AchDef "NC_AMPED", "Overclocked", "Destroy five machines with one damage amp.", 0, "", 0
+    AchDef "NC_AMPED", "Overclocked", "Five kills on one damage amp.", 0, "", 0
     AchDef "NC_BESTIARY", "Bestiary", "Destroy one of every kind of machine.", 0, "KillKinds", 9
     AchDef "NC_THIEF", "Stop, Thief!", "Destroy a thief.", 0, "", 0
     ' Skill
-    AchDef "NC_UNTOUCHED", "Untouchable", "Finish a sector without taking damage.", 0, "", 0
-    AchDef "NC_CLEAN_SWEEP", "Clean Sweep", "Finish a sector with every machine destroyed.", 0, "", 0
-    AchDef "NC_PACKRAT", "Packrat", "Finish a sector with every item picked up.", 0, "", 0
-    AchDef "NC_PERFECT", "Perfectionist", "Every kill and every item in one sector.", 0, "", 0
-    AchDef "NC_SPEEDRUN", "Speedrunner", "Finish one of the thirty sectors in under a minute.", 0, "", 0
-    AchDef "NC_PEASHOOTER", "Peashooter", "Finish a sector (5+ kills) firing only the blaster.", 0, "", 0
+    AchDef "NC_UNTOUCHED", "Untouchable", "Finish a sector without a scratch.", 0, "", 0
+    AchDef "NC_CLEAN_SWEEP", "Clean Sweep", "Finish a sector, every machine down.", 0, "", 0
+    AchDef "NC_PACKRAT", "Packrat", "Finish a sector with every item.", 0, "", 0
+    AchDef "NC_PERFECT", "Perfectionist", "Every kill and item in one sector.", 0, "", 0
+    AchDef "NC_SPEEDRUN", "Speedrunner", "Finish a sector in under a minute.", 0, "", 0
+    AchDef "NC_PEASHOOTER", "Peashooter", "5+ kills in a sector, blaster only.", 0, "", 0
     AchDef "NC_LUB_DUB", "Lub-Dub", "Finish a sector with 10 health or less.", 0, "", 0
     ' The event rooms
     AchDef "NC_LOCKDOWN", "Lockdown Lifted", "Win a lockdown.", 0, "", 0
     AchDef "NC_SURVIVOR", "Survivor", "Survive a lockdown to the end.", 0, "", 0
     AchDef "NC_GALLERY", "Shooting Gallery", "Smash a shooting gallery in time.", 0, "", 0
     AchDef "NC_HOARD", "Robbing the Robbers", "Open a thieves' hoard.", 0, "", 0
-    AchDef "NC_PEST", "Pest Control", "Destroy every portal in a spawner nest.", 0, "", 0
+    AchDef "NC_PEST", "Pest Control", "Destroy every portal in a nest.", 0, "", 0
     ' Hacking and getting about
     AchDef "NC_JACKED", "Jacked In", "Hack a data station.", 0, "", 0
     AchDef "NC_HELLO", "Hello, NEXUS", "Fix a code terminal's program.", 0, "Puzzles", 1
@@ -17575,7 +17675,7 @@ SUB AchSetup
     AchDef "NC_VANDAL", "Vandal", "Smash 100 decorations.", 0, "Smashed", 100
     ' The editor
     AchDef "NC_ARCHITECT", "Architect", "Save a sector in the level editor.", 0, "", 0
-    AchDef "NC_BOXED", "Thinking Inside the Box", "Stand a block in a cell in the editor.", 0, "", 0
+    AchDef "NC_BOXED", "Thinking Inside the Box", "Stand a block in the level editor.", 0, "", 0
     ' Hidden till you get them
     AchDef "NC_HMPH", "Hmph", "Search 25 walls for secrets.", -1, "Searches", 25
     AchDef "NC_DEATHS", "Respawn Enthusiast", "Die ten times.", -1, "Deaths", 10
