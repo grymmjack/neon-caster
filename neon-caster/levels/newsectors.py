@@ -1134,6 +1134,87 @@ def archive():
     finish(m, 9, dict(closets=2, cmons="kk", lasers=3, station=1))
     return m
 
+
+# ---------------------------------------------------------------- 10
+@sector("SECTOR 10: NEXUS HEART",
+        ["wall-core.png", "wall-obsidian.png", "wall-reactor.png", "wall-coils.png", "wall-servers.png", "wall-hazard.png"],
+        ["floor-core.png", "floor-scorched.png", "floor-glow.png", "floor-hazard.png"],
+        ["ceiling-core.png", "ceiling-warning.png"])
+def nexusheart():
+    """NEW 10: NEXUS HEART. The end. The approach (south) opens on the ring
+    hall; the west antechamber locks you in with gunners round the red
+    card, the east (red door) makes you survive for the blue. Then the
+    heart (blue door): a platform ringed by red-lit pillars inside a moat
+    of lava - four bridges over it, steps out at its corners - spawner
+    portals in the corners, and the overseer waiting in the middle. The
+    exit is in the heart's far wall."""
+    m = Sector("#")
+    m.ambient = (150, 255, 190, 200)
+    # The approach: you, facing north
+    m.room(20, 40, 27, 44, ceil=12, zone=(4, 2))
+    m.put(23, 43, "^")
+    m.rect(23, 39, 24, 39)
+    for (x, y, c) in ((20, 41, "2"), (27, 41, "M"), (21, 44, "a"), (26, 44, "e"), (20, 44, "*")):
+        m.put(x, y, c)
+    m.light(23.5, 41.5, 6, 150, 255, 100, 80, 3)
+    # The ring hall
+    m.room(4, 34, 43, 38, ceil=14, zone=(1, 1))
+    for x in (8, 14, 33, 39):
+        m.column(x, 36, size=3, wall=4, pic=LIT, glow=RED, fx=3)
+    for (x, y, c) in ((11, 35, "g"), (36, 37, "g"), (19, 37, "h"), (28, 35, "k"), (5, 38, "+"), (42, 34, "a"), (16, 34, "e")):
+        m.put(x, y, c)
+    for x in (6, 23, 41):
+        m.light(x + 0.5, 36.5, 7, 140, 255, 90, 60, 0)
+    # The west antechamber: gunners lock you in round the red card
+    m.room(2, 14, 9, 30, ceil=12, zone=(2, 1))
+    m.put(6, 31, "D"); m.rect(6, 32, 6, 33)
+    for y in (17, 22, 27):
+        m.alcove(1, y, "E", depth=4, floor=0, ceil=7, deco="A", glow=RED, fx=0)
+    for (x, y, c) in ((5, 15, "r"), (8, 29, "3"), (3, 29, "u"), (8, 15, "e")):
+        m.put(x, y, c)
+    m.event(1, 2, 14, 9, 30, 5, 2, 10)
+    m.light(5.5, 22.5, 7, 150, 255, 90, 80, 0)
+    # The east antechamber (red door): survive for the blue card
+    m.room(38, 14, 45, 30, ceil=12, zone=(2, 1))
+    m.put(41, 31, "R"); m.rect(41, 32, 41, 33)
+    for y in (17, 22, 27):
+        m.alcove(46, y, "W", depth=4, floor=0, ceil=7, deco="L", glow=AMBER, fx=4)
+    for (x, y, c) in ((42, 15, "b"), (39, 29, "4"), (44, 29, "q"), (39, 15, "a")):
+        m.put(x, y, c)
+    m.event(2, 38, 14, 45, 30, 30, 75, 9)
+    m.light(41.5, 22.5, 7, 150, 255, 140, 60, 4)
+    # The heart (blue door): the moat, the platform, the overseer
+    m.room(12, 5, 35, 30, ceil=32, zone=(3, 2))
+    m.put(23, 31, "B"); m.rect(23, 32, 23, 33)
+    for y in range(8, 29):
+        for x in range(14, 34):
+            if 17 <= x <= 30 and 11 <= y <= 25:
+                continue
+            corner = (x in (14, 33)) and (y in (8, 28))
+            m.pool(x, y, x, y, "l", sink=2 if corner else 4, depth=1 if corner else 3)
+    for (x0, y0, x1, y1) in ((23, 8, 24, 10), (23, 26, 24, 28), (14, 18, 16, 19), (31, 18, 33, 19)):
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                m.fh[y][x] = "."; m.lq[y][x] = "."; m.ld[y][x] = "."
+        m.zone(x0, y0, x1, y1, 4, 0)
+    m.zone(17, 11, 30, 25, 1, 0)
+    for (x, y) in ((17, 11), (30, 11), (17, 25), (30, 25), (17, 15), (30, 15), (17, 22), (30, 22), (20, 11), (27, 11), (20, 25), (27, 25)):
+        m.column(x, y, size=2, wall=3, pic=LIT, glow=RED, fx=2)
+    for (x, y) in ((13, 6), (34, 6), (13, 29), (34, 29)):
+        m.put(x, y, "S")
+    m.event(5, 12, 5, 35, 30, 1, 300)
+    m.put(23, 18, "z")
+    for (x, y, c) in ((19, 13, "s"), (28, 23, "s"), (13, 18, "+"), (34, 18, "a"), (23, 6, "j")):
+        m.put(x, y, c)
+    m.put(23, 4, "E")
+    m.post(22, 5, "N", at=7, w=2, d=2, wall=5, glow=GREEN); m.post(24, 5, "N", at=1, w=2, d=2, wall=5, glow=GREEN)
+    for (x, y) in ((23, 18), (15, 12), (32, 12), (15, 24), (32, 24)):
+        m.light(x + 0.5, y + 0.5, 9, 160, 255, 60, 60, 2)
+    m.loot_line("console  = ammo:30, shells:30, -, -")
+    m.loot_line("generator = overcharge:20, armor:30, -, -")
+    finish(m, 10, dict(station=1, props=2, propchars="xo"))
+    return m
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:

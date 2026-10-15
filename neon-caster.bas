@@ -3466,6 +3466,7 @@ DO
         IF poisonTint > 0 THEN DrawVignette 40, 190, 60, poisonTint / 40
         IF painVig > 0 THEN DrawVignette painR, painG, painB, painVig
     END IF
+    evLine = 0 ' (two going at once - a nest and a lockdown: one line each, not one over the other)
     FOR ev = 1 TO numEvents ' An event room going on: what's left to do, and a pulsing red frame
         IF evState(ev) = 1 THEN
             SELECT CASE evType(ev)
@@ -3481,7 +3482,7 @@ DO
                 CASE EV_BLACKOUT : evText$ = "POWER FAILURE -" + STR$(blackoutTimer \ 60 + 1)
                 CASE ELSE : evText$ = "" ' (a plate, a laser...: you can see what it is - nothing to say, and no frame)
             END SELECT
-            IF evText$ <> "" AND hudShow(HE_EVENT) THEN HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT), evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90))
+            IF evText$ <> "" AND hudShow(HE_EVENT) THEN HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT) + evLine * 12, evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90)) : evLine = evLine + 1
             IF evText$ <> "" AND evType(ev) <> EV_NEST AND evType(ev) <> EV_GALLERY THEN
                 pulse = 60 + 50 * SIN(TIMER * 6)
                 FOR k = 0 TO 3 : LINE (k, k)-(799 - k, 599 - k), _RGBA32(255, 30, 30, pulse), B : NEXT
