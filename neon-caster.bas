@@ -3600,7 +3600,7 @@ DO
             END IF
         END IF
     NEXT
-    AchDrawToast ' (an achievement just unlocked: its pop-up)
+    AchDrawToast 0 ' (an achievement just unlocked: its pop-up, bottom right)
 
     ' Gun and its ammo (bottom right), and which guns you have
     ammoType = gunAmmoType(currentGun)
@@ -6346,7 +6346,7 @@ DO
         IF level >= NUM_LEVELS THEN prompt$ = "CLICK OR PRESS SPACE TO PLAY AGAIN" ELSE prompt$ = "CLICK OR PRESS SPACE FOR THE NEXT SECTOR"
         MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
     END IF
-    AchDrawToast ' (achievements the sector's end unlocked)
+    AchDrawToast -1 ' (achievements the sector's end unlocked - at the top, clear of the badges down the right)
     IF glReady THEN GLSL_filter_capture ' (OpenGL draws the tally over its view: chapter 24)
     GLScreenLayer glReady
     ShowFrame
@@ -18351,7 +18351,7 @@ END FUNCTION
 ' Our pop-up for an achievement (when Steam isn't the one showing it): it
 ' drops in at the top of the screen, waits, and rises away, a chime as it
 ' comes; any more queue behind it
-SUB AchDrawToast
+SUB AchDrawToast(atTop)
     IF achToastN = 0 THEN EXIT SUB
     achToastT = achToastT + 1
     pa = -achToastI(1) ' (above 0: a progress note for achievement pa - quiet, quicker, its grey badge and a bar)
@@ -18367,6 +18367,11 @@ SUB AchDrawToast
     END IF
     c = INSTR(achToast$(1), CHR$(1)) : ttl$ = LEFT$(achToast$(1), c - 1) : dsc$ = MID$(achToast$(1), c + 1)
     w = MaxOf(300, MaxOf(LEN(ttl$), LEN(dsc$)) * 8 + 80) : x0 = 400 - w \ 2
+    IF NOT atTop THEN ' In play: bottom right, sliding in from the side (as Steam's) - clear of NEXUS's words and the event line up top
+        y = 444 : x0 = 792 - w
+        IF t < 16 THEN x0 = 800 - (w + 8) * t / 16
+        IF t >= 220 THEN x0 = 792 - w + (w + 8) * (t - 220) / 16
+    END IF
     LINE (x0, y)-(x0 + w, y + 58), _RGBA32(10, 4, 26, 225), BF
     LINE (x0, y)-(x0 + w, y + 58), _RGB32(255, 70, 210), B
     LINE (x0 + 1, y + 1)-(x0 + w - 1, y + 57), _RGBA32(255, 70, 210, 90), B
