@@ -1366,7 +1366,7 @@ DIM SHARED playerZ AS SINGLE, playerVZ AS SINGLE, eyeZ AS SINGLE, walkZ AS SINGL
 DIM SHARED boltZ(MAX_BOLTS) AS SINGLE, boltDZ(MAX_BOLTS) AS SINGLE
 ' --- Lifts ([lifts] in the level file): a rectangle of floor that moves
 ' between two heights (low, high) - mode 1 up and down by itself, mode 2
-' an elevator: up when you step on, back down a while after you step off,
+' an elevator: step on and it takes you to its other end (MoveLifts),
 ' mode 3 only when it's told to (liftgo - a trigger's).
 ' Each frame (MoveLifts) its cells' floorH is set to where it is (liftZ),
 ' so standing, falling and drawing all just follow it; OpenGL draws it
@@ -1377,6 +1377,7 @@ DIM SHARED liftX0(MAX_LIFTS) AS INTEGER, liftY0(MAX_LIFTS) AS INTEGER, liftX1(MA
 DIM SHARED liftLow(MAX_LIFTS) AS SINGLE, liftHigh(MAX_LIFTS) AS SINGLE, liftMode(MAX_LIFTS) AS INTEGER, liftSpeed(MAX_LIFTS) AS SINGLE
 DIM SHARED liftWasDir(MAX_LIFTS) AS INTEGER, liftHum&(MAX_LIFTS) ' (which way it went last frame; its motor - its own looping copy of lift-move.wav: LiftSound)
 DIM SHARED liftZ(MAX_LIFTS) AS SINGLE, liftDir(MAX_LIFTS) AS INTEGER, liftWait(MAX_LIFTS) AS INTEGER
+DIM SHARED liftArm(MAX_LIFTS) AS INTEGER ' (an elevator: you've been off it since it last moved you - stepping on now sends it)
 DIM SHARED lvlNumLifts AS INTEGER, lvlLift(MAX_LIFTS, 8) AS SINGLE
 ' --- Triggers ([triggers] in the level file, chapter 19): WHEN, then a colon,
 ' then what happens - console commands (chapter 21), split by ;. WHEN is
@@ -7005,7 +7006,7 @@ FOR k = 1 TO lvlNumLifts
     liftX1(k) = MaxOf(lvlLift(k, 1), lvlLift(k, 3)) : liftY1(k) = MaxOf(lvlLift(k, 2), lvlLift(k, 4))
     liftLow(k) = lvlLift(k, 5) * H_STEP : liftHigh(k) = lvlLift(k, 6) * H_STEP : liftMode(k) = lvlLift(k, 7)
     liftSpeed(k) = lvlLift(k, 8) * H_STEP / 60 : IF liftSpeed(k) <= 0 THEN liftSpeed(k) = 0.01
-    liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 60 : liftWasDir(k) = 0
+    liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 60 : liftWasDir(k) = 0 : liftArm(k) = -1
     lc = 99 ' (no higher than leaves you room under the lowest ceiling over it: else you'd ride up into it, and stick)
     FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
         IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN lc = MinOf(lc, ceilH(x, y))
@@ -16958,18 +16959,30 @@ END FUNCTION
 ' is the far end) it runs backwards, from 1 to 0. Doors don't turn round,
 ' so they look mirrored from the other side, as in the software renderer.
 ' The lifts, one frame on: each one's height (liftZ) towards where it's
-' going, a wait at each end; its cells' floors set to it. (px, py) is you:
-' an elevator (mode 2) goes up when you're on it, and down again a while
-' after you've got off
+' going, a wait at each end; its cells' floors set to it. (px, py) is you.
+' An elevator (mode 2) takes you to its other end when you step on it -
+' up from the bottom, down from the top - and stays there till you've got
+' off. Waiting at the bottom, it comes up to meet you when you're by it up
+' top (so you're never left to jump down its shaft); with nobody about up
+' there, it goes back down.
 SUB MoveLifts(px, py)
     me = liftCell(INT(px), INT(py))
     FOR k = 1 TO numLifts
+        IF liftMode(k) = 2 AND me <> k THEN liftArm(k) = -1
         IF liftDir(k) = 0 THEN ' Waiting at one end
             IF liftWait(k) > 0 THEN liftWait(k) = liftWait(k) - 1
             IF liftMode(k) = 2 THEN
-                IF me = k AND liftZ(k) <= liftLow(k) + 0.001 AND liftWait(k) = 0 THEN liftDir(k) = 1
-                IF me <> k AND liftZ(k) >= liftHigh(k) - 0.001 AND liftWait(k) = 0 THEN liftDir(k) = -1
-                IF me = k AND liftZ(k) >= liftHigh(k) - 0.001 THEN liftWait(k) = 180 ' (you're still on it: stay up)
+                atLow = (liftZ(k) <= liftLow(k) + 0.001)
+                nearUp = (px > liftX0(k) - 2 AND px < liftX1(k) + 3 AND py > liftY0(k) - 2 AND py < liftY1(k) + 3 AND playerZ >= liftHigh(k) - 0.2)
+                IF me = k AND liftArm(k) THEN ' (just stepped on - walked on, not fallen in: off to the other end)
+                    liftArm(k) = 0
+                    IF ABS(playerZ - liftZ(k)) < 0.15 THEN
+                        IF atLow THEN liftDir(k) = 1 ELSE liftDir(k) = -1
+                    END IF
+                ELSEIF me <> k AND liftWait(k) = 0 THEN
+                    IF atLow AND nearUp THEN liftDir(k) = 1 ' (up to meet you)
+                    IF NOT atLow AND NOT nearUp THEN liftDir(k) = -1 ' (back down)
+                END IF
             ELSEIF liftMode(k) = 1 AND liftWait(k) = 0 THEN ' (mode 3: only when told - liftgo, from a trigger)
                 IF liftZ(k) <= liftLow(k) + 0.001 THEN liftDir(k) = 1 ELSE liftDir(k) = -1
             END IF
