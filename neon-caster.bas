@@ -1651,6 +1651,16 @@ DO
     '                       world - its left end is the left edge of what
     '                       you see, its right end the right edge.
     '
+    ' Which way is right? On our map y grows DOWNWARD (row 0 of a level file
+    ' is the top, the north), so your right is your direction turned a
+    ' quarter clockwise: (-dirY, dirX). Facing east, (1, 0), your right is
+    ' (0, 1): south, down the map. The classic raycaster this follows has
+    ' (dirY, -dirX) - right for a map whose y grows UPWARD - and with ours
+    ' that showed the world mirrored: facing east, the north on your right,
+    ' and the map's arrow turning the wrong way as you turned. So the plane
+    ' is (-dirY, dirX), turning right is a positive angle, and D strafes
+    ' along (-dirY, dirX).
+    '
     '              plane          The rays for the screen's columns go from
     '      <------------------>   you through points along the plane. Its
     '       \        |       /    length (fovPlane, 0.66 each side of
@@ -1735,7 +1745,7 @@ DO
     ' (slower when zoomed, so aiming stays steady - and slower still the
     ' more you're aiming, by AIM SENSITIVITY)
     aimSlow = 1 - aimAmount * (1 - setting(SET_AIMSENS) / 100)
-    turn = - mouseDX * turnSpeed / zoom * aimSlow
+    turn = mouseDX * turnSpeed / zoom * aimSlow ' (the mouse to the right turns you clockwise - as the map shows it: its y grows downward)
     oldDirX = dirX : dirX = dirX * COS(turn) - dirY * SIN(turn) : dirY = oldDirX * SIN(turn) + dirY * COS(turn)
     oldPlaneX = planeX : planeX = planeX * COS(turn) - planeY * SIN(turn) : planeY = oldPlaneX * SIN(turn) + planeY * COS(turn)
 
@@ -1762,7 +1772,7 @@ DO
     ' the picture would only stretch sideways: viewH is how many pixels tall
     ' a wall one cell away is drawn, and the floor, walls and sprites
     ' (chapters 14-16) all use it.
-    planeX = dirY * fovPlane / zoom : planeY = - dirX * fovPlane / zoom
+    planeX = -dirY * fovPlane / zoom : planeY = dirX * fovPlane / zoom
     viewH = RENDER_H * zoom
 
     ' Guns: 1 / 2 / 3 / 4, or the mouse wheel through the ones you have.
@@ -1799,7 +1809,8 @@ DO
     ' CHAPTER 9: MOVING, AND BUMPING INTO THINGS
     '-------------------------------------------------------------------------
     ' W and S move you along (dirX, dirY); A and D move you sideways, along
-    ' (dirY, -dirX) - your direction turned 90 degrees. Pressing W and D
+    ' (-dirY, dirX) - your direction turned 90 degrees, to your right (chapter
+    ' 8: the map's y grows downward). Pressing W and D
     ' together adds the two, which would be about 1.4 times as fast, so the
     ' sum is "normalized": divided by its own length (moveLen) to make it one
     ' cell long, then scaled to your speed - walking, or running while you
@@ -1812,7 +1823,7 @@ DO
         IF KeyHeld(BIND_LEFT) THEN strafe = strafe - 1 ' A (strafe left)
         IF KeyHeld(BIND_RIGHT) THEN strafe = strafe + 1 ' D (strafe right)
     END IF
-    moveX = dirX * forward + dirY * strafe : moveY = dirY * forward - dirX * strafe
+    moveX = dirX * forward - dirY * strafe : moveY = dirY * forward + dirX * strafe ' (your right: (-dirY, dirX))
     moveLen = SQR(moveX * moveX + moveY * moveY)
     moveSpeed = WALK_SPEED : IF KeyHeld(BIND_RUN) THEN moveSpeed = RUN_SPEED ' (Shift: run)
     IF FloorHazard(INT(playerX), INT(playerY)) = HAZ_WADE THEN IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.05 THEN moveSpeed = moveSpeed * SLOW_WADE ' (wading)
@@ -2946,7 +2957,7 @@ DO
         wallX = wallX - INT(wallX)
         IF diagHit THEN ' Along the diagonal, left to right as you see it
             wallX = playerX + perpWallDist * rayDirX - mapX
-            IF diagHit <= 2 THEN wallX = 1 - wallX
+            IF diagHit > 2 THEN wallX = 1 - wallX
             texX = INT(wallX * texSize) : texSlot = wallTexSlot(hit)
         ELSEIF doorHit = 2 THEN ' A door's edge: a thin slice of its picture
             texX = INT(doorU * DOOR_THICK * texSize)
@@ -2967,15 +2978,18 @@ DO
                     texSlot = T_SPLIT
                 CASE DOOR_EXIT ' (turned like a wall, so its sign reads the right way)
                     texX = INT(wallX * texSize) : texSlot = T_EXIT
-                    IF side = 0 AND rayDirX > 0 THEN texX = texSize - 1 - texX
-                    IF side = 1 AND rayDirY < 0 THEN texX = texSize - 1 - texX
+                    IF side = 0 AND rayDirX < 0 THEN texX = texSize - 1 - texX
+                    IF side = 1 AND rayDirY > 0 THEN texX = texSize - 1 - texX
                 CASE ELSE
                     texX = INT(wallX * texSize) : texSlot = T_SHUTTER
             END SELECT
         ELSE
             texX = INT(wallX * texSize) : texSlot = wallTexSlot(hit)
-            IF side = 0 AND rayDirX > 0 THEN texX = texSize - 1 - texX
-            IF side = 1 AND rayDirY < 0 THEN texX = texSize - 1 - texX
+            ' (a picture reads left to right as you face it: wallX grows with y
+            ' or x, which runs right to left on a wall you see going west, or
+            ' south - so there it's turned round)
+            IF side = 0 AND rayDirX < 0 THEN texX = texSize - 1 - texX
+            IF side = 1 AND rayDirY > 0 THEN texX = texSize - 1 - texX
             IF faceAny THEN ' (a side with a picture of its own - the editor's PAINT, or a light's tint)
                 IF side = 0 THEN IF rayDirX > 0 THEN sd = 3 ELSE sd = 1
                 IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
@@ -4358,7 +4372,7 @@ EditApply:
 keepX = playerX : keepY = playerY : keepDX = dirX : keepDY = dirY
 editRebuild = -1 : GOSUB BuildLevel : editRebuild = 0
 playerX = keepX : playerY = keepY : dirX = keepDX : dirY = keepDY
-planeX = dirY * fovPlane : planeY = -dirX * fovPlane ' (in the editor you fly through walls, so building over where you are is fine)
+planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (in the editor you fly through walls, so building over where you are is fine)
 editDirty = -1 : editFresh = 0
 RETURN
 
@@ -5527,7 +5541,7 @@ IF cyberSlot THEN itemKind(cyberSlot) = cyberSlotKind : itemX(cyberSlot) = cyber
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
 cyberOn = 0
 playerX = cyberBackX : playerY = cyberBackY : dirX = cyberBackDX : dirY = cyberBackDY ' (back at the station, as you jacked in - not wherever you'd got to)
-planeX = dirY * fovPlane : planeY = -dirX * fovPlane
+planeX = -dirY * fovPlane : planeY = dirX * fovPlane
 IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
 PlaySfx sndJackOut&, 1 : pickFlash = 20
 PlayMusic SectorMusic&(level)
@@ -5702,11 +5716,11 @@ DO
     END IF
     IF hSide = 0 THEN wallX = playerY + hDOut * rayDirY ELSE wallX = playerX + hDOut * rayDirX
     wallX = wallX - INT(wallX) : hTexX = INT(wallX * texSize)
-    IF hSide = 0 AND rayDirX > 0 THEN hTexX = texSize - 1 - hTexX
-    IF hSide = 1 AND rayDirY < 0 THEN hTexX = texSize - 1 - hTexX
+    IF hSide = 0 AND rayDirX < 0 THEN hTexX = texSize - 1 - hTexX
+    IF hSide = 1 AND rayDirY > 0 THEN hTexX = texSize - 1 - hTexX
     hTexX = hTexX AND (texSize - 1)
     IF hDiag THEN ' (along the diagonal, left to right as you see it - as the flat pass)
-        dgx = playerX + hDOut * rayDirX - hcX : IF diagCorner(hcX, hcY) <= 2 THEN dgx = 1 - dgx
+        dgx = playerX + hDOut * rayDirX - hcX : IF diagCorner(hcX, hcY) > 2 THEN dgx = 1 - dgx
         hTexX = INT(dgx * texSize) AND (texSize - 1) : hSlot2 = 0
     END IF
     IF hDoored THEN ' (where on the door: its picture slides with it, as the flat pass's)
@@ -5812,10 +5826,10 @@ RETURN
 DrawFlat:
 fhw = drawScale(i) * fovPlane * RENDER_H / RENDER_W ' (half its width, in cells)
 SELECT CASE drawFace(i) ' (its right, seen face on)
-    CASE 1 : frx = 0 : fry = 1
-    CASE 2 : frx = -1 : fry = 0
-    CASE 3 : frx = 0 : fry = -1
-    CASE ELSE : frx = 1 : fry = 0
+    CASE 1 : frx = 0 : fry = -1
+    CASE 2 : frx = 1 : fry = 0
+    CASE 3 : frx = 0 : fry = 1
+    CASE ELSE : frx = -1 : fry = 0
 END SELECT
 fx0 = drawX(i) - frx * fhw : fy0 = drawY(i) - fry * fhw ' (its left end)
 fDist = SQR(drawDistSq(i))
@@ -7184,7 +7198,7 @@ blackoutTimer = 0
 monStartN = numMonsters ' (the level's monsters as they start, for the console's respawn)
 FOR i = 1 TO numMonsters : monStartX(i) = monsterX(i) : monStartY(i) = monsterY(i) : monStartType(i) = monsterType(i) : NEXT
 ' The camera plane (chapter 8): your direction turned 90 degrees, fovPlane long
-planeX = dirY * fovPlane : planeY = - dirX * fovPlane
+planeX = -dirY * fovPlane : planeY = dirX * fovPlane
 aimAmount = 0 : zoom = 1 : viewH = RENDER_H
 kills = 0 : dead = 0 : swapTimer = 0
 hurtFlash = 0 : pickFlash = 0 : muzzleFlash = 0 : recoil = 0 : railBeam = 0
@@ -7811,7 +7825,7 @@ SELECT CASE conVerb$
             ConPrint "tp x y [angle in degrees]"
         ELSE
             playerX = VAL(conA$) : playerY = VAL(conB$)
-            IF conC$ <> "" THEN ang = VAL(conC$) * 3.14159265 / 180 : dirX = COS(ang) : dirY = SIN(ang) : planeX = dirY * fovPlane : planeY = -dirX * fovPlane
+            IF conC$ <> "" THEN ang = VAL(conC$) * 3.14159265 / 180 : dirX = COS(ang) : dirY = SIN(ang) : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
             ConPrint "At" + STR$(playerX) + STR$(playerY)
         END IF
     CASE "pos", "where"
@@ -8472,7 +8486,7 @@ IF LOC(fileNum) < LOF(fileNum) THEN ' The lifts where they were (you saved ridin
     IF NOT levelFlat THEN playerZ = MaxOf(playerZ, floorH(INT(playerX), INT(playerY))) : eyeZ = playerZ + EYE_H
 END IF
 CLOSE #fileNum
-planeX = dirY * fovPlane : planeY = - dirX * fovPlane ' (your direction came from the file)
+planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)
 levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0
 loadOK = -1
 IF saveSlot = 0 THEN ShowMsg "Quick loaded" ELSE ShowMsg "Loaded slot" + STR$(saveSlot) + ": " + levelName$
@@ -9129,7 +9143,7 @@ SUB SayAt(key$, x, y)
     IF lineSnd&(li) <= 0 THEN EXIT SUB
     vol! = SfxVolAt!(x, y, playerX, playerY, SFX_RANGE) : IF vol! <= 0.02 THEN EXIT SUB
     dx = x - playerX : dy = y - playerY : d = SQR(dx * dx + dy * dy) : pan! = 0
-    IF setting(SET_SPATIAL) AND d > 0.5 THEN pan! = (dx * earDY - dy * earDX) / d * 0.85 * MinOf(1, d / 2)
+    IF setting(SET_SPATIAL) AND d > 0.5 THEN pan! = (dy * earDX - dx * earDY) / d * 0.85 * MinOf(1, d / 2)
     v! = vol! * setting(SET_SPEECH) / 100
     IF pan! = 0 THEN _SNDPLAYCOPY lineSnd&(li), v! ELSE _SNDPLAYCOPY lineSnd&(li), v!, pan!
     quietTill! = TIMER + 2.5
@@ -10848,8 +10862,8 @@ SUB EditRay(sx, sy, rdx, rdy, rdz)
     ak = 1 : IF glMode THEN ak = glAspectK
     r = ndcX * edCamPlane * ak : u = ndcY / (2 * edCamZoom)
     c = COS(pitch) : sn = SIN(pitch)
-    rdx = r * edCamDY - u * sn * edCamDX + c * edCamDX
-    rdy = -r * edCamDX - u * sn * edCamDY + c * edCamDY
+    rdx = -r * edCamDY - u * sn * edCamDX + c * edCamDX ' (your right: (-dirY, dirX))
+    rdy = r * edCamDX - u * sn * edCamDY + c * edCamDY
     rdz = u * c + sn
 END SUB
 
@@ -12369,9 +12383,9 @@ SUB EditFaceRect(kind, x, y, side, ax, ay, bx, by, z0, z1, ok)
 END SUB
 
 ' Which half of a divided face the point (hx, hy, hz) on it is in - 1 or 2
-' (0: it isn't divided). Left | right is by the picture's u - it runs with
-' the edge on east and north faces, against it on south and west, as the
-' renderers draw it; on a floor, west | east and north | south.
+' (0: it isn't divided). Left | right is by the picture's u - it runs
+' against the edge on east and north faces, with it on south and west, as
+' the renderers draw it; on a floor, west | east and north | south.
 FUNCTION EditFacePart(kind, x, y, side, hx, hy, hz)
     EditFacePart = 0
     d = EditFaceDiv(x, y, EditFaceCode(kind, side)) : IF d = 0 THEN EXIT FUNCTION
@@ -12382,7 +12396,7 @@ FUNCTION EditFacePart(kind, x, y, side, hx, hy, hz)
     EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT FUNCTION
     IF d = 1 THEN
         IF side = 1 OR side = 3 THEN t = hy - y ELSE t = hx - x
-        IF side = 1 OR side = 4 THEN u = t ELSE u = 1 - t
+        IF side = 1 OR side = 4 THEN u = 1 - t ELSE u = t
         IF kind = ED_BOX THEN u = BoxFaceU(x, y, side, u) ' (a block's side: split at its own middle)
         EditFacePart = 1 - (u >= 0.5)
     ELSE
@@ -12443,7 +12457,7 @@ END SUB
 ' of the camera it is, divided by how far ahead.
 SUB EditCam(wx, wy, wz, cr, cu, ca)
     rx = wx - edCamPX : ry = wy - edCamPY : rz = wz - eyeZ
-    r = rx * edCamDY - ry * edCamDX : u0 = rz : bk = -(rx * edCamDX + ry * edCamDY)
+    r = ry * edCamDX - rx * edCamDY : u0 = rz : bk = -(rx * edCamDX + ry * edCamDY)
     c = COS(pitch) : sn = SIN(pitch)
     cr = r : cu = c * u0 + sn * bk : ca = -(-sn * u0 + c * bk)
 END SUB
@@ -13806,10 +13820,10 @@ END FUNCTION
 ' divided left | right is split at its own middle, not its cell's
 FUNCTION BoxFaceU(cx, cy, side, u)
     SELECT CASE side
-        CASE 1 : lo = boxY0(cx, cy) : hi = boxY1(cx, cy)
-        CASE 2 : lo = 1 - boxX1(cx, cy) : hi = 1 - boxX0(cx, cy)
-        CASE 3 : lo = 1 - boxY1(cx, cy) : hi = 1 - boxY0(cx, cy)
-        CASE ELSE : lo = boxX0(cx, cy) : hi = boxX1(cx, cy)
+        CASE 1 : lo = 1 - boxY1(cx, cy) : hi = 1 - boxY0(cx, cy)
+        CASE 2 : lo = boxX0(cx, cy) : hi = boxX1(cx, cy)
+        CASE 3 : lo = boxY0(cx, cy) : hi = boxY1(cx, cy)
+        CASE ELSE : lo = 1 - boxX1(cx, cy) : hi = 1 - boxX0(cx, cy)
     END SELECT
     IF hi - lo < 0.001 THEN BoxFaceU = 0 : EXIT FUNCTION
     BoxFaceU = MaxOf(0, MinOf(0.999, (u - lo) / (hi - lo)))
@@ -14031,7 +14045,7 @@ END SUB
 SUB HumPan(h&, x, y)
     IF h& <= 0 THEN EXIT SUB
     dx = x - playerX : dy = y - playerY : d = SQR(dx * dx + dy * dy) : pan! = 0
-    IF setting(SET_SPATIAL) AND d > 0.5 THEN pan! = (dx * earDY - dy * earDX) / d * 0.85 * MinOf(1, d / 2)
+    IF setting(SET_SPATIAL) AND d > 0.5 THEN pan! = (dy * earDX - dx * earDY) / d * 0.85 * MinOf(1, d / 2)
     _SNDBAL h&, pan!
 END SUB
 
@@ -14040,7 +14054,7 @@ SUB SfxAtRange(snd&, x, y, listenX, listenY, range)
     dx = x - listenX : dy = y - listenY : d = SQR(dx * dx + dy * dy)
     pan! = 0
     IF setting(SET_SPATIAL) AND d > 0.5 THEN
-        side = (dx * earDY - dy * earDX) / d ' (your right is (earDY, -earDX))
+        side = (dy * earDX - dx * earDY) / d ' (your right is (-earDY, earDX))
         pan! = side * 0.85 * MinOf(1, d / 2) ' (close by: nearly the middle)
     END IF
     PlaySfxPan snd&, vol!, pan!
@@ -15673,7 +15687,7 @@ SUB DrawHurtDirs(px, py, facingX, facingY)
             hurtDirTime(i) = hurtDirTime(i) - 1
             relX = hurtDirX(i) - px : relY = hurtDirY(i) - py
             ahead = relX * facingX + relY * facingY ' How far in front of you...
-            across = relX * facingY - relY * facingX ' ...and to your right (along the camera plane)
+            across = relY * facingX - relX * facingY ' ...and to your right (along the camera plane: (-facingY, facingX))
             angle = _ATAN2(across, ahead) ' 0 = straight ahead
             fade = hurtDirTime(i) / HURTDIR_FRAMES
             FOR radius = 92 TO 104 STEP 2 ' A thick arc, 40 degrees wide
@@ -15935,7 +15949,7 @@ SUB _GL
 END SUB
 
 ' The camera: a map point (x, y) at height z becomes
-'   right = (x - playerX) * dirY - (y - playerY) * dirX  (along the plane)
+'   right = (y - playerY) * dirX - (x - playerX) * dirY  (along the plane)
 '   up    = z - 0.5                                     (your eye)
 '   ahead = (x - playerX) * dirX + (y - playerY) * dirY
 ' and OpenGL looks down its -z, so "ahead" goes in as minus. glMat holds
@@ -15946,7 +15960,7 @@ END SUB
 '           are turned round each other by the angle, the way chapter 8
 '           turns dirX and dirY round each other to turn you left or right
 SUB GLCamera(b, mirror)
-    glMat(0) = glEyeDY : glMat(4) = -glEyeDX : glMat(8) = 0 : glMat(12) = -(glEyeX * glEyeDY - glEyeY * glEyeDX)
+    glMat(0) = -glEyeDY : glMat(4) = glEyeDX : glMat(8) = 0 : glMat(12) = glEyeX * glEyeDY - glEyeY * glEyeDX
     glMat(1) = 0 : glMat(5) = 0 : glMat(9) = 1 : glMat(13) = -glEyeZ ' (your eye's height: 0.5 on level ground)
     glMat(2) = -glEyeDX : glMat(6) = -glEyeDY : glMat(10) = 0 : glMat(14) = glEyeX * glEyeDX + glEyeY * glEyeDY
     glMat(3) = 0 : glMat(7) = 0 : glMat(11) = 0 : glMat(15) = 1
@@ -16210,13 +16224,13 @@ END SUB
 SUB GLSpritesAndExtras(b, mirror)
     glCellLitMode = 0 ' (sprites have their own light, worked out in chapter 16)
 
-    ' Sprites: a rectangle across your view, right = (dirY, -dirX), one
+    ' Sprites: a rectangle across your view, right = (-dirY, dirX), one
     ' colour all over (worked out in chapter 16). With the world shader
     ' they're bump mapped and lit by moving lights like the walls (its
     ' isSprite reads height from brightness, and skips see-through
     ' pixels); without it, OpenGL's "alpha test" skips them.
     dirLen = SQR(glEyeDX * glEyeDX + glEyeDY * glEyeDY)
-    rightX = glEyeDY / dirLen : rightY = -glEyeDX / dirLen
+    rightX = -glEyeDY / dirLen : rightY = glEyeDX / dirLen
     IF glShaderOn = 0 THEN _glEnable _GL_ALPHA_TEST : _glAlphaFunc _GL_GREATER, 128.5 / 255 ' (alpha over 128 of 255)
     glFaceNX = -glEyeDX / dirLen : glFaceNY = -glEyeDY / dirLen : glFaceNZ = 0 ' (facing you...)
     glFaceTX = rightX : glFaceTY = rightY : glFaceTZ = 0 ' (...its picture running left to right)
@@ -16226,10 +16240,10 @@ SUB GLSpritesAndExtras(b, mirror)
         sx = glSprX(i, b) : sy = glSprY(i, b) : hw = glSprHalfW(i, b)
         rx = rightX : ry = rightY
         SELECT CASE glSprFace(i, b) ' (standing flat, facing one way: its own right, and facing out - DrawFlat)
-            CASE 1 : rx = 0 : ry = 1 : glFaceNX = 1 : glFaceNY = 0
-            CASE 2 : rx = -1 : ry = 0 : glFaceNX = 0 : glFaceNY = 1
-            CASE 3 : rx = 0 : ry = -1 : glFaceNX = -1 : glFaceNY = 0
-            CASE 4 : rx = 1 : ry = 0 : glFaceNX = 0 : glFaceNY = -1
+            CASE 1 : rx = 0 : ry = -1 : glFaceNX = 1 : glFaceNY = 0 ' (its right, as you stand facing it)
+            CASE 2 : rx = 1 : ry = 0 : glFaceNX = 0 : glFaceNY = 1
+            CASE 3 : rx = 0 : ry = 1 : glFaceNX = -1 : glFaceNY = 0
+            CASE 4 : rx = -1 : ry = 0 : glFaceNX = 0 : glFaceNY = -1
             CASE ELSE : glFaceNX = -glEyeDX / dirLen : glFaceNY = -glEyeDY / dirLen
         END SELECT
         glFaceTX = rx : glFaceTY = ry
@@ -16605,7 +16619,7 @@ END SUB
 ' the camera's sums (GLCamera) and the perspective's, done by hand
 SUB GLProject(x, y, z, b, sx, sy, sr)
     sx = 0 : sy = 0 : sr = 0
-    rx = (x - glEyeX) * glEyeDY - (y - glEyeY) * glEyeDX
+    rx = (y - glEyeY) * glEyeDX - (x - glEyeX) * glEyeDY ' (your right: (-dirY, dirX))
     up = z - 0.5 : ahead = (x - glEyeX) * glEyeDX + (y - glEyeY) * glEyeDY
     c = COS(glPitch(b)) : s = SIN(glPitch(b))
     up2 = c * up - s * ahead : depth = s * up + c * ahead
@@ -17175,7 +17189,7 @@ END FUNCTION
 ' onto, and north and south sides are darker (chapter 15's y-sides).
 '
 ' Which way round the texture goes copies chapter 15 exactly. A wall reads
-' left to right from in front, so on west and south sides (where "left"
+' left to right from in front, so on east and north sides (where "left"
 ' is the far end) it runs backwards, from 1 to 0. Doors don't turn round,
 ' so they look mirrored from the other side, as in the software renderer.
 ' The lifts, one frame on: each one's height (liftZ) towards where it's
@@ -17383,7 +17397,7 @@ SUB GLStep(ax, ay, bx, by, b)
             GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 0, zh - zl, T_LIFTSIDE
         ELSE ' (the step's face is the higher cell's side towards the lower one - its own picture, if it has one - the picture turned as the software renderer turns it)
             hx = ax + bx - lx : hy = ay + by - ly
-            su0 = 0 : su1 = 1 : IF (ax = bx AND ly > hy) OR (ay = by AND lx < hx) THEN su0 = 1 : su1 = 0
+            su0 = 1 : su1 = 0 : IF (ax = bx AND ly > hy) OR (ay = by AND lx < hx) THEN su0 = 0 : su1 = 1
             GLFaceStrip ex0, ey0, ex1, ey1, su0, su1, zl, zh, 1 - zh, 1 - zl, hx, hy, SideToward(hx, hy, lx, ly), wallTexSlot(1)
         END IF
     END IF
@@ -17393,7 +17407,7 @@ SUB GLStep(ax, ay, bx, by, b)
         GLSetLight lx, ly, 1, b
         glFaceNX = SGN(lx - (ax + bx - lx)) : glFaceNY = SGN(ly - (ay + by - ly)) : glFaceNZ = 0
         hx = ax + bx - lx : hy = ay + by - ly ' (the lintel's the lower ceiling's side, towards the higher)
-        su0 = 0 : su1 = 1 : IF (ax = bx AND ly > hy) OR (ay = by AND lx < hx) THEN su0 = 1 : su1 = 0
+        su0 = 1 : su1 = 0 : IF (ax = bx AND ly > hy) OR (ay = by AND lx < hx) THEN su0 = 0 : su1 = 1
         IF texSky(ceilTex(ax, ay)) AND texSky(ceilTex(bx, by)) THEN ' (between two skies: sky)
             GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 0, 1, ceilTex(lx, ly)
         ELSE
@@ -17414,7 +17428,7 @@ SUB GLFace(cx, cy, side, b)
     IF IsWall(nx, ny) AND diagCorner(nx, ny) = 0 THEN EXIT SUB ' Wall against wall: never seen
     IF side <= 2 THEN GLSetLight nx, ny, 1, b ELSE GLSetLight nx, ny, 0.7, b
     glFaceNX = nx - cx : glFaceNY = ny - cy : glFaceNZ = 0 ' Facing the cell it looks onto
-    IF side = 1 OR side = 4 THEN u0 = 1 : u1 = 0 ELSE u0 = 0 : u1 = 1
+    IF side = 1 OR side = 4 THEN u0 = 0 : u1 = 1 ELSE u0 = 1 : u1 = 0 ' (left to right as you face it: the map's y grows downward)
     IF worldMap(cx, cy) <> 2 THEN ' A wall: from the floor to the ceiling of the cell it looks onto
         fz = floorH(nx, ny) : cz = ceilH(nx, ny)
         IF liftCell(nx, ny) THEN fz = MinOf(fz, liftLow(liftCell(nx, ny))) ' (onto a lift: down to its lowest, wherever it is when the world's built)
@@ -17450,19 +17464,19 @@ SUB GLBox(cx, cy, b)
     fz = floorH(cx, cy) : cz = ceilH(cx, cy) : deflt = wallTexSlot(boxOn(cx, cy))
     IF glMeshBuilding OR glEyeX > x1 THEN ' East
         GLSetLight cx, cy, 1, b : glFaceNX = 1 : glFaceNY = 0 : glFaceNZ = 0
-        GLBoxSide x1, y0, x1, y1, boxY0(cx, cy), boxY1(cx, cy), fz, cz, cx, cy, FACE_BOX + 1, deflt
+        GLBoxSide x1, y0, x1, y1, 1 - boxY0(cx, cy), 1 - boxY1(cx, cy), fz, cz, cx, cy, FACE_BOX + 1, deflt
     END IF
     IF glMeshBuilding OR glEyeX < x0 THEN ' West
         GLSetLight cx, cy, 1, b : glFaceNX = -1 : glFaceNY = 0 : glFaceNZ = 0
-        GLBoxSide x0, y0, x0, y1, 1 - boxY0(cx, cy), 1 - boxY1(cx, cy), fz, cz, cx, cy, FACE_BOX + 3, deflt
+        GLBoxSide x0, y0, x0, y1, boxY0(cx, cy), boxY1(cx, cy), fz, cz, cx, cy, FACE_BOX + 3, deflt
     END IF
     IF glMeshBuilding OR glEyeY > y1 THEN ' South
         GLSetLight cx, cy, 0.7, b : glFaceNX = 0 : glFaceNY = 1 : glFaceNZ = 0
-        GLBoxSide x0, y1, x1, y1, 1 - boxX0(cx, cy), 1 - boxX1(cx, cy), fz, cz, cx, cy, FACE_BOX + 2, deflt
+        GLBoxSide x0, y1, x1, y1, boxX0(cx, cy), boxX1(cx, cy), fz, cz, cx, cy, FACE_BOX + 2, deflt
     END IF
     IF glMeshBuilding OR glEyeY < y0 THEN ' North
         GLSetLight cx, cy, 0.7, b : glFaceNX = 0 : glFaceNY = -1 : glFaceNZ = 0
-        GLBoxSide x0, y0, x1, y0, boxX0(cx, cy), boxX1(cx, cy), fz, cz, cx, cy, FACE_BOX + 4, deflt
+        GLBoxSide x0, y0, x1, y0, 1 - boxX0(cx, cy), 1 - boxX1(cx, cy), fz, cz, cx, cy, FACE_BOX + 4, deflt
     END IF
 END SUB
 
@@ -17489,7 +17503,7 @@ SUB GLDiagonal(cx, cy, corner, b)
     ELSE
         ax = cx : ay = cy : bx = cx + 1 : by = cy + 1 ' "\"
     END IF
-    IF corner <= 2 THEN u0 = 1 : u1 = 0 ELSE u0 = 0 : u1 = 1
+    IF corner <= 2 THEN u0 = 0 : u1 = 1 ELSE u0 = 1 : u1 = 0
     GLSetLight cx, cy, 0.85, b
     glFaceNX = -(by - ay) * 0.7071 : glFaceNY = (bx - ax) * 0.7071 : glFaceNZ = 0 ' Square to the diagonal...
     IF InDiagonalWall(corner, 0.5 + glFaceNX * 0.1, 0.5 + glFaceNY * 0.1) THEN glFaceNX = -glFaceNX : glFaceNY = -glFaceNY ' ...on its open side
