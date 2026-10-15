@@ -1,0 +1,384 @@
+"""OLD SECTORS NEW: the first ten sectors, remade with everything the game
+has grown since - built from the originals (level1.txt .. level10.txt,
+which stay as they are) into remix/level1.txt .. remix/level10.txt, the
+files GAME > OLD SECTORS NEW plays.
+
+    python3 remaster.py            remake every sector and check it
+    python3 remaster.py -show      ...and print the maps
+    python3 remaster.py --write    remake, check, and (if all is well) write
+                                   remix/level1.txt .. remix/level10.txt
+    python3 remaster.py --check    just check the remix files as they are
+
+Each sector keeps its layout, keys, doors, monsters and route, and gains:
+
+  - alcoves cut into its walls - terminals, holograms, racks, generators,
+    tanks glowing in them, as the sector's theme has it (an alcove only
+    ever turns wall into a recess, so no way is ever blocked)
+  - slim lit columns standing in its open floors (an eighth or two wide:
+    there's always room to walk round them)
+  - decorations moved back against the walls they stand by
+  - its floor-picture hazards made real liquids: murky floors water,
+    slime slime - and molten floors lava, where the sector can still be
+    finished without wading through it (lava burns twice as hard)
+  - a loot table to suit it
+  - and touches of its own (remaster_N below): pools, light strips, posts
+    flanking its exit, glass, lockdowns.
+"""
+import os, sys, random
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import lvlkit
+from lvlkit import N, validate, check_level, write_level_file, read_level_file
+import newsectors as ns
+from newsectors import Sector, hstr, LIT, CYAN, PINK, GREEN, AMBER, RED, VIOLET
+
+ASSETS = os.path.dirname(HERE)
+OUT = os.path.join(HERE, "remix")
+STEPS = ((1, 0), (-1, 0), (0, 1), (0, -1))
+SIDE_OF = {(1, 0): "W", (-1, 0): "E", (0, 1): "N", (0, -1): "S"}   # (front is +x of the wall: it opens east... see below)
+OPEN_TO = {(1, 0): "E", (-1, 0): "W", (0, 1): "S", (0, -1): "N"}
+
+
+def hval(c, dflt):
+    if c == ".": return dflt
+    if c in ns.camp.HUP: return ns.camp.HUP.index(c)
+    return -("ABCDEFGH".index(c) + 1)
+
+
+def load(n):
+    """Original sector n as a Sector, everything in it."""
+    lv = read_level_file(os.path.join(HERE, "level%d.txt" % n), "level%d" % n)
+    m = Sector.from_rows(lv["rows"])
+    m.ambient = tuple(lv["ambient"]) if lv["ambient"] else m.ambient
+    m.zones = [tuple(z) for z in lv["zones"]]
+    m.lights = [tuple(l) for l in lv["lights"]]
+    m.events = [tuple(e) for e in lv["events"]]
+    m.lifts = [tuple(l) for l in lv["lifts"]]
+    m.triggers = list(lv["triggers"])
+    for y in range(N):
+        m.fh[y] = list((lv["floor"][y] if y < len(lv["floor"]) else "").ljust(N, ".")[:N])
+        m.ch[y] = list((lv["ceiling"][y] if y < len(lv["ceiling"]) else "").ljust(N, ".")[:N])
+        m.lq[y] = list((lv["liquid"][y] if y < len(lv.get("liquid", [])) else "").ljust(N, ".")[:N])
+        m.ld[y] = list((lv["liquid_depth"][y] if y < len(lv.get("liquid_depth", [])) else "").ljust(N, ".")[:N])
+    for f in lv["faces"]:
+        p = [t.strip() for t in f.split(",")]
+        m.faces[(int(p[0]), int(p[1]), p[2])] = (int(p[3]), p[4], p[5] if len(p) > 5 else "")
+    m.pads = [tuple(p) for p in lv["pads"]]
+    for t in lv["monsters"]:
+        m.mons[(int(t[0]), int(t[1]))] = tuple(t[2:7])
+    m.loot = list(lv["loot"])
+    m.puzzles = lv.get("puzzles", "")
+    m.blocks = [tuple(b) for b in lv.get("blocks", [])]
+    m.nudges = [tuple(x) for x in lv.get("nudges", [])]
+    return m, lv
+
+
+def floor_pics(m, lv):
+    """Each cell's floor picture, as the game works it out: zones in order
+    (later ones win), then the cell's own ([faces] F)."""
+    pic = [[lv["floors"][0] if lv["floors"] else "" for _ in range(N)] for _ in range(N)]
+    for z in m.zones:
+        x0, y0, x1, y1, f = z[0], z[1], z[2], z[3], z[4]
+        shape = z[6] if len(z) > 6 else 0
+        if not f: continue
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                if shape:   # (a triangle: leave the edge cases to the square)
+                    u, v = x - x0, y - y0
+                    s = x1 - x0
+                    if shape == 1 and u + v > s: continue
+                    if shape == 2 and u < v: continue
+                    if shape == 3 and u + v < s: continue
+                    if shape == 4 and u > v: continue
+                pic[y][x] = lv["floors"][f - 1]
+    for (x, y, f), (d, p1, p2) in m.faces.items():
+        if f == "F" and p1:
+            pic[y][x] = p1
+    return pic
+
+
+def busy(m):
+    """Cells the passes leave alone: doors and the cells by them, stations,
+    terminals, pads, glass, lifts, event rooms that are traps, lasers and
+    the like, trigger boxes - and anything already on the floor."""
+    out = set()
+    for y in range(N):
+        for x in range(N):
+            c = m.g[y][x]
+            if c in lvlkit.DOORS or c in "@$&=%E!":
+                for dy in range(-2, 3):
+                    for dx in range(-2, 3):
+                        out.add((x + dx, y + dy))
+    for (x0, y0, x1, y1, *_r) in m.lifts:
+        for y in range(y0 - 1, y1 + 2):
+            for x in range(x0 - 1, x1 + 2):
+                out.add((x, y))
+    for e in m.events:
+        if e[0] in (3, 6, 7, 8, 9, 10, 12, 13):
+            for y in range(e[2] - 1, e[4] + 2):
+                for x in range(e[1] - 1, e[3] + 2):
+                    out.add((x, y))
+    for t in m.triggers:
+        w = t.split(":")[0].split()
+        if w and w[0] in ("enter", "clear") and len(w) >= 5:
+            try:
+                x0, y0, x1, y1 = (int(v) for v in w[1:5])
+                for y in range(y0, y1 + 1):
+                    for x in range(x0, x1 + 1):
+                        out.add((x, y))
+            except ValueError:
+                pass
+        if w and w[0] == "use" and len(w) >= 3:
+            try:
+                out.add((int(w[1]), int(w[2])))
+            except ValueError:
+                pass
+    for (x, y, *_r) in m.blocks:
+        out.add((x, y))
+    return out
+
+
+def auto_alcoves(m, rng, n, decos, glows, fx=2):
+    """Up to n alcoves in long straight walls: a wall cell with open floor in
+    front, wall behind and wall either side along the wall."""
+    taken = busy(m)
+    cand = []
+    for y in range(2, N - 2):
+        for x in range(2, N - 2):
+            if m.g[y][x] not in lvlkit.WALLS or (x, y) in taken:
+                continue
+            for (dx, dy) in STEPS:
+                fx_, fy_ = x + dx, y + dy
+                bx, by = x - dx, y - dy
+                if m.g[fy_][fx_] != "." or (fx_, fy_) in taken or m.lq[fy_][fx_] != ".":
+                    continue
+                if m.g[by][bx] not in lvlkit.WALLS:
+                    continue
+                sides = [(x + dy, y + dx), (x - dy, y - dx)]
+                if not all(m.g[b][a] in lvlkit.WALLS for (a, b) in sides):
+                    continue
+                f = hval(m.fh[fy_][fx_], 0)
+                c = hval(m.ch[fy_][fx_], 8)
+                if c - f < 8:
+                    continue
+                cand.append((x, y, dx, dy, f, c))
+    rng.shuffle(cand)
+    made = []
+    for (x, y, dx, dy, f, c) in cand:
+        if len(made) >= n:
+            break
+        if any(abs(x - a) + abs(y - b) < 7 for (a, b) in made):
+            continue
+        i = len(made)
+        m.alcove(x, y, OPEN_TO[(dx, dy)], depth=4, floor=f + 3, ceil=min(f + 7, c - 1), deco=decos[i % len(decos)],
+                 glow=glows[i % len(glows)], fx=fx)
+        made.append((x, y))
+    return len(made)
+
+
+def open_patch(m, x, y, r, taken):
+    f = m.fh[y][x]
+    for b in range(y - r, y + r + 1):
+        for a in range(x - r, x + r + 1):
+            if not (0 < a < N - 1 and 0 < b < N - 1): return False
+            if m.g[b][a] != "." or m.fh[b][a] != f or m.lq[b][a] != "." or (a, b) in taken:
+                return False
+    return True
+
+
+def auto_columns(m, rng, n, glows, pic=LIT, size=2, wall=3):
+    """Up to n slim columns, each in the middle of a 5 x 5 patch of open,
+    level, dry floor - lit, every other one."""
+    taken = busy(m)
+    cand = [(x, y) for y in range(3, N - 3) for x in range(3, N - 3) if open_patch(m, x, y, 2, taken)]
+    rng.shuffle(cand)
+    made = []
+    for (x, y) in cand:
+        if len(made) >= n:
+            break
+        if any(abs(x - a) + abs(y - b) < 6 for (a, b) in made):
+            continue
+        i = len(made)
+        lit = i % 2 == 0
+        m.column(x, y, size=size, wall=wall, pic=pic if lit else None, glow=glows[i % len(glows)] if lit else None, fx=0)
+        made.append((x, y))
+    return len(made)
+
+
+def nudge_decos(m):
+    """Decorations standing by one wall: moved back against it."""
+    have = {(a, b) for (a, b, *_r) in m.nudges}
+    n = 0
+    for y in range(1, N - 1):
+        for x in range(1, N - 1):
+            if m.g[y][x] not in ns.DECO or (x, y) in have or m.g[y][x] in "oSV":
+                continue
+            walls = [(dx, dy) for (dx, dy) in STEPS if m.g[y + dy][x + dx] in lvlkit.WALLS]
+            if len(walls) == 1:
+                dx, dy = walls[0]
+                m.nudge(x, y, dx * 2, dy * 2)
+                n += 1
+    return n
+
+
+def real_liquids(m, lv):
+    """Floor pictures that act like liquids become them: murky -> water,
+    slime -> slime; molten / lava -> lava, but only where the sector can
+    still be finished without crossing it."""
+    pics = floor_pics(m, lv)
+    taken = {(x, y) for (x0, y0, x1, y1, *_r) in m.lifts for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)}
+    made = {"w": 0, "s": 0, "l": 0}
+    lava = []
+    for y in range(1, N - 1):
+        for x in range(1, N - 1):
+            if m.g[y][x] in lvlkit.WALLS or m.g[y][x] in lvlkit.DOORS or m.lq[y][x] != "." or (x, y) in taken:
+                continue
+            p = pics[y][x]
+            if "murky" in p: kind = "w"
+            elif "slime" in p: kind = "s"
+            elif "molten" in p or "lava" in p: kind = "l"
+            else: continue
+            if kind == "l":
+                lava.append((x, y))
+                continue
+            m.liquid(x, y, kind, 2)
+            made[kind] += 1
+    if lava:
+        rows = [list(r) for r in m.rows()]
+        for (x, y) in lava:
+            if rows[y][x] == ".": rows[y][x] = "#"
+        errs, _ = validate(["".join(r) for r in rows], "lava-check", pairs=m.pads)
+        if not errs:
+            for (x, y) in lava:
+                if m.g[y][x] == ".":
+                    m.liquid(x, y, "l", 1)
+                    made["l"] += 1
+        else:
+            print("   (molten floors stay floors: crossing them is the way)")
+    return made
+
+
+def exit_posts(m, glow=GREEN, wall=5):
+    """Lit posts either side of the exit, against its wall."""
+    for y in range(N):
+        for x in range(N):
+            if m.g[y][x] != "E":
+                continue
+            for (dx, dy) in STEPS:
+                fx, fy = x + dx, y + dy
+                if not (0 < fx < N - 1 and 0 < fy < N - 1) or m.g[fy][fx] != ".":
+                    continue
+                against = OPEN_TO[(-dx, -dy)]
+                for s in (-1, 1):
+                    px, py = fx + s * (1 if dy else 0), fy + s * (1 if dx else 0)
+                    if m.g[py][px] == "." and not any((b[0], b[1]) == (px, py) for b in m.blocks):
+                        at = 7 if s < 0 else 1
+                        if against in "EW":
+                            at = 7 if s < 0 else 1
+                        m.post(px, py, against, at=at, w=2, d=2, wall=wall, glow=glow)
+                return
+
+
+REMASTER = {}
+
+
+def remaster(n):
+    def wrap(fn):
+        REMASTER[n] = fn
+        return fn
+    return wrap
+
+
+THEME = {
+    1: ("tA", (CYAN, GREEN), "crate    = ammo:25, shells:20, medkit:20, armor:10"),
+    2: ("LA", (AMBER, RED), "barrel   = ammo:15, shells:15, -, -"),
+    3: ("tL", (GREEN, AMBER), "crate    = ammo:20, shells:25, medkit:20, armor:10"),
+    4: ("IO", (CYAN, GREEN), "cryopod  = overcharge:15, medkit:30, -, -"),
+    5: ("Lf", (AMBER, RED), "crate    = ammo:20, shells:30, medkit:20, armor:10"),
+    6: ("Ip", (GREEN, PINK), "plant    = medkit:15, -, -, -"),
+    7: ("lF", (CYAN, VIOLET), "rack     = ammo:30, overcharge:10, -, -"),
+    8: ("nF", (PINK, AMBER), "vending  = ammo:40, shells:30, medkit:15, overcharge:5"),
+    9: ("OA", (CYAN, PINK), "locker   = armor:40, medkit:30, overcharge:15, amp:10"),
+    10: ("LA", (RED, AMBER), "console  = ammo:30, shells:30, -, -"),
+}
+
+
+def build(n):
+    m, lv = load(n)
+    rng = random.Random(9000 + n)
+    decos, glows, loot = THEME[n]
+    if n in REMASTER:
+        REMASTER[n](m, rng)
+    liq = real_liquids(m, lv)
+    na = auto_alcoves(m, rng, 6, decos, glows)
+    nc = auto_columns(m, rng, 6, glows)
+    exit_posts(m)
+    nn = nudge_decos(m)
+    if not any(l.split("=")[0].strip() == loot.split("=")[0].strip() for l in m.loot):
+        m.loot.append(loot)
+    m.headroom(8)
+    print("   remastered L%d: %d alcoves, %d columns, %d decorations moved, liquids %s, %d blocks in all"
+          % (n, na, nc, nn, liq, len(m.blocks)))
+    out = m.level("level%d" % n, lv["name"], lv["walls"], lv["floors"], lv["ceils"])
+    return m, out, lv
+
+
+def build_all(write=False, show=False):
+    ok = True
+    outs = []
+    for n in range(1, 11):
+        print("OLD NEW %d" % n)
+        m, lv, orig = build(n)
+        if show:
+            m.show()
+        good = check_level(lv, ASSETS)
+        errs, _ = ns.reach_with_blocks(lv)
+        for e in errs: print("  BLOCKED:", e)
+        herrs, _ = lvlkit.check_heights(lv)
+        for e in herrs: print("  HEIGHTS ERROR", e)
+        good = good and not errs and not herrs
+        pics, glows = m.slots()
+        c = ns.counts(m)
+        print("  slots %d+%d of 24; items %d, monsters %d, decorations %d, lights ~%d, events %d, blocks %d, nudges %d"
+              % (pics, glows, c["items"], c["mons"], c["decos"], c["lights"], len(m.events), len(m.blocks), len(m.nudges)))
+        for what, k, mx in (("slots", pics + glows, 24), ("items", c["items"], 64), ("monsters", c["mons"], 64),
+                            ("decorations", c["decos"], 64), ("lights", c["lights"], 96), ("events", len(m.events), 16),
+                            ("nudges", len(m.nudges), 64)):
+            if k > mx:
+                print("  TOO MANY %s: %d (max %d)" % (what, k, mx))
+                good = False
+        ok = ok and good
+        doc = ["OLD SECTORS NEW: %s, remade by remaster.py from level%d.txt" % (orig["name"], n)]
+        outs.append((lv, doc))
+    ok = ok and not ns.PROBLEMS
+    if write:
+        if not ok:
+            print("not writing: fix the problems above first")
+            return False
+        os.makedirs(OUT, exist_ok=True)
+        for lv, doc in outs:
+            write_level_file(os.path.join(OUT, lv["label"] + ".txt"), lv, doc)
+        print("wrote %d sectors into %s" % (len(outs), os.path.normpath(OUT)))
+    print("ALL GOOD" if ok else "PROBLEMS")
+    return ok
+
+
+# =====================================================================
+# Each sector's own touches (before the passes above)
+# =====================================================================
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    if "--check" in args:
+        good = True
+        for n in range(1, 11):
+            f = os.path.join(OUT, "level%d.txt" % n)
+            if not os.path.exists(f): continue
+            lv = read_level_file(f, "remix%d" % n)
+            good = check_level(lv, ASSETS) and good
+            errs, _ = ns.reach_with_blocks(lv)
+            for e in errs: print("  BLOCKED:", e)
+            good = good and not errs
+        sys.exit(0 if good else 1)
+    sys.exit(0 if build_all("--write" in args, "-show" in args) else 1)
