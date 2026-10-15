@@ -1014,6 +1014,7 @@ CONST NUM_ACH = 45, NUM_ACHSTATS = 12, NEON_APP_ID = 0 ' (NEON_APP_ID: the game'
 DIM SHARED achApi$(NUM_ACH), achTitle$(NUM_ACH), achDesc$(NUM_ACH), achHidden(NUM_ACH) AS INTEGER, achStat$(NUM_ACH), achGoal(NUM_ACH) AS LONG
 DIM SHARED achN AS INTEGER, achStatName$(NUM_ACHSTATS), achStatN AS INTEGER, achCheat AS INTEGER, achTest AS INTEGER, achReady AS INTEGER
 DIM SHARED achToast$(16), achToastN AS INTEGER, achToastT AS INTEGER, sndAchieve&, conFromTrig AS INTEGER
+DIM SHARED achSect(16) AS INTEGER, achSectN AS INTEGER ' (the achievements unlocked in this sector: their badges on the tally)
 DIM SHARED achFrame AS LONG, achHeadAt AS LONG ' (the frame a headshot was last counted in)
 DIM SHARED achIcon&(NUM_ACH), achIconOff&(NUM_ACH), achToastI(16) AS INTEGER ' (each one's badge, achievements/NAME.png, and its grey one, NAME_locked.png - the same pictures Steam shows)
 DIM SHARED achLevelHurt AS INTEGER, achOtherGun AS INTEGER, achAmpKills AS INTEGER, achBlastKills AS INTEGER, achInBlast AS INTEGER, achInLava AS INTEGER, achRunFrom AS INTEGER, achDeadSeen AS INTEGER
@@ -6277,6 +6278,14 @@ DO
             END IF
         END IF
     NEXT
+    IF achSectN AND tallyDone >= 3 THEN ' (the badges of what you unlocked in it, down the right)
+        MenuText 724, 244, "NEW", 1, _RGB32(255, 200, 60), 1
+        FOR k = 1 TO MinOf(achSectN, 5)
+            ic& = achIcon&(achSect(k)) : by = 262 + (k - 1) * 48
+            IF ic& < -1 THEN _PUTIMAGE (704, by)-STEP(39, 39), ic& ELSE CIRCLE (724, by + 20), 18, _RGB32(255, 200, 60)
+        NEXT
+        IF achSectN > 5 THEN MenuText 724, 262 + 5 * 48 + 8, "+" + LTRIM$(STR$(achSectN - 5)), 1, _RGB32(255, 200, 60), 1
+    END IF
     IF tallyDone = numTally AND tallyWait = 0 AND (tallyFrame \ 20) MOD 3 > 0 THEN
         IF level >= NUM_LEVELS THEN prompt$ = "CLICK OR PRESS SPACE TO PLAY AGAIN" ELSE prompt$ = "CLICK OR PRESS SPACE FOR THE NEXT SECTOR"
         MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
@@ -6592,6 +6601,7 @@ RETURN
 ' --- Start (or restart) the level: read its map, and reset everything in it
 LoadLevel:
 editFresh = -1 ' (the level as its file has it: nothing in it to save)
+achSectN = 0
 achLevelHurt = 0 : achOtherGun = 0 : achInLava = 0 ' (for the sector's end: hurt? any gun but the blaster?)
 ReadLevelFile level ' (its file: neon-caster/levels/levelN.txt - chapter 22)
 IF NOT lvlOK THEN PRINT "Can't read the level file "; LevelFile$(level) : SLEEP : SYSTEM
@@ -18048,6 +18058,7 @@ SUB Achieve(api$, always)
         IF achApi$(i) = api$ THEN
             ConPrint "ACHIEVEMENT: " + achTitle$(i) + " - " + achDesc$(i)
             IF NOT STEAM_is_steam% AND achToastN < 16 THEN achToastN = achToastN + 1 : achToast$(achToastN) = achTitle$(i) + CHR$(1) + achDesc$(i) : achToastI(achToastN) = i ' (Steam shows its own)
+            IF achSectN < 16 THEN achSectN = achSectN + 1 : achSect(achSectN) = i
         END IF
     NEXT
 END SUB
