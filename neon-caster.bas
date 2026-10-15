@@ -234,7 +234,7 @@ DIM SHARED lvlNumBoxes AS INTEGER, lvlBox(MAX_BOXES, 7) AS SINGLE
 ' Decorations moved off their cell's middle (lvlNudge: x, y, then how far
 ' across and down, in eighths) - one in an alcove, against a wall
 CONST MAX_NUDGES = 64
-DIM SHARED lvlNumNudges AS INTEGER, lvlNudge(MAX_NUDGES, 4) AS SINGLE
+DIM SHARED lvlNumNudges AS INTEGER, lvlNudge(MAX_NUDGES, 5) AS SINGLE ' (5: which way it faces, flat - 0 it turns to face you, 1-4 east, south, west, north)
 ' Each cell's floor and ceiling texture (a texture slot - chapter 5)
 DIM SHARED floorTex(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilTex(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' Floor / ceiling diagonals: a cell's floor (or ceiling) can be split corner
@@ -351,6 +351,7 @@ DIM SHARED decoX(MAX_DECO) AS SINGLE, decoY(MAX_DECO) AS SINGLE, decoKind(MAX_DE
 DIM SHARED decoOn(MAX_DECO) AS INTEGER, decoFuse(MAX_DECO) AS INTEGER, numDecos AS INTEGER
 ' decoHP: hits left before it breaks; decoTimer: frames left of its collapse
 DIM SHARED decoHP(MAX_DECO) AS INTEGER, decoTimer(MAX_DECO) AS INTEGER
+DIM SHARED decoFace(MAX_DECO) AS INTEGER ' (0: it turns to face you, as sprites do; 1-4: it stands flat, facing east, south, west or north - [nudges])
 ' decoLootA: which way its loot flies when it breaks - back towards you if
 ' your boot broke it, else (NO_AIM) any way at all (DecoLoot)
 CONST NO_AIM = -99
@@ -647,6 +648,7 @@ CONST MAX_DRAW = MAX_ITEMS + MAX_MON + MAX_BOLTS + MAX_DECO + MAX_BLASTS + MAX_D
 DIM drawX(MAX_DRAW) AS SINGLE, drawY(MAX_DRAW) AS SINGLE, drawDistSq(MAX_DRAW) AS SINGLE
 DIM drawSprite(MAX_DRAW) AS INTEGER, drawScale(MAX_DRAW) AS SINGLE, drawLift(MAX_DRAW) AS SINGLE
 DIM drawSquash(MAX_DRAW) AS SINGLE, drawMinShade(MAX_DRAW) AS INTEGER, drawOrder(MAX_DRAW) AS INTEGER
+DIM drawFace(MAX_DRAW) AS INTEGER ' (0: it turns to face you; 1-4: it stands flat, facing east, south, west or north - DrawFlat)
 
 ' --- The 3D view: drawn at half size, then stretched 2x onto the window ---
 ' RENDER_ = the size of the 3D view in pixels (W = width, H = height);
@@ -747,7 +749,7 @@ DIM SHARED glShakeX(1), glShakeY(1), glShakeEdge(1), glFullMode(1) AS INTEGER
 DIM SHARED glLitR(MAP_SIZE, MAP_SIZE, 1) AS LONG, glLitG(MAP_SIZE, MAP_SIZE, 1) AS LONG, glLitB(MAP_SIZE, MAP_SIZE, 1) AS LONG
 DIM SHARED glDoor(MAP_SIZE, MAP_SIZE, 1) AS SINGLE, glSeen(MAP_SIZE, MAP_SIZE, 1) AS LONG
 DIM SHARED glNumSpr(1) AS INTEGER, glSprX(MAX_DRAW, 1), glSprY(MAX_DRAW, 1), glSprLift(MAX_DRAW, 1)
-DIM SHARED glSprHalfW(MAX_DRAW, 1), glSprH(MAX_DRAW, 1), glSprSlot(MAX_DRAW, 1) AS INTEGER
+DIM SHARED glSprHalfW(MAX_DRAW, 1), glSprH(MAX_DRAW, 1), glSprSlot(MAX_DRAW, 1) AS INTEGER, glSprFace(MAX_DRAW, 1) AS INTEGER
 DIM SHARED glSprR(MAX_DRAW, 1), glSprG(MAX_DRAW, 1), glSprB(MAX_DRAW, 1)
 DIM SHARED glTexVersion AS LONG
 ' Bump mapping (chapter 24): each cell's light middle (glLitCX, glLitCY)
@@ -2978,6 +2980,7 @@ DO
     ' behind walls and doorframes. Transparent pixels (alpha 128 or less)
     ' are skipped, so you see the shape, not its square.
     numDraw = 0
+    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : NEXT
     FOR i = 1 TO numItems
         IF itemOn(i) AND (itemKind(i) = IT_CORE) = cyberOn THEN ' (in the network, just its data cores)
             numDraw = numDraw + 1 : drawX(numDraw) = itemX(i) : drawY(numDraw) = itemY(i)
@@ -3020,7 +3023,7 @@ DO
         IF cyberOn = 0 THEN ' (every one - broken ones leave their wreck; none in the network)
             numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) : drawY(numDraw) = decoY(i)
             drawSprite(numDraw) = DecoSlot(decoKind(i)) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = 0
-            drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40
+            drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40 : drawFace(numDraw) = decoFace(i)
             IF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
                 drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0 : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw)
@@ -3116,7 +3119,9 @@ DO
         relX = drawX(i) - playerX : relY = drawY(i) -playerY
         transformX = invDet * (dirY * relX - dirX * relY) ' Sideways from the view
         transformY = invDet * ( - planeY * relX + planeX * relY) ' Depth
-        IF transformY > 0.1 THEN
+        IF drawFace(i) THEN
+            GOSUB DrawFlat ' (standing flat, facing one way: below)
+        ELSEIF transformY > 0.1 THEN
             spriteW = INT(viewH / transformY * drawScale(i)) : spriteH = INT(spriteW * drawSquash(i))
             IF spriteH < 1 THEN spriteH = 1
             spriteTop = INT(RENDER_H / 2 + (eyeZ - FloorAt(drawX(i), drawY(i)) - drawLift(i)) * viewH / transformY) -spriteH ' Bottom edge on its floor, lifted off it - below your eye
@@ -3142,7 +3147,7 @@ DO
                 glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i) + FloorAt(drawX(i), drawY(i))
                 glSprHalfW(n, glWrite) = drawScale(i) * fovPlane * RENDER_H / RENDER_W
                 glSprH(n, glWrite) = drawScale(i) * drawSquash(i) : glSprSlot(n, glWrite) = spriteSlot
-                glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256
+                glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = 0
             ELSE
                 FOR screenX = spriteLeft TO spriteLeft + spriteW - 1
                     IF screenX >= 0 AND screenX < RENDER_W THEN
@@ -4022,18 +4027,19 @@ SELECT CASE pnHit
         NEXT
         GOSUB EditApply
         IF blkN THEN EditNote LTRIM$(STR$(blkN)) + " pillar(s) - click a side of one to shape it" ELSE EditNote "A pillar needs an empty floor"
-    CASE 205 TO 208 ' The selected decorations moved about their cells
+    CASE 205 TO 209 ' The selected decorations moved about their cells (or turned: 209)
         GOSUB EditPushUndo
         FOR k = 1 TO edSelN
             IF edSelKind(k) = ED_FLOOR AND INSTR("oiptxlnfSdAFIJLOQUWZV", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN
-                EditNudgeGet edSelX(k), edSelY(k), ndx, ndy
+                EditNudgeGet edSelX(k), edSelY(k), ndx, ndy, nfc
                 SELECT CASE pnHit
+                    CASE 209 : nfc = (nfc + 1) MOD 5 ' (facing you, then flat facing east, south, west, north)
                     CASE 205 : ndx = MaxOf(-3, ndx - 1)
                     CASE 206 : ndx = MinOf(3, ndx + 1)
                     CASE 207 : ndy = MaxOf(-3, ndy - 1)
                     CASE 208 : ndy = MinOf(3, ndy + 1)
                 END SELECT
-                EditNudgeSet edSelX(k), edSelY(k), ndx, ndy
+                EditNudgeSet edSelX(k), edSelY(k), ndx, ndy, nfc
             END IF
         NEXT
         GOSUB EditApply
@@ -5546,6 +5552,67 @@ NEXT
 hSlot2 = 0
 RETURN
 
+' --- A sprite standing flat (drawFace 1-4: facing east, south, west or
+' north) - a terminal against a wall, a screen in an alcove - that doesn't
+' turn to face you. It's a card across the cell, drawScale tall and as
+' wide as a sprite that faces you would be, and each column of the view
+' finds where its ray crosses it, as a pane of glass does (GlassRay): t,
+' how far (perpWallDist's kind of distance), and u, how far along - from
+' the card's left as you'd see it face on, so seen from behind it's
+' mirrored, like a card. Then that column of the picture, at that height.
+DrawFlat:
+fhw = drawScale(i) * fovPlane * RENDER_H / RENDER_W ' (half its width, in cells)
+SELECT CASE drawFace(i) ' (its right, seen face on)
+    CASE 1 : frx = 0 : fry = 1
+    CASE 2 : frx = -1 : fry = 0
+    CASE 3 : frx = 0 : fry = -1
+    CASE ELSE : frx = 1 : fry = 0
+END SELECT
+fx0 = drawX(i) - frx * fhw : fy0 = drawY(i) - fry * fhw ' (its left end)
+fDist = SQR(drawDistSq(i)) : IF fDist > 24 THEN RETURN
+fog& = 256 - fDist * 10 : IF fog& < 0 THEN fog& = 0
+litX = INT(drawX(i)) : litY = INT(drawY(i))
+lightR& = litR(litX, litY) * fog& \ 256 : lightG& = litG(litX, litY) * fog& \ 256 : lightB& = litB(litX, litY) * fog& \ 256
+IF lightR& < drawMinShade(i) THEN lightR& = drawMinShade(i)
+IF lightG& < drawMinShade(i) THEN lightG& = drawMinShade(i)
+IF lightB& < drawMinShade(i) THEN lightB& = drawMinShade(i)
+spriteSz = spriteSize(drawSprite(i)) : spriteSlot = drawSprite(i)
+IF glMode THEN ' (OpenGL draws it: GLSpritesAndExtras, facing glSprFace's way)
+    n = glNumSpr(glWrite) + 1 : glNumSpr(glWrite) = n
+    glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i) + FloorAt(drawX(i), drawY(i))
+    glSprHalfW(n, glWrite) = fhw : glSprH(n, glWrite) = drawScale(i) * drawSquash(i) : glSprSlot(n, glWrite) = spriteSlot
+    glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = drawFace(i)
+    RETURN
+END IF
+fFloor = FloorAt(drawX(i), drawY(i))
+FOR screenX = 0 TO RENDER_W - 1
+    cameraX = 2 * screenX / RENDER_W - 1
+    frdx = dirX + planeX * cameraX : frdy = dirY + planeY * cameraX
+    ft = -1
+    IF frx <> 0 THEN
+        IF ABS(frdy) > 0.000001 THEN ft = (drawY(i) - playerY) / frdy : fu = (playerX + ft * frdx - fx0) * frx / (2 * fhw)
+    ELSE
+        IF ABS(frdx) > 0.000001 THEN ft = (drawX(i) - playerX) / frdx : fu = (playerY + ft * frdy - fy0) * fry / (2 * fhw)
+    END IF
+    IF ft > 0.05 THEN
+        IF fu >= 0 AND fu < 1 AND ft < zBuffer(screenX) THEN
+            IF glassT(screenX) > 0 AND glassDone(screenX) = 0 THEN IF ft < glassT(screenX) THEN gx = screenX : GOSUB GlassColumn
+            spriteH = INT(viewH / ft * drawScale(i) * drawSquash(i)) : IF spriteH < 1 THEN spriteH = 1
+            spriteTop = INT(RENDER_H / 2 + (eyeZ - fFloor - drawLift(i)) * viewH / ft) - spriteH
+            spriteU = INT(fu * spriteSz) : IF spriteU > spriteSz - 1 THEN spriteU = spriteSz - 1
+            spTop = 0 : spBot = RENDER_H - 1
+            FOR k = 1 TO clipN(screenX)
+                IF clipD(screenX, k) < ft THEN spTop = clipT(screenX, k) : spBot = clipB(screenX, k)
+            NEXT
+            FOR screenY = MaxOf(spriteTop, spTop) TO MinOf(spriteTop + spriteH - 1, spBot)
+                texel~& = spriteTex(spriteU, (screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
+                IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = ShadeRGB~&(texel~&, lightR&, lightG&, lightB&)
+            NEXT
+        END IF
+    END IF
+NEXT
+RETURN
+
 ' --- Column gx's pane of glass, over what's already drawn behind it: the
 ' glass picture (S_GLASS, or cracked) at the pane's distance, each pixel
 ' mixed with what's there by the picture's alpha - see-through mostly,
@@ -6400,7 +6467,7 @@ FOR y = 0 TO MAP_SIZE - 1
             CASE "o", "i", "p", "t", "x", "l", "n", "f", "S", "d", "A", "F", "I", "J", "L", "O", "Q", "U", "W", "Z", "V" ' A decoration
                 IF numDecos < MAX_DECO THEN
                     numDecos = numDecos + 1 : decoCell(x, y) = numDecos
-                    decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oiptxlnfSdAFIJLOQUWZV", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0
+                    decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oiptxlnfSdAFIJLOQUWZV", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0 : decoFace(numDecos) = 0
                     decoHP(numDecos) = DecoMaxHP(decoKind(numDecos)) : decoTimer(numDecos) = 0 : decoLootA(numDecos) = NO_AIM
                 END IF
             CASE "m", "g", "h", "c", "s", "k", "w", "z", "T" ' A monster
@@ -6459,6 +6526,7 @@ FOR k = 1 TO lvlNumNudges
     IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
         i = decoCell(x, y)
         IF i THEN decoX(i) = x + 0.5 + MaxOf(-3, MinOf(3, lvlNudge(k, 3))) / 8 : decoY(i) = y + 0.5 + MaxOf(-3, MinOf(3, lvlNudge(k, 4))) / 8 ' (up to 3 eighths: still in its cell)
+        IF i THEN IF lvlNudge(k, 5) >= 1 AND lvlNudge(k, 5) <= 4 THEN decoFace(i) = lvlNudge(k, 5) ' (and standing flat, facing one way)
     END IF
 NEXT
 ' Things that glow by themselves get a light of their own: lamps (cyan;
@@ -9213,7 +9281,10 @@ SUB ReadLevelFile(n)
                 CASE "blocks"
                     IF got >= 7 AND lvlNumBoxes < MAX_BOXES THEN lvlNumBoxes = lvlNumBoxes + 1 : FOR k = 1 TO 7 : lvlBox(lvlNumBoxes, k) = v(k) : NEXT
                 CASE "nudges"
-                    IF got >= 4 AND lvlNumNudges < MAX_NUDGES THEN lvlNumNudges = lvlNumNudges + 1 : FOR k = 1 TO 4 : lvlNudge(lvlNumNudges, k) = v(k) : NEXT
+                    IF got >= 4 AND lvlNumNudges < MAX_NUDGES THEN
+                        lvlNumNudges = lvlNumNudges + 1 : FOR k = 1 TO 4 : lvlNudge(lvlNumNudges, k) = v(k) : NEXT
+                        lvlNudge(lvlNumNudges, 5) = 0 : IF got >= 5 THEN lvlNudge(lvlNumNudges, 5) = v(5)
+                    END IF
             END SELECT
         END IF
     LOOP
@@ -9493,7 +9564,7 @@ SUB EditPut(x, y, c$)
         NEXT
         IF c$ <> "&" THEN EditUnpair x, y
         IF INSTR("#NCKPG%@$/\DHXRBY!E=", c$) THEN EditRemoveBox x, y ' (a box only stands on open floor)
-        EditNudgeSet x, y, 0, 0 ' (a decoration's nudge goes with it)
+        EditNudgeSet x, y, 0, 0, 0 ' (a decoration's nudge goes with it)
     END IF
     IF INSTR("<>^v", c$) THEN ' (only one start: the old one becomes floor)
         FOR yy = 0 TO MAP_SIZE - 1 : FOR xx = 0 TO MAP_SIZE - 1
@@ -9539,7 +9610,7 @@ FUNCTION EditSnapshot$
     s$ = s$ + CHR$(12) ' (the boxes, then the decorations' nudges)
     FOR k = 1 TO lvlNumBoxes : FOR j = 1 TO 7 : s$ = s$ + LTRIM$(STR$(lvlBox(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(14)
-    FOR k = 1 TO lvlNumNudges : FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlNudge(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
+    FOR k = 1 TO lvlNumNudges : FOR j = 1 TO 5 : s$ = s$ + LTRIM$(STR$(lvlNudge(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     EditSnapshot$ = s$
 END FUNCTION
 
@@ -9557,7 +9628,8 @@ SUB EditRestore(s1$)
         LOOP
         DO WHILE LEN(n$)
             c3 = INSTR(n$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
-            IF SplitNums(LEFT$(n$, c3 - 1), bv()) >= 4 AND lvlNumNudges < MAX_NUDGES THEN lvlNumNudges = lvlNumNudges + 1 : FOR j = 1 TO 4 : lvlNudge(lvlNumNudges, j) = bv(j) : NEXT
+            bv(5) = 0
+            IF SplitNums(LEFT$(n$, c3 - 1), bv()) >= 4 AND lvlNumNudges < MAX_NUDGES THEN lvlNumNudges = lvlNumNudges + 1 : FOR j = 1 TO 5 : lvlNudge(lvlNumNudges, j) = bv(j) : NEXT
             n$ = MID$(n$, c3 + 1)
         LOOP
     END IF
@@ -9721,8 +9793,8 @@ SUB WriteLevelFile(f$)
         NEXT
     END IF
     IF lvlNumNudges THEN
-        o$ = o$ + nl$ + "[nudges]" + nl$ + "' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3)" + nl$
-        FOR k = 1 TO lvlNumNudges : o$ = o$ + LTRIM$(STR$(lvlNudge(k, 1))) + ", " + LTRIM$(STR$(lvlNudge(k, 2))) + ", " + LTRIM$(STR$(lvlNudge(k, 3))) + ", " + LTRIM$(STR$(lvlNudge(k, 4))) + nl$ : NEXT
+        o$ = o$ + nl$ + "[nudges]" + nl$ + "' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)" + nl$
+        FOR k = 1 TO lvlNumNudges : o$ = o$ + LTRIM$(STR$(lvlNudge(k, 1))) + ", " + LTRIM$(STR$(lvlNudge(k, 2))) + ", " + LTRIM$(STR$(lvlNudge(k, 3))) + ", " + LTRIM$(STR$(lvlNudge(k, 4))) + ", " + LTRIM$(STR$(lvlNudge(k, 5))) + nl$ : NEXT
     END IF
     IF lvlNumLoot THEN
         o$ = o$ + nl$ + "[loot]" + nl$ + LOOT_HELP$ + nl$
@@ -10958,9 +11030,11 @@ SUB EditPaneNudge(x0, y)
         IF edSelKind(k) = ED_FLOOR AND dk = 0 THEN IF INSTR("oiptxlnfSdAFIJLOQUWZV", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN dk = k
     NEXT
     IF dk = 0 THEN EXIT SUB
-    EditNudgeGet edSelX(dk), edSelY(dk), ndx, ndy
+    EditNudgeGet edSelX(dk), edSelY(dk), ndx, ndy, nfc
     EditPaneAdd -1, x0, y + 2, 98, "MOVE IT" + STR$(ndx) + "," + LTRIM$(STR$(ndy)), 0
     EditPaneAdd 205, x0 + 98, y, 24, "<", 0 : EditPaneAdd 206, x0 + 124, y, 24, ">", 0 : EditPaneAdd 207, x0 + 150, y, 24, "^", 0 : EditPaneAdd 208, x0 + 176, y, 24, "v", 0
+    y = y + 23
+    EditPaneAdd 209, x0, y, PN_W, RTRIM$(MID$("TURNS TO FACE YOU   STANDS, FACING EAST STANDS, FACING SOUTHSTANDS, FACING WEST STANDS, FACING NORTH", nfc * 20 + 1, 20)), nfc > 0
     y = y + 23
 END SUB
 
@@ -11284,20 +11358,20 @@ FUNCTION EditWallToBox(x, y, side)
 END FUNCTION
 
 ' A decoration's nudge off its cell's middle, in eighths ([nudges])
-SUB EditNudgeGet(x, y, dx, dy)
-    dx = 0 : dy = 0
+SUB EditNudgeGet(x, y, dx, dy, face)
+    dx = 0 : dy = 0 : face = 0
     FOR k = 1 TO lvlNumNudges
-        IF lvlNudge(k, 1) = x AND lvlNudge(k, 2) = y THEN dx = lvlNudge(k, 3) : dy = lvlNudge(k, 4)
+        IF lvlNudge(k, 1) = x AND lvlNudge(k, 2) = y THEN dx = lvlNudge(k, 3) : dy = lvlNudge(k, 4) : face = lvlNudge(k, 5)
     NEXT
 END SUB
-SUB EditNudgeSet(x, y, dx, dy)
+SUB EditNudgeSet(x, y, dx, dy, face)
     k = 0
     FOR j = 1 TO lvlNumNudges
         IF lvlNudge(j, 1) = x AND lvlNudge(j, 2) = y THEN k = j
     NEXT
-    IF dx = 0 AND dy = 0 THEN ' (back in the middle: no line for it)
+    IF dx = 0 AND dy = 0 AND face = 0 THEN ' (back in the middle, facing you: no line for it)
         IF k THEN
-            FOR i = k TO lvlNumNudges - 1 : FOR j = 1 TO 4 : lvlNudge(i, j) = lvlNudge(i + 1, j) : NEXT : NEXT
+            FOR i = k TO lvlNumNudges - 1 : FOR j = 1 TO 5 : lvlNudge(i, j) = lvlNudge(i + 1, j) : NEXT : NEXT
             lvlNumNudges = lvlNumNudges - 1
         END IF
         EXIT SUB
@@ -11306,7 +11380,7 @@ SUB EditNudgeSet(x, y, dx, dy)
         IF lvlNumNudges >= MAX_NUDGES THEN EditNote "That's" + STR$(MAX_NUDGES) + " decorations moved - no more" : EXIT SUB
         lvlNumNudges = lvlNumNudges + 1 : k = lvlNumNudges
     END IF
-    lvlNudge(k, 1) = x : lvlNudge(k, 2) = y : lvlNudge(k, 3) = dx : lvlNudge(k, 4) = dy
+    lvlNudge(k, 1) = x : lvlNudge(k, 2) = y : lvlNudge(k, 3) = dx : lvlNudge(k, 4) = dy : lvlNudge(k, 5) = face
 END SUB
 
 ' Delete: every face selected, gone - a wall opened up (its floor and
@@ -11420,7 +11494,7 @@ SUB EditNudge(dx, dy)
             IF mv(x, y) THEN
                 lvlNudge(k, 1) = x + dx : lvlNudge(k, 2) = y + dy
             ELSEIF dest(x, y) THEN
-                FOR j = k TO lvlNumNudges - 1 : FOR c = 1 TO 4 : lvlNudge(j, c) = lvlNudge(j + 1, c) : NEXT : NEXT
+                FOR j = k TO lvlNumNudges - 1 : FOR c = 1 TO 5 : lvlNudge(j, c) = lvlNudge(j + 1, c) : NEXT : NEXT
                 lvlNumNudges = lvlNumNudges - 1
             END IF
         END IF
@@ -15256,7 +15330,16 @@ SUB GLSpritesAndExtras(b, mirror)
         slot = glSprSlot(i, b) : GLUseTexture T_SLOTS + slot
         uv = spriteSize(slot) / sprTex ' (a smaller picture uses only part of its 64 x 64)
         sx = glSprX(i, b) : sy = glSprY(i, b) : hw = glSprHalfW(i, b)
-        x0 = sx - rightX * hw : y0 = sy - rightY * hw : x1 = sx + rightX * hw : y1 = sy + rightY * hw
+        rx = rightX : ry = rightY
+        SELECT CASE glSprFace(i, b) ' (standing flat, facing one way: its own right, and facing out - DrawFlat)
+            CASE 1 : rx = 0 : ry = 1 : glFaceNX = 1 : glFaceNY = 0
+            CASE 2 : rx = -1 : ry = 0 : glFaceNX = 0 : glFaceNY = 1
+            CASE 3 : rx = 0 : ry = -1 : glFaceNX = -1 : glFaceNY = 0
+            CASE 4 : rx = 1 : ry = 0 : glFaceNX = 0 : glFaceNY = -1
+            CASE ELSE : glFaceNX = -glEyeDX / dirLen : glFaceNY = -glEyeDY / dirLen
+        END SELECT
+        glFaceTX = rx : glFaceTY = ry
+        x0 = sx - rx * hw : y0 = sy - ry * hw : x1 = sx + rx * hw : y1 = sy + ry * hw
         zLow = glSprLift(i, b) : zHigh = zLow + glSprH(i, b)
         red = glSprR(i, b) : green = glSprG(i, b) : blue = glSprB(i, b)
         GLSetLight INT(sx), INT(sy), 1, b

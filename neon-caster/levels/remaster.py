@@ -216,7 +216,8 @@ def nudge_decos(m):
             walls = [(dx, dy) for (dx, dy) in STEPS if m.g[y + dy][x + dx] in lvlkit.WALLS]
             if len(walls) == 1:
                 dx, dy = walls[0]
-                m.nudge(x, y, dx * 2, dy * 2)
+                face = ns.FACE_CODE[OPEN_TO[(-dx, -dy)]] if m.g[y][x] in ns.FLAT else 0   # (box-like things stand flat, facing away from the wall)
+                m.nudge(x, y, dx * 2, dy * 2, face)
                 n += 1
     return n
 

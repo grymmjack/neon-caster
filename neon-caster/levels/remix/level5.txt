@@ -102,29 +102,29 @@ enter 5 32 7 34 : message A DATA STATION - face it and press SPACE to jack in
 44, 39, 6, 0, 8, 2, 5
 
 [nudges]
-' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3)
-32, 6, 3, 0
-40, 45, 0, -3
-17, 41, 3, 0
-2, 10, 3, 0
-41, 2, 0, 3
-2, 36, 3, 0
-25, 3, 0, -2
-15, 15, 0, -2
-17, 15, 0, -2
-30, 15, 0, -2
-31, 15, 0, -2
-32, 15, 0, -2
-35, 20, 2, 0
-11, 21, 2, 0
-27, 21, 2, 0
-6, 22, -2, 0
-29, 22, 0, -2
-37, 22, 0, -2
-38, 26, -2, 0
-8, 28, 0, 2
-18, 38, -2, 0
-41, 44, 0, 2
+' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)
+32, 6, 3, 0, 1
+40, 45, 0, -3, 4
+17, 41, 3, 0, 1
+2, 10, 3, 0, 1
+41, 2, 0, 3, 2
+2, 36, 3, 0, 1
+25, 3, 0, -2, 2
+15, 15, 0, -2, 2
+17, 15, 0, -2, 2
+30, 15, 0, -2, 2
+31, 15, 0, -2, 2
+32, 15, 0, -2, 2
+35, 20, 2, 0, 3
+11, 21, 2, 0, 3
+27, 21, 2, 0, 3
+6, 22, -2, 0, 1
+29, 22, 0, -2, 2
+37, 22, 0, -2, 2
+38, 26, -2, 0, 1
+8, 28, 0, 2, 0
+18, 38, -2, 0, 1
+41, 44, 0, 2, 0
 
 [loot]
 ' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance

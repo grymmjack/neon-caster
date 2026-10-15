@@ -59,6 +59,8 @@ OUT = os.path.join(HERE, "new")
 WALL_OF = {"#": 1, "N": 2, "C": 3, "K": 4, "P": 5, "G": 6}
 SIDE_D = {"N": (0, -1), "S": (0, 1), "W": (-1, 0), "E": (1, 0)}
 OPP = {"N": "S", "S": "N", "E": "W", "W": "E"}
+FACE_CODE = {"E": 1, "S": 2, "W": 3, "N": 4}   # ([nudges]' facing: which way a flat decoration looks)
+FLAT = "tAFUnlL"   # (box-like decorations that stand flat against a wall: terminal, console, screens, lockers, vending, rack, generator)
 DECO = lvlkit.DECO
 PROBLEMS = []
 
@@ -177,7 +179,7 @@ class Sector(Show):
         if deco:
             n = nudge if nudge is not None else min(3, b // 2 + 1)
             dx, dy = SIDE_D[opens]
-            self.nudge(x, y, dx * n, dy * n)
+            self.nudge(x, y, dx * n, dy * n, FACE_CODE[opens])   # (standing flat, facing out of the alcove)
         if glow:
             dx, dy = SIDE_D[opens]
             self.light(round(x + 0.5 + dx * 0.3, 2), round(y + 0.5 + dy * 0.3, 2), 2.5, 170, *glow, fx)
@@ -412,7 +414,7 @@ def arrival():
     m.thin_wall(5, 27, 5, 29, "E", t=1, wall=3)
     for (x, y, c) in ((4, 22, "d"), (4, 23, "Z"), (4, 28, "d"), (4, 27, "Z"), (7, 21, "t"), (7, 29, "U"), (3, 22, "W")):
         m.put(x, y, c)
-    m.nudge(7, 21, 0, -2); m.nudge(7, 29, 0, 2)
+    m.nudge(7, 21, 0, -2, 2); m.nudge(7, 29, 0, 2, 4)
     m.put(2, 25, "$")
     m.event(1, 3, 21, 8, 29, 4, 1, 7)
     # The cargo hold (east): shelves, crates, the red card
@@ -580,7 +582,7 @@ def market():
         x, y = sx - 1, sy
         m.blocks = [b for b in m.blocks if (b[0], b[1]) != (x + 1, y)]
         m.blk(x + 1, y, 0, 0, 8, 2, wall=2, pics={"S": "wall-adverts.png"}, glow=colours[i % 4], bright=170, rad=2.5)
-        m.put(x + 1, y + 1, decos[i]); m.nudge(x + 1, y + 1, 0, -2)
+        m.put(x + 1, y + 1, decos[i]); m.nudge(x + 1, y + 1, 0, -2, 2 if decos[i] in FLAT else 0)
         i += 1
     # the stage: raised, a hologram, four lit posts
     m.floor(21, 21, 26, 26, 2)
@@ -961,7 +963,7 @@ def coldstorage():
     m.put(46, 30, "$")
     for (x, y, c) in ((37, 22, "k"), (44, 34, "k"), (43, 21, "t"), (37, 38, "e"), (45, 40, "+")):
         m.put(x, y, c)
-    m.nudge(43, 21, 0, -2)
+    m.nudge(43, 21, 0, -2, 2)
     m.light(40.5, 26.5, 6, 140, 255, 255, 255, 1); m.light(40.5, 36.5, 6, 140, 255, 255, 255, 0)
     # The loading dock (north-west, blue door): the exit
     m.room(3, 4, 10, 16, ceil=12, zone=(1, 2))
@@ -1108,7 +1110,7 @@ def archive():
     m.room(2, 8, 7, 34, ceil=10, zone=(3, 1))
     m.put(9, 32, "X"); m.rect(8, 32, 8, 32)
     for y in (10, 14, 18, 24, 28, 32):
-        m.put(2, y, "l"); m.nudge(2, y, -2, 0)
+        m.put(2, y, "l"); m.nudge(2, y, -2, 0, 1)
     for (x, y, c) in ((5, 9, "r"), (6, 33, "*"), (4, 26, "k"), (7, 15, "e")):
         m.put(x, y, c)
     m.put(1, 21, "$")   # (the index's west wall)

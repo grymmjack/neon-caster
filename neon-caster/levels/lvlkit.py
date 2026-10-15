@@ -170,10 +170,11 @@ class Map:
         (# N C K P G) - a pillar, a thin wall, the back of an alcove."""
         self.blocks = [b for b in self.blocks if (b[0], b[1]) != (x, y)] + [(x, y, x0, y0, x1, y1, wall)]
 
-    def nudge(self, x, y, dx, dy):
+    def nudge(self, x, y, dx, dy, face=0):
         """The decoration on cell (x, y) moved dx across, dy down, in eighths
-        (-3 to 3)."""
-        self.nudges = [n for n in self.nudges if (n[0], n[1]) != (x, y)] + [(x, y, dx, dy)]
+        (-3 to 3) - and face: 0 it turns to face you, 1-4 it stands flat
+        facing east, south, west or north."""
+        self.nudges = [n for n in self.nudges if (n[0], n[1]) != (x, y)] + [(x, y, dx, dy, face)]
 
     def liquid(self, x, y, kind, depth=None):
         """A pool of kind (w p s l a) depth eighths deep on cell (x, y) - only
@@ -509,6 +510,8 @@ def check_blocks(lv):
             errs.append("nudge at %d,%d: no decoration there" % (x, y))
         if not (-3 <= dx <= 3 and -3 <= dy <= 3):
             errs.append("nudge at %d,%d: %d, %d (-3 to 3)" % (x, y, dx, dy))
+        if len(n) > 4 and not 0 <= n[4] <= 4:
+            errs.append("nudge at %d,%d: facing %d (0 turns to you, 1-4 east south west north)" % (x, y, n[4]))
     return errs
 
 
@@ -596,7 +599,7 @@ def level_text(lv, comment=()):
     if lv.get("nudges"):  # decorations off their cells' middles
         out.append("")
         out.append("[nudges]")
-        out.append("' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3)")
+        out.append("' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)")
         for r in lv["nudges"]:
             out.append(", ".join(_num(v) for v in r))
     if lv.get("loot"):  # what breakables leave, by kind - kept as they are

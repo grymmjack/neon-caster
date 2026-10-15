@@ -90,37 +90,37 @@ enter 17 44 19 46 : message A DATA STATION - face it and press SPACE to jack in
 40, 3, 0, 0, 2, 2, 5
 
 [nudges]
-' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3)
-40, 28, 3, 0
-42, 2, 0, 3
-2, 37, 3, 0
-11, 31, 0, -3
-3, 17, 0, 3
-28, 40, 0, 3
-11, 3, 0, -2
-22, 3, 0, -2
-42, 7, -2, 0
-37, 8, 0, -2
-38, 15, 0, 2
-5, 18, 0, -2
-43, 18, 0, -2
-10, 19, 0, 2
-11, 19, 0, 2
-12, 19, 0, 2
-37, 19, -2, 0
-37, 20, -2, 0
-37, 21, -2, 0
-41, 23, -2, 0
-7, 26, 2, 0
-11, 27, 2, 0
-11, 28, 2, 0
-11, 29, 2, 0
-38, 33, 0, -2
-29, 36, -2, 0
-29, 37, -2, 0
-45, 37, 2, 0
-29, 38, -2, 0
-3, 41, -2, 0
+' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)
+40, 28, 3, 0, 1
+42, 2, 0, 3, 2
+2, 37, 3, 0, 1
+11, 31, 0, -3, 4
+3, 17, 0, 3, 2
+28, 40, 0, 3, 2
+11, 3, 0, -2, 0
+22, 3, 0, -2, 0
+42, 7, -2, 0, 0
+37, 8, 0, -2, 0
+38, 15, 0, 2, 0
+5, 18, 0, -2, 2
+43, 18, 0, -2, 0
+10, 19, 0, 2, 0
+11, 19, 0, 2, 0
+12, 19, 0, 2, 0
+37, 19, -2, 0, 0
+37, 20, -2, 0, 0
+37, 21, -2, 0, 0
+41, 23, -2, 0, 0
+7, 26, 2, 0, 0
+11, 27, 2, 0, 3
+11, 28, 2, 0, 3
+11, 29, 2, 0, 3
+38, 33, 0, -2, 0
+29, 36, -2, 0, 0
+29, 37, -2, 0, 0
+45, 37, 2, 0, 0
+29, 38, -2, 0, 0
+3, 41, -2, 0, 0
 
 [loot]
 ' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance

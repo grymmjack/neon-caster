@@ -181,7 +181,7 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | A floor of a lift | LOW, HIGH and SPEED in eighths, UP AND DOWN or ELEVATOR, REMOVE |
 | A cell in an event room | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT. The table under `[events]` below says what each kind does. |
 | A block's side | Its edges in eighths; PUSH IN and PULL OUT move the selected side an eighth (every block side selected); LOOKS LIKE THE WALL: `#` `N` `C` `K` `P` `G`; REMOVE THE BLOCK; ADD A LIGHT TO IT |
-| Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with), ADD A PILLAR (a block a quarter of a cell square, in the middle), ADD A LIGHT TO IT - and, with a decoration on it, MOVE IT `<` `>` `^` `v`, an eighth at a time (this row is on a light's pane too, when the light is over the decoration) |
+| Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with), ADD A PILLAR (a block a quarter of a cell square, in the middle), ADD A LIGHT TO IT - and, with a decoration on it, MOVE IT `<` `>` `^` `v`, an eighth at a time, and which way it faces: TURNS TO FACE YOU (as every sprite does), or STANDS, FACING EAST / SOUTH / WEST / NORTH (these rows are on a light's pane too, when the light is over the decoration) |
 | A plain wall | MAKE IT A BLOCK (the wall becomes a block filling its cell, its sides' pictures kept, and the side you clicked stays selected, ready to PUSH IN), ADD A LIGHT TO IT |
 | Any other face | ADD A LIGHT TO IT |
 | TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead) or TIME (seconds into the level); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them, or click the action buttons (+25 HP, -25 HP, DIE, +CELLS, -CELLS, +SHELLS, -SHELLS, GIVE ALL, TAKE ALL) to add theirs; ADD IT. |
@@ -401,11 +401,11 @@ Walls fill whole cells. A **block** is a solid box standing inside one open cell
 
 1. Click the wall cell where the alcove goes, then **MAKE IT A BLOCK**, then **PUSH IN** four times: the back half of the cell stays solid, the front half is a recess.
 2. Raise the alcove cell's floor to half a wall and drop its ceiling to seven-eighths (HEIGHT, or the wheel), so the recess runs from the middle of the wall up to just under the top.
-3. PLACE a terminal (`t`) in the alcove cell, select it, and **MOVE IT** down an eighth or two so it stands in the open half.
+3. PLACE a terminal (`t`) in the alcove cell, select it, **MOVE IT** down an eighth or two so it stands in the open half, and click the facing button until it says **STANDS, FACING SOUTH**: now it's fixed to the wall instead of turning to follow you.
 4. In each room cell beside the alcove, **ADD A PILLAR**; then PUSH IN its sides until it's a slim post against the wall. PAINT its sides with `wall-lightstrip`, and put a light on a side for a glow.
 5. With the LIGHTS brush on **PULSE**, put a light on the alcove's floor or ceiling.
 
-**Decorations off-centre.** A decoration stands in its cell's middle unless it's moved: select it, and its pane's **MOVE IT** row nudges it up to three eighths each way. That's how one stands in an alcove or against a block.
+**Decorations off-centre, and standing still.** A decoration stands in its cell's middle unless it's moved: select it, and its pane's **MOVE IT** row nudges it up to three eighths each way. That's how one stands in an alcove or against a block. Every decoration is a picture that turns to face you as you walk round it; the button under MOVE IT makes it **stand flat** instead, facing one way like something fixed to a wall, so you see it at an angle from the side, edge-on from beside it, and its back (mirrored) from behind. Use it for things that sit against a wall: terminals, consoles, screens, lockers, vending machines, racks.
 
 The console makes blocks too: `block X Y X0 Y0 X1 Y1 [WALL]` (edges in eighths, WALL 1-6 for `#` to `G`), `block X Y none` to take one away. Blocks are saved as `[blocks]`, moved decorations as `[nudges]` (below).
 
@@ -490,7 +490,7 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 23, 20, 5, 0, 8, 3, 4
 ```
 
-**`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy` in eighths across and down, -3 to 3. Up to 64.
+**`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy, facing` - `dx` and `dy` in eighths across and down, -3 to 3; `facing` 0 (or left out) turns it to face you, 1-4 stands it flat facing east, south, west or north. Up to 64.
 
 **`[pads]`** (LINK): teleporter pads paired by hand, `x1, y1, x2, y2`. Pads in no pair here pair up as ever, in reading order. Up to 16.
 

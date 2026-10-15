@@ -78,23 +78,23 @@ enter 7 43 9 45 : message A DATA STATION - face it and press SPACE to jack in
 25, 20, 0, 0, 2, 2, 5
 
 [nudges]
-' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3)
-2, 5, 3, 0
-41, 33, 3, 0
-35, 45, 0, -3
-35, 16, 3, 0
-13, 2, 0, 3
-22, 35, 0, 3
-9, 3, 0, -2
-30, 9, 0, -2
-38, 12, 2, 0
-9, 14, -2, 0
-28, 15, 0, -2
-26, 17, 0, 2
-29, 17, 0, 2
-30, 21, -2, 0
-44, 30, 2, 0
-20, 38, 0, 2
+' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)
+2, 5, 3, 0, 1
+41, 33, 3, 0, 1
+35, 45, 0, -3, 4
+35, 16, 3, 0, 1
+13, 2, 0, 3, 2
+22, 35, 0, 3, 2
+9, 3, 0, -2, 0
+30, 9, 0, -2, 0
+38, 12, 2, 0, 3
+9, 14, -2, 0, 1
+28, 15, 0, -2, 0
+26, 17, 0, 2, 4
+29, 17, 0, 2, 4
+30, 21, -2, 0, 0
+44, 30, 2, 0, 3
+20, 38, 0, 2, 4
 
 [loot]
 ' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance

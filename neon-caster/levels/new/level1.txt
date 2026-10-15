@@ -105,13 +105,13 @@ ambient  = 165, 220, 230, 255
 25, 8, 0, 0, 2, 2, 5
 
 [nudges]
-' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3)
-19, 45, 0, -3
-29, 45, 0, -3
-7, 21, 0, -2
-7, 29, 0, 2
-18, 7, 0, 3
-30, 7, 0, 3
+' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)
+19, 45, 0, -3, 4
+29, 45, 0, -3, 4
+7, 21, 0, -2, 2
+7, 29, 0, 2, 4
+18, 7, 0, 3, 2
+30, 7, 0, 3, 2
 
 [loot]
 ' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
