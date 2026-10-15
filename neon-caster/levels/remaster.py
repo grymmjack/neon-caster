@@ -438,6 +438,21 @@ def r3(m, rng):
             neon_sign(m, x, y, side, g, pic="wall-graffiti.png")
 
 
+@remaster(4)
+def r4(m, rng):
+    """CRYO LAB: chilled water round the atrium's core, four cyan columns
+    at its points."""
+    cx, cy = 23.5, 23.5
+    for y in range(14, 34):
+        for x in range(14, 34):
+            d = abs(x + 0.5 - cx) + abs(y + 0.5 - cy)
+            if m.g[y][x] == "." and 3.5 <= d <= 5.0 and m.fh[y][x] == "." and m.lq[y][x] == ".":
+                m.pool(x, y, x, y, "w", sink=2, depth=2)
+    for (x, y) in ((17, 23), (30, 23), (23, 17), (23, 30)):
+        if m.g[y][x] == ".":
+            m.column(x, y, size=2, wall=5, pic=LIT, glow=CYAN, fx=1)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
