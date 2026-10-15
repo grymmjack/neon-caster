@@ -1846,6 +1846,16 @@ DO
         IF playerZ > 4.5 THEN playerZ = 4.5
         playerVZ = 0
     ELSEIF NOT levelFlat THEN
+        ' Just dropped off something higher, and still hanging over its edge?
+        ' Slide off it - else its rim, more than a step up, blocks every move
+        ' along its foot but straight away (only your middle's cell holds you)
+        IF NOT godMode THEN
+            ecx = INT(playerX) : ecy = INT(playerY) : er = PLAYER_RADIUS
+            IF INT(playerX + er) > ecx THEN IF worldMap(ecx + 1, ecy) <= 0 AND floorH(ecx + 1, ecy) > playerZ + STEP_UP THEN IF Walkable(playerX - 0.04, playerY) THEN playerX = playerX - MinOf(0.04, playerX + er - ecx - 1 + 0.001)
+            IF INT(playerX - er) < ecx THEN IF worldMap(ecx - 1, ecy) <= 0 AND floorH(ecx - 1, ecy) > playerZ + STEP_UP THEN IF Walkable(playerX + 0.04, playerY) THEN playerX = playerX + MinOf(0.04, ecx - (playerX - er) + 0.001)
+            IF INT(playerY + er) > ecy THEN IF worldMap(ecx, ecy + 1) <= 0 AND floorH(ecx, ecy + 1) > playerZ + STEP_UP THEN IF Walkable(playerX, playerY - 0.04) THEN playerY = playerY - MinOf(0.04, playerY + er - ecy - 1 + 0.001)
+            IF INT(playerY - er) < ecy THEN IF worldMap(ecx, ecy - 1) <= 0 AND floorH(ecx, ecy - 1) > playerZ + STEP_UP THEN IF Walkable(playerX, playerY + 0.04) THEN playerY = playerY + MinOf(0.04, ecy - (playerY - er) + 0.001)
+        END IF
         fz = floorH(INT(playerX), INT(playerY))
         IF liqKind(INT(playerX), INT(playerY)) AND NOT cyberOn THEN fz = MaxOf(fz, liqZ(INT(playerX), INT(playerY)) - LQ_FULL) ' (in deep liquid you float, your head above it)
         IF playerZ < fz THEN playerZ = fz : playerVZ = 0
