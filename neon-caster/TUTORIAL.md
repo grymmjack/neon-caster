@@ -202,7 +202,7 @@ The top of the source has the full key. In short:
 
 | Prefix | Means | Example |
 |---|---|---|
-| `MAX_` | the most there can be | `MAX_MON` = room for 64 monsters |
+| `MAX_` | the most there can be | `MAX_MON` = room for 128 monsters |
 | `NUM_` (constants) | how many there are | `NUM_GUNS` = 4 |
 | `DOOR_` | a kind of door | `DOOR_SHUTTER` |
 | `IT_` | **it**em: a kind of pickup | `IT_HEALTH` |

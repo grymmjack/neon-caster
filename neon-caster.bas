@@ -441,7 +441,7 @@ DIM SHARED blastSize(MAX_BLASTS) AS SINGLE
 ' MON_ = MONster settings shared by every monster: MON_TYPES kinds of monster,
 ' MON_SIGHT how far away (in cells) they notice you, MON_DYING how many
 ' frames one takes to collapse when killed
-CONST MAX_MON = 64, MON_TYPES = 10
+CONST MAX_MON = 128, MON_TYPES = 10 ' (a level places up to 64 - the level kit checks - and its event rooms, nests and the network bring more)
 CONST MT_ICE = 10 ' (ICE: the network's hunter programs - only in the network, chapter 19)
 CONST MT_THIEF = 9 ' (the thief bot: steals, then runs - ThiefStep, chapter 13)
 CONST DK_CHAIR = 20, DK_BODY = 21 ' (a body doesn't block the way, and can't be broken)
@@ -1362,6 +1362,7 @@ SetLiquid LQ_POISON, "poison",  0.8,  3,   40,   0,   0.4,  120, 60,  170
 SetLiquid LQ_SLIME,  "slime",   0.4,  2,   45,   0,   0.25, 90,  220, 40
 SetLiquid LQ_LAVA,   "lava",    0.5,  12,  20,   0,   0.05, 255, 90,  20
 SetLiquid LQ_ACID,   "acid",    0.7,  4,   25,   -1,  0.35, 200, 240, 40
+DIM SHARED playerX AS SINGLE, playerY AS SINGLE ' (where you are - shared, so FireBolt aims a bolt's climb at you and TrapFx hears its hum from you)
 DIM SHARED playerZ AS SINGLE, playerVZ AS SINGLE, eyeZ AS SINGLE, walkZ AS SINGLE
 DIM SHARED boltZ(MAX_BOLTS) AS SINGLE, boltDZ(MAX_BOLTS) AS SINGLE
 ' --- Lifts ([lifts] in the level file): a rectangle of floor that moves
@@ -1772,16 +1773,20 @@ DO
     IF DigitHeld%(50) THEN wantGun = 2
     IF DigitHeld%(51) THEN wantGun = 3
     IF DigitHeld%(52) THEN wantGun = 4
-    IF mouseWheel <> 0 THEN
-        wantGun = currentGun
-        DO
-            wantGun = wantGun + SGN(mouseWheel) : IF wantGun > NUM_GUNS THEN wantGun = 1
-            IF wantGun < 1 THEN wantGun = NUM_GUNS
-        LOOP UNTIL hasGun(wantGun)
+    IF mouseWheel <> 0 THEN ' (a notch a gun - from the one coming up, if a swap's still lowering the last)
+        wantGun = currentGun : IF swapTimer > SWAP_FRAMES \ 2 THEN wantGun = nextGun
+        FOR notch = 1 TO MinOf(ABS(mouseWheel), NUM_GUNS)
+            DO
+                wantGun = wantGun + SGN(mouseWheel) : IF wantGun > NUM_GUNS THEN wantGun = 1
+                IF wantGun < 1 THEN wantGun = NUM_GUNS
+            LOOP UNTIL hasGun(wantGun)
+        NEXT
     END IF
     IF editMode THEN wantGun = 0 ' (in the editor 1-8 are the lights')
     IF wantGun > 0 AND wantGun <> currentGun AND swapTimer = 0 THEN
         IF hasGun(wantGun) THEN nextGun = wantGun : swapTimer = SWAP_FRAMES
+    ELSEIF wantGun > 0 AND swapTimer > SWAP_FRAMES \ 2 THEN
+        IF hasGun(wantGun) THEN nextGun = wantGun ' (changed your mind while it's lowering)
     END IF
     IF swapTimer > 0 THEN
         swapTimer = swapTimer - 1
@@ -1926,7 +1931,7 @@ DO
     ' ...and you can't walk through a monster: if a step takes you inside one
     ' (closer than touchDist) and closer than you were, take it back
     FOR i = 1 TO numMonsters
-        IF monsterState(i) < 2 AND NOT godMode AND NOT editMode THEN
+        IF monsterState(i) < 2 AND NOT godMode AND NOT editMode AND (cyberOn = 0 OR monsterType(i) = MT_ICE) THEN ' (in the network the real world's machines aren't there)
             touchDist = 0.3 + mtypeScale(monsterType(i)) * 0.35
             newDistSq = (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2
             IF newDistSq < touchDist * touchDist AND newDistSq <(monsterX(i) - prevX) ^ 2 + (monsterY(i) -prevY) ^ 2 THEN playerX = prevX : playerY = prevY
@@ -2213,7 +2218,7 @@ DO
             ammoCount(ammoType) = ammoCount(ammoType) - gunAmmoPerShot(currentGun) : fireWait = gunDelay(currentGun) : recoil = gunKick(currentGun) : muzzleFlash = 4
             PlaySfx gunSnd&(currentGun), 0.7
             FOR j = 1 TO numMonsters ' (heard: a monster that hears this far wakes - [monsters])
-                IF monsterState(j) = 0 AND monHear(j) > 0 AND monWake(j) <> WAKE_HIT THEN
+                IF monsterState(j) = 0 AND monHear(j) > 0 AND monWake(j) <> WAKE_HIT AND (cyberOn = 0 OR monsterType(j) = MT_ICE) THEN
                     IF (monsterX(j) - playerX) ^ 2 + (monsterY(j) - playerY) ^ 2 < monHear(j) * monHear(j) THEN monsterState(j) = 1 : monsterTimer(j) = 30 : SfxAt mtypeAlertSnd&(monsterType(j)), monsterX(j), monsterY(j), playerX, playerY
                 END IF
             NEXT
@@ -2311,7 +2316,13 @@ DO
             NEXT
         ELSEIF NOT fireWas THEN
             PlaySfx sndEmpty&, 0.7
-            IF ammoType = AM_SHELLS THEN ShowMsg "Out of shells - kick! (F)" ELSE ShowMsg "Out of energy cells - kick! (F)"
+            IF ammoCount(ammoType) > 0 THEN
+                ShowMsg "The " + gunName$(currentGun) + " needs" + STR$(gunAmmoPerShot(currentGun)) + " cells a shot - another gun, or kick! (F)"
+            ELSEIF ammoType = AM_SHELLS THEN
+                ShowMsg "Out of shells - kick! (F)"
+            ELSE
+                ShowMsg "Out of energy cells - kick! (F)"
+            END IF
             fireWait = 20 : IF kickTimer = 0 THEN kickTimer = KICK_FRAMES : PlaySfx sndKickSwing&, 0.7
         END IF
     END IF
@@ -5486,7 +5497,7 @@ ELSE
     SfxAt sndGlassBreak&, glassAtX, glassAtY, playerX, playerY
     IF (glassAtX - playerX) ^ 2 + (glassAtY - playerY) ^ 2 < 25 THEN shake = shake + 3
     FOR gj = 1 TO numMonsters ' (that wakes anything near)
-        IF monsterState(gj) = 0 THEN IF (monsterX(gj) - glassAtX) ^ 2 + (monsterY(gj) - glassAtY) ^ 2 < 36 THEN monsterState(gj) = 1 : monsterTimer(gj) = 20
+        IF monsterState(gj) = 0 AND (cyberOn = 0 OR monsterType(gj) = MT_ICE) THEN IF (monsterX(gj) - glassAtX) ^ 2 + (monsterY(gj) - glassAtY) ^ 2 < 36 THEN monsterState(gj) = 1 : monsterTimer(gj) = 20
     NEXT
 END IF
 RETURN
@@ -5936,7 +5947,7 @@ ThiefStep:
 IF thiefState(i) = 0 AND monsterHurt(i) > 0 THEN thiefState(i) = 1
 IF thiefState(i) = 0 THEN
     goX = toPlayerX / distance : goY = toPlayerY / distance
-    IF distance < mtypeReach(mtype) AND NOT GlassBetween(monsterX(i), monsterY(i), playerX, playerY) THEN ' Got you: grab
+    IF distance < mtypeReach(mtype) AND NOT GlassBetween(monsterX(i), monsterY(i), playerX, playerY) AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) <= 0.6 THEN ' Got you: grab (not up or down a ledge)
         thiefCells(i) = ammoCount(AM_CELLS) \ 2 : thiefShells(i) = ammoCount(AM_SHELLS) \ 2
         ammoCount(AM_CELLS) = ammoCount(AM_CELLS) - thiefCells(i) : ammoCount(AM_SHELLS) = ammoCount(AM_SHELLS) - thiefShells(i)
         g = 0
@@ -5948,6 +5959,7 @@ IF thiefState(i) = 0 THEN
             NEXT
         END IF
         IF g THEN hasGun(g) = 0 : IF currentGun = g THEN currentGun = W_BLASTER
+        IF g THEN IF nextGun = g THEN nextGun = W_BLASTER ' (the one you were swapping to: gone too)
         thiefGun(i) = g : thiefState(i) = 2
         PlaySfx sndSteal&, 1 : monsterAtk(i) = ATTACK_FRAMES
         t$ = "A THIEF BOT grabbed"
@@ -8271,6 +8283,7 @@ FOR i = 1 TO numMonsters
     GET #fileNum, , monsterState(i) : GET #fileNum, , monsterTimer(i) : GET #fileNum, , monsterType(i) : GET #fileNum, , monsterEv(i)
     GET #fileNum, , thiefState(i) : GET #fileNum, , thiefCells(i) : GET #fileNum, , thiefShells(i) : GET #fileNum, , thiefGun(i)
     monsterHurt(i) = 0 : monsterAtk(i) = 0
+    IF i > monStartN THEN monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE ' (one an event room sent: as SpawnMonster makes them - else it loads with speed 0, frozen)
 NEXT
 GET #fileNum, , savedCount : IF savedCount <> numEvents THEN GOSUB LoadMismatch : RETURN
 FOR i = 1 TO numEvents : GET #fileNum, , evState(i) : GET #fileNum, , evTimer(i) : GET #fileNum, , evCount(i) : evNext(i) = 30 : NEXT
@@ -9578,15 +9591,17 @@ END SUB
 SUB DropItemAt(kind, x0, y0)
     IF numItems >= MAX_ITEMS THEN EXIT SUB
     x = x0 : y = y0 ' (copies: the caller's - a monster's own place - stays put)
+    walkFromHaz = 10 ' (and somewhere you can get it: not down a pit, in fire or a harmful pool - a thief kicked over the edge)
     IF NOT Walkable%(x, y) THEN x = INT(x) + 0.5 : y = INT(y) + 0.5
     IF NOT Walkable%(x, y) THEN ' (its cell's middle no better - a block standing there: the nearest open spot round it)
-        FOR r = 1 TO 4
+        FOR r = 1 TO 10
             FOR a = 0 TO 7
                 tx = x + COS(a * 0.7854) * r * 0.3 : ty = y + SIN(a * 0.7854) * r * 0.3
-                IF Walkable%(tx, ty) THEN x = tx : y = ty : r = 9 : EXIT FOR
+                IF Walkable%(tx, ty) THEN x = tx : y = ty : r = 99 : EXIT FOR
             NEXT
         NEXT
     END IF
+    walkFromHaz = 0
     numItems = numItems + 1
     itemX(numItems) = x : itemY(numItems) = y : itemKind(numItems) = kind : itemOn(numItems) = -1 : itemToss(numItems) = 0
     SpawnSparks x, y, 0.3, 10, 255, 230, 120
