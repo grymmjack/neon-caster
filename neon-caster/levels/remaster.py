@@ -416,6 +416,28 @@ def r2(m, rng):
         m.light(x + 0.5, y + 0.5, 4, 150, 255, 50, 40, 3)
 
 
+@remaster(3)
+def r3(m, rng):
+    """UNDERCITY: slime in the nest, the cistern's pillars glowing green
+    round a pool, graffiti lit on the tunnel walls."""
+    for (x0, y0, x1, y1) in ((4, 15, 5, 16), (4, 19, 6, 20)):
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                if m.g[y][x] == "." and m.lq[y][x] == ".":
+                    m.pool(x, y, x, y, "s", sink=1, depth=1)
+    for (x, y) in ((6, 31), (11, 31), (6, 36), (11, 36), (6, 41), (11, 41)):
+        if m.g[y][x] in lvlkit.WALLS:
+            lit_pillar(m, x, y, GREEN)
+    for y in range(32, 35):
+        for x in range(7, 11):
+            if m.g[y][x] == "." and m.lq[y][x] == ".":
+                m.pool(x, y, x, y, "w", sink=2, depth=2)
+    for (x, y, side, g) in ((12, 3, "S", PINK), (22, 21, "S", CYAN), (26, 28, "N", PINK), (31, 33, "W", AMBER)):
+        dx, dy = {"E": (1, 0), "W": (-1, 0), "S": (0, 1), "N": (0, -1)}[side]
+        if m.g[y][x] in lvlkit.WALLS and m.g[y + dy][x + dx] == ".":
+            neon_sign(m, x, y, side, g, pic="wall-graffiti.png")
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
