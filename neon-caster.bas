@@ -5875,6 +5875,12 @@ gLine = gEnd - gTop + 1 ' (the pane's height on the screen)
 gStep = sprTex / gLine : gPos = 0
 IF gTop < 0 THEN gPos = -gTop * gStep : gTop = 0
 IF gEnd > RENDER_H - 1 THEN gEnd = RENDER_H - 1
+gClipT = 0 : gClipB = RENDER_H - 1 ' (heights: hidden above and below by the ledges and lintels nearer than it, as a sprite is - HeightColumn's clips)
+FOR gc = 1 TO clipN(gx)
+    IF clipD(gx, gc) < glassT(gx) THEN gClipT = clipT(gx, gc) : gClipB = clipB(gx, gc)
+NEXT
+IF gTop < gClipT THEN gPos = gPos + (gClipT - gTop) * gStep : gTop = gClipT
+IF gEnd > gClipB THEN gEnd = gClipB
 gu = INT(glassU(gx) * sprTex) AND (sprTex - 1)
 gSlot = S_GLASS : IF glassHP(glassCX(gx), glassCY(gx)) <= GLASS_HP \ 2 THEN gSlot = S_GLASS + 1
 gFog& = 256 - glassT(gx) * 16 : IF gFog& < 40 THEN gFog& = 40
