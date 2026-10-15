@@ -1884,7 +1884,7 @@ DO
     IF FloorHazard(INT(playerX), INT(playerY)) = HAZ_BURN AND playerZ - floorH(INT(playerX), INT(playerY)) < 0.05 AND NOT dead THEN
         IF burnWait = 0 THEN
             burnWait = BURN_EVERY : PlaySfx sndSizzle&, 0.9
-            SpawnSparks playerX + dirX * 0.3, playerY + dirY * 0.3, floorH(INT(playerX), INT(playerY)) + 0.05, 12, 255, 120, 30
+            SpawnSparks playerX + dirX * 0.3, playerY + dirY * 0.3, 0.05, 12, 255, 120, 30
             IF NOT godMode THEN damage = BURN_DAMAGE : hurtFromX = -1 : hurtFromY = -1 : hurtR = 255 : hurtG = 110 : hurtB = 20 : GOSUB HurtPlayer
         END IF
     END IF
@@ -1899,7 +1899,7 @@ DO
     END IF
     IF lk AND lk <> liqWas THEN
         IF lk = LQ_LAVA OR lk = LQ_ACID THEN PlaySfx sndSizzle&, 0.9 ELSE PlaySfx sndSplash&, 0.8
-        SpawnSparks playerX + dirX * 0.25, playerY + dirY * 0.25, liqZ(INT(playerX), INT(playerY)), 14, lqR(lk), lqG(lk), lqB(lk)
+        SpawnSparks playerX + dirX * 0.25, playerY + dirY * 0.25, liqZ(INT(playerX), INT(playerY)) - FloorAt(playerX + dirX * 0.25, playerY + dirY * 0.25), 14, lqR(lk), lqG(lk), lqB(lk)
         liqWait = lqEvery(lk) \ 2 ' (a moment before it starts to hurt)
     END IF
     IF lk = LQ_LAVA THEN achInLava = -1 ELSE IF achInLava AND NOT dead THEN achInLava = 0 : Achieve "NC_HOT_FOOT", 0
@@ -1910,7 +1910,7 @@ DO
             liqWait = lqEvery(lk)
             deep = MinOf(1, (liqZ(INT(playerX), INT(playerY)) - playerZ) / LQ_FULL)
             dmg = INT(lqHurt(lk) * (0.5 + 0.5 * deep) + 0.5) : IF dmg < 1 THEN dmg = 1
-            SpawnSparks playerX + dirX * 0.3, playerY + dirY * 0.3, liqZ(INT(playerX), INT(playerY)), 8, lqR(lk), lqG(lk), lqB(lk)
+            SpawnSparks playerX + dirX * 0.3, playerY + dirY * 0.3, liqZ(INT(playerX), INT(playerY)) - FloorAt(playerX + dirX * 0.3, playerY + dirY * 0.3), 8, lqR(lk), lqG(lk), lqB(lk)
             IF lk = LQ_POISON THEN poisonTint = 40
             IF NOT godMode THEN
                 IF lqAcid(lk) AND armor > 0 THEN ' Acid: the armor first
@@ -2451,7 +2451,7 @@ DO
                 IF lqHurt(mlk) > 0 AND lqEvery(mlk) > 0 AND mtypeLift(monsterType(i)) = 0 THEN ' (QB64 works out every part of an AND: the MOD only once lqEvery is known not to be 0)
                     IF (liqTick + i) MOD lqEvery(mlk) = 0 THEN
                         target = i : hitDamage = MaxOf(1, lqHurt(mlk) \ 3) : GOSUB HitMonster
-                        SpawnSparks monsterX(i), monsterY(i), liqZ(INT(monsterX(i)), INT(monsterY(i))), 8, lqR(mlk), lqG(mlk), lqB(mlk)
+                        SpawnSparks monsterX(i), monsterY(i), liqZ(INT(monsterX(i)), INT(monsterY(i))) - FloorAt(monsterX(i), monsterY(i)), 8, lqR(mlk), lqG(mlk), lqB(mlk)
                     END IF
                 END IF
             END IF
@@ -3598,7 +3598,7 @@ DO
                 CASE EV_BLACKOUT : evText$ = "POWER FAILURE -" + STR$(blackoutTimer \ 60 + 1)
                 CASE ELSE : evText$ = "" ' (a plate, a laser...: you can see what it is - nothing to say, and no frame)
             END SELECT
-            IF evText$ <> "" AND hudShow(HE_EVENT) THEN HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT) + evLine * 12, evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90)) : evLine = evLine + 1
+            IF evText$ <> "" AND hudShow(HE_EVENT) THEN HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT) + evLine * 16, evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90)) : evLine = evLine + 1
             IF evText$ <> "" AND evType(ev) <> EV_NEST AND evType(ev) <> EV_GALLERY THEN
                 pulse = 60 + 50 * SIN(TIMER * 6)
                 FOR k = 0 TO 3 : LINE (k, k)-(799 - k, 599 - k), _RGBA32(255, 30, 30, pulse), B : NEXT
@@ -5202,7 +5202,7 @@ DO WHILE k&
         CASE 118, 86 : hudShow(hudSel) = NOT hudShow(hudSel)
         CASE 99, 67 : hudCol(hudSel) = HudNextColor~&(hudCol(hudSel))
         CASE 43, 61 : hudW(hudSel) = hudW(hudSel) + 10 : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = hudW(hudSel) - 9
-        CASE 45 : hudW(hudSel) = MaxOf(0, hudW(hudSel) - 10) : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = MaxOf(1, hudW(hudSel) + 9)
+        CASE 45 : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = MaxOf(1, hudW(hudSel) - 1) ELSE hudW(hudSel) = MaxOf(0, hudW(hudSel) - 10) ' (the map and cards a step at a time: they're small numbers)
         CASE 91 : hudH(hudSel) = MaxOf(1, hudH(hudSel) - 1)
         CASE 93 : hudH(hudSel) = hudH(hudSel) + 1
         CASE 115, 83 : WriteHud : hudMsg$ = "Saved " + AssetPath$("hud.txt")
@@ -6136,7 +6136,7 @@ StepEvent:
 IF dead THEN RETURN ' (dead: the room waits - no winning a survive room on the death screen)
 IF evType(ev) = EV_AMBUSH OR evType(ev) = EV_SURVIVE THEN ' Out of a lockdown's room (somehow)? A second of that, and it lifts
     ' (more than a cell out of its room - past the doors in its walls)
-    IF (playerX >= evX0(ev) - 1 AND playerX < evX1(ev) + 2 AND playerY >= evY0(ev) - 1 AND playerY < evY1(ev) + 2) OR dead THEN evAway(ev) = 0 ELSE evAway(ev) = evAway(ev) + 1
+    IF (playerX >= evX0(ev) - 5 AND playerX < evX1(ev) + 6 AND playerY >= evY0(ev) - 5 AND playerY < evY1(ev) + 6) OR dead THEN evAway(ev) = 0 ELSE evAway(ev) = evAway(ev) + 1 ' (as far out as LockRoom seals: a corridor behind the room's own door is still in it)
     IF evAway(ev) > 60 THEN
         evState(ev) = 0 : evPaused(ev) = -1 : evAway(ev) = 0 : LockRoom ev, 0
         ShowMsg "The lockdown lifts - for now. Go back in and it seals again"
@@ -6204,7 +6204,7 @@ SELECT CASE evType(ev) ' (achievements)
 END SELECT
 PlaySfx sndFanfare&, 1
 IF evReward(ev) THEN
-    DropItem evReward(ev), (evX0(ev) + evX1(ev) + 1) / 2, (evY0(ev) + evY1(ev) + 1) / 2
+    DropItemAt evReward(ev), INT((evX0(ev) + evX1(ev) + 1) / 2) + 0.5, INT((evY0(ev) + evY1(ev) + 1) / 2) + 0.5 ' (the room's middle - or, a pillar there, the nearest open spot)
     ShowMsg "ROOM CLEARED! A reward appeared"
 ELSE
     ShowMsg "ROOM CLEARED!"
@@ -6220,7 +6220,7 @@ FOR blastSlot = 1 TO MAX_BLASTS
         blastX(blastSlot) = newBlastX : blastY(blastSlot) = newBlastY
         blastSize(blastSlot) = newBlastSize : blastTime(blastSlot) = BLAST_FRAMES
         SpawnEmbers newBlastX, newBlastY, newBlastSize ' (and a burst of embers: chapter 24's particles)
-        AddDecal newBlastX, newBlastY, FloorAt(newBlastX, newBlastY) + 0.001, 0, 0, 1, 0.4 + 0.9 * newBlastSize ' (and a scorch mark on the floor)
+        IF liftCell(INT(newBlastX), INT(newBlastY)) = 0 THEN AddDecal newBlastX, newBlastY, FloorAt(newBlastX, newBlastY) + 0.001, 0, 0, 1, 0.4 + 0.9 * newBlastSize ' (and a scorch mark on the floor - not on a lift, which moves)
         StirDust newBlastX, newBlastY, 0, 0, 1 + 3 * newBlastSize, 0.09 * newBlastSize ' (and blows the dust away)
         EXIT FOR
     END IF
@@ -6753,6 +6753,7 @@ FOR q = conQHead + 1 TO conQTail
     IF LEFT$(conQ$(q), 1) <> CHR$(2) THEN nq = nq + 1 : conQ$(nq) = conQ$(q)
 NEXT
 conQTail = nq
+IF conQHead >= conQTail THEN conWait = 0 ' (and a trigger's "wait" with them - unless typed commands still queue behind it)
 achSectN = 0
 achLevelHurt = 0 : achOtherGun = 0 : achInLava = 0 ' (for the sector's end: hurt? any gun but the blaster?)
 ReadLevelFile level ' (its file: neon-caster/levels/levelN.txt - chapter 22)
@@ -7726,7 +7727,7 @@ SELECT CASE conVerb$
             IF editMode THEN
                 GOSUB EditPushUndo : EditRemoveBox VAL(conA$), VAL(conB$) : GOSUB EditApply
             ELSEIF VAL(conA$) > 0 AND VAL(conB$) > 0 AND VAL(conA$) < MAP_SIZE - 1 AND VAL(conB$) < MAP_SIZE - 1 THEN ' (in play: it sinks away where it is)
-                boxOn(VAL(conA$), VAL(conB$)) = 0 : BuildLights : BuildThiefWay : glMeshVersion = glMeshVersion + 1
+                boxOn(VAL(conA$), VAL(conB$)) = 0 : ClearDecalsOn VAL(conA$), VAL(conB$) : BuildLights : BuildThiefWay : glMeshVersion = glMeshVersion + 1
             END IF
             ConPrint "block: gone from" + STR$(VAL(conA$)) + STR$(VAL(conB$))
         ELSEIF cw$ = "" THEN
@@ -7961,7 +7962,7 @@ SELECT CASE conVerb$
         IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
             k = INSTR("#.NCKPG", pc$)
             IF k = 1 THEN worldMap(x, y) = 1
-            IF k = 2 THEN worldMap(x, y) = 0
+            IF k = 2 THEN worldMap(x, y) = 0 : ClearDecalsOn x, y
             IF k > 2 THEN worldMap(x, y) = k
             BuildLights : glMeshVersion = glMeshVersion + 1
             IF k = 2 THEN SpawnSparks x + 0.5, y + 0.5, 0.3, 14, 160, 150, 140 : SfxAt sndCloset&, x + 0.5, y + 0.5, playerX, playerY
@@ -9600,7 +9601,8 @@ END FUNCTION
 ' Locking one that's open shuts it (the door loop does that, once nobody's
 ' in the way).
 SUB LockRoom(ev, locked)
-    FOR y = evY0(ev) - 5 TO evY1(ev) + 5 : FOR x = evX0(ev) - 5 TO evX1(ev) + 5
+    rr = 5 : IF evType(ev) = EV_HOARD THEN rr = 1 ' (a hoard: only its vault's own doors, the ones touching it - not every door near it)
+    FOR y = evY0(ev) - rr TO evY1(ev) + rr : FOR x = evX0(ev) - rr TO evX1(ev) + rr
         IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
             IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN
                 IF locked THEN ' (sealed - unless something else already has it)
@@ -9620,7 +9622,7 @@ FUNCTION SealedMsg$(x, y)
     SealedMsg$ = "SEALED - it won't open until the room is clear"
     FOR ev = 1 TO numEvents
         IF evType(ev) = EV_HOARD AND evState(ev) = 0 THEN
-            IF x >= evX0(ev) - 5 AND x <= evX1(ev) + 5 AND y >= evY0(ev) - 5 AND y <= evY1(ev) + 5 THEN
+            IF x >= evX0(ev) - 1 AND x <= evX1(ev) + 1 AND y >= evY0(ev) - 1 AND y <= evY1(ev) + 1 THEN
                 n = 0
                 FOR j = 1 TO numMonsters
                     IF monsterType(j) = MT_THIEF AND monsterState(j) < 2 THEN n = n + 1
@@ -13486,7 +13488,7 @@ SUB OpenClosets(ev, loud)
     n = 0
     FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
         IF closetCell(x, y) = ev THEN
-            worldMap(x, y) = 0 : closetCell(x, y) = 0 : n = n + 1
+            worldMap(x, y) = 0 : closetCell(x, y) = 0 : n = n + 1 : ClearDecalsOn x, y
             IF loud THEN SpawnSparks x + 0.5, y + 0.5, 0.3, 10, 160, 150, 140
         END IF
     NEXT : NEXT
@@ -13550,11 +13552,11 @@ SUB LaserFx(ev, px, py)
     IF onNow AND NOT evCount(ev) THEN ' On: the crack
         SfxAt sndZap&, cx, cy, px, py
         FOR y = evY0(ev) TO evY1(ev) : FOR x = evX0(ev) TO evX1(ev)
-            SpawnSparks x + RND, y + RND, FloorAt(x + 0.5, y + 0.5) + 0.15 + RND * 0.7, 3, 255, 70, 90
+            SpawnSparks x + RND, y + RND, 0.15 + RND * 0.7, 3, 255, 70, 90
         NEXT : NEXT
     ELSEIF NOT onNow AND LaserSoon(ev) AND RND < 0.07 THEN ' Warming up: crackles
         x = evX0(ev) + RND * (evX1(ev) - evX0(ev) + 1) : y = evY0(ev) + RND * (evY1(ev) - evY0(ev) + 1)
-        SfxAt sndSizzle&, x, y, px, py : SpawnSparks x, y, FloorAt(x, y) + 0.15 + RND * 0.7, 4, 255, 120, 140
+        SfxAt sndSizzle&, x, y, px, py : SpawnSparks x, y, 0.15 + RND * 0.7, 4, 255, 120, 140
     END IF
     evCount(ev) = onNow
     IF sndTrapElec& <= 0 THEN EXIT SUB
@@ -14136,8 +14138,8 @@ FUNCTION TintedGun&(gun)
     STATIC tinted&, lastGun, lastR, lastG, lastB, lastArt AS LONG
     qr = INT(gunLightR * 16) : qg = INT(gunLightG * 16) : qb = INT(gunLightB * 16)
     IF tinted& <> 0 AND gun = lastGun AND qr = lastR AND qg = lastG AND qb = lastB AND lastArt = glGunVersion THEN TintedGun& = tinted& : EXIT FUNCTION
-    lastArt = glGunVersion ' (new pictures since: ART changed)
-    IF tinted& <> 0 AND gun <> lastGun THEN _FREEIMAGE tinted& : tinted& = 0
+    IF tinted& <> 0 AND (gun <> lastGun OR lastArt <> glGunVersion) THEN _FREEIMAGE tinted& : tinted& = 0 ' (another gun - or new pictures, ART changed: another size)
+    lastArt = glGunVersion
     IF tinted& = 0 THEN tinted& = _COPYIMAGE(gunSoftImg&(gun), 32)
     lastGun = gun : lastR = qr : lastG = qg : lastB = qb
     DIM src AS _MEM, dst AS _MEM, col AS _UNSIGNED LONG
@@ -17586,7 +17588,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "    if (anim > 3.5 && anim < 4.5) {  // A SKY: by the way you look, not where the ceiling is - so it's endlessly far off" + nl$
     fs$ = fs$ + "        vec3 d = vPos - vec3(eye.xy, eyeZ);" + nl$
     fs$ = fs$ + "        float el = clamp(atan(d.z, length(d.xy)) / 1.2566, 0.0, 1.0);" + nl$
-    fs$ = fs$ + "        gl_FragColor = vec4(texture2D(tex, vec2(atan(d.y, d.x) / 6.2831853, 1.0 - el)).rgb, 1.0);" + nl$
+    fs$ = fs$ + "        gl_FragColor = vec4(texture2D(tex, vec2(atan(d.y, d.x) / 6.2831853, clamp(1.0 - el, 0.0, 0.999))).rgb, 1.0);" + nl$
     fs$ = fs$ + "        return;" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    vec2 uv = gl_TexCoord[0].xy;" + nl$
@@ -17958,10 +17960,21 @@ END SUB
 ' number) says which edge - facing back the way the shot came. Not on
 ' doors (they move) - and on a diagonal wall, just facing back at you.
 ' A shot into the ceiling at one of the level's lamps breaks it.
+' Marks on wall (or block) cell (x, y), gone with it - a closet opening, a
+' trigger's wall or block taken away: else they'd hang in the air
+SUB ClearDecalsOn(x, y)
+    FOR d = 1 TO MAX_DECALS
+        IF decalOn(d) AND decalNZ(d) = 0 THEN
+            IF INT(decalX(d) - decalNX(d) * 0.02) = x AND INT(decalY(d) - decalNY(d) * 0.02) = y THEN decalOn(d) = 0
+        END IF
+    NEXT
+END SUB
+
 SUB ShotMark(x, y, z, dx, dy, surface, size)
     SELECT CASE surface
         CASE 1
             cx = INT(x) : cy = INT(y)
+            IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN IF texSky(ceilTex(cx, cy)) THEN EXIT SUB ' (the sky: nothing to mark)
             IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
                 l = shaftCell(cx, cy)
                 IF l THEN
@@ -17970,6 +17983,7 @@ SUB ShotMark(x, y, z, dx, dy, surface, size)
             END IF
             AddDecal x, y, CeilAt(x, y) - 0.001, 0, 0, -1, size
         CASE 2
+            IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN IF liftCell(INT(x), INT(y)) THEN EXIT SUB ' (a lift moves: its mark would hang where it was)
             AddDecal x, y, FloorAt(x, y) + 0.001, 0, 0, 1, size
         CASE ELSE
             bx = INT(x + dx * 0.02) : by = INT(y + dy * 0.02) ' (the cell it went into)
