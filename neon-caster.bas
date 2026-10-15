@@ -2089,7 +2089,7 @@ DO
     ' or a monster in the doorway (DoorBlocked), it waits, or if it was
     ' already shutting, opens again, like an automatic door.
     usedTrig = 0
-    IF spaceDown AND NOT spaceWas AND NOT dead AND NOT editMode THEN ' A "use" trigger at the cell in front? (chapter 19)
+    IF spaceDown AND NOT spaceWas AND NOT dead AND NOT editMode AND NOT cyberOn THEN ' A "use" trigger at the cell in front? (chapter 19 - not from the network)
         FOR k = 1 TO numTrigs
             IF trigWhen$(k) = "use" AND NOT trigDone(k) THEN
                 FOR reach = 0.3 TO 1.6 STEP 0.1
@@ -2109,7 +2109,7 @@ DO
             ELSEIF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 THEN
                 keyNeeded = doorKey(cellX, cellY)
                 IF doorType(cellX, cellY) = DOOR_EXIT THEN
-                    GOSUB LevelDone
+                    IF cyberOn THEN ShowMsg "The exit's in the real world - jack out first" ELSE GOSUB LevelDone
                 ELSEIF keyNeeded = 0 OR hasCard(keyNeeded) THEN
                     doorOpen(cellX, cellY) = 0.01 : doorMove(cellX, cellY) = 1
                     PlaySfx DoorSnd&(doorType(cellX, cellY)), 0.9
@@ -2398,11 +2398,13 @@ DO
     fireWas = fireDown : spaceWas = spaceDown
 
     IF cyberOn THEN ' In the network (chapter 19): the clock, and the way out
-        cyberTime = cyberTime - 1
-        IF cyberGot >= cyberNeed THEN
-            cyberWon = -1 : GOSUB JackOut
-        ELSEIF cyberTime <= 0 THEN
-            cyberWon = 0 : GOSUB JackOut
+        IF NOT dead THEN ' (dead in it: the clock stops - the sector starts over, network and all)
+            cyberTime = cyberTime - 1
+            IF cyberGot >= cyberNeed THEN
+                cyberWon = -1 : GOSUB JackOut
+            ELSEIF cyberTime <= 0 THEN
+                cyberWon = 0 : GOSUB JackOut
+            END IF
         END IF
     ELSEIF NOT editMode THEN
         GOSUB RunEvents ' The level's event rooms (chapter 19)
@@ -5129,9 +5131,13 @@ RETURN
 ' --- A CODE TERMINAL, terminal tm (chapter 19): the doors near it slam
 ' and lock, NEXUS gloats, and its puzzle opens; solved, they open again
 TerminalUse:
-pzName$ = ListItem$(lvlPuzzles$, tm) : IF pzName$ = "" THEN pzName$ = MID$("hello     multiply  countdownpassword  sum       pythagoraselect    function  reverse   wrap      ", ((level - 1) MOD 10) * 10 + 1, 10)
+pzName$ = ListItem$(lvlPuzzles$, tm) : IF pzName$ = "" THEN pzName$ = MID$("hello     multiply  countdown password  sum       pythagorasselect    function  reverse   wrap      ", ((level - 1) MOD 10) * 10 + 1, 10)
 pzName$ = LTRIM$(RTRIM$(pzName$))
-IF NOT LoadPuzzle(pzName$) THEN ShowMsg "TERMINAL: no program called " + pzName$ : RETURN
+pzResume = (tm = pzTerm) ' (back at the terminal you left: your lines as you left them, not shuffled again)
+IF NOT pzResume THEN
+    IF NOT LoadPuzzle(pzName$) THEN ShowMsg "TERMINAL: no program called " + pzName$ : RETURN
+    pzTerm = tm
+END IF
 slammed = 0
 FOR y = termY(tm) - 7 TO termY(tm) + 7 : FOR x = termX(tm) - 7 TO termX(tm) + 7
     IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
@@ -5145,9 +5151,12 @@ IF slammed THEN PlaySfx sndAlarm&, 0.8 : shake = shake + 8
 Say "puzzle1", 0
 GOSUB RunPuzzle
 IF pzSolved THEN
-    termDone(tm) = -1 : AchAdd "Puzzles", 1
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
-        IF doorLock(x, y) = 3 THEN doorLock(x, y) = 0 : doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
+    termDone(tm) = -1 : AchAdd "Puzzles", 1 : pzTerm = 0
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (a keycard door is unlocked, not opened: it still wants its card)
+        IF doorLock(x, y) = 3 THEN
+            doorLock(x, y) = 0
+            IF doorKey(x, y) = 0 THEN doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
+        END IF
     NEXT : NEXT
     PlaySfx sndFanfare&, 0.9 : ShowMsg "PROGRAM REPAIRED - the doors are open" : Say "puzzle2", 0
 ELSE
@@ -5243,7 +5252,12 @@ RETURN
 RunPuzzle:
 WorldLoopsOff
 _MOUSESHOW : _KEYCLEAR
-pzSolved = 0 : pzSel = 1 : pzTyping = 0 : pzShown = 0 : pzFails = 0 : pzOut$ = "Put the lines in order, fill the blanks, then F5 to compile and run."
+pzSolved = 0 : pzSel = 1 : pzTyping = 0
+IF pzResume THEN
+    pzOut$ = "Where you left it. F5 to compile and run."
+ELSE
+    pzShown = 0 : pzFails = 0 : pzOut$ = "Put the lines in order, fill the blanks, then F5 to compile and run."
+END IF
 pzDone = 0 : qb$ = QB64Path$
 DO
     _LIMIT 60
@@ -5300,6 +5314,30 @@ _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
 escWas = -1 : fireWait = 15 : spaceWas = -1
 RETURN
 
+' Do the puzzle's lines, as they stand, match its program? Comment lines
+' (' or REM) can go anywhere - only the program's own lines must be in
+' their order
+FUNCTION PuzzleMatches
+    a = 1 : PuzzleMatches = -1
+    FOR i = 1 TO pzN
+        l$ = NormLine$(PuzzleLine$(i))
+        IF NOT PuzzleComment(l$) THEN
+            DO WHILE a <= pzN
+                IF NOT PuzzleComment(NormLine$(pzAns$(a))) THEN EXIT DO
+                a = a + 1
+            LOOP
+            IF a > pzN THEN PuzzleMatches = 0 : EXIT FUNCTION
+            IF l$ <> NormLine$(pzAns$(a)) THEN PuzzleMatches = 0 : EXIT FUNCTION
+            a = a + 1
+        END IF
+    NEXT
+END FUNCTION
+
+FUNCTION PuzzleComment(l$)
+    t$ = UCASE$(LTRIM$(l$))
+    PuzzleComment = (LEFT$(t$, 1) = "'" OR LEFT$(t$, 4) = "REM ")
+END FUNCTION
+
 ' Compile and run the program as it stands. With qb64pe: written out with
 ' $CONSOLE:ONLY on top (it prints to the terminal, not a window) and
 ' SYSTEM after the main part, compiled and run by a shell in the
@@ -5309,10 +5347,7 @@ RETURN
 PuzzleRun:
 pzOut$ = ""
 IF qb$ = "" THEN
-    ok = -1
-    FOR i = 1 TO pzN
-        IF NormLine$(PuzzleLine$(i)) <> NormLine$(pzAns$(i)) THEN ok = 0
-    NEXT
+    ok = PuzzleMatches
     IF ok THEN pzSolved = -1 : pzOut$ = "CHECKED (qb64pe not found - the lines match the program).|ACCESS GRANTED" ELSE pzOut$ = "Not right yet - check the order, and the blanks."
 ELSE
     MakeSaveDir : d$ = SaveDir$ + "puzzle"
@@ -5350,7 +5385,7 @@ ELSE
         PRINT #fh, "if exist " + q$ + exe$ + q$ + " " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < NUL"
         PRINT #fh, "echo done > " + q$ + done$ + q$
         CLOSE #fh
-        SHELL _DONTWAIT q$ + script$ + q$
+        SHELL _HIDE _DONTWAIT q$ + script$ + q$
     ELSE
         script$ = d$ + "/run.sh" : lf$ = CHR$(10) ' (PRINT # ends lines with CR LF everywhere - sh wants LF alone)
         t$ = "if " + q$ + qb$ + q$ + " -x " + q$ + src$ + q$ + " -o " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1; then" + lf$
@@ -5359,7 +5394,7 @@ ELSE
         t$ = t$ + "fi" + lf$ + "echo done > " + q$ + done$ + q$ + lf$
         IF _FILEEXISTS(script$) THEN KILL script$
         OPEN script$ FOR BINARY AS #fh : PUT #fh, , t$ : CLOSE #fh
-        SHELL _DONTWAIT "sh " + q$ + script$ + q$
+        SHELL _HIDE _DONTWAIT "sh " + q$ + script$ + q$
     END IF
     t0! = TIMER
     DO ' Waiting: COMPILING...
@@ -5381,7 +5416,9 @@ ELSE
         CLOSE #fh
     END IF
     IF LEN(got$) THEN got$ = MID$(got$, 2)
-    IF NOT _FILEEXISTS(exe$) THEN ' Didn't compile: the compiler's words
+    IF NOT _FILEEXISTS(exe$) AND PuzzleMatches THEN ' (the lines are right - the compiler's what's wrong: still granted, or a broken qb64pe would lock you in for good)
+        pzSolved = -1 : pzOut$ = "qb64pe couldn't build it - but the lines match the program.|ACCESS GRANTED"
+    ELSEIF NOT _FILEEXISTS(exe$) THEN ' Didn't compile: the compiler's words
         pzOut$ = "DID NOT COMPILE:|" + LEFT$(PuzzleCompilerSays$(got$), 300)
     ELSEIF NormLine$(got$) = NormLine$(pzExpect$) THEN
         pzSolved = -1 : pzOut$ = "RAN - it printed:|" + got$ + "|ACCESS GRANTED"
@@ -5406,7 +5443,8 @@ RETURN
 JackIn:
 WorldLoopsOff
 cyberOn = -1 : cyberStation = st
-cyberTime = CYBER_SECONDS * 60 : cyberGot = 0 : cyberNeed = 3 + level \ 3 : IF cyberNeed > 6 THEN cyberNeed = 6
+cyberTime = CYBER_SECONDS * 60 : cyberGot = 0 : cyberNeed = 3 + (((level - 1) MOD 10) + 1) \ 3 : IF cyberNeed > 6 THEN cyberNeed = 6
+cyberBackX = playerX : cyberBackY = playerY : cyberBackDX = dirX : cyberBackDY = dirY ' (where you jacked in: you come back there)
 cyberMonStart = numMonsters : cyberItemStart = numItems
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
 CyberTextures -1
@@ -5423,7 +5461,7 @@ DO WHILE head < tail
     FOR k = 1 TO 4
         nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
         IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
-            IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND thiefDist(nx, ny) > thiefDist(x, y) + 1 AND thiefDist(x, y) < 18 THEN
+            IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND thiefDist(nx, ny) > thiefDist(x, y) + 1 AND thiefDist(x, y) < 18 AND ABS(floorH(nx, ny) - floorH(x, y)) <= STEP_UP AND liqKind(nx, ny) = 0 AND liftCell(nx, ny) = 0 AND floorH(nx, ny) > PIT_DEPTH THEN ' (only where you can walk in time: no ledges, pools, lifts or pits)
                 thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
             END IF
         END IF
@@ -5457,10 +5495,10 @@ IF cyberNeed = 0 THEN ' (none placed: one just ahead of you - in a new slot, or,
             IF itemOn(j) = 0 AND itemToss(j) = 0 THEN cs = j : EXIT FOR
         NEXT
     END IF
-    IF cs THEN cyberNeed = 1 : itemX(cs) = playerX + dirX : itemY(cs) = playerY + dirY : itemKind(cs) = IT_CORE : itemOn(cs) = -1
+    IF cs THEN cyberNeed = 1 : itemX(cs) = playerX - dirX : itemY(cs) = playerY - dirY : itemKind(cs) = IT_CORE : itemOn(cs) = -1 ' (ahead once you've turned round - not in the station)
 END IF
 ' ICE: on the farthest cells
-nIce = 2 + level \ 3
+nIce = 2 + (((level - 1) MOD 10) + 1) \ 3 ' (by its place in a set of ten: a showcase's number isn't how hard it is)
 FOR c = 1 TO nIce
     e = tail - 1 - INT(RND * (tail \ 3 + 1)) : IF e < 0 THEN e = 0
     IF tail > 0 THEN IF SpawnMonster(MT_ICE, fillX(e) + 0.5, fillY(e) + 0.5, 0, playerX, playerY) THEN monsterTimer(numMonsters) = 90
@@ -5485,6 +5523,9 @@ NEXT
 numMonsters = cyberMonStart : numItems = cyberItemStart
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
 cyberOn = 0
+playerX = cyberBackX : playerY = cyberBackY : dirX = cyberBackDX : dirY = cyberBackDY ' (back at the station, as you jacked in - not wherever you'd got to)
+planeX = dirY * fovPlane : planeY = -dirX * fovPlane
+IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
 PlaySfx sndJackOut&, 1 : pickFlash = 20
 PlayMusic SectorMusic&(level)
 IF cyberWon THEN
@@ -6661,6 +6702,7 @@ RETURN
 
 ' --- Start (or restart) the level: read its map, and reset everything in it
 LoadLevel:
+pzTerm = 0 ' (no terminal's puzzle half done in a new level)
 editFresh = -1 ' (the level as its file has it: nothing in it to save)
 nq = conQHead ' (a trigger's commands still waiting - after a "wait" - belonged to the level being left: gone)
 FOR q = conQHead + 1 TO conQTail
