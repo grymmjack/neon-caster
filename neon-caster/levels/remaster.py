@@ -465,6 +465,20 @@ def r5(m, rng):
                     lit_pillar(m, x, y, AMBER, fx=4, lit="S" if y0 == 20 else "N")   # (lit toward the hall's middle)
 
 
+@remaster(6)
+def r6(m, rng):
+    """HYDROPONICS: grow-light posts in every bay, a poison spill in the
+    dome."""
+    for bx in (3, 19, 35):
+        for by in (3, 19, 35):
+            for (x, y, a) in ((bx, by, "N"), (bx + 9, by + 9, "S")):
+                if m.g[y][x] == "." and not any((b[0], b[1]) == (x, y) for b in m.blocks):
+                    m.post(x, y, a, at=4, w=2, d=2, wall=2, glow=GREEN, fx=2)
+    for (x, y) in ((26, 22), (27, 22), (26, 23), (27, 23)):
+        if m.g[y][x] == "." and m.lq[y][x] == ".":
+            m.pool(x, y, x, y, "p", sink=1, depth=1)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
