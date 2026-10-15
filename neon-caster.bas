@@ -16882,6 +16882,7 @@ END SUB
 ' (Its track is GLDoorTrack's.)
 SUB GLDoorBox(cx, cy, b)
     half = DOOR_THICK / 2 : amt = glDoor(cx, cy, b) : kind = doorType(cx, cy) : across = DoorAcross(cx, cy)
+    fz = floorH(cx, cy) : cz = ceilH(cx, cy) ' (from its own cell's floor to its ceiling: a door up a step stands on the step)
     SELECT CASE kind
         CASE DOOR_SLIDE : IF doorKey(cx, cy) THEN slot = T_DOORK + doorKey(cx, cy) ELSE slot = T_DOOR
         CASE DOOR_SPLIT : slot = T_SPLIT
@@ -16898,14 +16899,14 @@ SUB GLDoorBox(cx, cy, b)
         glFaceNZ = 0
         SELECT CASE kind
             CASE DOOR_SLIDE
-                IF amt < 1 THEN GLStrip ax, ay, bx, by, amt, 1, 0, 1 - amt, 0, 1, 0, 1, slot
+                IF amt < 1 THEN GLStrip ax, ay, bx, by, amt, 1, 0, 1 - amt, fz, cz, 0, 1, slot
             CASE DOOR_SPLIT
                 IF amt < 1 THEN
-                    GLStrip ax, ay, bx, by, 0, 0.5 - amt / 2, amt / 2, 0.5, 0, 1, 0, 1, slot
-                    GLStrip ax, ay, bx, by, 0.5 + amt / 2, 1, 0.5, 1 - amt / 2, 0, 1, 0, 1, slot
+                    GLStrip ax, ay, bx, by, 0, 0.5 - amt / 2, amt / 2, 0.5, fz, cz, 0, 1, slot
+                    GLStrip ax, ay, bx, by, 0.5 + amt / 2, 1, 0.5, 1 - amt / 2, fz, cz, 0, 1, slot
                 END IF
             CASE ELSE
-                IF amt < 1 THEN GLStrip ax, ay, bx, by, 0, 1, 0, 1, amt, 1, amt, 1, slot
+                IF amt < 1 THEN GLStrip ax, ay, bx, by, 0, 1, 0, 1, fz + amt * (cz - fz), cz, amt, 1, slot
         END SELECT
     NEXT
     GLSetLight cx, cy, 0.85, b
@@ -16915,7 +16916,7 @@ SUB GLDoorBox(cx, cy, b)
         CASE ELSE ' A shutter's underside, at the height it's lifted to
             IF amt > 0 THEN
                 glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = -1
-                GLDoorFlat cx, cy, across, -half, half, amt, 0.96, 1, slot
+                GLDoorFlat cx, cy, across, -half, half, fz + amt * (cz - fz), 0.96, 1, slot
             END IF
     END SELECT
 END SUB
@@ -16933,8 +16934,8 @@ END FUNCTION
 SUB GLDoorTrack(cx, cy, b)
     across = DoorAcross(cx, cy)
     GLSetLight cx, cy, 0.25, b
-    glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = 1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, 0.004, 0.4, 0.5, T_SHUTTER
-    glFaceNZ = -1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, 0.996, 0.4, 0.5, T_SHUTTER
+    glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = 1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, floorH(cx, cy) + 0.004, 0.4, 0.5, T_SHUTTER
+    glFaceNZ = -1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, ceilH(cx, cy) - 0.004, 0.4, 0.5, T_SHUTTER
 END SUB
 
 ' A door's edge: square to the door, at e along it (0..1), across its
@@ -16947,7 +16948,7 @@ SUB GLDoorEdge(cx, cy, across, e, facing, slot)
         ay = cy + e : by = ay : ax = cx + 0.5 - half : bx = cx + 0.5 + half : glFaceNX = 0 : glFaceNY = facing
     END IF
     glFaceNZ = 0
-    GLStrip ax, ay, bx, by, 0, 1, 0, DOOR_THICK, 0, 1, 0, 1, slot
+    GLStrip ax, ay, bx, by, 0, 1, 0, DOOR_THICK, floorH(cx, cy), ceilH(cx, cy), 0, 1, slot
 END SUB
 
 ' A flat strip across a doorway at height z: the whole way along the door,
@@ -17227,20 +17228,21 @@ SUB GLFace(cx, cy, side, b)
         GLFaceStrip ax, ay, bx, by, u0, u1, fz, cz, 1 - cz, 1 - fz, cx, cy, VAL(MID$("3142", side, 1)), wallTexSlot(worldMap(cx, cy)) ' (GLFace's sides 1-4 are west, east, north, south - [faces]' are east, south, west, north)
         EXIT SUB
     END IF
-    doorAmt = glDoor(cx, cy, b) ' A door: 0 shut .. 1 open
+    doorAmt = glDoor(cx, cy, b) ' A door: 0 shut .. 1 open - standing from its own cell's floor to its ceiling
+    dfz = floorH(cx, cy) : dcz = ceilH(cx, cy)
     SELECT CASE doorType(cx, cy)
         CASE DOOR_SLIDE ' What's left of it, from doorAmt to the end, its texture slid along
             IF doorKey(cx, cy) THEN slot = T_DOORK + doorKey(cx, cy) ELSE slot = T_DOOR
-            IF doorAmt < 1 THEN GLStrip ax, ay, bx, by, doorAmt, 1, 0, 1 - doorAmt, 0, 1, 0, 1, slot
+            IF doorAmt < 1 THEN GLStrip ax, ay, bx, by, doorAmt, 1, 0, 1 - doorAmt, dfz, dcz, 0, 1, slot
         CASE DOOR_SPLIT ' Two halves, parting from the middle
             IF doorAmt < 1 THEN
-                GLStrip ax, ay, bx, by, 0, 0.5 - doorAmt / 2, doorAmt / 2, 0.5, 0, 1, 0, 1, T_SPLIT
-                GLStrip ax, ay, bx, by, 0.5 + doorAmt / 2, 1, 0.5, 1 - doorAmt / 2, 0, 1, 0, 1, T_SPLIT
+                GLStrip ax, ay, bx, by, 0, 0.5 - doorAmt / 2, doorAmt / 2, 0.5, dfz, dcz, 0, 1, T_SPLIT
+                GLStrip ax, ay, bx, by, 0.5 + doorAmt / 2, 1, 0.5, 1 - doorAmt / 2, dfz, dcz, 0, 1, T_SPLIT
             END IF
         CASE DOOR_EXIT ' Turned like a wall, so its sign reads the right way
-            GLStrip ax, ay, bx, by, 0, 1, u0, u1, 0, 1, 0, 1, T_EXIT
+            GLStrip ax, ay, bx, by, 0, 1, u0, u1, dfz, dcz, 0, 1, T_EXIT
         CASE ELSE ' A shutter: the part still hanging down, showing the bottom of its texture
-            IF doorAmt < 1 THEN GLStrip ax, ay, bx, by, 0, 1, 0, 1, doorAmt, 1, doorAmt, 1, T_SHUTTER
+            IF doorAmt < 1 THEN GLStrip ax, ay, bx, by, 0, 1, 0, 1, dfz + doorAmt * (dcz - dfz), dcz, doorAmt, 1, T_SHUTTER
     END SELECT
 END SUB
 
