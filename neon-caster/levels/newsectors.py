@@ -631,6 +631,94 @@ def market():
     finish(m, 3, dict(hoard=2, closets=1, cmons="ck"))
     return m
 
+
+# ---------------------------------------------------------------- 4
+@sector("SECTOR 4: ACID WORKS",
+        ["wall-hazard.png", "wall-pipes.png", "wall-rusty.png", "wall-greenpipes.png", "wall-control.png", "wall-stripes.png"],
+        ["floor-hazard.png", "floor-rustgrate.png", "floor-plates.png", "floor-scorched.png"],
+        ["ceiling-vents.png", "ceiling-pipes.png"])
+def acidworks():
+    """NEW 4: ACID WORKS. A chemical plant. The vat hall is cut in two by a
+    channel of deep acid - two catwalks cross it, stairs climb out of its
+    south end, and the middle crossing is broken: lifts bob out to the
+    island with the railgun. Four shallow vats glow round it (wade in and
+    the acid eats your armour first). The filter room (west) has the red
+    card and an electric floor; pump control (east, red door) locks down
+    round the blue. The control room (north, blue door) has the exit."""
+    m = Sector("#")
+    m.ambient = (155, 200, 235, 190)
+    m.puzzles = "password"
+    # The loading bay: you, facing north
+    m.room(3, 37, 12, 44, ceil=12, zone=(3, 1))
+    m.put(7, 44, "^")
+    m.put(13, 40, "D"); m.rect(14, 40, 14, 40)
+    for (x, y, c) in ((4, 38, "x"), (5, 38, "x"), (11, 38, "o"), (10, 43, "M"), (4, 43, "a"), (11, 44, "m")):
+        m.put(x, y, c)
+    m.light(7.5, 40.5, 6, 140, 200, 255, 160, 0)
+    # The vat hall
+    m.room(15, 12, 40, 41, ceil=20, zone=(1, 1))
+    m.pool(26, 12, 29, 12, "a", sink=2, depth=1)   # (steps out at both ends)
+    m.pool(26, 13, 29, 13, "a", sink=4, depth=3)
+    m.pool(26, 14, 29, 38, "a", sink=6, depth=5)
+    m.pool(26, 39, 29, 39, "a", sink=4, depth=3)
+    m.pool(26, 40, 29, 40, "a", sink=2, depth=1)
+    for (x0, y0, x1, y1) in ((18, 16, 22, 21), (33, 16, 37, 21), (18, 30, 22, 35), (33, 30, 37, 35)):
+        m.pool(x0, y0, x1, y1, "a", sink=2, depth=1)
+        for (cx, cy) in ((x0 - 1, y0 - 1), (x1 + 1, y0 - 1), (x0 - 1, y1 + 1), (x1 + 1, y1 + 1)):
+            m.column(cx, cy, size=2, wall=2, pic=LIT if cy < 25 else None, glow=None)
+    for y in (18, 34):  # catwalks
+        for x in range(26, 30):
+            m.fh[y][x] = "."; m.lq[y][x] = "."; m.ld[y][x] = "."
+        m.zone(26, y, 29, y, 2, 0)
+    for x in (27, 28):  # the island
+        m.fh[26][x] = "."; m.lq[26][x] = "."; m.ld[26][x] = "."
+    m.zone(27, 26, 28, 26, 2, 0)
+    for i, x in enumerate((26, 29)):
+        m.lq[26][x] = "."; m.ld[26][x] = "."
+        m.lift(x, 26, x, 26, -6, 0, mode=1, speed=(4, 5)[i])
+    m.put(27, 26, "4"); m.put(28, 26, "u")
+    m.alcove(14, 20, "E", deco="f", floor=0, ceil=7, glow=GREEN, fx=2)
+    m.alcove(14, 32, "E", deco="f", floor=0, ceil=7, glow=GREEN, fx=2)
+    m.alcove(41, 32, "W", deco="A", floor=2, ceil=7, glow=CYAN, fx=0)
+    for y in (16, 24, 32, 39):
+        m.light(27.5, y + 0.5, 6, 130, 140, 255, 90, 2)
+    for (x, y) in ((20, 25), (35, 25), (20, 39), (35, 13)):
+        m.light(x + 0.5, y + 0.5, 6, 140, 230, 255, 200, 0)
+    for (x, y, c) in ((20, 14, "w"), (35, 37, "w"), (24, 28, "c"), (31, 22, "c"), (31, 37, "c"), (17, 26, "m"), (38, 26, "m"),
+                      (24, 40, "g"), (38, 13, "g"), (16, 13, "+"), (39, 40, "e"), (24, 14, "a"), (16, 40, "x"), (17, 40, "x")):
+        m.put(x, y, c)
+    # The filter room (west): the red card, an electric floor
+    m.room(3, 14, 11, 30, ceil=12, zone=(2, 1))
+    m.put(12, 22, "D"); m.rect(13, 22, 14, 22)
+    for y in (16, 20, 24, 28):
+        m.put(4, y, "I"); m.nudge(4, y, -2, 0)
+    m.put(2, 22, "$")
+    for (x, y, c) in ((10, 15, "J"), (10, 29, "J"), (7, 15, "r"), (9, 26, "k"), (6, 29, "e"), (10, 22, "u")):
+        m.put(x, y, c)
+    m.event(3, 6, 18, 9, 26, 60, 100)
+    m.light(7.5, 22.5, 7, 150, 120, 255, 180, 0)
+    # Pump control (east, red door): a lockdown round the blue card
+    m.room(43, 14, 46, 30, ceil=12, zone=(3, 2))
+    m.put(41, 22, "R"); m.rect(42, 22, 42, 22)
+    for (x, y, c) in ((46, 15, "A"), (46, 29, "A"), (43, 15, "F"), (46, 22, "b"), (44, 18, "+")):
+        m.put(x, y, c)
+    m.event(1, 43, 14, 46, 30, 4, 2, 9)
+    m.light(44.5, 22.5, 6, 160, 90, 200, 255, 1)
+    # The control room (north, blue door): the exit
+    m.room(18, 3, 37, 9, ceil=12, zone=(4, 2))
+    m.put(22, 11, "B"); m.rect(22, 10, 22, 10)
+    m.put(27, 2, "E")
+    m.post(26, 3, "N", at=7, w=2, d=2, wall=5, glow=GREEN); m.post(28, 3, "N", at=1, w=2, d=2, wall=5, glow=GREEN)
+    for x in (20, 23, 31, 34):
+        m.put(x, 3, "F")
+    for (x, y, c) in ((19, 8, "A"), (36, 8, "A"), (22, 6, "h"), (33, 6, "s"), (27, 8, "*"), (21, 4, "e")):
+        m.put(x, y, c)
+    m.light(27.5, 6.5, 8, 150, 200, 255, 220, 0)
+    m.loot_line("crate    = ammo:25, shells:20, medkit:25, armor:20")
+    m.loot_line("barrel   = ammo:10, shells:10, armor:10, -")
+    finish(m, 4, dict(closets=1, cmons="cw", plates=2, station=1, props=3, propchars="xo"))
+    return m
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
