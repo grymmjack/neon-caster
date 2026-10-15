@@ -876,8 +876,8 @@ def check_level(lv, assets=None):
         kind, x0, y0, x1, y1, a, b, reward = e
         if not (1 <= kind <= 13 and 0 < x0 <= x1 < N - 1 and 0 < y0 <= y1 < N - 1):
             errs.append("event %s: kind 1-13, a room inside the map" % (e,))
-        if reward not in (0, 4, 5, 6, 9, 10, 13, 14):
-            errs.append("event %s: reward must be 0 or a pickup kind" % (e,))
+        if reward not in (0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
+            errs.append("event %s: reward must be 0 or a pickup kind (not a key: a lost event mustn't lock you out)" % (e,))
         room = [lv["rows"][y][x] for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]
         if kind == 4 and not any(c in DECO for c in room):
             errs.append("event %s: a shooting gallery needs decorations in its room" % (e,))

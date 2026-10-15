@@ -355,6 +355,91 @@ def build_all(write=False, show=False):
 # The sectors (one function each, in order)
 # =====================================================================
 
+LIT = "wall-lightstrip.png"
+CYAN, PINK, GREEN, AMBER, RED, VIOLET = (80, 220, 255), (255, 80, 220), (80, 255, 140), (255, 180, 60), (255, 60, 50), (170, 90, 255)
+
+
+# ---------------------------------------------------------------- 1
+@sector("SECTOR 1: ARRIVAL DOCK",
+        ["wall.png", "wall-concrete.png", "wall-control.png", "wall-servers.png", "wall-hull.png", "wall-transit.png"],
+        ["floor-plates.png", "floor-deck.png", "floor-concrete.png", "floor-platform.png"],
+        ["ceiling-lights.png", "ceiling-hull.png"])
+def arrival():
+    """NEW 1: ARRIVAL DOCK. You step off the shuttle into the bay (south):
+    slim lit posts along its walls, terminals glowing in alcoves. North, the
+    arrival hall - two walls high, a flooded loading channel across it,
+    lit columns in rows. Customs (west) locks down when you walk in: kill
+    the drones for the scatter gun. The red card is in the cargo hold
+    (east), among shelves and crates worth kicking open. The departure
+    gate (north, red door, glass onto the hall) has the exit."""
+    m = Sector("#")
+    m.ambient = (165, 220, 230, 255)
+    m.puzzles = "multiply"
+    # The shuttle bay (south): you, facing north
+    m.room(16, 36, 31, 44, ceil=12, zone=(4, 2))
+    m.put(24, 43, "^")
+    for y in (38, 42):
+        m.post(16, y, "W", wall=5, glow=CYAN)
+        m.post(31, y, "E", wall=5, glow=CYAN)
+    m.alcove(19, 45, "N", deco="t", glow=GREEN)
+    m.alcove(29, 45, "N", deco="t", glow=GREEN)
+    for (x, y, c) in ((17, 37, "W"), (30, 37, "W"), (17, 44, "x"), (30, 44, "x"), (22, 39, "M"), (26, 39, "+")):
+        m.put(x, y, c)
+    m.put(24, 35, "D"); m.put(24, 34, ".")
+    # The arrival hall: two walls high, lit columns, the channel
+    m.room(10, 19, 37, 33, ceil=16, zone=(1, 1))
+    for (x0, x1) in ((10, 16), (19, 28), (31, 37)):
+        m.pool(x0, 26, x1, 27, "w", sink=2, depth=2)
+    for x in (14, 21, 26, 33):
+        for y in (22, 30):
+            m.column(x, y, size=2, wall=3, pic=LIT)
+    for (x, y) in ((12, 22), (35, 22), (12, 31), (35, 31), (24, 22), (24, 31)):
+        m.light(x + 0.5, y + 0.5, 7, 150, 110, 190, 255, 0)
+    m.light(17.5, 26.5, 4, 130, 60, 160, 255, 2); m.light(30.5, 26.5, 4, 130, 60, 160, 255, 2)
+    for (x, y, c) in ((11, 20, "x"), (12, 20, "o"), (36, 32, "x"), (36, 20, "p"), (11, 32, "p"),
+                      (16, 24, "m"), (31, 24, "m"), (24, 29, "m"), (13, 29, "c"), (34, 29, "c"), (24, 21, "g"),
+                      (18, 32, "a"), (30, 20, "a")):
+        m.put(x, y, c)
+    # glass onto the departure gate, the red door
+    for x in (13, 14, 15, 16, 31, 32, 33, 34):
+        m.put(x, 18, "=")
+    m.put(24, 18, "R")
+    # Customs (west): cubicles of thin walls; a lockdown, the scatter gun
+    m.room(3, 21, 8, 29, zone=(3, 1))
+    m.put(9, 25, "D")
+    m.thin_wall(5, 21, 5, 23, "E", t=1, wall=3)
+    m.thin_wall(5, 27, 5, 29, "E", t=1, wall=3)
+    for (x, y, c) in ((4, 22, "d"), (4, 23, "Z"), (4, 28, "d"), (4, 27, "Z"), (7, 21, "t"), (7, 29, "U"), (3, 22, "W")):
+        m.put(x, y, c)
+    m.nudge(7, 21, 0, -2); m.nudge(7, 29, 0, 2)
+    m.put(2, 25, "$")
+    m.event(1, 3, 21, 8, 29, 4, 1, 7)
+    # The cargo hold (east): shelves, crates, the red card
+    m.room(39, 13, 44, 31, ceil=12, zone=(3, 2))
+    m.put(38, 26, "H")
+    for y in (17, 21, 25):
+        m.thin_wall(41, y, 44, y, "S", t=2, wall=4, pic="wall-servers.png")
+    for (x, y, c) in ((42, 15, "x"), (43, 16, "x"), (44, 18, "x"), (42, 22, "x"), (44, 23, "o"), (43, 28, "x"),
+                      (44, 30, "x"), (40, 30, "u"), (44, 14, "r"), (40, 19, "g"), (43, 27, "g"), (40, 15, "c"), (39, 29, "e")):
+        m.put(x, y, c)
+    m.light(41.5, 15.5, 5, 140, 255, 200, 120, 1); m.light(41.5, 27.5, 5, 140, 255, 200, 120, 0)
+    # The departure gate (north): a counter, holograms, the exit
+    m.room(14, 8, 34, 17, ceil=12, zone=(2, 2))
+    m.thin_wall(17, 12, 22, 12, "S", t=2, wall=6)
+    m.thin_wall(26, 12, 31, 12, "S", t=2, wall=6)
+    m.alcove(18, 7, "S", deco="Q", glow=PINK)
+    m.alcove(30, 7, "S", deco="Q", glow=PINK)
+    m.put(24, 7, "E")
+    m.post(23, 8, "N", at=7, w=2, d=2, wall=5, glow=GREEN)
+    m.post(25, 8, "N", at=1, w=2, d=2, wall=5, glow=GREEN)
+    for (x, y, c) in ((15, 9, "W"), (33, 9, "W"), (16, 16, "g"), (32, 16, "g"), (24, 10, "h"), (20, 15, "+"), (28, 15, "e")):
+        m.put(x, y, c)
+    m.light(24.5, 13.5, 8, 150, 255, 255, 255, 0)
+    m.loot_line("crate    = ammo:30, shells:25, medkit:20, armor:10")
+    m.loot_line("locker   = armor:40, medkit:30, overcharge:10, -")
+    finish(m, 1, dict(closets=1, cmons="c", windows=1, lasers=1))
+    return m
+
 
 if __name__ == "__main__":
     args = sys.argv[1:]
