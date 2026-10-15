@@ -2256,7 +2256,7 @@ DO
                         relX = monsterX(i) - playerX : relY = monsterY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
-                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * mtypeScale(monsterType(i)) * 0.3 THEN
+                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * mtypeScale(monsterType(i)) * 0.3 AND NOT ShotPasses(i, eyeZ + TAN(pitch) * rayLen * transformY) THEN
                                 shotU = 0.5 + RENDER_W / 2 * (aim - transformX / transformY) / (viewH / transformY * mtypeScale(monsterType(i)))
                                 head = WeakSpotHit(i, shotU, eyeZ + TAN(pitch) * rayLen * transformY)
                                 IF gunPierce(currentGun) THEN
@@ -9946,6 +9946,17 @@ END FUNCTION
 SUB SetWeakSpot(t, u0, u1, v0, v1)
     mtypeWS(t, 1) = u0 : mtypeWS(t, 2) = u1 : mtypeWS(t, 3) = v0 : mtypeWS(t, 4) = v1
 END SUB
+
+' Does a shot at height z go over or under monster i? Only when you aim
+' up and down yourself (OpenGL's LOOK UP / DOWN): with the view level
+' (the software renderer, or LOOK off) a shot finds a monster at any
+' height in its column, as DOOM's aim does. A little leeway either way.
+FUNCTION ShotPasses(i, z)
+    IF NOT (glMode AND setting(SET_LOOK)) THEN EXIT FUNCTION
+    t = monsterType(i)
+    foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t)
+    ShotPasses = (z < foot - 0.2 OR z > foot + mtypeScale(t) + 0.2)
+END FUNCTION
 
 ' Did a shot land in monster i's weak spot? u: where across its picture
 ' (0 left .. 1 right), z: how high the shot was as it reached it (in walls,
