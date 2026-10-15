@@ -290,6 +290,12 @@ DIM SHARED litCellX(MAX_LIT) AS INTEGER, litCellY(MAX_LIT) AS INTEGER, litWeight
 ' passes through - chapter 15), and whether you've found this level's map
 DIM SHARED cellSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, hasMap AS INTEGER
 CONST NUM_LEVELS = 10 ' NUM_ = how many there are
+' Sector sets: the game's own ten (0), NEW SECTORS (1) and OLD SECTORS NEW
+' (2, the first ten remade) - each numbered 1 to NUM_LEVELS, so a sector's
+' music, NEXUS's words for it and the tally at the end go by its number,
+' and each in a folder of its own (SetDir$). sectorSet is the one played.
+CONST NUM_SETS = 2
+DIM SHARED sectorSet AS INTEGER
 ' How far a body or a wreck sinks into the floor, as a share of its height.
 ' Its picture stands upright at its middle, but its bottom edge is the near
 ' side of the heap - which, lying flat, would meet the floor nearer you.
@@ -1209,7 +1215,7 @@ DefineBind BIND_KICK,      "key_kick",      "KICK",         102
 CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
 CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6, MA_SECTOR = 7
-CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15, SCR_CUSTOM2 = 16
+CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15, SCR_CUSTOM2 = 16, SCR_SET1 = 17 ' (SCR_SET1 + s - 1: set s's sectors)
 CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11
 ' --- The console (` opens it, like Quake's; chapter 21): what's been
 ' printed (conLog$, the last CON_LOG lines), the line being typed, the
@@ -6975,7 +6981,25 @@ SELECT CASE conVerb$
         ELSE
             ConPrint "map: 1 to" + STR$(NUM_LEVELS) + " (or one of yours, from" + STR$(NUM_LEVELS + 1) + "), or part of a name (maps lists them)"
         END IF
+    CASE "sectorset", "campaign", "set10" ' Which set of ten sectors map 1-10 (and the next sector) go to
+        IF conA$ <> "" THEN
+            ns = -1
+            SELECT CASE LCASE$(conA$)
+                CASE "0", "original", "old", "game" : ns = 0
+                CASE "1", "new" : ns = 1
+                CASE "2", "remix", "oldnew", "remaster" : ns = 2
+            END SELECT
+            IF ns < 0 THEN
+                ConPrint "sectorset 0|1|2 (original, new, remix)"
+            ELSEIF ns > 0 AND LEN(SetSectorName$(ns, 1)) = 0 THEN
+                ConPrint "sectorset: " + SetName$(ns) + " isn't there (levels/" + SetDir$(ns) + ")"
+            ELSE
+                sectorSet = ns : GOSUB ReadSectorNames
+            END IF
+        END IF
+        ConPrint "sector set" + STR$(sectorSet) + ": " + SetName$(sectorSet) + " (map 1-" + LTRIM$(STR$(NUM_LEVELS)) + " go there)"
     CASE "maps", "levels", "sectors"
+        ConPrint "-- " + SetName$(sectorSet) + " (sectorset changes it) --"
         FOR k = 1 TO NUM_LEVELS + MAX_CUSTOM
             IF k = NUM_LEVELS + 1 THEN ConPrint "-- yours (newsector makes one) --"
             IF LEN(sectorName$(k)) THEN ConPrint LTRIM$(STR$(k)) + "  " + sectorName$(k)
@@ -7494,9 +7518,11 @@ SELECT CASE miKind(menuSel)
             CASE MA_RESUME
                 menuDone = -1
             CASE MA_NEW
-                GOSUB NewGame : menuDone = -1
-            CASE MA_SECTOR ' A new game, in sector miRef (straight there: no stop in sector 1)
-                level = miRef(menuSel) : GOSUB NewGameHere
+                sectorSet = 0 : GOSUB ReadSectorNames : GOSUB NewGame : menuDone = -1
+            CASE MA_SECTOR ' A new game, in sector miRef (straight there: no stop in sector 1) - over 100, another set's
+                level = miRef(menuSel) : sectorSet = 0
+                IF level > 100 THEN sectorSet = level \ 100 : level = level MOD 100
+                GOSUB ReadSectorNames : GOSUB NewGameHere
                 menuDone = -1
             CASE MA_NEWSECTOR ' A blank sector of your own, straight into the editor
                 GOSUB NewSector : IF level > NUM_LEVELS THEN menuDone = -1
@@ -7603,9 +7629,11 @@ IF _FILEEXISTS(saveFile$) THEN KILL saveFile$ ' (BINARY would only overwrite the
 fileNum = FREEFILE
 OPEN saveFile$ FOR BINARY AS #fileNum
 saveTag$ = SAVE_TAG : PUT #fileNum, , saveTag$
-saveInfo$ = LEFT$(levelName$ + "  " + DATE$ + " " + LEFT$(TIME$, 5) + SPACE$(SAVE_INFO_LEN), SAVE_INFO_LEN)
+setTag$ = "" : IF sectorSet = 1 THEN setTag$ = "NEW: " ELSE IF sectorSet = 2 THEN setTag$ = "OLD NEW: " ' (another set's: says so)
+saveInfo$ = LEFT$(setTag$ + levelName$ + "  " + DATE$ + " " + LEFT$(TIME$, 5) + SPACE$(SAVE_INFO_LEN), SAVE_INFO_LEN)
 PUT #fileNum, , saveInfo$
-PUT #fileNum, , level
+levelSaved = level : IF sectorSet AND level <= NUM_LEVELS THEN levelSaved = sectorSet * 100 + level ' (another set's sector: 100 a set on - an old save is the game's own)
+PUT #fileNum, , levelSaved
 levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
 PUT #fileNum, , health : PUT #fileNum, , armor : PUT #fileNum, , kills : PUT #fileNum, , currentGun : PUT #fileNum, , levelTime!
 PUT #fileNum, , totalKills : PUT #fileNum, , totalMonsters : PUT #fileNum, , totalTime!
@@ -7649,6 +7677,8 @@ saveTag$ = SPACE$(LEN(SAVE_TAG)) : GET #fileNum, , saveTag$ ' (GET fills a strin
 IF saveTag$ <> SAVE_TAG THEN CLOSE #fileNum : ShowMsg "That isn't a NEON-CASTER save" : RETURN
 saveInfo$ = SPACE$(SAVE_INFO_LEN) : GET #fileNum, , saveInfo$
 GET #fileNum, , level
+sectorSet = 0 : IF level > 100 THEN sectorSet = level \ 100 : level = level MOD 100 ' (another set's sector)
+GOSUB ReadSectorNames
 GOSUB LoadLevel
 GET #fileNum, , health : GET #fileNum, , armor : GET #fileNum, , kills : GET #fileNum, , currentGun : GET #fileNum, , levelTime!
 GET #fileNum, , totalKills : GET #fileNum, , totalMonsters : GET #fileNum, , totalTime!
@@ -9039,7 +9069,11 @@ END FUNCTION
 
 ' Is there a sector n? (The game's are always there; yours once made.)
 FUNCTION SectorExists(n)
-    IF n >= 1 AND n <= NUM_LEVELS THEN SectorExists = -1 ELSE IF n > NUM_LEVELS AND n <= NUM_LEVELS + MAX_CUSTOM THEN SectorExists = _FILEEXISTS(LevelFile$(n))
+    IF n >= 1 AND n <= NUM_LEVELS THEN
+        IF sectorSet = 0 THEN SectorExists = -1 ELSE SectorExists = _FILEEXISTS(LevelFile$(n)) ' (a set's: once it's made)
+    ELSEIF n > NUM_LEVELS AND n <= NUM_LEVELS + MAX_CUSTOM THEN
+        SectorExists = _FILEEXISTS(LevelFile$(n))
+    END IF
 END FUNCTION
 
 ' A sector's music: its own - or, for one of yours, one of the game's in turn
@@ -9076,7 +9110,32 @@ END SUB
 
 FUNCTION LevelFile$(n)
     IF n > NUM_LEVELS THEN LevelFile$ = CustomDir$ + "custom" + LTRIM$(STR$(n - NUM_LEVELS)) + ".txt" : EXIT FUNCTION
-    LevelFile$ = AssetPath$("levels/level" + LTRIM$(STR$(n)) + ".txt")
+    LevelFile$ = AssetPath$("levels/" + SetDir$(sectorSet) + "level" + LTRIM$(STR$(n)) + ".txt")
+END FUNCTION
+
+' SECTOR SETS: set s's folder, under levels/ ("" for the game's own ten)...
+FUNCTION SetDir$(s)
+    SELECT CASE s
+        CASE 1 : SetDir$ = "new/"
+        CASE 2 : SetDir$ = "remix/"
+        CASE ELSE : SetDir$ = ""
+    END SELECT
+END FUNCTION
+
+' ...its name, as the menu has it...
+FUNCTION SetName$(s)
+    SELECT CASE s
+        CASE 1 : SetName$ = "NEW SECTORS"
+        CASE 2 : SetName$ = "OLD SECTORS NEW"
+        CASE ELSE : SetName$ = "THE ORIGINAL TEN"
+    END SELECT
+END FUNCTION
+
+' ...and its sector n's name ("" if there's no such file yet)
+FUNCTION SetSectorName$(s, n)
+    was = sectorSet : sectorSet = s
+    SetSectorName$ = SectorNameOf$(n)
+    sectorSet = was
 END FUNCTION
 
 ' Read level n's file (chapter 22) into lvlName$, lvlWall$() ... lvlRow$():
@@ -13474,7 +13533,7 @@ SUB ConHelp(c$)
     SELECT CASE c$
         CASE ""
             ConPrint "Commands (help NAME for more; ; separates several on a line):"
-            ConPrint "  map N|name   maps   restart   newgame   finish     - sectors"
+            ConPrint "  map N|name   maps   sectorset 0|1|2   restart   newgame   finish     - sectors"
             ConPrint "  give all|keys|key r|weapons|gun N|ammo|health|armor|overcharge|amp|map"
             ConPrint "  god [on|off]   kill   respawn   summon TYPE [N]   mons   kick   tp X Y [ANGLE]   pos   status"
             ConPrint "  save N|quick   load N|quick   quicksave   quickload"
@@ -13489,6 +13548,7 @@ SUB ConHelp(c$)
             ConPrint "From the command line, each command starts with + :"
             ConPrint "  neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit"
         CASE "map" : ConPrint "map N (1-" + LTRIM$(STR$(NUM_LEVELS)) + ", yours from" + STR$(NUM_LEVELS + 1) + ") or map NAME (part of one): go to that sector, keeping what you carry"
+        CASE "sectorset", "campaign" : ConPrint "sectorset 0|1|2 (original, new, remix): which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS or OLD SECTORS NEW"
         CASE "newsector" : ConPrint "newsector: a blank sector of your own (levels/custom/), opened in the editor - carve rooms out with . (floor), Ctrl+S saves"
         CASE "sectorname" : ConPrint "sectorname NAME: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it"
         CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-4 | ammo [cells|shells N] | health [N] | armor [N] | overcharge | amp | map"
@@ -14000,6 +14060,9 @@ SUB BuildMenu(scr)
             menuTitle$ = "GAME"
             AddMenuItem "NEW GAME", MI_ACTION, 0, MA_NEW, -1, ""
             AddMenuItem "SELECT SECTOR", MI_SUBMENU, SCR_SECTOR, 0, -1, ""
+            FOR s = 1 TO NUM_SETS ' (the other sets of ten: each from any of its sectors - once there are any)
+                AddMenuItem SetName$(s), MI_SUBMENU, SCR_SET1 + s - 1, 0, LEN(SetSectorName$(s, 1)) > 0, ""
+            NEXT
             AddMenuItem "YOUR SECTORS", MI_SUBMENU, SCR_CUSTOM, 0, -1, ""
             AddMenuItem "LOAD GAME", MI_SUBMENU, SCR_LOAD, 0, -1, ""
             AddMenuItem "SAVE GAME", MI_SUBMENU, SCR_SAVE, 0, menuInGame, "" ' (only during a game)
@@ -14007,8 +14070,16 @@ SUB BuildMenu(scr)
         CASE SCR_SECTOR ' A new game, starting in any sector
             menuTitle$ = "SELECT SECTOR" : menuWide = -1
             FOR n = 1 TO NUM_LEVELS
-                nm$ = sectorName$(n) : c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2)
+                nm$ = SetSectorName$(0, n) : c = INSTR(nm$, ": ") ' (the game's own ten, whichever set you've been playing) : IF c THEN nm$ = MID$(nm$, c + 2)
                 AddMenuItem LTRIM$(STR$(n)) + "  " + nm$, MI_ACTION, n, MA_SECTOR, -1, ""
+            NEXT
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_SET1 TO SCR_SET1 + NUM_SETS - 1 ' Another set of ten: a new game in any of its sectors (miRef: set * 100 + sector)
+            s = scr - SCR_SET1 + 1
+            menuTitle$ = SetName$(s) : menuWide = -1
+            FOR n = 1 TO NUM_LEVELS
+                nm$ = SetSectorName$(s, n) : c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2)
+                IF LEN(nm$) THEN AddMenuItem LTRIM$(STR$(n)) + "  " + nm$, MI_ACTION, s * 100 + n, MA_SECTOR, -1, ""
             NEXT
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_CUSTOM, SCR_CUSTOM2 ' Your own sectors (chapter 22): play one, or make a new one - ten a page
