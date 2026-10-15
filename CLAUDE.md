@@ -91,6 +91,25 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   are read and written by hand in `LoadSettings`/`SaveSettings`. MODE is
   worked out from the others (`ModeNow`), never loaded.
 
+## Achievements and Steam
+
+- 45 achievements (`AchDef` lines in `AchSetup`) go through `lib/steam`
+  (QB64_GJ_LIB's STEAM, vendored). With `NEON_APP_ID = 0` the library's
+  mock keeps them in `saves/achievements.txt`. `steam/make_tables.py`
+  writes Steamworks' CSVs from the `AchDef` lines; `steam/README.md` is the
+  go-live guide.
+- **A test run is a cheat run:** `+map`, `god`, `give`, `tp` and the like set
+  `achCheat`, which holds achievements and records. Run with
+  `NEON_ACH_TEST=1` to test them anyway. A level's own triggers don't count
+  (`conFromTrig`).
+- Badges: `neon-caster/achievements/NAME.png` and `NAME_locked.png` (64 px)
+  and `steam/achievements/*.jpg` (256), drawn by pixelmon (`steam/badges.txt`
+  has the prompts; use `--server rtx`, it's ~4x faster than local) and cut
+  round by `steam/make_icons.sh FOLDER`.
+- The sector clock (`levelStart!`) skips any frame over half a second (a
+  menu, the console, the editor): read times through `frameAt!`, not
+  `TIMER`, anywhere the game might be paused.
+
 ## Levels
 
 - `neon-caster/levels/levelN.txt` (1-10) are built by the level kit:
