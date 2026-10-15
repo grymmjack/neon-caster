@@ -12,6 +12,8 @@ A sector takes five minutes to start: **GAME > YOUR SECTORS > NEW SECTOR**, then
 - [The map view](#the-map-view)
 - [Every map character](#every-map-character)
 - [Heights](#heights)
+- [Liquids](#liquids)
+- [Blocks: less than a cell](#blocks-less-than-a-cell)
 - [Lights](#lights)
 - [Beyond the editor: the level file](#beyond-the-editor-the-level-file)
 - [Building from the console](#building-from-the-console)
@@ -24,7 +26,7 @@ A playable sector needs only four things: walls all round the edge, one start, o
 
 1. Open **GAME > YOUR SECTORS > NEW SECTOR**. You get the first free sector number - 22, since the eleven examples below are 11 to 21 - up to 30 (past 20 they're under **MORE SECTORS**), saved as `neon-caster/levels/custom/customN.txt`, N ten less than the sector (sector 22 is `custom12.txt`). It's solid wall with one lit 8 × 8 room in the middle, cells 20 to 27 each way. You stand at (21, 24) facing east, and the exit `E` is at (28, 24).
 2. You land in the **map view**: the level from above. Press **Tab** (or the **3D** button) to be inside it instead. Either way, the **toolbar** has the tools and the **picker** has everything you can put in a level.
-3. **Push a wall back.** In the 3D view, point at a wall and hold **Shift** while you turn the wheel down: the wall goes back a cell at a time and the room grows. Wheel up with Shift pulls a wall out towards you.
+3. **Push a wall back.** In the 3D view, click a wall to select it, then hold **Shift** while you turn the wheel down: the wall goes back a cell at a time and the room grows. Wheel up with Shift pulls a wall out towards you.
 4. **Carve a room from above.** In the map view, choose **PLACE**, open the picker's **SPECIAL** tab and click the floor tile, then hold **Shift** and drag a box. The whole box becomes floor. Make sure it touches the first room.
 5. **Add a door.** Picker, **DOORS** tab, click the sliding door, then click the wall cell between the rooms. Doors need a wall either side to slide into.
 6. **Put things in it.** The **MONSTERS** and **ITEMS** tabs. In the 3D view a see-through copy shows where each one will go before you click.
@@ -97,6 +99,7 @@ The world is a grid of cells, 48 × 48. Walls fill whole cells, and each cell ha
 | DECOR | All 21 decorations |
 | SPECIAL | The start (four ways round), the teleporter pad, the data station, the code terminal, plain floor |
 | LIGHTS | The six ways a light can go (steady, flicker, pulse, strobe, fire, dying), each shown going, in the brush's colour; then twelve colours |
+| LIQUIDS | DRAIN, then water, poison, slime, lava and acid, each 2, 4 and 6 eighths deep: pick one and PAINT pours it (see [Liquids](#liquids)) |
 
 Click one and it's the **brush**, and the tool that uses it is chosen for you: a map character picks PLACE, a picture picks PAINT, an effect or colour picks LIGHT. If something is **selected** when you click, it's done to the selection at once: the character is put in every selected cell (for a wall face, the cell in front of it), the picture painted on every selected face, the effect or colour given to every selected face's light.
 
@@ -112,7 +115,7 @@ The game, frozen, with a mouse pointer. Monsters don't move, pickups aren't take
 | Space, C | Up, down (Shift: faster) |
 | Look up (or down) and walk | Climb (or sink) as you go - OpenGL, with LOOK UP / DOWN on |
 | Left click | The tool (below) |
-| Wheel | Shape what's selected, or what's under the pointer (next section) |
+| Wheel | Shape what's selected (next section) - never just what's under the pointer |
 | Ctrl+D | Select nothing |
 | Del | Delete the selection |
 | H, V | Divide a face left / right, top / bottom |
@@ -140,7 +143,7 @@ The older keys still work, aimed along the middle of the view: **T** steps every
 
 ## Shaping: the wheel, the arrows, Delete
 
-**The wheel** works on the selection; with nothing selected, on the face under the pointer, which then stays selected so you can keep turning. A pause of half a second starts a new undo step.
+**The wheel** works on the selection, and only the selection: with nothing selected it changes nothing (click a face first). The face under the pointer is never changed just because the pointer is on it. A pause of half a second starts a new undo step.
 
 | On | Wheel up / down |
 | --- | --- |
@@ -161,7 +164,7 @@ Rough a level out this way: Shift+wheel walls back to make rooms and corridors, 
 
 Any face can have a picture of its own: a wall's side, a step's or lintel's face, a floor, a ceiling. Pick a picture in the picker (it chooses PAINT) and click faces. **Ctrl+click** paints a whole floor or ceiling, **Shift+click** puts back the usual picture, **Alt+click** picks a face's picture up. Picking a picture with faces selected paints them all. From above, PAINT paints a cell's floor (Ctrl: its ceiling), or all four sides of a wall.
 
-**Divide** splits a face in two for pictures. Point at a face (or select some) and press **H** for left | right or **V** for top | bottom; press it again to make the face whole. The halves start with the face's picture. Each half is outlined on its own when you point at it ("half 1", "half 2"), can be selected on its own, and painted on its own. A floor or ceiling divides west | east (H) or north | south (V). Top | bottom splits at the face's middle height, so on a tall wall it may be above your eye.
+**Divide** splits a face in two for pictures. Select a face (or several) and press **H** for left | right or **V** for top | bottom; press it again to make the face whole. The halves start with the face's picture. Each half is outlined on its own when you point at it ("half 1", "half 2"), can be selected on its own, and painted on its own. A floor or ceiling divides west | east (H) or north | south (V). Top | bottom splits at the face's middle height, so on a tall wall it may be above your eye.
 
 Both renderers draw every picture and half. A sector can use up to **24** pictures of its own on faces, counting the tinted copies lights make (below); past that, extra ones are ignored without a message.
 
@@ -177,7 +180,9 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | A monster | SIGHT, HEARING, HEALTH and SPEED, and what WAKES it; AS ITS KIND IS resets it. Its sight (cyan) and hearing (yellow) are drawn as rings on the floor round it. |
 | A floor of a lift | LOW, HIGH and SPEED in eighths, UP AND DOWN or ELEVATOR, REMOVE |
 | A cell in an event room | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT. The table under `[events]` below says what each kind does. |
-| Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with), and ADD A LIGHT TO IT |
+| A block's side | Its edges in eighths; PUSH IN and PULL OUT move the selected side an eighth (every block side selected); LOOKS LIKE THE WALL: `#` `N` `C` `K` `P` `G`; REMOVE THE BLOCK; ADD A LIGHT TO IT |
+| Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with), ADD A PILLAR (a block a quarter of a cell square, in the middle), ADD A LIGHT TO IT - and, with a decoration on it, MOVE IT `<` `>` `^` `v`, an eighth at a time (this row is on a light's pane too, when the light is over the decoration) |
+| A plain wall | MAKE IT A BLOCK (the wall becomes a block filling its cell, its sides' pictures kept, and the side you clicked stays selected, ready to PUSH IN), ADD A LIGHT TO IT |
 | Any other face | ADD A LIGHT TO IT |
 | TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead) or TIME (seconds into the level); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them, or click the action buttons (+25 HP, -25 HP, DIE, +CELLS, -CELLS, +SHELLS, -SHELLS, GIVE ALL, TAKE ALL) to add theirs; ADD IT. |
 | Nothing (the SECTOR button) | NAME: type the sector's name, Enter to keep it (Esc not). LIGHT: the ambient light, brighter or darker, and twelve colours to tint it. ITS PICTURES: the six kinds of wall (`#` `N` `C` `K` `P` `G`), the four floors and two ceilings the level's zones use - click one, and the picker opens at its tab: the next picture you click is that one's, everywhere it's used. |
@@ -333,7 +338,7 @@ Every cell has its own floor and ceiling height, measured in **eighths of a wall
 
 **Raising and lowering**
 
-- **3D view:** point at a floor or ceiling (or select some) and turn the **wheel**; Ctrl moves a whole wall at a time. Or the HEIGHT tool: click to raise, Shift+click to lower.
+- **3D view:** select a floor or ceiling (or several) and turn the **wheel**; Ctrl moves a whole wall at a time. Or the HEIGHT tool: click to raise, Shift+click to lower.
 - **Map view:** select cells and turn the wheel (Ctrl: ceilings); or the HEIGHT tool: click to raise a cell's floor, right-click to lower it, Shift for the ceiling.
 - **Console:** `raise X Y EIGHTHS` for one cell, or `raise X0 Y0 X1 Y1 EIGHTHS` for a box; add `ceil` for the ceiling.
 
@@ -359,7 +364,50 @@ Case matters here too: `a` is 10 up, `A` is 1 down. A level with neither section
 
 **Outdoors: skies.** A ceiling picture whose name starts `sky-` isn't laid on the ceiling: it's drawn by the way you look, like Doom's sky, so it seems endlessly far off and stays put as you walk. Four come with the game: `sky-neon-night` (the city at night, a moon), `sky-dusk` (a sunset behind the skyline), `sky-storm` (clouds and lightning) and `sky-orbit` (a ringed planet in a nebula). Put one in the sector's ceilings (the SECTOR pane, or `ceilings =`) and give the open-air cells that ceiling with a zone (or PAINT single ceilings with it from the CEILINGS tab); everywhere else keeps a roof. Raise those ceilings well up (two to four walls) so walls don't hide the horizon. Under a sky there are no lamp fixtures or light beams, and a step in the ceiling between two sky cells is sky, not a wall in the air. A sky is a panorama: 360 degrees across, from the horizon to 72 degrees up; `neon-caster/levels/skies.py` paints them (2560 × 512, squeezed square), so copy it to make your own.
 
-**Floor hazards** come from the floor picture's name: a floor whose picture name contains `molten` or `lava` burns you, and `murky` or `slime` slows you down. That goes for a picture PAINTed on a single floor too, so a river of lava or a flooded aisle is a matter of painting it.
+**Floor hazards** come from the floor picture's name: a floor whose picture name contains `molten` or `lava` burns you, and `murky` or `slime` slows you down. That goes for a picture PAINTed on a single floor too, so a river of lava or a flooded aisle is a matter of painting it. For a real pool, with a surface you wade in, use a liquid (next).
+
+## Liquids
+
+A liquid is a pool lying on the floor: it has a surface (its depth above the floor), you see the floor through it in OpenGL, and it ripples. Five kinds:
+
+| Liquid | What it does | See-through (OpenGL) |
+| --- | --- | --- |
+| Water | Slows you | Mostly |
+| Slime | Slows you a lot, stings a little | Hardly |
+| Poison | Hurts steadily, turns everything green | Some |
+| Acid | Eats your armor first (twice as fast as it would hurt you), then you | Some |
+| Lava | Burns hard, glows and lights the room round it | No |
+
+You wade slower the deeper it is. In anything deeper than three eighths you float, head above it, so the deepest pools don't drown the view. A fall into one is softened. Monsters never walk into the harmful ones, are slowed by all of them, and get hurt if you kick them in; hovering ones don't care. Harmful pools bubble as you come near.
+
+**Pouring one.** Open the picker's **LIQUIDS** tab and pick a kind and depth (2, 4 or 6 eighths); that's PAINT's brush now.
+
+| | 3D view | Map view |
+| --- | --- | --- |
+| Pour | Click a floor | Click or drag over cells |
+| A whole floor | Ctrl+click (every cell joined to it at its height) | Select a box, then pick the liquid |
+| Drain | Shift+click, or the DRAIN entry | Shift+click or drag, or DRAIN |
+| Into the selection | Pick the liquid with floors selected | The same |
+
+A liquid lies only on floor cells (with or without something standing on them), never on a wall, a door or a lift. The usual way to make a pool is a sunken floor (lower it with the wheel or the HEIGHT tool) filled to near the top. A liquid standing higher than the floor beside it shows its sides, so a pool on flat ground looks like a slab of water. The software renderer draws the surface solid, moving.
+
+## Blocks: less than a cell
+
+Walls fill whole cells. A **block** is a solid box standing inside one open cell, its edges anywhere on an eighth of a cell, from the floor to the ceiling: a pillar, a wall an eighth thick, a half-width ledge, the back of an alcove. It blocks you, monsters, shots and sight, and looks like one of the level's six walls (`#` `N` `C` `K` `P` `G`). Each of its four sides is a face of its own: PAINT puts a picture on it, Divide splits it, and a light on it tints it, just as on a wall. A side shows the part of its picture that its place in the cell says, as a wall there would, so a block against a wall lines up with it and a pillar a quarter wide shows a quarter of the picture.
+
+**Making one.** Select a plain wall and press **MAKE IT A BLOCK**: the wall becomes a block filling its cell, and the side you clicked is still selected. Now **PUSH IN** moves that side back an eighth at a time. Or select a floor and press **ADD A PILLAR** for a block a quarter of a cell square in the middle of it, then click any side and PUSH IN or PULL OUT. A block is at least an eighth each way and stays inside its cell; DELETE (or REMOVE THE BLOCK) takes it away. One block per cell.
+
+**An alcove with a computer in it,** two lit pillars beside it and a light pulsing over it, in a wall facing south:
+
+1. Click the wall cell where the alcove goes, then **MAKE IT A BLOCK**, then **PUSH IN** four times: the back half of the cell stays solid, the front half is a recess.
+2. Raise the alcove cell's floor to half a wall and drop its ceiling to seven-eighths (HEIGHT, or the wheel), so the recess runs from the middle of the wall up to just under the top.
+3. PLACE a terminal (`t`) in the alcove cell, select it, and **MOVE IT** down an eighth or two so it stands in the open half.
+4. In each room cell beside the alcove, **ADD A PILLAR**; then PUSH IN its sides until it's a slim post against the wall. PAINT its sides with `wall-lightstrip`, and put a light on a side for a glow.
+5. With the LIGHTS brush on **PULSE**, put a light on the alcove's floor or ceiling.
+
+**Decorations off-centre.** A decoration stands in its cell's middle unless it's moved: select it, and its pane's **MOVE IT** row nudges it up to three eighths each way. That's how one stands in an alcove or against a block.
+
+The console makes blocks too: `block X Y X0 Y0 X1 Y1 [WALL]` (edges in eighths, WALL 1-6 for `#` to `G`), `block X Y none` to take one away. Blocks are saved as `[blocks]`, moved decorations as `[nudges]` (below).
 
 ## Lights
 
@@ -393,7 +441,7 @@ Ctrl+S rewrites the whole file in a fixed layout. Only the comments at the very 
 
 **Pictures.** `walls =` needs exactly 6 picture names (for `# N C K P G`), `floors =` 4 and `ceilings =` 2. A misspelled name makes the game quit with "Missing texture". These are the pictures in `neon-caster/`:
 
-- **Walls:** wall, wall2, wall-adverts, wall-biolab, wall-brick, wall-coils, wall-concrete, wall-control, wall-core, wall-cryo, wall-datastream, wall-frost, wall-furnace, wall-girders, wall-graffiti, wall-grate, wall-greenhouse, wall-greenpipes, wall-hazard, wall-hull, wall-ice, wall-moss, wall-obsidian, wall-pipes, wall-reactor, wall-rusty, wall-servers, wall-slime, wall-stripes, wall-terminals, wall-tiles, wall-transit, wall-vault, wall-viewport, wall-vines, wall-white. (`wall-jack` and `wall-code` are the data station's and code terminal's own.)
+- **Walls:** wall, wall2, wall-adverts, wall-biolab, wall-brick, wall-coils, wall-concrete, wall-control, wall-core, wall-cryo, wall-datastream, wall-frost, wall-furnace, wall-girders, wall-graffiti, wall-grate, wall-greenhouse, wall-greenpipes, wall-hazard, wall-hull, wall-ice, wall-lightstrip, wall-moss, wall-obsidian, wall-pipes, wall-reactor, wall-rusty, wall-servers, wall-slime, wall-stripes, wall-terminals, wall-tiles, wall-transit, wall-vault, wall-viewport, wall-vines, wall-white. (`wall-jack` and `wall-code` are the data station's and code terminal's own.)
 - **Floors:** floor, floor-circuit, floor-cobbles, floor-concrete, floor-core, floor-deck, floor-frostgrate, floor-glow, floor-hazard, floor-ice, floor-lab, floor-molten (burns), floor-murky (slows), floor-plates, floor-platform, floor-rustgrate, floor-scorched, floor-soil, floor-white.
 - **Ceilings:** ceiling, ceiling-cables, ceiling-core, ceiling-frost, ceiling-girders, ceiling-growlights, ceiling-hull, ceiling-lights, ceiling-pipes, ceiling-stone, ceiling-tunnel, ceiling-vents, ceiling-warning.
 
@@ -427,13 +475,22 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 
 **`[lifts]`** (MAKE A LIFT, and a lift's pane): `x0, y0, x1, y1, low, high, mode, speed`. `low` and `high` are in eighths and `speed` is eighths a second. `mode` 1 goes up and down by itself, 2 is an elevator (up when you step on, down after you step off), and 3 moves only when a `liftgo` command says so. Up to 16.
 
-**`[faces]`** (PAINT and Divide): a picture of its own on one face, one line each: `x, y, face, divided, picture, second picture`. `face` is `E` `S` `W` `N` for a side of the cell (a wall's, or a step's face), `LE` `LS` `LW` `LN` for a lintel's, `F` the floor, `C` the ceiling. `divided` is 0 for the whole face, 1 for left | right, 2 for top | bottom; the second picture is the second half's (left out: the usual picture). Up to 4000.
+**`[faces]`** (PAINT and Divide): a picture of its own on one face, one line each: `x, y, face, divided, picture, second picture`. `face` is `E` `S` `W` `N` for a side of the cell (a wall's, or a step's face), `LE` `LS` `LW` `LN` for a lintel's, `F` the floor, `C` the ceiling, `BE` `BS` `BW` `BN` for a side of the cell's block. `divided` is 0 for the whole face, 1 for left | right, 2 for top | bottom; the second picture is the second half's (left out: the usual picture). Up to 4000.
 
 ```
 26, 26, W, 0, wall-adverts.png
 25, 18, S, 2, wall-adverts.png, wall-brick.png
 24, 23, F, 1, floor-circuit.png, floor-cobbles.png
 ```
+
+**`[blocks]`** (MAKE IT A BLOCK, ADD A PILLAR, a block's pane): `x, y, x0, y0, x1, y1, wall`. `x0` to `x1` is where it runs across its cell and `y0` to `y1` down it, in eighths (0 to 8, low before high); `wall` is 1-6, the look of `#` `N` `C` `K` `P` `G`. Only in an open cell, one to a cell. Up to 256.
+
+```
+24, 19, 0, 0, 8, 4, 1
+23, 20, 5, 0, 8, 3, 4
+```
+
+**`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy` in eighths across and down, -3 to 3. Up to 64.
 
 **`[pads]`** (LINK): teleporter pads paired by hand, `x1, y1, x2, y2`. Pads in no pair here pair up as ever, in reading order. Up to 16.
 
@@ -458,6 +515,31 @@ use 30 14 : door 31 14 open ; sound alarm ; item medkit 31 16
 
 A trigger box one cell thick across a corridor (the second line) is a line: cross it and the closet door beside it opens, with its crawlers already inside.
 
+**`[liquid]`** and **`[liquid depth]`** (the LIQUIDS tab): two more maps like `[floor]`, one character a cell. `[liquid]` is `.` for none, or `w` water, `p` poison, `s` slime, `l` lava, `a` acid; `[liquid depth]` is `.` for three eighths, or `1` to `8`. Both are left out when there's no liquid.
+
+**`[loot]`** says what breakables leave behind. One line per kind: `BREAKABLE = DROP, DROP, DROP, DROP`, up to four drops (A to D), each `pickup:chance` with the chance in percent, or `-` for an empty slot. Breaking one rolls a d4 to pick a drop (an empty slot gives nothing), then 1 to 100: at or under that drop's chance, its pickup is tossed out of the wreck. It goes any way at all if the thing was shot or blown up, and back your way if you kicked it. It lands where you can see it and walk over to it, never at your feet, and can't be caught in mid-air.
+
+```
+crate    = ammo:20, shells:20, medkit:20, armor:10
+locker   = amp:10, -, medkit:30, armor:30
+plant    =
+```
+
+The third line makes plants leave nothing. A breakable is any decoration's name: `barrel`, `crate`, `desk`, `locker`, `labbench`, `vending`, `console`, `plant`, `terminal`, `rack`, `generator` and so on. The pickups are the `item` command's names (`ammo` is energy cells). Kinds the section doesn't name keep the game's own table:
+
+| Breakable | A | B | C | D |
+| --- | --- | --- | --- | --- |
+| barrel | ammo 10% | shells 10% | medkit 5% | armor 5% |
+| console | ammo 5% | shells 5% | | |
+| crate | ammo 20% | shells 20% | medkit 20% | armor 10% |
+| desk | ammo 10% | shells 10% | medkit 10% | armor 5% |
+| locker | amp 10% | overcharge 10% | medkit 30% | armor 30% |
+| labbench | ammo 5% | shells 5% | medkit 10% | armor 5% |
+| vending | ammo 50% | shells 50% | medkit 25% | armor 10% |
+| plant | ammo 5% | shells 5% | medkit 5% | |
+
+The console's `loot` lists the sector's table; `loot crate ammo:20 shells:20 - armor:10` sets one kind, `loot crate none` empties it, and `loot default` puts the game's table back. Then **savelevel** (or Ctrl+S) writes it into the level's `[loot]`.
+
 ## Building from the console
 
 The console (`` ` ``, in the game or the 3D view) can build with exact coordinates, which is quicker than clicking for big shapes. Put several commands on one line with `;`, and press Tab to finish a command's name. The building commands work even outside the editor, but each one rebuilds the level, so monsters and pickups reset.
@@ -471,6 +553,7 @@ The console (`` ` ``, in the game or the 3D view) can build with exact coordinat
 | `raise X0 Y0 X1 Y1 EIGHTHS [ceil]` | The same for a rectangle | Yes |
 | `lamp X Y [1-8]` | A light over a cell, in a preset | Yes |
 | `lift X0 Y0 X1 Y1 LOW HIGH [MODE] [SPEED]` | Add a lift (mode 2 and speed 8 unless you say) | Yes |
+| `block X Y X0 Y0 X1 Y1 [WALL]` | A block in open cell X Y, edges in eighths, WALL 1-6 (`#` `N` `C` `K` `P` `G`); `block X Y none` takes it away | Yes |
 | `trigger WHEN : CMD \| CMD` | Add a trigger; `\|` separates its commands. `trigger del N` removes one. | Yes, but Ctrl+Z can't remove it |
 | `triggers` | List the level's triggers | |
 | `undo` / `savelevel` | Same as Ctrl+Z / Ctrl+S | |
@@ -492,6 +575,8 @@ These only change the running level, so they're for testing and for triggers rat
 | `die [MESSAGE]` | You die (never in god mode or the editor) |
 | `spawn TYPE X Y [N]` | N monsters teleported into cell X Y, hunting (sparks and a sound): an ambush from nowhere. `summon TYPE [N]` puts them in front of you instead |
 | `item KIND X Y` | A pickup appears in cell X Y: health, medkit, armor, cells, shells, scatter, repeater, rail, map, overcharge, amp, red, blue, yellow (or its map character) |
+| `liquid KIND X0 Y0 X1 Y1 [DEPTH]` | A pool over that rectangle's floor: water, poison, slime, lava or acid, DEPTH 1-8 eighths (3); `none` drains it. In a trigger, it floods a room |
+| `loot` / `loot BREAKABLE DROPS` / `loot default` | What breakables leave in this sector: list it, set one kind (`loot crate ammo:20 shells:20 - armor:10`), or the game's own table back (see `[loot]`) |
 | `mons` | List every monster: where it is, asleep or hunting, its health, and its own sight, hearing, speed and waking |
 | `sound NAME` | Play `sfx/NAME.wav` |
 
@@ -571,10 +656,11 @@ It reports anything you can't reach (following your `[pads]` pairs), doors witho
 **Other surprises:**
 
 - Every edit rebuilds the level: dead monsters come back and your keycards are taken away.
-- Walls, heights and collision are per cell, so a wall moves a cell at a time and Divide only splits pictures.
+- Walls and heights are per cell, so a wall moves a cell at a time and Divide only splits pictures. For less than a cell, use a block.
 - Ctrl+S keeps only the comments at the very top of the file; everything else is rewritten in a fixed layout.
 - Lights over 96 in total (automatic ones included), and pictures on faces past 24 different ones, are dropped silently.
-- Undo covers everything the editor changes: the map, heights, zones, lights, lifts, events, triggers, faces, pad pairs, monsters' settings, the name and the ambient light.
+- Undo covers everything the editor changes: the map, heights, zones, lights, lifts, events, triggers, faces, pad pairs, monsters' settings, blocks, moved decorations, the name and the ambient light.
+- A block and a moved decoration belong to their cell, like a monster's settings: the arrows carry them along, and putting a wall or a door in the cell takes its block away.
 - A monster's own settings belong to the cell it starts in: the arrows carry them along, and putting something else in the cell drops them.
 - Esc in the 3D view opens the pause menu; the editor keeps going underneath it.
 - There's no in-game way to delete one of your sectors: delete its file in `neon-caster/levels/custom/`. The `.bak` file next to it is the editor's backup copy of the level.

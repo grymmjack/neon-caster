@@ -385,6 +385,15 @@ def level3():
             elif k >= 12: m.floor(x, y, x, y, -2)
     m.ceiling(3, 26, 14, 45, 16)
     m.light(36.5, 21.5, 5, 140, 120, 255, 160, 2)     # the cistern glows under water
+    # ...and the water itself ([liquid]): the channel, the cistern and the
+    # flooded hall all fill to one waterline, an eighth below the tunnel
+    # floor - ankle deep in the channel, deeper in the pits. You wade (it
+    # slows you); the murky floor is its bed, seen through it.
+    for y in range(1, N - 1):
+        for x in range(1, N - 1):
+            f = m.floor_at(x, y)
+            if f < 0 and m.g[y][x] not in WALLS:
+                m.liquid(x, y, "w", -f - 1)
     m.headroom(7)
     m.min_room = 7  # (the tunnels stay low)
     m.heights_done = True
@@ -1405,8 +1414,9 @@ def dress_teleport(m, rng):
 
 
 def dress_hints(m):
-    """A few triggers that tell you what you're looking at, the first time
-    you're near: a data station, an elevator, a teleporter"""
+    """A trigger that tells you what to do at a data station, the first time
+    you're near one: press SPACE - nothing shows you that. (No hints for
+    what you can see for yourself: an elevator, a teleporter.)"""
     for y in range(1, N - 1):
         for x in range(1, N - 1):
             if m.g[y][x] == "@":
@@ -1414,12 +1424,6 @@ def dress_hints(m):
                     if m.g[y + dy][x + dx] == ".":
                         m.triggers.append("enter %d %d %d %d : message A DATA STATION - face it and press SPACE to jack in" % (x + dx - 1, y + dy - 1, x + dx + 1, y + dy + 1))
                         break
-    for l in m.lifts:
-        m.triggers.append("enter %d %d %d %d : message AN ELEVATOR - stand on it" % (l[0] - 1, l[1] - 1, l[2] + 1, l[3] + 1))
-    pads = [(x, y) for y in range(N) for x in range(N) if m.g[y][x] == "&"]
-    if pads:
-        x, y = pads[0]
-        m.triggers.append("enter %d %d %d %d : message A TELEPORTER - step on it" % (x - 1, y - 1, x + 1, y + 1))
 
 
 PUZZLES = {1: "hello", 2: "multiply", 3: "countdown", 4: "password", 5: "sum",
@@ -1726,7 +1730,8 @@ def main():
                   ceils=ceils, ambient=m.ambient, zones=m.zones, lights=m.lights,
                   events=m.events, rows=m.rows(), lifts=m.lifts,
                   floor=["".join(r) for r in m.fh], ceiling=["".join(r) for r in m.ch], triggers=m.triggers,
-                  puzzles=getattr(m, "puzzles", ""))
+                  liquid=["".join(r) for r in m.lq], liquid_depth=["".join(r) for r in m.ld],
+                  blocks=m.blocks, nudges=m.nudges, puzzles=getattr(m, "puzzles", ""))
         ok &= check_level(lv, ASSETS)
         out.append((lv, comment))
     ok &= not PROBLEMS

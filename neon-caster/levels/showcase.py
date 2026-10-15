@@ -69,6 +69,8 @@ class Show(Map):
         lv["faces"] = ["%d, %d, %s, %d, %s%s" % (x, y, f, d, p1, (", " + p2) if p2 else "")
                        for (x, y, f), (d, p1, p2) in sorted(self.faces.items(), key=lambda t: (t[0][1], t[0][0], t[0][2]))]
         lv["pads"] = list(self.pads)
+        lv["blocks"] = list(self.blocks)
+        lv["nudges"] = list(self.nudges)
         lv["monsters"] = [(x, y) + v for (x, y), v in sorted(self.mons.items(), key=lambda t: (t[0][1], t[0][0]))]
         return lv
 

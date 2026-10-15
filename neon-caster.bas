@@ -221,6 +221,20 @@ DIM SHARED doorType(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' 1 top-left, 2 top-right, 3 bottom-right, 4 bottom-left. Its worldMap value
 ' is the wall it looks like.
 DIM SHARED diagCorner(MAP_SIZE, MAP_SIZE) AS INTEGER
+' Boxes: a solid block standing in an open cell - a pillar, a thin wall, the
+' back of an alcove - its edges anywhere in the cell, in eighths (boxX0 ..
+' boxX1 across, boxY0 .. boxY1 down, 0 to 1), floor to ceiling. boxOn is
+' the wall it looks like (1 to 7, as worldMap's walls; 0: no box). The
+' level file's [boxes] lines (lvlBox: x, y, x0, y0, x1, y1 in eighths,
+' and its wall, 1 to 6 for # N C K P G) - chapter 23 has the maths.
+CONST MAX_BOXES = 256, BOX_MIN = 0.125
+DIM SHARED boxOn(MAP_SIZE, MAP_SIZE) AS INTEGER, boxAny AS INTEGER
+DIM SHARED boxX0(MAP_SIZE, MAP_SIZE) AS SINGLE, boxY0(MAP_SIZE, MAP_SIZE) AS SINGLE, boxX1(MAP_SIZE, MAP_SIZE) AS SINGLE, boxY1(MAP_SIZE, MAP_SIZE) AS SINGLE
+DIM SHARED lvlNumBoxes AS INTEGER, lvlBox(MAX_BOXES, 7) AS SINGLE
+' Decorations moved off their cell's middle (lvlNudge: x, y, then how far
+' across and down, in eighths) - one in an alcove, against a wall
+CONST MAX_NUDGES = 64
+DIM SHARED lvlNumNudges AS INTEGER, lvlNudge(MAX_NUDGES, 4) AS SINGLE
 ' Each cell's floor and ceiling texture (a texture slot - chapter 5)
 DIM SHARED floorTex(MAP_SIZE, MAP_SIZE) AS INTEGER, ceilTex(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' Floor / ceiling diagonals: a cell's floor (or ceiling) can be split corner
@@ -256,6 +270,7 @@ CONST MAX_LIGHTS = 96
 DIM SHARED lightX(MAX_LIGHTS), lightY(MAX_LIGHTS), lightRadius(MAX_LIGHTS)
 DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhase(MAX_LIGHTS)
 DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
+DIM SHARED lightLow(MAX_LIGHTS) AS INTEGER ' (a glow from the floor - a pool of lava: no lamp on the ceiling over it, no beam)
 DIM SHARED lightNow(MAX_LIGHTS) ' How bright its effect has it this frame (0 off .. 1 full): for its glow
 DIM SHARED numLights AS INTEGER
 ' ...and which of the level's ceiling lamps you've shot out (BreakLight)
@@ -308,9 +323,14 @@ CONST IT_CORE = 15 ' (a data core: only in the network)
 CONST IT_OVERCHARGE = 13, IT_AMP = 14 ' (overcharge: health up to MAX_OVER; damage amp: double damage for AMP_FRAMES)
 CONST MAX_OVER = 200, AMP_FRAMES = 1800
 ' MAX_ = the most there can be: the arrays below have room for this many
-CONST MAX_ITEMS = 64
+CONST MAX_ITEMS = 128
 DIM SHARED itemX(MAX_ITEMS) AS SINGLE, itemY(MAX_ITEMS) AS SINGLE
 DIM SHARED itemKind(MAX_ITEMS) AS INTEGER, itemOn(MAX_ITEMS) AS INTEGER, numItems AS INTEGER
+' Loot tossed out of something broken (TossItem) flies for itemToss more
+' frames, itemVX and itemVY a frame, in an arc - LOOT_TOSS frames in all,
+' landing up to LOOT_REACH cells away
+CONST LOOT_TOSS = 14, LOOT_REACH = 0.8, LOOT_CLEAR = 0.8 ' (and LOOT_CLEAR from you at least: you walk to it - pickups are taken within 0.45)
+DIM SHARED itemToss(MAX_ITEMS) AS INTEGER, itemVX(MAX_ITEMS) AS SINGLE, itemVY(MAX_ITEMS) AS SINGLE
 DIM SHARED hasCard(3) AS INTEGER
 
 ' --- Decorations: 1 barrel, 2 lamp, 3 plant, 4 terminal. You, monsters and
@@ -325,6 +345,10 @@ DIM SHARED decoX(MAX_DECO) AS SINGLE, decoY(MAX_DECO) AS SINGLE, decoKind(MAX_DE
 DIM SHARED decoOn(MAX_DECO) AS INTEGER, decoFuse(MAX_DECO) AS INTEGER, numDecos AS INTEGER
 ' decoHP: hits left before it breaks; decoTimer: frames left of its collapse
 DIM SHARED decoHP(MAX_DECO) AS INTEGER, decoTimer(MAX_DECO) AS INTEGER
+' decoLootA: which way its loot flies when it breaks - back towards you if
+' your boot broke it, else (NO_AIM) any way at all (DecoLoot)
+CONST NO_AIM = -99
+DIM SHARED decoLootA(MAX_DECO) AS SINGLE
 DIM SHARED decoCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' Which decoration stands in a cell (0 none)
 
 ' --- Event rooms: a part of the map (x0, y0) to (x1, y1) where something
@@ -377,6 +401,11 @@ DIM SHARED closetCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' (a closet's secret wall: 
 DIM SHARED thiefDist(MAP_SIZE, MAP_SIZE) AS INTEGER ' (how many steps from a hoard's door: the thieves' way home - BuildThiefWay)
 DIM SHARED blackoutTimer AS LONG, glMeshVersion AS LONG, glMeshDone AS LONG
 DIM SHARED numEvents AS INTEGER, evType(MAX_EVENTS) AS INTEGER
+' A lockdown you've got out of (a teleporter, a glitch): evAway counts the
+' frames you've been out of its room; a second, and it lifts - evPaused, so
+' walking back in carries on where it was (its monsters, its count, its
+' clock) rather than starting again
+DIM SHARED evAway(MAX_EVENTS) AS INTEGER, evPaused(MAX_EVENTS) AS INTEGER
 DIM SHARED evX0(MAX_EVENTS) AS INTEGER, evY0(MAX_EVENTS) AS INTEGER, evX1(MAX_EVENTS) AS INTEGER, evY1(MAX_EVENTS) AS INTEGER
 DIM SHARED evA(MAX_EVENTS) AS INTEGER, evB(MAX_EVENTS) AS INTEGER, evReward(MAX_EVENTS) AS INTEGER
 DIM SHARED evState(MAX_EVENTS) AS INTEGER, evTimer(MAX_EVENTS) AS LONG, evCount(MAX_EVENTS) AS INTEGER, evNext(MAX_EVENTS) AS INTEGER
@@ -435,11 +464,25 @@ DIM SHARED mtypeHP(MON_TYPES), mtypeSpeed(MON_TYPES), mtypeScale(MON_TYPES), mty
 DIM SHARED mtypeReach(MON_TYPES), mtypeDamage(MON_TYPES), mtypeDamageRnd(MON_TYPES), mtypeCooldown(MON_TYPES)
 DIM SHARED mtypeSprite(MON_TYPES), mtypeName$(MON_TYPES), mtypeRanged(MON_TYPES)
 DIM SHARED mtypeDrop(MON_TYPES), mtypeDropChance(MON_TYPES) ' (what it may leave when it dies - a pickup kind - and how likely: monsters.txt)
+' ...and its weak spot - a head, or an eye, a lens, a core - as a box on its
+' picture: across from mtypeWS(t, 1) to (t, 2), down from (t, 3) to (t, 4),
+' each 0 to 1 of the picture. A shot that lands in it does WEAK_MULT times
+' the damage (a headshot), with its pain cry (mtypePainSnd&) - chapter 12
+CONST WEAK_MULT = 2
+DIM SHARED mtypeWS(MON_TYPES, 4) AS SINGLE, mtypePainSnd&(MON_TYPES), sndHeadshot&
 ' ...and its body, once it's dead (MakeCorpse): how wide it's drawn (as
 ' drawScale), and how tall for that width (as drawSquash)
 DIM SHARED corpseScale(MON_TYPES), corpseSquash(MON_TYPES)
 ' ...and each decoration's wreck, the same way (MakeWreck)
 DIM SHARED wreckScale(DECO_KINDS), wreckSquash(DECO_KINDS)
+' ...and what each kind of decoration may leave when it breaks: LOOT_SLOTS
+' drops, A to D, each a pickup kind (IT_) and its chance in percent. The
+' game's own table (LootTable), then the level's [loot] lines over it -
+' kept as their lines in lvlLoot$(), one a kind (chapter 22)
+CONST LOOT_SLOTS = 4
+CONST LOOT_HELP$ = "' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance"
+DIM SHARED lootKind(DECO_KINDS, LOOT_SLOTS) AS INTEGER, lootPct(DECO_KINDS, LOOT_SLOTS) AS INTEGER
+DIM SHARED lvlNumLoot AS INTEGER, lvlLoot$(DECO_KINDS)
 DIM SHARED mtypeAlertSnd&(MON_TYPES), mtypeAttackSnd&(MON_TYPES), mtypeHitSnd&(MON_TYPES), mtypeDieSnd&(MON_TYPES)
 ' ...and the sounds it makes now and then: waiting (idle), and hunting you
 DIM SHARED mtypeIdleSnd&(MON_TYPES), mtypeHuntSnd&(MON_TYPES)
@@ -646,7 +689,8 @@ CONST T_FLOOR = 13, T_CEIL = 17, T_LAMP = 20, T_LAMPOFF = 21, T_JACK = 22 ' (T_J
 CONST T_CODE = 23 ' (a code terminal's wall, $)
 CONST T_LIFT = 24, T_LIFTSIDE = 25 ' (a lift's top and sides: made from the level's own - MakeLiftTex)
 CONST T_TRAP = 26, T_FIRE = 27 ' (a trap's floor: a live wire grid, a burner grate - MakeTrapTex)
-CONST T_CUSTOM = 27, T_CUSTOMN = 24 ' (after those: slots for pictures put on single faces in the editor - [faces])
+CONST T_LIQUID = 27 ' (the liquids' surfaces, T_LIQUID + 1 to + LQ_KINDS: water, poison, slime, lava, acid - MakeLiquidTex)
+CONST T_CUSTOM = 32, T_CUSTOMN = 24 ' (after those: slots for pictures put on single faces in the editor - [faces])
 CONST T_SLOTS = T_CUSTOM + T_CUSTOMN
 REDIM SHARED texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
 REDIM SHARED texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
@@ -731,7 +775,7 @@ DIM SHARED glTanLoc AS LONG, glLightLoc AS LONG, glDynLoc AS LONG
 DIM SHARED glPostProg AS _UNSIGNED LONG, glBrightProg AS _UNSIGNED LONG, glBlurProg AS _UNSIGNED LONG
 DIM SHARED glTargScene AS LONG, glTargA AS LONG, glTargB AS LONG, glTargRetro AS INTEGER
 DIM SHARED glTargC AS LONG, glTargD AS LONG ' (the phosphor glow's, 400 x 300)
-DIM SHARED glPost AS INTEGER, glReflecting AS INTEGER, glFloorPass AS INTEGER, glNeonOn AS INTEGER
+DIM SHARED glPost AS INTEGER, glReflecting AS INTEGER, glFloorPass AS INTEGER, glNeonOn AS INTEGER, glLiquidPass AS INTEGER ' (glLiquidPass: GLLiquids is drawing)
 ' ...the WORLD MESH (GLBuildMesh): every floor, ceiling and wall face of
 ' the level, built once and kept in graphics memory (glMeshBuf), sorted by
 ' kind (0 floors, 1 ceilings, 2 walls) and texture, glMeshFirst/Count saying
@@ -872,6 +916,8 @@ CONST GUN_Y = 600 ' A gun's bottom sits here, its muzzle straight below the cros
 ' make-sfx.sh there). _SNDOPEN loads one and gives back a handle, a number
 ' we keep in a & (LONG) variable and play with PlaySfx (chapter 23).
 sndStep1& = LoadSnd&("step1.wav") : sndStep2& = LoadSnd&("step2.wav")
+DIM SHARED sndSplash&, sndWade1&, sndWade2&, sndBubble&, liqHum& ' (liquids: in with a splash, footsteps that slosh, and a bubbling near the harmful ones - liqHum&, its own looping copy: LiquidHum)
+sndSplash& = LoadSnd&("splash.wav") : sndWade1& = LoadSnd&("wade1.wav") : sndWade2& = LoadSnd&("wade2.wav") : sndBubble& = LoadSnd&("bubble.wav")
 sndBump& = LoadSnd&("bump.wav") : sndHump& = LoadSnd&("wallhump.wav")
 DIM SHARED sndDoor&, sndShutter&, sndSplit& ' (shared: DoorSnd& picks one - chapter 11)
 sndDoor& = LoadSnd&("door.wav") : sndShutter& = LoadSnd&("door-shutter.wav") : sndSplit& = LoadSnd&("door-split.wav")
@@ -886,6 +932,20 @@ sndBoltWall& = LoadSnd&("bolt-wall.wav")
 sndHurt& = LoadSnd&("hurt.wav") : sndDie& = LoadSnd&("die.wav")
 DIM SHARED sndHurtZap& : sndHurtZap& = LoadSnd&("hurt-zap.wav") ' (a shock on top of the grunt: hurtElectric)
 DIM SHARED sndHurt2&, sndHurt3& ' (more ways to say ouch: HurtPlayer picks one)
+' VIGNETTES (DrawVignette, chapter 18): the edges of the screen washed with
+' a colour, fading in towards the middle. Hurt: in the colour of what hurt
+' you (painR/G/B - blood red, a shock's blue, poison's green, fire's
+' orange, acid's yellow - the caller sets hurtR/G/B before HurtPlayer, 0
+' for blood), fading away (painVig, 1 to 0). A lockdown strobes red. LOW
+' on health (LOW_HP or less): a heartbeat - lub dub, faster the lower you
+' are - the edges thumping red with it, a gasp or a groan now and then,
+' and you move at LOW_SLOW of your speed.
+CONST LOW_HP = 25, LOW_SLOW = 0.5
+DIM SHARED painVig AS SINGLE, painR AS INTEGER, painG AS INTEGER, painB AS INTEGER, hurtR AS INTEGER, hurtG AS INTEGER, hurtB AS INTEGER
+DIM SHARED beatAt AS DOUBLE, beatNext AS DOUBLE, gaspNext AS DOUBLE ' (when the last heartbeat was, and the next; the next gasp)
+DIM SHARED sndHeart&, sndGasp&(3), sndBreath&, sndGroan&
+sndHeart& = LoadSnd&("heartbeat.wav") : sndBreath& = LoadSnd&("breath.wav") : sndGroan& = LoadSnd&("groan.wav")
+FOR k = 1 TO 3 : sndGasp&(k) = LoadSnd&("gasp" + LTRIM$(STR$(k)) + ".wav") : NEXT
 ' NEXUS's voice: each line's sound (neon-caster/speech/KEY.wav) and words,
 ' looked up by key (Say); what's on screen (speechText$, until
 ' speechUntil!), and frames till the next taunt
@@ -973,6 +1033,7 @@ SetMonType 8,   "overseer", 80, 0.014, 1.4,  0.3, 0.06, 0,    9,  5,   45,  S_MO
 SetMonType 9,   "thief",   5,  0.09,  0.55,  0,   0,    0.8,  0,  0,   60,  S_MONX + 7
 SetMonType 10,  "ice",     2,  0.05,  0.5,   0.3, 0.06, 0.75, 5,  3,   50,  S_MONX + 9
 mtypeRanged(2) = -1 : mtypeRanged(5) = -1 : mtypeRanged(7) = -1 : mtypeRanged(8) = -1
+
 ' ...and that table changed by neon-caster/monsters.txt, if it's there:
 ' every monster's numbers as plain text, to tune without changing the
 ' program - by hand, or in the monster editor (chapter 21)
@@ -998,6 +1059,24 @@ FOR mtype = 6 TO MON_TYPES ' (the newer ones: name-alert, -attack or -shoot, -hi
     IF mtypeRanged(mtype) THEN mtypeAttackSnd&(mtype) = LoadSnd&(nm$ + "-shoot.wav") ELSE mtypeAttackSnd&(mtype) = LoadSnd&(nm$ + "-attack.wav")
     mtypeHitSnd&(mtype) = LoadSnd&(nm$ + "-hit.wav") : mtypeDieSnd&(mtype) = LoadSnd&(nm$ + "-die.wav")
 NEXT
+' Each one's weak spot (chapter 3's mtypeWS): where on its picture a shot
+' does double - and the cry it gives when one lands there (name-pain, or
+' else its usual hit sound)
+'           type  across      down        (0 to 1 of its picture)
+SetWeakSpot 1,    0.38, 0.62, 0.22, 0.55 ' drone: its red eye
+SetWeakSpot 2,    0.40, 0.68, 0.06, 0.36 ' gunner: its head
+SetWeakSpot 3,    0.42, 0.70, 0.06, 0.33 ' heavy: its head
+SetWeakSpot 4,    0.36, 0.72, 0.60, 0.92 ' crawler: its red eyes, low at the front
+SetWeakSpot 5,    0.38, 0.78, 0.03, 0.35 ' sentry: its camera, on top
+SetWeakSpot 6,    0.35, 0.72, 0.03, 0.33 ' stalker: its visor
+SetWeakSpot 7,    0.35, 0.68, 0.05, 0.36 ' spitter: its head
+SetWeakSpot 8,    0.40, 0.66, 0.28, 0.58 ' overseer: its great red eye
+SetWeakSpot 9,    0.32, 0.66, 0.20, 0.52 ' thief: its head
+SetWeakSpot 10,   0.40, 0.72, 0.32, 0.66 ' ICE: its core
+FOR mtype = 1 TO MON_TYPES
+    mtypePainSnd&(mtype) = LoadSnd&(mtypeName$(mtype) + "-pain.wav") : IF mtypePainSnd&(mtype) = 0 THEN mtypePainSnd&(mtype) = mtypeHitSnd&(mtype)
+NEXT
+sndHeadshot& = LoadSnd&("headshot.wav")
 
 ' Loop counters and pixel positions used by the drawing code are LONG
 ' (whole numbers) - integer maths is quicker in the inner loops. Anything
@@ -1213,6 +1292,36 @@ CONST SKY_REPEAT = 1, SKY_EL = 1.2566 ' (a panorama: the whole way round across,
 DIM SHARED skyU(RENDER_W - 1) AS INTEGER, skyV(RENDER_H - 1) AS INTEGER
 DIM SHARED floorH(MAP_SIZE, MAP_SIZE) AS SINGLE, ceilH(MAP_SIZE, MAP_SIZE) AS SINGLE, levelFlat AS INTEGER
 DIM SHARED lvlFloorRow$(MAP_SIZE - 1), lvlCeilRow$(MAP_SIZE - 1)
+' --- Liquids (chapter 22's [liquid] and [liquid depth]): a pool lying on
+' a cell's floor, its surface liqZ - its depth above the floor. You see the
+' floor through it (OpenGL: GLLiquids; the software renderer draws it as
+' a surface, rippling - HeightColumn, LiquidAnimate), wade in it, and it
+' does to you what its kind does (LiquidStep): LQ_ = the kinds, and for
+' each how much of your speed you keep in it at LQ_FULL deep (lqSlow), how
+' much it hurts (lqHurt, every lqEvery frames - 0: not at all), whether
+' it eats your armor before you (lqAcid), how see-through it is (lqSee:
+' OpenGL), its colour (lqR, lqG, lqB) and its name. In the level file, a
+' map of one character a cell: . none, or the kind's letter (LQ_CHARS$);
+' and its depth, in eighths, another (. = LQ_DEPTH). liqAny: any at all.
+CONST LQ_WATER = 1, LQ_POISON = 2, LQ_SLIME = 3, LQ_LAVA = 4, LQ_ACID = 5, LQ_KINDS = 5
+CONST LQ_CHARS$ = "wpsla", LQ_DEPTH = 3, LQ_FULL = 0.375
+DIM SHARED liqKind(MAP_SIZE, MAP_SIZE) AS INTEGER, liqZ(MAP_SIZE, MAP_SIZE) AS SINGLE, liqAny AS INTEGER
+DIM SHARED lqSlow(LQ_KINDS) AS SINGLE, lqHurt(LQ_KINDS) AS INTEGER, lqEvery(LQ_KINDS) AS INTEGER, lqAcid(LQ_KINDS) AS INTEGER
+DIM SHARED lqSee(LQ_KINDS) AS SINGLE, lqR(LQ_KINDS) AS INTEGER, lqG(LQ_KINDS) AS INTEGER, lqB(LQ_KINDS) AS INTEGER, lqName$(LQ_KINDS)
+DIM SHARED lvlLiqRow$(MAP_SIZE - 1), lvlLiqDRow$(MAP_SIZE - 1), lqUsed(LQ_KINDS) AS INTEGER ' (lqUsed: that kind's in this level - LiquidAnimate moves only those)
+DIM SHARED liqWait AS INTEGER, liqWas AS INTEGER, poisonTint AS INTEGER, liqTick AS LONG ' (frames to your next hurt in one; the kind you were in last frame; the green of poison, fading)
+DIM SHARED liqBase(511, 511) AS SINGLE ' (the ripples: a height a texel, 0 to 1, that every liquid's picture is coloured from - MakeLiquidTex)
+DIM SHARED liqTex(511, 511, LQ_KINDS) AS _UNSIGNED LONG, liqTexAt AS INTEGER ' (each liquid's picture, still - the software renderer moves it: LiquidAnimate)
+' The liquids table (LQ_, above): what each one does to whoever wades
+' in it. slow: how much of your speed you keep, LQ_FULL deep (less deep,
+' less slowed); hurt every how many frames (0: never); acid: eats armor
+' first; see: how see-through (OpenGL); its colour.
+'           kind       name      slow  hurt every acid see   red  green blue
+SetLiquid LQ_WATER,  "water",   0.6,  0,   0,    0,   0.55, 40,  110, 120
+SetLiquid LQ_POISON, "poison",  0.8,  3,   40,   0,   0.4,  120, 60,  170
+SetLiquid LQ_SLIME,  "slime",   0.4,  2,   45,   0,   0.25, 90,  220, 40
+SetLiquid LQ_LAVA,   "lava",    0.5,  12,  20,   0,   0.05, 255, 90,  20
+SetLiquid LQ_ACID,   "acid",    0.7,  4,   25,   -1,  0.35, 200, 240, 40
 DIM SHARED playerZ AS SINGLE, playerVZ AS SINGLE, eyeZ AS SINGLE, walkZ AS SINGLE
 DIM SHARED boltZ(MAX_BOLTS) AS SINGLE, boltDZ(MAX_BOLTS) AS SINGLE
 ' --- Lifts ([lifts] in the level file): a rectangle of floor that moves
@@ -1256,7 +1365,8 @@ DIM SHARED lvlMonN AS INTEGER, lvlMon(MAX_MON, 7) AS SINGLE
 DIM SHARED lvlNumFaces AS INTEGER, lvlFaceX(MAX_FACES) AS INTEGER, lvlFaceY(MAX_FACES) AS INTEGER, lvlFaceS(MAX_FACES) AS INTEGER, lvlFaceD(MAX_FACES) AS INTEGER
 DIM SHARED lvlFaceP1$(MAX_FACES), lvlFaceP2$(MAX_FACES)
 DIM SHARED faceAny AS INTEGER ' (any face with a slot of its own this level: the renderers ask faceTex only then)
-DIM SHARED faceTex(MAP_SIZE, MAP_SIZE, 8) AS INTEGER, faceTex2(MAP_SIZE, MAP_SIZE, 8) AS INTEGER, faceDiv(MAP_SIZE, MAP_SIZE, 8) AS INTEGER
+CONST FACE_BOX = 10, FACE_MAX = 14 ' (a box's sides are faces 11 to 14 - FACE_BOX + 1 east .. 4 north: BE, BS, BW, BN)
+DIM SHARED faceTex(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceTex2(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceDiv(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER
 DIM SHARED numTrigs AS INTEGER, trigWhen$(MAX_TRIGS), trigX0(MAX_TRIGS) AS INTEGER, trigY0(MAX_TRIGS) AS INTEGER, trigX1(MAX_TRIGS) AS INTEGER, trigY1(MAX_TRIGS) AS INTEGER
 DIM SHARED trigRepeat(MAX_TRIGS) AS INTEGER, trigDone(MAX_TRIGS) AS INTEGER, trigWas(MAX_TRIGS) AS INTEGER, trigCmd$(MAX_TRIGS)
 ' --- Teleporters (& on the map): pads that pair up in the order they're
@@ -1293,6 +1403,7 @@ DIM SHARED lvlRow$(MAP_SIZE - 1)
 ' each texture slot now, so building it again only loads what changed.
 CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%&rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV<>^v"
 CONST EDIT_UNDO = 40
+CONST EDIT_OPEN$ = ".rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
 DIM SHARED editMode AS INTEGER, editView AS INTEGER, editGlyph$, editDirty AS INTEGER, editRebuild AS INTEGER
 DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, editLightP AS INTEGER, editLights AS INTEGER, editHeights AS INTEGER
 ' THE EDITOR'S OWN STATE, the same in both views (the map from above and
@@ -1302,7 +1413,7 @@ DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, 
 '   edTool        what a click does (ET_ tools); edBrush... what it places
 '   edGrid...     the wireframe grid over the world, and how strong it is
 '   edPick...     the picker panel: its tab and how far it's scrolled
-CONST ED_WALL = 1, ED_FLOOR = 2, ED_CEIL = 3, ED_STEP = 4, ED_LINTEL = 5 ' (a face: a wall's side, a floor, a ceiling, the face of a step up, the face of a ceiling stepping down)
+CONST ED_WALL = 1, ED_FLOOR = 2, ED_CEIL = 3, ED_STEP = 4, ED_LINTEL = 5, ED_BOX = 6 ' (a face: a box's side; a wall's side, a floor, a ceiling, the face of a step up, the face of a ceiling stepping down)
 CONST ED_MAXSEL = 2304 ' (the whole map, if it comes to it)
 CONST ET_SELECT = 1, ET_PLACE = 2, ET_PAINT = 3, ET_LIGHT = 4, ET_HEIGHT = 5
 DIM SHARED edHovKind AS INTEGER, edHovX AS INTEGER, edHovY AS INTEGER, edHovSide AS INTEGER, edHovPart AS INTEGER
@@ -1315,6 +1426,12 @@ DIM SHARED edLooking AS INTEGER ' (the right button held in the 3D view: the mou
 DIM SHARED edMouseFix AS INTEGER, edWheel AS INTEGER, edCurX AS INTEGER, edCurY AS INTEGER ' (put the pointer right again; the wheel's turns for the editor; where the pointer is)
 DIM SHARED edCamPX, edCamPY, edCamDX, edCamDY, edCamPlane, edCamZoom ' (the camera, this frame: EditFP copies it here for the picking and outlines)
 DIM SHARED edWheelT! ' (when the wheel last moved something: a run of turns is one undo)
+' Each letter key held down now (a to z, by its small letter) - and whether
+' Ctrl was down when it went down: only then is it Ctrl+S, Ctrl+Z, Ctrl+D.
+' (Walking with D held and pressing Ctrl for the wheel, D's auto-repeat
+' would otherwise clear the selection - and S's would save.)
+DIM SHARED edKeyHeld(122) AS INTEGER, edKeyCtrl(122) AS INTEGER
+DIM SHARED edCtrl AS INTEGER ' (Ctrl, as the keys arrive - in order, so a quick Ctrl+S still is one)
 DIM SHARED gridOn AS INTEGER, gridW AS INTEGER ' (the software renderer's grid this frame, and its lines' width in texels)
 ' THE TOOLBAR (EditTBLayout): its buttons this frame - which (TB_), where -
 ' the one under the pointer, the slider being dragged, the help panel
@@ -1326,11 +1443,11 @@ DIM SHARED edTbDrag AS INTEGER, edHelp AS INTEGER
 ' thumbnail, made once per tab (and again when the level or ART changes:
 ' edPkKey$) - the brush (what PLACE puts, PAINT paints), and whether the
 ' picker's up at all
-CONST PK_GLYPH = 1, PK_TEX = 2, PK_LIGHT = 3
-CONST PK_TABS = 9, PK_MAX = 160, PK_COLS = 8, PK_ROWS = 2, PK_SIZE = 50
+CONST PK_GLYPH = 1, PK_TEX = 2, PK_LIGHT = 3, PK_LIQUID = 4 ' (PK_LIQUID: a liquid and its depth - "w3"; "-" drains)
+CONST PK_TABS = 10, PK_MAX = 160, PK_COLS = 8, PK_ROWS = 2, PK_SIZE = 50
 CONST PK_X = 8, PK_Y = 438 ' (the picker's top left, in 3D: tabs, then the thumbnails under them)
 DIM SHARED edPkN AS INTEGER, edPkKind(PK_MAX) AS INTEGER, edPkVal$(PK_MAX), edPkImg&(PK_MAX), edPkKey$
-DIM SHARED edPickOn AS INTEGER, edBrushKind AS INTEGER, edBrushTex$, edBrushImg&
+DIM SHARED edPickOn AS INTEGER, edBrushKind AS INTEGER, edBrushTex$, edBrushImg&, edBrushLiq$ ' (edBrushLiq$: the liquid PAINT pours - "w3", or "-" to drain)
 DIM SHARED edPickOpen AS INTEGER ' (edPickOn: 1 tucked away till the pointer comes down to it, -1 always open, 0 off; edPickOpen: open now)
 CONST PK_TUCK = 580 ' (tucked away: a strip along the bottom from here)
 edPickOn = 1 : edBrushKind = PK_GLYPH
@@ -1638,6 +1755,8 @@ DO
     moveLen = SQR(moveX * moveX + moveY * moveY)
     moveSpeed = WALK_SPEED : IF KeyHeld(BIND_RUN) THEN moveSpeed = RUN_SPEED ' (Shift: run)
     IF FloorHazard(INT(playerX), INT(playerY)) = HAZ_WADE THEN IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.05 THEN moveSpeed = moveSpeed * SLOW_WADE ' (wading)
+    IF health <= LOW_HP AND NOT godMode AND NOT editMode THEN moveSpeed = moveSpeed * LOW_SLOW ' (badly hurt: you drag yourself along)
+    IF liqWas THEN moveSpeed = moveSpeed * LiquidSlow(liqWas, liqZ(INT(playerX), INT(playerY)) - playerZ) ' (wading in a liquid: slower the deeper - LQ_FULL deep, as slow as it gets)
     IF moveLen > 0 THEN
         moveX = moveX / moveLen * moveSpeed : moveY = moveY / moveLen * moveSpeed
     END IF
@@ -1673,11 +1792,13 @@ DO
         playerVZ = 0
     ELSEIF NOT levelFlat THEN
         fz = floorH(INT(playerX), INT(playerY))
+        IF liqKind(INT(playerX), INT(playerY)) AND NOT cyberOn THEN fz = MaxOf(fz, liqZ(INT(playerX), INT(playerY)) - LQ_FULL) ' (in deep liquid you float, your head above it)
         IF playerZ < fz THEN playerZ = fz : playerVZ = 0
         IF liftCell(INT(playerX), INT(playerY)) AND playerZ - fz < 0.06 AND playerVZ < 0.03 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down)
         IF playerZ > fz THEN
             playerVZ = playerVZ + FALL_G : playerZ = playerZ - playerVZ
             IF playerZ <= fz THEN
+                IF liqKind(INT(playerX), INT(playerY)) THEN playerVZ = playerVZ * 0.5 ' (into a liquid: it breaks the fall)
                 IF playerVZ > 0.13 AND NOT dead AND NOT godMode THEN ' (a fall that hurts - about a wall's drop or more: the thud, the jolt; anything less is just a step down, and the footsteps carry on)
                     damage = INT((playerVZ - 0.13) * 260) + 2 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
                     PlaySfx sndStep1&, 1 : shake = shake + 8
@@ -1693,9 +1814,46 @@ DO
         IF burnWait = 0 THEN
             burnWait = BURN_EVERY : PlaySfx sndSizzle&, 0.9
             SpawnSparks playerX + dirX * 0.3, playerY + dirY * 0.3, floorH(INT(playerX), INT(playerY)) + 0.05, 12, 255, 120, 30
-            IF NOT godMode THEN damage = BURN_DAMAGE : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
+            IF NOT godMode THEN damage = BURN_DAMAGE : hurtFromX = -1 : hurtFromY = -1 : hurtR = 255 : hurtG = 110 : hurtB = 20 : GOSUB HurtPlayer
         END IF
     END IF
+    ' A liquid (chapter 3's LQ_): are your feet in one? In you go with a
+    ' splash (a hiss, into lava); it slows you (above), and the harmful
+    ' ones hurt, every lqEvery frames - more the deeper you are. Acid eats
+    ' your armor first (twice as fast as it would you), and poison turns
+    ' everything green for a moment.
+    lk = 0
+    IF NOT levelFlat AND NOT cyberOn AND NOT editMode THEN
+        lk = liqKind(INT(playerX), INT(playerY)) : IF lk THEN IF playerZ >= liqZ(INT(playerX), INT(playerY)) - 0.01 THEN lk = 0
+    END IF
+    IF lk AND lk <> liqWas THEN
+        IF lk = LQ_LAVA OR lk = LQ_ACID THEN PlaySfx sndSizzle&, 0.9 ELSE PlaySfx sndSplash&, 0.8
+        SpawnSparks playerX + dirX * 0.25, playerY + dirY * 0.25, liqZ(INT(playerX), INT(playerY)), 14, lqR(lk), lqG(lk), lqB(lk)
+        liqWait = lqEvery(lk) \ 2 ' (a moment before it starts to hurt)
+    END IF
+    liqWas = lk
+    IF liqWait > 0 THEN liqWait = liqWait - 1
+    IF lk AND NOT dead THEN
+        IF lqHurt(lk) > 0 AND liqWait = 0 THEN
+            liqWait = lqEvery(lk)
+            deep = MinOf(1, (liqZ(INT(playerX), INT(playerY)) - playerZ) / LQ_FULL)
+            dmg = INT(lqHurt(lk) * (0.5 + 0.5 * deep) + 0.5) : IF dmg < 1 THEN dmg = 1
+            SpawnSparks playerX + dirX * 0.3, playerY + dirY * 0.3, liqZ(INT(playerX), INT(playerY)), 8, lqR(lk), lqG(lk), lqB(lk)
+            IF lk = LQ_POISON THEN poisonTint = 40
+            IF NOT godMode THEN
+                IF lqAcid(lk) AND armor > 0 THEN ' Acid: the armor first
+                    armor = MaxOf(0, armor - dmg * 2) : hurtFlash = 6 : PlaySfx sndSizzle&, 0.7
+                    painR = lqR(lk) : painG = lqG(lk) : painB = lqB(lk) : painVig = MaxOf(painVig, 0.5)
+                ELSE
+                    IF lk = LQ_LAVA OR lk = LQ_ACID THEN PlaySfx sndSizzle&, 0.9
+                    damage = dmg : hurtFromX = -1 : hurtFromY = -1 : hurtR = lqR(lk) : hurtG = lqG(lk) : hurtB = lqB(lk) : GOSUB HurtPlayer
+                END IF
+            END IF
+        END IF
+    END IF
+    IF poisonTint > 0 THEN poisonTint = poisonTint - 1
+    liqTick = liqTick + 1 ' (the monsters' clock, in harmful liquids)
+    IF liqAny THEN LiquidHum playerX, playerY ' (the harmful ones bubble: louder as you near them)
     IF levelFlat AND NOT editMode THEN playerZ = 0 : playerVZ = 0
     IF editMode OR playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
     ' ...and you can't walk through a monster: if a step takes you inside one
@@ -1721,16 +1879,18 @@ DO
         bobPhase = bobPhase + 6.2831853 * moved / stride
         IF INT((bobPhase - 3.14159265) / 6.2831853) <> beatWas THEN
             stepFoot = 1 - stepFoot
-            IF stepFoot THEN PlaySfx sndStep1&, 0.35 ELSE PlaySfx sndStep2&, 0.35
+            IF liqWas AND sndWade1& THEN ' (in a liquid: they slosh)
+                IF stepFoot THEN PlaySfx sndWade1&, 0.5 ELSE PlaySfx sndWade2&, 0.5
+            ELSEIF stepFoot THEN
+                PlaySfx sndStep1&, 0.35
+            ELSE
+                PlaySfx sndStep2&, 0.35
+            END IF
         END IF
     END IF
 
-    ' Bump: once when you push firmly into a wall (not when sliding along one)
-    pushing = 0
-    IF playerX = prevX AND ABS(moveX) > moveSpeed * 0.5 THEN pushing = -1
-    IF playerY = prevY AND ABS(moveY) > moveSpeed * 0.5 THEN pushing = -1
-    IF pushing AND NOT wasPushing THEN PlaySfx sndBump&, 0.8
-    wasPushing = pushing
+    ' (Walking into a wall makes no sound - it got old fast. Pressing Space
+    ' on one does: a dull hump, as you search it for secrets - chapter 11.)
 
     '-------------------------------------------------------------------------
     ' CHAPTER 10: PICKUPS AND CHEAT KEYS
@@ -1738,9 +1898,11 @@ DO
     ' A pickup is taken when you're within 0.45 cells of it. Comparing the
     ' squared distance with 0.45 squared gives the same answer as comparing
     ' distances, and skips a slow SQR - a trick used all through the game.
-    ' Things you can't use yet (health when you're full) stay where they are.
+    ' Things you can't use yet (health when you're full) stay where they are,
+' and loot still flying out of something broken (itemToss) can't be
+' caught in the air.
     FOR i = 1 TO numItems
-        IF itemOn(i) AND NOT dead AND NOT editMode AND (itemKind(i) = IT_CORE) = cyberOn AND (itemX(i) - playerX) ^ 2 + (itemY(i) -playerY) ^ 2 < 0.45 * 0.45 THEN
+        IF itemOn(i) AND itemToss(i) = 0 AND NOT dead AND NOT editMode AND (itemKind(i) = IT_CORE) = cyberOn AND (itemX(i) - playerX) ^ 2 + (itemY(i) -playerY) ^ 2 < 0.45 * 0.45 THEN
             SELECT CASE itemKind(i)
                 CASE IT_CORE ' A data core (the network)
                     itemOn(i) = 0 : cyberGot = cyberGot + 1 : PlaySfx sndCore&, 1 : pickFlash = 12
@@ -1864,7 +2026,7 @@ DO
             IF cellX = INT(playerX) AND cellY = INT(playerY) THEN GOTO NextReach ' (the doorway you're in)
             IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 AND doorLock(cellX, cellY) THEN
                 PlaySfx sndLocked&, 0.8
-                IF doorLock(cellX, cellY) = 2 THEN ShowMsg "SEALED - hack its data station to open it" ELSE IF doorLock(cellX, cellY) = 3 THEN ShowMsg "LOCKED DOWN - repair the terminal's program" ELSE ShowMsg "SEALED - it won't open until the room is clear"
+                IF doorLock(cellX, cellY) = 2 THEN ShowMsg "SEALED - hack its data station to open it" ELSE IF doorLock(cellX, cellY) = 3 THEN ShowMsg "LOCKED DOWN - repair the terminal's program" ELSE ShowMsg SealedMsg$(cellX, cellY)
                 EXIT FOR
             ELSEIF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 THEN
                 keyNeeded = doorKey(cellX, cellY)
@@ -1879,7 +2041,7 @@ DO
                 END IF
                 EXIT FOR
             ELSEIF worldMap(cellX, cellY) = 2 AND doorLock(cellX, cellY) THEN
-                PlaySfx sndLocked&, 0.8 : ShowMsg "SEALED - it won't open until the room is clear"
+                PlaySfx sndLocked&, 0.8 : ShowMsg SealedMsg$(cellX, cellY)
                 EXIT FOR
             ELSEIF worldMap(cellX, cellY) = 2 THEN ' Open (or on the move): shut it - or open it again
                 IF doorMove(cellX, cellY) = -1 THEN
@@ -2007,13 +2169,25 @@ DO
                     glassAtX = playerX + (dirX + planeX * aim) * glassT(screenCol) : glassAtY = playerY + (dirY + planeY * aim) * glassT(screenCol)
                     IF gunPierce(currentGun) THEN glassDmg = 99 : GOSUB HitGlass ELSE bestDist = glassT(screenCol) : glassShot = -1
                 END IF
+                ' Where it lands on a monster counts too: in its weak spot (a head,
+                ' an eye - WeakSpotHit), double the damage. How far across its
+                ' picture: the shot's column against its middle; how high: your
+                ' eye, rising TAN(pitch) a cell as the shot goes (LOOK UP / DOWN -
+                ' level, without it, as the software renderer's shots fly)
+                rayLen = SQR((dirX + planeX * aim) ^ 2 + (dirY + planeY * aim) ^ 2) : bestHead = 0
                 FOR i = 1 TO numMonsters
                     IF monsterState(i) < 2 AND (cyberOn = 0 OR monsterType(i) = MT_ICE) THEN
                         relX = monsterX(i) - playerX : relY = monsterY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
                             IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * mtypeScale(monsterType(i)) * 0.3 THEN
-                                IF gunPierce(currentGun) THEN target = i : GOSUB HitMonster : crossFlash = 6 ELSE bestMonster = i : bestDist = transformY
+                                shotU = 0.5 + RENDER_W / 2 * (aim - transformX / transformY) / (viewH / transformY * mtypeScale(monsterType(i)))
+                                head = WeakSpotHit(i, shotU, eyeZ + TAN(pitch) * rayLen * transformY)
+                                IF gunPierce(currentGun) THEN
+                                    target = i : headZ = eyeZ + TAN(pitch) * rayLen * transformY : GOSUB HitMonsterAimed : crossFlash = 6
+                                ELSE
+                                    bestMonster = i : bestDist = transformY : bestHead = head : bestHeadZ = eyeZ + TAN(pitch) * rayLen * transformY
+                                END IF
                             END IF
                         END IF
                     END IF
@@ -2033,7 +2207,7 @@ DO
                         END IF
                     END IF
                 NEXT
-                IF bestMonster THEN target = bestMonster : GOSUB HitMonster : crossFlash = 6 ' (the crosshair flashes: a hit)
+                IF bestMonster THEN target = bestMonster : head = bestHead : headZ = bestHeadZ : GOSUB HitMonsterAimed : crossFlash = 6 ' (the crosshair flashes: a hit)
                 IF bestDeco THEN targetDeco = bestDeco : GOSUB HitDeco
                 ' Sparks where it landed (chapter 24's particles): on the
                 ' monster, or on the wall - the shot's ray (dir + plane * aim),
@@ -2099,7 +2273,7 @@ DO
                     IF decoOn(i) AND decoKind(i) <> DK_BODY AND cyberOn = 0 THEN
                         ox = decoX(i) - playerX : oy = decoY(i) - playerY : d = SQR(ox * ox + oy * oy)
                         IF d < KICK_REACH AND d > 0.01 THEN
-                            IF (ox * dirX + oy * dirY) / d > 0.7 THEN targetDeco = i : hitDamage = KICK_DAMAGE : GOSUB HitDeco : PlaySfx sndKick&, 0.8 : shake = shake + 2 : kicked = -1 : EXIT FOR
+                            IF (ox * dirX + oy * dirY) / d > 0.7 THEN targetDeco = i : hitDamage = KICK_DAMAGE : hitKick = -1 : GOSUB HitDeco : hitKick = 0 : PlaySfx sndKick&, 0.8 : shake = shake + 2 : kicked = -1 : EXIT FOR
                         END IF
                     END IF
                 NEXT
@@ -2157,6 +2331,19 @@ DO
         ' one): gone into the dark
         IF monsterState(i) < 2 AND NOT levelFlat THEN
             IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH THEN target = i : hitDamage = 9999 : GOSUB HitMonster : ShowMsg "Over the edge!"
+        END IF
+        ' Knocked into a harmful liquid (it never walks into one): it hurts
+        ' as it does you - but not what hovers over it
+        IF monsterState(i) < 2 AND liqAny THEN
+            mlk = liqKind(INT(monsterX(i)), INT(monsterY(i)))
+            IF mlk THEN
+                IF lqHurt(mlk) > 0 AND lqEvery(mlk) > 0 AND mtypeLift(monsterType(i)) = 0 THEN ' (QB64 works out every part of an AND: the MOD only once lqEvery is known not to be 0)
+                    IF (liqTick + i) MOD lqEvery(mlk) = 0 THEN
+                        target = i : hitDamage = MaxOf(1, lqHurt(mlk) \ 3) : GOSUB HitMonster
+                        SpawnSparks monsterX(i), monsterY(i), liqZ(INT(monsterX(i)), INT(monsterY(i))), 8, lqR(mlk), lqG(mlk), lqB(mlk)
+                    END IF
+                END IF
+            END IF
         END IF
         mtype = monsterType(i)
         ' Its animation moves on: walkers and the crawler as far as they
@@ -2225,7 +2412,13 @@ DO
                     END IF
                     walkZ = floorH(INT(monsterX(i)), INT(monsterY(i))) ' (it steps up, and falls off, as you do - but only so high)
                     walkFromHaz = FloorHazard(INT(monsterX(i)), INT(monsterY(i))) + 10 ' (and keeps out of fire, unless it's in it already)
-                    IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype) * monSpd(i), goY * mtypeSpeed(mtype) * monSpd(i)
+                    mlk = liqKind(INT(monsterX(i)), INT(monsterY(i))) : msl = 1 ' (...and out of harmful liquids - and wades slower in any)
+                    IF mlk AND mtypeLift(mtype) = 0 AND NOT cyberOn THEN
+                        msl = LiquidSlow(mlk, liqZ(INT(monsterX(i)), INT(monsterY(i))) - floorH(INT(monsterX(i)), INT(monsterY(i))))
+                        IF lqHurt(mlk) > 0 THEN walkFromHaz = walkFromHaz + 100 ' (in one already: it may walk on through)
+                    END IF
+                    IF mtypeLift(mtype) > 0 THEN walkFromHaz = walkFromHaz + 100 ' (it hovers: liquids are nothing to it)
+                    IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype) * monSpd(i) * msl, goY * mtypeSpeed(mtype) * monSpd(i) * msl
                     walkZ = -999 : walkFromHaz = 0
                 END IF
                 monsterAnim(i) = monsterAnim(i) + SQR((monsterX(i) - animX) ^ 2 + (monsterY(i) - animY) ^ 2) / MON_STRIDE
@@ -2281,6 +2474,9 @@ DO
         END IF
         IF decoTimer(i) > 0 THEN decoTimer(i) = decoTimer(i) - 1 ' A broken one collapsing
     NEXT
+    FOR i = 1 TO numItems ' Loot thrown out of something broken, flying to where it lands (TossItem)
+        IF itemToss(i) > 0 THEN itemToss(i) = itemToss(i) - 1 : itemX(i) = itemX(i) + itemVX(i) : itemY(i) = itemY(i) + itemVY(i)
+    NEXT
     FOR i = 1 TO MAX_BLASTS
         IF blastTime(i) > 0 THEN blastTime(i) = blastTime(i) - 1
     NEXT
@@ -2293,6 +2489,29 @@ DO
     IF glMode AND setting(SET_PARTICLES) THEN SpawnDust playerX, playerY
 
     IF hurtFlash > 0 THEN hurtFlash = hurtFlash - 1
+    IF painVig > 0 THEN painVig = MaxOf(0, painVig - 0.025) ' (the hurt edges fade, over 40 frames or so)
+    ' LOW ON HEALTH: your heart pounds - a beat every 1.2 seconds at LOW_HP,
+    ' every 0.6 near death, louder the lower you are - and now and then a
+    ' gasp, a breath, a groan, quietly (DrawVignette thumps red with the beat)
+    IF health <= LOW_HP AND health > 0 AND NOT dead AND NOT editMode AND NOT godMode AND NOT cyberOn THEN
+        lowness = 1 - health / LOW_HP
+        IF TIMER(0.001) >= beatNext OR beatNext - TIMER(0.001) > 5 THEN ' (or TIMER went past midnight)
+            beatAt = TIMER(0.001) : beatNext = beatAt + 1.2 - 0.6 * lowness
+            IF sndHeart& THEN PlaySfx sndHeart&, 0.35 + 0.5 * lowness
+        END IF
+        IF TIMER(0.001) >= gaspNext OR gaspNext - TIMER(0.001) > 30 THEN
+            IF gaspNext > 0 THEN
+                SELECT CASE INT(RND * 5)
+                    CASE 0 : IF sndBreath& THEN PlaySfx sndBreath&, 0.3
+                    CASE 1 : IF sndGroan& THEN PlaySfx sndGroan&, 0.15
+                    CASE ELSE : k = INT(RND * 3) + 1 : IF sndGasp&(k) THEN PlaySfx sndGasp&(k), 0.075
+                END SELECT
+            END IF
+            gaspNext = TIMER(0.001) + 4 + RND * 6
+        END IF
+    ELSE
+        beatNext = 0 : gaspNext = 0 : beatAt = 0
+    END IF
     IF ampTimer > 0 THEN ' The damage amp wears off
         ampTimer = ampTimer - 1 : IF ampTimer = 0 THEN PlaySfx sndAmpEnd&, 0.8 : ShowMsg "Damage amp wore off"
     END IF
@@ -2381,6 +2600,7 @@ DO
             skyV(y) = INT((1 - el) * (texSize - 1))
         NEXT
     END IF
+    IF NOT glMode AND liqAny AND NOT cyberOn THEN LiquidAnimate ' (the liquids' pictures, rippling - OpenGL's shader does its own)
     IF NOT glMode AND levelFlat THEN ' (OpenGL draws the floor and ceiling itself; with heights, HeightColumn does - chapter 15)
         rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
         rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY
@@ -2521,6 +2741,12 @@ DO
     '   cell's diagonal (DiagonalHit, chapter 23). If it does before leaving
     '   the cell, that's the hit, at that distance; otherwise the ray is in
     '   the open half and carries on.
+    '   BLOCKS stand in open cells: a box anywhere inside the cell (boxOn,
+    '   boxX0...). Crossing such a cell, we ask where the ray goes into the
+    '   box (BoxRay, chapter 23); if that's before it leaves the cell, the
+    '   box's side is the hit - its side 0 or 1 like any wall's - and
+    '   otherwise the ray is on open floor and carries on. Its sides are
+    '   faces of their own (FACE_BOX + 1 to 4), so they take pictures too.
     FOR x = 0 TO RENDER_W - 1
         cameraX = 2 * x / RENDER_W - 1
         rayDirX = dirX + planeX * cameraX : rayDirY = dirY + planeY * cameraX
@@ -2531,13 +2757,18 @@ DO
         IF rayDirX < 0 THEN stepX = -1 : sideDistX = (playerX - mapX) * deltaDistX ELSE stepX = 1 : sideDistX = (mapX + 1 - playerX) * deltaDistX
         IF rayDirY < 0 THEN stepY = -1 : sideDistY = (playerY - mapY) * deltaDistY ELSE stepY = 1 : sideDistY = (mapY + 1 - playerY) * deltaDistY
 
-        hit = 0 : side = 0 : shutterSeen = 0 : diagHit = 0 : doorHit = 0
+        hit = 0 : side = 0 : shutterSeen = 0 : diagHit = 0 : doorHit = 0 : boxHit = 0
         glassT(x) = 0 : glassDone(x) = 0 ' (glass: GlassRay notes the nearest pane the ray goes through)
         IF glassHP(mapX, mapY) > 0 THEN IF GlassRay(mapX, mapY, playerX, playerY, rayDirX, rayDirY, gT, gU) THEN glassT(x) = gT : glassU(x) = gU : glassCX(x) = mapX : glassCY(x) = mapY
         IF diagCorner(mapX, mapY) THEN ' Standing in a diagonal wall's open half
             exitDist = sideDistX : IF sideDistY < exitDist THEN exitDist = sideDistY
             diagDist = DiagonalHit(diagCorner(mapX, mapY), mapX, mapY, playerX, playerY, rayDirX, rayDirY, 0, exitDist)
             IF diagDist >= 0 THEN hit = worldMap(mapX, mapY) : diagHit = diagCorner(mapX, mapY) : perpWallDist = diagDist
+        END IF
+        IF boxOn(mapX, mapY) THEN ' Standing beside a box, in its cell
+            exitDist = sideDistX : IF sideDistY < exitDist THEN exitDist = sideDistY
+            boxDist = BoxRay(mapX, mapY, playerX, playerY, rayDirX, rayDirY, 0, exitDist, bSide)
+            IF boxDist >= 0 THEN hit = boxOn(mapX, mapY) : boxHit = -1 : side = bSide : perpWallDist = boxDist
         END IF
         WHILE hit = 0
             IF sideDistX < sideDistY THEN sideDistX = sideDistX + deltaDistX : mapX = mapX + stepX : side = 0 ELSE sideDistY = sideDistY + deltaDistY : mapY = mapY + stepY : side = 1
@@ -2558,6 +2789,13 @@ DO
                     diagDist = DiagonalHit(diagCorner(mapX, mapY), mapX, mapY, playerX, playerY, rayDirX, rayDirY, enterDist, exitDist)
                     IF diagDist >= 0 THEN hit = cellValue : diagHit = diagCorner(mapX, mapY) : perpWallDist = diagDist
                 END IF
+            ELSEIF boxOn(mapX, mapY) THEN
+                ' A box: the ray hits it if it goes into it before leaving the
+                ' cell (BoxRay); else it's open floor, and the ray carries on
+                IF side = 0 THEN enterDist = sideDistX - deltaDistX ELSE enterDist = sideDistY - deltaDistY
+                exitDist = sideDistX : IF sideDistY < exitDist THEN exitDist = sideDistY
+                boxDist = BoxRay(mapX, mapY, playerX, playerY, rayDirX, rayDirY, enterDist, exitDist, bSide)
+                IF boxDist >= 0 THEN hit = boxOn(mapX, mapY) : boxHit = -1 : side = bSide : perpWallDist = boxDist
             ELSEIF cellValue = 2 THEN
                 IF doorType(mapX, mapY) = DOOR_EXIT THEN ' Never opens: a wall, on its cell's face
                     hit = 2
@@ -2578,7 +2816,7 @@ DO
             END IF
         WEND
 
-        IF diagHit = 0 AND doorHit = 0 THEN
+        IF diagHit = 0 AND doorHit = 0 AND boxHit = 0 THEN
             IF side = 0 THEN perpWallDist = (mapX - playerX + (1 - stepX) / 2) / rayDirX ELSE perpWallDist = (mapY - playerY + (1 - stepY) / 2) / rayDirY
         END IF
         IF perpWallDist < 0.001 THEN perpWallDist = 0.001
@@ -2623,7 +2861,9 @@ DO
             IF faceAny THEN ' (a side with a picture of its own - the editor's PAINT, or a light's tint)
                 IF side = 0 THEN IF rayDirX > 0 THEN sd = 3 ELSE sd = 1
                 IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
-                IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, texX / texSize, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, texX / texSize, 0, texSlot)
+                fu = texX / texSize
+                IF boxHit THEN fu = BoxFaceU(mapX, mapY, sd, fu) : sd = sd + FACE_BOX ' (a block's sides are faces of their own)
+                IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, fu, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, fu, 0, texSlot)
             END IF
         END IF
         texX = texX AND (texSize - 1)
@@ -2642,7 +2882,7 @@ DO
         IF diagHit THEN fog& = fog& * 0.85 ELSE IF side = 1 THEN fog& = fog& * 0.7
         IF doorHit THEN
             litX = doorLitX : litY = doorLitY
-        ELSEIF diagHit THEN
+        ELSEIF diagHit OR boxHit THEN
             litX = mapX : litY = mapY
         ELSEIF side = 0 THEN
             litX = mapX - stepX : litY = mapY
@@ -2743,6 +2983,7 @@ DO
                 CASE ELSE : drawScale(numDraw) = ITEM_SCALE
             END SELECT
             drawLift(numDraw) = 0.12 + 0.04 * SIN(TIMER * 3 + i) ' Hovering, bobbing
+            IF itemToss(i) > 0 THEN f = itemToss(i) / LOOT_TOSS : drawLift(numDraw) = drawLift(numDraw) + 1.4 * f * (1 - f) ' (tossed: up and over, and down - TossItem)
         END IF
     NEXT
     FOR i = 1 TO numMonsters
@@ -3139,7 +3380,7 @@ DO
     IF NOT dead THEN DrawCrosshair 400, 300
     crossScale = 1 + (crossScale - 1) * 0.85
     IF crossFlash > 0 THEN crossFlash = crossFlash - 1
-    IF hurtFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 0, 0, hurtFlash * 9), BF
+    IF hurtFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(MaxOf(painR, 120), painG, painB, hurtFlash * 5), BF ' (in what hurt you - and fainter now the edges show it)
     IF pickFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 255, 160, pickFlash * 4), BF
     IF setting(SET_HURTDIR) THEN DrawHurtDirs playerX, playerY, dirX, dirY ' (over the red flash, so they stand out)
     IF godMode AND hudShow(HE_GOD) THEN HudText hudX(HE_GOD), hudY(HE_GOD), hudLabel$(HE_GOD), HudColor~&(HE_GOD, _RGB32(255, 215, 30))
@@ -3150,7 +3391,7 @@ DO
             IF edLooking THEN EditDrawPicker -1, -1 ELSE EditDrawPicker edCurX, edCurY
         ELSEIF edPickOn THEN ' (tucked away: a strip saying what the brush is)
             LINE (0, PK_TUCK)-(799, 599), _RGBA32(6, 2, 18, 200), BF : LINE (0, PK_TUCK)-(799, PK_TUCK), _RGBA32(255, 60, 200, 160)
-            IF edTool = ET_PAINT THEN t$ = edBrushTex$ ELSE IF edTool = ET_LIGHT THEN t$ = "light: " + LCASE$(EditFxName$(edLFx)) ELSE t$ = GlyphName$(editGlyph$)
+            IF edTool = ET_PAINT THEN t$ = EditPaintName$ ELSE IF edTool = ET_LIGHT THEN t$ = "light: " + LCASE$(EditFxName$(edLFx)) ELSE t$ = GlyphName$(editGlyph$)
             HudText 8, PK_TUCK + 2, LEFT$("^ PICKER  (point here to open it)   brush: " + t$, 98), _RGB32(190, 180, 230)
         END IF
         IF edLooking THEN EditDrawPane -1, -1 ELSE EditDrawPane edCurX, edCurY
@@ -3204,6 +3445,21 @@ DO
         END IF
     END IF
     IF ampTimer > 0 AND hudShow(HE_AMP) THEN HudText hudX(HE_AMP), hudY(HE_AMP), hudLabel$(HE_AMP) + STR$(ampTimer \ 60 + 1), HudColor~&(HE_AMP, _RGB32(255, 90, 90))
+    ' The VIGNETTES (with HIT FX on): a lockdown strobing red; low health
+    ' thumping red with your heart; poison's green; the colour of the last
+    ' thing that hurt you, fading
+    IF setting(SET_HITFX) AND NOT editMode THEN
+        FOR ev = 1 TO numEvents
+            IF evState(ev) = 1 AND (evType(ev) = EV_AMBUSH OR evType(ev) = EV_SURVIVE) THEN DrawVignette 230, 0, 0, 0.12 + 0.6 * MaxOf(0, SIN(TIMER * 9)) ^ 6 : EXIT FOR
+        NEXT
+        IF beatAt > 0 THEN ' (a beat's two thumps: lub, then dub a quarter second on)
+            bt = TIMER(0.001) - beatAt : IF bt < 0 THEN bt = 9
+            thump = EXP(-bt * 9) : IF bt > 0.25 THEN thump = MaxOf(thump, 0.7 * EXP(-(bt - 0.25) * 9))
+            DrawVignette 120, 0, 0, 0.25 + 0.3 * (1 - health / LOW_HP) + 0.45 * thump
+        END IF
+        IF poisonTint > 0 THEN DrawVignette 40, 190, 60, poisonTint / 40
+        IF painVig > 0 THEN DrawVignette painR, painG, painB, painVig
+    END IF
     FOR ev = 1 TO numEvents ' An event room going on: what's left to do, and a pulsing red frame
         IF evState(ev) = 1 THEN
             SELECT CASE evType(ev)
@@ -3214,11 +3470,13 @@ DO
                     NEXT
                     evText$ = "LOCKDOWN - HOSTILES LEFT:" + STR$(left)
                 CASE EV_SURVIVE : evText$ = "LOCKDOWN - SURVIVE" + STR$(evTimer(ev) \ 60 + 1)
-                CASE EV_GALLERY : evText$ = "SHOOTING GALLERY -" + STR$(evTimer(ev) \ 60 + 1) + " SECONDS"
-                CASE ELSE : evText$ = "DESTROY THE SPAWNERS"
+                CASE EV_GALLERY : evText$ = "SMASH EVERYTHING:" + STR$(evCount(ev)) + " LEFT," + STR$(evTimer(ev) \ 60 + 1) + "s"
+                CASE EV_NEST : evText$ = "DESTROY THE SPAWNERS"
+                CASE EV_BLACKOUT : evText$ = "POWER FAILURE -" + STR$(blackoutTimer \ 60 + 1)
+                CASE ELSE : evText$ = "" ' (a plate, a laser...: you can see what it is - nothing to say, and no frame)
             END SELECT
-            IF hudShow(HE_EVENT) THEN HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT), evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90))
-            IF evType(ev) <> EV_NEST AND evType(ev) <> EV_GALLERY THEN
+            IF evText$ <> "" AND hudShow(HE_EVENT) THEN HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT), evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90))
+            IF evText$ <> "" AND evType(ev) <> EV_NEST AND evType(ev) <> EV_GALLERY THEN
                 pulse = 60 + 50 * SIN(TIMER * 6)
                 FOR k = 0 TO 3 : LINE (k, k)-(799 - k, 599 - k), _RGBA32(255, 30, 30, pulse), B : NEXT
             END IF
@@ -3335,6 +3593,21 @@ LOOP ' (forever: you leave the game from the menu - chapter 21)
 ' terminals (TerminalUse, RunPuzzle - a real QB64 program to put back
 ' together, compiled for real with SHELL _DONTWAIT while the game waits).
 
+' --- A shot hits monster number target - in its weak spot, if head is on
+' (it reached it at height headZ): then WEAK_MULT times hitDamage, a cry
+' of pain, a crunch, and a burst of sparks there
+HitMonsterAimed:
+IF head THEN
+    hitWas = hitDamage : hitDamage = hitDamage * WEAK_MULT : GOSUB HitMonster : hitDamage = hitWas
+    IF monsterState(target) < 2 THEN SfxAt mtypePainSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
+    IF sndHeadshot& THEN PlaySfx sndHeadshot&, 0.8
+    SpawnSparks monsterX(target), monsterY(target), MaxOf(0.05, headZ - FloorAt(monsterX(target), monsterY(target))), 18, 255, 230, 120
+ELSE
+    GOSUB HitMonster
+END IF
+head = 0
+RETURN
+
 ' --- A shot (or blast) hits monster number target, for hitDamage
 HitMonster:
 monsterHP(target) = monsterHP(target) - hitDamage : monsterHurt(target) = 8
@@ -3356,13 +3629,18 @@ RETURN
 ' the caller said where it came from (hurtFromX, hurtFromY), a damage
 ' indicator points there (chapter 18).
 HurtPlayer:
-IF godMode OR editMode THEN hurtFromX = -1 : hurtElectric = 0 : RETURN ' (nothing hurts in god mode, or in the editor)
+IF godMode OR editMode THEN hurtFromX = -1 : hurtElectric = 0 : hurtR = 0 : hurtG = 0 : hurtB = 0 : RETURN ' (nothing hurts in god mode, or in the editor)
 IF setting(SET_XFEEDBACK) THEN crossScale = 1.8 ' The crosshair jolts wide
 IF hurtFromX >= 0 THEN AddHurtDir hurtFromX, hurtFromY
 hurtFromX = -1
 absorbed = damage \ 3 : IF absorbed > armor THEN absorbed = armor
 armor = armor - absorbed : damage = damage - absorbed
 health = health - damage : hurtFlash = 14 : shake = shake + damage / 2
+' The edges, in what hurt you: a shock's blue, else the caller's colour
+' (hurtR/G/B) - or blood. The harder the hit, the stronger.
+IF hurtElectric THEN hurtR = 60 : hurtG = 140 : hurtB = 255
+IF hurtR = 0 AND hurtG = 0 AND hurtB = 0 THEN hurtR = 140 : hurtG = 0 : hurtB = 0
+painR = hurtR : painG = hurtG : painB = hurtB : painVig = MinOf(1, 0.4 + damage / 25)
 IF health <= 0 THEN
     health = 0 : dead = -1 : deadAt! = TIMER
     PlaySfx sndDie&, 1 : ShowMsg ""
@@ -3374,7 +3652,7 @@ ELSE
     END SELECT
 END IF
 IF hurtElectric THEN PlaySfx sndHurtZap&, 1 ' (a shock - a laser, a live floor: the zap as well as the cry)
-hurtElectric = 0
+hurtElectric = 0 : hurtR = 0 : hurtG = 0 : hurtB = 0
 RETURN
 
 ' --- Barrel number `barrel` explodes: it hurts everything near it that it
@@ -3383,6 +3661,7 @@ RETURN
 Explode:
 decoOn(barrel) = 0 : decoFuse(barrel) = 0 : decoCell(INT(decoX(barrel)), INT(decoY(barrel))) = 0
 blastAtX = decoX(barrel) : blastAtY = decoY(barrel) : GOSUB BlastAt
+DecoLoot barrel, playerX, playerY ' (what was in it - thrown clear by the blast)
 RETURN
 
 ' --- An explosion at (blastAtX, blastAtY): a barrel's, or a pressure
@@ -3410,7 +3689,7 @@ distance = SQR((playerX - blastAtX) ^ 2 + (playerY - blastAtY) ^ 2)
 IF distance < BLAST_RADIUS AND NOT dead THEN
     IF CanSee(blastAtX, blastAtY, playerX, playerY) THEN
         damage = INT(40 * (1 - distance / BLAST_RADIUS)) + 5
-        hurtFromX = blastAtX : hurtFromY = blastAtY : GOSUB HurtPlayer
+        hurtFromX = blastAtX : hurtFromY = blastAtY : hurtR = 255 : hurtG = 140 : hurtB = 40 : GOSUB HurtPlayer ' (a blast: fiery edges)
     END IF
 END IF
 FOR j = 1 TO numDecos
@@ -3430,8 +3709,9 @@ RETURN
 ' --- A shot (or blast) hits decoration number targetDeco for hitDamage. A
 ' barrel's fuse is lit (it blows up next frame); anything else loses that
 ' much from decoHP, and at 0 it breaks: it stops blocking the way at once,
-' collapses into the floor over DECO_BREAK_FRAMES (drawn in chapter 16), and
-' lamps and terminals go in a small puff of sparks.
+' collapses into the floor over DECO_BREAK_FRAMES (drawn in chapter 16),
+' lamps and terminals go in a small puff of sparks - and it may leave loot
+' (DecoLoot: a crate's ammo, a locker's armor). hitKick: your boot did it.
 ' --- THE LEVEL EDITOR (chapter 21) ----------------------------------------
 ' F2 in the game. Two views of the same level: the map from above
 ' (RunEditor - a loop of its own, like the menu: paint the map's
@@ -3549,6 +3829,9 @@ SELECT CASE edPkKind(pkIdx)
         IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
         edBrushImg& = EditFileThumb&(edBrushTex$)
         IF edSelN THEN GOSUB EditPaintSel ELSE EditNote "PAINT " + edBrushTex$ + ": click a face"
+    CASE PK_LIQUID ' A liquid (or draining one) for PAINT - and poured into the floors selected, if any
+        edSlotPick = 0 : edBrushLiq$ = edPkVal$(pkIdx) : edBrushKind = PK_LIQUID : edTool = ET_PAINT
+        IF edSelN THEN GOSUB EditPaintSel ELSE EditNote "PAINT " + LiquidBrushName$(edBrushLiq$) + ": click a floor (Ctrl+click: all of it; Shift: drain)"
     CASE PK_LIGHT ' An effect or a colour for the light brush - and the lights on the faces selected
         edSlotPick = 0
         v = VAL(MID$(edPkVal$(pkIdx), 2)) : edBrushKind = PK_LIGHT : edTool = ET_LIGHT
@@ -3574,6 +3857,14 @@ RETURN
 ' The brush's picture on every face selected
 EditPaintSel:
 GOSUB EditPushUndo
+IF edBrushKind = PK_LIQUID THEN ' A liquid: into the cell of every floor (or step, or thing on the floor) selected
+    n = 0
+    FOR k = 1 TO edSelN
+        IF edSelKind(k) = ED_FLOOR OR edSelKind(k) = ED_STEP THEN EditBrushLiquid edSelX(k), edSelY(k), 0 : n = n + 1
+    NEXT
+    GOSUB EditApply : EditNote LiquidBrushName$(edBrushLiq$) + ":" + STR$(n) + " cells"
+    RETURN
+END IF
 FOR k = 1 TO edSelN
     IF edSelKind(k) = ED_FLOOR AND NOT EditCellOpen(edSelX(k), edSelY(k)) THEN ' (a wall cell selected from above: its four sides)
         EditPaintCell edSelX(k), edSelY(k), edBrushTex$, 0
@@ -3692,6 +3983,59 @@ SELECT CASE pnHit
             END IF
         NEXT
         GOSUB EditApply : EditNote "Light taken away"
+    CASE 200, 201 ' Every box side selected, pushed in (or pulled out) an eighth
+        GOSUB EditPushUndo : blkN = 0
+        FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_BOX THEN IF EditBoxMove(edSelX(k), edSelY(k), edSelSide(k), 1 + 2 * (pnHit = 201)) THEN blkN = blkN + 1
+        NEXT
+        GOSUB EditApply
+        IF blkN THEN EditNote "Moved" + STR$(blkN) + " side(s) an eighth" ELSE EditNote "Can't: a block is an eighth thick at least, and stays in its cell"
+    CASE 202 ' The selected sides' boxes, gone
+        GOSUB EditPushUndo : blkN = 0
+        FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_BOX THEN IF EditBoxIndex(edSelX(k), edSelY(k)) THEN EditRemoveBox edSelX(k), edSelY(k) : blkN = blkN + 1
+        NEXT
+        edSelN = 0 : GOSUB EditApply : EditNote "Removed" + STR$(blkN) + " block(s)"
+    CASE 203 ' Each wall selected, a box filling its cell - the side clicked now the box's
+        GOSUB EditPushUndo : blkN = 0
+        FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_WALL THEN
+                IF EditWallToBox(edSelX(k), edSelY(k), edSelSide(k)) THEN edSelKind(k) = ED_BOX : blkN = blkN + 1
+            END IF
+        NEXT
+        GOSUB EditApply : EditNote LTRIM$(STR$(blkN)) + " wall(s) made blocks - PUSH IN shapes the side selected"
+    CASE 204 ' A pillar on each floor selected: a quarter of a cell square, in its middle
+        GOSUB EditPushUndo : blkN = 0
+        FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_FLOOR THEN
+                IF MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1) = "." AND EditBoxIndex(edSelX(k), edSelY(k)) = 0 THEN
+                    IF EditAddBox(edSelX(k), edSelY(k), 3, 3, 5, 5, 1) THEN blkN = blkN + 1
+                END IF
+            END IF
+        NEXT
+        GOSUB EditApply
+        IF blkN THEN EditNote LTRIM$(STR$(blkN)) + " pillar(s) - click a side of one to shape it" ELSE EditNote "A pillar needs an empty floor"
+    CASE 205 TO 208 ' The selected decorations moved about their cells
+        GOSUB EditPushUndo
+        FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_FLOOR AND INSTR("oiptxlnfSdAFIJLOQUWZV", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN
+                EditNudgeGet edSelX(k), edSelY(k), ndx, ndy
+                SELECT CASE pnHit
+                    CASE 205 : ndx = MaxOf(-3, ndx - 1)
+                    CASE 206 : ndx = MinOf(3, ndx + 1)
+                    CASE 207 : ndy = MaxOf(-3, ndy - 1)
+                    CASE 208 : ndy = MinOf(3, ndy + 1)
+                END SELECT
+                EditNudgeSet edSelX(k), edSelY(k), ndx, ndy
+            END IF
+        NEXT
+        GOSUB EditApply
+    CASE 210 TO 215 ' The wall the selected boxes look like
+        GOSUB EditPushUndo
+        FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_BOX THEN bi = EditBoxIndex(edSelX(k), edSelY(k)) : IF bi THEN lvlBox(bi, 7) = pnHit - 209
+        NEXT
+        GOSUB EditApply
     CASE 80 TO 94 ' A monster's own settings: every monster selected
         GOSUB EditPushUndo
         FOR k = 1 TO edSelN
@@ -3885,7 +4229,8 @@ DO
     ' undo a run; else the brush, the character before or after
     IF wheel THEN
         EditPkHit mx, my, pkWhat, pkIdx
-        IF pkWhat OR (mx >= ED_PALX AND my >= 40 AND my < 250) THEN
+        EditPkGeom pgx, pgy, pcols, prows, psz
+        IF pkWhat OR (mx >= ED_PALX AND my >= 40 AND my < pgy + prows * (psz + 4)) THEN
             EditPkScroll SGN(wheel)
         ELSEIF onMap AND edSelN THEN
             IF ABS(TIMER - edWheelT!) > 0.5 THEN GOSUB EditPushUndo
@@ -3950,7 +4295,13 @@ DO
     IF onMap AND edTool = ET_SELECT THEN ' Selecting: press, drag a box, let go (Shift adds to what's selected)
         IF b1 AND NOT edDown THEN edDown = -1 : edRect = -1 : edX0 = cx : edY0 = cy : edSelAdd = shiftOn
     END IF
-    IF onMap AND edTool = ET_PAINT THEN ' Painting pictures: a floor (Ctrl: its ceiling), or a wall's four sides; Shift: the usual again - drag on across cells
+    IF onMap AND edTool = ET_PAINT AND edBrushKind = PK_LIQUID THEN ' Pouring a liquid: on each floor cell dragged over (Shift: drain it)
+        IF b1 AND (NOT edDown OR cx <> edX0 OR cy <> edY0) THEN
+            IF NOT edDown THEN GOSUB EditPushUndo
+            EditBrushLiquid cx, cy, shiftOn : edApply = -1
+            edDown = -1 : edX0 = cx : edY0 = cy
+        END IF
+    ELSEIF onMap AND edTool = ET_PAINT THEN ' Painting pictures: a floor (Ctrl: its ceiling), or a wall's four sides; Shift: the usual again - drag on across cells
         IF b1 AND (NOT edDown OR cx <> edX0 OR cy <> edY0) THEN
             IF edBrushTex$ = "" AND NOT shiftOn THEN
                 EditNote "Pick a picture first (the picker: WALLS, FLOORS, CEILINGS)"
@@ -4173,9 +4524,10 @@ GOSUB LoadLevel : editUndoN = 0 : editDirty = 0 : levelWas = level : GOSUB EditR
 EditNote "EDITOR: " + levelName$
 RETURN
 
-' --- THE WHEEL in the 3D editor: on the selection - or, with nothing
-' selected, on the face under the pointer. Up raises, down lowers, an
-' eighth of a wall a turn (Ctrl: a whole wall):
+' --- THE WHEEL in the 3D editor: on the selection, and only the
+' selection - never the face that just happens to be under the pointer
+' (nothing selected: it says so, and changes nothing). Up raises, down
+' lowers, an eighth of a wall a turn (Ctrl: a whole wall):
 '   a floor, a step's face        its floor (the step's top)
 '   a ceiling, a lintel's face    its ceiling (the lintel's bottom)
 '   a wall's side                 nothing on its own - with a key held:
@@ -4188,10 +4540,9 @@ RETURN
 EditWheel:
 ticks = -SGN(edWheel) * MinOf(ABS(edWheel), 8) : IF ticks = 0 THEN RETURN
 wShift = _KEYDOWN(100304) OR _KEYDOWN(100303) : wCtrl = _KEYDOWN(100305) OR _KEYDOWN(100306) : wAlt = _KEYDOWN(100307) OR _KEYDOWN(100308)
-IF edSelN = 0 AND edHovKind = 0 THEN EditNote "Point at a face (or select some) to change it with the wheel" : RETURN
+IF edSelN = 0 THEN EditNote "Select a face first (click it) - the wheel only changes what's selected" : RETURN
 IF ABS(TIMER - edWheelT!) > 0.5 THEN GOSUB EditPushUndo
 edWheelT! = TIMER
-IF edSelN = 0 THEN EditSelToggle edHovKind, edHovX, edHovY, edHovSide, 0 ' (nothing selected: the face under the pointer - and it stays selected, so turning on keeps working on it)
 dz = ticks * H_STEP : IF wCtrl AND NOT wShift THEN dz = ticks * 1
 wCount = 0
 FOR wk = 1 TO edSelN
@@ -4350,7 +4701,16 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
                 END IF
             CASE ET_PAINT ' The brush's picture on the face (Shift: back to the usual; Ctrl: the whole floor or ceiling it's part of; Alt: pick its picture up)
                 fc = EditFaceCode(edHovKind, edHovSide)
-                IF edHovKind = ED_WALL AND INSTR("/\", MID$(lvlRow$(edHovY), edHovX + 1, 1)) THEN
+                IF edBrushKind = PK_LIQUID THEN ' A liquid: poured on the floor (Ctrl: all of it, as far as it's level; Shift: drained)
+                    IF edHovKind <> ED_FLOOR AND edHovKind <> ED_STEP THEN
+                        EditNote "A liquid lies on a floor - point at one"
+                    ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND edHovKind = ED_FLOOR THEN
+                        EditSelFlood ED_FLOOR, edHovX, edHovY : GOSUB EditPaintSel : edSelN = 0
+                    ELSE
+                        GOSUB EditPushUndo : EditBrushLiquid edHovX, edHovY, edShift : GOSUB EditApply
+                        IF edShift THEN EditNote "Drained" ELSE EditNote LiquidBrushName$(edBrushLiq$) + " at" + STR$(edHovX) + STR$(edHovY)
+                    END IF
+                ELSEIF edHovKind = ED_WALL AND INSTR("/\", MID$(lvlRow$(edHovY), edHovX + 1, 1)) THEN
                     EditNote "A diagonal wall takes the look of the walls by it - paint those"
                 ELSEIF edAlt THEN
                     k = FaceIndex(edHovX, edHovY, fc) : pic$ = ""
@@ -4360,6 +4720,7 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
                             CASE ED_FLOOR : pic$ = texFile$(floorTex(edHovX, edHovY))
                             CASE ED_CEIL : pic$ = texFile$(ceilTex(edHovX, edHovY))
                             CASE ED_WALL : w = INSTR("#NCKPG", MID$(lvlRow$(edHovY), edHovX + 1, 1)) : IF w THEN pic$ = lvlWall$(w)
+                            CASE ED_BOX : bi = EditBoxIndex(edHovX, edHovY) : pic$ = lvlWall$(1) : IF bi THEN IF lvlBox(bi, 7) >= 1 AND lvlBox(bi, 7) <= 6 THEN pic$ = lvlWall$(lvlBox(bi, 7))
                             CASE ELSE : pic$ = lvlWall$(1)
                         END SELECT
                     END IF
@@ -4418,6 +4779,10 @@ IF edWheel <> 0 AND edPickOpen AND edCurY >= PK_Y - 4 AND NOT edLooking THEN ' (
 END IF
 IF edWheel <> 0 AND NOT EditOverUI(edCurX, edCurY) THEN GOSUB EditWheel
 edWheel = 0
+FOR kc = 97 TO 122 ' (a letter let go in another loop - the map from above, the menu - is let go here too)
+    IF edKeyHeld(kc) THEN IF NOT _KEYDOWN(kc) AND NOT _KEYDOWN(kc - 32) THEN edKeyHeld(kc) = 0
+NEXT
+edCtrl = _KEYDOWN(100305) OR _KEYDOWN(100306)
 k& = _KEYHIT
 DO WHILE k&
     IF edTyping THEN ' (typing the sector's name: the keys are its)
@@ -4425,10 +4790,28 @@ DO WHILE k&
         k& = _KEYHIT : _CONTINUE
     END IF
     shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
-    IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z, Ctrl+D - however the key arrives)
-        IF k& = 115 OR k& = 83 THEN k& = 19
-        IF k& = 122 OR k& = 90 THEN k& = 26
-        IF k& = 100 OR k& = 68 THEN k& = 4
+    IF ABS(k&) = 100305 OR ABS(k&) = 100306 THEN edCtrl = (k& > 0)
+    kc = 0 : IF ABS(k&) >= 65 AND ABS(k&) <= 122 THEN kc = ABS(k&) OR 32 ' (a letter, as its small letter)
+    IF kc < 97 OR kc > 122 THEN kc = 0
+    IF kc THEN ' Down (a fresh press, or its auto-repeat) or up
+        IF k& < 0 THEN
+            edKeyHeld(kc) = 0
+        ELSEIF NOT edKeyHeld(kc) THEN
+            edKeyHeld(kc) = -1 : edKeyCtrl(kc) = edCtrl
+        END IF
+    END IF
+    IF edCtrl OR edKeyCtrl(kc) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z, Ctrl+D - however the key arrives)
+        IF kc = 115 OR kc = 122 OR kc = 100 THEN
+            IF k& < 0 OR NOT edKeyCtrl(kc) THEN
+                k& = 0 ' (a walking key's repeat - pressed before Ctrl - is no shortcut)
+            ELSEIF kc = 115 THEN
+                k& = 19
+            ELSEIF kc = 122 THEN
+                k& = 26
+            ELSE
+                k& = 4
+            END IF
+        END IF
     END IF
     SELECT CASE k&
         CASE 4 : edSelN = 0 : EditNote "Selection cleared" ' Ctrl+D
@@ -4465,26 +4848,26 @@ DO WHILE k&
             END IF
         CASE 102, 70 ' F: the floor's picture (that floor number, everywhere)
             IF frontX >= 0 THEN n = FloorNumberAt(frontX, frontY) : GOSUB EditPushUndo : lvlFloor$(n) = EditNextPicture$("floor", lvlFloor$(n), 1 + 2 * shiftOn) : GOSUB EditApply : EditNote "Floor" + STR$(n) + ": " + lvlFloor$(n)
-        CASE 104, 72, 118, 86 ' H: divide the face left | right, V: top | bottom (again: whole) - the selection's, or the one under the pointer
+        CASE 104, 72, 118, 86 ' H: divide the face left | right, V: top | bottom (again: whole) - the selection's (never just the one under the pointer)
             dv = 1 : IF k& = 118 OR k& = 86 THEN dv = 2
-            IF edSelN = 0 AND edHovKind = 0 THEN
-                EditNote "Point at a face (or select some) to divide it"
+            IF edSelN = 0 THEN
+                EditNote "Select a face first (click it) to divide it"
             ELSE
                 GOSUB EditPushUndo
-                IF edSelN THEN
-                    FOR j = 1 TO edSelN ' (each face once - both its halves may be selected)
-                        dup = 0
-                        FOR i = 1 TO j - 1
-                            IF edSelKind(i) = edSelKind(j) AND edSelX(i) = edSelX(j) AND edSelY(i) = edSelY(j) AND edSelSide(i) = edSelSide(j) THEN dup = -1
-                        NEXT
-                        IF NOT dup THEN EditDivideFace edSelX(j), edSelY(j), EditFaceCode(edSelKind(j), edSelSide(j)), dv
+                FOR j = 1 TO edSelN ' (each face once - both its halves may be selected)
+                    dup = 0
+                    FOR i = 1 TO j - 1
+                        IF edSelKind(i) = edSelKind(j) AND edSelX(i) = edSelX(j) AND edSelY(i) = edSelY(j) AND edSelSide(i) = edSelSide(j) THEN dup = -1
                     NEXT
-                    FOR j = edSelN TO 1 STEP -1 ' (the halves selected are halves no more: the faces, whole)
-                        IF edSelPart(j) = 2 THEN EditSelToggle edSelKind(j), edSelX(j), edSelY(j), edSelSide(j), 2 ELSE edSelPart(j) = 0
-                    NEXT
-                ELSE
-                    EditDivideFace edHovX, edHovY, EditFaceCode(edHovKind, edHovSide), dv
-                END IF
+                    IF NOT dup THEN EditDivideFace edSelX(j), edSelY(j), EditFaceCode(edSelKind(j), edSelSide(j)), dv
+                NEXT
+                FOR j = edSelN TO 1 STEP -1 ' (the halves selected are halves no more: the faces, whole - a face stays selected, once)
+                    IF edSelPart(j) = 2 AND (EditSelIndex(edSelKind(j), edSelX(j), edSelY(j), edSelSide(j), 1) OR EditSelIndex(edSelKind(j), edSelX(j), edSelY(j), edSelSide(j), 0)) THEN
+                        EditSelToggle edSelKind(j), edSelX(j), edSelY(j), edSelSide(j), 2 ' (its other half is in the selection too: that one stands for the face)
+                    ELSE
+                        edSelPart(j) = 0
+                    END IF
+                NEXT
                 GOSUB EditApply
                 IF dv = 1 THEN EditNote "Left | right (H again: whole) - click a half to select it, PAINT it on its own" ELSE EditNote "Top | bottom (V again: whole) - click a half to select it, PAINT it on its own"
             END IF
@@ -4897,7 +5280,7 @@ IF cyberNeed = 0 THEN cyberNeed = 1 : numItems = numItems + 1 : itemX(numItems) 
 nIce = 2 + level \ 3
 FOR c = 1 TO nIce
     e = tail - 1 - INT(RND * (tail \ 3 + 1)) : IF e < 0 THEN e = 0
-    IF tail > 0 THEN IF SpawnMonster(MT_ICE, fillX(e) + 0.5, fillY(e) + 0.5, 0) THEN monsterTimer(numMonsters) = 90
+    IF tail > 0 THEN IF SpawnMonster(MT_ICE, fillX(e) + 0.5, fillY(e) + 0.5, 0, playerX, playerY) THEN monsterTimer(numMonsters) = 90
 NEXT
 BuildThiefWay ' (the thieves' way home, which the steps above borrowed)
 dirX = -dirX : dirY = -dirY : planeX = -planeX : planeY = -planeY ' (you turn round: into the network, your back to the station)
@@ -4987,12 +5370,18 @@ IF rayDirY < 0 THEN hSDY = (playerY - hcY) * hDDY ELSE hSDY = (hcY + 1 - playerY
 DO
     IF hSDX < hSDY THEN hDOut = hSDX : hnX = hcX + hStepX : hnY = hcY : hSide = 0 : hSDX = hSDX + hDDX ELSE hDOut = hSDY : hnX = hcX : hnY = hcY + hStepY : hSide = 1 : hSDY = hSDY + hDDY
     IF hDOut < 0.001 THEN hDOut = 0.001
+    hBoxed = 0 ' (a box in this cell, in the ray's way: its floor and ceiling only up to it, then its face)
+    IF boxOn(hcX, hcY) THEN
+        boxDist = BoxRay(hcX, hcY, playerX, playerY, rayDirX, rayDirY, hDIn, hDOut, bSide)
+        IF boxDist >= 0 THEN hBoxed = -1 : hDOut = MaxOf(boxDist, 0.001) : hSide = bSide
+    END IF
     ' This cell's light, fogged as far as its middle
     hFog& = 256 - (hDIn + hDOut) * 8 : IF hFog& < 0 THEN hFog& = 0
     hR& = litR(hcX, hcY) : hG& = litG(hcX, hcY) : hB& = litB(hcX, hcY)
     ' Its floor: from where it leaves (higher up the screen) down to where
-    ' it came in
-    hf = floorH(hcX, hcY)
+    ' it came in - or a liquid's surface, lying on it (liqZ: in its own
+    ' picture, rippling - LiquidAnimate)
+    hf = floorH(hcX, hcY) : hLq = 0 : IF liqKind(hcX, hcY) AND NOT cyberOn THEN hLq = liqKind(hcX, hcY) : hf = liqZ(hcX, hcY)
     IF eyeZ > hf THEN
         yFar = INT(hor + (eyeZ - hf) * viewH / hDOut + 0.999)
         IF hDIn > 0.0001 THEN yNear = INT(hor + (eyeZ - hf) * viewH / hDIn) ELSE yNear = RENDER_H - 1
@@ -5002,6 +5391,7 @@ DO
         ' looked up once, before it, and ShadeRGB's sum is written out - a
         ' FUNCTION call a pixel costs more than the sum)
         hk = eyeZ - hf : slot = floorTex(hcX, hcY) : hSplit = floorSplit(hcX, hcY) : tMask = texSize - 1
+        IF hLq THEN slot = T_LIQUID + hLq : hSplit = 0
         FOR y = yFar TO yNear
             rowDist = hk * rowF(y)
             fx = playerX + rowDist * rayDirX : fy = playerY + rowDist * rayDirY
@@ -5044,11 +5434,16 @@ DO
     END IF
     IF hTop > hBot THEN EXIT DO
     ' The next cell: a wall (or a shut door, or a diagonal - drawn whole),
-    ' or open, with a step up or a lintel down to it
-    IF hnX < 0 OR hnY < 0 OR hnX >= MAP_SIZE OR hnY >= MAP_SIZE THEN EXIT DO
-    v = worldMap(hnX, hnY) : hSolid = 0
-    IF v > 0 AND v <> 2 THEN hSolid = -1 : hSlot = wallTexSlot(v)
-    IF diagCorner(hnX, hnY) THEN hSolid = -1 : hSlot = wallTexSlot(worldMap(hnX, hnY))
+    ' or open, with a step up or a lintel down to it - or, before it, this
+    ' cell's box
+    IF hBoxed THEN
+        hnX = hcX : hnY = hcY : v = 0 : hSolid = -1 : hSlot = wallTexSlot(boxOn(hcX, hcY))
+    ELSE
+        IF hnX < 0 OR hnY < 0 OR hnX >= MAP_SIZE OR hnY >= MAP_SIZE THEN EXIT DO
+        v = worldMap(hnX, hnY) : hSolid = 0
+        IF v > 0 AND v <> 2 THEN hSolid = -1 : hSlot = wallTexSlot(v)
+        IF diagCorner(hnX, hnY) THEN hSolid = -1 : hSlot = wallTexSlot(worldMap(hnX, hnY))
+    END IF
     IF v = 2 THEN
         IF doorType(hnX, hnY) = DOOR_EXIT THEN hSolid = -1 : hSlot = T_EXIT
         IF doorType(hnX, hnY) <> DOOR_EXIT AND DoorShown(hnX, hnY) < 0.5 THEN
@@ -5069,7 +5464,12 @@ DO
     IF faceAny THEN
         IF hSide = 0 THEN IF rayDirX > 0 THEN hSd = 3 ELSE hSd = 1
         IF hSide = 1 THEN IF rayDirY > 0 THEN hSd = 4 ELSE hSd = 2
-        IF hSolid AND v <> 2 AND diagCorner(hnX, hnY) = 0 THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot) ' (a diagonal: its neighbours' look, always)
+        IF hBoxed THEN
+            fu = BoxFaceU(hcX, hcY, hSd, hTexX / texSize) ' (a block's sides: faces of their own)
+            hSlot2 = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 1, hSlot) : hSlot = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 0, hSlot)
+        ELSEIF hSolid AND v <> 2 AND diagCorner(hnX, hnY) = 0 THEN
+            hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot) ' (a diagonal: its neighbours' look, always)
+        END IF
     END IF
     hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
     IF hSide = 1 THEN hFog& = hFog& * 0.7
@@ -5080,11 +5480,13 @@ DO
         hTop = hBot + 1 ' (the column's done: nothing left to fill)
         EXIT DO
     END IF
-    ' Open: the step's face up to a higher floor...
-    nf = floorH(hnX, hnY)
+    ' Open: the step's face up to a higher floor (or a liquid's side, up
+    ' to its surface)...
+    nf = floorH(hnX, hnY) : nLq = 0 : IF liqKind(hnX, hnY) AND NOT cyberOn THEN nLq = liqKind(hnX, hnY) : nf = liqZ(hnX, hnY)
     IF nf > hf THEN
         y0 = INT(hor + (eyeZ - nf) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut) : hSlot = wallTexSlot(1) : hVOff = 0
         IF hSd THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
+        IF nLq THEN hSlot = T_LIQUID + nLq : hSlot2 = 0
         IF liftCell(hnX, hnY) THEN hSlot2 = 0 : hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
         hZ0 = nf : hZ1 = hf : GOSUB HeightFace
         IF y0 - 1 < hBot THEN hBot = y0 - 1
@@ -5172,6 +5574,9 @@ RETURN
 
 HitDeco:
 IF decoKind(targetDeco) = DK_BODY THEN RETURN ' (bodies don't break)
+' Its loot, if it breaks: kicked, back the way you're facing (towards you,
+' give or take); shot or blown up, any way at all
+IF hitKick THEN decoLootA(targetDeco) = _ATAN2(-dirY, -dirX) + (RND - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
 IF Explosive(decoKind(targetDeco)) THEN
     IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = 1
     RETURN
@@ -5186,6 +5591,7 @@ ELSE
     IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
         newBlastX = decoX(targetDeco) : newBlastY = decoY(targetDeco) : newBlastSize = 0.35 : GOSUB AddBlast
     END IF
+    DecoLoot targetDeco, playerX, playerY
 END IF
 RETURN
 
@@ -5231,6 +5637,7 @@ FOR ev = 1 TO numEvents
             END SELECT
         CASE EV_LASER ' On a frames, off b (b 0: always on); it burns you, and monsters
             evTimer(ev) = evTimer(ev) + 1 : IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+            LaserFx ev, playerX, playerY ' (heard: it crackles as it flickers, cracks on, buzzes while it's on)
             IF LaserOn(ev) AND evNext(ev) = 0 THEN
                 IF inside AND NOT dead THEN
                     PlaySfx sndLaser&, 0.9 : damage = 12 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = -1 : GOSUB HurtPlayer : evNext(ev) = 25
@@ -5295,13 +5702,16 @@ FOR ev = 1 TO numEvents
             ELSEIF evState(ev) = 1 THEN
                 IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
                 IF evCount(ev) < evB(ev) AND evNext(ev) = 0 THEN
-                    IF SpawnInRoom(ev, VAL(MID$("4414", INT(RND * 4) + 1, 1))) THEN evCount(ev) = evCount(ev) + 1
+                    IF SpawnInRoom(ev, VAL(MID$("4414", INT(RND * 4) + 1, 1)), playerX, playerY) THEN evCount(ev) = evCount(ev) + 1
                     evNext(ev) = 45
                 END IF
                 IF blackoutTimer > 0 THEN blackoutTimer = blackoutTimer - 1
                 IF blackoutTimer = 0 THEN evState(ev) = 2 : PlaySfx sndPowerUp&, 1 : ShowMsg "Power restored"
             END IF
         CASE ELSE
+            ' (a lockdown waits till you're right inside - clear of its doors,
+            ' so they can slam shut behind you: not as you open one)
+            IF evType(ev) = EV_AMBUSH OR evType(ev) = EV_SURVIVE THEN IF inside THEN IF NearRoomDoor(ev, playerX, playerY) THEN inside = 0
             IF evState(ev) = 0 AND inside AND NOT dead THEN GOSUB StartEvent
             IF evState(ev) = 1 THEN GOSUB StepEvent
     END SELECT
@@ -5355,23 +5765,51 @@ RETURN
 
 ' --- Event ev begins: you walked in
 StartEvent:
-evState(ev) = 1 : evCount(ev) = 0 : evNext(ev) = 40
+evState(ev) = 1 : evNext(ev) = 40 : evAway(ev) = 0
+IF NOT evPaused(ev) THEN evCount(ev) = 0 ' (back in a lockdown that lifted: it carries on)
 SELECT CASE evType(ev)
     CASE EV_AMBUSH
-        LockRoom ev, -1 : PlaySfx sndAlarm&, 1 : ShowMsg "LOCKDOWN! Destroy every hostile to get out" : Say "lockdown", 0
+        LockRoom ev, -1 : GOSUB SlamRoom : PlaySfx sndAlarm&, 1 : ShowMsg "LOCKDOWN! Destroy every hostile to get out" : Say "lockdown", 0
     CASE EV_SURVIVE
-        LockRoom ev, -1 : PlaySfx sndAlarm&, 1 : evTimer(ev) = evA(ev) * 60
-        ShowMsg "LOCKDOWN! Survive" + STR$(evA(ev)) + " seconds"
+        LockRoom ev, -1 : GOSUB SlamRoom : PlaySfx sndAlarm&, 1 : IF NOT evPaused(ev) THEN evTimer(ev) = evA(ev) * 60
+        ShowMsg "LOCKDOWN! Survive" + STR$(evTimer(ev) \ 60) + " seconds"
     CASE EV_GALLERY
         evTimer(ev) = evA(ev) * 60 : PlaySfx sndAlarm&, 0.6
-        ShowMsg "SHOOTING GALLERY! Smash everything in here within" + STR$(evA(ev)) + " seconds"
+        ShowMsg "SHOOTING GALLERY! Smash every terminal, crate and machine in here within" + STR$(evA(ev)) + " seconds"
     CASE EV_NEST
         ShowMsg "A spawner nest! Destroy the portals"
 END SELECT
 RETURN
 
+' --- A lockdown's doors (LockRoom's) slam shut - at once, not sliding: no
+' backing out. A door with a monster in it shuts when it's clear, as ever.
+SlamRoom:
+slammed = 0
+FOR sy = evY0(ev) - 5 TO evY1(ev) + 5 : FOR sx = evX0(ev) - 5 TO evX1(ev) + 5
+    IF sx >= 0 AND sy >= 0 AND sx < MAP_SIZE AND sy < MAP_SIZE THEN
+        IF worldMap(sx, sy) = 2 AND doorLock(sx, sy) = -1 AND doorOpen(sx, sy) > 0 THEN
+            IF NOT DoorBlocked(sx, sy, playerX, playerY) THEN
+                doorOpen(sx, sy) = 0 : doorMove(sx, sy) = 0 : doorWait(sx, sy) = 0
+                IF NOT slammed THEN SfxAt DoorSnd&(doorType(sx, sy)), sx + 0.5, sy + 0.5, playerX, playerY : slammed = -1
+            END IF
+        END IF
+    END IF
+NEXT : NEXT
+IF slammed THEN shake = shake + 6
+evPaused(ev) = 0
+RETURN
+
 ' --- Event ev goes on, a frame at a time
 StepEvent:
+IF evType(ev) = EV_AMBUSH OR evType(ev) = EV_SURVIVE THEN ' Out of a lockdown's room (somehow)? A second of that, and it lifts
+    ' (more than a cell out of its room - past the doors in its walls)
+    IF (playerX >= evX0(ev) - 1 AND playerX < evX1(ev) + 2 AND playerY >= evY0(ev) - 1 AND playerY < evY1(ev) + 2) OR dead THEN evAway(ev) = 0 ELSE evAway(ev) = evAway(ev) + 1
+    IF evAway(ev) > 60 THEN
+        evState(ev) = 0 : evPaused(ev) = -1 : evAway(ev) = 0 : LockRoom ev, 0
+        ShowMsg "The lockdown lifts - for now. Go back in and it seals again"
+        RETURN
+    END IF
+END IF
 IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
 alive = 0 ' (its monsters still standing)
 FOR j = 1 TO numMonsters
@@ -5381,22 +5819,23 @@ SELECT CASE evType(ev)
     CASE EV_AMBUSH ' Monsters arrive a few at a time; win when the last one falls
         IF evCount(ev) < evA(ev) AND alive < 4 AND evNext(ev) = 0 THEN
             IF evB(ev) THEN t = evB(ev) ELSE t = VAL(MID$("1246", INT(RND * 4) + 1, 1)) ' (a mix: drones, gunners, crawlers, stalkers)
-            IF SpawnInRoom(ev, t) THEN evCount(ev) = evCount(ev) + 1 : evNext(ev) = 50
+            IF SpawnInRoom(ev, t, playerX, playerY) THEN evCount(ev) = evCount(ev) + 1 : evNext(ev) = 50
         END IF
         IF evCount(ev) >= evA(ev) AND alive = 0 THEN GOSUB WinEvent
     CASE EV_SURVIVE ' Hold out until the timer runs down
         evTimer(ev) = evTimer(ev) - 1
         IF alive < 5 AND evNext(ev) = 0 THEN
             t = VAL(MID$("1446", INT(RND * 4) + 1, 1))
-            IF SpawnInRoom(ev, t) THEN evCount(ev) = evCount(ev) + 1
+            IF SpawnInRoom(ev, t, playerX, playerY) THEN evCount(ev) = evCount(ev) + 1
             evNext(ev) = evB(ev)
         END IF
         IF evTimer(ev) <= 0 THEN GOSUB WinEvent
     CASE EV_GALLERY ' Break them all before the time's up
         evTimer(ev) = evTimer(ev) - 1 : left = 0
-        FOR j = 1 TO numDecos
-            IF decoOn(j) AND InRoom(ev, decoX(j), decoY(j)) THEN left = left + 1
+        FOR j = 1 TO numDecos ' (bodies don't count: they never break)
+            IF decoOn(j) AND decoKind(j) <> DK_BODY AND InRoom(ev, decoX(j), decoY(j)) THEN left = left + 1
         NEXT
+        evCount(ev) = left ' (for the HUD: how many are still standing)
         IF left = 0 THEN
             GOSUB WinEvent
         ELSEIF evTimer(ev) <= 0 THEN
@@ -5408,7 +5847,7 @@ SELECT CASE evType(ev)
             IF decoOn(j) AND decoKind(j) = 9 AND InRoom(ev, decoX(j), decoY(j)) THEN
                 left = left + 1
                 IF near AND alive < 4 AND evNext(ev) = 0 THEN
-                    IF SpawnNear(ev, evA(ev), decoX(j), decoY(j)) THEN evNext(ev) = evB(ev)
+                    IF SpawnNear(ev, evA(ev), decoX(j), decoY(j), playerX, playerY) THEN evNext(ev) = evB(ev)
                 END IF
             END IF
         NEXT
@@ -5719,10 +6158,13 @@ FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
     worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
     floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
-    FOR f = 1 TO 8 : faceTex(x, y, f) = 0 : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
+    FOR f = 1 TO FACE_MAX : faceTex(x, y, f) = 0 : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
+    boxOn(x, y) = 0
     cellSeen(x, y) = 0
 NEXT : NEXT
 numItems = 0 : numMonsters = 0 : numDecos = 0 : hasMap = 0 : mapOpen = 0
+FOR i = 1 TO MAX_ITEMS : itemToss(i) = 0 : NEXT
+LootTable ' (what breakables leave: the game's table, and the level's [loot])
 FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
 FOR i = 1 TO MAX_BLASTS : blastTime(i) = 0 : NEXT
@@ -5812,7 +6254,7 @@ FOR k = 1 TO lvlNumFaces
                 ELSEIF slot1 THEN
                     ceilTex(x, y) = slot1 : ceilSplit(x, y) = 0
                 END IF
-            CASE 1 TO 8 : faceTex(x, y, f) = slot1 : faceTex2(x, y, f) = slot2 : faceDiv(x, y, f) = d
+            CASE 1 TO 8, FACE_BOX + 1 TO FACE_MAX : faceTex(x, y, f) = slot1 : faceTex2(x, y, f) = slot2 : faceDiv(x, y, f) = d
         END SELECT
     END IF
 NEXT
@@ -5827,15 +6269,33 @@ FOR k = 1 TO lvlNumLights
     IF ABS(fy - 0.5) < 0.03 AND ABS(fx - 0.88) < 0.03 THEN gx = INT(lx) + 1 : gy = INT(ly) : gs = 3
     IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.12) < 0.03 THEN gx = INT(lx) : gy = INT(ly) - 1 : gs = 2
     IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.88) < 0.03 THEN gx = INT(lx) : gy = INT(ly) + 1 : gs = 4
+    bxW = 0 ' (or in front of a block's side - its middle, 0.12 out: that side's tinted)
+    IF gx < 0 THEN
+        FOR bk = 1 TO lvlNumBoxes
+            bx0 = lvlBox(bk, 1) + lvlBox(bk, 3) / 8 : bx1 = lvlBox(bk, 1) + lvlBox(bk, 5) / 8 : by0 = lvlBox(bk, 2) + lvlBox(bk, 4) / 8 : by1 = lvlBox(bk, 2) + lvlBox(bk, 6) / 8
+            FOR sd = 1 TO 4
+                SELECT CASE sd
+                    CASE 1 : ax = bx1 + 0.12 : ay = (by0 + by1) / 2
+                    CASE 2 : ax = (bx0 + bx1) / 2 : ay = by1 + 0.12
+                    CASE 3 : ax = bx0 - 0.12 : ay = (by0 + by1) / 2
+                    CASE 4 : ax = (bx0 + bx1) / 2 : ay = by0 - 0.12
+                END SELECT
+                IF ABS(lx - ax) < 0.03 AND ABS(ly - ay) < 0.03 THEN gx = lvlBox(bk, 1) : gy = lvlBox(bk, 2) : gs = FACE_BOX + sd : bxW = lvlBox(bk, 7) : IF bxW < 1 OR bxW > 6 THEN bxW = 1
+            NEXT
+        NEXT
+    END IF
     IF gx >= 0 AND gy >= 0 AND gx < MAP_SIZE AND gy < MAP_SIZE THEN
         gc$ = MID$(lvlRow$(gy), gx + 1, 1) : lc = INT(lx) : lr = INT(ly) ' (the map isn't built yet: its characters, and its height rows, say what's there)
         IF INSTR("DHXRBY!E%/\", gc$) = 0 THEN ' (not a door - nor a secret wall, which a tint would give away, nor a diagonal, which takes its neighbours' look)
             gWall = INSTR("#NCKPG@$%/\", gc$) > 0
             amt = 0.35 + 0.55 * lvlLight(k, 4) / 255
             key$ = ":" + LTRIM$(STR$(lvlLight(k, 5))) + "," + LTRIM$(STR$(lvlLight(k, 6))) + "," + LTRIM$(STR$(lvlLight(k, 7))) + ":" + LTRIM$(STR$(INT(amt * 100))) + ":" + LTRIM$(STR$(lvlLight(k, 8)))
-            FOR g = gs TO gs + 4 STEP 4 ' (its side - a wall's, or a step's - and a lintel's, the same side higher up)
+            gEnd = gs + 4 : IF bxW THEN gEnd = gs ' (a block's side: just that)
+            FOR g = gs TO gEnd STEP 4 ' (its side - a wall's, or a step's - and a lintel's, the same side higher up)
                 there = 0
-                IF gWall THEN
+                IF bxW THEN
+                    there = -1
+                ELSEIF gWall THEN
                     there = (g = gs)
                 ELSEIF g = gs THEN
                     there = HeightOf(MID$(lvlFloorRow$(gy), gx + 1, 1), 0) > HeightOf(MID$(lvlFloorRow$(lr), lc + 1, 1), 0) ' (a step up from the light's cell)
@@ -5847,7 +6307,7 @@ FOR k = 1 TO lvlNumLights
                         CASE "#", "N", "C", "K", "P", "G" : dflt = INSTR("#NCKPG", gc$)
                         CASE "@" : dflt = T_JACK
                         CASE "$" : dflt = T_CODE
-                        CASE ELSE : dflt = wallTexSlot(1)
+                        CASE ELSE : IF bxW THEN dflt = bxW ELSE dflt = wallTexSlot(1) ' (a block's: its wall's)
                     END SELECT
                     hMax = 1 : IF faceDiv(gx, gy, g) THEN hMax = 2 ' (divided: each half its own copy)
                     FOR half = 1 TO hMax
@@ -5887,7 +6347,7 @@ numEvents = lvlNumEvents
 FOR k = 1 TO numEvents
     evType(k) = lvlEvent(k, 1) : evX0(k) = lvlEvent(k, 2) : evY0(k) = lvlEvent(k, 3) : evX1(k) = lvlEvent(k, 4)
     evY1(k) = lvlEvent(k, 5) : evA(k) = lvlEvent(k, 6) : evB(k) = lvlEvent(k, 7) : evReward(k) = lvlEvent(k, 8)
-    evState(k) = 0 : evTimer(k) = 0 : evCount(k) = 0 : evNext(k) = 0 : evGlow(k) = 0
+    evState(k) = 0 : evTimer(k) = 0 : evCount(k) = 0 : evNext(k) = 0 : evGlow(k) = 0 : evAway(k) = 0 : evPaused(k) = 0
     IF evType(k) = EV_TRAP OR evType(k) = EV_FIRETRAP THEN ' (its floor: its own picture, so you can see where it is)
         FOR y = evY0(k) TO evY1(k) : FOR x = evX0(k) TO evX1(k)
             IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN floorSplit(x, y) = 0 : IF evType(k) = EV_FIRETRAP THEN floorTex(x, y) = T_FIRE ELSE floorTex(x, y) = T_TRAP
@@ -5934,7 +6394,7 @@ FOR y = 0 TO MAP_SIZE - 1
                 IF numDecos < MAX_DECO THEN
                     numDecos = numDecos + 1 : decoCell(x, y) = numDecos
                     decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oiptxlnfSdAFIJLOQUWZV", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0
-                    decoHP(numDecos) = DecoMaxHP(decoKind(numDecos)) : decoTimer(numDecos) = 0
+                    decoHP(numDecos) = DecoMaxHP(decoKind(numDecos)) : decoTimer(numDecos) = 0 : decoLootA(numDecos) = NO_AIM
                 END IF
             CASE "m", "g", "h", "c", "s", "k", "w", "z", "T" ' A monster
                 IF numMonsters < MAX_MON THEN
@@ -5970,6 +6430,30 @@ FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
         IF IsWall(x, bestNbY) THEN worldMap(x, y) = worldMap(x, bestNbY) ELSE IF IsWall(bestNbX, y) THEN worldMap(x, y) = worldMap(bestNbX, y)
     END IF
 NEXT : NEXT
+' Boxes ([boxes]): only in an open cell - not a wall, a door, a diagonal or
+' glass - and at least an eighth each way
+boxAny = 0
+FOR k = 1 TO lvlNumBoxes
+    x = lvlBox(k, 1) : y = lvlBox(k, 2)
+    IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+        IF worldMap(x, y) <= 0 AND diagCorner(x, y) = 0 AND glassHP(x, y) = 0 THEN
+            w = lvlBox(k, 7) : IF w < 1 OR w > 6 THEN w = 1
+            boxOn(x, y) = VAL(MID$("134567", w, 1)) : boxAny = -1
+            boxX0(x, y) = MinOf(lvlBox(k, 3), 7) / 8 : boxY0(x, y) = MinOf(lvlBox(k, 4), 7) / 8
+            boxX1(x, y) = MaxOf(lvlBox(k, 5) / 8, boxX0(x, y) + BOX_MIN) : boxY1(x, y) = MaxOf(lvlBox(k, 6) / 8, boxY0(x, y) + BOX_MIN)
+            IF boxX1(x, y) > 1 THEN boxX1(x, y) = 1
+            IF boxY1(x, y) > 1 THEN boxY1(x, y) = 1
+        END IF
+    END IF
+NEXT
+' Decorations moved off their cell's middle ([nudges])
+FOR k = 1 TO lvlNumNudges
+    x = lvlNudge(k, 1) : y = lvlNudge(k, 2)
+    IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+        i = decoCell(x, y)
+        IF i THEN decoX(i) = x + 0.5 + MaxOf(-3, MinOf(3, lvlNudge(k, 3))) / 8 : decoY(i) = y + 0.5 + MaxOf(-3, MinOf(3, lvlNudge(k, 4))) / 8 ' (up to 3 eighths: still in its cell)
+    END IF
+NEXT
 ' Things that glow by themselves get a light of their own: lamps (cyan;
 ' every fourth one flickers), terminals (a faint green pulse), and the exit
 ' (green). A lamp or terminal's light belongs to it, so it goes out when
@@ -5991,6 +6475,21 @@ FOR i = 1 TO numDecos
 NEXT
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
     IF worldMap(x, y) = 2 AND doorType(x, y) = DOOR_EXIT THEN AddLight x + 0.5, y + 0.5, 3.5, 50, 160, 70, FX_PULSE, 0
+NEXT : NEXT
+' Glowing liquids light the room round them: lava a firelight, slime and
+' acid a faint sickly glow - one light for each 3 x 3 patch of it
+FOR gy = 0 TO MAP_SIZE - 1 STEP 3 : FOR gx = 0 TO MAP_SIZE - 1 STEP 3
+    FOR k = LQ_SLIME TO LQ_ACID
+        n = 0 : sx = 0 : sy = 0
+        FOR y = gy TO MinOf(gy + 2, MAP_SIZE - 1) : FOR x = gx TO MinOf(gx + 2, MAP_SIZE - 1)
+            IF INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1)) = k THEN n = n + 1 : sx = sx + x + 0.5 : sy = sy + y + 0.5
+        NEXT : NEXT
+        IF n THEN
+            n0 = numLights
+            IF k = LQ_LAVA THEN AddLight sx / n, sy / n, 3.5, 150, 70, 20, FX_FIRE, 0 ELSE AddLight sx / n, sy / n, 2.5, lqR(k) \ 5, lqG(k) \ 5, lqB(k) \ 5, FX_PULSE, 0
+            IF numLights > n0 THEN lightLow(numLights) = -1 ' (from below: no lamp, no beam)
+        END IF
+    NEXT
 NEXT : NEXT
 BuildLights ' Which cells each light reaches (now the walls are all in place)
 BuildShafts ' ...and which have a beam of light (chapter 24)
@@ -6019,6 +6518,21 @@ FOR k = 1 TO lvlNumLifts
         IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0 : floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0 ' (a lift's top: its own plate - MakeLiftTex)
     NEXT : NEXT
 NEXT
+' The liquids ([liquid], [liquid depth]): a pool on each open cell the map
+' gives one (not a door, not a lift), its surface its depth above the floor.
+' A level with any is drawn the heights way (levelFlat off: HeightColumn)
+liqAny = 0 : liqWas = 0 : poisonTint = 0
+FOR k = 1 TO LQ_KINDS : lqUsed(k) = 0 : NEXT
+FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
+    liqKind(x, y) = 0 : liqZ(x, y) = 0
+    IF x < MAP_SIZE AND y < MAP_SIZE THEN
+        k = INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1))
+        IF k AND worldMap(x, y) <= 0 AND liftCell(x, y) = 0 THEN
+            d = VAL(MID$(lvlLiqDRow$(y), x + 1, 1)) : IF d < 1 OR d > 8 THEN d = LQ_DEPTH
+            liqKind(x, y) = k : liqZ(x, y) = floorH(x, y) + d * H_STEP : liqAny = -1 : levelFlat = 0 : lqUsed(k) = -1
+        END IF
+    END IF
+NEXT : NEXT
 ' The triggers, taken apart; the teleporters' pads, glowing
 numTrigs = 0
 FOR k = 1 TO lvlNumTrigs : TakeTrigger lvlTrig$(k) : NEXT
@@ -6488,6 +7002,65 @@ SELECT CASE conVerb$
         ELSE
             DropItemAt ik, VAL(conB$) + 0.5, VAL(conC$) + 0.5 : SfxAt sndTeleport&, VAL(conB$) + 0.5, VAL(conC$) + 0.5, playerX, playerY
         END IF
+    CASE "loot" ' What breakables leave in this sector: loot (the table), loot BREAKABLE DROP... (PICKUP:CHANCE or -), loot BREAKABLE none, loot default
+        IF conA$ = "" THEN
+            FOR k = 1 TO DECO_KINDS
+                IF lootKind(k, 1) OR lootKind(k, 2) OR lootKind(k, 3) OR lootKind(k, 4) THEN ConPrint LootLine$(k)
+            NEXT
+            ConPrint "(the rest leave nothing - help loot to change it)"
+        ELSEIF conA$ = "default" THEN
+            lvlNumLoot = 0 : LootTable : editDirty = -1
+            ConPrint "loot: the game's own table again   (savelevel or Ctrl+S in the editor to keep it)"
+        ELSE
+            r$ = conRest$ ' (commas or spaces between the drops)
+            FOR c = 1 TO LEN(r$) : IF MID$(r$, c, 1) = "," THEN MID$(r$, c, 1) = " "
+            NEXT
+            l$ = ConWord$(r$, 1) + " ="
+            FOR c = 2 TO LOOT_SLOTS + 1
+                w$ = ConWord$(r$, c) : IF w$ = "" OR w$ = "none" THEN EXIT FOR
+                IF c > 2 THEN l$ = l$ + ","
+                l$ = l$ + " " + w$
+            NEXT
+            k = SetLevelLoot(l$)
+            IF k THEN
+                editDirty = -1 : ConPrint LootLine$(k) + "   (savelevel or Ctrl+S in the editor to keep it)"
+            ELSE
+                ConPrint "loot: no breakable called " + conA$ + " - barrel console crate desk locker labbench vending plant..."
+            END IF
+        END IF
+    CASE "liquid", "liquids", "flood" ' liquid KIND X0 Y0 X1 Y1 [DEPTH]: a pool (KIND water poison slime lava acid, or none to drain it)
+        lk = LiquidOf(conA$) : cw$ = ConWord$(conCmd$, 6)
+        IF (lk = 0 AND conA$ <> "none") OR cw$ = "" THEN
+            ConPrint "liquid KIND X0 Y0 X1 Y1 [DEPTH]: KIND water poison slime lava acid (or none), DEPTH 1-8 eighths (" + LTRIM$(STR$(LQ_DEPTH)) + ")"
+        ELSE
+            lx0 = VAL(conB$) : ly0 = VAL(conC$) : lx1 = VAL(ConWord$(conCmd$, 5)) : ly1 = VAL(cw$)
+            ld = VAL(ConWord$(conCmd$, 7)) : IF ld < 1 OR ld > 8 THEN ld = LQ_DEPTH
+            GOSUB EditPushUndo
+            FOR y = MinOf(ly0, ly1) TO MaxOf(ly0, ly1) : FOR x = MinOf(lx0, lx1) TO MaxOf(lx0, lx1)
+                EditSetLiquid x, y, lk, ld
+            NEXT : NEXT
+            GOSUB EditApply : ConPrint "liquid: " + conRest$ + "   (savelevel or Ctrl+S in the editor to keep it)"
+        END IF
+    CASE "block", "blocks" ' block X Y X0 Y0 X1 Y1 [WALL]: a block in cell X Y, its edges in eighths (block X Y none: gone)
+        cw$ = ConWord$(conCmd$, 7)
+        IF LCASE$(conC$) = "none" AND conB$ <> "" THEN
+            GOSUB EditPushUndo : EditRemoveBox VAL(conA$), VAL(conB$) : GOSUB EditApply : ConPrint "block: gone from" + STR$(VAL(conA$)) + STR$(VAL(conB$))
+        ELSEIF cw$ = "" THEN
+            ConPrint "block X Y X0 Y0 X1 Y1 [WALL]: a block in an open cell, edges 0-8 eighths, WALL 1-6 (# N C K P G); block X Y none: take it away"
+        ELSE
+            bx = VAL(conA$) : by = VAL(conB$) : bw = VAL(ConWord$(conCmd$, 8)) : IF bw < 1 OR bw > 6 THEN bw = 1
+            b0 = MaxOf(0, MinOf(7, VAL(conC$))) : b1 = MaxOf(0, MinOf(7, VAL(ConWord$(conCmd$, 5))))
+            b2 = MaxOf(b0 + 1, MinOf(8, VAL(ConWord$(conCmd$, 6)))) : b3 = MaxOf(b1 + 1, MinOf(8, VAL(cw$)))
+            IF bx < 1 OR by < 1 OR bx > MAP_SIZE - 2 OR by > MAP_SIZE - 2 THEN
+                ConPrint "block: not in the border"
+            ELSEIF NOT EditCellOpen(bx, by) THEN
+                ConPrint "block: only in an open cell - not a wall, a door, glass"
+            ELSE
+                GOSUB EditPushUndo
+                IF EditAddBox(bx, by, b0, b1, b2, b3, bw) THEN ConPrint "block:" + STR$(bx) + STR$(by) + " -" + STR$(b0) + STR$(b1) + STR$(b2) + STR$(b3) + "   (savelevel or Ctrl+S in the editor to keep it)"
+                GOSUB EditApply
+            END IF
+        END IF
     CASE "give"
         GOSUB ConGive
     CASE "take"
@@ -6520,7 +7093,7 @@ SELECT CASE conVerb$
             FOR k = 1 TO cnt ' (the cell itself, then round it)
                 FOR try = 0 TO 8
                     sx = sx0 + (try MOD 3 - 1) * (try > 0) * -0.9 : sy = sy0 + ((try \ 3) - 1) * (try > 0) * -0.9
-                    IF SpawnMonster(t, sx, sy, 0) THEN n = n + 1 : SpawnSparks sx, sy, 0.4, 24, 150, 90, 255 : EXIT FOR
+                    IF SpawnMonster(t, sx, sy, 0, playerX, playerY) THEN n = n + 1 : SpawnSparks sx, sy, 0.4, 24, 150, 90, 255 : EXIT FOR
                 NEXT
             NEXT
             IF n THEN SfxAt sndTeleport&, sx0, sy0, playerX, playerY
@@ -6532,7 +7105,7 @@ SELECT CASE conVerb$
             FOR k = 1 TO cnt
                 FOR try = 0 TO 8
                     d = 2 + try * 0.5 : sx = playerX + dirX * d + dirY * (k - 1 - (cnt - 1) / 2) : sy = playerY + dirY * d - dirX * (k - 1 - (cnt - 1) / 2)
-                    IF SpawnMonster(t, sx, sy, 0) THEN n = n + 1 : EXIT FOR
+                    IF SpawnMonster(t, sx, sy, 0, playerX, playerY) THEN n = n + 1 : EXIT FOR
                 NEXT
             NEXT
             ConPrint "Summoned" + STR$(n) + " " + mtypeName$(t)
@@ -7366,7 +7939,9 @@ RETURN
 '
 ' DECORATIONS - stand on the floor; you, monsters and bolts can't go through
 ' them, but they don't block sight. Shoot them and they break (a barrel's
-' blast breaks them too); a broken one collapses and no longer blocks you.
+' blast breaks them too); a broken one collapses and no longer blocks you,
+' and may leave something behind - ammo in a crate, armor in a locker
+' ([loot], Part 9).
 '   o  barrel:   explodes when shot: up to 45 damage to you and 8 to
 '                monsters within 2.2 tiles (less further away, and not
 '                through walls), sets off other barrels near it, and
@@ -7462,6 +8037,43 @@ RETURN
 ' open ; message The way is open ; summon heavy 2 ; liftgo 1 up ; wall 20
 ' 8 . ; light 3 off ; sound alarm ; say taunt2 ; tp 40 40 90 ...
 '
+' --- Part 10: [liquid] and [liquid depth] (optional) -------------------------
+'
+' Two more maps, the same size, one character a cell, for pools lying on
+' the floor. [liquid]: . none, or w water, p poison, s slime, l lava, a
+' acid. [liquid depth]: how deep, in eighths of a wall - . for LQ_DEPTH
+' (three), or 1 to 8. Only on floor (with or without something standing on
+' it) - not a wall, a door or a lift. You see the floor through it in
+' OpenGL (more through water, hardly any through lava), and its surface
+' ripples; the software renderer draws the surface, moving. You wade in
+' it, slower the deeper (and in anything deeper than LQ_FULL you float,
+' your head above it), and the liquids table (chapter 3) says the rest:
+' water just slows you; slime slows you more and stings; poison hurts and
+' turns everything green; acid eats your armor first; lava burns, and
+' glows, lighting the room. Monsters keep out of the harmful ones - and
+' get hurt if you kick them in. A liquid's sides show where it stands
+' higher than the floor beside it; the usual way is a pool in a sunken
+' floor ([floor]). The editor's LIQUIDS tab pours them; so does the
+' console's liquid KIND X0 Y0 X1 Y1 [DEPTH] (a trigger can flood a room).
+'
+' --- Part 9: [loot] (optional) -------------------------------------------------
+'
+' What breakables leave. One a line: BREAKABLE = DROP, DROP, DROP, DROP -
+' up to four drops, A to D, each PICKUP:CHANCE (a pickup's name - ammo,
+' shells, medkit, health, armor, overcharge, amp, any IT_ - and its chance
+' in percent), or - for an empty one:
+'   crate    = ammo:20, shells:20, medkit:20, armor:10
+'   console  = ammo:5, shells:5
+'   locker   = amp:10, -, medkit:30, armor:30
+'   plant    =                     (plants here leave nothing)
+' Breaking one rolls a d4 for the drop (an empty one: nothing), then 1-100:
+' at or under its chance, out it comes, tossed clear of the wreck - any
+' way if it was shot or blown up, back your way if you kicked it - and
+' landing where you can see it, not at your feet. A BREAKABLE is any
+' decoration's name (barrel, crate, desk, locker, labbench, vending,
+' console, plant, terminal, rack...). Kinds the section doesn't name keep
+' the game's own table (LootTable); the console's loot shows and changes it.
+'
 ' --- And at the top: puzzles = NAME, NAME... -----------------------------------
 '
 ' The code terminals' programs (neon-caster/puzzles/NAME.txt), one a
@@ -7519,7 +8131,67 @@ SUB MakeLiftTex
     NEXT : NEXT
     texName$(T_LIFT) = "lift" : texName$(T_LIFTSIDE) = "lift" ' (for OpenGL's effects: shiny metal)
     texHD(T_LIFT) = texHD(T_FLOOR + 1) : texHD(T_LIFTSIDE) = texHD(1)
-    MakeTrapTex
+    MakeTrapTex : MakeLiquidTex
+END SUB
+
+' The liquids' pictures (T_LIQUID + kind), made rather than loaded, at
+' whatever size the pictures are: one pattern of ripples (liqBase) -
+' waves of whole numbers of wavelengths across, so it tiles - coloured for
+' each kind. Water: dark, with pale glints along the ripples; poison:
+' purple swirls in green; slime: bright and lumpy; lava: a black crust
+' cracked with glowing orange; acid: yellow-green, glinting. OpenGL ripples
+' them as it draws (the world shader's anim 5), see-through (lqSee); the
+' software renderer moves them itself (LiquidAnimate).
+SUB MakeLiquidTex
+    t = texSize
+    FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
+        u = x / t * 6.2831853 : v = y / t * 6.2831853
+        h = SIN(u * 2 + SIN(v * 3) * 1.2) + SIN(v * 2 + SIN(u * 2) * 1.3) + 0.5 * SIN((u + v) * 3 + 1.7) + 0.35 * SIN(u * 5 - v * 4 + SIN(v * 2))
+        liqBase(x, y) = MaxOf(0, MinOf(1, (h + 2.85) / 5.7))
+    NEXT : NEXT
+    FOR k = 1 TO LQ_KINDS
+        FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
+            h = liqBase(x, y) : band = ABS(SIN(h * 14)) : glint = band ^ 10 ' (thin bright lines along the ripples)
+            SELECT CASE k
+                CASE LQ_LAVA ' A crust (low) cracked open on the glow (high)
+                    IF h < 0.5 THEN
+                        f = h / 0.5 : r = 40 + 50 * f : g = 10 + 12 * f : b = 5
+                    ELSE
+                        f = (h - 0.5) / 0.5 : r = 230 + 25 * f : g = 80 + 150 * f * f : b = 10 + 60 * f * f * f
+                    END IF
+                CASE LQ_POISON ' Swirls of its colour in a dark green
+                    f = (SIN(h * 9) + 1) / 2 : r = 30 + (lqR(k) - 30) * f : g = 70 + (lqG(k) - 70) * f : b = 40 + (lqB(k) - 40) * f
+                    r = r + glint * 60 : g = g + glint * 90 : b = b + glint * 60
+                CASE ELSE ' Its colour, darker in the troughs, glinting on the ripples
+                    f = 0.45 + 0.65 * h : r = lqR(k) * f + glint * 90 : g = lqG(k) * f + glint * 90 : b = lqB(k) * f + glint * 90
+                    IF k = LQ_WATER THEN r = r * 0.7 : g = g * 0.8 : b = b * 0.9
+            END SELECT
+            c~& = _RGB32(MaxOf(0, MinOf(255, r)), MaxOf(0, MinOf(255, g)), MaxOf(0, MinOf(255, b)))
+            texture(x, y, T_LIQUID + k) = c~& : liqTex(x, y, k) = c~&
+        NEXT : NEXT
+        texName$(T_LIQUID + k) = "liquid-" + lqName$(k) : texHD(T_LIQUID + k) = texHD(T_FLOOR + 1)
+    NEXT
+    liqTexAt = -1
+END SUB
+
+' The software renderer's liquids, moving: each frame, every liquid's
+' picture drawn again from its still one (liqTex), drifting slowly along
+' and each row swaying a little from side to side - the surface rippling.
+' (OpenGL does the same in its shader, and leaves the pictures alone.)
+SUB LiquidAnimate
+    IF NOT liqTexAt THEN EXIT SUB
+    t = texSize : m = t - 1 : tm = TIMER
+    oy = INT(tm * t * 0.04) : ox = INT(tm * t * 0.025)
+    FOR k = 1 TO LQ_KINDS
+        IF lqUsed(k) THEN
+            slot = T_LIQUID + k
+            FOR y = 0 TO m
+                sx = ox + INT(SIN(y / t * 12.566 + tm * 1.6) * t / 48) ' (this row's sway)
+                sy = (y + oy) AND m
+                FOR x = 0 TO m : texture(x, y, slot) = liqTex((x + sx) AND m, sy, k) : NEXT
+            NEXT
+        END IF
+    NEXT
 END SUB
 
 ' A trap's floor, from the level's floor 1 (so it matches) but plainly not
@@ -8130,34 +8802,68 @@ SUB LockRoom(ev, locked)
     NEXT : NEXT
 END SUB
 
+' Why door (x, y), sealed by an event room (LockRoom), won't open: a
+' thieves' hoard's opens when its last thief is destroyed - not when the
+' room beside it is clear, so it says so
+FUNCTION SealedMsg$(x, y)
+    SealedMsg$ = "SEALED - it won't open until the room is clear"
+    FOR ev = 1 TO numEvents
+        IF evType(ev) = EV_HOARD AND evState(ev) = 0 THEN
+            IF x >= evX0(ev) - 5 AND x <= evX1(ev) + 5 AND y >= evY0(ev) - 5 AND y <= evY1(ev) + 5 THEN
+                n = 0
+                FOR j = 1 TO numMonsters
+                    IF monsterType(j) = MT_THIEF AND monsterState(j) < 2 THEN n = n + 1
+                NEXT
+                SealedMsg$ = "SEALED - a thieves' hoard: destroy every thief bot (" + LTRIM$(STR$(n)) + " left)"
+                EXIT FUNCTION
+            END IF
+        END IF
+    NEXT
+END FUNCTION
+
+' Are you (px, py) in the way of any of the doors event ev locks (LockRoom's:
+' within 5 cells of its room) - so near one it couldn't shut on you?
+FUNCTION NearRoomDoor(ev, px, py)
+    edge = 0.5 + PLAYER_RADIUS + 0.05
+    FOR y = evY0(ev) - 5 TO evY1(ev) + 5 : FOR x = evX0(ev) - 5 TO evX1(ev) + 5
+        IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+            IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN
+                IF ABS(px - (x + 0.5)) < edge AND ABS(py - (y + 0.5)) < edge THEN NearRoomDoor = -1 : EXIT FUNCTION
+            END IF
+        END IF
+    NEXT : NEXT
+END FUNCTION
+
 ' Is map point (x, y) in event ev's room?
 FUNCTION InRoom(ev, x, y)
     InRoom = x >= evX0(ev) AND x < evX1(ev) + 1 AND y >= evY0(ev) AND y < evY1(ev) + 1
 END FUNCTION
 
 ' A monster of type t teleports into event ev's room - somewhere open, and
-' not right on top of you (a few tries at random). TRUE if it found room.
-FUNCTION SpawnInRoom(ev, t)
+' not right on top of you, at (px, py): more than 2.5 cells away (a few
+' tries at random). TRUE if it found room. (Where you are comes in as px,
+' py: a FUNCTION can't see the main program's playerX.)
+FUNCTION SpawnInRoom(ev, t, px, py)
     FOR try = 1 TO 30
         x = evX0(ev) + 0.5 + INT(RND * (evX1(ev) - evX0(ev) + 1)) : y = evY0(ev) + 0.5 + INT(RND * (evY1(ev) - evY0(ev) + 1))
-        IF (x - playerX) ^ 2 + (y - playerY) ^ 2 > 6 THEN
-            IF SpawnMonster(t, x, y, ev) THEN SpawnInRoom = -1 : EXIT FUNCTION
+        IF (x - px) ^ 2 + (y - py) ^ 2 > 6 THEN
+            IF SpawnMonster(t, x, y, ev, px, py) THEN SpawnInRoom = -1 : EXIT FUNCTION
         END IF
     NEXT
 END FUNCTION
 
 ' ...or next to a spawner at (sx, sy)
-FUNCTION SpawnNear(ev, t, sx, sy)
+FUNCTION SpawnNear(ev, t, sx, sy, px, py)
     FOR try = 1 TO 20
         x = INT(sx + (RND - 0.5) * 3) + 0.5 : y = INT(sy + (RND - 0.5) * 3) + 0.5
-        IF SpawnMonster(t, x, y, ev) THEN SpawnNear = -1 : EXIT FUNCTION
+        IF SpawnMonster(t, x, y, ev, px, py) THEN SpawnNear = -1 : EXIT FUNCTION
     NEXT
 END FUNCTION
 
 ' One more monster, of type t, at (x, y) - if there's floor there, nothing
 ' else standing on it, and room in the list - hunting you at once, sent by
-' event ev. It arrives in a flash of sparks.
-FUNCTION SpawnMonster(t, x, y, ev)
+' event ev. It arrives in a flash of sparks, heard from where you are (px, py).
+FUNCTION SpawnMonster(t, x, y, ev, px, py)
     IF numMonsters >= MAX_MON THEN EXIT FUNCTION
     walkFromHaz = 10 : ok = Walkable%(x, y) : walkFromHaz = 0 ' (as a monster would: not in fire, not over a pit)
     IF NOT ok THEN EXIT FUNCTION
@@ -8170,7 +8876,7 @@ FUNCTION SpawnMonster(t, x, y, ev)
     monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE
     ThiefReset i
     SpawnSparks x, y, 0.5, 16, 200, 120, 255
-    SfxAt sndSpawn&, x, y, playerX, playerY
+    SfxAt sndSpawn&, x, y, px, py
     SpawnMonster = -1
 END FUNCTION
 
@@ -8215,9 +8921,62 @@ SUB DropItemAt(kind, x, y)
     IF numItems >= MAX_ITEMS THEN EXIT SUB
     IF NOT Walkable%(x, y) THEN x = INT(x) + 0.5 : y = INT(y) + 0.5
     numItems = numItems + 1
-    itemX(numItems) = x : itemY(numItems) = y : itemKind(numItems) = kind : itemOn(numItems) = -1
+    itemX(numItems) = x : itemY(numItems) = y : itemKind(numItems) = kind : itemOn(numItems) = -1 : itemToss(numItems) = 0
     SpawnSparks x, y, 0.3, 10, 255, 230, 120
 END SUB
+
+' Decoration d has just broken: does it leave anything? Its kind has four
+' drop slots, A to D (lootKind, lootPct - LootTable). Roll a d4 for the
+' slot; an empty one, nothing. Then the percentile dice, 1 to 100: at or
+' under that slot's chance, out comes its pickup (TossItem) - the way
+' decoLootA says (HitDeco), or any way at all - landing clear of you, at
+' (px, py), for you to go and pick up.
+SUB DecoLoot(d, px, py)
+    IF editMode OR cyberOn THEN EXIT SUB
+    k = decoKind(d) : slot = INT(RND * LOOT_SLOTS) + 1 ' (the d4)
+    IF lootKind(k, slot) = 0 THEN EXIT SUB
+    IF INT(RND * 100) + 1 > lootPct(k, slot) THEN EXIT SUB ' (the percentile dice)
+    a = decoLootA(d) : IF a = NO_AIM THEN a = RND * 6.2832
+    TossItem lootKind(k, slot), decoX(d), decoY(d), a, px, py
+END SUB
+
+' A pickup of kind kind thrown out from (x, y) at angle a (radians): it
+' flies LOOT_TOSS frames, in an arc (drawn in chapter 16), and lands up to
+' LOOT_REACH away - short of whatever's in the way - where you can see it
+' and walk over to it: never at your feet, (px, py) - at least LOOT_CLEAR
+' away. If that way won't do (a crate against a wall, or you in the way),
+' it tries the ways round from it, nearest first.
+SUB TossItem(kind, x, y, a, px, py)
+    bestA = a : bestR = 0 : bestS = -1
+    FOR t = 0 TO 8 ' (that way, then an eighth of the way round either side of it, a quarter...)
+        b = a + ((t + 1) \ 2) * 0.7854 * (1 - 2 * (t MOD 2)) : r = TossReach(x, y, b)
+        d = SQR((x + COS(b) * r - px) ^ 2 + (y + SIN(b) * r - py) ^ 2) ' (from you, where it lands)
+        IF r >= LOOT_REACH * 0.4 AND d >= LOOT_CLEAR THEN bestA = b : bestR = r : EXIT FOR
+        IF r + d > bestS THEN bestS = r + d : bestA = b : bestR = r ' (none clear: the clearest)
+    NEXT
+    was = numItems : DropItemAt kind, x, y
+    IF numItems > was THEN
+        itemToss(numItems) = LOOT_TOSS
+        itemVX(numItems) = COS(bestA) * bestR / LOOT_TOSS : itemVY(numItems) = SIN(bestA) * bestR / LOOT_TOSS
+    END IF
+END SUB
+
+' How far (up to LOOT_REACH) a pickup can fly from (x, y) at angle a: out
+' in small steps until the next would be too close to a wall, a door, a
+' decoration, glass, a step up - or fire, or a pit with no bottom (as a
+' monster won't walk into them: walkFromHaz 10). The floor it starts on
+' is the height it's thrown from.
+FUNCTION TossReach(x, y, a)
+    oldZ = walkZ : oldHaz = walkFromHaz
+    walkZ = FloorAt(x, y) : walkFromHaz = 10
+    r = 0
+    DO WHILE r < LOOT_REACH
+        IF NOT Walkable%(x + COS(a) * (r + 0.25), y + SIN(a) * (r + 0.25)) THEN EXIT DO ' (0.2 more: the pickup's own size)
+        r = r + 0.05
+    LOOP
+    walkZ = oldZ : walkFromHaz = oldHaz
+    TossReach = r
+END FUNCTION
 
 ' Each closet wall (%) to its closet event - the first closet event whose
 ' room it's within 3 cells of - and its look: the wall it's set in (the
@@ -8327,9 +9086,9 @@ END FUNCTION
 ' them, its numbers split by commas (SplitNums); in [map], each line is a
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
-    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNote$ = "" : topLines = -1
-    FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : NEXT
-    fRows = 0 : cRows = 0
+    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNote$ = "" : topLines = -1
+    FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
+    fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0
     f$ = LevelFile$(n)
     IF NOT _FILEEXISTS(f$) THEN EXIT SUB
     DIM v(8) AS SINGLE
@@ -8345,10 +9104,16 @@ SUB ReadLevelFile(n)
             IF fRows < MAP_SIZE THEN lvlFloorRow$(fRows) = t$ : fRows = fRows + 1
         ELSEIF sec$ = "ceiling" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
             IF cRows < MAP_SIZE THEN lvlCeilRow$(cRows) = t$ : cRows = cRows + 1
+        ELSEIF sec$ = "liquid" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF lRows < MAP_SIZE THEN lvlLiqRow$(lRows) = t$ : lRows = lRows + 1
+        ELSEIF sec$ = "liquid depth" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF dRows < MAP_SIZE THEN lvlLiqDRow$(dRows) = t$ : dRows = dRows + 1
         ELSEIF sec$ = "triggers" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
             IF lvlNumTrigs < MAX_TRIGS THEN lvlNumTrigs = lvlNumTrigs + 1 : lvlTrig$(lvlNumTrigs) = t$
         ELSEIF sec$ = "faces" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
             TakeFace t$
+        ELSEIF sec$ = "loot" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF lvlNumLoot < DECO_KINDS THEN lvlNumLoot = lvlNumLoot + 1 : lvlLoot$(lvlNumLoot) = t$ ' (as it is: LootTable reads it)
         ELSEIF LEN(t$) = 0 OR LEFT$(t$, 1) = "'" THEN
             ' (a blank line, or a comment - those at the top, but for the
             ' three every file starts with, are the level's notes)
@@ -8385,6 +9150,10 @@ SUB ReadLevelFile(n)
                     IF got >= 7 AND lvlMonN < MAX_MON THEN lvlMonN = lvlMonN + 1 : FOR k = 1 TO 7 : lvlMon(lvlMonN, k) = v(k) : NEXT
                 CASE "pads"
                     IF got >= 4 AND lvlNumPairs < 16 THEN lvlNumPairs = lvlNumPairs + 1 : FOR k = 1 TO 4 : lvlPair(lvlNumPairs, k) = v(k) : NEXT
+                CASE "blocks"
+                    IF got >= 7 AND lvlNumBoxes < MAX_BOXES THEN lvlNumBoxes = lvlNumBoxes + 1 : FOR k = 1 TO 7 : lvlBox(lvlNumBoxes, k) = v(k) : NEXT
+                CASE "nudges"
+                    IF got >= 4 AND lvlNumNudges < MAX_NUDGES THEN lvlNumNudges = lvlNumNudges + 1 : FOR k = 1 TO 4 : lvlNudge(lvlNumNudges, k) = v(k) : NEXT
             END SELECT
         END IF
     LOOP
@@ -8393,9 +9162,156 @@ SUB ReadLevelFile(n)
         IF LEN(lvlRow$(k)) < MAP_SIZE THEN lvlRow$(k) = lvlRow$(k) + STRING$(MAP_SIZE - LEN(lvlRow$(k)), "#")
         lvlFloorRow$(k) = LEFT$(lvlFloorRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE) ' (heights: the usual where none's given)
         lvlCeilRow$(k) = LEFT$(lvlCeilRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE)
+        lvlLiqRow$(k) = LEFT$(lvlLiqRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE) ' (liquids: none where none's given)
+        lvlLiqDRow$(k) = LEFT$(lvlLiqDRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE)
     NEXT
     lvlOK = (rows > 0)
 END SUB
+
+' What breakables leave (lootKind, lootPct: chapter 3): the game's own
+' table - a crate is the likeliest to have something in it, a vending
+' machine the likeliest to be full of ammo, lockers keep the good stuff -
+' then the level's [loot] lines over it, each kind it names all its own
+SUB LootTable
+    FOR k = 1 TO DECO_KINDS : FOR s = 1 TO LOOT_SLOTS : lootKind(k, s) = 0 : lootPct(k, s) = 0 : NEXT : NEXT
+    k = TakeLoot("barrel   = ammo:10, shells:10, medkit:5, armor:5")
+    k = TakeLoot("console  = ammo:5, shells:5")
+    k = TakeLoot("crate    = ammo:20, shells:20, medkit:20, armor:10")
+    k = TakeLoot("desk     = ammo:10, shells:10, medkit:10, armor:5")
+    k = TakeLoot("locker   = amp:10, overcharge:10, medkit:30, armor:30")
+    k = TakeLoot("labbench = ammo:5, shells:5, medkit:10, armor:5")
+    k = TakeLoot("vending  = ammo:50, shells:50, medkit:25, armor:10")
+    k = TakeLoot("plant    = ammo:5, shells:5, medkit:5")
+    FOR i = 1 TO lvlNumLoot : k = TakeLoot(lvlLoot$(i)) : NEXT
+END SUB
+
+' One line of loot: BREAKABLE = PICKUP:CHANCE, PICKUP:CHANCE... - slots A
+' to D in order, - (or nothing between the commas) an empty one. Sets that
+' kind's four; returns the kind (0: no breakable of that name)
+FUNCTION TakeLoot(l$)
+    eq = INSTR(l$, "=") : IF eq = 0 THEN EXIT FUNCTION
+    k = DecoKindOf(LEFT$(l$, eq - 1)) : IF k = 0 THEN EXIT FUNCTION
+    r$ = MID$(l$, eq + 1)
+    FOR s = 1 TO LOOT_SLOTS
+        d$ = ListItem$(r$, s) : c = INSTR(d$, ":")
+        lootKind(k, s) = 0 : lootPct(k, s) = 0
+        IF c THEN
+            lootKind(k, s) = ItemOf(LTRIM$(RTRIM$(LEFT$(d$, c - 1))))
+            lootPct(k, s) = MaxOf(0, MinOf(100, VAL(MID$(d$, c + 1))))
+        END IF
+    NEXT
+    TakeLoot = k
+END FUNCTION
+
+' One monster type's weak spot (chapter 6): a box on its picture
+SUB SetWeakSpot(t, u0, u1, v0, v1)
+    mtypeWS(t, 1) = u0 : mtypeWS(t, 2) = u1 : mtypeWS(t, 3) = v0 : mtypeWS(t, 4) = v1
+END SUB
+
+' Did a shot land in monster i's weak spot? u: where across its picture
+' (0 left .. 1 right), z: how high the shot was as it reached it (in walls,
+' like the floor) - turned into how far down its picture (0 top .. 1 foot),
+' from where it stands and how tall it is, as chapter 16 draws it
+FUNCTION WeakSpotHit(i, u, z)
+    t = monsterType(i) : IF mtypeWS(t, 2) <= mtypeWS(t, 1) THEN EXIT FUNCTION
+    foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t) + mtypeBob(t) * SIN(TIMER * 2.5 + i * 1.7)
+    v = (foot + mtypeScale(t) - z) / mtypeScale(t)
+    WeakSpotHit = u >= mtypeWS(t, 1) AND u <= mtypeWS(t, 2) AND v >= mtypeWS(t, 3) AND v <= mtypeWS(t, 4)
+END FUNCTION
+
+' A VIGNETTE: the screen's edges washed with colour (r, g, b), strongest
+' at the very edge and fading to nothing a fifth of the way in - amt 0 to 1
+' how strong. Drawn as rings, the outermost first: each a frame of four
+' strips, a little less see-through the nearer the edge (the square of
+' how near). Over the view - in OpenGL, on the HUD's layer over it.
+SUB DrawVignette(r, g, b, amt)
+    IF amt <= 0 THEN EXIT SUB
+    a = MinOf(1, amt) : n = 24 : dx = 170 / n : dy = 130 / n
+    FOR i = 0 TO n - 1
+        al = INT(200 * a * (1 - i / n) ^ 2) : IF al < 1 THEN EXIT FOR
+        c~& = _RGBA32(r, g, b, al)
+        x0 = INT(i * dx) : y0 = INT(i * dy) : x1 = INT((i + 1) * dx) - 1 : y1 = INT((i + 1) * dy) - 1
+        LINE (x0, y0)-(799 - x0, y1), c~&, BF ' (top)
+        LINE (x0, 599 - y1)-(799 - x0, 599 - y0), c~&, BF ' (bottom)
+        LINE (x0, y1 + 1)-(x1, 599 - y1 - 1), c~&, BF ' (left)
+        LINE (799 - x1, y1 + 1)-(799 - x0, 599 - y1 - 1), c~&, BF ' (right)
+    NEXT
+END SUB
+
+' One row of the liquids table (chapter 6)
+SUB SetLiquid(k, n$, slow, hurt, every, acid, see, r, g, b)
+    lqName$(k) = n$ : lqSlow(k) = slow : lqHurt(k) = hurt : lqEvery(k) = every : lqAcid(k) = acid
+    lqSee(k) = see : lqR(k) = r : lqG(k) = g : lqB(k) = b
+END SUB
+
+' Kind k's loot as a line of [loot] (as TakeLoot reads it)
+FUNCTION LootLine$(k)
+    l$ = DecoName$(k) + " ="
+    last = 0 : FOR s = 1 TO LOOT_SLOTS : IF lootKind(k, s) THEN last = s
+    NEXT
+    FOR s = 1 TO last
+        IF s > 1 THEN l$ = l$ + ","
+        IF lootKind(k, s) THEN l$ = l$ + " " + LootName$(lootKind(k, s)) + ":" + LTRIM$(STR$(lootPct(k, s))) ELSE l$ = l$ + " -"
+    NEXT
+    LootLine$ = l$
+END FUNCTION
+
+' A level's own loot for one kind, set from line l$ (the console's loot):
+' it takes the place of that kind's line in lvlLoot$(), if there is one.
+' Returns the kind (0: no breakable of that name)
+FUNCTION SetLevelLoot(l$)
+    k = TakeLoot(l$) : IF k = 0 THEN EXIT FUNCTION
+    t$ = LootLine$(k) ' (tidied, as the file will have it)
+    FOR i = 1 TO lvlNumLoot
+        IF DecoKindOf(LEFT$(lvlLoot$(i), INSTR(lvlLoot$(i) + "=", "=") - 1)) = k THEN lvlLoot$(i) = t$ : SetLevelLoot = k : EXIT FUNCTION
+    NEXT
+    IF lvlNumLoot < DECO_KINDS THEN lvlNumLoot = lvlNumLoot + 1 : lvlLoot$(lvlNumLoot) = t$
+    SetLevelLoot = k
+END FUNCTION
+
+' A decoration kind by its name - barrel, crate, labbench, lockers... -
+' spaces or not, one or more (crates); 0 for none (a body never breaks)
+FUNCTION DecoKindOf(n$)
+    t$ = LCASE$(n$) : u$ = ""
+    FOR c = 1 TO LEN(t$)
+        IF INSTR(" _-" + CHR$(9), MID$(t$, c, 1)) = 0 THEN u$ = u$ + MID$(t$, c, 1)
+    NEXT
+    IF RIGHT$(u$, 1) = "s" THEN u$ = LEFT$(u$, LEN(u$) - 1) ' (crates, lockers, screens)
+    SELECT CASE u$
+        CASE "barrel" : k = 1
+        CASE "lamp" : k = 2
+        CASE "plant" : k = 3
+        CASE "terminal" : k = 4
+        CASE "crate" : k = 5
+        CASE "rack", "serverrack" : k = 6
+        CASE "vending", "vendingmachine" : k = 7
+        CASE "coolant", "tank", "coolanttank" : k = 8
+        CASE "spawner" : k = 9
+        CASE "desk" : k = 10
+        CASE "console" : k = 11
+        CASE "screen" : k = 12
+        CASE "specimen", "specimentank" : k = 13
+        CASE "labbench" : k = 14
+        CASE "generator" : k = 15
+        CASE "cryopod", "cryo" : k = 16
+        CASE "hologram" : k = 17
+        CASE "locker" : k = 18
+        CASE "bench" : k = 19
+        CASE "chair" : k = 20
+        CASE ELSE : k = 0
+    END SELECT
+    DecoKindOf = k
+END FUNCTION
+
+' A decoration kind's name, as [loot] has it
+FUNCTION DecoName$(k)
+    DecoName$ = RTRIM$(MID$("barrel   lamp     plant    terminal crate    rack     vending  coolant  spawner  desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", k * 9 - 8, 9))
+END FUNCTION
+
+' A pickup kind's name, as [loot] (and ItemOf) has it
+FUNCTION LootName$(k)
+    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp", k)
+END FUNCTION
 
 ' One line of [faces]: x, y, face (E S W N, LE LS LW LN, F or C), how it's
 ' divided (0, 1 left|right, 2 top|bottom), its picture - and the second
@@ -8418,11 +9334,15 @@ FUNCTION FaceCode(f$)
         CASE "LN" : FaceCode = 8
         CASE "F" : FaceCode = 9
         CASE "C" : FaceCode = 10
+        CASE "BE" : FaceCode = FACE_BOX + 1 ' (a box's sides)
+        CASE "BS" : FaceCode = FACE_BOX + 2
+        CASE "BW" : FaceCode = FACE_BOX + 3
+        CASE "BN" : FaceCode = FACE_BOX + 4
     END SELECT
 END FUNCTION
 
 FUNCTION FaceName$(f)
-    FaceName$ = RTRIM$(MID$("E S W N LELSLWLNF C ", f * 2 - 1, 2))
+    FaceName$ = RTRIM$(MID$("E S W N LELSLWLNF C BEBSBWBN", f * 2 - 1, 2))
 END FUNCTION
 
 ' Face f of cell (x, y): its picture p1$ (and, divided - d 1 or 2 - the
@@ -8512,6 +9432,8 @@ SUB EditPut(x, y, c$)
             END IF
         NEXT
         IF c$ <> "&" THEN EditUnpair x, y
+        IF INSTR("#NCKPG%@$/\DHXRBY!E=", c$) THEN EditRemoveBox x, y ' (a box only stands on open floor)
+        EditNudgeSet x, y, 0, 0 ' (a decoration's nudge goes with it)
     END IF
     IF INSTR("<>^v", c$) THEN ' (only one start: the old one becomes floor)
         FOR yy = 0 TO MAP_SIZE - 1 : FOR xx = 0 TO MAP_SIZE - 1
@@ -8551,10 +9473,41 @@ FUNCTION EditSnapshot$
     FOR k = 1 TO lvlNumEvents : FOR j = 1 TO 8 : s$ = s$ + LTRIM$(STR$(lvlEvent(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(9) ' (the triggers)
     FOR k = 1 TO lvlNumTrigs : s$ = s$ + lvlTrig$(k) + CHR$(3) : NEXT
+    s$ = s$ + CHR$(11) ' (the liquids: their map, then their depths)
+    FOR y = 0 TO MAP_SIZE - 1 : s$ = s$ + lvlLiqRow$(y) : NEXT
+    FOR y = 0 TO MAP_SIZE - 1 : s$ = s$ + lvlLiqDRow$(y) : NEXT
+    s$ = s$ + CHR$(12) ' (the boxes, then the decorations' nudges)
+    FOR k = 1 TO lvlNumBoxes : FOR j = 1 TO 7 : s$ = s$ + LTRIM$(STR$(lvlBox(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
+    s$ = s$ + CHR$(14)
+    FOR k = 1 TO lvlNumNudges : FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlNudge(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     EditSnapshot$ = s$
 END FUNCTION
 
-SUB EditRestore(s0$)
+SUB EditRestore(s1$)
+    s0$ = s1$ : lvlNumBoxes = 0 : lvlNumNudges = 0
+    c12 = INSTR(s0$, CHR$(12)) ' (the boxes and nudges, last of all: off the end first)
+    IF c12 THEN
+        b$ = MID$(s0$, c12 + 1) : s0$ = LEFT$(s0$, c12 - 1) : n$ = ""
+        c14 = INSTR(b$, CHR$(14)) : IF c14 THEN n$ = MID$(b$, c14 + 1) : b$ = LEFT$(b$, c14 - 1)
+        DIM bv(8) AS SINGLE
+        DO WHILE LEN(b$)
+            c3 = INSTR(b$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+            IF SplitNums(LEFT$(b$, c3 - 1), bv()) >= 7 AND lvlNumBoxes < MAX_BOXES THEN lvlNumBoxes = lvlNumBoxes + 1 : FOR j = 1 TO 7 : lvlBox(lvlNumBoxes, j) = bv(j) : NEXT
+            b$ = MID$(b$, c3 + 1)
+        LOOP
+        DO WHILE LEN(n$)
+            c3 = INSTR(n$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+            IF SplitNums(LEFT$(n$, c3 - 1), bv()) >= 4 AND lvlNumNudges < MAX_NUDGES THEN lvlNumNudges = lvlNumNudges + 1 : FOR j = 1 TO 4 : lvlNudge(lvlNumNudges, j) = bv(j) : NEXT
+            n$ = MID$(n$, c3 + 1)
+        LOOP
+    END IF
+    c11 = INSTR(s0$, CHR$(11)) ' (the liquids, last but one: off the end next)
+    IF c11 THEN
+        q$ = MID$(s0$, c11 + 1) : s0$ = LEFT$(s0$, c11 - 1)
+        FOR y = 0 TO MAP_SIZE - 1
+            lvlLiqRow$(y) = MID$(q$, y * MAP_SIZE + 1, MAP_SIZE) : lvlLiqDRow$(y) = MID$(q$, (MAP_SIZE + y) * MAP_SIZE + 1, MAP_SIZE)
+        NEXT
+    END IF
     c2 = INSTR(s0$, CHR$(2)) : s$ = s0$ : f$ = "" : l$ = "" : p$ = ""
     IF c2 THEN s$ = LEFT$(s0$, c2 - 1) : f$ = MID$(s0$, c2 + 1)
     c4 = INSTR(f$, CHR$(4)) : IF c4 THEN l$ = MID$(f$, c4 + 1) : f$ = LEFT$(f$, c4 - 1)
@@ -8700,8 +9653,23 @@ SUB WriteLevelFile(f$)
         o$ = o$ + nl$ + "[pads]" + nl$ + "' teleporters paired by hand: x1, y1, x2, y2 (the rest pair up in reading order)" + nl$
         FOR k = 1 TO lvlNumPairs : o$ = o$ + LTRIM$(STR$(lvlPair(k, 1))) + ", " + LTRIM$(STR$(lvlPair(k, 2))) + ", " + LTRIM$(STR$(lvlPair(k, 3))) + ", " + LTRIM$(STR$(lvlPair(k, 4))) + nl$ : NEXT
     END IF
+    IF lvlNumBoxes THEN
+        o$ = o$ + nl$ + "[blocks]" + nl$ + "' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)" + nl$
+        FOR k = 1 TO lvlNumBoxes
+            l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlBox(k, j))) : IF j < 7 THEN l$ = l$ + ", "
+            NEXT : o$ = o$ + l$ + nl$
+        NEXT
+    END IF
+    IF lvlNumNudges THEN
+        o$ = o$ + nl$ + "[nudges]" + nl$ + "' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3)" + nl$
+        FOR k = 1 TO lvlNumNudges : o$ = o$ + LTRIM$(STR$(lvlNudge(k, 1))) + ", " + LTRIM$(STR$(lvlNudge(k, 2))) + ", " + LTRIM$(STR$(lvlNudge(k, 3))) + ", " + LTRIM$(STR$(lvlNudge(k, 4))) + nl$ : NEXT
+    END IF
+    IF lvlNumLoot THEN
+        o$ = o$ + nl$ + "[loot]" + nl$ + LOOT_HELP$ + nl$
+        FOR k = 1 TO lvlNumLoot : o$ = o$ + lvlLoot$(k) + nl$ : NEXT
+    END IF
     IF lvlNumFaces THEN
-        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture" + nl$
+        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture" + nl$
         FOR k = 1 TO lvlNumFaces
             o$ = o$ + LTRIM$(STR$(lvlFaceX(k))) + ", " + LTRIM$(STR$(lvlFaceY(k))) + ", " + FaceName$(lvlFaceS(k)) + ", " + LTRIM$(STR$(lvlFaceD(k))) + ", " + lvlFaceP1$(k)
             IF lvlFaceP2$(k) <> "" THEN o$ = o$ + ", " + lvlFaceP2$(k)
@@ -8724,9 +9692,71 @@ SUB WriteLevelFile(f$)
         o$ = o$ + nl$ + "[ceiling]" + nl$ + "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's" + nl$
         FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlCeilRow$(y) + nl$ : NEXT
     END IF
+    IF LiquidRowsAny THEN ' The liquids - only if there are any
+        o$ = o$ + nl$ + "[liquid]" + nl$ + "' each cell's liquid: . none, w water, p poison, s slime, l lava, a acid" + nl$
+        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlLiqRow$(y) + nl$ : NEXT
+        o$ = o$ + nl$ + "[liquid depth]" + nl$ + "' how deep, in eighths of a wall: . is" + STR$(LQ_DEPTH) + ", or 1-8" + nl$
+        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlLiqDRow$(y) + nl$ : NEXT
+    END IF
     IF _FILEEXISTS(f$) THEN KILL f$
     fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
 END SUB
+
+' Liquid kind k (0: none) d eighths deep into cell (x, y) of the level as
+' its file says it - not into a wall or the border; and none: drained
+SUB EditSetLiquid(x, y, k, d)
+    IF x < 1 OR y < 1 OR x > MAP_SIZE - 2 OR y > MAP_SIZE - 2 THEN EXIT SUB
+    IF k THEN
+        IF INSTR(EDIT_OPEN$, MID$(lvlRow$(y), x + 1, 1)) = 0 THEN EXIT SUB ' (floor, or something standing on it - not a wall or a door)
+        MID$(lvlLiqRow$(y), x + 1, 1) = MID$(LQ_CHARS$, k, 1)
+        IF d = LQ_DEPTH THEN MID$(lvlLiqDRow$(y), x + 1, 1) = "." ELSE MID$(lvlLiqDRow$(y), x + 1, 1) = LTRIM$(STR$(d))
+    ELSE
+        MID$(lvlLiqRow$(y), x + 1, 1) = "." : MID$(lvlLiqDRow$(y), x + 1, 1) = "."
+    END IF
+END SUB
+
+' The PAINT brush's liquid (edBrushLiq$) into cell (x, y) - or, drain on
+' (or the brush is DRAIN), none there
+SUB EditBrushLiquid(x, y, drain)
+    IF drain OR edBrushLiq$ = "-" OR edBrushLiq$ = "" THEN
+        EditSetLiquid x, y, 0, 0
+    ELSE
+        EditSetLiquid x, y, INSTR(LQ_CHARS$, LEFT$(edBrushLiq$, 1)), VAL(MID$(edBrushLiq$, 2))
+    END IF
+END SUB
+
+' A liquid brush ("w4", "-") in words
+FUNCTION LiquidBrushName$(b$)
+    IF b$ = "-" OR b$ = "" THEN LiquidBrushName$ = "drain the liquid" : EXIT FUNCTION
+    LiquidBrushName$ = lqName$(INSTR(LQ_CHARS$, LEFT$(b$, 1))) + ", " + MID$(b$, 2) + "/8 deep"
+END FUNCTION
+
+' What PAINT puts on: a picture, or a liquid
+FUNCTION EditPaintName$
+    IF edBrushKind = PK_LIQUID THEN EditPaintName$ = LiquidBrushName$(edBrushLiq$) ELSE EditPaintName$ = edBrushTex$
+END FUNCTION
+
+' A liquid kind by its name or its letter (water, w...) - 0 for none
+FUNCTION LiquidOf(n$)
+    t$ = LCASE$(LTRIM$(RTRIM$(n$)))
+    IF LEN(t$) = 1 THEN LiquidOf = INSTR(LQ_CHARS$, t$) : EXIT FUNCTION
+    FOR k = 1 TO LQ_KINDS
+        IF t$ = lqName$(k) THEN LiquidOf = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' How much of your speed you keep wading deep deep in liquid k: none lost
+' at its surface, all its kind takes (lqSlow) at LQ_FULL deep or more
+FUNCTION LiquidSlow(k, deep)
+    LiquidSlow = 1 - (1 - lqSlow(k)) * MaxOf(0, MinOf(1, deep / LQ_FULL))
+END FUNCTION
+
+' Does the level as its file says it have any liquid?
+FUNCTION LiquidRowsAny
+    FOR y = 0 TO MAP_SIZE - 1
+        IF lvlLiqRow$(y) <> STRING$(MAP_SIZE, ".") THEN LiquidRowsAny = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
 
 FUNCTION NumList$(a, b, c, d)
     NumList$ = LTRIM$(STR$(a)) + ", " + LTRIM$(STR$(b)) + ", " + LTRIM$(STR$(c)) + ", " + LTRIM$(STR$(d))
@@ -8838,6 +9868,20 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
             LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&(c$), BF
         END IF
     NEXT : NEXT
+    FOR k = 1 TO lvlNumBoxes ' The boxes: each where it stands in its cell
+        x = lvlBox(k, 1) : y = lvlBox(k, 2) : w = lvlBox(k, 7) : IF w < 1 OR w > 6 THEN w = 1
+        IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+            sx = ED_MAPX + x * ED_CELL : sy = ED_MAPY + y * ED_CELL
+            LINE (sx + lvlBox(k, 3) * ED_CELL \ 8, sy + lvlBox(k, 4) * ED_CELL \ 8)-(sx + MaxOf(lvlBox(k, 3) * ED_CELL \ 8, lvlBox(k, 5) * ED_CELL \ 8 - 1), sy + MaxOf(lvlBox(k, 4) * ED_CELL \ 8, lvlBox(k, 6) * ED_CELL \ 8 - 1)), GlyphColor~&(MID$("#NCKPG", w, 1)), BF
+        END IF
+    NEXT
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' The liquids: each cell washed with its colour (deeper, stronger)
+        k = INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1))
+        IF k THEN
+            d = VAL(MID$(lvlLiqDRow$(y), x + 1, 1)) : IF d < 1 THEN d = LQ_DEPTH
+            LINE (ED_MAPX + x * ED_CELL, ED_MAPY + y * ED_CELL)-STEP(ED_CELL - 1, ED_CELL - 1), _RGBA32(lqR(k), lqG(k), lqB(k), 90 + d * 15), BF
+        END IF
+    NEXT : NEXT
     IF edGrid THEN ' The grid: every cell's edge, as strong as it's set (G, Shift+G)
         FOR k = 0 TO MAP_SIZE
             LINE (ED_MAPX + k * ED_CELL, ED_MAPY)-(ED_MAPX + k * ED_CELL, ED_MAPY + MAP_SIZE * ED_CELL), _RGBA32(90, 230, 255, edGridAlpha \ 2)
@@ -8895,7 +9939,7 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     shortName$ = lname$ : c = INSTR(lname$, ": ") : IF c THEN shortName$ = MID$(lname$, c + 2) ' ("SECTOR 1: NEON STATION" - just its name)
     COLOR _RGB32(170, 160, 210) : _PRINTSTRING (ED_PALX, 22), LEFT$("Sector" + STR$(lev) + ": " + shortName$, 24)
     ' (the picker's under these: EditDrawPicker, from RunEditor)
-    y = 248
+    y = 254
     IF editLights THEN COLOR _RGB32(edLR, edLG, edLB) : _PRINTSTRING (ED_PALX, y + 18), "LIGHT: " + EditFxName$(edLFx) + " (right: away)"
     IF editHeights THEN COLOR _RGB32(255, 220, 120) : _PRINTSTRING (ED_PALX, y + 18), "HEIGHTS: click up, right down"
     
@@ -8949,6 +9993,20 @@ SUB EditPick(sx, sy)
     FOR stepN = 1 TO 90
         IF mx < 0 OR my < 0 OR mx >= MAP_SIZE OR my >= MAP_SIZE THEN EXIT SUB
         IF sdx < sdy THEN tOut = sdx ELSE tOut = sdy
+        IF worldMap(mx, my) <= 0 AND boxOn(mx, my) <> 0 THEN ' A box in it: its side, unless the floor or ceiling's in the way first
+            bt = BoxRay(mx, my, ex, ey, rdx, rdy, tIn, tOut, bs)
+            IF bt >= 0 THEN
+                bz = ez + rdz * bt
+                IF bz >= floorH(mx, my) AND bz <= ceilH(mx, my) THEN
+                    IF bs = 0 THEN
+                        IF rdx > 0 THEN bsd = 3 ELSE bsd = 1
+                    ELSE
+                        IF rdy > 0 THEN bsd = 4 ELSE bsd = 2
+                    END IF
+                    EditHit ED_BOX, mx, my, bsd, ex + rdx * bt, ey + rdy * bt, bz : EXIT SUB
+                END IF
+            END IF
+        END IF
         IF worldMap(mx, my) <= 0 THEN ' An open cell: through its floor or ceiling, on the way across?
             f = floorH(mx, my) : cz = ceilH(mx, my) : zOut = ez + rdz * tOut
             IF rdz < 0 AND zOut < f THEN
@@ -9188,8 +10246,9 @@ SUB EditDrawHelp(v)
         h$ = "#MOVE AND LOOK|walk keys~fly that way - through walls|look up + walk~climb (look down: sink)|Space / C~straight up / down|Shift~faster|hold Right~look round (crosshair picks)|Tab~the map from above|F2~play the level as it is|"
         h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor or ceiling|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
         h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / Alt~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / Alt~the usual / pick it up|LIGHT~a light on the face|  Shift~take it away|HEIGHT~floor/ceiling up; Shift down|"
-        h$ = h$ + "#THE WHEEL (selection or pointer)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
+        h$ = h$ + "#THE WHEEL (the selection)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
         h$ = h$ + "#FACES|H~divide left / right|V~divide top / bottom|H or V again~whole again|click a half~select / paint it alone|"
+        h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
         h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
         h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Ctrl+S~save|Ctrl+Z~undo|U~the HUD layout editor|F1~this sheet|"
         h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|E~pick up what you aim at|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|1-8~light presets|PgUp/PgDn~floor up/down (Shift: ceil)"
@@ -9198,6 +10257,7 @@ SUB EditDrawHelp(v)
         h$ = "#THE TOOLS (toolbar)|SELECT~click a cell, drag a box|  Shift~add to the selection|PLACE~paint the brush; drag on|  Shift+drag~a box of it|  Right click~pick up what's there|PAINT~picture on a floor, or|~  on a wall's four sides|  Ctrl / Shift~ceiling / the usual|LIGHT~a light; Right: take away|HEIGHT~floor up; Right: down|  Shift~the ceiling|"
         h$ = h$ + "#THE WHEEL|on the picker~scroll it|on the map~selected floors up / down|  Ctrl~their ceilings|elsewhere~the brush back / on|"
         h$ = h$ + "#THE SELECTION|arrows~move it a cell (up is north)|Del~delete it|Ctrl+D~select nothing|its pane~door, pad, light, monster,|~  event, lift, floor, triggers|"
+        h$ = h$ + "#LIQUIDS (picker tab)|PAINT drag~pour it on (Shift: drain)|"
         h$ = h$ + "#KEYS|L / H~the LIGHT / HEIGHT tool|[ ]~the brush back / on|1-8~light presets|G / Shift+G~grid on-off / stronger|T~put yourself at the mouse|PgUp/PgDn~the sector before / after|M~the monster kinds editor|U~the HUD layout editor|"
         h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Ctrl+S~save|Ctrl+Z~undo|F1~this sheet"
         t$ = "EDITOR CHEATSHEET - THE MAP FROM ABOVE"
@@ -9237,7 +10297,7 @@ END SUB
 ' picture, LIGHT lights - and if something's selected, it's done to the
 ' selection there and then.
 FUNCTION EditPkTabName$(t)
-    EditPkTabName$ = RTRIM$(MID$("WALLS    FLOORS   CEILINGS DOORS    ITEMS    MONSTERS DECOR    SPECIAL  LIGHTS   ", t * 9 - 8, 9))
+    EditPkTabName$ = RTRIM$(MID$("WALLS    FLOORS   CEILINGS DOORS    ITEMS    MONSTERS DECOR    SPECIAL  LIGHTS   LIQUIDS  ", t * 9 - 8, 9))
 END FUNCTION
 
 ' The tab's entries, and their thumbnails - made again only when the tab,
@@ -9282,6 +10342,12 @@ SUB EditPkBuild
             IF LCASE$(edPkVal$(b)) < LCASE$(edPkVal$(a)) THEN SWAP edPkVal$(a), edPkVal$(b)
         NEXT : NEXT
         FOR k = first TO edPkN : edPkImg&(k) = EditFileThumb&(edPkVal$(k)) : NEXT
+    END IF
+    IF edPickTab = 10 THEN ' The liquids: draining one away, then each kind two, four and six eighths deep
+        edPkN = edPkN + 1 : edPkKind(edPkN) = PK_LIQUID : edPkVal$(edPkN) = "-" : edPkImg&(edPkN) = 0
+        FOR k = 1 TO LQ_KINDS : FOR d = 2 TO 6 STEP 2
+            edPkN = edPkN + 1 : edPkKind(edPkN) = PK_LIQUID : edPkVal$(edPkN) = MID$(LQ_CHARS$, k, 1) + LTRIM$(STR$(d)) : edPkImg&(edPkN) = EditSlotThumb&(T_LIQUID + k, 0)
+        NEXT : NEXT
     END IF
     IF edPickTab = 9 THEN ' The lights: the six ways one can go (in the brush's colour, moving as they will), then twelve colours
         FOR k = 0 TO 5 : edPkN = edPkN + 1 : edPkKind(edPkN) = PK_LIGHT : edPkVal$(edPkN) = "F" + LTRIM$(STR$(k)) : edPkImg&(edPkN) = 0 : NEXT
@@ -9374,7 +10440,12 @@ END FUNCTION
 ' is EditPkTab; the thumbnails' grid is at (gx, gy), cols x rows of cells
 ' sz across (and a gap of 4).
 SUB EditPkGeom(gx, gy, cols, rows, sz)
-    IF editView = 1 THEN gx = PK_X : gy = PK_Y + 22 : cols = PK_COLS : rows = PK_ROWS : sz = PK_SIZE ELSE gx = ED_PALX : gy = 100 : cols = 4 : rows = 3 : sz = 43
+    IF editView = 1 THEN
+        gx = PK_X : gy = PK_Y + 22 : cols = PK_COLS : rows = PK_ROWS : sz = PK_SIZE
+    ELSE ' (the map view: under the tabs, however many rows they wrap to - a little smaller if that's four)
+        EditPkTab PK_TABS, tx, ty, w
+        gx = ED_PALX : gy = MaxOf(100, ty + 24) : cols = 4 : rows = 3 : sz = 43 : IF gy > 100 THEN sz = 39
+    END IF
 END SUB
 
 SUB EditPkTab(t, tx, ty, w)
@@ -9426,6 +10497,7 @@ FUNCTION EditPkIsBrush(k)
     SELECT CASE edPkKind(k)
         CASE PK_GLYPH : EditPkIsBrush = (edBrushKind = PK_GLYPH AND edPkVal$(k) = editGlyph$)
         CASE PK_TEX : EditPkIsBrush = (edBrushKind = PK_TEX AND edPkVal$(k) = edBrushTex$)
+        CASE PK_LIQUID : EditPkIsBrush = (edBrushKind = PK_LIQUID AND edPkVal$(k) = edBrushLiq$)
         CASE PK_LIGHT
             v = VAL(MID$(edPkVal$(k), 2))
             IF LEFT$(edPkVal$(k), 1) = "F" THEN EditPkIsBrush = (v = edLFx) ELSE EditPkIsBrush = (EditPaletteRGB~&(v) = _RGB32(edLR, edLG, edLB))
@@ -9436,6 +10508,7 @@ FUNCTION EditPkName$(k)
     SELECT CASE edPkKind(k)
         CASE PK_GLYPH : EditPkName$ = GlyphName$(edPkVal$(k))
         CASE PK_TEX : EditPkName$ = edPkVal$(k)
+        CASE PK_LIQUID : EditPkName$ = LiquidBrushName$(edPkVal$(k))
         CASE PK_LIGHT
             IF LEFT$(edPkVal$(k), 1) = "F" THEN EditPkName$ = "light that's " + LCASE$(EditFxName$(VAL(MID$(edPkVal$(k), 2)))) ELSE EditPkName$ = "light colour" + MID$(edPkVal$(k), 2)
     END SELECT
@@ -9445,6 +10518,13 @@ END FUNCTION
 ' light glowing its colour (pulsing, flickering as it will), or the start's
 ' arrow
 SUB EditPkPicture(k, x, y, n)
+    IF edPkKind(k) = PK_LIQUID THEN ' A liquid: its picture and how deep - or DRAIN
+        IF edPkImg&(k) < -1 THEN _PUTIMAGE (x, y)-STEP(n - 1, n - 1), edPkImg&(k)
+        IF edPkVal$(k) = "-" THEN t$ = "DRAIN" ELSE t$ = MID$(edPkVal$(k), 2) + "/8"
+        LINE (x + (n - LEN(t$) * 8) \ 2 - 2, y + n - 16)-STEP(LEN(t$) * 8 + 3, 14), _RGBA32(0, 0, 0, 170), BF
+        HudText x + (n - LEN(t$) * 8) \ 2, y + n - 15, t$, _RGB32(255, 255, 255)
+        EXIT SUB
+    END IF
     IF edPkImg&(k) < -1 THEN _PUTIMAGE (x, y)-STEP(n - 1, n - 1), edPkImg&(k) : EXIT SUB
     cx = x + n \ 2 : cy = y + n \ 2
     IF edPkKind(k) = PK_LIGHT THEN
@@ -9674,7 +10754,7 @@ SUB EditPaneBuild
     FOR k = 1 TO edSelN
         lt = EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
         IF lt THEN
-            edPnLight = lt : edPnTitle$ = "LIGHT on " + RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edSelKind(k) * 7 - 6, 7))
+            edPnLight = lt : edPnTitle$ = "LIGHT on " + RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edSelKind(k) * 7 - 6, 7))
             FOR c = 1 TO 12
                 cl~& = EditPaletteRGB~&(c)
                 EditPaneAdd 40 + c, x0 + ((c - 1) MOD 6) * 34, y + ((c - 1) \ 6) * 23, 30, "", (cl~& = _RGB32(lvlLight(lt, 5), lvlLight(lt, 6), lvlLight(lt, 7)))
@@ -9687,8 +10767,30 @@ SUB EditPaneBuild
             y = y + 50
             EditPaneAdd -1, x0, y + 2, 140, "REACH " + LTRIM$(STR$(lvlLight(lt, 3))), 0 : EditPaneAdd 70, x0 + 146, y, 24, "-", 0 : EditPaneAdd 71, x0 + 174, y, 24, "+", 0 : y = y + 23
             EditPaneAdd -1, x0, y + 2, 140, "BRIGHT" + STR$(lvlLight(lt, 4)), 0 : EditPaneAdd 72, x0 + 146, y, 24, "-", 0 : EditPaneAdd 73, x0 + 174, y, 24, "+", 0 : y = y + 23
-            EditPaneAdd 74, x0, y, PN_W, "REMOVE THE LIGHT", 0
+            EditPaneAdd 74, x0, y, PN_W, "REMOVE THE LIGHT", 0 : y = y + 23
+            EditPaneNudge x0, y ' (a decoration under the light: still moved about from here)
             EXIT SUB
+        END IF
+    NEXT
+    ' A box: the first selected side of one - pushed in or pulled out an
+    ' eighth at a time (every selected box side), the wall it looks like,
+    ' or taken away
+    FOR k = 1 TO edSelN
+        IF edSelKind(k) = ED_BOX THEN
+            bi = EditBoxIndex(edSelX(k), edSelY(k))
+            IF bi THEN
+                edPnTitle$ = "BLOCK" + STR$(edSelX(k)) + "," + LTRIM$(STR$(edSelY(k))) + ", " + MID$("ESWN", edSelSide(k), 1) + " side"
+                EditPaneAdd -1, x0, y, PN_W, "x" + STR$(lvlBox(bi, 3)) + "-" + LTRIM$(STR$(lvlBox(bi, 5))) + ", y" + STR$(lvlBox(bi, 4)) + "-" + LTRIM$(STR$(lvlBox(bi, 6))) + " eighths", 0 : y = y + 22
+                EditPaneAdd 200, x0, y, 99, "PUSH IN", 0 : EditPaneAdd 201, x0 + 101, y, 99, "PULL OUT", 0 : y = y + 23
+                EditPaneAdd -1, x0, y + 2, PN_W, "LOOKS LIKE THE WALL:", 0 : y = y + 20
+                FOR w = 1 TO 6
+                    EditPaneAdd 209 + w, x0 + (w - 1) * 34, y, 30, MID$("#NCKPG", w, 1), (lvlBox(bi, 7) = w)
+                NEXT
+                y = y + 23
+                EditPaneAdd 202, x0, y, PN_W, "REMOVE THE BLOCK", 0 : y = y + 23
+                EditPaneAdd 40, x0, y, PN_W, "ADD A LIGHT TO IT", 0
+                EXIT SUB
+            END IF
         END IF
     NEXT
     ' A monster: the first selected cell with one in it - how far it sees and
@@ -9775,11 +10877,31 @@ SUB EditPaneBuild
         edPnTitle$ = "FLOOR (" + LTRIM$(STR$(n)) + " cell" + MID$("s", 1, -(n > 1)) + ")"
         EditPaneAdd 20, x0, y, PN_W, "MAKE A LIFT OF IT", 0 : y = y + 23
         IF lvlNumEvents < MAX_EVENTS THEN EditPaneAdd 169, x0, y, PN_W, "MAKE AN EVENT ROOM", 0 : y = y + 23
+        EditPaneAdd 204, x0, y, PN_W, "ADD A PILLAR", 0 : y = y + 23
+        EditPaneNudge x0, y
     ELSE
-        edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
+        edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
+        wb = 0 : FOR k = 1 TO edSelN
+            IF edSelKind(k) = ED_WALL THEN IF INSTR("#NCKPG", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN wb = -1
+        NEXT
+        IF wb THEN EditPaneAdd 203, x0, y, PN_W, "MAKE IT A BLOCK", 0 : y = y + 23
     END IF
     EditPaneAdd 40, x0, y, PN_W, "ADD A LIGHT TO IT", 0
     EditPaneAdd 170, x0, y + 23, PN_W, "TRIGGERS...", 0
+END SUB
+
+' A decoration on a floor selected: the pane's row that moves it about its
+' cell, an eighth at a time (and y down past it)
+SUB EditPaneNudge(x0, y)
+    dk = 0
+    FOR k = 1 TO edSelN
+        IF edSelKind(k) = ED_FLOOR AND dk = 0 THEN IF INSTR("oiptxlnfSdAFIJLOQUWZV", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN dk = k
+    NEXT
+    IF dk = 0 THEN EXIT SUB
+    EditNudgeGet edSelX(dk), edSelY(dk), ndx, ndy
+    EditPaneAdd -1, x0, y + 2, 98, "MOVE IT" + STR$(ndx) + "," + LTRIM$(STR$(ndy)), 0
+    EditPaneAdd 205, x0 + 98, y, 24, "<", 0 : EditPaneAdd 206, x0 + 124, y, 24, ">", 0 : EditPaneAdd 207, x0 + 150, y, 24, "^", 0 : EditPaneAdd 208, x0 + 176, y, 24, "v", 0
+    y = y + 23
 END SUB
 
 ' The pane's button at (x, y) - its id - or 0
@@ -10017,6 +11139,7 @@ FUNCTION EditFaceCode(kind, side)
         CASE ED_FLOOR : EditFaceCode = 9
         CASE ED_CEIL : EditFaceCode = 10
         CASE ED_LINTEL : EditFaceCode = side + 4
+        CASE ED_BOX : EditFaceCode = FACE_BOX + side
         CASE ELSE : EditFaceCode = side
     END SELECT
 END FUNCTION
@@ -10039,7 +11162,91 @@ END FUNCTION
 ' Where a click with PLACE or LIGHT goes for a face: a floor or ceiling's
 ' own cell; a wall's (a step's, a lintel's) the open cell in front of it
 SUB EditFaceCell(kind, x, y, side, tx, ty)
-    IF kind = ED_FLOOR OR kind = ED_CEIL THEN tx = x : ty = y ELSE EditFaceFront x, y, side, tx, ty
+    IF kind = ED_FLOOR OR kind = ED_CEIL OR kind = ED_BOX THEN tx = x : ty = y ELSE EditFaceFront x, y, side, tx, ty ' (a box's side: the cell it stands in)
+END SUB
+
+' BOXES IN THE EDITOR: lvlBox's line for cell (x, y), or 0
+FUNCTION EditBoxIndex(x, y)
+    FOR k = 1 TO lvlNumBoxes
+        IF lvlBox(k, 1) = x AND lvlBox(k, 2) = y THEN EditBoxIndex = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' A box in cell (x, y): edges x0, y0, x1, y1 in eighths, looking like wall
+' w (1-6). TRUE if there was room for it.
+FUNCTION EditAddBox(x, y, x0, y0, x1, y1, w)
+    k = EditBoxIndex(x, y)
+    IF k = 0 THEN
+        IF lvlNumBoxes >= MAX_BOXES THEN EditNote "That's" + STR$(MAX_BOXES) + " blocks - no more" : EXIT FUNCTION
+        lvlNumBoxes = lvlNumBoxes + 1 : k = lvlNumBoxes
+    END IF
+    lvlBox(k, 1) = x : lvlBox(k, 2) = y : lvlBox(k, 3) = x0 : lvlBox(k, 4) = y0 : lvlBox(k, 5) = x1 : lvlBox(k, 6) = y1 : lvlBox(k, 7) = w
+    EditAddBox = -1
+END FUNCTION
+
+' Cell (x, y)'s box gone - and its sides' own pictures with it
+SUB EditRemoveBox(x, y)
+    k = EditBoxIndex(x, y) : IF k = 0 THEN EXIT SUB
+    FOR i = k TO lvlNumBoxes - 1 : FOR j = 1 TO 7 : lvlBox(i, j) = lvlBox(i + 1, j) : NEXT : NEXT
+    lvlNumBoxes = lvlNumBoxes - 1
+    FOR f = FACE_BOX + 1 TO FACE_MAX : EditSetFace x, y, f, 0, "", "" : NEXT
+END SUB
+
+' Side (1 east, 2 south, 3 west, 4 north) of (x, y)'s box moved an eighth
+' in (by 1) or out (by -1). An eighth thick at least, and inside its cell:
+' TRUE if it moved.
+FUNCTION EditBoxMove(x, y, side, by)
+    k = EditBoxIndex(x, y) : IF k = 0 THEN EXIT FUNCTION
+    SELECT CASE side
+        CASE 1 : j = 5 : nv = lvlBox(k, 5) - by : ok = nv >= lvlBox(k, 3) + 1 AND nv <= 8
+        CASE 2 : j = 6 : nv = lvlBox(k, 6) - by : ok = nv >= lvlBox(k, 4) + 1 AND nv <= 8
+        CASE 3 : j = 3 : nv = lvlBox(k, 3) + by : ok = nv <= lvlBox(k, 5) - 1 AND nv >= 0
+        CASE ELSE : j = 4 : nv = lvlBox(k, 4) + by : ok = nv <= lvlBox(k, 6) - 1 AND nv >= 0
+    END SELECT
+    IF ok THEN lvlBox(k, j) = nv : EditBoxMove = -1
+END FUNCTION
+
+' A plain wall made a box filling its cell: floor (and its floor and
+' ceiling those of the open cell in front of side), and a box of the
+' same wall on it, its sides' pictures the wall's sides' were. TRUE if it
+' was a plain wall.
+FUNCTION EditWallToBox(x, y, side)
+    IF x < 1 OR y < 1 OR x > MAP_SIZE - 2 OR y > MAP_SIZE - 2 THEN EXIT FUNCTION
+    w = INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) : IF w = 0 THEN EXIT FUNCTION
+    EditFaceFront x, y, side, fx, fy
+    IF NOT EditAddBox(x, y, 0, 0, 8, 8, w) THEN EXIT FUNCTION
+    EditPut x, y, "."
+    MID$(lvlFloorRow$(y), x + 1, 1) = MID$(lvlFloorRow$(fy), fx + 1, 1) : MID$(lvlCeilRow$(y), x + 1, 1) = MID$(lvlCeilRow$(fy), fx + 1, 1)
+    FOR j = 1 TO lvlNumFaces ' (its sides' own pictures: the box's now)
+        IF lvlFaceX(j) = x AND lvlFaceY(j) = y AND lvlFaceS(j) >= 1 AND lvlFaceS(j) <= 4 THEN lvlFaceS(j) = lvlFaceS(j) + FACE_BOX
+    NEXT
+    EditWallToBox = -1
+END FUNCTION
+
+' A decoration's nudge off its cell's middle, in eighths ([nudges])
+SUB EditNudgeGet(x, y, dx, dy)
+    dx = 0 : dy = 0
+    FOR k = 1 TO lvlNumNudges
+        IF lvlNudge(k, 1) = x AND lvlNudge(k, 2) = y THEN dx = lvlNudge(k, 3) : dy = lvlNudge(k, 4)
+    NEXT
+END SUB
+SUB EditNudgeSet(x, y, dx, dy)
+    k = 0
+    FOR j = 1 TO lvlNumNudges
+        IF lvlNudge(j, 1) = x AND lvlNudge(j, 2) = y THEN k = j
+    NEXT
+    IF dx = 0 AND dy = 0 THEN ' (back in the middle: no line for it)
+        IF k THEN
+            FOR i = k TO lvlNumNudges - 1 : FOR j = 1 TO 4 : lvlNudge(i, j) = lvlNudge(i + 1, j) : NEXT : NEXT
+            lvlNumNudges = lvlNumNudges - 1
+        END IF
+        EXIT SUB
+    END IF
+    IF k = 0 THEN
+        IF lvlNumNudges >= MAX_NUDGES THEN EditNote "That's" + STR$(MAX_NUDGES) + " decorations moved - no more" : EXIT SUB
+        lvlNumNudges = lvlNumNudges + 1 : k = lvlNumNudges
+    END IF
+    lvlNudge(k, 1) = x : lvlNudge(k, 2) = y : lvlNudge(k, 3) = dx : lvlNudge(k, 4) = dy
 END SUB
 
 ' Delete: every face selected, gone - a wall opened up (its floor and
@@ -10064,6 +11271,8 @@ SUB EditDeleteSel
                     MID$(lvlFloorRow$(y), x + 1, 1) = MID$(lvlFloorRow$(fy), fx + 1, 1) : n = n + 1
                 CASE ED_LINTEL
                     MID$(lvlCeilRow$(y), x + 1, 1) = MID$(lvlCeilRow$(fy), fx + 1, 1) : n = n + 1
+                CASE ED_BOX
+                    IF EditBoxIndex(x, y) THEN EditRemoveBox x, y : n = n + 1
             END SELECT
         END IF
     NEXT
@@ -10134,6 +11343,28 @@ SUB EditNudge(dx, dy)
             END IF
         END IF
     NEXT
+    FOR k = lvlNumBoxes TO 1 STEP -1 ' (a block, and a decoration's nudge, the same)
+        x = lvlBox(k, 1) : y = lvlBox(k, 2)
+        IF x >= 0 AND y >= 0 AND x <= MAP_SIZE AND y <= MAP_SIZE THEN
+            IF mv(x, y) THEN
+                lvlBox(k, 1) = x + dx : lvlBox(k, 2) = y + dy
+            ELSEIF dest(x, y) THEN
+                FOR j = k TO lvlNumBoxes - 1 : FOR c = 1 TO 7 : lvlBox(j, c) = lvlBox(j + 1, c) : NEXT : NEXT
+                lvlNumBoxes = lvlNumBoxes - 1
+            END IF
+        END IF
+    NEXT
+    FOR k = lvlNumNudges TO 1 STEP -1
+        x = lvlNudge(k, 1) : y = lvlNudge(k, 2)
+        IF x >= 0 AND y >= 0 AND x <= MAP_SIZE AND y <= MAP_SIZE THEN
+            IF mv(x, y) THEN
+                lvlNudge(k, 1) = x + dx : lvlNudge(k, 2) = y + dy
+            ELSEIF dest(x, y) THEN
+                FOR j = k TO lvlNumNudges - 1 : FOR c = 1 TO 4 : lvlNudge(j, c) = lvlNudge(j + 1, c) : NEXT : NEXT
+                lvlNumNudges = lvlNumNudges - 1
+            END IF
+        END IF
+    NEXT
     FOR k = lvlNumFaces TO 1 STEP -1
         x = lvlFaceX(k) : y = lvlFaceY(k)
         IF x >= 0 AND y >= 0 AND x <= MAP_SIZE AND y <= MAP_SIZE THEN
@@ -10201,6 +11432,18 @@ END FUNCTION
 ' bottom and top, z0 and z1
 SUB EditFaceRect(kind, x, y, side, ax, ay, bx, by, z0, z1, ok)
     ok = 0
+    IF kind = ED_BOX THEN ' (a box's side: where it stands in its cell, floor to ceiling)
+        IF boxOn(x, y) = 0 THEN EXIT SUB
+        x0 = x + boxX0(x, y) : x1 = x + boxX1(x, y) : y0 = y + boxY0(x, y) : y1 = y + boxY1(x, y)
+        SELECT CASE side
+            CASE 1 : ax = x1 : ay = y0 : bx = x1 : by = y1
+            CASE 2 : ax = x0 : ay = y1 : bx = x1 : by = y1
+            CASE 3 : ax = x0 : ay = y0 : bx = x0 : by = y1
+            CASE ELSE : ax = x0 : ay = y0 : bx = x1 : by = y0
+        END SELECT
+        z0 = floorH(x, y) : z1 = ceilH(x, y) : ok = -1
+        EXIT SUB
+    END IF
     SELECT CASE side ' (the edge, and the open cell on its far side)
         CASE 1 : ax = x + 1 : ay = y : bx = x + 1 : by = y + 1 : ox = x + 1 : oy = y
         CASE 2 : ax = x : ay = y + 1 : bx = x + 1 : by = y + 1 : ox = x : oy = y + 1
@@ -10231,6 +11474,7 @@ FUNCTION EditFacePart(kind, x, y, side, hx, hy, hz)
     IF d = 1 THEN
         IF side = 1 OR side = 3 THEN t = hy - y ELSE t = hx - x
         IF side = 1 OR side = 4 THEN u = t ELSE u = 1 - t
+        IF kind = ED_BOX THEN u = BoxFaceU(x, y, side, u) ' (a block's side: split at its own middle)
         EditFacePart = 1 - (u >= 0.5)
     ELSE
         IF z1 - z0 > 0.001 THEN vt = (z1 - hz) / (z1 - z0) ELSE vt = 0
@@ -10362,7 +11606,7 @@ SUB EditFaceOutline(kind, x, y, side, part, col~&)
             IF d = 2 AND part = 2 THEN y0 = y + 0.5
             EditLine3D x0, y0, z, x1, y0, z, col~& : EditLine3D x1, y0, z, x1, y1, z, col~&
             EditLine3D x1, y1, z, x0, y1, z, col~& : EditLine3D x0, y1, z, x0, y0, z, col~&
-        CASE ED_WALL, ED_STEP, ED_LINTEL
+        CASE ED_WALL, ED_STEP, ED_LINTEL, ED_BOX
             EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
             zm = (z0 + z1) / 2 : mx = (ax + bx) / 2 : my = (ay + by) / 2
             IF d = 1 THEN EditLine3D mx, my, z0, mx, my, z1, _RGBA32(255, 255, 255, 140)
@@ -10425,7 +11669,7 @@ SUB EditDrawFaces
         k = 160 + 95 * SIN(TIMER * 6)
         EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, edHovPart, _RGB32(60, k, 255)
         IF NOT edLooking THEN
-            n$ = MID$("WALL   FLOOR  CEILINGSTEP   LINTEL ", edHovKind * 7 - 6, 7)
+            n$ = MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edHovKind * 7 - 6, 7)
             IF edHovThing THEN n$ = GlyphName$(MID$(lvlRow$(edHovY), edHovX + 1, 1)) : IF INSTR(n$, " (") THEN n$ = LEFT$(n$, INSTR(n$, " (") - 1) ' (its name, not the note after it)
             IF edHovThing THEN n$ = UCASE$(LEFT$(n$, 20))
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
@@ -10443,7 +11687,7 @@ SUB EditOverlay(px, py, fx, fy)
     IF edTool = ET_LIGHT THEN
         HudText 16, 76, "LIGHT: " + EditFxName$(edLFx) + " reach" + STR$(edLRad), _RGB32(edLR, edLG, edLB)
     ELSEIF edTool = ET_PAINT THEN
-        HudText 16, 76, LEFT$("PICTURE: " + edBrushTex$, 38), _RGB32(150, 240, 255)
+        HudText 16, 76, LEFT$("PICTURE: " + EditPaintName$, 38), _RGB32(150, 240, 255)
     ELSE
         HudText 16, 76, LEFT$("BRUSH: " + GlyphName$(editGlyph$), 38), GlyphColor~&(editGlyph$)
     END IF
@@ -10620,6 +11864,17 @@ END SUB
 SUB EditFaceAnchor(kind, x, y, side, ax, ay)
     ax = x + 0.5 : ay = y + 0.5
     IF kind = ED_FLOOR OR kind = ED_CEIL THEN EXIT SUB
+    IF kind = ED_BOX THEN ' (a box's side: just in front of its middle)
+        IF boxOn(x, y) = 0 THEN EXIT SUB
+        mx = x + (boxX0(x, y) + boxX1(x, y)) / 2 : my = y + (boxY0(x, y) + boxY1(x, y)) / 2
+        SELECT CASE side
+            CASE 1 : ax = x + boxX1(x, y) + 0.12 : ay = my
+            CASE 2 : ax = mx : ay = y + boxY1(x, y) + 0.12
+            CASE 3 : ax = x + boxX0(x, y) - 0.12 : ay = my
+            CASE ELSE : ax = mx : ay = y + boxY0(x, y) - 0.12
+        END SELECT
+        EXIT SUB
+    END IF
     SELECT CASE side
         CASE 1 : ax = x + 1.12
         CASE 2 : ay = y + 1.12
@@ -10631,6 +11886,16 @@ END SUB
 ' The light on a face - the one sitting at its anchor - or 0
 FUNCTION EditFaceLight(kind, x, y, side)
     EditFaceAnchor kind, x, y, side, ax, ay : EditFaceLight = 0
+    IF kind = ED_FLOOR OR kind = ED_CEIL THEN ' (a room light needn't be in a cell's middle - NEW SECTOR's sits on a corner: the nearest, within 3/4 of a cell)
+        bestD = 0.5625
+        FOR k = 1 TO lvlNumLights
+            d = (lvlLight(k, 1) - ax) ^ 2 + (lvlLight(k, 2) - ay) ^ 2
+            fx = ABS(lvlLight(k, 1) - INT(lvlLight(k, 1)) - 0.5) : fy = ABS(lvlLight(k, 2) - INT(lvlLight(k, 2)) - 0.5)
+            IF ABS(fx - 0.38) < 0.03 OR ABS(fy - 0.38) < 0.03 THEN d = 99 ' (a wall's light, 0.12 in front of it: the wall's, not the floor's)
+            IF d <= bestD THEN bestD = d : EditFaceLight = k
+        NEXT
+        EXIT FUNCTION
+    END IF
     FOR k = 1 TO lvlNumLights
         IF ABS(lvlLight(k, 1) - ax) < 0.2 AND ABS(lvlLight(k, 2) - ay) < 0.2 THEN EditFaceLight = k
     NEXT
@@ -11352,6 +12617,36 @@ SUB BuildThiefWay
     LOOP
 END SUB
 
+' A laser's sound and sparks, each frame, heard from (px, py): flickering
+' before it comes on (LaserSoon), the odd crackle and spit of sparks; as it
+' comes on, a crack - a zap, and sparks all along the beam; while it's on,
+' its electric buzz - its own looping copy, as loud as it's near, like a
+' trap's (TrapFx) - and off, silence. evCount: was it on last frame?
+SUB LaserFx(ev, px, py)
+    cx = (evX0(ev) + evX1(ev) + 1) / 2 : cy = (evY0(ev) + evY1(ev) + 1) / 2
+    onNow = LaserOn(ev)
+    IF onNow AND NOT evCount(ev) THEN ' On: the crack
+        SfxAt sndZap&, cx, cy, px, py
+        FOR y = evY0(ev) TO evY1(ev) : FOR x = evX0(ev) TO evX1(ev)
+            SpawnSparks x + RND, y + RND, FloorAt(x + 0.5, y + 0.5) + 0.15 + RND * 0.7, 3, 255, 70, 90
+        NEXT : NEXT
+    ELSEIF NOT onNow AND LaserSoon(ev) AND RND < 0.07 THEN ' Warming up: crackles
+        x = evX0(ev) + RND * (evX1(ev) - evX0(ev) + 1) : y = evY0(ev) + RND * (evY1(ev) - evY0(ev) + 1)
+        SfxAt sndSizzle&, x, y, px, py : SpawnSparks x, y, FloorAt(x, y) + 0.15 + RND * 0.7, 4, 255, 120, 140
+    END IF
+    evCount(ev) = onNow
+    IF sndTrapElec& <= 0 THEN EXIT SUB
+    IF onNow THEN
+        IF evHum&(ev) = 0 THEN evHum&(ev) = _SNDCOPY(sndTrapElec&)
+        IF evHum&(ev) > 0 THEN
+            _SNDVOL evHum&(ev), SfxVolAt!(cx, cy, px, py, SFX_RANGE) * 0.6 * setting(SET_SFX) / 100
+            IF NOT _SNDPLAYING(evHum&(ev)) THEN _SNDLOOP evHum&(ev)
+        END IF
+    ELSEIF evHum&(ev) > 0 THEN
+        _SNDSTOP evHum&(ev)
+    END IF
+END SUB
+
 ' Is laser event ev on now (or about to be)?
 FUNCTION LaserOn(ev)
     IF evB(ev) = 0 THEN LaserOn = -1 : EXIT FUNCTION
@@ -11504,6 +12799,7 @@ END FUNCTION
 FUNCTION Walkable%(x, y)
     cellX = INT(x) : cellY = INT(y)
     IF diagCorner(cellX, cellY) THEN Walkable% = NOT InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) : EXIT FUNCTION
+    IF boxOn(cellX, cellY) THEN IF InBox(x, y) THEN EXIT FUNCTION ' (a box: solid where it stands, open round it)
     deco = decoCell(cellX, cellY) : IF cyberOn THEN deco = 0 ' (the network has none)
     IF deco THEN
         IF decoKind(deco) <> DK_BODY AND (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN EXIT FUNCTION
@@ -11511,6 +12807,9 @@ FUNCTION Walkable%(x, y)
     IF glassHP(cellX, cellY) > 0 THEN IF InGlass(x, y) THEN EXIT FUNCTION
     IF walkFromHaz = 10 THEN IF FloorHazard(cellX, cellY) = HAZ_BURN THEN EXIT FUNCTION ' (a monster, not in fire: it won't step in)
     IF walkFromHaz >= 10 THEN IF floorH(cellX, cellY) <= PIT_DEPTH THEN EXIT FUNCTION ' (...nor off the edge of a pit with no bottom)
+    IF walkFromHaz >= 10 AND walkFromHaz < 100 AND liqAny THEN ' (...nor into a harmful liquid - 100 more: it's in one, or it hovers)
+        IF liqKind(cellX, cellY) THEN IF lqHurt(liqKind(cellX, cellY)) > 0 THEN EXIT FUNCTION
+    END IF
     IF NOT levelFlat AND walkZ > -900 THEN ' Heights: too high a step up, or too little room
         IF floorH(cellX, cellY) > walkZ + STEP_UP THEN EXIT FUNCTION
         IF ceilH(cellX, cellY) - MaxOf(floorH(cellX, cellY), walkZ) < BODY_H THEN EXIT FUNCTION
@@ -11533,6 +12832,77 @@ END FUNCTION
 FUNCTION SolidAt(x, y)
     cellX = INT(x) : cellY = INT(y)
     IF diagCorner(cellX, cellY) THEN SolidAt = InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) ELSE SolidAt = IsWall(cellX, cellY)
+    IF boxOn(cellX, cellY) THEN SolidAt = InBox(x, y)
+END FUNCTION
+
+' BOXES (chapter 23): is map point (x, y) inside the box standing in its
+' cell? Its edges are straight up and down the map, so it's four
+' comparisons.
+FUNCTION InBox(x, y)
+    cx = INT(x) : cy = INT(y)
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
+    IF boxOn(cx, cy) = 0 THEN EXIT FUNCTION
+    u = x - cx : v = y - cy
+    InBox = u > boxX0(cx, cy) AND u < boxX1(cx, cy) AND v > boxY0(cx, cy) AND v < boxY1(cx, cy)
+END FUNCTION
+
+' Where does a ray from (px, py), going (rdx, rdy), go into the box in cell
+' (cx, cy) - between tIn and tOut, while it's in the cell? -1 if it
+' doesn't. "Slabs": the box is where the strip between its west and east
+' edges crosses the strip between its north and south ones. The ray is in
+' the first strip from tx0 to tx1, in the second from ty0 to ty1 - so in
+' the box from the later of the two ins to the earlier of the outs, if
+' that's not back to front. bSide says which edge it went in by: 0 west
+' or east (a face along y, like the raycaster's side 0), 1 north or south.
+' Measured as DiagonalHit's: the raycaster's perpWallDist.
+FUNCTION BoxRay(cx, cy, px, py, rdx, rdy, tIn, tOut, bSide)
+    BoxRay = -1
+    ax = cx + boxX0(cx, cy) : bx = cx + boxX1(cx, cy) : ay = cy + boxY0(cx, cy) : by = cy + boxY1(cx, cy)
+    IF ABS(rdx) < 0.000001 THEN
+        IF px <= ax OR px >= bx THEN EXIT FUNCTION
+        tx0 = -1E+9 : tx1 = 1E+9
+    ELSE
+        tx0 = (ax - px) / rdx : tx1 = (bx - px) / rdx : IF tx0 > tx1 THEN SWAP tx0, tx1
+    END IF
+    IF ABS(rdy) < 0.000001 THEN
+        IF py <= ay OR py >= by THEN EXIT FUNCTION
+        ty0 = -1E+9 : ty1 = 1E+9
+    ELSE
+        ty0 = (ay - py) / rdy : ty1 = (by - py) / rdy : IF ty0 > ty1 THEN SWAP ty0, ty1
+    END IF
+    IF tx0 > ty0 THEN tEnter = tx0 : bSide = 0 ELSE tEnter = ty0 : bSide = 1
+    tExit = tx1 : IF ty1 < tExit THEN tExit = ty1
+    IF tEnter > tExit OR tExit < tIn OR tEnter > tOut THEN EXIT FUNCTION
+    IF tEnter < tIn THEN tEnter = tIn ' (starting inside it - can't, but just in case)
+    BoxRay = tEnter
+END FUNCTION
+
+' Where u - a picture's column on a block's side, 0 to 1 as you see it, as
+' a wall's would be there - is along that side itself, 0 to 1: a side
+' divided left | right is split at its own middle, not its cell's
+FUNCTION BoxFaceU(cx, cy, side, u)
+    SELECT CASE side
+        CASE 1 : lo = boxY0(cx, cy) : hi = boxY1(cx, cy)
+        CASE 2 : lo = 1 - boxX1(cx, cy) : hi = 1 - boxX0(cx, cy)
+        CASE 3 : lo = 1 - boxY1(cx, cy) : hi = 1 - boxY0(cx, cy)
+        CASE ELSE : lo = boxX0(cx, cy) : hi = boxX1(cx, cy)
+    END SELECT
+    IF hi - lo < 0.001 THEN BoxFaceU = 0 : EXIT FUNCTION
+    BoxFaceU = MaxOf(0, MinOf(0.999, (u - lo) / (hi - lo)))
+END FUNCTION
+
+' Does the edge from (x1, y1) to (x2, y2) - a body's side, straight across
+' or down the map - touch a box? (Overlapping rectangles: exact, where
+' EdgeFree's three points could pass either side of a thin pillar.)
+FUNCTION EdgeInBox(x1, y1, x2, y2)
+    lx = MinOf(x1, x2) : hx = MaxOf(x1, x2) : ly = MinOf(y1, y2) : hy = MaxOf(y1, y2)
+    FOR cy = INT(ly) TO INT(hy) : FOR cx = INT(lx) TO INT(hx)
+        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+            IF boxOn(cx, cy) THEN
+                IF hx > cx + boxX0(cx, cy) AND lx < cx + boxX1(cx, cy) AND hy > cy + boxY0(cx, cy) AND ly < cy + boxY1(cx, cy) THEN EdgeInBox = -1 : EXIT FUNCTION
+            END IF
+        END IF
+    NEXT : NEXT
 END FUNCTION
 
 ' Is (u, v) - a point inside a diagonal wall's cell, 0 to 1 each way - in
@@ -11573,6 +12943,7 @@ END FUNCTION
 ' middle (the middle catches the point of a diagonal wall poking in between).
 FUNCTION EdgeFree(x1, y1, x2, y2)
     EdgeFree = Walkable(x1, y1) AND Walkable(x2, y2) AND Walkable((x1 + x2) / 2, (y1 + y2) / 2)
+    IF boxAny THEN IF EdgeInBox(x1, y1, x2, y2) THEN EdgeFree = 0
 END FUNCTION
 
 ' Is a body (radius PLAYER_RADIUS) at (x, y) clear of walls all round?
@@ -11865,6 +13236,9 @@ SUB FireBolt(x, y, dirX, dirY, damage)
     FOR i = 1 TO MAX_BOLTS
         IF boltOn(i) = 0 THEN
             boltOn(i) = -1 : boltX(i) = x + dirX * 0.4 : boltY(i) = y + dirY * 0.4
+            ' (a shooter pressed up against glass would start it on the far
+            ' side: then it starts from the shooter, and bursts on the pane)
+            IF GlassBetween(x, y, boltX(i), boltY(i)) OR InGlass(boltX(i), boltY(i)) THEN boltX(i) = x : boltY(i) = y
             boltDX(i) = dirX : boltDY(i) = dirY : boltDamage(i) = damage
             ' (its height: from the shooter's middle, towards yours)
             boltZ(i) = floorH(INT(x), INT(y)) + 0.49 : d = SQR((playerX - x) ^ 2 + (playerY - y) ^ 2) : boltDZ(i) = 0
@@ -12108,7 +13482,9 @@ SUB ConHelp(c$)
             ConPrint "  edit [walk|off]   put X Y CHAR   box X0 Y0 X1 Y1 CHAR   undo   savelevel"
             ConPrint "  cutscene [SECTOR]   say LINE   fire [FRAMES]   use   jackin   jackout [win]   stations"
             ConPrint "  events   screenshot [FILE]   wait FRAMES   echo TEXT   exec FILE   logfile FILE|off"
-            ConPrint "  qb64pe [PATH|auto]   version   newsector   sectorname NAME"
+            ConPrint "  qb64pe [PATH|auto]   version   newsector   sectorname NAME   loot [BREAKABLE DROPS|default]"
+            ConPrint "  liquid KIND X0 Y0 X1 Y1 [DEPTH]   (water poison slime lava acid, or none)"
+            ConPrint "  block X Y X0 Y0 X1 Y1 [WALL]   (a block in a cell: edges in eighths)   block X Y none"
             ConPrint "  clear   menu   quit"
             ConPrint "From the command line, each command starts with + :"
             ConPrint "  neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit"
@@ -12117,6 +13493,20 @@ SUB ConHelp(c$)
         CASE "sectorname" : ConPrint "sectorname NAME: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it"
         CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-4 | ammo [cells|shells N] | health [N] | armor [N] | overcharge | amp | map"
         CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-4 | ammo [cells|shells N] | health N | armor [N] | map"
+        CASE "liquid", "flood"
+            ConPrint "liquid KIND X0 Y0 X1 Y1 [DEPTH]: a pool over that rectangle's floor - water (slows you), slime (slows, hurts a"
+            ConPrint "  little), poison (hurts), acid (eats armor first), lava (burns) - DEPTH 1-8 eighths; none drains it."
+            ConPrint "  savelevel (or Ctrl+S in the editor) keeps it; a trigger can flood a room with it"
+        CASE "block", "blocks"
+            ConPrint "block X Y X0 Y0 X1 Y1 [WALL]: a solid block standing in open cell X Y - a pillar, a thin wall, the back"
+            ConPrint "  of an alcove. Its edges are eighths of the cell (0-8 across, then down); WALL 1-6 is the look of #, N, C, K,"
+            ConPrint "  P or G. block X Y none takes it away. savelevel (or Ctrl+S in the editor) keeps it"
+        CASE "loot"
+            ConPrint "loot: what each breakable may leave in this sector. Breaking one rolls a d4 for drop A-D,"
+            ConPrint "  then 1-100: at or under that drop's chance, out it comes (kicked: back towards you)"
+            ConPrint "loot BREAKABLE DROP [DROP DROP DROP]: set one - each PICKUP:CHANCE (ammo shells medkit health"
+            ConPrint "  armor overcharge amp...) or - for none: loot crate ammo:20 shells:20 - armor:10"
+            ConPrint "loot BREAKABLE none: it leaves nothing   loot default: the game's own table again"
         CASE "die" : ConPrint "die [MESSAGE]: you die (a trigger's death trap); never in god mode or the editor"
         CASE "spawn" : ConPrint "spawn TYPE X Y [N]: N monsters teleported into cell X Y, hunting (summon TYPE [N]: in front of you)"
         CASE "item" : ConPrint "item KIND X Y: a pickup appears in cell X Y (health medkit armor cells shells scatter repeater rail map overcharge amp red blue yellow)"
@@ -13020,7 +14410,7 @@ SUB AddLight(x, y, radius, r, g, b, effect, deco)
     numLights = numLights + 1
     lightX(numLights) = x : lightY(numLights) = y : lightRadius(numLights) = radius
     lightR(numLights) = r : lightG(numLights) = g : lightB(numLights) = b
-    lightEffect(numLights) = effect : lightDeco(numLights) = deco
+    lightEffect(numLights) = effect : lightDeco(numLights) = deco : lightLow(numLights) = 0
     lightPhase(numLights) = RND * 6.28 : lightTimer(numLights) = 0 ' (so no two flicker in step)
 END SUB
 
@@ -13201,6 +14591,9 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
             ELSEIF mmColor~& THEN
                 LINE (sx, sy)-STEP(cellSize - 1, cellSize - 1), mmColor~&, BF
                 IF doorKey(cellX, cellY) AND doorOpen(cellX, cellY) = 0 THEN LINE (sx + cellSize \ 3, sy + cellSize \ 3)-STEP(cellSize \ 3, cellSize \ 3), _RGB32(0, 0, 0), BF
+            END IF
+            IF boxOn(cellX, cellY) THEN ' A box: just where it stands (at least a pixel)
+                LINE (sx + INT(boxX0(cellX, cellY) * cellSize), sy + INT(boxY0(cellX, cellY) * cellSize))-(sx + MaxOf(INT(boxX0(cellX, cellY) * cellSize), INT(boxX1(cellX, cellY) * cellSize + 0.5) - 1), sy + MaxOf(INT(boxY0(cellX, cellY) * cellSize), INT(boxY1(cellX, cellY) * cellSize + 0.5) - 1)), wallMapColor(boxOn(cellX, cellY)), BF
             END IF
         END IF
     NEXT : NEXT
@@ -13454,6 +14847,11 @@ SUB _GL
         GLCamera b, -1
         IF glGPU THEN GLWorldGPU b, -1 ELSE GLWorld b, -1
         glReflecting = -1
+        ' ...and forgotten in depth: the real world goes over all of it, so
+        ' the mirror image shows only through the see-through floors - not
+        ' fighting a pit's real sides where a pillar's reflection falls
+        ' on them (the same depth: they'd shimmer in and out, pixel by pixel)
+        _glClear _GL_DEPTH_BUFFER_BIT
     END IF
     GLCamera b, 0
     IF glGPU THEN GLWorldGPU b, 0 ELSE GLWorld b, 0
@@ -13614,6 +15012,7 @@ SUB GLBuildMesh
             glMeshKind = 0 : IF floorH(cx, cy) <> 0 THEN glMeshKind = 3 ' (a floor up or down: not see-through, for the wet floors)
             glFaceNZ = 1 : IF liftCell(cx, cy) = 0 THEN GLFlat cx, cy, floorH(cx, cy), floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy) ' (lifts: GLLifts)
             glMeshKind = 1 : glFaceNZ = -1 : GLFlat cx, cy, ceilH(cx, cy), ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy)
+            IF boxOn(cx, cy) THEN glMeshKind = 2 : GLBox cx, cy, glBuf
         END IF
         IF worldMap(cx, cy) = 2 THEN
             glNumDoors = glNumDoors + 1 : glDoorCX(glNumDoors) = cx : glDoorCY(glNumDoors) = cy
@@ -13722,6 +15121,7 @@ SUB GLWorld(b, mirror)
     ' its solid corner, plus its slanted face.
     FOR k = 1 TO glNumVis
         cx = glVisX(k) : cy = glVisY(k)
+        IF boxOn(cx, cy) THEN GLBox cx, cy, b
         IF worldMap(cx, cy) > 0 THEN
             corner = diagCorner(cx, cy)
             IF corner THEN GLDiagonal cx, cy, corner, b
@@ -13798,6 +15198,7 @@ SUB GLSpritesAndExtras(b, mirror)
     NEXT
     GLStopDrawing
     _glDisable _GL_ALPHA_TEST
+    IF liqAny AND NOT mirror AND NOT cyberOn THEN GLLiquids b ' (after the sprites, so what's in a pool shows through it)
     GLShaderStop
 
     IF glSet(SET_SHADOWS, b) AND NOT mirror THEN GLShadows b
@@ -14229,6 +15630,10 @@ SUB GLSendTextures
             IF INSTR(n$, "pulse") OR INSTR(n$, "fire") THEN glTexAnim(slot) = 3
             IF INSTR(n$, "flicker") OR INSTR(n$, "dying") OR INSTR(n$, "strobe") THEN glTexAnim(slot) = 1
         END IF
+        IF slot > T_LIQUID AND slot <= T_LIQUID + LQ_KINDS THEN ' A liquid: see-through as its kind is, rippling (anim 5), glossy - lava glowing
+            lk = slot - T_LIQUID : glTexReflect(slot) = lqSee(lk) : glTexAnim(slot) = 5 : glTexShine(slot) = 0.7 : glTexNeon(slot) = 0.5
+            IF lk = LQ_LAVA THEN glTexNeon(slot) = 1 : glTexShine(slot) = 0.15
+        END IF
     NEXT
     FOR slot = 1 TO SPR_SLOTS
         sz = spriteSize(slot) ' (a smaller picture's unused part cleared: smoothed, it would bleed in)
@@ -14289,7 +15694,7 @@ SUB GLBindSlot(slot)
     _glBindTexture _GL_TEXTURE_2D, glTexName(slot)
     IF glShaderOn THEN
         p~& = glWorldProg
-        GLSL_uniform_1f p~&, "reflectAmt", glTexReflect(slot) * glFloorPass * -1
+        GLSL_uniform_1f p~&, "reflectAmt", glTexReflect(slot) * (glFloorPass OR glLiquidPass) * -1 ' (a wet floor, or a liquid: see-through)
         GLSL_uniform_1f p~&, "neon", glTexNeon(slot) * glNeonOn
         GLSL_uniform_1f p~&, "anim", glTexAnim(slot)
         GLSL_uniform_1f p~&, "cellLit", glCellLitMode
@@ -14539,6 +15944,48 @@ SUB GLStrip(ax, ay, bx, by, s0, s1, u0, u1, zLow, zHigh, vTop, vBottom, slot)
     GLCorner x0, y0, zHigh, u0, vTop : GLCorner x1, y1, zLow, u1, vBottom : GLCorner x0, y0, zLow, u0, vBottom
 END SUB
 
+' LIQUIDS: each pool's surface (liqZ), and its sides wherever it stands
+' higher than what's beside it - drawn after the sprites, so what's in it
+' (a wading monster, a pickup, the floor) shows through: blended, as
+' see-through as its kind (lqSee - the shader's reflectAmt, in this
+' pass), rippling (anim 5), and not writing depth, so it never hides
+' what's drawn after it. Lit by the light tables, like the world.
+SUB GLLiquids(b)
+    GLStopDrawing
+    litMode = glCellLitMode : glCellLitMode = 1 : glLiquidPass = -1
+    _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
+    FOR cy = 1 TO MAP_SIZE - 2 : FOR cx = 1 TO MAP_SIZE - 2
+        k = liqKind(cx, cy)
+        IF k THEN
+            IF GLNearSeen(cx, cy, b) THEN
+                z = liqZ(cx, cy) : slot = T_LIQUID + k
+                GLSetLight cx, cy, 1, b
+                glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = 1
+                GLFlat cx, cy, z, slot, slot, 0
+                FOR sd = 1 TO 4 ' Its sides: west, east, north, south - down to a lower floor (or liquid) beside it
+                    SELECT CASE sd
+                        CASE 1 : nx = cx - 1 : ny = cy : ax = cx : ay = cy + 1 : bx = cx : by = cy
+                        CASE 2 : nx = cx + 1 : ny = cy : ax = cx + 1 : ay = cy : bx = cx + 1 : by = cy + 1
+                        CASE 3 : nx = cx : ny = cy - 1 : ax = cx : ay = cy : bx = cx + 1 : by = cy
+                        CASE ELSE : nx = cx : ny = cy + 1 : ax = cx + 1 : ay = cy + 1 : bx = cx : by = cy + 1
+                    END SELECT
+                    IF GLOpenCell(nx, ny) THEN
+                        nTop = floorH(nx, ny) : IF liqKind(nx, ny) THEN nTop = liqZ(nx, ny)
+                        IF nTop < z THEN
+                            GLSetLight nx, ny, 0.85, b
+                            glFaceNX = nx - cx : glFaceNY = ny - cy : glFaceNZ = 0
+                            GLStrip ax, ay, bx, by, 0, 1, 0, 1, nTop, z, 0, z - nTop, slot
+                        END IF
+                    END IF
+                NEXT
+            END IF
+        END IF
+    NEXT : NEXT
+    GLStopDrawing
+    _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
+    glLiquidPass = 0 : glCellLitMode = litMode
+END SUB
+
 ' DECALS: each mark laid flat on its surface - the scorch picture
 ' (MakeScorch), 0.003 off the surface (and "polygon offset": the card
 ' nudges it nearer in its depth test, so the surface never shows through
@@ -14737,6 +16184,34 @@ SUB WorldLoopsOff
     FOR k = 1 TO MAX_EVENTS
         IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k)
     NEXT
+    IF liqHum& > 0 THEN _SNDSTOP liqHum&
+END SUB
+
+' The harmful liquids bubble: one looping copy of the bubbling (liqHum&),
+' as loud as the nearest of them within 4 cells of (px, py) is near -
+' looked for every 10 frames (a few cells round you is cheap enough)
+SUB LiquidHum(px, py)
+    STATIC near, tick
+    IF sndBubble& <= 0 THEN EXIT SUB
+    tick = tick + 1
+    IF tick MOD 10 = 0 THEN
+        near = 99
+        FOR y = INT(py) - 4 TO INT(py) + 4 : FOR x = INT(px) - 4 TO INT(px) + 4
+            IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+                IF liqKind(x, y) THEN IF lqHurt(liqKind(x, y)) > 0 THEN d = SQR((x + 0.5 - px) ^ 2 + (y + 0.5 - py) ^ 2) : IF d < near THEN near = d
+            END IF
+        NEXT : NEXT
+    END IF
+    v = 0 : IF near < 4 AND NOT cyberOn THEN v = (1 - near / 4) * 0.6 * setting(SET_SFX) / 100
+    IF v > 0 THEN
+        IF liqHum& = 0 THEN liqHum& = _SNDCOPY(sndBubble&)
+        IF liqHum& > 0 THEN
+            _SNDVOL liqHum&, v
+            IF NOT _SNDPLAYING(liqHum&) THEN _SNDLOOP liqHum&
+        END IF
+    ELSEIF liqHum& > 0 THEN
+        _SNDSTOP liqHum&
+    END IF
 END SUB
 
 ' A trap's show, each frame, by how lit it is (evGlow): nothing when it's
@@ -14894,6 +16369,45 @@ SUB GLFace(cx, cy, side, b)
     END SELECT
 END SUB
 
+' A box's four sides (each one only if you're in front of it - the mesh
+' has them all), floor to ceiling of its cell, lit by its cell. Each face
+' shows the part of its picture its place in the cell says - as a wall's
+' would there - so a box against a wall lines up with it, and a pillar a
+' quarter wide shows a quarter of the picture. Its faces are FACE_BOX + 1
+' east, 2 south, 3 west, 4 north in [faces].
+SUB GLBox(cx, cy, b)
+    x0 = cx + boxX0(cx, cy) : x1 = cx + boxX1(cx, cy) : y0 = cy + boxY0(cx, cy) : y1 = cy + boxY1(cx, cy)
+    fz = floorH(cx, cy) : cz = ceilH(cx, cy) : deflt = wallTexSlot(boxOn(cx, cy))
+    IF glMeshBuilding OR glEyeX > x1 THEN ' East
+        GLSetLight cx, cy, 1, b : glFaceNX = 1 : glFaceNY = 0 : glFaceNZ = 0
+        GLBoxSide x1, y0, x1, y1, boxY0(cx, cy), boxY1(cx, cy), fz, cz, cx, cy, FACE_BOX + 1, deflt
+    END IF
+    IF glMeshBuilding OR glEyeX < x0 THEN ' West
+        GLSetLight cx, cy, 1, b : glFaceNX = -1 : glFaceNY = 0 : glFaceNZ = 0
+        GLBoxSide x0, y0, x0, y1, 1 - boxY0(cx, cy), 1 - boxY1(cx, cy), fz, cz, cx, cy, FACE_BOX + 3, deflt
+    END IF
+    IF glMeshBuilding OR glEyeY > y1 THEN ' South
+        GLSetLight cx, cy, 0.7, b : glFaceNX = 0 : glFaceNY = 1 : glFaceNZ = 0
+        GLBoxSide x0, y1, x1, y1, 1 - boxX0(cx, cy), 1 - boxX1(cx, cy), fz, cz, cx, cy, FACE_BOX + 2, deflt
+    END IF
+    IF glMeshBuilding OR glEyeY < y0 THEN ' North
+        GLSetLight cx, cy, 0.7, b : glFaceNX = 0 : glFaceNY = -1 : glFaceNZ = 0
+        GLBoxSide x0, y0, x1, y0, boxX0(cx, cy), boxX1(cx, cy), fz, cz, cx, cy, FACE_BOX + 4, deflt
+    END IF
+END SUB
+
+' One side of a block, as GLFaceStrip - but divided left | right, at its
+' own middle (BoxFaceU), the half with the lower u the first picture
+SUB GLBoxSide(ax, ay, bx, by, u0, u1, fz, cz, cx, cy, f, deflt)
+    IF faceDiv(cx, cy, f) = 1 THEN
+        um = (u0 + u1) / 2 : IF u0 < u1 THEN r = 0.25 ELSE r = 0.75
+        GLStrip ax, ay, bx, by, 0, 0.5, u0, um, fz, cz, 1 - cz, 1 - fz, FaceSlot(cx, cy, f, r, 0, deflt)
+        GLStrip ax, ay, bx, by, 0.5, 1, um, u1, fz, cz, 1 - cz, 1 - fz, FaceSlot(cx, cy, f, 1 - r, 0, deflt)
+    ELSE
+        GLFaceStrip ax, ay, bx, by, u0, u1, fz, cz, 1 - cz, 1 - fz, cx, cy, f, deflt
+    END IF
+END SUB
+
 ' A diagonal wall's slanted face, corner to corner across its cell, if
 ' you're on its open side. Lit by its own cell, between the two sides'
 ' darkness (as chapter 15), and textured left to right along x - turned
@@ -15011,13 +16525,14 @@ SUB GLBuildShaders
     fs$ = fs$ + "}" + nl$
     fs$ = fs$ + "void main() {" + nl$
     fs$ = fs$ + "    if (mirrorCut > 0.5 && vPos.z < 0.0) discard;  // WET FLOORS: a pit's sides would reflect up into the room" + nl$
-    fs$ = fs$ + "    if (anim > 3.5) {  // A SKY: by the way you look, not where the ceiling is - so it's endlessly far off" + nl$
+    fs$ = fs$ + "    if (anim > 3.5 && anim < 4.5) {  // A SKY: by the way you look, not where the ceiling is - so it's endlessly far off" + nl$
     fs$ = fs$ + "        vec3 d = vPos - vec3(eye.xy, eyeZ);" + nl$
     fs$ = fs$ + "        float el = clamp(atan(d.z, length(d.xy)) / 1.2566, 0.0, 1.0);" + nl$
     fs$ = fs$ + "        gl_FragColor = vec4(texture2D(tex, vec2(atan(d.y, d.x) / 6.2831853, 1.0 - el)).rgb, 1.0);" + nl$
     fs$ = fs$ + "        return;" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    vec2 uv = gl_TexCoord[0].xy;" + nl$
+    fs$ = fs$ + "    if (anim > 4.5) uv += vec2(sin(uv.y * 12.566 + secs * 1.6), cos(uv.x * 12.566 + secs * 1.3)) * 0.03 + vec2(secs * 0.025, secs * 0.04);  // a LIQUID: rippling, drifting" + nl$
     fs$ = fs$ + "    vec4 c = texture2D(tex, uv);" + nl$
     fs$ = fs$ + "    if (isSprite > 0.5 && c.a < 0.502) discard;  // a sprite's see-through pixels" + nl$
     fs$ = fs$ + "    vec3 n = normalize(vNormal);" + nl$
@@ -15435,7 +16950,7 @@ SUB BuildShafts
     FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : shaftCell(x, y) = 0 : NEXT : NEXT
     FOR l = 1 TO numLights
         cx = INT(lightX(l)) : cy = INT(lightY(l))
-        IF lightDeco(l) = 0 AND cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+        IF lightDeco(l) = 0 AND NOT lightLow(l) AND cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
             IF worldMap(cx, cy) <= 0 AND diagCorner(cx, cy) = 0 AND texSky(ceilTex(cx, cy)) = 0 THEN ' (under a sky: no lamp hanging in the air, no beam)
                 shaftCell(cx, cy) = l : ceilTex(cx, cy) = T_LAMP : ceilSplit(cx, cy) = 0
             END IF

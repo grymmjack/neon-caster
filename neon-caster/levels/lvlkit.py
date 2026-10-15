@@ -31,8 +31,12 @@ class Map:
         self.events = []
         self.fh = [["."] * N for _ in range(N)]  # [floor]: . or a height character (chapter 22)
         self.ch = [["."] * N for _ in range(N)]  # [ceiling]
+        self.lq = [["."] * N for _ in range(N)]  # [liquid]: . or a liquid's letter (LIQUID_CHARS)
+        self.ld = [["."] * N for _ in range(N)]  # [liquid depth]: . (LIQUID_DEPTH) or 1-8 eighths
         self.lifts = []
         self.triggers = []  # lines: "when ... : commands ; ..." (chapter 19)
+        self.blocks = []  # [blocks]: (x, y, x0, y0, x1, y1, wall) - edges in eighths, wall 1-6 (# N C K P G)
+        self.nudges = []  # [nudges]: (x, y, dx, dy) - a decoration off its cell's middle, eighths (-3 to 3)
 
     @classmethod
     def from_rows(cls, rows):
@@ -159,6 +163,24 @@ class Map:
 
     def ceil_at(self, x, y):
         return hval(self.ch[y][x], 8)
+
+    def block(self, x, y, x0, y0, x1, y1, wall=1):
+        """A solid block standing in open cell (x, y): its edges x0..x1 across
+        and y0..y1 down, in eighths of the cell (0-8), looking like wall 1-6
+        (# N C K P G) - a pillar, a thin wall, the back of an alcove."""
+        self.blocks = [b for b in self.blocks if (b[0], b[1]) != (x, y)] + [(x, y, x0, y0, x1, y1, wall)]
+
+    def nudge(self, x, y, dx, dy):
+        """The decoration on cell (x, y) moved dx across, dy down, in eighths
+        (-3 to 3)."""
+        self.nudges = [n for n in self.nudges if (n[0], n[1]) != (x, y)] + [(x, y, dx, dy)]
+
+    def liquid(self, x, y, kind, depth=None):
+        """A pool of kind (w p s l a) depth eighths deep on cell (x, y) - only
+        on floor (LIQUID_ON), as the game would have it."""
+        if self.g[y][x] in LIQUID_ON:
+            self.lq[y][x] = kind
+            self.ld[y][x] = "." if depth in (None, LIQUID_DEPTH) else str(depth)
 
     def floor(self, x0, y0, x1, y1, e, only_open=True):
         """Floors in a rectangle e eighths up (or down, if e < 0)."""
@@ -426,6 +448,99 @@ LEVEL_HEADER = """' NEON-CASTER level file - see chapter 22 of neon-caster.bas f
 """
 
 
+# [loot]: what breakables leave - the game's LOOT_HELP$, DecoKindOf and ItemOf
+LOOT_HELP = "' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance"
+LOOT_BREAKABLES = {"barrel", "lamp", "plant", "terminal", "crate", "rack", "serverrack", "vending", "vendingmachine",
+                   "coolant", "tank", "coolanttank", "spawner", "desk", "console", "screen", "specimen", "specimentank",
+                   "labbench", "generator", "cryopod", "cryo", "hologram", "locker", "bench", "chair"}
+LOOT_PICKUPS = {"red", "blue", "yellow", "health", "cells", "ammo", "shells", "scatter", "repeater", "armor", "armour",
+                "medkit", "bigmed", "rail", "railgun", "map", "overcharge", "amp"}
+
+
+# [liquid]: the game's LQ_CHARS$ and LQ_DEPTH; the map characters a liquid can lie on (EDIT_OPEN$)
+LIQUID_CHARS = "wpsla"
+LIQUID_DEPTH = 3
+LIQUID_ON = ".rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV<>^v&"
+
+
+def check_liquid(lv):
+    """What's wrong with a level's liquids (a list of errors)."""
+    errs = []
+    lq = lv.get("liquid") or []
+    ld = lv.get("liquid_depth") or []
+    for y, r in enumerate(lq):
+        for x, c in enumerate(r):
+            if c == ".":
+                continue
+            if c not in LIQUID_CHARS:
+                errs.append("liquid at %d,%d: '%s' is not a liquid (w p s l a)" % (x, y, c))
+            elif y >= len(lv["rows"]) or lv["rows"][y][x] not in LIQUID_ON:
+                errs.append("liquid at %d,%d: not on a floor" % (x, y))
+            d = ld[y][x] if y < len(ld) and x < len(ld[y]) else "."
+            if d != "." and d not in "12345678":
+                errs.append("liquid depth at %d,%d: '%s' (. or 1-8)" % (x, y, d))
+    return errs
+
+
+def check_blocks(lv):
+    """What's wrong with a level's blocks and nudges (a list of errors)."""
+    errs, seen = [], set()
+    rows = lv["rows"]
+    for b in lv.get("blocks", []):
+        if len(b) < 7:
+            errs.append("block %s: needs x, y, x0, y0, x1, y1, wall" % (b,)); continue
+        x, y, x0, y0, x1, y1, w = b[:7]
+        if not (0 < x < N - 1 and 0 < y < N - 1):
+            errs.append("block at %d,%d: in the border" % (x, y)); continue
+        if rows[y][x] in WALLS or rows[y][x] in DOORS or rows[y][x] in "%@$/\\=":
+            errs.append("block at %d,%d: only in an open cell (it's '%s')" % (x, y, rows[y][x]))
+        if not (0 <= x0 < x1 <= 8 and 0 <= y0 < y1 <= 8):
+            errs.append("block at %d,%d: edges %d-%d, %d-%d (0 to 8, low < high)" % (x, y, x0, x1, y0, y1))
+        if not 1 <= w <= 6:
+            errs.append("block at %d,%d: wall %d (1-6)" % (x, y, w))
+        if (x, y) in seen:
+            errs.append("block at %d,%d: a cell has only one" % (x, y))
+        seen.add((x, y))
+    for n in lv.get("nudges", []):
+        if len(n) < 4:
+            errs.append("nudge %s: needs x, y, dx, dy" % (n,)); continue
+        x, y, dx, dy = n[:4]
+        if not (0 <= x < N and 0 <= y < N) or rows[y][x] not in DECO:
+            errs.append("nudge at %d,%d: no decoration there" % (x, y))
+        if not (-3 <= dx <= 3 and -3 <= dy <= 3):
+            errs.append("nudge at %d,%d: %d, %d (-3 to 3)" % (x, y, dx, dy))
+    return errs
+
+
+def check_loot(line):
+    """What's wrong with one [loot] line ('' if nothing)."""
+    if "=" not in line:
+        return "loot '%s': needs BREAKABLE = DROPS" % line
+    name, drops = line.split("=", 1)
+    n = "".join(c for c in name.lower() if c not in " _-\t")
+    if n.endswith("s"):
+        n = n[:-1]
+    if n not in LOOT_BREAKABLES:
+        return "loot '%s': no breakable called %s" % (line, name.strip())
+    slots = [d.strip() for d in drops.split(",")] if drops.strip() else []
+    if len(slots) > 4:
+        return "loot '%s': four drops at most" % line
+    for d in slots:
+        if d in ("", "-"):
+            continue
+        if ":" not in d:
+            return "loot '%s': each drop is pickup:chance (or -)" % line
+        k, c = [x.strip() for x in d.split(":", 1)]
+        if k.lower() not in LOOT_PICKUPS and not (len(k) == 1 and k in "rby+ae23u*4Mqj"):
+            return "loot '%s': no pickup called %s" % (line, k)
+        try:
+            if not 0 <= float(c) <= 100:
+                raise ValueError
+        except ValueError:
+            return "loot '%s': a chance is 0 to 100" % line
+    return ""
+
+
 def _num(v):
     return str(int(v)) if float(v) == int(float(v)) else ("%g" % float(v))
 
@@ -472,10 +587,27 @@ def level_text(lv, comment=()):
         out.append("' teleporters paired by hand: x1, y1, x2, y2 (the rest pair up in reading order)")
         for r in lv["pads"]:
             out.append(", ".join(_num(v) for v in r))
+    if lv.get("blocks"):  # solid blocks inside cells
+        out.append("")
+        out.append("[blocks]")
+        out.append("' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)")
+        for r in lv["blocks"]:
+            out.append(", ".join(_num(v) for v in r))
+    if lv.get("nudges"):  # decorations off their cells' middles
+        out.append("")
+        out.append("[nudges]")
+        out.append("' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3)")
+        for r in lv["nudges"]:
+            out.append(", ".join(_num(v) for v in r))
+    if lv.get("loot"):  # what breakables leave, by kind - kept as they are
+        out.append("")
+        out.append("[loot]")
+        out.append(LOOT_HELP)
+        out += list(lv["loot"])
     if lv.get("faces"):  # pictures on single faces, from the editor's PAINT - kept as they are
         out.append("")
         out.append("[faces]")
-        out.append("' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture")
+        out.append("' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture")
         out += list(lv["faces"])
     out.append("")
     out.append("[map]")
@@ -486,6 +618,12 @@ def level_text(lv, comment=()):
     ce = lv.get("ceiling") or []
     if any(r.strip(".") for r in ce):
         out += ["", "[ceiling]", "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's"] + list(ce)
+    lq = lv.get("liquid") or []
+    if any(r.strip(".") for r in lq):  # pools: the game's [liquid] and [liquid depth], as the editor writes them
+        ld = list(lv.get("liquid_depth") or [])
+        ld = [(ld[y] if y < len(ld) else "").ljust(N, ".")[:N] for y in range(N)]
+        out += ["", "[liquid]", "' each cell's liquid: . none, w water, p poison, s slime, l lava, a acid"] + list(lq)
+        out += ["", "[liquid depth]", "' how deep, in eighths of a wall: . is %d, or 1-8" % LIQUID_DEPTH] + ld
     return "\n".join(out) + "\n"
 
 
@@ -512,17 +650,18 @@ def write_level_file(path, lv, comment=()):
 def read_level_file(path, label=None):
     """A level file as the dict check_level and level_text use."""
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
-              ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[])
+              ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[], loot=[],
+              liquid=[], liquid_depth=[], blocks=[], nudges=[])
     sec = None
     for line in open(path).read().split("\n"):
         t = line.strip()
-        if sec in ("triggers", "faces"):
+        if sec in ("triggers", "faces", "loot"):
             if t and not t.startswith("'") and not t.startswith("["):
                 lv[sec].append(t)
                 continue
-        if sec in ("map", "floor", "ceiling"):
+        if sec in ("map", "floor", "ceiling", "liquid", "liquid depth"):
             if t and not t.startswith("'") and not t.startswith("["):
-                lv["rows" if sec == "map" else sec].append(line.rstrip("\r")[:N])
+                lv["rows" if sec == "map" else sec.replace(" ", "_")].append(line.rstrip("\r")[:N])
                 continue
         if not t or t.startswith("'"):
             continue
@@ -537,7 +676,7 @@ def read_level_file(path, label=None):
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals
             elif k == "ambient": lv["ambient"] = tuple(int(float(x)) for x in vals)
-        elif sec in ("zones", "events", "lifts", "pads", "monsters"):
+        elif sec in ("zones", "events", "lifts", "pads", "monsters", "blocks", "nudges"):
             lv[sec].append(tuple(int(float(x)) for x in t.split(",")))
         elif sec == "lights":
             lv[sec].append(tuple(float(x) for x in t.split(",")))
@@ -750,6 +889,12 @@ def check_level(lv, assets=None):
             warns.append("event %s: no doors to lock round its room" % (e,))
     if len(lv.get("events", [])) > 16:
         errs.append("too many events (max 16)")
+    errs += check_liquid(lv)
+    errs += check_blocks(lv)
+    for l in lv.get("loot", []):
+        e = check_loot(l)
+        if e:
+            errs.append(e)
     if not any("M" in r for r in lv["rows"]):
         warns.append("no map pickup (M): the minimap never appears on this level")
     if not errs:

@@ -57,7 +57,6 @@ ambient  = 115, 255, 190, 150
 [triggers]
 ' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 13 25 15 27 : message A CODE TERMINAL - face it and press SPACE
-enter 8 3 10 5 : message A TELEPORTER - step on it
 
 [map]
 ################################################

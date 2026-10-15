@@ -28,9 +28,22 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   ```
   Hard links (`cp -al`) fail: /tmp is another disk. The symlinked copy writes
   its own `saves/`.
+  The copy links each file that existed when it was made: assets added
+  later (new sounds, pictures) are missing from it until linked in too -
+  remake it, or `ln -s` the new ones. A test that "passes" without them
+  only proves the code path, not the asset.
+- **Xvfb's OpenGL is software (llvmpipe)**: it breaks depth ties
+  consistently, so z-fighting and similar GPU-only artefacts don't show
+  there. When the user sees one, reason it out from the code.
 - **Never drive the user's display.** Run GUI tests under `Xvfb :99` and find
   windows by the PID you started (`xdotool search --pid`), never by title:
   the user often has their own NEON-CASTER window open.
+- **The desktop is Wayland: unset it for every test run.** QB64's error
+  dialogs ("Critical Error", "Failed to initialize window") are a Qt helper
+  that prefers `WAYLAND_DISPLAY` over `DISPLAY`, so they pop up on the
+  user's screen even when the game is on :99. Start each run with
+  `unset WAYLAND_DISPLAY DBUS_SESSION_BUS_ADDRESS; export XDG_SESSION_TYPE=x11 QT_QPA_PLATFORM=xcb DISPLAY=:99`,
+  and check `xdpyinfo -display :99` first - never launch if :99 isn't up.
 - **Silence every test run.** Xvfb hides the window, not the sound, and
   `+sfx 0` applies a few frames too late. Send the game's audio to a silent
   sink instead:

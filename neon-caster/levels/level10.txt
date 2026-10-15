@@ -51,7 +51,6 @@ ambient  = 85, 255, 120, 120
 [triggers]
 ' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 7 43 9 45 : message A DATA STATION - face it and press SPACE to jack in
-enter 6 3 8 5 : message A TELEPORTER - step on it
 
 [map]
 NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN

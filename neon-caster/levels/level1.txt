@@ -54,8 +54,6 @@ ambient  = 165, 225, 220, 255
 ' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 36 16 38 18 : message A CODE TERMINAL - face it and press SPACE
 enter 22 13 24 15 : message A DATA STATION - face it and press SPACE to jack in
-enter 39 25 41 27 : message AN ELEVATOR - stand on it
-enter 5 6 7 8 : message A TELEPORTER - step on it
 
 [map]
 ################################################
