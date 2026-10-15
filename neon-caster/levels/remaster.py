@@ -400,6 +400,22 @@ def r1(m, rng):
             m.post(x, y, a, at=4, w=2, d=2, wall=5, glow=VIOLET)
 
 
+@remaster(2)
+def r2(m, rng):
+    """REACTOR CORE: coolant round the reactor, the south hall's pillars
+    lit amber, alarm lights strobing over the coolant."""
+    for y in range(15, 33):   # (the hall's a bowl: coolant in its lowest ring)
+        for x in range(14, 34):
+            if m.g[y][x] == "." and m.fh[y][x] == "D":
+                m.liquid(x, y, "w", 2)
+    for x in (10, 16, 22, 28, 34):
+        for y in (39, 40):
+            if m.g[y][x] in lvlkit.WALLS:
+                lit_pillar(m, x, y, AMBER)
+    for (x, y) in ((17, 23), (28, 23), (22, 18), (22, 29)):
+        m.light(x + 0.5, y + 0.5, 4, 150, 255, 50, 40, 3)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
