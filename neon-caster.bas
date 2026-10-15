@@ -164,6 +164,10 @@
 ' QB64_GJ_LIB (github.com/grymmjack/QB64_GJ_LIB), a copy of it in lib/glsl:
 ' its .BI here, its .BM at the very end of the file.
 '$INCLUDE:'lib/glsl/GLSL.BI'
+' Steam achievements and stats (chapter 23) come from QB64_GJ_LIB's STEAM
+' library, a copy of it in lib/steam - with a stand-in (the "mock") that
+' keeps them in a file when there's no Steam, so they work anywhere.
+'$INCLUDE:'lib/steam/STEAM.BI'
 ' Which release this is (the create-release skill bumps it: major.minor.patch)
 CONST GAME_VERSION$ = "0.1.0"
 _TITLE "NEON-CASTER " + GAME_VERSION$
@@ -997,6 +1001,19 @@ NEXT
 DIM SHARED sndAlarm&, sndFanfare&, sndFail&, sndZap&, sndSpawn&
 sndAlarm& = LoadSnd&("alarm.wav") : sndFanfare& = LoadSnd&("fanfare.wav") : sndFail& = LoadSnd&("fail.wav")
 DIM SHARED sndSizzle& ' (a burning floor - chapter 22's heights)
+' ACHIEVEMENTS (chapter 23: AchSetup, Achieve, AchAdd): each one's Steam API
+' name, title, what it asks, whether it's hidden till you get it, and - for
+' a count (100 kills) - the stat it follows and the goal. The stats are
+' kept by Steam (or the mock's file). achCheat: god mode, give, the editor
+' and the like were used this game - achievements wait for a new one.
+' achToast$: the pop-ups waiting to show, achToastT how long the one up
+' has been showing.
+CONST NUM_ACH = 45, NUM_ACHSTATS = 12, NEON_APP_ID = 0 ' (NEON_APP_ID: the game's Steam App ID, once there is one - 0 keeps to the stand-in)
+DIM SHARED achApi$(NUM_ACH), achTitle$(NUM_ACH), achDesc$(NUM_ACH), achHidden(NUM_ACH) AS INTEGER, achStat$(NUM_ACH), achGoal(NUM_ACH) AS LONG
+DIM SHARED achN AS INTEGER, achStatName$(NUM_ACHSTATS), achStatN AS INTEGER, achCheat AS INTEGER, achTest AS INTEGER, achReady AS INTEGER
+DIM SHARED achToast$(16), achToastN AS INTEGER, achToastT AS INTEGER, sndAchieve&, conFromTrig AS INTEGER
+DIM SHARED achLevelHurt AS INTEGER, achOtherGun AS INTEGER, achAmpKills AS INTEGER, achBlastKills AS INTEGER, achInBlast AS INTEGER, achInLava AS INTEGER, achRunFrom AS INTEGER, achDeadSeen AS INTEGER
+sndAchieve& = LoadSnd&("achievement.wav")
 sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav") : sndSizzle& = LoadSnd&("sizzle.wav")
 DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&
 sndSteal& = LoadSnd&("thief-steal.wav") : sndHoard& = LoadSnd&("hoard-open.wav") : sndPlate& = LoadSnd&("plate-click.wav")
@@ -1507,6 +1524,7 @@ CONST KICK_FRAMES = 22, KICK_HIT = 8, KICK_REACH = 1.35, KICK_DAMAGE = 2, KICK_P
 CONST WALK_SPEED = 0.06, RUN_SPEED = 0.12 ' (walking: half as fast)
 LoadSettings ' Your settings and keys, from neon-caster/saves/settings.ini
 GOSUB ReadSectorNames
+AchSetup ' (achievements: Steam, or the stand-in that keeps them in saves/achievements.txt)
 ' The keyboard "device", for keys by where they are (KeyAt%, chapter 21):
 ' _DEVICES finds the devices; the first is the keyboard. Its key numbers
 ' are the system's: Windows uses the PC's scancodes, Linux adds 8 (macOS
@@ -1570,6 +1588,8 @@ DO
     ' Commands waiting (the command line's, an exec's): one a frame - or
     ' as many as come before a "wait"
     SfxFrame : earDX = dirX : earDY = dirY ' (the limiter's memory fades; your ears face where you do)
+    STEAM_update ' (Steam's callbacks: achievements and stats arriving)
+    IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
     IF conWait > 0 THEN conWait = conWait - 1
@@ -1839,6 +1859,7 @@ DO
         SpawnSparks playerX + dirX * 0.25, playerY + dirY * 0.25, liqZ(INT(playerX), INT(playerY)), 14, lqR(lk), lqG(lk), lqB(lk)
         liqWait = lqEvery(lk) \ 2 ' (a moment before it starts to hurt)
     END IF
+    IF lk = LQ_LAVA THEN achInLava = -1 ELSE IF achInLava AND NOT dead THEN achInLava = 0 : Achieve "NC_HOT_FOOT", 0
     liqWas = lk
     IF liqWait > 0 THEN liqWait = liqWait - 1
     IF lk AND NOT dead THEN
@@ -1850,7 +1871,7 @@ DO
             IF lk = LQ_POISON THEN poisonTint = 40
             IF NOT godMode THEN
                 IF lqAcid(lk) AND armor > 0 THEN ' Acid: the armor first
-                    armor = MaxOf(0, armor - dmg * 2) : hurtFlash = 6 : PlaySfx sndSizzle&, 0.7
+                    armor = MaxOf(0, armor - dmg * 2) : hurtFlash = 6 : PlaySfx sndSizzle&, 0.7 : Achieve "NC_CORRODED", 0
                     painR = lqR(lk) : painG = lqG(lk) : painB = lqB(lk) : painVig = MaxOf(painVig, 0.5)
                 ELSE
                     IF lk = LQ_LAVA OR lk = LQ_ACID THEN PlaySfx sndSizzle&, 0.9
@@ -1938,7 +1959,7 @@ DO
                         PlaySfx sndOvercharge&, 0.9 : ShowMsg "OVERCHARGE! (+100)" : pickFlash = 18
                     END IF
                 CASE IT_AMP ' Double damage for a while
-                    itemOn(i) = 0 : ampTimer = AMP_FRAMES
+                    itemOn(i) = 0 : ampTimer = AMP_FRAMES : achAmpKills = 0
                     PlaySfx sndAmp&, 0.9 : ShowMsg "DAMAGE AMP! Double damage for 30 seconds" : pickFlash = 18
                 CASE IT_ARMOR
                     IF armor < MAX_ARMOR THEN
@@ -1956,6 +1977,7 @@ DO
                         itemOn(i) = 0 : PlaySfx sndWeapon&, 0.9 : pickFlash = 10
                         IF NOT hasGun(gun) THEN
                             hasGun(gun) = -1 : nextGun = gun : swapTimer = SWAP_FRAMES
+                            IF hasGun(1) AND hasGun(2) AND hasGun(3) AND hasGun(4) THEN Achieve "NC_ARSENAL", 0
                             ShowMsg "You got the " + gunName$(gun) + "!  (" + LTRIM$(STR$(gun)) + " or mouse wheel to switch)"
                         ELSE
                             ShowMsg gunName$(gun) + " ammo"
@@ -2078,7 +2100,7 @@ DO
                 EXIT FOR
             END IF
             IF SolidAt(playerX + dirX * reach, playerY + dirY * reach) THEN
-                IF reach <= 1.2 THEN PlaySfx sndHump&, 0.8 ' Trying to open a plain wall
+                IF reach <= 1.2 THEN PlaySfx sndHump&, 0.8 : AchAdd "Searches", 1 ' Trying to open a plain wall
                 EXIT FOR
             END IF
             NextReach:
@@ -2157,6 +2179,7 @@ DO
             NEXT
             StirDust playerX, playerY, dirX, dirY, 5, 0.02 * gunKick(currentGun) ' (the shot's wind blows the dust along - chapter 24)
             hitDamage = gunDamage(currentGun) : IF gunPierce(currentGun) THEN railBeam = 8
+            IF currentGun <> W_BLASTER THEN achOtherGun = -1
             IF ampTimer > 0 THEN hitDamage = hitDamage * 2 ' (the damage amp: double)
             shake = shake + gunKick(currentGun) * 1.5 ' (a big gun shakes the screen - chapter 17)
             IF setting(SET_XFEEDBACK) THEN crossScale = 0.6 ' The crosshair tightens as you fire
@@ -2272,6 +2295,7 @@ DO
             IF best THEN
                 target = best : hitDamage = KICK_DAMAGE : IF ampTimer > 0 THEN hitDamage = hitDamage * 2
                 GOSUB HitMonster
+                IF monsterState(best) >= 2 THEN Achieve "NC_KICK_KILL", 0
                 IF monsterType(best) <> 5 THEN FOR kp = 1 TO 3 : MoveBody monsterX(best), monsterY(best), dirX * KICK_PUSH / 3, dirY * KICK_PUSH / 3 : NEXT ' (sentries are bolted down; in three steps, so it can't jump through glass)
                 SpawnSparks monsterX(best), monsterY(best), 0.35, 8, 255, 200, 140
                 PlaySfx sndKick&, 0.9 : shake = shake + 4 : crossFlash = 6
@@ -2338,7 +2362,7 @@ DO
         ' Kicked over the edge of a pit with no bottom (it never walks off
         ' one): gone into the dark
         IF monsterState(i) < 2 AND NOT levelFlat THEN
-            IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH THEN target = i : hitDamage = 9999 : GOSUB HitMonster : ShowMsg "Over the edge!"
+            IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH THEN target = i : hitDamage = 9999 : GOSUB HitMonster : ShowMsg "Over the edge!" : Achieve "NC_OVER_EDGE", 0
         END IF
         ' Knocked into a harmful liquid (it never walks into one): it hurts
         ' as it does you - but not what hovers over it
@@ -3494,6 +3518,7 @@ DO
             END IF
         END IF
     NEXT
+    AchDrawToast ' (an achievement just unlocked: its pop-up)
 
     ' Gun and its ammo (bottom right), and which guns you have
     ammoType = gunAmmoType(currentGun)
@@ -3611,6 +3636,7 @@ LOOP ' (forever: you leave the game from the menu - chapter 21)
 HitMonsterAimed:
 IF head THEN
     hitWas = hitDamage : hitDamage = hitDamage * WEAK_MULT : GOSUB HitMonster : hitDamage = hitWas
+    AchAdd "Headshots", 1
     IF monsterState(target) < 2 THEN SfxAt mtypePainSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
     IF sndHeadshot& THEN PlaySfx sndHeadshot&, 0.8
     SpawnSparks monsterX(target), monsterY(target), MaxOf(0.05, headZ - FloorAt(monsterX(target), monsterY(target))), 18, 255, 230, 120
@@ -3627,6 +3653,13 @@ IF monsterState(target) = 0 THEN monsterState(target) = 1 : monsterTimer(target)
 IF monsterHP(target) <= 0 AND monsterState(target) < 2 THEN
     monsterState(target) = 2 : monsterTimer(target) = MON_DYING : kills = kills + 1
     mt = monsterType(target) ' (its drop - monsters.txt)
+    IF NOT cyberOn THEN ' (achievements: the network's ICE doesn't count)
+        AchAdd "Kills", 1 : IF mt >= 1 AND mt <= 9 THEN AchBit "KillKinds", mt - 1
+        IF mt = 8 THEN Achieve "NC_OVERSEER", 0
+        IF mt = MT_THIEF THEN Achieve "NC_THIEF", 0
+        IF ampTimer > 0 THEN achAmpKills = achAmpKills + 1 : IF achAmpKills >= 5 THEN Achieve "NC_AMPED", 0
+        IF achInBlast THEN achBlastKills = achBlastKills + 1 : IF achBlastKills >= 3 THEN Achieve "NC_CHAIN", 0
+    END IF
     IF mtypeDrop(mt) > 0 AND NOT cyberOn THEN IF RND < mtypeDropChance(mt) THEN DropItemAt mtypeDrop(mt), monsterX(target), monsterY(target)
     IF monsterType(target) = MT_THIEF THEN DropThiefLoot target
     IF monsterType(target) = 8 THEN Say "bossdie", 0
@@ -3648,6 +3681,7 @@ hurtFromX = -1
 absorbed = damage \ 3 : IF absorbed > armor THEN absorbed = armor
 armor = armor - absorbed : damage = damage - absorbed
 health = health - damage : hurtFlash = 14 : shake = shake + damage / 2
+IF damage > 0 THEN achLevelHurt = -1
 ' The edges, in what hurt you: a shock's blue, else the caller's colour
 ' (hurtR/G/B) - or blood. The harder the hit, the stronger.
 IF hurtElectric THEN hurtR = 60 : hurtG = 140 : hurtB = 255
@@ -3680,6 +3714,7 @@ RETURN
 ' plate's - everything near is hurt, other barrels go off
 BlastAt:
 SfxAt sndBarrel&, blastAtX, blastAtY, playerX, playerY
+achInBlast = -1 : achBlastKills = 0 ' (counting what this one destroys: three is a chain reaction)
 FOR k = 1 TO numGlass ' Glass near it shatters
     glassHitX = glassListX(k) : glassHitY = glassListY(k)
     IF glassHP(glassHitX, glassHitY) > 0 THEN
@@ -3697,6 +3732,7 @@ FOR j = 1 TO numMonsters
         END IF
     END IF
 NEXT
+achInBlast = 0
 distance = SQR((playerX - blastAtX) ^ 2 + (playerY - blastAtY) ^ 2)
 IF distance < BLAST_RADIUS AND NOT dead THEN
     IF CanSee(blastAtX, blastAtY, playerX, playerY) THEN
@@ -3734,6 +3770,7 @@ RETURN
 ' lvlRow$() and the rest - the level as its file says it - and the level
 ' is built again from that (EditApply), keeping you where you are.
 EditEnter:
+achCheat = -1 ' (in the editor you can put anything anywhere: achievements wait for a new game - but the editor's own)
 WorldLoopsOff ' (the world stops: so do its sounds)
 GOSUB EditReset
 editMode = -1 : editView = 0 : editDirty = 0 : editUndoN = 0 : editLights = 0 : mapOpen = 0
@@ -4945,7 +4982,7 @@ IF onPad > 0 AND padReady AND NOT dead THEN
         SpawnSparks playerX, playerY, 0.4, 20, 150, 90, 255
         playerX = padX(other) + 0.5 : playerY = padY(other) + 0.5 : playerZ = floorH(padX(other), padY(other)) : eyeZ = playerZ + EYE_H : playerVZ = 0
         SpawnSparks playerX, playerY, 0.4, 30, 150, 90, 255
-        PlaySfx sndTeleport&, 1 : pickFlash = 16 : padReady = 0
+        PlaySfx sndTeleport&, 1 : pickFlash = 16 : padReady = 0 : AchAdd "Teleports", 1
     END IF
 END IF
 RETURN
@@ -4956,11 +4993,13 @@ RETURN
 TriggerRun:
 IF INSTR(LCASE$(trigRun$), "wait") THEN ConQueue trigRun$ : RETURN
 trigK = k ' (ConExec uses k)
+conFromTrig = -1 ' (the level's doing, not yours: a trigger's give isn't a cheat)
 DO WHILE LEN(trigRun$)
     semi = INSTR(trigRun$, ";")
     IF semi THEN conCmd$ = LEFT$(trigRun$, semi - 1) : trigRun$ = MID$(trigRun$, semi + 1) ELSE conCmd$ = trigRun$ : trigRun$ = ""
     GOSUB ConExec
 LOOP
+conFromTrig = 0
 k = trigK
 RETURN
 
@@ -4983,7 +5022,7 @@ IF slammed THEN PlaySfx sndAlarm&, 0.8 : shake = shake + 8
 Say "puzzle1", 0
 GOSUB RunPuzzle
 IF pzSolved THEN
-    termDone(tm) = -1
+    termDone(tm) = -1 : AchAdd "Puzzles", 1
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
         IF doorLock(x, y) = 3 THEN doorLock(x, y) = 0 : doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
     NEXT : NEXT
@@ -5318,7 +5357,7 @@ cyberOn = 0
 PlaySfx sndJackOut&, 1 : pickFlash = 20
 PlayMusic SectorMusic&(level)
 IF cyberWon THEN
-    stationDone(cyberStation) = -1
+    stationDone(cyberStation) = -1 : Achieve "NC_JACKED", 0
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
         IF worldMap(x, y) = 2 AND doorLock(x, y) = 2 THEN
             IF StationNear(x, y) = cyberStation THEN doorLock(x, y) = 0 : doorOpen(x, y) = 0.01 : doorMove(x, y) = 1 : SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
@@ -5345,7 +5384,7 @@ IF glassHP(glassHitX, glassHitY) > 0 THEN
     SpawnSparks glassAtX, glassAtY, 0.5, 5, 200, 240, 255
     SfxAt sndGlassHit&, glassAtX, glassAtY, playerX, playerY
 ELSE
-    glassHP(glassHitX, glassHitY) = 0
+    glassHP(glassHitX, glassHitY) = 0 : AchAdd "Glass", 1
     FOR gk = 0 TO 4 ' (shards all along the pane, falling)
         IF glassDir(glassHitX, glassHitY) = 1 THEN gsx = glassHitX + 0.1 + gk * 0.2 : gsy = glassHitY + 0.5 ELSE gsx = glassHitX + 0.5 : gsy = glassHitY + 0.1 + gk * 0.2
         SpawnSparks gsx, gsy, 0.15 + RND * 0.7, 9, 190, 235, 255
@@ -5659,7 +5698,7 @@ decoHP(targetDeco) = decoHP(targetDeco) - hitDamage
 IF decoHP(targetDeco) > 0 THEN
     SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY
 ELSE
-    decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES
+    decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES : AchAdd "Smashed", 1
     decoCell(INT(decoX(targetDeco)), INT(decoY(targetDeco))) = 0
     SfxAt decoBreakSnd&(decoKind(targetDeco)), decoX(targetDeco), decoY(targetDeco), playerX, playerY
     IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
@@ -5766,7 +5805,7 @@ FOR ev = 1 TO numEvents
                 IF thieves > 0 AND thievesLeft = 0 THEN
                     evState(ev) = 2 : LockRoom ev, 0
                     PlaySfx sndHoard&, 1 : PlaySfx sndFanfare&, 0.7
-                    ShowMsg "The thieves' hoard is open!"
+                    ShowMsg "The thieves' hoard is open!" : Achieve "NC_HOARD", 0
                 END IF
             END IF
         CASE EV_BLACKOUT ' Walk in: the power fails; things come out of the dark
@@ -5932,6 +5971,12 @@ RETURN
 ' --- Event ev is won: open the doors, hand over the reward
 WinEvent:
 evState(ev) = 2 : LockRoom ev, 0
+SELECT CASE evType(ev) ' (achievements)
+    CASE EV_AMBUSH : Achieve "NC_LOCKDOWN", 0
+    CASE EV_SURVIVE : Achieve "NC_SURVIVOR", 0
+    CASE EV_GALLERY : Achieve "NC_GALLERY", 0
+    CASE EV_NEST : Achieve "NC_PEST", 0
+END SELECT
 PlaySfx sndFanfare&, 1
 IF evReward(ev) THEN
     DropItem evReward(ev), (evX0(ev) + evX1(ev) + 1) / 2, (evY0(ev) + evY1(ev) + 1) / 2
@@ -5984,6 +6029,7 @@ RETURN
 NewGame:
 level = 1
 NewGameHere: ' (a new game in sector `level` - SELECT SECTOR, YOUR SECTORS)
+achCheat = 0 : achRunFrom = level ' (a fresh start: cheats forgotten; a whole set's run counts from sector 1)
 totalKills = 0 : totalMonsters = 0 : totalTime! = 0
 GOSUB StartLoadout
 GOSUB EnterLevel
@@ -6027,6 +6073,24 @@ taken = 0
 FOR i = 1 TO numItems
     IF itemOn(i) = 0 THEN taken = taken + 1
 NEXT
+' Achievements for the sector: finishing it (and a set), and how
+IF level = 1 THEN Achieve "NC_SECTOR_1", 0
+IF level = NUM_LEVELS AND achRunFrom = 1 THEN ' (a whole set, from its first sector)
+    AchBit "SetsDone", sectorSet
+    IF sectorSet = 0 THEN Achieve "NC_ESCAPED", 0 ELSE IF sectorSet = 1 THEN Achieve "NC_NEW_BLOOD", 0 ELSE Achieve "NC_REMASTERED", 0
+END IF
+IF level > NUM_LEVELS THEN ' (the showcase sectors: 11-21, and the expo)
+    cn = level - NUM_LEVELS : IF cn <= 11 OR cn = 14 THEN AchBit "Showcases", cn - 1
+    IF cn = 14 THEN Achieve "NC_EXPO", 0
+END IF
+IF NOT achLevelHurt AND numMonsters > 0 THEN Achieve "NC_UNTOUCHED", 0
+IF kills >= numMonsters AND numMonsters > 0 THEN Achieve "NC_CLEAN_SWEEP", 0
+IF taken >= numItems AND numItems > 0 THEN Achieve "NC_PACKRAT", 0
+IF kills >= numMonsters AND numMonsters > 0 AND taken >= numItems AND numItems > 0 THEN Achieve "NC_PERFECT", 0
+IF levelTime! < 60 AND level <= NUM_LEVELS THEN Achieve "NC_SPEEDRUN", 0
+IF NOT achOtherGun AND kills >= 5 THEN Achieve "NC_PEASHOOTER", 0
+IF health <= 10 AND NOT dead THEN Achieve "NC_LUB_DUB", 0
+AchStore
 ' The tally's rows (tallyLabel$ and the rest, chapter 6)
 numTally = 3
 tallyLabel$(1) = "KILLS" : tallyTarget(1) = kills : tallyTotal(1) = numMonsters
@@ -6114,6 +6178,7 @@ DO
         IF level >= NUM_LEVELS THEN prompt$ = "CLICK OR PRESS SPACE TO PLAY AGAIN" ELSE prompt$ = "CLICK OR PRESS SPACE FOR THE NEXT SECTOR"
         MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
     END IF
+    AchDrawToast ' (achievements the sector's end unlocked)
     IF glReady THEN GLSL_filter_capture ' (OpenGL draws the tally over its view: chapter 24)
     GLScreenLayer glReady
     _DISPLAY
@@ -6220,6 +6285,7 @@ RETURN
 
 ' --- Start (or restart) the level: read its map, and reset everything in it
 LoadLevel:
+achLevelHurt = 0 : achOtherGun = 0 : achInLava = 0 ' (for the sector's end: hurt? any gun but the blaster?)
 ReadLevelFile level ' (its file: neon-caster/levels/levelN.txt - chapter 22)
 IF NOT lvlOK THEN PRINT "Can't read the level file "; LevelFile$(level) : SLEEP : SYSTEM
 ' The editor comes in here (editRebuild on): the level built again from
@@ -7019,6 +7085,13 @@ conCmd$ = LTRIM$(RTRIM$(conCmd$))
 IF conCmd$ = "" OR LEFT$(conCmd$, 2) = "//" THEN RETURN
 conVerb$ = ConWord$(conCmd$, 1) : conA$ = ConWord$(conCmd$, 2) : conB$ = ConWord$(conCmd$, 3) : conC$ = ConWord$(conCmd$, 4)
 sp = INSTR(conCmd$, " ") : IF sp THEN conRest$ = LTRIM$(MID$(conCmd$, sp + 1)) ELSE conRest$ = ""
+IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
+    SELECT CASE conVerb$
+        CASE "god", "noclip", "iddqd", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo"
+            IF NOT achCheat AND NOT achTest THEN ConPrint "(cheats on: achievements wait for a new game)"
+            achCheat = -1
+    END SELECT
+END IF
 SELECT CASE conVerb$
     CASE "help", "?", "commands"
         ConHelp conA$
@@ -7443,7 +7516,7 @@ SELECT CASE conVerb$
     CASE "menu"
         menuInGame = -1 : GOSUB RunMenu : conLevelChanged = -1
     CASE "quit", "exit"
-        SaveSettings : SYSTEM
+        AchStore : STEAM_shutdown : SaveSettings : SYSTEM
     CASE ELSE ' A setting's name on its own: show it, or set it (fov 90)
         found = 0
         FOR k = 1 TO NUM_SETTINGS
@@ -7610,9 +7683,9 @@ SELECT CASE miKind(menuSel)
                 saveSlot = miRef(menuSel) : GOSUB SaveGame : menuDone = -1
             CASE MA_LOAD
                 saveSlot = miRef(menuSel) : GOSUB LoadGame
-                IF loadOK THEN menuDone = -1
+                IF loadOK THEN menuDone = -1 : achCheat = 0 : achRunFrom = 1
             CASE MA_QUIT
-                SaveSettings : SYSTEM
+                AchStore : STEAM_shutdown : SaveSettings : SYSTEM
             CASE MA_KEYS_DEFAULT
                 FOR b = 1 TO NUM_BINDS : keyBind&(b) = bindDefault&(b) : NEXT
             CASE MA_QB64_TYPE ' Type qb64pe's path in (MenuTypeKey)
@@ -9048,6 +9121,7 @@ SUB DecoLoot(d, px, py)
     IF INT(RND * 100) + 1 > lootPct(k, slot) THEN EXIT SUB ' (the percentile dice)
     a = decoLootA(d) : IF a = NO_AIM THEN a = RND * 6.2832
     TossItem lootKind(k, slot), decoX(d), decoY(d), a, px, py
+    AchAdd "LootDrops", 1
 END SUB
 
 ' A pickup of kind kind thrown out from (x, y) at angle a (radians): it
@@ -9746,6 +9820,7 @@ SUB EditSave(lev)
         NAME f$ AS f$ + ".bak"
     END IF
     WriteLevelFile f$
+    Achieve "NC_ARCHITECT", -1
     editDirty = 0
     EditNote "Saved " + f$ + warn$
 END SUB
@@ -11327,6 +11402,7 @@ FUNCTION EditAddBox(x, y, x0, y0, x1, y1, w)
     END IF
     lvlBox(k, 1) = x : lvlBox(k, 2) = y : lvlBox(k, 3) = x0 : lvlBox(k, 4) = y0 : lvlBox(k, 5) = x1 : lvlBox(k, 6) = y1 : lvlBox(k, 7) = w
     EditAddBox = -1
+    IF editMode THEN Achieve "NC_BOXED", -1
 END FUNCTION
 
 ' Cell (x, y)'s box gone - and its sides' own pictures with it
@@ -17337,4 +17413,183 @@ SUB FloodLight(lx, ly, rad, k, w)
     LOOP
 END SUB
 
+' === ACHIEVEMENTS =============================================================
+' Steam achievements, through QB64_GJ_LIB's STEAM library (lib/steam). The
+' library loads Valve's steam_api at runtime when the game has a Steam App
+' ID (NEON_APP_ID) and Steam is running; otherwise it keeps them itself -
+' the "mock" - in neon-caster/saves/achievements.txt, so they work the same
+' everywhere. Each achievement is unlocked by name (Achieve); counted ones
+' follow a stat (AchAdd adds to a count, AchBit ticks one of a set - a kind
+' of monster killed, a set of sectors finished) and unlock at their goal.
+' Steam shows its own pop-up; without it, AchDrawToast draws ours.
+
+SUB AchSetup
+    achTest = (ENVIRON$("NEON_ACH_TEST") = "1") ' (tests: cheats don't stop achievements)
+    achN = 0 : achStatN = 0
+    ' The story
+    AchDef "NC_SECTOR_1", "First Steps", "Finish sector 1.", 0, "", 0
+    AchDef "NC_ESCAPED", "You Escaped", "Finish the original ten sectors.", 0, "", 0
+    AchDef "NC_NEW_BLOOD", "New Blood", "Finish all ten NEW SECTORS.", 0, "", 0
+    AchDef "NC_REMASTERED", "Old Haunts, New Paint", "Finish all ten OLD SECTORS NEW.", 0, "", 0
+    AchDef "NC_FULL_TOUR", "The Full Tour", "Finish all three sets of ten.", 0, "SetsDone", 3
+    AchDef "NC_OVERSEER", "Flesh to Steel", "Destroy the overseer.", 0, "", 0
+    AchDef "NC_EXPO", "Every Wonder", "Finish THE NEON EXPO (sector 24).", 0, "", 0
+    AchDef "NC_SHOWCASE", "Gallery Visitor", "Finish five of the showcase sectors.", 0, "Showcases", 5
+    ' Fighting
+    AchDef "NC_FIRST_KILL", "Hostile Takeover", "Destroy your first machine.", 0, "Kills", 1
+    AchDef "NC_KILLS_100", "Centurion", "Destroy 100 machines.", 0, "Kills", 100
+    AchDef "NC_KILLS_1000", "Decommissioned", "Destroy 1,000 machines.", 0, "Kills", 1000
+    AchDef "NC_HEADSHOT", "Right Between the Optics", "Land a headshot.", 0, "Headshots", 1
+    AchDef "NC_HEADSHOTS_100", "Marksman", "Land 100 headshots.", 0, "Headshots", 100
+    AchDef "NC_KICK_KILL", "Boot to the Head", "Finish off a machine with a kick.", 0, "", 0
+    AchDef "NC_OVER_EDGE", "Over the Edge", "Send a machine into a pit with no bottom.", 0, "", 0
+    AchDef "NC_CHAIN", "Chain Reaction", "Destroy three machines with one explosion.", 0, "", 0
+    AchDef "NC_ARSENAL", "Arsenal", "Carry all four guns at once.", 0, "", 0
+    AchDef "NC_AMPED", "Overclocked", "Destroy five machines with one damage amp.", 0, "", 0
+    AchDef "NC_BESTIARY", "Bestiary", "Destroy one of every kind of machine.", 0, "KillKinds", 9
+    AchDef "NC_THIEF", "Stop, Thief!", "Destroy a thief.", 0, "", 0
+    ' Skill
+    AchDef "NC_UNTOUCHED", "Untouchable", "Finish a sector without taking damage.", 0, "", 0
+    AchDef "NC_CLEAN_SWEEP", "Clean Sweep", "Finish a sector with every machine destroyed.", 0, "", 0
+    AchDef "NC_PACKRAT", "Packrat", "Finish a sector with every item picked up.", 0, "", 0
+    AchDef "NC_PERFECT", "Perfectionist", "Every kill and every item in one sector.", 0, "", 0
+    AchDef "NC_SPEEDRUN", "Speedrunner", "Finish one of the thirty sectors in under a minute.", 0, "", 0
+    AchDef "NC_PEASHOOTER", "Peashooter", "Finish a sector (5+ kills) firing only the blaster.", 0, "", 0
+    AchDef "NC_LUB_DUB", "Lub-Dub", "Finish a sector with 10 health or less.", 0, "", 0
+    ' The event rooms
+    AchDef "NC_LOCKDOWN", "Lockdown Lifted", "Win a lockdown.", 0, "", 0
+    AchDef "NC_SURVIVOR", "Survivor", "Survive a lockdown to the end.", 0, "", 0
+    AchDef "NC_GALLERY", "Shooting Gallery", "Smash a shooting gallery in time.", 0, "", 0
+    AchDef "NC_HOARD", "Robbing the Robbers", "Open a thieves' hoard.", 0, "", 0
+    AchDef "NC_PEST", "Pest Control", "Destroy every portal in a spawner nest.", 0, "", 0
+    ' Hacking and getting about
+    AchDef "NC_JACKED", "Jacked In", "Hack a data station.", 0, "", 0
+    AchDef "NC_HELLO", "Hello, NEXUS", "Fix a code terminal's program.", 0, "Puzzles", 1
+    AchDef "NC_PROGRAMMER", "Programmer", "Fix ten code terminals' programs.", 0, "Puzzles", 10
+    AchDef "NC_HOT_FOOT", "Hot Foot", "Climb out of lava alive.", 0, "", 0
+    AchDef "NC_CORRODED", "Corroded", "Let acid eat your armour.", 0, "", 0
+    AchDef "NC_BEAM", "Frequent Flyer", "Teleport 25 times.", 0, "Teleports", 25
+    AchDef "NC_LOOT", "Treasure Hunter", "Find 25 things in breakables.", 0, "LootDrops", 25
+    AchDef "NC_VANDAL", "Vandal", "Smash 100 decorations.", 0, "Smashed", 100
+    ' The editor
+    AchDef "NC_ARCHITECT", "Architect", "Save a sector in the level editor.", 0, "", 0
+    AchDef "NC_BOXED", "Thinking Inside the Box", "Stand a block in a cell in the editor.", 0, "", 0
+    ' Hidden till you get them
+    AchDef "NC_HMPH", "Hmph", "Search 25 walls for secrets.", -1, "Searches", 25
+    AchDef "NC_DEATHS", "Respawn Enthusiast", "Die ten times.", -1, "Deaths", 10
+    AchDef "NC_GLASS", "Bull in a China Shop", "Shatter ten panes of glass.", -1, "Glass", 10
+    FOR i = 1 TO achN : STEAM_mock_achievement achApi$(i), achTitle$(i), achDesc$(i), achHidden(i) : NEXT
+    FOR i = 1 TO achStatN : STEAM_mock_stat achStatName$(i) : NEXT
+    MakeSaveDir : STEAM_mock_file SaveDir$ + "achievements.txt"
+    IF NEON_APP_ID = 0 THEN STEAM_use_mock ' (no App ID yet: the stand-in, straight away)
+    achReady = STEAM_init%(NEON_APP_ID)
+END SUB
+
+' One achievement: its API name (as in the Steamworks admin), title, what
+' it asks, hidden or not, and - for a counted one - its stat and goal
+SUB AchDef(api$, title$, desc$, hidden, stat$, goal)
+    IF achN >= NUM_ACH THEN EXIT SUB
+    achN = achN + 1
+    achApi$(achN) = api$ : achTitle$(achN) = title$ : achDesc$(achN) = desc$ : achHidden(achN) = hidden
+    achStat$(achN) = stat$ : achGoal(achN) = goal
+    IF stat$ = "" THEN EXIT SUB
+    FOR j = 1 TO achStatN : IF achStatName$(j) = stat$ THEN EXIT SUB
+    NEXT
+    IF achStatN < NUM_ACHSTATS THEN achStatN = achStatN + 1 : achStatName$(achStatN) = stat$
+END SUB
+
+' Unlock achievement api$ (always: even with cheats on - the editor's own)
+SUB Achieve(api$, always)
+    IF NOT achReady THEN EXIT SUB
+    IF achCheat AND NOT achTest AND NOT always THEN EXIT SUB
+    IF STEAM_is_unlocked%(api$) THEN EXIT SUB
+    ok = STEAM_unlock%(api$) : ok = STEAM_store%
+    FOR i = 1 TO achN
+        IF achApi$(i) = api$ THEN
+            ConPrint "ACHIEVEMENT: " + achTitle$(i) + " - " + achDesc$(i)
+            IF NOT STEAM_is_steam% AND achToastN < 16 THEN achToastN = achToastN + 1 : achToast$(achToastN) = achTitle$(i) + CHR$(1) + achDesc$(i) ' (Steam shows its own)
+        END IF
+    NEXT
+END SUB
+
+' Add n to a counted stat - and unlock what it reaches
+SUB AchAdd(stat$, n)
+    IF NOT achReady THEN EXIT SUB
+    IF achCheat AND NOT achTest THEN EXIT SUB
+    v& = STEAM_stat_int&(stat$) + n : ok = STEAM_set_stat_int%(stat$, v&)
+    FOR i = 1 TO achN
+        IF achStat$(i) = stat$ THEN IF v& >= achGoal(i) THEN Achieve achApi$(i), 0
+    NEXT
+END SUB
+
+' Tick item bit (0-30) of a set-of-things stat - and unlock what it reaches
+SUB AchBit(stat$, bit)
+    IF NOT achReady THEN EXIT SUB
+    IF achCheat AND NOT achTest THEN EXIT SUB
+    v& = STEAM_stat_int&(stat$) OR 2 ^ bit : ok = STEAM_set_stat_int%(stat$, v&)
+    FOR i = 1 TO achN
+        IF achStat$(i) = stat$ THEN IF BitCount(v&) >= achGoal(i) THEN Achieve achApi$(i), 0
+    NEXT
+END SUB
+
+FUNCTION BitCount(v&)
+    n = 0 : FOR b = 0 TO 30 : IF v& AND 2 ^ b THEN n = n + 1
+    NEXT : BitCount = n
+END FUNCTION
+
+' How far achievement i's stat has got (for the screen): a count, or how
+' many of a set
+FUNCTION AchProgress&(i)
+    IF achStat$(i) = "" OR NOT achReady THEN EXIT FUNCTION
+    v& = STEAM_stat_int&(achStat$(i))
+    SELECT CASE achStat$(i)
+        CASE "SetsDone", "Showcases", "KillKinds" : AchProgress& = BitCount(v&)
+        CASE ELSE : AchProgress& = v&
+    END SELECT
+END FUNCTION
+
+' Send the stats (Steam, or the stand-in's file) - at a sector's end, and
+' on the way out
+SUB AchStore
+    IF achReady THEN ok = STEAM_store%
+END SUB
+
+' Our pop-up for an achievement (when Steam isn't the one showing it): it
+' drops in at the top of the screen, waits, and rises away, a chime as it
+' comes; any more queue behind it
+SUB AchDrawToast
+    IF achToastN = 0 THEN EXIT SUB
+    achToastT = achToastT + 1
+    IF achToastT = 1 AND sndAchieve& THEN PlaySfx sndAchieve&, 0.9
+    t = achToastT
+    IF t < 16 THEN
+        y = -64 + t * 5
+    ELSEIF t < 220 THEN
+        y = 16
+    ELSE
+        y = 16 - (t - 220) * 5
+    END IF
+    c = INSTR(achToast$(1), CHR$(1)) : ttl$ = LEFT$(achToast$(1), c - 1) : dsc$ = MID$(achToast$(1), c + 1)
+    w = MaxOf(300, MaxOf(LEN(ttl$), LEN(dsc$)) * 8 + 80) : x0 = 400 - w \ 2
+    LINE (x0, y)-(x0 + w, y + 58), _RGBA32(10, 4, 26, 225), BF
+    LINE (x0, y)-(x0 + w, y + 58), _RGB32(255, 70, 210), B
+    LINE (x0 + 1, y + 1)-(x0 + w - 1, y + 57), _RGBA32(255, 70, 210, 90), B
+    gl = 120 + 100 * ABS(SIN(t / 9)) ' (the trophy: a gold cup, glinting)
+    LINE (x0 + 16, y + 12)-(x0 + 44, y + 30), _RGB32(255, 200, 60), BF
+    CIRCLE (x0 + 30, y + 30), 14, _RGB32(255, 200, 60), 3.1416, 0
+    PAINT (x0 + 30, y + 36), _RGB32(255, 200, 60), _RGB32(255, 200, 60)
+    CIRCLE (x0 + 14, y + 20), 6, _RGB32(255, 200, 60) : CIRCLE (x0 + 46, y + 20), 6, _RGB32(255, 200, 60)
+    LINE (x0 + 27, y + 42)-(x0 + 33, y + 47), _RGB32(255, 200, 60), BF
+    LINE (x0 + 20, y + 47)-(x0 + 40, y + 51), _RGB32(255, 200, 60), BF
+    LINE (x0 + 21, y + 14)-(x0 + 24, y + 26), _RGBA32(255, 255, 255, gl), BF
+    HudText x0 + 62, y + 8, "ACHIEVEMENT UNLOCKED", _RGB32(90, 240, 255)
+    MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
+    HudText x0 + 62, y + 42, dsc$, _RGB32(200, 190, 230)
+    IF t >= 236 THEN ' Gone: the next, if there is one
+        FOR k = 1 TO achToastN - 1 : achToast$(k) = achToast$(k + 1) : NEXT
+        achToastN = achToastN - 1 : achToastT = 0
+    END IF
+END SUB
+
 '$INCLUDE:'lib/glsl/GLSL.BM'
+'$INCLUDE:'lib/steam/STEAM.BM'
