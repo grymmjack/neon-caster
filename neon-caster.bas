@@ -10026,12 +10026,12 @@ END SUB
 ' Does a shot at height z go over or under monster i? Only when you aim
 ' up and down yourself (OpenGL's LOOK UP / DOWN): with the view level
 ' (the software renderer, or LOOK off) a shot finds a monster at any
-' height in its column, as DOOM's aim does. A little leeway either way.
+' height in its column, as DOOM's aim does. Plenty of leeway either way.
 FUNCTION ShotPasses(i, z)
     IF glMode = 0 OR setting(SET_LOOK) = 0 THEN EXIT FUNCTION
     t = monsterType(i)
     foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t)
-    ShotPasses = (z < foot - 0.2 OR z > foot + mtypeScale(t) + 0.2)
+    ShotPasses = (z < foot - 0.3 OR z > foot + mtypeScale(t) + 0.5) ' (generous: level aim still finds a crawler down a step - aim at the ceiling or the floor, and it goes by)
 END FUNCTION
 
 ' Did a shot land in monster i's weak spot? u: where across its picture
