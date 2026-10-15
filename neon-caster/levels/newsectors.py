@@ -290,6 +290,7 @@ def finish(m, lev, dress=None):
         for x in range(N):
             if m.g[y][x] == "~":
                 m.g[y][x] = "."
+    m.headroom(8)   # (a ceiling less than a wall over its floor - a raised door's - goes up)
 
 
 SECTORS = []   # (function, "SECTOR n: NAME", walls, floors, ceils, comment lines)
@@ -440,6 +441,95 @@ def arrival():
     finish(m, 1, dict(closets=1, cmons="c", windows=1, lasers=1))
     return m
 
+
+
+# ---------------------------------------------------------------- 2
+@sector("SECTOR 2: THE AQUEDUCT",
+        ["wall-brick.png", "wall-greenpipes.png", "wall-moss.png", "wall-grate.png", "wall-slime.png", "wall-pipes.png"],
+        ["floor-cobbles.png", "floor-rustgrate.png", "floor-concrete.png", "floor-murky.png"],
+        ["ceiling-pipes.png", "sky-storm.png"])
+def aqueduct():
+    """NEW 2: THE AQUEDUCT. The city's water runs through here. From the
+    intake (south-west), a laser-swept duct leads to the aqueduct hall -
+    three walls high, a channel down its middle between lit piers, ledges
+    a wall up on both sides where gunners wait (aim for their heads). The
+    pump room (west) seals you in: survive, and the repeater is yours.
+    Behind the red door, past another laser, the reservoir: deep water,
+    stairs out at its north end, lifts bobbing out to the island with the
+    blue card. The outflow (north, blue door) is open to the storm - the
+    exit is there."""
+    m = Sector("#")
+    m.ambient = (175, 205, 235, 250)
+    m.puzzles = "sum"
+    # The intake: you, facing north; a duct with a laser to the hall
+    m.room(3, 36, 9, 44, zone=(3, 1))
+    m.put(6, 43, "^")
+    m.put(10, 40, "D"); m.rect(11, 40, 13, 40)
+    m.event(9, 12, 40, 12, 40, 75, 75)
+    for (x, y, c) in ((4, 37, "a"), (8, 38, "M"), (3, 44, "x"), (9, 44, "o"), (5, 40, "m")):
+        m.put(x, y, c)
+    m.light(6.5, 39.5, 5, 140, 120, 200, 255, 0)
+    # The aqueduct hall: three walls high, the channel, piers, ledges
+    m.room(14, 6, 33, 44, ceil=24, zone=(1, 1))
+    for (y0, y1) in ((6, 14), (16, 29), (31, 44)):
+        m.pool(22, y0, 25, y1, "w", sink=2, depth=2)
+    for y in (10, 18, 26, 34, 40):
+        m.column(20, y, size=3, wall=2, pic=LIT if y in (18, 34) else None)
+        m.column(27, y, size=3, wall=2, pic=LIT if y in (18, 34) else None)
+    m.floor(14, 8, 16, 33, 8); m.zone(14, 8, 16, 33, 2, 0)
+    m.floor(31, 8, 33, 33, 8); m.zone(31, 8, 33, 33, 2, 0)
+    m.stairs(14, 34, 16, 37, "N", 0, 8)
+    m.lift(32, 34, 32, 34, 0, 8, mode=2, speed=6)
+    for y in (9, 21, 33, 43):
+        m.light(23.5, y + 0.5, 6, 140, 60, 170, 255, 2)
+    for (x, y) in ((15, 14), (15, 28), (32, 14), (32, 28)):
+        m.light(x + 0.5, y + 0.5, 5, 130, 255, 210, 140, 0)
+    m.mon(15, 12, "g", hear=10); m.mon(15, 26, "g", hear=10); m.mon(32, 16, "g", hear=10); m.mon(32, 29, "g", hear=10)
+    for (x, y, c) in ((24, 20, "m"), (24, 37, "m"), (19, 25, "c"), (29, 12, "c"), (28, 41, "w"), (18, 8, "k"),
+                      (15, 9, "q"), (32, 9, "j"), (33, 12, "r"), (18, 42, "+"), (30, 7, "a"), (19, 31, "e"), (29, 36, "x"), (30, 36, "x")):
+        m.put(x, y, c)
+    # The pump room (west): generators in alcoves, slime drains, a survive lockdown
+    m.room(3, 12, 12, 28, floor=8, ceil=20, zone=(2, 1))   # (a wall up: off the west ledge)
+    m.put(13, 20, "D"); m.floor(13, 20, 13, 20, 8, only_open=False)
+    m.alcove(2, 15, "E", deco="L", floor=8, ceil=15, glow=AMBER, fx=4)
+    m.alcove(2, 25, "E", deco="L", floor=8, ceil=15, glow=AMBER, fx=4)
+    m.put(2, 20, "$")
+    m.pool(5, 14, 6, 15, "s", sink=2, depth=1)
+    m.pool(9, 24, 10, 25, "s", sink=2, depth=1)
+    for (x, y, c) in ((12, 13, "U"), (12, 27, "U"), (8, 13, "u"), (4, 27, "a"), (11, 18, "f")):
+        m.put(x, y, c)
+    m.light(7.5, 20.5, 6, 140, 255, 160, 80, 1)
+    m.event(2, 3, 12, 12, 28, 30, 100, 8)
+    # The reservoir (east, red door, a laser in the duct): deep water,
+    # stairs out at its north end, lifts out to the island
+    m.put(34, 22, "R"); m.rect(35, 22, 37, 22)   # (a wall up: off the east ledge)
+    m.floor(34, 22, 37, 22, 8, only_open=False); m.ceiling(35, 22, 37, 22, 16, only_raise=False)
+    m.event(9, 36, 22, 36, 22, 60, 90)
+    m.room(38, 8, 45, 36, floor=8, ceil=24, zone=(3, 1))
+    m.pool(39, 11, 45, 11, "w", sink=2, depth=1)
+    m.pool(39, 12, 45, 12, "w", sink=4, depth=3)
+    m.pool(39, 13, 45, 36, "w", sink=6, depth=5)
+    for (x, y) in ((43, 23), (44, 23), (43, 24), (44, 24), (43, 25), (44, 25)):
+        m.fh[y][x] = hstr(8); m.lq[y][x] = "."; m.ld[y][x] = "."
+    for i, x in enumerate(range(39, 43)):
+        m.lq[24][x] = "."; m.ld[24][x] = "."
+        m.lift(x, 24, x, 24, 2, 8, mode=1, speed=(4, 6, 5, 3)[i])
+    m.put(44, 24, "b"); m.column(45, 23, size=2, wall=2, pic=LIT, glow=CYAN)
+    m.mon(41, 18, "m"); m.mon(42, 31, "m"); m.mon(38, 30, "k", wake="near"); m.mon(42, 9, "g", sight=12)
+    m.put(38, 35, "*"); m.put(45, 9, "e")
+    for y in (16, 24, 32):
+        m.light(41.5, y + 0.5, 6, 150, 50, 150, 255, 2)
+    m.light(43.5, 24.5, 4, 180, 80, 220, 255, 0)
+    # The outflow (north, blue door): under the storm, the exit
+    m.room(18, 2, 29, 4, ceil=24, zone=(4, 2))
+    m.put(24, 5, "B"); m.put(24, 1, "E")
+    m.pool(19, 3, 22, 4, "w", sink=2, depth=2); m.pool(26, 3, 28, 4, "w", sink=2, depth=2)
+    m.post(23, 2, "N", at=7, w=2, d=2, wall=2, glow=GREEN); m.post(25, 2, "N", at=1, w=2, d=2, wall=2, glow=GREEN)
+    m.mon(20, 2, "h", wake="near")
+    m.loot_line("barrel   = ammo:15, shells:15, -, -")
+    m.loot_line("locker   = armor:40, medkit:30, shells:30, overcharge:10")
+    finish(m, 2, dict(closets=1, cmons="c", props=4, propchars="xop"))
+    return m
 
 if __name__ == "__main__":
     args = sys.argv[1:]
