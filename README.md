@@ -9,8 +9,9 @@ stations that turn the level into a wireframe network, code terminals that
 lock you in until you fix a real QB64 program, and a villain who talks to
 you. With a level editor built in - point and click inside the level in 3D
 or on the map from above, with a picker of every wall, floor, door, item,
-monster and light - and a monster editor and a HUD editor. Eleven more
-sectors built with the editor come with it, three of them outdoors.
+monster and light - and a monster editor and a HUD editor. Twelve more
+sectors built with the editor come with it, three of them outdoors, and
+one, THE NEON EXPO, that shows off every feature at once.
 
 It draws its 3D two ways: a software raycaster, like Wolfenstein 3D, and an
 OpenGL renderer with bump mapping, moving lights, wet floors, bloom and CRT
@@ -79,7 +80,7 @@ alcoves), flood floors with liquids, add doors, monsters and lights, paint
 any picture on any face, set up ambushes, and Ctrl+S saves it to
 `neon-caster/levels/custom/`. The [level editor guide](LEVEL-EDITOR-GUIDE.md)
 explains every tool, key, map character and level-file field, and YOUR
-SECTORS starts with eleven example sectors (three of them outdoors, under skies) built with the editor to take
+SECTORS starts with twelve example sectors (three of them outdoors, under skies) built with the editor to take
 apart.
 
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting

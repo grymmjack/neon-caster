@@ -7128,11 +7128,22 @@ SELECT CASE conVerb$
         ELSE
             lx0 = VAL(conB$) : ly0 = VAL(conC$) : lx1 = VAL(ConWord$(conCmd$, 5)) : ly1 = VAL(cw$)
             ld = VAL(ConWord$(conCmd$, 7)) : IF ld < 1 OR ld > 8 THEN ld = LQ_DEPTH
-            GOSUB EditPushUndo
-            FOR y = MinOf(ly0, ly1) TO MaxOf(ly0, ly1) : FOR x = MinOf(lx0, lx1) TO MaxOf(lx0, lx1)
-                EditSetLiquid x, y, lk, ld
-            NEXT : NEXT
-            GOSUB EditApply : ConPrint "liquid: " + conRest$ + "   (savelevel or Ctrl+S in the editor to keep it)"
+            IF editMode THEN ' (in the editor: into the level, to keep)
+                GOSUB EditPushUndo
+                FOR y = MinOf(ly0, ly1) TO MaxOf(ly0, ly1) : FOR x = MinOf(lx0, lx1) TO MaxOf(lx0, lx1)
+                    EditSetLiquid x, y, lk, ld
+                NEXT : NEXT
+                GOSUB EditApply : ConPrint "liquid: " + conRest$ + "   (savelevel or Ctrl+S in the editor to keep it)"
+            ELSE ' (in play - a trigger's flood: the pools change where they are, the level isn't built again, so nothing comes back to life)
+                FOR y = MaxOf(1, MinOf(ly0, ly1)) TO MinOf(MAP_SIZE - 2, MaxOf(ly0, ly1)) : FOR x = MaxOf(1, MinOf(lx0, lx1)) TO MinOf(MAP_SIZE - 2, MaxOf(lx0, lx1))
+                    IF lk = 0 THEN
+                        liqKind(x, y) = 0 : liqZ(x, y) = 0
+                    ELSEIF worldMap(x, y) <= 0 AND liftCell(x, y) = 0 THEN
+                        liqKind(x, y) = lk : liqZ(x, y) = floorH(x, y) + ld * H_STEP : liqAny = -1 : levelFlat = 0 : lqUsed(lk) = -1
+                    END IF
+                NEXT : NEXT
+                ConPrint "liquid: " + conRest$
+            END IF
         END IF
     CASE "block", "blocks" ' block X Y X0 Y0 X1 Y1 [WALL]: a block in cell X Y, its edges in eighths (block X Y none: gone)
         cw$ = ConWord$(conCmd$, 7)
@@ -7240,7 +7251,7 @@ SELECT CASE conVerb$
     CASE "events"
         IF numEvents = 0 THEN ConPrint "No event rooms in this sector"
         FOR k = 1 TO numEvents
-            ConPrint LTRIM$(STR$(k)) + "  " + MID$("ambush  survive trap    gallery nest    closet  hoard   plate   laser   cutter  blackoutfiretrap", evType(k) * 8 - 7, 8) + " room" + STR$(evX0(k)) + STR$(evY0(k)) + " -" + STR$(evX1(k)) + STR$(evY1(k)) + "   " + MID$("waiting going   won     lost    ", evState(k) * 8 + 1, 8)
+            ConPrint LTRIM$(STR$(k)) + "  " + MID$("ambush  survive trap    gallery nest    closet  hoard   plate   laser   cutter  blackoutfiretrapdeathpit", evType(k) * 8 - 7, 8) + " room" + STR$(evX0(k)) + STR$(evY0(k)) + " -" + STR$(evX1(k)) + STR$(evY1(k)) + "   " + MID$("waiting going   won     lost    ", evState(k) * 8 + 1, 8)
         NEXT
     CASE "screenshot", "shot"
         IF conA$ = "" THEN MakeSaveDir : shotFile$ = SaveDir$ + "shot-" + DATE$ + "-" + LTRIM$(STR$(INT(TIMER))) + ".png" ELSE shotFile$ = conRest$
