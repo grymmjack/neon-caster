@@ -58,7 +58,7 @@ it yourself:
 | K / G | testing cheats: every keycard / god mode |
 
 **The console and the command line.** The console (`) runs commands for
-nearly everything: `map 7` or `map vault` jumps to a sector, `give all`,
+nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or `remix` first for another set), `give all`,
 `god`, `kill`, `respawn`, `summon heavy 3`, `tp 20 24 90`, `save 2`,
 `load quick`, `restart`, `finish`, any setting by its name (`fov 100`,
 `renderer 2`, `display 2` - `settings` lists them), `bind`, `events`,
@@ -248,6 +248,40 @@ Each sector is built around floors and ceilings at different heights
 | 8 Maglev Depot | galleries over both platforms for the snipers; track trenches to duck into |
 | 9 Orbital Spire | an amphitheatre stepping down to the core; sniper ledges with elevators |
 | 10 The Core | a spiral climbing as it winds in; an arena with a ring of pit (kick them in) round the overseer's dais |
+
+## The other two sets
+
+**NEW SECTORS** (GAME > NEW SECTORS, `levels/new/`) are ten more, built by
+`levels/newsectors.py` on everything the game grew after the first ten:
+
+| Sector | What it shows off |
+|---|---|
+| 1 Arrival Dock | slim lit posts, terminal alcoves, lit columns, a flooded channel, a lockdown with the scatter gun as its prize, shelves of crates (loot) |
+| 2 The Aqueduct | a channel down a hall three walls high, gunner ledges (aim for heads), a survive lockdown, a deep reservoir crossed on bobbing lifts |
+| 3 Neon Market | outdoors at night: stall kiosks of thin walls under awnings, signs lit their own colours, shopfront alcoves, thieves, a shooting gallery |
+| 4 Acid Works | a deep acid channel with steps out, catwalks, a lift to the railgun's island, vats that eat armour |
+| 5 The Forge | two lava rivers, generators roaring in alcoves, a fire floor, heavies locking you in, a power failure |
+| 6 The Chapel | a nave four walls high between rows of lit pillars, hologram shrines, a poison font, a spawner nest, a crypt to survive |
+| 7 Cold Storage | cryo vaults behind glass, a bottomless freezer shaft, tank alcoves, thin-walled office cubicles |
+| 8 The Skyway | rooftops in a storm over a street that kills, bridges, a lift between roofs, a laser cutter on the gantry |
+| 9 The Archive | rack rows between partitions, rack alcoves, laser grids, a cutter sweeping the sorter, stalker closets |
+| 10 Nexus Heart | the overseer on a platform ringed by red-lit pillars in a lava moat, spawners, two lockdowns on the way in |
+
+**OLD SECTORS NEW** (GAME > OLD SECTORS NEW, `levels/remix/`) are the
+first ten remade by `levels/remaster.py`, which reads each original and
+adds to it without moving its walls, keys or doors: alcoves cut into long
+walls with the sector's theme glowing in them, slim lit columns in open
+floor, posts at the exit, decorations moved back against walls, its
+murky floors made water and its molten ones lava (only where the way
+doesn't cross them), and touches of its own - a fountain in Neon
+Station's hub, coolant in the Reactor's bowl, the Foundry's pillars lit
+like fire, neon adverts on the Maglev's platforms, red pillars round the
+overseer.
+
+Each set is played 1 to 10 on its own (`sectorset 0|1|2` in the console
+picks one for `map`), and a save remembers its set. Both scripts check
+what they build with the level kit, as `levels.py` does - `--write` to
+write the files, `--check` to check them as they are.
 
 The level kit's height helpers (`lvlkit.py`): `m.floor`, `m.ceiling`,
 `m.stairs` (two eighths a step, as much as you can climb), `m.pit` (with
@@ -456,7 +490,8 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
 | `neon-caster/sfx/` | sound effects, made with soundmon; `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
-| `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22), the level kit that builds and checks them (`levels.py`, `lvlkit.py`), the showcase sectors' builder (`showcase.py`) and the skies' painter (`skies.py`) |
+| `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22), the level kit that builds and checks them (`levels.py`, `lvlkit.py`), the showcase sectors' builder (`showcase.py`), the other sets' builders (`newsectors.py`, `remaster.py`) and the skies' painter (`skies.py`) |
+| `neon-caster/levels/new/`, `remix/` | NEW SECTORS and OLD SECTORS NEW, `level1.txt`... each |
 | `neon-caster/levels/custom/` | your own sectors (`customN.txt` is sector 10+N), made by NEW SECTOR - the level kit leaves them alone; 1-11 are the showcase sectors (19-21 outdoors) |
 | `neon-caster/puzzles/` | the code terminals' QB64 programs, one a file (`README.txt` says how to write one) |
 | `neon-caster/monsters.txt`, `hud.txt` | every monster's numbers and what it drops; the HUD's layout - both changed by their editors, or by hand |

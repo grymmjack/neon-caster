@@ -638,6 +638,8 @@ The editor trusts you: it saves a level with no start, no exit or a gap in its w
 - [ ] A map pickup `M` somewhere, or the minimap never appears
 - [ ] Picture names in the file are spelled right (a wrong one in `walls =`, `floors =` or `ceilings =` quits the game; in `[faces]` it's just ignored)
 
+**The other sets.** NEW SECTORS and OLD SECTORS NEW are plain level files too, in `neon-caster/levels/new/` and `remix/`. Play one and press F2, and the editor edits that set's file (Ctrl+S saves it there). They're built by `newsectors.py` and `remaster.py`, and their `--write` rewrites all ten, so copy a change you want to keep into the script first.
+
 **Check it with the level kit.** `levels.py --check` only checks the game's own ten sectors, but its checker works on one of yours too. From `neon-caster/levels/`:
 
 ```

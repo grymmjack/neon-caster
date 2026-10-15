@@ -1,8 +1,9 @@
 # NEON-CASTER
 
 A first-person shooter in one file of QB64 Phoenix Edition BASIC, and a
-course in how it's made. Ten sectors of a neon space station, ten kinds of
-monster, four guns and a kick, glass you can shoot through, floors and
+course in how it's made. Thirty sectors of a neon space station in three
+sets of ten - the originals, ten NEW SECTORS, and OLD SECTORS NEW (the
+first ten remade) - ten kinds of monster, four guns and a kick, glass you can shoot through, floors and
 ceilings at every height, lifts and bottomless pits, open skies, teleporters, data
 stations that turn the level into a wireframe network, code terminals that
 lock you in until you fix a real QB64 program, and a villain who talks to
@@ -61,10 +62,21 @@ folders), so you may find it's already set. Without QB64PE the terminals
 still let you through, but they only check your lines against the answer:
 nothing is compiled or run.
 
+**Three sets of ten:** **GAME > NEW GAME** (or SELECT SECTOR) plays the
+original ten. **GAME > NEW SECTORS** is ten more, built on everything the
+game has grown since: blocks inside cells (slim lit pillars, thin walls,
+alcoves with terminals glowing in them), water, slime, poison, acid and
+lava, loot in the breakables, lockdowns that slam shut, rooftops under a
+storm, and the overseer at the end. **GAME > OLD SECTORS NEW** is the
+first ten again, remade with all of that - same maps and routes, new
+detail. Each set runs 1 to 10 on its own, and a save remembers which set
+it's from.
+
 **Make your own:** **GAME > YOUR SECTORS > NEW SECTOR** gives you a
 blank sector (one room in solid wall) and opens the level editor on it.
-Push walls back, sink pits, add doors, monsters and lights, paint any
-picture on any face, set up ambushes, and Ctrl+S saves it to
+Push walls back, sink pits, stand blocks in cells (pillars, thin walls,
+alcoves), flood floors with liquids, add doors, monsters and lights, paint
+any picture on any face, set up ambushes, and Ctrl+S saves it to
 `neon-caster/levels/custom/`. The [level editor guide](LEVEL-EDITOR-GUIDE.md)
 explains every tool, key, map character and level-file field, and YOUR
 SECTORS starts with eleven example sectors (three of them outdoors, under skies) built with the editor to take

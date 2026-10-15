@@ -97,6 +97,15 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   `cd neon-caster/levels && python3 levels.py --check` (or `--write`, which
   overwrites all ten - never after hand or editor edits). Running it with no
   flag just builds and checks in memory.
+- Two more sets of ten, picked in GAME (sectorSet 1, 2): NEW SECTORS
+  `levels/new/levelN.txt` by `newsectors.py`, OLD SECTORS NEW
+  `levels/remix/levelN.txt` by `remaster.py` (built from the originals).
+  Both take `--write` / `--check` like levels.py; `--write` rewrites all ten
+  of its set. Test one with `+sectorset new +map 3` (or `remix`); saves keep
+  the set as 100 a set on in the sector number.
+- Teleport tests: a `+use` on the exit stalls the command queue in the
+  tally (it waits for a click) - a `timeout` there means the exit worked.
+  Grab the screen with `ffmpeg -f x11grab -i :99.0` to see it.
 - Players' own sectors are `neon-caster/levels/custom/customN.txt`
   (sector 10+N), made by NEW SECTOR / `newsector`; the kit never touches them.
   Check one with
