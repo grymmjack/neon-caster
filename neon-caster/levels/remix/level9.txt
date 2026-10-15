@@ -38,6 +38,14 @@ ambient  = 95, 180, 210, 255
 17.5, 23.5, 4, 110, 255, 90, 80, 0
 30.5, 43.5, 4, 110, 120, 255, 170, 1
 43.5, 30.5, 4, 110, 255, 90, 80, 1
+20.5, 11.745, 2.5, 140, 255, 80, 220, 0
+28.5, 11.745, 2.5, 140, 80, 220, 255, 0
+10.5, 20.745, 2.5, 140, 255, 80, 220, 0
+38.5, 20.745, 2.5, 140, 80, 220, 255, 0
+10.5, 30.745, 2.5, 140, 255, 80, 220, 0
+37.5, 30.745, 2.5, 140, 80, 220, 255, 0
+20.5, 36.745, 2.5, 140, 255, 80, 220, 0
+28.5, 36.745, 2.5, 140, 80, 220, 255, 0
 24.5, 29.2, 2.5, 170, 80, 220, 255, 2
 28.2, 45.5, 2.5, 170, 255, 80, 220, 2
 17.5, 5.8, 2.5, 170, 80, 220, 255, 2
@@ -68,6 +76,14 @@ enter 26 40 28 42 : message A DATA STATION - face it and press SPACE to jack in
 
 [blocks]
 ' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)
+20, 11, 3, 3, 5, 5, 5
+28, 11, 3, 3, 5, 5, 5
+10, 20, 3, 3, 5, 5, 5
+38, 20, 3, 3, 5, 5, 5
+10, 30, 3, 3, 5, 5, 5
+37, 30, 3, 3, 5, 5, 5
+20, 36, 3, 3, 5, 5, 5
+28, 36, 3, 3, 5, 5, 5
 24, 29, 0, 4, 8, 8, 1
 28, 45, 4, 0, 8, 8, 4
 17, 5, 0, 0, 8, 4, 2
@@ -106,12 +122,44 @@ locker   = armor:40, medkit:30, overcharge:15, amp:10
 
 [faces]
 ' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+20, 11, BE, 0, wall-lightstrip.png
+20, 11, BN, 0, wall-lightstrip.png
+20, 11, BS, 0, wall-lightstrip.png
+20, 11, BW, 0, wall-lightstrip.png
+28, 11, BE, 0, wall-lightstrip.png
+28, 11, BN, 0, wall-lightstrip.png
+28, 11, BS, 0, wall-lightstrip.png
+28, 11, BW, 0, wall-lightstrip.png
+10, 20, BE, 0, wall-lightstrip.png
+10, 20, BN, 0, wall-lightstrip.png
+10, 20, BS, 0, wall-lightstrip.png
+10, 20, BW, 0, wall-lightstrip.png
+38, 20, BE, 0, wall-lightstrip.png
+38, 20, BN, 0, wall-lightstrip.png
+38, 20, BS, 0, wall-lightstrip.png
+38, 20, BW, 0, wall-lightstrip.png
 23, 24, BE, 0, wall-lightstrip.png
 23, 24, BS, 0, wall-lightstrip.png
 23, 24, BW, 0, wall-lightstrip.png
 25, 24, BE, 0, wall-lightstrip.png
 25, 24, BS, 0, wall-lightstrip.png
 25, 24, BW, 0, wall-lightstrip.png
+10, 30, BE, 0, wall-lightstrip.png
+10, 30, BN, 0, wall-lightstrip.png
+10, 30, BS, 0, wall-lightstrip.png
+10, 30, BW, 0, wall-lightstrip.png
+37, 30, BE, 0, wall-lightstrip.png
+37, 30, BN, 0, wall-lightstrip.png
+37, 30, BS, 0, wall-lightstrip.png
+37, 30, BW, 0, wall-lightstrip.png
+20, 36, BE, 0, wall-lightstrip.png
+20, 36, BN, 0, wall-lightstrip.png
+20, 36, BS, 0, wall-lightstrip.png
+20, 36, BW, 0, wall-lightstrip.png
+28, 36, BE, 0, wall-lightstrip.png
+28, 36, BN, 0, wall-lightstrip.png
+28, 36, BS, 0, wall-lightstrip.png
+28, 36, BW, 0, wall-lightstrip.png
 
 [map]
 NNNNNNNNNNNNNNNNNNKKKKKKKKKKKKNNNNNNNNNNNNNNNNNN

@@ -517,6 +517,15 @@ def r8(m, rng):
                     m.pool(x, y, x, y, "w", sink=1, depth=1)
 
 
+@remaster(9)
+def r9(m, rng):
+    """ORBITAL SPIRE: eight lit columns round the ring, alternately cyan
+    and pink."""
+    for i, (x, y) in enumerate(((20, 11), (28, 11), (10, 20), (38, 20), (10, 30), (37, 30), (20, 36), (28, 36))):
+        if m.g[y][x] == "." and m.lq[y][x] == ".":
+            m.column(x, y, size=2, wall=5, pic=LIT, glow=CYAN if i % 2 else PINK, fx=0)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
