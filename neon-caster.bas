@@ -1015,6 +1015,14 @@ DIM SHARED achN AS INTEGER, achStatName$(NUM_ACHSTATS), achStatN AS INTEGER, ach
 DIM SHARED achToast$(16), achToastN AS INTEGER, achToastT AS INTEGER, sndAchieve&, conFromTrig AS INTEGER
 DIM SHARED achLevelHurt AS INTEGER, achOtherGun AS INTEGER, achAmpKills AS INTEGER, achBlastKills AS INTEGER, achInBlast AS INTEGER, achInLava AS INTEGER, achRunFrom AS INTEGER, achDeadSeen AS INTEGER
 sndAchieve& = LoadSnd&("achievement.wav")
+' RECORDS (chapter 23: RecordsLoad, RecordFor): each sector's best - its
+' quickest finish, most kills and items - in every set, kept in
+' saves/records.txt. recKey: set * 100 + the sector (your own sectors,
+' 11-30, by their number alone). recNew: the sector just finished beat
+' its best time (the tally says so); recBest!: the best before it.
+CONST MAX_RECORDS = 64
+DIM SHARED recN AS INTEGER, recKey(MAX_RECORDS) AS INTEGER, recTime!(MAX_RECORDS), recKills(MAX_RECORDS) AS INTEGER, recKillsOf(MAX_RECORDS) AS INTEGER
+DIM SHARED recItems(MAX_RECORDS) AS INTEGER, recItemsOf(MAX_RECORDS) AS INTEGER, recClears(MAX_RECORDS) AS INTEGER, recNew AS INTEGER, recBest!
 sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav") : sndSizzle& = LoadSnd&("sizzle.wav")
 DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&
 sndSteal& = LoadSnd&("thief-steal.wav") : sndHoard& = LoadSnd&("hoard-open.wav") : sndPlate& = LoadSnd&("plate-click.wav")
@@ -1526,6 +1534,7 @@ CONST WALK_SPEED = 0.06, RUN_SPEED = 0.12 ' (walking: half as fast)
 LoadSettings ' Your settings and keys, from neon-caster/saves/settings.ini
 GOSUB ReadSectorNames
 AchSetup ' (achievements: Steam, or the stand-in that keeps them in saves/achievements.txt)
+RecordsLoad ' (each sector's best: saves/records.txt)
 ' The keyboard "device", for keys by where they are (KeyAt%, chapter 21):
 ' _DEVICES finds the devices; the first is the keyboard. Its key numbers
 ' are the system's: Windows uses the PC's scancodes, Linux adds 8 (macOS
@@ -6111,6 +6120,22 @@ IF levelTime! < 60 AND level <= NUM_LEVELS THEN Achieve "NC_SPEEDRUN", 0
 IF NOT achOtherGun AND kills >= 5 THEN Achieve "NC_PEASHOOTER", 0
 IF health <= 10 AND NOT dead THEN Achieve "NC_LUB_DUB", 0
 AchStore
+' The sector's records: its best time (beaten: NEW RECORD on the tally),
+' its most kills and items, how many times it's been cleared - not with
+' cheats on
+recNew = 0 : recBest! = 0
+IF NOT achCheat OR achTest THEN
+    rk = level : IF level <= NUM_LEVELS THEN rk = sectorSet * 100 + level
+    ri = RecordFor(rk)
+    IF ri THEN
+        recBest! = recTime!(ri)
+        IF recTime!(ri) = 0 OR levelTime! < recTime!(ri) THEN recTime!(ri) = levelTime! : recNew = (recBest! > 0)
+        IF numMonsters <> recKillsOf(ri) THEN recKills(ri) = kills : recKillsOf(ri) = numMonsters ELSE IF kills > recKills(ri) THEN recKills(ri) = kills ' (the sector changed since: start its best again)
+        IF numItems <> recItemsOf(ri) THEN recItems(ri) = taken : recItemsOf(ri) = numItems ELSE IF taken > recItems(ri) THEN recItems(ri) = taken
+        recClears(ri) = recClears(ri) + 1
+        RecordsSave
+    END IF
+END IF
 ' The tally's rows (tallyLabel$ and the rest, chapter 6)
 numTally = 3
 tallyLabel$(1) = "KILLS" : tallyTarget(1) = kills : tallyTotal(1) = numMonsters
@@ -6192,6 +6217,13 @@ DO
             END IF
             ' Centred on the number's middle, so it zooms about itself
             MenuText 570 - LEN(value$) * 8 + shakeX, rowY + 16 - valueScale * 8 + shakeY, value$, valueScale, valueCol~&, 1
+            IF i = 3 AND tallyDone >= 3 THEN ' (the time: a record broken, or the best to beat)
+                IF recNew THEN
+                    IF (tallyFrame \ 8) MOD 2 = 0 THEN MenuText 570 + shakeX, rowY + 34 + shakeY, "NEW RECORD!", 1, _RGB32(255, 220, 80), 1
+                ELSEIF recBest! > 0 THEN
+                    MenuText 570 + shakeX, rowY + 34 + shakeY, "BEST " + TallyText$(INT(recBest!), -1), 1, _RGB32(150, 140, 190), 1
+                END IF
+            END IF
         END IF
     NEXT
     IF tallyDone = numTally AND tallyWait = 0 AND (tallyFrame \ 20) MOD 3 > 0 THEN
@@ -6247,7 +6279,7 @@ RETURN
 ' then. The wheel, the arrows and PgUp/PgDn scroll; Esc, Backspace, the
 ' right button or a click on BACK go back.
 ShowAchievements:
-achT = 0 : achRow = 0 : pressWas = -1 : _KEYCLEAR
+achT = 0 : achRow = 0 : pressWas = -1 : achTab = 0 : recSet = sectorSet : _KEYCLEAR
 DO
     _LIMIT 60
     achT = achT + 1
@@ -6261,11 +6293,15 @@ DO
     rows = (achN + 1) \ 2 : maxRow = MaxOf(0, rows - 6)
     SELECT CASE kh&
         CASE 27, 8 : EXIT DO
+        CASE 9 : achTab = 1 - achTab ' (Tab: achievements | records)
         CASE 18432 : achRow = achRow - 1
         CASE 20480 : achRow = achRow + 1
         CASE 18688 : achRow = achRow - 6
         CASE 20736 : achRow = achRow + 6
+        CASE 19200 : IF achTab THEN recSet = (recSet + 3) MOD 4 ' (records: the sets, left and right)
+        CASE 19712 : IF achTab THEN recSet = (recSet + 1) MOD 4
     END SELECT
+    IF click AND NOT pressWas AND _MOUSEY < 60 THEN IF _MOUSEX < 400 THEN achTab = 0 ELSE achTab = 1 ' (or click a tab)
     IF rclick THEN EXIT DO
     achRow = achRow + wheel : IF achRow < 0 THEN achRow = 0
     IF achRow > maxRow THEN achRow = maxRow
@@ -6273,9 +6309,13 @@ DO
     pressWas = click
     DrawMenuBackdrop achT
     LINE (0, 0)-(799, 599), _RGBA32(6, 0, 16, 190), BF
+    IF achTab = 0 THEN tc1~& = _RGB32(255, 90, 210) : tc2~& = _RGB32(90, 80, 130) ELSE tc1~& = _RGB32(90, 80, 130) : tc2~& = _RGB32(255, 90, 210)
+    MenuText 210, 18, "ACHIEVEMENTS", 3, tc1~&, 1
+    MenuText 600, 18, "RECORDS", 3, tc2~&, 1
+    LINE (400, 22)-(401, 58), _RGB32(90, 80, 130), BF
+    IF achTab = 1 THEN GOSUB DrawRecords : GOTO AchShown
     got = 0 : FOR i = 1 TO achN : IF STEAM_is_unlocked%(achApi$(i)) THEN got = got + 1
     NEXT
-    MenuText 400, 18, "ACHIEVEMENTS", 3, _RGB32(255, 90, 210), 1
     sub$ = LTRIM$(STR$(got)) + " OF" + STR$(achN) + " UNLOCKED  -  " : IF STEAM_is_steam% THEN sub$ = sub$ + "STEAM" ELSE sub$ = sub$ + "KEPT IN SAVES/ACHIEVEMENTS.TXT"
     MenuText 400, 70, sub$, 1, _RGB32(150, 230, 255), 1
     LINE (200, 92)-(600, 97), _RGB32(40, 30, 70), BF
@@ -6314,14 +6354,52 @@ DO
         LINE (788, 112)-(792, 540), _RGB32(40, 30, 70), BF
         sy = 112 + 428 * achRow / (maxRow + 6) : LINE (788, sy)-(792, sy + 428 * 6 / (maxRow + 6)), _RGB32(255, 90, 210), BF
     END IF
+    MenuText 400, 548, "WHEEL OR ARROWS TO SCROLL  -  TAB: RECORDS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
+    AchShown:
     MenuText 400, 562, "BACK", 2, _RGB32(220, 220, 240), 1
-    MenuText 400, 548, "WHEEL OR ARROWS TO SCROLL  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
     IF glReady THEN GLSL_filter_capture
     GLScreenLayer glReady
     _DISPLAY
 LOOP
 _KEYCLEAR
 WHILE _MOUSEINPUT : WEND
+RETURN
+
+' The RECORDS page: one set's sectors (recSet: 0-2 the sets of ten, 3
+' your own and the showcases), each with its best time, kills and items,
+' and how many times it's been cleared
+DrawRecords:
+MenuText 400, 70, "<  " + MID$("THE ORIGINAL TEN  NEW SECTORS      OLD SECTORS NEW  YOUR SECTORS     ", recSet * 17 + 1, 17) + "  >", 1, _RGB32(150, 230, 255), 1
+MenuText 120, 100, "SECTOR", 1, _RGB32(160, 150, 200), 0
+MenuText 470, 100, "BEST TIME", 1, _RGB32(160, 150, 200), 1
+MenuText 590, 100, "KILLS", 1, _RGB32(160, 150, 200), 1
+MenuText 690, 100, "ITEMS", 1, _RGB32(160, 150, 200), 1
+LINE (60, 120)-(740, 121), _RGB32(90, 80, 130), BF
+rr = 0
+FOR n = 1 TO NUM_LEVELS + MAX_CUSTOM
+    IF recSet = 3 THEN IF n <= NUM_LEVELS THEN _CONTINUE
+    IF recSet < 3 AND n > NUM_LEVELS THEN EXIT FOR
+    IF recSet < 3 THEN nm$ = SetSectorName$(recSet, n) : rk = recSet * 100 + n ELSE nm$ = SectorNameOf$(n) : rk = n
+    IF LEN(nm$) = 0 OR rr >= 20 THEN _CONTINUE
+    c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2)
+    y = 128 + rr * 21 : rr = rr + 1
+    ri = 0 : FOR k = 1 TO recN : IF recKey(k) = rk THEN ri = k
+    NEXT
+    MenuText 72, y, LTRIM$(STR$(n)), 1, _RGB32(255, 90, 210), 0
+    IF ri THEN nc~& = _RGB32(240, 240, 255) ELSE nc~& = _RGB32(110, 100, 150)
+    MenuText 120, y, LEFT$(nm$, 34), 1, nc~&, 0
+    IF ri THEN
+        MenuText 470, y, TimeText$(INT(recTime!(ri))), 1, _RGB32(255, 220, 80), 1
+        kc~& = _RGB32(200, 220, 255) : IF recKills(ri) >= recKillsOf(ri) THEN kc~& = _RGB32(80, 255, 140)
+        MenuText 590, y, LTRIM$(STR$(recKills(ri))) + "/" + LTRIM$(STR$(recKillsOf(ri))), 1, kc~&, 1
+        kc~& = _RGB32(200, 220, 255) : IF recItems(ri) >= recItemsOf(ri) THEN kc~& = _RGB32(80, 255, 140)
+        MenuText 690, y, LTRIM$(STR$(recItems(ri))) + "/" + LTRIM$(STR$(recItemsOf(ri))), 1, kc~&, 1
+    ELSE
+        MenuText 470, y, "-", 1, _RGB32(110, 100, 150), 1
+    END IF
+NEXT
+IF rr = 0 THEN MenuText 400, 200, "Nothing here yet", 1, _RGB32(150, 140, 190), 1
+MenuText 400, 548, "LEFT / RIGHT: THE SETS  -  TAB: ACHIEVEMENTS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
 RETURN
 
 ' --- THE ROUTE: between sectors, a map of all of them (like DOOM's between
@@ -17755,6 +17833,47 @@ END FUNCTION
 SUB AchStore
     IF achReady THEN ok = STEAM_store%
 END SUB
+
+' RECORDS: the file, saves/records.txt - one line a sector, "key time
+' kills/of items/of clears" - read at the start, written after each sector
+SUB RecordsLoad
+    recN = 0 : f$ = SaveDir$ + "records.txt"
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    DIM v(8) AS SINGLE
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    DO UNTIL EOF(fh) OR recN >= MAX_RECORDS
+        LINE INPUT #fh, l$ : l$ = LTRIM$(RTRIM$(l$))
+        IF LEN(l$) AND LEFT$(l$, 1) <> "'" THEN
+            l$ = l$ + " " : FOR k = 1 TO 7 ' (seven numbers, spaces and slashes between)
+                sp = INSTR(l$, " ") : sl = INSTR(l$, "/") : IF sl > 0 AND sl < sp THEN sp = sl
+                v(k) = VAL(LEFT$(l$, sp - 1)) : l$ = LTRIM$(MID$(l$, sp + 1))
+            NEXT
+            recN = recN + 1 : recKey(recN) = v(1) : recTime!(recN) = v(2) : recKills(recN) = v(3) : recKillsOf(recN) = v(4)
+            recItems(recN) = v(5) : recItemsOf(recN) = v(6) : recClears(recN) = v(7)
+        END IF
+    LOOP
+    CLOSE #fh
+END SUB
+
+SUB RecordsSave
+    MakeSaveDir : fh = FREEFILE : OPEN SaveDir$ + "records.txt" FOR OUTPUT AS #fh
+    PRINT #fh, "' NEON-CASTER records: sector (set * 100 + sector; yours 11-30), best time (seconds), kills/of, items/of, times cleared"
+    FOR k = 1 TO recN
+        PRINT #fh, LTRIM$(STR$(recKey(k))); " "; LTRIM$(STR$(INT(recTime!(k) * 10) / 10)); " "; LTRIM$(STR$(recKills(k))); "/"; LTRIM$(STR$(recKillsOf(k))); " "; LTRIM$(STR$(recItems(k))); "/"; LTRIM$(STR$(recItemsOf(k))); " "; LTRIM$(STR$(recClears(k)))
+    NEXT
+    CLOSE #fh
+END SUB
+
+' Sector key's record line (a new, empty one if it has none) - 0 if full
+FUNCTION RecordFor(sectorKey)
+    FOR k = 1 TO recN
+        IF recKey(k) = sectorKey THEN RecordFor = k : EXIT FUNCTION
+    NEXT
+    IF recN >= MAX_RECORDS THEN EXIT FUNCTION
+    recN = recN + 1 : recKey(recN) = sectorKey : recTime!(recN) = 0 : recKills(recN) = 0 : recKillsOf(recN) = 0
+    recItems(recN) = 0 : recItemsOf(recN) = 0 : recClears(recN) = 0
+    RecordFor = recN
+END FUNCTION
 
 ' Our pop-up for an achievement (when Steam isn't the one showing it): it
 ' drops in at the top of the screen, waits, and rises away, a chime as it
