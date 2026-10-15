@@ -5602,6 +5602,14 @@ DO
         boxDist = BoxRay(hcX, hcY, playerX, playerY, rayDirX, rayDirY, hDIn, hDOut, bSide)
         IF boxDist >= 0 THEN hBoxed = -1 : hDOut = MaxOf(boxDist, 0.001) : hSide = bSide
     END IF
+    hDoored = 0 ' (a door's slab across this cell, in the ray's way - as a box: the cell's floor and ceiling up to it, then its face - DoorRay, as the flat pass)
+    IF worldMap(hcX, hcY) = 2 THEN
+        IF doorType(hcX, hcY) <> DOOR_EXIT THEN
+            dr = DoorRay(hcX, hcY, playerX, playerY, rayDirX, rayDirY, dDist, dU, dSide, dLX, dLY, dBack)
+            IF dr = 3 THEN dr = 0 : IF DoorShown(hcX, hcY) < 0.5 THEN dr = 1 ' (a shutter: down, or as good as up)
+            IF dr THEN IF dDist >= hDIn - 0.001 AND dDist <= hDOut THEN hDoored = dr : hDOut = MaxOf(dDist, 0.001) : hSide = dSide
+        END IF
+    END IF
     ' This cell's light, fogged as far as its middle
     hFog& = 256 - (hDIn + hDOut) * 8 : IF hFog& < 0 THEN hFog& = 0
     hR& = litR(hcX, hcY) : hG& = litG(hcX, hcY) : hB& = litB(hcX, hcY)
@@ -5663,7 +5671,14 @@ DO
     ' The next cell: a wall (or a shut door, or a diagonal - drawn whole),
     ' or open, with a step up or a lintel down to it - or, before it, this
     ' cell's box
-    IF hBoxed THEN
+    IF hDoored THEN
+        hnX = hcX : hnY = hcY : v = 0 : hSolid = -1
+        SELECT CASE doorType(hcX, hcY)
+            CASE DOOR_SLIDE : IF doorKey(hcX, hcY) THEN hSlot = T_DOORK + doorKey(hcX, hcY) ELSE hSlot = T_DOOR
+            CASE DOOR_SPLIT : hSlot = T_SPLIT
+            CASE ELSE : hSlot = T_SHUTTER
+        END SELECT
+    ELSEIF hBoxed THEN
         hnX = hcX : hnY = hcY : v = 0 : hSolid = -1 : hSlot = wallTexSlot(boxOn(hcX, hcY))
     ELSE
         IF hnX < 0 OR hnY < 0 OR hnX >= MAP_SIZE OR hnY >= MAP_SIZE THEN EXIT DO
@@ -5671,22 +5686,27 @@ DO
         IF v > 0 AND v <> 2 THEN hSolid = -1 : hSlot = wallTexSlot(v)
         IF diagCorner(hnX, hnY) THEN hSolid = -1 : hSlot = wallTexSlot(worldMap(hnX, hnY))
     END IF
-    IF v = 2 THEN
+    IF v = 2 THEN ' (the exit: a wall on its cell's face; any other door, a cell to go into - its slab is found there, above)
         IF doorType(hnX, hnY) = DOOR_EXIT THEN hSolid = -1 : hSlot = T_EXIT
-        IF doorType(hnX, hnY) <> DOOR_EXIT AND DoorShown(hnX, hnY) < 0.5 THEN
-            hSolid = -1
-            SELECT CASE doorType(hnX, hnY)
-                CASE DOOR_SLIDE : IF doorKey(hnX, hnY) THEN hSlot = T_DOORK + doorKey(hnX, hnY) ELSE hSlot = T_DOOR
-                CASE DOOR_SPLIT : hSlot = T_SPLIT
-                CASE ELSE : hSlot = T_SHUTTER
-            END SELECT
-        END IF
     END IF
     IF hSide = 0 THEN wallX = playerY + hDOut * rayDirY ELSE wallX = playerX + hDOut * rayDirX
     wallX = wallX - INT(wallX) : hTexX = INT(wallX * texSize)
     IF hSide = 0 AND rayDirX > 0 THEN hTexX = texSize - 1 - hTexX
     IF hSide = 1 AND rayDirY < 0 THEN hTexX = texSize - 1 - hTexX
     hTexX = hTexX AND (texSize - 1)
+    IF hDoored THEN ' (where on the door: its picture slides with it, as the flat pass's)
+        dShown = DoorShown(hcX, hcY)
+        IF hDoored = 2 THEN
+            hTexX = INT(dU * DOOR_THICK * texSize)
+        ELSEIF doorType(hcX, hcY) = DOOR_SLIDE THEN
+            hTexX = INT((dU - dShown) * texSize)
+        ELSEIF doorType(hcX, hcY) = DOOR_SPLIT THEN
+            IF dU < 0.5 THEN hTexX = INT((dU + dShown / 2) * texSize) ELSE hTexX = INT((dU - dShown / 2) * texSize)
+        ELSE
+            hTexX = INT(dU * texSize)
+        END IF
+        hTexX = hTexX AND (texSize - 1) : hSlot2 = 0
+    END IF
     hSd = 0 ' (which side of the next cell this is - for a picture of its own: [faces])
     IF faceAny THEN
         IF hSide = 0 THEN IF rayDirX > 0 THEN hSd = 3 ELSE hSd = 1
@@ -5694,8 +5714,8 @@ DO
         IF hBoxed THEN
             fu = BoxFaceU(hcX, hcY, hSd, hTexX / texSize) ' (a block's sides: faces of their own)
             hSlot2 = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 1, hSlot) : hSlot = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 0, hSlot)
-        ELSEIF hSolid AND v <> 2 AND diagCorner(hnX, hnY) = 0 THEN
-            hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot) ' (a diagonal: its neighbours' look, always)
+        ELSEIF hSolid AND v <> 2 AND diagCorner(hnX, hnY) = 0 AND NOT hDoored THEN
+            hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot) ' (a diagonal: its neighbours' look, always; a door, its own)
         END IF
     END IF
     hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
