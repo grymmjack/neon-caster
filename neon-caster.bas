@@ -274,6 +274,7 @@ CONST MAX_LIGHTS = 96
 DIM SHARED lightX(MAX_LIGHTS), lightY(MAX_LIGHTS), lightRadius(MAX_LIGHTS)
 DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhase(MAX_LIGHTS)
 DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
+DIM SHARED numLightsBase AS INTEGER ' (the level's own lights - those after them are pools flooded in play: LiquidGlows)
 DIM SHARED lightLow(MAX_LIGHTS) AS INTEGER ' (a glow from the floor - a pool of lava: no lamp on the ceiling over it, no beam)
 DIM SHARED lightNow(MAX_LIGHTS) ' How bright its effect has it this frame (0 off .. 1 full): for its glow
 DIM SHARED numLights AS INTEGER
@@ -1013,6 +1014,8 @@ CONST NUM_ACH = 45, NUM_ACHSTATS = 12, NEON_APP_ID = 0 ' (NEON_APP_ID: the game'
 DIM SHARED achApi$(NUM_ACH), achTitle$(NUM_ACH), achDesc$(NUM_ACH), achHidden(NUM_ACH) AS INTEGER, achStat$(NUM_ACH), achGoal(NUM_ACH) AS LONG
 DIM SHARED achN AS INTEGER, achStatName$(NUM_ACHSTATS), achStatN AS INTEGER, achCheat AS INTEGER, achTest AS INTEGER, achReady AS INTEGER
 DIM SHARED achToast$(16), achToastN AS INTEGER, achToastT AS INTEGER, sndAchieve&, conFromTrig AS INTEGER
+DIM SHARED achFrame AS LONG, achHeadAt AS LONG ' (the frame a headshot was last counted in)
+DIM SHARED achIcon&(NUM_ACH), achIconOff&(NUM_ACH), achToastI(16) AS INTEGER ' (each one's badge, achievements/NAME.png, and its grey one, NAME_locked.png - the same pictures Steam shows)
 DIM SHARED achLevelHurt AS INTEGER, achOtherGun AS INTEGER, achAmpKills AS INTEGER, achBlastKills AS INTEGER, achInBlast AS INTEGER, achInLava AS INTEGER, achRunFrom AS INTEGER, achDeadSeen AS INTEGER
 sndAchieve& = LoadSnd&("achievement.wav")
 ' RECORDS (chapter 23: RecordsLoad, RecordFor): each sector's best - its
@@ -1021,6 +1024,7 @@ sndAchieve& = LoadSnd&("achievement.wav")
 ' 11-30, by their number alone). recNew: the sector just finished beat
 ' its best time (the tally says so); recBest!: the best before it.
 CONST MAX_RECORDS = 64
+DIM SHARED recNm$(NUM_LEVELS + MAX_CUSTOM), recNmSet AS INTEGER ' (the RECORDS page's names, for set recNmSet)
 DIM SHARED recN AS INTEGER, recKey(MAX_RECORDS) AS INTEGER, recTime!(MAX_RECORDS), recKills(MAX_RECORDS) AS INTEGER, recKillsOf(MAX_RECORDS) AS INTEGER
 DIM SHARED recItems(MAX_RECORDS) AS INTEGER, recItemsOf(MAX_RECORDS) AS INTEGER, recClears(MAX_RECORDS) AS INTEGER, recNew AS INTEGER, recBest!
 sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav") : sndSizzle& = LoadSnd&("sizzle.wav")
@@ -1360,7 +1364,8 @@ DIM SHARED playerZ AS SINGLE, playerVZ AS SINGLE, eyeZ AS SINGLE, walkZ AS SINGL
 DIM SHARED boltZ(MAX_BOLTS) AS SINGLE, boltDZ(MAX_BOLTS) AS SINGLE
 ' --- Lifts ([lifts] in the level file): a rectangle of floor that moves
 ' between two heights (low, high) - mode 1 up and down by itself, mode 2
-' an elevator: up when you step on, back down a while after you step off.
+' an elevator: up when you step on, back down a while after you step off,
+' mode 3 only when it's told to (liftgo - a trigger's).
 ' Each frame (MoveLifts) its cells' floorH is set to where it is (liftZ),
 ' so standing, falling and drawing all just follow it; OpenGL draws it
 ' each frame, like a door (GLLifts), not in the world mesh.
@@ -1455,6 +1460,7 @@ DIM SHARED edHovPX, edHovPY, edHovPZ ' (exactly where the cursor's ray met it)
 DIM SHARED edHovThing AS INTEGER ' (the pointer's on a thing standing in a cell - a monster, a pickup... - not a face: EditPickThing)
 DIM SHARED edSelN AS INTEGER, edSelKind(ED_MAXSEL) AS INTEGER, edSelX(ED_MAXSEL) AS INTEGER, edSelY(ED_MAXSEL) AS INTEGER
 DIM SHARED edSelSide(ED_MAXSEL) AS INTEGER, edSelPart(ED_MAXSEL) AS INTEGER
+DIM SHARED edKeepN AS INTEGER, edKeepKind(ED_MAXSEL) AS INTEGER, edKeepX(ED_MAXSEL) AS INTEGER, edKeepY(ED_MAXSEL) AS INTEGER, edKeepSide(ED_MAXSEL) AS INTEGER, edKeepPart(ED_MAXSEL) AS INTEGER ' (the selection, kept while Ctrl+click PAINT borrows it - EditSelKeep)
 DIM SHARED edTool AS INTEGER, edGrid AS INTEGER, edGridAlpha AS INTEGER, edPickTab AS INTEGER, edPickScroll AS INTEGER
 DIM SHARED edLooking AS INTEGER ' (the right button held in the 3D view: the mouse turns you instead of moving the cursor)
 DIM SHARED edMouseFix AS INTEGER, edWheel AS INTEGER, edCurX AS INTEGER, edCurY AS INTEGER ' (put the pointer right again; the wheel's turns for the editor; where the pointer is)
@@ -1500,6 +1506,7 @@ DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick 
 ' (1 enter, 2 use, 3 clear, 4 time), again each time?, after how long (time),
 ' its commands; what's being typed (edTypeFor: 1 the sector's name, 2 the
 ' commands); the triggers listed (edTrigIdx: their numbers in lvlTrig$)
+DIM SHARED edEvPane AS INTEGER ' (the event room's pane is open - EVENT ROOM... on a floor's)
 DIM SHARED edTrigPane AS INTEGER, edTrigWhen AS INTEGER, edTrigRepeat AS INTEGER, edTrigTime AS INTEGER, edTrigCmd$, edTypeFor AS INTEGER, edTrigIdx(8) AS INTEGER
 edTrigWhen = 1 : edTrigTime = 10 ' (the SECTOR pane; typing its name; which of its pictures the picker's choosing - 1-6 a wall kind, 7-10 a floor, 11-12 a ceiling)
 DIM SHARED edPnX0 AS INTEGER, edPnY0 AS INTEGER ' (where the pane is: down the right in 3D, over the map's right from above)
@@ -1598,7 +1605,7 @@ DO
     ' Commands waiting (the command line's, an exec's): one a frame - or
     ' as many as come before a "wait"
     SfxFrame : earDX = dirX : earDY = dirY ' (the limiter's memory fades; your ears face where you do)
-    STEAM_update ' (Steam's callbacks: achievements and stats arriving)
+    STEAM_update : achFrame = achFrame + 1 ' (Steam's callbacks: achievements and stats arriving)
     IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
@@ -1619,7 +1626,7 @@ DO
         IF editMode THEN GOSUB EditLeave ELSE GOSUB EditEnter
     END IF
     edKeyWas = _KEYDOWN(15360)
-    IF editMode AND editView = 0 THEN GOSUB RunEditor ' (the map from above: a loop of its own)
+    IF editMode AND editView = 0 THEN GOSUB RunEditor : edKeyWas = _KEYDOWN(15360) ' (the map from above: a loop of its own - F2 there, still held, isn't a new press here)
     IF editMode THEN GOSUB EditFP ' (walking round in it: its keys)
 
     '-------------------------------------------------------------------------
@@ -2007,14 +2014,14 @@ DO
     kKeyDown = _KEYDOWN(107) OR _KEYDOWN(75)
     IF CHEAT_KEYS AND kKeyDown AND NOT kKeyWas AND NOT dead AND NOT editMode THEN
         FOR k = 1 TO 3 : hasCard(k) = -1 : NEXT
-        hasMap = -1
+        hasMap = -1 : achCheat = -1 ' (a cheat: achievements wait for a new game)
         PlaySfx sndCard&, 0.8 : ShowMsg "All keycards, and the map"
     END IF
     kKeyWas = kKeyDown
     ' G: god mode on / off - no damage, and you walk through walls (testing)
     gKeyDown = _KEYDOWN(103) OR _KEYDOWN(71)
     IF CHEAT_KEYS AND gKeyDown AND NOT gKeyWas AND NOT dead AND NOT editMode THEN
-        godMode = NOT godMode
+        godMode = NOT godMode : achCheat = -1
         IF godMode THEN ShowMsg "God mode ON - no damage, no clipping" ELSE ShowMsg "God mode OFF"
         PlaySfx sndCard&, 0.8
     END IF
@@ -2307,7 +2314,7 @@ DO
             IF best THEN
                 target = best : hitDamage = KICK_DAMAGE : IF ampTimer > 0 THEN hitDamage = hitDamage * 2
                 GOSUB HitMonster
-                IF monsterState(best) >= 2 THEN Achieve "NC_KICK_KILL", 0
+                IF monsterState(best) >= 2 AND NOT cyberOn THEN Achieve "NC_KICK_KILL", 0
                 IF monsterType(best) <> 5 THEN FOR kp = 1 TO 3 : MoveBody monsterX(best), monsterY(best), dirX * KICK_PUSH / 3, dirY * KICK_PUSH / 3 : NEXT ' (sentries are bolted down; in three steps, so it can't jump through glass)
                 SpawnSparks monsterX(best), monsterY(best), 0.35, 8, 255, 200, 140
                 PlaySfx sndKick&, 0.9 : shake = shake + 4 : crossFlash = 6
@@ -3614,7 +3621,7 @@ DO
     IF glMode THEN GLSL_filter_capture
     GLScreenLayer glMode
     DisplayFollow ' (Alt + Enter changes the DISPLAY setting - chapter 21)
-    _DISPLAY ' Show the finished frame (chapter 7)
+    ShowFrame ' Show the finished frame (chapter 7)
     ' A screenshot asked for (the console's screenshot): the software
     ' renderer's frame is our screen; OpenGL's, SUB _GL reads back for us
     ' (glShotReq 2 - chapter 24)
@@ -3648,7 +3655,7 @@ LOOP ' (forever: you leave the game from the menu - chapter 21)
 HitMonsterAimed:
 IF head THEN
     hitWas = hitDamage : hitDamage = hitDamage * WEAK_MULT : GOSUB HitMonster : hitDamage = hitWas
-    AchAdd "Headshots", 1
+    IF achHeadAt <> achFrame AND NOT cyberOn THEN AchAdd "Headshots", 1 : achHeadAt = achFrame ' (once a shot: the scatter's seven pellets are one headshot)
     IF monsterState(target) < 2 THEN SfxAt mtypePainSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
     IF sndHeadshot& THEN PlaySfx sndHeadshot&, 0.8
     SpawnSparks monsterX(target), monsterY(target), MaxOf(0.05, headZ - FloorAt(monsterX(target), monsterY(target))), 18, 255, 230, 120
@@ -3785,7 +3792,9 @@ EditEnter:
 achCheat = -1 ' (in the editor you can put anything anywhere: achievements wait for a new game - but the editor's own)
 WorldLoopsOff ' (the world stops: so do its sounds)
 GOSUB EditReset
-editMode = -1 : editView = 0 : editDirty = 0 : editUndoN = 0 : editLights = 0 : mapOpen = 0
+IF editFresh OR level <> levelWas THEN editDirty = 0 : editUndoN = 0 ' (back in after F2 to try it: the changes not saved yet, and their undo, still there)
+editFresh = 0
+editMode = -1 : editView = 0 : editLights = 0 : mapOpen = 0
 levelWas = level
 IF editGlyph$ = "" THEN editGlyph$ = "#"
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
@@ -3810,13 +3819,13 @@ RETURN
 ' What the editor was in the middle of, forgotten: in and out of it, and
 ' on to another sector (the selection's cells would be another level's)
 EditReset:
-edSelN = 0 : edHovKind = 0 : edLinkPad = 0 : edSlotPick = 0 : edTyping = 0 : edDragOn = 0 : edTbDrag = 0 : edClickL = 0 : edClickR = 0 : edTrigPane = 0
+edSelN = 0 : edHovKind = 0 : edLinkPad = 0 : edSlotPick = 0 : edTyping = 0 : edDragOn = 0 : edTbDrag = 0 : edClickL = 0 : edClickR = 0 : edTrigPane = 0 : edEvPane = 0
 RETURN
 
 ' Remember the level as it is, for Ctrl+Z
 EditPushUndo:
 IF editUndoN = EDIT_UNDO THEN
-    FOR k = 1 TO EDIT_UNDO - 1 : editUndo$(k) = editUndo$(k + 1) : NEXT
+    FOR undoK = 1 TO EDIT_UNDO - 1 : editUndo$(undoK) = editUndo$(undoK + 1) : NEXT ' (its own counter: callers loop on k)
 ELSE
     editUndoN = editUndoN + 1
 END IF
@@ -3940,7 +3949,7 @@ RETURN
 EditTypeKey:
 SELECT CASE k&
     CASE 13 : GOSUB EditTypeDone
-    CASE 27 : edTyping = 0 : EditNote "Name unchanged"
+    CASE 27 : edTyping = 0 : IF edTypeFor = 2 THEN EditNote "Commands unchanged" ELSE EditNote "Name unchanged"
     CASE 8 : IF LEN(edTypeBuf$) THEN edTypeBuf$ = LEFT$(edTypeBuf$, LEN(edTypeBuf$) - 1)
     CASE 32 TO 126
         IF edTypeFresh THEN edTypeBuf$ = "" ' (the first letter typed starts it afresh - Backspace first to change the old one)
@@ -4002,7 +4011,7 @@ SELECT CASE pnHit
             GOSUB EditApply
         END IF
     CASE 27 ' Up and down by itself, or an elevator (stand on it)
-        lf = edPnLift : IF lf THEN GOSUB EditPushUndo : lvlLift(lf, 7) = 3 - lvlLift(lf, 7) : GOSUB EditApply
+        lf = edPnLift : IF lf THEN GOSUB EditPushUndo : lvlLift(lf, 7) = (lvlLift(lf, 7) MOD 3) + 1 : GOSUB EditApply ' (up and down, an elevator, on a trigger - round again)
     CASE 28 ' No lift here any more
         lf = edPnLift
         IF lf THEN
@@ -4014,9 +4023,10 @@ SELECT CASE pnHit
         GOSUB EditPushUndo : n = 0
         FOR k = 1 TO edSelN
             IF edSelKind(k) = ED_FLOOR AND NOT EditCellOpen(edSelX(k), edSelY(k)) THEN _CONTINUE ' (not inside a wall)
-            IF EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k)) = 0 THEN EditFaceAnchor edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), ax, ay : EditAddLight ax, ay : n = n + 1
+            IF EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k)) = 0 THEN EditFaceAnchor edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), ax, ay : nl = lvlNumLights : EditAddLight ax, ay : IF lvlNumLights > nl THEN n = n + 1
         NEXT
-        GOSUB EditApply : EditNote LTRIM$(STR$(n)) + " light(s) added - set them in the pane"
+        GOSUB EditApply
+        IF n = 0 AND lvlNumLights >= MAX_LIGHTS THEN EditNote "Too many lights (" + LTRIM$(STR$(MAX_LIGHTS)) + ")" ELSE EditNote LTRIM$(STR$(n)) + " light(s) added - set them in the pane"
     CASE 41 TO 52, 60 TO 65, 70 TO 73 ' A light's colour, effect, reach, brightness: every selected face's light (and the brush, for the next)
         GOSUB EditPushUndo
         FOR k = 1 TO edSelN
@@ -4166,22 +4176,29 @@ SELECT CASE pnHit
         IF ev THEN
             GOSUB EditPushUndo
             FOR k = ev TO lvlNumEvents - 1 : FOR j = 1 TO 8 : lvlEvent(k, j) = lvlEvent(k + 1, j) : NEXT : NEXT
-            lvlNumEvents = lvlNumEvents - 1 : GOSUB EditApply : EditNote "Event taken away"
+            lvlNumEvents = lvlNumEvents - 1 : GOSUB EditApply : EditNote "Event taken away" : edEvPane = 0
         END IF
-    CASE 169 ' An event room of the floor selected: an ambush to start with
-        x0 = MAP_SIZE : y0 = MAP_SIZE : x1 = 0 : y1 = 0
-        FOR k = 1 TO edSelN
-            IF edSelKind(k) = ED_FLOOR AND EditCellOpen(edSelX(k), edSelY(k)) THEN x0 = MinOf(x0, edSelX(k)) : y0 = MinOf(y0, edSelY(k)) : x1 = MaxOf(x1, edSelX(k)) : y1 = MaxOf(y1, edSelY(k))
+    CASE 169 ' An event room of the floor selected: an ambush to start with (or, in one already, its pane)
+        x0 = MAP_SIZE : y0 = MAP_SIZE : x1 = 0 : y1 = 0 : inEv = 0
+        FOR k = 1 TO edSelN : IF inEv = 0 THEN inEv = EditEventAt(edSelX(k), edSelY(k))
         NEXT
+        IF inEv THEN
+            edEvPane = -1 ' (just its pane)
+        ELSE
+            FOR k = 1 TO edSelN
+                IF edSelKind(k) = ED_FLOOR AND EditCellOpen(edSelX(k), edSelY(k)) THEN x0 = MinOf(x0, edSelX(k)) : y0 = MinOf(y0, edSelY(k)) : x1 = MaxOf(x1, edSelX(k)) : y1 = MaxOf(y1, edSelY(k))
+            NEXT
+        END IF
         IF x1 >= x0 AND lvlNumEvents < MAX_EVENTS THEN
             GOSUB EditPushUndo
             lvlNumEvents = lvlNumEvents + 1 : k = lvlNumEvents
             lvlEvent(k, 1) = EV_AMBUSH : lvlEvent(k, 2) = x0 : lvlEvent(k, 3) = y0 : lvlEvent(k, 4) = x1 : lvlEvent(k, 5) = y1
             lvlEvent(k, 6) = 4 : lvlEvent(k, 7) = 0 : lvlEvent(k, 8) = 4
-            GOSUB EditApply : EditNote "An event room: an ambush - choose its kind in the pane"
+            GOSUB EditApply : EditNote "An event room: an ambush - choose its kind in the pane" : edEvPane = -1
         END IF
     CASE 170 : edTrigPane = NOT edTrigPane ' TRIGGERS...: the selection's
     CASE 190 : edTrigPane = 0 : edTyping = 0
+    CASE 189 : edEvPane = 0 ' (the event pane's BACK)
     CASE 191 TO 199 ' An action onto its commands
         IF edTyping AND edTypeFor = 2 THEN GOSUB EditTypeDone
         a$ = TrigAction$(pnHit - 190, -1)
@@ -4262,7 +4279,7 @@ keepX = playerX : keepY = playerY : keepDX = dirX : keepDY = dirY
 editRebuild = -1 : GOSUB BuildLevel : editRebuild = 0
 playerX = keepX : playerY = keepY : dirX = keepDX : dirY = keepDY
 planeX = dirY * fovPlane : planeY = -dirX * fovPlane ' (in the editor you fly through walls, so building over where you are is fine)
-editDirty = -1
+editDirty = -1 : editFresh = 0
 RETURN
 
 ' The map from above: draw it, read the mouse and keys, until Tab (walk
@@ -4294,6 +4311,8 @@ DO
         EditPkGeom pgx, pgy, pcols, prows, psz
         IF pkWhat OR (mx >= ED_PALX AND my >= 40 AND my < pgy + prows * (psz + 4)) THEN
             EditPkScroll SGN(wheel)
+        ELSEIF edPnTitle$ <> "" AND mx >= edPnX0 - 6 AND mx <= edPnX0 + PN_W + 6 AND my <= edPnBot + 6 THEN
+            ' (over the pane: nothing under it moves)
         ELSEIF onMap AND edSelN THEN
             IF ABS(TIMER - edWheelT!) > 0.5 THEN GOSUB EditPushUndo
             edWheelT! = TIMER : wc = _KEYDOWN(100305) OR _KEYDOWN(100306)
@@ -4339,8 +4358,13 @@ DO
         IF MID$(lvlRow$(cy), cx + 1, 1) = "&" AND (cx <> edLinkX OR cy <> edLinkY) THEN
             GOSUB EditPushUndo
             EditUnpair edLinkX, edLinkY : EditUnpair cx, cy
-            IF lvlNumPairs < 16 THEN lvlNumPairs = lvlNumPairs + 1 : lvlPair(lvlNumPairs, 1) = edLinkX : lvlPair(lvlNumPairs, 2) = edLinkY : lvlPair(lvlNumPairs, 3) = cx : lvlPair(lvlNumPairs, 4) = cy
-            edApply = -1 : EditNote "Linked: pad" + STR$(edLinkX) + "," + LTRIM$(STR$(edLinkY)) + " <->" + STR$(cx) + "," + LTRIM$(STR$(cy))
+            IF lvlNumPairs < 16 THEN
+                lvlNumPairs = lvlNumPairs + 1 : lvlPair(lvlNumPairs, 1) = edLinkX : lvlPair(lvlNumPairs, 2) = edLinkY : lvlPair(lvlNumPairs, 3) = cx : lvlPair(lvlNumPairs, 4) = cy
+                EditNote "Linked: pad" + STR$(edLinkX) + "," + LTRIM$(STR$(edLinkY)) + " <->" + STR$(cx) + "," + LTRIM$(STR$(cy))
+            ELSE
+                EditNote "Sixteen links already: unlink one first"
+            END IF
+            edApply = -1
         ELSE
             EditNote "That's not another pad"
         END IF
@@ -4466,7 +4490,7 @@ DO
     IF edHelp THEN EditDrawHelp 0
     IF glReady THEN GLSL_filter_capture
     GLScreenLayer glReady
-    _DISPLAY
+    ShowFrame
 LOOP
 _KEYCLEAR
 IF edDone = 1 THEN editView = 1 : edMouseFix = -1 : fpLWas = -1 : edClickL = 0 : edClickR = 0 : EditNote "3D: point at a face - hold the right button to look round - F1 for help"
@@ -4581,7 +4605,10 @@ FOR n = level + 1 TO NUM_LEVELS + MAX_CUSTOM
 NEXT
 RETURN
 EditGoLevel:
-IF editDirty THEN EditNote "Save first (Ctrl+S) - or Ctrl+Z it all away" : level = levelWas : RETURN
+IF editDirty AND ABS(TIMER - editAskT!) > 3 THEN ' (not saved: say so - the same key again goes anyway)
+    EditNote "Not saved: Ctrl+S keeps it - press it again to go without saving" : editAskT! = TIMER : level = levelWas : RETURN
+END IF
+editAskT! = -99
 GOSUB LoadLevel : editUndoN = 0 : editDirty = 0 : levelWas = level : GOSUB EditReset
 EditNote "EDITOR: " + levelName$
 RETURN
@@ -4702,8 +4729,12 @@ ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND edLinkPad AND NOT EditOverUI(edC
     IF edHovKind = ED_FLOOR AND MID$(lvlRow$(edHovY), edHovX + 1, 1) = "&" AND (edHovX <> edLinkX OR edHovY <> edLinkY) THEN
         GOSUB EditPushUndo
         EditUnpair edLinkX, edLinkY : EditUnpair edHovX, edHovY
-        IF lvlNumPairs < 16 THEN lvlNumPairs = lvlNumPairs + 1 : lvlPair(lvlNumPairs, 1) = edLinkX : lvlPair(lvlNumPairs, 2) = edLinkY : lvlPair(lvlNumPairs, 3) = edHovX : lvlPair(lvlNumPairs, 4) = edHovY
-        GOSUB EditApply : EditNote "Linked: pad" + STR$(edLinkX) + "," + LTRIM$(STR$(edLinkY)) + " <->" + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
+        IF lvlNumPairs < 16 THEN
+            lvlNumPairs = lvlNumPairs + 1 : lvlPair(lvlNumPairs, 1) = edLinkX : lvlPair(lvlNumPairs, 2) = edLinkY : lvlPair(lvlNumPairs, 3) = edHovX : lvlPair(lvlNumPairs, 4) = edHovY
+            GOSUB EditApply : EditNote "Linked: pad" + STR$(edLinkX) + "," + LTRIM$(STR$(edLinkY)) + " <->" + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
+        ELSE
+            GOSUB EditApply : EditNote "Sixteen links already: unlink one first"
+        END IF
         edLinkPad = 0
     ELSE
         EditNote "That's not another pad - click one (LINK again: never mind)"
@@ -4767,7 +4798,7 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
                     IF edHovKind <> ED_FLOOR AND edHovKind <> ED_STEP THEN
                         EditNote "A liquid lies on a floor - point at one"
                     ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND edHovKind = ED_FLOOR THEN
-                        EditSelFlood ED_FLOOR, edHovX, edHovY : GOSUB EditPaintSel : edSelN = 0
+                        EditSelKeep 0 : EditSelFlood ED_FLOOR, edHovX, edHovY : GOSUB EditPaintSel : EditSelKeep -1
                     ELSE
                         GOSUB EditPushUndo : EditBrushLiquid edHovX, edHovY, edShift : GOSUB EditApply
                         IF edShift THEN EditNote "Drained" ELSE EditNote LiquidBrushName$(edBrushLiq$) + " at" + STR$(edHovX) + STR$(edHovY)
@@ -4792,7 +4823,7 @@ IF fpL AND NOT fpLWas AND NOT edLooking AND NOT EditOverUI(edCurX, edCurY) AND e
                         edBrushImg& = EditFileThumb&(edBrushTex$) : EditNote "Picked up " + pic$
                     END IF
                 ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) AND edBrushTex$ <> "" THEN
-                    EditSelFlood edHovKind, edHovX, edHovY : GOSUB EditPaintSel : edSelN = 0
+                    EditSelKeep 0 : EditSelFlood edHovKind, edHovX, edHovY : GOSUB EditPaintSel : EditSelKeep -1 ' (what you'd selected, back as it was)
                 ELSEIF edShift THEN
                     GOSUB EditPushUndo : EditPaintFace edHovX, edHovY, fc, edHovPart, "" : GOSUB EditApply : EditNote "The usual picture again"
                 ELSEIF edBrushTex$ = "" THEN
@@ -4936,7 +4967,8 @@ DO WHILE k&
         CASE 122, 90 ' Z: that cell's floor - the next of the level's four (a zone one cell big)
             IF frontX >= 0 THEN
                 n = FloorNumberAt(frontX, frontY) MOD 4 + 1
-                GOSUB EditPushUndo : EditAddZone frontX, frontY, frontX, frontY, n, 0 : GOSUB EditApply : EditNote "Floor" + STR$(n) + " here"
+                GOSUB EditPushUndo : EditAddZone frontX, frontY, frontX, frontY, n, 0 : GOSUB EditApply
+                IF lvlNumZones THEN IF lvlZone(lvlNumZones, 1) = frontX AND lvlZone(lvlNumZones, 2) = frontY AND lvlZone(lvlNumZones, 5) = n THEN EditNote "Floor" + STR$(n) + " here" ELSE EditNote "Too many floor zones (" + LTRIM$(STR$(MAX_ZONES)) + ")"
             END IF
         CASE 108, 76 ' L: a light over the cell in front; K: take away the nearest
             IF frontX >= 0 THEN GOSUB EditPushUndo : EditAddLight frontX + 0.5, frontY + 0.5 : GOSUB EditApply
@@ -5120,7 +5152,7 @@ DO
     DrawMonsterEditor meType, meField, meMsg$
     IF glReady THEN GLSL_filter_capture
     GLScreenLayer glReady
-    _DISPLAY
+    ShowFrame
 LOOP
 _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1
 RETURN
@@ -5167,7 +5199,7 @@ DO
                     IF pzShown < pzHints THEN pzShown = pzShown + 1 ELSE pzOut$ = "No more hints - read the comments ('...) in the program too."
                 CASE 16128, 114, 82 : GOSUB PuzzleRun ' F5 or R: compile and run
                 CASE 34304 ' F12 (testing, with CHEAT_KEYS): put it all right
-                    IF CHEAT_KEYS THEN FOR f = 1 TO pzN + pzBlanks : PuzzleFixOne : NEXT
+                    IF CHEAT_KEYS THEN FOR f = 1 TO pzN + pzBlanks : PuzzleFixOne : NEXT : achCheat = -1
             END SELECT
         END IF
         k& = _KEYHIT
@@ -5176,13 +5208,13 @@ DO
     DrawPuzzle pzSel, pzTyping, qb$
     IF glReady THEN GLSL_filter_capture
     GLScreenLayer glReady
-    _DISPLAY
+    ShowFrame
 LOOP
 IF pzSolved THEN ' (a moment to see it worked)
     FOR f = 1 TO 90
         _LIMIT 60 : DrawPuzzle 0, 0, qb$
         IF glReady THEN GLSL_filter_capture
-        GLScreenLayer glReady : _DISPLAY
+        GLScreenLayer glReady : ShowFrame
     NEXT
 END IF
 _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
@@ -5258,7 +5290,7 @@ ELSE
         pzOut$ = "COMPILING" + STRING$(INT(el! * 3) MOD 4, ".") + "   (" + LTRIM$(STR$(INT(el!))) + "s)   qb64pe is turning it into a program"
         DrawPuzzle pzSel, 0, qb$
         IF glReady THEN GLSL_filter_capture
-        GLScreenLayer glReady : _DISPLAY
+        GLScreenLayer glReady : ShowFrame
     LOOP
     got$ = ""
     IF _FILEEXISTS(out$) THEN
@@ -5959,7 +5991,7 @@ SELECT CASE evType(ev)
                 evCount(ev) = evCount(ev) + 1 : evNext(ev) = 50 : evMiss(ev) = 0
             ELSE ' (no room: the monster list full, or nowhere far enough from you - for long, and the ones there will do)
                 evNext(ev) = 20 : evMiss(ev) = evMiss(ev) + 1
-                IF numMonsters >= MAX_MON OR evMiss(ev) >= 30 THEN evCount(ev) = evA(ev)
+                IF numMonsters >= MAX_MON OR evMiss(ev) >= 30 THEN evCount(ev) = evA(ev) : evMiss(ev) = 30 ' (gave up: the room's won, but not the achievement)
             END IF
         END IF
         IF evCount(ev) >= evA(ev) AND alive = 0 THEN GOSUB WinEvent
@@ -6000,7 +6032,7 @@ RETURN
 WinEvent:
 evState(ev) = 2 : LockRoom ev, 0
 SELECT CASE evType(ev) ' (achievements)
-    CASE EV_AMBUSH : Achieve "NC_LOCKDOWN", 0
+    CASE EV_AMBUSH : IF evMiss(ev) < 30 THEN Achieve "NC_LOCKDOWN", 0
     CASE EV_SURVIVE : Achieve "NC_SURVIVOR", 0
     CASE EV_GALLERY : Achieve "NC_GALLERY", 0
     CASE EV_NEST : Achieve "NC_PEST", 0
@@ -6058,7 +6090,7 @@ NewGame:
 level = 1
 NewGameHere: ' (a new game in sector `level` - SELECT SECTOR, YOUR SECTORS)
 IF editMode THEN GOSUB EditLeave : editDirty = 0 ' (out of the editor first: its undo and its sector belong to the level being left)
-achCheat = 0 : achRunFrom = level ' (a fresh start: cheats forgotten; a whole set's run counts from sector 1)
+achCheat = godMode : achRunFrom = level ' (a fresh start: cheats forgotten - unless god mode's still on; a whole set's run counts from sector 1)
 totalKills = 0 : totalMonsters = 0 : totalTime! = 0
 GOSUB StartLoadout
 GOSUB EnterLevel
@@ -6233,7 +6265,7 @@ DO
     AchDrawToast ' (achievements the sector's end unlocked)
     IF glReady THEN GLSL_filter_capture ' (OpenGL draws the tally over its view: chapter 24)
     GLScreenLayer glReady
-    _DISPLAY
+    ShowFrame
 LOOP
 _FREEIMAGE screenshot&
 IF level > NUM_LEVELS THEN ' (your own sector: again, from the start)
@@ -6279,7 +6311,7 @@ RETURN
 ' then. The wheel, the arrows and PgUp/PgDn scroll; Esc, Backspace, the
 ' right button or a click on BACK go back.
 ShowAchievements:
-achT = 0 : achRow = 0 : pressWas = -1 : achTab = 0 : recSet = sectorSet : _KEYCLEAR
+achT = 0 : achRow = 0 : pressWas = -1 : achTab = 0 : recSet = sectorSet : recNmSet = -1 : _KEYCLEAR
 DO
     _LIMIT 60
     achT = achT + 1
@@ -6293,15 +6325,17 @@ DO
     rows = (achN + 1) \ 2 : maxRow = MaxOf(0, rows - 6)
     SELECT CASE kh&
         CASE 27, 8 : EXIT DO
-        CASE 9 : achTab = 1 - achTab ' (Tab: achievements | records)
+        CASE 9 : achTab = (achTab + 1) MOD 3 ' (Tab: achievements | records | stats)
         CASE 18432 : achRow = achRow - 1
         CASE 20480 : achRow = achRow + 1
         CASE 18688 : achRow = achRow - 6
         CASE 20736 : achRow = achRow + 6
-        CASE 19200 : IF achTab THEN recSet = (recSet + 3) MOD 4 ' (records: the sets, left and right)
-        CASE 19712 : IF achTab THEN recSet = (recSet + 1) MOD 4
+        CASE 19200 : IF achTab = 1 THEN recSet = (recSet + 3) MOD 4 ' (records: the sets, left and right)
+        CASE 19712 : IF achTab = 1 THEN recSet = (recSet + 1) MOD 4
     END SELECT
-    IF click AND NOT pressWas AND _MOUSEY < 60 THEN IF _MOUSEX < 400 THEN achTab = 0 ELSE achTab = 1 ' (or click a tab)
+    IF click AND NOT pressWas AND _MOUSEY < 60 THEN ' (or click a tab)
+        IF _MOUSEX < 350 THEN achTab = 0 ELSE IF _MOUSEX < 570 THEN achTab = 1 ELSE achTab = 2
+    END IF
     IF rclick THEN EXIT DO
     achRow = achRow + wheel : IF achRow < 0 THEN achRow = 0
     IF achRow > maxRow THEN achRow = maxRow
@@ -6309,11 +6343,13 @@ DO
     pressWas = click
     DrawMenuBackdrop achT
     LINE (0, 0)-(799, 599), _RGBA32(6, 0, 16, 190), BF
-    IF achTab = 0 THEN tc1~& = _RGB32(255, 90, 210) : tc2~& = _RGB32(90, 80, 130) ELSE tc1~& = _RGB32(90, 80, 130) : tc2~& = _RGB32(255, 90, 210)
-    MenuText 210, 18, "ACHIEVEMENTS", 3, tc1~&, 1
-    MenuText 600, 18, "RECORDS", 3, tc2~&, 1
-    LINE (400, 22)-(401, 58), _RGB32(90, 80, 130), BF
+    FOR k = 0 TO 2 ' (the tabs: the one you're on lit)
+        IF achTab = k THEN tc~& = _RGB32(255, 90, 210) ELSE tc~& = _RGB32(90, 80, 130)
+        MenuText VAL(MID$("190450660", k * 3 + 1, 3)), 22, RTRIM$(MID$("ACHIEVEMENTSRECORDS     STATS       ", k * 12 + 1, 12)), 2, tc~&, 1
+    NEXT
+    LINE (350, 22)-(351, 54), _RGB32(90, 80, 130), BF : LINE (570, 22)-(571, 54), _RGB32(90, 80, 130), BF
     IF achTab = 1 THEN GOSUB DrawRecords : GOTO AchShown
+    IF achTab = 2 THEN GOSUB DrawStats : GOTO AchShown
     got = 0 : FOR i = 1 TO achN : IF STEAM_is_unlocked%(achApi$(i)) THEN got = got + 1
     NEXT
     sub$ = LTRIM$(STR$(got)) + " OF" + STR$(achN) + " UNLOCKED  -  " : IF STEAM_is_steam% THEN sub$ = sub$ + "STEAM" ELSE sub$ = sub$ + "KEPT IN SAVES/ACHIEVEMENTS.TXT"
@@ -6327,26 +6363,32 @@ DO
             own = STEAM_is_unlocked%(achApi$(i))
             LINE (x0, y0)-(x0 + 368, y0 + 64), _RGBA32(14, 8, 34, 230), BF
             IF own THEN LINE (x0, y0)-(x0 + 368, y0 + 64), _RGB32(255, 70, 210), B ELSE LINE (x0, y0)-(x0 + 368, y0 + 64), _RGB32(60, 50, 100), B
-            IF own THEN tc~& = _RGB32(255, 200, 60) ELSE tc~& = _RGB32(70, 64, 100)
-            LINE (x0 + 14, y0 + 14)-(x0 + 38, y0 + 30), tc~&, BF ' (a trophy: gold, or grey)
-            CIRCLE (x0 + 26, y0 + 30), 12, tc~&, 3.1416, 0
-            CIRCLE (x0 + 12, y0 + 21), 5, tc~& : CIRCLE (x0 + 40, y0 + 21), 5, tc~&
-            LINE (x0 + 24, y0 + 40)-(x0 + 28, y0 + 45), tc~&, BF : LINE (x0 + 18, y0 + 45)-(x0 + 34, y0 + 49), tc~&, BF
+            IF own THEN ic& = achIcon&(i) ELSE ic& = achIconOff&(i)
+            IF achHidden(i) AND NOT own THEN ic& = 0 ' (a hidden one's badge stays hidden too)
+            IF ic& < -1 THEN ' (its badge - in colour once it's yours, grey till then)
+                _PUTIMAGE (x0 + 4, y0 + 6)-STEP(51, 51), ic&
+            ELSE
+                IF own THEN tc~& = _RGB32(255, 200, 60) ELSE tc~& = _RGB32(70, 64, 100)
+                LINE (x0 + 14, y0 + 14)-(x0 + 38, y0 + 30), tc~&, BF ' (no badge: a trophy, gold or grey)
+                CIRCLE (x0 + 26, y0 + 30), 12, tc~&, 3.1416, 0
+                CIRCLE (x0 + 12, y0 + 21), 5, tc~& : CIRCLE (x0 + 40, y0 + 21), 5, tc~&
+                LINE (x0 + 24, y0 + 40)-(x0 + 28, y0 + 45), tc~&, BF : LINE (x0 + 18, y0 + 45)-(x0 + 34, y0 + 49), tc~&, BF
+            END IF
             IF own OR NOT achHidden(i) THEN
                 ttl$ = achTitle$(i) : dsc$ = achDesc$(i)
             ELSE
                 ttl$ = "???" : dsc$ = "A hidden achievement - keep playing"
             END IF
             IF own THEN ttlc~& = _RGB32(255, 255, 255) ELSE ttlc~& = _RGB32(160, 150, 190)
-            MenuText x0 + 54, y0 + 8, LEFT$(ttl$, 38), 1, ttlc~&, 0
-            HudText x0 + 54, y0 + 30, LEFT$(dsc$, 39), _RGB32(190, 180, 220)
+            MenuText x0 + 62, y0 + 8, LEFT$(ttl$, 37), 1, ttlc~&, 0
+            HudText x0 + 62, y0 + 30, LEFT$(dsc$, 38), _RGB32(190, 180, 220)
             IF achGoal(i) > 1 AND NOT own THEN ' (a count: how far)
                 pr& = AchProgress&(i) : IF pr& > achGoal(i) THEN pr& = achGoal(i)
-                LINE (x0 + 54, y0 + 46)-(x0 + 300, y0 + 52), _RGB32(40, 30, 70), BF
-                LINE (x0 + 54, y0 + 46)-(x0 + 54 + 246 * pr& / achGoal(i), y0 + 52), _RGB32(90, 230, 255), BF
+                LINE (x0 + 62, y0 + 46)-(x0 + 300, y0 + 52), _RGB32(40, 30, 70), BF
+                LINE (x0 + 62, y0 + 46)-(x0 + 62 + 238 * pr& / achGoal(i), y0 + 52), _RGB32(90, 230, 255), BF
                 HudText x0 + 306, y0 + 45, LTRIM$(STR$(pr&)) + "/" + LTRIM$(STR$(achGoal(i))), _RGB32(150, 230, 255)
             ELSEIF own THEN
-                HudText x0 + 54, y0 + 46, "UNLOCKED", _RGB32(255, 200, 60)
+                HudText x0 + 62, y0 + 46, "UNLOCKED", _RGB32(255, 200, 60)
             END IF
         END IF
     NEXT : NEXT
@@ -6354,12 +6396,12 @@ DO
         LINE (788, 112)-(792, 540), _RGB32(40, 30, 70), BF
         sy = 112 + 428 * achRow / (maxRow + 6) : LINE (788, sy)-(792, sy + 428 * 6 / (maxRow + 6)), _RGB32(255, 90, 210), BF
     END IF
-    MenuText 400, 548, "WHEEL OR ARROWS TO SCROLL  -  TAB: RECORDS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
+    MenuText 400, 548, "WHEEL OR ARROWS TO SCROLL  -  TAB: RECORDS, STATS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
     AchShown:
     MenuText 400, 562, "BACK", 2, _RGB32(220, 220, 240), 1
     IF glReady THEN GLSL_filter_capture
     GLScreenLayer glReady
-    _DISPLAY
+    ShowFrame
 LOOP
 _KEYCLEAR
 WHILE _MOUSEINPUT : WEND
@@ -6375,11 +6417,19 @@ MenuText 470, 100, "BEST TIME", 1, _RGB32(160, 150, 200), 1
 MenuText 590, 100, "KILLS", 1, _RGB32(160, 150, 200), 1
 MenuText 690, 100, "ITEMS", 1, _RGB32(160, 150, 200), 1
 LINE (60, 120)-(740, 121), _RGB32(90, 80, 130), BF
+IF recNmSet <> recSet THEN ' (the set's names, read from their files once - not every frame)
+    FOR n = 1 TO NUM_LEVELS + MAX_CUSTOM
+        recNm$(n) = ""
+        IF recSet = 3 AND n > NUM_LEVELS THEN recNm$(n) = SectorNameOf$(n)
+        IF recSet < 3 AND n <= NUM_LEVELS THEN recNm$(n) = SetSectorName$(recSet, n)
+    NEXT
+    recNmSet = recSet
+END IF
 rr = 0
 FOR n = 1 TO NUM_LEVELS + MAX_CUSTOM
     IF recSet = 3 THEN IF n <= NUM_LEVELS THEN _CONTINUE
     IF recSet < 3 AND n > NUM_LEVELS THEN EXIT FOR
-    IF recSet < 3 THEN nm$ = SetSectorName$(recSet, n) : rk = recSet * 100 + n ELSE nm$ = SectorNameOf$(n) : rk = n
+    nm$ = recNm$(n) : IF recSet < 3 THEN rk = recSet * 100 + n ELSE rk = n
     IF LEN(nm$) = 0 OR rr >= 20 THEN _CONTINUE
     c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2)
     y = 128 + rr * 21 : rr = rr + 1
@@ -6399,7 +6449,63 @@ FOR n = 1 TO NUM_LEVELS + MAX_CUSTOM
     END IF
 NEXT
 IF rr = 0 THEN MenuText 400, 200, "Nothing here yet", 1, _RGB32(150, 140, 190), 1
-MenuText 400, 548, "LEFT / RIGHT: THE SETS  -  TAB: ACHIEVEMENTS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
+MenuText 400, 548, "LEFT / RIGHT: THE SETS  -  TAB: STATS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
+RETURN
+
+' The STATS page: your rank (by how many achievements you've got), what
+' you've done in all your games (the achievements' stats - Steam's, or the
+' stand-in's), and what the records add up to
+DrawStats:
+got = 0 : FOR i = 1 TO achN : IF STEAM_is_unlocked%(achApi$(i)) THEN got = got + 1
+NEXT
+rank$ = AchRank$(got)
+MenuText 400, 70, "RANK", 1, _RGB32(150, 230, 255), 1
+gl = 200 + 55 * SIN(achT / 20)
+MenuText 400, 88, rank$, 3, _RGB32(255, gl, 80), 1
+nxt$ = AchRank$(-got - 1) ' (the next rank, and how far off)
+IF LEN(nxt$) THEN MenuText 400, 140, "NEXT: " + nxt$ + " AT" + STR$(AchRankAt(got)) + " ACHIEVEMENTS", 1, _RGB32(130, 120, 170), 1
+LINE (60, 166)-(740, 167), _RGB32(90, 80, 130), BF
+MenuText 72, 176, "IN ALL YOUR GAMES", 1, _RGB32(255, 90, 210), 0
+MenuText 432, 176, "PROGRESS", 1, _RGB32(255, 90, 210), 0
+FOR k = 1 TO 10 ' (left: the counts)
+    SELECT CASE k
+        CASE 1 : st$ = "Kills" : lb$ = "Machines destroyed"
+        CASE 2 : st$ = "Headshots" : lb$ = "Headshots"
+        CASE 3 : st$ = "KillKinds" : lb$ = "Kinds of machine"
+        CASE 4 : st$ = "Deaths" : lb$ = "Deaths"
+        CASE 5 : st$ = "Puzzles" : lb$ = "Terminals solved"
+        CASE 6 : st$ = "Teleports" : lb$ = "Teleports"
+        CASE 7 : st$ = "LootDrops" : lb$ = "Loot found"
+        CASE 8 : st$ = "Smashed" : lb$ = "Things smashed"
+        CASE 9 : st$ = "Glass" : lb$ = "Glass shattered"
+        CASE 10 : st$ = "Searches" : lb$ = "Walls searched"
+    END SELECT
+    v& = 0 : IF achReady THEN v& = STEAM_stat_int&(st$)
+    IF st$ = "KillKinds" THEN vt$ = LTRIM$(STR$(BitCount(v&))) + "/9" ELSE vt$ = LTRIM$(STR$(v&))
+    y = 200 + (k - 1) * 30
+    MenuText 72, y, lb$, 1, _RGB32(200, 195, 230), 0
+    MenuText 360, y, vt$, 1, _RGB32(255, 255, 255), 2
+NEXT
+clears = 0 : bestSum! = 0 : FOR k = 1 TO recN : clears = clears + recClears(k) : bestSum! = bestSum! + recTime!(k) : NEXT
+v& = 0 : IF achReady THEN v& = STEAM_stat_int&("SetsDone")
+v2& = 0 : IF achReady THEN v2& = STEAM_stat_int&("Showcases")
+k1& = 0 : IF achReady THEN k1& = STEAM_stat_int&("Kills")
+FOR k = 1 TO 7 ' (right: how far through it all)
+    SELECT CASE k
+        CASE 1 : lb$ = "Achievements" : vt$ = LTRIM$(STR$(got)) + "/" + LTRIM$(STR$(achN))
+        CASE 2 : lb$ = "Sets finished" : vt$ = LTRIM$(STR$(BitCount(v&))) + "/3"
+        CASE 3 : lb$ = "Showcases cleared" : vt$ = LTRIM$(STR$(BitCount(v2&)))
+        CASE 4 : lb$ = "Sectors cleared" : vt$ = LTRIM$(STR$(clears))
+        CASE 5 : lb$ = "Sectors with a record" : vt$ = LTRIM$(STR$(recN))
+        CASE 6 : lb$ = "Best times, added up" : vt$ = TimeText$(INT(bestSum!))
+        CASE 7 : lb$ = "Headshot rate" : vt$ = "-" : IF k1& > 0 THEN vt$ = LTRIM$(STR$(INT(100 * STEAM_stat_int&("Headshots") / k1& + 0.5))) + "%"
+    END SELECT
+    y = 200 + (k - 1) * 30
+    MenuText 432, y, lb$, 1, _RGB32(200, 195, 230), 0
+    MenuText 728, y, vt$, 1, _RGB32(255, 255, 255), 2
+NEXT
+IF achCheat AND menuInGame THEN MenuText 400, 520, "CHEATS ARE ON IN THIS GAME: NOTHING COUNTS TILL A NEW ONE", 1, _RGB32(255, 120, 90), 1
+MenuText 400, 548, "TAB: ACHIEVEMENTS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
 RETURN
 
 ' --- THE ROUTE: between sectors, a map of all of them (like DOOM's between
@@ -6459,13 +6565,14 @@ DO
     MenuText 400, 560, "CLICK OR PRESS SPACE TO GO ON", 1, _RGB32(220, 220, 240), 1
     IF glReady THEN GLSL_filter_capture
     GLScreenLayer glReady
-    _DISPLAY
+    ShowFrame
 LOOP
 _KEYCLEAR
 RETURN
 
 ' --- Start (or restart) the level: read its map, and reset everything in it
 LoadLevel:
+editFresh = -1 ' (the level as its file has it: nothing in it to save)
 achLevelHurt = 0 : achOtherGun = 0 : achInLava = 0 ' (for the sector's end: hurt? any gun but the blaster?)
 ReadLevelFile level ' (its file: neon-caster/levels/levelN.txt - chapter 22)
 IF NOT lvlOK THEN PRINT "Can't read the level file "; LevelFile$(level) : SLEEP : SYSTEM
@@ -6819,6 +6926,7 @@ FOR gy = 0 TO MAP_SIZE - 1 STEP 3 : FOR gx = 0 TO MAP_SIZE - 1 STEP 3
         END IF
     NEXT
 NEXT : NEXT
+numLightsBase = numLights
 BuildLights ' Which cells each light reaches (now the walls are all in place)
 BuildShafts ' ...and which have a beam of light (chapter 24)
 AssignClosets ' (each secret wall: its closet, and its look)
@@ -6991,7 +7099,7 @@ DO
     _LIMIT 60
     splashTime! = TIMER - splashStart! : IF splashTime! < 0 THEN splashTime! = splashTime! + 86400
     DrawSplash splashTime!
-    _DISPLAY
+    ShowFrame
     anyInput = 0
     WHILE _MOUSEINPUT
         IF _MOUSEBUTTON(1) OR _MOUSEBUTTON(2) THEN anyInput = -1
@@ -7090,7 +7198,7 @@ DO
         IF glReady THEN GLLiveSettings ' (so OpenGL shows a change as you make it: chapter 24)
         IF glReady THEN GLSL_filter_capture ' (OpenGL draws the menu over its view: chapter 24)
         GLScreenLayer glReady
-        _DISPLAY
+        ShowFrame
     END IF
 LOOP UNTIL menuDone
 IF menuInGame THEN _FREEIMAGE menuBackdrop&
@@ -7196,7 +7304,7 @@ DO
     MenuText 400, 560, "SPACE TO SKIP", 1, _RGB32(150, 130, 160), 1
     IF glReady THEN GLSL_filter_capture
     GLScreenLayer glReady
-    _DISPLAY
+    ShowFrame
 LOOP
 IF lineSnd&(li) > 0 THEN _SNDSTOP lineSnd&(li)
 _KEYCLEAR
@@ -7256,7 +7364,7 @@ DO
     DrawConsole conLine$
     IF glReady THEN GLSL_filter_capture
     GLScreenLayer glReady
-    _DISPLAY
+    ShowFrame
 LOOP
 _FREEIMAGE conBackdrop&
 _KEYCLEAR
@@ -7274,9 +7382,15 @@ conVerb$ = ConWord$(conCmd$, 1) : conA$ = ConWord$(conCmd$, 2) : conB$ = ConWord
 sp = INSTR(conCmd$, " ") : IF sp THEN conRest$ = LTRIM$(MID$(conCmd$, sp + 1)) ELSE conRest$ = ""
 IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
     SELECT CASE conVerb$
-        CASE "god", "noclip", "iddqd", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve"
+        CASE "god", "noclip", "iddqd", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
+             "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters"
             IF NOT achCheat AND NOT achTest THEN ConPrint "(cheats on: achievements wait for a new game)"
             achCheat = -1
+        CASE "sectorset", "campaign", "set10", "loot" ' (these only look, with nothing after them)
+            IF conA$ <> "" THEN
+                IF NOT achCheat AND NOT achTest THEN ConPrint "(cheats on: achievements wait for a new game)"
+                achCheat = -1
+            END IF
     END SELECT
 END IF
 SELECT CASE conVerb$
@@ -7414,6 +7528,7 @@ SELECT CASE conVerb$
                         liqKind(x, y) = lk : liqZ(x, y) = floorH(x, y) + ld * H_STEP : liqAny = -1 : levelFlat = 0 : lqUsed(lk) = -1
                     END IF
                 NEXT : NEXT
+                LiquidGlows MinOf(lx0, lx1), MinOf(ly0, ly1), MaxOf(lx0, lx1), MaxOf(ly0, ly1) ' (lava poured in lights the room, as the level's own does)
                 ConPrint "liquid: " + conRest$
             END IF
         END IF
@@ -7423,7 +7538,7 @@ SELECT CASE conVerb$
             IF editMode THEN
                 GOSUB EditPushUndo : EditRemoveBox VAL(conA$), VAL(conB$) : GOSUB EditApply
             ELSEIF VAL(conA$) > 0 AND VAL(conB$) > 0 AND VAL(conA$) < MAP_SIZE - 1 AND VAL(conB$) < MAP_SIZE - 1 THEN ' (in play: it sinks away where it is)
-                boxOn(VAL(conA$), VAL(conB$)) = 0 : BuildLights : glMeshVersion = glMeshVersion + 1
+                boxOn(VAL(conA$), VAL(conB$)) = 0 : BuildLights : BuildThiefWay : glMeshVersion = glMeshVersion + 1
             END IF
             ConPrint "block: gone from" + STR$(VAL(conA$)) + STR$(VAL(conB$))
         ELSEIF cw$ = "" THEN
@@ -7443,7 +7558,12 @@ SELECT CASE conVerb$
             ELSE ' (in play - a trigger's: it rises where it is, the level isn't built again, so nothing comes back to life)
                 boxOn(bx, by) = VAL(MID$("134567", bw, 1)) : boxAny = -1
                 boxX0(bx, by) = b0 / 8 : boxY0(bx, by) = b1 / 8 : boxX1(bx, by) = b2 / 8 : boxY1(bx, by) = b3 / 8
-                IF InBox(playerX, playerY) OR NOT BoxFree(playerX, playerY) THEN boxOn(bx, by) = 0 : ConPrint "block: not on top of you" ELSE BuildLights : glMeshVersion = glMeshVersion + 1 : ConPrint "block:" + STR$(bx) + STR$(by)
+                IF InBox(playerX, playerY) OR NOT BoxFree(playerX, playerY) THEN
+                    boxOn(bx, by) = 0 : ConPrint "block: not on top of you"
+                ELSE
+                    BlockShoveMonsters bx, by ' (a machine standing there steps out of its way)
+                    BuildLights : BuildThiefWay : glMeshVersion = glMeshVersion + 1 : ConPrint "block:" + STR$(bx) + STR$(by)
+                END IF
             END IF
         END IF
     CASE "give"
@@ -7724,7 +7844,7 @@ SELECT CASE conVerb$
     CASE "menu"
         menuInGame = -1 : GOSUB RunMenu : conLevelChanged = -1
     CASE "quit", "exit"
-        AchStore : STEAM_shutdown : SaveSettings : SYSTEM
+        QuitGame
     CASE ELSE ' A setting's name on its own: show it, or set it (fov 90)
         found = 0
         FOR k = 1 TO NUM_SETTINGS
@@ -7895,7 +8015,7 @@ SELECT CASE miKind(menuSel)
                 saveSlot = miRef(menuSel) : GOSUB LoadGame
                 IF loadOK THEN menuDone = -1
             CASE MA_QUIT
-                AchStore : STEAM_shutdown : SaveSettings : SYSTEM
+                QuitGame
             CASE MA_KEYS_DEFAULT
                 FOR b = 1 TO NUM_BINDS : keyBind&(b) = bindDefault&(b) : NEXT
             CASE MA_QB64_TYPE ' Type qb64pe's path in (MenuTypeKey)
@@ -8022,7 +8142,7 @@ FOR i = 1 TO numEvents : PUT #fileNum, , evState(i) : PUT #fileNum, , evTimer(i)
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , doorLock(x, y) : NEXT : NEXT
 PUT #fileNum, , numDecos
 FOR i = 1 TO numDecos : PUT #fileNum, , decoOn(i) : PUT #fileNum, , decoHP(i) : PUT #fileNum, , decoTimer(i) : NEXT
-FOR l = 1 TO numLights : PUT #fileNum, , lightBroken(l) : NEXT ' (the ceiling lamps you shot out)
+FOR l = 1 TO numLightsBase : PUT #fileNum, , lightBroken(l) : NEXT ' (the ceiling lamps you shot out - the level's own: a flood's glow comes back with its pool)
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , glassHP(x, y) : NEXT : NEXT ' (and the glass)
 ' (then - each section only in saves made since it was added - which
 ' triggers have fired, the lockdowns that lifted, pools flooded in play,
@@ -8031,6 +8151,11 @@ PUT #fileNum, , numTrigs : FOR k = 1 TO numTrigs : PUT #fileNum, , trigDone(k) :
 PUT #fileNum, , numEvents : FOR k = 1 TO numEvents : PUT #fileNum, , evPaused(k) : NEXT
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , liqKind(x, y) : PUT #fileNum, , liqZ(x, y) : NEXT : NEXT
 PUT #fileNum, , achCheat : PUT #fileNum, , achRunFrom
+PUT #fileNum, , achLevelHurt : PUT #fileNum, , achOtherGun ' (this sector so far: hurt? another gun?)
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (the doors each event room sealed, and the blocks - a trigger may have raised some, or sunk them)
+    PUT #fileNum, , doorLockEv(x, y) : PUT #fileNum, , boxOn(x, y)
+    PUT #fileNum, , boxX0(x, y) : PUT #fileNum, , boxY0(x, y) : PUT #fileNum, , boxX1(x, y) : PUT #fileNum, , boxY1(x, y)
+NEXT : NEXT
 CLOSE #fileNum
 IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 RETURN
@@ -8109,10 +8234,23 @@ IF LOC(fileNum) < LOF(fileNum) THEN ' The lockdowns that lifted (they carry on w
 END IF
 IF LOC(fileNum) < LOF(fileNum) THEN ' The pools, as they were (a trigger may have flooded some)
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , liqKind(x, y) : GET #fileNum, , liqZ(x, y)
-        IF liqKind(x, y) THEN liqAny = -1 : levelFlat = 0
+        IF liqKind(x, y) THEN liqAny = -1 : levelFlat = 0 : lqUsed(liqKind(x, y)) = -1
     NEXT : NEXT
+    LiquidGlows 0, 0, MAP_SIZE - 1, MAP_SIZE - 1 ' (the flooded ones' light)
 END IF
+achCheat = 0 : achRunFrom = 0 ' (a save from before achievements: no whole run from sector 1 in it)
 IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achCheat : GET #fileNum, , achRunFrom ' (achievements: cheats stay on through a save)
+IF godMode THEN achCheat = -1
+IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achLevelHurt : GET #fileNum, , achOtherGun
+IF LOC(fileNum) < LOF(fileNum) THEN ' The doors' owners, and the blocks
+    boxAny = 0
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+        GET #fileNum, , doorLockEv(x, y) : GET #fileNum, , boxOn(x, y)
+        GET #fileNum, , boxX0(x, y) : GET #fileNum, , boxY0(x, y) : GET #fileNum, , boxX1(x, y) : GET #fileNum, , boxY1(x, y)
+        IF boxOn(x, y) THEN boxAny = -1
+    NEXT : NEXT
+    BuildLights : BuildThiefWay : glMeshVersion = glMeshVersion + 1
+END IF
 CLOSE #fileNum
 planeX = dirY * fovPlane : planeY = - dirX * fovPlane ' (your direction came from the file)
 levelStart! = TIMER - levelTime! : dead = 0 : swapTimer = 0
@@ -10105,7 +10243,7 @@ SUB WriteLevelFile(f$)
         l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlEvent(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT : o$ = o$ + l$ + nl$
     NEXT
     IF lvlNumLifts THEN
-        o$ = o$ + nl$ + "[lifts]" + nl$ + "' x0, y0, x1, y1, low, high (eighths of a wall), mode (1 up and down, 2 an elevator), speed (eighths a second)" + nl$
+        o$ = o$ + nl$ + "[lifts]" + nl$ + "' x0, y0, x1, y1, low, high (eighths of a wall), mode (1 up and down, 2 an elevator, 3 on a trigger: liftgo), speed (eighths a second)" + nl$
         FOR k = 1 TO lvlNumLifts
             l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlLift(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT : o$ = o$ + l$ + nl$
         NEXT
@@ -10528,6 +10666,17 @@ SUB EditSelToggle(kind, x, y, side, part)
     ELSEIF edSelN < ED_MAXSEL THEN
         edSelN = edSelN + 1 : edSelKind(edSelN) = kind : edSelX(edSelN) = x : edSelY(edSelN) = y
         edSelSide(edSelN) = side : edSelPart(edSelN) = part
+    END IF
+END SUB
+
+' The selection put by (back 0), and back again (back -1)
+SUB EditSelKeep(back)
+    IF back THEN
+        edSelN = edKeepN
+        FOR k = 1 TO edKeepN : edSelKind(k) = edKeepKind(k) : edSelX(k) = edKeepX(k) : edSelY(k) = edKeepY(k) : edSelSide(k) = edKeepSide(k) : edSelPart(k) = edKeepPart(k) : NEXT
+    ELSE
+        edKeepN = edSelN
+        FOR k = 1 TO edSelN : edKeepKind(k) = edSelKind(k) : edKeepX(k) = edSelX(k) : edKeepY(k) = edSelY(k) : edKeepSide(k) = edSelSide(k) : edKeepPart(k) = edSelPart(k) : NEXT
     END IF
 END SUB
 
@@ -11149,7 +11298,10 @@ SUB EditPaneBuild
         NEXT
         EXIT SUB
     END IF
-    IF edSelN = 0 THEN edTrigPane = 0 : EXIT SUB
+    IF edSelN = 0 THEN ' (nothing selected: no pane - nor typing into one that's gone)
+        edTrigPane = 0 : edEvPane = 0 : IF edTypeFor = 2 THEN edTyping = 0
+        EXIT SUB
+    END IF
     IF edTrigPane THEN ' The selection's triggers - and a new one
         EditTrigPlace tx0, ty0, tx1, ty1, ux, uy
         edPnTitle$ = "TRIGGERS" + STR$(tx0) + "," + LTRIM$(STR$(ty0)) + MID$(" +", 1, -2 * (tx1 > tx0 OR ty1 > ty0))
@@ -11295,7 +11447,7 @@ SUB EditPaneBuild
     ' numbers (as that kind means them), its reward
     FOR k = 1 TO edSelN
         ev = EditEventAt(edSelX(k), edSelY(k))
-        IF ev THEN
+        IF ev AND edEvPane THEN
             edPnEvent = ev : kd = lvlEvent(ev, 1)
             edPnTitle$ = "EVENT: " + EvKindName$(kd)
             EditPaneAdd -1, x0, y, PN_W, "room" + STR$(lvlEvent(ev, 2)) + "," + LTRIM$(STR$(lvlEvent(ev, 3))) + " to" + STR$(lvlEvent(ev, 4)) + "," + LTRIM$(STR$(lvlEvent(ev, 5))), 0 : y = y + 22
@@ -11316,7 +11468,8 @@ SUB EditPaneBuild
                 EditPaneAdd 166, x0 + 146, y, 24, "-", 0 : EditPaneAdd 167, x0 + 174, y, 24, "+", 0
                 y = y + 23
             END IF
-            EditPaneAdd 168, x0, y, PN_W, "REMOVE THE EVENT", 0
+            EditPaneAdd 168, x0, y, PN_W, "REMOVE THE EVENT", 0 : y = y + 23
+            EditPaneAdd 189, x0, y, PN_W, "BACK", 0
             EXIT SUB
         END IF
     NEXT
@@ -11336,7 +11489,11 @@ SUB EditPaneBuild
                 EditPaneAdd 21 + r * 2, x0 + 146, y, 24, "-", 0 : EditPaneAdd 22 + r * 2, x0 + 174, y, 24, "+", 0
                 y = y + 23
             NEXT
-            IF lvlLift(lf, 7) = 2 THEN t$ = "ELEVATOR" ELSE t$ = "UP AND DOWN"
+            SELECT CASE lvlLift(lf, 7)
+                CASE 2 : t$ = "ELEVATOR"
+                CASE 3 : t$ = "ON A TRIGGER"
+                CASE ELSE : t$ = "UP AND DOWN"
+            END SELECT
             EditPaneAdd 27, x0, y, 130, t$, 0 : EditPaneAdd 28, x0 + 134, y, 66, "REMOVE", 0
             EXIT SUB
         END IF
@@ -11347,7 +11504,13 @@ SUB EditPaneBuild
     IF n THEN
         edPnTitle$ = "FLOOR (" + LTRIM$(STR$(n)) + " cell" + MID$("s", 1, -(n > 1)) + ")"
         EditPaneAdd 20, x0, y, PN_W, "MAKE A LIFT OF IT", 0 : y = y + 23
-        IF lvlNumEvents < MAX_EVENTS THEN EditPaneAdd 169, x0, y, PN_W, "MAKE AN EVENT ROOM", 0 : y = y + 23
+        inEv = 0 : FOR k = 1 TO edSelN : IF inEv = 0 THEN inEv = EditEventAt(edSelX(k), edSelY(k))
+        NEXT
+        IF inEv THEN
+            EditPaneAdd 169, x0, y, PN_W, LEFT$("EVENT ROOM: " + EvKindName$(lvlEvent(inEv, 1)) + "...", 25), 0 : y = y + 23
+        ELSEIF lvlNumEvents < MAX_EVENTS THEN
+            EditPaneAdd 169, x0, y, PN_W, "MAKE AN EVENT ROOM", 0 : y = y + 23
+        END IF
         EditPaneAdd 204, x0, y, PN_W, "ADD A PILLAR", 0 : y = y + 23
         EditPaneNudge x0, y
     ELSE
@@ -11739,7 +11902,7 @@ SUB EditDeleteSel
                         EditPut x, y, "." : n = n + 1
                         MID$(lvlFloorRow$(y), x + 1, 1) = MID$(lvlFloorRow$(fy), fx + 1, 1) : MID$(lvlCeilRow$(y), x + 1, 1) = MID$(lvlCeilRow$(fy), fx + 1, 1)
                     END IF
-                CASE ED_FLOOR, ED_CEIL
+                CASE ED_FLOOR ' (a thing on it - not for a ceiling selected: the floor's thing isn't what you picked)
                     IF c$ <> "." AND INSTR("<>^v", c$) = 0 THEN EditPut x, y, "." : n = n + 1
                 CASE ED_STEP
                     MID$(lvlFloorRow$(y), x + 1, 1) = MID$(lvlFloorRow$(fy), fx + 1, 1) : n = n + 1
@@ -11780,8 +11943,8 @@ END SUB
 ' slides along, leaving floor like the floor round it). Not into the
 ' border. The selection moves with it.
 SUB EditNudge(dx, dy)
-    DIM r$(MAP_SIZE - 1), f$(MAP_SIZE - 1), c$(MAP_SIZE - 1), mv(MAP_SIZE, MAP_SIZE) AS INTEGER, dest(MAP_SIZE, MAP_SIZE) AS INTEGER
-    FOR y = 0 TO MAP_SIZE - 1 : r$(y) = lvlRow$(y) : f$(y) = lvlFloorRow$(y) : c$(y) = lvlCeilRow$(y) : NEXT
+    DIM r$(MAP_SIZE - 1), f$(MAP_SIZE - 1), c$(MAP_SIZE - 1), l$(MAP_SIZE - 1), ld$(MAP_SIZE - 1), mv(MAP_SIZE, MAP_SIZE) AS INTEGER, dest(MAP_SIZE, MAP_SIZE) AS INTEGER
+    FOR y = 0 TO MAP_SIZE - 1 : r$(y) = lvlRow$(y) : f$(y) = lvlFloorRow$(y) : c$(y) = lvlCeilRow$(y) : l$(y) = lvlLiqRow$(y) : ld$(y) = lvlLiqDRow$(y) : NEXT
     FOR k = 1 TO edSelN
         x = edSelX(k) : y = edSelY(k)
         IF x + dx < 1 OR y + dy < 1 OR x + dx > MAP_SIZE - 2 OR y + dy > MAP_SIZE - 2 THEN EditNote "Can't move into the border" : EXIT SUB
@@ -11795,12 +11958,14 @@ SUB EditNudge(dx, dy)
             bx = x - dx : by = y - dy
             DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < MAP_SIZE - 1 AND by < MAP_SIZE - 1 : bx = bx - dx : by = by - dy : LOOP
             MID$(lvlRow$(y), x + 1, 1) = MID$(r$(by), bx + 1, 1) : MID$(lvlFloorRow$(y), x + 1, 1) = MID$(f$(by), bx + 1, 1) : MID$(lvlCeilRow$(y), x + 1, 1) = MID$(c$(by), bx + 1, 1)
+            MID$(lvlLiqRow$(y), x + 1, 1) = MID$(l$(by), bx + 1, 1) : MID$(lvlLiqDRow$(y), x + 1, 1) = MID$(ld$(by), bx + 1, 1)
             IF INSTR("<>^v", MID$(lvlRow$(y), x + 1, 1)) THEN MID$(lvlRow$(y), x + 1, 1) = "." ' (never a second start)
         END IF
     NEXT : NEXT
     FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
         IF mv(x, y) THEN
             MID$(lvlRow$(y + dy), x + dx + 1, 1) = MID$(r$(y), x + 1, 1) : MID$(lvlFloorRow$(y + dy), x + dx + 1, 1) = MID$(f$(y), x + 1, 1) : MID$(lvlCeilRow$(y + dy), x + dx + 1, 1) = MID$(c$(y), x + 1, 1)
+            MID$(lvlLiqRow$(y + dy), x + dx + 1, 1) = MID$(l$(y), x + 1, 1) : MID$(lvlLiqDRow$(y + dy), x + dx + 1, 1) = MID$(ld$(y), x + 1, 1) ' (its pool too)
         END IF
     NEXT : NEXT
     FOR k = 1 TO edSelN : edSelX(k) = edSelX(k) + dx : edSelY(k) = edSelY(k) + dy : NEXT
@@ -11816,6 +11981,10 @@ SUB EditNudge(dx, dy)
                 lvlMonN = lvlMonN - 1
             END IF
         END IF
+    NEXT
+    FOR k = 1 TO lvlNumLights ' (a light on a moved cell goes with it)
+        x = INT(lvlLight(k, 1)) : y = INT(lvlLight(k, 2))
+        IF x >= 0 AND y >= 0 AND x <= MAP_SIZE AND y <= MAP_SIZE THEN IF mv(x, y) THEN lvlLight(k, 1) = lvlLight(k, 1) + dx : lvlLight(k, 2) = lvlLight(k, 2) + dy
     NEXT
     FOR k = lvlNumBoxes TO 1 STEP -1 ' (a block, and a decoration's nudge, the same)
         x = lvlBox(k, 1) : y = lvlBox(k, 2)
@@ -12247,8 +12416,16 @@ SUB EditRaise(x, y, d, ceil)
     END IF
 END SUB
 
-' A floor/ceiling zone (chapter 22) on the end of the list
+' A floor/ceiling zone (chapter 22) on the end of the list (the last one
+' wins) - one just as big in just that place before it goes: Z again and
+' again on a cell is one zone, not a new one each time
 SUB EditAddZone(x0, y0, x1, y1, fl, ce)
+    FOR k = lvlNumZones TO 1 STEP -1
+        IF lvlZone(k, 1) = x0 AND lvlZone(k, 2) = y0 AND lvlZone(k, 3) = x1 AND lvlZone(k, 4) = y1 AND lvlZone(k, 7) = 0 THEN
+            FOR j = k TO lvlNumZones - 1 : FOR c = 1 TO 7 : lvlZone(j, c) = lvlZone(j + 1, c) : NEXT : NEXT
+            lvlNumZones = lvlNumZones - 1
+        END IF
+    NEXT
     IF lvlNumZones >= MAX_ZONES THEN EXIT SUB
     lvlNumZones = lvlNumZones + 1
     lvlZone(lvlNumZones, 1) = x0 : lvlZone(lvlNumZones, 2) = y0 : lvlZone(lvlNumZones, 3) = x1 : lvlZone(lvlNumZones, 4) = y1
@@ -14911,6 +15088,28 @@ END SUB
 ' One more light for this level: where, how far it reaches, its light for
 ' red, green and blue (brightness times colour), its effect (FX_), and the
 ' decoration it belongs to (0 for none)
+' A pool poured in during play (a trigger's flood, or a save that kept
+' one): a light for each 3 x 3 patch of it that glows - lava, slime, acid -
+' as BuildLevel gives the level's own. Cells the level had that kind in
+' already have theirs, so they're skipped.
+SUB LiquidGlows(x0, y0, x1, y1)
+    added = 0
+    FOR gy = MaxOf(0, y0) TO MinOf(y1, MAP_SIZE - 1) STEP 3 : FOR gx = MaxOf(0, x0) TO MinOf(x1, MAP_SIZE - 1) STEP 3
+        FOR k = LQ_SLIME TO LQ_ACID
+            n = 0 : sx = 0 : sy = 0
+            FOR y = gy TO MinOf(gy + 2, MinOf(y1, MAP_SIZE - 1)) : FOR x = gx TO MinOf(gx + 2, MinOf(x1, MAP_SIZE - 1))
+                IF liqKind(x, y) = k AND INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1)) <> k THEN n = n + 1 : sx = sx + x + 0.5 : sy = sy + y + 0.5
+            NEXT : NEXT
+            IF n THEN
+                n0 = numLights
+                IF k = LQ_LAVA THEN AddLight sx / n, sy / n, 3.5, 150, 70, 20, FX_FIRE, 0 ELSE AddLight sx / n, sy / n, 2.5, lqR(k) \ 5, lqG(k) \ 5, lqB(k) \ 5, FX_PULSE, 0
+                IF numLights > n0 THEN lightLow(numLights) = -1 : added = -1
+            END IF
+        NEXT
+    NEXT : NEXT
+    IF added THEN BuildLights : glMeshVersion = glMeshVersion + 1
+END SUB
+
 SUB AddLight(x, y, radius, r, g, b, effect, deco)
     IF numLights >= MAX_LIGHTS THEN EXIT SUB
     numLights = numLights + 1
@@ -17219,6 +17418,38 @@ END SUB
 ' === THE GAME'S SIDE OF THE OPENGL EXTRAS ======================================
 ' (These run in the game, between frames - not in SUB _GL.)
 
+' Show the frame drawn (every loop's _DISPLAY) - and if the window's close
+' button was pressed, leave as QUIT does: the stats and achievements kept,
+' the settings saved. (Once _EXIT has been asked, closing the window just
+' tells it so, instead of ending the program on the spot.)
+SUB ShowFrame
+    _DISPLAY
+    IF _EXIT THEN QuitGame
+END SUB
+
+' Leave the game: the achievements' stats stored, Steam let go of, the
+' settings saved
+SUB QuitGame
+    AchStore : STEAM_shutdown : SaveSettings : SYSTEM
+END SUB
+
+' A block raised in play in cell (bx, by): any machine it would stand in,
+' or brush, steps out to the nearest cell round it that's clear
+SUB BlockShoveMonsters(bx, by)
+    FOR i = 1 TO numMonsters
+        IF monsterState(i) < 2 AND ABS(monsterX(i) - bx - 0.5) < 1.5 AND ABS(monsterY(i) - by - 0.5) < 1.5 THEN
+            IF InBox(monsterX(i), monsterY(i)) OR NOT BoxFree(monsterX(i), monsterY(i)) THEN
+                FOR d = 0 TO 8
+                    nx = bx + (d MOD 3) - 1 : ny = by + (d \ 3) - 1
+                    IF worldMap(nx, ny) <= 0 AND NOT (nx = bx AND ny = by) THEN
+                        IF BoxFree(nx + 0.5, ny + 0.5) THEN monsterX(i) = nx + 0.5 : monsterY(i) = ny + 0.5 : EXIT FOR
+                    END IF
+                NEXT
+            END IF
+        END IF
+    NEXT
+END SUB
+
 ' Our screen on the window, or not: with OpenGL, SUB _GL draws it itself
 ' (over the 3D view), so QB64PE's own layer for it is switched off. Only
 ' changed when it needs to be.
@@ -17758,7 +17989,11 @@ SUB AchSetup
     AchDef "NC_HMPH", "Hmph", "Search 25 walls for secrets.", -1, "Searches", 25
     AchDef "NC_DEATHS", "Respawn Enthusiast", "Die ten times.", -1, "Deaths", 10
     AchDef "NC_GLASS", "Bull in a China Shop", "Shatter ten panes of glass.", -1, "Glass", 10
-    FOR i = 1 TO achN : STEAM_mock_achievement achApi$(i), achTitle$(i), achDesc$(i), achHidden(i) : NEXT
+    FOR i = 1 TO achN
+        STEAM_mock_achievement achApi$(i), achTitle$(i), achDesc$(i), achHidden(i)
+        f$ = AssetPath$("achievements/" + achApi$(i) + ".png") : IF _FILEEXISTS(f$) THEN achIcon&(i) = _LOADIMAGE(f$, 32)
+        f$ = AssetPath$("achievements/" + achApi$(i) + "_locked.png") : IF _FILEEXISTS(f$) THEN achIconOff&(i) = _LOADIMAGE(f$, 32)
+    NEXT
     FOR i = 1 TO achStatN : STEAM_mock_stat achStatName$(i) : NEXT
     MakeSaveDir : STEAM_mock_file SaveDir$ + "achievements.txt"
     IF NEON_APP_ID = 0 THEN STEAM_use_mock ' (no App ID yet: the stand-in, straight away)
@@ -17787,7 +18022,7 @@ SUB Achieve(api$, always)
     FOR i = 1 TO achN
         IF achApi$(i) = api$ THEN
             ConPrint "ACHIEVEMENT: " + achTitle$(i) + " - " + achDesc$(i)
-            IF NOT STEAM_is_steam% AND achToastN < 16 THEN achToastN = achToastN + 1 : achToast$(achToastN) = achTitle$(i) + CHR$(1) + achDesc$(i) ' (Steam shows its own)
+            IF NOT STEAM_is_steam% AND achToastN < 16 THEN achToastN = achToastN + 1 : achToast$(achToastN) = achTitle$(i) + CHR$(1) + achDesc$(i) : achToastI(achToastN) = i ' (Steam shows its own)
         END IF
     NEXT
 END SUB
@@ -17819,6 +18054,25 @@ END FUNCTION
 
 ' How far achievement i's stat has got (for the screen): a count, or how
 ' many of a set
+' A rank for n achievements got (n < 0: the rank after -n - 1 got - "" at
+' the top), and how many the rank after n's needs (AchRankAt)
+FUNCTION AchRank$(n)
+    nn = n : nxt = 0 : IF n < 0 THEN nn = -n - 1 : nxt = -1
+    r = 0 : FOR k = 1 TO 7 : IF nn >= AchRankNeeds(k) THEN r = k
+    NEXT
+    IF nxt THEN r = r + 1 : IF r > 7 THEN EXIT FUNCTION
+    AchRank$ = RTRIM$(MID$("BOOT SEQUENCE  SCRAPPER       CIRCUIT BREAKEROVERCLOCKER    CHROME HUNTER  NEON GHOST     THE CASTER     ", (r - 1) * 15 + 1, 15))
+END FUNCTION
+
+FUNCTION AchRankNeeds(k) ' (achievements each rank needs)
+    AchRankNeeds = VAL(MID$(" 0 51219263645", (k - 1) * 2 + 1, 2))
+END FUNCTION
+
+FUNCTION AchRankAt(n)
+    FOR k = 1 TO 7 : IF AchRankNeeds(k) > n THEN AchRankAt = AchRankNeeds(k) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
 FUNCTION AchProgress&(i)
     IF achStat$(i) = "" OR NOT achReady THEN EXIT FUNCTION
     v& = STEAM_stat_int&(achStat$(i))
@@ -17895,19 +18149,24 @@ SUB AchDrawToast
     LINE (x0, y)-(x0 + w, y + 58), _RGBA32(10, 4, 26, 225), BF
     LINE (x0, y)-(x0 + w, y + 58), _RGB32(255, 70, 210), B
     LINE (x0 + 1, y + 1)-(x0 + w - 1, y + 57), _RGBA32(255, 70, 210, 90), B
-    gl = 120 + 100 * ABS(SIN(t / 9)) ' (the trophy: a gold cup, glinting)
-    LINE (x0 + 16, y + 12)-(x0 + 44, y + 30), _RGB32(255, 200, 60), BF
-    CIRCLE (x0 + 30, y + 30), 14, _RGB32(255, 200, 60), 3.1416, 0
-    PAINT (x0 + 30, y + 36), _RGB32(255, 200, 60), _RGB32(255, 200, 60)
-    CIRCLE (x0 + 14, y + 20), 6, _RGB32(255, 200, 60) : CIRCLE (x0 + 46, y + 20), 6, _RGB32(255, 200, 60)
-    LINE (x0 + 27, y + 42)-(x0 + 33, y + 47), _RGB32(255, 200, 60), BF
-    LINE (x0 + 20, y + 47)-(x0 + 40, y + 51), _RGB32(255, 200, 60), BF
-    LINE (x0 + 21, y + 14)-(x0 + 24, y + 26), _RGBA32(255, 255, 255, gl), BF
+    ic& = 0 : IF achToastI(1) >= 1 AND achToastI(1) <= NUM_ACH THEN ic& = achIcon&(achToastI(1))
+    IF ic& < -1 THEN ' (its badge)
+        _PUTIMAGE (x0 + 6, y + 5)-STEP(47, 47), ic&
+    ELSE
+        gl = 120 + 100 * ABS(SIN(t / 9)) ' (no badge: a trophy - a gold cup, glinting)
+        LINE (x0 + 16, y + 12)-(x0 + 44, y + 30), _RGB32(255, 200, 60), BF
+        CIRCLE (x0 + 30, y + 30), 14, _RGB32(255, 200, 60), 3.1416, 0
+        PAINT (x0 + 30, y + 36), _RGB32(255, 200, 60), _RGB32(255, 200, 60)
+        CIRCLE (x0 + 14, y + 20), 6, _RGB32(255, 200, 60) : CIRCLE (x0 + 46, y + 20), 6, _RGB32(255, 200, 60)
+        LINE (x0 + 27, y + 42)-(x0 + 33, y + 47), _RGB32(255, 200, 60), BF
+        LINE (x0 + 20, y + 47)-(x0 + 40, y + 51), _RGB32(255, 200, 60), BF
+        LINE (x0 + 21, y + 14)-(x0 + 24, y + 26), _RGBA32(255, 255, 255, gl), BF
+    END IF
     HudText x0 + 62, y + 8, "ACHIEVEMENT UNLOCKED", _RGB32(90, 240, 255)
     MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
     HudText x0 + 62, y + 42, dsc$, _RGB32(200, 190, 230)
     IF t >= 236 THEN ' Gone: the next, if there is one
-        FOR k = 1 TO achToastN - 1 : achToast$(k) = achToast$(k + 1) : NEXT
+        FOR k = 1 TO achToastN - 1 : achToast$(k) = achToast$(k + 1) : achToastI(k) = achToastI(k + 1) : NEXT
         achToastN = achToastN - 1 : achToastT = 0
     END IF
 END SUB
