@@ -8224,6 +8224,7 @@ FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (the doors each event ro
 NEXT : NEXT
 PUT #fileNum, , numTerms : FOR k = 1 TO numTerms : PUT #fileNum, , termDone(k) : NEXT
 PUT #fileNum, , numStations : FOR k = 1 TO numStations : PUT #fileNum, , stationDone(k) : NEXT
+PUT #fileNum, , numLifts : FOR k = 1 TO numLifts : PUT #fileNum, , liftZ(k) : PUT #fileNum, , liftDir(k) : PUT #fileNum, , liftArm(k) : NEXT ' (where each lift is, and going)
 CLOSE #fileNum
 IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 RETURN
@@ -8325,6 +8326,19 @@ IF LOC(fileNum) < LOF(fileNum) THEN ' The code terminals solved, the data statio
     NEXT
     GET #fileNum, , savedCount : FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numStations AND savedCount = numStations THEN stationDone(k) = tdone%
     NEXT
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The lifts where they were (you saved riding one up: you load up there with it)
+    GET #fileNum, , savedCount
+    FOR k = 1 TO savedCount
+        GET #fileNum, , lz! : GET #fileNum, , ld% : GET #fileNum, , la%
+        IF savedCount = numLifts THEN
+            liftZ(k) = MaxOf(liftLow(k), MinOf(liftHigh(k), lz!)) : liftDir(k) = ld% : liftArm(k) = la%
+            FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
+                IF liftCell(x, y) = k THEN floorH(x, y) = liftZ(k)
+            NEXT : NEXT
+        END IF
+    NEXT
+    IF NOT levelFlat THEN playerZ = MaxOf(playerZ, floorH(INT(playerX), INT(playerY))) : eyeZ = playerZ + EYE_H
 END IF
 CLOSE #fileNum
 planeX = dirY * fovPlane : planeY = - dirX * fovPlane ' (your direction came from the file)
