@@ -5602,6 +5602,11 @@ DO
         boxDist = BoxRay(hcX, hcY, playerX, playerY, rayDirX, rayDirY, hDIn, hDOut, bSide)
         IF boxDist >= 0 THEN hBoxed = -1 : hDOut = MaxOf(boxDist, 0.001) : hSide = bSide
     END IF
+    hDiag = 0 ' (a diagonal wall's cell, gone into by its open half: its floor and ceiling up to the diagonal, then that - DiagonalHit)
+    IF diagCorner(hcX, hcY) THEN
+        dgh = DiagonalHit(diagCorner(hcX, hcY), hcX, hcY, playerX, playerY, rayDirX, rayDirY, hDIn, hDOut)
+        IF dgh >= 0 THEN hDiag = -1 : hDOut = MaxOf(dgh, 0.001) : hSide = 0
+    END IF
     hDoored = 0 ' (a door's slab across this cell, in the ray's way - as a box: the cell's floor and ceiling up to it, then its face - DoorRay, as the flat pass)
     IF worldMap(hcX, hcY) = 2 THEN
         IF doorType(hcX, hcY) <> DOOR_EXIT THEN
@@ -5671,7 +5676,9 @@ DO
     ' The next cell: a wall (or a shut door, or a diagonal - drawn whole),
     ' or open, with a step up or a lintel down to it - or, before it, this
     ' cell's box
-    IF hDoored THEN
+    IF hDiag THEN
+        hnX = hcX : hnY = hcY : v = 0 : hSolid = -1 : hSlot = wallTexSlot(worldMap(hcX, hcY))
+    ELSEIF hDoored THEN
         hnX = hcX : hnY = hcY : v = 0 : hSolid = -1
         SELECT CASE doorType(hcX, hcY)
             CASE DOOR_SLIDE : IF doorKey(hcX, hcY) THEN hSlot = T_DOORK + doorKey(hcX, hcY) ELSE hSlot = T_DOOR
@@ -5684,7 +5691,11 @@ DO
         IF hnX < 0 OR hnY < 0 OR hnX >= MAP_SIZE OR hnY >= MAP_SIZE THEN EXIT DO
         v = worldMap(hnX, hnY) : hSolid = 0
         IF v > 0 AND v <> 2 THEN hSolid = -1 : hSlot = wallTexSlot(v)
-        IF diagCorner(hnX, hnY) THEN hSolid = -1 : hSlot = wallTexSlot(worldMap(hnX, hnY))
+        IF diagCorner(hnX, hnY) THEN ' A diagonal's cell: a wall if the ray meets its solid half at the edge - else into it, to the diagonal
+            hSolid = -1 : hSlot = wallTexSlot(worldMap(hnX, hnY))
+            eu = playerX + (hDOut + 0.001) * rayDirX - hnX : ev = playerY + (hDOut + 0.001) * rayDirY - hnY
+            IF NOT InDiagonalWall(diagCorner(hnX, hnY), eu, ev) THEN hSolid = 0 : v = 0
+        END IF
     END IF
     IF v = 2 THEN ' (the exit: a wall on its cell's face; any other door, a cell to go into - its slab is found there, above)
         IF doorType(hnX, hnY) = DOOR_EXIT THEN hSolid = -1 : hSlot = T_EXIT
@@ -5694,6 +5705,10 @@ DO
     IF hSide = 0 AND rayDirX > 0 THEN hTexX = texSize - 1 - hTexX
     IF hSide = 1 AND rayDirY < 0 THEN hTexX = texSize - 1 - hTexX
     hTexX = hTexX AND (texSize - 1)
+    IF hDiag THEN ' (along the diagonal, left to right as you see it - as the flat pass)
+        dgx = playerX + hDOut * rayDirX - hcX : IF diagCorner(hcX, hcY) <= 2 THEN dgx = 1 - dgx
+        hTexX = INT(dgx * texSize) AND (texSize - 1) : hSlot2 = 0
+    END IF
     IF hDoored THEN ' (where on the door: its picture slides with it, as the flat pass's)
         dShown = DoorShown(hcX, hcY)
         IF hDoored = 2 THEN
