@@ -1048,6 +1048,92 @@ def skyway():
     finish(m, 8, dict(props=2, propchars="xo"))
     return m
 
+
+# ---------------------------------------------------------------- 9
+@sector("SECTOR 9: THE ARCHIVE",
+        ["wall-servers.png", "wall-datastream.png", "wall-vault.png", "wall-terminals.png", "wall-control.png", "wall-stripes.png"],
+        ["floor-circuit.png", "floor-glow.png", "floor-plates.png", "floor-lab.png"],
+        ["ceiling-cables.png", "ceiling-vents.png"])
+def archive():
+    """NEW 9: THE ARCHIVE. Everything NEXUS knows is stored here. Reception
+    (south) opens on the data hall: rows of server racks between thin
+    partitions, more racks glowing in alcoves. The sorter beyond is swept
+    by a laser cutter - time your run. North, the stacks: shelving walls,
+    stalkers in the closets. Laser grids guard the ducts to the index
+    (west: the red card) and the records (east, red door: the blue). The
+    archive's core (north, blue door) has the exit."""
+    m = Sector("#")
+    m.ambient = (150, 180, 220, 255)
+    m.puzzles = "reverse"
+    # Reception: you, facing north
+    m.room(19, 40, 28, 44, ceil=10, zone=(4, 1))
+    m.put(23, 43, "^")
+    m.rect(23, 38, 24, 39)
+    for (x, y, c) in ((19, 41, "d"), (28, 41, "d"), (20, 41, "Z"), (27, 41, "Z"), (21, 44, "M"), (26, 44, "a"), (19, 44, "p"), (28, 44, "p")):
+        m.put(x, y, c)
+    # The data hall: rack rows between partitions, racks in alcoves
+    m.room(10, 28, 37, 37, ceil=12, zone=(1, 1))
+    for y in (30, 33, 36):
+        for (x0, x1) in ((12, 20), (27, 35)):
+            m.thin_wall(x0, y, x1, y, "N", t=1, wall=5)
+            for x in range(x0 + 1, x1, 2):
+                m.put(x, y, "l")
+    for x in (13, 17, 30, 34):
+        m.alcove(x, 27, "S", depth=3, floor=0, ceil=8, deco="l", glow=CYAN, fx=0)
+    for y in (30, 34):
+        m.alcove(9, y, "E", depth=3, floor=0, ceil=8, deco="l", glow=CYAN, fx=0)
+        m.alcove(38, y, "W", depth=3, floor=0, ceil=8, deco="l", glow=CYAN, fx=0)
+    for (x, y) in ((16, 32), (31, 32), (23, 30), (23, 35)):
+        m.light(x + 0.5, y + 0.5, 6, 130, 100, 200, 255, 0)
+    for (x, y, c) in ((14, 35, "g"), (33, 29, "g"), (22, 32, "m"), (25, 36, "c"), (11, 29, "e"), (36, 37, "+")):
+        m.put(x, y, c)
+    # The sorter: a cutter sweeps it
+    m.room(18, 20, 29, 26, ceil=12, zone=(2, 2))
+    m.rect(23, 27, 24, 27)
+    m.event(10, 18, 20, 29, 26, 140, 0)
+    for (x, y, a) in ((18, 20, "N"), (29, 20, "N"), (18, 26, "S"), (29, 26, "S")):
+        m.post(x, y, a, at=4, w=2, d=2, wall=6, glow=RED, fx=3)
+    m.put(19, 23, "Q"); m.put(28, 23, "Q")
+    # The stacks: shelving walls
+    m.room(10, 5, 37, 18, ceil=16, zone=(1, 1))
+    m.rect(23, 19, 24, 19)
+    for y in (8, 11, 14):
+        for (x0, x1) in ((12, 18), (20, 22), (25, 27), (29, 35)):
+            m.thin_wall(x0, y, x1, y, "S", t=2, wall=1, pic="wall-datastream.png" if y == 11 else None)
+    for (x, y) in ((15, 6), (32, 6), (15, 16), (32, 16), (23, 10)):
+        m.light(x + 0.5, y + 0.5, 6, 130, 120, 255, 200, 1)
+    for (x, y, c) in ((12, 6, "k"), (35, 13, "k"), (24, 16, "w"), (30, 9, "m"), (17, 13, "g"), (11, 17, "a"), (36, 6, "u"), (23, 7, "e")):
+        m.put(x, y, c)
+    # The index (west, laser duct): the red card
+    m.room(2, 8, 7, 34, ceil=10, zone=(3, 1))
+    m.put(9, 32, "X"); m.rect(8, 32, 8, 32)
+    for y in (10, 14, 18, 24, 28, 32):
+        m.put(2, y, "l"); m.nudge(2, y, -2, 0)
+    for (x, y, c) in ((5, 9, "r"), (6, 33, "*"), (4, 26, "k"), (7, 15, "e")):
+        m.put(x, y, c)
+    m.put(1, 21, "$")   # (the index's west wall)
+    m.light(4.5, 21.5, 7, 140, 120, 255, 160, 0)
+    # The records (east, red door): the blue card
+    m.room(40, 8, 45, 34, ceil=10, zone=(3, 1))
+    m.put(38, 32, "R"); m.rect(39, 32, 39, 32)
+    for y in (11, 15, 19, 23, 27, 31):
+        m.thin_wall(42, y, 45, y, "S", t=2, wall=1)
+    for (x, y, c) in ((45, 33, "b"), (41, 9, "w"), (44, 25, "g"), (41, 33, "e"), (45, 9, "U")):
+        m.put(x, y, c)
+    m.light(42.5, 21.5, 7, 140, 255, 120, 220, 1)
+    # The core (north, blue door): the exit
+    m.room(16, 1, 31, 3, ceil=12, zone=(2, 2))
+    m.put(23, 4, "B"); m.put(23, 0, "#")
+    m.put(32, 2, "E")
+    m.post(31, 1, "E", at=7, w=2, d=2, wall=5, glow=GREEN); m.post(31, 3, "E", at=1, w=2, d=2, wall=5, glow=GREEN)
+    for (x, y, c) in ((17, 1, "F"), (17, 3, "F"), (20, 2, "h"), (27, 2, "j")):
+        m.put(x, y, c)
+    m.light(24.5, 2.5, 6, 150, 120, 255, 200, 0)
+    m.loot_line("rack     = ammo:30, overcharge:10, -, -")
+    m.loot_line("desk     = ammo:15, shells:15, medkit:15, -")
+    finish(m, 9, dict(closets=2, cmons="kk", lasers=3, station=1))
+    return m
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
