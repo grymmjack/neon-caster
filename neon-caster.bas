@@ -868,8 +868,8 @@ DIM SHARED glHurt(1), glHeatAmt(GL_HEAT, 1), glRail(1), glNumHeat(1) AS INTEGER,
 ' itself, every pixel - GL_TABLE x GL_TABLE cells of 4 numbers, for each half
 ' of the snapshot (half * GL_TABLE_SIZE onwards):
 '   glLitData    a cell's red, green and blue light, and 1 if it's open
-'   glInfoData   the middle of the light on it (x, y), and how much of its
-'                light that is (glLitDir)
+'   glInfoData   the middle of the light on it (x, y), how much of its
+'                light that is (glLitDir), and how high it is
 '   glDynData    which of the 4 moving lights reach it (1 or 0 each)
 CONST GL_TABLE = 64, GL_TABLE_SIZE = 64 * 64 * 4
 DIM SHARED glLitData(2 * GL_TABLE_SIZE) AS SINGLE, glInfoData(2 * GL_TABLE_SIZE) AS SINGLE, glDynData(2 * GL_TABLE_SIZE) AS SINGLE
@@ -3400,6 +3400,7 @@ DO
                 glLitData(t&) = litR(x, y) : glLitData(t& + 1) = litG(x, y) : glLitData(t& + 2) = litB(x, y)
                 v = worldMap(x, y) : glLitData(t& + 3) = (v <= 0 OR v = 2 OR diagCorner(x, y) <> 0) * -1
                 glInfoData(t&) = glLitCX(x, y, glWrite) : glInfoData(t& + 1) = glLitCY(x, y, glWrite) : glInfoData(t& + 2) = glLitDir(x, y, glWrite)
+                glInfoData(t& + 3) = 0.85 : IF glLitData(t& + 3) THEN glInfoData(t& + 3) = ceilH(x, y) - 0.15 ' (how high its light is: under its own ceiling)
                 FOR k = 1 TO GL_DYN : glDynData(t& + k - 1) = glDynReach(x, y, k, glWrite) : NEXT
             END IF
         NEXT : NEXT
@@ -17476,7 +17477,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "        }" + nl$
     fs$ = fs$ + "        float side = abs(n.z) > 0.5 ? 1.0 : (abs(n.x) > 0.99 ? 1.0 : (abs(n.y) > 0.99 ? 0.7 : 0.85));  // y-sides darker, diagonals between" + nl$
     fs$ = fs$ + "        lightCol = min(light * fog * side / 256.0, vec3(1.0));" + nl$
-    fs$ = fs$ + "        lv = vec4(info.xy - vPos.xy, 0.85 - vPos.z, info.z);" + nl$
+    fs$ = fs$ + "        lv = vec4(info.xy - vPos.xy, info.w - vPos.z, info.z);  // (info.w: the light's height - under that cell's ceiling)" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    vec3 l = normalize(normalize(lv.xyz + vec3(0.0, 0.0, 0.0001)) * lv.w + vec3(0.0, 0.0, 1.0 - lv.w));" + nl$
     fs$ = fs$ + "    float shade = clamp(1.0 + (dot(nb, l) - dot(n, l)) * 1.5, 0.4, 1.8);  // brighter facing it, darker facing away" + nl$
