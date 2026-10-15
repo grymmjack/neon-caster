@@ -719,6 +719,94 @@ def acidworks():
     finish(m, 4, dict(closets=1, cmons="cw", plates=2, station=1, props=3, propchars="xo"))
     return m
 
+
+def river(m, x0, x1, y0, y1, kind, deep=6):
+    """A river of `kind` across x0..x1 (rows y0..y1), `deep` eighths down,
+    with steps up out of it at both ends."""
+    for x in range(x0, x1 + 1):
+        d = min(deep, 2 + 2 * min(x - x0, x1 - x))
+        m.pool(x, y0, x, y1, kind, sink=d, depth=max(1, d - 1))
+
+
+# ---------------------------------------------------------------- 5
+@sector("SECTOR 5: THE FORGE",
+        ["wall-furnace.png", "wall-girders.png", "wall-rusty.png", "wall-hazard.png", "wall-pipes.png", "wall-stripes.png"],
+        ["floor-scorched.png", "floor-plates.png", "floor-hazard.png", "floor-rustgrate.png"],
+        ["ceiling-girders.png", "ceiling-vents.png"])
+def forge():
+    """NEW 5: THE FORGE. The slag yard (south) opens onto the forge hall:
+    two rivers of lava across it, steps out of each at its ends, girder
+    columns, generators roaring in alcoves. Cross the south river on the
+    bridge; the north one on the lifts (or the far bridge). The casting
+    room (west) has the red card and a floor that bursts into flame; the
+    pattern store (east, red door) locks down with heavies round the blue
+    card. The furnace (north, blue door) has the exit. And the power fails."""
+    m = Sector("#")
+    m.ambient = (150, 255, 200, 170)
+    m.puzzles = "wrap"
+    # The slag yard: you, facing north
+    m.room(18, 39, 29, 44, ceil=12, zone=(3, 1))
+    m.put(23, 44, "^")
+    m.put(23, 38, "H"); m.rect(23, 37, 23, 37)
+    for (x, y, c) in ((19, 40, "x"), (28, 40, "o"), (20, 43, "M"), (27, 43, "a"), (25, 41, "c")):
+        m.put(x, y, c)
+    m.light(23.5, 41.5, 6, 150, 255, 170, 90, 4)
+    # The forge hall
+    m.room(9, 16, 38, 36, ceil=24, zone=(1, 1))
+    river(m, 9, 38, 30, 31, "l")
+    river(m, 9, 38, 22, 23, "l")
+    for x in (14, 15):  # the south bridge
+        for y in (30, 31):
+            m.fh[y][x] = "."; m.lq[y][x] = "."; m.ld[y][x] = "."
+        m.zone(x, 30, x, 31, 4, 0)
+    for x in (34, 35):  # the far bridge north
+        for y in (22, 23):
+            m.fh[y][x] = "."; m.lq[y][x] = "."; m.ld[y][x] = "."
+        m.zone(x, 22, x, 23, 4, 0)
+    for y in (22, 23):
+        for x in (23, 24):
+            m.lq[y][x] = "."; m.ld[y][x] = "."
+    m.lift(23, 22, 24, 23, -6, 0, mode=1, speed=4)
+    for x in (14, 19, 28, 33):
+        m.column(x, 26, size=3, wall=2)
+    for (x, y, o) in ((12, 15, "S"), (34, 15, "S"), (12, 37, "N"), (34, 37, "N")):
+        m.alcove(x, y, o, depth=4, floor=0, ceil=7, deco="L", glow=AMBER, fx=4)
+    for (x, y) in ((16, 19), (31, 19), (16, 34), (31, 34), (23, 26)):
+        m.light(x + 0.5, y + 0.5, 7, 140, 255, 150, 80, 0)
+    for (x, y, c) in ((18, 26, "h"), (30, 18, "h"), (11, 18, "g"), (36, 34, "g"), (26, 26, "g"), (20, 30, "m"), (31, 22, "m"),
+                      (10, 34, "w"), (37, 27, "c"), (12, 26, "c"), (16, 18, "e"), (31, 35, "e"), (10, 25, "+"), (36, 18, "a"), (24, 33, "j")):
+        m.put(x, y, c)
+    # The casting room (west): the red card, a fire floor
+    m.room(2, 18, 6, 34, ceil=12, zone=(2, 2))
+    m.put(8, 26, "D"); m.rect(7, 26, 7, 26)
+    m.put(1, 26, "$")
+    for (x, y, c) in ((2, 19, "L"), (6, 19, "x"), (2, 33, "L"), (6, 33, "x"), (4, 19, "r"), (5, 30, "u"), (3, 29, "e")):
+        m.put(x, y, c)
+    m.event(12, 3, 22, 5, 30, 50, 110)
+    m.light(4.5, 26.5, 6, 150, 255, 140, 60, 4)
+    # The pattern store (east, red door): heavies lock you in with the blue card
+    m.room(41, 18, 45, 34, ceil=12, zone=(4, 2))
+    m.put(39, 26, "R"); m.rect(40, 26, 40, 26)
+    for y in (21, 25, 29):
+        m.thin_wall(43, y, 45, y, "S", t=2, wall=5)
+    for (x, y, c) in ((45, 19, "b"), (44, 33, "*"), (42, 20, "x"), (42, 32, "x"), (45, 27, "U")):
+        m.put(x, y, c)
+    m.event(1, 41, 18, 45, 34, 2, 3, 10)
+    m.light(43.5, 26.5, 6, 150, 255, 120, 60, 1)
+    # The furnace (north, blue door): the exit
+    m.room(14, 3, 33, 12, ceil=16, zone=(2, 2))
+    m.put(23, 15, "B"); m.rect(23, 13, 23, 14)
+    m.pool(19, 6, 22, 8, "l", sink=2, depth=1); m.pool(25, 6, 28, 8, "l", sink=2, depth=1)
+    m.put(23, 2, "E")
+    m.post(22, 3, "N", at=7, w=2, d=2, wall=4, glow=GREEN); m.post(24, 3, "N", at=1, w=2, d=2, wall=4, glow=GREEN)
+    for (x, y, c) in ((15, 4, "L"), (32, 4, "L"), (16, 10, "s"), (30, 9, "h"), (17, 5, "a"), (31, 11, "+")):
+        m.put(x, y, c)
+    m.light(23.5, 9.5, 7, 150, 255, 160, 80, 4)
+    m.loot_line("crate    = ammo:20, shells:30, medkit:20, armor:10")
+    m.loot_line("generator = ammo:30, -, -, -")
+    finish(m, 5, dict(closets=1, cmons="c", blackout=4, props=2, propchars="xo"))
+    return m
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
