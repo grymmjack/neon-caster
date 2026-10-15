@@ -84,7 +84,7 @@ The world is a grid of cells, 48 × 48. Walls fill whole cells, and each cell ha
 | SECTOR | The sector's own pane: its name, its light, and the pictures of its six kinds of wall, four floors and two ceilings |
 | 2D MAP / 3D | The other view (also **Tab**) |
 | HELP | The cheatsheet for this view (also **F1**): every key, click and wheel turn, grouped; F1 or a click closes it |
-| < SECT, SECT > | Map view only: the sector before or after (PgUp, PgDn). Refused while there are unsaved changes. |
+| < SECT, SECT > | Map view only: the sector before or after (PgUp, PgDn). With unsaved changes it asks first: press it again within three seconds to go anyway and lose them. |
 | MONSTER KINDS | Map view only: the monster kinds editor (M) |
 
 **The picker** is everything you can put in a level, as pictures: along the bottom in the 3D view (two rows of eight), and under the title in the map view (three rows of four). The wheel over it, or the arrows beside it, scroll it.
@@ -162,7 +162,7 @@ Rough a level out this way: Shift+wheel walls back to make rooms and corridors, 
 
 ## Pictures on faces, and Divide
 
-Any face can have a picture of its own: a wall's side, a step's or lintel's face, a floor, a ceiling. Pick a picture in the picker (it chooses PAINT) and click faces. **Ctrl+click** paints a whole floor or ceiling, **Shift+click** puts back the usual picture, **Alt+click** picks a face's picture up. Picking a picture with faces selected paints them all. From above, PAINT paints a cell's floor (Ctrl: its ceiling), or all four sides of a wall.
+Any face can have a picture of its own: a wall's side, a step's or lintel's face, a floor, a ceiling. Pick a picture in the picker (it chooses PAINT) and click faces. **Ctrl+click** paints a whole floor or ceiling (your selection stays as it was), **Shift+click** puts back the usual picture, **Alt+click** picks a face's picture up. Picking a picture with faces selected paints them all. From above, PAINT paints a cell's floor (Ctrl: its ceiling), or all four sides of a wall.
 
 **Divide** splits a face in two for pictures. Select a face (or several) and press **H** for left | right or **V** for top | bottom; press it again to make the face whole. The halves start with the face's picture. Each half is outlined on its own when you point at it ("half 1", "half 2"), can be selected on its own, and painted on its own. A floor or ceiling divides west | east (H) or north | south (V). Top | bottom splits at the face's middle height, so on a tall wall it may be above your eye.
 
@@ -178,10 +178,10 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | A teleporter pad | Where it goes. **LINK...** and then click another pad to pair the two (saved as `[pads]`); **UNLINK** returns it to pairing in reading order. In 3D every pair is joined by a purple line. |
 | A face with a light | Its colour (twelve), effect (six), REACH and BRIGHT, REMOVE THE LIGHT. The swatch in the corner shows it going. |
 | A monster | SIGHT, HEARING, HEALTH and SPEED, and what WAKES it; AS ITS KIND IS resets it. Its sight (cyan) and hearing (yellow) are drawn as rings on the floor round it. |
-| A floor of a lift | LOW, HIGH and SPEED in eighths, UP AND DOWN or ELEVATOR, REMOVE |
-| A cell in an event room | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT. The table under `[events]` below says what each kind does. |
+| A floor of a lift | LOW, HIGH and SPEED in eighths, the mode (click it: UP AND DOWN, ELEVATOR, ON A TRIGGER - moves only on `liftgo`), REMOVE |
+| An event room (EVENT ROOM... on a floor's pane) | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT, BACK (to the floor's pane). The table under `[events]` below says what each kind does. |
 | A block's side | Its edges in eighths; PUSH IN and PULL OUT move the selected side an eighth (every block side selected); LOOKS LIKE THE WALL: `#` `N` `C` `K` `P` `G`; REMOVE THE BLOCK; ADD A LIGHT TO IT |
-| Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with), ADD A PILLAR (a block a quarter of a cell square, in the middle), ADD A LIGHT TO IT - and, with a decoration on it, MOVE IT `<` `>` `^` `v`, an eighth at a time, and which way it faces: TURNS TO FACE YOU (as every sprite does), or STANDS, FACING EAST / SOUTH / WEST / NORTH (these rows are on a light's pane too, when the light is over the decoration) |
+| Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with) - or, on a floor already in one, EVENT ROOM: its kind..., which opens that room's pane, ADD A PILLAR (a block a quarter of a cell square, in the middle), ADD A LIGHT TO IT - and, with a decoration on it, MOVE IT `<` `>` `^` `v`, an eighth at a time, and which way it faces: TURNS TO FACE YOU (as every sprite does), or STANDS, FACING EAST / SOUTH / WEST / NORTH (these rows are on a light's pane too, when the light is over the decoration) |
 | A plain wall | MAKE IT A BLOCK (the wall becomes a block filling its cell, its sides' pictures kept, and the side you clicked stays selected, ready to PUSH IN), ADD A LIGHT TO IT |
 | Any other face | ADD A LIGHT TO IT |
 | TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead) or TIME (seconds into the level); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them, or click the action buttons (+25 HP, -25 HP, DIE, +CELLS, -CELLS, +SHELLS, -SHELLS, GIVE ALL, TAKE ALL) to add theirs; ADD IT. |
@@ -447,7 +447,7 @@ Ctrl+S rewrites the whole file in a fixed layout. Only the comments at the very 
 
 All end in `.png`. The picker's WALLS, FLOORS and CEILINGS tabs show them all, and PAINT puts any of them on any face (`[faces]`, below) without changing the lists.
 
-**`[zones]`** choose which of the 4 floor and 2 ceiling pictures each area uses: `x0, y0, x1, y1, floor, ceiling, shape`. `floor` is 1–4 and `ceiling` 1–2 (0 leaves it alone). `shape` 0 is the whole rectangle; 1–4 is the top-left, top-right, bottom-right or bottom-left triangle of a square. Later zones win where they overlap. The 3D view's **Z** adds a one-cell zone. Up to 64.
+**`[zones]`** choose which of the 4 floor and 2 ceiling pictures each area uses: `x0, y0, x1, y1, floor, ceiling, shape`. `floor` is 1–4 and `ceiling` 1–2 (0 leaves it alone). `shape` 0 is the whole rectangle; 1–4 is the top-left, top-right, bottom-right or bottom-left triangle of a square. Later zones win where they overlap. The 3D view's **Z** gives a cell the next floor picture with a one-cell zone (Z again on the same cell changes that zone rather than adding another). Up to 64.
 
 **`puzzles = NAME, NAME, …`** gives each `$` code terminal its puzzle, in reading order, from `neon-caster/puzzles/`: countdown, function, hello, multiply, password, pythagoras, reverse, select, sum, wrap.
 
@@ -651,8 +651,7 @@ It reports anything you can't reach (following your `[pads]` pairs), doors witho
 **Things that lose your work:**
 
 - Leaving the editor doesn't save. You play the edited level, but dying, taking the exit, loading a game or quitting reloads it from the file.
-- Ctrl+Z can't undo you back to "saved": after any undo, PgUp/PgDn still says to save first. Save, or leave and accept losing the edits.
-- Going back into the editor clears the "not saved" marker even though the edits are still unsaved.
+- Ctrl+Z can't undo you back to "saved": after any undo the sector still counts as changed. Save, or press PgUp/PgDn twice and lose the edits.
 - In the 3D view, F9 (quick-load) reloads the level from its file.
 
 **Other surprises:**
@@ -660,9 +659,9 @@ It reports anything you can't reach (following your `[pads]` pairs), doors witho
 - Every edit rebuilds the level: dead monsters come back and your keycards are taken away.
 - Walls and heights are per cell, so a wall moves a cell at a time and Divide only splits pictures. For less than a cell, use a block.
 - Ctrl+S keeps only the comments at the very top of the file; everything else is rewritten in a fixed layout.
-- Lights over 96 in total (automatic ones included), and pictures on faces past 24 different ones, are dropped silently.
+- Lights over 96 in total (automatic ones included), and pictures on faces past 24 different ones, are dropped. ADD A LIGHT TO IT says when the level's own are full; the automatic ones (a lamp's, an exit's, a pool's glow) just stop.
 - Undo covers everything the editor changes: the map, heights, zones, lights, lifts, events, triggers, faces, pad pairs, monsters' settings, blocks, moved decorations, the name and the ambient light.
-- A block and a moved decoration belong to their cell, like a monster's settings: the arrows carry them along, and putting a wall or a door in the cell takes its block away.
+- A block, a moved decoration, a pool and a light belong to their cell, like a monster's settings: the arrows carry them along, and putting a wall or a door in the cell takes its block away.
 - A monster's own settings belong to the cell it starts in: the arrows carry them along, and putting something else in the cell drops them.
 - Esc in the 3D view opens the pause menu; the editor keeps going underneath it.
 - Opening the editor puts cheats on for that game: achievements and records wait until the next new game. The editor's own two achievements, Architect (save a sector) and Thinking Inside the Box (stand a block), still count.
