@@ -2364,7 +2364,7 @@ DO
             FOR i = 1 TO numMonsters
                 IF monsterState(i) < 2 AND (cyberOn = 0 OR monsterType(i) = MT_ICE) THEN
                     ox = monsterX(i) - playerX : oy = monsterY(i) - playerY : d = SQR(ox * ox + oy * oy)
-                    IF d < bestD AND d > 0.01 AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) < 0.6 THEN IF (ox * dirX + oy * dirY) / d > 0.7 AND NOT GlassBetween(playerX, playerY, monsterX(i), monsterY(i)) THEN best = i : bestD = d ' (and at your height: no kicking up a ledge)
+                    IF d < bestD AND d > 0.01 AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) < 0.7 THEN IF (ox * dirX + oy * dirY) / d > 0.7 AND NOT GlassBetween(playerX, playerY, monsterX(i), monsterY(i)) THEN best = i : bestD = d ' (and at your height: no kicking up a ledge)
                 END IF
             NEXT
             IF best THEN
@@ -2511,7 +2511,7 @@ DO
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' The rest: close in...
                     ELSEIF GlassBetween(monsterX(i), monsterY(i), playerX, playerY) THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' (glass between: it just presses against it)
-                    ELSEIF mtypeLift(mtype) = 0 AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) > 0.6 THEN
+                    ELSEIF mtypeLift(mtype) = 0 AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) > 0.7 THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' (you're up a ledge, or down one: claws don't reach)
                     ELSEIF monsterTimer(i) = 0 THEN ' ...and hit
                         damage = mtypeDamage(mtype) + INT(RND * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
@@ -2572,7 +2572,7 @@ DO
             ELSEIF NOT Walkable(boltX(i), boltY(i)) THEN
                 boltOn(i) = 0 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
                 SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
-                IF IsWall(INT(boltX(i)), INT(boltY(i))) THEN ShotMark boltX(i) - boltDX(i) * BOLT_SPEED, boltY(i) - boltDY(i) * BOLT_SPEED, 0.49, boltDX(i), boltDY(i), 0, 0.12
+                IF IsWall(INT(boltX(i)), INT(boltY(i))) THEN ShotMark boltX(i) - boltDX(i) * BOLT_SPEED, boltY(i) - boltDY(i) * BOLT_SPEED, boltZ(i), boltDX(i), boltDY(i), 0, 0.12
             ELSEIF NOT dead AND (boltX(i) - playerX) ^ 2 + (boltY(i) -playerY) ^ 2 < 0.35 * 0.35 AND ABS(boltZ(i) - playerZ - 0.45) < 0.5 THEN
                 boltOn(i) = 0 : damage = boltDamage(i)
                 hurtFromX = boltX(i) - boltDX(i) * 2 : hurtFromY = boltY(i) - boltDY(i) * 2 ' (back along its path)
@@ -5443,6 +5443,7 @@ RETURN
 JackIn:
 WorldLoopsOff
 cyberOn = -1 : cyberStation = st
+cyberSlot = 0
 cyberTime = CYBER_SECONDS * 60 : cyberGot = 0 : cyberNeed = 3 + (((level - 1) MOD 10) + 1) \ 3 : IF cyberNeed > 6 THEN cyberNeed = 6
 cyberBackX = playerX : cyberBackY = playerY : cyberBackDX = dirX : cyberBackDY = dirY ' (where you jacked in: you come back there)
 cyberMonStart = numMonsters : cyberItemStart = numItems
@@ -5494,6 +5495,7 @@ IF cyberNeed = 0 THEN ' (none placed: one just ahead of you - in a new slot, or,
         FOR j = numItems TO 1 STEP -1
             IF itemOn(j) = 0 AND itemToss(j) = 0 THEN cs = j : EXIT FOR
         NEXT
+        IF cs THEN cyberSlot = cs : cyberSlotKind = itemKind(cs) : cyberSlotX = itemX(cs) : cyberSlotY = itemY(cs) ' (a taken pickup's slot, borrowed: JackOut gives it back)
     END IF
     IF cs THEN cyberNeed = 1 : itemX(cs) = playerX - dirX : itemY(cs) = playerY - dirY : itemKind(cs) = IT_CORE : itemOn(cs) = -1 ' (ahead once you've turned round - not in the station)
 END IF
@@ -5521,6 +5523,7 @@ FOR i = cyberMonStart + 1 TO numMonsters ' (ICE you derezzed doesn't count in th
     IF monsterState(i) >= 2 THEN kills = kills - 1
 NEXT
 numMonsters = cyberMonStart : numItems = cyberItemStart
+IF cyberSlot THEN itemKind(cyberSlot) = cyberSlotKind : itemX(cyberSlot) = cyberSlotX : itemY(cyberSlot) = cyberSlotY : itemOn(cyberSlot) = 0 : cyberSlot = 0
 FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
 cyberOn = 0
 playerX = cyberBackX : playerY = cyberBackY : dirX = cyberBackDX : dirY = cyberBackDY ' (back at the station, as you jacked in - not wherever you'd got to)
@@ -6014,7 +6017,7 @@ ThiefStep:
 IF thiefState(i) = 0 AND monsterHurt(i) > 0 THEN thiefState(i) = 1
 IF thiefState(i) = 0 THEN
     goX = toPlayerX / distance : goY = toPlayerY / distance
-    IF distance < mtypeReach(mtype) AND NOT GlassBetween(monsterX(i), monsterY(i), playerX, playerY) AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) <= 0.6 THEN ' Got you: grab (not up or down a ledge)
+    IF distance < mtypeReach(mtype) AND NOT GlassBetween(monsterX(i), monsterY(i), playerX, playerY) AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) <= 0.7 THEN ' Got you: grab (not up or down a ledge)
         thiefCells(i) = ammoCount(AM_CELLS) \ 2 : thiefShells(i) = ammoCount(AM_SHELLS) \ 2
         ammoCount(AM_CELLS) = ammoCount(AM_CELLS) - thiefCells(i) : ammoCount(AM_SHELLS) = ammoCount(AM_SHELLS) - thiefShells(i)
         g = 0
@@ -7063,7 +7066,6 @@ FOR gy = 0 TO MAP_SIZE - 1 STEP 3 : FOR gx = 0 TO MAP_SIZE - 1 STEP 3
         END IF
     NEXT
 NEXT : NEXT
-numLightsBase = numLights
 BuildLights ' Which cells each light reaches (now the walls are all in place)
 BuildShafts ' ...and which have a beam of light (chapter 24)
 AssignClosets ' (each secret wall: its closet, and its look)
@@ -7131,6 +7133,7 @@ IF lvlNumPairs THEN ' Pads paired by hand ([pads]) first, in their pairs; the re
     NEXT
 END IF
 FOR k = 1 TO numPads : AddLight padX(k) + 0.5, padY(k) + 0.5, 2.5, 120, 60, 220, FX_PULSE, 0 : NEXT
+numLightsBase = numLights ' (the level's own lights, pads' included: what a save lists - LiquidGlows' come after)
 padReady = 0
 IF NOT editRebuild THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
 walkZ = -999
@@ -7970,6 +7973,7 @@ SELECT CASE conVerb$
     CASE "monsters" ' The monster editor - or monsters save: write monsters.txt as they are
         IF conA$ = "save" THEN WriteMonsters : ConPrint "wrote " + AssetPath$("monsters.txt") ELSE GOSUB RunMonsterEditor : conLevelChanged = -1
     CASE "puzzle" ' puzzle NAME: try a code puzzle (from neon-caster/puzzles) - no doors at stake
+        pzTerm = 0 : pzResume = 0 ' (a fresh one - and a terminal left half done starts afresh too)
         IF LoadPuzzle(conA$) THEN
             GOSUB RunPuzzle : conLevelChanged = -1
             IF pzSolved THEN ConPrint "puzzle " + conA$ + ": SOLVED - " + pzOut$ ELSE ConPrint "puzzle " + conA$ + ": left unsolved (" + LTRIM$(STR$(pzFails)) + " tries)"
@@ -8371,7 +8375,7 @@ FOR i = 1 TO numDecos
     IF NOT decoOn(i) THEN decoCell(INT(decoX(i)), INT(decoY(i))) = 0 ' Broken ones don't block
 NEXT
 ' The ceiling lamps you shot out (a save from before you could has none)
-FOR l = 1 TO numLights
+FOR l = 1 TO numLightsBase
     IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , lightBroken(l) : IF lightBroken(l) THEN BreakLight l, 0
 NEXT
 IF LOC(fileNum) < LOF(fileNum) THEN ' The glass (a save from before glass has none)
@@ -10024,7 +10028,7 @@ END SUB
 ' (the software renderer, or LOOK off) a shot finds a monster at any
 ' height in its column, as DOOM's aim does. A little leeway either way.
 FUNCTION ShotPasses(i, z)
-    IF NOT (glMode AND setting(SET_LOOK)) THEN EXIT FUNCTION
+    IF glMode = 0 OR setting(SET_LOOK) = 0 THEN EXIT FUNCTION
     t = monsterType(i)
     foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t)
     ShotPasses = (z < foot - 0.2 OR z > foot + mtypeScale(t) + 0.2)
@@ -12641,6 +12645,8 @@ END SUB
 SUB EditAddZone(x0, y0, x1, y1, fl, ce)
     FOR k = lvlNumZones TO 1 STEP -1
         IF lvlZone(k, 1) = x0 AND lvlZone(k, 2) = y0 AND lvlZone(k, 3) = x1 AND lvlZone(k, 4) = y1 AND lvlZone(k, 7) = 0 THEN
+            IF ce = 0 THEN ce = lvlZone(k, 6) ' (its ceiling stays, unless this one says otherwise)
+            IF fl = 0 THEN fl = lvlZone(k, 5)
             FOR j = k TO lvlNumZones - 1 : FOR c = 1 TO 7 : lvlZone(j, c) = lvlZone(j + 1, c) : NEXT : NEXT
             lvlNumZones = lvlNumZones - 1
         END IF
@@ -15367,6 +15373,11 @@ SUB LiquidGlows(x0, y0, x1, y1)
             FOR y = gy TO MinOf(gy + 2, MinOf(y1, MAP_SIZE - 1)) : FOR x = gx TO MinOf(gx + 2, MinOf(x1, MAP_SIZE - 1))
                 IF liqKind(x, y) = k AND INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1)) <> k THEN n = n + 1 : sx = sx + x + 0.5 : sy = sy + y + 0.5
             NEXT : NEXT
+            IF n THEN ' (unless this patch glows already - the same trigger flooding it again)
+                FOR l = numLightsBase + 1 TO numLights
+                    IF lightLow(l) AND ABS(lightX(l) - sx / n) < 1.5 AND ABS(lightY(l) - sy / n) < 1.5 THEN n = 0
+                NEXT
+            END IF
             IF n THEN
                 n0 = numLights
                 IF k = LQ_LAVA THEN AddLight sx / n, sy / n, 3.5, 150, 70, 20, FX_FIRE, 0 ELSE AddLight sx / n, sy / n, 2.5, lqR(k) \ 5, lqG(k) \ 5, lqB(k) \ 5, FX_PULSE, 0
@@ -17132,7 +17143,7 @@ SUB MoveLifts(px, py)
                 nearUp = (px > liftX0(k) - 2 AND px < liftX1(k) + 3 AND py > liftY0(k) - 2 AND py < liftY1(k) + 3 AND playerZ >= liftHigh(k) - 0.2)
                 IF me = k AND liftArm(k) THEN ' (just stepped on - walked on, not fallen in: off to the other end)
                     liftArm(k) = 0
-                    IF ABS(playerZ - liftZ(k)) < 0.15 THEN
+                    IF playerZ - liftZ(k) <= STEP_UP AND playerZ - liftZ(k) > -0.05 THEN ' (walked or stepped down onto it - not dropped in from high up)
                         IF atLow THEN liftDir(k) = 1 ELSE liftDir(k) = -1
                     END IF
                 ELSEIF me <> k AND liftWait(k) = 0 THEN
