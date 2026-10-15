@@ -2299,18 +2299,39 @@ DO
                     ' as its steps are a little longer than a cell off-centre)
                     rayX = dirX + planeX * aim : rayY = dirY + planeY * aim : rayLen = SQR(rayX * rayX + rayY * rayY)
                     hitDist = zBuffer(screenCol) : surface = 0 : rise = TAN(pitch) * rayLen
-                    IF rise > 0.01 THEN IF 0.5 / rise < hitDist THEN hitDist = 0.5 / rise : surface = 1 ' (the ceiling)
-                    IF rise < -0.01 THEN IF 0.5 / -rise < hitDist THEN hitDist = 0.5 / -rise : surface = 2 ' (the floor)
-                    hitX = playerX + rayX * hitDist : hitY = playerY + rayY * hitDist : hitZ = 0.5 + rise * hitDist
-                    IF hitZ < 0.03 THEN hitZ = 0.03
-                    IF hitZ > 0.97 THEN hitZ = 0.97
+                    IF levelFlat THEN
+                        IF rise > 0.01 THEN IF 0.5 / rise < hitDist THEN hitDist = 0.5 / rise : surface = 1 ' (the ceiling)
+                        IF rise < -0.01 THEN IF 0.5 / -rise < hitDist THEN hitDist = 0.5 / -rise : surface = 2 ' (the floor)
+                    ELSE ' Heights: along the shot until it meets a floor, a ceiling, or the face of a step or a lintel
+                        pfz = FloorAt(playerX, playerY) : pcz = CeilAt(playerX, playerY)
+                        FOR st = 1 TO INT(hitDist / 0.05)
+                            t = st * 0.05 : sx = playerX + rayX * t : sy = playerY + rayY * t : sz = eyeZ + rise * t
+                            sfz = FloorAt(sx, sy) : scz = CeilAt(sx, sy)
+                            IF sz <= sfz THEN
+                                IF sfz > pfz + 0.01 AND eyeZ + rise * (t - 0.05) > pfz THEN surface = 3 : hitDist = t - 0.025 ELSE surface = 2 : IF ABS(rise) > 0.0001 THEN hitDist = (sfz - eyeZ) / rise ELSE hitDist = t
+                                EXIT FOR
+                            END IF
+                            IF sz >= scz THEN
+                                IF scz < pcz - 0.01 AND eyeZ + rise * (t - 0.05) < pcz THEN surface = 3 : hitDist = t - 0.025 ELSE surface = 1 : IF ABS(rise) > 0.0001 THEN hitDist = (scz - eyeZ) / rise ELSE hitDist = t
+                                EXIT FOR
+                            END IF
+                            pfz = sfz : pcz = scz
+                        NEXT
+                        IF surface = 3 THEN surface = 0 ' (a step's face, or a lintel's: marked as a wall is)
+                    END IF
+                    hitX = playerX + rayX * hitDist : hitY = playerY + rayY * hitDist : hitZ = eyeZ + rise * hitDist ' (how high: from your eye)
+                    hfz = FloorAt(hitX - rayX * 0.02, hitY - rayY * 0.02) : hcz = CeilAt(hitX - rayX * 0.02, hitY - rayY * 0.02)
+                    IF surface = 0 THEN
+                        IF hitZ < hfz + 0.03 THEN hitZ = hfz + 0.03
+                        IF hitZ > hcz - 0.03 THEN hitZ = hcz - 0.03
+                    END IF
                     SELECT CASE currentGun
                         CASE W_BLASTER : sparkN = 6 : sparkR = 255 : sparkG = 70 : sparkB = 120
                         CASE W_SCATTER : sparkN = 3 : sparkR = 255 : sparkG = 180 : sparkB = 70
                         CASE W_REPEATER : sparkN = 4 : sparkR = 80 : sparkG = 220 : sparkB = 255
                         CASE ELSE : sparkN = 14 : sparkR = 170 : sparkG = 240 : sparkB = 255
                     END SELECT
-                    SpawnSparks hitX - rayX / rayLen * 0.03, hitY - rayY / rayLen * 0.03, hitZ, sparkN, sparkR, sparkG, sparkB
+                    SpawnSparks hitX - rayX / rayLen * 0.03, hitY - rayY / rayLen * 0.03, hitZ - FloorAt(hitX - rayX / rayLen * 0.03, hitY - rayY / rayLen * 0.03), sparkN, sparkR, sparkG, sparkB ' (sparks measure from the floor)
                     ShotMark hitX, hitY, hitZ, rayX / rayLen, rayY / rayLen, surface, 0.1 + 0.06 * (currentGun = W_RAIL) * -1
                 END IF
             NEXT
@@ -3166,9 +3187,9 @@ DO
                 drawX(numDraw) = decalX(i) + decalNX(i) * 0.03 : drawY(numDraw) = decalY(i) + decalNY(i) * 0.03
                 IF ABS(decalNZ(i)) > 0.5 THEN
                     drawSquash(numDraw) = 0.35
-                    IF decalNZ(i) > 0 THEN drawLift(numDraw) = 0.004 ELSE drawLift(numDraw) = 0.996 - decalSize(i) * 0.35
-                ELSE
-                    drawSquash(numDraw) = 1 : drawLift(numDraw) = decalZ(i) - decalSize(i) / 2
+                    IF decalNZ(i) > 0 THEN drawLift(numDraw) = 0.004 ELSE drawLift(numDraw) = CeilAt(decalX(i), decalY(i)) - FloorAt(decalX(i), decalY(i)) - 0.004 - decalSize(i) * 0.35
+                ELSE ' (decalZ is a real height; a sprite's lift is over the floor it stands on)
+                    drawSquash(numDraw) = 1 : drawLift(numDraw) = decalZ(i) - decalSize(i) / 2 - FloorAt(drawX(numDraw), drawY(numDraw))
                 END IF
             END IF
         NEXT
@@ -3387,7 +3408,7 @@ DO
         n = 0
         FOR i = 1 TO MAX_BOLTS
             IF boltOn(i) THEN
-                n = n + 1 : glGlowX(n, glWrite) = boltX(i) : glGlowY(n, glWrite) = boltY(i) : glGlowZ(n, glWrite) = 0.49
+                n = n + 1 : glGlowX(n, glWrite) = boltX(i) : glGlowY(n, glWrite) = boltY(i) : glGlowZ(n, glWrite) = boltZ(i) ' (where the bolt is - it climbs and drops toward you)
                 glGlowSize(n, glWrite) = 0.35 : glGlowR(n, glWrite) = 1 : glGlowG(n, glWrite) = 0.25 : glGlowB(n, glWrite) = 0.9
             END IF
         NEXT
@@ -3395,7 +3416,7 @@ DO
             IF blastTime(i) > 0 THEN
                 f = blastTime(i) / BLAST_FRAMES : blastScale = (0.6 + 0.7 * (1 - f)) * blastSize(i)
                 n = n + 1 : glGlowX(n, glWrite) = blastX(i) : glGlowY(n, glWrite) = blastY(i)
-                glGlowZ(n, glWrite) = 0.05 + (1 - blastSize(i)) * 0.35 + blastScale / 2 : glGlowSize(n, glWrite) = blastScale
+                glGlowZ(n, glWrite) = FloorAt(blastX(i), blastY(i)) + 0.05 + (1 - blastSize(i)) * 0.35 + blastScale / 2 : glGlowSize(n, glWrite) = blastScale
                 glGlowR(n, glWrite) = f : glGlowG(n, glWrite) = 0.55 * f : glGlowB(n, glWrite) = 0.2 * f
             END IF
         NEXT
@@ -3405,7 +3426,7 @@ DO
                     i = lightDeco(l) : brightest = lightR(l) : IF lightG(l) > brightest THEN brightest = lightG(l)
                     IF lightB(l) > brightest THEN brightest = lightB(l)
                     n = n + 1 : glGlowX(n, glWrite) = decoX(i) : glGlowY(n, glWrite) = decoY(i)
-                    glGlowZ(n, glWrite) = DecoScale(decoKind(i)) * 0.8
+                    glGlowZ(n, glWrite) = FloorAt(decoX(i), decoY(i)) + DecoScale(decoKind(i)) * 0.8
                     IF decoKind(i) = 2 THEN glGlowSize(n, glWrite) = 0.6 ELSE glGlowSize(n, glWrite) = 0.4 ' (lamps bigger)
                     f = lightNow(l) / (brightest + 1)
                     glGlowR(n, glWrite) = lightR(l) * f : glGlowG(n, glWrite) = lightG(l) * f : glGlowB(n, glWrite) = lightB(l) * f
@@ -6109,7 +6130,7 @@ FOR blastSlot = 1 TO MAX_BLASTS
         blastX(blastSlot) = newBlastX : blastY(blastSlot) = newBlastY
         blastSize(blastSlot) = newBlastSize : blastTime(blastSlot) = BLAST_FRAMES
         SpawnEmbers newBlastX, newBlastY, newBlastSize ' (and a burst of embers: chapter 24's particles)
-        AddDecal newBlastX, newBlastY, 0, 0, 0, 1, 0.4 + 0.9 * newBlastSize ' (and a scorch mark on the floor)
+        AddDecal newBlastX, newBlastY, FloorAt(newBlastX, newBlastY) + 0.001, 0, 0, 1, 0.4 + 0.9 * newBlastSize ' (and a scorch mark on the floor)
         StirDust newBlastX, newBlastY, 0, 0, 1 + 3 * newBlastSize, 0.09 * newBlastSize ' (and blows the dust away)
         EXIT FOR
     END IF
@@ -7858,7 +7879,10 @@ SELECT CASE conVerb$
         IF l >= 1 AND l <= numLights THEN
             IF conB$ = "off" THEN lightBroken(l) = -1 ELSE lightBroken(l) = 0
             cx = INT(lightX(l)) : cy = INT(lightY(l))
-            IF conB$ <> "off" AND shaftCell(cx, cy) = l THEN ceilTex(cx, cy) = T_LAMP
+            IF shaftCell(cx, cy) = l THEN ' (its lamp on the ceiling: lit, or dark - and OpenGL's world built again to show it)
+                IF conB$ = "off" THEN ceilTex(cx, cy) = T_LAMPOFF ELSE ceilTex(cx, cy) = T_LAMP
+                glMeshVersion = glMeshVersion + 1
+            END IF
         END IF
     CASE "liftgo" ' liftgo N up|down: a lift on its way
         l = VAL(conA$)
@@ -16134,8 +16158,9 @@ SUB GLShaft(sx, sy, r, g, bl, t, rightX, rightY)
     sfz = FloorAt(sx, sy) : scz = CeilAt(sx, sy) : sh = (scz - sfz) / 4 ' (heights: floor to ceiling)
     FOR piece = 0 TO 3
         zTop = scz - 0.005 - piece * sh : zLow = zTop - sh
-        wTop = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - zTop) : wLow = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - zLow)
-        kTop = f * (0.45 + 0.55 * zTop) : kLow = f * (0.45 + 0.55 * zLow) ' (brighter at the top)
+        dTop = (scz - zTop) / (scz - sfz) : dLow = (scz - zLow) / (scz - sfz) ' (how far down the beam: 0 at the lamp, 1 at the floor - whatever height they are)
+        wTop = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * dTop : wLow = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * dLow
+        kTop = f * (1 - 0.55 * dTop) : kLow = f * (1 - 0.55 * dLow) ' (brighter at the top)
         FOR half = -1 TO 1 STEP 2
             eTopX = sx + rightX * wTop * half : eTopY = sy + rightY * wTop * half
             eLowX = sx + rightX * wLow * half : eLowY = sy + rightY * wLow * half
@@ -16181,7 +16206,9 @@ SUB GLShadows(b)
         dx = sx - lx : dy = sy - ly : d = SQR(dx * dx + dy * dy)
         IF strength < 0.08 OR d < 0.15 THEN GOTO NextShadow
         sideX = -dy / d : sideY = dx / d ' (across the shadow: square to the light)
-        hw = glSprHalfW(i, b) : zLow = glSprLift(i, b) : zHigh = zLow + glSprH(i, b)
+        sfz = FloorAt(sx, sy) ' (all measured from the floor it stands on - up a ledge or down in a pit)
+        hw = glSprHalfW(i, b) : zLow = glSprLift(i, b) - sfz : zHigh = zLow + glSprH(i, b)
+        IF zLow < 0 THEN zLow = 0
         lz = GL_LIGHT_Z * 2
         IF zHigh > lz * 0.7 THEN zHigh = lz * 0.7 ' (or it would stretch forever)
         uv = spriteSize(slot) / sprTex
@@ -16191,8 +16218,9 @@ SUB GLShadows(b)
         ' (each corner: from the light, out through the corner, to the floor)
         x0 = lx + (ax - lx) * tLow : y0 = ly + (ay - ly) * tLow : x1 = lx + (bx - lx) * tLow : y1 = ly + (by - ly) * tLow
         x2 = lx + (bx - lx) * tHigh : y2 = ly + (by - ly) * tHigh : x3 = lx + (ax - lx) * tHigh : y3 = ly + (ay - ly) * tHigh
-        GLPutCornerA x3, y3, 0.003, 0, 0, strength : GLPutCornerA x2, y2, 0.003, uv, 0, strength : GLPutCornerA x1, y1, 0.003, uv, uv, strength
-        GLPutCornerA x3, y3, 0.003, 0, 0, strength : GLPutCornerA x1, y1, 0.003, uv, uv, strength : GLPutCornerA x0, y0, 0.003, 0, uv, strength
+        sz = sfz + 0.003
+        GLPutCornerA x3, y3, sz, 0, 0, strength : GLPutCornerA x2, y2, sz, uv, 0, strength : GLPutCornerA x1, y1, sz, uv, uv, strength
+        GLPutCornerA x3, y3, sz, 0, 0, strength : GLPutCornerA x1, y1, sz, uv, uv, strength : GLPutCornerA x0, y0, sz, 0, uv, strength
         NextShadow:
     NEXT
     GLStopDrawing
@@ -17225,6 +17253,7 @@ SUB GLFace(cx, cy, side, b)
     IF side = 1 OR side = 4 THEN u0 = 1 : u1 = 0 ELSE u0 = 0 : u1 = 1
     IF worldMap(cx, cy) <> 2 THEN ' A wall: from the floor to the ceiling of the cell it looks onto
         fz = floorH(nx, ny) : cz = ceilH(nx, ny)
+        IF liftCell(nx, ny) THEN fz = MinOf(fz, liftLow(liftCell(nx, ny))) ' (onto a lift: down to its lowest, wherever it is when the world's built)
         GLFaceStrip ax, ay, bx, by, u0, u1, fz, cz, 1 - cz, 1 - fz, cx, cy, VAL(MID$("3142", side, 1)), wallTexSlot(worldMap(cx, cy)) ' (GLFace's sides 1-4 are west, east, north, south - [faces]' are east, south, west, north)
         EXIT SUB
     END IF
@@ -17787,9 +17816,9 @@ SUB ShotMark(x, y, z, dx, dy, surface, size)
                     IF NOT lightBroken(l) AND ABS(x - lightX(l)) < 0.32 AND ABS(y - lightY(l)) < 0.32 THEN BreakLight l, -1 : EXIT SUB
                 END IF
             END IF
-            AddDecal x, y, 0.999, 0, 0, -1, size
+            AddDecal x, y, CeilAt(x, y) - 0.001, 0, 0, -1, size
         CASE 2
-            AddDecal x, y, 0.001, 0, 0, 1, size
+            AddDecal x, y, FloorAt(x, y) + 0.001, 0, 0, 1, size
         CASE ELSE
             bx = INT(x + dx * 0.02) : by = INT(y + dy * 0.02) ' (the cell it went into)
             IF bx < 0 OR by < 0 OR bx >= MAP_SIZE OR by >= MAP_SIZE THEN EXIT SUB
@@ -17810,17 +17839,18 @@ END SUB
 
 ' Ceiling lamp l, shot out: its light goes off for good (UpdateLight), its
 ' beam with it; its picture goes dark and cracked (T_LAMPOFF - the software
-' renderer's ceiling; OpenGL's ceiling is built once a level, so a dark
-' mark goes over it) - and if loud, glass and sparks rain down, with a
+' renderer's ceiling, and OpenGL's world built again with it - a dark
+' mark over it too) - and if loud, glass and sparks rain down, with a
 ' crash. (Not loud: loading a game where it was already broken.)
 SUB BreakLight(l, loud)
     lightBroken(l) = -1
     cx = INT(lightX(l)) : cy = INT(lightY(l))
-    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN ceilTex(cx, cy) = T_LAMPOFF
-    AddDecal lightX(l), lightY(l), 0.999, 0, 0, -1, 0.75 : decalHeat(decalNext) = 0
+    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN ceilTex(cx, cy) = T_LAMPOFF : glMeshVersion = glMeshVersion + 1 ' (OpenGL's world built again with it dark: a scorch decal alone gets recycled, and the lit lamp showed again)
+    AddDecal lightX(l), lightY(l), CeilAt(lightX(l), lightY(l)) - 0.001, 0, 0, -1, 0.75 : decalHeat(decalNext) = 0
     IF loud THEN
-        SpawnSparks lightX(l), lightY(l), 0.95, 24, 255, 240, 200
-        SpawnSparks lightX(l), lightY(l), 0.95, 16, 160, 200, 255 ' (glass)
+        lh = CeilAt(lightX(l), lightY(l)) - FloorAt(lightX(l), lightY(l)) - 0.05 ' (just under its own ceiling, however high)
+        SpawnSparks lightX(l), lightY(l), lh, 24, 255, 240, 200
+        SpawnSparks lightX(l), lightY(l), lh, 16, 160, 200, 255 ' (glass)
         PlaySfx decoBreakSnd&(2), 0.9
     END IF
 END SUB
@@ -17884,11 +17914,12 @@ END FUNCTION
 ' its neighbours' beams can reach.
 FUNCTION InShaft(x, y, z, l)
     l = 0 : best = 0 : cx = INT(x) : cy = INT(y)
-    r = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - z) ' (the beam's width at this height)
     FOR ny = cy - 1 TO cy + 1 : FOR nx = cx - 1 TO cx + 1
         IF nx >= 0 AND ny >= 0 AND nx < MAP_SIZE AND ny < MAP_SIZE THEN
             k = shaftCell(nx, ny)
             IF k THEN
+                sfz = FloorAt(lightX(k), lightY(k)) : scz = CeilAt(lightX(k), lightY(k)) : dn = 1 - z : IF scz - sfz > 0.01 THEN dn = (scz - z) / (scz - sfz)
+                r = SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * MaxOf(0, MinOf(1, dn)) ' (the beam's width at this height, down from its lamp)
                 d = SQR((x - lightX(k)) ^ 2 + (y - lightY(k)) ^ 2)
                 IF d < r THEN
                     f = (1 - d / r) * lightNow(k)
