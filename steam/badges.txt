@@ -1,0 +1,48 @@
+# Each achievement's badge: API name | what's in the middle of it.
+# Made with: pixelmon "a round video game achievement badge medallion, glowing neon magenta and cyan rim on dark gunmetal, in the centre <subject>, synthwave cyberpunk emblem, bold, centred, symmetrical, black background" --art -n 1 --name <API name>
+# then make_icons.sh FOLDER (the 1024-pixel pictures, NAME.png) cuts them round and writes both sets of icons.
+NC_SECTOR_1|a single glowing neon footprint stepping onto a grid floor
+NC_ESCAPED|an open doorway of blinding white light with a running silhouette escaping
+NC_NEW_BLOOD|a glowing circuit-board heart
+NC_REMASTERED|an old cracked monitor repainted in fresh neon paint splashes
+NC_FULL_TOUR|three linked neon rings forming a route map
+NC_OVERSEER|a giant mechanical eye with its lens cracked in two
+NC_EXPO|a futuristic world's fair tower with fireworks
+NC_SHOWCASE|an ornate picture frame holding a glowing cube
+NC_FIRST_KILL|a small round drone robot with a crack across its eye
+NC_KILLS_100|the roman numeral C built from robot parts
+NC_KILLS_1000|a mountain of scrapped robot heads
+NC_HEADSHOT|a robot head with a crosshair between its two glowing optics
+NC_HEADSHOTS_100|a sniper scope reticle surrounded by tally marks
+NC_KICK_KILL|a heavy combat boot kicking a robot head
+NC_OVER_EDGE|a robot tumbling into a bottomless glowing pit
+NC_CHAIN|three explosion bursts linked by a chain
+NC_ARSENAL|four futuristic guns crossed in a fan
+NC_AMPED|a lightning bolt striking a glowing amplifier core
+NC_BESTIARY|an open book with robot silhouettes on its pages
+NC_THIEF|a masked robot thief carrying a sack of glowing ammo
+NC_UNTOUCHED|a gleaming shield without a single scratch
+NC_CLEAN_SWEEP|a broom sweeping away robot scrap
+NC_PACKRAT|an overflowing backpack of glowing supplies
+NC_PERFECT|a flawless cut diamond with a check mark
+NC_SPEEDRUN|a stopwatch with neon motion streaks
+NC_PEASHOOTER|a tiny pistol firing a single small plasma pellet
+NC_LUB_DUB|a glowing heart on a heartbeat monitor line
+NC_LOCKDOWN|a heavy padlock breaking open with sparks
+NC_SURVIVOR|an hourglass of neon sand surrounded by claws
+NC_GALLERY|a carnival shooting gallery bullseye target
+NC_HOARD|an open treasure chest of glowing loot
+NC_PEST|a swirling portal broken with a cross through it
+NC_JACKED|a cable jack plugging into a glowing wireframe grid
+NC_HELLO|a retro computer terminal screen showing a waving hand
+NC_PROGRAMMER|a glowing keyboard under curly code brackets
+NC_HOT_FOOT|a boot stepping out of molten lava
+NC_CORRODED|armour plates dissolving in bubbling green acid
+NC_BEAM|a teleporter pad beaming a figure up in a pillar of light
+NC_LOOT|a smashed crate spilling glowing ammo
+NC_VANDAL|a hammer smashing a vending machine
+NC_ARCHITECT|a blueprint with a compass and a glowing floor plan
+NC_BOXED|a glowing wireframe cube standing inside a grid square
+NC_HMPH|a gloved hand pressed against a brick wall
+NC_DEATHS|a skull inside a circular respawn arrow
+NC_GLASS|a pane of glass shattering into flying shards

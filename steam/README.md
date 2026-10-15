@@ -6,7 +6,7 @@ from [QB64_GJ_LIB](https://github.com/grymmjack/QB64_GJ_LIB) (a copy is in
 App ID, or whenever Steam isn't running, the library's stand-in (the
 "mock") keeps them in `neon-caster/saves/achievements.txt`, and the game
 shows its own pop-up when one unlocks. **GAME > ACHIEVEMENTS** lists them
-all, and has a RECORDS page beside them.
+all, with RECORDS and STATS pages beside them.
 
 This folder has what Steamworks needs, and these steps say what to do with
 it once there's an App ID.
@@ -19,6 +19,7 @@ it once there's an App ID.
 | `stats.csv` | The 12 stats (all INT, set by the client) |
 | `achievements/NAME.jpg` | Each achievement's icon, 256 × 256 |
 | `achievements/NAME_locked.jpg` | The same, greyed: Steam's "unachieved" icon |
+| `badges.txt`, `make_icons.sh` | What each badge shows (the prompt that drew it), and the script that cuts the drawings round and writes both sets of icons |
 | `make_tables.py` | Writes the two CSV files from the game's own `AchDef` lines, so they can't drift apart from the code. Run it after changing an achievement. |
 
 The game shows the same icons, smaller, from `neon-caster/achievements/`.
