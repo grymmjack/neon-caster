@@ -407,6 +407,7 @@ CONST EV_DEATHPIT = 13, EV_KINDS = 13
 ' smokes or crackles for TRAP_WARN frames before it goes live, and while
 ' live it blazes or arcs, lights the room and roars or buzzes (TrapFx)
 CONST TRAP_WARN = 30
+DIM SHARED doorLockEv(MAP_SIZE, MAP_SIZE) AS INTEGER, evMiss(MAX_EVENTS) AS INTEGER ' (evMiss: an ambush's spawns that found no room, in a row) ' (which event room sealed a door, doorLock -1: only it lets it go)
 DIM SHARED evGlow(MAX_EVENTS) AS SINGLE, evHum&(MAX_EVENTS) ' (how lit a trap is now, 0 to 1; its own looping copy of its sound)
 DIM SHARED closetCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' (a closet's secret wall: which closet event it belongs to)
 DIM SHARED thiefDist(MAP_SIZE, MAP_SIZE) AS INTEGER ' (how many steps from a hoard's door: the thieves' way home - BuildThiefWay)
@@ -1594,7 +1595,9 @@ DO
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
     IF conWait > 0 THEN conWait = conWait - 1
     DO WHILE conWait = 0 AND conQHead < conQTail AND glShotReq = 0 ' (a screenshot asked for: the rest waits until it's saved)
-        conQHead = conQHead + 1 : conCmd$ = conQ$(conQHead) : GOSUB ConExec
+        conQHead = conQHead + 1 : conCmd$ = conQ$(conQHead)
+        IF LEFT$(conCmd$, 1) = CHR$(2) THEN conCmd$ = MID$(conCmd$, 2) : conFromTrig = -1 ' (a trigger's command, queued behind a wait)
+        GOSUB ConExec : conFromTrig = 0
     LOOP
     IF conQHead >= conQTail THEN conQHead = 0 : conQTail = 0
     ' ` (or ~): the console
@@ -1882,7 +1885,7 @@ DO
     END IF
     IF poisonTint > 0 THEN poisonTint = poisonTint - 1
     liqTick = liqTick + 1 ' (the monsters' clock, in harmful liquids)
-    IF liqAny THEN LiquidHum playerX, playerY ' (the harmful ones bubble: louder as you near them)
+    IF liqAny AND NOT editMode THEN LiquidHum playerX, playerY ' (the harmful ones bubble: louder as you near them - not in the editor, where the world's sounds are off)
     IF levelFlat AND NOT editMode THEN playerZ = 0 : playerVZ = 0
     IF editMode OR playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
     ' ...and you can't walk through a monster: if a step takes you inside one
@@ -2056,7 +2059,7 @@ DO
             IF cellX = INT(playerX) AND cellY = INT(playerY) THEN GOTO NextReach ' (the doorway you're in)
             IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 AND doorLock(cellX, cellY) THEN
                 PlaySfx sndLocked&, 0.8
-                IF doorLock(cellX, cellY) = 2 THEN ShowMsg "SEALED - hack its data station to open it" ELSE IF doorLock(cellX, cellY) = 3 THEN ShowMsg "LOCKED DOWN - repair the terminal's program" ELSE ShowMsg SealedMsg$(cellX, cellY)
+                IF doorLock(cellX, cellY) = 2 THEN ShowMsg "SEALED - hack its data station to open it" ELSE IF doorLock(cellX, cellY) = 3 THEN ShowMsg "LOCKED DOWN - repair the terminal's program" ELSE IF doorLock(cellX, cellY) = 4 THEN ShowMsg "LOCKED" ELSE ShowMsg SealedMsg$(cellX, cellY)
                 EXIT FOR
             ELSEIF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 THEN
                 keyNeeded = doorKey(cellX, cellY)
@@ -4991,7 +4994,7 @@ RETURN
 ' the ;s - unless there's a wait among them: then onto the console's queue,
 ' to run a frame at a time (chapter 21)
 TriggerRun:
-IF INSTR(LCASE$(trigRun$), "wait") THEN ConQueue trigRun$ : RETURN
+IF INSTR(LCASE$(trigRun$), "wait") THEN conFromTrig = -1 : ConQueue trigRun$ : conFromTrig = 0 : RETURN ' (marked: the level's, not yours)
 trigK = k ' (ConExec uses k)
 conFromTrig = -1 ' (the level's doing, not yours: a trigger's give isn't a cheat)
 DO WHILE LEN(trigRun$)
@@ -5887,13 +5890,14 @@ RETURN
 
 ' --- Event ev begins: you walked in
 StartEvent:
-evState(ev) = 1 : evNext(ev) = 40 : evAway(ev) = 0
+evState(ev) = 1 : evNext(ev) = 40 : evAway(ev) = 0 : evMiss(ev) = 0
 IF NOT evPaused(ev) THEN evCount(ev) = 0 ' (back in a lockdown that lifted: it carries on)
 SELECT CASE evType(ev)
     CASE EV_AMBUSH
         LockRoom ev, -1 : GOSUB SlamRoom : PlaySfx sndAlarm&, 1 : ShowMsg "LOCKDOWN! Destroy every hostile to get out" : Say "lockdown", 0
     CASE EV_SURVIVE
-        LockRoom ev, -1 : GOSUB SlamRoom : PlaySfx sndAlarm&, 1 : IF NOT evPaused(ev) THEN evTimer(ev) = evA(ev) * 60
+        IF NOT evPaused(ev) THEN evTimer(ev) = evA(ev) * 60 ' (before SlamRoom, which forgets it was paused: back in, the clock carries on)
+        LockRoom ev, -1 : GOSUB SlamRoom : PlaySfx sndAlarm&, 1
         ShowMsg "LOCKDOWN! Survive" + STR$(evTimer(ev) \ 60) + " seconds"
     CASE EV_GALLERY
         evTimer(ev) = evA(ev) * 60 : PlaySfx sndAlarm&, 0.6
@@ -5923,6 +5927,7 @@ RETURN
 
 ' --- Event ev goes on, a frame at a time
 StepEvent:
+IF dead THEN RETURN ' (dead: the room waits - no winning a survive room on the death screen)
 IF evType(ev) = EV_AMBUSH OR evType(ev) = EV_SURVIVE THEN ' Out of a lockdown's room (somehow)? A second of that, and it lifts
     ' (more than a cell out of its room - past the doors in its walls)
     IF (playerX >= evX0(ev) - 1 AND playerX < evX1(ev) + 2 AND playerY >= evY0(ev) - 1 AND playerY < evY1(ev) + 2) OR dead THEN evAway(ev) = 0 ELSE evAway(ev) = evAway(ev) + 1
@@ -5941,7 +5946,12 @@ SELECT CASE evType(ev)
     CASE EV_AMBUSH ' Monsters arrive a few at a time; win when the last one falls
         IF evCount(ev) < evA(ev) AND alive < 4 AND evNext(ev) = 0 THEN
             IF evB(ev) THEN t = evB(ev) ELSE t = VAL(MID$("1246", INT(RND * 4) + 1, 1)) ' (a mix: drones, gunners, crawlers, stalkers)
-            IF SpawnInRoom(ev, t, playerX, playerY) THEN evCount(ev) = evCount(ev) + 1 : evNext(ev) = 50
+            IF SpawnInRoom(ev, t, playerX, playerY) THEN
+                evCount(ev) = evCount(ev) + 1 : evNext(ev) = 50 : evMiss(ev) = 0
+            ELSE ' (no room: the monster list full, or nowhere far enough from you - for long, and the ones there will do)
+                evNext(ev) = 20 : evMiss(ev) = evMiss(ev) + 1
+                IF numMonsters >= MAX_MON OR evMiss(ev) >= 30 THEN evCount(ev) = evA(ev)
+            END IF
         END IF
         IF evCount(ev) >= evA(ev) AND alive = 0 THEN GOSUB WinEvent
     CASE EV_SURVIVE ' Hold out until the timer runs down
@@ -6302,11 +6312,15 @@ IF NOT lvlOK THEN PRINT "Can't read the level file "; LevelFile$(level) : SLEEP 
 ' lvlRow$() and the rest, as it's been changed - not from its file
 BuildLevel:
 IF cyberOn THEN CyberTextures 0 : cyberOn = 0 ' (died in the network: the real pictures back)
+FOR k = 1 TO MAX_EVENTS ' (each event room's own looping sound - a trap's buzz or roar - closed: the next level's room k may be another kind)
+    IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k) : _SNDCLOSE evHum&(k)
+    evHum&(k) = 0
+NEXT
 numStations = 0 : numPads = 0 : numTerms = 0
 IF NOT editRebuild THEN glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
 FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
-    worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
+    worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorLockEv(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
     floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
     FOR f = 1 TO FACE_MAX : faceTex(x, y, f) = 0 : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
     boxOn(x, y) = 0
@@ -7446,7 +7460,7 @@ SELECT CASE conVerb$
                 SELECT CASE conC$
                     CASE "open" : doorLock(x, y) = 0 : IF doorOpen(x, y) < 1 THEN doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
                     CASE "close" : doorMove(x, y) = -1
-                    CASE "lock" : doorLock(x, y) = -1 : doorMove(x, y) = -1
+                    CASE "lock" : doorLock(x, y) = 4 : doorMove(x, y) = -1 ' (4: locked by a trigger - no event room lets it go)
                     CASE "unlock" : doorLock(x, y) = 0
                     CASE ELSE : IF doorOpen(x, y) > 0.5 THEN doorMove(x, y) = -1 ELSE doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
                 END SELECT
@@ -7458,7 +7472,7 @@ SELECT CASE conVerb$
     CASE "message", "msg" ' message TEXT: on screen, like a pickup's
         ShowMsg conRest$
     CASE "sound", "sfx" ' sound NAME: a sound effect (sfx/NAME.wav)
-        snd& = LoadSnd&(conA$ + ".wav") : IF snd& > 0 THEN _SNDPLAY snd& ELSE ConPrint "sound: no sfx/" + conA$ + ".wav"
+        snd& = ConSound&(conA$) : IF snd& > 0 THEN PlaySfx snd&, 0.9 ELSE ConPrint "sound: no sfx/" + conA$ + ".wav"
     CASE "wall" ' wall X Y CHAR: a cell changed in the running level - a wall (# N C K P G) or floor (.) - as a closet's
         x = VAL(conA$) : y = VAL(conB$) : pc$ = MID$(conRest$, LEN(conRest$), 1)
         IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
@@ -7704,7 +7718,7 @@ SELECT CASE miKind(menuSel)
                 saveSlot = miRef(menuSel) : GOSUB SaveGame : menuDone = -1
             CASE MA_LOAD
                 saveSlot = miRef(menuSel) : GOSUB LoadGame
-                IF loadOK THEN menuDone = -1 : achCheat = 0 : achRunFrom = 1
+                IF loadOK THEN menuDone = -1
             CASE MA_QUIT
                 AchStore : STEAM_shutdown : SaveSettings : SYSTEM
             CASE MA_KEYS_DEFAULT
@@ -7835,6 +7849,13 @@ PUT #fileNum, , numDecos
 FOR i = 1 TO numDecos : PUT #fileNum, , decoOn(i) : PUT #fileNum, , decoHP(i) : PUT #fileNum, , decoTimer(i) : NEXT
 FOR l = 1 TO numLights : PUT #fileNum, , lightBroken(l) : NEXT ' (the ceiling lamps you shot out)
 FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , glassHP(x, y) : NEXT : NEXT ' (and the glass)
+' (then - each section only in saves made since it was added - which
+' triggers have fired, the lockdowns that lifted, pools flooded in play,
+' and the achievements' state: cheats on, where the run began)
+PUT #fileNum, , numTrigs : FOR k = 1 TO numTrigs : PUT #fileNum, , trigDone(k) : NEXT
+PUT #fileNum, , numEvents : FOR k = 1 TO numEvents : PUT #fileNum, , evPaused(k) : NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , liqKind(x, y) : PUT #fileNum, , liqZ(x, y) : NEXT : NEXT
+PUT #fileNum, , achCheat : PUT #fileNum, , achRunFrom
 CLOSE #fileNum
 IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 RETURN
@@ -7901,6 +7922,22 @@ NEXT
 IF LOC(fileNum) < LOF(fileNum) THEN ' The glass (a save from before glass has none)
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , glassHP(x, y) : NEXT : NEXT
 END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The triggers that fired (else every "time" and "clear" one would go off again)
+    GET #fileNum, , savedCount
+    FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numTrigs AND savedCount = numTrigs THEN trigDone(k) = tdone%
+    NEXT
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The lockdowns that lifted (they carry on where they were)
+    GET #fileNum, , savedCount
+    FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numEvents AND savedCount = numEvents THEN evPaused(k) = tdone%
+    NEXT
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The pools, as they were (a trigger may have flooded some)
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , liqKind(x, y) : GET #fileNum, , liqZ(x, y)
+        IF liqKind(x, y) THEN liqAny = -1 : levelFlat = 0
+    NEXT : NEXT
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achCheat : GET #fileNum, , achRunFrom ' (achievements: cheats stay on through a save)
 CLOSE #fileNum
 planeX = dirY * fovPlane : planeY = - dirX * fovPlane ' (your direction came from the file)
 levelStart! = TIMER - levelTime! : dead = 0 : swapTimer = 0
@@ -9002,7 +9039,13 @@ END FUNCTION
 SUB LockRoom(ev, locked)
     FOR y = evY0(ev) - 5 TO evY1(ev) + 5 : FOR x = evX0(ev) - 5 TO evX1(ev) + 5
         IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
-            IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT AND doorLock(x, y) <> 2 AND doorLock(x, y) <> 3 THEN doorLock(x, y) = locked
+            IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN
+                IF locked THEN ' (sealed - unless something else already has it)
+                    IF doorLock(x, y) = 0 THEN doorLock(x, y) = -1 : doorLockEv(x, y) = ev
+                ELSEIF doorLock(x, y) = -1 AND (doorLockEv(x, y) = ev OR doorLockEv(x, y) = 0) THEN ' (let go - only its own: another room's lockdown, a trigger's lock, a hoard's seal stay)
+                    doorLock(x, y) = 0 : doorLockEv(x, y) = 0
+                END IF
+            END IF
         END IF
     NEXT : NEXT
 END SUB
@@ -9061,6 +9104,7 @@ END FUNCTION
 FUNCTION SpawnNear(ev, t, sx, sy, px, py)
     FOR try = 1 TO 20
         x = INT(sx + (RND - 0.5) * 3) + 0.5 : y = INT(sy + (RND - 0.5) * 3) + 0.5
+        IF (x - px) ^ 2 + (y - py) ^ 2 < 2.25 THEN _CONTINUE ' (never on top of you)
         IF SpawnMonster(t, x, y, ev, px, py) THEN SpawnNear = -1 : EXIT FUNCTION
     NEXT
 END FUNCTION
@@ -13629,9 +13673,23 @@ SUB ConQueue(cmd$)
     DO ' (several on one line, split by ;)
         semi = INSTR(c$, ";")
         IF semi THEN one$ = LEFT$(c$, semi - 1) : c$ = MID$(c$, semi + 1) ELSE one$ = c$ : c$ = ""
-        IF LEN(LTRIM$(one$)) AND conQTail < CON_QUEUE THEN conQTail = conQTail + 1 : conQ$(conQTail) = LTRIM$(one$)
+        IF LEN(LTRIM$(one$)) AND conQTail < CON_QUEUE THEN conQTail = conQTail + 1 : conQ$(conQTail) = LTRIM$(one$) : IF conFromTrig THEN conQ$(conQTail) = CHR$(2) + conQ$(conQTail) ' (CHR$(2): a trigger's)
     LOOP WHILE LEN(c$)
 END SUB
+
+' A sound effect by name, for the sound command (a trigger's): opened the
+' first time it's asked for, then kept - so a trigger that plays it again
+' and again doesn't open it again and again - and played like any other,
+' at the SFX volume
+FUNCTION ConSound&(n$)
+    STATIC names$(32), snds&(32), count
+    FOR k = 1 TO count
+        IF names$(k) = LCASE$(n$) THEN ConSound& = snds&(k) : EXIT FUNCTION
+    NEXT
+    s& = LoadSnd&(n$ + ".wav")
+    IF s& > 0 AND count < 32 THEN count = count + 1 : names$(count) = LCASE$(n$) : snds&(count) = s&
+    ConSound& = s&
+END FUNCTION
 
 ' Word n of a command, lower case (the first word is the command)
 FUNCTION ConWord$(c$, n)
