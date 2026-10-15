@@ -972,7 +972,7 @@ DIM SHARED speechText$, speechUntil!, tauntWait AS LONG, cliMode AS INTEGER, nex
 ' doors, shots, explosions - and a monster's muttering and growling
 CONST SFX_RANGE = 20, SFX_CHATTER = 12
 CONST SFX_HEADROOM = 1.6
-DIM SHARED sfxLoad!, sfxThis&(32), sfxThisN AS INTEGER, earDX, earDY, sfxFrameT! ' (sfxFrameT!: when SfxFrame last ran)
+DIM SHARED sfxLoad!, sfxThis&(32), sfxThisV!(32), sfxThisN AS INTEGER, earDX, earDY, sfxFrameT! ' (sfxFrameT!: when SfxFrame last ran)
 earDX = 1 : earDY = 0
 DIM SHARED kickTimer AS INTEGER, kickImg&, sndKick&, sndKickSwing& ' (the kick: chapter 12)
 sndHurt2& = LoadSnd&("hurt2.wav") : sndHurt3& = LoadSnd&("hurt3.wav")
@@ -1945,6 +1945,8 @@ DO
     ' an odd multiple of pi. A stride is STEP_WALK cells walking and up to
     ' STEP_RUN running: you run with longer strides, not just quicker ones.
     moved = SQR((playerX - prevX) ^ 2 + (playerY - prevY) ^ 2)
+    IF editMode THEN moved = 0 ' (flying round the editor: no footsteps)
+    IF NOT levelFlat THEN IF playerZ - floorH(INT(playerX), INT(playerY)) > 0.05 AND liqWas = 0 THEN moved = 0 ' (in the air: none either)
     IF moved > 0 THEN
         stride = STEP_WALK + (STEP_RUN - STEP_WALK) * MaxOf(0, MinOf(1, (moveSpeed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)))
         beatWas = INT((bobPhase - 3.14159265) / 6.2831853)
@@ -2086,11 +2088,12 @@ DO
     ' each kind its own), then shuts itself - but never on anyone: with you
     ' or a monster in the doorway (DoorBlocked), it waits, or if it was
     ' already shutting, opens again, like an automatic door.
+    usedTrig = 0
     IF spaceDown AND NOT spaceWas AND NOT dead AND NOT editMode THEN ' A "use" trigger at the cell in front? (chapter 19)
         FOR k = 1 TO numTrigs
             IF trigWhen$(k) = "use" AND NOT trigDone(k) THEN
                 FOR reach = 0.3 TO 1.6 STEP 0.1
-                    IF INT(playerX + dirX * reach) = trigX0(k) AND INT(playerY + dirY * reach) = trigY0(k) THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : PlaySfx sndCore&, 0.6 : GOSUB TriggerRun : EXIT FOR
+                    IF INT(playerX + dirX * reach) = trigX0(k) AND INT(playerY + dirY * reach) = trigY0(k) THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : PlaySfx sndCore&, 0.6 : usedTrig = -1 : GOSUB TriggerRun : EXIT FOR
                 NEXT
             END IF
         NEXT
@@ -2145,7 +2148,7 @@ DO
                 EXIT FOR
             END IF
             IF SolidAt(playerX + dirX * reach, playerY + dirY * reach) THEN
-                IF reach <= 1.2 THEN PlaySfx sndHump&, 0.8 : AchAdd "Searches", 1 ' Trying to open a plain wall
+                IF reach <= 1.2 AND NOT usedTrig THEN PlaySfx sndHump&, 0.8 : AchAdd "Searches", 1 ' Trying to open a plain wall (not a switch you just used)
                 EXIT FOR
             END IF
             NextReach:
@@ -2470,7 +2473,7 @@ DO
                             monsterState(i) = 1 : monsterTimer(i) = 30
                             SfxAt mtypeAlertSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
                             IF mtype = 8 THEN Say "boss", 0 ' (the overseer: NEXUS speaks through it)
-                            IF (mtype = 2 OR mtype = 6 OR mtype = 7) AND RND < 0.35 THEN Say "bark" + LTRIM$(STR$(INT(RND * 6) + 1)), -1 ' (a minion reports in)
+                            IF (mtype = 2 OR mtype = 6 OR mtype = 7) AND RND < 0.35 THEN SayAt "bark" + LTRIM$(STR$(INT(RND * 6) + 1)), monsterX(i), monsterY(i) ' (a minion reports in - from where it is)
                         END IF
                     END IF
                 END IF
@@ -4360,6 +4363,7 @@ RETURN
 ' The map from above: draw it, read the mouse and keys, until Tab (walk
 ' round inside it) or F2 / Esc (back to the game)
 RunEditor:
+WorldLoopsOff ' (the map from above: the world's hums stop)
 _MOUSESHOW : _KEYCLEAR
 edDone = 0 : edDown = 0 : edRect = 0 : edTbDown = -1 : edB1 = -1 ' (a button still held from the other view isn't a click here)
 DO
@@ -7413,6 +7417,7 @@ RETURN
 ' bring back earlier ones; Tab finishes a command's name; ` or Esc closes
 ' it. A command that changes the level closes it too, so you see it.
 RunConsole:
+WorldLoopsOff ' (the world stops while you type: so do its hums)
 _KEYCLEAR
 conLine$ = "" : conDone = 0 : conBrowse = conHistN + 1
 conBackdrop& = _COPYIMAGE(0)
@@ -9006,16 +9011,40 @@ SUB ReadPicture(img&, size, dst, slot)
     _MEMFREE m
 END SUB
 
-'' NEXUS (or a minion) says line key$: its voice and its words on screen.
-' (x, y): where a minion is, for 3D sound - (0, 0) for NEXUS, who speaks
-' over the station's speakers, everywhere at once
+' NEXUS says line key$: its voice, over the station's speakers - everywhere
+' at once - and its words on screen. One line at a time: a new one cuts
+' off the last. (fromMinion: a minion's line, no words on screen - SayAt
+' says one from where the minion is.)
 SUB Say(key$, fromMinion)
+    STATIC lastLi
     li = LineOf(key$) : IF li = 0 THEN EXIT SUB
-    IF lineSnd&(li) > 0 THEN _SNDPLAYCOPY lineSnd&(li), setting(SET_SPEECH) / 100
-    IF fromMinion = 0 THEN
-        speechText$ = "NEXUS: " + lineText$(li)
-        IF lineSnd&(li) > 0 THEN speechUntil! = TIMER + _SNDLEN(lineSnd&(li)) + 0.6 ELSE speechUntil! = TIMER + 3
+    IF fromMinion THEN
+        IF lineSnd&(li) > 0 THEN _SNDPLAYCOPY lineSnd&(li), setting(SET_SPEECH) / 100
+        EXIT SUB
     END IF
+    IF lastLi > 0 THEN IF lineSnd&(lastLi) > 0 THEN IF _SNDPLAYING(lineSnd&(lastLi)) THEN _SNDSTOP lineSnd&(lastLi)
+    IF lineSnd&(li) > 0 THEN _SNDVOL lineSnd&(li), setting(SET_SPEECH) / 100 : _SNDPLAY lineSnd&(li)
+    lastLi = li
+    speechText$ = "NEXUS: " + lineText$(li)
+    IF lineSnd&(li) > 0 THEN speechUntil! = TIMER + _SNDLEN(lineSnd&(li)) + 0.6 ELSE speechUntil! = TIMER + 3
+    IF speechUntil! >= 86400 THEN speechUntil! = speechUntil! - 86400 ' (past midnight: TIMER starts again from 0)
+END SUB
+
+' A minion's line (a guard reporting in), from where it is (x, y): as loud
+' as it is near, from its side - and one every couple of seconds, never
+' over NEXUS, so a room of guards spotting you isn't a shouting match
+SUB SayAt(key$, x, y)
+    STATIC quietTill!
+    IF speechUntil! > TIMER THEN EXIT SUB
+    IF TIMER < quietTill! AND quietTill! - TIMER < 10 THEN EXIT SUB
+    li = LineOf(key$) : IF li = 0 THEN EXIT SUB
+    IF lineSnd&(li) <= 0 THEN EXIT SUB
+    vol! = SfxVolAt!(x, y, playerX, playerY, SFX_RANGE) : IF vol! <= 0.02 THEN EXIT SUB
+    dx = x - playerX : dy = y - playerY : d = SQR(dx * dx + dy * dy) : pan! = 0
+    IF setting(SET_SPATIAL) AND d > 0.5 THEN pan! = (dx * earDY - dy * earDX) / d * 0.85 * MinOf(1, d / 2)
+    v! = vol! * setting(SET_SPEECH) / 100
+    IF pan! = 0 THEN _SNDPLAYCOPY lineSnd&(li), v! ELSE _SNDPLAYCOPY lineSnd&(li), v!, pan!
+    quietTill! = TIMER + 2.5
 END SUB
 
 ' Which line has key key$ (0: none)
@@ -13870,10 +13899,15 @@ SUB PlaySfxPan(snd&, vol!, pan!)
             frames = (t! - sfxFrameT!) * 60 : IF frames < 0 OR frames > 600 THEN frames = 600
             sfxLoad! = sfxLoad! * 0.82 ^ frames : sfxThisN = 0 : sfxFrameT! = t!
         END IF
+        IF v! <= 0.003 THEN EXIT SUB ' (too quiet to hear: it doesn't count)
+        seen = 0
         FOR k = 1 TO sfxThisN
-            IF sfxThis&(k) = snd& THEN EXIT SUB ' (once a frame)
+            IF sfxThis&(k) = snd& THEN ' (once a frame - unless this one's louder: the gunner in front of you, not the one far off)
+                IF v! <= sfxThisV!(k) THEN EXIT SUB
+                sfxThisV!(k) = v! : seen = -1
+            END IF
         NEXT
-        IF sfxThisN < 32 THEN sfxThisN = sfxThisN + 1 : sfxThis&(sfxThisN) = snd&
+        IF NOT seen AND sfxThisN < 32 THEN sfxThisN = sfxThisN + 1 : sfxThis&(sfxThisN) = snd& : sfxThisV!(sfxThisN) = v!
         IF sfxLoad! + v! > SFX_HEADROOM THEN v! = v! * SFX_HEADROOM / (sfxLoad! + v!)
         IF speechUntil! > TIMER THEN v! = v! * 0.55 ' (ducked under speech)
         sfxLoad! = sfxLoad! + v!
@@ -14210,6 +14244,7 @@ FUNCTION ConSound&(n$)
         IF names$(k) = LCASE$(n$) THEN ConSound& = snds&(k) : EXIT FUNCTION
     NEXT
     s& = LoadSnd&(n$ + ".wav")
+    IF s& > 0 AND count >= 32 THEN _SNDCLOSE snds&(32) : count = 31 ' (full: the last one's place is taken, not leaked)
     IF s& > 0 AND count < 32 THEN count = count + 1 : names$(count) = LCASE$(n$) : snds&(count) = s&
     ConSound& = s&
 END FUNCTION
@@ -17064,7 +17099,7 @@ SUB MoveLifts(px, py)
         FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
             IF liftCell(x, y) = k THEN floorH(x, y) = liftZ(k)
         NEXT : NEXT
-        LiftSound k, px, py
+        IF editMode OR cyberOn THEN liftWasDir(k) = liftDir(k) ELSE LiftSound k, px, py ' (quiet in the editor and the network)
     NEXT
 END SUB
 
@@ -17107,9 +17142,11 @@ END SUB
 ' as loud as the nearest of them within 4 cells of (px, py) is near -
 ' looked for every 10 frames (a few cells round you is cheap enough)
 SUB LiquidHum(px, py)
-    STATIC near, tick
+    STATIC near, tick, lastX, lastY
     IF sndBubble& <= 0 THEN EXIT SUB
     tick = tick + 1
+    IF ABS(px - lastX) + ABS(py - lastY) > 1 THEN tick = 10 ' (a new level, a teleport: look again now, not with where you were)
+    lastX = px : lastY = py
     IF tick MOD 10 = 0 THEN
         near = 99
         FOR y = INT(py) - 4 TO INT(py) + 4 : FOR x = INT(px) - 4 TO INT(px) + 4
