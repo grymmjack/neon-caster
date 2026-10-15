@@ -526,6 +526,38 @@ def r9(m, rng):
             m.column(x, y, size=2, wall=5, pic=LIT, glow=CYAN if i % 2 else PINK, fx=0)
 
 
+def safe_pool(m, x0, y0, x1, y1, kind, sink=2, depth=1):
+    """A pool over the rectangle's open, dry, empty floor - only if the
+    sector can still be finished treating it as solid (so it's never the
+    only way)."""
+    cells = [(x, y) for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)
+             if m.g[y][x] == "." and m.lq[y][x] == "." and not any((b[0], b[1]) == (x, y) for b in m.blocks)]
+    if not cells:
+        return 0
+    rows = [list(r) for r in m.rows()]
+    for (x, y) in cells:
+        rows[y][x] = "#"
+    errs, _ = validate(["".join(r) for r in rows], "pool-check", pairs=m.pads)
+    if errs:
+        return 0
+    for (x, y) in cells:
+        m.pool(x, y, x, y, kind, sink=sink, depth=depth)
+    return len(cells)
+
+
+@remaster(10)
+def r10(m, rng):
+    """THE CORE: red-lit columns in the overseer's arena, lava pooled in
+    corners the way doesn't need."""
+    for (x, y) in ((22, 22), (25, 22), (22, 25), (25, 25)):
+        if m.g[y][x] == ".":
+            m.column(x, y, size=2, wall=3, pic=LIT, glow=RED, fx=2)
+    n = 0
+    for (x0, y0, x1, y1) in ((3, 3, 4, 4), (43, 3, 44, 4), (9, 9, 10, 10), (37, 9, 38, 10), (37, 36, 38, 38), (15, 31, 16, 32), (31, 15, 32, 16)):
+        n += safe_pool(m, x0, y0, x1, y1, "l", sink=2, depth=1)
+    print("   (lava: %d cells)" % n)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
