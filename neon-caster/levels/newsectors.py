@@ -531,6 +531,106 @@ def aqueduct():
     finish(m, 2, dict(closets=1, cmons="c", props=4, propchars="xop"))
     return m
 
+
+def stall(m, x, y, deco, glow, pic="wall-adverts.png", wall=2):
+    """A market stall 3 cells wide and 2 deep, open to the south: a back
+    wall (its sign lit), side walls in the front row, `deco` at the back."""
+    m.ceiling(x, y, x + 2, y + 1, 12, only_raise=False)   # (its awning: a roof, not the sky)
+    m.zone(x, y, x + 2, y + 1, 0, 1)
+    m.thin_wall(x, y, x + 2, y, "N", t=2, wall=wall)
+    m.blk(x + 1, y, 0, 0, 8, 2, wall=wall, pics={"S": pic}, glow=glow, bright=170, rad=2.5)
+    m.blk(x, y + 1, 0, 0, 1, 8, wall=wall)
+    m.blk(x + 2, y + 1, 7, 0, 8, 8, wall=wall)
+    if deco:
+        m.put(x + 1, y + 1, deco)
+        m.nudge(x + 1, y + 1, 0, -3)
+
+
+# ---------------------------------------------------------------- 3
+@sector("SECTOR 3: NEON MARKET",
+        ["wall-adverts.png", "wall-graffiti.png", "wall-brick.png", "wall-concrete.png", "wall-transit.png", "wall-grate.png"],
+        ["floor-cobbles.png", "floor-concrete.png", "floor-plates.png", "floor-platform.png"],
+        ["ceiling-pipes.png", "sky-neon-night.png"])
+def market():
+    """NEW 3: NEON MARKET. Out of the subway (south) into the night market:
+    an open square under the city sky, stalls of thin walls in rows, each
+    sign lit its own colour, vending machines glowing in the shopfronts,
+    rain puddles, a stage with a hologram in the middle. Thieves work the
+    crowd - kill them and their hoard opens. The arcade (north) is a
+    shooting gallery: smash it all in time for an overcharge; the red card
+    is in there. The noodle bar (west, red door) locks down round the blue
+    card. The pawn shop (east, blue door) has the exit."""
+    m = Sector("#")
+    m.ambient = (150, 200, 190, 255)
+    m.puzzles = "countdown"
+    # The subway stairs: you, facing north
+    m.room(20, 42, 27, 45, ceil=10, zone=(4, 1))
+    m.put(23, 45, "^")
+    m.stairs(22, 40, 25, 41, "N", 0, 0)
+    m.rect(22, 40, 25, 41)
+    m.put(21, 43, "M"); m.put(26, 43, "a")
+    # The square: under the sky
+    m.room(8, 8, 39, 39, ceil=24, zone=(1, 2))
+    for (sx, sy) in ((10, 11), (17, 11), (28, 11), (35, 11), (10, 30), (17, 30), (28, 30), (35, 30), (10, 18), (35, 18)):
+        stall(m, sx - 1, sy, None, None)
+    colours = (PINK, CYAN, AMBER, VIOLET)
+    decos = ("n", "x", "p", "t", "Q", "x", "n", "o", "p", "t")
+    i = 0
+    for (sx, sy) in ((10, 11), (17, 11), (28, 11), (35, 11), (10, 30), (17, 30), (28, 30), (35, 30), (10, 18), (35, 18)):
+        x, y = sx - 1, sy
+        m.blocks = [b for b in m.blocks if (b[0], b[1]) != (x + 1, y)]
+        m.blk(x + 1, y, 0, 0, 8, 2, wall=2, pics={"S": "wall-adverts.png"}, glow=colours[i % 4], bright=170, rad=2.5)
+        m.put(x + 1, y + 1, decos[i]); m.nudge(x + 1, y + 1, 0, -2)
+        i += 1
+    # the stage: raised, a hologram, four lit posts
+    m.floor(21, 21, 26, 26, 2)
+    m.put(23, 23, "Q"); m.put(24, 24, "Q")
+    for (x, y, a) in ((21, 21, "N"), (26, 21, "N"), (21, 26, "S"), (26, 26, "S")):
+        m.post(x, y, a, at=4, w=2, d=2, wall=5, glow=PINK if y == 21 else CYAN)
+    # puddles
+    for (x0, y0, x1, y1) in ((13, 24, 15, 25), (31, 23, 33, 25), (19, 35, 21, 36), (26, 15, 27, 16)):
+        m.pool(x0, y0, x1, y1, "w", sink=1, depth=1)
+    # street lamps
+    for (x, y) in ((8, 8), (39, 8), (8, 39), (39, 39), (15, 24), (32, 24)):
+        m.put(x, y, "i")
+    # vending machines and screens in the shopfronts (alcoves in the walls round the square)
+    for (x, y, o, d, g) in ((7, 14, "E", "n", PINK), (7, 34, "E", "n", PINK), (40, 34, "W", "n", CYAN), (40, 14, "W", "F", CYAN),
+                            (13, 40, "N", "n", AMBER), (34, 40, "N", "F", AMBER)):
+        m.alcove(x, y, o, depth=3, floor=0, ceil=8, deco=d, glow=g, fx=0)
+    for (x, y, c) in ((12, 22, "m"), (30, 15, "m"), (18, 27, "m"), (33, 33, "m"), (24, 33, "m"), (20, 14, "k"),
+                      (36, 26, "w"), (11, 36, "g"), (37, 10, "g"), (16, 9, "e"), (31, 38, "+"), (9, 26, "u"), (38, 20, "a")):
+        m.put(x, y, c)
+    # The arcade (north): a shooting gallery - and the red card
+    m.room(13, 2, 34, 6, ceil=12, zone=(3, 1))
+    m.put(23, 7, "D")
+    for x in (15, 18, 21, 26, 29, 32):
+        m.put(x, 3, "x" if x % 2 else "o")
+    m.put(14, 6, "F"); m.put(33, 6, "F"); m.put(23, 2, "r"); m.put(24, 2, "j")
+    for x in (16, 20, 27, 31):
+        m.column(x, 5, size=2, wall=5, pic=LIT)
+    m.light(23.5, 4.5, 8, 160, 255, 90, 220, 3)
+    m.event(4, 13, 2, 34, 6, 25, 0, 13)
+    # The noodle bar (west, red door): benches, a lockdown round the blue card
+    m.room(2, 16, 6, 30, ceil=10, zone=(2, 1))
+    m.put(7, 23, "R")
+    for y in (18, 21, 25, 28):
+        m.put(3, y, "W"); m.put(5, y, "Z")
+    m.thin_wall(4, 17, 4, 29, "W", t=1, wall=4)
+    m.put(2, 30, "b"); m.put(6, 16, "*")
+    m.light(4.5, 20.5, 5, 160, 255, 160, 60, 1); m.light(4.5, 27.5, 5, 160, 255, 160, 60, 0)
+    m.event(1, 2, 16, 6, 30, 5, 4, 10)
+    # The pawn shop (east, blue door): the exit
+    m.room(41, 16, 45, 30, ceil=10, zone=(3, 1))
+    m.put(40, 23, "B"); m.put(46, 23, "E")
+    m.post(45, 22, "E", at=7, w=2, d=2, wall=5, glow=GREEN); m.post(45, 24, "E", at=1, w=2, d=2, wall=5, glow=GREEN)
+    for (x, y, c) in ((42, 17, "U"), (44, 17, "U"), (42, 29, "x"), (44, 29, "x"), (43, 20, "h"), (41, 26, "e")):
+        m.put(x, y, c)
+    m.loot_line("crate    = ammo:25, shells:25, medkit:15, armor:15")
+    m.loot_line("vending  = ammo:40, shells:30, medkit:15, overcharge:5")
+    m.loot_line("locker   = amp:15, armor:40, medkit:30, -")
+    finish(m, 3, dict(hoard=2, closets=1, cmons="ck"))
+    return m
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:
