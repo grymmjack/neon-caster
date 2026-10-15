@@ -263,7 +263,9 @@ How they work, to read alongside the code:
 
 - **Achieve.** Each achievement is unlocked by its API name.
 - **Counted ones.** `AchAdd` adds to a stat (kills, headshots) and unlocks
-  every achievement that stat's goal now reaches.
+  every achievement that stat's goal now reaches. Each quarter of the way
+  to a big one (a goal of ten or more, not hidden), it queues a quieter
+  ACHIEVEMENT PROGRESS note with a bar, as Steam does.
 - **Sets of things.** `AchBit` ticks one bit of a stat (each kind of machine
   killed, each set finished) and counts the bits.
 - **Where they're unlocked.** The hooks sit where things happen:

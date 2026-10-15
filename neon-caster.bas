@@ -18055,7 +18055,15 @@ SUB AchAdd(stat$, n)
     IF achCheat AND NOT achTest THEN EXIT SUB
     v& = STEAM_stat_int&(stat$) + n : ok = STEAM_set_stat_int%(stat$, v&)
     FOR i = 1 TO achN
-        IF achStat$(i) = stat$ THEN IF v& >= achGoal(i) THEN Achieve achApi$(i), 0
+        IF achStat$(i) = stat$ THEN
+            IF v& >= achGoal(i) THEN
+                Achieve achApi$(i), 0
+            ELSEIF achGoal(i) >= 10 AND NOT achHidden(i) AND NOT STEAM_is_steam% THEN ' (a quarter of the way more: say so, as Steam does)
+                IF (v& * 4) \ achGoal(i) > ((v& - n) * 4) \ achGoal(i) AND achToastN < 16 THEN
+                    achToastN = achToastN + 1 : achToast$(achToastN) = achTitle$(i) + CHR$(1) + LTRIM$(STR$(v&)) + " / " + LTRIM$(STR$(achGoal(i))) : achToastI(achToastN) = -i
+                END IF
+            END IF
+        END IF
     NEXT
 END SUB
 
@@ -18074,8 +18082,6 @@ FUNCTION BitCount(v&)
     NEXT : BitCount = n
 END FUNCTION
 
-' How far achievement i's stat has got (for the screen): a count, or how
-' many of a set
 ' A rank for n achievements got (n < 0: the rank after -n - 1 got - "" at
 ' the top), and how many the rank after n's needs (AchRankAt)
 FUNCTION AchRank$(n)
@@ -18095,6 +18101,8 @@ FUNCTION AchRankAt(n)
     NEXT
 END FUNCTION
 
+' How far achievement i's stat has got (for the screen): a count, or how
+' many of a set
 FUNCTION AchProgress&(i)
     IF achStat$(i) = "" OR NOT achReady THEN EXIT FUNCTION
     v& = STEAM_stat_int&(achStat$(i))
@@ -18165,7 +18173,9 @@ END FUNCTION
 SUB AchDrawToast
     IF achToastN = 0 THEN EXIT SUB
     achToastT = achToastT + 1
-    IF achToastT = 1 AND sndAchieve& THEN PlaySfx sndAchieve&, 0.9
+    pa = -achToastI(1) ' (above 0: a progress note for achievement pa - quiet, quicker, its grey badge and a bar)
+    IF pa > 0 AND achToastT = 110 THEN achToastT = 220 ' (it stays a shorter while)
+    IF achToastT = 1 AND sndAchieve& AND pa <= 0 THEN PlaySfx sndAchieve&, 0.9
     t = achToastT
     IF t < 16 THEN
         y = -64 + t * 5
@@ -18180,6 +18190,7 @@ SUB AchDrawToast
     LINE (x0, y)-(x0 + w, y + 58), _RGB32(255, 70, 210), B
     LINE (x0 + 1, y + 1)-(x0 + w - 1, y + 57), _RGBA32(255, 70, 210, 90), B
     ic& = 0 : IF achToastI(1) >= 1 AND achToastI(1) <= NUM_ACH THEN ic& = achIcon&(achToastI(1))
+    IF pa >= 1 AND pa <= NUM_ACH THEN ic& = achIconOff&(pa)
     IF ic& < -1 THEN ' (its badge)
         _PUTIMAGE (x0 + 6, y + 5)-STEP(47, 47), ic&
     ELSE
@@ -18192,9 +18203,21 @@ SUB AchDrawToast
         LINE (x0 + 20, y + 47)-(x0 + 40, y + 51), _RGB32(255, 200, 60), BF
         LINE (x0 + 21, y + 14)-(x0 + 24, y + 26), _RGBA32(255, 255, 255, gl), BF
     END IF
-    HudText x0 + 62, y + 8, "ACHIEVEMENT UNLOCKED", _RGB32(90, 240, 255)
-    MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
-    HudText x0 + 62, y + 42, dsc$, _RGB32(200, 190, 230)
+    IF pa > 0 THEN
+        HudText x0 + 62, y + 8, "ACHIEVEMENT PROGRESS", _RGB32(255, 200, 60)
+        MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
+        HudText x0 + 62, y + 42, dsc$, _RGB32(150, 230, 255)
+        bw = w - 62 - 10 - LEN(dsc$) * 8 - 12 : bx = x0 + 62 + LEN(dsc$) * 8 + 12 ' (and a bar: how far)
+        IF bw > 20 AND pa <= NUM_ACH THEN
+            pr& = AchProgress&(pa) : IF pr& > achGoal(pa) THEN pr& = achGoal(pa)
+            LINE (bx, y + 45)-(bx + bw, y + 51), _RGB32(40, 30, 70), BF
+            LINE (bx, y + 45)-(bx + bw * pr& / achGoal(pa), y + 51), _RGB32(90, 230, 255), BF
+        END IF
+    ELSE
+        HudText x0 + 62, y + 8, "ACHIEVEMENT UNLOCKED", _RGB32(90, 240, 255)
+        MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
+        HudText x0 + 62, y + 42, dsc$, _RGB32(200, 190, 230)
+    END IF
     IF t >= 236 THEN ' Gone: the next, if there is one
         FOR k = 1 TO achToastN - 1 : achToast$(k) = achToast$(k + 1) : achToastI(k) = achToastI(k + 1) : NEXT
         achToastN = achToastN - 1 : achToastT = 0
