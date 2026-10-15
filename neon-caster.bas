@@ -1849,7 +1849,7 @@ DO
         fz = floorH(INT(playerX), INT(playerY))
         IF liqKind(INT(playerX), INT(playerY)) AND NOT cyberOn THEN fz = MaxOf(fz, liqZ(INT(playerX), INT(playerY)) - LQ_FULL) ' (in deep liquid you float, your head above it)
         IF playerZ < fz THEN playerZ = fz : playerVZ = 0
-        IF liftCell(INT(playerX), INT(playerY)) AND playerZ - fz < 0.06 AND playerVZ < 0.03 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down)
+        IF liftCell(INT(playerX), INT(playerY)) THEN IF playerZ - fz < MaxOf(0.06, liftSpeed(liftCell(INT(playerX), INT(playerY))) + 0.02) AND playerVZ < 0.03 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down - however fast it goes)
         IF playerZ > fz THEN
             playerVZ = playerVZ + FALL_G : playerZ = playerZ - playerVZ
             IF playerZ <= fz THEN
@@ -2041,7 +2041,9 @@ DO
     IF qsDown AND NOT qsWas AND NOT dead THEN saveSlot = 0 : GOSUB SaveGame
     qsWas = qsDown
     qlDown = KeyHeld(BIND_QUICKLOAD) AND NOT edTyping
-    IF qlDown AND NOT qlWas THEN saveSlot = 0 : GOSUB LoadGame
+    IF qlDown AND NOT qlWas THEN
+        IF editMode THEN EditNote "No quick load in the editor (it would lose your changes) - F2 out first" ELSE saveSlot = 0 : GOSUB LoadGame
+    END IF
     qlWas = qlDown
     ' Tab: the full-screen map on or off (drawn in chapter 18). In the
     ' editor Tab is its own (the map from above / walking round), and the
@@ -2316,14 +2318,16 @@ DO
             FOR i = 1 TO numMonsters
                 IF monsterState(i) < 2 AND (cyberOn = 0 OR monsterType(i) = MT_ICE) THEN
                     ox = monsterX(i) - playerX : oy = monsterY(i) - playerY : d = SQR(ox * ox + oy * oy)
-                    IF d < bestD AND d > 0.01 THEN IF (ox * dirX + oy * dirY) / d > 0.7 AND NOT GlassBetween(playerX, playerY, monsterX(i), monsterY(i)) THEN best = i : bestD = d
+                    IF d < bestD AND d > 0.01 AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) < 0.6 THEN IF (ox * dirX + oy * dirY) / d > 0.7 AND NOT GlassBetween(playerX, playerY, monsterX(i), monsterY(i)) THEN best = i : bestD = d ' (and at your height: no kicking up a ledge)
                 END IF
             NEXT
             IF best THEN
                 target = best : hitDamage = KICK_DAMAGE : IF ampTimer > 0 THEN hitDamage = hitDamage * 2
                 GOSUB HitMonster
                 IF monsterState(best) >= 2 AND NOT cyberOn THEN Achieve "NC_KICK_KILL", 0
+                walkZ = FloorAt(monsterX(best), monsterY(best)) ' (shoved along the floor it's on: off an edge, yes - up a ledge, no)
                 IF monsterType(best) <> 5 THEN FOR kp = 1 TO 3 : MoveBody monsterX(best), monsterY(best), dirX * KICK_PUSH / 3, dirY * KICK_PUSH / 3 : NEXT ' (sentries are bolted down; in three steps, so it can't jump through glass)
+                walkZ = -999
                 SpawnSparks monsterX(best), monsterY(best), 0.35, 8, 255, 200, 140
                 PlaySfx sndKick&, 0.9 : shake = shake + 4 : crossFlash = 6
             ELSE
@@ -2459,6 +2463,8 @@ DO
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' The rest: close in...
                     ELSEIF GlassBetween(monsterX(i), monsterY(i), playerX, playerY) THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' (glass between: it just presses against it)
+                    ELSEIF mtypeLift(mtype) = 0 AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) > 0.6 THEN
+                        goX = toPlayerX / distance : goY = toPlayerY / distance ' (you're up a ledge, or down one: claws don't reach)
                     ELSEIF monsterTimer(i) = 0 THEN ' ...and hit
                         damage = mtypeDamage(mtype) + INT(RND * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
                         PlaySfx mtypeAttackSnd&(mtype), 0.9
@@ -2481,16 +2487,21 @@ DO
                     walkZ = -999 : walkFromHaz = 0
                 END IF
                 monsterAnim(i) = monsterAnim(i) + SQR((monsterX(i) - animX) ^ 2 + (monsterY(i) - animY) ^ 2) / MON_STRIDE
-                ' Keep a little apart from each other
+                ' Keep a little apart from each other - by the rules it walks by: no
+                ' shove up a ledge, off an edge, into fire or a harmful pool
+                walkZ = floorH(INT(monsterX(i)), INT(monsterY(i))) : walkFromHaz = FloorHazard(INT(monsterX(i)), INT(monsterY(i))) + 10
+                IF mtypeLift(mtype) > 0 THEN walkFromHaz = walkFromHaz + 100
+                IF liqKind(INT(monsterX(i)), INT(monsterY(i))) THEN IF lqHurt(liqKind(INT(monsterX(i)), INT(monsterY(i)))) > 0 THEN walkFromHaz = walkFromHaz + 100
                 FOR j = 1 TO numMonsters
                     IF j <> i AND monsterState(j) < 2 AND mtypeSpeed(mtype) > 0 THEN
                         relX = monsterX(i) - monsterX(j) : relY = monsterY(i) -monsterY(j) : distSq = relX * relX + relY * relY
                         IF distSq < 0.36 AND distSq > 0.0001 THEN
                             newX = monsterX(i) + relX * 0.05 : newY = monsterY(i) + relY * 0.05
-                            IF Walkable(newX, newY) THEN monsterX(i) = newX : monsterY(i) = newY
+                            IF BoxFree(newX, newY) THEN monsterX(i) = newX : monsterY(i) = newY
                         END IF
                     END IF
                 NEXT
+                walkZ = -999 : walkFromHaz = 0
             CASE 2 ' Dying: collapse
                 monsterTimer(i) = monsterTimer(i) -1
                 IF monsterTimer(i) <= 0 THEN monsterState(i) = 3
@@ -6361,13 +6372,14 @@ DO
         CASE 19200 : IF achTab = 1 THEN recSet = (recSet + 3) MOD 4 ' (records: the sets, left and right)
         CASE 19712 : IF achTab = 1 THEN recSet = (recSet + 1) MOD 4
     END SELECT
+    amx = WideMouseX(_MOUSEX)
     IF click AND NOT pressWas AND _MOUSEY < 60 THEN ' (or click a tab)
-        IF _MOUSEX < 350 THEN achTab = 0 ELSE IF _MOUSEX < 570 THEN achTab = 1 ELSE achTab = 2
+        IF amx < 350 THEN achTab = 0 ELSE IF amx < 570 THEN achTab = 1 ELSE achTab = 2
     END IF
     IF rclick THEN EXIT DO
     achRow = achRow + wheel : IF achRow < 0 THEN achRow = 0
     IF achRow > maxRow THEN achRow = maxRow
-    IF click AND NOT pressWas AND _MOUSEY > 556 AND ABS(_MOUSEX - 400) < 60 THEN EXIT DO
+    IF click AND NOT pressWas AND _MOUSEY > 556 AND ABS(amx - 400) < 60 THEN EXIT DO
     pressWas = click
     DrawMenuBackdrop achT
     LINE (0, 0)-(799, 599), _RGBA32(6, 0, 16, 190), BF
@@ -6601,6 +6613,11 @@ RETURN
 ' --- Start (or restart) the level: read its map, and reset everything in it
 LoadLevel:
 editFresh = -1 ' (the level as its file has it: nothing in it to save)
+nq = conQHead ' (a trigger's commands still waiting - after a "wait" - belonged to the level being left: gone)
+FOR q = conQHead + 1 TO conQTail
+    IF LEFT$(conQ$(q), 1) <> CHR$(2) THEN nq = nq + 1 : conQ$(nq) = conQ$(q)
+NEXT
+conQTail = nq
 achSectN = 0
 achLevelHurt = 0 : achOtherGun = 0 : achInLava = 0 ' (for the sector's end: hurt? any gun but the blaster?)
 ReadLevelFile level ' (its file: neon-caster/levels/levelN.txt - chapter 22)
@@ -6979,6 +6996,11 @@ FOR k = 1 TO lvlNumLifts
     liftLow(k) = lvlLift(k, 5) * H_STEP : liftHigh(k) = lvlLift(k, 6) * H_STEP : liftMode(k) = lvlLift(k, 7)
     liftSpeed(k) = lvlLift(k, 8) * H_STEP / 60 : IF liftSpeed(k) <= 0 THEN liftSpeed(k) = 0.01
     liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 60 : liftWasDir(k) = 0
+    lc = 99 ' (no higher than leaves you room under the lowest ceiling over it: else you'd ride up into it, and stick)
+    FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
+        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN lc = MinOf(lc, ceilH(x, y))
+    NEXT : NEXT
+    IF liftHigh(k) > lc - BODY_H THEN liftHigh(k) = MaxOf(liftLow(k), lc - BODY_H)
     FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
         IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0 : floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0 : boxOn(x, y) = 0 ' (a lift's top: its own plate - MakeLiftTex; no block on it: it stands floor to ceiling, and the floor moves)
     NEXT : NEXT
@@ -7194,12 +7216,12 @@ DO
         IF mouseDown AND NOT mouseWasDown AND overItem > 0 THEN
             menuSel = overItem
             SELECT CASE miKind(overItem)
-                CASE MI_SLIDER
-                    menuDrag = overItem
-                CASE MI_CHOICE, MI_TOGGLE ' (the left half of a choice goes back)
+                CASE MI_SLIDER ' (on its bar: drag it; on its name: just pick it)
+                    IF mouseX >= MENU_WIDGET_X - 12 OR NOT menuWide THEN menuDrag = overItem
+                CASE MI_CHOICE, MI_TOGGLE ' (the left half of a choice goes back - a click on a choice's name just picks it)
                     half = MENU_WIDGET_X + MENU_WIDGET_W / 2 : IF NOT menuWide THEN half = 400 ' (centred: its middle)
                     IF miKind(overItem) = MI_CHOICE AND mouseX < half THEN menuAdjust = -1 ELSE menuAdjust = 1
-                    GOSUB MenuAdjustItem
+                    IF NOT (menuWide AND miKind(overItem) = MI_CHOICE AND mouseX < MENU_WIDGET_X - 8) THEN GOSUB MenuAdjustItem
                 CASE ELSE
                     GOSUB MenuActivate
             END SELECT
@@ -7338,6 +7360,7 @@ LOOP
 IF lineSnd&(li) > 0 THEN _SNDSTOP lineSnd&(li)
 _KEYCLEAR
 WHILE _MOUSEINPUT : WEND
+escWas = -1 ' (an Esc that skipped it isn't the pause menu's too)
 RETURN
 
 ' --- THE CONSOLE: the game waits while it's open (like the menu), the
@@ -8136,6 +8159,7 @@ RETURN
 ' variables, in the same order, as LoadGame.
 SaveGame:
 IF editMode THEN ShowMsg "No saving the game in the editor - Ctrl+S saves the level" : RETURN
+IF dead THEN ShowMsg "No saving once you're dead" : PlaySfx sndLocked&, 0.8 : RETURN
 IF cyberOn THEN ShowMsg "No saving in the network" : PlaySfx sndLocked&, 0.8 : RETURN
 saveFile$ = SlotFile$(saveSlot)
 MakeSaveDir
@@ -8148,7 +8172,7 @@ saveInfo$ = LEFT$(setTag$ + levelName$ + "  " + DATE$ + " " + LEFT$(TIME$, 5) + 
 PUT #fileNum, , saveInfo$
 levelSaved = level : IF sectorSet AND level <= NUM_LEVELS THEN levelSaved = sectorSet * 100 + level ' (another set's sector: 100 a set on - an old save is the game's own)
 PUT #fileNum, , levelSaved
-levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
+levelTime! = frameAt! - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400 ' (to the last frame played: not the time since in the menu)
 PUT #fileNum, , health : PUT #fileNum, , armor : PUT #fileNum, , kills : PUT #fileNum, , currentGun : PUT #fileNum, , levelTime!
 PUT #fileNum, , totalKills : PUT #fileNum, , totalMonsters : PUT #fileNum, , totalTime!
 PUT #fileNum, , savedHealth : PUT #fileNum, , savedArmor : PUT #fileNum, , savedCells : PUT #fileNum, , savedShells : PUT #fileNum, , savedGun
@@ -8187,6 +8211,8 @@ FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (the doors each event ro
     PUT #fileNum, , doorLockEv(x, y) : PUT #fileNum, , boxOn(x, y)
     PUT #fileNum, , boxX0(x, y) : PUT #fileNum, , boxY0(x, y) : PUT #fileNum, , boxX1(x, y) : PUT #fileNum, , boxY1(x, y)
 NEXT : NEXT
+PUT #fileNum, , numTerms : FOR k = 1 TO numTerms : PUT #fileNum, , termDone(k) : NEXT
+PUT #fileNum, , numStations : FOR k = 1 TO numStations : PUT #fileNum, , stationDone(k) : NEXT
 CLOSE #fileNum
 IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 RETURN
@@ -8211,6 +8237,7 @@ GET #fileNum, , health : GET #fileNum, , armor : GET #fileNum, , kills : GET #fi
 GET #fileNum, , totalKills : GET #fileNum, , totalMonsters : GET #fileNum, , totalTime!
 GET #fileNum, , savedHealth : GET #fileNum, , savedArmor : GET #fileNum, , savedCells : GET #fileNum, , savedShells : GET #fileNum, , savedGun
 GET #fileNum, , playerX : GET #fileNum, , playerY : GET #fileNum, , dirX : GET #fileNum, , dirY
+playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H ' (on the floor where you were - not dropped from the sector's start)
 GET #fileNum, , ammoCount(AM_CELLS) : GET #fileNum, , ammoCount(AM_SHELLS)
 FOR gun = 1 TO NUM_GUNS : GET #fileNum, , hasGun(gun) : GET #fileNum, , savedHasGun(gun) : NEXT
 FOR k = 1 TO 3 : GET #fileNum, , hasCard(k) : NEXT
@@ -8282,6 +8309,12 @@ IF LOC(fileNum) < LOF(fileNum) THEN ' The doors' owners, and the blocks
     NEXT : NEXT
     BuildLights : BuildThiefWay : glMeshVersion = glMeshVersion + 1
 END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The code terminals solved, the data stations hacked (else a solved one's puzzle - and its lockdown - would come again)
+    GET #fileNum, , savedCount : FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numTerms AND savedCount = numTerms THEN termDone(k) = tdone%
+    NEXT
+    GET #fileNum, , savedCount : FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numStations AND savedCount = numStations THEN stationDone(k) = tdone%
+    NEXT
+END IF
 CLOSE #fileNum
 planeX = dirY * fovPlane : planeY = - dirX * fovPlane ' (your direction came from the file)
 levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0
@@ -8291,9 +8324,16 @@ RETURN
 
 ' --- A save made with a different version of the level: give up on it
 LoadMismatch:
-CLOSE #fileNum
-ShowMsg "That save doesn't fit this version of the level"
-GOSUB NewGame
+CLOSE #fileNum ' (the sector it was in, from its start, with what you came into it with - its file was read before the mismatch)
+health = savedHealth : IF health <= 0 THEN health = MAX_HP
+armor = savedArmor : ammoCount(AM_CELLS) = savedCells : ammoCount(AM_SHELLS) = savedShells : currentGun = savedGun
+FOR gun = 1 TO NUM_GUNS : hasGun(gun) = savedHasGun(gun) : NEXT
+IF currentGun < 1 OR currentGun > NUM_GUNS THEN currentGun = 1
+IF NOT hasGun(currentGun) THEN currentGun = 1 : hasGun(1) = -1
+FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT : hasMap = 0
+GOSUB LoadLevel
+ShowMsg "That save doesn't fit the sector as it is now - so it starts over"
+loadOK = -1
 RETURN
 
 '-----------------------------------------------------------------------------
@@ -13295,7 +13335,7 @@ SUB BuildThiefWay
         FOR k = 1 TO 4
             nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
             IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
-                v = worldMap(nx, ny) : ok = (v <= 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0) ' (a block's cell is no way through for a fleeing thief)
+                v = worldMap(nx, ny) : ok = (v <= 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND glassHP(nx, ny) <= 0) ' (a block's cell, or a pane of glass, is no way through for a fleeing thief)
                 IF v = 2 THEN ok = (doorKey(nx, ny) = 0 AND doorType(nx, ny) <> DOOR_EXIT)
                 IF ok AND thiefDist(nx, ny) > thiefDist(x, y) + 1 THEN
                     thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
@@ -13582,6 +13622,26 @@ END FUNCTION
 ' Does the edge from (x1, y1) to (x2, y2) - a body's side, straight across
 ' or down the map - touch a box? (Overlapping rectangles: exact, where
 ' EdgeFree's three points could pass either side of a thin pillar.)
+' Does the edge from (x1, y1) to (x2, y2) - straight across or down - touch
+' a pane of glass? The exact test, as EdgeInBox's for a block: Walkable's
+' three points along it could straddle a pane only 0.2 thick, at the open
+' end a broken neighbour leaves
+FUNCTION EdgeInGlass(x1, y1, x2, y2)
+    lx = MinOf(x1, x2) : hx = MaxOf(x1, x2) : ly = MinOf(y1, y2) : hy = MaxOf(y1, y2)
+    FOR cy = INT(ly) TO INT(hy) : FOR cx = INT(lx) TO INT(hx)
+        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+            IF glassHP(cx, cy) > 0 THEN
+                IF glassDir(cx, cy) = 1 THEN
+                    gx0 = cx : gx1 = cx + 1 : gy0 = cy + 0.5 - GLASS_HALF : gy1 = cy + 0.5 + GLASS_HALF
+                ELSE
+                    gx0 = cx + 0.5 - GLASS_HALF : gx1 = cx + 0.5 + GLASS_HALF : gy0 = cy : gy1 = cy + 1
+                END IF
+                IF hx > gx0 AND lx < gx1 AND hy > gy0 AND ly < gy1 THEN EdgeInGlass = -1 : EXIT FUNCTION
+            END IF
+        END IF
+    NEXT : NEXT
+END FUNCTION
+
 FUNCTION EdgeInBox(x1, y1, x2, y2)
     lx = MinOf(x1, x2) : hx = MaxOf(x1, x2) : ly = MinOf(y1, y2) : hy = MaxOf(y1, y2)
     FOR cy = INT(ly) TO INT(hy) : FOR cx = INT(lx) TO INT(hx)
@@ -13632,6 +13692,7 @@ END FUNCTION
 FUNCTION EdgeFree(x1, y1, x2, y2)
     EdgeFree = Walkable(x1, y1) AND Walkable(x2, y2) AND Walkable((x1 + x2) / 2, (y1 + y2) / 2)
     IF boxAny THEN IF EdgeInBox(x1, y1, x2, y2) THEN EdgeFree = 0
+    IF numGlass THEN IF EdgeInGlass(x1, y1, x2, y2) THEN EdgeFree = 0
 END FUNCTION
 
 ' Is a body (radius PLAYER_RADIUS) at (x, y) clear of walls all round?
@@ -14685,7 +14746,7 @@ FUNCTION SlotInfo$(slot)
     tag$ = SPACE$(LEN(SAVE_TAG)) : GET #fileNum, , tag$
     info$ = SPACE$(SAVE_INFO_LEN) : GET #fileNum, , info$
     CLOSE #fileNum
-    IF tag$ = SAVE_TAG THEN SlotInfo$ = RTRIM$(info$) ELSE SlotInfo$ = "(not a save)"
+    IF tag$ = SAVE_TAG THEN SlotInfo$ = RTRIM$(info$) ELSE SlotInfo$ = "(an older version's save - can't load)"
 END FUNCTION
 
 ' Fill in the items for menu screen scr (SCR_ constants). This is where to
@@ -14753,8 +14814,9 @@ SUB BuildMenu(scr)
             FOR slot = 0 TO NUM_SLOTS
                 info$ = SlotInfo$(slot)
                 IF slot = 0 THEN label$ = "QUICK SAVE" ELSE label$ = "SLOT" + STR$(slot)
-                IF info$ = "" THEN
-                    AddMenuItem label$, MI_ACTION, slot, MA_LOAD, 0, "- empty -"
+                IF info$ = "" OR LEFT$(info$, 1) = "(" THEN
+                    IF info$ = "" THEN info$ = "- empty -"
+                    AddMenuItem label$, MI_ACTION, slot, MA_LOAD, 0, info$
                 ELSE
                     AddMenuItem label$, MI_ACTION, slot, MA_LOAD, -1, info$
                 END IF
@@ -14867,13 +14929,20 @@ END FUNCTION
 
 ' Which item (that can be chosen) is the mouse over? 0 if none.
 FUNCTION MenuItemAt(mouseX, mouseY)
+    mr = MenuRowH
     FOR i = 1 TO numMI
-        rowY = MENU_TOP + (i - 1) * MENU_ROW
-        IF mouseY >= rowY - 3 AND mouseY < rowY + MENU_ROW - 3 AND mouseX >= 100 AND mouseX <= 760 THEN
+        rowY = MENU_TOP + (i - 1) * mr
+        IF mouseY >= rowY - 3 AND mouseY < rowY + mr - 3 AND mouseX >= 100 AND mouseX <= 760 THEN
             IF MenuSelectable(i) THEN MenuItemAt = i
             EXIT FUNCTION
         END IF
     NEXT
+END FUNCTION
+
+' How tall a menu's rows are: MENU_ROW - or, for a long one (CONTROLS,
+' YOUR SECTORS), less, so it all fits above the help line
+FUNCTION MenuRowH
+    MenuRowH = MENU_ROW : IF numMI > 12 THEN MenuRowH = MaxOf(26, 384 \ numMI)
 END FUNCTION
 
 ' Draw the menu screen showing now, t frames after it opened: the title,
@@ -14887,14 +14956,15 @@ SUB DrawMenu(t)
     MenuText 400, 128, menuTitle$, 2, _RGB32(255, 100, 215), 1
     LINE (250, 162)-(550, 163), _RGBA32(255, 100, 215, 120), BF
     panelA = t * 12 : IF panelA > 170 THEN panelA = 170 ' A dark panel behind the items, so they read over anything
-    LINE (96, MENU_TOP - 12)-(704, MENU_TOP + numMI * MENU_ROW), _RGBA32(6, 0, 18, panelA), BF
+    mr = MenuRowH
+    LINE (96, MENU_TOP - 12)-(704, MENU_TOP + numMI * mr), _RGBA32(6, 0, 18, panelA), BF
     FOR i = 1 TO numMI
         p = (t - (i - 1) * 3) / 12 ' This item's progress in: 0 .. 1
         IF p < 0 THEN p = 0
         IF p > 1 THEN p = 1
         ease = 1 - (1 - p) ^ 3
         slide = (1 - ease) * 260 : alpha = ease * 255
-        rowY = MENU_TOP + (i - 1) * MENU_ROW
+        rowY = MENU_TOP + (i - 1) * mr
         selected = (i = menuSel)
         IF miOn(i) = 0 THEN
             col~& = _RGBA32(90, 85, 120, alpha)
@@ -14905,9 +14975,9 @@ SUB DrawMenu(t)
         END IF
         IF selected AND miKind(i) <> MI_TEXT THEN ' The bar behind the selected item
             barA = alpha * (0.3 + 0.1 * SIN(t * 0.2))
-            LINE (110 + slide, rowY - 3)-(690 + slide, rowY + MENU_ROW - 5), _RGBA32(255, 40, 170, barA), BF
+            LINE (110 + slide, rowY - 3)-(690 + slide, rowY + mr - 5), _RGBA32(255, 40, 170, barA), BF
             LINE (110 + slide, rowY - 3)-(690 + slide, rowY - 3), _RGBA32(90, 230, 255, alpha), BF
-            LINE (110 + slide, rowY + MENU_ROW - 5)-(690 + slide, rowY + MENU_ROW - 5), _RGBA32(90, 230, 255, alpha), BF
+            LINE (110 + slide, rowY + mr - 5)-(690 + slide, rowY + mr - 5), _RGBA32(90, 230, 255, alpha), BF
             IF (t \ 15) MOD 2 = 0 THEN MenuText 118 + slide, rowY, ">", 2, _RGBA32(90, 230, 255, alpha), 0
         END IF
         IF miKind(i) = MI_TEXT THEN

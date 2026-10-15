@@ -652,7 +652,6 @@ It reports anything you can't reach (following your `[pads]` pairs), doors witho
 
 - Leaving the editor doesn't save. You play the edited level, but dying, taking the exit, loading a game or quitting reloads it from the file.
 - Ctrl+Z can't undo you back to "saved": after any undo the sector still counts as changed. Save, or press PgUp/PgDn twice and lose the edits.
-- In the 3D view, F9 (quick-load) reloads the level from its file.
 
 **Other surprises:**
 
