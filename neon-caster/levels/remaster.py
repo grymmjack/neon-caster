@@ -479,6 +479,25 @@ def r6(m, rng):
             m.pool(x, y, x, y, "p", sink=1, depth=1)
 
 
+@remaster(7)
+def r7(m, rng):
+    """DATA VAULT: the rack rows' ends in light strips, the vault's outer
+    faces lit violet."""
+    for y in (11, 15, 19, 23, 27, 31, 35):
+        x = 9
+        while x < 39:
+            if m.g[y][x] in lvlkit.WALLS and m.g[y][x - 1] == ".":
+                m.face(x, y, "W", LIT)
+            if m.g[y][x] in lvlkit.WALLS and m.g[y][x + 1] == ".":
+                m.face(x, y, "E", LIT)
+            x += 1
+    for (x, y, side) in ((19, 21, "W"), (19, 26, "W"), (28, 21, "E"), (28, 26, "E"), (22, 19, "N"), (26, 19, "N")):
+        dx, dy = {"E": (1, 0), "W": (-1, 0), "S": (0, 1), "N": (0, -1)}[side]
+        if m.g[y][x] in lvlkit.WALLS and m.g[y + dy][x + dx] == ".":
+            m.face(x, y, side, LIT)
+            m.wall_light(x, y, side, *VIOLET, fx=2, rad=2.5, bright=160)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if "--check" in args:

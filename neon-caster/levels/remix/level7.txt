@@ -40,6 +40,12 @@ ambient  = 90, 150, 200, 255
 4.5, 37.5, 4, 110, 255, 210, 90, 0
 43.5, 37.5, 4, 110, 255, 90, 80, 1
 37.5, 43.5, 4, 110, 230, 220, 190, 5
+18.88, 21.5, 2.5, 160, 170, 90, 255, 2
+18.88, 26.5, 2.5, 160, 170, 90, 255, 2
+29.12, 21.5, 2.5, 160, 170, 90, 255, 2
+29.12, 26.5, 2.5, 160, 170, 90, 255, 2
+22.5, 18.88, 2.5, 160, 170, 90, 255, 2
+26.5, 18.88, 2.5, 160, 170, 90, 255, 2
 39.2, 20.5, 2.5, 170, 80, 220, 255, 2
 20.5, 39.2, 2.5, 170, 170, 90, 255, 2
 7.2, 27.5, 2.5, 170, 80, 220, 255, 2
@@ -111,9 +117,67 @@ rack     = ammo:30, overcharge:10, -, -
 
 [faces]
 ' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+11, 11, W, 0, wall-lightstrip.png
+15, 11, E, 0, wall-lightstrip.png
+17, 11, W, 0, wall-lightstrip.png
+21, 11, E, 0, wall-lightstrip.png
+26, 11, W, 0, wall-lightstrip.png
+30, 11, E, 0, wall-lightstrip.png
+32, 11, W, 0, wall-lightstrip.png
+36, 11, E, 0, wall-lightstrip.png
+11, 15, W, 0, wall-lightstrip.png
+15, 15, E, 0, wall-lightstrip.png
+17, 15, W, 0, wall-lightstrip.png
+21, 15, E, 0, wall-lightstrip.png
+26, 15, W, 0, wall-lightstrip.png
+30, 15, E, 0, wall-lightstrip.png
+32, 15, W, 0, wall-lightstrip.png
+36, 15, E, 0, wall-lightstrip.png
+11, 19, W, 0, wall-lightstrip.png
+15, 19, E, 0, wall-lightstrip.png
+17, 19, W, 0, wall-lightstrip.png
+22, 19, N, 0, wall-lightstrip.png
+26, 19, N, 0, wall-lightstrip.png
+30, 19, E, 0, wall-lightstrip.png
+32, 19, W, 0, wall-lightstrip.png
+36, 19, E, 0, wall-lightstrip.png
+19, 21, W, 0, wall-lightstrip.png
+28, 21, E, 0, wall-lightstrip.png
+11, 23, W, 0, wall-lightstrip.png
+15, 23, E, 0, wall-lightstrip.png
+17, 23, W, 0, wall-lightstrip.png
+19, 23, E, 0, wall-lightstrip.png
+28, 23, W, 0, wall-lightstrip.png
+30, 23, E, 0, wall-lightstrip.png
+32, 23, W, 0, wall-lightstrip.png
+36, 23, E, 0, wall-lightstrip.png
+19, 26, W, 0, wall-lightstrip.png
 25, 26, BE, 0, wall-lightstrip.png
 25, 26, BN, 0, wall-lightstrip.png
 25, 26, BS, 0, wall-lightstrip.png
+28, 26, E, 0, wall-lightstrip.png
+15, 27, E, 0, wall-lightstrip.png
+17, 27, W, 0, wall-lightstrip.png
+19, 27, E, 0, wall-lightstrip.png
+28, 27, W, 0, wall-lightstrip.png
+30, 27, E, 0, wall-lightstrip.png
+32, 27, W, 0, wall-lightstrip.png
+36, 27, E, 0, wall-lightstrip.png
+11, 31, W, 0, wall-lightstrip.png
+15, 31, E, 0, wall-lightstrip.png
+17, 31, W, 0, wall-lightstrip.png
+21, 31, E, 0, wall-lightstrip.png
+26, 31, W, 0, wall-lightstrip.png
+30, 31, E, 0, wall-lightstrip.png
+32, 31, W, 0, wall-lightstrip.png
+36, 31, E, 0, wall-lightstrip.png
+11, 35, W, 0, wall-lightstrip.png
+15, 35, E, 0, wall-lightstrip.png
+17, 35, W, 0, wall-lightstrip.png
+26, 35, W, 0, wall-lightstrip.png
+30, 35, E, 0, wall-lightstrip.png
+32, 35, W, 0, wall-lightstrip.png
+36, 35, E, 0, wall-lightstrip.png
 
 [map]
 ################################################
