@@ -165,7 +165,7 @@
 ' its .BI here, its .BM at the very end of the file.
 '$INCLUDE:'lib/glsl/GLSL.BI'
 ' Which release this is (the create-release skill bumps it: major.minor.patch)
-CONST GAME_VERSION$ = "0.0.1"
+CONST GAME_VERSION$ = "0.1.0"
 _TITLE "NEON-CASTER " + GAME_VERSION$
 ON ERROR GOTO GameError ' (a runtime error: logged, and the game carries on - chapter 21)
 SCREEN _NEWIMAGE(800, 600, 32)

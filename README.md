@@ -3,12 +3,13 @@
 A first-person shooter in one file of QB64 Phoenix Edition BASIC, and a
 course in how it's made. Ten sectors of a neon space station, ten kinds of
 monster, four guns and a kick, glass you can shoot through, floors and
-ceilings at every height, lifts and bottomless pits, teleporters, data
+ceilings at every height, lifts and bottomless pits, open skies, teleporters, data
 stations that turn the level into a wireframe network, code terminals that
 lock you in until you fix a real QB64 program, and a villain who talks to
 you. With a level editor built in - point and click inside the level in 3D
 or on the map from above, with a picker of every wall, floor, door, item,
-monster and light - and a monster editor and a HUD editor.
+monster and light - and a monster editor and a HUD editor. Eleven more
+sectors built with the editor come with it, three of them outdoors.
 
 It draws its 3D two ways: a software raycaster, like Wolfenstein 3D, and an
 OpenGL renderer with bump mapping, moving lights, wet floors, bloom and CRT

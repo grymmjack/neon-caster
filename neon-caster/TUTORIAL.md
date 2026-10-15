@@ -54,7 +54,7 @@ it yourself:
 | F5 / F9 | quick save / quick load |
 | Tab | the full-screen map (all of it once you've found the map pickup) |
 | ` (backtick) | the console: type `help` for the commands |
-| F2 | the level editor (see below) |
+| F2 | the level editor (see below); in it, F1 shows a cheatsheet of every key |
 | K / G | testing cheats: every keycard / god mode |
 
 **The console and the command line.** The console (`) runs commands for
@@ -66,7 +66,9 @@ nearly everything: `map 7` or `map vault` jumps to a sector, `give all`,
 (any of NEXUS's lines). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 `savelevel` - and `door`, `wall`, `light`, `liftgo`, `message`, `sound`,
-which a level's triggers use. `qb64pe` says which compiler the code
+`give`/`take` (health, armour, ammo by kind, all), `die`, `spawn TYPE X Y`
+and `item KIND X Y`, which a level's triggers use. `mons` lists every
+monster and whether it's awake. `qb64pe` says which compiler the code
 terminals use (see below). Up and Down bring back earlier lines, Tab
 finishes a command's name, and `;` puts several on one line.
 
@@ -330,7 +332,9 @@ run it and see what happens. That's the fastest way to learn how it works.
 - **Your own level (ch. 21, 22)**: GAME > YOUR SECTORS > NEW SECTOR, and
   build from a blank slate - push walls back with Shift+wheel, wheel
   floors down into pits, paint pictures on single faces, light them,
-  stage an ambush in a monster's pane, Ctrl+S. Or open
+  stage an ambush in a monster's pane, Ctrl+S. For an outdoor level, give
+  the open cells a `sky-` ceiling (the CEILINGS tab): the sky is drawn by
+  the way you look - `neon-caster/levels/skies.py` paints them. Or open
   `neon-caster/levels/custom/custom1.txt` (or any `level1.txt`) in a text
   editor: the map is right there, one character a cell. For the game's
   own sectors, `python3 levels.py --check` (in `neon-caster/levels/`)
@@ -452,8 +456,8 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
 | `neon-caster/sfx/` | sound effects, made with soundmon; `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
-| `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22) and the level kit that builds and checks them (`levels.py`, `lvlkit.py`) |
-| `neon-caster/levels/custom/` | your own sectors (`custom1.txt` is sector 11), made by NEW SECTOR - the level kit leaves them alone |
+| `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22), the level kit that builds and checks them (`levels.py`, `lvlkit.py`), the showcase sectors' builder (`showcase.py`) and the skies' painter (`skies.py`) |
+| `neon-caster/levels/custom/` | your own sectors (`customN.txt` is sector 10+N), made by NEW SECTOR - the level kit leaves them alone; 1-11 are the showcase sectors (19-21 outdoors) |
 | `neon-caster/puzzles/` | the code terminals' QB64 programs, one a file (`README.txt` says how to write one) |
 | `neon-caster/monsters.txt`, `hud.txt` | every monster's numbers and what it drops; the HUD's layout - both changed by their editors, or by hand |
 | `neon-caster/music/` | a track for each sector, the menu's, and the network's (`cyber.flac`) |
