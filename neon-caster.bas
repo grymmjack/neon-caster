@@ -6970,7 +6970,7 @@ FOR k = 1 TO lvlNumLifts
     liftSpeed(k) = lvlLift(k, 8) * H_STEP / 60 : IF liftSpeed(k) <= 0 THEN liftSpeed(k) = 0.01
     liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 60 : liftWasDir(k) = 0
     FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
-        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0 : floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0 ' (a lift's top: its own plate - MakeLiftTex)
+        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0 : floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0 : boxOn(x, y) = 0 ' (a lift's top: its own plate - MakeLiftTex; no block on it: it stands floor to ceiling, and the floor moves)
     NEXT : NEXT
 NEXT
 ' The liquids ([liquid], [liquid depth]): a pool on each open cell the map
@@ -7570,6 +7570,8 @@ SELECT CASE conVerb$
                 ConPrint "block: not in the border"
             ELSEIF MID$(lvlRow$(by), bx + 1, 1) <> "." THEN
                 ConPrint "block: only on bare floor - not a wall, a door, glass, nor a thing standing there"
+            ELSEIF liftCell(bx, by) THEN
+                ConPrint "block: not on a lift"
             ELSEIF editMode THEN ' (in the editor: into the level, to keep)
                 GOSUB EditPushUndo
                 IF EditAddBox(bx, by, b0, b1, b2, b3, bw) THEN ConPrint "block:" + STR$(bx) + STR$(by) + " -" + STR$(b0) + STR$(b1) + STR$(b2) + STR$(b3) + "   (savelevel or Ctrl+S in the editor to keep it)"
@@ -11830,6 +11832,7 @@ END FUNCTION
 ' A box in cell (x, y): edges x0, y0, x1, y1 in eighths, looking like wall
 ' w (1-6). TRUE if there was room for it.
 FUNCTION EditAddBox(x, y, x0, y0, x1, y1, w)
+    IF liftCell(x, y) THEN EditNote "Not on a lift: a block stands floor to ceiling, and a lift's floor moves" : EXIT FUNCTION
     k = EditBoxIndex(x, y)
     IF k = 0 THEN
         IF lvlNumBoxes >= MAX_BOXES THEN EditNote "That's" + STR$(MAX_BOXES) + " blocks - no more" : EXIT FUNCTION
