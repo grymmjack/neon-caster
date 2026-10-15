@@ -5300,7 +5300,7 @@ DO WHILE head < tail
     FOR k = 1 TO 4
         nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
         IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
-            IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 AND thiefDist(nx, ny) > thiefDist(x, y) + 1 AND thiefDist(x, y) < 18 THEN
+            IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND thiefDist(nx, ny) > thiefDist(x, y) + 1 AND thiefDist(x, y) < 18 THEN
                 thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
             END IF
         END IF
@@ -5327,7 +5327,15 @@ FOR c = 1 TO cyberNeed
     END IF
 NEXT
 IF placed < cyberNeed THEN cyberNeed = placed
-IF cyberNeed = 0 THEN cyberNeed = 1 : numItems = numItems + 1 : itemX(numItems) = playerX + dirX : itemY(numItems) = playerY + dirY : itemKind(numItems) = IT_CORE : itemOn(numItems) = -1
+IF cyberNeed = 0 THEN ' (none placed: one just ahead of you - in a new slot, or, the list full, one whose pickup's been taken)
+    cs = 0 : IF numItems < MAX_ITEMS THEN numItems = numItems + 1 : cs = numItems
+    IF cs = 0 THEN
+        FOR j = numItems TO 1 STEP -1
+            IF itemOn(j) = 0 AND itemToss(j) = 0 THEN cs = j : EXIT FOR
+        NEXT
+    END IF
+    IF cs THEN cyberNeed = 1 : itemX(cs) = playerX + dirX : itemY(cs) = playerY + dirY : itemKind(cs) = IT_CORE : itemOn(cs) = -1
+END IF
 ' ICE: on the farthest cells
 nIce = 2 + level \ 3
 FOR c = 1 TO nIce
@@ -5608,7 +5616,7 @@ SELECT CASE drawFace(i) ' (its right, seen face on)
     CASE ELSE : frx = 1 : fry = 0
 END SELECT
 fx0 = drawX(i) - frx * fhw : fy0 = drawY(i) - fry * fhw ' (its left end)
-fDist = SQR(drawDistSq(i)) : IF fDist > 24 THEN RETURN
+fDist = SQR(drawDistSq(i))
 fog& = 256 - fDist * 10 : IF fog& < 0 THEN fog& = 0
 litX = INT(drawX(i)) : litY = INT(drawY(i))
 lightR& = litR(litX, litY) * fog& \ 256 : lightG& = litG(litX, litY) * fog& \ 256 : lightB& = litB(litX, litY) * fog& \ 256
@@ -5623,6 +5631,7 @@ IF glMode THEN ' (OpenGL draws it: GLSpritesAndExtras, facing glSprFace's way)
     glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = drawFace(i)
     RETURN
 END IF
+IF fDist > 24 THEN RETURN ' (the software view: past where its fog has it gone)
 fFloor = FloorAt(drawX(i), drawY(i))
 FOR screenX = 0 TO RENDER_W - 1
     cameraX = 2 * screenX / RENDER_W - 1
@@ -6029,6 +6038,7 @@ RETURN
 NewGame:
 level = 1
 NewGameHere: ' (a new game in sector `level` - SELECT SECTOR, YOUR SECTORS)
+IF editMode THEN GOSUB EditLeave : editDirty = 0 ' (out of the editor first: its undo and its sector belong to the level being left)
 achCheat = 0 : achRunFrom = level ' (a fresh start: cheats forgotten; a whole set's run counts from sector 1)
 totalKills = 0 : totalMonsters = 0 : totalTime! = 0
 GOSUB StartLoadout
@@ -6197,8 +6207,8 @@ RETURN
 ' --- Every sector's name (the name = line of each level's file), for the
 ' route map
 ReadSectorNames:
-FOR k = 1 TO NUM_LEVELS
-    ReadLevelFile k : sectorName$(k) = lvlName$
+FOR k = 1 TO NUM_LEVELS ' (just their names: reading a whole file would overwrite the level being played or edited)
+    sectorName$(k) = SectorNameOf$(k)
 NEXT
 FOR k = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM : sectorName$(k) = SectorNameOf$(k) : NEXT
 RETURN
@@ -6405,12 +6415,8 @@ NEXT
 ' red on its wall even in a room already as bright as it gets.
 FOR k = 1 TO lvlNumLights
     lx = lvlLight(k, 1) : ly = lvlLight(k, 2) : fx = lx - INT(lx) : fy = ly - INT(ly) : gx = -1
-    IF ABS(fy - 0.5) < 0.03 AND ABS(fx - 0.12) < 0.03 THEN gx = INT(lx) - 1 : gy = INT(ly) : gs = 1
-    IF ABS(fy - 0.5) < 0.03 AND ABS(fx - 0.88) < 0.03 THEN gx = INT(lx) + 1 : gy = INT(ly) : gs = 3
-    IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.12) < 0.03 THEN gx = INT(lx) : gy = INT(ly) - 1 : gs = 2
-    IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.88) < 0.03 THEN gx = INT(lx) : gy = INT(ly) + 1 : gs = 4
-    bxW = 0 ' (or in front of a block's side - its middle, 0.12 out: that side's tinted)
-    IF gx < 0 THEN
+    bxW = 0 ' (in front of a block's side - its middle, 0.12 out: that side's tinted - looked for first, as its spot can look like a wall's)
+    IF lvlNumBoxes THEN
         FOR bk = 1 TO lvlNumBoxes
             bx0 = lvlBox(bk, 1) + lvlBox(bk, 3) / 8 : bx1 = lvlBox(bk, 1) + lvlBox(bk, 5) / 8 : by0 = lvlBox(bk, 2) + lvlBox(bk, 4) / 8 : by1 = lvlBox(bk, 2) + lvlBox(bk, 6) / 8
             FOR sd = 1 TO 4
@@ -6423,6 +6429,12 @@ FOR k = 1 TO lvlNumLights
                 IF ABS(lx - ax) < 0.03 AND ABS(ly - ay) < 0.03 THEN gx = lvlBox(bk, 1) : gy = lvlBox(bk, 2) : gs = FACE_BOX + sd : bxW = lvlBox(bk, 7) : IF bxW < 1 OR bxW > 6 THEN bxW = 1
             NEXT
         NEXT
+    END IF
+    IF gx < 0 THEN ' (else in front of a wall's side)
+        IF ABS(fy - 0.5) < 0.03 AND ABS(fx - 0.12) < 0.03 THEN gx = INT(lx) - 1 : gy = INT(ly) : gs = 1
+        IF ABS(fy - 0.5) < 0.03 AND ABS(fx - 0.88) < 0.03 THEN gx = INT(lx) + 1 : gy = INT(ly) : gs = 3
+        IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.12) < 0.03 THEN gx = INT(lx) : gy = INT(ly) - 1 : gs = 2
+        IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.88) < 0.03 THEN gx = INT(lx) : gy = INT(ly) + 1 : gs = 4
     END IF
     IF gx >= 0 AND gy >= 0 AND gx < MAP_SIZE AND gy < MAP_SIZE THEN
         gc$ = MID$(lvlRow$(gy), gx + 1, 1) : lc = INT(lx) : lr = INT(ly) ' (the map isn't built yet: its characters, and its height rows, say what's there)
@@ -7221,7 +7233,12 @@ SELECT CASE conVerb$
     CASE "block", "blocks" ' block X Y X0 Y0 X1 Y1 [WALL]: a block in cell X Y, its edges in eighths (block X Y none: gone)
         cw$ = ConWord$(conCmd$, 7)
         IF LCASE$(conC$) = "none" AND conB$ <> "" THEN
-            GOSUB EditPushUndo : EditRemoveBox VAL(conA$), VAL(conB$) : GOSUB EditApply : ConPrint "block: gone from" + STR$(VAL(conA$)) + STR$(VAL(conB$))
+            IF editMode THEN
+                GOSUB EditPushUndo : EditRemoveBox VAL(conA$), VAL(conB$) : GOSUB EditApply
+            ELSEIF VAL(conA$) > 0 AND VAL(conB$) > 0 AND VAL(conA$) < MAP_SIZE - 1 AND VAL(conB$) < MAP_SIZE - 1 THEN ' (in play: it sinks away where it is)
+                boxOn(VAL(conA$), VAL(conB$)) = 0 : BuildLights : glMeshVersion = glMeshVersion + 1
+            END IF
+            ConPrint "block: gone from" + STR$(VAL(conA$)) + STR$(VAL(conB$))
         ELSEIF cw$ = "" THEN
             ConPrint "block X Y X0 Y0 X1 Y1 [WALL]: a block in an open cell, edges 0-8 eighths, WALL 1-6 (# N C K P G); block X Y none: take it away"
         ELSE
@@ -7230,12 +7247,16 @@ SELECT CASE conVerb$
             b2 = MaxOf(b0 + 1, MinOf(8, VAL(ConWord$(conCmd$, 6)))) : b3 = MaxOf(b1 + 1, MinOf(8, VAL(cw$)))
             IF bx < 1 OR by < 1 OR bx > MAP_SIZE - 2 OR by > MAP_SIZE - 2 THEN
                 ConPrint "block: not in the border"
-            ELSEIF NOT EditCellOpen(bx, by) THEN
-                ConPrint "block: only in an open cell - not a wall, a door, glass"
-            ELSE
+            ELSEIF MID$(lvlRow$(by), bx + 1, 1) <> "." THEN
+                ConPrint "block: only on bare floor - not a wall, a door, glass, nor a thing standing there"
+            ELSEIF editMode THEN ' (in the editor: into the level, to keep)
                 GOSUB EditPushUndo
                 IF EditAddBox(bx, by, b0, b1, b2, b3, bw) THEN ConPrint "block:" + STR$(bx) + STR$(by) + " -" + STR$(b0) + STR$(b1) + STR$(b2) + STR$(b3) + "   (savelevel or Ctrl+S in the editor to keep it)"
                 GOSUB EditApply
+            ELSE ' (in play - a trigger's: it rises where it is, the level isn't built again, so nothing comes back to life)
+                boxOn(bx, by) = VAL(MID$("134567", bw, 1)) : boxAny = -1
+                boxX0(bx, by) = b0 / 8 : boxY0(bx, by) = b1 / 8 : boxX1(bx, by) = b2 / 8 : boxY1(bx, by) = b3 / 8
+                IF InBox(playerX, playerY) OR NOT BoxFree(playerX, playerY) THEN boxOn(bx, by) = 0 : ConPrint "block: not on top of you" ELSE BuildLights : glMeshVersion = glMeshVersion + 1 : ConPrint "block:" + STR$(bx) + STR$(by)
             END IF
         END IF
     CASE "give"
@@ -7823,6 +7844,7 @@ RETURN
 ' loadOK says whether it worked.
 LoadGame:
 loadOK = 0 : saveFile$ = SlotFile$(saveSlot)
+IF editMode AND _FILEEXISTS(saveFile$) THEN GOSUB EditLeave : editDirty = 0 ' (out of the editor first: its undo and its sector belong to the level being left)
 IF NOT _FILEEXISTS(saveFile$) THEN ShowMsg "Nothing saved there yet" : RETURN
 fileNum = FREEFILE
 OPEN saveFile$ FOR BINARY AS #fileNum
@@ -9100,9 +9122,18 @@ END SUB
 
 ' One more pickup, of kind kind, just where (x, y) is (if that's floor -
 ' or else in the middle of its cell)
-SUB DropItemAt(kind, x, y)
+SUB DropItemAt(kind, x0, y0)
     IF numItems >= MAX_ITEMS THEN EXIT SUB
+    x = x0 : y = y0 ' (copies: the caller's - a monster's own place - stays put)
     IF NOT Walkable%(x, y) THEN x = INT(x) + 0.5 : y = INT(y) + 0.5
+    IF NOT Walkable%(x, y) THEN ' (its cell's middle no better - a block standing there: the nearest open spot round it)
+        FOR r = 1 TO 4
+            FOR a = 0 TO 7
+                tx = x + COS(a * 0.7854) * r * 0.3 : ty = y + SIN(a * 0.7854) * r * 0.3
+                IF Walkable%(tx, ty) THEN x = tx : y = ty : r = 9 : EXIT FOR
+            NEXT
+        NEXT
+    END IF
     numItems = numItems + 1
     itemX(numItems) = x : itemY(numItems) = y : itemKind(numItems) = kind : itemOn(numItems) = -1 : itemToss(numItems) = 0
     SpawnSparks x, y, 0.3, 10, 255, 230, 120
@@ -9640,6 +9671,9 @@ END FUNCTION
 ' Put glyph c$ at cell (x, y) of the level (not on its border)
 SUB EditPut(x, y, c$)
     IF x < 1 OR y < 1 OR x > MAP_SIZE - 2 OR y > MAP_SIZE - 2 THEN EXIT SUB
+    IF INSTR(".#NCKPG%@$/\DHXRBY!E=", c$) = 0 AND EditBoxIndex(x, y) > 0 THEN ' (a thing can't stand inside a block: take the block away first)
+        EditNote "A block stands there - remove it first (DELETE on its side)" : EXIT SUB
+    END IF
     IF MID$(lvlRow$(y), x + 1, 1) <> c$ THEN ' (something else there now: the old one's own settings go with it - a monster's, a pad's link)
         FOR k = lvlMonN TO 1 STEP -1
             IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN
@@ -12704,13 +12738,16 @@ FUNCTION InGlass(x, y)
     IF glassDir(cx, cy) = 1 THEN InGlass = ABS(y - cy - 0.5) < GLASS_HALF ELSE InGlass = ABS(x - cx - 0.5) < GLASS_HALF
 END FUNCTION
 
-' Is there glass on the straight line from (x1, y1) to (x2, y2)? Checked
-' every 0.08 of a cell - thinner than the glass, so it can't be missed
+' Is there glass - or a block - on the straight line from (x1, y1) to (x2,
+' y2)? Checked every 0.08 of a cell, thinner than either, so neither can be
+' missed. (A claw, a kick, a thief's grab can't reach through one.)
 FUNCTION GlassBetween(x1, y1, x2, y2)
-    IF numGlass = 0 THEN EXIT FUNCTION
+    IF numGlass = 0 AND NOT boxAny THEN EXIT FUNCTION
     steps = INT(SQR((x2 - x1) ^ 2 + (y2 - y1) ^ 2) / 0.08) + 1
     FOR i = 1 TO steps - 1
-        IF InGlass(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps) THEN GlassBetween = -1 : EXIT FUNCTION
+        px = x1 + (x2 - x1) * i / steps : py = y1 + (y2 - y1) * i / steps
+        IF InGlass(px, py) THEN GlassBetween = -1 : EXIT FUNCTION
+        IF boxAny THEN IF InBox(px, py) THEN GlassBetween = -1 : EXIT FUNCTION
     NEXT
 END FUNCTION
 
@@ -12828,7 +12865,7 @@ SUB BuildThiefWay
         FOR k = 1 TO 4
             nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
             IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
-                v = worldMap(nx, ny) : ok = (v <= 0 AND diagCorner(nx, ny) = 0)
+                v = worldMap(nx, ny) : ok = (v <= 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0) ' (a block's cell is no way through for a fleeing thief)
                 IF v = 2 THEN ok = (doorKey(nx, ny) = 0 AND doorType(nx, ny) <> DOOR_EXIT)
                 IF ok AND thiefDist(nx, ny) > thiefDist(x, y) + 1 THEN
                     thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
@@ -14232,7 +14269,7 @@ SUB BuildMenu(scr)
         CASE SCR_SECTOR ' A new game, starting in any sector
             menuTitle$ = "SELECT SECTOR" : menuWide = -1
             FOR n = 1 TO NUM_LEVELS
-                nm$ = SetSectorName$(0, n) : c = INSTR(nm$, ": ") ' (the game's own ten, whichever set you've been playing) : IF c THEN nm$ = MID$(nm$, c + 2)
+                nm$ = SetSectorName$(0, n) : c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2) ' (the game's own ten, whichever set you've been playing)
                 AddMenuItem LTRIM$(STR$(n)) + "  " + nm$, MI_ACTION, n, MA_SECTOR, -1, ""
             NEXT
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
@@ -14684,9 +14721,13 @@ END SUB
 ' a cell at a time; a wall on the way stops it (doors and decorations don't).
 FUNCTION LightReaches(x1, y1, x2, y2)
     dist = SQR((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
-    steps = INT(dist / 0.25) + 1
+    stp = 0.25 : IF boxAny THEN stp = 0.1 ' (blocks can be an eighth thick: finer steps, so light can't skip through one)
+    steps = INT(dist / stp) + 1
+    cx2 = INT(x2) : cy2 = INT(y2)
     FOR i = 1 TO steps - 1
-        IF SolidAt(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps) THEN EXIT FUNCTION
+        px = x1 + (x2 - x1) * i / steps : py = y1 + (y2 - y1) * i / steps
+        IF INT(px) = cx2 AND INT(py) = cy2 AND boxOn(cx2, cy2) THEN EXIT FOR ' (into the cell it's lighting: a block there is lit, not in the way)
+        IF SolidAt(px, py) THEN EXIT FUNCTION
     NEXT
     LightReaches = -1
 END FUNCTION
@@ -17129,6 +17170,9 @@ SUB ShotMark(x, y, z, dx, dy, surface, size)
             IF worldMap(bx, by) = 2 THEN EXIT SUB
             IF diagCorner(bx, by) THEN
                 nx = -dx : ny = -dy
+            ELSEIF boxOn(bx, by) THEN ' (a block: which of its own sides it's nearest)
+                ex = MinOf(ABS(x - bx - boxX0(bx, by)), ABS(x - bx - boxX1(bx, by))) : ey = MinOf(ABS(y - by - boxY0(bx, by)), ABS(y - by - boxY1(bx, by)))
+                IF ex < ey THEN nx = -SGN(dx) : ny = 0 ELSE nx = 0 : ny = -SGN(dy)
             ELSEIF ABS(x - INT(x + 0.5)) < ABS(y - INT(y + 0.5)) THEN
                 nx = -SGN(dx) : ny = 0
             ELSE
