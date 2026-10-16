@@ -96,7 +96,9 @@ files in `neon-caster/saves/demos/`. `bot` turns on the autopilot, which
 plays the sector itself (it goes for the keycards and the exit and shoots
 what it sees), so `record mine` then `bot` makes a demo with no hands.
 `playdemo NAME quit` ends the game when the demo does, with exit code 3 if
-it went out of step - a test that a sector still plays the same.
+it went out of step - a test that a sector still plays the same. Ten come
+with the game: `playdemo sector1` to `playdemo sector10` watch the
+autopilot play the original ten, start to exit.
 
 ```
 ./neon-caster.run +map 3 +record three +bot on
@@ -559,6 +561,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/*.png` | textures (64 x 64), sprites, the guns: the CLASSIC pixel art |
 | `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
 | `neon-caster/sfx/` | sound effects, made with soundmon; `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
+| `neon-caster/demos/` | demos that come with the game: `sector1.ncd` to `sector10.ncd`, the autopilot playing each of the original ten (`playdemo sector3`) - plain text, a line a frame |
 | `neon-caster/programs/` | programs the computers in a level can run (`program NAME` in a trigger): `invaders.bas`, NEON INVADERS - copy it and make your own |
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
 | `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22), the level kit that builds and checks them (`levels.py`, `lvlkit.py`), the showcase sectors' builder (`showcase.py`), the other sets' builders (`newsectors.py`, `remaster.py`) and the skies' painter (`skies.py`) |

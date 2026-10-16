@@ -68,6 +68,17 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   movement to the arrows), and a mouse move to exactly the screen centre
   (400, 300) isn't seen - the game warps the pointer there. OpenGL under
   Xvfb is too slow for click timing; drive clicks with `+renderer 1`.
+- **Demos are tests.** `+record NAME [SEED] [quit]` restarts the sector
+  and records every frame's input (saves/demos/NAME.ncd, text); `+bot on`
+  lets the autopilot play it. `+playdemo NAME quit` replays it and exits 3
+  if it went out of step - a sector still playing frame for frame the same.
+  `NEON_DEMO_TRACE=1` logs each frame's state in both runs: diff the logs
+  to find where they part. Gameplay dice are `GRnd`, never `RND` (that's
+  for looks), and nothing that changes the game may read `TIMER` - use
+  `lvFrame`. Any change to gameplay can put shipped demos (neon-caster/demos)
+  out of step: replay them, and re-record what changed.
+- **Builds use `-f:ExtraCppFlags=-ffp-contract=off`** (CI does): without
+  it the Mac fuses multiply-adds and plays a Linux demo differently.
 - **Saving in a `cp -as` copy** replaces the symlinked level file with a real
   one (the repo's is untouched): put the symlink back before the next test,
   or later tests start from the edited level.

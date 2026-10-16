@@ -6940,6 +6940,12 @@ RETURN
 ' Dead, it clicks to start again; dead three times, it turns god mode on.
 BotThink:
 inBits = 0 : inWheel = 0 : botTurn = 0
+IF lvFrame < botFrameWas THEN ' (the sector started again - its clock back to 0: what it had ruled out, and when, is from before - forgotten)
+    FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
+    FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : NEXT
+    botNX = 0 : botStuck = 0 : botCheckAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0 : botBest = BOT_FAR : botBestAt = 0
+END IF
+botFrameWas = lvFrame
 IF dead THEN
     IF NOT botWasDead THEN botDeaths = botDeaths + 1 : botWasDead = -1
     IF deadTicks > 80 AND (lvFrame MOD 20) = 0 THEN inBits = DB_FIRE ' (start again)
@@ -6986,13 +6992,17 @@ FOR bi = 1 TO numMonsters
     END IF
 NEXT
 botTarget = bt
+IF bt AND health < 35 AND NOT godMode AND botMode = 3 THEN ' Badly hurt, and a medkit to go to: no standing to trade shots - it goes on its way, firing only at what's in line
+    ba = BotTurnTo(monsterX(bt), monsterY(bt), playerX, playerY, dirX, dirY) : IF ABS(ba) < 0.08 AND bAmmo THEN inBits = inBits OR DB_FIRE ' (its turn: the way it goes overrides it, below)
+    bt = 0
+END IF
 IF bt THEN
     ba = BotTurnTo(monsterX(bt), monsterY(bt), playerX, playerY, dirX, dirY)
     IF ABS(ba) < MinOf(0.12, ATN(0.3 / MaxOf(0.5, bbd))) + 0.02 THEN
         IF bAmmo THEN inBits = inBits OR DB_FIRE
         IF bbd < 1.3 AND kickTimer = 0 THEN inBits = inBits OR DB_KICK
     END IF
-    IF bbd < 1.6 AND bAmmo THEN inBits = inBits OR DB_BACK
+    IF bbd < 2.5 AND bAmmo THEN inBits = inBits OR DB_BACK ' (out of reach of its claws)
     IF bAmmo AND bbd > 2 THEN ' (side to side as it shoots - harder to hit - but only onto floor it could step to: no pit, ledge or fire)
         bsd = 1 : IF (lvFrame \ 45) MOD 2 THEN bsd = -1
         bx = INT(playerX - dirY * bsd * 0.7) : by = INT(playerY + dirX * bsd * 0.7)
@@ -7000,7 +7010,7 @@ IF bt THEN
             IF bsd = 1 THEN inBits = inBits OR DB_RIGHT ELSE inBits = inBits OR DB_LEFT
         END IF
     END IF
-    botCheckAt = lvFrame + 60 ' (fighting isn't being stuck)
+    botCheckAt = lvFrame + 60 : botBestAt = lvFrame ' (fighting isn't being stuck - nor getting nowhere)
     RETURN
 END IF
 ' Where to? Every 15 frames (or when there's no way), the field again
@@ -7059,13 +7069,15 @@ FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if t
         IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 7 : EXIT FOR
         GOTO BotExplore
     END IF
-    IF health < 50 THEN ' Hurt: a medkit, if one's near
+    IF health < 60 OR armor < 25 THEN ' Hurt: a medkit, if one's near (nearer the more it's hurt) - or armour, if there's some close by
         GOSUB BotClear
         FOR bi = 1 TO numItems
-            IF itemOn(bi) AND (itemKind(bi) = IT_HEALTH OR itemKind(bi) = IT_BIGMED) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+            IF itemOn(bi) THEN
+                IF (health < 60 AND (itemKind(bi) = IT_HEALTH OR itemKind(bi) = IT_BIGMED)) OR (armor < 25 AND itemKind(bi) = IT_ARMOR) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+            END IF
         NEXT
         BotField bpass
-        IF botDist(bcx, bcy) < 25 THEN botMode = 3 : EXIT FOR
+        IF botDist(bcx, bcy) < 15 + (60 - MinOf(60, health)) THEN botMode = 3 : EXIT FOR
     END IF
     IF ammoCount(AM_CELLS) < 10 AND ammoCount(AM_SHELLS) < 4 THEN ' Low on ammo: some, if it's near
         GOSUB BotClear
@@ -7115,6 +7127,15 @@ FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if t
     BotField bpass
     IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 4 : EXIT FOR
 NEXT
+' (Getting no nearer the goal in fifteen seconds - it can't really get there, whatever the plan says: that goal's out for a minute)
+IF botMode <> botWas OR botDist(bcx, bcy) < botBest THEN botBest = botDist(bcx, bcy) : botBestAt = lvFrame
+IF botMode > 0 AND lvFrame - botBestAt > 900 THEN
+    FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
+        IF botDist(bx, by) = 0 THEN botBlock(bx, by) = lvFrame + 3600
+    NEXT : NEXT
+    ConPrint "bot: can't get to that (" + ListItem$("nowhere to go,to the exit,a keycard,a medkit,exploring,ammo,a data station,data cores", botMode + 1) + ") - trying something else"
+    botBest = BOT_FAR : botBestAt = lvFrame : botMode = 0 : botNX = 0 : RETURN
+END IF
 IF botMode <> botWas THEN ConPrint "bot: " + ListItem$("nowhere to go,to the exit,a keycard,a medkit,exploring,ammo,a data station,data cores", botMode + 1) + " (" + LTRIM$(STR$(botDist(bcx, bcy))) + " steps, frame" + STR$(lvFrame) + ")" : botWas = botMode
 IF botMode = 0 THEN RETURN
 ' The next cell: the neighbour it can step to that's nearest the goal

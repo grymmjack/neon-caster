@@ -104,7 +104,8 @@ STEAM library in QB64_GJ_LIB. Until the game is on Steam they're kept in
 you playing it - every key and turn, frame by frame, not a video - till
 the exit, and `playdemo NAME` plays it back exactly: the same monsters,
 shots and loot. `bot` hands the controls to an autopilot that goes for the
-keycards and the exit, so it can make demos on its own. See
+keycards and the exit, so it can make demos on its own - `playdemo
+sector1` to `sector10` watch it play the original ten. See
 `neon-caster/TUTORIAL.md`.
 
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting
