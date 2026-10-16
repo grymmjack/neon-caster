@@ -63,7 +63,7 @@ ambient  = 120, 255, 190, 150
 39, 28, 39, 28, 0, 8, 2, 6
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 5 32 7 34 : message A DATA STATION - face it and press SPACE to jack in
 
 [map]
@@ -85,7 +85,7 @@ NNPPP\....../PPPNNNN\....../NNNNCCC\....../CCCNN
 NNPPPPPPP.PPPP.UVU.NNNNN.NNNN.FAF.CC%CC.CCCCCCNN
 NNNNNNNkNDNNNN..h..NNNNNDNNNN.ZVZ.NNkNNRNNNNNNNN
 NNNNNNNhN.NNNN.....NNNNN.NNNN.....NN.NN.NNNNNNNN
-NNNNN##%#.#####===######.#####===######.###NNNNN
+NNNNN##%#.#####===?#####.#####===?#####.###NNNNN
 NNNNN#......f.............................#jeaNN
 NNNNN#......##......##......##.....A##a...Dq*+NN
 NNNNN#.....U##..o...##.....L##..oT..##....#uaeNN
@@ -99,13 +99,13 @@ NNNNN#..x.................................#NNNNN
 NNNNN####.############%#.##############.###NNNNN
 NNNNNNNNN.NNNNNNNNNNNNhN.NNNNNNNNNNNNNN.NNNNNNNN
 NNNNNNNNN!NNNNNNNNNNNNhNYNNNNNNNNNNNNNNBNNNNNNNN
-NNNNNN@NN.NNNNNNNKKKKKKK.KKKKKKNGGGGGGG.GGGGGGNN
+NNNNNN@NNmNNNNNNNKKKKKKK.KKKKKKNGGGGGGG.GGGGGGNN
 NNNNN/......\NNNNKKK/......\KKKNGGG/......\GGGNN
 NNNN/...&....\NNNKK/........\KKNGG/........\GGNN
 NNN/..........\NNK/.c.......c\KNG/.s......*.\GNN
 NNN..a.......e.NNK............KNG............GNN
 NNN............NNK....K...K...KNG.......k....GNN
-NNN........m...NNKA...........KNG............ENN
+NNN............NNKA...........KNG............ENN
 NNN...x........NNK.a....h.....KNG............GNN
 NNN............NNK............KNG...h......t.GNN
 NNN.o....^...&.NNK....K...K...KNG............GNN

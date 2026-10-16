@@ -62,6 +62,7 @@ ambient  = 150, 200, 190, 255
 4.5, 27.5, 5, 160, 255, 160, 60, 0
 45.63, 22.875, 2, 160, 80, 255, 140, 0
 45.63, 24.125, 2, 160, 80, 255, 140, 0
+11, 3, 2.5, 110, 255, 200, 120, 1
 
 [events]
 ' kind, x0, y0, x1, y1, a, b, reward
@@ -172,7 +173,7 @@ ambient  = 150, 200, 190, 255
 34, 40, 0, -3, 4
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 crate    = ammo:25, shells:25, medkit:15, armor:15
 vending  = ammo:40, shells:30, medkit:15, overcharge:5
 locker   = amp:15, armor:40, medkit:30, -
@@ -227,8 +228,8 @@ locker   = amp:15, armor:40, medkit:30, -
 [map]
 ################################################
 ################################################
-#############..........rj..........#qae#########
-#############..x..o..x....o..x..o..Dj+a#########
+##########.j?..........rj..........#qae#########
+##########.e#..x..o..x....o..x..o..Dj+a#########
 #############......................#*ue#########
 #############......................#############
 #############.F..................F.#############
@@ -329,8 +330,8 @@ locker   = amp:15, armor:40, medkit:30, -
 ' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's
 ................................................
 ................................................
-.............cccccccccccccccccccccc.............
-.............cccccccccccccccccccccc.............
+..........cc.cccccccccccccccccccccc.............
+..........cc.cccccccccccccccccccccc.............
 .............cccccccccccccccccccccc.............
 .............cccccccccccccccccccccc.............
 .............cccccccccccccccccccccc.............

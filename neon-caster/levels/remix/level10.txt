@@ -59,7 +59,7 @@ ambient  = 85, 255, 120, 120
 11, 23, 24, 26, 27, 20, 8, 0
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 7 43 9 45 : message A DATA STATION - face it and press SPACE to jack in
 
 [blocks]
@@ -97,7 +97,7 @@ enter 7 43 9 45 : message A DATA STATION - face it and press SPACE to jack in
 20, 38, 0, 2, 4
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 console  = ammo:30, shells:30, -, -
 
 [faces]

@@ -305,12 +305,29 @@ def sector(name, walls, floors, ceils):
     return wrap
 
 
+# Each sector's secret stash (lvlkit's carve_stash): what's in it
+STASH_LOOT = ["ua", "q+", "je", "u*", "qa", "j*", "ue", "q*", "ja", "u*"]
+
+# Monsters that stood in sight of the start, a few steps away (lvlkit's
+# check_start_safe): moved from (x0, y0) to (x1, y1), out of sight
+START_MOVES = {
+    2: [(5, 40, 12, 40)],
+    4: [(11, 44, 14, 40)],
+    5: [(25, 41, 23, 37)],
+    7: [(10, 43, 14, 39)],
+}
+
+
 def build_all(write=False, show=False):
     ok = True
     out = []
     for i, (fn, name, walls, floors, ceils) in enumerate(SECTORS, 1):
         print("NEW %d: %s" % (i, name))
         m = fn()
+        for (x0, y0, x1, y1) in START_MOVES.get(i, ()):  # (after the build: its random picks stay as they were)
+            m.g[y1][x1], m.g[y0][x0] = m.g[y0][x0], "."
+        if not lvlkit.carve_stash(m, STASH_LOOT[i - 1]):  # (a secret stash in the rock, far from the start)
+            print("  PROBLEM: no room for a secret stash"); PROBLEMS.append(1)
         lv = m.level("level%d" % i, name, walls, floors, ceils)
         if show:
             m.show()
@@ -899,7 +916,8 @@ def coldstorage():
     and in its corner the freezer shaft, which has no bottom. North, a
     corridor runs past three cryo vaults behind glass: the first has the
     red card and locks you in; the middle one is sealed (look, don't
-    touch); the last (red door) has the blue. The specimen lab (west) keeps
+    touch - unless you shoot the red button across the corridor); the
+    last (red door) has the blue. The specimen lab (west) keeps
     its tanks in alcoves; the offices (east) are cubicles of thin walls.
     The loading dock (north-west, blue door) has the exit."""
     m = Sector("#")
@@ -940,6 +958,12 @@ def coldstorage():
     for (x, y, c) in ((15, 13, "r"), (18, 10, "V"), (23, 11, "V"), (22, 12, "k"), (25, 9, "g"), (32, 13, "b"), (29, 11, "V"), (31, 9, "*")):
         m.put(x, y, c)
     m.event(1, 14, 6, 19, 14, 4, 4, 9)
+    # The sealed vault's secret: a red button across the corridor - shoot
+    # it and the vault's wall beside its glass slides away (a "shoot"
+    # trigger and "secret": chapter 22), letting out what's kept in there
+    m.face(27, 19, "N", "wall-switch.png")
+    m.light(27.5, 18.6, 2.5, 150, 255, 60, 80, 3)
+    m.triggers.append("shoot 27 19 : secret 21 15 ; message The sealed vault's wall slides open... ; sound alarm")
     # The specimen lab (west): tanks in alcoves, benches
     m.room(2, 20, 11, 36, ceil=12, zone=(4, 1))
     m.put(12, 30, "D"); m.rect(13, 30, 13, 30)
@@ -976,6 +1000,7 @@ def coldstorage():
     m.loot_line("desk     = ammo:15, shells:10, medkit:15, -")
     m.loot_line("cryopod  = overcharge:15, medkit:30, -, -")
     finish(m, 7, dict(closets=1, cmons="c", props=2, propchars="xp"))
+    m.put(21, 15, "?")  # (the vault's secret wall: after finish's random props, so they stay where they were)
     return m
 
 

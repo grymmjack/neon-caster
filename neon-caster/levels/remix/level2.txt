@@ -98,7 +98,7 @@ ambient  = 115, 255, 190, 150
 10, 17, 38, 19, 44, 150, 0, 0
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 13 25 15 27 : message A CODE TERMINAL - face it and press SPACE
 
 [blocks]
@@ -139,7 +139,7 @@ enter 13 25 15 27 : message A CODE TERMINAL - face it and press SPACE
 17, 45, 0, 2, 4
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 barrel   = ammo:15, shells:15, -, -
 
 [faces]

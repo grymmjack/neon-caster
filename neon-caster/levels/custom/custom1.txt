@@ -54,7 +54,7 @@ ambient  = 150, 235, 230, 255
 38, 34, 38, 35, 0, 16, 2, 8
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 9 15 38 17 : message THE STATUES SLEEP - UNLESS YOU SHOOT THEM
 
 [monsters]
@@ -73,7 +73,7 @@ enter 9 15 38 17 : message THE STATUES SLEEP - UNLESS YOU SHOOT THEM
 42, 31, 20, 18, 100, 100, 0
 
 [faces]
-' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
 12, 14, S, 0, wall-adverts.png
 16, 14, S, 0, wall-graffiti.png
 31, 14, S, 0, wall-datastream.png

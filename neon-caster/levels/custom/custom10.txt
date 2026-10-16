@@ -47,7 +47,7 @@ ambient  = 120, 180, 210, 205
 ' kind, x0, y0, x1, y1, a, b, reward
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 4 40 7 44 : message THE STORM YARD - THE PUDDLES SLOW YOU, AND THEY ARE NOT EMPTY
 
 [monsters]
@@ -61,7 +61,7 @@ enter 4 40 7 44 : message THE STORM YARD - THE PUDDLES SLOW YOU, AND THEY ARE NO
 27, 42, 3, 0, 100, 100, 1
 
 [faces]
-' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
 8, 16, N, 0, wall-rusty.png
 8, 16, W, 0, wall-rusty.png
 9, 16, N, 0, wall-rusty.png

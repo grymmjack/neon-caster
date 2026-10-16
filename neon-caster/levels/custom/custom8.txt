@@ -62,7 +62,7 @@ ambient  = 120, 255, 190, 150
 32, 23, 33, 23, -2, 0, 1, 3
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 12 20 16 27 : message THE MELT BURNS - CROSS ON THE BRIDGES WHILE THEY'RE UP
 
 [monsters]
@@ -73,7 +73,7 @@ enter 12 20 16 27 : message THE MELT BURNS - CROSS ON THE BRIDGES WHILE THEY'RE 
 38, 38, 14, 12, 100, 100, 0
 
 [faces]
-' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
 18, 16, F, 0, floor-molten.png
 19, 16, F, 0, floor-molten.png
 20, 16, F, 0, floor-molten.png

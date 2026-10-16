@@ -56,7 +56,7 @@ ambient  = 125, 200, 255, 190
 11, 38, 8, 41, 11, 20, 6, 0
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 18 33 20 35 : message A CODE TERMINAL - face it and press SPACE
 enter 27 5 29 7 : message A DATA STATION - face it and press SPACE to jack in
 
@@ -74,12 +74,12 @@ NN#..........#NNNN#.m...w....#NNNN#.s......S.#NN
 NN#..p..M.p..#NNNN#..p....p.Q#Ne*a#..p....p..#NN
 NN#.x......m.#NNNN#......c...#NujaD........h.#NN
 NN#..Q.......#NNNN#..........#Nq+e#..........#NN
-NN#####.######NNNN##===####%##NNNN#####.######NN
+NN#####.######NNNN#?===####%##NNNN#####.######NN
 NNNNNNN.NNNNNNNNNNN.....NNNwNNNNNNNNNNN.NNNNNNNN
 NNNNNNN.N.IJI.NNNNN..u..NNN.NNNNNNNNNNN.NNNNNNNN
 NNNNNNN.N.V.Z.NNNNN.qaj.NNNNNNNNNNNNNNN.NNNNNNNN
 NNNNNNNDN.....NNNNNNNNNNNNNNNNNNNNNNNNNDNNNNNNNN
-NN#####.##===#NNNNCCCCCCCCCCCCNNNNKKKKK.KKKKKKNN
+NN#####.#?===#NNNNCCCCCCCCCCCCNNNNKKKKK.KKKKKKNN
 NN#..........#NNNNCCC/..W.\CCCNNNNK.........xKNN
 NN#..........#NNNNCC/......\CCNNNNK..........KNN
 NN#..p....p..#NNNNC/..u.y...\CNNNNK.s........KNN
@@ -87,25 +87,25 @@ NN#..........#NNNNC..........CN...K...t.....hKNN
 NN#..............R..t...q...tCNIc.=..........ENN
 NN#.e....w.c.#NNNNC..........CNS..=......w...KNN
 NN#..........#NNNNC..g.....g.CNIc.=..........KNN
-NN#..p....p..#NNNNC\......../CN...K........t.KNN
+NN#..p....p..#NNNNC\......../CN...?........t.KNN
 NN#..c..g...W#NNNNCC\...h../CCNNNNK..*....g..KNN
 NN#..........#NNNNCCC\..../CCCNNNNK...W......KNN
 NN#####.######NNNNCCCCC.CCCCCCNNNNKKKKK.KKKKKKNN
 NNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNN
 NNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNN
-NNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNN
+NNNNNNNkNNNNNNNNNNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNN
 NNNNNNNDNNNNNNNNNNNNNNNRNNNNNNNNNNNNNNNBNNNNNNNN
 NN#####.######NNNN#$###.######NNNN#####.######NN
 NN#.......W..#NNNN#..........#NNNN#...J......#NN
-NN#..k.......#NNNN#...T....w.#NNNN#..........#NN
+NN#..........#NNNN#...T....w.#NNNN#..........#NN
 NN#..p....p..#NNNN#..p.+h.p3.#NNNN#.ap..g.p..#NN
 NN#..........#NNNN#..........#NNNN#.........e#NN
-NN#.....a...&....D...............D...........#NN
+NN#.....a...&.m..D...............D...........#NN
 NN#..........#NNNN#..........#NNNN#.....w....#NN
 NN#..........#NNNN#..........#NNNN#..........#NN
 NN#..>....p..#NNNN#..p.c..pc.#NN.w%..p.c..pm.#NN
 NN#..........#NNNN#..........#NNNN#..........#NN
-NN#....m...+.#NNNN#..........#NNNN#..........#NN
+NN#........+.#NNNN#..........#NNNN#..........#NN
 NN############NNNN############NNNN############NN
 NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN

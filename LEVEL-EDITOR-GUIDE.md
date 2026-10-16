@@ -256,13 +256,13 @@ Each cell of the map is one character, and case matters: `m` is a drone, `M` is 
 ```
 . # N C K P G /
 \ D H X R B Y E
-! = @ $ % & r b
-y + * u a e 2 3
-4 M q j m g h c
-s k w z T o i p
-t x l n f S d A
-F I J L O Q U W
-Z V < > ^ v
+! = @ $ % ? & r
+b y + * u a e 2
+3 4 M q j 8 m g
+h c s k w z T o
+i p t x l n f S
+d A F I J L O Q
+U W Z V < > ^ v
 ```
 
 **Walls and structure**
@@ -272,7 +272,8 @@ Z V < > ^ v
 | `.` | Floor | |
 | `#` `N` `C` `K` `P` `G` | Solid walls | They differ only in looks: pictures 1–6 of the level's `walls =` list, in that order. `#`'s picture is also used for the steps between floor heights. |
 | `/` `\` | Diagonal walls | Half wall, half floor, corner to corner. The solid half is chosen from the walls next to it, and it takes their look. You can't walk through one. |
-| `%` | Secret wall | Looks like the walls around it. Slides away when a closet event (kind 6) within 3 cells goes off. |
+| `%` | Closet wall | Looks like the walls around it. Slides away when a closet event (kind 6) within 3 cells goes off. Once every monster from the closet is dead, something clicks at the back of it: a stash in the wall behind, opened with Space (it counts as a secret). |
+| `?` | Secret wall | Looks like the walls around it, on the map too. Space on it slides it away: *YOU FOUND A SECRET!*, and the tally's SECRETS row counts it. Touching `?` cells are one secret. A trigger with `secret X Y` in its commands opens it instead (and then Space doesn't): a switch to shoot, say. What's behind it stays rock on the map pickup's map until you've seen it. |
 | `=` | Glass | A see-through pane. Put it in a straight wall one cell thick. 4 hits break it. |
 | `@` | Data station | A wall you jack into with Space. Hacking it opens nearby `!` doors. |
 | `$` | Code terminal | A wall with a QB64 puzzle: the next name from `puzzles =`, in reading order. |
@@ -299,6 +300,7 @@ Z V < > ^ v
 | `e` | Shells +8 | | `M` | The map |
 | `2` | Scatter gun, +8 shells | | `q` | Overcharge +100, up to 200 |
 | `3` | Repeater, +30 cells | | `j` | Damage amp: double damage for 30 s |
+| `8` | Night vision headset: a minute of battery (two at most). N switches it on and off | | | |
 
 **Monsters.** Up to 64 per level, counting ones events spawn.
 
@@ -312,7 +314,7 @@ Z V < > ^ v
 | `k` | stalker | 3 |
 | `w` | spitter | 6 |
 | `z` | overseer (boss) | 80 |
-| `T` | thief | 5 |
+| `T` | thief | 5 - grabs your ammo and gun and runs for its hoard (event 7). Each hit knocks some loose; if it gets home, the hoard is locked for good |
 
 **Decorations.** Up to 64 per level. They block your way, and most can be shot to pieces.
 
@@ -329,6 +331,8 @@ Z V < > ^ v
 | `S` | Spawner (the portal nest events use) | | `W` | Bench |
 | `d` | Desk | | `Z` | Chair |
 | | | | `V` | Body (doesn't block, can't break) |
+
+Some do more than break. Space at a **vending machine** (`n`): 3, 2, 1... and it pays out for a couple of seconds, or now and then blows up. Space at a **computer** (`t`, `A`, `F`) plays NEON PONG (first to 3; win and it pays out). A **specimen tank** (`I`) broken open lets out what's in it half the time. Monsters' bolts break things too, and what's inside still drops.
 
 **The start.** `<` `>` `^` `v` put you there, facing left, right, up or down the map. Keep exactly one.
 
@@ -502,6 +506,7 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 | --- | --- |
 | `enter X0 Y0 X1 Y1` | You step into the rectangle |
 | `use X Y` | You press Space facing that cell |
+| `shoot X Y` | You shoot (or kick) the wall or the thing in that cell. Put `wall-switch.png` on that wall's face (PAINT, or `[faces]`) and it's a switch. Not in the pane's buttons yet: TYPE it in the level file or with the console's `trigger` |
 | `clear X0 Y0 X1 Y1` | Every monster that started in the rectangle is dead |
 | `time S` | S seconds into the level |
 
@@ -511,13 +516,16 @@ Without `repeat`, a trigger fires once. Don't put `repeat` on `time` or `clear`:
 enter 20 20 22 22 : message AMBUSH! ; spawn stalker 24 21 3
 enter 12 30 12 34 : door 15 32 open ; spawn crawler 16 32 4
 use 30 14 : door 31 14 open ; sound alarm ; item medkit 31 16
+shoot 27 19 : secret 21 15 ; message The sealed vault's wall slides open...
 ```
+
+The last is NEW SECTORS 7's sealed vault: shoot the red button across the corridor and the secret wall at (21, 15) slides away.
 
 A trigger box one cell thick across a corridor (the second line) is a line: cross it and the closet door beside it opens, with its crawlers already inside.
 
 **`[liquid]`** and **`[liquid depth]`** (the LIQUIDS tab): two more maps like `[floor]`, one character a cell. `[liquid]` is `.` for none, or `w` water, `p` poison, `s` slime, `l` lava, `a` acid; `[liquid depth]` is `.` for three eighths, or `1` to `8`. Both are left out when there's no liquid.
 
-**`[loot]`** says what breakables leave behind. One line per kind: `BREAKABLE = DROP, DROP, DROP, DROP`, up to four drops (A to D), each `pickup:chance` with the chance in percent, or `-` for an empty slot. Breaking one rolls a d4 to pick a drop (an empty slot gives nothing), then 1 to 100: at or under that drop's chance, its pickup is tossed out of the wreck. It goes any way at all if the thing was shot or blown up, and back your way if you kicked it. It lands where you can see it and walk over to it, never at your feet, and can't be caught in mid-air.
+**`[loot]`** says what breakables leave behind. One line per kind: `BREAKABLE = DROP, DROP, DROP, DROP`, up to four drops (A to D), each `pickup:chance` with the chance in percent, or `-` for an empty slot. Breaking one rolls 1 to 100 once, shared out in order: drop A has the first A%, B the next B%, and so on, so each drop's chance is as written and the chance of anything at all is them added up (`crate = ammo:20, shells:20, medkit:20, armor:10` gives something 70% of the time). The one it lands on is tossed out of the wreck. It goes any way at all if the thing was shot or blown up, and back your way if you kicked it. It lands where you can see it and walk over to it, never at your feet, and can't be caught in mid-air. When your guns are down to under a quarter of their ammo, every chance is doubled.
 
 ```
 crate    = ammo:20, shells:20, medkit:20, armor:10
@@ -566,6 +574,8 @@ These only change the running level, so they're for testing and for triggers rat
 | Command | Does |
 | --- | --- |
 | `door X Y open\|close\|lock\|unlock\|toggle` | Work a door |
+| `program NAME` | A computer runs `neon-caster/programs/NAME.bas` - any QB64PE program, built by qb64pe the first time (SETTINGS > QB64PE COMPILER) and kept in `saves/programs/`. The game waits while it runs. If it ends with `SYSTEM 1` you beat it, and the computer pays out. Put it on a computer with a trigger: `use 31 8 repeat : program invaders` (THE NEON EXPO's terminal plays NEON INVADERS) |
+| `secret X Y` | Open the secret wall (`?`) at X Y - found, counted. `secret` alone lists the sector's secrets and what opens each |
 | `wall X Y CHAR` | Swap a wall (`#` `.` `N` `C` `K` `P` `G`) until the next rebuild |
 | `light N on\|off` | Switch one of the level's lights |
 | `liftgo N up\|down` | Send a lift |
@@ -574,7 +584,7 @@ These only change the running level, so they're for testing and for triggers rat
 | `take health N` / `take armor N` / `take ammo cells N` / `take ammo shells N` | N less: `take health` ignores armour and can kill; `take all` leaves only the blaster; `take keys`, `take key red`, `take gun N`, `take map` |
 | `die [MESSAGE]` | You die (never in god mode or the editor) |
 | `spawn TYPE X Y [N]` | N monsters teleported into cell X Y, hunting (sparks and a sound): an ambush from nowhere. `summon TYPE [N]` puts them in front of you instead |
-| `item KIND X Y` | A pickup appears in cell X Y: health, medkit, armor, cells, shells, scatter, repeater, rail, map, overcharge, amp, red, blue, yellow (or its map character) |
+| `item KIND X Y` | A pickup appears in cell X Y: health, medkit, armor, cells, shells, scatter, repeater, rail, map, overcharge, amp, goggles, red, blue, yellow (or its map character) |
 | `liquid KIND X0 Y0 X1 Y1 [DEPTH]` | A pool over that rectangle's floor: water, poison, slime, lava or acid, DEPTH 1-8 eighths (3); `none` drains it. In a trigger, it floods a room |
 | `loot` / `loot BREAKABLE DROPS` / `loot default` | What breakables leave in this sector: list it, set one kind (`loot crate ammo:20 shells:20 - armor:10`), or the game's own table back (see `[loot]`) |
 | `mons` | List every monster: where it is, asleep or hunting, its health, and its own sight, hearing, speed and waking |

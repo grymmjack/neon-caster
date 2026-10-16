@@ -6,12 +6,16 @@ sets of ten - the originals, ten NEW SECTORS, and OLD SECTORS NEW (the
 first ten remade) - ten kinds of monster, four guns and a kick, glass you can shoot through, floors and
 ceilings at every height, lifts and bottomless pits, open skies, teleporters, data
 stations that turn the level into a wireframe network, code terminals that
-lock you in until you fix a real QB64 program, and a villain who talks to
-you. With a level editor built in - point and click inside the level in 3D
+lock you in until you fix a real QB64 program, DOOM-style secrets in
+every sector (walls that slide away, switches you shoot, closets that hide
+stashes), vending machines that pay out or blow up, NEON PONG on the
+computers, a night vision headset, and a villain who talks to you. With a level editor built in - point and click inside the level in 3D
 or on the map from above, with a picker of every wall, floor, door, item,
 monster and light - and a monster editor and a HUD editor. Twelve more
 sectors built with the editor come with it, three of them outdoors, and
-one, THE NEON EXPO, that shows off every feature at once.
+one, THE NEON EXPO, that shows off every feature at once. And 49
+achievements, each with its own badge, ready for Steam, with each
+sector's best times kept as records.
 
 It draws its 3D two ways: a software raycaster, like Wolfenstein 3D, and an
 OpenGL renderer with bump mapping, moving lights, wet floors, bloom and CRT
@@ -83,7 +87,7 @@ explains every tool, key, map character and level-file field, and YOUR
 SECTORS starts with twelve example sectors (three of them outdoors, under skies) built with the editor to take
 apart.
 
-**Achievements and records:** 45 achievements, from finishing sector 1 to
+**Achievements and records:** 49 achievements, from finishing sector 1 to
 a thousand kills, a sector without a scratch, or kicking a machine into a
 bottomless pit, each with its own badge. **GAME > ACHIEVEMENTS** shows
 them all and how close you are, its RECORDS page has your best time,

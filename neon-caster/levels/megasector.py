@@ -109,7 +109,7 @@ def expo():
     m.alcove(33, 44, "W", depth=3, floor=0, ceil=8, deco="A", glow=AMBER, fx=0)
     m.put(23, 37, "Q")                          # (the expo's sign: a hologram)
     for (x, y, c) in ((20, 45, "W"), (17, 45, "M"), (30, 43, "a"), (21, 40, "+"),
-                      (16, 41, "T"), (31, 38, "T"), (25, 43, "m"), (19, 37, "p")):
+                      (16, 41, "T"), (31, 38, "T"), (32, 43, "m"), (19, 37, "p")):
         m.put(x, y, c)
     m.put(31, 45, "&")                          # (LINKed by hand to the arcade's)
     # the archway into the atrium: low, its lintels painted
@@ -234,6 +234,7 @@ def expo():
     for (x, y) in ((24, 8), (27, 8), (24, 10)):
         m.put(x, y, "d"); m.put(x, y + 1 if y < 10 else y - 1, "Z")
     m.put(31, 8, "t"); m.nudge(31, 8, 0, 0, 3)
+    m.triggers.append("use 31 8 repeat : program invaders")  # (this terminal runs neon-caster/programs/invaders.bas: beat it, and it pays out)
     m.alcove(26, 1, "S", depth=3, floor=2, ceil=7, deco="F", glow=CYAN, fx=0)
     m.mon(28, 9, "s", sight=12)
     for (x, y, c) in ((17, 9, "g"), (22, 5, "g"), (32, 10, "w"), (15, 2, "e"), (30, 10, "+")):
@@ -325,6 +326,12 @@ def expo():
     m.loot_line("desk     = ammo:15, shells:15, medkit:15, -")
     m.loot_line("cryopod  = overcharge:20, medkit:30, -, -")
     m.loot_line("rack     = ammo:30, overcharge:10, -, -")
+    # A secret stash in the rock (?), and its way in a red button beside it
+    # you shoot - a "shoot" trigger, "secret" in its commands
+    sx, sy, dx, dy = lvlkit.carve_stash(m, "qu")
+    bx, by = sx + dy, sy + dx  # (the wall along from it)
+    m.face(bx, by, {(1, 0): "W", (-1, 0): "E", (0, 1): "N", (0, -1): "S"}[(dx, dy)], "wall-switch.png")
+    m.triggers.append("shoot %d %d : secret %d %d" % (bx, by, sx, sy))
     m.headroom(8)
     return m
 
@@ -351,7 +358,7 @@ def build(write=False, show=False):
         if k > mx:
             print("  TOO MANY %s: %d (max %d)" % (what, k, mx)); good = False
     rows = "".join(lv["rows"])
-    missing = [ch for ch in "rbyM+*uae234qjmghcskwzToiptxlnfSdAFIJLOQUWZV/\\%=@$&!DHXRBYE" if ch not in rows]
+    missing = [ch for ch in "rbyM+*uae234qjmghcskwzToiptxlnfSdAFIJLOQUWZV/\\%?=@$&!DHXRBYE" if ch not in rows]
     if missing:
         print("  NOT USED YET:", " ".join(missing))
     if len(kinds) < 13:

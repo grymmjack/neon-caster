@@ -43,7 +43,7 @@ ambient  = 95, 170, 210, 255
 2, 2, 3, 12, 10, 30, 120, 9
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 22 34 25 36 : message THEY HEAR EVERY SHOT - KICK (F), AND THEY MIGHT NOT
 time 0 : door 40 24 lock
 use 30 19 : door 40 24 unlock ; message THE ARCHIVE IS OPEN ; sound door
@@ -65,7 +65,7 @@ enter 21 13 26 18 : message THE LAST DOOR - SOMETHING'S BREATHING BEHIND IT
 1, 36, 2, 0, 100, 130, 1
 
 [faces]
-' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
 14, 19, S, 0, wall-terminals.png
 22, 19, S, 0, wall-terminals.png
 30, 19, S, 0, wall-control.png

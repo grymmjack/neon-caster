@@ -57,7 +57,7 @@ ambient  = 90, 150, 200, 255
 10, 25, 32, 31, 34, 180, 0, 0
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 0 20 2 22 : message A CODE TERMINAL - face it and press SPACE
 enter 11 4 13 6 : message A DATA STATION - face it and press SPACE to jack in
 
@@ -69,8 +69,8 @@ enter 11 4 13 6 : message A DATA STATION - face it and press SPACE to jack in
 ########*e+#..s..kT............y....=.VA########
 ###########@.....t.........h......3.=.ZF########
 ############\...................A../#...########
-##############.#########.########.##############
-########GGGGGGRGGGGGGGGGRGGGGGGGGRGGGGGG########
+##############.#########.########.###?##########
+########GGGGGGRGGGGGGGGGRGGGGGGGGRGGG?GG########
 ####g###G............A.................G###k####
 ####k###G.o......................d...a.G###g####
 #KKK%KKKG..GGGGG.GGGGG....GGGGG.GGGGG..GKKK%KKK#
@@ -99,14 +99,14 @@ enter 11 4 13 6 : message A DATA STATION - face it and press SPACE to jack in
 #K.....KG..............l...............GK.*...K#
 #K\.../KG..GGGGG.GGGGGc...GGGGG.GGGGG..GK\.../K#
 #KK===KKG.+............................GKK===KK#
-##.....#G............................o.G#.....##
-##..u..#G...........................F..G#..h..##
-##.qaj.#GGGGGGDGGGGGGGGG.GGGGGGGGDGGGGGG#.UVU.##
-##############.#########D########.##############
+##.....??............................o.G#.....##
+##..u..#G...........................F..??..h..##
+##.qaj.#GGGGGGDGGGGGGGGG.GGGGGGGGDGGG?GG#.UVU.##
+##############.#########D########.###?##########
 ############/......................\#...########
-#########kk%.e.....m..........&.....=.Zd########
+#########kk%.e.m..............&.....=.Zd########
 ############....a.......^......+....=.VF########
-############........x.......xm......=..d########
+############........x.......x....m..=..d########
 ############\..Q.................../#...########
 ################################################
 ################################################

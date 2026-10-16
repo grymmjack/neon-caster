@@ -39,6 +39,10 @@ NC_CORRODED,Corroded,Let acid eat your armour.,no,,,achievements/NC_CORRODED.jpg
 NC_BEAM,Frequent Flyer,Teleport 25 times.,no,Teleports,25,achievements/NC_BEAM.jpg,achievements/NC_BEAM_locked.jpg
 NC_LOOT,Treasure Hunter,Find 25 things in breakables.,no,LootDrops,25,achievements/NC_LOOT.jpg,achievements/NC_LOOT_locked.jpg
 NC_VANDAL,Vandal,Smash 100 decorations.,no,Smashed,100,achievements/NC_VANDAL.jpg,achievements/NC_VANDAL_locked.jpg
+NC_SECRET,Secret Agent,Find a secret.,no,Secrets,1,achievements/NC_SECRET.jpg,achievements/NC_SECRET_locked.jpg
+NC_SECRETS,Nothing Stays Hidden,Find 25 secrets.,no,Secrets,25,achievements/NC_SECRETS.jpg,achievements/NC_SECRETS_locked.jpg
+NC_ALL_SECRETS,Fine-Toothed Comb,Find every secret in a sector.,no,,,achievements/NC_ALL_SECRETS.jpg,achievements/NC_ALL_SECRETS_locked.jpg
+NC_ARCADE,High Score,Beat a computer at one of its games.,no,,,achievements/NC_ARCADE.jpg,achievements/NC_ARCADE_locked.jpg
 NC_ARCHITECT,Architect,Save a sector in the level editor.,no,,,achievements/NC_ARCHITECT.jpg,achievements/NC_ARCHITECT_locked.jpg
 NC_BOXED,Thinking Inside the Box,Stand a block in the level editor.,no,,,achievements/NC_BOXED.jpg,achievements/NC_BOXED_locked.jpg
 NC_HMPH,Hmph,Search 25 walls for secrets.,yes,Searches,25,achievements/NC_HMPH.jpg,achievements/NC_HMPH_locked.jpg

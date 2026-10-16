@@ -8,6 +8,7 @@ Puzzles,INT,Client,yes,a count
 Teleports,INT,Client,yes,a count
 LootDrops,INT,Client,yes,a count
 Smashed,INT,Client,yes,a count
+Secrets,INT,Client,yes,a count
 Searches,INT,Client,yes,a count
 Deaths,INT,Client,yes,a count
 Glass,INT,Client,yes,a count

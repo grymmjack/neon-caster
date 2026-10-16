@@ -46,6 +46,7 @@ ambient  = 160, 190, 210, 255
 43.63, 5.875, 2, 160, 80, 255, 140, 0
 43.63, 7.125, 2, 160, 80, 255, 140, 0
 39.5, 6.5, 5, 150, 200, 255, 220, 0
+44.5, 15.5, 2, 110, 255, 200, 120, 1
 
 [events]
 ' kind, x0, y0, x1, y1, a, b, reward
@@ -57,7 +58,7 @@ ambient  = 160, 190, 210, 255
 31, 23, 33, 24, 12, 16, 1, 4
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 3 34 14 44 : message THE STREET IS A LONG WAY DOWN - DON'T STEP OFF
 
 [blocks]
@@ -70,7 +71,7 @@ enter 3 34 14 44 : message THE STREET IS A LONG WAY DOWN - DON'T STEP OFF
 43, 7, 6, 0, 8, 2, 5
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 crate    = ammo:25, shells:25, medkit:20, armor:15
 tank     = ammo:20, -, -, -
 
@@ -110,9 +111,9 @@ tank     = ammo:20, -, -, -
 #.......................................m......#
 #...........m..................................#
 #o.............................................#
-#..............................................#
-#..............................................#
-#..............................................#
+#..........................................CCC.#
+#..........................................CqC.#
+#..........................................C?C.#
 #..............................................#
 #..............................................#
 #.................i................i...........#

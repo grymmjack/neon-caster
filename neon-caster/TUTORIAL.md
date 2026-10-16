@@ -6,7 +6,9 @@ kick, doors and keycards, exploding barrels, traps and event rooms, glass
 you can see (and shoot) through, floors and ceilings at different heights
 with lifts and pits, teleporters, data stations that turn the level into a
 neon network, code terminals that lock you in until you repair a real
-QB64 program, a villain who talks to you through a vocoder, sound placed
+QB64 program, secret walls in every sector (and switches you shoot),
+vending machines that pay out or blow up, NEON PONG on the computers, a
+night vision headset, a villain who talks to you through a vocoder, sound placed
 around you, a minimap, music, a menu with settings, a console, saved
 games - and editors for its levels, its monsters and its HUD, inside the
 game. It's built like Wolfenstein 3D, as a *raycaster*, and the
@@ -47,12 +49,13 @@ it yourself:
 | Shift (hold) | run |
 | F | kick (Fire with no ammo kicks too) |
 | Click or Ctrl | fire |
-| Space | open or shut doors, use the exit, jack into a data station, use a code terminal |
+| Space | open or shut doors, use the exit, jack into a data station, use a code terminal, search a wall for a secret, work a vending machine, play NEON PONG on a computer |
+| N | night vision on and off, once you've found a headset |
 | 1-4 or mouse wheel | choose a gun |
 | Right button (hold) | aim down the sights (zooms in) |
 | Esc | the menu: pause, new game, save, load, settings, exit |
 | F5 / F9 | quick save / quick load |
-| Tab | the full-screen map (all of it once you've found the map pickup) |
+| Tab | the full-screen map (all of it once you've found the map pickup): pools in their colours, pits, lifts and teleporter pads |
 | ` (backtick) | the console: type `help` for the commands |
 | F2 | the level editor (see below); in it, F1 shows a cheatsheet of every key |
 | K / G | testing cheats: every keycard / god mode |
@@ -62,8 +65,9 @@ nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or 
 `god`, `kill`, `respawn`, `summon heavy 3`, `tp 20 24 90`, `save 2`,
 `load quick`, `restart`, `finish`, any setting by its name (`fov 100`,
 `renderer 2`, `display 2` - `settings` lists them), `bind`, `events`,
-`screenshot`, `cutscene 4` (a sector's transmission) and `say taunt2`
-(any of NEXUS's lines). There are commands for building too: `edit`, `put
+`screenshot`, `cutscene 4` (a sector's transmission), `say taunt2`
+(any of NEXUS's lines) and `achievements` (with `achieve NAME` and
+`resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 `savelevel` - and `door`, `wall`, `light`, `liftgo`, `message`, `sound`,
 `give`/`take` (health, armour, ammo by kind, all), `die`, `spawn TYPE X Y`
@@ -251,7 +255,7 @@ Each sector is built around floors and ceilings at different heights
 
 ## Achievements and records
 
-45 achievements, and each sector's best time, kills and items, in **GAME >
+49 achievements, and each sector's best time, kills and items, in **GAME >
 ACHIEVEMENTS** (Tab goes on to the RECORDS page, then STATS: your rank,
 from how many you've got, and lifetime totals). They're Steam's: chapter 23's
 ACHIEVEMENTS section uses the STEAM library from QB64_GJ_LIB (`lib/steam`),
@@ -340,6 +344,11 @@ run it and see what happens. That's the fastest way to learn how it works.
   from the distance. Then try fog that reaches 30 cells instead of 16.
 - **Flat lighting** (ch. 15): remove the line that makes y-sides darker.
   Can you still tell where the corners are?
+- **The world in a mirror** (ch. 8): build the camera plane the classic
+  raycaster's way, `planeX = dirY * fovPlane : planeY = -dirX * fovPlane`
+  (in the line that rebuilds it each frame), and play with the map open
+  (Tab): everything's on the wrong side of you, and the EXIT signs read
+  backwards. Chapter 8 says why our map needs `(-dirY, dirX)`.
 - **Faster, slower** (ch. 4, 9): change `moveSpeed`, a gun's delay in its
   `SetGun` line, or a monster's speed in `SetMonType`.
 
@@ -418,6 +427,15 @@ run it and see what happens. That's the fastest way to learn how it works.
   22 22 : message AMBUSH! | summon stalker 3` - then walk there. Any
   console command is an action: lights out, a lift moving, a wall sliding
   away (`wall X Y .`), a teleport.
+- **Your own secret (ch. 22)**: in the editor, turn a stretch of wall
+  into `?` with a little room carved behind it, and put something good in
+  there. Space finds it. For a DOOM-style switch, paint `wall-switch.png`
+  on a wall nearby and add `shoot X Y : secret X2 Y2` (the switch's cell,
+  then the secret's). `AssignSecrets` and `OpenSecret` show how it works.
+- **Another arcade game (ch. 19)**: `ArcadeRun` and `DrawArcade` are NEON
+  PONG - its own loop, like the code terminals'. Make the machine's
+  paddle quicker (the `5.2`s), the ball faster, or write BREAKOUT next to
+  it.
 - **Retune the monsters (ch. 3, 21)**: M in the editor - give the drone
   the heavy's hit points, make the crawler drop medkits - or change
   `monsters.txt` by hand.
@@ -525,6 +543,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/*.png` | textures (64 x 64), sprites, the guns: the CLASSIC pixel art |
 | `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
 | `neon-caster/sfx/` | sound effects, made with soundmon; `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
+| `neon-caster/programs/` | programs the computers in a level can run (`program NAME` in a trigger): `invaders.bas`, NEON INVADERS - copy it and make your own |
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
 | `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22), the level kit that builds and checks them (`levels.py`, `lvlkit.py`), the showcase sectors' builder (`showcase.py`), the other sets' builders (`newsectors.py`, `remaster.py`) and the skies' painter (`skies.py`) |
 | `neon-caster/levels/new/`, `remix/` | NEW SECTORS and OLD SECTORS NEW, `level1.txt`... each |
@@ -534,6 +553,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/saves/achievements.txt`, `records.txt` | the achievements and stats (Steam's stand-in, until the game is on Steam) and each sector's best |
 | `neon-caster/monsters.txt`, `hud.txt` | every monster's numbers and what it drops; the HUD's layout - both changed by their editors, or by hand |
 | `neon-caster/music/` | a track for each sector, the menu's, and the network's (`cyber.flac`) |
+| `lib/glsl/`, `lib/steam/` | libraries from QB64_GJ_LIB: the OpenGL shaders' helpers, and Steam's achievements and stats (with a stand-in until the game is on Steam) |
 
 ## Further reading
 

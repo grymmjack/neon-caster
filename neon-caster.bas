@@ -169,9 +169,10 @@
 ' keeps them in a file when there's no Steam, so they work anywhere.
 '$INCLUDE:'lib/steam/STEAM.BI'
 ' Which release this is (the create-release skill bumps it: major.minor.patch)
-CONST GAME_VERSION$ = "0.1.0"
+CONST GAME_VERSION$ = "0.2.0"
 _TITLE "NEON-CASTER " + GAME_VERSION$
 ON ERROR GOTO GameError ' (a runtime error: logged, and the game carries on - chapter 21)
+RANDOMIZE TIMER ' (RND's dice start somewhere new each time: without this, every game rolls the same numbers - the same loot, the same vending machines)
 SCREEN _NEWIMAGE(800, 600, 32)
 _MOUSEHIDE _DISABLE
 _PRINTMODE _KEEPBACKGROUND
@@ -332,6 +333,9 @@ CONST IT_HEALTH = 4, IT_CELLS = 5, IT_SHELLS = 6, IT_SCATTER = 7, IT_REPEATER = 
 CONST IT_ARMOR = 9, IT_BIGMED = 10, IT_RAIL = 11, IT_MAP = 12
 CONST IT_CORE = 15 ' (a data core: only in the network)
 CONST IT_OVERCHARGE = 13, IT_AMP = 14 ' (overcharge: health up to MAX_OVER; damage amp: double damage for AMP_FRAMES)
+CONST IT_GOGGLES = 16 ' (8 on the map: a night-vision headset - NV_FRAMES of battery; N switches it on and off)
+CONST NV_FRAMES = 3600, NV_MAX = 7200 ' (a headset's battery: a minute of seeing in the dark; two at most)
+DIM SHARED nvCharge AS SINGLE, nvOn AS INTEGER ' (night vision: frames of battery left, and whether it's on - ApplyNight, and OpenGL's post shader's "night")
 CONST MAX_OVER = 200, AMP_FRAMES = 1800
 ' MAX_ = the most there can be: the arrays below have room for this many
 CONST MAX_ITEMS = 128
@@ -390,7 +394,9 @@ CONST EV_AMBUSH = 1, EV_SURVIVE = 2, EV_TRAP = 3, EV_GALLERY = 4, EV_NEST = 5
 '   EV_CLOSET   walk in and the secret walls (%) round the room slide away,
 '               and what's been waiting behind them comes out
 '   EV_HOARD    a treasure room, sealed; the thief bots (T) run to its door
-'               with what they steal, and when the last thief dies it opens
+'               with what they steal, and when the last thief dies it opens -
+'               but a thief that gets home with your things slips inside,
+'               and it's locked for good (evState 3)
 '   EV_PLATE    a pressure plate: step on it (or a monster does) - click,
 '               beep, and a moment later an explosion lands on it
 '   EV_LASER    a laser beam across a corridor, on for a frames, off for b
@@ -411,6 +417,20 @@ CONST TRAP_WARN = 30
 DIM SHARED doorLockEv(MAP_SIZE, MAP_SIZE) AS INTEGER, evMiss(MAX_EVENTS) AS INTEGER ' (evMiss: an ambush's spawns that found no room, in a row) ' (which event room sealed a door, doorLock -1: only it lets it go)
 DIM SHARED evGlow(MAX_EVENTS) AS SINGLE, evHum&(MAX_EVENTS) ' (how lit a trap is now, 0 to 1; its own looping copy of its sound)
 DIM SHARED closetCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' (a closet's secret wall: which closet event it belongs to)
+' SECRETS (? on the map - chapter 22): walls that look like the walls
+' beside them, on the map too, until you find them. Space on one and it
+' slides away - "YOU FOUND A SECRET!" - and the tally counts it. Touching
+' ? cells are one secret. One a trigger opens (its commands say "secret
+' X Y" - a switch you shoot, say: secretShot) won't open to Space. And a
+' monster closet hides a stash: once its monsters are all dead, a loose
+' panel at the back of it (secretNeedEv: the closet) opens on loot.
+CONST MAX_SECRETS = 32
+DIM SHARED secretCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' (a secret wall: which secret it's part of)
+DIM SHARED closetIn(MAP_SIZE, MAP_SIZE) AS INTEGER ' (the floor inside a monster closet: which closet event)
+DIM SHARED secretArea(MAP_SIZE, MAP_SIZE) AS INTEGER ' (floor you can only get to through a secret - or a closet: the map pickup draws it as this wall's colour, not floor, until you've seen it)
+DIM SHARED numSecrets AS INTEGER, secretsFound AS INTEGER, secretFound(MAX_SECRETS) AS INTEGER
+DIM SHARED secretShot(MAX_SECRETS) AS INTEGER, secretNeedEv(MAX_SECRETS) AS INTEGER, secretHint(MAX_SECRETS) AS INTEGER
+DIM SHARED sndSecret&
 DIM SHARED thiefDist(MAP_SIZE, MAP_SIZE) AS INTEGER ' (how many steps from a hoard's door: the thieves' way home - BuildThiefWay)
 DIM SHARED blackoutTimer AS LONG, glMeshVersion AS LONG, glMeshDone AS LONG
 DIM SHARED numEvents AS INTEGER, evType(MAX_EVENTS) AS INTEGER
@@ -445,7 +465,12 @@ CONST MAX_MON = 128, MON_TYPES = 10 ' (a level places up to 64 - the level kit c
 CONST MT_ICE = 10 ' (ICE: the network's hunter programs - only in the network, chapter 19)
 CONST MT_THIEF = 9 ' (the thief bot: steals, then runs - ThiefStep, chapter 13)
 CONST DK_CHAIR = 20, DK_BODY = 21 ' (a body doesn't block the way, and can't be broken)
-CONST DECO_KINDS = 21, ITEM_KINDS = 15 ' (kinds of decoration and of pickup - see chapter 3)
+CONST DK_SPECIMEN = 13 ' (a specimen tank: break it open, and half the time what's in it gets out - HitDeco)
+CONST DK_VENDING = 7 ' (a vending machine: Space on it - 3, 2, 1... and it pays out, or blows up: VendStep)
+CONST DK_TERMINAL = 4, DK_CONSOLE = 11, DK_SCREENS = 12 ' (computers: Space on one plays NEON PONG - ArcadeRun - and beating it pays out)
+CONST ARC_TOP = 90, ARC_BOT = 570, ARC_PAD = 80, ARC_WIN = 3 ' (NEON PONG's court, its paddles' length, and the points to win)
+DIM SHARED vendState(MAX_DECO) AS INTEGER, vendTimer(MAX_DECO) AS INTEGER, vendBomb(MAX_DECO) AS INTEGER ' (0 waiting, 1 counting down, 2 paying out, 3 sold out)
+CONST DECO_KINDS = 21, ITEM_KINDS = 16 ' (kinds of decoration and of pickup - see chapter 3)
 CONST MON_SIGHT = 14
 ' Each monster's own (the level's [monsters] - the editor's monster pane -
 ' else as every monster is): how far it sees you, how far it hears your
@@ -493,7 +518,7 @@ DIM SHARED wreckScale(DECO_KINDS), wreckSquash(DECO_KINDS)
 ' game's own table (LootTable), then the level's [loot] lines over it -
 ' kept as their lines in lvlLoot$(), one a kind (chapter 22)
 CONST LOOT_SLOTS = 4
-CONST LOOT_HELP$ = "' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance"
+CONST LOOT_HELP$ = "' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out"
 DIM SHARED lootKind(DECO_KINDS, LOOT_SLOTS) AS INTEGER, lootPct(DECO_KINDS, LOOT_SLOTS) AS INTEGER
 DIM SHARED lvlNumLoot AS INTEGER, lvlLoot$(DECO_KINDS)
 DIM SHARED mtypeAlertSnd&(MON_TYPES), mtypeAttackSnd&(MON_TYPES), mtypeHitSnd&(MON_TYPES), mtypeDieSnd&(MON_TYPES)
@@ -705,7 +730,8 @@ CONST T_LIFT = 24, T_LIFTSIDE = 25 ' (a lift's top and sides: made from the leve
 CONST T_TRAP = 26, T_FIRE = 27 ' (a trap's floor: a live wire grid, a burner grate - MakeTrapTex)
 CONST T_LIQUID = 27 ' (the liquids' surfaces, T_LIQUID + 1 to + LQ_KINDS: water, poison, slime, lava, acid - MakeLiquidTex)
 CONST T_CUSTOM = 32, T_CUSTOMN = 24 ' (after those: slots for pictures put on single faces in the editor - [faces])
-CONST T_SLOTS = T_CUSTOM + T_CUSTOMN
+CONST T_JACKOK = T_CUSTOM + T_CUSTOMN + 1, T_CODEOK = T_CUSTOM + T_CUSTOMN + 2 ' (a hacked station's wall - CLEARED - and a solved terminal's - UNLOCKED, its lights gone green: MakeDoneTex)
+CONST T_SLOTS = T_CUSTOM + T_CUSTOMN + 2
 REDIM SHARED texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
 REDIM SHARED texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
@@ -931,7 +957,11 @@ CONST GUN_Y = 600 ' A gun's bottom sits here, its muzzle straight below the cros
 ' we keep in a & (LONG) variable and play with PlaySfx (chapter 23).
 sndStep1& = LoadSnd&("step1.wav") : sndStep2& = LoadSnd&("step2.wav")
 DIM SHARED sndSplash&, sndWade1&, sndWade2&, sndBubble&, liqHum& ' (liquids: in with a splash, footsteps that slosh, and a bubbling near the harmful ones - liqHum&, its own looping copy: LiquidHum)
+DIM SHARED musicDuck!, glFrozen AS INTEGER, glFrozenAt# ' (the pause menu: the music at half - musicDuck! - and OpenGL's animations stopped at glFrozenAt#)
+musicDuck! = 1
+DIM SHARED sndSwish&, sndSwim1&, sndSwim2&, swishHum&, swishVol! ' (moving through a liquid: the water swishing round you - swishHum&, its own looping copy, as loud as you're quick and deep: SwishSound - and, out of your depth, swimming strokes for footsteps)
 sndSplash& = LoadSnd&("splash.wav") : sndWade1& = LoadSnd&("wade1.wav") : sndWade2& = LoadSnd&("wade2.wav") : sndBubble& = LoadSnd&("bubble.wav")
+sndSwish& = LoadSnd&("swish.wav") : sndSwim1& = LoadSnd&("swim1.wav") : sndSwim2& = LoadSnd&("swim2.wav")
 sndBump& = LoadSnd&("bump.wav") : sndHump& = LoadSnd&("wallhump.wav")
 DIM SHARED sndDoor&, sndShutter&, sndSplit& ' (shared: DoorSnd& picks one - chapter 11)
 sndDoor& = LoadSnd&("door.wav") : sndShutter& = LoadSnd&("door-shutter.wav") : sndSplit& = LoadSnd&("door-split.wav")
@@ -1010,7 +1040,7 @@ DIM SHARED sndSizzle& ' (a burning floor - chapter 22's heights)
 ' and the like were used this game - achievements wait for a new one.
 ' achToast$: the pop-ups waiting to show, achToastT how long the one up
 ' has been showing.
-CONST NUM_ACH = 45, NUM_ACHSTATS = 12, NEON_APP_ID = 0 ' (NEON_APP_ID: the game's Steam App ID, once there is one - 0 keeps to the stand-in)
+CONST NUM_ACH = 49, NUM_ACHSTATS = 13, NEON_APP_ID = 0 ' (NEON_APP_ID: the game's Steam App ID, once there is one - 0 keeps to the stand-in)
 DIM SHARED achApi$(NUM_ACH), achTitle$(NUM_ACH), achDesc$(NUM_ACH), achHidden(NUM_ACH) AS INTEGER, achStat$(NUM_ACH), achGoal(NUM_ACH) AS LONG
 DIM SHARED achN AS INTEGER, achStatName$(NUM_ACHSTATS), achStatN AS INTEGER, achCheat AS INTEGER, achTest AS INTEGER, achReady AS INTEGER
 DIM SHARED achToast$(16), achToastN AS INTEGER, achToastT AS INTEGER, sndAchieve&, conFromTrig AS INTEGER
@@ -1032,6 +1062,7 @@ sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav") : sndSizzle& =
 DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&
 sndSteal& = LoadSnd&("thief-steal.wav") : sndHoard& = LoadSnd&("hoard-open.wav") : sndPlate& = LoadSnd&("plate-click.wav")
 sndLaser& = LoadSnd&("laser-zap.wav") : sndCloset& = LoadSnd&("closet.wav")
+sndSecret& = LoadSnd&("secret.wav") : IF sndSecret& = 0 THEN sndSecret& = LoadSnd&("fanfare.wav")
 DIM SHARED sndGlassHit&, sndGlassBreak&
 sndGlassHit& = LoadSnd&("glass-hit.wav") : sndGlassBreak& = LoadSnd&("glass-break.wav")
 sndTeleport& = LoadSnd&("teleport.wav") : IF sndTeleport& = 0 THEN sndTeleport& = LoadSnd&("jack-out.wav")
@@ -1127,7 +1158,7 @@ sndHeadshot& = LoadSnd&("headshot.wav")
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 42
+CONST NUM_SETTINGS = 43
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -1137,12 +1168,13 @@ CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, S
 CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
 CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
-CONST SET_MODE = 41, SET_TIMER = 42
+CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43
 ' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
 ' don't all match one
 CONST MODE_CUSTOM = 0, MODE_OLDSCHOOL = 1, MODE_90S = 2, MODE_NEWSCHOOL = 3
 DIM SHARED setting(NUM_SETTINGS), setDefault(NUM_SETTINGS), setMin(NUM_SETTINGS), setMax(NUM_SETTINGS)
 DIM SHARED glSet(NUM_SETTINGS, 1) ' (OpenGL's copy of them, each frame: chapter 24)
+DIM SHARED glNight(1) AS INTEGER ' (...and of night vision being on)
 ' Each letter's scancode (where it is on the keyboard), a to z, as
 ' characters 32 on (CHR$(scancode + 32)), for KeyAt% (chapter 21)
 CONST LETTER_SCANS = ">PN@2ABC7DEFRQ8903?46O1M5L"
@@ -1172,6 +1204,7 @@ DefineSetting SET_HURTDIR,   "damage_indicators",  "DAMAGE INDICATORS",  MI_TOGG
 DefineSetting SET_RENDERER,  "renderer",           "RENDERER",           MI_CHOICE, 1,  2,   1,   2 ' 1 software, 2 OpenGL (chapter 24)
 DefineSetting SET_FPS,       "show_fps",           "SHOW FPS",           MI_TOGGLE, 0,  1,   1,   0
 DefineSetting SET_TIMER,     "sector_timer",       "SECTOR TIMER",       MI_TOGGLE, 0,  1,   1,   0 ' (the sector's clock, and your best: HE_TIMER)
+DefineSetting SET_GAMMA,     "brightness",         "BRIGHTNESS",         MI_SLIDER, 50, 200, 10,  100 ' (a gamma curve on the 3D view: above 100% the dark parts come up, the brightest stay - ApplyGamma, and the OpenGL post shader's "gamma")
 DefineSetting SET_BUMP,      "bump_mapping",       "BUMP MAPPING",       MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
 DefineSetting SET_GLOW,      "glows",              "GLOWS",              MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
 ' ART: 1 CLASSIC (the pixel art), 2 MODERN (neon-caster/hd/'s paintings)
@@ -1229,9 +1262,9 @@ DIM SHARED modeWas ' (the MODE last put into effect: ApplySettings)
 ' settings file, its menu label, and its key to start with (a _KEYDOWN
 ' code: letters as lower case, 32 Space, 100306 left Ctrl, 16128 F5,
 ' 17152 F9, 9 Tab, 100304 left Shift)
-CONST NUM_BINDS = 11
+CONST NUM_BINDS = 12
 CONST BIND_FORWARD = 1, BIND_BACK = 2, BIND_LEFT = 3, BIND_RIGHT = 4
-CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8, BIND_MAP = 9, BIND_RUN = 10, BIND_KICK = 11
+CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8, BIND_MAP = 9, BIND_RUN = 10, BIND_KICK = 11, BIND_NIGHT = 12
 DIM SHARED keyBind&(NUM_BINDS), bindDefault&(NUM_BINDS), bindKey$(NUM_BINDS), bindLabel$(NUM_BINDS)
 '          binding         file name        menu label      key
 DefineBind BIND_FORWARD,   "key_forward",   "MOVE FORWARD", 119
@@ -1245,12 +1278,13 @@ DefineBind BIND_QUICKLOAD, "key_quickload", "QUICK LOAD",   17152
 DefineBind BIND_MAP, "key_map", "MAP", 9
 DefineBind BIND_RUN,       "key_run",       "RUN (HOLD)",   100304
 DefineBind BIND_KICK,      "key_kick",      "KICK",         102
+DefineBind BIND_NIGHT,     "key_night",     "NIGHT VISION", 110
 ' SCR_ = the menu's screens; MA_ = Menu Actions (what choosing a button does)
 CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
 CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6, MA_SECTOR = 7
 CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15, SCR_CUSTOM2 = 16, SCR_SET1 = 17 ' (SCR_SET1 + s - 1: set s's sectors)
-CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11, MA_ACHIEVE = 12
+CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11, MA_ACHIEVE = 12, MA_LINK = 13 ' (MA_LINK: its info$ is "NAME|address" - the name underlined, the address opened in the web browser)
 ' --- The console (` opens it, like Quake's; chapter 21): what's been
 ' printed (conLog$, the last CON_LOG lines), the line being typed, the
 ' lines typed before (conHist$, for Up and Down), and the commands waiting
@@ -1276,7 +1310,7 @@ DIM SHARED menuTyping, menuTyped$, menuTypeBad ' (typing qb64pe's path: MenuType
 DIM menuStack(10), menuStackSel(10) ' The screens you came through (for BACK)
 ' MENU_ = where the menu is drawn: the first row, the gap between rows,
 ' where labels start, and where sliders and other controls go
-CONST MENU_TOP = 176, MENU_ROW = 32, MENU_LABEL_X = 140, MENU_WIDGET_X = 470, MENU_WIDGET_W = 200
+CONST MENU_TOP = 176, MENU_ROW = 32, MENU_LABEL_X = 140, MENU_WIDGET_X = 444, MENU_WIDGET_W = 160 ' (an 18-letter name, then the widget and its value: all inside the panel, 96 to 704)
 CONST SPLASH_SECONDS = 3.5 ' How long the splash screen stays up (any key skips it)
 ' Saved games: the slots, and the file's first bytes, so a file from
 ' something else (or an older version) is never read as a save
@@ -1384,6 +1418,7 @@ DIM SHARED lvlNumLifts AS INTEGER, lvlLift(MAX_LIFTS, 8) AS SINGLE
 ' then what happens - console commands (chapter 21), split by ;. WHEN is
 '   enter X0 Y0 X1 Y1   you walk into that rectangle (a line: one cell wide)
 '   use X Y             you press Space at that cell
+'   shoot X Y           you shoot (or kick) the wall or the thing in that cell
 '   clear X0 Y0 X1 Y1   every monster that started in it is dead
 '   time SECONDS        that long into the level
 ' and "repeat" after it to go off every time (else just once).
@@ -1412,6 +1447,7 @@ CONST FACE_BOX = 10, FACE_MAX = 14 ' (a box's sides are faces 11 to 14 - FACE_BO
 DIM SHARED faceTex(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceTex2(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceDiv(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER
 DIM SHARED numTrigs AS INTEGER, trigWhen$(MAX_TRIGS), trigX0(MAX_TRIGS) AS INTEGER, trigY0(MAX_TRIGS) AS INTEGER, trigX1(MAX_TRIGS) AS INTEGER, trigY1(MAX_TRIGS) AS INTEGER
 DIM SHARED trigRepeat(MAX_TRIGS) AS INTEGER, trigDone(MAX_TRIGS) AS INTEGER, trigWas(MAX_TRIGS) AS INTEGER, trigCmd$(MAX_TRIGS)
+DIM SHARED trigHit(MAX_TRIGS) AS INTEGER ' (a "shoot" trigger's cell was shot: it goes off the next time the triggers run - ShotAt)
 ' --- Teleporters (& on the map): pads that pair up in the order they're
 ' found, reading the map like a book - the 1st with the 2nd, the 3rd with
 ' the 4th. Step on one and you're on the other (padReady: you've stepped
@@ -1432,6 +1468,7 @@ DIM SHARED pzTitle$, pzLesson$, pzExpect$, pzChapter$, pzN AS INTEGER, pzAns$(MA
 DIM SHARED pzBlanks AS INTEGER, pzBlankLine(MAX_PZ_BLANKS) AS INTEGER, pzBlankWord$(MAX_PZ_BLANKS), pzBlankIn$(MAX_PZ_BLANKS)
 DIM SHARED pzHints AS INTEGER, pzHint$(MAX_PZ_HINTS), pzShown AS INTEGER, pzOut$, pzFails AS INTEGER
 DIM SHARED numPads AS INTEGER, padX(MAX_PADS) AS INTEGER, padY(MAX_PADS) AS INTEGER, padReady AS INTEGER
+DIM SHARED padFlown(MAX_PADS) AS INTEGER ' (you've teleported from this pad this time in the sector: Frequent Flyer counts each pad once - not back and forth)
 DIM SHARED lvlName$, lvlWall$(6), lvlFloor$(4), lvlCeil$(2), lvlAmb(4), lvlOK AS INTEGER
 DIM SHARED lvlNumZones AS INTEGER, lvlZone(MAX_ZONES, 7) AS INTEGER
 DIM SHARED lvlNumLights AS INTEGER, lvlLight(MAX_LIGHTS, 8) AS SINGLE
@@ -1444,7 +1481,7 @@ DIM SHARED lvlRow$(MAP_SIZE - 1)
 ' the rest) and the level built again from that (BuildLevel); editUndo$()
 ' remembers how it was before each change. texFile$(): which picture is in
 ' each texture slot now, so building it again only loads what changed.
-CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%&rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV<>^v"
+CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%?&rby+*uae234Mqj8mghcskwzToiptxlnfSdAFIJLOQUWZV<>^v"
 CONST EDIT_UNDO = 40
 CONST EDIT_OPEN$ = ".rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
 DIM SHARED editMode AS INTEGER, editView AS INTEGER, editGlyph$, editDirty AS INTEGER, editRebuild AS INTEGER
@@ -1527,7 +1564,8 @@ DIM savedCount AS INTEGER ' A count read back from a save (the same type as numI
 ' The level-done tally's rows (chapter 20): what each says, the number it
 ' counts up to, what that's out of (-1: a time, as m:ss), the number shown
 ' so far, and frames since it landed (-1: not yet)
-DIM tallyLabel$(5), tallyTarget(5), tallyTotal(5), tallyShown(5), tallySlam(5)
+DIM tallyLabel$(6), tallyTarget(6), tallyTotal(6), tallyShown(6), tallySlam(6)
+DIM keepMX(MAX_MON), keepMY(MAX_MON), keepMDX(MAX_MON), keepMDY(MAX_MON), keepIX(MAX_ITEMS), keepIY(MAX_ITEMS), keepIK(MAX_ITEMS) ' (EditApply: the monsters you'd killed - where they started, where they fell - and the pickups you'd taken)
 IF _FILEEXISTS(AssetPath$("splash.png")) THEN splashImg& = _LOADIMAGE(AssetPath$("splash.png"), 32)
 
 DIM x AS LONG, y AS LONG, texU AS LONG, texV AS LONG, texX AS LONG
@@ -1957,6 +1995,8 @@ DO
     ' STEP_RUN running: you run with longer strides, not just quicker ones.
     moved = SQR((playerX - prevX) ^ 2 + (playerY - prevY) ^ 2)
     IF editMode THEN moved = 0 ' (flying round the editor: no footsteps)
+    SwishSound moved, liqWas, dead ' (through a liquid: the water swishing round you)
+    IF numSecrets THEN SecretHints ' (a closet cleared: its stash clicks)
     IF NOT levelFlat THEN IF playerZ - floorH(INT(playerX), INT(playerY)) > 0.05 AND liqWas = 0 THEN moved = 0 ' (in the air: none either)
     IF moved > 0 THEN
         stride = STEP_WALK + (STEP_RUN - STEP_WALK) * MaxOf(0, MinOf(1, (moveSpeed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)))
@@ -1964,7 +2004,9 @@ DO
         bobPhase = bobPhase + 6.2831853 * moved / stride
         IF INT((bobPhase - 3.14159265) / 6.2831853) <> beatWas THEN
             stepFoot = 1 - stepFoot
-            IF liqWas AND sndWade1& THEN ' (in a liquid: they slosh)
+            IF liqWas <> 0 AND playerZ - floorH(INT(playerX), INT(playerY)) > 0.05 AND sndSwim1& > 0 THEN ' (out of your depth, floating: a swimming stroke)
+                IF stepFoot THEN PlaySfx sndSwim1&, 0.55 ELSE PlaySfx sndSwim2&, 0.55
+            ELSEIF liqWas <> 0 AND sndWade1& > 0 THEN ' (in a liquid: they slosh - "<> 0" and "> 0": AND of two numbers is bitwise, and water's kind 1 AND an even handle is 0)
                 IF stepFoot THEN PlaySfx sndWade1&, 0.5 ELSE PlaySfx sndWade2&, 0.5
             ELSEIF stepFoot THEN
                 PlaySfx sndStep1&, 0.35
@@ -2013,6 +2055,12 @@ DO
                     IF health < MAX_OVER THEN
                         itemOn(i) = 0 : health = health + 100 : IF health > MAX_OVER THEN health = MAX_OVER
                         PlaySfx sndOvercharge&, 0.9 : ShowMsg "OVERCHARGE! (+100)" : pickFlash = 18
+                    END IF
+                CASE IT_GOGGLES ' A night-vision headset: its battery added to yours, and on
+                    IF nvCharge < NV_MAX THEN
+                        itemOn(i) = 0 : nvCharge = MinOf(NV_MAX, nvCharge + NV_FRAMES)
+                        IF NOT nvOn THEN nvOn = -1 : PlaySfx sndPowerUp&, 0.8
+                        ShowMsg "NIGHT VISION HEADSET - " + KeyName$(keyBind&(BIND_NIGHT)) + " switches it on and off" : pickFlash = 12
                     END IF
                 CASE IT_AMP ' Double damage for a while
                     itemOn(i) = 0 : ampTimer = AMP_FRAMES : achAmpKills = 0
@@ -2157,6 +2205,26 @@ DO
                     GOSUB JackIn
                 END IF
                 EXIT FOR
+            END IF
+            IF decoCell(cellX, cellY) AND reach <= 1.5 AND NOT cyberOn AND NOT usedTrig THEN ' A decoration you can use: a vending machine (VendStep)
+                dv = decoCell(cellX, cellY)
+                IF decoOn(dv) AND decoKind(dv) = DK_VENDING THEN
+                    IF vendState(dv) = 0 THEN
+                        vendState(dv) = 1 : vendTimer(dv) = 181 : vendBomb(dv) = (RND < 0.3)
+                        SfxAt sndPlate&, decoX(dv), decoY(dv), playerX, playerY : ShowMsg "*CLUNK* The vending machine whirs..."
+                    ELSEIF vendState(dv) = 3 THEN
+                        ShowMsg "SOLD OUT"
+                    END IF
+                    EXIT FOR
+                END IF
+                IF decoOn(dv) AND (decoKind(dv) = DK_TERMINAL OR decoKind(dv) = DK_CONSOLE OR decoKind(dv) = DK_SCREENS) AND NOT editMode THEN ' A computer: a game on it
+                    IF vendState(dv) = 3 THEN ShowMsg "HIGH SCORE: YOU - this one's paid out" ELSE arcDeco = dv : GOSUB ArcadeRun
+                    EXIT FOR
+                END IF
+            END IF
+            IF secretCell(cellX, cellY) > 0 AND worldMap(cellX, cellY) > 0 AND reach <= 1.2 AND NOT cyberOn AND NOT usedTrig THEN ' A secret wall (chapter 22): found - unless a switch opens it, or its closet still has monsters in
+                secS = secretCell(cellX, cellY)
+                IF NOT secretShot(secS) AND SecretReady(secS) THEN OpenSecret secS, -1 : EXIT FOR
             END IF
             IF SolidAt(playerX + dirX * reach, playerY + dirY * reach) THEN
                 IF reach <= 1.2 AND NOT usedTrig THEN PlaySfx sndHump&, 0.8 : AchAdd "Searches", 1 ' Trying to open a plain wall (not a switch you just used)
@@ -2347,6 +2415,7 @@ DO
                     END SELECT
                     SpawnSparks hitX - rayX / rayLen * 0.03, hitY - rayY / rayLen * 0.03, hitZ - FloorAt(hitX - rayX / rayLen * 0.03, hitY - rayY / rayLen * 0.03), sparkN, sparkR, sparkG, sparkB ' (sparks measure from the floor)
                     ShotMark hitX, hitY, hitZ, rayX / rayLen, rayY / rayLen, surface, 0.1 + 0.06 * (currentGun = W_RAIL) * -1
+                    IF surface = 0 THEN ShotAt INT(hitX + rayX / rayLen * 0.05), INT(hitY + rayY / rayLen * 0.05) ' (a "shoot" trigger on that wall?)
                 END IF
             NEXT
         ELSEIF NOT fireWas THEN
@@ -2580,6 +2649,10 @@ DO
             ELSEIF InGlass(boltX(i), boltY(i)) THEN ' Glass: it bursts on it, and cracks it
                 boltOn(i) = 0 : SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
                 glassHitX = INT(boltX(i)) : glassHitY = INT(boltY(i)) : glassAtX = boltX(i) : glassAtY = boltY(i) : glassDmg = 1 : GOSUB HitGlass
+            ELSEIF BoltDeco(boltX(i), boltY(i), boltZ(i)) THEN ' A decoration in its way: the bolt bursts on it - and hurts it as your shots do (a crate breaks, loot and all; a barrel blows)
+                targetDeco = BoltDeco(boltX(i), boltY(i), boltZ(i)) : boltOn(i) = 0
+                SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, boltZ(i) - FloorAt(boltX(i), boltY(i)), 7, 255, 60, 230
+                hitDamage = boltDamage(i) : hitKick = 0 : decoByMon = -1 : GOSUB HitDeco : decoByMon = 0
             ELSEIF NOT Walkable(boltX(i), boltY(i)) THEN
                 boltOn(i) = 0 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
                 SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
@@ -2601,6 +2674,7 @@ DO
             decoFuse(i) = decoFuse(i) - 1
             IF decoFuse(i) = 0 THEN barrel = i : GOSUB Explode
         END IF
+        IF vendState(i) = 1 OR vendState(i) = 2 THEN GOSUB VendStep ' (a vending machine you pressed Space on)
         IF decoTimer(i) > 0 THEN decoTimer(i) = decoTimer(i) - 1 ' A broken one collapsing
     NEXT
     FOR i = 1 TO numItems ' Loot thrown out of something broken, flying to where it lands (TossItem)
@@ -2640,6 +2714,21 @@ DO
         END IF
     ELSE
         beatNext = 0 : gaspNext = 0 : beatAt = 0
+    END IF
+    ' Night vision: N (BIND_NIGHT) on and off, while there's battery; on, it
+    ' runs down, and goes off by itself when it's flat
+    nvKey = KeyHeld(BIND_NIGHT)
+    IF nvKey AND NOT nvKeyWas AND NOT editMode AND NOT dead THEN
+        IF nvCharge > 0 THEN
+            nvOn = NOT nvOn : IF nvOn THEN PlaySfx sndPowerUp&, 0.7 ELSE PlaySfx sndPowerDown&, 0.6
+        ELSE
+            ShowMsg "No night vision - find a headset"
+        END IF
+    END IF
+    nvKeyWas = nvKey
+    IF nvOn AND NOT dead THEN
+        nvCharge = nvCharge - 1
+        IF nvCharge <= 0 THEN nvCharge = 0 : nvOn = 0 : PlaySfx sndPowerDown&, 0.8 : ShowMsg "Night vision: battery flat"
     END IF
     IF ampTimer > 0 THEN ' The damage amp wears off
         ampTimer = ampTimer - 1 : IF ampTimer = 0 THEN PlaySfx sndAmpEnd&, 0.8 : ShowMsg "Damage amp wore off"
@@ -3122,6 +3211,7 @@ DO
     FOR i = 1 TO numMonsters
         mtype = monsterType(i)
         IF cyberOn AND mtype <> MT_ICE THEN _CONTINUE ' (in the network: only ICE)
+        IF monsterState(i) = 4 THEN _CONTINUE ' (a thief that got home: gone)
         numDraw = numDraw + 1 : drawX(numDraw) = monsterX(i) : drawY(numDraw) = monsterY(i)
         drawScale(numDraw) = mtypeScale(mtype) : drawMinShade(numDraw) = 40 : IF mtype = MT_ICE THEN drawMinShade(numDraw) = 230
         ' Its frame: hurt, attacking, or how far through its animation
@@ -3392,6 +3482,7 @@ DO
         glPlaneLen(glWrite) = fovPlane / zoom : glZoom(glWrite) = zoom : glFullMode(glWrite) = _FULLSCREEN
         glShakeX(glWrite) = shakeX : glShakeY(glWrite) = shakeY : glShakeEdge(glWrite) = shakeEdge
         FOR i = 1 TO NUM_SETTINGS : glSet(i, glWrite) = setting(i) : NEXT
+        glNight(glWrite) = nvOn ' (night vision: the post shader's)
         glPitch(glWrite) = pitch : glHurt(glWrite) = hurtFlash / 14 : glRail(glWrite) = railBeam / 8
         glGun(glWrite) = 0 : IF gunY < 600 AND NOT editMode THEN glGun(glWrite) = currentGun ' The gun (0: out of sight - and in the editor), where on our screen
         glGunX0(glWrite) = gunX : glGunY0(glWrite) = gunY : glGunX1(glWrite) = gunX + gunW : glGunY1(glWrite) = gunY + gunH
@@ -3459,6 +3550,7 @@ DO
         CLS , _RGBA32(0, 0, 0, 0)
     ELSE
         glReady = 0
+        IF nvOn THEN ApplyNight ELSE IF setting(SET_GAMMA) <> 100 THEN ApplyGamma setting(SET_GAMMA) ' (night vision - or BRIGHTNESS)
         _MEMCOPY pixelsMem, pixelsMem.OFFSET, pixelsMem.SIZE TO renderMem, renderMem.OFFSET
         _PUTIMAGE (shakeX - shakeEdge, shakeY - shakeEdge)-(799 + shakeX + shakeEdge, 599 + shakeY + shakeEdge), renderImg&, 0
     END IF
@@ -3581,6 +3673,10 @@ DO
         END IF
     END IF
     IF ampTimer > 0 AND hudShow(HE_AMP) THEN HudText hudX(HE_AMP), hudY(HE_AMP), hudLabel$(HE_AMP) + STR$(ampTimer \ 60 + 1), HudColor~&(HE_AMP, _RGB32(255, 90, 90))
+    IF nvCharge > 0 AND hudShow(HE_AMP) THEN ' (night vision's battery, beside the amp's: bright while it's on)
+        IF nvOn THEN c~& = _RGB32(110, 255, 120) ELSE c~& = _RGB32(60, 130, 70)
+        HudText hudX(HE_AMP) + 136, hudY(HE_AMP), "NIGHT VISION" + STR$(INT(nvCharge / 60 + 0.99)), c~&
+    END IF
     ' The VIGNETTES (with HIT FX on): a lockdown strobing red; low health
     ' thumping red with your heart; poison's green; the colour of the last
     ' thing that hurt you, fading
@@ -3762,6 +3858,7 @@ RETURN
 ' --- A shot (or blast) hits monster number target, for hitDamage
 HitMonster:
 monsterHP(target) = monsterHP(target) - hitDamage : monsterHurt(target) = 8
+IF monsterType(target) = MT_THIEF AND thiefState(target) = 2 AND monsterHP(target) > 0 AND NOT cyberOn THEN ThiefSpill target ' (a thief with your things: each hit knocks some loose)
 IF monsterState(target) = 0 THEN monsterState(target) = 1 : monsterTimer(target) = 30 ' Shot awake (chapter 13)
 IF monsterHP(target) <= 0 AND monsterState(target) < 2 THEN
     monsterState(target) = 2 : monsterTimer(target) = MON_DYING : kills = kills + 1
@@ -3812,6 +3909,147 @@ ELSE
 END IF
 IF hurtElectric THEN PlaySfx sndHurtZap&, 1 ' (a shock - a laser, a live floor: the zap as well as the cry)
 hurtElectric = 0 : hurtR = 0 : hurtG = 0 : hurtB = 0
+RETURN
+
+' --- Vending machine i, after Space: a countdown - 3, 2, 1 - then it pays
+' out (cells, shells, health flying out of it for a couple of seconds),
+' or, now and then (vendBomb, settled at the start), it blows up like a
+' barrel. Then it's sold out. Breaking it in the meantime stops it all.
+VendStep:
+IF NOT decoOn(i) THEN vendState(i) = 0 : RETURN
+vendTimer(i) = vendTimer(i) - 1
+IF vendState(i) = 1 THEN
+    IF vendTimer(i) = 180 OR vendTimer(i) = 120 OR vendTimer(i) = 60 THEN
+        ShowMsg MID$("1...2...3...", (vendTimer(i) \ 60 - 1) * 4 + 1, 4) : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
+    END IF
+    IF vendTimer(i) <= 0 THEN
+        IF vendBomb(i) THEN
+            vendState(i) = 3 : ShowMsg "OUT OF ORDER!" : barrel = i : GOSUB Explode
+        ELSE
+            vendState(i) = 2 : vendTimer(i) = 150 : ShowMsg "JACKPOT!" : PlaySfx sndFanfare&, 0.6
+        END IF
+    END IF
+ELSE
+    IF vendTimer(i) MOD 18 = 0 THEN ' (one more thing out of the slot, out the front - or anywhere)
+        k = IT_CELLS : r = RND
+        IF r < 0.3 THEN k = IT_SHELLS ELSE IF r < 0.55 THEN k = IT_HEALTH ELSE IF r < 0.6 THEN k = IT_ARMOR ELSE IF r < 0.63 THEN k = IT_OVERCHARGE
+        a = (decoFace(i) - 1) * 1.5708 + (RND - 0.5) * 1.6 : IF decoFace(i) = 0 THEN a = _ATAN2(playerY - decoY(i), playerX - decoX(i)) + (RND - 0.5) * 1.6
+        TossItem k, decoX(i), decoY(i), a, playerX, playerY : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
+    END IF
+    IF vendTimer(i) <= 0 THEN vendState(i) = 3 : ShowMsg "SOLD OUT"
+END IF
+RETURN
+
+' --- A computer runs a program (the console's program NAME - a level's
+' "use" trigger on a computer, say: use 20 14 : program invaders). It's
+' neon-caster/programs/NAME.bas, any QB64PE program at all: built by
+' qb64pe the first time (as a code terminal's is - into saves/programs,
+' kept for next time), then run - the game waits, frozen, while it does.
+' How it ends is the answer (SHELL gives back its SYSTEM code): SYSTEM 1
+' and you beat it - the computer pays out, from the trigger's cell (or in
+' front of you); anything else, you didn't. No qb64pe to build it with,
+' and the computer says so.
+RunProgram:
+pgName$ = LCASE$(LTRIM$(RTRIM$(conA$))) : pgSrc$ = AssetPath$("programs/" + pgName$ + ".bas")
+IF pgName$ = "" OR NOT _FILEEXISTS(pgSrc$) THEN ConPrint "program: no neon-caster/programs/" + pgName$ + ".bas" : ShowMsg "SYSTEM ERROR - no program called " + pgName$ : RETURN
+MakeSaveDir : pgDir$ = SaveDir$ + "programs"
+IF NOT _DIREXISTS(pgDir$) THEN MKDIR pgDir$
+pgDir$ = _FULLPATH$(pgDir$) : IF RIGHT$(pgDir$, 1) = "/" OR RIGHT$(pgDir$, 1) = "\" THEN pgDir$ = LEFT$(pgDir$, LEN(pgDir$) - 1)
+win = INSTR(_OS$, "[WINDOWS]") > 0 : q$ = CHR$(34)
+pgExe$ = pgDir$ + "/" + pgName$ : IF win THEN pgExe$ = Slashes$(pgExe$ + ".exe")
+IF NOT _FILEEXISTS(pgExe$) THEN ' (built once: the next time it just runs)
+    qb$ = QB64Path$
+    IF qb$ = "" THEN ShowMsg "This computer's program needs qb64pe to build it (SETTINGS > QB64PE COMPILER)" : RETURN
+    CLS , _RGB32(4, 2, 14) : MenuText 400, 280, "LOADING " + UCASE$(pgName$) + "...", 3, _RGB32(80, 240, 255), 1 ' (a frame to look at while it builds)
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady : ShowFrame
+    pgSrcF$ = _FULLPATH$(pgSrc$) : IF win THEN pgSrcF$ = Slashes$(pgSrcF$)
+    rc = SHELL(q$ + qb$ + q$ + " -w -x " + q$ + pgSrcF$ + q$ + " -o " + q$ + pgExe$ + q$)
+    IF NOT _FILEEXISTS(pgExe$) THEN ShowMsg "SYSTEM ERROR - " + pgName$ + " wouldn't build (qb64pe)" : ConPrint "program: qb64pe couldn't build " + pgSrc$ : RETURN
+END IF
+WorldLoopsOff
+rc = SHELL(q$ + pgExe$ + q$)
+_KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : spaceWas = -1
+IF rc = 1 THEN
+    IF conFromTrig THEN px = trigX0(trigK) + 0.5 : py = trigY0(trigK) + 0.5 ELSE px = playerX + dirX : py = playerY + dirY
+    a = _ATAN2(playerY - py, playerX - px)
+    TossItem StashLoot(0), px, py, a - 0.4, playerX, playerY : TossItem StashLoot(1), px, py, a + 0.4, playerX, playerY
+    PlaySfx sndFanfare&, 0.8 : ShowMsg "HIGH SCORE! The computer pays out" : Achieve "NC_ARCADE", 0
+ELSE
+    ShowMsg "GAME OVER - " + UCASE$(pgName$) + " beat you this time"
+END IF
+RETURN
+
+' --- NEON PONG, on computer arcDeco (Space on a terminal, a console or a
+' bank of screens): you on the left, the machine on the right, first to
+' ARC_WIN. Your paddle follows the mouse - or the arrow keys. Its own loop,
+' as the code terminals' (chapter 19): the world waits while you play.
+' Win, and the computer pays out - something good and something to shoot
+' with, flying out of it (TossItem) - and it's done (vendState 3). Lose,
+' or Esc, and you can try again. The ball speeds up each time it's hit,
+' and comes off a paddle steeper the further from its middle it hits.
+ArcadeRun:
+WorldLoopsOff : _MOUSESHOW : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+arcPY = 300 : arcCY = 300 : arcMe = 0 : arcIt = 0 : arcDone = 0 : arcWon = 0 : arcServe = 60 : arcDir = 1
+arcBX = 400 : arcBY = 300 : arcVX = 0 : arcVY = 0 : arcMouseY = _MOUSEY
+DO
+    _LIMIT 60
+    WHILE _MOUSEINPUT : WEND
+    IF _MOUSEY <> arcMouseY THEN arcMouseY = _MOUSEY : arcPY = arcMouseY ' (the mouse moved: the paddle goes where it is)
+    IF _KEYDOWN(18432) THEN arcPY = arcPY - 8
+    IF _KEYDOWN(20480) THEN arcPY = arcPY + 8
+    arcPY = MaxOf(ARC_TOP + ARC_PAD / 2, MinOf(ARC_BOT - ARC_PAD / 2, arcPY))
+    k& = _KEYHIT
+    DO WHILE k&
+        IF k& = 27 THEN arcDone = -1
+        k& = _KEYHIT
+    LOOP
+    IF arcDone THEN EXIT DO
+    ' The machine: after the ball, a little slow - and slower than the ball, later on
+    t = arcBY : IF arcVX < 0 THEN t = 300 ' (the ball going away: back to the middle)
+    arcCY = arcCY + MaxOf(-5.2, MinOf(5.2, (t - arcCY) * 0.14))
+    arcCY = MaxOf(ARC_TOP + ARC_PAD / 2, MinOf(ARC_BOT - ARC_PAD / 2, arcCY))
+    IF arcServe > 0 THEN ' (a moment between points, then a serve - towards whoever lost the last one)
+        arcServe = arcServe - 1 : arcBX = 400 : arcBY = 300
+        IF arcServe = 0 THEN arcVX = 5 * arcDir : arcVY = (RND - 0.5) * 6
+    ELSE
+        arcBX = arcBX + arcVX : arcBY = arcBY + arcVY
+        IF arcBY < ARC_TOP + 6 THEN arcBY = ARC_TOP + 6 : arcVY = ABS(arcVY) : PlaySfx sndMenuMove&, 0.4
+        IF arcBY > ARC_BOT - 6 THEN arcBY = ARC_BOT - 6 : arcVY = -ABS(arcVY) : PlaySfx sndMenuMove&, 0.4
+        IF arcVX < 0 AND arcBX < 70 AND arcBX > 50 AND ABS(arcBY - arcPY) < ARC_PAD / 2 + 6 THEN ' Your paddle
+            arcVX = MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcPY) / (ARC_PAD / 2) * 7 : PlaySfx sndMenuSelect&, 0.6
+        END IF
+        IF arcVX > 0 AND arcBX > 730 AND arcBX < 750 AND ABS(arcBY - arcCY) < ARC_PAD / 2 + 6 THEN ' Its paddle
+            arcVX = -MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcCY) / (ARC_PAD / 2) * 7 : PlaySfx sndMenuSelect&, 0.6
+        END IF
+        IF arcBX < 10 THEN arcIt = arcIt + 1 : arcServe = 60 : arcDir = -1 : PlaySfx sndLocked&, 0.6
+        IF arcBX > 790 THEN arcMe = arcMe + 1 : arcServe = 60 : arcDir = 1 : PlaySfx sndPlate&, 0.8
+    END IF
+    IF arcMe >= ARC_WIN OR arcIt >= ARC_WIN THEN arcWon = (arcMe >= ARC_WIN) : EXIT DO
+    DrawArcade arcPY, arcCY, arcBX, arcBY, arcMe, arcIt, (arcServe = 0 OR (arcServe \ 8) MOD 2 = 0), ""
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady : ShowFrame
+LOOP
+IF NOT arcDone THEN ' (the result, a moment)
+    IF arcWon THEN PlaySfx sndFanfare&, 0.8 ELSE PlaySfx sndFail&, 0.8
+    FOR f = 1 TO 120
+        _LIMIT 60 : WHILE _MOUSEINPUT : WEND
+        IF arcWon THEN t$ = "YOU WIN!" ELSE t$ = "GAME OVER"
+        DrawArcade arcPY, arcCY, 400, 300, arcMe, arcIt, 0, t$
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady : ShowFrame
+    NEXT
+END IF
+_KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+escWas = -1 : fireWait = 15 : spaceWas = -1
+IF arcWon THEN
+    vendState(arcDeco) = 3 : ShowMsg "HIGH SCORE! The machine pays out" : Achieve "NC_ARCADE", 0
+    a = _ATAN2(playerY - decoY(arcDeco), playerX - decoX(arcDeco))
+    TossItem StashLoot(0), decoX(arcDeco), decoY(arcDeco), a - 0.4, playerX, playerY
+    TossItem StashLoot(1), decoX(arcDeco), decoY(arcDeco), a + 0.4, playerX, playerY
+ELSEIF NOT arcDone THEN
+    ShowMsg "GAME OVER - insert coin (Space) to try again"
+END IF
 RETURN
 
 ' --- Barrel number `barrel` explodes: it hurts everything near it that it
@@ -4370,7 +4608,29 @@ RETURN
 ' are (and pointing where you were)
 EditApply:
 keepX = playerX : keepY = playerY : keepDX = dirX : keepDY = dirY
+' What you'd done in the sector, kept through the rebuild: the monsters
+' you'd killed stay dead where they fell (found again by where they
+' started), the pickups you'd taken stay taken, and your kills count - or
+' leaving the editor would bring them all back, round you
+keepKills = kills : nKeepM = 0 : nKeepI = 0
+FOR j = 1 TO monStartN
+    IF monsterState(j) = 2 OR monsterState(j) = 3 THEN nKeepM = nKeepM + 1 : keepMX(nKeepM) = monStartX(j) : keepMY(nKeepM) = monStartY(j) : keepMDX(nKeepM) = monsterX(j) : keepMDY(nKeepM) = monsterY(j)
+NEXT
+FOR j = 1 TO numItems
+    IF NOT itemOn(j) AND nKeepI < MAX_ITEMS THEN nKeepI = nKeepI + 1 : keepIX(nKeepI) = itemX(j) : keepIY(nKeepI) = itemY(j) : keepIK(nKeepI) = itemKind(j)
+NEXT
 editRebuild = -1 : GOSUB BuildLevel : editRebuild = 0
+FOR k = 1 TO nKeepM
+    FOR j = 1 TO numMonsters
+        IF monsterState(j) < 2 AND ABS(monsterX(j) - keepMX(k)) < 0.01 AND ABS(monsterY(j) - keepMY(k)) < 0.01 THEN monsterState(j) = 3 : monsterX(j) = keepMDX(k) : monsterY(j) = keepMDY(k) : EXIT FOR
+    NEXT
+NEXT
+FOR k = 1 TO nKeepI
+    FOR j = 1 TO numItems
+        IF itemOn(j) AND itemKind(j) = keepIK(k) AND ABS(itemX(j) - keepIX(k)) < 0.01 AND ABS(itemY(j) - keepIY(k)) < 0.01 THEN itemOn(j) = 0 : EXIT FOR
+    NEXT
+NEXT
+kills = keepKills
 playerX = keepX : playerY = keepY : dirX = keepDX : dirY = keepDY
 planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (in the editor you fly through walls, so building over where you are is fine)
 editDirty = -1 : editFresh = 0
@@ -4607,6 +4867,7 @@ LoadTex "exit.png", T_EXIT : ExitSign
 LoadTex "ceiling-lamp.png", T_LAMP : MakeLampOff
 LoadTex "wall-jack.png", T_JACK ' (a data station)
 LoadTex "wall-code.png", T_CODE ' (a code terminal)
+MakeDoneTex T_JACK, T_JACKOK, "CLEARED", 2 : MakeDoneTex T_CODE, T_CODEOK, "UNLOCKED", 1 ' (...and each, done)
 LoadCards "keycard.png"
 LoadSprite "medkit.png", 4
 LoadSprite "ammo.png", 5
@@ -4629,7 +4890,7 @@ LoadSprite "vending.png", DecoSlot(7) : LoadSprite "tank.png", DecoSlot(8) : Loa
 ' The set pieces (10-19): desk, control console, monitor bank, specimen
 ' tank, lab bench, generator, cryo pod, hologram, lockers, bench
 FOR k = 10 TO DECO_KINDS : LoadSprite DecoFile$(k), DecoSlot(k) : NEXT
-LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE)
+LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE) : LoadSprite "goggles.png", ItemSprite(IT_GOGGLES)
 MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
 MakePad S_PAD ' (a teleporter's pad)
 LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
@@ -5105,6 +5366,8 @@ FOR k = 1 TO numTrigs
                 IF started > 0 AND alive = 0 THEN fire = -1
             CASE "time"
                 IF TIMER - levelStart! >= trigX0(k) OR TIMER < levelStart! THEN fire = -1
+            CASE "shoot" ' (ShotAt marked it: a switch clicks)
+                IF trigHit(k) THEN fire = -1 : trigHit(k) = 0 : PlaySfx sndPlate&, 0.9
         END SELECT
         IF fire THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : GOSUB TriggerRun
     END IF
@@ -5121,7 +5384,8 @@ IF onPad > 0 AND padReady AND NOT dead THEN
         SpawnSparks playerX, playerY, 0.4, 20, 150, 90, 255
         playerX = padX(other) + 0.5 : playerY = padY(other) + 0.5 : playerZ = floorH(padX(other), padY(other)) : eyeZ = playerZ + EYE_H : playerVZ = 0
         SpawnSparks playerX, playerY, 0.4, 30, 150, 90, 255
-        PlaySfx sndTeleport&, 1 : pickFlash = 16 : padReady = 0 : AchAdd "Teleports", 1
+        PlaySfx sndTeleport&, 1 : pickFlash = 16 : padReady = 0
+        IF NOT padFlown(onPad) THEN padFlown(onPad) = -1 : AchAdd "Teleports", 1 ' (each pad once a visit: hopping back and forth doesn't count)
     END IF
 END IF
 RETURN
@@ -5165,7 +5429,7 @@ IF slammed THEN PlaySfx sndAlarm&, 0.8 : shake = shake + 8
 Say "puzzle1", 0
 GOSUB RunPuzzle
 IF pzSolved THEN
-    termDone(tm) = -1 : AchAdd "Puzzles", 1 : pzTerm = 0
+    termDone(tm) = -1 : AchAdd "Puzzles", 1 : pzTerm = 0 : WallDone termX(tm), termY(tm), T_CODEOK
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (a keycard door is unlocked, not opened: it still wants its card)
         IF doorLock(x, y) = 3 THEN
             doorLock(x, y) = 0
@@ -5534,7 +5798,7 @@ RETURN
 JackOut:
 CyberTextures 0
 FOR i = cyberMonStart + 1 TO numMonsters ' (ICE you derezzed doesn't count in the sector's kills)
-    IF monsterState(i) >= 2 THEN kills = kills - 1
+    IF monsterState(i) = 2 OR monsterState(i) = 3 THEN kills = kills - 1
 NEXT
 numMonsters = cyberMonStart : numItems = cyberItemStart
 IF cyberSlot THEN itemKind(cyberSlot) = cyberSlotKind : itemX(cyberSlot) = cyberSlotX : itemY(cyberSlot) = cyberSlotY : itemOn(cyberSlot) = 0 : cyberSlot = 0
@@ -5546,7 +5810,7 @@ IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 
 PlaySfx sndJackOut&, 1 : pickFlash = 20
 PlayMusic SectorMusic&(level)
 IF cyberWon THEN
-    stationDone(cyberStation) = -1 : Achieve "NC_JACKED", 0
+    stationDone(cyberStation) = -1 : Achieve "NC_JACKED", 0 : WallDone stationX(cyberStation), stationY(cyberStation), T_JACKOK
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
         IF worldMap(x, y) = 2 AND doorLock(x, y) = 2 THEN
             IF StationNear(x, y) = cyberStation THEN doorLock(x, y) = 0 : doorOpen(x, y) = 0.01 : doorMove(x, y) = 1 : SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
@@ -5918,6 +6182,7 @@ RETURN
 
 HitDeco:
 IF decoKind(targetDeco) = DK_BODY THEN RETURN ' (bodies don't break)
+IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
 ' Its loot, if it breaks: kicked, back the way you're facing (towards you,
 ' give or take); shot or blown up, any way at all
 IF hitKick THEN decoLootA(targetDeco) = _ATAN2(-dirY, -dirX) + (RND - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
@@ -5929,13 +6194,18 @@ decoHP(targetDeco) = decoHP(targetDeco) - hitDamage
 IF decoHP(targetDeco) > 0 THEN
     SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY
 ELSE
-    decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES : AchAdd "Smashed", 1
+    decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES : IF NOT decoByMon THEN AchAdd "Smashed", 1
     decoCell(INT(decoX(targetDeco)), INT(decoY(targetDeco))) = 0
     SfxAt decoBreakSnd&(decoKind(targetDeco)), decoX(targetDeco), decoY(targetDeco), playerX, playerY
     IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
         newBlastX = decoX(targetDeco) : newBlastY = decoY(targetDeco) : newBlastSize = 0.35 : GOSUB AddBlast
     END IF
     DecoLoot targetDeco, playerX, playerY
+    IF decoKind(targetDeco) = DK_SPECIMEN AND NOT cyberOn AND NOT editMode THEN ' A specimen tank: half the time, what was floating in it climbs out - a stalker or a spitter
+        IF RND < 0.5 THEN
+            IF SpawnMonster(6 + INT(RND * 2), decoX(targetDeco), decoY(targetDeco), 0, playerX, playerY) THEN ShowMsg "Something climbs out of the tank!" : shake = shake + 4
+        END IF
+    END IF
 END IF
 RETURN
 
@@ -6028,6 +6298,10 @@ FOR ev = 1 TO numEvents
             END IF
         CASE EV_HOARD ' Sealed until every thief is dead
             IF evCount(ev) = 0 THEN LockRoom ev, -1 : evCount(ev) = 1
+            IF inside AND NOT dead AND evTimer(ev) = 0 THEN ' Walked into it: found (once - evTimer, which a hoard doesn't otherwise use, remembers it, and saves keep it)
+                evTimer(ev) = 1
+                PlaySfx sndHoard&, 0.7 : ShowMsg "THIEVES' HOARD FOUND!"
+            END IF
             IF evState(ev) = 0 THEN
                 thieves = 0 : thievesLeft = 0
                 FOR j = 1 TO numMonsters
@@ -6096,6 +6370,8 @@ ELSE
     cx = INT(monsterX(i)) : cy = INT(monsterY(i))
     IF thiefDist(cx, cy) >= 30000 THEN ' (no way home: just away from you)
         goX = -toPlayerX / distance : goY = -toPlayerY / distance
+    ELSEIF thiefDist(cx, cy) = 0 AND thiefState(i) = 2 THEN ' Home with your things: in through its door - and the hoard locks for good
+        GOSUB ThiefEscape
     ELSEIF thiefDist(cx, cy) > 0 THEN ' One cell nearer home
         bx = cx : by = cy : bd = thiefDist(cx, cy)
         FOR k = 1 TO 4
@@ -6106,6 +6382,24 @@ ELSE
         IF tl > 0.01 THEN goX = tx / tl : goY = ty / tl
     END IF ' (home: it cowers - goX, goY stay 0)
 END IF
+RETURN
+
+' --- Thief i is home with what it stole (at its hoard's door): it slips
+' inside and locks it behind it - gone, your things with it, and that
+' hoard shut for good (evState 3: no killing the rest opens it). Kill a
+' thief before it gets there, and it can't.
+ThiefEscape:
+FOR evH = 1 TO numEvents
+    IF evType(evH) = EV_HOARD AND evState(evH) = 0 THEN
+        IF cx >= evX0(evH) - 2 AND cx <= evX1(evH) + 2 AND cy >= evY0(evH) - 2 AND cy <= evY1(evH) + 2 THEN
+            evState(evH) = 3 : monsterState(i) = 4 ' (4: gone - not dead, not drawn, not counted alive)
+            SpawnSparks monsterX(i), monsterY(i), 0.4, 14, 255, 200, 80
+            SfxAt sndDoor&, monsterX(i), monsterY(i), playerX, playerY : SfxAt sndLocked&, monsterX(i), monsterY(i), playerX, playerY
+            ShowMsg "The thief got home with your things - its hoard is LOCKED FOR GOOD!"
+            EXIT FOR
+        END IF
+    END IF
+NEXT
 RETURN
 
 ' --- Event ev begins: you walked in
@@ -6278,7 +6572,7 @@ RETURN
 ' --- What you start a game with (and come back with, when you die): full
 ' health, no armour, the blaster and 30 cells
 StartLoadout:
-health = MAX_HP : armor = 0 : ampTimer = 0
+health = MAX_HP : armor = 0 : ampTimer = 0 : nvCharge = 0 : nvOn = 0
 ammoCount(AM_CELLS) = 30 : ammoCount(AM_SHELLS) = 0
 FOR gun = 1 TO NUM_GUNS : hasGun(gun) = 0 : NEXT
 hasGun(W_BLASTER) = -1 : currentGun = W_BLASTER
@@ -6326,6 +6620,7 @@ END IF
 IF NOT achLevelHurt AND numMonsters > 0 THEN Achieve "NC_UNTOUCHED", 0
 IF kills >= numMonsters AND numMonsters > 0 THEN Achieve "NC_CLEAN_SWEEP", 0
 IF taken >= numItems AND numItems > 0 THEN Achieve "NC_PACKRAT", 0
+IF numSecrets > 0 AND secretsFound >= numSecrets THEN Achieve "NC_ALL_SECRETS", 0
 IF kills >= numMonsters AND numMonsters > 0 AND taken >= numItems AND numItems > 0 THEN Achieve "NC_PERFECT", 0
 IF levelTime! < 60 AND level <= NUM_LEVELS THEN Achieve "NC_SPEEDRUN", 0
 IF NOT achOtherGun AND kills >= 5 THEN Achieve "NC_PEASHOOTER", 0
@@ -6348,14 +6643,16 @@ IF NOT achCheat OR achTest THEN
     END IF
 END IF
 ' The tally's rows (tallyLabel$ and the rest, chapter 6)
-numTally = 3
 tallyLabel$(1) = "KILLS" : tallyTarget(1) = kills : tallyTotal(1) = numMonsters
 tallyLabel$(2) = "ITEMS" : tallyTarget(2) = taken : tallyTotal(2) = numItems
-tallyLabel$(3) = "TIME" : tallyTarget(3) = INT(levelTime!) : tallyTotal(3) = -1
+tRow = 3 ' (the TIME row - the secrets before it, in a sector with any)
+IF numSecrets THEN tallyLabel$(3) = "SECRETS" : tallyTarget(3) = secretsFound : tallyTotal(3) = numSecrets : tRow = 4
+tallyLabel$(tRow) = "TIME" : tallyTarget(tRow) = INT(levelTime!) : tallyTotal(tRow) = -1
+numTally = tRow
 IF level = NUM_LEVELS THEN ' The last level adds the whole game's totals
-    numTally = 5
-    tallyLabel$(4) = "TOTAL KILLS" : tallyTarget(4) = totalKills : tallyTotal(4) = totalMonsters
-    tallyLabel$(5) = "TOTAL TIME" : tallyTarget(5) = INT(totalTime!) : tallyTotal(5) = -1
+    numTally = tRow + 2
+    tallyLabel$(tRow + 1) = "TOTAL KILLS" : tallyTarget(tRow + 1) = totalKills : tallyTotal(tRow + 1) = totalMonsters
+    tallyLabel$(tRow + 2) = "TOTAL TIME" : tallyTarget(tRow + 2) = INT(totalTime!) : tallyTotal(tRow + 2) = -1
 END IF
 FOR i = 1 TO numTally : tallyShown(i) = 0 : tallySlam(i) = -1 : NEXT
 IF level = NUM_LEVELS THEN tallyTitle$ = "YOU ESCAPED!" ELSE tallyTitle$ = "SECTOR CLEAR"
@@ -6419,7 +6716,8 @@ DO
     MenuText 400 + shakeX, 206 + shakeY, levelName$, 2, _RGB32(255, 255, 255), 1
     FOR i = 1 TO numTally
         IF i <= tallyDone + 1 AND (i <= tallyDone OR tallyWait = 0) THEN ' Started counting
-            rowY = 262 + (i - 1) * 44 : IF i > 3 THEN rowY = rowY + 20
+            rowY = 262 + (i - 1) * 44 : IF i > tRow THEN rowY = rowY + 20
+            IF numTally > 5 THEN rowY = 252 + (i - 1) * 40 : IF i > tRow THEN rowY = rowY + 14 ' (six rows: a little closer)
             MenuText 230 + shakeX, rowY + shakeY, tallyLabel$(i), 2, _RGB32(160, 200, 255), 0
             value$ = TallyText$(tallyShown(i), tallyTotal(i))
             valueScale = 2 : valueCol~& = _RGB32(255, 255, 255)
@@ -6428,7 +6726,7 @@ DO
             END IF
             ' Centred on the number's middle, so it zooms about itself
             MenuText 570 - LEN(value$) * 8 + shakeX, rowY + 16 - valueScale * 8 + shakeY, value$, valueScale, valueCol~&, 1
-            IF i = 3 AND tallyDone >= 3 THEN ' (the time: a record broken, or the best to beat)
+            IF i = tRow AND tallyDone >= tRow THEN ' (the time: a record broken, or the best to beat)
                 IF recNew THEN
                     IF (tallyFrame \ 8) MOD 2 = 0 THEN MenuText 570 + shakeX, rowY + 34 + shakeY, "NEW RECORD!", 1, _RGB32(255, 220, 80), 1
                 ELSEIF recBest! > 0 THEN
@@ -6437,7 +6735,7 @@ DO
             END IF
         END IF
     NEXT
-    IF achSectN AND tallyDone >= 3 THEN ' (the badges of what you unlocked in it, down the right)
+    IF achSectN AND tallyDone >= tRow THEN ' (the badges of what you unlocked in it, down the right)
         MenuText 724, 244, "NEW", 1, _RGB32(255, 200, 60), 1
         FOR k = 1 TO MinOf(achSectN, 5)
             ic& = achIcon&(achSect(k)) : by = 262 + (k - 1) * 48
@@ -6655,7 +6953,7 @@ IF LEN(nxt$) THEN MenuText 400, 140, "NEXT: " + nxt$ + " AT" + STR$(AchRankAt(go
 LINE (60, 166)-(740, 167), _RGB32(90, 80, 130), BF
 MenuText 72, 176, "IN ALL YOUR GAMES", 1, _RGB32(255, 90, 210), 0
 MenuText 432, 176, "PROGRESS", 1, _RGB32(255, 90, 210), 0
-FOR k = 1 TO 10 ' (left: the counts)
+FOR k = 1 TO 11 ' (left: the counts)
     SELECT CASE k
         CASE 1 : st$ = "Kills" : lb$ = "Machines destroyed"
         CASE 2 : st$ = "Headshots" : lb$ = "Headshots"
@@ -6667,10 +6965,11 @@ FOR k = 1 TO 10 ' (left: the counts)
         CASE 8 : st$ = "Smashed" : lb$ = "Things smashed"
         CASE 9 : st$ = "Glass" : lb$ = "Glass shattered"
         CASE 10 : st$ = "Searches" : lb$ = "Walls searched"
+        CASE 11 : st$ = "Secrets" : lb$ = "Secrets found"
     END SELECT
     v& = 0 : IF achReady THEN v& = STEAM_stat_int&(st$)
     IF st$ = "KillKinds" THEN vt$ = LTRIM$(STR$(BitCount(v&))) + "/9" ELSE vt$ = LTRIM$(STR$(v&))
-    y = 200 + (k - 1) * 30
+    y = 200 + (k - 1) * 29
     MenuText 72, y, lb$, 1, _RGB32(200, 195, 230), 0
     MenuText 360, y, vt$, 1, _RGB32(255, 255, 255), 2
 NEXT
@@ -6780,11 +7079,11 @@ FOR k = 1 TO MAX_EVENTS ' (each event room's own looping sound - a trap's buzz o
     IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k) : _SNDCLOSE evHum&(k)
     evHum&(k) = 0
 NEXT
-numStations = 0 : numPads = 0 : numTerms = 0
+numStations = 0 : numPads = 0 : numTerms = 0 : FOR k = 0 TO MAX_PADS : padFlown(k) = 0 : NEXT
 IF NOT editRebuild THEN glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
 FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0
 FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
-    worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorLockEv(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
+    worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorLockEv(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : secretCell(x, y) = 0 : closetIn(x, y) = 0 : secretArea(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
     floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
     FOR f = 1 TO FACE_MAX : faceTex(x, y, f) = 0 : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
     boxOn(x, y) = 0
@@ -6916,8 +7215,8 @@ FOR k = 1 TO lvlNumLights
     END IF
     IF gx >= 0 AND gy >= 0 AND gx < MAP_SIZE AND gy < MAP_SIZE THEN
         gc$ = MID$(lvlRow$(gy), gx + 1, 1) : lc = INT(lx) : lr = INT(ly) ' (the map isn't built yet: its characters, and its height rows, say what's there)
-        IF INSTR("DHXRBY!E%/\", gc$) = 0 THEN ' (not a door - nor a secret wall, which a tint would give away, nor a diagonal, which takes its neighbours' look)
-            gWall = INSTR("#NCKPG@$%/\", gc$) > 0
+        IF INSTR("DHXRBY!E%?/\", gc$) = 0 THEN ' (not a door - nor a secret wall, which a tint would give away, nor a diagonal, which takes its neighbours' look)
+            gWall = INSTR("#NCKPG@$%?/\", gc$) > 0
             amt = 0.35 + 0.55 * lvlLight(k, 4) / 255
             key$ = ":" + LTRIM$(STR$(lvlLight(k, 5))) + "," + LTRIM$(STR$(lvlLight(k, 6))) + "," + LTRIM$(STR$(lvlLight(k, 7))) + ":" + LTRIM$(STR$(INT(amt * 100))) + ":" + LTRIM$(STR$(lvlLight(k, 8)))
             gEnd = gs + 4 : IF bxW THEN gEnd = gs ' (a block's side: just that)
@@ -6991,6 +7290,7 @@ FOR y = 0 TO MAP_SIZE - 1
         SELECT CASE cell$
             CASE "#" : worldMap(x, y) = 1
             CASE "%" : worldMap(x, y) = 1 : closetCell(x, y) = -1 ' A closet's secret wall (its look: the walls beside it - AssignClosets)
+            CASE "?" : worldMap(x, y) = 1 : secretCell(x, y) = -1 ' A secret wall (its look: the walls beside it - AssignSecrets)
             CASE "N" : worldMap(x, y) = 3
             CASE "C" : worldMap(x, y) = 4
             CASE "K" : worldMap(x, y) = 5
@@ -7004,11 +7304,11 @@ FOR y = 0 TO MAP_SIZE - 1
             CASE "E" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_EXIT
             CASE "R", "B", "Y" ' Key door: needs that keycard
                 worldMap(x, y) = 2 : doorKey(x, y) = INSTR("RBY", cell$)
-            CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j" ' Something to pick up
+            CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8" ' Something to pick up
                 IF numItems < MAX_ITEMS THEN
                     numItems = numItems + 1
                     itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
-                    itemKind(numItems) = INSTR("rby+ae23u*4Mqj", cell$)
+                    itemKind(numItems) = INSTR("rby+ae23u*4Mqj", cell$) : IF cell$ = "8" THEN itemKind(numItems) = IT_GOGGLES
                 END IF
             CASE "@" ' A data station: a wall with a socket
                 worldMap(x, y) = 8
@@ -7023,7 +7323,7 @@ FOR y = 0 TO MAP_SIZE - 1
             CASE "o", "i", "p", "t", "x", "l", "n", "f", "S", "d", "A", "F", "I", "J", "L", "O", "Q", "U", "W", "Z", "V" ' A decoration
                 IF numDecos < MAX_DECO THEN
                     numDecos = numDecos + 1 : decoCell(x, y) = numDecos
-                    decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oiptxlnfSdAFIJLOQUWZV", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0 : decoFace(numDecos) = 0
+                    decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oiptxlnfSdAFIJLOQUWZV", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0 : vendState(numDecos) = 0 : decoFace(numDecos) = 0
                     decoHP(numDecos) = DecoMaxHP(decoKind(numDecos)) : decoTimer(numDecos) = 0 : decoLootA(numDecos) = NO_AIM
                 END IF
             CASE "m", "g", "h", "c", "s", "k", "w", "z", "T" ' A monster
@@ -7194,6 +7494,7 @@ padReady = 0
 IF NOT editRebuild THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
 walkZ = -999
 BuildThiefWay ' (the thieves' way home)
+AssignSecrets ' (the secret walls, the closets' stashes, and what the map pickup leaves out)
 blackoutTimer = 0
 monStartN = numMonsters ' (the level's monsters as they start, for the console's respawn)
 FOR i = 1 TO numMonsters : monStartX(i) = monsterX(i) : monStartY(i) = monsterY(i) : monStartType(i) = monsterType(i) : NEXT
@@ -7316,8 +7617,13 @@ RETURN
 ' It runs until you start, load or go back to a game (or quit).
 RunMenu:
 WorldLoopsOff ' (the game waits: so do the lifts' motors)
+IF menuInGame THEN ' Paused: the music down by half, and OpenGL's world holding still behind the menu (its ripples, flicker and shimmer run on glClock#)
+    musicDuck! = 0.5 : SetMusicVol
+    glFrozenAt# = TIMER(0.001) : glFrozen = -1
+END IF
 _MOUSESHOW
 IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
+menuGamWas = setting(SET_GAMMA) : IF nvOn THEN menuGamWas = 0 ' (the brightness that frame was drawn at - 0: none, it's night vision's green)
 menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen
 menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1 : menuDispWas = displayModeNow : menuPointWait = 0
 _KEYCLEAR
@@ -7369,7 +7675,7 @@ DO
                 CASE MI_SLIDER ' (on its bar: drag it; on its name: just pick it)
                     IF mouseX >= MENU_WIDGET_X - 12 OR NOT menuWide THEN menuDrag = overItem
                 CASE MI_CHOICE, MI_TOGGLE ' (the left half of a choice goes back - a click on a choice's name just picks it)
-                    half = MENU_WIDGET_X + MENU_WIDGET_W / 2 : IF NOT menuWide THEN half = 400 ' (centred: its middle)
+                    half = MENU_WIDGET_X + (LEN(SettingText$(miRef(overItem))) + 4) * 8 : IF NOT menuWide THEN half = 400 ' (the middle of its "< VALUE >" - centred: of the screen)
                     IF miKind(overItem) = MI_CHOICE AND mouseX < half THEN menuAdjust = -1 ELSE menuAdjust = 1
                     IF NOT (menuWide AND miKind(overItem) = MI_CHOICE AND mouseX < MENU_WIDGET_X - 8) THEN GOSUB MenuAdjustItem
                 CASE ELSE
@@ -7388,12 +7694,20 @@ DO
 
     ' Draw: what's behind the menu, then the menu itself
     IF NOT menuDone THEN
+        ' (With BRIGHTNESS picked, you see it as you slide it: the darkening
+        ' behind the menu lifts off the game, and the picture behind takes
+        ' the new curve. OpenGL's view underneath does that itself - its post
+        ' shader gets the setting every frame, GLLiveSettings.)
+        gamPrev = 0
+        IF menuScreen = SCR_VIDEO AND menuSel >= 1 AND menuSel <= numMI THEN gamPrev = miKind(menuSel) = MI_SLIDER AND miRef(menuSel) = SET_GAMMA
         IF menuInGame THEN
             CLS , _RGBA32(0, 0, 0, 0) ' (see-through, for OpenGL's view underneath: chapter 24)
             _PUTIMAGE , menuBackdrop&, 0
-            LINE (0, 0)-(799, 599), _RGBA32(8, 0, 20, 200), BF
+            IF gamPrev AND menuGamWas > 0 AND NOT glReady THEN GammaImage 0, 100 * setting(SET_GAMMA) / menuGamWas ' (the frame already has menuGamWas's curve: this much more makes it the new one's)
+            IF gamPrev THEN LINE (0, 0)-(799, 599), _RGBA32(8, 0, 20, 60), BF ELSE LINE (0, 0)-(799, 599), _RGBA32(8, 0, 20, 200), BF
         ELSE
             DrawMenuBackdrop menuT
+            IF gamPrev THEN GammaImage 0, setting(SET_GAMMA)
         END IF
         DrawMenu menuT
         IF glReady THEN GLLiveSettings ' (so OpenGL shows a change as you make it: chapter 24)
@@ -7403,6 +7717,7 @@ DO
     END IF
 LOOP UNTIL menuDone
 IF menuInGame THEN _FREEIMAGE menuBackdrop&
+musicDuck! = 1 : SetMusicVol : glFrozen = 0 ' (playing again: the music back up, the world moving)
 SaveSettings
 _KEYCLEAR
 _MOUSEHIDE _DISABLE ' Capture the mouse for mouse look again
@@ -7585,7 +7900,7 @@ conVerb$ = ConWord$(conCmd$, 1) : conA$ = ConWord$(conCmd$, 2) : conB$ = ConWord
 sp = INSTR(conCmd$, " ") : IF sp THEN conRest$ = LTRIM$(MID$(conCmd$, sp + 1)) ELSE conRest$ = ""
 IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
     SELECT CASE conVerb$
-        CASE "god", "noclip", "iddqd", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
+        CASE "god", "noclip", "iddqd", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
              "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters"
             IF NOT achCheat AND NOT achTest THEN ConPrint "(cheats on: achievements wait for a new game)"
             achCheat = -1
@@ -7677,10 +7992,10 @@ SELECT CASE conVerb$
         GOSUB NewGame : conLevelChanged = -1
     CASE "finish", "exitlevel", "nextlevel" ' As if you'd reached the exit
         conLevelChanged = -1 : GOSUB LevelDone
-    CASE "item", "drop" ' item KIND X Y: a pickup appears in cell X Y (KIND: a map character - r b y + * u a e 2 3 4 M q j - or health, armor, cells, shells, medkit, map...)
+    CASE "item", "drop" ' item KIND X Y: a pickup appears in cell X Y (KIND: a map character - r b y + * u a e 2 3 4 M q j 8 - or health, armor, cells, shells, medkit, map, goggles...)
         ik = ItemOf(conA$)
         IF ik = 0 OR conC$ = "" THEN
-            ConPrint "item KIND X Y - KIND: health medkit armor cells shells scatter repeater rail map overcharge amp red blue yellow (or its map character)"
+            ConPrint "item KIND X Y - KIND: health medkit armor cells shells scatter repeater rail map overcharge amp goggles red blue yellow (or its map character)"
         ELSE
             DropItemAt ik, VAL(conB$) + 0.5, VAL(conC$) + 0.5 : SfxAt sndTeleport&, VAL(conB$) + 0.5, VAL(conC$) + 0.5, playerX, playerY
         END IF
@@ -7951,6 +8266,33 @@ SELECT CASE conVerb$
             IF lvlLift(k, 8) = 0 THEN lvlLift(k, 8) = 8
             GOSUB EditApply : ConPrint "lift" + STR$(lvlNumLifts)
         END IF
+    CASE "program" ' program NAME: a computer runs neon-caster/programs/NAME.bas (RunProgram) - for a "use" trigger on a computer
+        GOSUB RunProgram
+    CASE "thieves" ' Each thief bot: where, what it's doing, what it carries, how far from home
+        FOR j = 1 TO numMonsters
+            IF monsterType(j) = MT_THIEF THEN
+                t$ = MID$("idle   huntingdying  dead   gone   ", monsterState(j) * 7 + 1, 7)
+                ConPrint STR$(j) + "  at" + STR$(INT(monsterX(j) * 10) / 10) + STR$(INT(monsterY(j) * 10) / 10) + "  " + RTRIM$(t$) + "  carrying" + STR$(thiefCells(j)) + " cells" + STR$(thiefShells(j)) + " shells, gun" + STR$(thiefGun(j)) + "  home in" + STR$(thiefDist(INT(monsterX(j)), INT(monsterY(j))))
+            END IF
+        NEXT
+    CASE "secret" ' secret X Y: the secret wall at X Y opens - found (for triggers: a switch you shoot...); secret: how many found
+        IF conA$ = "" THEN
+            ConPrint "Secrets found:" + STR$(secretsFound) + " of" + STR$(numSecrets)
+            FOR k = 1 TO numSecrets ' (each: its first cell, and what opens it)
+                fx = -1
+                FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+                    IF secretCell(x, y) = k AND fx < 0 THEN fx = x : fy = y
+                NEXT : NEXT
+                t$ = "Space" : IF secretShot(k) THEN t$ = "a trigger" ELSE IF secretNeedEv(k) THEN t$ = "Space, once closet" + STR$(secretNeedEv(k)) + " is clear"
+                IF secretFound(k) THEN t$ = "found"
+                ConPrint STR$(k) + "  at" + STR$(fx) + STR$(fy) + "   " + t$
+            NEXT
+        ELSE
+            x = VAL(conA$) : y = VAL(conB$)
+            IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+                IF secretCell(x, y) > 0 THEN OpenSecret secretCell(x, y), -1 ELSE ConPrint "secret: no secret wall at" + STR$(x) + STR$(y)
+            END IF
+        END IF
     CASE "door" ' door X Y open|close|lock|unlock|toggle (for triggers)
         x = VAL(conA$) : y = VAL(conB$)
         IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
@@ -8209,6 +8551,8 @@ SELECT CASE miKind(menuSel)
                 menuDone = -1
             CASE MA_NEW
                 sectorSet = 0 : GOSUB ReadSectorNames : GOSUB NewGame : menuDone = -1
+            CASE MA_LINK ' A credit: its page, in the web browser
+                OpenLink MID$(miInfo$(menuSel), INSTR(miInfo$(menuSel), "|") + 1)
             CASE MA_ACHIEVE ' The achievements (and records): a screen of their own, then back here
                 GOSUB ShowAchievements
             CASE MA_SECTOR ' A new game, in sector miRef (straight there: no stop in sector 1) - over 100, another set's
@@ -8369,6 +8713,8 @@ NEXT : NEXT
 PUT #fileNum, , numTerms : FOR k = 1 TO numTerms : PUT #fileNum, , termDone(k) : NEXT
 PUT #fileNum, , numStations : FOR k = 1 TO numStations : PUT #fileNum, , stationDone(k) : NEXT
 PUT #fileNum, , numLifts : FOR k = 1 TO numLifts : PUT #fileNum, , liftZ(k) : PUT #fileNum, , liftDir(k) : PUT #fileNum, , liftArm(k) : NEXT ' (where each lift is, and going)
+PUT #fileNum, , numSecrets : FOR k = 1 TO numSecrets : PUT #fileNum, , secretFound(k) : PUT #fileNum, , secretHint(k) : NEXT ' (the secrets found)
+PUT #fileNum, , nvCharge : PUT #fileNum, , nvOn ' (night vision's battery)
 CLOSE #fileNum
 IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 RETURN
@@ -8471,6 +8817,10 @@ IF LOC(fileNum) < LOF(fileNum) THEN ' The code terminals solved, the data statio
     NEXT
     GET #fileNum, , savedCount : FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numStations AND savedCount = numStations THEN stationDone(k) = tdone%
     NEXT
+    FOR k = 1 TO numTerms : IF termDone(k) THEN WallDone termX(k), termY(k), T_CODEOK
+    NEXT
+    FOR k = 1 TO numStations : IF stationDone(k) THEN WallDone stationX(k), stationY(k), T_JACKOK
+    NEXT
 END IF
 IF LOC(fileNum) < LOF(fileNum) THEN ' The lifts where they were (you saved riding one up: you load up there with it)
     GET #fileNum, , savedCount
@@ -8485,6 +8835,15 @@ IF LOC(fileNum) < LOF(fileNum) THEN ' The lifts where they were (you saved ridin
     NEXT
     IF NOT levelFlat THEN playerZ = MaxOf(playerZ, floorH(INT(playerX), INT(playerY))) : eyeZ = playerZ + EYE_H
 END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The secrets found: open again, quietly (a stash's loot is with the pickups)
+    GET #fileNum, , savedCount
+    FOR k = 1 TO savedCount
+        GET #fileNum, , tdone% : GET #fileNum, , th%
+        IF savedCount = numSecrets THEN secretHint(k) = th% : IF tdone% THEN OpenSecret k, 0
+    NEXT
+END IF
+nvCharge = 0 : nvOn = 0
+IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , nvCharge : GET #fileNum, , nvOn ' (night vision's battery)
 CLOSE #fileNum
 planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)
 levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0
@@ -8702,6 +9061,10 @@ RETURN
 '   q        overcharge: +100 health, past full, up to 200 (the extra shows
 '            in blue on the health bar)
 '   j        damage amp: every shot does double damage for 30 seconds
+'   8        night vision headset: a minute of battery (two at most); N
+'            (NIGHT VISION in CONTROLS) switches it on and off. On, you see
+'            the world in green, the dark lifted - as through a soldier's
+'            goggles - and the battery runs down.
 '
 ' MONSTERS - each waits where it stands until it can see you (within 14
 ' tiles, with no wall or shut door in the way) or until you shoot it. Then
@@ -8731,7 +9094,10 @@ RETURN
 '   T  thief:   a gold bot with a sack, 5 hits, faster than you walk (but
 '               not than you run). It never fights: it grabs half your ammo
 '               and the gun in your hands (never the blaster) and runs for
-'               the hoard (event 7). Kill it and it drops everything it took.
+'               the hoard (event 7). Kill it and it drops everything it took;
+'               each hit knocks some of it loose. But if it gets home with
+'               your things, it slips inside - and that hoard is locked for
+'               good.
 '
 ' DECORATIONS - stand on the floor; you, monsters and bolts can't go through
 ' them, but they don't block sight. Shoot them and they break (a barrel's
@@ -8747,7 +9113,9 @@ RETURN
 '   t  terminal: 4 hits; goes in a puff of sparks
 '   x  crate:    3 hits
 '   l  server rack (blinking cyan light): 4 hits; goes in a puff of sparks
-'   n  vending machine (glowing pink): 4 hits; goes in a puff of sparks
+'   n  vending machine (glowing pink): 4 hits; goes in a puff of sparks.
+'                Space on it: 3, 2, 1... and it pays out for a couple of
+'                seconds - or, now and then, it blows up. Then it's sold out.
 '   f  coolant tank: explodes when shot, like a barrel
 '
 '   S  spawner: 8 hits; the portal a spawner nest (Part 4) sends monsters
@@ -8760,10 +9128,22 @@ RETURN
 '   O  cryo pod (glows, 3)      Q  hologram projector (glows)
 '   U  lockers (3)              W  bench (3)
 '   (the rest take 4 hits)
+'   Computers - t, A and F - play NEON PONG when you press Space at them
+'   (first to 3; beat one and it pays out). A specimen tank broken open
+'   lets out what's in it, half the time: a stalker or a spitter.
 '
 ' SECRET WALLS
 '   %  a monster closet's wall: looks like the walls beside it, and slides
-'      away when its closet event (Part 4, kind 6) goes off
+'      away when its closet event (Part 4, kind 6) goes off. Once every
+'      monster that was in the closet is dead, something clicks at the back
+'      of it: a stash, found with Space (it counts as a secret).
+'   ?  a secret wall: it looks like the walls beside it - on the map too -
+'      until you press Space on it. Then it slides away: YOU FOUND A
+'      SECRET!, and the tally counts it. Touching ? cells are one secret.
+'      A trigger can open one instead ("secret X Y" in its commands, Part
+'      8): then Space won't - a switch you shoot (a "shoot" trigger) does.
+'      What's behind a secret stays rock on the map pickup's map until
+'      you've seen it.
 '
 ' GLASS
 '   =  a pane of glass across the middle of the cell, in a wall one cell
@@ -8827,11 +9207,16 @@ RETURN
 '
 ' One a line: WHEN [repeat] : COMMANDS. WHEN is enter X0 Y0 X1 Y1 (you walk
 ' into it - a line, if it's one cell wide), use X Y (Space at that cell),
+' shoot X Y (you shoot - or kick - the wall or the thing in that cell: a
+' switch - put the picture wall-switch.png on its face, [faces]),
 ' clear X0 Y0 X1 Y1 (every monster that started there is dead) or time S
 ' (seconds into the level); "repeat" and it goes off every time, else just
 ' once. COMMANDS are console commands (chapter 21), split by ; - door 14 6
 ' open ; message The way is open ; summon heavy 2 ; liftgo 1 up ; wall 20
-' 8 . ; light 3 off ; sound alarm ; say taunt2 ; tp 40 40 90 ...
+' 8 . ; light 3 off ; sound alarm ; say taunt2 ; tp 40 40 90 ; secret 20
+' 15 (the secret wall there opens - found) ; program invaders (a computer
+' runs neon-caster/programs/invaders.bas - RunProgram - and pays out if
+' you beat it) ...
 '
 ' --- Part 10: [liquid] and [liquid depth] (optional) -------------------------
 '
@@ -8862,8 +9247,10 @@ RETURN
 '   console  = ammo:5, shells:5
 '   locker   = amp:10, -, medkit:30, armor:30
 '   plant    =                     (plants here leave nothing)
-' Breaking one rolls a d4 for the drop (an empty one: nothing), then 1-100:
-' at or under its chance, out it comes, tossed clear of the wreck - any
+' Breaking one rolls 1-100 once, and the drops share it out in order: A
+' takes the first A%, B the next B%... - so each drop's chance is just as
+' written, and the chance of anything at all is them added up (a crate's
+' 20+20+20+10: 70%). Out it comes, tossed clear of the wreck - any
 ' way if it was shot or blown up, back your way if you kicked it - and
 ' landing where you can see it, not at your feet. A BREAKABLE is any
 ' decoration's name (barrel, crate, desk, locker, labbench, vending,
@@ -9474,6 +9861,42 @@ SUB MakeLampOff
     texName$(T_LAMPOFF) = "ceiling-lamp-off"
 END SUB
 
+' A terminal's or a station's picture (slot src), done: into slot dst, its
+' red lights turned green (way 1: a solved terminal) or violet (way 2: a
+' hacked station), and a plate across its screen saying label$ - drawn on
+' an image with _PRINTSTRING, as the EXIT sign is (ExitSign)
+SUB MakeDoneTex(src, dst, label$, way)
+    k = texSize / 128
+    img& = _NEWIMAGE(texSize, texSize, 32)
+    _DEST img&
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
+        c~& = texture(x, y, src) : r = _RED32(c~&) : g = _GREEN32(c~&) : b = _BLUE32(c~&)
+        IF r > g + 30 AND r > b + 30 THEN ' (a red light, or warning)
+            IF way = 1 THEN c~& = _RGB32(g * 0.6, r, b * 0.6) ELSE c~& = _RGB32(r * 0.7, g * 0.5, r)
+        END IF
+        PSET (x, y), c~&
+    NEXT : NEXT
+    w = LEN(label$) * 8 + 8
+    plate& = _NEWIMAGE(w, 14, 32) : _DEST plate&
+    IF way = 1 THEN fg~& = _RGB32(110, 255, 140) : bg~& = _RGB32(6, 40, 14) ELSE fg~& = _RGB32(220, 150, 255) : bg~& = _RGB32(30, 10, 46)
+    LINE (0, 0)-(w - 1, 13), bg~&, BF : LINE (0, 0)-(w - 1, 13), fg~&, B
+    _PRINTMODE _KEEPBACKGROUND : COLOR fg~& : _PRINTSTRING (4, -1), label$
+    x0 = (128 - w) / 2 : y0 = 54
+    _PUTIMAGE (x0 * k, y0 * k)-((x0 + w) * k - 1, (y0 + 14) * k - 1), plate&, img&
+    _SOURCE img&
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texture(x, y, dst) = POINT(x, y) : NEXT : NEXT
+    _SOURCE 0 : _DEST 0 : _FREEIMAGE img& : _FREEIMAGE plate&
+    texName$(dst) = texName$(src) : texHD(dst) = texHD(src) : texSky(dst) = 0
+END SUB
+
+' Wall cell (x, y) - a terminal, a station - done: all four of its sides
+' show picture slot (its done look), as a face picked in the editor would
+' ([faces]: faceTex), and OpenGL's world is built again with it
+SUB WallDone(x, y, slot)
+    FOR f = 1 TO 4 : faceTex(x, y, f) = slot : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
+    faceAny = -1 : glMeshVersion = glMeshVersion + 1
+END SUB
+
 ' The keycard picture, tinted red, blue and yellow, into sprite slots 1-3
 ' and into images for the HUD; and the key door textures, the door tinted
 ' the same three ways. (_DONTBLEND makes PSET store a see-through colour
@@ -9635,6 +10058,9 @@ END SUB
 FUNCTION SealedMsg$(x, y)
     SealedMsg$ = "SEALED - it won't open until the room is clear"
     FOR ev = 1 TO numEvents
+        IF evType(ev) = EV_HOARD AND evState(ev) = 3 THEN
+            IF x >= evX0(ev) - 1 AND x <= evX1(ev) + 1 AND y >= evY0(ev) - 1 AND y <= evY1(ev) + 1 THEN SealedMsg$ = "LOCKED FOR GOOD - a thief got home with your things" : EXIT FUNCTION
+        END IF
         IF evType(ev) = EV_HOARD AND evState(ev) = 0 THEN
             IF x >= evX0(ev) - 1 AND x <= evX1(ev) + 1 AND y >= evY0(ev) - 1 AND y <= evY1(ev) + 1 THEN
                 n = 0
@@ -9726,6 +10152,26 @@ SUB ThiefReset(i)
     thiefCells(i) = 0 : thiefShells(i) = 0 : thiefGun(i) = 0 : thiefState(i) = 0
 END SUB
 
+' Thief i, hit (not destroyed) with your things on it: some of them fly
+' out - a pack of cells or shells, whichever it has more of (a coin toss
+' between them), or now and then the gun it took
+SUB ThiefSpill(i)
+    x = monsterX(i) : y = monsterY(i) : a = RND * 6.2832
+    IF thiefGun(i) AND RND < 0.25 THEN
+        SELECT CASE thiefGun(i)
+            CASE W_SCATTER : k = IT_SCATTER
+            CASE W_REPEATER : k = IT_REPEATER
+            CASE ELSE : k = IT_RAIL
+        END SELECT
+        TossItem k, x, y, a, playerX, playerY : thiefGun(i) = 0
+        ShowMsg "The thief dropped your gun!"
+    ELSEIF thiefCells(i) >= 15 AND (thiefShells(i) < 8 OR RND < 0.5) THEN
+        TossItem IT_CELLS, x, y, a, playerX, playerY : thiefCells(i) = thiefCells(i) - 15
+    ELSEIF thiefShells(i) >= 8 THEN
+        TossItem IT_SHELLS, x, y, a, playerX, playerY : thiefShells(i) = thiefShells(i) - 8
+    END IF
+END SUB
+
 ' A thief bot (monster i) is destroyed: what it stole spills out round it
 SUB DropThiefLoot(i)
     x = monsterX(i) : y = monsterY(i) : n = 0
@@ -9765,20 +10211,40 @@ SUB DropItemAt(kind, x0, y0)
 END SUB
 
 ' Decoration d has just broken: does it leave anything? Its kind has four
-' drop slots, A to D (lootKind, lootPct - LootTable). Roll a d4 for the
-' slot; an empty one, nothing. Then the percentile dice, 1 to 100: at or
-' under that slot's chance, out comes its pickup (TossItem) - the way
+' drop slots, A to D (lootKind, lootPct - LootTable). Roll the percentile
+' dice once, 1 to 100, and share it out in order: A has the first A%, B
+' the next B%, and so on - past them all, nothing. (A d4 for the slot and
+' then its chance, as it was, made a crate's 70% just 17.5%.) What it
+' lands on comes out (TossItem) - the way
 ' decoLootA says (HitDeco), or any way at all - landing clear of you, at
 ' (px, py), for you to go and pick up.
 SUB DecoLoot(d, px, py)
     IF editMode OR cyberOn THEN EXIT SUB
-    k = decoKind(d) : slot = INT(RND * LOOT_SLOTS) + 1 ' (the d4)
-    IF lootKind(k, slot) = 0 THEN EXIT SUB
-    IF INT(RND * 100) + 1 > lootPct(k, slot) THEN EXIT SUB ' (the percentile dice)
+    k = decoKind(d) : roll = INT(RND * 100) + 1 : acc = 0 : slot = 0 ' (the percentile dice, once)
+    luck = 1 : IF AmmoLow THEN luck = 2 ' (running dry: every chance doubled - a crate's 70% becomes a sure thing)
+    FOR s = 1 TO LOOT_SLOTS
+        IF lootKind(k, s) THEN acc = acc + lootPct(k, s) * luck : IF roll <= acc THEN slot = s : EXIT FOR
+    NEXT
+    IF slot = 0 THEN EXIT SUB ' (past them all: nothing in it)
     a = decoLootA(d) : IF a = NO_AIM THEN a = RND * 6.2832
     TossItem lootKind(k, slot), decoX(d), decoY(d), a, px, py
     AchAdd "LootDrops", 1
 END SUB
+
+' Are you running out? Under a quarter of the ammo your guns could carry,
+' all of them together (each kind once - the blaster and the repeater
+' share cells): then breakables' loot comes twice as often (DecoLoot)
+FUNCTION AmmoLow
+    DIM used(2) AS INTEGER
+    FOR g = 1 TO NUM_GUNS
+        IF hasGun(g) THEN t = gunAmmoType(g) : IF t >= 1 AND t <= 2 THEN used(t) = -1
+    NEXT
+    have = 0 : most = 0
+    FOR t = 1 TO 2
+        IF used(t) THEN have = have + ammoCount(t) : most = most + ammoMax(t)
+    NEXT
+    IF most > 0 THEN AmmoLow = (have < most * 0.25)
+END FUNCTION
 
 ' A pickup of kind kind thrown out from (x, y) at angle a (radians): it
 ' flies LOOT_TOSS frames, in an arc (drawn in chapter 16), and lands up to
@@ -10318,7 +10784,7 @@ SUB EditPut(x, y, c$)
             END IF
         NEXT
         IF c$ <> "&" THEN EditUnpair x, y
-        IF INSTR("#NCKPG%@$/\DHXRBY!E=", c$) THEN EditRemoveBox x, y ' (a box only stands on open floor)
+        IF INSTR("#NCKPG%?@$/\DHXRBY!E=", c$) THEN EditRemoveBox x, y ' (a box only stands on open floor)
         EditNudgeSet x, y, 0, 0, 0 ' (a decoration's nudge goes with it)
     END IF
     IF INSTR("<>^v", c$) THEN ' (only one start: the old one becomes floor)
@@ -10528,7 +10994,7 @@ SUB WriteLevelFile(f$)
         NEXT
     END IF
     IF lvlNumTrigs THEN
-        o$ = o$ + nl$ + "[triggers]" + nl$ + "' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ..." + nl$
+        o$ = o$ + nl$ + "[triggers]" + nl$ + "' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ..." + nl$
         FOR k = 1 TO lvlNumTrigs : o$ = o$ + lvlTrig$(k) + nl$ : NEXT
     END IF
     IF lvlMonN THEN
@@ -10679,6 +11145,7 @@ FUNCTION GlyphName$(c$)
         CASE "@" : g$ = "data station"
         CASE "$" : g$ = "code terminal (a QB64 puzzle)"
         CASE "%" : g$ = "closet wall (secret)"
+        CASE "?" : g$ = "secret wall (Space finds it)"
         CASE "&" : g$ = "teleporter pad (pairs: 1st-2nd, 3rd-4th...)"
         CASE "r", "b", "y" : g$ = RTRIM$(MID$("red   blue  yellow", INSTR("rby", c$) * 6 - 5, 6)) + " keycard"
         CASE "+" : g$ = "health pack"
@@ -10692,6 +11159,7 @@ FUNCTION GlyphName$(c$)
         CASE "M" : g$ = "the map"
         CASE "q" : g$ = "overcharge"
         CASE "j" : g$ = "damage amp"
+        CASE "8" : g$ = "night vision headset (N)"
         CASE "m", "g", "h", "c", "s", "k", "w", "z", "T" : g$ = mtypeName$(INSTR("mghcskwzT", c$))
         CASE "<", ">", "^", "v" : g$ = "the START, facing " + c$
         CASE ELSE
@@ -10718,10 +11186,11 @@ FUNCTION GlyphColor~&(c$)
         CASE "@" : col~& = _RGB32(60, 240, 255)
         CASE "$" : col~& = _RGB32(90, 255, 120)
         CASE "%" : col~& = _RGB32(120, 90, 60)
+        CASE "?" : col~& = _RGB32(150, 120, 200)
         CASE "&" : col~& = _RGB32(190, 110, 255)
         CASE "<", ">", "^", "v" : col~& = _RGB32(255, 255, 255)
         CASE ELSE
-            IF INSTR("rby+*uae234Mqj", c$) THEN col~& = _RGB32(80, 230, 120)
+            IF INSTR("rby+*uae234Mqj8", c$) THEN col~& = _RGB32(80, 230, 120)
             IF INSTR("mghcskwzT", c$) THEN col~& = _RGB32(255, 70, 90)
             IF INSTR("oiptxlnfSdAFIJLOQUWZV", c$) THEN col~& = _RGB32(230, 200, 90)
     END SELECT
@@ -11211,7 +11680,7 @@ SUB EditPkBuild
     NEXT
     edPkN = 0
     SELECT CASE edPickTab
-        CASE 1 : g$ = "#NCKPG/\%=" : pre$ = "wall"
+        CASE 1 : g$ = "#NCKPG/\%?=" : pre$ = "wall"
         CASE 2 : pre$ = "floor"
         CASE 3 : pre$ = "ceiling" : pre2$ = "sky-" ' (and the skies: a ceiling that's open to the sky)
         CASE 4 : g$ = "DHXRBY!E"
@@ -11286,7 +11755,7 @@ FUNCTION EditGlyphThumb&(c$)
     t = 0 : sp = 0
     SELECT CASE c$
         CASE "#", "N", "C", "K", "P", "G" : t = INSTR("#NCKPG", c$)
-        CASE "/", "\", "%" : t = 1
+        CASE "/", "\", "%", "?" : t = 1
         CASE "D", "!" : t = T_DOOR
         CASE "H" : t = T_SHUTTER
         CASE "X" : t = T_SPLIT
@@ -11309,6 +11778,7 @@ FUNCTION EditGlyphThumb&(c$)
         CASE "M" : sp = 28
         CASE "q" : sp = ItemSprite(IT_OVERCHARGE)
         CASE "j" : sp = ItemSprite(IT_AMP)
+        CASE "8" : sp = ItemSprite(IT_GOGGLES)
         CASE ELSE
             k = INSTR("mghcskwzT", c$) : IF k THEN sp = mtypeSprite(k)
             k = INSTR("oiptxlnfSdAFIJLOQUWZV", c$) : IF k THEN sp = DecoSlot(k)
@@ -11917,7 +12387,7 @@ FUNCTION EditTrigHere(l$, x0, y0, x1, y1, ux, uy)
     NEXT
     SELECT CASE kind$
         CASE "time" : EditTrigHere = -1
-        CASE "use" : EditTrigHere = (n(1) = ux AND n(2) = uy)
+        CASE "use", "shoot" : EditTrigHere = (n(1) = ux AND n(2) = uy)
         CASE "enter", "clear" : EditTrigHere = NOT (MaxOf(n(1), n(3)) < x0 OR MinOf(n(1), n(3)) > x1 OR MaxOf(n(2), n(4)) < y0 OR MinOf(n(2), n(4)) > y1)
     END SELECT
 END FUNCTION
@@ -11943,7 +12413,8 @@ END FUNCTION
 ' keycards, 4 health... IT_), 0 for none
 FUNCTION ItemOf(v$)
     ItemOf = 0
-    IF LEN(v$) = 1 THEN ItemOf = INSTR("rby+ae23u*4Mqj", v$) : EXIT FUNCTION
+    IF LEN(v$) = 1 THEN ItemOf = INSTR("rby+ae23u*4Mqj", v$) : IF v$ = "8" THEN ItemOf = IT_GOGGLES
+    IF LEN(v$) = 1 THEN EXIT FUNCTION
     SELECT CASE LCASE$(v$)
         CASE "red" : ItemOf = 1
         CASE "blue" : ItemOf = 2
@@ -11959,6 +12430,7 @@ FUNCTION ItemOf(v$)
         CASE "map" : ItemOf = IT_MAP
         CASE "overcharge" : ItemOf = IT_OVERCHARGE
         CASE "amp" : ItemOf = IT_AMP
+        CASE "goggles", "nightvision", "headset" : ItemOf = IT_GOGGLES
     END SELECT
 END FUNCTION
 
@@ -12422,14 +12894,14 @@ END SUB
 ' Is cell (x, y) open - floor, or a thing on floor - rather than a wall, a
 ' door, a station? (A box from above selects every cell in it, walls too.)
 FUNCTION EditCellOpen(x, y)
-    EditCellOpen = INSTR("#NCKPG%@$/\DHXRBY!E", MID$(lvlRow$(y), x + 1, 1)) = 0
+    EditCellOpen = INSTR("#NCKPG%?@$/\DHXRBY!E", MID$(lvlRow$(y), x + 1, 1)) = 0
 END FUNCTION
 
 ' From above: the picture pic$ on cell (x, y) - a wall's (or a closet's,
 ' a diagonal's) four sides, else its floor (ceil: its ceiling)
 SUB EditPaintCell(x, y, pic$, ceil)
     IF INSTR("/\", MID$(lvlRow$(y), x + 1, 1)) THEN EditNote "A diagonal wall takes the look of the walls by it - paint those" : EXIT SUB
-    IF INSTR("#NCKPG%@$", MID$(lvlRow$(y), x + 1, 1)) THEN
+    IF INSTR("#NCKPG%?@$", MID$(lvlRow$(y), x + 1, 1)) THEN
         FOR f = 1 TO 4 : EditPaintFace x, y, f, 0, pic$ : NEXT
     ELSEIF ceil THEN
         EditPaintFace x, y, 10, 0, pic$
@@ -12850,7 +13322,7 @@ SUB TakeTrigger(l$)
     c = INSTR(l$, ":") : IF c = 0 OR numTrigs >= MAX_TRIGS THEN EXIT SUB
     w$ = LCASE$(LTRIM$(RTRIM$(LEFT$(l$, c - 1)))) + " "
     numTrigs = numTrigs + 1 : k = numTrigs
-    trigCmd$(k) = LTRIM$(MID$(l$, c + 1)) : trigDone(k) = 0 : trigWas(k) = -1 : trigRepeat(k) = (INSTR(w$, "repeat") > 0)
+    trigCmd$(k) = LTRIM$(MID$(l$, c + 1)) : trigDone(k) = 0 : trigHit(k) = 0 : trigWas(k) = -1 : trigRepeat(k) = (INSTR(w$, "repeat") > 0)
     sp = INSTR(w$, " ") : trigWhen$(k) = LEFT$(w$, sp - 1) : w$ = MID$(w$, sp + 1)
     DIM n(4) AS SINGLE
     FOR j = 1 TO 4
@@ -12858,7 +13330,7 @@ SUB TakeTrigger(l$)
         IF sp > 1 THEN n(j) = VAL(LEFT$(w$, sp - 1)) : w$ = MID$(w$, sp + 1)
     NEXT
     trigX0(k) = MinOf(n(1), n(3)) : trigY0(k) = MinOf(n(2), n(4)) : trigX1(k) = MaxOf(n(1), n(3)) : trigY1(k) = MaxOf(n(2), n(4))
-    IF trigWhen$(k) = "use" OR trigWhen$(k) = "time" THEN trigX0(k) = n(1) : trigY0(k) = n(2) : trigX1(k) = n(1) : trigY1(k) = n(2)
+    IF trigWhen$(k) = "use" OR trigWhen$(k) = "shoot" OR trigWhen$(k) = "time" THEN trigX0(k) = n(1) : trigY0(k) = n(2) : trigX1(k) = n(1) : trigY1(k) = n(2)
 END SUB
 
 ' A teleporter's pad, into sprite slot slot: rings of violet light
@@ -12886,7 +13358,7 @@ SUB HudDefaults
     hudName$(HE_CARDS) = "keycards" : hudX(HE_CARDS) = 784 : hudY(HE_CARDS) = 8 : hudW(HE_CARDS) = 64
     hudName$(HE_MESSAGE) = "message" : hudX(HE_MESSAGE) = 400 : hudY(HE_MESSAGE) = 510
     hudName$(HE_SUBTITLE) = "subtitle" : hudX(HE_SUBTITLE) = 400 : hudY(HE_SUBTITLE) = 44
-    hudName$(HE_AMP) = "amp" : hudX(HE_AMP) = 16 : hudY(HE_AMP) = 532 : hudLabel$(HE_AMP) = "DAMAGE AMP"
+    hudName$(HE_AMP) = "amp" : hudX(HE_AMP) = 232 : hudY(HE_AMP) = 532 : hudLabel$(HE_AMP) = "DAMAGE AMP" ' (right of the armour bar, not on it - night vision's battery 136 further on)
     hudName$(HE_GOD) = "godmode" : hudX(HE_GOD) = 16 : hudY(HE_GOD) = 498 : hudLabel$(HE_GOD) = "GOD MODE"
     hudName$(HE_EVENT) = "event" : hudX(HE_EVENT) = 400 : hudY(HE_EVENT) = 28
     hudName$(HE_NETWORK) = "network" : hudX(HE_NETWORK) = 400 : hudY(HE_NETWORK) = 74
@@ -13162,6 +13634,22 @@ FUNCTION QB64Path$
         IF LEN(f$) THEN QB64Path$ = f$ : EXIT FUNCTION
     LOOP
 END FUNCTION
+
+' Open address url$ in the web browser (the credits' links). Each system
+' has its own command for "open this with whatever opens it", as in the
+' SYS part of QB64_GJ_LIB (open_url_in_browser). Windows' start takes a
+' first "..." as a window title, hence the empty one.
+SUB OpenLink(url$)
+    q$ = CHR$(34)
+    IF INSTR(_OS$, "[WINDOWS]") THEN
+        c$ = "start " + q$ + q$ + " " + q$ + url$ + q$
+    ELSEIF INSTR(_OS$, "[MACOSX]") THEN
+        c$ = "open " + q$ + url$ + q$
+    ELSE
+        c$ = "xdg-open " + q$ + url$ + q$ + " >/dev/null 2>&1"
+    END IF
+    SHELL _HIDE _DONTWAIT c$
+END SUB
 
 ' The qb64pe at p$ - p$ itself, or the one in it if it's a folder - or ""
 ' if there isn't one. Quotes round it (as Windows' "Copy as path" puts
@@ -13518,6 +14006,278 @@ SUB OpenClosets(ev, loud)
     BuildLights : glMeshVersion = glMeshVersion + 1
 END SUB
 
+' The level's secrets (chapter 22), once it's built: each group of
+' touching ? walls a secret, taking the look of the walls beside it;
+' those a trigger opens ("secret X Y" in its commands) kept from Space;
+' each monster closet's stash; and the floor you can only get to through a
+' secret or a closet (secretArea), which the map pickup leaves out.
+SUB AssignSecrets
+    numSecrets = 0 : secretsFound = 0
+    FOR s = 0 TO MAX_SECRETS : secretFound(s) = 0 : secretShot(s) = 0 : secretNeedEv(s) = 0 : secretHint(s) = 0 : NEXT
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF secretCell(x, y) = -1 THEN
+            IF numSecrets < MAX_SECRETS THEN ' (it and every ? touching it: a flood fill, as BuildThiefWay's)
+                numSecrets = numSecrets + 1 : secretCell(x, y) = numSecrets
+                fillX(0) = x : fillY(0) = y : head = 0 : tail = 1
+                DO WHILE head < tail
+                    cx = fillX(head) : cy = fillY(head) : head = head + 1
+                    FOR k = 1 TO 4
+                        nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
+                        IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
+                            IF secretCell(nx, ny) = -1 THEN secretCell(nx, ny) = numSecrets : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+                        END IF
+                    NEXT
+                LOOP
+            ELSE
+                secretCell(x, y) = 0 ' (too many: just a wall)
+            END IF
+        END IF
+    NEXT : NEXT
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (the border's: plain walls)
+        IF secretCell(x, y) = -1 THEN secretCell(x, y) = 0
+    NEXT : NEXT
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2 ' Each one's look: a wall beside it (not a door, a station, another secret)
+        IF secretCell(x, y) > 0 THEN
+            FOR k = 1 TO 4
+                nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4) : v = worldMap(nx, ny)
+                IF v > 0 AND v <> 2 AND v < 8 AND secretCell(nx, ny) = 0 AND closetCell(nx, ny) = 0 AND diagCorner(nx, ny) = 0 THEN worldMap(x, y) = v
+            NEXT
+        END IF
+    NEXT : NEXT
+    FOR t = 1 TO numTrigs ' Opened by a trigger: "secret X Y" in its commands
+        c$ = LCASE$(trigCmd$(t)) : p = INSTR(c$, "secret ")
+        DO WHILE p
+            r$ = LTRIM$(MID$(c$, p + 7)) : sp = INSTR(r$, " ")
+            IF sp THEN
+                sx = VAL(LEFT$(r$, sp - 1)) : sy = VAL(MID$(r$, sp + 1))
+                IF sx > 0 AND sy > 0 AND sx < MAP_SIZE - 1 AND sy < MAP_SIZE - 1 THEN IF secretCell(sx, sy) > 0 THEN secretShot(secretCell(sx, sy)) = -1
+            END IF
+            p = INSTR(p + 1, c$, "secret ")
+        LOOP
+    NEXT
+    FOR ev = 1 TO numEvents ' Each monster closet's stash
+        IF evType(ev) = EV_CLOSET AND numSecrets < MAX_SECRETS THEN ClosetStash ev
+    NEXT
+    FindSecretAreas
+END SUB
+
+' Monster closet ev's stash: its inside - the floor behind its secret
+' walls, outside its room (closetIn) - and in a wall at the back of it, a
+' cell with solid wall all round but the closet (so opening it opens
+' nothing else): the furthest from the room, a secret that waits for the
+' closet's monsters to be dead (secretNeedEv)
+SUB ClosetStash(ev)
+    head = 0 : tail = 0
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF closetCell(x, y) = ev THEN
+            FOR k = 1 TO 4
+                nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
+                IF worldMap(nx, ny) = 0 AND closetIn(nx, ny) = 0 AND NOT InRoom(ev, nx + 0.5, ny + 0.5) THEN closetIn(nx, ny) = ev : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+            NEXT
+        END IF
+    NEXT : NEXT
+    DO WHILE head < tail AND tail < 30 ' (out through its floor - a closet is small: more than that, and it's no closet)
+        cx = fillX(head) : cy = fillY(head) : head = head + 1
+        FOR k = 1 TO 4
+            nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
+            IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND closetIn(nx, ny) = 0 AND NOT InRoom(ev, nx + 0.5, ny + 0.5) THEN closetIn(nx, ny) = ev : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+        NEXT
+    LOOP
+    IF tail = 0 OR tail >= 30 THEN ' (none, or it leaks out into the level: no stash)
+        FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : IF closetIn(x, y) = ev THEN closetIn(x, y) = 0
+        NEXT : NEXT
+        EXIT SUB
+    END IF
+    rx = (evX0(ev) + evX1(ev) + 1) / 2 : ry = (evY0(ev) + evY1(ev) + 1) / 2 : bestD = -1
+    FOR i = 0 TO tail - 1
+        cx = fillX(i) : cy = fillY(i)
+        FOR k = 1 TO 4
+            wx = cx + (k = 1) - (k = 2) : wy = cy + (k = 3) - (k = 4) : v = worldMap(wx, wy)
+            IF wx > 1 AND wy > 1 AND wx < MAP_SIZE - 2 AND wy < MAP_SIZE - 2 AND v > 0 AND v <> 2 AND v < 8 THEN
+                IF secretCell(wx, wy) = 0 AND closetCell(wx, wy) = 0 AND diagCorner(wx, wy) = 0 THEN
+                    ok = -1
+                    FOR j = 1 TO 4 ' (all round it, but the closet: solid wall)
+                        ox = wx + (j = 1) - (j = 2) : oy = wy + (j = 3) - (j = 4)
+                        IF NOT (ox = cx AND oy = cy) THEN
+                            IF worldMap(ox, oy) <= 0 OR worldMap(ox, oy) = 2 OR worldMap(ox, oy) >= 8 OR diagCorner(ox, oy) <> 0 OR secretCell(ox, oy) <> 0 OR closetCell(ox, oy) <> 0 THEN ok = 0
+                        END IF
+                    NEXT
+                    d = (wx + 0.5 - rx) ^ 2 + (wy + 0.5 - ry) ^ 2
+                    IF ok AND d > bestD THEN bestD = d : bx = wx : by = wy : bfx = cx : bfy = cy
+                END IF
+            END IF
+        NEXT
+    NEXT
+    IF bestD < 0 THEN EXIT SUB
+    numSecrets = numSecrets + 1 : secretCell(bx, by) = numSecrets : secretNeedEv(numSecrets) = ev
+    floorH(bx, by) = floorH(bfx, bfy) : ceilH(bx, by) = ceilH(bfx, bfy) ' (its floor and ceiling: the closet's)
+END SUB
+
+' Floor you can only reach through a secret wall (or a monster closet):
+' out from where you start through every floor, door, diagonal and pad
+' (to its partner), never through a wall, glass or a secret - whatever's
+' left over is "behind" one (secretArea: drawn by the map pickup as this
+' wall, the one nearest it, until you've seen it).
+SUB FindSecretAreas
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : secretArea(x, y) = 1 : NEXT : NEXT
+    sx = INT(playerX) : sy = INT(playerY) : IF sx < 1 OR sy < 1 OR sx > MAP_SIZE - 2 OR sy > MAP_SIZE - 2 THEN GOTO SecretLook
+    secretArea(sx, sy) = 0 : fillX(0) = sx : fillY(0) = sy : head = 0 : tail = 1
+    DO WHILE head < tail
+        cx = fillX(head) : cy = fillY(head) : head = head + 1
+        FOR k = 1 TO numPads + 4
+            IF k > 4 THEN ' (a pad: to its partner - pads pair in order, 1st with 2nd...)
+                pk = k - 4 : nx = -1
+                IF padX(pk) = cx AND padY(pk) = cy THEN
+                    o = pk + 1 : IF pk MOD 2 = 0 THEN o = pk - 1
+                    IF o >= 1 AND o <= numPads THEN nx = padX(o) : ny = padY(o)
+                END IF
+            ELSE
+                nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
+            END IF
+            IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
+                IF secretArea(nx, ny) = 1 THEN
+                    v = worldMap(nx, ny)
+                    IF (v = 0 AND glassHP(nx, ny) = 0) OR v = 2 OR (diagCorner(nx, ny) <> 0 AND secretCell(nx, ny) = 0) THEN secretArea(nx, ny) = 0 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+                END IF
+            END IF
+        NEXT
+    LOOP
+    SecretLook:
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (left over: walls are just walls; floor, a door, glass behind a secret - to be given a look)
+        IF secretArea(x, y) = 1 THEN
+            v = worldMap(x, y)
+            IF (v = 0 OR v = 2 OR diagCorner(x, y) <> 0) AND x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN secretArea(x, y) = -1 ELSE secretArea(x, y) = 0
+        END IF
+    NEXT : NEXT
+    FOR pass = 1 TO 40 ' Their look: the wall nearest them (spreading in, a cell a pass)
+        changed = 0
+        FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+            IF secretArea(x, y) = -1 THEN
+                FOR k = 1 TO 4
+                    nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4) : v = worldMap(nx, ny)
+                    IF secretArea(nx, ny) > 0 THEN
+                        secretArea(x, y) = secretArea(nx, ny) : changed = -1 : EXIT FOR
+                    ELSEIF v > 0 AND v <> 2 AND v < 8 AND secretArea(nx, ny) = 0 AND diagCorner(nx, ny) = 0 THEN
+                        secretArea(x, y) = v : changed = -1 : EXIT FOR
+                    END IF
+                NEXT
+            END IF
+        NEXT : NEXT
+        IF NOT changed THEN EXIT FOR
+    NEXT
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : IF secretArea(x, y) = -1 THEN secretArea(x, y) = 1
+    NEXT : NEXT
+END SUB
+
+' May secret s be opened yet? A closet's stash: once the closet's open and
+' every monster that started inside it is dead
+FUNCTION SecretReady(s)
+    SecretReady = -1 : ev = secretNeedEv(s)
+    IF ev = 0 THEN EXIT FUNCTION
+    SecretReady = 0
+    IF evState(ev) <> 2 THEN EXIT FUNCTION
+    FOR j = 1 TO monStartN
+        IF monsterState(j) < 2 THEN IF closetIn(INT(monStartX(j)), INT(monStartY(j))) = ev THEN EXIT FUNCTION
+    NEXT
+    SecretReady = -1
+END FUNCTION
+
+' Secret s found: its walls slide away (as a closet's: floor where they
+' stood, the light and OpenGL's world worked out again). loud: as you find
+' it - dust, a rumble, the jingle, the message, a closet's stash spilling
+' its loot; not loud: a saved game putting it back as it was.
+SUB OpenSecret(s, loud)
+    IF s < 1 OR s > numSecrets THEN EXIT SUB
+    IF secretFound(s) THEN EXIT SUB
+    secretFound(s) = -1 : secretsFound = secretsFound + 1
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF secretCell(x, y) = s THEN
+            worldMap(x, y) = 0 : ClearDecalsOn x, y : cellSeen(x, y) = -1
+            IF loud THEN
+                SpawnSparks x + 0.5, y + 0.5, 0.3, 12, 160, 150, 140
+                IF secretNeedEv(s) THEN DropItemAt StashLoot(0), x + 0.32, y + 0.5 : DropItemAt StashLoot(1), x + 0.68, y + 0.5
+            END IF
+        END IF
+    NEXT : NEXT
+    IF loud THEN
+        PlaySfx sndCloset&, 0.7 : PlaySfx sndSecret&, 0.9 : ShowMsg "YOU FOUND A SECRET!"
+        AchAdd "Secrets", 1
+    END IF
+    BuildLights : glMeshVersion = glMeshVersion + 1
+END SUB
+
+' A closet stash's loot: something good (n = 0) - armour, a big medkit, an
+' overcharge, a damage amp - and something to shoot with (n = 1)
+FUNCTION StashLoot(n)
+    IF n = 0 THEN
+        r = INT(RND * 5) : StashLoot = IT_ARMOR
+        IF r = 1 THEN StashLoot = IT_BIGMED ELSE IF r = 2 THEN StashLoot = IT_OVERCHARGE ELSE IF r = 3 THEN StashLoot = IT_AMP ELSE IF r = 4 THEN StashLoot = IT_GOGGLES
+    ELSE
+        IF RND < 0.5 THEN StashLoot = IT_CELLS ELSE StashLoot = IT_SHELLS
+    END IF
+END FUNCTION
+
+' Each frame (with secrets in the level): a closet whose monsters are all
+' dead gives its stash away with a click from the back of it, once
+SUB SecretHints
+    FOR s = 1 TO numSecrets
+        IF secretNeedEv(s) AND NOT secretHint(s) AND NOT secretFound(s) THEN
+            IF SecretReady(s) THEN
+                secretHint(s) = -1
+                FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+                    IF secretCell(x, y) = s THEN SfxAt sndPlate&, x + 0.5, y + 0.5, playerX, playerY
+                NEXT : NEXT
+                ShowMsg "Something clicked at the back of the closet..."
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' A monster's bolt at (x, y), z high: the decoration it's flown into, if
+' any (not a body: they lie flat) - its middle a little more than a bolt's
+' width away, and the bolt no higher than its top
+FUNCTION BoltDeco(x, y, z)
+    cx = INT(x) : cy = INT(y)
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE OR cyberOn THEN EXIT FUNCTION
+    d = decoCell(cx, cy) : IF d = 0 THEN EXIT FUNCTION
+    IF NOT decoOn(d) OR decoKind(d) = DK_BODY THEN EXIT FUNCTION
+    IF (x - decoX(d)) ^ 2 + (y - decoY(d)) ^ 2 > 0.32 * 0.32 THEN EXIT FUNCTION
+    IF z > FloorAt(decoX(d), decoY(d)) + DecoScale(decoKind(d)) THEN EXIT FUNCTION
+    BoltDeco = d
+END FUNCTION
+
+' NEON PONG's screen (ArcadeRun): the court, the paddles (you: py, the
+' machine: cy), the ball at (bx, by) if ballOn, the score, and big$ (YOU
+' WIN! / GAME OVER) over it all at the end
+SUB DrawArcade(py, cy, bx, by, me, it, ballOn, big$)
+    LINE (0, 0)-(799, 599), _RGB32(4, 2, 14), BF
+    FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGB32(0, 0, 0) : NEXT ' (scanlines: it's an old screen)
+    LINE (20, ARC_TOP - 4)-(779, ARC_TOP - 1), _RGB32(255, 60, 200), BF : LINE (20, ARC_BOT + 1)-(779, ARC_BOT + 4), _RGB32(255, 60, 200), BF
+    FOR y = ARC_TOP + 8 TO ARC_BOT - 16 STEP 24 : LINE (398, y)-(401, y + 12), _RGB32(120, 60, 160), BF : NEXT
+    MenuText 320, 40, LTRIM$(STR$(me)), 4, _RGB32(80, 240, 255), 1
+    MenuText 480, 40, LTRIM$(STR$(it)), 4, _RGB32(255, 90, 200), 1
+    MenuText 400, 18, "NEON PONG  -  FIRST TO" + STR$(ARC_WIN) + "  -  MOUSE OR ARROWS, ESC GIVES UP", 1, _RGB32(160, 150, 200), 1
+    FOR g = 6 TO 1 STEP -1 ' (a glow round the paddles: wider and fainter)
+        LINE (52 - g, py - ARC_PAD / 2 - g)-(61 + g, py + ARC_PAD / 2 + g), _RGBA32(80, 240, 255, 22), BF
+        LINE (738 - g, cy - ARC_PAD / 2 - g)-(747 + g, cy + ARC_PAD / 2 + g), _RGBA32(255, 90, 200, 22), BF
+    NEXT
+    LINE (52, py - ARC_PAD / 2)-(61, py + ARC_PAD / 2), _RGB32(80, 240, 255), BF
+    LINE (738, cy - ARC_PAD / 2)-(747, cy + ARC_PAD / 2), _RGB32(255, 90, 200), BF
+    IF ballOn THEN
+        FOR g = 8 TO 1 STEP -2 : LINE (bx - 6 - g, by - 6 - g)-(bx + 6 + g, by + 6 + g), _RGBA32(255, 255, 160, 26), BF : NEXT
+        LINE (bx - 6, by - 6)-(bx + 6, by + 6), _RGB32(255, 255, 200), BF
+    END IF
+    IF big$ <> "" THEN MenuText 400, 270, big$, 5, _RGB32(255, 240, 120), 1
+END SUB
+
+' You shot (or kicked) something in cell (x, y): a "shoot" trigger there
+' goes off the next time the triggers run (RunTriggers: trigHit)
+SUB ShotAt(x, y)
+    FOR k = 1 TO numTrigs
+        IF trigWhen$(k) = "shoot" AND NOT trigDone(k) AND trigX0(k) = x AND trigY0(k) = y THEN trigHit(k) = -1
+    NEXT
+END SUB
+
 ' The thieves' way home: from the cells outside every hoard's doors, how
 ' many steps to each open cell (a flood fill, as the moving lights' -
 ' chapter 24), through doors that need no keycard. 30000: no way.
@@ -13546,6 +14306,7 @@ SUB BuildThiefWay
             nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
             IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
                 v = worldMap(nx, ny) : ok = (v <= 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND glassHP(nx, ny) <= 0) ' (a block's cell, or a pane of glass, is no way through for a fleeing thief)
+                IF decoCell(nx, ny) THEN IF decoKind(decoCell(nx, ny)) <> DK_BODY THEN ok = 0 ' (nor a decoration standing in the way - it would stick behind it, steps from home)
                 IF v = 2 THEN ok = (doorKey(nx, ny) = 0 AND doorType(nx, ny) <> DOOR_EXIT)
                 IF ok AND thiefDist(nx, ny) > thiefDist(x, y) + 1 THEN
                     thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
@@ -14493,8 +15254,8 @@ SUB ConHelp(c$)
             ConPrint "  of an alcove. Its edges are eighths of the cell (0-8 across, then down); WALL 1-6 is the look of #, N, C, K,"
             ConPrint "  P or G. block X Y none takes it away. savelevel (or Ctrl+S in the editor) keeps it"
         CASE "loot"
-            ConPrint "loot: what each breakable may leave in this sector. Breaking one rolls a d4 for drop A-D,"
-            ConPrint "  then 1-100: at or under that drop's chance, out it comes (kicked: back towards you)"
+            ConPrint "loot: what each breakable may leave in this sector. Breaking one rolls 1-100 once: drop A has"
+            ConPrint "  the first A%, B the next B%... (each chance as written; anything at all: them added up)"
             ConPrint "loot BREAKABLE DROP [DROP DROP DROP]: set one - each PICKUP:CHANCE (ammo shells medkit health"
             ConPrint "  armor overcharge amp...) or - for none: loot crate ammo:20 shells:20 - armor:10"
             ConPrint "loot BREAKABLE none: it leaves nothing   loot default: the game's own table again"
@@ -14719,7 +15480,7 @@ SUB ApplySettings
     setting(SET_MODE) = ModeNow : modeWas = setting(SET_MODE)
     fovPlane = TAN(setting(SET_FOV) / 2 * 3.14159265 / 180)
     turnSpeed = setting(SET_MOUSE) * 0.0006
-    IF nowPlaying& > 0 THEN _SNDVOL nowPlaying&, setting(SET_MUSIC) / 100
+    SetMusicVol
     ' ART: which pictures, how big (the game loop reloads them - ArtReload)
     artWant = 0 : IF setting(SET_ART) = 2 THEN artWant = 1 : IF setting(SET_RENDERER) = 2 THEN artWant = 2
     ApplyDisplay
@@ -14880,7 +15641,7 @@ END SUB
 FUNCTION SettingText$(id)
     v$ = LTRIM$(STR$(setting(id)))
     SELECT CASE id
-        CASE SET_SFX, SET_MUSIC, SET_SPEECH, SET_XALPHA, SET_SCANLINES, SET_PHOSPHOR, SET_SCANTHICK, SET_AIMSENS : SettingText$ = v$ + "%"
+        CASE SET_SFX, SET_MUSIC, SET_SPEECH, SET_XALPHA, SET_SCANLINES, SET_PHOSPHOR, SET_SCANTHICK, SET_AIMSENS, SET_GAMMA : SettingText$ = v$ + "%"
         CASE SET_SCANGAP : SettingText$ = v$ + " PX"
         CASE SET_FOV : SettingText$ = v$ + CHR$(248) ' (a degree sign in QB64PE's font)
         CASE SET_XSTYLE : SettingText$ = CrossStyleName$(setting(id))
@@ -15059,10 +15820,10 @@ SUB BuildMenu(scr)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_QB64 ' The qb64pe the code terminals compile with (chapter 19)
             menuTitle$ = "QB64PE COMPILER" : menuWide = -1
-            AddMenuItem "CODE TERMINALS COMPILE YOUR FIX WITH IT", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "TERMINALS COMPILE YOUR FIX WITH IT", MI_TEXT, 0, 0, 0, ""
             AddMenuItem "NONE? THEY CHECK YOUR LINES INSTEAD", MI_TEXT, 0, 0, 0, ""
             AddMenuItem "", MI_TEXT, 0, 0, 0, ""
-            IF LEN(qbChosen$) THEN info$ = PathTail$(qbChosen$, 58) ELSE info$ = "its path, or its folder (Ctrl+V pastes)"
+            IF LEN(qbChosen$) THEN info$ = PathTail$(qbChosen$, 48) ELSE info$ = "its path, or its folder (Ctrl+V pastes)"
             AddMenuItem "TYPE IT", MI_ACTION, 0, MA_QB64_TYPE, -1, info$
             AddMenuItem "BROWSE", MI_ACTION, 0, MA_QB64_BROWSE, -1, "pick it in a file window"
             AddMenuItem "FIND IT", MI_ACTION, 0, MA_QB64_AUTO, -1, "look for it: $QB64PE, the PATH, the usual places"
@@ -15079,12 +15840,12 @@ SUB BuildMenu(scr)
                 ELSE
                     AddMenuItem "COMPILING WITH THE ONE FOUND", MI_TEXT, 0, 0, 0, ""
                 END IF
-                AddMenuItem PathTail$(qb$, 46), MI_TEXT, 0, 0, 0, ""
+                AddMenuItem PathTail$(qb$, 36), MI_TEXT, 0, 0, 0, "" ' (36 big letters fit the panel: 576 of its 608)
             END IF
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_VIDEO
             menuTitle$ = "VIDEO" : menuWide = -1
-            AddSettingItem SET_DISPLAY : AddSettingItem SET_RENDERER : AddSettingItem SET_ART : AddSettingItem SET_FPS
+            AddSettingItem SET_DISPLAY : AddSettingItem SET_RENDERER : AddSettingItem SET_ART : AddSettingItem SET_GAMMA : AddSettingItem SET_FPS
             AddMenuItem "OPENGL ONLY:", MI_TEXT, 0, 0, 0, ""
             AddSettingItem SET_RES : AddSettingItem SET_LOOK
             AddSettingItem SET_SCREENFX : AddSettingItem SET_SCANLINES : AddSettingItem SET_SCANGAP
@@ -15116,12 +15877,12 @@ SUB BuildMenu(scr)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_CREDITS
             menuTitle$ = "CREDITS"
-            AddMenuItem "CODE  GRYMMJACK + CLAUDE", MI_TEXT, 0, 0, 0, ""
-            AddMenuItem "ENGINE  QB64 PHOENIX EDITION", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "CODE  GRYMMJACK + CLAUDE", MI_ACTION, 0, MA_LINK, -1, "GRYMMJACK|https://github.com/grymmjack/neon-caster"
+            AddMenuItem "ENGINE  QB64 PHOENIX EDITION", MI_ACTION, 0, MA_LINK, -1, "QB64 PHOENIX EDITION|https://www.qb64phoenix.com"
             AddMenuItem "RAYCASTING  AFTER LODE VANDEVENNE", MI_TEXT, 0, 0, 0, ""
-            AddMenuItem "ART  PIXELMON  (ENDESGA-32)", MI_TEXT, 0, 0, 0, ""
-            AddMenuItem "SOUND  SOUNDMON", MI_TEXT, 0, 0, 0, ""
-            AddMenuItem "MUSIC  SOUNDMON", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "ART  PIXELMON  (ENDESGA-32)", MI_ACTION, 0, MA_LINK, -1, "PIXELMON|https://github.com/grymmjack/pixelmon"
+            AddMenuItem "SOUND  SOUNDMON", MI_ACTION, 0, MA_LINK, -1, "SOUNDMON|https://github.com/grymmjack/soundmon"
+            AddMenuItem "MUSIC  SOUNDMON", MI_ACTION, 0, MA_LINK, -1, "SOUNDMON|https://github.com/grymmjack/soundmon"
             AddMenuItem "", MI_TEXT, 0, 0, 0, ""
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_QUIT
@@ -15157,7 +15918,7 @@ FUNCTION MenuItemAt(mouseX, mouseY)
     mr = MenuRowH
     FOR i = 1 TO numMI
         rowY = MENU_TOP + (i - 1) * mr
-        IF mouseY >= rowY - 3 AND mouseY < rowY + mr - 3 AND mouseX >= 100 AND mouseX <= 760 THEN
+        IF mouseY >= rowY + 15 - mr \ 2 AND mouseY < rowY + 15 - mr \ 2 + mr AND mouseX >= 100 AND mouseX <= 760 THEN ' (round the bar: see DrawMenu)
             IF MenuSelectable(i) THEN MenuItemAt = i
             EXIT FUNCTION
         END IF
@@ -15195,14 +15956,17 @@ SUB DrawMenu(t)
             col~& = _RGBA32(90, 85, 120, alpha)
         ELSEIF selected THEN
             col~& = _RGBA32(255, 255, 255, alpha)
+        ELSEIF miAct(i) = MA_LINK AND miKind(i) = MI_ACTION THEN
+            col~& = _RGBA32(200, 160, 255, alpha) ' (a credit with a link: the colour of the lines round it)
         ELSE
             col~& = _RGBA32(185, 195, 230, alpha)
         END IF
         IF selected AND miKind(i) <> MI_TEXT THEN ' The bar behind the selected item
             barA = alpha * (0.3 + 0.1 * SIN(t * 0.2))
-            LINE (110 + slide, rowY - 3)-(690 + slide, rowY + mr - 5), _RGBA32(255, 40, 170, barA), BF
-            LINE (110 + slide, rowY - 3)-(690 + slide, rowY - 3), _RGBA32(90, 230, 255, alpha), BF
-            LINE (110 + slide, rowY + mr - 5)-(690 + slide, rowY + mr - 5), _RGBA32(90, 230, 255, alpha), BF
+            barT = rowY + 15 - (mr - 2) \ 2 : barB = barT + mr - 2 ' (centred on the letters - rowY + 3 to rowY + 26 - however close the rows)
+            LINE (110 + slide, barT)-(690 + slide, barB), _RGBA32(255, 40, 170, barA), BF
+            LINE (110 + slide, barT)-(690 + slide, barT), _RGBA32(90, 230, 255, alpha), BF
+            LINE (110 + slide, barB)-(690 + slide, barB), _RGBA32(90, 230, 255, alpha), BF
             IF (t \ 15) MOD 2 = 0 THEN MenuText 118 + slide, rowY, ">", 2, _RGBA32(90, 230, 255, alpha), 0
         END IF
         IF miKind(i) = MI_TEXT THEN
@@ -15221,13 +15985,13 @@ SUB DrawMenu(t)
                 LINE (wx, rowY + 11)-(wx + MENU_WIDGET_W, rowY + 18), _RGBA32(60, 45, 95, alpha), BF
                 LINE (wx, rowY + 11)-(wx + MENU_WIDGET_W * f, rowY + 18), _RGBA32(80, 220, 255, alpha), BF
                 LINE (wx + MENU_WIDGET_W * f - 4, rowY + 4)-STEP(8, 21), col~&, BF ' The knob
-                MenuText wx + MENU_WIDGET_W + 16, rowY, SettingText$(id), 2, col~&, 0
+                MenuText wx + MENU_WIDGET_W + 12, rowY, SettingText$(id), 2, col~&, 0
             CASE MI_TOGGLE
                 LINE (wx, rowY + 3)-STEP(22, 22), col~&, B
                 IF setting(miRef(i)) THEN LINE (wx + 5, rowY + 8)-STEP(12, 12), _RGBA32(80, 220, 255, alpha), BF
                 IF setting(miRef(i)) THEN MenuText wx + 36, rowY, "ON", 2, col~&, 0 ELSE MenuText wx + 36, rowY, "OFF", 2, col~&, 0
             CASE MI_CHOICE
-                IF menuWide THEN MenuText wx, rowY, "<  " + SettingText$(miRef(i)) + "  >", 2, col~&, 0
+                IF menuWide THEN MenuText wx, rowY, "< " + SettingText$(miRef(i)) + " >", 2, col~&, 0
             CASE MI_KEY
                 IF menuCapture = i THEN
                     IF (t \ 10) MOD 2 = 0 THEN MenuText wx, rowY, "PRESS A KEY", 2, _RGBA32(255, 230, 60, alpha), 0
@@ -15237,10 +16001,17 @@ SUB DrawMenu(t)
         END SELECT
         IF menuTyping AND miAct(i) = MA_QB64_TYPE AND miKind(i) = MI_ACTION THEN ' The path being typed, and a cursor
             IF menuTypeBad THEN
-                MenuText MENU_LABEL_X + 160 + slide, rowY + 9, "no qb64pe there: " + PathTail$(menuTyped$, 40), 1, _RGBA32(255, 90, 90, alpha), 0
+                MenuText MENU_LABEL_X + 160 + slide, rowY + 9, "no qb64pe there: " + PathTail$(menuTyped$, 31), 1, _RGBA32(255, 90, 90, alpha), 0
             ELSE
                 cur$ = " " : IF (t \ 15) MOD 2 = 0 THEN cur$ = "_"
-                MenuText MENU_LABEL_X + 160 + slide, rowY + 9, PathTail$(menuTyped$, 56) + cur$, 1, _RGBA32(255, 230, 60, alpha), 0
+                MenuText MENU_LABEL_X + 160 + slide, rowY + 9, PathTail$(menuTyped$, 47) + cur$, 1, _RGBA32(255, 230, 60, alpha), 0 ' (48 small letters from MENU_LABEL_X + 160 end inside the panel)
+            END IF
+        ELSEIF miAct(i) = MA_LINK AND miKind(i) = MI_ACTION THEN ' A link: its name underlined - and picked, its address under the panel
+            bar = INSTR(miInfo$(i), "|") : lw$ = LEFT$(miInfo$(i), bar - 1) : lx = 400 + slide - LEN(miLabel$(i)) * 8 + (INSTR(miLabel$(i), lw$) - 1) * 16
+            LINE (lx, rowY + 28)-(lx + LEN(lw$) * 16 - 3, rowY + 29), _RGBA32(90, 230, 255, alpha), BF
+            IF selected THEN ' (pointed at: the name lights up cyan, as a web page's link does)
+                MenuText lx, rowY, lw$, 2, _RGBA32(90, 230, 255, alpha), 0
+                MenuText 400, 548, MID$(miInfo$(i), bar + 1) + "  (ENTER OR CLICK OPENS IT)", 1, _RGBA32(90, 230, 255, alpha), 1
             END IF
         ELSEIF LEN(miInfo$(i)) THEN
             MenuText MENU_LABEL_X + 160 + slide, rowY + 9, miInfo$(i), 1, col~&, 0
@@ -15410,7 +16181,25 @@ SUB PlayMusic(snd&)
     IF snd& = nowPlaying& THEN EXIT SUB
     IF nowPlaying& > 0 THEN _SNDSTOP nowPlaying&
     nowPlaying& = snd&
-    IF snd& > 0 THEN _SNDVOL snd&, setting(SET_MUSIC) / 100 : _SNDLOOP snd&
+    IF snd& > 0 THEN _SNDVOL snd&, MusicVol! : _SNDLOOP snd&
+END SUB
+
+' How loud the music plays: the MUSIC VOLUME setting - halved while the
+' game's paused under the menu (musicDuck!)
+' OpenGL's animation clock (ripples, flicker, shimmer, beams): the time -
+' or, while the game's paused under the menu, the time it paused at
+FUNCTION glClock#
+    IF glFrozen THEN glClock# = glFrozenAt# ELSE glClock# = TIMER(0.001)
+END FUNCTION
+
+FUNCTION MusicVol!
+    MusicVol! = setting(SET_MUSIC) / 100 * musicDuck!
+END FUNCTION
+
+' The music's volume, as it should be now (after a change of setting, or
+' of musicDuck!)
+SUB SetMusicVol
+    IF nowPlaying& > 0 THEN _SNDVOL nowPlaying&, MusicVol!
 END SUB
 
 ' === LIGHT AND THE MAP (chapters 14 and 18) ====================================
@@ -15609,14 +16398,18 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
     LINE (mapLeft - 2, mapTop - 2)-(mapLeft + MAP_SIZE * cellSize + 1, mapTop + MAP_SIZE * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
     FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
         IF showAll OR cellSeen(cellX, cellY) THEN
-            mmColor~& = 0
+            mmColor~& = 0 : hideIt = 0
+            IF secretArea(cellX, cellY) > 0 AND NOT cellSeen(cellX, cellY) THEN hideIt = -1 : mmColor~& = wallMapColor(secretArea(cellX, cellY)) ' (behind a secret, not seen yet: the map pickup shows rock)
+            IF NOT hideIt THEN
             SELECT CASE worldMap(cellX, cellY)
                 CASE 0
-                    IF cellSize > 4 THEN ' (the full map: the floor - and what's on it that matters)
+                    IF cellSize > 4 THEN ' (the full map: the floor - and what's on it that matters, once you've seen it: the map pickup shows the layout, not what's in it)
                         mmColor~& = _RGBA32(40, 50, 95, 150)
-                        IF liqKind(cellX, cellY) THEN k = liqKind(cellX, cellY) : mmColor~& = _RGBA32(lqR(k) * 0.7, lqG(k) * 0.7, lqB(k) * 0.7, 210) ' (a pool, its colour: lava orange, acid green...)
-                        IF floorH(cellX, cellY) <= PIT_DEPTH THEN mmColor~& = _RGBA32(10, 0, 20, 230) ' (a pit with no bottom: black)
-                        IF liftCell(cellX, cellY) THEN mmColor~& = _RGBA32(70, 150, 90, 190) ' (a lift)
+                        IF cellSeen(cellX, cellY) THEN
+                            IF liqKind(cellX, cellY) THEN k = liqKind(cellX, cellY) : mmColor~& = _RGBA32(lqR(k) * 0.7, lqG(k) * 0.7, lqB(k) * 0.7, 210) ' (a pool, its colour: lava orange, acid green...)
+                            IF floorH(cellX, cellY) <= PIT_DEPTH THEN mmColor~& = _RGBA32(10, 0, 20, 230) ' (a pit with no bottom: black)
+                            IF liftCell(cellX, cellY) THEN mmColor~& = _RGBA32(70, 150, 90, 190) ' (a lift)
+                        END IF
                     END IF
                     IF glassHP(cellX, cellY) > 0 THEN mmColor~& = _RGB32(130, 220, 255) ' (glass)
                 CASE 1, 3 TO 9
@@ -15632,28 +16425,29 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
                         mmColor~& = _RGB32(40, 200, 80)
                     END IF
             END SELECT
+            END IF
             sx = mapLeft + cellX * cellSize : sy = mapTop + cellY * cellSize
-            IF mmColor~& <> 0 AND diagCorner(cellX, cellY) <> 0 THEN ' Diagonal: just its solid half
+            IF mmColor~& <> 0 AND diagCorner(cellX, cellY) <> 0 AND NOT hideIt THEN ' Diagonal: just its solid half
                 FOR pixY = 0 TO cellSize - 1 : FOR pixX = 0 TO cellSize - 1
                     IF InDiagonalWall(diagCorner(cellX, cellY), (pixX + 0.5) / cellSize, (pixY + 0.5) / cellSize) THEN PSET (sx + pixX, sy + pixY), mmColor~&
                 NEXT : NEXT
             ELSEIF mmColor~& THEN
                 LINE (sx, sy)-STEP(cellSize - 1, cellSize - 1), mmColor~&, BF
-                IF doorKey(cellX, cellY) AND doorOpen(cellX, cellY) = 0 THEN LINE (sx + cellSize \ 3, sy + cellSize \ 3)-STEP(cellSize \ 3, cellSize \ 3), _RGB32(0, 0, 0), BF
+                IF doorKey(cellX, cellY) AND doorOpen(cellX, cellY) = 0 AND NOT hideIt THEN LINE (sx + cellSize \ 3, sy + cellSize \ 3)-STEP(cellSize \ 3, cellSize \ 3), _RGB32(0, 0, 0), BF
             END IF
-            IF boxOn(cellX, cellY) THEN ' A box: just where it stands (at least a pixel)
+            IF boxOn(cellX, cellY) AND cellSeen(cellX, cellY) THEN ' A box: just where it stands (at least a pixel) - once seen
                 LINE (sx + INT(boxX0(cellX, cellY) * cellSize), sy + INT(boxY0(cellX, cellY) * cellSize))-(sx + MaxOf(INT(boxX0(cellX, cellY) * cellSize), INT(boxX1(cellX, cellY) * cellSize + 0.5) - 1), sy + MaxOf(INT(boxY0(cellX, cellY) * cellSize), INT(boxY1(cellX, cellY) * cellSize + 0.5) - 1)), wallMapColor(boxOn(cellX, cellY)), BF
             END IF
         END IF
     NEXT : NEXT
     IF cellSize > 4 THEN ' Teleporter pads: a violet ring each
         FOR k = 1 TO numPads
-            IF showAll OR cellSeen(padX(k), padY(k)) THEN CIRCLE (mapLeft + (padX(k) + 0.5) * cellSize, mapTop + (padY(k) + 0.5) * cellSize), cellSize * 0.4, _RGB32(190, 110, 255)
+            IF cellSeen(padX(k), padY(k)) THEN CIRCLE (mapLeft + (padX(k) + 0.5) * cellSize, mapTop + (padY(k) + 0.5) * cellSize), cellSize * 0.4, _RGB32(190, 110, 255)
         NEXT
     END IF
     IF (TIMER * 4 AND 1) = 0 THEN ' Keycards blink
         FOR i = 1 TO numItems
-            IF itemOn(i) AND itemKind(i) <= 3 AND (showAll OR cellSeen(INT(itemX(i)), INT(itemY(i)))) THEN
+            IF itemOn(i) AND itemKind(i) <= 3 AND cellSeen(INT(itemX(i)), INT(itemY(i))) THEN ' (a keycard: once you've seen where it is)
                 LINE (mapLeft + itemX(i) * cellSize - cellSize \ 3 - 1, mapTop + itemY(i) * cellSize - cellSize \ 3 - 1)-STEP(cellSize \ 1.5 + 1, cellSize \ 1.5 + 1), CardRGB~&(itemKind(i)), BF
             END IF
         NEXT
@@ -15843,7 +16637,7 @@ SUB _GL
     ' ("supersampling" - the dearest way to get smooth edges).
     glPost = 0 : res = glSet(SET_RES, b)
     IF glPostProg <> 0 THEN
-        IF glSet(SET_BLOOM, b) OR glSet(SET_SCREENFX, b) > 1 OR glSet(SET_HITFX, b) OR glSet(SET_PHOSPHOR, b) OR res <> RES_NATIVE THEN glPost = -1
+        IF glSet(SET_BLOOM, b) OR glSet(SET_SCREENFX, b) > 1 OR glSet(SET_HITFX, b) OR glSet(SET_PHOSPHOR, b) OR glSet(SET_GAMMA, b) <> 100 OR glNight(b) OR res <> RES_NATIVE THEN glPost = -1
     END IF
     IF glPost THEN
         sw = vw : sh = vh
@@ -16276,7 +17070,7 @@ SUB GLSpritesAndExtras(b, mirror)
     ' Particles - sparks, embers, dust - are tiny glows.
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE : _glDepthMask _GL_FALSE
     IF glSet(SET_SHAFTS, b) THEN
-        secs = TIMER(0.001)
+        secs = glClock#
         FOR i = 1 TO glNumShaft(b)
             GLShaft glShaftX(i, b), glShaftY(i, b), glShaftR(i, b), glShaftG(i, b), glShaftB(i, b), glShaftPh(i, b) + secs, rightX, rightY
         NEXT
@@ -16563,6 +17357,8 @@ SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
     GLSL_uniform_1f p~&, "sideDim", glSideDim(b) * (glAspectK > 1.01) * -1
     GLSL_uniform_1f p~&, "bloomAmt", bloomOn * -0.9
     GLSL_uniform_1f p~&, "fxMode", glSet(SET_SCREENFX, b) - 1
+    GLSL_uniform_1f p~&, "gamma", 100 / MaxOf(10, glSet(SET_GAMMA, b)) ' (BRIGHTNESS: the curve's power - under 1 lifts the dark)
+    GLSL_uniform_1f p~&, "night", (glNight(b) <> 0) * -1
     ' Scanlines: how dark, how many of the window's pixels apart (a whole
     ' number, or they'd shimmer in bands) and how thick (part of that gap)
     GLSL_uniform_1f p~&, "scanDark", glSet(SET_SCANLINES, b) / 100 : GLSL_uniform_1f p~&, "linePx", glSet(SET_SCANGAP, b)
@@ -16597,7 +17393,7 @@ SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
     GLSL_uniform_1f p~&, "passMode", 0
     _glViewport vx, vy, vw, vh
     GLSL_uniform_2f p~&, "res", vw, vh
-    GLSL_uniform_1f p~&, "secs", TIMER(0.001) - INT(TIMER(0.001) / 1000) * 1000
+    GLSL_uniform_1f p~&, "secs", glClock# - INT(glClock# / 1000) * 1000
     hit = (glSet(SET_HITFX, b) <> 0) * -1 ' (1 with HIT FX on, else 0)
     GLSL_uniform_1f p~&, "hurt", glHurt(b) * hit : GLSL_uniform_1f p~&, "rail", glRail(b) * hit
     FOR i = 0 TO GL_HEAT - 1 ' Explosions on screen, for the heat shimmer
@@ -16793,7 +17589,7 @@ SUB GLShaderStart(b)
     GLSL_uniform_2f p~&, "viewDir", glEyeDX, glEyeDY
     glBumpOn = (glSet(SET_BUMP, b) <> 0) * -1 ' (1 or 0: GLBindSlot uses it)
     GLSL_uniform_1f p~&, "smoothOn", (glSet(SET_SMOOTH, b) <> 0) * -1
-    GLSL_uniform_1f p~&, "secs", TIMER(0.001) - INT(TIMER(0.001) / 1000) * 1000
+    GLSL_uniform_1f p~&, "secs", glClock# - INT(glClock# / 1000) * 1000
     glNeonOn = glSet(SET_NEON, b)
     FOR k = 1 TO GL_DYN
         i$ = "[" + LTRIM$(STR$(k - 1)) + "]"
@@ -17265,6 +18061,35 @@ SUB WorldLoopsOff
         IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k)
     NEXT
     IF liqHum& > 0 THEN _SNDSTOP liqHum&
+    IF swishHum& > 0 THEN _SNDSTOP swishHum&
+    swishVol! = 0
+END SUB
+
+' Wading or swimming: the water swishing round you, looping, as loud as
+' you're moving (moved: how far this frame) and as deep as you're in it -
+' easing up and down, so it never clicks on or off. Not in lava (that
+' hisses), nor in the editor or the network.
+SUB SwishSound(moved, lk, isDead)
+    IF sndSwish& <= 0 THEN EXIT SUB
+    IF moved > 0.4 THEN moved = 0 ' (a teleport, not a stroke)
+    want! = 0
+    IF lk <> 0 AND lk <> LQ_LAVA AND NOT editMode AND NOT cyberOn AND NOT isDead THEN
+        cx = INT(playerX) : cy = INT(playerY)
+        deep! = (liqZ(cx, cy) - floorH(cx, cy)) / LQ_FULL : IF deep! > 1 THEN deep! = 1
+        IF deep! < 0.3 THEN deep! = 0.3
+        want! = MinOf(1, moved / (WALK_SPEED * 0.6)) * deep! * 0.6 ' (water slows you: walking through it is as loud as it gets)
+    END IF
+    swishVol! = swishVol! + (want! - swishVol!) * 0.15
+    IF swishVol! < 0.01 AND want! = 0 THEN
+        swishVol! = 0
+        IF swishHum& > 0 THEN IF _SNDPLAYING(swishHum&) THEN _SNDSTOP swishHum&
+        EXIT SUB
+    END IF
+    IF swishHum& = 0 THEN swishHum& = _SNDCOPY(sndSwish&)
+    IF swishHum& > 0 THEN
+        _SNDVOL swishHum&, swishVol! * setting(SET_SFX) / 100
+        IF NOT _SNDPLAYING(swishHum&) THEN _SNDLOOP swishHum&
+    END IF
 END SUB
 
 ' The harmful liquids bubble: one looping copy of the bubbling (liqHum&),
@@ -17712,6 +18537,8 @@ SUB GLBuildShaders
     fs$ = fs$ + "float inside(vec2 t) { return step(0.0, t.x) * step(t.x, 1.0) * step(0.0, t.y) * step(t.y, 1.0); }" + nl$
     fs$ = fs$ + "uniform float scanDark, linePx, lineThick;  // scanlines: how dark, how many pixels apart, how thick" + nl$
     fs$ = fs$ + "uniform float glow, passMode;  // phosphor glow: how much; passMode 1 draws just the picture, for it" + nl$
+    fs$ = fs$ + "uniform float gamma;  // BRIGHTNESS: the view's colours to this power (1.0: as they are)" + nl$
+    fs$ = fs$ + "uniform float night;  // night vision on: the view in green, the dark lifted, grain, the edges dim" + nl$
     fs$ = fs$ + "uniform sampler2D glowTex;" + nl$
     fs$ = fs$ + "uniform vec2 res;         // the window's size in pixels" + nl$
     fs$ = fs$ + "uniform vec4 heat[4];     // explosions: where (0..1), how big, how strong" + nl$
@@ -17751,6 +18578,13 @@ SUB GLBuildShaders
     fs$ = fs$ + "        c.r = texture2D(scene, s + off).r; c.b = texture2D(scene, s - off).b;" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    c += texture2D(bloom, s).rgb * bloomAmt;" + nl$
+    fs$ = fs$ + "    c = pow(clamp(c, 0.0, 1.0), vec3(gamma));  // BRIGHTNESS: a curve - black stays black, white stays white, the shades between come up (or down)" + nl$
+    fs$ = fs$ + "    if (night > 0.5) {  // NIGHT VISION (ApplyNight is the software renderer's)" + nl$
+    fs$ = fs$ + "        float l = sqrt(clamp(dot(c, vec3(0.3, 0.59, 0.11)) * 1.5 + 0.03, 0.0, 1.0));" + nl$
+    fs$ = fs$ + "        l += (fract(sin(dot(floor(gl_FragCoord.xy / 2.0) + floor(secs * 30.0) * 7.31, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.14;" + nl$
+    fs$ = fs$ + "        vec2 e = (p - 0.5) * 2.0; l *= clamp(1.0 - (dot(e, e) - 0.55) * 1.4, 0.15, 1.0);" + nl$
+    fs$ = fs$ + "        c = vec3(0.3, 1.0, 0.35) * clamp(l, 0.0, 1.0);" + nl$
+    fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    float edge = smoothstep(0.3, 0.75, length((p - 0.5) * vec2(1.25, 1.0)));" + nl$
     fs$ = fs$ + "    c = mix(c, vec3(0.75, 0.0, 0.05), hurt * edge * (0.65 + 0.35 * sin(secs * 18.0)));  // hurt: a red pulse at the edges" + nl$
     fs$ = fs$ + "    vec2 hp = onHud(p); float onScreen = inside(hp);  // where this is on our screen (the HUD's)" + nl$
@@ -17783,6 +18617,70 @@ END SUB
 
 ' === THE GAME'S SIDE OF THE OPENGL EXTRAS ======================================
 ' (These run in the game, between frames - not in SUB _GL.)
+
+' BRIGHTNESS for the software renderer: every pixel of the view put
+' through a gamma curve - each of red, green and blue (0 to 255) becomes
+' 255 * (it / 255) ^ (100 / pct). Working out a power 360,000 times a frame
+' would be slow, so it's done once for each of the 256 values, into a
+' "lookup table" (gammaLUT, made again only when pct changes), and each
+' pixel just looks its three up. OpenGL does the same sum in its post
+' shader, on the graphics card.
+SUB ApplyGamma(pct)
+    STATIC gammaLUT(255) AS _UNSIGNED LONG, made
+    DIM i AS LONG, c AS _UNSIGNED LONG
+    IF made <> pct THEN
+        FOR i = 0 TO 255 : gammaLUT(i) = INT(255 * (i / 255) ^ (100 / pct) + 0.5) : NEXT
+        made = pct
+    END IF
+    FOR i = 0 TO RENDER_W * RENDER_H - 1
+        c = pixels(i)
+        pixels(i) = (c AND &HFF000000~&) OR _SHL(gammaLUT(_SHR(c, 16) AND 255), 16) OR _SHL(gammaLUT(_SHR(c, 8) AND 255), 8) OR gammaLUT(c AND 255)
+    NEXT
+END SUB
+
+' The same curve on a whole image (img& 0: the screen) - for the menu, to
+' show BRIGHTNESS as you set it. _MEM reaches its pixels as ApplyGamma's
+' array does: 4 bytes each, blue first.
+SUB GammaImage(img&, pct)
+    STATIC lut(255) AS _UNSIGNED _BYTE, made
+    DIM i AS _OFFSET, n AS _OFFSET, m AS _MEM, b AS _UNSIGNED _BYTE
+    IF pct = 100 THEN EXIT SUB
+    IF made <> pct THEN
+        FOR k = 0 TO 255 : lut(k) = INT(255 * (k / 255) ^ (100 / pct) + 0.5) : NEXT
+        made = pct
+    END IF
+    m = _MEMIMAGE(img&) : n = m.SIZE
+    FOR i = 0 TO n - 1 STEP 4 ' (blue, green, red - and alpha left alone)
+        b = _MEMGET(m, m.OFFSET + i, _UNSIGNED _BYTE) : _MEMPUT m, m.OFFSET + i, lut(b) AS _UNSIGNED _BYTE
+        b = _MEMGET(m, m.OFFSET + i + 1, _UNSIGNED _BYTE) : _MEMPUT m, m.OFFSET + i + 1, lut(b) AS _UNSIGNED _BYTE
+        b = _MEMGET(m, m.OFFSET + i + 2, _UNSIGNED _BYTE) : _MEMPUT m, m.OFFSET + i + 2, lut(b) AS _UNSIGNED _BYTE
+    NEXT
+    _MEMFREE m
+END SUB
+
+' NIGHT VISION for the software renderer: every pixel of the view made a
+' green of its brightness - lifted a lot in the dark (a power curve, from a
+' lookup table, as BRIGHTNESS does), with a grain that moves (a table of
+' noise, read from a different place each frame) and the edges darker,
+' as through a headset's tubes
+SUB ApplyNight
+    STATIC lut(255) AS LONG, grain(4095) AS LONG, made
+    DIM i AS LONG, c AS _UNSIGNED LONG, l AS LONG, o AS LONG
+    IF NOT made THEN
+        FOR i = 0 TO 255 : lut(i) = INT(255 * MinOf(1, ((i / 255) * 1.5 + 0.03) ^ 0.5)) : NEXT
+        FOR i = 0 TO 4095 : grain(i) = INT(RND * 36) - 18 : NEXT
+        made = -1
+    END IF
+    o = INT(RND * 4096)
+    FOR i = 0 TO RENDER_W * RENDER_H - 1
+        c = pixels(i)
+        l = lut((_SHR(c, 16) AND 255) * 0.3 + (_SHR(c, 8) AND 255) * 0.59 + (c AND 255) * 0.11) + grain((i + o) AND 4095)
+        x = i MOD RENDER_W : y = i \ RENDER_W
+        d = ((x - RENDER_W / 2) / (RENDER_W / 2)) ^ 2 + ((y - RENDER_H / 2) / (RENDER_H / 2)) ^ 2 : IF d > 0.55 THEN l = l * MaxOf(0.15, 1 - (d - 0.55) * 1.4)
+        IF l < 0 THEN l = 0 ELSE IF l > 255 THEN l = 255
+        pixels(i) = &HFF000000~& OR _SHL(l * 0.3, 16) OR _SHL(l, 8) OR (l * 0.35)
+    NEXT
+END SUB
 
 ' Show the frame drawn (every loop's _DISPLAY) - and if the window's close
 ' button was pressed, leave as QUIT does: the stats and achievements kept,
@@ -18362,6 +19260,10 @@ SUB AchSetup
     AchDef "NC_BEAM", "Frequent Flyer", "Teleport 25 times.", 0, "Teleports", 25
     AchDef "NC_LOOT", "Treasure Hunter", "Find 25 things in breakables.", 0, "LootDrops", 25
     AchDef "NC_VANDAL", "Vandal", "Smash 100 decorations.", 0, "Smashed", 100
+    AchDef "NC_SECRET", "Secret Agent", "Find a secret.", 0, "Secrets", 1
+    AchDef "NC_SECRETS", "Nothing Stays Hidden", "Find 25 secrets.", 0, "Secrets", 25
+    AchDef "NC_ALL_SECRETS", "Fine-Toothed Comb", "Find every secret in a sector.", 0, "", 0
+    AchDef "NC_ARCADE", "High Score", "Beat a computer at one of its games.", 0, "", 0
     ' The editor
     AchDef "NC_ARCHITECT", "Architect", "Save a sector in the level editor.", 0, "", 0
     AchDef "NC_BOXED", "Thinking Inside the Box", "Stand a block in the level editor.", 0, "", 0

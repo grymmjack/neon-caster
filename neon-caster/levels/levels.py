@@ -1708,6 +1708,57 @@ LEVELS = [
       "the exit in its far wall."]),
 ]
 
+# Monsters that stood in sight of the start, a few steps away - they hit you
+# before you'd had a look round (lvlkit's check_start_safe): moved, level by
+# level, from (x0, y0) to (x1, y1), out of sight or further off.
+START_MOVES = {
+    3: [(9, 9, 13, 10)],
+    4: [(22, 42, 24, 37),            # CRYO LAB: behind the X door, not in the south hall with you
+        (24, 30, 24, 31)],           # (and off the one-cell tip of the atrium's dais, a wall high: it looked stuck in the wall)
+    5: [(11, 38, 9, 32)],
+    6: [(7, 44, 14, 39), (5, 36, 7, 32)],
+    7: [(19, 42, 15, 42), (29, 44, 33, 44)],
+}
+
+
+# Diagonals meeting in a point across a way through (lvlkit's check_tips):
+# the atrium's south and east tips in CRYO LAB sealed its corridors to the
+# X doors - a door you could see on the map, and only wall. Opened (to
+# floor), as its north and west tips are.
+OPEN_TIPS = {
+    4: [(24, 35), (35, 24)],
+}
+
+
+# UNDERCITY's sealed room (south-east, seen through the glass from the
+# flooded hall): a way in - a secret wall at the end of the water channel,
+# and a dark hallway up the east side to the room's door-less corner.
+HALLWAYS = {
+    3: [(45, 43, "?")] + [(46, y, ".") for y in range(31, 44)] + [(45, 31, ".")],
+}
+HALL_LIGHTS = {
+    3: [(46.5, 37.5, 4, 90, 120, 160, 255, 1)],
+}
+
+
+def open_sealed(m, i):
+    """Every room nothing reaches (seen through glass, mostly - dress's
+    observation rooms and windows) gets a secret wall: everything in a
+    sector can be reached - by a door, a pad, or a secret."""
+    from lvlkit import sealed_rooms, secret_way
+    rows = m.rows()
+    reach, rooms = sealed_rooms(rows, getattr(m, "pads", ()))
+    for room in rooms:
+        if len(room) < 2 and all(rows[y][x] == "." for (x, y) in room):
+            continue
+        w = secret_way(rows, room, reach)
+        if w:
+            for (x, y) in w:
+                m.put(x, y, "?")
+        else:
+            print("   PROBLEM: level %d: a sealed room at %s has no wall to put a secret in" % (i, sorted(room)[0])); PROBLEMS.append(1)
+
+
 def main():
     args = sys.argv[1:]
     ok = True
@@ -1723,6 +1774,16 @@ def main():
     for i, (fn, name, walls, floors, ceils, comment) in enumerate(LEVELS, 1):
         m = fn()
         dress(m, i)
+        for (x0, y0, x1, y1) in START_MOVES.get(i, ()):  # (after the dressing: its random picks stay as they were)
+            c = m.get(x0, y0)
+            m.put(x0, y0, "."); m.put(x1, y1, c)
+        for (x, y) in OPEN_TIPS.get(i, ()):
+            m.put(x, y, ".")
+        for (x, y, c) in HALLWAYS.get(i, ()):
+            m.put(x, y, c)
+        for l in HALL_LIGHTS.get(i, ()):
+            m.light(*l)
+        open_sealed(m, i)
         if "-show" in args:
             print("\n=== LEVEL %d: %s" % (i, name))
             m.show()

@@ -59,7 +59,7 @@ ambient  = 175, 200, 225, 255
 24, 17, 24, 17, 0, 8, 2, 6
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 11 24 13 26 : message A CODE TERMINAL - face it and press SPACE
 enter 17 44 19 46 : message A DATA STATION - face it and press SPACE to jack in
 
@@ -80,33 +80,33 @@ enter 17 44 19 46 : message A DATA STATION - face it and press SPACE to jack in
 ###\....a....t./CCCCCC/..\CCCCCCP\t....g....t/PP
 ####\........./CCCCCC/....\CCCCCPP\........./PPP
 #KKKK\...T.../CCCCCC/...p..\CCCCPPP\..Z..../PPPP
-#KKKKKK.KK===CCCCCC/........\CCCPPPPPPPPP.PPPPPP
+#KKKKKK.K?===CCCCCC/........\CCCPPPPPPPPP.PPPPPP
 #KKKKKKRK.....CCCC/..........\CCCCCCCC#KKYKKKKKK
-#KK..F..K.V.Z.CCC/......+.....\CCCCCC...K..J..KK
+#KK..F..K.V.Z.CCC/......+.....\CCCCCC...?..J..KK
 #KK.....K.IJI.CC/..............\CCCCCIV.=.....KK
 #KK.i...KK#CCCC/....g.......h...\CCCCJ..=...i.KK
 #KK.....KK#CCC/..................\CCCIZ.=.+...KK
 #KK.....KK#CC/........./\.........\CC...K.....KK
 #KK.....KK#C/........./NN\.........\CC#KKQ....KK
-#KK.g.....X....p..c...\NN/....c..p./..X.......KK
+#KK.g.....X....p..c...\NN/....c..p....X.......KK
 #KK.....KK#C$\.........\/........./CCC#KK...g.KK
 #KK....OK...CC\................../CCCC#KK.....KK
 #KK.....=.ZFCCC\................/CCCCC#KK.....KK
 #KK...i.=.VACCCC\...s.......g../CCCCCC#KK.i...KK
 #KK..a..=.ZFCCCCC\............/CCCCCCC#KK.....KK
-#KK.....K...CCCCCC\.....m..../CCCCCCCC#KK.....KK
-#KKKKKKDKK#CCCCCCCC\.....a../CCCCCCCCC#KKBKKKKKK
+#KK.....?...CCCCCC\........../CCCCCCCC#KK.....KK
+#KKKKKKDKK#CCCCCCCC\....ma../CCCCCCCCC#KKBKKKKKK
 #KKKKKK.KK#CCCCCCCCC\....../CCCCGGGGGGGGG.GGGGGG
 #KKKK/.......\CCCCCCC\..p./CCCCCGGG/..Q....\GGGG
 ####/.........\CCCCCCC\../CCCCCCGG/.........\GGG
-###/.......t...\CCCCCCC\/CCCC...G/..h........\GG
+###/.......t...\CCCCCCC\.CCCC...G/..h........\GG
 ###..g..e.......CCCCCCCC.CCCCIV.=...........s.GG
-###.............CCCCCCCC.CCCCJ..=..a../\.....IGG
+###.............CCCCCCCCmCCCCJ..=..a../\.....IGG
 ###...M.........%gk#####X####IZ.=..T./GG\.....GG
-###.........m...KKKKKKKK.KKKK...G....\GG/.....GG
+###.........m...KKKKKKKK.KKKK...?....\GG/.....GG
 ###.t...........KKKKKKKK.KKKKKKKG.....\/...*..GG
 ###I.........+...!.............B..............GG
-###...r.........KK..i.m.....i..KG....c.....y..GG
+###...r.........KK..i.......i..KG....c.....y..GG
 ###\.........../KK......^......KG\.........../GG
 ####\....c...c/KKK.a.&.....&.e.KGG\g......../GGG
 #####\......./#KKK.............KGGG\......./GGGG

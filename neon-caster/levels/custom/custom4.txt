@@ -56,7 +56,7 @@ ambient  = 150, 215, 255, 200
 10, 24, 10, 24, 0, 6, 1, 5
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 21 37 26 39 : message THE LIGHT LAB - STEADY, FLICKER, PULSE / STROBE, FIRE, DYING
 
 [monsters]
@@ -71,7 +71,7 @@ enter 21 37 26 39 : message THE LIGHT LAB - STEADY, FLICKER, PULSE / STROBE, FIR
 43, 29, 3, 0, 100, 100, 1
 
 [faces]
-' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
 14, 18, F, 2, floor-white.png, floor-soil.png
 15, 18, F, 1, floor-soil.png, floor-white.png
 16, 18, F, 2, floor-white.png, floor-soil.png

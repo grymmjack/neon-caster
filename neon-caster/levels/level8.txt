@@ -57,7 +57,7 @@ ambient  = 110, 220, 230, 255
 11, 39, 3, 42, 6, 20, 6, 0
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 24 15 26 17 : message A CODE TERMINAL - face it and press SPACE
 enter 41 11 43 13 : message A DATA STATION - face it and press SPACE to jack in
 
@@ -80,7 +80,7 @@ enter 41 11 43 13 : message A DATA STATION - face it and press SPACE to jack in
 #####.#.dFd.K.s....g.K##.####......g.#####.#####
 #####.#.ZV..K\..u.../K##.$###\+...../#####.#####
 #####.#.....KKKKKKKKKK##.#################.#####
-##CCC.CC===CCCCCCCCCCCCC.CCCCCCCCCCCCCCCCC.CCC##
+##CCC.C?===CCCCCCCCCCCCC.CCCCCCCCCCCCCCCCC.CCC##
 ##C.........m..U.................o.......n..aC##
 ##C..........................................C##
 ##C.....CCCCCCCCC.....CCCCCCCCC.T..CCCCCCCCC.C##
@@ -91,7 +91,7 @@ enter 41 11 43 13 : message A DATA STATION - face it and press SPACE to jack in
 ##C.....CCCCCCCCCd...WCCCCCCCCC....CCCCCCCCC.C##
 ##C.....CCCCCCCCC.....CCCCCCCCC....CCCCCCCCC.C##
 ##C.+...............o...................c....C##
-##CCC.CCCCCCCCCC===CCCCC.C%CCCCC.CCCCCCCCC.CCC##
+##CCC.CCCCCCCCCC===?CCCC.C%CCCCC.CCCCCCCCC.CCC##
 #####.#########.....####.#w#GGGGYGGGGG####.#####
 #####.#########..h..####.#w#G/......\G####.#####
 #####.#########.UVU.####.###G....b...G####.#####
@@ -99,7 +99,7 @@ enter 41 11 43 13 : message A DATA STATION - face it and press SPACE to jack in
 #####.##########.qaj.###.###G.....*h.G####.#####
 #####.########g#..u..###.##kG\.oo.../G####.#####
 #####.########w#.....###.##kGGGGGGGGGG####.#####
-##NNN.NNNNNNNN%NN===NNNN.NN%NNNNNNNNNNNNNN.NNN##
+##NNN.NNNNNNNN%N?===NNNN.NN%NNNNNNNNNNNNNN.NNN##
 ##N........W.n.........W....F.......n.......xN##
 ##N.....i.........m.i...........i............N##
 ##N.................................k.c......N##

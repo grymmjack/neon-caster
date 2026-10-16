@@ -13,13 +13,14 @@ N = 48
 WALLS = set("#NCKPG")
 DOORS = set("DHXRBYE!")  # ! a door sealed until its data station (@) is hacked
 DIAG = set("/\\")
-ITEMS = set("rby+ae23u*4Mqj")  # ... q overcharge, j damage amp
+ITEMS = set("rby+ae23u*4Mqj8")  # ... q overcharge, j damage amp
 MONS = set("mghcskwzT")  # ... k stalker, w spitter, z the overseer, T thief
 DECO = set("oiptxlnfSdAFIJLOQUWZV")  # ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
 GLASS = set("=")  # a pane of glass: see through it, but not walk
 STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle
 PAD = set("&")  # a teleporter pad: they pair up in reading order (1st-2nd, 3rd-4th)
+SECRET = set("?")  # a secret wall: looks like the walls beside it (on the map too) until Space finds it
 
 
 class Map:
@@ -450,18 +451,18 @@ LEVEL_HEADER = """' NEON-CASTER level file - see chapter 22 of neon-caster.bas f
 
 
 # [loot]: what breakables leave - the game's LOOT_HELP$, DecoKindOf and ItemOf
-LOOT_HELP = "' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance"
+LOOT_HELP = "' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out"
 LOOT_BREAKABLES = {"barrel", "lamp", "plant", "terminal", "crate", "rack", "serverrack", "vending", "vendingmachine",
                    "coolant", "tank", "coolanttank", "spawner", "desk", "console", "screen", "specimen", "specimentank",
                    "labbench", "generator", "cryopod", "cryo", "hologram", "locker", "bench", "chair"}
 LOOT_PICKUPS = {"red", "blue", "yellow", "health", "cells", "ammo", "shells", "scatter", "repeater", "armor", "armour",
-                "medkit", "bigmed", "rail", "railgun", "map", "overcharge", "amp"}
+                "medkit", "bigmed", "rail", "railgun", "map", "overcharge", "amp", "goggles", "nightvision", "headset"}
 
 
 # [liquid]: the game's LQ_CHARS$ and LQ_DEPTH; the map characters a liquid can lie on (EDIT_OPEN$)
 LIQUID_CHARS = "wpsla"
 LIQUID_DEPTH = 3
-LIQUID_ON = ".rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV<>^v&"
+LIQUID_ON = ".rby+*uae234Mqj8mghcskwzToiptxlnfSdAFIJLOQUWZV<>^v&"
 
 
 def check_liquid(lv):
@@ -576,7 +577,7 @@ def level_text(lv, comment=()):
     if lv.get("triggers"):
         out.append("")
         out.append("[triggers]")
-        out.append("' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...")
+        out.append("' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...")
         out += list(lv["triggers"])
     if lv.get("monsters"):  # monsters' own settings, from the editor's monster pane
         out.append("")
@@ -711,7 +712,7 @@ def validate(rows, name="map", want_exit=True, pairs=()):
     starts = [(x, y) for y in range(N) for x in range(N) if at(x, y) in START]
     if len(starts) != 1:
         errs.append("need exactly one start, got %d" % len(starts))
-    iswall = lambda c: c in WALLS or c in STATION
+    iswall = lambda c: c in WALLS or c in STATION or c in SECRET
     for y in range(1, N - 1):
         for x in range(1, N - 1):
             c = at(x, y)
@@ -726,7 +727,7 @@ def validate(rows, name="map", want_exit=True, pairs=()):
                 if v and not h and (at(x - 1, y) in WALLS or at(x + 1, y) in WALLS):
                     errs.append("door %s at %d,%d blocked" % (c, x, y))
             if c in GLASS:  # in a wall one cell thick, like a door
-                isw = lambda cc: cc in WALLS or cc in GLASS
+                isw = lambda cc: cc in WALLS or cc in GLASS or cc in SECRET
                 h = isw(at(x - 1, y)) and isw(at(x + 1, y))
                 v = isw(at(x, y - 1)) and isw(at(x, y + 1))
                 if not (h or v) or (h and v):
@@ -838,6 +839,195 @@ def parse_bas(path):
     return levels
 
 
+START_SAFE = 6.5  # cells: no monster in plain sight nearer than this to where you start
+
+
+def check_start_safe(rows):
+    """Monsters that can see you, close, the moment the sector starts: you'd
+    be hit before you'd had a look round. (Thieves steal, they don't hit.)"""
+    import math
+    st = [(x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c in START]
+    if not st:
+        return []
+    sx, sy = st[0]
+    def clear(x, y):
+        n = int(max(abs(x - sx), abs(y - sy)) * 4) + 1
+        for i in range(1, n):
+            c = rows[int(sy + 0.5 + (y - sy) * i / n)][int(sx + 0.5 + (x - sx) * i / n)]
+            if c in WALLS or c in DOORS or c in DIAG or c in STATION or c in "%?":
+                return False
+        return True
+    return ["monster %s at %d,%d: in sight of the start, %.1f cells away (keep it %.1f+ away, or out of sight)"
+            % (c, x, y, math.hypot(x - sx, y - sy), START_SAFE)
+            for y, r in enumerate(rows) for x, c in enumerate(r)
+            if c in MONS and c != "T" and math.hypot(x - sx, y - sy) < START_SAFE and clear(x, y)]
+
+
+def check_tips(rows):
+    """Two diagonals meeting in a point with open floor on both sides of it:
+    a way that looks open (on the map too) but is shut - CRYO LAB's atrium
+    tips once sealed its corridors to the X doors this way."""
+    OPEN = set(".&") | ITEMS | MONS | DECO | DOORS | START
+    at = lambda x, y: rows[y][x]
+    errs = []
+    for y in range(1, N - 1):
+        for x in range(1, N - 2):
+            a, b = at(x, y), at(x + 1, y)
+            if a == "\\" and b == "/" and (at(x, y + 1) in OPEN or at(x + 1, y + 1) in OPEN) and at(x, y - 1) in OPEN and at(x + 1, y - 1) in OPEN:
+                errs.append("diagonals %d,%d and %d,%d meet in a point: the way south past them is shut" % (x, y, x + 1, y))
+            if a == "/" and b == "\\" and (at(x, y - 1) in OPEN or at(x + 1, y - 1) in OPEN) and at(x, y + 1) in OPEN and at(x + 1, y + 1) in OPEN:
+                errs.append("diagonals %d,%d and %d,%d meet in a point: the way north past them is shut" % (x, y, x + 1, y))
+    for y in range(1, N - 2):
+        for x in range(1, N - 1):
+            a, b = at(x, y), at(x, y + 1)
+            if a == "\\" and b == "/" and (at(x + 1, y) in OPEN or at(x + 1, y + 1) in OPEN) and at(x - 1, y) in OPEN and at(x - 1, y + 1) in OPEN:
+                errs.append("diagonals %d,%d and %d,%d meet in a point: the way east past them is shut" % (x, y, x, y + 1))
+            if a == "/" and b == "\\" and (at(x - 1, y) in OPEN or at(x - 1, y + 1) in OPEN) and at(x + 1, y) in OPEN and at(x + 1, y + 1) in OPEN:
+                errs.append("diagonals %d,%d and %d,%d meet in a point: the way west past them is shut" % (x, y, x, y + 1))
+    return errs
+
+
+def sealed_rooms(rows, pairs=()):
+    """Floor nothing reaches - out from the start through every door (keys
+    or not), pad, closet (%) and secret wall (?): each such room as a set of
+    cells, with whatever's in it. (A room you can only look into through
+    glass is one.)"""
+    from collections import deque
+    OPEN = set(".&~") | ITEMS | MONS | DECO | START
+    PASS = OPEN | DOORS | set("%?")
+    pads = pad_order([list(r) for r in rows], pairs)
+    st = [(x, y) for y in range(N) for x in range(N) if rows[y][x] in START]
+    if not st:
+        return set(), []
+    seen = {st[0]}; q = deque([st[0]])
+    while q:
+        x, y = q.popleft()
+        nb = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+        if rows[y][x] in PAD and (x, y) in pads:
+            k = pads.index((x, y)); o = k + 1 if k % 2 == 0 else k - 1
+            if 0 <= o < len(pads):
+                nb.append(pads[o])
+        for (a, b) in nb:
+            if (a, b) not in seen and rows[b][a] in PASS:
+                seen.add((a, b)); q.append((a, b))
+    left = {(x, y) for y in range(N) for x in range(N) if rows[y][x] in OPEN and (x, y) not in seen}
+    rooms = []
+    while left:
+        c = left.pop(); room = {c}; q = deque([c])
+        while q:
+            x, y = q.popleft()
+            for n in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if n in left:
+                    left.remove(n); room.add(n); q.append(n)
+        rooms.append(room)
+    return seen, rooms
+
+
+def secret_way(rows, room, reach):
+    """The best wall to make a secret way into a sealed room through: one
+    wall thick (or two, if it must be), the room on one side and floor you
+    can reach on the other, in a straight wall - beside the room's glass if
+    it has any (you see in, then find the way). Its cells, or None."""
+    OPEN = set(".") | ITEMS | MONS | START
+    best = None
+    for (x, y) in room:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            for t in (1, 2):
+                cells = [(x + dx * k, y + dy * k) for k in range(1, t + 1)]
+                ox, oy = x + dx * (t + 1), y + dy * (t + 1)
+                if not all(1 <= cx < N - 1 and 1 <= cy < N - 1 for (cx, cy) in cells) or not (0 <= ox < N and 0 <= oy < N):
+                    break
+                if not all(rows[cy][cx] in WALLS for (cx, cy) in cells):
+                    break
+                if (ox, oy) not in reach or rows[oy][ox] not in OPEN:
+                    continue
+                side = [rows[cy + dx][cx + dy] for (cx, cy) in cells] + [rows[cy - dx][cx - dy] for (cx, cy) in cells]  # (along the wall)
+                if not all(c in WALLS or c in GLASS for c in side):
+                    continue
+                score = (4 if t == 1 else 0) + (2 if any(c in GLASS for c in side) else 0) + (1 if rows[y][x] == "." else 0)
+                if best is None or score > best[0]:
+                    best = (score, cells)
+                break
+    return None if best is None else best[1]
+
+
+def carve_stash(m, loot, start_far=True):
+    """A secret stash: a 2 x 2 room cut into solid rock behind a secret wall
+    (?), off floor you can reach - as far from the start as there's room
+    for one - with `loot` (pickup characters) in it and a dim light. Its
+    floor and ceiling are the floor's in front. Returns the secret wall's
+    cell and the way in from its front (x, y, dx, dy), or None if there's
+    nowhere."""
+    rows = m.rows()
+    reach, _ = sealed_rooms(rows, getattr(m, "pads", ()))
+    st = [(x, y) for y in range(N) for x in range(N) if rows[y][x] in START][0]
+    solid = lambda x, y: 1 <= x < N - 1 and 1 <= y < N - 1 and rows[y][x] in WALLS
+    best = None
+    for y in range(2, N - 2):
+        for x in range(2, N - 2):
+            if rows[y][x] not in WALLS:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                fx, fy = x - dx, y - dy  # (the floor in front)
+                if (fx, fy) not in reach or rows[fy][fx] != ".":
+                    continue
+                if not (solid(x + dy, y + dx) and solid(x - dy, y - dx)):
+                    continue
+                for (deep, wide) in ((2, 2), (2, 1), (1, 1)):  # (the room: 2 x 2 if there's rock for it, else smaller)
+                    for px, py in ((dy, dx), (-dy, -dx)):  # (...to one side or the other)
+                        room = [(x + dx * k + px * j, y + dy * k + py * j) for k in range(1, deep + 1) for j in range(wide)]
+                        ring = {(a + u, b + v) for (a, b) in room for u in (-1, 0, 1) for v in (-1, 0, 1)} - set(room) - {(x, y)}
+                        if all(solid(a, b) for (a, b) in room) and all(solid(a, b) for (a, b) in ring):
+                            d = len(room) * 100 + abs(x - st[0]) + abs(y - st[1])  # (the biggest room, then the furthest)
+                            if best is None or d > best[0]:
+                                best = (d, x, y, room, fx, fy, dx, dy)
+    if not best:
+        return stash_shed(m, loot, rows, reach, st)
+    _, x, y, room, fx, fy, dx, dy = best
+    m.put(x, y, "?")
+    loot = loot if len(room) > 1 else loot[:1]
+    for i, (a, b) in enumerate(room):
+        m.put(a, b, loot[i] if i < len(loot) else ".")
+        m.fh[b][a] = m.fh[fy][fx]; m.ch[b][a] = m.ch[fy][fx]
+    cx = sum(a for a, b in room) / len(room) + 0.5; cy = sum(b for a, b in room) / len(room) + 0.5
+    m.light(round(cx, 2), round(cy, 2), 2.5, 110, 255, 200, 120, 1)
+    return (x, y, dx, dy)
+
+
+def stash_shed(m, loot, rows, reach, st):
+    """No rock to cut a stash into (a sector in the open): a shed, then -
+    3 x 3 walls on a flat stretch of floor, the loot in the middle, its
+    door a secret wall - as far from the start as one fits."""
+    from collections import Counter
+    wall = Counter(c for r in rows for c in r[1:-1] if c in WALLS and c != "#").most_common(1)
+    wall = wall[0][0] if wall else "#"
+    taken = {(b[0], b[1]) for b in getattr(m, "blocks", [])}
+    for l in getattr(m, "lifts", []):
+        taken |= {(x, y) for x in range(l[0], l[2] + 1) for y in range(l[1], l[3] + 1)}
+    best = None
+    for y in range(3, N - 4):
+        for x in range(3, N - 4):
+            cells = [(x + i, y + j) for j in range(3) for i in range(3)]
+            around = [(x + i, y + j) for j in range(-1, 4) for i in range(-1, 4)]
+            h = m.fh[y + 1][x + 1]
+            if not all(rows[b][a] == "." and m.fh[b][a] == h and m.lq[b][a] == "." and (a, b) not in taken and (a, b) in reach for (a, b) in around):
+                continue
+            d = abs(x + 1 - st[0]) + abs(y + 1 - st[1])
+            if best is None or d > best[0]:
+                best = (d, x, y)
+    if not best:
+        return None
+    _, x, y = best
+    for j in range(3):
+        for i in range(3):
+            m.put(x + i, y + j, wall)
+    m.put(x + 1, y + 1, loot[0])
+    door = (x + 1, y + 2) if abs(y + 3 - st[1]) < abs(y - 1 - st[1]) else (x + 1, y)  # (its door: on the side nearer the start)
+    m.put(door[0], door[1], "?")
+    m.light(x + 1.5, y + 1.5, 2.0, 110, 255, 200, 120, 1)
+    return (door[0], door[1], 0, -1 if door[1] == y + 2 else 1)
+
+
 def check_level(lv, assets=None):
     """Print what's wrong with a level (and a summary); True if it's fine."""
     errs, warns = validate(lv["rows"], lv["label"], pairs=lv.get("pads", []))
@@ -900,6 +1090,8 @@ def check_level(lv, assets=None):
             errs.append(e)
     if not any("M" in r for r in lv["rows"]):
         warns.append("no map pickup (M): the minimap never appears on this level")
+    errs += check_start_safe(lv["rows"])
+    errs += check_tips(lv["rows"])
     if not errs:
         he, hw = check_heights(lv)
         errs += he; warns += hw

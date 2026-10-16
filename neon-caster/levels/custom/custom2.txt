@@ -60,7 +60,7 @@ ambient  = 150, 255, 205, 165
 39, 13, 39, 13, 0, 8, 2, 8
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 4 38 9 43 : message THE STALKER ON THE ISLAND IS ALREADY HUNTING YOU
 
 [monsters]
@@ -75,7 +75,7 @@ enter 4 38 9 43 : message THE STALKER ON THE ISLAND IS ALREADY HUNTING YOU
 30, 41, 14, 14, 100, 100, 0
 
 [faces]
-' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
 8, 12, S, 2, wall-hazard.png, wall-concrete.png
 9, 12, S, 2, wall-hazard.png, wall-concrete.png
 10, 12, S, 2, wall-hazard.png, wall-concrete.png

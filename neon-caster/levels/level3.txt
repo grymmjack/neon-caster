@@ -38,6 +38,7 @@ ambient  = 80, 170, 230, 190
 36.5, 21.5, 5, 140, 120, 255, 160, 2
 11.5, 24.5, 4, 110, 200, 120, 255, 1
 42.5, 30.5, 4, 110, 255, 90, 80, 5
+46.5, 37.5, 4, 90, 120, 160, 255, 1
 
 [events]
 ' kind, x0, y0, x1, y1, a, b, reward
@@ -53,7 +54,7 @@ ambient  = 80, 170, 230, 190
 11, 18, 40, 21, 43, 20, 5, 0
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 13 8 15 10 : message A CODE TERMINAL - face it and press SPACE
 enter 9 12 11 14 : message A DATA STATION - face it and press SPACE to jack in
 
@@ -67,8 +68,8 @@ enter 9 12 11 14 : message A DATA STATION - face it and press SPACE to jack in
 #CC\.....\C#.M..o....a.#PP..g.................P#
 #CCC\.....\#...........#PP..../\.../\.../\...LP#
 #CCCC\.....\############PP....\/...\/...\/..&.P#
-#CCCCC\..c..\C$CCCCCCCCPPP....................P#
-#CCCCCC\............R.......................s.P#
+#CCCCC\.....\C$CCCCCCCCPPP....................P#
+#CCCCCC\.....c......R.......................s.P#
 #CCCCCCC\i....\CCCCCCCCP%P....................P#
 #CC.....C\.....\CCCCCCCPhP\t.....t....g...a../P#
 #CC.S...!...&.c.\CCCCCCPcPP\................/PP#
@@ -83,25 +84,25 @@ enter 9 12 11 14 : message A DATA STATION - face it and press SPACE to jack in
 #CC...S.C.ISI.CCCCC\....i\CCCCCCCG..../GG\....G#
 #CCCCCCCC.c.c.CCCCCC\....o\CCCCCCG.e..\GG/....G#
 #CCCCCCCC.....CCCCCCC\.........D.......\/.....G#
-#KKKKKKKKK===KKKCCCCCC\.....\CCCCG............G#
+#KKKKKKKK?===KKKCCCCCC\.....\CCCCG............G#
 #KKK/........\KKCCCCCCC\.....\CCCG............G#
 #KK/a...T.....\KCCCCCCCC\.....\CCG\.g.......b/G#
 #KK..........e......B......c...\CGG\......../GG#
 #KK............KCCCCCCCCCC\.....\GGGGGGGG===GGG#
 #KK............KCCCCja+CCCC\.....\CCCCCC.....CC#
-#KK...#....#...KCCCCaueCCcCC\.m...\CCCCC..h..CC#
-#KK............KCCCCqe*CCcCCC\.....\CCCC.UVU.CC#
-#KK.....h......KCNNNNDNNN%NNNN\i....\CCCCCCCCCC#
-#KK............KCNN/.......\NNC\...c.\CCCCCCCCC#
-#KK...L.......UKCN/.........\NCC\.....\CCCCCCCC#
-#KKx..#....#...KCN..h......g.NCCC\.....\CCCCCCC#
-#KK............KCN...........NCCCC\.o...\CCCCCC#
-#KK.....p......KCN.............Y........i\CCCCC#
-#KK............KCN...........NCCCCCC\.....\CCCC#
-#KK............KCN...........NCCCCCCC\c....\CCC#
-#KK...#....#...KCN......s....NCCCCCCCC\....+\CC#
-#KK......h.....KCN...........NCCCCCCCCC\.m...CC#
-#KK............KCN..........aNCCCCCCCCCC\....CC#
+#KK...#....#...KCCCCaueCCcCC\.m...\CCCCC..h....#
+#KK............KCCCCqe*CCcCCC\.....\CCCC.UVU.C.#
+#KK.....h......KCNNNNDNNN%NNNN\i....\CCCCCCCCC.#
+#KK............KCNN/.......\NNC\...c.\CCCCCCCC.#
+#KK...L.......UKCN/.........\NCC\.....\CCCCCCC.#
+#KKx..#....#...KCN..h......g.NCCC\.....\CCCCCC.#
+#KK............KCN...........NCCCC\.o...\CCCCC.#
+#KK.....p......KCN.............Y........i\CCCC.#
+#KK............KCN...........NCCCCCC\.....\CCC.#
+#KK............KCN...........NCCCCCCC\c....\CC.#
+#KK...#....#...KCN......s....NCCCCCCCC\....+\C.#
+#KK......h.....KCN...........NCCCCCCCCC\.m...C.#
+#KK............KCN..........aNCCCCCCCCCC\....?.#
 #KK\*........u/KCN\+......../NCCCCCCCCCCC\.c.CC#
 #KKK\..L...../KKCNN\......./NNCCCCCCCCCCCCCCCCC#
 #KKKKKKKKKKKKKKKCNNNNNNENNNNNNCCCCCCCCCCCCCCCCC#

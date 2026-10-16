@@ -72,7 +72,7 @@ ambient  = 110, 220, 230, 255
 11, 39, 3, 42, 6, 20, 6, 0
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 24 15 26 17 : message A CODE TERMINAL - face it and press SPACE
 enter 41 11 43 13 : message A DATA STATION - face it and press SPACE to jack in
 
@@ -120,7 +120,7 @@ enter 41 11 43 13 : message A DATA STATION - face it and press SPACE to jack in
 39, 44, 0, 2, 0
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 vending  = ammo:40, shells:30, medkit:15, overcharge:5
 
 [faces]
@@ -160,7 +160,7 @@ vending  = ammo:40, shells:30, medkit:15, overcharge:5
 #####.#.dFd.K.s....g.K##.####......g.#####.#####
 #####.#.ZV..K\..u.../K##.$###\+...../#####.#####
 #####.#.....KKKKKKKKKK##.#################.#####
-##CCC.CC===CCCCCCCCCCCCC.CCCCCCCCCCCCCCCCC.CCC##
+##CCC.C?===CCCCCCCCCCCCC.CCCCCCCCCCCCCCCCC.CCC##
 ##C.........m..U.................o.......n..aC##
 ##C..........................................C##
 ##C.....CCCCCCCCC.....CCCCCCCCC.T..CCCCCCCCC.C##
@@ -171,7 +171,7 @@ vending  = ammo:40, shells:30, medkit:15, overcharge:5
 ##C.....CCCCCCCCCd...WCCCCCCCCC....CCCCCCCCC.C##
 ##C.....CCCCCCCCC.....CCCCCCCCC....CCCCCCCCC.C##
 ##C.+...............o...................c....n##
-##CCC.CCCCCCCCCC===CCCCC.C%CCCCC.CCCCCCnCC.CCC##
+##CCC.CCCCCCCCCC===?CCCC.C%CCCCC.CCCCCCnCC.CCC##
 #####.#########.....####.#w#GGGGYGGGGG####.#####
 #####.#########..h..####.#w#G/......\G####.#####
 #####.#########.UVU.####.###G....b...G####.#####
@@ -179,7 +179,7 @@ vending  = ammo:40, shells:30, medkit:15, overcharge:5
 #####.##########.qaj.###.###G.....*h.G####.#####
 #####.########g#..u..###.##kG\.oo.../G####.#####
 #####.########w#.....###.##kGGFGGGGGGG####.#####
-##NNN.NNNNNNNN%NN===NNNN.NN%NNNNNNNNNNNNNN.NNN##
+##NNN.NNNNNNNN%N?===NNNN.NN%NNNNNNNNNNNNNN.NNN##
 ##N........W.n.........W....F.......n.......xN##
 ##N.....i.........m.i...........i............N##
 ##N.................................k.c......N##

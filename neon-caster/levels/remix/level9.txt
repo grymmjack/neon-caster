@@ -70,7 +70,7 @@ ambient  = 95, 180, 210, 255
 8, 32, 8, 32, 0, 8, 2, 6
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 3 20 5 22 : message A CODE TERMINAL - face it and press SPACE
 enter 26 40 28 42 : message A DATA STATION - face it and press SPACE to jack in
 
@@ -117,7 +117,7 @@ enter 26 40 28 42 : message A DATA STATION - face it and press SPACE to jack in
 23, 46, 0, 2, 0
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 locker   = armor:40, medkit:30, overcharge:15, amp:10
 
 [faces]
@@ -184,13 +184,13 @@ PPj*eP...S......./######.#####\.........g.%kwGGG
 PPPDPP........../####/....\####\.........QGGGGGG
 P...PP...f...../####/......\####\.........GG...G
 P.y.$P........d####/.g.....g\####.........GG.*.G
-P...PPO.&....k.#U.=..........####.........GG...G
+P...PPO.&....k.?U.=..........####.........GG...G
 P..FPP.........#V.=....#E#..d####......&..GG.x.G
 P....R..g......#U.=..........A###.........D..<.G
 P.j.PP.........####.h.......h####.k.......GG...G
 P.h.PP.........####\..T.+.../####F........GG.M.G
 P...AP.........\####\...s../####/.........GG...G
-PPPPPP..........\####\..../####/......f...GGGGGG
+PPPPPP..........\####\..../####/......f...GG?GGG
 PPPPPP...S.......\######O#####/...........=.UGGG
 NNNNNN..s.........\##########/........T...=.VNNN
 NNNNNN........w....\########/.............=.UNNN
@@ -206,7 +206,7 @@ NNNNNNNNNNNNNN\..c......c.....m../NNNNNNNNNNNNNN
 NNNNNNNNNNNNNNN\..d............./NNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNN%NKKKKKK!KK@K===NNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNkNKKKKKK.KKKK...NNNNNNNNNNNNNNNN
-NNNNNNNNNNNNNNNNkNKK...+.x..KIJINNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNkNKK...+.x..?IJINNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNNNKO.r....g.AKNNNNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNNNKK...O....KKNNNNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNNNKKKKKKKKKKKKNNNNNNNNNNNNNNNNNN

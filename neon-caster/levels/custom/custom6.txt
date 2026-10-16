@@ -58,7 +58,7 @@ ambient  = 110, 150, 180, 255
 15, 17, 15, 17, 16, 24, 1, 4
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 22 35 26 37 : message THE OBSERVATORY - THE YELLOW CARD IS AT THE TOP
 enter 14 30 16 33 : message THE PAD HERE GOES TO THE VESTIBULE
 
@@ -76,7 +76,7 @@ enter 14 30 16 33 : message THE PAD HERE GOES TO THE VESTIBULE
 5, 24, 42, 24
 
 [faces]
-' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
 17, 16, S, 2, wall-viewport.png, wall-hull.png
 18, 16, S, 2, wall-viewport.png, wall-hull.png
 19, 16, S, 2, wall-viewport.png, wall-hull.png

@@ -54,6 +54,7 @@ ambient  = 150, 180, 220, 255
 31.63, 1.875, 2, 160, 80, 255, 140, 0
 31.63, 3.125, 2, 160, 80, 255, 140, 0
 24.5, 2.5, 6, 150, 120, 255, 200, 0
+45, 6, 2.5, 110, 255, 200, 120, 1
 
 [events]
 ' kind, x0, y0, x1, y1, a, b, reward
@@ -236,7 +237,7 @@ ambient  = 150, 180, 220, 255
 2, 32, -2, 0, 1
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 rack     = ammo:30, overcharge:10, -, -
 desk     = ammo:15, shells:15, medkit:15, -
 
@@ -287,9 +288,9 @@ desk     = ammo:15, shells:15, medkit:15, -
 ################....h......j....E###############
 ################.F..............################
 #######################B########################
-##########............................%kk#######
-##########..k.......................u.##########
-##########.............e..............##########
+##########............................%kk###..##
+##########..k.......................u.######aj##
+##########.............e..............#######?##
 ##......##............................##......##
 ##...r..##....................m.......##.w...U##
 ##l.....##............................##......##
@@ -338,8 +339,8 @@ desk     = ammo:15, shells:15, medkit:15, -
 ................cccccccccccccccc................
 ................cccccccccccccccc................
 ................................................
-..........gggggggggggggggggggggggggggg..........
-..........gggggggggggggggggggggggggggg..........
+..........gggggggggggggggggggggggggggg......aa..
+..........gggggggggggggggggggggggggggg......aa..
 ..........gggggggggggggggggggggggggggg..........
 ..aaaaaa..gggggggggggggggggggggggggggg..aaaaaa..
 ..aaaaaa..gggggggggggggggggggggggggggg..aaaaaa..

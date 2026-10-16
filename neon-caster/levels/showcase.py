@@ -322,7 +322,6 @@ def relay():
     hub = {"N": (23, 20), "E": (27, 23), "S": (24, 27), "W": (20, 24)}
     for (x, y) in hub.values():
         m.put(x, y, "&")
-    m.mon(19, 21, "m"); m.mon(28, 26, "m")
     m.put(21, 27, "+"); m.put(26, 20, "a"); m.put(22, 22, "Q"); m.put(25, 25, "Q")
     # The chambers - and which hub pad goes to which (by hand: LINK)
     a = chamber(4, 4, 12, 12, "wall-frost.png", "floor-ice.png", "ceiling-frost.png", (60, 220, 255), 0)
@@ -356,6 +355,7 @@ def relay():
     m.ceiling(23, 6, 24, 17, 12)
     for (y, door) in ((16, "R"), (13, "B"), (10, "Y")):
         m.put(23, y, door); m.put(24, y, "#")
+    m.mon(23, 14, "m"); m.mon(24, 15, "m")  # (behind the red door: none in the hub, on you as you arrive)
     m.rect(19, 2, 28, 5)
     m.ceiling(19, 2, 28, 5, 12)
     m.put(24, 1, "E")

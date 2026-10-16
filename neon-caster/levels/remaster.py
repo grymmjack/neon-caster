@@ -30,6 +30,7 @@ sys.path.insert(0, HERE)
 import lvlkit
 from lvlkit import N, validate, check_level, write_level_file, read_level_file
 import newsectors as ns
+import levels as original
 from newsectors import Sector, hstr, LIT, CYAN, PINK, GREEN, AMBER, RED, VIOLET
 
 ASSETS = os.path.dirname(HERE)
@@ -167,6 +168,8 @@ def auto_alcoves(m, rng, n, decos, glows, fx=2):
     for (x, y, dx, dy, f, c) in cand:
         if len(made) >= n:
             break
+        if (x, y) in RESERVED:  # (a secret wall goes there: not an alcove - the shuffle's the same, so the rest are where they were)
+            continue
         if any(abs(x - a) + abs(y - b) < 7 for (a, b) in made):
             continue
         i = len(made)
@@ -304,8 +307,31 @@ THEME = {
 }
 
 
+RESERVED = set()  # (cells the remake mustn't carve: the original's secret walls)
+
+
+def original_edits(n, m):
+    """The cells of original n that differ from what its builder and
+    dressing alone make (levels.py's fixes after them): x, y, before, after."""
+    import contextlib, io
+    fn = original.LEVELS[n - 1][0]
+    with contextlib.redirect_stdout(io.StringIO()):
+        m0 = fn()
+        original.dress(m0, n)
+    pre = m0.rows()
+    return [(x, y, pre[y][x], m.g[y][x]) for y in range(N) for x in range(N) if pre[y][x] != m.g[y][x]]
+
+
 def build(n):
     m, lv = load(n)
+    # The original's fixes since it was first remade - monsters moved off
+    # its start, sealed tips opened, secret ways into its sealed rooms
+    # (levels.py's START_MOVES, OPEN_TIPS, HALLWAYS, open_sealed): taken out
+    # while remaking, so the random picks stay as they were, then put back
+    edits = original_edits(n, m)
+    RESERVED.clear(); RESERVED.update((x, y) for (x, y, _, after) in edits if after == "?")
+    for (x, y, before, after) in edits:
+        m.g[y][x] = before
     rng = random.Random(9000 + n)
     decos, glows, loot = THEME[n]
     if n in REMASTER:
@@ -318,6 +344,18 @@ def build(n):
     if not any(l.split("=")[0].strip() == loot.split("=")[0].strip() for l in m.loot):
         m.loot.append(loot)
     m.headroom(8)
+    for (x, y, before, after) in edits:
+        if m.g[y][x] == before:
+            m.g[y][x] = after
+        elif after == "?":
+            lost = True  # (the remake made something there - an alcove: its sealed room gets another way, below)
+        else:
+            print("  EDIT LOST at %d,%d: the remake changed %r there" % (x, y, before)); ns.PROBLEMS.append(1)
+    for (x, y, before, after) in edits:  # (a two-cell way with one cell lost: its other cell back to wall)
+        if after == "?" and m.g[y][x] == "?" and not any(m.g[y + dy][x + dx] == "?" for dx, dy in STEPS) \
+                and sum(1 for (a, b, _, t) in edits if t == "?" and abs(a - x) + abs(b - y) == 1) > 0:
+            m.g[y][x] = before
+    original.open_sealed(m, n)  # (any room still sealed: a way in)
     print("   remastered L%d: %d alcoves, %d columns, %d decorations moved, liquids %s, %d blocks in all"
           % (n, na, nc, nn, liq, len(m.blocks)))
     out = m.level("level%d" % n, lv["name"], lv["walls"], lv["floors"], lv["ceils"])

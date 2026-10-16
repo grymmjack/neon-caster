@@ -46,3 +46,7 @@ NC_BOXED|a glowing wireframe cube standing inside a grid square
 NC_HMPH|a gloved hand pressed against a brick wall
 NC_DEATHS|a skull inside a circular respawn arrow
 NC_GLASS|a pane of glass shattering into flying shards
+NC_SECRET|a brick wall sliding open to reveal a glowing hidden doorway
+NC_SECRETS|a keyhole in a wall with golden light pouring out of it
+NC_ALL_SECRETS|a magnifying glass over a map with a glowing X
+NC_ARCADE|a retro arcade cabinet showing a glowing pong game

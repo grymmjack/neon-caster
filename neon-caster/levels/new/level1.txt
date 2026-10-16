@@ -47,6 +47,7 @@ ambient  = 165, 220, 230, 255
 23.875, 8.37, 2, 160, 80, 255, 140, 0
 25.125, 8.37, 2, 160, 80, 255, 140, 0
 24.5, 13.5, 8, 150, 255, 255, 255, 0
+44, 11, 2.5, 110, 255, 200, 120, 1
 
 [events]
 ' kind, x0, y0, x1, y1, a, b, reward
@@ -114,7 +115,7 @@ ambient  = 165, 220, 230, 255
 30, 7, 0, 3, 2
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 crate    = ammo:30, shells:25, medkit:20, armor:10
 locker   = armor:40, medkit:30, overcharge:10, -
 
@@ -194,9 +195,9 @@ locker   = armor:40, medkit:30, overcharge:10, -
 ##################Q#####E##%##Q#################
 ##############.....................#############
 ##############.W.................W.#############
-##############..........h..........#############
-##############.....................#############
-##############.....................#############
+##############..........h..........########..###
+##############.....................########au###
+##############.....................#########?###
 ##############.....................####......###
 ##############.....................####.....r###
 ##############......+.......e......####.c.x..###
@@ -296,8 +297,8 @@ locker   = armor:40, medkit:30, overcharge:10, -
 ..................c...........c.................
 ..............ccccccccccccccccccccc.............
 ..............ccccccccccccccccccccc.............
-..............ccccccccccccccccccccc.............
-..............ccccccccccccccccccccc.............
+..............ccccccccccccccccccccc........cc...
+..............ccccccccccccccccccccc........cc...
 ..............ccccccccccccccccccccc.............
 ..............ccccccccccccccccccccc....cccccc...
 ..............ccccccccccccccccccccc....cccccc...

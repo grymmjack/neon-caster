@@ -65,6 +65,7 @@ ambient  = 150, 255, 190, 200
 32.5, 12.5, 9, 160, 255, 60, 60, 2
 15.5, 24.5, 9, 160, 255, 60, 60, 2
 32.5, 24.5, 9, 160, 255, 60, 60, 2
+45, 12, 2.5, 110, 255, 200, 120, 1
 
 [events]
 ' kind, x0, y0, x1, y1, a, b, reward
@@ -109,7 +110,7 @@ ambient  = 150, 255, 190, 200
 46, 27, -3, 0, 3
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 console  = ammo:30, shells:30, -, -
 generator = overcharge:20, armor:30, -, -
 
@@ -198,9 +199,9 @@ generator = overcharge:20, armor:30, -, -
 ############.......................x############
 ############........................############
 ############........................############
-############........................############
-############........................############
-############.......s................############
+############........................########..##
+############........................########*u##
+############.......s................#########?##
 ##........##........................##........##
 ##...r..e.##........................##.a..b...##
 ##........##........................##........##
@@ -300,8 +301,8 @@ generator = overcharge:20, armor:30, -, -
 ............wwwwwwwwwwwwwwwwwwwwwwww............
 ............wwwwwwwwwwwwwwwwwwwwwwww............
 ............wwwwwwwwwwwwwwwwwwwwwwww............
-............wwwwwwwwwwwwwwwwwwwwwwww............
-............wwwwwwwwwwwwwwwwwwwwwwww............
+............wwwwwwwwwwwwwwwwwwwwwwww........cc..
+............wwwwwwwwwwwwwwwwwwwwwwww........cc..
 ............wwwwwwwwwwwwwwwwwwwwwwww............
 ..cccccccc..wwwwwwwwwwwwwwwwwwwwwwww..cccccccc..
 ..cccccccc..wwwwwwwwwwwwwwwwwwwwwwww..cccccccc..

@@ -56,7 +56,7 @@ ambient  = 95, 180, 210, 255
 8, 32, 8, 32, 0, 8, 2, 6
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 3 20 5 22 : message A CODE TERMINAL - face it and press SPACE
 enter 26 40 28 42 : message A DATA STATION - face it and press SPACE to jack in
 
@@ -83,13 +83,13 @@ PPj*eP...S......./######.#####\.........g.%kwGGG
 PPPDPP........../####/....\####\.........QGGGGGG
 P...PP...f...../####/......\####\.........GG...G
 P.y.$P........d####/.g.....g\####.........GG.*.G
-P...PPO.&....k.#U.=..........####.........GG...G
+P...PPO.&....k.?U.=..........####.........GG...G
 P..FPP.........#V.=....#E#..d####......&..GG.x.G
 P....R..g......#U.=..........####.........D..<.G
 P.j.PP.........####.h.......h####.k.......GG...G
 P.h.PP.........####\..T.+.../####F........GG.M.G
 P...PP.........\####\...s../####/.........GG...G
-PPPPPP..........\####\..../####/......f...GGGGGG
+PPPPPP..........\####\..../####/......f...GG?GGG
 PPPPPP...S.......\############/...........=.UGGG
 NNNNNN..s.........\##########/........T...=.VNNN
 NNNNNN........w....\########/.............=.UNNN
@@ -105,7 +105,7 @@ NNNNNNNNNNNNNN\..c......c.....m../NNNNNNNNNNNNNN
 NNNNNNNNNNNNNNN\..d............./NNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNN%NKKKKKK!KK@K===NNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNkNKKKKKK.KKKK...NNNNNNNNNNNNNNNN
-NNNNNNNNNNNNNNNNkNKK...+.x..KIJINNNNNNNNNNNNNNNN
+NNNNNNNNNNNNNNNNkNKK...+.x..?IJINNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNNNKK.r....g.KKNNNNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNNNKK...O....KKNNNNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNNNKKKKKKKKKKKKNNNNNNNNNNNNNNNNNN

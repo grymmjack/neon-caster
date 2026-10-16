@@ -84,6 +84,7 @@ ambient  = 165, 215, 220, 255
 7.5, 38.5, 4, 120, 255, 60, 60, 3
 43.5, 43.5, 6, 140, 255, 220, 120, 0
 43.5, 37.5, 5, 160, 255, 200, 60, 2
+39, 37, 2.5, 110, 255, 200, 120, 1
 
 [events]
 ' kind, x0, y0, x1, y1, a, b, reward
@@ -109,7 +110,7 @@ ambient  = 165, 215, 220, 255
 43, 6, 44, 7, 4, 8, 3, 5
 
 [triggers]
-' when (enter X0 Y0 X1 Y1 / use X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 time 0 : door 34 30 lock
 time 1 : message WELCOME TO THE NEON EXPO - EIGHT PAVILIONS, EVERY WONDER OF NEXUS
 use 13 28 : give health 25 ; sound health ; message MED STATION: +25 HEALTH
@@ -117,6 +118,7 @@ enter 11 23 11 26 : message HAZARD LAB - POISON HURTS, SLIME SLOWS, ACID EATS YO
 enter 4 31 8 33 : liquid slime 2 27 11 29 2 ; sound bubble ; message THE FLOOR IS FLOODING
 enter 36 24 37 25 : message THE FOUNDRY - MIND THE LAVA, RIDE THE LIFTS
 clear 36 15 46 20 : door 34 30 unlock ; door 34 30 open ; sound door ; message A SHORTCUT TO THE ATRIUM OPENS
+use 31 8 repeat : program invaders
 clear 14 2 22 10 : item medkit 18 9 ; message RACK ROWS CLEAR - A MEDKIT DROPS
 enter 18 2 22 3 : message A CODE TERMINAL - FACE IT AND PRESS SPACE
 use 46 9 repeat : liftgo 4 up ; sound lift-start ; message THE LIFT RISES
@@ -126,6 +128,7 @@ enter 41 1 45 5 : sound alarm ; message NEXUS: SO, YOU REACHED THE TOP. NOW FALL
 enter 11 40 11 42 : light 44 off ; sound power-down ; message THE CRYPT - SOMETHING ELSE IS DOWN HERE
 enter 15 40 16 42 : spawn stalker 17 44 1 ; message BEHIND YOU
 enter 36 41 36 41 : message THE VAULT - WATCH YOUR STEP
+shoot 40 35 : secret 40 36
 
 [monsters]
 ' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
@@ -221,7 +224,7 @@ enter 36 41 36 41 : message THE VAULT - WATCH YOUR STEP
 46, 44, 2, 0, 3
 
 [loot]
-' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls a d4 for the drop, then 1-100 for its chance
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
 crate    = ammo:30, shells:25, medkit:20, armor:15
 barrel   = ammo:15, shells:15, -, -
 locker   = armor:40, medkit:30, overcharge:15, amp:10
@@ -419,6 +422,7 @@ rack     = ammo:30, overcharge:10, -, -
 24, 33, F, 0, floor-plates.png
 25, 33, F, 0, floor-white.png
 26, 33, F, 0, floor-plates.png
+40, 35, E, 0, wall-switch.png
 20, 36, BE, 0, wall-lightstrip.png
 20, 36, BS, 0, wall-lightstrip.png
 20, 36, BW, 0, wall-lightstrip.png
@@ -475,14 +479,14 @@ rack     = ammo:30, overcharge:10, -, -
 #K..........KN\................../NP...........#
 #KKKKKKKKKKKKNNNNNNNN......NNNNNNNNPPPLPPPPPLPP#
 #GGGGGOGGOGGG########......########NNNNNNNNNNNN#
-#GGGGGGGGGGGG##i................i##NNNNNN......#
-#GG/.......UG##....p...Q.........##NNNNNN.q.u.*#
+#GGGGGGGGGGGG##i................i##NNN.q?......#
+#GG/.......UG##....p...Q.........##NNN.uN.q.u.*#
 #GG.........G##..x............nT.##NNNNNN..j...#
 #c%.........G##..................##NNNNNN.e..a2#
 #GG.......e.G#n......+...........n#NNNNNNNNXNNN#
 #GG..V..W....H..T.................D............#
 #GG.........G##..................##NNNNNN.....U#
-#c%.........G##..........m....a..##NNNNNN..g...#
+#c%.........G##...............a.m##NNNNNN..g...#
 #GG......V..G#F..................A#NNNNNN.....U#
 #GG\.......ZG##..M..W..^.......&.##NNNNNN......#
 #GGGGGGGGGGGG##..................##NNNNNNfo.x..#
@@ -577,8 +581,8 @@ rack     = ammo:30, overcharge:10, -, -
 ..cccccccccc..oooooooooooooooooooo..kkkkkkkkkkk.
 .....................cccccc.....................
 .....................cccccc.....................
-...............gggggggggggggggggg........aaaaaa.
-...aaaaaaaaa...gcccggggggggggcccg........aaaaaa.
+...............gggggggggggggggggg.....aa.aaaaaa.
+...aaaaaaaaa...gcccggggggggggcccg.....aa.aaaaaa.
 ...aaaaaaaaa...gcccggggggggggcccg........aaaaaa.
 ...aaaaaaaaa...gggggggggggggggggg........aaaaaa.
 ...aaaaaaaaa...gggggggggggggggggg...............
