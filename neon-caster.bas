@@ -1892,13 +1892,18 @@ DO
     ' (MoveBody wouldn't have let you onto anything higher), fall off
     ' anything higher - faster and faster - and land, hard if it was far;
     ' fall into a pit and that's the end. Your eye eases up a step.
-    IF editMode THEN ' The editor: you fly - Space up, C down (Shift faster), or on the way you look - no falling, nothing to stand on
+    IF editMode OR (flyMode AND NOT dead) THEN ' The editor, or fly (god mode): you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
         flySpeed = 0.04 : IF KeyHeld(BIND_RUN) THEN flySpeed = 0.1
-        IF _KEYDOWN(32) AND NOT edTyping THEN playerZ = playerZ + flySpeed
+        IF editMode THEN flyUp = _KEYDOWN(32) ELSE flyUp = _KEYDOWN(101) OR _KEYDOWN(69) ' (in play Space opens things)
+        IF flyUp AND NOT edTyping THEN playerZ = playerZ + flySpeed
         IF (_KEYDOWN(99) OR _KEYDOWN(67)) AND NOT edTyping THEN playerZ = playerZ - flySpeed
         IF forward <> 0 THEN playerZ = playerZ + forward * moveSpeed * SIN(pitch) * 1.5 ' (and the way you look: look up and walk on, and you climb - OpenGL's look up and down)
         IF playerZ < -1.4 THEN playerZ = -1.4
         IF playerZ > 4.5 THEN playerZ = 4.5
+        IF NOT editMode THEN ' (in play: your eye stays under the ceiling - above it the room isn't drawn - and the floor still holds you up)
+            IF playerZ > ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.05 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.05
+            IF playerZ < floorH(INT(playerX), INT(playerY)) THEN playerZ = floorH(INT(playerX), INT(playerY))
+        END IF
         playerVZ = 0
     ELSEIF NOT levelFlat THEN
         ' Just dropped off something higher, and still hanging over its edge?
@@ -1975,8 +1980,8 @@ DO
     IF poisonTint > 0 THEN poisonTint = poisonTint - 1
     liqTick = liqTick + 1 ' (the monsters' clock, in harmful liquids)
     IF liqAny AND NOT editMode THEN LiquidHum playerX, playerY ' (the harmful ones bubble: louder as you near them - not in the editor, where the world's sounds are off)
-    IF levelFlat AND NOT editMode THEN playerZ = 0 : playerVZ = 0
-    IF editMode OR playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
+    IF levelFlat AND NOT editMode AND NOT flyMode THEN playerZ = 0 : playerVZ = 0
+    IF editMode OR flyMode OR playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
     ' ...and you can't walk through a monster: if a step takes you inside one
     ' (closer than touchDist) and closer than you were, take it back
     FOR i = 1 TO numMonsters
@@ -1995,6 +2000,7 @@ DO
     ' STEP_RUN running: you run with longer strides, not just quicker ones.
     moved = SQR((playerX - prevX) ^ 2 + (playerY - prevY) ^ 2)
     IF editMode THEN moved = 0 ' (flying round the editor: no footsteps)
+    IF flyMode THEN IF playerZ > floorH(INT(playerX), INT(playerY)) + 0.05 THEN moved = 0 ' (or in the air, flying)
     SwishSound moved, liqWas, dead ' (through a liquid: the water swishing round you)
     IF numSecrets THEN SecretHints ' (a closet cleared: its stash clicks)
     IF NOT levelFlat THEN IF playerZ - floorH(INT(playerX), INT(playerY)) > 0.05 AND liqWas = 0 THEN moved = 0 ' (in the air: none either)
@@ -2103,11 +2109,12 @@ DO
         PlaySfx sndCard&, 0.8 : ShowMsg "All keycards, and the map"
     END IF
     kKeyWas = kKeyDown
-    ' G: god mode on / off - no damage, and you walk through walls (testing)
+    ' G: god mode on / off - no damage, through walls, flying, and the
+    ' monsters leave you be (for looking round a sector)
     gKeyDown = _KEYDOWN(103) OR _KEYDOWN(71)
     IF CHEAT_KEYS AND gKeyDown AND NOT gKeyWas AND NOT dead AND NOT editMode THEN
-        godMode = NOT godMode : achCheat = -1
-        IF godMode THEN ShowMsg "God mode ON - no damage, no clipping" ELSE ShowMsg "God mode OFF"
+        godMode = NOT godMode : flyMode = godMode : noTarget = godMode : achCheat = -1
+        IF godMode THEN ShowMsg "God mode ON - no damage, no walls, fly (E up, C down), monsters ignore you" ELSE ShowMsg "God mode OFF"
         PlaySfx sndCard&, 0.8
     END IF
     gKeyWas = gKeyDown
@@ -2516,6 +2523,7 @@ DO
     FOR i = 1 TO numMonsters
         IF cyberOn AND monsterType(i) <> MT_ICE THEN _CONTINUE ' (in the real world: they wait)
         IF editMode OR hudEdit THEN _CONTINUE ' (in the editors: everything waits)
+        IF noTarget AND monsterState(i) = 1 THEN monsterState(i) = 0 ' (notarget: whatever woke it, it forgets you - before it can chase or shoot)
         IF monsterHurt(i) > 0 THEN monsterHurt(i) = monsterHurt(i) -1
         IF monsterAtk(i) > 0 THEN monsterAtk(i) = monsterAtk(i) - 1
         ' Kicked over the edge of a pit with no bottom (it never walks off
@@ -2549,7 +2557,7 @@ DO
                 IF RND < 0.002 AND chatterWait = 0 THEN
                     IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < SFX_CHATTER * SFX_CHATTER THEN SfxAtRange mtypeIdleSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY, SFX_CHATTER : chatterWait = 30
                 END IF
-                IF NOT dead AND monWake(i) <> WAKE_HIT THEN ' (asleep till it's hit: nothing else wakes it)
+                IF NOT dead AND NOT noTarget AND monWake(i) <> WAKE_HIT THEN ' (asleep till it's hit: nothing else wakes it)
                     IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2 < monSight(i) * monSight(i) THEN
                         IF monWake(i) = WAKE_NEAR OR CanSee(monsterX(i), monsterY(i), playerX, playerY) THEN ' (an ambush: you near enough, seen or not)
                             monsterState(i) = 1 : monsterTimer(i) = 30
@@ -7900,7 +7908,7 @@ conVerb$ = ConWord$(conCmd$, 1) : conA$ = ConWord$(conCmd$, 2) : conB$ = ConWord
 sp = INSTR(conCmd$, " ") : IF sp THEN conRest$ = LTRIM$(MID$(conCmd$, sp + 1)) ELSE conRest$ = ""
 IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
     SELECT CASE conVerb$
-        CASE "god", "noclip", "iddqd", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
+        CASE "god", "noclip", "iddqd", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
              "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters"
             IF NOT achCheat AND NOT achTest THEN ConPrint "(cheats on: achievements wait for a new game)"
             achCheat = -1
@@ -8092,9 +8100,16 @@ SELECT CASE conVerb$
         GOSUB ConTake
     CASE "die", "suicide" ' You die, here and now (a trigger's death trap; not in god mode or the editor)
         IF NOT dead AND NOT godMode AND NOT editMode THEN health = 0 : dead = -1 : deadAt! = TIMER : hurtFlash = 14 : PlaySfx sndDie&, 1 : IF LEN(conRest$) THEN ShowMsg conRest$
-    CASE "god", "noclip", "iddqd"
+    CASE "god", "noclip", "iddqd" ' (and fly and notarget with it: each also on its own, below)
         IF conA$ = "" THEN godMode = NOT godMode ELSE godMode = ConOn(conA$)
-        IF godMode THEN ConPrint "God mode ON (no damage, no clipping)" ELSE ConPrint "God mode OFF"
+        flyMode = godMode : noTarget = godMode
+        IF godMode THEN ConPrint "God mode ON (no damage, no clipping, flying - E up, C down - and notarget)" ELSE ConPrint "God mode OFF"
+    CASE "fly" ' Fly: E up, C down (Shift faster) - no falling
+        IF conA$ = "" THEN flyMode = NOT flyMode ELSE flyMode = ConOn(conA$)
+        IF flyMode THEN ConPrint "Fly ON (E up, C down)" ELSE ConPrint "Fly OFF"
+    CASE "notarget" ' The monsters don't notice you - and the hunting ones forget you
+        IF conA$ = "" THEN noTarget = NOT noTarget ELSE noTarget = ConOn(conA$)
+        IF noTarget THEN ConPrint "Notarget ON (monsters ignore you)" ELSE ConPrint "Notarget OFF"
     CASE "kill", "killall" ' Every monster standing falls
         n = 0
         FOR i = 1 TO numMonsters
@@ -15215,7 +15230,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god kill respawn summon spawn item mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god fly notarget kill respawn summon spawn item mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -15260,6 +15275,9 @@ SUB ConHelp(c$)
             ConPrint "  armor overcharge amp...) or - for none: loot crate ammo:20 shells:20 - armor:10"
             ConPrint "loot BREAKABLE none: it leaves nothing   loot default: the game's own table again"
         CASE "die" : ConPrint "die [MESSAGE]: you die (a trigger's death trap); never in god mode or the editor"
+        CASE "god" : ConPrint "god [on|off]: no damage, through walls, flying (E up, C down) and notarget - for looking round a sector (G does the same)"
+        CASE "fly" : ConPrint "fly [on|off]: fly - E up, C down, Shift faster - the floor still holds you up"
+        CASE "notarget" : ConPrint "notarget [on|off]: the monsters don't notice you, and hunting ones forget you"
         CASE "spawn" : ConPrint "spawn TYPE X Y [N]: N monsters teleported into cell X Y, hunting (summon TYPE [N]: in front of you)"
         CASE "item" : ConPrint "item KIND X Y: a pickup appears in cell X Y (health medkit armor cells shells scatter repeater rail map overcharge amp red blue yellow)"
         CASE "summon" : ConPrint "summon TYPE [COUNT]: drone gunner heavy crawler sentry stalker spitter overseer (or 1-8), in front of you"

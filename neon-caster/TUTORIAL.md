@@ -58,7 +58,7 @@ it yourself:
 | Tab | the full-screen map (all of it once you've found the map pickup): pools in their colours, pits, lifts and teleporter pads |
 | ` (backtick) | the console: type `help` for the commands |
 | F2 | the level editor (see below); in it, F1 shows a cheatsheet of every key |
-| K / G | testing cheats: every keycard / god mode |
+| K / G | testing cheats: every keycard / god mode (no damage, through walls, flying with E up and C down, and the monsters ignore you) |
 
 **The console and the command line.** The console (`) runs commands for
 nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or `remix` first for another set), `give all`,
