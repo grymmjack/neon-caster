@@ -501,6 +501,7 @@ CONST MON_DYING = 24
 CONST MON_STRIDE = 0.12 ' How far a monster walks per frame of its walk
 DIM SHARED monsterX(MAX_MON) AS SINGLE, monsterY(MAX_MON) AS SINGLE, monsterType(MAX_MON) AS INTEGER
 DIM SHARED monsterHP(MAX_MON) AS INTEGER, monsterState(MAX_MON) AS INTEGER
+DIM SHARED botIgnore(MAX_MON) AS LONG, botStallX AS SINGLE, botStallY AS SINGLE, botStallAt AS LONG, botStallN AS INTEGER, botAmmoAt AS LONG ' (the autopilot's: monsters it's leaving alone a while, and its watch on whether it's moving)
 DIM SHARED monsterTimer(MAX_MON) AS INTEGER, monsterHurt(MAX_MON) AS INTEGER
 ' ...where each one is in its animation (frames of it, as a decimal: chapter
 ' 13 moves it on as the monster moves), and frames left of its attack pose
@@ -6949,6 +6950,15 @@ IF botWasDead THEN
     IF botDeaths >= 3 AND NOT godMode THEN conCmd$ = "god on" : GOSUB ConExec : ConPrint "bot: dead three times - god mode on"
 END IF
 bcx = INT(playerX) : bcy = INT(playerY)
+IF lvFrame >= botStallAt THEN ' Not moved in two seconds, whatever it's doing - three times running, and something's wrong: what it's shooting at is left alone a while, the way ahead's out
+    IF (playerX - botStallX) ^ 2 + (playerY - botStallY) ^ 2 < 0.01 AND liftCell(bcx, bcy) = 0 THEN botStallN = botStallN + 1 ELSE botStallN = 0
+    IF botStallN >= 3 THEN
+        IF botTarget THEN botIgnore(botTarget) = lvFrame + 600
+        IF botNX THEN botBlock(botNX, botNY) = lvFrame + 600
+        botNX = 0 : botStallN = 0 : botStuck = 2
+    END IF
+    botStallX = playerX : botStallY = playerY : botStallAt = lvFrame + 120
+END IF
 FOR by = bcy - 2 TO bcy + 2 : FOR bx = bcx - 2 TO bcx + 2 ' (where it's been)
     IF bx > 0 AND by > 0 AND bx < MAP_SIZE AND by < MAP_SIZE THEN botSeen(bx, by) = -1
 NEXT : NEXT
@@ -6959,13 +6969,23 @@ IF hasGun(3) AND ammoCount(AM_CELLS) > 10 THEN bg = 3
 IF bg <> currentGun AND swapTimer = 0 THEN inBits = inBits + bg * DB_GUN
 ' A monster to fight? (With nothing to fire, only one on top of it - kicked)
 bAmmo = (ammoCount(AM_CELLS) > 0) OR (bg = 2 AND ammoCount(AM_SHELLS) > 0)
-bt = 0 : bbd = 8 : IF NOT bAmmo THEN bbd = 1.3
+IF NOT bAmmo AND lvFrame >= botAmmoAt AND NOT cyberOn THEN ' Nothing to fire, and no ammo it can get to: it says so, and gives itself some (a console cheat - in the demo for all to see)
+    GOSUB BotClear
+    FOR bi = 1 TO numItems
+        IF itemOn(bi) AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+    NEXT
+    BotField 1
+    IF botDist(bcx, bcy) >= BOT_FAR THEN conCmd$ = "give ammo" : GOSUB ConExec : ConPrint "bot: no ammo to be had - give ammo"
+    botAmmoAt = lvFrame + 1800 : botNX = 0
+END IF
+bt = 0 : bbd = 7 : IF NOT bAmmo THEN bbd = 1.3
 FOR bi = 1 TO numMonsters
     IF monsterState(bi) < 2 AND (cyberOn = 0 OR monsterType(bi) = MT_ICE) THEN
         bd = SQR((monsterX(bi) - playerX) ^ 2 + (monsterY(bi) - playerY) ^ 2)
-        IF bd < bbd THEN IF CanSee(playerX, playerY, monsterX(bi), monsterY(bi)) THEN bt = bi : bbd = bd
+        IF bd < bbd AND botIgnore(bi) <= lvFrame THEN IF CanSee(playerX, playerY, monsterX(bi), monsterY(bi)) THEN bt = bi : bbd = bd
     END IF
 NEXT
+botTarget = bt
 IF bt THEN
     ba = BotTurnTo(monsterX(bt), monsterY(bt), playerX, playerY, dirX, dirY)
     IF ABS(ba) < MinOf(0.12, ATN(0.3 / MaxOf(0.5, bbd))) + 0.02 THEN
@@ -6973,6 +6993,13 @@ IF bt THEN
         IF bbd < 1.3 AND kickTimer = 0 THEN inBits = inBits OR DB_KICK
     END IF
     IF bbd < 1.6 AND bAmmo THEN inBits = inBits OR DB_BACK
+    IF bAmmo AND bbd > 2 THEN ' (side to side as it shoots - harder to hit - but only onto floor it could step to: no pit, ledge or fire)
+        bsd = 1 : IF (lvFrame \ 45) MOD 2 THEN bsd = -1
+        bx = INT(playerX - dirY * bsd * 0.7) : by = INT(playerY + dirX * bsd * 0.7)
+        IF (bx = bcx AND by = bcy) OR BotStep(bcx, bcy, bx, by, 0) THEN
+            IF bsd = 1 THEN inBits = inBits OR DB_RIGHT ELSE inBits = inBits OR DB_LEFT
+        END IF
+    END IF
     botCheckAt = lvFrame + 60 ' (fighting isn't being stuck)
     RETURN
 END IF
@@ -6983,6 +7010,14 @@ IF botMode = 0 THEN botTurn = 0.03 : RETURN ' (nowhere to go: look round)
 IF botDist(bcx, bcy) = 0 AND botMode = 1 THEN
     ba = BotTurnTo(botEX + 0.5, botEY + 0.5, playerX, playerY, dirX, dirY)
     IF ABS(ba) < 0.25 AND (lvFrame MOD 16) < 2 THEN inBits = inBits OR DB_USE
+    RETURN
+END IF
+IF botDist(bcx, bcy) = 0 AND botMode = 6 THEN ' Beside a data station: face it and jack in
+    FOR bk = 0 TO 3
+        bx = bcx + (bk = 1) - (bk = 0) : by = bcy + (bk = 3) - (bk = 2)
+        IF worldMap(bx, by) = 8 THEN ba = BotTurnTo(bx + 0.5, by + 0.5, playerX, playerY, dirX, dirY) : IF ABS(ba) < 0.25 AND (lvFrame MOD 16) < 2 THEN inBits = inBits OR DB_USE
+    NEXT
+    botCheckAt = lvFrame + 60
     RETURN
 END IF
 ' The next cell: a closed door? Face it and open it. Else, walk to its middle
@@ -7015,7 +7050,16 @@ BotPlan:
 botMode = 0 : botNX = 0
 bcx = INT(playerX) : bcy = INT(playerY)
 FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if there's no other way, not)
-    IF health < 40 THEN ' Hurt: a medkit, if one's near
+    IF cyberOn THEN ' In the network: the data cores (enough of them, and it lets you out - jacked out, its station hacked)
+        GOSUB BotClear
+        FOR bi = cyberItemStart + 1 TO numItems
+            IF itemOn(bi) AND itemKind(bi) = IT_CORE THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+        NEXT
+        BotField bpass
+        IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 7 : EXIT FOR
+        GOTO BotExplore
+    END IF
+    IF health < 50 THEN ' Hurt: a medkit, if one's near
         GOSUB BotClear
         FOR bi = 1 TO numItems
             IF itemOn(bi) AND (itemKind(bi) = IT_HEALTH OR itemKind(bi) = IT_BIGMED) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
@@ -7029,7 +7073,7 @@ FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if t
             IF itemOn(bi) AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
         NEXT
         BotField bpass
-        IF botDist(bcx, bcy) < 30 THEN botMode = 5 : EXIT FOR
+        IF botDist(bcx, bcy) < 30 OR (botDist(bcx, bcy) < BOT_FAR AND ammoCount(AM_CELLS) = 0 AND NOT (hasGun(2) AND ammoCount(AM_SHELLS) > 0)) THEN botMode = 5 : EXIT FOR ' (near - or anywhere, with nothing at all to fire)
     END IF
     GOSUB BotClear ' The exit: stand beside it
     FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
@@ -7051,6 +7095,19 @@ FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if t
     NEXT
     BotField bpass
     IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 2 : EXIT FOR
+    GOSUB BotClear ' A data station not hacked yet (it opens the sealed doors): beside it
+    FOR bi = 1 TO numStations
+        IF NOT stationDone(bi) THEN
+            bx = stationX(bi) : by = stationY(bi)
+            IF worldMap(bx + 1, by) <= 0 THEN BotGoal bx + 1, by
+            IF worldMap(bx - 1, by) <= 0 THEN BotGoal bx - 1, by
+            IF worldMap(bx, by + 1) <= 0 THEN BotGoal bx, by + 1
+            IF worldMap(bx, by - 1) <= 0 THEN BotGoal bx, by - 1
+        END IF
+    NEXT
+    BotField bpass
+    IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 6 : EXIT FOR
+    BotExplore:
     GOSUB BotClear ' Somewhere it hasn't been
     FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
         IF NOT botSeen(bx, by) AND worldMap(bx, by) <= 0 THEN BotGoal bx, by
@@ -7058,10 +7115,10 @@ FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if t
     BotField bpass
     IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 4 : EXIT FOR
 NEXT
-IF botMode <> botWas THEN ConPrint "bot: " + ListItem$("nowhere to go,to the exit,a keycard,a medkit,exploring,ammo", botMode + 1) + " (" + LTRIM$(STR$(botDist(bcx, bcy))) + " steps, frame" + STR$(lvFrame) + ")" : botWas = botMode
+IF botMode <> botWas THEN ConPrint "bot: " + ListItem$("nowhere to go,to the exit,a keycard,a medkit,exploring,ammo,a data station,data cores", botMode + 1) + " (" + LTRIM$(STR$(botDist(bcx, bcy))) + " steps, frame" + STR$(lvFrame) + ")" : botWas = botMode
 IF botMode = 0 THEN RETURN
 ' The next cell: the neighbour it can step to that's nearest the goal
-bb = botDist(bcx, bcy)
+bb = botDist(bcx, bcy) : IF BotPadAt(bcx, bcy) THEN bb = BOT_FAR ' (on a pad, just arrived: its own distance is for stepping onto it - off it, the nearest way)
 FOR bk = 0 TO 3
     bx = bcx + (bk = 1) - (bk = 0) : by = bcy + (bk = 3) - (bk = 2)
     IF botDist(bx, by) < bb THEN IF BotStep(bcx, bcy, bx, by, bpass) THEN bb = botDist(bx, by) : botNX = bx : botNY = by
@@ -8954,7 +9011,8 @@ SELECT CASE conVerb$
     CASE "bot", "autopilot" ' bot [on|off]: the autopilot plays (BotThink) - record a demo while it does
         IF conA$ = "" THEN botOn = NOT botOn ELSE botOn = ConOn(conA$)
         IF botOn THEN
-            achCheat = -1 : botDeaths = 0 : botWasDead = 0 : botNX = 0 : botStuck = 0 : botCheckAt = 0
+            achCheat = -1 : botDeaths = 0 : botWasDead = 0 : botNX = 0 : botStuck = 0 : botCheckAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0
+            FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : NEXT
             FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botSeen(bx, by) = 0 : botBlock(bx, by) = 0 : NEXT : NEXT
             ConPrint "Autopilot ON: it plays - the exit, keycards, monsters in sight (bot off to stop)"
         ELSE
@@ -15736,9 +15794,11 @@ END SUB
 ' The autopilot's field: out from the goals (BotGoal), how many steps each
 ' cell is from the nearest - a "breadth-first search", as the thieves'
 ' way home (chapter 19), but backwards: from cell c, who could step onto
-' it? A neighbour whose step is allowed (BotStep) - but never a teleporter
-' pad (step on one and you're on its partner), which is one step from the
-' cell its partner is. haz: fire and harmful liquids are allowed too.
+' it? A neighbour whose step is allowed (BotStep). A teleporter pad is two
+' things: stood on (just arrived from its partner) you walk off it as off
+' any floor - so its partner, stepped onto, is one more step away; and a
+' pad's own distance is that: for stepping onto it. haz: fire and harmful
+' liquids are allowed too.
 SUB BotField(haz)
     h& = 1
     DO WHILE h& <= botQT
@@ -15747,17 +15807,17 @@ SUB BotField(haz)
         FOR k = 0 TO 3
             nx = cx + (k = 1) - (k = 0) : ny = cy + (k = 3) - (k = 2)
             IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
-                IF botDist(nx, ny) > d THEN
-                    IF BotPadAt(nx, ny) = 0 THEN
-                        IF BotStep(nx, ny, cx, cy, haz) THEN botDist(nx, ny) = d : botQT = botQT + 1 : botQ(botQT) = ny * MAP_SIZE + nx
+                IF BotStep(nx, ny, cx, cy, haz) THEN
+                    pk = BotPadAt(nx, ny)
+                    IF pk = 0 THEN
+                        IF botDist(nx, ny) > d THEN botDist(nx, ny) = d : botQT = botQT + 1 : botQ(botQT) = ny * MAP_SIZE + nx
+                    ELSE ' A pad: standing on it (just arrived from its partner) you can step here - so its partner, stepped onto, is d + 1 away
+                        o = pk + 1 : IF pk MOD 2 = 0 THEN o = pk - 1
+                        IF o >= 1 AND o <= numPads THEN
+                            IF botDist(padX(o), padY(o)) > d + 1 THEN botDist(padX(o), padY(o)) = d + 1 : botQT = botQT + 1 : botQ(botQT) = padY(o) * MAP_SIZE + padX(o)
+                        END IF
                     END IF
                 END IF
-            END IF
-        NEXT
-        FOR k = 1 TO numPads ' (a pad whose partner this is: one step away)
-            o = k + 1 : IF k MOD 2 = 0 THEN o = k - 1
-            IF o >= 1 AND o <= numPads THEN
-                IF padX(o) = cx AND padY(o) = cy AND botDist(padX(k), padY(k)) > d THEN botDist(padX(k), padY(k)) = d : botQT = botQT + 1 : botQ(botQT) = padY(k) * MAP_SIZE + padX(k)
             END IF
         NEXT
     LOOP
@@ -15789,7 +15849,8 @@ FUNCTION BotStep(ax, ay, bx, by, haz)
         END IF
     END IF
     IF diagCorner(bx, by) OR boxOn(bx, by) OR glassHP(bx, by) > 0 THEN EXIT FUNCTION
-    d = decoCell(bx, by) : IF d THEN IF decoOn(d) AND decoKind(d) <> DK_BODY THEN EXIT FUNCTION
+    d = decoCell(bx, by) : IF cyberOn THEN d = 0 ' (the network has no decorations)
+    IF d THEN IF decoOn(d) AND decoKind(d) <> DK_BODY THEN EXIT FUNCTION
     IF NOT levelFlat THEN
         IF floorH(bx, by) <= PIT_DEPTH THEN EXIT FUNCTION
         IF liftCell(ax, ay) = 0 AND liftCell(bx, by) = 0 THEN IF floorH(bx, by) > floorH(ax, ay) + STEP_UP THEN EXIT FUNCTION
