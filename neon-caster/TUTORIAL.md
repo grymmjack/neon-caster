@@ -65,7 +65,7 @@ nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or 
 `god`, `kill`, `respawn`, `summon heavy 3`, `tp 20 24 90`, `save 2`,
 `load quick`, `restart`, `finish`, any setting by its name (`fov 100`,
 `renderer 2`, `display 2` - `settings` lists them), `bind`, `events`,
-`screenshot`, `cutscene 4` (a sector's transmission), `say taunt2`
+`screenshot`, `record`, `playdemo` and `bot` (demos - below), `cutscene 4` (a sector's transmission), `say taunt2`
 (any of NEXUS's lines) and `achievements` (with `achieve NAME` and
 `resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
@@ -86,6 +86,22 @@ frame - `wait` holds the rest back - so a test can drive it with no hands:
 ```
 
 Settings changed from the command line last only for that run.
+
+**Demos.** `record NAME` starts the sector you're in again from the
+beginning and records you playing it, as DOOM did: not a video, but every
+key and turn, frame by frame. The exit (or `stopdemo`) ends it, and
+`playdemo NAME` plays it back exactly - the same monsters, the same shots,
+the same loot - in either renderer. `demos` lists them; they're small text
+files in `neon-caster/saves/demos/`. `bot` turns on the autopilot, which
+plays the sector itself (it goes for the keycards and the exit and shoots
+what it sees), so `record mine` then `bot` makes a demo with no hands.
+`playdemo NAME quit` ends the game when the demo does, with exit code 3 if
+it went out of step - a test that a sector still plays the same.
+
+```
+./neon-caster.run +map 3 +record three +bot on
+./neon-caster.run +playdemo three quit
+```
 
 Every key can be changed in the menu, under **SETTINGS > CONTROLS**. The
 menu works with the arrow keys or W A S D, Enter, and Esc to go back - or

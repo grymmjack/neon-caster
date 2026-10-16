@@ -172,7 +172,20 @@
 CONST GAME_VERSION$ = "0.2.0"
 _TITLE "NEON-CASTER " + GAME_VERSION$
 ON ERROR GOTO GameError ' (a runtime error: logged, and the game carries on - chapter 21)
+DIM SHARED grSeed AS DOUBLE ' (the game's own dice: GRnd - where they've got to)
+' Demos (record, playdemo - the console's; DemoInput): each frame's keys,
+' written down as they're played - or read back in their place
+DIM SHARED demoRec AS INTEGER, demoPlay AS INTEGER, demoFH AS INTEGER, demoFrame AS LONG, demoName$, demoQuit AS INTEGER
+DIM SHARED demoPend$, demoPendN AS LONG, demoLeft AS LONG, demoBack$, demoFovQ AS LONG, demoLook AS INTEGER
+DIM SHARED demoRecQuit AS INTEGER, demoTrace AS INTEGER, demoDebug AS INTEGER, demoBad AS LONG, demoBadAt AS LONG, demoInject AS INTEGER, demoKind$, demoRes AS LONG
+DIM SHARED inBits AS LONG, inTU AS LONG, inPU AS LONG, inWheel AS INTEGER, lookAim AS INTEGER, lvFrame AS LONG, deadTicks AS LONG
+CONST DB_FWD = 1, DB_BACK = 2, DB_LEFT = 4, DB_RIGHT = 8, DB_RUN = 16, DB_FIRE = 32, DB_USE = 64, DB_AIM = 128, DB_KICK = 256
+CONST DB_NIGHT = 512, DB_MAP = 1024, DB_UP = 2048, DB_DOWN = 4096, DB_CHEATK = 8192, DB_CHEATG = 16384, DB_GUN = 32768 ' (DB_GUN: times 1-4, the gun key held)
+CONST DEMO_KEYS = "WSADRFUZKNMECkg" ' (in a demo file each bit is its letter: W forward, S back, A and D strafe, R run, F fire, U use, Z aim, K kick, N night vision, M map, E and C fly up and down, k and g the cheat keys)
+CONST DEMO_TURN = 6.283185307179586# / 65536 ' (a demo's turns are in 65536ths of a circle, as DOOM's: whole numbers, so playing one back turns exactly as it was played)
 RANDOMIZE TIMER ' (RND's dice start somewhere new each time: without this, every game rolls the same numbers - the same loot, the same vending machines)
+grSeed = 1 + INT(RND * 2147483645) ' (and the game's own, GRnd's, with them)
+demoDebug = LEN(ENVIRON$("NEON_DEMO_DEBUG")) > 0 : demoTrace = LEN(ENVIRON$("NEON_DEMO_TRACE")) > 0
 SCREEN _NEWIMAGE(800, 600, 32)
 _MOUSEHIDE _DISABLE
 _PRINTMODE _KEEPBACKGROUND
@@ -214,6 +227,11 @@ CONST PLAYER_RADIUS = 0.3 ' Your body's half-width, so the camera can't touch a 
 ' worldMap: 0 floor, 2 door; walls 1 (#), 3 (N), 4 (C), 5 (K), 6 (P), 7 (G):
 ' six kinds of wall, whose textures each level picks (see chapter 22)
 DIM SHARED worldMap(MAP_SIZE, MAP_SIZE) AS INTEGER
+' The autopilot (bot, the console's - BotThink): it plays, and a demo records it
+CONST BOT_FAR = 32000
+DIM SHARED botOn AS INTEGER, botDist(MAP_SIZE, MAP_SIZE) AS INTEGER, botBlock(MAP_SIZE, MAP_SIZE) AS LONG, botSeen(MAP_SIZE, MAP_SIZE) AS INTEGER
+DIM SHARED botQ(MAP_SIZE * MAP_SIZE) AS LONG, botQT AS LONG, botTurn AS SINGLE, botMode AS INTEGER, botNX AS INTEGER, botNY AS INTEGER
+DIM SHARED botDeaths AS INTEGER, botWasDead AS INTEGER, botLastX AS SINGLE, botLastY AS SINGLE, botCheckAt AS LONG, botStuck AS INTEGER
 ' Doors: how far open (0 shut .. 1 open), which keycard opens it (0 any,
 ' 1 red, 2 blue, 3 yellow), and what kind it is (DOOR_ constants below)
 DIM SHARED doorOpen(MAP_SIZE, MAP_SIZE) AS SINGLE
@@ -1654,6 +1672,8 @@ DO
     frameGap! = TIMER - frameAt! : IF frameGap! < 0 THEN frameGap! = frameGap! + 86400
     IF frameAt! <> 0 AND frameGap! > 0.5 THEN levelStart! = levelStart! + frameGap! - 1 / 60
     frameAt! = TIMER
+    IF NOT editMode THEN lvFrame = lvFrame + 1 ' (the sector's clock in frames: a trigger's "time", and a demo's)
+    IF dead THEN deadTicks = deadTicks + 1 ELSE deadTicks = 0
     IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
@@ -1764,16 +1784,22 @@ DO
     END IF
     escWas = _KEYDOWN(27) OR edTyping
 
+    ' This frame's keys and buttons, as bits (inBits - DemoInput): yours -
+    ' or, with a demo playing, the ones it recorded. Everything below asks
+    ' inBits, not the keyboard, so a demo plays exactly as it was played.
+    lookAim = (glMode <> 0) AND (setting(SET_LOOK) <> 0) ' (can a shot go high or low? OpenGL's LOOK UP / DOWN - a demo keeps its own)
+    GOSUB DemoInput
+
     IF dead THEN
         ' Dead: the view stays put; click or Space (after a moment) starts over
-        IF TIMER - deadAt! > 1.2 AND ((fireDown AND NOT fireWas) OR (spaceDown AND NOT spaceWas)) THEN GOSUB RestartLevel
+        IF deadTicks > 72 AND ((fireDown AND NOT fireWas) OR (spaceDown AND NOT spaceWas)) THEN GOSUB RestartLevel
         mouseDX = 0 : mouseDY = 0 : mouseWheel = 0
     END IF
 
     ' Aiming down the sights: hold the right mouse button (_MOUSEBUTTON(2)).
     ' aimAmount slides from 0 (hip) to 1 (aimed) over ADS_FRAMES frames, so
     ' the zoom and the gun ease in and out instead of snapping.
-    IF _MOUSEBUTTON(2) AND NOT dead AND NOT hudEdit AND NOT editMode THEN aimTarget = 1 ELSE aimTarget = 0
+    IF (inBits AND DB_AIM) <> 0 AND NOT dead AND NOT hudEdit AND NOT editMode THEN aimTarget = 1 ELSE aimTarget = 0
     IF swapTimer > 0 THEN aimTarget = 0 ' Changing guns: lower it (no jump in zoom)
     IF aimAmount < aimTarget THEN aimAmount = aimAmount + 1 / ADS_FRAMES : IF aimAmount > 1 THEN aimAmount = 1
     IF aimAmount > aimTarget THEN aimAmount = aimAmount - 1 / ADS_FRAMES : IF aimAmount < 0 THEN aimAmount = 0
@@ -1784,6 +1810,8 @@ DO
     ' more you're aiming, by AIM SENSITIVITY)
     aimSlow = 1 - aimAmount * (1 - setting(SET_AIMSENS) / 100)
     turn = mouseDX * turnSpeed / zoom * aimSlow ' (the mouse to the right turns you clockwise - as the map shows it: its y grows downward)
+    IF botOn AND NOT demoPlay AND NOT editMode THEN turn = botTurn ' (the autopilot turns you)
+    IF demoPlay THEN turn = inTU * DEMO_TURN ELSE IF demoRec THEN inTU = CLNG(turn / DEMO_TURN) : turn = inTU * DEMO_TURN ' (a demo's turn: a whole number of steps, played as written)
     oldDirX = dirX : dirX = dirX * COS(turn) - dirY * SIN(turn) : dirY = oldDirX * SIN(turn) + dirY * COS(turn)
     oldPlaneX = planeX : planeX = planeX * COS(turn) - planeY * SIN(turn) : planeY = oldPlaneX * SIN(turn) + planeY * COS(turn)
 
@@ -1800,6 +1828,9 @@ DO
     ELSE
         pitch = pitch * 0.8
     END IF
+    IF demoPlay THEN pitch = inPU / 1000 ELSE IF demoRec THEN inPU = CLNG(pitch * 1000) : pitch = inPU / 1000 ' (and its look up or down, in thousandths)
+    IF demoRec THEN GOSUB DemoWriteFrame
+    IF demoTrace AND (demoRec OR demoPlay) THEN GOSUB DemoTraceOut ' (NEON_DEMO_TRACE: the game's state each frame, into the log - two runs' logs side by side show where they part)
 
     ' Zooming. The camera plane's length sets how wide the view is, so a
     ' shorter plane (fovPlane / zoom) is a narrower view - and a narrower
@@ -1817,10 +1848,7 @@ DO
     ' Swapping takes SWAP_FRAMES: the gun dips out of sight, changes at the
     ' halfway point, and comes back up (the drawing is in chapter 18).
     wantGun = 0
-    IF DigitHeld%(49) THEN wantGun = 1 ' (by place: Shift + 1 types "!", and you might be running)
-    IF DigitHeld%(50) THEN wantGun = 2
-    IF DigitHeld%(51) THEN wantGun = 3
-    IF DigitHeld%(52) THEN wantGun = 4
+    IF inBits \ DB_GUN THEN wantGun = inBits \ DB_GUN ' (1 to 4, held - by place: Shift + 1 types "!", and you might be running)
     IF mouseWheel <> 0 THEN ' (a notch a gun - from the one coming up, if a swap's still lowering the last)
         wantGun = currentGun : IF swapTimer > SWAP_FRAMES \ 2 THEN wantGun = nextGun
         FOR notch = 1 TO MinOf(ABS(mouseWheel), NUM_GUNS)
@@ -1856,14 +1884,14 @@ DO
     ' simply cancel out.
     forward = 0 : strafe = 0
     IF NOT dead AND NOT edTyping THEN ' (typing a name in the editor: the keys aren't for walking)
-        IF KeyHeld(BIND_FORWARD) THEN forward = forward + 1 ' W, unless rebound
-        IF KeyHeld(BIND_BACK) THEN forward = forward - 1 ' S
-        IF KeyHeld(BIND_LEFT) THEN strafe = strafe - 1 ' A (strafe left)
-        IF KeyHeld(BIND_RIGHT) THEN strafe = strafe + 1 ' D (strafe right)
+        IF inBits AND DB_FWD THEN forward = forward + 1 ' W, unless rebound
+        IF inBits AND DB_BACK THEN forward = forward - 1 ' S
+        IF inBits AND DB_LEFT THEN strafe = strafe - 1 ' A (strafe left)
+        IF inBits AND DB_RIGHT THEN strafe = strafe + 1 ' D (strafe right)
     END IF
     moveX = dirX * forward - dirY * strafe : moveY = dirY * forward + dirX * strafe ' (your right: (-dirY, dirX))
     moveLen = SQR(moveX * moveX + moveY * moveY)
-    moveSpeed = WALK_SPEED : IF KeyHeld(BIND_RUN) THEN moveSpeed = RUN_SPEED ' (Shift: run)
+    moveSpeed = WALK_SPEED : IF inBits AND DB_RUN THEN moveSpeed = RUN_SPEED ' (Shift: run)
     IF FloorHazard(INT(playerX), INT(playerY)) = HAZ_WADE THEN IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.05 THEN moveSpeed = moveSpeed * SLOW_WADE ' (wading)
     IF health <= LOW_HP AND NOT godMode AND NOT editMode THEN moveSpeed = moveSpeed * LOW_SLOW ' (badly hurt: you drag yourself along)
     IF liqWas THEN moveSpeed = moveSpeed * LiquidSlow(liqWas, liqZ(INT(playerX), INT(playerY)) - playerZ) ' (wading in a liquid: slower the deeper - LQ_FULL deep, as slow as it gets)
@@ -1893,10 +1921,10 @@ DO
     ' anything higher - faster and faster - and land, hard if it was far;
     ' fall into a pit and that's the end. Your eye eases up a step.
     IF editMode OR (flyMode AND NOT dead) THEN ' The editor, or fly (god mode): you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
-        flySpeed = 0.04 : IF KeyHeld(BIND_RUN) THEN flySpeed = 0.1
-        IF editMode THEN flyUp = _KEYDOWN(32) ELSE flyUp = _KEYDOWN(101) OR _KEYDOWN(69) ' (in play Space opens things)
+        flySpeed = 0.04 : IF inBits AND DB_RUN THEN flySpeed = 0.1
+        IF editMode THEN flyUp = _KEYDOWN(32) : flyDown = _KEYDOWN(99) OR _KEYDOWN(67) ELSE flyUp = (inBits AND DB_UP) <> 0 : flyDown = (inBits AND DB_DOWN) <> 0 ' (in play Space opens things)
         IF flyUp AND NOT edTyping THEN playerZ = playerZ + flySpeed
-        IF (_KEYDOWN(99) OR _KEYDOWN(67)) AND NOT edTyping THEN playerZ = playerZ - flySpeed
+        IF flyDown AND NOT edTyping THEN playerZ = playerZ - flySpeed
         IF forward <> 0 THEN playerZ = playerZ + forward * moveSpeed * SIN(pitch) * 1.5 ' (and the way you look: look up and walk on, and you climb - OpenGL's look up and down)
         IF playerZ < -1.4 THEN playerZ = -1.4
         IF playerZ > 4.5 THEN playerZ = 4.5
@@ -2102,7 +2130,7 @@ DO
     ' only when the key is down now and wasn't then. Space and the fire
     ' button use the same trick.
     ' K: every keycard (testing)
-    kKeyDown = _KEYDOWN(107) OR _KEYDOWN(75)
+    kKeyDown = (inBits AND DB_CHEATK) <> 0
     IF CHEAT_KEYS AND kKeyDown AND NOT kKeyWas AND NOT dead AND NOT editMode THEN
         FOR k = 1 TO 3 : hasCard(k) = -1 : NEXT
         hasMap = -1 : achCheat = -1 ' (a cheat: achievements wait for a new game)
@@ -2111,7 +2139,7 @@ DO
     kKeyWas = kKeyDown
     ' G: god mode on / off - no damage, through walls, flying, and the
     ' monsters leave you be (for looking round a sector)
-    gKeyDown = _KEYDOWN(103) OR _KEYDOWN(71)
+    gKeyDown = (inBits AND DB_CHEATG) <> 0
     IF CHEAT_KEYS AND gKeyDown AND NOT gKeyWas AND NOT dead AND NOT editMode THEN
         godMode = NOT godMode : flyMode = godMode : noTarget = godMode : achCheat = -1
         IF godMode THEN ShowMsg "God mode ON - no damage, no walls, fly (E up, C down), monsters ignore you" ELSE ShowMsg "God mode OFF"
@@ -2132,7 +2160,7 @@ DO
     ' Tab: the full-screen map on or off (drawn in chapter 18). In the
     ' editor Tab is its own (the map from above / walking round), and the
     ' editor reads it first - so it mustn't open this map as well.
-    mapKeyDown = KeyHeld(BIND_MAP)
+    mapKeyDown = (inBits AND DB_MAP) <> 0
     IF mapKeyDown AND NOT mapKeyWas AND NOT editMode THEN mapOpen = NOT mapOpen
     mapKeyWas = mapKeyDown
 
@@ -2217,7 +2245,7 @@ DO
                 dv = decoCell(cellX, cellY)
                 IF decoOn(dv) AND decoKind(dv) = DK_VENDING THEN
                     IF vendState(dv) = 0 THEN
-                        vendState(dv) = 1 : vendTimer(dv) = 181 : vendBomb(dv) = (RND < 0.3)
+                        vendState(dv) = 1 : vendTimer(dv) = 181 : vendBomb(dv) = (GRnd < 0.3)
                         SfxAt sndPlate&, decoX(dv), decoY(dv), playerX, playerY : ShowMsg "*CLUNK* The vending machine whirs..."
                     ELSEIF vendState(dv) = 3 THEN
                         ShowMsg "SOLD OUT"
@@ -2319,8 +2347,8 @@ DO
             IF setting(SET_XFEEDBACK) THEN crossScale = 0.6 ' The crosshair tightens as you fire
             invDet = 1 /(planeX * dirY - dirX * planeY)
             FOR pellet = 1 TO gunPellets(currentGun)
-                aim = (RND * 2 - 1) * gunSpread(currentGun) ' Across the view: -1 left edge .. 1 right
-                IF gunPellets(currentGun) > 1 THEN aim = ((pellet - 1) /(gunPellets(currentGun) -1) * 2 - 1) * gunSpread(currentGun) + (RND - 0.5) * 0.02
+                aim = (GRnd * 2 - 1) * gunSpread(currentGun) ' Across the view: -1 left edge .. 1 right
+                IF gunPellets(currentGun) > 1 THEN aim = ((pellet - 1) /(gunPellets(currentGun) -1) * 2 - 1) * gunSpread(currentGun) + (GRnd - 0.5) * 0.02
                 screenCol = INT(RENDER_W / 2 * (1 + aim)) : IF screenCol < 0 THEN screenCol = 0
                 IF screenCol > RENDER_W - 1 THEN screenCol = RENDER_W-1
                 ' (a piercing shot hits everything in its line that's nearer than
@@ -2441,7 +2469,7 @@ DO
     ' KICK_HIT frames in - on the nearest monster in front, within KICK_REACH
     ' (and roughly where you're looking), shoving it back - or else a
     ' decoration - then drops back down
-    kickDown = KeyHeld(BIND_KICK) AND NOT editMode ' (in the editor F is the floor's picture, not a kick)
+    kickDown = (inBits AND DB_KICK) <> 0 AND NOT editMode ' (in the editor F is the floor's picture, not a kick)
     IF kickDown AND NOT kickWas AND kickTimer = 0 AND NOT dead THEN kickTimer = KICK_FRAMES : PlaySfx sndKickSwing&, 0.7
     kickWas = kickDown
     IF kickTimer > 0 THEN
@@ -2584,7 +2612,7 @@ DO
                         IF distance > GUNNER_FAR OR NOT seen THEN goX = toPlayerX / distance : goY = toPlayerY / distance
                         IF distance < GUNNER_NEAR THEN goX = - toPlayerX / distance : goY = -toPlayerY / distance
                         IF seen AND monsterTimer(i) = 0 AND distance < 11 THEN
-                            FireBolt monsterX(i), monsterY(i), toPlayerX / distance, toPlayerY / distance, mtypeDamage(mtype) + INT(RND * mtypeDamageRnd(mtype))
+                            FireBolt monsterX(i), monsterY(i), toPlayerX / distance, toPlayerY / distance, mtypeDamage(mtype) + INT(GRnd * mtypeDamageRnd(mtype))
                             IF mtype = 8 THEN ' The overseer: a fan of three (two more, turned a little either way)
                                 FOR spread = -1 TO 1 STEP 2
                                     spreadA = spread * 0.22 : ux = toPlayerX / distance : uy = toPlayerY / distance
@@ -2593,7 +2621,7 @@ DO
                             END IF
                             monsterAtk(i) = ATTACK_FRAMES
                             SfxAt mtypeAttackSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
-                            monsterTimer(i) = mtypeCooldown(mtype) + INT(RND * 30)
+                            monsterTimer(i) = mtypeCooldown(mtype) + INT(GRnd * 30)
                         END IF
                     ELSEIF distance > mtypeReach(mtype) THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' The rest: close in...
@@ -2602,7 +2630,7 @@ DO
                     ELSEIF mtypeLift(mtype) = 0 AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) > 0.7 THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' (you're up a ledge, or down one: claws don't reach)
                     ELSEIF monsterTimer(i) = 0 THEN ' ...and hit
-                        damage = mtypeDamage(mtype) + INT(RND * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
+                        damage = mtypeDamage(mtype) + INT(GRnd * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
                         PlaySfx mtypeAttackSnd&(mtype), 0.9
                         hurtFromX = monsterX(i) : hurtFromY = monsterY(i) : GOSUB HurtPlayer
                         monsterAtk(i) = ATTACK_FRAMES
@@ -2725,7 +2753,7 @@ DO
     END IF
     ' Night vision: N (BIND_NIGHT) on and off, while there's battery; on, it
     ' runs down, and goes off by itself when it's flat
-    nvKey = KeyHeld(BIND_NIGHT)
+    nvKey = (inBits AND DB_NIGHT) <> 0
     IF nvKey AND NOT nvKeyWas AND NOT editMode AND NOT dead THEN
         IF nvCharge > 0 THEN
             nvOn = NOT nvOn : IF nvOn THEN PlaySfx sndPowerUp&, 0.7 ELSE PlaySfx sndPowerDown&, 0.6
@@ -3238,7 +3266,7 @@ DO
             f = (monsterTimer(i) - MON_DYING / 2) / (MON_DYING / 2) ' (1 just hit .. 0 down)
             drawSquash(numDraw) = 0.55 + 0.45 * f : drawLift(numDraw) = mtypeLift(mtype) * f : drawSprite(numDraw) = mtypeSprite(mtype) + 1
         ELSE
-            drawSquash(numDraw) = 1 : drawLift(numDraw) = mtypeLift(mtype) + mtypeBob(mtype) * SIN(TIMER * 2.5 + i * 1.7)
+            drawSquash(numDraw) = 1 : drawLift(numDraw) = mtypeLift(mtype) + mtypeBob(mtype) * SIN(lvFrame / 24 + i * 1.7) ' (bobbing by the frame clock, as WeakSpotHit has it: the same bob in a demo)
         END IF
     NEXT
     FOR i = 1 TO numDecos
@@ -3802,6 +3830,13 @@ DO
     END IF
     ' The sector timer (SECTOR TIMER): how long you've been in it, the
     ' clock green while you're inside your best and red once past it
+    IF demoRec OR demoPlay THEN ' A demo going: REC (red) or DEMO (cyan), and how long, at the top right
+        IF demoRec THEN dh$ = "REC " ELSE dh$ = "DEMO "
+        dh$ = dh$ + TimeText$(demoFrame / 60) : IF demoPlay AND demoBad THEN dh$ = dh$ + "  OUT OF STEP"
+        IF demoRec THEN dhc~& = _RGB32(255, 70, 80) ELSE dhc~& = _RGB32(90, 230, 255)
+        IF demoRec AND (demoFrame \ 30) MOD 2 = 0 THEN FillCircle 784 - LEN(dh$) * 8 - 10, 66, 4, dhc~& ' (the red light, blinking)
+        HudText 784 - LEN(dh$) * 8, 58, dh$, dhc~&
+    END IF
     IF setting(SET_TIMER) AND hudShow(HE_TIMER) AND NOT editMode AND NOT cyberOn THEN
         lt! = TIMER - levelStart! : IF lt! < 0 THEN lt! = lt! + 86400
         rk = level : IF level <= NUM_LEVELS THEN rk = sectorSet * 100 + level
@@ -3878,7 +3913,7 @@ IF monsterHP(target) <= 0 AND monsterState(target) < 2 THEN
         IF ampTimer > 0 THEN achAmpKills = achAmpKills + 1 : IF achAmpKills >= 5 THEN Achieve "NC_AMPED", 0
         IF achInBlast THEN achBlastKills = achBlastKills + 1 : IF achBlastKills >= 3 THEN Achieve "NC_CHAIN", 0
     END IF
-    IF mtypeDrop(mt) > 0 AND NOT cyberOn THEN IF RND < mtypeDropChance(mt) THEN DropItemAt mtypeDrop(mt), monsterX(target), monsterY(target)
+    IF mtypeDrop(mt) > 0 AND NOT cyberOn THEN IF GRnd < mtypeDropChance(mt) THEN DropItemAt mtypeDrop(mt), monsterX(target), monsterY(target)
     IF monsterType(target) = MT_THIEF THEN DropThiefLoot target
     IF monsterType(target) = 8 THEN Say "bossdie", 0
     SfxAt mtypeDieSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
@@ -3939,9 +3974,9 @@ IF vendState(i) = 1 THEN
     END IF
 ELSE
     IF vendTimer(i) MOD 18 = 0 THEN ' (one more thing out of the slot, out the front - or anywhere)
-        k = IT_CELLS : r = RND
+        k = IT_CELLS : r = GRnd
         IF r < 0.3 THEN k = IT_SHELLS ELSE IF r < 0.55 THEN k = IT_HEALTH ELSE IF r < 0.6 THEN k = IT_ARMOR ELSE IF r < 0.63 THEN k = IT_OVERCHARGE
-        a = (decoFace(i) - 1) * 1.5708 + (RND - 0.5) * 1.6 : IF decoFace(i) = 0 THEN a = _ATAN2(playerY - decoY(i), playerX - decoX(i)) + (RND - 0.5) * 1.6
+        a = (decoFace(i) - 1) * 1.5708 + (GRnd - 0.5) * 1.6 : IF decoFace(i) = 0 THEN a = _ATAN2(playerY - decoY(i), playerX - decoX(i)) + (GRnd - 0.5) * 1.6
         TossItem k, decoX(i), decoY(i), a, playerX, playerY : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
     END IF
     IF vendTimer(i) <= 0 THEN vendState(i) = 3 : ShowMsg "SOLD OUT"
@@ -3958,7 +3993,18 @@ RETURN
 ' front of you); anything else, you didn't. No qb64pe to build it with,
 ' and the computer says so.
 RunProgram:
-pgName$ = LCASE$(LTRIM$(RTRIM$(conA$))) : pgSrc$ = AssetPath$("programs/" + pgName$ + ".bas")
+pgName$ = LCASE$(LTRIM$(RTRIM$(conA$)))
+IF demoPlay THEN ' (a demo: what the program answered, as recorded - it isn't run again; -999: it never ran)
+    demoKind$ = "r" : GOSUB DemoTakeRes : rc = demoRes
+    IF rc <> -999 THEN GOSUB ProgramPaid
+    RETURN
+END IF
+rc = -999 : GOSUB ProgramRun
+IF demoRec THEN demoKind$ = "r" : demoRes = rc : GOSUB DemoEvent
+RETURN
+
+ProgramRun:
+pgSrc$ = AssetPath$("programs/" + pgName$ + ".bas")
 IF pgName$ = "" OR NOT _FILEEXISTS(pgSrc$) THEN ConPrint "program: no neon-caster/programs/" + pgName$ + ".bas" : ShowMsg "SYSTEM ERROR - no program called " + pgName$ : RETURN
 MakeSaveDir : pgDir$ = SaveDir$ + "programs"
 IF NOT _DIREXISTS(pgDir$) THEN MKDIR pgDir$
@@ -3973,10 +4019,14 @@ IF NOT _FILEEXISTS(pgExe$) THEN ' (built once: the next time it just runs)
     GLScreenLayer glReady : ShowFrame
     pgSrcF$ = _FULLPATH$(pgSrc$) : IF win THEN pgSrcF$ = Slashes$(pgSrcF$)
     rc = SHELL(q$ + qb$ + q$ + " -w -x " + q$ + pgSrcF$ + q$ + " -o " + q$ + pgExe$ + q$)
-    IF NOT _FILEEXISTS(pgExe$) THEN ShowMsg "SYSTEM ERROR - " + pgName$ + " wouldn't build (qb64pe)" : ConPrint "program: qb64pe couldn't build " + pgSrc$ : RETURN
+    IF NOT _FILEEXISTS(pgExe$) THEN ShowMsg "SYSTEM ERROR - " + pgName$ + " wouldn't build (qb64pe)" : ConPrint "program: qb64pe couldn't build " + pgSrc$ : rc = -999 : RETURN
 END IF
 WorldLoopsOff
 rc = SHELL(q$ + pgExe$ + q$)
+GOSUB ProgramPaid
+RETURN
+
+ProgramPaid: ' (what its answer brings: the same whether it ran just now or a demo says so)
 _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : spaceWas = -1
 IF rc = 1 THEN
     IF conFromTrig THEN px = trigX0(trigK) + 0.5 : py = trigY0(trigK) + 0.5 ELSE px = playerX + dirX : py = playerY + dirY
@@ -3997,6 +4047,7 @@ RETURN
 ' or Esc, and you can try again. The ball speeds up each time it's hit,
 ' and comes off a paddle steeper the further from its middle it hits.
 ArcadeRun:
+IF demoPlay THEN demoKind$ = "a" : GOSUB DemoTakeRes : arcWon = (demoRes = 1) : arcDone = (demoRes = 2) : GOTO ArcadeEnd ' (a demo: the game's result, as recorded)
 WorldLoopsOff : _MOUSESHOW : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
 arcPY = 300 : arcCY = 300 : arcMe = 0 : arcIt = 0 : arcDone = 0 : arcWon = 0 : arcServe = 60 : arcDir = 1
 arcBX = 400 : arcBY = 300 : arcVX = 0 : arcVY = 0 : arcMouseY = _MOUSEY
@@ -4048,6 +4099,12 @@ IF NOT arcDone THEN ' (the result, a moment)
         GLScreenLayer glReady : ShowFrame
     NEXT
 END IF
+IF demoRec THEN ' (a demo: the game's result - 1 won, 2 left with Esc, 0 lost)
+    demoKind$ = "a" : demoRes = 0
+    IF arcWon THEN demoRes = 1 ELSE IF arcDone THEN demoRes = 2
+    GOSUB DemoEvent
+END IF
+ArcadeEnd:
 _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
 escWas = -1 : fireWait = 15 : spaceWas = -1
 IF arcWon THEN
@@ -4129,6 +4186,7 @@ RETURN
 ' lvlRow$() and the rest - the level as its file says it - and the level
 ' is built again from that (EditApply), keeping you where you are.
 EditEnter:
+IF demoRec OR demoPlay THEN GOSUB DemoStop
 achCheat = -1 ' (in the editor you can put anything anywhere: achievements wait for a new game - but the editor's own)
 WorldLoopsOff ' (the world stops: so do its sounds)
 GOSUB EditReset
@@ -5373,7 +5431,7 @@ FOR k = 1 TO numTrigs
                 NEXT
                 IF started > 0 AND alive = 0 THEN fire = -1
             CASE "time"
-                IF TIMER - levelStart! >= trigX0(k) OR TIMER < levelStart! THEN fire = -1
+                IF lvFrame >= trigX0(k) * 60 THEN fire = -1 ' (seconds, counted in frames: the same in a demo)
             CASE "shoot" ' (ShotAt marked it: a switch clicks)
                 IF trigHit(k) THEN fire = -1 : trigHit(k) = 0 : PlaySfx sndPlate&, 0.9
         END SELECT
@@ -5435,7 +5493,12 @@ FOR y = termY(tm) - 7 TO termY(tm) + 7 : FOR x = termX(tm) - 7 TO termX(tm) + 7
 NEXT : NEXT
 IF slammed THEN PlaySfx sndAlarm&, 0.8 : shake = shake + 8
 Say "puzzle1", 0
-GOSUB RunPuzzle
+IF demoPlay THEN ' (a demo: whether it was solved, as recorded - the puzzle isn't played again)
+    demoKind$ = "p" : GOSUB DemoTakeRes : pzSolved = (demoRes <> 0)
+ELSE
+    GOSUB RunPuzzle
+    IF demoRec THEN demoKind$ = "p" : demoRes = -(pzSolved <> 0) : GOSUB DemoEvent
+END IF
 IF pzSolved THEN
     termDone(tm) = -1 : AchAdd "Puzzles", 1 : pzTerm = 0 : WallDone termX(tm), termY(tm), T_CODEOK
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (a keycard door is unlocked, not opened: it still wants its card)
@@ -5760,7 +5823,7 @@ placed = 0
 FOR c = 1 TO cyberNeed
     bestCell = -1 : bestScore = -1
     FOR try = 1 TO 40
-        e = INT(RND * tail) : x = fillX(e) : y = fillY(e)
+        e = INT(GRnd * tail) : x = fillX(e) : y = fillY(e)
         IF thiefDist(x, y) >= 5 THEN
             score = 99
             FOR i = cyberItemStart + 1 TO numItems
@@ -5788,7 +5851,7 @@ END IF
 ' ICE: on the farthest cells
 nIce = 2 + (((level - 1) MOD 10) + 1) \ 3 ' (by its place in a set of ten: a showcase's number isn't how hard it is)
 FOR c = 1 TO nIce
-    e = tail - 1 - INT(RND * (tail \ 3 + 1)) : IF e < 0 THEN e = 0
+    e = tail - 1 - INT(GRnd * (tail \ 3 + 1)) : IF e < 0 THEN e = 0
     IF tail > 0 THEN IF SpawnMonster(MT_ICE, fillX(e) + 0.5, fillY(e) + 0.5, 0, playerX, playerY) THEN monsterTimer(numMonsters) = 90
 NEXT
 BuildThiefWay ' (the thieves' way home, which the steps above borrowed)
@@ -6193,7 +6256,7 @@ IF decoKind(targetDeco) = DK_BODY THEN RETURN ' (bodies don't break)
 IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
 ' Its loot, if it breaks: kicked, back the way you're facing (towards you,
 ' give or take); shot or blown up, any way at all
-IF hitKick THEN decoLootA(targetDeco) = _ATAN2(-dirY, -dirX) + (RND - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
+IF hitKick THEN decoLootA(targetDeco) = _ATAN2(-dirY, -dirX) + (GRnd - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
 IF Explosive(decoKind(targetDeco)) THEN
     IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = 1
     RETURN
@@ -6210,8 +6273,8 @@ ELSE
     END IF
     DecoLoot targetDeco, playerX, playerY
     IF decoKind(targetDeco) = DK_SPECIMEN AND NOT cyberOn AND NOT editMode THEN ' A specimen tank: half the time, what was floating in it climbs out - a stalker or a spitter
-        IF RND < 0.5 THEN
-            IF SpawnMonster(6 + INT(RND * 2), decoX(targetDeco), decoY(targetDeco), 0, playerX, playerY) THEN ShowMsg "Something climbs out of the tank!" : shake = shake + 4
+        IF GRnd < 0.5 THEN
+            IF SpawnMonster(6 + INT(GRnd * 2), decoX(targetDeco), decoY(targetDeco), 0, playerX, playerY) THEN ShowMsg "Something climbs out of the tank!" : shake = shake + 4
         END IF
     END IF
 END IF
@@ -6328,7 +6391,7 @@ FOR ev = 1 TO numEvents
             ELSEIF evState(ev) = 1 THEN
                 IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
                 IF evCount(ev) < evB(ev) AND evNext(ev) = 0 THEN
-                    IF SpawnInRoom(ev, VAL(MID$("4414", INT(RND * 4) + 1, 1)), playerX, playerY) THEN evCount(ev) = evCount(ev) + 1
+                    IF SpawnInRoom(ev, VAL(MID$("4414", INT(GRnd * 4) + 1, 1)), playerX, playerY) THEN evCount(ev) = evCount(ev) + 1
                     evNext(ev) = 45
                 END IF
                 IF blackoutTimer > 0 THEN blackoutTimer = blackoutTimer - 1
@@ -6467,7 +6530,7 @@ NEXT
 SELECT CASE evType(ev)
     CASE EV_AMBUSH ' Monsters arrive a few at a time; win when the last one falls
         IF evCount(ev) < evA(ev) AND alive < 4 AND evNext(ev) = 0 THEN
-            IF evB(ev) THEN t = evB(ev) ELSE t = VAL(MID$("1246", INT(RND * 4) + 1, 1)) ' (a mix: drones, gunners, crawlers, stalkers)
+            IF evB(ev) THEN t = evB(ev) ELSE t = VAL(MID$("1246", INT(GRnd * 4) + 1, 1)) ' (a mix: drones, gunners, crawlers, stalkers)
             IF SpawnInRoom(ev, t, playerX, playerY) THEN
                 evCount(ev) = evCount(ev) + 1 : evNext(ev) = 50 : evMiss(ev) = 0
             ELSE ' (no room: the monster list full, or nowhere far enough from you - for long, and the ones there will do)
@@ -6479,7 +6542,7 @@ SELECT CASE evType(ev)
     CASE EV_SURVIVE ' Hold out until the timer runs down
         evTimer(ev) = evTimer(ev) - 1
         IF alive < 5 AND evNext(ev) = 0 THEN
-            t = VAL(MID$("1446", INT(RND * 4) + 1, 1))
+            t = VAL(MID$("1446", INT(GRnd * 4) + 1, 1))
             IF SpawnInRoom(ev, t, playerX, playerY) THEN evCount(ev) = evCount(ev) + 1
             evNext(ev) = evB(ev)
         END IF
@@ -6567,9 +6630,454 @@ RETURN
 ' them into worldMap() and the lists of things.
 
 ' --- A new game: level 1, just the blaster
+'-----------------------------------------------------------------------------
+' DEMOS: A SECTOR, PLAYED AGAIN
+'-----------------------------------------------------------------------------
+' A demo (DOOM's were "LMP" files) isn't a film of the game. It's the keys
+' and buttons pressed, frame by frame - and played back, the game simply
+' runs again with those in place of yours. That works because everything
+' here happens in frames (60 a second, chapter 7): the same sector and the
+' same keys on the same frames, and every monster, door and shot does the
+' same again. Two things had to be made so:
+'   - the dice. Gameplay's rolls (loot, damage, which monster comes) are
+'     GRnd's, the game's own dice, which a demo starts at a number it
+'     writes down. RND is left to the sparks, dust and sounds, which may
+'     roll more or fewer times from one computer (or setting) to the next.
+'   - turning. The mouse turns you by any amount; a demo writes down a
+'     whole number of 65536ths of a circle (DEMO_TURN) - and turns you by
+'     just that even as you record - so a played-back turn is the same to
+'     the last bit, and so is everything after it.
+' A demo is a text file, in saves/demos (or the game's own demos folder):
+' NEON-CASTER DEMO 1; version, set, sector, seed, fov, look, god, fly,
+' notarget; "begin" - then a line a frame:
+'     WR 120 0 0      the keys held (DEMO_KEYS' letters, 1-4 a gun, - none),
+'                     the turn, the look up or down (thousandths), the wheel
+'     - 0 0 0 *30     ...and *N: the same N frames running
+' and between those: c COMMAND (a command typed while recording: it runs
+' again on its frame), p / a / r RESULT (a code terminal solved or not, a
+' game of NEON PONG, what a computer's program answered - the result is
+' played again, not the game), k FRAME X Y Z HEALTH KILLS (a check every
+' second: playing back, the game compares - DemoCheck - and says if it's
+' out of step) and e, the end.
+
+' --- This frame's keys and buttons (the game loop, after the menu): yours,
+' as bits - or, with a demo playing, the demo's
+DemoInput:
+IF demoPlay THEN GOSUB DemoReadFrame
+IF botOn AND NOT demoPlay AND NOT editMode THEN
+    GOSUB BotThink ' (the autopilot's keys, in place of yours)
+ELSEIF NOT demoPlay THEN
+    inBits = 0 : inWheel = mouseWheel
+    IF KeyHeld(BIND_FORWARD) THEN inBits = inBits OR DB_FWD
+    IF KeyHeld(BIND_BACK) THEN inBits = inBits OR DB_BACK
+    IF KeyHeld(BIND_LEFT) THEN inBits = inBits OR DB_LEFT
+    IF KeyHeld(BIND_RIGHT) THEN inBits = inBits OR DB_RIGHT
+    IF KeyHeld(BIND_RUN) THEN inBits = inBits OR DB_RUN
+    IF fireDown THEN inBits = inBits OR DB_FIRE
+    IF spaceDown THEN inBits = inBits OR DB_USE
+    IF _MOUSEBUTTON(2) THEN inBits = inBits OR DB_AIM
+    IF KeyHeld(BIND_KICK) THEN inBits = inBits OR DB_KICK
+    IF KeyHeld(BIND_NIGHT) THEN inBits = inBits OR DB_NIGHT
+    IF KeyHeld(BIND_MAP) THEN inBits = inBits OR DB_MAP
+    IF _KEYDOWN(101) OR _KEYDOWN(69) THEN inBits = inBits OR DB_UP ' (E and C: up and down, flying)
+    IF _KEYDOWN(99) OR _KEYDOWN(67) THEN inBits = inBits OR DB_DOWN
+    IF _KEYDOWN(107) OR _KEYDOWN(75) THEN inBits = inBits OR DB_CHEATK ' (K and G: the testing cheats)
+    IF _KEYDOWN(103) OR _KEYDOWN(71) THEN inBits = inBits OR DB_CHEATG
+    dg = 0
+    FOR dk = 1 TO 4
+        IF DigitHeld%(48 + dk) THEN dg = dk
+    NEXT
+    inBits = inBits + dg * DB_GUN
+END IF
+fireDown = (inBits AND DB_FIRE) <> 0 : spaceDown = (inBits AND DB_USE) <> 0 : mouseWheel = inWheel
+IF demoRec OR demoPlay THEN fovPlane = demoFovQ / 100000 : lookAim = demoLook ' (the view's width and LOOK UP / DOWN, as the demo was made with: they change where a shot goes)
+IF demoRec AND (demoFrame MOD 60 = 0 OR demoDebug) THEN GOSUB DemoFlush : GOSUB DemoStateNow : DemoPut "k " + ds$ ' (NEON_DEMO_DEBUG: a check every frame, and more in it)
+RETURN
+
+' --- Recording: this frame's line (DemoInput's bits, the turn and the look -
+' after they're known). The same as the last frame's? Just counted (*N).
+DemoWriteFrame:
+dl$ = DemoKeys$(inBits) + " " + LTRIM$(STR$(inTU)) + " " + LTRIM$(STR$(inPU)) + " " + LTRIM$(STR$(inWheel))
+IF demoPendN > 0 AND dl$ = demoPend$ THEN
+    demoPendN = demoPendN + 1
+ELSE
+    GOSUB DemoFlush : demoPend$ = dl$ : demoPendN = 1
+END IF
+demoFrame = demoFrame + 1
+RETURN
+
+' --- The frame line waiting to be written (it may yet repeat), written
+DemoFlush:
+IF demoPendN > 1 THEN DemoPut demoPend$ + " *" + LTRIM$(STR$(demoPendN)) ELSE IF demoPendN = 1 THEN DemoPut demoPend$
+demoPendN = 0
+RETURN
+
+' --- Recording: a result (demoKind$, demoRes) - a puzzle's, a game's, a program's
+DemoEvent:
+GOSUB DemoFlush : DemoPut demoKind$ + " " + LTRIM$(STR$(demoRes))
+RETURN
+
+' --- Playing: the next frame's line. Commands and checks come first: a
+' command runs (as it did, recording, at the frame's start), a check is
+' compared with where the game is now
+DemoReadFrame:
+IF demoLeft > 0 THEN demoLeft = demoLeft - 1 : demoFrame = demoFrame + 1 : RETURN ' (*N: the same as the last)
+DO
+    GOSUB DemoNextLine
+    IF dl$ = "" THEN GOSUB DemoEnded : RETURN
+    SELECT CASE LEFT$(dl$, 2)
+        CASE "c "
+            dc$ = MID$(dl$, 3) : conCmd$ = dc$ : demoInject = -1 : GOSUB ConExec : demoInject = 0
+            IF NOT demoPlay THEN RETURN ' (it ended the demo)
+        CASE "k "
+            GOSUB DemoCheck
+        CASE "e "
+            GOSUB DemoEnded : RETURN
+        CASE "p ", "a ", "r "
+            dWhy$ = "a result with nothing waiting for it (" + dl$ + ")" : GOSUB DemoOut
+        CASE ELSE
+            inBits = DemoBits&(DemoWord$(dl$, 1)) : inTU = VAL(DemoWord$(dl$, 2)) : inPU = VAL(DemoWord$(dl$, 3)) : inWheel = VAL(DemoWord$(dl$, 4))
+            dr$ = DemoWord$(dl$, 5) : demoLeft = 0 : IF LEFT$(dr$, 1) = "*" THEN demoLeft = VAL(MID$(dr$, 2)) - 1
+            EXIT DO
+    END SELECT
+LOOP
+demoFrame = demoFrame + 1
+RETURN
+
+' --- The demo's next line that isn't empty or a # comment, in dl$ ("" at its end)
+DemoNextLine:
+IF LEN(demoBack$) THEN dl$ = demoBack$ : demoBack$ = "" : RETURN
+dl$ = ""
+DO WHILE NOT EOF(demoFH)
+    LINE INPUT #demoFH, dl$
+    dl$ = LTRIM$(RTRIM$(dl$)) : IF RIGHT$(dl$, 1) = CHR$(13) THEN dl$ = RTRIM$(LEFT$(dl$, LEN(dl$) - 1)) ' (written on Windows)
+    IF LEN(dl$) AND LEFT$(dl$, 1) <> "#" THEN RETURN
+    dl$ = ""
+LOOP
+RETURN
+
+' --- NEON_DEMO_TRACE: this frame, all of it that a demo depends on, into the log
+DemoTraceOut:
+trS$ = "T" + STR$(demoFrame) + STR$(CLNG(playerX * 10000)) + STR$(CLNG(playerY * 10000)) + STR$(CLNG(dirX * 10000)) + STR$(CLNG(dirY * 10000)) + STR$(health) + STR$(kills) + " g" + LTRIM$(STR$(grSeed))
+trS$ = trS$ + " w" + LTRIM$(STR$(fireWait)) + " c" + LTRIM$(STR$(ammoCount(AM_CELLS))) + " gun" + STR$(currentGun) + STR$(swapTimer) + STR$(kickTimer) + " in" + STR$(inBits) + STR$(inTU)
+FOR trM = 1 TO numMonsters
+    IF monsterState(trM) < 3 THEN trS$ = trS$ + " |" + LTRIM$(STR$(trM)) + ":" + LTRIM$(STR$(monsterHP(trM))) + "," + LTRIM$(STR$(monsterState(trM))) + "," + LTRIM$(STR$(monsterTimer(trM))) + "," + LTRIM$(STR$(CLNG(monsterX(trM) * 1000))) + "," + LTRIM$(STR$(CLNG(monsterY(trM) * 1000)))
+NEXT
+ConPrint trS$
+RETURN
+
+' --- Where the game is, for a check: frame, x, y, height (in thousandths),
+' health and kills
+DemoStateNow:
+ds$ = LTRIM$(STR$(demoFrame)) + " " + LTRIM$(STR$(CLNG(playerX * 1000))) + " " + LTRIM$(STR$(CLNG(playerY * 1000))) + " " + LTRIM$(STR$(CLNG(playerZ * 1000))) + " " + LTRIM$(STR$(health)) + " " + LTRIM$(STR$(kills))
+IF demoDebug THEN ' (finding where two runs part: the dice, and every monster's health, place and state, summed)
+    dsum# = 0
+    FOR dm = 1 TO numMonsters : dsum# = dsum# + monsterHP(dm) * dm + CLNG(monsterX(dm) * 100) * 3 + CLNG(monsterY(dm) * 100) * 7 + monsterState(dm) * 11 + monsterTimer(dm) * 13 : NEXT
+    ds$ = ds$ + " g" + LTRIM$(STR$(grSeed)) + " m" + LTRIM$(STR$(dsum#)) + " a" + LTRIM$(STR$(ammoCount(AM_CELLS))) + " w" + LTRIM$(STR$(fireWait))
+END IF
+RETURN
+
+' --- Playing: a check (dl$, "k ..." or "e ...") - is the game where it was?
+DemoCheck:
+GOSUB DemoStateNow
+IF MID$(dl$, 3) <> ds$ THEN dWhy$ = "recorded " + MID$(dl$, 3) + ", now " + ds$ + " (frame x y height health kills)" : GOSUB DemoOut
+RETURN
+
+' --- Playing: out of step (dWhy$ says how) - the first time, said
+DemoOut:
+demoBad = demoBad + 1
+IF demoBad = 1 THEN
+    demoBadAt = demoFrame
+    ConPrint "demo: out of step at frame" + STR$(demoFrame) + " (" + TimeText$(demoFrame / 60) + "): " + dWhy$
+    ShowMsg "DEMO OUT OF STEP at " + TimeText$(demoFrame / 60)
+END IF
+RETURN
+
+' --- Playing: a result for this moment (demoKind$: p a puzzle, a a game,
+' r a program) - demoRes, from the demo
+DemoTakeRes:
+demoRes = 0 : IF demoKind$ = "r" THEN demoRes = -999
+IF demoLeft > 0 THEN dWhy$ = "a " + demoKind$ + " result wanted mid-run" : GOSUB DemoOut : RETURN
+GOSUB DemoNextLine
+IF LEFT$(dl$, 2) = demoKind$ + " " THEN demoRes = VAL(MID$(dl$, 3)) : RETURN
+demoBack$ = dl$ : dWhy$ = "no " + demoKind$ + " result where one was wanted" : GOSUB DemoOut
+RETURN
+
+' --- The exit: recording, the demo's done; playing, it should end here too
+DemoAtExit:
+IF demoRec THEN
+    GOSUB DemoStop
+    IF demoRecQuit THEN ConPrint "demo: recorded to the exit - quitting" : SYSTEM 0
+    RETURN
+END IF
+IF demoLeft > 0 THEN
+    dWhy$ = "reached the exit" + STR$(demoLeft) + " frames early" : GOSUB DemoOut : dl$ = ""
+ELSE
+    GOSUB DemoNextLine
+    IF LEFT$(dl$, 2) <> "e " THEN dWhy$ = "reached the exit before the demo ended" : GOSUB DemoOut : dl$ = ""
+END IF
+GOSUB DemoEnded
+RETURN
+
+' --- Playing: the demo's over (dl$: its "e" line, if it has one) - how it
+' went, and the game's yours again (or, playdemo NAME quit, it ends)
+DemoEnded:
+IF LEFT$(dl$, 2) = "e " THEN GOSUB DemoCheck
+CLOSE #demoFH : demoPlay = 0
+IF demoBad THEN dWhy$ = "OUT OF STEP from frame" + STR$(demoBadAt) + " (" + LTRIM$(STR$(demoBad)) + " checks off)" ELSE dWhy$ = "in step all the way"
+ConPrint "demo: " + demoName$ + " -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + "), " + dWhy$
+ShowMsg "DEMO OVER - " + dWhy$
+GOSUB DemoDone
+RETURN
+
+' --- stopdemo - or something that starts somewhere else (a saved game, a
+' new game, the editor): recording, the demo's saved; playing, it stops
+DemoStop:
+IF demoRec THEN
+    GOSUB DemoFlush : GOSUB DemoStateNow : DemoPut "e " + ds$ : CLOSE #demoFH : demoRec = 0
+    ConPrint "demo: " + demoName$ + " saved -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + ")" : ShowMsg "DEMO SAVED: " + demoName$
+    ApplySettings ' (the view's width: yours again)
+END IF
+IF demoPlay THEN
+    CLOSE #demoFH : demoPlay = 0
+    ConPrint "demo: " + demoName$ + " stopped at frame" + STR$(demoFrame)
+    GOSUB DemoDone
+END IF
+RETURN
+
+' --- After playing one: your own settings back - and with "quit", the end
+DemoDone:
+ApplySettings
+IF demoQuit THEN
+    IF demoBad THEN SYSTEM 3 ELSE SYSTEM 0
+END IF
+RETURN
+
+' --- What a demo starts from, recording or playing: this sector, new, as
+' SELECT SECTOR starts it - with nothing left over from before. (grSeed is
+' set first: everything from here on rolls the same.)
+DemoFresh:
+kickTimer = 0 : pitch = 0 : playerVZ = 0 : conFire = 0 : conUse = 0 : clicked = 0 : mouseWheel = 0
+fireWas = 0 : spaceWas = 0 : kickWas = 0 : nvKeyWas = 0 : mapKeyWas = 0 : kKeyWas = 0 : gKeyWas = 0
+aimTarget = 0 : burnWait = 0 : pzTerm = 0 : deadTicks = 0
+GOSUB StartLoadout
+GOSUB EnterLevel
+RETURN
+
+' --- record NAME: start recording (DemoFresh - this sector from its start)
+DemoRecordStart:
+MakeSaveDir : IF NOT _DIREXISTS(SaveDir$ + "demos") THEN MKDIR SaveDir$ + "demos"
+demoFH = FREEFILE : OPEN SaveDir$ + "demos/" + demoName$ + ".ncd" FOR OUTPUT AS #demoFH
+grSeed = 1 + INT(RND * 2147483645) : IF dSeedWant# >= 1 AND dSeedWant# < 2147483647 THEN grSeed = INT(dSeedWant#)
+demoFovQ = CLNG(fovPlane * 100000) : demoLook = (glMode <> 0) AND (setting(SET_LOOK) <> 0)
+DemoPut "NEON-CASTER DEMO 1"
+DemoPut "# " + sectorName$(level) + " - recorded " + DATE$ + " " + LEFT$(TIME$, 5) + " (playdemo " + demoName$ + ")"
+DemoPut "version " + GAME_VERSION$
+DemoPut "set" + STR$(sectorSet)
+DemoPut "sector" + STR$(level)
+DemoPut "seed" + STR$(grSeed)
+DemoPut "fov" + STR$(demoFovQ)
+DemoPut "look" + STR$(-(demoLook <> 0))
+DemoPut "god" + STR$(-(godMode <> 0))
+DemoPut "fly" + STR$(-(flyMode <> 0))
+DemoPut "notarget" + STR$(-(noTarget <> 0))
+DemoPut "begin"
+GOSUB DemoFresh
+demoRec = -1 : demoFrame = 0 : demoPendN = 0
+ConPrint "demo: recording " + demoName$ + " - " + sectorName$(level) + ", from its start (the exit, or stopdemo, ends it)"
+ShowMsg "RECORDING " + demoName$
+RETURN
+
+' --- playdemo NAME: play one (dFile$) - its header first, then DemoFresh
+DemoPlayStart:
+demoFH = FREEFILE : OPEN dFile$ FOR INPUT AS #demoFH
+demoBack$ = "" : GOSUB DemoNextLine
+IF dl$ <> "NEON-CASTER DEMO 1" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " isn't a demo" : RETURN
+dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0
+DO
+    GOSUB DemoNextLine
+    IF dl$ = "" OR dl$ = "begin" THEN EXIT DO
+    dv$ = DemoWord$(dl$, 2)
+    SELECT CASE LCASE$(DemoWord$(dl$, 1))
+        CASE "version" : dVer$ = dv$
+        CASE "set" : dSet = VAL(dv$)
+        CASE "sector" : dLevel = VAL(dv$)
+        CASE "seed" : dSeed# = VAL(dv$)
+        CASE "fov" : demoFovQ = VAL(dv$)
+        CASE "look" : demoLook = (VAL(dv$) <> 0)
+        CASE "god" : dGod = (VAL(dv$) <> 0)
+        CASE "fly" : dFly = (VAL(dv$) <> 0)
+        CASE "notarget" : dNoT = (VAL(dv$) <> 0)
+    END SELECT
+LOOP
+IF dl$ <> "begin" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " has no begin" : RETURN
+IF dSet <> sectorSet THEN
+    IF dSet > 0 THEN IF LEN(SetSectorName$(dSet, 1)) = 0 THEN CLOSE #demoFH : ConPrint "playdemo: its set of sectors isn't here" : RETURN
+    sectorSet = dSet : GOSUB ReadSectorNames
+END IF
+IF NOT SectorExists(dLevel) THEN CLOSE #demoFH : ConPrint "playdemo: its sector" + STR$(dLevel) + " isn't here" : RETURN
+IF dVer$ <> GAME_VERSION$ THEN ConPrint "demo: made with version " + dVer$ + " - this is " + GAME_VERSION$ + ", so it may not play the same"
+level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT
+achCheat = -1 ' (watching isn't playing: achievements and records wait for a new game)
+grSeed = dSeed#
+GOSUB DemoFresh
+demoPlay = -1 : demoFrame = 0 : demoLeft = 0 : demoBad = 0 : demoBack$ = ""
+ConPrint "demo: playing " + demoName$ + " - " + sectorName$(level) + " (stopdemo stops it)"
+RETURN
+
+' --- THE AUTOPILOT (bot on): it plays the sector - and recording, a demo
+' of it. Each frame it decides this frame's keys (inBits) and turn
+' (botTurn), as you would:
+'   - a monster it can see, near: turn to it and fire (backing off one
+'     that's on top of it)
+'   - else a goal - the exit, if there's a way to it; else a keycard it
+'     hasn't got; low on health, a medkit; else somewhere it hasn't been -
+'     and the way there, the next cell along it (BotField: every cell's
+'     steps to the nearest goal, out from the goals)
+'   - a closed door in the way: face it and press Space; at the exit, the same
+'   - stuck (not getting anywhere): that cell's out for a while, and a new way
+' Dead, it clicks to start again; dead three times, it turns god mode on.
+BotThink:
+inBits = 0 : inWheel = 0 : botTurn = 0
+IF dead THEN
+    IF NOT botWasDead THEN botDeaths = botDeaths + 1 : botWasDead = -1
+    IF deadTicks > 80 AND (lvFrame MOD 20) = 0 THEN inBits = DB_FIRE ' (start again)
+    RETURN
+END IF
+IF botWasDead THEN
+    botWasDead = 0
+    IF botDeaths >= 3 AND NOT godMode THEN conCmd$ = "god on" : GOSUB ConExec : ConPrint "bot: dead three times - god mode on"
+END IF
+bcx = INT(playerX) : bcy = INT(playerY)
+FOR by = bcy - 2 TO bcy + 2 : FOR bx = bcx - 2 TO bcx + 2 ' (where it's been)
+    IF bx > 0 AND by > 0 AND bx < MAP_SIZE AND by < MAP_SIZE THEN botSeen(bx, by) = -1
+NEXT : NEXT
+' The gun: the best one it has with something to fire
+bg = 1
+IF hasGun(2) AND ammoCount(AM_SHELLS) > 0 THEN bg = 2
+IF hasGun(3) AND ammoCount(AM_CELLS) > 10 THEN bg = 3
+IF bg <> currentGun AND swapTimer = 0 THEN inBits = inBits + bg * DB_GUN
+' A monster to fight? (With nothing to fire, only one on top of it - kicked)
+bAmmo = (ammoCount(AM_CELLS) > 0) OR (bg = 2 AND ammoCount(AM_SHELLS) > 0)
+bt = 0 : bbd = 8 : IF NOT bAmmo THEN bbd = 1.3
+FOR bi = 1 TO numMonsters
+    IF monsterState(bi) < 2 AND (cyberOn = 0 OR monsterType(bi) = MT_ICE) THEN
+        bd = SQR((monsterX(bi) - playerX) ^ 2 + (monsterY(bi) - playerY) ^ 2)
+        IF bd < bbd THEN IF CanSee(playerX, playerY, monsterX(bi), monsterY(bi)) THEN bt = bi : bbd = bd
+    END IF
+NEXT
+IF bt THEN
+    ba = BotTurnTo(monsterX(bt), monsterY(bt), playerX, playerY, dirX, dirY)
+    IF ABS(ba) < MinOf(0.12, ATN(0.3 / MaxOf(0.5, bbd))) + 0.02 THEN
+        IF bAmmo THEN inBits = inBits OR DB_FIRE
+        IF bbd < 1.3 AND kickTimer = 0 THEN inBits = inBits OR DB_KICK
+    END IF
+    IF bbd < 1.6 AND bAmmo THEN inBits = inBits OR DB_BACK
+    botCheckAt = lvFrame + 60 ' (fighting isn't being stuck)
+    RETURN
+END IF
+' Where to? Every 15 frames (or when there's no way), the field again
+IF lvFrame MOD 15 = 0 OR botNX = 0 THEN GOSUB BotPlan
+IF botMode = 0 THEN botTurn = 0.03 : RETURN ' (nowhere to go: look round)
+' At the goal: the exit's beside it - face it and press Space
+IF botDist(bcx, bcy) = 0 AND botMode = 1 THEN
+    ba = BotTurnTo(botEX + 0.5, botEY + 0.5, playerX, playerY, dirX, dirY)
+    IF ABS(ba) < 0.25 AND (lvFrame MOD 16) < 2 THEN inBits = inBits OR DB_USE
+    RETURN
+END IF
+' The next cell: a closed door? Face it and open it. Else, walk to its middle
+IF worldMap(botNX, botNY) = 2 AND doorOpen(botNX, botNY) < 0.8 THEN
+    ba = BotTurnTo(botNX + 0.5, botNY + 0.5, playerX, playerY, dirX, dirY)
+    IF doorOpen(botNX, botNY) = 0 AND doorMove(botNX, botNY) <> 1 AND ABS(ba) < 0.3 AND (lvFrame MOD 16) < 2 THEN inBits = inBits OR DB_USE
+    botCheckAt = lvFrame + 60
+    RETURN
+END IF
+ba = BotTurnTo(botNX + 0.5, botNY + 0.5, playerX, playerY, dirX, dirY)
+IF ABS(ba) < 0.7 THEN inBits = inBits OR DB_FWD
+IF ABS(ba) < 0.35 AND botDist(bcx, bcy) > 4 THEN inBits = inBits OR DB_RUN
+IF INT(playerX) = botNX AND INT(playerY) = botNY THEN GOSUB BotPlan ' (there: the next one)
+' Stuck? Every second: not a quarter of a cell further (and not riding a lift)
+IF lvFrame >= botCheckAt THEN
+    IF (playerX - botLastX) ^ 2 + (playerY - botLastY) ^ 2 < 0.06 AND liftCell(bcx, bcy) = 0 THEN
+        botStuck = botStuck + 1 : botBlock(botNX, botNY) = lvFrame + 600 : botNX = 0 ' (that cell's out for ten seconds: another way)
+    ELSE
+        botStuck = 0
+    END IF
+    botLastX = playerX : botLastY = playerY : botCheckAt = lvFrame + 60
+END IF
+IF botStuck >= 2 THEN inBits = inBits OR DB_RIGHT : IF (lvFrame MOD 30) < 2 THEN inBits = inBits OR DB_USE
+RETURN
+
+' --- The autopilot's plan: a goal (botMode 1 the exit, 2 a keycard, 3 a
+' medkit, 4 somewhere it hasn't been - 0 none), its field (BotField), and
+' the next cell along the way (botNX, botNY)
+BotPlan:
+botMode = 0 : botNX = 0
+bcx = INT(playerX) : bcy = INT(playerY)
+FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if there's no other way, not)
+    IF health < 40 THEN ' Hurt: a medkit, if one's near
+        GOSUB BotClear
+        FOR bi = 1 TO numItems
+            IF itemOn(bi) AND (itemKind(bi) = IT_HEALTH OR itemKind(bi) = IT_BIGMED) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+        NEXT
+        BotField bpass
+        IF botDist(bcx, bcy) < 25 THEN botMode = 3 : EXIT FOR
+    END IF
+    IF ammoCount(AM_CELLS) < 10 AND ammoCount(AM_SHELLS) < 4 THEN ' Low on ammo: some, if it's near
+        GOSUB BotClear
+        FOR bi = 1 TO numItems
+            IF itemOn(bi) AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+        NEXT
+        BotField bpass
+        IF botDist(bcx, bcy) < 30 THEN botMode = 5 : EXIT FOR
+    END IF
+    GOSUB BotClear ' The exit: stand beside it
+    FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
+        IF worldMap(bx, by) = 2 THEN
+            IF doorType(bx, by) = DOOR_EXIT THEN
+                botEX = bx : botEY = by
+                IF worldMap(bx + 1, by) <= 0 THEN BotGoal bx + 1, by
+                IF worldMap(bx - 1, by) <= 0 THEN BotGoal bx - 1, by
+                IF worldMap(bx, by + 1) <= 0 THEN BotGoal bx, by + 1
+                IF worldMap(bx, by - 1) <= 0 THEN BotGoal bx, by - 1
+            END IF
+        END IF
+    NEXT : NEXT
+    BotField bpass
+    IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 1 : EXIT FOR
+    GOSUB BotClear ' A keycard it hasn't got
+    FOR bi = 1 TO numItems
+        IF itemOn(bi) AND itemKind(bi) >= 1 AND itemKind(bi) <= 3 THEN IF NOT hasCard(itemKind(bi)) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+    NEXT
+    BotField bpass
+    IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 2 : EXIT FOR
+    GOSUB BotClear ' Somewhere it hasn't been
+    FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
+        IF NOT botSeen(bx, by) AND worldMap(bx, by) <= 0 THEN BotGoal bx, by
+    NEXT : NEXT
+    BotField bpass
+    IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 4 : EXIT FOR
+NEXT
+IF botMode <> botWas THEN ConPrint "bot: " + ListItem$("nowhere to go,to the exit,a keycard,a medkit,exploring,ammo", botMode + 1) + " (" + LTRIM$(STR$(botDist(bcx, bcy))) + " steps, frame" + STR$(lvFrame) + ")" : botWas = botMode
+IF botMode = 0 THEN RETURN
+' The next cell: the neighbour it can step to that's nearest the goal
+bb = botDist(bcx, bcy)
+FOR bk = 0 TO 3
+    bx = bcx + (bk = 1) - (bk = 0) : by = bcy + (bk = 3) - (bk = 2)
+    IF botDist(bx, by) < bb THEN IF BotStep(bcx, bcy, bx, by, bpass) THEN bb = botDist(bx, by) : botNX = bx : botNY = by
+NEXT
+IF botNX = 0 AND botDist(bcx, bcy) > 0 THEN botMode = 0
+RETURN
+
+BotClear: ' (every cell far, the queue empty - before the goals go in)
+FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botDist(bx, by) = BOT_FAR : NEXT : NEXT
+botQT = 0
+RETURN
+
 NewGame:
 level = 1
 NewGameHere: ' (a new game in sector `level` - SELECT SECTOR, YOUR SECTORS)
+IF demoRec OR demoPlay THEN GOSUB DemoStop
 IF editMode THEN GOSUB EditLeave : editDirty = 0 ' (out of the editor first: its undo and its sector belong to the level being left)
 achCheat = godMode : achRunFrom = level ' (a fresh start: cheats forgotten - unless god mode's still on; a whole set's run counts from sector 1)
 totalKills = 0 : totalMonsters = 0 : totalTime! = 0
@@ -6607,6 +7115,7 @@ RETURN
 ' --- You used the exit: the level's tally, then on to the next level (after
 ' the last, the game's totals, and a new game)
 LevelDone:
+IF demoRec OR demoPlay THEN GOSUB DemoAtExit ' (a demo ends at the exit)
 WorldLoopsOff
 PlaySfx sndExit&, 0.9
 levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
@@ -7513,7 +8022,7 @@ kills = 0 : dead = 0 : swapTimer = 0
 hurtFlash = 0 : pickFlash = 0 : muzzleFlash = 0 : recoil = 0 : railBeam = 0
 fireWait = 20 ' (so the click that started the level doesn't fire)
 bobPhase = 2.2 ' The first footstep sounds soon after you start walking (a foot lands at pi)
-levelStart! = TIMER : frameAt! = TIMER : shake = 0 : hurtFromX = -1
+levelStart! = TIMER : frameAt! = TIMER : shake = 0 : hurtFromX = -1 : lvFrame = 0
 FOR i = 1 TO MAX_HURTDIRS : hurtDirTime(i) = 0 : NEXT
 IF NOT editRebuild THEN PlayMusic SectorMusic&(level) : ShowMsg levelName$ + "  -  find the EXIT"
 ' (built again in the editor: OpenGL's turn now - new pictures if any,
@@ -7906,6 +8415,15 @@ conCmd$ = LTRIM$(RTRIM$(conCmd$))
 IF conCmd$ = "" OR LEFT$(conCmd$, 2) = "//" THEN RETURN
 conVerb$ = ConWord$(conCmd$, 1) : conA$ = ConWord$(conCmd$, 2) : conB$ = ConWord$(conCmd$, 3) : conC$ = ConWord$(conCmd$, 4)
 sp = INSTR(conCmd$, " ") : IF sp THEN conRest$ = LTRIM$(MID$(conCmd$, sp + 1)) ELSE conRest$ = ""
+IF (demoRec OR demoPlay) AND NOT conFromTrig AND NOT demoInject THEN ' A demo going: a command that changes the world goes into it (recording), or waits (playing one)
+    SELECT CASE DemoVerb%(conVerb$)
+        CASE 1
+            IF demoPlay THEN ConPrint "(a demo is playing - stopdemo first)" : RETURN
+            GOSUB DemoFlush : DemoPut "c " + conCmd$
+        CASE 2 ' (one that starts something else - a saved game, the editor: the demo ends here)
+            GOSUB DemoStop
+    END SELECT
+END IF
 IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
     SELECT CASE conVerb$
         CASE "god", "noclip", "iddqd", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
@@ -8403,6 +8921,60 @@ SELECT CASE conVerb$
         conFire = VAL(conA$) : IF conFire < 1 THEN conFire = 1
     CASE "kick" ' (as if you'd pressed F)
         IF kickTimer = 0 THEN kickTimer = KICK_FRAMES : PlaySfx sndKickSwing&, 0.7
+    CASE "record" ' record NAME [SEED]: a demo of this sector, from its start - your keys, frame by frame - till the exit (or stopdemo). SEED: the dice start there (tests)
+        dn$ = DemoFileName$(DemoWord$(conRest$, 1)) : dSeedWant# = VAL(DemoWord$(conRest$, 2))
+        demoRecQuit = (LCASE$(DemoWord$(conRest$, 2)) = "quit" OR LCASE$(DemoWord$(conRest$, 3)) = "quit") ' (quit: the game ends once it's saved at the exit - for scripts)
+        IF dn$ = "" THEN
+            ConPrint "record NAME: this sector again from its start, recorded as a demo (the exit, or stopdemo, ends it)"
+        ELSEIF editMode THEN
+            ConPrint "record: F2 out of the editor first"
+        ELSEIF NOT SectorExists(level) THEN
+            ConPrint "record: no sector to record"
+        ELSE
+            IF demoRec OR demoPlay THEN GOSUB DemoStop
+            demoName$ = dn$ : GOSUB DemoRecordStart : conLevelChanged = -1
+        END IF
+    CASE "playdemo", "demo" ' playdemo NAME [quit]: a demo played back (quit: the game ends with it - for tests)
+        dn$ = DemoFileName$(DemoWord$(conRest$, 1)) : dFile$ = ""
+        IF LEN(dn$) THEN
+            IF _FILEEXISTS(SaveDir$ + "demos/" + dn$ + ".ncd") THEN
+                dFile$ = SaveDir$ + "demos/" + dn$ + ".ncd"
+            ELSEIF _FILEEXISTS(AssetPath$("demos/" + dn$ + ".ncd")) THEN
+                dFile$ = AssetPath$("demos/" + dn$ + ".ncd")
+            END IF
+        END IF
+        IF dFile$ = "" THEN
+            ConPrint "playdemo NAME [quit]: one of the demos (demos lists them)"
+        ELSEIF editMode THEN
+            ConPrint "playdemo: F2 out of the editor first"
+        ELSE
+            IF demoRec OR demoPlay THEN GOSUB DemoStop
+            demoQuit = (LCASE$(DemoWord$(conRest$, 2)) = "quit") : demoName$ = dn$ : GOSUB DemoPlayStart : conLevelChanged = -1
+        END IF
+    CASE "bot", "autopilot" ' bot [on|off]: the autopilot plays (BotThink) - record a demo while it does
+        IF conA$ = "" THEN botOn = NOT botOn ELSE botOn = ConOn(conA$)
+        IF botOn THEN
+            achCheat = -1 : botDeaths = 0 : botWasDead = 0 : botNX = 0 : botStuck = 0 : botCheckAt = 0
+            FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botSeen(bx, by) = 0 : botBlock(bx, by) = 0 : NEXT : NEXT
+            ConPrint "Autopilot ON: it plays - the exit, keycards, monsters in sight (bot off to stop)"
+        ELSE
+            ConPrint "Autopilot OFF"
+        END IF
+    CASE "stopdemo"
+        IF demoRec OR demoPlay THEN GOSUB DemoStop ELSE ConPrint "stopdemo: no demo going"
+    CASE "demos" ' The demos there are: yours (saves/demos), then the game's own
+        n = 0
+        FOR dd = 1 TO 2
+            IF dd = 1 THEN dDir$ = SaveDir$ + "demos/" ELSE dDir$ = AssetPath$("demos/")
+            IF _DIREXISTS(dDir$) THEN
+                f$ = _FILES$(dDir$ + "*.ncd")
+                DO WHILE LEN(f$)
+                    ConPrint "  " + LEFT$(f$, LEN(f$) - 4) : n = n + 1
+                    f$ = _FILES$
+                LOOP
+            END IF
+        NEXT
+        IF n = 0 THEN ConPrint "No demos yet - record NAME makes one"
     CASE "status"
         ConPrint sectorName$(level) + "  health" + STR$(health) + "  armour" + STR$(armor) + "  cells" + STR$(ammoCount(AM_CELLS)) + "  shells" + STR$(ammoCount(AM_SHELLS)) + "  kills" + STR$(kills) + " /" + STR$(numMonsters)
     CASE "clear", "cls"
@@ -8738,6 +9310,7 @@ RETURN
 ' fresh (LoadLevel), then read back everything that had changed in it.
 ' loadOK says whether it worked.
 LoadGame:
+IF demoRec OR demoPlay THEN GOSUB DemoStop ' (a saved game isn't where the demo was going)
 loadOK = 0 : saveFile$ = SlotFile$(saveSlot)
 IF editMode AND _FILEEXISTS(saveFile$) THEN GOSUB EditLeave : editDirty = 0 ' (out of the editor first: its undo and its sector belong to the level being left)
 IF NOT _FILEEXISTS(saveFile$) THEN ShowMsg "Nothing saved there yet" : RETURN
@@ -8861,7 +9434,7 @@ nvCharge = 0 : nvOn = 0
 IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , nvCharge : GET #fileNum, , nvOn ' (night vision's battery)
 CLOSE #fileNum
 planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)
-levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0
+levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0 : lvFrame = INT(levelTime! * 60)
 loadOK = -1
 IF saveSlot = 0 THEN ShowMsg "Quick loaded" ELSE ShowMsg "Loaded slot" + STR$(saveSlot) + ": " + levelName$
 RETURN
@@ -10113,7 +10686,7 @@ END FUNCTION
 ' py: a FUNCTION can't see the main program's playerX.)
 FUNCTION SpawnInRoom(ev, t, px, py)
     FOR try = 1 TO 30
-        x = evX0(ev) + 0.5 + INT(RND * (evX1(ev) - evX0(ev) + 1)) : y = evY0(ev) + 0.5 + INT(RND * (evY1(ev) - evY0(ev) + 1))
+        x = evX0(ev) + 0.5 + INT(GRnd * (evX1(ev) - evX0(ev) + 1)) : y = evY0(ev) + 0.5 + INT(GRnd * (evY1(ev) - evY0(ev) + 1))
         IF (x - px) ^ 2 + (y - py) ^ 2 > 6 THEN
             IF SpawnMonster(t, x, y, ev, px, py) THEN SpawnInRoom = -1 : EXIT FUNCTION
         END IF
@@ -10123,7 +10696,7 @@ END FUNCTION
 ' ...or next to a spawner at (sx, sy)
 FUNCTION SpawnNear(ev, t, sx, sy, px, py)
     FOR try = 1 TO 20
-        x = INT(sx + (RND - 0.5) * 3) + 0.5 : y = INT(sy + (RND - 0.5) * 3) + 0.5
+        x = INT(sx + (GRnd - 0.5) * 3) + 0.5 : y = INT(sy + (GRnd - 0.5) * 3) + 0.5
         IF (x - px) ^ 2 + (y - py) ^ 2 < 2.25 THEN _CONTINUE ' (never on top of you)
         IF SpawnMonster(t, x, y, ev, px, py) THEN SpawnNear = -1 : EXIT FUNCTION
     NEXT
@@ -10171,8 +10744,8 @@ END SUB
 ' out - a pack of cells or shells, whichever it has more of (a coin toss
 ' between them), or now and then the gun it took
 SUB ThiefSpill(i)
-    x = monsterX(i) : y = monsterY(i) : a = RND * 6.2832
-    IF thiefGun(i) AND RND < 0.25 THEN
+    x = monsterX(i) : y = monsterY(i) : a = GRnd * 6.2832
+    IF thiefGun(i) AND GRnd < 0.25 THEN
         SELECT CASE thiefGun(i)
             CASE W_SCATTER : k = IT_SCATTER
             CASE W_REPEATER : k = IT_REPEATER
@@ -10180,7 +10753,7 @@ SUB ThiefSpill(i)
         END SELECT
         TossItem k, x, y, a, playerX, playerY : thiefGun(i) = 0
         ShowMsg "The thief dropped your gun!"
-    ELSEIF thiefCells(i) >= 15 AND (thiefShells(i) < 8 OR RND < 0.5) THEN
+    ELSEIF thiefCells(i) >= 15 AND (thiefShells(i) < 8 OR GRnd < 0.5) THEN
         TossItem IT_CELLS, x, y, a, playerX, playerY : thiefCells(i) = thiefCells(i) - 15
     ELSEIF thiefShells(i) >= 8 THEN
         TossItem IT_SHELLS, x, y, a, playerX, playerY : thiefShells(i) = thiefShells(i) - 8
@@ -10235,13 +10808,13 @@ END SUB
 ' (px, py), for you to go and pick up.
 SUB DecoLoot(d, px, py)
     IF editMode OR cyberOn THEN EXIT SUB
-    k = decoKind(d) : roll = INT(RND * 100) + 1 : acc = 0 : slot = 0 ' (the percentile dice, once)
+    k = decoKind(d) : roll = INT(GRnd * 100) + 1 : acc = 0 : slot = 0 ' (the percentile dice, once)
     luck = 1 : IF AmmoLow THEN luck = 2 ' (running dry: every chance doubled - a crate's 70% becomes a sure thing)
     FOR s = 1 TO LOOT_SLOTS
         IF lootKind(k, s) THEN acc = acc + lootPct(k, s) * luck : IF roll <= acc THEN slot = s : EXIT FOR
     NEXT
     IF slot = 0 THEN EXIT SUB ' (past them all: nothing in it)
-    a = decoLootA(d) : IF a = NO_AIM THEN a = RND * 6.2832
+    a = decoLootA(d) : IF a = NO_AIM THEN a = GRnd * 6.2832
     TossItem lootKind(k, slot), decoX(d), decoY(d), a, px, py
     AchAdd "LootDrops", 1
 END SUB
@@ -10566,7 +11139,7 @@ END SUB
 ' (the software renderer, or LOOK off) a shot finds a monster at any
 ' height in its column, as DOOM's aim does. Plenty of leeway either way.
 FUNCTION ShotPasses(i, z)
-    IF glMode = 0 OR setting(SET_LOOK) = 0 THEN EXIT FUNCTION
+    IF NOT lookAim THEN EXIT FUNCTION ' (level aim: whatever's in the middle column is hit, high or low)
     t = monsterType(i)
     foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t)
     ShotPasses = (z < foot - 0.3 OR z > foot + mtypeScale(t) + 0.5) ' (generous: level aim still finds a crawler down a step - aim at the ceiling or the floor, and it goes by)
@@ -10578,7 +11151,7 @@ END FUNCTION
 ' from where it stands and how tall it is, as chapter 16 draws it
 FUNCTION WeakSpotHit(i, u, z)
     t = monsterType(i) : IF mtypeWS(t, 2) <= mtypeWS(t, 1) THEN EXIT FUNCTION
-    foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t) + mtypeBob(t) * SIN(TIMER * 2.5 + i * 1.7)
+    foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t) + mtypeBob(t) * SIN(lvFrame / 24 + i * 1.7) ' (by the frame clock, not TIMER: a headshot depends on it - a demo must get the same)
     v = (foot + mtypeScale(t) - z) / mtypeScale(t)
     WeakSpotHit = u >= mtypeWS(t, 1) AND u <= mtypeWS(t, 2) AND v >= mtypeWS(t, 3) AND v <= mtypeWS(t, 4)
 END FUNCTION
@@ -14225,10 +14798,10 @@ END SUB
 ' overcharge, a damage amp - and something to shoot with (n = 1)
 FUNCTION StashLoot(n)
     IF n = 0 THEN
-        r = INT(RND * 5) : StashLoot = IT_ARMOR
+        r = INT(GRnd * 5) : StashLoot = IT_ARMOR
         IF r = 1 THEN StashLoot = IT_BIGMED ELSE IF r = 2 THEN StashLoot = IT_OVERCHARGE ELSE IF r = 3 THEN StashLoot = IT_AMP ELSE IF r = 4 THEN StashLoot = IT_GOGGLES
     ELSE
-        IF RND < 0.5 THEN StashLoot = IT_CELLS ELSE StashLoot = IT_SHELLS
+        IF GRnd < 0.5 THEN StashLoot = IT_CELLS ELSE StashLoot = IT_SHELLS
     END IF
 END FUNCTION
 
@@ -15139,6 +15712,173 @@ FUNCTION ConSound&(n$)
     ConSound& = s&
 END FUNCTION
 
+' The game's own dice: a number from 0 up to (not including) 1, as RND -
+' but for everything that changes the game (loot, damage, which monster),
+' so a demo, starting them at its seed, rolls the same. It's the "minimal
+' standard" generator (Park and Miller): multiply by 16807 and keep the
+' remainder by 2147483647 - in DOUBLEs, which hold that product exactly,
+' so it comes out the same on every computer.
+FUNCTION GRnd!
+    grSeed = grSeed * 16807#
+    grSeed = grSeed - INT(grSeed / 2147483647#) * 2147483647#
+    IF grSeed < 1 THEN grSeed = 1
+    r! = grSeed / 2147483647# : IF r! >= 1 THEN r! = 0.9999999 ' (a SINGLE rounds the very top up to 1)
+    GRnd! = r!
+END FUNCTION
+
+' The autopilot's goal: cell (x, y), 0 steps from itself - into the queue
+SUB BotGoal(x, y)
+    IF x < 1 OR y < 1 OR x > MAP_SIZE - 2 OR y > MAP_SIZE - 2 THEN EXIT SUB
+    IF botDist(x, y) = 0 THEN EXIT SUB
+    botDist(x, y) = 0 : botQT = botQT + 1 : botQ(botQT) = y * MAP_SIZE + x
+END SUB
+
+' The autopilot's field: out from the goals (BotGoal), how many steps each
+' cell is from the nearest - a "breadth-first search", as the thieves'
+' way home (chapter 19), but backwards: from cell c, who could step onto
+' it? A neighbour whose step is allowed (BotStep) - but never a teleporter
+' pad (step on one and you're on its partner), which is one step from the
+' cell its partner is. haz: fire and harmful liquids are allowed too.
+SUB BotField(haz)
+    h& = 1
+    DO WHILE h& <= botQT
+        c& = botQ(h&) : h& = h& + 1
+        cx = c& MOD MAP_SIZE : cy = c& \ MAP_SIZE : d = botDist(cx, cy) + 1
+        FOR k = 0 TO 3
+            nx = cx + (k = 1) - (k = 0) : ny = cy + (k = 3) - (k = 2)
+            IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
+                IF botDist(nx, ny) > d THEN
+                    IF BotPadAt(nx, ny) = 0 THEN
+                        IF BotStep(nx, ny, cx, cy, haz) THEN botDist(nx, ny) = d : botQT = botQT + 1 : botQ(botQT) = ny * MAP_SIZE + nx
+                    END IF
+                END IF
+            END IF
+        NEXT
+        FOR k = 1 TO numPads ' (a pad whose partner this is: one step away)
+            o = k + 1 : IF k MOD 2 = 0 THEN o = k - 1
+            IF o >= 1 AND o <= numPads THEN
+                IF padX(o) = cx AND padY(o) = cy AND botDist(padX(k), padY(k)) > d THEN botDist(padX(k), padY(k)) = d : botQT = botQT + 1 : botQ(botQT) = padY(k) * MAP_SIZE + padX(k)
+            END IF
+        NEXT
+    LOOP
+END SUB
+
+' Is there a teleporter pad in cell (x, y)? (Its number, or 0)
+FUNCTION BotPadAt(x, y)
+    FOR k = 1 TO numPads
+        IF padX(k) = x AND padY(k) = y THEN BotPadAt = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Can you step from cell (ax, ay) to the next one, (bx, by)? As Walkable%
+' and MoveBody have it, for a whole cell: no wall (a door you can open is
+' fine - not the exit, nor one locked, nor one wanting a card you haven't
+' got), no diagonal, block, glass or decoration, not too high a step up nor
+' too low a ceiling, no pit - and unless haz, no fire or harmful liquid.
+' (A lift: any height - it carries you. A cell the autopilot found itself
+' stuck at: not for a while.)
+FUNCTION BotStep(ax, ay, bx, by, haz)
+    IF bx < 1 OR by < 1 OR bx > MAP_SIZE - 2 OR by > MAP_SIZE - 2 THEN EXIT FUNCTION
+    IF botBlock(bx, by) > lvFrame THEN EXIT FUNCTION
+    w = worldMap(bx, by)
+    IF w > 0 THEN
+        IF w <> 2 THEN EXIT FUNCTION
+        IF doorOpen(bx, by) < 0.8 THEN
+            IF doorType(bx, by) = DOOR_EXIT OR doorLock(bx, by) <> 0 THEN EXIT FUNCTION
+            IF doorKey(bx, by) THEN IF NOT hasCard(doorKey(bx, by)) THEN EXIT FUNCTION
+        END IF
+    END IF
+    IF diagCorner(bx, by) OR boxOn(bx, by) OR glassHP(bx, by) > 0 THEN EXIT FUNCTION
+    d = decoCell(bx, by) : IF d THEN IF decoOn(d) AND decoKind(d) <> DK_BODY THEN EXIT FUNCTION
+    IF NOT levelFlat THEN
+        IF floorH(bx, by) <= PIT_DEPTH THEN EXIT FUNCTION
+        IF liftCell(ax, ay) = 0 AND liftCell(bx, by) = 0 THEN IF floorH(bx, by) > floorH(ax, ay) + STEP_UP THEN EXIT FUNCTION
+        IF ceilH(bx, by) - MaxOf(floorH(bx, by), floorH(ax, ay)) < BODY_H THEN EXIT FUNCTION
+    END IF
+    IF NOT haz THEN
+        IF FloorHazard(bx, by) = HAZ_BURN THEN EXIT FUNCTION
+        IF liqAny THEN IF liqKind(bx, by) THEN IF lqHurt(liqKind(bx, by)) > 0 THEN EXIT FUNCTION
+    END IF
+    BotStep = -1
+END FUNCTION
+
+' The autopilot, at (px, py) facing (dx, dy), turns towards point (x, y): botTurn, at most 0.12 a frame
+' (about 7 degrees) - and how far off it still is, in radians (- left)
+FUNCTION BotTurnTo(x, y, px, py, dx, dy)
+    a = _ATAN2(y - py, x - px) - _ATAN2(dy, dx)
+    DO WHILE a > 3.14159265 : a = a - 6.2831853 : LOOP
+    DO WHILE a < -3.14159265 : a = a + 6.2831853 : LOOP
+    botTurn = MaxOf(-0.12, MinOf(0.12, a * 0.5))
+    BotTurnTo = a
+END FUNCTION
+
+' A line into the demo being recorded - ended by a line feed alone, on
+' every computer (PRINT # would end it CR LF on Linux too), so a demo file
+' is the same file wherever it was made
+SUB DemoPut(l$)
+    PRINT #demoFH, l$ + CHR$(10);
+END SUB
+
+' A demo's keys as letters (DEMO_KEYS, then the gun 1-4; "-" for none) - and back
+FUNCTION DemoKeys$(b&)
+    t$ = ""
+    FOR i = 0 TO LEN(DEMO_KEYS) - 1
+        IF b& AND (2 ^ i) THEN t$ = t$ + MID$(DEMO_KEYS, i + 1, 1)
+    NEXT
+    IF b& \ DB_GUN THEN t$ = t$ + LTRIM$(STR$(b& \ DB_GUN))
+    IF t$ = "" THEN t$ = "-"
+    DemoKeys$ = t$
+END FUNCTION
+
+FUNCTION DemoBits&(t$)
+    b& = 0
+    FOR i = 1 TO LEN(t$)
+        c$ = MID$(t$, i, 1) : p = INSTR(DEMO_KEYS, c$)
+        IF p THEN
+            b& = b& OR (2 ^ (p - 1))
+        ELSEIF c$ >= "1" AND c$ <= "4" THEN
+            b& = b& + VAL(c$) * DB_GUN
+        END IF
+    NEXT
+    DemoBits& = b&
+END FUNCTION
+
+' Word n of a demo line (as ConWord$, but keeping its case: k and K differ)
+FUNCTION DemoWord$(c$, n)
+    t$ = LTRIM$(RTRIM$(c$)) : w = 0
+    DO WHILE LEN(t$)
+        sp = INSTR(t$, " ") : IF sp = 0 THEN sp = LEN(t$) + 1
+        w = w + 1
+        IF w = n THEN DemoWord$ = LEFT$(t$, sp - 1) : EXIT FUNCTION
+        t$ = LTRIM$(MID$(t$, sp + 1))
+    LOOP
+END FUNCTION
+
+' A demo's name, as a file name: letters, digits, - and _ (or "")
+FUNCTION DemoFileName$(n$)
+    t$ = ""
+    FOR i = 1 TO LEN(n$)
+        c$ = MID$(n$, i, 1)
+        IF INSTR("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_", c$) THEN t$ = t$ + c$
+    NEXT
+    DemoFileName$ = LEFT$(t$, 40)
+END FUNCTION
+
+' A console command, to a demo: 1 changes the world (recording, it's
+' written down; playing, it waits), 2 starts something else (the demo
+' ends), 0 neither (a screenshot, a setting, a look round)
+FUNCTION DemoVerb%(v$)
+    SELECT CASE v$
+        CASE "god", "noclip", "iddqd", "fly", "notarget", "give", "take", "kill", "killall", "spawn", "summon", "item", "drop", _
+             "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "blocks", _
+             "liquid", "liquids", "flood", "raise", "lift", "liftgo", "map", "level", "sector", "sectorset", "campaign", "set10", _
+             "jackin", "jackout", "respawn", "lamp", "light", "trigger", "restart", "reset", "resetlevel", "die", "suicide", "kick", "program", "loot"
+            DemoVerb% = 1
+        CASE "newgame", "load", "loadgame", "quickload", "edit", "editor", "newsector", "hud", "monsters", "puzzle", "undo"
+            DemoVerb% = 2
+    END SELECT
+END FUNCTION
+
 ' Word n of a command, lower case (the first word is the command)
 FUNCTION ConWord$(c$, n)
     t$ = LTRIM$(RTRIM$(c$)) : w = 0
@@ -15230,7 +15970,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god fly notarget kill respawn summon spawn item mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god fly notarget kill respawn record playdemo stopdemo demos bot summon spawn item mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -15275,6 +16015,11 @@ SUB ConHelp(c$)
             ConPrint "  armor overcharge amp...) or - for none: loot crate ammo:20 shells:20 - armor:10"
             ConPrint "loot BREAKABLE none: it leaves nothing   loot default: the game's own table again"
         CASE "die" : ConPrint "die [MESSAGE]: you die (a trigger's death trap); never in god mode or the editor"
+        CASE "bot" : ConPrint "bot [on|off]: the autopilot plays the sector - the exit, keycards, monsters in sight (record a demo of it)"
+        CASE "record" : ConPrint "record NAME [SEED] [quit]: this sector again from its start, recorded as a demo - every key, frame by frame - till the exit (or stopdemo)"
+        CASE "playdemo" : ConPrint "playdemo NAME [quit]: a demo played back, exactly as it was played (quit: the game ends with it, for tests)"
+        CASE "stopdemo" : ConPrint "stopdemo: stop recording (it's saved) or playing a demo"
+        CASE "demos" : ConPrint "demos: the demos there are (saves/demos, then the game's own)"
         CASE "god" : ConPrint "god [on|off]: no damage, through walls, flying (E up, C down) and notarget - for looking round a sector (G does the same)"
         CASE "fly" : ConPrint "fly [on|off]: fly - E up, C down, Shift faster - the floor still holds you up"
         CASE "notarget" : ConPrint "notarget [on|off]: the monsters don't notice you, and hunting ones forget you"

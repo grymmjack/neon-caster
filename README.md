@@ -15,7 +15,8 @@ monster and light - and a monster editor and a HUD editor. Twelve more
 sectors built with the editor come with it, three of them outdoors, and
 one, THE NEON EXPO, that shows off every feature at once. And 49
 achievements, each with its own badge, ready for Steam, with each
-sector's best times kept as records.
+sector's best times kept as records - and DOOM-style demos: record a
+sector as you play it and play it back, exactly, frame by frame.
 
 It draws its 3D two ways: a software raycaster, like Wolfenstein 3D, and an
 OpenGL renderer with bump mapping, moving lights, wet floors, bloom and CRT
@@ -98,6 +99,13 @@ STEAM library in QB64_GJ_LIB. Until the game is on Steam they're kept in
 `neon-caster/saves/achievements.txt`, and the game shows its own pop-up.
 `steam/README.md` says what's needed to go live. Cheats (god mode,
 `give`, the editor) hold them until your next new game.
+
+**Demos:** in the console, `record NAME` restarts the sector and records
+you playing it - every key and turn, frame by frame, not a video - till
+the exit, and `playdemo NAME` plays it back exactly: the same monsters,
+shots and loot. `bot` hands the controls to an autopilot that goes for the
+keycards and the exit, so it can make demos on its own. See
+`neon-caster/TUTORIAL.md`.
 
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting
 at once. OLDSCHOOL is chunky pixels with no effects, 90S is 720P with
