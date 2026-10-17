@@ -1525,6 +1525,7 @@ CONST MAX_PADS = 16
 ' "puzzles =" list, one a terminal in reading order.
 CONST MAX_TERMS = 8, MAX_PZ_LINES = 24, MAX_PZ_BLANKS = 6, MAX_PZ_HINTS = 6
 DIM SHARED numTerms AS INTEGER, termX(MAX_TERMS) AS INTEGER, termY(MAX_TERMS) AS INTEGER, termDone(MAX_TERMS) AS INTEGER, lvlPuzzles$
+DIM SHARED lvlDroids AS INTEGER ' (droids = in the level file: how many droids it has, 0 to MAX_DROIDS - or -1, not said: 3)
 DIM SHARED pzTitle$, pzLesson$, pzExpect$, pzChapter$, pzN AS INTEGER, pzAns$(MAX_PZ_LINES), pzOrder(MAX_PZ_LINES) AS INTEGER
 DIM SHARED pzBlanks AS INTEGER, pzBlankLine(MAX_PZ_BLANKS) AS INTEGER, pzBlankWord$(MAX_PZ_BLANKS), pzBlankIn$(MAX_PZ_BLANKS)
 DIM SHARED pzHints AS INTEGER, pzHint$(MAX_PZ_HINTS), pzShown AS INTEGER, pzOut$, pzFails AS INTEGER
@@ -9172,7 +9173,11 @@ SELECT CASE conVerb$
             IF conC$ <> "" THEN ang = VAL(conC$) * 3.14159265 / 180 : dirX = DCos(ang) : dirY = DSin(ang) : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
             ConPrint "At" + STR$(playerX) + STR$(playerY)
         END IF
-    CASE "droids" ' Where the droids are, and what they're up to
+    CASE "droids" ' Where the droids are, and what they're up to - or droids N: this sector has N (savelevel or Ctrl+S keeps it)
+        IF conA$ <> "" THEN
+            lvlDroids = MaxOf(0, MinOf(MAX_DROIDS, VAL(conA$))) : editDirty = -1 : PlaceDroids level
+            ConPrint "droids: this sector has" + STR$(lvlDroids) + "   (savelevel or Ctrl+S in the editor to keep it)"
+        END IF
         IF numDroids = 0 THEN ConPrint "No droids here"
         FOR k = 1 TO numDroids
             st = MinOf(3, droidState(k)) : IF droidHP(k) <= 0 THEN st = 4
@@ -11537,7 +11542,7 @@ END FUNCTION
 ' them, its numbers split by commas (SplitNums); in [map], each line is a
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
-    lvlPuzzles$ = "" : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNote$ = "" : topLines = -1
+    lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNote$ = "" : topLines = -1
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0
     f$ = LevelFile$(n)
@@ -11580,6 +11585,7 @@ SUB ReadLevelFile(n)
                 SELECT CASE k$
                     CASE "name" : lvlName$ = val$
                     CASE "puzzles" : lvlPuzzles$ = val$
+                    CASE "droids" : lvlDroids = MaxOf(0, MinOf(MAX_DROIDS, VAL(val$)))
                     CASE "walls" : FOR k = 1 TO 6 : lvlWall$(k) = ListItem$(val$, k) : NEXT
                     CASE "floors" : FOR k = 1 TO 4 : lvlFloor$(k) = ListItem$(val$, k) : NEXT
                     CASE "ceilings" : FOR k = 1 TO 2 : lvlCeil$(k) = ListItem$(val$, k) : NEXT
@@ -12087,6 +12093,7 @@ SUB WriteLevelFile(f$)
     o$ = o$ + lvlNote$ + nl$
     o$ = o$ + "name     = " + lvlName$ + nl$
     IF lvlPuzzles$ <> "" THEN o$ = o$ + "puzzles  = " + lvlPuzzles$ + nl$
+    IF lvlDroids >= 0 THEN o$ = o$ + "droids   = " + LTRIM$(STR$(lvlDroids)) + nl$
     l$ = "" : FOR k = 1 TO 6 : l$ = l$ + lvlWall$(k) + MID$(", ", 1, -2 * (k < 6)) : NEXT : o$ = o$ + "walls    = " + l$ + nl$
     l$ = "" : FOR k = 1 TO 4 : l$ = l$ + lvlFloor$(k) + MID$(", ", 1, -2 * (k < 4)) : NEXT : o$ = o$ + "floors   = " + l$ + nl$
     o$ = o$ + "ceilings = " + lvlCeil$(1) + ", " + lvlCeil$(2) + nl$
@@ -16671,6 +16678,7 @@ SUB ConHelp(c$)
         CASE "sectorset", "campaign" : ConPrint "sectorset 0|1|2 (original, new, remix): which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS or OLD SECTORS NEW"
         CASE "newsector" : ConPrint "newsector: a blank sector of your own (levels/custom/), opened in the editor - carve rooms out with . (floor), Ctrl+S saves"
         CASE "sectorname" : ConPrint "sectorname NAME: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it"
+        CASE "droids" : ConPrint "droids: where this sector's droids are and what they're doing. droids N (0-" + LTRIM$(STR$(MAX_DROIDS)) + "): this sector has N - then savelevel (or Ctrl+S) to keep it"
         CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-4 | ammo [cells|shells N] | health [N] | armor [N] | overcharge | amp | map"
         CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-4 | ammo [cells|shells N] | health N | armor [N] | map"
         CASE "liquid", "flood"
@@ -20324,13 +20332,14 @@ FUNCTION DroidLine(i, x0, y0, x1, y1, z)
     DroidLine = -1
 END FUNCTION
 
-' A sector's droids, where they start: three, on open floor away from where
-' you start and out of the event rooms - picked by the droids' dice, started
+' A sector's droids, where they start: three (or as many as its droids =
+' line says), on open floor away from where you start and out of the event rooms - picked by the droids' dice, started
 ' from the sector (lv) and its set, so they're the same every time
 SUB PlaceDroids(lv)
     numDroids = 0 : drSeed = 7919 + lv * 104729# + sectorSet * 1299709#
     IF cyberOn THEN EXIT SUB
-    FOR n = 1 TO 3
+    want = 3 : IF lvlDroids >= 0 THEN want = lvlDroids
+    FOR n = 1 TO want
         FOR try = 1 TO 600
             cx = 1 + INT(DRnd * (MAP_SIZE - 2)) : cy = 1 + INT(DRnd * (MAP_SIZE - 2))
             IF worldMap(cx, cy) > 0 OR decoCell(cx, cy) OR boxOn(cx, cy) OR glassHP(cx, cy) > 0 THEN _CONTINUE

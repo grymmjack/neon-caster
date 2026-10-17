@@ -455,6 +455,8 @@ All end in `.png`. The picker's WALLS, FLOORS and CEILINGS tabs show them all, a
 
 **`puzzles = NAME, NAME, …`** gives each `$` code terminal its puzzle, in reading order, from `neon-caster/puzzles/`: countdown, function, hello, multiply, password, pythagoras, reverse, select, sum, wrap.
 
+**`droids = N`** says how many service droids roll about the sector, 0 to 6. Leave it out for the usual three. In the console, `droids N` sets it for the sector you're in (save to keep it), and `droids` on its own lists where they are.
+
 **`[events]`** (MAKE AN EVENT ROOM, and an event's pane) are rooms that do something when you walk in: `kind, x0, y0, x1, y1, a, b, reward`. Doors within 5 cells of the room belong to it. Up to 16.
 
 | Kind | Event | `a` | `b` |

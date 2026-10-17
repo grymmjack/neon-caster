@@ -556,6 +556,8 @@ def level_text(lv, comment=()):
     out.append("name     = %s" % lv["name"])
     if lv.get("puzzles"):
         out.append("puzzles  = %s" % lv["puzzles"])
+    if lv.get("droids") is not None:  # how many droids (the game's own count, 3, if not said)
+        out.append("droids   = %d" % lv["droids"])
     out.append("walls    = " + ", ".join(lv["walls"]))
     out.append("floors   = " + ", ".join(lv["floors"]))
     out.append("ceilings = " + ", ".join(lv["ceils"]))
@@ -676,6 +678,7 @@ def read_level_file(path, label=None):
             vals = [x.strip() for x in v.split(",")]
             if k == "name": lv["name"] = v
             elif k == "puzzles": lv["puzzles"] = v
+            elif k == "droids": lv["droids"] = int(float(v))
             elif k == "walls": lv["walls"] = vals
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals
