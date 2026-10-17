@@ -57,6 +57,7 @@ it yourself:
 | F5 / F9 | quick save / quick load |
 | Tab | the full-screen map (all of it once you've found the map pickup): pools in their colours, pits, lifts and teleporter pads |
 | ` (backtick) | the console: type `help` for the commands |
+| Ctrl+R | record a demo: the sector starts again and every key from there is kept, till Ctrl+R again or the exit - **DEMO REPLAYS** (the main menu) plays it back |
 | F2 | the level editor (see below); in it, F1 shows a cheatsheet of every key |
 | K / G | testing cheats: every keycard / god mode (no damage, through walls, flying with E up and C down, and the monsters ignore you) |
 
@@ -87,10 +88,14 @@ frame - `wait` holds the rest back - so a test can drive it with no hands:
 
 Settings changed from the command line last only for that run.
 
-**Demos.** `record NAME` starts the sector you're in again from the
-beginning and records you playing it, as DOOM did: not a video, but every
-key and turn, frame by frame. The exit (or `stopdemo`) ends it, and
-`playdemo NAME` plays it back exactly - the same monsters, the same shots,
+**Demos.** **DEMO REPLAYS** in the main menu lists every demo - yours,
+then the ten that come with the game - and Enter plays one (Esc, then
+STOP DEMO, ends it early). Ctrl+R records one: the sector you're in
+starts again, and Ctrl+R again (or the exit) keeps it as `run1`, `run2`...
+From the console, `record NAME` does the same with a name of your own. A
+demo is how DOOM did it: not a video, but every key and turn, frame by
+frame. The exit (or `stopdemo`) ends it, and `playdemo NAME` plays it
+back exactly - the same monsters, the same shots,
 the same loot - in either renderer. `demos` lists them; they're small text
 files in `neon-caster/saves/demos/`. `bot` turns on the autopilot, which
 plays the sector itself (it goes for the keycards and the exit and shoots

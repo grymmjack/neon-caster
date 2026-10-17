@@ -100,10 +100,11 @@ STEAM library in QB64_GJ_LIB. Until the game is on Steam they're kept in
 `steam/README.md` says what's needed to go live. Cheats (god mode,
 `give`, the editor) hold them until your next new game.
 
-**Demos:** in the console, `record NAME` restarts the sector and records
-you playing it - every key and turn, frame by frame, not a video - till
-the exit, and `playdemo NAME` plays it back exactly: the same monsters,
-shots and loot. `bot` hands the controls to an autopilot that goes for the
+**Demos:** press Ctrl+R and the sector starts again, recorded as you play
+it - every key and turn, frame by frame, not a video - till Ctrl+R again
+or the exit. **DEMO REPLAYS** in the main menu plays it back exactly: the
+same monsters, shots and loot. (In the console: `record NAME`, `playdemo
+NAME`.) `bot` hands the controls to an autopilot that goes for the
 keycards and the exit, so it can make demos on its own - `playdemo
 sector1` to `sector10` watch it play the original ten. See
 `neon-caster/TUTORIAL.md`.

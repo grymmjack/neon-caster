@@ -1303,6 +1303,10 @@ CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
 CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6, MA_SECTOR = 7
 CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15, SCR_CUSTOM2 = 16, SCR_SET1 = 17 ' (SCR_SET1 + s - 1: set s's sectors)
+CONST SCR_DEMOS = 30, MA_DEMO = 14, MA_DEMOPAGE = 15, MA_STOPDEMO = 16 ' (DEMO REPLAYS: the demos on disk - DemoListLoad - ten a page; Enter plays one)
+CONST MAX_DEMOLIST = 200
+DIM SHARED demoListN AS INTEGER, demoList$(MAX_DEMOLIST), demoListFile$(MAX_DEMOLIST), demoListInfo$(MAX_DEMOLIST), demoListPage AS INTEGER
+DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER ' (a demo started from DEMO REPLAYS: when it's over, back to that list)
 CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11, MA_ACHIEVE = 12, MA_LINK = 13 ' (MA_LINK: its info$ is "NAME|address" - the name underlined, the address opened in the web browser)
 ' --- The console (` opens it, like Quake's; chapter 21): what's been
 ' printed (conLog$, the last CON_LOG lines), the line being typed, the
@@ -1678,6 +1682,7 @@ DO
     IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
+    IF demoMenuWant THEN demoMenuWant = 0 : menuInGame = 0 : menuOpenDemos = -1 : GOSUB RunMenu ' (a demo from DEMO REPLAYS is over: the title menu, at that list)
     IF conWait > 0 THEN conWait = conWait - 1
     DO WHILE conWait = 0 AND conQHead < conQTail AND glShotReq = 0 ' (a screenshot asked for: the rest waits until it's saved)
         conQHead = conQHead + 1 : conCmd$ = conQ$(conQHead)
@@ -1689,6 +1694,21 @@ DO
     conKey = (_KEYDOWN(96) OR _KEYDOWN(126)) AND NOT edTyping ' (typing a name in the editor: not the console)
     IF conKey AND NOT conKeyWas THEN GOSUB RunConsole
     conKeyWas = conKey
+    ' Ctrl+R: record this sector - it starts again, and every key from there
+    ' goes into a demo (run1, run2...) - and Ctrl+R again (or the exit) keeps
+    ' it: DEMO REPLAYS lists it
+    recKey = (_KEYDOWN(114) OR _KEYDOWN(82)) AND (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND NOT edTyping
+    IF recKey AND NOT recKeyWas AND NOT editMode AND NOT hudEdit THEN
+        IF demoRec THEN
+            GOSUB DemoStop
+        ELSEIF demoPlay THEN
+            ShowMsg "A demo's playing - Esc, STOP DEMO first"
+        ELSE
+            demoName$ = DemoNextName$ : dSeedWant# = 0 : demoRecQuit = 0 : GOSUB DemoRecordStart
+            ShowMsg "RECORDING " + demoName$ + " - from the sector's start. Ctrl+R again stops it"
+        END IF
+    END IF
+    recKeyWas = recKey
     ' F2: the level editor (chapter 21) - into it, at the map from above
     edKey = _KEYDOWN(15360)
     IF edKey AND NOT edKeyWas AND NOT cyberOn AND NOT dead AND NOT edTyping THEN
@@ -6836,7 +6856,7 @@ RETURN
 DemoStop:
 IF demoRec THEN
     GOSUB DemoFlush : GOSUB DemoStateNow : DemoPut "e " + ds$ : CLOSE #demoFH : demoRec = 0
-    ConPrint "demo: " + demoName$ + " saved -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + ")" : ShowMsg "DEMO SAVED: " + demoName$
+    ConPrint "demo: " + demoName$ + " saved -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + ")" : ShowMsg "DEMO SAVED: " + demoName$ + " - in DEMO REPLAYS"
     ApplySettings ' (the view's width: yours again)
 END IF
 IF demoPlay THEN
@@ -6849,6 +6869,7 @@ RETURN
 ' --- After playing one: your own settings back - and with "quit", the end
 DemoDone:
 ApplySettings
+IF demoFromMenu THEN demoFromMenu = 0 : demoMenuWant = -1 ' (watched from DEMO REPLAYS: back to the list - the game loop opens it)
 IF demoQuit THEN
     IF demoBad THEN SYSTEM 3 ELSE SYSTEM 0
 END IF
@@ -6872,7 +6893,7 @@ demoFH = FREEFILE : OPEN SaveDir$ + "demos/" + demoName$ + ".ncd" FOR OUTPUT AS 
 grSeed = 1 + INT(RND * 2147483645) : IF dSeedWant# >= 1 AND dSeedWant# < 2147483647 THEN grSeed = INT(dSeedWant#)
 demoFovQ = CLNG(fovPlane * 100000) : demoLook = (glMode <> 0) AND (setting(SET_LOOK) <> 0)
 DemoPut "NEON-CASTER DEMO 1"
-DemoPut "# " + sectorName$(level) + " - recorded " + DATE$ + " " + LEFT$(TIME$, 5) + " (playdemo " + demoName$ + ")"
+DemoPut "# " + sectorName$(level) + " - " + DATE$ + " " + LEFT$(TIME$, 5) ' (the sector and when: DEMO REPLAYS shows it beside the name)
 DemoPut "version " + GAME_VERSION$
 DemoPut "set" + STR$(sectorSet)
 DemoPut "sector" + STR$(level)
@@ -7194,6 +7215,7 @@ RETURN
 ' the last, the game's totals, and a new game)
 LevelDone:
 IF demoRec OR demoPlay THEN GOSUB DemoAtExit ' (a demo ends at the exit)
+IF demoMenuWant THEN RETURN ' (one watched from DEMO REPLAYS: no tally - back to the list)
 WorldLoopsOff
 PlaySfx sndExit&, 0.9
 levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
@@ -8220,6 +8242,7 @@ _MOUSESHOW
 IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
 menuGamWas = setting(SET_GAMMA) : IF nvOn THEN menuGamWas = 0 ' (the brightness that frame was drawn at - 0: none, it's night vision's green)
 menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen
+IF menuOpenDemos THEN menuOpenDemos = 0 : menuDepth = 1 : menuStack(1) = SCR_MAIN : menuStackSel(1) = menuSel + 1 : menuScreen = SCR_DEMOS : demoListPage = 0 : GOSUB EnterMenuScreen ' (back from a demo: at DEMO REPLAYS, BACK to the main menu's line for it)
 menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1 : menuDispWas = displayModeNow : menuPointWait = 0
 _KEYCLEAR
 DO
@@ -9203,7 +9226,8 @@ SELECT CASE miKind(menuSel)
     CASE MI_SUBMENU ' Into another screen, remembering this one
         PlaySfx sndMenuSelect&, 0.6
         menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
-        menuScreen = miRef(menuSel) : GOSUB EnterMenuScreen
+        menuScreen = miRef(menuSel) : IF menuScreen = SCR_DEMOS THEN demoListPage = 0
+        GOSUB EnterMenuScreen
     CASE MI_BACK
         GOSUB MenuBack
     CASE MI_TOGGLE, MI_CHOICE
@@ -9217,6 +9241,17 @@ SELECT CASE miKind(menuSel)
                 menuDone = -1
             CASE MA_NEW
                 sectorSet = 0 : GOSUB ReadSectorNames : GOSUB NewGame : menuDone = -1
+            CASE MA_DEMO ' A demo (DEMO REPLAYS), played back - and when it's over, back to the list
+                n = miRef(menuSel)
+                IF demoRec OR demoPlay THEN GOSUB DemoStop
+                IF editMode THEN GOSUB EditLeave
+                dFile$ = demoListFile$(n) : demoName$ = demoList$(n) : demoQuit = 0 : demoMenuWant = 0
+                GOSUB DemoPlayStart
+                IF demoPlay THEN demoFromMenu = -1 : menuDone = -1 ELSE ShowMsg "That demo won't play - see the console"
+            CASE MA_DEMOPAGE ' DEMO REPLAYS: the next ten
+                demoListPage = demoListPage + 1 : GOSUB EnterMenuScreen
+            CASE MA_STOPDEMO ' (paused, a demo playing)
+                GOSUB DemoStop : menuDone = -1
             CASE MA_LINK ' A credit: its page, in the web browser
                 OpenLink MID$(miInfo$(menuSel), INSTR(miInfo$(menuSel), "|") + 1)
             CASE MA_ACHIEVE ' The achievements (and records): a screen of their own, then back here
@@ -15936,6 +15971,15 @@ FUNCTION DemoWord$(c$, n)
     LOOP
 END FUNCTION
 
+' The next free name for a recording made with Ctrl+R: run1, run2...
+FUNCTION DemoNextName$
+    n = 1
+    DO WHILE _FILEEXISTS(SaveDir$ + "demos/run" + LTRIM$(STR$(n)) + ".ncd") AND n < 9999
+        n = n + 1
+    LOOP
+    DemoNextName$ = "run" + LTRIM$(STR$(n))
+END FUNCTION
+
 ' A demo's name, as a file name: letters, digits, - and _ (or "")
 FUNCTION DemoFileName$(n$)
     t$ = ""
@@ -16589,7 +16633,9 @@ SUB BuildMenu(scr)
         CASE SCR_MAIN
             IF menuInGame THEN menuTitle$ = "PAUSED" ELSE menuTitle$ = "MAIN MENU"
             IF menuInGame THEN AddMenuItem "RESUME", MI_ACTION, 0, MA_RESUME, -1, ""
+            IF menuInGame AND demoPlay THEN AddMenuItem "STOP DEMO", MI_ACTION, 0, MA_STOPDEMO, -1, ""
             AddMenuItem "GAME", MI_SUBMENU, SCR_GAME, 0, -1, ""
+            AddMenuItem "DEMO REPLAYS", MI_SUBMENU, SCR_DEMOS, 0, -1, ""
             AddMenuItem "SETTINGS", MI_SUBMENU, SCR_SETTINGS, 0, -1, ""
             AddMenuItem "CREDITS", MI_SUBMENU, SCR_CREDITS, 0, -1, ""
             AddMenuItem "EXIT", MI_SUBMENU, SCR_QUIT, 0, -1, ""
@@ -16662,6 +16708,22 @@ SUB BuildMenu(scr)
             AddMenuItem "EFFECTS", MI_SUBMENU, SCR_EFFECTS, 0, -1, ""
             AddMenuItem "CONTROLS", MI_SUBMENU, SCR_CONTROLS, 0, -1, ""
             AddMenuItem "QB64PE COMPILER", MI_SUBMENU, SCR_QB64, 0, -1, ""
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_DEMOS ' DEMO REPLAYS: the demos on disk (DemoListLoad - yours, then the game's own), ten a page - Enter plays one
+            menuTitle$ = "DEMO REPLAYS" : menuWide = -1
+            DemoListLoad
+            IF demoListPage * 10 >= demoListN THEN demoListPage = 0
+            IF demoListN = 0 THEN
+                AddMenuItem "NO DEMOS YET", MI_TEXT, 0, 0, 0, ""
+                AddMenuItem "IN THE CONSOLE, record NAME MAKES ONE", MI_TEXT, 0, 0, 0, ""
+                AddMenuItem "", MI_TEXT, 0, 0, 0, ""
+            ELSE
+                FOR n = demoListPage * 10 + 1 TO MinOf(demoListPage * 10 + 10, demoListN)
+                    d$ = UCASE$(demoList$(n)) : IF LEN(d$) > 9 THEN d$ = LEFT$(d$, 8) + "~" ' (nine big letters, then its description beside it)
+                    AddMenuItem d$, MI_ACTION, n, MA_DEMO, -1, demoListInfo$(n)
+                NEXT
+                IF demoListN > 10 THEN AddMenuItem "MORE", MI_ACTION, 0, MA_DEMOPAGE, -1, "page" + STR$(demoListPage + 1) + " of" + STR$((demoListN + 9) \ 10)
+            END IF
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_QB64 ' The qb64pe the code terminals compile with (chapter 19)
             menuTitle$ = "QB64PE COMPILER" : menuWide = -1
@@ -20244,6 +20306,73 @@ SUB RecordsLoad
     LOOP
     CLOSE #fh
 END SUB
+
+' DEMO REPLAYS' list: the demos on disk - yours (saves/demos) first, then
+' the game's own (neon-caster/demos) - by name, numbers in order (sector2
+' before sector10). Each one's description is its first # comment (what
+' recording it wrote: the sector, when) - or, with none, its sector's name.
+SUB DemoListLoad
+    demoListN = 0
+    FOR dd = 1 TO 2
+        IF dd = 1 THEN dir$ = SaveDir$ + "demos/" ELSE dir$ = AssetPath$("demos/")
+        IF _DIREXISTS(dir$) THEN
+            f$ = _FILES$(dir$ + "*.ncd")
+            DO WHILE LEN(f$) AND demoListN < MAX_DEMOLIST
+                n$ = LEFT$(f$, LEN(f$) - 4) : dup = 0
+                FOR k = 1 TO demoListN
+                    IF LCASE$(demoList$(k)) = LCASE$(n$) THEN dup = -1 ' (one of yours with the same name as one of the game's: yours is the one that plays)
+                NEXT
+                IF NOT dup AND LEN(n$) THEN
+                    demoListN = demoListN + 1 : demoList$(demoListN) = n$ : demoListFile$(demoListN) = dir$ + f$
+                    demoListInfo$(demoListN) = DemoInfo$(dir$ + f$)
+                END IF
+                f$ = _FILES$
+            LOOP
+        END IF
+    NEXT
+    FOR i = 2 TO demoListN ' (in order: insertion sort, by DemoSortKey$)
+        j = i
+        DO WHILE j > 1
+            IF DemoSortKey$(demoList$(j - 1)) <= DemoSortKey$(demoList$(j)) THEN EXIT DO
+            SWAP demoList$(j - 1), demoList$(j) : SWAP demoListFile$(j - 1), demoListFile$(j) : SWAP demoListInfo$(j - 1), demoListInfo$(j)
+            j = j - 1
+        LOOP
+    NEXT
+END SUB
+
+' A demo's name to sort by: lower case, its last number five digits long
+' (so sector2 comes before sector10)
+FUNCTION DemoSortKey$(n$)
+    t$ = LCASE$(n$) : e = LEN(t$)
+    DO WHILE e > 0
+        IF MID$(t$, e, 1) < "0" OR MID$(t$, e, 1) > "9" THEN EXIT DO
+        e = e - 1
+    LOOP
+    IF e < LEN(t$) THEN t$ = LEFT$(t$, e) + RIGHT$("00000" + MID$(t$, e + 1), 5)
+    DemoSortKey$ = t$
+END FUNCTION
+
+' A demo file's description for the list: its first # comment, without
+' the "playdemo ..." it ends with - or its sector's name - at most 48
+' letters (the menu's small print, beside the name)
+FUNCTION DemoInfo$(f$)
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    t$ = "" : dSec = 0 : dSet = 0 : n = 0
+    DO WHILE NOT EOF(fh) AND n < 20
+        LINE INPUT #fh, l$ : l$ = LTRIM$(RTRIM$(l$)) : n = n + 1
+        IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = RTRIM$(LEFT$(l$, LEN(l$) - 1))
+        IF l$ = "begin" THEN EXIT DO
+        IF LEFT$(l$, 1) = "#" AND t$ = "" THEN t$ = LTRIM$(MID$(l$, 2))
+        IF LEFT$(l$, 7) = "sector " THEN dSec = VAL(MID$(l$, 8))
+        IF LEFT$(l$, 4) = "set " THEN dSet = VAL(MID$(l$, 5))
+    LOOP
+    CLOSE #fh
+    c = INSTR(t$, " - playdemo") : IF c THEN t$ = LEFT$(t$, c - 1)
+    c = INSTR(t$, " (playdemo") : IF c THEN t$ = LEFT$(t$, c - 1)
+    IF t$ = "" AND dSec > 0 THEN t$ = SetSectorName$(dSet, dSec)
+    IF LEN(t$) > 48 THEN t$ = LEFT$(t$, 47) + "~"
+    DemoInfo$ = t$
+END FUNCTION
 
 SUB RecordsSave
     MakeSaveDir : fh = FREEFILE : OPEN SaveDir$ + "records.txt" FOR OUTPUT AS #fh
