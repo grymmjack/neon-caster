@@ -511,8 +511,8 @@ def check_blocks(lv):
             errs.append("nudge at %d,%d: no decoration there" % (x, y))
         if not (-3 <= dx <= 3 and -3 <= dy <= 3):
             errs.append("nudge at %d,%d: %d, %d (-3 to 3)" % (x, y, dx, dy))
-        if len(n) > 4 and not 0 <= n[4] <= 4:
-            errs.append("nudge at %d,%d: facing %d (0 turns to you, 1-4 east south west north)" % (x, y, n[4]))
+        if len(n) > 4 and not 0 <= n[4] <= 5:
+            errs.append("nudge at %d,%d: facing %d (0 as built, 1-4 east south west north, 5 turns to you)" % (x, y, n[4]))
     return errs
 
 

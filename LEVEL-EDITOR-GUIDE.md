@@ -409,7 +409,7 @@ Walls fill whole cells. A **block** is a solid box standing inside one open cell
 4. In each room cell beside the alcove, **ADD A PILLAR**; then PUSH IN its sides until it's a slim post against the wall. PAINT its sides with `wall-lightstrip`, and put a light on a side for a glow.
 5. With the LIGHTS brush on **PULSE**, put a light on the alcove's floor or ceiling.
 
-**Decorations off-centre, and standing still.** A decoration stands in its cell's middle unless it's moved: select it, and its pane's **MOVE IT** row nudges it up to three eighths each way. That's how one stands in an alcove or against a block. Every decoration is a picture that turns to face you as you walk round it; the button under MOVE IT makes it **stand flat** instead, facing one way like something fixed to a wall, so you see it at an angle from the side, edge-on from beside it, and its back (mirrored) from behind. Use it for things that sit against a wall: terminals, consoles, screens, lockers, vending machines, racks.
+**Decorations off-centre, and standing still.** A decoration stands in its cell's middle unless it's moved: select it, and its pane's **MOVE IT** row nudges it up to three eighths each way. That's how one stands in an alcove or against a block. A decoration is a picture that turns to face you as you walk round it - except furniture built against a wall (a terminal, console, screen, locker, vending machine, rack, desk, bench, chair, lab bench, generator or cryo pod), which stands flat with its back to that wall, as it would be built. The button under MOVE IT picks the way for yourself: **AS BUILT** (that), **STANDS, FACING** east, south, west or north - flat, facing one way like something fixed to a wall, so you see it at an angle from the side, edge-on from beside it, and its back (mirrored) from behind - or **TURNS TO FACE YOU**, always, even against a wall.
 
 The console makes blocks too: `block X Y X0 Y0 X1 Y1 [WALL]` (edges in eighths, WALL 1-6 for `#` to `G`), `block X Y none` to take one away. Blocks are saved as `[blocks]`, moved decorations as `[nudges]` (below).
 
@@ -494,7 +494,7 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 23, 20, 5, 0, 8, 3, 4
 ```
 
-**`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy, facing` - `dx` and `dy` in eighths across and down, -3 to 3; `facing` 0 (or left out) turns it to face you, 1-4 stands it flat facing east, south, west or north. Up to 64.
+**`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy, facing` - `dx` and `dy` in eighths across and down, -3 to 3; `facing` 0 (or left out) is as built (furniture against a wall stands flat with its back to it; anything else turns to face you), 1-4 stands it flat facing east, south, west or north, 5 turns it to face you always. Up to 64.
 
 **`[pads]`** (LINK): teleporter pads paired by hand, `x1, y1, x2, y2`. Pads in no pair here pair up as ever, in reading order. Up to 16.
 

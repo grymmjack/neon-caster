@@ -99,12 +99,16 @@ frame. The exit (or `stopdemo`) ends it, and `playdemo NAME` plays it
 back exactly - the same monsters, the same shots,
 the same loot - in either renderer. `demos` lists them; they're small text
 files in `neon-caster/saves/demos/`. `bot` turns on the autopilot, which
-plays the sector itself (it goes for the keycards and the exit and shoots
-what it sees), so `record mine` then `bot` makes a demo with no hands.
+plays the sector itself, so `record mine` then `bot` makes a demo with no
+hands. It plays like someone new to the sector: it knows only what it has
+seen, so it explores room by room, fights what it notices (in front of it,
+or what hurts it), goes for a medkit when it's hurt and ammo when it's low,
+picks up what's lying near, and heads for the exit once it has found it.
 `bot human 0-100` sets how human it plays (60 to start): slower, eased
-turns, aim that drifts, a beat before it fires at something it's just
-seen, bursts instead of a held trigger, and now and then a pause to look
-round. `bot safe` (off to start) gives it buddha mode, which `buddha` in
+turns that overshoot, aim that wanders and misses (high, low, either
+side) and settles as it holds on, a beat before it fires at something it's
+just seen, aiming down the sights at range, bursts instead of a held
+trigger, strafing as it walks, and now and then a stop to look round. `bot safe` (off to start) gives it buddha mode, which `buddha` in
 the console turns on for you too: you're hurt as ever, but never below 1
 health (a pit or a death trap still kills).
 `playdemo NAME quit` ends the game when the demo does, with exit code 3 if
@@ -412,6 +416,13 @@ run it and see what happens. That's the fastest way to learn how it works.
   the furniture, closets, plates, lasers, cutters, hoards and blackouts.
   Its `DRESS` table says how many of each a level gets - change a line and
   run `python3 levels.py --write`.
+- **Give the droids a new job** (ch. 19): every sector has three service
+  droids (`PlaceDroids`) rolling between machines and scrubbing scorch
+  marks off the floor (`UpdateDroids`, `DroidPlan`). They roll by dice of
+  their own (`DRnd`), so they never change what a monster does - and go
+  the same way in a demo. `droids` in the console says where they are.
+  Send them to the exit, make one follow you, or raise `MAX_DROIDS` and
+  the 3 in `PlaceDroids` for a busier station.
 - **Teach the thief new tricks** (ch. 13): `ThiefStep` decides what it
   grabs. Make it take keycards, or only shells. It runs home down
   `thiefDist`, a map of steps to the hoard worked out by `BuildThiefWay` -

@@ -230,6 +230,7 @@ CONST PLAYER_RADIUS = 0.3 ' Your body's half-width, so the camera can't touch a 
 DIM SHARED worldMap(MAP_SIZE, MAP_SIZE) AS INTEGER
 ' The autopilot (bot, the console's - BotThink): it plays, and a demo records it
 CONST BOT_FAR = 32000
+CONST BOT_MODES = "nowhere to go,to the exit,a keycard,a medkit,exploring,ammo,a data station,data cores,picking things up,after a monster"
 DIM SHARED botOn AS INTEGER, botDist(MAP_SIZE, MAP_SIZE) AS INTEGER, botBlock(MAP_SIZE, MAP_SIZE) AS LONG, botSeen(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED botQ(MAP_SIZE * MAP_SIZE) AS LONG, botQT AS LONG, botTurn AS SINGLE, botMode AS INTEGER, botNX AS INTEGER, botNY AS INTEGER
 DIM SHARED botDeaths AS INTEGER, botWasDead AS INTEGER, botLastX AS SINGLE, botLastY AS SINGLE, botCheckAt AS LONG, botStuck AS INTEGER
@@ -238,6 +239,7 @@ DIM SHARED botHuman AS INTEGER, botSafe AS INTEGER, buddhaMode AS INTEGER, botTu
 DIM SHARED botKeyOn(5) AS INTEGER, botKeyOff(5) AS INTEGER, botDriftDir AS INTEGER, botDriftUntil AS LONG, botRunOn AS INTEGER, botRunAt AS LONG ' (how a person plays: measured from a real one)
 DIM SHARED botKeyState(5) AS INTEGER, botKeyAt(5) AS LONG, botTurnPrev AS SINGLE, botTargetSeen AS LONG, botBackOn AS INTEGER, botStrafeOK AS INTEGER ' (the human filter: each key's state and since when; the turn last frame)
 DIM SHARED botAimErr AS SINGLE, botReactAt AS LONG, botLastTarget AS INTEGER, botBurstOn AS INTEGER, botBurstAt AS LONG, botStrafeDir AS INTEGER, botStrafeAt AS LONG, botPauseUntil AS LONG
+DIM SHARED botLookAt AS LONG, botLookDir AS INTEGER, botLookAmp AS SINGLE, botTurnLeft AS INTEGER, botTurnSgn AS INTEGER ' (a look round the room: when, which way first, how far; a turn carried through: frames left, which way)
 botHuman = 60 : botSafe = 0 : botTurnMax = 0.12 : botTurnK = 0.5 : botStrafeDir = 1 ' (the autopilot: fairly human, and it doesn't die)
 ' How a person presses the keys - measured from five minutes of Rick
 ' playing sector 1 (a demo): the shortest a key's held (and let go) - the
@@ -388,9 +390,24 @@ DIM SHARED hasCard(3) AS INTEGER
 CONST MAX_DECO = 64, DECO_RADIUS = 0.3, DECO_BREAK_FRAMES = 14
 DIM SHARED decoX(MAX_DECO) AS SINGLE, decoY(MAX_DECO) AS SINGLE, decoKind(MAX_DECO) AS INTEGER
 DIM SHARED decoOn(MAX_DECO) AS INTEGER, decoFuse(MAX_DECO) AS INTEGER, numDecos AS INTEGER
+' decoCharge: how charged a spawner is, 0..1 (0 = asleep), and decoBurst:
+' frames left of the flash as it sends a monster out - both only for show
+DIM SHARED decoCharge(MAX_DECO) AS SINGLE, decoBurst(MAX_DECO) AS INTEGER
+' DROIDS: little service robots going about their business - rolling from
+' place to place, stopping to scrub the floor or see to a machine, chirping,
+' and scuttling out of your way. Harmless; a shot breaks one. (UpdateDroids:
+' they roll by their own dice, drSeed - started from the sector, so they go
+' the same way every time, in a demo too.) droidKind 1 the tread droid,
+' 2 the dome droid; droidState 0 deciding, 1 rolling to (droidTX, droidTY),
+' 2 at work (droidWork: the decoration it's seeing to, or 0), 3 scuttling
+' off; droidHP 0: broken.
+CONST MAX_DROIDS = 6, DROID_SPEED = 0.02, DROID_HP = 4
+DIM SHARED droidX(MAX_DROIDS) AS SINGLE, droidY(MAX_DROIDS) AS SINGLE, droidA(MAX_DROIDS) AS SINGLE, numDroids AS INTEGER
+DIM SHARED droidKind(MAX_DROIDS) AS INTEGER, droidState(MAX_DROIDS) AS INTEGER, droidTimer(MAX_DROIDS) AS INTEGER, droidHP(MAX_DROIDS) AS INTEGER
+DIM SHARED droidTX(MAX_DROIDS) AS SINGLE, droidTY(MAX_DROIDS) AS SINGLE, droidWork(MAX_DROIDS) AS INTEGER, droidZ(MAX_DROIDS) AS SINGLE, drSeed AS DOUBLE
 ' decoHP: hits left before it breaks; decoTimer: frames left of its collapse
 DIM SHARED decoHP(MAX_DECO) AS INTEGER, decoTimer(MAX_DECO) AS INTEGER
-DIM SHARED decoFace(MAX_DECO) AS INTEGER ' (0: it turns to face you, as sprites do; 1-4: it stands flat, facing east, south, west or north - [nudges])
+DIM SHARED decoFace(MAX_DECO) AS INTEGER ' (0: it turns to face you, as sprites do; 1-4: it stands flat, facing east, south, west or north - [nudges], or its back to its wall: LoadLevel)
 ' decoLootA: which way its loot flies when it breaks - back towards you if
 ' your boot broke it, else (NO_AIM) any way at all (DecoLoot)
 CONST NO_AIM = -99
@@ -513,6 +530,10 @@ CONST MON_DYING = 24
 CONST MON_STRIDE = 0.12 ' How far a monster walks per frame of its walk
 DIM SHARED monsterX(MAX_MON) AS SINGLE, monsterY(MAX_MON) AS SINGLE, monsterType(MAX_MON) AS INTEGER
 DIM SHARED monsterHP(MAX_MON) AS INTEGER, monsterState(MAX_MON) AS INTEGER
+DIM SHARED botPitch AS SINGLE, botAimV0 AS SINGLE ' (with LOOK UP / DOWN: where it wants to look up or down; a new target's first look lands this far high or low)
+DIM SHARED botAimE0 AS SINGLE, botTrig AS SINGLE ' (a new target: how far off the first flick lands - it overshoots and settles; how sure it wants to be before it shoots, this burst)
+botTrig = 1.5
+DIM SHARED botSawAt(MAX_MON) AS LONG ' (the frame the autopilot last saw each monster - a room's cleared of what it's seen)
 DIM SHARED botIgnore(MAX_MON) AS LONG, botStallX AS SINGLE, botStallY AS SINGLE, botStallAt AS LONG, botStallN AS INTEGER, botAmmoAt AS LONG ' (the autopilot's: monsters it's leaving alone a while, and its watch on whether it's moving)
 DIM SHARED monsterTimer(MAX_MON) AS INTEGER, monsterHurt(MAX_MON) AS INTEGER
 ' ...where each one is in its animation (frames of it, as a decimal: chapter
@@ -682,7 +703,8 @@ CONST S_DECOX = S_MONX + (MON_TYPES - 5) * 2, S_ITEMX = S_DECOX + DECO_KINDS - 4
 CONST S_TRAP = S_ITEMX + ITEM_KINDS - 12, S_PLATE = S_TRAP + 1, S_LASER = S_TRAP + 2 ' (traps: a pressure plate, a laser beam)
 CONST S_GLASS = S_TRAP + 3 ' (glass: whole, then cracked)
 CONST S_PAD = S_GLASS + 2 ' (a teleporter's pad)
-CONST SPR_SLOTS = S_PAD
+CONST S_DROID = S_PAD + 1 ' (the droids: the two kinds, then each broken)
+CONST SPR_SLOTS = S_DROID + 3
 ' How big each picture is kept: textures texSize, sprites up to sprTex
 ' pixels across. ART (SETTINGS > VIDEO) picks them: CLASSIC, the pixel art
 ' in neon-caster/, at 128 and 64; MODERN, the paintings in neon-caster/hd/,
@@ -1062,6 +1084,7 @@ NEXT
 ' The event rooms' sounds (chapter 19): the lockdown alarm, a win, a loss,
 ' the trap's zap, a monster arriving
 DIM SHARED sndAlarm&, sndFanfare&, sndFail&, sndZap&, sndSpawn&
+DIM SHARED sndDroid&(3), sndDroidBreak& ' (a droid's chirps - two chatty, one startled - and its breaking)
 sndAlarm& = LoadSnd&("alarm.wav") : sndFanfare& = LoadSnd&("fanfare.wav") : sndFail& = LoadSnd&("fail.wav")
 DIM SHARED sndSizzle& ' (a burning floor - chapter 22's heights)
 ' ACHIEVEMENTS (chapter 23: AchSetup, Achieve, AchAdd): each one's Steam API
@@ -1090,6 +1113,7 @@ DIM SHARED recNm$(NUM_LEVELS + MAX_CUSTOM), recNmSet AS INTEGER ' (the RECORDS p
 DIM SHARED recN AS INTEGER, recKey(MAX_RECORDS) AS INTEGER, recTime!(MAX_RECORDS), recKills(MAX_RECORDS) AS INTEGER, recKillsOf(MAX_RECORDS) AS INTEGER
 DIM SHARED recItems(MAX_RECORDS) AS INTEGER, recItemsOf(MAX_RECORDS) AS INTEGER, recClears(MAX_RECORDS) AS INTEGER, recNew AS INTEGER, recBest!
 sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav") : sndSizzle& = LoadSnd&("sizzle.wav")
+FOR k = 1 TO 3 : sndDroid&(k) = LoadSnd&("droid-chirp" + LTRIM$(STR$(k)) + ".wav") : NEXT : sndDroidBreak& = LoadSnd&("droid-break.wav")
 DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&
 sndSteal& = LoadSnd&("thief-steal.wav") : sndHoard& = LoadSnd&("hoard-open.wav") : sndPlate& = LoadSnd&("plate-click.wav")
 sndLaser& = LoadSnd&("laser-zap.wav") : sndCloset& = LoadSnd&("closet.wav")
@@ -1318,7 +1342,7 @@ CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15, SCR_CUSTOM2 = 16, SCR_SET
 CONST SCR_DEMOS = 30, MA_DEMO = 14, MA_DEMOPAGE = 15, MA_STOPDEMO = 16 ' (DEMO REPLAYS: the demos on disk - DemoListLoad - ten a page; Enter plays one)
 CONST MAX_DEMOLIST = 200
 DIM SHARED demoListN AS INTEGER, demoList$(MAX_DEMOLIST), demoListFile$(MAX_DEMOLIST), demoListInfo$(MAX_DEMOLIST), demoListPage AS INTEGER
-DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER
+DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER, demoStarting AS INTEGER, demoTotal AS LONG, demoInfoNow$
 DIM SHARED demoAttract AS INTEGER, demoAttractMenu AS INTEGER, attractPlayed$, attractQuit AS INTEGER, menuIdle AS LONG ' (attract mode: the title menu left alone ATTRACT_SECONDS - a demo plays, then the menu again; attractPlayed$: the ones that have, |name| each)
 CONST ATTRACT_SECONDS = 15 ' (a demo started from DEMO REPLAYS: when it's over, back to that list)
 CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11, MA_ACHIEVE = 12, MA_LINK = 13 ' (MA_LINK: its info$ is "NAME|address" - the name underlined, the address opened in the web browser)
@@ -1867,6 +1891,7 @@ DO
     ' high or low. Otherwise the view eases back to level.
     IF glMode AND setting(SET_LOOK) AND NOT dead THEN
         pitch = pitch - mouseDY / DisplayScale! * turnSpeed / zoom * aimSlow
+        IF botOn AND NOT demoPlay AND NOT editMode THEN pitch = pitch + MaxOf(-0.035, MinOf(0.035, (botPitch - pitch) * 0.25)) ' (the autopilot looks up and down too, eased)
         IF pitch > 0.6 THEN pitch = 0.6
         IF pitch < -0.6 THEN pitch = -0.6
     ELSE
@@ -2444,6 +2469,23 @@ DO
                         END IF
                     END IF
                 NEXT
+                bestDroid = 0 ' (a droid, nearer than all of those)
+                FOR i = 1 TO numDroids
+                    IF droidHP(i) > 0 AND cyberOn = 0 THEN
+                        relX = droidX(i) - playerX : relY = droidY(i) - playerY
+                        transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
+                        IF transformY > 0.2 AND transformY < bestDist THEN
+                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * DroidScale(droidKind(i)) * 0.35 THEN
+                                IF gunPierce(currentGun) THEN
+                                    HitDroid i, hitDamage, playerX, playerY
+                                ELSE
+                                    bestDroid = i : bestDeco = 0 : bestMonster = 0 : bestDist = transformY
+                                END IF
+                            END IF
+                        END IF
+                    END IF
+                NEXT
+                IF bestDroid THEN HitDroid bestDroid, hitDamage, playerX, playerY : crossFlash = 6
                 IF bestMonster THEN target = bestMonster : head = bestHead : headZ = bestHeadZ : GOSUB HitMonsterAimed : crossFlash = 6 ' (the crosshair flashes: a hit)
                 IF bestDeco THEN targetDeco = bestDeco : GOSUB HitDeco
                 ' Sparks where it landed (chapter 24's particles): on the
@@ -2451,6 +2493,7 @@ DO
                 ' as far as the wall in that column
                 IF bestMonster THEN
                     SpawnSparks monsterX(bestMonster), monsterY(bestMonster), 0.45, 8, 255, 150, 60
+                ELSEIF bestDroid THEN ' (HitDroid made its sparks)
                 ELSEIF bestDeco = 0 AND glassShot THEN
                     glassDmg = hitDamage : GOSUB HitGlass
                 ELSEIF bestDeco = 0 THEN
@@ -2568,6 +2611,7 @@ DO
     ELSEIF NOT editMode THEN
         GOSUB RunEvents ' The level's event rooms (chapter 19)
         GOSUB RunTriggers ' ...its triggers, and its teleporters
+        UpdateDroids playerX, playerY ' ...and its droids
     END IF
 
     '-------------------------------------------------------------------------
@@ -2887,6 +2931,13 @@ DO
             IF boltOn(i) THEN AddGlow boltX(i), boltY(i), 2.5, 160, 40, 170
         NEXT
     END IF
+    FOR i = 1 TO numDecos ' (the spawners, glowing as they charge)
+        IF decoOn(i) AND decoKind(i) = 9 THEN
+            c = decoCharge(i) : f = decoBurst(i) / 20
+            pulse = 0.65 + 0.35 * SIN(lvFrame * (0.08 + 0.4 * c) + i)
+            AddGlow decoX(i), decoY(i), 1.3 + 2.2 * c + 3 * f, (40 + 230 * c) * pulse + 500 * f, (10 + 50 * c) * pulse + 220 * f, (50 + 220 * c) * pulse + 480 * f
+        END IF
+    NEXT
     IF NOT glMode THEN ' The sky's column for each screen column (by its ray's angle) and row for each screen row (by how far above the horizon)
         FOR x = 0 TO RENDER_W - 1
             cameraX = 2 * x / RENDER_W - 1 : a = _ATAN2(dirY + planeY * cameraX, dirX + planeX * cameraX) / 6.2831853 * SKY_REPEAT
@@ -3323,6 +3374,32 @@ DO
                 drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0 : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw)
             END IF
             IF decoKind(i) = 2 OR decoKind(i) = 7 OR decoKind(i) = 12 OR decoKind(i) = 13 OR decoKind(i) = 17 THEN drawMinShade(numDraw) = 200 ' Lamps (vending machines, monitors, tanks, holograms) glow
+            IF decoKind(i) = 9 AND decoOn(i) AND (decoCharge(i) > 0 OR decoBurst(i) > 0) THEN ' A spawner charging: an orb of light in it, growing - and sending one out, the orb falls in on itself, then bursts
+                c = decoCharge(i) : drawMinShade(numDraw) = 40 + 200 * c
+                d = SQR((playerX - decoX(i)) ^ 2 + (playerY - decoY(i)) ^ 2) + 0.001
+                numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) + (playerX - decoX(i)) / d * 0.08 : drawY(numDraw) = decoY(i) + (playerY - decoY(i)) / d * 0.08
+                drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 256 : drawFace(numDraw) = 0 : drawSprite(numDraw) = S_BOLT
+                drawScale(numDraw) = 0.05 + 0.3 * c * c * (0.9 + 0.1 * SIN(lvFrame * (0.2 + 0.6 * c)))
+                IF decoBurst(i) > 0 THEN
+                    ph = 1 - decoBurst(i) / 20
+                    IF ph < 0.25 THEN
+                        drawScale(numDraw) = 0.36 * (1 - ph / 0.25) + 0.01
+                    ELSE
+                        drawSprite(numDraw) = S_BOOM + 1 + MinOf(BOOM_FRAMES - 1, INT((ph - 0.25) / 0.75 * BOOM_FRAMES)) : drawScale(numDraw) = 0.7
+                    END IF
+                END IF
+                drawLift(numDraw) = 0.45 - drawScale(numDraw) / 2
+            END IF
+        END IF
+    NEXT
+    FOR i = 1 TO numDroids ' The droids: rocking a little as they roll; broken, a sooty heap
+        IF cyberOn = 0 THEN
+            numDraw = numDraw + 1 : drawX(numDraw) = droidX(i) : drawY(numDraw) = droidY(i) : drawFace(numDraw) = 0
+            drawSprite(numDraw) = S_DROID + droidKind(i) - 1 : drawScale(numDraw) = DroidScale(droidKind(i)) : drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40
+            drawLift(numDraw) = 0
+            IF droidState(i) = 1 OR droidState(i) = 3 THEN drawLift(numDraw) = 0.012 * ABS(SIN(lvFrame * 0.5 + i))
+            IF droidState(i) = 2 THEN drawSquash(numDraw) = 1 + 0.03 * SIN(lvFrame * 0.7 + i) ' (at work: bobbing as it scrubs)
+            IF droidHP(i) <= 0 THEN drawSprite(numDraw) = S_DROID + 1 + droidKind(i) : drawSquash(numDraw) = 0.62 : drawMinShade(numDraw) = 0
         END IF
     NEXT
     ' Traps: pressure plates (flat on the floor, glowing while they count
@@ -3874,6 +3951,14 @@ DO
     END IF
     ' The sector timer (SECTOR TIMER): how long you've been in it, the
     ' clock green while you're inside your best and red once past it
+    IF demoPlay THEN ' Playing one: a green play arrow and PLAYING over the clock - and, small, which demo, how long, what
+        dpw = 8 * 8 + 16 : dpx = 784 - dpw : dpc~& = _RGB32(90, 255, 130)
+        FOR dpy = 0 TO 10 : LINE (dpx, 42 + dpy)-(dpx + (5 - ABS(dpy - 5)) * 1.6, 42 + dpy), dpc~& : NEXT ' (the arrow: a little triangle)
+        HudText dpx + 14, 40, "PLAYING", dpc~&
+        dp$ = UCASE$(demoName$) + "  " + TimeText$(demoTotal / 60)
+        HudText 784 - LEN(dp$) * 8, 76, dp$, _RGB32(160, 220, 255)
+        IF LEN(demoInfoNow$) THEN HudText 784 - LEN(demoInfoNow$) * 8, 92, demoInfoNow$, _RGB32(120, 150, 190)
+    END IF
     IF demoRec OR demoPlay THEN ' A demo going: REC (red) or DEMO (cyan), and how long, at the top right
         IF demoRec THEN dh$ = "REC " ELSE dh$ = "DEMO " : IF demoAttract THEN dh$ = "ANY KEY: MENU   DEMO "
         dh$ = dh$ + TimeText$(demoFrame / 60) : IF demoPlay AND demoBad THEN dh$ = dh$ + "  OUT OF STEP"
@@ -4213,6 +4298,12 @@ FOR j = 1 TO numDecos
         END IF
     END IF
 NEXT
+FOR j = 1 TO numDroids ' (droids caught in it)
+    IF droidHP(j) > 0 THEN
+        distance = SQR((droidX(j) - blastAtX) ^ 2 + (droidY(j) - blastAtY) ^ 2)
+        IF distance < BLAST_RADIUS THEN IF CanSee(blastAtX, blastAtY, droidX(j), droidY(j)) THEN HitDroid j, INT(4 * (1 - distance / BLAST_RADIUS)) + 1, playerX, playerY
+    END IF
+NEXT
 RETURN
 
 ' --- A shot (or blast) hits decoration number targetDeco for hitDamage. A
@@ -4535,7 +4626,7 @@ SELECT CASE pnHit
             IF edSelKind(k) = ED_FLOOR AND INSTR("oiptxlnfSdAFIJLOQUWZV", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN
                 EditNudgeGet edSelX(k), edSelY(k), ndx, ndy, nfc
                 SELECT CASE pnHit
-                    CASE 209 : nfc = (nfc + 1) MOD 5 ' (facing you, then flat facing east, south, west, north)
+                    CASE 209 : nfc = (nfc + 1) MOD 6 ' (as built - furniture with its back to its wall - then flat facing east, south, west, north, then turning to face you)
                     CASE 205 : ndx = MaxOf(-3, ndx - 1)
                     CASE 206 : ndx = MinOf(3, ndx + 1)
                     CASE 207 : ndy = MaxOf(-3, ndy - 1)
@@ -5005,6 +5096,8 @@ LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", I
 MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
 MakePad S_PAD ' (a teleporter's pad)
 LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
+LoadSprite "droid1.png", S_DROID : LoadSprite "droid2.png", S_DROID + 1 ' (the droids - and each, broken: MakeScrap)
+MakeScrap S_DROID, S_DROID + 2 : MakeScrap S_DROID + 1, S_DROID + 3
 LoadSprite "explosion.png", S_BLAST : MakeBoomFrames ' (and its animation)
 LoadSprite "armor.png", 25
 LoadSprite "bigmed.png", 26
@@ -5489,6 +5582,10 @@ FOR k = 1 TO numPads
     IF INT(playerX) = padX(k) AND INT(playerY) = padY(k) THEN onPad = k
 NEXT
 IF onPad = 0 THEN padReady = -1
+IF onPad > 0 AND padReady AND NOT dead THEN ' (a pad in a room under lockdown is dead till it's over - else it's a way out, and a lockdown's no lockdown)
+    other = onPad + 1 : IF onPad MOD 2 = 0 THEN other = onPad - 1
+    IF PadLockedDown(onPad) OR PadLockedDown(other) THEN padReady = 0 : PlaySfx sndLocked&, 0.8 : ShowMsg "LOCKED DOWN - the teleporter's dead till it's over"
+END IF
 IF onPad > 0 AND padReady AND NOT dead THEN
     other = onPad + 1 : IF onPad MOD 2 = 0 THEN other = onPad - 1
     IF other >= 1 AND other <= numPads THEN
@@ -6608,9 +6705,11 @@ SELECT CASE evType(ev)
         FOR j = 1 TO numDecos
             IF decoOn(j) AND decoKind(j) = 9 AND InRoom(ev, decoX(j), decoY(j)) THEN
                 left = left + 1
+                IF near AND alive < 4 THEN decoCharge(j) = 1 - evNext(ev) / MaxOf(1, evB(ev)) ELSE decoCharge(j) = 0
                 IF near AND alive < 4 AND evNext(ev) = 0 THEN
-                    IF SpawnNear(ev, evA(ev), decoX(j), decoY(j), playerX, playerY) THEN evNext(ev) = evB(ev)
+                    IF SpawnNear(ev, evA(ev), decoX(j), decoY(j), playerX, playerY) THEN evNext(ev) = evB(ev) : shake = shake + SpawnerBurst(j, playerX, playerY)
                 END IF
+                SpawnerCharge j
             END IF
         NEXT
         IF left = 0 THEN GOSUB WinEvent
@@ -6991,8 +7090,9 @@ dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddha
 level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = 0
 achCheat = -1 ' (watching isn't playing: achievements and records wait for a new game)
 grSeed = dSeed#
-GOSUB DemoFresh
+demoStarting = -1 : GOSUB DemoFresh : demoStarting = 0 ' (no NEXUS intro: straight to the play)
 demoPlay = -1 : demoFrame = 0 : demoLeft = 0 : demoBad = 0 : demoBack$ = ""
+demoTotal = DemoLength&(dFile$) : demoInfoNow$ = DemoInfo$(dFile$) ' (for the corner: how long it is, what it is)
 ConPrint "demo: playing " + demoName$ + " - " + sectorName$(level) + " (stopdemo stops it)"
 RETURN
 
@@ -7035,18 +7135,28 @@ FOR bk = 0 TO 5
     END IF
     IF botKeyState(bk) THEN inBits = inBits OR bv ELSE inBits = inBits AND NOT bv
 NEXT
+' A turn, once started, is carried through a few frames - a hand doesn't
+' nudge the mouse for one frame and stop - and past where it meant to
+' stop, now and then: it eases off rather than stopping dead
+IF bhs > 0 THEN
+    IF botTurnPrev = 0 AND botTurn <> 0 THEN botTurnLeft = INT((3 + RND * 5) * bhs) : botTurnSgn = SGN(botTurn)
+    IF botTurnLeft > 0 THEN
+        botTurnLeft = botTurnLeft - 1
+        IF SGN(botTurn) <> botTurnSgn OR ABS(botTurn) < 0.006 THEN botTurn = botTurnSgn * MaxOf(0.006, ABS(botTurnPrev) * 0.6)
+    END IF
+END IF
 bacc = 0.05 / MaxOf(0.5, bhs) ' (how much the turn may change in a frame: about 3 degrees - a person's flicks, measured)
 botTurn = botTurnPrev + MaxOf(-bacc, MinOf(bacc, botTurn - botTurnPrev)) : botTurnPrev = botTurn
 RETURN
 
 BotThinkRaw:
-inBits = 0 : inWheel = 0 : botTurn = 0
+inBits = 0 : inWheel = 0 : botTurn = 0 : botPitch = 0
 IF lvFrame < botFrameWas THEN ' (the sector started again - its clock back to 0: what it had ruled out, and when, is from before - forgotten)
     FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
-    FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : NEXT
+    FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : botSawAt(bi) = 0 : NEXT
     botNX = 0 : botStuck = 0 : botCheckAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0 : botBest = BOT_FAR : botBestAt = 0 : botNowhereAt = 0
     FOR bk = 0 TO 5 : botKeyAt(bk) = 0 : botKeyState(bk) = 0 : NEXT
-    botTurnPrev = 0 : botTarget = 0 : botTargetSeen = 0 : botBackOn = 0 : botStrafeAt = 0 : botBurstAt = 0 : botPauseUntil = 0 : botReactAt = 0
+    botTurnLeft = 0 : botLookAmp = 0 : botTurnPrev = 0 : botTarget = 0 : botTargetSeen = 0 : botBackOn = 0 : botStrafeAt = 0 : botBurstAt = 0 : botPauseUntil = 0 : botReactAt = 0
 END IF
 botFrameWas = lvFrame
 IF dead THEN ' Dead: recording, that's the end of the demo - two seconds on, so it's seen (as DOOM's often ended) - else it clicks to start again
@@ -7068,6 +7178,7 @@ botAimErr = botAimErr * 0.96 + (RND - 0.5) * 0.012 * bh : botAimErr = MaxOf(-0.0
 IF lvFrame >= botBurstAt THEN ' (the trigger tapped, as a person does: held 6-11 frames, let go 3-6)
     botBurstOn = NOT botBurstOn
     IF botBurstOn THEN botBurstAt = lvFrame + 6 + INT(RND * 6) ELSE botBurstAt = lvFrame + 3 + INT(RND * 4)
+    IF botBurstOn THEN botTrig = 0.9 + RND * 2.2 * bh ' (how near the crosshair must be, this tap: sometimes it's patient, sometimes not)
 END IF
 IF lvFrame >= botStrafeAt THEN ' (a dodge: a short strafe, either way - 10 to 35 frames - then a while without: as measured)
     IF botStrafeOK THEN
@@ -7096,15 +7207,6 @@ IF hasGun(3) AND ammoCount(AM_CELLS) > 10 THEN bg = 3
 IF bg <> currentGun AND swapTimer = 0 THEN inBits = inBits + bg * DB_GUN
 ' A monster to fight? (With nothing to fire, only one on top of it - kicked)
 bAmmo = (ammoCount(AM_CELLS) > 0) OR (bg = 2 AND ammoCount(AM_SHELLS) > 0)
-IF NOT bAmmo AND lvFrame >= botAmmoAt AND NOT cyberOn THEN ' Nothing to fire, and no ammo it can get to: it says so, and gives itself some (a console cheat - in the demo for all to see)
-    GOSUB BotClear
-    FOR bi = 1 TO numItems
-        IF itemOn(bi) AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
-    NEXT
-    BotField 1
-    IF botDist(bcx, bcy) >= BOT_FAR THEN conCmd$ = "give ammo" : GOSUB ConExec : ConPrint "bot: no ammo to be had - give ammo"
-    botAmmoAt = lvFrame + 1800 : botNX = 0
-END IF
 bt = 0 : bbd = 7 : IF NOT bAmmo THEN bbd = 1.3
 IF botTarget THEN ' The one it's on: kept while it's alive and near - for half a second after it's out of sight, as a corner flickers it in and out
     IF monsterState(botTarget) < 2 AND botIgnore(botTarget) <= lvFrame THEN
@@ -7119,7 +7221,12 @@ IF bt = 0 THEN
 FOR bi = 1 TO numMonsters
     IF monsterState(bi) < 2 AND (cyberOn = 0 OR monsterType(bi) = MT_ICE) THEN
         bd = SQR((monsterX(bi) - playerX) ^ 2 + (monsterY(bi) - playerY) ^ 2)
-        IF bd < bbd AND botIgnore(bi) <= lvFrame THEN IF CanSee(playerX, playerY, monsterX(bi), monsterY(bi)) THEN bt = bi : bbd = bd : botTargetSeen = lvFrame
+        IF bd < bbd AND botIgnore(bi) <= lvFrame THEN
+            ba = _ATAN2(monsterY(bi) - playerY, monsterX(bi) - playerX) - _ATAN2(dirY, dirX) ' (in front of it - within its view - or close, or it's just been hurt: no eyes in the back of its head)
+            DO WHILE ba > 3.14159265 : ba = ba - 6.2831853 : LOOP
+            DO WHILE ba < -3.14159265 : ba = ba + 6.2831853 : LOOP
+            IF ABS(ba) < 0.85 OR bd < 2 OR hurtFlash > 0 THEN IF CanSee(playerX, playerY, monsterX(bi), monsterY(bi)) THEN bt = bi : bbd = bd : botTargetSeen = lvFrame
+        END IF
     END IF
 NEXT
 END IF
@@ -7128,11 +7235,28 @@ IF bt AND health < 35 AND NOT godMode AND botMode = 3 THEN ' Badly hurt, and a m
     ba = BotTurnTo(monsterX(bt), monsterY(bt), playerX, playerY, dirX, dirY) : IF ABS(ba) < 0.08 AND bAmmo THEN inBits = inBits OR DB_FIRE ' (its turn: the way it goes overrides it, below)
     bt = 0
 END IF
-IF bt <> botLastTarget THEN botLastTarget = bt : botReactAt = lvFrame + INT(botHuman / 60 * (12 + RND * 18)) ' (a new one: a moment to react - 0.2 to 0.5 seconds at bot human 60)
+IF bt <> botLastTarget THEN ' A new one: a moment to react (0.2 to 0.5 seconds at bot human 60) - and the flick to it will land off, overshoot and settle
+    botLastTarget = bt : botReactAt = lvFrame + INT(botHuman / 60 * (12 + RND * 18))
+    botAimE0 = SGN(RND - 0.5) * (0.06 + RND * 0.16) * botHuman / 60
+    botAimV0 = SGN(RND - 0.5) * (0.04 + RND * 0.12) * botHuman / 60
+END IF
+IF bt THEN botSawAt(bt) = lvFrame
+IF bt AND lvFrame < botReactAt THEN bt = 0 ' (seen - not reacted to yet: it carries on as it was, a moment, before it turns)
 IF bt THEN
-    bmx = monsterX(bt) - playerX : bmy = monsterY(bt) - playerY ' (aimed a little off, by botAimErr - across the line to it)
-    ba = BotTurnTo(monsterX(bt) - bmy * botAimErr, monsterY(bt) + bmx * botAimErr, playerX, playerY, dirX, dirY)
-    IF ABS(ba) < MinOf(0.12, ATN(0.3 / MaxOf(0.5, bbd))) + 0.02 AND lvFrame >= botReactAt THEN
+    ' Where it aims: at the monster as it is (no leading a moving one), off
+    ' by the flick's error - overshooting one way then the other as it
+    ' settles (a fading swing), a third of a second or so - and a hand's
+    ' tremor (botAimErr) on top
+    bat = lvFrame - botReactAt
+    bae = botAimE0 * COS(bat * 0.22) * EXP(-bat / 24) + botAimErr
+    bmx = monsterX(bt) - playerX : bmy = monsterY(bt) - playerY
+    ba = BotTurnTo(playerX + bmx * COS(bae) - bmy * SIN(bae), playerY + bmx * SIN(bae) + bmy * COS(bae), playerX, playerY, dirX, dirY)
+    ' ...and up or down (LOOK UP / DOWN, with OpenGL): at its middle, from
+    ' your eye - the first look high or low, swinging and settling as across
+    bmz = FloorAt(monsterX(bt), monsterY(bt)) + mtypeLift(monsterType(bt)) + mtypeScale(monsterType(bt)) * 0.5
+    botPitch = ATN((bmz - eyeZ) / MaxOf(0.5, bbd)) + botAimV0 * COS(bat * 0.19 + 0.6) * EXP(-bat / 30)
+    IF bAmmo AND bbd > 2.5 THEN inBits = inBits OR DB_AIM ' (down the sights, to be sure of the shot)
+    IF ABS(ba - bae) < ATN(0.3 / MaxOf(0.5, bbd)) * botTrig AND lvFrame >= botReactAt THEN ' (fires when its crosshair's near enough - near enough varies, so it shoots too soon now and then, and misses)
         IF bAmmo AND (botBurstOn OR bh = 0) THEN inBits = inBits OR DB_FIRE
         IF bbd < 1.3 AND kickTimer = 0 THEN inBits = inBits OR DB_KICK
     END IF
@@ -7197,15 +7321,19 @@ FOR bk = botPathN TO 2 STEP -1
     IF BotLineClear(playerX, playerY, botPathX(bk) + 0.5, botPathY(bk) + 0.5, bpass) THEN btx = botPathX(bk) + 0.5 : bty = botPathY(bk) + 0.5 : EXIT FOR
 NEXT
 ba = BotTurnTo(btx, bty, playerX, playerY, dirX, dirY)
-IF bh > 0 AND lvFrame >= botPauseUntil AND RND < 0.008 * bh AND botDist(bcx, bcy) > 3 THEN botPauseUntil = lvFrame + 3 + INT(RND * 13) ' (often, a moment's pause - 3 to 15 frames, as a person's)
+IF bh > 0 AND lvFrame >= botPauseUntil AND RND < 0.008 * bh AND botDist(bcx, bcy) > 3 THEN botPauseUntil = lvFrame + 3 + INT(RND * 13) : botLookAmp = 0 ' (often, a moment's pause - 3 to 15 frames, as a person's)
+IF bh > 0 AND lvFrame >= botPauseUntil AND RND < 0.003 * bh AND botMode = 4 THEN ' (now and then, exploring, a stop to look round: a sweep one way and back - 30 to 80 frames)
+    botLookAt = lvFrame : botPauseUntil = lvFrame + 30 + INT(RND * 51) : botLookAmp = 0.03 + RND * 0.05 : botLookDir = SGN(RND - 0.5) : IF botLookDir = 0 THEN botLookDir = 1
+END IF
 IF lvFrame < botPauseUntil THEN
     botTurn = 0.025 * SIN(lvFrame / 9) : botCheckAt = lvFrame + 60 : botStallAt = lvFrame + 120
+    IF botLookAmp > 0 THEN botTurn = botLookDir * botLookAmp * SIN((lvFrame - botLookAt) / (botPauseUntil - botLookAt) * 6.2831853)
 ELSE
     IF ABS(ba) < 0.7 THEN inBits = inBits OR DB_FWD
     IF lvFrame >= botRunAt THEN botRunOn = (RND < 0.35 OR bh = 0) : botRunAt = lvFrame + 22 + INT(RND * 100) ' (running now and then - a person runs about a sixth of the time)
     IF botRunOn AND ABS(ba) < 0.3 AND botDist(bcx, bcy) > 6 THEN inBits = inBits OR DB_RUN
-    IF bh > 0 AND lvFrame >= botDriftUntil AND RND < 0.004 * bh THEN botDriftDir = SGN(RND - 0.5) : botDriftUntil = lvFrame + 10 + INT(RND * 25) ' (now and then, a strafe as it walks - a person's diagonals)
-    IF lvFrame < botDriftUntil AND ABS(ba) < 0.4 THEN IF botDriftDir > 0 THEN inBits = inBits OR DB_RIGHT ELSE inBits = inBits OR DB_LEFT
+    IF bh > 0 AND lvFrame >= botDriftUntil AND RND < 0.01 * bh THEN botDriftDir = SGN(RND - 0.5) : botDriftUntil = lvFrame + 10 + INT(RND * 41) ' (now and then, a strafe as it walks - a person's diagonals)
+    IF lvFrame < botDriftUntil AND ABS(ba) < 0.5 THEN IF botDriftDir > 0 THEN inBits = inBits OR DB_RIGHT ELSE inBits = inBits OR DB_LEFT
 END IF
 IF INT(playerX) = botNX AND INT(playerY) = botNY THEN GOSUB BotPlan ' (there: the next one)
 ' Stuck? Every second: not a quarter of a cell further (and not riding a lift)
@@ -7227,6 +7355,9 @@ BotPlan:
 botMode = 0 : botNX = 0
 bcx = INT(playerX) : bcy = INT(playerY)
 FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if there's no other way, not)
+    ' It knows only what it's seen (cellSeen - the map's own fog): a pickup,
+    ' a keycard, the exit, a station once it's been in sight - and it plans
+    ' only through cells it's seen. In the network it's in a hurry: all of it.
     IF cyberOn THEN ' In the network: the data cores (enough of them, and it lets you out - jacked out, its station hacked)
         GOSUB BotClear
         FOR bi = cyberItemStart + 1 TO numItems
@@ -7234,30 +7365,55 @@ FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if t
         NEXT
         BotField bpass
         IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 7 : EXIT FOR
-        GOTO BotExplore
+        GOTO BotFrontierTry
     END IF
-    IF health < 60 OR armor < 25 THEN ' Hurt: a medkit, if one's near (nearer the more it's hurt) - or armour, if there's some close by
+    IF health < 60 THEN ' Hurt: a medkit it's seen - further, the more it's hurt
         GOSUB BotClear
         FOR bi = 1 TO numItems
-            IF itemOn(bi) THEN
-                IF (health < 60 AND (itemKind(bi) = IT_HEALTH OR itemKind(bi) = IT_BIGMED)) OR (armor < 25 AND itemKind(bi) = IT_ARMOR) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
-            END IF
+            IF itemOn(bi) AND (itemKind(bi) = IT_HEALTH OR itemKind(bi) = IT_BIGMED) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
         NEXT
         BotField bpass
-        IF botDist(bcx, bcy) < 15 + (60 - MinOf(60, health)) THEN botMode = 3 : EXIT FOR
+        IF botDist(bcx, bcy) < 15 + (60 - MaxOf(0, health)) THEN botMode = 3 : EXIT FOR
     END IF
-    IF ammoCount(AM_CELLS) < 10 AND ammoCount(AM_SHELLS) < 4 THEN ' Low on ammo: some, if it's near
+    bNone = (ammoCount(AM_CELLS) = 0) AND NOT (hasGun(2) AND ammoCount(AM_SHELLS) > 0) ' (nothing at all to fire)
+    IF ammoCount(AM_CELLS) < 10 AND ammoCount(AM_SHELLS) < 4 THEN ' Low on ammo: some it's seen - near, or anywhere with nothing to fire
         GOSUB BotClear
         FOR bi = 1 TO numItems
-            IF itemOn(bi) AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+            IF itemOn(bi) AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
         NEXT
         BotField bpass
-        IF botDist(bcx, bcy) < 30 OR (botDist(bcx, bcy) < BOT_FAR AND ammoCount(AM_CELLS) = 0 AND NOT (hasGun(2) AND ammoCount(AM_SHELLS) > 0)) THEN botMode = 5 : EXIT FOR ' (near - or anywhere, with nothing at all to fire)
+        IF botDist(bcx, bcy) < 30 OR (botDist(bcx, bcy) < BOT_FAR AND bNone) THEN botMode = 5 : EXIT FOR
     END IF
-    GOSUB BotClear ' The exit: stand beside it
+    GOSUB BotClear ' Anything worth having it's seen, close by - as you'd pick a room clean
+    FOR bi = 1 TO numItems
+        IF itemOn(bi) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN IF BotWants(bi, health, armor) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+    NEXT
+    BotField bpass
+    IF botDist(bcx, bcy) <= 8 THEN botMode = 8 : EXIT FOR
+    GOSUB BotClear ' A keycard it's seen and hasn't got
+    FOR bi = 1 TO numItems
+        IF itemOn(bi) AND itemKind(bi) >= 1 AND itemKind(bi) <= 3 THEN IF NOT hasCard(itemKind(bi)) AND cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+    NEXT
+    BotField bpass
+    IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 2 : EXIT FOR
+    IF NOT bNone THEN ' A monster it saw lately, near: after it - a room cleared before moving on
+        GOSUB BotClear
+        FOR bi = 1 TO numMonsters
+            IF monsterState(bi) < 2 AND botSawAt(bi) > 0 AND lvFrame - botSawAt(bi) < 600 AND botIgnore(bi) <= lvFrame THEN BotGoal INT(monsterX(bi)), INT(monsterY(bi))
+        NEXT
+        BotField bpass
+        IF botDist(bcx, bcy) <= 14 THEN botMode = 9 : EXIT FOR
+    END IF
+    GOSUB BotClear ' How far's the nearest edge of what it's seen? (a frontier: a seen cell beside one it hasn't)
+    FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
+        IF BotFrontier(bx, by) THEN BotGoal bx, by
+    NEXT : NEXT
+    BotField bpass
+    bFront = botDist(bcx, bcy)
+    GOSUB BotClear ' The exit, once it's seen it - when there's nothing new close by left to look at
     FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
         IF worldMap(bx, by) = 2 THEN
-            IF doorType(bx, by) = DOOR_EXIT THEN
+            IF doorType(bx, by) = DOOR_EXIT AND cellSeen(bx, by) THEN
                 botEX = bx : botEY = by
                 IF worldMap(bx + 1, by) <= 0 THEN BotGoal bx + 1, by
                 IF worldMap(bx - 1, by) <= 0 THEN BotGoal bx - 1, by
@@ -7267,16 +7423,17 @@ FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if t
         END IF
     NEXT : NEXT
     BotField bpass
-    IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 1 : EXIT FOR
-    GOSUB BotClear ' A keycard it hasn't got
-    FOR bi = 1 TO numItems
-        IF itemOn(bi) AND itemKind(bi) >= 1 AND itemKind(bi) <= 3 THEN IF NOT hasCard(itemKind(bi)) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
-    NEXT
+    IF botDist(bcx, bcy) < BOT_FAR AND bFront > 12 THEN botMode = 1 : EXIT FOR
+    BotFrontierTry:
+    GOSUB BotClear ' Exploring: the nearest edge of what it's seen
+    FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
+        IF BotFrontier(bx, by) THEN BotGoal bx, by
+    NEXT : NEXT
     BotField bpass
-    IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 2 : EXIT FOR
-    GOSUB BotClear ' A data station not hacked yet (it opens the sealed doors): beside it
+    IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 4 : EXIT FOR
+    GOSUB BotClear ' Nothing new to see: a data station it's seen, not hacked (it opens the sealed doors) - beside it
     FOR bi = 1 TO numStations
-        IF NOT stationDone(bi) THEN
+        IF NOT stationDone(bi) AND cellSeen(stationX(bi), stationY(bi)) THEN
             bx = stationX(bi) : by = stationY(bi)
             IF worldMap(bx + 1, by) <= 0 THEN BotGoal bx + 1, by
             IF worldMap(bx - 1, by) <= 0 THEN BotGoal bx - 1, by
@@ -7286,13 +7443,6 @@ FOR bpass = 0 TO 1 ' (first keeping out of fire and harmful liquids - then, if t
     NEXT
     BotField bpass
     IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 6 : EXIT FOR
-    BotExplore:
-    GOSUB BotClear ' Somewhere it hasn't been
-    FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
-        IF NOT botSeen(bx, by) AND worldMap(bx, by) <= 0 THEN BotGoal bx, by
-    NEXT : NEXT
-    BotField bpass
-    IF botDist(bcx, bcy) < BOT_FAR THEN botMode = 4 : EXIT FOR
 NEXT
 ' (Getting no nearer the goal in fifteen seconds - it can't really get there, whatever the plan says: that goal's out for a minute)
 IF botMode <> botWas OR botDist(bcx, bcy) < botBest THEN botBest = botDist(bcx, bcy) : botBestAt = lvFrame
@@ -7300,10 +7450,10 @@ IF botMode > 0 AND lvFrame - botBestAt > 900 THEN
     FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
         IF botDist(bx, by) = 0 THEN botBlock(bx, by) = lvFrame + 3600
     NEXT : NEXT
-    ConPrint "bot: can't get to that (" + ListItem$("nowhere to go,to the exit,a keycard,a medkit,exploring,ammo,a data station,data cores", botMode + 1) + ") - trying something else"
+    ConPrint "bot: can't get to that (" + ListItem$(BOT_MODES, botMode + 1) + ") - trying something else"
     botBest = BOT_FAR : botBestAt = lvFrame : botMode = 0 : botNX = 0 : RETURN
 END IF
-IF botMode <> botWas THEN ConPrint "bot: " + ListItem$("nowhere to go,to the exit,a keycard,a medkit,exploring,ammo,a data station,data cores", botMode + 1) + " (" + LTRIM$(STR$(botDist(bcx, bcy))) + " steps, frame" + STR$(lvFrame) + ")" : botWas = botMode
+IF botMode <> botWas THEN ConPrint "bot: " + ListItem$(BOT_MODES, botMode + 1) + " (" + LTRIM$(STR$(botDist(bcx, bcy))) + " steps, frame" + STR$(lvFrame) + ")" : botWas = botMode
 IF botMode = 0 THEN RETURN
 ' The next cell: the neighbour it can step to that's nearest the goal
 bb = botDist(bcx, bcy) : IF BotPadAt(bcx, bcy) THEN bb = BOT_FAR ' (on a pad, just arrived: its own distance is for stepping onto it - off it, the nearest way)
@@ -7363,7 +7513,7 @@ EnterLevel:
 savedHealth = health : savedArmor = armor : savedCells = ammoCount(AM_CELLS) : savedShells = ammoCount(AM_SHELLS) : savedGun = currentGun
 FOR gun = 1 TO NUM_GUNS : savedHasGun(gun) = hasGun(gun) : NEXT
 GOSUB LoadLevel
-IF NOT demoAttract THEN GOSUB ShowTransmission ' (NEXUS greets you - not in attract mode: straight to the play)
+IF NOT demoAttract AND NOT demoStarting THEN GOSUB ShowTransmission ' (NEXUS greets you - not when a demo plays back: straight to the play)
 RETURN
 
 ' --- You died: the level starts over, and you have what you came in with
@@ -7868,6 +8018,7 @@ FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
     cellSeen(x, y) = 0
 NEXT : NEXT
 numItems = 0 : numMonsters = 0 : numDecos = 0 : hasMap = 0 : mapOpen = 0
+ERASE decoCharge, decoBurst
 FOR i = 1 TO MAX_ITEMS : itemToss(i) = 0 : NEXT
 LootTable ' (what breakables leave: the game's table, and the level's [loot])
 FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT
@@ -8161,8 +8312,31 @@ FOR k = 1 TO lvlNumNudges
         i = decoCell(x, y)
         IF i THEN decoX(i) = x + 0.5 + MaxOf(-3, MinOf(3, lvlNudge(k, 3))) / 8 : decoY(i) = y + 0.5 + MaxOf(-3, MinOf(3, lvlNudge(k, 4))) / 8 ' (up to 3 eighths: still in its cell)
         IF i THEN IF lvlNudge(k, 5) >= 1 AND lvlNudge(k, 5) <= 4 THEN decoFace(i) = lvlNudge(k, 5) ' (and standing flat, facing one way)
+        IF i THEN IF lvlNudge(k, 5) = 5 THEN decoFace(i) = -1 ' (or turning to face you, wherever it stands - kept from the next part, then 0)
     END IF
 NEXT
+' Furniture stands flat, its back to its wall: a terminal, a console, a
+' rack, a locker... with no way of its own set ([nudges]) faces away from
+' the wall beside it, as it would be built - it doesn't turn to follow you
+' round the room. Round things (barrels, lamps, plants, tanks) still do,
+' and so does anything standing in the open, with no wall to have its back to.
+' (Unless its [nudges] say otherwise: a way of its own, 1-4, or 5 - turning to face you.)
+FOR i = 1 TO numDecos
+    IF decoFace(i) = -1 THEN decoFace(i) = 0 : _CONTINUE
+    IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|20|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
+        x = INT(decoX(i)) : y = INT(decoY(i))
+        IF DecoWall(x - 1, y) THEN
+            decoFace(i) = 1
+        ELSEIF DecoWall(x, y - 1) THEN
+            decoFace(i) = 2
+        ELSEIF DecoWall(x + 1, y) THEN
+            decoFace(i) = 3
+        ELSEIF DecoWall(x, y + 1) THEN
+            decoFace(i) = 4
+        END IF
+    END IF
+NEXT
+PlaceDroids level ' (and the droids: a few, about their business)
 ' Things that glow by themselves get a light of their own: lamps (cyan;
 ' every fourth one flickers), terminals (a faint green pulse), and the exit
 ' (green). A lamp or terminal's light belongs to it, so it goes out when
@@ -8996,6 +9170,12 @@ SELECT CASE conVerb$
             IF conC$ <> "" THEN ang = VAL(conC$) * 3.14159265 / 180 : dirX = COS(ang) : dirY = SIN(ang) : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
             ConPrint "At" + STR$(playerX) + STR$(playerY)
         END IF
+    CASE "droids" ' Where the droids are, and what they're up to
+        IF numDroids = 0 THEN ConPrint "No droids here"
+        FOR k = 1 TO numDroids
+            st = MinOf(3, droidState(k)) : IF droidHP(k) <= 0 THEN st = 4
+            ConPrint "droid" + STR$(k) + ": x" + STR$(INT(droidX(k) * 10) / 10) + "  y" + STR$(INT(droidY(k) * 10) / 10) + "  " + RTRIM$(MID$("deciding  rolling   working   scuttling broken    ", st * 10 + 1, 10))
+        NEXT
     CASE "pos", "where"
         ConPrint sectorName$(level) + ": x" + STR$(INT(playerX * 100) / 100) + "  y" + STR$(INT(playerY * 100) / 100) + "  facing" + STR$(INT(_ATAN2(dirY, dirX) * 180 / 3.14159265)) + " degrees  feet" + STR$(INT(playerZ * 100) / 100) + "  eye" + STR$(INT(eyeZ * 100) / 100)
     CASE "save", "savegame"
@@ -13219,7 +13399,7 @@ SUB EditPaneNudge(x0, y)
     EditPaneAdd -1, x0, y + 2, 98, "MOVE IT" + STR$(ndx) + "," + LTRIM$(STR$(ndy)), 0
     EditPaneAdd 205, x0 + 98, y, 24, "<", 0 : EditPaneAdd 206, x0 + 124, y, 24, ">", 0 : EditPaneAdd 207, x0 + 150, y, 24, "^", 0 : EditPaneAdd 208, x0 + 176, y, 24, "v", 0
     y = y + 23
-    EditPaneAdd 209, x0, y, PN_W, RTRIM$(MID$("TURNS TO FACE YOU   STANDS, FACING EAST STANDS, FACING SOUTHSTANDS, FACING WEST STANDS, FACING NORTH", nfc * 20 + 1, 20)), nfc > 0
+    EditPaneAdd 209, x0, y, PN_W, RTRIM$(MID$("AS BUILT            STANDS, FACING EAST STANDS, FACING SOUTHSTANDS, FACING WEST STANDS, FACING NORTHTURNS TO FACE YOU   ", nfc * 20 + 1, 20)), nfc > 0
     y = y + 23
 END SUB
 
@@ -16099,9 +16279,9 @@ SUB BotField(haz)
                     pk = BotPadAt(nx, ny)
                     IF pk = 0 THEN
                         IF botDist(nx, ny) > d THEN botDist(nx, ny) = d : botQT = botQT + 1 : botQ(botQT) = ny * MAP_SIZE + nx
-                    ELSE ' A pad: standing on it (just arrived from its partner) you can step here - so its partner, stepped onto, is d + 1 away
+                    ELSE ' A pad: standing on it (just arrived from its partner) you can step here - so its partner, stepped onto, is d + 1 away (not while a lockdown has them dead)
                         o = pk + 1 : IF pk MOD 2 = 0 THEN o = pk - 1
-                        IF o >= 1 AND o <= numPads THEN
+                        IF o >= 1 AND o <= numPads AND NOT PadLockedDown(pk) AND NOT PadLockedDown(o) THEN
                             IF botDist(padX(o), padY(o)) > d + 1 THEN botDist(padX(o), padY(o)) = d + 1 : botQT = botQT + 1 : botQ(botQT) = padY(o) * MAP_SIZE + padX(o)
                         END IF
                     END IF
@@ -16110,6 +16290,47 @@ SUB BotField(haz)
         NEXT
     LOOP
 END SUB
+
+' Is teleporter pad k in a room under lockdown - an ambush or a survive
+' that's going (evState 1)? Then it doesn't work: you're in there till
+' it's over (and nobody's teleporting in to it).
+FUNCTION PadLockedDown(k)
+    IF k < 1 OR k > numPads THEN EXIT FUNCTION
+    FOR ev = 1 TO numEvents
+        IF evState(ev) = 1 AND (evType(ev) = EV_AMBUSH OR evType(ev) = EV_SURVIVE) THEN
+            IF padX(k) >= evX0(ev) AND padX(k) <= evX1(ev) AND padY(k) >= evY0(ev) AND padY(k) <= evY1(ev) THEN PadLockedDown = -1 : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
+' A frontier: a cell it's seen, that it could stand in or go through,
+' with one beside it it hasn't seen - the edge of what it knows
+FUNCTION BotFrontier(x, y)
+    IF NOT cellSeen(x, y) THEN EXIT FUNCTION
+    IF worldMap(x, y) > 0 AND worldMap(x, y) <> 2 THEN EXIT FUNCTION
+    IF NOT cellSeen(x + 1, y) OR NOT cellSeen(x - 1, y) OR NOT cellSeen(x, y + 1) OR NOT cellSeen(x, y - 1) THEN BotFrontier = -1
+END FUNCTION
+
+' Is pickup i worth going out of the way for, as you would, with health hp and armour ar? (Not a keycard:
+' those are a goal of their own)
+FUNCTION BotWants(i, hp, ar)
+    SELECT CASE itemKind(i)
+        CASE IT_HEALTH, IT_BIGMED : BotWants = hp < MAX_HP
+        CASE IT_ARMOR : BotWants = ar < MAX_ARMOR
+        CASE IT_CELLS : BotWants = ammoCount(AM_CELLS) < ammoMax(AM_CELLS)
+        CASE IT_SHELLS : BotWants = ammoCount(AM_SHELLS) < ammoMax(AM_SHELLS)
+        CASE IT_SCATTER : BotWants = NOT hasGun(2) OR ammoCount(AM_SHELLS) < ammoMax(AM_SHELLS)
+        CASE IT_REPEATER : BotWants = NOT hasGun(3) OR ammoCount(AM_CELLS) < ammoMax(AM_CELLS)
+        CASE IT_RAIL : BotWants = NOT hasGun(4)
+        CASE IT_MAP, IT_OVERCHARGE, IT_AMP, IT_GOGGLES : BotWants = -1
+    END SELECT
+END FUNCTION
+
+' A wall for furniture to stand against: a solid wall (not a door, not glass)
+FUNCTION DecoWall(x, y)
+    IF x < 0 OR y < 0 OR x >= MAP_SIZE OR y >= MAP_SIZE THEN EXIT FUNCTION
+    DecoWall = worldMap(x, y) > 0 AND worldMap(x, y) <> 2 AND glassHP(x, y) = 0
+END FUNCTION
 
 ' Is there a teleporter pad in cell (x, y)? (Its number, or 0)
 FUNCTION BotPadAt(x, y)
@@ -16128,6 +16349,7 @@ END FUNCTION
 FUNCTION BotStep(ax, ay, bx, by, haz)
     IF bx < 1 OR by < 1 OR bx > MAP_SIZE - 2 OR by > MAP_SIZE - 2 THEN EXIT FUNCTION
     IF botBlock(bx, by) > lvFrame THEN EXIT FUNCTION
+    IF NOT cellSeen(bx, by) AND NOT cyberOn THEN EXIT FUNCTION ' (somewhere it hasn't seen: it doesn't know it's there)
     w = worldMap(bx, by)
     IF w > 0 THEN
         IF w <> 2 THEN EXIT FUNCTION
@@ -16350,7 +16572,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god buddha fly notarget kill respawn record playdemo stopdemo demos bot summon spawn item mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version droids qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god buddha fly notarget kill respawn record playdemo stopdemo demos bot summon spawn item mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -16361,7 +16583,7 @@ SUB ConHelp(c$)
             ConPrint "  map N|name   maps   sectorset 0|1|2   restart   newgame   finish     - sectors"
             ConPrint "  achievements   achieve NAME   resetachievements"
             ConPrint "  give all|keys|key r|weapons|gun N|ammo|health|armor|overcharge|amp|map"
-            ConPrint "  god [on|off]   kill   respawn   summon TYPE [N]   mons   kick   tp X Y [ANGLE]   pos   status"
+            ConPrint "  god [on|off]   kill   respawn   summon TYPE [N]   mons   kick   tp X Y [ANGLE]   pos   status   droids"
             ConPrint "  save N|quick   load N|quick   quicksave   quickload"
             ConPrint "  set NAME VALUE   get NAME   settings   NAME [VALUE]   bind ACTION KEY   binds"
             ConPrint "  edit [walk|off]   put X Y CHAR   box X0 Y0 X1 Y1 CHAR   undo   savelevel"
@@ -19937,6 +20159,238 @@ SUB SpawnSparks(x, y, z, count, r, g, b)
     NEXT
 END SUB
 
+' Spawner j, charging (decoCharge 0..1): motes of light drawn in to it,
+' faster and brighter as it fills, a beam rising off it when it's nearly
+' there, and crackling at the very end. (Only for show: RND, not GRnd.)
+SUB SpawnerCharge(j)
+    IF decoBurst(j) > 0 THEN decoBurst(j) = decoBurst(j) - 1
+    c = decoCharge(j) : x = decoX(j) : y = decoY(j) : fz = FloorAt(x, y)
+    IF c <= 0 THEN
+        IF RND < 0.03 THEN SpawnPart PART_DUST, x + (RND - 0.5) * 0.4, y + (RND - 0.5) * 0.4, fz + 0.3 + RND * 0.4, 0, 0, 0.002, 60, 0.6, 0.2, 0.7, 0.025
+        EXIT SUB
+    END IF
+    IF RND < 0.12 + 0.75 * c THEN ' A mote, coming in from round about
+        a = RND * 6.2832 : r = 0.8 + RND * 0.7 : life = 22 - INT(10 * c) : z = fz + 0.1 + RND * 0.9
+        px = x + COS(a) * r : py = y + SIN(a) * r
+        SpawnPart PART_ARC, px, py, z, (x - px) / life, (y - py) / life, (fz + 0.45 - z) / life, life, 0.9, 0.25 + 0.6 * c, 1, 0.02 + 0.02 * c
+    END IF
+    IF c > 0.5 AND RND < c - 0.3 THEN ' The beam
+        SpawnPart PART_FLAME, x + (RND - 0.5) * 0.12, y + (RND - 0.5) * 0.12, fz + 0.55, 0, 0, 0.012 + 0.02 * c, 24, 1, 0.35 + 0.5 * c, 1, 0.03 + 0.04 * c
+    END IF
+    IF c > 0.85 AND RND < 0.25 THEN SpawnSparks x, y, 0.5, 2, 255, 200, 255
+END SUB
+
+' Spawner j sends a monster out: the light it gathered falls in on itself
+' at once - a ring rushing inwards, then a burst - and the screen shakes
+' if you're close by (px, py): how much it shakes is the answer.
+FUNCTION SpawnerBurst(j, px, py)
+    x = decoX(j) : y = decoY(j) : fz = FloorAt(x, y)
+    decoBurst(j) = 20 : decoCharge(j) = 0
+    FOR k = 1 TO 36
+        a = k / 36 * 6.2832 : r = 1.6 + RND * 0.3 : z = fz + 0.1 + RND * 0.9
+        SpawnPart PART_ARC, x + COS(a) * r, y + SIN(a) * r, z, -COS(a) * r / 7, -SIN(a) * r / 7, (fz + 0.45 - z) / 7, 7, 1, 0.6, 1, 0.04
+    NEXT
+    FOR k = 1 TO 24
+        a = RND * 6.2832 : v = 0.04 + RND * 0.08
+        SpawnPart PART_SPARK, x, y, fz + 0.45, COS(a) * v, SIN(a) * v, 0.02 + RND * 0.05, 18 + INT(RND * 14), 1, 0.4 + RND * 0.5, 1, 0.04
+    NEXT
+    d = SQR((px - x) ^ 2 + (py - y) ^ 2)
+    IF d < 8 THEN SpawnerBurst = 9 * (1 - d / 8)
+    SfxAt sndOvercharge&, x, y, px, py
+END FUNCTION
+
+' --- DROIDS ---------------------------------------------------------------
+' The droids' own dice: the same generator as GRnd, but a stream of their
+' own - so a droid deciding where to roll never changes what a monster does
+FUNCTION DRnd!
+    drSeed = drSeed * 16807#
+    drSeed = drSeed - INT(drSeed / 2147483647#) * 2147483647#
+    IF drSeed < 1 THEN drSeed = 1
+    r! = drSeed / 2147483647# : IF r! >= 1 THEN r! = 0.9999999
+    DRnd! = r!
+END FUNCTION
+
+FUNCTION DroidScale(kind)
+    IF kind = 1 THEN DroidScale = 0.34 ELSE DroidScale = 0.42 ' (the tread droid, the dome droid: knee high)
+END FUNCTION
+
+' A droid's picture, broken: the same, sooty and dark (drawn squashed)
+SUB MakeScrap(src, dst)
+    spriteSize(dst) = spriteSize(src)
+    FOR y = 0 TO spriteSize(src) - 1 : FOR x = 0 TO spriteSize(src) - 1
+        col~& = spriteTex(x, y, src)
+        IF _ALPHA32(col~&) > 128 THEN soot = 0.22 + RND * 0.2 : col~& = _RGBA32(_RED32(col~&) * soot, _GREEN32(col~&) * soot, _BLUE32(col~&) * soot, 255)
+        spriteTex(x, y, dst) = col~&
+    NEXT : NEXT
+END SUB
+
+' Can a droid stand at (x, y), on a floor z high? Only on plain flat floor
+' it's on now - no step, ledge, liquid, lift, fire or door (it keeps to its
+' rooms) - clear of walls, things, the other droids (but droid i) and you.
+FUNCTION DroidCanGo(i, x, y, z)
+    FOR k = 0 TO 4
+        ox = (k = 1) * -0.22 - (k = 2) * -0.22 : oy = (k = 3) * -0.22 - (k = 4) * -0.22
+        cx = INT(x + ox) : cy = INT(y + oy)
+        IF cx < 1 OR cy < 1 OR cx >= MAP_SIZE - 1 OR cy >= MAP_SIZE - 1 THEN EXIT FUNCTION
+        IF worldMap(cx, cy) > 0 OR diagCorner(cx, cy) THEN EXIT FUNCTION
+        IF ABS(floorH(cx, cy) - z) > 0.02 OR liqKind(cx, cy) OR liftCell(cx, cy) THEN EXIT FUNCTION
+        IF FloorHazard(cx, cy) THEN EXIT FUNCTION
+    NEXT
+    FOR k = 1 TO numDroids
+        IF k <> i THEN IF (droidX(k) - x) ^ 2 + (droidY(k) - y) ^ 2 < 0.3 THEN EXIT FUNCTION
+    NEXT
+    IF (playerX - x) ^ 2 + (playerY - y) ^ 2 < 0.36 THEN EXIT FUNCTION
+    walkZ = z : walkFromHaz = 10 : ok = Walkable%(x, y) : walkFromHaz = 0 : walkZ = -999
+    DroidCanGo = ok
+END FUNCTION
+
+' ...and all the way from (x0, y0) to (x1, y1), in a straight line?
+FUNCTION DroidLine(i, x0, y0, x1, y1, z)
+    d = SQR((x1 - x0) ^ 2 + (y1 - y0) ^ 2) : n = INT(d / 0.2) + 1
+    FOR k = 1 TO n
+        IF NOT DroidCanGo(i, x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, z) THEN EXIT FUNCTION
+    NEXT
+    DroidLine = -1
+END FUNCTION
+
+' A sector's droids, where they start: three, on open floor away from where
+' you start and out of the event rooms - picked by the droids' dice, started
+' from the sector (lv) and its set, so they're the same every time
+SUB PlaceDroids(lv)
+    numDroids = 0 : drSeed = 7919 + lv * 104729# + sectorSet * 1299709#
+    IF cyberOn THEN EXIT SUB
+    FOR n = 1 TO 3
+        FOR try = 1 TO 600
+            cx = 1 + INT(DRnd * (MAP_SIZE - 2)) : cy = 1 + INT(DRnd * (MAP_SIZE - 2))
+            IF worldMap(cx, cy) > 0 OR decoCell(cx, cy) OR boxOn(cx, cy) OR glassHP(cx, cy) > 0 THEN _CONTINUE
+            IF (cx + 0.5 - playerX) ^ 2 + (cy + 0.5 - playerY) ^ 2 < 25 THEN _CONTINUE
+            inEv = 0
+            FOR ev = 1 TO numEvents
+                IF cx >= evX0(ev) - 1 AND cx <= evX1(ev) + 1 AND cy >= evY0(ev) - 1 AND cy <= evY1(ev) + 1 THEN inEv = -1
+            NEXT
+            IF inEv THEN _CONTINUE
+            z = floorH(cx, cy) : IF z <= PIT_DEPTH THEN _CONTINUE
+            roomy = 0 ' (room to roll: the cells round about, open floor at the same height)
+            FOR k = 1 TO 4
+                nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
+                IF worldMap(nx, ny) <= 0 AND ABS(floorH(nx, ny) - z) < 0.02 THEN roomy = roomy + 1
+            NEXT
+            IF roomy < 4 OR NOT DroidCanGo(0, cx + 0.5, cy + 0.5, z) THEN _CONTINUE
+            numDroids = numDroids + 1 : i = numDroids
+            droidX(i) = cx + 0.5 : droidY(i) = cy + 0.5 : droidZ(i) = z : droidKind(i) = 1 + (n MOD 2 = 0)* -1
+            droidA(i) = DRnd * 6.2832 : droidState(i) = 0 : droidTimer(i) = 30 + INT(DRnd * 90) : droidHP(i) = DROID_HP : droidWork(i) = 0
+            EXIT FOR
+        NEXT
+    NEXT
+END SUB
+
+' Droid i decides what next: now and then, a machine nearby to see to (a
+' terminal, a console...); otherwise somewhere close it can roll to in a
+' straight line - or, nowhere, it turns and thinks again
+SUB DroidPlan(i)
+    x = droidX(i) : y = droidY(i) : z = droidZ(i) : droidWork(i) = 0
+    IF DRnd < 0.4 AND numDecos > 0 THEN
+        FOR try = 1 TO 6
+            j = 1 + INT(DRnd * numDecos)
+            IF decoOn(j) AND decoKind(j) <> 9 AND decoKind(j) <> DK_BODY THEN
+                d = SQR((decoX(j) - x) ^ 2 + (decoY(j) - y) ^ 2)
+                IF d < 8 AND d > 0.9 THEN
+                    tx = decoX(j) + (x - decoX(j)) / d * 0.7 : ty = decoY(j) + (y - decoY(j)) / d * 0.7
+                    IF DroidLine(i, x, y, tx, ty, z) THEN
+                        droidTX(i) = tx : droidTY(i) = ty : droidWork(i) = j : droidState(i) = 1 : droidTimer(i) = INT(d / DROID_SPEED * 1.6) + 60 : EXIT SUB
+                    END IF
+                END IF
+            END IF
+        NEXT
+    END IF
+    FOR try = 1 TO 8
+        a = DRnd * 6.2832 : d = 1.2 + DRnd * 4.5
+        tx = x + COS(a) * d : ty = y + SIN(a) * d
+        IF DroidLine(i, x, y, tx, ty, z) THEN
+            droidTX(i) = tx : droidTY(i) = ty : droidState(i) = 1 : droidTimer(i) = INT(d / DROID_SPEED * 1.6) + 60 : EXIT SUB
+        END IF
+    NEXT
+    droidState(i) = 0 : droidTimer(i) = 20 + INT(DRnd * 40) : droidA(i) = droidA(i) + 1.5708
+END SUB
+
+' Every frame, every droid: you too close - it squeals and scuttles off;
+' rolling - it turns towards where it's going (a little at a time) and
+' rolls on, or, blocked, thinks again; there - it gets to work a while
+' (scrubbing up the scorch marks round it, or sparks flying from the
+' machine it's fixing). Broken ones smoke. (What it does is the droids'
+' own dice, DRnd; how it looks - dust, sparks, the chirps - RND.)
+SUB UpdateDroids(px, py)
+    FOR i = 1 TO numDroids
+        x = droidX(i) : y = droidY(i)
+        IF droidHP(i) <= 0 THEN
+            IF RND < 0.05 THEN SpawnPart PART_SMOKE, x + (RND - 0.5) * 0.15, y + (RND - 0.5) * 0.15, droidZ(i) + 0.15, 0, 0, 0.004, 70, 0.25, 0.25, 0.27, 0.04
+            _CONTINUE
+        END IF
+        IF (px - x) ^ 2 + (py - y) ^ 2 < 1.4 AND droidState(i) <> 3 THEN ' You: out of the way!
+            droidState(i) = 3 : droidTimer(i) = 35 + INT(DRnd * 20) : droidA(i) = _ATAN2(y - py, x - px) + (DRnd - 0.5) * 1.2
+            SfxAt sndDroid&(3), x, y, px, py
+        END IF
+        droidTimer(i) = droidTimer(i) - 1
+        SELECT CASE droidState(i)
+            CASE 0
+                IF droidTimer(i) <= 0 THEN DroidPlan i
+            CASE 1
+                dx = droidTX(i) - x : dy = droidTY(i) - y : d = SQR(dx * dx + dy * dy)
+                IF d < 0.06 THEN
+                    droidState(i) = 2 : droidTimer(i) = 90 + INT(DRnd * 200)
+                    IF droidWork(i) THEN droidA(i) = _ATAN2(decoY(droidWork(i)) - y, decoX(droidWork(i)) - x)
+                ELSE
+                    a = _ATAN2(dy, dx) - droidA(i)
+                    DO WHILE a > 3.14159265 : a = a - 6.2831853 : LOOP
+                    DO WHILE a < -3.14159265 : a = a + 6.2831853 : LOOP
+                    droidA(i) = droidA(i) + MaxOf(-0.12, MinOf(0.12, a))
+                    IF ABS(a) < 0.5 THEN
+                        spd = MinOf(d, DROID_SPEED * (1.15 - 0.3 * (droidKind(i) = 2) * -1))
+                        nx = x + COS(droidA(i)) * spd : ny = y + SIN(droidA(i)) * spd
+                        IF DroidCanGo(i, nx, ny, droidZ(i)) THEN droidX(i) = nx : droidY(i) = ny ELSE droidState(i) = 0 : droidTimer(i) = 15 + INT(DRnd * 30)
+                    END IF
+                    IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 10
+                END IF
+            CASE 2
+                IF droidWork(i) THEN
+                    IF RND < 0.06 THEN SpawnSparks x + COS(droidA(i)) * 0.25, y + SIN(droidA(i)) * 0.25, 0.25, 3, 160, 220, 255
+                ELSE
+                    IF RND < 0.1 THEN SpawnPart PART_DUST, x + (RND - 0.5) * 0.3, y + (RND - 0.5) * 0.3, droidZ(i) + 0.03, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, 0.003, 50, 0.7, 0.75, 0.8, 0.02
+                    FOR k = 1 TO MAX_DECALS ' (scrubbing up the marks on the floor round it)
+                        IF decalOn(k) THEN
+                            IF decalNZ(k) > 0.5 THEN
+                                IF (decalX(k) - x) ^ 2 + (decalY(k) - y) ^ 2 < 0.5 THEN decalSize(k) = decalSize(k) * 0.99 : IF decalSize(k) < 0.03 THEN decalOn(k) = 0
+                            END IF
+                        END IF
+                    NEXT
+                END IF
+                IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 10 + INT(DRnd * 50)
+            CASE 3
+                nx = x + COS(droidA(i)) * DROID_SPEED * 2.4 : ny = y + SIN(droidA(i)) * DROID_SPEED * 2.4
+                IF DroidCanGo(i, nx, ny, droidZ(i)) THEN droidX(i) = nx : droidY(i) = ny ELSE droidA(i) = droidA(i) + (DRnd - 0.5) * 2.5
+                IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 20
+        END SELECT
+        IF RND < 0.0035 THEN SfxAtRange sndDroid&(1 + INT(RND * 2)), droidX(i), droidY(i), px, py, 9 ' (chatter)
+    NEXT
+END SUB
+
+' A shot (or blast) hits droid i for dmg: sparks; with no more left in it,
+' it breaks - a squeal, a shower of sparks, a puff of smoke - and lies there
+SUB HitDroid(i, dmg, px, py)
+    IF droidHP(i) <= 0 THEN EXIT SUB
+    droidHP(i) = droidHP(i) - dmg
+    SpawnSparks droidX(i), droidY(i), 0.2, 8, 200, 230, 255
+    IF droidHP(i) > 0 THEN
+        SfxAt sndDroid&(3), droidX(i), droidY(i), px, py
+        droidState(i) = 3 : droidTimer(i) = 50 : droidA(i) = _ATAN2(droidY(i) - py, droidX(i) - px) + (DRnd - 0.5) * 1.5 ' (it runs for it)
+    ELSE
+        droidHP(i) = 0 : droidState(i) = 9
+        SfxAt sndDroidBreak&, droidX(i), droidY(i), px, py
+        SpawnSparks droidX(i), droidY(i), 0.2, 26, 255, 210, 140
+        FOR k = 1 TO 6 : SpawnPart PART_SMOKE, droidX(i), droidY(i), droidZ(i) + 0.2, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, 0.006, 80, 0.3, 0.3, 0.32, 0.05 : NEXT
+    END IF
+END SUB
+
 ' Embers flying up out of an explosion (size 1: a barrel)
 SUB SpawnEmbers(x, y, size)
     FOR k = 1 TO INT(26 * size) + 3
@@ -20605,6 +21059,17 @@ FUNCTION DemoSortKey$(n$)
     LOOP
     IF e < LEN(t$) THEN t$ = LEFT$(t$, e) + RIGHT$("00000" + MID$(t$, e + 1), 5)
     DemoSortKey$ = t$
+END FUNCTION
+
+' A demo's length, in frames: the frame its "e" line (its end) gives - 0 if none
+FUNCTION DemoLength&(f$)
+    IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    DO WHILE NOT EOF(fh)
+        LINE INPUT #fh, l$
+        IF LEFT$(l$, 2) = "e " THEN DemoLength& = VAL(MID$(l$, 3))
+    LOOP
+    CLOSE #fh
 END FUNCTION
 
 ' A demo file's description for the list: its first # comment, without
