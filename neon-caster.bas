@@ -3976,8 +3976,13 @@ DO
         IF best! > 0 THEN IF lt! <= best! THEN tc~& = _RGB32(90, 255, 140) ELSE tc~& = _RGB32(255, 90, 90)
         IF achCheat AND NOT achTest THEN tc~& = _RGB32(150, 140, 170) ' (cheats on: it can't make a record)
         tmr$ = TimeText$(INT(lt!)) + "." + LTRIM$(STR$(INT((lt! - INT(lt!)) * 10)))
-        MenuText hudX(HE_TIMER), hudY(HE_TIMER), tmr$, 2, HudColor~&(HE_TIMER, tc~&), 2
-        IF best! > 0 THEN tmr$ = "BEST " + TimeText$(INT(best!)) : HudText hudX(HE_TIMER) - LEN(tmr$) * 8, hudY(HE_TIMER) + 34, tmr$, _RGB32(255, 220, 80)
+        tdy = 0 ' (a demo's lines in the same corner: the clock goes down under them)
+        IF (demoRec OR demoPlay) AND hudX(HE_TIMER) > 560 AND hudY(HE_TIMER) < 140 THEN
+            dbot = 74 + ddy : IF demoPlay THEN dbot = 92 + ddy + 16
+            tdy = MaxOf(0, dbot + 8 - hudY(HE_TIMER))
+        END IF
+        MenuText hudX(HE_TIMER), hudY(HE_TIMER) + tdy, tmr$, 2, HudColor~&(HE_TIMER, tc~&), 2
+        IF best! > 0 THEN tmr$ = "BEST " + TimeText$(INT(best!)) : HudText hudX(HE_TIMER) - LEN(tmr$) * 8, hudY(HE_TIMER) + tdy + 34, tmr$, _RGB32(255, 220, 80)
     END IF
 
     ' With OpenGL, the HUD goes to the graphics card as a picture, to be
