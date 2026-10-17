@@ -88,9 +88,10 @@ frame - `wait` holds the rest back - so a test can drive it with no hands:
 
 Settings changed from the command line last only for that run.
 
-**Demos.** **DEMO REPLAYS** in the main menu lists every demo - yours,
-then the ten that come with the game - and Enter plays one (Esc, then
-STOP DEMO, ends it early). Ctrl+R records one: the sector you're in
+**Demos.** **DEMO REPLAYS** in the main menu lists every demo - yours
+and the ten that come with the game - and Enter plays one (Esc, then
+STOP DEMO, ends it early). Leave the title menu alone for 15 seconds and
+they play by themselves, one after another, till you press a key. Ctrl+R records one: the sector you're in
 starts again, and Ctrl+R again (or the exit) keeps it as `run1`, `run2`...
 From the console, `record NAME` does the same with a name of your own. A
 demo is how DOOM did it: not a video, but every key and turn, frame by
@@ -103,7 +104,7 @@ what it sees), so `record mine` then `bot` makes a demo with no hands.
 `bot human 0-100` sets how human it plays (60 to start): slower, eased
 turns, aim that drifts, a beat before it fires at something it's just
 seen, bursts instead of a held trigger, and now and then a pause to look
-round. `bot safe` (on to start) gives it buddha mode, which `buddha` in
+round. `bot safe` (off to start) gives it buddha mode, which `buddha` in
 the console turns on for you too: you're hurt as ever, but never below 1
 health (a pit or a death trap still kills).
 `playdemo NAME quit` ends the game when the demo does, with exit code 3 if
