@@ -77,6 +77,10 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   for looks), and nothing that changes the game may read `TIMER` - use
   `lvFrame`. Any change to gameplay can put shipped demos (neon-caster/demos)
   out of step: replay them, and re-record what changed.
+  Droids roll by their own dice, `DRnd` (so they never shift `GRnd`).
+  The shipped ten were recorded on the Mac (full speed OpenGL):
+  `+renderer 2 +set look_up_down 1 +wait 30 +map N +record NAME quit +bot on`
+  - without the wait OpenGL isn't up yet and the demo records `look 0`.
 - **Builds use `-f:ExtraCppFlags=-ffp-contract=off`** (CI does): without
   it the Mac fuses multiply-adds and plays a Linux demo differently.
 - **Saving in a `cp -as` copy** replaces the symlinked level file with a real

@@ -1880,8 +1880,8 @@ DO
     turn = mouseDX * turnSpeed / zoom * aimSlow ' (the mouse to the right turns you clockwise - as the map shows it: its y grows downward)
     IF botOn AND NOT demoPlay AND NOT editMode THEN turn = botTurn ' (the autopilot turns you)
     IF demoPlay THEN turn = inTU * DEMO_TURN ELSE IF demoRec THEN inTU = CLNG(turn / DEMO_TURN) : turn = inTU * DEMO_TURN ' (a demo's turn: a whole number of steps, played as written)
-    oldDirX = dirX : dirX = dirX * COS(turn) - dirY * SIN(turn) : dirY = oldDirX * SIN(turn) + dirY * COS(turn)
-    oldPlaneX = planeX : planeX = planeX * COS(turn) - planeY * SIN(turn) : planeY = oldPlaneX * SIN(turn) + planeY * COS(turn)
+    oldDirX = dirX : dirX = dirX * DCos(turn) - dirY * DSin(turn) : dirY = oldDirX * DSin(turn) + dirY * DCos(turn)
+    oldPlaneX = planeX : planeX = planeX * DCos(turn) - planeY * DSin(turn) : planeY = oldPlaneX * DSin(turn) + planeY * DCos(turn)
 
     ' Looking up and down - only with OpenGL (chapter 24), which can tilt
     ' its camera; the raycaster's world has no up or down to look at
@@ -1994,7 +1994,7 @@ DO
         IF editMode THEN flyUp = _KEYDOWN(32) : flyDown = _KEYDOWN(99) OR _KEYDOWN(67) ELSE flyUp = (inBits AND DB_UP) <> 0 : flyDown = (inBits AND DB_DOWN) <> 0 ' (in play Space opens things)
         IF flyUp AND NOT edTyping THEN playerZ = playerZ + flySpeed
         IF flyDown AND NOT edTyping THEN playerZ = playerZ - flySpeed
-        IF forward <> 0 THEN playerZ = playerZ + forward * moveSpeed * SIN(pitch) * 1.5 ' (and the way you look: look up and walk on, and you climb - OpenGL's look up and down)
+        IF forward <> 0 THEN playerZ = playerZ + forward * moveSpeed * DSin(pitch) * 1.5 ' (and the way you look: look up and walk on, and you climb - OpenGL's look up and down)
         IF playerZ < -1.4 THEN playerZ = -1.4
         IF playerZ > 4.5 THEN playerZ = 4.5
         IF NOT editMode THEN ' (in play: your eye stays under the ceiling - above it the room isn't drawn - and the floor still holds you up)
@@ -2442,13 +2442,13 @@ DO
                         relX = monsterX(i) - playerX : relY = monsterY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
-                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * mtypeScale(monsterType(i)) * 0.3 AND NOT ShotPasses(i, eyeZ + TAN(pitch) * rayLen * transformY) THEN
+                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * mtypeScale(monsterType(i)) * 0.3 AND NOT ShotPasses(i, eyeZ + DTan(pitch) * rayLen * transformY) THEN
                                 shotU = 0.5 + RENDER_W / 2 * (aim - transformX / transformY) / (viewH / transformY * mtypeScale(monsterType(i)))
-                                head = WeakSpotHit(i, shotU, eyeZ + TAN(pitch) * rayLen * transformY)
+                                head = WeakSpotHit(i, shotU, eyeZ + DTan(pitch) * rayLen * transformY)
                                 IF gunPierce(currentGun) THEN
-                                    target = i : headZ = eyeZ + TAN(pitch) * rayLen * transformY : GOSUB HitMonsterAimed : crossFlash = 6
+                                    target = i : headZ = eyeZ + DTan(pitch) * rayLen * transformY : GOSUB HitMonsterAimed : crossFlash = 6
                                 ELSE
-                                    bestMonster = i : bestDist = transformY : bestHead = head : bestHeadZ = eyeZ + TAN(pitch) * rayLen * transformY
+                                    bestMonster = i : bestDist = transformY : bestHead = head : bestHeadZ = eyeZ + DTan(pitch) * rayLen * transformY
                                 END IF
                             END IF
                         END IF
@@ -2502,7 +2502,7 @@ DO
                     ' TAN(pitch) for each cell it goes (the ray's length, rayLen,
                     ' as its steps are a little longer than a cell off-centre)
                     rayX = dirX + planeX * aim : rayY = dirY + planeY * aim : rayLen = SQR(rayX * rayX + rayY * rayY)
-                    hitDist = zBuffer(screenCol) : surface = 0 : rise = TAN(pitch) * rayLen
+                    hitDist = zBuffer(screenCol) : surface = 0 : rise = DTan(pitch) * rayLen
                     IF levelFlat THEN
                         IF rise > 0.01 THEN IF 0.5 / rise < hitDist THEN hitDist = 0.5 / rise : surface = 1 ' (the ceiling)
                         IF rise < -0.01 THEN IF 0.5 / -rise < hitDist THEN hitDist = 0.5 / -rise : surface = 2 ' (the floor)
@@ -2704,7 +2704,7 @@ DO
                             IF mtype = 8 THEN ' The overseer: a fan of three (two more, turned a little either way)
                                 FOR spread = -1 TO 1 STEP 2
                                     spreadA = spread * 0.22 : ux = toPlayerX / distance : uy = toPlayerY / distance
-                                    FireBolt monsterX(i), monsterY(i), ux * COS(spreadA) - uy * SIN(spreadA), ux * SIN(spreadA) + uy * COS(spreadA), mtypeDamage(mtype)
+                                    FireBolt monsterX(i), monsterY(i), ux * DCos(spreadA) - uy * DSin(spreadA), ux * DSin(spreadA) + uy * DCos(spreadA), mtypeDamage(mtype)
                                 NEXT
                             END IF
                             monsterAtk(i) = ATTACK_FRAMES
@@ -3951,20 +3951,22 @@ DO
     END IF
     ' The sector timer (SECTOR TIMER): how long you've been in it, the
     ' clock green while you're inside your best and red once past it
+    ' (the keycards you hold sit top right too: the demo's lines go under them)
+    ddy = 0 : IF hudShow(HE_CARDS) AND hudX(HE_CARDS) > 560 AND hudY(HE_CARDS) < 110 AND (hasCard(1) OR hasCard(2) OR hasCard(3)) THEN ddy = MaxOf(0, hudY(HE_CARDS) + hudW(HE_CARDS) + 6 - 38)
     IF demoPlay THEN ' Playing one: a green play arrow and PLAYING over the clock - and, small, which demo, how long, what
         dpw = 8 * 8 + 16 : dpx = 784 - dpw : dpc~& = _RGB32(90, 255, 130)
-        FOR dpy = 0 TO 10 : LINE (dpx, 42 + dpy)-(dpx + (5 - ABS(dpy - 5)) * 1.6, 42 + dpy), dpc~& : NEXT ' (the arrow: a little triangle)
-        HudText dpx + 14, 40, "PLAYING", dpc~&
+        FOR dpy = 0 TO 10 : LINE (dpx, 42 + ddy + dpy)-(dpx + (5 - ABS(dpy - 5)) * 1.6, 42 + ddy + dpy), dpc~& : NEXT ' (the arrow: a little triangle)
+        HudText dpx + 14, 40 + ddy, "PLAYING", dpc~&
         dp$ = UCASE$(demoName$) + "  " + TimeText$(demoTotal / 60)
-        HudText 784 - LEN(dp$) * 8, 76, dp$, _RGB32(160, 220, 255)
-        IF LEN(demoInfoNow$) THEN HudText 784 - LEN(demoInfoNow$) * 8, 92, demoInfoNow$, _RGB32(120, 150, 190)
+        HudText 784 - LEN(dp$) * 8, 76 + ddy, dp$, _RGB32(160, 220, 255)
+        IF LEN(demoInfoNow$) THEN HudText 784 - LEN(demoInfoNow$) * 8, 92 + ddy, demoInfoNow$, _RGB32(120, 150, 190)
     END IF
     IF demoRec OR demoPlay THEN ' A demo going: REC (red) or DEMO (cyan), and how long, at the top right
         IF demoRec THEN dh$ = "REC " ELSE dh$ = "DEMO " : IF demoAttract THEN dh$ = "ANY KEY: MENU   DEMO "
         dh$ = dh$ + TimeText$(demoFrame / 60) : IF demoPlay AND demoBad THEN dh$ = dh$ + "  OUT OF STEP"
         IF demoRec THEN dhc~& = _RGB32(255, 70, 80) ELSE dhc~& = _RGB32(90, 230, 255)
-        IF demoRec AND (demoFrame \ 30) MOD 2 = 0 THEN FillCircle 784 - LEN(dh$) * 8 - 10, 66, 4, dhc~& ' (the red light, blinking)
-        HudText 784 - LEN(dh$) * 8, 58, dh$, dhc~&
+        IF demoRec AND (demoFrame \ 30) MOD 2 = 0 THEN FillCircle 784 - LEN(dh$) * 8 - 10, 66 + ddy, 4, dhc~& ' (the red light, blinking)
+        HudText 784 - LEN(dh$) * 8, 58 + ddy, dh$, dhc~&
     END IF
     IF setting(SET_TIMER) AND hudShow(HE_TIMER) AND NOT editMode AND NOT cyberOn THEN
         lt! = TIMER - levelStart! : IF lt! < 0 THEN lt! = lt! + 86400
@@ -4106,7 +4108,7 @@ ELSE
     IF vendTimer(i) MOD 18 = 0 THEN ' (one more thing out of the slot, out the front - or anywhere)
         k = IT_CELLS : r = GRnd
         IF r < 0.3 THEN k = IT_SHELLS ELSE IF r < 0.55 THEN k = IT_HEALTH ELSE IF r < 0.6 THEN k = IT_ARMOR ELSE IF r < 0.63 THEN k = IT_OVERCHARGE
-        a = (decoFace(i) - 1) * 1.5708 + (GRnd - 0.5) * 1.6 : IF decoFace(i) = 0 THEN a = _ATAN2(playerY - decoY(i), playerX - decoX(i)) + (GRnd - 0.5) * 1.6
+        a = (decoFace(i) - 1) * 1.5708 + (GRnd - 0.5) * 1.6 : IF decoFace(i) = 0 THEN a = DAtan2(playerY - decoY(i), playerX - decoX(i)) + (GRnd - 0.5) * 1.6
         TossItem k, decoX(i), decoY(i), a, playerX, playerY : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
     END IF
     IF vendTimer(i) <= 0 THEN vendState(i) = 3 : ShowMsg "SOLD OUT"
@@ -4160,7 +4162,7 @@ ProgramPaid: ' (what its answer brings: the same whether it ran just now or a de
 _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : spaceWas = -1
 IF rc = 1 THEN
     IF conFromTrig THEN px = trigX0(trigK) + 0.5 : py = trigY0(trigK) + 0.5 ELSE px = playerX + dirX : py = playerY + dirY
-    a = _ATAN2(playerY - py, playerX - px)
+    a = DAtan2(playerY - py, playerX - px)
     TossItem StashLoot(0), px, py, a - 0.4, playerX, playerY : TossItem StashLoot(1), px, py, a + 0.4, playerX, playerY
     PlaySfx sndFanfare&, 0.8 : ShowMsg "HIGH SCORE! The computer pays out" : Achieve "NC_ARCADE", 0
 ELSE
@@ -4239,7 +4241,7 @@ _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
 escWas = -1 : fireWait = 15 : spaceWas = -1
 IF arcWon THEN
     vendState(arcDeco) = 3 : ShowMsg "HIGH SCORE! The machine pays out" : Achieve "NC_ARCADE", 0
-    a = _ATAN2(playerY - decoY(arcDeco), playerX - decoX(arcDeco))
+    a = DAtan2(playerY - decoY(arcDeco), playerX - decoX(arcDeco))
     TossItem StashLoot(0), decoX(arcDeco), decoY(arcDeco), a - 0.4, playerX, playerY
     TossItem StashLoot(1), decoX(arcDeco), decoY(arcDeco), a + 0.4, playerX, playerY
 ELSEIF NOT arcDone THEN
@@ -6398,7 +6400,7 @@ IF decoKind(targetDeco) = DK_BODY THEN RETURN ' (bodies don't break)
 IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
 ' Its loot, if it breaks: kicked, back the way you're facing (towards you,
 ' give or take); shot or blown up, any way at all
-IF hitKick THEN decoLootA(targetDeco) = _ATAN2(-dirY, -dirX) + (GRnd - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
+IF hitKick THEN decoLootA(targetDeco) = DAtan2(-dirY, -dirX) + (GRnd - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
 IF Explosive(decoKind(targetDeco)) THEN
     IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = 1
     RETURN
@@ -6927,7 +6929,7 @@ RETURN
 ' --- Playing: a check (dl$, "k ..." or "e ...") - is the game where it was?
 DemoCheck:
 GOSUB DemoStateNow
-IF MID$(dl$, 3) <> ds$ THEN dWhy$ = "recorded " + MID$(dl$, 3) + ", now " + ds$ + " (frame x y height health kills)" : GOSUB DemoOut
+IF NOT DemoSame(MID$(dl$, 3), ds$) THEN dWhy$ = "recorded " + MID$(dl$, 3) + ", now " + ds$ + " (frame x y height health kills)" : GOSUB DemoOut
 RETURN
 
 ' --- Playing: out of step (dWhy$ says how) - the first time, said
@@ -9167,7 +9169,7 @@ SELECT CASE conVerb$
             ConPrint "tp x y [angle in degrees]"
         ELSE
             playerX = VAL(conA$) : playerY = VAL(conB$)
-            IF conC$ <> "" THEN ang = VAL(conC$) * 3.14159265 / 180 : dirX = COS(ang) : dirY = SIN(ang) : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
+            IF conC$ <> "" THEN ang = VAL(conC$) * 3.14159265 / 180 : dirX = DCos(ang) : dirY = DSin(ang) : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
             ConPrint "At" + STR$(playerX) + STR$(playerY)
         END IF
     CASE "droids" ' Where the droids are, and what they're up to
@@ -11297,8 +11299,8 @@ SUB DropThiefLoot(i)
         END SELECT
         DropItemAt k, x, y : n = n + 1
     END IF
-    FOR c = 1 TO (thiefCells(i) + 14) \ 15 : DropItemAt IT_CELLS, x + COS(n * 2.1) * 0.35, y + SIN(n * 2.1) * 0.35 : n = n + 1 : NEXT
-    FOR c = 1 TO (thiefShells(i) + 7) \ 8 : DropItemAt IT_SHELLS, x + COS(n * 2.1) * 0.35, y + SIN(n * 2.1) * 0.35 : n = n + 1 : NEXT
+    FOR c = 1 TO (thiefCells(i) + 14) \ 15 : DropItemAt IT_CELLS, x + DCos(n * 2.1) * 0.35, y + DSin(n * 2.1) * 0.35 : n = n + 1 : NEXT
+    FOR c = 1 TO (thiefShells(i) + 7) \ 8 : DropItemAt IT_SHELLS, x + DCos(n * 2.1) * 0.35, y + DSin(n * 2.1) * 0.35 : n = n + 1 : NEXT
     IF n THEN ShowMsg "The thief dropped your things!"
     ThiefReset i
 END SUB
@@ -11313,7 +11315,7 @@ SUB DropItemAt(kind, x0, y0)
     IF NOT Walkable%(x, y) THEN ' (its cell's middle no better - a block standing there: the nearest open spot round it)
         FOR r = 1 TO 10
             FOR a = 0 TO 7
-                tx = x + COS(a * 0.7854) * r * 0.3 : ty = y + SIN(a * 0.7854) * r * 0.3
+                tx = x + DCos(a * 0.7854) * r * 0.3 : ty = y + DSin(a * 0.7854) * r * 0.3
                 IF Walkable%(tx, ty) THEN x = tx : y = ty : r = 99 : EXIT FOR
             NEXT
         NEXT
@@ -11370,14 +11372,14 @@ SUB TossItem(kind, x, y, a, px, py)
     bestA = a : bestR = 0 : bestS = -1
     FOR t = 0 TO 8 ' (that way, then an eighth of the way round either side of it, a quarter...)
         b = a + ((t + 1) \ 2) * 0.7854 * (1 - 2 * (t MOD 2)) : r = TossReach(x, y, b)
-        d = SQR((x + COS(b) * r - px) ^ 2 + (y + SIN(b) * r - py) ^ 2) ' (from you, where it lands)
+        d = SQR((x + DCos(b) * r - px) ^ 2 + (y + DSin(b) * r - py) ^ 2) ' (from you, where it lands)
         IF r >= LOOT_REACH * 0.4 AND d >= LOOT_CLEAR THEN bestA = b : bestR = r : EXIT FOR
         IF r + d > bestS THEN bestS = r + d : bestA = b : bestR = r ' (none clear: the clearest)
     NEXT
     was = numItems : DropItemAt kind, x, y
     IF numItems > was THEN
         itemToss(numItems) = LOOT_TOSS
-        itemVX(numItems) = COS(bestA) * bestR / LOOT_TOSS : itemVY(numItems) = SIN(bestA) * bestR / LOOT_TOSS
+        itemVX(numItems) = DCos(bestA) * bestR / LOOT_TOSS : itemVY(numItems) = DSin(bestA) * bestR / LOOT_TOSS
     END IF
 END SUB
 
@@ -11391,7 +11393,7 @@ FUNCTION TossReach(x, y, a)
     walkZ = FloorAt(x, y) : walkFromHaz = 10
     r = 0
     DO WHILE r < LOOT_REACH
-        IF NOT Walkable%(x + COS(a) * (r + 0.25), y + SIN(a) * (r + 0.25)) THEN EXIT DO ' (0.2 more: the pickup's own size)
+        IF NOT Walkable%(x + DCos(a) * (r + 0.25), y + DSin(a) * (r + 0.25)) THEN EXIT DO ' (0.2 more: the pickup's own size)
         r = r + 0.05
     LOOP
     walkZ = oldZ : walkFromHaz = oldHaz
@@ -11677,7 +11679,7 @@ END FUNCTION
 ' from where it stands and how tall it is, as chapter 16 draws it
 FUNCTION WeakSpotHit(i, u, z)
     t = monsterType(i) : IF mtypeWS(t, 2) <= mtypeWS(t, 1) THEN EXIT FUNCTION
-    foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t) + mtypeBob(t) * SIN(lvFrame / 24 + i * 1.7) ' (by the frame clock, not TIMER: a headshot depends on it - a demo must get the same)
+    foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t) + mtypeBob(t) * DSin(lvFrame / 24 + i * 1.7) ' (by the frame clock, not TIMER: a headshot depends on it - a demo must get the same)
     v = (foot + mtypeScale(t) - z) / mtypeScale(t)
     WeakSpotHit = u >= mtypeWS(t, 1) AND u <= mtypeWS(t, 2) AND v >= mtypeWS(t, 3) AND v <= mtypeWS(t, 4)
 END FUNCTION
@@ -15477,7 +15479,7 @@ END FUNCTION
 ' is a line of constant x), there and back every a frames
 SUB CutterAt(ev, cx, cy, alongX)
     alongX = (evX1(ev) - evX0(ev)) >= (evY1(ev) - evY0(ev))
-    f = 0.5 - 0.5 * COS(evTimer(ev) * 6.2832 / evA(ev))
+    f = 0.5 - 0.5 * DCos(evTimer(ev) * 6.2832 / evA(ev))
     IF alongX THEN cx = evX0(ev) + 0.3 + (evX1(ev) - evX0(ev) + 0.4) * f : cy = (evY0(ev) + evY1(ev) + 1) / 2 ELSE cy = evY0(ev) + 0.3 + (evY1(ev) - evY0(ev) + 0.4) * f : cx = (evX0(ev) + evX1(ev) + 1) / 2
 END SUB
 
@@ -16238,6 +16240,58 @@ FUNCTION ConSound&(n$)
     ConSound& = s&
 END FUNCTION
 
+' The game's own SIN, COS, TAN and _ATAN2, for anything that changes the
+' game (not just how it looks). QB64's call the computer's maths library,
+' and Windows' gives a slightly different last digit now and then - enough,
+' added up over thousands of turns, to put a demo out of step. These use
+' only + - * /, which every computer does exactly alike (IEEE 754): a
+' quarter turn taken off (so what's left is within 45 degrees), then the
+' Taylor series - the same few terms every time.
+FUNCTION DSin# (x)
+    d# = x : q& = INT(d# / 1.5707963267948966# + 0.5) : r# = d# - q& * 1.5707963267948966#
+    DSin# = SinCosQ#(r#, q&)
+END FUNCTION
+
+FUNCTION DCos# (x)
+    d# = x : q& = INT(d# / 1.5707963267948966# + 0.5) : r# = d# - q& * 1.5707963267948966#
+    DCos# = SinCosQ#(r#, q& + 1) ' (cos is sin a quarter turn on)
+END FUNCTION
+
+FUNCTION DTan# (x)
+    c# = DCos#(x) : IF c# = 0 THEN c# = 1E-300
+    DTan# = DSin#(x) / c#
+END FUNCTION
+
+' sin(r + q quarter turns), r within 45 degrees of 0
+FUNCTION SinCosQ# (r#, q&)
+    r2# = r# * r#
+    s# = r# * (1 - r2# / 6 * (1 - r2# / 20 * (1 - r2# / 42 * (1 - r2# / 72 * (1 - r2# / 110 * (1 - r2# / 156))))))
+    c# = 1 - r2# / 2 * (1 - r2# / 12 * (1 - r2# / 30 * (1 - r2# / 56 * (1 - r2# / 90 * (1 - r2# / 132)))))
+    SELECT CASE q& AND 3
+        CASE 0 : SinCosQ# = s#
+        CASE 1 : SinCosQ# = c#
+        CASE 2 : SinCosQ# = -s#
+        CASE ELSE : SinCosQ# = -c#
+    END SELECT
+END FUNCTION
+
+' The angle of (x, y), as _ATAN2(y, x): the arctangent of the smaller over
+' the larger (so 0 to 1), brought under tan(22.5 degrees) by taking off 45,
+' then its series; then put in the right eighth of the circle
+FUNCTION DAtan2# (y, x)
+    ay# = ABS(y) : ax# = ABS(x)
+    IF ax# = 0 AND ay# = 0 THEN EXIT FUNCTION
+    IF ay# > ax# THEN t# = ax# / ay# : sw = -1 ELSE t# = ay# / ax# : sw = 0
+    o# = 0 : IF t# > 0.41421356237309503# THEN t# = (t# - 1) / (t# + 1) : o# = 0.78539816339744828#
+    t2# = t# * t# : a# = 0
+    FOR n = 33 TO 1 STEP -2 : a# = 1 / n - t2# * a# : NEXT
+    a# = o# + t# * a#
+    IF sw THEN a# = 1.5707963267948966# - a#
+    IF x < 0 THEN a# = 3.141592653589793# - a#
+    IF y < 0 THEN a# = -a#
+    DAtan2# = a#
+END FUNCTION
+
 ' The game's own dice: a number from 0 up to (not including) 1, as RND -
 ' but for everything that changes the game (loot, damage, which monster),
 ' so a demo, starting them at its seed, rolls the same. It's the "minimal
@@ -16437,6 +16491,23 @@ FUNCTION DemoBits&(t$)
 END FUNCTION
 
 ' Word n of a demo line (as ConWord$, but keeping its case: k and K differ)
+' Two of a demo's checks (frame x y height health kills...) the same? The
+' place may be a thousandth off: a place exactly half way between two
+' thousandths rounds up on one computer and down on another (CLNG) - so
+' x, y and height may differ by 1, everything else must match exactly
+FUNCTION DemoSame(a$, b$)
+    FOR k = 1 TO 12
+        wa$ = DemoWord$(a$, k) : wb$ = DemoWord$(b$, k)
+        IF wa$ = "" AND wb$ = "" THEN EXIT FOR
+        IF k >= 2 AND k <= 4 THEN
+            IF ABS(VAL(wa$) - VAL(wb$)) > 1 THEN EXIT FUNCTION
+        ELSEIF wa$ <> wb$ THEN
+            EXIT FUNCTION
+        END IF
+    NEXT
+    DemoSame = -1
+END FUNCTION
+
 FUNCTION DemoWord$(c$, n)
     t$ = LTRIM$(RTRIM$(c$)) : w = 0
     DO WHILE LEN(t$)
@@ -20305,7 +20376,7 @@ SUB DroidPlan(i)
     END IF
     FOR try = 1 TO 8
         a = DRnd * 6.2832 : d = 1.2 + DRnd * 4.5
-        tx = x + COS(a) * d : ty = y + SIN(a) * d
+        tx = x + DCos(a) * d : ty = y + DSin(a) * d
         IF DroidLine(i, x, y, tx, ty, z) THEN
             droidTX(i) = tx : droidTY(i) = ty : droidState(i) = 1 : droidTimer(i) = INT(d / DROID_SPEED * 1.6) + 60 : EXIT SUB
         END IF
@@ -20327,7 +20398,7 @@ SUB UpdateDroids(px, py)
             _CONTINUE
         END IF
         IF (px - x) ^ 2 + (py - y) ^ 2 < 1.4 AND droidState(i) <> 3 THEN ' You: out of the way!
-            droidState(i) = 3 : droidTimer(i) = 35 + INT(DRnd * 20) : droidA(i) = _ATAN2(y - py, x - px) + (DRnd - 0.5) * 1.2
+            droidState(i) = 3 : droidTimer(i) = 35 + INT(DRnd * 20) : droidA(i) = DAtan2(y - py, x - px) + (DRnd - 0.5) * 1.2
             SfxAt sndDroid&(3), x, y, px, py
         END IF
         droidTimer(i) = droidTimer(i) - 1
@@ -20338,15 +20409,15 @@ SUB UpdateDroids(px, py)
                 dx = droidTX(i) - x : dy = droidTY(i) - y : d = SQR(dx * dx + dy * dy)
                 IF d < 0.06 THEN
                     droidState(i) = 2 : droidTimer(i) = 90 + INT(DRnd * 200)
-                    IF droidWork(i) THEN droidA(i) = _ATAN2(decoY(droidWork(i)) - y, decoX(droidWork(i)) - x)
+                    IF droidWork(i) THEN droidA(i) = DAtan2(decoY(droidWork(i)) - y, decoX(droidWork(i)) - x)
                 ELSE
-                    a = _ATAN2(dy, dx) - droidA(i)
+                    a = DAtan2(dy, dx) - droidA(i)
                     DO WHILE a > 3.14159265 : a = a - 6.2831853 : LOOP
                     DO WHILE a < -3.14159265 : a = a + 6.2831853 : LOOP
                     droidA(i) = droidA(i) + MaxOf(-0.12, MinOf(0.12, a))
                     IF ABS(a) < 0.5 THEN
                         spd = MinOf(d, DROID_SPEED * (1.15 - 0.3 * (droidKind(i) = 2) * -1))
-                        nx = x + COS(droidA(i)) * spd : ny = y + SIN(droidA(i)) * spd
+                        nx = x + DCos(droidA(i)) * spd : ny = y + DSin(droidA(i)) * spd
                         IF DroidCanGo(i, nx, ny, droidZ(i)) THEN droidX(i) = nx : droidY(i) = ny ELSE droidState(i) = 0 : droidTimer(i) = 15 + INT(DRnd * 30)
                     END IF
                     IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 10
@@ -20366,7 +20437,7 @@ SUB UpdateDroids(px, py)
                 END IF
                 IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 10 + INT(DRnd * 50)
             CASE 3
-                nx = x + COS(droidA(i)) * DROID_SPEED * 2.4 : ny = y + SIN(droidA(i)) * DROID_SPEED * 2.4
+                nx = x + DCos(droidA(i)) * DROID_SPEED * 2.4 : ny = y + DSin(droidA(i)) * DROID_SPEED * 2.4
                 IF DroidCanGo(i, nx, ny, droidZ(i)) THEN droidX(i) = nx : droidY(i) = ny ELSE droidA(i) = droidA(i) + (DRnd - 0.5) * 2.5
                 IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 20
         END SELECT
@@ -20382,7 +20453,7 @@ SUB HitDroid(i, dmg, px, py)
     SpawnSparks droidX(i), droidY(i), 0.2, 8, 200, 230, 255
     IF droidHP(i) > 0 THEN
         SfxAt sndDroid&(3), droidX(i), droidY(i), px, py
-        droidState(i) = 3 : droidTimer(i) = 50 : droidA(i) = _ATAN2(droidY(i) - py, droidX(i) - px) + (DRnd - 0.5) * 1.5 ' (it runs for it)
+        droidState(i) = 3 : droidTimer(i) = 50 : droidA(i) = DAtan2(droidY(i) - py, droidX(i) - px) + (DRnd - 0.5) * 1.5 ' (it runs for it)
     ELSE
         droidHP(i) = 0 : droidState(i) = 9
         SfxAt sndDroidBreak&, droidX(i), droidY(i), px, py
@@ -21067,7 +21138,7 @@ FUNCTION DemoLength&(f$)
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
     DO WHILE NOT EOF(fh)
         LINE INPUT #fh, l$
-        IF LEFT$(l$, 2) = "e " THEN DemoLength& = VAL(MID$(l$, 3))
+        IF LEFT$(l$, 2) = "e " THEN DemoLength& = VAL(DemoWord$(l$, 2)) ' (its first number: VAL alone would run them all together - it skips spaces)
     LOOP
     CLOSE #fh
 END FUNCTION

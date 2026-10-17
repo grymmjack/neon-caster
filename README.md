@@ -104,10 +104,13 @@ STEAM library in QB64_GJ_LIB. Until the game is on Steam they're kept in
 it - every key and turn, frame by frame, not a video - till Ctrl+R again
 or the exit. **DEMO REPLAYS** in the main menu plays it back exactly: the
 same monsters, shots and loot. (In the console: `record NAME`, `playdemo
-NAME`.) `bot` hands the controls to an autopilot that goes for the
-keycards and the exit, so it can make demos on its own - `playdemo
-sector1` to `sector10` watch it play the original ten. See
-`neon-caster/TUTORIAL.md`.
+NAME`.) `bot` hands the controls to an autopilot that plays like
+someone new to the sector - exploring, fighting what it notices, missing
+now and then - so it can make demos on its own: `playdemo sector1` to
+`sector10` watch it play the original ten, to the exit or till it dies.
+Leave the title screen alone for 15 seconds and they play by themselves.
+Every sector also has a few service droids going about their business.
+See `neon-caster/TUTORIAL.md`.
 
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting
 at once. OLDSCHOOL is chunky pixels with no effects, 90S is 720P with

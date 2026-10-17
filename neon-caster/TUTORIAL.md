@@ -114,7 +114,9 @@ health (a pit or a death trap still kills).
 `playdemo NAME quit` ends the game when the demo does, with exit code 3 if
 it went out of step - a test that a sector still plays the same. Ten come
 with the game: `playdemo sector1` to `playdemo sector10` watch the
-autopilot play the original ten, start to exit.
+autopilot play the original ten, to the exit or till it dies (recorded
+in OpenGL with LOOK UP / DOWN on - in OpenGL you see its aim go high
+and low).
 
 ```
 ./neon-caster.run +map 3 +record three +bot on
