@@ -100,6 +100,12 @@ the same loot - in either renderer. `demos` lists them; they're small text
 files in `neon-caster/saves/demos/`. `bot` turns on the autopilot, which
 plays the sector itself (it goes for the keycards and the exit and shoots
 what it sees), so `record mine` then `bot` makes a demo with no hands.
+`bot human 0-100` sets how human it plays (60 to start): slower, eased
+turns, aim that drifts, a beat before it fires at something it's just
+seen, bursts instead of a held trigger, and now and then a pause to look
+round. `bot safe` (on to start) gives it buddha mode, which `buddha` in
+the console turns on for you too: you're hurt as ever, but never below 1
+health (a pit or a death trap still kills).
 `playdemo NAME quit` ends the game when the demo does, with exit code 3 if
 it went out of step - a test that a sector still plays the same. Ten come
 with the game: `playdemo sector1` to `playdemo sector10` watch the

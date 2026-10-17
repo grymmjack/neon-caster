@@ -177,6 +177,7 @@ DIM SHARED grSeed AS DOUBLE ' (the game's own dice: GRnd - where they've got to)
 ' written down as they're played - or read back in their place
 DIM SHARED demoRec AS INTEGER, demoPlay AS INTEGER, demoFH AS INTEGER, demoFrame AS LONG, demoName$, demoQuit AS INTEGER
 DIM SHARED demoPend$, demoPendN AS LONG, demoLeft AS LONG, demoBack$, demoFovQ AS LONG, demoLook AS INTEGER
+DIM SHARED conSession AS INTEGER, conReplay AS INTEGER, conTick AS LONG, conRTick AS LONG, conRKey AS LONG, conRType AS INTEGER, conRLine$ ' (the console in a demo: its keys, typed again at their ticks)
 DIM SHARED demoRecQuit AS INTEGER, demoTrace AS INTEGER, demoDebug AS INTEGER, demoBad AS LONG, demoBadAt AS LONG, demoInject AS INTEGER, demoKind$, demoRes AS LONG
 DIM SHARED inBits AS LONG, inTU AS LONG, inPU AS LONG, inWheel AS INTEGER, lookAim AS INTEGER, lvFrame AS LONG, deadTicks AS LONG
 CONST DB_FWD = 1, DB_BACK = 2, DB_LEFT = 4, DB_RIGHT = 8, DB_RUN = 16, DB_FIRE = 32, DB_USE = 64, DB_AIM = 128, DB_KICK = 256
@@ -232,6 +233,10 @@ CONST BOT_FAR = 32000
 DIM SHARED botOn AS INTEGER, botDist(MAP_SIZE, MAP_SIZE) AS INTEGER, botBlock(MAP_SIZE, MAP_SIZE) AS LONG, botSeen(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED botQ(MAP_SIZE * MAP_SIZE) AS LONG, botQT AS LONG, botTurn AS SINGLE, botMode AS INTEGER, botNX AS INTEGER, botNY AS INTEGER
 DIM SHARED botDeaths AS INTEGER, botWasDead AS INTEGER, botLastX AS SINGLE, botLastY AS SINGLE, botCheckAt AS LONG, botStuck AS INTEGER
+DIM SHARED botPathX(16) AS INTEGER, botPathY(16) AS INTEGER, botPathN AS INTEGER ' (the way ahead, up to 12 cells: it heads straight for the furthest it can walk to in a line)
+DIM SHARED botHuman AS INTEGER, botSafe AS INTEGER, buddhaMode AS INTEGER, botTurnMax AS SINGLE, botTurnK AS SINGLE ' (bot human 0-100: how human it plays; bot safe: buddha - hurt, but never below 1 health)
+DIM SHARED botAimErr AS SINGLE, botReactAt AS LONG, botLastTarget AS INTEGER, botBurstOn AS INTEGER, botBurstAt AS LONG, botStrafeDir AS INTEGER, botStrafeAt AS LONG, botPauseUntil AS LONG
+botHuman = 60 : botSafe = -1 : botTurnMax = 0.12 : botTurnK = 0.5 : botStrafeDir = 1 ' (the autopilot: fairly human, and it doesn't die)
 ' Doors: how far open (0 shut .. 1 open), which keycard opens it (0 any,
 ' 1 red, 2 blue, 3 yellow), and what kind it is (DOOR_ constants below)
 DIM SHARED doorOpen(MAP_SIZE, MAP_SIZE) AS SINGLE
@@ -3955,6 +3960,7 @@ hurtFromX = -1
 absorbed = damage \ 3 : IF absorbed > armor THEN absorbed = armor
 armor = armor - absorbed : damage = damage - absorbed
 health = health - damage : hurtFlash = 14 : shake = shake + damage / 2
+IF buddhaMode AND health < 1 AND damage < 999 THEN health = 1 ' (buddha: it hurts as ever - but stops at 1. Not a pit, or a death trap: those are 999)
 IF damage > 0 THEN achLevelHurt = -1
 ' The edges, in what hurt you: a shock's blue, else the caller's colour
 ' (hurtR/G/B) - or blood. The harder the hit, the stronger.
@@ -6752,6 +6758,9 @@ DO
             IF NOT demoPlay THEN RETURN ' (it ended the demo)
         CASE "k "
             GOSUB DemoCheck
+        CASE "o", "o " ' The console, opened while recording: typed in again, key by key
+            conReplay = -1 : demoInject = -1 : GOSUB RunConsole : conReplay = 0 : demoInject = 0
+            IF NOT demoPlay THEN RETURN
         CASE "e "
             GOSUB DemoEnded : RETURN
         CASE "p ", "a ", "r "
@@ -6977,6 +6986,14 @@ IF botWasDead THEN
     IF botDeaths >= 3 AND NOT godMode THEN conCmd$ = "god on" : GOSUB ConExec : ConPrint "bot: dead three times - god mode on"
 END IF
 bcx = INT(playerX) : bcy = INT(playerY)
+bh = botHuman / 100 ' How human (bot human): turns slower and eased, aim that drifts, a beat before it fires at what it's just seen, bursts not a held trigger, now and then a pause
+botTurnMax = 0.12 - 0.055 * bh : botTurnK = 0.5 - 0.3 * bh
+botAimErr = botAimErr * 0.96 + (RND - 0.5) * 0.012 * bh : botAimErr = MaxOf(-0.07 * bh, MinOf(0.07 * bh, botAimErr))
+IF lvFrame >= botBurstAt THEN
+    botBurstOn = NOT botBurstOn
+    IF botBurstOn THEN botBurstAt = lvFrame + 10 + INT(RND * 35) ELSE botBurstAt = lvFrame + INT((3 + RND * 14) * bh)
+END IF
+IF lvFrame >= botStrafeAt THEN botStrafeDir = -botStrafeDir : botStrafeAt = lvFrame + 45 + INT((RND - 0.5) * 60 * bh)
 IF lvFrame >= botStallAt THEN ' Not moved in two seconds, whatever it's doing - three times running, and something's wrong: what it's shooting at is left alone a while, the way ahead's out
     IF (playerX - botStallX) ^ 2 + (playerY - botStallY) ^ 2 < 0.01 AND liftCell(bcx, bcy) = 0 THEN botStallN = botStallN + 1 ELSE botStallN = 0
     IF botStallN >= 3 THEN
@@ -7017,15 +7034,17 @@ IF bt AND health < 35 AND NOT godMode AND botMode = 3 THEN ' Badly hurt, and a m
     ba = BotTurnTo(monsterX(bt), monsterY(bt), playerX, playerY, dirX, dirY) : IF ABS(ba) < 0.08 AND bAmmo THEN inBits = inBits OR DB_FIRE ' (its turn: the way it goes overrides it, below)
     bt = 0
 END IF
+IF bt <> botLastTarget THEN botLastTarget = bt : botReactAt = lvFrame + INT(bh * (8 + RND * 20)) ' (a new one: a moment to react)
 IF bt THEN
-    ba = BotTurnTo(monsterX(bt), monsterY(bt), playerX, playerY, dirX, dirY)
-    IF ABS(ba) < MinOf(0.12, ATN(0.3 / MaxOf(0.5, bbd))) + 0.02 THEN
-        IF bAmmo THEN inBits = inBits OR DB_FIRE
+    bmx = monsterX(bt) - playerX : bmy = monsterY(bt) - playerY ' (aimed a little off, by botAimErr - across the line to it)
+    ba = BotTurnTo(monsterX(bt) - bmy * botAimErr, monsterY(bt) + bmx * botAimErr, playerX, playerY, dirX, dirY)
+    IF ABS(ba) < MinOf(0.12, ATN(0.3 / MaxOf(0.5, bbd))) + 0.02 AND lvFrame >= botReactAt THEN
+        IF bAmmo AND (botBurstOn OR bh = 0) THEN inBits = inBits OR DB_FIRE
         IF bbd < 1.3 AND kickTimer = 0 THEN inBits = inBits OR DB_KICK
     END IF
     IF bbd < 2.5 AND bAmmo THEN inBits = inBits OR DB_BACK ' (out of reach of its claws)
     IF bAmmo AND bbd > 2 THEN ' (side to side as it shoots - harder to hit - but only onto floor it could step to: no pit, ledge or fire)
-        bsd = 1 : IF (lvFrame \ 45) MOD 2 THEN bsd = -1
+        bsd = botStrafeDir
         bx = INT(playerX - dirY * bsd * 0.7) : by = INT(playerY + dirX * bsd * 0.7)
         IF (bx = bcx AND by = bcy) OR BotStep(bcx, bcy, bx, by, 0) THEN
             IF bsd = 1 THEN inBits = inBits OR DB_RIGHT ELSE inBits = inBits OR DB_LEFT
@@ -7058,9 +7077,21 @@ IF worldMap(botNX, botNY) = 2 AND doorOpen(botNX, botNY) < 0.8 THEN
     botCheckAt = lvFrame + 60
     RETURN
 END IF
-ba = BotTurnTo(botNX + 0.5, botNY + 0.5, playerX, playerY, dirX, dirY)
-IF ABS(ba) < 0.7 THEN inBits = inBits OR DB_FWD
-IF ABS(ba) < 0.35 AND botDist(bcx, bcy) > 4 THEN inBits = inBits OR DB_RUN
+' Where to head: the furthest cell of the way ahead it can walk to in a
+' straight line (BotLineClear) - so it goes across a room, or down a
+' diagonal, as a line, not cell by cell in steps
+btx = botNX + 0.5 : bty = botNY + 0.5
+FOR bk = botPathN TO 2 STEP -1
+    IF BotLineClear(playerX, playerY, botPathX(bk) + 0.5, botPathY(bk) + 0.5, bpass) THEN btx = botPathX(bk) + 0.5 : bty = botPathY(bk) + 0.5 : EXIT FOR
+NEXT
+ba = BotTurnTo(btx, bty, playerX, playerY, dirX, dirY)
+IF bh > 0 AND lvFrame >= botPauseUntil AND RND < 0.0012 * bh AND botDist(bcx, bcy) > 3 THEN botPauseUntil = lvFrame + 15 + INT(RND * 50) ' (now and then, a moment's pause - a look round)
+IF lvFrame < botPauseUntil THEN
+    botTurn = 0.025 * SIN(lvFrame / 9) : botCheckAt = lvFrame + 60 : botStallAt = lvFrame + 120
+ELSE
+    IF ABS(ba) < 0.7 THEN inBits = inBits OR DB_FWD
+    IF ABS(ba) < 0.35 AND botDist(bcx, bcy) > 4 AND (bh < 0.5 OR (lvFrame \ 200) MOD 3 > 0) THEN inBits = inBits OR DB_RUN ' (human: not always running)
+END IF
 IF INT(playerX) = botNX AND INT(playerY) = botNY THEN GOSUB BotPlan ' (there: the next one)
 ' Stuck? Every second: not a quarter of a cell further (and not riding a lift)
 IF lvFrame >= botCheckAt THEN
@@ -7166,6 +7197,21 @@ FOR bk = 0 TO 3
     IF botDist(bx, by) < bb THEN IF BotStep(bcx, bcy, bx, by, bpass) THEN bb = botDist(bx, by) : botNX = bx : botNY = by
 NEXT
 IF botNX = 0 AND botDist(bcx, bcy) > 0 THEN botMode = 0
+' The way ahead (botPath): downhill through the field from here, up to 12
+' cells - stopping at a door, a pad, a lift or the goal (those it walks to
+' squarely)
+botPathN = 0 : bpx = bcx : bpy = bcy
+DO WHILE botPathN < 12 AND botMode > 0
+    bb = botDist(bpx, bpy) : bqx = 0
+    FOR bk = 0 TO 3
+        bx = bpx + (bk = 1) - (bk = 0) : by = bpy + (bk = 3) - (bk = 2)
+        IF botDist(bx, by) < bb THEN IF BotStep(bpx, bpy, bx, by, bpass) THEN bb = botDist(bx, by) : bqx = bx : bqy = by
+    NEXT
+    IF bqx = 0 THEN EXIT DO
+    botPathN = botPathN + 1 : botPathX(botPathN) = bqx : botPathY(botPathN) = bqy
+    IF worldMap(bqx, bqy) = 2 OR BotPadAt(bqx, bqy) OR liftCell(bqx, bqy) OR botDist(bqx, bqy) = 0 THEN EXIT DO
+    bpx = bqx : bpy = bqy
+LOOP
 RETURN
 
 BotClear: ' (every cell far, the queue empty - before the goals go in)
@@ -8456,10 +8502,19 @@ _KEYCLEAR
 conLine$ = "" : conDone = 0 : conBrowse = conHistN + 1
 conBackdrop& = _COPYIMAGE(0)
 IF conLogN = 0 THEN ConPrint "NEON-CASTER console - type help for the commands"
+' A demo: recording, the console's opening and every key into it, each at
+' its tick (60 a second, as you typed) - so a demo shows the typing as well
+' as what it did. Playing one back (conReplay), those keys again, at the
+' same ticks: the same lines typed, the same commands run, and their answers.
+conSession = -1 : conTick = 0
+IF demoRec AND NOT conReplay THEN GOSUB DemoFlush : DemoPut "o"
+IF conReplay THEN GOSUB ConReplayNext
 DO
     _LIMIT 60
-    k& = _KEYHIT
+    conTick = conTick + 1
+    IF conReplay THEN GOSUB ConReplayKey ELSE k& = _KEYHIT
     DO WHILE k& <> 0 AND NOT conDone
+        IF demoRec AND NOT conReplay AND k& > 0 AND k& <> 18432 AND k& <> 20480 AND k& <> 9 THEN DemoPut "t" + STR$(conTick) + STR$(k&) ' (Up, Down and Tab: the line they give, below)
         SELECT CASE k&
             CASE 96, 126, 27 ' ` ~ Esc: close
                 conDone = -1
@@ -8492,7 +8547,8 @@ DO
             CASE 32 TO 125
                 IF LEN(conLine$) < 90 THEN conLine$ = conLine$ + CHR$(k&)
         END SELECT
-        k& = _KEYHIT
+        IF demoRec AND NOT conReplay AND (k& = 18432 OR k& = 20480 OR k& = 9) THEN DemoPut "l" + STR$(conTick) + " " + conLine$ ' (a line from your history - which someone watching hasn't got - or finished by Tab: the line itself)
+        IF conReplay THEN k& = 0 ELSE k& = _KEYHIT
     LOOP
     IF conDone THEN EXIT DO
     CLS , _RGBA32(0, 0, 0, 0)
@@ -8503,9 +8559,42 @@ DO
     ShowFrame
 LOOP
 _FREEIMAGE conBackdrop&
+IF demoRec AND NOT conReplay THEN DemoPut "q" + STR$(conTick)
+conSession = 0
 _KEYCLEAR
 WHILE _MOUSEINPUT : WEND
 escWas = -1 : conKeyWas = -1 : fireWait = 10 ' (so the key that closed it does nothing else)
+RETURN
+
+' --- Playing a demo back, its console: the next key it recorded, if its
+' tick has come (k&) - or a whole line (l: from history, or Tab), or the
+' end (q). Your own keys are put aside meanwhile.
+ConReplayKey:
+k& = 0
+WHILE _KEYHIT : WEND
+IF NOT demoPlay THEN conDone = -1 : RETURN ' (the demo ended in here: so does the console)
+IF conRType = 0 OR conRTick > conTick THEN RETURN
+SELECT CASE conRType
+    CASE 1 : k& = conRKey
+    CASE 2 : conLine$ = conRLine$
+    CASE 3 : conDone = -1 : RETURN
+END SELECT
+GOSUB ConReplayNext
+RETURN
+
+' --- The demo's next console line: t TICK KEY, l TICK LINE, q TICK (conRType
+' 1, 2, 3 - and 3 for anything else: the session's over, that line's put back)
+ConReplayNext:
+GOSUB DemoNextLine
+conRTick = VAL(DemoWord$(dl$, 2))
+SELECT CASE LEFT$(dl$, 2)
+    CASE "t " : conRType = 1 : conRKey = VAL(DemoWord$(dl$, 3))
+    CASE "l "
+        conRType = 2 : dq = INSTR(3, dl$, " ") ' (the line itself: after "l TICK ")
+        IF dq THEN conRLine$ = MID$(dl$, dq + 1) ELSE conRLine$ = ""
+    CASE "q " : conRType = 3
+    CASE ELSE : conRType = 3 : conRTick = 0 : IF LEN(dl$) THEN demoBack$ = dl$
+END SELECT
 RETURN
 
 ' --- Run one console command, conCmd$ (from the console, the command line or
@@ -8520,14 +8609,14 @@ IF (demoRec OR demoPlay) AND NOT conFromTrig AND NOT demoInject THEN ' A demo go
     SELECT CASE DemoVerb%(conVerb$)
         CASE 1
             IF demoPlay THEN ConPrint "(a demo is playing - stopdemo first)" : RETURN
-            GOSUB DemoFlush : DemoPut "c " + conCmd$
+            IF NOT conSession THEN GOSUB DemoFlush : DemoPut "c " + conCmd$ ' (typed in the console: its keys are in the demo already, and run it again)
         CASE 2 ' (one that starts something else - a saved game, the editor: the demo ends here)
             GOSUB DemoStop
     END SELECT
 END IF
 IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
     SELECT CASE conVerb$
-        CASE "god", "noclip", "iddqd", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
+        CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
              "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters"
             IF NOT achCheat AND NOT achTest THEN ConPrint "(cheats on: achievements wait for a new game)"
             achCheat = -1
@@ -8723,6 +8812,9 @@ SELECT CASE conVerb$
         IF conA$ = "" THEN godMode = NOT godMode ELSE godMode = ConOn(conA$)
         flyMode = godMode : noTarget = godMode
         IF godMode THEN ConPrint "God mode ON (no damage, no clipping, flying - E up, C down - and notarget)" ELSE ConPrint "God mode OFF"
+    CASE "buddha" ' Buddha: you're hurt as ever, but never below 1 health (a pit or a death trap still kills)
+        IF conA$ = "" THEN buddhaMode = NOT buddhaMode ELSE buddhaMode = ConOn(conA$)
+        IF buddhaMode THEN ConPrint "Buddha ON (hurt, but never below 1 health)" ELSE ConPrint "Buddha OFF"
     CASE "fly" ' Fly: E up, C down (Shift faster) - no falling
         IF conA$ = "" THEN flyMode = NOT flyMode ELSE flyMode = ConOn(conA$)
         IF flyMode THEN ConPrint "Fly ON (E up, C down)" ELSE ConPrint "Fly OFF"
@@ -9052,8 +9144,21 @@ SELECT CASE conVerb$
             IF demoRec OR demoPlay THEN GOSUB DemoStop
             demoQuit = (LCASE$(DemoWord$(conRest$, 2)) = "quit") : demoName$ = dn$ : GOSUB DemoPlayStart : conLevelChanged = -1
         END IF
-    CASE "bot", "autopilot" ' bot [on|off]: the autopilot plays (BotThink) - record a demo while it does
+    CASE "bot", "autopilot" ' bot [on|off]: the autopilot plays (BotThink) - record a demo while it does. bot human 0-100: how human it plays. bot safe on|off: buddha with it
+        IF conA$ = "human" THEN
+            IF conB$ <> "" THEN botHuman = MaxOf(0, MinOf(100, VAL(conB$)))
+            ConPrint "bot human" + STR$(botHuman) + " (0: a machine - 100: slow to turn, slow to react, misses some)"
+            RETURN
+        ELSEIF conA$ = "safe" THEN
+            IF conB$ <> "" THEN botSafe = ConOn(conB$) ELSE botSafe = NOT botSafe
+            IF botSafe THEN ConPrint "bot safe ON: with the autopilot on, buddha - it's hurt, but never below 1 health" ELSE ConPrint "bot safe OFF: it can die (three times, and it turns god mode on)"
+            RETURN
+        END IF
         IF conA$ = "" THEN botOn = NOT botOn ELSE botOn = ConOn(conA$)
+        IF botOn AND botSafe AND NOT buddhaMode THEN ' (safe: buddha on - and into a demo being made, for all to see)
+            buddhaMode = -1 : ConPrint "Buddha ON (hurt, but never below 1 health)"
+            IF demoRec THEN GOSUB DemoFlush : DemoPut "c buddha on"
+        END IF
         IF botOn THEN
             achCheat = -1 : botDeaths = 0 : botWasDead = 0 : botNX = 0 : botStuck = 0 : botCheckAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0
             FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : NEXT
@@ -15919,13 +16024,35 @@ FUNCTION BotStep(ax, ay, bx, by, haz)
     BotStep = -1
 END FUNCTION
 
-' The autopilot, at (px, py) facing (dx, dy), turns towards point (x, y): botTurn, at most 0.12 a frame
-' (about 7 degrees) - and how far off it still is, in radians (- left)
+' Can the autopilot walk from (x0, y0) to (x1, y1) in a straight line? Along
+' it - and along two lines either side, a body's width apart, so it
+' doesn't clip a corner - each cell it crosses into must be a step it may
+' take (BotStep: a wall, a ledge too high, a pit, fire...)
+FUNCTION BotLineClear(x0, y0, x1, y1, haz)
+    dx = x1 - x0 : dy = y1 - y0 : d = SQR(dx * dx + dy * dy)
+    IF d < 0.05 THEN BotLineClear = -1 : EXIT FUNCTION
+    ox = -dy / d * 0.34 : oy = dx / d * 0.34 : n = INT(d / 0.1) + 1
+    FOR side = -1 TO 1
+        cx = INT(x0 + ox * side) : cy = INT(y0 + oy * side)
+        FOR i = 1 TO n
+            sx = x0 + ox * side + dx * i / n : sy = y0 + oy * side + dy * i / n
+            IF INT(sx) <> cx OR INT(sy) <> cy THEN
+                IF NOT BotStep(cx, cy, INT(sx), INT(sy), haz) THEN EXIT FUNCTION
+                cx = INT(sx) : cy = INT(sy)
+            END IF
+        NEXT
+    NEXT
+    BotLineClear = -1
+END FUNCTION
+
+' The autopilot, at (px, py) facing (dx, dy), turns towards point (x, y):
+' botTurn - half the way there (botTurnK), at most botTurnMax a frame
+' (0.12: about 7 degrees) - and how far off it still is, in radians (- left)
 FUNCTION BotTurnTo(x, y, px, py, dx, dy)
     a = _ATAN2(y - py, x - px) - _ATAN2(dy, dx)
     DO WHILE a > 3.14159265 : a = a - 6.2831853 : LOOP
     DO WHILE a < -3.14159265 : a = a + 6.2831853 : LOOP
-    botTurn = MaxOf(-0.12, MinOf(0.12, a * 0.5))
+    botTurn = MaxOf(-botTurnMax, MinOf(botTurnMax, a * botTurnK)) ' (how fast it turns: bot human slows it, and eases it)
     BotTurnTo = a
 END FUNCTION
 
@@ -15995,7 +16122,7 @@ END FUNCTION
 ' ends), 0 neither (a screenshot, a setting, a look round)
 FUNCTION DemoVerb%(v$)
     SELECT CASE v$
-        CASE "god", "noclip", "iddqd", "fly", "notarget", "give", "take", "kill", "killall", "spawn", "summon", "item", "drop", _
+        CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "take", "kill", "killall", "spawn", "summon", "item", "drop", _
              "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "blocks", _
              "liquid", "liquids", "flood", "raise", "lift", "liftgo", "map", "level", "sector", "sectorset", "campaign", "set10", _
              "jackin", "jackout", "respawn", "lamp", "light", "trigger", "restart", "reset", "resetlevel", "die", "suicide", "kick", "program", "loot"
@@ -16096,7 +16223,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god fly notarget kill respawn record playdemo stopdemo demos bot summon spawn item mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
+    ConNames$ = "help version qb64pe newsector sectorname edit hud monsters puzzle put box raise lift lamp liftgo trigger triggers door message sound wall light undo savelevel kick fire use jackin jackout stations cores cutscene say map maps restart newgame finish give god buddha fly notarget kill respawn record playdemo stopdemo demos bot summon spawn item mons take die tp pos save load quicksave quickload set get settings bind binds events screenshot wait echo exec logfile status clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail)
@@ -16141,7 +16268,8 @@ SUB ConHelp(c$)
             ConPrint "  armor overcharge amp...) or - for none: loot crate ammo:20 shells:20 - armor:10"
             ConPrint "loot BREAKABLE none: it leaves nothing   loot default: the game's own table again"
         CASE "die" : ConPrint "die [MESSAGE]: you die (a trigger's death trap); never in god mode or the editor"
-        CASE "bot" : ConPrint "bot [on|off]: the autopilot plays the sector - the exit, keycards, monsters in sight (record a demo of it)"
+        CASE "bot" : ConPrint "bot [on|off]: the autopilot plays the sector - the exit, keycards, monsters in sight (record a demo of it). bot human 0-100, bot safe on|off"
+        CASE "buddha" : ConPrint "buddha [on|off]: you're hurt as ever, but never below 1 health (a pit or a death trap still kills)"
         CASE "record" : ConPrint "record NAME [SEED] [quit]: this sector again from its start, recorded as a demo - every key, frame by frame - till the exit (or stopdemo)"
         CASE "playdemo" : ConPrint "playdemo NAME [quit]: a demo played back, exactly as it was played (quit: the game ends with it, for tests)"
         CASE "stopdemo" : ConPrint "stopdemo: stop recording (it's saved) or playing a demo"
