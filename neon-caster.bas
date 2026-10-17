@@ -8317,7 +8317,7 @@ FOR k = 1 TO lvlNumNudges
 NEXT
 ' Furniture stands flat, its back to its wall: a terminal, a console, a
 ' rack, a locker... with no way of its own set ([nudges]) faces away from
-' the wall beside it, as it would be built - it doesn't turn to follow you
+' the wall behind it, into the room, as it would be built - it doesn't turn to follow you
 ' round the room. Round things (barrels, lamps, plants, tanks) still do,
 ' and so does anything standing in the open, with no wall to have its back to.
 ' (Unless its [nudges] say otherwise: a way of its own, 1-4, or 5 - turning to face you.)
@@ -8325,13 +8325,13 @@ FOR i = 1 TO numDecos
     IF decoFace(i) = -1 THEN decoFace(i) = 0 : _CONTINUE
     IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|20|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
         x = INT(decoX(i)) : y = INT(decoY(i))
-        IF DecoWall(x - 1, y) THEN
+        IF DecoWall(x - 1, y) AND NOT DecoWall(x + 1, y) THEN ' (a wall behind it, and open floor in front)
             decoFace(i) = 1
-        ELSEIF DecoWall(x, y - 1) THEN
+        ELSEIF DecoWall(x, y - 1) AND NOT DecoWall(x, y + 1) THEN
             decoFace(i) = 2
-        ELSEIF DecoWall(x + 1, y) THEN
+        ELSEIF DecoWall(x + 1, y) AND NOT DecoWall(x - 1, y) THEN
             decoFace(i) = 3
-        ELSEIF DecoWall(x, y + 1) THEN
+        ELSEIF DecoWall(x, y + 1) AND NOT DecoWall(x, y - 1) THEN
             decoFace(i) = 4
         END IF
     END IF
