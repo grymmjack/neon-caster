@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 5: FOUNDRY - the autopilot (bot, human 60) playing it till it dies, recorded on a Mac in OpenGL with LOOK UP / DOWN, 0:35 - playdemo sector5
-version 0.2.0
+version 0.3.0
 set 0
 sector 5
 seed 1796429440

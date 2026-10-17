@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 9: ORBITAL SPIRE - the autopilot (bot, human 60) playing it till it dies, recorded on a Mac in OpenGL with LOOK UP / DOWN, 0:35 - playdemo sector9
-version 0.2.0
+version 0.3.0
 set 0
 sector 9
 seed 109976960

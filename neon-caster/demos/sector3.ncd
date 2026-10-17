@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 3: UNDERCITY - the autopilot (bot, human 60) playing it till it dies, recorded on a Mac in OpenGL with LOOK UP / DOWN, 1:34 - playdemo sector3
-version 0.2.0
+version 0.3.0
 set 0
 sector 3
 seed 208264576

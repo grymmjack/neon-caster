@@ -8,9 +8,10 @@ with lifts and pits, teleporters, data stations that turn the level into a
 neon network, code terminals that lock you in until you repair a real
 QB64 program, secret walls in every sector (and switches you shoot),
 vending machines that pay out or blow up, NEON PONG on the computers, a
-night vision headset, a villain who talks to you through a vocoder, sound placed
-around you, a minimap, music, a menu with settings, a console, saved
-games - and editors for its levels, its monsters and its HUD, inside the
+night vision headset, service droids going about their business, a
+villain who talks to you through a vocoder, sound placed around you, a
+minimap, music, a menu with settings, a console, saved games, DOOM-style
+demos with an autopilot that plays like a person - and editors for its levels, its monsters and its HUD, inside the
 game. It's built like Wolfenstein 3D, as a *raycaster*, and the
 source is written to be read: its comments are a course in how it all
 works, in 24 chapters, from opening a window to casting rays - and then
@@ -423,8 +424,9 @@ run it and see what happens. That's the fastest way to learn how it works.
   marks off the floor (`UpdateDroids`, `DroidPlan`). They roll by dice of
   their own (`DRnd`), so they never change what a monster does - and go
   the same way in a demo. `droids` in the console says where they are.
-  Send them to the exit, make one follow you, or raise `MAX_DROIDS` and
-  the 3 in `PlaceDroids` for a busier station.
+  A level file's `droids = N` (0-6; `droids N` in the console) sets how
+  many a sector has. Send them to the exit, make one follow you, or raise
+  `MAX_DROIDS` for a busier station.
 - **Teach the thief new tricks** (ch. 13): `ThiefStep` decides what it
   grabs. Make it take keycards, or only shells. It runs home down
   `thiefDist`, a map of steps to the hoard worked out by `BuildThiefWay` -
@@ -585,7 +587,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster.bas` | the game and the course |
 | `neon-caster/*.png` | textures (64 x 64), sprites, the guns: the CLASSIC pixel art |
 | `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
-| `neon-caster/sfx/` | sound effects, made with soundmon; `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
+| `neon-caster/sfx/` | sound effects, made with soundmon (the droids' chirps are synthesized whistles); `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
 | `neon-caster/demos/` | demos that come with the game: `sector1.ncd` to `sector10.ncd`, the autopilot playing each of the original ten (`playdemo sector3`) - plain text, a line a frame |
 | `neon-caster/programs/` | programs the computers in a level can run (`program NAME` in a trigger): `invaders.bas`, NEON INVADERS - copy it and make your own |
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |

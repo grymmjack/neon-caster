@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 7: DATA VAULT - the autopilot (bot, human 60) playing it till it dies, recorded on a Mac in OpenGL with LOOK UP / DOWN, 1:03 - playdemo sector7
-version 0.2.0
+version 0.3.0
 set 0
 sector 7
 seed 1014421120

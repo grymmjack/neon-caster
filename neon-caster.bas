@@ -169,7 +169,7 @@
 ' keeps them in a file when there's no Steam, so they work anywhere.
 '$INCLUDE:'lib/steam/STEAM.BI'
 ' Which release this is (the create-release skill bumps it: major.minor.patch)
-CONST GAME_VERSION$ = "0.2.0"
+CONST GAME_VERSION$ = "0.3.0"
 _TITLE "NEON-CASTER " + GAME_VERSION$
 ON ERROR GOTO GameError ' (a runtime error: logged, and the game carries on - chapter 21)
 DIM SHARED grSeed AS DOUBLE ' (the game's own dice: GRnd - where they've got to)
