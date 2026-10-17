@@ -1319,7 +1319,7 @@ CONST SCR_DEMOS = 30, MA_DEMO = 14, MA_DEMOPAGE = 15, MA_STOPDEMO = 16 ' (DEMO R
 CONST MAX_DEMOLIST = 200
 DIM SHARED demoListN AS INTEGER, demoList$(MAX_DEMOLIST), demoListFile$(MAX_DEMOLIST), demoListInfo$(MAX_DEMOLIST), demoListPage AS INTEGER
 DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER
-DIM SHARED demoAttract AS INTEGER, demoAttractNext AS INTEGER, attractIdx AS INTEGER, attractQuit AS INTEGER, menuIdle AS LONG ' (attract mode: the title menu left alone ATTRACT_SECONDS - the demos play, one after another, till a key)
+DIM SHARED demoAttract AS INTEGER, demoAttractMenu AS INTEGER, attractPlayed$, attractQuit AS INTEGER, menuIdle AS LONG ' (attract mode: the title menu left alone ATTRACT_SECONDS - a demo plays, then the menu again; attractPlayed$: the ones that have, |name| each)
 CONST ATTRACT_SECONDS = 15 ' (a demo started from DEMO REPLAYS: when it's over, back to that list)
 CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11, MA_ACHIEVE = 12, MA_LINK = 13 ' (MA_LINK: its info$ is "NAME|address" - the name underlined, the address opened in the web browser)
 ' --- The console (` opens it, like Quake's; chapter 21): what's been
@@ -1697,7 +1697,7 @@ DO
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
     IF demoMenuWant THEN demoMenuWant = 0 : menuInGame = 0 : menuOpenDemos = -1 : GOSUB RunMenu ' (a demo from DEMO REPLAYS is over: the title menu, at that list)
-    IF demoAttractNext THEN demoAttractNext = 0 : GOSUB AttractStart ' (attract mode: one demo over - the next)
+    IF demoAttractMenu THEN demoAttractMenu = 0 : menuInGame = 0 : GOSUB RunMenu ' (attract mode: a demo over - the title menu again)
     IF demoAttract THEN ' (attract mode: a key, or a click - back to the title menu)
         IF _KEYHIT > 0 OR attractQuit THEN
             demoAttract = 0 : attractQuit = 0 : _KEYCLEAR
@@ -6897,24 +6897,30 @@ RETURN
 DemoDone:
 ApplySettings
 godMode = dWasGod : flyMode = dWasFly : noTarget = dWasNoT : buddhaMode = dWasBuddha ' (your own cheats back - a demo that turned god mode on doesn't leave it on)
-IF demoAttract THEN demoAttractNext = -1 : demoFromMenu = 0 ' (attract mode: the next demo)
+IF demoAttract THEN demoAttract = 0 : demoAttractMenu = -1 : demoFromMenu = 0 ' (attract mode: back to the title menu - left alone again, the next demo)
 IF demoFromMenu THEN demoFromMenu = 0 : demoMenuWant = -1 ' (watched from DEMO REPLAYS: back to the list - the game loop opens it)
 IF demoQuit THEN
     IF demoBad THEN SYSTEM 3 ELSE SYSTEM 0
 END IF
 RETURN
 
-' --- Attract mode: the next demo (DEMO REPLAYS' list, round and round) -
-' its first that plays, from attractIdx on
+' --- Attract mode: a demo it hasn't played yet - the first in DEMO REPLAYS'
+' list not in attractPlayed$ (so one recorded meanwhile has its turn too).
+' Every one played: from the top again.
 AttractStart:
 DemoListLoad
-FOR dTry = 1 TO demoListN
-    attractIdx = attractIdx MOD demoListN + 1
-    dFile$ = demoListFile$(attractIdx) : demoName$ = demoList$(attractIdx) : demoQuit = 0 : demoFromMenu = 0 : demoAttract = -1
-    GOSUB DemoPlayStart
-    IF demoPlay THEN RETURN
+FOR dTry = 1 TO 2
+    FOR dI = 1 TO demoListN
+        IF INSTR(attractPlayed$, "|" + LCASE$(demoList$(dI)) + "|") = 0 THEN
+            attractPlayed$ = attractPlayed$ + "|" + LCASE$(demoList$(dI)) + "|"
+            dFile$ = demoListFile$(dI) : demoName$ = demoList$(dI) : demoQuit = 0 : demoFromMenu = 0 : demoAttract = -1
+            GOSUB DemoPlayStart
+            IF demoPlay THEN RETURN
+        END IF
+    NEXT
+    attractPlayed$ = "" ' (all of them played - or none would: round again)
 NEXT
-demoAttract = 0 ' (none would play)
+demoAttract = 0
 RETURN
 
 ' --- What a demo starts from, recording or playing: this sector, new, as
@@ -7001,7 +7007,7 @@ RETURN
 '     steps to the nearest goal, out from the goals)
 '   - a closed door in the way: face it and press Space; at the exit, the same
 '   - stuck (not getting anywhere): that cell's out for a while, and a new way
-' Dead, it clicks to start again; dead three times, it turns god mode on.
+' Dead: recording a demo, the demo ends there; otherwise it clicks to start again.
 BotThink:
 GOSUB BotThinkRaw
 GOSUB BotHumanize
@@ -7043,15 +7049,18 @@ IF lvFrame < botFrameWas THEN ' (the sector started again - its clock back to 0:
     botTurnPrev = 0 : botTarget = 0 : botTargetSeen = 0 : botBackOn = 0 : botStrafeAt = 0 : botBurstAt = 0 : botPauseUntil = 0 : botReactAt = 0
 END IF
 botFrameWas = lvFrame
-IF dead THEN
+IF dead THEN ' Dead: recording, that's the end of the demo - two seconds on, so it's seen (as DOOM's often ended) - else it clicks to start again
     IF NOT botWasDead THEN botDeaths = botDeaths + 1 : botWasDead = -1
-    IF deadTicks > 80 AND (lvFrame MOD 20) = 0 THEN inBits = DB_FIRE ' (start again)
+    IF demoRec AND deadTicks >= 120 THEN
+        ConPrint "bot: died - the demo ends here"
+        GOSUB DemoStop
+        IF demoRecQuit THEN SYSTEM 0
+        RETURN
+    END IF
+    IF NOT demoRec AND deadTicks > 80 AND (lvFrame MOD 20) = 0 THEN inBits = DB_FIRE ' (start again)
     RETURN
 END IF
-IF botWasDead THEN
-    botWasDead = 0
-    IF botDeaths >= 3 AND NOT godMode THEN conCmd$ = "god on" : GOSUB ConExec : ConPrint "bot: dead three times - god mode on"
-END IF
+IF botWasDead THEN botWasDead = 0
 bcx = INT(playerX) : bcy = INT(playerY)
 bh = botHuman / 100 ' How human (bot human): turns slower and eased, aim that drifts, a beat before it fires at what it's just seen, bursts not a held trigger, now and then a pause
 botTurnMax = 0.27 : botTurnK = 0.35 ' (a flick: up to 15 degrees a frame - the human filter eases it in and out)
@@ -7367,7 +7376,7 @@ RETURN
 ' the last, the game's totals, and a new game)
 LevelDone:
 IF demoRec OR demoPlay THEN GOSUB DemoAtExit ' (a demo ends at the exit)
-IF demoMenuWant OR demoAttractNext THEN RETURN ' (one watched from DEMO REPLAYS, or attract mode's: no tally)
+IF demoMenuWant OR demoAttractMenu THEN RETURN ' (one watched from DEMO REPLAYS, or attract mode's: no tally)
 WorldLoopsOff
 PlaySfx sndExit&, 0.9
 levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
