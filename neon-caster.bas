@@ -235,8 +235,15 @@ DIM SHARED botQ(MAP_SIZE * MAP_SIZE) AS LONG, botQT AS LONG, botTurn AS SINGLE, 
 DIM SHARED botDeaths AS INTEGER, botWasDead AS INTEGER, botLastX AS SINGLE, botLastY AS SINGLE, botCheckAt AS LONG, botStuck AS INTEGER
 DIM SHARED botPathX(16) AS INTEGER, botPathY(16) AS INTEGER, botPathN AS INTEGER ' (the way ahead, up to 12 cells: it heads straight for the furthest it can walk to in a line)
 DIM SHARED botHuman AS INTEGER, botSafe AS INTEGER, buddhaMode AS INTEGER, botTurnMax AS SINGLE, botTurnK AS SINGLE ' (bot human 0-100: how human it plays; bot safe: buddha - hurt, but never below 1 health)
+DIM SHARED botKeyOn(5) AS INTEGER, botKeyOff(5) AS INTEGER, botDriftDir AS INTEGER, botDriftUntil AS LONG, botRunOn AS INTEGER, botRunAt AS LONG ' (how a person plays: measured from a real one)
+DIM SHARED botKeyState(5) AS INTEGER, botKeyAt(5) AS LONG, botTurnPrev AS SINGLE, botTargetSeen AS LONG, botBackOn AS INTEGER, botStrafeOK AS INTEGER ' (the human filter: each key's state and since when; the turn last frame)
 DIM SHARED botAimErr AS SINGLE, botReactAt AS LONG, botLastTarget AS INTEGER, botBurstOn AS INTEGER, botBurstAt AS LONG, botStrafeDir AS INTEGER, botStrafeAt AS LONG, botPauseUntil AS LONG
-botHuman = 60 : botSafe = -1 : botTurnMax = 0.12 : botTurnK = 0.5 : botStrafeDir = 1 ' (the autopilot: fairly human, and it doesn't die)
+botHuman = 60 : botSafe = 0 : botTurnMax = 0.12 : botTurnK = 0.5 : botStrafeDir = 1 ' (the autopilot: fairly human, and it doesn't die)
+' How a person presses the keys - measured from five minutes of Rick
+' playing sector 1 (a demo): the shortest a key's held (and let go) - the
+' quickest tenth of his - in frames, for forward, back, the strafes, run,
+' fire. A strafe's a quick dodge; fire's tapped (held 8, let go 5).
+FOR bk = 0 TO 5 : botKeyOn(bk) = VAL(MID$("14 14 10 10 22 06", bk * 3 + 1, 2)) : botKeyOff(bk) = VAL(MID$("11 14 15 15 22 03", bk * 3 + 1, 2)) : NEXT
 ' Doors: how far open (0 shut .. 1 open), which keycard opens it (0 any,
 ' 1 red, 2 blue, 3 yellow), and what kind it is (DOOR_ constants below)
 DIM SHARED doorOpen(MAP_SIZE, MAP_SIZE) AS SINGLE
@@ -1311,7 +1318,9 @@ CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15, SCR_CUSTOM2 = 16, SCR_SET
 CONST SCR_DEMOS = 30, MA_DEMO = 14, MA_DEMOPAGE = 15, MA_STOPDEMO = 16 ' (DEMO REPLAYS: the demos on disk - DemoListLoad - ten a page; Enter plays one)
 CONST MAX_DEMOLIST = 200
 DIM SHARED demoListN AS INTEGER, demoList$(MAX_DEMOLIST), demoListFile$(MAX_DEMOLIST), demoListInfo$(MAX_DEMOLIST), demoListPage AS INTEGER
-DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER ' (a demo started from DEMO REPLAYS: when it's over, back to that list)
+DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER
+DIM SHARED demoAttract AS INTEGER, demoAttractNext AS INTEGER, attractIdx AS INTEGER, attractQuit AS INTEGER, menuIdle AS LONG ' (attract mode: the title menu left alone ATTRACT_SECONDS - the demos play, one after another, till a key)
+CONST ATTRACT_SECONDS = 15 ' (a demo started from DEMO REPLAYS: when it's over, back to that list)
 CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11, MA_ACHIEVE = 12, MA_LINK = 13 ' (MA_LINK: its info$ is "NAME|address" - the name underlined, the address opened in the web browser)
 ' --- The console (` opens it, like Quake's; chapter 21): what's been
 ' printed (conLog$, the last CON_LOG lines), the line being typed, the
@@ -1688,6 +1697,14 @@ DO
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
     GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
     IF demoMenuWant THEN demoMenuWant = 0 : menuInGame = 0 : menuOpenDemos = -1 : GOSUB RunMenu ' (a demo from DEMO REPLAYS is over: the title menu, at that list)
+    IF demoAttractNext THEN demoAttractNext = 0 : GOSUB AttractStart ' (attract mode: one demo over - the next)
+    IF demoAttract THEN ' (attract mode: a key, or a click - back to the title menu)
+        IF _KEYHIT > 0 OR attractQuit THEN
+            demoAttract = 0 : attractQuit = 0 : _KEYCLEAR
+            IF demoPlay THEN GOSUB DemoStop
+            menuInGame = 0 : GOSUB RunMenu
+        END IF
+    END IF
     IF conWait > 0 THEN conWait = conWait - 1
     DO WHILE conWait = 0 AND conQHead < conQTail AND glShotReq = 0 ' (a screenshot asked for: the rest waits until it's saved)
         conQHead = conQHead + 1 : conCmd$ = conQ$(conQHead)
@@ -1776,6 +1793,7 @@ DO
         IF _MOUSEBUTTON(2) AND NOT edQ2 AND editMode AND editView = 1 AND NOT hudEdit THEN edClickR = -1
         edQ1 = _MOUSEBUTTON(1) : edQ2 = _MOUSEBUTTON(2)
     WEND
+    IF demoAttract AND (ABS(mouseDX) + ABS(mouseDY) > 3 OR clicked) THEN attractQuit = -1 ' (attract mode: the mouse moved - back to the menu, next frame)
     ' The 3D editor: the mouse is a pointer, free to point at anything (the
     ' face under it is picked - EditPick). Hold the right button to look
     ' round instead: the pointer is captured while you do (chapter 1). The
@@ -3857,7 +3875,7 @@ DO
     ' The sector timer (SECTOR TIMER): how long you've been in it, the
     ' clock green while you're inside your best and red once past it
     IF demoRec OR demoPlay THEN ' A demo going: REC (red) or DEMO (cyan), and how long, at the top right
-        IF demoRec THEN dh$ = "REC " ELSE dh$ = "DEMO "
+        IF demoRec THEN dh$ = "REC " ELSE dh$ = "DEMO " : IF demoAttract THEN dh$ = "ANY KEY: MENU   DEMO "
         dh$ = dh$ + TimeText$(demoFrame / 60) : IF demoPlay AND demoBad THEN dh$ = dh$ + "  OUT OF STEP"
         IF demoRec THEN dhc~& = _RGB32(255, 70, 80) ELSE dhc~& = _RGB32(90, 230, 255)
         IF demoRec AND (demoFrame \ 30) MOD 2 = 0 THEN FillCircle 784 - LEN(dh$) * 8 - 10, 66, 4, dhc~& ' (the red light, blinking)
@@ -6878,10 +6896,25 @@ RETURN
 ' --- After playing one: your own settings back - and with "quit", the end
 DemoDone:
 ApplySettings
+godMode = dWasGod : flyMode = dWasFly : noTarget = dWasNoT : buddhaMode = dWasBuddha ' (your own cheats back - a demo that turned god mode on doesn't leave it on)
+IF demoAttract THEN demoAttractNext = -1 : demoFromMenu = 0 ' (attract mode: the next demo)
 IF demoFromMenu THEN demoFromMenu = 0 : demoMenuWant = -1 ' (watched from DEMO REPLAYS: back to the list - the game loop opens it)
 IF demoQuit THEN
     IF demoBad THEN SYSTEM 3 ELSE SYSTEM 0
 END IF
+RETURN
+
+' --- Attract mode: the next demo (DEMO REPLAYS' list, round and round) -
+' its first that plays, from attractIdx on
+AttractStart:
+DemoListLoad
+FOR dTry = 1 TO demoListN
+    attractIdx = attractIdx MOD demoListN + 1
+    dFile$ = demoListFile$(attractIdx) : demoName$ = demoList$(attractIdx) : demoQuit = 0 : demoFromMenu = 0 : demoAttract = -1
+    GOSUB DemoPlayStart
+    IF demoPlay THEN RETURN
+NEXT
+demoAttract = 0 ' (none would play)
 RETURN
 
 ' --- What a demo starts from, recording or playing: this sector, new, as
@@ -6948,7 +6981,8 @@ IF dSet <> sectorSet THEN
 END IF
 IF NOT SectorExists(dLevel) THEN CLOSE #demoFH : ConPrint "playdemo: its sector" + STR$(dLevel) + " isn't here" : RETURN
 IF dVer$ <> GAME_VERSION$ THEN ConPrint "demo: made with version " + dVer$ + " - this is " + GAME_VERSION$ + ", so it may not play the same"
-level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT
+dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddhaMode ' (yours, for after)
+level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = 0
 achCheat = -1 ' (watching isn't playing: achievements and records wait for a new game)
 grSeed = dSeed#
 GOSUB DemoFresh
@@ -6969,11 +7003,44 @@ RETURN
 '   - stuck (not getting anywhere): that cell's out for a while, and a new way
 ' Dead, it clicks to start again; dead three times, it turns god mode on.
 BotThink:
+GOSUB BotThinkRaw
+GOSUB BotHumanize
+RETURN
+
+' --- As fast as a person, and no faster. A hand doesn't change its keys
+' every frame: each of the moving keys and the trigger, once pressed or
+' let go, stays so a while - botKeyOn / botKeyOff, measured from a person
+' playing, at bot human 60. Except to stop at an edge: a key whose next
+' step would be a pit, a ledge or a wall is let go at once, as you would.
+' And a mouse hand flicks - fast, up to about 15 degrees a frame - but
+' speeds up into it and slows out of it: the turn may change by only so
+' much a frame.
+BotHumanize:
+bhs = botHuman / 60 ' (60: as measured - more, slower; 0, a machine)
+bcx = INT(playerX) : bcy = INT(playerY)
+FOR bk = 0 TO 5
+    bv = 2 ^ bk : bnow = (inBits AND bv) <> 0
+    IF botKeyState(bk) THEN bm = INT(botKeyOn(bk) * bhs) ELSE bm = INT(botKeyOff(bk) * bhs) ' (held at least this long - or let go at least this long - before it changes)
+    IF bnow <> botKeyState(bk) AND lvFrame - botKeyAt(bk) >= bm THEN botKeyState(bk) = bnow : botKeyAt(bk) = lvFrame
+    IF botKeyState(bk) AND NOT bnow AND bk <= 3 THEN ' (held on, though it wants to let go: not if that step's unsafe)
+        bmx = dirX * ((bk = 0) - (bk = 1)) * -1 + (-dirY) * ((bk = 3) - (bk = 2)) * -1 : bmy = dirY * ((bk = 0) - (bk = 1)) * -1 + dirX * ((bk = 3) - (bk = 2)) * -1
+        bx = INT(playerX + bmx * 0.6) : by = INT(playerY + bmy * 0.6)
+        IF NOT (bx = bcx AND by = bcy) THEN IF NOT BotStep(bcx, bcy, bx, by, 0) THEN botKeyState(bk) = 0 : botKeyAt(bk) = lvFrame
+    END IF
+    IF botKeyState(bk) THEN inBits = inBits OR bv ELSE inBits = inBits AND NOT bv
+NEXT
+bacc = 0.05 / MaxOf(0.5, bhs) ' (how much the turn may change in a frame: about 3 degrees - a person's flicks, measured)
+botTurn = botTurnPrev + MaxOf(-bacc, MinOf(bacc, botTurn - botTurnPrev)) : botTurnPrev = botTurn
+RETURN
+
+BotThinkRaw:
 inBits = 0 : inWheel = 0 : botTurn = 0
 IF lvFrame < botFrameWas THEN ' (the sector started again - its clock back to 0: what it had ruled out, and when, is from before - forgotten)
     FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
     FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : NEXT
-    botNX = 0 : botStuck = 0 : botCheckAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0 : botBest = BOT_FAR : botBestAt = 0
+    botNX = 0 : botStuck = 0 : botCheckAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0 : botBest = BOT_FAR : botBestAt = 0 : botNowhereAt = 0
+    FOR bk = 0 TO 5 : botKeyAt(bk) = 0 : botKeyState(bk) = 0 : NEXT
+    botTurnPrev = 0 : botTarget = 0 : botTargetSeen = 0 : botBackOn = 0 : botStrafeAt = 0 : botBurstAt = 0 : botPauseUntil = 0 : botReactAt = 0
 END IF
 botFrameWas = lvFrame
 IF dead THEN
@@ -6987,13 +7054,20 @@ IF botWasDead THEN
 END IF
 bcx = INT(playerX) : bcy = INT(playerY)
 bh = botHuman / 100 ' How human (bot human): turns slower and eased, aim that drifts, a beat before it fires at what it's just seen, bursts not a held trigger, now and then a pause
-botTurnMax = 0.12 - 0.055 * bh : botTurnK = 0.5 - 0.3 * bh
+botTurnMax = 0.27 : botTurnK = 0.35 ' (a flick: up to 15 degrees a frame - the human filter eases it in and out)
 botAimErr = botAimErr * 0.96 + (RND - 0.5) * 0.012 * bh : botAimErr = MaxOf(-0.07 * bh, MinOf(0.07 * bh, botAimErr))
-IF lvFrame >= botBurstAt THEN
+IF lvFrame >= botBurstAt THEN ' (the trigger tapped, as a person does: held 6-11 frames, let go 3-6)
     botBurstOn = NOT botBurstOn
-    IF botBurstOn THEN botBurstAt = lvFrame + 10 + INT(RND * 35) ELSE botBurstAt = lvFrame + INT((3 + RND * 14) * bh)
+    IF botBurstOn THEN botBurstAt = lvFrame + 6 + INT(RND * 6) ELSE botBurstAt = lvFrame + 3 + INT(RND * 4)
 END IF
-IF lvFrame >= botStrafeAt THEN botStrafeDir = -botStrafeDir : botStrafeAt = lvFrame + 45 + INT((RND - 0.5) * 60 * bh)
+IF lvFrame >= botStrafeAt THEN ' (a dodge: a short strafe, either way - 10 to 35 frames - then a while without: as measured)
+    IF botStrafeOK THEN
+        botStrafeOK = 0 : botStrafeAt = lvFrame + 15 + INT(RND * 50)
+    ELSE
+        botStrafeOK = -1 : botStrafeDir = SGN(RND - 0.5) : IF botStrafeDir = 0 THEN botStrafeDir = 1
+        botStrafeAt = lvFrame + 10 + INT(RND * 26)
+    END IF
+END IF
 IF lvFrame >= botStallAt THEN ' Not moved in two seconds, whatever it's doing - three times running, and something's wrong: what it's shooting at is left alone a while, the way ahead's out
     IF (playerX - botStallX) ^ 2 + (playerY - botStallY) ^ 2 < 0.01 AND liftCell(bcx, bcy) = 0 THEN botStallN = botStallN + 1 ELSE botStallN = 0
     IF botStallN >= 3 THEN
@@ -7023,18 +7097,29 @@ IF NOT bAmmo AND lvFrame >= botAmmoAt AND NOT cyberOn THEN ' Nothing to fire, an
     botAmmoAt = lvFrame + 1800 : botNX = 0
 END IF
 bt = 0 : bbd = 7 : IF NOT bAmmo THEN bbd = 1.3
+IF botTarget THEN ' The one it's on: kept while it's alive and near - for half a second after it's out of sight, as a corner flickers it in and out
+    IF monsterState(botTarget) < 2 AND botIgnore(botTarget) <= lvFrame THEN
+        bd = SQR((monsterX(botTarget) - playerX) ^ 2 + (monsterY(botTarget) - playerY) ^ 2)
+        IF bd < bbd + 1.5 THEN
+            IF CanSee(playerX, playerY, monsterX(botTarget), monsterY(botTarget)) THEN botTargetSeen = lvFrame
+            IF lvFrame - botTargetSeen < 30 THEN bt = botTarget : bbd = bd
+        END IF
+    END IF
+END IF
+IF bt = 0 THEN
 FOR bi = 1 TO numMonsters
     IF monsterState(bi) < 2 AND (cyberOn = 0 OR monsterType(bi) = MT_ICE) THEN
         bd = SQR((monsterX(bi) - playerX) ^ 2 + (monsterY(bi) - playerY) ^ 2)
-        IF bd < bbd AND botIgnore(bi) <= lvFrame THEN IF CanSee(playerX, playerY, monsterX(bi), monsterY(bi)) THEN bt = bi : bbd = bd
+        IF bd < bbd AND botIgnore(bi) <= lvFrame THEN IF CanSee(playerX, playerY, monsterX(bi), monsterY(bi)) THEN bt = bi : bbd = bd : botTargetSeen = lvFrame
     END IF
 NEXT
+END IF
 botTarget = bt
 IF bt AND health < 35 AND NOT godMode AND botMode = 3 THEN ' Badly hurt, and a medkit to go to: no standing to trade shots - it goes on its way, firing only at what's in line
     ba = BotTurnTo(monsterX(bt), monsterY(bt), playerX, playerY, dirX, dirY) : IF ABS(ba) < 0.08 AND bAmmo THEN inBits = inBits OR DB_FIRE ' (its turn: the way it goes overrides it, below)
     bt = 0
 END IF
-IF bt <> botLastTarget THEN botLastTarget = bt : botReactAt = lvFrame + INT(bh * (8 + RND * 20)) ' (a new one: a moment to react)
+IF bt <> botLastTarget THEN botLastTarget = bt : botReactAt = lvFrame + INT(botHuman / 60 * (12 + RND * 18)) ' (a new one: a moment to react - 0.2 to 0.5 seconds at bot human 60)
 IF bt THEN
     bmx = monsterX(bt) - playerX : bmy = monsterY(bt) - playerY ' (aimed a little off, by botAimErr - across the line to it)
     ba = BotTurnTo(monsterX(bt) - bmy * botAimErr, monsterY(bt) + bmx * botAimErr, playerX, playerY, dirX, dirY)
@@ -7042,12 +7127,15 @@ IF bt THEN
         IF bAmmo AND (botBurstOn OR bh = 0) THEN inBits = inBits OR DB_FIRE
         IF bbd < 1.3 AND kickTimer = 0 THEN inBits = inBits OR DB_KICK
     END IF
-    IF bbd < 2.5 AND bAmmo THEN inBits = inBits OR DB_BACK ' (out of reach of its claws)
-    IF bAmmo AND bbd > 2 THEN ' (side to side as it shoots - harder to hit - but only onto floor it could step to: no pit, ledge or fire)
+    IF bbd < 2.2 THEN botBackOn = -1 ELSE IF bbd > 3 THEN botBackOn = 0 ' (out of reach of its claws - backing off till well clear, not to and fro on the line)
+    IF botBackOn AND bAmmo THEN inBits = inBits OR DB_BACK
+    IF bAmmo AND NOT botBackOn AND botStrafeOK THEN ' (side to side as it shoots - harder to hit - but only onto floor it could step to: no pit, ledge or fire; once it can't, no more this time)
         bsd = botStrafeDir
         bx = INT(playerX - dirY * bsd * 0.7) : by = INT(playerY + dirX * bsd * 0.7)
         IF (bx = bcx AND by = bcy) OR BotStep(bcx, bcy, bx, by, 0) THEN
             IF bsd = 1 THEN inBits = inBits OR DB_RIGHT ELSE inBits = inBits OR DB_LEFT
+        ELSE
+            botStrafeOK = 0
         END IF
     END IF
     botCheckAt = lvFrame + 60 : botBestAt = lvFrame ' (fighting isn't being stuck - nor getting nowhere)
@@ -7055,7 +7143,16 @@ IF bt THEN
 END IF
 ' Where to? Every 15 frames (or when there's no way), the field again
 IF lvFrame MOD 15 = 0 OR botNX = 0 THEN GOSUB BotPlan
-IF botMode = 0 THEN botTurn = 0.03 : RETURN ' (nowhere to go: look round)
+IF botMode = 0 THEN ' Nowhere to go: look round - and after three seconds of it, forget what it ruled out, and where it's been: it explores afresh
+    botTurn = 0.03
+    IF botNowhereAt = 0 THEN botNowhereAt = lvFrame
+    IF lvFrame - botNowhereAt > 180 THEN
+        FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
+        botNowhereAt = 0 : botNX = 0
+    END IF
+    RETURN
+END IF
+botNowhereAt = 0
 ' At the goal: the exit's beside it - face it and press Space
 IF botDist(bcx, bcy) = 0 AND botMode = 1 THEN
     ba = BotTurnTo(botEX + 0.5, botEY + 0.5, playerX, playerY, dirX, dirY)
@@ -7081,16 +7178,25 @@ END IF
 ' straight line (BotLineClear) - so it goes across a room, or down a
 ' diagonal, as a line, not cell by cell in steps
 btx = botNX + 0.5 : bty = botNY + 0.5
+IF botNX = 0 THEN ' (on the goal's own cell: to its middle - or right onto the pickup lying in it, as you must be within 0.45 of one to take it)
+    btx = bcx + 0.5 : bty = bcy + 0.5
+    FOR bi = 1 TO numItems
+        IF itemOn(bi) AND INT(itemX(bi)) = bcx AND INT(itemY(bi)) = bcy THEN btx = itemX(bi) : bty = itemY(bi)
+    NEXT
+END IF
 FOR bk = botPathN TO 2 STEP -1
     IF BotLineClear(playerX, playerY, botPathX(bk) + 0.5, botPathY(bk) + 0.5, bpass) THEN btx = botPathX(bk) + 0.5 : bty = botPathY(bk) + 0.5 : EXIT FOR
 NEXT
 ba = BotTurnTo(btx, bty, playerX, playerY, dirX, dirY)
-IF bh > 0 AND lvFrame >= botPauseUntil AND RND < 0.0012 * bh AND botDist(bcx, bcy) > 3 THEN botPauseUntil = lvFrame + 15 + INT(RND * 50) ' (now and then, a moment's pause - a look round)
+IF bh > 0 AND lvFrame >= botPauseUntil AND RND < 0.008 * bh AND botDist(bcx, bcy) > 3 THEN botPauseUntil = lvFrame + 3 + INT(RND * 13) ' (often, a moment's pause - 3 to 15 frames, as a person's)
 IF lvFrame < botPauseUntil THEN
     botTurn = 0.025 * SIN(lvFrame / 9) : botCheckAt = lvFrame + 60 : botStallAt = lvFrame + 120
 ELSE
     IF ABS(ba) < 0.7 THEN inBits = inBits OR DB_FWD
-    IF ABS(ba) < 0.35 AND botDist(bcx, bcy) > 4 AND (bh < 0.5 OR (lvFrame \ 200) MOD 3 > 0) THEN inBits = inBits OR DB_RUN ' (human: not always running)
+    IF lvFrame >= botRunAt THEN botRunOn = (RND < 0.35 OR bh = 0) : botRunAt = lvFrame + 22 + INT(RND * 100) ' (running now and then - a person runs about a sixth of the time)
+    IF botRunOn AND ABS(ba) < 0.3 AND botDist(bcx, bcy) > 6 THEN inBits = inBits OR DB_RUN
+    IF bh > 0 AND lvFrame >= botDriftUntil AND RND < 0.004 * bh THEN botDriftDir = SGN(RND - 0.5) : botDriftUntil = lvFrame + 10 + INT(RND * 25) ' (now and then, a strafe as it walks - a person's diagonals)
+    IF lvFrame < botDriftUntil AND ABS(ba) < 0.4 THEN IF botDriftDir > 0 THEN inBits = inBits OR DB_RIGHT ELSE inBits = inBits OR DB_LEFT
 END IF
 IF INT(playerX) = botNX AND INT(playerY) = botNY THEN GOSUB BotPlan ' (there: the next one)
 ' Stuck? Every second: not a quarter of a cell further (and not riding a lift)
@@ -7248,7 +7354,7 @@ EnterLevel:
 savedHealth = health : savedArmor = armor : savedCells = ammoCount(AM_CELLS) : savedShells = ammoCount(AM_SHELLS) : savedGun = currentGun
 FOR gun = 1 TO NUM_GUNS : savedHasGun(gun) = hasGun(gun) : NEXT
 GOSUB LoadLevel
-GOSUB ShowTransmission ' (NEXUS greets you)
+IF NOT demoAttract THEN GOSUB ShowTransmission ' (NEXUS greets you - not in attract mode: straight to the play)
 RETURN
 
 ' --- You died: the level starts over, and you have what you came in with
@@ -7261,7 +7367,7 @@ RETURN
 ' the last, the game's totals, and a new game)
 LevelDone:
 IF demoRec OR demoPlay THEN GOSUB DemoAtExit ' (a demo ends at the exit)
-IF demoMenuWant THEN RETURN ' (one watched from DEMO REPLAYS: no tally - back to the list)
+IF demoMenuWant OR demoAttractNext THEN RETURN ' (one watched from DEMO REPLAYS, or attract mode's: no tally)
 WorldLoopsOff
 PlaySfx sndExit&, 0.9
 levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
@@ -8287,7 +8393,7 @@ END IF
 _MOUSESHOW
 IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
 menuGamWas = setting(SET_GAMMA) : IF nvOn THEN menuGamWas = 0 ' (the brightness that frame was drawn at - 0: none, it's night vision's green)
-menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen
+menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen : menuIdle = 0 : menuActive = 0
 IF menuOpenDemos THEN menuOpenDemos = 0 : menuDepth = 1 : menuStack(1) = SCR_MAIN : menuStackSel(1) = menuSel + 1 : menuScreen = SCR_DEMOS : demoListPage = 0 : GOSUB EnterMenuScreen ' (back from a demo: at DEMO REPLAYS, BACK to the main menu's line for it)
 menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1 : menuDispWas = displayModeNow : menuPointWait = 0
 _KEYCLEAR
@@ -8299,6 +8405,7 @@ DO
     ' The keyboard: every press since last frame, one at a time
     keyCode& = _KEYHIT
     DO WHILE keyCode& <> 0 AND NOT menuDone
+        IF keyCode& > 0 THEN menuActive = -1 ' (for attract mode: someone's there)
         IF keyCode& > 0 THEN ' (a negative code is a key being let go)
             IF menuCapture THEN
                 GOSUB CaptureKey
@@ -8354,7 +8461,18 @@ DO
             END IF
         END IF
     END IF
+    IF mouseDown OR mouseX <> lastMouseX OR mouseY <> lastMouseY THEN menuActive = -1
     mouseWasDown = mouseDown : lastMouseX = mouseX : lastMouseY = mouseY
+    ' Attract mode: the title menu left alone ATTRACT_SECONDS, and the demos
+    ' play - one after another, round and round - till a key brings it back
+    IF NOT menuInGame AND NOT menuDone THEN
+        IF menuActive OR menuCapture OR menuTyping THEN menuIdle = 0 ELSE menuIdle = menuIdle + 1
+        IF menuIdle >= ATTRACT_SECONDS * 60 THEN
+            menuIdle = 0 : GOSUB AttractStart
+            IF demoPlay THEN menuDone = -1
+        END IF
+    END IF
+    menuActive = 0
 
     ' Draw: what's behind the menu, then the menu itself
     IF NOT menuDone THEN
@@ -16052,7 +16170,7 @@ FUNCTION BotTurnTo(x, y, px, py, dx, dy)
     a = _ATAN2(y - py, x - px) - _ATAN2(dy, dx)
     DO WHILE a > 3.14159265 : a = a - 6.2831853 : LOOP
     DO WHILE a < -3.14159265 : a = a + 6.2831853 : LOOP
-    botTurn = MaxOf(-botTurnMax, MinOf(botTurnMax, a * botTurnK)) ' (how fast it turns: bot human slows it, and eases it)
+    IF ABS(a) < 0.02 * botTurnK / 0.35 + 0.004 THEN botTurn = 0 ELSE botTurn = MaxOf(-botTurnMax, MinOf(botTurnMax, a * botTurnK)) ' (near enough: still - a hand doesn't correct the last degree every frame)
     BotTurnTo = a
 END FUNCTION
 
