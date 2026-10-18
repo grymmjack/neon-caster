@@ -16,6 +16,7 @@
 GameError:
 errCount = errCount + 1
 errText$ = "ERROR" + STR$(ERR) + " (" + _ERRORMESSAGE$(ERR) + ") at line" + STR$(_ERRORLINE)
+IF _INCLERRORLINE THEN errText$ = errText$ + " - " + _INCLERRORFILE$ + " line" + STR$(_INCLERRORLINE) ' (in an included file: which, and where in it)
 IF errCount <= 100 THEN
     ConPrint errText$
     MakeSaveDir : errNum = FREEFILE

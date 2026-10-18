@@ -27,3 +27,8 @@ DIM SHARED botAimE0 AS SINGLE, botTrig AS SINGLE ' (a new target: how far off th
 botTrig = 1.5
 DIM SHARED botSawAt(MAX_MON) AS LONG ' (the frame the autopilot last saw each monster - a room's cleared of what it's seen)
 DIM SHARED botIgnore(MAX_MON) AS LONG, botStallX AS SINGLE, botStallY AS SINGLE, botStallAt AS LONG, botStallN AS INTEGER, botAmmoAt AS LONG ' (the autopilot's: monsters it's leaving alone a while, and its watch on whether it's moving)
+
+
+' This module's working variables, shared by its SUBs (and with the main
+' program)
+DIM SHARED bcx, bcy, bmx, bmy, botBest, botBestAt, botEX, botEY, bpass

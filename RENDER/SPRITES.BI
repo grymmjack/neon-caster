@@ -14,7 +14,7 @@ CONST MAX_DECALS = 96, DECAL_HEAT = 24
 DIM SHARED decalX(MAX_DECALS), decalY(MAX_DECALS), decalZ(MAX_DECALS), decalNX(MAX_DECALS), decalNY(MAX_DECALS), decalNZ(MAX_DECALS)
 DIM SHARED decalSize(MAX_DECALS), decalHeat(MAX_DECALS) AS INTEGER, decalOn(MAX_DECALS) AS INTEGER, decalNext AS INTEGER
 CONST MAX_DRAW = MAX_ITEMS + MAX_MON + MAX_BOLTS + MAX_DECO + MAX_BLASTS + MAX_DECALS + 160 ' (+ traps)
-DIM drawX(MAX_DRAW) AS SINGLE, drawY(MAX_DRAW) AS SINGLE, drawDistSq(MAX_DRAW) AS SINGLE
-DIM drawSprite(MAX_DRAW) AS INTEGER, drawScale(MAX_DRAW) AS SINGLE, drawLift(MAX_DRAW) AS SINGLE
-DIM drawSquash(MAX_DRAW) AS SINGLE, drawMinShade(MAX_DRAW) AS INTEGER, drawOrder(MAX_DRAW) AS INTEGER
-DIM drawFace(MAX_DRAW) AS INTEGER ' (0: it turns to face you; 1-4: it stands flat, facing east, south, west or north - DrawFlat)
+DIM SHARED drawX(MAX_DRAW) AS SINGLE, drawY(MAX_DRAW) AS SINGLE, drawDistSq(MAX_DRAW) AS SINGLE
+DIM SHARED drawSprite(MAX_DRAW) AS INTEGER, drawScale(MAX_DRAW) AS SINGLE, drawLift(MAX_DRAW) AS SINGLE
+DIM SHARED drawSquash(MAX_DRAW) AS SINGLE, drawMinShade(MAX_DRAW) AS INTEGER, drawOrder(MAX_DRAW) AS INTEGER
+DIM SHARED drawFace(MAX_DRAW) AS INTEGER ' (0: it turns to face you; 1-4: it stands flat, facing east, south, west or north - DrawFlat)

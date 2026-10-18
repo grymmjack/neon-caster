@@ -33,6 +33,7 @@ END SUB
 ' volume. (The rest - sound, crosshair, bobbing, shake - are read straight
 ' from setting() where they're used.)
 SUB ApplySettings
+    DIM i, v ' (its own: the main program shares these names)
     ' MODE: a new one chosen (menu, console) - its settings go in. Then
     ' which mode they all match now (CUSTOM if none).
     IF setting(SET_MODE) <> modeWas AND setting(SET_MODE) <> MODE_CUSTOM THEN
@@ -58,6 +59,7 @@ END SUB
 '   NEWSCHOOL  as sharp as the display goes (BestRes), the modern
 '              paintings, every effect, scanlines and phosphor glow
 FUNCTION ModeWants(m, id)
+    DIM fx ' (its own: the main program shares these names)
     ModeWants = -1
     IF m < MODE_OLDSCHOOL OR m > MODE_NEWSCHOOL THEN EXIT FUNCTION
     fx = 0 : IF m > MODE_OLDSCHOOL THEN fx = 1 ' (the effects: on for 90S and NEWSCHOOL)
@@ -80,6 +82,7 @@ END FUNCTION
 
 ' The MODE every setting matches now (MODE_CUSTOM if none)
 FUNCTION ModeNow
+    DIM i, ok, v ' (its own: the main program shares these names)
     FOR m = MODE_OLDSCHOOL TO MODE_NEWSCHOOL
         ok = -1
         FOR i = 1 TO NUM_SETTINGS
@@ -160,6 +163,7 @@ END SUB
 ' full screen, with OpenGL, the screen's shape over 4:3 (1.33 on a 16:9
 ' screen); otherwise 1
 FUNCTION WideView
+    DIM k ' (its own: the main program shares these names)
     WideView = 1
     IF setting(SET_DISPLAY) <> 2 OR _FULLSCREEN <> 1 OR setting(SET_RENDERER) <> 2 THEN EXIT FUNCTION
     IF _DESKTOPHEIGHT < 1 THEN EXIT FUNCTION
@@ -192,6 +196,7 @@ END SUB
 
 ' Set a slider from where the mouse is along it, to the nearest step
 SUB SliderFromMouse(item, mouseX)
+    DIM f, v ' (its own: the main program shares these names)
     id = miRef(item)
     f = (mouseX - MENU_WIDGET_X) / MENU_WIDGET_W
     IF f < 0 THEN f = 0
@@ -222,6 +227,7 @@ END FUNCTION
 ' Read the settings file, if there is one. Every setting starts at its
 ' default; a "name=value" line for it (with a value in range) changes it.
 SUB LoadSettings
+    DIM fileNum, i, v ' (its own: the main program shares these names)
     FOR i = 1 TO NUM_SETTINGS : setting(i) = setDefault(i) : NEXT
     FOR i = 1 TO NUM_BINDS : keyBind&(i) = bindDefault&(i) : NEXT
     qbChosen$ = ""
@@ -253,6 +259,7 @@ END SUB
 
 ' Write every setting and key binding to the settings file
 SUB SaveSettings
+    DIM fileNum, i ' (its own: the main program shares these names)
     IF noSaveSettings THEN EXIT SUB ' (settings from the command line are for this run only)
     MakeSaveDir
     fileNum = FREEFILE

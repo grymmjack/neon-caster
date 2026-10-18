@@ -21,3 +21,8 @@ DIM SHARED demoListN AS INTEGER, demoList$(MAX_DEMOLIST), demoListFile$(MAX_DEMO
 DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER, demoStarting AS INTEGER, demoTotal AS LONG, demoInfoNow$
 DIM SHARED demoAttract AS INTEGER, demoAttractMenu AS INTEGER, attractPlayed$, attractQuit AS INTEGER, menuIdle AS LONG ' (attract mode: the title menu left alone ATTRACT_SECONDS - a demo plays, then the menu again; attractPlayed$: the ones that have, |name| each)
 CONST ATTRACT_SECONDS = 15 ' (a demo started from DEMO REPLAYS: when it's over, back to that list)
+
+
+' This module's working variables, shared by its SUBs (and with the main
+' program)
+DIM SHARED dl$, ds$, dWasBuddha, dWasFly, dWasGod, dWasNoT, dWhy$

@@ -17,3 +17,8 @@ DIM SHARED numStations AS INTEGER, stationX(MAX_STATIONS) AS INTEGER, stationY(M
 DIM SHARED cyberOn AS INTEGER, cyberStation AS INTEGER, cyberTime AS LONG, cyberNeed AS INTEGER, cyberGot AS INTEGER
 DIM SHARED cyberMonStart AS INTEGER, cyberItemStart AS INTEGER, glRetexVersion AS LONG, glRetexDone AS LONG
 DIM SHARED sndJackIn&, sndJackOut&, sndCore&, cyberMusic&, sndTeleport&
+
+
+' This module's working variables, shared by its SUBs (and with the main
+' program)
+DIM SHARED cyberBackDX, cyberBackDY, cyberBackX, cyberBackY, cyberSlot, cyberSlotKind, cyberSlotX, cyberSlotY

@@ -70,6 +70,7 @@ END FUNCTION
 
 
 FUNCTION BitCount(v&)
+    DIM B, n ' (its own: the main program shares these names)
     n = 0 : FOR b = 0 TO 30 : IF v& AND 2 ^ b THEN n = n + 1
     NEXT : BitCount = n
 END FUNCTION

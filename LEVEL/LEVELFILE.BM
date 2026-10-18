@@ -420,6 +420,7 @@
 ' them, its numbers split by commas (SplitNums); in [map], each line is a
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
+    DIM got, k, l$, t$ ' (its own: the main program shares these names)
     lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNote$ = "" : topLines = -1
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0
@@ -510,6 +511,7 @@ END SUB
 ' divided (0, 1 left|right, 2 top|bottom), its picture - and the second
 ' half's
 SUB TakeFace(l$)
+    DIM f ' (its own: the main program shares these names)
     f = FaceCode(ListItem$(l$, 3)) : IF f = 0 THEN EXIT SUB
     EditSetFace VAL(ListItem$(l$, 1)), VAL(ListItem$(l$, 2)), f, VAL(ListItem$(l$, 4)), ListItem$(l$, 5), ListItem$(l$, 6)
 END SUB
@@ -558,6 +560,7 @@ END FUNCTION
 
 ' Which face of [faces] is (x, y)'s f - 0: none of its own
 FUNCTION FaceIndex(x, y, f)
+    DIM j ' (its own: the main program shares these names)
     FaceIndex = 0
     FOR j = 1 TO lvlNumFaces
         IF lvlFaceX(j) = x AND lvlFaceY(j) = y AND lvlFaceS(j) = f THEN FaceIndex = j : EXIT FUNCTION
@@ -567,6 +570,7 @@ END FUNCTION
 ' Write the level (lvlName$ ... lvlRow$()) to file f$, in the format
 ' ReadLevelFile reads (chapter 22)
 SUB WriteLevelFile(f$)
+    DIM j, k, l$, y ' (its own: the main program shares these names)
     o$ = "" : nl$ = CHR$(10) ' (built up in o$, then written in one go - with plain line ends, as Linux has them)
     o$ = o$ + "' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every" + nl$
     o$ = o$ + "' part of it. Lines starting with ' are comments. The level kit" + nl$

@@ -28,6 +28,7 @@ END SUB
 ' new one is turned down to keep the total under SFX_HEADROOM, so a big
 ' fight gets busier, not deafening. It also ducks while NEXUS speaks.
 SUB PlaySfxPan(snd&, vol!, pan!)
+    DIM k ' (its own: the main program shares these names)
     IF snd& <= 0 THEN EXIT SUB
     v! = vol! * setting(SET_SFX) / 100
     IF setting(SET_LIMITER) THEN
@@ -79,6 +80,7 @@ END SUB
 ' A looping sound's side (a lift's motor, a trap's buzz), from where it is
 ' at (x, y) - as SfxAtRange pans a sound - or the middle, without 3D SOUND
 SUB HumPan(h&, x, y)
+    DIM d ' (its own: the main program shares these names)
     IF h& <= 0 THEN EXIT SUB
     dx = x - playerX : dy = y - playerY : d = SQR(dx * dx + dy * dy) : pan! = 0
     IF setting(SET_SPATIAL) AND d > 0.5 THEN pan! = (dy * earDX - dx * earDY) / d * 0.85 * MinOf(1, d / 2)
@@ -86,6 +88,7 @@ SUB HumPan(h&, x, y)
 END SUB
 
 SUB SfxAtRange(snd&, x, y, listenX, listenY, range)
+    DIM d ' (its own: the main program shares these names)
     vol! = SfxVolAt!(x, y, listenX, listenY, range) : IF vol! <= 0 THEN EXIT SUB ' (too far off to hear)
     dx = x - listenX : dy = y - listenY : d = SQR(dx * dx + dy * dy)
     pan! = 0
@@ -99,6 +102,7 @@ END SUB
 ' How loud a sound at (x, y) is where you are (0 to 1): silent range cells
 ' off, louder nearer as (1 - d / range) squared, a third through a wall
 FUNCTION SfxVolAt!(x, y, listenX, listenY, range)
+    DIM d ' (its own: the main program shares these names)
     dx = x - listenX : dy = y - listenY : d = SQR(dx * dx + dy * dy)
     IF d >= range THEN EXIT FUNCTION
     v! = (1 - d / range) ^ 2
@@ -110,6 +114,7 @@ END FUNCTION
 ' sector tally (a lift still moving, or a trap still lit, starts its sound
 ' again when the game goes on)
 SUB WorldLoopsOff
+    DIM k ' (its own: the main program shares these names)
     FOR k = 1 TO MAX_LIFTS
         IF liftHum&(k) > 0 THEN _SNDSTOP liftHum&(k)
     NEXT
@@ -126,6 +131,7 @@ END SUB
 ' easing up and down, so it never clicks on or off. Not in lava (that
 ' hisses), nor in the editor or the network.
 SUB SwishSound(moved, lk, isDead)
+    DIM cx, cy ' (its own: the main program shares these names)
     IF sndSwish& <= 0 THEN EXIT SUB
     IF moved > 0.4 THEN moved = 0 ' (a teleport, not a stroke)
     want! = 0
@@ -152,6 +158,7 @@ END SUB
 ' as loud as the nearest of them within 4 cells of (px, py) is near -
 ' looked for every 10 frames (a few cells round you is cheap enough)
 SUB LiquidHum(px, py)
+    DIM d, v, x, y ' (its own: the main program shares these names)
     STATIC near, tick, lastX, lastY
     IF sndBubble& <= 0 THEN EXIT SUB
     tick = tick + 1

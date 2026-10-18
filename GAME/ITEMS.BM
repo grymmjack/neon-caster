@@ -7,6 +7,7 @@
 ' One more pickup, of kind kind, just where (x, y) is (if that's floor -
 ' or else in the middle of its cell)
 SUB DropItemAt(kind, x0, y0)
+    DIM a, r, tx, ty, x, y ' (its own: the main program shares these names)
     IF numItems >= MAX_ITEMS THEN EXIT SUB
     x = x0 : y = y0 ' (copies: the caller's - a monster's own place - stays put)
     walkFromHaz = 10 ' (and somewhere you can get it: not down a pit, in fire or a harmful pool - a thief kicked over the edge)
@@ -34,6 +35,7 @@ END SUB
 ' decoLootA says (HitDeco), or any way at all - landing clear of you, at
 ' (px, py), for you to go and pick up.
 SUB DecoLoot(d, px, py)
+    DIM a, k, slot ' (its own: the main program shares these names)
     IF editMode OR cyberOn THEN EXIT SUB
     k = decoKind(d) : roll = INT(GRnd * 100) + 1 : acc = 0 : slot = 0 ' (the percentile dice, once)
     luck = 1 : IF AmmoLow THEN luck = 2 ' (running dry: every chance doubled - a crate's 70% becomes a sure thing)
@@ -53,6 +55,7 @@ END SUB
 ' away. If that way won't do (a crate against a wall, or you in the way),
 ' it tries the ways round from it, nearest first.
 SUB TossItem(kind, x, y, a, px, py)
+    DIM B, d, r, t ' (its own: the main program shares these names)
     bestA = a : bestR = 0 : bestS = -1
     FOR t = 0 TO 8 ' (that way, then an eighth of the way round either side of it, a quarter...)
         b = a + ((t + 1) \ 2) * 0.7854 * (1 - 2 * (t MOD 2)) : r = TossReach(x, y, b)
@@ -73,6 +76,7 @@ END SUB
 ' monster won't walk into them: walkFromHaz 10). The floor it starts on
 ' is the height it's thrown from.
 FUNCTION TossReach(x, y, a)
+    DIM r ' (its own: the main program shares these names)
     oldZ = walkZ : oldHaz = walkFromHaz
     walkZ = FloorAt(x, y) : walkFromHaz = 10
     r = 0
@@ -89,6 +93,7 @@ END FUNCTION
 ' machine the likeliest to be full of ammo, lockers keep the good stuff -
 ' then the level's [loot] lines over it, each kind it names all its own
 SUB LootTable
+    DIM i, k ' (its own: the main program shares these names)
     FOR k = 1 TO DECO_KINDS : FOR s = 1 TO LOOT_SLOTS : lootKind(k, s) = 0 : lootPct(k, s) = 0 : NEXT : NEXT
     k = TakeLoot("barrel   = ammo:10, shells:10, medkit:5, armor:5")
     k = TakeLoot("console  = ammo:5, shells:5")
@@ -105,6 +110,7 @@ END SUB
 ' to D in order, - (or nothing between the commas) an empty one. Sets that
 ' kind's four; returns the kind (0: no breakable of that name)
 FUNCTION TakeLoot(l$)
+    DIM c, k ' (its own: the main program shares these names)
     eq = INSTR(l$, "=") : IF eq = 0 THEN EXIT FUNCTION
     k = DecoKindOf(LEFT$(l$, eq - 1)) : IF k = 0 THEN EXIT FUNCTION
     r$ = MID$(l$, eq + 1)
@@ -121,6 +127,7 @@ END FUNCTION
 
 ' Kind k's loot as a line of [loot] (as TakeLoot reads it)
 FUNCTION LootLine$(k)
+    DIM l$ ' (its own: the main program shares these names)
     l$ = DecoName$(k) + " ="
     last = 0 : FOR s = 1 TO LOOT_SLOTS : IF lootKind(k, s) THEN last = s
     NEXT
@@ -135,6 +142,7 @@ END FUNCTION
 ' it takes the place of that kind's line in lvlLoot$(), if there is one.
 ' Returns the kind (0: no breakable of that name)
 FUNCTION SetLevelLoot(l$)
+    DIM i, k, t$ ' (its own: the main program shares these names)
     k = TakeLoot(l$) : IF k = 0 THEN EXIT FUNCTION
     t$ = LootLine$(k) ' (tidied, as the file will have it)
     FOR i = 1 TO lvlNumLoot
@@ -152,6 +160,7 @@ END FUNCTION
 ' A closet stash's loot: something good (n = 0) - armour, a big medkit, an
 ' overcharge, a damage amp - and something to shoot with (n = 1)
 FUNCTION StashLoot(n)
+    DIM r ' (its own: the main program shares these names)
     IF n = 0 THEN
         r = INT(GRnd * 5) : StashLoot = IT_ARMOR
         IF r = 1 THEN StashLoot = IT_BIGMED ELSE IF r = 2 THEN StashLoot = IT_OVERCHARGE ELSE IF r = 3 THEN StashLoot = IT_AMP ELSE IF r = 4 THEN StashLoot = IT_GOGGLES

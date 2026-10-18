@@ -23,6 +23,7 @@ FUNCTION DCos# (x)
 END FUNCTION
 
 FUNCTION DTan# (x)
+    DIM e ' (its own: the main program shares these names)
     c# = DCos#(x) : IF c# = 0 THEN c# = 1E-300
     DTan# = DSin#(x) / c#
 END FUNCTION
@@ -44,6 +45,7 @@ END FUNCTION
 ' the larger (so 0 to 1), brought under tan(22.5 degrees) by taking off 45,
 ' then its series; then put in the right eighth of the circle
 FUNCTION DAtan2# (y, x)
+    DIM n ' (its own: the main program shares these names)
     ay# = ABS(y) : ax# = ABS(x)
     IF ax# = 0 AND ay# = 0 THEN EXIT FUNCTION
     IF ay# > ax# THEN t# = ax# / ay# : sw = -1 ELSE t# = ay# / ax# : sw = 0

@@ -10,50 +10,51 @@
 ' nudge it (Shift: 8 pixels); V shows or hides it; C its colour; + and -
 ' its bar's width, [ and ] its height; S saves hud.txt; R puts back the
 ' game's own layout; U or Esc leaves.
-HudEditEnter:
-hudEdit = -1 : hudSel = HE_HEALTH : hudDrag = 0 : _MOUSESHOW : _KEYCLEAR
-hudMsg$ = "HUD LAYOUT: drag things about - Tab next, V show/hide, C colour, +/- [ ] bar, S save, R reset, U done"
-RETURN
-HudEditLeave:
-hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : edMouseFix = -1
-RETURN
-HudEditFrame:
-hmx = _MOUSEX : hmy = _MOUSEY : hb = _MOUSEBUTTON(1)
-IF hb AND NOT hudDrag THEN ' Press: the part under the mouse (the smallest, if two overlap)
-    best = 0 : bestA = 1E+9
-    FOR e = 1 TO HUD_ELEMS
-        HudBox e, bx0, by0, bx1, by1
-        IF hmx >= bx0 AND hmx <= bx1 AND hmy >= by0 AND hmy <= by1 THEN IF (bx1 - bx0) * (by1 - by0) < bestA THEN bestA = (bx1 - bx0) * (by1 - by0) : best = e
-    NEXT
-    IF best THEN hudSel = best : hudDrag = -1 : hdx = hmx : hdy = hmy
-END IF
-IF hb AND hudDrag THEN hudX(hudSel) = hudX(hudSel) + hmx - hdx : hudY(hudSel) = hudY(hudSel) + hmy - hdy : hdx = hmx : hdy = hmy
-IF NOT hb THEN hudDrag = 0
-k& = _KEYHIT
-DO WHILE k&
-    hs = 1 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN hs = 8
-    SELECT CASE k&
-        CASE 27, 117, 85 : GOSUB HudEditLeave : EXIT DO
-        CASE 9 : hudSel = hudSel MOD HUD_ELEMS + 1
-        CASE 18432 : hudY(hudSel) = hudY(hudSel) - hs
-        CASE 20480 : hudY(hudSel) = hudY(hudSel) + hs
-        CASE 19200 : hudX(hudSel) = hudX(hudSel) - hs
-        CASE 19712 : hudX(hudSel) = hudX(hudSel) + hs
-        CASE 118, 86 : hudShow(hudSel) = NOT hudShow(hudSel)
-        CASE 99, 67 : hudCol(hudSel) = HudNextColor~&(hudCol(hudSel))
-        CASE 43, 61 : hudW(hudSel) = hudW(hudSel) + 10 : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = hudW(hudSel) - 9
-        CASE 45 : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = MaxOf(1, hudW(hudSel) - 1) ELSE hudW(hudSel) = MaxOf(0, hudW(hudSel) - 10) ' (the map and cards a step at a time: they're small numbers)
-        CASE 91 : hudH(hudSel) = MaxOf(1, hudH(hudSel) - 1)
-        CASE 93 : hudH(hudSel) = hudH(hudSel) + 1
-        CASE 115, 83 : WriteHud : hudMsg$ = "Saved " + AssetPath$("hud.txt")
-        CASE 114, 82 : HudDefaults : hudMsg$ = "The game's own layout, back (S to keep it)"
-    END SELECT
+SUB HudEditEnter STATIC
+    hudEdit = -1 : hudSel = HE_HEALTH : hudDrag = 0 : _MOUSESHOW : _KEYCLEAR
+    hudMsg$ = "HUD LAYOUT: drag things about - Tab next, V show/hide, C colour, +/- [ ] bar, S save, R reset, U done"
+END SUB
+SUB HudEditLeave STATIC
+    hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : edMouseFix = -1
+END SUB
+SUB HudEditFrame STATIC
+    hmx = _MOUSEX : hmy = _MOUSEY : hb = _MOUSEBUTTON(1)
+    IF hb AND NOT hudDrag THEN ' Press: the part under the mouse (the smallest, if two overlap)
+        best = 0 : bestA = 1E+9
+        FOR e = 1 TO HUD_ELEMS
+            HudBox e, bx0, by0, bx1, by1
+            IF hmx >= bx0 AND hmx <= bx1 AND hmy >= by0 AND hmy <= by1 THEN IF (bx1 - bx0) * (by1 - by0) < bestA THEN bestA = (bx1 - bx0) * (by1 - by0) : best = e
+        NEXT
+        IF best THEN hudSel = best : hudDrag = -1 : hdx = hmx : hdy = hmy
+    END IF
+    IF hb AND hudDrag THEN hudX(hudSel) = hudX(hudSel) + hmx - hdx : hudY(hudSel) = hudY(hudSel) + hmy - hdy : hdx = hmx : hdy = hmy
+    IF NOT hb THEN hudDrag = 0
     k& = _KEYHIT
-LOOP
-RETURN
+    DO WHILE k&
+        hs = 1 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN hs = 8
+        SELECT CASE k&
+            CASE 27, 117, 85 : HudEditLeave : EXIT DO
+            CASE 9 : hudSel = hudSel MOD HUD_ELEMS + 1
+            CASE 18432 : hudY(hudSel) = hudY(hudSel) - hs
+            CASE 20480 : hudY(hudSel) = hudY(hudSel) + hs
+            CASE 19200 : hudX(hudSel) = hudX(hudSel) - hs
+            CASE 19712 : hudX(hudSel) = hudX(hudSel) + hs
+            CASE 118, 86 : hudShow(hudSel) = NOT hudShow(hudSel)
+            CASE 99, 67 : hudCol(hudSel) = HudNextColor~&(hudCol(hudSel))
+            CASE 43, 61 : hudW(hudSel) = hudW(hudSel) + 10 : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = hudW(hudSel) - 9
+            CASE 45 : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = MaxOf(1, hudW(hudSel) - 1) ELSE hudW(hudSel) = MaxOf(0, hudW(hudSel) - 10) ' (the map and cards a step at a time: they're small numbers)
+            CASE 91 : hudH(hudSel) = MaxOf(1, hudH(hudSel) - 1)
+            CASE 93 : hudH(hudSel) = hudH(hudSel) + 1
+            CASE 115, 83 : WriteHud : hudMsg$ = "Saved " + AssetPath$("hud.txt")
+            CASE 114, 82 : HudDefaults : hudMsg$ = "The game's own layout, back (S to keep it)"
+        END SELECT
+        k& = _KEYHIT
+    LOOP
+END SUB
 
 ' The HUD editor's colours, one after another (0: the game's own)
 FUNCTION HudNextColor~&(c~&)
+    DIM k, n ' (its own: the main program shares these names)
     DIM p(8) AS _UNSIGNED LONG
     p(0) = 0 : p(1) = _RGB32(255, 255, 255) : p(2) = _RGB32(60, 230, 255) : p(3) = _RGB32(255, 70, 220) : p(4) = _RGB32(80, 255, 120)
     p(5) = _RGB32(255, 230, 60) : p(6) = _RGB32(255, 70, 70) : p(7) = _RGB32(255, 150, 40) : p(8) = _RGB32(170, 140, 255)
@@ -66,6 +67,7 @@ END FUNCTION
 
 ' Roughly where part e is on the screen (for picking it, and its box)
 SUB HudBox(e, x0, y0, x1, y1)
+    DIM x, y ' (its own: the main program shares these names)
     x = hudX(e) : y = hudY(e)
     SELECT CASE e
         CASE HE_HEALTH, HE_ARMOR : x0 = x : y0 = y : x1 = x + MaxOf(hudW(e), 96) + 2 : y1 = y + 20 + hudH(e)
@@ -81,6 +83,7 @@ END SUB
 
 ' The HUD editor's boxes: every part, the chosen one bright (with its name)
 SUB HudEditDraw
+    DIM B, c~&, e, t$, x0, y0, y1 ' (its own: the main program shares these names)
     FOR e = 1 TO HUD_ELEMS
         HudBox e, x0, y0, x1, y1
         IF e = hudSel THEN c~& = _RGB32(255, 255, 255) ELSE c~& = _RGBA32(255, 60, 200, 150)
@@ -94,6 +97,7 @@ SUB HudEditDraw
 END SUB
 
 SUB WriteHud
+    DIM e ' (its own: the main program shares these names)
     nl$ = CHR$(10)
     o$ = "' NEON-CASTER HUD - where each part of it goes (chapter 18). The HUD" + nl$
     o$ = o$ + "' layout editor (U in the level editor, or hud in the console) writes" + nl$

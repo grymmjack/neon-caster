@@ -7,29 +7,30 @@
 ' --- Glass at cell (glassHitX, glassHitY) is hit for glassDmg, at
 ' (glassAtX, glassAtY): it chips and cracks, and at 0 it shatters - a
 ' shower of shards, and the way is open
-HitGlass:
-IF glassHP(glassHitX, glassHitY) <= 0 THEN RETURN
-glassHP(glassHitX, glassHitY) = glassHP(glassHitX, glassHitY) - glassDmg
-IF glassHP(glassHitX, glassHitY) > 0 THEN
-    SpawnSparks glassAtX, glassAtY, 0.5, 5, 200, 240, 255
-    SfxAt sndGlassHit&, glassAtX, glassAtY, playerX, playerY
-ELSE
-    glassHP(glassHitX, glassHitY) = 0 : AchAdd "Glass", 1
-    FOR gk = 0 TO 4 ' (shards all along the pane, falling)
-        IF glassDir(glassHitX, glassHitY) = 1 THEN gsx = glassHitX + 0.1 + gk * 0.2 : gsy = glassHitY + 0.5 ELSE gsx = glassHitX + 0.5 : gsy = glassHitY + 0.1 + gk * 0.2
-        SpawnSparks gsx, gsy, 0.15 + RND * 0.7, 9, 190, 235, 255
-    NEXT
-    SfxAt sndGlassBreak&, glassAtX, glassAtY, playerX, playerY
-    IF (glassAtX - playerX) ^ 2 + (glassAtY - playerY) ^ 2 < 25 THEN shake = shake + 3
-    FOR gj = 1 TO numMonsters ' (that wakes anything near)
-        IF monsterState(gj) = 0 AND (cyberOn = 0 OR monsterType(gj) = MT_ICE) THEN IF (monsterX(gj) - glassAtX) ^ 2 + (monsterY(gj) - glassAtY) ^ 2 < 36 THEN monsterState(gj) = 1 : monsterTimer(gj) = 20
-    NEXT
-END IF
-RETURN
+SUB HitGlass STATIC
+    IF glassHP(glassHitX, glassHitY) <= 0 THEN EXIT SUB
+    glassHP(glassHitX, glassHitY) = glassHP(glassHitX, glassHitY) - glassDmg
+    IF glassHP(glassHitX, glassHitY) > 0 THEN
+        SpawnSparks glassAtX, glassAtY, 0.5, 5, 200, 240, 255
+        SfxAt sndGlassHit&, glassAtX, glassAtY, playerX, playerY
+    ELSE
+        glassHP(glassHitX, glassHitY) = 0 : AchAdd "Glass", 1
+        FOR gk = 0 TO 4 ' (shards all along the pane, falling)
+            IF glassDir(glassHitX, glassHitY) = 1 THEN gsx = glassHitX + 0.1 + gk * 0.2 : gsy = glassHitY + 0.5 ELSE gsx = glassHitX + 0.5 : gsy = glassHitY + 0.1 + gk * 0.2
+            SpawnSparks gsx, gsy, 0.15 + RND * 0.7, 9, 190, 235, 255
+        NEXT
+        SfxAt sndGlassBreak&, glassAtX, glassAtY, playerX, playerY
+        IF (glassAtX - playerX) ^ 2 + (glassAtY - playerY) ^ 2 < 25 THEN shake = shake + 3
+        FOR gj = 1 TO numMonsters ' (that wakes anything near)
+            IF monsterState(gj) = 0 AND (cyberOn = 0 OR monsterType(gj) = MT_ICE) THEN IF (monsterX(gj) - glassAtX) ^ 2 + (monsterY(gj) - glassAtY) ^ 2 < 36 THEN monsterState(gj) = 1 : monsterTimer(gj) = 20
+        NEXT
+    END IF
+END SUB
 
 ' Each pane of glass: which way it runs - along x if there's wall (or more
 ' glass) to its left and right, else along y - and the list of them all
 SUB AssignGlass
+    DIM l, r, x, y ' (its own: the main program shares these names)
     numGlass = 0
     FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
         IF glassHP(x, y) > 0 THEN
@@ -43,6 +44,7 @@ END SUB
 ' Is map point (x, y) inside a pane of glass (its thickness, GLASS_HALF
 ' either side of the middle of its cell)?
 FUNCTION InGlass(x, y)
+    DIM cx, cy ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
     IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
     IF glassHP(cx, cy) <= 0 THEN EXIT FUNCTION
@@ -53,6 +55,7 @@ END FUNCTION
 ' y2)? Checked every 0.08 of a cell, thinner than either, so neither can be
 ' missed. (A claw, a kick, a thief's grab can't reach through one.)
 FUNCTION GlassBetween(x1, y1, x2, y2)
+    DIM i, px, py ' (its own: the main program shares these names)
     IF numGlass = 0 AND NOT boxAny THEN EXIT FUNCTION
     steps = INT(SQR((x2 - x1) ^ 2 + (y2 - y1) ^ 2) / 0.08) + 1
     FOR i = 1 TO steps - 1

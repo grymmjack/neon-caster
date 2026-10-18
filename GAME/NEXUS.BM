@@ -50,64 +50,64 @@ DATA "", ""
 
 ' --- Once a frame: NEXUS taunts you now and then (every 60-120 seconds of
 ' play, with TAUNTS on - not over another line)
-SpeechFrame:
-IF setting(SET_TAUNTS) AND NOT dead AND speechUntil! < TIMER THEN
-    tauntWait = tauntWait - 1
-    IF tauntWait <= 0 THEN Say "taunt" + LTRIM$(STR$(INT(RND * 12) + 1)), 0 : tauntWait = 3600 + INT(RND * 3600)
-END IF
-RETURN
+SUB SpeechFrame STATIC
+    IF setting(SET_TAUNTS) AND NOT dead AND speechUntil! < TIMER THEN
+        tauntWait = tauntWait - 1
+        IF tauntWait <= 0 THEN Say "taunt" + LTRIM$(STR$(INT(RND * 12) + 1)), 0 : tauntWait = 3600 + INT(RND * 3600)
+    END IF
+END SUB
 
 ' --- A TRANSMISSION: NEXUS's face, its words typing out, its voice - as you
 ' arrive in a sector (with CUTSCENES on; not when the command line is
 ' driving). Space, Enter or a click skips it.
-ShowTransmission:
-IF setting(SET_CUTSCENES) = 0 OR cliMode THEN RETURN
-tk$ = "intro" + LTRIM$(STR$(level)) : li = LineOf(tk$) : IF li = 0 THEN RETURN
-IF lineSnd&(li) > 0 THEN _SNDVOL lineSnd&(li), setting(SET_SPEECH) / 100 : _SNDPLAY lineSnd&(li)
-tStart! = TIMER : tLen! = 4 : IF lineSnd&(li) > 0 THEN tLen! = _SNDLEN(lineSnd&(li))
-_KEYCLEAR : pressWas = -1
-DO
-    _LIMIT 60
-    tNow! = TIMER - tStart! : IF tNow! < 0 THEN tNow! = tNow! + 86400
-    click = 0
-    WHILE _MOUSEINPUT
-        IF _MOUSEBUTTON(1) THEN click = -1
-    WEND
-    press = click OR _KEYDOWN(32) OR _KEYDOWN(13) OR _KEYDOWN(27)
-    IF press AND NOT pressWas AND tNow! > 0.4 THEN EXIT DO
-    pressWas = press
-    IF tNow! > tLen! + 1.5 THEN EXIT DO
-    DrawMenuBackdrop INT(tNow! * 60)
-    LINE (0, 0)-(799, 599), _RGBA32(10, 0, 4, 190), BF
-    ' Scan lines, and the portrait flickering in
-    FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGBA32(0, 0, 0, 60) : NEXT
-    MenuText 400, 70, "INCOMING TRANSMISSION", 3, _RGB32(255, 70, 90), 1
-    IF nexusImg& < -1 AND (tNow! > 0.3 OR INT(tNow! * 20) MOD 2) THEN
-        jit = 0 : IF RND < 0.06 THEN jit = INT(RND * 9) - 4
-        _PUTIMAGE (80 + jit, 170)-(80 + jit + 255, 170 + 255), nexusImg&
-        ' Its eye sweeps along the visor slit, side to side, and glows
-        eyeX = 80 + jit + 2 * (63.5 + 25 * SIN(tNow! * 2.4)) : eyeY = 170 + 115
-        FOR r = 9 TO 1 STEP -1
-            LINE (eyeX - r * 3, eyeY - r \ 2)-(eyeX + r * 3, eyeY + r \ 2), _RGBA32(255, 30, 40, 26), BF
-        NEXT
-        LINE (eyeX - 6, eyeY - 4)-(eyeX + 6, eyeY + 4), _RGB32(255, 40, 50), BF
-        LINE (eyeX - 3, eyeY - 2)-(eyeX + 3, eyeY + 2), _RGB32(255, 200, 190), BF
-        LINE (78, 168)-(337, 427), _RGB32(255, 60, 90), B
-    END IF
-    MenuText 600, 160, "NEXUS", 2, _RGB32(255, 90, 110), 1
-    ' The words, typed out as it speaks them, wrapped to fit
-    shown = INT(LEN(lineText$(li)) * MinOf(1, tNow! / (tLen! * 0.85 + 0.01)))
-    WrapText 380, 210, 50, LEFT$(lineText$(li), shown), _RGB32(255, 220, 230)
-    MenuText 400, 560, "SPACE TO SKIP", 1, _RGB32(150, 130, 160), 1
-    IF glReady THEN GLSL_filter_capture
-    GLScreenLayer glReady
-    ShowFrame
-LOOP
-IF lineSnd&(li) > 0 THEN _SNDSTOP lineSnd&(li)
-_KEYCLEAR
-WHILE _MOUSEINPUT : WEND
-escWas = -1 ' (an Esc that skipped it isn't the pause menu's too)
-RETURN
+SUB ShowTransmission STATIC
+    IF setting(SET_CUTSCENES) = 0 OR cliMode THEN EXIT SUB
+    tk$ = "intro" + LTRIM$(STR$(level)) : li = LineOf(tk$) : IF li = 0 THEN EXIT SUB
+    IF lineSnd&(li) > 0 THEN _SNDVOL lineSnd&(li), setting(SET_SPEECH) / 100 : _SNDPLAY lineSnd&(li)
+    tStart! = TIMER : tLen! = 4 : IF lineSnd&(li) > 0 THEN tLen! = _SNDLEN(lineSnd&(li))
+    _KEYCLEAR : pressWas = -1
+    DO
+        _LIMIT 60
+        tNow! = TIMER - tStart! : IF tNow! < 0 THEN tNow! = tNow! + 86400
+        click = 0
+        WHILE _MOUSEINPUT
+            IF _MOUSEBUTTON(1) THEN click = -1
+        WEND
+        press = click OR _KEYDOWN(32) OR _KEYDOWN(13) OR _KEYDOWN(27)
+        IF press AND NOT pressWas AND tNow! > 0.4 THEN EXIT DO
+        pressWas = press
+        IF tNow! > tLen! + 1.5 THEN EXIT DO
+        DrawMenuBackdrop INT(tNow! * 60)
+        LINE (0, 0)-(799, 599), _RGBA32(10, 0, 4, 190), BF
+        ' Scan lines, and the portrait flickering in
+        FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGBA32(0, 0, 0, 60) : NEXT
+        MenuText 400, 70, "INCOMING TRANSMISSION", 3, _RGB32(255, 70, 90), 1
+        IF nexusImg& < -1 AND (tNow! > 0.3 OR INT(tNow! * 20) MOD 2) THEN
+            jit = 0 : IF RND < 0.06 THEN jit = INT(RND * 9) - 4
+            _PUTIMAGE (80 + jit, 170)-(80 + jit + 255, 170 + 255), nexusImg&
+            ' Its eye sweeps along the visor slit, side to side, and glows
+            eyeX = 80 + jit + 2 * (63.5 + 25 * SIN(tNow! * 2.4)) : eyeY = 170 + 115
+            FOR r = 9 TO 1 STEP -1
+                LINE (eyeX - r * 3, eyeY - r \ 2)-(eyeX + r * 3, eyeY + r \ 2), _RGBA32(255, 30, 40, 26), BF
+            NEXT
+            LINE (eyeX - 6, eyeY - 4)-(eyeX + 6, eyeY + 4), _RGB32(255, 40, 50), BF
+            LINE (eyeX - 3, eyeY - 2)-(eyeX + 3, eyeY + 2), _RGB32(255, 200, 190), BF
+            LINE (78, 168)-(337, 427), _RGB32(255, 60, 90), B
+        END IF
+        MenuText 600, 160, "NEXUS", 2, _RGB32(255, 90, 110), 1
+        ' The words, typed out as it speaks them, wrapped to fit
+        shown = INT(LEN(lineText$(li)) * MinOf(1, tNow! / (tLen! * 0.85 + 0.01)))
+        WrapText 380, 210, 50, LEFT$(lineText$(li), shown), _RGB32(255, 220, 230)
+        MenuText 400, 560, "SPACE TO SKIP", 1, _RGB32(150, 130, 160), 1
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady
+        ShowFrame
+    LOOP
+    IF lineSnd&(li) > 0 THEN _SNDSTOP lineSnd&(li)
+    _KEYCLEAR
+    WHILE _MOUSEINPUT : WEND
+    escWas = -1 ' (an Esc that skipped it isn't the pause menu's too)
+END SUB
 
 ' NEXUS says line key$: its voice, over the station's speakers - everywhere
 ' at once - and its words on screen. One line at a time: a new one cuts
@@ -132,6 +132,7 @@ END SUB
 ' as it is near, from its side - and one every couple of seconds, never
 ' over NEXUS, so a room of guards spotting you isn't a shouting match
 SUB SayAt(key$, x, y)
+    DIM d ' (its own: the main program shares these names)
     STATIC quietTill!
     IF speechUntil! > TIMER THEN EXIT SUB
     IF TIMER < quietTill! AND quietTill! - TIMER < 10 THEN EXIT SUB
@@ -147,6 +148,7 @@ END SUB
 
 ' Which line has key key$ (0: none)
 FUNCTION LineOf(key$)
+    DIM k ' (its own: the main program shares these names)
     FOR k = 1 TO numLines
         IF lineKey$(k) = key$ THEN LineOf = k : EXIT FUNCTION
     NEXT

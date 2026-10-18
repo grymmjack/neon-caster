@@ -47,6 +47,7 @@ END FUNCTION
 ' cell? Its edges are straight up and down the map, so it's four
 ' comparisons.
 FUNCTION InBox(x, y)
+    DIM cx, cy, v ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
     IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
     IF boxOn(cx, cy) = 0 THEN EXIT FUNCTION
@@ -64,6 +65,7 @@ END FUNCTION
 ' or east (a face along y, like the raycaster's side 0), 1 north or south.
 ' Measured as DiagonalHit's: the raycaster's perpWallDist.
 FUNCTION BoxRay(cx, cy, px, py, rdx, rdy, tIn, tOut, bSide)
+    DIM ax, ay, bx, by, e ' (its own: the main program shares these names)
     BoxRay = -1
     ax = cx + boxX0(cx, cy) : bx = cx + boxX1(cx, cy) : ay = cy + boxY0(cx, cy) : by = cy + boxY1(cx, cy)
     IF ABS(rdx) < 0.000001 THEN
@@ -107,6 +109,7 @@ END FUNCTION
 ' three points along it could straddle a pane only 0.2 thick, at the open
 ' end a broken neighbour leaves
 FUNCTION EdgeInGlass(x1, y1, x2, y2)
+    DIM cx, cy ' (its own: the main program shares these names)
     lx = MinOf(x1, x2) : hx = MaxOf(x1, x2) : ly = MinOf(y1, y2) : hy = MaxOf(y1, y2)
     FOR cy = INT(ly) TO INT(hy) : FOR cx = INT(lx) TO INT(hx)
         IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
@@ -123,6 +126,7 @@ FUNCTION EdgeInGlass(x1, y1, x2, y2)
 END FUNCTION
 
 FUNCTION EdgeInBox(x1, y1, x2, y2)
+    DIM cx, cy ' (its own: the main program shares these names)
     lx = MinOf(x1, x2) : hx = MaxOf(x1, x2) : ly = MinOf(y1, y2) : hy = MaxOf(y1, y2)
     FOR cy = INT(ly) TO INT(hy) : FOR cx = INT(lx) TO INT(hx)
         IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
@@ -211,6 +215,7 @@ END SUB
 ' Can a monster at (x1, y1) see (x2, y2)? Step along the line between them,
 ' a tenth of a cell at a time; any wall or shut door on the way blocks it.
 FUNCTION CanSee(x1, y1, x2, y2)
+    DIM i ' (its own: the main program shares these names)
     dx = x2 - x1 : dy = y2 - y1 : dist = SQR(dx * dx + dy * dy)
     steps = INT(dist / 0.1) + 1
     z1 = floorH(INT(x1), INT(y1)) + 0.5 : z2 = floorH(INT(x2), INT(y2)) + 0.5 ' (heights: eye to eye)
@@ -230,6 +235,7 @@ END FUNCTION
 ' A block raised in play in cell (bx, by): any machine it would stand in,
 ' or brush, steps out to the nearest cell round it that's clear
 SUB BlockShoveMonsters(bx, by)
+    DIM d, i, nx, ny ' (its own: the main program shares these names)
     FOR i = 1 TO numMonsters
         IF monsterState(i) < 2 AND ABS(monsterX(i) - bx - 0.5) < 1.5 AND ABS(monsterY(i) - by - 0.5) < 1.5 THEN
             IF InBox(monsterX(i), monsterY(i)) OR NOT BoxFree(monsterX(i), monsterY(i)) THEN

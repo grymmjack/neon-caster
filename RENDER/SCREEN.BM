@@ -29,6 +29,7 @@ END SUB
 ' show BRIGHTNESS as you set it. _MEM reaches its pixels as ApplyGamma's
 ' array does: 4 bytes each, blue first.
 SUB GammaImage(img&, pct)
+    DIM k ' (its own: the main program shares these names)
     STATIC lut(255) AS _UNSIGNED _BYTE, made
     DIM i AS _OFFSET, n AS _OFFSET, m AS _MEM, b AS _UNSIGNED _BYTE
     IF pct = 100 THEN EXIT SUB
@@ -51,6 +52,7 @@ END SUB
 ' noise, read from a different place each frame) and the edges darker,
 ' as through a headset's tubes
 SUB ApplyNight
+    DIM d, x, y ' (its own: the main program shares these names)
     STATIC lut(255) AS LONG, grain(4095) AS LONG, made
     DIM i AS LONG, c AS _UNSIGNED LONG, l AS LONG, o AS LONG
     IF NOT made THEN

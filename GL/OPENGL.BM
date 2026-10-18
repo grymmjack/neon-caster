@@ -94,6 +94,7 @@
 ' be lit brighter than their picture (a colour can't go past 1 on the
 ' card). Otherwise, it's the same game - same maths, same light.
 SUB _GL
+    DIM B, cx, cy, w ' (its own: the main program shares these names)
     IF NOT glReady THEN EXIT SUB ' Nothing to draw (or the software renderer is on)
     IF artHold THEN glArtAck = -1 : EXIT SUB ' (the pictures are being reloaded: ArtReload)
     glStart# = TIMER(0.001)
@@ -178,14 +179,14 @@ SUB _GL
     ' neighbours
     glEyeX = glCamX(b) : glEyeY = glCamY(b) : glEyeDX = glDirX(b) : glEyeDY = glDirY(b) : glEyeZ = glCamZ(b)
     stamp& = glFrame(b) : glNumVis = 0
-    IF glGPU THEN GOTO SkipVisible ' (the world mesh is drawn whole: the card's depth buffer hides what you can't see)
-    FOR cy = 0 TO MAP_SIZE - 1 : FOR cx = 0 TO MAP_SIZE - 1
-        near = glSeen(cx, cy, b) = stamp& OR glSeen(cx + 1, cy, b) = stamp& OR glSeen(cx, cy + 1, b) = stamp&
-        IF cx > 0 THEN IF glSeen(cx - 1, cy, b) = stamp& THEN near = -1
-        IF cy > 0 THEN IF glSeen(cx, cy - 1, b) = stamp& THEN near = -1
-        IF near THEN glNumVis = glNumVis + 1 : glVisX(glNumVis) = cx : glVisY(glNumVis) = cy
-    NEXT : NEXT
-    SkipVisible:
+    IF NOT glGPU THEN ' (with the world mesh, it's drawn whole: the card's depth buffer hides what you can't see)
+        FOR cy = 0 TO MAP_SIZE - 1 : FOR cx = 0 TO MAP_SIZE - 1
+            near = glSeen(cx, cy, b) = stamp& OR glSeen(cx + 1, cy, b) = stamp& OR glSeen(cx, cy + 1, b) = stamp&
+            IF cx > 0 THEN IF glSeen(cx - 1, cy, b) = stamp& THEN near = -1
+            IF cy > 0 THEN IF glSeen(cx, cy - 1, b) = stamp& THEN near = -1
+            IF near THEN glNumVis = glNumVis + 1 : glVisX(glNumVis) = cx : glVisY(glNumVis) = cy
+        NEXT : NEXT
+    END IF
     IF glGPU THEN GLSendLightTables b
 
     ' WET FLOORS: first the whole world upside down, below the floor - a
@@ -259,6 +260,7 @@ END SUB
 '           are turned round each other by the angle, the way chapter 8
 '           turns dirX and dirY round each other to turn you left or right
 SUB GLCamera(b, mirror)
+    DIM c ' (its own: the main program shares these names)
     glMat(0) = -glEyeDY : glMat(4) = glEyeDX : glMat(8) = 0 : glMat(12) = glEyeX * glEyeDY - glEyeY * glEyeDX
     glMat(1) = 0 : glMat(5) = 0 : glMat(9) = 1 : glMat(13) = -glEyeZ ' (your eye's height: 0.5 on level ground)
     glMat(2) = -glEyeDX : glMat(6) = -glEyeDY : glMat(10) = 0 : glMat(14) = glEyeX * glEyeDX + glEyeY * glEyeDY
@@ -282,6 +284,7 @@ END SUB
 ' it up per pixel in the light tables (GLSendLightTables), with cellLit on.
 ' Only what moves is built each frame: the doors, then the sprites.
 SUB GLWorldGPU(b, mirror)
+    DIM k, slot ' (its own: the main program shares these names)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
     IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
@@ -296,7 +299,7 @@ SUB GLWorldGPU(b, mirror)
     GLSL_attrib_off glLightLoc : GLSL_attrib_off glDynLoc
     _glDisableClientState _GL_COLOR_ARRAY : _glColor4f 1, 1, 1, 1 ' (the light comes from the tables)
     FOR kind = 0 TO 3 ' Floors (not in the mirror - it's under them), ceilings, walls, raised and sunken floors
-        IF (kind = 0 OR kind = 3) AND mirror THEN GOTO NextKind
+        IF (kind = 0 OR kind = 3) AND mirror THEN _CONTINUE
         IF kind = 0 AND glReflecting THEN _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
         FOR slot = 1 TO T_SLOTS
             IF glMeshCount(kind, slot) THEN
@@ -305,7 +308,6 @@ SUB GLWorldGPU(b, mirror)
             END IF
         NEXT
         IF glFloorPass THEN glFloorPass = 0 : _glDisable _GL_BLEND
-        NextKind:
     NEXT
     GLSL_attrib_off glTanLoc
     GLSL_buffer_bind 0
@@ -358,6 +360,7 @@ END SUB
 ' then every texture spot, normal and tangent - and sent to the card once.
 ' Doors aren't in it: they move.
 SUB GLBuildMesh
+    DIM cx, cy, slot ' (its own: the main program shares these names)
     glMeshBuilding = -1 : glMeshN = 0 : glNumDoors = 0
     FOR cy = 0 TO MAP_SIZE - 1 : FOR cx = 0 TO MAP_SIZE - 1
         IF GLOpenCell(cx, cy) THEN
@@ -439,6 +442,7 @@ END SUB
 ' doors, sprites, then the things that add light on top - shadows, glows,
 ' particles.
 SUB GLWorld(b, mirror)
+    DIM cx, cy, k ' (its own: the main program shares these names)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
     IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
@@ -448,7 +452,7 @@ SUB GLWorld(b, mirror)
     ' a mirror image, the floors are blended over it: GLUseTexture sets
     ' how see-through each floor texture is (its shader's "reflectAmt").
     FOR z = 0 TO 1
-        IF z = 0 AND mirror THEN GOTO NextFlat ' (no floor in the mirror)
+        IF z = 0 AND mirror THEN _CONTINUE ' (no floor in the mirror)
         IF z = 0 AND glReflecting THEN _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
         FOR k = 1 TO glNumVis
             cx = glVisX(k) : cy = glVisY(k)
@@ -466,7 +470,6 @@ SUB GLWorld(b, mirror)
         NEXT
         GLStopDrawing
         IF glFloorPass THEN glFloorPass = 0 : _glDisable _GL_BLEND ' (the floors' see-through is done)
-        NextFlat:
     NEXT
 
     ' Walls, doors and diagonals: each side of a wall cell (1 west, 2 east,
@@ -497,6 +500,7 @@ END SUB
 ' over what's behind it (_GL_BLEND by its picture's alpha), hidden by
 ' anything in front (the depth test) but hiding nothing (_glDepthMask off)
 SUB GLGlass(b)
+    DIM cx, cy, k, slot, x0, y0, y1 ' (its own: the main program shares these names)
     IF numGlass = 0 THEN EXIT SUB
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
     glCellLitMode = 0
@@ -521,6 +525,7 @@ SUB GLGlass(b)
 END SUB
 
 SUB GLSpritesAndExtras(b, mirror)
+    DIM i, slot, sx, sy, x0, y0, y1 ' (its own: the main program shares these names)
     glCellLitMode = 0 ' (sprites have their own light, worked out in chapter 16)
 
     ' Sprites: a rectangle across your view, right = (-dirY, dirX), one
@@ -605,6 +610,7 @@ END SUB
 ' One glow spot (or particle): a square of the soft round GL_GLOW_TEX
 ' facing you, size from its middle to its edge, in colour (r, g, b)
 SUB GLGlowSpot(gx, gy, gz, sz, r, g, bl, rightX, rightY)
+    DIM x0, y0, y1 ' (its own: the main program shares these names)
     GLUseTexture GL_GLOW_TEX
     x0 = gx - rightX * sz : y0 = gy - rightY * sz : x1 = gx + rightX * sz : y1 = gy + rightY * sz
     GLPutCorner x0, y0, gz + sz, 0, 0, r, g, bl : GLPutCorner x1, y1, gz + sz, 1, 0, r, g, bl
@@ -624,6 +630,7 @@ END SUB
 ' the light's own phase added), and fades when you're near enough to stand
 ' in it (or it would fill your view) or far away.
 SUB GLShaft(sx, sy, r, g, bl, t, rightX, rightY)
+    DIM d, f, half ' (its own: the main program shares these names)
     d = SQR((sx - glEyeX) ^ 2 + (sy - glEyeY) ^ 2)
     f = 1
     IF d < 1.3 THEN f = (d - 0.35) / 0.95 : IF f <= 0 THEN EXIT SUB
@@ -652,6 +659,7 @@ END SUB
 ' Does cell (cx, cy) have a floor and ceiling? Open floor, a door, or a
 ' diagonal wall's cell (the open half)
 FUNCTION GLOpenCell(cx, cy)
+    DIM v ' (its own: the main program shares these names)
     IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
     v = worldMap(cx, cy)
     GLOpenCell = (v <= 0 OR v = 2 OR diagCorner(cx, cy) <> 0)
@@ -670,16 +678,17 @@ END FUNCTION
 ' Light from everywhere (ambient) casts no shadow, so it's as dark as the
 ' cell's light is directional (glLitDir).
 SUB GLShadows(b)
+    DIM ax, ay, bx, by, cx, cy, d, i, slot, sx, sy, x0, y0, y1 ' (its own: the main program shares these names)
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
     _glEnable _GL_ALPHA_TEST : _glAlphaFunc _GL_GREATER, 0.05
     FOR i = 1 TO glNumSpr(b)
         slot = glSprSlot(i, b)
-        IF slot = S_BOLT OR slot = S_BLAST OR (slot > S_BOOM AND slot <= S_BOOM + BOOM_FRAMES) OR slot >= S_PLATE THEN GOTO NextShadow ' (they glow, or lie flat)
+        IF slot = S_BOLT OR slot = S_BLAST OR (slot > S_BOOM AND slot <= S_BOOM + BOOM_FRAMES) OR slot >= S_PLATE THEN _CONTINUE ' (they glow, or lie flat)
         sx = glSprX(i, b) : sy = glSprY(i, b) : cx = INT(sx) : cy = INT(sy)
         strength = glLitDir(cx, cy, b) * 1.2 : IF strength > 0.65 THEN strength = 0.65
         lx = glLitCX(cx, cy, b) : ly = glLitCY(cx, cy, b)
         dx = sx - lx : dy = sy - ly : d = SQR(dx * dx + dy * dy)
-        IF strength < 0.08 OR d < 0.15 THEN GOTO NextShadow
+        IF strength < 0.08 OR d < 0.15 THEN _CONTINUE
         sideX = -dy / d : sideY = dx / d ' (across the shadow: square to the light)
         sfz = FloorAt(sx, sy) ' (all measured from the floor it stands on - up a ledge or down in a pit)
         hw = glSprHalfW(i, b) : zLow = glSprLift(i, b) - sfz : zHigh = zLow + glSprH(i, b)
@@ -696,7 +705,6 @@ SUB GLShadows(b)
         sz = sfz + 0.003
         GLPutCornerA x3, y3, sz, 0, 0, strength : GLPutCornerA x2, y2, sz, uv, 0, strength : GLPutCornerA x1, y1, sz, uv, uv, strength
         GLPutCornerA x3, y3, sz, 0, 0, strength : GLPutCornerA x1, y1, sz, uv, uv, strength : GLPutCornerA x0, y0, sz, 0, uv, strength
-        NextShadow:
     NEXT
     GLStopDrawing
     _glDisable _GL_ALPHA_TEST : _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
@@ -731,6 +739,7 @@ END SUB
 ' the view's corners (0, 0) top left and (800, 600) bottom right. With
 ' post-processing, the post shader lays it on instead (GLPostProcess).
 SUB GLDrawGun(b)
+    DIM g ' (its own: the main program shares these names)
     g = glGun(b) : IF g = 0 THEN EXIT SUB
     IF glGunTex(g) = 0 THEN EXIT SUB
     GLSL_use 0
@@ -754,6 +763,7 @@ END SUB
 ' bigger, a small picture (pixel art) keeps its square pixels; a big one
 ' (128 pixels tall or more) is smoothed.
 SUB GLSendGuns
+    DIM g ' (its own: the main program shares these names)
     FOR g = 1 TO NUM_GUNS
         IF gunGLW(g) > 0 THEN
             IF glGunTex(g) THEN _glDeleteTextures 1, _OFFSET(glGunTex(g))
@@ -806,6 +816,7 @@ END FUNCTION
 '               on a tube's glass - and into the dark between the lines
 ' and the HUD goes in between, so a CRT curves it too.
 SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
+    DIM g, i, k ' (its own: the main program shares these names)
     aw = GLSL_target_width&(glTargA) : ah = GLSL_target_height&(glTargA)
     bloomOn = (glSet(SET_BLOOM, b) <> 0) AND glBrightProg <> 0 AND glBlurProg <> 0 ' (TRUE is -1; a setting's "on" is 1)
     _glEnable _GL_TEXTURE_2D : _glDisable _GL_BLEND : _glColor4f 1, 1, 1, 1
@@ -901,6 +912,7 @@ END SUB
 ' (sx, sy), and how big a cell looks there (sr, 0 if it's behind you) -
 ' the camera's sums (GLCamera) and the perspective's, done by hand
 SUB GLProject(x, y, z, b, sx, sy, sr)
+    DIM c ' (its own: the main program shares these names)
     sx = 0 : sy = 0 : sr = 0
     rx = (y - glEyeY) * glEyeDX - (x - glEyeX) * glEyeDY ' (your right: (-dirY, dirX))
     up = z - 0.5 : ahead = (x - glEyeX) * glEyeDX + (y - glEyeY) * glEyeDY
@@ -916,6 +928,7 @@ END SUB
 ' reaches that cell (glCellDyn, from GLSetLight). In light units (256 =
 ' full), like litR.
 SUB GLDynAt(x, y, z, r, g, bl)
+    DIM d, k, w ' (its own: the main program shares these names)
     r = 0 : g = 0 : bl = 0
     FOR k = 1 TO glNumDyn(glBuf)
         IF glCellDyn(k) THEN
@@ -937,6 +950,7 @@ END SUB
 '   neon      how much its bright, colourful pixels light themselves
 '   anim      0 still, 1 flickering screens, 2 chasing lights, 3 pulsing
 SUB GLSendTextures
+    DIM d, lk, slot, x, y ' (its own: the main program shares these names)
     IF glTexName(1) = 0 THEN _glGenTextures GL_GLOW_TEX, _OFFSET(glTexName(1))
     ' Walls, floors and ceilings are solid, so their alpha is free: it gets
     ' each pixel's brightness, which the world shader reads as its HEIGHT -
@@ -1067,6 +1081,7 @@ END SUB
 ' one's place, colour (in 0..1, so light units / 256) and radius. Off
 ' (radius 0.001, black) if MOVING LIGHTS is off or there are fewer.
 SUB GLShaderStart(b)
+    DIM k ' (its own: the main program shares these names)
     glShaderOn = 0
     IF glWorldProg = 0 THEN EXIT SUB
     p~& = glWorldProg
@@ -1103,6 +1118,7 @@ END SUB
 ' the face's normal and tangent, the way to the light, and which moving
 ' lights reach it). A full batch is drawn there and then.
 SUB GLPutCorner(x, y, z, u, v, red, green, blue)
+    DIM n ' (its own: the main program shares these names)
     IF glNumVerts = GL_BATCH THEN GLDraw
     n = glNumVerts
     glVerts(n * 3) = x : glVerts(n * 3 + 1) = y : glVerts(n * 3 + 2) = z
@@ -1145,6 +1161,7 @@ END SUB
 ' the queue filled again. So they go through the GLSL library's "stream"
 ' (graphics memory, filled once a batch) and the draws read them there.
 SUB GLDraw
+    DIM n ' (its own: the main program shares these names)
     IF glNumVerts = 0 THEN EXIT SUB
     FOR s = 0 TO GL_GLOW_TEX : glSlotCount(s) = 0 : NEXT
     FOR n = 0 TO glNumVerts - 1
@@ -1185,6 +1202,7 @@ END SUB
 ' or less for the darker sides) - and that cell's light middle, and which
 ' moving lights reach it
 SUB GLSetLight(cx, cy, darken, b)
+    DIM k ' (its own: the main program shares these names)
     glLR = glLitR(cx, cy, b) : glLG = glLitG(cx, cy, b) : glLB = glLitB(cx, cy, b) : glShade = darken
     glCellLX = glLitCX(cx, cy, b) : glCellLY = glLitCY(cx, cy, b) : glCellDir = glLitDir(cx, cy, b)
     FOR k = 1 TO GL_DYN : glCellDyn(k) = glDynReach(cx, cy, k, b) : NEXT
@@ -1204,6 +1222,7 @@ END SUB
 ' cell to cell. Without the world shader, the moving lights are added here
 ' too, at each corner (GLDynAt).
 SUB GLCorner(x, y, z, u, v)
+    DIM fx, fy, i, j, tx, ty, w ' (its own: the main program shares these names)
     IF glMeshBuilding THEN GLMeshCorner x, y, z, u, v : EXIT SUB ' (building the world mesh: just the shape)
     lr = glLR : lg = glLG : lb = glLB
     IF glSet(SET_SMOOTH, glBuf) THEN
@@ -1285,6 +1304,7 @@ END SUB
 ' from height zLow up to zHigh, showing texture vTop (at the top) down to
 ' vBottom. Two triangles.
 SUB GLStrip(ax, ay, bx, by, s0, s1, u0, u1, zLow, zHigh, vTop, vBottom, slot)
+    DIM x0, y0, y1 ' (its own: the main program shares these names)
     x0 = ax + (bx - ax) * s0 : y0 = ay + (by - ay) * s0
     x1 = ax + (bx - ax) * s1 : y1 = ay + (by - ay) * s1
     faceLen = SQR((bx - ax) ^ 2 + (by - ay) ^ 2) ' The tangent: along the face, the way u grows
@@ -1301,6 +1321,7 @@ END SUB
 ' pass), rippling (anim 5), and not writing depth, so it never hides
 ' what's drawn after it. Lit by the light tables, like the world.
 SUB GLLiquids(b)
+    DIM ax, ay, bx, by, cx, cy, k, nx, ny, slot ' (its own: the main program shares these names)
     GLStopDrawing
     litMode = glCellLitMode : glCellLitMode = 1 : glLiquidPass = -1
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
@@ -1341,6 +1362,7 @@ END SUB
 ' nudges it nearer in its depth test, so the surface never shows through
 ' it), see-through where the picture is.
 SUB GLDecals(b)
+    DIM cx, cy, i, nx, ny, ux, uy ' (its own: the main program shares these names)
     IF glNumDecal(b) = 0 THEN EXIT SUB
     GLStopDrawing
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
@@ -1368,6 +1390,7 @@ END SUB
 ' two), a thin slice of its picture; and a lifted shutter's underside.
 ' (Its track is GLDoorTrack's.)
 SUB GLDoorBox(cx, cy, b)
+    DIM ax, ay, bx, by, f, fz, half, slot ' (its own: the main program shares these names)
     half = DOOR_THICK / 2 : amt = glDoor(cx, cy, b) : kind = doorType(cx, cy) : across = DoorAcross(cx, cy)
     fz = floorH(cx, cy) : cz = ceilH(cx, cy) ' (from its own cell's floor to its ceiling: a door up a step stands on the step)
     SELECT CASE kind
@@ -1428,6 +1451,7 @@ END SUB
 ' A door's edge: square to the door, at e along it (0..1), across its
 ' thickness, floor to ceiling, facing along it (facing 1 or -1)
 SUB GLDoorEdge(cx, cy, across, e, facing, slot)
+    DIM ax, ay, bx, by, half ' (its own: the main program shares these names)
     half = DOOR_THICK / 2
     IF across = 0 THEN
         ax = cx + e : bx = ax : ay = cy + 0.5 - half : by = cy + 0.5 + half : glFaceNX = facing : glFaceNY = 0
@@ -1469,6 +1493,7 @@ END FUNCTION
 ' OpenGL: the lifts where they are now - each cell's top, and its sides
 ' down (or up) to the floor next to it
 SUB GLLifts(b)
+    DIM cx, cy, k ' (its own: the main program shares these names)
     FOR k = 1 TO numLifts
         FOR cy = liftY0(k) TO liftY1(k) : FOR cx = liftX0(k) TO liftX1(k)
             IF liftCell(cx, cy) = k THEN
@@ -1529,6 +1554,7 @@ SUB GLStep(ax, ay, bx, by, b)
 END SUB
 
 SUB GLFace(cx, cy, side, b)
+    DIM ax, ay, bx, by, fz, nx, ny, slot ' (its own: the main program shares these names)
     SELECT CASE side
         CASE 1 : nx = cx - 1 : ny = cy : ax = cx : ay = cy : bx = cx : by = cy + 1 : inFront = glEyeX < cx
         CASE 2 : nx = cx + 1 : ny = cy : ax = cx + 1 : ay = cy : bx = cx + 1 : by = cy + 1 : inFront = glEyeX > cx + 1
@@ -1572,6 +1598,7 @@ END SUB
 ' quarter wide shows a quarter of the picture. Its faces are FACE_BOX + 1
 ' east, 2 south, 3 west, 4 north in [faces].
 SUB GLBox(cx, cy, b)
+    DIM fz, x0, y0, y1 ' (its own: the main program shares these names)
     x0 = cx + boxX0(cx, cy) : x1 = cx + boxX1(cx, cy) : y0 = cy + boxY0(cx, cy) : y1 = cy + boxY1(cx, cy)
     fz = floorH(cx, cy) : cz = ceilH(cx, cy) : deflt = wallTexSlot(boxOn(cx, cy))
     IF glMeshBuilding OR glEyeX > x1 THEN ' East
@@ -1595,6 +1622,7 @@ END SUB
 ' One side of a block, as GLFaceStrip - but divided left | right, at its
 ' own middle (BoxFaceU), the half with the lower u the first picture
 SUB GLBoxSide(ax, ay, bx, by, u0, u1, fz, cz, cx, cy, f, deflt)
+    DIM r ' (its own: the main program shares these names)
     IF faceDiv(cx, cy, f) = 1 THEN
         um = (u0 + u1) / 2 : IF u0 < u1 THEN r = 0.25 ELSE r = 0.75
         GLStrip ax, ay, bx, by, 0, 0.5, u0, um, fz, cz, 1 - cz, 1 - fz, FaceSlot(cx, cy, f, r, 0, deflt)
@@ -1609,6 +1637,7 @@ END SUB
 ' darkness (as chapter 15), and textured left to right along x - turned
 ' round for corners 1 and 2, as chapter 15 does.
 SUB GLDiagonal(cx, cy, corner, b)
+    DIM ax, ay, bx, by ' (its own: the main program shares these names)
     IF NOT glMeshBuilding THEN IF InDiagonalWall(corner, glEyeX - cx, glEyeY - cy) THEN EXIT SUB ' You're behind it
     IF corner = 1 OR corner = 3 THEN
         ax = cx : ay = cy + 1 : bx = cx + 1 : by = cy ' "/"

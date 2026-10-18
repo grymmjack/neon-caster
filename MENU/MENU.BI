@@ -18,8 +18,13 @@ CONST MAX_MI = 16
 DIM SHARED miLabel$(MAX_MI), miKind(MAX_MI), miRef(MAX_MI), miAct(MAX_MI), miOn(MAX_MI), miInfo$(MAX_MI)
 DIM SHARED numMI, menuTitle$, menuSel, menuCapture, menuWide, menuScreen, menuInGame
 DIM SHARED menuTyping, menuTyped$, menuTypeBad ' (typing qb64pe's path: MenuTypeKey)
-DIM menuStack(10), menuStackSel(10) ' The screens you came through (for BACK)
+DIM SHARED menuStack(10), menuStackSel(10) ' The screens you came through (for BACK)
 ' MENU_ = where the menu is drawn: the first row, the gap between rows,
 ' where labels start, and where sliders and other controls go
 CONST MENU_TOP = 176, MENU_ROW = 32, MENU_LABEL_X = 140, MENU_WIDGET_X = 444, MENU_WIDGET_W = 160 ' (an 18-letter name, then the widget and its value: all inside the panel, 96 to 704)
 CONST SPLASH_SECONDS = 3.5 ' How long the splash screen stays up (any key skips it)
+
+
+' This module's working variables, shared by its SUBs (and with the main
+' program)
+DIM SHARED menuAdjust, menuDepth, menuDone, menuMove, menuT, mouseWasDown, qbF$, qbSel

@@ -7,326 +7,326 @@
 
 ' --- This frame's keys and buttons (the game loop, after the menu): yours,
 ' as bits - or, with a demo playing, the demo's
-DemoInput:
-IF demoPlay THEN GOSUB DemoReadFrame
-IF botOn AND NOT demoPlay AND NOT editMode THEN
-    GOSUB BotThink ' (the autopilot's keys, in place of yours)
-ELSEIF NOT demoPlay THEN
-    inBits = 0 : inWheel = mouseWheel
-    IF KeyHeld(BIND_FORWARD) THEN inBits = inBits OR DB_FWD
-    IF KeyHeld(BIND_BACK) THEN inBits = inBits OR DB_BACK
-    IF KeyHeld(BIND_LEFT) THEN inBits = inBits OR DB_LEFT
-    IF KeyHeld(BIND_RIGHT) THEN inBits = inBits OR DB_RIGHT
-    IF KeyHeld(BIND_RUN) THEN inBits = inBits OR DB_RUN
-    IF fireDown THEN inBits = inBits OR DB_FIRE
-    IF spaceDown THEN inBits = inBits OR DB_USE
-    IF _MOUSEBUTTON(2) THEN inBits = inBits OR DB_AIM
-    IF KeyHeld(BIND_KICK) THEN inBits = inBits OR DB_KICK
-    IF KeyHeld(BIND_NIGHT) THEN inBits = inBits OR DB_NIGHT
-    IF KeyHeld(BIND_MAP) THEN inBits = inBits OR DB_MAP
-    IF _KEYDOWN(101) OR _KEYDOWN(69) THEN inBits = inBits OR DB_UP ' (E and C: up and down, flying)
-    IF _KEYDOWN(99) OR _KEYDOWN(67) THEN inBits = inBits OR DB_DOWN
-    IF _KEYDOWN(107) OR _KEYDOWN(75) THEN inBits = inBits OR DB_CHEATK ' (K and G: the testing cheats)
-    IF _KEYDOWN(103) OR _KEYDOWN(71) THEN inBits = inBits OR DB_CHEATG
-    dg = 0
-    FOR dk = 1 TO 4
-        IF DigitHeld%(48 + dk) THEN dg = dk
-    NEXT
-    inBits = inBits + dg * DB_GUN
-END IF
-fireDown = (inBits AND DB_FIRE) <> 0 : spaceDown = (inBits AND DB_USE) <> 0 : mouseWheel = inWheel
-IF demoRec OR demoPlay THEN fovPlane = demoFovQ / 100000 : lookAim = demoLook ' (the view's width and LOOK UP / DOWN, as the demo was made with: they change where a shot goes)
-IF demoRec AND (demoFrame MOD 60 = 0 OR demoDebug) THEN GOSUB DemoFlush : GOSUB DemoStateNow : DemoPut "k " + ds$ ' (NEON_DEMO_DEBUG: a check every frame, and more in it)
-RETURN
+SUB DemoInput STATIC
+    IF demoPlay THEN DemoReadFrame
+    IF botOn AND NOT demoPlay AND NOT editMode THEN
+        BotThink ' (the autopilot's keys, in place of yours)
+    ELSEIF NOT demoPlay THEN
+        inBits = 0 : inWheel = mouseWheel
+        IF KeyHeld(BIND_FORWARD) THEN inBits = inBits OR DB_FWD
+        IF KeyHeld(BIND_BACK) THEN inBits = inBits OR DB_BACK
+        IF KeyHeld(BIND_LEFT) THEN inBits = inBits OR DB_LEFT
+        IF KeyHeld(BIND_RIGHT) THEN inBits = inBits OR DB_RIGHT
+        IF KeyHeld(BIND_RUN) THEN inBits = inBits OR DB_RUN
+        IF fireDown THEN inBits = inBits OR DB_FIRE
+        IF spaceDown THEN inBits = inBits OR DB_USE
+        IF _MOUSEBUTTON(2) THEN inBits = inBits OR DB_AIM
+        IF KeyHeld(BIND_KICK) THEN inBits = inBits OR DB_KICK
+        IF KeyHeld(BIND_NIGHT) THEN inBits = inBits OR DB_NIGHT
+        IF KeyHeld(BIND_MAP) THEN inBits = inBits OR DB_MAP
+        IF _KEYDOWN(101) OR _KEYDOWN(69) THEN inBits = inBits OR DB_UP ' (E and C: up and down, flying)
+        IF _KEYDOWN(99) OR _KEYDOWN(67) THEN inBits = inBits OR DB_DOWN
+        IF _KEYDOWN(107) OR _KEYDOWN(75) THEN inBits = inBits OR DB_CHEATK ' (K and G: the testing cheats)
+        IF _KEYDOWN(103) OR _KEYDOWN(71) THEN inBits = inBits OR DB_CHEATG
+        dg = 0
+        FOR dk = 1 TO 4
+            IF DigitHeld%(48 + dk) THEN dg = dk
+        NEXT
+        inBits = inBits + dg * DB_GUN
+    END IF
+    fireDown = (inBits AND DB_FIRE) <> 0 : spaceDown = (inBits AND DB_USE) <> 0 : mouseWheel = inWheel
+    IF demoRec OR demoPlay THEN fovPlane = demoFovQ / 100000 : lookAim = demoLook ' (the view's width and LOOK UP / DOWN, as the demo was made with: they change where a shot goes)
+    IF demoRec AND (demoFrame MOD 60 = 0 OR demoDebug) THEN DemoFlush : DemoStateNow : DemoPut "k " + ds$ ' (NEON_DEMO_DEBUG: a check every frame, and more in it)
+END SUB
 
 ' --- Recording: this frame's line (DemoInput's bits, the turn and the look -
 ' after they're known). The same as the last frame's? Just counted (*N).
-DemoWriteFrame:
-dl$ = DemoKeys$(inBits) + " " + LTRIM$(STR$(inTU)) + " " + LTRIM$(STR$(inPU)) + " " + LTRIM$(STR$(inWheel))
-IF demoPendN > 0 AND dl$ = demoPend$ THEN
-    demoPendN = demoPendN + 1
-ELSE
-    GOSUB DemoFlush : demoPend$ = dl$ : demoPendN = 1
-END IF
-demoFrame = demoFrame + 1
-RETURN
+SUB DemoWriteFrame STATIC
+    dl$ = DemoKeys$(inBits) + " " + LTRIM$(STR$(inTU)) + " " + LTRIM$(STR$(inPU)) + " " + LTRIM$(STR$(inWheel))
+    IF demoPendN > 0 AND dl$ = demoPend$ THEN
+        demoPendN = demoPendN + 1
+    ELSE
+        DemoFlush : demoPend$ = dl$ : demoPendN = 1
+    END IF
+    demoFrame = demoFrame + 1
+END SUB
 
 ' --- The frame line waiting to be written (it may yet repeat), written
-DemoFlush:
-IF demoPendN > 1 THEN DemoPut demoPend$ + " *" + LTRIM$(STR$(demoPendN)) ELSE IF demoPendN = 1 THEN DemoPut demoPend$
-demoPendN = 0
-RETURN
+SUB DemoFlush STATIC
+    IF demoPendN > 1 THEN DemoPut demoPend$ + " *" + LTRIM$(STR$(demoPendN)) ELSE IF demoPendN = 1 THEN DemoPut demoPend$
+    demoPendN = 0
+END SUB
 
 ' --- Recording: a result (demoKind$, demoRes) - a puzzle's, a game's, a program's
-DemoEvent:
-GOSUB DemoFlush : DemoPut demoKind$ + " " + LTRIM$(STR$(demoRes))
-RETURN
+SUB DemoEvent STATIC
+    DemoFlush : DemoPut demoKind$ + " " + LTRIM$(STR$(demoRes))
+END SUB
 
 ' --- Playing: the next frame's line. Commands and checks come first: a
 ' command runs (as it did, recording, at the frame's start), a check is
 ' compared with where the game is now
-DemoReadFrame:
-IF demoLeft > 0 THEN demoLeft = demoLeft - 1 : demoFrame = demoFrame + 1 : RETURN ' (*N: the same as the last)
-DO
-    GOSUB DemoNextLine
-    IF dl$ = "" THEN GOSUB DemoEnded : RETURN
-    SELECT CASE LEFT$(dl$, 2)
-        CASE "c "
-            dc$ = MID$(dl$, 3) : conCmd$ = dc$ : demoInject = -1 : GOSUB ConExec : demoInject = 0
-            IF NOT demoPlay THEN RETURN ' (it ended the demo)
-        CASE "k "
-            GOSUB DemoCheck
-        CASE "o", "o " ' The console, opened while recording: typed in again, key by key
-            conReplay = -1 : demoInject = -1 : GOSUB RunConsole : conReplay = 0 : demoInject = 0
-            IF NOT demoPlay THEN RETURN
-        CASE "e "
-            GOSUB DemoEnded : RETURN
-        CASE "p ", "a ", "r "
-            dWhy$ = "a result with nothing waiting for it (" + dl$ + ")" : GOSUB DemoOut
-        CASE ELSE
-            inBits = DemoBits&(DemoWord$(dl$, 1)) : inTU = VAL(DemoWord$(dl$, 2)) : inPU = VAL(DemoWord$(dl$, 3)) : inWheel = VAL(DemoWord$(dl$, 4))
-            dr$ = DemoWord$(dl$, 5) : demoLeft = 0 : IF LEFT$(dr$, 1) = "*" THEN demoLeft = VAL(MID$(dr$, 2)) - 1
-            EXIT DO
-    END SELECT
-LOOP
-demoFrame = demoFrame + 1
-RETURN
+SUB DemoReadFrame STATIC
+    IF demoLeft > 0 THEN demoLeft = demoLeft - 1 : demoFrame = demoFrame + 1 : EXIT SUB ' (*N: the same as the last)
+    DO
+        DemoNextLine
+        IF dl$ = "" THEN DemoEnded : EXIT SUB
+        SELECT CASE LEFT$(dl$, 2)
+            CASE "c "
+                dc$ = MID$(dl$, 3) : conCmd$ = dc$ : demoInject = -1 : ConExec : demoInject = 0
+                IF NOT demoPlay THEN EXIT SUB ' (it ended the demo)
+            CASE "k "
+                DemoCheck
+            CASE "o", "o " ' The console, opened while recording: typed in again, key by key
+                conReplay = -1 : demoInject = -1 : RunConsole : conReplay = 0 : demoInject = 0
+                IF NOT demoPlay THEN EXIT SUB
+            CASE "e "
+                DemoEnded : EXIT SUB
+            CASE "p ", "a ", "r "
+                dWhy$ = "a result with nothing waiting for it (" + dl$ + ")" : DemoOut
+            CASE ELSE
+                inBits = DemoBits&(DemoWord$(dl$, 1)) : inTU = VAL(DemoWord$(dl$, 2)) : inPU = VAL(DemoWord$(dl$, 3)) : inWheel = VAL(DemoWord$(dl$, 4))
+                dr$ = DemoWord$(dl$, 5) : demoLeft = 0 : IF LEFT$(dr$, 1) = "*" THEN demoLeft = VAL(MID$(dr$, 2)) - 1
+                EXIT DO
+        END SELECT
+    LOOP
+    demoFrame = demoFrame + 1
+END SUB
 
 ' --- The demo's next line that isn't empty or a # comment, in dl$ ("" at its end)
-DemoNextLine:
-IF LEN(demoBack$) THEN dl$ = demoBack$ : demoBack$ = "" : RETURN
-dl$ = ""
-DO WHILE NOT EOF(demoFH)
-    LINE INPUT #demoFH, dl$
-    dl$ = LTRIM$(RTRIM$(dl$)) : IF RIGHT$(dl$, 1) = CHR$(13) THEN dl$ = RTRIM$(LEFT$(dl$, LEN(dl$) - 1)) ' (written on Windows)
-    IF LEN(dl$) AND LEFT$(dl$, 1) <> "#" THEN RETURN
+SUB DemoNextLine STATIC
+    IF LEN(demoBack$) THEN dl$ = demoBack$ : demoBack$ = "" : EXIT SUB
     dl$ = ""
-LOOP
-RETURN
+    DO WHILE NOT EOF(demoFH)
+        LINE INPUT #demoFH, dl$
+        dl$ = LTRIM$(RTRIM$(dl$)) : IF RIGHT$(dl$, 1) = CHR$(13) THEN dl$ = RTRIM$(LEFT$(dl$, LEN(dl$) - 1)) ' (written on Windows)
+        IF LEN(dl$) AND LEFT$(dl$, 1) <> "#" THEN EXIT SUB
+        dl$ = ""
+    LOOP
+END SUB
 
 ' --- NEON_DEMO_TRACE: this frame, all of it that a demo depends on, into the log
-DemoTraceOut:
-trS$ = "T" + STR$(demoFrame) + STR$(CLNG(playerX * 10000)) + STR$(CLNG(playerY * 10000)) + STR$(CLNG(dirX * 10000)) + STR$(CLNG(dirY * 10000)) + STR$(health) + STR$(kills) + " g" + LTRIM$(STR$(grSeed))
-trS$ = trS$ + " w" + LTRIM$(STR$(fireWait)) + " c" + LTRIM$(STR$(ammoCount(AM_CELLS))) + " gun" + STR$(currentGun) + STR$(swapTimer) + STR$(kickTimer) + " in" + STR$(inBits) + STR$(inTU)
-FOR trM = 1 TO numMonsters
-    IF monsterState(trM) < 3 THEN trS$ = trS$ + " |" + LTRIM$(STR$(trM)) + ":" + LTRIM$(STR$(monsterHP(trM))) + "," + LTRIM$(STR$(monsterState(trM))) + "," + LTRIM$(STR$(monsterTimer(trM))) + "," + LTRIM$(STR$(CLNG(monsterX(trM) * 1000))) + "," + LTRIM$(STR$(CLNG(monsterY(trM) * 1000)))
-NEXT
-ConPrint trS$
-RETURN
+SUB DemoTraceOut STATIC
+    trS$ = "T" + STR$(demoFrame) + STR$(CLNG(playerX * 10000)) + STR$(CLNG(playerY * 10000)) + STR$(CLNG(dirX * 10000)) + STR$(CLNG(dirY * 10000)) + STR$(health) + STR$(kills) + " g" + LTRIM$(STR$(grSeed))
+    trS$ = trS$ + " w" + LTRIM$(STR$(fireWait)) + " c" + LTRIM$(STR$(ammoCount(AM_CELLS))) + " gun" + STR$(currentGun) + STR$(swapTimer) + STR$(kickTimer) + " in" + STR$(inBits) + STR$(inTU)
+    FOR trM = 1 TO numMonsters
+        IF monsterState(trM) < 3 THEN trS$ = trS$ + " |" + LTRIM$(STR$(trM)) + ":" + LTRIM$(STR$(monsterHP(trM))) + "," + LTRIM$(STR$(monsterState(trM))) + "," + LTRIM$(STR$(monsterTimer(trM))) + "," + LTRIM$(STR$(CLNG(monsterX(trM) * 1000))) + "," + LTRIM$(STR$(CLNG(monsterY(trM) * 1000)))
+    NEXT
+    ConPrint trS$
+END SUB
 
 ' --- Where the game is, for a check: frame, x, y, height (in thousandths),
 ' health and kills
-DemoStateNow:
-ds$ = LTRIM$(STR$(demoFrame)) + " " + LTRIM$(STR$(CLNG(playerX * 1000))) + " " + LTRIM$(STR$(CLNG(playerY * 1000))) + " " + LTRIM$(STR$(CLNG(playerZ * 1000))) + " " + LTRIM$(STR$(health)) + " " + LTRIM$(STR$(kills))
-IF demoDebug THEN ' (finding where two runs part: the dice, and every monster's health, place and state, summed)
-    dsum# = 0
-    FOR dm = 1 TO numMonsters : dsum# = dsum# + monsterHP(dm) * dm + CLNG(monsterX(dm) * 100) * 3 + CLNG(monsterY(dm) * 100) * 7 + monsterState(dm) * 11 + monsterTimer(dm) * 13 : NEXT
-    ds$ = ds$ + " g" + LTRIM$(STR$(grSeed)) + " m" + LTRIM$(STR$(dsum#)) + " a" + LTRIM$(STR$(ammoCount(AM_CELLS))) + " w" + LTRIM$(STR$(fireWait))
-END IF
-RETURN
+SUB DemoStateNow STATIC
+    ds$ = LTRIM$(STR$(demoFrame)) + " " + LTRIM$(STR$(CLNG(playerX * 1000))) + " " + LTRIM$(STR$(CLNG(playerY * 1000))) + " " + LTRIM$(STR$(CLNG(playerZ * 1000))) + " " + LTRIM$(STR$(health)) + " " + LTRIM$(STR$(kills))
+    IF demoDebug THEN ' (finding where two runs part: the dice, and every monster's health, place and state, summed)
+        dsum# = 0
+        FOR dm = 1 TO numMonsters : dsum# = dsum# + monsterHP(dm) * dm + CLNG(monsterX(dm) * 100) * 3 + CLNG(monsterY(dm) * 100) * 7 + monsterState(dm) * 11 + monsterTimer(dm) * 13 : NEXT
+        ds$ = ds$ + " g" + LTRIM$(STR$(grSeed)) + " m" + LTRIM$(STR$(dsum#)) + " a" + LTRIM$(STR$(ammoCount(AM_CELLS))) + " w" + LTRIM$(STR$(fireWait))
+    END IF
+END SUB
 
 ' --- Playing: a check (dl$, "k ..." or "e ...") - is the game where it was?
-DemoCheck:
-GOSUB DemoStateNow
-IF NOT DemoSame(MID$(dl$, 3), ds$) THEN dWhy$ = "recorded " + MID$(dl$, 3) + ", now " + ds$ + " (frame x y height health kills)" : GOSUB DemoOut
-RETURN
+SUB DemoCheck STATIC
+    DemoStateNow
+    IF NOT DemoSame(MID$(dl$, 3), ds$) THEN dWhy$ = "recorded " + MID$(dl$, 3) + ", now " + ds$ + " (frame x y height health kills)" : DemoOut
+END SUB
 
 ' --- Playing: out of step (dWhy$ says how) - the first time, said
-DemoOut:
-demoBad = demoBad + 1
-IF demoBad = 1 THEN
-    demoBadAt = demoFrame
-    ConPrint "demo: out of step at frame" + STR$(demoFrame) + " (" + TimeText$(demoFrame / 60) + "): " + dWhy$
-    ShowMsg "DEMO OUT OF STEP at " + TimeText$(demoFrame / 60)
-END IF
-RETURN
+SUB DemoOut STATIC
+    demoBad = demoBad + 1
+    IF demoBad = 1 THEN
+        demoBadAt = demoFrame
+        ConPrint "demo: out of step at frame" + STR$(demoFrame) + " (" + TimeText$(demoFrame / 60) + "): " + dWhy$
+        ShowMsg "DEMO OUT OF STEP at " + TimeText$(demoFrame / 60)
+    END IF
+END SUB
 
 ' --- Playing: a result for this moment (demoKind$: p a puzzle, a a game,
 ' r a program) - demoRes, from the demo
-DemoTakeRes:
-demoRes = 0 : IF demoKind$ = "r" THEN demoRes = -999
-IF demoLeft > 0 THEN dWhy$ = "a " + demoKind$ + " result wanted mid-run" : GOSUB DemoOut : RETURN
-GOSUB DemoNextLine
-IF LEFT$(dl$, 2) = demoKind$ + " " THEN demoRes = VAL(MID$(dl$, 3)) : RETURN
-demoBack$ = dl$ : dWhy$ = "no " + demoKind$ + " result where one was wanted" : GOSUB DemoOut
-RETURN
+SUB DemoTakeRes STATIC
+    demoRes = 0 : IF demoKind$ = "r" THEN demoRes = -999
+    IF demoLeft > 0 THEN dWhy$ = "a " + demoKind$ + " result wanted mid-run" : DemoOut : EXIT SUB
+    DemoNextLine
+    IF LEFT$(dl$, 2) = demoKind$ + " " THEN demoRes = VAL(MID$(dl$, 3)) : EXIT SUB
+    demoBack$ = dl$ : dWhy$ = "no " + demoKind$ + " result where one was wanted" : DemoOut
+END SUB
 
 ' --- The exit: recording, the demo's done; playing, it should end here too
-DemoAtExit:
-IF demoRec THEN
-    GOSUB DemoStop
-    IF demoRecQuit THEN ConPrint "demo: recorded to the exit - quitting" : SYSTEM 0
-    RETURN
-END IF
-IF demoLeft > 0 THEN
-    dWhy$ = "reached the exit" + STR$(demoLeft) + " frames early" : GOSUB DemoOut : dl$ = ""
-ELSE
-    GOSUB DemoNextLine
-    IF LEFT$(dl$, 2) <> "e " THEN dWhy$ = "reached the exit before the demo ended" : GOSUB DemoOut : dl$ = ""
-END IF
-GOSUB DemoEnded
-RETURN
+SUB DemoAtExit STATIC
+    IF demoRec THEN
+        DemoStop
+        IF demoRecQuit THEN ConPrint "demo: recorded to the exit - quitting" : SYSTEM 0
+        EXIT SUB
+    END IF
+    IF demoLeft > 0 THEN
+        dWhy$ = "reached the exit" + STR$(demoLeft) + " frames early" : DemoOut : dl$ = ""
+    ELSE
+        DemoNextLine
+        IF LEFT$(dl$, 2) <> "e " THEN dWhy$ = "reached the exit before the demo ended" : DemoOut : dl$ = ""
+    END IF
+    DemoEnded
+END SUB
 
 ' --- Playing: the demo's over (dl$: its "e" line, if it has one) - how it
 ' went, and the game's yours again (or, playdemo NAME quit, it ends)
-DemoEnded:
-IF LEFT$(dl$, 2) = "e " THEN GOSUB DemoCheck
-CLOSE #demoFH : demoPlay = 0
-IF demoBad THEN dWhy$ = "OUT OF STEP from frame" + STR$(demoBadAt) + " (" + LTRIM$(STR$(demoBad)) + " checks off)" ELSE dWhy$ = "in step all the way"
-ConPrint "demo: " + demoName$ + " -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + "), " + dWhy$
-ShowMsg "DEMO OVER - " + dWhy$
-GOSUB DemoDone
-RETURN
+SUB DemoEnded STATIC
+    IF LEFT$(dl$, 2) = "e " THEN DemoCheck
+    CLOSE #demoFH : demoPlay = 0
+    IF demoBad THEN dWhy$ = "OUT OF STEP from frame" + STR$(demoBadAt) + " (" + LTRIM$(STR$(demoBad)) + " checks off)" ELSE dWhy$ = "in step all the way"
+    ConPrint "demo: " + demoName$ + " -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + "), " + dWhy$
+    ShowMsg "DEMO OVER - " + dWhy$
+    DemoDone
+END SUB
 
 ' --- stopdemo - or something that starts somewhere else (a saved game, a
 ' new game, the editor): recording, the demo's saved; playing, it stops
-DemoStop:
-IF demoRec THEN
-    GOSUB DemoFlush : GOSUB DemoStateNow : DemoPut "e " + ds$ : CLOSE #demoFH : demoRec = 0
-    ConPrint "demo: " + demoName$ + " saved -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + ")" : ShowMsg "DEMO SAVED: " + demoName$ + " - in DEMO REPLAYS"
-    ApplySettings ' (the view's width: yours again)
-END IF
-IF demoPlay THEN
-    CLOSE #demoFH : demoPlay = 0
-    ConPrint "demo: " + demoName$ + " stopped at frame" + STR$(demoFrame)
-    GOSUB DemoDone
-END IF
-RETURN
+SUB DemoStop STATIC
+    IF demoRec THEN
+        DemoFlush : DemoStateNow : DemoPut "e " + ds$ : CLOSE #demoFH : demoRec = 0
+        ConPrint "demo: " + demoName$ + " saved -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + ")" : ShowMsg "DEMO SAVED: " + demoName$ + " - in DEMO REPLAYS"
+        ApplySettings ' (the view's width: yours again)
+    END IF
+    IF demoPlay THEN
+        CLOSE #demoFH : demoPlay = 0
+        ConPrint "demo: " + demoName$ + " stopped at frame" + STR$(demoFrame)
+        DemoDone
+    END IF
+END SUB
 
 ' --- After playing one: your own settings back - and with "quit", the end
-DemoDone:
-ApplySettings
-godMode = dWasGod : flyMode = dWasFly : noTarget = dWasNoT : buddhaMode = dWasBuddha ' (your own cheats back - a demo that turned god mode on doesn't leave it on)
-IF demoAttract THEN demoAttract = 0 : demoAttractMenu = -1 : demoFromMenu = 0 ' (attract mode: back to the title menu - left alone again, the next demo)
-IF demoFromMenu THEN demoFromMenu = 0 : demoMenuWant = -1 ' (watched from DEMO REPLAYS: back to the list - the game loop opens it)
-IF demoQuit THEN
-    IF demoBad THEN SYSTEM 3 ELSE SYSTEM 0
-END IF
-RETURN
+SUB DemoDone STATIC
+    ApplySettings
+    godMode = dWasGod : flyMode = dWasFly : noTarget = dWasNoT : buddhaMode = dWasBuddha ' (your own cheats back - a demo that turned god mode on doesn't leave it on)
+    IF demoAttract THEN demoAttract = 0 : demoAttractMenu = -1 : demoFromMenu = 0 ' (attract mode: back to the title menu - left alone again, the next demo)
+    IF demoFromMenu THEN demoFromMenu = 0 : demoMenuWant = -1 ' (watched from DEMO REPLAYS: back to the list - the game loop opens it)
+    IF demoQuit THEN
+        IF demoBad THEN SYSTEM 3 ELSE SYSTEM 0
+    END IF
+END SUB
 
 ' --- Attract mode: a demo it hasn't played yet - the first in DEMO REPLAYS'
 ' list not in attractPlayed$ (so one recorded meanwhile has its turn too).
 ' Every one played: from the top again.
-AttractStart:
-DemoListLoad
-FOR dTry = 1 TO 2
-    FOR dI = 1 TO demoListN
-        IF INSTR(attractPlayed$, "|" + LCASE$(demoList$(dI)) + "|") = 0 THEN
-            attractPlayed$ = attractPlayed$ + "|" + LCASE$(demoList$(dI)) + "|"
-            dFile$ = demoListFile$(dI) : demoName$ = demoList$(dI) : demoQuit = 0 : demoFromMenu = 0 : demoAttract = -1
-            GOSUB DemoPlayStart
-            IF demoPlay THEN RETURN
-        END IF
+SUB AttractStart STATIC
+    DemoListLoad
+    FOR dTry = 1 TO 2
+        FOR dI = 1 TO demoListN
+            IF INSTR(attractPlayed$, "|" + LCASE$(demoList$(dI)) + "|") = 0 THEN
+                attractPlayed$ = attractPlayed$ + "|" + LCASE$(demoList$(dI)) + "|"
+                dFile$ = demoListFile$(dI) : demoName$ = demoList$(dI) : demoQuit = 0 : demoFromMenu = 0 : demoAttract = -1
+                DemoPlayStart
+                IF demoPlay THEN EXIT SUB
+            END IF
+        NEXT
+        attractPlayed$ = "" ' (all of them played - or none would: round again)
     NEXT
-    attractPlayed$ = "" ' (all of them played - or none would: round again)
-NEXT
-demoAttract = 0
-RETURN
+    demoAttract = 0
+END SUB
 
 ' --- What a demo starts from, recording or playing: this sector, new, as
 ' SELECT SECTOR starts it - with nothing left over from before. (grSeed is
 ' set first: everything from here on rolls the same.)
-DemoFresh:
-kickTimer = 0 : pitch = 0 : playerVZ = 0 : conFire = 0 : conUse = 0 : clicked = 0 : mouseWheel = 0
-fireWas = 0 : spaceWas = 0 : kickWas = 0 : nvKeyWas = 0 : mapKeyWas = 0 : kKeyWas = 0 : gKeyWas = 0
-aimTarget = 0 : burnWait = 0 : pzTerm = 0 : deadTicks = 0
-GOSUB StartLoadout
-GOSUB EnterLevel
-RETURN
+SUB DemoFresh STATIC
+    kickTimer = 0 : pitch = 0 : playerVZ = 0 : conFire = 0 : conUse = 0 : clicked = 0 : mouseWheel = 0
+    fireWas = 0 : spaceWas = 0 : kickWas = 0 : nvKeyWas = 0 : mapKeyWas = 0 : kKeyWas = 0 : gKeyWas = 0
+    aimTarget = 0 : burnWait = 0 : pzTerm = 0 : deadTicks = 0
+    StartLoadout
+    EnterLevel
+END SUB
 
 ' --- record NAME: start recording (DemoFresh - this sector from its start)
-DemoRecordStart:
-MakeSaveDir : IF NOT _DIREXISTS(SaveDir$ + "demos") THEN MKDIR SaveDir$ + "demos"
-demoFH = FREEFILE : OPEN SaveDir$ + "demos/" + demoName$ + ".ncd" FOR OUTPUT AS #demoFH
-grSeed = 1 + INT(RND * 2147483645) : IF dSeedWant# >= 1 AND dSeedWant# < 2147483647 THEN grSeed = INT(dSeedWant#)
-demoFovQ = CLNG(fovPlane * 100000) : demoLook = (glMode <> 0) AND (setting(SET_LOOK) <> 0)
-DemoPut "NEON-CASTER DEMO 1"
-DemoPut "# " + sectorName$(level) + " - " + DATE$ + " " + LEFT$(TIME$, 5) ' (the sector and when: DEMO REPLAYS shows it beside the name)
-DemoPut "version " + GAME_VERSION$
-DemoPut "set" + STR$(sectorSet)
-DemoPut "sector" + STR$(level)
-DemoPut "seed" + STR$(grSeed)
-DemoPut "fov" + STR$(demoFovQ)
-DemoPut "look" + STR$(-(demoLook <> 0))
-DemoPut "god" + STR$(-(godMode <> 0))
-DemoPut "fly" + STR$(-(flyMode <> 0))
-DemoPut "notarget" + STR$(-(noTarget <> 0))
-DemoPut "begin"
-GOSUB DemoFresh
-demoRec = -1 : demoFrame = 0 : demoPendN = 0
-ConPrint "demo: recording " + demoName$ + " - " + sectorName$(level) + ", from its start (the exit, or stopdemo, ends it)"
-ShowMsg "RECORDING " + demoName$
-RETURN
+SUB DemoRecordStart STATIC
+    MakeSaveDir : IF NOT _DIREXISTS(SaveDir$ + "demos") THEN MKDIR SaveDir$ + "demos"
+    demoFH = FREEFILE : OPEN SaveDir$ + "demos/" + demoName$ + ".ncd" FOR OUTPUT AS #demoFH
+    grSeed = 1 + INT(RND * 2147483645) : IF dSeedWant# >= 1 AND dSeedWant# < 2147483647 THEN grSeed = INT(dSeedWant#)
+    demoFovQ = CLNG(fovPlane * 100000) : demoLook = (glMode <> 0) AND (setting(SET_LOOK) <> 0)
+    DemoPut "NEON-CASTER DEMO 1"
+    DemoPut "# " + sectorName$(level) + " - " + DATE$ + " " + LEFT$(TIME$, 5) ' (the sector and when: DEMO REPLAYS shows it beside the name)
+    DemoPut "version " + GAME_VERSION$
+    DemoPut "set" + STR$(sectorSet)
+    DemoPut "sector" + STR$(level)
+    DemoPut "seed" + STR$(grSeed)
+    DemoPut "fov" + STR$(demoFovQ)
+    DemoPut "look" + STR$(-(demoLook <> 0))
+    DemoPut "god" + STR$(-(godMode <> 0))
+    DemoPut "fly" + STR$(-(flyMode <> 0))
+    DemoPut "notarget" + STR$(-(noTarget <> 0))
+    DemoPut "begin"
+    DemoFresh
+    demoRec = -1 : demoFrame = 0 : demoPendN = 0
+    ConPrint "demo: recording " + demoName$ + " - " + sectorName$(level) + ", from its start (the exit, or stopdemo, ends it)"
+    ShowMsg "RECORDING " + demoName$
+END SUB
 
 ' --- playdemo NAME: play one (dFile$) - its header first, then DemoFresh
-DemoPlayStart:
-demoFH = FREEFILE : OPEN dFile$ FOR INPUT AS #demoFH
-demoBack$ = "" : GOSUB DemoNextLine
-IF dl$ <> "NEON-CASTER DEMO 1" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " isn't a demo" : RETURN
-dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0
-DO
-    GOSUB DemoNextLine
-    IF dl$ = "" OR dl$ = "begin" THEN EXIT DO
-    dv$ = DemoWord$(dl$, 2)
-    SELECT CASE LCASE$(DemoWord$(dl$, 1))
-        CASE "version" : dVer$ = dv$
-        CASE "set" : dSet = VAL(dv$)
-        CASE "sector" : dLevel = VAL(dv$)
-        CASE "seed" : dSeed# = VAL(dv$)
-        CASE "fov" : demoFovQ = VAL(dv$)
-        CASE "look" : demoLook = (VAL(dv$) <> 0)
-        CASE "god" : dGod = (VAL(dv$) <> 0)
-        CASE "fly" : dFly = (VAL(dv$) <> 0)
-        CASE "notarget" : dNoT = (VAL(dv$) <> 0)
-    END SELECT
-LOOP
-IF dl$ <> "begin" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " has no begin" : RETURN
-IF dSet <> sectorSet THEN
-    IF dSet > 0 THEN IF LEN(SetSectorName$(dSet, 1)) = 0 THEN CLOSE #demoFH : ConPrint "playdemo: its set of sectors isn't here" : RETURN
-    sectorSet = dSet : GOSUB ReadSectorNames
-END IF
-IF NOT SectorExists(dLevel) THEN CLOSE #demoFH : ConPrint "playdemo: its sector" + STR$(dLevel) + " isn't here" : RETURN
-IF dVer$ <> GAME_VERSION$ THEN ConPrint "demo: made with version " + dVer$ + " - this is " + GAME_VERSION$ + ", so it may not play the same"
-dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddhaMode ' (yours, for after)
-level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = 0
-achCheat = -1 ' (watching isn't playing: achievements and records wait for a new game)
-grSeed = dSeed#
-demoStarting = -1 : GOSUB DemoFresh : demoStarting = 0 ' (no NEXUS intro: straight to the play)
-demoPlay = -1 : demoFrame = 0 : demoLeft = 0 : demoBad = 0 : demoBack$ = ""
-demoTotal = DemoLength&(dFile$) : demoInfoNow$ = DemoInfo$(dFile$) ' (for the corner: how long it is, what it is)
-ConPrint "demo: playing " + demoName$ + " - " + sectorName$(level) + " (stopdemo stops it)"
-RETURN
+SUB DemoPlayStart STATIC
+    demoFH = FREEFILE : OPEN dFile$ FOR INPUT AS #demoFH
+    demoBack$ = "" : DemoNextLine
+    IF dl$ <> "NEON-CASTER DEMO 1" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " isn't a demo" : EXIT SUB
+    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0
+    DO
+        DemoNextLine
+        IF dl$ = "" OR dl$ = "begin" THEN EXIT DO
+        dv$ = DemoWord$(dl$, 2)
+        SELECT CASE LCASE$(DemoWord$(dl$, 1))
+            CASE "version" : dVer$ = dv$
+            CASE "set" : dSet = VAL(dv$)
+            CASE "sector" : dLevel = VAL(dv$)
+            CASE "seed" : dSeed# = VAL(dv$)
+            CASE "fov" : demoFovQ = VAL(dv$)
+            CASE "look" : demoLook = (VAL(dv$) <> 0)
+            CASE "god" : dGod = (VAL(dv$) <> 0)
+            CASE "fly" : dFly = (VAL(dv$) <> 0)
+            CASE "notarget" : dNoT = (VAL(dv$) <> 0)
+        END SELECT
+    LOOP
+    IF dl$ <> "begin" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " has no begin" : EXIT SUB
+    IF dSet <> sectorSet THEN
+        IF dSet > 0 THEN IF LEN(SetSectorName$(dSet, 1)) = 0 THEN CLOSE #demoFH : ConPrint "playdemo: its set of sectors isn't here" : EXIT SUB
+        sectorSet = dSet : ReadSectorNames
+    END IF
+    IF NOT SectorExists(dLevel) THEN CLOSE #demoFH : ConPrint "playdemo: its sector" + STR$(dLevel) + " isn't here" : EXIT SUB
+    IF dVer$ <> GAME_VERSION$ THEN ConPrint "demo: made with version " + dVer$ + " - this is " + GAME_VERSION$ + ", so it may not play the same"
+    dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddhaMode ' (yours, for after)
+    level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = 0
+    achCheat = -1 ' (watching isn't playing: achievements and records wait for a new game)
+    grSeed = dSeed#
+    demoStarting = -1 : DemoFresh : demoStarting = 0 ' (no NEXUS intro: straight to the play)
+    demoPlay = -1 : demoFrame = 0 : demoLeft = 0 : demoBad = 0 : demoBack$ = ""
+    demoTotal = DemoLength&(dFile$) : demoInfoNow$ = DemoInfo$(dFile$) ' (for the corner: how long it is, what it is)
+    ConPrint "demo: playing " + demoName$ + " - " + sectorName$(level) + " (stopdemo stops it)"
+END SUB
 
 ' --- Playing a demo back, its console: the next key it recorded, if its
 ' tick has come (k&) - or a whole line (l: from history, or Tab), or the
 ' end (q). Your own keys are put aside meanwhile.
-ConReplayKey:
-k& = 0
-WHILE _KEYHIT : WEND
-IF NOT demoPlay THEN conDone = -1 : RETURN ' (the demo ended in here: so does the console)
-IF conRType = 0 OR conRTick > conTick THEN RETURN
-SELECT CASE conRType
-    CASE 1 : k& = conRKey
-    CASE 2 : conLine$ = conRLine$
-    CASE 3 : conDone = -1 : RETURN
-END SELECT
-GOSUB ConReplayNext
-RETURN
+SUB ConReplayKey STATIC
+    k& = 0
+    WHILE _KEYHIT : WEND
+    IF NOT demoPlay THEN conDone = -1 : EXIT SUB ' (the demo ended in here: so does the console)
+    IF conRType = 0 OR conRTick > conTick THEN EXIT SUB
+    SELECT CASE conRType
+        CASE 1 : k& = conRKey
+        CASE 2 : conLine$ = conRLine$
+        CASE 3 : conDone = -1 : EXIT SUB
+    END SELECT
+    ConReplayNext
+END SUB
 
 ' --- The demo's next console line: t TICK KEY, l TICK LINE, q TICK (conRType
 ' 1, 2, 3 - and 3 for anything else: the session's over, that line's put back)
-ConReplayNext:
-GOSUB DemoNextLine
-conRTick = VAL(DemoWord$(dl$, 2))
-SELECT CASE LEFT$(dl$, 2)
-    CASE "t " : conRType = 1 : conRKey = VAL(DemoWord$(dl$, 3))
-    CASE "l "
-        conRType = 2 : dq = INSTR(3, dl$, " ") ' (the line itself: after "l TICK ")
-        IF dq THEN conRLine$ = MID$(dl$, dq + 1) ELSE conRLine$ = ""
-    CASE "q " : conRType = 3
-    CASE ELSE : conRType = 3 : conRTick = 0 : IF LEN(dl$) THEN demoBack$ = dl$
-END SELECT
-RETURN
+SUB ConReplayNext STATIC
+    DemoNextLine
+    conRTick = VAL(DemoWord$(dl$, 2))
+    SELECT CASE LEFT$(dl$, 2)
+        CASE "t " : conRType = 1 : conRKey = VAL(DemoWord$(dl$, 3))
+        CASE "l "
+            conRType = 2 : dq = INSTR(3, dl$, " ") ' (the line itself: after "l TICK ")
+            IF dq THEN conRLine$ = MID$(dl$, dq + 1) ELSE conRLine$ = ""
+        CASE "q " : conRType = 3
+        CASE ELSE : conRType = 3 : conRTick = 0 : IF LEN(dl$) THEN demoBack$ = dl$
+    END SELECT
+END SUB
 
 ' A line into the demo being recorded - ended by a line feed alone, on
 ' every computer (PRINT # would end it CR LF on Linux too), so a demo file
@@ -337,6 +337,7 @@ END SUB
 
 ' A demo's keys as letters (DEMO_KEYS, then the gun 1-4; "-" for none) - and back
 FUNCTION DemoKeys$(b&)
+    DIM i, t$ ' (its own: the main program shares these names)
     t$ = ""
     FOR i = 0 TO LEN(DEMO_KEYS) - 1
         IF b& AND (2 ^ i) THEN t$ = t$ + MID$(DEMO_KEYS, i + 1, 1)
@@ -347,6 +348,7 @@ FUNCTION DemoKeys$(b&)
 END FUNCTION
 
 FUNCTION DemoBits&(t$)
+    DIM c$, i, p ' (its own: the main program shares these names)
     b& = 0
     FOR i = 1 TO LEN(t$)
         c$ = MID$(t$, i, 1) : p = INSTR(DEMO_KEYS, c$)
@@ -365,6 +367,7 @@ END FUNCTION
 ' thousandths rounds up on one computer and down on another (CLNG) - so
 ' x, y and height may differ by 1, everything else must match exactly
 FUNCTION DemoSame(a$, b$)
+    DIM k ' (its own: the main program shares these names)
     FOR k = 1 TO 12
         wa$ = DemoWord$(a$, k) : wb$ = DemoWord$(b$, k)
         IF wa$ = "" AND wb$ = "" THEN EXIT FOR
@@ -378,6 +381,7 @@ FUNCTION DemoSame(a$, b$)
 END FUNCTION
 
 FUNCTION DemoWord$(c$, n)
+    DIM t$, w ' (its own: the main program shares these names)
     t$ = LTRIM$(RTRIM$(c$)) : w = 0
     DO WHILE LEN(t$)
         sp = INSTR(t$, " ") : IF sp = 0 THEN sp = LEN(t$) + 1
@@ -389,6 +393,7 @@ END FUNCTION
 
 ' The next free name for a recording made with Ctrl+R: run1, run2...
 FUNCTION DemoNextName$
+    DIM n ' (its own: the main program shares these names)
     n = 1
     DO WHILE _FILEEXISTS(SaveDir$ + "demos/run" + LTRIM$(STR$(n)) + ".ncd") AND n < 9999
         n = n + 1
@@ -398,6 +403,7 @@ END FUNCTION
 
 ' A demo's name, as a file name: letters, digits, - and _ (or "")
 FUNCTION DemoFileName$(n$)
+    DIM c$, i, t$ ' (its own: the main program shares these names)
     t$ = ""
     FOR i = 1 TO LEN(n$)
         c$ = MID$(n$, i, 1)
@@ -426,6 +432,7 @@ END FUNCTION
 ' before sector10). Each one's description is its first # comment (what
 ' recording it wrote: the sector, when) - or, with none, its sector's name.
 SUB DemoListLoad
+    DIM i, j, k ' (its own: the main program shares these names)
     demoListN = 0
     FOR dd = 1 TO 2
         IF dd = 1 THEN dir$ = SaveDir$ + "demos/" ELSE dir$ = AssetPath$("demos/")
@@ -457,6 +464,7 @@ END SUB
 ' A demo's name to sort by: lower case, its last number five digits long
 ' (so sector2 comes before sector10)
 FUNCTION DemoSortKey$(n$)
+    DIM e, t$ ' (its own: the main program shares these names)
     t$ = LCASE$(n$) : e = LEN(t$)
     DO WHILE e > 0
         IF MID$(t$, e, 1) < "0" OR MID$(t$, e, 1) > "9" THEN EXIT DO
@@ -468,6 +476,7 @@ END FUNCTION
 
 ' A demo's length, in frames: the frame its "e" line (its end) gives - 0 if none
 FUNCTION DemoLength&(f$)
+    DIM l$ ' (its own: the main program shares these names)
     IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
     DO WHILE NOT EOF(fh)
@@ -481,6 +490,7 @@ END FUNCTION
 ' the "playdemo ..." it ends with - or its sector's name - at most 48
 ' letters (the menu's small print, beside the name)
 FUNCTION DemoInfo$(f$)
+    DIM c, l$, n, t$ ' (its own: the main program shares these names)
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
     t$ = "" : dSec = 0 : dSet = 0 : n = 0
     DO WHILE NOT EOF(fh) AND n < 20

@@ -202,7 +202,7 @@
         transformX = invDet * (dirY * relX - dirX * relY) ' Sideways from the view
         transformY = invDet * ( - planeY * relX + planeX * relY) ' Depth
         IF drawFace(i) THEN
-            GOSUB DrawFlat ' (standing flat, facing one way: RENDER/VIEW.BM)
+            DrawFlat ' (standing flat, facing one way: RENDER/VIEW.BM)
         ELSEIF transformY > 0.1 THEN
             spriteW = INT(viewH / transformY * drawScale(i)) : spriteH = INT(spriteW * drawSquash(i))
             IF spriteH < 1 THEN spriteH = 1
@@ -237,7 +237,7 @@
                             ' (glass in this column nearer than the wall but behind
                             ' this sprite: on now, over what's behind it - all of
                             ' that is drawn, far to near - and under this)
-                            IF glassT(screenX) > 0 AND glassDone(screenX) = 0 THEN IF transformY < glassT(screenX) THEN gx = screenX : GOSUB GlassColumn
+                            IF glassT(screenX) > 0 AND glassDone(screenX) = 0 THEN IF transformY < glassT(screenX) THEN gx = screenX : GlassColumn
                             spriteU = (screenX - spriteLeft) * spriteSz \ spriteW
                             ' (heights: hidden above and below by the ledges and
                             ' lintels nearer than it - HeightColumn's clips)
@@ -260,6 +260,6 @@
     ' ...and the glass in every column that had no sprite in front of it
     IF NOT glMode THEN
         FOR gx = 0 TO RENDER_W - 1
-            IF glassT(gx) > 0 AND glassDone(gx) = 0 THEN GOSUB GlassColumn
+            IF glassT(gx) > 0 AND glassDone(gx) = 0 THEN GlassColumn
         NEXT
     END IF

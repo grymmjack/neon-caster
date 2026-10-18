@@ -8,117 +8,119 @@
 ' pictures put away and the grid put up, the real things left behind,
 ' data cores laid out round the station (on the floor you can walk to from
 ' it, without going through a door), and ICE let loose, far off
-JackIn:
-WorldLoopsOff
-cyberOn = -1 : cyberStation = st
-cyberSlot = 0
-cyberTime = CYBER_SECONDS * 60 : cyberGot = 0 : cyberNeed = 3 + (((level - 1) MOD 10) + 1) \ 3 : IF cyberNeed > 6 THEN cyberNeed = 6
-cyberBackX = playerX : cyberBackY = playerY : cyberBackDX = dirX : cyberBackDY = dirY ' (where you jacked in: you come back there)
-cyberMonStart = numMonsters : cyberItemStart = numItems
-FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
-CyberTextures -1
-' The floor round the station: steps from it (fillX/fillY, as the
-' thieves' way does), through floor only - not doors
-FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : thiefDist(x, y) = 30000 : NEXT : NEXT
-head = 0 : tail = 0
-FOR k = 1 TO 4
-    nx = stationX(st) + (k = 1) - (k = 2) : ny = stationY(st) + (k = 3) - (k = 4)
-    IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 THEN thiefDist(nx, ny) = 0 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
-NEXT
-DO WHILE head < tail
-    x = fillX(head) : y = fillY(head) : head = head + 1
+SUB JackIn STATIC
+    DIM head ' (its own: the main program shares this name)
+    WorldLoopsOff
+    cyberOn = -1 : cyberStation = st
+    cyberSlot = 0
+    cyberTime = CYBER_SECONDS * 60 : cyberGot = 0 : cyberNeed = 3 + (((level - 1) MOD 10) + 1) \ 3 : IF cyberNeed > 6 THEN cyberNeed = 6
+    cyberBackX = playerX : cyberBackY = playerY : cyberBackDX = dirX : cyberBackDY = dirY ' (where you jacked in: you come back there)
+    cyberMonStart = numMonsters : cyberItemStart = numItems
+    FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
+    CyberTextures -1
+    ' The floor round the station: steps from it (fillX/fillY, as the
+    ' thieves' way does), through floor only - not doors
+    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : thiefDist(x, y) = 30000 : NEXT : NEXT
+    head = 0 : tail = 0
     FOR k = 1 TO 4
-        nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
-        IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
-            IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND thiefDist(nx, ny) > thiefDist(x, y) + 1 AND thiefDist(x, y) < 18 AND ABS(floorH(nx, ny) - floorH(x, y)) <= STEP_UP AND liqKind(nx, ny) = 0 AND liftCell(nx, ny) = 0 AND floorH(nx, ny) > PIT_DEPTH THEN ' (only where you can walk in time: no ledges, pools, lifts or pits)
-                thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+        nx = stationX(st) + (k = 1) - (k = 2) : ny = stationY(st) + (k = 3) - (k = 4)
+        IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 THEN thiefDist(nx, ny) = 0 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+    NEXT
+    DO WHILE head < tail
+        x = fillX(head) : y = fillY(head) : head = head + 1
+        FOR k = 1 TO 4
+            nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
+            IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
+                IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND thiefDist(nx, ny) > thiefDist(x, y) + 1 AND thiefDist(x, y) < 18 AND ABS(floorH(nx, ny) - floorH(x, y)) <= STEP_UP AND liqKind(nx, ny) = 0 AND liftCell(nx, ny) = 0 AND floorH(nx, ny) > PIT_DEPTH THEN ' (only where you can walk in time: no ledges, pools, lifts or pits)
+                    thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+                END IF
             END IF
-        END IF
-    NEXT
-LOOP
-' Cores: on cells 5 or more steps out, as spread out as can be (each one
-' the farthest from all those placed so far, of a few tried at random)
-placed = 0
-FOR c = 1 TO cyberNeed
-    bestCell = -1 : bestScore = -1
-    FOR try = 1 TO 40
-        e = INT(GRnd * tail) : x = fillX(e) : y = fillY(e)
-        IF thiefDist(x, y) >= 5 THEN
-            score = 99
-            FOR i = cyberItemStart + 1 TO numItems
-                d = ABS(itemX(i) - x - 0.5) + ABS(itemY(i) - y - 0.5) : IF d < score THEN score = d
-            NEXT
-            IF score > bestScore THEN bestScore = score : bestCell = e
-        END IF
-    NEXT
-    IF bestCell >= 0 AND numItems < MAX_ITEMS THEN
-        numItems = numItems + 1 : itemX(numItems) = fillX(bestCell) + 0.5 : itemY(numItems) = fillY(bestCell) + 0.5
-        itemKind(numItems) = IT_CORE : itemOn(numItems) = -1 : placed = placed + 1
-    END IF
-NEXT
-IF placed < cyberNeed THEN cyberNeed = placed
-IF cyberNeed = 0 THEN ' (none placed: one just ahead of you - in a new slot, or, the list full, one whose pickup's been taken)
-    cs = 0 : IF numItems < MAX_ITEMS THEN numItems = numItems + 1 : cs = numItems
-    IF cs = 0 THEN
-        FOR j = numItems TO 1 STEP -1
-            IF itemOn(j) = 0 AND itemToss(j) = 0 THEN cs = j : EXIT FOR
         NEXT
-        IF cs THEN cyberSlot = cs : cyberSlotKind = itemKind(cs) : cyberSlotX = itemX(cs) : cyberSlotY = itemY(cs) ' (a taken pickup's slot, borrowed: JackOut gives it back)
+    LOOP
+    ' Cores: on cells 5 or more steps out, as spread out as can be (each one
+    ' the farthest from all those placed so far, of a few tried at random)
+    placed = 0
+    FOR c = 1 TO cyberNeed
+        bestCell = -1 : bestScore = -1
+        FOR try = 1 TO 40
+            e = INT(GRnd * tail) : x = fillX(e) : y = fillY(e)
+            IF thiefDist(x, y) >= 5 THEN
+                score = 99
+                FOR i = cyberItemStart + 1 TO numItems
+                    d = ABS(itemX(i) - x - 0.5) + ABS(itemY(i) - y - 0.5) : IF d < score THEN score = d
+                NEXT
+                IF score > bestScore THEN bestScore = score : bestCell = e
+            END IF
+        NEXT
+        IF bestCell >= 0 AND numItems < MAX_ITEMS THEN
+            numItems = numItems + 1 : itemX(numItems) = fillX(bestCell) + 0.5 : itemY(numItems) = fillY(bestCell) + 0.5
+            itemKind(numItems) = IT_CORE : itemOn(numItems) = -1 : placed = placed + 1
+        END IF
+    NEXT
+    IF placed < cyberNeed THEN cyberNeed = placed
+    IF cyberNeed = 0 THEN ' (none placed: one just ahead of you - in a new slot, or, the list full, one whose pickup's been taken)
+        cs = 0 : IF numItems < MAX_ITEMS THEN numItems = numItems + 1 : cs = numItems
+        IF cs = 0 THEN
+            FOR j = numItems TO 1 STEP -1
+                IF itemOn(j) = 0 AND itemToss(j) = 0 THEN cs = j : EXIT FOR
+            NEXT
+            IF cs THEN cyberSlot = cs : cyberSlotKind = itemKind(cs) : cyberSlotX = itemX(cs) : cyberSlotY = itemY(cs) ' (a taken pickup's slot, borrowed: JackOut gives it back)
+        END IF
+        IF cs THEN cyberNeed = 1 : itemX(cs) = playerX - dirX : itemY(cs) = playerY - dirY : itemKind(cs) = IT_CORE : itemOn(cs) = -1 ' (ahead once you've turned round - not in the station)
     END IF
-    IF cs THEN cyberNeed = 1 : itemX(cs) = playerX - dirX : itemY(cs) = playerY - dirY : itemKind(cs) = IT_CORE : itemOn(cs) = -1 ' (ahead once you've turned round - not in the station)
-END IF
-' ICE: on the farthest cells
-nIce = 2 + (((level - 1) MOD 10) + 1) \ 3 ' (by its place in a set of ten: a showcase's number isn't how hard it is)
-FOR c = 1 TO nIce
-    e = tail - 1 - INT(GRnd * (tail \ 3 + 1)) : IF e < 0 THEN e = 0
-    IF tail > 0 THEN IF SpawnMonster(MT_ICE, fillX(e) + 0.5, fillY(e) + 0.5, 0, playerX, playerY) THEN monsterTimer(numMonsters) = 90
-NEXT
-BuildThiefWay ' (the thieves' way home, which the steps above borrowed)
-dirX = -dirX : dirY = -dirY : planeX = -planeX : planeY = -planeY ' (you turn round: into the network, your back to the station)
-PlaySfx sndJackIn&, 1 : pickFlash = 30 : shake = shake + 6
-IF cyberMusic& > 0 THEN PlayMusic cyberMusic&
-ShowMsg "JACKED IN - grab " + LTRIM$(STR$(cyberNeed)) + " data cores before the time runs out!"
-Say "cyber1", 0
-RETURN
+    ' ICE: on the farthest cells
+    nIce = 2 + (((level - 1) MOD 10) + 1) \ 3 ' (by its place in a set of ten: a showcase's number isn't how hard it is)
+    FOR c = 1 TO nIce
+        e = tail - 1 - INT(GRnd * (tail \ 3 + 1)) : IF e < 0 THEN e = 0
+        IF tail > 0 THEN IF SpawnMonster(MT_ICE, fillX(e) + 0.5, fillY(e) + 0.5, 0, playerX, playerY) THEN monsterTimer(numMonsters) = 90
+    NEXT
+    BuildThiefWay ' (the thieves' way home, which the steps above borrowed)
+    dirX = -dirX : dirY = -dirY : planeX = -planeX : planeY = -planeY ' (you turn round: into the network, your back to the station)
+    PlaySfx sndJackIn&, 1 : pickFlash = 30 : shake = shake + 6
+    IF cyberMusic& > 0 THEN PlayMusic cyberMusic&
+    ShowMsg "JACKED IN - grab " + LTRIM$(STR$(cyberNeed)) + " data cores before the time runs out!"
+    Say "cyber1", 0
+END SUB
 
 ' --- Out of the network: won (cyberWon) or thrown out. The real pictures
 ' back, the network's things gone (they were the last monsters and pickups
 ' added), you back at the station - and if you won, its doors unsealed
 ' (each sealed door belongs to the station nearest it)
-JackOut:
-CyberTextures 0
-FOR i = cyberMonStart + 1 TO numMonsters ' (ICE you derezzed doesn't count in the sector's kills)
-    IF monsterState(i) = 2 OR monsterState(i) = 3 THEN kills = kills - 1
-NEXT
-numMonsters = cyberMonStart : numItems = cyberItemStart
-IF cyberSlot THEN itemKind(cyberSlot) = cyberSlotKind : itemX(cyberSlot) = cyberSlotX : itemY(cyberSlot) = cyberSlotY : itemOn(cyberSlot) = 0 : cyberSlot = 0
-FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
-cyberOn = 0
-playerX = cyberBackX : playerY = cyberBackY : dirX = cyberBackDX : dirY = cyberBackDY ' (back at the station, as you jacked in - not wherever you'd got to)
-planeX = -dirY * fovPlane : planeY = dirX * fovPlane
-IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
-PlaySfx sndJackOut&, 1 : pickFlash = 20
-PlayMusic SectorMusic&(level)
-IF cyberWon THEN
-    stationDone(cyberStation) = -1 : Achieve "NC_JACKED", 0 : WallDone stationX(cyberStation), stationY(cyberStation), T_JACKOK
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
-        IF worldMap(x, y) = 2 AND doorLock(x, y) = 2 THEN
-            IF StationNear(x, y) = cyberStation THEN doorLock(x, y) = 0 : doorOpen(x, y) = 0.01 : doorMove(x, y) = 1 : SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
-        END IF
-    NEXT : NEXT
-    PlaySfx sndFanfare&, 0.8
-    ShowMsg "ACCESS GRANTED - the sealed doors are open"
-    Say "cyber2", 0
-ELSE
-    PlaySfx sndFail&, 0.8
-    damage = 10 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = -1 : GOSUB HurtPlayer
-    ShowMsg "EJECTED - the network threw you out. Try again"
-    Say "cyber3", 0
-END IF
-RETURN
+SUB JackOut STATIC
+    CyberTextures 0
+    FOR i = cyberMonStart + 1 TO numMonsters ' (ICE you derezzed doesn't count in the sector's kills)
+        IF monsterState(i) = 2 OR monsterState(i) = 3 THEN kills = kills - 1
+    NEXT
+    numMonsters = cyberMonStart : numItems = cyberItemStart
+    IF cyberSlot THEN itemKind(cyberSlot) = cyberSlotKind : itemX(cyberSlot) = cyberSlotX : itemY(cyberSlot) = cyberSlotY : itemOn(cyberSlot) = 0 : cyberSlot = 0
+    FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
+    cyberOn = 0
+    playerX = cyberBackX : playerY = cyberBackY : dirX = cyberBackDX : dirY = cyberBackDY ' (back at the station, as you jacked in - not wherever you'd got to)
+    planeX = -dirY * fovPlane : planeY = dirX * fovPlane
+    IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
+    PlaySfx sndJackOut&, 1 : pickFlash = 20
+    PlayMusic SectorMusic&(level)
+    IF cyberWon THEN
+        stationDone(cyberStation) = -1 : Achieve "NC_JACKED", 0 : WallDone stationX(cyberStation), stationY(cyberStation), T_JACKOK
+        FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+            IF worldMap(x, y) = 2 AND doorLock(x, y) = 2 THEN
+                IF StationNear(x, y) = cyberStation THEN doorLock(x, y) = 0 : doorOpen(x, y) = 0.01 : doorMove(x, y) = 1 : SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
+            END IF
+        NEXT : NEXT
+        PlaySfx sndFanfare&, 0.8
+        ShowMsg "ACCESS GRANTED - the sealed doors are open"
+        Say "cyber2", 0
+    ELSE
+        PlaySfx sndFail&, 0.8
+        damage = 10 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = -1 : HurtPlayer
+        ShowMsg "EJECTED - the network threw you out. Try again"
+        Say "cyber3", 0
+    END IF
+END SUB
 
 ' Which data station is at cell (x, y) (0: none)
 FUNCTION StationAt(x, y)
+    DIM k ' (its own: the main program shares these names)
     FOR k = 1 TO numStations
         IF stationX(k) = x AND stationY(k) = y THEN StationAt = k : EXIT FUNCTION
     NEXT
@@ -126,6 +128,7 @@ END FUNCTION
 
 ' The data station nearest cell (x, y) - the one a sealed door belongs to
 FUNCTION StationNear(x, y)
+    DIM best, d, e, k ' (its own: the main program shares these names)
     best = 0 : bestD = 1E+9
     FOR k = 1 TO numStations
         d = (stationX(k) - x) ^ 2 + (stationY(k) - y) ^ 2
@@ -139,6 +142,7 @@ END FUNCTION
 ' is told to send them all again (glRetexVersion) - but not to rebuild its
 ' world, which hasn't moved
 SUB CyberTextures(goIn)
+    DIM slot, x, y ' (its own: the main program shares these names)
     FOR slot = 1 TO T_SLOTS
         IF goIn THEN
             FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texBak(x, y, slot) = texture(x, y, slot) : NEXT : NEXT
@@ -163,6 +167,7 @@ END SUB
 ' bright lines (colour r, g, b) every cell'th texel and round the edge,
 ' fainter ones in between, and a dot of light where lines cross
 SUB MakeCyberTex(slot, r, g, b, cell)
+    DIM k, x, y ' (its own: the main program shares these names)
     sk = texSize \ 128 ' (designed 128 pixels across)
     FOR yy = 0 TO texSize - 1 : FOR xx = 0 TO texSize - 1
         x = xx \ sk : y = yy \ sk

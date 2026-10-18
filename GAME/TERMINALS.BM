@@ -6,118 +6,119 @@
 
 ' --- A CODE TERMINAL, terminal tm (chapter 19): the doors near it slam
 ' and lock, NEXUS gloats, and its puzzle opens; solved, they open again
-TerminalUse:
-pzName$ = ListItem$(lvlPuzzles$, tm) : IF pzName$ = "" THEN pzName$ = MID$("hello     multiply  countdown password  sum       pythagorasselect    function  reverse   wrap      ", ((level - 1) MOD 10) * 10 + 1, 10)
-pzName$ = LTRIM$(RTRIM$(pzName$))
-pzResume = (tm = pzTerm) ' (back at the terminal you left: your lines as you left them, not shuffled again)
-IF NOT pzResume THEN
-    IF NOT LoadPuzzle(pzName$) THEN ShowMsg "TERMINAL: no program called " + pzName$ : RETURN
-    pzTerm = tm
-END IF
-slammed = 0
-FOR y = termY(tm) - 7 TO termY(tm) + 7 : FOR x = termX(tm) - 7 TO termX(tm) + 7
-    IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
-        IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT AND doorLock(x, y) = 0 THEN
-            doorLock(x, y) = 3 : doorMove(x, y) = -1 : slammed = slammed + 1
-            SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
-        END IF
+SUB TerminalUse STATIC
+    pzName$ = ListItem$(lvlPuzzles$, tm) : IF pzName$ = "" THEN pzName$ = MID$("hello     multiply  countdown password  sum       pythagorasselect    function  reverse   wrap      ", ((level - 1) MOD 10) * 10 + 1, 10)
+    pzName$ = LTRIM$(RTRIM$(pzName$))
+    pzResume = (tm = pzTerm) ' (back at the terminal you left: your lines as you left them, not shuffled again)
+    IF NOT pzResume THEN
+        IF NOT LoadPuzzle(pzName$) THEN ShowMsg "TERMINAL: no program called " + pzName$ : EXIT SUB
+        pzTerm = tm
     END IF
-NEXT : NEXT
-IF slammed THEN PlaySfx sndAlarm&, 0.8 : shake = shake + 8
-Say "puzzle1", 0
-IF demoPlay THEN ' (a demo: whether it was solved, as recorded - the puzzle isn't played again)
-    demoKind$ = "p" : GOSUB DemoTakeRes : pzSolved = (demoRes <> 0)
-ELSE
-    GOSUB RunPuzzle
-    IF demoRec THEN demoKind$ = "p" : demoRes = -(pzSolved <> 0) : GOSUB DemoEvent
-END IF
-IF pzSolved THEN
-    termDone(tm) = -1 : AchAdd "Puzzles", 1 : pzTerm = 0 : WallDone termX(tm), termY(tm), T_CODEOK
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (a keycard door is unlocked, not opened: it still wants its card)
-        IF doorLock(x, y) = 3 THEN
-            doorLock(x, y) = 0
-            IF doorKey(x, y) = 0 THEN doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
+    slammed = 0
+    FOR y = termY(tm) - 7 TO termY(tm) + 7 : FOR x = termX(tm) - 7 TO termX(tm) + 7
+        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+            IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT AND doorLock(x, y) = 0 THEN
+                doorLock(x, y) = 3 : doorMove(x, y) = -1 : slammed = slammed + 1
+                SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
+            END IF
         END IF
     NEXT : NEXT
-    PlaySfx sndFanfare&, 0.9 : ShowMsg "PROGRAM REPAIRED - the doors are open" : Say "puzzle2", 0
-ELSE
-    ShowMsg "The doors stay locked - the terminal's still waiting"
-END IF
-RETURN
+    IF slammed THEN PlaySfx sndAlarm&, 0.8 : shake = shake + 8
+    Say "puzzle1", 0
+    IF demoPlay THEN ' (a demo: whether it was solved, as recorded - the puzzle isn't played again)
+        demoKind$ = "p" : DemoTakeRes : pzSolved = (demoRes <> 0)
+    ELSE
+        RunPuzzle
+        IF demoRec THEN demoKind$ = "p" : demoRes = -(pzSolved <> 0) : DemoEvent
+    END IF
+    IF pzSolved THEN
+        termDone(tm) = -1 : AchAdd "Puzzles", 1 : pzTerm = 0 : WallDone termX(tm), termY(tm), T_CODEOK
+        FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (a keycard door is unlocked, not opened: it still wants its card)
+            IF doorLock(x, y) = 3 THEN
+                doorLock(x, y) = 0
+                IF doorKey(x, y) = 0 THEN doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01
+            END IF
+        NEXT : NEXT
+        PlaySfx sndFanfare&, 0.9 : ShowMsg "PROGRAM REPAIRED - the doors are open" : Say "puzzle2", 0
+    ELSE
+        ShowMsg "The doors stay locked - the terminal's still waiting"
+    END IF
+END SUB
 
 ' --- THE PUZZLE SCREEN: the program's lines, shuffled, some words blank.
 ' Up/Down choose a line, Shift+Up/Down (or PgUp/PgDn) move it; Enter
 ' fills in its blank (type, Enter); F5 or R compiles and runs it; H a hint;
 ' Esc leaves (the doors stay locked). pzSolved: it worked.
-RunPuzzle:
-WorldLoopsOff
-_MOUSESHOW : _KEYCLEAR
-pzSolved = 0 : pzSel = 1 : pzTyping = 0
-IF pzResume THEN
-    pzOut$ = "Where you left it. F5 to compile and run."
-ELSE
-    pzShown = 0 : pzFails = 0 : pzOut$ = "Put the lines in order, fill the blanks, then F5 to compile and run."
-END IF
-pzDone = 0 : qb$ = QB64Path$
-DO
-    _LIMIT 60
-    WHILE _MOUSEINPUT
-        IF _MOUSEBUTTON(1) THEN
-            ln = (_MOUSEY - PZ_TOP) \ 18 + 1 : IF ln >= 1 AND ln <= pzN AND _MOUSEX < 560 THEN pzSel = ln : pzTyping = 0
-        END IF
-    WEND
-    k& = _KEYHIT
-    DO WHILE k&
-        shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
-        IF pzTyping THEN ' Typing a blank's word
-            b = PuzzleBlankOn(pzSel)
-            SELECT CASE k&
-                CASE 13, 9, 27 : pzTyping = 0
-                CASE 8 : IF LEN(pzBlankIn$(b)) THEN pzBlankIn$(b) = LEFT$(pzBlankIn$(b), LEN(pzBlankIn$(b)) - 1)
-                CASE 32 TO 126 : IF LEN(pzBlankIn$(b)) < 16 THEN pzBlankIn$(b) = pzBlankIn$(b) + CHR$(k&)
-            END SELECT
-        ELSE
-            SELECT CASE k&
-                CASE 27 : pzDone = -1
-                CASE 18432 ' Up: the line above - with Shift, move this line up
-                    IF shiftOn AND pzSel > 1 THEN SWAP pzOrder(pzSel), pzOrder(pzSel - 1)
-                    IF pzSel > 1 THEN pzSel = pzSel - 1
-                CASE 20480
-                    IF shiftOn AND pzSel < pzN THEN SWAP pzOrder(pzSel), pzOrder(pzSel + 1)
-                    IF pzSel < pzN THEN pzSel = pzSel + 1
-                CASE 18688 : IF pzSel > 1 THEN SWAP pzOrder(pzSel), pzOrder(pzSel - 1) : pzSel = pzSel - 1 ' PgUp: move it up
-                CASE 20736 : IF pzSel < pzN THEN SWAP pzOrder(pzSel), pzOrder(pzSel + 1) : pzSel = pzSel + 1 ' PgDn: down
-                CASE 13 : IF PuzzleBlankOn(pzSel) THEN pzTyping = -1 ELSE pzOut$ = "That line has no blank to fill."
-                CASE 104, 72 ' H: the next hint
-                    IF pzShown < pzHints THEN pzShown = pzShown + 1 ELSE pzOut$ = "No more hints - read the comments ('...) in the program too."
-                CASE 16128, 114, 82 : GOSUB PuzzleRun ' F5 or R: compile and run
-                CASE 34304 ' F12 (testing, with CHEAT_KEYS): put it all right
-                    IF CHEAT_KEYS THEN FOR f = 1 TO pzN + pzBlanks : PuzzleFixOne : NEXT : achCheat = -1
-            END SELECT
-        END IF
+SUB RunPuzzle STATIC
+    WorldLoopsOff
+    _MOUSESHOW : _KEYCLEAR
+    pzSolved = 0 : pzSel = 1 : pzTyping = 0
+    IF pzResume THEN
+        pzOut$ = "Where you left it. F5 to compile and run."
+    ELSE
+        pzShown = 0 : pzFails = 0 : pzOut$ = "Put the lines in order, fill the blanks, then F5 to compile and run."
+    END IF
+    pzDone = 0 : qb$ = QB64Path$
+    DO
+        _LIMIT 60
+        WHILE _MOUSEINPUT
+            IF _MOUSEBUTTON(1) THEN
+                ln = (_MOUSEY - PZ_TOP) \ 18 + 1 : IF ln >= 1 AND ln <= pzN AND _MOUSEX < 560 THEN pzSel = ln : pzTyping = 0
+            END IF
+        WEND
         k& = _KEYHIT
-    LOOP
-    IF pzDone OR pzSolved THEN EXIT DO
-    DrawPuzzle pzSel, pzTyping, qb$
-    IF glReady THEN GLSL_filter_capture
-    GLScreenLayer glReady
-    ShowFrame
-LOOP
-IF pzSolved THEN ' (a moment to see it worked)
-    FOR f = 1 TO 90
-        _LIMIT 60 : DrawPuzzle 0, 0, qb$
+        DO WHILE k&
+            shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
+            IF pzTyping THEN ' Typing a blank's word
+                b = PuzzleBlankOn(pzSel)
+                SELECT CASE k&
+                    CASE 13, 9, 27 : pzTyping = 0
+                    CASE 8 : IF LEN(pzBlankIn$(b)) THEN pzBlankIn$(b) = LEFT$(pzBlankIn$(b), LEN(pzBlankIn$(b)) - 1)
+                    CASE 32 TO 126 : IF LEN(pzBlankIn$(b)) < 16 THEN pzBlankIn$(b) = pzBlankIn$(b) + CHR$(k&)
+                END SELECT
+            ELSE
+                SELECT CASE k&
+                    CASE 27 : pzDone = -1
+                    CASE 18432 ' Up: the line above - with Shift, move this line up
+                        IF shiftOn AND pzSel > 1 THEN SWAP pzOrder(pzSel), pzOrder(pzSel - 1)
+                        IF pzSel > 1 THEN pzSel = pzSel - 1
+                    CASE 20480
+                        IF shiftOn AND pzSel < pzN THEN SWAP pzOrder(pzSel), pzOrder(pzSel + 1)
+                        IF pzSel < pzN THEN pzSel = pzSel + 1
+                    CASE 18688 : IF pzSel > 1 THEN SWAP pzOrder(pzSel), pzOrder(pzSel - 1) : pzSel = pzSel - 1 ' PgUp: move it up
+                    CASE 20736 : IF pzSel < pzN THEN SWAP pzOrder(pzSel), pzOrder(pzSel + 1) : pzSel = pzSel + 1 ' PgDn: down
+                    CASE 13 : IF PuzzleBlankOn(pzSel) THEN pzTyping = -1 ELSE pzOut$ = "That line has no blank to fill."
+                    CASE 104, 72 ' H: the next hint
+                        IF pzShown < pzHints THEN pzShown = pzShown + 1 ELSE pzOut$ = "No more hints - read the comments ('...) in the program too."
+                    CASE 16128, 114, 82 : PuzzleRun ' F5 or R: compile and run
+                    CASE 34304 ' F12 (testing, with CHEAT_KEYS): put it all right
+                        IF CHEAT_KEYS THEN FOR f = 1 TO pzN + pzBlanks : PuzzleFixOne : NEXT : achCheat = -1
+                END SELECT
+            END IF
+            k& = _KEYHIT
+        LOOP
+        IF pzDone OR pzSolved THEN EXIT DO
+        DrawPuzzle pzSel, pzTyping, qb$
         IF glReady THEN GLSL_filter_capture
-        GLScreenLayer glReady : ShowFrame
-    NEXT
-END IF
-_KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
-escWas = -1 : fireWait = 15 : spaceWas = -1
-RETURN
+        GLScreenLayer glReady
+        ShowFrame
+    LOOP
+    IF pzSolved THEN ' (a moment to see it worked)
+        FOR f = 1 TO 90
+            _LIMIT 60 : DrawPuzzle 0, 0, qb$
+            IF glReady THEN GLSL_filter_capture
+            GLScreenLayer glReady : ShowFrame
+        NEXT
+    END IF
+    _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+    escWas = -1 : fireWait = 15 : spaceWas = -1
+END SUB
 
 ' Do the puzzle's lines, as they stand, match its program? Comment lines
 ' (' or REM) can go anywhere - only the program's own lines must be in
 ' their order
 FUNCTION PuzzleMatches
+    DIM a, i, l$ ' (its own: the main program shares these names)
     a = 1 : PuzzleMatches = -1
     FOR i = 1 TO pzN
         l$ = NormLine$(PuzzleLine$(i))
@@ -134,6 +135,7 @@ FUNCTION PuzzleMatches
 END FUNCTION
 
 FUNCTION PuzzleComment(l$)
+    DIM t$ ' (its own: the main program shares these names)
     t$ = UCASE$(LTRIM$(l$))
     PuzzleComment = (LEFT$(t$, 1) = "'" OR LEFT$(t$, 4) = "REM ")
 END FUNCTION
@@ -144,100 +146,101 @@ END FUNCTION
 ' background while this waits (and says so); its output (or the
 ' compiler's complaint) read back and checked against pzExpect$. Without
 ' qb64pe: the lines checked against the answer instead.
-PuzzleRun:
-pzOut$ = ""
-IF qb$ = "" THEN
-    ok = PuzzleMatches
-    IF ok THEN pzSolved = -1 : pzOut$ = "CHECKED (qb64pe not found - the lines match the program).|ACCESS GRANTED" ELSE pzOut$ = "Not right yet - check the order, and the blanks."
-ELSE
-    MakeSaveDir : d$ = SaveDir$ + "puzzle"
-    IF NOT _DIREXISTS(d$) THEN MKDIR d$
-    d$ = _FULLPATH$(d$) ' (all its paths whole: qb64pe works from its own folder)
-    IF RIGHT$(d$, 1) = "/" OR RIGHT$(d$, 1) = "\" THEN d$ = LEFT$(d$, LEN(d$) - 1)
-    win = INSTR(_OS$, "[WINDOWS]") > 0
-    src$ = d$ + "/prog.bas" : exe$ = d$ + "/prog" : out$ = d$ + "/out.txt" : done$ = d$ + "/done.txt"
-    IF win THEN ' (Windows: its own slashes, and a program ends in .exe)
-        src$ = Slashes$(src$) : exe$ = Slashes$(exe$ + ".exe") : out$ = Slashes$(out$) : done$ = Slashes$(done$)
-    END IF
-    IF _FILEEXISTS(out$) THEN KILL out$ ' (the last run's, out of the way)
-    IF _FILEEXISTS(done$) THEN KILL done$
-    IF _FILEEXISTS(exe$) THEN KILL exe$
-    fh = FREEFILE : OPEN src$ FOR OUTPUT AS #fh
-    PRINT #fh, "$CONSOLE:ONLY"
-    placed = 0
-    FOR i = 1 TO pzN
-        u$ = UCASE$(LTRIM$(PuzzleLine$(i)))
-        IF NOT placed AND (LEFT$(u$, 9) = "FUNCTION " OR LEFT$(u$, 4) = "SUB ") THEN PRINT #fh, "SYSTEM" : placed = -1
-        PRINT #fh, PuzzleLine$(i)
-    NEXT
-    IF NOT placed THEN PRINT #fh, "SYSTEM"
-    CLOSE #fh
-    ' The compile and the run go in a little script (a batch file on
-    ' Windows, sh elsewhere), started in the background: compile; if that
-    ' worked, run it (on Linux, timeout stops it after 5 seconds if it
-    ' never ends - macOS hasn't got timeout); either way, leave done.txt
-    q$ = CHR$(34) : fh = FREEFILE
-    IF win THEN
-        script$ = Slashes$(d$ + "/run.cmd")
-        OPEN script$ FOR OUTPUT AS #fh
-        PRINT #fh, "@echo off"
-        PRINT #fh, q$ + Slashes$(qb$) + q$ + " -x " + q$ + src$ + q$ + " -o " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1"
-        PRINT #fh, "if exist " + q$ + exe$ + q$ + " " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < NUL"
-        PRINT #fh, "echo done > " + q$ + done$ + q$
-        CLOSE #fh
-        SHELL _HIDE _DONTWAIT q$ + script$ + q$
+SUB PuzzleRun STATIC
+    pzOut$ = ""
+    IF qb$ = "" THEN
+        ok = PuzzleMatches
+        IF ok THEN pzSolved = -1 : pzOut$ = "CHECKED (qb64pe not found - the lines match the program).|ACCESS GRANTED" ELSE pzOut$ = "Not right yet - check the order, and the blanks."
     ELSE
-        script$ = d$ + "/run.sh" : lf$ = CHR$(10) ' (PRINT # ends lines with CR LF everywhere - sh wants LF alone)
-        t$ = "if " + q$ + qb$ + q$ + " -x " + q$ + src$ + q$ + " -o " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1; then" + lf$
-        t$ = t$ + "  if command -v timeout > /dev/null 2>&1; then timeout 5 " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < /dev/null" + lf$
-        t$ = t$ + "  else " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < /dev/null; fi" + lf$
-        t$ = t$ + "fi" + lf$ + "echo done > " + q$ + done$ + q$ + lf$
-        IF _FILEEXISTS(script$) THEN KILL script$
-        OPEN script$ FOR BINARY AS #fh : PUT #fh, , t$ : CLOSE #fh
-        SHELL _HIDE _DONTWAIT "sh " + q$ + script$ + q$
-    END IF
-    t0! = TIMER
-    DO ' Waiting: COMPILING...
-        _LIMIT 30
-        el! = TIMER - t0! : IF el! < 0 THEN el! = el! + 86400
-        IF _FILEEXISTS(done$) OR el! > 120 THEN EXIT DO
-        pzOut$ = "COMPILING" + STRING$(INT(el! * 3) MOD 4, ".") + "   (" + LTRIM$(STR$(INT(el!))) + "s)   qb64pe is turning it into a program"
-        DrawPuzzle pzSel, 0, qb$
-        IF glReady THEN GLSL_filter_capture
-        GLScreenLayer glReady : ShowFrame
-    LOOP
-    got$ = ""
-    IF _FILEEXISTS(out$) THEN
-        fh = FREEFILE : OPEN out$ FOR INPUT AS #fh
-        DO UNTIL EOF(fh)
-            LINE INPUT #fh, l$
-            IF LEN(LTRIM$(l$)) THEN got$ = got$ + "|" + l$
+        MakeSaveDir : d$ = SaveDir$ + "puzzle"
+        IF NOT _DIREXISTS(d$) THEN MKDIR d$
+        d$ = _FULLPATH$(d$) ' (all its paths whole: qb64pe works from its own folder)
+        IF RIGHT$(d$, 1) = "/" OR RIGHT$(d$, 1) = "\" THEN d$ = LEFT$(d$, LEN(d$) - 1)
+        win = INSTR(_OS$, "[WINDOWS]") > 0
+        src$ = d$ + "/prog.bas" : exe$ = d$ + "/prog" : out$ = d$ + "/out.txt" : done$ = d$ + "/done.txt"
+        IF win THEN ' (Windows: its own slashes, and a program ends in .exe)
+            src$ = Slashes$(src$) : exe$ = Slashes$(exe$ + ".exe") : out$ = Slashes$(out$) : done$ = Slashes$(done$)
+        END IF
+        IF _FILEEXISTS(out$) THEN KILL out$ ' (the last run's, out of the way)
+        IF _FILEEXISTS(done$) THEN KILL done$
+        IF _FILEEXISTS(exe$) THEN KILL exe$
+        fh = FREEFILE : OPEN src$ FOR OUTPUT AS #fh
+        PRINT #fh, "$CONSOLE:ONLY"
+        placed = 0
+        FOR i = 1 TO pzN
+            u$ = UCASE$(LTRIM$(PuzzleLine$(i)))
+            IF NOT placed AND (LEFT$(u$, 9) = "FUNCTION " OR LEFT$(u$, 4) = "SUB ") THEN PRINT #fh, "SYSTEM" : placed = -1
+            PRINT #fh, PuzzleLine$(i)
+        NEXT
+        IF NOT placed THEN PRINT #fh, "SYSTEM"
+        CLOSE #fh
+        ' The compile and the run go in a little script (a batch file on
+        ' Windows, sh elsewhere), started in the background: compile; if that
+        ' worked, run it (on Linux, timeout stops it after 5 seconds if it
+        ' never ends - macOS hasn't got timeout); either way, leave done.txt
+        q$ = CHR$(34) : fh = FREEFILE
+        IF win THEN
+            script$ = Slashes$(d$ + "/run.cmd")
+            OPEN script$ FOR OUTPUT AS #fh
+            PRINT #fh, "@echo off"
+            PRINT #fh, q$ + Slashes$(qb$) + q$ + " -x " + q$ + src$ + q$ + " -o " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1"
+            PRINT #fh, "if exist " + q$ + exe$ + q$ + " " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < NUL"
+            PRINT #fh, "echo done > " + q$ + done$ + q$
+            CLOSE #fh
+            SHELL _HIDE _DONTWAIT q$ + script$ + q$
+        ELSE
+            script$ = d$ + "/run.sh" : lf$ = CHR$(10) ' (PRINT # ends lines with CR LF everywhere - sh wants LF alone)
+            t$ = "if " + q$ + qb$ + q$ + " -x " + q$ + src$ + q$ + " -o " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1; then" + lf$
+            t$ = t$ + "  if command -v timeout > /dev/null 2>&1; then timeout 5 " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < /dev/null" + lf$
+            t$ = t$ + "  else " + q$ + exe$ + q$ + " > " + q$ + out$ + q$ + " 2>&1 < /dev/null; fi" + lf$
+            t$ = t$ + "fi" + lf$ + "echo done > " + q$ + done$ + q$ + lf$
+            IF _FILEEXISTS(script$) THEN KILL script$
+            OPEN script$ FOR BINARY AS #fh : PUT #fh, , t$ : CLOSE #fh
+            SHELL _HIDE _DONTWAIT "sh " + q$ + script$ + q$
+        END IF
+        t0! = TIMER
+        DO ' Waiting: COMPILING...
+            _LIMIT 30
+            el! = TIMER - t0! : IF el! < 0 THEN el! = el! + 86400
+            IF _FILEEXISTS(done$) OR el! > 120 THEN EXIT DO
+            pzOut$ = "COMPILING" + STRING$(INT(el! * 3) MOD 4, ".") + "   (" + LTRIM$(STR$(INT(el!))) + "s)   qb64pe is turning it into a program"
+            DrawPuzzle pzSel, 0, qb$
+            IF glReady THEN GLSL_filter_capture
+            GLScreenLayer glReady : ShowFrame
         LOOP
-        CLOSE #fh
+        got$ = ""
+        IF _FILEEXISTS(out$) THEN
+            fh = FREEFILE : OPEN out$ FOR INPUT AS #fh
+            DO UNTIL EOF(fh)
+                LINE INPUT #fh, l$
+                IF LEN(LTRIM$(l$)) THEN got$ = got$ + "|" + l$
+            LOOP
+            CLOSE #fh
+        END IF
+        IF LEN(got$) THEN got$ = MID$(got$, 2)
+        IF NOT _FILEEXISTS(exe$) AND PuzzleMatches THEN ' (the lines are right - the compiler's what's wrong: still granted, or a broken qb64pe would lock you in for good)
+            pzSolved = -1 : pzOut$ = "qb64pe couldn't build it - but the lines match the program.|ACCESS GRANTED"
+        ELSEIF NOT _FILEEXISTS(exe$) THEN ' Didn't compile: the compiler's words
+            pzOut$ = "DID NOT COMPILE:|" + LEFT$(PuzzleCompilerSays$(got$), 300)
+        ELSEIF NormLine$(got$) = NormLine$(pzExpect$) THEN
+            pzSolved = -1 : pzOut$ = "RAN - it printed:|" + got$ + "|ACCESS GRANTED"
+        ELSE
+            pzOut$ = "RAN, but printed:|" + LEFT$(got$, 200) + "|- and that's not it (it should print " + pzExpect$ + ")"
+        END IF
     END IF
-    IF LEN(got$) THEN got$ = MID$(got$, 2)
-    IF NOT _FILEEXISTS(exe$) AND PuzzleMatches THEN ' (the lines are right - the compiler's what's wrong: still granted, or a broken qb64pe would lock you in for good)
-        pzSolved = -1 : pzOut$ = "qb64pe couldn't build it - but the lines match the program.|ACCESS GRANTED"
-    ELSEIF NOT _FILEEXISTS(exe$) THEN ' Didn't compile: the compiler's words
-        pzOut$ = "DID NOT COMPILE:|" + LEFT$(PuzzleCompilerSays$(got$), 300)
-    ELSEIF NormLine$(got$) = NormLine$(pzExpect$) THEN
-        pzSolved = -1 : pzOut$ = "RAN - it printed:|" + got$ + "|ACCESS GRANTED"
+    IF NOT pzSolved THEN ' Wrong: another hint - and after a few, one line put right
+        pzFails = pzFails + 1
+        IF pzShown < pzHints THEN pzShown = pzShown + 1
+        IF pzFails >= 3 THEN PuzzleFixOne : pzOut$ = pzOut$ + "|(The terminal fixed one line for you.)"
+        PlaySfx sndFail&, 0.7
     ELSE
-        pzOut$ = "RAN, but printed:|" + LEFT$(got$, 200) + "|- and that's not it (it should print " + pzExpect$ + ")"
+        PlaySfx sndCore&, 1
     END IF
-END IF
-IF NOT pzSolved THEN ' Wrong: another hint - and after a few, one line put right
-    pzFails = pzFails + 1
-    IF pzShown < pzHints THEN pzShown = pzShown + 1
-    IF pzFails >= 3 THEN PuzzleFixOne : pzOut$ = pzOut$ + "|(The terminal fixed one line for you.)"
-    PlaySfx sndFail&, 0.7
-ELSE
-    PlaySfx sndCore&, 1
-END IF
-RETURN
+END SUB
 
 ' Which code terminal is at cell (x, y)
 FUNCTION TermAt(x, y)
+    DIM k ' (its own: the main program shares these names)
     FOR k = 1 TO numTerms
         IF termX(k) = x AND termY(k) = y THEN TermAt = k
     NEXT
@@ -247,6 +250,7 @@ END FUNCTION
 ' can't be found: the one you chose (qbChosen$), $QB64PE, every folder on
 ' the PATH, then the usual places
 FUNCTION QB64Path$
+    DIM c$ ' (its own: the main program shares these names)
     ' (Windows has no HOME, but USERPROFILE; its compiler is qb64pe.exe, and
     ' its PATH has ; between the folders, not :)
     h$ = ENVIRON$("HOME") : IF h$ = "" THEN h$ = ENVIRON$("USERPROFILE")
@@ -289,6 +293,7 @@ END FUNCTION
 ' Read puzzle n$ (neon-caster/puzzles/n$.txt) - its answer, blanks and
 ' hints - and shuffle its lines (never leaving them all in place)
 FUNCTION LoadPuzzle(n$)
+    DIM i, j, l$, t$ ' (its own: the main program shares these names)
     f$ = AssetPath$("puzzles/" + n$ + ".txt")
     IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
     pzTitle$ = n$ : pzLesson$ = "" : pzExpect$ = "" : pzChapter$ = "" : pzN = 0 : pzBlanks = 0 : pzHints = 0 : sec$ = ""
@@ -333,6 +338,7 @@ END FUNCTION
 ' Line i of the puzzle as it stands now: the line in place i, its blank
 ' (if it has one) filled with what's been typed
 FUNCTION PuzzleLine$(i)
+    DIM a, B, l$, p ' (its own: the main program shares these names)
     a = pzOrder(i) : l$ = pzAns$(a)
     FOR b = 1 TO pzBlanks
         IF pzBlankLine(b) = a THEN
@@ -345,6 +351,7 @@ END FUNCTION
 
 ' Which blank is on the line in place i (0: none)
 FUNCTION PuzzleBlankOn(i)
+    DIM B ' (its own: the main program shares these names)
     FOR b = 1 TO pzBlanks
         IF pzBlankLine(b) = pzOrder(i) THEN PuzzleBlankOn = b : EXIT FUNCTION
     NEXT
@@ -352,6 +359,7 @@ END FUNCTION
 
 ' After a few wrong tries: one line put in its place (or one blank filled)
 SUB PuzzleFixOne
+    DIM B, i, j ' (its own: the main program shares these names)
     FOR i = 1 TO pzN
         IF pzOrder(i) <> i THEN
             FOR j = i + 1 TO pzN
@@ -366,6 +374,7 @@ END SUB
 
 ' A line, for comparing: spaces squashed, no case
 FUNCTION NormLine$(t$)
+    DIM c$, i ' (its own: the main program shares these names)
     o$ = "" : sp = -1
     FOR i = 1 TO LEN(t$)
         c$ = MID$(t$, i, 1)
@@ -380,6 +389,7 @@ END FUNCTION
 
 ' The useful part of the compiler's complaint
 FUNCTION PuzzleCompilerSays$(t$)
+    DIM e, l$ ' (its own: the main program shares these names)
     o$ = "" : s$ = t$ + "|"
     DO WHILE LEN(s$)
         bar = INSTR(s$, "|") : l$ = LEFT$(s$, bar - 1) : s$ = MID$(s$, bar + 1)
@@ -399,6 +409,7 @@ END FUNCTION
 ' lit, blanks as ____ or what's typed), the lesson, the hints so far, and
 ' what the last run said
 SUB DrawPuzzle(sel, typing, qb$)
+    DIM B, i, l$, p, y ' (its own: the main program shares these names)
     LINE (0, 0)-(799, 599), _RGB32(2, 10, 6), BF
     FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGB32(0, 0, 0) : NEXT
     LINE (16, 12)-(783, 587), _RGB32(40, 120, 60), B

@@ -232,7 +232,7 @@
         IF lightB& > 256 THEN lightB& = 256
 
         clipN(x) = 0
-        IF NOT glMode AND NOT levelFlat THEN GOSUB HeightColumn ' (heights: the column, Doom's way - RENDER/VIEW.BM)
+        IF NOT glMode AND NOT levelFlat THEN HeightColumn ' (heights: the column, Doom's way - RENDER/VIEW.BM)
         IF NOT glMode AND levelFlat THEN ' (OpenGL draws the walls itself)
             IF texSlot2 = 0 THEN texSlot2 = texSlot
             wSl = texSlot : texMid = texSize / 2

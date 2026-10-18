@@ -35,7 +35,12 @@ DIM SHARED rowF(RENDER_H - 1) AS SINGLE, rowC(RENDER_H - 1) AS SINGLE ' (HeightC
 CONST SKY_REPEAT = 1, SKY_EL = 1.2566 ' (a panorama: the whole way round across, 72 degrees up)
 DIM SHARED skyU(RENDER_W - 1) AS INTEGER, skyV(RENDER_H - 1) AS INTEGER
 
-DIM x AS LONG, y AS LONG, texU AS LONG, texV AS LONG, texX AS LONG
+DIM SHARED x AS LONG, y AS LONG, texU AS LONG, texV AS LONG, texX AS LONG
 DIM floorRow AS LONG, ceilRow AS LONG, drawStart AS LONG, drawEnd AS LONG
 DIM cellX AS LONG, cellY AS LONG, lastCellX AS LONG, lastCellY AS LONG, floorSlot AS LONG, ceilSlot AS LONG
 DIM cellFloor AS LONG, cellCeil AS LONG, splitCell AS LONG, cellTrack AS LONG
+
+
+' This module's working variables, shared by its SUBs (and with the main
+' program)
+DIM SHARED hB&, hBot, hDOut, hG&, hor, hR&, hSlot, hSlot2, hTexX, hTop, hVOff, tMask, yA, yB

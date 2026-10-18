@@ -84,3 +84,8 @@ edTrigWhen = 1 : edTrigTime = 10 ' (the SECTOR pane; typing its name; which of i
 DIM SHARED edPnX0 AS INTEGER, edPnY0 AS INTEGER ' (where the pane is: down the right in 3D, over the map's right from above)
 DIM SHARED edLinkPad AS INTEGER, edLinkX AS INTEGER, edLinkY AS INTEGER ' (LINK: waiting for the pad this one's to go to)
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
+
+
+' This module's working variables, shared by its SUBs (and with the main
+' program)
+DIM SHARED edDone, edDragOn, fpLWas, levelWas, lt, ndx, ndy, pkIdx, pkWhat, pnHit, tbHit, tbMX

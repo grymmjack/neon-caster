@@ -20,26 +20,26 @@
     IF dead THEN deadTicks = deadTicks + 1 ELSE deadTicks = 0
     IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
-    GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
-    IF demoMenuWant THEN demoMenuWant = 0 : menuInGame = 0 : menuOpenDemos = -1 : GOSUB RunMenu ' (a demo from DEMO REPLAYS is over: the title menu, at that list)
-    IF demoAttractMenu THEN demoAttractMenu = 0 : menuInGame = 0 : GOSUB RunMenu ' (attract mode: a demo over - the title menu again)
+    SpeechFrame ' (NEXUS: what it says, when - chapter 19)
+    IF demoMenuWant THEN demoMenuWant = 0 : menuInGame = 0 : menuOpenDemos = -1 : RunMenu ' (a demo from DEMO REPLAYS is over: the title menu, at that list)
+    IF demoAttractMenu THEN demoAttractMenu = 0 : menuInGame = 0 : RunMenu ' (attract mode: a demo over - the title menu again)
     IF demoAttract THEN ' (attract mode: a key, or a click - back to the title menu)
         IF _KEYHIT > 0 OR attractQuit THEN
             demoAttract = 0 : attractQuit = 0 : _KEYCLEAR
-            IF demoPlay THEN GOSUB DemoStop
-            menuInGame = 0 : GOSUB RunMenu
+            IF demoPlay THEN DemoStop
+            menuInGame = 0 : RunMenu
         END IF
     END IF
     IF conWait > 0 THEN conWait = conWait - 1
     DO WHILE conWait = 0 AND conQHead < conQTail AND glShotReq = 0 ' (a screenshot asked for: the rest waits until it's saved)
         conQHead = conQHead + 1 : conCmd$ = conQ$(conQHead)
         IF LEFT$(conCmd$, 1) = CHR$(2) THEN conCmd$ = MID$(conCmd$, 2) : conFromTrig = -1 ' (a trigger's command, queued behind a wait)
-        GOSUB ConExec : conFromTrig = 0
+        ConExec : conFromTrig = 0
     LOOP
     IF conQHead >= conQTail THEN conQHead = 0 : conQTail = 0
     ' ` (or ~): the console
     conKey = (_KEYDOWN(96) OR _KEYDOWN(126)) AND NOT edTyping ' (typing a name in the editor: not the console)
-    IF conKey AND NOT conKeyWas THEN GOSUB RunConsole
+    IF conKey AND NOT conKeyWas THEN RunConsole
     conKeyWas = conKey
     ' Ctrl+R: record this sector - it starts again, and every key from there
     ' goes into a demo (run1, run2...) - and Ctrl+R again (or the exit) keeps
@@ -47,11 +47,11 @@
     recKey = (_KEYDOWN(114) OR _KEYDOWN(82)) AND (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND NOT edTyping
     IF recKey AND NOT recKeyWas AND NOT editMode AND NOT hudEdit THEN
         IF demoRec THEN
-            GOSUB DemoStop
+            DemoStop
         ELSEIF demoPlay THEN
             ShowMsg "A demo's playing - Esc, STOP DEMO first"
         ELSE
-            demoName$ = DemoNextName$ : dSeedWant# = 0 : demoRecQuit = 0 : GOSUB DemoRecordStart
+            demoName$ = DemoNextName$ : dSeedWant# = 0 : demoRecQuit = 0 : DemoRecordStart
             ShowMsg "RECORDING " + demoName$ + " - from the sector's start. Ctrl+R again stops it"
         END IF
     END IF
@@ -59,8 +59,8 @@
     ' F2: the level editor (chapter 21) - into it, at the map from above
     edKey = _KEYDOWN(15360)
     IF edKey AND NOT edKeyWas AND NOT cyberOn AND NOT dead AND NOT edTyping THEN
-        IF editMode THEN GOSUB EditLeave ELSE GOSUB EditEnter
+        IF editMode THEN EditLeave ELSE EditEnter
     END IF
     edKeyWas = _KEYDOWN(15360)
-    IF editMode AND editView = 0 THEN GOSUB RunEditor : edKeyWas = _KEYDOWN(15360) ' (the map from above: a loop of its own - F2 there, still held, isn't a new press here)
-    IF editMode THEN GOSUB EditFP ' (walking round in it: its keys)
+    IF editMode AND editView = 0 THEN RunEditor : edKeyWas = _KEYDOWN(15360) ' (the map from above: a loop of its own - F2 there, still held, isn't a new press here)
+    IF editMode THEN EditFP ' (walking round in it: its keys)

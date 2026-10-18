@@ -21,6 +21,7 @@
 ' top (so you're never left to jump down its shaft); with nobody about up
 ' there, it goes back down.
 SUB MoveLifts(px, py)
+    DIM k, x, y ' (its own: the main program shares these names)
     me = liftCell(INT(px), INT(py))
     FOR k = 1 TO numLifts
         IF liftMode(k) = 2 AND me <> k THEN liftArm(k) = -1
@@ -59,6 +60,7 @@ END SUB
 ' Done by what changed since last frame, so it's the same however it was
 ' set going (riding it, by itself, or a trigger's liftgo).
 SUB LiftSound(k, px, py)
+    DIM cx, cy ' (its own: the main program shares these names)
     cx = (liftX0(k) + liftX1(k) + 1) / 2 : cy = (liftY0(k) + liftY1(k) + 1) / 2
     IF liftDir(k) <> 0 AND liftWasDir(k) = 0 THEN SfxAt sndLiftStart&, cx, cy, px, py
     IF liftDir(k) = 0 AND liftWasDir(k) <> 0 THEN SfxAt sndLiftStop&, cx, cy, px, py

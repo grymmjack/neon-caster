@@ -11,66 +11,66 @@
 ' These are the ones every level shares. Some pictures are made rather than loaded: the keycards and key doors are
 ' one picture tinted three colours, each monster gets a second, red-washed
 ' copy to flash when it's hit, and the bolt is drawn with maths (MakeBolt).
-LoadPictures:
-LoadTex "door.png", T_DOOR
-LoadTex "door-shutter.png", T_SHUTTER
-LoadTex "door-split.png", T_SPLIT
-LoadTex "exit.png", T_EXIT : ExitSign
-LoadTex "ceiling-lamp.png", T_LAMP : MakeLampOff
-LoadTex "wall-jack.png", T_JACK ' (a data station)
-LoadTex "wall-code.png", T_CODE ' (a code terminal)
-MakeDoneTex T_JACK, T_JACKOK, "CLEARED", 2 : MakeDoneTex T_CODE, T_CODEOK, "UNLOCKED", 1 ' (...and each, done)
-LoadCards "keycard.png"
-LoadSprite "medkit.png", 4
-LoadSprite "ammo.png", 5
-LoadSprite "shells.png", 6
-LoadSprite "pickup-scatter.png", 7
-LoadSprite "pickup-repeater.png", 8
-LoadSprite "drone.png", 9
-LoadSprite "gunner.png", 11
-LoadSprite "heavy.png", 13
-LoadSprite "crawler.png", 15
-LoadSprite "sentry.png", 17
-FOR slot = 9 TO 17 STEP 2 : MakeHurt slot, slot + 1 : NEXT ' (each one's hit flash, in the next slot)
-MakeBolt S_BOLT
-LoadSprite "barrel.png", S_DECO + 1
-LoadSprite "lamp.png", S_DECO + 2
-LoadSprite "plant.png", S_DECO + 3
-LoadSprite "terminal.png", S_DECO + 4
-LoadSprite "crate.png", DecoSlot(5) : LoadSprite "rack.png", DecoSlot(6)
-LoadSprite "vending.png", DecoSlot(7) : LoadSprite "tank.png", DecoSlot(8) : LoadSprite "spawner.png", DecoSlot(9)
-' The set pieces (10-19): desk, control console, monitor bank, specimen
-' tank, lab bench, generator, cryo pod, hologram, lockers, bench
-FOR k = 10 TO DECO_KINDS : LoadSprite DecoFile$(k), DecoSlot(k) : NEXT
-LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE) : LoadSprite "goggles.png", ItemSprite(IT_GOGGLES)
-MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
-MakePad S_PAD ' (a teleporter's pad)
-LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
-LoadSprite "droid1.png", S_DROID : LoadSprite "droid2.png", S_DROID + 1 ' (the droids - and each, broken: MakeScrap)
-MakeScrap S_DROID, S_DROID + 2 : MakeScrap S_DROID + 1, S_DROID + 3
-LoadSprite "explosion.png", S_BLAST : MakeBoomFrames ' (and its animation)
-LoadSprite "armor.png", 25
-LoadSprite "bigmed.png", 26
-LoadSprite "pickup-rail.png", 27
-LoadSprite "map.png", 28
-' The newer monsters' pictures: each, then itself hurt (MakeHurt: flashed red)
-FOR mtype = 6 TO MON_TYPES
-    LoadSprite mtypeName$(mtype) + ".png", mtypeSprite(mtype) : MakeHurt mtypeSprite(mtype), mtypeSprite(mtype) + 1
-NEXT
-FOR mtype = 1 TO MON_TYPES : MakeCorpse mtype : NEXT ' (each one's body, for when it's dead)
-FOR k = 1 TO DECO_KINDS : MakeWreck k : NEXT ' (each decoration, broken)
-FOR mtype = 1 TO MON_TYPES : MakeMonFrames mtype : NEXT ' (each one's animation)
-MakeScorch ' (a scorch mark, for the software renderer's decals)
-LoadGun 1, "gun.png"
-LoadGun 2, "gun-scatter.png"
-LoadGun 3, "gun-repeater.png"
-LoadGun 4, "gun-rail.png"
-glGunVersion = glGunVersion + 1 ' (OpenGL's copies of them, again)
-IF nexusImg& < -1 THEN _FREEIMAGE nexusImg&
-nexusImg& = _LOADIMAGE(ArtPath$("nexus.png"), 32)
-IF kickImg& < -1 THEN _FREEIMAGE kickImg&
-kickImg& = _LOADIMAGE(ArtPath$("kick.png"), 32) ' The boot (chapter 18); missing, there's no boot to see
-RETURN
+SUB LoadPictures STATIC
+    LoadTex "door.png", T_DOOR
+    LoadTex "door-shutter.png", T_SHUTTER
+    LoadTex "door-split.png", T_SPLIT
+    LoadTex "exit.png", T_EXIT : ExitSign
+    LoadTex "ceiling-lamp.png", T_LAMP : MakeLampOff
+    LoadTex "wall-jack.png", T_JACK ' (a data station)
+    LoadTex "wall-code.png", T_CODE ' (a code terminal)
+    MakeDoneTex T_JACK, T_JACKOK, "CLEARED", 2 : MakeDoneTex T_CODE, T_CODEOK, "UNLOCKED", 1 ' (...and each, done)
+    LoadCards "keycard.png"
+    LoadSprite "medkit.png", 4
+    LoadSprite "ammo.png", 5
+    LoadSprite "shells.png", 6
+    LoadSprite "pickup-scatter.png", 7
+    LoadSprite "pickup-repeater.png", 8
+    LoadSprite "drone.png", 9
+    LoadSprite "gunner.png", 11
+    LoadSprite "heavy.png", 13
+    LoadSprite "crawler.png", 15
+    LoadSprite "sentry.png", 17
+    FOR slot = 9 TO 17 STEP 2 : MakeHurt slot, slot + 1 : NEXT ' (each one's hit flash, in the next slot)
+    MakeBolt S_BOLT
+    LoadSprite "barrel.png", S_DECO + 1
+    LoadSprite "lamp.png", S_DECO + 2
+    LoadSprite "plant.png", S_DECO + 3
+    LoadSprite "terminal.png", S_DECO + 4
+    LoadSprite "crate.png", DecoSlot(5) : LoadSprite "rack.png", DecoSlot(6)
+    LoadSprite "vending.png", DecoSlot(7) : LoadSprite "tank.png", DecoSlot(8) : LoadSprite "spawner.png", DecoSlot(9)
+    ' The set pieces (10-19): desk, control console, monitor bank, specimen
+    ' tank, lab bench, generator, cryo pod, hologram, lockers, bench
+    FOR k = 10 TO DECO_KINDS : LoadSprite DecoFile$(k), DecoSlot(k) : NEXT
+    LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE) : LoadSprite "goggles.png", ItemSprite(IT_GOGGLES)
+    MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
+    MakePad S_PAD ' (a teleporter's pad)
+    LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
+    LoadSprite "droid1.png", S_DROID : LoadSprite "droid2.png", S_DROID + 1 ' (the droids - and each, broken: MakeScrap)
+    MakeScrap S_DROID, S_DROID + 2 : MakeScrap S_DROID + 1, S_DROID + 3
+    LoadSprite "explosion.png", S_BLAST : MakeBoomFrames ' (and its animation)
+    LoadSprite "armor.png", 25
+    LoadSprite "bigmed.png", 26
+    LoadSprite "pickup-rail.png", 27
+    LoadSprite "map.png", 28
+    ' The newer monsters' pictures: each, then itself hurt (MakeHurt: flashed red)
+    FOR mtype = 6 TO MON_TYPES
+        LoadSprite mtypeName$(mtype) + ".png", mtypeSprite(mtype) : MakeHurt mtypeSprite(mtype), mtypeSprite(mtype) + 1
+    NEXT
+    FOR mtype = 1 TO MON_TYPES : MakeCorpse mtype : NEXT ' (each one's body, for when it's dead)
+    FOR k = 1 TO DECO_KINDS : MakeWreck k : NEXT ' (each decoration, broken)
+    FOR mtype = 1 TO MON_TYPES : MakeMonFrames mtype : NEXT ' (each one's animation)
+    MakeScorch ' (a scorch mark, for the software renderer's decals)
+    LoadGun 1, "gun.png"
+    LoadGun 2, "gun-scatter.png"
+    LoadGun 3, "gun-repeater.png"
+    LoadGun 4, "gun-rail.png"
+    glGunVersion = glGunVersion + 1 ' (OpenGL's copies of them, again)
+    IF nexusImg& < -1 THEN _FREEIMAGE nexusImg&
+    nexusImg& = _LOADIMAGE(ArtPath$("nexus.png"), 32)
+    IF kickImg& < -1 THEN _FREEIMAGE kickImg&
+    kickImg& = _LOADIMAGE(ArtPath$("kick.png"), 32) ' The boot (chapter 18); missing, there's no boot to see
+END SUB
 
 ' --- ART (SETTINGS > VIDEO): every picture again, the size the setting
 ' wants (artWant: ApplySettings) - CLASSIC: textures 128 and sprites 64
@@ -79,30 +79,30 @@ RETURN
 ' smooth), shrunk to 128 and 64 for the software renderer. OpenGL is held
 ' off first (artHold, till it says so - glArtAck): it reads these arrays
 ' from its own thread, and REDIM moves them.
-ArtReload:
-artHold = -1 : glArtAck = 0
-IF glReady THEN
-    artT0! = TIMER
-    DO WHILE glArtAck = 0 AND ABS(TIMER - artT0!) < 1 : _LIMIT 500 : LOOP
-END IF
-artNow = artWant
-IF artNow = 2 THEN texSize = 512 : sprTex = 256 ELSE texSize = 128 : sprTex = 64
-REDIM texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
-REDIM texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
-REDIM glUpload(texSize * texSize - 1) AS _UNSIGNED LONG
-REDIM spriteTex(sprTex - 1, sprTex - 1, SPR_SLOTS) AS _UNSIGNED LONG
-GOSUB LoadPictures
-FOR k = 1 TO T_SLOTS ' The level's own walls, floors and ceilings, again
-    IF texFile$(k) <> "" AND LEFT$(texFile$(k), 5) <> "glow:" THEN LoadTex texFile$(k), k
-NEXT
-FOR k = 1 TO T_SLOTS ' (and the tinted copies of them, made again from them)
-    IF LEFT$(texFile$(k), 5) = "glow:" THEN MakeGlowTex k
-NEXT
-IF cyberOn THEN CyberTextures -1 ' (in the network: its grid, at the new size)
-MakeLiftTex ' (the lifts' pictures, made again from the new ones)
-glTexVersion = glTexVersion + 1 : glRetexVersion = glRetexVersion + 1
-artHold = 0
-RETURN
+SUB ArtReload STATIC
+    artHold = -1 : glArtAck = 0
+    IF glReady THEN
+        artT0! = TIMER
+        DO WHILE glArtAck = 0 AND ABS(TIMER - artT0!) < 1 : _LIMIT 500 : LOOP
+    END IF
+    artNow = artWant
+    IF artNow = 2 THEN texSize = 512 : sprTex = 256 ELSE texSize = 128 : sprTex = 64
+    REDIM texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
+    REDIM texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
+    REDIM glUpload(texSize * texSize - 1) AS _UNSIGNED LONG
+    REDIM spriteTex(sprTex - 1, sprTex - 1, SPR_SLOTS) AS _UNSIGNED LONG
+    LoadPictures
+    FOR k = 1 TO T_SLOTS ' The level's own walls, floors and ceilings, again
+        IF texFile$(k) <> "" AND LEFT$(texFile$(k), 5) <> "glow:" THEN LoadTex texFile$(k), k
+    NEXT
+    FOR k = 1 TO T_SLOTS ' (and the tinted copies of them, made again from them)
+        IF LEFT$(texFile$(k), 5) = "glow:" THEN MakeGlowTex k
+    NEXT
+    IF cyberOn THEN CyberTextures -1 ' (in the network: its grid, at the new size)
+    MakeLiftTex ' (the lifts' pictures, made again from the new ones)
+    glTexVersion = glTexVersion + 1 : glRetexVersion = glRetexVersion + 1
+    artHold = 0
+END SUB
 
 ' A texture from neon-caster/ (or hd/ - ArtPath$) into texture slot `slot`,
 ' texSize pixels square whatever size the picture is (ReadPicture).
@@ -113,6 +113,7 @@ RETURN
 ' the sides are drawn hanging from the platform's top (GLStep, and
 ' HeightColumn's hVOff), so the band rides up and down with it.
 SUB MakeLiftTex
+    DIM B, c~&, g, r, t, x, y ' (its own: the main program shares these names)
     t = texSize : b = MaxOf(2, t \ 8) : seam = MaxOf(1, t \ 64)
     FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
         stripe = ((x + y) \ b) MOD 2 ' (diagonal bands, b wide)
@@ -148,6 +149,7 @@ END SUB
 ' them as it draws (the world shader's anim 5), see-through (lqSee); the
 ' software renderer moves them itself (LiquidAnimate).
 SUB MakeLiquidTex
+    DIM B, c~&, f, g, k, r, t, v, x, y ' (its own: the main program shares these names)
     t = texSize
     FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
         u = x / t * 6.2831853 : v = y / t * 6.2831853
@@ -184,6 +186,7 @@ END SUB
 ' and each row swaying a little from side to side - the surface rippling.
 ' (OpenGL does the same in its shader, and leaves the pictures alone.)
 SUB LiquidAnimate
+    DIM k, slot, sx, sy, t, tm, x, y ' (its own: the main program shares these names)
     IF NOT liqTexAt THEN EXIT SUB
     t = texSize : m = t - 1 : tm = TIMER
     oy = INT(tm * t * 0.04) : ox = INT(tm * t * 0.025)
@@ -205,6 +208,7 @@ END SUB
 ' embers, brightest in the middle of each. (OpenGL makes the bright parts
 ' flicker or pulse: GLSendTextures.)
 SUB MakeTrapTex
+    DIM c~&, g, k, r, sy, t, x, y ' (its own: the main program shares these names)
     t = texSize : cell = MaxOf(4, t \ 4) : wire = MaxOf(1, t \ 64) : slotH = MaxOf(2, t \ 12)
     FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
         c~& = texture(x, y, T_FLOOR + 1)
@@ -239,6 +243,7 @@ END SUB
 ' shows through). Named for OpenGL: "faceglow-" and the effect
 ' (GLSendTextures lights it itself, and moves it as the light moves).
 SUB MakeGlowTex(slot)
+    DIM a, B, c, fx, g, r, x, y ' (its own: the main program shares these names)
     k$ = texFile$(slot) + ":" : k$ = MID$(k$, 6)
     c = INSTR(k$, ":") : baseSl = VAL(LEFT$(k$, c - 1)) : k$ = MID$(k$, c + 1)
     c = INSTR(k$, ":") : rgb$ = LEFT$(k$, c - 1) : k$ = MID$(k$, c + 1)
@@ -324,6 +329,7 @@ END SUB
 
 ' A monster's hit flash: its picture (slot src) washed hot red, into dst
 SUB MakeHurt(src, dst)
+    DIM x, y ' (its own: the main program shares these names)
     FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
         spriteTex(x, y, dst) = Tint~&(spriteTex(x, y, src), _RGB32(255, 90, 70), 0.7)
     NEXT : NEXT
@@ -338,6 +344,7 @@ END SUB
 ' picture is square - chapter 16), then drawn squashed back (corpseSquash:
 ' its height over its width) at its own width (corpseScale).
 SUB MakeCorpse(mtype)
+    DIM nx, ny, w, x, x0, y, y0, y1 ' (its own: the main program shares these names)
     src = mtypeSprite(mtype) : sz = spriteSize(src) : dst = S_CORPSE + mtype
     IF _FILEEXISTS(AssetPath$("dead-" + mtypeName$(mtype) + ".png")) THEN
         ' How wide the monster is in its picture: its body is drawn that wide
@@ -400,6 +407,7 @@ END SUB
 ' first; then cools - darker, then grey smoke - and breaks up (more and
 ' more pixels gone, at random) as it rises.
 SUB MakeBoomFrames
+    DIM B, cx, cy, g, k, r, t, x, x0, y, y0, y1 ' (its own: the main program shares these names)
     src = S_BLAST : sz = spriteSize(src)
     x0 = sz : y0 = sz : x1 = -1 : y1 = -1
     FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
@@ -470,6 +478,7 @@ END FUNCTION
 ' The attack frame: the whole picture a little bigger (it lunges), and
 ' brighter, its reds burning.
 SUB MakeMonFrames(mtype)
+    DIM B, f, g, mx, nm$, nx, ny, r, w, x, x0, y, y0, y1 ' (its own: the main program shares these names)
     src = mtypeSprite(mtype) : sz = spriteSize(src) : nm$ = mtypeName$(mtype)
     x0 = sz : y0 = sz : x1 = -1 : y1 = -1
     FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
@@ -524,6 +533,7 @@ END SUB
 ' through its cycle (MakeMonFrames has the parts), into (nx, ny) - and its
 ' colour (col~&) for the drone's eye and the sentry's light
 SUB MonMove(mtype, x, y, ph, x0, x1, y0, y1, mx, hip, nx, ny, col~&)
+    DIM B, d, g, k, r, w ' (its own: the main program shares these names)
     w = x1 - x0 + 1 : h = y1 - y0 + 1
     side = 1 : IF x < mx THEN side = -1 ' Which side of its middle
     edge = ABS(x - mx) / (w / 2) ' (0 at the middle, 1 at its edge)
@@ -564,6 +574,7 @@ END SUB
 ' like a monster's body (MakeCorpse): stretched to fill the square, drawn
 ' squashed back (wreckSquash) at its own width (wreckScale).
 SUB MakeWreck(kind)
+    DIM nx, ny, w, x, x0, y, y0, y1 ' (its own: the main program shares these names)
     src = DecoSlot(kind) : sz = spriteSize(src) : dst = S_WRECK + kind
     x0 = sz : y0 = sz : x1 = -1 : y1 = -1
     FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
@@ -597,6 +608,7 @@ END SUB
 ' The scorch mark drawn for a decal: a ragged dark blob, into sprite slot
 ' S_DECAL
 SUB MakeScorch
+    DIM a, d, k, x, y ' (its own: the main program shares these names)
     spriteSize(S_DECAL) = 32
     FOR y = 0 TO 31 : FOR x = 0 TO 31
         d = SQR((x - 15.5) ^ 2 + (y - 15.5) ^ 2) / 16 + (RND - 0.5) * 0.18 ' (ragged)
@@ -610,6 +622,7 @@ END SUB
 ' The ceiling lamp, shot out: its picture copied (from T_LAMP) with the
 ' bright panel gone dark and cracked, into texture slot T_LAMPOFF
 SUB MakeLampOff
+    DIM a, cx, cy, px, py, tx, ty, x, y ' (its own: the main program shares these names)
     FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
         col~& = texture(x, y, T_LAMP)
         bright = (_RED32(col~&) + _GREEN32(col~&) + _BLUE32(col~&)) / 3
@@ -635,6 +648,7 @@ END SUB
 ' hacked station), and a plate across its screen saying label$ - drawn on
 ' an image with _PRINTSTRING, as the EXIT sign is (ExitSign)
 SUB MakeDoneTex(src, dst, label$, way)
+    DIM B, c~&, g, k, r, w, x, x0, y, y0 ' (its own: the main program shares these names)
     k = texSize / 128
     img& = _NEWIMAGE(texSize, texSize, 32)
     _DEST img&
@@ -662,6 +676,7 @@ END SUB
 ' show picture slot (its done look), as a face picked in the editor would
 ' ([faces]: faceTex), and OpenGL's world is built again with it
 SUB WallDone(x, y, slot)
+    DIM f ' (its own: the main program shares these names)
     FOR f = 1 TO 4 : faceTex(x, y, f) = slot : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
     faceAny = -1 : glMeshVersion = glMeshVersion + 1
 END SUB
@@ -671,6 +686,7 @@ END SUB
 ' the same three ways. (_DONTBLEND makes PSET store a see-through colour
 ' as it is, instead of mixing it with what's under it.)
 SUB LoadCards(file$)
+    DIM x, y ' (its own: the main program shares these names)
     LoadSprite file$, 1
     sprSize = spriteSize(1)
     FOR card = 1 TO 3
@@ -697,6 +713,7 @@ END SUB
 ' The bolt sprite, drawn with maths: a hard-edged glowing magenta ball,
 ' white hot in the middle (r is how far each pixel is from the centre).
 SUB MakeBolt(slot)
+    DIM r, x, y ' (its own: the main program shares these names)
     spriteSize(slot) = 16
     FOR y = 0 TO 15 : FOR x = 0 TO 15
         r = SQR((x - 7.5) ^ 2 + (y-7.5) ^ 2) / 7.5
@@ -716,6 +733,7 @@ END SUB
 ' texture into an image, draw on it with LINE and _PRINTSTRING, and copy
 ' it back.
 SUB ExitSign
+    DIM B, k, x, y ' (its own: the main program shares these names)
     k = texSize / 128 ' (the sign is placed for a 128-pixel picture)
     img& = _NEWIMAGE(texSize, texSize, 32)
     _DEST img&
@@ -732,6 +750,7 @@ END SUB
 
 ' A teleporter's pad, into sprite slot slot: rings of violet light
 SUB MakePad(slot)
+    DIM c~&, d, k, x, y ' (its own: the main program shares these names)
     spriteSize(slot) = sprTex : k = sprTex / 64 ' (designed 64 pixels across)
     FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
         d = SQR(((x + 0.5) / k - 32) ^ 2 + ((y + 0.5) / k - 32) ^ 2) : c~& = 0
@@ -749,6 +768,7 @@ END SUB
 ' side look like a row of windows). Cracked: white cracks spreading from a
 ' point
 SUB MakeGlass(slot, cracked)
+    DIM a, B, cx, cy, g, k, r, st, x, y ' (its own: the main program shares these names)
     spriteSize(slot) = sprTex : gk = sprTex \ 64 ' (designed 64 pixels across: each of those gk x gk)
     FOR yy = 0 TO sprTex - 1 : FOR xx = 0 TO sprTex - 1
         x = xx \ gk : y = yy \ gk
@@ -777,6 +797,7 @@ END SUB
 ' The laser beam's picture: three bright red lines across, at knee, chest
 ' and head height, with a glow round each - into sprite slot slot
 SUB MakeLaser(slot)
+    DIM k, x, y ' (its own: the main program shares these names)
     spriteSize(slot) = sprTex : k = sprTex \ 64 ' (designed 64 pixels across: each of those k x k)
     FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
         col~& = 0 : yd = y \ k : xd = x \ k
@@ -796,6 +817,7 @@ END SUB
 ' the barrel doesn't count). The muzzle flash and the railgun's beam start
 ' there.
 SUB LoadGun(gun, file$)
+    DIM x, y ' (its own: the main program shares these names)
     CONST MUZZLE_MIN_WIDTH = 4
     IF gunImg&(gun) < -1 THEN _FREEIMAGE gunImg&(gun) ' (loaded before: ART changed)
     IF gunSoftImg&(gun) < -1 THEN _FREEIMAGE gunSoftImg&(gun)

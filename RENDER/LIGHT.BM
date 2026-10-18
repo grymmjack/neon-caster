@@ -10,6 +10,7 @@
 ' blended by how near each one's middle is, skipping walls - so it doesn't
 ' jump as you step from one cell to the next. 256 = full.
 SUB LightAt(x, y, r, g, b)
+    DIM cx, cy, fx, fy, i, j, tx, ty, w ' (its own: the main program shares these names)
     fx = x - 0.5 : fy = y - 0.5 : ix = INT(fx) : iy = INT(fy) : tx = fx - ix : ty = fy - iy
     r = 0 : g = 0 : b = 0 : sw = 0
     FOR j = 0 TO 1 : FOR i = 0 TO 1
@@ -32,6 +33,7 @@ END SUB
 ' as BuildLevel gives the level's own. Cells the level had that kind in
 ' already have theirs, so they're skipped.
 SUB LiquidGlows(x0, y0, x1, y1)
+    DIM gx, gy, k, l, n, n0, sx, sy, x, y ' (its own: the main program shares these names)
     added = 0
     FOR gy = MaxOf(0, y0) TO MinOf(y1, MAP_SIZE - 1) STEP 3 : FOR gx = MaxOf(0, x0) TO MinOf(x1, MAP_SIZE - 1) STEP 3
         FOR k = LQ_SLIME TO LQ_ACID
@@ -68,6 +70,7 @@ END SUB
 ' brightest at the light and fading to nothing at the radius. Walls don't
 ' move, so this never changes - each frame only has to add the lists up.
 SUB BuildLights
+    DIM d, l ' (its own: the main program shares these names)
     numLit = 0
     FOR l = 1 TO numLights
         lightFirst(l) = numLit + 1 : lightCount(l) = 0 : rad = lightRadius(l)
@@ -99,6 +102,7 @@ END SUB
 ' Can light get from (x1, y1) to (x2, y2)? Step along the line a quarter of
 ' a cell at a time; a wall on the way stops it (doors and decorations don't).
 FUNCTION LightReaches(x1, y1, x2, y2)
+    DIM i, px, py ' (its own: the main program shares these names)
     dist = SQR((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
     stp = 0.25 : IF boxAny THEN stp = 0.1 ' (blocks can be an eighth thick: finer steps, so light can't skip through one)
     steps = INT(dist / stp) + 1
@@ -117,6 +121,7 @@ END FUNCTION
 ' a strobe blinks twice a second, firelight jitters, and a dying tube is
 ' mostly dark but sputters on. A broken lamp's light is out for good.
 SUB UpdateLight
+    DIM B, e, f, g, l, r, w ' (its own: the main program shares these names)
     IF cyberOn THEN ' The network: no lamps, no shadows - everything lit the same
         FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
             litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230
@@ -179,6 +184,7 @@ END SUB
 ' bolt: brightest in the middle, gone at radius. It doesn't check for walls
 ' (it's only for a moment, and that's much cheaper).
 SUB AddGlow(x, y, radius, r, g, b)
+    DIM d, w ' (its own: the main program shares these names)
     FOR cellY = INT(y - radius) TO INT(y + radius)
         FOR cellX = INT(x - radius) TO INT(x + radius)
             IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
@@ -214,6 +220,7 @@ END FUNCTION
 ' mark over it too) - and if loud, glass and sparks rain down, with a
 ' crash. (Not loud: loading a game where it was already broken.)
 SUB BreakLight(l, loud)
+    DIM cx, cy ' (its own: the main program shares these names)
     lightBroken(l) = -1
     cx = INT(lightX(l)) : cy = INT(lightY(l))
     IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN ceilTex(cx, cy) = T_LAMPOFF : glMeshVersion = glMeshVersion + 1 ' (OpenGL's world built again with it dark: a scorch decal alone gets recycled, and the lit lamp showed again)

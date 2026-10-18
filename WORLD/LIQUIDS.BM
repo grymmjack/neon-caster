@@ -12,6 +12,7 @@ END SUB
 
 ' A liquid kind by its name or its letter (water, w...) - 0 for none
 FUNCTION LiquidOf(n$)
+    DIM k, t$ ' (its own: the main program shares these names)
     t$ = LCASE$(LTRIM$(RTRIM$(n$)))
     IF LEN(t$) = 1 THEN LiquidOf = INSTR(LQ_CHARS$, t$) : EXIT FUNCTION
     FOR k = 1 TO LQ_KINDS
@@ -27,6 +28,7 @@ END FUNCTION
 
 ' Does the level as its file says it have any liquid?
 FUNCTION LiquidRowsAny
+    DIM y ' (its own: the main program shares these names)
     FOR y = 0 TO MAP_SIZE - 1
         IF lvlLiqRow$(y) <> STRING$(MAP_SIZE, ".") THEN LiquidRowsAny = -1 : EXIT FUNCTION
     NEXT

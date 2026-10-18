@@ -62,7 +62,7 @@
                 IF glassT(screenCol) > 0 AND glassT(screenCol) < bestDist THEN
                     glassHitX = glassCX(screenCol) : glassHitY = glassCY(screenCol)
                     glassAtX = playerX + (dirX + planeX * aim) * glassT(screenCol) : glassAtY = playerY + (dirY + planeY * aim) * glassT(screenCol)
-                    IF gunPierce(currentGun) THEN glassDmg = 99 : GOSUB HitGlass ELSE bestDist = glassT(screenCol) : glassShot = -1
+                    IF gunPierce(currentGun) THEN glassDmg = 99 : HitGlass ELSE bestDist = glassT(screenCol) : glassShot = -1
                 END IF
                 ' Where it lands on a monster counts too: in its weak spot (a head,
                 ' an eye - WeakSpotHit), double the damage. How far across its
@@ -79,7 +79,7 @@
                                 shotU = 0.5 + RENDER_W / 2 * (aim - transformX / transformY) / (viewH / transformY * mtypeScale(monsterType(i)))
                                 head = WeakSpotHit(i, shotU, eyeZ + DTan(pitch) * rayLen * transformY)
                                 IF gunPierce(currentGun) THEN
-                                    target = i : headZ = eyeZ + DTan(pitch) * rayLen * transformY : GOSUB HitMonsterAimed : crossFlash = 6
+                                    target = i : headZ = eyeZ + DTan(pitch) * rayLen * transformY : HitMonsterAimed : crossFlash = 6
                                 ELSE
                                     bestMonster = i : bestDist = transformY : bestHead = head : bestHeadZ = eyeZ + DTan(pitch) * rayLen * transformY
                                 END IF
@@ -94,7 +94,7 @@
                         IF transformY > 0.2 AND transformY < bestDist THEN
                             IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * DecoScale(decoKind(i)) * 0.35 THEN
                                 IF gunPierce(currentGun) THEN
-                                    targetDeco = i : GOSUB HitDeco
+                                    targetDeco = i : HitDeco
                                 ELSE
                                     bestDeco = i : bestMonster = 0 : bestDist = transformY
                                 END IF
@@ -119,8 +119,8 @@
                     END IF
                 NEXT
                 IF bestDroid THEN HitDroid bestDroid, hitDamage, playerX, playerY : crossFlash = 6
-                IF bestMonster THEN target = bestMonster : head = bestHead : headZ = bestHeadZ : GOSUB HitMonsterAimed : crossFlash = 6 ' (the crosshair flashes: a hit)
-                IF bestDeco THEN targetDeco = bestDeco : GOSUB HitDeco
+                IF bestMonster THEN target = bestMonster : head = bestHead : headZ = bestHeadZ : HitMonsterAimed : crossFlash = 6 ' (the crosshair flashes: a hit)
+                IF bestDeco THEN targetDeco = bestDeco : HitDeco
                 ' Sparks where it landed (chapter 24's particles): on the
                 ' monster, or on the wall - the shot's ray (dir + plane * aim),
                 ' as far as the wall in that column
@@ -128,7 +128,7 @@
                     SpawnSparks monsterX(bestMonster), monsterY(bestMonster), 0.45, 8, 255, 150, 60
                 ELSEIF bestDroid THEN ' (HitDroid made its sparks)
                 ELSEIF bestDeco = 0 AND glassShot THEN
-                    glassDmg = hitDamage : GOSUB HitGlass
+                    glassDmg = hitDamage : HitGlass
                 ELSEIF bestDeco = 0 THEN
                     ' The wall in that column - or, looking up or down (OpenGL),
                     ' the ceiling or floor, if the shot reaches it first: it rises
@@ -204,7 +204,7 @@
             NEXT
             IF best THEN
                 target = best : hitDamage = KICK_DAMAGE : IF ampTimer > 0 THEN hitDamage = hitDamage * 2
-                GOSUB HitMonster
+                HitMonster
                 IF monsterState(best) >= 2 AND NOT cyberOn THEN Achieve "NC_KICK_KILL", 0
                 walkZ = FloorAt(monsterX(best), monsterY(best)) ' (shoved along the floor it's on: off an edge, yes - up a ledge, no)
                 IF monsterType(best) <> 5 THEN FOR kp = 1 TO 3 : MoveBody monsterX(best), monsterY(best), dirX * KICK_PUSH / 3, dirY * KICK_PUSH / 3 : NEXT ' (sentries are bolted down; in three steps, so it can't jump through glass)
@@ -217,14 +217,14 @@
                     IF decoOn(i) AND decoKind(i) <> DK_BODY AND cyberOn = 0 THEN
                         ox = decoX(i) - playerX : oy = decoY(i) - playerY : d = SQR(ox * ox + oy * oy)
                         IF d < KICK_REACH AND d > 0.01 THEN
-                            IF (ox * dirX + oy * dirY) / d > 0.7 THEN targetDeco = i : hitDamage = KICK_DAMAGE : hitKick = -1 : GOSUB HitDeco : hitKick = 0 : PlaySfx sndKick&, 0.8 : shake = shake + 2 : kicked = -1 : EXIT FOR
+                            IF (ox * dirX + oy * dirY) / d > 0.7 THEN targetDeco = i : hitDamage = KICK_DAMAGE : hitKick = -1 : HitDeco : hitKick = 0 : PlaySfx sndKick&, 0.8 : shake = shake + 2 : kicked = -1 : EXIT FOR
                         END IF
                     END IF
                 NEXT
                 IF NOT kicked THEN ' Glass in front? The boot cracks it
                     FOR kd = 3 TO 7
                         glassAtX = playerX + dirX * kd / 10 : glassAtY = playerY + dirY * kd / 10
-                        IF InGlass(glassAtX, glassAtY) THEN glassHitX = INT(glassAtX) : glassHitY = INT(glassAtY) : glassDmg = 1 : GOSUB HitGlass : PlaySfx sndKick&, 0.8 : shake = shake + 2 : EXIT FOR
+                        IF InGlass(glassAtX, glassAtY) THEN glassHitX = INT(glassAtX) : glassHitY = INT(glassAtY) : glassDmg = 1 : HitGlass : PlaySfx sndKick&, 0.8 : shake = shake + 2 : EXIT FOR
                     NEXT
                 END IF
             END IF
@@ -236,13 +236,13 @@
         IF NOT dead THEN ' (dead in it: the clock stops - the sector starts over, network and all)
             cyberTime = cyberTime - 1
             IF cyberGot >= cyberNeed THEN
-                cyberWon = -1 : GOSUB JackOut
+                cyberWon = -1 : JackOut
             ELSEIF cyberTime <= 0 THEN
-                cyberWon = 0 : GOSUB JackOut
+                cyberWon = 0 : JackOut
             END IF
         END IF
     ELSEIF NOT editMode THEN
-        GOSUB RunEvents ' The level's event rooms (chapter 19)
-        GOSUB RunTriggers ' ...its triggers, and its teleporters
+        RunEvents ' The level's event rooms (chapter 19)
+        RunTriggers ' ...its triggers, and its teleporters
         UpdateDroids playerX, playerY ' ...and its droids
     END IF

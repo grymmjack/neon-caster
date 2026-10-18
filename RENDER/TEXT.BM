@@ -10,6 +10,7 @@
 
 ' Words wrapped to cols characters a line, from (x, y) down
 SUB WrapText(x, y, cols, t$, col~&)
+    DIM l$ ' (its own: the main program shares these names)
     r$ = t$ : yy = y
     DO WHILE LEN(r$)
         IF LEN(r$) <= cols THEN l$ = r$ : r$ = "" ELSE cut = _INSTRREV(LEFT$(r$, cols + 1), " ") : IF cut < 2 THEN cut = cols

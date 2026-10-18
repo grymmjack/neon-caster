@@ -8,6 +8,7 @@
 ' A texture's average colour, a little brighter (each wall kind's minimap
 ' colour)
 FUNCTION MinimapColor~&(slot)
+    DIM x, y ' (its own: the main program shares these names)
     FOR y = 0 TO texSize - 1 STEP 2 : FOR x = 0 TO texSize - 1 STEP 2
         col~& = texture(x, y, slot) : red& = red& + _RED32(col~&) : green& = green& + _GREEN32(col~&) : blue& = blue& + _BLUE32(col~&) : count& = count& + 1
     NEXT : NEXT
@@ -21,6 +22,7 @@ END FUNCTION
 ' strips, a little less see-through the nearer the edge (the square of
 ' how near). Over the view - in OpenGL, on the HUD's layer over it.
 SUB DrawVignette(r, g, b, amt)
+    DIM a, c~&, i, n, x0, y0, y1 ' (its own: the main program shares these names)
     IF amt <= 0 THEN EXIT SUB
     a = MinOf(1, amt) : n = 24 : dx = 170 / n : dy = 130 / n
     FOR i = 0 TO n - 1
@@ -36,6 +38,7 @@ END SUB
 
 ' --- The HUD's layout (chapter 18's data; hud.txt; the HUD editor) --------
 SUB HudDefaults
+    DIM e ' (its own: the main program shares these names)
     FOR e = 1 TO HUD_ELEMS : hudShow(e) = -1 : hudCol(e) = 0 : hudW(e) = 0 : hudH(e) = 0 : hudLabel$(e) = "" : NEXT
     hudName$(HE_HEALTH) = "health" : hudX(HE_HEALTH) = 16 : hudY(HE_HEALTH) = 552 : hudW(HE_HEALTH) = 200 : hudH(HE_HEALTH) = 12 : hudLabel$(HE_HEALTH) = "HEALTH"
     hudName$(HE_ARMOR) = "armor" : hudX(HE_ARMOR) = 16 : hudY(HE_ARMOR) = 516 : hudW(HE_ARMOR) = 200 : hudH(HE_ARMOR) = 8 : hudLabel$(HE_ARMOR) = "ARMOR"
@@ -62,6 +65,7 @@ END FUNCTION
 ' hud.txt: one [name] section a part - show, x, y, bar (width, height),
 ' color (auto, or red, green, blue), label
 SUB ReadHud
+    DIM e, k, l$ ' (its own: the main program shares these names)
     f$ = AssetPath$("hud.txt")
     IF NOT _FILEEXISTS(f$) THEN EXIT SUB
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh : e = 0
@@ -131,6 +135,7 @@ END FUNCTION
 ' on the big map the floor you've seen is a dim blue. Then keycards, and
 ' you - an arrow pointing the way you face.
 SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
+    DIM ax, ay, i, k, sx, sy ' (its own: the main program shares these names)
     LINE (mapLeft - 2, mapTop - 2)-(mapLeft + MAP_SIZE * cellSize + 1, mapTop + MAP_SIZE * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
     FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
         IF showAll OR cellSeen(cellX, cellY) THEN
@@ -200,6 +205,7 @@ END SUB
 ' A damage indicator for a hit that came from (x, y): into a free slot, or
 ' over the one that's nearly faded
 SUB AddHurtDir(x, y)
+    DIM i, slot ' (its own: the main program shares these names)
     slot = 1
     FOR i = 1 TO MAX_HURTDIRS
         IF hurtDirTime(i) < hurtDirTime(slot) THEN slot = i
@@ -212,6 +218,7 @@ END SUB
 ' from - straight up is in front of you, right is to your right - fading
 ' as it gets older.
 SUB DrawHurtDirs(px, py, facingX, facingY)
+    DIM i, k ' (its own: the main program shares these names)
     FOR i = 1 TO MAX_HURTDIRS
         IF hurtDirTime(i) > 0 THEN
             hurtDirTime(i) = hurtDirTime(i) - 1

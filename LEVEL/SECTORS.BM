@@ -6,30 +6,30 @@
 
 ' --- Every sector's name (the name = line of each level's file), for the
 ' route map
-ReadSectorNames:
-FOR k = 1 TO NUM_LEVELS ' (just their names: reading a whole file would overwrite the level being played or edited)
-    sectorName$(k) = SectorNameOf$(k)
-NEXT
-FOR k = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM : sectorName$(k) = SectorNameOf$(k) : NEXT
-RETURN
+SUB ReadSectorNames STATIC
+    FOR k = 1 TO NUM_LEVELS ' (just their names: reading a whole file would overwrite the level being played or edited)
+        sectorName$(k) = SectorNameOf$(k)
+    NEXT
+    FOR k = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM : sectorName$(k) = SectorNameOf$(k) : NEXT
+END SUB
 
 ' --- A new sector of your own (GAME > YOUR SECTORS > NEW SECTOR, or the
 ' newsector command): the first free number's file, made blank
 ' (WriteBlankSector), then a game in it - in the editor. level stays as
 ' it was if there's no room for another.
-NewSector:
-newN = 0
-FOR k = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM
-    IF newN = 0 AND NOT _FILEEXISTS(LevelFile$(k)) THEN newN = k
-NEXT
-IF newN = 0 THEN ShowMsg "No room for another sector - there can be" + STR$(MAX_CUSTOM) : ConPrint "newsector: all" + STR$(MAX_CUSTOM) + " are made" : RETURN
-WriteBlankSector newN
-sectorName$(newN) = SectorNameOf$(newN)
-level = newN : GOSUB NewGameHere
-GOSUB EditEnter
-EditNote "NEW SECTOR " + LTRIM$(STR$(newN)) + ": carve out rooms with . - Ctrl+S saves"
-ConPrint "newsector: " + LevelFile$(newN)
-RETURN
+SUB NewSector STATIC
+    newN = 0
+    FOR k = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM
+        IF newN = 0 AND NOT _FILEEXISTS(LevelFile$(k)) THEN newN = k
+    NEXT
+    IF newN = 0 THEN ShowMsg "No room for another sector - there can be" + STR$(MAX_CUSTOM) : ConPrint "newsector: all" + STR$(MAX_CUSTOM) + " are made" : EXIT SUB
+    WriteBlankSector newN
+    sectorName$(newN) = SectorNameOf$(newN)
+    level = newN : NewGameHere
+    EditEnter
+    EditNote "NEW SECTOR " + LTRIM$(STR$(newN)) + ": carve out rooms with . - Ctrl+S saves"
+    ConPrint "newsector: " + LevelFile$(newN)
+END SUB
 
 ' The file of level n
 ' Where your own sectors' files go: neon-caster/levels/custom/ (made by
@@ -42,6 +42,7 @@ END FUNCTION
 ' Sector n's name, from its file's name = line, without reading the rest
 ' (ReadLevelFile fills in the level being played) - "" if there's no file
 FUNCTION SectorNameOf$(n)
+    DIM l$, t$ ' (its own: the main program shares these names)
     f$ = LevelFile$(n) : IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
     DO UNTIL EOF(fh)
@@ -70,6 +71,7 @@ END FUNCTION
 ' A blank slate for sector n: solid wall, with one lit room in the middle
 ' to carve outwards from - you facing east, the exit in the far wall
 SUB WriteBlankSector(n)
+    DIM q$, y ' (its own: the main program shares these names)
     nl$ = CHR$(10) : q$ = "' "
     o$ = q$ + "NEON-CASTER level file - see chapter 22 of neon-caster.bas for every" + nl$
     o$ = o$ + q$ + "part of it. Lines starting with ' are comments. The level kit" + nl$
@@ -126,5 +128,6 @@ END FUNCTION
 
 ' The sector's name without its "SECTOR n: "
 FUNCTION SectorShort$
+    DIM c ' (its own: the main program shares these names)
     c = INSTR(lvlName$, ": ") : IF c THEN SectorShort$ = MID$(lvlName$, c + 2) ELSE SectorShort$ = lvlName$
 END FUNCTION

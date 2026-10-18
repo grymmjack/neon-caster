@@ -20,6 +20,6 @@ DIM SHARED sectorName$(NUM_LEVELS + MAX_CUSTOM) ' (every level's name, for the r
 ' The level-done tally's rows (chapter 20): what each says, the number it
 ' counts up to, what that's out of (-1: a time, as m:ss), the number shown
 ' so far, and frames since it landed (-1: not yet)
-DIM tallyLabel$(6), tallyTarget(6), tallyTotal(6), tallyShown(6), tallySlam(6)
-DIM keepMX(MAX_MON), keepMY(MAX_MON), keepMDX(MAX_MON), keepMDY(MAX_MON), keepIX(MAX_ITEMS), keepIY(MAX_ITEMS), keepIK(MAX_ITEMS) ' (EditApply: the monsters you'd killed - where they started, where they fell - and the pickups you'd taken)
-DIM savedHasGun(NUM_GUNS) ' What you had on entering the level (you get it back if you die)
+DIM SHARED tallyLabel$(6), tallyTarget(6), tallyTotal(6), tallyShown(6), tallySlam(6)
+DIM SHARED keepMX(MAX_MON), keepMY(MAX_MON), keepMDX(MAX_MON), keepMDY(MAX_MON), keepIX(MAX_ITEMS), keepIY(MAX_ITEMS), keepIK(MAX_ITEMS) ' (EditApply: the monsters you'd killed - where they started, where they fell - and the pickups you'd taken)
+DIM SHARED savedHasGun(NUM_GUNS) ' What you had on entering the level (you get it back if you die)

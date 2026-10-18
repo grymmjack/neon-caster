@@ -10,10 +10,12 @@
 ' The floor's (and the ceiling's) height at map point (x, y) - 0 and 1
 ' off the map
 FUNCTION FloorAt(x, y)
+    DIM cx, cy ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
     IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN FloorAt = floorH(cx, cy)
 END FUNCTION
 FUNCTION CeilAt(x, y)
+    DIM cx, cy ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
     IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN CeilAt = ceilH(cx, cy) ELSE CeilAt = 1
 END FUNCTION
@@ -21,6 +23,7 @@ END FUNCTION
 ' A height from its character in [floor] or [ceiling] (chapter 22): . is
 ' dflt; 0-9, a-z that many eighths of a wall; A-H that many eighths below 0
 FUNCTION HeightOf(c$, dflt)
+    DIM k ' (its own: the main program shares these names)
     k = INSTR(H_UP$, c$)
     IF k THEN HeightOf = (k - 1) * H_STEP : EXIT FUNCTION
     k = INSTR(H_DOWN$, c$)
@@ -30,6 +33,7 @@ END FUNCTION
 
 ' ...and the character for height h (. if it's dflt)
 FUNCTION HeightChar$(h, dflt)
+    DIM k ' (its own: the main program shares these names)
     IF ABS(h - dflt) < 0.001 THEN HeightChar$ = "." : EXIT FUNCTION
     k = CINT(h / H_STEP)
     IF k >= 0 THEN
@@ -43,10 +47,12 @@ END FUNCTION
 
 ' Which of the level's floors (1-4) and ceilings (1-2) cell (x, y) has
 FUNCTION FloorNumberAt(x, y)
+    DIM n ' (its own: the main program shares these names)
     n = floorTex(x, y) - T_FLOOR : IF n < 1 OR n > 4 THEN n = 1
     FloorNumberAt = n
 END FUNCTION
 FUNCTION CeilNumberAt(x, y)
+    DIM n ' (its own: the main program shares these names)
     n = ceilTex(x, y) - T_CEIL : IF n < 1 OR n > 2 THEN n = 1
     CeilNumberAt = n
 END FUNCTION

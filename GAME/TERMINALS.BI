@@ -23,3 +23,8 @@ DIM SHARED numTerms AS INTEGER, termX(MAX_TERMS) AS INTEGER, termY(MAX_TERMS) AS
 DIM SHARED pzTitle$, pzLesson$, pzExpect$, pzChapter$, pzN AS INTEGER, pzAns$(MAX_PZ_LINES), pzOrder(MAX_PZ_LINES) AS INTEGER
 DIM SHARED pzBlanks AS INTEGER, pzBlankLine(MAX_PZ_BLANKS) AS INTEGER, pzBlankWord$(MAX_PZ_BLANKS), pzBlankIn$(MAX_PZ_BLANKS)
 DIM SHARED pzHints AS INTEGER, pzHint$(MAX_PZ_HINTS), pzShown AS INTEGER, pzOut$, pzFails AS INTEGER
+
+
+' This module's working variables, shared by its SUBs (and with the main
+' program)
+DIM SHARED pzSel

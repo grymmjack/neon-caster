@@ -7,6 +7,7 @@
 ' You shot (or kicked) something in cell (x, y): a "shoot" trigger there
 ' goes off the next time the triggers run (RunTriggers: trigHit)
 SUB ShotAt(x, y)
+    DIM k ' (its own: the main program shares these names)
     FOR k = 1 TO numTrigs
         IF trigWhen$(k) = "shoot" AND NOT trigDone(k) AND trigX0(k) = x AND trigY0(k) = y THEN trigHit(k) = -1
     NEXT

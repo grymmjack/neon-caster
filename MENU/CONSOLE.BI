@@ -18,3 +18,8 @@ DIM SHARED conQ$(CON_QUEUE), conQHead AS INTEGER, conQTail AS INTEGER, conWait A
 ' (a screenshot: glShotReq 1 asks SUB _GL for one, 2 says it's in glShotMem,
 ' glShotW x glShotH; shotFile$ is where it goes)
 DIM SHARED glShotReq AS INTEGER, glShotMem AS _MEM, glShotW AS LONG, glShotH AS LONG, shotFile$
+
+
+' This module's working variables, shared by its SUBs (and with the main
+' program)
+DIM SHARED am, conB$, conC$, conLevelChanged

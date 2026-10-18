@@ -62,287 +62,288 @@
 ' a game (-1, Esc). In a game, the frame you left is kept and shown
 ' darkened behind it; at the title it's the synthwave backdrop and music.
 ' It runs until you start, load or go back to a game (or quit).
-RunMenu:
-WorldLoopsOff ' (the game waits: so do the lifts' motors)
-IF menuInGame THEN ' Paused: the music down by half, and OpenGL's world holding still behind the menu (its ripples, flicker and shimmer run on glClock#)
-    musicDuck! = 0.5 : SetMusicVol
-    glFrozenAt# = TIMER(0.001) : glFrozen = -1
-END IF
-_MOUSESHOW
-IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
-menuGamWas = setting(SET_GAMMA) : IF nvOn THEN menuGamWas = 0 ' (the brightness that frame was drawn at - 0: none, it's night vision's green)
-menuDepth = 0 : menuScreen = SCR_MAIN : GOSUB EnterMenuScreen : menuIdle = 0 : menuActive = 0
-IF menuOpenDemos THEN menuOpenDemos = 0 : menuDepth = 1 : menuStack(1) = SCR_MAIN : menuStackSel(1) = menuSel + 1 : menuScreen = SCR_DEMOS : demoListPage = 0 : GOSUB EnterMenuScreen ' (back from a demo: at DEMO REPLAYS, BACK to the main menu's line for it)
-menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1 : menuDispWas = displayModeNow : menuPointWait = 0
-_KEYCLEAR
-DO
-    _LIMIT 60
-    DisplayFollow ' (Alt + Enter changes DISPLAY)
-    menuT = menuT + 1
+SUB RunMenu STATIC
+    WorldLoopsOff ' (the game waits: so do the lifts' motors)
+    IF menuInGame THEN ' Paused: the music down by half, and OpenGL's world holding still behind the menu (its ripples, flicker and shimmer run on glClock#)
+        musicDuck! = 0.5 : SetMusicVol
+        glFrozenAt# = TIMER(0.001) : glFrozen = -1
+    END IF
+    _MOUSESHOW
+    IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
+    menuGamWas = setting(SET_GAMMA) : IF nvOn THEN menuGamWas = 0 ' (the brightness that frame was drawn at - 0: none, it's night vision's green)
+    menuDepth = 0 : menuScreen = SCR_MAIN : EnterMenuScreen : menuIdle = 0 : menuActive = 0
+    IF menuOpenDemos THEN menuOpenDemos = 0 : menuDepth = 1 : menuStack(1) = SCR_MAIN : menuStackSel(1) = menuSel + 1 : menuScreen = SCR_DEMOS : demoListPage = 0 : EnterMenuScreen ' (back from a demo: at DEMO REPLAYS, BACK to the main menu's line for it)
+    menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1 : menuDispWas = displayModeNow : menuPointWait = 0
+    _KEYCLEAR
+    DO
+        _LIMIT 60
+        DisplayFollow ' (Alt + Enter changes DISPLAY)
+        menuT = menuT + 1
 
-    ' The keyboard: every press since last frame, one at a time
-    keyCode& = _KEYHIT
-    DO WHILE keyCode& <> 0 AND NOT menuDone
-        IF keyCode& > 0 THEN menuActive = -1 ' (for attract mode: someone's there)
-        IF keyCode& > 0 THEN ' (a negative code is a key being let go)
-            IF menuCapture THEN
-                GOSUB CaptureKey
-            ELSEIF menuTyping THEN
-                GOSUB MenuTypeKey
-            ELSE
-                SELECT CASE keyCode&
-                    CASE 18432, 119, 87 : menuMove = -1 : GOSUB MenuMoveSel ' Up, W
-                    CASE 20480, 115, 83 : menuMove = 1 : GOSUB MenuMoveSel ' Down, S
-                    CASE 19200, 97, 65 : menuAdjust = -1 : GOSUB MenuAdjustItem ' Left, A
-                    CASE 19712, 100, 68 : menuAdjust = 1 : GOSUB MenuAdjustItem ' Right, D
-                    CASE 13, 32 : GOSUB MenuActivate ' Enter, Space
-                    CASE 27, 8 : GOSUB MenuBack ' Esc, Backspace
+        ' The keyboard: every press since last frame, one at a time
+        keyCode& = _KEYHIT
+        DO WHILE keyCode& <> 0 AND NOT menuDone
+            IF keyCode& > 0 THEN menuActive = -1 ' (for attract mode: someone's there)
+            IF keyCode& > 0 THEN ' (a negative code is a key being let go)
+                IF menuCapture THEN
+                    CaptureKey
+                ELSEIF menuTyping THEN
+                    MenuTypeKey
+                ELSE
+                    SELECT CASE keyCode&
+                        CASE 18432, 119, 87 : menuMove = -1 : MenuMoveSel ' Up, W
+                        CASE 20480, 115, 83 : menuMove = 1 : MenuMoveSel ' Down, S
+                        CASE 19200, 97, 65 : menuAdjust = -1 : MenuAdjustItem ' Left, A
+                        CASE 19712, 100, 68 : menuAdjust = 1 : MenuAdjustItem ' Right, D
+                        CASE 13, 32 : MenuActivate ' Enter, Space
+                        CASE 27, 8 : MenuBack ' Esc, Backspace
+                    END SELECT
+                END IF
+            END IF
+            keyCode& = _KEYHIT
+        LOOP
+
+        ' The mouse: point at an item to pick it, click to choose it, click or
+        ' drag along a slider to set it. (Pointing only takes over when the
+        ' mouse moves, so it doesn't fight the keyboard.)
+        WHILE _MOUSEINPUT : WEND
+        mouseX = WideMouseX(_MOUSEX) : mouseY = _MOUSEY : mouseDown = _MOUSEBUTTON(1)
+        ' (The display switching - DISPLAY, or a MODE - moves where the mouse
+        ' seems to be without it moving: so for half a second after, pointing
+        ' doesn't count, or it would pick whatever item is under it now.)
+        IF displayModeNow <> menuDispWas THEN menuDispWas = displayModeNow : menuPointWait = 30
+        IF menuPointWait > 0 THEN menuPointWait = menuPointWait - 1 : lastMouseX = mouseX : lastMouseY = mouseY
+        IF NOT menuDone AND menuCapture = 0 AND menuTyping = 0 THEN
+            overItem = MenuItemAt(mouseX, mouseY)
+            IF overItem > 0 AND overItem <> menuSel AND (mouseX <> lastMouseX OR mouseY <> lastMouseY) THEN
+                menuSel = overItem : PlaySfx sndMenuMove&, 0.5
+            END IF
+            IF mouseDown AND NOT mouseWasDown AND overItem > 0 THEN
+                menuSel = overItem
+                SELECT CASE miKind(overItem)
+                    CASE MI_SLIDER ' (on its bar: drag it; on its name: just pick it)
+                        IF mouseX >= MENU_WIDGET_X - 12 OR NOT menuWide THEN menuDrag = overItem
+                    CASE MI_CHOICE, MI_TOGGLE ' (the left half of a choice goes back - a click on a choice's name just picks it)
+                        half = MENU_WIDGET_X + (LEN(SettingText$(miRef(overItem))) + 4) * 8 : IF NOT menuWide THEN half = 400 ' (the middle of its "< VALUE >" - centred: of the screen)
+                        IF miKind(overItem) = MI_CHOICE AND mouseX < half THEN menuAdjust = -1 ELSE menuAdjust = 1
+                        IF NOT (menuWide AND miKind(overItem) = MI_CHOICE AND mouseX < MENU_WIDGET_X - 8) THEN MenuAdjustItem
+                    CASE ELSE
+                        MenuActivate
                 END SELECT
             END IF
-        END IF
-        keyCode& = _KEYHIT
-    LOOP
-
-    ' The mouse: point at an item to pick it, click to choose it, click or
-    ' drag along a slider to set it. (Pointing only takes over when the
-    ' mouse moves, so it doesn't fight the keyboard.)
-    WHILE _MOUSEINPUT : WEND
-    mouseX = WideMouseX(_MOUSEX) : mouseY = _MOUSEY : mouseDown = _MOUSEBUTTON(1)
-    ' (The display switching - DISPLAY, or a MODE - moves where the mouse
-    ' seems to be without it moving: so for half a second after, pointing
-    ' doesn't count, or it would pick whatever item is under it now.)
-    IF displayModeNow <> menuDispWas THEN menuDispWas = displayModeNow : menuPointWait = 30
-    IF menuPointWait > 0 THEN menuPointWait = menuPointWait - 1 : lastMouseX = mouseX : lastMouseY = mouseY
-    IF NOT menuDone AND menuCapture = 0 AND menuTyping = 0 THEN
-        overItem = MenuItemAt(mouseX, mouseY)
-        IF overItem > 0 AND overItem <> menuSel AND (mouseX <> lastMouseX OR mouseY <> lastMouseY) THEN
-            menuSel = overItem : PlaySfx sndMenuMove&, 0.5
-        END IF
-        IF mouseDown AND NOT mouseWasDown AND overItem > 0 THEN
-            menuSel = overItem
-            SELECT CASE miKind(overItem)
-                CASE MI_SLIDER ' (on its bar: drag it; on its name: just pick it)
-                    IF mouseX >= MENU_WIDGET_X - 12 OR NOT menuWide THEN menuDrag = overItem
-                CASE MI_CHOICE, MI_TOGGLE ' (the left half of a choice goes back - a click on a choice's name just picks it)
-                    half = MENU_WIDGET_X + (LEN(SettingText$(miRef(overItem))) + 4) * 8 : IF NOT menuWide THEN half = 400 ' (the middle of its "< VALUE >" - centred: of the screen)
-                    IF miKind(overItem) = MI_CHOICE AND mouseX < half THEN menuAdjust = -1 ELSE menuAdjust = 1
-                    IF NOT (menuWide AND miKind(overItem) = MI_CHOICE AND mouseX < MENU_WIDGET_X - 8) THEN GOSUB MenuAdjustItem
-                CASE ELSE
-                    GOSUB MenuActivate
-            END SELECT
-        END IF
-        IF menuDrag THEN
-            IF mouseDown THEN
-                SliderFromMouse menuDrag, mouseX : ApplySettings
-            ELSE
-                menuDrag = 0 : PlaySfx sndMenuMove&, 0.5
+            IF menuDrag THEN
+                IF mouseDown THEN
+                    SliderFromMouse menuDrag, mouseX : ApplySettings
+                ELSE
+                    menuDrag = 0 : PlaySfx sndMenuMove&, 0.5
+                END IF
             END IF
         END IF
-    END IF
-    IF mouseDown OR mouseX <> lastMouseX OR mouseY <> lastMouseY THEN menuActive = -1
-    mouseWasDown = mouseDown : lastMouseX = mouseX : lastMouseY = mouseY
-    ' Attract mode: the title menu left alone ATTRACT_SECONDS, and the demos
-    ' play - one after another, round and round - till a key brings it back
-    IF NOT menuInGame AND NOT menuDone THEN
-        IF menuActive OR menuCapture OR menuTyping THEN menuIdle = 0 ELSE menuIdle = menuIdle + 1
-        IF menuIdle >= ATTRACT_SECONDS * 60 THEN
-            menuIdle = 0 : GOSUB AttractStart
-            IF demoPlay THEN menuDone = -1
+        IF mouseDown OR mouseX <> lastMouseX OR mouseY <> lastMouseY THEN menuActive = -1
+        mouseWasDown = mouseDown : lastMouseX = mouseX : lastMouseY = mouseY
+        ' Attract mode: the title menu left alone ATTRACT_SECONDS, and the demos
+        ' play - one after another, round and round - till a key brings it back
+        IF NOT menuInGame AND NOT menuDone THEN
+            IF menuActive OR menuCapture OR menuTyping THEN menuIdle = 0 ELSE menuIdle = menuIdle + 1
+            IF menuIdle >= ATTRACT_SECONDS * 60 THEN
+                menuIdle = 0 : AttractStart
+                IF demoPlay THEN menuDone = -1
+            END IF
         END IF
-    END IF
-    menuActive = 0
+        menuActive = 0
 
-    ' Draw: what's behind the menu, then the menu itself
-    IF NOT menuDone THEN
-        ' (With BRIGHTNESS picked, you see it as you slide it: the darkening
-        ' behind the menu lifts off the game, and the picture behind takes
-        ' the new curve. OpenGL's view underneath does that itself - its post
-        ' shader gets the setting every frame, GLLiveSettings.)
-        gamPrev = 0
-        IF menuScreen = SCR_VIDEO AND menuSel >= 1 AND menuSel <= numMI THEN gamPrev = miKind(menuSel) = MI_SLIDER AND miRef(menuSel) = SET_GAMMA
-        IF menuInGame THEN
-            CLS , _RGBA32(0, 0, 0, 0) ' (see-through, for OpenGL's view underneath: chapter 24)
-            _PUTIMAGE , menuBackdrop&, 0
-            IF gamPrev AND menuGamWas > 0 AND NOT glReady THEN GammaImage 0, 100 * setting(SET_GAMMA) / menuGamWas ' (the frame already has menuGamWas's curve: this much more makes it the new one's)
-            IF gamPrev THEN LINE (0, 0)-(799, 599), _RGBA32(8, 0, 20, 60), BF ELSE LINE (0, 0)-(799, 599), _RGBA32(8, 0, 20, 200), BF
-        ELSE
-            DrawMenuBackdrop menuT
-            IF gamPrev THEN GammaImage 0, setting(SET_GAMMA)
+        ' Draw: what's behind the menu, then the menu itself
+        IF NOT menuDone THEN
+            ' (With BRIGHTNESS picked, you see it as you slide it: the darkening
+            ' behind the menu lifts off the game, and the picture behind takes
+            ' the new curve. OpenGL's view underneath does that itself - its post
+            ' shader gets the setting every frame, GLLiveSettings.)
+            gamPrev = 0
+            IF menuScreen = SCR_VIDEO AND menuSel >= 1 AND menuSel <= numMI THEN gamPrev = miKind(menuSel) = MI_SLIDER AND miRef(menuSel) = SET_GAMMA
+            IF menuInGame THEN
+                CLS , _RGBA32(0, 0, 0, 0) ' (see-through, for OpenGL's view underneath: chapter 24)
+                _PUTIMAGE , menuBackdrop&, 0
+                IF gamPrev AND menuGamWas > 0 AND NOT glReady THEN GammaImage 0, 100 * setting(SET_GAMMA) / menuGamWas ' (the frame already has menuGamWas's curve: this much more makes it the new one's)
+                IF gamPrev THEN LINE (0, 0)-(799, 599), _RGBA32(8, 0, 20, 60), BF ELSE LINE (0, 0)-(799, 599), _RGBA32(8, 0, 20, 200), BF
+            ELSE
+                DrawMenuBackdrop menuT
+                IF gamPrev THEN GammaImage 0, setting(SET_GAMMA)
+            END IF
+            DrawMenu menuT
+            IF glReady THEN GLLiveSettings ' (so OpenGL shows a change as you make it: chapter 24)
+            IF glReady THEN GLSL_filter_capture ' (OpenGL draws the menu over its view: chapter 24)
+            GLScreenLayer glReady
+            ShowFrame
         END IF
-        DrawMenu menuT
-        IF glReady THEN GLLiveSettings ' (so OpenGL shows a change as you make it: chapter 24)
-        IF glReady THEN GLSL_filter_capture ' (OpenGL draws the menu over its view: chapter 24)
-        GLScreenLayer glReady
-        ShowFrame
-    END IF
-LOOP UNTIL menuDone
-IF menuInGame THEN _FREEIMAGE menuBackdrop&
-musicDuck! = 1 : SetMusicVol : glFrozen = 0 ' (playing again: the music back up, the world moving)
-SaveSettings
-_KEYCLEAR
-_MOUSEHIDE _DISABLE ' Capture the mouse for mouse look again
-WHILE _MOUSEINPUT : WEND
-RETURN
+    LOOP UNTIL menuDone
+    IF menuInGame THEN _FREEIMAGE menuBackdrop&
+    musicDuck! = 1 : SetMusicVol : glFrozen = 0 ' (playing again: the music back up, the world moving)
+    SaveSettings
+    _KEYCLEAR
+    _MOUSEHIDE _DISABLE ' Capture the mouse for mouse look again
+    WHILE _MOUSEINPUT : WEND
+END SUB
 
 ' --- Show menu screen menuScreen: build its items, pick its first item
 ' (or "NO", on the "are you sure?" screen), and start its animation
-EnterMenuScreen:
-BuildMenu menuScreen
-menuSel = 0
-FOR i = numMI TO 1 STEP -1
-    IF MenuSelectable(i) THEN menuSel = i
-NEXT
-IF menuScreen = SCR_QUIT THEN menuSel = numMI
-menuT = 0
-RETURN
+SUB EnterMenuScreen STATIC
+    BuildMenu menuScreen
+    menuSel = 0
+    FOR i = numMI TO 1 STEP -1
+        IF MenuSelectable(i) THEN menuSel = i
+    NEXT
+    IF menuScreen = SCR_QUIT THEN menuSel = numMI
+    menuT = 0
+END SUB
 
 ' --- Move the selection up (menuMove = -1) or down (1), skipping lines of
 ' text and items you can't choose, and wrapping round at the ends
-MenuMoveSel:
-i = menuSel
-FOR tries = 1 TO numMI
-    i = i + menuMove
-    IF i < 1 THEN i = numMI
-    IF i > numMI THEN i = 1
-    IF MenuSelectable(i) THEN EXIT FOR
-NEXT
-IF i <> menuSel AND MenuSelectable(i) THEN menuSel = i : PlaySfx sndMenuMove&, 0.5
-RETURN
+SUB MenuMoveSel STATIC
+    i = menuSel
+    FOR tries = 1 TO numMI
+        i = i + menuMove
+        IF i < 1 THEN i = numMI
+        IF i > numMI THEN i = 1
+        IF MenuSelectable(i) THEN EXIT FOR
+    NEXT
+    IF i <> menuSel AND MenuSelectable(i) THEN menuSel = i : PlaySfx sndMenuMove&, 0.5
+END SUB
 
 ' --- Left / right (menuAdjust = -1 / 1) on a slider, toggle or choice
-MenuAdjustItem:
-IF menuSel = 0 THEN RETURN
-SELECT CASE miKind(menuSel)
-    CASE MI_SLIDER, MI_TOGGLE, MI_CHOICE
-        ChangeSetting miRef(menuSel), menuAdjust
-        ApplySettings
-        PlaySfx sndMenuMove&, 0.5
-END SELECT
-RETURN
+SUB MenuAdjustItem STATIC
+    IF menuSel = 0 THEN EXIT SUB
+    SELECT CASE miKind(menuSel)
+        CASE MI_SLIDER, MI_TOGGLE, MI_CHOICE
+            ChangeSetting miRef(menuSel), menuAdjust
+            ApplySettings
+            PlaySfx sndMenuMove&, 0.5
+    END SELECT
+END SUB
 
 ' --- Choose the selected item (Enter, Space, or a click)
-MenuActivate:
-IF menuSel = 0 THEN RETURN
-IF NOT MenuSelectable(menuSel) THEN RETURN
-SELECT CASE miKind(menuSel)
-    CASE MI_SUBMENU ' Into another screen, remembering this one
-        PlaySfx sndMenuSelect&, 0.6
-        menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
-        menuScreen = miRef(menuSel) : IF menuScreen = SCR_DEMOS THEN demoListPage = 0
-        GOSUB EnterMenuScreen
-    CASE MI_BACK
-        GOSUB MenuBack
-    CASE MI_TOGGLE, MI_CHOICE
-        menuAdjust = 1 : GOSUB MenuAdjustItem
-    CASE MI_KEY ' Wait for the new key (CaptureKey)
-        menuCapture = menuSel : PlaySfx sndMenuSelect&, 0.6
-    CASE MI_ACTION
-        PlaySfx sndMenuSelect&, 0.6
-        SELECT CASE miAct(menuSel)
-            CASE MA_RESUME
-                menuDone = -1
-            CASE MA_NEW
-                sectorSet = 0 : GOSUB ReadSectorNames : GOSUB NewGame : menuDone = -1
-            CASE MA_DEMO ' A demo (DEMO REPLAYS), played back - and when it's over, back to the list
-                n = miRef(menuSel)
-                IF demoRec OR demoPlay THEN GOSUB DemoStop
-                IF editMode THEN GOSUB EditLeave
-                dFile$ = demoListFile$(n) : demoName$ = demoList$(n) : demoQuit = 0 : demoMenuWant = 0
-                GOSUB DemoPlayStart
-                IF demoPlay THEN demoFromMenu = -1 : menuDone = -1 ELSE ShowMsg "That demo won't play - see the console"
-            CASE MA_DEMOPAGE ' DEMO REPLAYS: the next ten
-                demoListPage = demoListPage + 1 : GOSUB EnterMenuScreen
-            CASE MA_STOPDEMO ' (paused, a demo playing)
-                GOSUB DemoStop : menuDone = -1
-            CASE MA_LINK ' A credit: its page, in the web browser
-                OpenLink MID$(miInfo$(menuSel), INSTR(miInfo$(menuSel), "|") + 1)
-            CASE MA_ACHIEVE ' The achievements (and records): a screen of their own, then back here
-                GOSUB ShowAchievements
-            CASE MA_SECTOR ' A new game, in sector miRef (straight there: no stop in sector 1) - over 100, another set's
-                level = miRef(menuSel) : sectorSet = 0
-                IF level > 100 THEN sectorSet = level \ 100 : level = level MOD 100
-                GOSUB ReadSectorNames : GOSUB NewGameHere
-                menuDone = -1
-            CASE MA_NEWSECTOR ' A blank sector of your own, straight into the editor
-                GOSUB NewSector : IF level > NUM_LEVELS THEN menuDone = -1
-            CASE MA_SAVE
-                saveSlot = miRef(menuSel) : GOSUB SaveGame : menuDone = -1
-            CASE MA_LOAD
-                saveSlot = miRef(menuSel) : GOSUB LoadGame
-                IF loadOK THEN menuDone = -1
-            CASE MA_QUIT
-                QuitGame
-            CASE MA_KEYS_DEFAULT
-                FOR b = 1 TO NUM_BINDS : keyBind&(b) = bindDefault&(b) : NEXT
-            CASE MA_QB64_TYPE ' Type qb64pe's path in (MenuTypeKey)
-                menuTyping = -1 : menuTyped$ = qbChosen$ : menuTypeBad = 0
-            CASE MA_QB64_BROWSE ' Pick it in the system's file window
-                IF INSTR(_OS$, "[WINDOWS]") THEN qbPat$ = "*.exe" ELSE qbPat$ = ""
-                qbF$ = _OPENFILEDIALOG$("Where is qb64pe?", QB64Path$, qbPat$, "qb64pe", 0)
-                IF LEN(qbF$) THEN
-                    IF LEN(QB64At$(qbF$)) THEN qbChosen$ = QB64At$(qbF$) : SaveSettings
-                END IF
-                _KEYCLEAR : WHILE _MOUSEINPUT : WEND : mouseWasDown = -1
-                qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
-            CASE MA_QB64_AUTO ' Forget yours: look for it again
-                qbChosen$ = "" : SaveSettings
-                qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
-        END SELECT
-END SELECT
-RETURN
+SUB MenuActivate STATIC
+    IF menuSel = 0 THEN EXIT SUB
+    IF NOT MenuSelectable(menuSel) THEN EXIT SUB
+    SELECT CASE miKind(menuSel)
+        CASE MI_SUBMENU ' Into another screen, remembering this one
+            PlaySfx sndMenuSelect&, 0.6
+            menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
+            menuScreen = miRef(menuSel) : IF menuScreen = SCR_DEMOS THEN demoListPage = 0
+            EnterMenuScreen
+        CASE MI_BACK
+            MenuBack
+        CASE MI_TOGGLE, MI_CHOICE
+            menuAdjust = 1 : MenuAdjustItem
+        CASE MI_KEY ' Wait for the new key (CaptureKey)
+            menuCapture = menuSel : PlaySfx sndMenuSelect&, 0.6
+        CASE MI_ACTION
+            PlaySfx sndMenuSelect&, 0.6
+            SELECT CASE miAct(menuSel)
+                CASE MA_RESUME
+                    menuDone = -1
+                CASE MA_NEW
+                    sectorSet = 0 : ReadSectorNames : NewGame : menuDone = -1
+                CASE MA_DEMO ' A demo (DEMO REPLAYS), played back - and when it's over, back to the list
+                    n = miRef(menuSel)
+                    IF demoRec OR demoPlay THEN DemoStop
+                    IF editMode THEN EditLeave
+                    dFile$ = demoListFile$(n) : demoName$ = demoList$(n) : demoQuit = 0 : demoMenuWant = 0
+                    DemoPlayStart
+                    IF demoPlay THEN demoFromMenu = -1 : menuDone = -1 ELSE ShowMsg "That demo won't play - see the console"
+                CASE MA_DEMOPAGE ' DEMO REPLAYS: the next ten
+                    demoListPage = demoListPage + 1 : EnterMenuScreen
+                CASE MA_STOPDEMO ' (paused, a demo playing)
+                    DemoStop : menuDone = -1
+                CASE MA_LINK ' A credit: its page, in the web browser
+                    OpenLink MID$(miInfo$(menuSel), INSTR(miInfo$(menuSel), "|") + 1)
+                CASE MA_ACHIEVE ' The achievements (and records): a screen of their own, then back here
+                    ShowAchievements
+                CASE MA_SECTOR ' A new game, in sector miRef (straight there: no stop in sector 1) - over 100, another set's
+                    level = miRef(menuSel) : sectorSet = 0
+                    IF level > 100 THEN sectorSet = level \ 100 : level = level MOD 100
+                    ReadSectorNames : NewGameHere
+                    menuDone = -1
+                CASE MA_NEWSECTOR ' A blank sector of your own, straight into the editor
+                    NewSector : IF level > NUM_LEVELS THEN menuDone = -1
+                CASE MA_SAVE
+                    saveSlot = miRef(menuSel) : SaveGame : menuDone = -1
+                CASE MA_LOAD
+                    saveSlot = miRef(menuSel) : LoadGame
+                    IF loadOK THEN menuDone = -1
+                CASE MA_QUIT
+                    QuitGame
+                CASE MA_KEYS_DEFAULT
+                    FOR b = 1 TO NUM_BINDS : keyBind&(b) = bindDefault&(b) : NEXT
+                CASE MA_QB64_TYPE ' Type qb64pe's path in (MenuTypeKey)
+                    menuTyping = -1 : menuTyped$ = qbChosen$ : menuTypeBad = 0
+                CASE MA_QB64_BROWSE ' Pick it in the system's file window
+                    IF INSTR(_OS$, "[WINDOWS]") THEN qbPat$ = "*.exe" ELSE qbPat$ = ""
+                    qbF$ = _OPENFILEDIALOG$("Where is qb64pe?", QB64Path$, qbPat$, "qb64pe", 0)
+                    IF LEN(qbF$) THEN
+                        IF LEN(QB64At$(qbF$)) THEN qbChosen$ = QB64At$(qbF$) : SaveSettings
+                    END IF
+                    _KEYCLEAR : WHILE _MOUSEINPUT : WEND : mouseWasDown = -1
+                    qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
+                CASE MA_QB64_AUTO ' Forget yours: look for it again
+                    qbChosen$ = "" : SaveSettings
+                    qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
+            END SELECT
+    END SELECT
+END SUB
 
 ' --- A key while typing qb64pe's path (MA_QB64_TYPE): a character goes on
 ' the end, Backspace takes one off, Ctrl+V pastes. Enter keeps it - if
 ' there's a qb64pe there (a folder with one in it will do; nothing at all
 ' means look for it) - and Esc leaves it as it was.
-MenuTypeKey:
-menuTypeBad = 0
-IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' Ctrl
-    IF keyCode& = 118 OR keyCode& = 86 OR keyCode& = 22 THEN ' V: the clipboard's first line
-        qbClip$ = _CLIPBOARD$ : qbCut = INSTR(qbClip$, CHR$(10)) : IF qbCut THEN qbClip$ = LEFT$(qbClip$, qbCut - 1)
-        qbCut = INSTR(qbClip$, CHR$(13)) : IF qbCut THEN qbClip$ = LEFT$(qbClip$, qbCut - 1)
-        menuTyped$ = LEFT$(menuTyped$ + qbClip$, 250)
-    END IF
-    RETURN
-END IF
-SELECT CASE keyCode&
-    CASE 13 ' Enter
-        qbF$ = QB64At$(menuTyped$)
-        IF LEN(qbF$) OR LTRIM$(menuTyped$) = "" THEN
-            qbChosen$ = qbF$ : SaveSettings : menuTyping = 0 : PlaySfx sndMenuSelect&, 0.6
-            qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
-        ELSE
-            menuTypeBad = -1 : PlaySfx sndMenuBack&, 0.6 ' (no qb64pe there: say so, keep typing)
+SUB MenuTypeKey STATIC
+    menuTypeBad = 0
+    IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' Ctrl
+        IF keyCode& = 118 OR keyCode& = 86 OR keyCode& = 22 THEN ' V: the clipboard's first line
+            qbClip$ = _CLIPBOARD$ : qbCut = INSTR(qbClip$, CHR$(10)) : IF qbCut THEN qbClip$ = LEFT$(qbClip$, qbCut - 1)
+            qbCut = INSTR(qbClip$, CHR$(13)) : IF qbCut THEN qbClip$ = LEFT$(qbClip$, qbCut - 1)
+            menuTyped$ = LEFT$(menuTyped$ + qbClip$, 250)
         END IF
-    CASE 27 ' Esc
-        menuTyping = 0 : PlaySfx sndMenuBack&, 0.6
-    CASE 8 ' Backspace
-        IF LEN(menuTyped$) THEN menuTyped$ = LEFT$(menuTyped$, LEN(menuTyped$) - 1)
-    CASE 32 TO 126
-        IF LEN(menuTyped$) < 250 THEN menuTyped$ = menuTyped$ + CHR$(keyCode&)
-END SELECT
-RETURN
+        EXIT SUB
+    END IF
+    SELECT CASE keyCode&
+        CASE 13 ' Enter
+            qbF$ = QB64At$(menuTyped$)
+            IF LEN(qbF$) OR LTRIM$(menuTyped$) = "" THEN
+                qbChosen$ = qbF$ : SaveSettings : menuTyping = 0 : PlaySfx sndMenuSelect&, 0.6
+                qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
+            ELSE
+                menuTypeBad = -1 : PlaySfx sndMenuBack&, 0.6 ' (no qb64pe there: say so, keep typing)
+            END IF
+        CASE 27 ' Esc
+            menuTyping = 0 : PlaySfx sndMenuBack&, 0.6
+        CASE 8 ' Backspace
+            IF LEN(menuTyped$) THEN menuTyped$ = LEFT$(menuTyped$, LEN(menuTyped$) - 1)
+        CASE 32 TO 126
+            IF LEN(menuTyped$) < 250 THEN menuTyped$ = menuTyped$ + CHR$(keyCode&)
+    END SELECT
+END SUB
 
 ' --- Back out of a screen (Esc, Backspace, or BACK). From the top: in a
 ' game, back to the game; at the title, "do you really want to leave?"
-MenuBack:
-IF menuDepth > 0 THEN
-    PlaySfx sndMenuBack&, 0.6
-    menuScreen = menuStack(menuDepth) : backSel = menuStackSel(menuDepth) : menuDepth = menuDepth - 1
-    GOSUB EnterMenuScreen : menuSel = backSel
-ELSEIF menuInGame THEN
-    PlaySfx sndMenuBack&, 0.6 : menuDone = -1
-ELSEIF menuScreen <> SCR_QUIT THEN
-    PlaySfx sndMenuSelect&, 0.6
-    menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
-    menuScreen = SCR_QUIT : GOSUB EnterMenuScreen
-END IF
-RETURN
+SUB MenuBack STATIC
+    IF menuDepth > 0 THEN
+        PlaySfx sndMenuBack&, 0.6
+        menuScreen = menuStack(menuDepth) : backSel = menuStackSel(menuDepth) : menuDepth = menuDepth - 1
+        EnterMenuScreen : menuSel = backSel
+    ELSEIF menuInGame THEN
+        PlaySfx sndMenuBack&, 0.6 : menuDone = -1
+    ELSEIF menuScreen <> SCR_QUIT THEN
+        PlaySfx sndMenuSelect&, 0.6
+        menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
+        menuScreen = SCR_QUIT : EnterMenuScreen
+    END IF
+END SUB
 
 ' Fill in the items for menu screen scr (SCR_ constants). This is where to
 ' add a button or a screen: an AddMenuItem line, and - for a new action -
 ' a CASE in MenuActivate (chapter 21).
 SUB BuildMenu(scr)
+    DIM B, c, n, n0, nm$, qb$, slot ' (its own: the main program shares these names)
     numMI = 0 : menuWide = 0
     SELECT CASE scr
         CASE SCR_MAIN
@@ -537,6 +538,7 @@ END FUNCTION
 
 ' Which item (that can be chosen) is the mouse over? 0 if none.
 FUNCTION MenuItemAt(mouseX, mouseY)
+    DIM i ' (its own: the main program shares these names)
     mr = MenuRowH
     FOR i = 1 TO numMI
         rowY = MENU_TOP + (i - 1) * mr
@@ -557,6 +559,7 @@ END FUNCTION
 ' then each item sliding in (see chapter 21), with the selected one lit up
 ' and each control drawn the way its kind needs
 SUB DrawMenu(t)
+    DIM B, f, i, p ' (its own: the main program shares these names)
     glow = 0.5 + 0.5 * SIN(t * 0.05)
     MenuText 404, 30, "NEON-CASTER", 6, _RGBA32(255, 40, 200, 110), 1 ' (a magenta shadow, for the glow)
     MenuText 400, 26, "NEON-CASTER", 6, _RGB32(120 + 120 * glow, 235, 255), 1
@@ -652,6 +655,7 @@ END SUB
 ' rushing towards you (its lines get closer together towards the horizon:
 ' 260 / z is the same perspective as the floor in chapter 14)
 SUB DrawMenuBackdrop(t)
+    DIM f, i, k, n, y ' (its own: the main program shares these names)
     CONST HORIZON = 330
     FOR y = 0 TO HORIZON STEP 2
         f = y / HORIZON

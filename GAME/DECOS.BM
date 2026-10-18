@@ -9,63 +9,64 @@
 ' out (cells, shells, health flying out of it for a couple of seconds),
 ' or, now and then (vendBomb, settled at the start), it blows up like a
 ' barrel. Then it's sold out. Breaking it in the meantime stops it all.
-VendStep:
-IF NOT decoOn(i) THEN vendState(i) = 0 : RETURN
-vendTimer(i) = vendTimer(i) - 1
-IF vendState(i) = 1 THEN
-    IF vendTimer(i) = 180 OR vendTimer(i) = 120 OR vendTimer(i) = 60 THEN
-        ShowMsg MID$("1...2...3...", (vendTimer(i) \ 60 - 1) * 4 + 1, 4) : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
-    END IF
-    IF vendTimer(i) <= 0 THEN
-        IF vendBomb(i) THEN
-            vendState(i) = 3 : ShowMsg "OUT OF ORDER!" : barrel = i : GOSUB Explode
-        ELSE
-            vendState(i) = 2 : vendTimer(i) = 150 : ShowMsg "JACKPOT!" : PlaySfx sndFanfare&, 0.6
+SUB VendStep STATIC
+    IF NOT decoOn(i) THEN vendState(i) = 0 : EXIT SUB
+    vendTimer(i) = vendTimer(i) - 1
+    IF vendState(i) = 1 THEN
+        IF vendTimer(i) = 180 OR vendTimer(i) = 120 OR vendTimer(i) = 60 THEN
+            ShowMsg MID$("1...2...3...", (vendTimer(i) \ 60 - 1) * 4 + 1, 4) : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
         END IF
+        IF vendTimer(i) <= 0 THEN
+            IF vendBomb(i) THEN
+                vendState(i) = 3 : ShowMsg "OUT OF ORDER!" : barrel = i : Explode
+            ELSE
+                vendState(i) = 2 : vendTimer(i) = 150 : ShowMsg "JACKPOT!" : PlaySfx sndFanfare&, 0.6
+            END IF
+        END IF
+    ELSE
+        IF vendTimer(i) MOD 18 = 0 THEN ' (one more thing out of the slot, out the front - or anywhere)
+            k = IT_CELLS : r = GRnd
+            IF r < 0.3 THEN k = IT_SHELLS ELSE IF r < 0.55 THEN k = IT_HEALTH ELSE IF r < 0.6 THEN k = IT_ARMOR ELSE IF r < 0.63 THEN k = IT_OVERCHARGE
+            a = (decoFace(i) - 1) * 1.5708 + (GRnd - 0.5) * 1.6 : IF decoFace(i) = 0 THEN a = DAtan2(playerY - decoY(i), playerX - decoX(i)) + (GRnd - 0.5) * 1.6
+            TossItem k, decoX(i), decoY(i), a, playerX, playerY : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
+        END IF
+        IF vendTimer(i) <= 0 THEN vendState(i) = 3 : ShowMsg "SOLD OUT"
     END IF
-ELSE
-    IF vendTimer(i) MOD 18 = 0 THEN ' (one more thing out of the slot, out the front - or anywhere)
-        k = IT_CELLS : r = GRnd
-        IF r < 0.3 THEN k = IT_SHELLS ELSE IF r < 0.55 THEN k = IT_HEALTH ELSE IF r < 0.6 THEN k = IT_ARMOR ELSE IF r < 0.63 THEN k = IT_OVERCHARGE
-        a = (decoFace(i) - 1) * 1.5708 + (GRnd - 0.5) * 1.6 : IF decoFace(i) = 0 THEN a = DAtan2(playerY - decoY(i), playerX - decoX(i)) + (GRnd - 0.5) * 1.6
-        TossItem k, decoX(i), decoY(i), a, playerX, playerY : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
-    END IF
-    IF vendTimer(i) <= 0 THEN vendState(i) = 3 : ShowMsg "SOLD OUT"
-END IF
-RETURN
+END SUB
 
-HitDeco:
-IF decoKind(targetDeco) = DK_BODY THEN RETURN ' (bodies don't break)
-IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
-' Its loot, if it breaks: kicked, back the way you're facing (towards you,
-' give or take); shot or blown up, any way at all
-IF hitKick THEN decoLootA(targetDeco) = DAtan2(-dirY, -dirX) + (GRnd - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
-IF Explosive(decoKind(targetDeco)) THEN
-    IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = 1
-    RETURN
-END IF
-decoHP(targetDeco) = decoHP(targetDeco) - hitDamage
-IF decoHP(targetDeco) > 0 THEN
-    SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY
-ELSE
-    decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES : IF NOT decoByMon THEN AchAdd "Smashed", 1
-    decoCell(INT(decoX(targetDeco)), INT(decoY(targetDeco))) = 0
-    SfxAt decoBreakSnd&(decoKind(targetDeco)), decoX(targetDeco), decoY(targetDeco), playerX, playerY
-    IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
-        newBlastX = decoX(targetDeco) : newBlastY = decoY(targetDeco) : newBlastSize = 0.35 : GOSUB AddBlast
+SUB HitDeco STATIC
+    IF decoKind(targetDeco) = DK_BODY THEN EXIT SUB ' (bodies don't break)
+    IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
+    ' Its loot, if it breaks: kicked, back the way you're facing (towards you,
+    ' give or take); shot or blown up, any way at all
+    IF hitKick THEN decoLootA(targetDeco) = DAtan2(-dirY, -dirX) + (GRnd - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
+    IF Explosive(decoKind(targetDeco)) THEN
+        IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = 1
+        EXIT SUB
     END IF
-    DecoLoot targetDeco, playerX, playerY
-    IF decoKind(targetDeco) = DK_SPECIMEN AND NOT cyberOn AND NOT editMode THEN ' A specimen tank: half the time, what was floating in it climbs out - a stalker or a spitter
-        IF GRnd < 0.5 THEN
-            IF SpawnMonster(6 + INT(GRnd * 2), decoX(targetDeco), decoY(targetDeco), 0, playerX, playerY) THEN ShowMsg "Something climbs out of the tank!" : shake = shake + 4
+    decoHP(targetDeco) = decoHP(targetDeco) - hitDamage
+    IF decoHP(targetDeco) > 0 THEN
+        SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY
+    ELSE
+        decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES : IF NOT decoByMon THEN AchAdd "Smashed", 1
+        decoCell(INT(decoX(targetDeco)), INT(decoY(targetDeco))) = 0
+        SfxAt decoBreakSnd&(decoKind(targetDeco)), decoX(targetDeco), decoY(targetDeco), playerX, playerY
+        IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
+            newBlastX = decoX(targetDeco) : newBlastY = decoY(targetDeco) : newBlastSize = 0.35 : AddBlast
+        END IF
+        DecoLoot targetDeco, playerX, playerY
+        IF decoKind(targetDeco) = DK_SPECIMEN AND NOT cyberOn AND NOT editMode THEN ' A specimen tank: half the time, what was floating in it climbs out - a stalker or a spitter
+            IF GRnd < 0.5 THEN
+                IF SpawnMonster(6 + INT(GRnd * 2), decoX(targetDeco), decoY(targetDeco), 0, playerX, playerY) THEN ShowMsg "Something climbs out of the tank!" : shake = shake + 4
+            END IF
         END IF
     END IF
-END IF
-RETURN
+END SUB
 
 ' A decoration kind by its name - barrel, crate, labbench, lockers... -
 ' spaces or not, one or more (crates); 0 for none (a body never breaks)
 FUNCTION DecoKindOf(n$)
+    DIM c, k, t$ ' (its own: the main program shares these names)
     t$ = LCASE$(n$) : u$ = ""
     FOR c = 1 TO LEN(t$)
         IF INSTR(" _-" + CHR$(9), MID$(t$, c, 1)) = 0 THEN u$ = u$ + MID$(t$, c, 1)
@@ -173,6 +174,7 @@ END FUNCTION
 ' faster and brighter as it fills, a beam rising off it when it's nearly
 ' there, and crackling at the very end. (Only for show: RND, not GRnd.)
 SUB SpawnerCharge(j)
+    DIM a, c, fz, px, py, r, x, y ' (its own: the main program shares these names)
     IF decoBurst(j) > 0 THEN decoBurst(j) = decoBurst(j) - 1
     c = decoCharge(j) : x = decoX(j) : y = decoY(j) : fz = FloorAt(x, y)
     IF c <= 0 THEN
@@ -194,6 +196,7 @@ END SUB
 ' at once - a ring rushing inwards, then a burst - and the screen shakes
 ' if you're close by (px, py): how much it shakes is the answer.
 FUNCTION SpawnerBurst(j, px, py)
+    DIM a, d, fz, k, r, v, x, y ' (its own: the main program shares these names)
     x = decoX(j) : y = decoY(j) : fz = FloorAt(x, y)
     decoBurst(j) = 20 : decoCharge(j) = 0
     FOR k = 1 TO 36

@@ -40,6 +40,7 @@ END FUNCTION
 ' Locking one that's open shuts it (the door loop does that, once nobody's
 ' in the way).
 SUB LockRoom(ev, locked)
+    DIM x, y ' (its own: the main program shares these names)
     rr = 5 : IF evType(ev) = EV_HOARD THEN rr = 1 ' (a hoard: only its vault's own doors, the ones touching it - not every door near it)
     FOR y = evY0(ev) - rr TO evY1(ev) + rr : FOR x = evX0(ev) - rr TO evX1(ev) + rr
         IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
@@ -58,6 +59,7 @@ END SUB
 ' thieves' hoard's opens when its last thief is destroyed - not when the
 ' room beside it is clear, so it says so
 FUNCTION SealedMsg$(x, y)
+    DIM ev, j, n ' (its own: the main program shares these names)
     SealedMsg$ = "SEALED - it won't open until the room is clear"
     FOR ev = 1 TO numEvents
         IF evType(ev) = EV_HOARD AND evState(ev) = 3 THEN
@@ -79,6 +81,7 @@ END FUNCTION
 ' Are you (px, py) in the way of any of the doors event ev locks (LockRoom's:
 ' within 5 cells of its room) - so near one it couldn't shut on you?
 FUNCTION NearRoomDoor(ev, px, py)
+    DIM x, y ' (its own: the main program shares these names)
     edge = 0.5 + PLAYER_RADIUS + 0.05
     FOR y = evY0(ev) - 5 TO evY1(ev) + 5 : FOR x = evX0(ev) - 5 TO evX1(ev) + 5
         IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
@@ -114,6 +117,7 @@ END FUNCTION
 ' darker); (litX, litY): the cell whose light falls on it; back: how far
 ' to the far face (for a shutter's underside).
 FUNCTION DoorRay(cx, cy, px, py, rdx, rdy, t, u, side, litX, litY, back)
+    DIM a, e, half, n ' (its own: the main program shares these names)
     half = DOOR_THICK / 2 : shown = DoorShown(cx, cy) : kind = doorType(cx, cy)
     IF DoorAcross(cx, cy) = 0 THEN
         pa = px - cx : pn = py - cy - 0.5 : da = rdx : dn = rdy : faceSide = 1 : edgeSide = 0
@@ -184,6 +188,7 @@ END FUNCTION
 ' still standing - so it mustn't shut? (Your body reaches PLAYER_RADIUS
 ' past your middle, so you can be in it while your middle is next door.)
 FUNCTION DoorBlocked(dx, dy, px, py)
+    DIM i ' (its own: the main program shares these names)
     edge = 0.5 + PLAYER_RADIUS
     IF ABS(px - (dx + 0.5)) < edge AND ABS(py - (dy + 0.5)) < edge THEN DoorBlocked = -1 : EXIT FUNCTION
     FOR i = 1 TO numMonsters

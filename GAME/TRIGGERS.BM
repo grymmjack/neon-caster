@@ -7,72 +7,73 @@
 ' --- THE LEVEL'S TRIGGERS AND TELEPORTERS (chapter 19), each frame. A
 ' trigger's commands go to the console's queue (chapter 21), to be run
 ' from the next frame - the same commands you can type
-RunTriggers:
-FOR k = 1 TO numTrigs
-    IF NOT trigDone(k) THEN
-        fire = 0
-        SELECT CASE trigWhen$(k)
-            CASE "enter"
-                inside = playerX >= trigX0(k) AND playerX < trigX1(k) + 1 AND playerY >= trigY0(k) AND playerY < trigY1(k) + 1
-                IF inside AND NOT trigWas(k) AND NOT dead THEN fire = -1
-                trigWas(k) = inside
-            CASE "clear"
-                alive = 0 : started = 0
-                FOR j = 1 TO monStartN
-                    IF monStartX(j) >= trigX0(k) AND monStartX(j) < trigX1(k) + 1 AND monStartY(j) >= trigY0(k) AND monStartY(j) < trigY1(k) + 1 THEN
-                        started = started + 1 : IF monsterState(j) < 2 THEN alive = alive + 1
-                    END IF
-                NEXT
-                IF started > 0 AND alive = 0 THEN fire = -1
-            CASE "time"
-                IF lvFrame >= trigX0(k) * 60 THEN fire = -1 ' (seconds, counted in frames: the same in a demo)
-            CASE "shoot" ' (ShotAt marked it: a switch clicks)
-                IF trigHit(k) THEN fire = -1 : trigHit(k) = 0 : PlaySfx sndPlate&, 0.9
-        END SELECT
-        IF fire THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : GOSUB TriggerRun
+SUB RunTriggers STATIC
+    FOR k = 1 TO numTrigs
+        IF NOT trigDone(k) THEN
+            fire = 0
+            SELECT CASE trigWhen$(k)
+                CASE "enter"
+                    inside = playerX >= trigX0(k) AND playerX < trigX1(k) + 1 AND playerY >= trigY0(k) AND playerY < trigY1(k) + 1
+                    IF inside AND NOT trigWas(k) AND NOT dead THEN fire = -1
+                    trigWas(k) = inside
+                CASE "clear"
+                    alive = 0 : started = 0
+                    FOR j = 1 TO monStartN
+                        IF monStartX(j) >= trigX0(k) AND monStartX(j) < trigX1(k) + 1 AND monStartY(j) >= trigY0(k) AND monStartY(j) < trigY1(k) + 1 THEN
+                            started = started + 1 : IF monsterState(j) < 2 THEN alive = alive + 1
+                        END IF
+                    NEXT
+                    IF started > 0 AND alive = 0 THEN fire = -1
+                CASE "time"
+                    IF lvFrame >= trigX0(k) * 60 THEN fire = -1 ' (seconds, counted in frames: the same in a demo)
+                CASE "shoot" ' (ShotAt marked it: a switch clicks)
+                    IF trigHit(k) THEN fire = -1 : trigHit(k) = 0 : PlaySfx sndPlate&, 0.9
+            END SELECT
+            IF fire THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : TriggerRun
+        END IF
+    NEXT
+    ' Teleporters: on a pad - and you've stepped off one since - to its partner
+    onPad = 0
+    FOR k = 1 TO numPads
+        IF INT(playerX) = padX(k) AND INT(playerY) = padY(k) THEN onPad = k
+    NEXT
+    IF onPad = 0 THEN padReady = -1
+    IF onPad > 0 AND padReady AND NOT dead THEN ' (a pad in a room under lockdown is dead till it's over - else it's a way out, and a lockdown's no lockdown)
+        other = onPad + 1 : IF onPad MOD 2 = 0 THEN other = onPad - 1
+        IF PadLockedDown(onPad) OR PadLockedDown(other) THEN padReady = 0 : PlaySfx sndLocked&, 0.8 : ShowMsg "LOCKED DOWN - the teleporter's dead till it's over"
     END IF
-NEXT
-' Teleporters: on a pad - and you've stepped off one since - to its partner
-onPad = 0
-FOR k = 1 TO numPads
-    IF INT(playerX) = padX(k) AND INT(playerY) = padY(k) THEN onPad = k
-NEXT
-IF onPad = 0 THEN padReady = -1
-IF onPad > 0 AND padReady AND NOT dead THEN ' (a pad in a room under lockdown is dead till it's over - else it's a way out, and a lockdown's no lockdown)
-    other = onPad + 1 : IF onPad MOD 2 = 0 THEN other = onPad - 1
-    IF PadLockedDown(onPad) OR PadLockedDown(other) THEN padReady = 0 : PlaySfx sndLocked&, 0.8 : ShowMsg "LOCKED DOWN - the teleporter's dead till it's over"
-END IF
-IF onPad > 0 AND padReady AND NOT dead THEN
-    other = onPad + 1 : IF onPad MOD 2 = 0 THEN other = onPad - 1
-    IF other >= 1 AND other <= numPads THEN
-        SpawnSparks playerX, playerY, 0.4, 20, 150, 90, 255
-        playerX = padX(other) + 0.5 : playerY = padY(other) + 0.5 : playerZ = floorH(padX(other), padY(other)) : eyeZ = playerZ + EYE_H : playerVZ = 0
-        SpawnSparks playerX, playerY, 0.4, 30, 150, 90, 255
-        PlaySfx sndTeleport&, 1 : pickFlash = 16 : padReady = 0
-        IF NOT padFlown(onPad) THEN padFlown(onPad) = -1 : AchAdd "Teleports", 1 ' (each pad once a visit: hopping back and forth doesn't count)
+    IF onPad > 0 AND padReady AND NOT dead THEN
+        other = onPad + 1 : IF onPad MOD 2 = 0 THEN other = onPad - 1
+        IF other >= 1 AND other <= numPads THEN
+            SpawnSparks playerX, playerY, 0.4, 20, 150, 90, 255
+            playerX = padX(other) + 0.5 : playerY = padY(other) + 0.5 : playerZ = floorH(padX(other), padY(other)) : eyeZ = playerZ + EYE_H : playerVZ = 0
+            SpawnSparks playerX, playerY, 0.4, 30, 150, 90, 255
+            PlaySfx sndTeleport&, 1 : pickFlash = 16 : padReady = 0
+            IF NOT padFlown(onPad) THEN padFlown(onPad) = -1 : AchAdd "Teleports", 1 ' (each pad once a visit: hopping back and forth doesn't count)
+        END IF
     END IF
-END IF
-RETURN
+END SUB
 
 ' A trigger's commands (trigRun$), run now - one after another, split at
 ' the ;s - unless there's a wait among them: then onto the console's queue,
 ' to run a frame at a time (chapter 21)
-TriggerRun:
-IF INSTR(LCASE$(trigRun$), "wait") THEN conFromTrig = -1 : ConQueue trigRun$ : conFromTrig = 0 : RETURN ' (marked: the level's, not yours)
-trigK = k ' (ConExec uses k)
-conFromTrig = -1 ' (the level's doing, not yours: a trigger's give isn't a cheat)
-DO WHILE LEN(trigRun$)
-    semi = INSTR(trigRun$, ";")
-    IF semi THEN conCmd$ = LEFT$(trigRun$, semi - 1) : trigRun$ = MID$(trigRun$, semi + 1) ELSE conCmd$ = trigRun$ : trigRun$ = ""
-    GOSUB ConExec
-LOOP
-conFromTrig = 0
-k = trigK
-RETURN
+SUB TriggerRun STATIC
+    IF INSTR(LCASE$(trigRun$), "wait") THEN conFromTrig = -1 : ConQueue trigRun$ : conFromTrig = 0 : EXIT SUB ' (marked: the level's, not yours)
+    trigK = k ' (ConExec uses k)
+    conFromTrig = -1 ' (the level's doing, not yours: a trigger's give isn't a cheat)
+    DO WHILE LEN(trigRun$)
+        semi = INSTR(trigRun$, ";")
+        IF semi THEN conCmd$ = LEFT$(trigRun$, semi - 1) : trigRun$ = MID$(trigRun$, semi + 1) ELSE conCmd$ = trigRun$ : trigRun$ = ""
+        ConExec
+    LOOP
+    conFromTrig = 0
+    k = trigK
+END SUB
 
 ' The trigger pane's ready-made actions: button q's label (cmd 0) or its
 ' console command (cmd -1)
 FUNCTION TrigAction$(q, cmd)
+    DIM c$, l$ ' (its own: the main program shares these names)
     SELECT CASE q
         CASE 1 : l$ = "+25 HP" : c$ = "give health 25"
         CASE 2 : l$ = "-25 HP" : c$ = "take health 25"
@@ -90,6 +91,7 @@ END FUNCTION
 ' One line of [triggers], taken apart into trigger numTrigs + 1: its WHEN,
 ' its place, "repeat", and - after the colon - its commands
 SUB TakeTrigger(l$)
+    DIM c, j, k, w$ ' (its own: the main program shares these names)
     c = INSTR(l$, ":") : IF c = 0 OR numTrigs >= MAX_TRIGS THEN EXIT SUB
     w$ = LCASE$(LTRIM$(RTRIM$(LEFT$(l$, c - 1)))) + " "
     numTrigs = numTrigs + 1 : k = numTrigs

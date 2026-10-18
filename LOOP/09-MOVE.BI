@@ -87,13 +87,13 @@
             IF playerZ <= fz THEN
                 IF liqKind(INT(playerX), INT(playerY)) THEN playerVZ = playerVZ * 0.5 ' (into a liquid: it breaks the fall)
                 IF playerVZ > 0.13 AND NOT dead AND NOT godMode THEN ' (a fall that hurts - about a wall's drop or more: the thud, the jolt; anything less is just a step down, and the footsteps carry on)
-                    damage = INT((playerVZ - 0.13) * 260) + 2 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer
+                    damage = INT((playerVZ - 0.13) * 260) + 2 : hurtFromX = -1 : hurtFromY = -1 : HurtPlayer
                     PlaySfx sndStep1&, 1 : shake = shake + 8
                 END IF
                 playerZ = fz : playerVZ = 0
             END IF
         END IF
-        IF fz <= PIT_DEPTH AND playerZ < -0.6 AND NOT dead AND NOT godMode THEN damage = 999 : hurtFromX = -1 : hurtFromY = -1 : GOSUB HurtPlayer : ShowMsg "You fell into the dark"
+        IF fz <= PIT_DEPTH AND playerZ < -0.6 AND NOT dead AND NOT godMode THEN damage = 999 : hurtFromX = -1 : hurtFromY = -1 : HurtPlayer : ShowMsg "You fell into the dark"
     END IF
     ' A burning floor (molten metal, lava): it hurts while you stand in it
     IF burnWait > 0 THEN burnWait = burnWait - 1
@@ -101,7 +101,7 @@
         IF burnWait = 0 THEN
             burnWait = BURN_EVERY : PlaySfx sndSizzle&, 0.9
             SpawnSparks playerX + dirX * 0.3, playerY + dirY * 0.3, 0.05, 12, 255, 120, 30
-            IF NOT godMode THEN damage = BURN_DAMAGE : hurtFromX = -1 : hurtFromY = -1 : hurtR = 255 : hurtG = 110 : hurtB = 20 : GOSUB HurtPlayer
+            IF NOT godMode THEN damage = BURN_DAMAGE : hurtFromX = -1 : hurtFromY = -1 : hurtR = 255 : hurtG = 110 : hurtB = 20 : HurtPlayer
         END IF
     END IF
     ' A liquid (chapter 3's LQ_): are your feet in one? In you go with a
@@ -134,7 +134,7 @@
                     painR = lqR(lk) : painG = lqG(lk) : painB = lqB(lk) : painVig = MaxOf(painVig, 0.5)
                 ELSE
                     IF lk = LQ_LAVA OR lk = LQ_ACID THEN PlaySfx sndSizzle&, 0.9
-                    damage = dmg : hurtFromX = -1 : hurtFromY = -1 : hurtR = lqR(lk) : hurtG = lqG(lk) : hurtB = lqB(lk) : GOSUB HurtPlayer
+                    damage = dmg : hurtFromX = -1 : hurtFromY = -1 : hurtR = lqR(lk) : hurtG = lqG(lk) : hurtB = lqB(lk) : HurtPlayer
                 END IF
             END IF
         END IF

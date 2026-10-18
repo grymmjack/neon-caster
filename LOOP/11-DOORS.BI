@@ -28,7 +28,7 @@
         FOR k = 1 TO numTrigs
             IF trigWhen$(k) = "use" AND NOT trigDone(k) THEN
                 FOR reach = 0.3 TO 1.6 STEP 0.1
-                    IF INT(playerX + dirX * reach) = trigX0(k) AND INT(playerY + dirY * reach) = trigY0(k) THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : PlaySfx sndCore&, 0.6 : usedTrig = -1 : GOSUB TriggerRun : EXIT FOR
+                    IF INT(playerX + dirX * reach) = trigX0(k) AND INT(playerY + dirY * reach) = trigY0(k) THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : PlaySfx sndCore&, 0.6 : usedTrig = -1 : TriggerRun : EXIT FOR
                 NEXT
             END IF
         NEXT
@@ -36,7 +36,7 @@
     IF spaceDown AND NOT spaceWas AND NOT dead THEN ' (once per press)
         FOR reach = 0.05 TO 2 STEP 0.05
             cellX = INT(playerX + dirX * reach) : cellY = INT(playerY + dirY * reach)
-            IF cellX = INT(playerX) AND cellY = INT(playerY) THEN GOTO NextReach ' (the doorway you're in)
+            IF cellX = INT(playerX) AND cellY = INT(playerY) THEN _CONTINUE ' (the doorway you're in)
             IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 AND doorLock(cellX, cellY) THEN
                 PlaySfx sndLocked&, 0.8
                 IF doorLock(cellX, cellY) = 2 THEN ShowMsg "SEALED - hack its data station to open it" ELSE IF doorLock(cellX, cellY) = 3 THEN ShowMsg "LOCKED DOWN - repair the terminal's program" ELSE IF doorLock(cellX, cellY) = 4 THEN ShowMsg "LOCKED" ELSE ShowMsg SealedMsg$(cellX, cellY)
@@ -44,7 +44,7 @@
             ELSEIF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 THEN
                 keyNeeded = doorKey(cellX, cellY)
                 IF doorType(cellX, cellY) = DOOR_EXIT THEN
-                    IF cyberOn THEN ShowMsg "The exit's in the real world - jack out first" ELSE GOSUB LevelDone
+                    IF cyberOn THEN ShowMsg "The exit's in the real world - jack out first" ELSE LevelDone
                 ELSEIF keyNeeded = 0 OR hasCard(keyNeeded) THEN
                     doorOpen(cellX, cellY) = 0.01 : doorMove(cellX, cellY) = 1
                     PlaySfx DoorSnd&(doorType(cellX, cellY)), 0.9
@@ -69,7 +69,7 @@
                 IF termDone(tm) THEN
                     ShowMsg "TERMINAL: program running - ACCESS GRANTED"
                 ELSE
-                    GOSUB TerminalUse
+                    TerminalUse
                 END IF
                 EXIT FOR
             END IF
@@ -78,7 +78,7 @@
                 IF stationDone(st) THEN
                     ShowMsg "This station's hacked - its doors are open"
                 ELSEIF NOT cyberOn THEN
-                    GOSUB JackIn
+                    JackIn
                 END IF
                 EXIT FOR
             END IF
@@ -94,7 +94,7 @@
                     EXIT FOR
                 END IF
                 IF decoOn(dv) AND (decoKind(dv) = DK_TERMINAL OR decoKind(dv) = DK_CONSOLE OR decoKind(dv) = DK_SCREENS) AND NOT editMode THEN ' A computer: a game on it
-                    IF vendState(dv) = 3 THEN ShowMsg "HIGH SCORE: YOU - this one's paid out" ELSE arcDeco = dv : GOSUB ArcadeRun
+                    IF vendState(dv) = 3 THEN ShowMsg "HIGH SCORE: YOU - this one's paid out" ELSE arcDeco = dv : ArcadeRun
                     EXIT FOR
                 END IF
             END IF
@@ -106,7 +106,6 @@
                 IF reach <= 1.2 AND NOT usedTrig THEN PlaySfx sndHump&, 0.8 : AchAdd "Searches", 1 ' Trying to open a plain wall (not a switch you just used)
                 EXIT FOR
             END IF
-            NextReach:
         NEXT
     END IF
     FOR doorY = 0 TO MAP_SIZE - 1 : FOR doorX = 0 TO MAP_SIZE-1

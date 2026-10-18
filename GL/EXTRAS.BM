@@ -24,6 +24,7 @@ END SUB
 ' it. (A frame might start with a setting from before and finish with the
 ' new one - for one frame, behind a menu, nobody will see that.)
 SUB GLLiveSettings
+    DIM i, k ' (its own: the main program shares these names)
     FOR k = 0 TO 1
         FOR i = 1 TO NUM_SETTINGS : glSet(i, k) = setting(i) : NEXT
         IF glZoom(k) > 0 THEN glPlaneLen(k) = fovPlane / glZoom(k)
@@ -38,6 +39,7 @@ END SUB
 ' pass (glSeen) for OpenGL to draw. (px, py) is you, (dx, dy) your
 ' direction, planeLen the camera plane's length and zoom the zoom.
 SUB GLMarkWide(px, py, dx, dy, planeLen, zoom)
+    DIM p, r, v ' (its own: the main program shares these names)
     tanV = 1 / (2 * zoom) : p = ABS(pitch)
     denom = COS(p) - SIN(p) * tanV : IF denom < 0.25 THEN denom = 0.25
     wide = planeLen / denom
@@ -75,6 +77,7 @@ END SUB
 ' PARTICLES: the live ones, fading as they die (dust fades in and out).
 ' HEAT: the explosions, for the heat shimmer.
 SUB GLHandOverExtras(px, py, dx, dy, muzzle)
+    DIM best, f, g, i, k, l, n, r, w, x, y ' (its own: the main program shares these names)
     DIM candX(40), candY(40), candZ(40), candRad(40), candR(40), candG(40), candB(40), candD(40)
     w = glWrite : n = 0
     IF muzzle > 0 THEN
@@ -182,6 +185,7 @@ END SUB
 ' w of glDynReach: a flood fill out from its cell through open cells, up to
 ' rad + 1 steps and within rad (and a bit) as the crow flies
 SUB FloodLight(lx, ly, rad, k, w)
+    DIM cx, cy, d, head, nx, ny, v, x, y ' (its own: the main program shares these names)
     cx = INT(lx) : cy = INT(ly)
     IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT SUB
     fillStamp = fillStamp + 1

@@ -7,6 +7,7 @@
 
 ' Item k (from 1) of a list split by commas, trimmed
 FUNCTION ListItem$(list$, k)
+    DIM c, i ' (its own: the main program shares these names)
     s$ = list$ + ","
     FOR i = 1 TO k - 1
         c = INSTR(s$, ",") : IF c = 0 THEN EXIT FUNCTION
@@ -18,6 +19,7 @@ END FUNCTION
 
 ' The numbers in a line split by commas, into v(1), v(2)...; how many
 FUNCTION SplitNums(t$, v() AS SINGLE)
+    DIM c, n ' (its own: the main program shares these names)
     s$ = t$ + "," : n = 0
     DO
         c = INSTR(s$, ",") : IF c = 0 OR n >= UBOUND(v) THEN EXIT DO
@@ -35,6 +37,7 @@ FUNCTION NumList$(a, b, c, d)
 END FUNCTION
 
 FUNCTION Slashes$(p$) ' (a path with Windows' backslashes)
+    DIM i ' (its own: the main program shares these names)
     o$ = p$
     FOR i = 1 TO LEN(o$) : IF MID$(o$, i, 1) = "/" THEN MID$(o$, i, 1) = "\"
     NEXT
@@ -46,6 +49,7 @@ END FUNCTION
 ' SYS part of QB64_GJ_LIB (open_url_in_browser). Windows' start takes a
 ' first "..." as a window title, hence the empty one.
 SUB OpenLink(url$)
+    DIM c$, q$ ' (its own: the main program shares these names)
     q$ = CHR$(34)
     IF INSTR(_OS$, "[WINDOWS]") THEN
         c$ = "start " + q$ + q$ + " " + q$ + url$ + q$
@@ -66,6 +70,7 @@ END FUNCTION
 ' folder the program itself is in (COMMAND$(0) is its own path), so the game
 ' runs whichever folder you start it from.
 FUNCTION AssetPath$(file$)
+    DIM i ' (its own: the main program shares these names)
     path$ = "neon-caster/" + file$
     IF NOT _FILEEXISTS(path$) THEN ' Fall back TO the folder NEXT TO the EXE
         exe$ = COMMAND$(0) : i = _INSTRREV(exe$, "/") : IF i = 0 THEN i = _INSTRREV(exe$, "\")

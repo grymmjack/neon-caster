@@ -13,51 +13,51 @@
 ' and you beat it - the computer pays out, from the trigger's cell (or in
 ' front of you); anything else, you didn't. No qb64pe to build it with,
 ' and the computer says so.
-RunProgram:
-pgName$ = LCASE$(LTRIM$(RTRIM$(conA$)))
-IF demoPlay THEN ' (a demo: what the program answered, as recorded - it isn't run again; -999: it never ran)
-    demoKind$ = "r" : GOSUB DemoTakeRes : rc = demoRes
-    IF rc <> -999 THEN GOSUB ProgramPaid
-    RETURN
-END IF
-rc = -999 : GOSUB ProgramRun
-IF demoRec THEN demoKind$ = "r" : demoRes = rc : GOSUB DemoEvent
-RETURN
+SUB RunProgram STATIC
+    pgName$ = LCASE$(LTRIM$(RTRIM$(conA$)))
+    IF demoPlay THEN ' (a demo: what the program answered, as recorded - it isn't run again; -999: it never ran)
+        demoKind$ = "r" : DemoTakeRes : rc = demoRes
+        IF rc <> -999 THEN ProgramPaid
+        EXIT SUB
+    END IF
+    rc = -999 : ProgramRun
+    IF demoRec THEN demoKind$ = "r" : demoRes = rc : DemoEvent
+END SUB
 
-ProgramRun:
-pgSrc$ = AssetPath$("programs/" + pgName$ + ".bas")
-IF pgName$ = "" OR NOT _FILEEXISTS(pgSrc$) THEN ConPrint "program: no neon-caster/programs/" + pgName$ + ".bas" : ShowMsg "SYSTEM ERROR - no program called " + pgName$ : RETURN
-MakeSaveDir : pgDir$ = SaveDir$ + "programs"
-IF NOT _DIREXISTS(pgDir$) THEN MKDIR pgDir$
-pgDir$ = _FULLPATH$(pgDir$) : IF RIGHT$(pgDir$, 1) = "/" OR RIGHT$(pgDir$, 1) = "\" THEN pgDir$ = LEFT$(pgDir$, LEN(pgDir$) - 1)
-win = INSTR(_OS$, "[WINDOWS]") > 0 : q$ = CHR$(34)
-pgExe$ = pgDir$ + "/" + pgName$ : IF win THEN pgExe$ = Slashes$(pgExe$ + ".exe")
-IF NOT _FILEEXISTS(pgExe$) THEN ' (built once: the next time it just runs)
-    qb$ = QB64Path$
-    IF qb$ = "" THEN ShowMsg "This computer's program needs qb64pe to build it (SETTINGS > QB64PE COMPILER)" : RETURN
-    CLS , _RGB32(4, 2, 14) : MenuText 400, 280, "LOADING " + UCASE$(pgName$) + "...", 3, _RGB32(80, 240, 255), 1 ' (a frame to look at while it builds)
-    IF glReady THEN GLSL_filter_capture
-    GLScreenLayer glReady : ShowFrame
-    pgSrcF$ = _FULLPATH$(pgSrc$) : IF win THEN pgSrcF$ = Slashes$(pgSrcF$)
-    rc = SHELL(q$ + qb$ + q$ + " -w -x " + q$ + pgSrcF$ + q$ + " -o " + q$ + pgExe$ + q$)
-    IF NOT _FILEEXISTS(pgExe$) THEN ShowMsg "SYSTEM ERROR - " + pgName$ + " wouldn't build (qb64pe)" : ConPrint "program: qb64pe couldn't build " + pgSrc$ : rc = -999 : RETURN
-END IF
-WorldLoopsOff
-rc = SHELL(q$ + pgExe$ + q$)
-GOSUB ProgramPaid
-RETURN
+SUB ProgramRun STATIC
+    pgSrc$ = AssetPath$("programs/" + pgName$ + ".bas")
+    IF pgName$ = "" OR NOT _FILEEXISTS(pgSrc$) THEN ConPrint "program: no neon-caster/programs/" + pgName$ + ".bas" : ShowMsg "SYSTEM ERROR - no program called " + pgName$ : EXIT SUB
+    MakeSaveDir : pgDir$ = SaveDir$ + "programs"
+    IF NOT _DIREXISTS(pgDir$) THEN MKDIR pgDir$
+    pgDir$ = _FULLPATH$(pgDir$) : IF RIGHT$(pgDir$, 1) = "/" OR RIGHT$(pgDir$, 1) = "\" THEN pgDir$ = LEFT$(pgDir$, LEN(pgDir$) - 1)
+    win = INSTR(_OS$, "[WINDOWS]") > 0 : q$ = CHR$(34)
+    pgExe$ = pgDir$ + "/" + pgName$ : IF win THEN pgExe$ = Slashes$(pgExe$ + ".exe")
+    IF NOT _FILEEXISTS(pgExe$) THEN ' (built once: the next time it just runs)
+        qb$ = QB64Path$
+        IF qb$ = "" THEN ShowMsg "This computer's program needs qb64pe to build it (SETTINGS > QB64PE COMPILER)" : EXIT SUB
+        CLS , _RGB32(4, 2, 14) : MenuText 400, 280, "LOADING " + UCASE$(pgName$) + "...", 3, _RGB32(80, 240, 255), 1 ' (a frame to look at while it builds)
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady : ShowFrame
+        pgSrcF$ = _FULLPATH$(pgSrc$) : IF win THEN pgSrcF$ = Slashes$(pgSrcF$)
+        rc = SHELL(q$ + qb$ + q$ + " -w -x " + q$ + pgSrcF$ + q$ + " -o " + q$ + pgExe$ + q$)
+        IF NOT _FILEEXISTS(pgExe$) THEN ShowMsg "SYSTEM ERROR - " + pgName$ + " wouldn't build (qb64pe)" : ConPrint "program: qb64pe couldn't build " + pgSrc$ : rc = -999 : EXIT SUB
+    END IF
+    WorldLoopsOff
+    rc = SHELL(q$ + pgExe$ + q$)
+    ProgramPaid
+END SUB
 
-ProgramPaid: ' (what its answer brings: the same whether it ran just now or a demo says so)
-_KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : spaceWas = -1
-IF rc = 1 THEN
-    IF conFromTrig THEN px = trigX0(trigK) + 0.5 : py = trigY0(trigK) + 0.5 ELSE px = playerX + dirX : py = playerY + dirY
-    a = DAtan2(playerY - py, playerX - px)
-    TossItem StashLoot(0), px, py, a - 0.4, playerX, playerY : TossItem StashLoot(1), px, py, a + 0.4, playerX, playerY
-    PlaySfx sndFanfare&, 0.8 : ShowMsg "HIGH SCORE! The computer pays out" : Achieve "NC_ARCADE", 0
-ELSE
-    ShowMsg "GAME OVER - " + UCASE$(pgName$) + " beat you this time"
-END IF
-RETURN
+SUB ProgramPaid STATIC ' (what its answer brings: the same whether it ran just now or a demo says so)
+    _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : spaceWas = -1
+    IF rc = 1 THEN
+        IF conFromTrig THEN px = trigX0(trigK) + 0.5 : py = trigY0(trigK) + 0.5 ELSE px = playerX + dirX : py = playerY + dirY
+        a = DAtan2(playerY - py, playerX - px)
+        TossItem StashLoot(0), px, py, a - 0.4, playerX, playerY : TossItem StashLoot(1), px, py, a + 0.4, playerX, playerY
+        PlaySfx sndFanfare&, 0.8 : ShowMsg "HIGH SCORE! The computer pays out" : Achieve "NC_ARCADE", 0
+    ELSE
+        ShowMsg "GAME OVER - " + UCASE$(pgName$) + " beat you this time"
+    END IF
+END SUB
 
 ' --- NEON PONG, on computer arcDeco (Space on a terminal, a console or a
 ' bank of screens): you on the left, the machine on the right, first to
@@ -67,81 +67,84 @@ RETURN
 ' with, flying out of it (TossItem) - and it's done (vendState 3). Lose,
 ' or Esc, and you can try again. The ball speeds up each time it's hit,
 ' and comes off a paddle steeper the further from its middle it hits.
-ArcadeRun:
-IF demoPlay THEN demoKind$ = "a" : GOSUB DemoTakeRes : arcWon = (demoRes = 1) : arcDone = (demoRes = 2) : GOTO ArcadeEnd ' (a demo: the game's result, as recorded)
-WorldLoopsOff : _MOUSESHOW : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
-arcPY = 300 : arcCY = 300 : arcMe = 0 : arcIt = 0 : arcDone = 0 : arcWon = 0 : arcServe = 60 : arcDir = 1
-arcBX = 400 : arcBY = 300 : arcVX = 0 : arcVY = 0 : arcMouseY = _MOUSEY
-DO
-    _LIMIT 60
-    WHILE _MOUSEINPUT : WEND
-    IF _MOUSEY <> arcMouseY THEN arcMouseY = _MOUSEY : arcPY = arcMouseY ' (the mouse moved: the paddle goes where it is)
-    IF _KEYDOWN(18432) THEN arcPY = arcPY - 8
-    IF _KEYDOWN(20480) THEN arcPY = arcPY + 8
-    arcPY = MaxOf(ARC_TOP + ARC_PAD / 2, MinOf(ARC_BOT - ARC_PAD / 2, arcPY))
-    k& = _KEYHIT
-    DO WHILE k&
-        IF k& = 27 THEN arcDone = -1
+SUB ArcadeRun STATIC
+    IF demoPlay THEN demoKind$ = "a" : DemoTakeRes : arcWon = (demoRes = 1) : arcDone = (demoRes = 2) : ArcadeEnd : EXIT SUB ' (a demo: the game's result, as recorded)
+    WorldLoopsOff : _MOUSESHOW : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+    arcPY = 300 : arcCY = 300 : arcMe = 0 : arcIt = 0 : arcDone = 0 : arcWon = 0 : arcServe = 60 : arcDir = 1
+    arcBX = 400 : arcBY = 300 : arcVX = 0 : arcVY = 0 : arcMouseY = _MOUSEY
+    DO
+        _LIMIT 60
+        WHILE _MOUSEINPUT : WEND
+        IF _MOUSEY <> arcMouseY THEN arcMouseY = _MOUSEY : arcPY = arcMouseY ' (the mouse moved: the paddle goes where it is)
+        IF _KEYDOWN(18432) THEN arcPY = arcPY - 8
+        IF _KEYDOWN(20480) THEN arcPY = arcPY + 8
+        arcPY = MaxOf(ARC_TOP + ARC_PAD / 2, MinOf(ARC_BOT - ARC_PAD / 2, arcPY))
         k& = _KEYHIT
-    LOOP
-    IF arcDone THEN EXIT DO
-    ' The machine: after the ball, a little slow - and slower than the ball, later on
-    t = arcBY : IF arcVX < 0 THEN t = 300 ' (the ball going away: back to the middle)
-    arcCY = arcCY + MaxOf(-5.2, MinOf(5.2, (t - arcCY) * 0.14))
-    arcCY = MaxOf(ARC_TOP + ARC_PAD / 2, MinOf(ARC_BOT - ARC_PAD / 2, arcCY))
-    IF arcServe > 0 THEN ' (a moment between points, then a serve - towards whoever lost the last one)
-        arcServe = arcServe - 1 : arcBX = 400 : arcBY = 300
-        IF arcServe = 0 THEN arcVX = 5 * arcDir : arcVY = (RND - 0.5) * 6
-    ELSE
-        arcBX = arcBX + arcVX : arcBY = arcBY + arcVY
-        IF arcBY < ARC_TOP + 6 THEN arcBY = ARC_TOP + 6 : arcVY = ABS(arcVY) : PlaySfx sndMenuMove&, 0.4
-        IF arcBY > ARC_BOT - 6 THEN arcBY = ARC_BOT - 6 : arcVY = -ABS(arcVY) : PlaySfx sndMenuMove&, 0.4
-        IF arcVX < 0 AND arcBX < 70 AND arcBX > 50 AND ABS(arcBY - arcPY) < ARC_PAD / 2 + 6 THEN ' Your paddle
-            arcVX = MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcPY) / (ARC_PAD / 2) * 7 : PlaySfx sndMenuSelect&, 0.6
+        DO WHILE k&
+            IF k& = 27 THEN arcDone = -1
+            k& = _KEYHIT
+        LOOP
+        IF arcDone THEN EXIT DO
+        ' The machine: after the ball, a little slow - and slower than the ball, later on
+        t = arcBY : IF arcVX < 0 THEN t = 300 ' (the ball going away: back to the middle)
+        arcCY = arcCY + MaxOf(-5.2, MinOf(5.2, (t - arcCY) * 0.14))
+        arcCY = MaxOf(ARC_TOP + ARC_PAD / 2, MinOf(ARC_BOT - ARC_PAD / 2, arcCY))
+        IF arcServe > 0 THEN ' (a moment between points, then a serve - towards whoever lost the last one)
+            arcServe = arcServe - 1 : arcBX = 400 : arcBY = 300
+            IF arcServe = 0 THEN arcVX = 5 * arcDir : arcVY = (RND - 0.5) * 6
+        ELSE
+            arcBX = arcBX + arcVX : arcBY = arcBY + arcVY
+            IF arcBY < ARC_TOP + 6 THEN arcBY = ARC_TOP + 6 : arcVY = ABS(arcVY) : PlaySfx sndMenuMove&, 0.4
+            IF arcBY > ARC_BOT - 6 THEN arcBY = ARC_BOT - 6 : arcVY = -ABS(arcVY) : PlaySfx sndMenuMove&, 0.4
+            IF arcVX < 0 AND arcBX < 70 AND arcBX > 50 AND ABS(arcBY - arcPY) < ARC_PAD / 2 + 6 THEN ' Your paddle
+                arcVX = MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcPY) / (ARC_PAD / 2) * 7 : PlaySfx sndMenuSelect&, 0.6
+            END IF
+            IF arcVX > 0 AND arcBX > 730 AND arcBX < 750 AND ABS(arcBY - arcCY) < ARC_PAD / 2 + 6 THEN ' Its paddle
+                arcVX = -MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcCY) / (ARC_PAD / 2) * 7 : PlaySfx sndMenuSelect&, 0.6
+            END IF
+            IF arcBX < 10 THEN arcIt = arcIt + 1 : arcServe = 60 : arcDir = -1 : PlaySfx sndLocked&, 0.6
+            IF arcBX > 790 THEN arcMe = arcMe + 1 : arcServe = 60 : arcDir = 1 : PlaySfx sndPlate&, 0.8
         END IF
-        IF arcVX > 0 AND arcBX > 730 AND arcBX < 750 AND ABS(arcBY - arcCY) < ARC_PAD / 2 + 6 THEN ' Its paddle
-            arcVX = -MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcCY) / (ARC_PAD / 2) * 7 : PlaySfx sndMenuSelect&, 0.6
-        END IF
-        IF arcBX < 10 THEN arcIt = arcIt + 1 : arcServe = 60 : arcDir = -1 : PlaySfx sndLocked&, 0.6
-        IF arcBX > 790 THEN arcMe = arcMe + 1 : arcServe = 60 : arcDir = 1 : PlaySfx sndPlate&, 0.8
-    END IF
-    IF arcMe >= ARC_WIN OR arcIt >= ARC_WIN THEN arcWon = (arcMe >= ARC_WIN) : EXIT DO
-    DrawArcade arcPY, arcCY, arcBX, arcBY, arcMe, arcIt, (arcServe = 0 OR (arcServe \ 8) MOD 2 = 0), ""
-    IF glReady THEN GLSL_filter_capture
-    GLScreenLayer glReady : ShowFrame
-LOOP
-IF NOT arcDone THEN ' (the result, a moment)
-    IF arcWon THEN PlaySfx sndFanfare&, 0.8 ELSE PlaySfx sndFail&, 0.8
-    FOR f = 1 TO 120
-        _LIMIT 60 : WHILE _MOUSEINPUT : WEND
-        IF arcWon THEN t$ = "YOU WIN!" ELSE t$ = "GAME OVER"
-        DrawArcade arcPY, arcCY, 400, 300, arcMe, arcIt, 0, t$
+        IF arcMe >= ARC_WIN OR arcIt >= ARC_WIN THEN arcWon = (arcMe >= ARC_WIN) : EXIT DO
+        DrawArcade arcPY, arcCY, arcBX, arcBY, arcMe, arcIt, (arcServe = 0 OR (arcServe \ 8) MOD 2 = 0), ""
         IF glReady THEN GLSL_filter_capture
         GLScreenLayer glReady : ShowFrame
-    NEXT
-END IF
-IF demoRec THEN ' (a demo: the game's result - 1 won, 2 left with Esc, 0 lost)
-    demoKind$ = "a" : demoRes = 0
-    IF arcWon THEN demoRes = 1 ELSE IF arcDone THEN demoRes = 2
-    GOSUB DemoEvent
-END IF
-ArcadeEnd:
-_KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
-escWas = -1 : fireWait = 15 : spaceWas = -1
-IF arcWon THEN
-    vendState(arcDeco) = 3 : ShowMsg "HIGH SCORE! The machine pays out" : Achieve "NC_ARCADE", 0
-    a = DAtan2(playerY - decoY(arcDeco), playerX - decoX(arcDeco))
-    TossItem StashLoot(0), decoX(arcDeco), decoY(arcDeco), a - 0.4, playerX, playerY
-    TossItem StashLoot(1), decoX(arcDeco), decoY(arcDeco), a + 0.4, playerX, playerY
-ELSEIF NOT arcDone THEN
-    ShowMsg "GAME OVER - insert coin (Space) to try again"
-END IF
-RETURN
+    LOOP
+    IF NOT arcDone THEN ' (the result, a moment)
+        IF arcWon THEN PlaySfx sndFanfare&, 0.8 ELSE PlaySfx sndFail&, 0.8
+        FOR f = 1 TO 120
+            _LIMIT 60 : WHILE _MOUSEINPUT : WEND
+            IF arcWon THEN t$ = "YOU WIN!" ELSE t$ = "GAME OVER"
+            DrawArcade arcPY, arcCY, 400, 300, arcMe, arcIt, 0, t$
+            IF glReady THEN GLSL_filter_capture
+            GLScreenLayer glReady : ShowFrame
+        NEXT
+    END IF
+    IF demoRec THEN ' (a demo: the game's result - 1 won, 2 left with Esc, 0 lost)
+        demoKind$ = "a" : demoRes = 0
+        IF arcWon THEN demoRes = 1 ELSE IF arcDone THEN demoRes = 2
+        DemoEvent
+    END IF
+    ArcadeEnd ' (and on into the next part)
+END SUB
+SUB ArcadeEnd STATIC
+    _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+    escWas = -1 : fireWait = 15 : spaceWas = -1
+    IF arcWon THEN
+        vendState(arcDeco) = 3 : ShowMsg "HIGH SCORE! The machine pays out" : Achieve "NC_ARCADE", 0
+        a = DAtan2(playerY - decoY(arcDeco), playerX - decoX(arcDeco))
+        TossItem StashLoot(0), decoX(arcDeco), decoY(arcDeco), a - 0.4, playerX, playerY
+        TossItem StashLoot(1), decoX(arcDeco), decoY(arcDeco), a + 0.4, playerX, playerY
+    ELSEIF NOT arcDone THEN
+        ShowMsg "GAME OVER - insert coin (Space) to try again"
+    END IF
+END SUB
 
 ' NEON PONG's screen (ArcadeRun): the court, the paddles (you: py, the
 ' machine: cy), the ball at (bx, by) if ballOn, the score, and big$ (YOU
 ' WIN! / GAME OVER) over it all at the end
 SUB DrawArcade(py, cy, bx, by, me, it, ballOn, big$)
+    DIM g, y ' (its own: the main program shares these names)
     LINE (0, 0)-(799, 599), _RGB32(4, 2, 14), BF
     FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGB32(0, 0, 0) : NEXT ' (scanlines: it's an old screen)
     LINE (20, ARC_TOP - 4)-(779, ARC_TOP - 1), _RGB32(255, 60, 200), BF : LINE (20, ARC_BOT + 1)-(779, ARC_BOT + 4), _RGB32(255, 60, 200), BF

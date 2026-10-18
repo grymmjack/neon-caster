@@ -48,7 +48,7 @@
     ' WHILE _MOUSEINPUT reads them all, one at a time, until the queue is
     ' empty. A click that starts and ends between two frames would be
     ' missed by just checking the button, so "clicked" remembers it.
-    IF artWant <> artNow THEN GOSUB ArtReload ' (ART or the renderer changed: chapter 23)
+    IF artWant <> artNow THEN ArtReload ' (ART or the renderer changed: chapter 23)
     mouseDX = 0 : mouseDY = 0 : mouseWheel = 0
     WHILE _MOUSEINPUT
         mouseDX = mouseDX + _MOUSEMOVEMENTX : mouseDY = mouseDY + _MOUSEMOVEMENTY
@@ -76,7 +76,7 @@
     ' Keys go through the key bindings (chapter 21): KeyHeld(BIND_FIRE) asks
     ' "is the key you chose for firing held down?" - left Ctrl, unless you
     ' changed it in the menu.
-    IF hudEdit THEN GOSUB HudEditFrame : mouseDX = 0 : mouseDY = 0 : clicked = 0 ' (the HUD layout editor has the mouse - chapter 21)
+    IF hudEdit THEN HudEditFrame : mouseDX = 0 : mouseDY = 0 : clicked = 0 ' (the HUD layout editor has the mouse - chapter 21)
     fireDown = _MOUSEBUTTON(1) OR clicked OR KeyHeld(BIND_FIRE)
     IF hudEdit THEN fireDown = 0
     IF conFire > 0 THEN conFire = conFire - 1 : fireDown = -1 ' (the console's fire: holding the trigger)
@@ -87,7 +87,7 @@
     ' Esc opens the menu (chapter 21), and the game waits while it's open
     escDown = _KEYDOWN(27) AND NOT hudEdit AND NOT edTyping
     IF escDown AND NOT escWas THEN
-        menuInGame = -1 : GOSUB RunMenu : edMouseFix = -1 ' (the menu captured the mouse: the editor's pointer back)
+        menuInGame = -1 : RunMenu : edMouseFix = -1 ' (the menu captured the mouse: the editor's pointer back)
         mouseDX = 0 : mouseDY = 0 : mouseWheel = 0 : clicked = 0 : fireDown = 0 : spaceDown = 0
         fireWait = 15 ' (so the click that closed the menu doesn't fire)
     END IF
@@ -97,11 +97,11 @@
     ' or, with a demo playing, the ones it recorded. Everything below asks
     ' inBits, not the keyboard, so a demo plays exactly as it was played.
     lookAim = (glMode <> 0) AND (setting(SET_LOOK) <> 0) ' (can a shot go high or low? OpenGL's LOOK UP / DOWN - a demo keeps its own)
-    GOSUB DemoInput
+    DemoInput
 
     IF dead THEN
         ' Dead: the view stays put; click or Space (after a moment) starts over
-        IF deadTicks > 72 AND ((fireDown AND NOT fireWas) OR (spaceDown AND NOT spaceWas)) THEN GOSUB RestartLevel
+        IF deadTicks > 72 AND ((fireDown AND NOT fireWas) OR (spaceDown AND NOT spaceWas)) THEN RestartLevel
         mouseDX = 0 : mouseDY = 0 : mouseWheel = 0
     END IF
 
@@ -139,8 +139,8 @@
         pitch = pitch * 0.8
     END IF
     IF demoPlay THEN pitch = inPU / 1000 ELSE IF demoRec THEN inPU = CLNG(pitch * 1000) : pitch = inPU / 1000 ' (and its look up or down, in thousandths)
-    IF demoRec THEN GOSUB DemoWriteFrame
-    IF demoTrace AND (demoRec OR demoPlay) THEN GOSUB DemoTraceOut ' (NEON_DEMO_TRACE: the game's state each frame, into the log - two runs' logs side by side show where they part)
+    IF demoRec THEN DemoWriteFrame
+    IF demoTrace AND (demoRec OR demoPlay) THEN DemoTraceOut ' (NEON_DEMO_TRACE: the game's state each frame, into the log - two runs' logs side by side show where they part)
 
     ' Zooming. The camera plane's length sets how wide the view is, so a
     ' shorter plane (fovPlane / zoom) is a narrower view - and a narrower

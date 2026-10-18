@@ -102,11 +102,11 @@
     ' chapter 21): the same saving and loading as the menu, in the
     ' "quick" slot
     qsDown = KeyHeld(BIND_QUICKSAVE) AND NOT edTyping
-    IF qsDown AND NOT qsWas AND NOT dead THEN saveSlot = 0 : GOSUB SaveGame
+    IF qsDown AND NOT qsWas AND NOT dead THEN saveSlot = 0 : SaveGame
     qsWas = qsDown
     qlDown = KeyHeld(BIND_QUICKLOAD) AND NOT edTyping
     IF qlDown AND NOT qlWas THEN
-        IF editMode THEN EditNote "No quick load in the editor (it would lose your changes) - F2 out first" ELSE saveSlot = 0 : GOSUB LoadGame
+        IF editMode THEN EditNote "No quick load in the editor (it would lose your changes) - F2 out first" ELSE saveSlot = 0 : LoadGame
     END IF
     qlWas = qlDown
     ' Tab: the full-screen map on or off (drawn in chapter 18). In the

@@ -12,6 +12,7 @@
 
 
 ' CORE ------------------------------------------------------------------------
+'$INCLUDE:'./CORE/STATE.BI'
 '$INCLUDE:'./CORE/WINDOW.BI'
 '$INCLUDE:'./CORE/SETTINGS.BI'
 '$INCLUDE:'./CORE/KEYS.BI'
@@ -45,6 +46,7 @@
 '$INCLUDE:'./GAME/MONTYPES.BI'
 '$INCLUDE:'./GAME/TRIGGERS.BI'
 '$INCLUDE:'./GAME/TELEPORTERS.BI'
+'$INCLUDE:'./GAME/ARCADE.BI'
 
 ' LEVEL -----------------------------------------------------------------------
 '$INCLUDE:'./LEVEL/LEVELS.BI'
@@ -82,6 +84,7 @@
 ' EDITOR ----------------------------------------------------------------------
 '$INCLUDE:'./EDITOR/MONEDIT.BI'
 '$INCLUDE:'./EDITOR/EDITOR.BI'
+'$INCLUDE:'./EDITOR/HUDEDIT.BI'
 
 ' DEMO ------------------------------------------------------------------------
 '$INCLUDE:'./DEMO/DEMO.BI'

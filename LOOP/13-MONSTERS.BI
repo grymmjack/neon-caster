@@ -36,7 +36,7 @@
         ' Kicked over the edge of a pit with no bottom (it never walks off
         ' one): gone into the dark
         IF monsterState(i) < 2 AND NOT levelFlat THEN
-            IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH THEN target = i : hitDamage = 9999 : GOSUB HitMonster : ShowMsg "Over the edge!" : Achieve "NC_OVER_EDGE", 0
+            IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH THEN target = i : hitDamage = 9999 : HitMonster : ShowMsg "Over the edge!" : Achieve "NC_OVER_EDGE", 0
         END IF
         ' Knocked into a harmful liquid (it never walks into one): it hurts
         ' as it does you - but not what hovers over it
@@ -45,7 +45,7 @@
             IF mlk THEN
                 IF lqHurt(mlk) > 0 AND lqEvery(mlk) > 0 AND mtypeLift(monsterType(i)) = 0 THEN ' (QB64 works out every part of an AND: the MOD only once lqEvery is known not to be 0)
                     IF (liqTick + i) MOD lqEvery(mlk) = 0 THEN
-                        target = i : hitDamage = MaxOf(1, lqHurt(mlk) \ 3) : GOSUB HitMonster
+                        target = i : hitDamage = MaxOf(1, lqHurt(mlk) \ 3) : HitMonster
                         SpawnSparks monsterX(i), monsterY(i), liqZ(INT(monsterX(i)), INT(monsterY(i))) - FloorAt(monsterX(i), monsterY(i)), 8, lqR(mlk), lqG(mlk), lqB(mlk)
                     END IF
                 END IF
@@ -83,7 +83,7 @@
                 IF NOT dead AND distance > 0.01 THEN
                     goX = 0 : goY = 0
                     IF mtype = MT_THIEF THEN
-                        GOSUB ThiefStep
+                        ThiefStep
                     ELSEIF mtypeRanged(mtype) THEN
                         ' Gunner: keep its distance, shoot when it has a clear line
                         ' (a sentry can't move, so it just shoots)
@@ -111,7 +111,7 @@
                     ELSEIF monsterTimer(i) = 0 THEN ' ...and hit
                         damage = mtypeDamage(mtype) + INT(GRnd * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
                         PlaySfx mtypeAttackSnd&(mtype), 0.9
-                        hurtFromX = monsterX(i) : hurtFromY = monsterY(i) : GOSUB HurtPlayer
+                        hurtFromX = monsterX(i) : hurtFromY = monsterY(i) : HurtPlayer
                         monsterAtk(i) = ATTACK_FRAMES
                     END IF
                     IF (goX <> 0 OR goY <> 0) AND mtypeSpeed(mtype) > 0 THEN ' A door in the way? Open it (MonsterDoor, chapter 11)
@@ -163,11 +163,11 @@
             IF boltOn(i) = 0 THEN
             ELSEIF InGlass(boltX(i), boltY(i)) THEN ' Glass: it bursts on it, and cracks it
                 boltOn(i) = 0 : SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
-                glassHitX = INT(boltX(i)) : glassHitY = INT(boltY(i)) : glassAtX = boltX(i) : glassAtY = boltY(i) : glassDmg = 1 : GOSUB HitGlass
+                glassHitX = INT(boltX(i)) : glassHitY = INT(boltY(i)) : glassAtX = boltX(i) : glassAtY = boltY(i) : glassDmg = 1 : HitGlass
             ELSEIF BoltDeco(boltX(i), boltY(i), boltZ(i)) THEN ' A decoration in its way: the bolt bursts on it - and hurts it as your shots do (a crate breaks, loot and all; a barrel blows)
                 targetDeco = BoltDeco(boltX(i), boltY(i), boltZ(i)) : boltOn(i) = 0
                 SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, boltZ(i) - FloorAt(boltX(i), boltY(i)), 7, 255, 60, 230
-                hitDamage = boltDamage(i) : hitKick = 0 : decoByMon = -1 : GOSUB HitDeco : decoByMon = 0
+                hitDamage = boltDamage(i) : hitKick = 0 : decoByMon = -1 : HitDeco : decoByMon = 0
             ELSEIF NOT Walkable(boltX(i), boltY(i)) THEN
                 boltOn(i) = 0 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
                 SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
@@ -175,7 +175,7 @@
             ELSEIF NOT dead AND (boltX(i) - playerX) ^ 2 + (boltY(i) -playerY) ^ 2 < 0.35 * 0.35 AND ABS(boltZ(i) - playerZ - 0.45) < 0.5 THEN
                 boltOn(i) = 0 : damage = boltDamage(i)
                 hurtFromX = boltX(i) - boltDX(i) * 2 : hurtFromY = boltY(i) - boltDY(i) * 2 ' (back along its path)
-                GOSUB HurtPlayer
+                HurtPlayer
             END IF
         END IF
     NEXT
@@ -187,9 +187,9 @@
     FOR i = 1 TO numDecos
         IF decoFuse(i) > 0 THEN
             decoFuse(i) = decoFuse(i) - 1
-            IF decoFuse(i) = 0 THEN barrel = i : GOSUB Explode
+            IF decoFuse(i) = 0 THEN barrel = i : Explode
         END IF
-        IF vendState(i) = 1 OR vendState(i) = 2 THEN GOSUB VendStep ' (a vending machine you pressed Space on)
+        IF vendState(i) = 1 OR vendState(i) = 2 THEN VendStep ' (a vending machine you pressed Space on)
         IF decoTimer(i) > 0 THEN decoTimer(i) = decoTimer(i) - 1 ' A broken one collapsing
     NEXT
     FOR i = 1 TO numItems ' Loot thrown out of something broken, flying to where it lands (TossItem)

@@ -10,43 +10,43 @@
 ' --- A shot hits monster number target - in its weak spot, if head is on
 ' (it reached it at height headZ): then WEAK_MULT times hitDamage, a cry
 ' of pain, a crunch, and a burst of sparks there
-HitMonsterAimed:
-IF head THEN
-    hitWas = hitDamage : hitDamage = hitDamage * WEAK_MULT : GOSUB HitMonster : hitDamage = hitWas
-    IF achHeadAt <> achFrame AND NOT cyberOn THEN AchAdd "Headshots", 1 : achHeadAt = achFrame ' (once a shot: the scatter's seven pellets are one headshot)
-    IF monsterState(target) < 2 THEN SfxAt mtypePainSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
-    IF sndHeadshot& THEN PlaySfx sndHeadshot&, 0.8
-    SpawnSparks monsterX(target), monsterY(target), MaxOf(0.05, headZ - FloorAt(monsterX(target), monsterY(target))), 18, 255, 230, 120
-ELSE
-    GOSUB HitMonster
-END IF
-head = 0
-RETURN
+SUB HitMonsterAimed STATIC
+    IF head THEN
+        hitWas = hitDamage : hitDamage = hitDamage * WEAK_MULT : HitMonster : hitDamage = hitWas
+        IF achHeadAt <> achFrame AND NOT cyberOn THEN AchAdd "Headshots", 1 : achHeadAt = achFrame ' (once a shot: the scatter's seven pellets are one headshot)
+        IF monsterState(target) < 2 THEN SfxAt mtypePainSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
+        IF sndHeadshot& THEN PlaySfx sndHeadshot&, 0.8
+        SpawnSparks monsterX(target), monsterY(target), MaxOf(0.05, headZ - FloorAt(monsterX(target), monsterY(target))), 18, 255, 230, 120
+    ELSE
+        HitMonster
+    END IF
+    head = 0
+END SUB
 
 ' --- A shot (or blast) hits monster number target, for hitDamage
-HitMonster:
-monsterHP(target) = monsterHP(target) - hitDamage : monsterHurt(target) = 8
-IF monsterType(target) = MT_THIEF AND thiefState(target) = 2 AND monsterHP(target) > 0 AND NOT cyberOn THEN ThiefSpill target ' (a thief with your things: each hit knocks some loose)
-IF monsterState(target) = 0 THEN monsterState(target) = 1 : monsterTimer(target) = 30 ' Shot awake (chapter 13)
-IF monsterHP(target) <= 0 AND monsterState(target) < 2 THEN
-    monsterState(target) = 2 : monsterTimer(target) = MON_DYING : kills = kills + 1
-    mt = monsterType(target) ' (its drop - monsters.txt)
-    IF NOT cyberOn THEN ' (achievements: the network's ICE doesn't count)
-        AchAdd "Kills", 1 : IF mt >= 1 AND mt <= 9 THEN AchBit "KillKinds", mt - 1
-        IF mt = 8 THEN Achieve "NC_OVERSEER", 0
-        IF mt = MT_THIEF THEN Achieve "NC_THIEF", 0
-        IF ampTimer > 0 THEN achAmpKills = achAmpKills + 1 : IF achAmpKills >= 5 THEN Achieve "NC_AMPED", 0
-        IF achInBlast THEN achBlastKills = achBlastKills + 1 : IF achBlastKills >= 3 THEN Achieve "NC_CHAIN", 0
+SUB HitMonster STATIC
+    monsterHP(target) = monsterHP(target) - hitDamage : monsterHurt(target) = 8
+    IF monsterType(target) = MT_THIEF AND thiefState(target) = 2 AND monsterHP(target) > 0 AND NOT cyberOn THEN ThiefSpill target ' (a thief with your things: each hit knocks some loose)
+    IF monsterState(target) = 0 THEN monsterState(target) = 1 : monsterTimer(target) = 30 ' Shot awake (chapter 13)
+    IF monsterHP(target) <= 0 AND monsterState(target) < 2 THEN
+        monsterState(target) = 2 : monsterTimer(target) = MON_DYING : kills = kills + 1
+        mt = monsterType(target) ' (its drop - monsters.txt)
+        IF NOT cyberOn THEN ' (achievements: the network's ICE doesn't count)
+            AchAdd "Kills", 1 : IF mt >= 1 AND mt <= 9 THEN AchBit "KillKinds", mt - 1
+            IF mt = 8 THEN Achieve "NC_OVERSEER", 0
+            IF mt = MT_THIEF THEN Achieve "NC_THIEF", 0
+            IF ampTimer > 0 THEN achAmpKills = achAmpKills + 1 : IF achAmpKills >= 5 THEN Achieve "NC_AMPED", 0
+            IF achInBlast THEN achBlastKills = achBlastKills + 1 : IF achBlastKills >= 3 THEN Achieve "NC_CHAIN", 0
+        END IF
+        IF mtypeDrop(mt) > 0 AND NOT cyberOn THEN IF GRnd < mtypeDropChance(mt) THEN DropItemAt mtypeDrop(mt), monsterX(target), monsterY(target)
+        IF monsterType(target) = MT_THIEF THEN DropThiefLoot target
+        IF monsterType(target) = 8 THEN Say "bossdie", 0
+        SfxAt mtypeDieSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
+        IF kills = numMonsters THEN ShowMsg "SECTOR CLEAR - every monster destroyed!"
+    ELSE
+        SfxAt mtypeHitSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
     END IF
-    IF mtypeDrop(mt) > 0 AND NOT cyberOn THEN IF GRnd < mtypeDropChance(mt) THEN DropItemAt mtypeDrop(mt), monsterX(target), monsterY(target)
-    IF monsterType(target) = MT_THIEF THEN DropThiefLoot target
-    IF monsterType(target) = 8 THEN Say "bossdie", 0
-    SfxAt mtypeDieSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
-    IF kills = numMonsters THEN ShowMsg "SECTOR CLEAR - every monster destroyed!"
-ELSE
-    SfxAt mtypeHitSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
-END IF
-RETURN
+END SUB
 
 ' --- A thief bot's turn (monster i, hunting): run at you and grab what it
 ' can - half your ammo, and a gun (the one in your hands, unless that's the
@@ -54,70 +54,71 @@ RETURN
 ' a cell nearer the hoard) to its door, where it cowers. Hurt before it's
 ' got anything, it runs home empty-handed. A level with no hoard: it just
 ' runs away from you.
-ThiefStep:
-IF thiefState(i) = 0 AND monsterHurt(i) > 0 THEN thiefState(i) = 1
-IF thiefState(i) = 0 THEN
-    goX = toPlayerX / distance : goY = toPlayerY / distance
-    IF distance < mtypeReach(mtype) AND NOT GlassBetween(monsterX(i), monsterY(i), playerX, playerY) AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) <= 0.7 THEN ' Got you: grab (not up or down a ledge)
-        thiefCells(i) = ammoCount(AM_CELLS) \ 2 : thiefShells(i) = ammoCount(AM_SHELLS) \ 2
-        ammoCount(AM_CELLS) = ammoCount(AM_CELLS) - thiefCells(i) : ammoCount(AM_SHELLS) = ammoCount(AM_SHELLS) - thiefShells(i)
-        g = 0
-        IF currentGun <> W_BLASTER THEN
-            g = currentGun
-        ELSE
-            FOR gg = NUM_GUNS TO 2 STEP -1
-                IF hasGun(gg) AND g = 0 THEN g = gg
-            NEXT
+SUB ThiefStep STATIC
+    IF thiefState(i) = 0 AND monsterHurt(i) > 0 THEN thiefState(i) = 1
+    IF thiefState(i) = 0 THEN
+        goX = toPlayerX / distance : goY = toPlayerY / distance
+        IF distance < mtypeReach(mtype) AND NOT GlassBetween(monsterX(i), monsterY(i), playerX, playerY) AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) <= 0.7 THEN ' Got you: grab (not up or down a ledge)
+            thiefCells(i) = ammoCount(AM_CELLS) \ 2 : thiefShells(i) = ammoCount(AM_SHELLS) \ 2
+            ammoCount(AM_CELLS) = ammoCount(AM_CELLS) - thiefCells(i) : ammoCount(AM_SHELLS) = ammoCount(AM_SHELLS) - thiefShells(i)
+            g = 0
+            IF currentGun <> W_BLASTER THEN
+                g = currentGun
+            ELSE
+                FOR gg = NUM_GUNS TO 2 STEP -1
+                    IF hasGun(gg) AND g = 0 THEN g = gg
+                NEXT
+            END IF
+            IF g THEN hasGun(g) = 0 : IF currentGun = g THEN currentGun = W_BLASTER
+            IF g THEN IF nextGun = g THEN nextGun = W_BLASTER ' (the one you were swapping to: gone too)
+            thiefGun(i) = g : thiefState(i) = 2
+            PlaySfx sndSteal&, 1 : monsterAtk(i) = ATTACK_FRAMES
+            t$ = "A THIEF BOT grabbed"
+            IF g THEN t$ = t$ + " your " + gunName$(g) + " and"
+            ShowMsg t$ + " half your ammo! Get it back!"
+            IF RND < 0.5 THEN Say "thief", 0
         END IF
-        IF g THEN hasGun(g) = 0 : IF currentGun = g THEN currentGun = W_BLASTER
-        IF g THEN IF nextGun = g THEN nextGun = W_BLASTER ' (the one you were swapping to: gone too)
-        thiefGun(i) = g : thiefState(i) = 2
-        PlaySfx sndSteal&, 1 : monsterAtk(i) = ATTACK_FRAMES
-        t$ = "A THIEF BOT grabbed"
-        IF g THEN t$ = t$ + " your " + gunName$(g) + " and"
-        ShowMsg t$ + " half your ammo! Get it back!"
-        IF RND < 0.5 THEN Say "thief", 0
+    ELSE
+        cx = INT(monsterX(i)) : cy = INT(monsterY(i))
+        IF thiefDist(cx, cy) >= 30000 THEN ' (no way home: just away from you)
+            goX = -toPlayerX / distance : goY = -toPlayerY / distance
+        ELSEIF thiefDist(cx, cy) = 0 AND thiefState(i) = 2 THEN ' Home with your things: in through its door - and the hoard locks for good
+            ThiefEscape
+        ELSEIF thiefDist(cx, cy) > 0 THEN ' One cell nearer home
+            bx = cx : by = cy : bd = thiefDist(cx, cy)
+            FOR k = 1 TO 4
+                nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
+                IF thiefDist(nx, ny) < bd THEN bd = thiefDist(nx, ny) : bx = nx : by = ny
+            NEXT
+            tx = bx + 0.5 - monsterX(i) : ty = by + 0.5 - monsterY(i) : tl = SQR(tx * tx + ty * ty)
+            IF tl > 0.01 THEN goX = tx / tl : goY = ty / tl
+        END IF ' (home: it cowers - goX, goY stay 0)
     END IF
-ELSE
-    cx = INT(monsterX(i)) : cy = INT(monsterY(i))
-    IF thiefDist(cx, cy) >= 30000 THEN ' (no way home: just away from you)
-        goX = -toPlayerX / distance : goY = -toPlayerY / distance
-    ELSEIF thiefDist(cx, cy) = 0 AND thiefState(i) = 2 THEN ' Home with your things: in through its door - and the hoard locks for good
-        GOSUB ThiefEscape
-    ELSEIF thiefDist(cx, cy) > 0 THEN ' One cell nearer home
-        bx = cx : by = cy : bd = thiefDist(cx, cy)
-        FOR k = 1 TO 4
-            nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
-            IF thiefDist(nx, ny) < bd THEN bd = thiefDist(nx, ny) : bx = nx : by = ny
-        NEXT
-        tx = bx + 0.5 - monsterX(i) : ty = by + 0.5 - monsterY(i) : tl = SQR(tx * tx + ty * ty)
-        IF tl > 0.01 THEN goX = tx / tl : goY = ty / tl
-    END IF ' (home: it cowers - goX, goY stay 0)
-END IF
-RETURN
+END SUB
 
 ' --- Thief i is home with what it stole (at its hoard's door): it slips
 ' inside and locks it behind it - gone, your things with it, and that
 ' hoard shut for good (evState 3: no killing the rest opens it). Kill a
 ' thief before it gets there, and it can't.
-ThiefEscape:
-FOR evH = 1 TO numEvents
-    IF evType(evH) = EV_HOARD AND evState(evH) = 0 THEN
-        IF cx >= evX0(evH) - 2 AND cx <= evX1(evH) + 2 AND cy >= evY0(evH) - 2 AND cy <= evY1(evH) + 2 THEN
-            evState(evH) = 3 : monsterState(i) = 4 ' (4: gone - not dead, not drawn, not counted alive)
-            SpawnSparks monsterX(i), monsterY(i), 0.4, 14, 255, 200, 80
-            SfxAt sndDoor&, monsterX(i), monsterY(i), playerX, playerY : SfxAt sndLocked&, monsterX(i), monsterY(i), playerX, playerY
-            ShowMsg "The thief got home with your things - its hoard is LOCKED FOR GOOD!"
-            EXIT FOR
+SUB ThiefEscape STATIC
+    FOR evH = 1 TO numEvents
+        IF evType(evH) = EV_HOARD AND evState(evH) = 0 THEN
+            IF cx >= evX0(evH) - 2 AND cx <= evX1(evH) + 2 AND cy >= evY0(evH) - 2 AND cy <= evY1(evH) + 2 THEN
+                evState(evH) = 3 : monsterState(i) = 4 ' (4: gone - not dead, not drawn, not counted alive)
+                SpawnSparks monsterX(i), monsterY(i), 0.4, 14, 255, 200, 80
+                SfxAt sndDoor&, monsterX(i), monsterY(i), playerX, playerY : SfxAt sndLocked&, monsterX(i), monsterY(i), playerX, playerY
+                ShowMsg "The thief got home with your things - its hoard is LOCKED FOR GOOD!"
+                EXIT FOR
+            END IF
         END IF
-    END IF
-NEXT
-RETURN
+    NEXT
+END SUB
 
 ' One more monster, of type t, at (x, y) - if there's floor there, nothing
 ' else standing on it, and room in the list - hunting you at once, sent by
 ' event ev. It arrives in a flash of sparks, heard from where you are (px, py).
 FUNCTION SpawnMonster(t, x, y, ev, px, py)
+    DIM i, j, ok ' (its own: the main program shares these names)
     IF numMonsters >= MAX_MON THEN EXIT FUNCTION
     walkFromHaz = 10 : ok = Walkable%(x, y) : walkFromHaz = 0 ' (as a monster would: not in fire, not over a pit)
     IF NOT ok THEN EXIT FUNCTION
@@ -138,6 +139,7 @@ END FUNCTION
 ' Monster i, starting in cell (x, y): as every monster of its kind is - or
 ' as the level's [monsters] says this one is
 SUB MonOwn(i, x, y)
+    DIM k ' (its own: the main program shares these names)
     monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE
     FOR k = 1 TO lvlMonN
         IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN
@@ -156,6 +158,7 @@ END SUB
 ' out - a pack of cells or shells, whichever it has more of (a coin toss
 ' between them), or now and then the gun it took
 SUB ThiefSpill(i)
+    DIM a, k, x, y ' (its own: the main program shares these names)
     x = monsterX(i) : y = monsterY(i) : a = GRnd * 6.2832
     IF thiefGun(i) AND GRnd < 0.25 THEN
         SELECT CASE thiefGun(i)
@@ -174,6 +177,7 @@ END SUB
 
 ' A thief bot (monster i) is destroyed: what it stole spills out round it
 SUB DropThiefLoot(i)
+    DIM c, k, n, x, y ' (its own: the main program shares these names)
     x = monsterX(i) : y = monsterY(i) : n = 0
     IF thiefGun(i) THEN
         SELECT CASE thiefGun(i)
@@ -199,6 +203,7 @@ END SUB
 ' (the software renderer, or LOOK off) a shot finds a monster at any
 ' height in its column, as DOOM's aim does. Plenty of leeway either way.
 FUNCTION ShotPasses(i, z)
+    DIM t ' (its own: the main program shares these names)
     IF NOT lookAim THEN EXIT FUNCTION ' (level aim: whatever's in the middle column is hit, high or low)
     t = monsterType(i)
     foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t)
@@ -210,6 +215,7 @@ END FUNCTION
 ' like the floor) - turned into how far down its picture (0 top .. 1 foot),
 ' from where it stands and how tall it is, as chapter 16 draws it
 FUNCTION WeakSpotHit(i, u, z)
+    DIM t, v ' (its own: the main program shares these names)
     t = monsterType(i) : IF mtypeWS(t, 2) <= mtypeWS(t, 1) THEN EXIT FUNCTION
     foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t) + mtypeBob(t) * DSin(lvFrame / 24 + i * 1.7) ' (by the frame clock, not TIMER: a headshot depends on it - a demo must get the same)
     v = (foot + mtypeScale(t) - z) / mtypeScale(t)
@@ -220,6 +226,7 @@ END FUNCTION
 ' One [name] section a monster, "key = value" lines - the numbers of its
 ' SetMonType line (chapter 3), whether it shoots, and what it may drop
 SUB ReadMonsters
+    DIM c, k, l$, t, v ' (its own: the main program shares these names)
     f$ = AssetPath$("monsters.txt")
     IF NOT _FILEEXISTS(f$) THEN EXIT SUB
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh : t = 0
@@ -255,6 +262,7 @@ SUB ReadMonsters
 END SUB
 
 SUB WriteMonsters
+    DIM t ' (its own: the main program shares these names)
     nl$ = CHR$(10)
     o$ = "' NEON-CASTER monsters - every kind's numbers (chapter 3's SetMonType" + nl$
     o$ = o$ + "' lines), changed here without changing the program. The monster editor" + nl$
@@ -286,6 +294,7 @@ END SUB
 ' any (not a body: they lie flat) - its middle a little more than a bolt's
 ' width away, and the bolt no higher than its top
 FUNCTION BoltDeco(x, y, z)
+    DIM cx, cy, d ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
     IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE OR cyberOn THEN EXIT FUNCTION
     d = decoCell(cx, cy) : IF d = 0 THEN EXIT FUNCTION
@@ -299,6 +308,7 @@ END FUNCTION
 ' many steps to each open cell (a flood fill, as the moving lights' -
 ' chapter 24), through doors that need no keycard. 30000: no way.
 SUB BuildThiefWay
+    DIM ev, head, k, nx, ny, ok, v, x, y ' (its own: the main program shares these names)
     FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : thiefDist(x, y) = 30000 : NEXT : NEXT
     head = 0 : tail = 0
     FOR ev = 1 TO numEvents
@@ -342,6 +352,7 @@ END SUB
 
 ' A bolt from (x, y), flying along (dirX, dirY), into the first free slot
 SUB FireBolt(x, y, dirX, dirY, damage)
+    DIM d, i ' (its own: the main program shares these names)
     FOR i = 1 TO MAX_BOLTS
         IF boltOn(i) = 0 THEN
             boltOn(i) = -1 : boltX(i) = x + dirX * 0.4 : boltY(i) = y + dirY * 0.4

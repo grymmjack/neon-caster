@@ -17,7 +17,7 @@
 '   Like grymmjack's DRAW, the program is split by what each part is for.
 '   Each folder holds a few modules; a module is a .BI file (its CONSTs and
 '   DIM SHARED arrays, and any start-up that fills them in) and a .BM file
-'   (its SUBs and FUNCTIONs, and its GOSUB routines). _ALL.BI lists every
+'   (its SUBs and FUNCTIONs). _ALL.BI lists every
 '   .BI and _ALL.BM every .BM; this file includes _ALL.BI at the top and
 '   _ALL.BM at the bottom. $INCLUDE pastes a file in where it's named, so
 '   to QB64PE it's still one program.
@@ -47,7 +47,7 @@
 '     7-18   below, and LOOP/07-FRAME.BI to LOOP/18-HUD.BI: one frame of the
 '            game - input, moving, doors, shooting, monsters - then drawing
 '            it: floor, walls, sprites, the screen, the HUD
-'     19     GAME/EVENTS.BM                 game events (GOSUB routines)
+'     19     GAME/EVENTS.BM                 game events
 '     20     LEVEL/LEVELS.BM                levels
 '     21     MENU/MENU.BM                   the splash screen, the menu,
 '                                           settings and saved games
@@ -89,8 +89,7 @@
 '                  game runs, like MAP_SIZE (48). Change it in one place and
 '                  the whole program follows.
 '     camelCase    a variable, like playerX or monsterHP().
-'     PascalCase   a SUB or FUNCTION, like MoveBody or CanSee - or a GOSUB
-'                  label, like HitMonster: (chapter 19).
+'     PascalCase   a SUB or FUNCTION, like MoveBody, CanSee or HitMonster.
 '
 '   Some names end in a symbol. In QB64PE that symbol IS the variable's
 '   type (anything with no symbol, and not DIMmed AS something, is SINGLE):
@@ -187,7 +186,7 @@
 ' on the command line, or the splash screen and the title menu.
 
 LoadSettings ' Your settings and keys, from neon-caster/saves/settings.ini
-GOSUB ReadSectorNames
+ReadSectorNames
 AchSetup ' (achievements: Steam, or the stand-in that keeps them in saves/achievements.txt)
 RecordsLoad ' (each sector's best: saves/records.txt)
 ' The keyboard "device", for keys by where they are (KeyAt%, chapter 21):
@@ -201,7 +200,7 @@ IF keyDevice THEN
     IF _DEVICES >= 1 THEN IF INSTR(_DEVICE$(1), "[KEYBOARD]") THEN keyDevice = -1
 END IF
 ApplySettings
-GOSUB ArtReload ' Every picture, as ART asks (chapter 6's list: LoadPictures)
+ArtReload ' Every picture, as ART asks (chapter 6's list: LoadPictures)
 ' Commands on the command line (chapter 21): each starts with a + -
 '   neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit
 ' They skip the splash and the title, start a new game and run, one a
@@ -218,10 +217,10 @@ DO WHILE LEN(all$)
 LOOP
 IF conQTail > 0 THEN
     noSaveSettings = -1 : cliMode = -1
-    GOSUB NewGame : _MOUSEHIDE : _MOUSEMOVE 400, 300
+    NewGame : _MOUSEHIDE : _MOUSEMOVE 400, 300
 ELSE
-    GOSUB ShowSplash
-    menuInGame = 0 : GOSUB RunMenu ' The title menu: it returns once a game is started or loaded
+    ShowSplash
+    menuInGame = 0 : RunMenu ' The title menu: it returns once a game is started or loaded
 END IF
 
 '-----------------------------------------------------------------------------

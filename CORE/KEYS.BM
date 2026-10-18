@@ -7,20 +7,20 @@
 ' --- A key was pressed while a key binding waits for one: that's its new
 ' key (Esc changes nothing). If another action had that key, it gets this
 ' one's old key, so no two actions ever share a key.
-CaptureKey:
-IF keyCode& <> 27 THEN
-    newKey& = keyCode& : IF newKey& >= 65 AND newKey& <= 90 THEN newKey& = newKey& + 32 ' Letters: lower case
-    bindNum = miRef(menuCapture) : oldKey& = keyBind&(bindNum)
-    FOR b = 1 TO NUM_BINDS
-        IF b <> bindNum AND keyBind&(b) = newKey& THEN keyBind&(b) = oldKey&
-    NEXT
-    keyBind&(bindNum) = newKey&
-    PlaySfx sndMenuSelect&, 0.6
-ELSE
-    PlaySfx sndMenuBack&, 0.6
-END IF
-menuCapture = 0
-RETURN
+SUB CaptureKey STATIC
+    IF keyCode& <> 27 THEN
+        newKey& = keyCode& : IF newKey& >= 65 AND newKey& <= 90 THEN newKey& = newKey& + 32 ' Letters: lower case
+        bindNum = miRef(menuCapture) : oldKey& = keyBind&(bindNum)
+        FOR b = 1 TO NUM_BINDS
+            IF b <> bindNum AND keyBind&(b) = newKey& THEN keyBind&(b) = oldKey&
+        NEXT
+        keyBind&(bindNum) = newKey&
+        PlaySfx sndMenuSelect&, 0.6
+    ELSE
+        PlaySfx sndMenuBack&, 0.6
+    END IF
+    menuCapture = 0
+END SUB
 
 ' One key binding (chapter 6): its number, its name in the settings file,
 ' its menu label, and its key to start with

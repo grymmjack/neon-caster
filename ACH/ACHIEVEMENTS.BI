@@ -20,3 +20,8 @@ DIM SHARED achFrame AS LONG, achHeadAt AS LONG ' (the frame a headshot was last 
 DIM SHARED achIcon&(NUM_ACH), achIconOff&(NUM_ACH), achToastI(16) AS INTEGER ' (each one's badge, achievements/NAME.png, and its grey one, NAME_locked.png - the same pictures Steam shows)
 DIM SHARED achLevelHurt AS INTEGER, achOtherGun AS INTEGER, achAmpKills AS INTEGER, achBlastKills AS INTEGER, achInBlast AS INTEGER, achInLava AS INTEGER, achRunFrom AS INTEGER, achDeadSeen AS INTEGER
 sndAchieve& = LoadSnd&("achievement.wav")
+
+
+' This module's working variables, shared by its SUBs (and with the main
+' program)
+DIM SHARED achT, got

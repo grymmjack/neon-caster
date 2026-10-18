@@ -1,8 +1,9 @@
 ''
 ' NEON-CASTER - _ALL.BM
 ' =============================================================================
-' Every SUB and FUNCTION, and the GOSUB routines (they're part of the main
-' program, so they live after it). neon-caster.bas includes this last.
+' Every SUB and FUNCTION. neon-caster.bas includes this last. (Two labels
+' are left, in the main program: the error trap, GameError - ON ERROR needs
+' one - and NEXUS's lines, SpeechLines, which READ finds with RESTORE.)
 '
 
 ' CORE ------------------------------------------------------------------------

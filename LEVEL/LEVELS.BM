@@ -59,274 +59,276 @@
 ' second: playing back, the game compares - DemoCheck - and says if it's
 ' out of step) and e, the end.
 
-NewGame:
-level = 1
-NewGameHere: ' (a new game in sector `level` - SELECT SECTOR, YOUR SECTORS)
-IF demoRec OR demoPlay THEN GOSUB DemoStop
-IF editMode THEN GOSUB EditLeave : editDirty = 0 ' (out of the editor first: its undo and its sector belong to the level being left)
-achCheat = godMode : achRunFrom = level ' (a fresh start: cheats forgotten - unless god mode's still on; a whole set's run counts from sector 1)
-totalKills = 0 : totalMonsters = 0 : totalTime! = 0
-GOSUB StartLoadout
-GOSUB EnterLevel
-RETURN
+SUB NewGame STATIC
+    level = 1
+    NewGameHere ' (and on into the next part)
+END SUB
+SUB NewGameHere STATIC ' (a new game in sector `level` - SELECT SECTOR, YOUR SECTORS)
+    IF demoRec OR demoPlay THEN DemoStop
+    IF editMode THEN EditLeave : editDirty = 0 ' (out of the editor first: its undo and its sector belong to the level being left)
+    achCheat = godMode : achRunFrom = level ' (a fresh start: cheats forgotten - unless god mode's still on; a whole set's run counts from sector 1)
+    totalKills = 0 : totalMonsters = 0 : totalTime! = 0
+    StartLoadout
+    EnterLevel
+END SUB
 
 ' --- What you start a game with (and come back with, when you die): full
 ' health, no armour, the blaster and 30 cells
-StartLoadout:
-health = MAX_HP : armor = 0 : ampTimer = 0 : nvCharge = 0 : nvOn = 0
-ammoCount(AM_CELLS) = 30 : ammoCount(AM_SHELLS) = 0
-FOR gun = 1 TO NUM_GUNS : hasGun(gun) = 0 : NEXT
-hasGun(W_BLASTER) = -1 : currentGun = W_BLASTER
-IF TEST_ALL_GUNS THEN ' Testing: every gun, full ammo
-    FOR gun = 1 TO NUM_GUNS : hasGun(gun) = -1 : NEXT
-    ammoCount(AM_CELLS) = ammoMax(AM_CELLS) : ammoCount(AM_SHELLS) = ammoMax(AM_SHELLS)
-END IF
-RETURN
+SUB StartLoadout STATIC
+    health = MAX_HP : armor = 0 : ampTimer = 0 : nvCharge = 0 : nvOn = 0
+    ammoCount(AM_CELLS) = 30 : ammoCount(AM_SHELLS) = 0
+    FOR gun = 1 TO NUM_GUNS : hasGun(gun) = 0 : NEXT
+    hasGun(W_BLASTER) = -1 : currentGun = W_BLASTER
+    IF TEST_ALL_GUNS THEN ' Testing: every gun, full ammo
+        FOR gun = 1 TO NUM_GUNS : hasGun(gun) = -1 : NEXT
+        ammoCount(AM_CELLS) = ammoMax(AM_CELLS) : ammoCount(AM_SHELLS) = ammoMax(AM_SHELLS)
+    END IF
+END SUB
 
 ' --- Into level number `level`, remembering what you bring with you
-EnterLevel:
-savedHealth = health : savedArmor = armor : savedCells = ammoCount(AM_CELLS) : savedShells = ammoCount(AM_SHELLS) : savedGun = currentGun
-FOR gun = 1 TO NUM_GUNS : savedHasGun(gun) = hasGun(gun) : NEXT
-GOSUB LoadLevel
-IF NOT demoAttract AND NOT demoStarting THEN GOSUB ShowTransmission ' (NEXUS greets you - not when a demo plays back: straight to the play)
-RETURN
+SUB EnterLevel STATIC
+    savedHealth = health : savedArmor = armor : savedCells = ammoCount(AM_CELLS) : savedShells = ammoCount(AM_SHELLS) : savedGun = currentGun
+    FOR gun = 1 TO NUM_GUNS : savedHasGun(gun) = hasGun(gun) : NEXT
+    LoadLevel
+    IF NOT demoAttract AND NOT demoStarting THEN ShowTransmission ' (NEXUS greets you - not when a demo plays back: straight to the play)
+END SUB
 
 ' --- You died: the level starts over, and you have what you came in with
-RestartLevel:
-GOSUB StartLoadout ' (a clean slate: full health, the blaster, 30 cells)
-GOSUB LoadLevel
-RETURN
+SUB RestartLevel STATIC
+    StartLoadout ' (a clean slate: full health, the blaster, 30 cells)
+    LoadLevel
+END SUB
 
 ' --- You used the exit: the level's tally, then on to the next level (after
 ' the last, the game's totals, and a new game)
-LevelDone:
-IF demoRec OR demoPlay THEN GOSUB DemoAtExit ' (a demo ends at the exit)
-IF demoMenuWant OR demoAttractMenu THEN RETURN ' (one watched from DEMO REPLAYS, or attract mode's: no tally)
-WorldLoopsOff
-PlaySfx sndExit&, 0.9
-levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
-totalKills = totalKills + kills : totalMonsters = totalMonsters + numMonsters : totalTime! = totalTime! + levelTime!
-taken = 0
-FOR i = 1 TO numItems
-    IF itemOn(i) = 0 THEN taken = taken + 1
-NEXT
-' Achievements for the sector: finishing it (and a set), and how
-IF level = 1 THEN Achieve "NC_SECTOR_1", 0
-IF level = NUM_LEVELS AND achRunFrom = 1 THEN ' (a whole set, from its first sector)
-    AchBit "SetsDone", sectorSet
-    IF sectorSet = 0 THEN Achieve "NC_ESCAPED", 0 ELSE IF sectorSet = 1 THEN Achieve "NC_NEW_BLOOD", 0 ELSE Achieve "NC_REMASTERED", 0
-END IF
-IF level > NUM_LEVELS THEN ' (the showcase sectors: 11-21, and the expo)
-    cn = level - NUM_LEVELS : IF cn <= 11 OR cn = 14 THEN AchBit "Showcases", cn - 1
-    IF cn = 14 THEN Achieve "NC_EXPO", 0
-END IF
-IF NOT achLevelHurt AND numMonsters > 0 THEN Achieve "NC_UNTOUCHED", 0
-IF kills >= numMonsters AND numMonsters > 0 THEN Achieve "NC_CLEAN_SWEEP", 0
-IF taken >= numItems AND numItems > 0 THEN Achieve "NC_PACKRAT", 0
-IF numSecrets > 0 AND secretsFound >= numSecrets THEN Achieve "NC_ALL_SECRETS", 0
-IF kills >= numMonsters AND numMonsters > 0 AND taken >= numItems AND numItems > 0 THEN Achieve "NC_PERFECT", 0
-IF levelTime! < 60 AND level <= NUM_LEVELS THEN Achieve "NC_SPEEDRUN", 0
-IF NOT achOtherGun AND kills >= 5 THEN Achieve "NC_PEASHOOTER", 0
-IF health <= 10 AND NOT dead THEN Achieve "NC_LUB_DUB", 0
-AchStore
-' The sector's records: its best time (beaten: NEW RECORD on the tally),
-' its most kills and items, how many times it's been cleared - not with
-' cheats on
-recNew = 0 : recBest! = 0
-IF NOT achCheat OR achTest THEN
-    rk = level : IF level <= NUM_LEVELS THEN rk = sectorSet * 100 + level
-    ri = RecordFor(rk)
-    IF ri THEN
-        recBest! = recTime!(ri)
-        IF recTime!(ri) = 0 OR levelTime! < recTime!(ri) THEN recTime!(ri) = levelTime! : recNew = (recBest! > 0)
-        IF numMonsters <> recKillsOf(ri) THEN recKills(ri) = kills : recKillsOf(ri) = numMonsters ELSE IF kills > recKills(ri) THEN recKills(ri) = kills ' (the sector changed since: start its best again)
-        IF numItems <> recItemsOf(ri) THEN recItems(ri) = taken : recItemsOf(ri) = numItems ELSE IF taken > recItems(ri) THEN recItems(ri) = taken
-        recClears(ri) = recClears(ri) + 1
-        RecordsSave
-    END IF
-END IF
-' The tally's rows (tallyLabel$ and the rest, chapter 6)
-tallyLabel$(1) = "KILLS" : tallyTarget(1) = kills : tallyTotal(1) = numMonsters
-tallyLabel$(2) = "ITEMS" : tallyTarget(2) = taken : tallyTotal(2) = numItems
-tRow = 3 ' (the TIME row - the secrets before it, in a sector with any)
-IF numSecrets THEN tallyLabel$(3) = "SECRETS" : tallyTarget(3) = secretsFound : tallyTotal(3) = numSecrets : tRow = 4
-tallyLabel$(tRow) = "TIME" : tallyTarget(tRow) = INT(levelTime!) : tallyTotal(tRow) = -1
-numTally = tRow
-IF level = NUM_LEVELS THEN ' The last level adds the whole game's totals
-    numTally = tRow + 2
-    tallyLabel$(tRow + 1) = "TOTAL KILLS" : tallyTarget(tRow + 1) = totalKills : tallyTotal(tRow + 1) = totalMonsters
-    tallyLabel$(tRow + 2) = "TOTAL TIME" : tallyTarget(tRow + 2) = INT(totalTime!) : tallyTotal(tRow + 2) = -1
-END IF
-FOR i = 1 TO numTally : tallyShown(i) = 0 : tallySlam(i) = -1 : NEXT
-IF level = NUM_LEVELS THEN tallyTitle$ = "YOU ESCAPED!" ELSE tallyTitle$ = "SECTOR CLEAR"
-IF level = NUM_LEVELS THEN Say "victory", 0
-' tallyDone counts the rows finished; tallyWait is a pause (in frames) before
-' the next one starts; tallyShake shakes everything after a slam
-tallyDone = 0 : tallyWait = 30 : tallyShake = 10 : tallyFrame = 0 : pressWas = -1
-PlaySfx sndBarrel&, 0.5 ' The title slams in
-screenshot& = _COPYIMAGE(0)
-DO
-    _LIMIT 60
-    tallyFrame = tallyFrame + 1
-    click = 0
-    WHILE _MOUSEINPUT
-        IF _MOUSEBUTTON(1) THEN click = -1
-    WEND
-    pressNow = click OR _KEYDOWN(32) OR _KEYDOWN(13)
-    pressed = pressNow AND NOT pressWas : pressWas = pressNow
-
-    ' Count: the next row climbs to its number, a gunshot every few frames;
-    ' when it gets there it slams down (a barrel boom, and a shake). A press
-    ' while it's counting finishes every row at once.
-    IF tallyDone < numTally THEN
-        IF pressed THEN
-            FOR i = tallyDone + 1 TO numTally : tallyShown(i) = tallyTarget(i) : tallySlam(i) = 0 : NEXT
-            tallyDone = numTally : tallyShake = 10 : PlaySfx sndBarrel&, 0.55
-            pressed = 0
-        ELSEIF tallyWait > 0 THEN
-            tallyWait = tallyWait - 1
-        ELSE
-            n = tallyDone + 1
-            countStep = tallyTarget(n) / 40 : IF countStep < 1 THEN countStep = 1 ' (about 2/3 s a row)
-            tallyShown(n) = tallyShown(n) + countStep
-            IF tallyShown(n) >= tallyTarget(n) THEN
-                tallyShown(n) = tallyTarget(n) : tallySlam(n) = 0 : tallyDone = n
-                tallyWait = 22 : tallyShake = 8 : PlaySfx sndBarrel&, 0.5
-            ELSEIF tallyFrame MOD 4 = 0 THEN
-                PlaySfx gunSnd&(W_BLASTER), 0.3
-            END IF
-        END IF
-    ELSEIF pressed AND tallyWait = 0 THEN
-        EXIT DO
-    ELSEIF tallyWait > 0 THEN
-        tallyWait = tallyWait - 1
-    END IF
-    FOR i = 1 TO numTally
-        IF tallySlam(i) >= 0 THEN tallySlam(i) = tallySlam(i) + 1
+SUB LevelDone STATIC
+    IF demoRec OR demoPlay THEN DemoAtExit ' (a demo ends at the exit)
+    IF demoMenuWant OR demoAttractMenu THEN EXIT SUB ' (one watched from DEMO REPLAYS, or attract mode's: no tally)
+    WorldLoopsOff
+    PlaySfx sndExit&, 0.9
+    levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
+    totalKills = totalKills + kills : totalMonsters = totalMonsters + numMonsters : totalTime! = totalTime! + levelTime!
+    taken = 0
+    FOR i = 1 TO numItems
+        IF itemOn(i) = 0 THEN taken = taken + 1
     NEXT
+    ' Achievements for the sector: finishing it (and a set), and how
+    IF level = 1 THEN Achieve "NC_SECTOR_1", 0
+    IF level = NUM_LEVELS AND achRunFrom = 1 THEN ' (a whole set, from its first sector)
+        AchBit "SetsDone", sectorSet
+        IF sectorSet = 0 THEN Achieve "NC_ESCAPED", 0 ELSE IF sectorSet = 1 THEN Achieve "NC_NEW_BLOOD", 0 ELSE Achieve "NC_REMASTERED", 0
+    END IF
+    IF level > NUM_LEVELS THEN ' (the showcase sectors: 11-21, and the expo)
+        cn = level - NUM_LEVELS : IF cn <= 11 OR cn = 14 THEN AchBit "Showcases", cn - 1
+        IF cn = 14 THEN Achieve "NC_EXPO", 0
+    END IF
+    IF NOT achLevelHurt AND numMonsters > 0 THEN Achieve "NC_UNTOUCHED", 0
+    IF kills >= numMonsters AND numMonsters > 0 THEN Achieve "NC_CLEAN_SWEEP", 0
+    IF taken >= numItems AND numItems > 0 THEN Achieve "NC_PACKRAT", 0
+    IF numSecrets > 0 AND secretsFound >= numSecrets THEN Achieve "NC_ALL_SECRETS", 0
+    IF kills >= numMonsters AND numMonsters > 0 AND taken >= numItems AND numItems > 0 THEN Achieve "NC_PERFECT", 0
+    IF levelTime! < 60 AND level <= NUM_LEVELS THEN Achieve "NC_SPEEDRUN", 0
+    IF NOT achOtherGun AND kills >= 5 THEN Achieve "NC_PEASHOOTER", 0
+    IF health <= 10 AND NOT dead THEN Achieve "NC_LUB_DUB", 0
+    AchStore
+    ' The sector's records: its best time (beaten: NEW RECORD on the tally),
+    ' its most kills and items, how many times it's been cleared - not with
+    ' cheats on
+    recNew = 0 : recBest! = 0
+    IF NOT achCheat OR achTest THEN
+        rk = level : IF level <= NUM_LEVELS THEN rk = sectorSet * 100 + level
+        ri = RecordFor(rk)
+        IF ri THEN
+            recBest! = recTime!(ri)
+            IF recTime!(ri) = 0 OR levelTime! < recTime!(ri) THEN recTime!(ri) = levelTime! : recNew = (recBest! > 0)
+            IF numMonsters <> recKillsOf(ri) THEN recKills(ri) = kills : recKillsOf(ri) = numMonsters ELSE IF kills > recKills(ri) THEN recKills(ri) = kills ' (the sector changed since: start its best again)
+            IF numItems <> recItemsOf(ri) THEN recItems(ri) = taken : recItemsOf(ri) = numItems ELSE IF taken > recItems(ri) THEN recItems(ri) = taken
+            recClears(ri) = recClears(ri) + 1
+            RecordsSave
+        END IF
+    END IF
+    ' The tally's rows (tallyLabel$ and the rest, chapter 6)
+    tallyLabel$(1) = "KILLS" : tallyTarget(1) = kills : tallyTotal(1) = numMonsters
+    tallyLabel$(2) = "ITEMS" : tallyTarget(2) = taken : tallyTotal(2) = numItems
+    tRow = 3 ' (the TIME row - the secrets before it, in a sector with any)
+    IF numSecrets THEN tallyLabel$(3) = "SECRETS" : tallyTarget(3) = secretsFound : tallyTotal(3) = numSecrets : tRow = 4
+    tallyLabel$(tRow) = "TIME" : tallyTarget(tRow) = INT(levelTime!) : tallyTotal(tRow) = -1
+    numTally = tRow
+    IF level = NUM_LEVELS THEN ' The last level adds the whole game's totals
+        numTally = tRow + 2
+        tallyLabel$(tRow + 1) = "TOTAL KILLS" : tallyTarget(tRow + 1) = totalKills : tallyTotal(tRow + 1) = totalMonsters
+        tallyLabel$(tRow + 2) = "TOTAL TIME" : tallyTarget(tRow + 2) = INT(totalTime!) : tallyTotal(tRow + 2) = -1
+    END IF
+    FOR i = 1 TO numTally : tallyShown(i) = 0 : tallySlam(i) = -1 : NEXT
+    IF level = NUM_LEVELS THEN tallyTitle$ = "YOU ESCAPED!" ELSE tallyTitle$ = "SECTOR CLEAR"
+    IF level = NUM_LEVELS THEN Say "victory", 0
+    ' tallyDone counts the rows finished; tallyWait is a pause (in frames) before
+    ' the next one starts; tallyShake shakes everything after a slam
+    tallyDone = 0 : tallyWait = 30 : tallyShake = 10 : tallyFrame = 0 : pressWas = -1
+    PlaySfx sndBarrel&, 0.5 ' The title slams in
+    screenshot& = _COPYIMAGE(0)
+    DO
+        _LIMIT 60
+        tallyFrame = tallyFrame + 1
+        click = 0
+        WHILE _MOUSEINPUT
+            IF _MOUSEBUTTON(1) THEN click = -1
+        WEND
+        pressNow = click OR _KEYDOWN(32) OR _KEYDOWN(13)
+        pressed = pressNow AND NOT pressWas : pressWas = pressNow
 
-    ' Draw. A slammed number starts big and eases down to its size over 10
-    ' frames - the same ease as the menu's items (chapter 21), backwards.
-    CLS , _RGBA32(0, 0, 0, 0) ' (see-through, for OpenGL's view underneath: chapter 24)
-    _PUTIMAGE , screenshot&, 0
-    LINE (0, 0)-(799, 599), _RGBA32(0, 0, 0, 180), BF
-    shakeX = (RND - 0.5) * tallyShake * 2 : shakeY = (RND - 0.5) * tallyShake * 2
-    tallyShake = tallyShake * 0.8
-    zoomIn = tallyFrame / 12 : IF zoomIn > 1 THEN zoomIn = 1
-    titleScale = 5 + 4 * (1 - zoomIn) ^ 2
-    MenuText 404 + shakeX, 150 - titleScale * 8 + 4 + shakeY, tallyTitle$, titleScale, _RGBA32(0, 0, 0, 200), 1
-    MenuText 400 + shakeX, 150 - titleScale * 8 + shakeY, tallyTitle$, titleScale, _RGB32(80, 255, 140), 1
-    MenuText 400 + shakeX, 206 + shakeY, levelName$, 2, _RGB32(255, 255, 255), 1
-    FOR i = 1 TO numTally
-        IF i <= tallyDone + 1 AND (i <= tallyDone OR tallyWait = 0) THEN ' Started counting
-            rowY = 262 + (i - 1) * 44 : IF i > tRow THEN rowY = rowY + 20
-            IF numTally > 5 THEN rowY = 252 + (i - 1) * 40 : IF i > tRow THEN rowY = rowY + 14 ' (six rows: a little closer)
-            MenuText 230 + shakeX, rowY + shakeY, tallyLabel$(i), 2, _RGB32(160, 200, 255), 0
-            value$ = TallyText$(tallyShown(i), tallyTotal(i))
-            valueScale = 2 : valueCol~& = _RGB32(255, 255, 255)
-            IF tallySlam(i) >= 0 AND tallySlam(i) < 10 THEN
-                valueScale = 2 + 4 * (1 - tallySlam(i) / 10) ^ 2 : valueCol~& = _RGB32(255, 240, 120)
-            END IF
-            ' Centred on the number's middle, so it zooms about itself
-            MenuText 570 - LEN(value$) * 8 + shakeX, rowY + 16 - valueScale * 8 + shakeY, value$, valueScale, valueCol~&, 1
-            IF i = tRow AND tallyDone >= tRow THEN ' (the time: a record broken, or the best to beat)
-                IF recNew THEN
-                    IF (tallyFrame \ 8) MOD 2 = 0 THEN MenuText 570 + shakeX, rowY + 34 + shakeY, "NEW RECORD!", 1, _RGB32(255, 220, 80), 1
-                ELSEIF recBest! > 0 THEN
-                    MenuText 570 + shakeX, rowY + 34 + shakeY, "BEST " + TallyText$(INT(recBest!), -1), 1, _RGB32(150, 140, 190), 1
+        ' Count: the next row climbs to its number, a gunshot every few frames;
+        ' when it gets there it slams down (a barrel boom, and a shake). A press
+        ' while it's counting finishes every row at once.
+        IF tallyDone < numTally THEN
+            IF pressed THEN
+                FOR i = tallyDone + 1 TO numTally : tallyShown(i) = tallyTarget(i) : tallySlam(i) = 0 : NEXT
+                tallyDone = numTally : tallyShake = 10 : PlaySfx sndBarrel&, 0.55
+                pressed = 0
+            ELSEIF tallyWait > 0 THEN
+                tallyWait = tallyWait - 1
+            ELSE
+                n = tallyDone + 1
+                countStep = tallyTarget(n) / 40 : IF countStep < 1 THEN countStep = 1 ' (about 2/3 s a row)
+                tallyShown(n) = tallyShown(n) + countStep
+                IF tallyShown(n) >= tallyTarget(n) THEN
+                    tallyShown(n) = tallyTarget(n) : tallySlam(n) = 0 : tallyDone = n
+                    tallyWait = 22 : tallyShake = 8 : PlaySfx sndBarrel&, 0.5
+                ELSEIF tallyFrame MOD 4 = 0 THEN
+                    PlaySfx gunSnd&(W_BLASTER), 0.3
                 END IF
             END IF
+        ELSEIF pressed AND tallyWait = 0 THEN
+            EXIT DO
+        ELSEIF tallyWait > 0 THEN
+            tallyWait = tallyWait - 1
         END IF
-    NEXT
-    IF achSectN AND tallyDone >= tRow THEN ' (the badges of what you unlocked in it, down the right)
-        MenuText 724, 244, "NEW", 1, _RGB32(255, 200, 60), 1
-        FOR k = 1 TO MinOf(achSectN, 5)
-            ic& = achIcon&(achSect(k)) : by = 262 + (k - 1) * 48
-            IF ic& < -1 THEN _PUTIMAGE (704, by)-STEP(39, 39), ic& ELSE CIRCLE (724, by + 20), 18, _RGB32(255, 200, 60)
+        FOR i = 1 TO numTally
+            IF tallySlam(i) >= 0 THEN tallySlam(i) = tallySlam(i) + 1
         NEXT
-        IF achSectN > 5 THEN MenuText 724, 262 + 5 * 48 + 8, "+" + LTRIM$(STR$(achSectN - 5)), 1, _RGB32(255, 200, 60), 1
+
+        ' Draw. A slammed number starts big and eases down to its size over 10
+        ' frames - the same ease as the menu's items (chapter 21), backwards.
+        CLS , _RGBA32(0, 0, 0, 0) ' (see-through, for OpenGL's view underneath: chapter 24)
+        _PUTIMAGE , screenshot&, 0
+        LINE (0, 0)-(799, 599), _RGBA32(0, 0, 0, 180), BF
+        shakeX = (RND - 0.5) * tallyShake * 2 : shakeY = (RND - 0.5) * tallyShake * 2
+        tallyShake = tallyShake * 0.8
+        zoomIn = tallyFrame / 12 : IF zoomIn > 1 THEN zoomIn = 1
+        titleScale = 5 + 4 * (1 - zoomIn) ^ 2
+        MenuText 404 + shakeX, 150 - titleScale * 8 + 4 + shakeY, tallyTitle$, titleScale, _RGBA32(0, 0, 0, 200), 1
+        MenuText 400 + shakeX, 150 - titleScale * 8 + shakeY, tallyTitle$, titleScale, _RGB32(80, 255, 140), 1
+        MenuText 400 + shakeX, 206 + shakeY, levelName$, 2, _RGB32(255, 255, 255), 1
+        FOR i = 1 TO numTally
+            IF i <= tallyDone + 1 AND (i <= tallyDone OR tallyWait = 0) THEN ' Started counting
+                rowY = 262 + (i - 1) * 44 : IF i > tRow THEN rowY = rowY + 20
+                IF numTally > 5 THEN rowY = 252 + (i - 1) * 40 : IF i > tRow THEN rowY = rowY + 14 ' (six rows: a little closer)
+                MenuText 230 + shakeX, rowY + shakeY, tallyLabel$(i), 2, _RGB32(160, 200, 255), 0
+                value$ = TallyText$(tallyShown(i), tallyTotal(i))
+                valueScale = 2 : valueCol~& = _RGB32(255, 255, 255)
+                IF tallySlam(i) >= 0 AND tallySlam(i) < 10 THEN
+                    valueScale = 2 + 4 * (1 - tallySlam(i) / 10) ^ 2 : valueCol~& = _RGB32(255, 240, 120)
+                END IF
+                ' Centred on the number's middle, so it zooms about itself
+                MenuText 570 - LEN(value$) * 8 + shakeX, rowY + 16 - valueScale * 8 + shakeY, value$, valueScale, valueCol~&, 1
+                IF i = tRow AND tallyDone >= tRow THEN ' (the time: a record broken, or the best to beat)
+                    IF recNew THEN
+                        IF (tallyFrame \ 8) MOD 2 = 0 THEN MenuText 570 + shakeX, rowY + 34 + shakeY, "NEW RECORD!", 1, _RGB32(255, 220, 80), 1
+                    ELSEIF recBest! > 0 THEN
+                        MenuText 570 + shakeX, rowY + 34 + shakeY, "BEST " + TallyText$(INT(recBest!), -1), 1, _RGB32(150, 140, 190), 1
+                    END IF
+                END IF
+            END IF
+        NEXT
+        IF achSectN AND tallyDone >= tRow THEN ' (the badges of what you unlocked in it, down the right)
+            MenuText 724, 244, "NEW", 1, _RGB32(255, 200, 60), 1
+            FOR k = 1 TO MinOf(achSectN, 5)
+                ic& = achIcon&(achSect(k)) : by = 262 + (k - 1) * 48
+                IF ic& < -1 THEN _PUTIMAGE (704, by)-STEP(39, 39), ic& ELSE CIRCLE (724, by + 20), 18, _RGB32(255, 200, 60)
+            NEXT
+            IF achSectN > 5 THEN MenuText 724, 262 + 5 * 48 + 8, "+" + LTRIM$(STR$(achSectN - 5)), 1, _RGB32(255, 200, 60), 1
+        END IF
+        IF tallyDone = numTally AND tallyWait = 0 AND (tallyFrame \ 20) MOD 3 > 0 THEN
+            IF level >= NUM_LEVELS THEN prompt$ = "CLICK OR PRESS SPACE TO PLAY AGAIN" ELSE prompt$ = "CLICK OR PRESS SPACE FOR THE NEXT SECTOR"
+            MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
+        END IF
+        AchDrawToast -1 ' (achievements the sector's end unlocked - at the top, clear of the badges down the right)
+        IF glReady THEN GLSL_filter_capture ' (OpenGL draws the tally over its view: chapter 24)
+        GLScreenLayer glReady
+        ShowFrame
+    LOOP
+    _FREEIMAGE screenshot&
+    IF level > NUM_LEVELS THEN ' (your own sector: again, from the start)
+        RestartLevel
+    ELSEIF level = NUM_LEVELS THEN
+        NewGame
+    ELSE
+        ShowRoute ' (where you've been, where you're going)
+        level = level + 1 : EnterLevel
     END IF
-    IF tallyDone = numTally AND tallyWait = 0 AND (tallyFrame \ 20) MOD 3 > 0 THEN
-        IF level >= NUM_LEVELS THEN prompt$ = "CLICK OR PRESS SPACE TO PLAY AGAIN" ELSE prompt$ = "CLICK OR PRESS SPACE FOR THE NEXT SECTOR"
-        MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
-    END IF
-    AchDrawToast -1 ' (achievements the sector's end unlocked - at the top, clear of the badges down the right)
-    IF glReady THEN GLSL_filter_capture ' (OpenGL draws the tally over its view: chapter 24)
-    GLScreenLayer glReady
-    ShowFrame
-LOOP
-_FREEIMAGE screenshot&
-IF level > NUM_LEVELS THEN ' (your own sector: again, from the start)
-    GOSUB RestartLevel
-ELSEIF level = NUM_LEVELS THEN
-    GOSUB NewGame
-ELSE
-    GOSUB ShowRoute ' (where you've been, where you're going)
-    level = level + 1 : GOSUB EnterLevel
-END IF
-RETURN
+END SUB
 
 ' --- THE ROUTE: between sectors, a map of all of them (like DOOM's between
 ' episodes' levels) - the way you've come lit up, a marker travelling from
 ' the sector you've cleared to the next one, which then blinks YOU ARE
 ' HERE. The map's a placeholder: each sector a node on a route (SectorAt,
 ' chapter 23), over the menu's backdrop. Any key or a click goes on.
-ShowRoute:
-routeT = 0 : pressWas = -1 : routeTravel = 90 ' (frames the marker takes to get there)
-DO
-    _LIMIT 60
-    routeT = routeT + 1
-    click = 0
-    WHILE _MOUSEINPUT
-        IF _MOUSEBUTTON(1) THEN click = -1
-    WEND
-    press = click OR _KEYDOWN(32) OR _KEYDOWN(13)
-    IF press AND NOT pressWas AND routeT > 20 THEN EXIT DO
-    pressWas = press
-    DrawMenuBackdrop routeT
-    LINE (0, 0)-(799, 599), _RGBA32(6, 0, 16, 170), BF
-    MenuText 400, 40, "SECTOR MAP", 4, _RGB32(80, 255, 140), 1
-    ' The route: lines between sectors - bright where you've been, dim ahead
-    FOR n = 1 TO NUM_LEVELS - 1
-        SectorAt n, ax, ay : SectorAt n + 1, bx, by
-        IF n < level THEN lineCol~& = _RGB32(80, 255, 220) ELSE lineCol~& = _RGBA32(120, 100, 180, 140)
-        FOR k = -1 TO 1 : LINE (ax, ay + k)-(bx, by + k), lineCol~& : NEXT
-    NEXT
-    ' The marker's way, from here to the next sector, drawn in as it goes
-    f = routeT / routeTravel : IF f > 1 THEN f = 1
-    SectorAt level, ax, ay : SectorAt level + 1, bx, by
-    mx = ax + (bx - ax) * f : my = ay + (by - ay) * f
-    FOR k = -2 TO 2 : LINE (ax, ay + k)-(mx, my + k), _RGB32(255, 220, 90) : NEXT
-    ' The sectors: cleared (green), the next (blinking), the rest (dim)
-    FOR n = 1 TO NUM_LEVELS
-        SectorAt n, sx, sy
-        IF n <= level THEN
-            FillCircle sx, sy, 13, _RGB32(30, 120, 80) : FillCircle sx, sy, 9, _RGB32(80, 255, 140)
-            nameCol~& = _RGB32(150, 255, 190)
-        ELSEIF n = level + 1 THEN
-            FillCircle sx, sy, 13, _RGB32(120, 90, 20) : FillCircle sx, sy, 9, _RGB32(255, 220, 90)
-            nameCol~& = _RGB32(255, 230, 140)
-        ELSE
-            FillCircle sx, sy, 11, _RGB32(50, 40, 80) : FillCircle sx, sy, 7, _RGB32(90, 80, 130)
-            nameCol~& = _RGB32(140, 130, 170)
+SUB ShowRoute STATIC
+    routeT = 0 : pressWas = -1 : routeTravel = 90 ' (frames the marker takes to get there)
+    DO
+        _LIMIT 60
+        routeT = routeT + 1
+        click = 0
+        WHILE _MOUSEINPUT
+            IF _MOUSEBUTTON(1) THEN click = -1
+        WEND
+        press = click OR _KEYDOWN(32) OR _KEYDOWN(13)
+        IF press AND NOT pressWas AND routeT > 20 THEN EXIT DO
+        pressWas = press
+        DrawMenuBackdrop routeT
+        LINE (0, 0)-(799, 599), _RGBA32(6, 0, 16, 170), BF
+        MenuText 400, 40, "SECTOR MAP", 4, _RGB32(80, 255, 140), 1
+        ' The route: lines between sectors - bright where you've been, dim ahead
+        FOR n = 1 TO NUM_LEVELS - 1
+            SectorAt n, ax, ay : SectorAt n + 1, bx, by
+            IF n < level THEN lineCol~& = _RGB32(80, 255, 220) ELSE lineCol~& = _RGBA32(120, 100, 180, 140)
+            FOR k = -1 TO 1 : LINE (ax, ay + k)-(bx, by + k), lineCol~& : NEXT
+        NEXT
+        ' The marker's way, from here to the next sector, drawn in as it goes
+        f = routeT / routeTravel : IF f > 1 THEN f = 1
+        SectorAt level, ax, ay : SectorAt level + 1, bx, by
+        mx = ax + (bx - ax) * f : my = ay + (by - ay) * f
+        FOR k = -2 TO 2 : LINE (ax, ay + k)-(mx, my + k), _RGB32(255, 220, 90) : NEXT
+        ' The sectors: cleared (green), the next (blinking), the rest (dim)
+        FOR n = 1 TO NUM_LEVELS
+            SectorAt n, sx, sy
+            IF n <= level THEN
+                FillCircle sx, sy, 13, _RGB32(30, 120, 80) : FillCircle sx, sy, 9, _RGB32(80, 255, 140)
+                nameCol~& = _RGB32(150, 255, 190)
+            ELSEIF n = level + 1 THEN
+                FillCircle sx, sy, 13, _RGB32(120, 90, 20) : FillCircle sx, sy, 9, _RGB32(255, 220, 90)
+                nameCol~& = _RGB32(255, 230, 140)
+            ELSE
+                FillCircle sx, sy, 11, _RGB32(50, 40, 80) : FillCircle sx, sy, 7, _RGB32(90, 80, 130)
+                nameCol~& = _RGB32(140, 130, 170)
+            END IF
+            nm$ = sectorName$(n) : c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2)
+            MenuText sx, sy + 18, nm$, 1, nameCol~&, 1
+            MenuText sx, sy - 30, LTRIM$(STR$(n)), 1, nameCol~&, 1
+        NEXT
+        FillCircle mx, my, 6, _RGB32(255, 255, 255) ' The marker
+        ' YOU ARE HERE: on the marker once it's arrived, blinking, with an arrow
+        IF f >= 1 AND (routeT \ 20) MOD 3 > 0 THEN
+            MenuText bx, by - 70, "YOU ARE HERE", 2, _RGB32(255, 240, 120), 1
+            FOR k = 0 TO 8 : LINE (bx - 8 + k, by - 44 + k)-(bx + 8 - k, by - 44 + k), _RGB32(255, 240, 120) : NEXT
         END IF
-        nm$ = sectorName$(n) : c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2)
-        MenuText sx, sy + 18, nm$, 1, nameCol~&, 1
-        MenuText sx, sy - 30, LTRIM$(STR$(n)), 1, nameCol~&, 1
-    NEXT
-    FillCircle mx, my, 6, _RGB32(255, 255, 255) ' The marker
-    ' YOU ARE HERE: on the marker once it's arrived, blinking, with an arrow
-    IF f >= 1 AND (routeT \ 20) MOD 3 > 0 THEN
-        MenuText bx, by - 70, "YOU ARE HERE", 2, _RGB32(255, 240, 120), 1
-        FOR k = 0 TO 8 : LINE (bx - 8 + k, by - 44 + k)-(bx + 8 - k, by - 44 + k), _RGB32(255, 240, 120) : NEXT
-    END IF
-    MenuText 400, 560, "CLICK OR PRESS SPACE TO GO ON", 1, _RGB32(220, 220, 240), 1
-    IF glReady THEN GLSL_filter_capture
-    GLScreenLayer glReady
-    ShowFrame
-LOOP
-_KEYCLEAR
-RETURN
+        MenuText 400, 560, "CLICK OR PRESS SPACE TO GO ON", 1, _RGB32(220, 220, 240), 1
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady
+        ShowFrame
+    LOOP
+    _KEYCLEAR
+END SUB
 
 ' A tally row's number as it's shown: "12 / 23", or a time (total -1) as m:ss
 FUNCTION TallyText$(value, total)

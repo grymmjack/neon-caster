@@ -22,6 +22,7 @@ END FUNCTION
 
 ' A droid's picture, broken: the same, sooty and dark (drawn squashed)
 SUB MakeScrap(src, dst)
+    DIM x, y ' (its own: the main program shares these names)
     spriteSize(dst) = spriteSize(src)
     FOR y = 0 TO spriteSize(src) - 1 : FOR x = 0 TO spriteSize(src) - 1
         col~& = spriteTex(x, y, src)
@@ -34,6 +35,7 @@ END SUB
 ' it's on now - no step, ledge, liquid, lift, fire or door (it keeps to its
 ' rooms) - clear of walls, things, the other droids (but droid i) and you.
 FUNCTION DroidCanGo(i, x, y, z)
+    DIM cx, cy, k, ok ' (its own: the main program shares these names)
     FOR k = 0 TO 4
         ox = (k = 1) * -0.22 - (k = 2) * -0.22 : oy = (k = 3) * -0.22 - (k = 4) * -0.22
         cx = INT(x + ox) : cy = INT(y + oy)
@@ -52,6 +54,7 @@ END FUNCTION
 
 ' ...and all the way from (x0, y0) to (x1, y1), in a straight line?
 FUNCTION DroidLine(i, x0, y0, x1, y1, z)
+    DIM d, k, n ' (its own: the main program shares these names)
     d = SQR((x1 - x0) ^ 2 + (y1 - y0) ^ 2) : n = INT(d / 0.2) + 1
     FOR k = 1 TO n
         IF NOT DroidCanGo(i, x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, z) THEN EXIT FUNCTION
@@ -63,6 +66,7 @@ END FUNCTION
 ' line says), on open floor away from where you start and out of the event rooms - picked by the droids' dice, started
 ' from the sector (lv) and its set, so they're the same every time
 SUB PlaceDroids(lv)
+    DIM cx, cy, ev, i, k, n, nx, ny ' (its own: the main program shares these names)
     numDroids = 0 : drSeed = 7919 + lv * 104729# + sectorSet * 1299709#
     IF cyberOn THEN EXIT SUB
     want = 3 : IF lvlDroids >= 0 THEN want = lvlDroids
@@ -95,6 +99,7 @@ END SUB
 ' terminal, a console...); otherwise somewhere close it can roll to in a
 ' straight line - or, nowhere, it turns and thinks again
 SUB DroidPlan(i)
+    DIM a, d, j, tx, ty, x, y ' (its own: the main program shares these names)
     x = droidX(i) : y = droidY(i) : z = droidZ(i) : droidWork(i) = 0
     IF DRnd < 0.4 AND numDecos > 0 THEN
         FOR try = 1 TO 6
@@ -127,6 +132,7 @@ END SUB
 ' machine it's fixing). Broken ones smoke. (What it does is the droids'
 ' own dice, DRnd; how it looks - dust, sparks, the chirps - RND.)
 SUB UpdateDroids(px, py)
+    DIM a, d, i, k, nx, ny, x, y ' (its own: the main program shares these names)
     FOR i = 1 TO numDroids
         x = droidX(i) : y = droidY(i)
         IF droidHP(i) <= 0 THEN
@@ -184,6 +190,7 @@ END SUB
 ' A shot (or blast) hits droid i for dmg: sparks; with no more left in it,
 ' it breaks - a squeal, a shower of sparks, a puff of smoke - and lies there
 SUB HitDroid(i, dmg, px, py)
+    DIM k ' (its own: the main program shares these names)
     IF droidHP(i) <= 0 THEN EXIT SUB
     droidHP(i) = droidHP(i) - dmg
     SpawnSparks droidX(i), droidY(i), 0.2, 8, 200, 230, 255

@@ -203,7 +203,7 @@ Two switches near the top of the source are on for testing:
 It's organised like grymmjack's DRAW: a folder for each part of the game,
 and in it a module or two. A module is a pair of files - a `.BI` (its
 `CONST`s, its `DIM SHARED` arrays, and any start-up that fills them in)
-and a `.BM` (its `SUB`s and `FUNCTION`s, and its `GOSUB` routines).
+and a `.BM` (its `SUB`s and `FUNCTION`s).
 `_ALL.BI` includes every `.BI`, `_ALL.BM` every `.BM`, and `neon-caster.bas`
 includes `_ALL.BI` at its top and `_ALL.BM` at its bottom. In between it has
 the course's introduction, the start-up, and the game loop - whose twelve
@@ -251,7 +251,7 @@ order, and where each one is:
 | | 16 Sprites | `LOOP/16-SPRITES.BI` | camera space, painter's algorithm, hiding behind walls - and behind ledges |
 | | 17 Onto the screen | `LOOP/17-SCREEN.BI` | `_MEMCOPY` and `_PUTIMAGE` scaling |
 | | 18 The gun and the HUD | `LOOP/18-HUD.BI` | alpha colours, the minimap, bars and text; the HUD's layout as data (`hud.txt`) |
-| **The rest** | 19 Game events | `GAME/EVENTS.BM` | `GOSUB` routines and why they're used here; event rooms: ambushes, mini games, monster closets, pressure plates, lasers and cutters, blackouts, the thieves' hoard; glass that cracks and shatters; the data stations' network; triggers (their actions are console commands) and teleporters; code terminals that compile a real QB64 program with `SHELL _DONTWAIT`; sound placed in space (panning, distance, walls) under a limiter; NEXUS's voice, taunts and subtitles |
+| **The rest** | 19 Game events | `GAME/EVENTS.BM` SUBs that work on the main program's shared variables (`DIM SHARED`, `SUB ... STATIC`); event rooms: ambushes, mini games, monster closets, pressure plates, lasers and cutters, blackouts, the thieves' hoard; glass that cracks and shatters; the data stations' network; triggers (their actions are console commands) and teleporters; code terminals that compile a real QB64 program with `SHELL _DONTWAIT`; sound placed in space (panning, distance, walls) under a limiter; NEXUS's voice, taunts and subtitles |
 | | 20 Levels | `LEVEL/LEVELS.BM` | reading a level's file and building it, carrying your gear between levels (and starting over clean on a retry), the tally screen, the route map between sectors, the incoming transmission |
 | | 21 The splash screen, the menu, settings, saved games, the console and the editors | `MENU/MENU.BM` | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files; the level editor (the map from above, and walking round in it with a cursor ray), the monster editor and the HUD layout editor - changing plain text files live |
 | | 22 The level files | `LEVEL/LEVELFILE.BM` | the level file's format - its map, zones, lights, event rooms, heights, lifts, triggers: make your own levels |
@@ -263,7 +263,7 @@ order, and where each one is:
 The top of `neon-caster.bas` has the full key. In short:
 
 - `UPPER_CASE` is a `CONST` (a fixed number), `camelCase` a variable, and
-  `PascalCase` a `SUB`, `FUNCTION` or `GOSUB` label.
+  `PascalCase` a `SUB` or `FUNCTION`.
 - A symbol at the end of a name is its type: `$` text, `&` a whole number
   (image and sound handles), `~&` a colour, `!` a decimal number, `%` a
   small whole number.
