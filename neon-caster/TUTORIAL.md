@@ -91,7 +91,8 @@ Settings changed from the command line last only for that run.
 
 **Demos.** **DEMO REPLAYS** in the main menu lists every demo - yours
 and the ten that come with the game - and Enter plays one (Esc, then
-STOP DEMO, ends it early). Leave the title menu alone for 15 seconds and
+STOP DEMO, ends it early). F (or FOLDER) opens the folder yours are kept in,
+`neon-caster/saves/demos`, to copy, rename or delete them. Leave the title menu alone for 15 seconds and
 they play by themselves, one after another, till you press a key. Ctrl+R records one: the sector you're in
 starts again, and Ctrl+R again (or the exit) keeps it as `run1`, `run2`...
 From the console, `record NAME` does the same with a name of your own. A

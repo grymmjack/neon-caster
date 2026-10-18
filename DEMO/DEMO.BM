@@ -431,6 +431,26 @@ END FUNCTION
 ' the game's own (neon-caster/demos) - by name, numbers in order (sector2
 ' before sector10). Each one's description is its first # comment (what
 ' recording it wrote: the sector, when) - or, with none, its sector's name.
+' Your recordings' folder (saves/demos - made if it isn't there yet) in
+' the system's file manager, to copy, rename or delete them: OpenLink
+' opens a folder as it does a web page. The game's own demos are in
+' neon-caster/demos, and stay put.
+SUB OpenDemoFolder
+    DIM c$, d$ ' (its own: the main program shares these names)
+    MakeSaveDir : d$ = SaveDir$ + "demos"
+    IF NOT _DIREXISTS(d$) THEN MKDIR d$
+    IF LEFT$(d$, 1) <> "/" AND MID$(d$, 2, 1) <> ":" THEN ' (the whole path: the file manager doesn't start where we are)
+        c$ = _CWD$ : IF RIGHT$(c$, 1) <> "/" AND RIGHT$(c$, 1) <> "\" THEN c$ = c$ + "/"
+        IF LEFT$(d$, 2) = "./" OR LEFT$(d$, 2) = ".\" THEN d$ = MID$(d$, 3)
+        d$ = c$ + d$
+    END IF
+    IF INSTR(_OS$, "[WINDOWS]") THEN
+        DO WHILE INSTR(d$, "/") : MID$(d$, INSTR(d$, "/"), 1) = "\" : LOOP ' (Explorer wants backslashes)
+    END IF
+    OpenLink d$
+    ShowMsg "Your demos are in " + d$
+END SUB
+
 SUB DemoListLoad
     DIM i, j, k ' (its own: the main program shares these names)
     demoListN = 0

@@ -97,6 +97,7 @@ SUB RunMenu STATIC
                         CASE 19712, 100, 68 : menuAdjust = 1 : MenuAdjustItem ' Right, D
                         CASE 13, 32 : MenuActivate ' Enter, Space
                         CASE 27, 8 : MenuBack ' Esc, Backspace
+                        CASE 102, 70 : IF menuScreen = SCR_DEMOS THEN PlaySfx sndMenuSelect&, 0.6 : OpenDemoFolder ' F (DEMO REPLAYS): your recordings' folder
                     END SELECT
                 END IF
             END IF
@@ -252,6 +253,8 @@ SUB MenuActivate STATIC
                     IF demoPlay THEN demoFromMenu = -1 : menuDone = -1 ELSE ShowMsg "That demo won't play - see the console"
                 CASE MA_DEMOPAGE ' DEMO REPLAYS: the next ten
                     demoListPage = demoListPage + 1 : EnterMenuScreen
+                CASE MA_DEMOFOLDER ' DEMO REPLAYS: your recordings' folder, in the file manager
+                    OpenDemoFolder
                 CASE MA_STOPDEMO ' (paused, a demo playing)
                     DemoStop : menuDone = -1
                 CASE MA_LINK ' A credit: its page, in the web browser
@@ -440,6 +443,7 @@ SUB BuildMenu(scr)
                 NEXT
                 IF demoListN > 10 THEN AddMenuItem "MORE", MI_ACTION, 0, MA_DEMOPAGE, -1, "page" + STR$(demoListPage + 1) + " of" + STR$((demoListN + 9) \ 10)
             END IF
+            AddMenuItem "FOLDER", MI_ACTION, 0, MA_DEMOFOLDER, -1, "open it: your recordings, to copy, rename or delete (F)"
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_QB64 ' The qb64pe the code terminals compile with (chapter 19)
             menuTitle$ = "QB64PE COMPILER" : menuWide = -1
@@ -647,7 +651,11 @@ SUB DrawMenu(t)
         LINE (690, 96)-(750, 156), _RGBA32(90, 230, 255, 160), B
         flashWas = crossFlash : crossFlash = 0 : DrawCrosshair 720, 126 : crossFlash = flashWas ' (not white from a hit just before the menu opened: its countdown waits in the game loop)
     END IF
-    MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  CHOOSE     ESC  BACK     OR POINT AND CLICK", 1, _RGB32(140, 135, 175), 1
+    IF menuScreen = SCR_DEMOS THEN
+        MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  PLAY     F  OPEN FOLDER     ESC  BACK", 1, _RGB32(140, 135, 175), 1
+    ELSE
+        MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  CHOOSE     ESC  BACK     OR POINT AND CLICK", 1, _RGB32(140, 135, 175), 1
+    END IF
 END SUB
 
 ' The title menu's backdrop, t frames in: a synthwave sunset - a purple sky
