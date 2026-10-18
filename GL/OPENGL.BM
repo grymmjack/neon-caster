@@ -1910,7 +1910,6 @@ SUB GLBuildShaders
     fs$ = fs$ + "        vec4 t = texture2D(gun, g);" + nl$
     fs$ = fs$ + "        if (g.x >= 0.0 && g.x <= 1.0 && g.y >= 0.0 && g.y <= 1.0) c = t.rgb * gunLight + c * (1.0 - t.a);  // (in its light)" + nl$
     fs$ = fs$ + "    }" + nl$
-    fs$ = fs$ + "    if (hudOn > 0.5 && onScreen > 0.5) { vec4 h = texture2D(hud, hp); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied)" + nl$
     fs$ = fs$ + "    vec3 halo = vec3(0.0);  // phosphor glow: the picture, blurred" + nl$
     fs$ = fs$ + "    if (glow > 0.001) halo = texture2D(glowTex, p).rgb;" + nl$
     fs$ = fs$ + "    float lit = clamp(dot(halo, vec3(0.3, 0.59, 0.11)) * 2.0, 0.0, 1.0);  // how bright it is round here" + nl$
@@ -1919,6 +1918,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "        float band = lineThick * linePx * 0.5;  // (half the band; 'half' is a word GLSL keeps for itself)" + nl$
     fs$ = fs$ + "        c *= 1.0 - scanDark * (1.0 - smoothstep(band - 0.5, band + 0.5, d)) * (1.0 - glow * lit * 0.8);  // (bright fills the dark lines)" + nl$
     fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    if (hudOn > 0.5 && onScreen > 0.5) { vec4 h = texture2D(hud, hp); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied), after the scanlines: on the glass, so they never cut a row out of its letters" + nl$
     fs$ = fs$ + "    c += halo * halo * glow * 1.2;  // light spreading round bright things (squared: the bright parts, not the dim)" + nl$
     fs$ = fs$ + "    if (fxMode > 1.5) {  // CRT: a shadow mask and a dark rim" + nl$
     fs$ = fs$ + "        float m = mod(gl_FragCoord.x, 3.0);" + nl$
