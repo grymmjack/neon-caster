@@ -645,7 +645,7 @@ SUB DrawMenu(t)
     IF menuScreen = SCR_GAMEPLAY THEN ' What your crosshair looks like
         LINE (690, 96)-(750, 156), _RGBA32(0, 0, 0, 180), BF
         LINE (690, 96)-(750, 156), _RGBA32(90, 230, 255, 160), B
-        DrawCrosshair 720, 126
+        flashWas = crossFlash : crossFlash = 0 : DrawCrosshair 720, 126 : crossFlash = flashWas ' (not white from a hit just before the menu opened: its countdown waits in the game loop)
     END IF
     MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  CHOOSE     ESC  BACK     OR POINT AND CLICK", 1, _RGB32(140, 135, 175), 1
 END SUB
