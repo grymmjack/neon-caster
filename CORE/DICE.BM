@@ -1,0 +1,72 @@
+''
+' NEON-CASTER - CORE/DICE.BM
+' =============================================================================
+' The game's own dice (GRnd) and its own SIN, COS, TAN and _ATAN2:
+' the same on every computer, so a demo plays the same everywhere.
+'
+
+' The game's own SIN, COS, TAN and _ATAN2, for anything that changes the
+' game (not just how it looks). QB64's call the computer's maths library,
+' and Windows' gives a slightly different last digit now and then - enough,
+' added up over thousands of turns, to put a demo out of step. These use
+' only + - * /, which every computer does exactly alike (IEEE 754): a
+' quarter turn taken off (so what's left is within 45 degrees), then the
+' Taylor series - the same few terms every time.
+FUNCTION DSin# (x)
+    d# = x : q& = INT(d# / 1.5707963267948966# + 0.5) : r# = d# - q& * 1.5707963267948966#
+    DSin# = SinCosQ#(r#, q&)
+END FUNCTION
+
+FUNCTION DCos# (x)
+    d# = x : q& = INT(d# / 1.5707963267948966# + 0.5) : r# = d# - q& * 1.5707963267948966#
+    DCos# = SinCosQ#(r#, q& + 1) ' (cos is sin a quarter turn on)
+END FUNCTION
+
+FUNCTION DTan# (x)
+    c# = DCos#(x) : IF c# = 0 THEN c# = 1E-300
+    DTan# = DSin#(x) / c#
+END FUNCTION
+
+' sin(r + q quarter turns), r within 45 degrees of 0
+FUNCTION SinCosQ# (r#, q&)
+    r2# = r# * r#
+    s# = r# * (1 - r2# / 6 * (1 - r2# / 20 * (1 - r2# / 42 * (1 - r2# / 72 * (1 - r2# / 110 * (1 - r2# / 156))))))
+    c# = 1 - r2# / 2 * (1 - r2# / 12 * (1 - r2# / 30 * (1 - r2# / 56 * (1 - r2# / 90 * (1 - r2# / 132)))))
+    SELECT CASE q& AND 3
+        CASE 0 : SinCosQ# = s#
+        CASE 1 : SinCosQ# = c#
+        CASE 2 : SinCosQ# = -s#
+        CASE ELSE : SinCosQ# = -c#
+    END SELECT
+END FUNCTION
+
+' The angle of (x, y), as _ATAN2(y, x): the arctangent of the smaller over
+' the larger (so 0 to 1), brought under tan(22.5 degrees) by taking off 45,
+' then its series; then put in the right eighth of the circle
+FUNCTION DAtan2# (y, x)
+    ay# = ABS(y) : ax# = ABS(x)
+    IF ax# = 0 AND ay# = 0 THEN EXIT FUNCTION
+    IF ay# > ax# THEN t# = ax# / ay# : sw = -1 ELSE t# = ay# / ax# : sw = 0
+    o# = 0 : IF t# > 0.41421356237309503# THEN t# = (t# - 1) / (t# + 1) : o# = 0.78539816339744828#
+    t2# = t# * t# : a# = 0
+    FOR n = 33 TO 1 STEP -2 : a# = 1 / n - t2# * a# : NEXT
+    a# = o# + t# * a#
+    IF sw THEN a# = 1.5707963267948966# - a#
+    IF x < 0 THEN a# = 3.141592653589793# - a#
+    IF y < 0 THEN a# = -a#
+    DAtan2# = a#
+END FUNCTION
+
+' The game's own dice: a number from 0 up to (not including) 1, as RND -
+' but for everything that changes the game (loot, damage, which monster),
+' so a demo, starting them at its seed, rolls the same. It's the "minimal
+' standard" generator (Park and Miller): multiply by 16807 and keep the
+' remainder by 2147483647 - in DOUBLEs, which hold that product exactly,
+' so it comes out the same on every computer.
+FUNCTION GRnd!
+    grSeed = grSeed * 16807#
+    grSeed = grSeed - INT(grSeed / 2147483647#) * 2147483647#
+    IF grSeed < 1 THEN grSeed = 1
+    r! = grSeed / 2147483647# : IF r! >= 1 THEN r! = 0.9999999 ' (a SINGLE rounds the very top up to 1)
+    GRnd! = r!
+END FUNCTION

@@ -1,12 +1,12 @@
-"""Write steam/achievements.csv and steam/stats.csv from neon-caster.bas's
-AchDef lines - what to enter in the Steamworks admin (Stats & Achievements),
+"""Write steam/achievements.csv and steam/stats.csv from the game's AchDef
+lines (ACH/ACHIEVEMENTS.BM) - what to enter in the Steamworks admin (Stats & Achievements),
 in the game's own words, so the two can't drift apart.
 
     python3 steam/make_tables.py
 """
 import re, os, csv
 HERE = os.path.dirname(os.path.abspath(__file__))
-src = open(os.path.join(HERE, "..", "neon-caster.bas")).read()
+src = open(os.path.join(HERE, "..", "ACH", "ACHIEVEMENTS.BM")).read()
 rows, stats = [], []
 for m in re.finditer(r'AchDef "(\w+)", "([^"]*)", "([^"]*)", (-?\d+), "(\w*)", (\d+)', src):
     api, title, desc, hidden, stat, goal = m.groups()

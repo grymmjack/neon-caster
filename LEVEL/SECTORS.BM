@@ -1,0 +1,130 @@
+''
+' NEON-CASTER - LEVEL/SECTORS.BM
+' =============================================================================
+' Sectors: their names, sets, files and music - and your own.
+'
+
+' --- Every sector's name (the name = line of each level's file), for the
+' route map
+ReadSectorNames:
+FOR k = 1 TO NUM_LEVELS ' (just their names: reading a whole file would overwrite the level being played or edited)
+    sectorName$(k) = SectorNameOf$(k)
+NEXT
+FOR k = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM : sectorName$(k) = SectorNameOf$(k) : NEXT
+RETURN
+
+' --- A new sector of your own (GAME > YOUR SECTORS > NEW SECTOR, or the
+' newsector command): the first free number's file, made blank
+' (WriteBlankSector), then a game in it - in the editor. level stays as
+' it was if there's no room for another.
+NewSector:
+newN = 0
+FOR k = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM
+    IF newN = 0 AND NOT _FILEEXISTS(LevelFile$(k)) THEN newN = k
+NEXT
+IF newN = 0 THEN ShowMsg "No room for another sector - there can be" + STR$(MAX_CUSTOM) : ConPrint "newsector: all" + STR$(MAX_CUSTOM) + " are made" : RETURN
+WriteBlankSector newN
+sectorName$(newN) = SectorNameOf$(newN)
+level = newN : GOSUB NewGameHere
+GOSUB EditEnter
+EditNote "NEW SECTOR " + LTRIM$(STR$(newN)) + ": carve out rooms with . - Ctrl+S saves"
+ConPrint "newsector: " + LevelFile$(newN)
+RETURN
+
+' The file of level n
+' Where your own sectors' files go: neon-caster/levels/custom/ (made by
+' the first NEW SECTOR - WriteBlankSector)
+FUNCTION CustomDir$
+    f$ = AssetPath$("levels/level1.txt")
+    CustomDir$ = LEFT$(f$, LEN(f$) - LEN("level1.txt")) + "custom/"
+END FUNCTION
+
+' Sector n's name, from its file's name = line, without reading the rest
+' (ReadLevelFile fills in the level being played) - "" if there's no file
+FUNCTION SectorNameOf$(n)
+    f$ = LevelFile$(n) : IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$ : t$ = LTRIM$(RTRIM$(l$))
+        IF LEFT$(t$, 1) = "[" THEN EXIT DO
+        eq = INSTR(t$, "=")
+        IF eq THEN IF LCASE$(RTRIM$(LEFT$(t$, eq - 1))) = "name" THEN SectorNameOf$ = LTRIM$(MID$(t$, eq + 1)) : EXIT DO
+    LOOP
+    CLOSE #fh
+END FUNCTION
+
+' Is there a sector n? (The game's are always there; yours once made.)
+FUNCTION SectorExists(n)
+    IF n >= 1 AND n <= NUM_LEVELS THEN
+        IF sectorSet = 0 THEN SectorExists = -1 ELSE SectorExists = _FILEEXISTS(LevelFile$(n)) ' (a set's: once it's made)
+    ELSEIF n > NUM_LEVELS AND n <= NUM_LEVELS + MAX_CUSTOM THEN
+        SectorExists = _FILEEXISTS(LevelFile$(n))
+    END IF
+END FUNCTION
+
+' A sector's music: its own - or, for one of yours, one of the game's in turn
+FUNCTION SectorMusic&(n)
+    IF n > NUM_LEVELS THEN SectorMusic& = levelMusic&((n - NUM_LEVELS - 1) MOD NUM_LEVELS + 1) ELSE SectorMusic& = levelMusic&(n)
+END FUNCTION
+
+' A blank slate for sector n: solid wall, with one lit room in the middle
+' to carve outwards from - you facing east, the exit in the far wall
+SUB WriteBlankSector(n)
+    nl$ = CHR$(10) : q$ = "' "
+    o$ = q$ + "NEON-CASTER level file - see chapter 22 of neon-caster.bas for every" + nl$
+    o$ = o$ + q$ + "part of it. Lines starting with ' are comments. The level kit" + nl$
+    o$ = o$ + q$ + "(levels.py --write) and the editor in the game write these files." + nl$
+    o$ = o$ + q$ + "Your own sector, made blank by NEW SECTOR: one room in solid wall." + nl$
+    o$ = o$ + nl$ + "name     = MY SECTOR " + LTRIM$(STR$(n - NUM_LEVELS)) + nl$
+    o$ = o$ + "walls    = wall.png, wall2.png, wall-concrete.png, wall-servers.png, wall-pipes.png, wall-biolab.png" + nl$
+    o$ = o$ + "floors   = floor.png, floor-plates.png, floor-concrete.png, floor-lab.png" + nl$
+    o$ = o$ + "ceilings = ceiling.png, ceiling-lights.png" + nl$
+    o$ = o$ + "ambient  = 165, 225, 220, 255" + nl$
+    o$ = o$ + nl$ + "[lights]" + nl$ + "' x, y, radius, brightness, red, green, blue, effect" + nl$
+    o$ = o$ + "24, 24, 7, 150, 220, 230, 255, 0" + nl$
+    o$ = o$ + nl$ + "[map]" + nl$
+    FOR y = 0 TO MAP_SIZE - 1
+        r$ = STRING$(MAP_SIZE, "#")
+        IF y >= 20 AND y <= 27 THEN MID$(r$, 21, 8) = STRING$(8, ".") ' The room: cells 20 to 27 each way
+        IF y = 24 THEN MID$(r$, 22, 1) = ">" : MID$(r$, 29, 1) = "E" ' You at (21, 24), the exit at (28, 24)
+        o$ = o$ + r$ + nl$
+    NEXT
+    d$ = CustomDir$ : d$ = LEFT$(d$, LEN(d$) - 1) : IF NOT _DIREXISTS(d$) THEN MKDIR d$
+    f$ = LevelFile$(n) : fh = FREEFILE
+    OPEN f$ FOR OUTPUT AS #fh : PRINT #fh, o$; : CLOSE #fh
+END SUB
+
+FUNCTION LevelFile$(n)
+    IF n > NUM_LEVELS THEN LevelFile$ = CustomDir$ + "custom" + LTRIM$(STR$(n - NUM_LEVELS)) + ".txt" : EXIT FUNCTION
+    LevelFile$ = AssetPath$("levels/" + SetDir$(sectorSet) + "level" + LTRIM$(STR$(n)) + ".txt")
+END FUNCTION
+
+' SECTOR SETS: set s's folder, under levels/ ("" for the game's own ten)...
+FUNCTION SetDir$(s)
+    SELECT CASE s
+        CASE 1 : SetDir$ = "new/"
+        CASE 2 : SetDir$ = "remix/"
+        CASE ELSE : SetDir$ = ""
+    END SELECT
+END FUNCTION
+
+' ...its name, as the menu has it...
+FUNCTION SetName$(s)
+    SELECT CASE s
+        CASE 1 : SetName$ = "NEW SECTORS"
+        CASE 2 : SetName$ = "OLD SECTORS NEW"
+        CASE ELSE : SetName$ = "THE ORIGINAL TEN"
+    END SELECT
+END FUNCTION
+
+' ...and its sector n's name ("" if there's no such file yet)
+FUNCTION SetSectorName$(s, n)
+    was = sectorSet : sectorSet = s
+    SetSectorName$ = SectorNameOf$(n)
+    sectorSet = was
+END FUNCTION
+
+' The sector's name without its "SECTOR n: "
+FUNCTION SectorShort$
+    c = INSTR(lvlName$, ": ") : IF c THEN SectorShort$ = MID$(lvlName$, c + 2) ELSE SectorShort$ = lvlName$
+END FUNCTION

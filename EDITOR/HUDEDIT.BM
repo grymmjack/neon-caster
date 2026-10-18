@@ -1,0 +1,119 @@
+''
+' NEON-CASTER - EDITOR/HUDEDIT.BM
+' =============================================================================
+' The HUD editor: moving and sizing the HUD's parts, and hud.txt.
+'
+
+' --- THE HUD LAYOUT EDITOR (chapter 21): the game goes on behind (frozen,
+' as in the level editor); every part of the HUD is drawn with a box round
+' it (HudEditDraw). Drag one with the mouse; Tab the next one; the arrows
+' nudge it (Shift: 8 pixels); V shows or hides it; C its colour; + and -
+' its bar's width, [ and ] its height; S saves hud.txt; R puts back the
+' game's own layout; U or Esc leaves.
+HudEditEnter:
+hudEdit = -1 : hudSel = HE_HEALTH : hudDrag = 0 : _MOUSESHOW : _KEYCLEAR
+hudMsg$ = "HUD LAYOUT: drag things about - Tab next, V show/hide, C colour, +/- [ ] bar, S save, R reset, U done"
+RETURN
+HudEditLeave:
+hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : edMouseFix = -1
+RETURN
+HudEditFrame:
+hmx = _MOUSEX : hmy = _MOUSEY : hb = _MOUSEBUTTON(1)
+IF hb AND NOT hudDrag THEN ' Press: the part under the mouse (the smallest, if two overlap)
+    best = 0 : bestA = 1E+9
+    FOR e = 1 TO HUD_ELEMS
+        HudBox e, bx0, by0, bx1, by1
+        IF hmx >= bx0 AND hmx <= bx1 AND hmy >= by0 AND hmy <= by1 THEN IF (bx1 - bx0) * (by1 - by0) < bestA THEN bestA = (bx1 - bx0) * (by1 - by0) : best = e
+    NEXT
+    IF best THEN hudSel = best : hudDrag = -1 : hdx = hmx : hdy = hmy
+END IF
+IF hb AND hudDrag THEN hudX(hudSel) = hudX(hudSel) + hmx - hdx : hudY(hudSel) = hudY(hudSel) + hmy - hdy : hdx = hmx : hdy = hmy
+IF NOT hb THEN hudDrag = 0
+k& = _KEYHIT
+DO WHILE k&
+    hs = 1 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN hs = 8
+    SELECT CASE k&
+        CASE 27, 117, 85 : GOSUB HudEditLeave : EXIT DO
+        CASE 9 : hudSel = hudSel MOD HUD_ELEMS + 1
+        CASE 18432 : hudY(hudSel) = hudY(hudSel) - hs
+        CASE 20480 : hudY(hudSel) = hudY(hudSel) + hs
+        CASE 19200 : hudX(hudSel) = hudX(hudSel) - hs
+        CASE 19712 : hudX(hudSel) = hudX(hudSel) + hs
+        CASE 118, 86 : hudShow(hudSel) = NOT hudShow(hudSel)
+        CASE 99, 67 : hudCol(hudSel) = HudNextColor~&(hudCol(hudSel))
+        CASE 43, 61 : hudW(hudSel) = hudW(hudSel) + 10 : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = hudW(hudSel) - 9
+        CASE 45 : IF hudSel = HE_MINIMAP OR hudSel = HE_CARDS THEN hudW(hudSel) = MaxOf(1, hudW(hudSel) - 1) ELSE hudW(hudSel) = MaxOf(0, hudW(hudSel) - 10) ' (the map and cards a step at a time: they're small numbers)
+        CASE 91 : hudH(hudSel) = MaxOf(1, hudH(hudSel) - 1)
+        CASE 93 : hudH(hudSel) = hudH(hudSel) + 1
+        CASE 115, 83 : WriteHud : hudMsg$ = "Saved " + AssetPath$("hud.txt")
+        CASE 114, 82 : HudDefaults : hudMsg$ = "The game's own layout, back (S to keep it)"
+    END SELECT
+    k& = _KEYHIT
+LOOP
+RETURN
+
+' The HUD editor's colours, one after another (0: the game's own)
+FUNCTION HudNextColor~&(c~&)
+    DIM p(8) AS _UNSIGNED LONG
+    p(0) = 0 : p(1) = _RGB32(255, 255, 255) : p(2) = _RGB32(60, 230, 255) : p(3) = _RGB32(255, 70, 220) : p(4) = _RGB32(80, 255, 120)
+    p(5) = _RGB32(255, 230, 60) : p(6) = _RGB32(255, 70, 70) : p(7) = _RGB32(255, 150, 40) : p(8) = _RGB32(170, 140, 255)
+    n = 0
+    FOR k = 0 TO 8
+        IF p(k) = c~& THEN n = k + 1
+    NEXT
+    HudNextColor~& = p(n MOD 9)
+END FUNCTION
+
+' Roughly where part e is on the screen (for picking it, and its box)
+SUB HudBox(e, x0, y0, x1, y1)
+    x = hudX(e) : y = hudY(e)
+    SELECT CASE e
+        CASE HE_HEALTH, HE_ARMOR : x0 = x : y0 = y : x1 = x + MaxOf(hudW(e), 96) + 2 : y1 = y + 20 + hudH(e)
+        CASE HE_AMMO : x0 = x - MaxOf(hudW(e), 120) - 2 : y0 = y : x1 = x : y1 = y + 20 + hudH(e)
+        CASE HE_GUNS : x0 = x : y0 = y : x1 = x + 76 : y1 = y + 16
+        CASE HE_MINIMAP : x0 = x : y0 = y : x1 = x + MAP_SIZE * hudW(e) : y1 = y + MAP_SIZE * hudW(e)
+        CASE HE_CARDS : x0 = x - 3 * (hudW(e) + 4) : y0 = y : x1 = x : y1 = y + hudW(e)
+        CASE HE_TIMER : x0 = x - 112 : y0 = y : x1 = x : y1 = y + 34
+        CASE HE_MESSAGE, HE_SUBTITLE, HE_EVENT, HE_NETWORK, HE_FPS : x0 = x - 160 : y0 = y : x1 = x + 160 : y1 = y + 22
+        CASE ELSE : x0 = x : y0 = y : x1 = x + 120 : y1 = y + 16
+    END SELECT
+END SUB
+
+' The HUD editor's boxes: every part, the chosen one bright (with its name)
+SUB HudEditDraw
+    FOR e = 1 TO HUD_ELEMS
+        HudBox e, x0, y0, x1, y1
+        IF e = hudSel THEN c~& = _RGB32(255, 255, 255) ELSE c~& = _RGBA32(255, 60, 200, 150)
+        IF NOT hudShow(e) THEN c~& = _RGBA32(150, 150, 150, 130)
+        LINE (x0 - 2, y0 - 2)-(x1 + 2, y1 + 2), c~&, B
+        t$ = hudName$(e) : IF NOT hudShow(e) THEN t$ = t$ + " (hidden)"
+        IF e = hudSel THEN HudText x0, y0 - 14, t$, _RGB32(255, 255, 255) ELSE HudText x0, y0 - 14, t$, _RGBA32(255, 120, 220, 200)
+    NEXT
+    LINE (0, 582)-(799, 599), _RGBA32(0, 0, 0, 200), BF
+    HudText 4, 584, LEFT$(hudMsg$, 98), _RGB32(255, 220, 120)
+END SUB
+
+SUB WriteHud
+    nl$ = CHR$(10)
+    o$ = "' NEON-CASTER HUD - where each part of it goes (chapter 18). The HUD" + nl$
+    o$ = o$ + "' layout editor (U in the level editor, or hud in the console) writes" + nl$
+    o$ = o$ + "' this file; delete it for the game's own layout." + nl$
+    o$ = o$ + "'   show: yes or no   x, y: on the 800 x 600 screen (ammo: its right edge;" + nl$
+    o$ = o$ + "'   message, subtitle, event, network, fps: their middle)   bar: width," + nl$
+    o$ = o$ + "'   height   size: the minimap's cells, the keycards' pictures" + nl$
+    o$ = o$ + "'   color: auto (the game's own) or red, green, blue   label: its word" + nl$
+    FOR e = 1 TO HUD_ELEMS
+        o$ = o$ + nl$ + "[" + hudName$(e) + "]" + nl$
+        IF hudShow(e) THEN o$ = o$ + "show  = yes" + nl$ ELSE o$ = o$ + "show  = no" + nl$
+        o$ = o$ + "x     = " + LTRIM$(STR$(hudX(e))) + nl$ + "y     = " + LTRIM$(STR$(hudY(e))) + nl$
+        SELECT CASE e
+            CASE HE_HEALTH, HE_ARMOR, HE_AMMO : o$ = o$ + "bar   = " + LTRIM$(STR$(hudW(e))) + ", " + LTRIM$(STR$(hudH(e))) + nl$
+            CASE HE_MINIMAP, HE_CARDS : o$ = o$ + "size  = " + LTRIM$(STR$(hudW(e))) + nl$
+        END SELECT
+        IF hudCol(e) THEN o$ = o$ + "color = " + LTRIM$(STR$(_RED32(hudCol(e)))) + ", " + LTRIM$(STR$(_GREEN32(hudCol(e)))) + ", " + LTRIM$(STR$(_BLUE32(hudCol(e)))) + nl$ ELSE o$ = o$ + "color = auto" + nl$
+        IF LEN(hudLabel$(e)) THEN o$ = o$ + "label = " + hudLabel$(e) + nl$
+    NEXT
+    f$ = AssetPath$("hud.txt")
+    IF _FILEEXISTS(f$) THEN KILL f$
+    fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+END SUB

@@ -1,0 +1,84 @@
+''
+' NEON-CASTER - _ALL.BM
+' =============================================================================
+' Every SUB and FUNCTION, and the GOSUB routines (they're part of the main
+' program, so they live after it). neon-caster.bas includes this last.
+'
+
+' CORE ------------------------------------------------------------------------
+'$INCLUDE:'./CORE/ERRORS.BM'
+'$INCLUDE:'./CORE/HELPERS.BM'
+'$INCLUDE:'./CORE/DICE.BM'
+'$INCLUDE:'./CORE/FILES.BM'
+'$INCLUDE:'./CORE/SETTINGS.BM'
+'$INCLUDE:'./CORE/KEYS.BM'
+
+' WORLD -----------------------------------------------------------------------
+'$INCLUDE:'./WORLD/COLLISION.BM'
+'$INCLUDE:'./WORLD/HEIGHTS.BM'
+'$INCLUDE:'./WORLD/DOORS.BM'
+'$INCLUDE:'./WORLD/GLASS.BM'
+'$INCLUDE:'./WORLD/LIQUIDS.BM'
+'$INCLUDE:'./WORLD/LIFTS.BM'
+
+' GAME ------------------------------------------------------------------------
+'$INCLUDE:'./GAME/EVENTS.BM'
+'$INCLUDE:'./GAME/PLAYER.BM'
+'$INCLUDE:'./GAME/GUNS.BM'
+'$INCLUDE:'./GAME/MONSTERS.BM'
+'$INCLUDE:'./GAME/BLASTS.BM'
+'$INCLUDE:'./GAME/ITEMS.BM'
+'$INCLUDE:'./GAME/DECOS.BM'
+'$INCLUDE:'./GAME/DROIDS.BM'
+'$INCLUDE:'./GAME/SECRETS.BM'
+'$INCLUDE:'./GAME/TRIGGERS.BM'
+'$INCLUDE:'./GAME/TERMINALS.BM'
+'$INCLUDE:'./GAME/NETWORK.BM'
+'$INCLUDE:'./GAME/ARCADE.BM'
+'$INCLUDE:'./GAME/NEXUS.BM'
+
+' LEVEL -----------------------------------------------------------------------
+'$INCLUDE:'./LEVEL/LEVELS.BM'
+'$INCLUDE:'./LEVEL/LOADLEVEL.BM'
+'$INCLUDE:'./LEVEL/SECTORS.BM'
+'$INCLUDE:'./LEVEL/LEVELFILE.BM'
+
+' RENDER ----------------------------------------------------------------------
+'$INCLUDE:'./RENDER/PICTURES.BM'
+'$INCLUDE:'./RENDER/VIEW.BM'
+'$INCLUDE:'./RENDER/LIGHT.BM'
+'$INCLUDE:'./RENDER/PARTICLES.BM'
+'$INCLUDE:'./RENDER/HUD.BM'
+'$INCLUDE:'./RENDER/TEXT.BM'
+'$INCLUDE:'./RENDER/SCREEN.BM'
+
+' GL --------------------------------------------------------------------------
+'$INCLUDE:'./GL/OPENGL.BM'
+'$INCLUDE:'./GL/EXTRAS.BM'
+
+' MENU ------------------------------------------------------------------------
+'$INCLUDE:'./MENU/MENU.BM'
+'$INCLUDE:'./MENU/SPLASH.BM'
+'$INCLUDE:'./MENU/CONSOLE.BM'
+'$INCLUDE:'./MENU/SAVES.BM'
+
+' EDITOR ----------------------------------------------------------------------
+'$INCLUDE:'./EDITOR/EDITOR.BM'
+'$INCLUDE:'./EDITOR/HUDEDIT.BM'
+'$INCLUDE:'./EDITOR/MONEDIT.BM'
+
+' AUDIO -----------------------------------------------------------------------
+'$INCLUDE:'./AUDIO/SOUND.BM'
+'$INCLUDE:'./AUDIO/MUSIC.BM'
+
+' DEMO ------------------------------------------------------------------------
+'$INCLUDE:'./DEMO/DEMO.BM'
+'$INCLUDE:'./DEMO/BOT.BM'
+
+' ACH -------------------------------------------------------------------------
+'$INCLUDE:'./ACH/ACHIEVEMENTS.BM'
+'$INCLUDE:'./ACH/RECORDS.BM'
+
+' LIBRARIES ------------------------------------------------------------------
+'$INCLUDE:'./lib/glsl/GLSL.BM'
+'$INCLUDE:'./lib/steam/STEAM.BM'

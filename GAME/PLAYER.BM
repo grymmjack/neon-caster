@@ -1,0 +1,74 @@
+''
+' NEON-CASTER - GAME/PLAYER.BM
+' =============================================================================
+' You: getting hurt, and ammo.
+'
+
+' --- You take `damage` (armour soaks up a third of it while it lasts). If
+' the caller said where it came from (hurtFromX, hurtFromY), a damage
+' indicator points there (chapter 18).
+HurtPlayer:
+IF godMode OR editMode THEN hurtFromX = -1 : hurtElectric = 0 : hurtR = 0 : hurtG = 0 : hurtB = 0 : RETURN ' (nothing hurts in god mode, or in the editor)
+IF setting(SET_XFEEDBACK) THEN crossScale = 1.8 ' The crosshair jolts wide
+IF hurtFromX >= 0 THEN AddHurtDir hurtFromX, hurtFromY
+hurtFromX = -1
+absorbed = damage \ 3 : IF absorbed > armor THEN absorbed = armor
+armor = armor - absorbed : damage = damage - absorbed
+health = health - damage : hurtFlash = 14 : shake = shake + damage / 2
+IF buddhaMode AND health < 1 AND damage < 999 THEN health = 1 ' (buddha: it hurts as ever - but stops at 1. Not a pit, or a death trap: those are 999)
+IF damage > 0 THEN achLevelHurt = -1
+' The edges, in what hurt you: a shock's blue, else the caller's colour
+' (hurtR/G/B) - or blood. The harder the hit, the stronger.
+IF hurtElectric THEN hurtR = 60 : hurtG = 140 : hurtB = 255
+IF hurtR = 0 AND hurtG = 0 AND hurtB = 0 THEN hurtR = 140 : hurtG = 0 : hurtB = 0
+painR = hurtR : painG = hurtG : painB = hurtB : painVig = MinOf(1, 0.4 + damage / 25)
+IF health <= 0 THEN
+    health = 0 : dead = -1 : deadAt! = TIMER
+    PlaySfx sndDie&, 1 : ShowMsg ""
+ELSE
+    SELECT CASE INT(RND * 3) ' One of three, so it doesn't sound the same every time
+        CASE 1 : IF sndHurt2& THEN PlaySfx sndHurt2&, 0.8 ELSE PlaySfx sndHurt&, 0.8
+        CASE 2 : IF sndHurt3& THEN PlaySfx sndHurt3&, 0.8 ELSE PlaySfx sndHurt&, 0.8
+        CASE ELSE : PlaySfx sndHurt&, 0.8
+    END SELECT
+END IF
+IF hurtElectric THEN PlaySfx sndHurtZap&, 1 ' (a shock - a laser, a live floor: the zap as well as the cry)
+hurtElectric = 0 : hurtR = 0 : hurtG = 0 : hurtB = 0
+RETURN
+
+' Are you running out? Under a quarter of the ammo your guns could carry,
+' all of them together (each kind once - the blaster and the repeater
+' share cells): then breakables' loot comes twice as often (DecoLoot)
+FUNCTION AmmoLow
+    DIM used(2) AS INTEGER
+    FOR g = 1 TO NUM_GUNS
+        IF hasGun(g) THEN t = gunAmmoType(g) : IF t >= 1 AND t <= 2 THEN used(t) = -1
+    NEXT
+    have = 0 : most = 0
+    FOR t = 1 TO 2
+        IF used(t) THEN have = have + ammoCount(t) : most = most + ammoMax(t)
+    NEXT
+    IF most > 0 THEN AmmoLow = (have < most * 0.25)
+END FUNCTION
+
+' An ammo kind by name (cells, shells - or 1, 2), 0 for none
+FUNCTION AmmoKind(a$)
+    SELECT CASE LCASE$(a$)
+        CASE "cells", "cell", "energy", "1" : AmmoKind = AM_CELLS
+        CASE "shells", "shell", "2" : AmmoKind = AM_SHELLS
+        CASE ELSE : AmmoKind = 0
+    END SELECT
+END FUNCTION
+
+FUNCTION AmmoName$(am)
+    IF am = AM_SHELLS THEN AmmoName$ = "shells" ELSE AmmoName$ = "cells"
+END FUNCTION
+
+' Add `amount` of ammo type ammoType, up to the most you can carry. Returns
+' FALSE (0) if you were already full, so the pickup stays on the floor.
+FUNCTION GiveAmmo%(ammoType, amount)
+    IF ammoCount(ammoType) >= ammoMax(ammoType) THEN EXIT FUNCTION
+    ammoCount(ammoType) = ammoCount(ammoType) + amount
+    IF ammoCount(ammoType) > ammoMax(ammoType) THEN ammoCount(ammoType) = ammoMax(ammoType)
+    GiveAmmo% = -1
+END FUNCTION

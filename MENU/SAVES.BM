@@ -1,0 +1,236 @@
+''
+' NEON-CASTER - MENU/SAVES.BM
+' =============================================================================
+' Saving and loading a game.
+'
+
+' --- Save the game to slot saveSlot (0 is the quick save). The same
+' variables, in the same order, as LoadGame.
+SaveGame:
+IF editMode THEN ShowMsg "No saving the game in the editor - Ctrl+S saves the level" : RETURN
+IF dead THEN ShowMsg "No saving once you're dead" : PlaySfx sndLocked&, 0.8 : RETURN
+IF cyberOn THEN ShowMsg "No saving in the network" : PlaySfx sndLocked&, 0.8 : RETURN
+saveFile$ = SlotFile$(saveSlot)
+MakeSaveDir
+IF _FILEEXISTS(saveFile$) THEN KILL saveFile$ ' (BINARY would only overwrite the start of an old file)
+fileNum = FREEFILE
+OPEN saveFile$ FOR BINARY AS #fileNum
+saveTag$ = SAVE_TAG : PUT #fileNum, , saveTag$
+setTag$ = "" : IF sectorSet = 1 THEN setTag$ = "NEW: " ELSE IF sectorSet = 2 THEN setTag$ = "OLD NEW: " ' (another set's: says so)
+saveInfo$ = LEFT$(setTag$ + levelName$ + "  " + DATE$ + " " + LEFT$(TIME$, 5) + SPACE$(SAVE_INFO_LEN), SAVE_INFO_LEN)
+PUT #fileNum, , saveInfo$
+levelSaved = level : IF sectorSet AND level <= NUM_LEVELS THEN levelSaved = sectorSet * 100 + level ' (another set's sector: 100 a set on - an old save is the game's own)
+PUT #fileNum, , levelSaved
+levelTime! = frameAt! - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400 ' (to the last frame played: not the time since in the menu)
+PUT #fileNum, , health : PUT #fileNum, , armor : PUT #fileNum, , kills : PUT #fileNum, , currentGun : PUT #fileNum, , levelTime!
+PUT #fileNum, , totalKills : PUT #fileNum, , totalMonsters : PUT #fileNum, , totalTime!
+PUT #fileNum, , savedHealth : PUT #fileNum, , savedArmor : PUT #fileNum, , savedCells : PUT #fileNum, , savedShells : PUT #fileNum, , savedGun
+PUT #fileNum, , playerX : PUT #fileNum, , playerY : PUT #fileNum, , dirX : PUT #fileNum, , dirY
+PUT #fileNum, , ammoCount(AM_CELLS) : PUT #fileNum, , ammoCount(AM_SHELLS)
+FOR gun = 1 TO NUM_GUNS : PUT #fileNum, , hasGun(gun) : PUT #fileNum, , savedHasGun(gun) : NEXT
+FOR k = 1 TO 3 : PUT #fileNum, , hasCard(k) : NEXT
+PUT #fileNum, , hasMap
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , cellSeen(x, y) : NEXT : NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , doorOpen(x, y) : NEXT : NEXT
+' (all of every pickup and monster: event rooms add them as you play)
+PUT #fileNum, , numItems
+FOR i = 1 TO numItems : PUT #fileNum, , itemOn(i) : PUT #fileNum, , itemKind(i) : PUT #fileNum, , itemX(i) : PUT #fileNum, , itemY(i) : NEXT
+PUT #fileNum, , numMonsters
+FOR i = 1 TO numMonsters
+    PUT #fileNum, , monsterX(i) : PUT #fileNum, , monsterY(i) : PUT #fileNum, , monsterHP(i)
+    PUT #fileNum, , monsterState(i) : PUT #fileNum, , monsterTimer(i) : PUT #fileNum, , monsterType(i) : PUT #fileNum, , monsterEv(i)
+    PUT #fileNum, , thiefState(i) : PUT #fileNum, , thiefCells(i) : PUT #fileNum, , thiefShells(i) : PUT #fileNum, , thiefGun(i)
+NEXT
+PUT #fileNum, , numEvents
+FOR i = 1 TO numEvents : PUT #fileNum, , evState(i) : PUT #fileNum, , evTimer(i) : PUT #fileNum, , evCount(i) : NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , doorLock(x, y) : NEXT : NEXT
+PUT #fileNum, , numDecos
+FOR i = 1 TO numDecos : PUT #fileNum, , decoOn(i) : PUT #fileNum, , decoHP(i) : PUT #fileNum, , decoTimer(i) : NEXT
+FOR l = 1 TO numLightsBase : PUT #fileNum, , lightBroken(l) : NEXT ' (the ceiling lamps you shot out - the level's own: a flood's glow comes back with its pool)
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , glassHP(x, y) : NEXT : NEXT ' (and the glass)
+' (then - each section only in saves made since it was added - which
+' triggers have fired, the lockdowns that lifted, pools flooded in play,
+' and the achievements' state: cheats on, where the run began)
+PUT #fileNum, , numTrigs : FOR k = 1 TO numTrigs : PUT #fileNum, , trigDone(k) : NEXT
+PUT #fileNum, , numEvents : FOR k = 1 TO numEvents : PUT #fileNum, , evPaused(k) : NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , liqKind(x, y) : PUT #fileNum, , liqZ(x, y) : NEXT : NEXT
+PUT #fileNum, , achCheat : PUT #fileNum, , achRunFrom
+PUT #fileNum, , achLevelHurt : PUT #fileNum, , achOtherGun ' (this sector so far: hurt? another gun?)
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (the doors each event room sealed, and the blocks - a trigger may have raised some, or sunk them)
+    PUT #fileNum, , doorLockEv(x, y) : PUT #fileNum, , boxOn(x, y)
+    PUT #fileNum, , boxX0(x, y) : PUT #fileNum, , boxY0(x, y) : PUT #fileNum, , boxX1(x, y) : PUT #fileNum, , boxY1(x, y)
+NEXT : NEXT
+PUT #fileNum, , numTerms : FOR k = 1 TO numTerms : PUT #fileNum, , termDone(k) : NEXT
+PUT #fileNum, , numStations : FOR k = 1 TO numStations : PUT #fileNum, , stationDone(k) : NEXT
+PUT #fileNum, , numLifts : FOR k = 1 TO numLifts : PUT #fileNum, , liftZ(k) : PUT #fileNum, , liftDir(k) : PUT #fileNum, , liftArm(k) : NEXT ' (where each lift is, and going)
+PUT #fileNum, , numSecrets : FOR k = 1 TO numSecrets : PUT #fileNum, , secretFound(k) : PUT #fileNum, , secretHint(k) : NEXT ' (the secrets found)
+PUT #fileNum, , nvCharge : PUT #fileNum, , nvOn ' (night vision's battery)
+CLOSE #fileNum
+IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
+RETURN
+
+' --- Load the game in slot saveSlot: read which level, build that level
+' fresh (LoadLevel), then read back everything that had changed in it.
+' loadOK says whether it worked.
+LoadGame:
+IF demoRec OR demoPlay THEN GOSUB DemoStop ' (a saved game isn't where the demo was going)
+loadOK = 0 : saveFile$ = SlotFile$(saveSlot)
+IF editMode AND _FILEEXISTS(saveFile$) THEN GOSUB EditLeave : editDirty = 0 ' (out of the editor first: its undo and its sector belong to the level being left)
+IF NOT _FILEEXISTS(saveFile$) THEN ShowMsg "Nothing saved there yet" : RETURN
+fileNum = FREEFILE
+OPEN saveFile$ FOR BINARY AS #fileNum
+saveTag$ = SPACE$(LEN(SAVE_TAG)) : GET #fileNum, , saveTag$ ' (GET fills a string as long as it already is)
+IF saveTag$ <> SAVE_TAG THEN CLOSE #fileNum : ShowMsg "That isn't a NEON-CASTER save" : RETURN
+saveInfo$ = SPACE$(SAVE_INFO_LEN) : GET #fileNum, , saveInfo$
+GET #fileNum, , level
+sectorSet = 0 : IF level > 100 THEN sectorSet = level \ 100 : level = level MOD 100 ' (another set's sector)
+GOSUB ReadSectorNames
+GOSUB LoadLevel
+GET #fileNum, , health : GET #fileNum, , armor : GET #fileNum, , kills : GET #fileNum, , currentGun : GET #fileNum, , levelTime!
+GET #fileNum, , totalKills : GET #fileNum, , totalMonsters : GET #fileNum, , totalTime!
+GET #fileNum, , savedHealth : GET #fileNum, , savedArmor : GET #fileNum, , savedCells : GET #fileNum, , savedShells : GET #fileNum, , savedGun
+GET #fileNum, , playerX : GET #fileNum, , playerY : GET #fileNum, , dirX : GET #fileNum, , dirY
+playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H ' (on the floor where you were - not dropped from the sector's start)
+GET #fileNum, , ammoCount(AM_CELLS) : GET #fileNum, , ammoCount(AM_SHELLS)
+FOR gun = 1 TO NUM_GUNS : GET #fileNum, , hasGun(gun) : GET #fileNum, , savedHasGun(gun) : NEXT
+FOR k = 1 TO 3 : GET #fileNum, , hasCard(k) : NEXT
+GET #fileNum, , hasMap
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , cellSeen(x, y) : NEXT : NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , doorOpen(x, y) : NEXT : NEXT
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (open doors wait their full time again, then shut)
+    doorMove(x, y) = 0 : doorWait(x, y) = 0 : IF doorOpen(x, y) >= 1 THEN doorWait(x, y) = DoorHold(doorType(x, y))
+NEXT : NEXT
+' The level must have the same things in it as when it was saved
+' (pickups and monsters can only have been added to, never taken away)
+GET #fileNum, , savedCount : IF savedCount < numItems OR savedCount > MAX_ITEMS THEN GOSUB LoadMismatch : RETURN
+numItems = savedCount
+FOR i = 1 TO numItems : GET #fileNum, , itemOn(i) : GET #fileNum, , itemKind(i) : GET #fileNum, , itemX(i) : GET #fileNum, , itemY(i) : NEXT
+GET #fileNum, , savedCount : IF savedCount < numMonsters OR savedCount > MAX_MON THEN GOSUB LoadMismatch : RETURN
+numMonsters = savedCount
+FOR i = 1 TO numMonsters
+    GET #fileNum, , monsterX(i) : GET #fileNum, , monsterY(i) : GET #fileNum, , monsterHP(i)
+    GET #fileNum, , monsterState(i) : GET #fileNum, , monsterTimer(i) : GET #fileNum, , monsterType(i) : GET #fileNum, , monsterEv(i)
+    GET #fileNum, , thiefState(i) : GET #fileNum, , thiefCells(i) : GET #fileNum, , thiefShells(i) : GET #fileNum, , thiefGun(i)
+    monsterHurt(i) = 0 : monsterAtk(i) = 0
+    IF i > monStartN THEN monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE ' (one an event room sent: as SpawnMonster makes them - else it loads with speed 0, frozen)
+NEXT
+GET #fileNum, , savedCount : IF savedCount <> numEvents THEN GOSUB LoadMismatch : RETURN
+FOR i = 1 TO numEvents : GET #fileNum, , evState(i) : GET #fileNum, , evTimer(i) : GET #fileNum, , evCount(i) : evNext(i) = 30 : NEXT
+FOR i = 1 TO numEvents ' (closets that were open: open again, quietly; a power failure isn't saved)
+    IF evType(i) = EV_CLOSET AND evState(i) = 2 THEN OpenClosets i, 0
+    IF evType(i) = EV_BLACKOUT AND evState(i) = 1 THEN evState(i) = 2
+NEXT
+blackoutTimer = 0
+FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , doorLock(x, y) : NEXT : NEXT
+GET #fileNum, , savedCount : IF savedCount <> numDecos THEN GOSUB LoadMismatch : RETURN
+FOR i = 1 TO numDecos
+    GET #fileNum, , decoOn(i) : GET #fileNum, , decoHP(i) : GET #fileNum, , decoTimer(i)
+    IF NOT decoOn(i) THEN decoCell(INT(decoX(i)), INT(decoY(i))) = 0 ' Broken ones don't block
+NEXT
+' The ceiling lamps you shot out (a save from before you could has none)
+FOR l = 1 TO numLightsBase
+    IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , lightBroken(l) : IF lightBroken(l) THEN BreakLight l, 0
+NEXT
+IF LOC(fileNum) < LOF(fileNum) THEN ' The glass (a save from before glass has none)
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , glassHP(x, y) : NEXT : NEXT
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The triggers that fired (else every "time" and "clear" one would go off again)
+    GET #fileNum, , savedCount
+    FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numTrigs AND savedCount = numTrigs THEN trigDone(k) = tdone%
+    NEXT
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The lockdowns that lifted (they carry on where they were)
+    GET #fileNum, , savedCount
+    FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numEvents AND savedCount = numEvents THEN evPaused(k) = tdone%
+    NEXT
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The pools, as they were (a trigger may have flooded some)
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , liqKind(x, y) : GET #fileNum, , liqZ(x, y)
+        IF liqKind(x, y) THEN liqAny = -1 : levelFlat = 0 : lqUsed(liqKind(x, y)) = -1
+    NEXT : NEXT
+    LiquidGlows 0, 0, MAP_SIZE - 1, MAP_SIZE - 1 ' (the flooded ones' light)
+END IF
+achCheat = 0 : achRunFrom = 0 ' (a save from before achievements: no whole run from sector 1 in it)
+IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achCheat : GET #fileNum, , achRunFrom ' (achievements: cheats stay on through a save)
+IF godMode THEN achCheat = -1
+IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achLevelHurt : GET #fileNum, , achOtherGun
+IF LOC(fileNum) < LOF(fileNum) THEN ' The doors' owners, and the blocks
+    boxAny = 0
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+        GET #fileNum, , doorLockEv(x, y) : GET #fileNum, , boxOn(x, y)
+        GET #fileNum, , boxX0(x, y) : GET #fileNum, , boxY0(x, y) : GET #fileNum, , boxX1(x, y) : GET #fileNum, , boxY1(x, y)
+        IF boxOn(x, y) THEN boxAny = -1
+    NEXT : NEXT
+    BuildLights : BuildThiefWay : glMeshVersion = glMeshVersion + 1
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The code terminals solved, the data stations hacked (else a solved one's puzzle - and its lockdown - would come again)
+    GET #fileNum, , savedCount : FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numTerms AND savedCount = numTerms THEN termDone(k) = tdone%
+    NEXT
+    GET #fileNum, , savedCount : FOR k = 1 TO savedCount : GET #fileNum, , tdone% : IF k <= numStations AND savedCount = numStations THEN stationDone(k) = tdone%
+    NEXT
+    FOR k = 1 TO numTerms : IF termDone(k) THEN WallDone termX(k), termY(k), T_CODEOK
+    NEXT
+    FOR k = 1 TO numStations : IF stationDone(k) THEN WallDone stationX(k), stationY(k), T_JACKOK
+    NEXT
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The lifts where they were (you saved riding one up: you load up there with it)
+    GET #fileNum, , savedCount
+    FOR k = 1 TO savedCount
+        GET #fileNum, , lz! : GET #fileNum, , ld% : GET #fileNum, , la%
+        IF savedCount = numLifts THEN
+            liftZ(k) = MaxOf(liftLow(k), MinOf(liftHigh(k), lz!)) : liftDir(k) = ld% : liftArm(k) = la%
+            FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
+                IF liftCell(x, y) = k THEN floorH(x, y) = liftZ(k)
+            NEXT : NEXT
+        END IF
+    NEXT
+    IF NOT levelFlat THEN playerZ = MaxOf(playerZ, floorH(INT(playerX), INT(playerY))) : eyeZ = playerZ + EYE_H
+END IF
+IF LOC(fileNum) < LOF(fileNum) THEN ' The secrets found: open again, quietly (a stash's loot is with the pickups)
+    GET #fileNum, , savedCount
+    FOR k = 1 TO savedCount
+        GET #fileNum, , tdone% : GET #fileNum, , th%
+        IF savedCount = numSecrets THEN secretHint(k) = th% : IF tdone% THEN OpenSecret k, 0
+    NEXT
+END IF
+nvCharge = 0 : nvOn = 0
+IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , nvCharge : GET #fileNum, , nvOn ' (night vision's battery)
+CLOSE #fileNum
+planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)
+levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0 : lvFrame = INT(levelTime! * 60)
+loadOK = -1
+IF saveSlot = 0 THEN ShowMsg "Quick loaded" ELSE ShowMsg "Loaded slot" + STR$(saveSlot) + ": " + levelName$
+RETURN
+
+' --- A save made with a different version of the level: give up on it
+LoadMismatch:
+CLOSE #fileNum ' (the sector it was in, from its start, with what you came into it with - its file was read before the mismatch)
+health = savedHealth : IF health <= 0 THEN health = MAX_HP
+armor = savedArmor : ammoCount(AM_CELLS) = savedCells : ammoCount(AM_SHELLS) = savedShells : currentGun = savedGun
+FOR gun = 1 TO NUM_GUNS : hasGun(gun) = savedHasGun(gun) : NEXT
+IF currentGun < 1 OR currentGun > NUM_GUNS THEN currentGun = 1
+IF NOT hasGun(currentGun) THEN currentGun = 1 : hasGun(1) = -1
+FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT : hasMap = 0
+GOSUB LoadLevel
+ShowMsg "That save doesn't fit the sector as it is now - so it starts over"
+loadOK = -1
+RETURN
+
+
+' Save slot n's file (0 = the quick save)
+FUNCTION SlotFile$(slot)
+    IF slot = 0 THEN SlotFile$ = SaveDir$ + "quick.sav" ELSE SlotFile$ = SaveDir$ + "slot" + LTRIM$(STR$(slot)) + ".sav"
+END FUNCTION
+
+' What's in a save slot: the level and when, as SaveGame wrote it ("" if
+' it's empty)
+FUNCTION SlotInfo$(slot)
+    file$ = SlotFile$(slot)
+    IF NOT _FILEEXISTS(file$) THEN EXIT FUNCTION
+    fileNum = FREEFILE
+    OPEN file$ FOR BINARY AS #fileNum
+    tag$ = SPACE$(LEN(SAVE_TAG)) : GET #fileNum, , tag$
+    info$ = SPACE$(SAVE_INFO_LEN) : GET #fileNum, , info$
+    CLOSE #fileNum
+    IF tag$ = SAVE_TAG THEN SlotInfo$ = RTRIM$(info$) ELSE SlotInfo$ = "(an older version's save - can't load)"
+END FUNCTION

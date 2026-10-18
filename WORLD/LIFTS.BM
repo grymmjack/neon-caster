@@ -1,0 +1,76 @@
+''
+' NEON-CASTER - WORLD/LIFTS.BM
+' =============================================================================
+' Lifts: moving them, and their sound.
+'
+
+' One side of wall cell (cx, cy) - if it looks onto a cell that isn't
+' solid wall, and you're in front of it. Its ends are (ax, ay) and
+' (bx, by), in the direction x or y grows. It's lit by the cell it looks
+' onto, and north and south sides are darker (chapter 15's y-sides).
+'
+' Which way round the texture goes copies chapter 15 exactly. A wall reads
+' left to right from in front, so on east and north sides (where "left"
+' is the far end) it runs backwards, from 1 to 0. Doors don't turn round,
+' so they look mirrored from the other side, as in the software renderer.
+' The lifts, one frame on: each one's height (liftZ) towards where it's
+' going, a wait at each end; its cells' floors set to it. (px, py) is you.
+' An elevator (mode 2) takes you to its other end when you step on it -
+' up from the bottom, down from the top - and stays there till you've got
+' off. Waiting at the bottom, it comes up to meet you when you're by it up
+' top (so you're never left to jump down its shaft); with nobody about up
+' there, it goes back down.
+SUB MoveLifts(px, py)
+    me = liftCell(INT(px), INT(py))
+    FOR k = 1 TO numLifts
+        IF liftMode(k) = 2 AND me <> k THEN liftArm(k) = -1
+        IF liftDir(k) = 0 THEN ' Waiting at one end
+            IF liftWait(k) > 0 THEN liftWait(k) = liftWait(k) - 1
+            IF liftMode(k) = 2 THEN
+                atLow = (liftZ(k) <= liftLow(k) + 0.001)
+                nearUp = (px > liftX0(k) - 2 AND px < liftX1(k) + 3 AND py > liftY0(k) - 2 AND py < liftY1(k) + 3 AND playerZ >= liftHigh(k) - 0.2)
+                IF me = k AND liftArm(k) THEN ' (just stepped on - walked on, not fallen in: off to the other end)
+                    liftArm(k) = 0
+                    IF playerZ - liftZ(k) <= STEP_UP AND playerZ - liftZ(k) > -0.05 THEN ' (walked or stepped down onto it - not dropped in from high up)
+                        IF atLow THEN liftDir(k) = 1 ELSE liftDir(k) = -1
+                    END IF
+                ELSEIF me <> k AND liftWait(k) = 0 THEN
+                    IF atLow AND nearUp THEN liftDir(k) = 1 ' (up to meet you)
+                    IF NOT atLow AND NOT nearUp THEN liftDir(k) = -1 ' (back down)
+                END IF
+            ELSEIF liftMode(k) = 1 AND liftWait(k) = 0 THEN ' (mode 3: only when told - liftgo, from a trigger)
+                IF liftZ(k) <= liftLow(k) + 0.001 THEN liftDir(k) = 1 ELSE liftDir(k) = -1
+            END IF
+        ELSE
+            liftZ(k) = liftZ(k) + liftDir(k) * liftSpeed(k)
+            IF liftZ(k) >= liftHigh(k) THEN liftZ(k) = liftHigh(k) : liftDir(k) = 0 : liftWait(k) = 120
+            IF liftZ(k) <= liftLow(k) THEN liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 120
+        END IF
+        FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
+            IF liftCell(x, y) = k THEN floorH(x, y) = liftZ(k)
+        NEXT : NEXT
+        IF editMode OR cyberOn THEN liftWasDir(k) = liftDir(k) ELSE LiftSound k, px, py ' (quiet in the editor and the network)
+    NEXT
+END SUB
+
+' A lift's sound, as DOOM's: the motor starting as it sets off, running
+' while it moves - its own looping copy of lift-move.wav (liftHum&), as
+' loud as where it is says - and a clunk when it stops at either end.
+' Done by what changed since last frame, so it's the same however it was
+' set going (riding it, by itself, or a trigger's liftgo).
+SUB LiftSound(k, px, py)
+    cx = (liftX0(k) + liftX1(k) + 1) / 2 : cy = (liftY0(k) + liftY1(k) + 1) / 2
+    IF liftDir(k) <> 0 AND liftWasDir(k) = 0 THEN SfxAt sndLiftStart&, cx, cy, px, py
+    IF liftDir(k) = 0 AND liftWasDir(k) <> 0 THEN SfxAt sndLiftStop&, cx, cy, px, py
+    liftWasDir(k) = liftDir(k)
+    IF sndLiftMove& <= 0 THEN EXIT SUB
+    IF liftDir(k) <> 0 THEN
+        IF liftHum&(k) = 0 THEN liftHum&(k) = _SNDCOPY(sndLiftMove&)
+        IF liftHum&(k) > 0 THEN
+            _SNDVOL liftHum&(k), SfxVolAt!(cx, cy, px, py, SFX_RANGE) * 0.7 * setting(SET_SFX) / 100 : HumPan liftHum&(k), cx, cy
+            IF NOT _SNDPLAYING(liftHum&(k)) THEN _SNDLOOP liftHum&(k)
+        END IF
+    ELSEIF liftHum&(k) > 0 THEN
+        _SNDSTOP liftHum&(k)
+    END IF
+END SUB

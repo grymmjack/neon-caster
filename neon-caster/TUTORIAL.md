@@ -1,6 +1,6 @@
 # NEON-CASTER: make a little FPS in QB64PE
 
-NEON-CASTER is a complete first-person shooter in one file of plain QB64PE:
+NEON-CASTER is a complete first-person shooter in plain QB64PE:
 ten levels, ten kinds of monster (one of them a thief), four guns and a
 kick, doors and keycards, exploding barrels, traps and event rooms, glass
 you can see (and shoot) through, floors and ceilings at different heights
@@ -17,9 +17,9 @@ source is written to be read: its comments are a course in how it all
 works, in 24 chapters, from opening a window to casting rays - and then
 handing the same 3D view to the graphics card with OpenGL.
 
-This page is the map for that course. The lessons themselves are in
-[`../neon-caster.bas`](../neon-caster.bas), right next to the code they
-explain.
+This page is the map for that course. The lessons themselves are in the
+source, right next to the code they explain: [`../neon-caster.bas`](../neon-caster.bas)
+and the include files in the folders beside it.
 
 **You'll need:** some BASIC already (variables, arrays, loops, SUBs and
 FUNCTIONs). Everything else, from the 3D maths to the QB64PE features, is
@@ -34,11 +34,11 @@ it yourself:
 1. Install [QB64 Phoenix Edition](https://qb64phoenix.com) 4.7 or newer
    (the mouse look needs `_MOUSEHIDE _DISABLE`, new in 4.7).
 2. Open `neon-caster.bas` in the QB64PE IDE and press F5, or compile it from
-   a terminal: `qb64pe -x neon-caster.bas`.
+   a terminal: `qb64pe -x neon-caster.bas`. It `$INCLUDE`s the rest (see
+   "How the source is laid out", below), so keep the folders beside it.
 3. The OpenGL renderer's shaders use the GLSL library from
    [QB64_GJ_LIB](https://github.com/grymmjack/QB64_GJ_LIB); a copy of it is
-   in `lib/glsl/`, which the `$INCLUDE` lines at the top and bottom of the
-   source point to.
+   in `lib/glsl/`, which `_ALL.BI` and `_ALL.BM` include.
 4. Keep the `neon-caster/` folder next to the program. All the pictures,
    sounds and music are in there. Your settings and saved games go in
    `neon-caster/saves/`.
@@ -198,41 +198,69 @@ Two switches near the top of the source are on for testing:
 `TEST_ALL_GUNS` (start with every gun and full ammo) and `CHEAT_KEYS`
 (the K and G keys). Set both to `0` for the real game.
 
+## How the source is laid out
+
+It's organised like grymmjack's DRAW: a folder for each part of the game,
+and in it a module or two. A module is a pair of files - a `.BI` (its
+`CONST`s, its `DIM SHARED` arrays, and any start-up that fills them in)
+and a `.BM` (its `SUB`s and `FUNCTION`s, and its `GOSUB` routines).
+`_ALL.BI` includes every `.BI`, `_ALL.BM` every `.BM`, and `neon-caster.bas`
+includes `_ALL.BI` at its top and `_ALL.BM` at its bottom. In between it has
+the course's introduction, the start-up, and the game loop - whose twelve
+chapters are in `LOOP/`, each pasted in place inside the `DO ... LOOP`.
+`$INCLUDE` pastes a file in where it's named, so QB64PE still sees one
+program.
+
+| Folder | What's in it |
+|---|---|
+| `CORE/` | the window, the dice (and the game's own `SIN`/`COS`), settings, keys, files, small helpers |
+| `WORLD/` | the grid: walls and collision, doors, heights, glass, liquids, lifts |
+| `GAME/` | you, the guns, monsters and their types, pickups, decorations, droids, explosions, event rooms, secrets, triggers, teleporters, code terminals, the network, the arcade, NEXUS |
+| `LEVEL/` | levels and sectors, loading one, and the level files |
+| `RENDER/` | pictures, the 3D view and its helpers, the sprite list, light, particles, the HUD, text, the screen |
+| `GL/` | the OpenGL renderer, and its extras |
+| `MENU/` | the menu, the splash screen, the console, saved games |
+| `EDITOR/` | the level editor, the HUD editor, the monster editor |
+| `AUDIO/` | sounds and music |
+| `DEMO/` | demos, and the autopilot |
+| `ACH/` | achievements and records |
+| `LOOP/` | the game loop, a chapter a file (`07-FRAME.BI` to `18-HUD.BI`) |
+
 ## How to read the course
 
-Search the source for `CHAPTER` to jump from one chapter to the next. They
-run top to bottom, in the same order as the code:
+Search the source for `CHAPTER` to jump from one chapter to the next. In
+order, and where each one is:
 
-| | Chapter | What you'll learn |
-|---|---|---|
-| **Setting up** | 1 A window | `SCREEN _NEWIMAGE`, 32-bit colour, capturing the mouse |
-| | 2 The world is a grid | the map as a 2D array; cells, positions and `INT()` |
-| | 3 Things in the world | lists of things in parallel arrays |
-| | 4 You | health, ammo, and guns as a table of numbers |
-| | 5 Pictures in arrays | why the 3D view is drawn into an array, not with `PSET` |
-| | 6 Loading the pictures and sounds | `_LOADIMAGE`, `POINT`, tinting, `_SNDOPEN` |
-| **One frame** | 7 The game loop | `_LIMIT`, `_DISPLAY`, the order of a frame |
-| | 8 Looking around | direction and camera plane vectors; rotating them |
-| | 9 Moving, and bumping into things | normalized movement; sliding along walls |
-| | 10 Pickups and cheat keys | distance checks without `SQR`; edge detection |
-| | 11 Doors | finding the door in front of you; animating it; shutting itself, never on anyone; always showing an edge; monsters opening them |
-| | 12 Shooting | hitscan, using the z-buffer to see past walls; where a shot lands, for marks and shooting out lights |
-| | 13 Monsters, bolts and barrels | a state machine for AI; line of sight; chain reactions; animation frames made from one picture; bodies and wreckage that stay where they fell; a thief that runs home along a flow field |
-| **Drawing it** | 14 Light, and the floor and ceiling | per-cell coloured light (Doom-style), flicker and strobe effects, floor casting, fog, `AND 63` texture wrapping |
-| | 15 The walls: the raycaster | rays, the DDA grid walk, fish-eye correction, texturing; doors as slabs with edges and tracks; glass you see through; floors and ceilings at different heights, Doom's way (HeightColumn: a column drawn front to back, closing in from above and below) |
-| | 16 Sprites | camera space, painter's algorithm, hiding behind walls - and behind ledges |
-| | 17 Onto the screen | `_MEMCOPY` and `_PUTIMAGE` scaling |
-| | 18 The gun and the HUD | alpha colours, the minimap, bars and text; the HUD's layout as data (`hud.txt`) |
-| **The rest** | 19 Game events | `GOSUB` routines and why they're used here; event rooms: ambushes, mini games, monster closets, pressure plates, lasers and cutters, blackouts, the thieves' hoard; glass that cracks and shatters; the data stations' network; triggers (their actions are console commands) and teleporters; code terminals that compile a real QB64 program with `SHELL _DONTWAIT`; sound placed in space (panning, distance, walls) under a limiter; NEXUS's voice, taunts and subtitles |
-| | 20 Levels | reading a level's file and building it, carrying your gear between levels (and starting over clean on a retry), the tally screen, the route map between sectors, the incoming transmission |
-| | 21 The splash screen, the menu, settings, saved games, the console and the editors | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files; the level editor (the map from above, and walking round in it with a cursor ray), the monster editor and the HUD layout editor - changing plain text files live |
-| | 22 The level files | the level file's format - its map, zones, lights, event rooms, heights, lifts, triggers: make your own levels |
-| | 23 The helpers | the SUBs and FUNCTIONs, grouped by topic |
-| **On the GPU** | 24 The same view, drawn by the graphics card | `SUB _GL` and OpenGL: triangles, texture coordinates, a camera matrix and `_glFrustum`, the depth buffer, alpha test; sharing a frame safely with double buffering; batching with `_glDrawArrays`; why OpenGL questions stall; GLSL shaders for bump mapping, specular highlights, self-lit neon, animated textures and moving point lights; smooth (bilinear) light; projected shadows; additive glows and particles; light shafts and dust that swirls round you; a mirrored pass for wet floors; render targets and post-processing (bloom, heat shimmer, hurt pulse, rail zoom, scanlines, CRT); choosing the resolution, supersampling and mipmaps; premultiplied alpha; looking up and down |
+| | Chapter | Where | What you'll learn |
+|---|---|---|---|
+| **Setting up** | 1 A window | `CORE/WINDOW.BI` | `SCREEN _NEWIMAGE`, 32-bit colour, capturing the mouse |
+| | 2 The world is a grid | `WORLD/MAP.BI` | the map as a 2D array; cells, positions and `INT()` |
+| | 3 Things in the world | `GAME/ITEMS.BI` | lists of things in parallel arrays |
+| | 4 You | `GAME/PLAYER.BI` | health, ammo, and guns as a table of numbers |
+| | 5 Pictures in arrays | `RENDER/PICTURES.BI` | why the 3D view is drawn into an array, not with `PSET` |
+| | 6 Loading the pictures and sounds | `AUDIO/SOUND.BI` | `_LOADIMAGE`, `POINT`, tinting, `_SNDOPEN` |
+| **One frame** | 7 The game loop | `neon-caster.bas`, `LOOP/07-FRAME.BI` | `_LIMIT`, `_DISPLAY`, the order of a frame |
+| | 8 Looking around | `LOOP/08-LOOK.BI` | direction and camera plane vectors; rotating them |
+| | 9 Moving, and bumping into things | `LOOP/09-MOVE.BI` | normalized movement; sliding along walls |
+| | 10 Pickups and cheat keys | `LOOP/10-PICKUPS.BI` | distance checks without `SQR`; edge detection |
+| | 11 Doors | `LOOP/11-DOORS.BI` | finding the door in front of you; animating it; shutting itself, never on anyone; always showing an edge; monsters opening them |
+| | 12 Shooting | `LOOP/12-SHOOTING.BI` | hitscan, using the z-buffer to see past walls; where a shot lands, for marks and shooting out lights |
+| | 13 Monsters, bolts and barrels | `LOOP/13-MONSTERS.BI` | a state machine for AI; line of sight; chain reactions; animation frames made from one picture; bodies and wreckage that stay where they fell; a thief that runs home along a flow field |
+| **Drawing it** | 14 Light, and the floor and ceiling | `LOOP/14-FLOORS.BI` | per-cell coloured light (Doom-style), flicker and strobe effects, floor casting, fog, `AND 63` texture wrapping |
+| | 15 The walls: the raycaster | `LOOP/15-WALLS.BI` | rays, the DDA grid walk, fish-eye correction, texturing; doors as slabs with edges and tracks; glass you see through; floors and ceilings at different heights, Doom's way (HeightColumn: a column drawn front to back, closing in from above and below) |
+| | 16 Sprites | `LOOP/16-SPRITES.BI` | camera space, painter's algorithm, hiding behind walls - and behind ledges |
+| | 17 Onto the screen | `LOOP/17-SCREEN.BI` | `_MEMCOPY` and `_PUTIMAGE` scaling |
+| | 18 The gun and the HUD | `LOOP/18-HUD.BI` | alpha colours, the minimap, bars and text; the HUD's layout as data (`hud.txt`) |
+| **The rest** | 19 Game events | `GAME/EVENTS.BM` | `GOSUB` routines and why they're used here; event rooms: ambushes, mini games, monster closets, pressure plates, lasers and cutters, blackouts, the thieves' hoard; glass that cracks and shatters; the data stations' network; triggers (their actions are console commands) and teleporters; code terminals that compile a real QB64 program with `SHELL _DONTWAIT`; sound placed in space (panning, distance, walls) under a limiter; NEXUS's voice, taunts and subtitles |
+| | 20 Levels | `LEVEL/LEVELS.BM` | reading a level's file and building it, carrying your gear between levels (and starting over clean on a retry), the tally screen, the route map between sectors, the incoming transmission |
+| | 21 The splash screen, the menu, settings, saved games, the console and the editors | `MENU/MENU.BM` | a menu driven by a list, `_KEYHIT` vs `_KEYDOWN`, easing animations, a settings file, `PUT`/`GET` save files; the level editor (the map from above, and walking round in it with a cursor ray), the monster editor and the HUD layout editor - changing plain text files live |
+| | 22 The level files | `LEVEL/LEVELFILE.BM` | the level file's format - its map, zones, lights, event rooms, heights, lifts, triggers: make your own levels |
+| | 23 The helpers | `CORE/HELPERS.BM`, and the other `.BM` files | the SUBs and FUNCTIONs, grouped by topic |
+| **On the GPU** | 24 The same view, drawn by the graphics card | `GL/OPENGL.BM` | `SUB _GL` and OpenGL: triangles, texture coordinates, a camera matrix and `_glFrustum`, the depth buffer, alpha test; sharing a frame safely with double buffering; batching with `_glDrawArrays`; why OpenGL questions stall; GLSL shaders for bump mapping, specular highlights, self-lit neon, animated textures and moving point lights; smooth (bilinear) light; projected shadows; additive glows and particles; light shafts and dust that swirls round you; a mirrored pass for wet floors; render targets and post-processing (bloom, heat shimmer, hurt pulse, rail zoom, scanlines, CRT); choosing the resolution, supersampling and mipmaps; premultiplied alpha; looking up and down |
 
 ### Reading the names
 
-The top of the source has the full key. In short:
+The top of `neon-caster.bas` has the full key. In short:
 
 - `UPPER_CASE` is a `CONST` (a fixed number), `camelCase` a variable, and
   `PascalCase` a `SUB`, `FUNCTION` or `GOSUB` label.
@@ -584,7 +612,9 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 
 | Path | What |
 |---|---|
-| `neon-caster.bas` | the game and the course |
+| `neon-caster.bas` | the course's introduction, the start-up and the game loop: start reading here |
+| `_ALL.BI`, `_ALL.BM` | every declaration file and every routine file, in order |
+| `CORE/` ... `LOOP/` | the rest of the game and the course - see "How the source is laid out" |
 | `neon-caster/*.png` | textures (64 x 64), sprites, the guns: the CLASSIC pixel art |
 | `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
 | `neon-caster/sfx/` | sound effects, made with soundmon (the droids' chirps are synthesized whistles); `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |

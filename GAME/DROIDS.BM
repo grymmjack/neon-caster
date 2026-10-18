@@ -1,0 +1,199 @@
+''
+' NEON-CASTER - GAME/DROIDS.BM
+' =============================================================================
+' Droids: placing them, their own dice, where they go and what they do,
+' and getting shot.
+'
+
+' --- DROIDS ---------------------------------------------------------------
+' The droids' own dice: the same generator as GRnd, but a stream of their
+' own - so a droid deciding where to roll never changes what a monster does
+FUNCTION DRnd!
+    drSeed = drSeed * 16807#
+    drSeed = drSeed - INT(drSeed / 2147483647#) * 2147483647#
+    IF drSeed < 1 THEN drSeed = 1
+    r! = drSeed / 2147483647# : IF r! >= 1 THEN r! = 0.9999999
+    DRnd! = r!
+END FUNCTION
+
+FUNCTION DroidScale(kind)
+    IF kind = 1 THEN DroidScale = 0.34 ELSE DroidScale = 0.42 ' (the tread droid, the dome droid: knee high)
+END FUNCTION
+
+' A droid's picture, broken: the same, sooty and dark (drawn squashed)
+SUB MakeScrap(src, dst)
+    spriteSize(dst) = spriteSize(src)
+    FOR y = 0 TO spriteSize(src) - 1 : FOR x = 0 TO spriteSize(src) - 1
+        col~& = spriteTex(x, y, src)
+        IF _ALPHA32(col~&) > 128 THEN soot = 0.22 + RND * 0.2 : col~& = _RGBA32(_RED32(col~&) * soot, _GREEN32(col~&) * soot, _BLUE32(col~&) * soot, 255)
+        spriteTex(x, y, dst) = col~&
+    NEXT : NEXT
+END SUB
+
+' Can a droid stand at (x, y), on a floor z high? Only on plain flat floor
+' it's on now - no step, ledge, liquid, lift, fire or door (it keeps to its
+' rooms) - clear of walls, things, the other droids (but droid i) and you.
+FUNCTION DroidCanGo(i, x, y, z)
+    FOR k = 0 TO 4
+        ox = (k = 1) * -0.22 - (k = 2) * -0.22 : oy = (k = 3) * -0.22 - (k = 4) * -0.22
+        cx = INT(x + ox) : cy = INT(y + oy)
+        IF cx < 1 OR cy < 1 OR cx >= MAP_SIZE - 1 OR cy >= MAP_SIZE - 1 THEN EXIT FUNCTION
+        IF worldMap(cx, cy) > 0 OR diagCorner(cx, cy) THEN EXIT FUNCTION
+        IF ABS(floorH(cx, cy) - z) > 0.02 OR liqKind(cx, cy) OR liftCell(cx, cy) THEN EXIT FUNCTION
+        IF FloorHazard(cx, cy) THEN EXIT FUNCTION
+    NEXT
+    FOR k = 1 TO numDroids
+        IF k <> i THEN IF (droidX(k) - x) ^ 2 + (droidY(k) - y) ^ 2 < 0.3 THEN EXIT FUNCTION
+    NEXT
+    IF (playerX - x) ^ 2 + (playerY - y) ^ 2 < 0.36 THEN EXIT FUNCTION
+    walkZ = z : walkFromHaz = 10 : ok = Walkable%(x, y) : walkFromHaz = 0 : walkZ = -999
+    DroidCanGo = ok
+END FUNCTION
+
+' ...and all the way from (x0, y0) to (x1, y1), in a straight line?
+FUNCTION DroidLine(i, x0, y0, x1, y1, z)
+    d = SQR((x1 - x0) ^ 2 + (y1 - y0) ^ 2) : n = INT(d / 0.2) + 1
+    FOR k = 1 TO n
+        IF NOT DroidCanGo(i, x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, z) THEN EXIT FUNCTION
+    NEXT
+    DroidLine = -1
+END FUNCTION
+
+' A sector's droids, where they start: three (or as many as its droids =
+' line says), on open floor away from where you start and out of the event rooms - picked by the droids' dice, started
+' from the sector (lv) and its set, so they're the same every time
+SUB PlaceDroids(lv)
+    numDroids = 0 : drSeed = 7919 + lv * 104729# + sectorSet * 1299709#
+    IF cyberOn THEN EXIT SUB
+    want = 3 : IF lvlDroids >= 0 THEN want = lvlDroids
+    FOR n = 1 TO want
+        FOR try = 1 TO 600
+            cx = 1 + INT(DRnd * (MAP_SIZE - 2)) : cy = 1 + INT(DRnd * (MAP_SIZE - 2))
+            IF worldMap(cx, cy) > 0 OR decoCell(cx, cy) OR boxOn(cx, cy) OR glassHP(cx, cy) > 0 THEN _CONTINUE
+            IF (cx + 0.5 - playerX) ^ 2 + (cy + 0.5 - playerY) ^ 2 < 25 THEN _CONTINUE
+            inEv = 0
+            FOR ev = 1 TO numEvents
+                IF cx >= evX0(ev) - 1 AND cx <= evX1(ev) + 1 AND cy >= evY0(ev) - 1 AND cy <= evY1(ev) + 1 THEN inEv = -1
+            NEXT
+            IF inEv THEN _CONTINUE
+            z = floorH(cx, cy) : IF z <= PIT_DEPTH THEN _CONTINUE
+            roomy = 0 ' (room to roll: the cells round about, open floor at the same height)
+            FOR k = 1 TO 4
+                nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
+                IF worldMap(nx, ny) <= 0 AND ABS(floorH(nx, ny) - z) < 0.02 THEN roomy = roomy + 1
+            NEXT
+            IF roomy < 4 OR NOT DroidCanGo(0, cx + 0.5, cy + 0.5, z) THEN _CONTINUE
+            numDroids = numDroids + 1 : i = numDroids
+            droidX(i) = cx + 0.5 : droidY(i) = cy + 0.5 : droidZ(i) = z : droidKind(i) = 1 + (n MOD 2 = 0)* -1
+            droidA(i) = DRnd * 6.2832 : droidState(i) = 0 : droidTimer(i) = 30 + INT(DRnd * 90) : droidHP(i) = DROID_HP : droidWork(i) = 0
+            EXIT FOR
+        NEXT
+    NEXT
+END SUB
+
+' Droid i decides what next: now and then, a machine nearby to see to (a
+' terminal, a console...); otherwise somewhere close it can roll to in a
+' straight line - or, nowhere, it turns and thinks again
+SUB DroidPlan(i)
+    x = droidX(i) : y = droidY(i) : z = droidZ(i) : droidWork(i) = 0
+    IF DRnd < 0.4 AND numDecos > 0 THEN
+        FOR try = 1 TO 6
+            j = 1 + INT(DRnd * numDecos)
+            IF decoOn(j) AND decoKind(j) <> 9 AND decoKind(j) <> DK_BODY THEN
+                d = SQR((decoX(j) - x) ^ 2 + (decoY(j) - y) ^ 2)
+                IF d < 8 AND d > 0.9 THEN
+                    tx = decoX(j) + (x - decoX(j)) / d * 0.7 : ty = decoY(j) + (y - decoY(j)) / d * 0.7
+                    IF DroidLine(i, x, y, tx, ty, z) THEN
+                        droidTX(i) = tx : droidTY(i) = ty : droidWork(i) = j : droidState(i) = 1 : droidTimer(i) = INT(d / DROID_SPEED * 1.6) + 60 : EXIT SUB
+                    END IF
+                END IF
+            END IF
+        NEXT
+    END IF
+    FOR try = 1 TO 8
+        a = DRnd * 6.2832 : d = 1.2 + DRnd * 4.5
+        tx = x + DCos(a) * d : ty = y + DSin(a) * d
+        IF DroidLine(i, x, y, tx, ty, z) THEN
+            droidTX(i) = tx : droidTY(i) = ty : droidState(i) = 1 : droidTimer(i) = INT(d / DROID_SPEED * 1.6) + 60 : EXIT SUB
+        END IF
+    NEXT
+    droidState(i) = 0 : droidTimer(i) = 20 + INT(DRnd * 40) : droidA(i) = droidA(i) + 1.5708
+END SUB
+
+' Every frame, every droid: you too close - it squeals and scuttles off;
+' rolling - it turns towards where it's going (a little at a time) and
+' rolls on, or, blocked, thinks again; there - it gets to work a while
+' (scrubbing up the scorch marks round it, or sparks flying from the
+' machine it's fixing). Broken ones smoke. (What it does is the droids'
+' own dice, DRnd; how it looks - dust, sparks, the chirps - RND.)
+SUB UpdateDroids(px, py)
+    FOR i = 1 TO numDroids
+        x = droidX(i) : y = droidY(i)
+        IF droidHP(i) <= 0 THEN
+            IF RND < 0.05 THEN SpawnPart PART_SMOKE, x + (RND - 0.5) * 0.15, y + (RND - 0.5) * 0.15, droidZ(i) + 0.15, 0, 0, 0.004, 70, 0.25, 0.25, 0.27, 0.04
+            _CONTINUE
+        END IF
+        IF (px - x) ^ 2 + (py - y) ^ 2 < 1.4 AND droidState(i) <> 3 THEN ' You: out of the way!
+            droidState(i) = 3 : droidTimer(i) = 35 + INT(DRnd * 20) : droidA(i) = DAtan2(y - py, x - px) + (DRnd - 0.5) * 1.2
+            SfxAt sndDroid&(3), x, y, px, py
+        END IF
+        droidTimer(i) = droidTimer(i) - 1
+        SELECT CASE droidState(i)
+            CASE 0
+                IF droidTimer(i) <= 0 THEN DroidPlan i
+            CASE 1
+                dx = droidTX(i) - x : dy = droidTY(i) - y : d = SQR(dx * dx + dy * dy)
+                IF d < 0.06 THEN
+                    droidState(i) = 2 : droidTimer(i) = 90 + INT(DRnd * 200)
+                    IF droidWork(i) THEN droidA(i) = DAtan2(decoY(droidWork(i)) - y, decoX(droidWork(i)) - x)
+                ELSE
+                    a = DAtan2(dy, dx) - droidA(i)
+                    DO WHILE a > 3.14159265 : a = a - 6.2831853 : LOOP
+                    DO WHILE a < -3.14159265 : a = a + 6.2831853 : LOOP
+                    droidA(i) = droidA(i) + MaxOf(-0.12, MinOf(0.12, a))
+                    IF ABS(a) < 0.5 THEN
+                        spd = MinOf(d, DROID_SPEED * (1.15 - 0.3 * (droidKind(i) = 2) * -1))
+                        nx = x + DCos(droidA(i)) * spd : ny = y + DSin(droidA(i)) * spd
+                        IF DroidCanGo(i, nx, ny, droidZ(i)) THEN droidX(i) = nx : droidY(i) = ny ELSE droidState(i) = 0 : droidTimer(i) = 15 + INT(DRnd * 30)
+                    END IF
+                    IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 10
+                END IF
+            CASE 2
+                IF droidWork(i) THEN
+                    IF RND < 0.06 THEN SpawnSparks x + COS(droidA(i)) * 0.25, y + SIN(droidA(i)) * 0.25, 0.25, 3, 160, 220, 255
+                ELSE
+                    IF RND < 0.1 THEN SpawnPart PART_DUST, x + (RND - 0.5) * 0.3, y + (RND - 0.5) * 0.3, droidZ(i) + 0.03, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, 0.003, 50, 0.7, 0.75, 0.8, 0.02
+                    FOR k = 1 TO MAX_DECALS ' (scrubbing up the marks on the floor round it)
+                        IF decalOn(k) THEN
+                            IF decalNZ(k) > 0.5 THEN
+                                IF (decalX(k) - x) ^ 2 + (decalY(k) - y) ^ 2 < 0.5 THEN decalSize(k) = decalSize(k) * 0.99 : IF decalSize(k) < 0.03 THEN decalOn(k) = 0
+                            END IF
+                        END IF
+                    NEXT
+                END IF
+                IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 10 + INT(DRnd * 50)
+            CASE 3
+                nx = x + DCos(droidA(i)) * DROID_SPEED * 2.4 : ny = y + DSin(droidA(i)) * DROID_SPEED * 2.4
+                IF DroidCanGo(i, nx, ny, droidZ(i)) THEN droidX(i) = nx : droidY(i) = ny ELSE droidA(i) = droidA(i) + (DRnd - 0.5) * 2.5
+                IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 20
+        END SELECT
+        IF RND < 0.0035 THEN SfxAtRange sndDroid&(1 + INT(RND * 2)), droidX(i), droidY(i), px, py, 9 ' (chatter)
+    NEXT
+END SUB
+
+' A shot (or blast) hits droid i for dmg: sparks; with no more left in it,
+' it breaks - a squeal, a shower of sparks, a puff of smoke - and lies there
+SUB HitDroid(i, dmg, px, py)
+    IF droidHP(i) <= 0 THEN EXIT SUB
+    droidHP(i) = droidHP(i) - dmg
+    SpawnSparks droidX(i), droidY(i), 0.2, 8, 200, 230, 255
+    IF droidHP(i) > 0 THEN
+        SfxAt sndDroid&(3), droidX(i), droidY(i), px, py
+        droidState(i) = 3 : droidTimer(i) = 50 : droidA(i) = DAtan2(droidY(i) - py, droidX(i) - px) + (DRnd - 0.5) * 1.5 ' (it runs for it)
+    ELSE
+        droidHP(i) = 0 : droidState(i) = 9
+        SfxAt sndDroidBreak&, droidX(i), droidY(i), px, py
+        SpawnSparks droidX(i), droidY(i), 0.2, 26, 255, 210, 140
+        FOR k = 1 TO 6 : SpawnPart PART_SMOKE, droidX(i), droidY(i), droidZ(i) + 0.2, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, 0.006, 80, 0.3, 0.3, 0.32, 0.05 : NEXT
+    END IF
+END SUB

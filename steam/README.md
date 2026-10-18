@@ -40,9 +40,8 @@ The game shows the same icons, smaller, from `neon-caster/achievements/`.
    that stat, from 0 to its goal, and Steam shows a progress bar.
 4. **Publish** the stats and achievements (*Publish* at the top of the
    admin).
-5. **Give the game its App ID.** In `neon-caster.bas`, set
-   `CONST ... NEON_APP_ID = <your App ID>` (in the ACHIEVEMENTS block near
-   the top, beside `NUM_ACH`).
+5. **Give the game its App ID.** In `ACH/ACHIEVEMENTS.BI`, set
+   `CONST ... NEON_APP_ID = <your App ID>` (beside `NUM_ACH`).
 6. **Ship Steam's library with the game.** From the Steamworks SDK's
    `redistributable_bin/`, copy the file for each platform next to the
    program: `steam_api64.dll` (Windows), `libsteam_api.dylib` (macOS),

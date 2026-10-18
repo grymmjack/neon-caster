@@ -1,0 +1,399 @@
+''
+' NEON-CASTER - ACH/ACHIEVEMENTS.BM
+' =============================================================================
+' Achievements: Steam, the stand-in, the pop-up, and the STATS page.
+'
+
+' === ACHIEVEMENTS =============================================================
+' Steam achievements, through QB64_GJ_LIB's STEAM library (lib/steam). The
+' library loads Valve's steam_api at runtime when the game has a Steam App
+' ID (NEON_APP_ID) and Steam is running; otherwise it keeps them itself -
+' the "mock" - in neon-caster/saves/achievements.txt, so they work the same
+' everywhere. Each achievement is unlocked by name (Achieve); counted ones
+' follow a stat (AchAdd adds to a count, AchBit ticks one of a set - a kind
+' of monster killed, a set of sectors finished) and unlock at their goal.
+' Steam shows its own pop-up; without it, AchDrawToast draws ours.
+
+' --- THE ACHIEVEMENTS SCREEN (GAME > ACHIEVEMENTS): every achievement as a
+' card, two across - a gold trophy and a bright frame once it's yours, a
+' bar for a counted one's progress, a hidden one's words kept secret till
+' then. The wheel, the arrows and PgUp/PgDn scroll; Esc, Backspace, the
+' right button or a click on BACK go back.
+ShowAchievements:
+achT = 0 : achRow = 0 : pressWas = -1 : achTab = 0 : recSet = sectorSet : recNmSet = -1 : _KEYCLEAR
+DO
+    _LIMIT 60
+    achT = achT + 1
+    wheel = 0 : click = 0 : rclick = 0
+    WHILE _MOUSEINPUT
+        wheel = wheel + _MOUSEWHEEL
+        IF _MOUSEBUTTON(1) THEN click = -1
+        IF _MOUSEBUTTON(2) THEN rclick = -1
+    WEND
+    kh& = _KEYHIT
+    rows = (achN + 1) \ 2 : maxRow = MaxOf(0, rows - 6)
+    SELECT CASE kh&
+        CASE 27, 8 : EXIT DO
+        CASE 9 : achTab = (achTab + 1) MOD 3 ' (Tab: achievements | records | stats)
+        CASE 18432 : achRow = achRow - 1
+        CASE 20480 : achRow = achRow + 1
+        CASE 18688 : achRow = achRow - 6
+        CASE 20736 : achRow = achRow + 6
+        CASE 19200 : IF achTab = 1 THEN recSet = (recSet + 3) MOD 4 ' (records: the sets, left and right)
+        CASE 19712 : IF achTab = 1 THEN recSet = (recSet + 1) MOD 4
+    END SELECT
+    amx = WideMouseX(_MOUSEX)
+    IF click AND NOT pressWas AND _MOUSEY < 60 THEN ' (or click a tab)
+        IF amx < 350 THEN achTab = 0 ELSE IF amx < 570 THEN achTab = 1 ELSE achTab = 2
+    END IF
+    IF rclick THEN EXIT DO
+    achRow = achRow + wheel : IF achRow < 0 THEN achRow = 0
+    IF achRow > maxRow THEN achRow = maxRow
+    IF click AND NOT pressWas AND _MOUSEY > 556 AND ABS(amx - 400) < 60 THEN EXIT DO
+    pressWas = click
+    DrawMenuBackdrop achT
+    LINE (0, 0)-(799, 599), _RGBA32(6, 0, 16, 190), BF
+    FOR k = 0 TO 2 ' (the tabs: the one you're on lit)
+        IF achTab = k THEN tc~& = _RGB32(255, 90, 210) ELSE tc~& = _RGB32(90, 80, 130)
+        MenuText VAL(MID$("190450660", k * 3 + 1, 3)), 22, RTRIM$(MID$("ACHIEVEMENTSRECORDS     STATS       ", k * 12 + 1, 12)), 2, tc~&, 1
+    NEXT
+    LINE (350, 22)-(351, 54), _RGB32(90, 80, 130), BF : LINE (570, 22)-(571, 54), _RGB32(90, 80, 130), BF
+    IF achTab = 1 THEN GOSUB DrawRecords : GOTO AchShown
+    IF achTab = 2 THEN GOSUB DrawStats : GOTO AchShown
+    got = 0 : FOR i = 1 TO achN : IF STEAM_is_unlocked%(achApi$(i)) THEN got = got + 1
+    NEXT
+    sub$ = LTRIM$(STR$(got)) + " OF" + STR$(achN) + " UNLOCKED  -  " : IF STEAM_is_steam% THEN sub$ = sub$ + "STEAM" ELSE sub$ = sub$ + "KEPT IN SAVES/ACHIEVEMENTS.TXT"
+    MenuText 400, 70, sub$, 1, _RGB32(150, 230, 255), 1
+    LINE (200, 92)-(600, 97), _RGB32(40, 30, 70), BF
+    IF achN THEN LINE (200, 92)-(200 + 400 * got / achN, 97), _RGB32(255, 200, 60), BF
+    FOR r = 0 TO 5 : FOR c = 0 TO 1
+        i = (achRow + r) * 2 + c + 1
+        IF i <= achN THEN
+            x0 = 24 + c * 380 : y0 = 112 + r * 72
+            own = STEAM_is_unlocked%(achApi$(i))
+            LINE (x0, y0)-(x0 + 368, y0 + 64), _RGBA32(14, 8, 34, 230), BF
+            IF own THEN LINE (x0, y0)-(x0 + 368, y0 + 64), _RGB32(255, 70, 210), B ELSE LINE (x0, y0)-(x0 + 368, y0 + 64), _RGB32(60, 50, 100), B
+            IF own THEN ic& = achIcon&(i) ELSE ic& = achIconOff&(i)
+            IF achHidden(i) AND NOT own THEN ic& = 0 ' (a hidden one's badge stays hidden too)
+            IF ic& < -1 THEN ' (its badge - in colour once it's yours, grey till then)
+                _PUTIMAGE (x0 + 4, y0 + 6)-STEP(51, 51), ic&
+            ELSE
+                IF own THEN tc~& = _RGB32(255, 200, 60) ELSE tc~& = _RGB32(70, 64, 100)
+                LINE (x0 + 14, y0 + 14)-(x0 + 38, y0 + 30), tc~&, BF ' (no badge: a trophy, gold or grey)
+                CIRCLE (x0 + 26, y0 + 30), 12, tc~&, 3.1416, 0
+                CIRCLE (x0 + 12, y0 + 21), 5, tc~& : CIRCLE (x0 + 40, y0 + 21), 5, tc~&
+                LINE (x0 + 24, y0 + 40)-(x0 + 28, y0 + 45), tc~&, BF : LINE (x0 + 18, y0 + 45)-(x0 + 34, y0 + 49), tc~&, BF
+            END IF
+            IF own OR NOT achHidden(i) THEN
+                ttl$ = achTitle$(i) : dsc$ = achDesc$(i)
+            ELSE
+                ttl$ = "???" : dsc$ = "A hidden achievement - keep playing"
+            END IF
+            IF own THEN ttlc~& = _RGB32(255, 255, 255) ELSE ttlc~& = _RGB32(160, 150, 190)
+            MenuText x0 + 62, y0 + 8, LEFT$(ttl$, 37), 1, ttlc~&, 0
+            HudText x0 + 62, y0 + 30, LEFT$(dsc$, 38), _RGB32(190, 180, 220)
+            IF achGoal(i) > 1 AND NOT own THEN ' (a count: how far)
+                pr& = AchProgress&(i) : IF pr& > achGoal(i) THEN pr& = achGoal(i)
+                LINE (x0 + 62, y0 + 46)-(x0 + 300, y0 + 52), _RGB32(40, 30, 70), BF
+                LINE (x0 + 62, y0 + 46)-(x0 + 62 + 238 * pr& / achGoal(i), y0 + 52), _RGB32(90, 230, 255), BF
+                HudText x0 + 306, y0 + 45, LTRIM$(STR$(pr&)) + "/" + LTRIM$(STR$(achGoal(i))), _RGB32(150, 230, 255)
+            ELSEIF own THEN
+                HudText x0 + 62, y0 + 46, "UNLOCKED", _RGB32(255, 200, 60)
+            END IF
+        END IF
+    NEXT : NEXT
+    IF maxRow > 0 THEN ' (where in the list: a bar down the right)
+        LINE (788, 112)-(792, 540), _RGB32(40, 30, 70), BF
+        sy = 112 + 428 * achRow / (maxRow + 6) : LINE (788, sy)-(792, sy + 428 * 6 / (maxRow + 6)), _RGB32(255, 90, 210), BF
+    END IF
+    MenuText 400, 548, "WHEEL OR ARROWS TO SCROLL  -  TAB: RECORDS, STATS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
+    AchShown:
+    MenuText 400, 562, "BACK", 2, _RGB32(220, 220, 240), 1
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady
+    ShowFrame
+LOOP
+_KEYCLEAR
+WHILE _MOUSEINPUT : WEND
+RETURN
+
+' The STATS page: your rank (by how many achievements you've got), what
+' you've done in all your games (the achievements' stats - Steam's, or the
+' stand-in's), and what the records add up to
+DrawStats:
+got = 0 : FOR i = 1 TO achN : IF STEAM_is_unlocked%(achApi$(i)) THEN got = got + 1
+NEXT
+rank$ = AchRank$(got)
+MenuText 400, 70, "RANK", 1, _RGB32(150, 230, 255), 1
+gl = 200 + 55 * SIN(achT / 20)
+MenuText 400, 88, rank$, 3, _RGB32(255, gl, 80), 1
+nxt$ = AchRank$(-got - 1) ' (the next rank, and how far off)
+IF LEN(nxt$) THEN MenuText 400, 140, "NEXT: " + nxt$ + " AT" + STR$(AchRankAt(got)) + " ACHIEVEMENTS", 1, _RGB32(130, 120, 170), 1
+LINE (60, 166)-(740, 167), _RGB32(90, 80, 130), BF
+MenuText 72, 176, "IN ALL YOUR GAMES", 1, _RGB32(255, 90, 210), 0
+MenuText 432, 176, "PROGRESS", 1, _RGB32(255, 90, 210), 0
+FOR k = 1 TO 11 ' (left: the counts)
+    SELECT CASE k
+        CASE 1 : st$ = "Kills" : lb$ = "Machines destroyed"
+        CASE 2 : st$ = "Headshots" : lb$ = "Headshots"
+        CASE 3 : st$ = "KillKinds" : lb$ = "Kinds of machine"
+        CASE 4 : st$ = "Deaths" : lb$ = "Deaths"
+        CASE 5 : st$ = "Puzzles" : lb$ = "Terminals solved"
+        CASE 6 : st$ = "Teleports" : lb$ = "Teleports"
+        CASE 7 : st$ = "LootDrops" : lb$ = "Loot found"
+        CASE 8 : st$ = "Smashed" : lb$ = "Things smashed"
+        CASE 9 : st$ = "Glass" : lb$ = "Glass shattered"
+        CASE 10 : st$ = "Searches" : lb$ = "Walls searched"
+        CASE 11 : st$ = "Secrets" : lb$ = "Secrets found"
+    END SELECT
+    v& = 0 : IF achReady THEN v& = STEAM_stat_int&(st$)
+    IF st$ = "KillKinds" THEN vt$ = LTRIM$(STR$(BitCount(v&))) + "/9" ELSE vt$ = LTRIM$(STR$(v&))
+    y = 200 + (k - 1) * 29
+    MenuText 72, y, lb$, 1, _RGB32(200, 195, 230), 0
+    MenuText 360, y, vt$, 1, _RGB32(255, 255, 255), 2
+NEXT
+clears = 0 : bestSum! = 0 : FOR k = 1 TO recN : clears = clears + recClears(k) : bestSum! = bestSum! + recTime!(k) : NEXT
+v& = 0 : IF achReady THEN v& = STEAM_stat_int&("SetsDone")
+v2& = 0 : IF achReady THEN v2& = STEAM_stat_int&("Showcases")
+k1& = 0 : IF achReady THEN k1& = STEAM_stat_int&("Kills")
+FOR k = 1 TO 7 ' (right: how far through it all)
+    SELECT CASE k
+        CASE 1 : lb$ = "Achievements" : vt$ = LTRIM$(STR$(got)) + "/" + LTRIM$(STR$(achN))
+        CASE 2 : lb$ = "Sets finished" : vt$ = LTRIM$(STR$(BitCount(v&))) + "/3"
+        CASE 3 : lb$ = "Showcases cleared" : vt$ = LTRIM$(STR$(BitCount(v2&)))
+        CASE 4 : lb$ = "Sectors cleared" : vt$ = LTRIM$(STR$(clears))
+        CASE 5 : lb$ = "Sectors with a record" : vt$ = LTRIM$(STR$(recN))
+        CASE 6 : lb$ = "Best times, added up" : vt$ = TimeText$(INT(bestSum!))
+        CASE 7 : lb$ = "Headshot rate" : vt$ = "-" : IF k1& > 0 THEN vt$ = LTRIM$(STR$(INT(100 * STEAM_stat_int&("Headshots") / k1& + 0.5))) + "%"
+    END SELECT
+    y = 200 + (k - 1) * 30
+    MenuText 432, y, lb$, 1, _RGB32(200, 195, 230), 0
+    MenuText 728, y, vt$, 1, _RGB32(255, 255, 255), 2
+NEXT
+IF achCheat AND menuInGame THEN MenuText 400, 520, "CHEATS ARE ON IN THIS GAME: NOTHING COUNTS TILL A NEW ONE", 1, _RGB32(255, 120, 90), 1
+MenuText 400, 548, "TAB: ACHIEVEMENTS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
+RETURN
+
+SUB AchSetup
+    achTest = (ENVIRON$("NEON_ACH_TEST") = "1") ' (tests: cheats don't stop achievements)
+    achN = 0 : achStatN = 0
+    ' The story
+    AchDef "NC_SECTOR_1", "First Steps", "Finish sector 1.", 0, "", 0
+    AchDef "NC_ESCAPED", "You Escaped", "Finish the original ten sectors.", 0, "", 0
+    AchDef "NC_NEW_BLOOD", "New Blood", "Finish all ten NEW SECTORS.", 0, "", 0
+    AchDef "NC_REMASTERED", "Old Haunts, New Paint", "Finish all ten OLD SECTORS NEW.", 0, "", 0
+    AchDef "NC_FULL_TOUR", "The Full Tour", "Finish all three sets of ten.", 0, "SetsDone", 3
+    AchDef "NC_OVERSEER", "Flesh to Steel", "Destroy the overseer.", 0, "", 0
+    AchDef "NC_EXPO", "Every Wonder", "Finish THE NEON EXPO (sector 24).", 0, "", 0
+    AchDef "NC_SHOWCASE", "Gallery Visitor", "Finish five of the showcase sectors.", 0, "Showcases", 5
+    ' Fighting
+    AchDef "NC_FIRST_KILL", "Hostile Takeover", "Destroy your first machine.", 0, "Kills", 1
+    AchDef "NC_KILLS_100", "Centurion", "Destroy 100 machines.", 0, "Kills", 100
+    AchDef "NC_KILLS_1000", "Decommissioned", "Destroy 1,000 machines.", 0, "Kills", 1000
+    AchDef "NC_HEADSHOT", "Right Between the Optics", "Land a headshot.", 0, "Headshots", 1
+    AchDef "NC_HEADSHOTS_100", "Marksman", "Land 100 headshots.", 0, "Headshots", 100
+    AchDef "NC_KICK_KILL", "Boot to the Head", "Finish off a machine with a kick.", 0, "", 0
+    AchDef "NC_OVER_EDGE", "Over the Edge", "Send a machine into a bottomless pit.", 0, "", 0
+    AchDef "NC_CHAIN", "Chain Reaction", "Three machines in one explosion.", 0, "", 0
+    AchDef "NC_ARSENAL", "Arsenal", "Carry all four guns at once.", 0, "", 0
+    AchDef "NC_AMPED", "Overclocked", "Five kills on one damage amp.", 0, "", 0
+    AchDef "NC_BESTIARY", "Bestiary", "Destroy one of every kind of machine.", 0, "KillKinds", 9
+    AchDef "NC_THIEF", "Stop, Thief!", "Destroy a thief.", 0, "", 0
+    ' Skill
+    AchDef "NC_UNTOUCHED", "Untouchable", "Finish a sector without a scratch.", 0, "", 0
+    AchDef "NC_CLEAN_SWEEP", "Clean Sweep", "Finish a sector, every machine down.", 0, "", 0
+    AchDef "NC_PACKRAT", "Packrat", "Finish a sector with every item.", 0, "", 0
+    AchDef "NC_PERFECT", "Perfectionist", "Every kill and item in one sector.", 0, "", 0
+    AchDef "NC_SPEEDRUN", "Speedrunner", "Finish a sector in under a minute.", 0, "", 0
+    AchDef "NC_PEASHOOTER", "Peashooter", "5+ kills in a sector, blaster only.", 0, "", 0
+    AchDef "NC_LUB_DUB", "Lub-Dub", "Finish a sector with 10 health or less.", 0, "", 0
+    ' The event rooms
+    AchDef "NC_LOCKDOWN", "Lockdown Lifted", "Win a lockdown.", 0, "", 0
+    AchDef "NC_SURVIVOR", "Survivor", "Survive a lockdown to the end.", 0, "", 0
+    AchDef "NC_GALLERY", "Shooting Gallery", "Smash a shooting gallery in time.", 0, "", 0
+    AchDef "NC_HOARD", "Robbing the Robbers", "Open a thieves' hoard.", 0, "", 0
+    AchDef "NC_PEST", "Pest Control", "Destroy every portal in a nest.", 0, "", 0
+    ' Hacking and getting about
+    AchDef "NC_JACKED", "Jacked In", "Hack a data station.", 0, "", 0
+    AchDef "NC_HELLO", "Hello, NEXUS", "Fix a code terminal's program.", 0, "Puzzles", 1
+    AchDef "NC_PROGRAMMER", "Programmer", "Fix ten code terminals' programs.", 0, "Puzzles", 10
+    AchDef "NC_HOT_FOOT", "Hot Foot", "Climb out of lava alive.", 0, "", 0
+    AchDef "NC_CORRODED", "Corroded", "Let acid eat your armour.", 0, "", 0
+    AchDef "NC_BEAM", "Frequent Flyer", "Teleport 25 times.", 0, "Teleports", 25
+    AchDef "NC_LOOT", "Treasure Hunter", "Find 25 things in breakables.", 0, "LootDrops", 25
+    AchDef "NC_VANDAL", "Vandal", "Smash 100 decorations.", 0, "Smashed", 100
+    AchDef "NC_SECRET", "Secret Agent", "Find a secret.", 0, "Secrets", 1
+    AchDef "NC_SECRETS", "Nothing Stays Hidden", "Find 25 secrets.", 0, "Secrets", 25
+    AchDef "NC_ALL_SECRETS", "Fine-Toothed Comb", "Find every secret in a sector.", 0, "", 0
+    AchDef "NC_ARCADE", "High Score", "Beat a computer at one of its games.", 0, "", 0
+    ' The editor
+    AchDef "NC_ARCHITECT", "Architect", "Save a sector in the level editor.", 0, "", 0
+    AchDef "NC_BOXED", "Thinking Inside the Box", "Stand a block in the level editor.", 0, "", 0
+    ' Hidden till you get them
+    AchDef "NC_HMPH", "Hmph", "Search 25 walls for secrets.", -1, "Searches", 25
+    AchDef "NC_DEATHS", "Respawn Enthusiast", "Die ten times.", -1, "Deaths", 10
+    AchDef "NC_GLASS", "Bull in a China Shop", "Shatter ten panes of glass.", -1, "Glass", 10
+    FOR i = 1 TO achN
+        STEAM_mock_achievement achApi$(i), achTitle$(i), achDesc$(i), achHidden(i)
+        f$ = AssetPath$("achievements/" + achApi$(i) + ".png") : IF _FILEEXISTS(f$) THEN achIcon&(i) = _LOADIMAGE(f$, 32)
+        f$ = AssetPath$("achievements/" + achApi$(i) + "_locked.png") : IF _FILEEXISTS(f$) THEN achIconOff&(i) = _LOADIMAGE(f$, 32)
+    NEXT
+    FOR i = 1 TO achStatN : STEAM_mock_stat achStatName$(i) : NEXT
+    MakeSaveDir : STEAM_mock_file SaveDir$ + "achievements.txt"
+    IF NEON_APP_ID = 0 THEN STEAM_use_mock ' (no App ID yet: the stand-in, straight away)
+    achReady = STEAM_init%(NEON_APP_ID)
+END SUB
+
+' One achievement: its API name (as in the Steamworks admin), title, what
+' it asks, hidden or not, and - for a counted one - its stat and goal
+SUB AchDef(api$, title$, desc$, hidden, stat$, goal)
+    IF achN >= NUM_ACH THEN EXIT SUB
+    achN = achN + 1
+    achApi$(achN) = api$ : achTitle$(achN) = title$ : achDesc$(achN) = desc$ : achHidden(achN) = hidden
+    achStat$(achN) = stat$ : achGoal(achN) = goal
+    IF stat$ = "" THEN EXIT SUB
+    FOR j = 1 TO achStatN : IF achStatName$(j) = stat$ THEN EXIT SUB
+    NEXT
+    IF achStatN < NUM_ACHSTATS THEN achStatN = achStatN + 1 : achStatName$(achStatN) = stat$
+END SUB
+
+' Unlock achievement api$ (always: even with cheats on - the editor's own)
+SUB Achieve(api$, always)
+    IF NOT achReady THEN EXIT SUB
+    IF achCheat AND NOT achTest AND NOT always THEN EXIT SUB
+    IF STEAM_is_unlocked%(api$) THEN EXIT SUB
+    ok = STEAM_unlock%(api$) : ok = STEAM_store%
+    FOR i = 1 TO achN
+        IF achApi$(i) = api$ THEN
+            ConPrint "ACHIEVEMENT: " + achTitle$(i) + " - " + achDesc$(i)
+            IF NOT STEAM_is_steam% AND achToastN < 16 THEN achToastN = achToastN + 1 : achToast$(achToastN) = achTitle$(i) + CHR$(1) + achDesc$(i) : achToastI(achToastN) = i ' (Steam shows its own)
+            IF achSectN < 16 THEN achSectN = achSectN + 1 : achSect(achSectN) = i
+        END IF
+    NEXT
+END SUB
+
+' Add n to a counted stat - and unlock what it reaches
+SUB AchAdd(stat$, n)
+    IF NOT achReady THEN EXIT SUB
+    IF achCheat AND NOT achTest THEN EXIT SUB
+    v& = STEAM_stat_int&(stat$) + n : ok = STEAM_set_stat_int%(stat$, v&)
+    FOR i = 1 TO achN
+        IF achStat$(i) = stat$ THEN
+            IF v& >= achGoal(i) THEN
+                Achieve achApi$(i), 0
+            ELSEIF achGoal(i) >= 10 AND NOT achHidden(i) AND NOT STEAM_is_steam% THEN ' (a quarter of the way more: say so, as Steam does)
+                IF (v& * 4) \ achGoal(i) > ((v& - n) * 4) \ achGoal(i) AND achToastN < 16 THEN
+                    achToastN = achToastN + 1 : achToast$(achToastN) = achTitle$(i) + CHR$(1) + LTRIM$(STR$(v&)) + " / " + LTRIM$(STR$(achGoal(i))) : achToastI(achToastN) = -i
+                END IF
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' Tick item bit (0-30) of a set-of-things stat - and unlock what it reaches
+SUB AchBit(stat$, bit)
+    IF NOT achReady THEN EXIT SUB
+    IF achCheat AND NOT achTest THEN EXIT SUB
+    v& = STEAM_stat_int&(stat$) OR 2 ^ bit : ok = STEAM_set_stat_int%(stat$, v&)
+    FOR i = 1 TO achN
+        IF achStat$(i) = stat$ THEN IF BitCount(v&) >= achGoal(i) THEN Achieve achApi$(i), 0
+    NEXT
+END SUB
+
+' A rank for n achievements got (n < 0: the rank after -n - 1 got - "" at
+' the top), and how many the rank after n's needs (AchRankAt)
+FUNCTION AchRank$(n)
+    nn = n : nxt = 0 : IF n < 0 THEN nn = -n - 1 : nxt = -1
+    r = 0 : FOR k = 1 TO 7 : IF nn >= AchRankNeeds(k) THEN r = k
+    NEXT
+    IF nxt THEN r = r + 1 : IF r > 7 THEN EXIT FUNCTION
+    AchRank$ = RTRIM$(MID$("BOOT SEQUENCE  SCRAPPER       CIRCUIT BREAKEROVERCLOCKER    CHROME HUNTER  NEON GHOST     THE CASTER     ", (r - 1) * 15 + 1, 15))
+END FUNCTION
+
+FUNCTION AchRankNeeds(k) ' (achievements each rank needs)
+    AchRankNeeds = VAL(MID$(" 0 51219263645", (k - 1) * 2 + 1, 2))
+END FUNCTION
+
+FUNCTION AchRankAt(n)
+    FOR k = 1 TO 7 : IF AchRankNeeds(k) > n THEN AchRankAt = AchRankNeeds(k) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' How far achievement i's stat has got (for the screen): a count, or how
+' many of a set
+FUNCTION AchProgress&(i)
+    IF achStat$(i) = "" OR NOT achReady THEN EXIT FUNCTION
+    v& = STEAM_stat_int&(achStat$(i))
+    SELECT CASE achStat$(i)
+        CASE "SetsDone", "Showcases", "KillKinds" : AchProgress& = BitCount(v&)
+        CASE ELSE : AchProgress& = v&
+    END SELECT
+END FUNCTION
+
+' Send the stats (Steam, or the stand-in's file) - at a sector's end, and
+' on the way out
+SUB AchStore
+    IF achReady THEN ok = STEAM_store%
+END SUB
+
+' Our pop-up for an achievement (when Steam isn't the one showing it): it
+' drops in at the top of the screen, waits, and rises away, a chime as it
+' comes; any more queue behind it
+SUB AchDrawToast(atTop)
+    IF achToastN = 0 THEN EXIT SUB
+    achToastT = achToastT + 1
+    pa = -achToastI(1) ' (above 0: a progress note for achievement pa - quiet, quicker, its grey badge and a bar)
+    IF pa > 0 AND achToastT = 110 THEN achToastT = 220 ' (it stays a shorter while)
+    IF achToastT = 1 AND sndAchieve& AND pa <= 0 THEN PlaySfx sndAchieve&, 0.9
+    t = achToastT
+    IF t < 16 THEN
+        y = -64 + t * 5
+    ELSEIF t < 220 THEN
+        y = 16
+    ELSE
+        y = 16 - (t - 220) * 5
+    END IF
+    c = INSTR(achToast$(1), CHR$(1)) : ttl$ = LEFT$(achToast$(1), c - 1) : dsc$ = MID$(achToast$(1), c + 1)
+    w = MaxOf(300, MaxOf(LEN(ttl$), LEN(dsc$)) * 8 + 80) : x0 = 400 - w \ 2
+    IF NOT atTop THEN ' In play: bottom right, sliding in from the side (as Steam's) - clear of NEXUS's words and the event line up top
+        y = 444 : x0 = 792 - w
+        IF t < 16 THEN x0 = 800 - (w + 8) * t / 16
+        IF t >= 220 THEN x0 = 792 - w + (w + 8) * (t - 220) / 16
+    END IF
+    LINE (x0, y)-(x0 + w, y + 58), _RGBA32(10, 4, 26, 225), BF
+    LINE (x0, y)-(x0 + w, y + 58), _RGB32(255, 70, 210), B
+    LINE (x0 + 1, y + 1)-(x0 + w - 1, y + 57), _RGBA32(255, 70, 210, 90), B
+    ic& = 0 : IF achToastI(1) >= 1 AND achToastI(1) <= NUM_ACH THEN ic& = achIcon&(achToastI(1))
+    IF pa >= 1 AND pa <= NUM_ACH THEN ic& = achIconOff&(pa)
+    IF ic& < -1 THEN ' (its badge)
+        _PUTIMAGE (x0 + 6, y + 5)-STEP(47, 47), ic&
+    ELSE
+        gl = 120 + 100 * ABS(SIN(t / 9)) ' (no badge: a trophy - a gold cup, glinting)
+        LINE (x0 + 16, y + 12)-(x0 + 44, y + 30), _RGB32(255, 200, 60), BF
+        CIRCLE (x0 + 30, y + 30), 14, _RGB32(255, 200, 60), 3.1416, 0
+        PAINT (x0 + 30, y + 36), _RGB32(255, 200, 60), _RGB32(255, 200, 60)
+        CIRCLE (x0 + 14, y + 20), 6, _RGB32(255, 200, 60) : CIRCLE (x0 + 46, y + 20), 6, _RGB32(255, 200, 60)
+        LINE (x0 + 27, y + 42)-(x0 + 33, y + 47), _RGB32(255, 200, 60), BF
+        LINE (x0 + 20, y + 47)-(x0 + 40, y + 51), _RGB32(255, 200, 60), BF
+        LINE (x0 + 21, y + 14)-(x0 + 24, y + 26), _RGBA32(255, 255, 255, gl), BF
+    END IF
+    IF pa > 0 THEN
+        HudText x0 + 62, y + 8, "ACHIEVEMENT PROGRESS", _RGB32(255, 200, 60)
+        MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
+        HudText x0 + 62, y + 42, dsc$, _RGB32(150, 230, 255)
+        bw = w - 62 - 10 - LEN(dsc$) * 8 - 12 : bx = x0 + 62 + LEN(dsc$) * 8 + 12 ' (and a bar: how far)
+        IF bw > 20 AND pa <= NUM_ACH THEN
+            pr& = AchProgress&(pa) : IF pr& > achGoal(pa) THEN pr& = achGoal(pa)
+            LINE (bx, y + 45)-(bx + bw, y + 51), _RGB32(40, 30, 70), BF
+            LINE (bx, y + 45)-(bx + bw * pr& / achGoal(pa), y + 51), _RGB32(90, 230, 255), BF
+        END IF
+    ELSE
+        HudText x0 + 62, y + 8, "ACHIEVEMENT UNLOCKED", _RGB32(90, 240, 255)
+        MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
+        HudText x0 + 62, y + 42, dsc$, _RGB32(200, 190, 230)
+    END IF
+    IF t >= 236 THEN ' Gone: the next, if there is one
+        FOR k = 1 TO achToastN - 1 : achToast$(k) = achToast$(k + 1) : achToastI(k) = achToastI(k + 1) : NEXT
+        achToastN = achToastN - 1 : achToastT = 0
+    END IF
+END SUB

@@ -1,0 +1,194 @@
+''
+' NEON-CASTER - GAME/ITEMS.BM
+' =============================================================================
+' Pickups and loot: dropping and tossing things, and the loot tables.
+'
+
+' One more pickup, of kind kind, just where (x, y) is (if that's floor -
+' or else in the middle of its cell)
+SUB DropItemAt(kind, x0, y0)
+    IF numItems >= MAX_ITEMS THEN EXIT SUB
+    x = x0 : y = y0 ' (copies: the caller's - a monster's own place - stays put)
+    walkFromHaz = 10 ' (and somewhere you can get it: not down a pit, in fire or a harmful pool - a thief kicked over the edge)
+    IF NOT Walkable%(x, y) THEN x = INT(x) + 0.5 : y = INT(y) + 0.5
+    IF NOT Walkable%(x, y) THEN ' (its cell's middle no better - a block standing there: the nearest open spot round it)
+        FOR r = 1 TO 10
+            FOR a = 0 TO 7
+                tx = x + DCos(a * 0.7854) * r * 0.3 : ty = y + DSin(a * 0.7854) * r * 0.3
+                IF Walkable%(tx, ty) THEN x = tx : y = ty : r = 99 : EXIT FOR
+            NEXT
+        NEXT
+    END IF
+    walkFromHaz = 0
+    numItems = numItems + 1
+    itemX(numItems) = x : itemY(numItems) = y : itemKind(numItems) = kind : itemOn(numItems) = -1 : itemToss(numItems) = 0
+    SpawnSparks x, y, 0.3, 10, 255, 230, 120
+END SUB
+
+' Decoration d has just broken: does it leave anything? Its kind has four
+' drop slots, A to D (lootKind, lootPct - LootTable). Roll the percentile
+' dice once, 1 to 100, and share it out in order: A has the first A%, B
+' the next B%, and so on - past them all, nothing. (A d4 for the slot and
+' then its chance, as it was, made a crate's 70% just 17.5%.) What it
+' lands on comes out (TossItem) - the way
+' decoLootA says (HitDeco), or any way at all - landing clear of you, at
+' (px, py), for you to go and pick up.
+SUB DecoLoot(d, px, py)
+    IF editMode OR cyberOn THEN EXIT SUB
+    k = decoKind(d) : roll = INT(GRnd * 100) + 1 : acc = 0 : slot = 0 ' (the percentile dice, once)
+    luck = 1 : IF AmmoLow THEN luck = 2 ' (running dry: every chance doubled - a crate's 70% becomes a sure thing)
+    FOR s = 1 TO LOOT_SLOTS
+        IF lootKind(k, s) THEN acc = acc + lootPct(k, s) * luck : IF roll <= acc THEN slot = s : EXIT FOR
+    NEXT
+    IF slot = 0 THEN EXIT SUB ' (past them all: nothing in it)
+    a = decoLootA(d) : IF a = NO_AIM THEN a = GRnd * 6.2832
+    TossItem lootKind(k, slot), decoX(d), decoY(d), a, px, py
+    AchAdd "LootDrops", 1
+END SUB
+
+' A pickup of kind kind thrown out from (x, y) at angle a (radians): it
+' flies LOOT_TOSS frames, in an arc (drawn in chapter 16), and lands up to
+' LOOT_REACH away - short of whatever's in the way - where you can see it
+' and walk over to it: never at your feet, (px, py) - at least LOOT_CLEAR
+' away. If that way won't do (a crate against a wall, or you in the way),
+' it tries the ways round from it, nearest first.
+SUB TossItem(kind, x, y, a, px, py)
+    bestA = a : bestR = 0 : bestS = -1
+    FOR t = 0 TO 8 ' (that way, then an eighth of the way round either side of it, a quarter...)
+        b = a + ((t + 1) \ 2) * 0.7854 * (1 - 2 * (t MOD 2)) : r = TossReach(x, y, b)
+        d = SQR((x + DCos(b) * r - px) ^ 2 + (y + DSin(b) * r - py) ^ 2) ' (from you, where it lands)
+        IF r >= LOOT_REACH * 0.4 AND d >= LOOT_CLEAR THEN bestA = b : bestR = r : EXIT FOR
+        IF r + d > bestS THEN bestS = r + d : bestA = b : bestR = r ' (none clear: the clearest)
+    NEXT
+    was = numItems : DropItemAt kind, x, y
+    IF numItems > was THEN
+        itemToss(numItems) = LOOT_TOSS
+        itemVX(numItems) = DCos(bestA) * bestR / LOOT_TOSS : itemVY(numItems) = DSin(bestA) * bestR / LOOT_TOSS
+    END IF
+END SUB
+
+' How far (up to LOOT_REACH) a pickup can fly from (x, y) at angle a: out
+' in small steps until the next would be too close to a wall, a door, a
+' decoration, glass, a step up - or fire, or a pit with no bottom (as a
+' monster won't walk into them: walkFromHaz 10). The floor it starts on
+' is the height it's thrown from.
+FUNCTION TossReach(x, y, a)
+    oldZ = walkZ : oldHaz = walkFromHaz
+    walkZ = FloorAt(x, y) : walkFromHaz = 10
+    r = 0
+    DO WHILE r < LOOT_REACH
+        IF NOT Walkable%(x + DCos(a) * (r + 0.25), y + DSin(a) * (r + 0.25)) THEN EXIT DO ' (0.2 more: the pickup's own size)
+        r = r + 0.05
+    LOOP
+    walkZ = oldZ : walkFromHaz = oldHaz
+    TossReach = r
+END FUNCTION
+
+' What breakables leave (lootKind, lootPct: chapter 3): the game's own
+' table - a crate is the likeliest to have something in it, a vending
+' machine the likeliest to be full of ammo, lockers keep the good stuff -
+' then the level's [loot] lines over it, each kind it names all its own
+SUB LootTable
+    FOR k = 1 TO DECO_KINDS : FOR s = 1 TO LOOT_SLOTS : lootKind(k, s) = 0 : lootPct(k, s) = 0 : NEXT : NEXT
+    k = TakeLoot("barrel   = ammo:10, shells:10, medkit:5, armor:5")
+    k = TakeLoot("console  = ammo:5, shells:5")
+    k = TakeLoot("crate    = ammo:20, shells:20, medkit:20, armor:10")
+    k = TakeLoot("desk     = ammo:10, shells:10, medkit:10, armor:5")
+    k = TakeLoot("locker   = amp:10, overcharge:10, medkit:30, armor:30")
+    k = TakeLoot("labbench = ammo:5, shells:5, medkit:10, armor:5")
+    k = TakeLoot("vending  = ammo:50, shells:50, medkit:25, armor:10")
+    k = TakeLoot("plant    = ammo:5, shells:5, medkit:5")
+    FOR i = 1 TO lvlNumLoot : k = TakeLoot(lvlLoot$(i)) : NEXT
+END SUB
+
+' One line of loot: BREAKABLE = PICKUP:CHANCE, PICKUP:CHANCE... - slots A
+' to D in order, - (or nothing between the commas) an empty one. Sets that
+' kind's four; returns the kind (0: no breakable of that name)
+FUNCTION TakeLoot(l$)
+    eq = INSTR(l$, "=") : IF eq = 0 THEN EXIT FUNCTION
+    k = DecoKindOf(LEFT$(l$, eq - 1)) : IF k = 0 THEN EXIT FUNCTION
+    r$ = MID$(l$, eq + 1)
+    FOR s = 1 TO LOOT_SLOTS
+        d$ = ListItem$(r$, s) : c = INSTR(d$, ":")
+        lootKind(k, s) = 0 : lootPct(k, s) = 0
+        IF c THEN
+            lootKind(k, s) = ItemOf(LTRIM$(RTRIM$(LEFT$(d$, c - 1))))
+            lootPct(k, s) = MaxOf(0, MinOf(100, VAL(MID$(d$, c + 1))))
+        END IF
+    NEXT
+    TakeLoot = k
+END FUNCTION
+
+' Kind k's loot as a line of [loot] (as TakeLoot reads it)
+FUNCTION LootLine$(k)
+    l$ = DecoName$(k) + " ="
+    last = 0 : FOR s = 1 TO LOOT_SLOTS : IF lootKind(k, s) THEN last = s
+    NEXT
+    FOR s = 1 TO last
+        IF s > 1 THEN l$ = l$ + ","
+        IF lootKind(k, s) THEN l$ = l$ + " " + LootName$(lootKind(k, s)) + ":" + LTRIM$(STR$(lootPct(k, s))) ELSE l$ = l$ + " -"
+    NEXT
+    LootLine$ = l$
+END FUNCTION
+
+' A level's own loot for one kind, set from line l$ (the console's loot):
+' it takes the place of that kind's line in lvlLoot$(), if there is one.
+' Returns the kind (0: no breakable of that name)
+FUNCTION SetLevelLoot(l$)
+    k = TakeLoot(l$) : IF k = 0 THEN EXIT FUNCTION
+    t$ = LootLine$(k) ' (tidied, as the file will have it)
+    FOR i = 1 TO lvlNumLoot
+        IF DecoKindOf(LEFT$(lvlLoot$(i), INSTR(lvlLoot$(i) + "=", "=") - 1)) = k THEN lvlLoot$(i) = t$ : SetLevelLoot = k : EXIT FUNCTION
+    NEXT
+    IF lvlNumLoot < DECO_KINDS THEN lvlNumLoot = lvlNumLoot + 1 : lvlLoot$(lvlNumLoot) = t$
+    SetLevelLoot = k
+END FUNCTION
+
+' A pickup kind's name, as [loot] (and ItemOf) has it
+FUNCTION LootName$(k)
+    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp", k)
+END FUNCTION
+
+' A closet stash's loot: something good (n = 0) - armour, a big medkit, an
+' overcharge, a damage amp - and something to shoot with (n = 1)
+FUNCTION StashLoot(n)
+    IF n = 0 THEN
+        r = INT(GRnd * 5) : StashLoot = IT_ARMOR
+        IF r = 1 THEN StashLoot = IT_BIGMED ELSE IF r = 2 THEN StashLoot = IT_OVERCHARGE ELSE IF r = 3 THEN StashLoot = IT_AMP ELSE IF r = 4 THEN StashLoot = IT_GOGGLES
+    ELSE
+        IF GRnd < 0.5 THEN StashLoot = IT_CELLS ELSE StashLoot = IT_SHELLS
+    END IF
+END FUNCTION
+
+' One more pickup, of kind kind, at (x, y) - a reward
+SUB DropItem(kind, x, y)
+    IF numItems >= MAX_ITEMS THEN EXIT SUB
+    numItems = numItems + 1
+    itemX(numItems) = INT(x) + 0.5 : itemY(numItems) = INT(y) + 0.5 : itemKind(numItems) = kind : itemOn(numItems) = -1
+    SpawnSparks itemX(numItems), itemY(numItems), 0.4, 24, 255, 230, 120
+END SUB
+
+' Which sprite slot a pickup kind is drawn with
+FUNCTION ItemSprite(kind)
+    IF kind <= IT_REPEATER THEN
+        ItemSprite = kind
+    ELSEIF kind <= IT_MAP THEN
+        ItemSprite = 16 + kind
+    ELSE
+        ItemSprite = S_ITEMX + kind - IT_MAP
+    END IF
+END FUNCTION
+
+' "red", "blue" or "yellow" for keycard 1, 2 or 3
+FUNCTION CardName$(card)
+    CardName$ = RTRIM$(MID$("red   blue  yellow", (card - 1) * 6 + 1, 6))
+END FUNCTION
+
+' Keycard 1, 2 or 3's colour
+FUNCTION CardRGB~&(card)
+    SELECT CASE card
+        CASE 1 : CardRGB~& = _RGB32(235, 45, 45)
+        CASE 2 : CardRGB~& = _RGB32(50, 120, 255)
+        CASE 3 : CardRGB~& = _RGB32(255, 215, 30)
+    END SELECT
+END FUNCTION

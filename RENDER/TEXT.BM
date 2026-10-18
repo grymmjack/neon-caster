@@ -1,0 +1,64 @@
+''
+' NEON-CASTER - RENDER/TEXT.BM
+' =============================================================================
+' Text: on the HUD, big, messages, and wrapped.
+'
+
+' === TEXT AND THE HUD =========================================================
+
+'' === THE CONSOLE'S HELPERS (chapter 21) ===
+
+' Words wrapped to cols characters a line, from (x, y) down
+SUB WrapText(x, y, cols, t$, col~&)
+    r$ = t$ : yy = y
+    DO WHILE LEN(r$)
+        IF LEN(r$) <= cols THEN l$ = r$ : r$ = "" ELSE cut = _INSTRREV(LEFT$(r$, cols + 1), " ") : IF cut < 2 THEN cut = cols
+        IF LEN(r$) THEN l$ = RTRIM$(LEFT$(r$, cut)) : r$ = LTRIM$(MID$(r$, cut + 1))
+        HudText x, yy, l$, col~& : yy = yy + 20
+    LOOP
+END SUB
+
+' Show a message at the bottom of the screen for a few seconds. message$ and
+' messageUntil! belong to the main program; SHARED inside a SUB lets it use
+' main-program variables by name.
+SUB ShowMsg(text$)
+    SHARED message$, messageUntil!
+    message$ = text$ : messageUntil! = TIMER + 2.5
+    ConPrint text$ ' (and into the console's log)
+END SUB
+
+' HUD text with a drop shadow: printed in black one pixel down and right,
+' then in its colour on top
+SUB HudText(x, y, text$, col~&)
+    COLOR _RGB32(0, 0, 0) : _PRINTSTRING (x + 1, y + 1), text$
+    COLOR col~& : _PRINTSTRING (x, y), text$
+END SUB
+
+' Big centred text: printed at normal size into a small image, then
+' stretched up with _PUTIMAGE (so it's chunky, like the 3D view)
+SUB BigText(text$, y, scale, col~&)
+    textW = LEN(text$) * 8
+    img& = _NEWIMAGE(textW, 16, 32)
+    _DEST img& : _PRINTMODE _KEEPBACKGROUND
+    COLOR _RGB32(0, 0, 0) : _PRINTSTRING (1, 1), text$
+    COLOR col~& : _PRINTSTRING (0, 0), text$
+    _DEST 0
+    _PUTIMAGE (400 - textW * scale \ 2, y)-STEP(textW * scale - 1, 16 * scale-1), img&
+    _FREEIMAGE img&
+END SUB
+
+' Text at any size and see-through-ness: printed at normal size into a small
+' see-through image, then stretched onto the screen with _PUTIMAGE, which
+' blends it in by its colour's alpha. align: 0 starts at x, 1 centres on x,
+' 2 ends at x.
+SUB MenuText(x, y, text$, scale, col~&, align)
+    IF LEN(text$) = 0 THEN EXIT SUB
+    textW = LEN(text$) * 8
+    img& = _NEWIMAGE(textW, 16, 32)
+    _DEST img& : _PRINTMODE _KEEPBACKGROUND : COLOR col~& : _PRINTSTRING (0, 0), text$ : _DEST 0
+    textX = x
+    IF align = 1 THEN textX = x - textW * scale / 2
+    IF align = 2 THEN textX = x - textW * scale
+    _PUTIMAGE (textX, y)-STEP(textW * scale - 1, 16 * scale - 1), img&, 0
+    _FREEIMAGE img&
+END SUB

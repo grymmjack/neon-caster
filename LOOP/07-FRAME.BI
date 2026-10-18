@@ -1,0 +1,66 @@
+''
+' NEON-CASTER - LOOP/07-FRAME.BI
+' =============================================================================
+' Chapter 7 of the game loop - included in place, inside the DO ... LOOP
+' in neon-caster.bas, so it runs every frame.
+'
+
+    _LIMIT 60
+    ' Commands waiting (the command line's, an exec's): one a frame - or
+    ' as many as come before a "wait"
+    SfxFrame : earDX = dirX : earDY = dirY ' (the limiter's memory fades; your ears face where you do)
+    STEAM_update : achFrame = achFrame + 1 ' (Steam's callbacks: achievements and stats arriving)
+    ' The sector's clock stops while the game does: a frame that took over
+    ' half a second was a loop of its own (the menu, the console, the
+    ' editor, a terminal) - that time doesn't count
+    frameGap! = TIMER - frameAt! : IF frameGap! < 0 THEN frameGap! = frameGap! + 86400
+    IF frameAt! <> 0 AND frameGap! > 0.5 THEN levelStart! = levelStart! + frameGap! - 1 / 60
+    frameAt! = TIMER
+    IF NOT editMode THEN lvFrame = lvFrame + 1 ' (the sector's clock in frames: a trigger's "time", and a demo's)
+    IF dead THEN deadTicks = deadTicks + 1 ELSE deadTicks = 0
+    IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
+    gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
+    GOSUB SpeechFrame ' (NEXUS: what it says, when - chapter 19)
+    IF demoMenuWant THEN demoMenuWant = 0 : menuInGame = 0 : menuOpenDemos = -1 : GOSUB RunMenu ' (a demo from DEMO REPLAYS is over: the title menu, at that list)
+    IF demoAttractMenu THEN demoAttractMenu = 0 : menuInGame = 0 : GOSUB RunMenu ' (attract mode: a demo over - the title menu again)
+    IF demoAttract THEN ' (attract mode: a key, or a click - back to the title menu)
+        IF _KEYHIT > 0 OR attractQuit THEN
+            demoAttract = 0 : attractQuit = 0 : _KEYCLEAR
+            IF demoPlay THEN GOSUB DemoStop
+            menuInGame = 0 : GOSUB RunMenu
+        END IF
+    END IF
+    IF conWait > 0 THEN conWait = conWait - 1
+    DO WHILE conWait = 0 AND conQHead < conQTail AND glShotReq = 0 ' (a screenshot asked for: the rest waits until it's saved)
+        conQHead = conQHead + 1 : conCmd$ = conQ$(conQHead)
+        IF LEFT$(conCmd$, 1) = CHR$(2) THEN conCmd$ = MID$(conCmd$, 2) : conFromTrig = -1 ' (a trigger's command, queued behind a wait)
+        GOSUB ConExec : conFromTrig = 0
+    LOOP
+    IF conQHead >= conQTail THEN conQHead = 0 : conQTail = 0
+    ' ` (or ~): the console
+    conKey = (_KEYDOWN(96) OR _KEYDOWN(126)) AND NOT edTyping ' (typing a name in the editor: not the console)
+    IF conKey AND NOT conKeyWas THEN GOSUB RunConsole
+    conKeyWas = conKey
+    ' Ctrl+R: record this sector - it starts again, and every key from there
+    ' goes into a demo (run1, run2...) - and Ctrl+R again (or the exit) keeps
+    ' it: DEMO REPLAYS lists it
+    recKey = (_KEYDOWN(114) OR _KEYDOWN(82)) AND (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND NOT edTyping
+    IF recKey AND NOT recKeyWas AND NOT editMode AND NOT hudEdit THEN
+        IF demoRec THEN
+            GOSUB DemoStop
+        ELSEIF demoPlay THEN
+            ShowMsg "A demo's playing - Esc, STOP DEMO first"
+        ELSE
+            demoName$ = DemoNextName$ : dSeedWant# = 0 : demoRecQuit = 0 : GOSUB DemoRecordStart
+            ShowMsg "RECORDING " + demoName$ + " - from the sector's start. Ctrl+R again stops it"
+        END IF
+    END IF
+    recKeyWas = recKey
+    ' F2: the level editor (chapter 21) - into it, at the map from above
+    edKey = _KEYDOWN(15360)
+    IF edKey AND NOT edKeyWas AND NOT cyberOn AND NOT dead AND NOT edTyping THEN
+        IF editMode THEN GOSUB EditLeave ELSE GOSUB EditEnter
+    END IF
+    edKeyWas = _KEYDOWN(15360)
+    IF editMode AND editView = 0 THEN GOSUB RunEditor : edKeyWas = _KEYDOWN(15360) ' (the map from above: a loop of its own - F2 there, still held, isn't a new press here)
+    IF editMode THEN GOSUB EditFP ' (walking round in it: its keys)

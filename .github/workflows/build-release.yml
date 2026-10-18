@@ -94,8 +94,8 @@ jobs:
         run: |
           PKG=neon-caster
           mkdir -p "pkg/$PKG"
-          cp neon-caster.run neon-caster.bas README.md LEVEL-EDITOR-GUIDE.md LICENSE "pkg/$PKG/"
-          rsync -a --exclude saves --exclude __pycache__ neon-caster lib "pkg/$PKG/"
+          cp neon-caster.run neon-caster.bas _ALL.BI _ALL.BM README.md LEVEL-EDITOR-GUIDE.md LICENSE "pkg/$PKG/"
+          rsync -a --exclude saves --exclude __pycache__ neon-caster lib CORE WORLD GAME LEVEL RENDER GL MENU EDITOR AUDIO DEMO ACH LOOP "pkg/$PKG/"
           tar -czf neon-caster-linux-x64.tar.gz -C pkg "$PKG"
 
       - name: Upload artifact
@@ -139,8 +139,8 @@ jobs:
           test -x ./neon-caster-mac || { echo "::error::neon-caster-mac was not produced"; exit 1; }
           PKG=neon-caster
           mkdir -p "pkg/$PKG"
-          cp neon-caster-mac neon-caster.bas README.md LEVEL-EDITOR-GUIDE.md LICENSE "pkg/$PKG/"
-          rsync -a --exclude saves --exclude __pycache__ neon-caster lib "pkg/$PKG/"
+          cp neon-caster-mac neon-caster.bas _ALL.BI _ALL.BM README.md LEVEL-EDITOR-GUIDE.md LICENSE "pkg/$PKG/"
+          rsync -a --exclude saves --exclude __pycache__ neon-caster lib CORE WORLD GAME LEVEL RENDER GL MENU EDITOR AUDIO DEMO ACH LOOP "pkg/$PKG/"
           # ditto keeps the program's "can run" permission inside the zip
           (cd pkg && ditto -c -k --keepParent "$PKG" "../neon-caster-macos-arm64.zip")
 
@@ -202,8 +202,8 @@ jobs:
           if (-not (Test-Path "neon-caster.exe")) { Write-Error "neon-caster.exe was not produced"; exit 1 }
           $pkg = "pkg\neon-caster"
           New-Item -ItemType Directory -Force -Path $pkg | Out-Null
-          Copy-Item neon-caster.exe, neon-caster.bas, README.md, LEVEL-EDITOR-GUIDE.md, LICENSE -Destination $pkg
-          Copy-Item lib -Destination $pkg -Recurse
+          Copy-Item neon-caster.exe, neon-caster.bas, _ALL.BI, _ALL.BM, README.md, LEVEL-EDITOR-GUIDE.md, LICENSE -Destination $pkg
+          foreach ($d in "lib", "CORE", "WORLD", "GAME", "LEVEL", "RENDER", "GL", "MENU", "EDITOR", "AUDIO", "DEMO", "ACH", "LOOP") { Copy-Item $d -Destination $pkg -Recurse }
           Copy-Item neon-caster -Destination $pkg -Recurse
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "$pkg\neon-caster\saves", "$pkg\neon-caster\levels\__pycache__"
           Compress-Archive -Path $pkg -DestinationPath neon-caster-windows-x64.zip -Force
@@ -256,5 +256,6 @@ jobs:
             choose **Open** (or run `xattr -dr com.apple.quarantine neon-caster` on
             the unzipped folder).
 
-            The source - `neon-caster.bas`, the game and a 24-chapter course in how
-            it works - is in every download. See `neon-caster/TUTORIAL.md`.
+            The source - `neon-caster.bas` and the include files in the folders
+            beside it, the game and a 24-chapter course in how it works - is in
+            every download. See `neon-caster/TUTORIAL.md`.

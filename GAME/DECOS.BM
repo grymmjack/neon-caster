@@ -1,0 +1,210 @@
+''
+' NEON-CASTER - GAME/DECOS.BM
+' =============================================================================
+' Decorations: getting hit and breaking (HitDeco), vending machines,
+' which way furniture faces, and spawners charging up.
+'
+
+' --- Vending machine i, after Space: a countdown - 3, 2, 1 - then it pays
+' out (cells, shells, health flying out of it for a couple of seconds),
+' or, now and then (vendBomb, settled at the start), it blows up like a
+' barrel. Then it's sold out. Breaking it in the meantime stops it all.
+VendStep:
+IF NOT decoOn(i) THEN vendState(i) = 0 : RETURN
+vendTimer(i) = vendTimer(i) - 1
+IF vendState(i) = 1 THEN
+    IF vendTimer(i) = 180 OR vendTimer(i) = 120 OR vendTimer(i) = 60 THEN
+        ShowMsg MID$("1...2...3...", (vendTimer(i) \ 60 - 1) * 4 + 1, 4) : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
+    END IF
+    IF vendTimer(i) <= 0 THEN
+        IF vendBomb(i) THEN
+            vendState(i) = 3 : ShowMsg "OUT OF ORDER!" : barrel = i : GOSUB Explode
+        ELSE
+            vendState(i) = 2 : vendTimer(i) = 150 : ShowMsg "JACKPOT!" : PlaySfx sndFanfare&, 0.6
+        END IF
+    END IF
+ELSE
+    IF vendTimer(i) MOD 18 = 0 THEN ' (one more thing out of the slot, out the front - or anywhere)
+        k = IT_CELLS : r = GRnd
+        IF r < 0.3 THEN k = IT_SHELLS ELSE IF r < 0.55 THEN k = IT_HEALTH ELSE IF r < 0.6 THEN k = IT_ARMOR ELSE IF r < 0.63 THEN k = IT_OVERCHARGE
+        a = (decoFace(i) - 1) * 1.5708 + (GRnd - 0.5) * 1.6 : IF decoFace(i) = 0 THEN a = DAtan2(playerY - decoY(i), playerX - decoX(i)) + (GRnd - 0.5) * 1.6
+        TossItem k, decoX(i), decoY(i), a, playerX, playerY : SfxAt sndPlate&, decoX(i), decoY(i), playerX, playerY
+    END IF
+    IF vendTimer(i) <= 0 THEN vendState(i) = 3 : ShowMsg "SOLD OUT"
+END IF
+RETURN
+
+HitDeco:
+IF decoKind(targetDeco) = DK_BODY THEN RETURN ' (bodies don't break)
+IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
+' Its loot, if it breaks: kicked, back the way you're facing (towards you,
+' give or take); shot or blown up, any way at all
+IF hitKick THEN decoLootA(targetDeco) = DAtan2(-dirY, -dirX) + (GRnd - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
+IF Explosive(decoKind(targetDeco)) THEN
+    IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = 1
+    RETURN
+END IF
+decoHP(targetDeco) = decoHP(targetDeco) - hitDamage
+IF decoHP(targetDeco) > 0 THEN
+    SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY
+ELSE
+    decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES : IF NOT decoByMon THEN AchAdd "Smashed", 1
+    decoCell(INT(decoX(targetDeco)), INT(decoY(targetDeco))) = 0
+    SfxAt decoBreakSnd&(decoKind(targetDeco)), decoX(targetDeco), decoY(targetDeco), playerX, playerY
+    IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
+        newBlastX = decoX(targetDeco) : newBlastY = decoY(targetDeco) : newBlastSize = 0.35 : GOSUB AddBlast
+    END IF
+    DecoLoot targetDeco, playerX, playerY
+    IF decoKind(targetDeco) = DK_SPECIMEN AND NOT cyberOn AND NOT editMode THEN ' A specimen tank: half the time, what was floating in it climbs out - a stalker or a spitter
+        IF GRnd < 0.5 THEN
+            IF SpawnMonster(6 + INT(GRnd * 2), decoX(targetDeco), decoY(targetDeco), 0, playerX, playerY) THEN ShowMsg "Something climbs out of the tank!" : shake = shake + 4
+        END IF
+    END IF
+END IF
+RETURN
+
+' A decoration kind by its name - barrel, crate, labbench, lockers... -
+' spaces or not, one or more (crates); 0 for none (a body never breaks)
+FUNCTION DecoKindOf(n$)
+    t$ = LCASE$(n$) : u$ = ""
+    FOR c = 1 TO LEN(t$)
+        IF INSTR(" _-" + CHR$(9), MID$(t$, c, 1)) = 0 THEN u$ = u$ + MID$(t$, c, 1)
+    NEXT
+    IF RIGHT$(u$, 1) = "s" THEN u$ = LEFT$(u$, LEN(u$) - 1) ' (crates, lockers, screens)
+    SELECT CASE u$
+        CASE "barrel" : k = 1
+        CASE "lamp" : k = 2
+        CASE "plant" : k = 3
+        CASE "terminal" : k = 4
+        CASE "crate" : k = 5
+        CASE "rack", "serverrack" : k = 6
+        CASE "vending", "vendingmachine" : k = 7
+        CASE "coolant", "tank", "coolanttank" : k = 8
+        CASE "spawner" : k = 9
+        CASE "desk" : k = 10
+        CASE "console" : k = 11
+        CASE "screen" : k = 12
+        CASE "specimen", "specimentank" : k = 13
+        CASE "labbench" : k = 14
+        CASE "generator" : k = 15
+        CASE "cryopod", "cryo" : k = 16
+        CASE "hologram" : k = 17
+        CASE "locker" : k = 18
+        CASE "bench" : k = 19
+        CASE "chair" : k = 20
+        CASE ELSE : k = 0
+    END SELECT
+    DecoKindOf = k
+END FUNCTION
+
+' A decoration kind's name, as [loot] has it
+FUNCTION DecoName$(k)
+    DecoName$ = RTRIM$(MID$("barrel   lamp     plant    terminal crate    rack     vending  coolant  spawner  desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", k * 9 - 8, 9))
+END FUNCTION
+
+' Which sprite slot a decoration kind is drawn with
+FUNCTION DecoSlot(kind)
+    IF kind <= 4 THEN DecoSlot = S_DECO + kind ELSE DecoSlot = S_DECOX + kind - 4
+END FUNCTION
+
+' A set piece's picture file
+FUNCTION DecoFile$(kind)
+    DecoFile$ = RTRIM$(MID$("desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", (kind - 10) * 9 + 1, 9)) + ".png"
+END FUNCTION
+
+' Does a decoration kind blow up when it's hit? (A barrel, a coolant tank)
+FUNCTION Explosive(kind)
+    Explosive = (kind = 1 OR kind = 8)
+END FUNCTION
+
+' How many hits a decoration kind takes before it breaks (a barrel: 1)
+FUNCTION DecoMaxHP(kind)
+    SELECT CASE kind
+        CASE 1 : DecoMaxHP = 1 ' Barrel
+        CASE 2 : DecoMaxHP = 2 ' Lamp
+        CASE 3 : DecoMaxHP = 2 ' Plant
+        CASE 5 : DecoMaxHP = 3 ' Crate
+        CASE 8 : DecoMaxHP = 1 ' Coolant tank
+        CASE 9 : DecoMaxHP = 8 ' Spawner (a nest's portal)
+        CASE 10, 18, 19 : DecoMaxHP = 3 ' Desk, lockers, bench
+        CASE 14 : DecoMaxHP = 2 ' Lab bench (glass)
+        CASE 13, 16 : DecoMaxHP = 3 ' Specimen tank, cryo pod (glass)
+        CASE 15 : DecoMaxHP = 6 ' Generator
+        CASE 20 : DecoMaxHP = 2 ' Chair
+        CASE 21 : DecoMaxHP = 99 ' (a body: never breaks)
+        CASE ELSE : DecoMaxHP = 4 ' Terminal, server rack, vending machine
+    END SELECT
+END FUNCTION
+
+' How tall a decoration kind stands (in walls)
+FUNCTION DecoScale(kind)
+    SELECT CASE kind
+        CASE 1 : DecoScale = 0.45 ' Barrel
+        CASE 2 : DecoScale = 0.85 ' Lamp
+        CASE 3 : DecoScale = 0.6 ' Plant
+        CASE 5 : DecoScale = 0.42 ' Crate
+        CASE 6 : DecoScale = 0.9 ' Server rack
+        CASE 7 : DecoScale = 0.8 ' Vending machine
+        CASE 8 : DecoScale = 0.55 ' Coolant tank
+        CASE 9 : DecoScale = 0.7 ' Spawner
+        CASE 10 : DecoScale = 0.45 ' Desk
+        CASE 11 : DecoScale = 0.5 ' Control console
+        CASE 12 : DecoScale = 0.85 ' Monitor bank
+        CASE 13 : DecoScale = 0.85 ' Specimen tank
+        CASE 14 : DecoScale = 0.45 ' Lab bench
+        CASE 15 : DecoScale = 0.7 ' Generator
+        CASE 16 : DecoScale = 0.95 ' Cryo pod
+        CASE 17 : DecoScale = 0.75 ' Hologram
+        CASE 18 : DecoScale = 0.9 ' Lockers
+        CASE 19 : DecoScale = 0.35 ' Bench
+        CASE 20 : DecoScale = 0.5 ' Chair
+        CASE 21 : DecoScale = 0.75 ' A body
+        CASE ELSE : DecoScale = 0.55 ' Terminal
+    END SELECT
+END FUNCTION
+
+' A wall for furniture to stand against: a solid wall (not a door, not glass)
+FUNCTION DecoWall(x, y)
+    IF x < 0 OR y < 0 OR x >= MAP_SIZE OR y >= MAP_SIZE THEN EXIT FUNCTION
+    DecoWall = worldMap(x, y) > 0 AND worldMap(x, y) <> 2 AND glassHP(x, y) = 0
+END FUNCTION
+
+' Spawner j, charging (decoCharge 0..1): motes of light drawn in to it,
+' faster and brighter as it fills, a beam rising off it when it's nearly
+' there, and crackling at the very end. (Only for show: RND, not GRnd.)
+SUB SpawnerCharge(j)
+    IF decoBurst(j) > 0 THEN decoBurst(j) = decoBurst(j) - 1
+    c = decoCharge(j) : x = decoX(j) : y = decoY(j) : fz = FloorAt(x, y)
+    IF c <= 0 THEN
+        IF RND < 0.03 THEN SpawnPart PART_DUST, x + (RND - 0.5) * 0.4, y + (RND - 0.5) * 0.4, fz + 0.3 + RND * 0.4, 0, 0, 0.002, 60, 0.6, 0.2, 0.7, 0.025
+        EXIT SUB
+    END IF
+    IF RND < 0.12 + 0.75 * c THEN ' A mote, coming in from round about
+        a = RND * 6.2832 : r = 0.8 + RND * 0.7 : life = 22 - INT(10 * c) : z = fz + 0.1 + RND * 0.9
+        px = x + COS(a) * r : py = y + SIN(a) * r
+        SpawnPart PART_ARC, px, py, z, (x - px) / life, (y - py) / life, (fz + 0.45 - z) / life, life, 0.9, 0.25 + 0.6 * c, 1, 0.02 + 0.02 * c
+    END IF
+    IF c > 0.5 AND RND < c - 0.3 THEN ' The beam
+        SpawnPart PART_FLAME, x + (RND - 0.5) * 0.12, y + (RND - 0.5) * 0.12, fz + 0.55, 0, 0, 0.012 + 0.02 * c, 24, 1, 0.35 + 0.5 * c, 1, 0.03 + 0.04 * c
+    END IF
+    IF c > 0.85 AND RND < 0.25 THEN SpawnSparks x, y, 0.5, 2, 255, 200, 255
+END SUB
+
+' Spawner j sends a monster out: the light it gathered falls in on itself
+' at once - a ring rushing inwards, then a burst - and the screen shakes
+' if you're close by (px, py): how much it shakes is the answer.
+FUNCTION SpawnerBurst(j, px, py)
+    x = decoX(j) : y = decoY(j) : fz = FloorAt(x, y)
+    decoBurst(j) = 20 : decoCharge(j) = 0
+    FOR k = 1 TO 36
+        a = k / 36 * 6.2832 : r = 1.6 + RND * 0.3 : z = fz + 0.1 + RND * 0.9
+        SpawnPart PART_ARC, x + COS(a) * r, y + SIN(a) * r, z, -COS(a) * r / 7, -SIN(a) * r / 7, (fz + 0.45 - z) / 7, 7, 1, 0.6, 1, 0.04
+    NEXT
+    FOR k = 1 TO 24
+        a = RND * 6.2832 : v = 0.04 + RND * 0.08
+        SpawnPart PART_SPARK, x, y, fz + 0.45, COS(a) * v, SIN(a) * v, 0.02 + RND * 0.05, 18 + INT(RND * 14), 1, 0.4 + RND * 0.5, 1, 0.04
+    NEXT
+    d = SQR((px - x) ^ 2 + (py - y) ^ 2)
+    IF d < 8 THEN SpawnerBurst = 9 * (1 - d / 8)
+    SfxAt sndOvercharge&, x, y, px, py
+END FUNCTION

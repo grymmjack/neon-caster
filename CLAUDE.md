@@ -1,8 +1,28 @@
 # NEON-CASTER - notes for Claude
 
-A first-person shooter and a 24-chapter QB64PE course in one file,
-`neon-caster.bas`. Assets live in `neon-caster/`. Use `qb64ref` (see the
-global CLAUDE.md) to find QB64 definitions and references.
+A first-person shooter and a 24-chapter QB64PE course. `neon-caster.bas`
+is the front page (the course's introduction, start-up, the game loop) and
+includes the rest, laid out like DRAW. Assets live in `neon-caster/`. Use
+`qb64ref ~/git/neon-caster ...` (see the global CLAUDE.md) to find QB64
+definitions and references: it follows the includes.
+
+## Source layout
+
+- Folders by subsystem: `CORE WORLD GAME LEVEL RENDER GL MENU EDITOR AUDIO
+  DEMO ACH`, each module a `NAME.BI` (CONSTs, DIM SHARED, and start-up that
+  only fills in its own tables) and a `NAME.BM` (SUBs, FUNCTIONs and GOSUB
+  routines). `LOOP/07-FRAME.BI` ... `18-HUD.BI` are the game loop's chapters,
+  `$INCLUDE`d in place inside the DO ... LOOP in `neon-caster.bas`.
+- `_ALL.BI` is in declare-before-use order (a CONST or array before
+  anything that uses it, in any file); `_ALL.BM` order doesn't matter.
+  Includes live only in the root files (paths `./FOLDER/FILE`).
+- A new SUB/FUNCTION goes in its module's `.BM`; a new GOSUB routine too
+  (they're main-module code, after the loop - one that falls through into
+  the next must stay just before it). A new global goes in the module's
+  `.BI`. Start-up that depends on other modules' (settings loaded, pictures
+  loaded) belongs in `neon-caster.bas`'s STARTING UP.
+- The chapters' text stays with their code: a chapter's banner is at the
+  top of its file. `neon-caster/TUTORIAL.md` maps chapter to file.
 
 ## Build
 

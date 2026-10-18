@@ -1,0 +1,20 @@
+''
+' NEON-CASTER - GAME/GUNS.BM
+' =============================================================================
+' The guns: filling in the gun table, and what a shot hits.
+'
+
+' You shot (or kicked) something in cell (x, y): a "shoot" trigger there
+' goes off the next time the triggers run (RunTriggers: trigHit)
+SUB ShotAt(x, y)
+    FOR k = 1 TO numTrigs
+        IF trigWhen$(k) = "shoot" AND NOT trigDone(k) AND trigX0(k) = x AND trigY0(k) = y THEN trigHit(k) = -1
+    NEXT
+END SUB
+
+' One row of the guns table (chapter 4)
+SUB SetGun(gun, title$, ammoType, ammoPerShot, delay, pellets, spread, damage, pierce, kick, zoom)
+    gunName$(gun) = title$ : gunAmmoType(gun) = ammoType : gunAmmoPerShot(gun) = ammoPerShot : gunDelay(gun) = delay
+    gunPellets(gun) = pellets : gunSpread(gun) = spread : gunDamage(gun) = damage : gunPierce(gun) = pierce : gunKick(gun) = kick
+    gunZoom(gun) = zoom
+END SUB

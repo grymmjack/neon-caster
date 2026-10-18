@@ -1,0 +1,235 @@
+''
+' NEON-CASTER - RENDER/HUD.BM
+' =============================================================================
+' The HUD: its layout (HudDefaults, hud.txt), the crosshair, vignettes,
+' damage indicators and the map.
+'
+
+' A texture's average colour, a little brighter (each wall kind's minimap
+' colour)
+FUNCTION MinimapColor~&(slot)
+    FOR y = 0 TO texSize - 1 STEP 2 : FOR x = 0 TO texSize - 1 STEP 2
+        col~& = texture(x, y, slot) : red& = red& + _RED32(col~&) : green& = green& + _GREEN32(col~&) : blue& = blue& + _BLUE32(col~&) : count& = count& + 1
+    NEXT : NEXT
+    MinimapColor~& = _RGB32(red& / count& * 1.4, green& / count& * 1.4, blue& / count& * 1.4)
+END FUNCTION
+
+
+' A VIGNETTE: the screen's edges washed with colour (r, g, b), strongest
+' at the very edge and fading to nothing a fifth of the way in - amt 0 to 1
+' how strong. Drawn as rings, the outermost first: each a frame of four
+' strips, a little less see-through the nearer the edge (the square of
+' how near). Over the view - in OpenGL, on the HUD's layer over it.
+SUB DrawVignette(r, g, b, amt)
+    IF amt <= 0 THEN EXIT SUB
+    a = MinOf(1, amt) : n = 24 : dx = 170 / n : dy = 130 / n
+    FOR i = 0 TO n - 1
+        al = INT(200 * a * (1 - i / n) ^ 2) : IF al < 1 THEN EXIT FOR
+        c~& = _RGBA32(r, g, b, al)
+        x0 = INT(i * dx) : y0 = INT(i * dy) : x1 = INT((i + 1) * dx) - 1 : y1 = INT((i + 1) * dy) - 1
+        LINE (x0, y0)-(799 - x0, y1), c~&, BF ' (top)
+        LINE (x0, 599 - y1)-(799 - x0, 599 - y0), c~&, BF ' (bottom)
+        LINE (x0, y1 + 1)-(x1, 599 - y1 - 1), c~&, BF ' (left)
+        LINE (799 - x1, y1 + 1)-(799 - x0, 599 - y1 - 1), c~&, BF ' (right)
+    NEXT
+END SUB
+
+' --- The HUD's layout (chapter 18's data; hud.txt; the HUD editor) --------
+SUB HudDefaults
+    FOR e = 1 TO HUD_ELEMS : hudShow(e) = -1 : hudCol(e) = 0 : hudW(e) = 0 : hudH(e) = 0 : hudLabel$(e) = "" : NEXT
+    hudName$(HE_HEALTH) = "health" : hudX(HE_HEALTH) = 16 : hudY(HE_HEALTH) = 552 : hudW(HE_HEALTH) = 200 : hudH(HE_HEALTH) = 12 : hudLabel$(HE_HEALTH) = "HEALTH"
+    hudName$(HE_ARMOR) = "armor" : hudX(HE_ARMOR) = 16 : hudY(HE_ARMOR) = 516 : hudW(HE_ARMOR) = 200 : hudH(HE_ARMOR) = 8 : hudLabel$(HE_ARMOR) = "ARMOR"
+    hudName$(HE_AMMO) = "ammo" : hudX(HE_AMMO) = 784 : hudY(HE_AMMO) = 552 : hudW(HE_AMMO) = 200 : hudH(HE_AMMO) = 12
+    hudName$(HE_GUNS) = "guns" : hudX(HE_GUNS) = 582 : hudY(HE_GUNS) = 534
+    hudName$(HE_KILLS) = "kills" : hudX(HE_KILLS) = MINIMAP_X : hudY(HE_KILLS) = MINIMAP_Y : hudLabel$(HE_KILLS) = "KILLS"
+    hudName$(HE_MINIMAP) = "minimap" : hudX(HE_MINIMAP) = MINIMAP_X : hudY(HE_MINIMAP) = MINIMAP_Y : hudW(HE_MINIMAP) = MINIMAP_CELL
+    hudName$(HE_CARDS) = "keycards" : hudX(HE_CARDS) = 784 : hudY(HE_CARDS) = 8 : hudW(HE_CARDS) = 64
+    hudName$(HE_MESSAGE) = "message" : hudX(HE_MESSAGE) = 400 : hudY(HE_MESSAGE) = 510
+    hudName$(HE_SUBTITLE) = "subtitle" : hudX(HE_SUBTITLE) = 400 : hudY(HE_SUBTITLE) = 44
+    hudName$(HE_AMP) = "amp" : hudX(HE_AMP) = 232 : hudY(HE_AMP) = 532 : hudLabel$(HE_AMP) = "DAMAGE AMP" ' (right of the armour bar, not on it - night vision's battery 136 further on)
+    hudName$(HE_GOD) = "godmode" : hudX(HE_GOD) = 16 : hudY(HE_GOD) = 498 : hudLabel$(HE_GOD) = "GOD MODE"
+    hudName$(HE_EVENT) = "event" : hudX(HE_EVENT) = 400 : hudY(HE_EVENT) = 28
+    hudName$(HE_NETWORK) = "network" : hudX(HE_NETWORK) = 400 : hudY(HE_NETWORK) = 74
+    hudName$(HE_FPS) = "fps" : hudX(HE_FPS) = 400 : hudY(HE_FPS) = 8
+    hudName$(HE_TIMER) = "timer" : hudX(HE_TIMER) = 784 : hudY(HE_TIMER) = 80
+END SUB
+
+' A part's colour: its own from hud.txt - or, if it has none, the game's
+FUNCTION HudColor~&(e, dflt~&)
+    IF hudCol(e) THEN HudColor~& = hudCol(e) ELSE HudColor~& = dflt~&
+END FUNCTION
+
+' hud.txt: one [name] section a part - show, x, y, bar (width, height),
+' color (auto, or red, green, blue), label
+SUB ReadHud
+    f$ = AssetPath$("hud.txt")
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh : e = 0
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$
+        l$ = LTRIM$(RTRIM$(l$)) : IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = LEFT$(l$, LEN(l$) - 1)
+        IF LEFT$(l$, 1) = "[" AND RIGHT$(l$, 1) = "]" THEN
+            n$ = LCASE$(MID$(l$, 2, LEN(l$) - 2)) : e = 0
+            FOR k = 1 TO HUD_ELEMS
+                IF hudName$(k) = n$ THEN e = k
+            NEXT
+        ELSEIF e > 0 AND INSTR(l$, "=") AND LEFT$(l$, 1) <> "'" THEN
+            eq = INSTR(l$, "=") : k$ = LCASE$(RTRIM$(LEFT$(l$, eq - 1))) : v$ = LTRIM$(MID$(l$, eq + 1))
+            SELECT CASE k$
+                CASE "show" : hudShow(e) = (LCASE$(v$) <> "no")
+                CASE "x" : hudX(e) = VAL(v$)
+                CASE "y" : hudY(e) = VAL(v$)
+                CASE "bar" : hudW(e) = VAL(ListItem$(v$, 1)) : hudH(e) = VAL(ListItem$(v$, 2))
+                CASE "size" : hudW(e) = VAL(v$)
+                CASE "color", "colour" : IF LCASE$(v$) = "auto" THEN hudCol(e) = 0 ELSE hudCol(e) = _RGB32(VAL(ListItem$(v$, 1)), VAL(ListItem$(v$, 2)), VAL(ListItem$(v$, 3)))
+                CASE "label" : hudLabel$(e) = v$
+            END SELECT
+        END IF
+    LOOP
+    CLOSE #fh
+END SUB
+
+' The crosshair at (cx, cy), in the style, colour, size and opacity the
+' settings say - and as big as crossScale and as white as crossFlash say
+SUB DrawCrosshair(cx, cy)
+    col~& = CrossColor~&(setting(SET_XCOLOR))
+    IF crossFlash > 0 THEN col~& = _RGB32(255, 255, 255) ' A hit!
+    col~& = _RGBA32(_RED32(col~&), _GREEN32(col~&), _BLUE32(col~&), setting(SET_XALPHA) * 255 / 100)
+    armLen = (2 + setting(SET_XSIZE) * 2) * crossScale
+    SELECT CASE setting(SET_XSTYLE)
+        CASE 1 ' Cross
+            LINE (cx - armLen, cy)-(cx + armLen, cy), col~& : LINE (cx, cy - armLen)-(cx, cy + armLen), col~&
+        CASE 2 ' Dot
+            LINE (cx - armLen \ 4, cy - armLen \ 4)-(cx + armLen \ 4, cy + armLen \ 4), col~&, BF
+        CASE 3 ' Circle
+            CIRCLE (cx, cy), armLen, col~&
+        CASE 4 ' A cross with a gap in the middle, and a dot
+            gap = armLen \ 2 + 1
+            LINE (cx - armLen - 2, cy)-(cx - gap, cy), col~& : LINE (cx + gap, cy)-(cx + armLen + 2, cy), col~&
+            LINE (cx, cy - armLen - 2)-(cx, cy - gap), col~& : LINE (cx, cy + gap)-(cx, cy + armLen + 2), col~&
+            PSET (cx, cy), col~&
+        CASE 5 ' Chevron
+            LINE (cx - armLen, cy + armLen)-(cx, cy), col~& : LINE (cx, cy)-(cx + armLen, cy + armLen), col~&
+    END SELECT ' (6: none)
+END SUB
+
+FUNCTION CrossColor~&(n)
+    SELECT CASE n
+        CASE 1 : CrossColor~& = _RGB32(255, 40, 40)
+        CASE 2 : CrossColor~& = _RGB32(60, 255, 90)
+        CASE 3 : CrossColor~& = _RGB32(60, 230, 255)
+        CASE 4 : CrossColor~& = _RGB32(255, 230, 40)
+        CASE 5 : CrossColor~& = _RGB32(255, 255, 255)
+        CASE ELSE : CrossColor~& = _RGB32(255, 60, 220)
+    END SELECT
+END FUNCTION
+
+' The map, cellSize pixels a cell, its top-left at (mapLeft, mapTop): all of
+' it (showAll), or only the cells you've seen. Walls are their texture's
+' colour; doors orange (key doors their card's colour, with a dark centre)
+' when shut, white while opening, green when open; the exit blinks green;
+' on the big map the floor you've seen is a dim blue. Then keycards, and
+' you - an arrow pointing the way you face.
+SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
+    LINE (mapLeft - 2, mapTop - 2)-(mapLeft + MAP_SIZE * cellSize + 1, mapTop + MAP_SIZE * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
+    FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
+        IF showAll OR cellSeen(cellX, cellY) THEN
+            mmColor~& = 0 : hideIt = 0
+            IF secretArea(cellX, cellY) > 0 AND NOT cellSeen(cellX, cellY) THEN hideIt = -1 : mmColor~& = wallMapColor(secretArea(cellX, cellY)) ' (behind a secret, not seen yet: the map pickup shows rock)
+            IF NOT hideIt THEN
+            SELECT CASE worldMap(cellX, cellY)
+                CASE 0
+                    IF cellSize > 4 THEN ' (the full map: the floor - and what's on it that matters, once you've seen it: the map pickup shows the layout, not what's in it)
+                        mmColor~& = _RGBA32(40, 50, 95, 150)
+                        IF cellSeen(cellX, cellY) THEN
+                            IF liqKind(cellX, cellY) THEN k = liqKind(cellX, cellY) : mmColor~& = _RGBA32(lqR(k) * 0.7, lqG(k) * 0.7, lqB(k) * 0.7, 210) ' (a pool, its colour: lava orange, acid green...)
+                            IF floorH(cellX, cellY) <= PIT_DEPTH THEN mmColor~& = _RGBA32(10, 0, 20, 230) ' (a pit with no bottom: black)
+                            IF liftCell(cellX, cellY) THEN mmColor~& = _RGBA32(70, 150, 90, 190) ' (a lift)
+                        END IF
+                    END IF
+                    IF glassHP(cellX, cellY) > 0 THEN mmColor~& = _RGB32(130, 220, 255) ' (glass)
+                CASE 1, 3 TO 9
+                    mmColor~& = wallMapColor(worldMap(cellX, cellY))
+                CASE 2
+                    IF doorType(cellX, cellY) = DOOR_EXIT THEN
+                        IF (TIMER * 4 AND 1) = 0 THEN mmColor~& = _RGB32(80, 255, 120) ELSE mmColor~& = _RGB32(20, 120, 50)
+                    ELSEIF doorOpen(cellX, cellY) = 0 THEN
+                        IF doorKey(cellX, cellY) THEN mmColor~& = CardRGB~&(doorKey(cellX, cellY)) ELSE mmColor~& = _RGB32(255, 140, 20)
+                    ELSEIF doorOpen(cellX, cellY) < 1 THEN
+                        mmColor~& = _RGB32(230, 230, 230)
+                    ELSE
+                        mmColor~& = _RGB32(40, 200, 80)
+                    END IF
+            END SELECT
+            END IF
+            sx = mapLeft + cellX * cellSize : sy = mapTop + cellY * cellSize
+            IF mmColor~& <> 0 AND diagCorner(cellX, cellY) <> 0 AND NOT hideIt THEN ' Diagonal: just its solid half
+                FOR pixY = 0 TO cellSize - 1 : FOR pixX = 0 TO cellSize - 1
+                    IF InDiagonalWall(diagCorner(cellX, cellY), (pixX + 0.5) / cellSize, (pixY + 0.5) / cellSize) THEN PSET (sx + pixX, sy + pixY), mmColor~&
+                NEXT : NEXT
+            ELSEIF mmColor~& THEN
+                LINE (sx, sy)-STEP(cellSize - 1, cellSize - 1), mmColor~&, BF
+                IF doorKey(cellX, cellY) AND doorOpen(cellX, cellY) = 0 AND NOT hideIt THEN LINE (sx + cellSize \ 3, sy + cellSize \ 3)-STEP(cellSize \ 3, cellSize \ 3), _RGB32(0, 0, 0), BF
+            END IF
+            IF boxOn(cellX, cellY) AND cellSeen(cellX, cellY) THEN ' A box: just where it stands (at least a pixel) - once seen
+                LINE (sx + INT(boxX0(cellX, cellY) * cellSize), sy + INT(boxY0(cellX, cellY) * cellSize))-(sx + MaxOf(INT(boxX0(cellX, cellY) * cellSize), INT(boxX1(cellX, cellY) * cellSize + 0.5) - 1), sy + MaxOf(INT(boxY0(cellX, cellY) * cellSize), INT(boxY1(cellX, cellY) * cellSize + 0.5) - 1)), wallMapColor(boxOn(cellX, cellY)), BF
+            END IF
+        END IF
+    NEXT : NEXT
+    IF cellSize > 4 THEN ' Teleporter pads: a violet ring each
+        FOR k = 1 TO numPads
+            IF cellSeen(padX(k), padY(k)) THEN CIRCLE (mapLeft + (padX(k) + 0.5) * cellSize, mapTop + (padY(k) + 0.5) * cellSize), cellSize * 0.4, _RGB32(190, 110, 255)
+        NEXT
+    END IF
+    IF (TIMER * 4 AND 1) = 0 THEN ' Keycards blink
+        FOR i = 1 TO numItems
+            IF itemOn(i) AND itemKind(i) <= 3 AND cellSeen(INT(itemX(i)), INT(itemY(i))) THEN ' (a keycard: once you've seen where it is)
+                LINE (mapLeft + itemX(i) * cellSize - cellSize \ 3 - 1, mapTop + itemY(i) * cellSize - cellSize \ 3 - 1)-STEP(cellSize \ 1.5 + 1, cellSize \ 1.5 + 1), CardRGB~&(itemKind(i)), BF
+            END IF
+        NEXT
+    END IF
+    ' You: an arrow - its tip ahead of you, its tail corners behind you
+    ax = mapLeft + px * cellSize : ay = mapTop + py * cellSize : arrow = cellSize * 1.2 + 2
+    tipX = ax + facingX * arrow : tipY = ay + facingY * arrow
+    leftX = ax - facingX * arrow * 0.5 + facingY * arrow * 0.5 : leftY = ay - facingY * arrow * 0.5 - facingX * arrow * 0.5
+    rightX = ax - facingX * arrow * 0.5 - facingY * arrow * 0.5 : rightY = ay - facingY * arrow * 0.5 + facingX * arrow * 0.5
+    LINE (tipX, tipY)-(leftX, leftY), _RGB32(255, 255, 0) : LINE (leftX, leftY)-(rightX, rightY), _RGB32(255, 255, 0)
+    LINE (rightX, rightY)-(tipX, tipY), _RGB32(255, 255, 0)
+END SUB
+
+' A damage indicator for a hit that came from (x, y): into a free slot, or
+' over the one that's nearly faded
+SUB AddHurtDir(x, y)
+    slot = 1
+    FOR i = 1 TO MAX_HURTDIRS
+        IF hurtDirTime(i) < hurtDirTime(slot) THEN slot = i
+    NEXT
+    hurtDirX(slot) = x : hurtDirY(slot) = y : hurtDirTime(slot) = HURTDIR_FRAMES
+END SUB
+
+' The damage indicators, for you at (px, py) facing (facingX, facingY): a
+' red arc round the crosshair for each recent hit, at the angle it came
+' from - straight up is in front of you, right is to your right - fading
+' as it gets older.
+SUB DrawHurtDirs(px, py, facingX, facingY)
+    FOR i = 1 TO MAX_HURTDIRS
+        IF hurtDirTime(i) > 0 THEN
+            hurtDirTime(i) = hurtDirTime(i) - 1
+            relX = hurtDirX(i) - px : relY = hurtDirY(i) - py
+            ahead = relX * facingX + relY * facingY ' How far in front of you...
+            across = relY * facingX - relX * facingY ' ...and to your right (along the camera plane: (-facingY, facingX))
+            angle = _ATAN2(across, ahead) ' 0 = straight ahead
+            fade = hurtDirTime(i) / HURTDIR_FRAMES
+            FOR radius = 92 TO 104 STEP 2 ' A thick arc, 40 degrees wide
+                FOR k = -10 TO 9
+                    a1 = angle + k * 0.035 : a2 = a1 + 0.035
+                    LINE (400 + SIN(a1) * radius, 300 - COS(a1) * radius)-(400 + SIN(a2) * radius, 300 - COS(a2) * radius), _RGBA32(255, 30, 30, 230 * fade * (1 - ABS(k + 0.5) / 11))
+                NEXT
+            NEXT
+            ' ...and a small arrowhead at its outer edge, pointing that way
+            tipX = 400 + SIN(angle) * 118 : tipY = 300 - COS(angle) * 118
+            LINE (tipX, tipY)-(400 + SIN(angle - 0.09) * 106, 300 - COS(angle - 0.09) * 106), _RGBA32(255, 80, 60, 255 * fade)
+            LINE (tipX, tipY)-(400 + SIN(angle + 0.09) * 106, 300 - COS(angle + 0.09) * 106), _RGBA32(255, 80, 60, 255 * fade)
+        END IF
+    NEXT
+END SUB

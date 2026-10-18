@@ -1,0 +1,62 @@
+''
+' NEON-CASTER - WORLD/HEIGHTS.BM
+' =============================================================================
+' Heights: the floor and ceiling at any point, and what a floor does to you.
+'
+
+' Each closet wall (%) to its closet event - the first closet event whose
+' room it's within 3 cells of - and its look: the wall it's set in (the
+' commonest of its neighbours)
+' The floor's (and the ceiling's) height at map point (x, y) - 0 and 1
+' off the map
+FUNCTION FloorAt(x, y)
+    cx = INT(x) : cy = INT(y)
+    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN FloorAt = floorH(cx, cy)
+END FUNCTION
+FUNCTION CeilAt(x, y)
+    cx = INT(x) : cy = INT(y)
+    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN CeilAt = ceilH(cx, cy) ELSE CeilAt = 1
+END FUNCTION
+
+' A height from its character in [floor] or [ceiling] (chapter 22): . is
+' dflt; 0-9, a-z that many eighths of a wall; A-H that many eighths below 0
+FUNCTION HeightOf(c$, dflt)
+    k = INSTR(H_UP$, c$)
+    IF k THEN HeightOf = (k - 1) * H_STEP : EXIT FUNCTION
+    k = INSTR(H_DOWN$, c$)
+    IF k THEN HeightOf = -k * H_STEP : EXIT FUNCTION
+    HeightOf = dflt
+END FUNCTION
+
+' ...and the character for height h (. if it's dflt)
+FUNCTION HeightChar$(h, dflt)
+    IF ABS(h - dflt) < 0.001 THEN HeightChar$ = "." : EXIT FUNCTION
+    k = CINT(h / H_STEP)
+    IF k >= 0 THEN
+        IF k >= LEN(H_UP$) THEN k = LEN(H_UP$) - 1
+        HeightChar$ = MID$(H_UP$, k + 1, 1)
+    ELSE
+        IF -k > LEN(H_DOWN$) THEN k = -LEN(H_DOWN$)
+        HeightChar$ = MID$(H_DOWN$, -k, 1)
+    END IF
+END FUNCTION
+
+' Which of the level's floors (1-4) and ceilings (1-2) cell (x, y) has
+FUNCTION FloorNumberAt(x, y)
+    n = floorTex(x, y) - T_FLOOR : IF n < 1 OR n > 4 THEN n = 1
+    FloorNumberAt = n
+END FUNCTION
+FUNCTION CeilNumberAt(x, y)
+    n = ceilTex(x, y) - T_CEIL : IF n < 1 OR n > 2 THEN n = 1
+    CeilNumberAt = n
+END FUNCTION
+
+' What a cell's floor does to you, by its picture's name: HAZ_BURN (molten,
+' lava), HAZ_WADE (murky water, slime) - or 0. (Not in the network.)
+FUNCTION FloorHazard(cx, cy)
+    IF cyberOn OR cx < 0 OR cy < 0 OR cx > MAP_SIZE OR cy > MAP_SIZE THEN EXIT FUNCTION
+    IF worldMap(cx, cy) > 0 THEN EXIT FUNCTION
+    n$ = texName$(floorTex(cx, cy))
+    IF INSTR(n$, "molten") OR INSTR(n$, "lava") THEN FloorHazard = HAZ_BURN : EXIT FUNCTION
+    IF INSTR(n$, "murky") OR INSTR(n$, "slime") THEN FloorHazard = HAZ_WADE
+END FUNCTION

@@ -1,0 +1,178 @@
+''
+' NEON-CASTER - AUDIO/SOUND.BM
+' =============================================================================
+' Playing sounds: from where they are, the limiter, and the loops.
+'
+
+' === FILES AND SOUND ==========================================================
+
+' A sound from neon-caster/sfx/. A missing file gives 0, and PlaySfx skips
+' 0, so the game still runs - silently - without its sounds.
+FUNCTION LoadSnd&(file$)
+    path$ = AssetPath$("sfx/" + file$)
+    IF _FILEEXISTS(path$) THEN LoadSnd& = _SNDOPEN(path$, "noasync") ' (see LoadMusic&)
+END FUNCTION
+
+' Play a copy of a sound (_SNDPLAYCOPY), so the same one can overlap itself
+' - footsteps, a fast gun. vol! goes from 0 to 1, and is turned down by the
+' SFX VOLUME setting.
+SUB PlaySfx(snd&, vol!)
+    PlaySfxPan snd&, vol!, 0
+END SUB
+
+' ...and panned: pan! -1 all left, 0 the middle, 1 all right. Then THE
+' LIMITER (SETTINGS > AUDIO): a sound already started this frame isn't
+' started again (twelve pellets hitting at once are one hit, not twelve
+' stacked up), and while a lot is playing - sfxLoad, the volumes of the
+' sounds just started, dying away a little each frame (SfxFrame) - each
+' new one is turned down to keep the total under SFX_HEADROOM, so a big
+' fight gets busier, not deafening. It also ducks while NEXUS speaks.
+SUB PlaySfxPan(snd&, vol!, pan!)
+    IF snd& <= 0 THEN EXIT SUB
+    v! = vol! * setting(SET_SFX) / 100
+    IF setting(SET_LIMITER) THEN
+        ' (The game loop calls SfxFrame every frame; loops of their own -
+        ' the menu, the sector tally, the editor - don't. So if a frame's
+        ' worth of time has gone by without one, it catches up here first,
+        ' or every sound since would count as "this frame" and be dropped.)
+        t! = TIMER(0.001)
+        IF t! - sfxFrameT! > 0.015 OR t! < sfxFrameT! THEN
+            frames = (t! - sfxFrameT!) * 60 : IF frames < 0 OR frames > 600 THEN frames = 600
+            sfxLoad! = sfxLoad! * 0.82 ^ frames : sfxThisN = 0 : sfxFrameT! = t!
+        END IF
+        IF v! <= 0.003 THEN EXIT SUB ' (too quiet to hear: it doesn't count)
+        seen = 0
+        FOR k = 1 TO sfxThisN
+            IF sfxThis&(k) = snd& THEN ' (once a frame - unless this one's louder: the gunner in front of you, not the one far off)
+                IF v! <= sfxThisV!(k) THEN EXIT SUB
+                sfxThisV!(k) = v! : seen = -1
+            END IF
+        NEXT
+        IF NOT seen AND sfxThisN < 32 THEN sfxThisN = sfxThisN + 1 : sfxThis&(sfxThisN) = snd& : sfxThisV!(sfxThisN) = v!
+        IF sfxLoad! + v! > SFX_HEADROOM THEN v! = v! * SFX_HEADROOM / (sfxLoad! + v!)
+        IF speechUntil! > TIMER THEN v! = v! * 0.55 ' (ducked under speech)
+        sfxLoad! = sfxLoad! + v!
+    END IF
+    IF v! <= 0.003 THEN EXIT SUB
+    IF pan! = 0 OR setting(SET_SPATIAL) = 0 THEN
+        _SNDPLAYCOPY snd&, v!
+    ELSE
+        _SNDPLAYCOPY snd&, v!, pan!
+    END IF
+END SUB
+
+' Once a frame: the limiter's memory of what's playing fades
+SUB SfxFrame
+    sfxLoad! = sfxLoad! * 0.82 : sfxThisN = 0 : sfxFrameT! = TIMER(0.001)
+END SUB
+
+' A sound made at (x, y), heard by you at (listenX, listenY), facing
+' (earDX, earDY): SFX_RANGE cells away it's silent (SfxAtRange for another
+' reach). Nearer, it gets louder the way sound does - quickly at first,
+' (1 - d / range) squared - and a wall in the way muffles it to a third.
+' With 3D SOUND on it's also panned to the side it's on (how far round to
+' your right or left - a sound straight behind you is in the middle).
+SUB SfxAt(snd&, x, y, listenX, listenY)
+    SfxAtRange snd&, x, y, listenX, listenY, SFX_RANGE
+END SUB
+
+' A looping sound's side (a lift's motor, a trap's buzz), from where it is
+' at (x, y) - as SfxAtRange pans a sound - or the middle, without 3D SOUND
+SUB HumPan(h&, x, y)
+    IF h& <= 0 THEN EXIT SUB
+    dx = x - playerX : dy = y - playerY : d = SQR(dx * dx + dy * dy) : pan! = 0
+    IF setting(SET_SPATIAL) AND d > 0.5 THEN pan! = (dy * earDX - dx * earDY) / d * 0.85 * MinOf(1, d / 2)
+    _SNDBAL h&, pan!
+END SUB
+
+SUB SfxAtRange(snd&, x, y, listenX, listenY, range)
+    vol! = SfxVolAt!(x, y, listenX, listenY, range) : IF vol! <= 0 THEN EXIT SUB ' (too far off to hear)
+    dx = x - listenX : dy = y - listenY : d = SQR(dx * dx + dy * dy)
+    pan! = 0
+    IF setting(SET_SPATIAL) AND d > 0.5 THEN
+        side = (dy * earDX - dx * earDY) / d ' (your right is (-earDY, earDX))
+        pan! = side * 0.85 * MinOf(1, d / 2) ' (close by: nearly the middle)
+    END IF
+    PlaySfxPan snd&, vol!, pan!
+END SUB
+
+' How loud a sound at (x, y) is where you are (0 to 1): silent range cells
+' off, louder nearer as (1 - d / range) squared, a third through a wall
+FUNCTION SfxVolAt!(x, y, listenX, listenY, range)
+    dx = x - listenX : dy = y - listenY : d = SQR(dx * dx + dy * dy)
+    IF d >= range THEN EXIT FUNCTION
+    v! = (1 - d / range) ^ 2
+    IF d > 0.5 THEN IF NOT CanSee(x, y, listenX, listenY) THEN v! = v! * 0.35
+    SfxVolAt! = v!
+END FUNCTION
+
+' Every lift's motor and trap's roar quiet - a new level, the menu, the
+' sector tally (a lift still moving, or a trap still lit, starts its sound
+' again when the game goes on)
+SUB WorldLoopsOff
+    FOR k = 1 TO MAX_LIFTS
+        IF liftHum&(k) > 0 THEN _SNDSTOP liftHum&(k)
+    NEXT
+    FOR k = 1 TO MAX_EVENTS
+        IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k)
+    NEXT
+    IF liqHum& > 0 THEN _SNDSTOP liqHum&
+    IF swishHum& > 0 THEN _SNDSTOP swishHum&
+    swishVol! = 0
+END SUB
+
+' Wading or swimming: the water swishing round you, looping, as loud as
+' you're moving (moved: how far this frame) and as deep as you're in it -
+' easing up and down, so it never clicks on or off. Not in lava (that
+' hisses), nor in the editor or the network.
+SUB SwishSound(moved, lk, isDead)
+    IF sndSwish& <= 0 THEN EXIT SUB
+    IF moved > 0.4 THEN moved = 0 ' (a teleport, not a stroke)
+    want! = 0
+    IF lk <> 0 AND lk <> LQ_LAVA AND NOT editMode AND NOT cyberOn AND NOT isDead THEN
+        cx = INT(playerX) : cy = INT(playerY)
+        deep! = (liqZ(cx, cy) - floorH(cx, cy)) / LQ_FULL : IF deep! > 1 THEN deep! = 1
+        IF deep! < 0.3 THEN deep! = 0.3
+        want! = MinOf(1, moved / (WALK_SPEED * 0.6)) * deep! * 0.6 ' (water slows you: walking through it is as loud as it gets)
+    END IF
+    swishVol! = swishVol! + (want! - swishVol!) * 0.15
+    IF swishVol! < 0.01 AND want! = 0 THEN
+        swishVol! = 0
+        IF swishHum& > 0 THEN IF _SNDPLAYING(swishHum&) THEN _SNDSTOP swishHum&
+        EXIT SUB
+    END IF
+    IF swishHum& = 0 THEN swishHum& = _SNDCOPY(sndSwish&)
+    IF swishHum& > 0 THEN
+        _SNDVOL swishHum&, swishVol! * setting(SET_SFX) / 100
+        IF NOT _SNDPLAYING(swishHum&) THEN _SNDLOOP swishHum&
+    END IF
+END SUB
+
+' The harmful liquids bubble: one looping copy of the bubbling (liqHum&),
+' as loud as the nearest of them within 4 cells of (px, py) is near -
+' looked for every 10 frames (a few cells round you is cheap enough)
+SUB LiquidHum(px, py)
+    STATIC near, tick, lastX, lastY
+    IF sndBubble& <= 0 THEN EXIT SUB
+    tick = tick + 1
+    IF ABS(px - lastX) + ABS(py - lastY) > 1 THEN tick = 10 ' (a new level, a teleport: look again now, not with where you were)
+    lastX = px : lastY = py
+    IF tick MOD 10 = 0 THEN
+        near = 99
+        FOR y = INT(py) - 4 TO INT(py) + 4 : FOR x = INT(px) - 4 TO INT(px) + 4
+            IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+                IF liqKind(x, y) THEN IF lqHurt(liqKind(x, y)) > 0 THEN d = SQR((x + 0.5 - px) ^ 2 + (y + 0.5 - py) ^ 2) : IF d < near THEN near = d
+            END IF
+        NEXT : NEXT
+    END IF
+    v = 0 : IF near < 4 AND NOT cyberOn THEN v = (1 - near / 4) * 0.6 * setting(SET_SFX) / 100
+    IF v > 0 THEN
+        IF liqHum& = 0 THEN liqHum& = _SNDCOPY(sndBubble&)
+        IF liqHum& > 0 THEN
+            _SNDVOL liqHum&, v
+            IF NOT _SNDPLAYING(liqHum&) THEN _SNDLOOP liqHum&
+        END IF
+    ELSEIF liqHum& > 0 THEN
+        _SNDSTOP liqHum&
+    END IF
+END SUB

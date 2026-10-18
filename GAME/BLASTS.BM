@@ -1,0 +1,80 @@
+''
+' NEON-CASTER - GAME/BLASTS.BM
+' =============================================================================
+' Explosions: a barrel going off (Explode), and what a blast hits.
+'
+
+' --- Barrel number `barrel` explodes: it hurts everything near it that it
+' can see (more the closer it is), lights the fuses of other barrels close
+' by, so they go off a moment later, and breaks the other decorations near it
+Explode:
+decoOn(barrel) = 0 : decoFuse(barrel) = 0 : decoCell(INT(decoX(barrel)), INT(decoY(barrel))) = 0
+blastAtX = decoX(barrel) : blastAtY = decoY(barrel) : GOSUB BlastAt
+DecoLoot barrel, playerX, playerY ' (what was in it - thrown clear by the blast)
+RETURN
+
+' --- An explosion at (blastAtX, blastAtY): a barrel's, or a pressure
+' plate's - everything near is hurt, other barrels go off
+BlastAt:
+SfxAt sndBarrel&, blastAtX, blastAtY, playerX, playerY
+achInBlast = -1 : achBlastKills = 0 ' (counting what this one destroys: three is a chain reaction)
+FOR k = 1 TO numGlass ' Glass near it shatters
+    glassHitX = glassListX(k) : glassHitY = glassListY(k)
+    IF glassHP(glassHitX, glassHitY) > 0 THEN
+        IF (glassHitX + 0.5 - blastAtX) ^ 2 + (glassHitY + 0.5 - blastAtY) ^ 2 < BLAST_RADIUS * BLAST_RADIUS THEN glassAtX = glassHitX + 0.5 : glassAtY = glassHitY + 0.5 : glassDmg = 99 : GOSUB HitGlass
+    END IF
+NEXT
+newBlastX = blastAtX : newBlastY = blastAtY : newBlastSize = 1 : GOSUB AddBlast
+distance = SQR((playerX - blastAtX) ^ 2 + (playerY - blastAtY) ^ 2) ' You feel it from a way off
+IF distance < BLAST_RADIUS * 4 THEN shake = shake + 14 * (1 - distance / (BLAST_RADIUS * 4))
+FOR j = 1 TO numMonsters
+    IF monsterState(j) < 2 THEN
+        distance = SQR((monsterX(j) - blastAtX) ^ 2 + (monsterY(j) - blastAtY) ^ 2)
+        IF distance < BLAST_RADIUS THEN
+            IF CanSee(blastAtX, blastAtY, monsterX(j), monsterY(j)) THEN target = j : hitDamage = INT(8 * (1 - distance / BLAST_RADIUS)) + 1 : GOSUB HitMonster
+        END IF
+    END IF
+NEXT
+achInBlast = 0
+distance = SQR((playerX - blastAtX) ^ 2 + (playerY - blastAtY) ^ 2)
+IF distance < BLAST_RADIUS AND NOT dead THEN
+    IF CanSee(blastAtX, blastAtY, playerX, playerY) THEN
+        damage = INT(40 * (1 - distance / BLAST_RADIUS)) + 5
+        hurtFromX = blastAtX : hurtFromY = blastAtY : hurtR = 255 : hurtG = 140 : hurtB = 40 : GOSUB HurtPlayer ' (a blast: fiery edges)
+    END IF
+END IF
+FOR j = 1 TO numDecos
+    IF decoOn(j) THEN
+        distance = SQR((decoX(j) - blastAtX) ^ 2 + (decoY(j) - blastAtY) ^ 2)
+        IF distance < BLAST_RADIUS THEN
+            IF Explosive(decoKind(j)) THEN
+                IF decoFuse(j) = 0 THEN decoFuse(j) = 8 ' Another barrel (or tank): it goes off in 8 frames
+            ELSEIF CanSee(blastAtX, blastAtY, decoX(j), decoY(j)) THEN
+                targetDeco = j : hitDamage = INT(4 * (1 - distance / BLAST_RADIUS)) + 1 : GOSUB HitDeco
+            END IF
+        END IF
+    END IF
+NEXT
+FOR j = 1 TO numDroids ' (droids caught in it)
+    IF droidHP(j) > 0 THEN
+        distance = SQR((droidX(j) - blastAtX) ^ 2 + (droidY(j) - blastAtY) ^ 2)
+        IF distance < BLAST_RADIUS THEN IF CanSee(blastAtX, blastAtY, droidX(j), droidY(j)) THEN HitDroid j, INT(4 * (1 - distance / BLAST_RADIUS)) + 1, playerX, playerY
+    END IF
+NEXT
+RETURN
+
+' --- An explosion (or puff of sparks) to show at (newBlastX, newBlastY),
+' newBlastSize big, in the first free slot - if all MAX_BLASTS are busy,
+' this one isn't shown
+AddBlast:
+FOR blastSlot = 1 TO MAX_BLASTS
+    IF blastTime(blastSlot) = 0 THEN
+        blastX(blastSlot) = newBlastX : blastY(blastSlot) = newBlastY
+        blastSize(blastSlot) = newBlastSize : blastTime(blastSlot) = BLAST_FRAMES
+        SpawnEmbers newBlastX, newBlastY, newBlastSize ' (and a burst of embers: chapter 24's particles)
+        IF liftCell(INT(newBlastX), INT(newBlastY)) = 0 THEN AddDecal newBlastX, newBlastY, FloorAt(newBlastX, newBlastY) + 0.001, 0, 0, 1, 0.4 + 0.9 * newBlastSize ' (and a scorch mark on the floor - not on a lift, which moves)
+        StirDust newBlastX, newBlastY, 0, 0, 1 + 3 * newBlastSize, 0.09 * newBlastSize ' (and blows the dust away)
+        EXIT FOR
+    END IF
+NEXT
+RETURN

@@ -1,0 +1,44 @@
+''
+' NEON-CASTER - MENU/SPLASH.BM
+' =============================================================================
+' The splash screen.
+'
+
+' --- The splash screen: up for SPLASH_SECONDS, or until a key or a click.
+' DrawSplash (chapter 23) draws it - its picture if there's a splash.png,
+' or else the title.
+ShowSplash:
+splashStart! = TIMER
+DO
+    _LIMIT 60
+    splashTime! = TIMER - splashStart! : IF splashTime! < 0 THEN splashTime! = splashTime! + 86400
+    DrawSplash splashTime!
+    ShowFrame
+    anyInput = 0
+    WHILE _MOUSEINPUT
+        IF _MOUSEBUTTON(1) OR _MOUSEBUTTON(2) THEN anyInput = -1
+    WEND
+    IF _KEYHIT > 0 THEN anyInput = -1
+LOOP UNTIL splashTime! > SPLASH_SECONDS OR (anyInput AND splashTime! > 0.3)
+_KEYCLEAR
+RETURN
+
+' The splash screen, t! seconds in. If there's a neon-caster/splash.png it
+' fills the screen; if not, the title. It fades in, and out at the end.
+SUB DrawSplash(t!)
+    CLS , _RGB32(0, 0, 0)
+    IF splashImg& < -1 THEN
+        _PUTIMAGE (0, 0)-(799, 599), splashImg&
+    ELSE
+        glow = 0.6 + 0.4 * SIN(t! * 4)
+        MenuText 405, 205, "NEON-CASTER", 8, _RGBA32(255, 40, 200, 130), 1
+        MenuText 400, 200, "NEON-CASTER", 8, _RGB32(120 + 130 * glow, 235, 255), 1
+        MenuText 400, 350, "A LITTLE RAYCASTER IN QB64PE", 2, _RGB32(255, 120, 220), 1
+        IF t! > 1 AND INT(t! * 2) MOD 2 = 0 THEN MenuText 400, 520, "PRESS ANY KEY", 1, _RGB32(160, 155, 190), 1
+    END IF
+    fade = 1
+    IF t! < 0.8 THEN fade = t! / 0.8
+    IF t! > SPLASH_SECONDS - 0.6 THEN fade = (SPLASH_SECONDS - t!) / 0.6
+    IF fade < 0 THEN fade = 0
+    IF fade < 1 THEN LINE (0, 0)-(799, 599), _RGBA32(0, 0, 0, 255 * (1 - fade)), BF
+END SUB

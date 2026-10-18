@@ -1,0 +1,101 @@
+''
+' NEON-CASTER - EDITOR/MONEDIT.BM
+' =============================================================================
+' The monster editor: each monster type's numbers, and monsters.txt.
+'
+
+' --- THE MONSTER EDITOR (chapter 21): every kind of monster's numbers,
+' changed with the arrow keys and in effect at once. Up/Down a number,
+' Left/Right change it (Shift: ten times as much), PgUp/PgDn the monster
+' before or after, S save to monsters.txt, Esc back.
+RunMonsterEditor:
+_KEYCLEAR : meType = 1 : meField = 1 : meDone = 0 : meMsg$ = ""
+DO
+    _LIMIT 60
+    WHILE _MOUSEINPUT : WEND
+    k& = _KEYHIT
+    DO WHILE k&
+        shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
+        SELECT CASE k&
+            CASE 27, 15360 : meDone = -1
+            CASE 18432 : meField = meField - 1 : IF meField < 1 THEN meField = ME_FIELDS
+            CASE 20480 : meField = meField + 1 : IF meField > ME_FIELDS THEN meField = 1
+            CASE 19200 : MonsterField meType, meField, -1 + 9 * shiftOn ' (shiftOn is -1 held: Shift makes it -10...
+            CASE 19712 : MonsterField meType, meField, 1 - 9 * shiftOn ' ...and +10)
+            CASE 18688 : meType = meType - 1 : IF meType < 1 THEN meType = MON_TYPES
+            CASE 20736 : meType = meType + 1 : IF meType > MON_TYPES THEN meType = 1
+            CASE 115, 83 : WriteMonsters : meMsg$ = "Saved " + AssetPath$("monsters.txt")
+        END SELECT
+        k& = _KEYHIT
+    LOOP
+    IF meDone THEN EXIT DO
+    DrawMonsterEditor meType, meField, meMsg$
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady
+    ShowFrame
+LOOP
+_KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1
+RETURN
+
+' Monster t's number f (the editor's fields), changed by d steps - or its
+' name and value for the editor to show (MonsterFieldText$)
+SUB MonsterField(t, f, d)
+    SELECT CASE f
+        CASE 1 : mtypeHP(t) = MaxOf(1, MinOf(200, mtypeHP(t) + d))
+        CASE 2 : mtypeSpeed(t) = MaxOf(0, MinOf(0.15, INT((mtypeSpeed(t) + d * 0.005) * 1000 + 0.5) / 1000))
+        CASE 3 : mtypeScale(t) = MaxOf(0.2, MinOf(1.8, INT((mtypeScale(t) + d * 0.05) * 100 + 0.5) / 100))
+        CASE 4 : mtypeLift(t) = MaxOf(0, MinOf(1, INT((mtypeLift(t) + d * 0.05) * 100 + 0.5) / 100))
+        CASE 5 : mtypeBob(t) = MaxOf(0, MinOf(0.3, INT((mtypeBob(t) + d * 0.01) * 100 + 0.5) / 100))
+        CASE 6 : mtypeReach(t) = MaxOf(0, MinOf(4, INT((mtypeReach(t) + d * 0.05) * 100 + 0.5) / 100))
+        CASE 7 : mtypeDamage(t) = MaxOf(0, MinOf(99, mtypeDamage(t) + d))
+        CASE 8 : mtypeDamageRnd(t) = MaxOf(0, MinOf(50, mtypeDamageRnd(t) + d))
+        CASE 9 : mtypeCooldown(t) = MaxOf(5, MinOf(600, mtypeCooldown(t) + d * 5))
+        CASE 10 : mtypeRanged(t) = NOT mtypeRanged(t)
+        CASE 11 : mtypeDrop(t) = (mtypeDrop(t) + SGN(d) + 15) MOD 15
+        CASE 12 : mtypeDropChance(t) = MaxOf(0, MinOf(1, INT((mtypeDropChance(t) + d * 0.05) * 100 + 0.5) / 100))
+    END SELECT
+END SUB
+FUNCTION MonsterFieldText$(t, f)
+    SELECT CASE f
+        CASE 1 : n$ = "HIT POINTS" : v$ = STR$(mtypeHP(t))
+        CASE 2 : n$ = "SPEED" : v$ = STR$(mtypeSpeed(t)) + "   (you walk .06, run .12)"
+        CASE 3 : n$ = "HEIGHT" : v$ = STR$(mtypeScale(t)) + " walls"
+        CASE 4 : n$ = "HOVERS" : v$ = STR$(mtypeLift(t))
+        CASE 5 : n$ = "BOBS" : v$ = STR$(mtypeBob(t))
+        CASE 6 : n$ = "REACH" : v$ = STR$(mtypeReach(t)) + " cells"
+        CASE 7 : n$ = "DAMAGE" : v$ = STR$(mtypeDamage(t))
+        CASE 8 : n$ = "  + UP TO" : v$ = STR$(MaxOf(0, mtypeDamageRnd(t) - 1)) + " more"
+        CASE 9 : n$ = "COOLDOWN" : v$ = STR$(mtypeCooldown(t)) + " frames (" + LTRIM$(STR$(INT(mtypeCooldown(t) / 6) / 10)) + " s)"
+        CASE 10 : n$ = "SHOOTS" : IF mtypeRanged(t) THEN v$ = " YES" ELSE v$ = " NO"
+        CASE 11 : n$ = "DROPS" : IF mtypeDrop(t) THEN v$ = " " + GlyphName$(MID$("rby+ae23u*4Mqj", mtypeDrop(t), 1)) ELSE v$ = " nothing"
+        CASE 12 : n$ = "  CHANCE" : v$ = STR$(INT(mtypeDropChance(t) * 100)) + "%"
+    END SELECT
+    MonsterFieldText$ = LEFT$(n$ + SPACE$(12), 12) + v$
+END FUNCTION
+
+SUB DrawMonsterEditor(t, f, msg$)
+    LINE (0, 0)-(799, 599), _RGB32(12, 6, 20), BF
+    COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, 16), "MONSTER EDITOR"
+    COLOR _RGB32(170, 160, 210) : _PRINTSTRING (24, 36), "PgUp/PgDn monster   Up/Down number   Left/Right change (Shift: x10)   S save   Esc back"
+    ' The list of them, the one being edited lit
+    FOR k = 1 TO MON_TYPES
+        IF k = t THEN LINE (20, 64 + (k - 1) * 22)-(180, 82 + (k - 1) * 22), _RGB32(60, 20, 70), BF
+        IF k = t THEN COLOR _RGB32(255, 255, 255) ELSE COLOR _RGB32(150, 140, 180)
+        _PRINTSTRING (28, 66 + (k - 1) * 22), UCASE$(mtypeName$(k))
+    NEXT
+    ' Its picture, big
+    slot = mtypeSprite(t) : sz = spriteSize(slot) : IF sz < 1 THEN sz = sprTex
+    LINE (200, 64)-(456, 320), _RGB32(30, 24, 44), BF
+    FOR y = 0 TO 63 : FOR x = 0 TO 63
+        c~& = spriteTex(x * sz \ 64, y * sz \ 64, slot)
+        IF _ALPHA32(c~&) > 128 THEN LINE (200 + x * 4, 64 + y * 4)-STEP(3, 3), c~&, BF
+    NEXT : NEXT
+    ' Its numbers
+    FOR k = 1 TO ME_FIELDS
+        y = 64 + (k - 1) * 22
+        IF k = f THEN LINE (472, y - 2)-(788, y + 16), _RGB32(60, 20, 70), BF
+        IF k = f THEN COLOR _RGB32(255, 255, 120) ELSE COLOR _RGB32(200, 200, 230)
+        _PRINTSTRING (478, y), LEFT$(MonsterFieldText$(t, k), 38)
+    NEXT
+    COLOR _RGB32(255, 220, 120) : _PRINTSTRING (24, 560), msg$
+END SUB

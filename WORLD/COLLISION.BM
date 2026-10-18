@@ -1,0 +1,245 @@
+''
+' NEON-CASTER - WORLD/COLLISION.BM
+' =============================================================================
+' Walls, collision and the diagonal maths: what's solid, what's
+' walkable, moving a body, and who can see whom.
+'
+
+' === WALLS, COLLISION, AND THE DIAGONAL MATHS =================================
+
+' Any kind of wall (not a door, not floor)? (Diagonal cells count: their
+' worldMap value is a wall. SolidAt asks about a point instead.)
+FUNCTION IsWall(x, y)
+    cellValue = worldMap(x, y)
+    IsWall = cellValue > 0 AND cellValue <> 2
+END FUNCTION
+
+FUNCTION Walkable%(x, y)
+    cellX = INT(x) : cellY = INT(y)
+    IF diagCorner(cellX, cellY) THEN Walkable% = NOT InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) : EXIT FUNCTION
+    IF boxOn(cellX, cellY) THEN IF InBox(x, y) THEN EXIT FUNCTION ' (a box: solid where it stands, open round it)
+    deco = decoCell(cellX, cellY) : IF cyberOn THEN deco = 0 ' (the network has none)
+    IF deco THEN
+        IF decoKind(deco) <> DK_BODY AND (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN EXIT FUNCTION
+    END IF
+    IF glassHP(cellX, cellY) > 0 THEN IF InGlass(x, y) THEN EXIT FUNCTION
+    IF walkFromHaz = 10 THEN IF FloorHazard(cellX, cellY) = HAZ_BURN THEN EXIT FUNCTION ' (a monster, not in fire: it won't step in)
+    IF walkFromHaz >= 10 THEN IF floorH(cellX, cellY) <= PIT_DEPTH THEN EXIT FUNCTION ' (...nor off the edge of a pit with no bottom)
+    IF walkFromHaz >= 10 AND walkFromHaz < 100 AND liqAny THEN ' (...nor into a harmful liquid - 100 more: it's in one, or it hovers)
+        IF liqKind(cellX, cellY) THEN IF lqHurt(liqKind(cellX, cellY)) > 0 THEN EXIT FUNCTION
+    END IF
+    IF NOT levelFlat AND walkZ > -900 THEN ' Heights: too high a step up, or too little room
+        IF floorH(cellX, cellY) > walkZ + STEP_UP THEN EXIT FUNCTION
+        IF ceilH(cellX, cellY) - MaxOf(floorH(cellX, cellY), walkZ) < BODY_H THEN EXIT FUNCTION
+    END IF
+    Walkable% = worldMap(cellX, cellY) <= 0 OR doorOpen(cellX, cellY) > 0.8
+END FUNCTION
+
+' Is map point (x, y) inside a wall (doors don't count)? Like IsWall, but
+' for a point, so the open half of a diagonal cell isn't solid.
+FUNCTION SolidAt(x, y)
+    cellX = INT(x) : cellY = INT(y)
+    IF diagCorner(cellX, cellY) THEN SolidAt = InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) ELSE SolidAt = IsWall(cellX, cellY)
+    IF boxOn(cellX, cellY) THEN SolidAt = InBox(x, y)
+END FUNCTION
+
+' BOXES (chapter 23): is map point (x, y) inside the box standing in its
+' cell? Its edges are straight up and down the map, so it's four
+' comparisons.
+FUNCTION InBox(x, y)
+    cx = INT(x) : cy = INT(y)
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
+    IF boxOn(cx, cy) = 0 THEN EXIT FUNCTION
+    u = x - cx : v = y - cy
+    InBox = u > boxX0(cx, cy) AND u < boxX1(cx, cy) AND v > boxY0(cx, cy) AND v < boxY1(cx, cy)
+END FUNCTION
+
+' Where does a ray from (px, py), going (rdx, rdy), go into the box in cell
+' (cx, cy) - between tIn and tOut, while it's in the cell? -1 if it
+' doesn't. "Slabs": the box is where the strip between its west and east
+' edges crosses the strip between its north and south ones. The ray is in
+' the first strip from tx0 to tx1, in the second from ty0 to ty1 - so in
+' the box from the later of the two ins to the earlier of the outs, if
+' that's not back to front. bSide says which edge it went in by: 0 west
+' or east (a face along y, like the raycaster's side 0), 1 north or south.
+' Measured as DiagonalHit's: the raycaster's perpWallDist.
+FUNCTION BoxRay(cx, cy, px, py, rdx, rdy, tIn, tOut, bSide)
+    BoxRay = -1
+    ax = cx + boxX0(cx, cy) : bx = cx + boxX1(cx, cy) : ay = cy + boxY0(cx, cy) : by = cy + boxY1(cx, cy)
+    IF ABS(rdx) < 0.000001 THEN
+        IF px <= ax OR px >= bx THEN EXIT FUNCTION
+        tx0 = -1E+9 : tx1 = 1E+9
+    ELSE
+        tx0 = (ax - px) / rdx : tx1 = (bx - px) / rdx : IF tx0 > tx1 THEN SWAP tx0, tx1
+    END IF
+    IF ABS(rdy) < 0.000001 THEN
+        IF py <= ay OR py >= by THEN EXIT FUNCTION
+        ty0 = -1E+9 : ty1 = 1E+9
+    ELSE
+        ty0 = (ay - py) / rdy : ty1 = (by - py) / rdy : IF ty0 > ty1 THEN SWAP ty0, ty1
+    END IF
+    IF tx0 > ty0 THEN tEnter = tx0 : bSide = 0 ELSE tEnter = ty0 : bSide = 1
+    tExit = tx1 : IF ty1 < tExit THEN tExit = ty1
+    IF tEnter > tExit OR tExit < tIn OR tEnter > tOut THEN EXIT FUNCTION
+    IF tEnter < tIn THEN tEnter = tIn ' (starting inside it - can't, but just in case)
+    BoxRay = tEnter
+END FUNCTION
+
+' Where u - a picture's column on a block's side, 0 to 1 as you see it, as
+' a wall's would be there - is along that side itself, 0 to 1: a side
+' divided left | right is split at its own middle, not its cell's
+FUNCTION BoxFaceU(cx, cy, side, u)
+    SELECT CASE side
+        CASE 1 : lo = 1 - boxY1(cx, cy) : hi = 1 - boxY0(cx, cy)
+        CASE 2 : lo = boxX0(cx, cy) : hi = boxX1(cx, cy)
+        CASE 3 : lo = boxY0(cx, cy) : hi = boxY1(cx, cy)
+        CASE ELSE : lo = 1 - boxX1(cx, cy) : hi = 1 - boxX0(cx, cy)
+    END SELECT
+    IF hi - lo < 0.001 THEN BoxFaceU = 0 : EXIT FUNCTION
+    BoxFaceU = MaxOf(0, MinOf(0.999, (u - lo) / (hi - lo)))
+END FUNCTION
+
+' Does the edge from (x1, y1) to (x2, y2) - a body's side, straight across
+' or down the map - touch a box? (Overlapping rectangles: exact, where
+' EdgeFree's three points could pass either side of a thin pillar.)
+' Does the edge from (x1, y1) to (x2, y2) - straight across or down - touch
+' a pane of glass? The exact test, as EdgeInBox's for a block: Walkable's
+' three points along it could straddle a pane only 0.2 thick, at the open
+' end a broken neighbour leaves
+FUNCTION EdgeInGlass(x1, y1, x2, y2)
+    lx = MinOf(x1, x2) : hx = MaxOf(x1, x2) : ly = MinOf(y1, y2) : hy = MaxOf(y1, y2)
+    FOR cy = INT(ly) TO INT(hy) : FOR cx = INT(lx) TO INT(hx)
+        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+            IF glassHP(cx, cy) > 0 THEN
+                IF glassDir(cx, cy) = 1 THEN
+                    gx0 = cx : gx1 = cx + 1 : gy0 = cy + 0.5 - GLASS_HALF : gy1 = cy + 0.5 + GLASS_HALF
+                ELSE
+                    gx0 = cx + 0.5 - GLASS_HALF : gx1 = cx + 0.5 + GLASS_HALF : gy0 = cy : gy1 = cy + 1
+                END IF
+                IF hx > gx0 AND lx < gx1 AND hy > gy0 AND ly < gy1 THEN EdgeInGlass = -1 : EXIT FUNCTION
+            END IF
+        END IF
+    NEXT : NEXT
+END FUNCTION
+
+FUNCTION EdgeInBox(x1, y1, x2, y2)
+    lx = MinOf(x1, x2) : hx = MaxOf(x1, x2) : ly = MinOf(y1, y2) : hy = MaxOf(y1, y2)
+    FOR cy = INT(ly) TO INT(hy) : FOR cx = INT(lx) TO INT(hx)
+        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+            IF boxOn(cx, cy) THEN
+                IF hx > cx + boxX0(cx, cy) AND lx < cx + boxX1(cx, cy) AND hy > cy + boxY0(cx, cy) AND ly < cy + boxY1(cx, cy) THEN EdgeInBox = -1 : EXIT FUNCTION
+            END IF
+        END IF
+    NEXT : NEXT
+END FUNCTION
+
+' Is (u, v) - a point inside a diagonal wall's cell, 0 to 1 each way - in
+' its solid half? corner is the solid corner (see diagCorner). The diagonal
+' from bottom-left to top-right is the line u + v = 1, and from top-left to
+' bottom-right u = v, so which side a point is on is just a comparison.
+FUNCTION InDiagonalWall(corner, u, v)
+    SELECT CASE corner
+        CASE 1 : InDiagonalWall = u + v < 1
+        CASE 2 : InDiagonalWall = u > v
+        CASE 3 : InDiagonalWall = u + v > 1
+        CASE 4 : InDiagonalWall = u < v
+        CASE 5 : InDiagonalWall = u >= 0.5 ' (a floor or ceiling divided in the editor: west | east...
+        CASE 6 : InDiagonalWall = v >= 0.5 ' ...north | south - the second picture on the second half)
+    END SELECT
+END FUNCTION
+
+' How far along a ray from (fromX, fromY), heading (rayX, rayY), it crosses
+' the diagonal of the cell (cellX, cellY) - if that's between enterDist and
+' exitDist, while the ray is inside the cell; -1 if it isn't.
+' A point on the ray is (fromX + t * rayX, fromY + t * rayY). Put it into
+' the diagonal's equation - X + Y = cellX + cellY + 1 for "/", or
+' X - Y = cellX - cellY for "\" - and solve for t. Measured this way t is
+' the same kind of distance as the raycaster's perpWallDist.
+FUNCTION DiagonalHit(corner, cellX, cellY, fromX, fromY, rayX, rayY, enterDist, exitDist)
+    DiagonalHit = -1
+    IF corner = 1 OR corner = 3 THEN ' "/" : u + v = 1
+        denom = rayX + rayY : IF denom = 0 THEN EXIT FUNCTION
+        hitDist = (cellX + cellY + 1 - fromX - fromY) / denom
+    ELSE ' "\" : u = v
+        denom = rayX - rayY : IF denom = 0 THEN EXIT FUNCTION
+        hitDist = (cellX - cellY - fromX + fromY) / denom
+    END IF
+    IF hitDist >= enterDist AND hitDist <= exitDist THEN DiagonalHit = hitDist
+END FUNCTION
+
+' Is the edge from (x1, y1) to (x2, y2) clear? Checks both ends and the
+' middle (the middle catches the point of a diagonal wall poking in between).
+FUNCTION EdgeFree(x1, y1, x2, y2)
+    EdgeFree = Walkable(x1, y1) AND Walkable(x2, y2) AND Walkable((x1 + x2) / 2, (y1 + y2) / 2)
+    IF boxAny THEN IF EdgeInBox(x1, y1, x2, y2) THEN EdgeFree = 0
+    IF numGlass THEN IF EdgeInGlass(x1, y1, x2, y2) THEN EdgeFree = 0
+END FUNCTION
+
+' Is a body (radius PLAYER_RADIUS) at (x, y) clear of walls all round?
+FUNCTION BoxFree(x, y)
+    rad = PLAYER_RADIUS
+    BoxFree = EdgeFree(x - rad, y - rad, x + rad, y - rad) AND EdgeFree(x - rad, y + rad, x + rad, y + rad) AND Walkable(x - rad, y) AND Walkable(x + rad, y)
+END FUNCTION
+
+' Any diagonal wall in the 3 x 3 cells around (x, y)?
+FUNCTION NearDiagonal(x, y)
+    FOR cellY = INT(y) - 1 TO INT(y) + 1 : FOR cellX = INT(x) - 1 TO INT(x) + 1
+        IF diagCorner(cellX, cellY) THEN NearDiagonal = -1 : EXIT FUNCTION
+    NEXT : NEXT
+END FUNCTION
+
+' Move a body (radius PLAYER_RADIUS) at (x, y) by (moveX, moveY) - you, or a
+' monster. One axis at a time, so it slides along walls (chapter 9): the X
+' move happens if the body's leading edge would be clear, then the Y move
+' the same way. Against a diagonal wall both can be blocked at once, so
+' then it tries sliding along each 45-degree line instead: the part of the
+' move that points along (1, slope).
+SUB MoveBody(x, y, moveX, moveY)
+    oldX = x : oldY = y
+    edgeX = x + moveX + SGN(moveX) * PLAYER_RADIUS
+    IF EdgeFree(edgeX, y - PLAYER_RADIUS, edgeX, y + PLAYER_RADIUS) THEN x = x + moveX
+    edgeY = y + moveY + SGN(moveY) * PLAYER_RADIUS
+    IF EdgeFree(x - PLAYER_RADIUS, edgeY, x + PLAYER_RADIUS, edgeY) THEN y = y + moveY
+    IF x = oldX AND y = oldY AND (moveX <> 0 OR moveY <> 0) AND NearDiagonal(x, y) THEN
+        FOR slope = -1 TO 1 STEP 2 ' The move along each 45 degree line, (1, sl)
+            along = (moveX + moveY * slope) / 2
+            IF BoxFree(x + along, y + along * slope) THEN x = x + along : y = y + along * slope : EXIT SUB
+        NEXT
+    END IF
+END SUB
+
+' Can a monster at (x1, y1) see (x2, y2)? Step along the line between them,
+' a tenth of a cell at a time; any wall or shut door on the way blocks it.
+FUNCTION CanSee(x1, y1, x2, y2)
+    dx = x2 - x1 : dy = y2 - y1 : dist = SQR(dx * dx + dy * dy)
+    steps = INT(dist / 0.1) + 1
+    z1 = floorH(INT(x1), INT(y1)) + 0.5 : z2 = floorH(INT(x2), INT(y2)) + 0.5 ' (heights: eye to eye)
+    FOR i = 1 TO steps
+        cellX = INT(x1 + dx * i / steps) : cellY = INT(y1 + dy * i / steps)
+        IF SolidAt(x1 + dx * i / steps, y1 + dy * i / steps) THEN EXIT FUNCTION
+        IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) <= 0.8 THEN EXIT FUNCTION
+        IF NOT levelFlat THEN ' (a ledge or a low ceiling in the way)
+            z = z1 + (z2 - z1) * i / steps
+            IF floorH(cellX, cellY) > z OR ceilH(cellX, cellY) < z THEN EXIT FUNCTION
+        END IF
+    NEXT
+    CanSee = -1
+END FUNCTION
+
+
+' A block raised in play in cell (bx, by): any machine it would stand in,
+' or brush, steps out to the nearest cell round it that's clear
+SUB BlockShoveMonsters(bx, by)
+    FOR i = 1 TO numMonsters
+        IF monsterState(i) < 2 AND ABS(monsterX(i) - bx - 0.5) < 1.5 AND ABS(monsterY(i) - by - 0.5) < 1.5 THEN
+            IF InBox(monsterX(i), monsterY(i)) OR NOT BoxFree(monsterX(i), monsterY(i)) THEN
+                FOR d = 0 TO 8
+                    nx = bx + (d MOD 3) - 1 : ny = by + (d \ 3) - 1
+                    IF worldMap(nx, ny) <= 0 AND NOT (nx = bx AND ny = by) THEN
+                        IF BoxFree(nx + 0.5, ny + 0.5) THEN monsterX(i) = nx + 0.5 : monsterY(i) = ny + 0.5 : EXIT FOR
+                    END IF
+                NEXT
+            END IF
+        END IF
+    NEXT
+END SUB

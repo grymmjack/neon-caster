@@ -1,0 +1,462 @@
+''
+' NEON-CASTER - GAME/EVENTS.BM
+' =============================================================================
+' Chapter 19: game events - the event rooms (RunEvents), traps, lasers
+' and cutters.
+'
+
+'-----------------------------------------------------------------------------
+' CHAPTER 19: GAME EVENTS
+'-----------------------------------------------------------------------------
+' Things that happen from more than one place - a monster or a decoration
+' getting hit (by a shot or a blast), you getting hurt (by a bite, a bolt,
+' a blast), a barrel going off - are GOSUB routines: a label, some lines,
+' and RETURN. Unlike a SUB, a GOSUB routine is part of the main program, so it can use all its
+' variables (health, kills, playerX...) directly. The catch is it takes no
+' parameters, so the caller sets a variable first: "target = i : hitDamage
+' = 1 : GOSUB HitMonster".
+'
+' The rest of the chapter is the level's own happenings: the event rooms
+' (RunEvents); glass that cracks and shatters (HitGlass, GlassColumn);
+' the data stations' network (JackIn, JackOut - the whole level turned to
+' a neon grid by swapping its pictures for CyberTextures'); the triggers
+' and teleporters (RunTriggers - a trigger's actions are console
+' commands, so anything you can type, a level can do); and the code
+' terminals (TerminalUse, RunPuzzle - a real QB64 program to put back
+' together, compiled for real with SHELL _DONTWAIT while the game waits).
+
+'' --- THE EVENT ROOMS (see EV_ in chapter 3), once a frame. Each one
+' waits until you walk in, then runs until it's won or lost:
+RunEvents:
+FOR ev = 1 TO numEvents
+    inside = playerX >= evX0(ev) AND playerX < evX1(ev) + 1 AND playerY >= evY0(ev) AND playerY < evY1(ev) + 1
+    SELECT CASE evType(ev)
+        CASE EV_TRAP, EV_FIRETRAP ' Always on: live for evA frames, safe for evB - warning you for the last
+            ' TRAP_WARN of those - and hurting you if you're on it while it's live
+            evTimer(ev) = evTimer(ev) + 1 : cyc = evA(ev) + evB(ev) : IF cyc < 1 THEN cyc = 1
+            phase = evTimer(ev) MOD cyc ' (its own clock)
+            IF phase < evA(ev) THEN
+                evGlow(ev) = 1
+                IF inside AND NOT dead AND phase MOD 15 = 0 THEN
+                    IF evType(ev) = EV_FIRETRAP THEN PlaySfx sndSizzle&, 0.8 ELSE PlaySfx sndZap&, 0.8
+                    damage = 6 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = (evType(ev) = EV_TRAP) : GOSUB HurtPlayer
+                END IF
+            ELSEIF phase >= cyc - TRAP_WARN THEN
+                evGlow(ev) = 0.35 * (phase - (cyc - TRAP_WARN)) / TRAP_WARN ' (warming up)
+            ELSE
+                evGlow(ev) = 0
+            END IF
+            TrapFx ev
+        CASE EV_PLATE ' Stepped on (by you or a monster): click, then boom
+            IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+            SELECT CASE evState(ev)
+                CASE 0 ' Armed
+                    pressed = inside AND NOT dead
+                    FOR j = 1 TO numMonsters
+                        IF monsterState(j) < 2 THEN IF InRoom(ev, monsterX(j), monsterY(j)) AND mtypeSpeed(monsterType(j)) > 0 THEN pressed = -1
+                    NEXT
+                    IF pressed THEN evState(ev) = 1 : evTimer(ev) = evA(ev) : SfxAt sndPlate&, (evX0(ev) + evX1(ev) + 1) / 2, (evY0(ev) + evY1(ev) + 1) / 2, playerX, playerY
+                CASE 1 ' Counting down
+                    evTimer(ev) = evTimer(ev) - 1
+                    IF evTimer(ev) <= 0 THEN
+                        blastAtX = (evX0(ev) + evX1(ev) + 1) / 2 : blastAtY = (evY0(ev) + evY1(ev) + 1) / 2 : GOSUB BlastAt
+                        evState(ev) = 3 : evTimer(ev) = evB(ev)
+                    END IF
+                CASE 3 ' Re-arming
+                    evTimer(ev) = evTimer(ev) - 1 : IF evTimer(ev) <= 0 THEN evState(ev) = 0
+            END SELECT
+        CASE EV_LASER ' On a frames, off b (b 0: always on); it burns you, and monsters
+            evTimer(ev) = evTimer(ev) + 1 : IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+            LaserFx ev, playerX, playerY ' (heard: it crackles as it flickers, cracks on, buzzes while it's on)
+            IF LaserOn(ev) AND evNext(ev) = 0 THEN
+                IF inside AND NOT dead THEN
+                    PlaySfx sndLaser&, 0.9 : damage = 12 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = -1 : GOSUB HurtPlayer : evNext(ev) = 25
+                END IF
+                FOR j = 1 TO numMonsters
+                    IF monsterState(j) < 2 THEN IF InRoom(ev, monsterX(j), monsterY(j)) THEN target = j : hitDamage = 2 : GOSUB HitMonster : evNext(ev) = 25
+                NEXT
+            END IF
+        CASE EV_CUTTER ' A beam sweeping across the room: CutterAt says where it is
+            evTimer(ev) = evTimer(ev) + 1 : IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+            IF evNext(ev) = 0 THEN
+                CutterAt ev, cutX, cutY, cutAlongX
+                IF inside AND NOT dead THEN
+                    IF (cutAlongX AND ABS(playerX - cutX) < 0.35) OR (NOT cutAlongX AND ABS(playerY - cutY) < 0.35) THEN
+                        PlaySfx sndLaser&, 0.9 : damage = 15 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = -1 : GOSUB HurtPlayer : evNext(ev) = 30
+                    END IF
+                END IF
+                FOR j = 1 TO numMonsters
+                    IF monsterState(j) < 2 THEN
+                        IF InRoom(ev, monsterX(j), monsterY(j)) THEN
+                            IF (cutAlongX AND ABS(monsterX(j) - cutX) < 0.35) OR (NOT cutAlongX AND ABS(monsterY(j) - cutY) < 0.35) THEN target = j : hitDamage = 3 : GOSUB HitMonster : evNext(ev) = 30
+                        END IF
+                    END IF
+                NEXT
+            END IF
+        CASE EV_DEATHPIT ' Its floor kills - its lowest floor (roofs and ledges over it in the room are safe): touch it and you're gone (not in god mode, nor in the editor)
+            IF evCount(ev) = 0 THEN ' (the lowest floor in the room, in eighths, worked out once: kept + 1000)
+                lo = 99
+                FOR yy = evY0(ev) TO evY1(ev) : FOR xx = evX0(ev) TO evX1(ev)
+                    IF worldMap(xx, yy) <= 0 THEN IF floorH(xx, yy) < lo THEN lo = floorH(xx, yy)
+                NEXT : NEXT
+                evCount(ev) = INT(lo * 8 + 0.5) + 1000
+            END IF
+            IF inside AND NOT dead AND NOT godMode AND NOT editMode THEN
+                IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.02 AND floorH(INT(playerX), INT(playerY)) * 8 <= evCount(ev) - 1000 + 0.5 THEN
+                    health = 0 : dead = -1 : deadAt! = TIMER : hurtFlash = 14 : shake = shake + 12
+                    PlaySfx sndStep1&, 1 : PlaySfx sndDie&, 1 : ShowMsg "You hit the bottom"
+                END IF
+            END IF
+        CASE EV_CLOSET ' Walk in: the closets open
+            IF evState(ev) = 0 AND inside AND NOT dead THEN
+                OpenClosets ev, -1 : evState(ev) = 2
+                ShowMsg "It's a trap!"
+            END IF
+        CASE EV_HOARD ' Sealed until every thief is dead
+            IF evCount(ev) = 0 THEN LockRoom ev, -1 : evCount(ev) = 1
+            IF inside AND NOT dead AND evTimer(ev) = 0 THEN ' Walked into it: found (once - evTimer, which a hoard doesn't otherwise use, remembers it, and saves keep it)
+                evTimer(ev) = 1
+                PlaySfx sndHoard&, 0.7 : ShowMsg "THIEVES' HOARD FOUND!"
+            END IF
+            IF evState(ev) = 0 THEN
+                thieves = 0 : thievesLeft = 0
+                FOR j = 1 TO numMonsters
+                    IF monsterType(j) = MT_THIEF THEN thieves = thieves + 1 : IF monsterState(j) < 2 THEN thievesLeft = thievesLeft + 1
+                NEXT
+                IF thieves > 0 AND thievesLeft = 0 THEN
+                    evState(ev) = 2 : LockRoom ev, 0
+                    PlaySfx sndHoard&, 1 : PlaySfx sndFanfare&, 0.7
+                    ShowMsg "The thieves' hoard is open!" : Achieve "NC_HOARD", 0
+                END IF
+            END IF
+        CASE EV_BLACKOUT ' Walk in: the power fails; things come out of the dark
+            IF evState(ev) = 0 AND inside AND NOT dead THEN
+                evState(ev) = 1 : blackoutTimer = evA(ev) * 60 : evCount(ev) = 0 : evNext(ev) = 60
+                PlaySfx sndPowerDown&, 1 : ShowMsg "POWER FAILURE" : Say "blackout", 0
+            ELSEIF evState(ev) = 1 THEN
+                IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+                IF evCount(ev) < evB(ev) AND evNext(ev) = 0 THEN
+                    IF SpawnInRoom(ev, VAL(MID$("4414", INT(GRnd * 4) + 1, 1)), playerX, playerY) THEN evCount(ev) = evCount(ev) + 1
+                    evNext(ev) = 45
+                END IF
+                IF blackoutTimer > 0 THEN blackoutTimer = blackoutTimer - 1
+                IF blackoutTimer = 0 THEN evState(ev) = 2 : PlaySfx sndPowerUp&, 1 : ShowMsg "Power restored"
+            END IF
+        CASE ELSE
+            ' (a lockdown waits till you're right inside - clear of its doors,
+            ' so they can slam shut behind you: not as you open one)
+            IF evType(ev) = EV_AMBUSH OR evType(ev) = EV_SURVIVE THEN IF inside THEN IF NearRoomDoor(ev, playerX, playerY) THEN inside = 0
+            IF evState(ev) = 0 AND inside AND NOT dead THEN GOSUB StartEvent
+            IF evState(ev) = 1 THEN GOSUB StepEvent
+    END SELECT
+NEXT
+RETURN
+
+' --- Event ev begins: you walked in
+StartEvent:
+evState(ev) = 1 : evNext(ev) = 40 : evAway(ev) = 0 : evMiss(ev) = 0
+IF NOT evPaused(ev) THEN evCount(ev) = 0 ' (back in a lockdown that lifted: it carries on)
+SELECT CASE evType(ev)
+    CASE EV_AMBUSH
+        LockRoom ev, -1 : GOSUB SlamRoom : PlaySfx sndAlarm&, 1 : ShowMsg "LOCKDOWN! Destroy every hostile to get out" : Say "lockdown", 0
+    CASE EV_SURVIVE
+        IF NOT evPaused(ev) THEN evTimer(ev) = evA(ev) * 60 ' (before SlamRoom, which forgets it was paused: back in, the clock carries on)
+        LockRoom ev, -1 : GOSUB SlamRoom : PlaySfx sndAlarm&, 1
+        ShowMsg "LOCKDOWN! Survive" + STR$(evTimer(ev) \ 60) + " seconds"
+    CASE EV_GALLERY
+        evTimer(ev) = evA(ev) * 60 : PlaySfx sndAlarm&, 0.6
+        ShowMsg "SHOOTING GALLERY! Smash every terminal, crate and machine in here within" + STR$(evA(ev)) + " seconds"
+    CASE EV_NEST
+        ShowMsg "A spawner nest! Destroy the portals"
+END SELECT
+RETURN
+
+' --- A lockdown's doors (LockRoom's) slam shut - at once, not sliding: no
+' backing out. A door with a monster in it shuts when it's clear, as ever.
+SlamRoom:
+slammed = 0
+FOR sy = evY0(ev) - 5 TO evY1(ev) + 5 : FOR sx = evX0(ev) - 5 TO evX1(ev) + 5
+    IF sx >= 0 AND sy >= 0 AND sx < MAP_SIZE AND sy < MAP_SIZE THEN
+        IF worldMap(sx, sy) = 2 AND doorLock(sx, sy) = -1 AND doorOpen(sx, sy) > 0 THEN
+            IF NOT DoorBlocked(sx, sy, playerX, playerY) THEN
+                doorOpen(sx, sy) = 0 : doorMove(sx, sy) = 0 : doorWait(sx, sy) = 0
+                IF NOT slammed THEN SfxAt DoorSnd&(doorType(sx, sy)), sx + 0.5, sy + 0.5, playerX, playerY : slammed = -1
+            END IF
+        END IF
+    END IF
+NEXT : NEXT
+IF slammed THEN shake = shake + 6
+evPaused(ev) = 0
+RETURN
+
+' --- Event ev goes on, a frame at a time
+StepEvent:
+IF dead THEN RETURN ' (dead: the room waits - no winning a survive room on the death screen)
+IF evType(ev) = EV_AMBUSH OR evType(ev) = EV_SURVIVE THEN ' Out of a lockdown's room (somehow)? A second of that, and it lifts
+    ' (more than a cell out of its room - past the doors in its walls)
+    IF (playerX >= evX0(ev) - 5 AND playerX < evX1(ev) + 6 AND playerY >= evY0(ev) - 5 AND playerY < evY1(ev) + 6) OR dead THEN evAway(ev) = 0 ELSE evAway(ev) = evAway(ev) + 1 ' (as far out as LockRoom seals: a corridor behind the room's own door is still in it)
+    IF evAway(ev) > 60 THEN
+        evState(ev) = 0 : evPaused(ev) = -1 : evAway(ev) = 0 : LockRoom ev, 0
+        ShowMsg "The lockdown lifts - for now. Go back in and it seals again"
+        RETURN
+    END IF
+END IF
+IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
+alive = 0 ' (its monsters still standing)
+FOR j = 1 TO numMonsters
+    IF monsterEv(j) = ev AND monsterState(j) < 2 THEN alive = alive + 1
+NEXT
+SELECT CASE evType(ev)
+    CASE EV_AMBUSH ' Monsters arrive a few at a time; win when the last one falls
+        IF evCount(ev) < evA(ev) AND alive < 4 AND evNext(ev) = 0 THEN
+            IF evB(ev) THEN t = evB(ev) ELSE t = VAL(MID$("1246", INT(GRnd * 4) + 1, 1)) ' (a mix: drones, gunners, crawlers, stalkers)
+            IF SpawnInRoom(ev, t, playerX, playerY) THEN
+                evCount(ev) = evCount(ev) + 1 : evNext(ev) = 50 : evMiss(ev) = 0
+            ELSE ' (no room: the monster list full, or nowhere far enough from you - for long, and the ones there will do)
+                evNext(ev) = 20 : evMiss(ev) = evMiss(ev) + 1
+                IF numMonsters >= MAX_MON OR evMiss(ev) >= 30 THEN evCount(ev) = evA(ev) : evMiss(ev) = 30 ' (gave up: the room's won, but not the achievement)
+            END IF
+        END IF
+        IF evCount(ev) >= evA(ev) AND alive = 0 THEN GOSUB WinEvent
+    CASE EV_SURVIVE ' Hold out until the timer runs down
+        evTimer(ev) = evTimer(ev) - 1
+        IF alive < 5 AND evNext(ev) = 0 THEN
+            t = VAL(MID$("1446", INT(GRnd * 4) + 1, 1))
+            IF SpawnInRoom(ev, t, playerX, playerY) THEN evCount(ev) = evCount(ev) + 1
+            evNext(ev) = evB(ev)
+        END IF
+        IF evTimer(ev) <= 0 THEN GOSUB WinEvent
+    CASE EV_GALLERY ' Break them all before the time's up
+        evTimer(ev) = evTimer(ev) - 1 : left = 0
+        FOR j = 1 TO numDecos ' (bodies don't count: they never break)
+            IF decoOn(j) AND decoKind(j) <> DK_BODY AND InRoom(ev, decoX(j), decoY(j)) THEN left = left + 1
+        NEXT
+        evCount(ev) = left ' (for the HUD: how many are still standing)
+        IF left = 0 THEN
+            GOSUB WinEvent
+        ELSEIF evTimer(ev) <= 0 THEN
+            evState(ev) = 3 : PlaySfx sndFail&, 1 : ShowMsg "TOO SLOW! No prize this time"
+        END IF
+    CASE EV_NEST ' Spawners send monsters while you're near; win when they're all broken
+        left = 0 : near = (playerX - (evX0(ev) + evX1(ev)) / 2) ^ 2 + (playerY - (evY0(ev) + evY1(ev)) / 2) ^ 2 < 196
+        FOR j = 1 TO numDecos
+            IF decoOn(j) AND decoKind(j) = 9 AND InRoom(ev, decoX(j), decoY(j)) THEN
+                left = left + 1
+                IF near AND alive < 4 THEN decoCharge(j) = 1 - evNext(ev) / MaxOf(1, evB(ev)) ELSE decoCharge(j) = 0
+                IF near AND alive < 4 AND evNext(ev) = 0 THEN
+                    IF SpawnNear(ev, evA(ev), decoX(j), decoY(j), playerX, playerY) THEN evNext(ev) = evB(ev) : shake = shake + SpawnerBurst(j, playerX, playerY)
+                END IF
+                SpawnerCharge j
+            END IF
+        NEXT
+        IF left = 0 THEN GOSUB WinEvent
+END SELECT
+RETURN
+
+' --- Event ev is won: open the doors, hand over the reward
+WinEvent:
+evState(ev) = 2 : LockRoom ev, 0
+SELECT CASE evType(ev) ' (achievements)
+    CASE EV_AMBUSH : IF evMiss(ev) < 30 THEN Achieve "NC_LOCKDOWN", 0
+    CASE EV_SURVIVE : Achieve "NC_SURVIVOR", 0
+    CASE EV_GALLERY : Achieve "NC_GALLERY", 0
+    CASE EV_NEST : Achieve "NC_PEST", 0
+END SELECT
+PlaySfx sndFanfare&, 1
+IF evReward(ev) THEN
+    DropItemAt evReward(ev), INT((evX0(ev) + evX1(ev) + 1) / 2) + 0.5, INT((evY0(ev) + evY1(ev) + 1) / 2) + 0.5 ' (the room's middle - or, a pillar there, the nearest open spot)
+    ShowMsg "ROOM CLEARED! A reward appeared"
+ELSE
+    ShowMsg "ROOM CLEARED!"
+END IF
+RETURN
+
+' Is map point (x, y) in event ev's room?
+FUNCTION InRoom(ev, x, y)
+    InRoom = x >= evX0(ev) AND x < evX1(ev) + 1 AND y >= evY0(ev) AND y < evY1(ev) + 1
+END FUNCTION
+
+' A monster of type t teleports into event ev's room - somewhere open, and
+' not right on top of you, at (px, py): more than 2.5 cells away (a few
+' tries at random). TRUE if it found room. (Where you are comes in as px,
+' py: a FUNCTION can't see the main program's playerX.)
+FUNCTION SpawnInRoom(ev, t, px, py)
+    FOR try = 1 TO 30
+        x = evX0(ev) + 0.5 + INT(GRnd * (evX1(ev) - evX0(ev) + 1)) : y = evY0(ev) + 0.5 + INT(GRnd * (evY1(ev) - evY0(ev) + 1))
+        IF (x - px) ^ 2 + (y - py) ^ 2 > 6 THEN
+            IF SpawnMonster(t, x, y, ev, px, py) THEN SpawnInRoom = -1 : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
+' ...or next to a spawner at (sx, sy)
+FUNCTION SpawnNear(ev, t, sx, sy, px, py)
+    FOR try = 1 TO 20
+        x = INT(sx + (GRnd - 0.5) * 3) + 0.5 : y = INT(sy + (GRnd - 0.5) * 3) + 0.5
+        IF (x - px) ^ 2 + (y - py) ^ 2 < 2.25 THEN _CONTINUE ' (never on top of you)
+        IF SpawnMonster(t, x, y, ev, px, py) THEN SpawnNear = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+FUNCTION EvKindName$(k)
+    EvKindName$ = RTRIM$(MID$("AMBUSH   SURVIVE  TRAP     GALLERY  NEST     CLOSET   HOARD    PLATE    LASER    CUTTER   BLACKOUT FIRETRAP DEATHPIT ", k * 9 - 8, 9))
+END FUNCTION
+
+' What an event kind's number `which` (1: a, 2: b) means: its name, its
+' unit (-1: none, 0 a count, 1 seconds, 2 frames - shown as seconds, 3 a
+' monster kind), the step it goes up and down by, and how far
+SUB EvField(kind, which, lab$, unit, stp, mn, mx)
+    unit = -1 : stp = 1 : mn = 0 : mx = 0 : lab$ = ""
+    SELECT CASE kind * 10 + which
+        CASE 11 : lab$ = "MONSTERS" : unit = 0 : mn = 1 : mx = 20
+        CASE 12 : lab$ = "OF" : unit = 3 : mn = 0 : mx = 9
+        CASE 21, 41 : lab$ = "LASTS" : unit = 1 : stp = 5 : mn = 5 : mx = 300
+        CASE 22 : lab$ = "EVERY" : unit = 2 : stp = 15 : mn = 15 : mx = 600
+        CASE 31, 121 : lab$ = "LIVE" : unit = 2 : stp = 15 : mn = 15 : mx = 600
+        CASE 32, 122 : lab$ = "SAFE" : unit = 2 : stp = 15 : mn = 15 : mx = 600
+        CASE 51 : lab$ = "OF" : unit = 3 : mn = 1 : mx = 9
+        CASE 52 : lab$ = "EVERY" : unit = 2 : stp = 30 : mn = 30 : mx = 1200
+        CASE 81 : lab$ = "BLAST IN" : unit = 2 : stp = 15 : mn = 15 : mx = 300
+        CASE 82 : lab$ = "RE-ARM" : unit = 2 : stp = 30 : mn = 30 : mx = 1200
+        CASE 91 : lab$ = "ON" : unit = 2 : stp = 15 : mn = 15 : mx = 600
+        CASE 92 : lab$ = "OFF" : unit = 2 : stp = 15 : mn = 0 : mx = 600
+        CASE 101 : lab$ = "SWEEP" : unit = 2 : stp = 15 : mn = 30 : mx = 600
+        CASE 111 : lab$ = "LASTS" : unit = 1 : stp = 5 : mn = 5 : mx = 120
+        CASE 112 : lab$ = "MONSTERS" : unit = 0 : mn = 0 : mx = 20
+    END SELECT
+END SUB
+
+FUNCTION EvValue$(unit, v)
+    SELECT CASE unit
+        CASE 1 : EvValue$ = LTRIM$(STR$(v)) + "s"
+        CASE 2 : EvValue$ = LTRIM$(STR$(INT(v / 6) / 10)) + "s"
+        CASE 3 : IF v < 1 THEN EvValue$ = "a mix" ELSE EvValue$ = mtypeName$(v)
+        CASE ELSE : EvValue$ = LTRIM$(STR$(v))
+    END SELECT
+END FUNCTION
+
+FUNCTION RewardName$(r)
+    IF r < 1 OR r > 14 THEN RewardName$ = "none" : EXIT FUNCTION
+    RewardName$ = RTRIM$(MID$("red card   blue card  yellow cardhealth     cells      shells     scatter    repeater   armour     medkit     railgun    the map    overcharge amp        ", r * 11 - 10, 11))
+END FUNCTION
+
+' A laser's sound and sparks, each frame, heard from (px, py): flickering
+' before it comes on (LaserSoon), the odd crackle and spit of sparks; as it
+' comes on, a crack - a zap, and sparks all along the beam; while it's on,
+' its electric buzz - its own looping copy, as loud as it's near, like a
+' trap's (TrapFx) - and off, silence. evCount: was it on last frame?
+SUB LaserFx(ev, px, py)
+    cx = (evX0(ev) + evX1(ev) + 1) / 2 : cy = (evY0(ev) + evY1(ev) + 1) / 2
+    onNow = LaserOn(ev)
+    IF onNow AND NOT evCount(ev) THEN ' On: the crack
+        SfxAt sndZap&, cx, cy, px, py
+        FOR y = evY0(ev) TO evY1(ev) : FOR x = evX0(ev) TO evX1(ev)
+            SpawnSparks x + RND, y + RND, 0.15 + RND * 0.7, 3, 255, 70, 90
+        NEXT : NEXT
+    ELSEIF NOT onNow AND LaserSoon(ev) AND RND < 0.07 THEN ' Warming up: crackles
+        x = evX0(ev) + RND * (evX1(ev) - evX0(ev) + 1) : y = evY0(ev) + RND * (evY1(ev) - evY0(ev) + 1)
+        SfxAt sndSizzle&, x, y, px, py : SpawnSparks x, y, 0.15 + RND * 0.7, 4, 255, 120, 140
+    END IF
+    evCount(ev) = onNow
+    IF sndTrapElec& <= 0 THEN EXIT SUB
+    IF onNow THEN
+        IF evHum&(ev) = 0 THEN evHum&(ev) = _SNDCOPY(sndTrapElec&)
+        IF evHum&(ev) > 0 THEN
+            _SNDVOL evHum&(ev), SfxVolAt!(cx, cy, px, py, SFX_RANGE) * 0.6 * setting(SET_SFX) / 100 : HumPan evHum&(ev), cx, cy
+            IF NOT _SNDPLAYING(evHum&(ev)) THEN _SNDLOOP evHum&(ev)
+        END IF
+    ELSEIF evHum&(ev) > 0 THEN
+        _SNDSTOP evHum&(ev)
+    END IF
+END SUB
+
+' Is laser event ev on now (or about to be)?
+FUNCTION LaserOn(ev)
+    IF evB(ev) = 0 THEN LaserOn = -1 : EXIT FUNCTION
+    LaserOn = (evTimer(ev) MOD (evA(ev) + evB(ev))) < evA(ev)
+END FUNCTION
+
+FUNCTION LaserSoon(ev)
+    IF evB(ev) = 0 THEN EXIT FUNCTION
+    p = evTimer(ev) MOD (evA(ev) + evB(ev))
+    LaserSoon = p >= evA(ev) + evB(ev) - 30 ' (the last half second before it comes on: it flickers)
+END FUNCTION
+
+' Where cutter event ev's beam is now: it runs across the room's short way
+' and sweeps along its long way (cutAlongX: sweeping along x, so the beam
+' is a line of constant x), there and back every a frames
+SUB CutterAt(ev, cx, cy, alongX)
+    alongX = (evX1(ev) - evX0(ev)) >= (evY1(ev) - evY0(ev))
+    f = 0.5 - 0.5 * DCos(evTimer(ev) * 6.2832 / evA(ev))
+    IF alongX THEN cx = evX0(ev) + 0.3 + (evX1(ev) - evX0(ev) + 0.4) * f : cy = (evY0(ev) + evY1(ev) + 1) / 2 ELSE cy = evY0(ev) + 0.3 + (evY1(ev) - evY0(ev) + 0.4) * f : cx = (evX0(ev) + evX1(ev) + 1) / 2
+END SUB
+
+' Is teleporter pad k in a room under lockdown - an ambush or a survive
+' that's going (evState 1)? Then it doesn't work: you're in there till
+' it's over (and nobody's teleporting in to it).
+FUNCTION PadLockedDown(k)
+    IF k < 1 OR k > numPads THEN EXIT FUNCTION
+    FOR ev = 1 TO numEvents
+        IF evState(ev) = 1 AND (evType(ev) = EV_AMBUSH OR evType(ev) = EV_SURVIVE) THEN
+            IF padX(k) >= evX0(ev) AND padX(k) <= evX1(ev) AND padY(k) >= evY0(ev) AND padY(k) <= evY1(ev) THEN PadLockedDown = -1 : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
+' A trap's show, each frame, by how lit it is (evGlow): nothing when it's
+' safe but for a rare wisp or spark (it's always a bit alive); warming up,
+' smoke and embers (fire) or the odd crackle (electric); live, the whole
+' floor blazing - flames, and smoke rising off them - or arcing, sparks
+' flying. More for a bigger trap. Then its sound: SoundAt, as loud as lit.
+SUB TrapFx(ev)
+    w = evX1(ev) - evX0(ev) + 1 : h = evY1(ev) - evY0(ev) + 1 : area = w * h
+    fire = evType(ev) = EV_FIRETRAP : g = evGlow(ev)
+    cx = evX0(ev) + w / 2 : cy = evY0(ev) + h / 2
+    IF g = 0 THEN
+        IF RND < 0.02 THEN
+            x = evX0(ev) + RND * w : y = evY0(ev) + RND * h
+            IF fire THEN SpawnPart PART_SMOKE, x, y, FloorAt(x, y) + 0.05, 0, 0, 0.006, 70, 0.12, 0.11, 0.1, 0.1 ELSE SpawnSparks x, y, 0.02, 1, 90, 170, 255
+        END IF
+    ELSE
+        IF fire THEN
+            nFlame = area * 0.5 * g : IF g < 1 THEN nFlame = area * 0.04
+            FOR k = 1 TO INT(nFlame) + (RND < nFlame - INT(nFlame))
+                x = evX0(ev) + RND * w : y = evY0(ev) + RND * h
+                SpawnPart PART_FLAME, x, y, FloorAt(x, y) + 0.02, (RND - 0.5) * 0.008, (RND - 0.5) * 0.008, 0.015 + RND * 0.025, 20 + INT(RND * 20), 1, 0.35 + RND * 0.35, 0.06, 0.12 + RND * 0.1
+            NEXT
+            nSmoke = area * 0.08 * (0.4 + g) ' (smoke off the fire - and warning before it)
+            FOR k = 1 TO INT(nSmoke) + (RND < nSmoke - INT(nSmoke))
+                x = evX0(ev) + RND * w : y = evY0(ev) + RND * h
+                SpawnPart PART_SMOKE, x, y, FloorAt(x, y) + 0.2 + RND * 0.25, (RND - 0.5) * 0.004, (RND - 0.5) * 0.004, 0.006 + RND * 0.008, 70 + INT(RND * 50), 0.32, 0.3, 0.28, 0.14 + RND * 0.1
+            NEXT
+        ELSE
+            IF RND < area * 0.2 * g THEN SpawnSparks evX0(ev) + RND * w, evY0(ev) + RND * h, 0.02, 2 + INT(3 * g), 120, 200, 255
+            FOR arcs = 1 TO 1 + INT(g * area / 12) ' Arcs: crooked lines of bright points, arching up between two places on it
+                IF RND < 0.1 + 0.6 * g THEN
+                    ax = evX0(ev) + RND * w : ay = evY0(ev) + RND * h : bx = evX0(ev) + RND * w : by = evY0(ev) + RND * h
+                    d = SQR((bx - ax) ^ 2 + (by - ay) ^ 2) : IF d > 3 THEN bx = ax + (bx - ax) * 3 / d : by = ay + (by - ay) * 3 / d : d = 3
+                    IF g < 1 THEN bx = ax + (bx - ax) * 0.3 : by = ay + (by - ay) * 0.3 : d = d * 0.3 ' (warming up: short ones)
+                    steps = INT(d * 14) + 5 : tall = 0.15 + d * 0.12 : jx = 0 : jy = 0 : jz = 0
+                    FOR k = 0 TO steps
+                        f = k / steps
+                        jx = jx + (RND - 0.5) * 0.1 : jy = jy + (RND - 0.5) * 0.1 : jz = jz + (RND - 0.5) * 0.06 ' (wandering off its curve)
+                        x = ax + (bx - ax) * f + jx * SIN(f * 3.14159) : y = ay + (by - ay) * f + jy * SIN(f * 3.14159)
+                        z = 0.02 + (tall + jz) * SIN(f * 3.14159) : IF z < 0.02 THEN z = 0.02
+                        SpawnPart PART_ARC, x, y, FloorAt(x, y) + z, 0, 0, 0, 3 + INT(RND * 4), 0.8, 0.92, 1, 0.06
+                    NEXT
+                END IF
+            NEXT
+        END IF
+    END IF
+    IF fire THEN snd& = sndTrapFire& ELSE snd& = sndTrapElec&
+    IF snd& <= 0 THEN EXIT SUB
+    IF g > 0 THEN
+        IF evHum&(ev) = 0 THEN evHum&(ev) = _SNDCOPY(snd&)
+        IF evHum&(ev) > 0 THEN
+            _SNDVOL evHum&(ev), SfxVolAt!(cx, cy, playerX, playerY, SFX_RANGE) * 0.8 * g * setting(SET_SFX) / 100 : HumPan evHum&(ev), cx, cy
+            IF NOT _SNDPLAYING(evHum&(ev)) THEN _SNDLOOP evHum&(ev)
+        END IF
+    ELSEIF evHum&(ev) > 0 THEN
+        _SNDSTOP evHum&(ev)
+    END IF
+END SUB

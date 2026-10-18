@@ -1,0 +1,227 @@
+''
+' NEON-CASTER - RENDER/LIGHT.BM
+' =============================================================================
+' Light: building the level's lights, each frame's light, and glows.
+'
+
+' === LIGHT AND THE MAP (chapters 14 and 18) ====================================
+
+' The light at map point (x, y): the four nearest cells' light (litR...),
+' blended by how near each one's middle is, skipping walls - so it doesn't
+' jump as you step from one cell to the next. 256 = full.
+SUB LightAt(x, y, r, g, b)
+    fx = x - 0.5 : fy = y - 0.5 : ix = INT(fx) : iy = INT(fy) : tx = fx - ix : ty = fy - iy
+    r = 0 : g = 0 : b = 0 : sw = 0
+    FOR j = 0 TO 1 : FOR i = 0 TO 1
+        cx = ix + i : cy = iy + j
+        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+            IF NOT IsWall(cx, cy) OR diagCorner(cx, cy) <> 0 THEN
+                w = (i * tx + (1 - i) * (1 - tx)) * (j * ty + (1 - j) * (1 - ty))
+                r = r + litR(cx, cy) * w : g = g + litG(cx, cy) * w : b = b + litB(cx, cy) * w : sw = sw + w
+            END IF
+        END IF
+    NEXT : NEXT
+    IF sw > 0.0001 THEN r = r / sw : g = g / sw : b = b / sw ELSE r = ambientR : g = ambientG : b = ambientB
+END SUB
+
+' One more light for this level: where, how far it reaches, its light for
+' red, green and blue (brightness times colour), its effect (FX_), and the
+' decoration it belongs to (0 for none)
+' A pool poured in during play (a trigger's flood, or a save that kept
+' one): a light for each 3 x 3 patch of it that glows - lava, slime, acid -
+' as BuildLevel gives the level's own. Cells the level had that kind in
+' already have theirs, so they're skipped.
+SUB LiquidGlows(x0, y0, x1, y1)
+    added = 0
+    FOR gy = MaxOf(0, y0) TO MinOf(y1, MAP_SIZE - 1) STEP 3 : FOR gx = MaxOf(0, x0) TO MinOf(x1, MAP_SIZE - 1) STEP 3
+        FOR k = LQ_SLIME TO LQ_ACID
+            n = 0 : sx = 0 : sy = 0
+            FOR y = gy TO MinOf(gy + 2, MinOf(y1, MAP_SIZE - 1)) : FOR x = gx TO MinOf(gx + 2, MinOf(x1, MAP_SIZE - 1))
+                IF liqKind(x, y) = k AND INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1)) <> k THEN n = n + 1 : sx = sx + x + 0.5 : sy = sy + y + 0.5
+            NEXT : NEXT
+            IF n THEN ' (unless this patch glows already - the same trigger flooding it again)
+                FOR l = numLightsBase + 1 TO numLights
+                    IF lightLow(l) AND ABS(lightX(l) - sx / n) < 1.5 AND ABS(lightY(l) - sy / n) < 1.5 THEN n = 0
+                NEXT
+            END IF
+            IF n THEN
+                n0 = numLights
+                IF k = LQ_LAVA THEN AddLight sx / n, sy / n, 3.5, 150, 70, 20, FX_FIRE, 0 ELSE AddLight sx / n, sy / n, 2.5, lqR(k) \ 5, lqG(k) \ 5, lqB(k) \ 5, FX_PULSE, 0
+                IF numLights > n0 THEN lightLow(numLights) = -1 : added = -1
+            END IF
+        NEXT
+    NEXT : NEXT
+    IF added THEN BuildLights : glMeshVersion = glMeshVersion + 1
+END SUB
+
+SUB AddLight(x, y, radius, r, g, b, effect, deco)
+    IF numLights >= MAX_LIGHTS THEN EXIT SUB
+    numLights = numLights + 1
+    lightX(numLights) = x : lightY(numLights) = y : lightRadius(numLights) = radius
+    lightR(numLights) = r : lightG(numLights) = g : lightB(numLights) = b
+    lightEffect(numLights) = effect : lightDeco(numLights) = deco : lightLow(numLights) = 0
+    lightPhase(numLights) = RND * 6.28 : lightTimer(numLights) = 0 ' (so no two flicker in step)
+END SUB
+
+' Work out, once per level, which cells each light reaches and how
+' strongly: every cell within its radius that it can see (LightReaches),
+' brightest at the light and fading to nothing at the radius. Walls don't
+' move, so this never changes - each frame only has to add the lists up.
+SUB BuildLights
+    numLit = 0
+    FOR l = 1 TO numLights
+        lightFirst(l) = numLit + 1 : lightCount(l) = 0 : rad = lightRadius(l)
+        FOR cellY = INT(lightY(l) - rad) TO INT(lightY(l) + rad)
+            FOR cellX = INT(lightX(l) - rad) TO INT(lightX(l) + rad)
+                IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+                    ' Aim at the middle of the cell - or, for a diagonal wall's
+                    ' cell, the middle of its open half
+                    aimX = cellX + 0.5 : aimY = cellY + 0.5
+                    SELECT CASE diagCorner(cellX, cellY)
+                        CASE 1 : aimX = cellX + 0.75 : aimY = cellY + 0.75
+                        CASE 2 : aimX = cellX + 0.25 : aimY = cellY + 0.75
+                        CASE 3 : aimX = cellX + 0.25 : aimY = cellY + 0.25
+                        CASE 4 : aimX = cellX + 0.75 : aimY = cellY + 0.25
+                    END SELECT
+                    d = SQR((aimX - lightX(l)) ^ 2 + (aimY - lightY(l)) ^ 2)
+                    IF d < rad AND numLit < MAX_LIT AND (NOT IsWall(cellX, cellY) OR diagCorner(cellX, cellY) <> 0) THEN
+                        IF LightReaches(lightX(l), lightY(l), aimX, aimY) THEN
+                            numLit = numLit + 1 : lightCount(l) = lightCount(l) + 1
+                            litCellX(numLit) = cellX : litCellY(numLit) = cellY : litWeight(numLit) = (1 - d / rad) ^ 2
+                        END IF
+                    END IF
+                END IF
+            NEXT
+        NEXT
+    NEXT
+END SUB
+
+' Can light get from (x1, y1) to (x2, y2)? Step along the line a quarter of
+' a cell at a time; a wall on the way stops it (doors and decorations don't).
+FUNCTION LightReaches(x1, y1, x2, y2)
+    dist = SQR((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
+    stp = 0.25 : IF boxAny THEN stp = 0.1 ' (blocks can be an eighth thick: finer steps, so light can't skip through one)
+    steps = INT(dist / stp) + 1
+    cx2 = INT(x2) : cy2 = INT(y2)
+    FOR i = 1 TO steps - 1
+        px = x1 + (x2 - x1) * i / steps : py = y1 + (y2 - y1) * i / steps
+        IF INT(px) = cx2 AND INT(py) = cy2 AND boxOn(cx2, cy2) THEN EXIT FOR ' (into the cell it's lighting: a block there is lit, not in the way)
+        IF SolidAt(px, py) THEN EXIT FUNCTION
+    NEXT
+    LightReaches = -1
+END FUNCTION
+
+' This frame's light: every cell starts at the level's ambient light, then
+' each light adds its share - times its effect right now: a flickering
+' tube drops out for a few frames now and then, a pulse rises and falls,
+' a strobe blinks twice a second, firelight jitters, and a dying tube is
+' mostly dark but sputters on. A broken lamp's light is out for good.
+SUB UpdateLight
+    IF cyberOn THEN ' The network: no lamps, no shadows - everything lit the same
+        FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
+            litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230
+            litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
+        NEXT : NEXT
+        FOR l = 1 TO numLights : lightNow(l) = 0 : NEXT
+        EXIT SUB
+    END IF
+    FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
+        litR(cellX, cellY) = ambientR : litG(cellX, cellY) = ambientG : litB(cellX, cellY) = ambientB
+        IF blackoutTimer > 0 THEN litR(cellX, cellY) = ambientR \ 4 : litG(cellX, cellY) = ambientG \ 5 : litB(cellX, cellY) = ambientB \ 4 ' (a power failure: darker)
+        litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
+    NEXT : NEXT
+    FOR l = 1 TO numLights
+        f = 1
+        SELECT CASE lightEffect(l)
+            CASE FX_FLICKER
+                IF lightTimer(l) > 0 THEN
+                    lightTimer(l) = lightTimer(l) - 1 : f = 0.15
+                ELSEIF RND < 0.025 THEN
+                    lightTimer(l) = 2 + INT(RND * 6)
+                END IF
+            CASE FX_PULSE
+                f = 0.55 + 0.45 * SIN(TIMER * 2.4 + lightPhase(l))
+            CASE FX_STROBE
+                IF INT(TIMER * 2 + lightPhase(l)) MOD 2 = 0 THEN f = 1 ELSE f = 0.05
+            CASE FX_FIRE
+                f = 0.75 + RND * 0.25
+            CASE FX_DYING
+                f = 0.08
+                IF lightTimer(l) > 0 THEN
+                    lightTimer(l) = lightTimer(l) - 1 : f = 0.5 + RND * 0.5
+                ELSEIF RND < 0.03 THEN
+                    lightTimer(l) = 3 + INT(RND * 10)
+                END IF
+        END SELECT
+        IF lightDeco(l) THEN
+            IF NOT decoOn(lightDeco(l)) THEN f = 0
+        END IF
+        IF lightBroken(l) THEN f = 0 ' (shot out)
+        IF blackoutTimer > 0 AND lightEffect(l) <> FX_STROBE THEN f = f * 0.05 ' (no power: only the alarms)
+        lightNow(l) = f
+        IF f > 0 THEN
+            r = lightR(l) * f : g = lightG(l) * f : b = lightB(l) * f
+            FOR e = lightFirst(l) TO lightFirst(l) + lightCount(l) - 1
+                cellX = litCellX(e) : cellY = litCellY(e) : w = litWeight(e)
+                litR(cellX, cellY) = litR(cellX, cellY) + r * w
+                litG(cellX, cellY) = litG(cellX, cellY) + g * w
+                litB(cellX, cellY) = litB(cellX, cellY) + b * w
+                strength = (r + g + b) * w ' (and where it comes from: chapter 24's bumps)
+                litSumX(cellX, cellY) = litSumX(cellX, cellY) + lightX(l) * strength
+                litSumY(cellX, cellY) = litSumY(cellX, cellY) + lightY(l) * strength
+                litSumW(cellX, cellY) = litSumW(cellX, cellY) + strength
+            NEXT
+        END IF
+    NEXT
+END SUB
+
+' A quick glow at (x, y) for this frame only - a muzzle flash, a blast, a
+' bolt: brightest in the middle, gone at radius. It doesn't check for walls
+' (it's only for a moment, and that's much cheaper).
+SUB AddGlow(x, y, radius, r, g, b)
+    FOR cellY = INT(y - radius) TO INT(y + radius)
+        FOR cellX = INT(x - radius) TO INT(x + radius)
+            IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+                d = SQR((cellX + 0.5 - x) ^ 2 + (cellY + 0.5 - y) ^ 2)
+                IF d < radius THEN
+                    w = (1 - d / radius) ^ 2
+                    litR(cellX, cellY) = litR(cellX, cellY) + r * w
+                    litG(cellX, cellY) = litG(cellX, cellY) + g * w
+                    litB(cellX, cellY) = litB(cellX, cellY) + b * w
+                    strength = (r + g + b) * w ' (where it comes from, for bumps)
+                    litSumX(cellX, cellY) = litSumX(cellX, cellY) + x * strength
+                    litSumY(cellX, cellY) = litSumY(cellX, cellY) + y * strength
+                    litSumW(cellX, cellY) = litSumW(cellX, cellY) + strength
+                END IF
+            END IF
+        NEXT
+    NEXT
+END SUB
+
+' Light a colour: its red, green and blue each times their light / 256
+' (more than 256 brightens, up to full). Each channel is masked out of
+' &HAARRGGBB on its own, multiplied, and put back.
+FUNCTION ShadeRGB~&(col AS _UNSIGNED LONG, lr AS LONG, lg AS LONG, lb AS LONG)
+    red& = ((col AND &HFF0000) \ 65536) * lr \ 256 : IF red& > 255 THEN red& = 255
+    green& = ((col AND &HFF00&) \ 256) * lg \ 256 : IF green& > 255 THEN green& = 255
+    blue& = (col AND 255) * lb \ 256 : IF blue& > 255 THEN blue& = 255
+    ShadeRGB~& = &HFF000000~& OR (red& * 65536) OR (green& * 256) OR blue&
+END FUNCTION
+
+' Ceiling lamp l, shot out: its light goes off for good (UpdateLight), its
+' beam with it; its picture goes dark and cracked (T_LAMPOFF - the software
+' renderer's ceiling, and OpenGL's world built again with it - a dark
+' mark over it too) - and if loud, glass and sparks rain down, with a
+' crash. (Not loud: loading a game where it was already broken.)
+SUB BreakLight(l, loud)
+    lightBroken(l) = -1
+    cx = INT(lightX(l)) : cy = INT(lightY(l))
+    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN ceilTex(cx, cy) = T_LAMPOFF : glMeshVersion = glMeshVersion + 1 ' (OpenGL's world built again with it dark: a scorch decal alone gets recycled, and the lit lamp showed again)
+    AddDecal lightX(l), lightY(l), CeilAt(lightX(l), lightY(l)) - 0.001, 0, 0, -1, 0.75 : decalHeat(decalNext) = 0
+    IF loud THEN
+        lh = CeilAt(lightX(l), lightY(l)) - FloorAt(lightX(l), lightY(l)) - 0.05 ' (just under its own ceiling, however high)
+        SpawnSparks lightX(l), lightY(l), lh, 24, 255, 240, 200
+        SpawnSparks lightX(l), lightY(l), lh, 16, 160, 200, 255 ' (glass)
+        PlaySfx decoBreakSnd&(2), 0.9
+    END IF
+END SUB

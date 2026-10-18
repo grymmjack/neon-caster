@@ -1,0 +1,44 @@
+''
+' NEON-CASTER - AUDIO/MUSIC.BM
+' =============================================================================
+' Music: loading it, playing it, and how loud.
+'
+
+' A music track from neon-caster/music/ (0 if it's missing: no music)
+FUNCTION LoadMusic&(file$)
+    path$ = AssetPath$("music/" + file$)
+    ' "stream": played straight from the file a little at a time, not
+    ' unpacked into memory first (a 3-minute track would be 60 MB). And
+    ' everything else is loaded "noasync" - unpacked there and then, not
+    ' in the background: QB64PE 4.7 can crash if a sound is still being
+    ' unpacked in the background while another one opens.
+    IF _FILEEXISTS(path$) THEN LoadMusic& = _SNDOPEN(path$, "stream, noasync")
+END FUNCTION
+
+' Play a music track on a loop (_SNDLOOP), at the MUSIC VOLUME setting,
+' stopping the one before. Asking for the track already playing changes
+' nothing, so it doesn't restart.
+SUB PlayMusic(snd&)
+    IF snd& = nowPlaying& THEN EXIT SUB
+    IF nowPlaying& > 0 THEN _SNDSTOP nowPlaying&
+    nowPlaying& = snd&
+    IF snd& > 0 THEN _SNDVOL snd&, MusicVol! : _SNDLOOP snd&
+END SUB
+
+' How loud the music plays: the MUSIC VOLUME setting - halved while the
+' game's paused under the menu (musicDuck!)
+' OpenGL's animation clock (ripples, flicker, shimmer, beams): the time -
+' or, while the game's paused under the menu, the time it paused at
+FUNCTION glClock#
+    IF glFrozen THEN glClock# = glFrozenAt# ELSE glClock# = TIMER(0.001)
+END FUNCTION
+
+FUNCTION MusicVol!
+    MusicVol! = setting(SET_MUSIC) / 100 * musicDuck!
+END FUNCTION
+
+' The music's volume, as it should be now (after a change of setting, or
+' of musicDuck!)
+SUB SetMusicVol
+    IF nowPlaying& > 0 THEN _SNDVOL nowPlaying&, MusicVol!
+END SUB

@@ -1,0 +1,79 @@
+''
+' NEON-CASTER - RENDER/SCREEN.BM
+' =============================================================================
+' Onto the screen (chapter 17): showing the frame, brightness and night
+' vision.
+'
+
+' BRIGHTNESS for the software renderer: every pixel of the view put
+' through a gamma curve - each of red, green and blue (0 to 255) becomes
+' 255 * (it / 255) ^ (100 / pct). Working out a power 360,000 times a frame
+' would be slow, so it's done once for each of the 256 values, into a
+' "lookup table" (gammaLUT, made again only when pct changes), and each
+' pixel just looks its three up. OpenGL does the same sum in its post
+' shader, on the graphics card.
+SUB ApplyGamma(pct)
+    STATIC gammaLUT(255) AS _UNSIGNED LONG, made
+    DIM i AS LONG, c AS _UNSIGNED LONG
+    IF made <> pct THEN
+        FOR i = 0 TO 255 : gammaLUT(i) = INT(255 * (i / 255) ^ (100 / pct) + 0.5) : NEXT
+        made = pct
+    END IF
+    FOR i = 0 TO RENDER_W * RENDER_H - 1
+        c = pixels(i)
+        pixels(i) = (c AND &HFF000000~&) OR _SHL(gammaLUT(_SHR(c, 16) AND 255), 16) OR _SHL(gammaLUT(_SHR(c, 8) AND 255), 8) OR gammaLUT(c AND 255)
+    NEXT
+END SUB
+
+' The same curve on a whole image (img& 0: the screen) - for the menu, to
+' show BRIGHTNESS as you set it. _MEM reaches its pixels as ApplyGamma's
+' array does: 4 bytes each, blue first.
+SUB GammaImage(img&, pct)
+    STATIC lut(255) AS _UNSIGNED _BYTE, made
+    DIM i AS _OFFSET, n AS _OFFSET, m AS _MEM, b AS _UNSIGNED _BYTE
+    IF pct = 100 THEN EXIT SUB
+    IF made <> pct THEN
+        FOR k = 0 TO 255 : lut(k) = INT(255 * (k / 255) ^ (100 / pct) + 0.5) : NEXT
+        made = pct
+    END IF
+    m = _MEMIMAGE(img&) : n = m.SIZE
+    FOR i = 0 TO n - 1 STEP 4 ' (blue, green, red - and alpha left alone)
+        b = _MEMGET(m, m.OFFSET + i, _UNSIGNED _BYTE) : _MEMPUT m, m.OFFSET + i, lut(b) AS _UNSIGNED _BYTE
+        b = _MEMGET(m, m.OFFSET + i + 1, _UNSIGNED _BYTE) : _MEMPUT m, m.OFFSET + i + 1, lut(b) AS _UNSIGNED _BYTE
+        b = _MEMGET(m, m.OFFSET + i + 2, _UNSIGNED _BYTE) : _MEMPUT m, m.OFFSET + i + 2, lut(b) AS _UNSIGNED _BYTE
+    NEXT
+    _MEMFREE m
+END SUB
+
+' NIGHT VISION for the software renderer: every pixel of the view made a
+' green of its brightness - lifted a lot in the dark (a power curve, from a
+' lookup table, as BRIGHTNESS does), with a grain that moves (a table of
+' noise, read from a different place each frame) and the edges darker,
+' as through a headset's tubes
+SUB ApplyNight
+    STATIC lut(255) AS LONG, grain(4095) AS LONG, made
+    DIM i AS LONG, c AS _UNSIGNED LONG, l AS LONG, o AS LONG
+    IF NOT made THEN
+        FOR i = 0 TO 255 : lut(i) = INT(255 * MinOf(1, ((i / 255) * 1.5 + 0.03) ^ 0.5)) : NEXT
+        FOR i = 0 TO 4095 : grain(i) = INT(RND * 36) - 18 : NEXT
+        made = -1
+    END IF
+    o = INT(RND * 4096)
+    FOR i = 0 TO RENDER_W * RENDER_H - 1
+        c = pixels(i)
+        l = lut((_SHR(c, 16) AND 255) * 0.3 + (_SHR(c, 8) AND 255) * 0.59 + (c AND 255) * 0.11) + grain((i + o) AND 4095)
+        x = i MOD RENDER_W : y = i \ RENDER_W
+        d = ((x - RENDER_W / 2) / (RENDER_W / 2)) ^ 2 + ((y - RENDER_H / 2) / (RENDER_H / 2)) ^ 2 : IF d > 0.55 THEN l = l * MaxOf(0.15, 1 - (d - 0.55) * 1.4)
+        IF l < 0 THEN l = 0 ELSE IF l > 255 THEN l = 255
+        pixels(i) = &HFF000000~& OR _SHL(l * 0.3, 16) OR _SHL(l, 8) OR (l * 0.35)
+    NEXT
+END SUB
+
+' Show the frame drawn (every loop's _DISPLAY) - and if the window's close
+' button was pressed, leave as QUIT does: the stats and achievements kept,
+' the settings saved. (Once _EXIT has been asked, closing the window just
+' tells it so, instead of ending the program on the spot.)
+SUB ShowFrame
+    _DISPLAY
+    IF _EXIT THEN QuitGame
+END SUB

@@ -1,7 +1,7 @@
 # NEON-CASTER
 
-A first-person shooter in one file of QB64 Phoenix Edition BASIC, and a
-course in how it's made. Thirty sectors of a neon space station in three
+A first-person shooter in QB64 Phoenix Edition BASIC, and a course in
+how it's made. Thirty sectors of a neon space station in three
 sets of ten - the originals, ten NEW SECTORS, and OLD SECTORS NEW (the
 first ten remade) - ten kinds of monster, four guns and a kick, glass you can shoot through, floors and
 ceilings at every height, lifts and bottomless pits, open skies, teleporters, data
@@ -122,9 +122,14 @@ afterwards and MODE shows CUSTOM.
 
 ## Learn from it
 
-The source, [`neon-caster.bas`](neon-caster.bas), is written to be read:
-its comments are a course in 24 chapters, from opening a window to casting
-rays and handing the 3D to the graphics card with shaders.
+The source is written to be read: its comments are a course in 24
+chapters, from opening a window to casting rays and handing the 3D to the
+graphics card with shaders. Start at [`neon-caster.bas`](neon-caster.bas):
+it has the introduction and the game loop, and it includes the rest -
+laid out like [DRAW](https://github.com/grymmjack/DRAW), a folder for each
+part (`CORE/`, `WORLD/`, `GAME/`, `LEVEL/`, `RENDER/`, `GL/`, `MENU/`,
+`EDITOR/`, `AUDIO/`, `DEMO/`, `ACH/`, and the game loop's chapters in
+`LOOP/`), each module a `.BI` of declarations and a `.BM` of routines.
 [`neon-caster/TUTORIAL.md`](neon-caster/TUTORIAL.md) is the map for it,
 with dozens of things to try.
 
@@ -138,7 +143,8 @@ the game, animations, sounds and performance heat maps, and the earlier
 ## Build it yourself
 
 1. Install [QB64 Phoenix Edition](https://qb64phoenix.com) 4.7 or newer.
-2. Compile: `qb64pe -x neon-caster.bas -o neon-caster.run` (on Windows,
+2. Compile: `qb64pe -x neon-caster.bas -o neon-caster.run` (it includes
+   the folders beside it; on Windows,
    `-o neon-caster.exe`; on a Mac, `-o neon-caster-mac`). Don't call the
    program just `neon-caster`: that's the name of its folder.
 3. Run it from this folder.

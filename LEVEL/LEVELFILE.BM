@@ -1,0 +1,661 @@
+''
+' NEON-CASTER - LEVEL/LEVELFILE.BM
+' =============================================================================
+' Chapter 22: the level files - reading and writing them.
+'
+
+'-----------------------------------------------------------------------------
+' CHAPTER 22: THE LEVEL FILES
+'-----------------------------------------------------------------------------
+' Each level is a plain text file: neon-caster/levels/level1.txt to
+' level10.txt. LoadLevel (chapter 20) reads one (ReadLevelFile, chapter
+' 23: OPEN, LINE INPUT, and taking each line apart) every time it starts
+' or restarts; you go from one to the next through its exit. Open one in
+' any text editor - or edit it in the game (the editor, chapter 21). This
+' chapter is the reference for making your own.
+'
+' A line starting with ' is a comment, and blank lines don't matter. A
+' line in [brackets] starts a section: [zones], [lights], [events] and
+' [map], in any order. Before the first, the level's settings, one
+' "key = value" a line; in the sections, one thing a line, its numbers
+' split by commas.
+'
+' Coordinates: x runs left to right (0 to MAP_SIZE - 1), y runs top to bottom
+' (row 0 is the top line). Each map cell is one "tile": a wall block, a door,
+' or a square of floor. You walk around in the same units (moving at 0.12
+' tiles a frame), and things on the map stand in the middle of their tile.
+'
+' --- Part 1: its name, textures and ambient light -------------------------
+'
+'   name     = SECTOR 2: REACTOR CORE     shown as you arrive, and on the tally
+'   walls    = six pictures               for # N C K P G, in that order
+'   floors   = four pictures              floors 1-4 (for the zones below)
+'   ceilings = two pictures               ceilings 1-2
+'   ambient  = brightness, red, green, blue   the ambient light (chapter 14)
+'
+' (pictures from neon-caster/, 64x64; doors, keycards and the exit are the
+' same in every level). On the minimap each wall kind is its picture's
+' colour. The ambient light is the light every cell has before any lights
+' are added: brightness 0 (black) to 256 (textures in their own colours),
+' tinted by red, green and blue (0-255 each; 255, 255, 255 is white).
+'
+' --- Part 2: [zones] - floor / ceiling zones --------------------------------
+'
+' One a line: x0, y0, x1, y1, floor, ceiling, shape
+'
+'   x0, y0, x1, y1   a rectangle of tiles, corners included
+'   floor            1-4 (the level's floors), or 0 to leave the floor alone
+'   ceiling          1-2 (the level's ceilings), or 0 to leave it alone
+'   shape            0  the whole rectangle
+'                    1-4 a triangle: the half of the rectangle (which must
+'                    be square) on the top-left (1), top-right (2),
+'                    bottom-right (3) or bottom-left (4) side of its
+'                    diagonal. The tiles the diagonal runs through are
+'                    split corner to corner, like diagonal walls: half the
+'                    new texture, half what was there before.
+'
+' Every tile starts as floor 1 + ceiling 1; each zone then paints its area,
+' in order, so a later zone wins where two overlap. Only floor tiles show
+' this (it's what you see underfoot and overhead), so a zone can safely
+' include the walls around a room. Two triangles make a diagonal stripe:
+' paint one texture on the far side of one diagonal, then the old texture
+' back past another diagonal beside it (level 3's water channel does this).
+'
+' --- Part 3: [lights] ---------------------------------------------------------
+'
+' One a line (up to MAX_LIGHTS):
+'   x, y, radius, brightness, red, green, blue, effect
+'
+'   x, y         where it is, in cells (20.5 is the middle of cell 20). Not
+'                inside a wall.
+'   radius       how far it reaches, in cells: brightest at the light, fading
+'                to nothing at the radius. It doesn't shine through walls.
+'   brightness   0-400, added to the ambient light (256 is a lot)
+'   red, green, blue   its colour, 0-255 each
+'   effect       0 steady   1 a flickering fluorescent tube   2 a slow pulse
+'                3 an alarm strobe (twice a second)   4 firelight
+'                5 a dying tube: dark, sputtering on now and then
+'
+' Lamps (i), terminals (t) and the exit (E) also give off light of their
+' own - you don't list those. Break a lamp and its light goes out.
+'
+' --- Part 4: [events] - event rooms -------------------------------------------
+'
+' One a line (up to MAX_EVENTS):
+'   kind, x0, y0, x1, y1, a, b, reward
+'
+'   kind         1 ambush: walk in and the doors lock; a monsters teleport in,
+'                  a few at a time (all of type b, or a mix if b is 0); kill
+'                  them all and the doors open
+'                2 survive: locked in for a seconds, a monster arriving every
+'                  b frames
+'                3 trap: the floor is live for a frames, then safe for b, over
+'                  and over - it hurts while it's live (no reward). It warns
+'                  you: its floor is a wired grid, and it crackles for half
+'                  a second before it goes live
+'                12 fire trap: the same, a burner grate - smoke before, flames
+'                4 shooting gallery: break every decoration in the room within
+'                  a seconds
+'                5 spawner nest: the room's spawners (S) send out a monster of
+'                  type a every b frames while you're near; break them all
+'                6 monster closet: walk in and the secret walls (%) within
+'                  3 tiles of the room slide away, letting out whatever was
+'                  waiting behind them (a and b aren't used)
+'                7 the thieves' hoard: the room stays sealed until every
+'                  thief bot (T) in the level is dead. Thieves run home to
+'                  its door with what they steal from you, and drop it all
+'                  when they die. Fill the room with loot. (a, b unused)
+'                8 pressure plate: one tile (x0, y0 = x1, y1). Stepped on, by
+'                  you or a walking monster, it clicks, and a frames later
+'                  a blast lands on it; it re-arms after b frames
+'                9 laser: a beam along a row or column of tiles (make the
+'                  room one tile wide). On for a frames, off for b (b 0:
+'                  always on); 12 damage a touch, and it burns monsters too
+'               10 laser cutter: a beam sweeping across the room and back
+'                  every a frames (across its longer side); 15 a touch
+'               11 blackout: walk in and the lights die for a seconds, while
+'                  b monsters (crawlers and heavies) come out of the dark
+'   x0..y1       the room: you set it off by walking into it. Its doors (any
+'                within 5 tiles of it) are the ones an ambush or survive locks.
+'   reward       what appears in the middle of the room when you win: a
+'                pickup kind (4 health, 5 cells, 6 shells, 9 armour, 10 big
+'                medkit, 13 overcharge, 14 damage amp), or 0 for nothing.
+'                Only kinds 1, 2, 4 and 5 give one.
+'
+' Monster types are the SetMonType numbers: 1 drone, 2 gunner, 3 heavy,
+' 4 crawler, 5 sentry, 6 stalker, 7 spitter, 8 the overseer, 9 thief.
+'
+' The level kit's dress() adds most of the closets, plates, lasers,
+' cutters, hoards and blackouts (and the furniture) to each level for you.
+'
+' --- Part 5: [map] - one line per row -----------------------------------------
+'
+' MAP_SIZE lines of MAP_SIZE characters (short or missing ones are filled
+' out with wall). Anything not
+' listed below (or a missing character) is plain floor.
+'
+' WALLS - solid blocks; you, monsters, shots and bolts can't pass, and
+' monsters can't see through them. They only differ in looks (texture, and
+' colour on the minimap), and each level picks the six textures (Part 1):
+'   #  N  C  K  P  G
+'
+' DIAGONAL WALLS - a cell cut corner to corner at 45 degrees, half wall and
+' half floor. Which half is solid is worked out from what's beside it: the
+' side with more wall. So draw them where a wall turns a corner, and they
+' cut it off. Two make a longer slope (with a wall in the corner behind
+' them); four make a freestanding diamond pillar:  /\
+'                                                  \/
+' The slope looks like the wall beside its solid half (N if it stands on
+' its own), a little darker, and it's a half-filled cell on the minimap. A
+' doorway or passage can't go through one: carve the passage up to the
+' slope and replace the diagonal it meets with floor.
+'   /  diagonal from bottom-left to top-right
+'   \  diagonal from top-left to bottom-right
+'
+' DOORS - closed until you face one within 2 tiles and press Space (or a
+' monster walks up to it). Space shuts an open one again, and it shuts
+' itself after a while (DoorHold) - but never on anyone. They block you,
+' monsters and sight while mostly shut, and count as open once 80% of the
+' way; a sliver of an open door always shows at the side. A door
+' must sit in a wall one tile thick: walls on two opposite sides (left and
+' right, or above and below) and floor on the other two - that's the way
+' you walk through it.
+'   D  sliding door: slides sideways into the wall (~0.4 s). (door.png)
+'   H  heavy shutter: rolls up from the floor, slowly (~0.7 s), with a
+'      rumble; while it rises you can see (and walk, once it's high enough)
+'      under it. (door-shutter.png)
+'   X  split door: the two halves part from the middle, fast (~0.3 s), with
+'      a double hiss. (door-split.png)
+'   R  B  Y  key door (a sliding door) that needs the red / blue / yellow
+'      keycard. Without it, Space just says "Locked" and buzzes. It's drawn
+'      tinted in its card's colour, and on the minimap it's that colour
+'      with a dark dot in the middle.
+'   E  the exit (exit.png, with a lit EXIT sign). It never opens: face it
+'      and press Space to finish the level. It can go in any wall with
+'      floor in front of it, and blinks green on the minimap. One a level.
+'
+' PICKUPS - hover over the floor; walk onto one to take it. Health, armour
+' and ammo stay where they are while you're already full, so you can come
+' back.
+'   r  b  y  red / blue / yellow keycard: kept for the rest of the level, it
+'            opens every door of its colour. Shown top right once you
+'            have it, and blinks on the minimap until then.
+'   M        the map: it puts the minimap in the corner, and shows the
+'            whole level on the full-screen map (Tab). Without it, Tab
+'            only shows the places you've seen. One a level.
+'   +        health pack: +25 health (up to 100)
+'   *        big medkit: +50 health (up to 100)
+'   u        armour: +50 armour (up to 100). Armour takes a third of the
+'            damage you'd take, until it runs out.
+'   a        energy cells: +15 cells (up to 99) - ammo for the blaster, the
+'            repeater and the railgun
+'   e        shells: +8 shells (up to 40) - ammo for the scatter gun
+'   2        scatter gun (+8 shells): 7 pellets in a spread, 1 shot every
+'            2/3 s. You switch to it when you first pick it up.
+'   3        repeater (+30 cells): fast automatic fire, about 12 shots a
+'            second. Picked up again later, a gun is just ammo.
+'   4        railgun (+30 cells): 5 cells a shot, about 1 a second; each
+'            shot does 5 damage to every monster in its line (up to the
+'            wall), and sets off every barrel in it.
+'   q        overcharge: +100 health, past full, up to 200 (the extra shows
+'            in blue on the health bar)
+'   j        damage amp: every shot does double damage for 30 seconds
+'   8        night vision headset: a minute of battery (two at most); N
+'            (NIGHT VISION in CONTROLS) switches it on and off. On, you see
+'            the world in green, the dark lifted - as through a soldier's
+'            goggles - and the battery runs down.
+'
+' MONSTERS - each waits where it stands until it can see you (within 14
+' tiles, with no wall or shut door in the way) or until you shoot it. Then
+' it hunts you for good. Numbers are in the SetMonType lines.
+'   m  drone:   hovers, 3 hits. Flies straight at you (half your walking
+'               speed) and bites up close for 6-9, about once a second.
+'   g  gunner:  walks, 4 hits. Keeps 3.5 to 7 tiles away (backs off if you
+'               get close) and, when it can see you, fires a magenta energy
+'               bolt for 7-10 about every 2 s. Bolts fly straight and burst
+'               on walls - you can dodge them.
+'   h  heavy:   walks slowly, 10 hits. Closes in and smashes for 15-22 about
+'               every 1.6 s. Big enough that a scatter blast hits it with
+'               more pellets.
+'   c  crawler: a small spider bot, 2 hits, low to the ground. Scuttles at
+'               you at three quarters of your walking speed and nips for
+'               3-5 about once a second. They come in packs.
+'   s  sentry:  a gun turret, 8 hits. Never moves; when it can see you it
+'               fires a bolt for 5-8 about every 1.2 s.
+'   k  stalker: a cyborg with blades, 3 hits. Nearly as fast as you walk
+'               (run, and you leave it behind); slashes for 5-8 about once
+'               a second.
+'   w  spitter: a mutant, 6 hits. Walks slowly, keeps its distance like a
+'               gunner and spits acid bolts for 6-9.
+'   z  overseer: the last sector's boss - a giant floating eye, 80 hits.
+'               Drifts after you, firing a fan of three bolts (9-13 each)
+'               about once a second.
+'   T  thief:   a gold bot with a sack, 5 hits, faster than you walk (but
+'               not than you run). It never fights: it grabs half your ammo
+'               and the gun in your hands (never the blaster) and runs for
+'               the hoard (event 7). Kill it and it drops everything it took;
+'               each hit knocks some of it loose. But if it gets home with
+'               your things, it slips inside - and that hoard is locked for
+'               good.
+'
+' DECORATIONS - stand on the floor; you, monsters and bolts can't go through
+' them, but they don't block sight. Shoot them and they break (a barrel's
+' blast breaks them too); a broken one collapses and no longer blocks you,
+' and may leave something behind - ammo in a crate, armor in a locker
+' ([loot], Part 9).
+'   o  barrel:   explodes when shot: up to 45 damage to you and 8 to
+'                monsters within 2.2 tiles (less further away, and not
+'                through walls), sets off other barrels near it, and
+'                breaks the lamps, plants and terminals near it.
+'   i  lamp      (it glows): 2 hits; goes in a puff of sparks
+'   p  plant:    2 hits
+'   t  terminal: 4 hits; goes in a puff of sparks
+'   x  crate:    3 hits
+'   l  server rack (blinking cyan light): 4 hits; goes in a puff of sparks
+'   n  vending machine (glowing pink): 4 hits; goes in a puff of sparks.
+'                Space on it: 3, 2, 1... and it pays out for a couple of
+'                seconds - or, now and then, it blows up. Then it's sold out.
+'   f  coolant tank: explodes when shot, like a barrel
+'
+'   S  spawner: 8 hits; the portal a spawner nest (Part 4) sends monsters
+'                out of
+'   Furniture, for the rooms to look like somewhere (DecoFile$ has their
+'   pictures); the glowing ones light the room round them:
+'   d  desk (3 hits)            A  control console (glows)
+'   F  wall of screens (glows)  I  specimen tank (glows, glass: 3 hits)
+'   J  lab bench (glass: 2)     L  generator (glows, 6 hits)
+'   O  cryo pod (glows, 3)      Q  hologram projector (glows)
+'   U  lockers (3)              W  bench (3)
+'   (the rest take 4 hits)
+'   Computers - t, A and F - play NEON PONG when you press Space at them
+'   (first to 3; beat one and it pays out). A specimen tank broken open
+'   lets out what's in it, half the time: a stalker or a spitter.
+'
+' SECRET WALLS
+'   %  a monster closet's wall: looks like the walls beside it, and slides
+'      away when its closet event (Part 4, kind 6) goes off. Once every
+'      monster that was in the closet is dead, something clicks at the back
+'      of it: a stash, found with Space (it counts as a secret).
+'   ?  a secret wall: it looks like the walls beside it - on the map too -
+'      until you press Space on it. Then it slides away: YOU FOUND A
+'      SECRET!, and the tally counts it. Touching ? cells are one secret.
+'      A trigger can open one instead ("secret X Y" in its commands, Part
+'      8): then Space won't - a switch you shoot (a "shoot" trigger) does.
+'      What's behind a secret stays rock on the map pickup's map until
+'      you've seen it.
+'
+' GLASS
+'   =  a pane of glass across the middle of the cell, in a wall one cell
+'      thick (like a door: wall - or more glass - on two opposite sides).
+'      You see through it, but can't walk through it: shots stop on it,
+'      crack it, and after 4 hits break it - then the way is open.
+'      Monsters see you through it; their bolts and barrels break it too. The level kit lets
+'      windows into the walls between rooms, and carves sealed observation
+'      rooms behind them (chairs, consoles, bodies - and worse).
+'
+' DATA STATIONS
+'   @  a data station: a wall with a socket. Space at it jacks you into
+'      the network (chapter 19): the level as a neon grid, data cores to
+'      grab against the clock, ICE hunting you. Win, and its sealed doors
+'      open.
+'   !  a sealed door (a sliding door): it opens when the data station
+'      nearest to it is hacked
+'
+' MORE FURNITURE
+'   Z  an office chair (2 hits)
+'   V  a body - one of the station's people. It doesn't block the way and
+'      can't be broken.
+'
+' THE START
+'   <  >  ^  v  you start here, facing left / right / up / down. Use one;
+'               with several, the last one read wins.
+'   .           floor (any other character is floor too)
+'
+' TESTING (switched by constants at the top): TEST_ALL_GUNS starts you with
+' every gun and full ammo; CHEAT_KEYS lets K give you every keycard, and G
+' switch god mode on and off (no damage, and you walk through walls, doors
+' and monsters - though not out past the map's border).
+'
+' TELEPORTERS
+'   &  a teleporter's pad: step on it and you're on its partner - pads pair
+'      up in the order they're found, reading the map like a book (the 1st
+'      with the 2nd, the 3rd with the 4th)
+'
+' --- Part 6: [floor] and [ceiling] - heights (optional) ----------------------
+'
+' Two more maps, the same size, one character a cell: how high its floor
+' (or ceiling) is. . is the usual (floor 0, ceiling 1); 0-9 then a-z are
+' that many eighths of a wall up (so 8 is a whole wall up); A-H that many
+' eighths below 0 (a sunken floor - and at a whole wall down, H, a pit you
+' don't come back from). You step up anything up to STEP_UP (two and a
+' half eighths), fall off anything higher, and need BODY_H of room between
+' floor and ceiling. Walls run from the floor to the ceiling of the cell
+' they face; between two cells whose floors (or ceilings) differ, the step
+' (or lintel) is drawn in the level's first wall picture. Leave both
+' sections out, and the level is flat - drawn the classic way.
+'
+' --- Part 7: [lifts] (optional) ------------------------------------------------
+'
+' One a line: x0, y0, x1, y1, low, high, mode, speed - a rectangle of floor
+' that moves between two heights (in eighths). Mode 1 goes up and down by
+' itself; 2 is an elevator, up when you step on, down again a while after
+' you step off; 3 only moves when a trigger says (liftgo). Speed: eighths a
+' second.
+'
+' --- Part 8: [triggers] (optional) ---------------------------------------------
+'
+' One a line: WHEN [repeat] : COMMANDS. WHEN is enter X0 Y0 X1 Y1 (you walk
+' into it - a line, if it's one cell wide), use X Y (Space at that cell),
+' shoot X Y (you shoot - or kick - the wall or the thing in that cell: a
+' switch - put the picture wall-switch.png on its face, [faces]),
+' clear X0 Y0 X1 Y1 (every monster that started there is dead) or time S
+' (seconds into the level); "repeat" and it goes off every time, else just
+' once. COMMANDS are console commands (chapter 21), split by ; - door 14 6
+' open ; message The way is open ; summon heavy 2 ; liftgo 1 up ; wall 20
+' 8 . ; light 3 off ; sound alarm ; say taunt2 ; tp 40 40 90 ; secret 20
+' 15 (the secret wall there opens - found) ; program invaders (a computer
+' runs neon-caster/programs/invaders.bas - RunProgram - and pays out if
+' you beat it) ...
+'
+' --- Part 10: [liquid] and [liquid depth] (optional) -------------------------
+'
+' Two more maps, the same size, one character a cell, for pools lying on
+' the floor. [liquid]: . none, or w water, p poison, s slime, l lava, a
+' acid. [liquid depth]: how deep, in eighths of a wall - . for LQ_DEPTH
+' (three), or 1 to 8. Only on floor (with or without something standing on
+' it) - not a wall, a door or a lift. You see the floor through it in
+' OpenGL (more through water, hardly any through lava), and its surface
+' ripples; the software renderer draws the surface, moving. You wade in
+' it, slower the deeper (and in anything deeper than LQ_FULL you float,
+' your head above it), and the liquids table (chapter 3) says the rest:
+' water just slows you; slime slows you more and stings; poison hurts and
+' turns everything green; acid eats your armor first; lava burns, and
+' glows, lighting the room. Monsters keep out of the harmful ones - and
+' get hurt if you kick them in. A liquid's sides show where it stands
+' higher than the floor beside it; the usual way is a pool in a sunken
+' floor ([floor]). The editor's LIQUIDS tab pours them; so does the
+' console's liquid KIND X0 Y0 X1 Y1 [DEPTH] (a trigger can flood a room).
+'
+' --- Part 9: [loot] (optional) -------------------------------------------------
+'
+' What breakables leave. One a line: BREAKABLE = DROP, DROP, DROP, DROP -
+' up to four drops, A to D, each PICKUP:CHANCE (a pickup's name - ammo,
+' shells, medkit, health, armor, overcharge, amp, any IT_ - and its chance
+' in percent), or - for an empty one:
+'   crate    = ammo:20, shells:20, medkit:20, armor:10
+'   console  = ammo:5, shells:5
+'   locker   = amp:10, -, medkit:30, armor:30
+'   plant    =                     (plants here leave nothing)
+' Breaking one rolls 1-100 once, and the drops share it out in order: A
+' takes the first A%, B the next B%... - so each drop's chance is just as
+' written, and the chance of anything at all is them added up (a crate's
+' 20+20+20+10: 70%). Out it comes, tossed clear of the wreck - any
+' way if it was shot or blown up, back your way if you kicked it - and
+' landing where you can see it, not at your feet. A BREAKABLE is any
+' decoration's name (barrel, crate, desk, locker, labbench, vending,
+' console, plant, terminal, rack...). Kinds the section doesn't name keep
+' the game's own table (LootTable); the console's loot shows and changes it.
+'
+' --- And at the top: puzzles = NAME, NAME... -----------------------------------
+'
+' The code terminals' programs (neon-caster/puzzles/NAME.txt), one a
+' terminal ($) in reading order.
+'
+' Rules: the outer border must be all walls (nothing else stops a ray or a
+' monster from leaving the map). Up to MAX_ITEMS pickups, MAX_MON monsters
+' and MAX_DECO decorations; extra ones are ignored.
+'
+' The level kit: neon-caster/levels/levels.py builds these levels (rooms
+' carved with exact 45-degree edges) and checks them - doors between walls,
+' every keycard reachable before its doors, the exit reachable, textures
+' present. "python3 levels.py --check" checks the level files as they
+' stand; "--write" builds them again from levels.py (replacing any edits
+' made by hand or in the editor).
+'
+
+' Read level n's file (chapter 22) into lvlName$, lvlWall$() ... lvlRow$():
+' line by line, LINE INPUT. A line starting with ' is a comment; a line
+' in [brackets] starts a section; before the first section, lines are
+' "key = value"; in [zones], [lights] and [events] each line is one of
+' them, its numbers split by commas (SplitNums); in [map], each line is a
+' row. lvlOK says whether it worked.
+SUB ReadLevelFile(n)
+    lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNote$ = "" : topLines = -1
+    FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
+    fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0
+    f$ = LevelFile$(n)
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    DIM v(8) AS SINGLE
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    sec$ = "" : rows = 0
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$
+        t$ = LTRIM$(RTRIM$(l$))
+        IF RIGHT$(t$, 1) = CHR$(13) THEN t$ = LEFT$(t$, LEN(t$) - 1) ' (a file from Windows)
+        IF sec$ = "map" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF rows < MAP_SIZE THEN lvlRow$(rows) = t$ : rows = rows + 1
+        ELSEIF sec$ = "floor" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF fRows < MAP_SIZE THEN lvlFloorRow$(fRows) = t$ : fRows = fRows + 1
+        ELSEIF sec$ = "ceiling" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF cRows < MAP_SIZE THEN lvlCeilRow$(cRows) = t$ : cRows = cRows + 1
+        ELSEIF sec$ = "liquid" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF lRows < MAP_SIZE THEN lvlLiqRow$(lRows) = t$ : lRows = lRows + 1
+        ELSEIF sec$ = "liquid depth" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF dRows < MAP_SIZE THEN lvlLiqDRow$(dRows) = t$ : dRows = dRows + 1
+        ELSEIF sec$ = "triggers" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF lvlNumTrigs < MAX_TRIGS THEN lvlNumTrigs = lvlNumTrigs + 1 : lvlTrig$(lvlNumTrigs) = t$
+        ELSEIF sec$ = "faces" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            TakeFace t$
+        ELSEIF sec$ = "loot" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF lvlNumLoot < DECO_KINDS THEN lvlNumLoot = lvlNumLoot + 1 : lvlLoot$(lvlNumLoot) = t$ ' (as it is: LootTable reads it)
+        ELSEIF LEN(t$) = 0 OR LEFT$(t$, 1) = "'" THEN
+            ' (a blank line, or a comment - those at the top, but for the
+            ' three every file starts with, are the level's notes)
+            IF topLines AND LEFT$(t$, 1) = "'" THEN
+                IF INSTR(t$, "NEON-CASTER level file") = 0 AND INSTR(t$, "part of it. Lines starting") = 0 AND INSTR(t$, "levels.py --write) and the editor") = 0 THEN lvlNote$ = lvlNote$ + t$ + CHR$(10)
+            END IF
+        ELSEIF LEFT$(t$, 1) = "[" AND RIGHT$(t$, 1) = "]" THEN
+            sec$ = LCASE$(LTRIM$(RTRIM$(MID$(t$, 2, LEN(t$) - 2)))) : topLines = 0
+        ELSEIF sec$ = "" THEN
+            eq = INSTR(t$, "=") : topLines = 0
+            IF eq THEN
+                k$ = LCASE$(RTRIM$(LEFT$(t$, eq - 1))) : val$ = LTRIM$(MID$(t$, eq + 1))
+                SELECT CASE k$
+                    CASE "name" : lvlName$ = val$
+                    CASE "puzzles" : lvlPuzzles$ = val$
+                    CASE "droids" : lvlDroids = MaxOf(0, MinOf(MAX_DROIDS, VAL(val$)))
+                    CASE "walls" : FOR k = 1 TO 6 : lvlWall$(k) = ListItem$(val$, k) : NEXT
+                    CASE "floors" : FOR k = 1 TO 4 : lvlFloor$(k) = ListItem$(val$, k) : NEXT
+                    CASE "ceilings" : FOR k = 1 TO 2 : lvlCeil$(k) = ListItem$(val$, k) : NEXT
+                    CASE "ambient" : FOR k = 1 TO 4 : lvlAmb(k) = VAL(ListItem$(val$, k)) : NEXT
+                END SELECT
+            END IF
+        ELSE
+            got = SplitNums(t$, v())
+            SELECT CASE sec$
+                CASE "zones"
+                    IF got >= 7 AND lvlNumZones < MAX_ZONES THEN lvlNumZones = lvlNumZones + 1 : FOR k = 1 TO 7 : lvlZone(lvlNumZones, k) = v(k) : NEXT
+                CASE "lights"
+                    IF got >= 8 AND lvlNumLights < MAX_LIGHTS THEN lvlNumLights = lvlNumLights + 1 : FOR k = 1 TO 8 : lvlLight(lvlNumLights, k) = v(k) : NEXT
+                CASE "events"
+                    IF got >= 8 AND lvlNumEvents < MAX_EVENTS THEN lvlNumEvents = lvlNumEvents + 1 : FOR k = 1 TO 8 : lvlEvent(lvlNumEvents, k) = v(k) : NEXT
+                CASE "lifts"
+                    IF got >= 8 AND lvlNumLifts < MAX_LIFTS THEN lvlNumLifts = lvlNumLifts + 1 : FOR k = 1 TO 8 : lvlLift(lvlNumLifts, k) = v(k) : NEXT
+                CASE "monsters"
+                    IF got >= 7 AND lvlMonN < MAX_MON THEN lvlMonN = lvlMonN + 1 : FOR k = 1 TO 7 : lvlMon(lvlMonN, k) = v(k) : NEXT
+                CASE "pads"
+                    IF got >= 4 AND lvlNumPairs < 16 THEN lvlNumPairs = lvlNumPairs + 1 : FOR k = 1 TO 4 : lvlPair(lvlNumPairs, k) = v(k) : NEXT
+                CASE "blocks"
+                    IF got >= 7 AND lvlNumBoxes < MAX_BOXES THEN lvlNumBoxes = lvlNumBoxes + 1 : FOR k = 1 TO 7 : lvlBox(lvlNumBoxes, k) = v(k) : NEXT
+                CASE "nudges"
+                    IF got >= 4 AND lvlNumNudges < MAX_NUDGES THEN
+                        lvlNumNudges = lvlNumNudges + 1 : FOR k = 1 TO 4 : lvlNudge(lvlNumNudges, k) = v(k) : NEXT
+                        lvlNudge(lvlNumNudges, 5) = 0 : IF got >= 5 THEN lvlNudge(lvlNumNudges, 5) = v(5)
+                    END IF
+            END SELECT
+        END IF
+    LOOP
+    CLOSE #fh
+    FOR k = 0 TO MAP_SIZE - 1 ' (short rows, or missing ones, are padded with wall)
+        IF LEN(lvlRow$(k)) < MAP_SIZE THEN lvlRow$(k) = lvlRow$(k) + STRING$(MAP_SIZE - LEN(lvlRow$(k)), "#")
+        lvlFloorRow$(k) = LEFT$(lvlFloorRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE) ' (heights: the usual where none's given)
+        lvlCeilRow$(k) = LEFT$(lvlCeilRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE)
+        lvlLiqRow$(k) = LEFT$(lvlLiqRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE) ' (liquids: none where none's given)
+        lvlLiqDRow$(k) = LEFT$(lvlLiqDRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE)
+    NEXT
+    lvlOK = (rows > 0)
+END SUB
+
+' One line of [faces]: x, y, face (E S W N, LE LS LW LN, F or C), how it's
+' divided (0, 1 left|right, 2 top|bottom), its picture - and the second
+' half's
+SUB TakeFace(l$)
+    f = FaceCode(ListItem$(l$, 3)) : IF f = 0 THEN EXIT SUB
+    EditSetFace VAL(ListItem$(l$, 1)), VAL(ListItem$(l$, 2)), f, VAL(ListItem$(l$, 4)), ListItem$(l$, 5), ListItem$(l$, 6)
+END SUB
+
+FUNCTION FaceCode(f$)
+    FaceCode = 0
+    SELECT CASE UCASE$(f$)
+        CASE "E" : FaceCode = 1
+        CASE "S" : FaceCode = 2
+        CASE "W" : FaceCode = 3
+        CASE "N" : FaceCode = 4
+        CASE "LE" : FaceCode = 5
+        CASE "LS" : FaceCode = 6
+        CASE "LW" : FaceCode = 7
+        CASE "LN" : FaceCode = 8
+        CASE "F" : FaceCode = 9
+        CASE "C" : FaceCode = 10
+        CASE "BE" : FaceCode = FACE_BOX + 1 ' (a box's sides)
+        CASE "BS" : FaceCode = FACE_BOX + 2
+        CASE "BW" : FaceCode = FACE_BOX + 3
+        CASE "BN" : FaceCode = FACE_BOX + 4
+    END SELECT
+END FUNCTION
+
+FUNCTION FaceName$(f)
+    FaceName$ = RTRIM$(MID$("E S W N LELSLWLNF C BEBSBWBN", f * 2 - 1, 2))
+END FUNCTION
+
+' The picture slot for face f of cell (x, y) at (u, v) on it - u across as
+' you see it, v down from the top, 0 to 1 - its own (or its half's, if
+' it's divided), else deflt, the usual
+FUNCTION FaceSlot(x, y, f, u, v, deflt)
+    sl = faceTex(x, y, f)
+    SELECT CASE faceDiv(x, y, f)
+        CASE 1 : IF u >= 0.5 THEN sl = faceTex2(x, y, f)
+        CASE 2 : IF v >= 0.5 THEN sl = faceTex2(x, y, f)
+    END SELECT
+    IF sl THEN FaceSlot = sl ELSE FaceSlot = deflt
+END FUNCTION
+
+' Which side of cell (x, y) looks towards the cell next to it, (tx, ty):
+' 1 east, 2 south, 3 west, 4 north
+FUNCTION SideToward(x, y, tx, ty)
+    IF tx > x THEN SideToward = 1 ELSE IF ty > y THEN SideToward = 2 ELSE IF tx < x THEN SideToward = 3 ELSE SideToward = 4
+END FUNCTION
+
+' Which face of [faces] is (x, y)'s f - 0: none of its own
+FUNCTION FaceIndex(x, y, f)
+    FaceIndex = 0
+    FOR j = 1 TO lvlNumFaces
+        IF lvlFaceX(j) = x AND lvlFaceY(j) = y AND lvlFaceS(j) = f THEN FaceIndex = j : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Write the level (lvlName$ ... lvlRow$()) to file f$, in the format
+' ReadLevelFile reads (chapter 22)
+SUB WriteLevelFile(f$)
+    o$ = "" : nl$ = CHR$(10) ' (built up in o$, then written in one go - with plain line ends, as Linux has them)
+    o$ = o$ + "' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every" + nl$
+    o$ = o$ + "' part of it. Lines starting with ' are comments. The level kit" + nl$
+    o$ = o$ + "' (levels.py --write) and the editor in the game write these files." + nl$
+    o$ = o$ + lvlNote$ + nl$
+    o$ = o$ + "name     = " + lvlName$ + nl$
+    IF lvlPuzzles$ <> "" THEN o$ = o$ + "puzzles  = " + lvlPuzzles$ + nl$
+    IF lvlDroids >= 0 THEN o$ = o$ + "droids   = " + LTRIM$(STR$(lvlDroids)) + nl$
+    l$ = "" : FOR k = 1 TO 6 : l$ = l$ + lvlWall$(k) + MID$(", ", 1, -2 * (k < 6)) : NEXT : o$ = o$ + "walls    = " + l$ + nl$
+    l$ = "" : FOR k = 1 TO 4 : l$ = l$ + lvlFloor$(k) + MID$(", ", 1, -2 * (k < 4)) : NEXT : o$ = o$ + "floors   = " + l$ + nl$
+    o$ = o$ + "ceilings = " + lvlCeil$(1) + ", " + lvlCeil$(2) + nl$
+    o$ = o$ + "ambient  = " + NumList$(lvlAmb(1), lvlAmb(2), lvlAmb(3), lvlAmb(4)) + nl$
+    o$ = o$ + "" + nl$ : o$ = o$ + "[zones]" + nl$ : o$ = o$ + "' x0, y0, x1, y1, floor, ceiling, shape" + nl$
+    FOR k = 1 TO lvlNumZones
+        l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlZone(k, j))) + MID$(", ", 1, -2 * (j < 7)) : NEXT : o$ = o$ + l$ + nl$
+    NEXT
+    o$ = o$ + "" + nl$ : o$ = o$ + "[lights]" + nl$ : o$ = o$ + "' x, y, radius, brightness, red, green, blue, effect" + nl$
+    FOR k = 1 TO lvlNumLights
+        l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlLight(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT : o$ = o$ + l$ + nl$
+    NEXT
+    o$ = o$ + "" + nl$ : o$ = o$ + "[events]" + nl$ : o$ = o$ + "' kind, x0, y0, x1, y1, a, b, reward" + nl$
+    FOR k = 1 TO lvlNumEvents
+        l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlEvent(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT : o$ = o$ + l$ + nl$
+    NEXT
+    IF lvlNumLifts THEN
+        o$ = o$ + nl$ + "[lifts]" + nl$ + "' x0, y0, x1, y1, low, high (eighths of a wall), mode (1 up and down, 2 an elevator, 3 on a trigger: liftgo), speed (eighths a second)" + nl$
+        FOR k = 1 TO lvlNumLifts
+            l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlLift(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT : o$ = o$ + l$ + nl$
+        NEXT
+    END IF
+    IF lvlNumTrigs THEN
+        o$ = o$ + nl$ + "[triggers]" + nl$ + "' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ..." + nl$
+        FOR k = 1 TO lvlNumTrigs : o$ = o$ + lvlTrig$(k) + nl$ : NEXT
+    END IF
+    IF lvlMonN THEN
+        o$ = o$ + nl$ + "[monsters]" + nl$ + "' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)" + nl$
+        FOR k = 1 TO lvlMonN
+            l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlMon(k, j))) + MID$(", ", 1, -2 * (j < 7)) : NEXT : o$ = o$ + l$ + nl$
+        NEXT
+    END IF
+    IF lvlNumPairs THEN
+        o$ = o$ + nl$ + "[pads]" + nl$ + "' teleporters paired by hand: x1, y1, x2, y2 (the rest pair up in reading order)" + nl$
+        FOR k = 1 TO lvlNumPairs : o$ = o$ + LTRIM$(STR$(lvlPair(k, 1))) + ", " + LTRIM$(STR$(lvlPair(k, 2))) + ", " + LTRIM$(STR$(lvlPair(k, 3))) + ", " + LTRIM$(STR$(lvlPair(k, 4))) + nl$ : NEXT
+    END IF
+    IF lvlNumBoxes THEN
+        o$ = o$ + nl$ + "[blocks]" + nl$ + "' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)" + nl$
+        FOR k = 1 TO lvlNumBoxes
+            l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlBox(k, j))) : IF j < 7 THEN l$ = l$ + ", "
+            NEXT : o$ = o$ + l$ + nl$
+        NEXT
+    END IF
+    IF lvlNumNudges THEN
+        o$ = o$ + nl$ + "[nudges]" + nl$ + "' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)" + nl$
+        FOR k = 1 TO lvlNumNudges : o$ = o$ + LTRIM$(STR$(lvlNudge(k, 1))) + ", " + LTRIM$(STR$(lvlNudge(k, 2))) + ", " + LTRIM$(STR$(lvlNudge(k, 3))) + ", " + LTRIM$(STR$(lvlNudge(k, 4))) + ", " + LTRIM$(STR$(lvlNudge(k, 5))) + nl$ : NEXT
+    END IF
+    IF lvlNumLoot THEN
+        o$ = o$ + nl$ + "[loot]" + nl$ + LOOT_HELP$ + nl$
+        FOR k = 1 TO lvlNumLoot : o$ = o$ + lvlLoot$(k) + nl$ : NEXT
+    END IF
+    IF lvlNumFaces THEN
+        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture" + nl$
+        FOR k = 1 TO lvlNumFaces
+            o$ = o$ + LTRIM$(STR$(lvlFaceX(k))) + ", " + LTRIM$(STR$(lvlFaceY(k))) + ", " + FaceName$(lvlFaceS(k)) + ", " + LTRIM$(STR$(lvlFaceD(k))) + ", " + lvlFaceP1$(k)
+            IF lvlFaceP2$(k) <> "" THEN o$ = o$ + ", " + lvlFaceP2$(k)
+            o$ = o$ + nl$
+        NEXT
+    END IF
+    o$ = o$ + "" + nl$ : o$ = o$ + "[map]" + nl$
+    FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlRow$(y) + nl$ : NEXT
+    ' The heights - only if there are any
+    anyF = 0 : anyC = 0
+    FOR y = 0 TO MAP_SIZE - 1
+        IF lvlFloorRow$(y) <> STRING$(MAP_SIZE, ".") THEN anyF = -1
+        IF lvlCeilRow$(y) <> STRING$(MAP_SIZE, ".") THEN anyC = -1
+    NEXT
+    IF anyF THEN
+        o$ = o$ + nl$ + "[floor]" + nl$ + "' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down" + nl$
+        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlFloorRow$(y) + nl$ : NEXT
+    END IF
+    IF anyC THEN
+        o$ = o$ + nl$ + "[ceiling]" + nl$ + "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's" + nl$
+        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlCeilRow$(y) + nl$ : NEXT
+    END IF
+    IF LiquidRowsAny THEN ' The liquids - only if there are any
+        o$ = o$ + nl$ + "[liquid]" + nl$ + "' each cell's liquid: . none, w water, p poison, s slime, l lava, a acid" + nl$
+        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlLiqRow$(y) + nl$ : NEXT
+        o$ = o$ + nl$ + "[liquid depth]" + nl$ + "' how deep, in eighths of a wall: . is" + STR$(LQ_DEPTH) + ", or 1-8" + nl$
+        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlLiqDRow$(y) + nl$ : NEXT
+    END IF
+    IF _FILEEXISTS(f$) THEN KILL f$
+    fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+END SUB

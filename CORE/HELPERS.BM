@@ -1,0 +1,75 @@
+''
+' NEON-CASTER - CORE/HELPERS.BM
+' =============================================================================
+' Chapter 23: the small helpers used everywhere - MinOf, MaxOf, times,
+' colours.
+'
+
+'-----------------------------------------------------------------------------
+' CHAPTER 23: THE HELPERS
+'-----------------------------------------------------------------------------
+' The SUBs and FUNCTIONs the rest of the game calls, grouped by what they're
+' for. QB64PE doesn't mind what order they're in, and each one only sees its
+' own variables (plus the DIM SHARED ones, and anything it lists as SHARED).
+
+
+' Colour col pushed toward tintCol by amount! (0-1), keeping its light and
+' dark: a bright pixel of a grey card becomes bright red, a dark one dark red.
+FUNCTION Tint~&(col AS _UNSIGNED LONG, tintCol AS _UNSIGNED LONG, amount!)
+    lum! = (_RED32(col) + _GREEN32(col) + _BLUE32(col)) / 3 / 255 * 1.6
+    r! = _RED32(col) * (1 - amount!) + _RED32(tintCol) * lum! * amount!
+    g! = _GREEN32(col) * (1 - amount!) + _GREEN32(tintCol) * lum! * amount!
+    b! = _BLUE32(col) * (1 - amount!) + _BLUE32(tintCol) * lum! * amount!
+    IF r! > 255 THEN r! = 255
+    IF g! > 255 THEN g! = 255
+    IF b! > 255 THEN b! = 255
+    Tint~& = _RGBA32(r!, g!, b!, _ALPHA32(col))
+END FUNCTION
+
+' Darken a colour: its red, green and blue times amount/256 (amount 0-256).
+' This runs for every pixel of every frame, so it's done with a trick: in
+' &HAARRGGBB, red and blue are 16 bits apart, so masking with &HFF00FF and
+' multiplying darkens both at once without them spilling into each other.
+' Green is done on its own the same way, and alpha is set back to solid.
+FUNCTION Shade~&(col AS _UNSIGNED LONG, amount AS LONG)
+    DIM redBlue AS _INTEGER64, green AS _INTEGER64
+    redBlue = col AND &HFF00FF : green = col AND &HFF00&
+    Shade~& = &HFF000000~& OR ((redBlue * amount \ 256) AND &HFF00FF) OR ((green * amount \ 256) AND &HFF00&)
+END FUNCTION
+
+' The smaller of two numbers
+FUNCTION MinOf(a, b)
+    IF a < b THEN MinOf = a ELSE MinOf = b
+END FUNCTION
+FUNCTION MaxOf(a, b)
+    IF a > b THEN MaxOf = a ELSE MaxOf = b
+END FUNCTION
+
+' Every pixel of image img& made solid (alpha 255)
+SUB SetOpaque(img&)
+    DIM m AS _MEM : m = _MEMIMAGE(img&)
+    FOR o& = 3 TO m.SIZE - 1 STEP 4 : _MEMPUT m, m.OFFSET + o&, 255 AS _UNSIGNED _BYTE : NEXT
+    _MEMFREE m
+END SUB
+
+' A filled circle, one LINE per row: each row is half as wide as Pythagoras
+' says (halfW = SQR(radius^2 - dy^2)). With an _RGBA32 colour it's
+' see-through, which is how the muzzle flash glows.
+SUB FillCircle(centerX, centerY, radius, col~&)
+    FOR dy = - radius TO radius
+        halfW = SQR(radius * radius - dy * dy)
+        LINE (centerX - halfW, centerY + dy)-(centerX + halfW, centerY + dy), col~&
+    NEXT
+END SUB
+
+' Seconds as m:ss
+FUNCTION TimeText$(secs!)
+    mins = INT(secs! / 60) : s = INT(secs!) MOD 60
+    TimeText$ = LTRIM$(STR$(mins)) + ":" + RIGHT$("0" + LTRIM$(STR$(s)), 2)
+END FUNCTION
+
+
+FUNCTION BitCount(v&)
+    n = 0 : FOR b = 0 TO 30 : IF v& AND 2 ^ b THEN n = n + 1
+    NEXT : BitCount = n
+END FUNCTION

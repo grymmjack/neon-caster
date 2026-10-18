@@ -1,0 +1,110 @@
+''
+' NEON-CASTER - CORE/KEYS.BM
+' =============================================================================
+' Reading keys: held, by where they are on the keyboard, and their names.
+'
+
+' --- A key was pressed while a key binding waits for one: that's its new
+' key (Esc changes nothing). If another action had that key, it gets this
+' one's old key, so no two actions ever share a key.
+CaptureKey:
+IF keyCode& <> 27 THEN
+    newKey& = keyCode& : IF newKey& >= 65 AND newKey& <= 90 THEN newKey& = newKey& + 32 ' Letters: lower case
+    bindNum = miRef(menuCapture) : oldKey& = keyBind&(bindNum)
+    FOR b = 1 TO NUM_BINDS
+        IF b <> bindNum AND keyBind&(b) = newKey& THEN keyBind&(b) = oldKey&
+    NEXT
+    keyBind&(bindNum) = newKey&
+    PlaySfx sndMenuSelect&, 0.6
+ELSE
+    PlaySfx sndMenuBack&, 0.6
+END IF
+menuCapture = 0
+RETURN
+
+' One key binding (chapter 6): its number, its name in the settings file,
+' its menu label, and its key to start with
+SUB DefineBind(bindNum, iniName$, label$, code&)
+    bindKey$(bindNum) = iniName$ : bindLabel$(bindNum) = label$
+    bindDefault&(bindNum) = code& : keyBind&(bindNum) = code&
+END SUB
+
+' Is the key bound to bindNum held down? Letters are stored lower case, so
+' check the upper-case code too (it's what _KEYDOWN sees with Shift held).
+'
+' A letter key is two codes - "w" and, with Shift, "W" - so either counts.
+' But QB64PE can lose one: hold W, press or let go of Shift, and the key's
+' repeats switch from one code to the other; letting go of W then lets go
+' of the new one only, and the old one stays "held" forever (you'd keep
+' walking). So a letter also has to be held where it sits on the keyboard
+' (KeyAt%) - and holding Shift to run works. (Only once the keyboard device
+' has shown it works - keyTrusted, the first time it agrees with a key
+' that's really down. Until then, or without it, letters work as before.)
+FUNCTION KeyHeld%(bindNum)
+    code& = keyBind&(bindNum)
+    IF code& >= 97 AND code& <= 122 THEN
+        typed = _KEYDOWN(code&) OR _KEYDOWN(code& - 32)
+        IF keyDevice THEN
+            here = KeyAt%(code&)
+            IF here AND typed THEN keyTrusted = -1
+            IF keyTrusted THEN typed = typed AND here
+        END IF
+        KeyHeld% = typed
+    ELSE
+        KeyHeld% = _KEYDOWN(code&)
+    END IF
+END FUNCTION
+
+' A digit key (1-9, 0): by what it types, or - since Shift + 1 types "!",
+' and you might be running - by where it is
+FUNCTION DigitHeld%(code&)
+    DigitHeld% = _KEYDOWN(code&)
+    IF keyTrusted THEN IF KeyAt%(code&) THEN DigitHeld% = -1
+END FUNCTION
+
+' Is the key that types code& (a lower case letter, or a digit) held down
+' - by where it is on the keyboard, not what it types, so Shift doesn't
+' change it (Shift + 1 types "!")? QB64PE's keyboard "device" (_DEVICES,
+' found at the start: keyDevice) reports keys by their scancode, a number
+' for each place on the keyboard: _DEVICEINPUT(1) takes its news (we take
+' all of it, to be up to date), and _BUTTON(n) is a key. Which n is the
+' system's own number for the key, plus 1: on Windows the PC's scancode,
+' on Linux the same plus 8 (keyScanAdd, set at the start). 0 without the
+' device.
+FUNCTION KeyAt%(code&)
+    IF keyDevice = 0 THEN EXIT FUNCTION
+    SELECT CASE code&
+        CASE 97 TO 122 : scan = ASC(MID$(LETTER_SCANS, code& - 96, 1)) - 32
+        CASE 49 TO 57 : scan = code& - 47 ' 1-9 sit at scancodes 2-10
+        CASE 48 : scan = 11
+        CASE ELSE : EXIT FUNCTION
+    END SELECT
+    DO WHILE _DEVICEINPUT(1) : LOOP
+    KeyAt% = _BUTTON(scan + keyScanAdd + 1)
+END FUNCTION
+
+' A key code's name, for the menu and the settings file
+FUNCTION KeyName$(code&)
+    SELECT CASE code&
+        CASE 97 TO 122 : KeyName$ = CHR$(code& - 32)
+        CASE 32 : KeyName$ = "SPACE"
+        CASE 13 : KeyName$ = "ENTER"
+        CASE 9 : KeyName$ = "TAB"
+        CASE 8 : KeyName$ = "BACKSPACE"
+        CASE 18432 : KeyName$ = "UP"
+        CASE 20480 : KeyName$ = "DOWN"
+        CASE 19200 : KeyName$ = "LEFT"
+        CASE 19712 : KeyName$ = "RIGHT"
+        CASE 100306 : KeyName$ = "LEFT CTRL"
+        CASE 100305 : KeyName$ = "RIGHT CTRL"
+        CASE 100304 : KeyName$ = "LEFT SHIFT"
+        CASE 100303 : KeyName$ = "RIGHT SHIFT"
+        CASE 100308 : KeyName$ = "LEFT ALT"
+        CASE 100307 : KeyName$ = "RIGHT ALT"
+        CASE 15104 TO 17408 : KeyName$ = "F" + LTRIM$(STR$((code& - 15104) \ 256 + 1)) ' F1-F10
+        CASE 34048 : KeyName$ = "F11"
+        CASE 34304 : KeyName$ = "F12"
+        CASE 33 TO 126 : KeyName$ = CHR$(code&)
+        CASE ELSE : KeyName$ = "KEY" + STR$(code&)
+    END SELECT
+END FUNCTION

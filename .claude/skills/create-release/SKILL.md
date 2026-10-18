@@ -18,7 +18,7 @@ Ask the user:
 > "Is this a **major**, **minor**, or **patch** release?"
 > (major = breaking/large new features, minor = new features, patch = bug fixes / polish)
 
-Parse the current version from `neon-caster.bas`:
+Parse the current version from `CORE/WINDOW.BI`:
 
 ```
 CONST GAME_VERSION$ = "X.Y.Z"
@@ -64,7 +64,7 @@ Produce a deduplicated, categorised list of changes:
 
 ---
 
-## Step 3 — Update `neon-caster.bas`
+## Step 3 — Update the version in `CORE/WINDOW.BI`
 
 Replace:
 
@@ -79,6 +79,8 @@ CONST GAME_VERSION$ = "A.B.C"
 ```
 
 (It shows in the window title, the bottom right of the menu, and the console's `version` command.)
+
+The shipped demos (`neon-caster/demos/sector*.ncd`) say which version made them (`version X.Y.Z`), and playing one made with another version prints a warning. Once they've been replayed in step on the new build (`+playdemo sectorN quit` exits 0), change their `version` line to `A.B.C` too.
 
 ---
 

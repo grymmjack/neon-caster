@@ -1,0 +1,871 @@
+''
+' NEON-CASTER - RENDER/PICTURES.BM
+' =============================================================================
+' Pictures: loading them (LoadPictures, ArtReload) and making the ones
+' that are drawn rather than loaded.
+'
+
+' === PICTURES AND COLOUR ======================================================
+
+' --- CHAPTER 6's pictures, all of them (and again when ART changes) -----
+' These are the ones every level shares. Some pictures are made rather than loaded: the keycards and key doors are
+' one picture tinted three colours, each monster gets a second, red-washed
+' copy to flash when it's hit, and the bolt is drawn with maths (MakeBolt).
+LoadPictures:
+LoadTex "door.png", T_DOOR
+LoadTex "door-shutter.png", T_SHUTTER
+LoadTex "door-split.png", T_SPLIT
+LoadTex "exit.png", T_EXIT : ExitSign
+LoadTex "ceiling-lamp.png", T_LAMP : MakeLampOff
+LoadTex "wall-jack.png", T_JACK ' (a data station)
+LoadTex "wall-code.png", T_CODE ' (a code terminal)
+MakeDoneTex T_JACK, T_JACKOK, "CLEARED", 2 : MakeDoneTex T_CODE, T_CODEOK, "UNLOCKED", 1 ' (...and each, done)
+LoadCards "keycard.png"
+LoadSprite "medkit.png", 4
+LoadSprite "ammo.png", 5
+LoadSprite "shells.png", 6
+LoadSprite "pickup-scatter.png", 7
+LoadSprite "pickup-repeater.png", 8
+LoadSprite "drone.png", 9
+LoadSprite "gunner.png", 11
+LoadSprite "heavy.png", 13
+LoadSprite "crawler.png", 15
+LoadSprite "sentry.png", 17
+FOR slot = 9 TO 17 STEP 2 : MakeHurt slot, slot + 1 : NEXT ' (each one's hit flash, in the next slot)
+MakeBolt S_BOLT
+LoadSprite "barrel.png", S_DECO + 1
+LoadSprite "lamp.png", S_DECO + 2
+LoadSprite "plant.png", S_DECO + 3
+LoadSprite "terminal.png", S_DECO + 4
+LoadSprite "crate.png", DecoSlot(5) : LoadSprite "rack.png", DecoSlot(6)
+LoadSprite "vending.png", DecoSlot(7) : LoadSprite "tank.png", DecoSlot(8) : LoadSprite "spawner.png", DecoSlot(9)
+' The set pieces (10-19): desk, control console, monitor bank, specimen
+' tank, lab bench, generator, cryo pod, hologram, lockers, bench
+FOR k = 10 TO DECO_KINDS : LoadSprite DecoFile$(k), DecoSlot(k) : NEXT
+LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE) : LoadSprite "goggles.png", ItemSprite(IT_GOGGLES)
+MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
+MakePad S_PAD ' (a teleporter's pad)
+LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
+LoadSprite "droid1.png", S_DROID : LoadSprite "droid2.png", S_DROID + 1 ' (the droids - and each, broken: MakeScrap)
+MakeScrap S_DROID, S_DROID + 2 : MakeScrap S_DROID + 1, S_DROID + 3
+LoadSprite "explosion.png", S_BLAST : MakeBoomFrames ' (and its animation)
+LoadSprite "armor.png", 25
+LoadSprite "bigmed.png", 26
+LoadSprite "pickup-rail.png", 27
+LoadSprite "map.png", 28
+' The newer monsters' pictures: each, then itself hurt (MakeHurt: flashed red)
+FOR mtype = 6 TO MON_TYPES
+    LoadSprite mtypeName$(mtype) + ".png", mtypeSprite(mtype) : MakeHurt mtypeSprite(mtype), mtypeSprite(mtype) + 1
+NEXT
+FOR mtype = 1 TO MON_TYPES : MakeCorpse mtype : NEXT ' (each one's body, for when it's dead)
+FOR k = 1 TO DECO_KINDS : MakeWreck k : NEXT ' (each decoration, broken)
+FOR mtype = 1 TO MON_TYPES : MakeMonFrames mtype : NEXT ' (each one's animation)
+MakeScorch ' (a scorch mark, for the software renderer's decals)
+LoadGun 1, "gun.png"
+LoadGun 2, "gun-scatter.png"
+LoadGun 3, "gun-repeater.png"
+LoadGun 4, "gun-rail.png"
+glGunVersion = glGunVersion + 1 ' (OpenGL's copies of them, again)
+IF nexusImg& < -1 THEN _FREEIMAGE nexusImg&
+nexusImg& = _LOADIMAGE(ArtPath$("nexus.png"), 32)
+IF kickImg& < -1 THEN _FREEIMAGE kickImg&
+kickImg& = _LOADIMAGE(ArtPath$("kick.png"), 32) ' The boot (chapter 18); missing, there's no boot to see
+RETURN
+
+' --- ART (SETTINGS > VIDEO): every picture again, the size the setting
+' wants (artWant: ApplySettings) - CLASSIC: textures 128 and sprites 64
+' pixels across, the pixel art in neon-caster/; MODERN: the paintings in
+' neon-caster/hd/ (ArtPath$), at 512 and 256 with OpenGL (which draws them
+' smooth), shrunk to 128 and 64 for the software renderer. OpenGL is held
+' off first (artHold, till it says so - glArtAck): it reads these arrays
+' from its own thread, and REDIM moves them.
+ArtReload:
+artHold = -1 : glArtAck = 0
+IF glReady THEN
+    artT0! = TIMER
+    DO WHILE glArtAck = 0 AND ABS(TIMER - artT0!) < 1 : _LIMIT 500 : LOOP
+END IF
+artNow = artWant
+IF artNow = 2 THEN texSize = 512 : sprTex = 256 ELSE texSize = 128 : sprTex = 64
+REDIM texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
+REDIM texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
+REDIM glUpload(texSize * texSize - 1) AS _UNSIGNED LONG
+REDIM spriteTex(sprTex - 1, sprTex - 1, SPR_SLOTS) AS _UNSIGNED LONG
+GOSUB LoadPictures
+FOR k = 1 TO T_SLOTS ' The level's own walls, floors and ceilings, again
+    IF texFile$(k) <> "" AND LEFT$(texFile$(k), 5) <> "glow:" THEN LoadTex texFile$(k), k
+NEXT
+FOR k = 1 TO T_SLOTS ' (and the tinted copies of them, made again from them)
+    IF LEFT$(texFile$(k), 5) = "glow:" THEN MakeGlowTex k
+NEXT
+IF cyberOn THEN CyberTextures -1 ' (in the network: its grid, at the new size)
+MakeLiftTex ' (the lifts' pictures, made again from the new ones)
+glTexVersion = glTexVersion + 1 : glRetexVersion = glRetexVersion + 1
+artHold = 0
+RETURN
+
+' A texture from neon-caster/ (or hd/ - ArtPath$) into texture slot `slot`,
+' texSize pixels square whatever size the picture is (ReadPicture).
+' A lift's own pictures, made from the level's so they match it - and so
+' a lift doesn't look like any other bit of floor. Its top (T_LIFT): floor
+' 1, a little darker, inside a yellow-and-black hazard border. Its sides
+' (T_LIFTSIDE): wall 1, darker, with a hazard band along the top edge -
+' the sides are drawn hanging from the platform's top (GLStep, and
+' HeightColumn's hVOff), so the band rides up and down with it.
+SUB MakeLiftTex
+    t = texSize : b = MaxOf(2, t \ 8) : seam = MaxOf(1, t \ 64)
+    FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
+        stripe = ((x + y) \ b) MOD 2 ' (diagonal bands, b wide)
+        c~& = texture(x, y, T_FLOOR + 1)
+        r = ((c~& \ 65536) AND 255) * 0.7 : g = ((c~& \ 256) AND 255) * 0.7 : bl = (c~& AND 255) * 0.7
+        edge = MinOf(MinOf(x, y), MinOf(t - 1 - x, t - 1 - y))
+        IF edge < b THEN
+            IF stripe THEN r = 25 : g = 22 : bl = 20 ELSE r = 235 : g = 185 : bl = 30
+        ELSEIF edge < b + seam THEN
+            r = r * 0.35 : g = g * 0.35 : bl = bl * 0.35 ' (a dark seam inside it)
+        END IF
+        texture(x, y, T_LIFT) = _RGB32(r, g, bl)
+        c~& = texture(x, y, 1)
+        r = ((c~& \ 65536) AND 255) * 0.75 : g = ((c~& \ 256) AND 255) * 0.75 : bl = (c~& AND 255) * 0.75
+        IF y < t \ 4 THEN
+            IF stripe THEN r = 25 : g = 22 : bl = 20 ELSE r = 235 : g = 185 : bl = 30
+        ELSEIF y < t \ 4 + seam THEN
+            r = r * 0.35 : g = g * 0.35 : bl = bl * 0.35
+        END IF
+        texture(x, y, T_LIFTSIDE) = _RGB32(r, g, bl)
+    NEXT : NEXT
+    texName$(T_LIFT) = "lift" : texName$(T_LIFTSIDE) = "lift" ' (for OpenGL's effects: shiny metal)
+    texHD(T_LIFT) = texHD(T_FLOOR + 1) : texHD(T_LIFTSIDE) = texHD(1)
+    MakeTrapTex : MakeLiquidTex
+END SUB
+
+' The liquids' pictures (T_LIQUID + kind), made rather than loaded, at
+' whatever size the pictures are: one pattern of ripples (liqBase) -
+' waves of whole numbers of wavelengths across, so it tiles - coloured for
+' each kind. Water: dark, with pale glints along the ripples; poison:
+' purple swirls in green; slime: bright and lumpy; lava: a black crust
+' cracked with glowing orange; acid: yellow-green, glinting. OpenGL ripples
+' them as it draws (the world shader's anim 5), see-through (lqSee); the
+' software renderer moves them itself (LiquidAnimate).
+SUB MakeLiquidTex
+    t = texSize
+    FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
+        u = x / t * 6.2831853 : v = y / t * 6.2831853
+        h = SIN(u * 2 + SIN(v * 3) * 1.2) + SIN(v * 2 + SIN(u * 2) * 1.3) + 0.5 * SIN((u + v) * 3 + 1.7) + 0.35 * SIN(u * 5 - v * 4 + SIN(v * 2))
+        liqBase(x, y) = MaxOf(0, MinOf(1, (h + 2.85) / 5.7))
+    NEXT : NEXT
+    FOR k = 1 TO LQ_KINDS
+        FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
+            h = liqBase(x, y) : band = ABS(SIN(h * 14)) : glint = band ^ 10 ' (thin bright lines along the ripples)
+            SELECT CASE k
+                CASE LQ_LAVA ' A crust (low) cracked open on the glow (high)
+                    IF h < 0.5 THEN
+                        f = h / 0.5 : r = 40 + 50 * f : g = 10 + 12 * f : b = 5
+                    ELSE
+                        f = (h - 0.5) / 0.5 : r = 230 + 25 * f : g = 80 + 150 * f * f : b = 10 + 60 * f * f * f
+                    END IF
+                CASE LQ_POISON ' Swirls of its colour in a dark green
+                    f = (SIN(h * 9) + 1) / 2 : r = 30 + (lqR(k) - 30) * f : g = 70 + (lqG(k) - 70) * f : b = 40 + (lqB(k) - 40) * f
+                    r = r + glint * 60 : g = g + glint * 90 : b = b + glint * 60
+                CASE ELSE ' Its colour, darker in the troughs, glinting on the ripples
+                    f = 0.45 + 0.65 * h : r = lqR(k) * f + glint * 90 : g = lqG(k) * f + glint * 90 : b = lqB(k) * f + glint * 90
+                    IF k = LQ_WATER THEN r = r * 0.7 : g = g * 0.8 : b = b * 0.9
+            END SELECT
+            c~& = _RGB32(MaxOf(0, MinOf(255, r)), MaxOf(0, MinOf(255, g)), MaxOf(0, MinOf(255, b)))
+            texture(x, y, T_LIQUID + k) = c~& : liqTex(x, y, k) = c~&
+        NEXT : NEXT
+        texName$(T_LIQUID + k) = "liquid-" + lqName$(k) : texHD(T_LIQUID + k) = texHD(T_FLOOR + 1)
+    NEXT
+    liqTexAt = -1
+END SUB
+
+' The software renderer's liquids, moving: each frame, every liquid's
+' picture drawn again from its still one (liqTex), drifting slowly along
+' and each row swaying a little from side to side - the surface rippling.
+' (OpenGL does the same in its shader, and leaves the pictures alone.)
+SUB LiquidAnimate
+    IF NOT liqTexAt THEN EXIT SUB
+    t = texSize : m = t - 1 : tm = TIMER
+    oy = INT(tm * t * 0.04) : ox = INT(tm * t * 0.025)
+    FOR k = 1 TO LQ_KINDS
+        IF lqUsed(k) THEN
+            slot = T_LIQUID + k
+            FOR y = 0 TO m
+                sx = ox + INT(SIN(y / t * 12.566 + tm * 1.6) * t / 48) ' (this row's sway)
+                sy = (y + oy) AND m
+                FOR x = 0 TO m : texture(x, y, slot) = liqTex((x + sx) AND m, sy, k) : NEXT
+            NEXT
+        END IF
+    NEXT
+END SUB
+
+' A trap's floor, from the level's floor 1 (so it matches) but plainly not
+' safe. T_TRAP: darkened, with a grid of glowing blue wires and a stud at
+' each crossing. T_FIRE: a burner grate - dark bars over slots full of
+' embers, brightest in the middle of each. (OpenGL makes the bright parts
+' flicker or pulse: GLSendTextures.)
+SUB MakeTrapTex
+    t = texSize : cell = MaxOf(4, t \ 4) : wire = MaxOf(1, t \ 64) : slotH = MaxOf(2, t \ 12)
+    FOR y = 0 TO t - 1 : FOR x = 0 TO t - 1
+        c~& = texture(x, y, T_FLOOR + 1)
+        r = ((c~& \ 65536) AND 255) : g = ((c~& \ 256) AND 255) : bl = (c~& AND 255)
+        ' The wires: distance to the nearest grid wire, glowing round it
+        dx = (x + cell \ 2) MOD cell : dx = MinOf(dx, cell - dx) : dy = (y + cell \ 2) MOD cell : dy = MinOf(dy, cell - dy)
+        dw = MinOf(dx, dy)
+        er = r * 0.4 : eg = g * 0.4 : eb = bl * 0.45
+        IF dw <= wire THEN
+            er = 90 : eg = 190 : eb = 255
+        ELSEIF dw <= wire * 3 THEN
+            k = 1 - (dw - wire) / (wire * 2) : er = er + 30 * k : eg = eg + 80 * k : eb = eb + 140 * k
+        END IF
+        IF dx <= wire * 2 AND dy <= wire * 2 THEN er = 200 : eg = 220 : eb = 230 ' (a stud)
+        texture(x, y, T_TRAP) = _RGB32(MinOf(255, er), MinOf(255, eg), MinOf(255, eb))
+        ' The grate: a slot every cell/2 rows, embers in it, dark bars between
+        fr = r * 0.3 : fg = g * 0.28 : fb = bl * 0.26
+        sy = y MOD (cell \ 2)
+        IF sy >= wire * 2 AND sy < wire * 2 + slotH AND (x MOD cell) > wire AND (x MOD cell) < cell - wire THEN
+            k = 1 - ABS((sy - wire * 2) / slotH - 0.5) * 2 ' (brightest in the middle of the slot)
+            fr = 140 + 115 * k : fg = 40 + 90 * k * k : fb = 10 + 20 * k * k * k
+        END IF
+        texture(x, y, T_FIRE) = _RGB32(MinOf(255, fr), MinOf(255, fg), MinOf(255, fb))
+    NEXT : NEXT
+    texName$(T_TRAP) = "trap" : texName$(T_FIRE) = "trap" ' (not "lava": the grate itself doesn't burn - the trap does, when it's live)
+    texHD(T_TRAP) = texHD(T_FLOOR + 1) : texHD(T_FIRE) = texHD(T_FLOOR + 1)
+END SUB
+
+' A tinted copy of a picture, for a face with a light on it: texFile$(slot)
+' says which and how - "glow:BASE:R,G,B:AMOUNT:EFFECT" - each pixel mixed
+' AMOUNT% towards the colour (by how bright the pixel is, so the picture
+' shows through). Named for OpenGL: "faceglow-" and the effect
+' (GLSendTextures lights it itself, and moves it as the light moves).
+SUB MakeGlowTex(slot)
+    k$ = texFile$(slot) + ":" : k$ = MID$(k$, 6)
+    c = INSTR(k$, ":") : baseSl = VAL(LEFT$(k$, c - 1)) : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : rgb$ = LEFT$(k$, c - 1) : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : a = VAL(LEFT$(k$, c - 1)) / 100 : fx = VAL(MID$(k$, c + 1))
+    tr = VAL(ListItem$(rgb$, 1)) : tg = VAL(ListItem$(rgb$, 2)) : tb = VAL(ListItem$(rgb$, 3))
+    IF baseSl < 1 OR baseSl > T_SLOTS THEN baseSl = 1
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
+        col~& = texture(x, y, baseSl)
+        r = (col~& \ 65536) AND 255 : g = (col~& \ 256) AND 255 : b = col~& AND 255
+        lum = (r * 0.3 + g * 0.59 + b * 0.11) / 255 * 0.7 + 0.5
+        r = r + (tr * lum - r) * a : g = g + (tg * lum - g) * a : b = b + (tb * lum - b) * a
+        IF r > 255 THEN r = 255
+        IF g > 255 THEN g = 255
+        IF b > 255 THEN b = 255
+        texture(x, y, slot) = &HFF000000~& OR (INT(r) * 65536) OR (INT(g) * 256) OR INT(b)
+    NEXT : NEXT
+    texHD(slot) = texHD(baseSl)
+    texName$(slot) = "faceglow-" + LCASE$(RTRIM$(MID$("steady  flicker pulse   strobe  fire    dying   ", fx * 8 + 1, 8)))
+END SUB
+
+SUB LoadTex(file$, slot AS INTEGER)
+    texName$(slot) = LCASE$(file$) ' (what it is, for OpenGL's effects - chapter 24)
+    texSky(slot) = (LEFT$(LCASE$(file$), 4) = "sky-") ' (a sky: drawn by the way you look)
+    path$ = ArtPath$(file$) : texHD(slot) = INSTR(path$, "hd/") > 0
+    img& = _LOADIMAGE(path$, 32)
+    IF img& >= -1 THEN PRINT "Missing texture: "; path$ : SLEEP : SYSTEM
+    ReadPicture img&, texSize, 0, slot
+    _FREEIMAGE img&
+END SUB
+
+' A sprite picture from neon-caster/ (or hd/) into spriteTex slot `slot`
+' (up to sprTex pixels square - bigger pictures are shrunk). Pixels keep
+' their alpha, so the sprite drawing (chapter 16) can skip the see-through
+' ones.
+SUB LoadSprite(file$, slot)
+    path$ = ArtPath$(file$)
+    img& = _LOADIMAGE(path$, 32)
+    IF img& >= -1 THEN PRINT "Missing texture: "; path$ : SLEEP : SYSTEM
+    sprSize = _WIDTH(img&) : IF sprSize > sprTex THEN sprSize = sprTex
+    spriteSize(slot) = sprSize
+    ReadPicture img&, sprSize, 1, slot
+    _FREEIMAGE img&
+END SUB
+
+' Where a picture is: with MODERN art (ART, SETTINGS > VIDEO), its
+' painting in neon-caster/hd/ if there is one - else the pixel art in
+' neon-caster/. Same name in both folders.
+FUNCTION ArtPath$(file$)
+    IF artNow > 0 THEN
+        p$ = AssetPath$("hd/" + file$)
+        IF _FILEEXISTS(p$) THEN ArtPath$ = p$ : EXIT FUNCTION
+    END IF
+    ArtPath$ = AssetPath$(file$)
+END FUNCTION
+
+' Picture img& into a size x size square of texture() (dst 0) or
+' spriteTex() (dst 1), slot slot. Shrinking, each new pixel is the
+' average of the old ones it covers (a MODERN painting shrinks smoothly,
+' not in jagged steps), see-through ones counting for nothing (so edges
+' don't darken); growing, each is just the old pixel under it (pixel art
+' keeps its square pixels). _MEMIMAGE reads the picture's memory - far
+' quicker than POINT, which matters for a 1024-pixel painting.
+SUB ReadPicture(img&, size, dst, slot)
+    DIM m AS _MEM, c AS _UNSIGNED LONG, w AS LONG, h AS LONG, x AS LONG, y AS LONG, sx AS LONG, sy AS LONG
+    DIM sx0 AS LONG, sx1 AS LONG, sy0 AS LONG, sy1 AS LONG, ca AS LONG, r AS LONG, g AS LONG, b AS LONG, a AS LONG, n AS LONG
+    m = _MEMIMAGE(img&) : w = _WIDTH(img&) : h = _HEIGHT(img&)
+    FOR y = 0 TO size - 1
+        sy0 = y * h \ size : sy1 = (y + 1) * h \ size - 1 : IF sy1 < sy0 THEN sy1 = sy0
+        FOR x = 0 TO size - 1
+            sx0 = x * w \ size : sx1 = (x + 1) * w \ size - 1 : IF sx1 < sx0 THEN sx1 = sx0
+            r = 0 : g = 0 : b = 0 : a = 0 : n = 0
+            FOR sy = sy0 TO sy1 : FOR sx = sx0 TO sx1
+                c = _MEMGET(m, m.OFFSET + (sy * w + sx) * 4, _UNSIGNED LONG) : ca = _SHR(c, 24)
+                r = r + (_SHR(c, 16) AND 255) * ca : g = g + (_SHR(c, 8) AND 255) * ca : b = b + (c AND 255) * ca
+                a = a + ca : n = n + 1
+            NEXT : NEXT
+            IF a > 0 THEN c = _RGBA32(r \ a, g \ a, b \ a, a \ n) ELSE c = 0
+            IF dst = 0 THEN texture(x, y, slot) = c ELSE spriteTex(x, y, slot) = c
+        NEXT
+    NEXT
+    _MEMFREE m
+END SUB
+
+' A monster's hit flash: its picture (slot src) washed hot red, into dst
+SUB MakeHurt(src, dst)
+    FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
+        spriteTex(x, y, dst) = Tint~&(spriteTex(x, y, src), _RGB32(255, 90, 70), 0.7)
+    NEXT : NEXT
+    spriteSize(dst) = spriteSize(src)
+END SUB
+
+' A monster's body, for when it's dead, into sprite slot S_CORPSE + mtype:
+' its own picture, dead-<name>.png (a heap of wreckage, drawn in the same
+' style), if there is one - else its living picture turned on its side,
+' as if it fell over. Either way it's cropped to what's there (the
+' see-through edges cut off) and stretched to fill the square (a sprite's
+' picture is square - chapter 16), then drawn squashed back (corpseSquash:
+' its height over its width) at its own width (corpseScale).
+SUB MakeCorpse(mtype)
+    src = mtypeSprite(mtype) : sz = spriteSize(src) : dst = S_CORPSE + mtype
+    IF _FILEEXISTS(AssetPath$("dead-" + mtypeName$(mtype) + ".png")) THEN
+        ' How wide the monster is in its picture: its body is drawn that wide
+        mx0 = sz : mx1 = -1
+        FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+            IF _ALPHA32(spriteTex(x, y, src)) > 128 THEN
+                IF x < mx0 THEN mx0 = x
+                IF x > mx1 THEN mx1 = x
+            END IF
+        NEXT : NEXT
+        IF mx1 < mx0 THEN mx0 = 0 : mx1 = sz - 1
+        LoadSprite "dead-" + mtypeName$(mtype) + ".png", dst
+        dsz = spriteSize(dst) : x0 = dsz : y0 = dsz : x1 = -1 : y1 = -1
+        FOR y = 0 TO dsz - 1 : FOR x = 0 TO dsz - 1
+            IF _ALPHA32(spriteTex(x, y, dst)) > 128 THEN
+                IF x < x0 THEN x0 = x
+                IF x > x1 THEN x1 = x
+                IF y < y0 THEN y0 = y
+                IF y > y1 THEN y1 = y
+            END IF
+        NEXT : NEXT
+        IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = dsz - 1 : y1 = dsz - 1
+        w = x1 - x0 + 1 : h = y1 - y0 + 1
+        DIM crop(sprTex - 1, sprTex - 1) AS _UNSIGNED LONG
+        FOR ny = 0 TO w - 1 : FOR nx = 0 TO w - 1
+            crop(nx, ny) = spriteTex(x0 + nx, y0 + ny * h \ w, dst)
+        NEXT : NEXT
+        FOR ny = 0 TO w - 1 : FOR nx = 0 TO w - 1 : spriteTex(nx, ny, dst) = crop(nx, ny) : NEXT : NEXT
+        spriteSize(dst) = w
+        corpseScale(mtype) = mtypeScale(mtype) * (mx1 - mx0 + 1) / sz * 1.15 : corpseSquash(mtype) = h / w
+        EXIT SUB
+    END IF
+    x0 = sz : y0 = sz : x1 = -1 : y1 = -1 ' The monster's own edges
+    FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+        IF _ALPHA32(spriteTex(x, y, src)) > 128 THEN
+            IF x < x0 THEN x0 = x
+            IF x > x1 THEN x1 = x
+            IF y < y0 THEN y0 = y
+            IF y > y1 THEN y1 = y
+        END IF
+    NEXT : NEXT
+    IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = sz - 1 : y1 = sz - 1 ' (an empty picture: all of it)
+    w = x1 - x0 + 1 : h = y1 - y0 + 1
+    ' Turned: the new picture is h across and w down; across it runs from
+    ' the monster's feet (left) to its head (right)
+    cs = h : spriteSize(dst) = cs
+    FOR ny = 0 TO cs - 1 : FOR nx = 0 TO cs - 1
+        down = ny * w \ cs ' (stretched down to fill the square)
+        col~& = spriteTex(x0 + down, y1 - nx, src)
+        IF _ALPHA32(col~&) > 128 THEN col~& = _RGBA32(_RED32(col~&) * 0.6, _GREEN32(col~&) * 0.6, _BLUE32(col~&) * 0.6, 255)
+        spriteTex(nx, ny, dst) = col~&
+    NEXT : NEXT
+    corpseScale(mtype) = mtypeScale(mtype) * h / sz : corpseSquash(mtype) = w / h
+END SUB
+
+' An explosion's animation, into sprite slots S_BOOM + 1 to S_BOOM +
+' BOOM_FRAMES: explosion-1.png to -6.png if they're drawn, else made from
+' explosion.png. Through the six (t goes 0 to 1) the fire spreads out from
+' its middle (pixels further out than reach don't show yet), white-hot at
+' first; then cools - darker, then grey smoke - and breaks up (more and
+' more pixels gone, at random) as it rises.
+SUB MakeBoomFrames
+    src = S_BLAST : sz = spriteSize(src)
+    x0 = sz : y0 = sz : x1 = -1 : y1 = -1
+    FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+        IF _ALPHA32(spriteTex(x, y, src)) > 128 THEN
+            IF x < x0 THEN x0 = x
+            IF x > x1 THEN x1 = x
+            IF y < y0 THEN y0 = y
+            IF y > y1 THEN y1 = y
+        END IF
+    NEXT : NEXT
+    cx = (x0 + x1) / 2 : cy = y0 + (y1 - y0) * 0.6 : far = SQR(((x1 - x0) / 2) ^ 2 + ((y1 - y0) * 0.6) ^ 2) + 1
+    cl = sz \ 16 : IF cl < 1 THEN cl = 1 ' (it breaks up in clumps - 4 x 4 pixels of a 64-pixel picture - not single pixels)
+    DIM clump(sprTex \ cl, sprTex \ cl)
+    FOR k = 1 TO BOOM_FRAMES
+        dst = S_BOOM + k : file$ = "explosion-" + LTRIM$(STR$(k)) + ".png"
+        IF _FILEEXISTS(AssetPath$(file$)) THEN
+            LoadSprite file$, dst
+        ELSE
+            spriteSize(dst) = sz : t = (k - 1) / (BOOM_FRAMES - 1)
+            FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1 : spriteTex(x, y, dst) = 0 : NEXT : NEXT
+            reach = 0.3 + 0.7 * t * 2.5 : IF reach > 1 THEN reach = 1
+            rise = 0 : IF t > 0.5 THEN rise = INT((t - 0.5) * 10 * sz / 64)
+            FOR cy2 = 0 TO sprTex \ cl : FOR cx2 = 0 TO sprTex \ cl : clump(cx2, cy2) = RND : NEXT : NEXT
+            FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+                col~& = spriteTex(x, y, src)
+                IF _ALPHA32(col~&) > 128 AND SQR((x - cx) ^ 2 + (y - cy) ^ 2) / far <= reach THEN
+                    r = _RED32(col~&) : g = _GREEN32(col~&) : b = _BLUE32(col~&)
+                    IF t < 0.3 THEN ' White-hot
+                        r = r + (255 - r) * 0.6 : g = g + (245 - g) * 0.6 : b = b + (190 - b) * 0.6
+                    ELSEIF t > 0.55 THEN ' Cooling to smoke
+                        k2 = (t - 0.55) / 0.45 * 0.95
+                        grey = (r + g + b) / 3 * 0.3 + 15
+                        r = r + (grey - r) * k2 : g = g + (grey * 0.95 - g) * k2 : b = b + (grey * 1.05 - b) * k2
+                    END IF
+                    gone = (t - 0.45) * 1.3 ' (how much has broken up)
+                    IF clump(x \ cl, y \ cl) >= gone AND y - rise >= 0 THEN spriteTex(x, y - rise, dst) = _RGB32(r, g, b)
+                END IF
+            NEXT : NEXT
+        END IF
+    NEXT
+END SUB
+
+' Monster type mtype's animation frame f (0 to ANIM_FRAMES - 1 moving,
+' ANIM_FRAMES attacking): its sprite slot
+FUNCTION MonFrame(mtype, f)
+    MonFrame = S_ANIM + (mtype - 1) * (ANIM_FRAMES + 1) + f + 1
+END FUNCTION
+
+' Each monster's animation - four frames of moving and one of attacking -
+' into its MonFrame slots. A frame drawn by hand wins: <name>-walk1.png to
+' -walk4.png and <name>-attack.png (64 x 64, see-through background, the
+' monster standing in the same place as in <name>.png). Any that aren't
+' there are made here from its picture, the way the old games' artists
+' animated: by moving parts of it a pixel or two.
+'
+' First, where its parts are: its edges (x0..x1, y0..y1) and middle (mx),
+' and its hips - the bottom third is legs. Then for frame f, a step
+' through a cycle (ph, a quarter turn a frame) - each pixel of the picture
+' is moved (MonMove) by what kind of mover it is:
+'   walkers (gunner, heavy)  each leg lifts and swings with its side of the
+'                            body, half a cycle apart; arms swing against
+'                            the legs; the body bobs as each foot lands
+'   the drone                hovers up and down; its arms (the sides)
+'                            flap; its eye pulses
+'   the crawler              legs (the sides) scuttle in alternate pairs
+'   the sentry               its head (the top half) turns side to side;
+'                            its light blinks
+' The attack frame: the whole picture a little bigger (it lunges), and
+' brighter, its reds burning.
+SUB MakeMonFrames(mtype)
+    src = mtypeSprite(mtype) : sz = spriteSize(src) : nm$ = mtypeName$(mtype)
+    x0 = sz : y0 = sz : x1 = -1 : y1 = -1
+    FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+        IF _ALPHA32(spriteTex(x, y, src)) > 128 THEN
+            IF x < x0 THEN x0 = x
+            IF x > x1 THEN x1 = x
+            IF y < y0 THEN y0 = y
+            IF y > y1 THEN y1 = y
+        END IF
+    NEXT : NEXT
+    IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = sz - 1 : y1 = sz - 1
+    mx = (x0 + x1) / 2 : w = x1 - x0 + 1 : h = y1 - y0 + 1 : hip = y0 + h * 0.62
+    monK = sz / 64 : IF monK < 1 THEN monK = 1 ' (MonMove's moves are in a 64-pixel picture's pixels)
+    FOR f = 0 TO ANIM_FRAMES
+        dst = MonFrame(mtype, f)
+        IF f < ANIM_FRAMES THEN file$ = nm$ + "-walk" + LTRIM$(STR$(f + 1)) + ".png" ELSE file$ = nm$ + "-attack.png"
+        IF _FILEEXISTS(AssetPath$(file$)) THEN
+            LoadSprite file$, dst
+        ELSE
+            spriteSize(dst) = sz
+            FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1 : spriteTex(x, y, dst) = 0 : NEXT : NEXT
+            ph = f * 1.5708 ' (a quarter of the cycle a frame)
+            FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+                col~& = spriteTex(x, y, src)
+                IF _ALPHA32(col~&) > 128 THEN
+                    nx = x : ny = y
+                    IF f = ANIM_FRAMES THEN ' Attacking: lunge, flare
+                        nx = INT(mx + (x - mx) * 1.08 + 0.5) : ny = INT(y1 - (y1 - y) * 1.08 + 0.5)
+                        r = _RED32(col~&) : g = _GREEN32(col~&) : b = _BLUE32(col~&)
+                        IF r > 180 AND g < 100 AND b < 110 THEN r = 255 : g = g * 0.6 + 90 : b = b * 0.6 + 70 ' (its red lights burn)
+                        r = r * 1.1 : g = g * 1.1 : b = b * 1.1
+                        IF r > 255 THEN r = 255
+                        IF g > 255 THEN g = 255
+                        IF b > 255 THEN b = 255
+                        col~& = _RGB32(r, g, b)
+                    ELSE
+                        MonMove mtype, x, y, ph, x0, x1, y0, y1, mx, hip, nx, ny, col~&
+                    END IF
+                    IF nx >= 0 AND ny >= 0 AND nx < sz AND ny < sz THEN
+                        ' (the attack frame grows: fill the gaps growing leaves)
+                        spriteTex(nx, ny, dst) = col~&
+                        IF f = ANIM_FRAMES AND nx + 1 < sz THEN IF _ALPHA32(spriteTex(nx + 1, ny, dst)) < 128 THEN spriteTex(nx + 1, ny, dst) = col~&
+                        IF f = ANIM_FRAMES AND ny > 0 THEN IF _ALPHA32(spriteTex(nx, ny - 1, dst)) < 128 THEN spriteTex(nx, ny - 1, dst) = col~&
+                    END IF
+                END IF
+            NEXT : NEXT
+        END IF
+    NEXT
+END SUB
+
+' Where pixel (x, y) of a monster's picture goes in a moving frame, ph
+' through its cycle (MakeMonFrames has the parts), into (nx, ny) - and its
+' colour (col~&) for the drone's eye and the sentry's light
+SUB MonMove(mtype, x, y, ph, x0, x1, y0, y1, mx, hip, nx, ny, col~&)
+    w = x1 - x0 + 1 : h = y1 - y0 + 1
+    side = 1 : IF x < mx THEN side = -1 ' Which side of its middle
+    edge = ABS(x - mx) / (w / 2) ' (0 at the middle, 1 at its edge)
+    nx = x : ny = y
+    r = _RED32(col~&) : g = _GREEN32(col~&) : b = _BLUE32(col~&) : redLight = r > 150 AND r > g * 1.6 AND r > b * 1.6
+    SELECT CASE mtype
+        CASE 2, 3, 6, 7, 9 ' Walkers
+            IF y >= hip THEN ' A leg: lifts (its side's foot off the floor) and swings
+                d = (y - hip) / (y1 - hip + 1) ' (0 at the hip, 1 at the foot)
+                swing = SIN(ph + (side > 0) * 3.14159)
+                lift = swing : IF lift < 0 THEN lift = 0
+                nx = x + INT(COS(ph + (side > 0) * 3.14159) * 3 * d * monK + 0.5) : ny = y - INT(lift * 3 * d * monK + 0.5)
+            ELSE ' The body bobs as a foot lands; arms (its outer quarter) swing against the legs
+                IF ph = 1.5708 OR ph > 4.7 THEN ny = y - INT(monK)
+                IF edge > 0.55 AND y > y0 + h * 0.25 THEN ny = ny + INT(SIN(ph + (side < 0) * 3.14159) * 1.5 * monK + 0.5)
+            END IF
+        CASE 1, 8 ' The drone (and the overseer): hovers, flaps, its eye pulses
+            ny = y + INT(SIN(ph) * 1.5 * monK + 0.5)
+            IF edge > 0.45 THEN ny = ny + INT(SIN(ph * 2) * 2 * edge * monK + 0.5)
+            IF redLight THEN k = 0.75 + 0.25 * SIN(ph) : col~& = _RGB32(r * k + 60 * (1 - k), g * k, b * k)
+        CASE 4 ' The crawler: legs scuttle in alternate pairs
+            IF edge > 0.4 THEN
+                pair = INT(edge * 3) MOD 2 ' (inner and outer legs out of step)
+                ny = y + INT(SIN(ph + pair * 3.14159 + (side > 0) * 1.5708) * 2 * monK + 0.5)
+                nx = x + INT(COS(ph + pair * 3.14159) * side * monK + 0.5)
+            ELSE
+                ny = y + INT(SIN(ph * 2) * 0.6 * monK + 0.5)
+            END IF
+        CASE 5 ' The sentry: its head turns, its light blinks
+            IF y < y0 + h * 0.5 THEN nx = x + INT(SIN(ph) * 1.6 * monK + 0.5)
+            IF redLight THEN IF ph > 3 THEN col~& = _RGB32(r * 0.35, g * 0.35, b * 0.35)
+    END SELECT
+END SUB
+
+' A decoration's wreck: what's left standing once it's broken - the bottom
+' of its picture (how much depends on what it was), its top edge torn
+' ragged, darkened and sooty - into sprite slot S_WRECK + kind, squared up
+' like a monster's body (MakeCorpse): stretched to fill the square, drawn
+' squashed back (wreckSquash) at its own width (wreckScale).
+SUB MakeWreck(kind)
+    src = DecoSlot(kind) : sz = spriteSize(src) : dst = S_WRECK + kind
+    x0 = sz : y0 = sz : x1 = -1 : y1 = -1
+    FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
+        IF _ALPHA32(spriteTex(x, y, src)) > 128 THEN
+            IF x < x0 THEN x0 = x
+            IF x > x1 THEN x1 = x
+            IF y < y0 THEN y0 = y
+            IF y > y1 THEN y1 = y
+        END IF
+    NEXT : NEXT
+    IF x1 < 0 THEN x0 = 0 : y0 = 0 : x1 = sz - 1 : y1 = sz - 1
+    w = x1 - x0 + 1 : h = y1 - y0 + 1
+    keep = VAL(MID$("0.30.20.40.40.40.30.40.30.20.50.40.30.30.50.40.30.30.40.5", kind * 3 - 2, 3)) ' How much stays (barrel, lamp, plant ... bench)
+    kh = INT(h * keep) : IF kh < 2 THEN kh = 2
+    DIM tear(sprTex) ' (how far down each column is torn off)
+    FOR x = 0 TO w - 1 : tear(x) = INT(RND * kh * 0.4) : NEXT
+    spriteSize(dst) = w
+    FOR ny = 0 TO w - 1 : FOR nx = 0 TO w - 1
+        down = ny * kh \ w ' (rows of what's left, stretched down the square)
+        col~& = spriteTex(x0 + nx, y1 - kh + 1 + down, src)
+        IF down < tear(nx) THEN col~& = 0 ' Torn away
+        IF _ALPHA32(col~&) > 128 THEN
+            soot = 0.25 + RND * 0.25
+            col~& = _RGBA32(_RED32(col~&) * soot, _GREEN32(col~&) * soot, _BLUE32(col~&) * soot, 255)
+        END IF
+        spriteTex(nx, ny, dst) = col~&
+    NEXT : NEXT
+    wreckScale(kind) = DecoScale(kind) * w / sz : wreckSquash(kind) = kh / w
+END SUB
+
+' The scorch mark drawn for a decal: a ragged dark blob, into sprite slot
+' S_DECAL
+SUB MakeScorch
+    spriteSize(S_DECAL) = 32
+    FOR y = 0 TO 31 : FOR x = 0 TO 31
+        d = SQR((x - 15.5) ^ 2 + (y - 15.5) ^ 2) / 16 + (RND - 0.5) * 0.18 ' (ragged)
+        a = 255 : IF d > 0.45 THEN a = 255 * (1 - (d - 0.45) / 0.5) ' Solid in the middle, fading out
+        IF a < 0 THEN a = 0
+        k = 1 - d * 0.6 : IF k < 0.3 THEN k = 0.3 ' (blackest in the middle)
+        spriteTex(x, y, S_DECAL) = _RGBA32((26 + RND * 14) * (1.6 - k), (18 + RND * 8) * (1.6 - k), (16 + RND * 8) * (1.6 - k), a)
+    NEXT : NEXT
+END SUB
+
+' The ceiling lamp, shot out: its picture copied (from T_LAMP) with the
+' bright panel gone dark and cracked, into texture slot T_LAMPOFF
+SUB MakeLampOff
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
+        col~& = texture(x, y, T_LAMP)
+        bright = (_RED32(col~&) + _GREEN32(col~&) + _BLUE32(col~&)) / 3
+        IF bright > 150 THEN col~& = _RGB32(_RED32(col~&) * 0.18, _GREEN32(col~&) * 0.18, _BLUE32(col~&) * 0.2) ' (the panel, dark)
+        texture(x, y, T_LAMPOFF) = col~&
+    NEXT : NEXT
+    texHD(T_LAMPOFF) = texHD(T_LAMP)
+    FOR crack = 1 TO 5 ' A few cracks across it, from near the middle
+        cx = texSize / 2 + (RND - 0.5) * texSize * 0.3 : cy = texSize / 2 + (RND - 0.5) * texSize * 0.3
+        a = RND * 6.2832
+        FOR stp = 0 TO texSize * 0.35 STEP texSize \ 128
+            px = INT(cx + COS(a) * stp) : py = INT(cy + SIN(a) * stp) : a = a + (RND - 0.5) * 0.4
+            FOR ty = py TO py + texSize \ 128 - 1 : FOR tx = px TO px + texSize \ 128 - 1 ' (as thick in a bigger picture)
+                IF tx >= 0 AND ty >= 0 AND tx < texSize AND ty < texSize THEN texture(tx, ty, T_LAMPOFF) = _RGB32(70, 70, 82)
+            NEXT : NEXT
+        NEXT
+    NEXT
+    texName$(T_LAMPOFF) = "ceiling-lamp-off"
+END SUB
+
+' A terminal's or a station's picture (slot src), done: into slot dst, its
+' red lights turned green (way 1: a solved terminal) or violet (way 2: a
+' hacked station), and a plate across its screen saying label$ - drawn on
+' an image with _PRINTSTRING, as the EXIT sign is (ExitSign)
+SUB MakeDoneTex(src, dst, label$, way)
+    k = texSize / 128
+    img& = _NEWIMAGE(texSize, texSize, 32)
+    _DEST img&
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
+        c~& = texture(x, y, src) : r = _RED32(c~&) : g = _GREEN32(c~&) : b = _BLUE32(c~&)
+        IF r > g + 30 AND r > b + 30 THEN ' (a red light, or warning)
+            IF way = 1 THEN c~& = _RGB32(g * 0.6, r, b * 0.6) ELSE c~& = _RGB32(r * 0.7, g * 0.5, r)
+        END IF
+        PSET (x, y), c~&
+    NEXT : NEXT
+    w = LEN(label$) * 8 + 8
+    plate& = _NEWIMAGE(w, 14, 32) : _DEST plate&
+    IF way = 1 THEN fg~& = _RGB32(110, 255, 140) : bg~& = _RGB32(6, 40, 14) ELSE fg~& = _RGB32(220, 150, 255) : bg~& = _RGB32(30, 10, 46)
+    LINE (0, 0)-(w - 1, 13), bg~&, BF : LINE (0, 0)-(w - 1, 13), fg~&, B
+    _PRINTMODE _KEEPBACKGROUND : COLOR fg~& : _PRINTSTRING (4, -1), label$
+    x0 = (128 - w) / 2 : y0 = 54
+    _PUTIMAGE (x0 * k, y0 * k)-((x0 + w) * k - 1, (y0 + 14) * k - 1), plate&, img&
+    _SOURCE img&
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texture(x, y, dst) = POINT(x, y) : NEXT : NEXT
+    _SOURCE 0 : _DEST 0 : _FREEIMAGE img& : _FREEIMAGE plate&
+    texName$(dst) = texName$(src) : texHD(dst) = texHD(src) : texSky(dst) = 0
+END SUB
+
+' Wall cell (x, y) - a terminal, a station - done: all four of its sides
+' show picture slot (its done look), as a face picked in the editor would
+' ([faces]: faceTex), and OpenGL's world is built again with it
+SUB WallDone(x, y, slot)
+    FOR f = 1 TO 4 : faceTex(x, y, f) = slot : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
+    faceAny = -1 : glMeshVersion = glMeshVersion + 1
+END SUB
+
+' The keycard picture, tinted red, blue and yellow, into sprite slots 1-3
+' and into images for the HUD; and the key door textures, the door tinted
+' the same three ways. (_DONTBLEND makes PSET store a see-through colour
+' as it is, instead of mixing it with what's under it.)
+SUB LoadCards(file$)
+    LoadSprite file$, 1
+    sprSize = spriteSize(1)
+    FOR card = 1 TO 3
+        spriteSize(card) = sprSize
+        IF cardImg&(card) < -1 THEN _FREEIMAGE cardImg&(card) ' (made before: ART changed)
+        cardImg&(card) = _NEWIMAGE(sprSize, sprSize, 32)
+        _DONTBLEND cardImg&(card)
+        _DEST cardImg&(card)
+        FOR y = 0 TO sprSize - 1 : FOR x = 0 TO sprSize-1
+            IF card = 1 THEN col~& = spriteTex(x, y, 1) ELSE col~& = spriteTex(x, y, 0)
+            IF card = 1 THEN spriteTex(x, y, 0) = col~& '(the untinted card, kept in slot 0)
+            spriteTex(x, y, card) = Tint~&(col~&, CardRGB~&(card), 1)
+            PSET (x, y), spriteTex(x, y, card)
+        NEXT : NEXT
+        _BLEND cardImg&(card)
+        FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize-1
+            texture(x, y, T_DOORK + card) = Tint~&(texture(x, y, T_DOOR), CardRGB~&(card), 0.85)
+        NEXT : NEXT
+        texHD(T_DOORK + card) = texHD(T_DOOR)
+    NEXT
+    _DEST 0
+END SUB
+
+' The bolt sprite, drawn with maths: a hard-edged glowing magenta ball,
+' white hot in the middle (r is how far each pixel is from the centre).
+SUB MakeBolt(slot)
+    spriteSize(slot) = 16
+    FOR y = 0 TO 15 : FOR x = 0 TO 15
+        r = SQR((x - 7.5) ^ 2 + (y-7.5) ^ 2) / 7.5
+        IF r < 0.45 THEN
+            spriteTex(x, y, slot) = _RGB32(255, 240, 255)
+        ELSEIF r < 0.75 THEN
+            spriteTex(x, y, slot) = _RGB32(255, 110, 235)
+        ELSEIF r < 1 THEN
+            spriteTex(x, y, slot) = _RGB32(200, 30, 200)
+        ELSE
+            spriteTex(x, y, slot) = 0
+        END IF
+    NEXT : NEXT
+END SUB
+
+' Print "EXIT" on a lit sign at the top of the exit door's texture: copy the
+' texture into an image, draw on it with LINE and _PRINTSTRING, and copy
+' it back.
+SUB ExitSign
+    k = texSize / 128 ' (the sign is placed for a 128-pixel picture)
+    img& = _NEWIMAGE(texSize, texSize, 32)
+    _DEST img&
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : PSET (x, y), texture(x, y, T_EXIT) : NEXT : NEXT
+    sign& = _NEWIMAGE(38, 20, 32) : _DEST sign&
+    LINE (0, 0)-(37, 19), _RGB32(10, 40, 20), BF
+    LINE (0, 0)-(37, 19), _RGB32(60, 255, 120), B
+    _PRINTMODE _KEEPBACKGROUND : COLOR _RGB32(110, 255, 150) : _PRINTSTRING (3, 2), "EXIT"
+    _PUTIMAGE (13 * k, 5 * k)-(51 * k - 1, 25 * k - 1), sign&, img& ' (bigger for a bigger picture)
+    _SOURCE img&
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texture(x, y, T_EXIT) = POINT(x, y) : NEXT : NEXT
+    _SOURCE 0 : _DEST 0 : _FREEIMAGE img& : _FREEIMAGE sign&
+END SUB
+
+' A teleporter's pad, into sprite slot slot: rings of violet light
+SUB MakePad(slot)
+    spriteSize(slot) = sprTex : k = sprTex / 64 ' (designed 64 pixels across)
+    FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
+        d = SQR(((x + 0.5) / k - 32) ^ 2 + ((y + 0.5) / k - 32) ^ 2) : c~& = 0
+        IF d < 31 THEN c~& = _RGBA32(40, 30, 70, 255) ' (the plate)
+        IF d < 31 AND d > 27 THEN c~& = _RGBA32(150, 160, 190, 255) ' (its metal rim)
+        IF (d > 20 AND d < 23) OR (d > 11 AND d < 14) THEN c~& = _RGBA32(190, 110, 255, 255) ' (glowing rings)
+        IF d < 5 THEN c~& = _RGBA32(255, 230, 255, 255)
+        spriteTex(x, y, slot) = c~&
+    NEXT : NEXT
+END SUB
+
+' The glass picture, into sprite slot slot: faintly blue, mostly see-
+' through (low alpha), two streaks of shine across it, and a solid metal
+' frame top and bottom (and a thin upright at each edge, so panes side by
+' side look like a row of windows). Cracked: white cracks spreading from a
+' point
+SUB MakeGlass(slot, cracked)
+    spriteSize(slot) = sprTex : gk = sprTex \ 64 ' (designed 64 pixels across: each of those gk x gk)
+    FOR yy = 0 TO sprTex - 1 : FOR xx = 0 TO sprTex - 1
+        x = xx \ gk : y = yy \ gk
+        a = 40 : r = 150 : g = 215 : b = 235
+        st = (x + INT(y * 0.6)) MOD 64
+        IF st >= 12 AND st < 16 THEN a = 95 : r = 225 : g = 248 : b = 255
+        IF st >= 20 AND st < 21 THEN a = 75 : r = 210 : g = 240 : b = 255
+        IF y < 4 OR y > 59 THEN a = 255 : r = 80 : g = 90 : b = 108 : IF y = 3 OR y = 60 THEN r = 130 : g = 145 : b = 165
+        IF x = 0 OR x = 63 THEN a = 255 : r = 70 : g = 80 : b = 96
+        spriteTex(xx, yy, slot) = _RGBA32(r, g, b, a)
+    NEXT : NEXT
+    IF cracked THEN
+        FOR k = 0 TO 8 ' Cracks: wandering lines out from (40, 26)
+            ang = k * 0.71 + 0.4 * SIN(k * 3.7) : cx = 40 : cy = 26
+            FOR stp = 1 TO 26 + (k MOD 3) * 8
+                ang = ang + 0.25 * SIN(stp * 1.3 + k)
+                cx = cx + COS(ang) : cy = cy + SIN(ang)
+                IF cx >= 1 AND cy >= 4 AND cx < 63 AND cy < 60 THEN
+                    FOR yy = 0 TO gk - 1 : FOR xx = 0 TO gk - 1 : spriteTex(INT(cx) * gk + xx, INT(cy) * gk + yy, slot) = _RGBA32(235, 250, 255, 210) : NEXT : NEXT
+                END IF
+            NEXT
+        NEXT
+    END IF
+END SUB
+
+' The laser beam's picture: three bright red lines across, at knee, chest
+' and head height, with a glow round each - into sprite slot slot
+SUB MakeLaser(slot)
+    spriteSize(slot) = sprTex : k = sprTex \ 64 ' (designed 64 pixels across: each of those k x k)
+    FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
+        col~& = 0 : yd = y \ k : xd = x \ k
+        FOR beam = 0 TO 2 ' Three beams: white-hot, red either side, a dotted dark red edge
+            dy = ABS(yd - (14 + beam * 18))
+            IF dy = 0 THEN col~& = _RGB32(255, 240, 230)
+            IF dy = 1 THEN col~& = _RGB32(255, 60, 60)
+            IF dy = 2 AND (xd MOD 3) THEN col~& = _RGB32(170, 20, 40)
+        NEXT
+        spriteTex(x, y, slot) = col~&
+    NEXT : NEXT
+END SUB
+
+' Gun number `gun`'s first-person picture, and where its muzzle is: the
+' middle of the top-most row of the picture that's at least
+' MUZZLE_MIN_WIDTH solid pixels wide (so a thin sight post sticking up above
+' the barrel doesn't count). The muzzle flash and the railgun's beam start
+' there.
+SUB LoadGun(gun, file$)
+    CONST MUZZLE_MIN_WIDTH = 4
+    IF gunImg&(gun) < -1 THEN _FREEIMAGE gunImg&(gun) ' (loaded before: ART changed)
+    IF gunSoftImg&(gun) < -1 THEN _FREEIMAGE gunSoftImg&(gun)
+    IF gunGLW(gun) > 0 THEN _MEMFREE gunGLMem(gun) : gunGLW(gun) = 0
+    path$ = ArtPath$(file$)
+    gunImg&(gun) = _LOADIMAGE(path$, 32)
+    IF gunImg&(gun) >= -1 THEN PRINT "Missing texture: "; path$: SLEEP: SYSTEM
+    _SOURCE gunImg&(gun)
+    imgW = _WIDTH(gunImg&(gun)) : imgH = _HEIGHT(gunImg&(gun))
+    FOR y = 0 TO imgH - 1
+        bestRun = 0 : runLen = 0
+        FOR x = 0 TO imgW ' (one past the edge, to end a run touching it)
+            solid = 0
+            IF x < imgW THEN solid = _ALPHA32(POINT(x, y)) > 128
+            IF solid THEN
+                runLen = runLen + 1
+            ELSE
+                IF runLen > bestRun THEN bestRun = runLen : runEnd = x - 1
+                runLen = 0
+            END IF
+        NEXT
+        IF bestRun >= MUZZLE_MIN_WIDTH THEN EXIT FOR
+    NEXT
+    _SOURCE 0
+    IF bestRun < MUZZLE_MIN_WIDTH THEN y = 0 : runEnd = imgW / 2 : bestRun = 1
+    gunMuzzleX(gun) = (runEnd - bestRun / 2 + 1) / imgW : gunMuzzleY(gun) = (y + 0.5) / imgH
+    ' OpenGL's copy: each colour times its alpha (so a half see-through
+    ' pixel is also half as bright), the way GLDrawHUD lays pictures on
+    ' - then a smoothed edge blends into what's behind, not into black
+    DIM picture AS _MEM, col AS _UNSIGNED LONG
+    picture = _MEMIMAGE(gunImg&(gun))
+    gunGLW(gun) = imgW : gunGLH(gun) = imgH : gunGLMem(gun) = _MEMNEW(imgW * imgH * 4)
+    FOR i& = 0 TO imgW * imgH - 1
+        col = _MEMGET(picture, picture.OFFSET + i& * 4, _UNSIGNED LONG) : a& = _SHR(col, 24)
+        r& = (_SHR(col, 16) AND 255) * a& \ 255 : g& = (_SHR(col, 8) AND 255) * a& \ 255 : b& = (col AND 255) * a& \ 255
+        _MEMPUT gunGLMem(gun), gunGLMem(gun).OFFSET + i& * 4, _RGBA32(r&, g&, b&, a&) AS _UNSIGNED LONG
+    NEXT
+    _MEMFREE picture
+    ' The software renderer's copy, shrunk if it's very big (TintedGun&
+    ' colours it, often - the fewer pixels the better)
+    IF imgH > GUN_SOFT_MAX THEN
+        gunSoftImg&(gun) = _NEWIMAGE(imgW * GUN_SOFT_MAX \ imgH, GUN_SOFT_MAX, 32)
+        _PUTIMAGE , gunImg&(gun), gunSoftImg&(gun)
+    ELSE
+        gunSoftImg&(gun) = _COPYIMAGE(gunImg&(gun), 32)
+    END IF
+END SUB
+
+' The gun in its light, for the software renderer: gun's picture with each
+' pixel's red, green and blue times the light on it (gunLightR...). Doing
+' that to every pixel takes a moment, so it's kept, and only done again
+' when the light has changed by a sixteenth or more (or it's another gun).
+FUNCTION TintedGun&(gun)
+    STATIC tinted&, lastGun, lastR, lastG, lastB, lastArt AS LONG
+    qr = INT(gunLightR * 16) : qg = INT(gunLightG * 16) : qb = INT(gunLightB * 16)
+    IF tinted& <> 0 AND gun = lastGun AND qr = lastR AND qg = lastG AND qb = lastB AND lastArt = glGunVersion THEN TintedGun& = tinted& : EXIT FUNCTION
+    IF tinted& <> 0 AND (gun <> lastGun OR lastArt <> glGunVersion) THEN _FREEIMAGE tinted& : tinted& = 0 ' (another gun - or new pictures, ART changed: another size)
+    lastArt = glGunVersion
+    IF tinted& = 0 THEN tinted& = _COPYIMAGE(gunSoftImg&(gun), 32)
+    lastGun = gun : lastR = qr : lastG = qg : lastB = qb
+    DIM src AS _MEM, dst AS _MEM, col AS _UNSIGNED LONG
+    src = _MEMIMAGE(gunSoftImg&(gun)) : dst = _MEMIMAGE(tinted&)
+    mr& = qr * 16 : mg& = qg * 16 : mb& = qb * 16 ' (times 256: whole numbers are quicker)
+    FOR i& = 0 TO src.SIZE \ 4 - 1
+        col = _MEMGET(src, src.OFFSET + i& * 4, _UNSIGNED LONG)
+        r& = (_SHR(col, 16) AND 255) * mr& \ 256 : IF r& > 255 THEN r& = 255
+        g& = (_SHR(col, 8) AND 255) * mg& \ 256 : IF g& > 255 THEN g& = 255
+        b& = (col AND 255) * mb& \ 256 : IF b& > 255 THEN b& = 255
+        _MEMPUT dst, dst.OFFSET + i& * 4, _RGBA32(r&, g&, b&, _SHR(col, 24)) AS _UNSIGNED LONG
+    NEXT
+    _MEMFREE src : _MEMFREE dst
+    TintedGun& = tinted&
+END FUNCTION

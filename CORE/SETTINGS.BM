@@ -1,0 +1,303 @@
+''
+' NEON-CASTER - CORE/SETTINGS.BM
+' =============================================================================
+' Settings: defining, changing, loading, saving and applying them
+' (chapter 21) - and the display modes.
+'
+
+' === MENUS, SETTINGS AND SAVED GAMES (chapter 21) ==============================
+
+' How much the 800 x 600 screen is stretched on the display (2 on a 1600-
+' wide full screen). QB64PE multiplies captured mouse movement by this, so
+' mouse look divides it back out to turn at the same speed either way.
+FUNCTION DisplayScale!
+    DisplayScale! = 1
+    IF _FULLSCREEN = 0 THEN EXIT FUNCTION
+    scaleX! = _DESKTOPWIDTH / _WIDTH(0) : scaleY! = _DESKTOPHEIGHT / _HEIGHT(0)
+    IF _FULLSCREEN = 2 AND scaleY! < scaleX! THEN scaleX! = scaleY! ' _SQUAREPIXELS : letterboxed
+    DisplayScale! = scaleX!
+END FUNCTION
+
+
+' One row of the settings table (chapter 6): its number, its name in the
+' settings file, its menu label, its kind of control (MI_SLIDER, MI_TOGGLE
+' or MI_CHOICE), lowest and highest value, step, and starting value
+SUB DefineSetting(id, iniName$, label$, kind, lowest, highest, stepSize, start)
+    setKey$(id) = iniName$ : setLabel$(id) = label$ : setKind(id) = kind
+    setMin(id) = lowest : setMax(id) = highest : setStep(id) = stepSize
+    setDefault(id) = start : setting(id) = start
+END SUB
+
+' Put the settings into effect: the camera plane's length for the field of
+' view (TAN of half the angle - chapter 8), the mouse speed, and the music
+' volume. (The rest - sound, crosshair, bobbing, shake - are read straight
+' from setting() where they're used.)
+SUB ApplySettings
+    ' MODE: a new one chosen (menu, console) - its settings go in. Then
+    ' which mode they all match now (CUSTOM if none).
+    IF setting(SET_MODE) <> modeWas AND setting(SET_MODE) <> MODE_CUSTOM THEN
+        FOR i = 1 TO NUM_SETTINGS
+            v = ModeWants(setting(SET_MODE), i) : IF v >= 0 THEN setting(i) = v
+        NEXT
+    END IF
+    setting(SET_MODE) = ModeNow : modeWas = setting(SET_MODE)
+    fovPlane = TAN(setting(SET_FOV) / 2 * 3.14159265 / 180)
+    turnSpeed = setting(SET_MOUSE) * 0.0006
+    SetMusicVol
+    ' ART: which pictures, how big (the game loop reloads them - ArtReload)
+    artWant = 0 : IF setting(SET_ART) = 2 THEN artWant = 1 : IF setting(SET_RENDERER) = 2 THEN artWant = 2
+    ApplyDisplay
+END SUB
+
+' What MODE m sets setting id to - or -1 if it leaves it alone (sound,
+' controls, gameplay). All three are OpenGL, full screen 4:3:
+'   OLDSCHOOL  RETRO resolution, the pixel art, every effect off, no
+'              scanlines
+'   90S        720P, the pixel art, every effect but NEON and WET FLOORS,
+'              scanlines and phosphor glow
+'   NEWSCHOOL  as sharp as the display goes (BestRes), the modern
+'              paintings, every effect, scanlines and phosphor glow
+FUNCTION ModeWants(m, id)
+    ModeWants = -1
+    IF m < MODE_OLDSCHOOL OR m > MODE_NEWSCHOOL THEN EXIT FUNCTION
+    fx = 0 : IF m > MODE_OLDSCHOOL THEN fx = 1 ' (the effects: on for 90S and NEWSCHOOL)
+    SELECT CASE id
+        CASE SET_RENDERER : ModeWants = 2
+        CASE SET_DISPLAY : ModeWants = 3 ' FULL 4:3
+        CASE SET_ART : IF m = MODE_NEWSCHOOL THEN ModeWants = 2 ELSE ModeWants = 1
+        CASE SET_RES
+            IF m = MODE_OLDSCHOOL THEN ModeWants = RES_RETRO ELSE IF m = MODE_90S THEN ModeWants = 5 ELSE ModeWants = BestRes ' (5: 720P)
+        CASE SET_BUMP, SET_SMOOTH, SET_DYNLIGHT, SET_SHADOWS, SET_GLOW, SET_PARTICLES, SET_SHAFTS, SET_BLOOM, SET_HITFX
+            ModeWants = fx
+        CASE SET_NEON, SET_REFLECT : IF m = MODE_NEWSCHOOL THEN ModeWants = 1 ELSE ModeWants = 0
+        CASE SET_SCREENFX : ModeWants = 1 + fx ' off, or scanlines
+        CASE SET_SCANLINES : IF fx THEN ModeWants = 100
+        CASE SET_PHOSPHOR : IF fx THEN ModeWants = 25
+        CASE SET_SCANGAP : IF fx THEN ModeWants = 4
+        CASE SET_SCANTHICK : IF fx THEN ModeWants = 50
+    END SELECT
+END FUNCTION
+
+' The MODE every setting matches now (MODE_CUSTOM if none)
+FUNCTION ModeNow
+    FOR m = MODE_OLDSCHOOL TO MODE_NEWSCHOOL
+        ok = -1
+        FOR i = 1 TO NUM_SETTINGS
+            v = ModeWants(m, i) : IF v >= 0 AND setting(i) <> v THEN ok = 0 : EXIT FOR
+        NEXT
+        IF ok THEN ModeNow = m : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' The sharpest RESOLUTION the display can show: the named one as tall as
+' it is (on a 4K display, 2160P)
+FUNCTION BestRes
+    h = _DESKTOPHEIGHT
+    IF h >= 2160 THEN BestRes = 2 ELSE IF h >= 1440 THEN BestRes = 3 ELSE IF h >= 1080 THEN BestRes = 4 ELSE IF h >= 720 THEN BestRes = 5 ELSE BestRes = 6
+END FUNCTION
+
+' DISPLAY: a window, or full screen - switched only when it needs to be
+' (displayAsked, displayModeNow: what was last put into effect), as switching
+' blanks the screen for a moment. _FULLSCREEN _STRETCH fills the screen;
+' _SQUAREPIXELS keeps our 4:3 shape - and puts black bars over the sides,
+' after everything else is drawn. So FULL WIDE, with OpenGL, is stretched:
+' OpenGL draws the 3D view across all of it, and puts our screen (the
+' HUD, the menus) in the 4:3 middle itself (chapter 24); WideMouseX moves
+' the mouse to match. (The software renderer can't draw wider than 4:3,
+' so for it FULL WIDE is 4:3.)
+SUB ApplyDisplay
+    want = DisplayMode(setting(SET_DISPLAY))
+    IF setting(SET_DISPLAY) = displayAsked AND want = displayModeNow THEN EXIT SUB
+    displayAsked = setting(SET_DISPLAY) : displayModeNow = want
+    SELECT CASE want
+        CASE 1 : _FULLSCREEN _STRETCH
+        CASE 2 : _FULLSCREEN _SQUAREPIXELS
+        CASE ELSE : _FULLSCREEN _OFF
+    END SELECT
+END SUB
+
+' QB64PE's _FULLSCREEN number for DISPLAY choice d: 0 off, 1 stretched, 2
+' square pixels
+FUNCTION DisplayMode(d)
+    SELECT CASE d
+        CASE 2 : IF setting(SET_RENDERER) = 2 THEN DisplayMode = 1 ELSE DisplayMode = 2
+        CASE 3 : DisplayMode = 2
+        CASE 4 : DisplayMode = 1
+    END SELECT
+END FUNCTION
+
+' With FULL WIDE, our screen is stretched across the whole display, but
+' drawn in its 4:3 middle - so QB64PE's mouse x (mx, across the stretched
+' screen) is moved to where that is on our screen
+FUNCTION WideMouseX(mx)
+    WideMouseX = mx
+    IF WideView <= 1.01 OR _DESKTOPHEIGHT < 1 THEN EXIT FUNCTION
+    winX = mx * _DESKTOPWIDTH / 800 ' (where on the display)
+    middleW = _DESKTOPHEIGHT * 4 / 3 : edge = (_DESKTOPWIDTH - middleW) / 2
+    WideMouseX = (winX - edge) * 800 / middleW
+END FUNCTION
+
+' Alt + Enter switches full screen too (QB64PE does that itself). So once
+' a frame: if _FULLSCREEN has changed, and not to what we asked for, it was
+' Alt + Enter - and DISPLAY follows it (and is saved with the settings).
+SUB DisplayFollow
+    STATIC lastMode
+    nowMode = _FULLSCREEN
+    IF nowMode <> lastMode THEN
+        IF nowMode <> DisplayMode(displayAsked) THEN
+            SELECT CASE nowMode
+                CASE 1 : displayAsked = 4
+                CASE 2 : displayAsked = 3
+                CASE ELSE : displayAsked = 1
+            END SELECT
+            setting(SET_DISPLAY) = displayAsked : displayModeNow = nowMode
+        END IF
+        lastMode = nowMode
+    END IF
+END SUB
+
+' How much wider than 4:3 the 3D view is: with DISPLAY at FULL WIDE, in
+' full screen, with OpenGL, the screen's shape over 4:3 (1.33 on a 16:9
+' screen); otherwise 1
+FUNCTION WideView
+    WideView = 1
+    IF setting(SET_DISPLAY) <> 2 OR _FULLSCREEN <> 1 OR setting(SET_RENDERER) <> 2 THEN EXIT FUNCTION
+    IF _DESKTOPHEIGHT < 1 THEN EXIT FUNCTION
+    k = _DESKTOPWIDTH / _DESKTOPHEIGHT * 3 / 4
+    IF k > 1 THEN WideView = k
+END FUNCTION
+
+' Left (-1) or right (1) on setting id: a slider moves a step (and stops at
+' its ends), a choice goes round to the next one, a toggle flips
+SUB ChangeSetting(id, dir)
+    IF id = SET_MODE THEN ' (round the three looks - CUSTOM isn't one you choose)
+        setting(id) = setting(id) + dir
+        IF setting(id) > MODE_NEWSCHOOL THEN setting(id) = MODE_OLDSCHOOL
+        IF setting(id) < MODE_OLDSCHOOL THEN setting(id) = MODE_NEWSCHOOL
+        EXIT SUB
+    END IF
+    SELECT CASE setKind(id)
+        CASE MI_TOGGLE
+            setting(id) = 1 - setting(id)
+        CASE MI_CHOICE
+            setting(id) = setting(id) + dir
+            IF setting(id) > setMax(id) THEN setting(id) = setMin(id)
+            IF setting(id) < setMin(id) THEN setting(id) = setMax(id)
+        CASE ELSE
+            setting(id) = setting(id) + dir * setStep(id)
+            IF setting(id) > setMax(id) THEN setting(id) = setMax(id)
+            IF setting(id) < setMin(id) THEN setting(id) = setMin(id)
+    END SELECT
+END SUB
+
+' Set a slider from where the mouse is along it, to the nearest step
+SUB SliderFromMouse(item, mouseX)
+    id = miRef(item)
+    f = (mouseX - MENU_WIDGET_X) / MENU_WIDGET_W
+    IF f < 0 THEN f = 0
+    IF f > 1 THEN f = 1
+    v = setMin(id) + f * (setMax(id) - setMin(id))
+    setting(id) = setMin(id) + INT((v - setMin(id)) / setStep(id) + 0.5) * setStep(id)
+END SUB
+
+' A setting's value as the menu shows it
+FUNCTION SettingText$(id)
+    v$ = LTRIM$(STR$(setting(id)))
+    SELECT CASE id
+        CASE SET_SFX, SET_MUSIC, SET_SPEECH, SET_XALPHA, SET_SCANLINES, SET_PHOSPHOR, SET_SCANTHICK, SET_AIMSENS, SET_GAMMA : SettingText$ = v$ + "%"
+        CASE SET_SCANGAP : SettingText$ = v$ + " PX"
+        CASE SET_FOV : SettingText$ = v$ + CHR$(248) ' (a degree sign in QB64PE's font)
+        CASE SET_XSTYLE : SettingText$ = CrossStyleName$(setting(id))
+        CASE SET_XCOLOR : SettingText$ = CrossColorName$(setting(id))
+        CASE SET_RENDERER : IF setting(id) = 2 THEN SettingText$ = "OPENGL" ELSE SettingText$ = "SOFTWARE"
+        CASE SET_ART : IF setting(id) = 2 THEN SettingText$ = "MODERN" ELSE SettingText$ = "CLASSIC"
+        CASE SET_MODE : SettingText$ = RTRIM$(MID$("CUSTOM   OLDSCHOOL90S      NEWSCHOOL", setting(id) * 9 + 1, 9))
+        CASE SET_SCREENFX : SettingText$ = MID$("OFF      SCANLINESCRT      ", setting(id) * 9 - 8, 9)
+        CASE SET_RES : SettingText$ = ResName$(setting(id))
+        CASE SET_DISPLAY : SettingText$ = RTRIM$(MID$("WINDOWED    FULL WIDE   FULL 4:3    FULL STRETCH", setting(id) * 12 - 11, 12))
+        CASE ELSE : SettingText$ = v$
+    END SELECT
+END FUNCTION
+
+' Read the settings file, if there is one. Every setting starts at its
+' default; a "name=value" line for it (with a value in range) changes it.
+SUB LoadSettings
+    FOR i = 1 TO NUM_SETTINGS : setting(i) = setDefault(i) : NEXT
+    FOR i = 1 TO NUM_BINDS : keyBind&(i) = bindDefault&(i) : NEXT
+    qbChosen$ = ""
+    file$ = SaveDir$ + "settings.ini"
+    IF NOT _FILEEXISTS(file$) THEN EXIT SUB
+    fileNum = FREEFILE
+    OPEN file$ FOR INPUT AS #fileNum
+    DO UNTIL EOF(fileNum)
+        LINE INPUT #fileNum, text$
+        eq = INSTR(text$, "=")
+        IF eq > 0 THEN
+            iniKey$ = LCASE$(LTRIM$(RTRIM$(LEFT$(text$, eq - 1)))) : v = VAL(MID$(text$, eq + 1))
+            FOR i = 1 TO NUM_SETTINGS
+                IF iniKey$ = setKey$(i) AND v >= setMin(i) AND v <= setMax(i) THEN setting(i) = v
+            NEXT
+            IF iniKey$ = "qb64pe" THEN ' (a path, not a number)
+                qbChosen$ = MID$(text$, eq + 1) : IF RIGHT$(qbChosen$, 1) = CHR$(13) THEN qbChosen$ = LEFT$(qbChosen$, LEN(qbChosen$) - 1)
+                qbChosen$ = LTRIM$(RTRIM$(qbChosen$))
+            END IF
+            IF iniKey$ = "retro_res" AND v = 1 THEN setting(SET_RES) = RES_RETRO ' (what RESOLUTION was called once)
+            FOR i = 1 TO NUM_BINDS
+                IF iniKey$ = bindKey$(i) AND v > 0 THEN keyBind&(i) = v
+            NEXT
+        END IF
+    LOOP
+    CLOSE #fileNum
+    setting(SET_MODE) = ModeNow : modeWas = setting(SET_MODE) ' (worked out from the rest - not put into effect)
+END SUB
+
+' Write every setting and key binding to the settings file
+SUB SaveSettings
+    IF noSaveSettings THEN EXIT SUB ' (settings from the command line are for this run only)
+    MakeSaveDir
+    fileNum = FREEFILE
+    OPEN SaveDir$ + "settings.ini" FOR OUTPUT AS #fileNum
+    PRINT #fileNum, "; NEON-CASTER settings: one name and value a line (chapter 21 explains them)"
+    FOR i = 1 TO NUM_SETTINGS : PRINT #fileNum, setKey$(i) + "=" + LTRIM$(STR$(setting(i))) : NEXT
+    PRINT #fileNum, "; qb64pe: the compiler the code terminals use - its path, or the folder it's in."
+    PRINT #fileNum, "; Left empty, the game looks for it ($QB64PE, the PATH, the usual folders);"
+    PRINT #fileNum, "; with none, a terminal checks your lines against the answer instead."
+    PRINT #fileNum, "qb64pe=" + qbChosen$
+    FOR i = 1 TO NUM_BINDS
+        PRINT #fileNum, bindKey$(i) + "=" + LTRIM$(STR$(keyBind&(i))) + "   ; " + KeyName$(keyBind&(i))
+    NEXT
+    CLOSE #fileNum
+END SUB
+
+FUNCTION CrossStyleName$(n)
+    SELECT CASE n
+        CASE 1 : CrossStyleName$ = "CROSS"
+        CASE 2 : CrossStyleName$ = "DOT"
+        CASE 3 : CrossStyleName$ = "CIRCLE"
+        CASE 4 : CrossStyleName$ = "GAP CROSS"
+        CASE 5 : CrossStyleName$ = "CHEVRON"
+        CASE ELSE : CrossStyleName$ = "NONE"
+    END SELECT
+END FUNCTION
+
+FUNCTION CrossColorName$(n)
+    CrossColorName$ = RTRIM$(MID$("RED    GREEN  CYAN   YELLOW WHITE  MAGENTA", (n - 1) * 7 + 1, 7))
+END FUNCTION
+
+' RESOLUTION (SETTINGS > VIDEO): the size OpenGL draws the 3D view at for
+' choice res. NATIVE is the window's own pixels. The rest are heights, as
+' screens are sold: 2160 lines (4K), 1440 (2K), 1080, 720 and 480 - the
+' width follows the view's shape, so on a widescreen monitor 1080P is
+' 1920 x 1080 (or 1440 x 1080, letterboxed to our 4:3 with _SQUAREPIXELS).
+' RETRO is the software renderer's 400 x 300. ResSize gets w and h as the
+' view's size and changes them (NATIVE leaves them be).
+SUB ResSize(res, w, h)
+    IF res <= RES_NATIVE OR res > RES_RETRO OR h < 1 THEN EXIT SUB
+    IF res = RES_RETRO THEN w = RENDER_W : h = RENDER_H : EXIT SUB
+    tall = VAL(MID$("216014401080720 480 ", (res - 2) * 4 + 1, 4))
+    w = INT(tall * w / h) : h = tall
+END SUB
+
+FUNCTION ResName$(res)
+    ResName$ = RTRIM$(MID$("NATIVE   2160P 4K 1440P 2K 1080P    720P     480P     RETRO    ", (res - 1) * 9 + 1, 9))
+END FUNCTION

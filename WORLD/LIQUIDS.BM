@@ -1,0 +1,33 @@
+''
+' NEON-CASTER - WORLD/LIQUIDS.BM
+' =============================================================================
+' Liquids: setting up the table, and the pool at any cell.
+'
+
+' One row of the liquids table (chapter 6)
+SUB SetLiquid(k, n$, slow, hurt, every, acid, see, r, g, b)
+    lqName$(k) = n$ : lqSlow(k) = slow : lqHurt(k) = hurt : lqEvery(k) = every : lqAcid(k) = acid
+    lqSee(k) = see : lqR(k) = r : lqG(k) = g : lqB(k) = b
+END SUB
+
+' A liquid kind by its name or its letter (water, w...) - 0 for none
+FUNCTION LiquidOf(n$)
+    t$ = LCASE$(LTRIM$(RTRIM$(n$)))
+    IF LEN(t$) = 1 THEN LiquidOf = INSTR(LQ_CHARS$, t$) : EXIT FUNCTION
+    FOR k = 1 TO LQ_KINDS
+        IF t$ = lqName$(k) THEN LiquidOf = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' How much of your speed you keep wading deep deep in liquid k: none lost
+' at its surface, all its kind takes (lqSlow) at LQ_FULL deep or more
+FUNCTION LiquidSlow(k, deep)
+    LiquidSlow = 1 - (1 - lqSlow(k)) * MaxOf(0, MinOf(1, deep / LQ_FULL))
+END FUNCTION
+
+' Does the level as its file says it have any liquid?
+FUNCTION LiquidRowsAny
+    FOR y = 0 TO MAP_SIZE - 1
+        IF lvlLiqRow$(y) <> STRING$(MAP_SIZE, ".") THEN LiquidRowsAny = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION

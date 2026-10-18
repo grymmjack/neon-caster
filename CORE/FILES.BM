@@ -1,0 +1,86 @@
+''
+' NEON-CASTER - CORE/FILES.BM
+' =============================================================================
+' Finding the game's files and folders, and reading lists of numbers
+' and names out of lines of text.
+'
+
+' Item k (from 1) of a list split by commas, trimmed
+FUNCTION ListItem$(list$, k)
+    s$ = list$ + ","
+    FOR i = 1 TO k - 1
+        c = INSTR(s$, ",") : IF c = 0 THEN EXIT FUNCTION
+        s$ = MID$(s$, c + 1)
+    NEXT
+    c = INSTR(s$, ",") : IF c = 0 THEN EXIT FUNCTION
+    ListItem$ = LTRIM$(RTRIM$(LEFT$(s$, c - 1)))
+END FUNCTION
+
+' The numbers in a line split by commas, into v(1), v(2)...; how many
+FUNCTION SplitNums(t$, v() AS SINGLE)
+    s$ = t$ + "," : n = 0
+    DO
+        c = INSTR(s$, ",") : IF c = 0 OR n >= UBOUND(v) THEN EXIT DO
+        n = n + 1 : v(n) = VAL(LEFT$(s$, c - 1)) : s$ = MID$(s$, c + 1)
+    LOOP WHILE LEN(LTRIM$(s$))
+    SplitNums = n
+END FUNCTION
+
+' --- The editor's helpers (chapter 21) -----------------------------------
+' Where the map from above sits on the screen, and its cells' size
+' (ED_ constants are near the top: ED_MAPX, ED_MAPY, ED_CELL)
+
+FUNCTION NumList$(a, b, c, d)
+    NumList$ = LTRIM$(STR$(a)) + ", " + LTRIM$(STR$(b)) + ", " + LTRIM$(STR$(c)) + ", " + LTRIM$(STR$(d))
+END FUNCTION
+
+FUNCTION Slashes$(p$) ' (a path with Windows' backslashes)
+    o$ = p$
+    FOR i = 1 TO LEN(o$) : IF MID$(o$, i, 1) = "/" THEN MID$(o$, i, 1) = "\"
+    NEXT
+    Slashes$ = o$
+END FUNCTION
+
+' Open address url$ in the web browser (the credits' links). Each system
+' has its own command for "open this with whatever opens it", as in the
+' SYS part of QB64_GJ_LIB (open_url_in_browser). Windows' start takes a
+' first "..." as a window title, hence the empty one.
+SUB OpenLink(url$)
+    q$ = CHR$(34)
+    IF INSTR(_OS$, "[WINDOWS]") THEN
+        c$ = "start " + q$ + q$ + " " + q$ + url$ + q$
+    ELSEIF INSTR(_OS$, "[MACOSX]") THEN
+        c$ = "open " + q$ + url$ + q$
+    ELSE
+        c$ = "xdg-open " + q$ + url$ + q$ + " >/dev/null 2>&1"
+    END IF
+    SHELL _HIDE _DONTWAIT c$
+END SUB
+
+' The end of path p$, at most n characters ("..." where it's cut)
+FUNCTION PathTail$(p$, n)
+    IF LEN(p$) > n THEN PathTail$ = "..." + RIGHT$(p$, n - 3) ELSE PathTail$ = p$
+END FUNCTION
+
+' The path to neon-caster/<file$>: from the current folder, or else from the
+' folder the program itself is in (COMMAND$(0) is its own path), so the game
+' runs whichever folder you start it from.
+FUNCTION AssetPath$(file$)
+    path$ = "neon-caster/" + file$
+    IF NOT _FILEEXISTS(path$) THEN ' Fall back TO the folder NEXT TO the EXE
+        exe$ = COMMAND$(0) : i = _INSTRREV(exe$, "/") : IF i = 0 THEN i = _INSTRREV(exe$, "\")
+        path$ = LEFT$(exe$, i) + "neon-caster/" + file$
+    END IF
+    AssetPath$ = path$
+END FUNCTION
+
+' The folder settings and saved games go in: neon-caster/saves/
+FUNCTION SaveDir$
+    path$ = AssetPath$("door.png")
+    SaveDir$ = LEFT$(path$, LEN(path$) - LEN("door.png")) + "saves/"
+END FUNCTION
+
+SUB MakeSaveDir
+    folder$ = SaveDir$ : folder$ = LEFT$(folder$, LEN(folder$) - 1)
+    IF NOT _DIREXISTS(folder$) THEN MKDIR folder$
+END SUB

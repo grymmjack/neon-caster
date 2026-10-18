@@ -1,0 +1,77 @@
+''
+' NEON-CASTER - WORLD/GLASS.BM
+' =============================================================================
+' Glass: where each pane is, rays through it, and shooting it.
+'
+
+' --- Glass at cell (glassHitX, glassHitY) is hit for glassDmg, at
+' (glassAtX, glassAtY): it chips and cracks, and at 0 it shatters - a
+' shower of shards, and the way is open
+HitGlass:
+IF glassHP(glassHitX, glassHitY) <= 0 THEN RETURN
+glassHP(glassHitX, glassHitY) = glassHP(glassHitX, glassHitY) - glassDmg
+IF glassHP(glassHitX, glassHitY) > 0 THEN
+    SpawnSparks glassAtX, glassAtY, 0.5, 5, 200, 240, 255
+    SfxAt sndGlassHit&, glassAtX, glassAtY, playerX, playerY
+ELSE
+    glassHP(glassHitX, glassHitY) = 0 : AchAdd "Glass", 1
+    FOR gk = 0 TO 4 ' (shards all along the pane, falling)
+        IF glassDir(glassHitX, glassHitY) = 1 THEN gsx = glassHitX + 0.1 + gk * 0.2 : gsy = glassHitY + 0.5 ELSE gsx = glassHitX + 0.5 : gsy = glassHitY + 0.1 + gk * 0.2
+        SpawnSparks gsx, gsy, 0.15 + RND * 0.7, 9, 190, 235, 255
+    NEXT
+    SfxAt sndGlassBreak&, glassAtX, glassAtY, playerX, playerY
+    IF (glassAtX - playerX) ^ 2 + (glassAtY - playerY) ^ 2 < 25 THEN shake = shake + 3
+    FOR gj = 1 TO numMonsters ' (that wakes anything near)
+        IF monsterState(gj) = 0 AND (cyberOn = 0 OR monsterType(gj) = MT_ICE) THEN IF (monsterX(gj) - glassAtX) ^ 2 + (monsterY(gj) - glassAtY) ^ 2 < 36 THEN monsterState(gj) = 1 : monsterTimer(gj) = 20
+    NEXT
+END IF
+RETURN
+
+' Each pane of glass: which way it runs - along x if there's wall (or more
+' glass) to its left and right, else along y - and the list of them all
+SUB AssignGlass
+    numGlass = 0
+    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+        IF glassHP(x, y) > 0 THEN
+            l = IsWall(x - 1, y) OR glassHP(x - 1, y) > 0 : r = IsWall(x + 1, y) OR glassHP(x + 1, y) > 0
+            IF l AND r THEN glassDir(x, y) = 1 ELSE glassDir(x, y) = 2
+            IF numGlass < MAX_GLASS THEN numGlass = numGlass + 1 : glassListX(numGlass) = x : glassListY(numGlass) = y
+        END IF
+    NEXT : NEXT
+END SUB
+
+' Is map point (x, y) inside a pane of glass (its thickness, GLASS_HALF
+' either side of the middle of its cell)?
+FUNCTION InGlass(x, y)
+    cx = INT(x) : cy = INT(y)
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
+    IF glassHP(cx, cy) <= 0 THEN EXIT FUNCTION
+    IF glassDir(cx, cy) = 1 THEN InGlass = ABS(y - cy - 0.5) < GLASS_HALF ELSE InGlass = ABS(x - cx - 0.5) < GLASS_HALF
+END FUNCTION
+
+' Is there glass - or a block - on the straight line from (x1, y1) to (x2,
+' y2)? Checked every 0.08 of a cell, thinner than either, so neither can be
+' missed. (A claw, a kick, a thief's grab can't reach through one.)
+FUNCTION GlassBetween(x1, y1, x2, y2)
+    IF numGlass = 0 AND NOT boxAny THEN EXIT FUNCTION
+    steps = INT(SQR((x2 - x1) ^ 2 + (y2 - y1) ^ 2) / 0.08) + 1
+    FOR i = 1 TO steps - 1
+        px = x1 + (x2 - x1) * i / steps : py = y1 + (y2 - y1) * i / steps
+        IF InGlass(px, py) THEN GlassBetween = -1 : EXIT FUNCTION
+        IF boxAny THEN IF InBox(px, py) THEN GlassBetween = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Where does a ray from (px, py), going (rdx, rdy), meet the pane of glass
+' in cell (cx, cy)? Its distance t (in the raycaster's units: perpWallDist's)
+' and u, where along the pane (0 to 1) - if it does, inside this cell
+FUNCTION GlassRay(cx, cy, px, py, rdx, rdy, t, u)
+    IF glassDir(cx, cy) = 1 THEN
+        IF ABS(rdy) < 0.00001 THEN EXIT FUNCTION
+        t = (cy + 0.5 - py) / rdy : u = px + t * rdx - cx
+    ELSE
+        IF ABS(rdx) < 0.00001 THEN EXIT FUNCTION
+        t = (cx + 0.5 - px) / rdx : u = py + t * rdy - cy
+    END IF
+    GlassRay = t > 0.001 AND u >= 0 AND u < 1
+END FUNCTION

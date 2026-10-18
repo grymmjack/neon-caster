@@ -1,0 +1,33 @@
+''
+' NEON-CASTER - CORE/ERRORS.BM
+' =============================================================================
+' When something goes wrong: the runtime error trap (GameError), and
+' leaving the game.
+'
+
+' --- A runtime error, anywhere (ON ERROR GOTO GameError, at the very
+' start). Without this QB64PE stops the game with a "Continue?" box -
+' behind a full-screen window, where you may not even see it. Instead: a
+' line in neon-caster/saves/errors.log (which error, and the line it was
+' on - _ERRORLINE), the same in the console, a message the first time,
+' and on from the statement after it (RESUME NEXT). Most are one bad
+' number in one frame; carrying on beats stopping. (No more than 100 are
+' written, so one in a loop can't fill the disk.)
+GameError:
+errCount = errCount + 1
+errText$ = "ERROR" + STR$(ERR) + " (" + _ERRORMESSAGE$(ERR) + ") at line" + STR$(_ERRORLINE)
+IF errCount <= 100 THEN
+    ConPrint errText$
+    MakeSaveDir : errNum = FREEFILE
+    OPEN SaveDir$ + "errors.log" FOR APPEND AS #errNum
+    PRINT #errNum, DATE$ + " " + TIME$ + "  NEON-CASTER " + GAME_VERSION$ + "  " + errText$
+    CLOSE #errNum
+END IF
+IF errCount = 1 THEN ShowMsg "Something went wrong - written to saves/errors.log. Carrying on."
+RESUME NEXT
+
+' Leave the game: the achievements' stats stored, Steam let go of, the
+' settings saved
+SUB QuitGame
+    AchStore : STEAM_shutdown : SaveSettings : SYSTEM
+END SUB

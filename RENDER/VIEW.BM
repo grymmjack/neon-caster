@@ -1,0 +1,336 @@
+''
+' NEON-CASTER - RENDER/VIEW.BM
+' =============================================================================
+' The raycaster's helpers (chapters 15 and 22): heights, steps, flat
+' things and glass, a column at a time.
+'
+
+' --- HEIGHTS, THE SOFTWARE WAY (chapter 15, for a level with heights):
+' column x, front to back, as Doom does it. The ray walks the grid as
+' before, but doesn't stop at the first change: in each cell it passes
+' through it draws that cell's floor and ceiling - the part of them
+' between where it came in (hDIn) and where it leaves (hDOut) - then looks
+' at the next cell. A higher floor there: the step's face; a lower
+' ceiling: the lintel's. hTop and hBot are what's left of the column still
+' to draw: each floor, step and lintel drawn closes it in from below or
+' above, and anything further away can only show in what's left - that's
+' how a ledge hides the floor behind it. A wall ends the column. Each time
+' the window closes in, it's noted (clipD/T/B) for the sprites (chapter 16).
+' A height h at distance d is on screen at row RENDER_H / 2 + (eyeZ - h) *
+' viewH / d: the higher it is (or the nearer), the further up.
+HeightColumn:
+hTop = 0 : hBot = RENDER_H - 1 : hor = RENDER_H / 2
+hcX = INT(playerX) : hcY = INT(playerY) : hDIn = 0
+hStepX = SGN(rayDirX) : hStepY = SGN(rayDirY) : IF hStepX = 0 THEN hStepX = 1
+IF hStepY = 0 THEN hStepY = 1
+IF ABS(rayDirX) < 0.00001 THEN hDDX = 1E+9 ELSE hDDX = ABS(1 / rayDirX)
+IF ABS(rayDirY) < 0.00001 THEN hDDY = 1E+9 ELSE hDDY = ABS(1 / rayDirY)
+IF rayDirX < 0 THEN hSDX = (playerX - hcX) * hDDX ELSE hSDX = (hcX + 1 - playerX) * hDDX
+IF rayDirY < 0 THEN hSDY = (playerY - hcY) * hDDY ELSE hSDY = (hcY + 1 - playerY) * hDDY
+DO
+    IF hSDX < hSDY THEN hDOut = hSDX : hnX = hcX + hStepX : hnY = hcY : hSide = 0 : hSDX = hSDX + hDDX ELSE hDOut = hSDY : hnX = hcX : hnY = hcY + hStepY : hSide = 1 : hSDY = hSDY + hDDY
+    IF hDOut < 0.001 THEN hDOut = 0.001
+    hBoxed = 0 ' (a box in this cell, in the ray's way: its floor and ceiling only up to it, then its face)
+    IF boxOn(hcX, hcY) THEN
+        boxDist = BoxRay(hcX, hcY, playerX, playerY, rayDirX, rayDirY, hDIn, hDOut, bSide)
+        IF boxDist >= 0 THEN hBoxed = -1 : hDOut = MaxOf(boxDist, 0.001) : hSide = bSide
+    END IF
+    hDiag = 0 ' (a diagonal wall's cell, gone into by its open half: its floor and ceiling up to the diagonal, then that - DiagonalHit)
+    IF diagCorner(hcX, hcY) THEN
+        dgh = DiagonalHit(diagCorner(hcX, hcY), hcX, hcY, playerX, playerY, rayDirX, rayDirY, hDIn, hDOut)
+        IF dgh >= 0 THEN hDiag = -1 : hDOut = MaxOf(dgh, 0.001) : hSide = 0
+    END IF
+    hDoored = 0 ' (a door's slab across this cell, in the ray's way - as a box: the cell's floor and ceiling up to it, then its face - DoorRay, as the flat pass)
+    IF worldMap(hcX, hcY) = 2 THEN
+        IF doorType(hcX, hcY) <> DOOR_EXIT THEN
+            dr = DoorRay(hcX, hcY, playerX, playerY, rayDirX, rayDirY, dDist, dU, dSide, dLX, dLY, dBack)
+            IF dr = 3 THEN dr = 0 : IF DoorShown(hcX, hcY) < 0.5 THEN dr = 1 ' (a shutter: down, or as good as up)
+            IF dr THEN IF dDist >= hDIn - 0.001 AND dDist <= hDOut THEN hDoored = dr : hDOut = MaxOf(dDist, 0.001) : hSide = dSide
+        END IF
+    END IF
+    ' This cell's light, fogged as far as its middle
+    hFog& = 256 - (hDIn + hDOut) * 8 : IF hFog& < 0 THEN hFog& = 0
+    hR& = litR(hcX, hcY) : hG& = litG(hcX, hcY) : hB& = litB(hcX, hcY)
+    ' Its floor: from where it leaves (higher up the screen) down to where
+    ' it came in - or a liquid's surface, lying on it (liqZ: in its own
+    ' picture, rippling - LiquidAnimate)
+    hf = floorH(hcX, hcY) : hLq = 0 : IF liqKind(hcX, hcY) AND NOT cyberOn THEN hLq = liqKind(hcX, hcY) : hf = liqZ(hcX, hcY)
+    IF eyeZ > hf THEN
+        yFar = INT(hor + (eyeZ - hf) * viewH / hDOut + 0.999)
+        IF hDIn > 0.0001 THEN yNear = INT(hor + (eyeZ - hf) * viewH / hDIn) ELSE yNear = RENDER_H - 1
+        IF yFar < hTop THEN yFar = hTop
+        IF yNear > hBot THEN yNear = hBot
+        ' (the loop that colours the most pixels: everything a cell needs is
+        ' looked up once, before it, and ShadeRGB's sum is written out - a
+        ' FUNCTION call a pixel costs more than the sum)
+        hk = eyeZ - hf : slot = floorTex(hcX, hcY) : hSplit = floorSplit(hcX, hcY) : tMask = texSize - 1
+        IF hLq THEN slot = T_LIQUID + hLq : hSplit = 0
+        FOR y = yFar TO yNear
+            rowDist = hk * rowF(y)
+            fx = playerX + rowDist * rayDirX : fy = playerY + rowDist * rayDirY
+            s2 = slot : IF hSplit THEN IF InDiagonalWall(hSplit, fx - hcX, fy - hcY) THEN s2 = floorTex2(hcX, hcY)
+            f& = 256 - rowDist * 16 : IF f& < 0 THEN f& = 0
+            lR& = hR& * f& \ 256 : IF lR& > 256 THEN lR& = 256
+            lG& = hG& * f& \ 256 : IF lG& > 256 THEN lG& = 256
+            lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
+            texel~& = texture(INT(fx * texSize) AND tMask, INT(fy * texSize) AND tMask, s2)
+            pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
+            IF gridOn THEN IF (INT(fx * texSize) AND tMask) < gridW OR (INT(fy * texSize) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
+        NEXT
+        IF yFar - 1 < hBot THEN hBot = yFar - 1
+    END IF
+    ' Its ceiling, the same way up
+    hc = ceilH(hcX, hcY)
+    IF hc > eyeZ THEN
+        yFar = INT(hor - (hc - eyeZ) * viewH / hDOut)
+        IF hDIn > 0.0001 THEN yNear = INT(hor - (hc - eyeZ) * viewH / hDIn + 0.999) ELSE yNear = 0
+        IF yNear < hTop THEN yNear = hTop
+        IF yFar > hBot THEN yFar = hBot
+        hk = hc - eyeZ : slot = ceilTex(hcX, hcY) : hSplit = ceilSplit(hcX, hcY) : tMask = texSize - 1
+        IF texSky(slot) THEN ' (a sky: by the way you look, full bright - its rows, and on to the next cell)
+            FOR y = yNear TO yFar : pixels(y * RENDER_W + x) = texture(skyU(x), skyV(y), slot) OR &HFF000000~& : NEXT
+            yNear = yFar + 1
+        END IF
+        FOR y = yNear TO yFar
+            rowDist = hk * rowC(y)
+            fx = playerX + rowDist * rayDirX : fy = playerY + rowDist * rayDirY
+            s2 = slot : IF hSplit THEN IF InDiagonalWall(hSplit, fx - hcX, fy - hcY) THEN s2 = ceilTex2(hcX, hcY)
+            f& = 256 - rowDist * 16 : IF f& < 0 THEN f& = 0
+            lR& = hR& * f& \ 256 : IF lR& > 256 THEN lR& = 256
+            lG& = hG& * f& \ 256 : IF lG& > 256 THEN lG& = 256
+            lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
+            texel~& = texture(INT(fx * texSize) AND tMask, INT(fy * texSize) AND tMask, s2)
+            pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
+            IF gridOn THEN IF (INT(fx * texSize) AND tMask) < gridW OR (INT(fy * texSize) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
+        NEXT
+        IF yFar + 1 > hTop THEN hTop = yFar + 1
+    END IF
+    IF hTop > hBot THEN EXIT DO
+    ' The next cell: a wall (or a shut door, or a diagonal - drawn whole),
+    ' or open, with a step up or a lintel down to it - or, before it, this
+    ' cell's box
+    IF hDiag THEN
+        hnX = hcX : hnY = hcY : v = 0 : hSolid = -1 : hSlot = wallTexSlot(worldMap(hcX, hcY))
+    ELSEIF hDoored THEN
+        hnX = hcX : hnY = hcY : v = 0 : hSolid = -1
+        SELECT CASE doorType(hcX, hcY)
+            CASE DOOR_SLIDE : IF doorKey(hcX, hcY) THEN hSlot = T_DOORK + doorKey(hcX, hcY) ELSE hSlot = T_DOOR
+            CASE DOOR_SPLIT : hSlot = T_SPLIT
+            CASE ELSE : hSlot = T_SHUTTER
+        END SELECT
+    ELSEIF hBoxed THEN
+        hnX = hcX : hnY = hcY : v = 0 : hSolid = -1 : hSlot = wallTexSlot(boxOn(hcX, hcY))
+    ELSE
+        IF hnX < 0 OR hnY < 0 OR hnX >= MAP_SIZE OR hnY >= MAP_SIZE THEN EXIT DO
+        v = worldMap(hnX, hnY) : hSolid = 0
+        IF v > 0 AND v <> 2 THEN hSolid = -1 : hSlot = wallTexSlot(v)
+        IF diagCorner(hnX, hnY) THEN ' A diagonal's cell: a wall if the ray meets its solid half at the edge - else into it, to the diagonal
+            hSolid = -1 : hSlot = wallTexSlot(worldMap(hnX, hnY))
+            eu = playerX + (hDOut + 0.001) * rayDirX - hnX : ev = playerY + (hDOut + 0.001) * rayDirY - hnY
+            IF NOT InDiagonalWall(diagCorner(hnX, hnY), eu, ev) THEN hSolid = 0 : v = 0
+        END IF
+    END IF
+    IF v = 2 THEN ' (the exit: a wall on its cell's face; any other door, a cell to go into - its slab is found there, above)
+        IF doorType(hnX, hnY) = DOOR_EXIT THEN hSolid = -1 : hSlot = T_EXIT
+    END IF
+    IF hSide = 0 THEN wallX = playerY + hDOut * rayDirY ELSE wallX = playerX + hDOut * rayDirX
+    wallX = wallX - INT(wallX) : hTexX = INT(wallX * texSize)
+    IF hSide = 0 AND rayDirX < 0 THEN hTexX = texSize - 1 - hTexX
+    IF hSide = 1 AND rayDirY > 0 THEN hTexX = texSize - 1 - hTexX
+    hTexX = hTexX AND (texSize - 1)
+    IF hDiag THEN ' (along the diagonal, left to right as you see it - as the flat pass)
+        dgx = playerX + hDOut * rayDirX - hcX : IF diagCorner(hcX, hcY) > 2 THEN dgx = 1 - dgx
+        hTexX = INT(dgx * texSize) AND (texSize - 1) : hSlot2 = 0
+    END IF
+    IF hDoored THEN ' (where on the door: its picture slides with it, as the flat pass's)
+        dShown = DoorShown(hcX, hcY)
+        IF hDoored = 2 THEN
+            hTexX = INT(dU * DOOR_THICK * texSize)
+        ELSEIF doorType(hcX, hcY) = DOOR_SLIDE THEN
+            hTexX = INT((dU - dShown) * texSize)
+        ELSEIF doorType(hcX, hcY) = DOOR_SPLIT THEN
+            IF dU < 0.5 THEN hTexX = INT((dU + dShown / 2) * texSize) ELSE hTexX = INT((dU - dShown / 2) * texSize)
+        ELSE
+            hTexX = INT(dU * texSize)
+        END IF
+        hTexX = hTexX AND (texSize - 1) : hSlot2 = 0
+    END IF
+    hSd = 0 ' (which side of the next cell this is - for a picture of its own: [faces])
+    IF faceAny THEN
+        IF hSide = 0 THEN IF rayDirX > 0 THEN hSd = 3 ELSE hSd = 1
+        IF hSide = 1 THEN IF rayDirY > 0 THEN hSd = 4 ELSE hSd = 2
+        IF hBoxed THEN
+            fu = BoxFaceU(hcX, hcY, hSd, hTexX / texSize) ' (a block's sides: faces of their own)
+            hSlot2 = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 1, hSlot) : hSlot = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 0, hSlot)
+        ELSEIF hSolid AND v <> 2 AND diagCorner(hnX, hnY) = 0 AND NOT hDoored THEN
+            hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot) ' (a diagonal: its neighbours' look, always; a door, its own)
+        END IF
+    END IF
+    hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
+    IF hSide = 1 THEN hFog& = hFog& * 0.7
+    hR& = MinOf(256, litR(hcX, hcY) * hFog& \ 256) : hG& = MinOf(256, litG(hcX, hcY) * hFog& \ 256) : hB& = MinOf(256, litB(hcX, hcY) * hFog& \ 256)
+    IF hSolid THEN ' A wall: from this cell's ceiling to its floor
+        y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut)
+        hZ0 = hc : hZ1 = hf : hVOff = 0 : GOSUB HeightFace
+        hTop = hBot + 1 ' (the column's done: nothing left to fill)
+        EXIT DO
+    END IF
+    ' Open: the step's face up to a higher floor (or a liquid's side, up
+    ' to its surface)...
+    nf = floorH(hnX, hnY) : nLq = 0 : IF liqKind(hnX, hnY) AND NOT cyberOn THEN nLq = liqKind(hnX, hnY) : nf = liqZ(hnX, hnY)
+    IF nf > hf THEN
+        y0 = INT(hor + (eyeZ - nf) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut) : hSlot = wallTexSlot(1) : hVOff = 0
+        IF hSd THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
+        IF nLq THEN hSlot = T_LIQUID + nLq : hSlot2 = 0
+        IF liftCell(hnX, hnY) THEN hSlot2 = 0 : hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
+        hZ0 = nf : hZ1 = hf : GOSUB HeightFace
+        IF y0 - 1 < hBot THEN hBot = y0 - 1
+    END IF
+    ' ...and the lintel's down to a lower ceiling
+    nc = ceilH(hnX, hnY)
+    IF nc < hc THEN
+        y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor - (nc - eyeZ) * viewH / hDOut) : hSlot = wallTexSlot(1)
+        IF hSd THEN hSlot2 = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 0, hSlot)
+        IF texSky(ceilTex(hcX, hcY)) AND texSky(ceilTex(hnX, hnY)) THEN ' (between two skies: sky, not a wall hanging in the air)
+            yA = y0 : IF yA < hTop THEN yA = hTop
+            yB = y1 : IF yB > hBot THEN yB = hBot
+            FOR y = yA TO yB : pixels(y * RENDER_W + x) = texture(skyU(x), skyV(y), ceilTex(hcX, hcY)) OR &HFF000000~& : NEXT
+        ELSE
+            hZ0 = hc : hZ1 = nc : hVOff = 0 : GOSUB HeightFace
+        END IF
+        IF y1 + 1 > hTop THEN hTop = y1 + 1
+    END IF
+    IF clipN(x) < MAX_CLIPS THEN clipN(x) = clipN(x) + 1 : clipD(x, clipN(x)) = hDOut : clipT(x, clipN(x)) = hTop : clipB(x, clipN(x)) = hBot
+    IF hTop > hBot OR hDOut > 24 THEN EXIT DO
+    hcX = hnX : hcY = hnY : hDIn = hDOut
+LOOP
+IF hTop <= hBot THEN ' Rows left when the column gave up (24 cells out - in the open, under a sky): sky above the horizon, the dark below
+    sk = 0 : IF hcX >= 0 AND hcY >= 0 AND hcX < MAP_SIZE AND hcY < MAP_SIZE THEN IF texSky(ceilTex(hcX, hcY)) THEN sk = ceilTex(hcX, hcY)
+    FOR y = hTop TO hBot
+        IF sk AND y < hor THEN pixels(y * RENDER_W + x) = texture(skyU(x), skyV(y), sk) OR &HFF000000~& ELSE pixels(y * RENDER_W + x) = &HFF000000~&
+    NEXT
+END IF
+RETURN
+
+' (HeightColumn's upright faces: rows y0 to y1 of column x, inside hTop ..
+' hBot, the texture hSlot by height - from hZ0 at y0 to hZ1 at y1, a
+' picture a wall high, repeated, moved down by hVOff (a lift's side hangs
+' from its top) - and column hTexX, lit hR&, hG&, hB&)
+HeightFace:
+yA = y0 : IF yA < hTop THEN yA = hTop
+yB = y1 : IF yB > hBot THEN yB = hBot
+' The picture's row runs evenly down the face: work out the first, then
+' step (the height at row y is eyeZ - (y + 0.5 - hor) * hDOut / viewH)
+vStep = hDOut / viewH * texSize : v = (hVOff + 1 - eyeZ + (yA + 0.5 - hor) * hDOut / viewH) * texSize : tMask = texSize - 1
+IF hSlot2 = 0 THEN hSlot2 = hSlot
+hMidY = (y0 + y1) / 2 : hSl = hSlot ' (divided top | bottom: hSlot2 below the middle)
+FOR y = yA TO yB
+    IF y > hMidY THEN hSl = hSlot2
+    texel~& = texture(hTexX, INT(v) AND tMask, hSl)
+    pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * hR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * hG& \ 256) * 256 OR ((texel~& AND 255) * hB& \ 256)
+    IF gridOn THEN IF hTexX < gridW OR (INT(v) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
+    v = v + vStep
+NEXT
+hSlot2 = 0
+RETURN
+
+' --- A sprite standing flat (drawFace 1-4: facing east, south, west or
+' north) - a terminal against a wall, a screen in an alcove - that doesn't
+' turn to face you. It's a card across the cell, drawScale tall and as
+' wide as a sprite that faces you would be, and each column of the view
+' finds where its ray crosses it, as a pane of glass does (GlassRay): t,
+' how far (perpWallDist's kind of distance), and u, how far along - from
+' the card's left as you'd see it face on, so seen from behind it's
+' mirrored, like a card. Then that column of the picture, at that height.
+DrawFlat:
+fhw = drawScale(i) * fovPlane * RENDER_H / RENDER_W ' (half its width, in cells)
+SELECT CASE drawFace(i) ' (its right, seen face on)
+    CASE 1 : frx = 0 : fry = -1
+    CASE 2 : frx = 1 : fry = 0
+    CASE 3 : frx = 0 : fry = 1
+    CASE ELSE : frx = -1 : fry = 0
+END SELECT
+fx0 = drawX(i) - frx * fhw : fy0 = drawY(i) - fry * fhw ' (its left end)
+fDist = SQR(drawDistSq(i))
+fog& = 256 - fDist * 10 : IF fog& < 0 THEN fog& = 0
+litX = INT(drawX(i)) : litY = INT(drawY(i))
+lightR& = litR(litX, litY) * fog& \ 256 : lightG& = litG(litX, litY) * fog& \ 256 : lightB& = litB(litX, litY) * fog& \ 256
+IF lightR& < drawMinShade(i) THEN lightR& = drawMinShade(i)
+IF lightG& < drawMinShade(i) THEN lightG& = drawMinShade(i)
+IF lightB& < drawMinShade(i) THEN lightB& = drawMinShade(i)
+spriteSz = spriteSize(drawSprite(i)) : spriteSlot = drawSprite(i)
+IF glMode THEN ' (OpenGL draws it: GLSpritesAndExtras, facing glSprFace's way)
+    n = glNumSpr(glWrite) + 1 : glNumSpr(glWrite) = n
+    glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i) + FloorAt(drawX(i), drawY(i))
+    glSprHalfW(n, glWrite) = fhw : glSprH(n, glWrite) = drawScale(i) * drawSquash(i) : glSprSlot(n, glWrite) = spriteSlot
+    glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = drawFace(i)
+    RETURN
+END IF
+IF fDist > 24 THEN RETURN ' (the software view: past where its fog has it gone)
+fFloor = FloorAt(drawX(i), drawY(i))
+FOR screenX = 0 TO RENDER_W - 1
+    cameraX = 2 * screenX / RENDER_W - 1
+    frdx = dirX + planeX * cameraX : frdy = dirY + planeY * cameraX
+    ft = -1
+    IF frx <> 0 THEN
+        IF ABS(frdy) > 0.000001 THEN ft = (drawY(i) - playerY) / frdy : fu = (playerX + ft * frdx - fx0) * frx / (2 * fhw)
+    ELSE
+        IF ABS(frdx) > 0.000001 THEN ft = (drawX(i) - playerX) / frdx : fu = (playerY + ft * frdy - fy0) * fry / (2 * fhw)
+    END IF
+    IF ft > 0.05 THEN
+        IF fu >= 0 AND fu < 1 AND ft < zBuffer(screenX) THEN
+            IF glassT(screenX) > 0 AND glassDone(screenX) = 0 THEN IF ft < glassT(screenX) THEN gx = screenX : GOSUB GlassColumn
+            spriteH = INT(viewH / ft * drawScale(i) * drawSquash(i)) : IF spriteH < 1 THEN spriteH = 1
+            spriteTop = INT(RENDER_H / 2 + (eyeZ - fFloor - drawLift(i)) * viewH / ft) - spriteH
+            spriteU = INT(fu * spriteSz) : IF spriteU > spriteSz - 1 THEN spriteU = spriteSz - 1
+            spTop = 0 : spBot = RENDER_H - 1
+            FOR k = 1 TO clipN(screenX)
+                IF clipD(screenX, k) < ft THEN spTop = clipT(screenX, k) : spBot = clipB(screenX, k)
+            NEXT
+            FOR screenY = MaxOf(spriteTop, spTop) TO MinOf(spriteTop + spriteH - 1, spBot)
+                texel~& = spriteTex(spriteU, (screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
+                IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = ShadeRGB~&(texel~&, lightR&, lightG&, lightB&)
+            NEXT
+        END IF
+    END IF
+NEXT
+RETURN
+
+' --- Column gx's pane of glass, over what's already drawn behind it: the
+' glass picture (S_GLASS, or cracked) at the pane's distance, each pixel
+' mixed with what's there by the picture's alpha - see-through mostly,
+' streaks of shine, a solid frame top and bottom
+GlassColumn:
+glassDone(gx) = -1
+gLine = viewH / glassT(gx)
+gTop = INT(RENDER_H / 2 - (ceilH(glassCX(gx), glassCY(gx)) - eyeZ) * gLine) : gEnd = INT(RENDER_H / 2 + (eyeZ - floorH(glassCX(gx), glassCY(gx))) * gLine)
+gLine = gEnd - gTop + 1 ' (the pane's height on the screen)
+gStep = sprTex / gLine : gPos = 0
+IF gTop < 0 THEN gPos = -gTop * gStep : gTop = 0
+IF gEnd > RENDER_H - 1 THEN gEnd = RENDER_H - 1
+gClipT = 0 : gClipB = RENDER_H - 1 ' (heights: hidden above and below by the ledges and lintels nearer than it, as a sprite is - HeightColumn's clips)
+FOR gc = 1 TO clipN(gx)
+    IF clipD(gx, gc) < glassT(gx) THEN gClipT = clipT(gx, gc) : gClipB = clipB(gx, gc)
+NEXT
+IF gTop < gClipT THEN gPos = gPos + (gClipT - gTop) * gStep : gTop = gClipT
+IF gEnd > gClipB THEN gEnd = gClipB
+gu = INT(glassU(gx) * sprTex) AND (sprTex - 1)
+gSlot = S_GLASS : IF glassHP(glassCX(gx), glassCY(gx)) <= GLASS_HP \ 2 THEN gSlot = S_GLASS + 1
+gFog& = 256 - glassT(gx) * 16 : IF gFog& < 40 THEN gFog& = 40
+gR& = litR(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gG& = litG(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gB& = litB(glassCX(gx), glassCY(gx)) * gFog& \ 256
+IF gR& > 256 THEN gR& = 256
+IF gG& > 256 THEN gG& = 256
+IF gB& > 256 THEN gB& = 256
+' (A pane can cover the whole view, so this loop can run 100,000 times a
+' frame: the shading and the mix are written out, not FUNCTION calls)
+gMask = sprTex - 1
+FOR gy = gTop TO gEnd
+    gTex~& = spriteTex(gu, INT(gPos) AND gMask, gSlot) : gA& = (gTex~& \ &H1000000) AND 255
+    IF gA& THEN
+        gIdx& = gy * RENDER_W + gx : gOld~& = pixels(gIdx&) : gK& = 255 - gA&
+        gCR& = ((gTex~& \ 65536) AND 255) * gR& \ 256 : gCG& = ((gTex~& \ 256) AND 255) * gG& \ 256 : gCB& = (gTex~& AND 255) * gB& \ 256
+        pixels(gIdx&) = &HFF000000~& OR ((gCR& * gA& + ((gOld~& \ 65536) AND 255) * gK&) \ 255) * 65536 OR ((gCG& * gA& + ((gOld~& \ 256) AND 255) * gK&) \ 255) * 256 OR ((gCB& * gA& + (gOld~& AND 255) * gK&) \ 255)
+    END IF
+    gPos = gPos + gStep
+NEXT
+RETURN

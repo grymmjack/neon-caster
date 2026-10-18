@@ -1,0 +1,194 @@
+''
+' NEON-CASTER - WORLD/DOORS.BM
+' =============================================================================
+' Doors (chapter 11): how fast they open, how long they wait, how much
+' of one shows, and sealing a room's doors.
+'
+
+' Can a body be at map point (x, y)? Open floor or a mostly-open door, and
+' not inside a decoration - or, in a diagonal wall's cell, in its open half.
+' Each kind of door's own ways (chapter 11): how much it opens or shuts a
+' frame (shutters are heavy and slow, split doors snap), how many frames it
+' stays open before shutting itself, and its sound
+FUNCTION DoorSpeed(kind)
+    SELECT CASE kind
+        CASE DOOR_SHUTTER : DoorSpeed = 0.025
+        CASE DOOR_SPLIT : DoorSpeed = 0.06
+        CASE ELSE : DoorSpeed = 0.04
+    END SELECT
+END FUNCTION
+
+FUNCTION DoorHold(kind)
+    SELECT CASE kind
+        CASE DOOR_SHUTTER : DoorHold = 360 ' 6 seconds
+        CASE DOOR_SPLIT : DoorHold = 180 ' 3
+        CASE ELSE : DoorHold = 240 ' 4
+    END SELECT
+END FUNCTION
+
+' How open door (x, y) LOOKS: never all the way - DOOR_LIP of it always
+' shows (a shutter's bottom edge hangs at the top of the doorway, a
+' sliding door's edge stands at the side, a split door's two edges at
+' both), so an open door is still there. Walking through goes by
+' doorOpen itself.
+FUNCTION DoorShown(x, y)
+    DoorShown = doorOpen(x, y) * (1 - DOOR_LIP)
+END FUNCTION
+
+'' Lock (locked -1) or unlock (0) every door in event ev's room or near it
+' (within 5 cells: a room's doors can be at the ends of short corridors).
+' Locking one that's open shuts it (the door loop does that, once nobody's
+' in the way).
+SUB LockRoom(ev, locked)
+    rr = 5 : IF evType(ev) = EV_HOARD THEN rr = 1 ' (a hoard: only its vault's own doors, the ones touching it - not every door near it)
+    FOR y = evY0(ev) - rr TO evY1(ev) + rr : FOR x = evX0(ev) - rr TO evX1(ev) + rr
+        IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+            IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN
+                IF locked THEN ' (sealed - unless something else already has it)
+                    IF doorLock(x, y) = 0 THEN doorLock(x, y) = -1 : doorLockEv(x, y) = ev
+                ELSEIF doorLock(x, y) = -1 AND (doorLockEv(x, y) = ev OR doorLockEv(x, y) = 0) THEN ' (let go - only its own: another room's lockdown, a trigger's lock, a hoard's seal stay)
+                    doorLock(x, y) = 0 : doorLockEv(x, y) = 0
+                END IF
+            END IF
+        END IF
+    NEXT : NEXT
+END SUB
+
+' Why door (x, y), sealed by an event room (LockRoom), won't open: a
+' thieves' hoard's opens when its last thief is destroyed - not when the
+' room beside it is clear, so it says so
+FUNCTION SealedMsg$(x, y)
+    SealedMsg$ = "SEALED - it won't open until the room is clear"
+    FOR ev = 1 TO numEvents
+        IF evType(ev) = EV_HOARD AND evState(ev) = 3 THEN
+            IF x >= evX0(ev) - 1 AND x <= evX1(ev) + 1 AND y >= evY0(ev) - 1 AND y <= evY1(ev) + 1 THEN SealedMsg$ = "LOCKED FOR GOOD - a thief got home with your things" : EXIT FUNCTION
+        END IF
+        IF evType(ev) = EV_HOARD AND evState(ev) = 0 THEN
+            IF x >= evX0(ev) - 1 AND x <= evX1(ev) + 1 AND y >= evY0(ev) - 1 AND y <= evY1(ev) + 1 THEN
+                n = 0
+                FOR j = 1 TO numMonsters
+                    IF monsterType(j) = MT_THIEF AND monsterState(j) < 2 THEN n = n + 1
+                NEXT
+                SealedMsg$ = "SEALED - a thieves' hoard: destroy every thief bot (" + LTRIM$(STR$(n)) + " left)"
+                EXIT FUNCTION
+            END IF
+        END IF
+    NEXT
+END FUNCTION
+
+' Are you (px, py) in the way of any of the doors event ev locks (LockRoom's:
+' within 5 cells of its room) - so near one it couldn't shut on you?
+FUNCTION NearRoomDoor(ev, px, py)
+    edge = 0.5 + PLAYER_RADIUS + 0.05
+    FOR y = evY0(ev) - 5 TO evY1(ev) + 5 : FOR x = evX0(ev) - 5 TO evX1(ev) + 5
+        IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+            IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN
+                IF ABS(px - (x + 0.5)) < edge AND ABS(py - (y + 0.5)) < edge THEN NearRoomDoor = -1 : EXIT FUNCTION
+            END IF
+        END IF
+    NEXT : NEXT
+END FUNCTION
+
+' Which way door (cx, cy) runs: 0 along x (walls at its ends, west and
+' east; its faces look north and south), 1 along y
+FUNCTION DoorAcross(cx, cy)
+    IF cx > 0 AND cx < MAP_SIZE - 1 THEN
+        IF IsWall(cx - 1, cy) OR IsWall(cx + 1, cy) THEN EXIT FUNCTION
+    END IF
+    DoorAcross = 1
+END FUNCTION
+
+' Where does a ray from (px, py), going (rdx, rdy), meet door (cx, cy)'s
+' slab? It's easiest in the door's own directions: "a" along the door (0
+' at one end of the doorway, 1 at the other) and "n" through it (0 on its
+' middle line, the slab's faces at -half and +half). Then:
+'   its face: the one towards the ray, at n = -half (or +half) - hit if
+'   the door's still there at that a (a sliding door covers a from
+'   DoorShown to 1; a split door's halves cover the two ends)
+'   an edge: missing the face, the ray goes through the gap - and meets a
+'   door's edge if it crosses that edge's a between the faces
+' Returns 0 (missed), 1 (its face), 2 (an edge) or 3 (a lifted shutter:
+' drawn later). t: how far (in the ray's own steps, so as perpWallDist);
+' u: where along the face (or across the edge, 0..1); side: 0 for a face
+' looking east or west, 1 north or south (chapter 15 shades those
+' darker); (litX, litY): the cell whose light falls on it; back: how far
+' to the far face (for a shutter's underside).
+FUNCTION DoorRay(cx, cy, px, py, rdx, rdy, t, u, side, litX, litY, back)
+    half = DOOR_THICK / 2 : shown = DoorShown(cx, cy) : kind = doorType(cx, cy)
+    IF DoorAcross(cx, cy) = 0 THEN
+        pa = px - cx : pn = py - cy - 0.5 : da = rdx : dn = rdy : faceSide = 1 : edgeSide = 0
+    ELSE
+        pa = py - cy : pn = px - cx - 0.5 : da = rdy : dn = rdx : faceSide = 0 : edgeSide = 1
+    END IF
+    IF dn <> 0 THEN ' Its face
+        tFace = (-half * SGN(dn) - pn) / dn
+        IF tFace > 0 THEN
+            a = pa + tFace * da
+            IF a >= 0 AND a <= 1 THEN
+                covered = 0
+                SELECT CASE kind
+                    CASE DOOR_SLIDE : covered = a >= shown
+                    CASE DOOR_SPLIT : covered = a <= 0.5 - shown / 2 OR a >= 0.5 + shown / 2
+                    CASE ELSE : covered = -1
+                END SELECT
+                IF covered THEN
+                    t = tFace : u = a : side = faceSide : back = (half * SGN(dn) - pn) / dn
+                    IF faceSide = 1 THEN litX = cx : litY = cy - SGN(dn) ELSE litX = cx - SGN(dn) : litY = cy
+                    DoorRay = 1
+                    IF kind = DOOR_SHUTTER AND shown > 0 THEN DoorRay = 3
+                    EXIT FUNCTION
+                END IF
+            END IF
+        END IF
+    END IF
+    IF da <> 0 AND kind <> DOOR_SHUTTER THEN ' An edge, seen through the gap
+        IF kind = DOOR_SLIDE THEN
+            IF da > 0 THEN e = shown ELSE EXIT FUNCTION ' (its one edge faces back towards a = 0)
+        ELSE
+            IF da > 0 THEN e = 0.5 + shown / 2 ELSE e = 0.5 - shown / 2
+        END IF
+        tEdge = (e - pa) / da
+        IF tEdge > 0 THEN
+            n = pn + tEdge * dn
+            IF ABS(n) <= half THEN
+                t = tEdge : u = (n + half) / (2 * half) : side = edgeSide : litX = cx : litY = cy
+                DoorRay = 2
+            END IF
+        END IF
+    END IF
+END FUNCTION
+
+' A hunting monster about to step into door (cx, cy): open it - unless it
+' needs a keycard (or it's the exit). An open door being shut opens again,
+' and one waiting starts its wait again, so it's open while they come
+' through. (You hear it, quieter further away: you're at (px, py).)
+SUB MonsterDoor(cx, cy, px, py)
+    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT SUB
+    IF worldMap(cx, cy) <> 2 OR doorType(cx, cy) = DOOR_EXIT OR doorKey(cx, cy) <> 0 OR doorLock(cx, cy) THEN EXIT SUB
+    IF doorMove(cx, cy) = 1 THEN EXIT SUB ' (opening already)
+    IF doorOpen(cx, cy) >= 1 THEN doorWait(cx, cy) = DoorHold(doorType(cx, cy)) : EXIT SUB
+    IF doorOpen(cx, cy) = 0 THEN doorOpen(cx, cy) = 0.01
+    doorMove(cx, cy) = 1
+    SfxAt DoorSnd&(doorType(cx, cy)), cx + 0.5, cy + 0.5, px, py
+END SUB
+
+FUNCTION DoorSnd&(kind)
+    SELECT CASE kind
+        CASE DOOR_SHUTTER : DoorSnd& = sndShutter&
+        CASE DOOR_SPLIT : DoorSnd& = sndSplit&
+        CASE ELSE : DoorSnd& = sndDoor&
+    END SELECT
+END FUNCTION
+
+' Is anyone in door (dx, dy)'s doorway - you (at px, py) or a monster
+' still standing - so it mustn't shut? (Your body reaches PLAYER_RADIUS
+' past your middle, so you can be in it while your middle is next door.)
+FUNCTION DoorBlocked(dx, dy, px, py)
+    edge = 0.5 + PLAYER_RADIUS
+    IF ABS(px - (dx + 0.5)) < edge AND ABS(py - (dy + 0.5)) < edge THEN DoorBlocked = -1 : EXIT FUNCTION
+    FOR i = 1 TO numMonsters
+        IF monsterState(i) < 2 THEN
+            IF ABS(monsterX(i) - (dx + 0.5)) < 0.85 AND ABS(monsterY(i) - (dy + 0.5)) < 0.85 THEN DoorBlocked = -1 : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
