@@ -76,7 +76,9 @@ X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 and `item KIND X Y`, which a level's triggers use. `mons` lists every
 monster and whether it's awake. `qb64pe` says which compiler the code
 terminals use (see below). Up and Down bring back earlier lines, Tab
-finishes a command's name, and `;` puts several on one line.
+finishes a command's name, and `;` puts several on one line. Ctrl+V (or
+Shift+Insert, or a right-click) pastes - several lines become several
+commands.
 
 Every command also works from the command line, each one starting with a
 `+`. Then the game skips its title, starts a new game and runs them one a

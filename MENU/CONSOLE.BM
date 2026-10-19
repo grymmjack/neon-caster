@@ -6,8 +6,28 @@
 
 ' --- THE CONSOLE: the game waits while it's open (like the menu), the
 ' frame you left showing behind it. Type a command and Enter; Up and Down
-' bring back earlier ones; Tab finishes a command's name; ` or Esc closes
-' it. A command that changes the level closes it too, so you see it.
+' bring back earlier ones; Tab finishes a command's name; Ctrl+V (or
+' Shift+Insert, or a right-click) pastes; ` or Esc closes it. A command that changes the level closes it too, so you see it.
+' What's on the clipboard, as console typing: its lines joined by ; (so a
+' list of commands pasted runs them all), anything else that isn't
+' something you could type taken out
+FUNCTION ConClip$
+    DIM c$, j, o$, t$ ' (its own: the main program shares these names)
+    t$ = _CLIPBOARD$
+    FOR j = 1 TO LEN(t$)
+        c$ = MID$(t$, j, 1)
+        IF c$ = CHR$(10) THEN
+            IF LEN(o$) THEN IF RIGHT$(o$, 1) <> ";" THEN o$ = o$ + ";"
+        ELSEIF c$ = CHR$(9) THEN
+            o$ = o$ + " "
+        ELSEIF ASC(c$) >= 32 AND ASC(c$) <= 125 AND c$ <> "`" THEN
+            o$ = o$ + c$
+        END IF
+    NEXT
+    IF RIGHT$(o$, 1) = ";" THEN o$ = LEFT$(o$, LEN(o$) - 1)
+    ConClip$ = o$
+END FUNCTION
+
 SUB RunConsole STATIC
     WorldLoopsOff ' (the world stops while you type: so do its hums)
     _KEYCLEAR
@@ -18,7 +38,8 @@ SUB RunConsole STATIC
     ' its tick (60 a second, as you typed) - so a demo shows the typing as well
     ' as what it did. Playing one back (conReplay), those keys again, at the
     ' same ticks: the same lines typed, the same commands run, and their answers.
-    conSession = -1 : conTick = 0
+    conSession = -1 : conTick = 0 : conCtrl = 0 : conShift = 0
+    WHILE _MOUSEINPUT : WEND : conRightWas = _MOUSEBUTTON(2) ' (a right button already down when it opens isn't a click)
     IF demoRec AND NOT conReplay THEN DemoFlush : DemoPut "o"
     IF conReplay THEN ConReplayNext
     DO
@@ -26,7 +47,13 @@ SUB RunConsole STATIC
         conTick = conTick + 1
         IF conReplay THEN ConReplayKey ELSE k& = _KEYHIT
         DO WHILE k& <> 0 AND NOT conDone
-            IF demoRec AND NOT conReplay AND k& > 0 AND k& <> 18432 AND k& <> 20480 AND k& <> 9 THEN DemoPut "t" + STR$(conTick) + STR$(k&) ' (Up, Down and Tab: the line they give, below)
+            conPaste = 0 ' (Ctrl+V or Shift+Insert: the clipboard's text, typed in)
+            IF ABS(k&) = 100305 OR ABS(k&) = 100306 THEN conCtrl = k& > 0 ' (Ctrl and Shift, followed as they go down and up: by the time a quick Ctrl+V is read, Ctrl may be up again)
+            IF ABS(k&) = 100303 OR ABS(k&) = 100304 THEN conShift = k& > 0
+            IF NOT conReplay AND (conCtrl OR _KEYDOWN(100305) OR _KEYDOWN(100306)) AND (k& = 118 OR k& = 86 OR k& = 22) THEN conPaste = -1
+            IF NOT conReplay AND (conShift OR _KEYDOWN(100303) OR _KEYDOWN(100304)) AND k& = 20992 THEN conPaste = -1
+            IF demoRec AND NOT conReplay AND k& > 0 AND k& <> 18432 AND k& <> 20480 AND k& <> 9 AND NOT conPaste THEN DemoPut "t" + STR$(conTick) + STR$(k&) ' (Up, Down, Tab and a paste: the line they give, below)
+            IF conPaste THEN conLine$ = LEFT$(conLine$ + ConClip$, 250) : k& = -1 ' (-1: no key of its own)
             SELECT CASE k&
                 CASE 96, 126, 27 ' ` ~ Esc: close
                     conDone = -1
@@ -57,11 +84,20 @@ SUB RunConsole STATIC
                 CASE 9 ' Tab: finish the command's name
                     conLine$ = ConComplete$(conLine$)
                 CASE 32 TO 125
-                    IF LEN(conLine$) < 90 THEN conLine$ = conLine$ + CHR$(k&)
+                    IF LEN(conLine$) < 250 THEN conLine$ = conLine$ + CHR$(k&)
             END SELECT
-            IF demoRec AND NOT conReplay AND (k& = 18432 OR k& = 20480 OR k& = 9) THEN DemoPut "l" + STR$(conTick) + " " + conLine$ ' (a line from your history - which someone watching hasn't got - or finished by Tab: the line itself)
+            IF demoRec AND NOT conReplay AND (k& = 18432 OR k& = 20480 OR k& = 9 OR conPaste) THEN DemoPut "l" + STR$(conTick) + " " + conLine$ ' (a line from your history - which someone watching hasn't got - or finished by Tab: the line itself)
             IF conReplay THEN k& = 0 ELSE k& = _KEYHIT
         LOOP
+        conRight = 0 ' A right-click pastes too (looked for in each mouse event: a quick click is up again by the last)
+        WHILE _MOUSEINPUT
+            IF _MOUSEBUTTON(2) AND NOT conRightWas THEN conRight = -1
+            conRightWas = _MOUSEBUTTON(2)
+        WEND
+        IF conRight AND NOT conReplay AND NOT conDone THEN
+            conLine$ = LEFT$(conLine$ + ConClip$, 250)
+            IF demoRec THEN DemoPut "l" + STR$(conTick) + " " + conLine$
+        END IF
         IF conDone THEN EXIT DO
         CLS , _RGBA32(0, 0, 0, 0)
         _PUTIMAGE , conBackdrop&, 0
@@ -1018,7 +1054,7 @@ END SUB
 ' The console, drawn over the top of the screen: its log, and the line
 ' being typed with a blinking cursor
 SUB DrawConsole(l$)
-    DIM i, y ' (its own: the main program shares these names)
+    DIM i, y, v$ ' (its own: the main program shares these names)
     rows = 19 : h = rows * 16 + 28
     LINE (0, 0)-(799, h), _RGBA32(6, 2, 18, 225), BF
     LINE (0, h)-(799, h + 1), _RGB32(255, 60, 200), BF
@@ -1029,7 +1065,8 @@ SUB DrawConsole(l$)
         COLOR col~& : _PRINTSTRING (6, y), conLog$(i) : y = y + 16
     NEXT
     cur$ = "" : IF INT(TIMER * 3) MOD 2 THEN cur$ = "_"
-    COLOR _RGB32(255, 255, 255) : _PRINTSTRING (6, h - 20), "] " + l$ + cur$
+    v$ = l$ : IF LEN(v$) > 70 THEN v$ = "..." + RIGHT$(v$, 67) ' (a long line - a paste: its end, where you're typing)
+    COLOR _RGB32(255, 255, 255) : _PRINTSTRING (6, h - 20), "] " + v$ + cur$
     COLOR _RGB32(120, 110, 160) : _PRINTSTRING (800 - 8 * 26, h - 20), "NEON-CASTER CONSOLE  ` ESC"
 END SUB
 
