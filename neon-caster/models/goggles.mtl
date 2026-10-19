@@ -1,0 +1,4 @@
+# NEON-CASTER prop: goggles - its texture, for 3D viewers
+newmtl goggles
+Kd 1 1 1
+map_Kd ../hd/models/goggles_tex.png

@@ -1,0 +1,4 @@
+# NEON-CASTER prop: plant - its texture, for 3D viewers
+newmtl plant
+Kd 1 1 1
+map_Kd ../hd/models/plant_tex.png

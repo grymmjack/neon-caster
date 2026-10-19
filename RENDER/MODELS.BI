@@ -1,18 +1,32 @@
 ''
 ' NEON-CASTER - RENDER/MODELS.BI
 ' =============================================================================
-' 3D props: decorations that are models - triangles - instead of a flat
-' picture (just the chair so far). RENDER/MODELS.BM loads them.
+' 3D props: decorations and pickups that are models - triangles - instead
+' of a flat picture. RENDER/MODELS.BM loads and picks them.
 '
 
-' A model's triangles, every prop's one after another: prop m's are
-' mdlFirst(m) to mdlFirst(m) + mdlCount(m) - 1. Corner j of triangle t is
-' number t * 3 + j: where it is (mdlPX, PY, PZ: in cells, x the way the
-' prop faces, y its right-hand side, z up from its floor) and where on the
-' texture (mdlU, V: 0 to 1 from its top left). Each triangle's normal - the
-' way it faces - is worked out once, as it's loaded (mdlNX, NY, NZ).
-CONST MAX_MDL_TRIS = 1500
-DIM SHARED mdlFirst(MODEL_KINDS) AS LONG, mdlCount(MODEL_KINDS) AS LONG, mdlTris AS LONG
+' The models, numModels of them (1 to MAX_MODELS): each from
+' neon-caster/models/NAME.obj (mdlName$), tinted mdlTint~& (a keycard's
+' colour; 0: as it is). decoMdl(kind) and itemMdl(kind) say which model a
+' decoration or pickup is - 0: it's a sprite (no model for it).
+DIM SHARED numModels AS INTEGER, mdlName$(MAX_MODELS), mdlTint(MAX_MODELS) AS _UNSIGNED LONG
+DIM SHARED decoMdl(DECO_KINDS) AS INTEGER, itemMdl(ITEM_KINDS) AS INTEGER
+' Its triangles, every model's one after another: model m's are mdlFirst(m)
+' to mdlFirst(m) + mdlCount(m) - 1. Corner j of triangle t is number
+' t * 3 + j: where it is (mdlPX, PY, PZ: in cells, x the way the prop faces,
+' y its right-hand side, z up from its floor) and where on the texture
+' (mdlU, V: 0 to 1 from its top left). Each triangle's normal - the way it
+' faces - is worked out once, as it's loaded (mdlNX, NY, NZ).
+CONST MAX_MDL_TRIS = 16000
+DIM SHARED mdlFirst(MAX_MODELS) AS LONG, mdlCount(MAX_MODELS) AS LONG, mdlTris AS LONG
 DIM SHARED mdlPX(MAX_MDL_TRIS * 3) AS SINGLE, mdlPY(MAX_MDL_TRIS * 3) AS SINGLE, mdlPZ(MAX_MDL_TRIS * 3) AS SINGLE
 DIM SHARED mdlU(MAX_MDL_TRIS * 3) AS SINGLE, mdlV(MAX_MDL_TRIS * 3) AS SINGLE
 DIM SHARED mdlNX(MAX_MDL_TRIS) AS SINGLE, mdlNY(MAX_MDL_TRIS) AS SINGLE, mdlNZ(MAX_MDL_TRIS) AS SINGLE
+' The 8 pictures of each, for the software renderer (MDL_PIC square, ART or
+' not: it never draws a sprite bigger): model m's picture a (0-7) is
+' mdlPic(x, y, (m - 1) * MDL_ANGLES + a + 1). They're mdlFrame(m) cells
+' across - wider than the prop, so it fits seen from any way round.
+CONST MDL_ANGLES = 8, MDL_PIC = 64
+' OpenGL draws a model out to MODEL_NEAR cells away; further, its sprite
+CONST MODEL_NEAR = 10
+DIM SHARED mdlPic(MDL_PIC - 1, MDL_PIC - 1, MAX_MODELS * MDL_ANGLES) AS _UNSIGNED LONG, mdlFrame(MAX_MODELS) AS SINGLE

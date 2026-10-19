@@ -1,0 +1,4 @@
+# NEON-CASTER prop: cryopod - its texture, for 3D viewers
+newmtl cryopod
+Kd 1 1 1
+map_Kd ../hd/models/cryopod_tex.png

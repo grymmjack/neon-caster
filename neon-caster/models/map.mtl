@@ -1,0 +1,4 @@
+# NEON-CASTER prop: map - its texture, for 3D viewers
+newmtl map
+Kd 1 1 1
+map_Kd ../hd/models/map_tex.png

@@ -35,7 +35,7 @@
     ' behind walls and doorframes. Transparent pixels (alpha 128 or less)
     ' are skipped, so you see the shape, not its square.
     numDraw = 0
-    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : drawMdl(k) = 0 : NEXT
+    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : drawMdl(k) = 0 : drawPic(k) = 0 : NEXT
     FOR i = 1 TO numItems
         IF itemOn(i) AND (itemKind(i) = IT_CORE) = cyberOn THEN ' (in the network, just its data cores)
             numDraw = numDraw + 1 : drawX(numDraw) = itemX(i) : drawY(numDraw) = itemY(i)
@@ -48,6 +48,10 @@
             END SELECT
             drawLift(numDraw) = 0.12 + 0.04 * SIN(TIMER * 3 + i) ' Hovering, bobbing
             IF itemToss(i) > 0 THEN f = itemToss(i) / LOOT_TOSS : drawLift(numDraw) = drawLift(numDraw) + 1.4 * f * (1 - f) ' (tossed: up and over, and down - TossItem)
+            IF itemMdl(itemKind(i)) THEN ' A 3D pickup, turning slowly as it hovers (RENDER/MODELS.BM)
+                drawMdl(numDraw) = itemMdl(itemKind(i)) : drawAng(numDraw) = TIMER * 1.6 + i * 1.3
+                drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), itemX(i), itemY(i))
+            END IF
         END IF
     NEXT
     FOR i = 1 TO numMonsters
@@ -83,9 +87,9 @@
             IF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
                 drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0 : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw)
-            ELSEIF DecoModel(decoKind(i)) THEN ' A 3D prop (a chair): OpenGL draws its model; we draw its picture from nearest where you are (RENDER/MODELS.BM)
-                drawMdl(numDraw) = DecoModel(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0
-                drawSprite(numDraw) = ModelPicture(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
+            ELSEIF decoMdl(decoKind(i)) THEN ' A 3D prop: OpenGL draws its model; we draw its picture from nearest where you are (RENDER/MODELS.BM)
+                drawMdl(numDraw) = decoMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0
+                drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
             END IF
             IF decoKind(i) = 2 OR decoKind(i) = 7 OR decoKind(i) = 12 OR decoKind(i) = 13 OR decoKind(i) = 17 THEN drawMinShade(numDraw) = 200 ' Lamps (vending machines, monitors, tanks, holograms) glow
             IF decoKind(i) = 9 AND decoOn(i) AND (decoCharge(i) > 0 OR decoBurst(i) > 0) THEN ' A spawner charging: an orb of light in it, growing - and sending one out, the orb falls in on itself, then bursts
@@ -207,7 +211,8 @@
         IF drawFace(i) THEN
             DrawFlat ' (standing flat, facing one way: RENDER/VIEW.BM)
         ELSEIF transformY > 0.1 THEN
-            spriteW = INT(viewH / transformY * drawScale(i)) : spriteH = INT(spriteW * drawSquash(i))
+            sc = drawScale(i) : IF drawPic(i) AND NOT glMode THEN sc = mdlFrame(drawMdl(i)) ' (a 3D prop's picture: wider than its sprite, to fit it from any way round)
+            spriteW = INT(viewH / transformY * sc) : spriteH = INT(spriteW * drawSquash(i))
             IF spriteH < 1 THEN spriteH = 1
             spriteTop = INT(RENDER_H / 2 + (eyeZ - FloorAt(drawX(i), drawY(i)) - drawLift(i)) * viewH / transformY) -spriteH ' Bottom edge on its floor, lifted off it - below your eye
             spriteLeft = INT(RENDER_W / 2 * (1 + transformX / transformY)) - spriteW \ 2
@@ -220,6 +225,7 @@
             IF lightG& < drawMinShade(i) THEN lightG& = drawMinShade(i)
             IF lightB& < drawMinShade(i) THEN lightB& = drawMinShade(i)
             spriteSz = spriteSize(drawSprite(i)) : spriteSlot = drawSprite(i)
+            IF drawPic(i) THEN spriteSz = MDL_PIC ' (a 3D prop's picture from where you are: mdlPic)
             IF glMode THEN
                 ' OpenGL draws it (chapter 24): just note where it stands, how
                 ' big it is, its picture and its light (256 here is 1 there:
@@ -228,12 +234,21 @@
                 ' across isn't quite as many pixels as a cell up - so in cells,
                 ' that's fovPlane * RENDER_H / RENDER_W * drawScale either side
                 ' of its middle.
+                ' (A 3D prop: its model when it's near and in view - out to the
+                ' side, nothing; further than MODEL_NEAR, its sprite, as ever:
+                ' a model costs hundreds of triangles, and that far off it's a
+                ' few pixels tall.)
+                mdlNow = drawMdl(i)
+                IF mdlNow THEN
+                    IF ABS(transformX) > transformY * 2 + mdlFrame(mdlNow) THEN _CONTINUE
+                    IF transformY > MODEL_NEAR THEN mdlNow = 0
+                END IF
                 n = glNumSpr(glWrite) + 1 : glNumSpr(glWrite) = n
                 glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i) + FloorAt(drawX(i), drawY(i))
                 glSprHalfW(n, glWrite) = drawScale(i) * fovPlane * RENDER_H / RENDER_W
                 glSprH(n, glWrite) = drawScale(i) * drawSquash(i) : glSprSlot(n, glWrite) = spriteSlot
                 glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = 0
-                glSprMdl(n, glWrite) = drawMdl(i) : glSprAng(n, glWrite) = drawAng(i) ' (a 3D prop: GLDrawModel)
+                glSprMdl(n, glWrite) = mdlNow : glSprAng(n, glWrite) = drawAng(i) ' (a 3D prop: GLDrawModel)
             ELSE
                 FOR screenX = spriteLeft TO spriteLeft + spriteW - 1
                     IF screenX >= 0 AND screenX < RENDER_W THEN
@@ -251,7 +266,7 @@
                             NEXT
                             FOR screenY = spriteTop TO spriteTop + spriteH - 1
                                 IF screenY >= spTop AND screenY <= spBot THEN
-                                    texel~& = spriteTex(spriteU,(screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
+                                    IF drawPic(i) THEN texel~& = mdlPic(spriteU, (screenY - spriteTop) * spriteSz \ spriteH, drawPic(i)) ELSE texel~& = spriteTex(spriteU,(screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
                                     IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = ShadeRGB~&(texel~&, lightR&, lightG&, lightB&)
                                 END IF
                             NEXT

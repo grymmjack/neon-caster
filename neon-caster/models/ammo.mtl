@@ -1,0 +1,4 @@
+# NEON-CASTER prop: ammo - its texture, for 3D viewers
+newmtl ammo
+Kd 1 1 1
+map_Kd ../hd/models/ammo_tex.png

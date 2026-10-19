@@ -1,0 +1,4 @@
+# NEON-CASTER prop: armor - its texture, for 3D viewers
+newmtl armor
+Kd 1 1 1
+map_Kd ../hd/models/armor_tex.png

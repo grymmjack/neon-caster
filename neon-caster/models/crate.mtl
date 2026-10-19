@@ -1,0 +1,4 @@
+# NEON-CASTER prop: crate - its texture, for 3D viewers
+newmtl crate
+Kd 1 1 1
+map_Kd ../hd/models/crate_tex.png

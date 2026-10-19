@@ -170,7 +170,8 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   (sector 10+N), made by NEW SECTOR / `newsector`; the kit never touches them.
   Check one with
   `python3 -c "import lvlkit; lvlkit.check_level(lvlkit.read_level_file('custom/custom1.txt','custom1'), '..')"`.
-- 3D props (the chair): `neon-caster/models/models.py` builds each model and writes its `.obj`, texture and 8 pictures round it (and `hd/models/`). It needs numpy and Pillow: `~/ComfyUI/.venv/bin/python models.py --write`. OpenGL draws the model (`GLDrawModel`), the software renderer the nearest picture (`ModelPicture`, RENDER/MODELS.BM).
+- 3D props: any decoration or pickup with a `neon-caster/models/NAME.obj` is a model (NAME: its picture's name; keycards share `keycard`, tinted). `models.py --write [NAME]` (run with `~/ComfyUI/.venv/bin/python`: numpy, Pillow) builds each from its MODERN painting by `SHAPES`: extruded (outline pushed out to a depth, with optional thinner bands - a desk's monitor) or lathed (outline spun round), and writes the `.obj`, textures (64, `hd/models/` 256) and 8 pictures round it. Only the chair and plant are pixelmon meshes (`models/src/`): AI meshes from one painting came out lumpy and broken, so don't go back to them for boxy or round props. OpenGL draws the model within `MODEL_NEAR` cells (`GLDrawModel`), the software renderer the nearest picture (`ModelPic`, RENDER/MODELS.BM). ComfyUI's Python hangs on a script piped to stdin: give it a file.
+- A level file must list 6 walls, 4 floors and 2 ceilings: fewer, and `LoadTex` stops at "Missing texture" waiting for a key (a `+map` test just hangs).
 - `LEVEL-EDITOR-GUIDE.md` documents the editor; keep it in step with editor
   changes (it ships in every release).
 

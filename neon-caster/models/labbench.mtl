@@ -1,0 +1,4 @@
+# NEON-CASTER prop: labbench - its texture, for 3D viewers
+newmtl labbench
+Kd 1 1 1
+map_Kd ../hd/models/labbench_tex.png

@@ -1,9 +1,9 @@
 ''
 ' NEON-CASTER - RENDER/MODELS.BM
 ' =============================================================================
-' 3D props: loading a model (LoadModels), the picture of it the software
-' renderer shows (ModelPicture), and which way it faces (ModelFacing).
-' OpenGL draws the model itself: GLDrawModel, chapter 24.
+' 3D props: loading the models (LoadModels), the picture of one the
+' software renderer shows (ModelPic), and which way a decoration faces
+' (ModelFacing). OpenGL draws the models themselves: GLDrawModel, chapter 24.
 '
 
 '-----------------------------------------------------------------------------
@@ -23,32 +23,96 @@
 ' and you see the picture from nearest the way you're looking at it - walk
 ' round a chair and it turns. NAME_0.png is from in front, NAME_2 from its
 ' right, NAME_4 from behind, NAME_6 from its left.
+'
+' Any decoration or pickup with a model in neon-caster/models/ is drawn as
+' one; without, it's the sprite it always was. The models were made from
+' the MODERN paintings by pixelmon (models.py says how).
 
-' Load every prop: its 8 pictures and its texture (again whenever ART
-' changes: LoadPictures) - and its triangles, once
+' Every prop's model (its triangles and 8 pictures, once), and their
+' textures (again whenever ART changes: LoadPictures)
 SUB LoadModels
-    LoadModel MDL_CHAIR, "chair"
+    STATIC done
+    DIM k, m ' (its own: the main program shares these names)
+    IF NOT done THEN
+        done = -1
+        FOR k = 1 TO DECO_KINDS : decoMdl(k) = NewModel(DecoPicName$(k), 0) : NEXT
+        FOR k = 1 TO ITEM_KINDS
+            IF k <= 3 THEN itemMdl(k) = NewModel("keycard", CardRGB~&(k)) ELSE itemMdl(k) = NewModel(ItemPicName$(k), 0) ' (the keycard: one model, three colours - as LoadCards tints its picture)
+        NEXT
+    END IF
+    FOR m = 1 TO numModels
+        LoadSprite "models/" + mdlName$(m) + "_tex.png", S_MODEL + m - 1
+        IF mdlTint(m) THEN TintSlot S_MODEL + m - 1, mdlTint(m)
+    NEXT
 END SUB
 
-SUB LoadModel(m, name$)
-    DIM a, c, j, k, n, nv, nt, t, fh, f$, l$, w$ ' (its own: the main program shares these names)
-    FOR a = 0 TO MDL_ANGLES - 1 : LoadSprite "models/" + name$ + "_" + LTRIM$(STR$(a)) + ".png", ModelSlot(m, a) : NEXT
-    LoadSprite "models/" + name$ + "_tex.png", ModelSlot(m, MDL_ANGLES)
-    IF mdlCount(m) > 0 THEN EXIT SUB ' (its triangles don't change with the ART)
+' A decoration's picture file, without its ".png" - its model's name too
+FUNCTION DecoPicName$(kind)
+    DIM f$ ' (its own: the main program shares these names)
+    IF kind <= 9 THEN
+        DecoPicName$ = RTRIM$(MID$("barrel  lamp    plant   terminalcrate   rack    vending tank    spawner ", (kind - 1) * 8 + 1, 8))
+    ELSE
+        f$ = DecoFile$(kind) : DecoPicName$ = LEFT$(f$, LEN(f$) - 4)
+    END IF
+END FUNCTION
+
+' A pickup's picture file, without its ".png" (4 on: the keycards are 1-3)
+FUNCTION ItemPicName$(kind)
+    ItemPicName$ = RTRIM$(MID$("medkit         ammo           shells         pickup-scatter pickup-repeaterarmor          bigmed         pickup-rail    map            overcharge     amp            core           goggles        ", (kind - 4) * 15 + 1, 15))
+END FUNCTION
+
+' Load model NAME (tinted tintCol: 0, as it is) as the next one - its number,
+' or 0 if it has no model (it stays a sprite)
+FUNCTION NewModel(name$, tintCol AS _UNSIGNED LONG)
+    DIM a, m, f$ ' (its own: the main program shares these names)
     f$ = AssetPath$("models/" + name$ + ".obj")
-    IF NOT _FILEEXISTS(f$) THEN EXIT SUB ' (no model: it stays a sprite)
+    IF NOT _FILEEXISTS(f$) OR numModels >= MAX_MODELS THEN EXIT FUNCTION
+    m = numModels + 1
+    LoadObj m, f$
+    IF mdlCount(m) = 0 THEN EXIT FUNCTION
+    numModels = m : mdlName$(m) = name$ : mdlTint(m) = tintCol
+    FOR a = 0 TO MDL_ANGLES - 1 : LoadModelPic (m - 1) * MDL_ANGLES + a + 1, AssetPath$("models/" + name$ + "_" + LTRIM$(STR$(a)) + ".png"), tintCol : NEXT
+    NewModel = m
+END FUNCTION
+
+' Picture file f$ into mdlPic(.., .., n), MDL_PIC square - tinted, if tintCol
+SUB LoadModelPic(n, f$, tintCol AS _UNSIGNED LONG)
+    DIM c AS _UNSIGNED LONG, img AS LONG, src AS LONG, x, y ' (its own: the main program shares these names)
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    img = _LOADIMAGE(f$, 32) : IF img >= -1 THEN EXIT SUB
+    src = _SOURCE : _SOURCE img
+    FOR y = 0 TO MDL_PIC - 1 : FOR x = 0 TO MDL_PIC - 1
+        c = POINT(x * _WIDTH(img) \ MDL_PIC, y * _HEIGHT(img) \ MDL_PIC)
+        IF tintCol THEN c = Tint~&(c, tintCol, 1)
+        mdlPic(x, y, n) = c
+    NEXT : NEXT
+    _SOURCE src : _FREEIMAGE img
+END SUB
+
+' Sprite slot's picture, tinted (a keycard's model's texture)
+SUB TintSlot(slot, tintCol AS _UNSIGNED LONG)
+    DIM x, y ' (its own: the main program shares these names)
+    FOR y = 0 TO spriteSize(slot) - 1 : FOR x = 0 TO spriteSize(slot) - 1
+        spriteTex(x, y, slot) = Tint~&(spriteTex(x, y, slot), tintCol, 1)
+    NEXT : NEXT
+END SUB
+
+' Model m's triangles, from OBJ file f$ (and its "# frame" line: how many
+' cells across its 8 pictures are)
+SUB LoadObj(m, f$)
+    DIM c, j, k, n, nv, nt, t, fh, l$, w$ ' (its own: the main program shares these names)
     DIM vx(MAX_MDL_TRIS * 3) AS SINGLE, vy(MAX_MDL_TRIS * 3) AS SINGLE, vz(MAX_MDL_TRIS * 3) AS SINGLE
     DIM tu(MAX_MDL_TRIS * 3) AS SINGLE, tv(MAX_MDL_TRIS * 3) AS SINGLE, cv(2) AS LONG, ct(2) AS LONG
-    mdlFirst(m) = mdlTris
+    mdlFirst(m) = mdlTris : mdlFrame(m) = 0.5
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
     DO WHILE NOT EOF(fh)
         LINE INPUT #fh, l$
         l$ = LTRIM$(RTRIM$(l$))
+        IF LEFT$(l$, 8) = "# frame " THEN mdlFrame(m) = VAL(MID$(l$, 9))
         SELECT CASE LEFT$(l$, 2)
-            CASE "v " ' A corner
-                IF nv < MAX_MDL_TRIS * 3 THEN
-                    nv = nv + 1 : vx(nv) = VAL(ObjWord$(l$, 2)) : vy(nv) = VAL(ObjWord$(l$, 3)) : vz(nv) = VAL(ObjWord$(l$, 4))
-                END IF
+            CASE "v " ' A corner. The file's axes are OBJ's - y up, its front towards -z -
+                ' and ours x the way it faces, y its right, z up: our x is its -z, y its x, z its y
+                IF nv < MAX_MDL_TRIS * 3 THEN nv = nv + 1 : vx(nv) = -VAL(ObjWord$(l$, 4)) : vy(nv) = VAL(ObjWord$(l$, 2)) : vz(nv) = VAL(ObjWord$(l$, 3))
             CASE "vt" ' A spot on the texture (its v runs up from the bottom)
                 IF nt < MAX_MDL_TRIS * 3 THEN nt = nt + 1 : tu(nt) = VAL(ObjWord$(l$, 2)) : tv(nt) = 1 - VAL(ObjWord$(l$, 3))
             CASE "f " ' A face: its first corner and each next two make a triangle (a fan)
@@ -63,8 +127,8 @@ SUB LoadModel(m, name$)
                         cv(2) = VAL(w$) : ct(2) = k
                         IF mdlTris < MAX_MDL_TRIS THEN
                             t = mdlTris
-                            FOR c = 0 TO 2
-                                j = MaxOf(1, MinOf(nv, cv(c))) : k = MaxOf(0, MinOf(nt, ct(c)))
+                            FOR c = 0 TO 2 ' (that turn is a mirror image: its corners taken the other way round)
+                                j = MaxOf(1, MinOf(nv, cv((3 - c) MOD 3))) : k = MaxOf(0, MinOf(nt, ct((3 - c) MOD 3)))
                                 mdlPX(t * 3 + c) = vx(j) : mdlPY(t * 3 + c) = vy(j) : mdlPZ(t * 3 + c) = vz(j)
                                 mdlU(t * 3 + c) = tu(k) : mdlV(t * 3 + c) = tv(k)
                             NEXT
@@ -105,45 +169,36 @@ SUB ModelNormal(t)
     mdlNX(t) = nx / l : mdlNY(t) = ny / l : mdlNZ(t) = nz / l
 END SUB
 
-' Prop m's sprite slot for picture a (0 to 7 round it; MDL_ANGLES: its texture)
-FUNCTION ModelSlot(m, a)
-    ModelSlot = S_MODEL + (m - 1) * (MDL_ANGLES + 1) + a
-END FUNCTION
-
-' The model a decoration of this kind is - 0 if it's a sprite (or its
-' model didn't load)
-FUNCTION DecoModel(kind)
-    IF kind = DK_CHAIR THEN IF mdlCount(MDL_CHAIR) > 0 THEN DecoModel = MDL_CHAIR
-END FUNCTION
-
-' The picture of prop m (facing ang, standing at x, y) the software
-' renderer shows: of its 8, the one drawn from nearest where you are.
-' Seen from straight ahead, picture 0; walk round to its right, 1, 2...
-FUNCTION ModelPicture(m, ang, x, y)
+' Which of model m's pictures the software renderer shows, it facing ang
+' and standing at x, y: of its 8, the one drawn from nearest where you
+' are. Seen from straight ahead, picture 0; walk round to its right, 1, 2...
+FUNCTION ModelPic(m, ang, x, y)
     DIM k ' (its own: the main program shares these names)
     k = INT((_ATAN2(playerY - y, playerX - x) - ang) / (_PI / 4) + 0.5) ' (the nearest: INT rounds down, even below 0)
     k = ((k MOD MDL_ANGLES) + MDL_ANGLES) MOD MDL_ANGLES
-    ModelPicture = ModelSlot(m, k)
+    ModelPic = (m - 1) * MDL_ANGLES + k + 1
 END FUNCTION
 
 ' Which way decoration i faces, as a 3D prop (0 east, a quarter turn
-' south, and on round - the map's way): as the level says ([nudges]
-' facing 1-4, or the editor's facing button); else at the desk, console,
-' terminal, screens or lab bench beside it - a chair at a desk faces it;
-' else its own way, one of 8, from where it stands (always the same).
-' Only how it looks: nothing in the game asks which way a chair faces.
+' south, and on round - the map's way): as the level says ([nudges] facing
+' 1-4, the editor's facing button) or as it's built (its back to its wall:
+' LoadLevel); a chair, else at the desk, console, terminal, screens or lab
+' bench beside it; else its own way, one of 8, from where it stands
+' (always the same). Only how it looks: nothing in the game asks.
 FUNCTION ModelFacing(i)
     DIM best, d, j, k, tx, ty ' (its own: the main program shares these names)
     IF decoFace(i) >= 1 AND decoFace(i) <= 4 THEN ModelFacing = (decoFace(i) - 1) * _PI / 2 : EXIT FUNCTION
-    best = 1.3
-    FOR j = 1 TO numDecos
-        SELECT CASE decoKind(j)
-            CASE 4, 10, 11, 12, 14 ' Terminal, desk, console, screens, lab bench
-                d = SQR((decoX(j) - decoX(i)) ^ 2 + (decoY(j) - decoY(i)) ^ 2)
-                IF d < best AND j <> i THEN best = d : tx = decoX(j) : ty = decoY(j) : k = -1
-        END SELECT
-    NEXT
-    IF k THEN ModelFacing = _ATAN2(ty - decoY(i), tx - decoX(i)) : EXIT FUNCTION
+    IF decoKind(i) = DK_CHAIR THEN
+        best = 1.3
+        FOR j = 1 TO numDecos
+            SELECT CASE decoKind(j)
+                CASE 4, 10, 11, 12, 14 ' Terminal, desk, console, screens, lab bench
+                    d = SQR((decoX(j) - decoX(i)) ^ 2 + (decoY(j) - decoY(i)) ^ 2)
+                    IF d < best AND j <> i THEN best = d : tx = decoX(j) : ty = decoY(j) : k = -1
+            END SELECT
+        NEXT
+        IF k THEN ModelFacing = _ATAN2(ty - decoY(i), tx - decoX(i)) : EXIT FUNCTION
+    END IF
     k = (INT(decoX(i) * 4) * 31 + INT(decoY(i) * 4) * 17) MOD 8
     ModelFacing = k * _PI / 4
 END FUNCTION

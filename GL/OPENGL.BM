@@ -621,7 +621,7 @@ END SUB
 SUB GLDrawModel(m, sx, sy, sz, ang, red, green, blue)
     DIM c, j, k, l, lx, ly, n, nx, ny, nz, s, slot, t, uvk ' (its own: the main program shares these names)
     IF mdlCount(m) = 0 THEN EXIT SUB
-    slot = ModelSlot(m, MDL_ANGLES) : GLUseTexture T_SLOTS + slot
+    slot = S_MODEL + m - 1 : GLUseTexture T_SLOTS + slot
     uvk = spriteSize(slot) / sprTex ' (a smaller picture uses only part of its square)
     c = COS(ang) : s = SIN(ang)
     lx = glCellLX - sx : ly = glCellLY - sy : l = SQR(lx * lx + ly * ly)

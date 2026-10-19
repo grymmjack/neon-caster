@@ -1,0 +1,4 @@
+# NEON-CASTER prop: generator - its texture, for 3D viewers
+newmtl generator
+Kd 1 1 1
+map_Kd ../hd/models/generator_tex.png

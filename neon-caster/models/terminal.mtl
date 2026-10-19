@@ -1,0 +1,4 @@
+# NEON-CASTER prop: terminal - its texture, for 3D viewers
+newmtl terminal
+Kd 1 1 1
+map_Kd ../hd/models/terminal_tex.png

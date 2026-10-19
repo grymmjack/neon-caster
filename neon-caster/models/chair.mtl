@@ -1,0 +1,4 @@
+# NEON-CASTER prop: chair - its texture, for 3D viewers
+newmtl chair
+Kd 1 1 1
+map_Kd ../hd/models/chair_tex.png

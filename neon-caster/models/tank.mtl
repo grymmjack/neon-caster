@@ -1,0 +1,4 @@
+# NEON-CASTER prop: tank - its texture, for 3D viewers
+newmtl tank
+Kd 1 1 1
+map_Kd ../hd/models/tank_tex.png

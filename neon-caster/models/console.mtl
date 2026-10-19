@@ -1,0 +1,4 @@
+# NEON-CASTER prop: console - its texture, for 3D viewers
+newmtl console
+Kd 1 1 1
+map_Kd ../hd/models/console_tex.png

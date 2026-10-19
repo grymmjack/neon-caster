@@ -1,0 +1,4 @@
+# NEON-CASTER prop: locker - its texture, for 3D viewers
+newmtl locker
+Kd 1 1 1
+map_Kd ../hd/models/locker_tex.png
