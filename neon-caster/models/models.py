@@ -173,7 +173,7 @@ SHAPES = {
     'crate': ('extrude', 0.8), 'rack': ('extrude', 0.6), 'vending': ('extrude', 0.7), 'terminal': ('extrude', 0.6),
     'desk': ('extrude', 0.55, [(0.42, 0.18)]), 'console': ('extrude', 0.6), 'screens': ('extrude', 0.12), 'labbench': ('extrude', 0.5, [(0.45, 0.14)]),
     'generator': ('extrude', 0.7, [(0.22, 0.14)]), 'locker': ('extrude', 0.55), 'bench': ('extrude', 0.4, [(0.5, 0.22)]), 'spawner': ('extrude', 0.15),
-    'medkit': ('extrude', 0.45), 'bigmed': ('extrude', 0.6), 'ammo': ('extrude', 0.4), 'shells': ('extrude', 0.5),
+    'medkit': ('extrude', 0.45), 'bigmed': ('extrude', 0.6), 'ammo': ('lathe', 2), 'shells': ('extrude', 0.5),
     'pickup-scatter': ('extrude', 0.1), 'pickup-repeater': ('extrude', 0.1), 'pickup-rail': ('extrude', 0.08),
     'armor': ('extrude', 0.35), 'map': ('extrude', 0.04), 'overcharge': ('extrude', 0.15), 'goggles': ('extrude', 0.35),
     'keycard': ('extrude', 0.06),
@@ -278,12 +278,26 @@ def extrude(name, depth, bands=()):
     return tris
 
 
-def lathe(name, seg=16):
+def lathe(name, pieces=1, seg=16):
     """The outline spun round its middle: each row's half-width a ring,
     the profile cut to the rings that matter (within half a cell), capped
     top and bottom. The painting wraps round from the front - as it's
-    painted from in front, and mirrored behind."""
-    _, a = outline(name)
+    painted from in front, and mirrored behind. pieces: it's that many
+    round things side by side (two energy cells) - its outline cut into
+    that many, left to right, each spun round its own middle."""
+    _, whole = outline(name)
+    R = GRID; wc = np.where(whole.any(axis=0))[0]
+    cuts = [int(round(wc.min() + (wc.max() + 1 - wc.min()) * k / pieces)) for k in range(pieces + 1)]
+    tris = []
+    for p0, p1 in zip(cuts, cuts[1:]):
+        a = np.zeros_like(whole); a[:, p0:p1] = whole[:, p0:p1]
+        tris += _lathe_piece(a, seg)
+    return tris
+
+
+def _lathe_piece(a, seg):
+    """One round thing: outline a (the solid cells of it alone) spun round
+    its own middle, where it is across the picture."""
     R = GRID; cols = np.where(a.any(axis=0))[0]; rows = np.where(a.any(axis=1))[0]
     cc = (cols.min() + cols.max() + 1) / 2
     rad = np.zeros(R)
@@ -306,7 +320,7 @@ def lathe(name, seg=16):
     keep.append(prof[-1])
     Z = lambda r: R - r
     ang = [2 * math.pi * k / seg for k in range(seg + 1)]
-    def pt(r, rr, t): return (rr * math.cos(t), -rr * math.sin(t), Z(r))
+    def pt(r, rr, t): return (rr * math.cos(t), -rr * math.sin(t) - (cc - R / 2), Z(r))
     def uv(r, rr, t): return (min(max((cc + 0.85 * rr * math.sin(t)) / R, 0), 1), min(max(r / R, 0), 1))  # (0.85: inside its dark outline)
     tris = []
     for (r0, a0), (r1, a1) in zip(keep, keep[1:]):
@@ -319,7 +333,7 @@ def lathe(name, seg=16):
                   [uv(r0, a0, t0), uv(r0, a0, t1), uv(r1, a1, t1), uv(r1, a1, t0)], want)
     for (r, rr), up in ((keep[0], 1), (keep[-1], -1)):  # the caps
         for k in range(seg):
-            P = np.array([(0, 0, Z(r)), pt(r, rr, ang[k]), pt(r, rr, ang[k + 1])], float)
+            P = np.array([(0, -(cc - R / 2), Z(r)), pt(r, rr, ang[k]), pt(r, rr, ang[k + 1])], float)
             U = np.array([(cc / R, (r + 0.5 * up) / R), uv(r, rr, ang[k]), uv(r, rr, ang[k + 1])])
             if np.dot(np.cross(P[1] - P[0], P[2] - P[0]), (0, 0, up)) < 0: P, U = P[[0, 2, 1]], U[[0, 2, 1]]
             tris.append((P, U))
@@ -329,7 +343,7 @@ def lathe(name, seg=16):
 def build(name):
     shape = SHAPES.get(name)
     if shape:
-        raw = extrude(name, *shape[1:]) if shape[0] == 'extrude' else lathe(name)
+        raw = extrude(name, *shape[1:]) if shape[0] == 'extrude' else lathe(name, *shape[1:])
         tris = place(raw, PROPS[name] * subject_height(name))
         tex = outline(name)[0]
     else:

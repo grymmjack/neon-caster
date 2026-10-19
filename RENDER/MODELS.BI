@@ -28,5 +28,7 @@ DIM SHARED mdlNX(MAX_MDL_TRIS) AS SINGLE, mdlNY(MAX_MDL_TRIS) AS SINGLE, mdlNZ(M
 ' across - wider than the prop, so it fits seen from any way round.
 CONST MDL_ANGLES = 8, MDL_PIC = 64
 ' OpenGL draws a model out to MODEL_NEAR cells away; further, its sprite
-CONST MODEL_NEAR = 10
+' (turned to face you - so far off, a few pixels tall in the fog, that it
+' doesn't show; nearer, a prop would seem to turn as you came up to it)
+CONST MODEL_NEAR = 32
 DIM SHARED mdlPic(MDL_PIC - 1, MDL_PIC - 1, MAX_MODELS * MDL_ANGLES) AS _UNSIGNED LONG, mdlFrame(MAX_MODELS) AS SINGLE
