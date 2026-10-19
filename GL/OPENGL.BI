@@ -41,6 +41,7 @@ DIM SHARED glLitR(MAP_SIZE, MAP_SIZE, 1) AS LONG, glLitG(MAP_SIZE, MAP_SIZE, 1) 
 DIM SHARED glDoor(MAP_SIZE, MAP_SIZE, 1) AS SINGLE, glSeen(MAP_SIZE, MAP_SIZE, 1) AS LONG
 DIM SHARED glNumSpr(1) AS INTEGER, glSprX(MAX_DRAW, 1), glSprY(MAX_DRAW, 1), glSprLift(MAX_DRAW, 1)
 DIM SHARED glSprHalfW(MAX_DRAW, 1), glSprH(MAX_DRAW, 1), glSprSlot(MAX_DRAW, 1) AS INTEGER, glSprFace(MAX_DRAW, 1) AS INTEGER
+DIM SHARED glSprMdl(MAX_DRAW, 1) AS INTEGER, glSprAng(MAX_DRAW, 1) ' (a 3D prop: its model, drawn as itself - GLDrawModel - and the way it faces)
 DIM SHARED glSprR(MAX_DRAW, 1), glSprG(MAX_DRAW, 1), glSprB(MAX_DRAW, 1)
 DIM SHARED glTexVersion AS LONG
 ' Bump mapping (chapter 24): each cell's light middle (glLitCX, glLitCY)

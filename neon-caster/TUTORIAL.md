@@ -619,6 +619,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/*.png` | textures (64 x 64), sprites, the guns: the CLASSIC pixel art |
 | `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
 | `neon-caster/sfx/` | sound effects, made with soundmon (the droids' chirps are synthesized whistles); `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
+| `neon-caster/models/` | 3D props (just the chair so far): `chair.obj`, the model OpenGL draws; `chair_0.png` to `chair_7.png`, it seen from 8 ways round, for the software renderer (as DOOM did); `chair_tex.png`, its texture - all made by `models.py` (MODERN versions in `hd/models/`) |
 | `neon-caster/demos/` | demos that come with the game: `sector1.ncd` to `sector10.ncd`, the autopilot playing each of the original ten (`playdemo sector3`) - plain text, a line a frame |
 | `neon-caster/programs/` | programs the computers in a level can run (`program NAME` in a trigger): `invaders.bas`, NEON INVADERS - copy it and make your own |
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |

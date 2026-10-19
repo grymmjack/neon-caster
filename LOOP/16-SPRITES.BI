@@ -35,7 +35,7 @@
     ' behind walls and doorframes. Transparent pixels (alpha 128 or less)
     ' are skipped, so you see the shape, not its square.
     numDraw = 0
-    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : NEXT
+    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : drawMdl(k) = 0 : NEXT
     FOR i = 1 TO numItems
         IF itemOn(i) AND (itemKind(i) = IT_CORE) = cyberOn THEN ' (in the network, just its data cores)
             numDraw = numDraw + 1 : drawX(numDraw) = itemX(i) : drawY(numDraw) = itemY(i)
@@ -83,6 +83,9 @@
             IF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
                 drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0 : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw)
+            ELSEIF DecoModel(decoKind(i)) THEN ' A 3D prop (a chair): OpenGL draws its model; we draw its picture from nearest where you are (RENDER/MODELS.BM)
+                drawMdl(numDraw) = DecoModel(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0
+                drawSprite(numDraw) = ModelPicture(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
             END IF
             IF decoKind(i) = 2 OR decoKind(i) = 7 OR decoKind(i) = 12 OR decoKind(i) = 13 OR decoKind(i) = 17 THEN drawMinShade(numDraw) = 200 ' Lamps (vending machines, monitors, tanks, holograms) glow
             IF decoKind(i) = 9 AND decoOn(i) AND (decoCharge(i) > 0 OR decoBurst(i) > 0) THEN ' A spawner charging: an orb of light in it, growing - and sending one out, the orb falls in on itself, then bursts
@@ -230,6 +233,7 @@
                 glSprHalfW(n, glWrite) = drawScale(i) * fovPlane * RENDER_H / RENDER_W
                 glSprH(n, glWrite) = drawScale(i) * drawSquash(i) : glSprSlot(n, glWrite) = spriteSlot
                 glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = 0
+                glSprMdl(n, glWrite) = drawMdl(i) : glSprAng(n, glWrite) = drawAng(i) ' (a 3D prop: GLDrawModel)
             ELSE
                 FOR screenX = spriteLeft TO spriteLeft + spriteW - 1
                     IF screenX >= 0 AND screenX < RENDER_W THEN

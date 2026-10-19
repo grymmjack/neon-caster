@@ -46,6 +46,7 @@
 
 ' RENDER ----------------------------------------------------------------------
 '$INCLUDE:'./RENDER/PICTURES.BM'
+'$INCLUDE:'./RENDER/MODELS.BM'
 '$INCLUDE:'./RENDER/VIEW.BM'
 '$INCLUDE:'./RENDER/LIGHT.BM'
 '$INCLUDE:'./RENDER/PARTICLES.BM'

@@ -64,7 +64,11 @@ CONST S_TRAP = S_ITEMX + ITEM_KINDS - 12, S_PLATE = S_TRAP + 1, S_LASER = S_TRAP
 CONST S_GLASS = S_TRAP + 3 ' (glass: whole, then cracked)
 CONST S_PAD = S_GLASS + 2 ' (a teleporter's pad)
 CONST S_DROID = S_PAD + 1 ' (the droids: the two kinds, then each broken)
-CONST SPR_SLOTS = S_DROID + 3
+' 3D props (RENDER/MODELS.BM): each one's 8 pictures round it, for the
+' software renderer, then its texture, for OpenGL's model
+CONST MODEL_KINDS = 1, MDL_CHAIR = 1, MDL_ANGLES = 8
+CONST S_MODEL = S_DROID + 4
+CONST SPR_SLOTS = S_MODEL + MODEL_KINDS * (MDL_ANGLES + 1) - 1
 ' How big each picture is kept: textures texSize, sprites up to sprTex
 ' pixels across. ART (SETTINGS > VIDEO) picks them: CLASSIC, the pixel art
 ' in neon-caster/, at 128 and 64; MODERN, the paintings in neon-caster/hd/,

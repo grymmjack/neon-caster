@@ -48,6 +48,7 @@ SUB LoadPictures STATIC
     LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
     LoadSprite "droid1.png", S_DROID : LoadSprite "droid2.png", S_DROID + 1 ' (the droids - and each, broken: MakeScrap)
     MakeScrap S_DROID, S_DROID + 2 : MakeScrap S_DROID + 1, S_DROID + 3
+    LoadModels ' (3D props: each one's 8 pictures round it, and its texture - RENDER/MODELS.BM)
     LoadSprite "explosion.png", S_BLAST : MakeBoomFrames ' (and its animation)
     LoadSprite "armor.png", 25
     LoadSprite "bigmed.png", 26

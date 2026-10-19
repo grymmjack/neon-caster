@@ -1,0 +1,149 @@
+''
+' NEON-CASTER - RENDER/MODELS.BM
+' =============================================================================
+' 3D props: loading a model (LoadModels), the picture of it the software
+' renderer shows (ModelPicture), and which way it faces (ModelFacing).
+' OpenGL draws the model itself: GLDrawModel, chapter 24.
+'
+
+'-----------------------------------------------------------------------------
+' 3D PROPS
+'-----------------------------------------------------------------------------
+' A sprite is one picture that turns to face you. A 3D prop is a model:
+' triangles, in neon-caster/models/NAME.obj, the plainest file a 3D program
+' saves - a line "v x y z" for each corner, "vt u v" for each spot on the
+' texture, and "f a/ta b/tb c/tc" for each triangle, numbering those (from
+' 1). OpenGL already draws the walls as triangles in 3D, so a model is
+' just more of them: turned the way the prop faces, moved to where it
+' stands, and lit as a sprite is (GLDrawModel).
+'
+' The software renderer draws a column at a time and can't do triangles.
+' It does what DOOM and Duke Nukem 3D did: the prop is drawn from 8 ways
+' round it, 45 degrees apart (models.py does that, from the same model),
+' and you see the picture from nearest the way you're looking at it - walk
+' round a chair and it turns. NAME_0.png is from in front, NAME_2 from its
+' right, NAME_4 from behind, NAME_6 from its left.
+
+' Load every prop: its 8 pictures and its texture (again whenever ART
+' changes: LoadPictures) - and its triangles, once
+SUB LoadModels
+    LoadModel MDL_CHAIR, "chair"
+END SUB
+
+SUB LoadModel(m, name$)
+    DIM a, c, j, k, n, nv, nt, t, fh, f$, l$, w$ ' (its own: the main program shares these names)
+    FOR a = 0 TO MDL_ANGLES - 1 : LoadSprite "models/" + name$ + "_" + LTRIM$(STR$(a)) + ".png", ModelSlot(m, a) : NEXT
+    LoadSprite "models/" + name$ + "_tex.png", ModelSlot(m, MDL_ANGLES)
+    IF mdlCount(m) > 0 THEN EXIT SUB ' (its triangles don't change with the ART)
+    f$ = AssetPath$("models/" + name$ + ".obj")
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB ' (no model: it stays a sprite)
+    DIM vx(MAX_MDL_TRIS * 3) AS SINGLE, vy(MAX_MDL_TRIS * 3) AS SINGLE, vz(MAX_MDL_TRIS * 3) AS SINGLE
+    DIM tu(MAX_MDL_TRIS * 3) AS SINGLE, tv(MAX_MDL_TRIS * 3) AS SINGLE, cv(2) AS LONG, ct(2) AS LONG
+    mdlFirst(m) = mdlTris
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    DO WHILE NOT EOF(fh)
+        LINE INPUT #fh, l$
+        l$ = LTRIM$(RTRIM$(l$))
+        SELECT CASE LEFT$(l$, 2)
+            CASE "v " ' A corner
+                IF nv < MAX_MDL_TRIS * 3 THEN
+                    nv = nv + 1 : vx(nv) = VAL(ObjWord$(l$, 2)) : vy(nv) = VAL(ObjWord$(l$, 3)) : vz(nv) = VAL(ObjWord$(l$, 4))
+                END IF
+            CASE "vt" ' A spot on the texture (its v runs up from the bottom)
+                IF nt < MAX_MDL_TRIS * 3 THEN nt = nt + 1 : tu(nt) = VAL(ObjWord$(l$, 2)) : tv(nt) = 1 - VAL(ObjWord$(l$, 3))
+            CASE "f " ' A face: its first corner and each next two make a triangle (a fan)
+                n = 0
+                DO
+                    w$ = ObjWord$(l$, n + 2) : IF w$ = "" THEN EXIT DO
+                    j = INSTR(w$, "/") : k = 0
+                    IF j THEN k = VAL(MID$(w$, j + 1)) ' ("a/ta" or "a/ta/na": the texture's is second)
+                    IF n < 2 THEN
+                        cv(n) = VAL(w$) : ct(n) = k
+                    ELSE
+                        cv(2) = VAL(w$) : ct(2) = k
+                        IF mdlTris < MAX_MDL_TRIS THEN
+                            t = mdlTris
+                            FOR c = 0 TO 2
+                                j = MaxOf(1, MinOf(nv, cv(c))) : k = MaxOf(0, MinOf(nt, ct(c)))
+                                mdlPX(t * 3 + c) = vx(j) : mdlPY(t * 3 + c) = vy(j) : mdlPZ(t * 3 + c) = vz(j)
+                                mdlU(t * 3 + c) = tu(k) : mdlV(t * 3 + c) = tv(k)
+                            NEXT
+                            ModelNormal t
+                            mdlTris = mdlTris + 1
+                        END IF
+                        cv(1) = cv(2) : ct(1) = ct(2)
+                    END IF
+                    n = n + 1
+                LOOP
+        END SELECT
+    LOOP
+    CLOSE #fh
+    mdlCount(m) = mdlTris - mdlFirst(m)
+END SUB
+
+' Word n of line l$ (from 1), words being split by spaces
+FUNCTION ObjWord$(l$, n)
+    DIM j, k, p ' (its own: the main program shares these names)
+    p = 1
+    FOR k = 1 TO n
+        DO WHILE MID$(l$, p, 1) = " " : p = p + 1 : LOOP
+        j = INSTR(p, l$, " ") : IF j = 0 THEN j = LEN(l$) + 1
+        IF k = n THEN ObjWord$ = MID$(l$, p, j - p) : EXIT FUNCTION
+        p = j
+        IF p > LEN(l$) THEN EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Triangle t's normal: the cross product of two of its sides, which points
+' straight out of it (the way its corners go round says which side is out)
+SUB ModelNormal(t)
+    DIM ax, ay, az, bx, by, bz, l, nx, ny, nz ' (its own: the main program shares these names)
+    ax = mdlPX(t * 3 + 1) - mdlPX(t * 3) : ay = mdlPY(t * 3 + 1) - mdlPY(t * 3) : az = mdlPZ(t * 3 + 1) - mdlPZ(t * 3)
+    bx = mdlPX(t * 3 + 2) - mdlPX(t * 3) : by = mdlPY(t * 3 + 2) - mdlPY(t * 3) : bz = mdlPZ(t * 3 + 2) - mdlPZ(t * 3)
+    nx = ay * bz - az * by : ny = az * bx - ax * bz : nz = ax * by - ay * bx
+    l = SQR(nx * nx + ny * ny + nz * nz) : IF l < 0.000001 THEN l = 1
+    mdlNX(t) = nx / l : mdlNY(t) = ny / l : mdlNZ(t) = nz / l
+END SUB
+
+' Prop m's sprite slot for picture a (0 to 7 round it; MDL_ANGLES: its texture)
+FUNCTION ModelSlot(m, a)
+    ModelSlot = S_MODEL + (m - 1) * (MDL_ANGLES + 1) + a
+END FUNCTION
+
+' The model a decoration of this kind is - 0 if it's a sprite (or its
+' model didn't load)
+FUNCTION DecoModel(kind)
+    IF kind = DK_CHAIR THEN IF mdlCount(MDL_CHAIR) > 0 THEN DecoModel = MDL_CHAIR
+END FUNCTION
+
+' The picture of prop m (facing ang, standing at x, y) the software
+' renderer shows: of its 8, the one drawn from nearest where you are.
+' Seen from straight ahead, picture 0; walk round to its right, 1, 2...
+FUNCTION ModelPicture(m, ang, x, y)
+    DIM k ' (its own: the main program shares these names)
+    k = INT((_ATAN2(playerY - y, playerX - x) - ang) / (_PI / 4) + 0.5) ' (the nearest: INT rounds down, even below 0)
+    k = ((k MOD MDL_ANGLES) + MDL_ANGLES) MOD MDL_ANGLES
+    ModelPicture = ModelSlot(m, k)
+END FUNCTION
+
+' Which way decoration i faces, as a 3D prop (0 east, a quarter turn
+' south, and on round - the map's way): as the level says ([nudges]
+' facing 1-4, or the editor's facing button); else at the desk, console,
+' terminal, screens or lab bench beside it - a chair at a desk faces it;
+' else its own way, one of 8, from where it stands (always the same).
+' Only how it looks: nothing in the game asks which way a chair faces.
+FUNCTION ModelFacing(i)
+    DIM best, d, j, k, tx, ty ' (its own: the main program shares these names)
+    IF decoFace(i) >= 1 AND decoFace(i) <= 4 THEN ModelFacing = (decoFace(i) - 1) * _PI / 2 : EXIT FUNCTION
+    best = 1.3
+    FOR j = 1 TO numDecos
+        SELECT CASE decoKind(j)
+            CASE 4, 10, 11, 12, 14 ' Terminal, desk, console, screens, lab bench
+                d = SQR((decoX(j) - decoX(i)) ^ 2 + (decoY(j) - decoY(i)) ^ 2)
+                IF d < best AND j <> i THEN best = d : tx = decoX(j) : ty = decoY(j) : k = -1
+        END SELECT
+    NEXT
+    IF k THEN ModelFacing = _ATAN2(ty - decoY(i), tx - decoX(i)) : EXIT FUNCTION
+    k = (INT(decoX(i) * 4) * 31 + INT(decoY(i) * 4) * 17) MOD 8
+    ModelFacing = k * _PI / 4
+END FUNCTION

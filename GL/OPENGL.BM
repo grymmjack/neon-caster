@@ -559,6 +559,7 @@ SUB GLSpritesAndExtras(b, mirror)
             GLDynAt sx, sy, (zLow + zHigh) / 2, dr, dg, db
             red = red + dr / 256 : green = green + dg / 256 : blue = blue + db / 256
         END IF
+        IF glSprMdl(i, b) THEN GLDrawModel glSprMdl(i, b), sx, sy, zLow, glSprAng(i, b), red, green, blue : _CONTINUE ' (a 3D prop: its model, not its picture)
         GLSpriteCorner x0, y0, zHigh, 0, 0, red, green, blue : GLSpriteCorner x1, y1, zHigh, uv, 0, red, green, blue
         GLSpriteCorner x1, y1, zLow, uv, uv, red, green, blue : GLSpriteCorner x0, y0, zHigh, 0, 0, red, green, blue
         GLSpriteCorner x1, y1, zLow, uv, uv, red, green, blue : GLSpriteCorner x0, y0, zLow, 0, uv, red, green, blue
@@ -605,6 +606,39 @@ SUB GLSpritesAndExtras(b, mirror)
     END IF
     GLStopDrawing
     _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
+END SUB
+
+' A 3D PROP (RENDER/MODELS.BM): model m's triangles, turned to face ang
+' (0 east, a quarter turn south...) and standing at (sx, sy) on height sz,
+' in its light (red, green, blue: a sprite's, chapter 16). Each corner is
+' turned the same way as the prop: x across and y down the map become
+'   x * cos(ang) - y * sin(ang),  x * sin(ang) + y * cos(ang)
+' - and so is each triangle's normal, which tells the shader which way it
+' faces. A sprite's light is the same all over it; a model's sides would
+' look flat, so each triangle is shaded as it faces: tops brightest, and
+' sides towards the cell's light (glCellLX, GLSetLight) brighter than
+' those away from it - as models.py shades the 8 pictures.
+SUB GLDrawModel(m, sx, sy, sz, ang, red, green, blue)
+    DIM c, j, k, l, lx, ly, n, nx, ny, nz, s, slot, t, uvk ' (its own: the main program shares these names)
+    IF mdlCount(m) = 0 THEN EXIT SUB
+    slot = ModelSlot(m, MDL_ANGLES) : GLUseTexture T_SLOTS + slot
+    uvk = spriteSize(slot) / sprTex ' (a smaller picture uses only part of its square)
+    c = COS(ang) : s = SIN(ang)
+    lx = glCellLX - sx : ly = glCellLY - sy : l = SQR(lx * lx + ly * ly)
+    IF l > 0.001 THEN lx = lx / l : ly = ly / l ELSE lx = 0 : ly = 0
+    FOR t = mdlFirst(m) TO mdlFirst(m) + mdlCount(m) - 1
+        nx = mdlNX(t) * c - mdlNY(t) * s : ny = mdlNX(t) * s + mdlNY(t) * c : nz = mdlNZ(t)
+        k = 0.62 + 0.3 * nz + 0.25 * (nx * lx + ny * ly) : IF k < 0.35 THEN k = 0.35
+        IF k > 1.25 THEN k = 1.25
+        glFaceNX = nx : glFaceNY = ny : glFaceNZ = nz
+        IF ABS(nz) < 0.9 THEN glFaceTX = -ny : glFaceTY = nx ELSE glFaceTX = c : glFaceTY = s ' (along it, level)
+        glFaceTZ = 0
+        FOR j = 0 TO 2
+            n = t * 3 + j
+            GLSpriteCorner sx + mdlPX(n) * c - mdlPY(n) * s, sy + mdlPX(n) * s + mdlPY(n) * c, sz + mdlPZ(n), mdlU(n) * uvk, mdlV(n) * uvk, red * k, green * k, blue * k
+        NEXT
+    NEXT
+    glFaceNZ = 0 : glFaceTZ = 0 ' (the sprites after it stand upright)
 END SUB
 
 ' One glow spot (or particle): a square of the soft round GL_GLOW_TEX
