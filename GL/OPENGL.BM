@@ -1928,7 +1928,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "        c.r = texture2D(scene, s + off).r; c.b = texture2D(scene, s - off).b;" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    c += texture2D(bloom, s).rgb * bloomAmt;" + nl$
-    fs$ = fs$ + "    c = pow(clamp(c, 0.0, 1.0), vec3(gamma));  // BRIGHTNESS: a curve - black stays black, white stays white, the shades between come up (or down)" + nl$
+    fs$ = fs$ + "    c = pow(clamp(c, 0.0, 1.0), vec3(gamma)) + max(c - 1.0, 0.0);  // BRIGHTNESS: a curve - black stays black, white stays white, the shades between come up (or down); brighter than white (a glow, bloom on neon) keeps what's over, for the scanlines to darken" + nl$
     fs$ = fs$ + "    if (night > 0.5) {  // NIGHT VISION (ApplyNight is the software renderer's)" + nl$
     fs$ = fs$ + "        float l = sqrt(clamp(dot(c, vec3(0.3, 0.59, 0.11)) * 1.5 + 0.03, 0.0, 1.0));" + nl$
     fs$ = fs$ + "        l += (fract(sin(dot(floor(gl_FragCoord.xy / 2.0) + floor(secs * 30.0) * 7.31, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.14;" + nl$
@@ -1950,7 +1950,8 @@ SUB GLBuildShaders
     fs$ = fs$ + "    if (fxMode > 0.5) {  // scanlines: a dark band lineThick of each linePx pixels, its edges a pixel soft" + nl$
     fs$ = fs$ + "        float d = abs(fract(p.y * res.y / linePx) - 0.5) * linePx;  // pixels from the band's middle" + nl$
     fs$ = fs$ + "        float band = lineThick * linePx * 0.5;  // (half the band; 'half' is a word GLSL keeps for itself)" + nl$
-    fs$ = fs$ + "        c *= 1.0 - scanDark * (1.0 - smoothstep(band - 0.5, band + 0.5, d)) * (1.0 - glow * lit * 0.8);  // (bright fills the dark lines)" + nl$
+    fs$ = fs$ + "        float give = 1.0 / max(0.55, 1.0 - scanDark * lineThick);  // the light the dark bands take, given back to the lines between - a CRT's beam is brighter than its average - so the picture isn't darker for them" + nl$
+    fs$ = fs$ + "        c *= (1.0 - scanDark * (1.0 - smoothstep(band - 0.5, band + 0.5, d)) * (1.0 - glow * lit * 0.8)) * give;  // (bright fills the dark lines)" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    if (hudOn > 0.5 && onScreen > 0.5) { vec4 h = texture2D(hud, hp); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied), after the scanlines: on the glass, so they never cut a row out of its letters" + nl$
     fs$ = fs$ + "    c += halo * halo * glow * 1.2;  // light spreading round bright things (squared: the bright parts, not the dim)" + nl$
