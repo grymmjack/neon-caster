@@ -24,7 +24,7 @@
 ' diagCorner() says which corner's half is solid (chapter 15 draws them,
 ' chapter 23 has the maths), and the floor and ceiling can be split the same
 ' way (floorSplit, ceilSplit) to paint diagonal stripes.
-CONST MAP_SIZE = 128
+CONST MAP_SIZE = 256
 DIM SHARED mapN AS INTEGER ' (this sector's size: mapN x mapN cells)
 mapN = 48
 ' worldMap: 0 floor, 2 door; walls 1 (#), 3 (N), 4 (C), 5 (K), 6 (P), 7 (G):

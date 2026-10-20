@@ -13,6 +13,9 @@ DIM SHARED doorOpen(MAP_SIZE, MAP_SIZE) AS SINGLE
 DIM SHARED doorMove(MAP_SIZE, MAP_SIZE) AS INTEGER, doorWait(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED doorKey(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED doorType(MAP_SIZE, MAP_SIZE) AS INTEGER
+' ...and where the doors are (ListDoors, when the level's built): chapter 11
+' moves only these, not every cell of a sector 256 across
+DIM SHARED numDoorCells AS LONG, doorCellX((MAP_SIZE + 1) * (MAP_SIZE + 1)) AS INTEGER, doorCellY((MAP_SIZE + 1) * (MAP_SIZE + 1)) AS INTEGER
 ' DOOR_ = the kinds of door, the numbers kept in doorType(x, y)
 CONST DOOR_SLIDE = 0, DOOR_SHUTTER = 1, DOOR_SPLIT = 2, DOOR_EXIT = 3
 CONST DOOR_LIP = 0.15 ' How much of an open door still shows (DoorShown, chapter 11)

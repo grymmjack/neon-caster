@@ -101,7 +101,7 @@
         wideK = WideView : glWide(glWrite) = wideK
         IF ABS(pitch) > 0.01 OR wideK > 1.01 THEN GLMarkWide playerX, playerY, dirX, dirY, fovPlane / zoom * wideK, zoom
         GLHandOverExtras playerX, playerY, dirX, dirY, muzzleFlash ' Moving lights, particles, explosions (chapter 24)
-        FOR y = 0 TO mapN : FOR x = 0 TO mapN
+        FOR y = litY0 TO MinOf(mapN, litY1 + 1) : FOR x = litX0 TO MinOf(mapN, litX1 + 1) ' (the cells lit this frame: UpdateLight)
             glLitR(x, y, glWrite) = litR(x, y) : glLitG(x, y, glWrite) = litG(x, y) : glLitB(x, y, glWrite) = litB(x, y)
             glDoor(x, y, glWrite) = DoorShown(x, y)
             ' Bumps: the middle of the light on this cell (or the cell's own

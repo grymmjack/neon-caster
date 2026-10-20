@@ -215,7 +215,7 @@ END SUB
 ' can't climb), through any door that isn't locked. Nowhere better than
 ' where it is: it just scuttles off (state 3, as it was)
 SUB DroidFlee(i, px, py)
-    DIM d(MAP_SIZE * MAP_SIZE - 1) AS INTEGER, par(MAP_SIZE * MAP_SIZE - 1) AS INTEGER, q(MAP_SIZE * MAP_SIZE - 1) AS INTEGER
+    DIM d(MAP_SIZE * MAP_SIZE - 1) AS INTEGER, par(MAP_SIZE * MAP_SIZE - 1) AS LONG, q(MAP_SIZE * MAP_SIZE - 1) AS LONG
     DIM c, cx, cy, k, nx, ny, nc, qh, qt, best, bestS!, sc!, z!, n ' (its own: the main program shares these names)
     cx = INT(droidX(i)) : cy = INT(droidY(i)) : z! = droidZ(i)
     FOR k = 0 TO mapN * mapN - 1 : d(k) = -1 : NEXT

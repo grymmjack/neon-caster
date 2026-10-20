@@ -317,7 +317,7 @@ def hchar(e, ceiling=False):
     return H_DOWN[min(-e, 8) - 1]
 
 
-H_HI, H_MAX, MAX_N = 123, 128, 128  # (past z: the game's in-memory heights - [floor high] / [ceiling high] in the file; and the biggest sector)
+H_HI, H_MAX, MAX_N = 123, 240, 256  # (past z: the game's in-memory heights - [floor high] / [ceiling high] in the file; and the biggest sector)
 
 
 def hval(c, default):
@@ -1160,6 +1160,8 @@ def check_level(lv, assets=None):
             warns.append("event %s: no doors to lock round its room" % (e,))
     if len(lv.get("events", [])) > 16:
         errs.append("too many events (max 16)")
+    if len(lv.get("lights", [])) > 256:
+        errs.append("too many lights (%d, max 256: RENDER/LIGHT.BI's MAX_LIGHTS)" % len(lv["lights"]))
     errs += check_liquid(lv)
     errs += check_blocks(lv)
     for l in lv.get("loot", []):

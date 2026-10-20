@@ -10,6 +10,15 @@
 ' Each kind of door's own ways (chapter 11): how much it opens or shuts a
 ' frame (shutters are heavy and slow, split doors snap), how many frames it
 ' stays open before shutting itself, and its sound
+' Where the doors are, row by row (the order chapter 11 always moved them in)
+SUB ListDoors
+    DIM x, y ' (its own: the main program shares these names)
+    numDoorCells = 0
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
+        IF worldMap(x, y) = 2 THEN numDoorCells = numDoorCells + 1 : doorCellX(numDoorCells) = x : doorCellY(numDoorCells) = y
+    NEXT : NEXT
+END SUB
+
 FUNCTION DoorSpeed(kind)
     SELECT CASE kind
         CASE DOOR_SHUTTER : DoorSpeed = 0.025

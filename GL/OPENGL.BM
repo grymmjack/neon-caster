@@ -397,6 +397,7 @@ SUB GLBuildMesh
     END IF
     glMeshBuilding = 0
     n& = glMeshN
+    IF UBOUND(glMeshData) < n& * 11 THEN REDIM glMeshData(n& * 11) AS SINGLE
     ' Counting sort, by kind * (number of textures) + texture
     FOR kind = 0 TO 3 : FOR slot = 0 TO GL_GLOW_TEX : glMeshCount(kind, slot) = 0 : NEXT : NEXT
     FOR i& = 0 TO n& - 1 : glMeshCount(glMBKind(i&), glMBSlot(i&)) = glMeshCount(glMBKind(i&), glMBSlot(i&)) + 1 : NEXT
@@ -427,7 +428,12 @@ END SUB
 ' One corner of the world mesh, while it's built: its shape only (where,
 ' texture spot, normal, tangent), its texture and its kind
 SUB GLMeshCorner(x, y, z, u, v)
-    IF glMeshN >= MESH_MAX THEN EXIT SUB
+    IF glMeshN >= glMeshCap THEN ' (full: room for twice as many, up to MESH_MAX)
+        IF glMeshCap >= MESH_MAX THEN EXIT SUB
+        glMeshCap = MinOf(MESH_MAX, glMeshCap * 2)
+        REDIM _PRESERVE glMBPos(glMeshCap * 3) AS SINGLE, glMBUV(glMeshCap * 2) AS SINGLE, glMBN(glMeshCap * 3) AS SINGLE, glMBT(glMeshCap * 3) AS SINGLE
+        REDIM _PRESERVE glMBSlot(glMeshCap) AS INTEGER, glMBKind(glMeshCap) AS INTEGER
+    END IF
     i& = glMeshN
     glMBPos(i& * 3) = x : glMBPos(i& * 3 + 1) = y : glMBPos(i& * 3 + 2) = z
     glMBUV(i& * 2) = u : glMBUV(i& * 2 + 1) = v
@@ -561,10 +567,10 @@ SUB GLSpritesAndExtras(b, mirror)
         END IF
         IF glSprMdl(i, b) AND NOT mirror THEN ' (a 3D prop: its model, not its picture - but in a reflection, its picture: half the cost, and you can't tell)
             IF glSprHead(i, b) THEN ' (a turret: its base on its mount, and its head on that, aimed at you)
-                GLDrawModel turBaseMdl, sx, sy, zLow, glSprAng(i, b), glSprPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), 0
-                GLDrawModel turHeadMdl, sx + glSprUpX(i, b) * turPivot, sy + glSprUpY(i, b) * turPivot, zLow + glSprUpZ(i, b) * turPivot, glSprHAng(i, b), glSprHPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), glSprCap(i, b)
+                GLDrawModel turBaseMdl, sx, sy, zLow, glSprAng(i, b), glSprPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), 0, 1
+                GLDrawModel turHeadMdl, sx + glSprUpX(i, b) * turPivot, sy + glSprUpY(i, b) * turPivot, zLow + glSprUpZ(i, b) * turPivot, glSprHAng(i, b), glSprHPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), glSprCap(i, b), 1
             ELSE
-                GLDrawModel glSprMdl(i, b), sx, sy, zLow, glSprAng(i, b), glSprPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), glSprCap(i, b)
+                GLDrawModel glSprMdl(i, b), sx, sy, zLow, glSprAng(i, b), glSprPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), glSprCap(i, b), glSprMZ(i, b)
             END IF
             _CONTINUE
         END IF ' (a 3D prop: its model, not its picture - but in a reflection, its picture: half the cost, and you can't tell)
@@ -628,7 +634,7 @@ END SUB
 ' look flat, so each triangle is shaded as it faces: tops brightest, and
 ' sides towards the cell's light (glCellLX, GLSetLight) brighter than
 ' those away from it - as models.py shades the 8 pictures.
-SUB GLDrawModel(m, sx, sy, sz, ang, pit, red, green, blue, ux, uy, uz, cap~&)
+SUB GLDrawModel(m, sx, sy, sz, ang, pit, red, green, blue, ux, uy, uz, cap~&, zs)
     DIM c, j, k, l, lx, ly, n, nx, ny, nz, s, slot, t, uvk, fx, fy, fz, rx, ry, rz, cr, cg, cb ' (its own: the main program shares these names)
     IF mdlCount(m) = 0 THEN EXIT SUB
     slot = S_MODEL + m - 1 : GLUseTexture T_SLOTS + slot
@@ -656,13 +662,13 @@ SUB GLDrawModel(m, sx, sy, sz, ang, pit, red, green, blue, ux, uy, uz, cap~&)
         IF cap~& AND mdlU(n) > 0.95 AND mdlV(n) > 0.95 THEN ' (a muzzle - textured from the white corner: models.py)
             FOR j = 0 TO 2
                 n = t * 3 + j
-                GLSpriteCorner sx + mdlPX(n) * fx + mdlPY(n) * rx + mdlPZ(n) * ux, sy + mdlPX(n) * fy + mdlPY(n) * ry + mdlPZ(n) * uy, sz + mdlPX(n) * fz + mdlPY(n) * rz + mdlPZ(n) * uz, mdlU(n) * uvk, mdlV(n) * uvk, cr, cg, cb
+                GLSpriteCorner sx + mdlPX(n) * fx + mdlPY(n) * rx + mdlPZ(n) * zs * ux, sy + mdlPX(n) * fy + mdlPY(n) * ry + mdlPZ(n) * zs * uy, sz + mdlPX(n) * fz + mdlPY(n) * rz + mdlPZ(n) * zs * uz, mdlU(n) * uvk, mdlV(n) * uvk, cr, cg, cb
             NEXT
             _CONTINUE
         END IF
         FOR j = 0 TO 2
             n = t * 3 + j
-            GLSpriteCorner sx + mdlPX(n) * fx + mdlPY(n) * rx + mdlPZ(n) * ux, sy + mdlPX(n) * fy + mdlPY(n) * ry + mdlPZ(n) * uy, sz + mdlPX(n) * fz + mdlPY(n) * rz + mdlPZ(n) * uz, mdlU(n) * uvk, mdlV(n) * uvk, red * k, green * k, blue * k
+            GLSpriteCorner sx + mdlPX(n) * fx + mdlPY(n) * rx + mdlPZ(n) * zs * ux, sy + mdlPX(n) * fy + mdlPY(n) * ry + mdlPZ(n) * zs * uy, sz + mdlPX(n) * fz + mdlPY(n) * rz + mdlPZ(n) * zs * uz, mdlU(n) * uvk, mdlV(n) * uvk, red * k, green * k, blue * k
         NEXT
     NEXT
     glFaceNZ = 0 : glFaceTZ = 0 ' (the sprites after it stand upright)

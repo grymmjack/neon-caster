@@ -29,7 +29,7 @@
 '   glTexVersion  goes up whenever the textures change (a level loads), so
 '                 SUB _GL knows to send them to the graphics card again
 ' GL_NEAR and GL_FAR: the nearest and furthest OpenGL draws (in cells)
-CONST GL_NEAR = 0.05, GL_FAR = 100
+CONST GL_NEAR = 0.05, GL_FAR = 100 ' (the fog's black by 16 cells: past that only neon and skies show)
 ' GL_DYN: how many moving lights; MAX_PART: particles; GL_HEAT: explosions
 ' for the heat shimmer (all chapter 24)
 CONST GL_DYN = 4, MAX_PART = 800, GL_HEAT = 4
@@ -42,6 +42,7 @@ DIM SHARED glDoor(MAP_SIZE, MAP_SIZE, 1) AS SINGLE, glSeen(MAP_SIZE, MAP_SIZE, 1
 DIM SHARED glNumSpr(1) AS INTEGER, glSprX(MAX_DRAW, 1), glSprY(MAX_DRAW, 1), glSprLift(MAX_DRAW, 1)
 DIM SHARED glSprHalfW(MAX_DRAW, 1), glSprH(MAX_DRAW, 1), glSprSlot(MAX_DRAW, 1) AS INTEGER, glSprFace(MAX_DRAW, 1) AS INTEGER
 DIM SHARED glSprMdl(MAX_DRAW, 1) AS INTEGER, glSprAng(MAX_DRAW, 1) ' (a 3D prop: its model, drawn as itself - GLDrawModel - and the way it faces)
+DIM SHARED glSprMZ(MAX_DRAW, 1) ' (its model squashed: a broken prop)
 DIM SHARED glSprPitch(MAX_DRAW, 1), glSprHead(MAX_DRAW, 1) AS INTEGER, glSprHAng(MAX_DRAW, 1), glSprHPitch(MAX_DRAW, 1) ' (pitched - a rocket; a turret's head, aimed)
 ' The turrets' laser sights: a glowing line each (GLSight)
 DIM SHARED glNumSight(1) AS INTEGER, glSightX0(MAX_BEAMS, 1), glSightY0(MAX_BEAMS, 1), glSightZ0(MAX_BEAMS, 1), glSightX1(MAX_BEAMS, 1), glSightY1(MAX_BEAMS, 1), glSightZ1(MAX_BEAMS, 1), glSightC(MAX_BEAMS, 1) AS _UNSIGNED LONG
@@ -88,12 +89,16 @@ DIM SHARED glPost AS INTEGER, glReflecting AS INTEGER, glFloorPass AS INTEGER, g
 ' where each kind-and-texture run is; the corners while it's being built
 ' (glMB...); the doors (they move, so they're drawn each frame); the light
 ' tables' textures; and whether corners are lit from the tables (cellLit)
-CONST MESH_MAX = 480000 ' (corners: room for a sector 128 x 128 and 16 walls high, every floor, ceiling and step in it)
+' (MESH_START corners to start with - a sector 128 x 128 and 16 walls high,
+' every floor, ceiling and step in it - grown as a bigger one needs, up to
+' MESH_MAX: GLMeshCorner)
+CONST MESH_START = 480000, MESH_MAX = 4000000
 DIM SHARED glMeshBuf AS _UNSIGNED LONG, glMeshN AS LONG, glMeshBuilding AS INTEGER, glMeshKind AS INTEGER
 DIM SHARED glMeshClient AS INTEGER ' (the mesh is drawn from glMeshData in main memory, not a buffer - GLBuildMesh)
 DIM SHARED glMeshFirst(3, GL_GLOW_TEX) AS LONG, glMeshCount(3, GL_GLOW_TEX) AS LONG ' (kinds: 0 floors, 1 ceilings, 2 walls, 3 raised or sunken floors)
-DIM SHARED glMBPos(MESH_MAX * 3) AS SINGLE, glMBUV(MESH_MAX * 2) AS SINGLE, glMBN(MESH_MAX * 3) AS SINGLE, glMBT(MESH_MAX * 3) AS SINGLE
-DIM SHARED glMBSlot(MESH_MAX) AS INTEGER, glMBKind(MESH_MAX) AS INTEGER, glMeshData(MESH_MAX * 11) AS SINGLE
+REDIM SHARED glMBPos(MESH_START * 3) AS SINGLE, glMBUV(MESH_START * 2) AS SINGLE, glMBN(MESH_START * 3) AS SINGLE, glMBT(MESH_START * 3) AS SINGLE
+REDIM SHARED glMBSlot(MESH_START) AS INTEGER, glMBKind(MESH_START) AS INTEGER, glMeshData(MESH_START * 11) AS SINGLE
+DIM SHARED glMeshCap AS LONG: glMeshCap = MESH_START
 DIM SHARED glNumDoors AS INTEGER, glDoorCX(MAP_SIZE * MAP_SIZE) AS INTEGER, glDoorCY(MAP_SIZE * MAP_SIZE) AS INTEGER
 DIM SHARED glLitTex AS _UNSIGNED LONG, glInfoTex AS _UNSIGNED LONG, glDynTex AS _UNSIGNED LONG, glCellLitMode AS INTEGER
 ' ...and each texture's effects (GLSendTextures)

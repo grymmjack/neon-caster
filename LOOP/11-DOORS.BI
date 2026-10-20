@@ -108,7 +108,8 @@
             END IF
         NEXT
     END IF
-    FOR doorY = 0 TO mapN - 1 : FOR doorX = 0 TO mapN-1
+    FOR doorK& = 1 TO numDoorCells ' (the doors: ListDoors)
+        doorX = doorCellX(doorK&) : doorY = doorCellY(doorK&)
         ' (a locked door that's open shuts - as soon as nobody's in the way)
         IF doorLock(doorX, doorY) AND doorOpen(doorX, doorY) > 0 AND doorMove(doorX, doorY) <> -1 THEN
             IF NOT DoorBlocked(doorX, doorY, playerX, playerY) THEN doorMove(doorX, doorY) = -1 : doorWait(doorX, doorY) = 0
@@ -141,4 +142,4 @@
                     END IF
             END SELECT
         END IF
-    NEXT : NEXT
+    NEXT

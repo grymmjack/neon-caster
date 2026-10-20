@@ -740,26 +740,32 @@ FUNCTION CellLightBoxes$(nl$)
     CellLightBoxes$ = o$
 END FUNCTION
 
-' --- Heights higher than z, in a level file (WORLD/HEIGHTS.BI's H_HI):
+' --- Heights higher than z, in a level file (WORLD/HEIGHTS.BI's H_HIGH$):
 ' a row as [floor] / [ceiling] has it - each one higher than z its last
 ' digit in base 36 (0-9 a-z) ...
 FUNCTION HeightRowLow$(r$)
     DIM k, e, o$ ' (its own: the main program shares these names)
     o$ = r$
     FOR k = 1 TO LEN(o$)
-        IF ASC(o$, k) >= H_HI THEN e = ASC(o$, k) - H_HI + 36 : MID$(o$, k, 1) = MID$(H_UP$, e MOD 36 + 1, 1)
+        e = HeightE(MID$(o$, k, 1)) : IF e >= 36 THEN MID$(o$, k, 1) = MID$(H_UP$, e MOD 36 + 1, 1)
     NEXT
     HeightRowLow$ = o$
 END FUNCTION
 
 ' ...and [floor high] / [ceiling high]'s row: how many 36s (0 for the rest)
 FUNCTION HeightRowHigh$(r$)
-    DIM k, o$ ' (its own: the main program shares these names)
+    DIM k, e, o$ ' (its own: the main program shares these names)
     o$ = STRING$(LEN(r$), "0")
     FOR k = 1 TO LEN(r$)
-        IF ASC(r$, k) >= H_HI THEN MID$(o$, k, 1) = LTRIM$(STR$((ASC(r$, k) - H_HI + 36) \ 36))
+        e = HeightE(MID$(r$, k, 1)) : IF e >= 36 THEN MID$(o$, k, 1) = LTRIM$(STR$(e \ 36))
     NEXT
     HeightRowHigh$ = o$
+END FUNCTION
+
+' A height character's eighths, past z only (else 0): HeightOf's, whole
+FUNCTION HeightE(c$)
+    IF c$ = "." OR INSTR(H_UP$ + H_DOWN$, c$) THEN EXIT FUNCTION
+    HeightE = CINT(HeightOf(c$, 0) / H_STEP)
 END FUNCTION
 
 ' Any heights higher than z in the floors (w 1) or the ceilings (2)?
@@ -767,8 +773,8 @@ FUNCTION HeightRowsHigh(w)
     DIM y, k ' (its own: the main program shares these names)
     FOR y = 0 TO mapN - 1
         FOR k = 1 TO LEN(lvlFloorRow$(y))
-            IF w = 1 THEN IF ASC(lvlFloorRow$(y), k) >= H_HI THEN HeightRowsHigh = -1 : EXIT FUNCTION
-            IF w = 2 THEN IF ASC(lvlCeilRow$(y), k) >= H_HI THEN HeightRowsHigh = -1 : EXIT FUNCTION
+            IF w = 1 THEN IF HeightE(MID$(lvlFloorRow$(y), k, 1)) THEN HeightRowsHigh = -1 : EXIT FUNCTION
+            IF w = 2 THEN IF HeightE(MID$(lvlCeilRow$(y), k, 1)) THEN HeightRowsHigh = -1 : EXIT FUNCTION
         NEXT
     NEXT
 END FUNCTION
@@ -780,7 +786,7 @@ SUB HeightRowJoin(r$, h$)
         n = VAL(MID$(h$, k, 1))
         IF n > 0 THEN
             e = INSTR(H_UP$, MID$(r$, k, 1)) - 1 : IF e < 0 THEN e = 0
-            e = MinOf(H_MAX, e + 36 * n) : IF e >= 36 THEN MID$(r$, k, 1) = CHR$(H_HI + e - 36)
+            e = MinOf(H_MAX, e + 36 * n) : IF e >= 36 THEN MID$(r$, k, 1) = HeightChar$(e * H_STEP, -99)
         END IF
     NEXT
 END SUB

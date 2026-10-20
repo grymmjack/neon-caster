@@ -89,6 +89,7 @@
                 IF monVs THEN monTX = monsterX(monVs) : monTY = monsterY(monVs) : monTZ = MonFoot(monVs) ELSE monTX = playerX : monTY = playerY : monTZ = playerZ
                 toPlayerX = monTX - monsterX(i) : toPlayerY = monTY - monsterY(i) : distance = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY)
                 boltFromMon = i ' (its shots are its own: what they hit, it hit)
+                IF mtypeLift(mtype) > 0 AND NOT cyberOn THEN MonFlyTurn i ' (a flyer: up or down to who it's after)
                 IF (NOT dead OR monVs) AND distance > 0.01 THEN
                     goX = 0 : goY = 0
                     IF mtype = MT_THIEF THEN
@@ -117,7 +118,7 @@
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' The rest: close in...
                     ELSEIF GlassBetween(monsterX(i), monsterY(i), monTX, monTY) THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' (glass between: it just presses against it)
-                    ELSEIF mtypeLift(mtype) = 0 AND ABS(FloorAt(monsterX(i), monsterY(i)) - monTZ) > 0.7 THEN
+                    ELSEIF ABS(MonFoot(i) - monTZ) > 0.7 THEN ' (you up a ledge, or down one - a flyer still flying up or down to you: claws don't reach)
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' (you're up a ledge, or down one: claws don't reach)
                     ELSEIF monsterTimer(i) = 0 THEN ' ...and hit
                         dmg = mtypeDamage(mtype) + INT(GRnd * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
@@ -130,6 +131,7 @@
                         MonsterDoor INT(monsterX(i)), INT(monsterY(i) + goY * 0.7), playerX, playerY
                     END IF
                     walkZ = floorH(INT(monsterX(i)), INT(monsterY(i))) ' (it steps up, and falls off, as you do - but only so high)
+                    IF monFly(i) > 0 THEN walkZ = walkZ + monFly(i) ' (a flyer: over anything below it)
                     walkFromHaz = FloorHazard(INT(monsterX(i)), INT(monsterY(i))) + 10 ' (and keeps out of fire, unless it's in it already)
                     mlk = liqKind(INT(monsterX(i)), INT(monsterY(i))) : msl = 1 ' (...and out of harmful liquids - and wades slower in any)
                     IF mlk AND mtypeLift(mtype) = 0 AND NOT cyberOn THEN
@@ -158,6 +160,7 @@
                 NEXT
                 walkZ = -999 : walkFromHaz = 0
             CASE 2 ' Dying: collapse
+                IF monFly(i) > 0 THEN monFly(i) = MaxOf(0, monFly(i) - 0.06) ' (a flyer: falling out of the air)
                 IF monBlown(i) = 1 THEN TurretBlown i ' (a turret, destroyed: it blows up - GAME/TURRETS.BM)
                 monsterTimer(i) = monsterTimer(i) -1
                 IF monsterTimer(i) <= 0 THEN

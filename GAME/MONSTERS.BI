@@ -124,6 +124,10 @@ DIM SHARED boltOn(MAX_BOLTS) AS INTEGER, boltDamage(MAX_BOLTS) AS INTEGER
 ' where they are (monTX, monTY, monTZ - their feet)
 DIM SHARED boltOwner(MAX_BOLTS) AS INTEGER, boltFromMon AS INTEGER, monFoe(MAX_MON) AS INTEGER
 DIM SHARED monVs AS INTEGER, monTX AS SINGLE, monTY AS SINGLE, monTZ AS SINGLE
+' FLYING: what hovers (mtypeLift over 0 - the drone, the overseer, ICE)
+' flies - monFly, how far over its hover height it is, rising and sinking
+' towards the height of who it's after (MonFlyTurn), under the ceiling
+DIM SHARED monFly(MAX_MON) AS SINGLE
 
 ' --- Beams: a laser aiming (a faint red line - BEAM_AIM) or firing (white-
 ' hot - BEAM_SHOT), from (beamX0, beamY0, beamZ0) to (X1, Y1, Z1), for

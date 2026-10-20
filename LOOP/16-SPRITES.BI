@@ -35,7 +35,7 @@
     ' behind walls and doorframes. Transparent pixels (alpha 128 or less)
     ' are skipped, so you see the shape, not its square.
     numDraw = 0
-    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : drawMdl(k) = 0 : drawPic(k) = 0 : drawRed(k) = 0 : drawTint(k) = 0 : drawCap(k) = 0 : drawFlip(k) = 0 : drawUpX(k) = 0 : drawUpY(k) = 0 : drawUpZ(k) = 1 : drawOX(k) = 0 : drawPitch(k) = 0 : drawHead(k) = 0 : NEXT ' (all of it: an entry a turret had last frame is something else's now)
+    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : drawMdl(k) = 0 : drawPic(k) = 0 : drawRed(k) = 0 : drawTint(k) = 0 : drawCap(k) = 0 : drawFlip(k) = 0 : drawUpX(k) = 0 : drawUpY(k) = 0 : drawUpZ(k) = 1 : drawOX(k) = 0 : drawPitch(k) = 0 : drawHead(k) = 0 : drawMZ(k) = 1 : NEXT ' (all of it: an entry a turret had last frame is something else's now)
     FOR i = 1 TO numItems
         IF itemOn(i) AND (itemKind(i) = IT_CORE) = cyberOn THEN ' (in the network, just its data cores)
             numDraw = numDraw + 1 : drawX(numDraw) = itemX(i) : drawY(numDraw) = itemY(i)
@@ -86,7 +86,7 @@
             f = (monsterTimer(i) - MON_DYING / 2) / (MON_DYING / 2) ' (1 just hit .. 0 down)
             drawSquash(numDraw) = 0.55 + 0.45 * f : drawLift(numDraw) = mtypeLift(mtype) * f : drawSprite(numDraw) = mtypeSprite(mtype) + 1
         ELSE
-            drawSquash(numDraw) = 1 : drawLift(numDraw) = mtypeLift(mtype) + mtypeBob(mtype) * SIN(lvFrame / 24 + i * 1.7) ' (bobbing by the frame clock, as WeakSpotHit has it: the same bob in a demo)
+            drawSquash(numDraw) = 1 : drawLift(numDraw) = mtypeLift(mtype) + monFly(i) + mtypeBob(mtype) * SIN(lvFrame / 24 + i * 1.7) ' (bobbing by the frame clock, as WeakSpotHit has it: the same bob in a demo)
             IF mtype = MT_TURRET THEN ' A turret coming out: from the floor, it grows up out of it; from the ceiling, it comes down out of that; from a wall, it slides out
                 f = MinOf(1, monDeploy(i) / TURRET_UP) : IF editMode THEN f = 1
                 drawSquash(numDraw) = MaxOf(0.05, f)
@@ -146,6 +146,12 @@
             IF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
                 drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0 : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw)
+                IF decoMdl(decoKind(i)) AND glMode THEN ' (a 3D prop - OpenGL, near: its own model, broken - crumpled to half its height, knocked askew, charred; far off, its wreck's picture)
+                    drawMdl(numDraw) = decoMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) + (i MOD 5 - 2) * 0.35 : drawMZ(numDraw) = 0.45 + (i MOD 3) * 0.06
+                    wa = (i * 2.399) : drawUpX(numDraw) = DCos(wa) * 0.34 : drawUpY(numDraw) = DSin(wa) * 0.34 : drawUpZ(numDraw) = 0.94 ' (leaning, a different way each)
+                    drawOX(numDraw) = decoX(i) : drawOY(numDraw) = decoY(i) : drawOZ(numDraw) = FloorAt(decoX(i), decoY(i)) - 0.02
+                    drawTint(numDraw) = _RGB32(46, 40, 36) : drawMinShade(numDraw) = 0
+                END IF
             ELSEIF decoMdl(decoKind(i)) THEN ' A 3D prop: OpenGL draws its model; we draw its picture from nearest where you are (RENDER/MODELS.BM)
                 drawMdl(numDraw) = decoMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0
                 drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
@@ -336,7 +342,7 @@
                 glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = 0
                 IF drawRed(i) THEN glSprR(n, glWrite) = MaxOf(1.2, glSprR(n, glWrite) * 1.8) : glSprG(n, glWrite) = glSprG(n, glWrite) * 0.35 : glSprB(n, glWrite) = glSprB(n, glWrite) * 0.35 ' (hit: flushed red)
                 glSprMdl(n, glWrite) = mdlNow : glSprAng(n, glWrite) = drawAng(i) ' (a 3D prop: GLDrawModel)
-                glSprPitch(n, glWrite) = drawPitch(i) : glSprHead(n, glWrite) = drawHead(i) : glSprHAng(n, glWrite) = drawHAng(i) : glSprHPitch(n, glWrite) = drawHPitch(i)
+                glSprMZ(n, glWrite) = drawMZ(i) : glSprPitch(n, glWrite) = drawPitch(i) : glSprHead(n, glWrite) = drawHead(i) : glSprHAng(n, glWrite) = drawHAng(i) : glSprHPitch(n, glWrite) = drawHPitch(i)
                 glSprCap(n, glWrite) = drawCap(i) : glSprFlip(n, glWrite) = drawFlip(i) : glSprUpX(n, glWrite) = drawUpX(i) : glSprUpY(n, glWrite) = drawUpY(i) : glSprUpZ(n, glWrite) = drawUpZ(i)
                 IF mdlNow AND (drawUpZ(i) < 0.99 OR drawOX(i) <> 0) THEN glSprX(n, glWrite) = drawOX(i) : glSprY(n, glWrite) = drawOY(i) : glSprLift(n, glWrite) = drawOZ(i) ' (on its side, or upside down: its model from its mount)
             ELSE

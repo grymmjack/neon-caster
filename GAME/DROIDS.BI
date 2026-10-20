@@ -22,5 +22,5 @@ DIM SHARED droidTX(MAX_DROIDS) AS SINGLE, droidTY(MAX_DROIDS) AS SINGLE, droidWo
 ' by DroidFlee. drFleeing: the droid moving now is fleeing (an open door
 ' lets it through)
 CONST DROID_FLEE = 0.09, MAX_FLEE_PATH = 400
-DIM SHARED droidPath(MAX_DROIDS, MAX_FLEE_PATH) AS INTEGER, droidPathN(MAX_DROIDS) AS INTEGER, droidPathK(MAX_DROIDS) AS INTEGER, drFleeing AS INTEGER
+DIM SHARED droidPath(MAX_DROIDS, MAX_FLEE_PATH) AS LONG, droidPathN(MAX_DROIDS) AS INTEGER, droidPathK(MAX_DROIDS) AS INTEGER, drFleeing AS INTEGER
 DIM SHARED lvlDroids AS INTEGER ' (droids = in the level file: how many droids it has, 0 to MAX_DROIDS - or -1, not said: 3)

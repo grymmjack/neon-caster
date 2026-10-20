@@ -235,7 +235,7 @@ SUB ConExec STATIC
             END IF
         CASE "restart", "reset" ' This sector again, from the start
             RestartLevel : conLevelChanged = -1 : ConPrint "Level reset"
-        CASE "mapsize" ' mapsize N: the sector's map N x N cells (16 to 128) - grown with wall, or cut down; savelevel keeps it
+        CASE "mapsize" ' mapsize N: the sector's map N x N cells (16 to MAP_SIZE, 256) - grown with wall, or cut down; savelevel keeps it
             IF VAL(conA$) >= 16 THEN EditPushUndo : EditResizeMap VAL(conA$) : editDirty = -1
             ConPrint "map:" + STR$(mapN) + " x" + STR$(mapN) + "  (16 to" + STR$(MAP_SIZE) + ")"
         CASE "resetlevel" ' The sector as it starts - as it is now in the editor - and you where you are
@@ -490,7 +490,7 @@ SUB ConExec STATIC
         CASE "mons", "monlist" ' Every monster: where, how it is, and its own settings (the editor's monster pane)
             IF numMonsters = 0 THEN ConPrint "No monsters in this sector"
             FOR k = 1 TO numMonsters
-                ConPrint LTRIM$(STR$(k)) + "  " + mtypeName$(monsterType(k)) + " at" + STR$(INT(monsterX(k))) + STR$(INT(monsterY(k))) + "  " + RTRIM$(MID$("asleep  hunting dying   dead    ", monsterState(k) * 8 + 1, 8)) + "  hp" + STR$(monsterHP(k)) + "  sight" + STR$(monSight(k)) + "  hearing" + STR$(monHear(k)) + "  speed" + STR$(INT(monSpd(k) * 100)) + "%  wakes " + RTRIM$(MID$("seeing  near    hit     hunting ", monWake(k) * 8 + 1, 8))
+                ConPrint LTRIM$(STR$(k)) + "  " + mtypeName$(monsterType(k)) + " at" + STR$(INT(monsterX(k))) + STR$(INT(monsterY(k))) + " up" + STR$(INT(MonFoot(k) * 100) / 100) + "  " + RTRIM$(MID$("asleep  hunting dying   dead    ", monsterState(k) * 8 + 1, 8)) + "  hp" + STR$(monsterHP(k)) + "  sight" + STR$(monSight(k)) + "  hearing" + STR$(monHear(k)) + "  speed" + STR$(INT(monSpd(k) * 100)) + "%  wakes " + RTRIM$(MID$("seeing  near    hit     hunting ", monWake(k) * 8 + 1, 8))
             NEXT
         CASE "events"
             IF numEvents = 0 THEN ConPrint "No event rooms in this sector"
@@ -1143,7 +1143,7 @@ SUB ConHelp(c$)
         CASE "pos", "where" : ConPrint "^3pos^0: where you are - the sector, x y, the way you face (degrees), your feet's and eye's height (^7info^0 or F3 shows it all the time)"
         CASE "info", "f3" : ConPrint "^3info [on|off]^0: the F3 panel, top left - x y and cell, the way you face, heights, the wall you look at (its cell and map character), and a tp line that brings you back"
         CASE "status" : ConPrint "^3status^0: the sector, your health, armour, cells, shells and rockets, and kills of the monsters there"
-        CASE "mons", "monlist" : ConPrint "^3mons^0: every monster - its number, kind, where, asleep or hunting, health, and its own sight, hearing, speed and what wakes it"
+        CASE "mons", "monlist" : ConPrint "^3mons^0: every monster - its number, kind, where (and how high), asleep or hunting, health, and its own sight, hearing, speed and what wakes it"
         CASE "events" : ConPrint "^3events^0: the sector's event rooms - kind, box, and waiting, going, won or lost"
         CASE "triggers" : ConPrint "^3triggers^0: the sector's triggers, numbered (trigger del N takes one away), and which have gone off"
         CASE "stations" : ConPrint "^3stations^0: the sector's data stations, and which are hacked"

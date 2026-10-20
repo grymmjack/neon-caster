@@ -67,7 +67,7 @@ SUB ThiefStep STATIC
     IF thiefState(i) = 0 AND monsterHurt(i) > 0 THEN thiefState(i) = 1
     IF thiefState(i) = 0 THEN
         goX = toPlayerX / distance : goY = toPlayerY / distance
-        IF distance < mtypeReach(mtype) AND NOT GlassBetween(monsterX(i), monsterY(i), playerX, playerY) AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) <= 0.7 THEN ' Got you: grab (not up or down a ledge)
+        IF distance < mtypeReach(mtype) AND NOT GlassBetween(monsterX(i), monsterY(i), playerX, playerY) AND ABS(MonFoot(i) - playerZ) <= 0.7 THEN ' Got you: grab (not up or down a ledge)
             thiefCells(i) = ammoCount(AM_CELLS) \ 2 : thiefShells(i) = ammoCount(AM_SHELLS) \ 2
             ammoCount(AM_CELLS) = ammoCount(AM_CELLS) - thiefCells(i) : ammoCount(AM_SHELLS) = ammoCount(AM_SHELLS) - thiefShells(i)
             g = 0
@@ -220,7 +220,7 @@ FUNCTION MonFoot(i)
     t = monsterType(i)
     IF t = MT_TURRET AND monFrom(i) = TURRET_CEIL THEN MonFoot = ceilH(INT(monsterX(i)), INT(monsterY(i))) - mtypeScale(t) : EXIT FUNCTION
     IF t = MT_TURRET AND monFrom(i) = TURRET_WALL THEN MonFoot = FloorAt(monsterX(i), monsterY(i)) + 0.3 : EXIT FUNCTION ' (on a wall: chest high)
-    MonFoot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t)
+    MonFoot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t) + monFly(i) ' (a flyer: up where it's flown)
 END FUNCTION
 
 ' Does a shot at height z go over or under monster i? Only when you aim
@@ -390,6 +390,7 @@ SUB FireBolt(x, y, dirX, dirY, damage)
             boltDX(i) = dirX : boltDY(i) = dirY : boltDamage(i) = damage
             ' (its height: from the shooter's middle, towards yours)
             boltZ(i) = floorH(INT(x), INT(y)) + 0.49 : IF boltFromZ > 0 THEN boltZ(i) = boltFromZ
+            IF boltFromMon AND boltFromZ = 0 THEN IF monFly(boltFromMon) > 0 THEN boltZ(i) = MonFoot(boltFromMon) + mtypeScale(monsterType(boltFromMon)) * 0.5 ' (a flyer: from up where it is)
             d = SQR((playerX - x) ^ 2 + (playerY - y) ^ 2) : boltDZ(i) = 0
             IF d > 0.5 THEN boltDZ(i) = (playerZ + 0.49 - boltZ(i)) / d
             IF boltFromMon AND monVs THEN ' (at the monster it's turned on: its middle)
@@ -556,7 +557,7 @@ SUB MonStyleTurn(i)
                 IF i MOD 2 THEN goX = (-toPlayerX + toPlayerY * 0.5) / distance : goY = (-toPlayerY - toPlayerX * 0.5) / distance
                 EXIT SUB
             END IF
-            IF distance > mtypeReach(mt) OR GlassBetween(monsterX(i), monsterY(i), monTX, monTY) OR ABS(FloorAt(monsterX(i), monsterY(i)) - monTZ) > 0.7 THEN
+            IF distance > mtypeReach(mt) OR GlassBetween(monsterX(i), monsterY(i), monTX, monTY) OR ABS(MonFoot(i) - monTZ) > 0.7 THEN
                 goX = toPlayerX / distance : goY = toPlayerY / distance
                 IF distance < 2.2 AND sn AND monsterTimer(i) = 0 THEN goX = goX * 1.6 : goY = goY * 1.6 ' (the lunge)
             ELSEIF monsterTimer(i) = 0 THEN ' Within reach: the slash
@@ -568,7 +569,7 @@ SUB MonStyleTurn(i)
         CASE STYLE_COLOSSUS ' The colossus: comes on and on - close, a slam that shakes the floor; far, heavy bolts
             goX = toPlayerX / distance : goY = toPlayerY / distance
             IF monsterTimer(i) = 0 THEN
-                IF distance < mtypeReach(mt) AND ABS(FloorAt(monsterX(i), monsterY(i)) - monTZ) < 0.7 THEN
+                IF distance < mtypeReach(mt) AND ABS(MonFoot(i) - monTZ) < 0.7 THEN
                     MonStrike i, mtypeDamage(mt) + INT(GRnd * mtypeDamageRnd(mt))
                     IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < 36 THEN shake = shake + 14
                      SpawnSparks monsterX(i), monsterY(i), 0.05, 24, 255, 150, 60
@@ -584,7 +585,7 @@ END SUB
 
 ' Monster i's own fighting state, fresh: not aiming, no burst, a turret hidden
 SUB MonFresh(i)
-    monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0
+    monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0 : monFly(i) = 0
 END SUB
 
 ' A field boss's haul as it falls (monster i), thrown out towards you: the
@@ -644,3 +645,17 @@ FUNCTION BoltMon(x!, y!, z!, owner)
         END IF
     NEXT
 END FUNCTION
+
+' --- One frame of flyer i (hunting): up or down towards who it's after -
+' its middle at their chest - a little at a time, never into the floor
+' (it hovers mtypeLift over it) or through the ceiling
+SUB MonFlyTurn(i)
+    DIM t, f!, want!, top! ' (its own: the main program shares these names)
+    t = monsterType(i) : f! = FloorAt(monsterX(i), monsterY(i))
+    want! = monTZ + 0.45 - mtypeScale(t) * 0.5 - f! - mtypeLift(t)
+    top! = CeilAt(monsterX(i), monsterY(i)) - f! - mtypeLift(t) - mtypeScale(t) - 0.04
+    IF want! > top! THEN want! = top!
+    IF want! < 0 THEN want! = 0
+    monFly(i) = monFly(i) + MaxOf(-0.03, MinOf(0.03, want! - monFly(i)))
+    IF monFly(i) > top! THEN monFly(i) = MaxOf(0, top!) ' (a ceiling coming down: under it)
+END SUB

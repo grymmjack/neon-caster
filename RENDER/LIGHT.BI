@@ -25,7 +25,14 @@ DIM SHARED litSumX(MAP_SIZE, MAP_SIZE) AS SINGLE, litSumY(MAP_SIZE, MAP_SIZE) AS
 ' times colour) for red, green and blue, their effect (FX_ below), and -
 ' for a lamp or terminal's own light - which decoration it belongs to (so
 ' it goes out when you break it)
-CONST MAX_LIGHTS = 96
+' LIGHT_NEAR: how far from you the cells are lit afresh each frame (the
+' fog's black by 16 cells: past that nothing shows the light), litX0 to
+' litX1, litY0 to litY1 - all of a sector its first frames (UpdateLight)
+CONST LIGHT_NEAR = 40
+' RAY_FAR: how far the raycaster's rays go (chapter 15) before they give up - fog-black long before
+CONST RAY_FAR = 64
+DIM SHARED litX0, litY0, litX1, litY1
+CONST MAX_LIGHTS = 256 ' (a sector 256 cells across has room for plenty)
 DIM SHARED lightX(MAX_LIGHTS), lightY(MAX_LIGHTS), lightRadius(MAX_LIGHTS)
 DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhase(MAX_LIGHTS)
 DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
@@ -43,6 +50,6 @@ CONST FX_STEADY = 0, FX_FLICKER = 1, FX_PULSE = 2, FX_STROBE = 3, FX_FIRE = 4, F
 ' the level loads (BuildLights, chapter 23), since walls don't move:
 ' light number l's cells are entries lightFirst(l) to lightFirst(l) +
 ' lightCount(l) - 1 of the lit... arrays
-CONST MAX_LIT = 16000
+CONST MAX_LIT = 100000
 DIM SHARED lightFirst(MAX_LIGHTS) AS LONG, lightCount(MAX_LIGHTS) AS LONG, numLit AS LONG
 DIM SHARED litCellX(MAX_LIT) AS INTEGER, litCellY(MAX_LIT) AS INTEGER, litWeight(MAX_LIT) AS SINGLE

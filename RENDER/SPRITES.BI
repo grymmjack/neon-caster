@@ -29,6 +29,7 @@ DIM SHARED drawMdl(MAX_DRAW) AS INTEGER, drawAng(MAX_DRAW), drawPic(MAX_DRAW) AS
 DIM SHARED drawTint(MAX_DRAW) AS _UNSIGNED LONG, drawCap(MAX_DRAW) AS _UNSIGNED LONG, drawFlip(MAX_DRAW) AS INTEGER
 ' (its pitch - nose up or down: a rocket - and a turret's head, aimed at
 ' you on its base: drawHead, its own way round and pitch)
+DIM SHARED drawMZ(MAX_DRAW) AS SINGLE ' (a model squashed down to this much of its height: a broken prop, crumpled)
 DIM SHARED drawPitch(MAX_DRAW) AS SINGLE, drawHead(MAX_DRAW) AS INTEGER, drawHAng(MAX_DRAW) AS SINGLE, drawHPitch(MAX_DRAW) AS SINGLE
 DIM SHARED drawUpX(MAX_DRAW) AS SINGLE, drawUpY(MAX_DRAW) AS SINGLE, drawUpZ(MAX_DRAW) AS SINGLE, drawOX(MAX_DRAW) AS SINGLE, drawOY(MAX_DRAW) AS SINGLE, drawOZ(MAX_DRAW) AS SINGLE
 DIM SHARED drawFace(MAX_DRAW) AS INTEGER ' (0: it turns to face you; 1-4: it stands flat, facing east, south, west or north - DrawFlat)

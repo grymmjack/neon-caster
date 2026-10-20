@@ -106,6 +106,7 @@
         END IF
         WHILE hit = 0
             IF sideDistX < sideDistY THEN sideDistX = sideDistX + deltaDistX : mapX = mapX + stepX : side = 0 ELSE sideDistY = sideDistY + deltaDistY : mapY = mapY + stepY : side = 1
+            IF sideDistX - deltaDistX > RAY_FAR AND sideDistY - deltaDistY > RAY_FAR THEN hit = 1 : EXIT WHILE ' (this far the fog's long since black: as good as a wall - in a sector 256 across, the ray needn't go all the way)
             cellValue = worldMap(mapX, mapY)
             cellSeen(mapX, mapY) = -1 ' (for the map: you've seen this cell)
             glSeen(mapX, mapY, glWrite) = glFrameNo ' (and for OpenGL: a cell to draw - chapter 24)

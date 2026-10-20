@@ -122,6 +122,12 @@ END FUNCTION
 ' mostly dark but sputters on. A broken lamp's light is out for good.
 SUB UpdateLight
     DIM B, e, f, g, l, r, w ' (its own: the main program shares these names)
+    ' (only the cells near you - LIGHT_NEAR - but all of a sector at first)
+    litX0 = 0 : litY0 = 0 : litX1 = mapN - 1 : litY1 = mapN - 1
+    IF lvFrame > 2 AND NOT cyberOn THEN
+        litX0 = MaxOf(0, INT(playerX) - LIGHT_NEAR) : litX1 = MinOf(mapN - 1, INT(playerX) + LIGHT_NEAR)
+        litY0 = MaxOf(0, INT(playerY) - LIGHT_NEAR) : litY1 = MinOf(mapN - 1, INT(playerY) + LIGHT_NEAR)
+    END IF
     IF cyberOn THEN ' The network: no lamps, no shadows - everything lit the same
         FOR cellY = 0 TO mapN - 1 : FOR cellX = 0 TO mapN - 1
             litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230
@@ -138,7 +144,7 @@ SUB UpdateLight
     IF ambFxTimer(FX_FLICKER) > 0 THEN ambFxTimer(FX_FLICKER) = ambFxTimer(FX_FLICKER) - 1 : ambFxNow(FX_FLICKER) = 0.15 ELSE IF RND < 0.025 THEN ambFxTimer(FX_FLICKER) = 2 + INT(RND * 6)
     ambFxNow(FX_DYING) = 0.08
     IF ambFxTimer(FX_DYING) > 0 THEN ambFxTimer(FX_DYING) = ambFxTimer(FX_DYING) - 1 : ambFxNow(FX_DYING) = 0.5 + RND * 0.5 ELSE IF RND < 0.03 THEN ambFxTimer(FX_DYING) = 3 + INT(RND * 10)
-    FOR cellY = 0 TO mapN - 1 : FOR cellX = 0 TO mapN - 1
+    FOR cellY = litY0 TO litY1 : FOR cellX = litX0 TO litX1
         f = ambFxNow(cellAmbFx(cellX, cellY)) ' (its own ambient light - a cell light, or the sector's)
         litR(cellX, cellY) = cellAmbR(cellX, cellY) * f : litG(cellX, cellY) = cellAmbG(cellX, cellY) * f : litB(cellX, cellY) = cellAmbB(cellX, cellY) * f
         IF blackoutTimer > 0 THEN litR(cellX, cellY) = litR(cellX, cellY) \ 4 : litG(cellX, cellY) = litG(cellX, cellY) \ 5 : litB(cellX, cellY) = litB(cellX, cellY) \ 4 ' (a power failure: darker)
@@ -173,10 +179,11 @@ SUB UpdateLight
         IF lightBroken(l) THEN f = 0 ' (shot out)
         IF blackoutTimer > 0 AND lightEffect(l) <> FX_STROBE THEN f = f * 0.05 ' (no power: only the alarms)
         lightNow(l) = f
-        IF f > 0 THEN
+        IF f > 0 AND lightX(l) + lightRadius(l) >= litX0 AND lightX(l) - lightRadius(l) <= litX1 + 1 AND lightY(l) + lightRadius(l) >= litY0 AND lightY(l) - lightRadius(l) <= litY1 + 1 THEN ' (one that reaches the cells near you)
             r = lightR(l) * f : g = lightG(l) * f : b = lightB(l) * f
             FOR e = lightFirst(l) TO lightFirst(l) + lightCount(l) - 1
                 cellX = litCellX(e) : cellY = litCellY(e) : w = litWeight(e)
+                IF cellX < litX0 OR cellX > litX1 OR cellY < litY0 OR cellY > litY1 THEN _CONTINUE
                 litR(cellX, cellY) = litR(cellX, cellY) + r * w
                 litG(cellX, cellY) = litG(cellX, cellY) + g * w
                 litB(cellX, cellY) = litB(cellX, cellY) + b * w
