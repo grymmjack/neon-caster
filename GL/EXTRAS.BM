@@ -52,7 +52,7 @@ SUB GLMarkWide(px, py, dx, dy, planeLen, zoom)
         IF rayY < 0 THEN stepY = -1 : sideY = (py - mapY) * deltaY ELSE stepY = 1 : sideY = (mapY + 1 - py) * deltaY
         FOR hop = 1 TO 64
             IF sideX < sideY THEN sideX = sideX + deltaX : mapX = mapX + stepX ELSE sideY = sideY + deltaY : mapY = mapY + stepY
-            IF mapX < 0 OR mapY < 0 OR mapX >= MAP_SIZE OR mapY >= MAP_SIZE THEN EXIT FOR
+            IF mapX < 0 OR mapY < 0 OR mapX >= mapN OR mapY >= mapN THEN EXIT FOR
             glSeen(mapX, mapY, glWrite) = glFrameNo
             v = worldMap(mapX, mapY)
             IF v > 0 AND v <> 2 AND diagCorner(mapX, mapY) = 0 THEN EXIT FOR ' A wall: stop
@@ -89,6 +89,7 @@ SUB GLHandOverExtras(px, py, dx, dy, muzzle)
         IF blastTime(i) > 0 AND n < 40 THEN
             f = blastTime(i) / BLAST_FRAMES * blastSize(i)
             n = n + 1 : candX(n) = blastX(i) : candY(n) = blastY(i) : candZ(n) = 0.45 : candRad(n) = 2 + 5 * blastSize(i)
+            IF blastZ(i) <> NO_Z THEN candZ(n) = blastZ(i)
             candR(n) = 400 * f : candG(n) = 220 * f : candB(n) = 90 * f
             IF nHeat < GL_HEAT THEN nHeat = nHeat + 1 : glHeatX(nHeat, w) = blastX(i) : glHeatY(nHeat, w) = blastY(i) : glHeatAmt(nHeat, w) = blastTime(i) / BLAST_FRAMES
         END IF
@@ -108,13 +109,26 @@ SUB GLHandOverExtras(px, py, dx, dy, muzzle)
     NEXT
     glNumHeat(w) = nHeat
     FOR i = 1 TO MAX_BOLTS
-        IF boltOn(i) AND n < 40 THEN
+        IF boltOn(i) AND n < 40 AND (boltKind(i) <= BK_MISSILE OR boltKind(i) = BK_FLAME) THEN ' (a spray's puffs: only a flame's light the room)
             n = n + 1 : candX(n) = boltX(i) : candY(n) = boltY(i) : candZ(n) = 0.49 : candRad(n) = 2.5
             candR(n) = 160 : candG(n) = 40 : candB(n) = 170
+            IF boltKind(i) THEN candR(n) = bkR(boltKind(i)) * 0.7 : candG(n) = bkG(boltKind(i)) * 0.7 : candB(n) = bkB(boltKind(i)) * 0.7 : candZ(n) = boltZ(i)
+            IF boltKind(i) = BK_FLAME THEN candR(n) = 70 : candG(n) = 30 : candB(n) = 6 : candRad(n) = 1.5
+        END IF
+    NEXT
+    FOR i = 1 TO numMonsters ' (a body burning: orange, flickering)
+        IF monBurn(i) > 0 AND n < 40 THEN fl = (0.6 + 0.4 * RND) * MinOf(1, monBurn(i) / 60) : n = n + 1 : candX(n) = monsterX(i) : candY(n) = monsterY(i) : candZ(n) = FloorAt(monsterX(i), monsterY(i)) + 0.3 : candRad(n) = 3 : candR(n) = 240 * fl : candG(n) = 120 * fl : candB(n) = 30 * fl
+    NEXT
+    FOR i = 1 TO numDecos
+        IF decoBurn(i) > 0 AND n < 40 THEN fl = (0.6 + 0.4 * RND) * MinOf(1, decoBurn(i) / 60) : n = n + 1 : candX(n) = decoX(i) : candY(n) = decoY(i) : candZ(n) = FloorAt(decoX(i), decoY(i)) + 0.3 : candRad(n) = 3 : candR(n) = 240 * fl : candG(n) = 120 * fl : candB(n) = 30 * fl
+    NEXT
+    FOR i = 1 TO numMonsters ' (a destroyed turret's mount: its torn wires flicker blue-white)
+        IF monBlown(i) = 2 AND n < 40 THEN
+            IF RND < 0.45 THEN fl = RND : n = n + 1 : candX(n) = monsterX(i) : candY(n) = monsterY(i) : candZ(n) = MonFoot(i) + 0.3 : candRad(n) = 2.2 : candR(n) = 70 * fl : candG(n) = 120 * fl : candB(n) = 220 * fl
         END IF
     NEXT
     FOR i = 1 TO n : candD(i) = (candX(i) - px) ^ 2 + (candY(i) - py) ^ 2 : NEXT
-    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : FOR k = 1 TO GL_DYN : glDynReach(x, y, k, w) = 0 : NEXT : NEXT : NEXT
+    FOR y = 0 TO mapN : FOR x = 0 TO mapN : FOR k = 1 TO GL_DYN : glDynReach(x, y, k, w) = 0 : NEXT : NEXT : NEXT
     kept = 0
     DO WHILE kept < GL_DYN AND kept < n ' The nearest, one at a time
         best = 0
@@ -160,7 +174,7 @@ SUB GLHandOverExtras(px, py, dx, dy, muzzle)
         IF decalOn(i) THEN
             n = n + 1 : glDecX(n, w) = decalX(i) : glDecY(n, w) = decalY(i) : glDecZ(n, w) = decalZ(i)
             glDecNX(n, w) = decalNX(i) : glDecNY(n, w) = decalNY(i) : glDecNZ(n, w) = decalNZ(i)
-            glDecSize(n, w) = decalSize(i) : glDecHeat(n, w) = decalHeat(i) / DECAL_HEAT
+            glDecSize(n, w) = decalSize(i) : glDecHeat(n, w) = decalHeat(i) / DECAL_HEAT : glDecKind(n, w) = decalKind(i)
         END IF
     NEXT
     glNumDecal(w) = n
@@ -187,7 +201,7 @@ END SUB
 SUB FloodLight(lx, ly, rad, k, w)
     DIM cx, cy, d, head, nx, ny, v, x, y ' (its own: the main program shares these names)
     cx = INT(lx) : cy = INT(ly)
-    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT SUB
+    IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT SUB
     fillStamp = fillStamp + 1
     head = 0 : tail = 1 : fillX(0) = cx : fillY(0) = cy : fillD(0) = 0 : fillSeen(cx, cy) = fillStamp
     reach2 = (rad + 0.8) ^ 2
@@ -202,13 +216,13 @@ SUB FloodLight(lx, ly, rad, k, w)
                     CASE 3 : nx = x : ny = y - 1
                     CASE ELSE : nx = x : ny = y + 1
                 END SELECT
-                IF nx >= 0 AND ny >= 0 AND nx < MAP_SIZE AND ny < MAP_SIZE THEN
+                IF nx >= 0 AND ny >= 0 AND nx < mapN AND ny < mapN THEN
                     IF fillSeen(nx, ny) <> fillStamp THEN
                         fillSeen(nx, ny) = fillStamp
                         v = worldMap(nx, ny)
                         lightPasses = (v <= 0 OR diagCorner(nx, ny) <> 0)
                         IF v = 2 THEN lightPasses = (doorOpen(nx, ny) >= 0.5)
-                        IF lightPasses AND (nx + 0.5 - lx) ^ 2 + (ny + 0.5 - ly) ^ 2 < reach2 AND tail <= MAP_SIZE * MAP_SIZE THEN
+                        IF lightPasses AND (nx + 0.5 - lx) ^ 2 + (ny + 0.5 - ly) ^ 2 < reach2 AND tail <= mapN * mapN THEN
                             fillX(tail) = nx : fillY(tail) = ny : fillD(tail) = d + 1 : tail = tail + 1
                         END IF
                     END IF

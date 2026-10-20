@@ -12,6 +12,10 @@
 ' explosions, bolts).
 DIM SHARED litR(MAP_SIZE, MAP_SIZE) AS LONG, litG(MAP_SIZE, MAP_SIZE) AS LONG, litB(MAP_SIZE, MAP_SIZE) AS LONG
 DIM SHARED ambientR AS LONG, ambientG AS LONG, ambientB AS LONG
+' ...and each cell's own (a cell light - [cell lights] - or the sector's):
+' the light it starts from, each frame, and its effect (FX_ below)
+DIM SHARED cellAmbR(MAP_SIZE, MAP_SIZE) AS LONG, cellAmbG(MAP_SIZE, MAP_SIZE) AS LONG, cellAmbB(MAP_SIZE, MAP_SIZE) AS LONG, cellAmbFx(MAP_SIZE, MAP_SIZE) AS INTEGER
+DIM SHARED ambFxNow(5) AS SINGLE, ambFxTimer(5) AS INTEGER ' (how bright each effect has the cell lights this frame - one for all of a kind, so a room flickers as one)
 ' Where each cell's light comes from, for the OpenGL renderer's bump mapping
 ' (chapter 24): every light adds its position times its strength, so
 ' litSumX / litSumW, litSumY / litSumW is the middle of the light falling

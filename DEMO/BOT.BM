@@ -60,7 +60,7 @@ END SUB
 SUB BotThinkRaw STATIC
     inBits = 0 : inWheel = 0 : botTurn = 0 : botPitch = 0
     IF lvFrame < botFrameWas THEN ' (the sector started again - its clock back to 0: what it had ruled out, and when, is from before - forgotten)
-        FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
+        FOR by = 0 TO mapN - 1 : FOR bx = 0 TO mapN - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
         FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : botSawAt(bi) = 0 : NEXT
         botNX = 0 : botStuck = 0 : botCheckAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0 : botBest = BOT_FAR : botBestAt = 0 : botNowhereAt = 0
         FOR bk = 0 TO 5 : botKeyAt(bk) = 0 : botKeyState(bk) = 0 : NEXT
@@ -106,7 +106,7 @@ SUB BotThinkRaw STATIC
         botStallX = playerX : botStallY = playerY : botStallAt = lvFrame + 120
     END IF
     FOR by = bcy - 2 TO bcy + 2 : FOR bx = bcx - 2 TO bcx + 2 ' (where it's been)
-        IF bx > 0 AND by > 0 AND bx < MAP_SIZE AND by < MAP_SIZE THEN botSeen(bx, by) = -1
+        IF bx > 0 AND by > 0 AND bx < mapN AND by < mapN THEN botSeen(bx, by) = -1
     NEXT : NEXT
     ' The gun: the best one it has with something to fire
     bg = 1
@@ -161,7 +161,7 @@ SUB BotThinkRaw STATIC
         ba = BotTurnTo(playerX + bmx * COS(bae) - bmy * SIN(bae), playerY + bmx * SIN(bae) + bmy * COS(bae), playerX, playerY, dirX, dirY)
         ' ...and up or down (LOOK UP / DOWN, with OpenGL): at its middle, from
         ' your eye - the first look high or low, swinging and settling as across
-        bmz = FloorAt(monsterX(bt), monsterY(bt)) + mtypeLift(monsterType(bt)) + mtypeScale(monsterType(bt)) * 0.5
+        bmz = MonFoot(bt) + mtypeScale(monsterType(bt)) * 0.5
         botPitch = ATN((bmz - eyeZ) / MaxOf(0.5, bbd)) + botAimV0 * COS(bat * 0.19 + 0.6) * EXP(-bat / 30)
         IF bAmmo AND bbd > 2.5 THEN inBits = inBits OR DB_AIM ' (down the sights, to be sure of the shot)
         IF ABS(ba - bae) < ATN(0.3 / MaxOf(0.5, bbd)) * botTrig AND lvFrame >= botReactAt THEN ' (fires when its crosshair's near enough - near enough varies, so it shoots too soon now and then, and misses)
@@ -188,7 +188,7 @@ SUB BotThinkRaw STATIC
         botTurn = 0.03
         IF botNowhereAt = 0 THEN botNowhereAt = lvFrame
         IF lvFrame - botNowhereAt > 180 THEN
-            FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
+            FOR by = 0 TO mapN - 1 : FOR bx = 0 TO mapN - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
             botNowhereAt = 0 : botNX = 0
         END IF
         EXIT SUB
@@ -312,13 +312,13 @@ SUB BotPlan STATIC
                 IF botDist(bcx, bcy) <= 14 THEN botMode = 9 : EXIT FOR
             END IF
             BotClear ' How far's the nearest edge of what it's seen? (a frontier: a seen cell beside one it hasn't)
-            FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
+            FOR by = 1 TO mapN - 2 : FOR bx = 1 TO mapN - 2
                 IF BotFrontier(bx, by) THEN BotGoal bx, by
             NEXT : NEXT
             BotField bpass
             bFront = botDist(bcx, bcy)
             BotClear ' The exit, once it's seen it - when there's nothing new close by left to look at
-            FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
+            FOR by = 1 TO mapN - 2 : FOR bx = 1 TO mapN - 2
                 IF worldMap(bx, by) = 2 THEN
                     IF doorType(bx, by) = DOOR_EXIT AND cellSeen(bx, by) THEN
                         botEX = bx : botEY = by
@@ -333,7 +333,7 @@ SUB BotPlan STATIC
             IF botDist(bcx, bcy) < BOT_FAR AND bFront > 12 THEN botMode = 1 : EXIT FOR
         END IF
         BotClear ' Exploring: the nearest edge of what it's seen
-        FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
+        FOR by = 1 TO mapN - 2 : FOR bx = 1 TO mapN - 2
             IF BotFrontier(bx, by) THEN BotGoal bx, by
         NEXT : NEXT
         BotField bpass
@@ -354,7 +354,7 @@ SUB BotPlan STATIC
     ' (Getting no nearer the goal in fifteen seconds - it can't really get there, whatever the plan says: that goal's out for a minute)
     IF botMode <> botWas OR botDist(bcx, bcy) < botBest THEN botBest = botDist(bcx, bcy) : botBestAt = lvFrame
     IF botMode > 0 AND lvFrame - botBestAt > 900 THEN
-        FOR by = 1 TO MAP_SIZE - 2 : FOR bx = 1 TO MAP_SIZE - 2
+        FOR by = 1 TO mapN - 2 : FOR bx = 1 TO mapN - 2
             IF botDist(bx, by) = 0 THEN botBlock(bx, by) = lvFrame + 3600
         NEXT : NEXT
         ConPrint "bot: can't get to that (" + ListItem$(BOT_MODES, botMode + 1) + ") - trying something else"
@@ -387,15 +387,15 @@ SUB BotPlan STATIC
 END SUB
 
 SUB BotClear STATIC ' (every cell far, the queue empty - before the goals go in)
-    FOR by = 0 TO MAP_SIZE - 1 : FOR bx = 0 TO MAP_SIZE - 1 : botDist(bx, by) = BOT_FAR : NEXT : NEXT
+    FOR by = 0 TO mapN - 1 : FOR bx = 0 TO mapN - 1 : botDist(bx, by) = BOT_FAR : NEXT : NEXT
     botQT = 0
 END SUB
 
 ' The autopilot's goal: cell (x, y), 0 steps from itself - into the queue
 SUB BotGoal(x, y)
-    IF x < 1 OR y < 1 OR x > MAP_SIZE - 2 OR y > MAP_SIZE - 2 THEN EXIT SUB
+    IF x < 1 OR y < 1 OR x > mapN - 2 OR y > mapN - 2 THEN EXIT SUB
     IF botDist(x, y) = 0 THEN EXIT SUB
-    botDist(x, y) = 0 : botQT = botQT + 1 : botQ(botQT) = y * MAP_SIZE + x
+    botDist(x, y) = 0 : botQT = botQT + 1 : botQ(botQT) = y * mapN + x
 END SUB
 
 ' The autopilot's field: out from the goals (BotGoal), how many steps each
@@ -411,18 +411,18 @@ SUB BotField(haz)
     h& = 1
     DO WHILE h& <= botQT
         c& = botQ(h&) : h& = h& + 1
-        cx = c& MOD MAP_SIZE : cy = c& \ MAP_SIZE : d = botDist(cx, cy) + 1
+        cx = c& MOD mapN : cy = c& \ mapN : d = botDist(cx, cy) + 1
         FOR k = 0 TO 3
             nx = cx + (k = 1) - (k = 0) : ny = cy + (k = 3) - (k = 2)
-            IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
+            IF nx > 0 AND ny > 0 AND nx < mapN - 1 AND ny < mapN - 1 THEN
                 IF BotStep(nx, ny, cx, cy, haz) THEN
                     pk = BotPadAt(nx, ny)
                     IF pk = 0 THEN
-                        IF botDist(nx, ny) > d THEN botDist(nx, ny) = d : botQT = botQT + 1 : botQ(botQT) = ny * MAP_SIZE + nx
+                        IF botDist(nx, ny) > d THEN botDist(nx, ny) = d : botQT = botQT + 1 : botQ(botQT) = ny * mapN + nx
                     ELSE ' A pad: standing on it (just arrived from its partner) you can step here - so its partner, stepped onto, is d + 1 away (not while a lockdown has them dead)
                         o = pk + 1 : IF pk MOD 2 = 0 THEN o = pk - 1
                         IF o >= 1 AND o <= numPads AND NOT PadLockedDown(pk) AND NOT PadLockedDown(o) THEN
-                            IF botDist(padX(o), padY(o)) > d + 1 THEN botDist(padX(o), padY(o)) = d + 1 : botQT = botQT + 1 : botQ(botQT) = padY(o) * MAP_SIZE + padX(o)
+                            IF botDist(padX(o), padY(o)) > d + 1 THEN botDist(padX(o), padY(o)) = d + 1 : botQT = botQT + 1 : botQ(botQT) = padY(o) * mapN + padX(o)
                         END IF
                     END IF
                 END IF
@@ -450,7 +450,9 @@ FUNCTION BotWants(i, hp, ar)
         CASE IT_SCATTER : BotWants = NOT hasGun(2) OR ammoCount(AM_SHELLS) < ammoMax(AM_SHELLS)
         CASE IT_REPEATER : BotWants = NOT hasGun(3) OR ammoCount(AM_CELLS) < ammoMax(AM_CELLS)
         CASE IT_RAIL : BotWants = NOT hasGun(4)
-        CASE IT_MAP, IT_OVERCHARGE, IT_AMP, IT_GOGGLES : BotWants = -1
+        CASE IT_GOGGLES : BotWants = NOT nvHave ' (one you have stays on the floor)
+        CASE IT_SUIT : BotWants = suitLeft < SUIT_MAX
+        CASE IT_MAP, IT_OVERCHARGE, IT_AMP : BotWants = -1
     END SELECT
 END FUNCTION
 
@@ -471,7 +473,7 @@ END FUNCTION
 ' stuck at: not for a while.)
 FUNCTION BotStep(ax, ay, bx, by, haz)
     DIM d, w ' (its own: the main program shares these names)
-    IF bx < 1 OR by < 1 OR bx > MAP_SIZE - 2 OR by > MAP_SIZE - 2 THEN EXIT FUNCTION
+    IF bx < 1 OR by < 1 OR bx > mapN - 2 OR by > mapN - 2 THEN EXIT FUNCTION
     IF botBlock(bx, by) > lvFrame THEN EXIT FUNCTION
     IF NOT cellSeen(bx, by) AND NOT cyberOn THEN EXIT FUNCTION ' (somewhere it hasn't seen: it doesn't know it's there)
     w = worldMap(bx, by)

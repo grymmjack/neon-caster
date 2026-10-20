@@ -12,12 +12,12 @@
 FUNCTION FloorAt(x, y)
     DIM cx, cy ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
-    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN FloorAt = floorH(cx, cy)
+    IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN FloorAt = floorH(cx, cy)
 END FUNCTION
 FUNCTION CeilAt(x, y)
     DIM cx, cy ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
-    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN CeilAt = ceilH(cx, cy) ELSE CeilAt = 1
+    IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN CeilAt = ceilH(cx, cy) ELSE CeilAt = 1
 END FUNCTION
 
 ' A height from its character in [floor] or [ceiling] (chapter 22): . is
@@ -60,7 +60,7 @@ END FUNCTION
 ' What a cell's floor does to you, by its picture's name: HAZ_BURN (molten,
 ' lava), HAZ_WADE (murky water, slime) - or 0. (Not in the network.)
 FUNCTION FloorHazard(cx, cy)
-    IF cyberOn OR cx < 0 OR cy < 0 OR cx > MAP_SIZE OR cy > MAP_SIZE THEN EXIT FUNCTION
+    IF cyberOn OR cx < 0 OR cy < 0 OR cx > mapN OR cy > mapN THEN EXIT FUNCTION
     IF worldMap(cx, cy) > 0 THEN EXIT FUNCTION
     n$ = texName$(floorTex(cx, cy))
     IF INSTR(n$, "molten") OR INSTR(n$, "lava") THEN FloorHazard = HAZ_BURN : EXIT FUNCTION

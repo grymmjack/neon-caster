@@ -21,14 +21,23 @@ CONST MAX_FACES = 4000
 ' Pads in no pair here pair up as ever, in reading order.
 DIM SHARED lvlNumPairs AS INTEGER, lvlPair(16, 4) AS INTEGER
 ' [monsters]: one monster's own settings, by the cell it starts in - x, y,
-' sight, hearing (cells), health, speed (% of its kind's), wake (WAKE_)
-DIM SHARED lvlMonN AS INTEGER, lvlMon(MAX_MON, 7) AS SINGLE
+' sight, hearing (cells), health, speed (% of its kind's), wake (WAKE_),
+' and a turret's weapon (TW_ - an 8th number, left off when it's 0) and
+' how fast it turns (degrees a second - a 9th, left off when it's 0: as made)
+CONST MON_COLS = 9
+DIM SHARED lvlReadFrom$ ' (a level file to read in place of the sector's own - loadlevelfromdisk: EditReload)
+DIM SHARED lvlMonN AS INTEGER, lvlMon(MAX_MON, MON_COLS) AS SINGLE
 DIM SHARED lvlNumFaces AS INTEGER, lvlFaceX(MAX_FACES) AS INTEGER, lvlFaceY(MAX_FACES) AS INTEGER, lvlFaceS(MAX_FACES) AS INTEGER, lvlFaceD(MAX_FACES) AS INTEGER
 DIM SHARED lvlFaceP1$(MAX_FACES), lvlFaceP2$(MAX_FACES)
 DIM SHARED faceAny AS INTEGER ' (any face with a slot of its own this level: the renderers ask faceTex only then)
 CONST FACE_BOX = 10, FACE_MAX = 14 ' (a box's sides are faces 11 to 14 - FACE_BOX + 1 east .. 4 north: BE, BS, BW, BN)
 DIM SHARED faceTex(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceTex2(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceDiv(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER
 DIM SHARED lvlName$, lvlWall$(6), lvlFloor$(4), lvlCeil$(2), lvlAmb(4), lvlOK AS INTEGER
+' Cell lights ([cell lights]): a cell with an ambient light of its own, not
+' the sector's - lvlCLBright 0-256 (-1: the sector's light), its colour
+' lvlCLCol~&, its effect lvlCLFx (a light's FX_: steady, flicker, pulse,
+' strobe, fire, dying). In the file, boxes of cells alike.
+DIM SHARED lvlCLBright(MAP_SIZE - 1, MAP_SIZE - 1) AS INTEGER, lvlCLCol(MAP_SIZE - 1, MAP_SIZE - 1) AS _UNSIGNED LONG, lvlCLFx(MAP_SIZE - 1, MAP_SIZE - 1) AS INTEGER
 DIM SHARED lvlNumZones AS INTEGER, lvlZone(MAX_ZONES, 7) AS INTEGER
 DIM SHARED lvlNumLights AS INTEGER, lvlLight(MAX_LIGHTS, 8) AS SINGLE
 DIM SHARED lvlNumEvents AS INTEGER, lvlEvent(MAX_EVENTS, 8) AS INTEGER

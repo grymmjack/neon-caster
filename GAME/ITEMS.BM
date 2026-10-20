@@ -154,7 +154,7 @@ END FUNCTION
 
 ' A pickup kind's name, as [loot] (and ItemOf) has it
 FUNCTION LootName$(k)
-    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp", k)
+    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp,core,goggles,suit,launcher,rockets", k)
 END FUNCTION
 
 ' A closet stash's loot: something good (n = 0) - armour, a big medkit, an
@@ -200,4 +200,23 @@ FUNCTION CardRGB~&(card)
         CASE 2 : CardRGB~& = _RGB32(50, 120, 255)
         CASE 3 : CardRGB~& = _RGB32(255, 215, 30)
     END SELECT
+END FUNCTION
+
+' --- The pickups' map characters: kind k is the k-th (1-3 the keycards r b
+' y, + a health pack, a cells... j a damage amp; 15, the data core, has none
+' - it's only in the network; 8 night vision, 9 the hazmat suit, ) the
+' rocket launcher, ( a box of rockets)
+FUNCTION ItemChars$
+    ItemChars$ = "rby+ae23u*4Mqj" + CHR$(0) + "89)("
+END FUNCTION
+
+' A pickup kind by its map character (0: not a pickup's)
+FUNCTION ItemOfChar(c$)
+    IF LEN(c$) <> 1 OR c$ = CHR$(0) THEN EXIT FUNCTION
+    ItemOfChar = INSTR(ItemChars$, c$)
+END FUNCTION
+
+' Pickup kind k's map character
+FUNCTION ItemChar$(k)
+    IF k >= 1 AND k <= ITEM_KINDS THEN ItemChar$ = MID$(ItemChars$, k, 1)
 END FUNCTION

@@ -36,6 +36,25 @@ SUB LoadModels
     IF NOT done THEN
         done = -1
         FOR k = 1 TO DECO_KINDS : decoMdl(k) = NewModel(DecoPicName$(k), 0) : NEXT
+        FOR k = 1 TO MON_TYPES : mtypeMdl(k) = NewModel(mtypeName$(k), 0) : NEXT
+        rocketMdl = NewModel("rocket", 0) ' (rockets and missiles, flying)
+        turPlateMdl = NewModel("turret-mount", 0) : turHoleMdl = NewModel("turret-mount-broken", 0) ' (the plate it's bolted on)
+        turBaseMdl = NewModel("turret-base", 0) : turHeadMdl = NewModel("turret-head", 0) ' (a turret's two parts, for aiming its head: TurretDrawAt)
+        IF turBaseMdl THEN ' (its head turns on the top of its base)
+            FOR k = mdlFirst(turBaseMdl) * 3 TO (mdlFirst(turBaseMdl) + mdlCount(turBaseMdl)) * 3 - 1 : IF mdlPZ(k) > turPivot THEN turPivot = mdlPZ(k)
+            NEXT
+        END IF
+        IF turHeadMdl THEN ' (its barrels' ends: the middles of its muzzles - the triangles from the texture's white corner - its left one and its right)
+            DIM mn(2)
+            FOR m = mdlFirst(turHeadMdl) TO mdlFirst(turHeadMdl) + mdlCount(turHeadMdl) - 1
+                IF mdlU(m * 3) > 0.95 AND mdlV(m * 3) > 0.95 THEN
+                    k = 1 : IF mdlPY(m * 3) + mdlPY(m * 3 + 1) + mdlPY(m * 3 + 2) > 0 THEN k = 2
+                    turMuzX(k) = turMuzX(k) + mdlPX(m * 3) : turMuzY(k) = turMuzY(k) + mdlPY(m * 3) : turMuzZ(k) = turMuzZ(k) + mdlPZ(m * 3) : mn(k) = mn(k) + 1
+                END IF
+            NEXT
+            FOR k = 1 TO 2 : IF mn(k) THEN turMuzX(k) = turMuzX(k) / mn(k) : turMuzY(k) = turMuzY(k) / mn(k) : turMuzZ(k) = turMuzZ(k) / mn(k)
+            NEXT
+        END IF ' (a monster with a model of its name: the turret)
         FOR k = 1 TO ITEM_KINDS
             IF k <= 3 THEN itemMdl(k) = NewModel("keycard", CardRGB~&(k)) ELSE itemMdl(k) = NewModel(ItemPicName$(k), 0) ' (the keycard: one model, three colours - as LoadCards tints its picture)
         NEXT
@@ -58,7 +77,7 @@ END FUNCTION
 
 ' A pickup's picture file, without its ".png" (4 on: the keycards are 1-3)
 FUNCTION ItemPicName$(kind)
-    ItemPicName$ = RTRIM$(MID$("medkit         ammo           shells         pickup-scatter pickup-repeaterarmor          bigmed         pickup-rail    map            overcharge     amp            core           goggles        ", (kind - 4) * 15 + 1, 15))
+    ItemPicName$ = RTRIM$(MID$("medkit         ammo           shells         pickup-scatter pickup-repeaterarmor          bigmed         pickup-rail    map            overcharge     amp            core           goggles        suit           pickup-rocket  rockets        ", (kind - 4) * 15 + 1, 15))
 END FUNCTION
 
 ' Load model NAME (tinted tintCol: 0, as it is) as the next one - its number,

@@ -1,13 +1,14 @@
 # NEON-CASTER: make a little FPS in QB64PE
 
 NEON-CASTER is a complete first-person shooter in plain QB64PE:
-ten levels, ten kinds of monster (one of them a thief), four guns and a
+ten levels, sixteen kinds of monster (one of them a thief, one a turret
+with seven weapons), five guns (the fifth a rocket launcher) and a
 kick, doors and keycards, exploding barrels, traps and event rooms, glass
 you can see (and shoot) through, floors and ceilings at different heights
 with lifts and pits, teleporters, data stations that turn the level into a
 neon network, code terminals that lock you in until you repair a real
 QB64 program, secret walls in every sector (and switches you shoot),
-vending machines that pay out or blow up, NEON PONG on the computers, a
+slot machines that pay out, blow up or let monsters out, NEON PONG on the computers, a
 night vision headset, service droids going about their business, a
 villain who talks to you through a vocoder, sound placed around you, a
 minimap, music, a menu with settings, a console, saved games, DOOM-style
@@ -50,9 +51,9 @@ it yourself:
 | Shift (hold) | run |
 | F | kick (Fire with no ammo kicks too) |
 | Click or Ctrl | fire |
-| Space | open or shut doors, use the exit, jack into a data station, use a code terminal, search a wall for a secret, work a vending machine, play NEON PONG on a computer |
+| Space | open or shut doors, use the exit, jack into a data station, use a code terminal, search a wall for a secret, pull a slot machine (a vending machine), hack a turret control panel, play NEON PONG on a computer |
 | N | night vision on and off, once you've found a headset |
-| 1-4 or mouse wheel | choose a gun |
+| 1-5 or mouse wheel | choose a gun (5: the rocket launcher - hold the right button to zoom right in) |
 | Right button (hold) | aim down the sights (zooms in) |
 | Esc | the menu: pause, new game, save, load, settings, exit |
 | F5 / F9 | quick save / quick load |
@@ -60,6 +61,7 @@ it yourself:
 | ` (backtick) | the console: type `help` for the commands |
 | Ctrl+R | record a demo: the sector starts again and every key from there is kept, till Ctrl+R again or the exit - **DEMO REPLAYS** (the main menu) plays it back |
 | F2 | the level editor (see below); in it, F1 shows a cheatsheet of every key |
+| F3 | where you are, in numbers (top left): x y and the cell, the way you face in degrees, heights, the wall you're looking at and its map character, and a `tp` line that brings you back there (the console's `info` too) |
 | K / G | testing cheats: every keycard / god mode (no damage, through walls, flying with E up and C down, and the monsters ignore you) |
 
 **The console and the command line.** The console (`) runs commands for
@@ -78,7 +80,9 @@ monster and whether it's awake. `qb64pe` says which compiler the code
 terminals use (see below). Up and Down bring back earlier lines, Tab
 finishes a command's name, and `;` puts several on one line. Ctrl+V (or
 Shift+Insert, or a right-click) pastes - several lines become several
-commands.
+commands. PgUp, PgDn and the mouse wheel scroll back through what it's
+printed (the last thousand lines; Home and End jump to either end), and
+F11 has the console fill the screen (it stays that way, game to game).
 
 Every command also works from the command line, each one starting with a
 `+`. Then the game skips its title, starts a new game and runs them one a
@@ -218,7 +222,7 @@ program.
 |---|---|
 | `CORE/` | the window, the dice (and the game's own `SIN`/`COS`), settings, keys, files, small helpers |
 | `WORLD/` | the grid: walls and collision, doors, heights, glass, liquids, lifts |
-| `GAME/` | you, the guns, monsters and their types, pickups, decorations, droids, explosions, event rooms, secrets, triggers, teleporters, code terminals, the network, the arcade, NEXUS |
+| `GAME/` | you, the guns, monsters and their types, turrets and their weapons (`TURRETS.BM`), rockets, missiles and sprays (`ROCKETS.BM`), pickups, decorations, droids, explosions, event rooms, secrets, triggers, teleporters, code terminals, the network, the arcade, NEXUS |
 | `LEVEL/` | levels and sectors, loading one, and the level files |
 | `RENDER/` | pictures, the 3D view and its helpers, the sprite list, light, particles, the HUD, text, the screen |
 | `GL/` | the OpenGL renderer, and its extras |

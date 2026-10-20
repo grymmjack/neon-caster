@@ -41,12 +41,17 @@
     ' so you slide along the wall instead of sticking to it. Monsters move
     ' with MoveBody too.
     prevX = playerX : prevY = playerY
+    IF knockX <> 0 OR knockY <> 0 THEN ' (a blast's knock - GAME/ROCKETS.BM: easing off; in the air, it carries you)
+        moveX = moveX + knockX : moveY = moveY + knockY
+        IF playerVZ < 0 OR playerZ > floorH(INT(playerX), INT(playerY)) + 0.02 THEN knockX = knockX * 0.96 : knockY = knockY * 0.96 ELSE knockX = knockX * 0.75 : knockY = knockY * 0.75
+        IF ABS(knockX) < 0.002 AND ABS(knockY) < 0.002 THEN knockX = 0 : knockY = 0
+    END IF
     IF godMode OR editMode THEN ' No clipping (god mode, or the editor): straight through anything, but stay inside the border
         playerX = playerX + moveX : playerY = playerY + moveY
         IF playerX < 1.01 THEN playerX = 1.01
-        IF playerX > MAP_SIZE - 1.01 THEN playerX = MAP_SIZE - 1.01
+        IF playerX > mapN - 1.01 THEN playerX = mapN - 1.01
         IF playerY < 1.01 THEN playerY = 1.01
-        IF playerY > MAP_SIZE - 1.01 THEN playerY = MAP_SIZE - 1.01
+        IF playerY > mapN - 1.01 THEN playerY = mapN - 1.01
     ELSE
         walkZ = playerZ : MoveBody playerX, playerY, moveX, moveY : walkZ = -999
     END IF
@@ -84,6 +89,7 @@
         IF liftCell(INT(playerX), INT(playerY)) THEN IF playerZ - fz < MaxOf(0.06, liftSpeed(liftCell(INT(playerX), INT(playerY))) + 0.02) AND playerVZ < 0.03 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down - however fast it goes)
         IF playerZ > fz THEN
             playerVZ = playerVZ + FALL_G : playerZ = playerZ - playerVZ
+            IF playerVZ < 0 AND playerZ > ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.08 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.08 : playerVZ = 0 ' (thrown up: your head on the ceiling)
             IF playerZ <= fz THEN
                 IF liqKind(INT(playerX), INT(playerY)) THEN playerVZ = playerVZ * 0.5 ' (into a liquid: it breaks the fall)
                 IF playerVZ > 0.13 AND NOT dead AND NOT godMode THEN ' (a fall that hurts - about a wall's drop or more: the thud, the jolt; anything less is just a step down, and the footsteps carry on)
@@ -127,8 +133,11 @@
             deep = MinOf(1, (liqZ(INT(playerX), INT(playerY)) - playerZ) / LQ_FULL)
             dmg = INT(lqHurt(lk) * (0.5 + 0.5 * deep) + 0.5) : IF dmg < 1 THEN dmg = 1
             SpawnSparks playerX + dirX * 0.3, playerY + dirY * 0.3, liqZ(INT(playerX), INT(playerY)) - FloorAt(playerX + dirX * 0.3, playerY + dirY * 0.3), 8, lqR(lk), lqG(lk), lqB(lk)
-            IF lk = LQ_POISON THEN poisonTint = 40
-            IF NOT godMode THEN
+            IF suitLeft > 0 AND lk <> LQ_LAVA THEN ' The hazmat suit takes it, and wears: nothing gets through till it's worn out (lava burns through it)
+                suitLeft = MaxOf(0, suitLeft - dmg * SUIT_WEAR) : PlaySfx sndSizzle&, 0.35
+                IF suitLeft = 0 THEN PlaySfx sndPowerDown&, 0.8 : ShowMsg "Hazmat suit: worn through"
+            ELSEIF NOT godMode THEN
+                IF lk = LQ_POISON THEN poisonTint = 40 : Poisoned dmg
                 IF lqAcid(lk) AND armor > 0 THEN ' Acid: the armor first
                     armor = MaxOf(0, armor - dmg * 2) : hurtFlash = 6 : PlaySfx sndSizzle&, 0.7 : Achieve "NC_CORRODED", 0
                     painR = lqR(lk) : painG = lqG(lk) : painB = lqB(lk) : painVig = MaxOf(painVig, 0.5)
@@ -139,15 +148,17 @@
             END IF
         END IF
     END IF
+    PoisonFrame ' (poisoned: it goes on hurting - GAME/ROCKETS.BM)
     IF poisonTint > 0 THEN poisonTint = poisonTint - 1
     liqTick = liqTick + 1 ' (the monsters' clock, in harmful liquids)
     IF liqAny AND NOT editMode THEN LiquidHum playerX, playerY ' (the harmful ones bubble: louder as you near them - not in the editor, where the world's sounds are off)
     IF levelFlat AND NOT editMode AND NOT flyMode THEN playerZ = 0 : playerVZ = 0
     IF editMode OR flyMode OR playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
+    IF NOT levelFlat THEN IF eyeZ > ceilH(INT(playerX), INT(playerY)) - 0.06 THEN eyeZ = MaxOf(playerZ + 0.04, ceilH(INT(playerX), INT(playerY)) - 0.06) ' (a crusher coming down on you: you see from under it)
     ' ...and you can't walk through a monster: if a step takes you inside one
     ' (closer than touchDist) and closer than you were, take it back
     FOR i = 1 TO numMonsters
-        IF monsterState(i) < 2 AND NOT godMode AND NOT editMode AND (cyberOn = 0 OR monsterType(i) = MT_ICE) THEN ' (in the network the real world's machines aren't there)
+        IF monsterState(i) < 2 AND NOT godMode AND NOT editMode AND (cyberOn = 0 OR monsterType(i) = MT_ICE) AND monsterType(i) <> MT_TURRET THEN ' (in the network the real world's machines aren't there; a turret's in the ceiling, or a low thing you step round)
             touchDist = 0.3 + mtypeScale(monsterType(i)) * 0.35
             newDistSq = (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2
             IF newDistSq < touchDist * touchDist AND newDistSq <(monsterX(i) - prevX) ^ 2 + (monsterY(i) -prevY) ^ 2 THEN playerX = prevX : playerY = prevY

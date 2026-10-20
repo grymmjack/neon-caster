@@ -25,16 +25,18 @@
                     PlaySfx sndCard&, 0.8
                     ShowMsg "Picked up the " + CardName$(itemKind(i)) + " keycard"
                 CASE IT_HEALTH
-                    IF health < MAX_HP THEN
-                        itemOn(i) = 0 : health = health + 25 : IF health > MAX_HP THEN health = MAX_HP
+                    IF health < MAX_HP OR poisonLeft > 0 THEN ' (poisoned: it cures it - taken, even with your health full)
+                        PoisonCure
+                        itemOn(i) = 0 : health = MaxOf(health, MinOf(MAX_HP, health + 25))
                         PlaySfx sndHealth&, 0.8 : ShowMsg "Health pack (+25)" : pickFlash = 10
                     END IF
                 CASE IT_MAP
                     itemOn(i) = 0 : hasMap = -1
                     PlaySfx sndCard&, 0.8 : ShowMsg "You found the map!  (TAB for the full map)" : pickFlash = 10
                 CASE IT_BIGMED
-                    IF health < MAX_HP THEN
-                        itemOn(i) = 0 : health = health + 50 : IF health > MAX_HP THEN health = MAX_HP
+                    IF health < MAX_HP OR poisonLeft > 0 THEN
+                        PoisonCure
+                        itemOn(i) = 0 : health = MaxOf(health, MinOf(MAX_HP, health + 50))
                         PlaySfx sndHealth&, 0.9 : ShowMsg "Big medkit (+50)" : pickFlash = 14
                     END IF
                 CASE IT_OVERCHARGE ' Health past full, up to MAX_OVER
@@ -42,11 +44,16 @@
                         itemOn(i) = 0 : health = health + 100 : IF health > MAX_OVER THEN health = MAX_OVER
                         PlaySfx sndOvercharge&, 0.9 : ShowMsg "OVERCHARGE! (+100)" : pickFlash = 18
                     END IF
-                CASE IT_GOGGLES ' A night-vision headset: its battery added to yours, and on
-                    IF nvCharge < NV_MAX THEN
-                        itemOn(i) = 0 : nvCharge = MinOf(NV_MAX, nvCharge + NV_FRAMES)
+                CASE IT_GOGGLES ' A night-vision headset: yours till you die, and on (one you have already stays where it is)
+                    IF NOT nvHave THEN
+                        itemOn(i) = 0 : nvHave = 1
                         IF NOT nvOn THEN nvOn = -1 : PlaySfx sndPowerUp&, 0.8
                         ShowMsg "NIGHT VISION HEADSET - " + KeyName$(keyBind&(BIND_NIGHT)) + " switches it on and off" : pickFlash = 12
+                    END IF
+                CASE IT_SUIT ' A hazmat suit: a new one (one as good as new stays where it is)
+                    IF suitLeft < SUIT_MAX THEN
+                        itemOn(i) = 0 : suitLeft = SUIT_MAX : PlaySfx sndArmor&, 0.9 : pickFlash = 12
+                        ShowMsg "HAZMAT SUIT - poison, slime and acid wear it, not you (not fire)"
                     END IF
                 CASE IT_AMP ' Double damage for a while
                     itemOn(i) = 0 : ampTimer = AMP_FRAMES : achAmpKills = 0
@@ -60,9 +67,13 @@
                     IF GiveAmmo%(AM_CELLS, 15) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Energy cells (+15)" : pickFlash = 10
                 CASE IT_SHELLS
                     IF GiveAmmo%(AM_SHELLS, 8) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Shells (+8)" : pickFlash = 10
-                CASE IT_SCATTER, IT_REPEATER, IT_RAIL
+                CASE IT_ROCKETS
+                    IF GiveAmmo%(AM_ROCKETS, 5) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Rockets (+5)" : pickFlash = 10
+                CASE IT_SCATTER, IT_REPEATER, IT_RAIL, IT_LAUNCHER
                     IF itemKind(i) = IT_RAIL THEN gun = W_RAIL ELSE gun = itemKind(i) - IT_SCATTER + W_SCATTER
+                    IF itemKind(i) = IT_LAUNCHER THEN gun = W_ROCKET
                     IF gun = W_SCATTER THEN taken = GiveAmmo%(AM_SHELLS, 8) ELSE taken = GiveAmmo%(AM_CELLS, 30)
+                    IF gun = W_ROCKET THEN taken = GiveAmmo%(AM_ROCKETS, 5)
                     IF NOT hasGun(gun) OR taken THEN
                         itemOn(i) = 0 : PlaySfx sndWeapon&, 0.9 : pickFlash = 10
                         IF NOT hasGun(gun) THEN

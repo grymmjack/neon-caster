@@ -56,6 +56,9 @@
         END IF
     END IF
     recKeyWas = recKey
+    ' F3: where you are, in numbers (DrawInfo, chapter 18) - on or off
+    IF _KEYDOWN(15616) AND NOT infoKeyWas AND NOT edTyping THEN infoOn = NOT infoOn
+    infoKeyWas = _KEYDOWN(15616)
     ' F2: the level editor (chapter 21) - into it, at the map from above
     edKey = _KEYDOWN(15360)
     IF edKey AND NOT edKeyWas AND NOT cyberOn AND NOT dead AND NOT edTyping THEN

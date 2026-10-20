@@ -32,7 +32,7 @@ END SUB
 SUB AssignGlass
     DIM l, r, x, y ' (its own: the main program shares these names)
     numGlass = 0
-    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+    FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
         IF glassHP(x, y) > 0 THEN
             l = IsWall(x - 1, y) OR glassHP(x - 1, y) > 0 : r = IsWall(x + 1, y) OR glassHP(x + 1, y) > 0
             IF l AND r THEN glassDir(x, y) = 1 ELSE glassDir(x, y) = 2
@@ -46,7 +46,7 @@ END SUB
 FUNCTION InGlass(x, y)
     DIM cx, cy ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
-    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
+    IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT FUNCTION
     IF glassHP(cx, cy) <= 0 THEN EXIT FUNCTION
     IF glassDir(cx, cy) = 1 THEN InGlass = ABS(y - cy - 0.5) < GLASS_HALF ELSE InGlass = ABS(x - cx - 0.5) < GLASS_HALF
 END FUNCTION

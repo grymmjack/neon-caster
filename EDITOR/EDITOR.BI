@@ -12,9 +12,9 @@ CONST ED_MAPX = 8, ED_MAPY = 8, ED_CELL = 12, ED_PALX = 596, ED_PALY = 44 ' (the
 ' the rest) and the level built again from that (BuildLevel); editUndo$()
 ' remembers how it was before each change. texFile$(): which picture is in
 ' each texture slot now, so building it again only loads what changed.
-CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%?&rby+*uae234Mqj8mghcskwzToiptxlnfSdAFIJLOQUWZV<>^v"
+CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%?&;rby+*uae234Mqj89)(mghcskwzT15670~_|oiptxlnfSdAFIJLOQUWZV<>^v"
 CONST EDIT_UNDO = 40
-CONST EDIT_OPEN$ = ".rby+*uae234MqjmghcskwzToiptxlnfSdAFIJLOQUWZV<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
+CONST EDIT_OPEN$ = ".rby+*uae234Mqj89)(mghcskwzT15670~_|oiptxlnfSdAFIJLOQUWZV<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
 DIM SHARED editMode AS INTEGER, editView AS INTEGER, editGlyph$, editDirty AS INTEGER, editRebuild AS INTEGER
 DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, editLightP AS INTEGER, editLights AS INTEGER, editHeights AS INTEGER
 ' THE EDITOR'S OWN STATE, the same in both views (the map from above and
@@ -71,14 +71,17 @@ edLR = 230 : edLG = 235 : edLB = 255 : edLFx = FX_STEADY : edLRad = 3 : edLBri =
 ' THE PROPERTIES PANE (EditPaneBuild): what's selected - a door, a
 ' teleporter's pad, a lift, a floor - and its buttons, down the right
 CONST PN_X = 592, PN_Y = 58, PN_W = 200
-DIM SHARED edPnN AS INTEGER, edPnId(40) AS INTEGER, edPnX(40) AS INTEGER, edPnY(40) AS INTEGER, edPnW(40) AS INTEGER, edPnLab$(40), edPnLit(40) AS INTEGER
-DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnEvent AS INTEGER, edPnCol(40) AS _UNSIGNED LONG
+CONST PN_MAX = 64 ' (the most buttons and lines a pane has)
+DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER ' (the SECTOR pane: its loot preset - 0 as made - and the room MAKE THE ROOM makes)
+DIM SHARED edPnN AS INTEGER, edPnId(PN_MAX) AS INTEGER, edPnX(PN_MAX) AS INTEGER, edPnY(PN_MAX) AS INTEGER, edPnW(PN_MAX) AS INTEGER, edPnLab$(PN_MAX), edPnLit(PN_MAX) AS INTEGER
+DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnEvent AS INTEGER, edPnCol(PN_MAX) AS _UNSIGNED LONG
 DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick AS INTEGER, edTypeFresh AS INTEGER
 ' The TRIGGER pane: open on the selection; the trigger being made - when
 ' (1 enter, 2 use, 3 clear, 4 time), again each time?, after how long (time),
 ' its commands; what's being typed (edTypeFor: 1 the sector's name, 2 the
 ' commands); the triggers listed (edTrigIdx: their numbers in lvlTrig$)
 DIM SHARED edEvPane AS INTEGER ' (the event room's pane is open - EVENT ROOM... on a floor's)
+DIM SHARED edCellLtPane AS INTEGER ' (the selection's CELL LIGHT pane is open)
 DIM SHARED edTrigPane AS INTEGER, edTrigWhen AS INTEGER, edTrigRepeat AS INTEGER, edTrigTime AS INTEGER, edTrigCmd$, edTypeFor AS INTEGER, edTrigIdx(8) AS INTEGER
 edTrigWhen = 1 : edTrigTime = 10 ' (the SECTOR pane; typing its name; which of its pictures the picker's choosing - 1-6 a wall kind, 7-10 a floor, 11-12 a ceiling)
 DIM SHARED edPnX0 AS INTEGER, edPnY0 AS INTEGER ' (where the pane is: down the right in 3D, over the map's right from above)

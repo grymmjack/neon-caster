@@ -166,7 +166,7 @@ END FUNCTION
 
 ' A wall for furniture to stand against: a solid wall (not a door, not glass)
 FUNCTION DecoWall(x, y)
-    IF x < 0 OR y < 0 OR x >= MAP_SIZE OR y >= MAP_SIZE THEN EXIT FUNCTION
+    IF x < 0 OR y < 0 OR x >= mapN OR y >= mapN THEN EXIT FUNCTION
     DecoWall = worldMap(x, y) > 0 AND worldMap(x, y) <> 2 AND glassHP(x, y) = 0
 END FUNCTION
 

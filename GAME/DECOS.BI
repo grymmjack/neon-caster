@@ -33,10 +33,10 @@ DIM SHARED decoCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' Which decoration stands in 
 
 CONST DK_CHAIR = 20, DK_BODY = 21 ' (a body doesn't block the way, and can't be broken)
 CONST DK_SPECIMEN = 13 ' (a specimen tank: break it open, and half the time what's in it gets out - HitDeco)
-CONST DK_VENDING = 7 ' (a vending machine: Space on it - 3, 2, 1... and it pays out, or blows up: VendStep)
+CONST DK_VENDING = 7 ' (a vending machine: Space on it - a slot machine, SlotUse: three alike pay out, or go off)
 CONST DK_TERMINAL = 4, DK_CONSOLE = 11, DK_SCREENS = 12 ' (computers: Space on one plays NEON PONG - ArcadeRun - and beating it pays out)
 CONST ARC_TOP = 90, ARC_BOT = 570, ARC_PAD = 80, ARC_WIN = 3 ' (NEON PONG's court, its paddles' length, and the points to win)
 DIM SHARED vendState(MAX_DECO) AS INTEGER, vendTimer(MAX_DECO) AS INTEGER, vendBomb(MAX_DECO) AS INTEGER ' (0 waiting, 1 counting down, 2 paying out, 3 sold out)
-CONST DECO_KINDS = 21, ITEM_KINDS = 16 ' (kinds of decoration and of pickup - see chapter 3)
+CONST DECO_KINDS = 21, ITEM_KINDS = 19 ' (kinds of decoration and of pickup - see chapter 3)
 ' ...and each decoration's wreck, the same way (MakeWreck)
 DIM SHARED wreckScale(DECO_KINDS), wreckSquash(DECO_KINDS)

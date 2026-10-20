@@ -29,7 +29,7 @@ SUB DemoInput STATIC
         IF _KEYDOWN(107) OR _KEYDOWN(75) THEN inBits = inBits OR DB_CHEATK ' (K and G: the testing cheats)
         IF _KEYDOWN(103) OR _KEYDOWN(71) THEN inBits = inBits OR DB_CHEATG
         dg = 0
-        FOR dk = 1 TO 4
+        FOR dk = 1 TO NUM_GUNS
             IF DigitHeld%(48 + dk) THEN dg = dk
         NEXT
         inBits = inBits + dg * DB_GUN
@@ -335,7 +335,7 @@ SUB DemoPut(l$)
     PRINT #demoFH, l$ + CHR$(10);
 END SUB
 
-' A demo's keys as letters (DEMO_KEYS, then the gun 1-4; "-" for none) - and back
+' A demo's keys as letters (DEMO_KEYS, then the gun 1-5; "-" for none) - and back
 FUNCTION DemoKeys$(b&)
     DIM i, t$ ' (its own: the main program shares these names)
     t$ = ""
@@ -354,7 +354,7 @@ FUNCTION DemoBits&(t$)
         c$ = MID$(t$, i, 1) : p = INSTR(DEMO_KEYS, c$)
         IF p THEN
             b& = b& OR (2 ^ (p - 1))
-        ELSEIF c$ >= "1" AND c$ <= "4" THEN
+        ELSEIF c$ >= "1" AND c$ <= "5" THEN
             b& = b& + VAL(c$) * DB_GUN
         END IF
     NEXT

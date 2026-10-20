@@ -22,6 +22,9 @@ DIM SHARED hudEdit AS INTEGER, hudSel AS INTEGER, hudMsg$
 ' The map: which cells you've seen (the raycaster marks every cell a ray
 ' passes through - chapter 15), and whether you've found this level's map
 DIM SHARED cellSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, hasMap AS INTEGER
+' F3 (or info): where you are, in numbers - for tp, put, box and the rest
+' (DrawInfo, like Minecraft's F3 screen)
+DIM SHARED infoOn AS INTEGER, infoKeyWas AS INTEGER
 ' VIGNETTES (DrawVignette, chapter 18): the edges of the screen washed with
 ' a colour, fading in towards the middle. Hurt: in the colour of what hurt
 ' you (painR/G/B - blood red, a shock's blue, poison's green, fire's

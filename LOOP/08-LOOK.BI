@@ -154,11 +154,11 @@
     planeX = -dirY * fovPlane / zoom : planeY = dirX * fovPlane / zoom
     viewH = RENDER_H * zoom
 
-    ' Guns: 1 / 2 / 3 / 4, or the mouse wheel through the ones you have.
+    ' Guns: 1 / 2 / 3 / 4 / 5, or the mouse wheel through the ones you have.
     ' Swapping takes SWAP_FRAMES: the gun dips out of sight, changes at the
     ' halfway point, and comes back up (the drawing is in chapter 18).
     wantGun = 0
-    IF inBits \ DB_GUN THEN wantGun = inBits \ DB_GUN ' (1 to 4, held - by place: Shift + 1 types "!", and you might be running)
+    IF inBits \ DB_GUN THEN wantGun = inBits \ DB_GUN ' (1 to 5, held - by place: Shift + 1 types "!", and you might be running)
     IF mouseWheel <> 0 THEN ' (a notch a gun - from the one coming up, if a swap's still lowering the last)
         wantGun = currentGun : IF swapTimer > SWAP_FRAMES \ 2 THEN wantGun = nextGun
         FOR notch = 1 TO MinOf(ABS(mouseWheel), NUM_GUNS)

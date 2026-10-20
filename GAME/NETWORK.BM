@@ -20,7 +20,7 @@ SUB JackIn STATIC
     CyberTextures -1
     ' The floor round the station: steps from it (fillX/fillY, as the
     ' thieves' way does), through floor only - not doors
-    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : thiefDist(x, y) = 30000 : NEXT : NEXT
+    FOR y = 0 TO mapN : FOR x = 0 TO mapN : thiefDist(x, y) = 30000 : NEXT : NEXT
     head = 0 : tail = 0
     FOR k = 1 TO 4
         nx = stationX(st) + (k = 1) - (k = 2) : ny = stationY(st) + (k = 3) - (k = 4)
@@ -30,7 +30,7 @@ SUB JackIn STATIC
         x = fillX(head) : y = fillY(head) : head = head + 1
         FOR k = 1 TO 4
             nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
-            IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
+            IF nx > 0 AND ny > 0 AND nx < mapN - 1 AND ny < mapN - 1 THEN
                 IF worldMap(nx, ny) = 0 AND glassHP(nx, ny) = 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND thiefDist(nx, ny) > thiefDist(x, y) + 1 AND thiefDist(x, y) < 18 AND ABS(floorH(nx, ny) - floorH(x, y)) <= STEP_UP AND liqKind(nx, ny) = 0 AND liftCell(nx, ny) = 0 AND floorH(nx, ny) > PIT_DEPTH THEN ' (only where you can walk in time: no ledges, pools, lifts or pits)
                     thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
                 END IF
@@ -102,7 +102,7 @@ SUB JackOut STATIC
     PlayMusic SectorMusic&(level)
     IF cyberWon THEN
         stationDone(cyberStation) = -1 : Achieve "NC_JACKED", 0 : WallDone stationX(cyberStation), stationY(cyberStation), T_JACKOK
-        FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+        FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
             IF worldMap(x, y) = 2 AND doorLock(x, y) = 2 THEN
                 IF StationNear(x, y) = cyberStation THEN doorLock(x, y) = 0 : doorOpen(x, y) = 0.01 : doorMove(x, y) = 1 : SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
             END IF

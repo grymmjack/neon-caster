@@ -101,7 +101,7 @@
         wideK = WideView : glWide(glWrite) = wideK
         IF ABS(pitch) > 0.01 OR wideK > 1.01 THEN GLMarkWide playerX, playerY, dirX, dirY, fovPlane / zoom * wideK, zoom
         GLHandOverExtras playerX, playerY, dirX, dirY, muzzleFlash ' Moving lights, particles, explosions (chapter 24)
-        FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
+        FOR y = 0 TO mapN : FOR x = 0 TO mapN
             glLitR(x, y, glWrite) = litR(x, y) : glLitG(x, y, glWrite) = litG(x, y) : glLitB(x, y, glWrite) = litB(x, y)
             glDoor(x, y, glWrite) = DoorShown(x, y)
             ' Bumps: the middle of the light on this cell (or the cell's own
@@ -114,7 +114,7 @@
             END IF
             ' ...and the same into the light tables, for the graphics card
             ' (chapter 24) - only the map's cells: the rest stay 0
-            IF x < MAP_SIZE AND y < MAP_SIZE THEN
+            IF x < mapN AND y < mapN THEN
                 t& = glWrite * GL_TABLE_SIZE + (y * GL_TABLE + x) * 4
                 glLitData(t&) = litR(x, y) : glLitData(t& + 1) = litG(x, y) : glLitData(t& + 2) = litB(x, y)
                 v = worldMap(x, y) : glLitData(t& + 3) = (v <= 0 OR v = 2 OR diagCorner(x, y) <> 0) * -1
@@ -130,6 +130,18 @@
             IF boltOn(i) THEN
                 n = n + 1 : glGlowX(n, glWrite) = boltX(i) : glGlowY(n, glWrite) = boltY(i) : glGlowZ(n, glWrite) = boltZ(i) ' (where the bolt is - it climbs and drops toward you)
                 glGlowSize(n, glWrite) = 0.35 : glGlowR(n, glWrite) = 1 : glGlowG(n, glWrite) = 0.25 : glGlowB(n, glWrite) = 0.9
+                IF boltKind(i) THEN glGlowSize(n, glWrite) = bkScale(boltKind(i)) * 2.2 : glGlowR(n, glWrite) = bkR(boltKind(i)) / 255 : glGlowG(n, glWrite) = bkG(boltKind(i)) / 255 : glGlowB(n, glWrite) = bkB(boltKind(i)) / 255
+                IF boltKind(i) = BK_ROCKET OR boltKind(i) = BK_MISSILE THEN ' (a rocket: its exhaust - a white-hot flare out of its back, and a fading orange plume behind)
+                    glGlowX(n, glWrite) = boltX(i) - boltDX(i) * 0.17 : glGlowY(n, glWrite) = boltY(i) - boltDY(i) * 0.17 : glGlowZ(n, glWrite) = boltZ(i) - boltDZ(i) * 0.17
+                    glGlowSize(n, glWrite) = 0.09 : glGlowR(n, glWrite) = 1 : glGlowG(n, glWrite) = 0.85 : glGlowB(n, glWrite) = 0.55
+                    FOR rkT = 1 TO 3
+                        IF n < MAX_GLOWS THEN
+                            n = n + 1 : glGlowX(n, glWrite) = boltX(i) - boltDX(i) * (0.17 + rkT * 0.11) : glGlowY(n, glWrite) = boltY(i) - boltDY(i) * (0.17 + rkT * 0.11) : glGlowZ(n, glWrite) = boltZ(i) - boltDZ(i) * (0.17 + rkT * 0.11)
+                            glGlowSize(n, glWrite) = 0.09 - rkT * 0.015 + RND * 0.02 : glGlowR(n, glWrite) = 0.7 - rkT * 0.12 : glGlowG(n, glWrite) = 0.38 - rkT * 0.08 : glGlowB(n, glWrite) = 0.08
+                        END IF
+                    NEXT
+                END IF
+                IF boltKind(i) >= BK_FLAME THEN glGlowSize(n, glWrite) = 0.3 : glGlowR(n, glWrite) = glGlowR(n, glWrite) * 0.22 : glGlowG(n, glWrite) = glGlowG(n, glWrite) * 0.22 : glGlowB(n, glWrite) = glGlowB(n, glWrite) * 0.22 ' (a spray's puffs: many at once - each faint, or together they'd white out the view)
             END IF
         NEXT
         FOR i = 1 TO MAX_BLASTS
@@ -137,6 +149,7 @@
                 f = blastTime(i) / BLAST_FRAMES : blastScale = (0.6 + 0.7 * (1 - f)) * blastSize(i)
                 n = n + 1 : glGlowX(n, glWrite) = blastX(i) : glGlowY(n, glWrite) = blastY(i)
                 glGlowZ(n, glWrite) = FloorAt(blastX(i), blastY(i)) + 0.05 + (1 - blastSize(i)) * 0.35 + blastScale / 2 : glGlowSize(n, glWrite) = blastScale
+                IF blastZ(i) <> NO_Z THEN glGlowZ(n, glWrite) = blastZ(i)
                 glGlowR(n, glWrite) = f : glGlowG(n, glWrite) = 0.55 * f : glGlowB(n, glWrite) = 0.2 * f
             END IF
         NEXT

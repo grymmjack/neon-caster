@@ -48,7 +48,9 @@
             shake = shake + gunKick(currentGun) * 1.5 ' (a big gun shakes the screen - chapter 17)
             IF setting(SET_XFEEDBACK) THEN crossScale = 0.6 ' The crosshair tightens as you fire
             invDet = 1 /(planeX * dirY - dirX * planeY)
-            FOR pellet = 1 TO gunPellets(currentGun)
+            pellets = gunPellets(currentGun)
+            IF currentGun = W_ROCKET THEN FireRocket : pellets = 0 ' (a rocket: it flies - GAME/ROCKETS.BM - and there's no shot along the line)
+            FOR pellet = 1 TO pellets
                 aim = (GRnd * 2 - 1) * gunSpread(currentGun) ' Across the view: -1 left edge .. 1 right
                 IF gunPellets(currentGun) > 1 THEN aim = ((pellet - 1) /(gunPellets(currentGun) -1) * 2 - 1) * gunSpread(currentGun) + (GRnd - 0.5) * 0.02
                 screenCol = INT(RENDER_W / 2 * (1 + aim)) : IF screenCol < 0 THEN screenCol = 0
@@ -179,6 +181,8 @@
                 ShowMsg "The " + gunName$(currentGun) + " needs" + STR$(gunAmmoPerShot(currentGun)) + " cells a shot - another gun, or kick! (F)"
             ELSEIF ammoType = AM_SHELLS THEN
                 ShowMsg "Out of shells - kick! (F)"
+            ELSEIF ammoType = AM_ROCKETS THEN
+                ShowMsg "Out of rockets - kick! (F)"
             ELSE
                 ShowMsg "Out of energy cells - kick! (F)"
             END IF
@@ -207,7 +211,7 @@
                 HitMonster
                 IF monsterState(best) >= 2 AND NOT cyberOn THEN Achieve "NC_KICK_KILL", 0
                 walkZ = FloorAt(monsterX(best), monsterY(best)) ' (shoved along the floor it's on: off an edge, yes - up a ledge, no)
-                IF monsterType(best) <> 5 THEN FOR kp = 1 TO 3 : MoveBody monsterX(best), monsterY(best), dirX * KICK_PUSH / 3, dirY * KICK_PUSH / 3 : NEXT ' (sentries are bolted down; in three steps, so it can't jump through glass)
+                IF monsterType(best) <> 5 AND monsterType(best) <> MT_TURRET THEN FOR kp = 1 TO 3 : MoveBody monsterX(best), monsterY(best), dirX * KICK_PUSH / 3, dirY * KICK_PUSH / 3 : NEXT ' (sentries and turrets are bolted down; in three steps, so it can't jump through glass)
                 walkZ = -999
                 SpawnSparks monsterX(best), monsterY(best), 0.35, 8, 255, 200, 140
                 PlaySfx sndKick&, 0.9 : shake = shake + 4 : crossFlash = 6

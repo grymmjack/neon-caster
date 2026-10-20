@@ -20,6 +20,7 @@ SUB LoadPictures STATIC
     LoadTex "wall-jack.png", T_JACK ' (a data station)
     LoadTex "wall-code.png", T_CODE ' (a code terminal)
     MakeDoneTex T_JACK, T_JACKOK, "CLEARED", 2 : MakeDoneTex T_CODE, T_CODEOK, "UNLOCKED", 1 ' (...and each, done)
+    LoadTex "wall-turret.png", T_TCTRL : MakeDoneTex T_TCTRL, T_TCTRLOK, "OFFLINE", 2 ' (a turret control panel, and one that's switched its turrets off)
     LoadCards "keycard.png"
     LoadSprite "medkit.png", 4
     LoadSprite "ammo.png", 5
@@ -33,6 +34,11 @@ SUB LoadPictures STATIC
     LoadSprite "sentry.png", 17
     FOR slot = 9 TO 17 STEP 2 : MakeHurt slot, slot + 1 : NEXT ' (each one's hit flash, in the next slot)
     MakeBolt S_BOLT
+    FOR k = 1 TO BOLT_KINDS : MakePuff k : NEXT ' (rockets', missiles' and sprays' - GAME/ROCKETS.BM)
+    FOR k = 0 TO TURRET_WEAPONS ' (the turrets' laser sights: a hot middle, in its weapon's colour)
+        c~& = TurretRGB~&(k) : MakeBeamDot S_SIGHT + k, (_RED32(c~&) + 255) \ 2, (_GREEN32(c~&) + 255) \ 2, (_BLUE32(c~&) + 255) \ 2, _RED32(c~&), _GREEN32(c~&), _BLUE32(c~&)
+    NEXT
+    LoadSprite "turret-top.png", S_TURTOP
     LoadSprite "barrel.png", S_DECO + 1
     LoadSprite "lamp.png", S_DECO + 2
     LoadSprite "plant.png", S_DECO + 3
@@ -42,10 +48,12 @@ SUB LoadPictures STATIC
     ' The set pieces (10-19): desk, control console, monitor bank, specimen
     ' tank, lab bench, generator, cryo pod, hologram, lockers, bench
     FOR k = 10 TO DECO_KINDS : LoadSprite DecoFile$(k), DecoSlot(k) : NEXT
-    LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE) : LoadSprite "goggles.png", ItemSprite(IT_GOGGLES)
+    LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE) : LoadSprite "goggles.png", ItemSprite(IT_GOGGLES) : LoadSprite "suit.png", ItemSprite(IT_SUIT)
+    LoadSprite "pickup-rocket.png", ItemSprite(IT_LAUNCHER) : LoadSprite "rockets.png", ItemSprite(IT_ROCKETS)
     MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
     MakePad S_PAD ' (a teleporter's pad)
     LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
+    MakeBeamDot S_BEAM, 255, 255, 235, 255, 40, 40 : MakeBeamDot S_BEAM_AIM, 255, 70, 70, 200, 0, 20 ' (lasers: firing, white-hot; aiming, red)
     LoadSprite "droid1.png", S_DROID : LoadSprite "droid2.png", S_DROID + 1 ' (the droids - and each, broken: MakeScrap)
     MakeScrap S_DROID, S_DROID + 2 : MakeScrap S_DROID + 1, S_DROID + 3
     LoadModels ' (3D props: each one's 8 pictures round it, and its texture - RENDER/MODELS.BM)
@@ -61,11 +69,15 @@ SUB LoadPictures STATIC
     FOR mtype = 1 TO MON_TYPES : MakeCorpse mtype : NEXT ' (each one's body, for when it's dead)
     FOR k = 1 TO DECO_KINDS : MakeWreck k : NEXT ' (each decoration, broken)
     FOR mtype = 1 TO MON_TYPES : MakeMonFrames mtype : NEXT ' (each one's animation)
+    FOR mtype = 1 TO MON_TYPES : MakeGib mtypeSprite(mtype), S_GIB + mtype : NEXT ' (and pieces, for a rocket - GAME/ROCKETS.BM)
+    FOR k = 1 TO DECO_KINDS : MakeGib DecoSlot(k), S_GIB + MON_TYPES + k : NEXT
     MakeScorch ' (a scorch mark, for the software renderer's decals)
+    MakeAcid ' (and an acid stain)
     LoadGun 1, "gun.png"
     LoadGun 2, "gun-scatter.png"
     LoadGun 3, "gun-repeater.png"
     LoadGun 4, "gun-rail.png"
+    LoadGun 5, "gun-rocket.png"
     glGunVersion = glGunVersion + 1 ' (OpenGL's copies of them, again)
     IF nexusImg& < -1 THEN _FREEIMAGE nexusImg&
     nexusImg& = _LOADIMAGE(ArtPath$("nexus.png"), 32)
@@ -606,6 +618,24 @@ SUB MakeWreck(kind)
     wreckScale(kind) = DecoScale(kind) * w / sz : wreckSquash(kind) = kh / w
 END SUB
 
+' An acid stain, splashed: ragged, runny at its edge. For OpenGL (S_ACID)
+' its strength is its colour - white at its middle, a third of the way
+' (blended GL_ONE_MINUS_DST_COLOR: the inverse of what's under it, that
+' much), black where it isn't; for the software renderer (S_ACID + 1), a
+' sickly yellow-green picture, see-through at its edge
+SUB MakeAcid
+    DIM a!, d!, k!, x, y ' (its own: the main program shares these names)
+    spriteSize(S_ACID) = 32 : spriteSize(S_ACID + 1) = 32
+    FOR y = 0 TO 31 : FOR x = 0 TO 31
+        a! = _ATAN2(y - 15.5, x - 15.5)
+        d! = SQR((x - 15.5) ^ 2 + (y - 15.5) ^ 2) / 16 / (0.75 + 0.15 * SIN(a! * 5) + 0.1 * SIN(a! * 11 + 1.3)) ' (splashed: blobby, with runs)
+        k! = 1 - d! : IF k! < 0 THEN k! = 0
+        k! = MinOf(1, k! * 2.2) * 0.3
+        spriteTex(x, y, S_ACID) = _RGBA32(255 * k!, 255 * k!, 255 * k!, 255)
+        spriteTex(x, y, S_ACID + 1) = _RGBA32(190, 230, 40, 255 * MinOf(1, k! * 3.3) * 0.75)
+    NEXT : NEXT
+END SUB
+
 ' The scorch mark drawn for a decal: a ragged dark blob, into sprite slot
 ' S_DECAL
 SUB MakeScorch
@@ -892,3 +922,20 @@ FUNCTION TintedGun&(gun)
     _MEMFREE src : _MEMFREE dst
     TintedGun& = tinted&
 END FUNCTION
+
+' A glowing dot into sprite slot `slot`: a beam is a line of them (chapter
+' 16) - (r, g, b) in the middle, fading out to (r2, g2, b2) and to nothing
+' at the edge
+SUB MakeBeamDot(slot, r, g, b, r2, g2, b2)
+    DIM d, f, x, y ' (its own: the main program shares these names)
+    spriteSize(slot) = sprTex
+    FOR y = 0 TO sprTex - 1 : FOR x = 0 TO sprTex - 1
+        d = SQR((x - sprTex / 2 + 0.5) ^ 2 + (y - sprTex / 2 + 0.5) ^ 2) / (sprTex / 2)
+        IF d >= 1 THEN
+            spriteTex(x, y, slot) = 0
+        ELSE
+            f = MinOf(1, d * 1.6)
+            spriteTex(x, y, slot) = _RGBA32(r + (r2 - r) * f, g + (g2 - g) * f, b + (b2 - b) * f, 255 * (1 - d * d))
+        END IF
+    NEXT : NEXT
+END SUB

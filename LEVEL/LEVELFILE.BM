@@ -420,13 +420,14 @@
 ' them, its numbers split by commas (SplitNums); in [map], each line is a
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
-    DIM got, k, l$, t$ ' (its own: the main program shares these names)
+    DIM got, k, l$, t$, clx, cly ' (its own: the main program shares these names)
     lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNote$ = "" : topLines = -1
+    CellLightsClear
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0
-    f$ = LevelFile$(n)
+    f$ = LevelFile$(n) : IF LEN(lvlReadFrom$) THEN f$ = lvlReadFrom$ ' (another file, in its place: loadlevelfromdisk)
     IF NOT _FILEEXISTS(f$) THEN EXIT SUB
-    DIM v(8) AS SINGLE
+    DIM v(9) AS SINGLE ' (9: a cell light's numbers)
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
     sec$ = "" : rows = 0
     DO UNTIL EOF(fh)
@@ -483,11 +484,22 @@ SUB ReadLevelFile(n)
                 CASE "lifts"
                     IF got >= 8 AND lvlNumLifts < MAX_LIFTS THEN lvlNumLifts = lvlNumLifts + 1 : FOR k = 1 TO 8 : lvlLift(lvlNumLifts, k) = v(k) : NEXT
                 CASE "monsters"
-                    IF got >= 7 AND lvlMonN < MAX_MON THEN lvlMonN = lvlMonN + 1 : FOR k = 1 TO 7 : lvlMon(lvlMonN, k) = v(k) : NEXT
+                    IF got >= 7 AND lvlMonN < MAX_MON THEN ' (7 numbers - or 8, with a turret's weapon)
+                        lvlMonN = lvlMonN + 1
+                        FOR k = 1 TO MON_COLS : lvlMon(lvlMonN, k) = 0 : IF k <= got THEN lvlMon(lvlMonN, k) = v(k)
+                        NEXT
+                    END IF
                 CASE "pads"
                     IF got >= 4 AND lvlNumPairs < 16 THEN lvlNumPairs = lvlNumPairs + 1 : FOR k = 1 TO 4 : lvlPair(lvlNumPairs, k) = v(k) : NEXT
                 CASE "blocks"
                     IF got >= 7 AND lvlNumBoxes < MAX_BOXES THEN lvlNumBoxes = lvlNumBoxes + 1 : FOR k = 1 TO 7 : lvlBox(lvlNumBoxes, k) = v(k) : NEXT
+                CASE "cell lights" ' x0, y0, x1, y1, brightness, red, green, blue, effect
+                    IF got >= 8 THEN
+                        IF got < 9 THEN v(9) = 0
+                        FOR cly = MaxOf(0, v(2)) TO MinOf(mapN - 1, v(4)) : FOR clx = MaxOf(0, v(1)) TO MinOf(mapN - 1, v(3))
+                            lvlCLBright(clx, cly) = MaxOf(0, MinOf(256, v(5))) : lvlCLCol(clx, cly) = _RGB32(v(6), v(7), v(8)) : lvlCLFx(clx, cly) = MaxOf(0, MinOf(5, v(9)))
+                        NEXT : NEXT
+                    END IF
                 CASE "nudges"
                     IF got >= 4 AND lvlNumNudges < MAX_NUDGES THEN
                         lvlNumNudges = lvlNumNudges + 1 : FOR k = 1 TO 4 : lvlNudge(lvlNumNudges, k) = v(k) : NEXT
@@ -497,12 +509,18 @@ SUB ReadLevelFile(n)
         END IF
     LOOP
     CLOSE #fh
-    FOR k = 0 TO MAP_SIZE - 1 ' (short rows, or missing ones, are padded with wall)
-        IF LEN(lvlRow$(k)) < MAP_SIZE THEN lvlRow$(k) = lvlRow$(k) + STRING$(MAP_SIZE - LEN(lvlRow$(k)), "#")
-        lvlFloorRow$(k) = LEFT$(lvlFloorRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE) ' (heights: the usual where none's given)
-        lvlCeilRow$(k) = LEFT$(lvlCeilRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE)
-        lvlLiqRow$(k) = LEFT$(lvlLiqRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE) ' (liquids: none where none's given)
-        lvlLiqDRow$(k) = LEFT$(lvlLiqDRow$(k) + STRING$(MAP_SIZE, "."), MAP_SIZE)
+    ' Its size: as many cells across as its longest row or as it has rows,
+    ' whichever is more - a square, mapN each way (the game's ten: 48; up to
+    ' MAP_SIZE)
+    mapN = rows : FOR k = 0 TO rows - 1 : IF LEN(lvlRow$(k)) > mapN THEN mapN = LEN(lvlRow$(k))
+    NEXT
+    mapN = MaxOf(16, MinOf(MAP_SIZE, mapN))
+    FOR k = 0 TO mapN - 1 ' (short rows, or missing ones, are padded with wall)
+        lvlRow$(k) = LEFT$(lvlRow$(k) + STRING$(mapN, "#"), mapN)
+        lvlFloorRow$(k) = LEFT$(lvlFloorRow$(k) + STRING$(mapN, "."), mapN) ' (heights: the usual where none's given)
+        lvlCeilRow$(k) = LEFT$(lvlCeilRow$(k) + STRING$(mapN, "."), mapN)
+        lvlLiqRow$(k) = LEFT$(lvlLiqRow$(k) + STRING$(mapN, "."), mapN) ' (liquids: none where none's given)
+        lvlLiqDRow$(k) = LEFT$(lvlLiqDRow$(k) + STRING$(mapN, "."), mapN)
     NEXT
     lvlOK = (rows > 0)
 END SUB
@@ -606,9 +624,12 @@ SUB WriteLevelFile(f$)
         FOR k = 1 TO lvlNumTrigs : o$ = o$ + lvlTrig$(k) + nl$ : NEXT
     END IF
     IF lvlMonN THEN
-        o$ = o$ + nl$ + "[monsters]" + nl$ + "' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)" + nl$
+        o$ = o$ + nl$ + "[monsters]" + nl$ + "' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]" + nl$
         FOR k = 1 TO lvlMonN
-            l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlMon(k, j))) + MID$(", ", 1, -2 * (j < 7)) : NEXT : o$ = o$ + l$ + nl$
+            l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlMon(k, j))) + MID$(", ", 1, -2 * (j < 7)) : NEXT
+            IF lvlMon(k, 8) OR lvlMon(k, 9) THEN l$ = l$ + ", " + LTRIM$(STR$(lvlMon(k, 8)))
+            IF lvlMon(k, 9) THEN l$ = l$ + ", " + LTRIM$(STR$(lvlMon(k, 9)))
+            o$ = o$ + l$ + nl$
         NEXT
     END IF
     IF lvlNumPairs THEN
@@ -626,6 +647,8 @@ SUB WriteLevelFile(f$)
         o$ = o$ + nl$ + "[nudges]" + nl$ + "' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)" + nl$
         FOR k = 1 TO lvlNumNudges : o$ = o$ + LTRIM$(STR$(lvlNudge(k, 1))) + ", " + LTRIM$(STR$(lvlNudge(k, 2))) + ", " + LTRIM$(STR$(lvlNudge(k, 3))) + ", " + LTRIM$(STR$(lvlNudge(k, 4))) + ", " + LTRIM$(STR$(lvlNudge(k, 5))) + nl$ : NEXT
     END IF
+    c$ = CellLightBoxes$(nl$)
+    IF LEN(c$) THEN o$ = o$ + nl$ + "[cell lights]" + nl$ + "' cells with an ambient light of their own: x0, y0, x1, y1, brightness (0-256), red, green, blue, effect (0 steady, 1 flicker, 2 pulse, 3 strobe, 4 fire, 5 dying)" + nl$ + c$
     IF lvlNumLoot THEN
         o$ = o$ + nl$ + "[loot]" + nl$ + LOOT_HELP$ + nl$
         FOR k = 1 TO lvlNumLoot : o$ = o$ + lvlLoot$(k) + nl$ : NEXT
@@ -639,27 +662,66 @@ SUB WriteLevelFile(f$)
         NEXT
     END IF
     o$ = o$ + "" + nl$ : o$ = o$ + "[map]" + nl$
-    FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlRow$(y) + nl$ : NEXT
+    FOR y = 0 TO mapN - 1 : o$ = o$ + lvlRow$(y) + nl$ : NEXT
     ' The heights - only if there are any
     anyF = 0 : anyC = 0
-    FOR y = 0 TO MAP_SIZE - 1
-        IF lvlFloorRow$(y) <> STRING$(MAP_SIZE, ".") THEN anyF = -1
-        IF lvlCeilRow$(y) <> STRING$(MAP_SIZE, ".") THEN anyC = -1
+    FOR y = 0 TO mapN - 1
+        IF lvlFloorRow$(y) <> STRING$(mapN, ".") THEN anyF = -1
+        IF lvlCeilRow$(y) <> STRING$(mapN, ".") THEN anyC = -1
     NEXT
     IF anyF THEN
         o$ = o$ + nl$ + "[floor]" + nl$ + "' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down" + nl$
-        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlFloorRow$(y) + nl$ : NEXT
+        FOR y = 0 TO mapN - 1 : o$ = o$ + lvlFloorRow$(y) + nl$ : NEXT
     END IF
     IF anyC THEN
         o$ = o$ + nl$ + "[ceiling]" + nl$ + "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's" + nl$
-        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlCeilRow$(y) + nl$ : NEXT
+        FOR y = 0 TO mapN - 1 : o$ = o$ + lvlCeilRow$(y) + nl$ : NEXT
     END IF
     IF LiquidRowsAny THEN ' The liquids - only if there are any
         o$ = o$ + nl$ + "[liquid]" + nl$ + "' each cell's liquid: . none, w water, p poison, s slime, l lava, a acid" + nl$
-        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlLiqRow$(y) + nl$ : NEXT
+        FOR y = 0 TO mapN - 1 : o$ = o$ + lvlLiqRow$(y) + nl$ : NEXT
         o$ = o$ + nl$ + "[liquid depth]" + nl$ + "' how deep, in eighths of a wall: . is" + STR$(LQ_DEPTH) + ", or 1-8" + nl$
-        FOR y = 0 TO MAP_SIZE - 1 : o$ = o$ + lvlLiqDRow$(y) + nl$ : NEXT
+        FOR y = 0 TO mapN - 1 : o$ = o$ + lvlLiqDRow$(y) + nl$ : NEXT
     END IF
     IF _FILEEXISTS(f$) THEN KILL f$
     fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
 END SUB
+
+' --- Cell lights: none (every cell the sector's light)
+SUB CellLightsClear
+    DIM x, y ' (its own: the main program shares these names)
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : lvlCLBright(x, y) = -1 : lvlCLCol(x, y) = 0 : lvlCLFx(x, y) = 0 : NEXT : NEXT
+END SUB
+
+' Whether cells (x1, y1) and (x2, y2) have the same cell light (both none counts)
+FUNCTION CellLightSame(x1, y1, x2, y2)
+    CellLightSame = (lvlCLBright(x1, y1) = lvlCLBright(x2, y2) AND lvlCLCol(x1, y1) = lvlCLCol(x2, y2) AND lvlCLFx(x1, y1) = lvlCLFx(x2, y2))
+END FUNCTION
+
+' The cell lights as [cell lights] lines (each ending nl$): boxes of cells
+' alike - each row's runs, a run carried on down while the rows below have
+' it too - so a room lit one way is one line
+FUNCTION CellLightBoxes$(nl$)
+    DIM done(MAP_SIZE - 1, MAP_SIZE - 1) AS INTEGER, o$, x, x1, xx, y, y1, yy, ok, c AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
+        IF lvlCLBright(x, y) >= 0 AND NOT done(x, y) THEN
+            x1 = x
+            DO WHILE x1 + 1 < mapN
+                IF done(x1 + 1, y) OR NOT CellLightSame(x1 + 1, y, x, y) THEN EXIT DO
+                x1 = x1 + 1
+            LOOP
+            y1 = y ' (down while the whole run below is the same, and not taken)
+            DO WHILE y1 + 1 < mapN
+                ok = -1
+                FOR xx = x TO x1 : IF done(xx, y1 + 1) OR NOT CellLightSame(xx, y1 + 1, x, y) THEN ok = 0 : EXIT FOR
+                NEXT
+                IF NOT ok THEN EXIT DO
+                y1 = y1 + 1
+            LOOP
+            FOR yy = y TO y1 : FOR xx = x TO x1 : done(xx, yy) = -1 : NEXT : NEXT
+            c = lvlCLCol(x, y)
+            o$ = o$ + LTRIM$(STR$(x)) + ", " + LTRIM$(STR$(y)) + ", " + LTRIM$(STR$(x1)) + ", " + LTRIM$(STR$(y1)) + ", " + LTRIM$(STR$(lvlCLBright(x, y))) + ", " + LTRIM$(STR$(_RED32(c))) + ", " + LTRIM$(STR$(_GREEN32(c))) + ", " + LTRIM$(STR$(_BLUE32(c))) + ", " + LTRIM$(STR$(lvlCLFx(x, y))) + nl$
+        END IF
+    NEXT : NEXT
+    CellLightBoxes$ = o$
+END FUNCTION

@@ -9,18 +9,18 @@ CONST PLAYER_RADIUS = 0.3 ' Your body's half-width, so the camera can't touch a 
 '-----------------------------------------------------------------------------
 ' CHAPTER 4: YOU
 '-----------------------------------------------------------------------------
-' Health, armour, two kinds of ammo and four guns. Each gun is a row in a
+' Health, armour, three kinds of ammo and five guns. Each gun is a row in a
 ' table of numbers (SetGun, below), so the shooting code (chapter 12) works
 ' the same way for all of them - a new gun is mostly a new SetGun line and
 ' a picture. Your position and the way you face are in chapter 8.
 ' The most health (HP = "hit points") and armour you can have
 CONST MAX_HP = 100, MAX_ARMOR = 100
-' AM_ = AMmo: the two kinds. They number the ammo arrays: ammoCount(AM_CELLS)
-' is how many energy cells you have, ammoMax(AM_SHELLS) the most shells
-' you can carry.
-CONST AM_CELLS = 1, AM_SHELLS = 2
-DIM SHARED ammoCount(2) AS INTEGER, ammoMax(2) AS INTEGER
-ammoMax(AM_CELLS) = 99 : ammoMax(AM_SHELLS) = 40
+' AM_ = AMmo: the kinds (NUM_AMMO of them). They number the ammo arrays:
+' ammoCount(AM_CELLS) is how many energy cells you have, ammoMax(AM_SHELLS)
+' the most shells you can carry. Rockets come five to a box, fifty at most.
+CONST AM_CELLS = 1, AM_SHELLS = 2, AM_ROCKETS = 3, NUM_AMMO = 3
+DIM SHARED ammoCount(NUM_AMMO) AS INTEGER, ammoMax(NUM_AMMO) AS INTEGER
+ammoMax(AM_CELLS) = 99 : ammoMax(AM_SHELLS) = 40 : ammoMax(AM_ROCKETS) = 50
 ' TEST_ and CHEAT_ = testing aids - set both to 0 for the real game:
 '   TEST_ALL_GUNS  -1 starts you with every gun and full ammo
 '   CHEAT_KEYS     -1 lets K give you every keycard, and G switch god mode

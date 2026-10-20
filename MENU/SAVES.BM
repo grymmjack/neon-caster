@@ -27,11 +27,11 @@ SUB SaveGame STATIC
     PUT #fileNum, , savedHealth : PUT #fileNum, , savedArmor : PUT #fileNum, , savedCells : PUT #fileNum, , savedShells : PUT #fileNum, , savedGun
     PUT #fileNum, , playerX : PUT #fileNum, , playerY : PUT #fileNum, , dirX : PUT #fileNum, , dirY
     PUT #fileNum, , ammoCount(AM_CELLS) : PUT #fileNum, , ammoCount(AM_SHELLS)
-    FOR gun = 1 TO NUM_GUNS : PUT #fileNum, , hasGun(gun) : PUT #fileNum, , savedHasGun(gun) : NEXT
+    FOR gun = 1 TO 4 : PUT #fileNum, , hasGun(gun) : PUT #fileNum, , savedHasGun(gun) : NEXT ' (the first four guns here, as ever - the rocket launcher at the end)
     FOR k = 1 TO 3 : PUT #fileNum, , hasCard(k) : NEXT
     PUT #fileNum, , hasMap
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , cellSeen(x, y) : NEXT : NEXT
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , doorOpen(x, y) : NEXT : NEXT
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : PUT #fileNum, , cellSeen(x, y) : NEXT : NEXT
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : PUT #fileNum, , doorOpen(x, y) : NEXT : NEXT
     ' (all of every pickup and monster: event rooms add them as you play)
     PUT #fileNum, , numItems
     FOR i = 1 TO numItems : PUT #fileNum, , itemOn(i) : PUT #fileNum, , itemKind(i) : PUT #fileNum, , itemX(i) : PUT #fileNum, , itemY(i) : NEXT
@@ -43,20 +43,20 @@ SUB SaveGame STATIC
     NEXT
     PUT #fileNum, , numEvents
     FOR i = 1 TO numEvents : PUT #fileNum, , evState(i) : PUT #fileNum, , evTimer(i) : PUT #fileNum, , evCount(i) : NEXT
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , doorLock(x, y) : NEXT : NEXT
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : PUT #fileNum, , doorLock(x, y) : NEXT : NEXT
     PUT #fileNum, , numDecos
     FOR i = 1 TO numDecos : PUT #fileNum, , decoOn(i) : PUT #fileNum, , decoHP(i) : PUT #fileNum, , decoTimer(i) : NEXT
     FOR l = 1 TO numLightsBase : PUT #fileNum, , lightBroken(l) : NEXT ' (the ceiling lamps you shot out - the level's own: a flood's glow comes back with its pool)
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , glassHP(x, y) : NEXT : NEXT ' (and the glass)
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : PUT #fileNum, , glassHP(x, y) : NEXT : NEXT ' (and the glass)
     ' (then - each section only in saves made since it was added - which
     ' triggers have fired, the lockdowns that lifted, pools flooded in play,
     ' and the achievements' state: cheats on, where the run began)
     PUT #fileNum, , numTrigs : FOR k = 1 TO numTrigs : PUT #fileNum, , trigDone(k) : NEXT
     PUT #fileNum, , numEvents : FOR k = 1 TO numEvents : PUT #fileNum, , evPaused(k) : NEXT
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : PUT #fileNum, , liqKind(x, y) : PUT #fileNum, , liqZ(x, y) : NEXT : NEXT
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : PUT #fileNum, , liqKind(x, y) : PUT #fileNum, , liqZ(x, y) : NEXT : NEXT
     PUT #fileNum, , achCheat : PUT #fileNum, , achRunFrom
     PUT #fileNum, , achLevelHurt : PUT #fileNum, , achOtherGun ' (this sector so far: hurt? another gun?)
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (the doors each event room sealed, and the blocks - a trigger may have raised some, or sunk them)
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 ' (the doors each event room sealed, and the blocks - a trigger may have raised some, or sunk them)
         PUT #fileNum, , doorLockEv(x, y) : PUT #fileNum, , boxOn(x, y)
         PUT #fileNum, , boxX0(x, y) : PUT #fileNum, , boxY0(x, y) : PUT #fileNum, , boxX1(x, y) : PUT #fileNum, , boxY1(x, y)
     NEXT : NEXT
@@ -64,7 +64,10 @@ SUB SaveGame STATIC
     PUT #fileNum, , numStations : FOR k = 1 TO numStations : PUT #fileNum, , stationDone(k) : NEXT
     PUT #fileNum, , numLifts : FOR k = 1 TO numLifts : PUT #fileNum, , liftZ(k) : PUT #fileNum, , liftDir(k) : PUT #fileNum, , liftArm(k) : NEXT ' (where each lift is, and going)
     PUT #fileNum, , numSecrets : FOR k = 1 TO numSecrets : PUT #fileNum, , secretFound(k) : PUT #fileNum, , secretHint(k) : NEXT ' (the secrets found)
-    PUT #fileNum, , nvCharge : PUT #fileNum, , nvOn ' (night vision's battery)
+    PUT #fileNum, , nvHave : PUT #fileNum, , nvOn ' (night vision: a headset, and on or off)
+    PUT #fileNum, , suitLeft ' (the hazmat suit)
+    PUT #fileNum, , numTCtrl : FOR k = 1 TO numTCtrl : PUT #fileNum, , tcState(k) : NEXT ' (the turret control panels: hacked, locked)
+    PUT #fileNum, , hasGun(W_ROCKET) : PUT #fileNum, , savedHasGun(W_ROCKET) : PUT #fileNum, , ammoCount(AM_ROCKETS) : PUT #fileNum, , savedRockets ' (the rocket launcher and its rockets)
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 END SUB
@@ -92,12 +95,12 @@ SUB LoadGame STATIC
     GET #fileNum, , playerX : GET #fileNum, , playerY : GET #fileNum, , dirX : GET #fileNum, , dirY
     playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H ' (on the floor where you were - not dropped from the sector's start)
     GET #fileNum, , ammoCount(AM_CELLS) : GET #fileNum, , ammoCount(AM_SHELLS)
-    FOR gun = 1 TO NUM_GUNS : GET #fileNum, , hasGun(gun) : GET #fileNum, , savedHasGun(gun) : NEXT
+    FOR gun = 1 TO 4 : GET #fileNum, , hasGun(gun) : GET #fileNum, , savedHasGun(gun) : NEXT ' (the rocket launcher: at the end)
     FOR k = 1 TO 3 : GET #fileNum, , hasCard(k) : NEXT
     GET #fileNum, , hasMap
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , cellSeen(x, y) : NEXT : NEXT
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , doorOpen(x, y) : NEXT : NEXT
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (open doors wait their full time again, then shut)
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : GET #fileNum, , cellSeen(x, y) : NEXT : NEXT
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : GET #fileNum, , doorOpen(x, y) : NEXT : NEXT
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 ' (open doors wait their full time again, then shut)
         doorMove(x, y) = 0 : doorWait(x, y) = 0 : IF doorOpen(x, y) >= 1 THEN doorWait(x, y) = DoorHold(doorType(x, y))
     NEXT : NEXT
     ' The level must have the same things in it as when it was saved
@@ -121,7 +124,7 @@ SUB LoadGame STATIC
         IF evType(i) = EV_BLACKOUT AND evState(i) = 1 THEN evState(i) = 2
     NEXT
     blackoutTimer = 0
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , doorLock(x, y) : NEXT : NEXT
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : GET #fileNum, , doorLock(x, y) : NEXT : NEXT
     GET #fileNum, , savedCount : IF savedCount <> numDecos THEN LoadMismatch : EXIT SUB
     FOR i = 1 TO numDecos
         GET #fileNum, , decoOn(i) : GET #fileNum, , decoHP(i) : GET #fileNum, , decoTimer(i)
@@ -132,7 +135,7 @@ SUB LoadGame STATIC
         IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , lightBroken(l) : IF lightBroken(l) THEN BreakLight l, 0
     NEXT
     IF LOC(fileNum) < LOF(fileNum) THEN ' The glass (a save from before glass has none)
-        FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , glassHP(x, y) : NEXT : NEXT
+        FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : GET #fileNum, , glassHP(x, y) : NEXT : NEXT
     END IF
     IF LOC(fileNum) < LOF(fileNum) THEN ' The triggers that fired (else every "time" and "clear" one would go off again)
         GET #fileNum, , savedCount
@@ -145,10 +148,10 @@ SUB LoadGame STATIC
         NEXT
     END IF
     IF LOC(fileNum) < LOF(fileNum) THEN ' The pools, as they were (a trigger may have flooded some)
-        FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : GET #fileNum, , liqKind(x, y) : GET #fileNum, , liqZ(x, y)
+        FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : GET #fileNum, , liqKind(x, y) : GET #fileNum, , liqZ(x, y)
             IF liqKind(x, y) THEN liqAny = -1 : levelFlat = 0 : lqUsed(liqKind(x, y)) = -1
         NEXT : NEXT
-        LiquidGlows 0, 0, MAP_SIZE - 1, MAP_SIZE - 1 ' (the flooded ones' light)
+        LiquidGlows 0, 0, mapN - 1, mapN - 1 ' (the flooded ones' light)
     END IF
     achCheat = 0 : achRunFrom = 0 ' (a save from before achievements: no whole run from sector 1 in it)
     IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achCheat : GET #fileNum, , achRunFrom ' (achievements: cheats stay on through a save)
@@ -156,7 +159,7 @@ SUB LoadGame STATIC
     IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achLevelHurt : GET #fileNum, , achOtherGun
     IF LOC(fileNum) < LOF(fileNum) THEN ' The doors' owners, and the blocks
         boxAny = 0
-        FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+        FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
             GET #fileNum, , doorLockEv(x, y) : GET #fileNum, , boxOn(x, y)
             GET #fileNum, , boxX0(x, y) : GET #fileNum, , boxY0(x, y) : GET #fileNum, , boxX1(x, y) : GET #fileNum, , boxY1(x, y)
             IF boxOn(x, y) THEN boxAny = -1
@@ -193,8 +196,20 @@ SUB LoadGame STATIC
             IF savedCount = numSecrets THEN secretHint(k) = th% : IF tdone% THEN OpenSecret k, 0
         NEXT
     END IF
-    nvCharge = 0 : nvOn = 0
-    IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , nvCharge : GET #fileNum, , nvOn ' (night vision's battery)
+    nvHave = 0 : nvOn = 0
+    IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , nvHave : GET #fileNum, , nvOn ' (night vision: a headset, and on or off)
+    IF nvHave > 0 THEN nvHave = 1 ' (an older save kept its battery there: any left, and you have one)
+    suitLeft = 0 : IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , suitLeft ' (the hazmat suit - not in older saves)
+    IF LOC(fileNum) < LOF(fileNum) THEN ' (the turret control panels - not in older saves)
+        GET #fileNum, , savedCount
+        FOR k = 1 TO savedCount
+            GET #fileNum, , tdone%
+            IF savedCount = numTCtrl THEN tcState(k) = tdone% : IF tdone% = 1 THEN WallDone tcX(k), tcY(k), T_TCTRLOK
+        NEXT
+    END IF
+    hasGun(W_ROCKET) = 0 : savedHasGun(W_ROCKET) = 0 : ammoCount(AM_ROCKETS) = 0 : savedRockets = 0 ' (the rocket launcher - not in older saves)
+    IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , hasGun(W_ROCKET) : GET #fileNum, , savedHasGun(W_ROCKET) : GET #fileNum, , ammoCount(AM_ROCKETS) : GET #fileNum, , savedRockets
+    IF currentGun = W_ROCKET AND NOT hasGun(W_ROCKET) THEN currentGun = W_BLASTER
     CLOSE #fileNum
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)
     levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0 : lvFrame = INT(levelTime! * 60)
@@ -206,7 +221,7 @@ END SUB
 SUB LoadMismatch STATIC
     CLOSE #fileNum ' (the sector it was in, from its start, with what you came into it with - its file was read before the mismatch)
     health = savedHealth : IF health <= 0 THEN health = MAX_HP
-    armor = savedArmor : ammoCount(AM_CELLS) = savedCells : ammoCount(AM_SHELLS) = savedShells : currentGun = savedGun
+    armor = savedArmor : ammoCount(AM_CELLS) = savedCells : ammoCount(AM_SHELLS) = savedShells : ammoCount(AM_ROCKETS) = savedRockets : currentGun = savedGun
     FOR gun = 1 TO NUM_GUNS : hasGun(gun) = savedHasGun(gun) : NEXT
     IF currentGun < 1 OR currentGun > NUM_GUNS THEN currentGun = 1
     IF NOT hasGun(currentGun) THEN currentGun = 1 : hasGun(1) = -1

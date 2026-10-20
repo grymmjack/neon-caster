@@ -29,7 +29,7 @@
 DIM SHARED glPitch(1) ' (glSet, the settings: with them, chapter 21)
 DIM SHARED glWide(1), glSideDim(1), glAspectK
 DIM SHARED glNumDecal(1) AS INTEGER, glDecX(MAX_DECALS, 1), glDecY(MAX_DECALS, 1), glDecZ(MAX_DECALS, 1)
-DIM SHARED glDecNX(MAX_DECALS, 1), glDecNY(MAX_DECALS, 1), glDecNZ(MAX_DECALS, 1), glDecSize(MAX_DECALS, 1), glDecHeat(MAX_DECALS, 1)
+DIM SHARED glDecNX(MAX_DECALS, 1), glDecNY(MAX_DECALS, 1), glDecNZ(MAX_DECALS, 1), glDecSize(MAX_DECALS, 1), glDecHeat(MAX_DECALS, 1), glDecKind(MAX_DECALS, 1) AS INTEGER
 DIM SHARED glGun(1) AS INTEGER, glGunX0(1), glGunY0(1), glGunX1(1), glGunY1(1), glGunR(1), glGunG(1), glGunB(1)
 DIM SHARED glNumShaft(1) AS INTEGER, glShaftX(MAX_LIGHTS, 1), glShaftY(MAX_LIGHTS, 1), glShaftPh(MAX_LIGHTS, 1)
 DIM SHARED glShaftR(MAX_LIGHTS, 1), glShaftG(MAX_LIGHTS, 1), glShaftB(MAX_LIGHTS, 1)

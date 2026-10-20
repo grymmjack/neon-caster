@@ -136,8 +136,8 @@ END FUNCTION
 ' you - an arrow pointing the way you face.
 SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
     DIM ax, ay, i, k, sx, sy ' (its own: the main program shares these names)
-    LINE (mapLeft - 2, mapTop - 2)-(mapLeft + MAP_SIZE * cellSize + 1, mapTop + MAP_SIZE * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
-    FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
+    LINE (mapLeft - 2, mapTop - 2)-(mapLeft + mapN * cellSize + 1, mapTop + mapN * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
+    FOR cellY = 0 TO mapN - 1 : FOR cellX = 0 TO mapN - 1
         IF showAll OR cellSeen(cellX, cellY) THEN
             mmColor~& = 0 : hideIt = 0
             IF secretArea(cellX, cellY) > 0 AND NOT cellSeen(cellX, cellY) THEN hideIt = -1 : mmColor~& = wallMapColor(secretArea(cellX, cellY)) ' (behind a secret, not seen yet: the map pickup shows rock)
@@ -240,3 +240,68 @@ SUB DrawHurtDirs(px, py, facingX, facingY)
         END IF
     NEXT
 END SUB
+
+' --- F3: WHERE YOU ARE, IN NUMBERS. A panel under the kills: the sector,
+' your x y (and the cell: 20.5 is the middle of cell 20), the way you face
+' in degrees as tp takes them (0 east, 90 south), your feet's and eye's
+' height and the cell's floor and ceiling, the wall or door you're looking
+' at (its cell and map character, for put and box) - and a tp line that
+' brings you back here, to type into the console.
+SUB DrawInfo(top)
+    DIM ang, cx, cy, d!, hx, hy, i, l$(7), n, w, y, c$ ' (its own: the main program shares these names)
+    ang = INT(_ATAN2(dirY, dirX) * 180 / 3.14159265 + 0.5) : IF ang < 0 THEN ang = ang + 360
+    IF ang >= 360 THEN ang = ang - 360
+    cx = INT(playerX) : cy = INT(playerY)
+    ' What you're looking at: along the way you face, a twentieth of a cell
+    ' at a time, to the first wall or door (as far as 24 cells)
+    hx = -1
+    FOR d! = 0 TO 24 STEP 0.05
+        i = INT(playerX + dirX * d!) : n = INT(playerY + dirY * d!)
+        IF i < 0 OR n < 0 OR i >= mapN OR n >= mapN THEN EXIT FOR
+        IF worldMap(i, n) <> 0 THEN hx = i : hy = n : EXIT FOR
+    NEXT
+    l$(1) = sectorName$(level)
+    l$(2) = "X " + InfoNum$(playerX) + "  Y " + InfoNum$(playerY) + "   CELL" + STR$(cx) + STR$(cy) + "  " + InfoCell$(cx, cy)
+    l$(3) = "FACING" + STR$(ang) + " DEG  " + MID$("EAST     SOUTHEASTSOUTH    SOUTHWESTWEST     NORTHWESTNORTH    NORTHEAST", ((ang + 22) \ 45 MOD 8) * 9 + 1, 9)
+    l$(4) = "FEET " + InfoNum$(playerZ) + "  EYE " + InfoNum$(eyeZ) + "   FLOOR " + InfoNum$(floorH(cx, cy)) + "  CEILING " + InfoNum$(ceilH(cx, cy))
+    IF hx >= 0 THEN
+        d! = SQR((hx + 0.5 - playerX) ^ 2 + (hy + 0.5 - playerY) ^ 2)
+        l$(5) = "LOOKING AT CELL" + STR$(hx) + STR$(hy) + "  " + InfoCell$(hx, hy) + "  " + InfoNum$(d!) + " AWAY"
+    ELSE
+        l$(5) = "LOOKING AT NOTHING NEAR"
+    END IF
+    l$(6) = "tp " + InfoNum$(playerX) + " " + InfoNum$(playerY) + " " + LTRIM$(STR$(ang))
+    l$(7) = "F3 HIDES THIS"
+    w = 0 : FOR i = 1 TO 7 : IF LEN(l$(i)) > w THEN w = LEN(l$(i))
+    NEXT
+    LINE (4, top - 3)-(14 + w * 8, top + 7 * 16 + 1), _RGBA32(4, 2, 16, 170), BF
+    FOR i = 1 TO 7
+        y = top + (i - 1) * 16
+        SELECT CASE i
+            CASE 1 : c$ = "M" ' (the sector: magenta)
+            CASE 6 : c$ = "Y" ' (the tp line: yellow, to type)
+            CASE 7 : c$ = "G"
+            CASE ELSE : c$ = "C"
+        END SELECT
+        SELECT CASE c$
+            CASE "M" : HudText 9, y, l$(i), _RGB32(255, 110, 220)
+            CASE "Y" : HudText 9, y, l$(i), _RGB32(255, 230, 110)
+            CASE "G" : HudText 9, y, l$(i), _RGB32(120, 110, 160)
+            CASE ELSE : HudText 9, y, l$(i), _RGB32(170, 230, 255)
+        END SELECT
+    NEXT
+END SUB
+
+' A number for the F3 panel: two places after the point, always
+FUNCTION InfoNum$(v!)
+    DIM n&, s$ ' (its own: the main program shares these names)
+    n& = INT(ABS(v!) * 100 + 0.5) : s$ = LTRIM$(STR$(n& \ 100)) + "." + RIGHT$("0" + LTRIM$(STR$(n& MOD 100)), 2)
+    IF v! < 0 AND n& > 0 THEN s$ = "-" + s$
+    InfoNum$ = s$
+END FUNCTION
+
+' A cell's map character in the level file, quoted (as put and box take it)
+FUNCTION InfoCell$(x, y)
+    IF x < 0 OR y < 0 OR x >= mapN OR y >= mapN THEN InfoCell$ = "" : EXIT FUNCTION
+    InfoCell$ = "'" + MID$(lvlRow$(y) + " ", x + 1, 1) + "'"
+END FUNCTION

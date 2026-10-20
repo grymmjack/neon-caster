@@ -7,8 +7,8 @@
 
 Each prop's model is built from its MODERN painting (neon-caster/hd/NAME.png)
 - SHAPES says how: extruded (its outline pushed out to a depth: boxes,
-guns, cards) or lathed (its outline spun round: barrels, tanks, jars), the
-painting on it. One clean, solid shape that matches its painting from the
+guns, cards), lathed (its outline spun round: barrels, tanks, jars), or -
+the turret - built from parts (turret_kit), the painting on it. One clean, solid shape that matches its painting from the
 front. A prop that's neither (the chair, the plant) is pixelmon's model
 of its painting, kept in src/ (NAME_textured.gltf, .bin, _texture.png):
 
@@ -49,7 +49,8 @@ PROPS = {
     'bench': 0.35, 'chair': 0.5,
     'keycard': 0.3, 'medkit': 0.3, 'ammo': 0.3, 'shells': 0.3, 'pickup-scatter': 0.45,
     'pickup-repeater': 0.45, 'armor': 0.3, 'bigmed': 0.3, 'pickup-rail': 0.45, 'map': 0.3,
-    'overcharge': 0.3, 'amp': 0.3, 'goggles': 0.3,
+    'overcharge': 0.3, 'amp': 0.3, 'goggles': 0.3, 'suit': 0.3, 'pickup-rocket': 0.45, 'rockets': 0.3,
+    'turret': 0.55,  # (a monster: its height, mtypeScale)
 }
 def read_gltf(path):
     """A glTF's triangles - (points, uvs) each - turned to the game's axes.
@@ -95,16 +96,20 @@ def place(tris, height):
     return [((p - mid) * s, uv) for p, uv in tris]
 
 
-def render(tris, tex, frame, size, ss, span):
+def render(tris, tex, frame, size, ss, span, top=False):
     """The prop from frame * 45 degrees round it (0: in front): a square span
     cells across, its foot on the bottom edge, as a sprite is drawn. Drawn
     ss times bigger, then shrunk; each face shaded by the way it faces, lit
-    from over your left shoulder."""
+    from over your left shoulder. top: from straight above it instead (its
+    head towards you, its front down the picture), in the middle - a wall
+    turret, seen from the room."""
     S = size * ss
     th = frame * math.pi / 4
     eye = np.array([math.cos(th), math.sin(th), 0.0])  # towards you, from the prop
     right = np.array([math.sin(th), -math.cos(th), 0.0])  # your right, as you look at it
     up = np.array([0.0, 0.0, 1.0])
+    if top:
+        eye = np.array([0.0, 0.0, 1.0]); right = np.array([0.0, 1.0, 0.0]); up = np.array([-1.0, 0.0, 0.0])
     light = eye * 0.55 + up * 0.8 - right * 0.35; light /= np.linalg.norm(light)
     col = np.zeros((S, S, 3)); depth = np.full((S, S), -1e9); cover = np.zeros((S, S), bool)
     th_, tw = tex.shape[:2]
@@ -112,7 +117,7 @@ def render(tris, tex, frame, size, ss, span):
         n = np.cross(P[1] - P[0], P[2] - P[0]); ln = np.linalg.norm(n)
         if ln < 1e-12: continue
         n /= ln
-        sx = (P @ right / span + 0.5) * S; sy = (1 - (P @ up) / span) * S; d = P @ eye
+        sx = (P @ right / span + 0.5) * S; sy = ((0.5 if top else 1) - (P @ up) / span) * S; d = P @ eye
         x0 = max(int(math.floor(sx.min())), 0); x1 = min(int(math.ceil(sx.max())), S - 1)
         y0 = max(int(math.floor(sy.min())), 0); y1 = min(int(math.ceil(sy.max())), S - 1)
         if x0 > x1 or y0 > y1: continue
@@ -174,9 +179,9 @@ SHAPES = {
     'desk': ('extrude', 0.55, [(0.42, 0.18)]), 'console': ('extrude', 0.6), 'screens': ('extrude', 0.12), 'labbench': ('extrude', 0.5, [(0.45, 0.14)]),
     'generator': ('extrude', 0.7, [(0.22, 0.14)]), 'locker': ('extrude', 0.55), 'bench': ('extrude', 0.4, [(0.5, 0.22)]), 'spawner': ('extrude', 0.15),
     'medkit': ('extrude', 0.45), 'bigmed': ('extrude', 0.6), 'ammo': ('lathe', 2), 'shells': ('extrude', 0.5),
-    'pickup-scatter': ('extrude', 0.1), 'pickup-repeater': ('extrude', 0.1), 'pickup-rail': ('extrude', 0.08),
+    'pickup-scatter': ('extrude', 0.1), 'pickup-repeater': ('extrude', 0.1), 'pickup-rail': ('extrude', 0.08), 'pickup-rocket': ('extrude', 0.22), 'rockets': ('extrude', 0.55),
     'armor': ('extrude', 0.35), 'map': ('extrude', 0.04), 'overcharge': ('extrude', 0.15), 'goggles': ('extrude', 0.35),
-    'keycard': ('extrude', 0.06),
+    'keycard': ('extrude', 0.06), 'suit': ('extrude', 0.3), 'turret': ('kit',),
 }
 GRID = 64  # the outline's grid: the painting's alpha, this many cells across
 
@@ -198,14 +203,17 @@ def _quad(tris, p, uv, want):
         tris.append((P, U))
 
 
-def extrude(name, depth, bands=()):
+def extrude(name, depth, bands=(), part=None):
     """The outline as a slab: front and back (each row's runs of solid
     cells, rows alike one quad), and its edges as sides - each showing the
     painting's colour a little in from that edge. depth is its depth, times
     its width; bands - (share of its height, from its top, depth) - are its
     parts above that line at a depth of their own (a monitor on a desk),
-    with a step between."""
+    with a step between. part - (row0, row1, col0, col1) - is just that
+    box of the outline (a turret's body, its head), where it is."""
     _, a = outline(name)
+    if part:
+        m = np.zeros_like(a); m[part[0]:part[1] + 1, part[2]:part[3] + 1] = a[part[0]:part[1] + 1, part[2]:part[3] + 1]; a = m
     R = GRID; cols = np.where(a.any(axis=0))[0]; rows = np.where(a.any(axis=1))[0]
     wide = (cols.max() - cols.min() + 1) / 2
     dz = np.full(R, depth * wide)  # each row's half-depth
@@ -278,6 +286,53 @@ def extrude(name, depth, bands=()):
     return tris
 
 
+# A turret's muzzles are textured from the texture's bottom right corner,
+# painted white (MUZZLE_BOX of it, each way): the game draws any triangle
+# textured from there in the colour of the turret's weapon, lit or not
+MUZZLE_BOX, MUZZLE_UV = 1 / 16, 0.97
+
+
+def cylinder(y, z, r, x0, x1, u0, u1, v0, v1, seg=12, muzzle=False):
+    """A tube along x from x0 to x1 round (y, z), r across, capped - its
+    sides the painting from (u0, v0) to (u1, v1): along it u, round it v
+    (a barrel's picture, its length one way and its width the other)."""
+    tris = []
+    for k in range(seg):
+        t0, t1 = 2 * math.pi * k / seg, 2 * math.pi * (k + 1) / seg
+        p = lambda x, t: (x, y + r * math.cos(t), z + r * math.sin(t))
+        vv = lambda t: v0 + (v1 - v0) * (0.5 + 0.5 * math.sin(t))
+        tm = (t0 + t1) / 2
+        _quad(tris, [p(x0, t0), p(x1, t0), p(x1, t1), p(x0, t1)], [(u0, vv(t0)), (u1, vv(t0)), (u1, vv(t1)), (u0, vv(t1))], (0, math.cos(tm), math.sin(tm)))
+        for x, w, u in ((x1, 1, u1 - 0.04), (x0, -1, u0)):  # (the caps: its muzzle - the barrel's dark end - and its back)
+            P = np.array([(x, y, z), p(x, t0), p(x, t1)], float); U = np.array([(u, (v0 + v1) / 2)] * 3)
+            if w == 1 and muzzle: U = np.array([(MUZZLE_UV, MUZZLE_UV)] * 3)  # (a turret's muzzle: the white corner - the game colours it, by the turret's weapon)
+            if np.dot(np.cross(P[1] - P[0], P[2] - P[0]), (w, 0, 0)) < 0: P = P[[0, 2, 1]]
+            tris.append((P, U))
+    return tris
+
+
+KIT_BASE = [0, 0]  # (turret_kit: its base's triangles, first and past the last)
+
+
+def turret_kit(name):
+    """The turret, from its parts - its painting shows it side on, barrels
+    pointing right, so pushed out whole it would be a slab: its body and its
+    sensor head pushed out from just their rows of the painting, its tripod
+    spun round into a pedestal, and two barrels - tubes in its barrel's
+    picture - pointing forward, the way it faces: at you."""
+    R = GRID; Y = lambda c: -(c - R / 2); Z = lambda r: R - r
+    tris = extrude(name, 0.42, part=(20, 43, 0, 48)) + extrude(name, 0.7, part=(2, 19, 20, 36))
+    _, a = outline(name)
+    m = np.zeros_like(a); m[44:, :] = a[44:, :]
+    base = _lathe_piece(m, 14)
+    KIT_BASE[:] = [len(tris), len(tris) + len(base)]  # (which of its triangles are the base: for the two parts - build)
+    tris += base
+    d = 0.42 * 45 / 2  # (the body's half-depth: its front)
+    for c, r in ((13, 31.5), (39, 31.5)):  # (the barrels: either side of its eye, half way up)
+        tris += cylinder(Y(c), Z(r), 3.2, d - 2, d + 20, 40 / R, 56 / R, 12 / R, 19 / R, muzzle=True)
+    return tris
+
+
 def lathe(name, pieces=1, seg=16):
     """The outline spun round its middle: each row's half-width a ring,
     the profile cut to the rings that matter (within half a cell), capped
@@ -343,9 +398,12 @@ def _lathe_piece(a, seg):
 def build(name):
     shape = SHAPES.get(name)
     if shape:
-        raw = extrude(name, *shape[1:]) if shape[0] == 'extrude' else lathe(name, *shape[1:])
+        raw = extrude(name, *shape[1:]) if shape[0] == 'extrude' else turret_kit(name) if shape[0] == 'kit' else lathe(name, *shape[1:])
         tris = place(raw, PROPS[name] * subject_height(name))
         tex = outline(name)[0]
+        if shape[0] == 'kit':  # (the muzzles' white corner)
+            tex = tex.copy(); h, w = tex.shape[:2]
+            tex[int(h * (1 - MUZZLE_BOX)):, int(w * (1 - MUZZLE_BOX)):] = (255, 255, 255, 255)
     else:
         gltf = os.path.join(SRC, name + '_textured.gltf')
         tris = place(read_gltf(gltf), PROPS[name] * subject_height(name))
@@ -360,12 +418,149 @@ def build(name):
     t.resize((256, 256), Image.LANCZOS).save(os.path.join(HD, name + '_tex.png'))
     for f in range(8):
         Image.fromarray(render(tris, tex, f, PIC, 4, frame), 'RGBA').save(os.path.join(HERE, f'{name}_{f}.png'))
+    if shape and shape[0] == 'kit':  # (a turret in two parts too - its base, and its head (body, eye, barrels) turning on it: the game aims the head at you)
+        b0, b1 = KIT_BASE
+        base = tris[b0:b1]; head = tris[:b0] + tris[b1:]
+        pivot = max(float(P[:, 2].max()) for P, _ in base)
+        head = [(P - np.array([0, 0, pivot]), U) for P, U in head]  # (the head turns about the top of its base)
+        for part, pt in (('base', base), ('head', head)):
+            nm = name + '-' + part
+            write_obj(pt, os.path.join(HERE, nm + '.obj'), nm, frame)
+            t.resize((64, 64), Image.LANCZOS).save(os.path.join(HERE, nm + '_tex.png'))
+            t.resize((256, 256), Image.LANCZOS).save(os.path.join(HD, nm + '_tex.png'))
+            for f in range(8):
+                Image.fromarray(render(tris, tex, f, PIC, 4, frame), 'RGBA').save(os.path.join(HERE, f'{nm}_{f}.png'))  # (its pictures: the whole turret's - only OpenGL, near, draws the parts)
+    if shape and shape[0] == 'kit':  # (a turret: from above too - a wall turret's picture, seen from the room - 64 and 256)
+        Image.fromarray(render(tris, tex, 0, PIC, 4, frame, top=True), 'RGBA').save(os.path.join(ART, name + '-top.png'))
+        Image.fromarray(render(tris, tex, 0, 256, 2, frame, top=True), 'RGBA').save(os.path.join(ART, 'hd', name + '-top.png'))
+    return len(tris), frame
+
+
+def rocket():
+    """A rocket in flight (yours, and a missile turret's), made from scratch -
+    it has no painting: a tube (grey, an orange band), a red nose cone, four
+    fins and a dark nozzle, 0.36 cells long, its middle at (0, 0, 0) and its
+    nose the way it faces. Its own little texture, in quarters: body, nose,
+    fins, nozzle."""
+    T = 64; tex = np.zeros((T, T, 4), np.uint8); tex[..., 3] = 255
+    tex[:32, :32, :3] = (150, 154, 165); tex[:32, 18:24, :3] = (255, 140, 30)  # body, its band
+    tex[4:8, :32, :3] = (110, 112, 122); tex[24:28, :32, :3] = (110, 112, 122)  # (seams)
+    tex[:32, 32:, :3] = (225, 40, 40)  # nose
+    tex[32:, :32, :3] = (60, 62, 72)  # fins
+    tex[32:, 32:, :3] = (30, 28, 30); tex[44:52, 40:56, :3] = (255, 150, 40)  # nozzle, glowing
+    r, x0, x1, xn = 0.032, -0.15, 0.1, 0.2
+    tris = cylinder(0, 0, r, x0, x1, 0.02, 0.48, 0.02, 0.48, seg=10)
+    seg = 10
+    for k in range(seg):  # the nose: a cone
+        t0, t1 = 2 * math.pi * k / seg, 2 * math.pi * (k + 1) / seg
+        P = np.array([(xn, 0, 0), (x1, r * math.cos(t0), r * math.sin(t0)), (x1, r * math.cos(t1), r * math.sin(t1))], float)
+        U = np.array([(0.75, 0.05), (0.55, 0.45), (0.95, 0.45)])
+        if np.dot(np.cross(P[1] - P[0], P[2] - P[0]), (1, 0, 0)) < 0: P = P[[0, 2, 1]]
+        tris.append((P, U))
+    for a in range(4):  # the fins: thin plates out the back, each way round
+        c, s_ = math.cos(a * math.pi / 2 + math.pi / 4), math.sin(a * math.pi / 2 + math.pi / 4)
+        q = lambda x, d: (x, c * d, s_ * d)
+        quad = [q(x0, r), q(x0 + 0.08, r), q(x0 - 0.01, r + 0.05), q(x0 - 0.03, r + 0.05)]
+        uv = [(0.05, 0.55), (0.45, 0.55), (0.4, 0.95), (0.05, 0.95)]
+        _quad(tris, quad, uv, (0, -s_, c)); _quad(tris, quad, uv, (0, s_, -c))
+    for k in range(seg):  # the nozzle's mouth, glowing
+        t0, t1 = 2 * math.pi * k / seg, 2 * math.pi * (k + 1) / seg
+        P = np.array([(x0 - 0.001, 0, 0), (x0 - 0.001, r * 0.8 * math.cos(t0), r * 0.8 * math.sin(t0)), (x0 - 0.001, r * 0.8 * math.cos(t1), r * 0.8 * math.sin(t1))], float)
+        U = np.array([(0.75, 0.75)] * 3)
+        if np.dot(np.cross(P[1] - P[0], P[2] - P[0]), (-1, 0, 0)) < 0: P = P[[0, 2, 1]]
+        tris.append((P, U))
+    return tris, tex
+
+
+def mount(broken):
+    """A turret's mounting plate (turret-mount, and turret-mount-broken once
+    it's been destroyed): a hex of armour plate bolted flat to the ceiling,
+    floor or wall, 0.36 across, its face up (z) - broken, a hole blown
+    through it, charred inside, torn wires sticking out. Its own texture in
+    quarters: plate, its edge, the hole's charred inside, wires."""
+    T = 64; tex = np.zeros((T, T, 4), np.uint8); tex[..., 3] = 255
+    tex[:32, :32, :3] = (88, 92, 104)
+    for k in range(6):  # (bolts round the plate, in its picture)
+        a = k * math.pi / 3 + math.pi / 6; bx, by = int(16 + 12 * math.cos(a)), int(16 + 12 * math.sin(a))
+        tex[by - 1:by + 2, bx - 1:bx + 2, :3] = (170, 175, 185)
+    tex[14:18, :32, :3] = (230, 180, 30); tex[14:18, ::6, :3] = (30, 30, 30)  # (a hazard stripe)
+    tex[:32, 32:, :3] = (55, 58, 66)  # edge
+    tex[32:, :32, :3] = (24, 18, 16); tex[40:56, 8:24, :3] = (70, 30, 10)  # charred inside
+    tex[32:40, 32:, :3] = (220, 40, 40); tex[40:48, 32:, :3] = (240, 210, 40); tex[48:56, 32:, :3] = (50, 120, 255); tex[56:, 32:, :3] = (30, 30, 30)  # wires
+    R, t = 0.18, 0.03
+    hexp = [(R * math.cos(k * math.pi / 3), R * math.sin(k * math.pi / 3)) for k in range(6)]
+    uvp = lambda x, y: (0.25 + x / R * 0.22, 0.25 + y / R * 0.22)
+    tris = []
+    rng = np.random.default_rng(7)
+    if broken:
+        n = 12
+        hole = [(r * math.cos(k * 2 * math.pi / n), r * math.sin(k * 2 * math.pi / n)) for k, r in enumerate(0.07 + rng.random(n) * 0.045)]
+        for k in range(n):  # the plate's face: from the hole's ragged edge out to the hex
+            a0, a1 = k * 2 * math.pi / n, (k + 1) * 2 * math.pi / n
+            def onhex(a):
+                kk = int(a // (math.pi / 3)) % 6; p0, p1 = np.array(hexp[kk]), np.array(hexp[(kk + 1) % 6])
+                d = np.array([math.cos(a), math.sin(a)]); m = np.array([d, p0 - p1]).T
+                tt = np.linalg.solve(m, p0)[0]; return tuple(d * tt)
+            o0, o1, i0, i1 = onhex(a0), onhex(a1), hole[k], hole[(k + 1) % n]
+            _quad(tris, [(*i0, t), (*o0, t), (*o1, t), (*i1, t)], [uvp(*i0), uvp(*o0), uvp(*o1), uvp(*i1)], (0, 0, 1))
+            _quad(tris, [(*i0, t), (*i1, t), (*i1, -0.05), (*i0, -0.05)], [(0.1, 0.6), (0.4, 0.6), (0.4, 0.9), (0.1, 0.9)], (-(i0[0] + i1[0]), -(i0[1] + i1[1]), 0))  # (the hole's charred side)
+        P = [(0, 0, -0.05)] + [(*h, -0.05) for h in hole]
+        for k in range(n):
+            _quad(tris, [P[0], P[1 + k], P[1 + (k + 1) % n], P[0]], [(0.25, 0.75)] * 4, (0, 0, 1))  # (its dark bottom)
+        for w in range(4):  # torn wires, curling out of it
+            a = rng.random() * 2 * math.pi; x, y = 0.03 * math.cos(a), 0.03 * math.sin(a)
+            dx, dy, h = math.cos(a + 0.6) * 0.06, math.sin(a + 0.6) * 0.06, 0.05 + rng.random() * 0.06
+            v = 0.53 + w * 0.125
+            for side in (0, 1):
+                ox, oy = (-math.sin(a) * 0.006, math.cos(a) * 0.006) if side else (0.006, 0.0)
+                _quad(tris, [(x - ox, y - oy, -0.04), (x + ox, y + oy, -0.04), (x + dx + ox, y + dy + oy, h), (x + dx - ox, y + dy - oy, h)],
+                      [(0.55, v), (0.95, v), (0.95, v + 0.08), (0.55, v + 0.08)], (math.sin(a), -math.cos(a), 0.2))
+                _quad(tris, [(x - ox, y - oy, -0.04), (x + ox, y + oy, -0.04), (x + dx + ox, y + dy + oy, h), (x + dx - ox, y + dy - oy, h)],
+                      [(0.55, v), (0.95, v), (0.95, v + 0.08), (0.55, v + 0.08)], (-math.sin(a), math.cos(a), -0.2))
+    else:
+        for k in range(6):
+            p0, p1 = hexp[k], hexp[(k + 1) % 6]
+            _quad(tris, [(0, 0, t), (*p0, t), (*p1, t), (0, 0, t)], [uvp(0, 0), uvp(*p0), uvp(*p1), uvp(0, 0)], (0, 0, 1))
+    for k in range(6):  # its edge, all round
+        p0, p1 = hexp[k], hexp[(k + 1) % 6]
+        _quad(tris, [(*p0, 0), (*p1, 0), (*p1, t), (*p0, t)], [(0.55, 0.1), (0.95, 0.1), (0.95, 0.4), (0.55, 0.4)], ((p0[0] + p1[0]), (p0[1] + p1[1]), 0))
+    return tris, tex
+
+
+def build_mount():
+    for broken in (False, True):
+        nm = 'turret-mount' + ('-broken' if broken else '')
+        tris, tex = mount(broken)
+        write_obj(tris, os.path.join(HERE, nm + '.obj'), nm, 0.4)
+        t = Image.fromarray(tex, 'RGBA')
+        t.resize((64, 64), Image.NEAREST).save(os.path.join(HERE, nm + '_tex.png'))
+        t.resize((256, 256), Image.NEAREST).save(os.path.join(HD, nm + '_tex.png'))
+        for f in range(8):  # (pictures - only OpenGL draws it, near)
+            Image.fromarray(render(tris, tex, f, PIC, 4, 0.4), 'RGBA').save(os.path.join(HERE, f'{nm}_{f}.png'))
+
+
+def build_rocket():
+    tris, tex = rocket()
+    frame = 0.42
+    write_obj(tris, os.path.join(HERE, 'rocket.obj'), 'rocket', frame)
+    t = Image.fromarray(tex, 'RGBA')
+    t.resize((64, 64), Image.NEAREST).save(os.path.join(HERE, 'rocket_tex.png'))
+    os.makedirs(HD, exist_ok=True)
+    t.resize((256, 256), Image.NEAREST).save(os.path.join(HD, 'rocket_tex.png'))
+    up = [(P + np.array([0, 0, frame / 2]), U) for P, U in tris]  # (its pictures: its middle half way up, as a sprite's drawn from its foot)
+    for f in range(8):
+        Image.fromarray(render(up, tex, f, PIC, 4, frame), 'RGBA').save(os.path.join(HERE, f'rocket_{f}.png'))
     return len(tris), frame
 
 
 def main():
     write = '--write' in sys.argv
     only = [a for a in sys.argv[1:] if not a.startswith('--')]
+    if write and (not only or 'turret-mount' in only):
+        build_mount(); print('turret-mount     its plate, whole and broken')
+    if write and (not only or 'rocket' in only):
+        n, frame = build_rocket()
+        print(f'{"rocket":16s} {n} triangles, its pictures {frame:.2f} cells across')
     for name in PROPS:
         if only and name not in only: continue
         have = name in SHAPES or os.path.exists(os.path.join(SRC, name + '_textured.gltf'))

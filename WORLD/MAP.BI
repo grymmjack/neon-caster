@@ -8,7 +8,9 @@
 '-----------------------------------------------------------------------------
 ' CHAPTER 2: THE WORLD IS A GRID
 '-----------------------------------------------------------------------------
-' A level is a 48 x 48 grid of cells (MAP_SIZE). Positions in the world are
+' A level is a grid of cells, mapN x mapN - the game's own 48 x 48, yours as
+' big as MAP_SIZE (the arrays are that big: a sector uses as much of them
+' as its file has rows and columns - ReadLevelFile). Positions in the world are
 ' measured in cells: x runs left to right, y runs top to bottom, and you
 ' might be standing at (20.5, 24.5) - the middle of cell (20, 24). Turning a
 ' position into its cell is just INT().
@@ -22,7 +24,9 @@
 ' diagCorner() says which corner's half is solid (chapter 15 draws them,
 ' chapter 23 has the maths), and the floor and ceiling can be split the same
 ' way (floorSplit, ceilSplit) to paint diagonal stripes.
-CONST MAP_SIZE = 48
+CONST MAP_SIZE = 128
+DIM SHARED mapN AS INTEGER ' (this sector's size: mapN x mapN cells)
+mapN = 48
 ' worldMap: 0 floor, 2 door; walls 1 (#), 3 (N), 4 (C), 5 (K), 6 (P), 7 (G):
 ' six kinds of wall, whose textures each level picks (see chapter 22)
 DIM SHARED worldMap(MAP_SIZE, MAP_SIZE) AS INTEGER

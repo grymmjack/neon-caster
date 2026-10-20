@@ -50,7 +50,7 @@ SUB SpawnDust(px, py)
             spread = SQR(RND) * (SHAFT_TOP + (SHAFT_FOOT - SHAFT_TOP) * (1 - z)) * 0.9
             x = lightX(l) + COS(a) * spread : y = lightY(l) + SIN(a) * spread
             cx = INT(x) : cy = INT(y)
-            IF x >= 1 AND y >= 1 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+            IF x >= 1 AND y >= 1 AND x < mapN - 1 AND y < mapN - 1 THEN
                 IF Walkable%(x, y) THEN
                     SpawnPart PART_DUST, x, y, z, (RND - 0.5) * 0.002, (RND - 0.5) * 0.002, (RND - 0.5) * 0.001, 220 + INT(RND * 160), litR(cx, cy) / 2200, litG(cx, cy) / 2200, litB(cx, cy) / 2200, 0.018
                     EXIT SUB
@@ -59,7 +59,7 @@ SUB SpawnDust(px, py)
         END IF
     END IF
     x = px + (RND - 0.5) * 9 : y = py + (RND - 0.5) * 9
-    IF x < 1 OR y < 1 OR x >= MAP_SIZE - 1 OR y >= MAP_SIZE - 1 THEN EXIT SUB ' (inside the map...)
+    IF x < 1 OR y < 1 OR x >= mapN - 1 OR y >= mapN - 1 THEN EXIT SUB ' (inside the map...)
     IF NOT Walkable%(x, y) THEN EXIT SUB ' (...and not in a wall)
     cx = INT(x) : cy = INT(y)
     SpawnPart PART_DUST, x, y, 0.05 + RND * 0.9, (RND - 0.5) * 0.003, (RND - 0.5) * 0.003, (RND - 0.5) * 0.002, 200 + INT(RND * 150), litR(cx, cy) / 2200, litG(cx, cy) / 2200, litB(cx, cy) / 2200, 0.018
@@ -108,7 +108,7 @@ SUB UpdateParticles(px, py, mvx, mvy)
                 partVZ(i) = partVZ(i) - 0.0045
             END IF
             partX(i) = partX(i) + partVX(i) : partY(i) = partY(i) + partVY(i) : partZ(i) = partZ(i) + partVZ(i)
-            IF partX(i) < 1 OR partY(i) < 1 OR partX(i) >= MAP_SIZE - 1 OR partY(i) >= MAP_SIZE - 1 THEN partLife(i) = 0 : _CONTINUE ' (off the map: gone)
+            IF partX(i) < 1 OR partY(i) < 1 OR partX(i) >= mapN - 1 OR partY(i) >= mapN - 1 THEN partLife(i) = 0 : _CONTINUE ' (off the map: gone)
             pfz = FloorAt(partX(i), partY(i)) : pcz = CeilAt(partX(i), partY(i))
             IF partZ(i) < pfz + 0.01 THEN partZ(i) = pfz + 0.01 : partVZ(i) = -partVZ(i) * 0.35 : partVX(i) = partVX(i) * 0.7 : partVY(i) = partVY(i) * 0.7
             IF partZ(i) > pcz - 0.02 THEN partZ(i) = pcz - 0.02 : partVZ(i) = -partVZ(i) * 0.3
@@ -127,7 +127,8 @@ SUB AddDecal(x, y, z, nx, ny, nz, size)
     DIM d ' (its own: the main program shares these names)
     decalNext = decalNext MOD MAX_DECALS + 1 : d = decalNext
     decalX(d) = x : decalY(d) = y : decalZ(d) = z : decalNX(d) = nx : decalNY(d) = ny : decalNZ(d) = nz
-    decalSize(d) = size : decalHeat(d) = DECAL_HEAT : decalOn(d) = -1
+    decalSize(d) = size : decalHeat(d) = DECAL_HEAT : decalOn(d) = -1 : decalKind(d) = newDecalKind : decalSmoke(d) = 0
+    IF newDecalKind THEN decalHeat(d) = 0 : decalSmoke(d) = 420 ' (acid: no glow - it smokes)
 END SUB
 
 ' Where a shot lands: (x, y, z), having come along (dx, dy) (one cell
@@ -153,8 +154,8 @@ SUB ShotMark(x, y, z, dx, dy, surface, size)
     SELECT CASE surface
         CASE 1
             cx = INT(x) : cy = INT(y)
-            IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN IF texSky(ceilTex(cx, cy)) THEN EXIT SUB ' (the sky: nothing to mark)
-            IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+            IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN IF texSky(ceilTex(cx, cy)) THEN EXIT SUB ' (the sky: nothing to mark)
+            IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN
                 l = shaftCell(cx, cy)
                 IF l THEN
                     IF NOT lightBroken(l) AND ABS(x - lightX(l)) < 0.32 AND ABS(y - lightY(l)) < 0.32 THEN BreakLight l, -1 : EXIT SUB
@@ -162,11 +163,11 @@ SUB ShotMark(x, y, z, dx, dy, surface, size)
             END IF
             AddDecal x, y, CeilAt(x, y) - 0.001, 0, 0, -1, size
         CASE 2
-            IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN IF liftCell(INT(x), INT(y)) THEN EXIT SUB ' (a lift moves: its mark would hang where it was)
+            IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN IF liftCell(INT(x), INT(y)) THEN EXIT SUB ' (a lift moves: its mark would hang where it was)
             AddDecal x, y, FloorAt(x, y) + 0.001, 0, 0, 1, size
         CASE ELSE
             bx = INT(x + dx * 0.02) : by = INT(y + dy * 0.02) ' (the cell it went into)
-            IF bx < 0 OR by < 0 OR bx >= MAP_SIZE OR by >= MAP_SIZE THEN EXIT SUB
+            IF bx < 0 OR by < 0 OR bx >= mapN OR by >= mapN THEN EXIT SUB
             IF worldMap(bx, by) = 2 THEN EXIT SUB
             IF diagCorner(bx, by) THEN
                 nx = -dx : ny = -dy
@@ -218,10 +219,10 @@ END SUB
 ' falling on it, it glows its light's colour.
 SUB BuildShafts
     DIM cx, cy, l, x, y ' (its own: the main program shares these names)
-    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : shaftCell(x, y) = 0 : NEXT : NEXT
+    FOR y = 0 TO mapN : FOR x = 0 TO mapN : shaftCell(x, y) = 0 : NEXT : NEXT
     FOR l = 1 TO numLights
         cx = INT(lightX(l)) : cy = INT(lightY(l))
-        IF lightDeco(l) = 0 AND NOT lightLow(l) AND cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+        IF lightDeco(l) = 0 AND NOT lightLow(l) AND cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN
             IF worldMap(cx, cy) <= 0 AND diagCorner(cx, cy) = 0 AND texSky(ceilTex(cx, cy)) = 0 THEN ' (under a sky: no lamp hanging in the air, no beam)
                 shaftCell(cx, cy) = l : ceilTex(cx, cy) = T_LAMP : ceilSplit(cx, cy) = 0
             END IF
@@ -234,7 +235,7 @@ FUNCTION ShaftOf%(l)
     DIM cx, cy ' (its own: the main program shares these names)
     IF l < 1 OR l > numLights THEN EXIT FUNCTION
     cx = INT(lightX(l)) : cy = INT(lightY(l))
-    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
+    IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT FUNCTION
     ShaftOf% = (shaftCell(cx, cy) = l)
 END FUNCTION
 
@@ -246,7 +247,7 @@ FUNCTION InShaft(x, y, z, l)
     DIM best, cx, cy, d, f, k, nx, ny, r ' (its own: the main program shares these names)
     l = 0 : best = 0 : cx = INT(x) : cy = INT(y)
     FOR ny = cy - 1 TO cy + 1 : FOR nx = cx - 1 TO cx + 1
-        IF nx >= 0 AND ny >= 0 AND nx < MAP_SIZE AND ny < MAP_SIZE THEN
+        IF nx >= 0 AND ny >= 0 AND nx < mapN AND ny < mapN THEN
             k = shaftCell(nx, ny)
             IF k THEN
                 sfz = FloorAt(lightX(k), lightY(k)) : scz = CeilAt(lightX(k), lightY(k)) : dn = 1 - z : IF scz - sfz > 0.01 THEN dn = (scz - z) / (scz - sfz)

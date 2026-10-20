@@ -322,6 +322,21 @@ def original_edits(n, m):
     return [(x, y, pre[y][x], m.g[y][x]) for y in range(N) for x in range(N) if pre[y][x] != m.g[y][x]]
 
 
+# The remakes' armaments (newsectors' ARMS - turrets' weapons: 0 plasma, 1
+# laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles)
+REMIX_ARMS = {
+    2: dict(turrets=[0]),
+    3: dict(turrets=[0, 3], rockets=1),
+    4: dict(turrets=[1, 4], launcher=1, rockets=2),
+    5: dict(turrets=[5, 3], rockets=2),
+    6: dict(turrets=[2, 6], rockets=2),
+    7: dict(turrets=[4, 1], rockets=2),
+    8: dict(turrets=[6, 2, 0], rockets=3),
+    9: dict(turrets=[3, 5, 1], rockets=3),
+    10: dict(turrets=[6, 2, 4, 1], rockets=3),
+}
+
+
 def build(n):
     m, lv = load(n)
     # The original's fixes since it was first remade - monsters moved off
@@ -356,6 +371,9 @@ def build(n):
                 and sum(1 for (a, b, _, t) in edits if t == "?" and abs(a - x) + abs(b - y) == 1) > 0:
             m.g[y][x] = before
     original.open_sealed(m, n)  # (any room still sealed: a way in)
+    if n in REMIX_ARMS:  # (wall turrets, the rocket launcher and rockets - newsectors' arm)
+        ns.ARMS[100 + n] = REMIX_ARMS[n]
+        ns.arm(m, 100 + n)
     print("   remastered L%d: %d alcoves, %d columns, %d decorations moved, liquids %s, %d blocks in all"
           % (n, na, nc, nn, liq, len(m.blocks)))
     out = m.level("level%d" % n, lv["name"], lv["walls"], lv["floors"], lv["ceils"])

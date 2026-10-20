@@ -1,0 +1,4 @@
+# NEON-CASTER prop: rockets - its texture, for 3D viewers
+newmtl rockets
+Kd 1 1 1
+map_Kd ../hd/models/rockets_tex.png

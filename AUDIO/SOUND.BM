@@ -28,7 +28,7 @@ END SUB
 ' new one is turned down to keep the total under SFX_HEADROOM, so a big
 ' fight gets busier, not deafening. It also ducks while NEXUS speaks.
 SUB PlaySfxPan(snd&, vol!, pan!)
-    DIM k ' (its own: the main program shares these names)
+    DIM k, t!, v!, frames, seen ' (its own: the main program shares these names - a sound played mid-command once changed the console's t to the clock)
     IF snd& <= 0 THEN EXIT SUB
     v! = vol! * setting(SET_SFX) / 100
     IF setting(SET_LIMITER) THEN
@@ -167,7 +167,7 @@ SUB LiquidHum(px, py)
     IF tick MOD 10 = 0 THEN
         near = 99
         FOR y = INT(py) - 4 TO INT(py) + 4 : FOR x = INT(px) - 4 TO INT(px) + 4
-            IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+            IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
                 IF liqKind(x, y) THEN IF lqHurt(liqKind(x, y)) > 0 THEN d = SQR((x + 0.5 - px) ^ 2 + (y + 0.5 - py) ^ 2) : IF d < near THEN near = d
             END IF
         NEXT : NEXT

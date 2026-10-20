@@ -1,0 +1,261 @@
+''
+' NEON-CASTER - GAME/HACK.BM
+' =============================================================================
+' Turret control panels: the word hack (HackRun), and what it does.
+'
+
+' --- Space on turret control panel tc: the hack - unless it's done
+' already, or locked. A demo plays back the result it recorded.
+SUB HackUse(tc)
+    IF tcState(tc) = 1 THEN ShowMsg "TURRET CONTROL: offline - its turrets are off" : EXIT SUB
+    IF tcState(tc) = 2 THEN ShowMsg "TURRET CONTROL: LOCKED OUT" : PlaySfx sndLocked&, 0.7 : EXIT SUB
+    hackTc = tc
+    IF demoPlay THEN
+        demoKind$ = "h" : DemoTakeRes : hackWon = (demoRes = 1) : hackLeft = (demoRes = 2)
+    ELSE
+        HackRun
+        IF demoRec THEN ' (a demo: the hack's result - 1 in, 2 logged out, 0 locked out)
+            demoKind$ = "h" : demoRes = 0
+            IF hackWon THEN demoRes = 1 ELSE IF hackLeft THEN demoRes = 2
+            DemoEvent
+        END IF
+    END IF
+    HackEnd
+END SUB
+
+' The hack's own loop, as NEON PONG's (the world waits): the screen of
+' junk and words, the pointer (or the arrows) over it, a click (or Enter)
+' to pick what's under it, Esc to log out. hackWon: the password; else
+' hackLeft (Esc) or locked out.
+SUB HackRun STATIC
+    WorldLoopsOff : _MOUSESHOW : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+    HackSetup
+    hackWon = 0 : hackLeft = 0 : cur = hackWordAt(1) : mxWas = _MOUSEX : myWas = _MOUSEY : clickWas = -1 : selWas = -1
+    DO
+        _LIMIT 60
+        pick = 0
+        WHILE _MOUSEINPUT
+            IF _MOUSEBUTTON(1) AND NOT clickWas THEN IF HackCellAt(_MOUSEX, _MOUSEY) >= 0 THEN pick = -1 ' (a click on the screen's characters)
+            clickWas = _MOUSEBUTTON(1)
+        WEND
+        IF _MOUSEX <> mxWas OR _MOUSEY <> myWas THEN ' (the mouse moved: the cursor goes where it points)
+            mxWas = _MOUSEX : myWas = _MOUSEY : n = HackCellAt(mxWas, myWas) : IF n >= 0 THEN cur = n
+        END IF
+        k& = _KEYHIT
+        DO WHILE k&
+            SELECT CASE k&
+                CASE 27 : hackLeft = -1
+                CASE 13, 32 : pick = -1
+                CASE 19200 : cur = cur - 1
+                CASE 19712 : cur = cur + 1
+                CASE 18432 : cur = cur - HACK_COLS
+                CASE 20480 : cur = cur + HACK_COLS
+            END SELECT
+            k& = _KEYHIT
+        LOOP
+        IF hackLeft THEN EXIT DO
+        cur = MaxOf(0, MinOf(LEN(hackG$) - 1, cur))
+        HackSpan cur, s0, s1
+        IF s0 <> selWas THEN selWas = s0 : PlaySfx sndMenuMove&, 0.25
+        IF pick THEN HackPick cur
+        IF hackWon OR hackTries = 0 THEN EXIT DO
+        DrawHack s0, s1, ""
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady : ShowFrame
+    LOOP
+    IF NOT hackLeft THEN ' (the result, a moment)
+        IF hackWon THEN PlaySfx sndFanfare&, 0.8 ELSE PlaySfx sndFail&, 0.8
+        FOR f = 1 TO 100
+            _LIMIT 60 : WHILE _MOUSEINPUT : WEND
+            IF hackWon THEN t$ = "ACCESS GRANTED" ELSE t$ = "TERMINAL LOCKED"
+            DrawHack -1, -1, t$
+            IF glReady THEN GLSL_filter_capture
+            GLScreenLayer glReady : ShowFrame
+        NEXT
+    END IF
+    _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+    escWas = -1 : fireWait = 15 : spaceWas = -1
+END SUB
+
+' After the hack: in, every turret near the panel off for good (they count
+' as dealt with); locked out, every one of them out and hunting you
+SUB HackEnd
+    DIM i, n ' (its own: the main program shares these names)
+    IF hackWon THEN
+        tcState(hackTc) = 1 : WallDone tcX(hackTc), tcY(hackTc), T_TCTRLOK
+        FOR i = 1 TO numMonsters
+            IF monsterType(i) = MT_TURRET AND monsterState(i) < 2 THEN
+                IF (monsterX(i) - tcX(hackTc) - 0.5) ^ 2 + (monsterY(i) - tcY(hackTc) - 0.5) ^ 2 < HACK_REACH * HACK_REACH THEN
+                    monDeploy(i) = -1 : monsterState(i) = 3 : kills = kills + 1 : n = n + 1
+                END IF
+            END IF
+        NEXT
+        PlaySfx sndPowerDown&, 0.9 : ShowMsg "TURRET CONTROL: ACCESS GRANTED -" + STR$(n) + " turret" + MID$("s", 1, -(n <> 1)) + " offline"
+    ELSEIF hackLeft THEN
+        ShowMsg "TURRET CONTROL: logged out"
+    ELSE
+        tcState(hackTc) = 2 : PlaySfx sndAlarm&, 0.9 : shake = shake + 6 : ShowMsg "LOCKOUT! The turrets are coming for you"
+        FOR i = 1 TO numMonsters
+            IF monsterType(i) = MT_TURRET AND monsterState(i) = 0 THEN
+                IF (monsterX(i) - tcX(hackTc) - 0.5) ^ 2 + (monsterY(i) - tcY(hackTc) - 0.5) ^ 2 < HACK_REACH * HACK_REACH THEN monsterState(i) = 1 : monsterTimer(i) = 30
+            END IF
+        NEXT
+    END IF
+END SUB
+
+' A fresh screen: junk, HACK_WORDS words of HACK_LEN letters each in a row
+' of its own (none across a row's end), one of them the password
+SUB HackSetup
+    DIM c, j, k, r, w, used$, list$, wd$, rowsUsed$ ' (its own: the main program shares these names)
+    list$ = "CIPHER VECTOR KERNEL MATRIX SOCKET BINARY SYSTEM DAEMON BUFFER ACCESS SECURE TARGET MEMORY SIGNAL REBOOT PLASMA SENTRY TURRET ORACLE CURSOR SCRIPT MODULE SERVER PACKET ROUTER NEURAL STATIC BRIDGE SHIELD FUSION ZENITH VERTEX PIXELS RASTER SPRITE LAMBDA CONFIG ENCODE DECODE HACKER SILICA CHROME" ' (42 words, HACK_LEN letters and a space each)
+    hackG$ = ""
+    FOR k = 1 TO 2 * HACK_ROWS * HACK_COLS : hackG$ = hackG$ + MID$("!@#$%^&*()-_=+[]{}<>,./?;:'|\", 1 + INT(RND * 29), 1) : NEXT
+    used$ = "" : rowsUsed$ = ""
+    FOR w = 1 TO HACK_WORDS
+        DO ' (a word not used yet...)
+            j = INT(RND * 42) : wd$ = MID$(list$, j * 7 + 1, HACK_LEN)
+        LOOP WHILE INSTR(used$, wd$)
+        used$ = used$ + wd$ + " "
+        DO ' (...in a row with none in it yet)
+            r = INT(RND * 2 * HACK_ROWS)
+        LOOP WHILE INSTR(rowsUsed$, "|" + LTRIM$(STR$(r)) + "|")
+        rowsUsed$ = rowsUsed$ + "|" + LTRIM$(STR$(r)) + "|"
+        c = INT(RND * (HACK_COLS - HACK_LEN + 1))
+        hackWordAt(w) = r * HACK_COLS + c : hackWordGone(w) = 0
+        MID$(hackG$, hackWordAt(w) + 1, HACK_LEN) = wd$
+    NEXT
+    hackPass = 1 + INT(RND * HACK_WORDS) : hackTries = HACK_TRIES : hackUsed$ = ""
+    FOR k = 1 TO 10 : hackLog$(k) = "" : NEXT
+    HackSay "NEXUS SECURITY" : HackSay "TURRET CONTROL" : HackSay "Find the password."
+END SUB
+
+' A line on the hack's log (the right of its screen), the oldest lost
+SUB HackSay(t$)
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO 9 : hackLog$(k) = hackLog$(k + 1) : NEXT
+    hackLog$(10) = t$
+END SUB
+
+' Word w's letters
+FUNCTION HackWord$(w)
+    HackWord$ = MID$(hackG$, hackWordAt(w) + 1, HACK_LEN)
+END FUNCTION
+
+' The word whose letters character n is one of (0: none) - a dud taken
+' away is none
+FUNCTION HackWordOn(n)
+    DIM w ' (its own: the main program shares these names)
+    FOR w = 1 TO HACK_WORDS
+        IF hackWordGone(w) <> 1 AND n >= hackWordAt(w) AND n < hackWordAt(w) + HACK_LEN THEN HackWordOn = w
+    NEXT
+END FUNCTION
+
+' What a pick at character n takes in: from s0 to s1 - a word, a pair of
+' brackets with nothing but junk between them (in one row, not used yet),
+' or just the one character
+SUB HackSpan(n, s0, s1)
+    DIM w, j, o$, cl$, rowEnd ' (its own: the main program shares these names)
+    s0 = n : s1 = n
+    w = HackWordOn(n) : IF w THEN s0 = hackWordAt(w) : s1 = s0 + HACK_LEN - 1 : EXIT SUB
+    o$ = MID$(hackG$, n + 1, 1) : j = INSTR("([{<", o$) : IF j = 0 THEN EXIT SUB
+    IF INSTR(hackUsed$, "|" + LTRIM$(STR$(n)) + "|") THEN EXIT SUB
+    cl$ = MID$(")]}>", j, 1) : rowEnd = (n \ HACK_COLS + 1) * HACK_COLS - 1
+    FOR j = n + 1 TO rowEnd
+        IF HackWordOn(j) THEN EXIT SUB
+        IF MID$(hackG$, j + 1, 1) = cl$ THEN s1 = j : EXIT SUB
+    NEXT
+END SUB
+
+' Pick what's at character n: a word (the password - in; else how many of
+' its letters are right, and a try gone), a pair of brackets (a dud taken
+' away, or now and then the tries back), or junk (nothing)
+SUB HackPick(n)
+    DIM w, k, s0, s1, likes, live ' (its own: the main program shares these names)
+    HackSpan n, s0, s1
+    w = HackWordOn(n)
+    IF w THEN
+        IF hackWordGone(w) = 2 THEN EXIT SUB ' (tried already)
+        PlaySfx sndMenuSelect&, 0.6 : HackSay ">" + HackWord$(w)
+        IF w = hackPass THEN HackSay ">Exact match!" : HackSay ">Please wait while system" : HackSay ">is accessed." : hackWon = -1 : EXIT SUB
+        likes = 0 : FOR k = 1 TO HACK_LEN : IF MID$(HackWord$(w), k, 1) = MID$(HackWord$(hackPass), k, 1) THEN likes = likes + 1
+        NEXT
+        hackWordGone(w) = 2 : hackTries = hackTries - 1 : PlaySfx sndLocked&, 0.6
+        HackSay ">Entry denied." : HackSay ">" + LTRIM$(STR$(likes)) + "/" + LTRIM$(STR$(HACK_LEN)) + " correct."
+        IF hackTries = 0 THEN HackSay ">LOCKOUT"
+    ELSEIF s1 > s0 THEN ' Brackets
+        hackUsed$ = hackUsed$ + "|" + LTRIM$(STR$(s0)) + "|" : HackSay ">" + MID$(hackG$, s0 + 1, s1 - s0 + 1)
+        PlaySfx sndMenuSelect&, 0.6
+        IF RND < 0.25 AND hackTries < HACK_TRIES THEN
+            hackTries = HACK_TRIES : HackSay ">Allowance replenished."
+        ELSE ' (a dud taken away: a wrong word, not tried yet - dots where it was)
+            live = 0 : FOR k = 1 TO HACK_WORDS : IF k <> hackPass AND hackWordGone(k) = 0 THEN live = live + 1
+            NEXT
+            IF live THEN
+                DO : k = 1 + INT(RND * HACK_WORDS) : LOOP UNTIL k <> hackPass AND hackWordGone(k) = 0
+                MID$(hackG$, hackWordAt(k) + 1, HACK_LEN) = STRING$(HACK_LEN, ".") : hackWordGone(k) = 1 : HackSay ">Dud removed."
+            END IF
+        END IF
+    ELSE
+        HackSay ">" + MID$(hackG$, n + 1, 1) : HackSay ">Error"
+    END IF
+END SUB
+
+' Where on the hack's screen character n is: its column's left (x), its
+' row's top (y)
+SUB HackCellXY(n, x, y)
+    DIM r ' (its own: the main program shares these names)
+    r = n \ HACK_COLS
+    x = 40 + (r \ HACK_ROWS) * 270 + 84 + (n MOD HACK_COLS) * 12 : y = 130 + (r MOD HACK_ROWS) * 26
+END SUB
+
+' The character at screen (x, y): -1 for none
+FUNCTION HackCellAt(x, y)
+    DIM c, col, r ' (its own: the main program shares these names)
+    HackCellAt = -1
+    IF y < 130 OR y >= 130 + HACK_ROWS * 26 THEN EXIT FUNCTION
+    r = (y - 130) \ 26
+    FOR c = 0 TO 1
+        col = x - (40 + c * 270 + 84)
+        IF col >= 0 AND col < HACK_COLS * 12 THEN HackCellAt = ((c * HACK_ROWS + r) * HACK_COLS) + col \ 12 : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' The hack's screen: a green terminal - its tries left, the two columns of
+' memory (each row's address, then its characters: s0 to s1 lit up), the
+' log, and big$ (ACCESS GRANTED / TERMINAL LOCKED) over it at the end
+SUB DrawHack(s0, s1, big$)
+    DIM c, k, n, r, x, y, cx, cy, t$, gr AS _UNSIGNED LONG, dm AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    gr = _RGB32(90, 255, 140) : dm = _RGB32(40, 120, 70)
+    LINE (0, 0)-(799, 599), _RGB32(2, 12, 6), BF
+    FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGB32(0, 4, 2) : NEXT ' (scanlines: an old screen)
+    MenuText 40, 26, "NEXUS SECURITY OS v2.6  -  TURRET CONTROL", 1.5, gr, 0
+    MenuText 40, 56, "ENTER PASSWORD NOW", 1.5, gr, 0
+    t$ = "" : FOR k = 1 TO hackTries : t$ = t$ + CHR$(219) + " " : NEXT
+    MenuText 40, 86, LTRIM$(STR$(hackTries)) + " ATTEMPT(S) LEFT: " + t$, 1.5, gr, 0
+    FOR c = 0 TO 1 : FOR r = 0 TO HACK_ROWS - 1
+        n = (c * HACK_ROWS + r) * HACK_COLS : x = 40 + c * 270 : y = 130 + r * 26
+        MenuText x, y, "0x" + HEX$(&HF4A0& + n), 1.5, dm, 0
+        MenuText x + 84, y, MID$(hackG$, n + 1, HACK_COLS), 1.5, gr, 0
+        FOR k = n TO n + HACK_COLS - 1 ' (the pick, lit up: black on green)
+            IF k >= s0 AND k <= s1 AND s0 >= 0 THEN
+                HackCellXY k, cx, cy : LINE (cx, cy)-STEP(11, 23), gr, BF : MenuText cx, cy, MID$(hackG$, k + 1, 1), 1.5, _RGB32(2, 12, 6), 0
+            END IF
+        NEXT
+        FOR k = 1 TO HACK_WORDS ' (a word tried already: dimmed)
+            IF hackWordGone(k) = 2 AND hackWordAt(k) >= n AND hackWordAt(k) < n + HACK_COLS AND NOT (hackWordAt(k) >= s0 AND hackWordAt(k) <= s1) THEN
+                HackCellXY hackWordAt(k), cx, cy : LINE (cx, cy)-STEP(HACK_LEN * 12 - 1, 23), _RGB32(2, 12, 6), BF : MenuText cx, cy, HackWord$(k), 1.5, dm, 0
+            END IF
+        NEXT
+    NEXT : NEXT
+    FOR k = 1 TO 10 : MenuText 584, 130 + (k + 5) * 26, LEFT$(hackLog$(k), 21), 1.25, gr, 0 : NEXT
+    MenuText 400, 560, "POINT AND CLICK (OR ARROWS AND ENTER)  -  ESC LOGS OUT", 1, dm, 1
+    IF LEN(big$) THEN LINE (180, 250)-(619, 330), _RGB32(2, 12, 6), BF : LINE (180, 250)-(619, 330), gr, B : MenuText 400, 272, big$, 3, gr, 1
+END SUB
+
+' The turret control panel at cell (x, y) - 0 for none
+FUNCTION TCtrlAt(x, y)
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO numTCtrl
+        IF tcX(k) = x AND tcY(k) = y THEN TCtrlAt = k
+    NEXT
+END FUNCTION

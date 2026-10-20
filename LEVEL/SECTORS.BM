@@ -85,8 +85,8 @@ SUB WriteBlankSector(n)
     o$ = o$ + nl$ + "[lights]" + nl$ + "' x, y, radius, brightness, red, green, blue, effect" + nl$
     o$ = o$ + "24, 24, 7, 150, 220, 230, 255, 0" + nl$
     o$ = o$ + nl$ + "[map]" + nl$
-    FOR y = 0 TO MAP_SIZE - 1
-        r$ = STRING$(MAP_SIZE, "#")
+    FOR y = 0 TO 47 ' (48 x 48, as the game's own are - SECTOR > MAP SIZE changes it)
+        r$ = STRING$(48, "#")
         IF y >= 20 AND y <= 27 THEN MID$(r$, 21, 8) = STRING$(8, ".") ' The room: cells 20 to 27 each way
         IF y = 24 THEN MID$(r$, 22, 1) = ">" : MID$(r$, 29, 1) = "E" ' You at (21, 24), the exit at (28, 24)
         o$ = o$ + r$ + nl$

@@ -87,6 +87,11 @@ ambient  = 120, 255, 190, 150
 ' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 enter 5 32 7 34 : message A DATA STATION - face it and press SPACE to jack in
 
+[monsters]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles]
+39, 3, 14, 0, 100, 100, 0, 3
+27, 19, 14, 0, 100, 100, 0, 5
+
 [blocks]
 ' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)
 32, 6, 0, 0, 4, 8, 3
@@ -207,7 +212,7 @@ crate    = ammo:20, shells:30, medkit:20, armor:10
 NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 NNPPPPPPPPPPPPPPNNNNNNNNNNNNNNNNCCCCCCCCCLCCCCNN
-NNPPP/......\PPPNNNN/....A.\NNNNCCC/......\CCCNN
+NNPPP/......\PPPNNNN/....A.\NNNNCCC/...|..\CCCNN
 NNPP/xx......\PPNNN/........\NNNCC/........\CCNN
 NNP/........g.\PNN/.....2...x\NNC/.s......y.\CNN
 NNP...r..M.....PNN.a.k.......+NNL............CNN
@@ -223,7 +228,7 @@ NNPPPPPPP.PPPP.UVU.NNNNN.NNNN.FAF.CC%CC.CCCCCCNN
 NNNNNNNkNDNNNN..h..NNNNNDNNNN.ZVZ.NNkNNRNNNNNNNN
 NNNNNNNhN.NNNN.....NNNNN.NNNN.....NN.NN.NNNNNNNN
 NNNNN##%#.#####===?#####.#####===?#####.###NNNNN
-NNNNN#......f.............................#jeaNN
+NNNNN#......f..............|..............#jeaNN
 NNNNN#......##......##......##.....A##a...Dq*+NN
 NNNNN#.....U##..o...##.....L##..oT..##....#uaeNN
 NNNNN#L.g...............h....U...x...L.g..#NNNNN
@@ -239,13 +244,13 @@ NNNNNNNNN!NNNNNNNNNNNNhNYNNNNNNNNNNNNNNBNNNNNNNN
 NNNNNN@NNmNNNNNNNKKKKKKK.KKKKKKNGGGGGGG.GGGGGGNN
 NNNNN/......\NNNNKKK/......\KKKNGGG/......\GGGNN
 NNNN/...&....\NNNKK/........\KKNGG/........\GGNN
-NNN/..........\NNK/.c.......c\KNG/.s......*.\GNN
+NNN/..........\NNK/.c....(..c\KNG/.s......*.\GNN
 NNf..a.......e.NNK............KNG............GNN
 NNN............NNK....K...K...KNG.......k....GNN
 NNN............NNKA...........KNG............ENN
 NNN...x........NNK.a....h.....KNG............GNN
 NNN............NNK............KNG...h......t.GNN
-NNN.o....^...&.NNL....K...K...KNG............GNN
+NNN.o....^...&.NNL...(K...K...KNG............GNN
 NNN\.o......+./NNK\..m.....m./KNG\........g./GNN
 NNNN\......../NNNKK\f...b.../KKNGG\x.+...../GGNN
 NNNNN\....../NNNNKKK\....../KKKNGGG\.....x/GGGNN

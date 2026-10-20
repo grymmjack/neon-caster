@@ -15,7 +15,7 @@ SUB LightAt(x, y, r, g, b)
     r = 0 : g = 0 : b = 0 : sw = 0
     FOR j = 0 TO 1 : FOR i = 0 TO 1
         cx = ix + i : cy = iy + j
-        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+        IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN
             IF NOT IsWall(cx, cy) OR diagCorner(cx, cy) <> 0 THEN
                 w = (i * tx + (1 - i) * (1 - tx)) * (j * ty + (1 - j) * (1 - ty))
                 r = r + litR(cx, cy) * w : g = g + litG(cx, cy) * w : b = b + litB(cx, cy) * w : sw = sw + w
@@ -35,10 +35,10 @@ END SUB
 SUB LiquidGlows(x0, y0, x1, y1)
     DIM gx, gy, k, l, n, n0, sx, sy, x, y ' (its own: the main program shares these names)
     added = 0
-    FOR gy = MaxOf(0, y0) TO MinOf(y1, MAP_SIZE - 1) STEP 3 : FOR gx = MaxOf(0, x0) TO MinOf(x1, MAP_SIZE - 1) STEP 3
+    FOR gy = MaxOf(0, y0) TO MinOf(y1, mapN - 1) STEP 3 : FOR gx = MaxOf(0, x0) TO MinOf(x1, mapN - 1) STEP 3
         FOR k = LQ_SLIME TO LQ_ACID
             n = 0 : sx = 0 : sy = 0
-            FOR y = gy TO MinOf(gy + 2, MinOf(y1, MAP_SIZE - 1)) : FOR x = gx TO MinOf(gx + 2, MinOf(x1, MAP_SIZE - 1))
+            FOR y = gy TO MinOf(gy + 2, MinOf(y1, mapN - 1)) : FOR x = gx TO MinOf(gx + 2, MinOf(x1, mapN - 1))
                 IF liqKind(x, y) = k AND INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1)) <> k THEN n = n + 1 : sx = sx + x + 0.5 : sy = sy + y + 0.5
             NEXT : NEXT
             IF n THEN ' (unless this patch glows already - the same trigger flooding it again)
@@ -76,7 +76,7 @@ SUB BuildLights
         lightFirst(l) = numLit + 1 : lightCount(l) = 0 : rad = lightRadius(l)
         FOR cellY = INT(lightY(l) - rad) TO INT(lightY(l) + rad)
             FOR cellX = INT(lightX(l) - rad) TO INT(lightX(l) + rad)
-                IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+                IF cellX >= 0 AND cellX < mapN AND cellY >= 0 AND cellY < mapN THEN
                     ' Aim at the middle of the cell - or, for a diagonal wall's
                     ' cell, the middle of its open half
                     aimX = cellX + 0.5 : aimY = cellY + 0.5
@@ -123,16 +123,25 @@ END FUNCTION
 SUB UpdateLight
     DIM B, e, f, g, l, r, w ' (its own: the main program shares these names)
     IF cyberOn THEN ' The network: no lamps, no shadows - everything lit the same
-        FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
+        FOR cellY = 0 TO mapN - 1 : FOR cellX = 0 TO mapN - 1
             litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230
             litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
         NEXT : NEXT
         FOR l = 1 TO numLights : lightNow(l) = 0 : NEXT
         EXIT SUB
     END IF
-    FOR cellY = 0 TO MAP_SIZE - 1 : FOR cellX = 0 TO MAP_SIZE - 1
-        litR(cellX, cellY) = ambientR : litG(cellX, cellY) = ambientG : litB(cellX, cellY) = ambientB
-        IF blackoutTimer > 0 THEN litR(cellX, cellY) = ambientR \ 4 : litG(cellX, cellY) = ambientG \ 5 : litB(cellX, cellY) = ambientB \ 4 ' (a power failure: darker)
+    ' The cell lights' effects, this frame - as a light's below, one for all
+    ' the cells of a kind (a room flickers as one)
+    ambFxNow(FX_STEADY) = 1 : ambFxNow(FX_PULSE) = 0.55 + 0.45 * SIN(TIMER * 2.4) : ambFxNow(FX_FIRE) = 0.75 + RND * 0.25
+    IF INT(TIMER * 2) MOD 2 = 0 THEN ambFxNow(FX_STROBE) = 1 ELSE ambFxNow(FX_STROBE) = 0.05
+    ambFxNow(FX_FLICKER) = 1
+    IF ambFxTimer(FX_FLICKER) > 0 THEN ambFxTimer(FX_FLICKER) = ambFxTimer(FX_FLICKER) - 1 : ambFxNow(FX_FLICKER) = 0.15 ELSE IF RND < 0.025 THEN ambFxTimer(FX_FLICKER) = 2 + INT(RND * 6)
+    ambFxNow(FX_DYING) = 0.08
+    IF ambFxTimer(FX_DYING) > 0 THEN ambFxTimer(FX_DYING) = ambFxTimer(FX_DYING) - 1 : ambFxNow(FX_DYING) = 0.5 + RND * 0.5 ELSE IF RND < 0.03 THEN ambFxTimer(FX_DYING) = 3 + INT(RND * 10)
+    FOR cellY = 0 TO mapN - 1 : FOR cellX = 0 TO mapN - 1
+        f = ambFxNow(cellAmbFx(cellX, cellY)) ' (its own ambient light - a cell light, or the sector's)
+        litR(cellX, cellY) = cellAmbR(cellX, cellY) * f : litG(cellX, cellY) = cellAmbG(cellX, cellY) * f : litB(cellX, cellY) = cellAmbB(cellX, cellY) * f
+        IF blackoutTimer > 0 THEN litR(cellX, cellY) = litR(cellX, cellY) \ 4 : litG(cellX, cellY) = litG(cellX, cellY) \ 5 : litB(cellX, cellY) = litB(cellX, cellY) \ 4 ' (a power failure: darker)
         litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
     NEXT : NEXT
     FOR l = 1 TO numLights
@@ -187,7 +196,7 @@ SUB AddGlow(x, y, radius, r, g, b)
     DIM d, w ' (its own: the main program shares these names)
     FOR cellY = INT(y - radius) TO INT(y + radius)
         FOR cellX = INT(x - radius) TO INT(x + radius)
-            IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+            IF cellX >= 0 AND cellX < mapN AND cellY >= 0 AND cellY < mapN THEN
                 d = SQR((cellX + 0.5 - x) ^ 2 + (cellY + 0.5 - y) ^ 2)
                 IF d < radius THEN
                     w = (1 - d / radius) ^ 2
@@ -223,7 +232,7 @@ SUB BreakLight(l, loud)
     DIM cx, cy ' (its own: the main program shares these names)
     lightBroken(l) = -1
     cx = INT(lightX(l)) : cy = INT(lightY(l))
-    IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN ceilTex(cx, cy) = T_LAMPOFF : glMeshVersion = glMeshVersion + 1 ' (OpenGL's world built again with it dark: a scorch decal alone gets recycled, and the lit lamp showed again)
+    IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN ceilTex(cx, cy) = T_LAMPOFF : glMeshVersion = glMeshVersion + 1 ' (OpenGL's world built again with it dark: a scorch decal alone gets recycled, and the lit lamp showed again)
     AddDecal lightX(l), lightY(l), CeilAt(lightX(l), lightY(l)) - 0.001, 0, 0, -1, 0.75 : decalHeat(decalNext) = 0
     IF loud THEN
         lh = CeilAt(lightX(l), lightY(l)) - FloorAt(lightX(l), lightY(l)) - 0.05 ' (just under its own ceiling, however high)

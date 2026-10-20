@@ -24,6 +24,7 @@ SUB MoveLifts(px, py)
     DIM k, x, y ' (its own: the main program shares these names)
     me = liftCell(INT(px), INT(py))
     FOR k = 1 TO numLifts
+        IF liftMode(k) = LIFT_CRUSHER OR liftMode(k) = LIFT_SMASHER THEN MoveCrusher k, px, py : _CONTINUE
         IF liftMode(k) = 2 AND me <> k THEN liftArm(k) = -1
         IF liftDir(k) = 0 THEN ' Waiting at one end
             IF liftWait(k) > 0 THEN liftWait(k) = liftWait(k) - 1
@@ -75,4 +76,66 @@ SUB LiftSound(k, px, py)
     ELSEIF liftHum&(k) > 0 THEN
         _SNDSTOP liftHum&(k)
     END IF
+END SUB
+
+' A crusher or smasher (lift k, mode 4 or 5), one frame on: its ceiling
+' (liftZ) down to low and up to high, its cells' ceilH set to it - and
+' what's under it hurt. A crusher goes down at its speed and back up, a
+' moment's wait at each end; a smasher waits up top a second and a half,
+' slams down six times as fast (a bang and a shake), and grinds back up.
+' Under it, you're crushed while it's lower than you are tall (BODY_H): a
+' crusher's every CRUSH_EVERY frames, a smasher's once a slam (and it
+' goes on down - DOOM's crushers don't stop for you either).
+SUB MoveCrusher(k, px, py)
+    DIM x, y, i, sp, cz ' (its own: the main program shares these names)
+    sp = liftSpeed(k)
+    IF liftDir(k) = 0 THEN
+        IF liftWait(k) > 0 THEN liftWait(k) = liftWait(k) - 1
+        IF liftWait(k) = 0 THEN
+            IF liftZ(k) >= liftHigh(k) - 0.001 THEN liftDir(k) = -1 : liftHit(k) = 0 ELSE liftDir(k) = 1
+        END IF
+    ELSE
+        IF liftDir(k) < 0 AND liftMode(k) = LIFT_SMASHER THEN sp = sp * 6
+        liftZ(k) = liftZ(k) + liftDir(k) * sp
+        IF liftZ(k) >= liftHigh(k) THEN
+            liftZ(k) = liftHigh(k) : liftDir(k) = 0 : liftWait(k) = 20 : IF liftMode(k) = LIFT_SMASHER THEN liftWait(k) = 90
+        END IF
+        IF liftZ(k) <= liftLow(k) THEN
+            liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 20
+            IF liftMode(k) = LIFT_SMASHER AND NOT editMode AND NOT cyberOn THEN ' (the slam)
+                SfxAt sndCrushSlam&, (liftX0(k) + liftX1(k) + 1) / 2, (liftY0(k) + liftY1(k) + 1) / 2, px, py
+                IF ABS(px - (liftX0(k) + liftX1(k) + 1) / 2) < 6 AND ABS(py - (liftY0(k) + liftY1(k) + 1) / 2) < 6 THEN shake = shake + 6
+            END IF
+        END IF
+    END IF
+    FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
+        IF liftCell(x, y) = k THEN ceilH(x, y) = liftZ(k)
+    NEXT : NEXT
+    IF editMode OR cyberOn THEN liftWasDir(k) = liftDir(k) : EXIT SUB ' (still in the editor, and quiet - and nothing's hurt)
+    LiftSound k, px, py
+    ' Under it: you
+    IF liftCell(INT(px), INT(py)) = k AND NOT dead THEN
+        IF liftZ(k) - playerZ < BODY_H THEN
+            IF liftMode(k) = LIFT_SMASHER THEN
+                IF NOT liftHit(k) THEN liftHit(k) = -1 : damage = SMASH_HURT : hurtFromX = -1 : hurtFromY = -1 : hurtR = 200 : hurtG = 40 : hurtB = 30 : HurtPlayer : shake = shake + 10
+            ELSEIF lvFrame MOD CRUSH_EVERY = 0 THEN
+                damage = CRUSH_HURT : hurtFromX = -1 : hurtFromY = -1 : hurtR = 200 : hurtG = 40 : hurtB = 30 : HurtPlayer : shake = shake + 3
+            END IF
+        END IF
+    END IF
+    ' ...and the monsters under it (a crusher the same, a smasher's slam once each)
+    FOR i = 1 TO numMonsters
+        IF monsterState(i) < 2 THEN
+            IF liftCell(INT(monsterX(i)), INT(monsterY(i))) = k THEN
+                cz = liftZ(k) - floorH(INT(monsterX(i)), INT(monsterY(i)))
+                IF cz < BODY_H THEN
+                    IF liftMode(k) = LIFT_SMASHER THEN
+                        IF liftDir(k) < 0 AND cz + sp >= BODY_H THEN target = i : hitDamage = SMASH_HURT * 3 : HitMonster ' (the frame the slam reaches it)
+                    ELSEIF lvFrame MOD CRUSH_EVERY = 0 THEN
+                        target = i : hitDamage = CRUSH_HURT * 2 : HitMonster
+                    END IF
+                END IF
+            END IF
+        END IF
+    NEXT
 END SUB

@@ -318,6 +318,91 @@ START_MOVES = {
 }
 
 
+# Each sector's armaments, put in last (arm): its wall turrets' weapons (the
+# game's TW_: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6
+# missiles), boxes of rockets, and the rocket launcher (sector 3's)
+ARMS = {
+    2: dict(turrets=[0]),
+    3: dict(turrets=[1, 0], launcher=1, rockets=2),
+    4: dict(turrets=[3, 1], rockets=2),
+    5: dict(turrets=[3, 6], rockets=2),
+    6: dict(turrets=[2, 2], rockets=2),
+    7: dict(turrets=[4, 2], rockets=2),
+    8: dict(turrets=[6, 1, 0], rockets=3),
+    9: dict(turrets=[5, 4, 3], rockets=3),
+    10: dict(turrets=[6, 2, 5, 1], rockets=3),
+}
+
+
+def arm(m, lev):
+    """Sector lev's ARMS, in open cells you can reach, well away from the
+    start: a wall turret (|) in a cell with a wall beside it, with its weapon
+    ([monsters]); a box of rockets, or the launcher, anywhere open (the
+    launcher about halfway in). Each the same every time (seeded)."""
+    a = ARMS.get(lev)
+    if not a:
+        return
+    rng = random.Random(9100 + lev)
+    st, dist = camp._reach(m)
+    if len(dist) < 300:  # (the start shut in by something the reach won't walk - every cell that isn't solid, then, doors and all)
+        dist = {st: 0}
+        q = deque([st])
+        while q:
+            x, y = q.popleft()
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                a2, b2 = x + dx, y + dy
+                if 0 <= a2 < N and 0 <= b2 < N and (a2, b2) not in dist and m.g[b2][a2] not in lvlkit.WALLS and m.g[b2][a2] not in "?@$;/\\=":
+                    dist[(a2, b2)] = dist[(x, y)] + 1
+                    q.append((a2, b2))
+    busy = {(x, y) for (x, y, *_r) in m.blocks}
+    busy |= {(x, y) for (x0, y0, x1, y1, *_r) in m.lifts for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)}
+    far = max(dist.values())
+
+    def open_cell(x, y):
+        return (m.g[y][x] == "." and m.lq[y][x] == "." and (x, y) not in busy and (x, y) in dist
+                and all(m.g[y + dy][x + dx] not in lvlkit.DOORS for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1))))
+
+    walled = [c for c in dist if open_cell(*c) and dist[c] > 14
+              and any(m.g[c[1] + dy][c[0] + dx] in lvlkit.WALLS for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)))]
+    rng.shuffle(walled)
+    def fits(c):
+        """Does what's just been put at c stand there, by the heights (not in a
+        pit, room over it) - the level kit's own check, on the level as it is?"""
+        lv = m.level("arm", "arm", ["wall.png"] * 6, ["floor.png"] * 4, ["ceiling.png"] * 2)
+        errs, warns = lvlkit.check_heights(lv)
+        at = "at %d,%d " % c
+        return not any(at in e for e in errs + warns)
+
+    def try_put(c, ch, w=0):
+        m.g[c[1]][c[0]] = ch
+        if w:
+            m.mons[c] = (14, 0, 100, 100, 0, w)
+        if fits(c):
+            return True
+        m.g[c[1]][c[0]] = "."
+        m.mons.pop(c, None)
+        return False
+
+    used = []
+    for w in a.get("turrets", []):  # (spread out: none within 8 cells of another)
+        for c in walled:
+            if open_cell(*c) and all(abs(c[0] - u[0]) + abs(c[1] - u[1]) > 8 for u in used) and try_put(c, "|", w):
+                used.append(c)
+                break
+        else:
+            print("  PROBLEM: no wall for a turret"); PROBLEMS.append(1)
+    cells = [c for c in dist if open_cell(*c) and dist[c] > 10]
+    rng.shuffle(cells)
+    if a.get("launcher"):  # (about halfway in)
+        for c in sorted(cells, key=lambda c: abs(dist[c] - far // 2)):
+            if open_cell(*c) and try_put(c, ")"):
+                break
+    for k in range(a.get("rockets", 0)):
+        for c in cells:
+            if open_cell(*c) and try_put(c, "("):
+                break
+
+
 def build_all(write=False, show=False):
     ok = True
     out = []
@@ -326,6 +411,7 @@ def build_all(write=False, show=False):
         m = fn()
         for (x0, y0, x1, y1) in START_MOVES.get(i, ()):  # (after the build: its random picks stay as they were)
             m.g[y1][x1], m.g[y0][x0] = m.g[y0][x0], "."
+        arm(m, i)  # (the wall turrets, the rocket launcher, rockets - ARMS)
         if not lvlkit.carve_stash(m, STASH_LOOT[i - 1]):  # (a secret stash in the rock, far from the start)
             print("  PROBLEM: no room for a secret stash"); PROBLEMS.append(1)
         lv = m.level("level%d" % i, name, walls, floors, ceils)

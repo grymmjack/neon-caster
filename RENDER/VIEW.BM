@@ -121,7 +121,7 @@ SUB HeightColumn STATIC
         ELSEIF hBoxed THEN
             hnX = hcX : hnY = hcY : v = 0 : hSolid = -1 : hSlot = wallTexSlot(boxOn(hcX, hcY))
         ELSE
-            IF hnX < 0 OR hnY < 0 OR hnX >= MAP_SIZE OR hnY >= MAP_SIZE THEN EXIT DO
+            IF hnX < 0 OR hnY < 0 OR hnX >= mapN OR hnY >= mapN THEN EXIT DO
             v = worldMap(hnX, hnY) : hSolid = 0
             IF v > 0 AND v <> 2 THEN hSolid = -1 : hSlot = wallTexSlot(v)
             IF diagCorner(hnX, hnY) THEN ' A diagonal's cell: a wall if the ray meets its solid half at the edge - else into it, to the diagonal
@@ -196,7 +196,9 @@ SUB HeightColumn STATIC
                 yB = y1 : IF yB > hBot THEN yB = hBot
                 FOR y = yA TO yB : pixels(y * RENDER_W + x) = texture(skyU(x), skyV(y), ceilTex(hcX, hcY)) OR &HFF000000~& : NEXT
             ELSE
-                hZ0 = hc : hZ1 = nc : hVOff = 0 : HeightFace
+                hZ0 = hc : hZ1 = nc : hVOff = 0
+                IF liftCell(hnX, hnY) THEN IF liftMode(liftCell(hnX, hnY)) >= LIFT_CRUSHER THEN hVOff = nc ' (a crusher's side: its picture pinned to its bottom edge - it comes down whole)
+                HeightFace
             END IF
             IF y1 + 1 > hTop THEN hTop = y1 + 1
         END IF
@@ -205,7 +207,7 @@ SUB HeightColumn STATIC
         hcX = hnX : hcY = hnY : hDIn = hDOut
     LOOP
     IF hTop <= hBot THEN ' Rows left when the column gave up (24 cells out - in the open, under a sky): sky above the horizon, the dark below
-        sk = 0 : IF hcX >= 0 AND hcY >= 0 AND hcX < MAP_SIZE AND hcY < MAP_SIZE THEN IF texSky(ceilTex(hcX, hcY)) THEN sk = ceilTex(hcX, hcY)
+        sk = 0 : IF hcX >= 0 AND hcY >= 0 AND hcX < mapN AND hcY < mapN THEN IF texSky(ceilTex(hcX, hcY)) THEN sk = ceilTex(hcX, hcY)
         FOR y = hTop TO hBot
             IF sk AND y < hor THEN pixels(y * RENDER_W + x) = texture(skyU(x), skyV(y), sk) OR &HFF000000~& ELSE pixels(y * RENDER_W + x) = &HFF000000~&
         NEXT
@@ -263,7 +265,7 @@ SUB DrawFlat STATIC
         n = glNumSpr(glWrite) + 1 : glNumSpr(glWrite) = n
         glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i) + FloorAt(drawX(i), drawY(i))
         glSprHalfW(n, glWrite) = fhw : glSprH(n, glWrite) = drawScale(i) * drawSquash(i) : glSprSlot(n, glWrite) = spriteSlot
-        glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = drawFace(i)
+        glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = drawFace(i) : glSprMdl(n, glWrite) = 0 ' (flat: never a 3D prop - this entry may have been one last frame)
         EXIT SUB
     END IF
     IF fDist > 24 THEN EXIT SUB ' (the software view: past where its fog has it gone)

@@ -230,7 +230,7 @@ SUB LoadSettings
     DIM fileNum, i, v ' (its own: the main program shares these names)
     FOR i = 1 TO NUM_SETTINGS : setting(i) = setDefault(i) : NEXT
     FOR i = 1 TO NUM_BINDS : keyBind&(i) = bindDefault&(i) : NEXT
-    qbChosen$ = ""
+    qbChosen$ = "" : conTall = 0
     file$ = SaveDir$ + "settings.ini"
     IF NOT _FILEEXISTS(file$) THEN EXIT SUB
     fileNum = FREEFILE
@@ -247,6 +247,7 @@ SUB LoadSettings
                 qbChosen$ = MID$(text$, eq + 1) : IF RIGHT$(qbChosen$, 1) = CHR$(13) THEN qbChosen$ = LEFT$(qbChosen$, LEN(qbChosen$) - 1)
                 qbChosen$ = LTRIM$(RTRIM$(qbChosen$))
             END IF
+            IF iniKey$ = "console_tall" THEN conTall = (v <> 0) ' (F11 in the console: it fills the screen)
             IF iniKey$ = "retro_res" AND v = 1 THEN setting(SET_RES) = RES_RETRO ' (what RESOLUTION was called once)
             FOR i = 1 TO NUM_BINDS
                 IF iniKey$ = bindKey$(i) AND v > 0 THEN keyBind&(i) = v
@@ -270,6 +271,7 @@ SUB SaveSettings
     PRINT #fileNum, "; Left empty, the game looks for it ($QB64PE, the PATH, the usual folders);"
     PRINT #fileNum, "; with none, a terminal checks your lines against the answer instead."
     PRINT #fileNum, "qb64pe=" + qbChosen$
+    PRINT #fileNum, "console_tall=" + LTRIM$(STR$(-conTall)) + "   ; F11 in the console: 1 fills the screen"
     FOR i = 1 TO NUM_BINDS
         PRINT #fileNum, bindKey$(i) + "=" + LTRIM$(STR$(keyBind&(i))) + "   ; " + KeyName$(keyBind&(i))
     NEXT

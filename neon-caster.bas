@@ -74,7 +74,7 @@
 '   Mouse          look around          W A S D   walk and strafe
 '   Shift          hold to run           F         kick (and Fire with no ammo)
 '   Click or Ctrl  fire                 Space     open doors, use the exit
-'   1-4 or wheel   choose a gun         Esc       the menu (pause, save,
+'   1-5 or wheel   choose a gun         Esc       the menu (pause, save,
 '   Right button   hold to aim down                load, settings, exit)
 '                  the sights (zoom)    F5 / F9   quick save / quick load
 '   Tab            the full-screen map (all of it once you find the map)
@@ -121,9 +121,9 @@
 '     MON_       MONster settings shared by every monster       (chapter 3)
 '     DECO_ BLAST_ BOLT_ GUNNER_  settings for decorations, explosions,
 '                bolts and gunners                              (chapter 3)
-'     AM_        AMmo: which kind - AM_CELLS or AM_SHELLS       (chapter 4)
+'     AM_        AMmo: which kind - AM_CELLS, AM_SHELLS, AM_ROCKETS (ch. 4)
 '     W_         Weapon: which gun - W_BLASTER, W_SCATTER, W_REPEATER,
-'                W_RAIL (guns are numbered 1-4)                 (chapter 4)
+'                W_RAIL, W_ROCKET (guns are numbered 1-5)       (chapter 4)
 '     SPR_       SPRite picture storage: their size and how many (chapter 5)
 '     S_         Sprite slot: which picture in spriteTex()      (chapter 5)
 '     T_         Texture slot: which picture in texture()       (chapter 5)
@@ -147,7 +147,7 @@
 '                mtypeSpeed(t) is how fast every monster of type t moves
 '     item... deco... bolt... blast...  one pickup / decoration / bolt /
 '                explosion, numbered i: itemX(i), decoFuse(i), boltX(i)...
-'     gun...     a gun, numbered 1-4: gunName$(g), gunDamage(g)...
+'     gun...     a gun, numbered 1-5: gunName$(g), gunDamage(g)...
 '     door... wall... floor... ceil...  one map cell's door, wall, floor or
 '                ceiling, by cell: doorOpen(x, y), floorTex(x, y)...
 '     draw...    the list of sprites to draw this frame        (chapter 16)

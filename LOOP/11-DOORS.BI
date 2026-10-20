@@ -73,6 +73,7 @@
                 END IF
                 EXIT FOR
             END IF
+            IF worldMap(cellX, cellY) = 10 THEN HackUse TCtrlAt(cellX, cellY) : EXIT FOR ' A turret control panel: the hack
             IF worldMap(cellX, cellY) = 8 THEN ' A data station: jack in
                 st = StationAt(cellX, cellY)
                 IF stationDone(st) THEN
@@ -86,8 +87,7 @@
                 dv = decoCell(cellX, cellY)
                 IF decoOn(dv) AND decoKind(dv) = DK_VENDING THEN
                     IF vendState(dv) = 0 THEN
-                        vendState(dv) = 1 : vendTimer(dv) = 181 : vendBomb(dv) = (GRnd < 0.3)
-                        SfxAt sndPlate&, decoX(dv), decoY(dv), playerX, playerY : ShowMsg "*CLUNK* The vending machine whirs..."
+                        SlotUse dv ' (a slot machine: a pull - SlotUse)
                     ELSEIF vendState(dv) = 3 THEN
                         ShowMsg "SOLD OUT"
                     END IF
@@ -108,7 +108,7 @@
             END IF
         NEXT
     END IF
-    FOR doorY = 0 TO MAP_SIZE - 1 : FOR doorX = 0 TO MAP_SIZE-1
+    FOR doorY = 0 TO mapN - 1 : FOR doorX = 0 TO mapN-1
         ' (a locked door that's open shuts - as soon as nobody's in the way)
         IF doorLock(doorX, doorY) AND doorOpen(doorX, doorY) > 0 AND doorMove(doorX, doorY) <> -1 THEN
             IF NOT DoorBlocked(doorX, doorY, playerX, playerY) THEN doorMove(doorX, doorY) = -1 : doorWait(doorX, doorY) = 0

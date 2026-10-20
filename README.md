@@ -3,12 +3,12 @@
 A first-person shooter in QB64 Phoenix Edition BASIC, and a course in
 how it's made. Thirty sectors of a neon space station in three
 sets of ten - the originals, ten NEW SECTORS, and OLD SECTORS NEW (the
-first ten remade) - ten kinds of monster, four guns and a kick, glass you can shoot through, floors and
+first ten remade) - sixteen kinds of monster (turrets with seven weapons among them), five guns - a rocket launcher the fifth - and a kick, glass you can shoot through, floors and
 ceilings at every height, lifts and bottomless pits, open skies, teleporters, data
 stations that turn the level into a wireframe network, code terminals that
 lock you in until you fix a real QB64 program, DOOM-style secrets in
 every sector (walls that slide away, switches you shoot, closets that hide
-stashes), vending machines that pay out or blow up, NEON PONG on the
+stashes), slot machines that pay out, blow up or let monsters out, NEON PONG on the
 computers, a night vision headset, service droids going about their
 business, spawners you can see charging, and a villain who talks to you. With a level editor built in - point and click inside the level in 3D
 or on the map from above, with a picker of every wall, floor, door, item,
@@ -50,9 +50,9 @@ Right-click it and choose **Open**, or run
 `xattr -dr com.apple.quarantine neon-caster` on the unzipped folder.
 
 **Controls:** mouse to look, W A S D to move, Shift to run, click to fire,
-right button to aim, Space to open and use things, F to kick, 1-4 for guns,
+right button to aim, Space to open and use things, F to kick, 1-5 for guns,
 Tab for the map, Esc for the menu and settings, ` for the console, F2 for
-the level editor. The full list is in the tutorial.
+the level editor, F3 for where you are in numbers. The full list is in the tutorial.
 
 **The programming puzzles need QB64PE.** A code terminal locks you in
 until you fix a little QB64 program, and to really compile and run your

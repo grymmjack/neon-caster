@@ -51,7 +51,8 @@ SUB MonsterField(t, f, d)
         CASE 8 : mtypeDamageRnd(t) = MaxOf(0, MinOf(50, mtypeDamageRnd(t) + d))
         CASE 9 : mtypeCooldown(t) = MaxOf(5, MinOf(600, mtypeCooldown(t) + d * 5))
         CASE 10 : mtypeRanged(t) = NOT mtypeRanged(t)
-        CASE 11 : mtypeDrop(t) = (mtypeDrop(t) + SGN(d) + 15) MOD 15
+        CASE 11 ' (round the pickups and nothing - not the data core, only ever in the network)
+            mtypeDrop(t) = (mtypeDrop(t) + SGN(d) + ITEM_KINDS + 1) MOD (ITEM_KINDS + 1) : IF mtypeDrop(t) = IT_CORE THEN mtypeDrop(t) = (mtypeDrop(t) + SGN(d) + ITEM_KINDS + 1) MOD (ITEM_KINDS + 1)
         CASE 12 : mtypeDropChance(t) = MaxOf(0, MinOf(1, INT((mtypeDropChance(t) + d * 0.05) * 100 + 0.5) / 100))
     END SELECT
 END SUB
@@ -67,7 +68,7 @@ FUNCTION MonsterFieldText$(t, f)
         CASE 8 : n$ = "  + UP TO" : v$ = STR$(MaxOf(0, mtypeDamageRnd(t) - 1)) + " more"
         CASE 9 : n$ = "COOLDOWN" : v$ = STR$(mtypeCooldown(t)) + " frames (" + LTRIM$(STR$(INT(mtypeCooldown(t) / 6) / 10)) + " s)"
         CASE 10 : n$ = "SHOOTS" : IF mtypeRanged(t) THEN v$ = " YES" ELSE v$ = " NO"
-        CASE 11 : n$ = "DROPS" : IF mtypeDrop(t) THEN v$ = " " + GlyphName$(MID$("rby+ae23u*4Mqj", mtypeDrop(t), 1)) ELSE v$ = " nothing"
+        CASE 11 : n$ = "DROPS" : IF mtypeDrop(t) THEN v$ = " " + GlyphName$(ItemChar$(mtypeDrop(t))) ELSE v$ = " nothing"
         CASE 12 : n$ = "  CHANCE" : v$ = STR$(INT(mtypeDropChance(t) * 100)) + "%"
     END SELECT
     MonsterFieldText$ = LEFT$(n$ + SPACE$(12), 12) + v$

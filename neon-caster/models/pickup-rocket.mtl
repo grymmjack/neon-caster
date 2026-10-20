@@ -1,0 +1,4 @@
+# NEON-CASTER prop: pickup-rocket - its texture, for 3D viewers
+newmtl pickup-rocket
+Kd 1 1 1
+map_Kd ../hd/models/pickup-rocket_tex.png

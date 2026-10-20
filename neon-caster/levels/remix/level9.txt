@@ -74,6 +74,12 @@ ambient  = 95, 180, 210, 255
 enter 3 20 5 22 : message A CODE TERMINAL - face it and press SPACE
 enter 26 40 28 42 : message A DATA STATION - face it and press SPACE to jack in
 
+[monsters]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles]
+26, 14, 14, 0, 100, 100, 0, 5
+6, 19, 14, 0, 100, 100, 0, 1
+22, 33, 14, 0, 100, 100, 0, 3
+
 [blocks]
 ' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)
 20, 11, 3, 3, 5, 5, 5
@@ -175,13 +181,13 @@ NNNNNNNNNNNN/.......f.........s....\NNNNNNNNNNNN
 NNNNNNNNNNN/......................g.\NNNNNNNNNNN
 NNNNNNNNNN/......................a..c\NNNNNNNNNN
 NNNNNNNNN/..h.........................\NNNNNNNNN
-NNNNNNNN/..............................\NNNNNNNN
-NNNNNNN/..i...........Z..............i..\NNNNNNN
-NNNNNN/....e......../###.##\.....k.......\NNNNNN
+NNNNNNNN/.........................(....\NNNNNNNN
+NNNNNNN/..i...........Z...|..........i..\NNNNNNN
+NNNNNN/....e.(....../###.##\.....k.......\NNNNNN
 NN+eqN............./####.###\.............NNNNNN
 NNuaaN............/#####B####\............NNNNNN
 PPj*eP...S......./######.#####\.........g.%kwGGG
-PPPDPP........../####/....\####\.........QGGGGGG
+PPPDPP|........./####/....\####\.........QGGGGGG
 P...PP...f...../####/......\####\.........GG...G
 P.y.$P........d####/.g.....g\####.........GG.*.G
 P...PPO.&....k.?U.=..........####.........GG...G
@@ -189,13 +195,13 @@ P..FPP.........#V.=....#E#..d####......&..GG.x.G
 P....R..g......#U.=..........A###.........D..<.G
 P.j.PP.........####.h.......h####.k.......GG...G
 P.h.PP.........####\..T.+.../####F........GG.M.G
-P...AP.........\####\...s../####/.........GG...G
+P...AP......(..\####\...s../####/.........GG...G
 PPPPPP..........\####\..../####/......f...GG?GGG
 PPPPPP...S.......\######O#####/...........=.UGGG
 NNNNNN..s.........\##########/........T...=.VNNN
 NNNNNN........w....\########/.............=.UNNN
 NNNNNN\.............\######/............./NNNNNN
-NNNNNNN\...+...........................a/NNNNNNN
+NNNNNNN\...+..........|................a/NNNNNNN
 NNNNNNNN\............................../NNNNNNNN
 NNNNNNNNN\..m........................./NNNNNNNNN
 NNNNNNNNNN\.............w.........g../NNNNNNNNNN

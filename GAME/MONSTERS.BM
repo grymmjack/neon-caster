@@ -25,6 +25,12 @@ END SUB
 
 ' --- A shot (or blast) hits monster number target, for hitDamage
 SUB HitMonster STATIC
+    IF monsterType(target) = MT_TURRET THEN ' (a turret still hidden, or coming out: nothing to hit yet - but a shot at its hatch wakes it: out it comes)
+        IF monDeploy(target) < TURRET_UP THEN
+            IF monDeploy(target) >= 0 AND monsterState(target) = 0 THEN monsterState(target) = 1 : monsterTimer(target) = 10
+            EXIT SUB
+        END IF
+    END IF
     monsterHP(target) = monsterHP(target) - hitDamage : monsterHurt(target) = 8
     IF monsterType(target) = MT_THIEF AND thiefState(target) = 2 AND monsterHP(target) > 0 AND NOT cyberOn THEN ThiefSpill target ' (a thief with your things: each hit knocks some loose)
     IF monsterState(target) = 0 THEN monsterState(target) = 1 : monsterTimer(target) = 30 ' Shot awake (chapter 13)
@@ -40,6 +46,9 @@ SUB HitMonster STATIC
         END IF
         IF mtypeDrop(mt) > 0 AND NOT cyberOn THEN IF GRnd < mtypeDropChance(mt) THEN DropItemAt mtypeDrop(mt), monsterX(target), monsterY(target)
         IF monsterType(target) = MT_THIEF THEN DropThiefLoot target
+        IF (mt = MT_WARDEN OR mt = MT_COLOSSUS) AND NOT cyberOn THEN BossLoot target
+        IF mt = MT_TURRET THEN monBlown(target) = 1 ' (it blows up - in the monsters' next turn: TurretBlown)
+        IF mt = MT_TURRET AND monFrom(target) = 0 THEN SpawnSparks monsterX(target), monsterY(target), ceilH(INT(monsterX(target)), INT(monsterY(target))) - FloorAt(monsterX(target), monsterY(target)) - 0.05, 26, 255, 210, 120 ' (a turret from the ceiling: sparks out of its mount, and it falls - chapter 16)
         IF monsterType(target) = 8 THEN Say "bossdie", 0
         SfxAt mtypeDieSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
         IF kills = numMonsters THEN ShowMsg "SECTOR CLEAR - every monster destroyed!"
@@ -129,7 +138,8 @@ FUNCTION SpawnMonster(t, x, y, ev, px, py)
     monsterX(i) = x : monsterY(i) = y : monsterType(i) = t : monsterHP(i) = mtypeHP(t)
     monsterState(i) = 1 : monsterTimer(i) = 40 : monsterHurt(i) = 0 : monsterAtk(i) = 0 : monsterAnim(i) = 0 : monsterEv(i) = ev
     monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE
-    ThiefReset i
+    ThiefReset i : MonFresh i
+    IF t = MT_TURRET THEN monDeploy(i) = TURRET_UP ' (a turret summoned: out already)
     SpawnSparks x, y, 0.5, 16, 200, 120, 255
     SfxAt sndSpawn&, x, y, px, py
     SpawnMonster = -1
@@ -144,6 +154,8 @@ SUB MonOwn(i, x, y)
     FOR k = 1 TO lvlMonN
         IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN
             monSight(i) = lvlMon(k, 3) : monHear(i) = lvlMon(k, 4) : monSpd(i) = lvlMon(k, 6) / 100 : monWake(i) = lvlMon(k, 7)
+            monWeap(i) = MaxOf(0, MinOf(TURRET_WEAPONS, lvlMon(k, 8))) ' (a turret's weapon: TW_)
+            IF lvlMon(k, 9) > 0 THEN monTrack(i) = MaxOf(10, MinOf(360, lvlMon(k, 9))) ' (and how fast it turns)
             monsterHP(i) = MaxOf(1, INT(mtypeHP(monsterType(i)) * lvlMon(k, 5) / 100))
             IF monWake(i) = WAKE_HUNT THEN monsterState(i) = 1 : monsterTimer(i) = 60
         END IF
@@ -164,6 +176,7 @@ SUB ThiefSpill(i)
         SELECT CASE thiefGun(i)
             CASE W_SCATTER : k = IT_SCATTER
             CASE W_REPEATER : k = IT_REPEATER
+            CASE W_ROCKET : k = IT_LAUNCHER
             CASE ELSE : k = IT_RAIL
         END SELECT
         TossItem k, x, y, a, playerX, playerY : thiefGun(i) = 0
@@ -183,6 +196,7 @@ SUB DropThiefLoot(i)
         SELECT CASE thiefGun(i)
             CASE W_SCATTER : k = IT_SCATTER
             CASE W_REPEATER : k = IT_REPEATER
+            CASE W_ROCKET : k = IT_LAUNCHER
             CASE ELSE : k = IT_RAIL
         END SELECT
         DropItemAt k, x, y : n = n + 1
@@ -198,15 +212,29 @@ SUB SetWeakSpot(t, u0, u1, v0, v1)
     mtypeWS(t, 1) = u0 : mtypeWS(t, 2) = u1 : mtypeWS(t, 3) = v0 : mtypeWS(t, 4) = v1
 END SUB
 
+' How high monster i's feet are: on the floor (or hovering over it, by its
+' lift) - but a turret out of the ceiling hangs from it, its feet a turret's
+' height below it
+FUNCTION MonFoot(i)
+    DIM t ' (its own: the main program shares these names)
+    t = monsterType(i)
+    IF t = MT_TURRET AND monFrom(i) = TURRET_CEIL THEN MonFoot = ceilH(INT(monsterX(i)), INT(monsterY(i))) - mtypeScale(t) : EXIT FUNCTION
+    IF t = MT_TURRET AND monFrom(i) = TURRET_WALL THEN MonFoot = FloorAt(monsterX(i), monsterY(i)) + 0.3 : EXIT FUNCTION ' (on a wall: chest high)
+    MonFoot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t)
+END FUNCTION
+
 ' Does a shot at height z go over or under monster i? Only when you aim
 ' up and down yourself (OpenGL's LOOK UP / DOWN): with the view level
 ' (the software renderer, or LOOK off) a shot finds a monster at any
 ' height in its column, as DOOM's aim does. Plenty of leeway either way.
 FUNCTION ShotPasses(i, z)
     DIM t ' (its own: the main program shares these names)
+    IF monsterType(i) = MT_TURRET THEN ' (a turret not out yet: a shot hits its hatch - waking it, HitMonster - when it's asleep; else they go by)
+        IF monDeploy(i) < TURRET_UP AND NOT (monDeploy(i) = 0 AND monsterState(i) = 0) THEN ShotPasses = -1 : EXIT FUNCTION
+    END IF
     IF NOT lookAim THEN EXIT FUNCTION ' (level aim: whatever's in the middle column is hit, high or low)
     t = monsterType(i)
-    foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t)
+    foot = MonFoot(i)
     ShotPasses = (z < foot - 0.3 OR z > foot + mtypeScale(t) + 0.5) ' (generous: level aim still finds a crawler down a step - aim at the ceiling or the floor, and it goes by)
 END FUNCTION
 
@@ -217,7 +245,7 @@ END FUNCTION
 FUNCTION WeakSpotHit(i, u, z)
     DIM t, v ' (its own: the main program shares these names)
     t = monsterType(i) : IF mtypeWS(t, 2) <= mtypeWS(t, 1) THEN EXIT FUNCTION
-    foot = FloorAt(monsterX(i), monsterY(i)) + mtypeLift(t) + mtypeBob(t) * DSin(lvFrame / 24 + i * 1.7) ' (by the frame clock, not TIMER: a headshot depends on it - a demo must get the same)
+    foot = MonFoot(i) + mtypeBob(t) * DSin(lvFrame / 24 + i * 1.7) ' (by the frame clock, not TIMER: a headshot depends on it - a demo must get the same)
     v = (foot + mtypeScale(t) - z) / mtypeScale(t)
     WeakSpotHit = u >= mtypeWS(t, 1) AND u <= mtypeWS(t, 2) AND v >= mtypeWS(t, 3) AND v <= mtypeWS(t, 4)
 END FUNCTION
@@ -253,7 +281,7 @@ SUB ReadMonsters
                 CASE "cooldown" : mtypeCooldown(t) = v
                 CASE "shoots" : mtypeRanged(t) = (LCASE$(v$) = "yes")
                 CASE "drops" ' an item's map letter (chapter 22), then the chance
-                    mtypeDrop(t) = 0 : IF LEN(v$) THEN mtypeDrop(t) = INSTR("rby+ae23u*4Mqj", LEFT$(v$, 1))
+                    mtypeDrop(t) = 0 : IF LEN(v$) THEN mtypeDrop(t) = ItemOfChar(LEFT$(v$, 1))
                     c = INSTR(v$, " ") : IF c THEN mtypeDropChance(t) = VAL(MID$(v$, c + 1)) ELSE mtypeDropChance(t) = 1
             END SELECT
         END IF
@@ -283,7 +311,7 @@ SUB WriteMonsters
         o$ = o$ + "damage_extra = " + LTRIM$(STR$(mtypeDamageRnd(t))) + nl$
         o$ = o$ + "cooldown     = " + LTRIM$(STR$(mtypeCooldown(t))) + nl$
         IF mtypeRanged(t) THEN o$ = o$ + "shoots       = yes" + nl$ ELSE o$ = o$ + "shoots       = no" + nl$
-        IF mtypeDrop(t) THEN o$ = o$ + "drops        = " + MID$("rby+ae23u*4Mqj", mtypeDrop(t), 1) + " " + LTRIM$(STR$(mtypeDropChance(t))) + nl$ ELSE o$ = o$ + "drops        =" + nl$
+        IF mtypeDrop(t) THEN o$ = o$ + "drops        = " + ItemChar$(mtypeDrop(t)) + " " + LTRIM$(STR$(mtypeDropChance(t))) + nl$ ELSE o$ = o$ + "drops        =" + nl$
     NEXT
     f$ = AssetPath$("monsters.txt")
     IF _FILEEXISTS(f$) THEN KILL f$
@@ -296,7 +324,7 @@ END SUB
 FUNCTION BoltDeco(x, y, z)
     DIM cx, cy, d ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
-    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE OR cyberOn THEN EXIT FUNCTION
+    IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN OR cyberOn THEN EXIT FUNCTION
     d = decoCell(cx, cy) : IF d = 0 THEN EXIT FUNCTION
     IF NOT decoOn(d) OR decoKind(d) = DK_BODY THEN EXIT FUNCTION
     IF (x - decoX(d)) ^ 2 + (y - decoY(d)) ^ 2 > 0.32 * 0.32 THEN EXIT FUNCTION
@@ -309,12 +337,12 @@ END FUNCTION
 ' chapter 24), through doors that need no keycard. 30000: no way.
 SUB BuildThiefWay
     DIM ev, head, k, nx, ny, ok, v, x, y ' (its own: the main program shares these names)
-    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : thiefDist(x, y) = 30000 : NEXT : NEXT
+    FOR y = 0 TO mapN : FOR x = 0 TO mapN : thiefDist(x, y) = 30000 : NEXT : NEXT
     head = 0 : tail = 0
     FOR ev = 1 TO numEvents
         IF evType(ev) = EV_HOARD THEN
             FOR y = evY0(ev) - 1 TO evY1(ev) + 1 : FOR x = evX0(ev) - 1 TO evX1(ev) + 1
-                IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+                IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN
                     IF worldMap(x, y) = 2 THEN ' A door into the hoard: the cells outside it are home
                         FOR k = 1 TO 4
                             nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
@@ -331,7 +359,7 @@ SUB BuildThiefWay
         x = fillX(head) : y = fillY(head) : head = head + 1
         FOR k = 1 TO 4
             nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
-            IF nx > 0 AND ny > 0 AND nx < MAP_SIZE - 1 AND ny < MAP_SIZE - 1 THEN
+            IF nx > 0 AND ny > 0 AND nx < mapN - 1 AND ny < mapN - 1 THEN
                 v = worldMap(nx, ny) : ok = (v <= 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND glassHP(nx, ny) <= 0) ' (a block's cell, or a pane of glass, is no way through for a fleeing thief)
                 IF decoCell(nx, ny) THEN IF decoKind(decoCell(nx, ny)) <> DK_BODY THEN ok = 0 ' (nor a decoration standing in the way - it would stick behind it, steps from home)
                 IF v = 2 THEN ok = (doorKey(nx, ny) = 0 AND doorType(nx, ny) <> DOOR_EXIT)
@@ -355,15 +383,264 @@ SUB FireBolt(x, y, dirX, dirY, damage)
     DIM d, i ' (its own: the main program shares these names)
     FOR i = 1 TO MAX_BOLTS
         IF boltOn(i) = 0 THEN
-            boltOn(i) = -1 : boltX(i) = x + dirX * 0.4 : boltY(i) = y + dirY * 0.4
+            boltOn(i) = -1 : boltX(i) = x + dirX * 0.4 : boltY(i) = y + dirY * 0.4 : boltKind(i) = BK_PLASMA : boltLife(i) = 0 : boltOwner(i) = boltFromMon
             ' (a shooter pressed up against glass would start it on the far
             ' side: then it starts from the shooter, and bursts on the pane)
             IF GlassBetween(x, y, boltX(i), boltY(i)) OR InGlass(boltX(i), boltY(i)) THEN boltX(i) = x : boltY(i) = y
             boltDX(i) = dirX : boltDY(i) = dirY : boltDamage(i) = damage
             ' (its height: from the shooter's middle, towards yours)
-            boltZ(i) = floorH(INT(x), INT(y)) + 0.49 : d = SQR((playerX - x) ^ 2 + (playerY - y) ^ 2) : boltDZ(i) = 0
+            boltZ(i) = floorH(INT(x), INT(y)) + 0.49 : IF boltFromZ > 0 THEN boltZ(i) = boltFromZ
+            d = SQR((playerX - x) ^ 2 + (playerY - y) ^ 2) : boltDZ(i) = 0
             IF d > 0.5 THEN boltDZ(i) = (playerZ + 0.49 - boltZ(i)) / d
+            IF boltFromMon AND monVs THEN ' (at the monster it's turned on: its middle)
+                d = SQR((monTX - x) ^ 2 + (monTY - y) ^ 2) : boltDZ(i) = 0
+                IF d > 0.5 THEN boltDZ(i) = (monTZ + mtypeScale(monsterType(monVs)) * 0.5 - boltZ(i)) / d
+            END IF
             EXIT SUB
         END IF
     NEXT
 END SUB
+
+' The monsters' map characters, in type order (chapter 3): m drone, g
+' gunner, h heavy, c crawler, s sentry, k stalker, w spitter, z the
+' overseer, T thief, (ICE: only in the network - no character), 1 sniper,
+' 5 trooper, 6 ripper, 7 the warden, 0 the colossus, ~ a turret (from the
+' ceiling; _ is one from the floor)
+FUNCTION MonChars$
+    MonChars$ = "mghcskwzT" + CHR$(1) + "15670~"
+END FUNCTION
+
+' The monster type of map character c$ - 0 if it's no monster's
+FUNCTION MonOfChar(c$)
+    IF c$ = "_" OR c$ = "|" THEN MonOfChar = MT_TURRET : EXIT FUNCTION ' (turrets out of the floor, and a wall)
+    IF LEN(c$) = 1 AND c$ <> CHR$(1) THEN MonOfChar = INSTR(MonChars$, c$)
+END FUNCTION
+
+' A beam, for t frames (BEAM_AIM a laser aiming, BEAM_SHOT firing)
+SUB AddBeam(kind, x0, y0, z0, x1, y1, z1, t)
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO MAX_BEAMS
+        IF beamT(k) <= 0 THEN
+            beamKind(k) = kind : beamX0(k) = x0 : beamY0(k) = y0 : beamZ0(k) = z0 : beamX1(k) = x1 : beamY1(k) = y1 : beamZ1(k) = z1 : beamT(k) = t
+            EXIT SUB
+        END IF
+    NEXT
+END SUB
+
+' One frame of monster i's laser, aiming (monAim frames to go): its end
+' follows you, a little behind - lag of the way to you a frame - drawn
+' as a faint red line; then it fires, white-hot, on to the first wall past
+' where it was aimed. You're hit (dmg) if you're still near its line.
+SUB MonLaser(i, dmg, lag)
+    DIM mx, my, z0, ex, ey, ux, uy, d, s, dd, best, bestD, k ' (its own: the main program shares these names)
+    mx = monsterX(i) : my = monsterY(i)
+    monAimX(i) = monAimX(i) + (monTX - monAimX(i)) * lag : monAimY(i) = monAimY(i) + (monTY - monAimY(i)) * lag ' (lagging behind who it's after)
+    monAim(i) = monAim(i) - 1
+    z0 = MonFoot(i) + mtypeScale(monsterType(i)) * 0.62 ' (a turret's: from where it's mounted)
+    IF monsterType(i) = MT_TURRET THEN TurretMuzzle i, 1, mx, my, z0 ' (out of its barrel)
+    IF monAim(i) > 0 THEN AddBeam BEAM_AIM, mx, my, z0, monAimX(i), monAimY(i), monTZ + 0.42, 1 : EXIT SUB
+    ' Fire: out along the aim to the first wall (24 cells at most)
+    ux = monAimX(i) - mx : uy = monAimY(i) - my : d = SQR(ux * ux + uy * uy) : IF d < 0.01 THEN EXIT SUB
+    ux = ux / d : uy = uy / d : s = 0.3
+    DO WHILE s < 24
+        ex = mx + ux * s : ey = my + uy * s
+        IF ex < 0 OR ey < 0 OR ex >= mapN OR ey >= mapN THEN EXIT DO
+        IF worldMap(INT(ex), INT(ey)) > 0 THEN EXIT DO
+        s = s + 0.08
+    LOOP
+    ' What's on the beam first: you, or a monster (any but its own) - by
+    ' how far along it, and near enough it
+    best = 0 : bestD = s
+    dd = (playerX - mx) * ux + (playerY - my) * uy
+    IF dd > 0 AND dd < bestD AND NOT dead THEN IF ABS((playerX - mx) * uy - (playerY - my) * ux) < LASER_HIT THEN best = -1 : bestD = dd
+    FOR k = 1 TO numMonsters
+        IF k <> i AND monsterState(k) < 2 AND NOT (monsterType(k) = MT_TURRET AND monDeploy(k) < TURRET_UP) THEN
+            dd = (monsterX(k) - mx) * ux + (monsterY(k) - my) * uy
+            IF dd > 0.3 AND dd < bestD THEN IF ABS((monsterX(k) - mx) * uy - (monsterY(k) - my) * ux) < 0.35 THEN best = k : bestD = dd
+        END IF
+    NEXT
+    IF best > 0 THEN s = bestD ' (it stops at the monster it burns)
+    AddBeam BEAM_SHOT, mx, my, z0, mx + ux * s, my + uy * s, z0 + (monTZ + 0.42 - z0) * s / MaxOf(d, 0.5), 9
+    SfxAt mtypeAttackSnd&(monsterType(i)), mx, my, playerX, playerY
+    monsterAtk(i) = ATTACK_FRAMES
+    IF best = -1 THEN damage = dmg : hurtFromX = mx : hurtFromY = my : hurtR = 255 : hurtG = 40 : hurtB = 40 : HurtPlayer
+    IF best > 0 THEN SpawnSparks monsterX(best), monsterY(best), 0.5, 10, 255, 80, 60 : MonHurtBy best, i, dmg
+END SUB
+
+' A laser starting to aim: at where you are, give or take a cell
+SUB MonLaserStart(i, frames)
+    monAim(i) = frames : monAimX(i) = monTX + (GRnd - 0.5) * 2 : monAimY(i) = monTY + (GRnd - 0.5) * 2
+END SUB
+
+' One bolt from monster i at you, turned by a (radians), for dmg
+SUB MonBoltAt(i, a, dmg)
+    DIM ux, uy, bx, by, mx!, my!, mz! ' (its own: the main program shares these names)
+    ux = toPlayerX / distance : uy = toPlayerY / distance
+    bx = ux * DCos(a) - uy * DSin(a) : by = ux * DSin(a) + uy * DCos(a)
+    IF monsterType(i) = MT_TURRET THEN ' (a turret: out of a barrel's end, one then the other)
+        monTurn(i) = monTurn(i) + 1 : TurretMuzzle i, 1 + monTurn(i) MOD 2, mx!, my!, mz!
+        boltFromZ = mz! : FireBolt mx! - bx * 0.4, my! - by * 0.4, bx, by, dmg
+    ELSE
+        FireBolt monsterX(i), monsterY(i), bx, by, dmg
+    END IF
+    boltFromZ = 0
+END SUB
+
+' The newer kinds' turn, hunting you (chapter 13 calls it, with distance,
+' toPlayerX and toPlayerY worked out): how each one fights (mtypeStyle),
+' and where it walks - goX, goY, as chapter 13 has them.
+SUB MonStyleTurn(i)
+    DIM mt, sn, k, a ' (its own: the main program shares these names)
+    mt = monsterType(i) : sn = CanSee(monsterX(i), monsterY(i), monTX, monTY) ' (who it's after: you, or the monster it's turned on)
+    goX = 0 : goY = 0
+    SELECT CASE mtypeStyle(mt)
+        CASE STYLE_LASER ' The sniper: well back, still while it aims
+            IF monAim(i) > 0 THEN
+                IF sn THEN MonLaser i, mtypeDamage(mt) + INT(GRnd * mtypeDamageRnd(mt)), 0.06 ELSE monAim(i) = 0 : monsterTimer(i) = 30 ' (lost you: it lowers its rifle)
+                IF monAim(i) = 0 THEN monsterTimer(i) = mtypeCooldown(mt) + INT(GRnd * 40)
+                EXIT SUB
+            END IF
+            IF distance > 12 OR NOT sn THEN goX = toPlayerX / distance : goY = toPlayerY / distance
+            IF distance < 6 THEN goX = -toPlayerX / distance : goY = -toPlayerY / distance
+            IF sn AND monsterTimer(i) = 0 AND distance < 18 THEN MonLaserStart i, LASER_AIM : SfxAt mtypeAlertSnd&(mt), monsterX(i), monsterY(i), playerX, playerY
+        CASE STYLE_BURST, STYLE_TURRET ' The trooper, a turret: bursts of bolts
+            IF mtypeStyle(mt) = STYLE_TURRET THEN
+                IF monDeploy(i) < 0 THEN EXIT SUB ' (switched off)
+                IF monDeploy(i) < TURRET_UP THEN
+                    IF monDeploy(i) = 0 THEN SfxAt sndLiftStart&, monsterX(i), monsterY(i), playerX, playerY ' (coming out)
+                    monDeploy(i) = monDeploy(i) + 1 : EXIT SUB
+                END IF
+                TurretTrack i, sn ' (turning to you: it fires once it's on you - GAME/TURRETS.BM)
+                IF sn AND NOT (monWeap(i) = TW_LASER AND monAim(i) > 0) THEN TurretSight i
+                IF monWeap(i) <> TW_PLASMA THEN TurretFire i : EXIT SUB ' (laser, lightning, sprays, missiles: GAME/TURRETS.BM)
+            ELSE
+                IF distance > GUNNER_FAR OR NOT sn THEN goX = toPlayerX / distance : goY = toPlayerY / distance
+                IF distance < GUNNER_NEAR THEN goX = -toPlayerX / distance : goY = -toPlayerY / distance
+            END IF
+            IF monBurst(i) > 0 THEN
+                monGap(i) = monGap(i) - 1
+                IF monGap(i) <= 0 AND sn THEN
+                    a = (GRnd - 0.5) * 0.12 : IF mtypeStyle(mt) = STYLE_TURRET THEN a = a + monAimA(i) - DAtan2(toPlayerY, toPlayerX) ' (a turret: along its aim)
+                    MonBoltAt i, a, mtypeDamage(mt) + INT(GRnd * mtypeDamageRnd(mt))
+                    SfxAt mtypeAttackSnd&(mt), monsterX(i), monsterY(i), playerX, playerY
+                    monsterAtk(i) = ATTACK_FRAMES : monBurst(i) = monBurst(i) - 1 : monGap(i) = 7
+                END IF
+                IF NOT sn THEN monBurst(i) = 0
+            ELSEIF sn AND monsterTimer(i) = 0 AND distance < 13 AND (mtypeStyle(mt) <> STYLE_TURRET OR TurretReady(i)) THEN
+                monBurst(i) = 3 : IF mtypeStyle(mt) = STYLE_TURRET THEN monBurst(i) = 5
+                monGap(i) = 0 : monsterTimer(i) = mtypeCooldown(mt) + INT(GRnd * 30)
+            END IF
+        CASE STYLE_WARDEN ' The warden: a laser, then a ring of bolts and a fan at you - turn about
+            IF monAim(i) > 0 THEN
+                IF sn THEN MonLaser i, 24, 0.09 ELSE monAim(i) = 0
+                IF monAim(i) = 0 THEN monsterTimer(i) = mtypeCooldown(mt)
+                EXIT SUB
+            END IF
+            IF distance > 10 OR NOT sn THEN goX = toPlayerX / distance : goY = toPlayerY / distance
+            IF distance < 5 THEN goX = -toPlayerX / distance : goY = -toPlayerY / distance
+            IF sn AND monsterTimer(i) = 0 AND distance < 15 THEN
+                monTurn(i) = monTurn(i) + 1
+                IF monTurn(i) MOD 2 = 1 THEN
+                    MonLaserStart i, LASER_AIM - 14 : SfxAt mtypeAlertSnd&(mt), monsterX(i), monsterY(i), playerX, playerY
+                ELSE
+                    FOR k = 0 TO 9 : MonBoltAt i, k * 0.6283, mtypeDamage(mt) \ 2 : NEXT ' (a ring of ten)
+                    FOR a = -0.2 TO 0.21 STEP 0.2 : MonBoltAt i, a, mtypeDamage(mt) : NEXT ' (and three at you)
+                    SfxAt mtypeAttackSnd&(mt), monsterX(i), monsterY(i), playerX, playerY : monsterAtk(i) = ATTACK_FRAMES
+                    monsterTimer(i) = mtypeCooldown(mt) + 40
+                END IF
+            END IF
+        CASE STYLE_RIPPER ' The ripper: hit and run - in fast (a lunge, the last two cells), a slash, and a leap back
+            IF monBurst(i) > 0 THEN ' (leaping back, a little to one side)
+                monBurst(i) = monBurst(i) - 1
+                goX = (-toPlayerX - toPlayerY * 0.5) / distance : goY = (-toPlayerY + toPlayerX * 0.5) / distance
+                IF i MOD 2 THEN goX = (-toPlayerX + toPlayerY * 0.5) / distance : goY = (-toPlayerY - toPlayerX * 0.5) / distance
+                EXIT SUB
+            END IF
+            IF distance > mtypeReach(mt) OR GlassBetween(monsterX(i), monsterY(i), monTX, monTY) OR ABS(FloorAt(monsterX(i), monsterY(i)) - monTZ) > 0.7 THEN
+                goX = toPlayerX / distance : goY = toPlayerY / distance
+                IF distance < 2.2 AND sn AND monsterTimer(i) = 0 THEN goX = goX * 1.6 : goY = goY * 1.6 ' (the lunge)
+            ELSEIF monsterTimer(i) = 0 THEN ' Within reach: the slash
+                MonStrike i, mtypeDamage(mt) + INT(GRnd * mtypeDamageRnd(mt))
+                SfxAt mtypeAttackSnd&(mt), monsterX(i), monsterY(i), playerX, playerY : monsterAtk(i) = ATTACK_FRAMES : monsterTimer(i) = mtypeCooldown(mt)
+                monBurst(i) = RIPPER_BACK
+                IF NOT godMode AND monVs = 0 THEN clawFx = CLAW_FX : clawX = 260 + RND * 280 : clawY = 200 + RND * 160 : clawA = 0.5 + RND * 0.5 : IF RND < 0.5 THEN clawA = -clawA
+            END IF
+        CASE STYLE_COLOSSUS ' The colossus: comes on and on - close, a slam that shakes the floor; far, heavy bolts
+            goX = toPlayerX / distance : goY = toPlayerY / distance
+            IF monsterTimer(i) = 0 THEN
+                IF distance < mtypeReach(mt) AND ABS(FloorAt(monsterX(i), monsterY(i)) - monTZ) < 0.7 THEN
+                    MonStrike i, mtypeDamage(mt) + INT(GRnd * mtypeDamageRnd(mt))
+                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < 36 THEN shake = shake + 14
+                     SpawnSparks monsterX(i), monsterY(i), 0.05, 24, 255, 150, 60
+                    PlaySfx mtypeAttackSnd&(mt), 1 : monsterAtk(i) = ATTACK_FRAMES : monsterTimer(i) = mtypeCooldown(mt)
+                ELSEIF distance >= 3 AND sn AND distance < 12 THEN
+                    FOR a = -0.25 TO 0.26 STEP 0.25 : MonBoltAt i, a, 12 : NEXT
+                    SfxAt mtypeAlertSnd&(mt), monsterX(i), monsterY(i), playerX, playerY : monsterAtk(i) = ATTACK_FRAMES
+                    monsterTimer(i) = mtypeCooldown(mt) + 30
+                END IF
+            END IF
+    END SELECT
+END SUB
+
+' Monster i's own fighting state, fresh: not aiming, no burst, a turret hidden
+SUB MonFresh(i)
+    monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0
+END SUB
+
+' A field boss's haul as it falls (monster i), thrown out towards you: the
+' warden, an overcharge, armour and a gun you haven't got (else a big
+' medkit); the colossus, a damage amp, a big medkit, cells and shells
+SUB BossLoot(i)
+    DIM a, k, g ' (its own: the main program shares these names)
+    a = DAtan2(playerY - monsterY(i), playerX - monsterX(i))
+    IF monsterType(i) = MT_WARDEN THEN
+        g = IT_BIGMED : IF NOT hasGun(W_ROCKET) THEN g = IT_LAUNCHER
+        IF NOT hasGun(4) THEN g = IT_RAIL
+        IF NOT hasGun(3) THEN g = IT_REPEATER
+        IF NOT hasGun(2) THEN g = IT_SCATTER
+        TossItem IT_OVERCHARGE, monsterX(i), monsterY(i), a - 0.5, playerX, playerY
+        TossItem IT_ARMOR, monsterX(i), monsterY(i), a, playerX, playerY
+        TossItem g, monsterX(i), monsterY(i), a + 0.5, playerX, playerY
+    ELSE
+        TossItem IT_AMP, monsterX(i), monsterY(i), a - 0.6, playerX, playerY
+        TossItem IT_BIGMED, monsterX(i), monsterY(i), a - 0.2, playerX, playerY
+        TossItem IT_CELLS, monsterX(i), monsterY(i), a + 0.2, playerX, playerY
+        TossItem IT_SHELLS, monsterX(i), monsterY(i), a + 0.6, playerX, playerY
+    END IF
+    ShowMsg UCASE$(mtypeName$(monsterType(i))) + " DOWN - it drops its haul"
+END SUB
+
+' --- INFIGHTING. Monster j, hurt dmg by monster k (0: by none - you, or
+' nothing): the hit - and, a third of the time, it turns on k (monFoe)
+SUB MonHurtBy(j, k, dmg)
+    target = j : hitDamage = dmg : hitKick = 0 : HitMonster
+    IF k > 0 AND k <> j AND monsterState(j) < 2 AND NOT cyberOn THEN
+        IF monsterState(k) < 2 AND GRnd < 0.33 THEN monFoe(j) = k : IF monsterState(j) = 0 THEN monsterState(j) = 1
+    END IF
+END SUB
+
+' --- Monster i's blow lands on who it's after: you (HurtPlayer, from where it
+' is) or the monster it's turned on
+SUB MonStrike(i, dmg)
+    IF monVs THEN
+        MonHurtBy monVs, i, dmg
+    ELSE
+        damage = dmg : hurtFromX = monsterX(i) : hurtFromY = monsterY(i) : HurtPlayer
+    END IF
+END SUB
+
+' --- Which monster (not the bolt's own shooter, not a hidden turret) a bolt
+' at (x, y), height z, is in - 0 for none
+FUNCTION BoltMon(x!, y!, z!, owner)
+    DIM j, f! ' (its own: the main program shares these names)
+    FOR j = 1 TO numMonsters
+        IF j <> owner AND monsterState(j) < 2 AND (cyberOn = 0 OR monsterType(j) = MT_ICE) THEN
+            IF (monsterX(j) - x!) ^ 2 + (monsterY(j) - y!) ^ 2 < 0.33 * 0.33 THEN
+                IF NOT (monsterType(j) = MT_TURRET AND monDeploy(j) < TURRET_UP) THEN
+                    f! = MonFoot(j)
+                    IF z! > f! - 0.1 AND z! < f! + mtypeScale(monsterType(j)) + 0.1 THEN BoltMon = j : EXIT FUNCTION
+                END IF
+            END IF
+        END IF
+    NEXT
+END FUNCTION

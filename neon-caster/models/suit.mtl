@@ -1,0 +1,4 @@
+# NEON-CASTER prop: suit - its texture, for 3D viewers
+newmtl suit
+Kd 1 1 1
+map_Kd ../hd/models/suit_tex.png

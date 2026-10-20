@@ -74,7 +74,24 @@
             END IF
         NEXT
         FOR i = 1 TO MAX_BOLTS
-            IF boltOn(i) THEN AddGlow boltX(i), boltY(i), 2.5, 160, 40, 170
+            IF boltOn(i) THEN
+                IF boltKind(i) = BK_PLASMA THEN
+                    AddGlow boltX(i), boltY(i), 2.5, 160, 40, 170
+                ELSEIF boltKind(i) <= BK_MISSILE THEN
+                    AddGlow boltX(i), boltY(i), 2.5, bkR(boltKind(i)) * 0.7, bkG(boltKind(i)) * 0.7, bkB(boltKind(i)) * 0.7
+                ELSEIF boltKind(i) = BK_FLAME THEN
+                    AddGlow boltX(i), boltY(i), 1.5, 50, 22, 4 ' (a flame's puffs light a little - poison and acid not at all)
+                END IF
+            END IF
+        NEXT
+        FOR i = 1 TO numMonsters ' (a body burning: orange, flickering)
+            IF monBurn(i) > 0 THEN fl = (0.6 + 0.4 * RND) * MinOf(1, monBurn(i) / 60) : AddGlow monsterX(i), monsterY(i), 3, 220 * fl, 110 * fl, 30 * fl
+        NEXT
+        FOR i = 1 TO numDecos
+            IF decoBurn(i) > 0 THEN fl = (0.6 + 0.4 * RND) * MinOf(1, decoBurn(i) / 60) : AddGlow decoX(i), decoY(i), 3, 220 * fl, 110 * fl, 30 * fl
+        NEXT
+        FOR i = 1 TO numMonsters ' (a destroyed turret's mount: its torn wires flicker blue-white)
+            IF monBlown(i) = 2 THEN IF RND < 0.45 THEN fl = RND : AddGlow monsterX(i), monsterY(i), 2.2, 60 * fl, 110 * fl, 200 * fl
         NEXT
     END IF
     FOR i = 1 TO numDecos ' (the spawners, glowing as they charge)
@@ -114,7 +131,7 @@
                 ' into a new one
                 IF cellX <> lastCellX OR cellY <> lastCellY THEN
                     lastCellX = cellX : lastCellY = cellY : splitCell = 0
-                    IF cellX >= 0 AND cellX < MAP_SIZE AND cellY >= 0 AND cellY < MAP_SIZE THEN
+                    IF cellX >= 0 AND cellX < mapN AND cellY >= 0 AND cellY < mapN THEN
                         cellFloor = floorTex(cellX, cellY) : cellCeil = ceilTex(cellX, cellY)
                         splitCell = floorSplit(cellX, cellY) OR ceilSplit(cellX, cellY)
                         cellTrack = 0 ' A door's track: 1 running along x, 2 along y (DoorAcross + 1)

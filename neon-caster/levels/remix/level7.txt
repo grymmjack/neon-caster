@@ -72,6 +72,11 @@ ambient  = 90, 150, 200, 255
 enter 0 20 2 22 : message A CODE TERMINAL - face it and press SPACE
 enter 11 4 13 6 : message A DATA STATION - face it and press SPACE to jack in
 
+[monsters]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles]
+41, 25, 14, 0, 100, 100, 0, 1
+13, 34, 14, 0, 100, 100, 0, 4
+
 [blocks]
 ' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)
 39, 20, 4, 0, 8, 8, 6
@@ -198,14 +203,14 @@ rack     = ammo:30, overcharge:10, -, -
 #K.....KG..GGGGG.GGGGG....G===G.GGGGG..GK.....K#
 #K.....KG..............................GK..b..K#
 #K..x..KG.....V..........m.....m....T..GK.....K#
-#K.j...KG..............................GK...n.K#
+#K.j...KG..............................GK...n(K#
 #K.....KG..G===G.GGNNNNNBNNNNGG.GGGGG.QGK.....K#
-#KQ..t.KG..........N........N....Q.....lK.....K#
+#KQ..t.KG.(........N........N....Q.....lK.....K#
 #$.....KF.h........N........N.....c....GK.....K#
 #K.....KG...k......N.h....h.N..........GK.h...K#
 #K.....KG..GGGGG.GGN........NGG.GGGGG..GK.....K#
 #K.M...D...........N........N...........Y.....K#
-#K.....KG.......g..N.+......N..........GK....dK#
+#K.....KG.......g..N.+......N..........GK|...dK#
 #K.....KG..........N..s...e.N......k...GK.....K#
 #K...t.lG.ZGGGGG.GGN....E...NGG.GGGGG..GK...g.K#
 #K.....KG..........NNNNNNNNNN.......Q..GK.....K#
@@ -214,7 +219,7 @@ rack     = ammo:30, overcharge:10, -, -
 #K.....KG..GGGGG.GGGGG..k.GGGGG.GGGGG..GK..s..K#
 #K.....KG..............................GK.....K#
 #K..e...D....c.......................g.Y......K#
-#K.....KG..............l...............GK.*...K#
+#K.....KG....|.........l...............GK.*...K#
 #K\.../KG..GGGGG.GGGGGc...GGGGG.GGGGG..GK\.../K#
 #KK===KKG.+............................GKK===KK#
 ##.....??............................o.G#.....##

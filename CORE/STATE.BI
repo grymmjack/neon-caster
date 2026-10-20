@@ -20,7 +20,7 @@ DIM SHARED kickWas, kills, kKeyWas, l, l$, left, level, levelName$, levelStart!,
 DIM SHARED lightR&, litX, litY, lk, loadOK, mapKeyWas, mapOpen, menuOpenDemos, mtype, muzzleFlash, mx, my, n
 DIM SHARED n0, newBlastSize, newBlastX, newBlastY, nextGun, nm$, noTarget, nvKeyWas, nx, ny, ok, p, pic$
 DIM SHARED pickFlash, placed, planeX, planeY, press, pressed, pressWas, px, py, pzResume, pzSolved, pzTerm, q$
-DIM SHARED qb$, r, railBeam, rayDirX, rayDirY, recoil, recSet, ri, rk, rowDist, savedArmor, savedCells
+DIM SHARED qb$, r, railBeam, rayDirX, rayDirY, recoil, recSet, ri, rk, rowDist, savedArmor, savedCells, savedRockets
 DIM SHARED savedGun, savedHealth, savedShells, saveSlot, score, semi, shake, shakeX, shakeY, shiftOn, slammed
 DIM SHARED slot, sndAmmo&, sndArmor&, sndBarrel&, sndDecoHit&, sndDie&, sndExit&, sndHealth&, sndHurt&
 DIM SHARED sndLocked&, sndMenuBack&, sndMenuMove&, sndMenuSelect&, sndStep1&, spaceDown, spaceWas, spBot

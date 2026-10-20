@@ -43,7 +43,7 @@ SUB LockRoom(ev, locked)
     DIM x, y ' (its own: the main program shares these names)
     rr = 5 : IF evType(ev) = EV_HOARD THEN rr = 1 ' (a hoard: only its vault's own doors, the ones touching it - not every door near it)
     FOR y = evY0(ev) - rr TO evY1(ev) + rr : FOR x = evX0(ev) - rr TO evX1(ev) + rr
-        IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+        IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
             IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN
                 IF locked THEN ' (sealed - unless something else already has it)
                     IF doorLock(x, y) = 0 THEN doorLock(x, y) = -1 : doorLockEv(x, y) = ev
@@ -84,7 +84,7 @@ FUNCTION NearRoomDoor(ev, px, py)
     DIM x, y ' (its own: the main program shares these names)
     edge = 0.5 + PLAYER_RADIUS + 0.05
     FOR y = evY0(ev) - 5 TO evY1(ev) + 5 : FOR x = evX0(ev) - 5 TO evX1(ev) + 5
-        IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+        IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
             IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN
                 IF ABS(px - (x + 0.5)) < edge AND ABS(py - (y + 0.5)) < edge THEN NearRoomDoor = -1 : EXIT FUNCTION
             END IF
@@ -95,7 +95,7 @@ END FUNCTION
 ' Which way door (cx, cy) runs: 0 along x (walls at its ends, west and
 ' east; its faces look north and south), 1 along y
 FUNCTION DoorAcross(cx, cy)
-    IF cx > 0 AND cx < MAP_SIZE - 1 THEN
+    IF cx > 0 AND cx < mapN - 1 THEN
         IF IsWall(cx - 1, cy) OR IsWall(cx + 1, cy) THEN EXIT FUNCTION
     END IF
     DoorAcross = 1
@@ -167,7 +167,7 @@ END FUNCTION
 ' and one waiting starts its wait again, so it's open while they come
 ' through. (You hear it, quieter further away: you're at (px, py).)
 SUB MonsterDoor(cx, cy, px, py)
-    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT SUB
+    IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT SUB
     IF worldMap(cx, cy) <> 2 OR doorType(cx, cy) = DOOR_EXIT OR doorKey(cx, cy) <> 0 OR doorLock(cx, cy) THEN EXIT SUB
     IF doorMove(cx, cy) = 1 THEN EXIT SUB ' (opening already)
     IF doorOpen(cx, cy) >= 1 THEN doorWait(cx, cy) = DoorHold(doorType(cx, cy)) : EXIT SUB
@@ -195,5 +195,8 @@ FUNCTION DoorBlocked(dx, dy, px, py)
         IF monsterState(i) < 2 THEN
             IF ABS(monsterX(i) - (dx + 0.5)) < 0.85 AND ABS(monsterY(i) - (dy + 0.5)) < 0.85 THEN DoorBlocked = -1 : EXIT FUNCTION
         END IF
+    NEXT
+    FOR i = 1 TO numDroids ' (a droid in it, fleeing through)
+        IF droidHP(i) > 0 THEN IF ABS(droidX(i) - (dx + 0.5)) < 0.75 AND ABS(droidY(i) - (dy + 0.5)) < 0.75 THEN DoorBlocked = -1 : EXIT FUNCTION
     NEXT
 END FUNCTION

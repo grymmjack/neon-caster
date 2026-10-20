@@ -1792,7 +1792,7 @@ def main():
                   events=m.events, rows=m.rows(), lifts=m.lifts,
                   floor=["".join(r) for r in m.fh], ceiling=["".join(r) for r in m.ch], triggers=m.triggers,
                   liquid=["".join(r) for r in m.lq], liquid_depth=["".join(r) for r in m.ld],
-                  blocks=m.blocks, nudges=m.nudges, puzzles=getattr(m, "puzzles", ""))
+                  blocks=m.blocks, nudges=m.nudges, cell_lights=getattr(m, "cell_lights", []), puzzles=getattr(m, "puzzles", ""))
         ok &= check_level(lv, ASSETS)
         out.append((lv, comment))
     ok &= not PROBLEMS

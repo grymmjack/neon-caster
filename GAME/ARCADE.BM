@@ -164,3 +164,192 @@ SUB DrawArcade(py, cy, bx, by, me, it, ballOn, big$)
     END IF
     IF big$ <> "" THEN MenuText 400, 270, big$, 5, _RGB32(255, 240, 120), 1
 END SUB
+
+' --- Vending machine dv, played: a slot machine - one pull. What it comes
+' up with is settled first, by the game's dice (GRnd - so a demo comes up
+' the same, and plays it back without the screen): three alike, a pair or
+' nothing, and of what (SlotRoll). Then the reels spin on their own screen
+' and stop one by one (SlotRun - Space or a click stops them sooner), and
+' it pays out (SlotPay). Then it's done: SOLD OUT.
+SUB SlotUse(dv)
+    slotDeco = dv : SlotRoll
+    vendState(dv) = 3
+    IF NOT demoPlay THEN SlotRun
+    SlotPay
+END SUB
+
+' What the reels come up with (slotReel 1-3): three alike - a bomb, monsters,
+' a gun, health, ammo, armour (each about 1 in 8), the jackpot (1 in 25) -
+' or a pair (1 in 5: slotPair, the kind), or nothing alike
+SUB SlotRoll
+    DIM r, k ' (its own: the main program shares these names)
+    r = GRnd : slotPair = 0
+    IF r < 0.04 THEN
+        k = SL_SEVEN
+    ELSEIF r < 0.76 THEN
+        k = 1 + INT((r - 0.04) / 0.12) : IF k > SL_ARMOR THEN k = SL_ARMOR ' (six alike-kinds, 0.12 each)
+    ELSEIF r < 0.96 THEN
+        k = 0 : slotPair = 1 + INT(GRnd * SL_ARMOR)
+    ELSE
+        k = -1
+    END IF
+    IF k > 0 THEN
+        slotReel(1) = k : slotReel(2) = k : slotReel(3) = k
+    ELSEIF slotPair THEN ' (two alike, the third something else - and which two)
+        slotReel(1) = slotPair : slotReel(2) = slotPair : slotReel(3) = 1 + (slotPair + INT(GRnd * (SL_KINDS - 1))) MOD SL_KINDS
+        IF GRnd < 0.5 THEN SWAP slotReel(1), slotReel(3)
+    ELSE ' (nothing: three all different)
+        slotReel(1) = 1 + INT(GRnd * SL_KINDS)
+        slotReel(2) = 1 + (slotReel(1) + INT(GRnd * (SL_KINDS - 1))) MOD SL_KINDS
+        DO : slotReel(3) = 1 + INT(GRnd * SL_KINDS) : LOOP WHILE slotReel(3) = slotReel(1) OR slotReel(3) = slotReel(2)
+    END IF
+END SUB
+
+' The slot machine's own loop (the world waits, as NEON PONG's): the three
+' reels spinning, stopping one after another on what SlotRoll settled -
+' Space, Enter or a click stops the next one now - then what it means, a
+' moment
+SUB SlotRun STATIC
+    WorldLoopsOff : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+    PlaySfx sndPlate&, 0.8
+    FOR k = 1 TO 3 : slotPos(k) = RND * SL_KINDS : slotStop(k) = 0 : NEXT
+    stopAt = 50 : f = 0 : clickWas = -1
+    DO
+        _LIMIT 60 : f = f + 1 : hurry = 0
+        WHILE _MOUSEINPUT
+            IF _MOUSEBUTTON(1) AND NOT clickWas THEN hurry = -1
+            clickWas = _MOUSEBUTTON(1)
+        WEND
+        k& = _KEYHIT
+        DO WHILE k&
+            IF k& = 32 OR k& = 13 OR k& = 27 THEN hurry = -1
+            k& = _KEYHIT
+        LOOP
+        IF hurry AND f < stopAt THEN stopAt = f
+        FOR k = 1 TO 3 ' (each spins till its time, then lands on its symbol)
+            IF NOT slotStop(k) THEN
+                slotPos(k) = slotPos(k) + 0.35
+                IF f >= stopAt + (k - 1) * 22 THEN slotStop(k) = -1 : slotPos(k) = slotReel(k) - 1 : PlaySfx sndLiftStop&, 0.7
+            END IF
+        NEXT
+        DrawSlots ""
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady : ShowFrame
+        IF slotStop(3) THEN EXIT DO
+    LOOP
+    t$ = SlotSays$
+    IF slotReel(1) = slotReel(2) AND slotReel(2) = slotReel(3) THEN PlaySfx sndFanfare&, 0.8 ELSE IF slotPair THEN PlaySfx sndMenuSelect&, 0.8 ELSE PlaySfx sndFail&, 0.6
+    FOR f = 1 TO 90
+        _LIMIT 60 : WHILE _MOUSEINPUT : WEND
+        DrawSlots t$
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady : ShowFrame
+    NEXT
+    _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+    escWas = -1 : fireWait = 15 : spaceWas = -1
+END SUB
+
+' What the reels say, in a few words
+FUNCTION SlotSays$
+    IF slotReel(1) = slotReel(2) AND slotReel(2) = slotReel(3) THEN
+        SlotSays$ = RTRIM$(MID$("BIG BANG!  MONSTERS!  NEW GUN!   HEALTH!    AMMO!      ARMOUR!    JACKPOT!!! ", slotReel(1) * 11 - 10, 11))
+    ELSEIF slotPair THEN
+        SlotSays$ = "A PAIR - A LITTLE SOMETHING"
+    ELSE
+        SlotSays$ = "NO LUCK"
+    END IF
+END FUNCTION
+
+' The slot machine's screen: its cabinet, the three reels (each symbol
+' slotPos through its strip, the one in the window lit) and big$ over it
+SUB DrawSlots(big$)
+    DIM k, j, s, x, y, cy, a, p ' (its own: the main program shares these names)
+    LINE (0, 0)-(799, 599), _RGB32(10, 2, 16), BF
+    FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGB32(4, 0, 8) : NEXT
+    MenuText 400, 40, "NEON SLOTS", 4, _RGB32(255, 70, 200), 1
+    MenuText 400, 110, "THREE ALIKE PAYS OUT - OR GOES OFF", 1.5, _RGB32(150, 120, 200), 1
+    LINE (110, 170)-(689, 430), _RGB32(255, 70, 200), B : LINE (106, 166)-(693, 434), _RGB32(120, 30, 110), B
+    FOR k = 1 TO 3
+        x = 130 + (k - 1) * 186 : LINE (x, 190)-(x + 166, 410), _RGB32(20, 8, 30), BF : LINE (x, 190)-(x + 166, 410), _RGB32(80, 240, 255), B
+        p = slotPos(k)
+        FOR j = -1 TO 1 ' (the symbol in the window, and a part of the ones either side)
+            s = (INT(p) + j + SL_KINDS * 10) MOD SL_KINDS + 1 : cy = 300 + (j - (p - INT(p))) * 110
+            IF cy > 150 AND cy < 450 THEN
+                a = 255 : IF j <> 0 OR NOT slotStop(k) THEN a = 140
+                DrawSlotSymbol s, x + 83, cy, a
+            END IF
+        NEXT
+        LINE (x, 136)-(x + 166, 189), _RGB32(10, 2, 16), BF : LINE (x, 411)-(x + 166, 462), _RGB32(10, 2, 16), BF ' (the window: what's outside it hidden)
+    NEXT
+    LINE (110, 298)-(689, 301), _RGBA32(255, 70, 200, 90), BF ' (the pay line)
+    MenuText 400, 470, "SPACE OR CLICK STOPS THE REELS", 1.5, _RGB32(150, 120, 200), 1
+    IF LEN(big$) THEN LINE (140, 500)-(659, 570), _RGB32(10, 2, 16), BF : LINE (140, 500)-(659, 570), _RGB32(255, 220, 80), B : MenuText 400, 516, big$, 2.5, _RGB32(255, 220, 80), 1
+END SUB
+
+' One slot symbol, centred on (x, y): its picture (the game's own, loaded
+' once) - or, the lucky 7, a big 7
+SUB DrawSlotSymbol(s, x, y, a)
+    STATIC pic&(SL_KINDS), got
+    DIM k, f$ ' (its own: the main program shares these names)
+    IF NOT got THEN
+        got = -1
+        FOR k = 1 TO SL_ARMOR
+            f$ = ArtPath$(ListItem$("barrel.png,stalker.png,pickup-scatter.png,medkit.png,ammo.png,armor.png", k))
+            pic&(k) = _LOADIMAGE(f$, 32)
+        NEXT
+    END IF
+    IF s = SL_SEVEN THEN
+        MenuText x, y - 40, "7", 6, _RGB32(255, 220, 60), 1
+    ELSEIF pic&(s) < -1 THEN
+        _PUTIMAGE (x - 48, y - 48)-(x + 47, y + 47), pic&(s)
+    END IF
+    IF a < 255 THEN LINE (x - 82, MaxOf(191, y - 54))-(x + 82, MinOf(409, y + 54)), _RGBA32(20, 8, 30, 255 - a), BF ' (not in the window, or still spinning: dimmer)
+END SUB
+
+' Pay out what the reels came up with, at the machine (slotDeco): three
+' bombs, it blows up - and twice more beside it; three monsters, three
+' come out of it; three guns, one you haven't got (or ammo); health, ammo,
+' armour, plenty; the jackpot, everything; a pair, a little of it
+SUB SlotPay
+    DIM k, n, a, sx, sy, mt, s, got ' (its own: the main program shares these names)
+    sx = decoX(slotDeco) : sy = decoY(slotDeco) : a = DAtan2(playerY - sy, playerX - sx)
+    IF slotReel(1) = slotReel(2) AND slotReel(2) = slotReel(3) THEN s = slotReel(1) : n = 3 ELSE s = slotPair : n = 1
+    IF s = 0 THEN ShowMsg "NEON SLOTS: no luck" : EXIT SUB
+    ShowMsg "NEON SLOTS: " + SlotSays$
+    SELECT CASE s
+        CASE SL_BOMB
+            IF n = 3 THEN ' (the machine, and a chain of two more: a big bang)
+                barrel = slotDeco : Explode
+                FOR k = 1 TO 2 : blastAtX = sx + DCos(a + 2.1 * k) * 0.9 : blastAtY = sy + DSin(a + 2.1 * k) * 0.9 : BlastAt : NEXT
+            ELSE
+                newBlastX = sx : newBlastY = sy : newBlastSize = 0.4 : AddBlast : SfxAt sndBarrel&, sx, sy, playerX, playerY : shake = shake + 4 ' (a fizzle and a puff)
+            END IF
+        CASE SL_MON
+            FOR k = 1 TO n
+                mt = VAL(MID$("0102040607121313", 1 + INT(GRnd * 8) * 2, 2)) ' (a drone, gunner, crawler, stalker, spitter, trooper or ripper)
+                got = SpawnMonster(mt, sx + DCos(a + (k - 2) * 0.9) * 1.1, sy + DSin(a + (k - 2) * 0.9) * 1.1, 0, playerX, playerY)
+                IF NOT got THEN got = SpawnMonster(mt, sx, sy, 0, playerX, playerY) ' (no room there: at the machine itself)
+            NEXT
+            shake = shake + 4 : PlaySfx sndAlarm&, 0.7
+        CASE SL_GUN
+            IF n = 3 THEN
+                k = IT_CELLS : IF NOT hasGun(W_ROCKET) THEN k = IT_LAUNCHER
+                IF NOT hasGun(4) THEN k = IT_RAIL
+                IF NOT hasGun(3) THEN k = IT_REPEATER
+                IF NOT hasGun(2) THEN k = IT_SCATTER
+                TossItem k, sx, sy, a, playerX, playerY
+            ELSE
+                TossItem IT_SHELLS, sx, sy, a, playerX, playerY
+            END IF
+        CASE SL_MED
+            TossItem IT_BIGMED, sx, sy, a - 0.3, playerX, playerY : IF n = 3 THEN TossItem IT_BIGMED, sx, sy, a + 0.3, playerX, playerY : TossItem IT_HEALTH, sx, sy, a, playerX, playerY
+        CASE SL_AMMO
+            TossItem IT_CELLS, sx, sy, a - 0.3, playerX, playerY : IF n = 3 THEN TossItem IT_SHELLS, sx, sy, a + 0.3, playerX, playerY : TossItem IT_CELLS, sx, sy, a + 0.6, playerX, playerY : TossItem IT_SHELLS, sx, sy, a - 0.6, playerX, playerY
+        CASE SL_ARMOR
+            TossItem IT_ARMOR, sx, sy, a, playerX, playerY : IF n = 3 THEN TossItem IT_ARMOR, sx, sy, a + 0.4, playerX, playerY
+        CASE SL_SEVEN ' The jackpot
+            TossItem IT_AMP, sx, sy, a - 0.5, playerX, playerY : TossItem IT_OVERCHARGE, sx, sy, a - 0.15, playerX, playerY
+            TossItem IT_ARMOR, sx, sy, a + 0.15, playerX, playerY : TossItem StashLoot(1), sx, sy, a + 0.5, playerX, playerY
+            Achieve "NC_ARCADE", 0
+    END SELECT
+END SUB

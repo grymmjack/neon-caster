@@ -26,7 +26,7 @@ A playable sector needs only four things: walls all round the edge, one start, o
 
 1. Open **GAME > YOUR SECTORS > NEW SECTOR**. You get the first free sector number - 22, since the examples below are 11 to 21 and 24 - up to 30 (past 20 they're under **MORE SECTORS**), saved as `neon-caster/levels/custom/customN.txt`, N ten less than the sector (sector 22 is `custom12.txt`). It's solid wall with one lit 8 × 8 room in the middle, cells 20 to 27 each way. You stand at (21, 24) facing east, and the exit `E` is at (28, 24).
 2. You land in the **map view**: the level from above. Press **Tab** (or the **3D** button) to be inside it instead. Either way, the **toolbar** has the tools and the **picker** has everything you can put in a level.
-3. **Push a wall back.** In the 3D view, click a wall to select it, then hold **Shift** while you turn the wheel down: the wall goes back a cell at a time and the room grows. Wheel up with Shift pulls a wall out towards you.
+3. **Push a wall back.** In the 3D view, click a wall to select it, then hold **Shift** while you turn the wheel up (away from you): the wall goes back a cell at a time and the room grows. Turn it down, towards you, and the wall comes out towards you - the wall goes the way the top of the wheel goes.
 4. **Carve a room from above.** In the map view, choose **PLACE**, open the picker's **SPECIAL** tab and click the floor tile, then hold **Shift** and drag a box. The whole box becomes floor. Make sure it touches the first room.
 5. **Add a door.** Picker, **DOORS** tab, click the sliding door, then click the wall cell between the rooms. Doors need a wall either side to slide into.
 6. **Put things in it.** The **MONSTERS** and **ITEMS** tabs. In the 3D view a see-through copy shows where each one will go before you click.
@@ -149,8 +149,8 @@ The older keys still work, aimed along the middle of the view: **T** steps every
 | --- | --- |
 | A floor, a step's face | Its floor up / down an eighth (Ctrl: a whole wall) |
 | A ceiling, a lintel's face | Its ceiling up / down an eighth (Ctrl: a whole wall) |
-| A wall, with Shift | Pull the wall out towards you a cell / push it back. Pushing opens the cell and gives it the floor and ceiling of the cell in front. |
-| A wall, with Alt | Push it back / pull it out |
+| A wall, with Shift | Push the wall back a cell / pull it out towards you (it goes the way the top of the wheel goes). Pushing opens the cell and gives it the floor and ceiling of the cell in front. |
+| A wall, with Alt | The other way round: pull it out / push it back |
 | A wall, with Ctrl+Shift | Make it a block standing on the floor; keep turning to set its top |
 | A wall, with Alt+Shift | Make it a block hanging from the ceiling; keep turning to set its bottom |
 
@@ -178,14 +178,14 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | A teleporter pad | Where it goes. **LINK...** and then click another pad to pair the two (saved as `[pads]`); **UNLINK** returns it to pairing in reading order. In 3D every pair is joined by a purple line. |
 | A face with a light | Its colour (twelve), effect (six), REACH and BRIGHT, REMOVE THE LIGHT. The swatch in the corner shows it going. |
 | A monster | SIGHT, HEARING, HEALTH and SPEED, and what WAKES it; AS ITS KIND IS resets it. Its sight (cyan) and hearing (yellow) are drawn as rings on the floor round it. |
-| A floor of a lift | LOW, HIGH and SPEED in eighths, the mode (click it: UP AND DOWN, ELEVATOR, ON A TRIGGER - moves only on `liftgo`), REMOVE |
+| A floor of a lift | LOW, HIGH and SPEED in eighths, the mode (click it: UP AND DOWN, ELEVATOR, ON A TRIGGER - moves only on `liftgo`, CRUSHER, SMASHER - see below), REMOVE |
 | An event room (EVENT ROOM... on a floor's pane) | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT, BACK (to the floor's pane). The table under `[events]` below says what each kind does. |
 | A block's side | Its edges in eighths; PUSH IN and PULL OUT move the selected side an eighth (every block side selected); LOOKS LIKE THE WALL: `#` `N` `C` `K` `P` `G`; REMOVE THE BLOCK; ADD A LIGHT TO IT |
-| Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with) - or, on a floor already in one, EVENT ROOM: its kind..., which opens that room's pane, ADD A PILLAR (a block a quarter of a cell square, in the middle), ADD A LIGHT TO IT - and, with a decoration on it, MOVE IT `<` `>` `^` `v`, an eighth at a time, and which way it faces: TURNS TO FACE YOU (as every sprite does), or STANDS, FACING EAST / SOUTH / WEST / NORTH (these rows are on a light's pane too, when the light is over the decoration) |
+| Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with) - or, on a floor already in one, EVENT ROOM: its kind..., which opens that room's pane, ADD A PILLAR (a block a quarter of a cell square, in the middle), CELL LIGHT... (the cells' own ambient light - see Lights), ADD A LIGHT TO IT - and, with a decoration on it, MOVE IT `<` `>` `^` `v`, an eighth at a time, and which way it faces: TURNS TO FACE YOU (as every sprite does), or STANDS, FACING EAST / SOUTH / WEST / NORTH (these rows are on a light's pane too, when the light is over the decoration) |
 | A plain wall | MAKE IT A BLOCK (the wall becomes a block filling its cell, its sides' pictures kept, and the side you clicked stays selected, ready to PUSH IN), ADD A LIGHT TO IT |
 | Any other face | ADD A LIGHT TO IT |
 | TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead) or TIME (seconds into the level); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them, or click the action buttons (+25 HP, -25 HP, DIE, +CELLS, -CELLS, +SHELLS, -SHELLS, GIVE ALL, TAKE ALL) to add theirs; ADD IT. |
-| Nothing (the SECTOR button) | NAME: type the sector's name, Enter to keep it (Esc not). LIGHT: the ambient light, brighter or darker, and twelve colours to tint it. ITS PICTURES: the six kinds of wall (`#` `N` `C` `K` `P` `G`), the four floors and two ceilings the level's zones use - click one, and the picker opens at its tab: the next picture you click is that one's, everywhere it's used. |
+| Nothing (the SECTOR button) | NAME: type the sector's name, Enter to keep it (Esc not). LIGHT: the ambient light, brighter or darker, and twelve colours to tint it. DROIDS: how many service droids roam it (0-6). ALL FLOORS / ALL CEILINGS: every floor (or ceiling) in the sector down or up an eighth - Shift, a whole wall. LOOT: what every breakable leaves, at once - AS MADE (the game's table), NONE, LITTLE (half the chances), PLENTY (half again), LOTS (twice); the console's `loot` sets one kind exactly. ROOM W x H (- and +; Shift for its depth) and MAKE THE MAP THIS ROOM: the whole map wall again but for one room that size in its middle, you at its west end, the exit in its east wall - the quick start for a new sector (Ctrl+Z undoes it). ITS PICTURES: the six kinds of wall (`#` `N` `C` `K` `P` `G`), the four floors and two ceilings the level's zones use - click one, and the picker opens at its tab: the next picture you click is that one's, everywhere it's used. |
 
 **Monsters, for ambushes.** Each monster can be set apart from its kind:
 
@@ -198,6 +198,7 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | YOU'RE NEAR | You coming within its sight, seen or not: round a corner, behind a door | |
 | IT'S HIT | Only being hit; nothing else wakes it | |
 | HUNTING | Nothing: it's hunting you from the start | |
+| WEAPON (a turret's) | What it fires - click `<` `>` round them: PLASMA (bursts of bolts), LASER (aims a red line that lags behind you, then fires - step out of it), LIGHTNING (crackles as it charges, then strikes if it still sees you), FLAME (a stream of fire, 5 cells), POISON (a green spray, 6 cells - the hazmat suit keeps it out), ACID (a yellow mist that eats armour first - the suit keeps it out too), MISSILES (slow, they turn after you, and burst) | PLASMA |
 
 To check an ambush, play it and type `mons` in the console: it says which monsters are still asleep. A closet of YOU'RE NEAR crawlers with a sight of 2 springs as you pass; a heavy with HEARING 12 comes running at the first shot. The settings are kept by the cell the monster starts in, so moving it with the arrows takes them along, but deleting it and placing a new one doesn't.
 
@@ -277,6 +278,7 @@ U W Z V < > ^ v
 | `=` | Glass | A see-through pane. Put it in a straight wall one cell thick. 4 hits break it. |
 | `@` | Data station | A wall you jack into with Space. Hacking it opens nearby `!` doors. |
 | `$` | Code terminal | A wall with a QB64 puzzle: the next name from `puzzles =`, in reading order. |
+| `;` | Turret control | A wall you hack with Space: a screen of junk with words hidden in it, one the password. Pick a word and it tells you how many of its letters are right, in the right places; pick a pair of brackets with only junk between them for a dud taken away (or, now and then, your tries back). Four wrong and it locks for good - and every turret near it comes for you. Get it, and every turret within 12 cells goes off for good (counted as killed). |
 | `&` | Teleporter | Pads pair up in reading order: 1st with 2nd, 3rd with 4th. Up to 16. |
 
 **Doors.** A door must sit between two walls.
@@ -300,7 +302,9 @@ U W Z V < > ^ v
 | `e` | Shells +8 | | `M` | The map |
 | `2` | Scatter gun, +8 shells | | `q` | Overcharge +100, up to 200 |
 | `3` | Repeater, +30 cells | | `j` | Damage amp: double damage for 30 s |
-| `8` | Night vision headset: a minute of battery (two at most). N switches it on and off | | | |
+| `8` | Night vision headset: yours till you die, as a gun is. N switches it on and off | | | |
+| `9` | Hazmat suit: poison, slime and acid wear it instead of you (about 45 seconds of poison, 20 of acid). Fire and lava go straight through it. Lost when you die | | | |
+| `)` | Rocket launcher (gun 5), +5 rockets: a rocket bursts on whatever it hits - and the blast hurts you too, close up. Hold the right button to zoom right in | | `(` | Rockets +5 (50 at most) |
 
 **Monsters.** Up to 64 per level, counting ones events spawn.
 
@@ -315,6 +319,14 @@ U W Z V < > ^ v
 | `w` | spitter | 6 |
 | `z` | overseer (boss) | 80 |
 | `T` | thief | 5 - grabs your ammo and gun and runs for its hoard (event 7). Each hit knocks some loose; if it gets home, the hoard is locked for good |
+| `1` | sniper | 4 - keeps well back and aims a laser: a faint red line that follows you, a little behind, then a white-hot beam. Step out of the line (or out of sight) before it fires |
+| `5` | trooper | 6 - a burst rifle: three bolts at a time |
+| `6` | ripper | 3 - fast (quicker than you walk), all claws: it lunges in, slashes and leaps back out of reach |
+| `7` | warden (field boss) | 60 - a laser, then a ring of ten bolts and three at you, turn about. Drops an overcharge, armour and a gun you haven't got |
+| `0` | colossus (field boss) | 90 - comes on and on: up close, a slam that shakes the floor; further off, heavy bolts. Drops a damage amp, a big medkit, cells and shells |
+| `~` | turret, in the ceiling | 6 - a 3D model: hidden till it sees you (and can't be hit till it's out), then it slides down out of the ceiling, turns its barrels on you and fires bursts. A turret control panel (`;`) switches it off |
+| `_` | turret, in the floor | the same, rising out of the floor |
+| `\|` | turret, in a wall | the same, sliding out of a wall beside its cell at chest height (it can only turn so far from the wall). With no wall beside it, it's a floor turret. Any turret's WEAPON is set in its pane: plasma, laser, lightning, flame, poison, acid or missiles |
 
 **Decorations.** Up to 64 per level. They block your way, and most can be shot to pieces.
 
@@ -332,7 +344,7 @@ U W Z V < > ^ v
 | `d` | Desk | | `Z` | Chair |
 | | | | `V` | Body (doesn't block, can't break) |
 
-Some do more than break. Space at a **vending machine** (`n`): 3, 2, 1... and it pays out for a couple of seconds, or now and then blows up. Space at a **computer** (`t`, `A`, `F`) plays NEON PONG (first to 3; win and it pays out). A **specimen tank** (`I`) broken open lets out what's in it half the time. Monsters' bolts break things too, and what's inside still drops.
+Some do more than break. Space at a **vending machine** (`n`) is a pull on a **slot machine**: three reels, and three alike pays out - three bombs, a big bang (stand back); three monsters, three come out of it; three guns, a gun you haven't got; three medkits, cells or armour, plenty of it; three 7s, the jackpot. A pair gives a little of it; nothing alike, nothing. One pull a machine. Space at a **computer** (`t`, `A`, `F`) plays NEON PONG (first to 3; win and it pays out). A **specimen tank** (`I`) broken open lets out what's in it half the time. Monsters' bolts break things too, and what's inside still drops.
 
 **The start.** `<` `>` `^` `v` put you there, facing left, right, up or down the map. Keep exactly one.
 
@@ -415,7 +427,7 @@ The console makes blocks too: `block X Y X0 Y0 X1 Y1 [WALL]` (edges in eighths, 
 
 ## Lights
 
-A level is lit by one **ambient** level everywhere, plus up to 96 **lights** that stop at walls.
+A level is lit by one **ambient** level everywhere (unless a cell has a **cell light** of its own, below), plus up to 96 **lights** that stop at walls.
 
 **Lights on faces.** With the LIGHT tool, a click puts a light just in front of the middle of the face you click, in the light brush's colour and effect. The **LIGHTS** tab sets the brush (each effect is shown going, as it will in the game), and a face's pane sets its light's colour, effect, reach (in cells) and brightness, or removes it. A light on a wall's face also **tints the face itself** its colour: a coloured copy of its picture, which OpenGL lights by itself and pulses or flickers with the light. So a red light shows red on its wall even in a room already as bright as it can be, where light alone would add nothing. A light on a floor or ceiling, or in the middle of a cell, lights the room round it the usual way. Each light is a little star in its colour in the 3D view.
 
@@ -436,6 +448,10 @@ Lights add to what's there, and the brightest a pixel can be is its picture's ow
 **The 96-light budget includes automatic lights.** Lamps, terminals, server racks, glowing decorations, the exit and teleporter pads each add a light of their own. Past 96, extra lights are dropped without a message, and the editor can't warn you because it only counts the level's own list. If a light you placed doesn't show, you've probably hit the limit.
 
 The console can switch a light while you play: `light N on` or `light N off`, where N counts the `[lights]` lines from 1. A trigger can do the same.
+
+**Cell lights: ambient light, cell by cell.** A cell light isn't a lamp. It replaces the sector's ambient light in the cells it covers, so a room can be dim and red, or a corridor bright and cold blue, while the rest of the sector keeps its own light. Lights still add on top. Select floor cells (drag a box, or Shift+click several), and the floor pane's **CELL LIGHT...** opens their pane: **-** and **+** for brightness, a colour, and **EFFECT** (steady, flicker, pulse, strobe, fire, dying - every cell with the same effect goes as one, so a room flickers together). A cell with no light of its own starts from the sector's light when you change it; **BACK TO THE SECTOR'S** gives it the sector's light again. They cost nothing: there's no budget, as there is for lights.
+
+**`[cell lights]`** has one line per box of cells lit alike: `x0, y0, x1, y1, brightness, red, green, blue, effect` - brightness 0-256, the colour 0-255 each, the effect as a light's (0 steady to 5 dying). Later lines win where they overlap. The editor writes them as few boxes as it can.
 
 ## Beyond the editor: the level file
 
@@ -479,7 +495,7 @@ A trap's floor gets its own picture (a glowing wire grid, or a burner grate), an
 
 Monster types are numbered in the order of the monster table: 1 drone to 9 thief. `reward` is a pickup given when you win, numbered in this order: 1 red card, 2 blue card, 3 yellow card, 4 health, 5 cells, 6 shells, 7 scatter gun, 8 repeater, 9 armour, 10 medkit, 11 railgun, 12 map, 13 overcharge, 14 amp. Use 0 for none. Only ambush, survive, trap and gallery give one. A trap or cutter with `a` of 0 is a mistake: it logs an error.
 
-**`[lifts]`** (MAKE A LIFT, and a lift's pane): `x0, y0, x1, y1, low, high, mode, speed`. `low` and `high` are in eighths and `speed` is eighths a second. `mode` 1 goes up and down by itself, 2 is an elevator (step on and it takes you to its other end; it comes up to meet you when you wait by it at the top, and goes back down when nobody is about up there), and 3 moves only when a `liftgo` command says so. Up to 16.
+**`[lifts]`** (MAKE A LIFT, and a lift's pane): `x0, y0, x1, y1, low, high, mode, speed`. `low` and `high` are in eighths and `speed` is eighths a second. `mode` 1 goes up and down by itself, 2 is an elevator (step on and it takes you to its other end; it comes up to meet you when you wait by it at the top, and goes back down when nobody is about up there), and 3 moves only when a `liftgo` command says so. Modes 4 and 5 move the box's **ceiling** instead, as DOOM's crushers do: `low` is how far down it comes, `high` its top. 4 is a **CRUSHER**: down slowly at its speed and back up, over and over, and while it's lower than you are tall it crushes you - 10 every 8 frames, about 75 a second, so stand under one for long and you're dead. 5 is a **SMASHER**: it waits up top for a second and a half, slams down six times as fast with a bang and a shake - 45 at once - and grinds back up. Monsters under them are crushed too. Make one in the editor by making a lift of the floor cells, then clicking its mode round to CRUSHER (DOWN TO an eighth off the floor, UP TO the ceiling). Up to 16 lifts and crushers between them.
 
 **`[faces]`** (PAINT and Divide): a picture of its own on one face, one line each: `x, y, face, divided, picture, second picture`. `face` is `E` `S` `W` `N` for a side of the cell (a wall's, or a step's face), `LE` `LS` `LW` `LN` for a lintel's, `F` the floor, `C` the ceiling, `BE` `BS` `BW` `BN` for a side of the cell's block. `divided` is 0 for the whole face, 1 for left | right, 2 for top | bottom; the second picture is the second half's (left out: the usual picture). Up to 4000.
 
@@ -500,7 +516,7 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 
 **`[pads]`** (LINK): teleporter pads paired by hand, `x1, y1, x2, y2`. Pads in no pair here pair up as ever, in reading order. Up to 16.
 
-**`[monsters]`** (a monster's pane): `x, y, sight, hearing, health, speed, wake`, by the cell the monster starts in. Sight and hearing are in cells, health and speed in % of its kind's, and wake is 0 seeing you, 1 you near, 2 being hit, 3 hunting from the start.
+**`[monsters]`** (a monster's pane): `x, y, sight, hearing, health, speed, wake`, by the cell the monster starts in. Sight and hearing are in cells, health and speed in % of its kind's, and wake is 0 seeing you, 1 you near, 2 being hit, 3 hunting from the start. A turret can have an eighth number, its weapon: 0 plasma (left off), 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles.
 
 **`[triggers]`** (TRIGGERS... in a pane) run console commands when something happens: `WHEN [repeat] : COMMAND ; COMMAND`.
 
@@ -570,6 +586,11 @@ The console (`` ` ``, in the game or the 3D view) can build with exact coordinat
 | `newsector` | A new blank sector of your own, in the editor | |
 | `sectorname NAME` | Rename the sector you're in | After `savelevel` |
 | `map 11` / `maps` | Go to a sector by number (or part of its name) / list them all | |
+| `resetlevel` | The sector as it starts - its monsters, doors and pickups back - as it is in the editor now (anything not saved yet kept), and you where you are | |
+| `reloadlevel` | The sector from its file, as you last saved it - what you've changed since is gone - and you where you are | |
+| `savesectorcopy` | A copy of the sector as it is now, in a `versions/` folder beside its file, named for when (`custom3-2026-10-20-081500.txt`): save one before a big change, and you've a history to go back to | |
+| `saveleveltodisk [FILE]` | Save the sector as it is now to any file - a dialog to choose it, or FILE | |
+| `loadlevelfromdisk [FILE]` | A level file - a copy from `versions/`, or any - into this sector in place of its own (a dialog opens in `versions/`, or give FILE). It isn't saved till you `savelevel` (Ctrl+S): then it's the sector's own | After `savelevel` |
 
 These only change the running level, so they're for testing and for triggers rather than building:
 

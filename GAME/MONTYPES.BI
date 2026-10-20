@@ -25,7 +25,15 @@ SetMonType 7,   "spitter", 6,  0.022, 0.7,   0,   0,    0,    6,  4,   95,  S_MO
 SetMonType 8,   "overseer", 80, 0.014, 1.4,  0.3, 0.06, 0,    9,  5,   45,  S_MONX + 5
 SetMonType 9,   "thief",   5,  0.09,  0.55,  0,   0,    0.8,  0,  0,   60,  S_MONX + 7
 SetMonType 10,  "ice",     2,  0.05,  0.5,   0.3, 0.06, 0.75, 5,  3,   50,  S_MONX + 9
+SetMonType 11,  "sniper",  4,  0.022, 0.85,  0,   0,    0,    16, 6,   150, S_MONX + 11
+SetMonType 12,  "trooper", 6,  0.028, 0.85,  0,   0,    0,    5,  3,   100, S_MONX + 13
+SetMonType 13,  "ripper",  3,  0.072, 0.6,   0,   0.02, 0.85, 6,  4,   40,  S_MONX + 15
+SetMonType 14,  "warden",  60, 0.016, 1.35,  0,   0,    0,    10, 6,   75,  S_MONX + 17
+SetMonType 15,  "colossus", 90, 0.015, 1.5,  0,   0,    1.9,  22, 8,   80,  S_MONX + 19
+SetMonType 16,  "turret",  6,  0,     0.55,  0,   0,    0,    4,  2,   80,  S_MONX + 21
 mtypeRanged(2) = -1 : mtypeRanged(5) = -1 : mtypeRanged(7) = -1 : mtypeRanged(8) = -1
+mtypeRanged(11) = -1 : mtypeRanged(12) = -1 : mtypeRanged(14) = -1 : mtypeRanged(16) = -1
+mtypeStyle(11) = STYLE_LASER : mtypeStyle(12) = STYLE_BURST : mtypeStyle(14) = STYLE_WARDEN : mtypeStyle(15) = STYLE_COLOSSUS : mtypeStyle(16) = STYLE_TURRET : mtypeStyle(13) = STYLE_RIPPER
 
 ' ...and that table changed by neon-caster/monsters.txt, if it's there:
 ' every monster's numbers as plain text, to tune without changing the
@@ -45,3 +53,9 @@ SetWeakSpot 7,    0.35, 0.68, 0.05, 0.36 ' spitter: its head
 SetWeakSpot 8,    0.40, 0.66, 0.28, 0.58 ' overseer: its great red eye
 SetWeakSpot 9,    0.32, 0.66, 0.20, 0.52 ' thief: its head
 SetWeakSpot 10,   0.40, 0.72, 0.32, 0.66 ' ICE: its core
+SetWeakSpot 11,   0.38, 0.62, 0.02, 0.22 ' sniper: its head
+SetWeakSpot 12,   0.38, 0.62, 0.03, 0.28 ' trooper: its visor
+SetWeakSpot 13,   0.36, 0.64, 0.05, 0.35 ' ripper: its eyes
+SetWeakSpot 14,   0.40, 0.60, 0.30, 0.52 ' warden: its core
+SetWeakSpot 15,   0.38, 0.62, 0.30, 0.55 ' colossus: its furnace
+SetWeakSpot 16,   0.35, 0.65, 0.30, 0.65 ' turret: its eye

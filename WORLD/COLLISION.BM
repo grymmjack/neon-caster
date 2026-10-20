@@ -49,7 +49,7 @@ END FUNCTION
 FUNCTION InBox(x, y)
     DIM cx, cy, v ' (its own: the main program shares these names)
     cx = INT(x) : cy = INT(y)
-    IF cx < 0 OR cy < 0 OR cx >= MAP_SIZE OR cy >= MAP_SIZE THEN EXIT FUNCTION
+    IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT FUNCTION
     IF boxOn(cx, cy) = 0 THEN EXIT FUNCTION
     u = x - cx : v = y - cy
     InBox = u > boxX0(cx, cy) AND u < boxX1(cx, cy) AND v > boxY0(cx, cy) AND v < boxY1(cx, cy)
@@ -112,7 +112,7 @@ FUNCTION EdgeInGlass(x1, y1, x2, y2)
     DIM cx, cy ' (its own: the main program shares these names)
     lx = MinOf(x1, x2) : hx = MaxOf(x1, x2) : ly = MinOf(y1, y2) : hy = MaxOf(y1, y2)
     FOR cy = INT(ly) TO INT(hy) : FOR cx = INT(lx) TO INT(hx)
-        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+        IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN
             IF glassHP(cx, cy) > 0 THEN
                 IF glassDir(cx, cy) = 1 THEN
                     gx0 = cx : gx1 = cx + 1 : gy0 = cy + 0.5 - GLASS_HALF : gy1 = cy + 0.5 + GLASS_HALF
@@ -129,7 +129,7 @@ FUNCTION EdgeInBox(x1, y1, x2, y2)
     DIM cx, cy ' (its own: the main program shares these names)
     lx = MinOf(x1, x2) : hx = MaxOf(x1, x2) : ly = MinOf(y1, y2) : hy = MaxOf(y1, y2)
     FOR cy = INT(ly) TO INT(hy) : FOR cx = INT(lx) TO INT(hx)
-        IF cx >= 0 AND cy >= 0 AND cx < MAP_SIZE AND cy < MAP_SIZE THEN
+        IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN
             IF boxOn(cx, cy) THEN
                 IF hx > cx + boxX0(cx, cy) AND lx < cx + boxX1(cx, cy) AND hy > cy + boxY0(cx, cy) AND ly < cy + boxY1(cx, cy) THEN EdgeInBox = -1 : EXIT FUNCTION
             END IF

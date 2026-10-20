@@ -41,28 +41,33 @@ END SUB
 ' share cells): then breakables' loot comes twice as often (DecoLoot)
 FUNCTION AmmoLow
     DIM g, t ' (its own: the main program shares these names)
-    DIM used(2) AS INTEGER
+    DIM used(NUM_AMMO) AS INTEGER
     FOR g = 1 TO NUM_GUNS
-        IF hasGun(g) THEN t = gunAmmoType(g) : IF t >= 1 AND t <= 2 THEN used(t) = -1
+        IF hasGun(g) THEN t = gunAmmoType(g) : IF t >= 1 AND t <= NUM_AMMO THEN used(t) = -1
     NEXT
     have = 0 : most = 0
-    FOR t = 1 TO 2
+    FOR t = 1 TO NUM_AMMO
         IF used(t) THEN have = have + ammoCount(t) : most = most + ammoMax(t)
     NEXT
     IF most > 0 THEN AmmoLow = (have < most * 0.25)
 END FUNCTION
 
-' An ammo kind by name (cells, shells - or 1, 2), 0 for none
+' An ammo kind by name (cells, shells, rockets - or 1, 2, 3), 0 for none
 FUNCTION AmmoKind(a$)
     SELECT CASE LCASE$(a$)
         CASE "cells", "cell", "energy", "1" : AmmoKind = AM_CELLS
         CASE "shells", "shell", "2" : AmmoKind = AM_SHELLS
+        CASE "rockets", "rocket", "3" : AmmoKind = AM_ROCKETS
         CASE ELSE : AmmoKind = 0
     END SELECT
 END FUNCTION
 
 FUNCTION AmmoName$(am)
-    IF am = AM_SHELLS THEN AmmoName$ = "shells" ELSE AmmoName$ = "cells"
+    SELECT CASE am
+        CASE AM_SHELLS : AmmoName$ = "shells"
+        CASE AM_ROCKETS : AmmoName$ = "rockets"
+        CASE ELSE : AmmoName$ = "cells"
+    END SELECT
 END FUNCTION
 
 ' Add `amount` of ammo type ammoType, up to the most you can carry. Returns

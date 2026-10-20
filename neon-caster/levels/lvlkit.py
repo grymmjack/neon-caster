@@ -13,12 +13,13 @@ N = 48
 WALLS = set("#NCKPG")
 DOORS = set("DHXRBYE!")  # ! a door sealed until its data station (@) is hacked
 DIAG = set("/\\")
-ITEMS = set("rby+ae23u*4Mqj8")  # ... q overcharge, j damage amp
-MONS = set("mghcskwzT")  # ... k stalker, w spitter, z the overseer, T thief
+ITEMS = set("rby+ae23u*4Mqj89)(")  # ... q overcharge, j damage amp, 8 night vision, 9 hazmat suit, ) rocket launcher, ( rockets
+MONS = set("mghcskwzT15670~_|")  # ... k stalker, w spitter, z the overseer, T thief, 1 sniper, 5 trooper, 6 ripper, 7 warden, 0 colossus, ~ _ | turrets (ceiling, floor, wall)
 DECO = set("oiptxlnfSdAFIJLOQUWZV")  # ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
 GLASS = set("=")  # a pane of glass: see through it, but not walk
 STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle
+PANEL = set(";")  # a turret control panel: a wall you hack, switching the turrets near it off
 PAD = set("&")  # a teleporter pad: they pair up in reading order (1st-2nd, 3rd-4th)
 SECRET = set("?")  # a secret wall: looks like the walls beside it (on the map too) until Space finds it
 
@@ -38,6 +39,7 @@ class Map:
         self.triggers = []  # lines: "when ... : commands ; ..." (chapter 19)
         self.blocks = []  # [blocks]: (x, y, x0, y0, x1, y1, wall) - edges in eighths, wall 1-6 (# N C K P G)
         self.nudges = []  # [nudges]: (x, y, dx, dy) - a decoration off its cell's middle, eighths (-3 to 3)
+        self.cell_lights = []  # [cell lights]: (x0, y0, x1, y1, brightness, r, g, b, effect) - cells with an ambient light of their own
 
     @classmethod
     def from_rows(cls, rows):
@@ -177,6 +179,12 @@ class Map:
         facing east, south, west or north."""
         self.nudges = [n for n in self.nudges if (n[0], n[1]) != (x, y)] + [(x, y, dx, dy, face)]
 
+    def cell_light(self, x0, y0, x1, y1, brightness, r, g, b, effect=0):
+        """Cells x0..x1, y0..y1 lit by an ambient light of their own, not the
+        sector's: brightness 0-256, colour r g b, effect 0 steady, 1 flicker,
+        2 pulse, 3 strobe, 4 fire, 5 dying (as a light's). Later boxes win."""
+        self.cell_lights.append((x0, y0, x1, y1, brightness, r, g, b, effect))
+
     def liquid(self, x, y, kind, depth=None):
         """A pool of kind (w p s l a) depth eighths deep on cell (x, y) - only
         on floor (LIQUID_ON), as the game would have it."""
@@ -242,6 +250,14 @@ class Map:
         it), 3 waits for a trigger's liftgo."""
         self.lifts.append((x0, y0, x1, y1, low, high, mode, speed))
         self.floor(x0, y0, x1, y1, low)
+
+    def crusher(self, x0, y0, x1, y1, down, up, smasher=False, speed=4):
+        """A crusher (or, smasher, a smasher): its cells' ceiling goes from
+        up down to down (eighths) and back, over and over - DOOM's. A
+        crusher hurts you while it presses on you; a smasher waits up top,
+        slams down six times as fast, a big hit, and grinds back up. The
+        floor under it stays as it is."""
+        self.lifts.append((x0, y0, x1, y1, down, up, 5 if smasher else 4, speed))
 
     def headroom(self, gap=8):
         """Raise any ceiling closer than gap eighths above its floor."""
@@ -331,6 +347,8 @@ def check_heights(lv):
                     F[y][x] = min(F[y][x], DEADLY)
     lift = {}
     for (x0, y0, x1, y1, lo, hi, mode, sp) in lv.get("lifts", []):
+        if mode >= 4:  # a crusher or smasher: its ceiling moves, not its floor - you walk under it when it's up
+            continue
         for y in range(y0, y1 + 1):
             for x in range(x0, x1 + 1):
                 lift[(x, y)] = (lo, hi)
@@ -456,13 +474,14 @@ LOOT_BREAKABLES = {"barrel", "lamp", "plant", "terminal", "crate", "rack", "serv
                    "coolant", "tank", "coolanttank", "spawner", "desk", "console", "screen", "specimen", "specimentank",
                    "labbench", "generator", "cryopod", "cryo", "hologram", "locker", "bench", "chair"}
 LOOT_PICKUPS = {"red", "blue", "yellow", "health", "cells", "ammo", "shells", "scatter", "repeater", "armor", "armour",
-                "medkit", "bigmed", "rail", "railgun", "map", "overcharge", "amp", "goggles", "nightvision", "headset"}
+                "medkit", "bigmed", "rail", "railgun", "map", "overcharge", "amp", "goggles", "nightvision", "headset", "suit", "hazmat", "hvac",
+                "launcher", "rocketlauncher", "rocket", "rockets"}
 
 
 # [liquid]: the game's LQ_CHARS$ and LQ_DEPTH; the map characters a liquid can lie on (EDIT_OPEN$)
 LIQUID_CHARS = "wpsla"
 LIQUID_DEPTH = 3
-LIQUID_ON = ".rby+*uae234Mqj8mghcskwzToiptxlnfSdAFIJLOQUWZV<>^v&"
+LIQUID_ON = ".rby+*uae234Mqj89)(mghcskwzT15670~_|oiptxlnfSdAFIJLOQUWZV<>^v&"
 
 
 def check_liquid(lv):
@@ -494,7 +513,7 @@ def check_blocks(lv):
         x, y, x0, y0, x1, y1, w = b[:7]
         if not (0 < x < N - 1 and 0 < y < N - 1):
             errs.append("block at %d,%d: in the border" % (x, y)); continue
-        if rows[y][x] in WALLS or rows[y][x] in DOORS or rows[y][x] in "%@$/\\=":
+        if rows[y][x] in WALLS or rows[y][x] in DOORS or rows[y][x] in "%@$;/\\=":
             errs.append("block at %d,%d: only in an open cell (it's '%s')" % (x, y, rows[y][x]))
         if not (0 <= x0 < x1 <= 8 and 0 <= y0 < y1 <= 8):
             errs.append("block at %d,%d: edges %d-%d, %d-%d (0 to 8, low < high)" % (x, y, x0, x1, y0, y1))
@@ -513,6 +532,14 @@ def check_blocks(lv):
             errs.append("nudge at %d,%d: %d, %d (-3 to 3)" % (x, y, dx, dy))
         if len(n) > 4 and not 0 <= n[4] <= 5:
             errs.append("nudge at %d,%d: facing %d (0 as built, 1-4 east south west north, 5 turns to you)" % (x, y, n[4]))
+    for c in lv.get("cell_lights", []):
+        if len(c) < 8:
+            errs.append("cell light %s: needs x0, y0, x1, y1, brightness, r, g, b (and an effect)" % (c,)); continue
+        x0, y0, x1, y1, br = c[:5]
+        if not (0 <= x0 <= x1 < N and 0 <= y0 <= y1 < N):
+            errs.append("cell light %s: its box is off the map, or back to front" % (c,))
+        if not 0 <= br <= 256 or any(not 0 <= v <= 255 for v in c[5:8]) or (len(c) > 8 and not 0 <= c[8] <= 5):
+            errs.append("cell light %s: brightness 0-256, colours 0-255, effect 0-5" % (c,))
     return errs
 
 
@@ -535,7 +562,7 @@ def check_loot(line):
         if ":" not in d:
             return "loot '%s': each drop is pickup:chance (or -)" % line
         k, c = [x.strip() for x in d.split(":", 1)]
-        if k.lower() not in LOOT_PICKUPS and not (len(k) == 1 and k in "rby+ae23u*4Mqj"):
+        if k.lower() not in LOOT_PICKUPS and not (len(k) == 1 and k in "rby+ae23u*4Mqj89)("):
             return "loot '%s': no pickup called %s" % (line, k)
         try:
             if not 0 <= float(c) <= 100:
@@ -584,8 +611,11 @@ def level_text(lv, comment=()):
     if lv.get("monsters"):  # monsters' own settings, from the editor's monster pane
         out.append("")
         out.append("[monsters]")
-        out.append("' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)")
+        out.append("' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]")
         for r in lv["monsters"]:
+            r = tuple(r)
+            while len(r) > 7 and not r[-1]:
+                r = r[:-1]  # (a turret's weapon and turning speed: left off when 0 - as the game writes them)
             out.append(", ".join(_num(v) for v in r))
     if lv.get("pads"):  # teleporters paired by hand in the editor
         out.append("")
@@ -604,6 +634,12 @@ def level_text(lv, comment=()):
         out.append("[nudges]")
         out.append("' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)")
         for r in lv["nudges"]:
+            out.append(", ".join(_num(v) for v in r))
+    if lv.get("cell_lights"):  # cells lit their own way
+        out.append("")
+        out.append("[cell lights]")
+        out.append("' cells with an ambient light of their own: x0, y0, x1, y1, brightness (0-256), red, green, blue, effect (0 steady, 1 flicker, 2 pulse, 3 strobe, 4 fire, 5 dying)")
+        for r in lv["cell_lights"]:
             out.append(", ".join(_num(v) for v in r))
     if lv.get("loot"):  # what breakables leave, by kind - kept as they are
         out.append("")
@@ -657,7 +693,7 @@ def read_level_file(path, label=None):
     """A level file as the dict check_level and level_text use."""
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
               ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[], loot=[],
-              liquid=[], liquid_depth=[], blocks=[], nudges=[])
+              liquid=[], liquid_depth=[], blocks=[], nudges=[], cell_lights=[])
     sec = None
     for line in open(path).read().split("\n"):
         t = line.strip()
@@ -683,8 +719,8 @@ def read_level_file(path, label=None):
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals
             elif k == "ambient": lv["ambient"] = tuple(int(float(x)) for x in vals)
-        elif sec in ("zones", "events", "lifts", "pads", "monsters", "blocks", "nudges"):
-            lv[sec].append(tuple(int(float(x)) for x in t.split(",")))
+        elif sec in ("zones", "events", "lifts", "pads", "monsters", "blocks", "nudges", "cell lights"):
+            lv[sec.replace(" ", "_")].append(tuple(int(float(x)) for x in t.split(",")))
         elif sec == "lights":
             lv[sec].append(tuple(float(x) for x in t.split(",")))
     return lv
@@ -715,7 +751,7 @@ def validate(rows, name="map", want_exit=True, pairs=()):
     starts = [(x, y) for y in range(N) for x in range(N) if at(x, y) in START]
     if len(starts) != 1:
         errs.append("need exactly one start, got %d" % len(starts))
-    iswall = lambda c: c in WALLS or c in STATION or c in SECRET
+    iswall = lambda c: c in WALLS or c in STATION or c in PANEL or c in SECRET
     for y in range(1, N - 1):
         for x in range(1, N - 1):
             c = at(x, y)
@@ -799,7 +835,7 @@ def validate(rows, name="map", want_exit=True, pairs=()):
             c = at(x, y)
             if (c in ITEMS or c in MONS) and (x, y) not in reach:
                 warns.append("unreachable %s at %d,%d" % (c, x, y))
-            if c in STATION and not any(at(x + dx, y + dy) == "." for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+            if (c in STATION or c in PANEL) and not any(at(x + dx, y + dy) == "." for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
                 errs.append("station/terminal %s at %d,%d has no floor in front of it" % (c, x, y))
             if c in "RBY" and keyof[c] not in keys:
                 warns.append("key door %s at %d,%d: its key is never reachable" % (c, x, y))
@@ -857,7 +893,7 @@ def check_start_safe(rows):
         n = int(max(abs(x - sx), abs(y - sy)) * 4) + 1
         for i in range(1, n):
             c = rows[int(sy + 0.5 + (y - sy) * i / n)][int(sx + 0.5 + (x - sx) * i / n)]
-            if c in WALLS or c in DOORS or c in DIAG or c in STATION or c in "%?":
+            if c in WALLS or c in DOORS or c in DIAG or c in STATION or c in PANEL or c in "%?":
                 return False
         return True
     return ["monster %s at %d,%d: in sight of the start, %.1f cells away (keep it %.1f+ away, or out of sight)"
@@ -1034,6 +1070,17 @@ def stash_shed(m, loot, rows, reach, st):
 def check_level(lv, assets=None):
     """Print what's wrong with a level (and a summary); True if it's fine."""
     errs, warns = validate(lv["rows"], lv["label"], pairs=lv.get("pads", []))
+    rows = lv["rows"]
+    for y, row in enumerate(rows):  # a wall turret (|) needs a wall beside it to come out of (the game makes it a floor turret if not)
+        for x, c in enumerate(row):
+            if c == "|" and not any(0 <= y + dy < len(rows) and 0 <= x + dx < len(rows[y + dy]) and rows[y + dy][x + dx] in WALLS | GLASS | STATION | PANEL | SECRET
+                                    for dx, dy in ((-1, 0), (0, -1), (1, 0), (0, 1))):
+                warns.append("wall turret at %d,%d has no wall beside it: it'll be a floor turret" % (x, y))
+    for m in lv.get("monsters", []):
+        if len(m) > 7 and not 0 <= m[7] <= 6:
+            errs.append("monster %s: a turret's weapon is 0-6" % (m,))
+        if len(m) > 8 and not (m[8] == 0 or 10 <= m[8] <= 360):
+            errs.append("monster %s: a turret turns 10-360 degrees a second (0: as made)" % (m,))
     if (len(lv["walls"]), len(lv["floors"]), len(lv["ceils"])) != (6, 4, 2):
         errs.append("need 6 walls, 4 floors, 2 ceilings")
     if assets:

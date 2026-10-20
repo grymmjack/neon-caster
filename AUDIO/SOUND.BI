@@ -31,6 +31,7 @@ DIM SHARED sndDoor&, sndShutter&, sndSplit& ' (shared: DoorSnd& picks one - chap
 sndDoor& = LoadSnd&("door.wav") : sndShutter& = LoadSnd&("door-shutter.wav") : sndSplit& = LoadSnd&("door-split.wav")
 DIM SHARED sndLiftStart&, sndLiftMove&, sndLiftStop& ' (a lift setting off, moving - looped - and stopping)
 sndLiftStart& = LoadSnd&("lift-start.wav") : sndLiftMove& = LoadSnd&("lift-move.wav") : sndLiftStop& = LoadSnd&("lift-stop.wav")
+sndCrushSlam& = LoadSnd&("crusher-slam.wav") ' (a smasher hitting the floor)
 DIM SHARED sndTrapFire&, sndTrapElec& ' (a trap's roar or buzz, looped while it's lit)
 sndTrapFire& = LoadSnd&("trap-fire.wav") : sndTrapElec& = LoadSnd&("trap-electric.wav")
 sndCard& = LoadSnd&("keycard.wav") : sndLocked& = LoadSnd&("locked.wav")
@@ -55,7 +56,7 @@ sndHurt2& = LoadSnd&("hurt2.wav") : sndHurt3& = LoadSnd&("hurt3.wav")
 sndKick& = LoadSnd&("kick.wav") : sndKickSwing& = LoadSnd&("kick-swing.wav")
 IF sndKick& = 0 THEN sndKick& = LoadSnd&("bump.wav")
 gunSnd&(1) = LoadSnd&("shoot.wav") : gunSnd&(2) = LoadSnd&("scatter.wav") : gunSnd&(3) = LoadSnd&("repeater.wav")
-gunSnd&(4) = LoadSnd&("rail.wav")
+gunSnd&(4) = LoadSnd&("rail.wav") : gunSnd&(5) = LoadSnd&("rocket-fire.wav")
 sndBarrel& = LoadSnd&("barrel.wav") : sndArmor& = LoadSnd&("armor.wav") : sndExit& = LoadSnd&("exit.wav")
 ' A decoration taking a hit, and breaking (by kind: 2 lamp, 3 plant, 4 terminal)
 DIM SHARED decoBreakSnd&(DECO_KINDS) ' (shared: BreakLight uses the lamp's)
@@ -122,3 +123,8 @@ NEXT
 sndHeadshot& = LoadSnd&("headshot.wav")
 
 sndMenuMove& = LoadSnd&("menu-move.wav") : sndMenuSelect& = LoadSnd&("menu-select.wav") : sndMenuBack& = LoadSnd&("menu-back.wav")
+' Rockets and the turrets' weapons (GAME/ROCKETS.BM): a rocket's blast, and
+' a turret's flame, spray, lightning and missile
+DIM SHARED sndRocketBoom&, sndTurFlame&, sndTurSpray&, sndTurZap&, sndTurMissile&
+sndRocketBoom& = LoadSnd&("rocket-boom.wav") : sndTurFlame& = LoadSnd&("turret-flame.wav") : sndTurSpray& = LoadSnd&("turret-spray.wav")
+sndTurZap& = LoadSnd&("turret-zap.wav") : sndTurMissile& = LoadSnd&("turret-missile.wav")

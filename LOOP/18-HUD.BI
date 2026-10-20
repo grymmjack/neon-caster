@@ -59,6 +59,21 @@
     IF crossFlash > 0 THEN crossFlash = crossFlash - 1
     IF hurtFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(MaxOf(painR, 120), painG, painB, hurtFlash * 5), BF ' (in what hurt you - and fainter now the edges show it)
     IF pickFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 255, 160, pickFlash * 4), BF
+    ' A ripper's slash: three claw marks torn across the view - drawn out
+    ' fast over the first frames (the swipe), then fading
+    IF clawFx > 0 THEN
+        clawF! = (CLAW_FX - clawFx) / 4 : IF clawF! > 1 THEN clawF! = 1
+        clawAl = 255 * MinOf(1, clawFx / (CLAW_FX * 0.6))
+        FOR clawN = -1 TO 1
+            clawSX = clawX + clawN * 34 - 110 * clawA : clawSY = clawY - 120
+            clawEX = clawSX + (220 * clawA) * clawF! : clawEY = clawSY + 240 * clawF!
+            FOR clawW = -3 TO 3
+                IF ABS(clawW) = 3 THEN clawC~& = _RGBA32(90, 0, 10, clawAl * 0.6) ELSE clawC~& = _RGBA32(255, 40 + ABS(clawW) * 25, 70, clawAl)
+                LINE (clawSX + clawW, clawSY)-(clawEX + clawW * (1 - clawF! * 0.7), clawEY), clawC~& ' (thinner at the end, as a claw drags out)
+            NEXT
+        NEXT
+        clawFx = clawFx - 1
+    END IF
     IF setting(SET_HURTDIR) THEN DrawHurtDirs playerX, playerY, dirX, dirY ' (over the red flash, so they stand out)
     IF godMode AND hudShow(HE_GOD) THEN HudText hudX(HE_GOD), hudY(HE_GOD), hudLabel$(HE_GOD), HudColor~&(HE_GOD, _RGB32(255, 215, 30))
     IF editMode THEN EditOverlay playerX, playerY, dirX, dirY ' (the editor: what you're aiming at, what you'll place)
@@ -84,16 +99,21 @@
     IF hasMap AND NOT mapOpen AND hudShow(HE_MINIMAP) THEN
         DrawMap hudX(HE_MINIMAP), hudY(HE_MINIMAP), hudW(HE_MINIMAP), -1, playerX, playerY, dirX, dirY
         ' (the kill count, if it's where the map is, goes under it)
-        IF hudX(HE_KILLS) = hudX(HE_MINIMAP) AND hudY(HE_KILLS) = hudY(HE_MINIMAP) THEN killsY = hudY(HE_MINIMAP) + MAP_SIZE * hudW(HE_MINIMAP) + 6
+        IF hudX(HE_KILLS) = hudX(HE_MINIMAP) AND hudY(HE_KILLS) = hudY(HE_MINIMAP) THEN killsY = hudY(HE_MINIMAP) + mapN * hudW(HE_MINIMAP) + 6
     END IF
     IF mapOpen THEN
         LINE (0, 0)-(799, 599), _RGBA32(0, 4, 14, 225), BF
         MenuText 400, 14, levelName$, 2, _RGB32(255, 100, 215), 1
-        DrawMap 400 - MAP_SIZE * 5, 60, 10, hasMap, playerX, playerY, dirX, dirY
+        DrawMap 400 - mapN * 5, 60, 10, hasMap, playerX, playerY, dirX, dirY
         IF hasMap THEN mapNote$ = "TAB  CLOSE THE MAP" ELSE mapNote$ = "NO MAP YET - ONLY WHERE YOU'VE BEEN.   TAB  CLOSE"
         MenuText 400, 552, mapNote$, 1, _RGB32(170, 170, 200), 1
     END IF
     IF NOT mapOpen AND hudShow(HE_KILLS) AND NOT (editMode AND NOT hudEdit) THEN HudText hudX(HE_KILLS), killsY, hudLabel$(HE_KILLS) + STR$(kills) + " /" + STR$(numMonsters), HudColor~&(HE_KILLS, _RGB32(255, 90, 90))
+    ' F3: where you are, in numbers (DrawInfo) - under the kills, when they're top left
+    IF infoOn AND NOT mapOpen AND NOT cyberOn THEN
+        infoTop = 8 : IF hudShow(HE_KILLS) AND hudX(HE_KILLS) < 300 AND killsY < 300 THEN infoTop = killsY + 22
+        DrawInfo infoTop
+    END IF
 
     ' Keycards you hold, top right
     cardX = hudX(HE_CARDS)
@@ -115,6 +135,7 @@
     IF hudShow(HE_HEALTH) AND NOT (editMode AND NOT hudEdit) THEN
         hx = hudX(HE_HEALTH) : hy = hudY(HE_HEALTH) : bw = hudW(HE_HEALTH) : bh = hudH(HE_HEALTH)
         HudText hx, hy, hudLabel$(HE_HEALTH) + STR$(health), healthColor~&
+        IF poisonLeft > 0 AND (lvFrame \ 20) MOD 3 THEN HudText hx + 8 * (LEN(hudLabel$(HE_HEALTH) + STR$(health)) + 2), hy, "POISONED", _RGB32(90, 255, 80) ' (poisoned: it goes on hurting - a health pack cures it)
         IF bw > 0 THEN
             LINE (hx, hy + 18)-STEP(bw + 1, bh + 1), _RGBA32(0, 0, 0, 170), BF
             IF health > 0 THEN LINE (hx + 1, hy + 19)-STEP(MaxOf(1, MinOf(health, MAX_HP) * bw \ MAX_HP) - 1, bh - 1), healthColor~&, BF
@@ -122,9 +143,13 @@
         END IF
     END IF
     IF ampTimer > 0 AND hudShow(HE_AMP) THEN HudText hudX(HE_AMP), hudY(HE_AMP), hudLabel$(HE_AMP) + STR$(ampTimer \ 60 + 1), HudColor~&(HE_AMP, _RGB32(255, 90, 90))
-    IF nvCharge > 0 AND hudShow(HE_AMP) THEN ' (night vision's battery, beside the amp's: bright while it's on)
+    IF nvHave AND hudShow(HE_AMP) THEN ' (night vision, beside the amp: bright while it's on)
         IF nvOn THEN c~& = _RGB32(110, 255, 120) ELSE c~& = _RGB32(60, 130, 70)
-        HudText hudX(HE_AMP) + 136, hudY(HE_AMP), "NIGHT VISION" + STR$(INT(nvCharge / 60 + 0.99)), c~&
+        HudText hudX(HE_AMP) + 136, hudY(HE_AMP), "NIGHT VISION", c~&
+    END IF
+    IF suitLeft > 0 AND hudShow(HE_AMP) THEN ' (the hazmat suit, under them: what's left of it, going orange then red as it wears)
+        IF suitLeft > 50 THEN c~& = _RGB32(255, 220, 40) ELSE IF suitLeft > 20 THEN c~& = _RGB32(255, 140, 30) ELSE c~& = _RGB32(255, 50, 50)
+        HudText hudX(HE_AMP) + 136, hudY(HE_AMP) + 18, "HAZMAT" + STR$(INT(suitLeft + 0.99)) + "%", c~&
     END IF
     ' The VIGNETTES (with HIT FX on): a lockdown strobing red; low health
     ' thumping red with your heart; poison's green; the colour of the last
@@ -172,6 +197,8 @@
         ammoColor~& = _RGB32(255, 50, 50)
     ELSEIF ammoType = AM_SHELLS THEN
         ammoColor~& = _RGB32(255, 150, 40)
+    ELSEIF ammoType = AM_ROCKETS THEN
+        ammoColor~& = _RGB32(255, 90, 140)
     ELSE
         ammoColor~& = _RGB32(60, 220, 255)
     END IF

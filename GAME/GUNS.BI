@@ -5,9 +5,11 @@
 ' and the guns' pictures.
 '
 
-' W_ = Weapon: the guns, numbered 1-4. They number the gun arrays below
+' W_ = Weapon: the guns, numbered 1-5. They number the gun arrays below
 ' (gunName$(W_RAIL) is "RAILGUN") and are the keys you press to pick them.
-CONST W_BLASTER = 1, W_SCATTER = 2, W_REPEATER = 3, W_RAIL = 4, NUM_GUNS = 4
+' The rocket launcher (W_ROCKET) fires a rocket, not a shot that's there at
+' once: it flies, and bursts on what it meets (GAME/ROCKETS.BM).
+CONST W_BLASTER = 1, W_SCATTER = 2, W_REPEATER = 3, W_RAIL = 4, W_ROCKET = 5, NUM_GUNS = 5
 DIM SHARED hasGun(NUM_GUNS) AS INTEGER
 ' Per gun: name, ammo kind, ammo per shot, frames between shots, pellets,
 ' spread (of the view's width), damage per hit, whether a shot goes through
@@ -46,6 +48,7 @@ SetGun 1,  "BLASTER",  AM_CELLS,  1,   16,   1,      0,     1,     0,     1,    
 SetGun 2,  "SCATTER",  AM_SHELLS, 1,   40,   7,      0.12,  1,     0,     1.7,   ADS_ZOOM
 SetGun 3,  "REPEATER", AM_CELLS,  1,   5,    1,      0.025, 1,     0,     0.45,  ADS_ZOOM
 SetGun 4,  "RAILGUN",  AM_CELLS,  5,   55,   1,      0,     5,     -1,    2.2,   4
+SetGun 5,  "LAUNCHER", AM_ROCKETS, 1,  30,   1,      0,     ROCKET_HIT, 0, 2.6,   3.5
 CONST SWAP_FRAMES = 14 ' Frames to lower one gun and raise the next
 ' The guns you hold are kept as ordinary images (not arrays): they're drawn
 ' over the finished view with _PUTIMAGE, at full size (chapter 18). LoadGun
@@ -58,6 +61,6 @@ CONST SWAP_FRAMES = 14 ' Frames to lower one gun and raise the next
 ' gun at the window's full size (chapter 24); the software renderer
 ' shrinks it to our 800 x 600 screen. Keep the picture square, and its
 ' muzzle in the same place, and aiming down the sights still lines up.
-gunSize(1) = 288 : gunSize(2) = 346 : gunSize(3) = 384 : gunSize(4) = 346
+gunSize(1) = 288 : gunSize(2) = 346 : gunSize(3) = 384 : gunSize(4) = 346 : gunSize(5) = 384
 CONST GUN_Y = 600 ' A gun's bottom sits here, its muzzle straight below the crosshair
-' (LoadGun 1 to 4: in LoadPictures)
+' (LoadGun 1 to 5: in LoadPictures)

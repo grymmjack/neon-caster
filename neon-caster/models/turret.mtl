@@ -1,0 +1,4 @@
+# NEON-CASTER prop: turret - its texture, for 3D viewers
+newmtl turret
+Kd 1 1 1
+map_Kd ../hd/models/turret_tex.png

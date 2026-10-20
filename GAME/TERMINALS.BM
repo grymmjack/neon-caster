@@ -16,7 +16,7 @@ SUB TerminalUse STATIC
     END IF
     slammed = 0
     FOR y = termY(tm) - 7 TO termY(tm) + 7 : FOR x = termX(tm) - 7 TO termX(tm) + 7
-        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+        IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN
             IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT AND doorLock(x, y) = 0 THEN
                 doorLock(x, y) = 3 : doorMove(x, y) = -1 : slammed = slammed + 1
                 SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
@@ -33,7 +33,7 @@ SUB TerminalUse STATIC
     END IF
     IF pzSolved THEN
         termDone(tm) = -1 : AchAdd "Puzzles", 1 : pzTerm = 0 : WallDone termX(tm), termY(tm), T_CODEOK
-        FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (a keycard door is unlocked, not opened: it still wants its card)
+        FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 ' (a keycard door is unlocked, not opened: it still wants its card)
             IF doorLock(x, y) = 3 THEN
                 doorLock(x, y) = 0
                 IF doorKey(x, y) = 0 THEN doorMove(x, y) = 1 : IF doorOpen(x, y) = 0 THEN doorOpen(x, y) = 0.01

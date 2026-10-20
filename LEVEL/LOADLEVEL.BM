@@ -28,10 +28,10 @@ SUB BuildLevel STATIC
         IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k) : _SNDCLOSE evHum&(k)
         evHum&(k) = 0
     NEXT
-    numStations = 0 : numPads = 0 : numTerms = 0 : FOR k = 0 TO MAX_PADS : padFlown(k) = 0 : NEXT
+    numStations = 0 : numPads = 0 : numTerms = 0 : numTCtrl = 0 : FOR k = 0 TO MAX_PADS : padFlown(k) = 0 : NEXT
     IF NOT editRebuild THEN glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
     FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0
-    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
+    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE ' (all of it, as far as any sector can go: a smaller one's past its edge is nothing)
         worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorLockEv(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : secretCell(x, y) = 0 : closetIn(x, y) = 0 : secretArea(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
         floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
         FOR f = 1 TO FACE_MAX : faceTex(x, y, f) = 0 : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
@@ -44,7 +44,9 @@ SUB BuildLevel STATIC
     LootTable ' (what breakables leave: the game's table, and the level's [loot])
     FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT
     FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
+    FOR i = 1 TO MAX_BEAMS : beamT(i) = 0 : NEXT
     FOR i = 1 TO MAX_BLASTS : blastTime(i) = 0 : NEXT
+    FOR i = 1 TO MAX_GIBS : gibLife(i) = 0 : NEXT : FOR i = 1 TO MAX_MON : monBurn(i) = 0 : NEXT : FOR i = 1 TO MAX_DECO : decoBurn(i) = 0 : NEXT : knockX = 0 : knockY = 0 : gasAny = 0 : poisonLeft = 0 : poisonBuild = 0 : FOR i = 0 TO mapN : FOR j = 0 TO mapN : gasAmt(i, j) = 0 : NEXT : NEXT ' (rockets' pieces, fires and knocks, poison fog: gone)
     levelName$ = lvlName$
     ' Its pictures - only those that aren't already in their slots (texFile$)
     texNew = 0
@@ -61,10 +63,18 @@ SUB BuildLevel STATIC
     IF NOT editRebuild THEN glTexVersion = glTexVersion + 1 ' (a new level: OpenGL needs it all again - chapter 24)
     ambientLevel = lvlAmb(1) : ambientTintR = lvlAmb(2) : ambientTintG = lvlAmb(3) : ambientTintB = lvlAmb(4) ' The level's ambient light: brightness, then colour
     ambientR = ambientLevel * ambientTintR / 255 : ambientG = ambientLevel * ambientTintG / 255 : ambientB = ambientLevel * ambientTintB / 255
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 ' Each cell's own: a cell light, or the sector's
+        IF lvlCLBright(x, y) >= 0 THEN
+            c~& = lvlCLCol(x, y) : cellAmbFx(x, y) = lvlCLFx(x, y)
+            cellAmbR(x, y) = lvlCLBright(x, y) * _RED32(c~&) / 255 : cellAmbG(x, y) = lvlCLBright(x, y) * _GREEN32(c~&) / 255 : cellAmbB(x, y) = lvlCLBright(x, y) * _BLUE32(c~&) / 255
+        ELSE
+            cellAmbR(x, y) = ambientR : cellAmbG(x, y) = ambientG : cellAmbB(x, y) = ambientB : cellAmbFx(x, y) = 0
+        END IF
+    NEXT : NEXT
     FOR k = 1 TO 7
         IF k <> 2 THEN wallMapColor(k) = MinimapColor~&(wallTexSlot(k))
     NEXT
-    wallMapColor(8) = _RGB32(60, 240, 255) : wallMapColor(9) = _RGB32(90, 255, 120) ' (data stations, code terminals: bright on the map)
+    wallMapColor(8) = _RGB32(60, 240, 255) : wallMapColor(9) = _RGB32(90, 255, 120) : wallMapColor(10) = _RGB32(255, 120, 40) ' (data stations, code terminals, turret controls: bright on the map)
     ' Floor and ceiling zones (chapter 22): each paints a rectangle - or the
     ' triangle on one side of its diagonal - with a floor and/or ceiling texture
     FOR k = 1 TO lvlNumZones
@@ -97,7 +107,7 @@ SUB BuildLevel STATIC
     customN = 0 : faceAny = (lvlNumFaces > 0) : facesFull = 0
     FOR k = 1 TO lvlNumFaces
         x = lvlFaceX(k) : y = lvlFaceY(k) : f = lvlFaceS(k)
-        IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+        IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
             FOR half = 1 TO 2
                 IF half = 1 THEN pic$ = lvlFaceP1$(k) ELSE pic$ = lvlFaceP2$(k)
                 slot = 0
@@ -163,7 +173,7 @@ SUB BuildLevel STATIC
             IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.12) < 0.03 THEN gx = INT(lx) : gy = INT(ly) - 1 : gs = 2
             IF ABS(fx - 0.5) < 0.03 AND ABS(fy - 0.88) < 0.03 THEN gx = INT(lx) : gy = INT(ly) + 1 : gs = 4
         END IF
-        IF gx >= 0 AND gy >= 0 AND gx < MAP_SIZE AND gy < MAP_SIZE THEN
+        IF gx >= 0 AND gy >= 0 AND gx < mapN AND gy < mapN THEN
             gc$ = MID$(lvlRow$(gy), gx + 1, 1) : lc = INT(lx) : lr = INT(ly) ' (the map isn't built yet: its characters, and its height rows, say what's there)
             IF INSTR("DHXRBY!E%?/\", gc$) = 0 THEN ' (not a door - nor a secret wall, which a tint would give away, nor a diagonal, which takes its neighbours' look)
                 gWall = INSTR("#NCKPG@$%?/\", gc$) > 0
@@ -229,13 +239,13 @@ SUB BuildLevel STATIC
         evState(k) = 0 : evTimer(k) = 0 : evCount(k) = 0 : evNext(k) = 0 : evGlow(k) = 0 : evAway(k) = 0 : evPaused(k) = 0
         IF evType(k) = EV_TRAP OR evType(k) = EV_FIRETRAP THEN ' (its floor: its own picture, so you can see where it is)
             FOR y = evY0(k) TO evY1(k) : FOR x = evX0(k) TO evX1(k)
-                IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN floorSplit(x, y) = 0 : IF evType(k) = EV_FIRETRAP THEN floorTex(x, y) = T_FIRE ELSE floorTex(x, y) = T_TRAP
+                IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN floorSplit(x, y) = 0 : IF evType(k) = EV_FIRETRAP THEN floorTex(x, y) = T_FIRE ELSE floorTex(x, y) = T_TRAP
             NEXT : NEXT
         END IF
     NEXT
-    FOR y = 0 TO MAP_SIZE - 1
+    FOR y = 0 TO mapN - 1
         row$ = lvlRow$(y)
-        FOR x = 0 TO MAP_SIZE - 1
+        FOR x = 0 TO mapN - 1
             cell$ = MID$(row$, x + 1, 1)
             SELECT CASE cell$
                 CASE "#" : worldMap(x, y) = 1
@@ -254,11 +264,11 @@ SUB BuildLevel STATIC
                 CASE "E" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_EXIT
                 CASE "R", "B", "Y" ' Key door: needs that keycard
                     worldMap(x, y) = 2 : doorKey(x, y) = INSTR("RBY", cell$)
-                CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8" ' Something to pick up
+                CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8", "9", ")", "(" ' Something to pick up (ItemChars$)
                     IF numItems < MAX_ITEMS THEN
                         numItems = numItems + 1
                         itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
-                        itemKind(numItems) = INSTR("rby+ae23u*4Mqj", cell$) : IF cell$ = "8" THEN itemKind(numItems) = IT_GOGGLES
+                        itemKind(numItems) = ItemOfChar(cell$)
                     END IF
                 CASE "@" ' A data station: a wall with a socket
                     worldMap(x, y) = 8
@@ -267,6 +277,9 @@ SUB BuildLevel STATIC
                 CASE "$" ' A code terminal: a wall with a screen
                     worldMap(x, y) = 9
                     IF numTerms < MAX_TERMS THEN numTerms = numTerms + 1 : termX(numTerms) = x : termY(numTerms) = y : termDone(numTerms) = 0
+                CASE ";" ' A turret control panel: a wall with a screen (HackUse)
+                    worldMap(x, y) = 10
+                    IF numTCtrl < MAX_TCTRL THEN numTCtrl = numTCtrl + 1 : tcX(numTCtrl) = x : tcY(numTCtrl) = y : tcState(numTCtrl) = 0
                 CASE "&" ' A teleporter's pad
                     IF numPads < MAX_PADS THEN numPads = numPads + 1 : padX(numPads) = x : padY(numPads) = y
                 CASE "=" : glassHP(x, y) = GLASS_HP ' Glass: floor, with a pane across it (AssignGlass)
@@ -276,10 +289,12 @@ SUB BuildLevel STATIC
                         decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oiptxlnfSdAFIJLOQUWZV", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0 : vendState(numDecos) = 0 : decoFace(numDecos) = 0
                         decoHP(numDecos) = DecoMaxHP(decoKind(numDecos)) : decoTimer(numDecos) = 0 : decoLootA(numDecos) = NO_AIM
                     END IF
-                CASE "m", "g", "h", "c", "s", "k", "w", "z", "T" ' A monster
+                CASE "m", "g", "h", "c", "s", "k", "w", "z", "T", "1", "5", "6", "7", "0", "~", "_", "|" ' A monster (MonChars$)
                     IF numMonsters < MAX_MON THEN
                         numMonsters = numMonsters + 1
-                        monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = INSTR("mghcskwzT", cell$)
+                        monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = MonOfChar(cell$)
+                        MonFresh numMonsters ' (a turret: ~ drops from the ceiling, _ rises from the floor, | slides out of a wall - TurretMount, once the walls are all in)
+                        IF cell$ = "_" THEN monFrom(numMonsters) = TURRET_FLOOR ELSE IF cell$ = "|" THEN monFrom(numMonsters) = TURRET_WALL
                         monsterHP(numMonsters) = mtypeHP(monsterType(numMonsters)) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
                         monsterEv(numMonsters) = 0 : ThiefReset numMonsters
                         MonOwn numMonsters, x, y ' (its own sight, hearing, health, speed, waking - [monsters])
@@ -295,7 +310,7 @@ SUB BuildLevel STATIC
     ' diagonal 1) and the better side wins. A "/" can only be solid top-left (1)
     ' or bottom-right (3), a "\" top-right (2) or bottom-left (4). It takes the
     ' look of the wall beside its solid half (N if there's none).
-    FOR y = 1 TO MAP_SIZE - 2 : FOR x = 1 TO MAP_SIZE - 2
+    FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
         IF diagCorner(x, y) < 0 THEN
             bestScore = -1
             FOR k = -diagCorner(x, y) TO 4 STEP 2 ' "/" (-1) tries corners 1 and 3, "\" (-2) 2 and 4
@@ -315,7 +330,7 @@ SUB BuildLevel STATIC
     boxAny = 0
     FOR k = 1 TO lvlNumBoxes
         x = lvlBox(k, 1) : y = lvlBox(k, 2)
-        IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN
+        IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN
             IF worldMap(x, y) <= 0 AND diagCorner(x, y) = 0 AND glassHP(x, y) = 0 THEN
                 w = lvlBox(k, 7) : IF w < 1 OR w > 6 THEN w = 1
                 boxOn(x, y) = VAL(MID$("134567", w, 1)) : boxAny = -1
@@ -329,7 +344,7 @@ SUB BuildLevel STATIC
     ' Decorations moved off their cell's middle ([nudges])
     FOR k = 1 TO lvlNumNudges
         x = lvlNudge(k, 1) : y = lvlNudge(k, 2)
-        IF x >= 0 AND y >= 0 AND x < MAP_SIZE AND y < MAP_SIZE THEN
+        IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
             i = decoCell(x, y)
             IF i THEN decoX(i) = x + 0.5 + MaxOf(-3, MinOf(3, lvlNudge(k, 3))) / 8 : decoY(i) = y + 0.5 + MaxOf(-3, MinOf(3, lvlNudge(k, 4))) / 8 ' (up to 3 eighths: still in its cell)
             IF i THEN IF lvlNudge(k, 5) >= 1 AND lvlNudge(k, 5) <= 4 THEN decoFace(i) = lvlNudge(k, 5) ' (and standing flat, facing one way)
@@ -358,6 +373,12 @@ SUB BuildLevel STATIC
             END IF
         END IF
     NEXT
+    FOR i = 1 TO numMonsters ' (turrets: a wall one set against its wall, pointing out of it; the rest pointing one of 8 ways, the same each time)
+        IF monsterType(i) = MT_TURRET THEN
+            turPrefX = 0 : turPrefY = 0 : IF monFrom(i) = TURRET_WALL THEN TurretMount i
+            IF monFrom(i) <> TURRET_WALL THEN monAimA(i) = ((INT(monsterX(i)) * 7 + INT(monsterY(i)) * 13) MOD 8) * 0.78539816#
+        END IF
+    NEXT
     PlaceDroids level ' (and the droids: a few, about their business)
     ' Things that glow by themselves get a light of their own: lamps (cyan;
     ' every fourth one flickers), terminals (a faint green pulse), and the exit
@@ -378,15 +399,15 @@ SUB BuildLevel STATIC
             CASE 17 : AddLight decoX(i), decoY(i), 3.5, 40, 110, 170, FX_PULSE, i ' Hologram: blue
         END SELECT
     NEXT
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
         IF worldMap(x, y) = 2 AND doorType(x, y) = DOOR_EXIT THEN AddLight x + 0.5, y + 0.5, 3.5, 50, 160, 70, FX_PULSE, 0
     NEXT : NEXT
     ' Glowing liquids light the room round them: lava a firelight, slime and
     ' acid a faint sickly glow - one light for each 3 x 3 patch of it
-    FOR gy = 0 TO MAP_SIZE - 1 STEP 3 : FOR gx = 0 TO MAP_SIZE - 1 STEP 3
+    FOR gy = 0 TO mapN - 1 STEP 3 : FOR gx = 0 TO mapN - 1 STEP 3
         FOR k = LQ_SLIME TO LQ_ACID
             n = 0 : sx = 0 : sy = 0
-            FOR y = gy TO MinOf(gy + 2, MAP_SIZE - 1) : FOR x = gx TO MinOf(gx + 2, MAP_SIZE - 1)
+            FOR y = gy TO MinOf(gy + 2, mapN - 1) : FOR x = gx TO MinOf(gx + 2, mapN - 1)
                 IF INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1)) = k THEN n = n + 1 : sx = sx + x + 0.5 : sy = sy + y + 0.5
             NEXT : NEXT
             IF n THEN
@@ -403,7 +424,7 @@ SUB BuildLevel STATIC
     ' Every cell's floor and ceiling height ([floor] and [ceiling]); and you
     ' standing on your floor
     levelFlat = -1
-    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
         floorH(x, y) = HeightOf(MID$(lvlFloorRow$(y), x + 1, 1), 0) : ceilH(x, y) = HeightOf(MID$(lvlCeilRow$(y), x + 1, 1), 1)
         IF ceilH(x, y) < floorH(x, y) + 0.25 THEN ceilH(x, y) = floorH(x, y) + 0.25 ' (never through the floor)
         IF floorH(x, y) <> 0 OR ceilH(x, y) <> 1 THEN levelFlat = 0
@@ -418,14 +439,21 @@ SUB BuildLevel STATIC
         liftX1(k) = MaxOf(lvlLift(k, 1), lvlLift(k, 3)) : liftY1(k) = MaxOf(lvlLift(k, 2), lvlLift(k, 4))
         liftLow(k) = lvlLift(k, 5) * H_STEP : liftHigh(k) = lvlLift(k, 6) * H_STEP : liftMode(k) = lvlLift(k, 7)
         liftSpeed(k) = lvlLift(k, 8) * H_STEP / 60 : IF liftSpeed(k) <= 0 THEN liftSpeed(k) = 0.01
-        liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 60 : liftWasDir(k) = 0 : liftArm(k) = -1
+        liftZ(k) = liftLow(k) : liftDir(k) = 0 : liftWait(k) = 60 : liftWasDir(k) = 0 : liftArm(k) = -1 : liftHit(k) = 0
+        IF liftMode(k) = LIFT_CRUSHER OR liftMode(k) = LIFT_SMASHER THEN ' A crusher or smasher: its ceiling moves, from the top
+            liftZ(k) = liftHigh(k)
+            FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
+                IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN liftCell(x, y) = k : ceilH(x, y) = liftZ(k) : levelFlat = 0 : boxOn(x, y) = 0
+            NEXT : NEXT
+            _CONTINUE
+        END IF
         lc = 99 ' (no higher than leaves you room under the lowest ceiling over it: else you'd ride up into it, and stick)
         FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
-            IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN lc = MinOf(lc, ceilH(x, y))
+            IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN lc = MinOf(lc, ceilH(x, y))
         NEXT : NEXT
         IF liftHigh(k) > lc - BODY_H THEN liftHigh(k) = MaxOf(liftLow(k), lc - BODY_H)
         FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
-            IF x > 0 AND y > 0 AND x < MAP_SIZE - 1 AND y < MAP_SIZE - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0 : floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0 : boxOn(x, y) = 0 ' (a lift's top: its own plate - MakeLiftTex; no block on it: it stands floor to ceiling, and the floor moves)
+            IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0 : floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0 : boxOn(x, y) = 0 ' (a lift's top: its own plate - MakeLiftTex; no block on it: it stands floor to ceiling, and the floor moves)
         NEXT : NEXT
     NEXT
     ' The liquids ([liquid], [liquid depth]): a pool on each open cell the map
@@ -435,7 +463,7 @@ SUB BuildLevel STATIC
     FOR k = 1 TO LQ_KINDS : lqUsed(k) = 0 : NEXT
     FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
         liqKind(x, y) = 0 : liqZ(x, y) = 0
-        IF x < MAP_SIZE AND y < MAP_SIZE THEN
+        IF x < mapN AND y < mapN THEN
             k = INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1))
             IF k AND worldMap(x, y) <= 0 AND liftCell(x, y) = 0 THEN
                 d = VAL(MID$(lvlLiqDRow$(y), x + 1, 1)) : IF d < 1 OR d > 8 THEN d = LQ_DEPTH

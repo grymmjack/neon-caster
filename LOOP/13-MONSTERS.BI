@@ -27,9 +27,13 @@
     ' (chatterWait: frames before any monster may mutter or growl again, so
     ' a crowd doesn't drown everything)
     IF chatterWait > 0 THEN chatterWait = chatterWait - 1
+    FOR i = 1 TO MAX_BEAMS ' (the beams a frame on: a laser's aim is drawn the frame it's made, and gone the next unless it's made again)
+        IF beamT(i) > 0 THEN beamT(i) = beamT(i) - 1
+    NEXT
     FOR i = 1 TO numMonsters
         IF cyberOn AND monsterType(i) <> MT_ICE THEN _CONTINUE ' (in the real world: they wait)
         IF editMode OR hudEdit THEN _CONTINUE ' (in the editors: everything waits)
+        IF monBlown(i) = 2 THEN TurretStump i ' (a destroyed turret's mount: sparks, arcs, smoke - GAME/TURRETS.BM)
         IF noTarget AND monsterState(i) = 1 THEN monsterState(i) = 0 ' (notarget: whatever woke it, it forgets you - before it can chase or shoot)
         IF monsterHurt(i) > 0 THEN monsterHurt(i) = monsterHurt(i) -1
         IF monsterAtk(i) > 0 THEN monsterAtk(i) = monsterAtk(i) - 1
@@ -79,15 +83,22 @@
                 IF RND < 0.004 AND chatterWait = 0 THEN
                     IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < SFX_CHATTER * SFX_CHATTER THEN SfxAtRange mtypeHuntSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY, SFX_CHATTER : chatterWait = 30
                 END IF
-                toPlayerX = playerX - monsterX(i) : toPlayerY = playerY - monsterY(i) : distance = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY)
-                IF NOT dead AND distance > 0.01 THEN
+                ' Who it's after: you - or the monster it's turned on (monFoe:
+                ' it hurt it - GAME/MONSTERS.BM's MonHurtBy), while that's alive
+                monVs = monFoe(i) : IF monVs THEN IF monsterState(monVs) >= 2 OR cyberOn OR monVs = i THEN monFoe(i) = 0 : monVs = 0
+                IF monVs THEN monTX = monsterX(monVs) : monTY = monsterY(monVs) : monTZ = MonFoot(monVs) ELSE monTX = playerX : monTY = playerY : monTZ = playerZ
+                toPlayerX = monTX - monsterX(i) : toPlayerY = monTY - monsterY(i) : distance = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY)
+                boltFromMon = i ' (its shots are its own: what they hit, it hit)
+                IF (NOT dead OR monVs) AND distance > 0.01 THEN
                     goX = 0 : goY = 0
                     IF mtype = MT_THIEF THEN
                         ThiefStep
+                    ELSEIF mtypeStyle(mtype) THEN ' (the newer kinds: how each fights - MonStyleTurn)
+                        MonStyleTurn i
                     ELSEIF mtypeRanged(mtype) THEN
                         ' Gunner: keep its distance, shoot when it has a clear line
                         ' (a sentry can't move, so it just shoots)
-                        seen = CanSee(monsterX(i), monsterY(i), playerX, playerY)
+                        seen = CanSee(monsterX(i), monsterY(i), monTX, monTY)
                         IF distance > GUNNER_FAR OR NOT seen THEN goX = toPlayerX / distance : goY = toPlayerY / distance
                         IF distance < GUNNER_NEAR THEN goX = - toPlayerX / distance : goY = -toPlayerY / distance
                         IF seen AND monsterTimer(i) = 0 AND distance < 11 THEN
@@ -104,14 +115,14 @@
                         END IF
                     ELSEIF distance > mtypeReach(mtype) THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' The rest: close in...
-                    ELSEIF GlassBetween(monsterX(i), monsterY(i), playerX, playerY) THEN
+                    ELSEIF GlassBetween(monsterX(i), monsterY(i), monTX, monTY) THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' (glass between: it just presses against it)
-                    ELSEIF mtypeLift(mtype) = 0 AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) > 0.7 THEN
+                    ELSEIF mtypeLift(mtype) = 0 AND ABS(FloorAt(monsterX(i), monsterY(i)) - monTZ) > 0.7 THEN
                         goX = toPlayerX / distance : goY = toPlayerY / distance ' (you're up a ledge, or down one: claws don't reach)
                     ELSEIF monsterTimer(i) = 0 THEN ' ...and hit
-                        damage = mtypeDamage(mtype) + INT(GRnd * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
-                        PlaySfx mtypeAttackSnd&(mtype), 0.9
-                        hurtFromX = monsterX(i) : hurtFromY = monsterY(i) : HurtPlayer
+                        dmg = mtypeDamage(mtype) + INT(GRnd * mtypeDamageRnd(mtype)) : monsterTimer(i) = mtypeCooldown(mtype)
+                        SfxAt mtypeAttackSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
+                        MonStrike i, dmg ' (you - or the monster it's turned on)
                         monsterAtk(i) = ATTACK_FRAMES
                     END IF
                     IF (goX <> 0 OR goY <> 0) AND mtypeSpeed(mtype) > 0 THEN ' A door in the way? Open it (MonsterDoor, chapter 11)
@@ -129,6 +140,7 @@
                     IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype) * monSpd(i) * msl, goY * mtypeSpeed(mtype) * monSpd(i) * msl
                     walkZ = -999 : walkFromHaz = 0
                 END IF
+                boltFromMon = 0 : monVs = 0
                 monsterAnim(i) = monsterAnim(i) + SQR((monsterX(i) - animX) ^ 2 + (monsterY(i) - animY) ^ 2) / MON_STRIDE
                 ' Keep a little apart from each other - by the rules it walks by: no
                 ' shove up a ledge, off an edge, into fire or a harmful pool
@@ -146,8 +158,15 @@
                 NEXT
                 walkZ = -999 : walkFromHaz = 0
             CASE 2 ' Dying: collapse
+                IF monBlown(i) = 1 THEN TurretBlown i ' (a turret, destroyed: it blows up - GAME/TURRETS.BM)
                 monsterTimer(i) = monsterTimer(i) -1
-                IF monsterTimer(i) <= 0 THEN monsterState(i) = 3
+                IF monsterTimer(i) <= 0 THEN
+                    monsterState(i) = 3
+                    IF monsterType(i) = MT_TURRET AND monFrom(i) = 0 THEN ' (a turret from the ceiling: it's hit the floor - a crash, sparks, the floor shakes)
+                        SpawnSparks monsterX(i), monsterY(i), 0.05, 20, 255, 190, 80 : SfxAt mtypeDieSnd&(MT_TURRET), monsterX(i), monsterY(i), playerX, playerY
+                        IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < 25 THEN shake = shake + 4
+                    END IF
+                END IF
         END SELECT
     NEXT
 
@@ -155,6 +174,7 @@
     ' or on you. Since they move only 0.14 cells a frame, checking the one
     ' point where each bolt is can't miss a wall.
     FOR i = 1 TO MAX_BOLTS
+        IF boltOn(i) AND boltKind(i) <> BK_PLASMA THEN BoltFly i : _CONTINUE ' (a rocket, a missile, a spray's puff: GAME/ROCKETS.BM)
         IF boltOn(i) THEN
             boltX(i) = boltX(i) + boltDX(i) * BOLT_SPEED : boltY(i) = boltY(i) + boltDY(i) * BOLT_SPEED : boltZ(i) = boltZ(i) + boltDZ(i) * BOLT_SPEED
             IF NOT levelFlat THEN ' (heights: into a step, a floor or a ceiling, it bursts)
@@ -168,6 +188,10 @@
                 targetDeco = BoltDeco(boltX(i), boltY(i), boltZ(i)) : boltOn(i) = 0
                 SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, boltZ(i) - FloorAt(boltX(i), boltY(i)), 7, 255, 60, 230
                 hitDamage = boltDamage(i) : hitKick = 0 : decoByMon = -1 : HitDeco : decoByMon = 0
+            ELSEIF BoltMon(boltX(i), boltY(i), boltZ(i), boltOwner(i)) THEN ' Another monster in its way: hit (and it may turn on the one that shot it - INFIGHTING)
+                j = BoltMon(boltX(i), boltY(i), boltZ(i), boltOwner(i)) : boltOn(i) = 0
+                SpawnSparks boltX(i), boltY(i), boltZ(i) - FloorAt(boltX(i), boltY(i)), 7, 255, 60, 230
+                MonHurtBy j, boltOwner(i), boltDamage(i)
             ELSEIF NOT Walkable(boltX(i), boltY(i)) THEN
                 boltOn(i) = 0 : SfxAt sndBoltWall&, boltX(i), boltY(i), playerX, playerY
                 SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
@@ -179,6 +203,7 @@
             END IF
         END IF
     NEXT
+    GibsAndFires ' (a rocket's pieces flying, and what it set burning: GAME/ROCKETS.BM)
     ' Barrels: a shot lights a fuse (decoFuse), which counts down frames and
     ' then the barrel blows up (Explode, chapter 19). A blast lights the
     ' fuses of barrels near it, so they go off in a quick chain - and breaks
@@ -230,21 +255,17 @@
     ELSE
         beatNext = 0 : gaspNext = 0 : beatAt = 0
     END IF
-    ' Night vision: N (BIND_NIGHT) on and off, while there's battery; on, it
-    ' runs down, and goes off by itself when it's flat
+    ' Night vision: N (BIND_NIGHT) on and off, once you have a headset (it's
+    ' yours till you die, as a gun is)
     nvKey = (inBits AND DB_NIGHT) <> 0
     IF nvKey AND NOT nvKeyWas AND NOT editMode AND NOT dead THEN
-        IF nvCharge > 0 THEN
+        IF nvHave THEN
             nvOn = NOT nvOn : IF nvOn THEN PlaySfx sndPowerUp&, 0.7 ELSE PlaySfx sndPowerDown&, 0.6
         ELSE
             ShowMsg "No night vision - find a headset"
         END IF
     END IF
     nvKeyWas = nvKey
-    IF nvOn AND NOT dead THEN
-        nvCharge = nvCharge - 1
-        IF nvCharge <= 0 THEN nvCharge = 0 : nvOn = 0 : PlaySfx sndPowerDown&, 0.8 : ShowMsg "Night vision: battery flat"
-    END IF
     IF ampTimer > 0 THEN ' The damage amp wears off
         ampTimer = ampTimer - 1 : IF ampTimer = 0 THEN PlaySfx sndAmpEnd&, 0.8 : ShowMsg "Damage amp wore off"
     END IF

@@ -26,9 +26,12 @@ CONST IT_HEALTH = 4, IT_CELLS = 5, IT_SHELLS = 6, IT_SCATTER = 7, IT_REPEATER = 
 CONST IT_ARMOR = 9, IT_BIGMED = 10, IT_RAIL = 11, IT_MAP = 12
 CONST IT_CORE = 15 ' (a data core: only in the network)
 CONST IT_OVERCHARGE = 13, IT_AMP = 14 ' (overcharge: health up to MAX_OVER; damage amp: double damage for AMP_FRAMES)
-CONST IT_GOGGLES = 16 ' (8 on the map: a night-vision headset - NV_FRAMES of battery; N switches it on and off)
-CONST NV_FRAMES = 3600, NV_MAX = 7200 ' (a headset's battery: a minute of seeing in the dark; two at most)
-DIM SHARED nvCharge AS SINGLE, nvOn AS INTEGER ' (night vision: frames of battery left, and whether it's on - ApplyNight, and OpenGL's post shader's "night")
+CONST IT_GOGGLES = 16 ' (8 on the map: a night-vision headset - yours till you die, as a gun is; N switches it on and off)
+CONST IT_SUIT = 17 ' (9 on the map: a hazmat suit - poison, slime and acid wear it, not you; fire and lava go straight through)
+CONST IT_LAUNCHER = 18, IT_ROCKETS = 19 ' (on the map ) and (: the rocket launcher - gun 5, with five rockets - and a box of five rockets)
+CONST SUIT_MAX = 100, SUIT_WEAR = 0.5 ' (a suit's wear: SUIT_MAX new, and SUIT_WEAR of it for each point of harm it takes - a good half-minute in poison)
+DIM SHARED suitLeft AS SINGLE ' (what's left of your suit: 0 none - lost when you die, as night vision is)
+DIM SHARED nvHave AS SINGLE, nvOn AS INTEGER ' (night vision: whether you have a headset (1), and whether it's on - ApplyNight, and OpenGL's post shader's "night")
 CONST MAX_OVER = 200, AMP_FRAMES = 1800
 ' MAX_ = the most there can be: the arrays below have room for this many
 CONST MAX_ITEMS = 128

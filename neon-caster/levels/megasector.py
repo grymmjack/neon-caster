@@ -49,6 +49,10 @@ THE TOUR - and what each part shows:
  VAULT (south-east)         a PRESSURE PLATE in the corridor; the thieves'
      HOARD, sealed until every thief is dead; lockers standing flat
 
+THE ARMOURY (all over)      wall turrets that slide out at chest height, one of
+     every weapon - plasma, laser, lightning, flame, poison, acid, missiles;
+     the rocket launcher, and rockets for it
+
 Everything else: every map character (all nine monsters, all twenty-one
 decorations, all fifteen pickups), all six light effects, light-tinted
 wall and block faces, [loot] for its breakables, [monsters] settings
@@ -332,6 +336,10 @@ def expo():
     bx, by = sx + dy, sy + dx  # (the wall along from it)
     m.face(bx, by, {(1, 0): "W", (-1, 0): "E", (0, 1): "N", (0, -1): "S"}[(dx, dy)], "wall-switch.png")
     m.triggers.append("shoot %d %d : secret %d %d" % (bx, by, sx, sy))
+    # The armoury, all over: a wall turret of every weapon, the rocket
+    # launcher, and rockets for it (newsectors' arm, placed by its rules)
+    ns.ARMS[24] = dict(turrets=[0, 1, 2, 3, 4, 5, 6], launcher=1, rockets=3)
+    ns.arm(m, 24)
     m.headroom(8)
     return m
 
@@ -358,7 +366,7 @@ def build(write=False, show=False):
         if k > mx:
             print("  TOO MANY %s: %d (max %d)" % (what, k, mx)); good = False
     rows = "".join(lv["rows"])
-    missing = [ch for ch in "rbyM+*uae234qjmghcskwzToiptxlnfSdAFIJLOQUWZV/\\%?=@$&!DHXRBYE" if ch not in rows]
+    missing = [ch for ch in "rbyM+*uae234qj)(mghcskwzT|oiptxlnfSdAFIJLOQUWZV/\\%?=@$&!DHXRBYE" if ch not in rows]
     if missing:
         print("  NOT USED YET:", " ".join(missing))
     if len(kinds) < 13:

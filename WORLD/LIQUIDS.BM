@@ -29,7 +29,7 @@ END FUNCTION
 ' Does the level as its file says it have any liquid?
 FUNCTION LiquidRowsAny
     DIM y ' (its own: the main program shares these names)
-    FOR y = 0 TO MAP_SIZE - 1
-        IF lvlLiqRow$(y) <> STRING$(MAP_SIZE, ".") THEN LiquidRowsAny = -1 : EXIT FUNCTION
+    FOR y = 0 TO mapN - 1
+        IF lvlLiqRow$(y) <> STRING$(mapN, ".") THEN LiquidRowsAny = -1 : EXIT FUNCTION
     NEXT
 END FUNCTION

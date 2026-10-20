@@ -42,6 +42,10 @@ DIM SHARED glDoor(MAP_SIZE, MAP_SIZE, 1) AS SINGLE, glSeen(MAP_SIZE, MAP_SIZE, 1
 DIM SHARED glNumSpr(1) AS INTEGER, glSprX(MAX_DRAW, 1), glSprY(MAX_DRAW, 1), glSprLift(MAX_DRAW, 1)
 DIM SHARED glSprHalfW(MAX_DRAW, 1), glSprH(MAX_DRAW, 1), glSprSlot(MAX_DRAW, 1) AS INTEGER, glSprFace(MAX_DRAW, 1) AS INTEGER
 DIM SHARED glSprMdl(MAX_DRAW, 1) AS INTEGER, glSprAng(MAX_DRAW, 1) ' (a 3D prop: its model, drawn as itself - GLDrawModel - and the way it faces)
+DIM SHARED glSprPitch(MAX_DRAW, 1), glSprHead(MAX_DRAW, 1) AS INTEGER, glSprHAng(MAX_DRAW, 1), glSprHPitch(MAX_DRAW, 1) ' (pitched - a rocket; a turret's head, aimed)
+' The turrets' laser sights: a glowing line each (GLSight)
+DIM SHARED glNumSight(1) AS INTEGER, glSightX0(MAX_BEAMS, 1), glSightY0(MAX_BEAMS, 1), glSightZ0(MAX_BEAMS, 1), glSightX1(MAX_BEAMS, 1), glSightY1(MAX_BEAMS, 1), glSightZ1(MAX_BEAMS, 1), glSightC(MAX_BEAMS, 1) AS _UNSIGNED LONG
+DIM SHARED glSprCap(MAX_DRAW, 1) AS _UNSIGNED LONG, glSprFlip(MAX_DRAW, 1) AS INTEGER, glSprUpX(MAX_DRAW, 1), glSprUpY(MAX_DRAW, 1), glSprUpZ(MAX_DRAW, 1) ' (a turret: its muzzles' colour, upside down, its model's up)
 DIM SHARED glSprR(MAX_DRAW, 1), glSprG(MAX_DRAW, 1), glSprB(MAX_DRAW, 1)
 DIM SHARED glTexVersion AS LONG
 ' Bump mapping (chapter 24): each cell's light middle (glLitCX, glLitCY)
@@ -49,7 +53,7 @@ DIM SHARED glTexVersion AS LONG
 ' .. 1); and the glows - halos round bolts, blasts, lamps and terminals:
 ' where, how big, what colour. glBump and glGlowOn: the two VIDEO settings.
 DIM SHARED glLitCX(MAP_SIZE, MAP_SIZE, 1) AS SINGLE, glLitCY(MAP_SIZE, MAP_SIZE, 1) AS SINGLE, glLitDir(MAP_SIZE, MAP_SIZE, 1) AS SINGLE
-CONST MAX_GLOWS = MAX_BOLTS + MAX_BLASTS + MAX_LIGHTS
+CONST MAX_GLOWS = MAX_BOLTS * 4 + MAX_BLASTS + MAX_LIGHTS ' (a rocket: three more, its exhaust)
 DIM SHARED glNumGlow(1) AS INTEGER, glGlowX(MAX_GLOWS, 1), glGlowY(MAX_GLOWS, 1), glGlowZ(MAX_GLOWS, 1), glGlowSize(MAX_GLOWS, 1)
 DIM SHARED glGlowR(MAX_GLOWS, 1), glGlowG(MAX_GLOWS, 1), glGlowB(MAX_GLOWS, 1)
 DIM SHARED glWrite AS INTEGER
@@ -59,7 +63,9 @@ DIM SHARED glWrite AS INTEGER
 ' the camera as a matrix (chapter 24), and how long it took (for SHOW FPS)
 ' (one more texture name after the sprites: GL_GLOW_TEX, the glows' soft
 ' round spot)
-CONST GL_GLOW_TEX = T_SLOTS + SPR_SLOTS + 1
+' (and before it, the 3D props' pictures - each model from 8 ways round,
+' mdlPic: a sprite slot past SPR_SLOTS, SPR_SLOTS + its number, is one)
+CONST GL_GLOW_TEX = T_SLOTS + SPR_SLOTS + MAX_MODELS * MDL_ANGLES + 1
 DIM SHARED glTexName(GL_GLOW_TEX) AS _UNSIGNED LONG, glTexDone AS LONG
 ' ...the guns' pictures (GLSendGuns), and two OpenGL numbers QB64PE has no
 ' name for (it knows OpenGL 1.1's; these came later)

@@ -70,12 +70,13 @@ SUB AddBlast STATIC
     FOR blastSlot = 1 TO MAX_BLASTS
         IF blastTime(blastSlot) = 0 THEN
             blastX(blastSlot) = newBlastX : blastY(blastSlot) = newBlastY
-            blastSize(blastSlot) = newBlastSize : blastTime(blastSlot) = BLAST_FRAMES
+            blastSize(blastSlot) = newBlastSize : blastTime(blastSlot) = BLAST_FRAMES : blastZ(blastSlot) = newBlastZ
             SpawnEmbers newBlastX, newBlastY, newBlastSize ' (and a burst of embers: chapter 24's particles)
-            IF liftCell(INT(newBlastX), INT(newBlastY)) = 0 THEN AddDecal newBlastX, newBlastY, FloorAt(newBlastX, newBlastY) + 0.001, 0, 0, 1, 0.4 + 0.9 * newBlastSize ' (and a scorch mark on the floor - not on a lift, which moves)
+            IF liftCell(INT(newBlastX), INT(newBlastY)) = 0 AND NOT newBlastNoMark THEN AddDecal newBlastX, newBlastY, FloorAt(newBlastX, newBlastY) + 0.001, 0, 0, 1, 0.4 + 0.9 * newBlastSize ' (and a scorch mark on the floor - not on a lift, which moves)
             StirDust newBlastX, newBlastY, 0, 0, 1 + 3 * newBlastSize, 0.09 * newBlastSize ' (and blows the dust away)
             EXIT FOR
         END IF
     NEXT
+    newBlastZ = NO_Z : newBlastNoMark = 0
 
 END SUB

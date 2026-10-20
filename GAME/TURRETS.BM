@@ -1,0 +1,317 @@
+''
+' NEON-CASTER - GAME/TURRETS.BM
+' =============================================================================
+' Turrets (monster type MT_TURRET, chapter 13): mounted in a wall, and what
+' each one fires - its weapon (monWeap: TW_, GAME/MONSTERS.BI). Plasma bolts
+' are MonStyleTurn's own; the rest are here.
+'
+
+' --- A turret's weapon by name (as the editor and the console show it)
+FUNCTION TurretWeaponName$(w)
+    TurretWeaponName$ = RTRIM$(MID$("plasma   laser    lightningflame    poison   acid     missiles ", MaxOf(0, MinOf(TURRET_WEAPONS, w)) * 9 + 1, 9))
+END FUNCTION
+
+' --- ...and the other way: a weapon's number by its name (or the start of
+' it), -1 for none
+FUNCTION TurretWeaponOf(w$)
+    DIM k ' (its own: the main program shares these names)
+    TurretWeaponOf = -1
+    IF w$ = "" THEN EXIT FUNCTION
+    FOR k = 0 TO TURRET_WEAPONS
+        IF LEFT$(TurretWeaponName$(k), LEN(w$)) = LCASE$(w$) THEN TurretWeaponOf = k : EXIT FUNCTION
+    NEXT
+    IF LCASE$(w$) = "fire" OR LCASE$(w$) = "flamethrower" THEN TurretWeaponOf = TW_FLAME
+    IF LCASE$(w$) = "rockets" OR LCASE$(w$) = "missile" THEN TurretWeaponOf = TW_MISSILE
+    IF LCASE$(w$) = "zap" OR LCASE$(w$) = "electric" THEN TurretWeaponOf = TW_LIGHTNING
+END FUNCTION
+
+' --- Wall turret i (| on the map): which wall it's in - the first of west,
+' north, east, south beside its cell - and set against that wall's face,
+' pointing out of it (monWallX, monWallY). With no wall beside it, it's a
+' floor turret after all.
+SUB TurretMount(i)
+    DIM x, y, k, dx, dy ' (its own: the main program shares these names)
+    x = INT(monsterX(i)) : y = INT(monsterY(i))
+    FOR k = -1 TO 3
+        dx = 0 : dy = 0
+        SELECT CASE k
+            CASE -1 : dx = turPrefX : dy = turPrefY : IF dx = 0 AND dy = 0 THEN _CONTINUE ' (the wall it was asked for, first - summon's: the one you face)
+            CASE 0 : dx = 1 ' (its wall to the west: it points east)
+            CASE 1 : dy = 1
+            CASE 2 : dx = -1
+            CASE 3 : dy = -1
+        END SELECT
+        IF x - dx >= 0 AND y - dy >= 0 AND x - dx < mapN AND y - dy < mapN THEN
+            IF worldMap(x - dx, y - dy) <> 0 AND worldMap(x - dx, y - dy) <> 2 THEN ' (a wall - not a door)
+                monWallX(i) = dx : monWallY(i) = dy : monAimA(i) = DAtan2(dy, dx)
+                monsterX(i) = x + 0.5 - dx * 0.3 : monsterY(i) = y + 0.5 - dy * 0.3
+                EXIT SUB
+            END IF
+        END IF
+    NEXT
+    monFrom(i) = TURRET_FLOOR
+END SUB
+
+' --- How high turret i's muzzle is (in walls, as the floor's are)
+FUNCTION TurretMuzzleZ(i)
+    TurretMuzzleZ = MonFoot(i) + mtypeScale(MT_TURRET) * 0.5
+END FUNCTION
+
+' --- One turn of turret i (out, and not plasma - MonStyleTurn does that),
+' with distance, toPlayerX and toPlayerY worked out as chapter 13 has them:
+' its weapon, monWeap
+SUB TurretFire(i)
+    DIM sn, ux!, uy!, z!, a!, k, dz!, sp!, life, x!, y!, f!, steps, jx!, jy!, jz! ' (its own: the main program shares these names)
+    sn = CanSee(monsterX(i), monsterY(i), monTX, monTY)
+    ux! = DCos(monAimA(i)) : uy! = DSin(monAimA(i)) : z! = TurretMuzzleZ(i) ' (along its aim - where it points, not where you are)
+    SELECT CASE monWeap(i)
+        CASE TW_LASER ' Aims (a faint red line, lagging behind you), then fires: step out of it
+            IF monAim(i) > 0 THEN
+                IF sn THEN MonLaser i, 14 + INT(GRnd * 6), 0.06 ELSE monAim(i) = 0 : monsterTimer(i) = 30
+                IF monAim(i) = 0 THEN monsterTimer(i) = 110 + INT(GRnd * 40)
+            ELSEIF sn AND monsterTimer(i) = 0 AND distance < 18 AND TurretReady(i) THEN
+                MonLaserStart i, LASER_AIM : SfxAt mtypeAlertSnd&(MT_TURRET), monsterX(i), monsterY(i), playerX, playerY
+            END IF
+        CASE TW_LIGHTNING ' Charges (sparks crackling at its muzzle), then a bolt of lightning at you - if it still sees you
+            IF monBurst(i) > 0 THEN
+                monBurst(i) = monBurst(i) - 1
+                IF monBurst(i) MOD 3 = 0 THEN SpawnSparks monsterX(i) + ux! * 0.3, monsterY(i) + uy! * 0.3, z! - FloorAt(monsterX(i), monsterY(i)), 3, 120, 200, 255
+                IF monBurst(i) = 0 THEN
+                    IF sn AND distance < 11 AND (NOT dead OR monVs) AND monLock(i) > 0 THEN ' (still on you - or the monster it's after)
+                        TurretMuzzle i, 1, x!, y!, z!
+                        AddBeam BEAM_SHOT, x!, y!, z!, monTX, monTY, monTZ + 0.45, 6
+                        steps = INT(distance * 10) + 4 : jx! = 0 : jy! = 0 : jz! = 0
+                        FOR k = 0 TO steps ' (the bolt itself: a crooked line of bright points)
+                            f! = k / steps
+                            jx! = jx! + (RND - 0.5) * 0.12 : jy! = jy! + (RND - 0.5) * 0.12 : jz! = jz! + (RND - 0.5) * 0.08
+                            x! = monsterX(i) + toPlayerX * f! + jx! * SIN(f! * 3.14159) : y! = monsterY(i) + toPlayerY * f! + jy! * SIN(f! * 3.14159) ' (from its barrel to you)
+                            SpawnPart PART_ARC, x!, y!, z! + (monTZ + 0.45 - z!) * f! + jz! * SIN(f! * 3.14159), 0, 0, 0, 5 + INT(RND * 4), 0.75, 0.9, 1, 0.07
+                        NEXT
+                        IF monVs = 0 THEN hurtElectric = -1 ' (a shock: blue)
+                        MonStrike i, 10 + INT(GRnd * 6)
+                        SfxAt sndTurZap&, monsterX(i), monsterY(i), playerX, playerY : monsterAtk(i) = ATTACK_FRAMES
+                    END IF
+                    monsterTimer(i) = 80 + INT(GRnd * 40)
+                END IF
+            ELSEIF sn AND monsterTimer(i) = 0 AND distance < 11 AND TurretReady(i) THEN
+                monBurst(i) = 24 : SfxAt mtypeAlertSnd&(MT_TURRET), monsterX(i), monsterY(i), playerX, playerY
+            END IF
+        CASE TW_FLAME, TW_POISON, TW_ACID ' Sprays: a stream of puffs at you for a while, then a rest
+            SELECT CASE monWeap(i)
+                CASE TW_FLAME : k = BK_FLAME : sp! = 0.13 : life = 38 : f! = 5
+                CASE TW_POISON : k = BK_POISON : sp! = 0.1 : life = 55 : f! = 6
+                CASE ELSE : k = BK_ACID : sp! = 0.1 : life = 55 : f! = 6
+            END SELECT
+            IF monBurst(i) > 0 THEN
+                monBurst(i) = monBurst(i) - 1
+                IF monBurst(i) MOD 2 = 0 THEN
+                    a! = (GRnd - 0.5) * 0.3 : dz! = (monTZ + 0.4 - z!) / MaxOf(distance, 1) ' (a little either side of its aim)
+                    monTurn(i) = monTurn(i) + 1 : TurretMuzzle i, 1 + monTurn(i) MOD 2, x!, y!, f! ' (out of its barrels, one then the other)
+                    FireKind k, x!, y!, f!, ux! * DCos(a!) - uy! * DSin(a!), ux! * DSin(a!) + uy! * DCos(a!), dz!, sp! * (0.85 + GRnd * 0.3), life, 2 - (k <> BK_POISON) ' (3 a puff - poison 2)
+                    monsterAtk(i) = ATTACK_FRAMES
+                END IF
+                IF NOT sn AND monBurst(i) > 6 THEN monBurst(i) = 6 ' (lost you: it sputters out)
+                IF monBurst(i) = 0 THEN monsterTimer(i) = 70 + INT(GRnd * 40)
+            ELSEIF sn AND monsterTimer(i) = 0 AND distance < f! AND TurretReady(i) THEN
+                monBurst(i) = 40
+                IF k = BK_FLAME THEN SfxAt sndTurFlame&, monsterX(i), monsterY(i), playerX, playerY ELSE SfxAt sndTurSpray&, monsterX(i), monsterY(i), playerX, playerY
+            END IF
+        CASE TW_MISSILE ' A missile: slow, it turns after you, and bursts on what it meets (GAME/ROCKETS.BM)
+            IF sn AND monsterTimer(i) = 0 AND distance < 16 AND distance > 2 AND TurretReady(i) THEN
+                dz! = (monTZ + 0.45 - z!) / distance
+                monTurn(i) = monTurn(i) + 1 : TurretMuzzle i, 1 + monTurn(i) MOD 2, x!, y!, f!
+                FireKind BK_MISSILE, x!, y!, f!, ux!, uy!, dz!, MISSILE_SPEED, 320, 0
+                SfxAt sndTurMissile&, monsterX(i), monsterY(i), playerX, playerY : monsterAtk(i) = ATTACK_FRAMES
+                monsterTimer(i) = 140 + INT(GRnd * 50)
+            END IF
+    END SELECT
+END SUB
+
+' --- An angle (radians) a wall turret would turn to, held to within 70
+' degrees of the way it points out of its wall (wx, wy) - it can't turn
+' its barrels into the wall
+FUNCTION WallAim(a, wx, wy)
+    DIM o, d ' (its own: the main program shares these names)
+    o = DAtan2(wy, wx) : d = a - o
+    DO WHILE d > 3.14159265 : d = d - 6.2831853 : LOOP
+    DO WHILE d < -3.14159265 : d = d + 6.2831853 : LOOP
+    IF d > 1.22 THEN d = 1.22
+    IF d < -1.22 THEN d = -1.22
+    WallAim = o + d
+END FUNCTION
+
+' --- Where turret i was mounted, and which way that surface faces: on the
+' ceiling (facing down), the floor (up), or the face of its wall (out)
+SUB TurretMountAt(i, x!, y!, z!, nx!, ny!, nz!)
+    x! = monsterX(i) : y! = monsterY(i) : nx! = 0 : ny! = 0 : nz! = 0
+    SELECT CASE monFrom(i)
+        CASE TURRET_CEIL : z! = ceilH(INT(x!), INT(y!)) - 0.002 : nz! = -1
+        CASE TURRET_WALL : x! = x! - monWallX(i) * 0.199 : y! = y! - monWallY(i) * 0.199 : z! = FloorAt(monsterX(i), monsterY(i)) + 0.57 : nx! = monWallX(i) : ny! = monWallY(i)
+        CASE ELSE : z! = FloorAt(x!, y!) + 0.002 : nz! = 1
+    END SELECT
+END SUB
+
+' --- Turret i, destroyed: it blows up where it's mounted - a small blast
+' (it hurts what's close, and sets off other turrets and barrels near it),
+' a burst of sparks, and a scorch on the ceiling, floor or wall it was on.
+' Its mount sparks and smokes from then on (TurretStump).
+SUB TurretBlown(i)
+    DIM x!, y!, z!, nx!, ny!, nz!, k ' (its own: the main program shares these names)
+    monBlown(i) = 2
+    TurretMountAt i, x!, y!, z!, nx!, ny!, nz!
+    bsX = x! + nx! * 0.15 : bsY = y! + ny! * 0.15 : bsZ = z! + nz! * 0.15 : bsR = 1.5 : bsMon = 4 : bsYou = 10 : bsSurf = -1 : bsOwner = 0
+    BlastSized
+    SpawnSparks x!, y!, z! - FloorAt(x!, y!), 30, 255, 220, 140
+    FOR k = 1 TO 8 : SpawnPart PART_SMOKE, x! + (RND - 0.5) * 0.3, y! + (RND - 0.5) * 0.3, z! + nz! * 0.1, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, 0.006, 90, 0.14, 0.13, 0.12, 0.12 : NEXT
+    IF nz! <= 0 THEN AddDecal x!, y!, z!, nx!, ny!, nz!, 0.75 ' (the scorch where it was: on its ceiling or wall - a floor turret's blast leaves its own)
+END SUB
+
+' --- One frame of a destroyed turret's mount (i): wires torn out, now and
+' then a spray of sparks, a crackling arc of electricity, a wisp of smoke -
+' and the crackle, near you
+SUB TurretStump(i)
+    DIM x!, y!, z!, nx!, ny!, nz!, k, steps, ax!, ay!, az!, bx!, by!, bz!, f! ' (its own: the main program shares these names)
+    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 > 400 THEN EXIT SUB ' (more than 20 cells off: nobody sees it)
+    TurretMountAt i, x!, y!, z!, nx!, ny!, nz!
+    x! = x! + nx! * 0.04 : y! = y! + ny! * 0.04 : z! = z! + nz! * 0.04
+    IF RND < 0.05 THEN SpawnSparks x! + (RND - 0.5) * 0.2, y! + (RND - 0.5) * 0.2, z! - FloorAt(x!, y!), 2 + INT(RND * 5), 255, 200 + INT(RND * 55), 120 + INT(RND * 135)
+    IF RND < 0.08 THEN SpawnPart PART_SMOKE, x! + (RND - 0.5) * 0.2, y! + (RND - 0.5) * 0.2, z!, (RND - 0.5) * 0.004, (RND - 0.5) * 0.004, 0.004 + RND * 0.004, 80, 0.11, 0.1, 0.1, 0.07
+    IF RND < 0.025 THEN ' An arc: a crooked little line of blue-white points, jumping between two torn wires
+        ax! = x! + (RND - 0.5) * 0.3 : ay! = y! + (RND - 0.5) * 0.3 : az! = z! + (RND - 0.5) * 0.15 * (1 - ABS(nz!))
+        bx! = x! + (RND - 0.5) * 0.3 : by! = y! + (RND - 0.5) * 0.3 : bz! = z! + (RND - 0.5) * 0.15 * (1 - ABS(nz!))
+        steps = 8
+        FOR k = 0 TO steps
+            f! = k / steps
+            SpawnPart PART_ARC, ax! + (bx! - ax!) * f! + (RND - 0.5) * 0.05 + nx! * 0.08 * SIN(f! * 3.14159), ay! + (by! - ay!) * f! + (RND - 0.5) * 0.05 + ny! * 0.08 * SIN(f! * 3.14159), az! + (bz! - az!) * f! + nz! * 0.08 * SIN(f! * 3.14159), 0, 0, 0, 3 + INT(RND * 3), 0.7, 0.88, 1, 0.05
+        NEXT
+        IF RND < 0.35 THEN SfxAt sndZap&, x!, y!, playerX, playerY
+    END IF
+END SUB
+
+' --- A turret weapon's colour: on its muzzles, tinting it, and its laser
+' sight - plasma pink, laser red, lightning blue, flame orange, poison
+' green, acid yellow, missiles white
+FUNCTION TurretRGB~&(w)
+    SELECT CASE w
+        CASE TW_LASER : TurretRGB~& = _RGB32(255, 30, 40)
+        CASE TW_LIGHTNING : TurretRGB~& = _RGB32(60, 150, 255)
+        CASE TW_FLAME : TurretRGB~& = _RGB32(255, 140, 20)
+        CASE TW_POISON : TurretRGB~& = _RGB32(60, 255, 80)
+        CASE TW_ACID : TurretRGB~& = _RGB32(255, 240, 40)
+        CASE TW_MISSILE : TurretRGB~& = _RGB32(255, 255, 255)
+        CASE ELSE : TurretRGB~& = _RGB32(255, 60, 230)
+    END SELECT
+END FUNCTION
+
+' --- How many frames turret i must hold you in its sights before it fires:
+' the slower it turns, the longer (90 degrees a second: a third of a second)
+FUNCTION TurretLockFrames(i)
+    TurretLockFrames = INT(1800 / MaxOf(10, monTrack(i)))
+END FUNCTION
+
+FUNCTION TurretReady(i) ' (its sight on you: it fires - at once, however slow it turns)
+    TurretReady = monLock(i) > 0
+END FUNCTION
+
+' --- Turret i turns towards you (sn: it sees you), monTrack degrees a
+' second at most - a wall turret no further than its wall lets it. Once
+' it points at you, it counts the frames it's held you (monLock); lose it,
+' and it starts again
+SUB TurretTrack(i, sn)
+    DIM want!, d!, st! ' (its own: the main program shares these names)
+    IF NOT sn THEN monLock(i) = 0 : EXIT SUB
+    want! = DAtan2(toPlayerY, toPlayerX)
+    IF monFrom(i) = TURRET_WALL THEN want! = WallAim(want!, monWallX(i), monWallY(i))
+    d! = want! - monAimA(i)
+    DO WHILE d! > 3.14159265 : d! = d! - 6.2831853 : LOOP
+    DO WHILE d! < -3.14159265 : d! = d! + 6.2831853 : LOOP
+    st! = monTrack(i) * 3.14159265 / 180 / 60
+    IF ABS(d!) <= st! THEN monAimA(i) = monAimA(i) + d! ELSE monAimA(i) = monAimA(i) + st! * SGN(d!)
+    IF monAimA(i) > 3.14159265 THEN monAimA(i) = monAimA(i) - 6.2831853
+    IF monAimA(i) < -3.14159265 THEN monAimA(i) = monAimA(i) + 6.2831853
+    IF ABS(d!) < MaxOf(0.05, ATN(0.4 / MaxOf(distance, 0.5))) THEN monLock(i) = MinOf(999, monLock(i) + 1) ELSE monLock(i) = 0 ' (on you: its aim anywhere on your body)
+END SUB
+
+' --- Turret i's laser sight, in its weapon's colour: from its muzzle along
+' its aim to the first wall, dropping (or rising) to your chest by the time
+' it reaches you - so you see it swing round onto you
+SUB TurretSight(i)
+    DIM ux!, uy!, z0!, s!, ex!, ey!, ez!, dz!, mx!, my! ' (its own: the main program shares these names)
+    ux! = DCos(monAimA(i)) : uy! = DSin(monAimA(i)) : TurretMuzzle i, 1, mx!, my!, z0! ' (from its barrel)
+    dz! = (monTZ + 0.45 - z0!) / MaxOf(distance, 0.5) ' (its climb or drop: to your chest where you are)
+    s! = 0.3
+    DO WHILE s! < 20 ' (out to the first wall - or floor, step or ceiling: a stair's edge, past you)
+        ex! = monsterX(i) + ux! * s! : ey! = monsterY(i) + uy! * s! : ez! = z0! + dz! * s!
+        IF ex! < 0 OR ey! < 0 OR ex! >= mapN OR ey! >= mapN THEN EXIT DO
+        IF worldMap(INT(ex!), INT(ey!)) > 0 THEN EXIT DO
+        IF ez! < FloorAt(ex!, ey!) OR ez! > CeilAt(ex!, ey!) THEN EXIT DO
+        s! = s! + 0.05
+    LOOP
+    AddBeam BEAM_SIGHT + monWeap(i), mx!, my!, z0!, monsterX(i) + ux! * s!, monsterY(i) + uy! * s!, z0! + dz! * s!, 1
+END SUB
+
+' --- How turret i is drawn (draw-list entry d - chapter 16): turned to its
+' aim, its muzzles its weapon's colour; on the ceiling, upside down - its
+' head down; in a wall, on its side, its feet on the wall and its head out
+' into the room, leaning half way round to its aim
+SUB TurretDrawAt(i, d)
+    DIM f!, sc!, hz!, hd! ' (its own: the main program shares these names)
+    drawAng(d) = monAimA(i) : drawCap(d) = TurretRGB~&(monWeap(i))
+    f! = MinOf(1, monDeploy(i) / TURRET_UP) : sc! = mtypeScale(MT_TURRET) : IF editMode THEN f! = 1 ' (in the editor: shown out)
+    SELECT CASE monFrom(i)
+        CASE TURRET_CEIL ' (its feet on the ceiling: sliding down out of it)
+            drawUpX(d) = 0 : drawUpY(d) = 0 : drawUpZ(d) = -1
+            drawOX(d) = monsterX(i) : drawOY(d) = monsterY(i) : drawOZ(d) = ceilH(INT(monsterX(i)), INT(monsterY(i))) + sc! * (1 - f!)
+        CASE TURRET_WALL ' (its feet on the wall's face, its base's front down: sliding out of it)
+            drawUpX(d) = monWallX(i) : drawUpY(d) = monWallY(i) : drawUpZ(d) = 0 : drawPitch(d) = -1.5707963
+            drawOX(d) = monsterX(i) - monWallX(i) * 0.2 - drawUpX(d) * sc! * (1 - f!) : drawOY(d) = monsterY(i) - monWallY(i) * 0.2 - drawUpY(d) * sc! * (1 - f!)
+            drawOZ(d) = FloorAt(monsterX(i), monsterY(i)) + 0.57
+        CASE ELSE
+            drawOX(d) = monsterX(i) : drawOY(d) = monsterY(i) : drawOZ(d) = FloorAt(monsterX(i), monsterY(i)) - sc! * (1 - f!)
+    END SELECT
+    IF turPlateMdl THEN drawOX(d) = drawOX(d) + drawUpX(d) * 0.03 : drawOY(d) = drawOY(d) + drawUpY(d) * 0.03 : drawOZ(d) = drawOZ(d) + drawUpZ(d) * 0.03 ' (standing on its plate)
+    IF turBaseMdl AND turHeadMdl THEN ' (in two parts: its head aimed at you - round to its aim, and up or down to your chest while it's after you)
+        drawHead(d) = -1 : drawHAng(d) = monAimA(i) : drawHPitch(d) = 0
+        IF monsterState(i) = 1 AND monDeploy(i) >= TURRET_UP THEN
+            hz! = TurretMuzzleZ(i) : hd! = SQR((playerX - monsterX(i)) ^ 2 + (playerY - monsterY(i)) ^ 2)
+            drawHPitch(d) = ATN((playerZ + 0.45 - hz!) / MaxOf(hd!, 0.3))
+        END IF
+    END IF
+END SUB
+
+' --- Turret i's mounting plate, a draw-list entry of its own (OpenGL only,
+' near): bolted to its ceiling, floor or wall, there whether it's out or
+' not - and once it's destroyed, blown open, its wires torn out
+SUB TurretPlate(i)
+    DIM x!, y!, z!, nx!, ny!, nz! ' (its own: the main program shares these names)
+    TurretMountAt i, x!, y!, z!, nx!, ny!, nz!
+    numDraw = numDraw + 1 : drawX(numDraw) = x! + nx! * 0.05 : drawY(numDraw) = y! + ny! * 0.05
+    drawSprite(numDraw) = 0 : drawScale(numDraw) = 0.4 : drawLift(numDraw) = 0 : drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40
+    drawMdl(numDraw) = turPlateMdl : IF monBlown(i) = 2 THEN drawMdl(numDraw) = turHoleMdl
+    drawAng(numDraw) = 0.5236 : drawUpX(numDraw) = nx! : drawUpY(numDraw) = ny! : drawUpZ(numDraw) = nz!
+    IF ABS(nz!) < 0.5 THEN drawPitch(numDraw) = -1.5707963 ' (on a wall: its front down the wall)
+    drawOX(numDraw) = x! : drawOY(numDraw) = y! : drawOZ(numDraw) = z! : IF drawOX(numDraw) = 0 THEN drawOX(numDraw) = 0.0001
+END SUB
+
+' --- Where turret i's barrel k (1 left, 2 right) ends, out (fully): its
+' mount and its plate, its base up from that, its head on top turned to
+' its aim and tipped to who it's after - as TurretDrawAt draws it. No head
+' model: in front of its middle.
+SUB TurretMuzzle(i, k, x!, y!, z!)
+    DIM ox!, oy!, oz!, ux!, uy!, uz!, fx!, fy!, fz!, rx!, ry!, rz!, l!, p!, hd! ' (its own: the main program shares these names)
+    IF turHeadMdl = 0 THEN x! = monsterX(i) + DCos(monAimA(i)) * 0.3 : y! = monsterY(i) + DSin(monAimA(i)) * 0.3 : z! = TurretMuzzleZ(i) : EXIT SUB
+    SELECT CASE monFrom(i)
+        CASE TURRET_CEIL : ox! = monsterX(i) : oy! = monsterY(i) : oz! = ceilH(INT(monsterX(i)), INT(monsterY(i))) : uz! = -1
+        CASE TURRET_WALL : ox! = monsterX(i) - monWallX(i) * 0.2 : oy! = monsterY(i) - monWallY(i) * 0.2 : oz! = FloorAt(monsterX(i), monsterY(i)) + 0.57 : ux! = monWallX(i) : uy! = monWallY(i)
+        CASE ELSE : ox! = monsterX(i) : oy! = monsterY(i) : oz! = FloorAt(monsterX(i), monsterY(i)) : uz! = 1
+    END SELECT
+    l! = 0.03 + turPivot : ox! = ox! + ux! * l! : oy! = oy! + uy! * l! : oz! = oz! + uz! * l! ' (its plate, and its base: where its head turns)
+    hd! = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY) : p! = ATN((monTZ + 0.45 - TurretMuzzleZ(i)) / MaxOf(hd!, 0.3))
+    fx! = DCos(monAimA(i)) * DCos(p!) : fy! = DSin(monAimA(i)) * DCos(p!) : fz! = DSin(p!)
+    l! = ux! * fx! + uy! * fy! + uz! * fz! : ux! = ux! - l! * fx! : uy! = uy! - l! * fy! : uz! = uz! - l! * fz! : l! = SQR(ux! * ux! + uy! * uy! + uz! * uz!)
+    IF l! < 0.01 THEN ux! = 0 : uy! = 0 : uz! = 1 ELSE ux! = ux! / l! : uy! = uy! / l! : uz! = uz! / l!
+    rx! = uy! * fz! - uz! * fy! : ry! = uz! * fx! - ux! * fz! : rz! = ux! * fy! - uy! * fx!
+    x! = ox! + fx! * turMuzX(k) + rx! * turMuzY(k) + ux! * turMuzZ(k)
+    y! = oy! + fy! * turMuzX(k) + ry! * turMuzY(k) + uy! * turMuzZ(k)
+    z! = oz! + fz! * turMuzX(k) + rz! * turMuzY(k) + uz! * turMuzZ(k)
+END SUB

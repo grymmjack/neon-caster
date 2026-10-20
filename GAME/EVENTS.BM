@@ -177,7 +177,7 @@ END SUB
 SUB SlamRoom STATIC
     slammed = 0
     FOR sy = evY0(ev) - 5 TO evY1(ev) + 5 : FOR sx = evX0(ev) - 5 TO evX1(ev) + 5
-        IF sx >= 0 AND sy >= 0 AND sx < MAP_SIZE AND sy < MAP_SIZE THEN
+        IF sx >= 0 AND sy >= 0 AND sx < mapN AND sy < mapN THEN
             IF worldMap(sx, sy) = 2 AND doorLock(sx, sy) = -1 AND doorOpen(sx, sy) > 0 THEN
                 IF NOT DoorBlocked(sx, sy, playerX, playerY) THEN
                     doorOpen(sx, sy) = 0 : doorMove(sx, sy) = 0 : doorWait(sx, sy) = 0

@@ -82,6 +82,11 @@ ambient  = 125, 200, 255, 190
 enter 18 33 20 35 : message A CODE TERMINAL - face it and press SPACE
 enter 27 5 29 7 : message A DATA STATION - face it and press SPACE to jack in
 
+[monsters]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles]
+24, 12, 14, 0, 100, 100, 0, 6
+3, 24, 14, 0, 100, 100, 0, 2
+
 [blocks]
 ' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)
 3, 3, 3, 0, 5, 2, 2
@@ -204,7 +209,7 @@ NN#........T.#NNNN#...e......#NNNN#..........#NN
 NN#..........#NNNN#.m...w....#NNNN#.s......S.#NN
 NN#..p..M.p..#NNNN#..p....p.Q#Ne*a#..p....p..#NN
 NN#.x......m.#NNNN#......c...#NujaD........h.#NN
-NN#..Q.......#NNNN#..........#Nq+e#..........#NN
+NN#..Q.......#NNNN#.....|....#Nq+e#..........#NN
 NN#####.######NNNN#?===####%##NNNN#####.######NN
 NNNNNNN.pNNNNNNNNNN.....NNNwNNNNNNNNNNN.NNNNNNNN
 NNNNNNN.N.IJI.NNNNN..u..NNN.NNNNNNNNNNN.NNNNNNNN
@@ -212,14 +217,14 @@ NNNNNNN.N.V.Z.NNNNN.qaj.NNNNNNNNNNNNNNN.NNNNNNNN
 NNNNNNNDN.....NNNNNNNNNNNNNNNNNNNNNNNNNDNNNNNNNN
 NN##I##.#?===#NNNNCCCCCCCCCCCCNNNNKKKKK.KKKKKKNN
 NN#..........#NNNNCCC/..W.\CCCNNNNK.........xKNN
-NN#..........#NNNNCC/......\CCNNNNK..........KNN
+NN#..........#NNNNCC/......\CCNNNNK...(......KNN
 NN#..p....p..#NNNNC/..u.y...\CNNNNK.s........KNN
 NN#..........#NNNNC..........CN...K...t.....hKNN
 NN#..............R..t...q...tCNIc.=..........ENN
-NN#.e....w.c.#NNNNC..........CNS..=......w...KNN
+NN#|e....w.c.#NNNNC..........CNS..=......w...KNN
 NN#..........pNNNNC..g.....g.CNIc.=..........KNN
 NN#..p....p..#NNNNC\......../CN...?........t.KNN
-NN#..c..g...W#NNNNCC\...h../CCNNNNK..*....g..KNN
+NN#..c..g(..W#NNNNCC\...h../CCNNNNK..*....g..KNN
 NN#..........#NNNNCCC\..../CCCNNNNK...W......KNN
 NN#####.######NNNNCCCCC.CCCCCCNNNNKKKKK.KKKKKKNN
 NNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNNNNNNNNN.NNNNNNNN

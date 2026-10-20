@@ -39,8 +39,10 @@ FUNCTION DroidCanGo(i, x, y, z)
     FOR k = 0 TO 4
         ox = (k = 1) * -0.22 - (k = 2) * -0.22 : oy = (k = 3) * -0.22 - (k = 4) * -0.22
         cx = INT(x + ox) : cy = INT(y + oy)
-        IF cx < 1 OR cy < 1 OR cx >= MAP_SIZE - 1 OR cy >= MAP_SIZE - 1 THEN EXIT FUNCTION
-        IF worldMap(cx, cy) > 0 OR diagCorner(cx, cy) THEN EXIT FUNCTION
+        IF cx < 1 OR cy < 1 OR cx >= mapN - 1 OR cy >= mapN - 1 THEN EXIT FUNCTION
+        IF worldMap(cx, cy) > 0 OR diagCorner(cx, cy) THEN
+            IF NOT (drFleeing AND worldMap(cx, cy) = 2 AND doorOpen(cx, cy) >= 0.9) THEN EXIT FUNCTION ' (fleeing: through an open door)
+        END IF
         IF ABS(floorH(cx, cy) - z) > 0.02 OR liqKind(cx, cy) OR liftCell(cx, cy) THEN EXIT FUNCTION
         IF FloorHazard(cx, cy) THEN EXIT FUNCTION
     NEXT
@@ -72,7 +74,7 @@ SUB PlaceDroids(lv)
     want = 3 : IF lvlDroids >= 0 THEN want = lvlDroids
     FOR n = 1 TO want
         FOR try = 1 TO 600
-            cx = 1 + INT(DRnd * (MAP_SIZE - 2)) : cy = 1 + INT(DRnd * (MAP_SIZE - 2))
+            cx = 1 + INT(DRnd * (mapN - 2)) : cy = 1 + INT(DRnd * (mapN - 2))
             IF worldMap(cx, cy) > 0 OR decoCell(cx, cy) OR boxOn(cx, cy) OR glassHP(cx, cy) > 0 THEN _CONTINUE
             IF (cx + 0.5 - playerX) ^ 2 + (cy + 0.5 - playerY) ^ 2 < 25 THEN _CONTINUE
             inEv = 0
@@ -139,7 +141,7 @@ SUB UpdateDroids(px, py)
             IF RND < 0.05 THEN SpawnPart PART_SMOKE, x + (RND - 0.5) * 0.15, y + (RND - 0.5) * 0.15, droidZ(i) + 0.15, 0, 0, 0.004, 70, 0.25, 0.25, 0.27, 0.04
             _CONTINUE
         END IF
-        IF (px - x) ^ 2 + (py - y) ^ 2 < 1.4 AND droidState(i) <> 3 THEN ' You: out of the way!
+        IF (px - x) ^ 2 + (py - y) ^ 2 < 1.4 AND droidState(i) <> 3 AND droidState(i) <> 4 THEN ' You: out of the way!
             droidState(i) = 3 : droidTimer(i) = 35 + INT(DRnd * 20) : droidA(i) = DAtan2(y - py, x - px) + (DRnd - 0.5) * 1.2
             SfxAt sndDroid&(3), x, y, px, py
         END IF
@@ -178,6 +180,8 @@ SUB UpdateDroids(px, py)
                     NEXT
                 END IF
                 IF droidTimer(i) <= 0 THEN droidState(i) = 0 : droidTimer(i) = 10 + INT(DRnd * 50)
+            CASE 4 ' Fleeing: along its way, fast - opening the doors on it
+                DroidFleeStep i, px, py
             CASE 3
                 nx = x + DCos(droidA(i)) * DROID_SPEED * 2.4 : ny = y + DSin(droidA(i)) * DROID_SPEED * 2.4
                 IF DroidCanGo(i, nx, ny, droidZ(i)) THEN droidX(i) = nx : droidY(i) = ny ELSE droidA(i) = droidA(i) + (DRnd - 0.5) * 2.5
@@ -197,10 +201,76 @@ SUB HitDroid(i, dmg, px, py)
     IF droidHP(i) > 0 THEN
         SfxAt sndDroid&(3), droidX(i), droidY(i), px, py
         droidState(i) = 3 : droidTimer(i) = 50 : droidA(i) = DAtan2(droidY(i) - py, droidX(i) - px) + (DRnd - 0.5) * 1.5 ' (it runs for it)
+        DroidFlee i, px, py ' (...as far as it can: DroidFlee)
     ELSE
         droidHP(i) = 0 : droidState(i) = 9
         SfxAt sndDroidBreak&, droidX(i), droidY(i), px, py
         SpawnSparks droidX(i), droidY(i), 0.2, 26, 255, 210, 140
         FOR k = 1 TO 6 : SpawnPart PART_SMOKE, droidX(i), droidY(i), droidZ(i) + 0.2, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, 0.006, 80, 0.3, 0.3, 0.32, 0.05 : NEXT
     END IF
+END SUB
+
+' --- Droid i, shot: it flees - its way worked out now, cell by cell, to the
+' furthest place from you (at px, py) it can get to: on its own level (it
+' can't climb), through any door that isn't locked. Nowhere better than
+' where it is: it just scuttles off (state 3, as it was)
+SUB DroidFlee(i, px, py)
+    DIM d(MAP_SIZE * MAP_SIZE - 1) AS INTEGER, par(MAP_SIZE * MAP_SIZE - 1) AS INTEGER, q(MAP_SIZE * MAP_SIZE - 1) AS INTEGER
+    DIM c, cx, cy, k, nx, ny, nc, qh, qt, best, bestS!, sc!, z!, n ' (its own: the main program shares these names)
+    cx = INT(droidX(i)) : cy = INT(droidY(i)) : z! = droidZ(i)
+    FOR k = 0 TO mapN * mapN - 1 : d(k) = -1 : NEXT
+    c = cy * mapN + cx : d(c) = 0 : par(c) = -1 : q(0) = c : qt = 1
+    best = c : bestS! = (cx + 0.5 - px) ^ 2 + (cy + 0.5 - py) ^ 2
+    DO WHILE qh < qt
+        c = q(qh) : qh = qh + 1 : cx = c MOD mapN : cy = c \ mapN
+        IF d(c) > MAX_FLEE_PATH - 2 THEN _CONTINUE
+        FOR k = 0 TO 3
+            nx = cx - (k = 0) + (k = 1) : ny = cy - (k = 2) + (k = 3)
+            IF nx < 1 OR ny < 1 OR nx >= mapN - 1 OR ny >= mapN - 1 THEN _CONTINUE
+            nc = ny * mapN + nx
+            IF d(nc) >= 0 THEN _CONTINUE
+            IF ABS(floorH(nx, ny) - z!) > 0.02 OR liqKind(nx, ny) OR liftCell(nx, ny) OR FloorHazard(nx, ny) OR diagCorner(nx, ny) OR boxOn(nx, ny) OR decoCell(nx, ny) THEN _CONTINUE
+            IF worldMap(nx, ny) = 2 THEN ' (a door: one that opens for anyone - not locked, not the exit)
+                IF doorType(nx, ny) = DOOR_EXIT OR doorKey(nx, ny) <> 0 OR doorLock(nx, ny) THEN _CONTINUE
+            ELSEIF worldMap(nx, ny) <> 0 OR glassHP(nx, ny) > 0 THEN
+                _CONTINUE
+            END IF
+            d(nc) = d(c) + 1 : par(nc) = c : q(qt) = nc : qt = qt + 1
+            sc! = (nx + 0.5 - px) ^ 2 + (ny + 0.5 - py) ^ 2
+            IF worldMap(nx, ny) = 0 AND sc! > bestS! THEN best = nc : bestS! = sc! ' (somewhere further from you: not stopping in a doorway)
+        NEXT
+    LOOP
+    IF best = cy * mapN + cx AND d(best) = 0 THEN EXIT SUB
+    n = d(best) : IF n < 3 THEN EXIT SUB ' (nowhere much better: it just scuttles)
+    c = best
+    FOR k = n TO 1 STEP -1 : droidPath(i, k) = c : c = par(c) : NEXT
+    droidPathN(i) = n : droidPathK(i) = 1 : droidState(i) = 4 : droidTimer(i) = 30
+END SUB
+
+' --- One frame of droid i fleeing: on to the next cell of its way, fast,
+' turning sharply - a door in the way, it opens it and waits for it; stuck,
+' it thinks again. At the end of its way it hides there a while.
+SUB DroidFleeStep(i, px, py)
+    DIM c, cx, cy, tx!, ty!, d!, a!, nx!, ny! ' (its own: the main program shares these names)
+    IF droidPathK(i) > droidPathN(i) THEN droidState(i) = 2 : droidTimer(i) = 300 + INT(DRnd * 300) : droidWork(i) = 0 : EXIT SUB ' (there: it hides, and gets on with things)
+    c = droidPath(i, droidPathK(i)) : cx = c MOD mapN : cy = c \ mapN
+    tx! = cx + 0.5 : ty! = cy + 0.5
+    IF worldMap(cx, cy) = 2 AND doorOpen(cx, cy) < 0.9 THEN MonsterDoor cx, cy, px, py : EXIT SUB ' (a door: open it, and wait)
+    IF worldMap(cx, cy) = 2 THEN MonsterDoor cx, cy, px, py ' (...and keep it open while it's going through)
+    d! = SQR((tx! - droidX(i)) ^ 2 + (ty! - droidY(i)) ^ 2)
+    IF d! < 0.12 THEN droidPathK(i) = droidPathK(i) + 1 : droidTimer(i) = 30 : EXIT SUB
+    a! = DAtan2(ty! - droidY(i), tx! - droidX(i)) - droidA(i)
+    DO WHILE a! > 3.14159265 : a! = a! - 6.2831853 : LOOP
+    DO WHILE a! < -3.14159265 : a! = a! + 6.2831853 : LOOP
+    droidA(i) = droidA(i) + MaxOf(-0.35, MinOf(0.35, a!))
+    IF ABS(a!) > 0.9 THEN EXIT SUB ' (turning first)
+    nx! = droidX(i) + DCos(droidA(i)) * MinOf(d!, DROID_FLEE) : ny! = droidY(i) + DSin(droidA(i)) * MinOf(d!, DROID_FLEE)
+    drFleeing = -1
+    IF DroidCanGo(i, nx!, ny!, droidZ(i)) THEN
+        droidX(i) = nx! : droidY(i) = ny!
+    ELSEIF droidTimer(i) <= 0 THEN
+        DroidFlee i, px, py : IF droidState(i) = 4 THEN droidTimer(i) = 30 ELSE droidState(i) = 0 : droidTimer(i) = 20 ' (stuck: another way - or give up)
+    END IF
+    drFleeing = 0
+    IF RND < 0.04 THEN SpawnPart PART_DUST, droidX(i), droidY(i), droidZ(i) + 0.02, 0, 0, 0.003, 30, 0.6, 0.6, 0.65, 0.02 ' (kicking up dust)
 END SUB
