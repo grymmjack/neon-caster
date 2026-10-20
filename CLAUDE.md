@@ -96,7 +96,7 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   lets the autopilot play it. `+playdemo NAME quit` replays it and exits 3
   if it went out of step - a sector still playing frame for frame the same.
   `NEON_DEMO_TRACE=1` logs each frame's state in both runs: diff the logs
-  to find where they part. Gameplay dice are `GRnd`, never `RND` (that's
+  to find where they part. `NEON_DEMO_FAST=1` plays a demo back uncapped (no `_LIMIT 60`): checking them is quicker. Gameplay dice are `GRnd`, never `RND` (that's
   for looks), and nothing that changes the game may read `TIMER` - use
   `lvFrame`. Any change to gameplay can put shipped demos (neon-caster/demos)
   out of step: replay them, and re-record what changed.
@@ -188,7 +188,7 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
 - **Sectors have their own size**: `MAP_SIZE` (256) is only the arrays' capacity; `mapN` is this sector's (its file's rows/columns, square - the game's 48). Everything that walks or bounds the map uses `mapN` (a 48 sector plays exactly as before); arrays and the load's clears use `MAP_SIZE`. A cell index (`y * mapN + x`) can pass 32767: keep it in a LONG. Per-frame work stays near you: lights relit within `LIGHT_NEAR`, rays stop at `RAY_FAR` (the fog's black by 16 cells), doors moved from a list (`ListDoors`). Heights go to `H_MAX` (240 eighths): past `z` each is one of `H_HIGH$`'s spare characters in memory (one byte a cell - why 240 is the top) and `[floor high]` / `[ceiling high]` in the file. The world mesh grows as it needs (`GLMeshCorner`). lvlkit's `read_level_file` sets `lvlkit.N` to the file's size.
 - **A level file's numbers are clamped** as it loads (`LevelClamp`, LEVEL/LEVELFILE.BM: every section's cells kept on the map, heights to H_MAX, times and speeds within reason), its edge is made wall and a map with no start gets one - a hand-typed or broken file loads, it doesn't hang. Section caps (`MAX_ZONES` 256, `MAX_PAIRS`, `MAX_LIGHTS` 1024...) are checked by the kit's `check_level` too: past them the game drops the rest.
 - **Saved games end with a tail per addition** (rounds and slugs, then the turrets' states, flight, vending machines, `lvFrame`), each read only `IF LOC < LOF`: an older save loads as the sector starts it. Something new to save goes on the end the same way.
-- A level file must list 6 walls, 4 floors and 2 ceilings: fewer, and `LoadTex` stops at "Missing texture" waiting for a key (a `+map` test just hangs).
+- A level file should list 6 walls, 4 floors and 2 ceilings: a missing or misspelt one is drawn as `wall.png` (`LoadTex` says so in the console); only a missing `wall.png` itself stops at "Missing texture" waiting for a key.
 - `LEVEL-EDITOR-GUIDE.md` documents the editor; keep it in step with editor
   changes (it ships in every release).
 

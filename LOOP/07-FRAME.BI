@@ -5,7 +5,7 @@
 ' in neon-caster.bas, so it runs every frame.
 '
 
-    _LIMIT 60
+    IF NOT (demoFast AND demoPlay) THEN _LIMIT 60
     ' Commands waiting (the command line's, an exec's): one a frame - or
     ' as many as come before a "wait"
     SfxFrame : earDX = dirX : earDY = dirY ' (the limiter's memory fades; your ears face where you do)

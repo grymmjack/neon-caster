@@ -16,6 +16,7 @@ CONST DB_NIGHT = 512, DB_MAP = 1024, DB_UP = 2048, DB_DOWN = 4096, DB_CHEATK = 8
 CONST DEMO_KEYS = "WSADRFUZKNMECkg" ' (in a demo file each bit is its letter: W forward, S back, A and D strafe, R run, F fire, U use, Z aim, K kick, N night vision, M map, E and C fly up and down, k and g the cheat keys)
 CONST DEMO_TURN = 6.283185307179586# / 65536 ' (a demo's turns are in 65536ths of a circle, as DOOM's: whole numbers, so playing one back turns exactly as it was played)
 demoDebug = LEN(ENVIRON$("NEON_DEMO_DEBUG")) > 0 : demoTrace = LEN(ENVIRON$("NEON_DEMO_TRACE")) > 0
+DIM SHARED demoFast AS INTEGER : demoFast = LEN(ENVIRON$("NEON_DEMO_FAST")) > 0 ' (NEON_DEMO_FAST=1: a demo plays back as fast as it can - no 60 a second - to check demos quickly; the game goes by frames, so it plays the same)
 CONST MAX_DEMOLIST = 200
 DIM SHARED demoListN AS INTEGER, demoList$(MAX_DEMOLIST), demoListFile$(MAX_DEMOLIST), demoListInfo$(MAX_DEMOLIST), demoListPage AS INTEGER
 DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER, demoStarting AS INTEGER, demoTotal AS LONG, demoInfoNow$

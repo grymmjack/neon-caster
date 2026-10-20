@@ -283,6 +283,10 @@ SUB LoadTex(file$, slot AS INTEGER)
     texSky(slot) = (LEFT$(LCASE$(file$), 4) = "sky-") ' (a sky: drawn by the way you look)
     path$ = ArtPath$(file$) : texHD(slot) = INSTR(path$, "hd/") > 0
     img& = _LOADIMAGE(path$, 32)
+    IF img& >= -1 AND LCASE$(file$) <> "wall.png" THEN ' (a level naming a picture that isn't there - or none: the plain wall, and a word in the console)
+        ConPrint "^1Missing texture: " + path$ + "^0 - the plain wall instead"
+        path$ = ArtPath$("wall.png") : img& = _LOADIMAGE(path$, 32)
+    END IF
     IF img& >= -1 THEN PRINT "Missing texture: "; path$ : SLEEP : SYSTEM
     ReadPicture img&, texSize, 0, slot
     _FREEIMAGE img&

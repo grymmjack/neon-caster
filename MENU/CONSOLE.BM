@@ -146,6 +146,13 @@ SUB ConExec STATIC
                 DemoStop
         END SELECT
     END IF
+    IF conFromTrig THEN ' (a sector's own trigger - a file anyone may have made: nothing that writes your files, your settings or your achievements)
+        SELECT CASE conVerb$
+            CASE "saveleveltodisk", "loadlevelfromdisk", "savelevel", "logfile", "qb64pe", "resetachievements", "achieve", "bind", "set", _
+                 "save", "quicksave", "load", "quickload", "exec", "alias", "unalias", "edit", "editor", "newsector", "screenshot", "shot", "quit", "exit", "record", "playdemo", "demo"
+                ConPrint "^9(a sector's trigger can't " + conVerb$ + ")" : EXIT SUB
+        END SELECT
+    END IF
     IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
         SELECT CASE conVerb$
             CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
@@ -548,8 +555,9 @@ SUB ConExec STATIC
             IF NOT _FILEEXISTS(conRest$) AND _FILEEXISTS(SaveDir$ + conRest$) THEN conRest$ = SaveDir$ + conRest$ ' (or one in the saves folder)
             IF _FILEEXISTS(conRest$) THEN
                 f = FREEFILE : OPEN conRest$ FOR INPUT AS #f
-                DO UNTIL EOF(f) : LINE INPUT #f, l$ : ConQueue l$ : LOOP
-                CLOSE #f : ConPrint "exec " + conRest$
+                xd = 0 : DO UNTIL EOF(f) : LINE INPUT #f, l$ : IF conQTail >= CON_QUEUE AND LEN(LTRIM$(l$)) THEN xd = xd + 1 ELSE ConQueue l$
+                LOOP
+                CLOSE #f : ConPrint "exec " + conRest$ : IF xd THEN ConPrint "^9exec: the queue was full -" + STR$(xd) + " line(s) left out (" + LTRIM$(STR$(CON_QUEUE)) + " at a time)
             ELSE
                 ConPrint "exec: no file " + conRest$
             END IF
@@ -976,14 +984,22 @@ END FUNCTION
 ' carried on to the next line keeps the colour it had. The log file gets
 ' the words without them.
 SUB ConPrint(text$)
-    DIM d, f, i, l$, t$, vis, cur$, ch$, lf$ ' (its own: the main program shares these names)
-    t$ = text$ : l$ = "" : vis = 0 : cur$ = "" : i = 1
+    DIM d, f, i, l$, t$, vis, cur$, ch$, lf$, sp, spVis, spCur$ ' (its own: the main program shares these names)
+    t$ = text$ : l$ = "" : vis = 0 : cur$ = "" : i = 1 : sp = 0
     DO WHILE i <= LEN(t$)
         ch$ = MID$(t$, i, 1)
         IF ch$ = "^" AND i < LEN(t$) THEN
             IF INSTR("0123456789", MID$(t$, i + 1, 1)) THEN cur$ = MID$(t$, i, 2) : l$ = l$ + cur$ : i = i + 2 : _CONTINUE
         END IF
-        IF vis = 96 THEN ConAddLine l$ : l$ = cur$ : vis = 0
+        IF vis = 96 THEN ' (a long line: on to the next at its last space - not in the middle of a word)
+            IF sp > 0 AND spVis > 48 THEN
+                ConAddLine LEFT$(l$, sp - 1) : l$ = spCur$ + MID$(l$, sp + 1) : vis = vis - spVis - 1
+            ELSE
+                ConAddLine l$ : l$ = cur$ : vis = 0
+            END IF
+            sp = 0
+        END IF
+        IF ch$ = " " THEN sp = LEN(l$) + 1 : spVis = vis : spCur$ = cur$
         l$ = l$ + ch$ : vis = vis + 1 : i = i + 1
     LOOP
     ConAddLine l$
