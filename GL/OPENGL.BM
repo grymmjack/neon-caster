@@ -1809,6 +1809,7 @@ END SUB
 ' moving lights added at the corners); without the post shader the extras
 ' that need it are skipped. (Why: glShaderError$.)
 SUB GLBuildShaders
+    GL_TABLE_F$ = LTRIM$(STR$(GL_TABLE)) + ".0" ' (the light tables' size, for the shader - as many cells as the biggest sector)
     glWorldTried = -1
     IF NOT GLSL_supported% THEN glShaderError$ = "no shaders (OpenGL 2.0) on this driver" : EXIT SUB
     nl$ = CHR$(10)
@@ -1866,14 +1867,14 @@ SUB GLBuildShaders
     fs$ = fs$ + "    vec3 lightCol = gl_Color.rgb; vec4 lv = vLight; vec4 reach = vDyn;" + nl$
     fs$ = fs$ + "    if (cellLit > 0.5) {  // the world: look the light up in the tables, at the cell in front of the surface" + nl$
     fs$ = fs$ + "        vec2 p = vPos.xy + n.xy * 0.02;" + nl$
-    fs$ = fs$ + "        vec2 cuv = (floor(p) + 0.5) / 64.0;" + nl$
+    fs$ = fs$ + "        vec2 cuv = (floor(p) + 0.5) / " + GL_TABLE_F$ + ";" + nl$
     fs$ = fs$ + "        vec4 info = texture2D(infoTex, cuv);" + nl$
     fs$ = fs$ + "        reach = texture2D(dynTex, cuv);" + nl$
     fs$ = fs$ + "        vec3 light = texture2D(litTex, cuv).rgb;" + nl$
     fs$ = fs$ + "        if (smoothOn > 0.5) {  // blend the four nearest cell middles, skipping walls (alpha 0)" + nl$
     fs$ = fs$ + "            vec2 f = p - 0.5; vec2 i0 = floor(f); vec2 w = f - i0;" + nl$
-    fs$ = fs$ + "            vec4 a = texture2D(litTex, (i0 + vec2(0.5, 0.5)) / 64.0), bb = texture2D(litTex, (i0 + vec2(1.5, 0.5)) / 64.0);" + nl$
-    fs$ = fs$ + "            vec4 cc = texture2D(litTex, (i0 + vec2(0.5, 1.5)) / 64.0), dd = texture2D(litTex, (i0 + vec2(1.5, 1.5)) / 64.0);" + nl$
+    fs$ = fs$ + "            vec4 a = texture2D(litTex, (i0 + vec2(0.5, 0.5)) / " + GL_TABLE_F$ + "), bb = texture2D(litTex, (i0 + vec2(1.5, 0.5)) / " + GL_TABLE_F$ + ");" + nl$
+    fs$ = fs$ + "            vec4 cc = texture2D(litTex, (i0 + vec2(0.5, 1.5)) / " + GL_TABLE_F$ + "), dd = texture2D(litTex, (i0 + vec2(1.5, 1.5)) / " + GL_TABLE_F$ + ");" + nl$
     fs$ = fs$ + "            float wa = (1.0 - w.x) * (1.0 - w.y) * a.a, wb = w.x * (1.0 - w.y) * bb.a, wc = (1.0 - w.x) * w.y * cc.a, wd = w.x * w.y * dd.a;" + nl$
     fs$ = fs$ + "            float ws = wa + wb + wc + wd;" + nl$
     fs$ = fs$ + "            if (ws > 0.001) light = (a.rgb * wa + bb.rgb * wb + cc.rgb * wc + dd.rgb * wd) / ws;" + nl$

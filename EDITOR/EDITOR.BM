@@ -25,7 +25,7 @@ SUB EditEnter STATIC
     achCheat = -1 ' (in the editor you can put anything anywhere: achievements wait for a new game - but the editor's own)
     WorldLoopsOff ' (the world stops: so do its sounds)
     EditReset
-    IF editFresh OR level <> levelWas THEN editDirty = 0 : editUndoN = 0 ' (back in after F2 to try it: the changes not saved yet, and their undo, still there)
+    IF editFresh OR level <> levelWas THEN editDirty = 0 : editUndoN = 0 : EditFitMap ' (a new sector: its map fitted to the view) ' (back in after F2 to try it: the changes not saved yet, and their undo, still there)
     editFresh = 0
     editMode = -1 : editView = 0 : editLights = 0 : mapOpen = 0
     levelWas = level
@@ -400,6 +400,10 @@ SUB EditPaneClick STATIC
             edLootSet = (edLootSet + 2 * pnHit - 353 + 5) MOD 5 : LootPreset edLootSet : editDirty = -1 : EditNote "Loot: " + LootSetName$(edLootSet)
         CASE 178, 179 ' The room's size: wider (Shift: deeper)
             IF _KEYDOWN(100303) OR _KEYDOWN(100304) THEN edRoomH = MaxOf(3, MinOf(mapN - 2, edRoomH + 2 * pnHit - 357)) ELSE edRoomW = MaxOf(3, MinOf(mapN - 2, edRoomW + 2 * pnHit - 357))
+        CASE 181, 182 ' The map's size wanted: 8 cells smaller or bigger (16 to MAP_SIZE)
+            edMapWant = MaxOf(16, MinOf(MAP_SIZE, edMapWant + 8 * (2 * pnHit - 363)))
+        CASE 183 ' ...made so: grown (new wall all round) or cut down (what's past it gone)
+            EditResizeMap edMapWant : EditNote "The map:" + STR$(mapN) + " x" + STR$(mapN) + " - savelevel (Ctrl+S) to keep it"
         CASE 180 ' Make the map that room: everything else wall again (Ctrl+Z gets it back)
             EditPushUndo : EditMakeRoom edRoomW, edRoomH : EditApply : EditNote "The map: one room," + STR$(edRoomW) + " x" + STR$(edRoomH) + " - Ctrl+Z to undo"
         CASE 101, 102 ' Its light, brighter or darker
@@ -599,8 +603,21 @@ SUB RunEditor STATIC
         IF b1Any AND NOT b1 AND NOT edB1 THEN b1 = -1 : edForce1 = -1 ' (pressed and let go between two frames: a click all the same - let go the next)
         IF b2Any AND NOT b2 AND NOT edB2 THEN b2 = -1 : edForce2 = -1
         edMX = mx : edMY = my
-        cx = INT((mx - ED_MAPX) / ED_CELL) : cy = INT((my - ED_MAPY) / ED_CELL)
-        onMap = (mx >= ED_MAPX AND my >= ED_MAPY AND cx < mapN AND cy < mapN)
+        ' Space held: the map pans with the mouse, and the wheel zooms it in
+        ' and out round where the mouse is - and no clicks get through
+        IF _KEYDOWN(32) AND NOT edTyping THEN
+            IF edPanWas THEN edMapX = edMapX + mx - edPanMX : edMapY = edMapY + my - edPanMY
+            edPanMX = mx : edPanMY = my : edPanWas = -1
+            IF wheel THEN
+                zc = MaxOf(2, MinOf(48, edCell - SGN(wheel) * MaxOf(1, edCell \ 4)))
+                edMapX = mx - (mx - edMapX) * zc \ edCell : edMapY = my - (my - edMapY) * zc \ edCell : edCell = zc : wheel = 0
+            END IF
+            b1 = 0 : b2 = 0 : edForce1 = 0 : edForce2 = 0
+        ELSE
+            edPanWas = 0
+        END IF
+        cx = INT((mx - edMapX) / edCell) : cy = INT((my - edMapY) / edCell)
+        onMap = (mx < ED_VIEWW AND my < ED_VIEWH AND cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN)
         shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
         ' The wheel: over the picker, it scrolls; over the map with something
         ' selected, its floors up and down an eighth (Ctrl: its ceilings) - one
@@ -1003,7 +1020,7 @@ SUB EditFP STATIC
                         EditFaceAnchor edHovKind, edHovX, edHovY, edHovSide, ax, ay
                         EditPushUndo : EditAddLight ax, ay : EditApply
                     END IF
-                CASE ET_PAINT ' The brush's picture on the face (Shift: back to the usual; Ctrl: the whole floor or ceiling it's part of; Alt: pick its picture up)
+                CASE ET_PAINT ' The brush's picture on the face (Shift: back to the usual; Ctrl: the whole floor, ceiling or wall side it's part of; Alt: pick its picture up)
                     fc = EditFaceCode(edHovKind, edHovSide)
                     IF edBrushKind = PK_LIQUID THEN ' A liquid: poured on the floor (Ctrl: all of it, as far as it's level; Shift: drained)
                         IF edHovKind <> ED_FLOOR AND edHovKind <> ED_STEP THEN
@@ -1035,6 +1052,8 @@ SUB EditFP STATIC
                         END IF
                     ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) AND edBrushTex$ <> "" THEN
                         EditSelKeep 0 : EditSelFlood edHovKind, edHovX, edHovY : EditPaintSel : EditSelKeep -1 ' (what you'd selected, back as it was)
+                    ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND edHovKind = ED_WALL AND edBrushTex$ <> "" THEN ' (a wall's whole side: EditSelWallFlood)
+                        EditSelKeep 0 : EditSelWallFlood edHovX, edHovY, edHovSide : n = edSelN : EditPaintSel : EditSelKeep -1 : EditNote "Painted" + STR$(n) + " faces of that wall"
                     ELSEIF edShift THEN
                         EditPushUndo : EditPaintFace edHovX, edHovY, fc, edHovPart, "" : EditApply : EditNote "The usual picture again"
                     ELSEIF edBrushTex$ = "" THEN
@@ -1069,6 +1088,8 @@ SUB EditFP STATIC
                 EditSelToggle edHovKind, edHovX, edHovY, edHovSide, edHovPart
             ELSEIF edCtrl AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) THEN
                 EditSelFlood edHovKind, edHovX, edHovY
+            ELSEIF edCtrl AND edHovKind = ED_WALL THEN ' (a wall's side: all of it - every face along it in the same plane, open floor in front, as far as it goes)
+                EditSelWallFlood edHovX, edHovY, edHovSide
             ELSE
                 edSelN = 0 : EditSelToggle edHovKind, edHovX, edHovY, edHovSide, edHovPart
             END IF
@@ -1578,88 +1599,94 @@ END FUNCTION
 ' theirs, the lights (and their reach, on the light layer), the event
 ' rooms' outlines, you - and the palette, and what's under the mouse
 SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
-    DIM ax, ay, B, c, c$, d, k, sx, sy, w, x, y ' (its own: the main program shares these names)
+    DIM ax, ay, B, c, c$, d, k, sx, sy, w, x, y, vx0, vy0, vx1, vy1, ins ' (its own: the main program shares these names)
     LINE (0, 0)-(799, 599), _RGB32(10, 8, 22), BF
-    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
-        c$ = MID$(lvlRow$(y), x + 1, 1) : sx = ED_MAPX + x * ED_CELL : sy = ED_MAPY + y * ED_CELL
+    ' (only the cells in view - the map panned and zoomed: Space)
+    vx0 = MaxOf(0, -edMapX \ edCell) : vy0 = MaxOf(0, -edMapY \ edCell) : vx1 = MinOf(mapN - 1, (ED_VIEWW - edMapX) \ edCell + 1) : vy1 = MinOf(mapN - 1, (ED_VIEWH - edMapY) \ edCell + 1)
+    ins = MaxOf(1, edCell \ 4) ' (a thing's mark: inset in its cell)
+    VIEW SCREEN (0, 0)-(ED_VIEWW, ED_VIEWH) ' (the map stays in its part of the screen)
+    FOR y = vy0 TO vy1 : FOR x = vx0 TO vx1
+        c$ = MID$(lvlRow$(y), x + 1, 1) : sx = edMapX + x * edCell : sy = edMapY + y * edCell
         IF INSTR("rby+*uae234Mqj89)(mghcskwzT15670~_|oiptxlnfSdAFIJLOQUWZV<>^v", c$) THEN
-            LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&("."), BF
-            LINE (sx + 3, sy + 3)-STEP(ED_CELL - 7, ED_CELL - 7), GlyphColor~&(c$), BF
-            IF INSTR("<>^v", c$) THEN LINE (sx + 1, sy + 1)-STEP(ED_CELL - 3, ED_CELL - 3), _RGB32(255, 255, 255), B
+            LINE (sx, sy)-STEP(edCell - 1, edCell - 1), GlyphColor~&("."), BF
+            LINE (sx + ins, sy + ins)-STEP(MaxOf(0, edCell - 1 - 2 * ins), MaxOf(0, edCell - 1 - 2 * ins)), GlyphColor~&(c$), BF
+            IF INSTR("<>^v", c$) THEN LINE (sx + 1, sy + 1)-STEP(edCell - 3, edCell - 3), _RGB32(255, 255, 255), B
         ELSEIF c$ = "/" THEN
-            LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&("."), BF : LINE (sx, sy + ED_CELL - 1)-(sx + ED_CELL - 1, sy), GlyphColor~&(c$)
+            LINE (sx, sy)-STEP(edCell - 1, edCell - 1), GlyphColor~&("."), BF : LINE (sx, sy + edCell - 1)-(sx + edCell - 1, sy), GlyphColor~&(c$)
         ELSEIF c$ = "\" THEN
-            LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&("."), BF : LINE (sx, sy)-(sx + ED_CELL - 1, sy + ED_CELL - 1), GlyphColor~&(c$)
+            LINE (sx, sy)-STEP(edCell - 1, edCell - 1), GlyphColor~&("."), BF : LINE (sx, sy)-(sx + edCell - 1, sy + edCell - 1), GlyphColor~&(c$)
         ELSE
-            LINE (sx, sy)-STEP(ED_CELL - 1, ED_CELL - 1), GlyphColor~&(c$), BF
+            LINE (sx, sy)-STEP(edCell - 1, edCell - 1), GlyphColor~&(c$), BF
         END IF
     NEXT : NEXT
     FOR k = 1 TO lvlNumBoxes ' The boxes: each where it stands in its cell
         x = lvlBox(k, 1) : y = lvlBox(k, 2) : w = lvlBox(k, 7) : IF w < 1 OR w > 6 THEN w = 1
         IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
-            sx = ED_MAPX + x * ED_CELL : sy = ED_MAPY + y * ED_CELL
-            LINE (sx + lvlBox(k, 3) * ED_CELL \ 8, sy + lvlBox(k, 4) * ED_CELL \ 8)-(sx + MaxOf(lvlBox(k, 3) * ED_CELL \ 8, lvlBox(k, 5) * ED_CELL \ 8 - 1), sy + MaxOf(lvlBox(k, 4) * ED_CELL \ 8, lvlBox(k, 6) * ED_CELL \ 8 - 1)), GlyphColor~&(MID$("#NCKPG", w, 1)), BF
+            sx = edMapX + x * edCell : sy = edMapY + y * edCell
+            LINE (sx + lvlBox(k, 3) * edCell \ 8, sy + lvlBox(k, 4) * edCell \ 8)-(sx + MaxOf(lvlBox(k, 3) * edCell \ 8, lvlBox(k, 5) * edCell \ 8 - 1), sy + MaxOf(lvlBox(k, 4) * edCell \ 8, lvlBox(k, 6) * edCell \ 8 - 1)), GlyphColor~&(MID$("#NCKPG", w, 1)), BF
         END IF
     NEXT
-    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 ' The liquids: each cell washed with its colour (deeper, stronger)
+    FOR y = vy0 TO vy1 : FOR x = vx0 TO vx1 ' The liquids: each cell washed with its colour (deeper, stronger)
         k = INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1))
         IF k THEN
             d = VAL(MID$(lvlLiqDRow$(y), x + 1, 1)) : IF d < 1 THEN d = LQ_DEPTH
-            LINE (ED_MAPX + x * ED_CELL, ED_MAPY + y * ED_CELL)-STEP(ED_CELL - 1, ED_CELL - 1), _RGBA32(lqR(k), lqG(k), lqB(k), 90 + d * 15), BF
+            LINE (edMapX + x * edCell, edMapY + y * edCell)-STEP(edCell - 1, edCell - 1), _RGBA32(lqR(k), lqG(k), lqB(k), 90 + d * 15), BF
         END IF
     NEXT : NEXT
     IF edGrid THEN ' The grid: every cell's edge, as strong as it's set (G, Shift+G)
         FOR k = 0 TO mapN
-            LINE (ED_MAPX + k * ED_CELL, ED_MAPY)-(ED_MAPX + k * ED_CELL, ED_MAPY + mapN * ED_CELL), _RGBA32(90, 230, 255, edGridAlpha \ 2)
-            LINE (ED_MAPX, ED_MAPY + k * ED_CELL)-(ED_MAPX + mapN * ED_CELL, ED_MAPY + k * ED_CELL), _RGBA32(90, 230, 255, edGridAlpha \ 2)
+            LINE (edMapX + k * edCell, edMapY)-(edMapX + k * edCell, edMapY + mapN * edCell), _RGBA32(90, 230, 255, edGridAlpha \ 2)
+            LINE (edMapX, edMapY + k * edCell)-(edMapX + mapN * edCell, edMapY + k * edCell), _RGBA32(90, 230, 255, edGridAlpha \ 2)
         NEXT
     END IF
     ' The heights layer: each floor shaded by its height (and its number in
     ' eighths), a ceiling that isn't the usual a dot in the corner
     IF editHeights THEN
-        FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
+        FOR y = vy0 TO vy1 : FOR x = vx0 TO vx1
             IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) = 0 THEN
                 fh = HeightOf(MID$(lvlFloorRow$(y), x + 1, 1), 0) : ch = HeightOf(MID$(lvlCeilRow$(y), x + 1, 1), 1)
-                sx = ED_MAPX + x * ED_CELL : sy = ED_MAPY + y * ED_CELL
+                sx = edMapX + x * edCell : sy = edMapY + y * edCell
                 IF fh <> 0 THEN
                     k = 120 + fh * 90 : IF k > 255 THEN k = 255
                     IF k < 20 THEN k = 20
-                    IF fh > 0 THEN LINE (sx + 1, sy + 1)-STEP(ED_CELL - 3, ED_CELL - 3), _RGB32(k, k * 0.8, 40), BF ELSE LINE (sx + 1, sy + 1)-STEP(ED_CELL - 3, ED_CELL - 3), _RGB32(40, 20, 80 + (1 + fh) * 100), BF
+                    IF fh > 0 THEN LINE (sx + 1, sy + 1)-STEP(edCell - 3, edCell - 3), _RGB32(k, k * 0.8, 40), BF ELSE LINE (sx + 1, sy + 1)-STEP(edCell - 3, edCell - 3), _RGB32(40, 20, 80 + (1 + fh) * 100), BF
                 END IF
-                IF ch <> 1 THEN PSET (sx + ED_CELL - 3, sy + 2), _RGB32(120, 220, 255) : PSET (sx + ED_CELL - 4, sy + 2), _RGB32(120, 220, 255)
+                IF ch <> 1 THEN PSET (sx + edCell - 3, sy + 2), _RGB32(120, 220, 255) : PSET (sx + edCell - 4, sy + 2), _RGB32(120, 220, 255)
             END IF
         NEXT : NEXT
         FOR k = 1 TO lvlNumLifts ' (the lifts, outlined)
-            LINE (ED_MAPX + MinOf(lvlLift(k, 1), lvlLift(k, 3)) * ED_CELL, ED_MAPY + MinOf(lvlLift(k, 2), lvlLift(k, 4)) * ED_CELL)-(ED_MAPX + (MaxOf(lvlLift(k, 1), lvlLift(k, 3)) + 1) * ED_CELL - 1, ED_MAPY + (MaxOf(lvlLift(k, 2), lvlLift(k, 4)) + 1) * ED_CELL - 1), _RGB32(120, 255, 120), B
+            LINE (edMapX + MinOf(lvlLift(k, 1), lvlLift(k, 3)) * edCell, edMapY + MinOf(lvlLift(k, 2), lvlLift(k, 4)) * edCell)-(edMapX + (MaxOf(lvlLift(k, 1), lvlLift(k, 3)) + 1) * edCell - 1, edMapY + (MaxOf(lvlLift(k, 2), lvlLift(k, 4)) + 1) * edCell - 1), _RGB32(120, 255, 120), B
         NEXT
     END IF
     ' The triggers' places, outlined in orange (a use: its cell)
     FOR k = 1 TO numTrigs
-        LINE (ED_MAPX + trigX0(k) * ED_CELL + 1, ED_MAPY + trigY0(k) * ED_CELL + 1)-(ED_MAPX + (trigX1(k) + 1) * ED_CELL - 2, ED_MAPY + (trigY1(k) + 1) * ED_CELL - 2), _RGBA32(255, 160, 40, 200), B
+        LINE (edMapX + trigX0(k) * edCell + 1, edMapY + trigY0(k) * edCell + 1)-(edMapX + (trigX1(k) + 1) * edCell - 2, edMapY + (trigY1(k) + 1) * edCell - 2), _RGBA32(255, 160, 40, 200), B
     NEXT
     ' The event rooms, outlined
     FOR k = 1 TO lvlNumEvents
-        LINE (ED_MAPX + lvlEvent(k, 2) * ED_CELL, ED_MAPY + lvlEvent(k, 3) * ED_CELL)-(ED_MAPX + (lvlEvent(k, 4) + 1) * ED_CELL - 1, ED_MAPY + (lvlEvent(k, 5) + 1) * ED_CELL - 1), _RGBA32(255, 80, 200, 150), B
+        LINE (edMapX + lvlEvent(k, 2) * edCell, edMapY + lvlEvent(k, 3) * edCell)-(edMapX + (lvlEvent(k, 4) + 1) * edCell - 1, edMapY + (lvlEvent(k, 5) + 1) * edCell - 1), _RGBA32(255, 80, 200, 150), B
     NEXT
     ' The lights
     FOR k = 1 TO lvlNumLights
-        lx = ED_MAPX + lvlLight(k, 1) * ED_CELL : ly = ED_MAPY + lvlLight(k, 2) * ED_CELL
+        lx = edMapX + lvlLight(k, 1) * edCell : ly = edMapY + lvlLight(k, 2) * edCell
         lc~& = _RGB32(lvlLight(k, 5), lvlLight(k, 6), lvlLight(k, 7))
-        IF editLights THEN CIRCLE (lx, ly), lvlLight(k, 3) * ED_CELL, _RGBA32(lvlLight(k, 5), lvlLight(k, 6), lvlLight(k, 7), 90)
+        IF editLights THEN CIRCLE (lx, ly), lvlLight(k, 3) * edCell, _RGBA32(lvlLight(k, 5), lvlLight(k, 6), lvlLight(k, 7), 90)
         CIRCLE (lx, ly), 3, lc~& : PSET (lx, ly), _RGB32(255, 255, 255)
     NEXT
     ' You
-    ax = ED_MAPX + px * ED_CELL : ay = ED_MAPY + py * ED_CELL
-    LINE (ax, ay)-(ax + fx * ED_CELL * 1.6, ay + fy * ED_CELL * 1.6), _RGB32(255, 255, 0)
-    CIRCLE (ax, ay), ED_CELL \ 3, _RGB32(255, 255, 0)
+    ax = edMapX + px * edCell : ay = edMapY + py * edCell
+    LINE (ax, ay)-(ax + fx * edCell * 1.6, ay + fy * edCell * 1.6), _RGB32(255, 255, 0)
+    CIRCLE (ax, ay), edCell \ 3, _RGB32(255, 255, 0)
     ' The cursor (and a rectangle being dragged)
     IF onMap THEN
         IF rectOn THEN
-            LINE (ED_MAPX + MinOf(rx, hx) * ED_CELL, ED_MAPY + MinOf(ry, hy) * ED_CELL)-(ED_MAPX + (MaxOf(rx, hx) + 1) * ED_CELL - 1, ED_MAPY + (MaxOf(ry, hy) + 1) * ED_CELL - 1), _RGB32(255, 255, 255), B
+            LINE (edMapX + MinOf(rx, hx) * edCell, edMapY + MinOf(ry, hy) * edCell)-(edMapX + (MaxOf(rx, hx) + 1) * edCell - 1, edMapY + (MaxOf(ry, hy) + 1) * edCell - 1), _RGB32(255, 255, 255), B
         ELSE
-            LINE (ED_MAPX + hx * ED_CELL - 1, ED_MAPY + hy * ED_CELL - 1)-STEP(ED_CELL + 1, ED_CELL + 1), _RGB32(255, 255, 255), B
+            LINE (edMapX + hx * edCell - 1, edMapY + hy * edCell - 1)-STEP(edCell + 1, edCell + 1), _RGB32(255, 255, 255), B
         END IF
     END IF
+    VIEW ' (the whole screen again)
+    IF mapN > 48 OR edCell <> 12 THEN COLOR _RGB32(120, 110, 160) : _PRINTSTRING (ED_PALX, 568), LEFT$("MAP" + STR$(mapN) + " x" + STR$(mapN) + "  SPACE: PAN/ZOOM", 25)
     ' The palette, two-and-a-bit columns of glyphs on the right
     COLOR _RGB32(255, 90, 200) : _PRINTSTRING (ED_PALX, 4), "LEVEL EDITOR"
     shortName$ = lname$ : c = INSTR(lname$, ": ") : IF c THEN shortName$ = MID$(lname$, c + 2) ' ("SECTOR 1: NEON STATION" - just its name)
@@ -1674,7 +1701,7 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     IF onMap THEN
         c$ = MID$(lvlRow$(hy), hx + 1, 1)
         h$ = "" : IF HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0) <> 0 OR HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1) <> 1 THEN h$ = "  floor" + STR$(HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0)) + " ceil" + STR$(HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1))
-        COLOR _RGB32(200, 200, 230) : _PRINTSTRING (ED_MAPX, 584), LEFT$(LTRIM$(STR$(hx)) + "," + LTRIM$(STR$(hy)) + "  " + GlyphName$(c$) + h$, 40)
+        COLOR _RGB32(200, 200, 230) : _PRINTSTRING (edMapX, 584), LEFT$(LTRIM$(STR$(hx)) + "," + LTRIM$(STR$(hy)) + "  " + GlyphName$(c$) + h$, 40)
     END IF
     IF TIMER < editMsgUntil! THEN COLOR _RGB32(255, 220, 120) : _PRINTSTRING (330, 584), LEFT$(editMsg$, 58)
     IF editDirty THEN COLOR _RGB32(255, 90, 90) : _PRINTSTRING (ED_PALX, 584), "* not saved"
@@ -1993,7 +2020,7 @@ SUB EditDrawHelp(v)
     DIM B, c, l$, n, t$, x, y, y0 ' (its own: the main program shares these names)
     IF v = 1 THEN
         h$ = "#MOVE AND LOOK|walk keys~fly that way - through walls|look up + walk~climb (look down: sink)|Space / C~straight up / down|Shift~faster|hold Right~look round (crosshair picks)|Tab~the map from above|F2~play the level as it is|"
-        h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor or ceiling|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
+        h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor, ceiling, or wall side|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
         h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / Alt~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / Alt~the usual / pick it up|LIGHT~a light on the face|  Shift~take it away|HEIGHT~floor/ceiling up; Shift down|"
         h$ = h$ + "#THE WHEEL (the selection)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
         h$ = h$ + "#FACES|H~divide left / right|V~divide top / bottom|H or V again~whole again|click a half~select / paint it alone|"
@@ -2441,7 +2468,10 @@ SUB EditPaneBuild
         IF edRoomW < 3 THEN edRoomW = 8 : edRoomH = 8
         EditPaneAdd -1, x0, y + 2, 140, "ROOM" + STR$(edRoomW) + " x" + STR$(edRoomH), 0 : EditPaneAdd 178, x0 + 146, y, 24, "-", 0 : EditPaneAdd 179, x0 + 174, y, 24, "+", 0 : y = y + 22
         EditPaneAdd -1, x0, y + 2, 140, "  (wide; Shift: deep)", 0 : y = y + 20
-        EditPaneAdd 180, x0, y, PN_W, "MAKE THE MAP THIS ROOM", 0 : y = y + 28
+        EditPaneAdd 180, x0, y, PN_W, "MAKE THE MAP THIS ROOM", 0 : y = y + 26
+        IF edMapWant < 16 THEN edMapWant = mapN
+        EditPaneAdd -1, x0, y + 2, 140, "MAP SIZE" + STR$(edMapWant), 0 : EditPaneAdd 181, x0 + 146, y, 24, "-", 0 : EditPaneAdd 182, x0 + 174, y, 24, "+", 0 : y = y + 22
+        IF edMapWant <> mapN THEN EditPaneAdd 183, x0, y, PN_W, "MAKE IT" + STR$(edMapWant) + " x" + STR$(edMapWant), -1 : y = y + 26 ELSE y = y + 6
         EditPaneAdd -1, x0, y, PN_W, "ITS PICTURES: click one,", 0 : EditPaneAdd -1, x0, y + 16, PN_W, "then one in the picker", 0
         y = y + 36
         FOR k = 1 TO 12
@@ -3034,17 +3064,17 @@ END SUB
 SUB EditDrawSelMap
     DIM B, c~&, k, sx, sy ' (its own: the main program shares these names)
     FOR k = 1 TO edSelN
-        sx = ED_MAPX + edSelX(k) * ED_CELL : sy = ED_MAPY + edSelY(k) * ED_CELL : c~& = _RGB32(255, 170, 40)
+        sx = edMapX + edSelX(k) * edCell : sy = edMapY + edSelY(k) * edCell : c~& = _RGB32(255, 170, 40)
         SELECT CASE edSelKind(k)
             CASE ED_FLOOR, ED_CEIL
-                LINE (sx + 1, sy + 1)-STEP(ED_CELL - 3, ED_CELL - 3), c~&, B
-                IF edSelKind(k) = ED_CEIL THEN LINE (sx + 3, sy + 3)-STEP(ED_CELL - 7, ED_CELL - 7), c~&, B ' (a ceiling: a box in a box)
+                LINE (sx + 1, sy + 1)-STEP(edCell - 3, edCell - 3), c~&, B
+                IF edSelKind(k) = ED_CEIL THEN LINE (sx + 3, sy + 3)-STEP(edCell - 7, edCell - 7), c~&, B ' (a ceiling: a box in a box)
             CASE ELSE
                 SELECT CASE edSelSide(k)
-                    CASE 1 : LINE (sx + ED_CELL - 2, sy)-STEP(1, ED_CELL - 1), c~&, BF
-                    CASE 2 : LINE (sx, sy + ED_CELL - 2)-STEP(ED_CELL - 1, 1), c~&, BF
-                    CASE 3 : LINE (sx, sy)-STEP(1, ED_CELL - 1), c~&, BF
-                    CASE 4 : LINE (sx, sy)-STEP(ED_CELL - 1, 1), c~&, BF
+                    CASE 1 : LINE (sx + edCell - 2, sy)-STEP(1, edCell - 1), c~&, BF
+                    CASE 2 : LINE (sx, sy + edCell - 2)-STEP(edCell - 1, 1), c~&, BF
+                    CASE 3 : LINE (sx, sy)-STEP(1, edCell - 1), c~&, BF
+                    CASE 4 : LINE (sx, sy)-STEP(edCell - 1, 1), c~&, BF
                 END SELECT
         END SELECT
     NEXT
@@ -3827,4 +3857,59 @@ SUB EditMakeRoom(w, h)
     lvlLight(1, 5) = 220 : lvlLight(1, 6) = 230 : lvlLight(1, 7) = 255 : lvlLight(1, 8) = 0
     CellLightsClear
     FOR y = 0 TO mapN - 1 : lvlLiqRow$(y) = "" : lvlLiqDRow$(y) = "" : NEXT
+END SUB
+
+' --- The map from above, fitted to its part of the screen: a sector the
+' game's size (48) as ever, 12 pixels a cell; a bigger one smaller, the
+' whole of it in view (Space + drag, + wheel: pan and zoom from there)
+SUB EditFitMap
+    edCell = MaxOf(2, MinOf(12, (ED_VIEWH - 10) \ mapN)) : IF mapN <= 48 THEN edCell = 12 ' (the game's size: as it always was)
+    edMapX = 8 : edMapY = 8 : edPanWas = 0
+END SUB
+
+' --- The sector's map made n x n cells: bigger - the new cells wall, and a
+' border all round; smaller - what's past it cut off (and its border wall
+' again). Undo can't go back past it: its history starts again here.
+SUB EditResizeMap(n)
+    DIM y, was ' (its own: the main program shares these names)
+    n = MaxOf(16, MinOf(MAP_SIZE, n)) : was = mapN : IF n = was THEN EXIT SUB
+    FOR y = 0 TO n - 1
+        lvlRow$(y) = LEFT$(lvlRow$(y) + STRING$(n, "#"), n) : IF y >= was THEN lvlRow$(y) = STRING$(n, "#")
+        lvlFloorRow$(y) = LEFT$(lvlFloorRow$(y) + STRING$(n, "."), n) : lvlCeilRow$(y) = LEFT$(lvlCeilRow$(y) + STRING$(n, "."), n)
+        lvlLiqRow$(y) = LEFT$(lvlLiqRow$(y) + STRING$(n, "."), n) : lvlLiqDRow$(y) = LEFT$(lvlLiqDRow$(y) + STRING$(n, "."), n)
+        MID$(lvlRow$(y), 1, 1) = "#" : MID$(lvlRow$(y), n, 1) = "#" ' (its border)
+    NEXT
+    lvlRow$(0) = STRING$(n, "#") : lvlRow$(n - 1) = STRING$(n, "#")
+    FOR y = n TO MAP_SIZE - 1 : lvlRow$(y) = "" : lvlFloorRow$(y) = "" : lvlCeilRow$(y) = "" : lvlLiqRow$(y) = "" : lvlLiqDRow$(y) = "" : NEXT
+    mapN = n : edMapWant = n : editUndoN = 0
+    IF INSTR(lvlRow$((n - 1) \ 2), ">") + INSTR(lvlRow$((n - 1) \ 2), "<") = 0 THEN ' (no start left - cut off: one, in the middle)
+        FOR y = 0 TO n - 1 : IF INSTR(lvlRow$(y), ">") OR INSTR(lvlRow$(y), "<") OR INSTR(lvlRow$(y), "^") OR INSTR(lvlRow$(y), "v") THEN EXIT FOR
+        NEXT
+        IF y >= n THEN MID$(lvlRow$(n \ 2), n \ 2 + 1, 1) = ">"
+    END IF
+    EditApply : EditFitMap
+END SUB
+
+' --- Ctrl+click on a wall's side, in the 3D view: that whole side of the
+' wall - from it along the wall's plane, both ways (and round its doorways
+' and gaps, no further), every wall face the same way that has open floor in
+' front of it, so a long wall is one click to style
+SUB EditSelWallFlood(x0, y0, side)
+    DIM qx(MAP_SIZE * MAP_SIZE) AS INTEGER, qy(MAP_SIZE * MAP_SIZE) AS INTEGER, seen(MAP_SIZE, MAP_SIZE) AS INTEGER
+    DIM d, nx, ny, x, y, fx, fy, qn, qi, ax, ay ' (its own: the main program shares these names)
+    IF side = 1 OR side = 3 THEN ax = 0 : ay = 1 ELSE ax = 1 : ay = 0 ' (along the wall: up and down it, or across)
+    edSelN = 0 : qn = 1 : qx(1) = x0 : qy(1) = y0 : seen(x0, y0) = -1 : qi = 0
+    DO WHILE qi < qn AND edSelN < ED_MAXSEL
+        qi = qi + 1 : x = qx(qi) : y = qy(qi)
+        EditSelToggle ED_WALL, x, y, side, 0
+        FOR d = -1 TO 1 STEP 2
+            nx = x + ax * d : ny = y + ay * d
+            IF nx > 0 AND ny > 0 AND nx < mapN - 1 AND ny < mapN - 1 THEN
+                IF NOT seen(nx, ny) AND worldMap(nx, ny) > 0 AND worldMap(nx, ny) <> 2 AND diagCorner(nx, ny) = 0 THEN
+                    EditFaceFront nx, ny, side, fx, fy
+                    IF worldMap(fx, fy) <= 0 OR worldMap(fx, fy) = 2 THEN seen(nx, ny) = -1 : qn = qn + 1 : qx(qn) = nx : qy(qn) = ny
+                END IF
+            END IF
+        NEXT
+    LOOP
 END SUB

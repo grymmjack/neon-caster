@@ -4,7 +4,14 @@
 ' The level editor (F2): its own state.
 '
 
-CONST ED_MAPX = 8, ED_MAPY = 8, ED_CELL = 12, ED_PALX = 596, ED_PALY = 44 ' (the editor's map from above, and its palette - chapter 21)
+CONST ED_PALX = 596, ED_PALY = 44 ' (the editor's palette - chapter 21)
+' The map from above: where cell (0, 0) is on the screen and how big a cell
+' is - 12 pixels, as it opens on one of the game's sectors; a bigger one
+' fits the view. Space + drag pans it, Space + the wheel zooms (EditFitMap,
+' EditPanZoom). ED_VIEWW, ED_VIEWH: the part of the screen it's drawn in.
+CONST ED_VIEWW = 588, ED_VIEWH = 578
+DIM SHARED edMapX AS INTEGER, edMapY AS INTEGER, edCell AS INTEGER, edPanWas AS INTEGER, edPanMX AS INTEGER, edPanMY AS INTEGER
+edMapX = 8 : edMapY = 8 : edCell = 12
 ' --- The level editor (chapter 21): F2. editMode: on; editView: 0 the map
 ' from above (RunEditor), 1 walking round inside it (EditFP, in the game
 ' loop). editGlyph$: what you're placing - a map character (chapter 22).
@@ -72,7 +79,7 @@ edLR = 230 : edLG = 235 : edLB = 255 : edLFx = FX_STEADY : edLRad = 3 : edLBri =
 ' teleporter's pad, a lift, a floor - and its buttons, down the right
 CONST PN_X = 592, PN_Y = 58, PN_W = 200
 CONST PN_MAX = 64 ' (the most buttons and lines a pane has)
-DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER ' (the SECTOR pane: its loot preset - 0 as made - and the room MAKE THE ROOM makes)
+DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER, edMapWant AS INTEGER ' (the SECTOR pane: its loot preset - 0 as made - and the room MAKE THE ROOM makes)
 DIM SHARED edPnN AS INTEGER, edPnId(PN_MAX) AS INTEGER, edPnX(PN_MAX) AS INTEGER, edPnY(PN_MAX) AS INTEGER, edPnW(PN_MAX) AS INTEGER, edPnLab$(PN_MAX), edPnLit(PN_MAX) AS INTEGER
 DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnEvent AS INTEGER, edPnCol(PN_MAX) AS _UNSIGNED LONG
 DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick AS INTEGER, edTypeFresh AS INTEGER

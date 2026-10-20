@@ -235,6 +235,9 @@ SUB ConExec STATIC
             END IF
         CASE "restart", "reset" ' This sector again, from the start
             RestartLevel : conLevelChanged = -1 : ConPrint "Level reset"
+        CASE "mapsize" ' mapsize N: the sector's map N x N cells (16 to 128) - grown with wall, or cut down; savelevel keeps it
+            IF VAL(conA$) >= 16 THEN EditPushUndo : EditResizeMap VAL(conA$) : editDirty = -1
+            ConPrint "map:" + STR$(mapN) + " x" + STR$(mapN) + "  (16 to" + STR$(MAP_SIZE) + ")"
         CASE "resetlevel" ' The sector as it starts - as it is now in the editor - and you where you are
             EditResetLevel : ConPrint "The sector as it starts - you where you are"
         CASE "reloadlevel" ' The sector from its file, as it was last saved - and you where you are
@@ -1064,7 +1067,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version map maps sectorset restart resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
+    ConNames$ = "help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1075,7 +1078,7 @@ SUB ConHelp(c$)
         CASE ""
             ConPrint "^3^5Commands^0 - ^7help NAME^0 for more (and how each one goes); ^7;^0 separates several on a line^0:"
             ConPrint "  ^6sectors   ^7map^8 N|NAME  ^7maps  ^7sectorset^8 0|1|2  ^7restart  ^7newgame  ^7finish  ^7newsector"
-            ConPrint "            ^7sectorname^8 NAME  ^7resetlevel  ^7reloadlevel  ^7savesectorcopy"
+            ConPrint "            ^7sectorname^8 NAME  ^7mapsize^8 N  ^7resetlevel  ^7reloadlevel  ^7savesectorcopy"
             ConPrint "            ^7saveleveltodisk^8 [FILE]  ^7loadlevelfromdisk^8 [FILE]"
             ConPrint "  ^6cheats    ^7god  ^7buddha  ^7fly  ^7notarget  ^7give^8 WHAT  ^7take^8 WHAT  ^7kill  ^7respawn  ^7die  ^7tp^8 X Y [ANGLE]"
             ConPrint "            ^7pitch^8 [DEG]  ^7summon^8 TYPE [N]  ^7spawn^8 TYPE X Y [N]  ^7item^8 KIND X Y"
@@ -1102,6 +1105,7 @@ SUB ConHelp(c$)
         CASE "maps", "levels", "sectors" : ConPrint "^3maps^0: every sector there is - this set's ten (sectorset changes them), then yours"
         CASE "sectorset", "campaign", "set10" : ConPrint "^3sectorset 0|1|2 (original, new, remix)^0: which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS or OLD SECTORS NEW. sectorset on its own: which it is"
         CASE "restart", "reset" : ConPrint "^3restart^0: this sector again from its start - with what you started the game with"
+        CASE "mapsize" : ConPrint "^3mapsize [N]^0: the sector's map N x N cells (16 to" + STR$(MAP_SIZE) + "; the game's are 48) - grown with wall all round, or cut down. savelevel keeps it"
         CASE "resetlevel" : ConPrint "^3resetlevel^0: the sector as it starts - monsters, doors, pickups back - as it is now in the editor, and you where you are"
         CASE "reloadlevel" : ConPrint "^3reloadlevel^0: the sector from its file, as last saved (what you'd changed since: gone) - you where you are"
         CASE "savesectorcopy", "sectorcopy" : ConPrint "^3savesectorcopy^0: a copy of the sector as it is now, in versions/ beside its file, named for when - a history to go back to"

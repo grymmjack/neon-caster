@@ -424,7 +424,7 @@ SUB ReadLevelFile(n)
     lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNote$ = "" : topLines = -1
     CellLightsClear
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
-    fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0
+    fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0 : fhRows = 0 : chRows = 0
     f$ = LevelFile$(n) : IF LEN(lvlReadFrom$) THEN f$ = lvlReadFrom$ ' (another file, in its place: loadlevelfromdisk)
     IF NOT _FILEEXISTS(f$) THEN EXIT SUB
     DIM v(9) AS SINGLE ' (9: a cell light's numbers)
@@ -438,6 +438,12 @@ SUB ReadLevelFile(n)
             IF rows < MAP_SIZE THEN lvlRow$(rows) = t$ : rows = rows + 1
         ELSEIF sec$ = "floor" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
             IF fRows < MAP_SIZE THEN lvlFloorRow$(fRows) = t$ : fRows = fRows + 1
+        ELSEIF (sec$ = "floor high" OR sec$ = "ceiling high") AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN ' (heights higher than z: their 36s)
+            IF sec$ = "floor high" THEN
+                IF fhRows < MAP_SIZE THEN HeightRowJoin lvlFloorRow$(fhRows), t$ : fhRows = fhRows + 1
+            ELSE
+                IF chRows < MAP_SIZE THEN HeightRowJoin lvlCeilRow$(chRows), t$ : chRows = chRows + 1
+            END IF
         ELSEIF sec$ = "ceiling" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
             IF cRows < MAP_SIZE THEN lvlCeilRow$(cRows) = t$ : cRows = cRows + 1
         ELSEIF sec$ = "liquid" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
@@ -671,11 +677,19 @@ SUB WriteLevelFile(f$)
     NEXT
     IF anyF THEN
         o$ = o$ + nl$ + "[floor]" + nl$ + "' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down" + nl$
-        FOR y = 0 TO mapN - 1 : o$ = o$ + lvlFloorRow$(y) + nl$ : NEXT
+        FOR y = 0 TO mapN - 1 : o$ = o$ + HeightRowLow$(lvlFloorRow$(y)) + nl$ : NEXT
+        IF HeightRowsHigh(1) THEN
+            o$ = o$ + nl$ + "[floor high]" + nl$ + "' higher than z: how many 36 eighths more than [floor]'s - 1 to 3" + nl$
+            FOR y = 0 TO mapN - 1 : o$ = o$ + HeightRowHigh$(lvlFloorRow$(y)) + nl$ : NEXT
+        END IF
     END IF
     IF anyC THEN
         o$ = o$ + nl$ + "[ceiling]" + nl$ + "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's" + nl$
-        FOR y = 0 TO mapN - 1 : o$ = o$ + lvlCeilRow$(y) + nl$ : NEXT
+        FOR y = 0 TO mapN - 1 : o$ = o$ + HeightRowLow$(lvlCeilRow$(y)) + nl$ : NEXT
+        IF HeightRowsHigh(2) THEN
+            o$ = o$ + nl$ + "[ceiling high]" + nl$ + "' higher than z: how many 36 eighths more than [ceiling]'s - 1 to 3" + nl$
+            FOR y = 0 TO mapN - 1 : o$ = o$ + HeightRowHigh$(lvlCeilRow$(y)) + nl$ : NEXT
+        END IF
     END IF
     IF LiquidRowsAny THEN ' The liquids - only if there are any
         o$ = o$ + nl$ + "[liquid]" + nl$ + "' each cell's liquid: . none, w water, p poison, s slime, l lava, a acid" + nl$
@@ -690,7 +704,7 @@ END SUB
 ' --- Cell lights: none (every cell the sector's light)
 SUB CellLightsClear
     DIM x, y ' (its own: the main program shares these names)
-    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : lvlCLBright(x, y) = -1 : lvlCLCol(x, y) = 0 : lvlCLFx(x, y) = 0 : NEXT : NEXT
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 : lvlCLBright(x, y) = -1 : lvlCLCol(x, y) = 0 : lvlCLFx(x, y) = 0 : NEXT : NEXT ' (all of it: a sector grown later has none of its own either)
 END SUB
 
 ' Whether cells (x1, y1) and (x2, y2) have the same cell light (both none counts)
@@ -725,3 +739,48 @@ FUNCTION CellLightBoxes$(nl$)
     NEXT : NEXT
     CellLightBoxes$ = o$
 END FUNCTION
+
+' --- Heights higher than z, in a level file (WORLD/HEIGHTS.BI's H_HI):
+' a row as [floor] / [ceiling] has it - each one higher than z its last
+' digit in base 36 (0-9 a-z) ...
+FUNCTION HeightRowLow$(r$)
+    DIM k, e, o$ ' (its own: the main program shares these names)
+    o$ = r$
+    FOR k = 1 TO LEN(o$)
+        IF ASC(o$, k) >= H_HI THEN e = ASC(o$, k) - H_HI + 36 : MID$(o$, k, 1) = MID$(H_UP$, e MOD 36 + 1, 1)
+    NEXT
+    HeightRowLow$ = o$
+END FUNCTION
+
+' ...and [floor high] / [ceiling high]'s row: how many 36s (0 for the rest)
+FUNCTION HeightRowHigh$(r$)
+    DIM k, o$ ' (its own: the main program shares these names)
+    o$ = STRING$(LEN(r$), "0")
+    FOR k = 1 TO LEN(r$)
+        IF ASC(r$, k) >= H_HI THEN MID$(o$, k, 1) = LTRIM$(STR$((ASC(r$, k) - H_HI + 36) \ 36))
+    NEXT
+    HeightRowHigh$ = o$
+END FUNCTION
+
+' Any heights higher than z in the floors (w 1) or the ceilings (2)?
+FUNCTION HeightRowsHigh(w)
+    DIM y, k ' (its own: the main program shares these names)
+    FOR y = 0 TO mapN - 1
+        FOR k = 1 TO LEN(lvlFloorRow$(y))
+            IF w = 1 THEN IF ASC(lvlFloorRow$(y), k) >= H_HI THEN HeightRowsHigh = -1 : EXIT FUNCTION
+            IF w = 2 THEN IF ASC(lvlCeilRow$(y), k) >= H_HI THEN HeightRowsHigh = -1 : EXIT FUNCTION
+        NEXT
+    NEXT
+END FUNCTION
+
+' Reading: a row of 36s (h$) put into the heights row read before it (r$)
+SUB HeightRowJoin(r$, h$)
+    DIM k, n, e ' (its own: the main program shares these names)
+    FOR k = 1 TO MinOf(LEN(r$), LEN(h$))
+        n = VAL(MID$(h$, k, 1))
+        IF n > 0 THEN
+            e = INSTR(H_UP$, MID$(r$, k, 1)) - 1 : IF e < 0 THEN e = 0
+            e = MinOf(H_MAX, e + 36 * n) : IF e >= 36 THEN MID$(r$, k, 1) = CHR$(H_HI + e - 36)
+        END IF
+    NEXT
+END SUB

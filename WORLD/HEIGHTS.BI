@@ -15,6 +15,11 @@
 ' room; your eye is EYE_H above your feet (eyeZ, eased up steps). walkZ:
 ' the height of whoever Walkable is asked about (-999: don't care).
 CONST H_STEP = 0.125, H_UP$ = "0123456789abcdefghijklmnopqrstuvwxyz", H_DOWN$ = "ABCDEFGH"
+' Higher than z (35 eighths), up to H_MAX eighths (16 walls): in memory, a
+' character past z - CHR$(H_HI + eighths - 36); in the level file, the
+' height's last digit in base 36 in [floor] / [ceiling] as ever, and how
+' many 36s in [floor high] / [ceiling high] (only if there are any)
+CONST H_HI = 123, H_MAX = 128
 CONST STEP_UP = 0.32, EYE_H = 0.5, BODY_H = 0.7, FALL_G = 0.01, PIT_DEPTH = -0.99
 ' Floors that do something (FloorHazard, by the floor's picture): molten or
 ' lava burns (BURN_DAMAGE every BURN_EVERY frames you stand in it); murky

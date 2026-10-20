@@ -99,12 +99,13 @@
     IF hasMap AND NOT mapOpen AND hudShow(HE_MINIMAP) THEN
         DrawMap hudX(HE_MINIMAP), hudY(HE_MINIMAP), hudW(HE_MINIMAP), -1, playerX, playerY, dirX, dirY
         ' (the kill count, if it's where the map is, goes under it)
-        IF hudX(HE_KILLS) = hudX(HE_MINIMAP) AND hudY(HE_KILLS) = hudY(HE_MINIMAP) THEN killsY = hudY(HE_MINIMAP) + mapN * hudW(HE_MINIMAP) + 6
+        IF hudX(HE_KILLS) = hudX(HE_MINIMAP) AND hudY(HE_KILLS) = hudY(HE_MINIMAP) THEN killsY = hudY(HE_MINIMAP) + MinOf(mapN, 48) * hudW(HE_MINIMAP) + 6
     END IF
     IF mapOpen THEN
         LINE (0, 0)-(799, 599), _RGBA32(0, 4, 14, 225), BF
         MenuText 400, 14, levelName$, 2, _RGB32(255, 100, 215), 1
-        DrawMap 400 - mapN * 5, 60, 10, hasMap, playerX, playerY, dirX, dirY
+        fmC = MinOf(10, 480 \ mapN) : mmFull = -1 ' (the whole sector, as big as fits)
+        DrawMap 400 - mapN * fmC \ 2, 60, fmC, hasMap, playerX, playerY, dirX, dirY : mmFull = 0
         IF hasMap THEN mapNote$ = "TAB  CLOSE THE MAP" ELSE mapNote$ = "NO MAP YET - ONLY WHERE YOU'VE BEEN.   TAB  CLOSE"
         MenuText 400, 552, mapNote$, 1, _RGB32(170, 170, 200), 1
     END IF

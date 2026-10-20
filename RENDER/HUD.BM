@@ -135,16 +135,22 @@ END FUNCTION
 ' on the big map the floor you've seen is a dim blue. Then keycards, and
 ' you - an arrow pointing the way you face.
 SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
-    DIM ax, ay, i, k, sx, sy ' (its own: the main program shares these names)
-    LINE (mapLeft - 2, mapTop - 2)-(mapLeft + mapN * cellSize + 1, mapTop + mapN * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
-    FOR cellY = 0 TO mapN - 1 : FOR cellX = 0 TO mapN - 1
+    DIM ax, ay, i, k, sx, sy, n, x0, y0, ml, mt ' (its own: the main program shares these names)
+    ' (a sector bigger than the game's 48: the minimap is the 48 cells round
+    ' you; the full map all of it, smaller - its caller picks the size)
+    n = mapN : x0 = 0 : y0 = 0
+    IF NOT mmFull AND mapN > 48 THEN n = 48 : x0 = MaxOf(0, MinOf(mapN - 48, INT(px) - 24)) : y0 = MaxOf(0, MinOf(mapN - 48, INT(py) - 24))
+    LINE (mapLeft - 2, mapTop - 2)-(mapLeft + n * cellSize + 1, mapTop + n * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
+    VIEW SCREEN (mapLeft - 2, mapTop - 2)-(mapLeft + n * cellSize + 1, mapTop + n * cellSize + 1)
+    ml = mapLeft - x0 * cellSize : mt = mapTop - y0 * cellSize
+    FOR cellY = y0 TO y0 + n - 1 : FOR cellX = x0 TO x0 + n - 1
         IF showAll OR cellSeen(cellX, cellY) THEN
             mmColor~& = 0 : hideIt = 0
             IF secretArea(cellX, cellY) > 0 AND NOT cellSeen(cellX, cellY) THEN hideIt = -1 : mmColor~& = wallMapColor(secretArea(cellX, cellY)) ' (behind a secret, not seen yet: the map pickup shows rock)
             IF NOT hideIt THEN
             SELECT CASE worldMap(cellX, cellY)
                 CASE 0
-                    IF cellSize > 4 THEN ' (the full map: the floor - and what's on it that matters, once you've seen it: the map pickup shows the layout, not what's in it)
+                    IF mmFull THEN ' (the full map: the floor - and what's on it that matters, once you've seen it: the map pickup shows the layout, not what's in it)
                         mmColor~& = _RGBA32(40, 50, 95, 150)
                         IF cellSeen(cellX, cellY) THEN
                             IF liqKind(cellX, cellY) THEN k = liqKind(cellX, cellY) : mmColor~& = _RGBA32(lqR(k) * 0.7, lqG(k) * 0.7, lqB(k) * 0.7, 210) ' (a pool, its colour: lava orange, acid green...)
@@ -167,7 +173,7 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
                     END IF
             END SELECT
             END IF
-            sx = mapLeft + cellX * cellSize : sy = mapTop + cellY * cellSize
+            sx = ml + cellX * cellSize : sy = mt + cellY * cellSize
             IF mmColor~& <> 0 AND diagCorner(cellX, cellY) <> 0 AND NOT hideIt THEN ' Diagonal: just its solid half
                 FOR pixY = 0 TO cellSize - 1 : FOR pixX = 0 TO cellSize - 1
                     IF InDiagonalWall(diagCorner(cellX, cellY), (pixX + 0.5) / cellSize, (pixY + 0.5) / cellSize) THEN PSET (sx + pixX, sy + pixY), mmColor~&
@@ -181,25 +187,26 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
             END IF
         END IF
     NEXT : NEXT
-    IF cellSize > 4 THEN ' Teleporter pads: a violet ring each
+    IF mmFull THEN ' Teleporter pads: a violet ring each
         FOR k = 1 TO numPads
-            IF cellSeen(padX(k), padY(k)) THEN CIRCLE (mapLeft + (padX(k) + 0.5) * cellSize, mapTop + (padY(k) + 0.5) * cellSize), cellSize * 0.4, _RGB32(190, 110, 255)
+            IF cellSeen(padX(k), padY(k)) THEN CIRCLE (ml + (padX(k) + 0.5) * cellSize, mt + (padY(k) + 0.5) * cellSize), cellSize * 0.4, _RGB32(190, 110, 255)
         NEXT
     END IF
     IF (TIMER * 4 AND 1) = 0 THEN ' Keycards blink
         FOR i = 1 TO numItems
             IF itemOn(i) AND itemKind(i) <= 3 AND cellSeen(INT(itemX(i)), INT(itemY(i))) THEN ' (a keycard: once you've seen where it is)
-                LINE (mapLeft + itemX(i) * cellSize - cellSize \ 3 - 1, mapTop + itemY(i) * cellSize - cellSize \ 3 - 1)-STEP(cellSize \ 1.5 + 1, cellSize \ 1.5 + 1), CardRGB~&(itemKind(i)), BF
+                LINE (ml + itemX(i) * cellSize - cellSize \ 3 - 1, mt + itemY(i) * cellSize - cellSize \ 3 - 1)-STEP(cellSize \ 1.5 + 1, cellSize \ 1.5 + 1), CardRGB~&(itemKind(i)), BF
             END IF
         NEXT
     END IF
     ' You: an arrow - its tip ahead of you, its tail corners behind you
-    ax = mapLeft + px * cellSize : ay = mapTop + py * cellSize : arrow = cellSize * 1.2 + 2
+    ax = ml + px * cellSize : ay = mt + py * cellSize : arrow = cellSize * 1.2 + 2
     tipX = ax + facingX * arrow : tipY = ay + facingY * arrow
     leftX = ax - facingX * arrow * 0.5 + facingY * arrow * 0.5 : leftY = ay - facingY * arrow * 0.5 - facingX * arrow * 0.5
     rightX = ax - facingX * arrow * 0.5 - facingY * arrow * 0.5 : rightY = ay - facingY * arrow * 0.5 + facingX * arrow * 0.5
     LINE (tipX, tipY)-(leftX, leftY), _RGB32(255, 255, 0) : LINE (leftX, leftY)-(rightX, rightY), _RGB32(255, 255, 0)
     LINE (rightX, rightY)-(tipX, tipY), _RGB32(255, 255, 0)
+    VIEW
 END SUB
 
 ' A damage indicator for a hit that came from (x, y): into a free slot, or

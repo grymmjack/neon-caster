@@ -162,7 +162,7 @@ Rough a level out this way: Shift+wheel walls back to make rooms and corridors, 
 
 ## Pictures on faces, and Divide
 
-Any face can have a picture of its own: a wall's side, a step's or lintel's face, a floor, a ceiling. Pick a picture in the picker (it chooses PAINT) and click faces. **Ctrl+click** paints a whole floor or ceiling (your selection stays as it was), **Shift+click** puts back the usual picture, **Alt+click** picks a face's picture up. Picking a picture with faces selected paints them all. From above, PAINT paints a cell's floor (Ctrl: its ceiling), or all four sides of a wall.
+Any face can have a picture of its own: a wall's side, a step's or lintel's face, a floor, a ceiling. Pick a picture in the picker (it chooses PAINT) and click faces. **Ctrl+click** paints a whole floor or ceiling - or a wall's whole side: every face along it in the same plane with open floor in front, as far as it goes (your selection stays as it was), **Shift+click** puts back the usual picture, **Alt+click** picks a face's picture up. Picking a picture with faces selected paints them all. From above, PAINT paints a cell's floor (Ctrl: its ceiling), or all four sides of a wall.
 
 **Divide** splits a face in two for pictures. Select a face (or several) and press **H** for left | right or **V** for top | bottom; press it again to make the face whole. The halves start with the face's picture. Each half is outlined on its own when you point at it ("half 1", "half 2"), can be selected on its own, and painted on its own. A floor or ceiling divides west | east (H) or north | south (V). Top | bottom splits at the face's middle height, so on a tall wall it may be above your eye.
 
@@ -203,6 +203,8 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 To check an ambush, play it and type `mons` in the console: it says which monsters are still asleep. A closet of YOU'RE NEAR crawlers with a sight of 2 springs as you pass; a heavy with HEARING 12 comes running at the first shot. The settings are kept by the cell the monster starts in, so moving it with the arrows takes them along, but deleting it and placing a new one doesn't.
 
 ## The map view
+
+**Size.** A sector is a square of cells: the game's own are 48 x 48, yours can be anything from 16 to 128 each way. The SECTOR pane's **MAP SIZE** (- and +, then MAKE IT) or the console's `mapsize N` grows it (new cells are wall, with the border all round) or cuts it down. A big sector opens fitted to the view; **hold Space and drag** to pan the map, **hold Space and turn the wheel** to zoom in and out where the mouse is. In play, the minimap shows the 48 cells round you, and Tab's map the whole sector.
 
 The whole 48 × 48 map from above, one square per cell, with the picker, the toolbar and the help line in the panel on the right.
 
@@ -360,6 +362,7 @@ Every cell has its own floor and ceiling height, measured in **eighths of a wall
 
 | Rule | Value |
 | --- | --- |
+| Highest a floor or ceiling goes | 128 eighths: 16 walls up |
 | Highest step you can walk up | 2 eighths (the limit is 0.32 of a wall) |
 | Lowest gap you can walk under | 6 eighths of room between floor and ceiling |
 | A floor can't go above | its ceiling minus 2 eighths |
@@ -375,6 +378,7 @@ With the usual ceiling, a floor tops out at 6 eighths. Raise the ceiling first t
 | `.` | The usual: floor 0, ceiling 8 |
 | `0`–`9`, `a`–`z` | 0 to 35 eighths up: `8` is one wall, `g` is two, `z` is 4⅜ |
 | `A`–`H` | 1 to 8 eighths down; `H` is a pit |
+| (past `z`) | 36 to 128 up: the row keeps the last digit (base 36, `0`–`z`), and an extra `[floor high]` / `[ceiling high]` section, one digit a cell, says how many 36s more - written only when a sector has them |
 
 Case matters here too: `a` is 10 up, `A` is 1 down. A level with neither section is flat and draws the fast classic way.
 

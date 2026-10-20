@@ -310,14 +310,21 @@ def hchar(e, ceiling=False):
     e = int(e)
     if e == (8 if ceiling else 0):
         return "."
+    if e >= len(H_UP):
+        return chr(H_HI + min(e, H_MAX) - 36)
     if e >= 0:
-        return H_UP[min(e, len(H_UP) - 1)]
+        return H_UP[e]
     return H_DOWN[min(-e, 8) - 1]
+
+
+H_HI, H_MAX, MAX_N = 123, 128, 128  # (past z: the game's in-memory heights - [floor high] / [ceiling high] in the file; and the biggest sector)
 
 
 def hval(c, default):
     if c == "." or c == " ":
         return default
+    if ord(c) >= H_HI:
+        return ord(c) - H_HI + 36
     if c in H_UP:
         return H_UP.index(c)
     if c in H_DOWN:
@@ -694,16 +701,22 @@ def read_level_file(path, label=None):
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
               ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[], loot=[],
               liquid=[], liquid_depth=[], blocks=[], nudges=[], cell_lights=[])
+    global N
     sec = None
+    high = {"floor high": [], "ceiling high": []}
     for line in open(path).read().split("\n"):
         t = line.strip()
+        if sec in high:
+            if t and not t.startswith("'") and not t.startswith("["):
+                high[sec].append(t)
+                continue
         if sec in ("triggers", "faces", "loot"):
             if t and not t.startswith("'") and not t.startswith("["):
                 lv[sec].append(t)
                 continue
         if sec in ("map", "floor", "ceiling", "liquid", "liquid depth"):
             if t and not t.startswith("'") and not t.startswith("["):
-                lv["rows" if sec == "map" else sec.replace(" ", "_")].append(line.rstrip("\r")[:N])
+                lv["rows" if sec == "map" else sec.replace(" ", "_")].append(line.rstrip("\r")[:MAX_N])
                 continue
         if not t or t.startswith("'"):
             continue
@@ -723,6 +736,21 @@ def read_level_file(path, label=None):
             lv[sec.replace(" ", "_")].append(tuple(int(float(x)) for x in t.split(",")))
         elif sec == "lights":
             lv[sec].append(tuple(float(x) for x in t.split(",")))
+    for which, rows in (("floor", high["floor high"]), ("ceiling", high["ceiling high"])):  # (heights past z: their 36s joined in)
+        for y, h in enumerate(rows):
+            if y < len(lv[which]):
+                r = list(lv[which][y])
+                for x, d in enumerate(h[:len(r)]):
+                    if d.isdigit() and int(d):
+                        e = min(H_MAX, (H_UP.index(r[x]) if r[x] in H_UP else 0) + 36 * int(d))
+                        if e >= 36: r[x] = chr(H_HI + e - 36)
+                lv[which][y] = "".join(r)
+    n = max([len(lv["rows"])] + [len(r) for r in lv["rows"]])  # (its size: the game's are 48 - the kit's checks use it, N)
+    N = max(16, min(MAX_N, n))
+    lv["rows"] = [(r + "#" * N)[:N] for r in lv["rows"]] + ["#" * N] * (N - len(lv["rows"]))
+    for k in ("floor", "ceiling", "liquid", "liquid_depth"):
+        if lv[k]:
+            lv[k] = [(r + "." * N)[:N] for r in lv[k]] + ["." * N] * (N - len(lv[k]))
     return lv
 
 

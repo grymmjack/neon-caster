@@ -45,7 +45,7 @@ DIM SHARED glHurt(1), glHeatAmt(GL_HEAT, 1), glRail(1), glNumHeat(1) AS INTEGER,
 '   glInfoData   the middle of the light on it (x, y), how much of its
 '                light that is (glLitDir), and how high it is
 '   glDynData    which of the 4 moving lights reach it (1 or 0 each)
-CONST GL_TABLE = 64, GL_TABLE_SIZE = 64 * 64 * 4
+CONST GL_TABLE = 128, GL_TABLE_SIZE = GL_TABLE * GL_TABLE * 4 ' (as many cells as the biggest sector: MAP_SIZE)
 DIM SHARED glLitData(2 * GL_TABLE_SIZE) AS SINGLE, glInfoData(2 * GL_TABLE_SIZE) AS SINGLE, glDynData(2 * GL_TABLE_SIZE) AS SINGLE
 ' (for the moving lights' flood fill: the cells waiting, and which were
 ' reached this time - fillSeen() = fillStamp)

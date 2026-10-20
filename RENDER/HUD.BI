@@ -21,7 +21,7 @@ DIM SHARED hudW(HUD_ELEMS) AS INTEGER, hudH(HUD_ELEMS) AS INTEGER, hudCol(HUD_EL
 DIM SHARED hudEdit AS INTEGER, hudSel AS INTEGER, hudMsg$
 ' The map: which cells you've seen (the raycaster marks every cell a ray
 ' passes through - chapter 15), and whether you've found this level's map
-DIM SHARED cellSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, hasMap AS INTEGER
+DIM SHARED cellSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, hasMap AS INTEGER, mmFull AS INTEGER ' (mmFull: DrawMap's drawing the full-screen map, not the minimap)
 ' F3 (or info): where you are, in numbers - for tp, put, box and the rest
 ' (DrawInfo, like Minecraft's F3 screen)
 DIM SHARED infoOn AS INTEGER, infoKeyWas AS INTEGER

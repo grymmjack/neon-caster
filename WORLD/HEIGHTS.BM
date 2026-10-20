@@ -24,6 +24,7 @@ END FUNCTION
 ' dflt; 0-9, a-z that many eighths of a wall; A-H that many eighths below 0
 FUNCTION HeightOf(c$, dflt)
     DIM k ' (its own: the main program shares these names)
+    IF LEN(c$) THEN IF ASC(c$) >= H_HI THEN HeightOf = (ASC(c$) - H_HI + 36) * H_STEP : EXIT FUNCTION ' (higher than z)
     k = INSTR(H_UP$, c$)
     IF k THEN HeightOf = (k - 1) * H_STEP : EXIT FUNCTION
     k = INSTR(H_DOWN$, c$)
@@ -37,8 +38,8 @@ FUNCTION HeightChar$(h, dflt)
     IF ABS(h - dflt) < 0.001 THEN HeightChar$ = "." : EXIT FUNCTION
     k = CINT(h / H_STEP)
     IF k >= 0 THEN
-        IF k >= LEN(H_UP$) THEN k = LEN(H_UP$) - 1
-        HeightChar$ = MID$(H_UP$, k + 1, 1)
+        IF k > H_MAX THEN k = H_MAX
+        IF k >= LEN(H_UP$) THEN HeightChar$ = CHR$(H_HI + k - 36) ELSE HeightChar$ = MID$(H_UP$, k + 1, 1)
     ELSE
         IF -k > LEN(H_DOWN$) THEN k = -LEN(H_DOWN$)
         HeightChar$ = MID$(H_DOWN$, -k, 1)
