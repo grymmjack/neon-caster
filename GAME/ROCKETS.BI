@@ -36,7 +36,7 @@ CONST MISSILE_RADIUS = 1.7, MISSILE_MON = 4, MISSILE_YOU = 22
 DIM SHARED bsX AS SINGLE, bsY AS SINGLE, bsZ AS SINGLE, bsR AS SINGLE, bsMon AS INTEGER, bsYou AS INTEGER
 ' (where a rocket burst: the surface it hit - 0 a wall, 1 the ceiling, 2 the
 ' floor, -1 in the air, on something - and the way it was going: its scorch)
-DIM SHARED bsSurf AS INTEGER, bsDX AS SINGLE, bsDY AS SINGLE, bsOwner AS INTEGER ' (bsOwner: the monster whose missile it was - those it hurts may turn on it)
+DIM SHARED bsSurf AS INTEGER, bsDX AS SINGLE, bsDY AS SINGLE, bsOwner AS INTEGER, bsYours AS INTEGER ' (bsOwner: the monster whose missile it was - those it hurts may turn on it)
 DIM SHARED boltTgt(MAX_BOLTS) AS INTEGER ' (a missile: the monster it's after - 0, you)
 ' A blast knocks things away from it: you (knockX, knockY a frame, easing
 ' off - and up, if it's under you: a rocket jump) and the monsters near it

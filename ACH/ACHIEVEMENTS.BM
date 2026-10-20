@@ -151,7 +151,7 @@ SUB DrawStats STATIC
             CASE 11 : st$ = "Secrets" : lb$ = "Secrets found"
         END SELECT
         v& = 0 : IF achReady THEN v& = STEAM_stat_int&(st$)
-        IF st$ = "KillKinds" THEN vt$ = LTRIM$(STR$(BitCount(v&))) + "/9" ELSE vt$ = LTRIM$(STR$(v&))
+        IF st$ = "KillKinds" THEN vt$ = LTRIM$(STR$(BitCount(v&))) + "/" + LTRIM$(STR$(KILL_KINDS)) ELSE vt$ = LTRIM$(STR$(v&))
         y = 200 + (k - 1) * 29
         MenuText 72, y, lb$, 1, _RGB32(200, 195, 230), 0
         MenuText 360, y, vt$, 1, _RGB32(255, 255, 255), 2
@@ -187,6 +187,7 @@ SUB AchSetup
     AchDef "NC_ESCAPED", "You Escaped", "Finish the original ten sectors.", 0, "", 0
     AchDef "NC_NEW_BLOOD", "New Blood", "Finish all ten NEW SECTORS.", 0, "", 0
     AchDef "NC_REMASTERED", "Old Haunts, New Paint", "Finish all ten OLD SECTORS NEW.", 0, "", 0
+    AchDef "NC_HUGE", "Wide Open Spaces", "Finish all ten HUGE SECTORS.", 0, "", 0
     AchDef "NC_FULL_TOUR", "The Full Tour", "Finish three sets of ten.", 0, "SetsDone", 3
     AchDef "NC_OVERSEER", "Flesh to Steel", "Destroy the overseer.", 0, "", 0
     AchDef "NC_EXPO", "Every Wonder", "Finish THE NEON EXPO (sector 24).", 0, "", 0
@@ -202,7 +203,7 @@ SUB AchSetup
     AchDef "NC_CHAIN", "Chain Reaction", "Three machines in one explosion.", 0, "", 0
     AchDef "NC_ARSENAL", "Arsenal", "Carry all four guns at once.", 0, "", 0
     AchDef "NC_AMPED", "Overclocked", "Five kills on one damage amp.", 0, "", 0
-    AchDef "NC_BESTIARY", "Bestiary", "Destroy one of every kind of machine.", 0, "KillKinds", 9
+    AchDef "NC_BESTIARY", "Bestiary", "Destroy one of every kind of machine.", 0, "KillKinds", 15
     AchDef "NC_THIEF", "Stop, Thief!", "Destroy a thief.", 0, "", 0
     ' Skill
     AchDef "NC_UNTOUCHED", "Untouchable", "Finish a sector without a scratch.", 0, "", 0

@@ -5,6 +5,7 @@ NC_SECTOR_1|a single glowing neon footprint stepping onto a grid floor
 NC_ESCAPED|an open doorway of blinding white light with a running silhouette escaping
 NC_NEW_BLOOD|a glowing circuit-board heart
 NC_REMASTERED|an old cracked monitor repainted in fresh neon paint splashes
+NC_HUGE|a vast neon city skyline stretching to the far horizon under a giant moon
 NC_FULL_TOUR|three linked neon rings forming a route map
 NC_OVERSEER|a giant mechanical eye with its lens cracked in two
 NC_EXPO|a futuristic world's fair tower with fireworks

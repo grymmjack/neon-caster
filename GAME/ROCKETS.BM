@@ -126,6 +126,7 @@ END SUB
 ' --- Rocket (or missile) i bursts where it is
 SUB BoltBurst(i)
     boltOn(i) = 0 : bsX = boltX(i) : bsY = boltY(i) : bsZ = boltZ(i) : bsDX = boltDX(i) : bsDY = boltDY(i) : bsOwner = boltOwner(i)
+    bsYours = (boltKind(i) = BK_ROCKET AND boltOwner(i) = 0) ' (your own rocket: a rocket jump - a turret's missile only throws you)
     IF boltKind(i) = BK_ROCKET THEN
         bsR = ROCKET_RADIUS : bsMon = ROCKET_MON : bsYou = ROCKET_YOU : IF ampTimer > 0 THEN bsMon = bsMon * 2
     ELSE
@@ -201,7 +202,7 @@ SUB BlastSized
         p! = 1 - d! / kr!
         dr! = SQR((playerX - bsX) ^ 2 + (playerY - bsY) ^ 2)
         IF dr! > 0.02 THEN knockX = knockX + (playerX - bsX) / dr! * p! * 0.28 : knockY = knockY + (playerY - bsY) / dr! * p! * 0.28
-        IF bsZ < playerZ + 0.35 AND NOT levelFlat THEN playerVZ = MinOf(playerVZ, -0.26 * p!) : playerZ = playerZ + 0.02 : rocketAir = -1 ' (a rocket jump: lighter till you land)
+        IF bsZ < playerZ + 0.35 AND NOT levelFlat THEN playerVZ = MinOf(playerVZ, -0.26 * p!) : playerZ = playerZ + 0.02 : IF bsYours THEN rocketAir = -1 ' (a rocket jump - yours: lighter till you land, and no hurt landing; another's blast just throws you)
     END IF
     dr! = bsR * 1.5 ' (props: further - the chair at the desk you hit goes too)
     FOR j = 1 TO numDecos
@@ -226,7 +227,7 @@ SUB BlastSized
             IF d! < bsR THEN IF CanSee(bsX, bsY, droidX(j), droidY(j)) THEN HitDroid j, INT(4 * (1 - d! / bsR)) + 1, playerX, playerY
         END IF
     NEXT
-    bsSurf = -1 : bsOwner = 0
+    bsSurf = -1 : bsOwner = 0 : bsYours = 0
 END SUB
 
 ' --- Does a decoration kind burn? (a crate, a plant, a desk, lockers, a

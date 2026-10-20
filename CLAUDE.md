@@ -141,7 +141,7 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
 
 ## Achievements and Steam
 
-- 49 achievements (`AchDef` lines in `AchSetup`) go through `lib/steam`
+- 50 achievements (`AchDef` lines in `AchSetup`) go through `lib/steam`
   (QB64_GJ_LIB's STEAM, vendored). With `NEON_APP_ID = 0` the library's
   mock keeps them in `saves/achievements.txt`. `steam/make_tables.py`
   writes Steamworks' CSVs from the `AchDef` lines; `steam/README.md` is the

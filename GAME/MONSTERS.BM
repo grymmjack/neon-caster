@@ -38,7 +38,7 @@ SUB HitMonster STATIC
         monsterState(target) = 2 : monsterTimer(target) = MON_DYING : kills = kills + 1
         mt = monsterType(target) ' (its drop - monsters.txt)
         IF NOT cyberOn THEN ' (achievements: the network's ICE doesn't count)
-            AchAdd "Kills", 1 : IF mt >= 1 AND mt <= 9 THEN AchBit "KillKinds", mt - 1
+            AchAdd "Kills", 1 : IF mt >= 1 AND mt <= MON_TYPES AND mt <> MT_ICE THEN AchBit "KillKinds", mt + (mt > MT_ICE) - 1 ' (bits 0-14: every kind but ICE)
             IF mt = 8 THEN Achieve "NC_OVERSEER", 0
             IF mt = MT_THIEF THEN Achieve "NC_THIEF", 0
             IF ampTimer > 0 THEN achAmpKills = achAmpKills + 1 : IF achAmpKills >= 5 THEN Achieve "NC_AMPED", 0

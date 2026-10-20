@@ -95,7 +95,7 @@ explains every tool, key, map character and level-file field, and YOUR
 SECTORS starts with twelve example sectors (three of them outdoors, under skies) built with the editor to take
 apart.
 
-**Achievements and records:** 49 achievements, from finishing sector 1 to
+**Achievements and records:** 50 achievements, from finishing sector 1 to
 a thousand kills, a sector without a scratch, or kicking a machine into a
 bottomless pit, each with its own badge. **GAME > ACHIEVEMENTS** shows
 them all and how close you are, its RECORDS page has your best time,

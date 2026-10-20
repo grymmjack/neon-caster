@@ -336,7 +336,7 @@ Each sector is built around floors and ceilings at different heights
 
 ## Achievements and records
 
-49 achievements, and each sector's best time, kills and items, in **GAME >
+50 achievements, and each sector's best time, kills and items, in **GAME >
 ACHIEVEMENTS** (Tab goes on to the RECORDS page, then STATS: your rank,
 from how many you've got, and lifetime totals). They're Steam's: chapter 23's
 ACHIEVEMENTS section uses the STEAM library from QB64_GJ_LIB (`lib/steam`),

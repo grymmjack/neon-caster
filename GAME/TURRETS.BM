@@ -159,7 +159,7 @@ SUB TurretBlown(i)
     DIM x!, y!, z!, nx!, ny!, nz!, k ' (its own: the main program shares these names)
     monBlown(i) = 2
     TurretMountAt i, x!, y!, z!, nx!, ny!, nz!
-    bsX = x! + nx! * 0.15 : bsY = y! + ny! * 0.15 : bsZ = z! + nz! * 0.15 : bsR = 1.5 : bsMon = 4 : bsYou = 10 : bsSurf = -1 : bsOwner = 0
+    bsX = x! + nx! * 0.15 : bsY = y! + ny! * 0.15 : bsZ = z! + nz! * 0.15 : bsR = 1.5 : bsMon = 4 : bsYou = 10 : bsSurf = -1 : bsOwner = 0 : bsYours = 0
     BlastSized
     SpawnSparks x!, y!, z! - FloorAt(x!, y!), 30, 255, 220, 140
     FOR k = 1 TO 8 : SpawnPart PART_SMOKE, x! + (RND - 0.5) * 0.3, y! + (RND - 0.5) * 0.3, z! + nz! * 0.1, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, 0.006, 90, 0.14, 0.13, 0.12, 0.12 : NEXT
@@ -229,7 +229,7 @@ SUB TurretTrack(i, sn)
     IF ABS(d!) <= st! THEN monAimA(i) = monAimA(i) + d! ELSE monAimA(i) = monAimA(i) + st! * SGN(d!)
     IF monAimA(i) > 3.14159265 THEN monAimA(i) = monAimA(i) - 6.2831853
     IF monAimA(i) < -3.14159265 THEN monAimA(i) = monAimA(i) + 6.2831853
-    IF ABS(d!) < MaxOf(0.05, ATN(0.4 / MaxOf(distance, 0.5))) THEN monLock(i) = MinOf(999, monLock(i) + 1) ELSE monLock(i) = 0 ' (on you: its aim anywhere on your body)
+    IF ABS(d!) < MaxOf(0.05, DAtan2(0.4, MaxOf(distance, 0.5))) THEN monLock(i) = MinOf(999, monLock(i) + 1) ELSE monLock(i) = 0 ' (on you: its aim anywhere on your body)
 END SUB
 
 ' --- Turret i's laser sight, in its weapon's colour: from its muzzle along
@@ -306,7 +306,7 @@ SUB TurretMuzzle(i, k, x!, y!, z!)
         CASE ELSE : ox! = monsterX(i) : oy! = monsterY(i) : oz! = FloorAt(monsterX(i), monsterY(i)) : uz! = 1
     END SELECT
     l! = 0.03 + turPivot : ox! = ox! + ux! * l! : oy! = oy! + uy! * l! : oz! = oz! + uz! * l! ' (its plate, and its base: where its head turns)
-    hd! = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY) : p! = ATN((monTZ + 0.45 - TurretMuzzleZ(i)) / MaxOf(hd!, 0.3))
+    hd! = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY) : p! = DAtan2(monTZ + 0.45 - TurretMuzzleZ(i), MaxOf(hd!, 0.3)) ' (the game's own maths: a demo plays the same on every machine)
     fx! = DCos(monAimA(i)) * DCos(p!) : fy! = DSin(monAimA(i)) * DCos(p!) : fz! = DSin(p!)
     l! = ux! * fx! + uy! * fy! + uz! * fz! : ux! = ux! - l! * fx! : uy! = uy! - l! * fy! : uz! = uz! - l! * fz! : l! = SQR(ux! * ux! + uy! * uy! + uz! * uz!)
     IF l! < 0.01 THEN ux! = 0 : uy! = 0 : uz! = 1 ELSE ux! = ux! / l! : uy! = uy! / l! : uz! = uz! / l!

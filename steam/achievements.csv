@@ -3,6 +3,7 @@ NC_SECTOR_1,First Steps,Finish sector 1.,no,,,achievements/NC_SECTOR_1.jpg,achie
 NC_ESCAPED,You Escaped,Finish the original ten sectors.,no,,,achievements/NC_ESCAPED.jpg,achievements/NC_ESCAPED_locked.jpg
 NC_NEW_BLOOD,New Blood,Finish all ten NEW SECTORS.,no,,,achievements/NC_NEW_BLOOD.jpg,achievements/NC_NEW_BLOOD_locked.jpg
 NC_REMASTERED,"Old Haunts, New Paint",Finish all ten OLD SECTORS NEW.,no,,,achievements/NC_REMASTERED.jpg,achievements/NC_REMASTERED_locked.jpg
+NC_HUGE,Wide Open Spaces,Finish all ten HUGE SECTORS.,no,,,achievements/NC_HUGE.jpg,achievements/NC_HUGE_locked.jpg
 NC_FULL_TOUR,The Full Tour,Finish three sets of ten.,no,SetsDone,3,achievements/NC_FULL_TOUR.jpg,achievements/NC_FULL_TOUR_locked.jpg
 NC_OVERSEER,Flesh to Steel,Destroy the overseer.,no,,,achievements/NC_OVERSEER.jpg,achievements/NC_OVERSEER_locked.jpg
 NC_EXPO,Every Wonder,Finish THE NEON EXPO (sector 24).,no,,,achievements/NC_EXPO.jpg,achievements/NC_EXPO_locked.jpg
@@ -17,7 +18,7 @@ NC_OVER_EDGE,Over the Edge,Send a machine into a bottomless pit.,no,,,achievemen
 NC_CHAIN,Chain Reaction,Three machines in one explosion.,no,,,achievements/NC_CHAIN.jpg,achievements/NC_CHAIN_locked.jpg
 NC_ARSENAL,Arsenal,Carry all four guns at once.,no,,,achievements/NC_ARSENAL.jpg,achievements/NC_ARSENAL_locked.jpg
 NC_AMPED,Overclocked,Five kills on one damage amp.,no,,,achievements/NC_AMPED.jpg,achievements/NC_AMPED_locked.jpg
-NC_BESTIARY,Bestiary,Destroy one of every kind of machine.,no,KillKinds,9,achievements/NC_BESTIARY.jpg,achievements/NC_BESTIARY_locked.jpg
+NC_BESTIARY,Bestiary,Destroy one of every kind of machine.,no,KillKinds,15,achievements/NC_BESTIARY.jpg,achievements/NC_BESTIARY_locked.jpg
 NC_THIEF,"Stop, Thief!",Destroy a thief.,no,,,achievements/NC_THIEF.jpg,achievements/NC_THIEF_locked.jpg
 NC_UNTOUCHED,Untouchable,Finish a sector without a scratch.,no,,,achievements/NC_UNTOUCHED.jpg,achievements/NC_UNTOUCHED_locked.jpg
 NC_CLEAN_SWEEP,Clean Sweep,"Finish a sector, every machine down.",no,,,achievements/NC_CLEAN_SWEEP.jpg,achievements/NC_CLEAN_SWEEP_locked.jpg

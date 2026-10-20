@@ -123,7 +123,7 @@ SUB LevelDone STATIC
     IF level = 1 THEN Achieve "NC_SECTOR_1", 0
     IF level = NUM_LEVELS AND achRunFrom = 1 THEN ' (a whole set, from its first sector)
         AchBit "SetsDone", sectorSet
-        IF sectorSet = 0 THEN Achieve "NC_ESCAPED", 0 ELSE IF sectorSet = 1 THEN Achieve "NC_NEW_BLOOD", 0 ELSE IF sectorSet = 2 THEN Achieve "NC_REMASTERED", 0
+        IF sectorSet = 0 THEN Achieve "NC_ESCAPED", 0 ELSE IF sectorSet = 1 THEN Achieve "NC_NEW_BLOOD", 0 ELSE IF sectorSet = 2 THEN Achieve "NC_REMASTERED", 0 ELSE IF sectorSet = 3 THEN Achieve "NC_HUGE", 0
     END IF
     IF level > NUM_LEVELS THEN ' (the showcase sectors: 11-21, and the expo)
         cn = level - NUM_LEVELS : IF cn <= 11 OR cn = 14 THEN AchBit "Showcases", cn - 1
