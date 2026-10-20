@@ -84,7 +84,7 @@ SUB ThiefStep STATIC
             PlaySfx sndSteal&, 1 : monsterAtk(i) = ATTACK_FRAMES
             t$ = "A THIEF BOT grabbed"
             IF g THEN t$ = t$ + " your " + gunName$(g) + " and"
-            ShowMsg t$ + " half your ammo! Get it back!"
+            ShowMsg t$ + " half your cells and shells! Get them back!"
             IF RND < 0.5 THEN Say "thief", 0
         END IF
     ELSE
@@ -151,6 +151,8 @@ END FUNCTION
 SUB MonOwn(i, x, y)
     DIM k ' (its own: the main program shares these names)
     monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE
+    monWeap(i) = TW_PLASMA : monTrack(i) = TURRET_TRACK : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO ' (a turret: as made - unless its line says)
+    monsterHP(i) = mtypeHP(monsterType(i)) : IF monsterType(i) = MT_TURRET AND monDeploy(i) > 0 THEN monDeploy(i) = 0 ' (folded away till it wakes: the editor can change a live one's line)
     FOR k = 1 TO lvlMonN
         IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN
             monSight(i) = lvlMon(k, 3) : monHear(i) = lvlMon(k, 4) : monSpd(i) = lvlMon(k, 6) / 100 : monWake(i) = lvlMon(k, 7)
@@ -597,7 +599,7 @@ END SUB
 
 ' Monster i's own fighting state, fresh: not aiming, no burst, a turret hidden
 SUB MonFresh(i)
-    monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO : monTWant(i) = 0 : monTOff(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0 : monFly(i) = 0
+    monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO : monTWant(i) = 0 : monTOff(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0 : monFly(i) = 0 : monFoe(i) = 0
 END SUB
 
 ' A field boss's haul as it falls (monster i), thrown out towards you: the

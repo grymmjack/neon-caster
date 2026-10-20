@@ -84,7 +84,7 @@
             drawSquash(numDraw) = corpseSquash(mtype) : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw) : drawMinShade(numDraw) = 0
         ELSEIF monsterState(i) = 2 THEN ' Falling: it sinks to the floor and crumples, hurt
             f = (monsterTimer(i) - MON_DYING / 2) / (MON_DYING / 2) ' (1 just hit .. 0 down)
-            drawSquash(numDraw) = 0.55 + 0.45 * f : drawLift(numDraw) = mtypeLift(mtype) * f : drawSprite(numDraw) = mtypeSprite(mtype) + 1
+            drawSquash(numDraw) = 0.55 + 0.45 * f : drawLift(numDraw) = (mtypeLift(mtype) + monFly(i)) * f : drawSprite(numDraw) = mtypeSprite(mtype) + 1 ' (a flyer: down from where it flew)
         ELSE
             drawSquash(numDraw) = 1 : drawLift(numDraw) = mtypeLift(mtype) + monFly(i) + mtypeBob(mtype) * SIN(lvFrame / 24 + i * 1.7) ' (bobbing by the frame clock, as WeakSpotHit has it: the same bob in a demo)
             IF mtype = MT_TURRET THEN ' A turret coming out: from the floor, it grows up out of it; from the ceiling, it comes down out of that; from a wall, it slides out

@@ -114,13 +114,14 @@ SUB BotThinkRaw STATIC
     bg = 1
     IF hasGun(2) AND ammoCount(AM_SHELLS) > 0 THEN bg = 2
     IF hasGun(3) AND ammoCount(AM_ROUNDS) > 10 THEN bg = 3
+    IF bg = 1 AND ammoCount(AM_CELLS) = 0 AND hasGun(3) AND ammoCount(AM_ROUNDS) > 0 THEN bg = 3 ' (no cells: the last few rounds)
     IF bg = 1 AND ammoCount(AM_CELLS) = 0 AND hasGun(4) AND ammoCount(AM_SLUGS) > 0 THEN bg = 4 ' (nothing else: the railgun)
     IF bg <> currentGun AND swapTimer = 0 THEN inBits = inBits + bg * DB_GUN
     ' A monster to fight? (With nothing to fire, only one on top of it - kicked)
     bAmmo = ammoCount(gunAmmoType(bg)) >= gunAmmoPerShot(bg)
     bt = 0 : bbd = 7 : IF NOT bAmmo THEN bbd = 1.3
     IF botTarget THEN ' The one it's on: kept while it's alive and near - for half a second after it's out of sight, as a corner flickers it in and out
-        IF monsterState(botTarget) < 2 AND botIgnore(botTarget) <= lvFrame THEN
+        IF monsterState(botTarget) < 2 AND botIgnore(botTarget) <= lvFrame AND BotHittable(botTarget) THEN
             bd = SQR((monsterX(botTarget) - playerX) ^ 2 + (monsterY(botTarget) - playerY) ^ 2)
             IF bd < bbd + 1.5 THEN
                 IF CanSee(playerX, playerY, monsterX(botTarget), monsterY(botTarget)) THEN botTargetSeen = lvFrame
@@ -130,7 +131,7 @@ SUB BotThinkRaw STATIC
     END IF
     IF bt = 0 THEN
     FOR bi = 1 TO numMonsters
-        IF monsterState(bi) < 2 AND (cyberOn = 0 OR monsterType(bi) = MT_ICE) THEN
+        IF monsterState(bi) < 2 AND (cyberOn = 0 OR monsterType(bi) = MT_ICE) AND BotHittable(bi) THEN
             bd = SQR((monsterX(bi) - playerX) ^ 2 + (monsterY(bi) - playerY) ^ 2)
             IF bd < bbd AND botIgnore(bi) <= lvFrame THEN
                 ba = _ATAN2(monsterY(bi) - playerY, monsterX(bi) - playerX) - _ATAN2(dirY, dirX) ' (in front of it - within its view - or close, or it's just been hurt: no eyes in the back of its head)
@@ -309,7 +310,7 @@ SUB BotPlan STATIC
             IF NOT bNone THEN ' A monster it saw lately, near: after it - a room cleared before moving on
                 BotClear
                 FOR bi = 1 TO numMonsters
-                    IF monsterState(bi) < 2 AND botSawAt(bi) > 0 AND lvFrame - botSawAt(bi) < 600 AND botIgnore(bi) <= lvFrame THEN BotGoal INT(monsterX(bi)), INT(monsterY(bi))
+                    IF monsterState(bi) < 2 AND botSawAt(bi) > 0 AND lvFrame - botSawAt(bi) < 600 AND botIgnore(bi) <= lvFrame AND BotHittable(bi) THEN BotGoal INT(monsterX(bi)), INT(monsterY(bi))
                 NEXT
                 BotField bpass
                 IF botDist(bcx, bcy) <= 14 THEN botMode = 9 : EXIT FOR
@@ -566,4 +567,14 @@ FUNCTION BotTurnTo(x, y, px, py, dx, dy)
     DO WHILE a < -3.14159265 : a = a + 6.2831853 : LOOP
     IF ABS(a) < 0.02 * botTurnK / 0.35 + 0.004 THEN botTurn = 0 ELSE botTurn = MaxOf(-botTurnMax, MinOf(botTurnMax, a * botTurnK)) ' (near enough: still - a hand doesn't correct the last degree every frame)
     BotTurnTo = a
+END FUNCTION
+
+' Can the autopilot hurt monster i at all? Not a turret held in, folding
+' away, switched off or hacked - shots pass through it; a sleeping one
+' still in its housing, yes (it comes out as it wakes)
+FUNCTION BotHittable(i)
+    BotHittable = -1
+    IF monsterType(i) <> MT_TURRET THEN EXIT FUNCTION
+    IF monDeploy(i) < 0 OR monTOff(i) THEN BotHittable = 0 : EXIT FUNCTION
+    IF monsterState(i) = 1 AND monDeploy(i) < TURRET_UP THEN BotHittable = 0
 END FUNCTION

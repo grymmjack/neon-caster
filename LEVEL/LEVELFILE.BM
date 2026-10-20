@@ -123,7 +123,9 @@
 '                Only kinds 1, 2, 4 and 5 give one.
 '
 ' Monster types are the SetMonType numbers: 1 drone, 2 gunner, 3 heavy,
-' 4 crawler, 5 sentry, 6 stalker, 7 spitter, 8 the overseer, 9 thief.
+' 4 crawler, 5 sentry, 6 stalker, 7 spitter, 8 the overseer, 9 thief,
+' 11 sniper, 12 trooper, 13 ripper, 14 warden, 15 colossus, 16 turret
+' (10, ICE, is the network's own).
 '
 ' The level kit's dress() adds most of the closets, plates, lasers,
 ' cutters, hoards and blackouts (and the furniture) to each level for you.
@@ -420,7 +422,7 @@
 ' them, its numbers split by commas (SplitNums); in [map], each line is a
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
-    DIM got, k, l$, t$, clx, cly ' (its own: the main program shares these names)
+    DIM got, j, k, l$, t$, clx, cly ' (its own: the main program shares these names)
     lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNote$ = "" : topLines = -1
     CellLightsClear
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
@@ -496,13 +498,13 @@ SUB ReadLevelFile(n)
                         NEXT
                     END IF
                 CASE "pads"
-                    IF got >= 4 AND lvlNumPairs < 16 THEN lvlNumPairs = lvlNumPairs + 1 : FOR k = 1 TO 4 : lvlPair(lvlNumPairs, k) = v(k) : NEXT
+                    IF got >= 4 AND lvlNumPairs < MAX_PAIRS THEN lvlNumPairs = lvlNumPairs + 1 : FOR k = 1 TO 4 : lvlPair(lvlNumPairs, k) = v(k) : NEXT
                 CASE "blocks"
                     IF got >= 7 AND lvlNumBoxes < MAX_BOXES THEN lvlNumBoxes = lvlNumBoxes + 1 : FOR k = 1 TO 7 : lvlBox(lvlNumBoxes, k) = v(k) : NEXT
                 CASE "cell lights" ' x0, y0, x1, y1, brightness, red, green, blue, effect
                     IF got >= 8 THEN
                         IF got < 9 THEN v(9) = 0
-                        FOR cly = MaxOf(0, v(2)) TO MinOf(mapN - 1, v(4)) : FOR clx = MaxOf(0, v(1)) TO MinOf(mapN - 1, v(3))
+                        FOR cly = MaxOf(0, v(2)) TO MinOf(MAP_SIZE - 1, v(4)) : FOR clx = MaxOf(0, v(1)) TO MinOf(MAP_SIZE - 1, v(3)) ' (MAP_SIZE: its own size isn't known till the map's read)
                             lvlCLBright(clx, cly) = MaxOf(0, MinOf(256, v(5))) : lvlCLCol(clx, cly) = _RGB32(v(6), v(7), v(8)) : lvlCLFx(clx, cly) = MaxOf(0, MinOf(5, v(9)))
                         NEXT : NEXT
                     END IF
@@ -528,7 +530,59 @@ SUB ReadLevelFile(n)
         lvlLiqRow$(k) = LEFT$(lvlLiqRow$(k) + STRING$(mapN, "."), mapN) ' (liquids: none where none's given)
         lvlLiqDRow$(k) = LEFT$(lvlLiqDRow$(k) + STRING$(mapN, "."), mapN)
     NEXT
+    FOR k = 0 TO mapN - 1 ' (and its edge all wall: nothing walks, sees or flies off the map - a file with an open edge gets one)
+        IF k = 0 OR k = mapN - 1 THEN
+            FOR j = 1 TO mapN
+                IF INSTR("#%?NCKPG@$;", MID$(lvlRow$(k), j, 1)) = 0 THEN MID$(lvlRow$(k), j, 1) = "#"
+            NEXT
+        ELSE
+            IF INSTR("#%?NCKPG@$;", LEFT$(lvlRow$(k), 1)) = 0 THEN MID$(lvlRow$(k), 1, 1) = "#"
+            IF INSTR("#%?NCKPG@$;", RIGHT$(lvlRow$(k), 1)) = 0 THEN MID$(lvlRow$(k), mapN, 1) = "#"
+        END IF
+    NEXT
+    LevelClamp ' (a file's numbers: none of them off the map, or so big a loop never ends)
     lvlOK = (rows > 0)
+END SUB
+
+' Every number a level file gives, kept to what the game can use: places on
+' the map, heights to H_MAX, speeds and times within reason - a file typed
+' by hand (or broken) loads as near as it can, and never hangs or crashes
+SUB LevelClamp
+    DIM j, k, m ' (its own: the main program shares these names)
+    m = mapN - 1
+    FOR k = 1 TO lvlNumZones : FOR j = 1 TO 4 : lvlZone(k, j) = MaxOf(0, MinOf(m, lvlZone(k, j))) : NEXT : NEXT
+    FOR k = 1 TO lvlNumLights
+        lvlLight(k, 1) = MaxOf(0, MinOf(mapN, lvlLight(k, 1))) : lvlLight(k, 2) = MaxOf(0, MinOf(mapN, lvlLight(k, 2)))
+        lvlLight(k, 3) = MaxOf(0, MinOf(64, lvlLight(k, 3))) : lvlLight(k, 4) = MaxOf(0, MinOf(1000, lvlLight(k, 4)))
+        FOR j = 5 TO 7 : lvlLight(k, j) = MaxOf(0, MinOf(255, lvlLight(k, j))) : NEXT
+        lvlLight(k, 8) = MaxOf(0, MinOf(99, lvlLight(k, 8)))
+    NEXT
+    FOR k = 1 TO lvlNumEvents
+        lvlEvent(k, 1) = MaxOf(1, MinOf(EV_KINDS, lvlEvent(k, 1)))
+        FOR j = 2 TO 5 : lvlEvent(k, j) = MaxOf(0, MinOf(m, lvlEvent(k, j))) : NEXT
+        lvlEvent(k, 6) = MaxOf(0, MinOf(36000, lvlEvent(k, 6))) : lvlEvent(k, 7) = MaxOf(0, MinOf(36000, lvlEvent(k, 7)))
+        lvlEvent(k, 8) = MaxOf(0, MinOf(ITEM_KINDS, lvlEvent(k, 8)))
+    NEXT
+    FOR k = 1 TO lvlNumLifts
+        FOR j = 1 TO 4 : lvlLift(k, j) = MaxOf(0, MinOf(m, lvlLift(k, j))) : NEXT
+        lvlLift(k, 5) = MaxOf(-8, MinOf(H_MAX, lvlLift(k, 5))) : lvlLift(k, 6) = MaxOf(-8, MinOf(H_MAX, lvlLift(k, 6)))
+        lvlLift(k, 8) = MaxOf(1, MinOf(64, lvlLift(k, 8)))
+    NEXT
+    FOR k = 1 TO lvlNumPairs : FOR j = 1 TO 4 : lvlPair(k, j) = MaxOf(0, MinOf(m, lvlPair(k, j))) : NEXT : NEXT
+    FOR k = 1 TO lvlNumBoxes
+        lvlBox(k, 1) = MaxOf(0, MinOf(m, lvlBox(k, 1))) : lvlBox(k, 2) = MaxOf(0, MinOf(m, lvlBox(k, 2)))
+        FOR j = 3 TO 6 : lvlBox(k, j) = MaxOf(0, MinOf(8, lvlBox(k, j))) : NEXT
+        lvlBox(k, 7) = MaxOf(1, MinOf(6, lvlBox(k, 7)))
+    NEXT
+    FOR k = 1 TO lvlNumNudges
+        lvlNudge(k, 1) = MaxOf(0, MinOf(m, lvlNudge(k, 1))) : lvlNudge(k, 2) = MaxOf(0, MinOf(m, lvlNudge(k, 2)))
+        lvlNudge(k, 3) = MaxOf(-3, MinOf(3, lvlNudge(k, 3))) : lvlNudge(k, 4) = MaxOf(-3, MinOf(3, lvlNudge(k, 4))) : lvlNudge(k, 5) = MaxOf(0, MinOf(5, lvlNudge(k, 5)))
+    NEXT
+    FOR k = 1 TO lvlMonN
+        lvlMon(k, 3) = MaxOf(1, MinOf(64, lvlMon(k, 3))) : lvlMon(k, 4) = MaxOf(0, MinOf(64, lvlMon(k, 4)))
+        lvlMon(k, 5) = MaxOf(1, MinOf(10000, lvlMon(k, 5))) : lvlMon(k, 6) = MaxOf(1, MinOf(1000, lvlMon(k, 6)))
+        lvlMon(k, 7) = MaxOf(0, MinOf(3, lvlMon(k, 7)))
+    NEXT
 END SUB
 
 ' One line of [faces]: x, y, face (E S W N, LE LS LW LN, F or C), how it's
@@ -680,7 +734,7 @@ SUB WriteLevelFile(f$)
         o$ = o$ + nl$ + "[floor]" + nl$ + "' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down" + nl$
         FOR y = 0 TO mapN - 1 : o$ = o$ + HeightRowLow$(lvlFloorRow$(y)) + nl$ : NEXT
         IF HeightRowsHigh(1) THEN
-            o$ = o$ + nl$ + "[floor high]" + nl$ + "' higher than z: how many 36 eighths more than [floor]'s - 1 to 3" + nl$
+            o$ = o$ + nl$ + "[floor high]" + nl$ + "' higher than z: how many 36 eighths more than [floor]'s - 1 to 6" + nl$
             FOR y = 0 TO mapN - 1 : o$ = o$ + HeightRowHigh$(lvlFloorRow$(y)) + nl$ : NEXT
         END IF
     END IF
@@ -688,7 +742,7 @@ SUB WriteLevelFile(f$)
         o$ = o$ + nl$ + "[ceiling]" + nl$ + "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's" + nl$
         FOR y = 0 TO mapN - 1 : o$ = o$ + HeightRowLow$(lvlCeilRow$(y)) + nl$ : NEXT
         IF HeightRowsHigh(2) THEN
-            o$ = o$ + nl$ + "[ceiling high]" + nl$ + "' higher than z: how many 36 eighths more than [ceiling]'s - 1 to 3" + nl$
+            o$ = o$ + nl$ + "[ceiling high]" + nl$ + "' higher than z: how many 36 eighths more than [ceiling]'s - 1 to 6" + nl$
             FOR y = 0 TO mapN - 1 : o$ = o$ + HeightRowHigh$(lvlCeilRow$(y)) + nl$ : NEXT
         END IF
     END IF

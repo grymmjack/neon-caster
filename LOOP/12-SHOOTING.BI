@@ -127,7 +127,7 @@
                 ' monster, or on the wall - the shot's ray (dir + plane * aim),
                 ' as far as the wall in that column
                 IF bestMonster THEN
-                    SpawnSparks monsterX(bestMonster), monsterY(bestMonster), 0.45, 8, 255, 150, 60
+                    SpawnSparks monsterX(bestMonster), monsterY(bestMonster), MonFoot(bestMonster) - FloorAt(monsterX(bestMonster), monsterY(bestMonster)) + mtypeScale(monsterType(bestMonster)) * 0.5, 8, 255, 150, 60 ' (on it, as high as it is)
                 ELSEIF bestDroid THEN ' (HitDroid made its sparks)
                 ELSEIF bestDeco = 0 AND glassShot THEN
                     glassDmg = hitDamage : HitGlass
@@ -207,7 +207,7 @@
             FOR i = 1 TO numMonsters
                 IF monsterState(i) < 2 AND (cyberOn = 0 OR monsterType(i) = MT_ICE) THEN
                     ox = monsterX(i) - playerX : oy = monsterY(i) - playerY : d = SQR(ox * ox + oy * oy)
-                    IF d < bestD AND d > 0.01 AND ABS(FloorAt(monsterX(i), monsterY(i)) - playerZ) < 0.7 THEN IF (ox * dirX + oy * dirY) / d > 0.7 AND NOT GlassBetween(playerX, playerY, monsterX(i), monsterY(i)) THEN best = i : bestD = d ' (and at your height: no kicking up a ledge)
+                    IF d < bestD AND d > 0.01 AND ABS(MonFoot(i) - playerZ) < 0.7 THEN IF (ox * dirX + oy * dirY) / d > 0.7 AND NOT GlassBetween(playerX, playerY, monsterX(i), monsterY(i)) THEN best = i : bestD = d ' (and at your height: no kicking up a ledge)
                 END IF
             NEXT
             IF best THEN

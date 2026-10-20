@@ -37,8 +37,7 @@ SUB HurtPlayer STATIC
 END SUB
 
 ' Are you running out? Under a quarter of the ammo your guns could carry,
-' all of them together (each kind once - the blaster and the repeater
-' share cells): then breakables' loot comes twice as often (DecoLoot)
+' all of them together (each kind once - every gun has its own): then breakables' loot comes twice as often (DecoLoot)
 FUNCTION AmmoLow
     DIM g, t ' (its own: the main program shares these names)
     DIM used(NUM_AMMO) AS INTEGER

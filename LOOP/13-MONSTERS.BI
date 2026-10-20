@@ -40,7 +40,7 @@
         ' Kicked over the edge of a pit with no bottom (it never walks off
         ' one): gone into the dark
         IF monsterState(i) < 2 AND NOT levelFlat THEN
-            IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH THEN target = i : hitDamage = 9999 : HitMonster : ShowMsg "Over the edge!" : Achieve "NC_OVER_EDGE", 0
+            IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH AND mtypeLift(monsterType(i)) = 0 AND monFly(i) = 0 THEN target = i : hitDamage = 9999 : HitMonster : ShowMsg "Over the edge!" : Achieve "NC_OVER_EDGE", 0
         END IF
         ' Knocked into a harmful liquid (it never walks into one): it hurts
         ' as it does you - but not what hovers over it
@@ -139,7 +139,9 @@
                         IF lqHurt(mlk) > 0 THEN walkFromHaz = walkFromHaz + 100 ' (in one already: it may walk on through)
                     END IF
                     IF mtypeLift(mtype) > 0 THEN walkFromHaz = walkFromHaz + 100 ' (it hovers: liquids are nothing to it)
+                    mfz = floorH(INT(monsterX(i)), INT(monsterY(i))) ' (the floor it left: a flyer keeps its height, not its height off the floor)
                     IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype) * monSpd(i) * msl, goY * mtypeSpeed(mtype) * monSpd(i) * msl
+                    IF monFly(i) > 0 THEN monFly(i) = MaxOf(0, monFly(i) - (floorH(INT(monsterX(i)), INT(monsterY(i))) - mfz))
                     walkZ = -999 : walkFromHaz = 0
                 END IF
                 boltFromMon = 0 : monVs = 0

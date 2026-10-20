@@ -8,6 +8,7 @@
 ' trigger's commands go to the console's queue (chapter 21), to be run
 ' from the next frame - the same commands you can type
 SUB RunTriggers STATIC
+    tl& = trigLoadN
     FOR k = 1 TO numTrigs
         IF NOT trigDone(k) THEN
             fire = 0
@@ -30,6 +31,7 @@ SUB RunTriggers STATIC
                     IF trigHit(k) THEN fire = -1 : trigHit(k) = 0 : PlaySfx sndPlate&, 0.9
             END SELECT
             IF fire THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : TriggerRun
+            IF trigLoadN <> tl& THEN EXIT SUB ' (it took you to another sector - or the same one again: its own triggers start next frame)
         END IF
     NEXT
     ' Teleporters: on a pad - and you've stepped off one since - to its partner
@@ -58,7 +60,7 @@ END SUB
 ' the ;s - unless there's a wait among them: then onto the console's queue,
 ' to run a frame at a time (chapter 21)
 SUB TriggerRun STATIC
-    IF INSTR(LCASE$(trigRun$), "wait") THEN conFromTrig = -1 : ConQueue trigRun$ : conFromTrig = 0 : EXIT SUB ' (marked: the level's, not yours)
+    IF ConHasWait(trigRun$) THEN conFromTrig = -1 : ConQueue trigRun$ : conFromTrig = 0 : EXIT SUB ' (marked: the level's, not yours)
     trigK = k ' (ConExec uses k)
     conFromTrig = -1 ' (the level's doing, not yours: a trigger's give isn't a cheat)
     DO WHILE LEN(trigRun$)

@@ -7,7 +7,7 @@
 ' A level as its file says it (ReadLevelFile, chapter 22): its name, its
 ' pictures, its ambient light, its zones, lights and event rooms, and its
 ' map's rows - LoadLevel builds the level from these
-CONST MAX_ZONES = 64
+CONST MAX_ZONES = 256 ' (a huge sector has 70-odd)
 DIM SHARED lvlNote$ ' (the comments at the top of its file, kept when the editor saves it)
 ' [faces]: a picture on one face - a wall's side, a step's or a lintel's,
 ' a floor, a ceiling - instead of the usual. lvlFaceS: 1-4 a side (east,
@@ -19,7 +19,8 @@ DIM SHARED lvlNote$ ' (the comments at the top of its file, kept when the editor
 CONST MAX_FACES = 4000
 ' [pads]: teleporters paired by hand (the editor's LINK) - x1, y1, x2, y2.
 ' Pads in no pair here pair up as ever, in reading order.
-DIM SHARED lvlNumPairs AS INTEGER, lvlPair(16, 4) AS INTEGER
+CONST MAX_PAIRS = MAX_PADS \ 2 ' (two pads a pair)
+DIM SHARED lvlNumPairs AS INTEGER, lvlPair(MAX_PAIRS, 4) AS INTEGER
 ' [monsters]: one monster's own settings, by the cell it starts in - x, y,
 ' sight, hearing (cells), health, speed (% of its kind's), wake (WAKE_),
 ' and a turret's weapon (TW_ - an 8th number, left off when it's 0) and

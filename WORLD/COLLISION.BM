@@ -16,6 +16,7 @@ END FUNCTION
 
 FUNCTION Walkable%(x, y)
     cellX = INT(x) : cellY = INT(y)
+    IF cellX < 0 OR cellY < 0 OR cellX >= mapN OR cellY >= mapN THEN EXIT FUNCTION ' (off the map: nowhere to stand)
     IF diagCorner(cellX, cellY) THEN Walkable% = NOT InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) : EXIT FUNCTION
     IF boxOn(cellX, cellY) THEN IF InBox(x, y) THEN EXIT FUNCTION ' (a box: solid where it stands, open round it)
     deco = decoCell(cellX, cellY) : IF cyberOn THEN deco = 0 ' (the network has none)

@@ -214,9 +214,9 @@ DO WHILE LEN(all$)
     p = INSTR(all$, " +") : IF p = 0 THEN EXIT DO
     all$ = MID$(all$, p + 2) : q = INSTR(all$, " +")
     IF q THEN cmd$ = LEFT$(all$, q - 1) : all$ = MID$(all$, q) ELSE cmd$ = all$ : all$ = ""
-    ConQueue cmd$
+    ConQueue cmd$ : cliArgs = -1
 LOOP
-IF conQTail > 0 THEN
+IF cliArgs THEN ' (+ commands - not what autoexec.cfg may have queued: that waits for the game you start)
     noSaveSettings = -1 : cliMode = -1
     NewGame : _MOUSEHIDE : _MOUSEMOVE 400, 300
 ELSE

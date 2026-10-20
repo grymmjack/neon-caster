@@ -56,6 +56,7 @@ END FUNCTION
 
 ' Is there a sector n? (The game's are always there; yours once made.)
 FUNCTION SectorExists(n)
+    IF n <> INT(n) THEN EXIT FUNCTION ' (map 3.5: no such sector)
     IF n >= 1 AND n <= NUM_LEVELS THEN
         IF sectorSet = 0 THEN SectorExists = -1 ELSE SectorExists = _FILEEXISTS(LevelFile$(n)) ' (a set's: once it's made)
     ELSEIF n > NUM_LEVELS AND n <= NUM_LEVELS + MAX_CUSTOM THEN

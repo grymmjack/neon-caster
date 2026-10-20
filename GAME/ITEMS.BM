@@ -169,7 +169,7 @@ END FUNCTION
 
 ' A pickup kind's name, as [loot] (and ItemOf) has it
 FUNCTION LootName$(k)
-    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp,core,goggles,suit,launcher,rockets", k)
+    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp,core,goggles,suit,launcher,rockets,rounds,slugs", k)
 END FUNCTION
 
 ' A closet stash's loot: something good (n = 0) - armour, a big medkit, an

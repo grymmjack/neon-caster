@@ -172,7 +172,7 @@ SUB BlastSized
     kr! = bsR * 1.3 ' (how far it throws things)
     FOR j = 1 TO numMonsters
         IF monsterState(j) < 2 THEN
-            d! = SQR((monsterX(j) - bsX) ^ 2 + (monsterY(j) - bsY) ^ 2)
+            d! = SQR((monsterX(j) - bsX) ^ 2 + (monsterY(j) - bsY) ^ 2 + (MonFoot(j) + mtypeScale(monsterType(j)) / 2 - bsZ) ^ 2) ' (its middle, as high as it is: a ceiling turret's blast spares the floor below, a rocket on the floor the drone up high)
             IF d! < bsR THEN
                 IF CanSee(bsX, bsY, monsterX(j), monsterY(j)) THEN
                     IF j <> bsOwner THEN MonHurtBy j, bsOwner, INT(bsMon * (1 - d! / bsR)) + 1 ' (its own missile's blast spares the turret that fired it)

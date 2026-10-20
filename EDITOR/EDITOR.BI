@@ -32,14 +32,14 @@ DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, 
 '   edGrid...     the wireframe grid over the world, and how strong it is
 '   edPick...     the picker panel: its tab and how far it's scrolled
 CONST ED_WALL = 1, ED_FLOOR = 2, ED_CEIL = 3, ED_STEP = 4, ED_LINTEL = 5, ED_BOX = 6 ' (a face: a box's side; a wall's side, a floor, a ceiling, the face of a step up, the face of a ceiling stepping down)
-CONST ED_MAXSEL = 2304 ' (the whole map, if it comes to it)
+CONST ED_MAXSEL = 16384 ' (a 128 x 128 plaza - a 48 map's whole, twice over and more)
 CONST ET_SELECT = 1, ET_PLACE = 2, ET_PAINT = 3, ET_LIGHT = 4, ET_HEIGHT = 5
 DIM SHARED edHovKind AS INTEGER, edHovX AS INTEGER, edHovY AS INTEGER, edHovSide AS INTEGER, edHovPart AS INTEGER
 DIM SHARED edHovPX, edHovPY, edHovPZ ' (exactly where the cursor's ray met it)
 DIM SHARED edHovThing AS INTEGER ' (the pointer's on a thing standing in a cell - a monster, a pickup... - not a face: EditPickThing)
-DIM SHARED edSelN AS INTEGER, edSelKind(ED_MAXSEL) AS INTEGER, edSelX(ED_MAXSEL) AS INTEGER, edSelY(ED_MAXSEL) AS INTEGER
+DIM SHARED edSelN AS LONG, edSelKind(ED_MAXSEL) AS INTEGER, edSelX(ED_MAXSEL) AS INTEGER, edSelY(ED_MAXSEL) AS INTEGER
 DIM SHARED edSelSide(ED_MAXSEL) AS INTEGER, edSelPart(ED_MAXSEL) AS INTEGER
-DIM SHARED edKeepN AS INTEGER, edKeepKind(ED_MAXSEL) AS INTEGER, edKeepX(ED_MAXSEL) AS INTEGER, edKeepY(ED_MAXSEL) AS INTEGER, edKeepSide(ED_MAXSEL) AS INTEGER, edKeepPart(ED_MAXSEL) AS INTEGER ' (the selection, kept while Ctrl+click PAINT borrows it - EditSelKeep)
+DIM SHARED edKeepN AS LONG, edKeepKind(ED_MAXSEL) AS INTEGER, edKeepX(ED_MAXSEL) AS INTEGER, edKeepY(ED_MAXSEL) AS INTEGER, edKeepSide(ED_MAXSEL) AS INTEGER, edKeepPart(ED_MAXSEL) AS INTEGER ' (the selection, kept while Ctrl+click PAINT borrows it - EditSelKeep)
 DIM SHARED edTool AS INTEGER, edGrid AS INTEGER, edGridAlpha AS INTEGER, edPickTab AS INTEGER, edPickScroll AS INTEGER
 DIM SHARED edLooking AS INTEGER ' (the right button held in the 3D view: the mouse turns you instead of moving the cursor)
 DIM SHARED edMouseFix AS INTEGER, edWheel AS INTEGER, edCurX AS INTEGER, edCurY AS INTEGER ' (put the pointer right again; the wheel's turns for the editor; where the pointer is)

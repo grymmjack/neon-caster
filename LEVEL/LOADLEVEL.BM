@@ -6,6 +6,7 @@
 
 ' --- Start (or restart) the level: read its map, and reset everything in it
 SUB LoadLevel STATIC
+    trigLoadN = trigLoadN + 1
     pzTerm = 0 ' (no terminal's puzzle half done in a new level)
     editFresh = -1 ' (the level as its file has it: nothing in it to save)
     nq = conQHead ' (a trigger's commands still waiting - after a "wait" - belonged to the level being left: gone)
@@ -80,8 +81,10 @@ SUB BuildLevel STATIC
     FOR k = 1 TO lvlNumZones
         zoneX0 = lvlZone(k, 1) : zoneY0 = lvlZone(k, 2) : zoneX1 = lvlZone(k, 3) : zoneY1 = lvlZone(k, 4)
         zoneFloor = lvlZone(k, 5) : zoneCeil = lvlZone(k, 6) : zoneShape = lvlZone(k, 7)
+        IF zoneFloor < 0 OR zoneFloor > 4 THEN zoneFloor = 0 ' (a file's own numbers: only the sector's four floors and two ceilings)
+        IF zoneCeil < 0 OR zoneCeil > 2 THEN zoneCeil = 0
         zoneSize = zoneX1 - zoneX0
-        FOR y = zoneY0 TO zoneY1 : FOR x = zoneX0 TO zoneX1
+        FOR y = MaxOf(0, zoneY0) TO MinOf(mapN - 1, zoneY1) : FOR x = MaxOf(0, zoneX0) TO MinOf(mapN - 1, zoneX1)
             ' Is the cell in the zone (1), outside it (0), or cut by its diagonal
             ' (2: the half on the zoneShape corner's side is in)? i and j are the
             ' cell's place in the zone; for a triangle, i + j or i - j says which
@@ -243,6 +246,7 @@ SUB BuildLevel STATIC
             NEXT : NEXT
         END IF
     NEXT
+    playerX = 0 : playerY = 0 ' (where the start is: below - none, and the first open floor)
     FOR y = 0 TO mapN - 1
         row$ = lvlRow$(y)
         FOR x = 0 TO mapN - 1
@@ -264,7 +268,7 @@ SUB BuildLevel STATIC
                 CASE "E" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_EXIT
                 CASE "R", "B", "Y" ' Key door: needs that keycard
                     worldMap(x, y) = 2 : doorKey(x, y) = INSTR("RBY", cell$)
-                CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8", "9", ")", "(" ' Something to pick up (ItemChars$)
+                CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8", "9", ")", "(", "{", "}" ' Something to pick up (every one of ItemChars$ - a new pickup's character goes here too)
                     IF numItems < MAX_ITEMS THEN
                         numItems = numItems + 1
                         itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
@@ -305,6 +309,12 @@ SUB BuildLevel STATIC
             END SELECT
         NEXT
     NEXT
+    IF playerX < 1 OR playerY < 1 OR playerX >= mapN - 1 OR playerY >= mapN - 1 THEN ' (no start in it - a file made by hand: the first open floor there is)
+        FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
+            IF worldMap(x, y) = 0 AND diagCorner(x, y) = 0 AND (playerX < 1 OR playerY < 1 OR playerX >= mapN - 1 OR playerY >= mapN - 1) THEN playerX = x + 0.5 : playerY = y + 0.5
+        NEXT : NEXT
+        IF playerX < 1 OR playerY < 1 OR playerX >= mapN - 1 OR playerY >= mapN - 1 THEN playerX = 1.5 : playerY = 1.5 : worldMap(1, 1) = 0 ' (none at all: one made)
+    END IF
     ' Diagonal walls: the map only says "/" or "\", so which half is solid?
     ' Score each half by the walls beside it (a whole wall counts 2, another
     ' diagonal 1) and the better side wins. A "/" can only be solid top-left (1)

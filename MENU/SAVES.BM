@@ -10,6 +10,7 @@ SUB SaveGame STATIC
     IF editMode THEN ShowMsg "No saving the game in the editor - Ctrl+S saves the level" : EXIT SUB
     IF dead THEN ShowMsg "No saving once you're dead" : PlaySfx sndLocked&, 0.8 : EXIT SUB
     IF cyberOn THEN ShowMsg "No saving in the network" : PlaySfx sndLocked&, 0.8 : EXIT SUB
+    IF demoPlay THEN ShowMsg "No saving while a demo plays - it isn't your game" : PlaySfx sndLocked&, 0.8 : EXIT SUB
     saveFile$ = SlotFile$(saveSlot)
     MakeSaveDir
     IF _FILEEXISTS(saveFile$) THEN KILL saveFile$ ' (BINARY would only overwrite the start of an old file)
@@ -69,6 +70,14 @@ SUB SaveGame STATIC
     PUT #fileNum, , numTCtrl : FOR k = 1 TO numTCtrl : PUT #fileNum, , tcState(k) : NEXT ' (the turret control panels: hacked, locked)
     PUT #fileNum, , hasGun(W_ROCKET) : PUT #fileNum, , savedHasGun(W_ROCKET) : PUT #fileNum, , ammoCount(AM_ROCKETS) : PUT #fileNum, , savedRockets ' (the rocket launcher and its rockets)
     PUT #fileNum, , ammoCount(AM_ROUNDS) : PUT #fileNum, , savedRounds : PUT #fileNum, , ammoCount(AM_SLUGS) : PUT #fileNum, , savedSlugs ' (the repeater's rounds, the railgun's slugs)
+    PUT #fileNum, , numMonsters ' (the turrets: held in, out, off, hacked, wrecked - a trigger may have let them out - and every monster's mount, flight and quarrel)
+    FOR i = 1 TO numMonsters
+        PUT #fileNum, , monTMode(i) : PUT #fileNum, , monTWant(i) : PUT #fileNum, , monTOff(i) : PUT #fileNum, , monDeploy(i) : PUT #fileNum, , monBlown(i)
+        PUT #fileNum, , monWeap(i) : PUT #fileNum, , monTrack(i) : PUT #fileNum, , monEject(i) : PUT #fileNum, , monFrom(i) : PUT #fileNum, , monWallX(i) : PUT #fileNum, , monWallY(i)
+        PUT #fileNum, , monAimA(i) : PUT #fileNum, , monFly(i) : PUT #fileNum, , monFoe(i)
+    NEXT
+    PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , vendState(i) : NEXT ' (the vending machines and cabinets sold out or paid out)
+    PUT #fileNum, , lvFrame ' (the sector's own clock: time triggers)
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 END SUB
@@ -116,7 +125,10 @@ SUB LoadGame STATIC
         GET #fileNum, , monsterState(i) : GET #fileNum, , monsterTimer(i) : GET #fileNum, , monsterType(i) : GET #fileNum, , monsterEv(i)
         GET #fileNum, , thiefState(i) : GET #fileNum, , thiefCells(i) : GET #fileNum, , thiefShells(i) : GET #fileNum, , thiefGun(i)
         monsterHurt(i) = 0 : monsterAtk(i) = 0
-        IF i > monStartN THEN monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE ' (one an event room sent: as SpawnMonster makes them - else it loads with speed 0, frozen)
+        IF i > monStartN THEN ' (one an event room sent: as SpawnMonster makes them - else it loads with speed 0, frozen, and the last one in its place's turret and flight)
+            MonFresh i : monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE
+            IF monsterType(i) = MT_TURRET THEN monDeploy(i) = TURRET_UP
+        END IF
     NEXT
     GET #fileNum, , savedCount : IF savedCount <> numEvents THEN LoadMismatch : EXIT SUB
     FOR i = 1 TO numEvents : GET #fileNum, , evState(i) : GET #fileNum, , evTimer(i) : GET #fileNum, , evCount(i) : evNext(i) = 30 : NEXT
@@ -157,7 +169,7 @@ SUB LoadGame STATIC
     END IF
     achCheat = 0 : achRunFrom = 0 ' (a save from before achievements: no whole run from sector 1 in it)
     IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achCheat : GET #fileNum, , achRunFrom ' (achievements: cheats stay on through a save)
-    IF godMode THEN achCheat = -1
+    IF godMode OR buddhaMode OR noTarget OR flyMode OR botOn THEN achCheat = -1 ' (a cheat still on: it counts as one)
     IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achLevelHurt : GET #fileNum, , achOtherGun
     IF LOC(fileNum) < LOF(fileNum) THEN ' The doors' owners, and the blocks
         boxAny = 0
@@ -185,7 +197,7 @@ SUB LoadGame STATIC
             IF savedCount = numLifts THEN
                 liftZ(k) = MaxOf(liftLow(k), MinOf(liftHigh(k), lz!)) : liftDir(k) = ld% : liftArm(k) = la%
                 FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
-                    IF liftCell(x, y) = k THEN floorH(x, y) = liftZ(k)
+                    IF liftCell(x, y) = k THEN IF liftMode(k) >= LIFT_CRUSHER THEN ceilH(x, y) = liftZ(k) ELSE floorH(x, y) = liftZ(k) ' (a crusher's: its ceiling)
                 NEXT : NEXT
             END IF
         NEXT
@@ -218,9 +230,27 @@ SUB LoadGame STATIC
         savedRounds = -80 * savedHasGun(W_REPEATER) : savedSlugs = -10 * savedHasGun(W_RAIL)
     END IF
     IF currentGun = W_ROCKET AND NOT hasGun(W_ROCKET) THEN currentGun = W_BLASTER
+    lvF& = INT(levelTime! * 60)
+    IF LOC(fileNum) < LOF(fileNum) THEN ' (the turrets and the rest - not in older saves: as the sector starts them)
+        GET #fileNum, , savedCount
+        FOR i = 1 TO savedCount
+            GET #fileNum, , tm% : GET #fileNum, , tw% : GET #fileNum, , tf% : GET #fileNum, , td! : GET #fileNum, , tb%
+            GET #fileNum, , twp% : GET #fileNum, , ttr! : GET #fileNum, , tej! : GET #fileNum, , tfr% : GET #fileNum, , twx! : GET #fileNum, , twy!
+            GET #fileNum, , tai! : GET #fileNum, , tfl! : GET #fileNum, , tfo%
+            IF savedCount = numMonsters THEN
+                monTMode(i) = tm% : monTWant(i) = tw% : monTOff(i) = tf% : monDeploy(i) = td! : monBlown(i) = tb%
+                monWeap(i) = twp% : monTrack(i) = ttr! : monEject(i) = tej! : monFrom(i) = tfr% : monWallX(i) = twx! : monWallY(i) = twy!
+                monAimA(i) = tai! : monFly(i) = tfl! : monFoe(i) = tfo% : IF monFoe(i) > numMonsters OR monFoe(i) < 0 THEN monFoe(i) = 0
+            END IF
+        NEXT
+        GET #fileNum, , savedCount
+        FOR i = 1 TO savedCount : GET #fileNum, , tv% : IF savedCount = numDecos THEN vendState(i) = tv%
+        NEXT
+        GET #fileNum, , lvF&
+    END IF
     CLOSE #fileNum
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)
-    levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0 : lvFrame = INT(levelTime! * 60)
+    levelStart! = TIMER - levelTime! : frameAt! = TIMER : dead = 0 : swapTimer = 0 : lvFrame = lvF&
     loadOK = -1
     IF saveSlot = 0 THEN ShowMsg "Quick loaded" ELSE ShowMsg "Loaded slot" + STR$(saveSlot) + ": " + levelName$
 END SUB
@@ -229,8 +259,11 @@ END SUB
 SUB LoadMismatch STATIC
     CLOSE #fileNum ' (the sector it was in, from its start, with what you came into it with - its file was read before the mismatch)
     health = savedHealth : IF health <= 0 THEN health = MAX_HP
+    savedHasGun(W_ROCKET) = 0 : savedRockets = 0 ' (the file's end - the launcher, rounds, slugs - wasn't reached: as an older save has them)
+    savedRounds = -80 * savedHasGun(W_REPEATER) : savedSlugs = -10 * savedHasGun(W_RAIL)
     armor = savedArmor : ammoCount(AM_CELLS) = savedCells : ammoCount(AM_SHELLS) = savedShells : ammoCount(AM_ROCKETS) = savedRockets : ammoCount(AM_ROUNDS) = savedRounds : ammoCount(AM_SLUGS) = savedSlugs : currentGun = savedGun
     FOR gun = 1 TO NUM_GUNS : hasGun(gun) = savedHasGun(gun) : NEXT
+    achCheat = -1 ' (not a run to count: where it began is gone)
     IF currentGun < 1 OR currentGun > NUM_GUNS THEN currentGun = 1
     IF NOT hasGun(currentGun) THEN currentGun = 1 : hasGun(1) = -1
     FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT : hasMap = 0

@@ -1210,6 +1210,15 @@ def check_level(lv, assets=None):
         errs.append("too many events (max %d)" % (32 if N > 64 else 16))
     if len(lv.get("lights", [])) > 256:
         errs.append("too many lights (%d, max 256: RENDER/LIGHT.BI's MAX_LIGHTS)" % len(lv["lights"]))
+    for sec, most, where in (("zones", 256, "LEVEL/LEVELFILE.BI's MAX_ZONES"), ("lifts", 32, "WORLD/LIFTS.BI's MAX_LIFTS"),
+                             ("pads", 16, "LEVEL/LEVELFILE.BI's MAX_PAIRS"), ("blocks", 256, "WORLD/MAP.BI's MAX_BOXES"),
+                             ("nudges", 160, "GAME/DECOS.BI's MAX_NUDGES"), ("triggers", 96, "GAME/TRIGGERS.BI's MAX_TRIGS"),
+                             ("faces", 4000, "LEVEL/LEVELFILE.BI's MAX_FACES")):  # (past these the game drops the rest)
+        if len(lv.get(sec, [])) > most:
+            errs.append("too many %s (%d, max %d: %s)" % (sec, len(lv[sec]), most, where))
+    pads = sum(r.count("&") for r in lv["rows"])
+    if pads > 32:
+        errs.append("too many teleporter pads (%d, max 32: GAME/TELEPORTERS.BI's MAX_PADS)" % pads)
     errs += check_liquid(lv)
     errs += check_blocks(lv)
     for l in lv.get("loot", []):

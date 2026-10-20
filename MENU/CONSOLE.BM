@@ -75,7 +75,7 @@ SUB RunConsole STATIC
                             semi = ConSemi(conAll$) ' (a ; inside quotes - an alias's - doesn't count)
                             IF semi THEN conCmd$ = LEFT$(conAll$, semi - 1) : conAll$ = MID$(conAll$, semi + 1) ELSE conCmd$ = conAll$ : conAll$ = ""
                             conLevelChanged = 0 : ConExec
-                            IF conLevelChanged THEN conDone = -1
+                            IF conLevelChanged THEN conDone = -1 : IF LEN(conAll$) THEN ConQueue conAll$ ' (the rest: in the sector it went to, from the next frame)
                         LOOP WHILE LEN(conAll$) AND NOT conDone
                     END IF
                 CASE 8 ' Backspace
@@ -149,7 +149,8 @@ SUB ConExec STATIC
     IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
         SELECT CASE conVerb$
             CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
-                 "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters", "turret", "turrets"
+                 "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters", "turret", "turrets", _
+                 "drop", "liquids", "blocks", "resetlevel", "reloadlevel", "loadlevelfromdisk", "mapsize"
                 IF NOT achCheat AND NOT achTest THEN ConPrint "^9(cheats on: achievements wait for a new game)"
                 achCheat = -1
             CASE "sectorset", "campaign", "set10", "loot" ' (these only look, with nothing after them)
@@ -267,7 +268,8 @@ SUB ConExec STATIC
             IF ik = 0 OR conC$ = "" THEN
                 ConPrint "item KIND X Y - KIND: health medkit armor cells shells rounds slugs rockets scatter repeater rail launcher map overcharge amp goggles suit red blue yellow (or its map character)"
             ELSE
-                lootExact = -1 : DropItemAt ik, VAL(conB$) + 0.5, VAL(conC$) + 0.5 : lootExact = 0 : SfxAt sndTeleport&, VAL(conB$) + 0.5, VAL(conC$) + 0.5, playerX, playerY
+                ix = ConCell(VAL(conB$)) + 0.5 : iy = ConCell(VAL(conC$)) + 0.5 ' (on the map, whatever was typed)
+                lootExact = -1 : DropItemAt ik, ix, iy : lootExact = 0 : SfxAt sndTeleport&, ix, iy, playerX, playerY
             END IF
         CASE "loot" ' What breakables leave in this sector: loot (the table), loot BREAKABLE DROP... (PICKUP:CHANCE or -), loot BREAKABLE none, loot default
             IF conA$ = "" THEN
@@ -300,7 +302,7 @@ SUB ConExec STATIC
             IF (lk = 0 AND conA$ <> "none") OR cw$ = "" THEN
                 ConPrint "liquid KIND X0 Y0 X1 Y1 [DEPTH]: KIND water poison slime lava acid (or none), DEPTH 1-8 eighths (" + LTRIM$(STR$(LQ_DEPTH)) + ")"
             ELSE
-                lx0 = VAL(conB$) : ly0 = VAL(conC$) : lx1 = VAL(ConWord$(conCmd$, 5)) : ly1 = VAL(cw$)
+                lx0 = ConCell(VAL(conB$)) : ly0 = ConCell(VAL(conC$)) : lx1 = ConCell(VAL(ConWord$(conCmd$, 5))) : ly1 = ConCell(VAL(cw$))
                 ld = VAL(ConWord$(conCmd$, 7)) : IF ld < 1 OR ld > 8 THEN ld = LQ_DEPTH
                 IF editMode THEN ' (in the editor: into the level, to keep)
                     EditPushUndo
@@ -389,6 +391,7 @@ SUB ConExec STATIC
                 monsterX(i) = monStartX(i) : monsterY(i) = monStartY(i) : monsterType(i) = monStartType(i)
                 monsterHP(i) = mtypeHP(monsterType(i)) : monsterState(i) = 0 : monsterTimer(i) = 0
                 monsterHurt(i) = 0 : monsterAtk(i) = 0 : monsterAnim(i) = 0 : monsterEv(i) = 0
+                mf = monFrom(i) : MonFresh i : monFrom(i) = mf : monFly(i) = 0 ' (a turret: folded away again, on its own mount)
                 MonOwn i, INT(monStartX(i)), INT(monStartY(i))
             NEXT
             kills = 0 : ConPrint "Respawned" + STR$(numMonsters) + " monsters"
@@ -416,7 +419,8 @@ SUB ConExec STATIC
             NEXT
             IF t > 0 AND LEN(conC$) > 0 AND VAL(conC$) > 0 THEN
                 sx0 = VAL(conB$) + 0.5 : sy0 = VAL(conC$) + 0.5 : cnt = VAL(ConWord$(conCmd$, 5)) : IF cnt < 1 THEN cnt = 1
-                n = 0
+                cnt = MinOf(cnt, MAX_MON - numMonsters) : n = 0 ' (no more than there's room for)
+                IF sx0 < 1 OR sy0 < 1 OR sx0 > mapN - 1 OR sy0 > mapN - 1 THEN cnt = 0 : ConPrint "spawn: X and Y on the map - 1 to" + STR$(mapN - 2)
                 FOR k = 1 TO cnt ' (the cell itself, then round it)
                     FOR try = 0 TO 8
                         sx = sx0 + (try MOD 3 - 1) * (try > 0) * -0.9 : sy = sy0 + ((try \ 3) - 1) * (try > 0) * -0.9
@@ -438,6 +442,7 @@ SUB ConExec STATIC
                     IF SpawnMonster(t, INT(playerX + dirX * d) + 0.5, INT(playerY + dirY * d) + 0.5, 0, playerX, playerY) THEN n = 1 : SumTurret t, sumFloor, sumWeap, sumTrack, sumEject, sumMode
                     cnt = 0
                 END IF
+                cnt = MinOf(cnt, MAX_MON - numMonsters) ' (no more than there's room for)
                 FOR k = 1 TO cnt
                     FOR try = 0 TO 8
                         d = 2 + try * 0.5 : sx = playerX + dirX * d + dirY * (k - 1 - (cnt - 1) / 2) : sy = playerY + dirY * d - dirX * (k - 1 - (cnt - 1) / 2)
@@ -456,7 +461,7 @@ SUB ConExec STATIC
             IF conB$ = "" THEN
                 ConPrint "tp x y [angle in degrees]"
             ELSE
-                playerX = VAL(conA$) : playerY = VAL(conB$)
+                playerX = MaxOf(1.01, MinOf(mapN - 1.01, VAL(conA$))) : playerY = MaxOf(1.01, MinOf(mapN - 1.01, VAL(conB$))) ' (on the map)
                 IF conC$ <> "" THEN ang = VAL(conC$) * 3.14159265 / 180 : dirX = DCos(ang) : dirY = DSin(ang) : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
                 ConPrint "At" + STR$(playerX) + STR$(playerY)
             END IF
@@ -524,7 +529,7 @@ SUB ConExec STATIC
                 k = AliasOf(conA$)
                 IF t$ = "" THEN
                     IF k THEN ConPrint "^7" + aliasName$(k) + "^0  " + aliasCmd$(k) ELSE ConPrint "alias: no " + conA$
-                ELSEIF INSTR(" " + ConNames$ + " ", " " + conA$ + " ") THEN
+                ELSEIF INSTR(" " + ConNames$ + " ", " " + conA$ + " ") OR DemoVerb%(LCASE$(conA$)) OR ConIsSetting(LCASE$(conA$)) THEN ' (a command's name, one of its other names, or a setting's)
                     ConPrint "alias: " + conA$ + " is a command already"
                 ELSE
                     IF k = 0 THEN IF numAlias < MAX_ALIAS THEN numAlias = numAlias + 1 : k = numAlias ELSE ConPrint "alias: too many (" + LTRIM$(STR$(MAX_ALIAS)) + ")"
@@ -549,7 +554,13 @@ SUB ConExec STATIC
                 ConPrint "exec: no file " + conRest$
             END IF
         CASE "logfile" ' Everything printed also goes to a file (logfile off to stop)
-            IF conA$ = "off" OR conA$ = "" THEN conLogFile$ = "" ELSE conLogFile$ = conRest$ : ConPrint "logging to " + conRest$
+            IF conA$ = "off" OR conA$ = "" THEN
+                conLogFile$ = ""
+            ELSE
+                lf$ = conRest$ : lp = _INSTRREV(lf$, "/") : IF _INSTRREV(lf$, "\") > lp THEN lp = _INSTRREV(lf$, "\")
+                IF lp > 1 THEN IF NOT _DIREXISTS(LEFT$(lf$, lp - 1)) THEN ConPrint "logfile: no folder " + LEFT$(lf$, lp - 1) + " - not logging" : lf$ = ""
+                IF LEN(lf$) THEN conLogFile$ = lf$ : ConPrint "logging to " + lf$
+            END IF
         CASE "cutscene" ' Play a sector's transmission (cutscene 3), even from the CLI
             cutWas = level : cutCli = cliMode : cliMode = 0
             IF VAL(conA$) >= 1 AND VAL(conA$) <= NUM_LEVELS THEN level = VAL(conA$)
@@ -595,7 +606,7 @@ SUB ConExec STATIC
             bw$ = ConWord$(conCmd$, 6) : pc$ = MID$(conRest$, LEN(conRest$), 1)
             IF LEN(bw$) = 1 THEN
                 EditPushUndo
-                bx0 = VAL(conA$) : by0 = VAL(conB$) : bx1 = VAL(conC$) : by1 = VAL(ConWord$(conCmd$, 5))
+                bx0 = ConCell(VAL(conA$)) : by0 = ConCell(VAL(conB$)) : bx1 = ConCell(VAL(conC$)) : by1 = ConCell(VAL(ConWord$(conCmd$, 5)))
                 FOR y = MinOf(by0, by1) TO MaxOf(by0, by1) : FOR x = MinOf(bx0, bx1) TO MaxOf(bx0, bx1) : EditPut x, y, pc$ : NEXT : NEXT
                 EditApply : ConPrint "box of " + pc$
             ELSE
@@ -604,18 +615,18 @@ SUB ConExec STATIC
         CASE "lamp" ' lamp X Y [1-8]: a light over cell X Y - white, cyan, magenta, orange, green, red alarm, flickering, firelight
             EditPushUndo
             p = VAL(conC$) - 1 : IF p < 0 OR p > 7 THEN p = 0
-            EditLightPreset p : EditAddLight VAL(conA$) + 0.5, VAL(conB$) + 0.5 : EditApply : ConPrint editMsg$
+            EditLightPreset p : EditAddLight ConCell(VAL(conA$)) + 0.5, ConCell(VAL(conB$)) + 0.5 : EditApply : ConPrint editMsg$
         CASE "raise" ' raise X Y EIGHTHS [ceil], or raise X0 Y0 X1 Y1 EIGHTHS [ceil]: floors (or ceilings) up or down, in eighths of a wall
             EditPushUndo
             w5$ = ConWord$(conCmd$, 5) : w6$ = ConWord$(conCmd$, 6)
             IF w5$ <> "" AND w5$ <> "ceil" THEN ' (a rectangle)
-                FOR y = MinOf(VAL(conB$), VAL(w5$)) TO MaxOf(VAL(conB$), VAL(w5$)) : FOR x = MinOf(VAL(conA$), VAL(conC$)) TO MaxOf(VAL(conA$), VAL(conC$))
+                FOR y = ConCell(MinOf(VAL(conB$), VAL(w5$))) TO ConCell(MaxOf(VAL(conB$), VAL(w5$))) : FOR x = ConCell(MinOf(VAL(conA$), VAL(conC$))) TO ConCell(MaxOf(VAL(conA$), VAL(conC$)))
                     EditRaise x, y, VAL(w6$ + " ") * 0 + VAL(ConWord$(conCmd$, 6)) * H_STEP, (ConWord$(conCmd$, 7) = "ceil")
                 NEXT : NEXT
             ELSEIF conC$ <> "" THEN
-                EditRaise VAL(conA$), VAL(conB$), VAL(conC$) * H_STEP, (w5$ = "ceil")
+                EditRaise ConCell(VAL(conA$)), ConCell(VAL(conB$)), VAL(conC$) * H_STEP, (w5$ = "ceil")
             END IF
-            EditApply : ConPrint "floor" + STR$(floorH(VAL(conA$), VAL(conB$))) + "  ceiling" + STR$(ceilH(VAL(conA$), VAL(conB$)))
+            EditApply : ConPrint "floor" + STR$(floorH(ConCell(VAL(conA$)), ConCell(VAL(conB$)))) + "  ceiling" + STR$(ceilH(ConCell(VAL(conA$)), ConCell(VAL(conB$))))
         CASE "lift" ' lift X0 Y0 X1 Y1 LOW HIGH [MODE] [SPEED]: a lift (heights and speed in eighths)
             IF lvlNumLifts < MAX_LIFTS AND conC$ <> "" THEN
                 EditPushUndo
@@ -623,6 +634,8 @@ SUB ConExec STATIC
                 FOR j = 1 TO 8 : lvlLift(k, j) = VAL(ConWord$(conCmd$, j + 1)) : NEXT
                 IF lvlLift(k, 7) = 0 THEN lvlLift(k, 7) = 2
                 IF lvlLift(k, 8) = 0 THEN lvlLift(k, 8) = 8
+                FOR j = 1 TO 4 : lvlLift(k, j) = ConCell(lvlLift(k, j)) : NEXT ' (on the map)
+                lvlLift(k, 5) = MaxOf(-8, MinOf(H_MAX, lvlLift(k, 5))) : lvlLift(k, 6) = MaxOf(-8, MinOf(H_MAX, lvlLift(k, 6))) : lvlLift(k, 8) = MaxOf(1, MinOf(64, lvlLift(k, 8)))
                 EditApply : ConPrint "lift" + STR$(lvlNumLifts)
             END IF
         CASE "program" ' program NAME: a computer runs neon-caster/programs/NAME.bas (RunProgram) - for a "use" trigger on a computer
@@ -886,16 +899,17 @@ SUB ConTake STATIC
         CASE "all", "everything"
             FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT
             FOR g = 2 TO NUM_GUNS : hasGun(g) = 0 : NEXT
-            currentGun = W_BLASTER : FOR k = 1 TO NUM_AMMO : ammoCount(k) = 0 : NEXT : armor = 0 : hasMap = 0 : ampTimer = 0
+            currentGun = W_BLASTER : nextGun = W_BLASTER : FOR k = 1 TO NUM_AMMO : ammoCount(k) = 0 : NEXT : armor = 0 : hasMap = 0 : ampTimer = 0 ' (nextGun: not on with a swap to one that's gone)
             PlaySfx sndSteal&, 1 : ConPrint "Everything taken"
         CASE "keys", "keycards", "cards"
             FOR k = 1 TO 3 : hasCard(k) = 0 : NEXT : ConPrint "Keycards taken"
         CASE "key", "card", "keycard"
             k = INSTR("rby", LEFT$(conB$, 1)) : IF k THEN hasCard(k) = 0 : ConPrint "The " + CardName$(k) + " keycard taken" ELSE ConPrint "take key red / blue / yellow"
         CASE "weapons", "guns"
-            FOR g = 2 TO NUM_GUNS : hasGun(g) = 0 : NEXT : currentGun = W_BLASTER : ConPrint "Guns taken (the blaster stays)"
+            FOR g = 2 TO NUM_GUNS : hasGun(g) = 0 : NEXT : currentGun = W_BLASTER : nextGun = W_BLASTER : ConPrint "Guns taken (the blaster stays)"
         CASE "weapon", "gun"
             g = VAL(conB$) : IF g >= 2 AND g <= NUM_GUNS THEN hasGun(g) = 0 : IF currentGun = g THEN currentGun = W_BLASTER
+            IF g >= 2 AND g <= NUM_GUNS THEN IF nextGun = g THEN nextGun = W_BLASTER
         CASE "ammo" ' take ammo: all of it; take ammo cells|shells|rounds|slugs|rockets [N]
             am = AmmoKind(conB$) : n = VAL(conC$)
             IF am = 0 THEN
@@ -962,7 +976,7 @@ END FUNCTION
 ' carried on to the next line keeps the colour it had. The log file gets
 ' the words without them.
 SUB ConPrint(text$)
-    DIM d, f, i, l$, t$, vis, cur$, ch$ ' (its own: the main program shares these names)
+    DIM d, f, i, l$, t$, vis, cur$, ch$, lf$ ' (its own: the main program shares these names)
     t$ = text$ : l$ = "" : vis = 0 : cur$ = "" : i = 1
     DO WHILE i <= LEN(t$)
         ch$ = MID$(t$, i, 1)
@@ -976,7 +990,9 @@ SUB ConPrint(text$)
     IF conLogFile$ <> "" THEN
         l$ = ConPlain$(text$) ' (QB64PE's degree sign, CHR$(248), isn't one in a text file)
         DO WHILE INSTR(l$, CHR$(248)) : d = INSTR(l$, CHR$(248)) : l$ = LEFT$(l$, d - 1) + " degrees" + MID$(l$, d + 1) : LOOP
-        f = FREEFILE : OPEN conLogFile$ FOR APPEND AS #f : PRINT #f, l$ : CLOSE #f
+        lf$ = conLogFile$ : conLogFile$ = "" ' (off while it's written: a file that won't open can't send its own error back here)
+        f = FREEFILE : OPEN lf$ FOR APPEND AS #f : PRINT #f, l$ : CLOSE #f
+        conLogFile$ = lf$
     END IF
 END SUB
 
@@ -988,6 +1004,7 @@ SUB ConQueue(cmd$)
     DO ' (several on one line, split by ;)
         semi = ConSemi(c$)
         IF semi THEN one$ = LEFT$(c$, semi - 1) : c$ = MID$(c$, semi + 1) ELSE one$ = c$ : c$ = ""
+        IF LEFT$(LTRIM$(one$), 1) = CHR$(2) AND NOT conFromTrig THEN one$ = MID$(LTRIM$(one$), 2) ' (that mark is the level's own: never one typed or read from a file)
         IF LEN(LTRIM$(one$)) AND conQTail < CON_QUEUE THEN conQTail = conQTail + 1 : conQ$(conQTail) = LTRIM$(one$) : IF conFromTrig THEN conQ$(conQTail) = CHR$(2) + conQ$(conQTail) ' (CHR$(2): a trigger's)
     LOOP WHILE LEN(c$)
 END SUB
@@ -1000,6 +1017,7 @@ SUB ConQueueNext(cmd$)
     DO WHILE LEN(c$) AND n < CON_QUEUE
         semi = ConSemi(c$)
         IF semi THEN one$ = LEFT$(c$, semi - 1) : c$ = MID$(c$, semi + 1) ELSE one$ = c$ : c$ = ""
+        IF LEFT$(LTRIM$(one$), 1) = CHR$(2) AND NOT conFromTrig THEN one$ = MID$(LTRIM$(one$), 2)
         IF LEN(LTRIM$(one$)) THEN n = n + 1 : part$(n) = LTRIM$(one$) : IF conFromTrig THEN part$(n) = CHR$(2) + part$(n)
     LOOP
     IF conQTail + n > CON_QUEUE THEN n = CON_QUEUE - conQTail ' (no room for all of them: as many as fit)
@@ -1033,23 +1051,43 @@ END FUNCTION
 ' all of them - now, one after another (or, with a wait among them, onto
 ' the queue a frame at a time, as a trigger's)
 SUB AliasRun(a, words$)
-    DIM c$, k, one$, semi, w$, p ' (its own: the main program shares these names)
-    IF aliasDepth >= ALIAS_DEPTH THEN ConPrint "alias " + aliasName$(a) + ": runs itself - stopped" : EXIT SUB
-    c$ = aliasCmd$(a)
-    DO WHILE INSTR(c$, "$*") : p = INSTR(c$, "$*") : c$ = LEFT$(c$, p - 1) + words$ + MID$(c$, p + 2) : LOOP
-    FOR k = 9 TO 1 STEP -1
-        w$ = ConWord$(words$, k)
-        DO WHILE INSTR(c$, "$" + LTRIM$(STR$(k))) : p = INSTR(c$, "$" + LTRIM$(STR$(k))) : c$ = LEFT$(c$, p - 1) + w$ + MID$(c$, p + 2) : LOOP
-    NEXT
-    IF INSTR(LCASE$(c$), "wait") THEN ConQueueNext c$ : EXIT SUB ' (next in the queue: before what was waiting already)
+    DIM c$, k, one$, semi, w$, p, o$, ch$, t$ ' (its own: the main program shares these names)
+    IF aliasDepth = 0 THEN aliasStop = 0 : aliasRuns = 0
+    IF aliasStop THEN EXIT SUB ' (one stopped already: the rest of it with it)
+    aliasRuns = aliasRuns + 1
+    IF aliasDepth >= ALIAS_DEPTH OR aliasRuns > 1000 THEN ConPrint "alias " + aliasName$(a) + ": runs itself - stopped" : aliasStop = -1 : EXIT SUB
+    c$ = aliasCmd$(a) : o$ = "" : p = 1
+    DO WHILE p <= LEN(c$) ' ($* and $1-$9 put in, left to right: what goes in is never looked at again - a $1 among the words stays a $1)
+        ch$ = MID$(c$, p, 1)
+        IF ch$ = "$" AND p < LEN(c$) THEN
+            t$ = MID$(c$, p + 1, 1)
+            IF t$ = "*" THEN o$ = o$ + words$ : p = p + 2 : _CONTINUE
+            IF t$ >= "1" AND t$ <= "9" THEN o$ = o$ + ConWord$(words$, VAL(t$)) : p = p + 2 : _CONTINUE
+        END IF
+        o$ = o$ + ch$ : p = p + 1
+    LOOP
+    c$ = o$
+    IF ConHasWait(c$) THEN ConQueueNext c$ : EXIT SUB ' (next in the queue: before what was waiting already)
     aliasDepth = aliasDepth + 1
-    DO WHILE LEN(c$)
+    DO WHILE LEN(c$) AND NOT aliasStop
         semi = ConSemi(c$)
         IF semi THEN one$ = LEFT$(c$, semi - 1) : c$ = MID$(c$, semi + 1) ELSE one$ = c$ : c$ = ""
         conCmd$ = one$ : ConExec
     LOOP
     aliasDepth = aliasDepth - 1
 END SUB
+
+' Is one of the commands in c$ a wait (wait FRAMES)? Then they go a frame
+' at a time, on the queue
+FUNCTION ConHasWait(c0$)
+    DIM c$, one$, semi ' (its own: the main program shares these names)
+    c$ = c0$
+    DO WHILE LEN(c$)
+        semi = ConSemi(c$)
+        IF semi THEN one$ = LEFT$(c$, semi - 1) : c$ = MID$(c$, semi + 1) ELSE one$ = c$ : c$ = ""
+        IF LCASE$(ConWord$(LTRIM$(one$), 1)) = "wait" THEN ConHasWait = -1 : EXIT FUNCTION
+    LOOP
+END FUNCTION
 
 ' At start-up: the saves folder's autoexec.cfg, if there is one - each line
 ' run at once (aliases, binds, settings: what you want every time)
@@ -1192,7 +1230,7 @@ SUB ConHelp(c$)
     SELECT CASE LCASE$(c$)
         CASE ""
             ConPrint "^3^5Commands^0 - ^7help NAME^0 for more (and how each one goes); ^7;^0 separates several on a line^0:"
-            ConPrint "  ^6sectors   ^7map^8 N|NAME  ^7maps  ^7sectorset^8 0|1|2  ^7restart  ^7newgame  ^7finish  ^7newsector"
+            ConPrint "  ^6sectors   ^7map^8 N|NAME  ^7maps  ^7sectorset^8 0-3  ^7restart  ^7newgame  ^7finish  ^7newsector"
             ConPrint "            ^7sectorname^8 NAME  ^7mapsize^8 N  ^7resetlevel  ^7reloadlevel  ^7savesectorcopy"
             ConPrint "            ^7saveleveltodisk^8 [FILE]  ^7loadlevelfromdisk^8 [FILE]"
             ConPrint "  ^6cheats    ^7god  ^7buddha  ^7fly  ^7notarget  ^7give^8 WHAT  ^7take^8 WHAT  ^7kill  ^7respawn  ^7die  ^7tp^8 X Y [ANGLE]"
@@ -1219,7 +1257,7 @@ SUB ConHelp(c$)
         ' --- sectors
         CASE "map", "level", "sector" : ConPrint "^3map N (1-" + LTRIM$(STR$(NUM_LEVELS)) + ", yours from" + STR$(NUM_LEVELS + 1) + ") or map NAME (part of one)^0: go to that sector, keeping what you carry"
         CASE "maps", "levels", "sectors" : ConPrint "^3maps^0: every sector there is - this set's ten (sectorset changes them), then yours"
-        CASE "sectorset", "campaign", "set10" : ConPrint "^3sectorset 0|1|2|3 (original, new, remix, huge)^0: which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS or OLD SECTORS NEW. sectorset on its own: which it is"
+        CASE "sectorset", "campaign", "set10" : ConPrint "^3sectorset 0|1|2|3 (original, new, remix, huge)^0: which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS, OLD SECTORS NEW or HUGE SECTORS. sectorset on its own: which it is"
         CASE "restart", "reset" : ConPrint "^3restart^0: this sector again from its start - with what you started the game with"
         CASE "mapsize" : ConPrint "^3mapsize [N]^0: the sector's map N x N cells (16 to" + STR$(MAP_SIZE) + "; the game's are 48) - grown with wall all round, or cut down. savelevel keeps it"
         CASE "resetlevel" : ConPrint "^3resetlevel^0: the sector as it starts - monsters, doors, pickups back - as it is now in the editor, and you where you are"
@@ -1266,7 +1304,7 @@ SUB ConHelp(c$)
         ' --- looking
         CASE "pos", "where" : ConPrint "^3pos^0: where you are - the sector, x y, the way you face (degrees), your feet's and eye's height (^7info^0 or F3 shows it all the time)"
         CASE "info", "f3" : ConPrint "^3info [on|off]^0: the F3 panel, top left - x y and cell, the way you face, heights, the wall you look at (its cell and map character), a tp line that brings you back, and the frame rate"
-        CASE "status" : ConPrint "^3status^0: the sector, your health, armour, cells, shells and rockets, and kills of the monsters there"
+        CASE "status" : ConPrint "^3status^0: the sector, your health, armour, every gun's ammo (cells, shells, rounds, slugs, rockets), and kills of the monsters there"
         CASE "mons", "monlist" : ConPrint "^3mons^0: every monster - its number, kind, where (and how high), asleep or hunting, health, and its own sight, hearing, speed and what wakes it"
         CASE "events" : ConPrint "^3events^0: the sector's event rooms - kind, box, and waiting, going, won or lost"
         CASE "triggers" : ConPrint "^3triggers^0: the sector's triggers, numbered (trigger del N takes one away), and which have gone off"
@@ -1482,6 +1520,7 @@ SUB SumTurret(t, mount, weap, track, ej, mode)
     IF track > 0 THEN monTrack(numMonsters) = track
     IF ej > 0 THEN monEject(numMonsters) = TURRET_UP / ej
     IF mode >= 0 THEN monTMode(numMonsters) = mode : monDeploy(numMonsters) = 0 ' (hidden or held: in its housing to start with)
+    IF mode = TURRET_AUTO THEN monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 ' (hidden: asleep till it sees you - SpawnMonster had it hunting)
     monAimA(numMonsters) = DAtan2(dirY, dirX) ' (pointing the way you face: away from you - it has to turn round first)
     IF mount = TURRET_WALL THEN ' (in the wall you face)
         turPrefX = 0 : turPrefY = 0
@@ -1489,3 +1528,17 @@ SUB SumTurret(t, mount, weap, track, ej, mode)
         TurretMount numMonsters : turPrefX = 0 : turPrefY = 0
     END IF
 END SUB
+
+' A cell a command names, kept on the map (inside its wall all round):
+' tp 9999 9999 and the like land at the edge, not off it
+FUNCTION ConCell(v)
+    ConCell = MaxOf(1, MinOf(mapN - 2, INT(v)))
+END FUNCTION
+
+' Is n$ a setting's name (fov, sfx...)? - typed on its own, it's that setting
+FUNCTION ConIsSetting(n$)
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO NUM_SETTINGS
+        IF n$ = setKey$(k) THEN ConIsSetting = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION

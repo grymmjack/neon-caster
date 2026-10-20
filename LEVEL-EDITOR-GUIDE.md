@@ -179,13 +179,13 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | A face with a light | Its colour (twelve), effect (six), REACH and BRIGHT, REMOVE THE LIGHT. The swatch in the corner shows it going. |
 | A monster | SIGHT, HEARING, HEALTH and SPEED, and what WAKES it; AS ITS KIND IS resets it. Its sight (cyan) and hearing (yellow) are drawn as rings on the floor round it. |
 | A floor of a lift | LOW, HIGH and SPEED in eighths, the mode (click it: UP AND DOWN, ELEVATOR, ON A TRIGGER - moves only on `liftgo`, CRUSHER, SMASHER - see below), REMOVE |
-| An event room (EVENT ROOM... on a floor's pane) | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT, BACK (to the floor's pane). The table under `[events]` below says what each kind does. |
+| An event room (EVENT ROOM... on a floor's pane) | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP, DEATHPIT - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT, BACK (to the floor's pane). The table under `[events]` below says what each kind does. |
 | A block's side | Its edges in eighths; PUSH IN and PULL OUT move the selected side an eighth (every block side selected); LOOKS LIKE THE WALL: `#` `N` `C` `K` `P` `G`; REMOVE THE BLOCK; ADD A LIGHT TO IT |
 | Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with) - or, on a floor already in one, EVENT ROOM: its kind..., which opens that room's pane, ADD A PILLAR (a block a quarter of a cell square, in the middle), CELL LIGHT... (the cells' own ambient light - see Lights), ADD A LIGHT TO IT - and, with a decoration on it, MOVE IT `<` `>` `^` `v`, an eighth at a time, and which way it faces: TURNS TO FACE YOU (as every sprite does), or STANDS, FACING EAST / SOUTH / WEST / NORTH (these rows are on a light's pane too, when the light is over the decoration) |
 | A plain wall | MAKE IT A BLOCK (the wall becomes a block filling its cell, its sides' pictures kept, and the side you clicked stays selected, ready to PUSH IN), ADD A LIGHT TO IT |
 | Any other face | ADD A LIGHT TO IT |
 | TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead) or TIME (seconds into the level); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them, or click the action buttons (+25 HP, -25 HP, DIE, +CELLS, -CELLS, +SHELLS, -SHELLS, GIVE ALL, TAKE ALL) to add theirs; ADD IT. |
-| Nothing (the SECTOR button) | NAME: type the sector's name, Enter to keep it (Esc not). LIGHT: the ambient light, brighter or darker, and twelve colours to tint it. DROIDS: how many service droids roam it (0-6). ALL FLOORS / ALL CEILINGS: every floor (or ceiling) in the sector down or up an eighth - Shift, a whole wall. LOOT: what every breakable leaves, at once - AS MADE (the game's table), NONE, LITTLE (half the chances), PLENTY (half again), LOTS (twice); the console's `loot` sets one kind exactly. ROOM W x H (- and +; Shift for its depth) and MAKE THE MAP THIS ROOM: the whole map wall again but for one room that size in its middle, you at its west end, the exit in its east wall - the quick start for a new sector (Ctrl+Z undoes it). ITS PICTURES: the six kinds of wall (`#` `N` `C` `K` `P` `G`), the four floors and two ceilings the level's zones use - click one, and the picker opens at its tab: the next picture you click is that one's, everywhere it's used. |
+| Nothing (the SECTOR button) | NAME: type the sector's name, Enter to keep it (Esc not). LIGHT: the ambient light, brighter or darker, and twelve colours to tint it. DROIDS: how many service droids roam it (0-12). ALL FLOORS / ALL CEILINGS: every floor (or ceiling) in the sector down or up an eighth - Shift, a whole wall. LOOT: what every breakable leaves, at once - AS MADE (the game's table), NONE, LITTLE (half the chances), PLENTY (half again), LOTS (twice); the console's `loot` sets one kind exactly. ROOM W x H (- and +; Shift for its depth) and MAKE THE MAP THIS ROOM: the whole map wall again but for one room that size in its middle, you at its west end, the exit in its east wall - the quick start for a new sector (Ctrl+Z undoes it). ITS PICTURES: the six kinds of wall (`#` `N` `C` `K` `P` `G`), the four floors and two ceilings the level's zones use - click one, and the picker opens at its tab: the next picture you click is that one's, everywhere it's used. |
 
 **Monsters, for ambushes.** Each monster can be set apart from its kind:
 
@@ -238,7 +238,7 @@ The whole 48 × 48 map from above, one square per cell, with the picker, the too
 | Esc, F2 | Leave the editor and play |
 | F1 | Help |
 
-You can't change the outer ring of cells (x or y of 0 or 47), so the border always stays wall. Placing a new start (`<` `>` `^` `v`) turns the old one into floor, so there's never more than one.
+You can't change the outer ring of cells (x or y of 0, or the map's size less one - 47 in a sector the game's size), so the border always stays wall (a file with an open edge gets wall there when it loads). Placing a new start (`<` `>` `^` `v`) turns the old one into floor, so there's never more than one.
 
 **Light presets** (the keys 1–8) are room lights, radius 5 and brightness 140:
 
@@ -255,7 +255,7 @@ You can't change the outer ring of cells (x or y of 0 or 47), so the border alwa
 
 **What the map shows.** Walls are drawn in their picture's average colour and floor is dark blue. Pickups are green squares, monsters red, decorations gold, and you're a yellow circle with a line showing which way you face. Lights are a ring in their colour; with the LIGHT tool their full reach is drawn too. Event rooms have a magenta outline and triggers an orange one. With the HEIGHT tool, raised floors are shaded brown (brighter is higher), sunken floors purple, an unusual ceiling gets two cyan dots, and lifts get a green outline. The selection is outlined in orange.
 
-The line under the map names the cell under the mouse, as `x,y name`, with its floor and ceiling if they're not the usual. x counts 0–47 left to right and y counts 0–47 top to bottom.
+The line under the map names the cell under the mouse, as `x,y name`, with its floor and ceiling if they're not the usual. x counts 0–47 left to right and y counts 0–47 top to bottom (in a sector the game's size: 0 to its size less one in a bigger one).
 
 ## Every map character
 
@@ -264,13 +264,15 @@ Each cell of the map is one character, and case matters: `m` is a drone, `M` is 
 ```
 . # N C K P G /
 \ D H X R B Y E
-! = @ $ % ? & r
-b y + * u a e 2
-3 4 M q j 8 m g
-h c s k w z T o
-i p t x l n f S
-d A F I J L O Q
-U W Z V < > ^ v
+! = @ $ % ? & ;
+r b y + * u a e
+2 3 4 M q j 8 9
+) ( { } m g h c
+s k w z T 1 5 6
+7 0 ~ _ | o i p
+t x l n f S d A
+F I J L O Q U W
+Z V < > ^ v
 ```
 
 **Walls and structure**
@@ -286,7 +288,7 @@ U W Z V < > ^ v
 | `@` | Data station | A wall you jack into with Space. Hacking it opens nearby `!` doors. |
 | `$` | Code terminal | A wall with a QB64 puzzle: the next name from `puzzles =`, in reading order. |
 | `;` | Turret control | A wall you hack with Space: a screen of junk with words hidden in it, one the password. Pick a word and it tells you how many of its letters are right, in the right places; pick a pair of brackets with only junk between them for a dud taken away (or, now and then, your tries back). Four wrong and it locks for good - and every turret near it comes for you. Get it, and every turret within 12 cells goes off for good (counted as killed). |
-| `&` | Teleporter | Pads pair up in reading order: 1st with 2nd, 3rd with 4th. Up to 16. |
+| `&` | Teleporter | Pads pair up in reading order: 1st with 2nd, 3rd with 4th. Up to 32 (16 pairs). |
 
 **Doors.** A door must sit between two walls.
 
@@ -299,7 +301,7 @@ U W Z V < > ^ v
 | `!` | Sealed door | Opens when the nearest data station `@` is hacked |
 | `E` | **The exit** | Never opens; Space on it ends the level. Gets a green pulsing light. |
 
-**Pickups.** Up to 64 per level (160 in a sector over 64 cells across).
+**Pickups.** Up to 256 per level (the level kit keeps its own sectors to 64, 160 in a sector over 64 cells across).
 
 | Char | Pickup | | Char | Pickup |
 | --- | --- | --- | --- | --- |
@@ -316,7 +318,7 @@ U W Z V < > ^ v
 
 Each gun has its own ammo: cells for the blaster, shells for the scatter gun, rounds for the repeater, slugs for the railgun, rockets for the launcher. Cells that come out of something - loot, a monster's drop, a prize - come out as ammo for one of the guns you have that shoot energy (the blaster, the repeater, the railgun); cells you place stay cells.
 
-**Monsters.** Up to 64 per level, counting ones events spawn (128 in a sector over 64 cells across).
+**Monsters.** Up to 192 per level, counting ones events spawn (the level kit places 64 at most, 128 in a sector over 64 cells across).
 
 | Char | Monster | Hits to kill |
 | --- | --- | --- |
@@ -338,7 +340,7 @@ Each gun has its own ammo: cells for the blaster, shells for the scatter gun, ro
 | `_` | turret, in the floor | the same, rising out of the floor |
 | `\|` | turret, in a wall | the same, sliding out of a wall beside its cell at chest height (it can only turn so far from the wall). With no wall beside it, it's a floor turret. Any turret's WEAPON is set in its pane: plasma, laser, lightning, flame, poison, acid or missiles |
 
-**Decorations.** Up to 64 per level (160 in a sector over 64 cells across). They block your way, and most can be shot to pieces.
+**Decorations.** Up to 160 per level (the level kit's own: 64, 160 in a sector over 64 cells across). They block your way, and most can be shot to pieces.
 
 | Char | Thing | | Char | Thing |
 | --- | --- | --- | --- | --- |
@@ -479,13 +481,13 @@ Ctrl+S rewrites the whole file in a fixed layout. Only the comments at the very 
 
 All end in `.png`. The picker's WALLS, FLOORS and CEILINGS tabs show them all, and PAINT puts any of them on any face (`[faces]`, below) without changing the lists.
 
-**`[zones]`** choose which of the 4 floor and 2 ceiling pictures each area uses: `x0, y0, x1, y1, floor, ceiling, shape`. `floor` is 1–4 and `ceiling` 1–2 (0 leaves it alone). `shape` 0 is the whole rectangle; 1–4 is the top-left, top-right, bottom-right or bottom-left triangle of a square. Later zones win where they overlap. The 3D view's **Z** gives a cell the next floor picture with a one-cell zone (Z again on the same cell changes that zone rather than adding another). Up to 64.
+**`[zones]`** choose which of the 4 floor and 2 ceiling pictures each area uses: `x0, y0, x1, y1, floor, ceiling, shape`. `floor` is 1–4 and `ceiling` 1–2 (0 leaves it alone). `shape` 0 is the whole rectangle; 1–4 is the top-left, top-right, bottom-right or bottom-left triangle of a square. Later zones win where they overlap. The 3D view's **Z** gives a cell the next floor picture with a one-cell zone (Z again on the same cell changes that zone rather than adding another). Up to 256.
 
 **`puzzles = NAME, NAME, …`** gives each `$` code terminal its puzzle, in reading order, from `neon-caster/puzzles/`: countdown, function, hello, multiply, password, pythagoras, reverse, select, sum, wrap.
 
 **`droids = N`** says how many service droids roll about the sector, 0 to 6. Leave it out for the usual three. In the console, `droids N` sets it for the sector you're in (save to keep it), and `droids` on its own lists where they are.
 
-**`[events]`** (MAKE AN EVENT ROOM, and an event's pane) are rooms that do something when you walk in: `kind, x0, y0, x1, y1, a, b, reward`. Doors within 5 cells of the room belong to it. Up to 16.
+**`[events]`** (MAKE AN EVENT ROOM, and an event's pane) are rooms that do something when you walk in: `kind, x0, y0, x1, y1, a, b, reward`. Doors within 5 cells of the room belong to it. Up to 32.
 
 | Kind | Event | `a` | `b` |
 | --- | --- | --- | --- |
@@ -524,7 +526,7 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 23, 20, 5, 0, 8, 3, 4
 ```
 
-**`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy, facing` - `dx` and `dy` in eighths across and down, -3 to 3; `facing` 0 (or left out) is as built (furniture against a wall stands flat with its back to it; anything else turns to face you), 1-4 stands it flat facing east, south, west or north, 5 turns it to face you always. Up to 64.
+**`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy, facing` - `dx` and `dy` in eighths across and down, -3 to 3; `facing` 0 (or left out) is as built (furniture against a wall stands flat with its back to it; anything else turns to face you), 1-4 stands it flat facing east, south, west or north, 5 turns it to face you always. Up to 160.
 
 **`[pads]`** (LINK): teleporter pads paired by hand, `x1, y1, x2, y2`. Pads in no pair here pair up as ever, in reading order. Up to 16.
 
@@ -540,7 +542,7 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 | `clear X0 Y0 X1 Y1` | Every monster that started in the rectangle is dead |
 | `time S` | S seconds into the level |
 
-Without `repeat`, a trigger fires once. Don't put `repeat` on `time` or `clear`: once true they stay true, so the trigger fires every frame. If you start inside an `enter` rectangle, it waits until you leave and come back. Up to 48. For example:
+Without `repeat`, a trigger fires once. Don't put `repeat` on `time` or `clear`: once true they stay true, so the trigger fires every frame. If you start inside an `enter` rectangle, it waits until you leave and come back. Up to 96. For example:
 
 ```
 enter 20 20 22 22 : message AMBUSH! ; spawn stalker 24 21 3

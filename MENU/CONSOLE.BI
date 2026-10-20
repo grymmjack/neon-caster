@@ -20,7 +20,7 @@ DIM SHARED conQ$(CON_QUEUE), conQHead AS INTEGER, conQTail AS INTEGER, conWait A
 ' $1 to $9 the words after it, $* all of them - and how deep in one
 ' another we are (an alias that runs itself stops at ALIAS_DEPTH)
 CONST MAX_ALIAS = 64, ALIAS_DEPTH = 8
-DIM SHARED aliasName$(MAX_ALIAS), aliasCmd$(MAX_ALIAS), numAlias AS INTEGER, aliasDepth AS INTEGER
+DIM SHARED aliasName$(MAX_ALIAS), aliasCmd$(MAX_ALIAS), numAlias AS INTEGER, aliasDepth AS INTEGER, aliasStop AS INTEGER, aliasRuns AS LONG
 ' (a screenshot: glShotReq 1 asks SUB _GL for one, 2 says it's in glShotMem,
 ' glShotW x glShotH; shotFile$ is where it goes)
 DIM SHARED glShotReq AS INTEGER, glShotMem AS _MEM, glShotW AS LONG, glShotH AS LONG, shotFile$

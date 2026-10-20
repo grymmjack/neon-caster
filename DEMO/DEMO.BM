@@ -422,9 +422,10 @@ FUNCTION DemoVerb%(v$)
         CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "take", "kill", "killall", "spawn", "summon", "item", "drop", _
              "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "blocks", _
              "liquid", "liquids", "flood", "raise", "lift", "liftgo", "map", "level", "sector", "sectorset", "campaign", "set10", _
-             "jackin", "jackout", "respawn", "lamp", "light", "trigger", "restart", "reset", "resetlevel", "die", "suicide", "kick", "program", "loot", "turret", "turrets"
+             "jackin", "jackout", "respawn", "lamp", "light", "trigger", "restart", "reset", "resetlevel", "die", "suicide", "kick", "program", "loot", "turret", "turrets", _
+             "mapsize", "reloadlevel", "pitch"
             DemoVerb% = 1
-        CASE "newgame", "load", "loadgame", "quickload", "edit", "editor", "newsector", "hud", "monsters", "puzzle", "undo"
+        CASE "newgame", "load", "loadgame", "quickload", "edit", "editor", "newsector", "hud", "monsters", "puzzle", "undo", "loadlevelfromdisk"
             DemoVerb% = 2
     END SELECT
 END FUNCTION

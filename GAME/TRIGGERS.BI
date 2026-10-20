@@ -20,3 +20,4 @@ DIM SHARED lvlNumTrigs AS INTEGER, lvlTrig$(MAX_TRIGS)
 DIM SHARED numTrigs AS INTEGER, trigWhen$(MAX_TRIGS), trigX0(MAX_TRIGS) AS INTEGER, trigY0(MAX_TRIGS) AS INTEGER, trigX1(MAX_TRIGS) AS INTEGER, trigY1(MAX_TRIGS) AS INTEGER
 DIM SHARED trigRepeat(MAX_TRIGS) AS INTEGER, trigDone(MAX_TRIGS) AS INTEGER, trigWas(MAX_TRIGS) AS INTEGER, trigCmd$(MAX_TRIGS)
 DIM SHARED trigHit(MAX_TRIGS) AS INTEGER ' (a "shoot" trigger's cell was shot: it goes off the next time the triggers run - ShotAt)
+DIM SHARED trigLoadN AS LONG ' (sectors loaded so far: a trigger that changes the sector stops the rest - they were the old one's)

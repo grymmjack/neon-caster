@@ -96,8 +96,11 @@ SUB HackEnd
     ELSE
         tcState(hackTc) = 2 : PlaySfx sndAlarm&, 0.9 : shake = shake + 6 : ShowMsg "LOCKOUT! The turrets are coming for you"
         FOR i = 1 TO numMonsters
-            IF monsterType(i) = MT_TURRET AND monsterState(i) = 0 THEN
-                IF (monsterX(i) - tcX(hackTc) - 0.5) ^ 2 + (monsterY(i) - tcY(hackTc) - 0.5) ^ 2 < HACK_REACH * HACK_REACH THEN monsterState(i) = 1 : monsterTimer(i) = 30
+            IF monsterType(i) = MT_TURRET AND monsterState(i) < 2 AND monTOff(i) = 0 THEN
+                IF (monsterX(i) - tcX(hackTc) - 0.5) ^ 2 + (monsterY(i) - tcY(hackTc) - 0.5) ^ 2 < HACK_REACH * HACK_REACH THEN
+                    IF monsterState(i) = 0 THEN monsterTimer(i) = 30
+                    monsterState(i) = 1 : IF monTMode(i) = TURRET_HELD THEN monTMode(i) = TURRET_AUTO ' (held in: let out too)
+                END IF
             END IF
         NEXT
     END IF
