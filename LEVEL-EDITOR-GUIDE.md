@@ -32,7 +32,7 @@ A playable sector needs only four things: walls all round the edge, one start, o
 6. **Put things in it.** The **MONSTERS** and **ITEMS** tabs. In the 3D view a see-through copy shows where each one will go before you click.
 7. **Light it.** The **LIGHTS** tab: click an effect and a colour, then click a wall or a floor.
 8. **Save** with **SAVE** or **Ctrl+S**. The message warns you if there's no start, no exit, or a gap in the border, but it saves either way.
-9. **Play it.** **F2** leaves the editor and the sector plays as a real level. To come back later, it's in **GAME > YOUR SECTORS**.
+9. **Play it.** **F2** leaves the editor and the sector plays as a real level. Changes you haven't saved stay while you play: die and it starts again as you edited it, and an edit made on the way keeps the keycards and map you'd picked up. To come back later, it's in **GAME > YOUR SECTORS**.
 
 To rename it, open the console (`` ` ``), type `sectorname MY FIRST MAP`, then `savelevel`.
 
@@ -209,7 +209,7 @@ To check an ambush, play it and type `mons` in the console: it says which monste
 
 ## The map view
 
-**Size.** A sector is a square of cells: the game's own are 48 x 48, yours can be anything from 16 to 256 each way. The SECTOR pane's **MAP SIZE** (- and +, then MAKE IT) or the console's `mapsize N` grows it (new cells are wall, with the border all round) or cuts it down. A big sector opens fitted to the view; **hold Space and drag** to pan the map, **hold Space and turn the wheel** to zoom in and out where the mouse is. In play, the minimap shows the 48 cells round you, and Tab's map the whole sector.
+**Size.** A sector is a square of cells: the game's own are 48 x 48, yours can be anything from 16 to 256 each way. The SECTOR pane's **MAP SIZE** (- and +, then MAKE IT) or the console's `mapsize N` grows it (new cells are wall, with the border all round) or cuts it down (lights, rooms, lifts and the rest past the new edge go with it; a room or lift across it is cut short). A big sector opens fitted to the view; **hold Space and drag** to pan the map, **hold Space and turn the wheel** to zoom in and out where the mouse is. In play, the minimap shows the 48 cells round you, and Tab's map the whole sector.
 
 The whole 48 × 48 map from above, one square per cell, with the picker, the toolbar and the help line in the panel on the right.
 
@@ -685,7 +685,7 @@ The editor trusts you: it saves a level with no start, no exit or a gap in its w
 - [ ] A map pickup `M` somewhere, or the minimap never appears
 - [ ] Picture names in the file are spelled right (a wrong one in `walls =`, `floors =` or `ceilings =` quits the game; in `[faces]` it's just ignored)
 
-**The other sets.** NEW SECTORS, OLD SECTORS NEW and HUGE SECTORS are plain level files too, in `neon-caster/levels/new/`, `remix/` and `huge/`. Play one and press F2, and the editor edits that set's file (Ctrl+S saves it there). They're built by `newsectors.py`, `remaster.py` and `hugesectors.py`, and their `--write` rewrites all ten, so copy a change you want to keep into the script first.
+**The other sets.** NEW SECTORS, OLD SECTORS NEW and HUGE SECTORS are plain level files too, in `neon-caster/levels/new/`, `remix/` and `huge/`. Play one and press F2, and the editor edits that set's file (Ctrl+S saves it there; `sectorset` waits till you've left the editor, so a save can't land in another set's file). They're built by `newsectors.py`, `remaster.py` and `hugesectors.py`, and their `--write` rewrites all ten, so copy a change you want to keep into the script first.
 
 **Check it with the level kit.** `levels.py --check` only checks the game's own ten sectors, but its checker works on one of yours too. From `neon-caster/levels/`:
 
