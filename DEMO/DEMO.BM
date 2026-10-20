@@ -251,6 +251,7 @@ SUB DemoRecordStart STATIC
     DemoPut "god" + STR$(-(godMode <> 0))
     DemoPut "fly" + STR$(-(flyMode <> 0))
     DemoPut "notarget" + STR$(-(noTarget <> 0))
+    DemoPut "buddha" + STR$(-(buddhaMode <> 0)) ' (hurt, but never below 1 health: a demo made so plays back so)
     DemoPut "begin"
     DemoFresh
     demoRec = -1 : demoFrame = 0 : demoPendN = 0
@@ -263,7 +264,7 @@ SUB DemoPlayStart STATIC
     demoFH = FREEFILE : OPEN dFile$ FOR INPUT AS #demoFH
     demoBack$ = "" : DemoNextLine
     IF dl$ <> "NEON-CASTER DEMO 1" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " isn't a demo" : EXIT SUB
-    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0
+    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0 : dBud = 0
     DO
         DemoNextLine
         IF dl$ = "" OR dl$ = "begin" THEN EXIT DO
@@ -278,6 +279,7 @@ SUB DemoPlayStart STATIC
             CASE "god" : dGod = (VAL(dv$) <> 0)
             CASE "fly" : dFly = (VAL(dv$) <> 0)
             CASE "notarget" : dNoT = (VAL(dv$) <> 0)
+            CASE "buddha" : dBud = (VAL(dv$) <> 0)
         END SELECT
     LOOP
     IF dl$ <> "begin" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " has no begin" : EXIT SUB
@@ -288,7 +290,7 @@ SUB DemoPlayStart STATIC
     IF NOT SectorExists(dLevel) THEN CLOSE #demoFH : ConPrint "playdemo: its sector" + STR$(dLevel) + " isn't here" : EXIT SUB
     IF dVer$ <> GAME_VERSION$ THEN ConPrint "demo: made with version " + dVer$ + " - this is " + GAME_VERSION$ + ", so it may not play the same"
     dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddhaMode ' (yours, for after)
-    level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = 0
+    level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = dBud
     achCheat = -1 ' (watching isn't playing: achievements and records wait for a new game)
     grSeed = dSeed#
     demoStarting = -1 : DemoFresh : demoStarting = 0 ' (no NEXUS intro: straight to the play)
