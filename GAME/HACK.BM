@@ -30,16 +30,16 @@ END SUB
 SUB HackRun STATIC
     WorldLoopsOff : _MOUSESHOW : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
     HackSetup
-    hackWon = 0 : hackLeft = 0 : cur = hackWordAt(1) : mxWas = _MOUSEX : myWas = _MOUSEY : clickWas = -1 : selWas = -1
+    hackWon = 0 : hackLeft = 0 : cur = hackWordAt(1) : mxWas = WideMouseX(_MOUSEX) : myWas = _MOUSEY : clickWas = -1 : selWas = -1
     DO
         _LIMIT 60
         pick = 0
         WHILE _MOUSEINPUT
-            IF _MOUSEBUTTON(1) AND NOT clickWas THEN IF HackCellAt(_MOUSEX, _MOUSEY) >= 0 THEN pick = -1 ' (a click on the screen's characters)
+            IF _MOUSEBUTTON(1) AND NOT clickWas THEN IF HackCellAt(WideMouseX(_MOUSEX), _MOUSEY) >= 0 THEN pick = -1 ' (a click on the screen's characters)
             clickWas = _MOUSEBUTTON(1)
         WEND
-        IF _MOUSEX <> mxWas OR _MOUSEY <> myWas THEN ' (the mouse moved: the cursor goes where it points)
-            mxWas = _MOUSEX : myWas = _MOUSEY : n = HackCellAt(mxWas, myWas) : IF n >= 0 THEN cur = n
+        IF WideMouseX(_MOUSEX) <> mxWas OR _MOUSEY <> myWas THEN ' (the mouse moved: the cursor goes where it points)
+            mxWas = WideMouseX(_MOUSEX) : myWas = _MOUSEY : n = HackCellAt(mxWas, myWas) : IF n >= 0 THEN cur = n
         END IF
         k& = _KEYHIT
         DO WHILE k&

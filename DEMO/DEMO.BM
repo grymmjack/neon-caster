@@ -283,11 +283,13 @@ SUB DemoPlayStart STATIC
         END SELECT
     LOOP
     IF dl$ <> "begin" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " has no begin" : EXIT SUB
+    IF dSet < 0 OR dSet > NUM_SETS THEN CLOSE #demoFH : ConPrint "playdemo: its set of sectors isn't here" : EXIT SUB
     IF dSet <> sectorSet THEN
         IF dSet > 0 THEN IF LEN(SetSectorName$(dSet, 1)) = 0 THEN CLOSE #demoFH : ConPrint "playdemo: its set of sectors isn't here" : EXIT SUB
-        sectorSet = dSet : ReadSectorNames
     END IF
-    IF NOT SectorExists(dLevel) THEN CLOSE #demoFH : ConPrint "playdemo: its sector" + STR$(dLevel) + " isn't here" : EXIT SUB
+    dSetWas = sectorSet : sectorSet = dSet ' (its sector looked for in its own set - and yours back if it isn't there)
+    IF NOT SectorExists(dLevel) THEN sectorSet = dSetWas : CLOSE #demoFH : ConPrint "playdemo: its sector" + STR$(dLevel) + " isn't here" : EXIT SUB
+    IF dSet <> dSetWas THEN ReadSectorNames
     IF dVer$ <> GAME_VERSION$ THEN ConPrint "demo: made with version " + dVer$ + " - this is " + GAME_VERSION$ + ", so it may not play the same"
     dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddhaMode ' (yours, for after)
     level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = dBud

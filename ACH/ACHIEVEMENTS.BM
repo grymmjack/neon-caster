@@ -20,7 +20,8 @@
 ' then. The wheel, the arrows and PgUp/PgDn scroll; Esc, Backspace, the
 ' right button or a click on BACK go back.
 SUB ShowAchievements STATIC
-    achT = 0 : achRow = 0 : pressWas = -1 : achTab = 0 : recSet = sectorSet : recNmSet = -1 : _KEYCLEAR
+    achT = 0 : achRow = 0 : pressWas = -1 : achTab = 0 : recSet = sectorSet : IF level > NUM_LEVELS THEN recSet = NUM_SETS + 1 ' (yours: the page after the sets)
+    recNmSet = -1 : _KEYCLEAR
     DO
         _LIMIT 60
         achT = achT + 1
@@ -39,8 +40,8 @@ SUB ShowAchievements STATIC
             CASE 20480 : achRow = achRow + 1
             CASE 18688 : achRow = achRow - 6
             CASE 20736 : achRow = achRow + 6
-            CASE 19200 : IF achTab = 1 THEN recSet = (recSet + 3) MOD 4 ' (records: the sets, left and right)
-            CASE 19712 : IF achTab = 1 THEN recSet = (recSet + 1) MOD 4
+            CASE 19200 : IF achTab = 1 THEN recSet = (recSet + NUM_SETS + 1) MOD (NUM_SETS + 2) ' (records: the sets and yours, left and right)
+            CASE 19712 : IF achTab = 1 THEN recSet = (recSet + 1) MOD (NUM_SETS + 2)
         END SELECT
         amx = WideMouseX(_MOUSEX)
         IF click AND NOT pressWas AND _MOUSEY < 60 THEN ' (or click a tab)
@@ -162,7 +163,7 @@ SUB DrawStats STATIC
     FOR k = 1 TO 7 ' (right: how far through it all)
         SELECT CASE k
             CASE 1 : lb$ = "Achievements" : vt$ = LTRIM$(STR$(got)) + "/" + LTRIM$(STR$(achN))
-            CASE 2 : lb$ = "Sets finished" : vt$ = LTRIM$(STR$(BitCount(v&))) + "/3"
+            CASE 2 : lb$ = "Sets finished" : vt$ = LTRIM$(STR$(BitCount(v&))) + "/" + LTRIM$(STR$(NUM_SETS + 1))
             CASE 3 : lb$ = "Showcases cleared" : vt$ = LTRIM$(STR$(BitCount(v2&)))
             CASE 4 : lb$ = "Sectors cleared" : vt$ = LTRIM$(STR$(clears))
             CASE 5 : lb$ = "Sectors with a record" : vt$ = LTRIM$(STR$(recN))

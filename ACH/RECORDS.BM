@@ -4,11 +4,12 @@
 ' Records: loading, saving, and the RECORDS page.
 '
 
-' The RECORDS page: one set's sectors (recSet: 0-2 the sets of ten, 3
-' your own and the showcases), each with its best time, kills and items,
+' The RECORDS page: one set's sectors (recSet: 0 to NUM_SETS the sets of
+' ten, NUM_SETS + 1 your own and the showcases), each with its best time, kills and items,
 ' and how many times it's been cleared
 SUB DrawRecords STATIC
-    MenuText 400, 70, "<  " + MID$("THE ORIGINAL TEN  NEW SECTORS      OLD SECTORS NEW  YOUR SECTORS     ", recSet * 17 + 1, 17) + "  >", 1, _RGB32(150, 230, 255), 1
+    IF recSet > NUM_SETS THEN rt$ = "YOUR SECTORS" ELSE rt$ = SetName$(recSet)
+    MenuText 400, 70, "<  " + rt$ + "  >", 1, _RGB32(150, 230, 255), 1
     MenuText 120, 100, "SECTOR", 1, _RGB32(160, 150, 200), 0
     MenuText 470, 100, "BEST TIME", 1, _RGB32(160, 150, 200), 1
     MenuText 590, 100, "KILLS", 1, _RGB32(160, 150, 200), 1
@@ -17,16 +18,16 @@ SUB DrawRecords STATIC
     IF recNmSet <> recSet THEN ' (the set's names, read from their files once - not every frame)
         FOR n = 1 TO NUM_LEVELS + MAX_CUSTOM
             recNm$(n) = ""
-            IF recSet = 3 AND n > NUM_LEVELS THEN recNm$(n) = SectorNameOf$(n)
-            IF recSet < 3 AND n <= NUM_LEVELS THEN recNm$(n) = SetSectorName$(recSet, n)
+            IF recSet > NUM_SETS AND n > NUM_LEVELS THEN recNm$(n) = SectorNameOf$(n)
+            IF recSet <= NUM_SETS AND n <= NUM_LEVELS THEN recNm$(n) = SetSectorName$(recSet, n)
         NEXT
         recNmSet = recSet
     END IF
     rr = 0
     FOR n = 1 TO NUM_LEVELS + MAX_CUSTOM
-        IF recSet = 3 THEN IF n <= NUM_LEVELS THEN _CONTINUE
-        IF recSet < 3 AND n > NUM_LEVELS THEN EXIT FOR
-        nm$ = recNm$(n) : IF recSet < 3 THEN rk = recSet * 100 + n ELSE rk = n
+        IF recSet > NUM_SETS THEN IF n <= NUM_LEVELS THEN _CONTINUE
+        IF recSet <= NUM_SETS AND n > NUM_LEVELS THEN EXIT FOR
+        nm$ = recNm$(n) : IF recSet <= NUM_SETS THEN rk = recSet * 100 + n ELSE rk = n
         IF LEN(nm$) = 0 OR rr >= 20 THEN _CONTINUE
         c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2)
         y = 128 + rr * 21 : rr = rr + 1

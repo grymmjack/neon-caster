@@ -151,6 +151,8 @@ SUB ConExec STATIC
             CASE "saveleveltodisk", "loadlevelfromdisk", "savelevel", "logfile", "qb64pe", "resetachievements", "achieve", "bind", "set", _
                  "save", "quicksave", "load", "quickload", "exec", "alias", "unalias", "edit", "editor", "newsector", "screenshot", "shot", "quit", "exit", "record", "playdemo", "demo"
                 ConPrint "^9(a sector's trigger can't " + conVerb$ + ")" : EXIT SUB
+            CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "sectorset", "campaign", "set10" ' (ones that last past the sector: a cheat, whoever turned them on)
+                IF conA$ <> "" OR conVerb$ <> "sectorset" THEN achCheat = -1
         END SELECT
     END IF
     IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)

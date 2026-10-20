@@ -63,7 +63,7 @@ SUB RunPuzzle STATIC
         _LIMIT 60
         WHILE _MOUSEINPUT
             IF _MOUSEBUTTON(1) THEN
-                ln = (_MOUSEY - PZ_TOP) \ 18 + 1 : IF ln >= 1 AND ln <= pzN AND _MOUSEX < 560 THEN pzSel = ln : pzTyping = 0
+                ln = (_MOUSEY - PZ_TOP) \ 18 + 1 : IF ln >= 1 AND ln <= pzN AND WideMouseX(_MOUSEX) < 560 THEN pzSel = ln : pzTyping = 0
             END IF
         WEND
         k& = _KEYHIT

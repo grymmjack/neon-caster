@@ -18,7 +18,7 @@ SUB HudEditLeave STATIC
     hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : edMouseFix = -1
 END SUB
 SUB HudEditFrame STATIC
-    hmx = _MOUSEX : hmy = _MOUSEY : hb = _MOUSEBUTTON(1)
+    hmx = WideMouseX(_MOUSEX) : hmy = _MOUSEY : hb = _MOUSEBUTTON(1)
     IF hb AND NOT hudDrag THEN ' Press: the part under the mouse (the smallest, if two overlap)
         best = 0 : bestA = 1E+9
         FOR e = 1 TO HUD_ELEMS

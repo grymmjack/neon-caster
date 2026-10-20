@@ -111,7 +111,8 @@ SUB LevelDone STATIC
     IF demoMenuWant OR demoAttractMenu THEN EXIT SUB ' (one watched from DEMO REPLAYS, or attract mode's: no tally)
     WorldLoopsOff
     PlaySfx sndExit&, 0.9
-    levelTime! = TIMER - levelStart! : IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
+    levelTime! = frameAt! - levelStart! : ' (to the last frame played - not the console's time open)
+    IF levelTime! < 0 THEN levelTime! = levelTime! + 86400
     totalKills = totalKills + kills : totalMonsters = totalMonsters + numMonsters : totalTime! = totalTime! + levelTime!
     ConPrint "Sector done: " + levelName$ + " -" + STR$(INT(levelTime!)) + " s, kills" + STR$(kills) + " /" + STR$(numMonsters) ' (in the console and the log file too)
     taken = 0

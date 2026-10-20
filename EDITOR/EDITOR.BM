@@ -603,7 +603,7 @@ SUB RunEditor STATIC
         IF edForce1 THEN b1 = 0 : edForce1 = 0 ' (last frame's click, let go now)
         IF edForce2 THEN b2 = 0 : edForce2 = 0
         WHILE _MOUSEINPUT
-            mx = _MOUSEX : my = _MOUSEY : wheel = wheel + _MOUSEWHEEL
+            mx = WideMouseX(_MOUSEX) : my = _MOUSEY : wheel = wheel + _MOUSEWHEEL
             IF _MOUSEBUTTON(1) THEN b1 = -1 : b1Any = -1 ELSE b1 = 0
             IF _MOUSEBUTTON(2) THEN b2 = -1 : b2Any = -1 ELSE b2 = 0
             IF _MOUSEBUTTON(3) THEN b3Any = -1
