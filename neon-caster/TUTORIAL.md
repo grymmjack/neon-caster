@@ -61,7 +61,7 @@ it yourself:
 | ` (backtick) | the console: type `help` for the commands |
 | Ctrl+R | record a demo: the sector starts again and every key from there is kept, till Ctrl+R again or the exit - **DEMO REPLAYS** (the main menu) plays it back |
 | F2 | the level editor (see below); in it, F1 shows a cheatsheet of every key |
-| F3 | where you are, in numbers (top left): x y and the cell, the way you face in degrees, heights, the wall you're looking at and its map character, and a `tp` line that brings you back there (the console's `info` too) |
+| F3 | where you are, in numbers (top left): x y and the cell, the way you face in degrees, heights, the wall you're looking at and its map character, a `tp` line that brings you back there, and the frame rate (the console's `info` too) |
 | K / G | testing cheats: every keycard / god mode (no damage, through walls, flying with E up and C down, and the monsters ignore you) |
 
 **The console and the command line.** The console (`) runs commands for

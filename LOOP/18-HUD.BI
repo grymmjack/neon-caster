@@ -260,12 +260,13 @@
     IF TIMER - fpsStart! >= 1 OR TIMER < fpsStart! THEN fpsShown = fpsFrames : fpsFrames = 0 : fpsStart! = TIMER
     IF glMode THEN viewMs = viewMs + glMs
     viewAvg = viewAvg * 0.9 + viewMs * 0.1
+    tenths = INT(viewAvg * 10 + 0.5) : IF tenths > 9999 THEN tenths = 9999
+    msText$ = LTRIM$(STR$(tenths \ 10)) + "." + LTRIM$(STR$(tenths MOD 10))
+    infoFps$ = "FPS" + STR$(fpsShown) + "   3D VIEW " + msText$ + " MS   " + MID$("SOFTWAREOPENGL", 1 - 8 * glMode, 8 + 2 * glMode) ' (for the F3 panel, next frame)
     IF setting(SET_FPS) THEN
         ' Every part padded to the same width (RIGHT$ of spaces and the number),
         ' so the line doesn't shift about as the numbers grow and shrink
         IF glMode THEN fpsText$ = "  OPENGL" ELSE fpsText$ = "SOFTWARE"
-        tenths = INT(viewAvg * 10 + 0.5) : IF tenths > 9999 THEN tenths = 9999
-        msText$ = LTRIM$(STR$(tenths \ 10)) + "." + LTRIM$(STR$(tenths MOD 10))
         fpsText$ = fpsText$ + "   FPS" + RIGHT$("   " + STR$(fpsShown), 4) + "   3D VIEW" + RIGHT$("     " + msText$, 6) + " MS"
         IF hudShow(HE_FPS) THEN HudText hudX(HE_FPS) - LEN(fpsText$) * 4, hudY(HE_FPS), fpsText$, HudColor~&(HE_FPS, _RGB32(255, 255, 120))
     END IF

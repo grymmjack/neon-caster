@@ -24,7 +24,7 @@ DIM SHARED hudEdit AS INTEGER, hudSel AS INTEGER, hudMsg$
 DIM SHARED cellSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, hasMap AS INTEGER, mmFull AS INTEGER ' (mmFull: DrawMap's drawing the full-screen map, not the minimap)
 ' F3 (or info): where you are, in numbers - for tp, put, box and the rest
 ' (DrawInfo, like Minecraft's F3 screen)
-DIM SHARED infoOn AS INTEGER, infoKeyWas AS INTEGER
+DIM SHARED infoOn AS INTEGER, infoKeyWas AS INTEGER, infoFps$ ' (infoFps$: the F3 panel's frame rate line - chapter 18 writes it)
 ' VIGNETTES (DrawVignette, chapter 18): the edges of the screen washed with
 ' a colour, fading in towards the middle. Hurt: in the colour of what hurt
 ' you (painR/G/B - blood red, a shock's blue, poison's green, fire's

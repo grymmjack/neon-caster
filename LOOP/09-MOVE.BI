@@ -60,13 +60,13 @@
     ' anything higher - faster and faster - and land, hard if it was far;
     ' fall into a pit and that's the end. Your eye eases up a step.
     IF editMode OR (flyMode AND NOT dead) THEN ' The editor, or fly (god mode): you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
-        flySpeed = 0.04 : IF inBits AND DB_RUN THEN flySpeed = 0.1
+        flySpeed = 0.04 : IF inBits AND DB_RUN THEN flySpeed = 0.1 : IF editMode THEN flySpeed = 0.25 ' (the editor, with Shift: a hall 30 walls high in two seconds)
         IF editMode THEN flyUp = _KEYDOWN(32) : flyDown = _KEYDOWN(99) OR _KEYDOWN(67) ELSE flyUp = (inBits AND DB_UP) <> 0 : flyDown = (inBits AND DB_DOWN) <> 0 ' (in play Space opens things)
         IF flyUp AND NOT edTyping THEN playerZ = playerZ + flySpeed
         IF flyDown AND NOT edTyping THEN playerZ = playerZ - flySpeed
         IF forward <> 0 THEN playerZ = playerZ + forward * moveSpeed * DSin(pitch) * 1.5 ' (and the way you look: look up and walk on, and you climb - OpenGL's look up and down)
         IF playerZ < -1.4 THEN playerZ = -1.4
-        IF playerZ > 4.5 THEN playerZ = 4.5
+        IF playerZ > H_MAX * H_STEP + 0.5 THEN playerZ = H_MAX * H_STEP + 0.5 ' (as high as a sector goes: 30 walls, and a little over)
         IF NOT editMode THEN ' (in play: your eye stays under the ceiling - above it the room isn't drawn - and the floor still holds you up)
             IF playerZ > ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.05 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.05
             IF playerZ < floorH(INT(playerX), INT(playerY)) THEN playerZ = floorH(INT(playerX), INT(playerY))

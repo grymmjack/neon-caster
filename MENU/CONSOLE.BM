@@ -1141,7 +1141,7 @@ SUB ConHelp(c$)
         CASE "item", "drop" : ConPrint "^3item KIND X Y^0: a pickup in cell X Y - health medkit armor cells shells rockets scatter repeater rail launcher map overcharge amp goggles suit red blue yellow (or its map character)"
         ' --- looking
         CASE "pos", "where" : ConPrint "^3pos^0: where you are - the sector, x y, the way you face (degrees), your feet's and eye's height (^7info^0 or F3 shows it all the time)"
-        CASE "info", "f3" : ConPrint "^3info [on|off]^0: the F3 panel, top left - x y and cell, the way you face, heights, the wall you look at (its cell and map character), and a tp line that brings you back"
+        CASE "info", "f3" : ConPrint "^3info [on|off]^0: the F3 panel, top left - x y and cell, the way you face, heights, the wall you look at (its cell and map character), a tp line that brings you back, and the frame rate"
         CASE "status" : ConPrint "^3status^0: the sector, your health, armour, cells, shells and rockets, and kills of the monsters there"
         CASE "mons", "monlist" : ConPrint "^3mons^0: every monster - its number, kind, where (and how high), asleep or hunting, health, and its own sight, hearing, speed and what wakes it"
         CASE "events" : ConPrint "^3events^0: the sector's event rooms - kind, box, and waiting, going, won or lost"

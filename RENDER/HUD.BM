@@ -255,7 +255,7 @@ END SUB
 ' at (its cell and map character, for put and box) - and a tp line that
 ' brings you back here, to type into the console.
 SUB DrawInfo(top)
-    DIM ang, cx, cy, d!, hx, hy, i, l$(7), n, w, y, c$ ' (its own: the main program shares these names)
+    DIM ang, cx, cy, d!, hx, hy, i, l$(8), n, w, y, c$ ' (its own: the main program shares these names)
     ang = INT(_ATAN2(dirY, dirX) * 180 / 3.14159265 + 0.5) : IF ang < 0 THEN ang = ang + 360
     IF ang >= 360 THEN ang = ang - 360
     cx = INT(playerX) : cy = INT(playerY)
@@ -278,22 +278,25 @@ SUB DrawInfo(top)
         l$(5) = "LOOKING AT NOTHING NEAR"
     END IF
     l$(6) = "tp " + InfoNum$(playerX) + " " + InfoNum$(playerY) + " " + LTRIM$(STR$(ang))
-    l$(7) = "F3 HIDES THIS"
-    w = 0 : FOR i = 1 TO 7 : IF LEN(l$(i)) > w THEN w = LEN(l$(i))
+    l$(7) = infoFps$
+    l$(8) = "F3 HIDES THIS"
+    w = 0 : FOR i = 1 TO 8 : IF LEN(l$(i)) > w THEN w = LEN(l$(i))
     NEXT
-    LINE (4, top - 3)-(14 + w * 8, top + 7 * 16 + 1), _RGBA32(4, 2, 16, 170), BF
-    FOR i = 1 TO 7
+    LINE (4, top - 3)-(14 + w * 8, top + 8 * 16 + 1), _RGBA32(4, 2, 16, 170), BF
+    FOR i = 1 TO 8
         y = top + (i - 1) * 16
         SELECT CASE i
             CASE 1 : c$ = "M" ' (the sector: magenta)
             CASE 6 : c$ = "Y" ' (the tp line: yellow, to type)
-            CASE 7 : c$ = "G"
+            CASE 7 : c$ = "F" ' (the frame rate: green)
+            CASE 8 : c$ = "G"
             CASE ELSE : c$ = "C"
         END SELECT
         SELECT CASE c$
             CASE "M" : HudText 9, y, l$(i), _RGB32(255, 110, 220)
             CASE "Y" : HudText 9, y, l$(i), _RGB32(255, 230, 110)
             CASE "G" : HudText 9, y, l$(i), _RGB32(120, 110, 160)
+            CASE "F" : HudText 9, y, l$(i), _RGB32(130, 255, 150)
             CASE ELSE : HudText 9, y, l$(i), _RGB32(170, 230, 255)
         END SELECT
     NEXT
