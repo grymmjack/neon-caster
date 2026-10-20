@@ -803,6 +803,7 @@ SUB ConExec STATIC
                 IF demoRec OR demoPlay THEN DemoStop
                 demoQuit = (LCASE$(DemoWord$(conRest$, 2)) = "quit") : demoName$ = dn$ : DemoPlayStart : conLevelChanged = -1
             END IF
+            IF NOT demoPlay AND LCASE$(DemoWord$(conRest$, 2)) = "quit" THEN SYSTEM 4 ' (it couldn't play - a script waiting on it isn't left at the title: 4, as 3 is out of step)
         CASE "bot", "autopilot" ' bot [on|off]: the autopilot plays (BotThink) - record a demo while it does. bot human 0-100: how human it plays. bot safe on|off: buddha with it
             IF conA$ = "human" THEN
                 IF conB$ <> "" THEN botHuman = MaxOf(0, MinOf(100, VAL(conB$)))

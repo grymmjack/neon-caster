@@ -94,7 +94,7 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
 - **Demos are tests.** `+record NAME [SEED] [quit]` restarts the sector
   and records every frame's input (saves/demos/NAME.ncd, text); `+bot on`
   lets the autopilot play it. `+playdemo NAME quit` replays it and exits 3
-  if it went out of step - a sector still playing frame for frame the same.
+  if it went out of step (4 if it couldn't play at all) - a sector still playing frame for frame the same.
   `NEON_DEMO_TRACE=1` logs each frame's state in both runs: diff the logs
   to find where they part. `NEON_DEMO_FAST=1` plays a demo back uncapped (no `_LIMIT 60`): checking them is quicker. Gameplay dice are `GRnd`, never `RND` (that's
   for looks), and nothing that changes the game may read `TIMER` - use
