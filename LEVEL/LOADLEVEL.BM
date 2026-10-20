@@ -46,7 +46,7 @@ SUB BuildLevel STATIC
     FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
     FOR i = 1 TO MAX_BEAMS : beamT(i) = 0 : NEXT
     FOR i = 1 TO MAX_BLASTS : blastTime(i) = 0 : NEXT
-    FOR i = 1 TO MAX_GIBS : gibLife(i) = 0 : NEXT : FOR i = 1 TO MAX_MON : monBurn(i) = 0 : NEXT : FOR i = 1 TO MAX_DECO : decoBurn(i) = 0 : NEXT : knockX = 0 : knockY = 0 : gasAny = 0 : poisonLeft = 0 : poisonBuild = 0 : FOR i = 0 TO mapN : FOR j = 0 TO mapN : gasAmt(i, j) = 0 : NEXT : NEXT ' (rockets' pieces, fires and knocks, poison fog: gone)
+    FOR i = 1 TO MAX_GIBS : gibLife(i) = 0 : NEXT : FOR i = 1 TO MAX_MON : monBurn(i) = 0 : NEXT : FOR i = 1 TO MAX_DECO : decoBurn(i) = 0 : NEXT : knockX = 0 : knockY = 0 : rocketAir = 0 : gasAny = 0 : poisonLeft = 0 : poisonBuild = 0 : FOR i = 0 TO mapN : FOR j = 0 TO mapN : gasAmt(i, j) = 0 : NEXT : NEXT ' (rockets' pieces, fires and knocks, poison fog: gone)
     levelName$ = lvlName$
     ' Its pictures - only those that aren't already in their slots (texFile$)
     texNew = 0

@@ -41,6 +41,11 @@ DIM SHARED boltTgt(MAX_BOLTS) AS INTEGER ' (a missile: the monster it's after - 
 ' A blast knocks things away from it: you (knockX, knockY a frame, easing
 ' off - and up, if it's under you: a rocket jump) and the monsters near it
 DIM SHARED knockX AS SINGLE, knockY AS SINGLE
+' rocketAir: thrown up by a blast - a rocket jump - till you land: you fall
+' at ROCKET_FALL of the usual pull (higher, and slower down), and the
+' landing doesn't hurt
+DIM SHARED rocketAir AS INTEGER
+CONST ROCKET_FALL = 0.5
 ' Fire: a monster a rocket killed burns where it lies, and so does anything
 ' that burns that a blast caught - a crate, a plant, a desk (Flammable) -
 ' for monBurn / decoBurn frames

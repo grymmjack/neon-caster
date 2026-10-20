@@ -88,16 +88,19 @@
         IF playerZ < fz THEN playerZ = fz : playerVZ = 0
         IF liftCell(INT(playerX), INT(playerY)) THEN IF playerZ - fz < MaxOf(0.06, liftSpeed(liftCell(INT(playerX), INT(playerY))) + 0.02) AND playerVZ < 0.03 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down - however fast it goes)
         IF playerZ > fz THEN
-            playerVZ = playerVZ + FALL_G : playerZ = playerZ - playerVZ
+            IF rocketAir THEN playerVZ = playerVZ + FALL_G * ROCKET_FALL ELSE playerVZ = playerVZ + FALL_G ' (a rocket jump: floatier)
+            playerZ = playerZ - playerVZ
             IF playerVZ < 0 AND playerZ > ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.08 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.08 : playerVZ = 0 ' (thrown up: your head on the ceiling)
             IF playerZ <= fz THEN
                 IF liqKind(INT(playerX), INT(playerY)) THEN playerVZ = playerVZ * 0.5 ' (into a liquid: it breaks the fall)
-                IF playerVZ > 0.13 AND NOT dead AND NOT godMode THEN ' (a fall that hurts - about a wall's drop or more: the thud, the jolt; anything less is just a step down, and the footsteps carry on)
+                IF playerVZ > 0.13 AND NOT dead AND NOT godMode AND NOT rocketAir THEN ' (a fall that hurts - not a rocket jump's, you meant that - - about a wall's drop or more: the thud, the jolt; anything less is just a step down, and the footsteps carry on)
                     damage = INT((playerVZ - 0.13) * 260) + 2 : hurtFromX = -1 : hurtFromY = -1 : HurtPlayer
                     PlaySfx sndStep1&, 1 : shake = shake + 8
                 END IF
-                playerZ = fz : playerVZ = 0
+                playerZ = fz : playerVZ = 0 : rocketAir = 0
             END IF
+        ELSE
+            rocketAir = 0 ' (on the ground: a rocket jump's over)
         END IF
         IF fz <= PIT_DEPTH AND playerZ < -0.6 AND NOT dead AND NOT godMode THEN damage = 999 : hurtFromX = -1 : hurtFromY = -1 : HurtPlayer : ShowMsg "You fell into the dark"
     END IF

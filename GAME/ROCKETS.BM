@@ -196,7 +196,7 @@ SUB BlastSized
         p! = 1 - d! / kr!
         dr! = SQR((playerX - bsX) ^ 2 + (playerY - bsY) ^ 2)
         IF dr! > 0.02 THEN knockX = knockX + (playerX - bsX) / dr! * p! * 0.28 : knockY = knockY + (playerY - bsY) / dr! * p! * 0.28
-        IF bsZ < playerZ + 0.35 AND NOT levelFlat THEN playerVZ = MinOf(playerVZ, -0.26 * p!) : playerZ = playerZ + 0.02
+        IF bsZ < playerZ + 0.35 AND NOT levelFlat THEN playerVZ = MinOf(playerVZ, -0.26 * p!) : playerZ = playerZ + 0.02 : rocketAir = -1 ' (a rocket jump: lighter till you land)
     END IF
     dr! = bsR * 1.5 ' (props: further - the chair at the desk you hit goes too)
     FOR j = 1 TO numDecos
