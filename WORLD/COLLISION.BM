@@ -17,7 +17,7 @@ END FUNCTION
 FUNCTION Walkable%(x, y)
     cellX = INT(x) : cellY = INT(y)
     IF cellX < 0 OR cellY < 0 OR cellX >= mapN OR cellY >= mapN THEN EXIT FUNCTION ' (off the map: nowhere to stand)
-    IF diagCorner(cellX, cellY) THEN Walkable% = NOT InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) : EXIT FUNCTION
+    wDiag = 0 : IF diagCorner(cellX, cellY) THEN IF InDiagonalWall(diagCorner(cellX, cellY), x - cellX, y - cellY) THEN EXIT FUNCTION ELSE wDiag = -1 ' (its open half: as a floor - a step, a ceiling - below)
     IF boxOn(cellX, cellY) THEN IF InBox(x, y) THEN EXIT FUNCTION ' (a box: solid where it stands, open round it)
     deco = decoCell(cellX, cellY) : IF cyberOn THEN deco = 0 ' (the network has none)
     IF deco THEN
@@ -31,9 +31,9 @@ FUNCTION Walkable%(x, y)
     END IF
     IF NOT levelFlat AND walkZ > -900 THEN ' Heights: too high a step up, or too little room
         IF floorH(cellX, cellY) > walkZ + STEP_UP THEN EXIT FUNCTION
-        IF ceilH(cellX, cellY) - MaxOf(floorH(cellX, cellY), walkZ) < BODY_H THEN EXIT FUNCTION
+        IF ceilH(cellX, cellY) - MaxOf(floorH(cellX, cellY), walkZ) < BODY_H THEN IF liftCell(cellX, cellY) = 0 THEN EXIT FUNCTION ELSE IF liftMode(liftCell(cellX, cellY)) < LIFT_CRUSHER THEN EXIT FUNCTION ' (a crusher coming down: you can still run out from under it)
     END IF
-    Walkable% = worldMap(cellX, cellY) <= 0 OR doorOpen(cellX, cellY) > 0.8
+    Walkable% = wDiag OR worldMap(cellX, cellY) <= 0 OR doorOpen(cellX, cellY) > 0.8
 END FUNCTION
 
 ' Is map point (x, y) inside a wall (doors don't count)? Like IsWall, but

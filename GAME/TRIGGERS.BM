@@ -48,7 +48,7 @@ SUB RunTriggers STATIC
         other = onPad + 1 : IF onPad MOD 2 = 0 THEN other = onPad - 1
         IF other >= 1 AND other <= numPads THEN
             SpawnSparks playerX, playerY, 0.4, 20, 150, 90, 255
-            playerX = padX(other) + 0.5 : playerY = padY(other) + 0.5 : playerZ = floorH(padX(other), padY(other)) : eyeZ = playerZ + EYE_H : playerVZ = 0
+            playerX = padX(other) + 0.5 : playerY = padY(other) + 0.5 : playerZ = floorH(padX(other), padY(other)) : eyeZ = playerZ + EYE_H : playerVZ = 0 : knockX = 0 : knockY = 0 : rocketAir = 0 ' (still: no blast's push carried through)
             SpawnSparks playerX, playerY, 0.4, 30, 150, 90, 255
             PlaySfx sndTeleport&, 1 : pickFlash = 16 : padReady = 0
             IF NOT padFlown(onPad) THEN padFlown(onPad) = -1 : AchAdd "Teleports", 1 ' (each pad once a visit: hopping back and forth doesn't count)

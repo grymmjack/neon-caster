@@ -441,6 +441,19 @@ SUB BuildLevel STATIC
         IF ceilH(x, y) < floorH(x, y) + 0.25 THEN ceilH(x, y) = floorH(x, y) + 0.25 ' (never through the floor)
         IF floorH(x, y) <> 0 OR ceilH(x, y) <> 1 THEN levelFlat = 0
     NEXT : NEXT
+    ' A diagonal's open half sunk below the floors it opens onto (sector 9's
+    ' raised band: you fell in and couldn't climb out) - up to the higher of them
+    FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
+        IF diagCorner(x, y) > 0 THEN
+            dk = diagCorner(x, y) : dnx = x + 1 : dny = y + 1 ' (the open half faces away from the solid corner: 1 top-left solid, open to the right and below)
+            IF dk = 2 OR dk = 3 THEN dnx = x - 1
+            IF dk = 3 OR dk = 4 THEN dny = y - 1
+            dh = -99
+            IF worldMap(dnx, y) <= 0 AND diagCorner(dnx, y) = 0 THEN dh = MaxOf(dh, floorH(dnx, y))
+            IF worldMap(x, dny) <= 0 AND diagCorner(x, dny) = 0 THEN dh = MaxOf(dh, floorH(x, dny))
+            IF dh > floorH(x, y) + STEP_UP THEN floorH(x, y) = dh : IF ceilH(x, y) < dh + BODY_H THEN ceilH(x, y) = dh + BODY_H
+        END IF
+    NEXT : NEXT
     ' The lifts: their cells start at their low height
     numLifts = 0
     FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : liftCell(x, y) = 0 : NEXT : NEXT

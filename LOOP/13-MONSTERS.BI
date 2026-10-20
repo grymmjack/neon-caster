@@ -40,7 +40,7 @@
         ' Kicked over the edge of a pit with no bottom (it never walks off
         ' one): gone into the dark
         IF monsterState(i) < 2 AND NOT levelFlat THEN
-            IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH AND mtypeLift(monsterType(i)) = 0 AND monFly(i) = 0 THEN target = i : hitDamage = 9999 : HitMonster : ShowMsg "Over the edge!" : Achieve "NC_OVER_EDGE", 0
+            IF floorH(INT(monsterX(i)), INT(monsterY(i))) <= PIT_DEPTH AND mtypeLift(monsterType(i)) = 0 AND monFly(i) = 0 AND liftCell(INT(monsterX(i)), INT(monsterY(i))) = 0 THEN target = i : hitDamage = 9999 : HitMonster : ShowMsg "Over the edge!" : Achieve "NC_OVER_EDGE", 0
         END IF
         ' Knocked into a harmful liquid (it never walks into one): it hurts
         ' as it does you - but not what hovers over it

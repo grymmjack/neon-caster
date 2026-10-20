@@ -68,10 +68,10 @@
         IF playerZ < -1.4 THEN playerZ = -1.4
         IF playerZ > H_MAX * H_STEP + 0.5 THEN playerZ = H_MAX * H_STEP + 0.5 ' (as high as a sector goes: 30 walls, and a little over)
         IF NOT editMode THEN ' (in play: your eye stays under the ceiling - above it the room isn't drawn - and the floor still holds you up)
-            IF playerZ > ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.05 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.05
+            IF playerZ > ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 ' (room to move on: Walkable wants BODY_H)
             IF playerZ < floorH(INT(playerX), INT(playerY)) THEN playerZ = floorH(INT(playerX), INT(playerY))
         END IF
-        playerVZ = 0
+        playerVZ = 0 : rocketAir = 0
     ELSEIF NOT levelFlat THEN
         ' Just dropped off something higher, and still hanging over its edge?
         ' Slide off it - else its rim, more than a step up, blocks every move
@@ -86,11 +86,11 @@
         fz = floorH(INT(playerX), INT(playerY))
         IF liqKind(INT(playerX), INT(playerY)) AND NOT cyberOn THEN fz = MaxOf(fz, liqZ(INT(playerX), INT(playerY)) - LQ_FULL) ' (in deep liquid you float, your head above it)
         IF playerZ < fz THEN playerZ = fz : playerVZ = 0
-        IF liftCell(INT(playerX), INT(playerY)) THEN IF playerZ - fz < MaxOf(0.06, liftSpeed(liftCell(INT(playerX), INT(playerY))) + 0.02) AND playerVZ < 0.03 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down - however fast it goes)
+        IF liftCell(INT(playerX), INT(playerY)) THEN IF playerZ - fz < MaxOf(0.06, liftSpeed(liftCell(INT(playerX), INT(playerY))) + 0.02) AND playerVZ < 0.03 AND playerVZ >= 0 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down - however fast it goes)
         IF playerZ > fz THEN
             IF rocketAir THEN playerVZ = playerVZ + FALL_G * ROCKET_FALL ELSE playerVZ = playerVZ + FALL_G ' (a rocket jump: floatier)
             playerZ = playerZ - playerVZ
-            IF playerVZ < 0 AND playerZ > ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.08 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - EYE_H - 0.08 : playerVZ = 0 ' (thrown up: your head on the ceiling)
+            IF playerVZ < 0 AND playerZ > ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 : playerVZ = 0 ' (thrown up: your head on the ceiling)
             IF playerZ <= fz THEN
                 IF liqKind(INT(playerX), INT(playerY)) THEN playerVZ = playerVZ * 0.5 ' (into a liquid: it breaks the fall)
                 IF playerVZ > 0.13 AND NOT dead AND NOT godMode AND NOT rocketAir THEN ' (a fall that hurts - not a rocket jump's, you meant that - - about a wall's drop or more: the thud, the jolt; anything less is just a step down, and the footsteps carry on)
@@ -102,7 +102,7 @@
         ELSE
             rocketAir = 0 ' (on the ground: a rocket jump's over)
         END IF
-        IF fz <= PIT_DEPTH AND playerZ < -0.6 AND NOT dead AND NOT godMode THEN damage = 999 : hurtFromX = -1 : hurtFromY = -1 : HurtPlayer : ShowMsg "You fell into the dark"
+        IF fz <= PIT_DEPTH AND playerZ < -0.6 AND NOT dead AND NOT godMode AND liftCell(INT(playerX), INT(playerY)) = 0 THEN damage = 999 : hurtFromX = -1 : hurtFromY = -1 : HurtPlayer : ShowMsg "You fell into the dark"
     END IF
     ' A burning floor (molten metal, lava): it hurts while you stand in it
     IF burnWait > 0 THEN burnWait = burnWait - 1

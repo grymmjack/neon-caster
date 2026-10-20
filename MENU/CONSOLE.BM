@@ -473,6 +473,7 @@ SUB ConExec STATIC
                 ConPrint "tp x y [angle in degrees]"
             ELSE
                 playerX = MaxOf(1.01, MinOf(mapN - 1.01, VAL(conA$))) : playerY = MaxOf(1.01, MinOf(mapN - 1.01, VAL(conB$))) ' (on the map)
+                IF NOT flyMode THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H ' (on its floor: no fall from where you were)
                 IF conC$ <> "" THEN ang = VAL(conC$) * 3.14159265 / 180 : dirX = DCos(ang) : dirY = DSin(ang) : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
                 ConPrint "At" + STR$(playerX) + STR$(playerY)
             END IF
