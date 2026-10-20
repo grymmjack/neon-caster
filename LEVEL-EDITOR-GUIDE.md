@@ -299,7 +299,7 @@ U W Z V < > ^ v
 | `!` | Sealed door | Opens when the nearest data station `@` is hacked |
 | `E` | **The exit** | Never opens; Space on it ends the level. Gets a green pulsing light. |
 
-**Pickups.** Up to 64 per level.
+**Pickups.** Up to 64 per level (160 in a sector over 64 cells across).
 
 | Char | Pickup | | Char | Pickup |
 | --- | --- | --- | --- | --- |
@@ -316,7 +316,7 @@ U W Z V < > ^ v
 
 Each gun has its own ammo: cells for the blaster, shells for the scatter gun, rounds for the repeater, slugs for the railgun, rockets for the launcher. Cells that come out of something - loot, a monster's drop, a prize - come out as ammo for one of the guns you have that shoot energy (the blaster, the repeater, the railgun); cells you place stay cells.
 
-**Monsters.** Up to 64 per level, counting ones events spawn.
+**Monsters.** Up to 64 per level, counting ones events spawn (128 in a sector over 64 cells across).
 
 | Char | Monster | Hits to kill |
 | --- | --- | --- |
@@ -338,7 +338,7 @@ Each gun has its own ammo: cells for the blaster, shells for the scatter gun, ro
 | `_` | turret, in the floor | the same, rising out of the floor |
 | `\|` | turret, in a wall | the same, sliding out of a wall beside its cell at chest height (it can only turn so far from the wall). With no wall beside it, it's a floor turret. Any turret's WEAPON is set in its pane: plasma, laser, lightning, flame, poison, acid or missiles |
 
-**Decorations.** Up to 64 per level. They block your way, and most can be shot to pieces.
+**Decorations.** Up to 64 per level (160 in a sector over 64 cells across). They block your way, and most can be shot to pieces.
 
 | Char | Thing | | Char | Thing |
 | --- | --- | --- | --- | --- |
@@ -683,7 +683,7 @@ The editor trusts you: it saves a level with no start, no exit or a gap in its w
 - [ ] A map pickup `M` somewhere, or the minimap never appears
 - [ ] Picture names in the file are spelled right (a wrong one in `walls =`, `floors =` or `ceilings =` quits the game; in `[faces]` it's just ignored)
 
-**The other sets.** NEW SECTORS and OLD SECTORS NEW are plain level files too, in `neon-caster/levels/new/` and `remix/`. Play one and press F2, and the editor edits that set's file (Ctrl+S saves it there). They're built by `newsectors.py` and `remaster.py`, and their `--write` rewrites all ten, so copy a change you want to keep into the script first.
+**The other sets.** NEW SECTORS, OLD SECTORS NEW and HUGE SECTORS are plain level files too, in `neon-caster/levels/new/`, `remix/` and `huge/`. Play one and press F2, and the editor edits that set's file (Ctrl+S saves it there). They're built by `newsectors.py`, `remaster.py` and `hugesectors.py`, and their `--write` rewrites all ten, so copy a change you want to keep into the script first.
 
 **Check it with the level kit.** `levels.py --check` only checks the game's own ten sectors, but its checker works on one of yours too. From `neon-caster/levels/`:
 

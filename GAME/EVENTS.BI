@@ -26,7 +26,7 @@
 ' frames to the next. monsterEv(i) is the event that sent monster i (0
 ' if it was always there). A locked door (doorLock) stays shut - Space
 ' won't open it, nor will monsters.
-CONST MAX_EVENTS = 16
+CONST MAX_EVENTS = 32
 CONST EV_AMBUSH = 1, EV_SURVIVE = 2, EV_TRAP = 3, EV_GALLERY = 4, EV_NEST = 5
 ' ...and more (see chapter 22's Part 4 for what a and b are for each):
 '   EV_CLOSET   walk in and the secret walls (%) round the room slide away,

@@ -15,7 +15,7 @@
 ' and "repeat" after it to go off every time (else just once).
 ' trig...: each one taken apart (TakeTrigger); trigWas: you were in it
 ' last frame (an enter goes off as you step in, not while you stand there).
-CONST MAX_TRIGS = 48
+CONST MAX_TRIGS = 96
 DIM SHARED lvlNumTrigs AS INTEGER, lvlTrig$(MAX_TRIGS)
 DIM SHARED numTrigs AS INTEGER, trigWhen$(MAX_TRIGS), trigX0(MAX_TRIGS) AS INTEGER, trigY0(MAX_TRIGS) AS INTEGER, trigX1(MAX_TRIGS) AS INTEGER, trigY1(MAX_TRIGS) AS INTEGER
 DIM SHARED trigRepeat(MAX_TRIGS) AS INTEGER, trigDone(MAX_TRIGS) AS INTEGER, trigWas(MAX_TRIGS) AS INTEGER, trigCmd$(MAX_TRIGS)

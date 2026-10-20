@@ -14,7 +14,7 @@
 ' MON_ = MONster settings shared by every monster: MON_TYPES kinds of monster,
 ' MON_SIGHT how far away (in cells) they notice you, MON_DYING how many
 ' frames one takes to collapse when killed
-CONST MAX_MON = 128, MON_TYPES = 16 ' (a level places up to 64 - the level kit checks - and its event rooms, nests and the network bring more)
+CONST MAX_MON = 192, MON_TYPES = 16 ' (a level places up to 64 - 128 in a sector over 64 cells across: the level kit checks - and its event rooms, nests and the network bring more)
 CONST MT_ICE = 10 ' (ICE: the network's hunter programs - only in the network, chapter 19)
 CONST MT_THIEF = 9 ' (the thief bot: steals, then runs - ThiefStep, chapter 13)
 ' The newer ones: a laser sniper, a trooper with a burst rifle, the ripper

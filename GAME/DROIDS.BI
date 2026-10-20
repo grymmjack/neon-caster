@@ -12,7 +12,7 @@
 ' 2 the dome droid; droidState 0 deciding, 1 rolling to (droidTX, droidTY),
 ' 2 at work (droidWork: the decoration it's seeing to, or 0), 3 scuttling
 ' off; droidHP 0: broken.
-CONST MAX_DROIDS = 6, DROID_SPEED = 0.02, DROID_HP = 4
+CONST MAX_DROIDS = 12, DROID_SPEED = 0.02, DROID_HP = 4
 DIM SHARED droidX(MAX_DROIDS) AS SINGLE, droidY(MAX_DROIDS) AS SINGLE, droidA(MAX_DROIDS) AS SINGLE, numDroids AS INTEGER
 DIM SHARED droidKind(MAX_DROIDS) AS INTEGER, droidState(MAX_DROIDS) AS INTEGER, droidTimer(MAX_DROIDS) AS INTEGER, droidHP(MAX_DROIDS) AS INTEGER
 DIM SHARED droidTX(MAX_DROIDS) AS SINGLE, droidTY(MAX_DROIDS) AS SINGLE, droidWork(MAX_DROIDS) AS INTEGER, droidZ(MAX_DROIDS) AS SINGLE, drSeed AS DOUBLE

@@ -197,9 +197,10 @@ SUB ConExec STATIC
                     CASE "0", "original", "old", "game" : ns = 0
                     CASE "1", "new" : ns = 1
                     CASE "2", "remix", "oldnew", "remaster" : ns = 2
+                    CASE "3", "huge", "big" : ns = 3
                 END SELECT
                 IF ns < 0 THEN
-                    ConPrint "sectorset 0|1|2 (original, new, remix)"
+                    ConPrint "sectorset 0|1|2|3 (original, new, remix, huge)"
                 ELSEIF ns > 0 AND LEN(SetSectorName$(ns, 1)) = 0 THEN
                     ConPrint "sectorset: " + SetName$(ns) + " isn't there (levels/" + SetDir$(ns) + ")"
                 ELSE
@@ -1218,7 +1219,7 @@ SUB ConHelp(c$)
         ' --- sectors
         CASE "map", "level", "sector" : ConPrint "^3map N (1-" + LTRIM$(STR$(NUM_LEVELS)) + ", yours from" + STR$(NUM_LEVELS + 1) + ") or map NAME (part of one)^0: go to that sector, keeping what you carry"
         CASE "maps", "levels", "sectors" : ConPrint "^3maps^0: every sector there is - this set's ten (sectorset changes them), then yours"
-        CASE "sectorset", "campaign", "set10" : ConPrint "^3sectorset 0|1|2 (original, new, remix)^0: which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS or OLD SECTORS NEW. sectorset on its own: which it is"
+        CASE "sectorset", "campaign", "set10" : ConPrint "^3sectorset 0|1|2|3 (original, new, remix, huge)^0: which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS or OLD SECTORS NEW. sectorset on its own: which it is"
         CASE "restart", "reset" : ConPrint "^3restart^0: this sector again from its start - with what you started the game with"
         CASE "mapsize" : ConPrint "^3mapsize [N]^0: the sector's map N x N cells (16 to" + STR$(MAP_SIZE) + "; the game's are 48) - grown with wall all round, or cut down. savelevel keeps it"
         CASE "resetlevel" : ConPrint "^3resetlevel^0: the sector as it starts - monsters, doors, pickups back - as it is now in the editor, and you where you are"

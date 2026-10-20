@@ -7,7 +7,7 @@
 
 ' Decorations moved off their cell's middle (lvlNudge: x, y, then how far
 ' across and down, in eighths) - one in an alcove, against a wall
-CONST MAX_NUDGES = 64
+CONST MAX_NUDGES = 160
 DIM SHARED lvlNumNudges AS INTEGER, lvlNudge(MAX_NUDGES, 5) AS SINGLE ' (5: which way it faces, flat - 0 it turns to face you, 1-4 east, south, west, north)
 ' --- Decorations: 1 barrel, 2 lamp, 3 plant, 4 terminal. You, monsters and
 ' bolts can't pass through them. Shoot one and it breaks: a barrel blows up
@@ -16,7 +16,7 @@ DIM SHARED lvlNumNudges AS INTEGER, lvlNudge(MAX_NUDGES, 5) AS SINGLE ' (5: whic
 ' DECO_ = settings for decorations: DECO_RADIUS is how far from its middle a
 ' decoration blocks you (in cells), DECO_BREAK_FRAMES how long a broken one
 ' takes to collapse
-CONST MAX_DECO = 64, DECO_RADIUS = 0.3, DECO_BREAK_FRAMES = 14
+CONST MAX_DECO = 160, DECO_RADIUS = 0.3, DECO_BREAK_FRAMES = 14
 DIM SHARED decoX(MAX_DECO) AS SINGLE, decoY(MAX_DECO) AS SINGLE, decoKind(MAX_DECO) AS INTEGER
 DIM SHARED decoOn(MAX_DECO) AS INTEGER, decoFuse(MAX_DECO) AS INTEGER, numDecos AS INTEGER
 ' decoCharge: how charged a spawner is, 0..1 (0 = asleep), and decoBurst:

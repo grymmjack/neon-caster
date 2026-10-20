@@ -15,7 +15,7 @@
 ' Each frame (MoveLifts) its cells' floorH is set to where it is (liftZ),
 ' so standing, falling and drawing all just follow it; OpenGL draws it
 ' each frame, like a door (GLLifts), not in the world mesh.
-CONST MAX_LIFTS = 16
+CONST MAX_LIFTS = 32
 DIM SHARED numLifts AS INTEGER, liftCell(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED liftX0(MAX_LIFTS) AS INTEGER, liftY0(MAX_LIFTS) AS INTEGER, liftX1(MAX_LIFTS) AS INTEGER, liftY1(MAX_LIFTS) AS INTEGER
 DIM SHARED liftLow(MAX_LIFTS) AS SINGLE, liftHigh(MAX_LIFTS) AS SINGLE, liftMode(MAX_LIFTS) AS INTEGER, liftSpeed(MAX_LIFTS) AS SINGLE

@@ -911,8 +911,9 @@ def validate(rows, name="map", want_exit=True, pairs=()):
     count = lambda s: sum(1 for r in g for c in r if c in s)
     info = "%s: %d monsters, %d items, %d deco, keys %s, reach %d cells" % (
         name, count(MONS), count(ITEMS), count(DECO), "".join(sorted(keys)) or "-", len(reach))
-    if count(MONS) > 64 or count(ITEMS) > 64 or count(DECO) > 64:
-        errs.append("too many things (max 64 each)")
+    big = N > 64  # (a sector over 64 cells across has room for more: the game's MAX_MON, MAX_ITEMS, MAX_DECO)
+    if count(MONS) > (128 if big else 64) or count(ITEMS) > (160 if big else 64) or count(DECO) > (160 if big else 64):
+        errs.append("too many things (max %s each)" % ("128 monsters, 160 pickups and decorations" if big else "64"))
     return errs, warns + [info]
 
 
@@ -1205,8 +1206,8 @@ def check_level(lv, assets=None):
             errs.append("event %s: a nest needs spawners (S) in its room" % (e,))
         if kind in (1, 2) and not any(c in DOORS for r in lv["rows"][max(0, y0 - 5):y1 + 6] for c in r[max(0, x0 - 5):x1 + 6]):
             warns.append("event %s: no doors to lock round its room" % (e,))
-    if len(lv.get("events", [])) > 16:
-        errs.append("too many events (max 16)")
+    if len(lv.get("events", [])) > (32 if N > 64 else 16):
+        errs.append("too many events (max %d)" % (32 if N > 64 else 16))
     if len(lv.get("lights", [])) > 256:
         errs.append("too many lights (%d, max 256: RENDER/LIGHT.BI's MAX_LIGHTS)" % len(lv["lights"]))
     errs += check_liquid(lv)

@@ -399,6 +399,20 @@ Station's hub, coolant in the Reactor's bowl, the Foundry's pillars lit
 like fire, neon adverts on the Maglev's platforms, red pillars round the
 overseer.
 
+**HUGE SECTORS** (GAME > HUGE SECTORS, `levels/huge/`) are ten big ones,
+112 to 192 cells across, built by `levels/hugesectors.py` from districts:
+a grid of blocks, some merged into great halls, joined along a spanning
+tree with some loops, and three keycard doors splitting the way to the
+exit into stretches (loops only inside a stretch, so no key is skipped).
+Each district gets a floor height (stairs between them), a shape (notched,
+a cross, an octagon, a stepped dais, buildings standing in a plaza, a
+mezzanine) and a kind from its sector's theme - plazas under the sky,
+offices, warehouses, flooded halls, labs, reactors, server farms, gardens,
+turret towers with a lift up to a platform, arenas that lock round you as
+held turrets come out of the walls. The campaign's dressers then add
+closets, windows, lasers, plates, a hoard, a data station, teleporters, a
+code terminal and a secret stash, and the level kit checks every one.
+
 Each set is played 1 to 10 on its own (`sectorset 0|1|2` in the console
 picks one for `map`), and a save remembers its set. Both scripts check
 what they build with the level kit, as `levels.py` does - `--write` to
@@ -639,7 +653,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/programs/` | programs the computers in a level can run (`program NAME` in a trigger): `invaders.bas`, NEON INVADERS - copy it and make your own |
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
 | `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22), the level kit that builds and checks them (`levels.py`, `lvlkit.py`), the showcase sectors' builder (`showcase.py`), the other sets' builders (`newsectors.py`, `remaster.py`) and the skies' painter (`skies.py`) |
-| `neon-caster/levels/new/`, `remix/` | NEW SECTORS and OLD SECTORS NEW, `level1.txt`... each |
+| `neon-caster/levels/new/`, `remix/`, `huge/` | NEW SECTORS, OLD SECTORS NEW and HUGE SECTORS, `level1.txt`... each |
 | `neon-caster/levels/custom/` | your own sectors (`customN.txt` is sector 10+N), made by NEW SECTOR - the level kit leaves them alone; 1-11 are the showcase sectors (19-21 outdoors), 14 is THE NEON EXPO (sector 24: every feature in one, built by `levels/megasector.py`) |
 | `neon-caster/puzzles/` | the code terminals' QB64 programs, one a file (`README.txt` says how to write one) |
 | `neon-caster/achievements/` | each achievement's badge (`NAME.png`) and its grey, locked one (`NAME_locked.png`) |

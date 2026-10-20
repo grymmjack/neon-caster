@@ -35,7 +35,7 @@ DIM SHARED suitLeft AS SINGLE ' (what's left of your suit: 0 none - lost when yo
 DIM SHARED nvHave AS SINGLE, nvOn AS INTEGER ' (night vision: whether you have a headset (1), and whether it's on - ApplyNight, and OpenGL's post shader's "night")
 CONST MAX_OVER = 200, AMP_FRAMES = 1800
 ' MAX_ = the most there can be: the arrays below have room for this many
-CONST MAX_ITEMS = 128
+CONST MAX_ITEMS = 256
 DIM SHARED itemX(MAX_ITEMS) AS SINGLE, itemY(MAX_ITEMS) AS SINGLE
 DIM SHARED itemKind(MAX_ITEMS) AS INTEGER, itemOn(MAX_ITEMS) AS INTEGER, numItems AS INTEGER
 ' Loot tossed out of something broken (TossItem) flies for itemToss more

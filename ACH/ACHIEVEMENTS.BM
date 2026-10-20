@@ -186,7 +186,7 @@ SUB AchSetup
     AchDef "NC_ESCAPED", "You Escaped", "Finish the original ten sectors.", 0, "", 0
     AchDef "NC_NEW_BLOOD", "New Blood", "Finish all ten NEW SECTORS.", 0, "", 0
     AchDef "NC_REMASTERED", "Old Haunts, New Paint", "Finish all ten OLD SECTORS NEW.", 0, "", 0
-    AchDef "NC_FULL_TOUR", "The Full Tour", "Finish all three sets of ten.", 0, "SetsDone", 3
+    AchDef "NC_FULL_TOUR", "The Full Tour", "Finish three sets of ten.", 0, "SetsDone", 3
     AchDef "NC_OVERSEER", "Flesh to Steel", "Destroy the overseer.", 0, "", 0
     AchDef "NC_EXPO", "Every Wonder", "Finish THE NEON EXPO (sector 24).", 0, "", 0
     AchDef "NC_SHOWCASE", "Gallery Visitor", "Finish five of the showcase sectors.", 0, "Showcases", 5

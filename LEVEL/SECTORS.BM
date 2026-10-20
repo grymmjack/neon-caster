@@ -106,6 +106,7 @@ FUNCTION SetDir$(s)
     SELECT CASE s
         CASE 1 : SetDir$ = "new/"
         CASE 2 : SetDir$ = "remix/"
+        CASE 3 : SetDir$ = "huge/"
         CASE ELSE : SetDir$ = ""
     END SELECT
 END FUNCTION
@@ -115,6 +116,7 @@ FUNCTION SetName$(s)
     SELECT CASE s
         CASE 1 : SetName$ = "NEW SECTORS"
         CASE 2 : SetName$ = "OLD SECTORS NEW"
+        CASE 3 : SetName$ = "HUGE SECTORS"
         CASE ELSE : SetName$ = "THE ORIGINAL TEN"
     END SELECT
 END FUNCTION

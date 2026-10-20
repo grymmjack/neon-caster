@@ -155,10 +155,12 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   `cd neon-caster/levels && python3 levels.py --check` (or `--write`, which
   overwrites all ten - never after hand or editor edits). Running it with no
   flag just builds and checks in memory.
-- Two more sets of ten, picked in GAME (sectorSet 1, 2): NEW SECTORS
+- Three more sets of ten, picked in GAME (sectorSet 1, 2, 3): NEW SECTORS
   `levels/new/levelN.txt` by `newsectors.py`, OLD SECTORS NEW
-  `levels/remix/levelN.txt` by `remaster.py` (built from the originals).
-  Both take `--write` / `--check` like levels.py; `--write` rewrites all ten
+  `levels/remix/levelN.txt` by `remaster.py` (built from the originals),
+  HUGE SECTORS `levels/huge/levelN.txt` by `hugesectors.py` (112-192 cells:
+  districts on a grid, each sector in its own process with `lvlkit.N` its
+  size, seeds tried until the kit passes it). All take `--write` / `--check` like levels.py; `--write` rewrites all ten
   of its set. Test one with `+sectorset new +map 3` (or `remix`); saves keep
   the set as 100 a set on in the sector number.
 - Teleport tests: a `+use` on the exit stalls the command queue in the

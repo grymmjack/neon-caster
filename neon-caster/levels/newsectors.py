@@ -216,10 +216,8 @@ class Sector(Show):
 
 
 def hstr(e):
-    """The [floor]/[ceiling] character for e eighths."""
-    if e == 0: return "."
-    if e > 0: return camp.HUP[e]
-    return "ABCDEFGH"[-e - 1]
+    """The [floor]/[ceiling] character for e eighths (the kit's: past z too)."""
+    return lvlkit.hchar(e)
 
 
 def tight_blocks(m):

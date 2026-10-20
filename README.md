@@ -1,9 +1,9 @@
 # NEON-CASTER
 
 A first-person shooter in QB64 Phoenix Edition BASIC, and a course in
-how it's made. Thirty sectors of a neon space station in three
-sets of ten - the originals, ten NEW SECTORS, and OLD SECTORS NEW (the
-first ten remade) - sixteen kinds of monster (turrets with seven weapons among them), five guns - a rocket launcher the fifth - and a kick, glass you can shoot through, floors and
+how it's made. Forty sectors of a neon space station in four
+sets of ten - the originals, ten NEW SECTORS, OLD SECTORS NEW (the
+first ten remade) and ten HUGE SECTORS, up to 192 cells across - sixteen kinds of monster (turrets with seven weapons among them), five guns - a rocket launcher the fifth - and a kick, glass you can shoot through, floors and
 ceilings at every height, lifts and bottomless pits, open skies, teleporters, data
 stations that turn the level into a wireframe network, code terminals that
 lock you in until you fix a real QB64 program, DOOM-style secrets in
@@ -77,7 +77,12 @@ alcoves with terminals glowing in them), water, slime, poison, acid and
 lava, loot in the breakables, lockdowns that slam shut, rooftops under a
 storm, and the overseer at the end. **GAME > OLD SECTORS NEW** is the
 first ten again, remade with all of that - same maps and routes, new
-detail. Each set runs 1 to 10 on its own, and a save remembers which set
+detail. **GAME > HUGE SECTORS** is ten big ones, 112 to 192 cells across:
+districts of every kind - plazas under the sky, office floors, flooded
+halls, reactors, server farms, gardens, turret towers with lifts, arenas
+that lock round you while the turrets come out of the walls - three
+keycards on the way to each exit, and a field boss waiting at the end of
+the later ones. Each set runs 1 to 10 on its own, and a save remembers which set
 it's from.
 
 **Make your own:** **GAME > YOUR SECTORS > NEW SECTOR** gives you a
