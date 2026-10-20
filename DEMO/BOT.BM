@@ -63,6 +63,7 @@ SUB BotThinkRaw STATIC
     IF lvFrame < botFrameWas THEN ' (the sector started again - its clock back to 0: what it had ruled out, and when, is from before - forgotten)
         FOR by = 0 TO mapN - 1 : FOR bx = 0 TO mapN - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
         FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : botSawAt(bi) = 0 : NEXT
+        FOR bi = 1 TO MAX_ITEMS : botItemIgnore(bi) = 0 : NEXT
         botNX = 0 : botStuck = 0 : botCheckAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0 : botBest = BOT_FAR : botBestAt = 0 : botNowhereAt = 0
         FOR bk = 0 TO 5 : botKeyAt(bk) = 0 : botKeyState(bk) = 0 : NEXT
         botTurnLeft = 0 : botLookAmp = 0 : botTurnPrev = 0 : botTarget = 0 : botTargetSeen = 0 : botBackOn = 0 : botStrafeAt = 0 : botBurstAt = 0 : botPauseUntil = 0 : botReactAt = 0
@@ -279,7 +280,7 @@ SUB BotPlan STATIC
             IF health < 60 THEN ' Hurt: a medkit it's seen - further, the more it's hurt
                 BotClear
                 FOR bi = 1 TO numItems
-                    IF itemOn(bi) AND (itemKind(bi) = IT_HEALTH OR itemKind(bi) = IT_BIGMED) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+                    IF itemOn(bi) AND botItemIgnore(bi) <= lvFrame AND (itemKind(bi) = IT_HEALTH OR itemKind(bi) = IT_BIGMED) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
                 NEXT
                 BotField bpass
                 IF botDist(bcx, bcy) < 15 + (60 - MaxOf(0, health)) THEN botMode = 3 : EXIT FOR
@@ -288,14 +289,14 @@ SUB BotPlan STATIC
             IF ammoCount(AM_CELLS) < 10 AND ammoCount(AM_SHELLS) < 4 AND ammoCount(AM_ROUNDS) < 15 THEN ' Low on ammo: some it's seen - near, or anywhere with nothing to fire
                 BotClear
                 FOR bi = 1 TO numItems
-                    IF itemOn(bi) AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_ROUNDS OR itemKind(bi) = IT_SLUGS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+                    IF itemOn(bi) AND botItemIgnore(bi) <= lvFrame AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_ROUNDS OR itemKind(bi) = IT_SLUGS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
                 NEXT
                 BotField bpass
                 IF botDist(bcx, bcy) < 30 OR (botDist(bcx, bcy) < BOT_FAR AND bNone) THEN botMode = 5 : EXIT FOR
             END IF
             BotClear ' Anything worth having it's seen, close by - as you'd pick a room clean
             FOR bi = 1 TO numItems
-                IF itemOn(bi) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN IF BotWants(bi, health, armor) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+                IF itemOn(bi) AND botItemIgnore(bi) <= lvFrame THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN IF BotWants(bi, health, armor) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
             NEXT
             BotField bpass
             IF botDist(bcx, bcy) <= 8 THEN botMode = 8 : EXIT FOR
@@ -359,6 +360,11 @@ SUB BotPlan STATIC
         FOR by = 1 TO mapN - 2 : FOR bx = 1 TO mapN - 2
             IF botDist(bx, by) = 0 THEN botBlock(bx, by) = lvFrame + 3600
         NEXT : NEXT
+        IF botMode = 3 OR botMode = 5 OR botMode = 8 THEN ' (a pickup it can't get: left alone twenty minutes - looking round afresh forgets the cells it ruled out, not this)
+            FOR bi = 1 TO numItems
+                IF itemOn(bi) THEN IF botDist(INT(itemX(bi)), INT(itemY(bi))) = 0 THEN botItemIgnore(bi) = lvFrame + 72000
+            NEXT
+        END IF
         ConPrint "bot: can't get to that (" + ListItem$(BOT_MODES, botMode + 1) + ") - trying something else"
         botBest = BOT_FAR : botBestAt = lvFrame : botMode = 0 : botNX = 0 : EXIT SUB
     END IF

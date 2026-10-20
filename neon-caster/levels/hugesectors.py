@@ -413,6 +413,8 @@ def shape_region(m, rng, kind, b, f, big):
     shape = rng.choice(("box", "notch", "notch", "cross", "octagon", "octagon", "mezzanine", "mezzanine"))
     if big and kind in ("plaza", "garden", "arena", "hall"):
         shape = rng.choice(("dais", "buildings", "buildings", "dais", "octagon"))
+        if kind == "arena":  # (an arena locks down: a building in it, its door sealed too, could shut the ambush's monsters away for good)
+            shape = rng.choice(("dais", "octagon"))
     if W < 10 or H < 10:
         shape = "octagon" if W >= 7 and H >= 7 else "box"
     if shape in ("notch", "cross"):
@@ -771,6 +773,9 @@ def one(k, write):
         if len(lv["lights"]) > 256 or len(lv["triggers"]) > 96 or len(lv["lifts"]) > 32:
             print("  TOO MANY lights/triggers/lifts", len(lv["lights"]), len(lv["triggers"]), len(lv["lifts"]))
             good = False
+        for e in lv["events"]:  # (an ambush seals the doors in its room till it's clear: none inside it, or what it spawns there is shut away for good)
+            if e[0] == 1 and any(lv["rows"][y][x] in "DHXRBY" for y in range(e[2] + 1, e[4]) for x in range(e[1] + 1, e[3])):
+                print("  SEALED: a door inside the ambush room", e[1:5]); good = False
         dry = dry_reach(lv)
         if dry:
             print("  WET: only through lava, acid, poison or fire to:", " ".join(dry))
