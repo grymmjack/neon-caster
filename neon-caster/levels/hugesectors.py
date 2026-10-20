@@ -469,6 +469,70 @@ def shape_region(m, rng, kind, b, f, big):
                     break
 
 
+def dry_pool(m, b, x0, y0, x1, y1, kind, sink, depth):
+    """A pool in the rectangle - but only on cells with open floor two cells
+    round them every way, so a dry walkway always goes round it (a cross's
+    notched corners, a building, a column don't leave it the only way)"""
+    import lvlkit
+    ok = lambda x, y: all(m.g[y + dy][x + dx] not in lvlkit.WALLS and m.g[y + dy][x + dx] not in "/\\DHXRBYE!=|" and not near_way(m, (x, y), b, 2)
+                          for dy in range(-2, 3) for dx in range(-2, 3))
+    for y in range(y0, y1 + 1):
+        x = x0
+        while x <= x1:
+            if not ok(x, y):
+                x += 1
+                continue
+            xa = x
+            while x <= x1 and ok(x, y):
+                x += 1
+            m.pool(xa, y, x - 1, y, kind, sink=sink, depth=depth)
+
+
+def dry_reach(lv):
+    """Can you get to every keycard and the exit without wading through
+    anything that hurts (lava, acid, poison, a burning floor) - by the
+    heights' rules, every door open? The keycards and exit you can't, as a list"""
+    import lvlkit
+    rows = lv["rows"]; N = len(rows)
+    fl = [[lvlkit.hval(c, 0) / 8 for c in r] for r in lv["floor"]]
+    ce = [[lvlkit.hval(c, 8) / 8 for c in r] for r in lv["ceiling"]]
+    lq = lv.get("liquid") or ["." * N] * N
+    ftex = [[1] * N for _ in range(N)]
+    for (x0, y0, x1, y1, f, c, sh) in lv["zones"]:
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                ftex[y][x] = f
+    lifts = {(x, y) for (x0, y0, x1, y1, *_r) in lv.get("lifts", []) for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)}
+    solid = set("#NCKPG/\\%?=@$;|E") | lvlkit.DECO
+    hot = lambda x, y: any(w in lv["floors"][ftex[y][x] - 1] for w in ("molten", "lava")) or lq[y][x] in "lap"
+    st = [(x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c in "<>^v"][0]
+    pads = [(x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c == "&"]
+    seen = {st}
+    q = deque([st])
+    while q:
+        x, y = q.popleft()
+        nb = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+        if (x, y) in pads:  # (pads pair in reading order)
+            i = pads.index((x, y)); nb.append(pads[i ^ 1] if (i ^ 1) < len(pads) else (x, y))
+        for (a, b) in nb:
+            if (a, b) in seen or rows[b][a] in solid or hot(a, b) or fl[b][a] <= -0.99:
+                continue
+            if (x, y) not in lifts and (a, b) not in lifts and fl[b][a] > fl[y][x] + 0.32 and (a, b) not in pads:
+                continue
+            if ce[b][a] - max(fl[b][a], fl[y][x]) < 0.7:
+                continue
+            seen.add((a, b)); q.append((a, b))
+    want = [(c, x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c in "rbyE"]
+    bad = []
+    for (c, x, y) in want:
+        if c == "E":
+            if not any((x + dx, y + dy) in seen for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                bad.append("exit")
+        elif (x, y) not in seen:
+            bad.append(c)
+    return bad
+
+
 def open_cells(m, b):
     x0, y0, x1, y1 = b
     return [(x, y) for y in range(y0 + 1, y1) for x in range(x0 + 1, x1) if m.g[y][x] == "."]
@@ -532,9 +596,9 @@ def dress_region(m, rng, k, th, r, kind, b, f, z, is_start, is_exit):
                 if m.g[y][x] == "." and not near_way(m, (x, y), b, 3):
                     m.column(x, y, size=2, wall=3)
     if kind == "pool" and W >= 9 and H >= 9:
-        m.pool(x0 + 3, y0 + 3, x1 - 3, y1 - 3, th["liquid"], sink=2, depth=2)
+        dry_pool(m, b, x0 + 3, y0 + 3, x1 - 3, y1 - 3, th["liquid"], sink=2, depth=2)
     if kind == "garden" and W >= 9:
-        m.pool(x0 + 4, y0 + 4, x0 + 6, y0 + 6, "w", sink=1, depth=1)
+        dry_pool(m, b, x0 + 4, y0 + 4, x0 + 6, y0 + 6, "w", sink=1, depth=1)
     if kind == "office":
         for y in range(y0 + 4, y1 - 2, 5):
             if all(m.g[y][x] == "." for x in range(x0 + 2, x0 + 7)) and not near_way(m, (x0 + 4, y), b, 3):
@@ -707,7 +771,10 @@ def one(k, write):
         if len(lv["lights"]) > 256 or len(lv["triggers"]) > 96 or len(lv["lifts"]) > 32:
             print("  TOO MANY lights/triggers/lifts", len(lv["lights"]), len(lv["triggers"]), len(lv["lifts"]))
             good = False
-        good = good and not errs and not herrs
+        dry = dry_reach(lv)
+        if dry:
+            print("  WET: only through lava, acid, poison or fire to:", " ".join(dry))
+        good = good and not errs and not herrs and not dry
         if not good:
             print("  (seed %d no good - the next)" % seed)
             continue

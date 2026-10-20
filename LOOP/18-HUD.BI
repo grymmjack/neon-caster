@@ -106,7 +106,7 @@
         MenuText 400, 14, levelName$, 2, _RGB32(255, 100, 215), 1
         fmC = MinOf(10, 480 \ mapN) : mmFull = -1 ' (the whole sector, as big as fits)
         DrawMap 400 - mapN * fmC \ 2, 60, fmC, hasMap, playerX, playerY, dirX, dirY : mmFull = 0
-        IF hasMap THEN mapNote$ = "TAB  CLOSE THE MAP" ELSE mapNote$ = "NO MAP YET - ONLY WHERE YOU'VE BEEN.   TAB  CLOSE"
+        IF hasMap THEN mapNote$ = "THIS SECTOR'S MAP - BRIGHTER WHERE YOU'VE BEEN.   TAB  CLOSE" ELSE mapNote$ = "NO MAP YET - ONLY WHERE YOU'VE BEEN.   TAB  CLOSE"
         MenuText 400, 552, mapNote$, 1, _RGB32(170, 170, 200), 1
     END IF
     IF NOT mapOpen AND hudShow(HE_KILLS) AND NOT (editMode AND NOT hudEdit) THEN HudText hudX(HE_KILLS), killsY, hudLabel$(HE_KILLS) + STR$(kills) + " /" + STR$(numMonsters), HudColor~&(HE_KILLS, _RGB32(255, 90, 90))

@@ -59,6 +59,7 @@ END SUB
 
 SUB BotThinkRaw STATIC
     inBits = 0 : inWheel = 0 : botTurn = 0 : botPitch = 0
+    BotPits
     IF lvFrame < botFrameWas THEN ' (the sector started again - its clock back to 0: what it had ruled out, and when, is from before - forgotten)
         FOR by = 0 TO mapN - 1 : FOR bx = 0 TO mapN - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
         FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : botSawAt(bi) = 0 : NEXT
@@ -476,6 +477,27 @@ END FUNCTION
 ' too low a ceiling, no pit - and unless haz, no fire or harmful liquid.
 ' (A lift: any height - it carries you. A cell the autopilot found itself
 ' stuck at: not for a while.)
+' The death pits' deadly floors (EV_DEATHPIT: a room's lowest floor), as
+' cells the autopilot never steps on - worked out once a sector
+SUB BotPits
+    DIM ev, lo, x, y ' (its own: the main program shares these names)
+    s$ = STR$(sectorSet) + STR$(level) + STR$(numEvents) + STR$(mapN)
+    IF s$ = botPitSig$ AND lvFrame >= botPitFrame THEN EXIT SUB
+    botPitSig$ = s$ : botPitFrame = lvFrame
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : botPit(x, y) = 0 : NEXT : NEXT
+    FOR ev = 1 TO numEvents
+        IF evType(ev) = EV_DEATHPIT THEN
+            lo = 99
+            FOR y = evY0(ev) TO evY1(ev) : FOR x = evX0(ev) TO evX1(ev)
+                IF worldMap(x, y) <= 0 THEN IF floorH(x, y) < lo THEN lo = floorH(x, y)
+            NEXT : NEXT
+            FOR y = evY0(ev) TO evY1(ev) : FOR x = evX0(ev) TO evX1(ev)
+                IF worldMap(x, y) <= 0 AND floorH(x, y) <= lo + 0.01 THEN botPit(x, y) = -1
+            NEXT : NEXT
+        END IF
+    NEXT
+END SUB
+
 FUNCTION BotStep(ax, ay, bx, by, haz)
     DIM d, w ' (its own: the main program shares these names)
     IF bx < 1 OR by < 1 OR bx > mapN - 2 OR by > mapN - 2 THEN EXIT FUNCTION
@@ -489,12 +511,14 @@ FUNCTION BotStep(ax, ay, bx, by, haz)
             IF doorKey(bx, by) THEN IF NOT hasCard(doorKey(bx, by)) THEN EXIT FUNCTION
         END IF
     END IF
-    IF diagCorner(bx, by) OR boxOn(bx, by) OR glassHP(bx, by) > 0 THEN EXIT FUNCTION
+    IF diagCorner(bx, by) OR glassHP(bx, by) > 0 THEN EXIT FUNCTION
+    IF boxOn(bx, by) THEN IF MaxOf(MaxOf(boxX0(bx, by), 1 - boxX1(bx, by)), MaxOf(boxY0(bx, by), 1 - boxY1(bx, by))) < 0.6 THEN EXIT FUNCTION ' (a block: only one that leaves no room to get by - a slim post doesn't)
     d = decoCell(bx, by) : IF cyberOn THEN d = 0 ' (the network has no decorations)
     IF d THEN IF decoOn(d) AND decoKind(d) <> DK_BODY THEN EXIT FUNCTION
     IF NOT levelFlat THEN
-        IF floorH(bx, by) <= PIT_DEPTH THEN EXIT FUNCTION
+        IF floorH(bx, by) <= PIT_DEPTH OR botPit(bx, by) THEN EXIT FUNCTION ' (no bottom - or a death pit's)
         IF liftCell(ax, ay) = 0 AND liftCell(bx, by) = 0 THEN IF floorH(bx, by) > floorH(ax, ay) + STEP_UP THEN EXIT FUNCTION
+        IF liftCell(ax, ay) = 0 AND liftCell(bx, by) = 0 AND liqKind(bx, by) = 0 THEN IF floorH(bx, by) < floorH(ax, ay) - 3 THEN EXIT FUNCTION ' (not off a ledge more than three walls up: a fall like that kills)
         IF ceilH(bx, by) - MaxOf(floorH(bx, by), floorH(ax, ay)) < BODY_H THEN EXIT FUNCTION
     END IF
     IF NOT haz THEN

@@ -7,6 +7,7 @@
 ' The autopilot (bot, the console's - BotThink): it plays, and a demo records it
 CONST BOT_FAR = 32000
 CONST BOT_MODES = "nowhere to go,to the exit,a keycard,a medkit,exploring,ammo,a data station,data cores,picking things up,after a monster"
+DIM SHARED botPit(MAP_SIZE, MAP_SIZE) AS _BYTE, botPitSig$, botPitFrame AS LONG ' (a death pit's deadly floor: BotPits)
 DIM SHARED botOn AS INTEGER, botDist(MAP_SIZE, MAP_SIZE) AS INTEGER, botBlock(MAP_SIZE, MAP_SIZE) AS LONG, botSeen(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED botQ(MAP_SIZE * MAP_SIZE) AS LONG, botQT AS LONG, botTurn AS SINGLE, botMode AS INTEGER, botNX AS INTEGER, botNY AS INTEGER
 DIM SHARED botDeaths AS INTEGER, botWasDead AS INTEGER, botLastX AS SINGLE, botLastY AS SINGLE, botCheckAt AS LONG, botStuck AS INTEGER

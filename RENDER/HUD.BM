@@ -151,8 +151,9 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
             SELECT CASE worldMap(cellX, cellY)
                 CASE 0
                     IF mmFull THEN ' (the full map: the floor - and what's on it that matters, once you've seen it: the map pickup shows the layout, not what's in it)
-                        mmColor~& = _RGBA32(40, 50, 95, 150)
+                        mmColor~& = _RGBA32(26, 32, 62, 150) ' (floor the map pickup showed you, not been to: dim)
                         IF cellSeen(cellX, cellY) THEN
+                            mmColor~& = _RGBA32(58, 74, 140, 170) ' (where you've been: brighter)
                             IF liqKind(cellX, cellY) THEN k = liqKind(cellX, cellY) : mmColor~& = _RGBA32(lqR(k) * 0.7, lqG(k) * 0.7, lqB(k) * 0.7, 210) ' (a pool, its colour: lava orange, acid green...)
                             IF floorH(cellX, cellY) <= PIT_DEPTH THEN mmColor~& = _RGBA32(10, 0, 20, 230) ' (a pit with no bottom: black)
                             IF liftCell(cellX, cellY) THEN mmColor~& = _RGBA32(70, 150, 90, 190) ' (a lift)
