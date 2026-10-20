@@ -2,7 +2,7 @@
 
 NEON-CASTER is a complete first-person shooter in plain QB64PE:
 ten levels, sixteen kinds of monster (one of them a thief, one a turret
-with seven weapons), five guns (the fifth a rocket launcher) and a
+with seven weapons), five guns (the fifth a rocket launcher, each with its own ammo) and a
 kick, doors and keycards, exploding barrels, traps and event rooms, glass
 you can see (and shoot) through, floors and ceilings at different heights
 with lifts and pits, teleporters, data stations that turn the level into a
@@ -105,7 +105,7 @@ commands it runs a frame at a time. `alias` on its own lists them,
 comment) and the game runs it every time it starts.
 
 **Demos.** **DEMO REPLAYS** in the main menu lists every demo - yours
-and the ten that come with the game - and Enter plays one (Esc, then
+and the forty that come with the game, one for every sector of the four sets - and Enter plays one (Esc, then
 STOP DEMO, ends it early). F (or FOLDER) opens the folder yours are kept in,
 `neon-caster/saves/demos`, to copy, rename or delete them. Leave the title menu alone for 15 seconds and
 they play by themselves, one after another, till you press a key. Ctrl+R records one: the sector you're in

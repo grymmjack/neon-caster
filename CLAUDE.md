@@ -101,9 +101,13 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   `lvFrame`. Any change to gameplay can put shipped demos (neon-caster/demos)
   out of step: replay them, and re-record what changed.
   Droids roll by their own dice, `DRnd` (so they never shift `GRnd`).
-  The shipped ten were recorded on the Mac (full speed OpenGL):
-  `+renderer 2 +set look_up_down 1 +wait 30 +map N +record NAME quit +bot on`
-  - without the wait OpenGL isn't up yet and the demo records `look 0`.
+  The shipped demos - one a sector, every set: `sectorN`, `newN`, `remixN`,
+  `hugeN` - were recorded on the Mac (full speed OpenGL):
+  `+renderer 2 +set look_up_down 1 +wait 30 +sectorset SET +map N +record NAME quit +bot on +wait 18000 +stopdemo`
+  - without the wait OpenGL isn't up yet and the demo records `look 0`; the
+  wait-and-stopdemo caps it (5 minutes, 15 for a huge one). A demo needn't
+  reach the exit: one where the bot dies is fine. A demo records god, fly,
+  notarget and buddha, and plays back with them.
 - **Builds use `-f:ExtraCppFlags=-ffp-contract=off`** (CI does): without
   it the Mac fuses multiply-adds and plays a Linux demo differently.
 - **Saving in a `cp -as` copy** replaces the symlinked level file with a real
@@ -126,6 +130,10 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   `neon-caster/saves/errors.log` and the console, then `RESUME NEXT`. Check
   that log when something silently misbehaves.
 - **A console command needs three things** in MENU/CONSOLE.BM: its `CASE` in `ConExec`, a `help` line in `ConHelp` (every alias too, and its place in the overview, 96 characters a line at most), and its name in `ConNames$` (Tab). The three have been checked against each other: keep them so. Console text takes colour codes, Quake's: `^1` red, `^2` green, `^3` yellow (a command's syntax in its help), `^4` blue, `^5` cyan, `^6` magenta, `^7` white, `^8` grey, `^9` orange, `^0` back to the line's own (`ConColour~&`); they take no width, and the log file gets the line without them.
+- **Ammo is per gun**: cells (blaster), shells, rockets, rounds `{` (repeater), slugs `}` (railgun) - `AM_`, `NUM_AMMO`. Dropped or thrown cells go through `LootAmmo` (TossItem, DropItemAt): ammo for one of your energy guns, unless `lootExact` (a thief's cells back, the `item` command). The level kit's `split_ammo` places rounds and slugs in kit-built sectors.
+- **Turrets have states**: `monTMode` (out when it wakes / held in / out), `monEject` (frames to come out), `monTWant`, `monTOff`; the `turret WHO WHAT` command drives them (console or trigger). `[monsters]` columns 10 and 11.
+- **Console scripting**: `alias` (MAX_ALIAS, `AliasRun`, $1-$9 $*), `saves/autoexec.cfg` run at start-up (`ConAutoexec`, before the + commands); `ConSemi` splits at a `;` outside quotes - use it, not INSTR, wherever commands are split.
+- **The autopilot's steps** (`BotStep`) mirror the game's rules: a block passes if it leaves 0.6 of a cell free, no drop of more than 3 walls, no death pit floor (`BotPits`); a pickup it failed to reach is left alone 20 minutes (`botItemIgnore`).
 - Settings are one table (`DefineSetting`); text-valued ones like `qb64pe=`
   are read and written by hand in `LoadSettings`/`SaveSettings`. MODE is
   worked out from the others (`ModeNow`), never loaded.

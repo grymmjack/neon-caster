@@ -3,7 +3,7 @@
 A first-person shooter in QB64 Phoenix Edition BASIC, and a course in
 how it's made. Forty sectors of a neon space station in four
 sets of ten - the originals, ten NEW SECTORS, OLD SECTORS NEW (the
-first ten remade) and ten HUGE SECTORS, up to 192 cells across - sixteen kinds of monster (turrets with seven weapons among them), five guns - a rocket launcher the fifth - and a kick, glass you can shoot through, floors and
+first ten remade) and ten HUGE SECTORS, up to 192 cells across - sixteen kinds of monster (turrets with seven weapons among them), five guns, each with its own ammo - a rocket launcher the fifth - and a kick, glass you can shoot through, floors and
 ceilings at every height, lifts and bottomless pits, open skies, teleporters, data
 stations that turn the level into a wireframe network, code terminals that
 lock you in until you fix a real QB64 program, DOOM-style secrets in
