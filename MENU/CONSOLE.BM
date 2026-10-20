@@ -264,9 +264,9 @@ SUB ConExec STATIC
         CASE "item", "drop" ' item KIND X Y: a pickup appears in cell X Y (KIND: a map character - r b y + * u a e 2 3 4 M q j 8 - or health, armor, cells, shells, medkit, map, goggles...)
             ik = ItemOf(conA$)
             IF ik = 0 OR conC$ = "" THEN
-                ConPrint "item KIND X Y - KIND: health medkit armor cells shells rockets scatter repeater rail launcher map overcharge amp goggles suit red blue yellow (or its map character)"
+                ConPrint "item KIND X Y - KIND: health medkit armor cells shells rounds slugs rockets scatter repeater rail launcher map overcharge amp goggles suit red blue yellow (or its map character)"
             ELSE
-                DropItemAt ik, VAL(conB$) + 0.5, VAL(conC$) + 0.5 : SfxAt sndTeleport&, VAL(conB$) + 0.5, VAL(conC$) + 0.5, playerX, playerY
+                lootExact = -1 : DropItemAt ik, VAL(conB$) + 0.5, VAL(conC$) + 0.5 : lootExact = 0 : SfxAt sndTeleport&, VAL(conB$) + 0.5, VAL(conC$) + 0.5, playerX, playerY
             END IF
         CASE "loot" ' What breakables leave in this sector: loot (the table), loot BREAKABLE DROP... (PICKUP:CHANCE or -), loot BREAKABLE none, loot default
             IF conA$ = "" THEN
@@ -815,7 +815,7 @@ SUB ConExec STATIC
             NEXT
             IF n = 0 THEN ConPrint "No demos yet - record NAME makes one"
         CASE "status"
-            ConPrint sectorName$(level) + "  health" + STR$(health) + "  armour" + STR$(armor) + "  cells" + STR$(ammoCount(AM_CELLS)) + "  shells" + STR$(ammoCount(AM_SHELLS)) + "  rockets" + STR$(ammoCount(AM_ROCKETS)) + "  kills" + STR$(kills) + " /" + STR$(numMonsters)
+            ConPrint sectorName$(level) + "  health" + STR$(health) + "  armour" + STR$(armor) + "  cells" + STR$(ammoCount(AM_CELLS)) + "  shells" + STR$(ammoCount(AM_SHELLS)) + "  rounds" + STR$(ammoCount(AM_ROUNDS)) + "  slugs" + STR$(ammoCount(AM_SLUGS)) + "  rockets" + STR$(ammoCount(AM_ROCKETS)) + "  kills" + STR$(kills) + " /" + STR$(numMonsters)
         CASE "clear", "cls"
             conLogN = 0
         CASE "menu"
@@ -847,7 +847,7 @@ SUB ConGive STATIC
             FOR g = 1 TO NUM_GUNS : hasGun(g) = -1 : NEXT : ConPrint "All guns"
         CASE "weapon", "gun"
             g = VAL(conB$) : IF g >= 1 AND g <= NUM_GUNS THEN hasGun(g) = -1 : currentGun = g : ConPrint gunName$(g) ELSE ConPrint "give gun 1-" + LTRIM$(STR$(NUM_GUNS))
-        CASE "ammo" ' give ammo: full; give ammo cells|shells|rockets [N]: that kind - full, or N more
+        CASE "ammo" ' give ammo: full; give ammo cells|shells|rounds|slugs|rockets [N]: that kind - full, or N more
             am = AmmoKind(conB$) : n = VAL(conC$)
             IF am = 0 THEN
                 FOR k = 1 TO NUM_AMMO : ammoCount(k) = ammoMax(k) : NEXT : ConPrint "Full ammo"
@@ -873,7 +873,7 @@ SUB ConGive STATIC
         CASE "suit", "hazmat", "hvac"
             suitLeft = SUIT_MAX : ConPrint "A new hazmat suit"
         CASE ELSE
-            ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rockets N] / health [N] / armor [N] / overcharge / amp / map / goggles / suit"
+            ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health [N] / armor [N] / overcharge / amp / map / goggles / suit"
     END SELECT
 END SUB
 
@@ -895,7 +895,7 @@ SUB ConTake STATIC
             FOR g = 2 TO NUM_GUNS : hasGun(g) = 0 : NEXT : currentGun = W_BLASTER : ConPrint "Guns taken (the blaster stays)"
         CASE "weapon", "gun"
             g = VAL(conB$) : IF g >= 2 AND g <= NUM_GUNS THEN hasGun(g) = 0 : IF currentGun = g THEN currentGun = W_BLASTER
-        CASE "ammo" ' take ammo: all of it; take ammo cells|shells|rockets [N]
+        CASE "ammo" ' take ammo: all of it; take ammo cells|shells|rounds|slugs|rockets [N]
             am = AmmoKind(conB$) : n = VAL(conC$)
             IF am = 0 THEN
                 FOR k = 1 TO NUM_AMMO : ammoCount(k) = 0 : NEXT : ConPrint "Ammo taken"
@@ -919,7 +919,7 @@ SUB ConTake STATIC
         CASE "map"
             hasMap = 0 : mapOpen = 0
         CASE ELSE
-            ConPrint "take all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rockets N] / health N / armor [N] / map"
+            ConPrint "take all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health N / armor [N] / map"
     END SELECT
 END SUB
 
@@ -948,6 +948,8 @@ FUNCTION ItemOf(v$)
         CASE "suit", "hazmat", "hvac" : ItemOf = IT_SUIT
         CASE "launcher", "rocketlauncher", "rocket" : ItemOf = IT_LAUNCHER
         CASE "rockets" : ItemOf = IT_ROCKETS
+        CASE "rounds" : ItemOf = IT_ROUNDS
+        CASE "slugs" : ItemOf = IT_SLUGS
     END SELECT
 END FUNCTION
 
@@ -1233,8 +1235,8 @@ SUB ConHelp(c$)
         CASE "buddha" : ConPrint "^3buddha [on|off]^0: you're hurt as ever, but never below 1 health (a pit or a death trap still kills)"
         CASE "fly" : ConPrint "^3fly [on|off]^0: fly - E up, C down, Shift faster - the floor still holds you up"
         CASE "notarget" : ConPrint "^3notarget [on|off]^0: the monsters don't notice you, and hunting ones forget you"
-        CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-5 | ammo [cells|shells|rockets N] | health [N] | armor [N] | overcharge | amp | map | goggles | suit"
-        CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-5 | ammo [cells|shells|rockets N] | health N | armor [N] | map"
+        CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-5 | ammo [cells|shells|rounds|slugs|rockets N] | health [N] | armor [N] | overcharge | amp | map | goggles | suit"
+        CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-5 | ammo [cells|shells|rounds|slugs|rockets N] | health N | armor [N] | map"
         CASE "turret", "turrets"
             ConPrint "^3turret [WHO WHAT [N]]^0: turrets told what to do (an ambush, from a trigger); alone: lists them"
             ConPrint "  WHO: a number (as ^7turret^0 lists them), ^7all^0, or ^7at^8 X Y [R]^0 - within R cells (2 if not said)"
@@ -1259,7 +1261,7 @@ SUB ConHelp(c$)
             ConPrint "  ^7hidden^0, it waits in its housing till it wakes; ^7held^0, till ^3turret^0 says (^7help turret^0)"
             ConPrint "  A turret starts facing away from you, and fires once it's turned onto you"
             ConPrint "  (ICE only hunts in the network)"
-        CASE "item", "drop" : ConPrint "^3item KIND X Y^0: a pickup in cell X Y - health medkit armor cells shells rockets scatter repeater rail launcher map overcharge amp goggles suit red blue yellow (or its map character)"
+        CASE "item", "drop" : ConPrint "^3item KIND X Y^0: a pickup in cell X Y - health medkit armor cells shells rounds slugs rockets scatter repeater rail launcher map overcharge amp goggles suit red blue yellow (or its map character)"
         ' --- looking
         CASE "pos", "where" : ConPrint "^3pos^0: where you are - the sector, x y, the way you face (degrees), your feet's and eye's height (^7info^0 or F3 shows it all the time)"
         CASE "info", "f3" : ConPrint "^3info [on|off]^0: the F3 panel, top left - x y and cell, the way you face, heights, the wall you look at (its cell and map character), a tp line that brings you back, and the frame rate"

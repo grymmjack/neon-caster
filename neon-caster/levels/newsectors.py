@@ -406,6 +406,7 @@ def arm(m, lev):
 def build_all(write=False, show=False):
     ok = True
     out = []
+    have = [False, False]  # (the repeater, the railgun: lying in a sector so far)
     for i, (fn, name, walls, floors, ceils) in enumerate(SECTORS, 1):
         print("NEW %d: %s" % (i, name))
         m = fn()
@@ -417,6 +418,8 @@ def build_all(write=False, show=False):
         lv = m.level("level%d" % i, name, walls, floors, ceils)
         if show:
             m.show()
+        have = [a or b for a, b in zip(have, lvlkit.guns_in(lv["rows"]))]  # (each gun its own ammo: from the sector you can have the repeater, rounds - the railgun, slugs)
+        lv["rows"] = lvlkit.split_ammo(lv["rows"], *have)
         good = check_level(lv, ASSETS)
         errs, warns = reach_with_blocks(lv)
         for e in errs:

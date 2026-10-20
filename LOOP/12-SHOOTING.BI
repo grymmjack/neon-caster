@@ -178,11 +178,15 @@
         ELSEIF NOT fireWas THEN
             PlaySfx sndEmpty&, 0.7
             IF ammoCount(ammoType) > 0 THEN
-                ShowMsg "The " + gunName$(currentGun) + " needs" + STR$(gunAmmoPerShot(currentGun)) + " cells a shot - another gun, or kick! (F)"
+                ShowMsg "The " + gunName$(currentGun) + " needs" + STR$(gunAmmoPerShot(currentGun)) + " " + AmmoName$(ammoType) + " a shot - another gun, or kick! (F)"
             ELSEIF ammoType = AM_SHELLS THEN
                 ShowMsg "Out of shells - kick! (F)"
             ELSEIF ammoType = AM_ROCKETS THEN
                 ShowMsg "Out of rockets - kick! (F)"
+            ELSEIF ammoType = AM_ROUNDS THEN
+                ShowMsg "Out of repeater rounds - kick! (F)"
+            ELSEIF ammoType = AM_SLUGS THEN
+                ShowMsg "Out of railgun slugs - kick! (F)"
             ELSE
                 ShowMsg "Out of energy cells - kick! (F)"
             END IF

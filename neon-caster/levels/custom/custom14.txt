@@ -131,7 +131,7 @@ enter 36 41 36 41 : message THE VAULT - WATCH YOUR STEP
 shoot 40 35 : secret 40 36
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 14, 5, 14, 0, 100, 100, 0, 1
 18, 6, 6, 8, 150, 120, 0
 37, 6, 10, 0, 100, 100, 0
@@ -478,7 +478,7 @@ rack     = ammo:30, overcharge:10, -, -
 #K........u.KN.p................p.NP......m....#
 #K..........KN....................NP...........#
 #K..........KN....................NP...........#
-#K..........KN.....a..............NP...........#
+#K..........KN.....{..............NP...........#
 #K..........KN....................D............#
 #K&.....k...KN.h...........e...k..NP.e.........#
 #K.+..r.....KN.....W..............NP........4.a#

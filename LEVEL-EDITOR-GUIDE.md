@@ -305,13 +305,16 @@ U W Z V < > ^ v
 | --- | --- | --- | --- | --- |
 | `r` `b` `y` | Red / blue / yellow keycard | | `u` | Armour +50 |
 | `+` | Health +25 (up to 100) | | `*` | Big medkit +50 |
-| `a` | Energy cells +15 | | `4` | Railgun, +30 cells |
+| `a` | Energy cells +15 (the blaster's, 99 at most) | | `4` | Railgun, +6 slugs |
 | `e` | Shells +8 | | `M` | The map |
 | `2` | Scatter gun, +8 shells | | `q` | Overcharge +100, up to 200 |
-| `3` | Repeater, +30 cells | | `j` | Damage amp: double damage for 30 s |
+| `3` | Repeater, +60 rounds | | `j` | Damage amp: double damage for 30 s |
 | `8` | Night vision headset: yours till you die, as a gun is. N switches it on and off | | | |
 | `9` | Hazmat suit: poison, slime and acid wear it instead of you (about 45 seconds of poison, 20 of acid). Fire and lava go straight through it. Lost when you die | | | |
 | `)` | Rocket launcher (gun 5), +5 rockets: a rocket bursts on whatever it hits - and the blast hurts you too, close up. Hold the right button to zoom right in | | `(` | Rockets +5 (50 at most) |
+| `{` | Repeater rounds +40 (200 at most) | | `}` | Railgun slugs +5 (25 at most) |
+
+Each gun has its own ammo: cells for the blaster, shells for the scatter gun, rounds for the repeater, slugs for the railgun, rockets for the launcher. Cells that come out of something - loot, a monster's drop, a prize - come out as ammo for one of the guns you have that shoot energy (the blaster, the repeater, the railgun); cells you place stay cells.
 
 **Monsters.** Up to 64 per level, counting ones events spawn.
 

@@ -80,10 +80,10 @@ NNN...NN#...##C...CK....z...KC...C##...#NN...NNN
 NNN.i.NN#...##C....B........KC....R....#NN.i.NNN
 NNN...NN#.g.##C...CK........KC.q.C##...#NN...NNN
 NNN...NN#...##C.j.CK........KC...C##...#NN...NNN
-NNN...NN#...##C...CK+......aKC...C##...#NN...NNN
+NNN...NN#...##C...CK+......}KC...C##...#NN...NNN
 NNN...NN#...##C...CKKKKKKKKKKC...C##...#NN...NNN
 NNN...NN#...##C...CCCCCCCCCCCC...C##...#NN...NNN
-NNN.h.NN#.k.##C.h.............b..C##.a.#NN..ANNN
+NNN.h.NN#.k.##C.h.............b..C##.{.#NN..ANNN
 NNN...NN#...##C..+......m.....k..C##...#NN...NNN
 NNN...NN#...##C..................C##...#NN.m.NNN
 NNN...NN#...#wCCCCCCCCCCCCCCCCCCCCh#...#NN...NNN

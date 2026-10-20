@@ -46,8 +46,8 @@ CONST ADS_GUN_GROW = 1.15, ADS_GUN_GROW_MAX = 1.7
 '      gun name        ammo       cost delay pellets spread damage pierce recoil zoom
 SetGun 1,  "BLASTER",  AM_CELLS,  1,   16,   1,      0,     1,     0,     1,     ADS_ZOOM
 SetGun 2,  "SCATTER",  AM_SHELLS, 1,   40,   7,      0.12,  1,     0,     1.7,   ADS_ZOOM
-SetGun 3,  "REPEATER", AM_CELLS,  1,   5,    1,      0.025, 1,     0,     0.45,  ADS_ZOOM
-SetGun 4,  "RAILGUN",  AM_CELLS,  5,   55,   1,      0,     5,     -1,    2.2,   4
+SetGun 3,  "REPEATER", AM_ROUNDS, 1,   5,    1,      0.025, 1,     0,     0.45,  ADS_ZOOM
+SetGun 4,  "RAILGUN",  AM_SLUGS,  1,   55,   1,      0,     5,     -1,    2.2,   4
 SetGun 5,  "LAUNCHER", AM_ROCKETS, 1,  30,   1,      0,     ROCKET_HIT, 0, 2.6,   3.5
 CONST SWAP_FRAMES = 14 ' Frames to lower one gun and raise the next
 ' The guns you hold are kept as ordinary images (not arrays): they're drawn

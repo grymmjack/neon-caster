@@ -41,9 +41,7 @@ OPEN_TO = {(1, 0): "E", (-1, 0): "W", (0, 1): "S", (0, -1): "N"}
 
 
 def hval(c, dflt):
-    if c == ".": return dflt
-    if c in ns.camp.HUP: return ns.camp.HUP.index(c)
-    return -("ABCDEFGH".index(c) + 1)
+    return lvlkit.hval(c, dflt)  # (the kit's: heights past z too)
 
 
 def load(n):
@@ -383,11 +381,14 @@ def build(n):
 def build_all(write=False, show=False):
     ok = True
     outs = []
+    have = [False, False]  # (the repeater, the railgun: lying in a sector so far)
     for n in range(1, 11):
         print("OLD NEW %d" % n)
         m, lv, orig = build(n)
         if show:
             m.show()
+        have = [a or b for a, b in zip(have, lvlkit.guns_in(lv["rows"]))]  # (each gun its own ammo: from the sector you can have the repeater, rounds - the railgun, slugs)
+        lv["rows"] = lvlkit.split_ammo(lv["rows"], *have)
         good = check_level(lv, ASSETS)
         errs, _ = ns.reach_with_blocks(lv)
         for e in errs: print("  BLOCKED:", e)

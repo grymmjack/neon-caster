@@ -49,7 +49,7 @@ PROPS = {
     'bench': 0.35, 'chair': 0.5,
     'keycard': 0.3, 'medkit': 0.3, 'ammo': 0.3, 'shells': 0.3, 'pickup-scatter': 0.45,
     'pickup-repeater': 0.45, 'armor': 0.3, 'bigmed': 0.3, 'pickup-rail': 0.45, 'map': 0.3,
-    'overcharge': 0.3, 'amp': 0.3, 'goggles': 0.3, 'suit': 0.3, 'pickup-rocket': 0.45, 'rockets': 0.3,
+    'overcharge': 0.3, 'amp': 0.3, 'goggles': 0.3, 'suit': 0.3, 'pickup-rocket': 0.45, 'rockets': 0.3, 'rounds': 0.3, 'slugs': 0.3,
     'turret': 0.55,  # (a monster: its height, mtypeScale)
 }
 def read_gltf(path):
@@ -179,7 +179,7 @@ SHAPES = {
     'desk': ('extrude', 0.55, [(0.42, 0.18)]), 'console': ('extrude', 0.6), 'screens': ('extrude', 0.12), 'labbench': ('extrude', 0.5, [(0.45, 0.14)]),
     'generator': ('extrude', 0.7, [(0.22, 0.14)]), 'locker': ('extrude', 0.55), 'bench': ('extrude', 0.4, [(0.5, 0.22)]), 'spawner': ('extrude', 0.15),
     'medkit': ('extrude', 0.45), 'bigmed': ('extrude', 0.6), 'ammo': ('lathe', 2), 'shells': ('extrude', 0.5),
-    'pickup-scatter': ('extrude', 0.1), 'pickup-repeater': ('extrude', 0.1), 'pickup-rail': ('extrude', 0.08), 'pickup-rocket': ('extrude', 0.22), 'rockets': ('extrude', 0.55),
+    'pickup-scatter': ('extrude', 0.1), 'pickup-repeater': ('extrude', 0.1), 'pickup-rail': ('extrude', 0.08), 'pickup-rocket': ('extrude', 0.22), 'rockets': ('extrude', 0.55), 'rounds': ('extrude', 0.6), 'slugs': ('extrude', 0.25),
     'armor': ('extrude', 0.35), 'map': ('extrude', 0.04), 'overcharge': ('extrude', 0.15), 'goggles': ('extrude', 0.35),
     'keycard': ('extrude', 0.06), 'suit': ('extrude', 0.3), 'turret': ('kit',),
 }

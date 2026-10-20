@@ -68,6 +68,7 @@ SUB SaveGame STATIC
     PUT #fileNum, , suitLeft ' (the hazmat suit)
     PUT #fileNum, , numTCtrl : FOR k = 1 TO numTCtrl : PUT #fileNum, , tcState(k) : NEXT ' (the turret control panels: hacked, locked)
     PUT #fileNum, , hasGun(W_ROCKET) : PUT #fileNum, , savedHasGun(W_ROCKET) : PUT #fileNum, , ammoCount(AM_ROCKETS) : PUT #fileNum, , savedRockets ' (the rocket launcher and its rockets)
+    PUT #fileNum, , ammoCount(AM_ROUNDS) : PUT #fileNum, , savedRounds : PUT #fileNum, , ammoCount(AM_SLUGS) : PUT #fileNum, , savedSlugs ' (the repeater's rounds, the railgun's slugs)
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 END SUB
@@ -149,6 +150,7 @@ SUB LoadGame STATIC
     END IF
     IF LOC(fileNum) < LOF(fileNum) THEN ' The pools, as they were (a trigger may have flooded some)
         FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : GET #fileNum, , liqKind(x, y) : GET #fileNum, , liqZ(x, y)
+            IF liqKind(x, y) < 0 OR liqKind(x, y) > LQ_KINDS THEN liqKind(x, y) = 0 : liqZ(x, y) = 0 ' (a save from before this part was as it is: nothing there)
             IF liqKind(x, y) THEN liqAny = -1 : levelFlat = 0 : lqUsed(liqKind(x, y)) = -1
         NEXT : NEXT
         LiquidGlows 0, 0, mapN - 1, mapN - 1 ' (the flooded ones' light)
@@ -209,6 +211,12 @@ SUB LoadGame STATIC
     END IF
     hasGun(W_ROCKET) = 0 : savedHasGun(W_ROCKET) = 0 : ammoCount(AM_ROCKETS) = 0 : savedRockets = 0 ' (the rocket launcher - not in older saves)
     IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , hasGun(W_ROCKET) : GET #fileNum, , savedHasGun(W_ROCKET) : GET #fileNum, , ammoCount(AM_ROCKETS) : GET #fileNum, , savedRockets
+    IF LOC(fileNum) < LOF(fileNum) THEN ' (the repeater's rounds and the railgun's slugs - older saves had their cells: some of each, for the guns you have)
+        GET #fileNum, , ammoCount(AM_ROUNDS) : GET #fileNum, , savedRounds : GET #fileNum, , ammoCount(AM_SLUGS) : GET #fileNum, , savedSlugs
+    ELSE
+        ammoCount(AM_ROUNDS) = -80 * hasGun(W_REPEATER) : ammoCount(AM_SLUGS) = -10 * hasGun(W_RAIL)
+        savedRounds = -80 * savedHasGun(W_REPEATER) : savedSlugs = -10 * savedHasGun(W_RAIL)
+    END IF
     IF currentGun = W_ROCKET AND NOT hasGun(W_ROCKET) THEN currentGun = W_BLASTER
     CLOSE #fileNum
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)
@@ -221,7 +229,7 @@ END SUB
 SUB LoadMismatch STATIC
     CLOSE #fileNum ' (the sector it was in, from its start, with what you came into it with - its file was read before the mismatch)
     health = savedHealth : IF health <= 0 THEN health = MAX_HP
-    armor = savedArmor : ammoCount(AM_CELLS) = savedCells : ammoCount(AM_SHELLS) = savedShells : ammoCount(AM_ROCKETS) = savedRockets : currentGun = savedGun
+    armor = savedArmor : ammoCount(AM_CELLS) = savedCells : ammoCount(AM_SHELLS) = savedShells : ammoCount(AM_ROCKETS) = savedRockets : ammoCount(AM_ROUNDS) = savedRounds : ammoCount(AM_SLUGS) = savedSlugs : currentGun = savedGun
     FOR gun = 1 TO NUM_GUNS : hasGun(gun) = savedHasGun(gun) : NEXT
     IF currentGun < 1 OR currentGun > NUM_GUNS THEN currentGun = 1
     IF NOT hasGun(currentGun) THEN currentGun = 1 : hasGun(1) = -1

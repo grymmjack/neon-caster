@@ -72,7 +72,7 @@ NNNNNNNNNNNNNN/..................\NNNNNNNNNNNNNN
 NNNNNNNNNNNNN/..4.......m.........\NNNNNNNNNNNNN
 NNNNNNNNNNNN/.......f.........s....\NNNNNNNNNNNN
 NNNNNNNNNNN/......................g.\NNNNNNNNNNN
-NNNNNNNNNN/......................a..c\NNNNNNNNNN
+NNNNNNNNNN/......................{..c\NNNNNNNNNN
 NNNNNNNNN/..h.........................\NNNNNNNNN
 NNNNNNNN/..............................\NNNNNNNN
 NNNNNNN/..i...........Z..............i..\NNNNNNN

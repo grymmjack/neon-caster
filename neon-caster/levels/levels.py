@@ -14,6 +14,7 @@ editor is lost - copy what you changed back into its builder here first
 (or stop using --write for that level).
 """
 import os, sys
+import lvlkit
 from lvlkit import Map, validate, parse_bas, check_level, N, write_level_file, level_files
 from collections import deque
 
@@ -1771,6 +1772,7 @@ def main():
         return 0 if ok else 1
 
     out = []
+    have = [False, False]  # (the repeater, the railgun: lying in a sector so far)
     for i, (fn, name, walls, floors, ceils, comment) in enumerate(LEVELS, 1):
         m = fn()
         dress(m, i)
@@ -1793,6 +1795,8 @@ def main():
                   floor=["".join(r) for r in m.fh], ceiling=["".join(r) for r in m.ch], triggers=m.triggers,
                   liquid=["".join(r) for r in m.lq], liquid_depth=["".join(r) for r in m.ld],
                   blocks=m.blocks, nudges=m.nudges, cell_lights=getattr(m, "cell_lights", []), puzzles=getattr(m, "puzzles", ""))
+        have = [a or b for a, b in zip(have, lvlkit.guns_in(lv["rows"]))]  # (each gun its own ammo: from the sector you can have the repeater, rounds - the railgun, slugs)
+        lv["rows"] = lvlkit.split_ammo(lv["rows"], *have)
         ok &= check_level(lv, ASSETS)
         out.append((lv, comment))
     ok &= not PROBLEMS

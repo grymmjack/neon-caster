@@ -933,6 +933,7 @@ def drift():
 def build(fn, outdir):
     m, label, name, walls, floors, ceils, doc = fn()
     lv = m.level(label, name, walls, floors, ceils)
+    lv["rows"] = lvlkit.split_ammo(lv["rows"], *lvlkit.guns_in(lv["rows"]))  # (each gun its own ammo)
     path = os.path.join(outdir, label + ".txt")
     comment = [l.strip() for l in doc.strip().splitlines()]
     lvlkit.write_level_file(path, lv, comment)

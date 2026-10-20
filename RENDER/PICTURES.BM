@@ -50,6 +50,7 @@ SUB LoadPictures STATIC
     FOR k = 10 TO DECO_KINDS : LoadSprite DecoFile$(k), DecoSlot(k) : NEXT
     LoadSprite "overcharge.png", ItemSprite(IT_OVERCHARGE) : LoadSprite "amp.png", ItemSprite(IT_AMP) : LoadSprite "core.png", ItemSprite(IT_CORE) : LoadSprite "goggles.png", ItemSprite(IT_GOGGLES) : LoadSprite "suit.png", ItemSprite(IT_SUIT)
     LoadSprite "pickup-rocket.png", ItemSprite(IT_LAUNCHER) : LoadSprite "rockets.png", ItemSprite(IT_ROCKETS)
+    LoadSprite "rounds.png", ItemSprite(IT_ROUNDS) : LoadSprite "slugs.png", ItemSprite(IT_SLUGS)
     MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
     MakePad S_PAD ' (a teleporter's pad)
     LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)

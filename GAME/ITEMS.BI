@@ -29,6 +29,7 @@ CONST IT_OVERCHARGE = 13, IT_AMP = 14 ' (overcharge: health up to MAX_OVER; dama
 CONST IT_GOGGLES = 16 ' (8 on the map: a night-vision headset - yours till you die, as a gun is; N switches it on and off)
 CONST IT_SUIT = 17 ' (9 on the map: a hazmat suit - poison, slime and acid wear it, not you; fire and lava go straight through)
 CONST IT_LAUNCHER = 18, IT_ROCKETS = 19 ' (on the map ) and (: the rocket launcher - gun 5, with five rockets - and a box of five rockets)
+CONST IT_ROUNDS = 20, IT_SLUGS = 21 ' (on the map { and }: a box of forty repeater rounds, a canister of five railgun slugs)
 CONST SUIT_MAX = 100, SUIT_WEAR = 0.5 ' (a suit's wear: SUIT_MAX new, and SUIT_WEAR of it for each point of harm it takes - a good half-minute in poison)
 DIM SHARED suitLeft AS SINGLE ' (what's left of your suit: 0 none - lost when you die, as night vision is)
 DIM SHARED nvHave AS SINGLE, nvOn AS INTEGER ' (night vision: whether you have a headset (1), and whether it's on - ApplyNight, and OpenGL's post shader's "night")

@@ -73,11 +73,11 @@ enter 17 44 19 46 : message A DATA STATION - face it and press SPACE to jack in
 ###.............KK.e..m.....i..KP.............PP
 ###..............R.............Y.....P...PJ...PP
 ###......h......KKKKK%KK.KKKDKKKP....J........PP
-###.t...........KKKKKgKK.KKaeaKKP..s........s.PP
+###.t...........KKKKKgKK.KK}e}KKP..s........s.PP
 ###.............#####.##X##q*+##P.............PP
 ###.........u...%g.CCCCC.CCeujCCP....P...P....PP
 ###...g.........CCCCCCC/.CCCCCCCP.............PP
-###\....a....t./CCCCCC/..\CCCCCCP\t....g....t/PP
+###\....}....t./CCCCCC/..\CCCCCCP\t....g....t/PP
 ####\........./CCCCCC/....\CCCCCPP\........./PPP
 #KKKK\...T.../CCCCCC/...p..\CCCCPPP\..Z..../PPPP
 #KKKKKK.K?===CCCCCC/........\CCCPPPPPPPPP.PPPPPP
@@ -93,9 +93,9 @@ enter 17 44 19 46 : message A DATA STATION - face it and press SPACE to jack in
 #KK....OK...CC\................../CCCC#KK.....KK
 #KK.....=.ZFCCC\................/CCCCC#KK.....KK
 #KK...i.=.VACCCC\...s.......g../CCCCCC#KK.i...KK
-#KK..a..=.ZFCCCCC\............/CCCCCCC#KK.....KK
+#KK..{..=.ZFCCCCC\............/CCCCCCC#KK.....KK
 #KK.....?...CCCCCC\........../CCCCCCCC#KK.....KK
-#KKKKKKDKK#CCCCCCCC\....ma../CCCCCCCCC#KKBKKKKKK
+#KKKKKKDKK#CCCCCCCC\....m{../CCCCCCCCC#KKBKKKKKK
 #KKKKKK.KK#CCCCCCCCC\....../CCCCGGGGGGGGG.GGGGGG
 #KKKK/.......\CCCCCCC\..p./CCCCCGGG/..Q....\GGGG
 ####/.........\CCCCCCC\../CCCCCCGG/.........\GGG
@@ -108,7 +108,7 @@ enter 17 44 19 46 : message A DATA STATION - face it and press SPACE to jack in
 ###I.........+...!.............B..............GG
 ###...r.........KK..i.......i..KG....c.....y..GG
 ###\.........../KK......^......KG\.........../GG
-####\....c...c/KKK.a.&.....&.e.KGG\g......../GGG
+####\....c...c/KKK.}.&.....&.e.KGG\g......../GGG
 #####\......./#KKK.............KGGG\......./GGGG
 ###############KKK@KKKKKKKKKKKKKGGGGGGGGGGGGGGGG
 ###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG

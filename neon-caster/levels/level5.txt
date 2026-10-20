@@ -73,7 +73,7 @@ NNPPPPPPPPPPPPPPNNNNNNNNNNNNNNNNCCCCCCCCCCCCCCNN
 NNPPP/......\PPPNNNN/....A.\NNNNCCC/......\CCCNN
 NNPP/xx......\PPNNN/........\NNNCC/........\CCNN
 NNP/........g.\PNN/.....2...x\NNC/.s......y.\CNN
-NNP...r..M.....PNN.a.k.......+NNC............CNN
+NNP...r..M.....PNN.}.k.......+NNC............CNN
 NNP............PNN...../\.....NNC............CNN
 NNP............PNN..../CC\....NNC............CNN
 NNP.....t...e..PNN...o\CC/.o..NNC..u...oo....CNN
@@ -103,10 +103,10 @@ NNNNNN@NNmNNNNNNNKKKKKKK.KKKKKKNGGGGGGG.GGGGGGNN
 NNNNN/......\NNNNKKK/......\KKKNGGG/......\GGGNN
 NNNN/...&....\NNNKK/........\KKNGG/........\GGNN
 NNN/..........\NNK/.c.......c\KNG/.s......*.\GNN
-NNN..a.......e.NNK............KNG............GNN
+NNN..{.......e.NNK............KNG............GNN
 NNN............NNK....K...K...KNG.......k....GNN
 NNN............NNKA...........KNG............ENN
-NNN...x........NNK.a....h.....KNG............GNN
+NNN...x........NNK.{....h.....KNG............GNN
 NNN............NNK............KNG...h......t.GNN
 NNN.o....^...&.NNK....K...K...KNG............GNN
 NNN\.o......+./NNK\..m.....m./KNG\........g./GNN

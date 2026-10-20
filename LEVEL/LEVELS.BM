@@ -76,7 +76,7 @@ END SUB
 ' health, no armour, the blaster and 30 cells
 SUB StartLoadout STATIC
     health = MAX_HP : armor = 0 : ampTimer = 0 : nvHave = 0 : nvOn = 0 : suitLeft = 0
-    ammoCount(AM_CELLS) = 30 : ammoCount(AM_SHELLS) = 0 : ammoCount(AM_ROCKETS) = 0
+    ammoCount(AM_CELLS) = 30 : ammoCount(AM_SHELLS) = 0 : ammoCount(AM_ROCKETS) = 0 : ammoCount(AM_ROUNDS) = 0 : ammoCount(AM_SLUGS) = 0
     FOR gun = 1 TO NUM_GUNS : hasGun(gun) = 0 : NEXT
     hasGun(W_BLASTER) = -1 : currentGun = W_BLASTER
     IF TEST_ALL_GUNS THEN ' Testing: every gun, full ammo
@@ -87,7 +87,7 @@ END SUB
 
 ' --- Into level number `level`, remembering what you bring with you
 SUB EnterLevel STATIC
-    savedHealth = health : savedArmor = armor : savedCells = ammoCount(AM_CELLS) : savedShells = ammoCount(AM_SHELLS) : savedRockets = ammoCount(AM_ROCKETS) : savedGun = currentGun
+    savedHealth = health : savedArmor = armor : savedCells = ammoCount(AM_CELLS) : savedShells = ammoCount(AM_SHELLS) : savedRockets = ammoCount(AM_ROCKETS) : savedRounds = ammoCount(AM_ROUNDS) : savedSlugs = ammoCount(AM_SLUGS) : savedGun = currentGun
     FOR gun = 1 TO NUM_GUNS : savedHasGun(gun) = hasGun(gun) : NEXT
     LoadLevel
     IF NOT demoAttract AND NOT demoStarting THEN ShowTransmission ' (NEXUS greets you - not when a demo plays back: straight to the play)

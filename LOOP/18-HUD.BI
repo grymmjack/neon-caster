@@ -200,6 +200,10 @@
         ammoColor~& = _RGB32(255, 150, 40)
     ELSEIF ammoType = AM_ROCKETS THEN
         ammoColor~& = _RGB32(255, 90, 140)
+    ELSEIF ammoType = AM_ROUNDS THEN
+        ammoColor~& = _RGB32(190, 255, 60)
+    ELSEIF ammoType = AM_SLUGS THEN
+        ammoColor~& = _RGB32(90, 150, 255)
     ELSE
         ammoColor~& = _RGB32(60, 220, 255)
     END IF

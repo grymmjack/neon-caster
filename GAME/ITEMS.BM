@@ -6,9 +6,23 @@
 
 ' One more pickup, of kind kind, just where (x, y) is (if that's floor -
 ' or else in the middle of its cell)
-SUB DropItemAt(kind, x0, y0)
-    DIM a, r, tx, ty, x, y ' (its own: the main program shares these names)
+' Cells, dropped or thrown out (loot, a monster's, a prize): ammo for one
+' of your guns that shoots energy - the blaster's cells, the repeater's
+' rounds, the railgun's slugs, whichever you have (by the dice: two of
+' them, an even chance). Anything else, or lootExact: as it is.
+FUNCTION LootAmmo(kind)
+    DIM n, r ' (its own: the main program shares these names)
+    LootAmmo = kind : IF kind <> IT_CELLS OR lootExact THEN EXIT FUNCTION
+    n = 1 - hasGun(W_REPEATER) - hasGun(W_RAIL) : IF n = 1 THEN EXIT FUNCTION
+    r = INT(GRnd * n)
+    IF r = 1 THEN IF hasGun(W_REPEATER) THEN LootAmmo = IT_ROUNDS ELSE LootAmmo = IT_SLUGS
+    IF r = 2 THEN LootAmmo = IT_SLUGS
+END FUNCTION
+
+SUB DropItemAt(kind0, x0, y0)
+    DIM a, kind, r, tx, ty, x, y ' (its own: the main program shares these names)
     IF numItems >= MAX_ITEMS THEN EXIT SUB
+    kind = LootAmmo(kind0) ' (cells: ammo for a gun of yours)
     x = x0 : y = y0 ' (copies: the caller's - a monster's own place - stays put)
     walkFromHaz = 10 ' (and somewhere you can get it: not down a pit, in fire or a harmful pool - a thief kicked over the edge)
     IF NOT Walkable%(x, y) THEN x = INT(x) + 0.5 : y = INT(y) + 0.5
@@ -54,8 +68,9 @@ END SUB
 ' and walk over to it: never at your feet, (px, py) - at least LOOT_CLEAR
 ' away. If that way won't do (a crate against a wall, or you in the way),
 ' it tries the ways round from it, nearest first.
-SUB TossItem(kind, x, y, a, px, py)
-    DIM B, d, r, t ' (its own: the main program shares these names)
+SUB TossItem(kind0, x, y, a, px, py)
+    DIM B, d, kind, lx, r, t ' (its own: the main program shares these names)
+    kind = LootAmmo(kind0) ' (cells: ammo for a gun of yours)
     bestA = a : bestR = 0 : bestS = -1
     FOR t = 0 TO 8 ' (that way, then an eighth of the way round either side of it, a quarter...)
         b = a + ((t + 1) \ 2) * 0.7854 * (1 - 2 * (t MOD 2)) : r = TossReach(x, y, b)
@@ -63,7 +78,7 @@ SUB TossItem(kind, x, y, a, px, py)
         IF r >= LOOT_REACH * 0.4 AND d >= LOOT_CLEAR THEN bestA = b : bestR = r : EXIT FOR
         IF r + d > bestS THEN bestS = r + d : bestA = b : bestR = r ' (none clear: the clearest)
     NEXT
-    was = numItems : DropItemAt kind, x, y
+    was = numItems : lx = lootExact : lootExact = -1 : DropItemAt kind, x, y : lootExact = lx ' (worked out already)
     IF numItems > was THEN
         itemToss(numItems) = LOOT_TOSS
         itemVX(numItems) = DCos(bestA) * bestR / LOOT_TOSS : itemVY(numItems) = DSin(bestA) * bestR / LOOT_TOSS
@@ -207,7 +222,7 @@ END FUNCTION
 ' - it's only in the network; 8 night vision, 9 the hazmat suit, ) the
 ' rocket launcher, ( a box of rockets)
 FUNCTION ItemChars$
-    ItemChars$ = "rby+ae23u*4Mqj" + CHR$(0) + "89)("
+    ItemChars$ = "rby+ae23u*4Mqj" + CHR$(0) + "89)({}"
 END FUNCTION
 
 ' A pickup kind by its map character (0: not a pickup's)

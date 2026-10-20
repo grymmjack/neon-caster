@@ -111,10 +111,11 @@ SUB BotThinkRaw STATIC
     ' The gun: the best one it has with something to fire
     bg = 1
     IF hasGun(2) AND ammoCount(AM_SHELLS) > 0 THEN bg = 2
-    IF hasGun(3) AND ammoCount(AM_CELLS) > 10 THEN bg = 3
+    IF hasGun(3) AND ammoCount(AM_ROUNDS) > 10 THEN bg = 3
+    IF bg = 1 AND ammoCount(AM_CELLS) = 0 AND hasGun(4) AND ammoCount(AM_SLUGS) > 0 THEN bg = 4 ' (nothing else: the railgun)
     IF bg <> currentGun AND swapTimer = 0 THEN inBits = inBits + bg * DB_GUN
     ' A monster to fight? (With nothing to fire, only one on top of it - kicked)
-    bAmmo = (ammoCount(AM_CELLS) > 0) OR (bg = 2 AND ammoCount(AM_SHELLS) > 0)
+    bAmmo = ammoCount(gunAmmoType(bg)) >= gunAmmoPerShot(bg)
     bt = 0 : bbd = 7 : IF NOT bAmmo THEN bbd = 1.3
     IF botTarget THEN ' The one it's on: kept while it's alive and near - for half a second after it's out of sight, as a corner flickers it in and out
         IF monsterState(botTarget) < 2 AND botIgnore(botTarget) <= lvFrame THEN
@@ -282,11 +283,11 @@ SUB BotPlan STATIC
                 BotField bpass
                 IF botDist(bcx, bcy) < 15 + (60 - MaxOf(0, health)) THEN botMode = 3 : EXIT FOR
             END IF
-            bNone = (ammoCount(AM_CELLS) = 0) AND NOT (hasGun(2) AND ammoCount(AM_SHELLS) > 0) ' (nothing at all to fire)
-            IF ammoCount(AM_CELLS) < 10 AND ammoCount(AM_SHELLS) < 4 THEN ' Low on ammo: some it's seen - near, or anywhere with nothing to fire
+            bNone = (ammoCount(AM_CELLS) = 0) AND NOT (hasGun(2) AND ammoCount(AM_SHELLS) > 0) AND NOT (hasGun(3) AND ammoCount(AM_ROUNDS) > 0) AND NOT (hasGun(4) AND ammoCount(AM_SLUGS) > 0) ' (nothing at all to fire)
+            IF ammoCount(AM_CELLS) < 10 AND ammoCount(AM_SHELLS) < 4 AND ammoCount(AM_ROUNDS) < 15 THEN ' Low on ammo: some it's seen - near, or anywhere with nothing to fire
                 BotClear
                 FOR bi = 1 TO numItems
-                    IF itemOn(bi) AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
+                    IF itemOn(bi) AND (itemKind(bi) = IT_CELLS OR itemKind(bi) = IT_SHELLS OR itemKind(bi) = IT_ROUNDS OR itemKind(bi) = IT_SLUGS OR itemKind(bi) = IT_REPEATER OR itemKind(bi) = IT_SCATTER) THEN IF cellSeen(INT(itemX(bi)), INT(itemY(bi))) THEN BotGoal INT(itemX(bi)), INT(itemY(bi))
                 NEXT
                 BotField bpass
                 IF botDist(bcx, bcy) < 30 OR (botDist(bcx, bcy) < BOT_FAR AND bNone) THEN botMode = 5 : EXIT FOR
@@ -448,8 +449,12 @@ FUNCTION BotWants(i, hp, ar)
         CASE IT_CELLS : BotWants = ammoCount(AM_CELLS) < ammoMax(AM_CELLS)
         CASE IT_SHELLS : BotWants = ammoCount(AM_SHELLS) < ammoMax(AM_SHELLS)
         CASE IT_SCATTER : BotWants = NOT hasGun(2) OR ammoCount(AM_SHELLS) < ammoMax(AM_SHELLS)
-        CASE IT_REPEATER : BotWants = NOT hasGun(3) OR ammoCount(AM_CELLS) < ammoMax(AM_CELLS)
-        CASE IT_RAIL : BotWants = NOT hasGun(4)
+        CASE IT_REPEATER : BotWants = NOT hasGun(3) OR ammoCount(AM_ROUNDS) < ammoMax(AM_ROUNDS)
+        CASE IT_RAIL : BotWants = NOT hasGun(4) OR ammoCount(AM_SLUGS) < ammoMax(AM_SLUGS)
+        CASE IT_ROUNDS : BotWants = ammoCount(AM_ROUNDS) < ammoMax(AM_ROUNDS)
+        CASE IT_SLUGS : BotWants = ammoCount(AM_SLUGS) < ammoMax(AM_SLUGS)
+        CASE IT_LAUNCHER : BotWants = NOT hasGun(W_ROCKET)
+        CASE IT_ROCKETS : BotWants = ammoCount(AM_ROCKETS) < ammoMax(AM_ROCKETS)
         CASE IT_GOGGLES : BotWants = NOT nvHave ' (one you have stays on the floor)
         CASE IT_SUIT : BotWants = suitLeft < SUIT_MAX
         CASE IT_MAP, IT_OVERCHARGE, IT_AMP : BotWants = -1

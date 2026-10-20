@@ -13,7 +13,7 @@ N = 48
 WALLS = set("#NCKPG")
 DOORS = set("DHXRBYE!")  # ! a door sealed until its data station (@) is hacked
 DIAG = set("/\\")
-ITEMS = set("rby+ae23u*4Mqj89)(")  # ... q overcharge, j damage amp, 8 night vision, 9 hazmat suit, ) rocket launcher, ( rockets
+ITEMS = set("rby+ae23u*4Mqj89)({}")  # ... q overcharge, j damage amp, 8 night vision, 9 hazmat suit, ) rocket launcher, ( rockets
 MONS = set("mghcskwzT15670~_|")  # ... k stalker, w spitter, z the overseer, T thief, 1 sniper, 5 trooper, 6 ripper, 7 warden, 0 colossus, ~ _ | turrets (ceiling, floor, wall)
 DECO = set("oiptxlnfSdAFIJLOQUWZV")  # ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
@@ -482,7 +482,7 @@ LOOT_BREAKABLES = {"barrel", "lamp", "plant", "terminal", "crate", "rack", "serv
                    "labbench", "generator", "cryopod", "cryo", "hologram", "locker", "bench", "chair"}
 LOOT_PICKUPS = {"red", "blue", "yellow", "health", "cells", "ammo", "shells", "scatter", "repeater", "armor", "armour",
                 "medkit", "bigmed", "rail", "railgun", "map", "overcharge", "amp", "goggles", "nightvision", "headset", "suit", "hazmat", "hvac",
-                "launcher", "rocketlauncher", "rocket", "rockets"}
+                "launcher", "rocketlauncher", "rocket", "rockets", "rounds", "slugs"}
 
 
 # [liquid]: the game's LQ_CHARS$ and LQ_DEPTH; the map characters a liquid can lie on (EDIT_OPEN$)
@@ -569,7 +569,7 @@ def check_loot(line):
         if ":" not in d:
             return "loot '%s': each drop is pickup:chance (or -)" % line
         k, c = [x.strip() for x in d.split(":", 1)]
-        if k.lower() not in LOOT_PICKUPS and not (len(k) == 1 and k in "rby+ae23u*4Mqj89)("):
+        if k.lower() not in LOOT_PICKUPS and not (len(k) == 1 and k in "rby+ae23u*4Mqj89)({}"):
             return "loot '%s': no pickup called %s" % (line, k)
         try:
             if not 0 <= float(c) <= 100:
@@ -577,6 +577,33 @@ def check_loot(line):
         except ValueError:
             return "loot '%s': a chance is 0 to 100" % line
     return ""
+
+
+def split_ammo(rows, repeater, rail):
+    """Each gun its own ammo: some of a sector's energy cells (a) made the
+    repeater's rounds ({) - if you can have the repeater by then - and the
+    railgun's slugs (}), the same way. The same cells every time (by where
+    they are), about 4 in 10 rounds and 2 in 10 slugs; the rest stay cells,
+    for the blaster. The rows, new."""
+    out = [list(r) for r in rows]
+    k = 0
+    for y, r in enumerate(out):
+        for x, c in enumerate(r):
+            if c != "a":
+                continue
+            h = (x * 7 + y * 13 + k * 5) % 10
+            k += 1
+            if rail and h < 2:
+                r[x] = "}"
+            elif repeater and 2 <= h < 6:
+                r[x] = "{"
+    return ["".join(r) for r in out]
+
+
+def guns_in(rows):
+    """Which of the repeater (3) and railgun (4) a sector's map has lying in it"""
+    s = "".join(rows)
+    return "3" in s, "4" in s
 
 
 def _num(v):
@@ -663,10 +690,14 @@ def level_text(lv, comment=()):
     out += list(lv["rows"])
     fl = lv.get("floor") or []
     if any(r.strip(".") for r in fl):
-        out += ["", "[floor]", "' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down"] + list(fl)
+        out += ["", "[floor]", "' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down"] + [_low_row(r) for r in fl]
+        if any(_high_row(r).strip("0") for r in fl):
+            out += ["", "[floor high]", "' floors higher than z: how many 36 eighths more (0-6), the [floor] digit the rest"] + [_high_row(r) for r in fl]
     ce = lv.get("ceiling") or []
     if any(r.strip(".") for r in ce):
-        out += ["", "[ceiling]", "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's"] + list(ce)
+        out += ["", "[ceiling]", "' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's"] + [_low_row(r) for r in ce]
+        if any(_high_row(r).strip("0") for r in ce):
+            out += ["", "[ceiling high]", "' ceilings higher than z: how many 36 eighths more (0-6), the [ceiling] digit the rest"] + [_high_row(r) for r in ce]
     lq = lv.get("liquid") or []
     if any(r.strip(".") for r in lq):  # pools: the game's [liquid] and [liquid depth], as the editor writes them
         ld = list(lv.get("liquid_depth") or [])
@@ -674,6 +705,16 @@ def level_text(lv, comment=()):
         out += ["", "[liquid]", "' each cell's liquid: . none, w water, p poison, s slime, l lava, a acid"] + list(lq)
         out += ["", "[liquid depth]", "' how deep, in eighths of a wall: . is %d, or 1-8" % LIQUID_DEPTH] + ld
     return "\n".join(out) + "\n"
+
+
+def _low_row(r):
+    """A heights row as [floor] / [ceiling] has it: a height past z, its last digit in base 36"""
+    return "".join(H_UP[hval(c, 0) % 36] if ord(c) >= H_HI else c for c in r)
+
+
+def _high_row(r):
+    """...and its [floor high] / [ceiling high] row: how many 36s (0 for the rest)"""
+    return "".join(str(hval(c, 0) // 36) if ord(c) >= H_HI else "0" for c in r)
 
 
 def pad_order(g, pairs):

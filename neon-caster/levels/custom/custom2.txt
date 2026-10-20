@@ -64,7 +64,7 @@ ambient  = 150, 255, 205, 165
 enter 4 38 9 43 : message THE STALKER ON THE ISLAND IS ALREADY HUNTING YOU
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 42, 10, 30, 0, 100, 100, 0
 3, 14, 2, 0, 100, 120, 1
 3, 20, 2, 0, 100, 120, 1

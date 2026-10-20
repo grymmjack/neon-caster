@@ -58,7 +58,7 @@ enter 5 39 9 43 : message NOTHING UNDERNEATH - STEP OFF AND YOU FALL FOR EVER
 enter 28 12 30 14 : message THE LIFTS RISE AND FALL - WAIT FOR THEM
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 42, 7, 12, 0, 100, 100, 0
 9, 20, 4, 0, 100, 100, 1
 40, 35, 14, 0, 100, 100, 3

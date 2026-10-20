@@ -58,7 +58,7 @@ ambient  = 150, 235, 230, 255
 enter 9 15 38 17 : message THE STATUES SLEEP - UNLESS YOU SHOOT THEM
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 19, 4, 5, 0, 100, 100, 1
 28, 4, 5, 0, 100, 100, 1
 12, 16, 14, 0, 150, 100, 2

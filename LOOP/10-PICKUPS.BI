@@ -69,11 +69,19 @@
                     IF GiveAmmo%(AM_SHELLS, 8) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Shells (+8)" : pickFlash = 10
                 CASE IT_ROCKETS
                     IF GiveAmmo%(AM_ROCKETS, 5) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Rockets (+5)" : pickFlash = 10
+                CASE IT_ROUNDS
+                    IF GiveAmmo%(AM_ROUNDS, 40) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Repeater rounds (+40)" : pickFlash = 10
+                CASE IT_SLUGS
+                    IF GiveAmmo%(AM_SLUGS, 5) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Railgun slugs (+5)" : pickFlash = 10
                 CASE IT_SCATTER, IT_REPEATER, IT_RAIL, IT_LAUNCHER
                     IF itemKind(i) = IT_RAIL THEN gun = W_RAIL ELSE gun = itemKind(i) - IT_SCATTER + W_SCATTER
                     IF itemKind(i) = IT_LAUNCHER THEN gun = W_ROCKET
-                    IF gun = W_SCATTER THEN taken = GiveAmmo%(AM_SHELLS, 8) ELSE taken = GiveAmmo%(AM_CELLS, 30)
-                    IF gun = W_ROCKET THEN taken = GiveAmmo%(AM_ROCKETS, 5)
+                    SELECT CASE gun ' (each comes with some of its own ammo)
+                        CASE W_SCATTER : taken = GiveAmmo%(AM_SHELLS, 8)
+                        CASE W_REPEATER : taken = GiveAmmo%(AM_ROUNDS, 60)
+                        CASE W_RAIL : taken = GiveAmmo%(AM_SLUGS, 6)
+                        CASE ELSE : taken = GiveAmmo%(AM_ROCKETS, 5)
+                    END SELECT
                     IF NOT hasGun(gun) OR taken THEN
                         itemOn(i) = 0 : PlaySfx sndWeapon&, 0.9 : pickFlash = 10
                         IF NOT hasGun(gun) THEN

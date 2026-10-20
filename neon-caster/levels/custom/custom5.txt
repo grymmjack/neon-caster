@@ -50,7 +50,7 @@ use 30 19 : door 40 24 unlock ; message THE ARCHIVE IS OPEN ; sound door
 enter 21 13 26 18 : message THE LAST DOOR - SOMETHING'S BREATHING BEHIND IT
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 18, 2, 3, 0, 100, 100, 1
 29, 2, 3, 0, 100, 100, 1
 1, 16, 2, 0, 100, 130, 1

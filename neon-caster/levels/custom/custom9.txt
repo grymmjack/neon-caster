@@ -64,7 +64,7 @@ enter 7 39 9 41 : message THE ALLEYS ARE A LONG WAY DOWN - KEEP TO THE BRIDGES
 enter 29 8 30 10 : message THE BRIDGE IS OUT - WAIT FOR THE LIFT
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 25, 7, 14, 16, 100, 100, 0
 12, 14, 5, 0, 100, 100, 1
 42, 15, 14, 0, 150, 100, 2

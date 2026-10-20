@@ -18,9 +18,17 @@ CONST MAX_HP = 100, MAX_ARMOR = 100
 ' AM_ = AMmo: the kinds (NUM_AMMO of them). They number the ammo arrays:
 ' ammoCount(AM_CELLS) is how many energy cells you have, ammoMax(AM_SHELLS)
 ' the most shells you can carry. Rockets come five to a box, fifty at most.
-CONST AM_CELLS = 1, AM_SHELLS = 2, AM_ROCKETS = 3, NUM_AMMO = 3
+' Each gun has its own: the blaster cells, the scattergun shells, the
+' repeater rounds (forty to a box), the railgun slugs (five to a canister),
+' the launcher rockets.
+CONST AM_CELLS = 1, AM_SHELLS = 2, AM_ROCKETS = 3, AM_ROUNDS = 4, AM_SLUGS = 5, NUM_AMMO = 5
 DIM SHARED ammoCount(NUM_AMMO) AS INTEGER, ammoMax(NUM_AMMO) AS INTEGER
-ammoMax(AM_CELLS) = 99 : ammoMax(AM_SHELLS) = 40 : ammoMax(AM_ROCKETS) = 50
+ammoMax(AM_CELLS) = 99 : ammoMax(AM_SHELLS) = 40 : ammoMax(AM_ROCKETS) = 50 : ammoMax(AM_ROUNDS) = 200 : ammoMax(AM_SLUGS) = 25
+DIM SHARED savedRounds, savedSlugs ' (as you came into the sector: chapter 4's restart, a save's)
+' lootExact: a pickup thrown or dropped stays what it is (a thief giving
+' back your cells) - else cells come out as ammo for whichever of your
+' guns shoot energy (LootAmmo)
+DIM SHARED lootExact AS INTEGER
 ' TEST_ and CHEAT_ = testing aids - set both to 0 for the real game:
 '   TEST_ALL_GUNS  -1 starts you with every gun and full ammo
 '   CHEAT_KEYS     -1 lets K give you every keycard, and G switch god mode

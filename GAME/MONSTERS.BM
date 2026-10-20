@@ -184,7 +184,7 @@ SUB ThiefSpill(i)
         TossItem k, x, y, a, playerX, playerY : thiefGun(i) = 0
         ShowMsg "The thief dropped your gun!"
     ELSEIF thiefCells(i) >= 15 AND (thiefShells(i) < 8 OR GRnd < 0.5) THEN
-        TossItem IT_CELLS, x, y, a, playerX, playerY : thiefCells(i) = thiefCells(i) - 15
+        lootExact = -1 : TossItem IT_CELLS, x, y, a, playerX, playerY : lootExact = 0 : thiefCells(i) = thiefCells(i) - 15 ' (your own cells, back)
     ELSEIF thiefShells(i) >= 8 THEN
         TossItem IT_SHELLS, x, y, a, playerX, playerY : thiefShells(i) = thiefShells(i) - 8
     END IF
@@ -203,7 +203,7 @@ SUB DropThiefLoot(i)
         END SELECT
         DropItemAt k, x, y : n = n + 1
     END IF
-    FOR c = 1 TO (thiefCells(i) + 14) \ 15 : DropItemAt IT_CELLS, x + DCos(n * 2.1) * 0.35, y + DSin(n * 2.1) * 0.35 : n = n + 1 : NEXT
+    lootExact = -1 : FOR c = 1 TO (thiefCells(i) + 14) \ 15 : DropItemAt IT_CELLS, x + DCos(n * 2.1) * 0.35, y + DSin(n * 2.1) * 0.35 : n = n + 1 : NEXT : lootExact = 0 ' (your own cells, back)
     FOR c = 1 TO (thiefShells(i) + 7) \ 8 : DropItemAt IT_SHELLS, x + DCos(n * 2.1) * 0.35, y + DSin(n * 2.1) * 0.35 : n = n + 1 : NEXT
     IF n THEN ShowMsg "The thief dropped your things!"
     ThiefReset i

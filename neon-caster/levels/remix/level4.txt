@@ -75,7 +75,7 @@ enter 11 24 13 26 : message A CODE TERMINAL - face it and press SPACE
 enter 17 44 19 46 : message A DATA STATION - face it and press SPACE to jack in
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 15, 6, 14, 0, 100, 100, 0, 1
 45, 36, 14, 0, 100, 100, 0, 4
 
@@ -166,11 +166,11 @@ cryopod  = overcharge:15, medkit:30, -, -
 ###............|KK.e..m.....i..KP.............PP
 ###..............R.............Y.....P...PJ...PP
 ###......h......KKKKK%KK.KKKDKKKP....J........PP
-###.t...........KKKKKgKK.KKaeaKKP..s........s.PP
+###.t...........KKKKKgKK.KK}e}KKP..s........s.PP
 ###...(....(....#####.##X##q*+##P.............PP
 ###.........u...%g.CCCCC.CCeujCCP....P...P....PP
 ###...g.........CCCCCCC/.CCCCCCCP.............PP
-###\....a....t./CCCCCC/..\CCCCCCP\t....g....t/PP
+###\....}....t./CCCCCC/..\CCCCCCP\t....g....t/PP
 ####\........./CCCCCC/....\CCCCCPP\........./PPP
 #KKKK\...T.../CCCCCC/...p..\CCCCPPP\..Z..../PPPP
 #KKKKKK.K?===CCCCCC/........\CCCPPPPPPPPP.PPPPPP
@@ -186,22 +186,22 @@ cryopod  = overcharge:15, medkit:30, -, -
 #KK....OK...CC\................../CCCC#KK.....KK
 #KK.....=.ZFCCC\................/CCCCC#KK.....KK
 #KK...i.=.VACCCC\...s.......g../CCCCCC#KI)i...KK
-#KK..a..=.ZFCCCCC\............/CCCCCCC#KK.....KK
+#KK..{..=.ZFCCCCC\............/CCCCCCC#KK.....KK
 #KK.....?...CCCCCC\........../CCCCCCCC#KK.....KK
-#KKKKKKDKK#OCCCCCCC\....ma../CCCCCCCCC#KKBKKKKKK
+#KKKKKKDKK#OCCCCCCC\....m{../CCCCCCCCC#KKBKKKKKK
 #KKKKKK.KK#CCCCCCCCC\....../CCCCGGGGGGGGG.GGGGGG
 #KKKK/.......\CCCCCCC\..p./CCCCCGGG/..Q....\GGGG
 ####/.........\CCCCCCC\../CCCCCCGG/.........\GGG
 ###/.......t...\CCCCCCC\.CCCC...G/..h........\GG
 ###..g..e.......CCCCCCCC.CCCCIV.=...........s|GG
-##I.............CCCCCCCCmCCCCJ..=..a../\.....IGG
+##I.............CCCCCCCCmCCCCJ..=..}../\.....IGG
 ###...M.........%gk#####X####IZ.=..T./GG\.....GG
 ###.........m...KKKKKKKK.KKKK...?....\GG/.....GG
 ###.t...........KKKKKKKK.KKKOKKKG.....\/...*..GG
 ###I.........+...!.............B..............GG
 ###...r.........KK..i.......i..KG....c.....y..GG
 ###\.........../KK......^......KG\.........../GG
-####\....c...c/KKK.a.&.....&.e.KGG\g......../GGG
+####\....c...c/KKK.}.&.....&.e.KGG\g......../GGG
 #####\......./#KKK.............KGGG\......./GGGG
 ###############KKK@KKKKKKKKKKKKKGGGGGGGGGGGGGGGG
 ###############KKKKKKKKKKKKKKKKKGGGGGGGGGGGGGGGG

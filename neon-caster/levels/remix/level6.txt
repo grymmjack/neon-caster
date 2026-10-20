@@ -83,7 +83,7 @@ enter 18 33 20 35 : message A CODE TERMINAL - face it and press SPACE
 enter 27 5 29 7 : message A DATA STATION - face it and press SPACE to jack in
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 24, 12, 14, 0, 100, 100, 0, 6
 3, 24, 14, 0, 100, 100, 0, 2
 
@@ -201,19 +201,19 @@ NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 NN############NNNN############NNNN############NN
 NN#..........#NNNN#..Q...Q...#NNNN#..........#NN
-NN#.&......r.#NNNN#W....a...m#NNNN#..S....b..#NN
-NN#..p.a..p..#NNNN#..p....p..#NNNN#..p.n..p..#NN
+NN#.&......r.#NNNN#W....}...m#NNNN#..S....b..#NN
+NN#..p.{..p..#NNNN#..p....p..#NNNN#..p.n..p..#NN
 NN#..........#NNNN#..........@NNNN#..........#NN
 NN#.g............Y...............!......+....#NN
 NN#........T.#NNNN#...e......#NNNN#..........#NN
 NN#..........#NNNN#.m...w....#NNNN#.s......S.#NN
-NN#..p..M.p..#NNNN#..p....p.Q#Ne*a#..p....p..#NN
+NN#..p..M.p..#NNNN#..p....p.Q#Ne*}#..p....p..#NN
 NN#.x......m.#NNNN#......c...#NujaD........h.#NN
 NN#..Q.......#NNNN#.....|....#Nq+e#..........#NN
 NN#####.######NNNN#?===####%##NNNN#####.######NN
 NNNNNNN.pNNNNNNNNNN.....NNNwNNNNNNNNNNN.NNNNNNNN
 NNNNNNN.N.IJI.NNNNN..u..NNN.NNNNNNNNNNN.NNNNNNNN
-NNNNNNN.N.V.Z.NNNNN.qaj.NNNNNNNNNNNNNNN.NNNNNNNN
+NNNNNNN.N.V.Z.NNNNN.q{j.NNNNNNNNNNNNNNN.NNNNNNNN
 NNNNNNNDN.....NNNNNNNNNNNNNNNNNNNNNNNNNDNNNNNNNN
 NN##I##.#?===#NNNNCCCCCCCCCCCCNNNNKKKKK.KKKKKKNN
 NN#..........#NNNNCCC/..W.\CCCNNNNK.........xKNN
@@ -234,9 +234,9 @@ NNNNNNNDNNNNNNNNNNNNNNNRNNNNNNNNNNNNNNNBNNNNNNNN
 NN#####.######NNNN#$###.####p#NNNN#####.###I##NN
 NN#.......W..#NNNN#..........#NNNN#...J......#NN
 NN#..........#NNNN#...T....w.#NNNN#..........#NN
-NN#..p....p..#NNNN#..p.+h.p3.#NNNN#.ap..g.p..#NN
+NN#..p....p..#NNNN#..p.+h.p3.#NNNN#.{p..g.p..#NN
 NN#..........#NNNN#..........#NNNN#.........e#NN
-NN#.....a...&.m..D...............D...........#NN
+NN#.....{...&.m..D...............D...........#NN
 NN#..........#NNNN#..........#NNNN#.....w....#NN
 NN#..........#NNNN#..........#NNNN#..........INN
 NN#..>....p..#NNNN#..p.c..pc.#NN.w%..p.c..pm.#NN

@@ -64,7 +64,7 @@ enter 19 23 21 25 : message WEST PAD: THE REACTOR
 enter 23 26 25 28 : message SOUTH PAD: THE VAULT
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start)
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 20, 3, 6, 0, 100, 100, 0
 27, 3, 6, 0, 100, 100, 0
 4, 4, 3, 0, 100, 140, 1
@@ -903,7 +903,7 @@ enter 23 26 25 28 : message SOUTH PAD: THE VAULT
 #######################..#######################
 ####################/......\####################
 ###################/........\###################
-##################/....&..a..\##################
+##################/....&..{..\##################
 ##################............##################
 ##################....Q.......##################
 ##################.........&..##################

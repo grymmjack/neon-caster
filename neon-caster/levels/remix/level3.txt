@@ -89,7 +89,7 @@ enter 13 8 15 10 : message A CODE TERMINAL - face it and press SPACE
 enter 9 12 11 14 : message A DATA STATION - face it and press SPACE to jack in
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 18, 3, 14, 0, 100, 100, 0, 3
 
 [blocks]
@@ -175,18 +175,18 @@ crate    = ammo:20, shells:25, medkit:20, armor:10
 #CC...\CCCC#....x.|....#PPPP/.....x..x.....\PPP#
 #CC....\CCC#L.u.....g..#PPP/................\PP#
 #CC..>....D.......e....#PP/..oo...h........y.\P#
-#CC\.....\C#.M..o....a.#PP..g.................P#
+#CC\.....\C#.M..o....{.#PP..g.................P#
 #CCC\.....\#...........#PP..../\.../\.../\...LP#
 #CCCC\.....\############PP....\/...\/...\/.(&.P#
 #CCCCC\.....\C$CCCCCCCCPPP|...................P#
 #CCCCCC\.....c......R.......................s.P#
 #CCCCCCC\i....\CCCCCCCCP%P....................P#
-#CC.....C\.....\CCCCCCCPhP\t.....t....g...a../P#
+#CC.....C\.....\CCCCCCCPhP\t.....t....g...{../P#
 #CL.S...!...&.c.\CCCCCCPcPP\................/PP#
 #CC..+..CC@\.....\CCCCCPPPPP\............../PPP#
 #CC.c...CCCC\o....\CCCCPPPPPPPPPLPPPPPPP.PPPPPP#
 #CC.....CCCCC\....i\CCCCCCCCCCCCCGGGGGGGHGGGGGG#
-#CCW..c.CCCCCC\....a\CCCCCCCCCCCCGGGGGGG.GGGGGG#
+#CCW..c.CCCCCC\....{\CCCCCCCCCCCCGGGGGGG.GGGGGG#
 #CC.....%c.CCCC\.c...\CCCCCCCCCCCGG/........\GG#
 #CC.c...CCCCCCCC\.....\CCCCCCCCCCG/m........m\G#
 #CC...c.CCCCCCCCC\.....\CCCCCCCCCG........T...G#
@@ -196,7 +196,7 @@ crate    = ammo:20, shells:25, medkit:20, armor:10
 #CCCCCCCC.....CCCCCCC\.........D.......\/.....G#
 #KKKKtKKK?===KKKCCCCCC\.....\CCCCG............G#
 #KKK/........\KKCCCCCCC\.....\CCCG............G#
-#KK/a...T.....\KCCCCCCCC\.....\CCG\.g.......b/G#
+#KK/{...T.....\KCCCCCCCC\.....\CCG\.g.......b/G#
 #KK..........e......B......c...\CGG\......../GG#
 #KL............KCCCCCCCCCC\.....\GGGGGGGG===GGG#
 #KK............KCCCCja+CCCC\.....\CCCCCC.....CC#
@@ -212,7 +212,7 @@ crate    = ammo:20, shells:25, medkit:20, armor:10
 #KK............KCN...........NCCCCCCC\c....\CC.#
 #KK...#....#...KCN......s....NCCCCCCCC\....+\C.#
 #KK......h.....KCN...........NCCCCCCCCC\.m...C.#
-#KK............KCN..........aNCCCCCCCCCC\....?.#
+#KK............KCN..........{NCCCCCCCCCC\....?.#
 #KK\*........u/KCN\+......../NCCCCCCCCCCC\.c.CC#
 #KKK\..L...../KKCNN\......./NNCCCCCCCCCCCCCCCCC#
 #KKKKKKKKKKKKKKKCNNNNNNENNNNNNCCCCCCCCCCCCCCCCC#

@@ -67,7 +67,7 @@ ambient  = 165, 190, 225, 255
 shoot 27 19 : secret 21 15 ; message The sealed vault's wall slides open... ; sound alarm
 
 [monsters]
-' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles]
+' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
 19, 6, 14, 0, 100, 100, 0, 4
 14, 13, 14, 0, 100, 100, 0, 2
 

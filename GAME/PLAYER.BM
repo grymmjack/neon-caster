@@ -52,12 +52,14 @@ FUNCTION AmmoLow
     IF most > 0 THEN AmmoLow = (have < most * 0.25)
 END FUNCTION
 
-' An ammo kind by name (cells, shells, rockets - or 1, 2, 3), 0 for none
+' An ammo kind by name (cells, shells, rockets, rounds, slugs - or 1 to 5), 0 for none
 FUNCTION AmmoKind(a$)
     SELECT CASE LCASE$(a$)
         CASE "cells", "cell", "energy", "1" : AmmoKind = AM_CELLS
         CASE "shells", "shell", "2" : AmmoKind = AM_SHELLS
         CASE "rockets", "rocket", "3" : AmmoKind = AM_ROCKETS
+        CASE "rounds", "round", "bullets", "4" : AmmoKind = AM_ROUNDS
+        CASE "slugs", "slug", "5" : AmmoKind = AM_SLUGS
         CASE ELSE : AmmoKind = 0
     END SELECT
 END FUNCTION
@@ -66,6 +68,8 @@ FUNCTION AmmoName$(am)
     SELECT CASE am
         CASE AM_SHELLS : AmmoName$ = "shells"
         CASE AM_ROCKETS : AmmoName$ = "rockets"
+        CASE AM_ROUNDS : AmmoName$ = "rounds"
+        CASE AM_SLUGS : AmmoName$ = "slugs"
         CASE ELSE : AmmoName$ = "cells"
     END SELECT
 END FUNCTION
