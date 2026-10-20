@@ -148,7 +148,7 @@ SUB ConExec STATIC
     IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
         SELECT CASE conVerb$
             CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
-                 "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters"
+                 "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters", "turret", "turrets"
                 IF NOT achCheat AND NOT achTest THEN ConPrint "^9(cheats on: achievements wait for a new game)"
                 achCheat = -1
             CASE "sectorset", "campaign", "set10", "loot" ' (these only look, with nothing after them)
@@ -373,6 +373,8 @@ SUB ConExec STATIC
         CASE "notarget" ' The monsters don't notice you - and the hunting ones forget you
             IF conA$ = "" THEN noTarget = NOT noTarget ELSE noTarget = ConOn(conA$)
             IF noTarget THEN ConPrint "Notarget ON (monsters ignore you)" ELSE ConPrint "Notarget OFF"
+        CASE "turret", "turrets" ' turret [WHO WHAT [N]]: the turrets, told what to do - eject, retract, off, on, weapon, track, ejectspeed (GAME/TURRETS.BM's states)
+            TurretCommand
         CASE "kill", "killall" ' Every monster standing falls
             n = 0
             FOR i = 1 TO numMonsters
@@ -394,6 +396,7 @@ SUB ConExec STATIC
             sumFloor = TURRET_CEIL : IF LCASE$(conA$) = "floorturret" OR conA$ = "_" THEN t = MT_TURRET : sumFloor = TURRET_FLOOR
             IF LCASE$(conA$) = "ceilingturret" THEN t = MT_TURRET
             IF LCASE$(conA$) = "wallturret" OR conA$ = "|" THEN t = MT_TURRET : sumFloor = TURRET_WALL
+            sumEject = 0 : sumMode = -1 ' (how fast it comes out - ejectslow, ejectmedium, ejectfast, ejectN frames - and hidden or held: in its housing, coming out when it wakes, or when it's told)
             sumWeap = -1 : sumTrack = 0 ' (a turret's weapon, by name, anywhere after its type: summon turret flame - and how fast it turns: slow, fast, trackN)
             FOR k = 3 TO 7
                 tw$ = LCASE$(ConWord$(conCmd$, k))
@@ -401,6 +404,12 @@ SUB ConExec STATIC
                 IF tw$ = "slow" THEN sumTrack = 30
                 IF tw$ = "medium" THEN sumTrack = 90
                 IF tw$ = "fast" THEN sumTrack = 240
+                IF tw$ = "ejectslow" THEN sumEject = 90
+                IF tw$ = "ejectmedium" THEN sumEject = TURRET_EJECT
+                IF tw$ = "ejectfast" THEN sumEject = 12
+                IF LEFT$(tw$, 5) = "eject" AND VAL(MID$(tw$, 6)) > 0 THEN sumEject = MaxOf(4, MinOf(600, VAL(MID$(tw$, 6))))
+                IF tw$ = "hidden" THEN sumMode = TURRET_AUTO
+                IF tw$ = "held" THEN sumMode = TURRET_HELD
                 IF LEFT$(tw$, 5) = "track" AND VAL(MID$(tw$, 6)) > 0 THEN sumTrack = MaxOf(10, MinOf(360, VAL(MID$(tw$, 6)))) ' (track45: 45 degrees a second - "track" on its own is nothing)
             NEXT
             IF t > 0 AND LEN(conC$) > 0 AND VAL(conC$) > 0 THEN
@@ -409,7 +418,7 @@ SUB ConExec STATIC
                 FOR k = 1 TO cnt ' (the cell itself, then round it)
                     FOR try = 0 TO 8
                         sx = sx0 + (try MOD 3 - 1) * (try > 0) * -0.9 : sy = sy0 + ((try \ 3) - 1) * (try > 0) * -0.9
-                        IF SpawnMonster(t, sx, sy, 0, playerX, playerY) THEN n = n + 1 : SumTurret t, sumFloor, sumWeap, sumTrack : SpawnSparks sx, sy, 0.4, 24, 150, 90, 255 : EXIT FOR
+                        IF SpawnMonster(t, sx, sy, 0, playerX, playerY) THEN n = n + 1 : SumTurret t, sumFloor, sumWeap, sumTrack, sumEject, sumMode : SpawnSparks sx, sy, 0.4, 24, 150, 90, 255 : EXIT FOR
                     NEXT
                 NEXT
                 IF n THEN SfxAt sndTeleport&, sx0, sy0, playerX, playerY
@@ -424,13 +433,13 @@ SUB ConExec STATIC
                         IF NOT Walkable(playerX + dirX * (d + 0.5), playerY + dirY * (d + 0.5)) THEN EXIT DO
                         d = d + 0.25
                     LOOP
-                    IF SpawnMonster(t, INT(playerX + dirX * d) + 0.5, INT(playerY + dirY * d) + 0.5, 0, playerX, playerY) THEN n = 1 : SumTurret t, sumFloor, sumWeap, sumTrack
+                    IF SpawnMonster(t, INT(playerX + dirX * d) + 0.5, INT(playerY + dirY * d) + 0.5, 0, playerX, playerY) THEN n = 1 : SumTurret t, sumFloor, sumWeap, sumTrack, sumEject, sumMode
                     cnt = 0
                 END IF
                 FOR k = 1 TO cnt
                     FOR try = 0 TO 8
                         d = 2 + try * 0.5 : sx = playerX + dirX * d + dirY * (k - 1 - (cnt - 1) / 2) : sy = playerY + dirY * d - dirX * (k - 1 - (cnt - 1) / 2)
-                        IF SpawnMonster(t, sx, sy, 0, playerX, playerY) THEN n = n + 1 : SumTurret t, sumFloor, sumWeap, sumTrack : EXIT FOR
+                        IF SpawnMonster(t, sx, sy, 0, playerX, playerY) THEN n = n + 1 : SumTurret t, sumFloor, sumWeap, sumTrack, sumEject, sumMode : EXIT FOR
                     NEXT
                 NEXT
                 IF t = MT_TURRET AND n > 0 THEN ConPrint "Summoned" + STR$(n) + " turret - " + TurretWeaponName$(monWeap(numMonsters)) ELSE ConPrint "Summoned" + STR$(n) + " " + mtypeName$(t)
@@ -1067,7 +1076,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
+    ConNames$ = "turret help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1088,7 +1097,7 @@ SUB ConHelp(c$)
             ConPrint "  ^6settings  ^7set^8 NAME VALUE  ^7get^8 NAME  ^7settings  ^7NAME^8 [VALUE]  ^7bind^8 ACTION KEY  ^7binds"
             ConPrint "            ^7qb64pe^8 [PATH|auto]"
             ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
-            ConPrint "            ^7liftgo  ^7trigger  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7savelevel"
+            ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7savelevel"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
             ConPrint "  ^6scripts   ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE  ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT"
             ConPrint "            ^7sound^8 NAME  ^7say^8 LINE  ^7cutscene^8 [SECTOR]"
@@ -1122,6 +1131,12 @@ SUB ConHelp(c$)
         CASE "notarget" : ConPrint "^3notarget [on|off]^0: the monsters don't notice you, and hunting ones forget you"
         CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-5 | ammo [cells|shells|rockets N] | health [N] | armor [N] | overcharge | amp | map | goggles | suit"
         CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-5 | ammo [cells|shells|rockets N] | health N | armor [N] | map"
+        CASE "turret", "turrets"
+            ConPrint "^3turret [WHO WHAT [N]]^0: turrets told what to do (an ambush, from a trigger); alone: lists them"
+            ConPrint "  WHO: a number (as ^7turret^0 lists them), ^7all^0, or ^7at^8 X Y [R]^0 - within R cells (2 if not said)"
+            ConPrint "  WHAT: ^7eject^0 out of its housing (a held one too) - ^7retract^0 back in, and held there"
+            ConPrint "  ^7off^0 still, where it is - ^7on^0 again - ^7weapon^8 NAME^0 - ^7track^8 N|slow|medium|fast^0 (degrees a second)"
+            ConPrint "  ^7ejectspeed^8 N|slow|medium|fast^0 (frames to come out).  ^3turret at 20 14 4 eject^0: an ambush"
         CASE "kill", "killall" : ConPrint "^3kill^0: every monster standing falls (no loot - shoot them for that)"
         CASE "respawn" : ConPrint "^3respawn^0: every one of the level's monsters back where it started, alive"
         CASE "die", "suicide" : ConPrint "^3die [MESSAGE]^0: you die (a trigger's death trap); never in god mode or the editor"
@@ -1133,9 +1148,11 @@ SUB ConHelp(c$)
             ConPrint "^3summon TYPE [COUNT]^0: COUNT monsters (1 if not said) in front of you, hunting. spawn TYPE X Y [COUNT]: teleported into cell X Y (a trigger's ambush)"
             ConPrint "  TYPE, by name (or the start of one) or number: " + RTRIM$(t$)
             ConPrint "  ^7turret^0 (or ^7ceilingturret^0) hangs from the ceiling, ^7floorturret^0 (or ^7_^0) stands on the floor,"
-            ConPrint "  ^7wallturret^0 (or ^7|^0) is in the wall you face - summoned, a turret is out already. After it, a weapon:"
+            ConPrint "  ^7wallturret^0 (or ^7|^0) is in the wall you face - summoned, it's out already. Then a weapon:"
             ConPrint "  ^7plasma laser lightning flame poison acid missiles^0 - and how fast it turns:"
             ConPrint "  ^7slow medium fast track^8N^0 (degrees a second, 90 as made): ^3summon wallturret missiles slow^0"
+            ConPrint "  how fast it comes out: ^7ejectslow ejectmedium ejectfast eject^8N^0 (frames, 36 as made). Summoned"
+            ConPrint "  ^7hidden^0, it waits in its housing till it wakes; ^7held^0, till ^3turret^0 says (^7help turret^0)"
             ConPrint "  A turret starts facing away from you, and fires once it's turned onto you"
             ConPrint "  (ICE only hunts in the network)"
         CASE "item", "drop" : ConPrint "^3item KIND X Y^0: a pickup in cell X Y - health medkit armor cells shells rockets scatter repeater rail launcher map overcharge amp goggles suit red blue yellow (or its map character)"
@@ -1345,10 +1362,12 @@ END FUNCTION
 ' A monster just summoned or spawned (the last): a turret's mount (TURRET_),
 ' weapon (TW_ - or -1, as every one is: plasma) and how fast it turns
 ' (degrees a second, 0 as made)
-SUB SumTurret(t, mount, weap, track)
+SUB SumTurret(t, mount, weap, track, ej, mode)
     IF t <> MT_TURRET THEN EXIT SUB
     monFrom(numMonsters) = mount : IF weap >= 0 THEN monWeap(numMonsters) = weap
     IF track > 0 THEN monTrack(numMonsters) = track
+    IF ej > 0 THEN monEject(numMonsters) = TURRET_UP / ej
+    IF mode >= 0 THEN monTMode(numMonsters) = mode : monDeploy(numMonsters) = 0 ' (hidden or held: in its housing to start with)
     monAimA(numMonsters) = DAtan2(dirY, dirX) ' (pointing the way you face: away from you - it has to turn round first)
     IF mount = TURRET_WALL THEN ' (in the wall you face)
         turPrefX = 0 : turPrefY = 0

@@ -67,7 +67,15 @@ DIM SHARED monsterEv(MAX_MON) AS INTEGER ' (the event room that sent it, 0 for n
 ' (monDeploy: 0 hidden .. TURRET_UP out; -1 switched off) and whether it
 ' hangs from the ceiling (monFrom 0) or rises from the floor (1)
 DIM SHARED monAim(MAX_MON) AS INTEGER, monAimX(MAX_MON) AS SINGLE, monAimY(MAX_MON) AS SINGLE
-DIM SHARED monBurst(MAX_MON) AS INTEGER, monGap(MAX_MON) AS INTEGER, monDeploy(MAX_MON) AS INTEGER, monFrom(MAX_MON) AS INTEGER, monTurn(MAX_MON) AS INTEGER
+DIM SHARED monBurst(MAX_MON) AS INTEGER, monGap(MAX_MON) AS INTEGER, monDeploy(MAX_MON) AS SINGLE, monFrom(MAX_MON) AS INTEGER, monTurn(MAX_MON) AS INTEGER
+' A turret's states: how fast it comes out and goes in (monEject: of
+' TURRET_UP a frame - the level's 10th number, the frames it takes), how it
+' starts (monTMode, the 11th: TURRET_AUTO out when it wakes, TURRET_HELD
+' folded away till it's told - the turret command, a trigger's - TURRET_OUT
+' out from the start), what it's been told (monTWant: 1 come out, -1 go in)
+' and whether it's been switched off, out but still (monTOff)
+CONST TURRET_AUTO = 0, TURRET_HELD = 1, TURRET_OUT = 2, TURRET_EJECT = 36 ' (TURRET_EJECT: the frames it takes as made - medium)
+DIM SHARED monEject(MAX_MON) AS SINGLE, monTMode(MAX_MON) AS INTEGER, monTWant(MAX_MON) AS INTEGER, monTOff(MAX_MON) AS INTEGER
 DIM SHARED monWeap(MAX_MON) AS INTEGER, monWallX(MAX_MON) AS SINGLE, monWallY(MAX_MON) AS SINGLE
 ' (a turret destroyed, monBlown: 1 its blast still to come - the monsters' next turn, not inside the hit that
 ' killed it - then 2: its mount, scorched, sparking and smoking for good - TurretBlown, TurretStump)

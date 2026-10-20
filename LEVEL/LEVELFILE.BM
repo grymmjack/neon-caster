@@ -427,7 +427,7 @@ SUB ReadLevelFile(n)
     fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0 : fhRows = 0 : chRows = 0
     f$ = LevelFile$(n) : IF LEN(lvlReadFrom$) THEN f$ = lvlReadFrom$ ' (another file, in its place: loadlevelfromdisk)
     IF NOT _FILEEXISTS(f$) THEN EXIT SUB
-    DIM v(9) AS SINGLE ' (9: a cell light's numbers)
+    DIM v(11) AS SINGLE ' (11: a monster's numbers, a turret's all of them)
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
     sec$ = "" : rows = 0
     DO UNTIL EOF(fh)
@@ -594,7 +594,7 @@ END FUNCTION
 ' Write the level (lvlName$ ... lvlRow$()) to file f$, in the format
 ' ReadLevelFile reads (chapter 22)
 SUB WriteLevelFile(f$)
-    DIM j, k, l$, y ' (its own: the main program shares these names)
+    DIM j, k, l$, y, monLast ' (its own: the main program shares these names)
     o$ = "" : nl$ = CHR$(10) ' (built up in o$, then written in one go - with plain line ends, as Linux has them)
     o$ = o$ + "' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every" + nl$
     o$ = o$ + "' part of it. Lines starting with ' are comments. The level kit" + nl$
@@ -630,11 +630,12 @@ SUB WriteLevelFile(f$)
         FOR k = 1 TO lvlNumTrigs : o$ = o$ + lvlTrig$(k) + nl$ : NEXT
     END IF
     IF lvlMonN THEN
-        o$ = o$ + nl$ + "[monsters]" + nl$ + "' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]" + nl$
+        o$ = o$ + nl$ + "[monsters]" + nl$ + "' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made [, frames it takes to come out, 0 as made (36) [, how it starts: 0 out when it wakes, 1 folded away till a turret command, 2 out]]]]" + nl$
         FOR k = 1 TO lvlMonN
             l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlMon(k, j))) + MID$(", ", 1, -2 * (j < 7)) : NEXT
-            IF lvlMon(k, 8) OR lvlMon(k, 9) THEN l$ = l$ + ", " + LTRIM$(STR$(lvlMon(k, 8)))
-            IF lvlMon(k, 9) THEN l$ = l$ + ", " + LTRIM$(STR$(lvlMon(k, 9)))
+            monLast = 7 : FOR j = 8 TO MON_COLS : IF lvlMon(k, j) THEN monLast = j ' (a turret's numbers, 8 on: only as far as the last that isn't 0)
+            NEXT
+            FOR j = 8 TO monLast : l$ = l$ + ", " + LTRIM$(STR$(lvlMon(k, j))) : NEXT
             o$ = o$ + l$ + nl$
         NEXT
     END IF

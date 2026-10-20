@@ -354,12 +354,12 @@ SUB EditPaneClick STATIC
                 IF edSelKind(k) = ED_BOX THEN bi = EditBoxIndex(edSelX(k), edSelY(k)) : IF bi THEN lvlBox(bi, 7) = pnHit - 209
             NEXT
             EditApply
-        CASE 80 TO 98 ' A monster's own settings: every monster selected
+        CASE 80 TO 98, 242 TO 244 ' A monster's own settings: every monster selected
             EditPushUndo
             FOR k = 1 TO edSelN
                 mx = edSelX(k) : my = edSelY(k)
                 IF MonOfChar(MID$(lvlRow$(my), mx + 1, 1)) THEN
-                    EditMonGet mx, my, ms, mh, mhp, msp, mw, mwp, mtr
+                    EditMonGet mx, my, ms, mh, mhp, msp, mw, mwp, mtr, mej, mst
                     SELECT CASE pnHit
                         CASE 80 : ms = MaxOf(1, ms - 1)
                         CASE 81 : ms = MinOf(40, ms + 1)
@@ -376,8 +376,12 @@ SUB EditPaneClick STATIC
                         CASE 97, 98 ' (how fast a turret turns: 10 to 360 degrees a second, 0 - as made - is TURRET_TRACK)
                             IF mtr = 0 THEN mtr = TURRET_TRACK
                             mtr = MaxOf(10, MinOf(360, mtr + 10 * (2 * pnHit - 195))) : IF mtr = TURRET_TRACK THEN mtr = 0
+                        CASE 242, 243 ' (how many frames a turret takes to come out and go in: 6 to 240, 0 - as made - is TURRET_EJECT)
+                            IF mej = 0 THEN mej = TURRET_EJECT
+                            mej = MaxOf(6, MinOf(240, mej + 6 * (2 * pnHit - 485))) : IF mej = TURRET_EJECT THEN mej = 0
+                        CASE 244 : mst = (mst + 1) MOD 3 ' (how it starts: out when it wakes, folded away till it's told, out)
                     END SELECT
-                    EditMonPut mx, my, ms, mh, mhp, msp, mw, mwp, mtr
+                    EditMonPut mx, my, ms, mh, mhp, msp, mw, mwp, mtr, mej, mst
                     FOR j = 1 TO numMonsters ' (and the monster that started there, as it is now: at once)
                         IF INT(monStartX(j)) = mx AND INT(monStartY(j)) = my AND monsterState(j) < 2 THEN MonOwn j, mx, my
                     NEXT
@@ -1401,7 +1405,7 @@ SUB EditRestore(s1$)
         DIM av(4) AS SINGLE
         IF SplitNums(MID$(a$, c3 + 1), av()) >= 4 THEN FOR j = 1 TO 4 : lvlAmb(j) = av(j) : NEXT
     END IF
-    DIM v(8) AS SINGLE
+    DIM v(MON_COLS) AS SINGLE
     lvlMonN = 0
     DO WHILE LEN(m$)
         c3 = INSTR(m$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
@@ -2645,7 +2649,7 @@ SUB EditPaneBuild
         c$ = MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)
         IF MonOfChar(c$) THEN
             edPnCX = edSelX(k) : edPnCY = edSelY(k)
-            EditMonGet edPnCX, edPnCY, ms, mh, mhp, msp, mw, mwp, mtr
+            EditMonGet edPnCX, edPnCY, ms, mh, mhp, msp, mw, mwp, mtr, mej, mst
             edPnTitle$ = UCASE$(GlyphName$(c$)) + STR$(edPnCX) + "," + LTRIM$(STR$(edPnCY))
             FOR r = 0 TO 3
                 SELECT CASE r
@@ -2662,6 +2666,11 @@ SUB EditPaneBuild
                 y = y + 23
                 t$ = "TRACKING" + STR$(TURRET_TRACK) : IF mtr THEN t$ = "TRACKING" + STR$(mtr)
                 EditPaneAdd -1, x0, y + 2, 140, t$ + " deg/s", 0 : EditPaneAdd 97, x0 + 146, y, 24, "-", 0 : EditPaneAdd 98, x0 + 174, y, 24, "+", 0
+                y = y + 23
+                t$ = "EJECT" + STR$(TURRET_EJECT) : IF mej THEN t$ = "EJECT" + STR$(mej)
+                EditPaneAdd -1, x0, y + 2, 140, t$ + " frames", 0 : EditPaneAdd 242, x0 + 146, y, 24, "-", 0 : EditPaneAdd 243, x0 + 174, y, 24, "+", 0
+                y = y + 23
+                EditPaneAdd 244, x0, y, PN_W, "STARTS " + RTRIM$(MID$("OUT WHEN IT WAKESFOLDED AWAY     OUT              ", mst * 17 + 1, 17)), 0
                 y = y + 23
             END IF
             EditPaneAdd -1, x0, y + 2, PN_W, "WAKES WHEN:", 0 : y = y + 20
@@ -2808,23 +2817,24 @@ SUB EditDrawPane(mx, my)
 END SUB
 
 ' The monster starting in (x, y): its sight, hearing, health %, speed %,
-' waking, a turret's weapon - its own ([monsters]) or as every one is
-SUB EditMonGet(x, y, ms, mh, mhp, msp, mw, mwp, mtr)
+' waking, a turret's weapon, turning, coming out (frames) and start - its
+' own ([monsters]) or as every one is
+SUB EditMonGet(x, y, ms, mh, mhp, msp, mw, mwp, mtr, mej, mst)
     DIM k ' (its own: the main program shares these names)
-    ms = MON_SIGHT : mh = 0 : mhp = 100 : msp = 100 : mw = WAKE_SEE : mwp = TW_PLASMA : mtr = 0
+    ms = MON_SIGHT : mh = 0 : mhp = 100 : msp = 100 : mw = WAKE_SEE : mwp = TW_PLASMA : mtr = 0 : mej = 0 : mst = 0
     FOR k = 1 TO lvlMonN
-        IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN ms = lvlMon(k, 3) : mh = lvlMon(k, 4) : mhp = lvlMon(k, 5) : msp = lvlMon(k, 6) : mw = lvlMon(k, 7) : mwp = lvlMon(k, 8) : mtr = lvlMon(k, 9)
+        IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN ms = lvlMon(k, 3) : mh = lvlMon(k, 4) : mhp = lvlMon(k, 5) : msp = lvlMon(k, 6) : mw = lvlMon(k, 7) : mwp = lvlMon(k, 8) : mtr = lvlMon(k, 9) : mej = lvlMon(k, 10) : mst = lvlMon(k, 11)
     NEXT
 END SUB
 
 ' ...and set: as every one is again, it's taken out of [monsters]
-SUB EditMonPut(x, y, ms, mh, mhp, msp, mw, mwp, mtr)
+SUB EditMonPut(x, y, ms, mh, mhp, msp, mw, mwp, mtr, mej, mst)
     DIM c, j, k ' (its own: the main program shares these names)
     k = 0
     FOR j = 1 TO lvlMonN
         IF lvlMon(j, 1) = x AND lvlMon(j, 2) = y THEN k = j
     NEXT
-    IF ms = MON_SIGHT AND mh = 0 AND mhp = 100 AND msp = 100 AND mw = WAKE_SEE AND mwp = TW_PLASMA AND mtr = 0 THEN
+    IF ms = MON_SIGHT AND mh = 0 AND mhp = 100 AND msp = 100 AND mw = WAKE_SEE AND mwp = TW_PLASMA AND mtr = 0 AND mej = 0 AND mst = 0 THEN
         IF k THEN
             FOR j = k TO lvlMonN - 1 : FOR c = 1 TO MON_COLS : lvlMon(j, c) = lvlMon(j + 1, c) : NEXT : NEXT
             lvlMonN = lvlMonN - 1
@@ -2835,7 +2845,7 @@ SUB EditMonPut(x, y, ms, mh, mhp, msp, mw, mwp, mtr)
         IF lvlMonN >= MAX_MON THEN EXIT SUB
         lvlMonN = lvlMonN + 1 : k = lvlMonN
     END IF
-    lvlMon(k, 1) = x : lvlMon(k, 2) = y : lvlMon(k, 3) = ms : lvlMon(k, 4) = mh : lvlMon(k, 5) = mhp : lvlMon(k, 6) = msp : lvlMon(k, 7) = mw : lvlMon(k, 8) = mwp : lvlMon(k, 9) = mtr
+    lvlMon(k, 1) = x : lvlMon(k, 2) = y : lvlMon(k, 3) = ms : lvlMon(k, 4) = mh : lvlMon(k, 5) = mhp : lvlMon(k, 6) = msp : lvlMon(k, 7) = mw : lvlMon(k, 8) = mwp : lvlMon(k, 9) = mtr : lvlMon(k, 10) = mej : lvlMon(k, 11) = mst
 END SUB
 
 ' A ring on the floor round (cx, cy), r cells, at height z (the monster's
@@ -3470,7 +3480,7 @@ SUB EditDrawFaces
     NEXT
     FOR k = 1 TO edSelN ' A monster selected: how far it sees (cyan) and hears (yellow), on the floor round it
         IF MonOfChar(MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN
-            EditMonGet edSelX(k), edSelY(k), ms, mh, mhp, msp, mw, mwp, mtr
+            EditMonGet edSelX(k), edSelY(k), ms, mh, mhp, msp, mw, mwp, mtr, mej, mst
             z = floorH(edSelX(k), edSelY(k)) + 0.02
             IF mw <> WAKE_HIT AND mw <> WAKE_HUNT THEN EditRing edSelX(k) + 0.5, edSelY(k) + 0.5, ms, z, _RGBA32(90, 230, 255, 190)
             IF mw <> WAKE_HIT AND mw <> WAKE_HUNT THEN EditRing edSelX(k) + 0.5, edSelY(k) + 0.5, mh, z, _RGBA32(255, 220, 60, 190)

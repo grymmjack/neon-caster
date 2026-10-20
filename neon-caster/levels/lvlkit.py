@@ -1109,6 +1109,12 @@ def check_level(lv, assets=None):
             errs.append("monster %s: a turret's weapon is 0-6" % (m,))
         if len(m) > 8 and not (m[8] == 0 or 10 <= m[8] <= 360):
             errs.append("monster %s: a turret turns 10-360 degrees a second (0: as made)" % (m,))
+        if len(m) > 9 and not (m[9] == 0 or 4 <= m[9] <= 600):
+            errs.append("monster %s: a turret comes out in 4-600 frames (0: as made, 36)" % (m,))
+        if len(m) > 10 and m[10] not in (0, 1, 2):
+            errs.append("monster %s: a turret starts 0 (out when it wakes), 1 (held in: needs a turret command) or 2 (out)" % (m,))
+        if len(m) > 10 and m[10] == 1 and not any("turret" in t for t in lv.get("triggers", [])):
+            warns.append("monster %s: a held turret, and no trigger with a turret command to bring it out" % (m[:2],))
     if (len(lv["walls"]), len(lv["floors"]), len(lv["ceils"])) != (6, 4, 2):
         errs.append("need 6 walls, 4 floors, 2 ceilings")
     if assets:

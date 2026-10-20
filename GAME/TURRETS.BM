@@ -315,3 +315,61 @@ SUB TurretMuzzle(i, k, x!, y!, z!)
     y! = oy! + fy! * turMuzX(k) + ry! * turMuzY(k) + uy! * turMuzZ(k)
     z! = oz! + fz! * turMuzX(k) + rz! * turMuzY(k) + uz! * turMuzZ(k)
 END SUB
+
+' --- The turret command (the console's, a trigger's): turret WHO WHAT [N].
+' WHO a turret's number, all, or at X Y [R]; WHAT eject, retract, off, on,
+' weapon NAME, track N|slow|medium|fast, ejectspeed N|slow|medium|fast.
+' On its own: every turret, and how it is.
+SUB TurretCommand
+    DIM i, k, n, w, who$, what$, arg$, ax!, ay!, ar!, hit, v!, st$ ' (its own: the main program shares these names)
+    who$ = ConWord$(conCmd$, 2) : w = 3
+    IF who$ = "" THEN
+        FOR i = 1 TO numMonsters
+            IF monsterType(i) = MT_TURRET THEN
+                n = n + 1
+                st$ = "out" : IF monDeploy(i) < TURRET_UP THEN st$ = "coming out" : IF monDeploy(i) = 0 THEN st$ = "in its housing" : IF monTMode(i) = TURRET_HELD THEN st$ = "held in"
+                IF monTWant(i) = -1 THEN st$ = "going in"
+                IF monTOff(i) THEN st$ = st$ + ", off"
+                IF monsterState(i) >= 2 OR monDeploy(i) < 0 THEN st$ = "destroyed"
+                ConPrint LTRIM$(STR$(i)) + "  " + RTRIM$(MID$("ceiling floor  wall   ", monFrom(i) * 7 + 1, 7)) + " turret at" + STR$(INT(monsterX(i))) + STR$(INT(monsterY(i))) + "  " + TurretWeaponName$(monWeap(i)) + "  tracks" + STR$(monTrack(i)) + "  ejects in" + STR$(INT(TURRET_UP / monEject(i) + 0.5)) + "  " + st$
+            END IF
+        NEXT
+        IF n = 0 THEN ConPrint "No turrets in this sector"
+        EXIT SUB
+    END IF
+    IF who$ = "at" THEN
+        ax! = VAL(ConWord$(conCmd$, 3)) : ay! = VAL(ConWord$(conCmd$, 4)) : ar! = 2 : w = 5
+        IF VAL(ConWord$(conCmd$, 5)) > 0 OR ConWord$(conCmd$, 5) = "0" THEN ar! = VAL(ConWord$(conCmd$, 5)) : w = 6
+    END IF
+    what$ = ConWord$(conCmd$, w) : arg$ = ConWord$(conCmd$, w + 1)
+    IF what$ = "" THEN ConPrint "turret WHO WHAT - eject, retract, off, on, weapon, track, ejectspeed (help turret)" : EXIT SUB
+    FOR i = 1 TO numMonsters
+        IF monsterType(i) <> MT_TURRET OR monsterState(i) >= 2 OR monDeploy(i) < 0 THEN _CONTINUE
+        SELECT CASE who$
+            CASE "all"
+            CASE "at" : IF (monsterX(i) - ax! - 0.5) ^ 2 + (monsterY(i) - ay! - 0.5) ^ 2 > (ar! + 0.5) ^ 2 THEN _CONTINUE
+            CASE ELSE : IF VAL(who$) <> i THEN _CONTINUE
+        END SELECT
+        hit = hit + 1
+        SELECT CASE what$
+            CASE "eject", "out", "deploy" : monTWant(i) = 1 : monTOff(i) = 0 : IF monsterState(i) = 0 THEN monsterState(i) = 1 : monsterTimer(i) = 0 ' (and hunting)
+            CASE "retract", "in", "hide" : monTWant(i) = -1 : IF monsterState(i) = 0 THEN monsterState(i) = 1 ' (its turn takes it in)
+            CASE "off" : monTOff(i) = -1 : monLock(i) = 0 : monBurst(i) = 0 : monAim(i) = 0
+            CASE "on" : monTOff(i) = 0
+            CASE "weapon", "arm"
+                k = TurretWeaponOf(arg$) : IF k < 0 THEN ConPrint "weapon: plasma laser lightning flame poison acid missiles" : EXIT SUB
+                monWeap(i) = k
+            CASE "track", "turn"
+                v! = VAL(arg$) : IF arg$ = "slow" THEN v! = 30 ELSE IF arg$ = "medium" THEN v! = 90 ELSE IF arg$ = "fast" THEN v! = 240
+                IF v! <= 0 THEN ConPrint "track N (degrees a second) or slow, medium, fast" : EXIT SUB
+                monTrack(i) = MaxOf(10, MinOf(360, v!))
+            CASE "ejectspeed", "speed"
+                v! = VAL(arg$) : IF arg$ = "slow" THEN v! = 90 ELSE IF arg$ = "medium" THEN v! = TURRET_EJECT ELSE IF arg$ = "fast" THEN v! = 12
+                IF v! <= 0 THEN ConPrint "ejectspeed N (frames to come out) or slow, medium, fast" : EXIT SUB
+                monEject(i) = TURRET_UP / MaxOf(4, MinOf(600, v!))
+            CASE ELSE
+                ConPrint "turret: eject, retract, off, on, weapon NAME, track N, ejectspeed N" : EXIT SUB
+        END SELECT
+    NEXT
+    IF NOT conFromTrig THEN IF hit = 0 THEN ConPrint "turret: no turret there" ELSE ConPrint "turret: " + what$ + " (" + LTRIM$(STR$(hit)) + ")"
+END SUB

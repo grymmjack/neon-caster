@@ -199,6 +199,11 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | IT'S HIT | Only being hit; nothing else wakes it | |
 | HUNTING | Nothing: it's hunting you from the start | |
 | WEAPON (a turret's) | What it fires - click `<` `>` round them: PLASMA (bursts of bolts), LASER (aims a red line that lags behind you, then fires - step out of it), LIGHTNING (crackles as it charges, then strikes if it still sees you), FLAME (a stream of fire, 5 cells), POISON (a green spray, 6 cells - the hazmat suit keeps it out), ACID (a yellow mist that eats armour first - the suit keeps it out too), MISSILES (slow, they turn after you, and burst) | PLASMA |
+| TRACKING (a turret's) | How fast it turns to you, in degrees a second, `-` `+` by 10 (10 to 360). It only fires once it's on you: a slow one is easy to outrun. | 90 |
+| EJECT (a turret's) | How many frames it takes to come out of its housing (and go back in), `-` `+` by 6 (6 to 240; 60 is a second) | 36 |
+| STARTS (a turret's) | Click it round: OUT WHEN IT WAKES (hidden in its housing till it sees you, as every turret was), FOLDED AWAY (it stays in, can't be seen or hit, till a `turret` command - a trigger's - brings it out), OUT (out from the start) | OUT WHEN IT WAKES |
+
+**Turret ambushes.** A FOLDED AWAY turret waits for a trigger: give the room an ENTER trigger with `turret at X Y R eject` (every turret within R cells of X Y comes out), or `turret all eject`, and they slide out together as you walk in. The `turret` command does more - `retract` (back in, folded away again), `off` and `on` (out but still), `weapon NAME`, `track N`, `ejectspeed N` - and on its own in the console it lists every turret by number, with how it is. A folded-away turret nothing ever brings out still counts in the tally's kills.
 
 To check an ambush, play it and type `mons` in the console: it says which monsters are still asleep. A closet of YOU'RE NEAR crawlers with a sight of 2 springs as you pass; a heavy with HEARING 12 comes running at the first shot. The settings are kept by the cell the monster starts in, so moving it with the arrows takes them along, but deleting it and placing a new one doesn't.
 
@@ -520,7 +525,7 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 
 **`[pads]`** (LINK): teleporter pads paired by hand, `x1, y1, x2, y2`. Pads in no pair here pair up as ever, in reading order. Up to 16.
 
-**`[monsters]`** (a monster's pane): `x, y, sight, hearing, health, speed, wake`, by the cell the monster starts in. Sight and hearing are in cells, health and speed in % of its kind's, and wake is 0 seeing you, 1 you near, 2 being hit, 3 hunting from the start. A turret can have an eighth number, its weapon: 0 plasma (left off), 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles.
+**`[monsters]`** (a monster's pane): `x, y, sight, hearing, health, speed, wake`, by the cell the monster starts in. Sight and hearing are in cells, health and speed in % of its kind's, and wake is 0 seeing you, 1 you near, 2 being hit, 3 hunting from the start. A turret can have more: an eighth number, its weapon (0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles), a ninth, how fast it turns (degrees a second, 0 as made), a tenth, how many frames it takes to come out (0 as made, 36), and an eleventh, how it starts (0 out when it wakes, 1 folded away till a `turret` command, 2 out). Numbers past the last one that isn't 0 are left off.
 
 **`[triggers]`** (TRIGGERS... in a pane) run console commands when something happens: `WHEN [repeat] : COMMAND ; COMMAND`.
 

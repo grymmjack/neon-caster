@@ -156,6 +156,8 @@ SUB MonOwn(i, x, y)
             monSight(i) = lvlMon(k, 3) : monHear(i) = lvlMon(k, 4) : monSpd(i) = lvlMon(k, 6) / 100 : monWake(i) = lvlMon(k, 7)
             monWeap(i) = MaxOf(0, MinOf(TURRET_WEAPONS, lvlMon(k, 8))) ' (a turret's weapon: TW_)
             IF lvlMon(k, 9) > 0 THEN monTrack(i) = MaxOf(10, MinOf(360, lvlMon(k, 9))) ' (and how fast it turns)
+            IF lvlMon(k, 10) > 0 THEN monEject(i) = TURRET_UP / MaxOf(4, MinOf(600, lvlMon(k, 10))) ' (how many frames it takes to come out)
+            monTMode(i) = MaxOf(0, MinOf(TURRET_OUT, lvlMon(k, 11))) : IF monTMode(i) = TURRET_OUT AND monsterType(i) = MT_TURRET THEN monDeploy(i) = TURRET_UP ' (and how it starts)
             monsterHP(i) = MaxOf(1, INT(mtypeHP(monsterType(i)) * lvlMon(k, 5) / 100))
             IF monWake(i) = WAKE_HUNT THEN monsterState(i) = 1 : monsterTimer(i) = 60
         END IF
@@ -230,7 +232,7 @@ END FUNCTION
 FUNCTION ShotPasses(i, z)
     DIM t ' (its own: the main program shares these names)
     IF monsterType(i) = MT_TURRET THEN ' (a turret not out yet: a shot hits its hatch - waking it, HitMonster - when it's asleep; else they go by)
-        IF monDeploy(i) < TURRET_UP AND NOT (monDeploy(i) = 0 AND monsterState(i) = 0) THEN ShotPasses = -1 : EXIT FUNCTION
+        IF monDeploy(i) < TURRET_UP AND NOT (monDeploy(i) = 0 AND monsterState(i) = 0 AND monTMode(i) <> TURRET_HELD) THEN ShotPasses = -1 : EXIT FUNCTION ' (folded away, or on its way: nothing to hit)
     END IF
     IF NOT lookAim THEN EXIT FUNCTION ' (level aim: whatever's in the middle column is hit, high or low)
     t = monsterType(i)
@@ -506,11 +508,21 @@ SUB MonStyleTurn(i)
             IF sn AND monsterTimer(i) = 0 AND distance < 18 THEN MonLaserStart i, LASER_AIM : SfxAt mtypeAlertSnd&(mt), monsterX(i), monsterY(i), playerX, playerY
         CASE STYLE_BURST, STYLE_TURRET ' The trooper, a turret: bursts of bolts
             IF mtypeStyle(mt) = STYLE_TURRET THEN
-                IF monDeploy(i) < 0 THEN EXIT SUB ' (switched off)
+                IF monDeploy(i) < 0 THEN EXIT SUB ' (switched off: hacked)
+                IF monTWant(i) = -1 THEN ' Told to go in: back into its housing, and folded away there till it's told to come out
+                    monLock(i) = 0 : monBurst(i) = 0 : monAim(i) = 0
+                    IF monDeploy(i) >= TURRET_UP THEN SfxAt sndLiftStart&, monsterX(i), monsterY(i), playerX, playerY
+                    monDeploy(i) = MaxOf(0, monDeploy(i) - monEject(i))
+                    IF monDeploy(i) = 0 THEN monTWant(i) = 0 : monTMode(i) = TURRET_HELD
+                    EXIT SUB
+                END IF
+                IF monTMode(i) = TURRET_HELD AND monTWant(i) <> 1 THEN EXIT SUB ' (folded away: it waits to be told)
                 IF monDeploy(i) < TURRET_UP THEN
                     IF monDeploy(i) = 0 THEN SfxAt sndLiftStart&, monsterX(i), monsterY(i), playerX, playerY ' (coming out)
-                    monDeploy(i) = monDeploy(i) + 1 : EXIT SUB
+                    monDeploy(i) = MinOf(TURRET_UP, monDeploy(i) + monEject(i)) : EXIT SUB
                 END IF
+                IF monTWant(i) = 1 THEN monTWant(i) = 0 : monTMode(i) = TURRET_AUTO ' (out, as told: a turret like any other now)
+                IF monTOff(i) THEN monLock(i) = 0 : EXIT SUB ' (switched off by a command: out, but still)
                 TurretTrack i, sn ' (turning to you: it fires once it's on you - GAME/TURRETS.BM)
                 IF sn AND NOT (monWeap(i) = TW_LASER AND monAim(i) > 0) THEN TurretSight i
                 IF monWeap(i) <> TW_PLASMA THEN TurretFire i : EXIT SUB ' (laser, lightning, sprays, missiles: GAME/TURRETS.BM)
@@ -585,7 +597,7 @@ END SUB
 
 ' Monster i's own fighting state, fresh: not aiming, no burst, a turret hidden
 SUB MonFresh(i)
-    monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0 : monFly(i) = 0
+    monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO : monTWant(i) = 0 : monTOff(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0 : monFly(i) = 0
 END SUB
 
 ' A field boss's haul as it falls (monster i), thrown out towards you: the

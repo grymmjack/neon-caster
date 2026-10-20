@@ -24,7 +24,7 @@ DIM SHARED lvlNumPairs AS INTEGER, lvlPair(16, 4) AS INTEGER
 ' sight, hearing (cells), health, speed (% of its kind's), wake (WAKE_),
 ' and a turret's weapon (TW_ - an 8th number, left off when it's 0) and
 ' how fast it turns (degrees a second - a 9th, left off when it's 0: as made)
-CONST MON_COLS = 9
+CONST MON_COLS = 11
 DIM SHARED lvlReadFrom$ ' (a level file to read in place of the sector's own - loadlevelfromdisk: EditReload)
 DIM SHARED lvlMonN AS INTEGER, lvlMon(MAX_MON, MON_COLS) AS SINGLE
 DIM SHARED lvlNumFaces AS INTEGER, lvlFaceX(MAX_FACES) AS INTEGER, lvlFaceY(MAX_FACES) AS INTEGER, lvlFaceS(MAX_FACES) AS INTEGER, lvlFaceD(MAX_FACES) AS INTEGER
