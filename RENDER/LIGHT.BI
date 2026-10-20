@@ -32,7 +32,7 @@ CONST LIGHT_NEAR = 40
 ' RAY_FAR: how far the raycaster's rays go (chapter 15) before they give up - fog-black long before
 CONST RAY_FAR = 64
 DIM SHARED litX0, litY0, litX1, litY1
-CONST MAX_LIGHTS = 256 ' (a sector 256 cells across has room for plenty)
+CONST MAX_LIGHTS = 1024 ' (a sector 256 cells across: its own lights, its lamps, an acid sea's glow - HUGE 8 has 290)
 DIM SHARED lightX(MAX_LIGHTS), lightY(MAX_LIGHTS), lightRadius(MAX_LIGHTS)
 DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhase(MAX_LIGHTS)
 DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
@@ -53,3 +53,4 @@ CONST FX_STEADY = 0, FX_FLICKER = 1, FX_PULSE = 2, FX_STROBE = 3, FX_FIRE = 4, F
 CONST MAX_LIT = 100000
 DIM SHARED lightFirst(MAX_LIGHTS) AS LONG, lightCount(MAX_LIGHTS) AS LONG, numLit AS LONG
 DIM SHARED litCellX(MAX_LIT) AS INTEGER, litCellY(MAX_LIT) AS INTEGER, litWeight(MAX_LIT) AS SINGLE
+DIM SHARED litCyberWas AS INTEGER, litAll AS INTEGER ' (UpdateLight: in the network last frame? and frames left to light all of the sector)

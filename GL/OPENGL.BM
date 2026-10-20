@@ -1420,7 +1420,7 @@ SUB GLLiquids(b)
     GLStopDrawing
     litMode = glCellLitMode : glCellLitMode = 1 : glLiquidPass = -1
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
-    FOR cy = 1 TO mapN - 2 : FOR cx = 1 TO mapN - 2
+    FOR cy = MaxOf(1, INT(playerY) - GL_FAR) TO MinOf(mapN - 2, INT(playerY) + GL_FAR) : FOR cx = MaxOf(1, INT(playerX) - GL_FAR) TO MinOf(mapN - 2, INT(playerX) + GL_FAR) ' (only as far as OpenGL draws)
         k = liqKind(cx, cy)
         IF k THEN
             IF GLNearSeen(cx, cy, b) THEN

@@ -187,7 +187,7 @@ SUB BotThinkRaw STATIC
         EXIT SUB
     END IF
     ' Where to? Every 15 frames (or when there's no way), the field again
-    IF lvFrame MOD 15 = 0 OR botNX = 0 THEN BotPlan
+    IF lvFrame MOD 15 = 0 OR (botNX = 0 AND (mapN <= 64 OR lvFrame MOD 5 = 0)) THEN BotPlan ' (a big sector's plan is dear: no way yet, every 5 frames there)
     IF botMode = 0 THEN ' Nowhere to go: look round - and after three seconds of it, forget what it ruled out, and where it's been: it explores afresh
         botTurn = 0.03
         IF botNowhereAt = 0 THEN botNowhereAt = lvFrame

@@ -3140,6 +3140,18 @@ SUB EditNudge(dx, dy)
             MID$(lvlLiqRow$(y + dy), x + dx + 1, 1) = MID$(l$(y), x + 1, 1) : MID$(lvlLiqDRow$(y + dy), x + dx + 1, 1) = MID$(ld$(y), x + 1, 1) ' (its pool too)
         END IF
     NEXT : NEXT
+    DIM clb(MAP_SIZE, MAP_SIZE) AS INTEGER, clc(MAP_SIZE, MAP_SIZE) AS _UNSIGNED LONG, clf(MAP_SIZE, MAP_SIZE) AS INTEGER ' (the cell lights too: as the rows - left behind, like the cell behind; moved, with it)
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : clb(x, y) = lvlCLBright(x, y) : clc(x, y) = lvlCLCol(x, y) : clf(x, y) = lvlCLFx(x, y) : NEXT : NEXT
+    FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
+        IF mv(x, y) AND NOT dest(x, y) THEN
+            bx = x - dx : by = y - dy
+            DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < mapN - 1 AND by < mapN - 1 : bx = bx - dx : by = by - dy : LOOP
+            lvlCLBright(x, y) = clb(bx, by) : lvlCLCol(x, y) = clc(bx, by) : lvlCLFx(x, y) = clf(bx, by)
+        END IF
+    NEXT : NEXT
+    FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
+        IF mv(x, y) THEN lvlCLBright(x + dx, y + dy) = clb(x, y) : lvlCLCol(x + dx, y + dy) = clc(x, y) : lvlCLFx(x + dx, y + dy) = clf(x, y)
+    NEXT : NEXT
     FOR k = 1 TO edSelN : edSelX(k) = edSelX(k) + dx : edSelY(k) = edSelY(k) + dy : NEXT
     ' What belongs to a cell goes with it - a monster's own settings, the
     ' faces' pictures, a pad's link; a cell moved onto loses its own

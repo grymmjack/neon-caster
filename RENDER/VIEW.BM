@@ -122,6 +122,7 @@ SUB HeightColumn STATIC
             hnX = hcX : hnY = hcY : v = 0 : hSolid = -1 : hSlot = wallTexSlot(boxOn(hcX, hcY))
         ELSE
             IF hnX < 0 OR hnY < 0 OR hnX >= mapN OR hnY >= mapN THEN EXIT DO
+            IF hDOut > RAY_FAR THEN EXIT DO ' (as far as the walls' rays go: black fog, and a ceiling 30 walls up need not be walked the whole map)
             v = worldMap(hnX, hnY) : hSolid = 0
             IF v > 0 AND v <> 2 THEN hSolid = -1 : hSlot = wallTexSlot(v)
             IF diagCorner(hnX, hnY) THEN ' A diagonal's cell: a wall if the ray meets its solid half at the edge - else into it, to the diagonal

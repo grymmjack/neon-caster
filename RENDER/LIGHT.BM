@@ -124,12 +124,14 @@ SUB UpdateLight
     DIM B, e, f, g, l, r, w ' (its own: the main program shares these names)
     ' (only the cells near you - LIGHT_NEAR - but all of a sector at first)
     litX0 = 0 : litY0 = 0 : litX1 = mapN - 1 : litY1 = mapN - 1
-    IF lvFrame > 2 AND NOT cyberOn THEN
+    IF cyberOn <> litCyberWas THEN litCyberWas = cyberOn : litAll = 3 ' (into the network or out: all of it again, for a few frames - both of OpenGL's halves)
+    IF litAll > 0 THEN litAll = litAll - 1
+    IF lvFrame > 2 AND litAll = 0 THEN
         litX0 = MaxOf(0, INT(playerX) - LIGHT_NEAR) : litX1 = MinOf(mapN - 1, INT(playerX) + LIGHT_NEAR)
         litY0 = MaxOf(0, INT(playerY) - LIGHT_NEAR) : litY1 = MinOf(mapN - 1, INT(playerY) + LIGHT_NEAR)
     END IF
-    IF cyberOn THEN ' The network: no lamps, no shadows - everything lit the same
-        FOR cellY = 0 TO mapN - 1 : FOR cellX = 0 TO mapN - 1
+    IF cyberOn THEN ' The network: no lamps, no shadows - everything lit the same (near you, once it's all been lit)
+        FOR cellY = litY0 TO litY1 : FOR cellX = litX0 TO litX1
             litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230
             litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
         NEXT : NEXT

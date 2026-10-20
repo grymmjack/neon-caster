@@ -35,6 +35,7 @@ DIM SHARED glNumShaft(1) AS INTEGER, glShaftX(MAX_LIGHTS, 1), glShaftY(MAX_LIGHT
 DIM SHARED glShaftR(MAX_LIGHTS, 1), glShaftG(MAX_LIGHTS, 1), glShaftB(MAX_LIGHTS, 1)
 DIM SHARED glNumDyn(1) AS INTEGER, glDynX(GL_DYN, 1), glDynY(GL_DYN, 1), glDynZ(GL_DYN, 1), glDynRad(GL_DYN, 1)
 DIM SHARED glDynR(GL_DYN, 1), glDynG(GL_DYN, 1), glDynB(GL_DYN, 1), glDynReach(MAP_SIZE, MAP_SIZE, GL_DYN, 1) AS _BYTE
+DIM SHARED glDynLoad(1) AS LONG ' (the sector each half's glDynReach was last cleared for: trigLoadN)
 DIM SHARED glNumPart(1) AS INTEGER, glPartX(MAX_PART, 1), glPartY(MAX_PART, 1), glPartZ(MAX_PART, 1), glPartSize(MAX_PART, 1)
 DIM SHARED glPartR(MAX_PART, 1), glPartG(MAX_PART, 1), glPartB(MAX_PART, 1)
 DIM SHARED glHurt(1), glHeatAmt(GL_HEAT, 1), glRail(1), glNumHeat(1) AS INTEGER, glHeatX(GL_HEAT, 1), glHeatY(GL_HEAT, 1)

@@ -128,7 +128,17 @@ SUB GLHandOverExtras(px, py, dx, dy, muzzle)
         END IF
     NEXT
     FOR i = 1 TO n : candD(i) = (candX(i) - px) ^ 2 + (candY(i) - py) ^ 2 : NEXT
-    FOR y = 0 TO mapN : FOR x = 0 TO mapN : FOR k = 1 TO GL_DYN : glDynReach(x, y, k, w) = 0 : NEXT : NEXT : NEXT
+    IF glDynLoad(w) <> trigLoadN THEN ' (a new sector: the lot, once)
+        FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : FOR k = 1 TO GL_DYN : glDynReach(x, y, k, w) = 0 : NEXT : NEXT : NEXT
+        glDynLoad(w) = trigLoadN
+    ELSE ' (else only round the lights this half had last time - the whole of a 256 map, every frame, was 7 ms)
+        FOR k = 1 TO glNumDyn(w)
+            r = INT(glDynRad(k, w)) + 2
+            FOR y = MaxOf(0, INT(glDynY(k, w)) - r) TO MinOf(MAP_SIZE, INT(glDynY(k, w)) + r) : FOR x = MaxOf(0, INT(glDynX(k, w)) - r) TO MinOf(MAP_SIZE, INT(glDynX(k, w)) + r)
+                glDynReach(x, y, k, w) = 0
+            NEXT : NEXT
+        NEXT
+    END IF
     kept = 0
     DO WHILE kept < GL_DYN AND kept < n ' The nearest, one at a time
         best = 0
