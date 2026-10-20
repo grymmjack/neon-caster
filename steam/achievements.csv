@@ -3,7 +3,7 @@ NC_SECTOR_1,First Steps,Finish sector 1.,no,,,achievements/NC_SECTOR_1.jpg,achie
 NC_ESCAPED,You Escaped,Finish the original ten sectors.,no,,,achievements/NC_ESCAPED.jpg,achievements/NC_ESCAPED_locked.jpg
 NC_NEW_BLOOD,New Blood,Finish all ten NEW SECTORS.,no,,,achievements/NC_NEW_BLOOD.jpg,achievements/NC_NEW_BLOOD_locked.jpg
 NC_REMASTERED,"Old Haunts, New Paint",Finish all ten OLD SECTORS NEW.,no,,,achievements/NC_REMASTERED.jpg,achievements/NC_REMASTERED_locked.jpg
-NC_FULL_TOUR,The Full Tour,Finish all three sets of ten.,no,SetsDone,3,achievements/NC_FULL_TOUR.jpg,achievements/NC_FULL_TOUR_locked.jpg
+NC_FULL_TOUR,The Full Tour,Finish three sets of ten.,no,SetsDone,3,achievements/NC_FULL_TOUR.jpg,achievements/NC_FULL_TOUR_locked.jpg
 NC_OVERSEER,Flesh to Steel,Destroy the overseer.,no,,,achievements/NC_OVERSEER.jpg,achievements/NC_OVERSEER_locked.jpg
 NC_EXPO,Every Wonder,Finish THE NEON EXPO (sector 24).,no,,,achievements/NC_EXPO.jpg,achievements/NC_EXPO_locked.jpg
 NC_SHOWCASE,Gallery Visitor,Finish five of the showcase sectors.,no,Showcases,5,achievements/NC_SHOWCASE.jpg,achievements/NC_SHOWCASE_locked.jpg
