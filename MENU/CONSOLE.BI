@@ -16,6 +16,11 @@ CONST CON_LOG = 1000, CON_QUEUE = 256, CON_HIST = 32
 DIM SHARED conLog$(CON_LOG), conLogN AS LONG, conBack AS LONG, conTall AS INTEGER, conLogFile$, noSaveSettings AS INTEGER
 DIM SHARED conHist$(CON_HIST), conHistN AS INTEGER
 DIM SHARED conQ$(CON_QUEUE), conQHead AS INTEGER, conQTail AS INTEGER, conWait AS LONG
+' Aliases (alias NAME "commands; ..."): a name for a line of commands -
+' $1 to $9 the words after it, $* all of them - and how deep in one
+' another we are (an alias that runs itself stops at ALIAS_DEPTH)
+CONST MAX_ALIAS = 64, ALIAS_DEPTH = 8
+DIM SHARED aliasName$(MAX_ALIAS), aliasCmd$(MAX_ALIAS), numAlias AS INTEGER, aliasDepth AS INTEGER
 ' (a screenshot: glShotReq 1 asks SUB _GL for one, 2 says it's in glShotMem,
 ' glShotW x glShotH; shotFile$ is where it goes)
 DIM SHARED glShotReq AS INTEGER, glShotMem AS _MEM, glShotW AS LONG, glShotH AS LONG, shotFile$

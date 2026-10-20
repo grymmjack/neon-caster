@@ -207,6 +207,7 @@ ArtReload ' Every picture, as ART asks (chapter 6's list: LoadPictures)
 ' frame, from its first frame.
 ' (All the words, joined up again and cut at each " +" - so it works the
 ' same when a launcher hands them over as one long word.)
+ConAutoexec ' (the saves folder's autoexec.cfg: your aliases, binds and settings, every time - MENU/CONSOLE.BM)
 all$ = ""
 FOR a = 1 TO _COMMANDCOUNT : all$ = all$ + " " + COMMAND$(a) : NEXT
 DO WHILE LEN(all$)

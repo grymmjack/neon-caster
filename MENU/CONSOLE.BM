@@ -72,7 +72,7 @@ SUB RunConsole STATIC
                         conAll$ = conLine$ : conLine$ = ""
                         ' (several commands on one line, split by ;)
                         DO
-                            semi = INSTR(conAll$, ";")
+                            semi = ConSemi(conAll$) ' (a ; inside quotes - an alias's - doesn't count)
                             IF semi THEN conCmd$ = LEFT$(conAll$, semi - 1) : conAll$ = MID$(conAll$, semi + 1) ELSE conCmd$ = conAll$ : conAll$ = ""
                             conLevelChanged = 0 : ConExec
                             IF conLevelChanged THEN conDone = -1
@@ -136,6 +136,7 @@ SUB ConExec STATIC
     IF conCmd$ = "" OR LEFT$(conCmd$, 2) = "//" THEN EXIT SUB
     conVerb$ = ConWord$(conCmd$, 1) : conA$ = ConWord$(conCmd$, 2) : conB$ = ConWord$(conCmd$, 3) : conC$ = ConWord$(conCmd$, 4)
     sp = INSTR(conCmd$, " ") : IF sp THEN conRest$ = LTRIM$(MID$(conCmd$, sp + 1)) ELSE conRest$ = ""
+    IF numAlias THEN IF AliasOf(conVerb$) THEN AliasRun AliasOf(conVerb$), conRest$ : EXIT SUB ' (an alias: its commands instead)
     IF (demoRec OR demoPlay) AND NOT conFromTrig AND NOT demoInject THEN ' A demo going: a command that changes the world goes into it (recording), or waits (playing one)
         SELECT CASE DemoVerb%(conVerb$)
             CASE 1
@@ -513,7 +514,32 @@ SUB ConExec STATIC
             conWait = VAL(conA$) : IF conWait < 1 THEN conWait = 1
         CASE "echo"
             ConPrint conRest$
+        CASE "alias" ' alias NAME "commands; ...": a name for them ($1-$9: the words after it) - alias NAME: what it is; alias: every one
+            IF conA$ = "" THEN
+                IF numAlias = 0 THEN ConPrint "No aliases (alias NAME " + CHR$(34) + "commands; ..." + CHR$(34) + ")"
+                FOR k = 1 TO numAlias : ConPrint "^7" + aliasName$(k) + "^0  " + aliasCmd$(k) : NEXT
+            ELSE
+                t$ = LTRIM$(MID$(conRest$, LEN(conA$) + 1)) : IF LEFT$(t$, 1) = CHR$(34) THEN t$ = MID$(t$, 2) : IF RIGHT$(t$, 1) = CHR$(34) THEN t$ = LEFT$(t$, LEN(t$) - 1)
+                k = AliasOf(conA$)
+                IF t$ = "" THEN
+                    IF k THEN ConPrint "^7" + aliasName$(k) + "^0  " + aliasCmd$(k) ELSE ConPrint "alias: no " + conA$
+                ELSEIF INSTR(" " + ConNames$ + " ", " " + conA$ + " ") THEN
+                    ConPrint "alias: " + conA$ + " is a command already"
+                ELSE
+                    IF k = 0 THEN IF numAlias < MAX_ALIAS THEN numAlias = numAlias + 1 : k = numAlias ELSE ConPrint "alias: too many (" + LTRIM$(STR$(MAX_ALIAS)) + ")"
+                    IF k THEN aliasName$(k) = conA$ : aliasCmd$(k) = t$ : IF NOT conFromTrig THEN ConPrint "alias " + conA$ + " = " + t$
+                END IF
+            END IF
+        CASE "unalias" ' unalias NAME: that alias, gone
+            k = AliasOf(conA$)
+            IF k THEN
+                FOR j = k TO numAlias - 1 : aliasName$(j) = aliasName$(j + 1) : aliasCmd$(j) = aliasCmd$(j + 1) : NEXT
+                numAlias = numAlias - 1 : ConPrint "unalias " + conA$
+            ELSE
+                ConPrint "unalias: no " + conA$
+            END IF
         CASE "exec" ' Run a file of commands, one a line
+            IF NOT _FILEEXISTS(conRest$) AND _FILEEXISTS(SaveDir$ + conRest$) THEN conRest$ = SaveDir$ + conRest$ ' (or one in the saves folder)
             IF _FILEEXISTS(conRest$) THEN
                 f = FREEFILE : OPEN conRest$ FOR INPUT AS #f
                 DO UNTIL EOF(f) : LINE INPUT #f, l$ : ConQueue l$ : LOOP
@@ -957,10 +983,87 @@ SUB ConQueue(cmd$)
     c$ = LTRIM$(RTRIM$(cmd$))
     IF c$ = "" OR conQTail >= CON_QUEUE THEN EXIT SUB
     DO ' (several on one line, split by ;)
-        semi = INSTR(c$, ";")
+        semi = ConSemi(c$)
         IF semi THEN one$ = LEFT$(c$, semi - 1) : c$ = MID$(c$, semi + 1) ELSE one$ = c$ : c$ = ""
         IF LEN(LTRIM$(one$)) AND conQTail < CON_QUEUE THEN conQTail = conQTail + 1 : conQ$(conQTail) = LTRIM$(one$) : IF conFromTrig THEN conQ$(conQTail) = CHR$(2) + conQ$(conQTail) ' (CHR$(2): a trigger's)
     LOOP WHILE LEN(c$)
+END SUB
+
+' Commands to run next - ahead of the rest of the queue (an alias with a
+' wait in it: its commands, then what came after it)
+SUB ConQueueNext(cmd$)
+    DIM c$, k, n, one$, semi, part$(CON_QUEUE) ' (its own: the main program shares these names)
+    c$ = LTRIM$(RTRIM$(cmd$))
+    DO WHILE LEN(c$) AND n < CON_QUEUE
+        semi = ConSemi(c$)
+        IF semi THEN one$ = LEFT$(c$, semi - 1) : c$ = MID$(c$, semi + 1) ELSE one$ = c$ : c$ = ""
+        IF LEN(LTRIM$(one$)) THEN n = n + 1 : part$(n) = LTRIM$(one$) : IF conFromTrig THEN part$(n) = CHR$(2) + part$(n)
+    LOOP
+    IF conQTail + n > CON_QUEUE THEN n = CON_QUEUE - conQTail ' (no room for all of them: as many as fit)
+    IF n <= 0 THEN EXIT SUB
+    FOR k = conQTail TO conQHead + 1 STEP -1 : conQ$(k + n) = conQ$(k) : NEXT
+    FOR k = 1 TO n : conQ$(conQHead + k) = part$(k) : NEXT
+    conQTail = conQTail + n
+END SUB
+
+' Where the next ; is that splits commands - not one inside "quotes" (an
+' alias's commands): 0 if there's none
+FUNCTION ConSemi(c$)
+    DIM k, q ' (its own: the main program shares these names)
+    FOR k = 1 TO LEN(c$)
+        SELECT CASE MID$(c$, k, 1)
+            CASE CHR$(34) : q = NOT q
+            CASE ";" : IF NOT q THEN ConSemi = k : EXIT FUNCTION
+        END SELECT
+    NEXT
+END FUNCTION
+
+' An alias's number, by its name (0: not one)
+FUNCTION AliasOf(n$)
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO numAlias
+        IF aliasName$(k) = LCASE$(n$) THEN AliasOf = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' An alias run: its commands, with $1-$9 the words after its name and $*
+' all of them - now, one after another (or, with a wait among them, onto
+' the queue a frame at a time, as a trigger's)
+SUB AliasRun(a, words$)
+    DIM c$, k, one$, semi, w$, p ' (its own: the main program shares these names)
+    IF aliasDepth >= ALIAS_DEPTH THEN ConPrint "alias " + aliasName$(a) + ": runs itself - stopped" : EXIT SUB
+    c$ = aliasCmd$(a)
+    DO WHILE INSTR(c$, "$*") : p = INSTR(c$, "$*") : c$ = LEFT$(c$, p - 1) + words$ + MID$(c$, p + 2) : LOOP
+    FOR k = 9 TO 1 STEP -1
+        w$ = ConWord$(words$, k)
+        DO WHILE INSTR(c$, "$" + LTRIM$(STR$(k))) : p = INSTR(c$, "$" + LTRIM$(STR$(k))) : c$ = LEFT$(c$, p - 1) + w$ + MID$(c$, p + 2) : LOOP
+    NEXT
+    IF INSTR(LCASE$(c$), "wait") THEN ConQueueNext c$ : EXIT SUB ' (next in the queue: before what was waiting already)
+    aliasDepth = aliasDepth + 1
+    DO WHILE LEN(c$)
+        semi = ConSemi(c$)
+        IF semi THEN one$ = LEFT$(c$, semi - 1) : c$ = MID$(c$, semi + 1) ELSE one$ = c$ : c$ = ""
+        conCmd$ = one$ : ConExec
+    LOOP
+    aliasDepth = aliasDepth - 1
+END SUB
+
+' At start-up: the saves folder's autoexec.cfg, if there is one - each line
+' run at once (aliases, binds, settings: what you want every time)
+SUB ConAutoexec
+    DIM f, f$, l$, one$, semi ' (its own: the main program shares these names)
+    f$ = SaveDir$ + "autoexec.cfg" : IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    f = FREEFILE : OPEN f$ FOR INPUT AS #f
+    DO UNTIL EOF(f)
+        LINE INPUT #f, l$ : l$ = LTRIM$(RTRIM$(l$))
+        DO WHILE LEN(l$)
+            semi = ConSemi(l$)
+            IF semi THEN one$ = LEFT$(l$, semi - 1) : l$ = MID$(l$, semi + 1) ELSE one$ = l$ : l$ = ""
+            conCmd$ = one$ : ConExec
+        LOOP
+    LOOP
+    CLOSE #f
+    ConPrint "autoexec.cfg run"
 END SUB
 
 ' A sound effect by name, for the sound command (a trigger's): opened the
@@ -1076,7 +1179,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "turret help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
+    ConNames$ = "alias unalias turret help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1099,8 +1202,9 @@ SUB ConHelp(c$)
             ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7savelevel"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
-            ConPrint "  ^6scripts   ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE  ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT"
-            ConPrint "            ^7sound^8 NAME  ^7say^8 LINE  ^7cutscene^8 [SECTOR]"
+            ConPrint "  ^6scripts   ^7alias^8 NAME " + CHR$(34) + "..." + CHR$(34) + "  ^7unalias^8 NAME  ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE"
+            ConPrint "            ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT  ^7sound^8 NAME  ^7say^8 LINE"
+            ConPrint "            ^7cutscene^8 [SECTOR]  (and the saves folder's ^7autoexec.cfg^0, run at start-up)"
             ConPrint "  ^6demos     ^7record^8 NAME [SEED] [quit]  ^7playdemo^8 NAME [quit]  ^7stopdemo  ^7demos"
             ConPrint "            ^7bot^8 [on|off|human N|safe]"
             ConPrint "  ^6editors   ^7hud  ^7monsters  ^7achievements  ^7achieve^8 NAME  ^7resetachievements"
@@ -1221,7 +1325,14 @@ SUB ConHelp(c$)
         CASE "puzzle" : ConPrint "^3puzzle NAME^0: try a code terminal's puzzle (neon-caster/puzzles/NAME.txt) - no doors at stake"
         CASE "wait" : ConPrint "^3wait FRAMES^0: hold back the commands after it (60 frames = 1 second) - for scripts and the command line"
         CASE "echo" : ConPrint "^3echo TEXT^0: print TEXT here (and to the log file)"
-        CASE "exec" : ConPrint "^3exec FILE^0: run every line of a file as a command (// starts a comment)"
+        CASE "exec" : ConPrint "^3exec FILE^0: run every line of a file as a command (// starts a comment) - here, or in the saves folder"
+        CASE "alias"
+            ConPrint "^3alias NAME " + CHR$(34) + "COMMANDS; ..." + CHR$(34) + "^0: NAME runs them - ^7$1^0 to ^7$9^0 the words after it, ^7$*^0 all of them"
+            ConPrint "  ^3alias boom " + CHR$(34) + "give weapon 5; give ammo rockets" + CHR$(34) + "^0  ^3alias at " + CHR$(34) + "tp $1 $2" + CHR$(34) + "^0 - then ^7at 20.5 14.5^0"
+            ConPrint "  ^7alias NAME^0 says what it is, ^7alias^0 on its own lists them. With a ^7wait^0, a frame at a time"
+            ConPrint "  Put them in the saves folder's ^7autoexec.cfg^0: run every time the game starts (^7help autoexec^0)"
+        CASE "unalias" : ConPrint "^3unalias NAME^0: that alias, gone"
+        CASE "autoexec" : ConPrint "^3autoexec.cfg^0, in the saves folder: each line a command, run at start-up - aliases, binds, settings"
         CASE "logfile" : ConPrint "^3logfile FILE^0: everything printed here goes to FILE too; logfile off: stop"
         CASE "screenshot", "shot" : ConPrint "^3screenshot [FILE.png]^0: the next frame, to FILE (or to the saves folder) - wait a frame before quit"
         CASE "message", "msg" : ConPrint "^3message TEXT^0: TEXT on screen, as a pickup's message"

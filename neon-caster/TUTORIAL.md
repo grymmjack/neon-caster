@@ -95,6 +95,15 @@ frame - `wait` holds the rest back - so a test can drive it with no hands:
 
 Settings changed from the command line last only for that run.
 
+**Aliases and autoexec.** `alias NAME "COMMANDS; ..."` gives a line of
+commands a name of its own: `alias boom "give weapon 5; give ammo rockets"`,
+then `boom`. `$1` to `$9` are the words typed after it and `$*` all of
+them (`alias at "tp $1 $2"`, then `at 20.5 14.5`); with a `wait` among its
+commands it runs a frame at a time. `alias` on its own lists them,
+`unalias NAME` takes one away. Put your aliases, `bind`s and `set`s in
+`autoexec.cfg` in the saves folder (one command a line, `//` for a
+comment) and the game runs it every time it starts.
+
 **Demos.** **DEMO REPLAYS** in the main menu lists every demo - yours
 and the ten that come with the game - and Enter plays one (Esc, then
 STOP DEMO, ends it early). F (or FOLDER) opens the folder yours are kept in,

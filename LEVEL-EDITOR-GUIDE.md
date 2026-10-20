@@ -622,7 +622,7 @@ These only change the running level, so they're for testing and for triggers rat
 | `mons` | List every monster: where it is, asleep or hunting, its health, and its own sight, hearing, speed and waking |
 | `sound NAME` | Play `sfx/NAME.wav` |
 
-`help` doesn't list most of these yet, but Tab completes them all. Two worth knowing for testing: `summon TYPE [N]` puts monsters in front of you, and `god` stops them hurting you - it also lets you fly (E up, C down) and makes the monsters ignore you (`fly` and `notarget` do those on their own).
+`help` doesn't list most of these yet, but Tab completes them all. A trigger's commands can use your aliases only if the player has them - a sector you share should spell its commands out. Two worth knowing for testing: `summon TYPE [N]` puts monsters in front of you, and `god` stops them hurting you - it also lets you fly (E up, C down) and makes the monsters ignore you (`fly` and `notarget` do those on their own).
 
 A room by console, as an example (sector made with NEW SECTOR):
 

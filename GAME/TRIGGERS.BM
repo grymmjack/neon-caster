@@ -62,7 +62,7 @@ SUB TriggerRun STATIC
     trigK = k ' (ConExec uses k)
     conFromTrig = -1 ' (the level's doing, not yours: a trigger's give isn't a cheat)
     DO WHILE LEN(trigRun$)
-        semi = INSTR(trigRun$, ";")
+        semi = ConSemi(trigRun$) ' (a ; in quotes - an alias a trigger makes - doesn't split)
         IF semi THEN conCmd$ = LEFT$(trigRun$, semi - 1) : trigRun$ = MID$(trigRun$, semi + 1) ELSE conCmd$ = trigRun$ : trigRun$ = ""
         ConExec
     LOOP
