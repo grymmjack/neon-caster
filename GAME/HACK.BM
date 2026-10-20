@@ -11,7 +11,7 @@ SUB HackUse(tc)
     IF tcState(tc) = 2 THEN ShowMsg "TURRET CONTROL: LOCKED OUT" : PlaySfx sndLocked&, 0.7 : EXIT SUB
     hackTc = tc
     IF demoPlay THEN
-        demoKind$ = "h" : DemoTakeRes : hackWon = (demoRes = 1) : hackLeft = (demoRes = 2)
+        demoKind$ = "h" : DemoTakeRes : hackWon = (demoRes = 1) : hackLeft = (demoRes = 2) : fireWait = 15 ' (as HackRun leaves it: the gun waits, played back too)
     ELSE
         HackRun
         IF demoRec THEN ' (a demo: the hack's result - 1 in, 2 logged out, 0 locked out)

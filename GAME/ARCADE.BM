@@ -174,7 +174,7 @@ END SUB
 SUB SlotUse(dv)
     slotDeco = dv : SlotRoll
     vendState(dv) = 3
-    IF NOT demoPlay THEN SlotRun
+    IF NOT demoPlay THEN SlotRun ELSE fireWait = 15 ' (as SlotRun leaves it: played back the same)
     SlotPay
 END SUB
 

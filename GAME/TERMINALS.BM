@@ -26,7 +26,7 @@ SUB TerminalUse STATIC
     IF slammed THEN PlaySfx sndAlarm&, 0.8 : shake = shake + 8
     Say "puzzle1", 0
     IF demoPlay THEN ' (a demo: whether it was solved, as recorded - the puzzle isn't played again)
-        demoKind$ = "p" : DemoTakeRes : pzSolved = (demoRes <> 0)
+        demoKind$ = "p" : DemoTakeRes : pzSolved = (demoRes <> 0) : fireWait = 15 ' (as RunPuzzle leaves it)
     ELSE
         RunPuzzle
         IF demoRec THEN demoKind$ = "p" : demoRes = -(pzSolved <> 0) : DemoEvent

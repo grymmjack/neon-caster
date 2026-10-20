@@ -62,7 +62,7 @@ DIM SHARED gibLife(MAX_GIBS) AS INTEGER, gibSlot(MAX_GIBS) AS INTEGER, gibSize(M
 ' (gasAmt: 0 none, about 1 thick), spreading a little through open cells
 ' and doorways and thinning away over a good few seconds - green haze in
 ' it, and while you stand in it, poison (the hazmat suit keeps it out)
-DIM SHARED gasAmt(MAP_SIZE, MAP_SIZE) AS SINGLE, gasAny AS INTEGER, gasWait AS INTEGER
+DIM SHARED gasAmt(MAP_SIZE, MAP_SIZE) AS SINGLE, gasAny AS INTEGER, gasWait AS LONG
 ' POISONED: once poison gets to you (a poison turret's spray, its fog, a
 ' poison pool - not through the hazmat suit), it goes on hurting you
 ' (POISON DAMAGE, SETTINGS > GAMEPLAY: 3 health a second as made) for

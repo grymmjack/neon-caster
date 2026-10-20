@@ -528,7 +528,7 @@ SUB BuildLevel STATIC
     ' The camera plane (chapter 8): your direction turned 90 degrees, fovPlane long
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane
     aimAmount = 0 : zoom = 1 : viewH = RENDER_H
-    kills = 0 : dead = 0 : swapTimer = 0
+    kills = 0 : dead = 0 : swapTimer = 0 : liqTick = 0 : gasWait = 0 ' (the pools' and the fog's ticks from the sector's start: a demo's the same from wherever the program was)
     hurtFlash = 0 : pickFlash = 0 : muzzleFlash = 0 : recoil = 0 : railBeam = 0
     fireWait = 20 ' (so the click that started the level doesn't fire)
     bobPhase = 2.2 ' The first footstep sounds soon after you start walking (a foot lands at pi)
