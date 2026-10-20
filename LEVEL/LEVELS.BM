@@ -96,7 +96,12 @@ END SUB
 ' --- You died: the level starts over, and you have what you came in with
 SUB RestartLevel STATIC
     StartLoadout ' (a clean slate: full health, the blaster, 30 cells)
-    LoadLevel
+    IF editDirty THEN ' (died play-testing edits not saved yet: the sector again as edited - not its file, which would lose them)
+        trigLoadN = trigLoadN + 1 : editRebuild = -1 : BuildLevel : editRebuild = 0
+        playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H : lvFrame = 0 : levelStart! = TIMER ' (on the start's floor, the clock from 0)
+    ELSE
+        LoadLevel
+    END IF
 END SUB
 
 ' --- You used the exit: the level's tally, then on to the next level (after

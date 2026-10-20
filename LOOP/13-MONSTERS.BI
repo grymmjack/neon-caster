@@ -34,7 +34,7 @@
         IF cyberOn AND monsterType(i) <> MT_ICE THEN _CONTINUE ' (in the real world: they wait)
         IF editMode OR hudEdit THEN _CONTINUE ' (in the editors: everything waits)
         IF monBlown(i) = 2 THEN TurretStump i ' (a destroyed turret's mount: sparks, arcs, smoke - GAME/TURRETS.BM)
-        IF noTarget AND monsterState(i) = 1 THEN monsterState(i) = 0 ' (notarget: whatever woke it, it forgets you - before it can chase or shoot)
+        IF noTarget AND monsterState(i) = 1 THEN monsterState(i) = 0 : IF monsterType(i) = MT_TURRET AND monDeploy(i) > 0 AND monDeploy(i) < TURRET_UP THEN monDeploy(i) = 0 ' (notarget: whatever woke it, it forgets you - before it can chase or shoot; a turret half out, back in its housing)
         IF monsterHurt(i) > 0 THEN monsterHurt(i) = monsterHurt(i) -1
         IF monsterAtk(i) > 0 THEN monsterAtk(i) = monsterAtk(i) - 1
         ' Kicked over the edge of a pit with no bottom (it never walks off

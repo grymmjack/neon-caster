@@ -207,7 +207,9 @@ SUB ConExec STATIC
                     CASE "2", "remix", "oldnew", "remaster" : ns = 2
                     CASE "3", "huge", "big" : ns = 3
                 END SELECT
-                IF ns < 0 THEN
+                IF editMode AND ns >= 0 THEN
+                    ConPrint "sectorset: not in the editor - its sector's file is the set's it came from (leave it, F2 or Esc, first)"
+                ELSEIF ns < 0 THEN
                     ConPrint "sectorset 0|1|2|3 (original, new, remix, huge)"
                 ELSEIF ns > 0 AND LEN(SetSectorName$(ns, 1)) = 0 THEN
                     ConPrint "sectorset: " + SetName$(ns) + " isn't there (levels/" + SetDir$(ns) + ")"

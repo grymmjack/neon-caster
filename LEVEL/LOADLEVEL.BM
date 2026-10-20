@@ -20,10 +20,12 @@ SUB LoadLevel STATIC
     ReadLevelFile level ' (its file: neon-caster/levels/levelN.txt - chapter 22)
     IF NOT lvlOK THEN PRINT "Can't read the level file "; LevelFile$(level) : SLEEP : SYSTEM
     BuildLevel ' (and on into the next part)
+    IF editMode THEN EditFreshLevel ' (map N or restart typed in the editor: the last sector's undo and selection aren't this one's)
 END SUB
 ' The editor comes in here (editRebuild on): the level built again from
 ' lvlRow$() and the rest, as it's been changed - not from its file
 SUB BuildLevel STATIC
+    DIM n ' (its own: the editor reads the main program's n after a rebuild - a zone's number, a floor's)
     IF cyberOn THEN CyberTextures 0 : cyberOn = 0 ' (died in the network: the real pictures back)
     FOR k = 1 TO MAX_EVENTS ' (each event room's own looping sound - a trap's buzz or roar - closed: the next level's room k may be another kind)
         IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k) : _SNDCLOSE evHum&(k)

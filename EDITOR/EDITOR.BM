@@ -572,7 +572,9 @@ SUB EditApply STATIC
     FOR j = 1 TO numItems
         IF NOT itemOn(j) AND nKeepI < MAX_ITEMS THEN nKeepI = nKeepI + 1 : keepIX(nKeepI) = itemX(j) : keepIY(nKeepI) = itemY(j) : keepIK(nKeepI) = itemKind(j)
     NEXT
+    kc1 = hasCard(1) : kc2 = hasCard(2) : kc3 = hasCard(3) : km = hasMap ' (and the keycards and map you'd picked up: their pickups stay taken)
     editRebuild = -1 : BuildLevel : editRebuild = 0
+    hasCard(1) = kc1 : hasCard(2) = kc2 : hasCard(3) = kc3 : hasMap = km
     FOR k = 1 TO nKeepM
         FOR j = 1 TO numMonsters
             IF monsterState(j) < 2 AND ABS(monsterX(j) - keepMX(k)) < 0.01 AND ABS(monsterY(j) - keepMY(k)) < 0.01 THEN monsterState(j) = 3 : monsterX(j) = keepMDX(k) : monsterY(j) = keepMDY(k) : EXIT FOR
@@ -852,8 +854,16 @@ SUB EditGoLevel STATIC
         EditNote "Not saved: Ctrl+S keeps it - press it again to go without saving" : editAskT! = TIMER : level = levelWas : EXIT SUB
     END IF
     editAskT! = -99
-    LoadLevel : editUndoN = 0 : editDirty = 0 : levelWas = level : EditReset
+    LoadLevel : EditFreshLevel
     EditNote "EDITOR: " + levelName$
+END SUB
+
+' Another sector in the editor (PgUp/PgDn, or map N / restart typed in it):
+' nothing of the last one's - its undo, its selection, its SECTOR pane's
+' sizes and loot, its view of the map
+SUB EditFreshLevel
+    editUndoN = 0 : editDirty = 0 : levelWas = level : EditReset
+    edMapWant = mapN : edRoomW = 0 : edRoomH = 0 : edLootSet = 0 : EditFitMap
 END SUB
 
 ' --- THE WHEEL in the 3D editor: on the selection, and only the
@@ -2100,8 +2110,8 @@ END FUNCTION
 ' The tab's entries, and their thumbnails - made again only when the tab,
 ' the level, its wall pictures or ART have changed
 SUB EditPkBuild
-    DIM a, B, d, k, level ' (its own: the main program shares these names)
-    key$ = STR$(edPickTab) + STR$(level) + STR$(artNow) + lvlWall$(1) + lvlWall$(2) + lvlWall$(3) + lvlWall$(4) + lvlWall$(5) + lvlWall$(6)
+    DIM a, B, d, k ' (its own: the main program shares these names)
+    key$ = STR$(edPickTab) + STR$(level) + STR$(artNow) + lvlFloor$(1) + lvlWall$(1) + lvlWall$(2) + lvlWall$(3) + lvlWall$(4) + lvlWall$(5) + lvlWall$(6)
     IF key$ = edPkKey$ THEN EXIT SUB
     edPkKey$ = key$
     FOR k = 1 TO edPkN
@@ -3131,7 +3141,7 @@ SUB EditNudge(dx, dy)
             DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < mapN - 1 AND by < mapN - 1 : bx = bx - dx : by = by - dy : LOOP
             MID$(lvlRow$(y), x + 1, 1) = MID$(r$(by), bx + 1, 1) : MID$(lvlFloorRow$(y), x + 1, 1) = MID$(f$(by), bx + 1, 1) : MID$(lvlCeilRow$(y), x + 1, 1) = MID$(c$(by), bx + 1, 1)
             MID$(lvlLiqRow$(y), x + 1, 1) = MID$(l$(by), bx + 1, 1) : MID$(lvlLiqDRow$(y), x + 1, 1) = MID$(ld$(by), bx + 1, 1)
-            IF INSTR("<>^v", MID$(lvlRow$(y), x + 1, 1)) THEN MID$(lvlRow$(y), x + 1, 1) = "." ' (never a second start)
+            IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) = 0 THEN MID$(lvlRow$(y), x + 1, 1) = "." ' (a plain wall behind it, as that; anything else - a start, a monster, a pad, a door - never twice: floor)
         END IF
     NEXT : NEXT
     FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
@@ -3886,6 +3896,7 @@ END SUB
 ' east wall, a light over it; floors and ceilings as usual
 SUB EditMakeRoom(w, h)
     DIM x, y, x0, y0, x1, y1 ' (its own: the main program shares these names)
+    w = MaxOf(3, MinOf(mapN - 2, w)) : h = MaxOf(3, MinOf(mapN - 2, h)) ' (inside the map's border, whatever was asked)
     x0 = (mapN - w) \ 2 : y0 = (mapN - h) \ 2 : x1 = x0 + w - 1 : y1 = y0 + h - 1
     FOR y = 0 TO mapN - 1
         lvlRow$(y) = STRING$(mapN, "#") : lvlFloorRow$(y) = STRING$(mapN, ".") : lvlCeilRow$(y) = STRING$(mapN, ".")
@@ -3922,6 +3933,7 @@ SUB EditResizeMap(n)
     lvlRow$(0) = STRING$(n, "#") : lvlRow$(n - 1) = STRING$(n, "#")
     FOR y = n TO MAP_SIZE - 1 : lvlRow$(y) = "" : lvlFloorRow$(y) = "" : lvlCeilRow$(y) = "" : lvlLiqRow$(y) = "" : lvlLiqDRow$(y) = "" : NEXT
     mapN = n : edMapWant = n : editUndoN = 0
+    IF n < was THEN EditDropPast n - 2 ' (cut down: what was past the new edge goes too - else the file keeps it, and the next load piles it on the border)
     IF INSTR(lvlRow$((n - 1) \ 2), ">") + INSTR(lvlRow$((n - 1) \ 2), "<") = 0 THEN ' (no start left - cut off: one, in the middle)
         FOR y = 0 TO n - 1 : IF INSTR(lvlRow$(y), ">") OR INSTR(lvlRow$(y), "<") OR INSTR(lvlRow$(y), "^") OR INSTR(lvlRow$(y), "v") THEN EXIT FOR
         NEXT
@@ -3966,5 +3978,63 @@ SUB EditYouToStart
             dirX = (c$ = ">") * -1 + (c$ = "<") : dirY = (c$ = "v") * -1 + (c$ = "^") : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
             EXIT SUB
         END IF
+    NEXT : NEXT
+END SUB
+
+' The map cut down to cells 1..m inside its border: every light, event room,
+' lift, zone, pad pair, block, nudge, face and monster line past m gone (a
+' room or lift that runs over the edge cut short), and the cell lights there
+SUB EditDropPast(m)
+    DIM c, j, k, x, y ' (its own: the main program shares these names)
+    k = 0
+    FOR j = 1 TO lvlNumLights
+        IF lvlLight(j, 1) < m + 1 AND lvlLight(j, 2) < m + 1 THEN k = k + 1 : FOR c = 1 TO 8 : lvlLight(k, c) = lvlLight(j, c) : NEXT
+    NEXT : lvlNumLights = k
+    k = 0
+    FOR j = 1 TO lvlNumEvents
+        IF lvlEvent(j, 2) <= m AND lvlEvent(j, 3) <= m THEN
+            k = k + 1 : FOR c = 1 TO 8 : lvlEvent(k, c) = lvlEvent(j, c) : NEXT
+            lvlEvent(k, 4) = MinOf(m, lvlEvent(k, 4)) : lvlEvent(k, 5) = MinOf(m, lvlEvent(k, 5))
+        END IF
+    NEXT : lvlNumEvents = k
+    k = 0
+    FOR j = 1 TO lvlNumLifts
+        IF lvlLift(j, 1) <= m AND lvlLift(j, 2) <= m THEN
+            k = k + 1 : FOR c = 1 TO 8 : lvlLift(k, c) = lvlLift(j, c) : NEXT
+            lvlLift(k, 3) = MinOf(m, lvlLift(k, 3)) : lvlLift(k, 4) = MinOf(m, lvlLift(k, 4))
+        END IF
+    NEXT : lvlNumLifts = k
+    k = 0
+    FOR j = 1 TO lvlNumZones ' (a triangle's square cut short isn't one: gone)
+        IF lvlZone(j, 1) <= m AND lvlZone(j, 2) <= m AND (lvlZone(j, 7) = 0 OR (lvlZone(j, 3) <= m AND lvlZone(j, 4) <= m)) THEN
+            k = k + 1 : FOR c = 1 TO 7 : lvlZone(k, c) = lvlZone(j, c) : NEXT
+            lvlZone(k, 3) = MinOf(m, lvlZone(k, 3)) : lvlZone(k, 4) = MinOf(m, lvlZone(k, 4))
+        END IF
+    NEXT : lvlNumZones = k
+    k = 0
+    FOR j = 1 TO lvlNumPairs
+        IF lvlPair(j, 1) <= m AND lvlPair(j, 2) <= m AND lvlPair(j, 3) <= m AND lvlPair(j, 4) <= m THEN k = k + 1 : FOR c = 1 TO 4 : lvlPair(k, c) = lvlPair(j, c) : NEXT
+    NEXT : lvlNumPairs = k
+    k = 0
+    FOR j = 1 TO lvlNumBoxes
+        IF lvlBox(j, 1) <= m AND lvlBox(j, 2) <= m THEN k = k + 1 : FOR c = 1 TO 7 : lvlBox(k, c) = lvlBox(j, c) : NEXT
+    NEXT : lvlNumBoxes = k
+    k = 0
+    FOR j = 1 TO lvlNumNudges
+        IF lvlNudge(j, 1) <= m AND lvlNudge(j, 2) <= m THEN k = k + 1 : FOR c = 1 TO 5 : lvlNudge(k, c) = lvlNudge(j, c) : NEXT
+    NEXT : lvlNumNudges = k
+    k = 0
+    FOR j = 1 TO lvlMonN
+        IF lvlMon(j, 1) <= m AND lvlMon(j, 2) <= m THEN k = k + 1 : FOR c = 1 TO MON_COLS : lvlMon(k, c) = lvlMon(j, c) : NEXT
+    NEXT : lvlMonN = k
+    k = 0
+    FOR j = 1 TO lvlNumFaces
+        IF lvlFaceX(j) <= m AND lvlFaceY(j) <= m THEN
+            k = k + 1 : lvlFaceX(k) = lvlFaceX(j) : lvlFaceY(k) = lvlFaceY(j) : lvlFaceS(k) = lvlFaceS(j) : lvlFaceD(k) = lvlFaceD(j)
+            lvlFaceP1$(k) = lvlFaceP1$(j) : lvlFaceP2$(k) = lvlFaceP2$(j)
+        END IF
+    NEXT : lvlNumFaces = k
+    FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (the cell lights past it: none)
+        IF x > m OR y > m THEN lvlCLBright(x, y) = -1 : lvlCLCol(x, y) = 0 : lvlCLFx(x, y) = 0
     NEXT : NEXT
 END SUB

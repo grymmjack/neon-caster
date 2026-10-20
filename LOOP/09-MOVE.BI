@@ -163,6 +163,7 @@
     FOR i = 1 TO numMonsters
         IF monsterState(i) < 2 AND NOT godMode AND NOT editMode AND (cyberOn = 0 OR monsterType(i) = MT_ICE) AND monsterType(i) <> MT_TURRET THEN ' (in the network the real world's machines aren't there; a turret's in the ceiling, or a low thing you step round)
             touchDist = 0.3 + mtypeScale(monsterType(i)) * 0.35
+            IF monFly(i) > 0 THEN IF MonFoot(i) > playerZ + BODY_H THEN touchDist = 0 ' (a drone flown up over your head: you walk under it)
             newDistSq = (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2
             IF newDistSq < touchDist * touchDist AND newDistSq <(monsterX(i) - prevX) ^ 2 + (monsterY(i) -prevY) ^ 2 THEN playerX = prevX : playerY = prevY
         END IF

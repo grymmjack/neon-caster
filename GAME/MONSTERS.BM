@@ -234,8 +234,7 @@ END FUNCTION
 FUNCTION ShotPasses(i, z)
     DIM t ' (its own: the main program shares these names)
     IF monsterType(i) = MT_TURRET THEN ' (a turret not out yet: a shot hits its hatch - waking it, HitMonster - when it's asleep; else they go by)
-        IF monDeploy(i) = 0 AND monsterState(i) = 0 AND monTMode(i) <> TURRET_HELD THEN monsterState(i) = 1 : monsterTimer(i) = 30 : ShotPasses = -1 : EXIT FUNCTION ' (asleep in its housing: the shot at its hatch wakes it - out it comes - and goes on to what's behind)
-        IF monDeploy(i) < TURRET_UP THEN ShotPasses = -1 : EXIT FUNCTION ' (folded away, or on its way: nothing to hit)
+        IF monDeploy(i) < TURRET_UP AND NOT (monDeploy(i) = 0 AND monsterState(i) = 0 AND monTMode(i) <> TURRET_HELD) THEN ShotPasses = -1 : EXIT FUNCTION ' (folded away, or on its way: nothing to hit - asleep in its housing, its hatch is: HitMonster wakes it. No waking here: QB64's AND runs this for every monster, every shot)
     END IF
     IF NOT lookAim THEN EXIT FUNCTION ' (level aim: whatever's in the middle column is hit, high or low)
     t = monsterType(i)

@@ -121,6 +121,7 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   `NUM_LEVELS + MAX_CUSTOM` and so on.
 - **Main-module variables aren't seen in SUBs** unless `DIM SHARED`. A SUB
   that reads `sndBarrel&` gets a local 0.
+- **`AND` and `OR` don't short-circuit**: `IF a AND F(x)` calls `F` even when `a` is false. A FUNCTION used in a condition must not change anything (a shot's `ShotPasses` waking turrets woke every hidden turret in the sector, every shot).
 - **A held key reads -1.** `1 + 9 * shiftOn` is 1 - 9 = -8 with Shift held;
   write `1 - 9 * shiftOn` for x10.
 - **Loops of their own** (menu, tally, puzzle, editor, console) don't run the
