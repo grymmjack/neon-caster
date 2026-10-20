@@ -78,7 +78,10 @@ SUB BoltFly(i)
             boltX(i) = x! - boltDX(i) * 0.12 : boltY(i) = y! - boltDY(i) * 0.12 : boltZ(i) = boltZ(i) - boltDZ(i) * 0.12
             IF k = BK_ROCKET OR k = BK_MISSILE THEN BoltBurst i ELSE boltOn(i) = 0
             IF k = BK_POISON THEN GasAdd boltX(i), boltY(i), 0.35
-            IF k = BK_ACID AND bsSurf >= 0 THEN AcidMark x!, y!, boltZ(i), boltDX(i), boltDY(i), bsSurf ' (acid: it eats into the wall, ceiling or floor it hits)
+            IF k = BK_ACID AND bsSurf >= 0 THEN ' (acid: it eats into the wall, ceiling or floor it hits - on it, not where the puff got to past it)
+                f! = boltZ(i) : IF bsSurf = 2 THEN f! = floorH(INT(x!), INT(y!)) + 0.01 ELSE IF bsSurf = 1 THEN f! = ceilH(INT(x!), INT(y!)) - 0.01
+                AcidMark x!, y!, f!, boltDX(i), boltDY(i), bsSurf
+            END IF
             EXIT SUB
         END IF
         IF k = BK_ROCKET THEN ' Yours: into a monster, it bursts - and the one it hit takes the rocket's own hit too

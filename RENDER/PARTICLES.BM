@@ -150,7 +150,7 @@ SUB ClearDecalsOn(x, y)
 END SUB
 
 SUB ShotMark(x, y, z, dx, dy, surface, size)
-    DIM bx, by, cx, cy, l, nx, ny ' (its own: the main program shares these names)
+    DIM bx, by, cx, cy, l, mx, my, nx, ny ' (its own: the main program shares these names)
     SELECT CASE surface
         CASE 1
             cx = INT(x) : cy = INT(y)
@@ -179,7 +179,19 @@ SUB ShotMark(x, y, z, dx, dy, surface, size)
             ELSE
                 nx = 0 : ny = -SGN(dy)
             END IF
-            AddDecal x, y, z, nx, ny, 0, size
+            ' (on the face itself: a fast bolt - a rocket, a puff of acid - is
+            ' caught a little way into the wall, where the mark would be hidden)
+            mx = x : my = y
+            IF diagCorner(bx, by) = 0 THEN
+                IF boxOn(bx, by) THEN
+                    IF nx < 0 THEN mx = bx + boxX0(bx, by) ELSE IF nx > 0 THEN mx = bx + boxX1(bx, by)
+                    IF ny < 0 THEN my = by + boxY0(bx, by) ELSE IF ny > 0 THEN my = by + boxY1(bx, by)
+                ELSE
+                    IF nx < 0 THEN mx = bx ELSE IF nx > 0 THEN mx = bx + 1
+                    IF ny < 0 THEN my = by ELSE IF ny > 0 THEN my = by + 1
+                END IF
+            END IF
+            AddDecal mx, my, z, nx, ny, 0, size
     END SELECT
 END SUB
 
