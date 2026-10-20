@@ -76,7 +76,7 @@ SUB SaveGame STATIC
         PUT #fileNum, , monWeap(i) : PUT #fileNum, , monTrack(i) : PUT #fileNum, , monEject(i) : PUT #fileNum, , monFrom(i) : PUT #fileNum, , monWallX(i) : PUT #fileNum, , monWallY(i)
         PUT #fileNum, , monAimA(i) : PUT #fileNum, , monFly(i) : PUT #fileNum, , monFoe(i)
     NEXT
-    PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , vendState(i) : NEXT ' (the vending machines and cabinets sold out or paid out)
+    PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , vendState(i) : PUT #fileNum, , vendTimer(i) : PUT #fileNum, , vendBomb(i) : NEXT ' (the vending machines and cabinets: sold out, paid out - or counting down, to a jackpot or a bang)
     PUT #fileNum, , lvFrame ' (the sector's own clock: time triggers)
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
@@ -244,7 +244,7 @@ SUB LoadGame STATIC
             END IF
         NEXT
         GET #fileNum, , savedCount
-        FOR i = 1 TO savedCount : GET #fileNum, , tv% : IF savedCount = numDecos THEN vendState(i) = tv%
+        FOR i = 1 TO savedCount : GET #fileNum, , tv% : GET #fileNum, , tt% : GET #fileNum, , tbm% : IF savedCount = numDecos THEN vendState(i) = tv% : vendTimer(i) = tt% : vendBomb(i) = tbm%
         NEXT
         GET #fileNum, , lvF&
     END IF
