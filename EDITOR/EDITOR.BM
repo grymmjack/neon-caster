@@ -3163,6 +3163,15 @@ SUB EditNudge(dx, dy)
         IF mv(x, y) THEN lvlCLBright(x + dx, y + dy) = clb(x, y) : lvlCLCol(x + dx, y + dy) = clc(x, y) : lvlCLFx(x + dx, y + dy) = clf(x, y)
     NEXT : NEXT
     FOR k = 1 TO edSelN : edSelX(k) = edSelX(k) + dx : edSelY(k) = edSelY(k) + dy : NEXT
+    FOR k = 1 TO lvlNumLifts ' (a lift, an event room, a zone - all of it selected: it goes with them)
+        IF EditRectMoved(mv(), lvlLift(k, 1), lvlLift(k, 2), lvlLift(k, 3), lvlLift(k, 4)) THEN lvlLift(k, 1) = lvlLift(k, 1) + dx : lvlLift(k, 3) = lvlLift(k, 3) + dx : lvlLift(k, 2) = lvlLift(k, 2) + dy : lvlLift(k, 4) = lvlLift(k, 4) + dy
+    NEXT
+    FOR k = 1 TO lvlNumEvents
+        IF EditRectMoved(mv(), lvlEvent(k, 2), lvlEvent(k, 3), lvlEvent(k, 4), lvlEvent(k, 5)) THEN lvlEvent(k, 2) = lvlEvent(k, 2) + dx : lvlEvent(k, 4) = lvlEvent(k, 4) + dx : lvlEvent(k, 3) = lvlEvent(k, 3) + dy : lvlEvent(k, 5) = lvlEvent(k, 5) + dy
+    NEXT
+    FOR k = 1 TO lvlNumZones
+        IF EditRectMoved(mv(), lvlZone(k, 1), lvlZone(k, 2), lvlZone(k, 3), lvlZone(k, 4)) THEN lvlZone(k, 1) = lvlZone(k, 1) + dx : lvlZone(k, 3) = lvlZone(k, 3) + dx : lvlZone(k, 2) = lvlZone(k, 2) + dy : lvlZone(k, 4) = lvlZone(k, 4) + dy
+    NEXT
     ' What belongs to a cell goes with it - a monster's own settings, the
     ' faces' pictures, a pad's link; a cell moved onto loses its own
     FOR k = lvlMonN TO 1 STEP -1
@@ -4038,3 +4047,13 @@ SUB EditDropPast(m)
         IF x > m OR y > m THEN lvlCLBright(x, y) = -1 : lvlCLCol(x, y) = 0 : lvlCLFx(x, y) = 0
     NEXT : NEXT
 END SUB
+
+' Is every cell of the box x0,y0 to x1,y1 one being moved (mv)?
+FUNCTION EditRectMoved(mv() AS INTEGER, x0, y0, x1, y1)
+    DIM x, y ' (its own: the main program shares these names)
+    IF x0 < 0 OR y0 < 0 OR x1 > mapN - 1 OR y1 > mapN - 1 OR x1 < x0 OR y1 < y0 THEN EXIT FUNCTION
+    FOR y = y0 TO y1 : FOR x = x0 TO x1
+        IF mv(x, y) = 0 THEN EXIT FUNCTION
+    NEXT : NEXT
+    EditRectMoved = -1
+END FUNCTION
