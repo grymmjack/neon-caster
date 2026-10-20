@@ -119,7 +119,7 @@
                 glLitData(t&) = litR(x, y) : glLitData(t& + 1) = litG(x, y) : glLitData(t& + 2) = litB(x, y)
                 v = worldMap(x, y) : glLitData(t& + 3) = (v <= 0 OR v = 2 OR diagCorner(x, y) <> 0) * -1
                 glInfoData(t&) = glLitCX(x, y, glWrite) : glInfoData(t& + 1) = glLitCY(x, y, glWrite) : glInfoData(t& + 2) = glLitDir(x, y, glWrite)
-                glInfoData(t& + 3) = 0.85 : IF glLitData(t& + 3) THEN glInfoData(t& + 3) = ceilH(x, y) - 0.15 ' (how high its light is: under its own ceiling)
+                glInfoData(t& + 3) = 0.85 : IF glLitData(t& + 3) THEN glInfoData(t& + 3) = MinOf(ceilH(x, y) - 0.15, floorH(x, y) + 2.5) ' (how high its light is: under its own ceiling - but no more than 2 1/2 walls over its floor: a hall 16 walls high is lit as well)
                 FOR k = 1 TO GL_DYN : glDynData(t& + k - 1) = glDynReach(x, y, k, glWrite) : NEXT
             END IF
         NEXT : NEXT

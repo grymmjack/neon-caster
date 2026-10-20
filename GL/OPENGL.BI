@@ -88,7 +88,7 @@ DIM SHARED glPost AS INTEGER, glReflecting AS INTEGER, glFloorPass AS INTEGER, g
 ' where each kind-and-texture run is; the corners while it's being built
 ' (glMB...); the doors (they move, so they're drawn each frame); the light
 ' tables' textures; and whether corners are lit from the tables (cellLit)
-CONST MESH_MAX = 60000
+CONST MESH_MAX = 480000 ' (corners: room for a sector 128 x 128 and 16 walls high, every floor, ceiling and step in it)
 DIM SHARED glMeshBuf AS _UNSIGNED LONG, glMeshN AS LONG, glMeshBuilding AS INTEGER, glMeshKind AS INTEGER
 DIM SHARED glMeshClient AS INTEGER ' (the mesh is drawn from glMeshData in main memory, not a buffer - GLBuildMesh)
 DIM SHARED glMeshFirst(3, GL_GLOW_TEX) AS LONG, glMeshCount(3, GL_GLOW_TEX) AS LONG ' (kinds: 0 floors, 1 ceilings, 2 walls, 3 raised or sunken floors)

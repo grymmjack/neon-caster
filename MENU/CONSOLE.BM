@@ -467,7 +467,7 @@ SUB ConExec STATIC
             END SELECT
             IF infoOn THEN ConPrint "info ON - where you are, top left (F3 switches it too)" ELSE ConPrint "info OFF"
         CASE "pos", "where"
-            ConPrint sectorName$(level) + ": x" + STR$(INT(playerX * 100) / 100) + "  y" + STR$(INT(playerY * 100) / 100) + "  facing" + STR$(INT(_ATAN2(dirY, dirX) * 180 / 3.14159265)) + " degrees  feet" + STR$(INT(playerZ * 100) / 100) + "  eye" + STR$(INT(eyeZ * 100) / 100)
+            ConPrint sectorName$(level) + ": x" + STR$(INT(playerX * 100) / 100) + "  y" + STR$(INT(playerY * 100) / 100) + "  facing" + STR$(INT(_ATAN2(dirY, dirX) * 180 / 3.14159265)) + " degrees  feet" + STR$(INT(playerZ * 100) / 100) + "  eye" + STR$(INT(eyeZ * 100) / 100) + "  light" + STR$(litR(INT(playerX), INT(playerY))) + STR$(litG(INT(playerX), INT(playerY))) + STR$(litB(INT(playerX), INT(playerY)))
         CASE "save", "savegame"
             saveSlot = SlotOf(conA$) : IF saveSlot < 0 THEN ConPrint "save 1-" + LTRIM$(STR$(NUM_SLOTS)) + " or quick" ELSE SaveGame
         CASE "load", "loadgame"

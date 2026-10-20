@@ -405,7 +405,7 @@ SUB EditPaneClick STATIC
         CASE 183 ' ...made so: grown (new wall all round) or cut down (what's past it gone)
             EditResizeMap edMapWant : EditNote "The map:" + STR$(mapN) + " x" + STR$(mapN) + " - savelevel (Ctrl+S) to keep it"
         CASE 180 ' Make the map that room: everything else wall again (Ctrl+Z gets it back)
-            EditPushUndo : EditMakeRoom edRoomW, edRoomH : EditApply : EditNote "The map: one room," + STR$(edRoomW) + " x" + STR$(edRoomH) + " - Ctrl+Z to undo"
+            EditPushUndo : EditMakeRoom edRoomW, edRoomH : EditApply : EditYouToStart : EditNote "The map: one room," + STR$(edRoomW) + " x" + STR$(edRoomH) + " - Ctrl+Z to undo"
         CASE 101, 102 ' Its light, brighter or darker
             EditPushUndo
             IF pnHit = 102 THEN lvlAmb(1) = lvlAmb(1) + 10 ELSE lvlAmb(1) = lvlAmb(1) - 10
@@ -599,6 +599,7 @@ SUB RunEditor STATIC
             mx = _MOUSEX : my = _MOUSEY : wheel = wheel + _MOUSEWHEEL
             IF _MOUSEBUTTON(1) THEN b1 = -1 : b1Any = -1 ELSE b1 = 0
             IF _MOUSEBUTTON(2) THEN b2 = -1 : b2Any = -1 ELSE b2 = 0
+            IF _MOUSEBUTTON(3) THEN b3Any = -1
         WEND
         IF b1Any AND NOT b1 AND NOT edB1 THEN b1 = -1 : edForce1 = -1 ' (pressed and let go between two frames: a click all the same - let go the next)
         IF b2Any AND NOT b2 AND NOT edB2 THEN b2 = -1 : edForce2 = -1
@@ -694,6 +695,17 @@ SUB RunEditor STATIC
             IF b1 AND NOT edDown THEN EditPushUndo : EditRaise cx, cy, H_STEP, shiftOn : edDown = -1 : edApply = -1
             IF b2 AND NOT edB2 THEN EditPushUndo : EditRaise cx, cy, -H_STEP, shiftOn : edApply = -1
         END IF
+        ' Middle click (or Alt+click) on the map: you, there - to walk round from (Tab)
+        edAltNow = _KEYDOWN(100307) OR _KEYDOWN(100308)
+        IF onMap AND (b3Any OR (b1 AND NOT edB1 AND edAltNow)) THEN
+            IF worldMap(cx, cy) <= 0 OR worldMap(cx, cy) = 2 THEN
+                playerX = cx + 0.5 : playerY = cy + 0.5 : playerZ = floorH(cx, cy) : eyeZ = playerZ + EYE_H : EditNote "You:" + STR$(cx) + "," + STR$(cy) + " - Tab to walk round from here"
+            ELSE
+                EditNote "That's wall - pick open floor"
+            END IF
+            b1 = 0 : edForce1 = 0
+        END IF
+        b3Any = 0
         IF onMap AND edTool = ET_SELECT THEN ' Selecting: press, drag a box, let go (Shift adds to what's selected)
             IF b1 AND NOT edDown THEN edDown = -1 : edRect = -1 : edX0 = cx : edY0 = cy : edSelAdd = shiftOn
         END IF
@@ -3888,6 +3900,7 @@ SUB EditResizeMap(n)
         IF y >= n THEN MID$(lvlRow$(n \ 2), n \ 2 + 1, 1) = ">"
     END IF
     EditApply : EditFitMap
+    IF playerX >= mapN - 1 OR playerY >= mapN - 1 OR worldMap(INT(playerX), INT(playerY)) > 0 THEN EditYouToStart ' (cut off, or in wall: to the start)
 END SUB
 
 ' --- Ctrl+click on a wall's side, in the 3D view: that whole side of the
@@ -3912,4 +3925,18 @@ SUB EditSelWallFlood(x0, y0, side)
             END IF
         NEXT
     LOOP
+END SUB
+
+' --- You, at the sector's start (its < > ^ v) - after the map's been made
+' again or cut down round you, so you're not left inside wall
+SUB EditYouToStart
+    DIM x, y, c$ ' (its own: the main program shares these names)
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
+        c$ = MID$(lvlRow$(y), x + 1, 1)
+        IF INSTR("<>^v", c$) THEN
+            playerX = x + 0.5 : playerY = y + 0.5 : playerZ = floorH(x, y) : eyeZ = playerZ + EYE_H
+            dirX = (c$ = ">") * -1 + (c$ = "<") : dirY = (c$ = "v") * -1 + (c$ = "^") : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
+            EXIT SUB
+        END IF
+    NEXT : NEXT
 END SUB
