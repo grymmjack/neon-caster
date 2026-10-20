@@ -158,11 +158,11 @@ SUB ConExec STATIC
     IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
         SELECT CASE conVerb$
             CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
-                 "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters", "turret", "turrets", _
+                 "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters", _
                  "drop", "liquids", "blocks", "resetlevel", "reloadlevel", "loadlevelfromdisk", "mapsize"
                 IF NOT achCheat AND NOT achTest THEN ConPrint "^9(cheats on: achievements wait for a new game)"
                 achCheat = -1
-            CASE "sectorset", "campaign", "set10", "loot" ' (these only look, with nothing after them)
+            CASE "sectorset", "campaign", "set10", "loot", "turret", "turrets" ' (these only look, with nothing after them)
                 IF conA$ <> "" THEN
                     IF NOT achCheat AND NOT achTest THEN ConPrint "^9(cheats on: achievements wait for a new game)"
                     achCheat = -1
