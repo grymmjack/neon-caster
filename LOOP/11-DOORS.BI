@@ -85,6 +85,10 @@
             END IF
             IF decoCell(cellX, cellY) AND reach <= 1.5 AND NOT cyberOn AND NOT usedTrig THEN ' A decoration you can use: a vending machine (VendStep)
                 dv = decoCell(cellX, cellY)
+                IF decoOn(dv) AND decoKind(dv) = DK_CHEST THEN ' (a treasure chest: open it - GAME/BARRELS.BM)
+                    IF decoOpen(dv) THEN ShowMsg "Empty - you've had what was in it" ELSE ChestOpen dv
+                    EXIT FOR
+                END IF
                 IF decoOn(dv) AND decoKind(dv) = DK_VENDING THEN
                     IF vendState(dv) = 0 THEN
                         SlotUse dv ' (a slot machine: a pull - SlotUse)

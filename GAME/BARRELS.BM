@@ -119,3 +119,17 @@ SUB StacksSettle
         END IF
     NEXT
 END SUB
+
+' --- Chest i opened (Space): the lid up, and each thing its [loot] says,
+' by its own chance, thrown out to you - a chest's slots are each a roll,
+' not one of them (a breakable's)
+SUB ChestOpen(i)
+    DIM a!, k, n, s ' (its own: the main program shares these names)
+    decoOpen(i) = -1 : SfxAt sndHoard&, decoX(i), decoY(i), playerX, playerY
+    k = decoKind(i) : a! = DAtan2(playerY - decoY(i), playerX - decoX(i)) : n = 0
+    FOR s = 1 TO LOOT_SLOTS
+        IF lootKind(k, s) THEN IF INT(GRnd * 100) < lootPct(k, s) THEN TossItem lootKind(k, s), decoX(i), decoY(i), a! + (GRnd - 0.5) * 1.2, playerX, playerY : n = n + 1 : AchAdd "LootDrops", 1
+    NEXT
+    IF n = 0 THEN ShowMsg "TREASURE CHEST: empty - someone got here first" ELSE ShowMsg "TREASURE CHEST: opened!"
+    newBlastX = decoX(i) : newBlastY = decoY(i) : newBlastSize = 0.25 : AddBlast ' (a glint of what's in it)
+END SUB

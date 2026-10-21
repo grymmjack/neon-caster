@@ -76,7 +76,7 @@ SUB SaveGame STATIC
         PUT #fileNum, , monWeap(i) : PUT #fileNum, , monTrack(i) : PUT #fileNum, , monEject(i) : PUT #fileNum, , monFrom(i) : PUT #fileNum, , monWallX(i) : PUT #fileNum, , monWallY(i)
         PUT #fileNum, , monAimA(i) : PUT #fileNum, , monFly(i) : PUT #fileNum, , monFoe(i)
     NEXT
-    PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , vendState(i) : PUT #fileNum, , vendTimer(i) : PUT #fileNum, , vendBomb(i) : NEXT ' (the vending machines and cabinets: sold out, paid out - or counting down, to a jackpot or a bang)
+    PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , vendState(i) : PUT #fileNum, , vendTimer(i) : PUT #fileNum, , vendBomb(i) : PUT #fileNum, , decoOpen(i) : PUT #fileNum, , decoZ(i) : NEXT ' (the vending machines and cabinets: sold out, paid out - or counting down, to a jackpot or a bang)
     PUT #fileNum, , lvFrame ' (the sector's own clock: time triggers)
     PUT #fileNum, , playerZ : PUT #fileNum, , playerVZ : PUT #fileNum, , rocketAir ' (in the air, as you were - not dropped to the floor, into a pit)
     CLOSE #fileNum
@@ -142,7 +142,7 @@ SUB LoadGame STATIC
     GET #fileNum, , savedCount : IF savedCount <> numDecos THEN LoadMismatch : EXIT SUB
     FOR i = 1 TO numDecos
         GET #fileNum, , decoOn(i) : GET #fileNum, , decoHP(i) : GET #fileNum, , decoTimer(i)
-        IF NOT decoOn(i) THEN decoCell(INT(decoX(i)), INT(decoY(i))) = 0 ' Broken ones don't block
+        IF NOT decoOn(i) THEN DecoCellAfter i ' Broken ones don't block (one stacked on it does)
     NEXT
     ' The ceiling lamps you shot out (a save from before you could has none)
     FOR l = 1 TO numLightsBase
@@ -245,7 +245,7 @@ SUB LoadGame STATIC
             END IF
         NEXT
         GET #fileNum, , savedCount
-        FOR i = 1 TO savedCount : GET #fileNum, , tv% : GET #fileNum, , tt% : GET #fileNum, , tbm% : IF savedCount = numDecos THEN vendState(i) = tv% : vendTimer(i) = tt% : vendBomb(i) = tbm%
+        FOR i = 1 TO savedCount : GET #fileNum, , tv% : GET #fileNum, , tt% : GET #fileNum, , tbm% : GET #fileNum, , tdo% : GET #fileNum, , tdz! : IF savedCount = numDecos THEN vendState(i) = tv% : vendTimer(i) = tt% : vendBomb(i) = tbm% : decoOpen(i) = tdo% : decoZ(i) = tdz!
         NEXT
         GET #fileNum, , lvF&
         IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , pz! : GET #fileNum, , pvz! : GET #fileNum, , ra% : IF pz! >= floorH(INT(playerX), INT(playerY)) AND pz! < ceilH(INT(playerX), INT(playerY)) THEN playerZ = pz! : playerVZ = pvz! : rocketAir = ra% : eyeZ = playerZ + EYE_H
