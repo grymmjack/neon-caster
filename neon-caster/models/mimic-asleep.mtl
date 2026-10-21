@@ -1,0 +1,4 @@
+# NEON-CASTER prop: mimic-asleep - its texture, for 3D viewers
+newmtl mimic-asleep
+Kd 1 1 1
+map_Kd ../hd/models/mimic-asleep_tex.png

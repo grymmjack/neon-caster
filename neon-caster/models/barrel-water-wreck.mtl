@@ -1,0 +1,4 @@
+# NEON-CASTER prop: barrel-water-wreck - its texture, for 3D viewers
+newmtl barrel-water-wreck
+Kd 1 1 1
+map_Kd ../hd/models/barrel-water-wreck_tex.png

@@ -51,6 +51,9 @@ PROPS = {
     'pickup-repeater': 0.45, 'armor': 0.3, 'bigmed': 0.3, 'pickup-rail': 0.45, 'map': 0.3,
     'overcharge': 0.3, 'amp': 0.3, 'goggles': 0.3, 'suit': 0.3, 'pickup-rocket': 0.45, 'rockets': 0.3, 'rounds': 0.3, 'slugs': 0.3,
     'turret': 0.55,  # (a monster: its height, mtypeScale)
+    'barrel-water': 0.5, 'barrel-poison': 0.5, 'barrel-slime': 0.5, 'barrel-lava': 0.5, 'barrel-acid': 0.5,
+    'barrel-water-wreck': 0.5, 'barrel-poison-wreck': 0.5, 'barrel-slime-wreck': 0.5, 'barrel-lava-wreck': 0.5, 'barrel-acid-wreck': 0.5,
+    'chest': 0.5, 'chest-open': 0.5, 'mimic-asleep': 0.5, 'jetpack': 0.3, 'jetfuel': 0.3,
 }
 def read_gltf(path):
     """A glTF's triangles - (points, uvs) each - turned to the game's axes.
@@ -182,6 +185,9 @@ SHAPES = {
     'pickup-scatter': ('extrude', 0.1), 'pickup-repeater': ('extrude', 0.1), 'pickup-rail': ('extrude', 0.08), 'pickup-rocket': ('extrude', 0.22), 'rockets': ('extrude', 0.55), 'rounds': ('extrude', 0.6), 'slugs': ('extrude', 0.25),
     'armor': ('extrude', 0.35), 'map': ('extrude', 0.04), 'overcharge': ('extrude', 0.15), 'goggles': ('extrude', 0.35),
     'keycard': ('extrude', 0.06), 'suit': ('extrude', 0.3), 'turret': ('kit',),
+    'barrel-water': ('lathe',), 'barrel-poison': ('lathe',), 'barrel-slime': ('lathe',), 'barrel-lava': ('lathe',), 'barrel-acid': ('lathe',),
+    'barrel-water-wreck': ('lathe',), 'barrel-poison-wreck': ('lathe',), 'barrel-slime-wreck': ('lathe',), 'barrel-lava-wreck': ('lathe',), 'barrel-acid-wreck': ('lathe',),
+    'chest': ('extrude', 0.65), 'chest-open': ('extrude', 0.65), 'mimic-asleep': ('extrude', 0.65), 'jetpack': ('extrude', 0.45), 'jetfuel': ('extrude', 0.55),
 }
 GRID = 64  # the outline's grid: the painting's alpha, this many cells across
 

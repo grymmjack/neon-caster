@@ -1,0 +1,4 @@
+# NEON-CASTER prop: barrel-acid-wreck - its texture, for 3D viewers
+newmtl barrel-acid-wreck
+Kd 1 1 1
+map_Kd ../hd/models/barrel-acid-wreck_tex.png

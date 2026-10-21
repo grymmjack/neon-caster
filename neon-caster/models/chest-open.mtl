@@ -1,0 +1,4 @@
+# NEON-CASTER prop: chest-open - its texture, for 3D viewers
+newmtl chest-open
+Kd 1 1 1
+map_Kd ../hd/models/chest-open_tex.png

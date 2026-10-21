@@ -1,0 +1,4 @@
+# NEON-CASTER prop: barrel-poison - its texture, for 3D viewers
+newmtl barrel-poison
+Kd 1 1 1
+map_Kd ../hd/models/barrel-poison_tex.png
