@@ -36,6 +36,7 @@ END SUB
 
 SUB HitDeco STATIC
     IF decoKind(targetDeco) = DK_BODY THEN EXIT SUB ' (bodies don't break)
+    IF decoKind(targetDeco) = DK_CHEST THEN SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY : EXIT SUB ' (nor do chests: Space opens one)
     IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
     ' Its loot, if it breaks: kicked, back the way you're facing (towards you,
     ' give or take); shot or blown up, any way at all
