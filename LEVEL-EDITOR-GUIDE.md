@@ -267,12 +267,13 @@ Each cell of the map is one character, and case matters: `m` is a drone, `M` is 
 ! = @ $ % ? & ;
 r b y + * u a e
 2 3 4 M q j 8 9
-) ( { } m g h c
-s k w z T 1 5 6
-7 0 ~ _ | o i p
-t x l n f S d A
-F I J L O Q U W
-Z V < > ^ v
+) ( { } ` , m g
+h c s k w z T 1
+5 6 7 0 ~ _ | ]
+o i p t x l n f
+S d A F I J L O
+Q U W Z V : [ <
+> ^ v
 ```
 
 **Walls and structure**
@@ -315,6 +316,7 @@ Z V < > ^ v
 | `9` | Hazmat suit: poison, slime and acid wear it instead of you (about 45 seconds of poison, 20 of acid). Fire and lava go straight through it. Lost when you die | | | |
 | `)` | Rocket launcher (gun 5), +5 rockets: a rocket bursts on whatever it hits - and the blast hurts you too, close up. Hold the right button to zoom right in | | `(` | Rockets +5 (50 at most) |
 | `{` | Repeater rounds +40 (200 at most) | | `}` | Railgun slugs +5 (25 at most) |
+| `` ` `` | Jetpack: E lights it - you fly (E up, C down) while its fuel lasts (about 8 seconds aloft), and fall when it's out; on the ground it's off till E again | | `,` | Jet fuel +40 (a jetpack's tank holds 100) |
 
 Each gun has its own ammo: cells for the blaster, shells for the scatter gun, rounds for the repeater, slugs for the railgun, rockets for the launcher. Cells that come out of something - loot, a monster's drop, a prize - come out as ammo for one of the guns you have that shoot energy (the blaster, the repeater, the railgun); cells you place stay cells.
 
@@ -338,6 +340,7 @@ Each gun has its own ammo: cells for the blaster, shells for the scatter gun, ro
 | `0` | colossus (field boss) | 90 - comes on and on: up close, a slam that shakes the floor; further off, heavy bolts. Drops a damage amp, a big medkit, cells and shells |
 | `~` | turret, in the ceiling | 6 - a 3D model: hidden till it sees you (and can't be hit till it's out), then it slides down out of the ceiling, turns its barrels on you and fires bursts. A turret control panel (`;`) switches it off |
 | `_` | turret, in the floor | the same, rising out of the floor |
+| `]` | mimic | 8 - asleep it looks just like a treasure chest (its lock glows pink, not cyan). Space on it, coming right up to it or a shot wakes it, and it bites |
 | `\|` | turret, in a wall | the same, sliding out of a wall beside its cell at chest height (it can only turn so far from the wall). With no wall beside it, it's a floor turret. Any turret's WEAPON is set in its pane: plasma, laser, lightning, flame, poison, acid or missiles |
 
 **Decorations.** Up to 160 per level (the level kit's own: 64, 160 in a sector over 64 cells across). They block your way, and most can be shot to pieces.
@@ -354,7 +357,10 @@ Each gun has its own ammo: cells for the blaster, shells for the scatter gun, ro
 | `f` | Coolant tank (explodes) | | `U` | Lockers |
 | `S` | Spawner (the portal nest events use) | | `W` | Bench |
 | `d` | Desk | | `Z` | Chair |
-| | | | `V` | Body (doesn't block, can't break) |
+| `:` | Barrel of a liquid (its pane: LIQUID - water, poison, slime, lava, acid) | | `V` | Body (doesn't block, can't break) |
+| `[` | Treasure chest: Space opens it | | | |
+
+A **barrel of a liquid** (`:`) shot springs a leak, hisses for a moment, then bursts: a blast (water's just a pop), a pool of what was in it, and its own harm - poison leaves a cloud of gas, lava sets everything near alight (you too), acid eats armour and stains the walls, slime burns, water puts fires out. Fire near one cooks it off. **Barrels stack**: a barrel's pane (`o` or `:`) has STACK - and + for up to three standing on each other; when the one under them goes, the rest drop. A **treasure chest** (`[`) opens on Space and throws out its loot (armour, a medkit, rounds, an overcharge, each by its own chance - `[loot]` with `chest = ...`). Don't trust every chest: a **mimic** (`]`) is one with teeth.
 
 Some do more than break. Space at a **vending machine** (`n`) is a pull on a **slot machine**: three reels, and three alike pays out - three bombs, a big bang (stand back); three monsters, three come out of it; three guns, a gun you haven't got; three medkits, cells or armour, plenty of it; three 7s, the jackpot. A pair gives a little of it; nothing alike, nothing. One pull a machine. Space at a **computer** (`t`, `A`, `F`) plays NEON PONG (first to 3; win and it pays out). A **specimen tank** (`I`) broken open lets out what's in it half the time. Monsters' bolts break things too, and what's inside still drops.
 
@@ -525,6 +531,8 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 24, 19, 0, 0, 8, 4, 1
 23, 20, 5, 0, 8, 3, 4
 ```
+
+**`[barrels]`** (a barrel's pane: LIQUID, STACK): `x, y, liquid, stack` - liquid 0 for a plain barrel `o`, 1 water, 2 poison, 3 slime, 4 lava, 5 acid for a `:` barrel (poison if it has no line), stack 1-3 standing on each other. Up to 96.
 
 **`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy, facing` - `dx` and `dy` in eighths across and down, -3 to 3; `facing` 0 (or left out) is as built (furniture against a wall stands flat with its back to it; anything else turns to face you), 1-4 stands it flat facing east, south, west or north, 5 turns it to face you always. Up to 160.
 
