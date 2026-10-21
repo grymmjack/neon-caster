@@ -33,7 +33,7 @@ SUB BuildLevel STATIC
     NEXT
     numStations = 0 : numPads = 0 : numTerms = 0 : numTCtrl = 0 : FOR k = 0 TO MAX_PADS : padFlown(k) = 0 : NEXT
     IF NOT editRebuild THEN glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
-    FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0 : invTimer = 0
+    FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0 : invTimer = 0 : drainN = 0
     FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE ' (all of it, as far as any sector can go: a smaller one's past its edge is nothing)
         worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorLockEv(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : secretCell(x, y) = 0 : closetIn(x, y) = 0 : secretArea(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
         doorHP(x, y) = 0 : doorHPMax(x, y) = 0 : doorBroke(x, y) = 0 : doorCode(x, y) = 0 ' (stronghold and keypad doors: [doors] - ThingsBuild)
@@ -42,7 +42,7 @@ SUB BuildLevel STATIC
         boxOn(x, y) = 0
         cellSeen(x, y) = 0
     NEXT : NEXT
-    numItems = 0 : numMonsters = 0 : numDecos = 0 : hasMap = 0 : mapOpen = 0
+    numItems = 0 : numMonsters = 0 : numDecos = 0 : hasMap = 0 : mapOpen = 0 : FOR i = 1 TO MAX_ITEMS : itemAmt(i) = 0 : NEXT
     ERASE decoCharge, decoBurst
     FOR i = 1 TO MAX_ITEMS : itemToss(i) = 0 : NEXT
     LootTable ' (what breakables leave: the game's table, and the level's [loot])
@@ -276,6 +276,7 @@ SUB BuildLevel STATIC
                         numItems = numItems + 1
                         itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
                         itemKind(numItems) = ItemOfChar(cell$)
+                        IF cell$ = "`" OR cell$ = "," THEN k = XtraFind("fuel", x, y, 0) : IF k THEN itemAmt(numItems) = MaxOf(1, MinOf(JET_MAX, VAL(XtraField$(k, 3)))) ' (its own fuel)
                     END IF
                 CASE "@" ' A data station: a wall with a socket
                     worldMap(x, y) = 8
@@ -386,7 +387,7 @@ SUB BuildLevel STATIC
     ' Chairs aren't on the list: they're 3D (ModelFacing turns one to its desk).
     FOR i = 1 TO numDecos
         IF decoFace(i) = -1 THEN decoFace(i) = 0 : _CONTINUE
-        IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|33|34|35|36|37|38|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
+        IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|33|34|35|36|37|38|40|41|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
             x = INT(decoX(i)) : y = INT(decoY(i))
             IF DecoWall(x - 1, y) AND NOT DecoWall(x + 1, y) THEN ' (a wall behind it, and open floor in front)
                 decoFace(i) = 1

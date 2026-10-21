@@ -35,7 +35,7 @@ SUB DropItemAt(kind0, x0, y0)
         NEXT
     END IF
     walkFromHaz = 0
-    numItems = numItems + 1
+    numItems = numItems + 1 : itemAmt(numItems) = 0
     itemX(numItems) = x : itemY(numItems) = y : itemKind(numItems) = kind : itemOn(numItems) = -1 : itemToss(numItems) = 0
     SpawnSparks x, y, 0.3, 10, 255, 230, 120
 END SUB
@@ -190,7 +190,7 @@ END FUNCTION
 ' One more pickup, of kind kind, at (x, y) - a reward
 SUB DropItem(kind, x, y)
     IF numItems >= MAX_ITEMS THEN EXIT SUB
-    numItems = numItems + 1
+    numItems = numItems + 1 : itemAmt(numItems) = 0
     itemX(numItems) = INT(x) + 0.5 : itemY(numItems) = INT(y) + 0.5 : itemKind(numItems) = kind : itemOn(numItems) = -1
     SpawnSparks itemX(numItems), itemY(numItems), 0.4, 24, 255, 230, 120
 END SUB

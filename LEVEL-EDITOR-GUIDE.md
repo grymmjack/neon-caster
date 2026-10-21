@@ -324,7 +324,7 @@ A door can be both: kick it down, or find the code.
 | `9` | Hazmat suit: poison, slime and acid wear it instead of you (about 45 seconds of poison, 20 of acid). Fire and lava go straight through it. Lost when you die | | | |
 | `)` | Rocket launcher (gun 5), +5 rockets: a rocket bursts on whatever it hits - and the blast hurts you too, close up. Hold the right button to zoom right in | | `(` | Rockets +5 (50 at most) |
 | `{` | Repeater rounds +40 (200 at most) | | `}` | Railgun slugs +5 (25 at most) |
-| `` ` `` | Jetpack: FLY UP (E as made) lights it - you fly (E up, C down, or look up or down and walk) while its fuel lasts (about 8 seconds aloft), and fall when it's out; on the ground it's off till E again | | `,` | Jet fuel +40 (a jetpack's tank holds 100) |
+| `` ` `` | Jetpack: FLY UP (E as made) lights it - you fly (E up, C down, or look up or down and walk) while its fuel lasts (about 8 seconds aloft), and fall when it's out; on the ground it's off till E again | | `,` | Jet fuel +40 (a jetpack's tank holds 100). Each jetpack and can can have its own: FUEL - + on its pane (`[fuel]`) - give a level just enough to reach the next can |
 | `"` repairkit | Computer repair kit (up to 3): Space on a broken computer with one fixes it | | `"` invuln | Invulnerability: nothing hurts you for 5 seconds (a golden glow round the screen) |
 
 Each gun has its own ammo: cells for the blaster, shells for the scatter gun, rounds for the repeater, slugs for the railgun, rockets for the launcher. Cells that come out of something - loot, a monster's drop, a prize - come out as ammo for one of the guns you have that shoot energy (the blaster, the repeater, the railgun); cells you place stay cells.
@@ -351,6 +351,7 @@ Each gun has its own ammo: cells for the blaster, shells for the scatter gun, ro
 | `_` | turret, in the floor | the same, rising out of the floor |
 | `]` | mimic | 8 - asleep it looks just like a treasure chest (its lock glows pink, not cyan). Space on it, coming right up to it or a shot wakes it, and it bites |
 | `"` robodog | robot guard dog | 5 - fast, all teeth. When it sees you it barks, and every machine within 10 cells that hears it comes |
+| `"` guard | guard | 4 - a cyborg with a plasma pistol, quicker than you walk. When it sees you it runs for the nearest alarm switch that's on (40 steps at most) and sets the alarm off; then it fights. Shoot the switch first, or switch the alarms off |
 | `\|` | turret, in a wall | the same, sliding out of a wall beside its cell at chest height (it can only turn so far from the wall). With no wall beside it, it's a floor turret. Any turret's WEAPON is set in its pane: plasma, laser, lightning, flame, poison, acid or missiles |
 
 **Decorations.** Up to 160 per level (the level kit's own: 64, 160 in a sector over 64 cells across). They block your way, and most can be shot to pieces.
@@ -378,14 +379,16 @@ A **barrel of a liquid** (`:`) shot springs a leak, hisses for a moment, then bu
 | --- | --- |
 | table | A table knocked on its side: cover. It stops shots, it's low enough to see over, and it takes 10 hits to break |
 | brokenmonitor | A smashed monitor on the floor (lies flat) |
-| scientist, guard, cyborg | More bodies (lie flat, don't block, never break) |
+| deadscientist, deadguard, deadcyborg | More bodies (lie flat, don't block, never break) |
+| alarm | An alarm switch, chest high on its wall. Set off - by a guard, a hunting gunner, heavy, stalker, sniper or trooper slapping it as it passes, or by you - it sounds the alarm: a siren, red at the screen's edges, and every machine within 24 cells woken and coming for you, for 12 seconds. Two hits break it. Its pane: ON AT FIRST / OFF AT FIRST |
+| alarmpc | A security console: Space switches its alarm off (or on again) - every alarm in the sector, or the one its pane's ALARM (X, Y) names. Off, a sounding alarm stops. A hacked computer whose OPENS names a switch turns it off too |
 | bookshelf | Space searches it, once: maybe something useful (its `[loot]`, `bookshelf = ...` - as made, a repair kit, a medkit, cells or shells), and any note in it |
 | safe | A safe. Its pane: CODE - the keypad's (digits, or `?` for one made up each time). With no code, only a computer opens it. Opened, it throws out its loot (`safe = ...`: armour, an overcharge, rounds, a damage amp, each by its chance) and any note in it |
 | brokenpc | A broken computer. Space on it with a repair kit fixes it: then it's a computer |
 | computer | Space on it: the word hack (as the turret control panel's). Get in and it opens what its pane's OPENS says - X, Y of a door (any lock) or a safe - and runs any `hack X Y` trigger on it. Locked out, it's dead for good, and its alarm wakes everything near |
 | camera | A security camera, up by the ceiling. Its pane: NAME (shown on its feed; CAM1, CAM2... as made) |
 | secmon | A security monitor. Space on it shows what the cameras see, Duke-style: Space again the next camera, past the last (or a step) back to you. The world goes on while you watch |
-| repairkit, invuln, robodog | The pickups and the monster above |
+| repairkit, invuln, robodog, guard | The pickups and the monsters above |
 
 A **desk** (`d`) is searched with Space as a bookshelf is. A note can be in a desk, a bookshelf or a safe as well as lying about (`'`): its pane on any of them has NOTE - WORDS, PICTURE, NONE. In a note's words, `|` starts a new line, and `{code X Y}` shows the code of the door or safe at X, Y.
 
@@ -518,6 +521,8 @@ All end in `.png`. The picker's WALLS, FLOORS and CEILINGS tabs show them all, a
 
 **`puzzles = NAME, NAME, …`** gives each `$` code terminal its puzzle, in reading order, from `neon-caster/puzzles/`: countdown, function, hello, multiply, password, pythagoras, reverse, select, sum, wrap.
 
+**Draining a pool.** `drain X Y [SPEED]` drains the pool at cell X, Y - every liquid cell joined to it, lava too - SPEED eighths a second (4) till the floor's dry; a lava pool's glow goes out with it. A switch to drain an enclosed room: put `wall-switch.png` on a wall's face (PAINT) and a trigger on it - `use 12 30 : drain 20 30 ; message THE LAVA DRAINS AWAY`. (`liquid KIND X0 Y0 X1 Y1` floods a rectangle at once; `liquid none ...` empties one at once.)
+
 **`droids = N`** says how many service droids roll about the sector, 0 to 6. Leave it out for the usual three. In the console, `droids N` sets it for the sector you're in (save to keep it), and `droids` on its own lists where they are.
 
 **`[events]`** (MAKE AN EVENT ROOM, and an event's pane) are rooms that do something when you walk in: `kind, x0, y0, x1, y1, a, b, reward`. Doors within 5 cells of the room belong to it. Up to 32.
@@ -563,13 +568,17 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 
 **`[doors]`** (a door's pane: KICKS, KEYPAD CODE): `x, y, kicks, code` - kicks a stronghold door takes to break (0: none), code a keypad's digits (up to 8; `?` one made up each time the sector starts; nothing after the comma: no keypad).
 
-**`[things]`** (a `"` cell's pane): `x, y, kind[, more]` - kind one of `table`, `brokenmonitor`, `scientist`, `guard`, `cyborg`, `bookshelf`, `safe`, `brokenpc`, `computer`, `camera`, `secmon`, `repairkit`, `invuln`, `robodog` (or any decoration, pickup or monster by its name). After it: a safe's code (digits or `?`); a computer's (fixed or broken) `x, y` of the door or safe it opens; a camera's name. A `"` with no line is a table on its side.
+**`[things]`** (a `"` cell's pane): `x, y, kind[, more]` - kind one of `table`, `brokenmonitor`, `deadscientist`, `deadguard`, `deadcyborg`, `bookshelf`, `safe`, `brokenpc`, `computer`, `camera`, `secmon`, `alarm`, `alarmpc`, `repairkit`, `invuln`, `robodog`, `guard` (or any decoration, pickup or monster by its name). After it: a safe's code (digits or `?`); a computer's (fixed or broken) `x, y` of the door, safe or alarm switch it opens (or switches off); a camera's name; `off` for an alarm switch off at first; a security console's `x, y` of its alarm (none: every alarm). A `"` with no line is a table on its side.
 
 **`[notes]`** (NOTE on a `'` note's, a desk's, a bookshelf's or a safe's pane): `x, y, picture, words` - picture a file in `neon-caster/` (`-` for none: say `achievements/NC_BESTIARY.png`), then the words, commas and all; `|` starts a new line, `{code X Y}` is the code of the door or safe at X, Y.
 
+**`[fuel]`** (a jetpack's or fuel can's pane: FUEL): `x, y, amount` - its own fuel, 1-100 (as made: a jetpack's tank full, 100; a can 40).
+
+**`liquid_opacity = N`** (the sector pane's LIQUIDS): its liquids N% more solid than as made, 0-100 - at 100 you can't see the bottom of a pool (OpenGL; the software renderer draws liquids solid anyway). A player's own LIQUID OPACITY setting can make them more solid still, never less.
+
 **`[smears]`**: `x, y, face, what` - blood or oil: on a wall's side (x, y a wall cell, face `E` `S` `W` `N` the side facing into the room), or an open cell's floor (`F`) or ceiling (`C`); what `blood1` `blood2` `blood3` `oil1` `oil2`. Up to 128. (In the editor: PAINT with one of the blood or oil pictures at the end of the walls, floors and ceilings tabs - painting a face with any other picture wipes it off.)
 
-Together `[doors]`, `[things]`, `[notes]` and `[smears]` hold up to 512 lines.
+Together `[doors]`, `[things]`, `[notes]`, `[smears]` and `[fuel]` hold up to 512 lines.
 
 **`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy, facing` - `dx` and `dy` in eighths across and down, -3 to 3; `facing` 0 (or left out) is as built (furniture against a wall stands flat with its back to it; anything else turns to face you), 1-4 stands it flat facing east, south, west or north, 5 turns it to face you always. Up to 160.
 
@@ -587,6 +596,7 @@ Together `[doors]`, `[things]`, `[notes]` and `[smears]` hold up to 512 lines.
 | `clear X0 Y0 X1 Y1` | Every monster that started in the rectangle is dead |
 | `time S` | S seconds into the level |
 | `hack X Y` | The computer (a `"` computer) at that cell is hacked (HACK in the pane) |
+| `alarm [X Y]` | The alarm switch at that cell sets the alarm off - or, with no cell, any switch (ALARM in the pane) |
 
 Without `repeat`, a trigger fires once. Don't put `repeat` on `time` or `clear`: once true they stay true, so the trigger fires every frame. If you start inside an `enter` rectangle, it waits until you leave and come back. Up to 96. For example:
 

@@ -26,7 +26,7 @@ SUB FireRocket
     DIM dz ' (its own: the main program shares these names)
     dz = 0 : IF lookAim THEN dz = DTan(pitch)
     lastBolt = 0 : FireKind BK_ROCKET, playerX + dirX * 0.25, playerY + dirY * 0.25, eyeZ - 0.1, dirX, dirY, dz, ROCKET_SPEED, 240, ROCKET_HIT
-    IF setting(SET_ROCKETCAM) AND lastBolt AND NOT editMode AND NOT cyberOn THEN viewOn = VIEW_ROCKET : viewBolt = lastBolt : viewHold = 0 ' (ROCKET CAMERA: followed - GAME/SECURE.BM)
+    IF rocketCamHeld AND lastBolt AND NOT editMode AND NOT cyberOn THEN viewOn = VIEW_ROCKET : viewBolt = lastBolt : viewHold = 0 ' (ROCKET CAM held: you ride it - GAME/SECURE.BM)
 END SUB
 
 ' --- One frame of bolt i's flight - any kind but plasma (chapter 13 flies

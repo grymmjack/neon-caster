@@ -28,7 +28,7 @@ SUB ThingsBuild
         IF k THEN
             SELECT CASE decoKind(i)
                 CASE DK_SAFE : decoCode(i) = CodeOf&(XtraField$(k, 4))
-                CASE DK_PC, DK_PCBROKE
+                CASE DK_PC, DK_PCBROKE, DK_ALARMPC ' (a computer's door or safe - or alarm; a security console's alarm: none, every one)
                     c$ = XtraField$(k, 4) : IF LEN(c$) THEN decoTX(i) = VAL(c$) : decoTY(i) = VAL(XtraField$(k, 5))
                 CASE DK_CAMERA : decoTag$(i) = XtraField$(k, 4)
             END SELECT
@@ -37,6 +37,7 @@ SUB ThingsBuild
         IF decoKind(i) = DK_CAMERA AND decoTag$(i) = "" THEN decoTag$(i) = "CAM" + LTRIM$(STR$(CamNumber(i)))
     NEXT
     SmearsBuild
+    AlarmsBuild ' (alarm switches on or off, the guards' way to them - GAME/ALARMS.BM)
 END SUB
 
 ' The [smears]: each a decal of its own (blood or oil), kept - decals 1 to
@@ -342,6 +343,11 @@ FUNCTION DecoUse(i)
             DecoUse = -1 : CameraView i
         CASE DK_NOTE
             DecoUse = -1 : NoteRead i
+        CASE DK_ALARM
+            DecoUse = -1
+            IF vendState(i) = 0 THEN ShowMsg "You hit the alarm!" : AlarmRaise i ELSE ShowMsg "ALARM SWITCH: off" : PlaySfx sndLocked&, 0.5
+        CASE DK_ALARMPC
+            DecoUse = -1 : AlarmConsole i
     END SELECT
 END FUNCTION
 
@@ -430,6 +436,7 @@ FUNCTION OpenTarget(x, y)
     END IF
     FOR j = 1 TO numDecos
         IF decoKind(j) = DK_SAFE AND INT(decoX(j)) = x AND INT(decoY(j)) = y AND decoOn(j) THEN SafeOpen j : OpenTarget = -1 : EXIT FUNCTION
+        IF decoKind(j) = DK_ALARM AND INT(decoX(j)) = x AND INT(decoY(j)) = y AND decoOn(j) THEN AlarmSet j, 0 : BuildAlarmWay : OpenTarget = -1 : EXIT FUNCTION ' (an alarm switch: off)
     NEXT
 END FUNCTION
 
@@ -569,6 +576,7 @@ SUB ViewStep
             viewX = decoX(viewCam) + DCos(viewA) * 0.3 : viewY = decoY(viewCam) + DSin(viewA) * 0.3
             viewZ = floorH(x, y) + decoZ(viewCam) + DecoScale(DK_CAMERA) * 0.5
         CASE VIEW_ROCKET
+            IF NOT rocketCamHeld THEN viewOn = 0 : EXIT SUB ' (let go: back to you, at once)
             IF viewHold > 0 THEN
                 viewHold = viewHold - 1 : IF viewHold = 0 THEN viewOn = 0
             ELSEIF boltOn(viewBolt) AND boltKind(viewBolt) = BK_ROCKET THEN

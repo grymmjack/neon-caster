@@ -78,6 +78,8 @@
     ' changed it in the menu.
     IF hudEdit THEN HudEditFrame : mouseDX = 0 : mouseDY = 0 : clicked = 0 ' (the HUD layout editor has the mouse - chapter 21)
     fireDown = _MOUSEBUTTON(1) OR clicked OR KeyHeld(BIND_FIRE)
+    rocketCamWas = rocketCamHeld : rocketCamHeld = KeyHeld(BIND_ROCKETCAM) AND NOT editMode ' (ROCKET CAM: pressed, with the launcher out, it fires one - and you ride that rocket while it's held)
+    IF rocketCamHeld AND NOT rocketCamWas AND currentGun = W_ROCKET THEN fireDown = -1
     IF hudEdit THEN fireDown = 0
     IF conFire > 0 THEN conFire = conFire - 1 : fireDown = -1 ' (the console's fire: holding the trigger)
     clicked = 0

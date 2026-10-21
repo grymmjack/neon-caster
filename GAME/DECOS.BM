@@ -55,6 +55,7 @@ SUB HitDeco STATIC
     ELSE
         decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES : IF NOT decoByMon THEN AchAdd "Smashed", 1
         DecoCellAfter targetDeco
+        IF decoKind(targetDeco) = DK_ALARM THEN BuildAlarmWay ' (an alarm switch shot to pieces: nobody's setting that one off)
         SfxAt decoBreakSnd&(decoKind(targetDeco)), decoX(targetDeco), decoY(targetDeco), playerX, playerY
         IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
             newBlastX = decoX(targetDeco) : newBlastY = decoY(targetDeco) : newBlastSize = 0.35 : AddBlast
@@ -106,9 +107,9 @@ FUNCTION DecoKindOf(n$)
         CASE "chest", "treasurechest", "cache" : k = DK_CHEST
         CASE "table", "flippedtable" : k = DK_TABLE
         CASE "brokenmonitor", "monitor" : k = DK_MONBROKE
-        CASE "scientist", "body", "deadscientist" : k = DK_SCIENTIST
-        CASE "guard", "deadguard" : k = DK_GUARD
-        CASE "cyborg", "deadcyborg" : k = DK_CYBORG
+        CASE "deadscientist", "scientist" : k = DK_SCIENTIST
+        CASE "deadguard" : k = DK_GUARD ' (a guard - "guard" - is the monster)
+        CASE "deadcyborg", "cyborg" : k = DK_CYBORG
         CASE "bookshelf", "shelf", "bookcase" : k = DK_SHELF
         CASE "safe" : k = DK_SAFE
         CASE "brokenpc", "brokencomputer", "brokenterminal" : k = DK_PCBROKE
@@ -116,6 +117,8 @@ FUNCTION DecoKindOf(n$)
         CASE "camera", "securitycamera", "cctv" : k = DK_CAMERA
         CASE "secmon", "securitymonitor", "cameramonitor" : k = DK_SECMON
         CASE "note" : k = DK_NOTE
+        CASE "alarm", "alarmswitch" : k = DK_ALARM
+        CASE "alarmpc", "alarmconsole", "securityconsole" : k = DK_ALARMPC
         CASE ELSE : k = 0
     END SELECT
     DecoKindOf = k
@@ -125,7 +128,7 @@ END FUNCTION
 FUNCTION DecoName$(k)
     IF k > DK_LQBARREL AND k < DK_CHEST THEN DecoName$ = lqName$(k - DK_LQBARREL) + "barrel" : EXIT FUNCTION
     IF k = DK_CHEST THEN DecoName$ = "chest" : EXIT FUNCTION
-    IF k >= DK_TABLE THEN DecoName$ = ListItem$("table,brokenmonitor,scientist,guard,cyborg,bookshelf,safe,brokenpc,computer,camera,secmon,note", k - DK_TABLE + 1) : EXIT FUNCTION
+    IF k >= DK_TABLE THEN DecoName$ = ListItem$("table,brokenmonitor,deadscientist,deadguard,deadcyborg,bookshelf,safe,brokenpc,computer,camera,secmon,note,alarm,alarmpc", k - DK_TABLE + 1) : EXIT FUNCTION
     DecoName$ = RTRIM$(MID$("barrel   lamp     plant    terminal crate    rack     vending  coolant  spawner  desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", k * 9 - 8, 9))
 END FUNCTION
 
@@ -138,7 +141,7 @@ END FUNCTION
 FUNCTION DecoFile$(kind)
     IF kind > DK_LQBARREL AND kind < DK_CHEST THEN DecoFile$ = "barrel-" + lqName$(kind - DK_LQBARREL) + ".png" : EXIT FUNCTION
     IF kind = DK_CHEST THEN DecoFile$ = "chest.png" : EXIT FUNCTION
-    IF kind >= DK_TABLE THEN DecoFile$ = ListItem$("table-flipped,monitor-broken,body-scientist,body-guard,body-cyborg,bookshelf,safe,terminal-broken,terminal,camera,screens,note", kind - DK_TABLE + 1) + ".png" : EXIT FUNCTION
+    IF kind >= DK_TABLE THEN DecoFile$ = ListItem$("table-flipped,monitor-broken,body-scientist,body-guard,body-cyborg,bookshelf,safe,terminal-broken,terminal,camera,screens,note,alarm,alarmpc", kind - DK_TABLE + 1) + ".png" : EXIT FUNCTION
     DecoFile$ = RTRIM$(MID$("desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", (kind - 10) * 9 + 1, 9)) + ".png"
 END FUNCTION
 
@@ -166,7 +169,8 @@ FUNCTION DecoMaxHP(kind)
         CASE DK_CHEST, DK_SAFE : DecoMaxHP = 99 ' (a chest, a safe: Space opens it, shots don't)
         CASE DK_TABLE : DecoMaxHP = 10 ' (a table on its side: cover, for a while)
         CASE DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_CAMERA, DK_NOTE : DecoMaxHP = 99 ' (flat: DecoFlat)
-        CASE DK_SHELF, DK_PC, DK_SECMON : DecoMaxHP = 4
+        CASE DK_SHELF, DK_PC, DK_SECMON, DK_ALARMPC : DecoMaxHP = 4
+        CASE DK_ALARM : DecoMaxHP = 2 ' (an alarm switch: shoot it, and nobody sets it off)
         CASE DK_PCBROKE : DecoMaxHP = 3
         CASE ELSE : DecoMaxHP = 4 ' Terminal, server rack, vending machine
     END SELECT
@@ -206,6 +210,8 @@ FUNCTION DecoScale(kind)
         CASE DK_CAMERA : DecoScale = 0.3 ' A security camera (high on its wall)
         CASE DK_SECMON : DecoScale = 0.85 ' A security monitor
         CASE DK_NOTE : DecoScale = 0.2 ' A note
+        CASE DK_ALARM : DecoScale = 0.3 ' An alarm switch (on its wall, chest high)
+        CASE DK_ALARMPC : DecoScale = 0.6 ' A security console
         CASE ELSE : DecoScale = 0.55 ' Terminal
     END SELECT
 END FUNCTION

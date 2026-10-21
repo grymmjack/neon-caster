@@ -333,6 +333,13 @@ SUB ConExec STATIC
                     ConPrint "liquid: " + conRest$
                 END IF
             END IF
+        CASE "drain" ' drain X Y [SPEED]: the pool at X Y - all of it that's joined - going down SPEED eighths a second (4) till it's dry (a switch's trigger)
+            IF conB$ = "" THEN
+                ConPrint "drain X Y [SPEED]: the pool joined to cell X Y drains away, SPEED eighths a second (" + LTRIM$(STR$(DRAIN_SPEED)) + ")"
+            ELSE
+                n = DrainStart(ConCell(VAL(conA$)), ConCell(VAL(conB$)), VAL(conC$))
+                IF n THEN ConPrint "Draining" + STR$(n) + " cells" ELSE ConPrint "No liquid at" + STR$(VAL(conA$)) + "," + STR$(VAL(conB$))
+            END IF
         CASE "block", "blocks" ' block X Y X0 Y0 X1 Y1 [WALL]: a block in cell X Y, its edges in eighths (block X Y none: gone)
             cw$ = ConWord$(conCmd$, 7)
             IF LCASE$(conC$) = "none" AND conB$ <> "" THEN
@@ -391,6 +398,25 @@ SUB ConExec STATIC
         CASE "notarget" ' The monsters don't notice you - and the hunting ones forget you
             IF conA$ = "" THEN noTarget = NOT noTarget ELSE noTarget = ConOn(conA$)
             IF noTarget THEN ConPrint "Notarget ON (monsters ignore you)" ELSE ConPrint "Notarget OFF"
+        CASE "alarm", "alarms" ' alarm [on|off|raise|stop]: the alarm switches - all on, all off, sound the alarm (the nearest switch that's on), quiet it; alone: how they are
+            SELECT CASE conA$
+                CASE "on", "off"
+                    n = 0 : FOR k = 1 TO numDecos : IF decoKind(k) = DK_ALARM AND decoOn(k) THEN AlarmSet k, (conA$ = "on") : n = n + 1
+                    NEXT
+                    BuildAlarmWay : ConPrint "Alarm switches" + MID$(" on", 1, -3 * (conA$ = "on")) + MID$(" off", 1, -4 * (conA$ = "off")) + ":" + STR$(n)
+                CASE "raise", "sound", "go"
+                    j = 0 : bd = 1E+09
+                    FOR k = 1 TO numDecos
+                        IF AlarmArmed(k) THEN IF (decoX(k) - playerX) ^ 2 + (decoY(k) - playerY) ^ 2 < bd THEN bd = (decoX(k) - playerX) ^ 2 + (decoY(k) - playerY) ^ 2 : j = k
+                    NEXT
+                    IF j THEN AlarmRaise j ELSE ConPrint "No alarm switch is on"
+                CASE "stop", "quiet"
+                    alarmTimer = 0 : ConPrint "The alarm's quiet"
+                CASE ELSE
+                    n = 0 : FOR k = 1 TO numDecos : IF decoKind(k) = DK_ALARM THEN n = n + 1
+                    NEXT
+                    ConPrint "Alarm switches:" + STR$(n) + " (" + LTRIM$(STR$(numArmed)) + " on)" + MID$(" - SOUNDING", 1, -11 * (alarmTimer > 0))
+            END SELECT
         CASE "turret", "turrets" ' turret [WHO WHAT [N]]: the turrets, told what to do - eject, retract, off, on, weapon, track, ejectspeed (GAME/TURRETS.BM's states)
             TurretCommand
         CASE "kill", "killall" ' Every monster standing falls
@@ -1270,7 +1296,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
+    ConNames$ = "alias unalias turret alarm drain help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1292,6 +1318,7 @@ SUB ConHelp(c$)
             ConPrint "            ^7qb64pe^8 [PATH|auto]"
             ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7savelevel"
+            ConPrint "            ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
             ConPrint "  ^6scripts   ^7alias^8 NAME " + CHR$(34) + "..." + CHR$(34) + "  ^7unalias^8 NAME  ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE"
             ConPrint "            ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT  ^7sound^8 NAME  ^7say^8 LINE"
@@ -1332,6 +1359,9 @@ SUB ConHelp(c$)
         CASE "take"
             ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-5 | health N | armor [N] | map"
             ConPrint "  | ammo [cells|shells|rounds|slugs|rockets N] | jetpack | fuel [N] | repairkit [N] | invuln"
+        CASE "alarm", "alarms"
+            ConPrint "^3alarm [on|off|raise|stop]^0: the alarm switches - every one on, every one off; sound the alarm"
+            ConPrint "  (the nearest switch that's on), or quiet it; alone: how many, how many on, sounding or not"
         CASE "turret", "turrets"
             ConPrint "^3turret [WHO WHAT [N]]^0: turrets told what to do (an ambush, from a trigger); alone: lists them"
             ConPrint "  WHO: a number (as ^7turret^0 lists them), ^7all^0, or ^7at^8 X Y [R]^0 - within R cells (2 if not said)"
@@ -1395,6 +1425,10 @@ SUB ConHelp(c$)
             ConPrint "^3block X Y X0 Y0 X1 Y1 [WALL]^0: a solid block standing in open cell X Y - a pillar, a thin wall, the back"
             ConPrint "  of an alcove. Its edges are eighths of the cell (0-8 across, then down); WALL 1-6 is the look of #, N, C, K,"
             ConPrint "  P or G. block X Y none takes it away. savelevel (or Ctrl+S in the editor) keeps it"
+        CASE "drain"
+            ConPrint "^3drain X Y [SPEED]^0: the pool at cell X Y - every cell of it joined to that one, any kind, lava too -"
+            ConPrint "  drains away, SPEED eighths a second (4), till the floor's dry; a glow from lava goes out with it."
+            ConPrint "  A switch: ^3use 12 30 : drain 20 30^0 (or shoot X Y, on a wall-switch.png face)"
         CASE "liquid", "liquids", "flood"
             ConPrint "^3liquid KIND X0 Y0 X1 Y1 [DEPTH]^0: a pool over that rectangle's floor - water (slows you), slime (slows, hurts a"
             ConPrint "  little), poison (hurts), acid (eats armor first), lava (burns) - DEPTH 1-8 eighths; none drains it."
@@ -1409,7 +1443,7 @@ SUB ConHelp(c$)
         CASE "trigger"
             ConPrint "^3trigger WHEN ... [repeat] : COMMAND | COMMAND^0 - a new trigger for this level (| for ; when typed). WHEN:"
             ConPrint "  enter X0 Y0 X1 Y1 (you walk in) - use X Y (Space on it) - shoot X Y - clear X0 Y0 X1 Y1 (no monster left) - time S"
-            ConPrint "  - hack X Y (the computer there hacked)"
+            ConPrint "  - hack X Y (the computer there hacked) - alarm [X Y] (that switch - or, alone, any - sets the alarm off)"
             ConPrint "  trigger del N: take trigger N away (triggers lists them). savelevel (or Ctrl+S) keeps them"
         CASE "undo" : ConPrint "^3undo^0: the editor's last change, undone (Ctrl+Z)"
         CASE "savelevel" : ConPrint "^3savelevel^0: save the level as it is now to its file (Ctrl+S in the editor)"

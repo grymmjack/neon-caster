@@ -3,8 +3,9 @@
 ' (levels.py --write) and the editor in the game write these files.
 ' SECTOR 30: THE COMPOUND. A security compound gone quiet. From the
 ' guard post (a monitor shows its cameras), out into the yard - tables
-' on their sides for cover, troopers, and the robot dogs that bark the
-' place awake. West, the cell block behind a stronghold door: kick it
+' on their sides for cover, troopers, guards who run for the alarm
+' switches (the guard post's console turns them off), and the robot dogs
+' that bark the place awake. West, the cell block behind a stronghold door: kick it
 ' in (there's a repair kit in there). North, the server office: search
 ' its shelves, open its safe (a desk in the guard post knows the code),
 ' fix the broken computer and hack it - it opens the vault, and the red
@@ -44,6 +45,7 @@ ambient  = 120, 235, 230, 220
 
 [triggers]
 ' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+alarm : message ALARM - the compound's waking up. The guard post's console shuts it off.
 enter 2 22 38 35 : message THE YARD - the dogs bark the place awake. Tables make good cover.
 enter 2 10 9 20 : message THE CELL BLOCK
 hack 20 11 : message SERVER ROOM: VAULT UNLOCKED
@@ -55,7 +57,7 @@ hack 20 11 : message SERVER ROOM: VAULT UNLOCKED
 20, 9, 10, ?
 
 [things]
-' what a " is: x, y, kind (table, brokenmonitor, scientist, guard, cyborg, bookshelf, safe, brokenpc, computer, camera, secmon, repairkit, invuln, robodog - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name
+' what a " is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, repairkit, invuln, robodog, guard - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm)
 20, 38, secmon
 28, 43, camera, GUARD POST
 16, 30, table
@@ -67,13 +69,19 @@ hack 20 11 : message SERVER ROOM: VAULT UNLOCKED
 12, 33, robodog
 36, 33, robodog
 24, 31, robodog
-18, 26, guard
-33, 29, scientist
+18, 26, deadguard
+33, 29, deadscientist
 27, 34, brokenmonitor
 2, 23, camera, YARD WEST
 38, 23, camera, YARD EAST
+16, 22, alarm
+30, 22, alarm
+21, 23, guard
+31, 31, guard
+9, 28, guard
+27, 38, alarmpc
 3, 12, repairkit
-8, 12, cyborg
+8, 12, deadcyborg
 5, 18, table
 36, 18, invuln
 30, 19, camera, ARMORY
@@ -128,23 +136,23 @@ hack 20 11 : message SERVER ROOM: VAULT UNLOCKED
 ##........####.............###"........#########
 ##........####...........".###.........#########
 ####-#D#-###########D#############D#############
-##.....................................#########
-##".................g................."#########
+##.............."............."........#########
+##".................g"................"#########
 ##............5...................5....#########
 ##........................"............#########
 ##..........."...."....................#.....###
 ##................................."...#.....###
-##...................."................R.....E##
+##......."............"................R.....E##
 ##...............................".....#.....###
 ##.............."............."........#.....###
-##......................"..............#########
+##......................"......".......#########
 ##.....................................#########
 ##.........."................g......"..#########
 ##.........+.............a.".........e.#########
 ##.....................................#########
 ########################D#######################
 ###################..........###################
-###################.".....d..###################
+###################.".....d".###################
 ###################..........###################
 ###################...'......###################
 ###################..........###################

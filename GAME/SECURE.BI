@@ -37,6 +37,7 @@ DIM SHARED noteText$, notePic$
 ' viewHold frames). ViewAway puts the eye there round chapters 14-17;
 ' ViewBack puts it back (sv*: yours)
 CONST VIEW_CAM = 1, VIEW_ROCKET = 2, VIEW_HOLD = 50
+DIM SHARED rocketCamHeld AS INTEGER, rocketCamWas AS INTEGER ' (the ROCKET CAM control held this frame, and last: pressed, it fires - held, you ride the rocket)
 DIM SHARED viewOn AS INTEGER, viewCam AS INTEGER, viewMon AS INTEGER, viewBolt AS INTEGER, viewHold AS INTEGER, lastBolt AS INTEGER
 DIM SHARED viewX AS SINGLE, viewY AS SINGLE, viewZ AS SINGLE, viewA AS SINGLE, viewP AS SINGLE, viewAway AS INTEGER
 DIM SHARED svPX AS SINGLE, svPY AS SINGLE, svDX AS SINGLE, svDY AS SINGLE, svPlX AS SINGLE, svPlY AS SINGLE, svEye AS SINGLE, svPitch AS SINGLE, svPZ AS SINGLE

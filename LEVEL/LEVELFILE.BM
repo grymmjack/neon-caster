@@ -423,7 +423,7 @@
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
     DIM got, j, k, l$, t$, clx, cly ' (its own: the main program shares these names)
-    lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0 : lvlNote$ = "" : topLines = -1
+    lvlPuzzles$ = "" : lvlDroids = -1 : lvlLiqOp = 0 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0 : lvlNote$ = "" : topLines = -1
     CellLightsClear
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0 : fhRows = 0 : chRows = 0
@@ -476,6 +476,7 @@ SUB ReadLevelFile(n)
                     CASE "name" : lvlName$ = val$
                     CASE "puzzles" : lvlPuzzles$ = val$
                     CASE "droids" : lvlDroids = MaxOf(0, MinOf(MAX_DROIDS, VAL(val$)))
+                    CASE "liquid_opacity" : lvlLiqOp = MaxOf(0, MinOf(100, VAL(val$))) ' (its liquids more solid than as made: 100, you can't see the bottom)
                     CASE "walls" : FOR k = 1 TO 6 : lvlWall$(k) = ListItem$(val$, k) : NEXT
                     CASE "floors" : FOR k = 1 TO 4 : lvlFloor$(k) = ListItem$(val$, k) : NEXT
                     CASE "ceilings" : FOR k = 1 TO 2 : lvlCeil$(k) = ListItem$(val$, k) : NEXT
@@ -668,6 +669,7 @@ SUB WriteLevelFile(f$)
     o$ = o$ + "name     = " + lvlName$ + nl$
     IF lvlPuzzles$ <> "" THEN o$ = o$ + "puzzles  = " + lvlPuzzles$ + nl$
     IF lvlDroids >= 0 THEN o$ = o$ + "droids   = " + LTRIM$(STR$(lvlDroids)) + nl$
+    IF lvlLiqOp > 0 THEN o$ = o$ + "liquid_opacity = " + LTRIM$(STR$(lvlLiqOp)) + nl$
     l$ = "" : FOR k = 1 TO 6 : l$ = l$ + lvlWall$(k) + MID$(", ", 1, -2 * (k < 6)) : NEXT : o$ = o$ + "walls    = " + l$ + nl$
     l$ = "" : FOR k = 1 TO 4 : l$ = l$ + lvlFloor$(k) + MID$(", ", 1, -2 * (k < 4)) : NEXT : o$ = o$ + "floors   = " + l$ + nl$
     o$ = o$ + "ceilings = " + lvlCeil$(1) + ", " + lvlCeil$(2) + nl$
@@ -737,7 +739,7 @@ SUB WriteLevelFile(f$)
             o$ = o$ + nl$
         NEXT
     END IF
-    o$ = o$ + XtraWrite$("doors", nl$) + XtraWrite$("things", nl$) + XtraWrite$("notes", nl$) + XtraWrite$("smears", nl$)
+    o$ = o$ + XtraWrite$("doors", nl$) + XtraWrite$("things", nl$) + XtraWrite$("notes", nl$) + XtraWrite$("smears", nl$) + XtraWrite$("fuel", nl$)
     o$ = o$ + "" + nl$ : o$ = o$ + "[map]" + nl$
     FOR y = 0 TO mapN - 1 : o$ = o$ + lvlRow$(y) + nl$ : NEXT
     ' The heights - only if there are any

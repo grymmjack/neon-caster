@@ -1153,7 +1153,8 @@ SUB GLBindSlot(slot)
     _glBindTexture _GL_TEXTURE_2D, glTexName(slot)
     IF glShaderOn THEN
         p~& = glWorldProg
-        GLSL_uniform_1f p~&, "reflectAmt", glTexReflect(slot) * (glFloorPass OR glLiquidPass) * -1 ' (a wet floor, or a liquid: see-through)
+        rfl = glTexReflect(slot) : IF glLiquidPass AND slot > T_LIQUID AND slot <= T_LIQUID + LQ_KINDS THEN rfl = rfl * (1 - glLiqMurk) ' (LIQUID OPACITY: less see-through)
+        GLSL_uniform_1f p~&, "reflectAmt", rfl * (glFloorPass OR glLiquidPass) * -1 ' (a wet floor, or a liquid: see-through)
         GLSL_uniform_1f p~&, "neon", glTexNeon(slot) * glNeonOn
         GLSL_uniform_1f p~&, "anim", glTexAnim(slot)
         GLSL_uniform_1f p~&, "cellLit", glCellLitMode
@@ -1419,6 +1420,7 @@ SUB GLLiquids(b)
     DIM ax, ay, bx, by, cx, cy, k, nx, ny, slot ' (its own: the main program shares these names)
     GLStopDrawing
     litMode = glCellLitMode : glCellLitMode = 1 : glLiquidPass = -1
+    glLiqMurk = MaxOf(glSet(SET_LIQOP, b), lvlLiqOp) / 100 ' (LIQUID OPACITY, or the level's own: the higher)
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
     FOR cy = MaxOf(1, INT(playerY) - GL_FAR) TO MinOf(mapN - 2, INT(playerY) + GL_FAR) : FOR cx = MaxOf(1, INT(playerX) - GL_FAR) TO MinOf(mapN - 2, INT(playerX) + GL_FAR) ' (only as far as OpenGL draws)
         k = liqKind(cx, cy)

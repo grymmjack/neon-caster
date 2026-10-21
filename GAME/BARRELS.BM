@@ -109,7 +109,7 @@ END SUB
 SUB StacksSettle
     DIM i, j, n, t! ' (its own: the main program shares these names)
     FOR i = 1 TO numDecos
-        IF decoZ(i) > 0 AND decoOn(i) AND decoKind(i) <> DK_CAMERA THEN ' (a camera's up its wall: it doesn't fall)
+        IF decoZ(i) > 0 AND decoOn(i) AND decoKind(i) <> DK_CAMERA AND decoKind(i) <> DK_ALARM THEN ' (a camera's up its wall: it doesn't fall)
             n = 0
             FOR j = 1 TO numDecos
                 IF j <> i AND decoOn(j) AND decoZ(j) < decoZ(i) - 0.01 THEN IF INT(decoX(j)) = INT(decoX(i)) AND INT(decoY(j)) = INT(decoY(i)) THEN n = n + 1

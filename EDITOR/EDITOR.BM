@@ -414,8 +414,18 @@ SUB EditPaneClick STATIC
         CASE 263 ' A note's picture
             IF edTyping AND edTypeFor = 6 THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 6 : edTypeFresh = -1 : edTypeX = edPnCX : edTypeY = edPnCY : edTypeBuf$ = EditXtra$("notes", edPnCX, edPnCY, 3) : IF edTypeBuf$ = "-" THEN edTypeBuf$ = ""
             IF edTyping AND edTypeFor = 6 THEN EditNote "Type a picture's file (in neon-caster/, e.g. achievements/NC_BESTIARY.png) - Enter keeps it"
+        CASE 268 ' An alarm switch: on at first, or off
+            EditPushUndo
+            IF LCASE$(EditXtra$("things", edPnCX, edPnCY, 4)) = "off" THEN XtraSet "things", edPnCX, edPnCY, "alarm" : EditNote "On at first: a guard can run to it" ELSE XtraSet "things", edPnCX, edPnCY, "alarm, off" : EditNote "Off at first: a console (or alarm on) switches it on"
+            EditApply
         CASE 264 ' No note
             EditPushUndo : XtraSet "notes", edPnCX, edPnCY, "" : EditApply : EditNote "No note"
+        CASE 266, 267 ' A jetpack's or fuel can's fuel: 5 less, 5 more (as made: no line)
+            EditPushUndo : n = EditFuel(edPnCX, edPnCY)
+            IF pnHit = 267 THEN n = MinOf(JET_MAX, n + 5) ELSE n = MaxOf(5, n - 5)
+            dfl = JET_CAN : IF MID$(lvlRow$(edPnCY), edPnCX + 1, 1) = "`" THEN dfl = JET_MAX
+            IF n = dfl THEN XtraSet "fuel", edPnCX, edPnCY, "" ELSE XtraSet "fuel", edPnCX, edPnCY, LTRIM$(STR$(n))
+            EditApply : EditNote "Fuel:" + STR$(n) + " (a full tank is" + STR$(JET_MAX) + " - about 8 seconds aloft)"
         CASE 290 TO 293 ' The selected barrels: their liquid round (a : one's), how many stand on each other
             EditPushUndo
             FOR k = 1 TO edSelN
@@ -489,6 +499,9 @@ SUB EditPaneClick STATIC
             editDirty = -1 ' (nothing to build again: the monsters there have it already, and the game reads them when the level starts)
         CASE 100 ' The name: start typing it - or done
             IF edTyping THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 1 : edTypeFresh = -1 : edTypeBuf$ = SectorShort$ : EditNote "Type the sector's name - Enter keeps it, Esc doesn't"
+        CASE 284, 285 ' The sector's liquids: how much more solid than as made (0-100: 100, you can't see the bottom)
+            lvlLiqOp = MaxOf(0, MinOf(100, lvlLiqOp + 20 * pnHit - 5690)) : editDirty = -1
+            EditNote "Liquids:" + STR$(lvlLiqOp) + "% more solid than as made (OpenGL; 100: you can't see the bottom)"
         CASE 270, 271 ' The sector's droids: fewer, more (0 to MAX_DROIDS)
             n = lvlDroids : IF n < 0 THEN n = 3
             lvlDroids = MaxOf(0, MinOf(MAX_DROIDS, n + 2 * pnHit - 541)) : PlaceDroids level : editDirty = -1 : EditNote "Droids:" + STR$(lvlDroids)
@@ -590,6 +603,7 @@ SUB EditPaneClick STATIC
             EditNote "Commands: " + LEFT$(edTrigCmd$, 80) + "  (ADD IT when it's ready)"
         CASE 171 TO 174 : edTrigWhen = pnHit - 170
         CASE 265 : edTrigWhen = 5 ' (a computer at the cell, hacked)
+        CASE 269 : edTrigWhen = 6 ' (the alarm switch at the cell set off)
         CASE 175 : edTrigRepeat = NOT edTrigRepeat
         CASE 178 : edTrigTime = MaxOf(1, edTrigTime - 5)
         CASE 179 : edTrigTime = MinOf(900, edTrigTime + 5)
@@ -613,6 +627,7 @@ SUB EditPaneClick STATIC
                     CASE 2 : w$ = "use" + STR$(ux) + STR$(uy)
                     CASE 3 : w$ = "clear" + STR$(tx0) + STR$(ty0) + STR$(tx1) + STR$(ty1)
                     CASE 5 : w$ = "hack" + STR$(ux) + STR$(uy)
+                    CASE 6 : w$ = "alarm" + STR$(ux) + STR$(uy)
                     CASE ELSE : w$ = "time" + STR$(edTrigTime)
                 END SELECT
                 IF edTrigRepeat AND edTrigWhen <= 2 THEN w$ = w$ + " repeat" ' (not time or clear: once true, they stay true)
@@ -1399,6 +1414,7 @@ SUB EditPut(x, y, c0$)
         IF c$ <> CHR$(34) THEN XtraSet "things", x, y, "" ' (a thing's line)
         IF INSTR("DHXRBY!", c$) = 0 THEN XtraSet "doors", x, y, "" ' (a door's kicks and code)
         IF INSTR("'d" + CHR$(34), c$) = 0 THEN XtraSet "notes", x, y, "" ' (a note, or one in a desk or bookshelf or safe)
+        IF INSTR("`,", c$) = 0 THEN XtraSet "fuel", x, y, "" ' (a jetpack's or fuel can's own fuel)
     END IF
     IF c$ = CHR$(34) AND LEN(nm$) THEN ' (a thing: its kind)
         k = XtraFind("things", x, y, 0)
@@ -2661,6 +2677,8 @@ SUB EditPaneBuild
         y = y + 50
         n = lvlDroids : IF n < 0 THEN n = 3
         EditPaneAdd -1, x0, y + 2, 140, "DROIDS" + STR$(n), 0 : EditPaneAdd 270, x0 + 146, y, 24, "-", 0 : EditPaneAdd 271, x0 + 174, y, 24, "+", 0 : y = y + 24
+        IF lvlLiqOp THEN t$ = "LIQUIDS +" + LTRIM$(STR$(lvlLiqOp)) + "%" ELSE t$ = "LIQUIDS AS MADE"
+        EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 284, x0 + 146, y, 24, "-", 0 : EditPaneAdd 285, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "ALL FLOORS", 0 : EditPaneAdd 272, x0 + 146, y, 24, "-", 0 : EditPaneAdd 273, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "ALL CEILINGS", 0 : EditPaneAdd 274, x0 + 146, y, 24, "-", 0 : EditPaneAdd 275, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "LOOT " + LootSetName$(edLootSet), 0 : EditPaneAdd 276, x0 + 146, y, 24, "<", 0 : EditPaneAdd 277, x0 + 174, y, 24, ">", 0 : y = y + 24
@@ -2725,10 +2743,11 @@ SUB EditPaneBuild
         NEXT
         IF n = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "none here yet", 0 : y = y + 22
         y = y + 4
-        FOR w = 1 TO 5 ' (HACK: a computer there hacked - GAME/SECURE.BM)
-            IF w = 5 THEN id = 265 ELSE id = 170 + w
-            EditPaneAdd id, x0 + (w - 1) * 41, y, 39, RTRIM$(MID$("ENTERUSE  CLEARTIME HACK ", w * 5 - 4, 5)), (edTrigWhen = w)
+        FOR w = 1 TO 6 ' (HACK: a computer there hacked - GAME/SECURE.BM; ALARM: an alarm switch there - or any - set off, GAME/ALARMS.BM)
+            IF w = 5 THEN id = 265 ELSE IF w = 6 THEN id = 269 ELSE id = 170 + w
+            EditPaneAdd id, x0 + ((w - 1) MOD 3) * 67, y + ((w - 1) \ 3) * 23, 64, RTRIM$(MID$("ENTERUSE  CLEARTIME HACK ALARM", w * 5 - 4, 5)), (edTrigWhen = w)
         NEXT
+        y = y + 23
         y = y + 23
         IF edTrigWhen = 4 THEN
             EditPaneAdd -1, x0, y + 2, 140, "AFTER" + STR$(edTrigTime) + "s", 0 : EditPaneAdd 178, x0 + 146, y, 24, "-", 0 : EditPaneAdd 179, x0 + 174, y, 24, "+", 0
@@ -2811,6 +2830,7 @@ SUB EditPaneBuild
             EditPaneAdd -1, x0, y + 2, 140, "BRIGHT" + STR$(lvlLight(lt, 4)), 0 : EditPaneAdd 72, x0 + 146, y, 24, "-", 0 : EditPaneAdd 73, x0 + 174, y, 24, "+", 0 : y = y + 23
             EditPaneAdd 74, x0, y, PN_W, "REMOVE THE LIGHT", 0 : y = y + 23
             EditPaneNudge x0, y ' (a decoration under the light: still moved about from here)
+            EditPaneFuel x0, y ' (a jetpack or fuel can under it: its fuel, from here too)
             EXIT SUB
         END IF
     NEXT
@@ -2947,6 +2967,7 @@ SUB EditPaneBuild
         EditPaneAdd 204, x0, y, PN_W, "ADD A PILLAR", 0 : y = y + 23
         EditPaneAdd 220, x0, y, PN_W, "CELL LIGHT...", 0 : y = y + 23
         EditPaneNudge x0, y
+        EditPaneFuel x0, y
     ELSE
         edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
         wb = 0 : FOR k = 1 TO edSelN
@@ -2992,8 +3013,13 @@ SUB EditPaneNudge(x0, y)
             CASE "safe" : lab$ = "CODE"
             CASE "computer", "brokenpc" : lab$ = "OPENS (X, Y)"
             CASE "camera" : lab$ = "NAME"
+            CASE "alarmpc" : lab$ = "ALARM (X, Y)"
             CASE ELSE : lab$ = ""
         END SELECT
+        IF tn$ = "alarm" THEN ' (an alarm switch: on at first, or off till a console - or a trigger - switches it on)
+            IF LCASE$(EditXtra$("things", edPnCX, edPnCY, 4)) = "off" THEN t$ = "OFF AT FIRST" ELSE t$ = "ON AT FIRST"
+            EditPaneAdd 268, x0, y, PN_W, t$, (t$ = "ON AT FIRST") : y = y + 23
+        END IF
         IF LEN(lab$) THEN
             k = XtraFind("things", edPnCX, edPnCY, 0) : t$ = "" : IF k THEN t$ = XtraRest$(k, 4)
             IF edTyping AND edTypeFor = 4 THEN t$ = edTypeBuf$ + "_" ELSE IF t$ = "" THEN t$ = "NONE"
@@ -3011,6 +3037,26 @@ SUB EditPaneNudge(x0, y)
         y = y + 23
     END IF
 END SUB
+
+' A jetpack's or fuel can's own fuel (its [fuel] line): FUEL - +
+SUB EditPaneFuel(x0, y)
+    DIM k, n ' (its own: the main program shares these names)
+    FOR k = 1 TO edSelN
+        IF edSelKind(k) = ED_FLOOR AND INSTR("`,", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN
+            edPnCX = edSelX(k) : edPnCY = edSelY(k) : n = EditFuel(edPnCX, edPnCY)
+            EditPaneAdd -1, x0, y + 2, 140, "FUEL" + STR$(n) + " OF" + STR$(JET_MAX), 0 : EditPaneAdd 266, x0 + 146, y, 24, "-", 0 : EditPaneAdd 267, x0 + 174, y, 24, "+", 0
+            y = y + 23
+            EXIT SUB
+        END IF
+    NEXT
+END SUB
+
+' A jetpack's or fuel can's fuel at cell x, y: its [fuel] line's, or as made
+FUNCTION EditFuel(x, y)
+    DIM k ' (its own: the main program shares these names)
+    k = XtraFind("fuel", x, y, 0)
+    IF k THEN EditFuel = VAL(XtraField$(k, 3)) ELSE IF MID$(lvlRow$(y), x + 1, 1) = "`" THEN EditFuel = JET_MAX ELSE EditFuel = JET_CAN
+END FUNCTION
 
 ' A barrel's own (its [barrels] line): its liquid (a : barrel's - LQ_POISON
 ' as made) and how many stand on each other there (1 as made)
@@ -3154,7 +3200,7 @@ FUNCTION EditTrigHere(l$, x0, y0, x1, y1, ux, uy)
     NEXT
     SELECT CASE kind$
         CASE "time" : EditTrigHere = -1
-        CASE "use", "shoot", "hack" : EditTrigHere = (n(1) = ux AND n(2) = uy)
+        CASE "use", "shoot", "hack", "alarm" : EditTrigHere = (n(1) = ux AND n(2) = uy) OR (kind$ = "alarm" AND n(1) = 0 AND n(2) = 0)
         CASE "enter", "clear" : EditTrigHere = NOT (MaxOf(n(1), n(3)) < x0 OR MinOf(n(1), n(3)) > x1 OR MaxOf(n(2), n(4)) < y0 OR MinOf(n(2), n(4)) > y1)
     END SELECT
 END FUNCTION

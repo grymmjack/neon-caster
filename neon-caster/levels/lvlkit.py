@@ -20,10 +20,10 @@ DECO = set("oiptxlnfSdAFIJLOQUWZV:['\"")  # ' a note (its words in [notes]), " a
 START = set("<>^v")
 GLASS = set("=-")  # a pane of glass: see through it, but not walk; - bars across a window, the same (they never break)
 # The things a " can be ([things] x, y, kind[, more]) - the game's ThingList$, and what each is to the kit
-THINGS = {"table": "deco", "brokenmonitor": "flat", "scientist": "flat", "guard": "flat", "cyborg": "flat", "bookshelf": "deco",
-          "safe": "deco", "brokenpc": "deco", "computer": "deco", "camera": "flat", "secmon": "deco",
-          "repairkit": "item", "invuln": "item", "robodog": "mon"}
-XTRA = ("doors", "things", "notes", "smears")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
+THINGS = {"table": "deco", "brokenmonitor": "flat", "deadscientist": "flat", "deadguard": "flat", "deadcyborg": "flat", "bookshelf": "deco",
+          "safe": "deco", "brokenpc": "deco", "computer": "deco", "camera": "flat", "secmon": "deco", "alarm": "deco", "alarmpc": "deco",
+          "repairkit": "item", "invuln": "item", "robodog": "mon", "guard": "mon"}
+XTRA = ("doors", "things", "notes", "smears", "fuel")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
 SMEARS = ("blood1", "blood2", "blood3", "oil1", "oil2", "blood", "oil")
 STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle
 PANEL = set(";")  # a turret control panel: a wall you hack, switching the turrets near it off
@@ -562,6 +562,11 @@ def check_xtra(lv):
         elif face in "ESWN" and at(x, y) not in WALLS: errs.append("smear at %d,%d: a wall's side, but it's '%s'" % (x, y, at(x, y)))
         elif face in "FC" and (at(x, y) in WALLS or at(x, y) in DOORS): errs.append("smear at %d,%d: a floor or ceiling, but it's '%s'" % (x, y, at(x, y)))
         if f[3].lower() not in SMEARS: errs.append("smear at %d,%d: '%s' (blood1-3, oil1-2)" % (x, y, f[3]))
+    for l in lv.get("fuel", []):
+        f, x, y = _xf(l)
+        if x is None or len(f) < 3: errs.append("fuel line '%s': x, y, amount" % l); continue
+        if at(x, y) not in "`,": errs.append("fuel at %d,%d: no jetpack or fuel can there (it's '%s')" % (x, y, at(x, y)))
+        if not (f[2].isdigit() and 1 <= int(f[2]) <= 100): errs.append("fuel at %d,%d: '%s' (1-100)" % (x, y, f[2]))
     return errs
 
 
@@ -683,6 +688,8 @@ def level_text(lv, comment=()):
         out.append("puzzles  = %s" % lv["puzzles"])
     if lv.get("droids") is not None:  # how many droids (the game's own count, 3, if not said)
         out.append("droids   = %d" % lv["droids"])
+    if lv.get("liquid_opacity"):  # its liquids more solid than as made (0-100)
+        out.append("liquid_opacity = %d" % lv["liquid_opacity"])
     out.append("walls    = " + ", ".join(lv["walls"]))
     out.append("floors   = " + ", ".join(lv["floors"]))
     out.append("ceilings = " + ", ".join(lv["ceils"]))
@@ -756,9 +763,10 @@ def level_text(lv, comment=()):
         out.append("' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture")
         out += list(lv["faces"])
     for sec, h in (("doors", "' a door's own: x, y, kicks (a stronghold door: how many kicks break it down - 0 none), code (a keypad door's digits - ? one made up each time; none: no keypad)"),
-                   ("things", "' what a \" is: x, y, kind (table, brokenmonitor, scientist, guard, cyborg, bookshelf, safe, brokenpc, computer, camera, secmon, repairkit, invuln, robodog - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name"),
+                   ("things", "' what a \" is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, repairkit, invuln, robodog, guard - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm)"),
                    ("notes", "' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code"),
-                   ("smears", "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)")):
+                   ("smears", "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)"),
+                   ("fuel", "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)")):
         if lv.get(sec):  # lines about single cells - kept as they are
             out += ["", "[" + sec + "]", h] + list(lv[sec])
     out.append("")
@@ -846,6 +854,7 @@ def read_level_file(path, label=None):
             if k == "name": lv["name"] = v
             elif k == "puzzles": lv["puzzles"] = v
             elif k == "droids": lv["droids"] = int(float(v))
+            elif k == "liquid_opacity": lv["liquid_opacity"] = int(float(v))
             elif k == "walls": lv["walls"] = vals
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals

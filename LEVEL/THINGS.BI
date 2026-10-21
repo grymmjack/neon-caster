@@ -12,6 +12,7 @@
 '            a desk, a bookshelf or a safe at x, y (picture: - for none)
 '   [smears] x, y, face, kind - blood or oil on a wall's side (E S W N),
 '            the floor (F) or the ceiling (C): blood1-3, oil1-2
+'   [fuel]   x, y, amount - a jetpack's (`) or fuel can's (,) own fuel
 '
 CONST MAX_XTRA = 512
 DIM SHARED lvlNumXtra AS INTEGER, lvlXSec$(MAX_XTRA), lvlXtra$(MAX_XTRA)

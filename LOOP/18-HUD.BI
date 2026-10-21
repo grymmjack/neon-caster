@@ -56,6 +56,7 @@
     ' as you do - turn until it's at the top, and you're facing it.
     IF NOT dead AND viewOn = 0 THEN DrawCrosshair 400, 300
     ViewOverlay ' (a security camera's feed, your rocket's - GAME/SECURE.BM)
+    AlarmOverlay ' (the alarm sounding: red at the edges)
     crossScale = 1 + (crossScale - 1) * 0.85
     IF crossFlash > 0 THEN crossFlash = crossFlash - 1
     IF hurtFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(MaxOf(painR, 120), painG, painB, hurtFlash * 5), BF ' (in what hurt you - and fainter now the edges show it)

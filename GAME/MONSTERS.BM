@@ -414,7 +414,7 @@ END SUB
 ' 5 trooper, 6 ripper, 7 the warden, 0 the colossus, ~ a turret (from the
 ' ceiling; _ is one from the floor)
 FUNCTION MonChars$
-    MonChars$ = "mghcskwzT" + CHR$(1) + "15670~]" + CHR$(1) ' (] the mimic: the chest's [ the other way round; the robot dog: a thing, ")
+    MonChars$ = "mghcskwzT" + CHR$(1) + "15670~]" + CHR$(1) + CHR$(1) ' (] the mimic: the chest's [ the other way round; the robot dog: a thing, ")
 END FUNCTION
 
 ' The monster type of map character c$ - 0 if it's no monster's

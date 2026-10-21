@@ -52,6 +52,7 @@ DIM SHARED itemKind(MAX_ITEMS) AS INTEGER, itemOn(MAX_ITEMS) AS INTEGER, numItem
 ' landing up to LOOT_REACH cells away
 CONST LOOT_TOSS = 14, LOOT_REACH = 0.8, LOOT_CLEAR = 0.8 ' (and LOOT_CLEAR from you at least: you walk to it - pickups are taken within 0.45)
 DIM SHARED itemToss(MAX_ITEMS) AS INTEGER, itemVX(MAX_ITEMS) AS SINGLE, itemVY(MAX_ITEMS) AS SINGLE
+DIM SHARED itemAmt(MAX_ITEMS) AS INTEGER ' (a jetpack's or fuel can's own fuel - its [fuel] line; 0 as made: a full tank, JET_CAN)
 DIM SHARED hasCard(3) AS INTEGER
 
 ' ...and what each kind of decoration may leave when it breaks: LOOT_SLOTS

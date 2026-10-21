@@ -20,6 +20,13 @@ CONST LQ_WATER = 1, LQ_POISON = 2, LQ_SLIME = 3, LQ_LAVA = 4, LQ_ACID = 5, LQ_KI
 CONST LQ_CHARS$ = "wpsla", LQ_DEPTH = 3, LQ_FULL = 0.375
 DIM SHARED liqKind(MAP_SIZE, MAP_SIZE) AS INTEGER, liqZ(MAP_SIZE, MAP_SIZE) AS SINGLE, liqAny AS INTEGER
 DIM SHARED lqSlow(LQ_KINDS) AS SINGLE, lqHurt(LQ_KINDS) AS INTEGER, lqEvery(LQ_KINDS) AS INTEGER, lqAcid(LQ_KINDS) AS INTEGER
+' Draining (drain X Y [SPEED] - a switch's trigger): every cell of the pool
+' joined to X Y, going down DRAIN_SPEED eighths a second (or SPEED) till
+' the floor's dry - its glow gone with it (DrainStart, DrainStep)
+CONST MAX_DRAIN = 4096, DRAIN_SPEED = 4
+DIM SHARED drainN AS INTEGER, drainX(MAX_DRAIN) AS INTEGER, drainY(MAX_DRAIN) AS INTEGER, drainS(MAX_DRAIN) AS SINGLE
+DIM SHARED drainMark(MAP_SIZE, MAP_SIZE) AS _BYTE ' (DrainStart's flood fill: the cells reached)
+DIM SHARED lvlLiqOp AS INTEGER, glLiqMurk AS SINGLE ' (liquid_opacity = in the level file, 0-100 - how much more solid than as made; OpenGL's this frame: the higher of it and the setting, 0 to 1)
 DIM SHARED lqSee(LQ_KINDS) AS SINGLE, lqR(LQ_KINDS) AS INTEGER, lqG(LQ_KINDS) AS INTEGER, lqB(LQ_KINDS) AS INTEGER, lqName$(LQ_KINDS)
 DIM SHARED lvlLiqRow$(MAP_SIZE - 1), lvlLiqDRow$(MAP_SIZE - 1), lqUsed(LQ_KINDS) AS INTEGER ' (lqUsed: that kind's in this level - LiquidAnimate moves only those)
 DIM SHARED liqWait AS INTEGER, liqWas AS INTEGER, poisonTint AS INTEGER, liqTick AS LONG ' (frames to your next hurt in one; the kind you were in last frame; the green of poison, fading)

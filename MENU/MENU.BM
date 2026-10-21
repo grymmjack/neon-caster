@@ -109,6 +109,12 @@ SUB RunMenu STATIC
         ' mouse moves, so it doesn't fight the keyboard.)
         WHILE _MOUSEINPUT : WEND
         mouseX = WideMouseX(_MOUSEX) : mouseY = _MOUSEY : mouseDown = _MOUSEBUTTON(1)
+        IF menuCapture THEN ' (waiting for a key - a mouse button will do: KEY_MOUSE + 1 left, 2 right, 3 middle)
+            IF _MOUSEBUTTON(3) AND NOT capM3 THEN keyCode& = KEY_MOUSE + 3 : CaptureKey
+            IF _MOUSEBUTTON(2) AND NOT capM2 AND menuCapture THEN keyCode& = KEY_MOUSE + 2 : CaptureKey
+            IF mouseDown AND NOT mouseWasDown AND menuCapture THEN keyCode& = KEY_MOUSE + 1 : CaptureKey : mouseWasDown = -1
+        END IF
+        capM2 = _MOUSEBUTTON(2) : capM3 = _MOUSEBUTTON(3)
         ' (The display switching - DISPLAY, or a MODE - moves where the mouse
         ' seems to be without it moving: so for half a second after, pointing
         ' doesn't count, or it would pick whatever item is under it now.)
@@ -482,7 +488,7 @@ SUB BuildMenu(scr)
             menuTitle$ = "EFFECTS (OPENGL)" : menuWide = -1
             AddSettingItem SET_BUMP : AddSettingItem SET_SMOOTH : AddSettingItem SET_NEON : AddSettingItem SET_DYNLIGHT
             AddSettingItem SET_SHADOWS : AddSettingItem SET_GLOW : AddSettingItem SET_PARTICLES : AddSettingItem SET_SHAFTS : AddSettingItem SET_REFLECT
-            AddSettingItem SET_BLOOM : AddSettingItem SET_HITFX
+            AddSettingItem SET_BLOOM : AddSettingItem SET_HITFX : AddSettingItem SET_LIQOP
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_AUDIO
             menuTitle$ = "AUDIO" : menuWide = -1
@@ -494,7 +500,7 @@ SUB BuildMenu(scr)
             AddSettingItem SET_FOV : AddSettingItem SET_XSTYLE : AddSettingItem SET_XCOLOR
             AddSettingItem SET_XSIZE : AddSettingItem SET_XALPHA : AddSettingItem SET_XFEEDBACK
             AddSettingItem SET_BOB : AddSettingItem SET_SHAKE : AddSettingItem SET_HURTDIR : AddSettingItem SET_AIMSENS
-            AddSettingItem SET_TIMER : AddSettingItem SET_POISON : AddSettingItem SET_ROCKETCAM
+            AddSettingItem SET_TIMER : AddSettingItem SET_POISON
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_CONTROLS
             menuTitle$ = "CONTROLS" : menuWide = -1

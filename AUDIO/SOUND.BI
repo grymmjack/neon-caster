@@ -79,6 +79,9 @@ DIM SHARED sndLeak&, sndJet&, sndJetFuel& : sndLeak& = LoadSnd&("barrel-leak.wav
 DIM SHARED sndPadBeep&, sndPadOK&, sndPadBad&, sndDoorKick&, sndDoorBreak&, sndSafe&, sndSearch&, sndRepair&, sndInvuln&, sndInvulnEnd&, sndCamera&, sndNote&
 sndPadBeep& = LoadSnd&("keypad-beep.wav") : sndPadOK& = LoadSnd&("keypad-ok.wav") : sndPadBad& = LoadSnd&("keypad-bad.wav")
 sndDoorKick& = LoadSnd&("door-kick.wav") : sndDoorBreak& = LoadSnd&("door-break.wav") : sndSafe& = LoadSnd&("safe-open.wav") : sndSearch& = LoadSnd&("search.wav")
+DIM SHARED sndSiren&, sndAlarmPress&, sndAlarmOn&, sndAlarmOff&, sndDrain& ' (alarms - GAME/ALARMS.BM; a pool draining)
+sndDrain& = LoadSnd&("drain.wav")
+sndSiren& = LoadSnd&("alarm.wav") : sndAlarmPress& = LoadSnd&("alarm-press.wav") : sndAlarmOn& = LoadSnd&("alarm-arm.wav") : sndAlarmOff& = LoadSnd&("alarm-disarm.wav")
 sndRepair& = LoadSnd&("repair.wav") : sndInvuln& = LoadSnd&("invuln.wav") : sndInvulnEnd& = LoadSnd&("invuln-end.wav") : sndCamera& = LoadSnd&("camera.wav") : sndNote& = LoadSnd&("note.wav")
 FOR k = 1 TO 3 : sndDroid&(k) = LoadSnd&("droid-chirp" + LTRIM$(STR$(k)) + ".wav") : NEXT : sndDroidBreak& = LoadSnd&("droid-break.wav")
 DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&

@@ -85,6 +85,8 @@ SUB SaveGame STATIC
     FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 ' (stronghold doors: kicks left, kicked down)
         IF worldMap(x, y) = 2 THEN PUT #fileNum, , doorHP(x, y) : PUT #fileNum, , doorBroke(x, y)
     NEXT : NEXT
+    PUT #fileNum, , alarmTimer : PUT #fileNum, , alarmAt ' (the alarm sounding - its switches' states are vendState, above)
+    PUT #fileNum, , drainN : FOR i = 1 TO drainN : PUT #fileNum, , drainX(i) : PUT #fileNum, , drainY(i) : PUT #fileNum, , drainS(i) : NEXT ' (pools draining)
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 END SUB
@@ -266,6 +268,13 @@ SUB LoadGame STATIC
                 IF worldMap(x, y) = 2 THEN GET #fileNum, , doorHP(x, y) : GET #fileNum, , doorBroke(x, y)
             NEXT : NEXT
         END IF
+        alarmTimer = 0 : alarmAt = 0 : IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , alarmTimer : GET #fileNum, , alarmAt
+        drainN = 0
+        IF LOC(fileNum) < LOF(fileNum) THEN
+            GET #fileNum, , drainN : drainN = MaxOf(0, MinOf(MAX_DRAIN, drainN))
+            FOR i = 1 TO drainN : GET #fileNum, , drainX(i) : GET #fileNum, , drainY(i) : GET #fileNum, , drainS(i) : NEXT
+        END IF
+        BuildAlarmWay ' (its switches as they were saved)
     END IF
     CLOSE #fileNum
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)

@@ -1,0 +1,189 @@
+''
+' NEON-CASTER - GAME/ALARMS.BM
+' =============================================================================
+' Alarm switches, the alarm going off, security consoles, and the guards'
+' run for a switch (GAME/ALARMS.BI).
+'
+
+' Is decoration i an alarm switch that's on (and not shot to pieces)?
+FUNCTION AlarmArmed(i)
+    IF i < 1 OR i > numDecos THEN EXIT FUNCTION
+    AlarmArmed = (decoOn(i) <> 0 AND decoKind(i) = DK_ALARM AND vendState(i) = 0)
+END FUNCTION
+
+' --- The level built: each switch on, or off if its [things] line says
+' off (then it shows dark - its "open" picture), chest high on its wall;
+' the guards' way to them
+SUB AlarmsBuild
+    DIM i, k ' (its own: the main program shares these names)
+    alarmTimer = 0 : alarmAt = 0
+    FOR i = 1 TO numDecos
+        IF decoKind(i) = DK_ALARM THEN
+            decoZ(i) = 0.32 : vendState(i) = 0 : decoOpen(i) = 0
+            k = XtraFind("things", INT(decoX(i)), INT(decoY(i)), 0)
+            IF k THEN IF LCASE$(XtraField$(k, 4)) = "off" THEN vendState(i) = 3 : decoOpen(i) = -1
+        END IF
+    NEXT
+    BuildAlarmWay
+END SUB
+
+' Switch i on (-1) or off (0): its picture, the guards' way - and off, if
+' it set the alarm off, the siren stops
+SUB AlarmSet(i, onOff)
+    IF decoKind(i) <> DK_ALARM THEN EXIT SUB
+    IF onOff THEN vendState(i) = 0 : decoOpen(i) = 0 ELSE vendState(i) = 3 : decoOpen(i) = -1
+    IF NOT onOff AND alarmTimer > 0 AND alarmAt = i THEN alarmTimer = 0
+END SUB
+
+' --- The guards' way to a switch: from the open cells beside each switch
+' that's on, how many steps to every cell a guard can walk (a flood fill,
+' as the thieves' way home is) - again whenever a switch goes on or off
+SUB BuildAlarmWay
+    DIM i, head, tail, k, nx, ny, ok, v, x, y ' (its own: the main program shares these names)
+    numArmed = 0
+    FOR y = 0 TO mapN : FOR x = 0 TO mapN : alarmDist(x, y) = 30000 : NEXT : NEXT
+    head = 0 : tail = 0
+    FOR i = 1 TO numDecos
+        IF AlarmArmed(i) THEN
+            numArmed = numArmed + 1
+            FOR k = 1 TO 4
+                nx = INT(decoX(i)) + (k = 1) - (k = 2) : ny = INT(decoY(i)) + (k = 3) - (k = 4)
+                IF nx > 0 AND ny > 0 AND nx < mapN - 1 AND ny < mapN - 1 THEN
+                    IF worldMap(nx, ny) <= 0 AND alarmDist(nx, ny) > 0 THEN alarmDist(nx, ny) = 0 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+                END IF
+            NEXT
+        END IF
+    NEXT
+    DO WHILE head < tail
+        x = fillX(head) : y = fillY(head) : head = head + 1
+        FOR k = 1 TO 4
+            nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
+            IF nx > 0 AND ny > 0 AND nx < mapN - 1 AND ny < mapN - 1 THEN
+                v = worldMap(nx, ny) : ok = (v <= 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND glassHP(nx, ny) <= 0)
+                IF decoCell(nx, ny) THEN IF NOT DecoFlat(decoKind(decoCell(nx, ny))) THEN ok = 0
+                IF v = 2 THEN ok = (doorKey(nx, ny) = 0 AND doorType(nx, ny) <> DOOR_EXIT AND doorLock(nx, ny) = 0)
+                IF ok AND alarmDist(nx, ny) > alarmDist(x, y) + 1 THEN
+                    alarmDist(nx, ny) = alarmDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+                END IF
+            END IF
+        NEXT
+    LOOP
+END SUB
+
+' --- Switch a (on) pressed: the alarm. The siren, and every machine within
+' ALARM_REACH of it woken and coming for you (not a mimic: it's a chest
+' till it bites); any "alarm" trigger runs. Sounding already: it starts over
+SUB AlarmRaise(a)
+    DIM j, ax, ay ' (its own: the main program shares these names)
+    IF NOT AlarmArmed(a) THEN EXIT SUB
+    ax = decoX(a) : ay = decoY(a)
+    IF alarmTimer = 0 THEN ShowMsg "ALARM! Everything near is coming for you" : shake = shake + 3
+    alarmTimer = ALARM_FRAMES : alarmAt = a
+    SfxAt sndAlarmPress&, ax, ay, playerX, playerY : PlaySfx sndSiren&, 0.6
+    FOR j = 1 TO numMonsters
+        IF monsterState(j) = 0 AND monsterType(j) <> MT_MIMIC AND (cyberOn = 0 OR monsterType(j) = MT_ICE) THEN
+            IF (monsterX(j) - ax) ^ 2 + (monsterY(j) - ay) ^ 2 < ALARM_REACH * ALARM_REACH THEN monsterState(j) = 1 : monsterTimer(j) = 20
+        END IF
+    NEXT
+    RunAlarmTriggers INT(ax), INT(ay)
+END SUB
+
+' Every "alarm" trigger for switch x, y - or for any switch (alarm 0 0, or
+' just alarm): run it
+SUB RunAlarmTriggers(x, y)
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO numTrigs
+        IF trigWhen$(k) = "alarm" AND NOT trigDone(k) THEN
+            IF (trigX0(k) = 0 AND trigY0(k) = 0) OR (trigX0(k) = x AND trigY0(k) = y) THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : TriggerRun
+        END IF
+    NEXT
+END SUB
+
+' --- Each frame: the siren going round while the alarm sounds; quiet at the end
+SUB AlarmStep
+    IF alarmTimer <= 0 THEN EXIT SUB
+    alarmTimer = alarmTimer - 1
+    IF alarmTimer MOD 110 = 0 AND alarmTimer > 0 THEN PlaySfx sndSiren&, 0.55
+    IF alarmTimer = 0 THEN ShowMsg "The alarm's stopped"
+END SUB
+
+' --- Guard i, hunting you: while the alarm's quiet and a switch that's on
+' is within GUARD_SEEK steps, it runs for it instead of fighting (goX, goY:
+' one step nearer, by alarmDist) - and there, presses it. -1 while it's
+' running; 0 and it fights as a gunner does
+FUNCTION GuardRun(i)
+    DIM cx, cy, bd, bx, by, j, k, nx, ny, tx!, ty!, tl! ' (its own: the main program shares these names)
+    IF alarmTimer > 0 OR numArmed = 0 OR cyberOn THEN EXIT FUNCTION
+    cx = INT(monsterX(i)) : cy = INT(monsterY(i))
+    IF alarmDist(cx, cy) > GUARD_SEEK THEN EXIT FUNCTION ' (30000: no way to one)
+    FOR j = 1 TO numDecos ' (there: press it)
+        IF AlarmArmed(j) THEN
+            IF (decoX(j) - monsterX(i)) ^ 2 + (decoY(j) - monsterY(i)) ^ 2 < ALARM_PRESS * ALARM_PRESS THEN
+                monsterAtk(i) = ATTACK_FRAMES : AlarmRaise j : EXIT FUNCTION
+            END IF
+        END IF
+    NEXT
+    IF alarmDist(cx, cy) = 0 THEN ' (beside one, not quite at it: straight to it)
+        FOR j = 1 TO numDecos
+            IF AlarmArmed(j) THEN IF ABS(INT(decoX(j)) - cx) + ABS(INT(decoY(j)) - cy) = 1 THEN bx = INT(decoX(j)) : by = INT(decoY(j))
+        NEXT
+    ELSE
+        bx = cx : by = cy : bd = alarmDist(cx, cy)
+        FOR k = 1 TO 4
+            nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
+            IF alarmDist(nx, ny) < bd THEN bd = alarmDist(nx, ny) : bx = nx : by = ny
+        NEXT
+    END IF
+    tx! = bx + 0.5 - monsterX(i) : ty! = by + 0.5 - monsterY(i) : tl! = SQR(tx! * tx! + ty! * ty!)
+    IF tl! > 0.01 THEN goX = tx! / tl! : goY = ty! / tl!
+    GuardRun = -1
+END FUNCTION
+
+' --- Another walker, hunting you, beside a switch that's on: now and then
+' it slaps it (gunners, heavies, stalkers, snipers, troopers)
+SUB AlarmMobPress(i)
+    DIM j, t ' (its own: the main program shares these names)
+    IF alarmTimer > 0 OR numArmed = 0 OR cyberOn THEN EXIT SUB
+    t = monsterType(i)
+    IF t <> 2 AND t <> 3 AND t <> 6 AND t <> 11 AND t <> 12 THEN EXIT SUB
+    FOR j = 1 TO numDecos
+        IF AlarmArmed(j) THEN
+            IF (decoX(j) - monsterX(i)) ^ 2 + (decoY(j) - monsterY(i)) ^ 2 < ALARM_PRESS * ALARM_PRESS THEN
+                IF GRnd < 0.04 THEN monsterAtk(i) = ATTACK_FRAMES : AlarmRaise j
+                EXIT SUB
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' --- Space on security console i: its switch (its [things] x, y) - or, if
+' it names none, every switch - off if any is on, else on
+SUB AlarmConsole(i)
+    DIM j, anyOn, n ' (its own: the main program shares these names)
+    FOR j = 1 TO numDecos
+        IF decoKind(j) = DK_ALARM AND decoOn(j) THEN
+            IF decoTX(i) < 0 OR (INT(decoX(j)) = decoTX(i) AND INT(decoY(j)) = decoTY(i)) THEN n = n + 1 : IF vendState(j) = 0 THEN anyOn = -1
+        END IF
+    NEXT
+    IF n = 0 THEN ShowMsg "SECURITY CONSOLE: no alarms answer" : PlaySfx sndLocked&, 0.6 : EXIT SUB
+    FOR j = 1 TO numDecos
+        IF decoKind(j) = DK_ALARM AND decoOn(j) THEN
+            IF decoTX(i) < 0 OR (INT(decoX(j)) = decoTX(i) AND INT(decoY(j)) = decoTY(i)) THEN AlarmSet j, NOT anyOn
+        END IF
+    NEXT
+    IF anyOn THEN
+        SfxAt sndAlarmOff&, decoX(i), decoY(i), playerX, playerY : ShowMsg "SECURITY CONSOLE: alarm" + MID$("s", 1, -(n > 1)) + " OFF"
+    ELSE
+        SfxAt sndAlarmOn&, decoX(i), decoY(i), playerX, playerY : ShowMsg "SECURITY CONSOLE: alarm" + MID$("s", 1, -(n > 1)) + " ON"
+    END IF
+    BuildAlarmWay
+END SUB
+
+' --- Over the view while the alarm sounds: the screen's edges flashing red
+SUB AlarmOverlay
+    DIM e, al ' (its own: the main program shares these names)
+    IF alarmTimer <= 0 THEN EXIT SUB
+    al = 7 + 6 * DSin(lvFrame * 0.21)
+    FOR e = 0 TO 13 : LINE (e, e)-(799 - e, 599 - e), _RGBA32(255, 30, 30, MaxOf(0, (14 - e) * al)), B : NEXT
+    IF (lvFrame \ 20) MOD 2 = 0 THEN MenuText 400, 96, "ALARM", 2, _RGB32(255, 70, 60), 1
+END SUB

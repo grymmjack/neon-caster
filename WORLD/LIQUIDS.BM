@@ -33,3 +33,72 @@ FUNCTION LiquidRowsAny
         IF lvlLiqRow$(y) <> STRING$(mapN, ".") THEN LiquidRowsAny = -1 : EXIT FUNCTION
     NEXT
 END FUNCTION
+
+' --- Drain the pool at cell x, y: every liquid cell joined to it (side by
+' side, any kind) going down spd eighths a second (0: DRAIN_SPEED) - the
+' number of cells (0: no liquid there)
+FUNCTION DrainStart(x, y, spd)
+    DIM head, tail, k, n, nx, ny, cx, cy, j, inList ' (its own: the main program shares these names)
+    IF x < 1 OR y < 1 OR x > mapN - 2 OR y > mapN - 2 THEN EXIT FUNCTION
+    IF liqKind(x, y) = 0 THEN EXIT FUNCTION
+    IF spd <= 0 THEN spd = DRAIN_SPEED
+    FOR cy = 0 TO mapN : FOR cx = 0 TO mapN : drainMark(cx, cy) = 0 : NEXT : NEXT
+    head = 0 : tail = 1 : fillX(0) = x : fillY(0) = y : drainMark(x, y) = -1
+    DO WHILE head < tail
+        cx = fillX(head) : cy = fillY(head) : head = head + 1
+        inList = 0
+        FOR j = 1 TO drainN
+            IF drainX(j) = cx AND drainY(j) = cy THEN drainS(j) = spd * H_STEP / 60 : inList = -1 : EXIT FOR
+        NEXT
+        IF NOT inList AND drainN < MAX_DRAIN THEN drainN = drainN + 1 : drainX(drainN) = cx : drainY(drainN) = cy : drainS(drainN) = spd * H_STEP / 60
+        n = n + 1
+        FOR k = 1 TO 4
+            nx = cx + (k = 1) - (k = 2) : ny = cy + (k = 3) - (k = 4)
+            IF nx >= 1 AND ny >= 1 AND nx <= mapN - 2 AND ny <= mapN - 2 THEN
+                IF liqKind(nx, ny) AND NOT drainMark(nx, ny) THEN drainMark(nx, ny) = -1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
+            END IF
+        NEXT
+    LOOP
+    SfxAt sndDrain&, x + 0.5, y + 0.5, playerX, playerY
+    DrainStart = n
+END FUNCTION
+
+' --- Each frame: the draining cells going down; dry, gone - and a glow
+' from the floor near it out, if there's nothing left to glow
+SUB DrainStep
+    DIM j, x, y ' (its own: the main program shares these names)
+    IF drainN = 0 THEN EXIT SUB
+    IF lvFrame MOD 150 = 0 THEN SfxAt sndDrain&, drainX(1) + 0.5, drainY(1) + 0.5, playerX, playerY
+    j = 1
+    DO WHILE j <= drainN
+        x = drainX(j) : y = drainY(j)
+        IF liqKind(x, y) = 0 THEN
+            liqZ(x, y) = 0
+        ELSE
+            liqZ(x, y) = liqZ(x, y) - drainS(j)
+        END IF
+        IF liqKind(x, y) = 0 OR liqZ(x, y) <= floorH(x, y) + 0.002 THEN
+            liqKind(x, y) = 0 : liqZ(x, y) = 0 : DrainGlowOut x, y
+            drainX(j) = drainX(drainN) : drainY(j) = drainY(drainN) : drainS(j) = drainS(drainN) : drainN = drainN - 1
+        ELSE
+            j = j + 1
+        END IF
+    LOOP
+END SUB
+
+' Cell x, y dry: a glow from the floor (lava's, slime's, acid's) within
+' reach of it goes out, if no glowing pool is left by it
+SUB DrainGlowOut(x, y)
+    DIM l, cx, cy, left ' (its own: the main program shares these names)
+    FOR l = 1 TO numLights
+        IF lightLow(l) AND NOT lightBroken(l) THEN
+            IF ABS(lightX(l) - x - 0.5) < 2 AND ABS(lightY(l) - y - 0.5) < 2 THEN
+                left = 0
+                FOR cy = INT(lightY(l)) - 2 TO INT(lightY(l)) + 2 : FOR cx = INT(lightX(l)) - 2 TO INT(lightX(l)) + 2
+                    IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN IF liqKind(cx, cy) >= LQ_SLIME THEN left = -1
+                NEXT : NEXT
+                IF NOT left THEN lightBroken(l) = -1
+            END IF
+        END IF
+    NEXT
+END SUB

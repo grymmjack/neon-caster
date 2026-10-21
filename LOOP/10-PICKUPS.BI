@@ -69,13 +69,16 @@
                     IF GiveAmmo%(AM_SHELLS, 8) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Shells (+8)" : pickFlash = 10
                 CASE IT_ROCKETS
                     IF GiveAmmo%(AM_ROCKETS, 5) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Rockets (+5)" : pickFlash = 10
-                CASE IT_JETPACK ' A jetpack: a full tank - E flies you up, C down, while its fuel lasts (one with a full tank stays where it is)
+                CASE IT_JETPACK ' A jetpack: its tank (full, as made - its [fuel] line says otherwise) - E flies you up, C down, while its fuel lasts (one more, with your tank full, stays where it is)
                     IF NOT jetHave OR jetFuel < JET_MAX THEN
-                        itemOn(i) = 0 : jetHave = -1 : jetFuel = JET_MAX : PlaySfx sndJetFuel&, 0.9 : pickFlash = 12
+                        amt = itemAmt(i) : IF amt <= 0 THEN amt = JET_MAX
+                        IF jetHave THEN jetFuel = MinOf(JET_MAX, jetFuel + amt) ELSE jetFuel = amt
+                        itemOn(i) = 0 : jetHave = -1 : PlaySfx sndJetFuel&, 0.9 : pickFlash = 12
                         ShowMsg "JETPACK! " + KeyName$(keyBind&(BIND_UP)) + " up, " + KeyName$(keyBind&(BIND_DOWN)) + " down - or look up and walk - while the fuel lasts"
                     END IF
                 CASE IT_JETFUEL ' Its fuel: a can (none taken if your tank's full - or you've no jetpack)
-                    IF jetHave AND jetFuel < JET_MAX THEN itemOn(i) = 0 : jetFuel = MinOf(JET_MAX, jetFuel + JET_CAN) : PlaySfx sndJetFuel&, 0.9 : ShowMsg "Jet fuel (+" + LTRIM$(STR$(JET_CAN)) + ")" : pickFlash = 10
+                    amt = itemAmt(i) : IF amt <= 0 THEN amt = JET_CAN ' (its own amount - [fuel] - or JET_CAN)
+                    IF jetHave AND jetFuel < JET_MAX THEN itemOn(i) = 0 : jetFuel = MinOf(JET_MAX, jetFuel + amt) : PlaySfx sndJetFuel&, 0.9 : ShowMsg "Jet fuel (+" + LTRIM$(STR$(amt)) + ")" : pickFlash = 10
                 CASE IT_REPAIR ' A computer repair kit (up to MAX_KITS)
                     IF repairKits < MAX_KITS THEN itemOn(i) = 0 : repairKits = repairKits + 1 : PlaySfx sndArmor&, 0.8 : ShowMsg "COMPUTER REPAIR KIT - Space on a broken computer fixes it" : pickFlash = 10
                 CASE IT_INVULN ' Invulnerability: nothing hurts you for a few seconds

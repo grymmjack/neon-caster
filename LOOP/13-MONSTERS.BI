@@ -94,8 +94,12 @@
                 IF mtypeLift(mtype) > 0 AND NOT cyberOn THEN MonFlyTurn i ' (a flyer: up or down to who it's after)
                 IF (NOT dead OR monVs) AND distance > 0.01 THEN
                     goX = 0 : goY = 0
+                    gRun = 0 : IF mtype = MT_GUARD AND monVs = 0 THEN gRun = GuardRun(i) ' (a guard: for the alarm switch first - GAME/ALARMS.BM)
+                    IF numArmed > 0 AND monVs = 0 THEN AlarmMobPress i ' (passing a switch that's on: now and then, slapped)
                     IF mtype = MT_THIEF THEN
                         ThiefStep
+                    ELSEIF gRun THEN
+                        ' (running for the alarm: GuardRun set goX, goY)
                     ELSEIF mtypeStyle(mtype) THEN ' (the newer kinds: how each fights - MonStyleTurn)
                         MonStyleTurn i
                     ELSEIF mtypeRanged(mtype) THEN
@@ -279,6 +283,8 @@
         invTimer = invTimer - 1 : IF invTimer = 0 THEN PlaySfx sndInvulnEnd&, 0.8 : ShowMsg "Invulnerability wore off"
     END IF
     IF invFlash > 0 THEN invFlash = invFlash - 1
+    AlarmStep ' (the alarm's siren going round - GAME/ALARMS.BM)
+    DrainStep ' (pools draining away - WORLD/LIQUIDS.BM)
     IF ampTimer > 0 THEN ' The damage amp wears off
         ampTimer = ampTimer - 1 : IF ampTimer = 0 THEN PlaySfx sndAmpEnd&, 0.8 : ShowMsg "Damage amp wore off"
     END IF

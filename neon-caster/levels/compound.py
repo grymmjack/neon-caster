@@ -21,8 +21,9 @@ from showcase import Show, build
 def compound():
     """SECTOR 30: THE COMPOUND. A security compound gone quiet. From the
     guard post (a monitor shows its cameras), out into the yard - tables
-    on their sides for cover, troopers, and the robot dogs that bark the
-    place awake. West, the cell block behind a stronghold door: kick it
+    on their sides for cover, troopers, guards who run for the alarm
+    switches (the guard post's console turns them off), and the robot dogs
+    that bark the place awake. West, the cell block behind a stronghold door: kick it
     in (there's a repair kit in there). North, the server office: search
     its shelves, open its safe (a desk in the guard post knows the code),
     fix the broken computer and hack it - it opens the vault, and the red
@@ -55,8 +56,14 @@ def compound():
     for (x, y, c) in ((14, 24, "5"), (34, 24, "5"), (20, 23, "g"), (29, 33, "g")):
         m.mon(x, y, c)
     thing(12, 33, "robodog"); thing(36, 33, "robodog"); thing(24, 31, "robodog")
-    thing(18, 26, "guard"); thing(33, 29, "scientist"); thing(27, 34, "brokenmonitor")
+    thing(18, 26, "deadguard"); thing(33, 29, "deadscientist"); thing(27, 34, "brokenmonitor")
     thing(2, 23, "camera", "YARD WEST"); thing(38, 23, "camera", "YARD EAST")
+    # Alarms: a switch on the yard's north wall and one by the armory; guards run for them.
+    # The guard post's console switches them off (and on)
+    thing(16, 22, "alarm"); thing(30, 22, "alarm")
+    thing(21, 23, "guard"); thing(31, 31, "guard"); thing(9, 28, "guard")
+    thing(27, 38, "alarmpc")
+    m.triggers.append("alarm : message ALARM - the compound's waking up. The guard post's console shuts it off.")
     m.smears += ["20, 32, F, blood1", "31, 27, F, blood2", "26, 33, F, oil1", "18, 27, F, blood3", "1, 30, E, blood2", "39, 31, W, oil1"]
     m.put(11, 34, "+"); m.put(37, 34, "e"); m.put(25, 34, "a")
     # The cell block (west): a stronghold door, and bars to look in through
@@ -66,7 +73,7 @@ def compound():
     for x in (4, 7):
         m.put(x, 15, "#")
         m.put(x, 16, "#")
-    thing(3, 12, "repairkit"); thing(8, 12, "cyborg"); thing(5, 18, "table")
+    thing(3, 12, "repairkit"); thing(8, 12, "deadcyborg"); thing(5, 18, "table")
     m.put(3, 18, "+"); m.put(8, 18, "u")
     m.smears += ["6, 9, S, blood1", "9, 11, F, blood3", "1, 12, E, blood2"]
     # The armory (north-east): a keypad door - its code on the guard post's note

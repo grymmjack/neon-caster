@@ -42,6 +42,7 @@ END SUB
 ' that's really down. Until then, or without it, letters work as before.)
 FUNCTION KeyHeld%(bindNum)
     code& = keyBind&(bindNum)
+    IF code& > KEY_MOUSE AND code& <= KEY_MOUSE + 3 THEN KeyHeld% = _MOUSEBUTTON(code& - KEY_MOUSE) : EXIT FUNCTION ' (a mouse button)
     IF code& >= 97 AND code& <= 122 THEN
         typed = _KEYDOWN(code&) OR _KEYDOWN(code& - 32)
         IF keyDevice THEN
@@ -104,6 +105,9 @@ FUNCTION KeyName$(code&)
         CASE 15104 TO 17408 : KeyName$ = "F" + LTRIM$(STR$((code& - 15104) \ 256 + 1)) ' F1-F10
         CASE 34048 : KeyName$ = "F11"
         CASE 34304 : KeyName$ = "F12"
+        CASE KEY_MOUSE + 1 : KeyName$ = "MOUSE LEFT"
+        CASE KEY_MOUSE + 2 : KeyName$ = "MOUSE RIGHT"
+        CASE KEY_MOUSE + 3 : KeyName$ = "MOUSE MIDDLE"
         CASE 33 TO 126 : KeyName$ = CHR$(code&)
         CASE ELSE : KeyName$ = "KEY" + STR$(code&)
     END SELECT

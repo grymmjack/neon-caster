@@ -23,7 +23,7 @@ CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, S
 CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
 CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
-CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_ROCKETCAM = 45
+CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_LIQOP = 45
 ' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
 ' don't all match one
 CONST MODE_CUSTOM = 0, MODE_OLDSCHOOL = 1, MODE_90S = 2, MODE_NEWSCHOOL = 3
@@ -51,7 +51,7 @@ DefineSetting SET_HURTDIR,   "damage_indicators",  "DAMAGE INDICATORS",  MI_TOGG
 DefineSetting SET_RENDERER,  "renderer",           "RENDERER",           MI_CHOICE, 1,  2,   1,   2 ' 1 software, 2 OpenGL (chapter 24)
 DefineSetting SET_FPS,       "show_fps",           "SHOW FPS",           MI_TOGGLE, 0,  1,   1,   0
 DefineSetting SET_TIMER,     "sector_timer",       "SECTOR TIMER",       MI_TOGGLE, 0,  1,   1,   0 ' (the sector's clock, and your best: HE_TIMER)
-DefineSetting SET_ROCKETCAM, "rocket_cam",         "ROCKET CAMERA",      MI_TOGGLE, 0,  1,   1,   0 ' (your rocket, followed to where it hits - then back to you: GAME/SECURE.BM's views)
+DefineSetting SET_LIQOP,     "liquid_opacity",     "LIQUID OPACITY",     MI_SLIDER, 0,  100, 10,  0 ' (OpenGL: liquids more solid than each is made - 100, you can't see the bottom; a level's own liquid_opacity = can say more: the higher of the two)
 DefineSetting SET_POISON,    "poison_damage",      "POISON DAMAGE",      MI_SLIDER, 0,  10,  1,   3 ' (poisoned - by a poison turret, its fog, a poison pool: this much health a second, till a health pack cures it - GAME/ROCKETS.BM)
 DefineSetting SET_GAMMA,     "brightness",         "BRIGHTNESS",         MI_SLIDER, 50, 200, 10,  100 ' (a gamma curve on the 3D view: above 100% the dark parts come up, the brightest stay - ApplyGamma, and the OpenGL post shader's "gamma")
 DefineSetting SET_BUMP,      "bump_mapping",       "BUMP MAPPING",       MI_TOGGLE, 0,  1,   1,   1 ' (OpenGL only)
