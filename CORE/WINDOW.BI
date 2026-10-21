@@ -32,6 +32,7 @@
 CONST GAME_VERSION$ = "0.4.0"
 _TITLE "NEON-CASTER " + GAME_VERSION$
 ON ERROR GOTO GameError ' (a runtime error: logged, and the game carries on - chapter 21)
+DIM SHARED mouseSettle AS INTEGER ' (frames the mouse can't turn you: just captured again after a screen of its own - the pointer's snap back isn't a turn)
 DIM SHARED grSeed AS DOUBLE ' (the game's own dice: GRnd - where they've got to)
 RANDOMIZE TIMER ' (RND's dice start somewhere new each time: without this, every game rolls the same numbers - the same loot, the same vending machines)
 grSeed = 1 + INT(RND * 2147483645) ' (and the game's own, GRnd's, with them)

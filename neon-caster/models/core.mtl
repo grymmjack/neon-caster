@@ -1,0 +1,4 @@
+# NEON-CASTER prop: core - its texture, for 3D viewers
+newmtl core
+Kd 1 1 1
+map_Kd ../hd/models/core_tex.png

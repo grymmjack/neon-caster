@@ -16,7 +16,7 @@ END FUNCTION
 ' the guards' way to them
 SUB AlarmsBuild
     DIM i, k ' (its own: the main program shares these names)
-    alarmTimer = 0 : alarmAt = 0
+    AlarmQuiet : alarmAt = 0
     FOR i = 1 TO numDecos
         IF decoKind(i) = DK_ALARM THEN
             decoZ(i) = 0.32 : vendState(i) = 0 : decoOpen(i) = 0
@@ -32,7 +32,19 @@ END SUB
 SUB AlarmSet(i, onOff)
     IF decoKind(i) <> DK_ALARM THEN EXIT SUB
     IF onOff THEN vendState(i) = 0 : decoOpen(i) = 0 ELSE vendState(i) = 3 : decoOpen(i) = -1
-    IF NOT onOff AND alarmTimer > 0 AND alarmAt = i THEN alarmTimer = 0
+    IF NOT onOff AND alarmTimer > 0 AND alarmAt = i THEN AlarmQuiet
+END SUB
+
+' The alarm stopped: the siren too, at once
+SUB AlarmQuiet
+    alarmTimer = 0
+    IF sndSiren& > 0 THEN _SNDSTOP sndSiren&
+END SUB
+
+' The siren, once round - its own voice, not a copy: never two at once
+SUB SirenPlay(vol!)
+    IF sndSiren& <= 0 THEN EXIT SUB
+    _SNDSTOP sndSiren& : _SNDVOL sndSiren&, vol! * setting(SET_SFX) / 100 : _SNDPLAY sndSiren&
 END SUB
 
 ' --- The guards' way to a switch: from the open cells beside each switch
@@ -77,9 +89,9 @@ SUB AlarmRaise(a)
     DIM j, ax, ay ' (its own: the main program shares these names)
     IF NOT AlarmArmed(a) THEN EXIT SUB
     ax = decoX(a) : ay = decoY(a)
-    IF alarmTimer = 0 THEN ShowMsg "ALARM! Everything near is coming for you" : shake = shake + 3
+    IF alarmTimer = 0 THEN ShowMsg "ALARM! Everything near is coming for you" : shake = shake + 3 : SirenPlay 0.6 ' (sounding already: it just goes on longer)
     alarmTimer = ALARM_FRAMES : alarmAt = a
-    SfxAt sndAlarmPress&, ax, ay, playerX, playerY : PlaySfx sndSiren&, 0.6
+    SfxAt sndAlarmPress&, ax, ay, playerX, playerY
     FOR j = 1 TO numMonsters
         IF monsterState(j) = 0 AND monsterType(j) <> MT_MIMIC AND (cyberOn = 0 OR monsterType(j) = MT_ICE) THEN
             IF (monsterX(j) - ax) ^ 2 + (monsterY(j) - ay) ^ 2 < ALARM_REACH * ALARM_REACH THEN monsterState(j) = 1 : monsterTimer(j) = 20
@@ -103,7 +115,7 @@ END SUB
 SUB AlarmStep
     IF alarmTimer <= 0 THEN EXIT SUB
     alarmTimer = alarmTimer - 1
-    IF alarmTimer MOD 110 = 0 AND alarmTimer > 0 THEN PlaySfx sndSiren&, 0.55
+    IF alarmTimer MOD 110 = 0 AND alarmTimer > 0 THEN SirenPlay 0.55
     IF alarmTimer = 0 THEN ShowMsg "The alarm's stopped"
 END SUB
 
@@ -177,6 +189,35 @@ SUB AlarmConsole(i)
         SfxAt sndAlarmOn&, decoX(i), decoY(i), playerX, playerY : ShowMsg "SECURITY CONSOLE: alarm" + MID$("s", 1, -(n > 1)) + " ON"
     END IF
     BuildAlarmWay
+END SUB
+
+' --- An alarm switch you're looking at: whether it's ON (the alarm
+' sounding), OFF, or disarmed - and what USE does to it
+SUB AlarmReadout
+    DIM r!, cx, cy, i, k$ ' (its own: the main program shares these names)
+    IF dead OR editMode OR cyberOn OR viewOn THEN EXIT SUB
+    FOR r! = 0.4 TO 1.8 STEP 0.1
+        cx = INT(playerX + dirX * r!) : cy = INT(playerY + dirY * r!)
+        IF cx = INT(playerX) AND cy = INT(playerY) THEN _CONTINUE
+        IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT SUB
+        IF worldMap(cx, cy) > 0 THEN EXIT SUB
+        i = decoCell(cx, cy)
+        IF i THEN IF decoOn(i) AND decoKind(i) = DK_ALARM THEN EXIT FOR
+        i = 0
+    NEXT
+    IF i = 0 THEN EXIT SUB
+    k$ = KeyName$(keyBind&(BIND_USE))
+    LINE (285, 380)-(515, 440), _RGBA32(14, 4, 4, 210), BF : LINE (285, 380)-(515, 440), _RGBA32(255, 90, 80, 200), B
+    MenuText 400, 386, "ALARM SWITCH", 1.25, _RGB32(255, 200, 90), 1
+    IF vendState(i) THEN
+        MenuText 400, 404, "DISARMED", 1.5, _RGB32(150, 150, 160), 1
+    ELSEIF alarmTimer > 0 THEN
+        IF (lvFrame \ 15) MOD 2 = 0 THEN MenuText 400, 404, "ON", 1.5, _RGB32(255, 70, 60), 1
+        MenuText 400, 426, k$ + ": SHUT IT OFF", 1, _RGB32(220, 170, 160), 1
+    ELSE
+        MenuText 400, 404, "OFF", 1.5, _RGB32(110, 255, 140), 1
+        MenuText 400, 426, k$ + ": SOUND THE ALARM", 1, _RGB32(220, 170, 160), 1
+    END IF
 END SUB
 
 ' --- Over the view while the alarm sounds: the screen's edges flashing red

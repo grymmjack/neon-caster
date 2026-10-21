@@ -20,7 +20,9 @@ drones, barrels of poison, lava and acid that leak and burst (stacked up to eigh
 treasure chests - and mimics that only look like them - ambushes of turrets that slide out of walls, floors and ceilings,
 stronghold doors to kick down, keypad doors and safes whose codes are on notes you find, desks and
 bookshelves to search, broken computers to fix and hack, security cameras to watch through, robot
-guard dogs and guards who run to raise the alarm, a rocket camera (hold the middle button as you fire), and a
+guard dogs and guards who run to raise the alarm, a rocket camera (hold the middle button as you fire), jump pads that
+shoot you across a sector (some set from a launch control, by sums you work out), a sector's own gravity, floors
+as wet or dry as a level says, and a
 console you can script (aliases, and an autoexec.cfg run at start-up). And 50
 achievements, each with its own badge, ready for Steam, with each
 sector's best times kept as records - and DOOM-style demos: record a

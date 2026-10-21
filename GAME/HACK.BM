@@ -73,7 +73,7 @@ SUB HackRun STATIC
             GLScreenLayer glReady : ShowFrame
         NEXT
     END IF
-    _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+    _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND : mouseSettle = 8
     escWas = -1 : fireWait = 15 : spaceWas = -1
 END SUB
 

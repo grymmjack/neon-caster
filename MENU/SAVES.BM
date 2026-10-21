@@ -270,7 +270,7 @@ SUB LoadGame STATIC
                 IF worldMap(x, y) = 2 THEN GET #fileNum, , doorHP(x, y) : GET #fileNum, , doorBroke(x, y)
             NEXT : NEXT
         END IF
-        alarmTimer = 0 : alarmAt = 0 : IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , alarmTimer : GET #fileNum, , alarmAt
+        AlarmQuiet : alarmAt = 0 : IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , alarmTimer : GET #fileNum, , alarmAt
         drainN = 0
         IF LOC(fileNum) < LOF(fileNum) THEN
             GET #fileNum, , drainN : drainN = MaxOf(0, MinOf(MAX_DRAIN, drainN))

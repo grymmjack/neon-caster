@@ -148,7 +148,7 @@
             drawSprite(numDraw) = DecoSlot(decoKind(i)) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = decoZ(i)
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40 : drawFace(numDraw) = decoFace(i)
             IF decoKind(i) = DK_JUMPPAD THEN drawSquash(numDraw) = 0.16 : drawFace(numDraw) = 0 : drawMinShade(numDraw) = 200 + 56 * SIN(lvFrame * 0.08 + i) ' (a jump pad: flat on the floor, glowing - as a teleporter's)
-            IF decoOpen(i) THEN ' An open chest: its open picture (its "wreck"), its open model
+            IF decoOpen(i) = -1 THEN ' An open chest (safe, switched-off alarm): its open picture (its "wreck"), its open model - not a searched desk or bookshelf (1): that's just as it was
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i)) : drawSquash(numDraw) = wreckSquash(decoKind(i))
                 IF wreckMdl(decoKind(i)) THEN drawMdl(numDraw) = wreckMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0 : drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
             ELSEIF NOT decoOn(i) AND (wreckMdl(decoKind(i)) OR BarrelLiquid(decoKind(i))) THEN ' Broken, with a wreck of its own: its picture, its model (OpenGL), standing where it stood
@@ -166,6 +166,11 @@
             ELSEIF decoMdl(decoKind(i)) THEN ' A 3D prop: OpenGL draws its model; we draw its picture from nearest where you are (RENDER/MODELS.BM)
                 drawMdl(numDraw) = decoMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0
                 drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
+            END IF
+            IF decoKind(i) = DK_ALARM AND alarmTimer > 0 AND vendState(i) = 0 THEN drawMinShade(numDraw) = 120 + 120 * ((lvFrame \ 15) MOD 2) ' (sounding: its switch flashing)
+            IF drawMdl(numDraw) AND (decoKind(i) = DK_CAMERA OR decoKind(i) = DK_ALARM) AND decoFace(i) >= 1 AND decoFace(i) <= 4 THEN ' (a 3D camera or alarm switch: on its wall, not out in the middle of its cell)
+                wa = (decoFace(i) - 1) * 1.5708 : IF decoKind(i) = DK_CAMERA THEN wo = 0.34 ELSE wo = 0.47
+                drawX(numDraw) = decoX(i) - COS(wa) * wo : drawY(numDraw) = decoY(i) - SIN(wa) * wo
             END IF
             IF decoKind(i) = 2 OR decoKind(i) = 7 OR decoKind(i) = 12 OR decoKind(i) = 13 OR decoKind(i) = 17 THEN drawMinShade(numDraw) = 200 ' Lamps (vending machines, monitors, tanks, holograms) glow
             IF BarrelLiquid(decoKind(i)) = LQ_LAVA THEN drawMinShade(numDraw) = 150 ' (a lava barrel's cracks)
@@ -344,7 +349,7 @@
                     IF ABS(transformX) > transformY * 2 + mdlFrame(mdlNow) THEN _CONTINUE
                     lx = INT(drawX(i)) : ly = INT(drawY(i)) ' (not seen this frame - in another room, behind a wall: nothing to draw)
                     IF glSeen(lx, ly, glWrite) <> glFrameNo AND glSeen(lx + 1, ly, glWrite) <> glFrameNo AND glSeen(lx, ly + 1, glWrite) <> glFrameNo AND glSeen(MaxOf(0, lx - 1), ly, glWrite) <> glFrameNo AND glSeen(lx, MaxOf(0, ly - 1), glWrite) <> glFrameNo THEN _CONTINUE
-                    IF transformY > MODEL_NEAR THEN mdlNow = 0
+                    IF transformY > MODEL_NEAR OR (transformY > MODEL_NEAR_SMALL AND mdlFrame(mdlNow) < 0.75 AND drawHead(i) = 0) THEN mdlNow = 0 ' (a small one - a barrel, a pickup - its picture sooner: a stockpile's stacks were tens of thousands of corners a frame; not a turret, whose head turns)
                     IF mdlNow = 0 AND drawPic(i) = 0 AND drawSprite(i) = 0 THEN _CONTINUE ' (a model with no picture - a turret's plate: only near)
                     IF drawPic(i) THEN spriteSlot = SPR_SLOTS + drawPic(i) : sc = mdlFrame(drawMdl(i)) ' (further off, and in reflections: its picture from where you are - the model, as it stands)
                 END IF

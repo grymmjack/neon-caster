@@ -36,5 +36,9 @@ CONST MDL_ANGLES = 8, MDL_PIC = 64
 ' its 8 ways round, as the software renderer does - so it never seems to
 ' turn as it changes. (Every corner of a model is worked out by QB64 each
 ' frame: at 32 cells, a sector's props cost 8 to 19 ms a frame.)
-CONST MODEL_NEAR = 12
+' A small one (under 3/4 of a cell across its pictures - a barrel, a
+' pickup) only out to MODEL_NEAR_SMALL: that far off it's a few dozen
+' pixels tall, and a stockpile's stacks of barrels were tens of thousands
+' of corners a frame.
+CONST MODEL_NEAR = 12, MODEL_NEAR_SMALL = 6
 DIM SHARED mdlPic(MDL_PIC - 1, MDL_PIC - 1, MAX_MODELS * MDL_ANGLES) AS _UNSIGNED LONG, mdlFrame(MAX_MODELS) AS SINGLE

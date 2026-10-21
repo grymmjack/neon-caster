@@ -1,0 +1,4 @@
+# NEON-CASTER prop: invuln - its texture, for 3D viewers
+newmtl invuln
+Kd 1 1 1
+map_Kd ../hd/models/invuln_tex.png

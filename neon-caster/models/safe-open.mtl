@@ -1,0 +1,4 @@
+# NEON-CASTER prop: safe-open - its texture, for 3D viewers
+newmtl safe-open
+Kd 1 1 1
+map_Kd ../hd/models/safe-open_tex.png

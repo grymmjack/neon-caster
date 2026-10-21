@@ -298,9 +298,12 @@ SUB GLWorldGPU(b, mirror)
     GLSL_attrib_array glTanLoc, 3, meshAt~%& + n& * 32
     GLSL_attrib_off glLightLoc : GLSL_attrib_off glDynLoc
     _glDisableClientState _GL_COLOR_ARRAY : _glColor4f 1, 1, 1, 1 ' (the light comes from the tables)
-    FOR kind = 0 TO 3 ' Floors (not in the mirror - it's under them), ceilings, walls, raised and sunken floors
-        IF (kind = 0 OR kind = 3) AND mirror THEN _CONTINUE
-        IF kind = 0 AND glReflecting THEN _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
+    FOR kind = 0 TO GL_MESH_KINDS ' Floors (not in the mirror - it's under them), ceilings, walls, raised and sunken floors, floors as wet as they say
+        IF (kind = 0 OR kind >= 3) AND mirror THEN _CONTINUE
+        IF (kind = 0 OR kind >= 4) AND glReflecting THEN
+            _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
+            IF kind >= 4 THEN glFloorWet = (kind - 4) * WET_STEP ELSE glFloorWet = -1
+        END IF
         FOR slot = 1 TO T_SLOTS
             IF glMeshCount(kind, slot) THEN
                 GLBindSlot slot
@@ -309,6 +312,7 @@ SUB GLWorldGPU(b, mirror)
         NEXT
         IF glFloorPass THEN glFloorPass = 0 : _glDisable _GL_BLEND
     NEXT
+    glFloorWet = -1
     GLSL_attrib_off glTanLoc
     GLSL_buffer_bind 0
     _glEnableClientState _GL_COLOR_ARRAY
@@ -365,7 +369,7 @@ SUB GLBuildMesh
     FOR cy = 0 TO mapN - 1 : FOR cx = 0 TO mapN - 1
         IF GLOpenCell(cx, cy) THEN
             glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0
-            glMeshKind = 0 : IF floorH(cx, cy) <> 0 THEN glMeshKind = 3 ' (a floor up or down: not see-through, for the wet floors)
+            glMeshKind = 0 : IF floorH(cx, cy) <> 0 THEN glMeshKind = 3 ELSE IF FloorWet(cx, cy) >= 0 THEN glMeshKind = 4 + FloorWet(cx, cy) ' (a floor up or down: not see-through, for the wet floors; one wet as it says: drawn with its own)
             glFaceNZ = 1 : IF liftCell(cx, cy) = 0 THEN GLFlat cx, cy, floorH(cx, cy), floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy) ' (lifts: GLLifts)
             glMeshKind = 1 : glFaceNZ = -1 : IF NOT GLCrusherCell(cx, cy) THEN GLFlat cx, cy, ceilH(cx, cy), ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy) ' (crushers' ceilings move: GLLifts)
             IF boxOn(cx, cy) THEN glMeshKind = 2 : GLBox cx, cy, glBuf
@@ -399,13 +403,13 @@ SUB GLBuildMesh
     n& = glMeshN
     IF UBOUND(glMeshData) < n& * 11 THEN REDIM glMeshData(n& * 11) AS SINGLE
     ' Counting sort, by kind * (number of textures) + texture
-    FOR kind = 0 TO 3 : FOR slot = 0 TO GL_GLOW_TEX : glMeshCount(kind, slot) = 0 : NEXT : NEXT
+    FOR kind = 0 TO GL_MESH_KINDS : FOR slot = 0 TO GL_GLOW_TEX : glMeshCount(kind, slot) = 0 : NEXT : NEXT
     FOR i& = 0 TO n& - 1 : glMeshCount(glMBKind(i&), glMBSlot(i&)) = glMeshCount(glMBKind(i&), glMBSlot(i&)) + 1 : NEXT
     at& = 0
-    FOR kind = 0 TO 3 : FOR slot = 0 TO GL_GLOW_TEX
+    FOR kind = 0 TO GL_MESH_KINDS : FOR slot = 0 TO GL_GLOW_TEX
         glMeshFirst(kind, slot) = at& : at& = at& + glMeshCount(kind, slot)
     NEXT : NEXT
-    FOR kind = 0 TO 3 : FOR slot = 0 TO GL_GLOW_TEX : glSlotFill(slot) = glMeshFirst(kind, slot) : NEXT
+    FOR kind = 0 TO GL_MESH_KINDS : FOR slot = 0 TO GL_GLOW_TEX : glSlotFill(slot) = glMeshFirst(kind, slot) : NEXT
         FOR i& = 0 TO n& - 1
             IF glMBKind(i&) = kind THEN
                 d& = glSlotFill(glMBSlot(i&)) : glSlotFill(glMBSlot(i&)) = d& + 1
@@ -424,6 +428,12 @@ SUB GLBuildMesh
     ' drawn straight from glMeshData, sent over afresh each frame instead.
     IF n& > 0 AND NOT glMeshClient THEN glMeshBuf = GLSL_buffer_new~&(_OFFSET(glMeshData(0)), n& * 44)
 END SUB
+
+' Which wetness pass cell x, y's floor is drawn in (GLWorld): 0 as its
+' picture is - and any floor up or down; 1-10, wetness 0-9
+FUNCTION GLWetKey(x, y)
+    IF floorH(x, y) = 0 THEN GLWetKey = FloorWet(x, y) + 1
+END FUNCTION
 
 ' One corner of the world mesh, while it's built: its shape only (where,
 ' texture spot, normal, tangent), its texture and its kind
@@ -448,7 +458,7 @@ END SUB
 ' doors, sprites, then the things that add light on top - shadows, glows,
 ' particles.
 SUB GLWorld(b, mirror)
-    DIM cx, cy, k ' (its own: the main program shares these names)
+    DIM cx, cy, k, wp, wetMask ' (its own: the main program shares these names)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
     IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
@@ -457,12 +467,26 @@ SUB GLWorld(b, mirror)
     ' texture - changing texture means stopping and starting again). Over
     ' a mirror image, the floors are blended over it: GLUseTexture sets
     ' how see-through each floor texture is (its shader's "reflectAmt").
+    ' (Over a mirror image, a pass for each wetness the floors in view have
+    ' - FloorWet, 0-9 - and one for those as their pictures are: GLBindSlot
+    ' takes glFloorWet as the batch's)
     FOR z = 0 TO 1
         IF z = 0 AND mirror THEN _CONTINUE ' (no floor in the mirror)
-        IF z = 0 AND glReflecting THEN _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
+        wetMask = 1
+        IF z = 0 AND glReflecting THEN
+            FOR k = 1 TO glNumVis : IF GLOpenCell(glVisX(k), glVisY(k)) THEN wetMask = wetMask OR 2 ^ GLWetKey(glVisX(k), glVisY(k))
+            NEXT
+        END IF
+        FOR wp = 0 TO 10
+        IF (wetMask AND 2 ^ wp) = 0 THEN _CONTINUE
+        IF z = 0 AND glReflecting THEN
+            _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
+            IF wp THEN glFloorWet = (wp - 1) * WET_STEP ELSE glFloorWet = -1
+        END IF
         FOR k = 1 TO glNumVis
             cx = glVisX(k) : cy = glVisY(k)
             IF GLOpenCell(cx, cy) THEN
+                IF glFloorPass THEN IF GLWetKey(cx, cy) <> wp THEN _CONTINUE
                 GLSetLight cx, cy, 1, b
                 glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0 ' (u runs along x)
                 IF z = 0 THEN
@@ -476,7 +500,9 @@ SUB GLWorld(b, mirror)
         NEXT
         GLStopDrawing
         IF glFloorPass THEN glFloorPass = 0 : _glDisable _GL_BLEND ' (the floors' see-through is done)
+        NEXT
     NEXT
+    glFloorWet = -1
 
     ' Walls, doors and diagonals: each side of a wall cell (1 west, 2 east,
     ' 3 north, 4 south). A diagonal cell only has the two sides that touch
@@ -1153,7 +1179,8 @@ SUB GLBindSlot(slot)
     _glBindTexture _GL_TEXTURE_2D, glTexName(slot)
     IF glShaderOn THEN
         p~& = glWorldProg
-        rfl = glTexReflect(slot) : IF glLiquidPass AND slot > T_LIQUID AND slot <= T_LIQUID + LQ_KINDS THEN rfl = rfl * (1 - glLiqMurk) ' (a liquid cell's own opacity, liqOp - this pass's: GLLiquids)
+        rfl = glTexReflect(slot) : IF glFloorPass AND glFloorWet >= 0 THEN rfl = glFloorWet ' (a floor as wet as it says: FloorWet)
+        IF glLiquidPass AND slot > T_LIQUID AND slot <= T_LIQUID + LQ_KINDS THEN rfl = rfl * (1 - glLiqMurk) ' (a liquid cell's own opacity, liqOp - this pass's: GLLiquids)
         GLSL_uniform_1f p~&, "reflectAmt", rfl * (glFloorPass OR glLiquidPass) * -1 ' (a wet floor, or a liquid: see-through)
         GLSL_uniform_1f p~&, "neon", glTexNeon(slot) * glNeonOn
         GLSL_uniform_1f p~&, "anim", glTexAnim(slot)

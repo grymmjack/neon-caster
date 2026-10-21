@@ -1,0 +1,4 @@
+# NEON-CASTER prop: table-flipped - its texture, for 3D viewers
+newmtl table-flipped
+Kd 1 1 1
+map_Kd ../hd/models/table-flipped_tex.png

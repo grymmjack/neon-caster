@@ -57,6 +57,7 @@
     IF NOT dead AND viewOn = 0 THEN DrawCrosshair 400, 300
     ViewOverlay ' (a security camera's feed, your rocket's - GAME/SECURE.BM)
     AlarmOverlay ' (the alarm sounding: red at the edges)
+    AlarmReadout ' (an alarm switch you're looking at: ON or OFF - GAME/ALARMS.BM)
     JumpPadReadout ' (a launch control or jump pad you're looking at: its numbers - GAME/JUMPPADS.BM)
     crossScale = 1 + (crossScale - 1) * 0.85
     IF crossFlash > 0 THEN crossFlash = crossFlash - 1
@@ -104,7 +105,7 @@
     ' map: without the pickup it shows only the cells you've seen - you draw
     ' it as you explore - and with it, the whole level.
     killsY = hudY(HE_KILLS)
-    IF hasMap AND NOT mapOpen AND hudShow(HE_MINIMAP) THEN
+    IF hasMap AND NOT mapOpen AND hudShow(HE_MINIMAP) AND viewOn <> VIEW_CAM THEN ' (not on a camera's feed: its name and clock are there)
         DrawMap hudX(HE_MINIMAP), hudY(HE_MINIMAP), hudW(HE_MINIMAP), -1, playerX, playerY, dirX, dirY
         ' (the kill count, if it's where the map is, goes under it)
         IF hudX(HE_KILLS) = hudX(HE_MINIMAP) AND hudY(HE_KILLS) = hudY(HE_MINIMAP) THEN killsY = hudY(HE_MINIMAP) + MinOf(mapN, 48) * hudW(HE_MINIMAP) + 6
@@ -117,9 +118,9 @@
         IF hasMap THEN mapNote$ = "THIS SECTOR'S MAP - BRIGHTER WHERE YOU'VE BEEN.   TAB  CLOSE" ELSE mapNote$ = "NO MAP YET - ONLY WHERE YOU'VE BEEN.   TAB  CLOSE"
         MenuText 400, 552, mapNote$, 1, _RGB32(170, 170, 200), 1
     END IF
-    IF NOT mapOpen AND hudShow(HE_KILLS) AND NOT (editMode AND NOT hudEdit) THEN HudText hudX(HE_KILLS), killsY, hudLabel$(HE_KILLS) + STR$(kills) + " /" + STR$(numMonsters), HudColor~&(HE_KILLS, _RGB32(255, 90, 90))
+    IF NOT mapOpen AND hudShow(HE_KILLS) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN HudText hudX(HE_KILLS), killsY, hudLabel$(HE_KILLS) + STR$(kills) + " /" + STR$(numMonsters), HudColor~&(HE_KILLS, _RGB32(255, 90, 90))
     ' F3: where you are, in numbers (DrawInfo) - under the kills, when they're top left
-    IF infoOn AND NOT mapOpen AND NOT cyberOn THEN
+    IF infoOn AND NOT mapOpen AND NOT cyberOn AND viewOn <> VIEW_CAM THEN
         infoTop = 8 : IF hudShow(HE_KILLS) AND hudX(HE_KILLS) < 300 AND killsY < 300 THEN infoTop = killsY + 22
         DrawInfo infoTop
     END IF
@@ -127,7 +128,7 @@
     ' Keycards you hold, top right
     cardX = hudX(HE_CARDS)
     FOR k = 3 TO 1 STEP - 1
-        IF hasCard(k) AND hudShow(HE_CARDS) AND NOT (editMode AND NOT hudEdit) THEN cardX = cardX - hudW(HE_CARDS) - 4 : _PUTIMAGE (cardX, hudY(HE_CARDS))-STEP(hudW(HE_CARDS) - 1, hudW(HE_CARDS) - 1), cardImg&(k)
+        IF hasCard(k) AND hudShow(HE_CARDS) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN cardX = cardX - hudW(HE_CARDS) - 4 : _PUTIMAGE (cardX, hudY(HE_CARDS))-STEP(hudW(HE_CARDS) - 1, hudW(HE_CARDS) - 1), cardImg&(k)
     NEXT
 
     ' Armour and health (bottom left)
@@ -221,7 +222,7 @@
     END IF
     ammoColor~& = HudColor~&(HE_AMMO, ammoColor~&)
     ammoText$ = gunName$(currentGun) + "  " + LTRIM$(STR$(ammoCount(ammoType)))
-    IF hudShow(HE_AMMO) AND NOT (editMode AND NOT hudEdit) THEN ' (its right edge at hudX)
+    IF hudShow(HE_AMMO) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN ' (its right edge at hudX; not on a camera's feed: no gun there)
         rx = hudX(HE_AMMO) : ry = hudY(HE_AMMO) : bw = hudW(HE_AMMO) : bh = hudH(HE_AMMO)
         HudText rx - 8 * LEN(ammoText$), ry, ammoText$, ammoColor~&
         IF bw > 0 THEN
@@ -229,7 +230,7 @@
             IF ammoCount(ammoType) > 0 THEN LINE (rx - 1 - ammoCount(ammoType) * bw \ ammoMax(ammoType), ry + 19)-(rx - 1, ry + 18 + bh), ammoColor~&, BF
         END IF
     END IF
-    IF hudShow(HE_GUNS) AND NOT (editMode AND NOT hudEdit) THEN
+    IF hudShow(HE_GUNS) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN
         FOR gun = 1 TO NUM_GUNS
             gunNumColor~& = _RGB32(60, 60, 70)
             IF hasGun(gun) THEN gunNumColor~& = _RGB32(150, 150, 160)

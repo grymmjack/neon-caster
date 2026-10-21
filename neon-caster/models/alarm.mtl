@@ -1,0 +1,4 @@
+# NEON-CASTER prop: alarm - its texture, for 3D viewers
+newmtl alarm
+Kd 1 1 1
+map_Kd ../hd/models/alarm_tex.png

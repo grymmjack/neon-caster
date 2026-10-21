@@ -24,7 +24,7 @@
     ' or a monster in the doorway (DoorBlocked), it waits, or if it was
     ' already shutting, opens again, like an automatic door.
     usedTrig = 0
-    IF viewOn = VIEW_CAM AND spaceDown AND NOT spaceWas THEN CameraNext : spaceWas = -1 ' (watching a security camera: Space, the next one - GAME/SECURE.BM)
+    IF viewOn = VIEW_CAM AND spaceDown AND NOT spaceWas THEN CameraNext : spaceWas = -1 ' (watching a security camera: USE, the next one - GAME/SECURE.BM)
     IF spaceDown AND NOT spaceWas AND NOT dead AND NOT editMode AND NOT cyberOn THEN ' A "use" trigger at the cell in front? (chapter 19 - not from the network)
         FOR k = 1 TO numTrigs
             IF trigWhen$(k) = "use" AND NOT trigDone(k) THEN

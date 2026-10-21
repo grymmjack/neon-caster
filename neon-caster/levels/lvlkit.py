@@ -690,6 +690,8 @@ def level_text(lv, comment=()):
         out.append("droids   = %d" % lv["droids"])
     if lv.get("gravity") not in (None, 100):  # its own gravity, percent (10-300)
         out.append("gravity  = %d" % lv["gravity"])
+    if lv.get("wetness") is not None and lv["wetness"] >= 0:  # how wet its floors look, 0-9 (left out: each as its picture is)
+        out.append("wetness  = %d" % lv["wetness"])
     out.append("walls    = " + ", ".join(lv["walls"]))
     out.append("floors   = " + ", ".join(lv["floors"]))
     out.append("ceilings = " + ", ".join(lv["ceils"]))
@@ -791,6 +793,9 @@ def level_text(lv, comment=()):
         lo = list(lv.get("liquid_opacity_rows") or [])
         if any(r.strip(".") for r in lo):  # how see-through each cell: . as made, 1-9 tenths more solid, x solid
             out += ["", "[liquid opacity]", "' how solid, more than its kind is made: . as made, 1-9 tenths more, x solid (you can't see the bottom)"] + lo
+    wr = list(lv.get("wetness_rows") or [])
+    if any(r.strip(".") for r in wr):  # floors wetter or drier than the sector's: . its, 0 dry - 9 soaked
+        out += ["", "[floor wetness]", "' how wet each floor looks (its reflection): . the sector's (wetness), 0 dry - 9 soaked"] + wr
     return "\n".join(out) + "\n"
 
 
@@ -828,8 +833,8 @@ def read_level_file(path, label=None):
     """A level file as the dict check_level and level_text use."""
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
               ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[], loot=[],
-              liquid=[], liquid_depth=[], liquid_opacity_rows=[], blocks=[], nudges=[], cell_lights=[], barrels=[],
-              doors=[], things=[], notes=[], smears=[])
+              liquid=[], liquid_depth=[], liquid_opacity_rows=[], wetness_rows=[], blocks=[], nudges=[], cell_lights=[], barrels=[],
+              doors=[], things=[], notes=[], smears=[], fuel=[])
     global N
     sec = None
     high = {"floor high": [], "ceiling high": []}
@@ -843,9 +848,9 @@ def read_level_file(path, label=None):
             if t and not t.startswith("'") and not t.startswith("["):
                 lv[sec].append(t)
                 continue
-        if sec in ("map", "floor", "ceiling", "liquid", "liquid depth", "liquid opacity"):
+        if sec in ("map", "floor", "ceiling", "liquid", "liquid depth", "liquid opacity", "floor wetness"):
             if t and not t.startswith("'") and not t.startswith("["):
-                lv["rows" if sec == "map" else ("liquid_opacity_rows" if sec == "liquid opacity" else sec.replace(" ", "_"))].append(line.rstrip("\r")[:MAX_N])
+                lv["rows" if sec == "map" else {"liquid opacity": "liquid_opacity_rows", "floor wetness": "wetness_rows"}.get(sec, sec.replace(" ", "_"))].append(line.rstrip("\r")[:MAX_N])
                 continue
         if not t or t.startswith("'"):
             continue
@@ -858,6 +863,7 @@ def read_level_file(path, label=None):
             elif k == "puzzles": lv["puzzles"] = v
             elif k == "droids": lv["droids"] = int(float(v))
             elif k == "gravity": lv["gravity"] = int(float(v))
+            elif k == "wetness": lv["wetness"] = -1 if v.lower().startswith("a") else int(float(v))
             elif k == "walls": lv["walls"] = vals
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals
@@ -878,7 +884,7 @@ def read_level_file(path, label=None):
     n = max([len(lv["rows"])] + [len(r) for r in lv["rows"]])  # (its size: the game's are 48 - the kit's checks use it, N)
     N = max(16, min(MAX_N, n))
     lv["rows"] = [(r + "#" * N)[:N] for r in lv["rows"]] + ["#" * N] * (N - len(lv["rows"]))
-    for k in ("floor", "ceiling", "liquid", "liquid_depth", "liquid_opacity_rows"):
+    for k in ("floor", "ceiling", "liquid", "liquid_depth", "liquid_opacity_rows", "wetness_rows"):
         if lv[k]:
             lv[k] = [(r + "." * N)[:N] for r in lv[k]] + ["." * N] * (N - len(lv[k]))
     return lv

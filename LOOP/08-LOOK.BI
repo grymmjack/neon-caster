@@ -58,6 +58,7 @@
         IF _MOUSEBUTTON(2) AND NOT edQ2 AND editMode AND editView = 1 AND NOT hudEdit THEN edClickR = -1
         edQ1 = _MOUSEBUTTON(1) : edQ2 = _MOUSEBUTTON(2)
     WEND
+    IF mouseSettle > 0 THEN mouseSettle = mouseSettle - 1 : mouseDX = 0 : mouseDY = 0 ' (back from a screen of its own - a computer, a keypad, the menu: the pointer's snap back to the middle isn't you turning)
     IF demoAttract AND (ABS(mouseDX) + ABS(mouseDY) > 3 OR clicked) THEN attractQuit = -1 ' (attract mode: the mouse moved - back to the menu, next frame)
     ' The 3D editor: the mouse is a pointer, free to point at anything (the
     ' face under it is picked - EditPick). Hold the right button to look
@@ -100,6 +101,13 @@
     ' inBits, not the keyboard, so a demo plays exactly as it was played.
     lookAim = (glMode <> 0) AND (setting(SET_LOOK) <> 0) ' (can a shot go high or low? OpenGL's LOOK UP / DOWN - a demo keeps its own)
     DemoInput
+    ' Watching a security camera (GAME/SECURE.BM): you're at the monitor,
+    ' not playing - only USE (the next camera) and the walk keys (a step
+    ' back to you) do anything; no shooting, turning, jumping or guns
+    IF viewOn = VIEW_CAM THEN
+        inBits = inBits AND (DB_FWD OR DB_BACK OR DB_LEFT OR DB_RIGHT OR DB_USE)
+        fireDown = 0 : rocketCamHeld = 0 : mouseDX = 0 : mouseDY = 0 : mouseWheel = 0
+    END IF
 
     IF dead THEN
         ' Dead: the view stays put; click or Space (after a moment) starts over
@@ -122,6 +130,7 @@
     aimSlow = 1 - aimAmount * (1 - setting(SET_AIMSENS) / 100)
     turn = mouseDX * turnSpeed / zoom * aimSlow ' (the mouse to the right turns you clockwise - as the map shows it: its y grows downward)
     IF botOn AND NOT demoPlay AND NOT editMode THEN turn = botTurn ' (the autopilot turns you)
+    IF viewOn = VIEW_CAM THEN turn = 0
     IF demoPlay THEN turn = inTU * DEMO_TURN ELSE IF demoRec THEN inTU = CLNG(turn / DEMO_TURN) : turn = inTU * DEMO_TURN ' (a demo's turn: a whole number of steps, played as written)
     oldDirX = dirX : dirX = dirX * DCos(turn) - dirY * DSin(turn) : dirY = oldDirX * DSin(turn) + dirY * DCos(turn)
     oldPlaneX = planeX : planeX = planeX * DCos(turn) - planeY * DSin(turn) : planeY = oldPlaneX * DSin(turn) + planeY * DCos(turn)

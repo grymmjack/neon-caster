@@ -1,0 +1,4 @@
+# NEON-CASTER prop: bookshelf - its texture, for 3D viewers
+newmtl bookshelf
+Kd 1 1 1
+map_Kd ../hd/models/bookshelf_tex.png

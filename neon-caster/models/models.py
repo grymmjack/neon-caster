@@ -54,6 +54,8 @@ PROPS = {
     'barrel-water': 0.5, 'barrel-poison': 0.5, 'barrel-slime': 0.5, 'barrel-lava': 0.5, 'barrel-acid': 0.5,
     'barrel-water-wreck': 0.5, 'barrel-poison-wreck': 0.5, 'barrel-slime-wreck': 0.5, 'barrel-lava-wreck': 0.5, 'barrel-acid-wreck': 0.5,
     'chest': 0.5, 'chest-open': 0.5, 'mimic-asleep': 0.5, 'jetpack': 0.3, 'jetfuel': 0.3,
+    'alarmpc': 0.6, 'bookshelf': 0.95, 'safe': 0.55, 'safe-open': 0.55, 'terminal-broken': 0.55,
+    'alarm': 0.3, 'alarm-off': 0.3, 'camera': 0.3, 'core': 0.3, 'repairkit': 0.3, 'invuln': 0.3,
 }
 def read_gltf(path):
     """A glTF's triangles - (points, uvs) each - turned to the game's axes.
@@ -176,7 +178,7 @@ def write_obj(tris, path, name, frame):
 # Either is one clean, solid shape that matches its painting from the
 # front. The rest are pixelmon's models (src/).
 SHAPES = {
-    'barrel': ('lathe',), 'lamp': ('lathe',), 'tank': ('lathe',), 'specimen': ('lathe',), 'cryopod': ('lathe',),
+    'barrel': ('lathe', 1, 10, 3), 'lamp': ('lathe',), 'tank': ('lathe',), 'specimen': ('lathe',), 'cryopod': ('lathe',),
     'amp': ('lathe',),
     'crate': ('extrude', 0.8), 'rack': ('extrude', 0.6), 'vending': ('extrude', 0.7), 'terminal': ('extrude', 0.6),
     'desk': ('extrude', 0.55, [(0.42, 0.18)]), 'console': ('extrude', 0.6), 'screens': ('extrude', 0.12), 'labbench': ('extrude', 0.5, [(0.45, 0.14)]),
@@ -185,9 +187,13 @@ SHAPES = {
     'pickup-scatter': ('extrude', 0.1), 'pickup-repeater': ('extrude', 0.1), 'pickup-rail': ('extrude', 0.08), 'pickup-rocket': ('extrude', 0.22), 'rockets': ('extrude', 0.55), 'rounds': ('extrude', 0.6), 'slugs': ('extrude', 0.25),
     'armor': ('extrude', 0.35), 'map': ('extrude', 0.04), 'overcharge': ('extrude', 0.15), 'goggles': ('extrude', 0.35),
     'keycard': ('extrude', 0.06), 'suit': ('extrude', 0.3), 'turret': ('kit',),
-    'barrel-water': ('lathe',), 'barrel-poison': ('lathe',), 'barrel-slime': ('lathe',), 'barrel-lava': ('lathe',), 'barrel-acid': ('lathe',),
-    'barrel-water-wreck': ('lathe',), 'barrel-poison-wreck': ('lathe',), 'barrel-slime-wreck': ('lathe',), 'barrel-lava-wreck': ('lathe',), 'barrel-acid-wreck': ('lathe',),
+    'barrel-water': ('lathe', 1, 10, 3), 'barrel-poison': ('lathe', 1, 10, 3), 'barrel-slime': ('lathe', 1, 10, 3), 'barrel-lava': ('lathe', 1, 10, 3), 'barrel-acid': ('lathe', 1, 10, 3),
+    'barrel-water-wreck': ('lathe', 1, 10, 3), 'barrel-poison-wreck': ('lathe', 1, 10, 3), 'barrel-slime-wreck': ('lathe', 1, 10, 3), 'barrel-lava-wreck': ('lathe', 1, 10, 3), 'barrel-acid-wreck': ('lathe', 1, 10, 3),
     'chest': ('extrude', 0.65), 'chest-open': ('extrude', 0.65), 'mimic-asleep': ('extrude', 0.65), 'jetpack': ('extrude', 0.45), 'jetfuel': ('extrude', 0.55),
+    'alarmpc': ('extrude', 0.5, [(0.4, 0.2)]), 'bookshelf': ('extrude', 0.38), 'safe': ('extrude', 0.85), 'safe-open': ('extrude', 0.85),
+    'terminal-broken': ('extrude', 0.6), 'alarm': ('extrude', 0.12), 'alarm-off': ('extrude', 0.12), 'core': ('lathe',),
+    'repairkit': ('extrude', 0.45), 'invuln': ('extrude', 0.22),
+    'camera': ('side', 0.6, (0.594, 0.344, 0.15)),  # (its painting's a side view: turned, so the lens looks out the way it faces)
 }
 GRID = 64  # the outline's grid: the painting's alpha, this many cells across
 
@@ -339,24 +345,27 @@ def turret_kit(name):
     return tris
 
 
-def lathe(name, pieces=1, seg=16):
+def lathe(name, pieces=1, seg=16, tol=0.5):
     """The outline spun round its middle: each row's half-width a ring,
     the profile cut to the rings that matter (within half a cell), capped
     top and bottom. The painting wraps round from the front - as it's
     painted from in front, and mirrored behind. pieces: it's that many
     round things side by side (two energy cells) - its outline cut into
-    that many, left to right, each spun round its own middle."""
+    that many, left to right, each spun round its own middle. seg: slices
+    round it; tol: how near the outline its rings keep (grid cells) - a
+    barrel, drawn by the dozen, stacked, is 10 and 3: a fraction of the
+    triangles, and still round."""
     _, whole = outline(name)
     R = GRID; wc = np.where(whole.any(axis=0))[0]
     cuts = [int(round(wc.min() + (wc.max() + 1 - wc.min()) * k / pieces)) for k in range(pieces + 1)]
     tris = []
     for p0, p1 in zip(cuts, cuts[1:]):
         a = np.zeros_like(whole); a[:, p0:p1] = whole[:, p0:p1]
-        tris += _lathe_piece(a, seg)
+        tris += _lathe_piece(a, seg, tol)
     return tris
 
 
-def _lathe_piece(a, seg):
+def _lathe_piece(a, seg, tol=0.5):
     """One round thing: outline a (the solid cells of it alone) spun round
     its own middle, where it is across the picture."""
     R = GRID; cols = np.where(a.any(axis=0))[0]; rows = np.where(a.any(axis=1))[0]
@@ -377,7 +386,7 @@ def _lathe_piece(a, seg):
     keep = [prof[0]]
     for i in range(1, len(prof) - 1):
         (r0, a0), (r1, a1), (r2, a2) = keep[-1], prof[i], prof[i + 1]
-        if r2 == r0 or abs(a0 + (a2 - a0) * (r1 - r0) / (r2 - r0) - a1) > 0.5 or r1 == r2 or r1 == r0: keep.append(prof[i])
+        if r2 == r0 or abs(a0 + (a2 - a0) * (r1 - r0) / (r2 - r0) - a1) > tol or r1 == r2 or r1 == r0: keep.append(prof[i])
     keep.append(prof[-1])
     Z = lambda r: R - r
     ang = [2 * math.pi * k / seg for k in range(seg + 1)]
@@ -401,10 +410,31 @@ def _lathe_piece(a, seg):
     return [(P, U) for P, U in tris if np.linalg.norm(np.cross(P[1] - P[0], P[2] - P[0])) > 1e-9]
 
 
+def side_lens(name, u, v, ru, seg=16):
+    """A side view's front, seen end on (a camera's lens): a disc of the
+    painting round u, v (ru across), on the end of the outline's row there -
+    before build turns it a quarter, so facing -y."""
+    _, a = outline(name)
+    R = GRID; r = int(v * R); cols = np.where(a[r])[0]
+    y = -(cols.max() + 1 - R / 2) - 0.2; z = R - v * R; rad = ru * R * 0.9
+    tris = []
+    for k in range(seg):
+        t0, t1 = 2 * math.pi * k / seg, 2 * math.pi * (k + 1) / seg
+        P = np.array([(0, y, z), (rad * math.cos(t0), y, z + rad * math.sin(t0)), (rad * math.cos(t1), y, z + rad * math.sin(t1))], float)
+        U = np.array([(u, v), (u - ru * math.cos(t0), v - ru * math.sin(t0)), (u - ru * math.cos(t1), v - ru * math.sin(t1))])
+        if np.dot(np.cross(P[1] - P[0], P[2] - P[0]), (0, -1, 0)) < 0: P, U = P[[0, 2, 1]], U[[0, 2, 1]]
+        tris.append((P, U))
+    return tris
+
+
 def build(name):
     shape = SHAPES.get(name)
     if shape:
-        raw = extrude(name, *shape[1:]) if shape[0] == 'extrude' else turret_kit(name) if shape[0] == 'kit' else lathe(name, *shape[1:])
+        if shape[0] == 'side':  # (turned a quarter: the painting's right - a camera's lens - its front)
+            raw = extrude(name, shape[1]) + side_lens(name, *shape[2])
+            raw = [(np.stack([-P[:, 1], P[:, 0], P[:, 2]], axis=1), U) for P, U in raw]
+        else:
+            raw = extrude(name, *shape[1:]) if shape[0] == 'extrude' else turret_kit(name) if shape[0] == 'kit' else lathe(name, *shape[1:])
         tris = place(raw, PROPS[name] * subject_height(name))
         tex = outline(name)[0]
         if shape[0] == 'kit':  # (the muzzles' white corner)
@@ -545,6 +575,59 @@ def build_mount():
             Image.fromarray(render(tris, tex, f, PIC, 4, 0.4), 'RGBA').save(os.path.join(HERE, f'{nm}_{f}.png'))
 
 
+def table():
+    """A table knocked over for a barricade: its top stood on its long edge,
+    leaning back a little, facing the way it faces (+x) - 0.95 cells wide,
+    half a cell high - its four legs sticking straight out behind. Its own
+    texture, in quarters: the top's face (dark plate, a cyan rim, glowing
+    panels), its underside, its edges, the legs."""
+    T = 64; tex = np.zeros((T, T, 4), np.uint8); tex[..., 3] = 255
+    tex[:32, :32, :3] = (52, 56, 72); tex[2:30, 2:30, :3] = (36, 39, 52)  # the top: plate, a bevel
+    tex[2:30, 2:4, :3] = (60, 230, 255); tex[2:30, 28:30, :3] = (60, 230, 255)  # (its cyan rim, either end)
+    tex[8:14, 8:24, :3] = (230, 60, 220); tex[18:24, 8:24, :3] = (230, 60, 220)  # (two glowing panels)
+    tex[:32, 32:, :3] = (28, 30, 40); tex[14:18, 32:, :3] = (48, 52, 66)  # underside, a brace across it
+    tex[32:, :32, :3] = (60, 230, 255); tex[40:56, :32, :3] = (44, 48, 62)  # edges: cyan trim on dark
+    tex[32:, 32:, :3] = (58, 62, 76); tex[32:36, 32:, :3] = (90, 96, 112)  # legs
+    W, H, t, lean = 0.475, 0.5, 0.05, math.radians(12)
+    lx = math.sin(lean)  # (how far back its top is, a cell up)
+    def at(y, z, d):  # (a point on the top, d through it: 0 its face, 1 its back)
+        return (0.06 - z * lx - d * t * math.cos(lean), y, z * math.cos(lean) + d * t * math.sin(lean))
+    tris = []
+    face = [at(-W, 0, 0), at(W, 0, 0), at(W, H, 0), at(-W, H, 0)]
+    back = [at(-W, 0, 1), at(W, 0, 1), at(W, H, 1), at(-W, H, 1)]
+    _quad(tris, face, [(0.02, 0.48), (0.48, 0.48), (0.48, 0.02), (0.02, 0.02)], (math.cos(lean), 0, math.sin(lean)))
+    _quad(tris, back, [(0.52, 0.48), (0.98, 0.48), (0.98, 0.02), (0.52, 0.02)], (-math.cos(lean), 0, -math.sin(lean)))
+    ed = [(0.05, 0.55), (0.45, 0.55), (0.45, 0.95), (0.05, 0.95)]
+    for a, b, want in ((0, 1, (0, 0, -1)), (1, 2, (0, 1, 0)), (2, 3, (0, 0, 1)), (3, 0, (0, -1, 0))):  # its four edges
+        _quad(tris, [face[a], face[b], back[b], back[a]], ed, want)
+    L, s_ = 0.4, 0.025  # the legs: square, out the back, near each end, near its top and its foot
+    for y in (-W + 0.07, W - 0.07):
+        for z in (0.07, H - 0.07):
+            x0 = at(y, z, 1)[0]; zc = at(y, z, 1)[2]
+            box = lambda dx, dy, dz: (x0 - dx, y + dy, zc + dz)
+            lu = [(0.55, 0.55), (0.95, 0.55), (0.95, 0.95), (0.55, 0.95)]
+            _quad(tris, [box(0, -s_, s_), box(L, -s_, s_), box(L, s_, s_), box(0, s_, s_)], lu, (0, 0, 1))
+            _quad(tris, [box(0, -s_, -s_), box(L, -s_, -s_), box(L, s_, -s_), box(0, s_, -s_)], lu, (0, 0, -1))
+            _quad(tris, [box(0, -s_, -s_), box(L, -s_, -s_), box(L, -s_, s_), box(0, -s_, s_)], lu, (0, -1, 0))
+            _quad(tris, [box(0, s_, -s_), box(L, s_, -s_), box(L, s_, s_), box(0, s_, s_)], lu, (0, 1, 0))
+            _quad(tris, [box(L, -s_, -s_), box(L, s_, -s_), box(L, s_, s_), box(L, -s_, s_)], [(0.75, 0.53)] * 4, (-1, 0, 0))
+    allp = np.concatenate([p for p, _ in tris]); mid = (allp[:, 0].min() + allp[:, 0].max()) / 2
+    return [(P - np.array([mid, 0, 0]), U) for P, U in tris], tex  # (centred where it stands)
+
+
+def build_table():
+    tris, tex = table()
+    frame = 1.1
+    write_obj(tris, os.path.join(HERE, 'table-flipped.obj'), 'table-flipped', frame)
+    t = Image.fromarray(tex, 'RGBA')
+    t.resize((64, 64), Image.NEAREST).save(os.path.join(HERE, 'table-flipped_tex.png'))
+    os.makedirs(HD, exist_ok=True)
+    t.resize((256, 256), Image.NEAREST).save(os.path.join(HD, 'table-flipped_tex.png'))
+    for f in range(8):
+        Image.fromarray(render(tris, tex, f, PIC, 4, frame), 'RGBA').save(os.path.join(HERE, f'table-flipped_{f}.png'))
+    return len(tris), frame
+
+
 def build_rocket():
     tris, tex = rocket()
     frame = 0.42
@@ -564,6 +647,9 @@ def main():
     only = [a for a in sys.argv[1:] if not a.startswith('--')]
     if write and (not only or 'turret-mount' in only):
         build_mount(); print('turret-mount     its plate, whole and broken')
+    if write and (not only or 'table-flipped' in only):
+        n, frame = build_table()
+        print(f'{"table-flipped":16s} {n} triangles, its pictures {frame:.2f} cells across')
     if write and (not only or 'rocket' in only):
         n, frame = build_rocket()
         print(f'{"rocket":16s} {n} triangles, its pictures {frame:.2f} cells across')

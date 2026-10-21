@@ -15,7 +15,7 @@ SUB HudEditEnter STATIC
     hudMsg$ = "HUD LAYOUT: drag things about - Tab next, V show/hide, C colour, +/- [ ] bar, S save, R reset, U done"
 END SUB
 SUB HudEditLeave STATIC
-    hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : fireWait = 15 : edMouseFix = -1
+    hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : mouseSettle = 8 : escWas = -1 : fireWait = 15 : edMouseFix = -1
 END SUB
 SUB HudEditFrame STATIC
     hmx = WideMouseX(_MOUSEX) : hmy = _MOUSEY : hb = _MOUSEBUTTON(1)

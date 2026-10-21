@@ -31,6 +31,14 @@ DIM SHARED drainMark(MAP_SIZE, MAP_SIZE) AS _BYTE ' (DrainStart's flood fill: th
 ' more solid, 10 solid - you can't see the bottom (OpenGL: the software
 ' renderer draws liquids solid). In the file: . 0, 1-9, x 10
 DIM SHARED lvlLiqORow$(MAP_SIZE - 1), liqOp(MAP_SIZE, MAP_SIZE) AS _BYTE, glLiqMurk AS SINGLE
+' How wet the floors look - how much of OpenGL's mirror image shows in
+' them (WET FLOORS): lvlWet the sector's (wetness = 0-9; -1, as made: each
+' floor picture its own - concrete hardly, ice a lot), wetCell a cell's own
+' ([floor wetness]: -1 the sector's, 0 dry - 9 soaked). FloorWet, the one
+' a cell has; glFloorWet, the one being drawn (-1: its picture's)
+CONST WET_STEP = 0.06 ' (each step's share of the mirror image: 9 is 0.54, wetter than ice)
+DIM SHARED lvlWetRow$(MAP_SIZE - 1), wetCell(MAP_SIZE, MAP_SIZE) AS _BYTE, lvlWet AS INTEGER, glFloorWet AS SINGLE
+lvlWet = -1 : glFloorWet = -1
 DIM SHARED lqSee(LQ_KINDS) AS SINGLE, lqR(LQ_KINDS) AS INTEGER, lqG(LQ_KINDS) AS INTEGER, lqB(LQ_KINDS) AS INTEGER, lqName$(LQ_KINDS)
 DIM SHARED lvlLiqRow$(MAP_SIZE - 1), lvlLiqDRow$(MAP_SIZE - 1), lqUsed(LQ_KINDS) AS INTEGER ' (lqUsed: that kind's in this level - LiquidAnimate moves only those)
 DIM SHARED liqWait AS INTEGER, liqWas AS INTEGER, poisonTint AS INTEGER, liqTick AS LONG ' (frames to your next hurt in one; the kind you were in last frame; the green of poison, fading)

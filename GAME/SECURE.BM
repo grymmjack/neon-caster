@@ -274,7 +274,7 @@ SUB KeypadRun(code&) STATIC
             GLScreenLayer glReady : ShowFrame
         NEXT
     END IF
-    _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+    _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND : mouseSettle = 8
     escWas = -1 : fireWait = 15 : spaceWas = -1
 END SUB
 
@@ -346,7 +346,13 @@ FUNCTION DecoUse(i)
             DecoUse = -1 : NoteRead i
         CASE DK_ALARM
             DecoUse = -1
-            IF vendState(i) = 0 THEN ShowMsg "You hit the alarm!" : AlarmRaise i ELSE ShowMsg "ALARM SWITCH: off" : PlaySfx sndLocked&, 0.5
+            IF vendState(i) THEN
+                ShowMsg "ALARM SWITCH: disarmed - a security console arms it" : PlaySfx sndLocked&, 0.5
+            ELSEIF alarmTimer > 0 THEN ' (sounding: hit it again, and it's off)
+                AlarmQuiet : ShowMsg "You shut the alarm off" : SfxAt sndAlarmOff&, decoX(i), decoY(i), playerX, playerY
+            ELSE
+                ShowMsg "You hit the alarm!" : AlarmRaise i
+            END IF
         CASE DK_ALARMPC
             DecoUse = -1 : AlarmConsole i
         CASE DK_PADPC
@@ -550,7 +556,7 @@ FUNCTION NextCamera(after)
     NEXT
 END FUNCTION
 
-' Space while you're looking through a camera: the next one - past the
+' USE while you're looking through a camera: the next one - past the
 ' last, back to you
 SUB CameraNext
     viewCam = NextCamera(viewCam) : PlaySfx sndCamera&, 0.8
@@ -620,8 +626,8 @@ SUB ViewOverlay
         MenuText 24, 20, decoTag$(viewCam), 2, _RGB32(220, 255, 220), 0
         IF (lvFrame \ 30) MOD 2 = 0 THEN CIRCLE (720, 34), 7, _RGB32(255, 40, 40) : PAINT (720, 34), _RGB32(255, 40, 40) : MenuText 734, 26, "REC", 1.5, _RGB32(255, 80, 80), 0
         t$ = LTRIM$(STR$(lvFrame \ 3600)) + ":" + RIGHT$("0" + LTRIM$(STR$((lvFrame \ 60) MOD 60)), 2) + ":" + RIGHT$("0" + LTRIM$(STR$(lvFrame MOD 60)), 2)
-        MenuText 24, 560, t$, 1.5, _RGB32(220, 255, 220), 0
-        MenuText 776, 560, "SPACE NEXT CAMERA - MOVE TO LEAVE", 1, _RGB32(170, 210, 170), 2
+        MenuText 24, 52, t$, 1.5, _RGB32(220, 255, 220), 0 ' (under its name: your health is at the bottom)
+        MenuText 776, 560, KeyName$(keyBind&(BIND_USE)) + " NEXT CAMERA - " + KeyName$(keyBind&(BIND_FORWARD)) + " " + KeyName$(keyBind&(BIND_LEFT)) + " " + KeyName$(keyBind&(BIND_BACK)) + " " + KeyName$(keyBind&(BIND_RIGHT)) + " LEAVE", 1, _RGB32(170, 210, 170), 2 ' (your keys)
         LINE (8, 8)-(791, 591), _RGBA32(200, 255, 200, 90), B
     ELSEIF viewOn = VIEW_ROCKET THEN
         MenuText 400, 24, "ROCKET CAM", 1.5, _RGB32(255, 190, 90), 1

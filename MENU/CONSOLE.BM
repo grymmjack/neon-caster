@@ -336,6 +336,25 @@ SUB ConExec STATIC
             END IF
         CASE "gravity" ' gravity [N]: the sector's gravity, percent of the usual (1-300) - a trigger's zero-g room; alone: what it is
             IF conA$ = "" THEN ConPrint "Gravity:" + STR$(lvlGravity) + "%" ELSE lvlGravity = MaxOf(1, MinOf(300, VAL(conA$))) : ConPrint "Gravity:" + STR$(lvlGravity) + "%" : IF editMode THEN editDirty = -1
+        CASE "wetness" ' wetness [0-9|auto]: how wet the sector's floors look (OpenGL's WET FLOORS) - auto, each as its picture is; alone: what it is
+            IF LEN(conA$) THEN
+                IF LCASE$(LEFT$(conA$, 1)) = "a" THEN lvlWet = -1 ELSE lvlWet = MaxOf(0, MinOf(9, VAL(conA$)))
+                glMeshVersion = glMeshVersion + 1 : IF editMode THEN editDirty = -1
+            END IF
+            IF lvlWet < 0 THEN ConPrint "Wetness: auto (each floor as its picture is)" ELSE ConPrint "Wetness:" + STR$(lvlWet) + " (0 dry - 9 soaked)"
+        CASE "wet" ' wet X0 Y0 X1 Y1 N: those floors' own wetness (0-9; . the sector's) - in the editor, into the level; in play, a trigger's rain
+            IF LEN(ConWord$(conCmd$, 6)) = 0 THEN
+                ConPrint "wet X0 Y0 X1 Y1 N   (N: 0 dry - 9 soaked, or . the sector's)"
+            ELSE
+                lx0 = ConCell(VAL(conA$)) : ly0 = ConCell(VAL(conB$)) : lx1 = ConCell(VAL(conC$)) : ly1 = ConCell(VAL(ConWord$(conCmd$, 5)))
+                n = WetOf(LEFT$(ConWord$(conCmd$, 6), 1))
+                IF editMode THEN EditPushUndo
+                FOR y = MaxOf(0, MinOf(ly0, ly1)) TO MinOf(mapN - 1, MaxOf(ly0, ly1)) : FOR x = MaxOf(0, MinOf(lx0, lx1)) TO MinOf(mapN - 1, MaxOf(lx0, lx1))
+                    wetCell(x, y) = n : MID$(lvlWetRow$(y), x + 1, 1) = WetChar$(n)
+                NEXT : NEXT
+                glMeshVersion = glMeshVersion + 1 : IF editMode THEN editDirty = -1
+                ConPrint "wet: " + conRest$
+            END IF
         CASE "jumppad", "launchpad" ' jumppad X Y DIR ANGLE POWER: the jump pad at X Y set (a trigger's); jumppad X Y: what it's set to
             n = JumpPadAt(ConCell(VAL(conA$)), ConCell(VAL(conB$)))
             IF n = 0 THEN
@@ -422,7 +441,7 @@ SUB ConExec STATIC
                     NEXT
                     IF j THEN AlarmRaise j ELSE ConPrint "No alarm switch is on"
                 CASE "stop", "quiet"
-                    alarmTimer = 0 : ConPrint "The alarm's quiet"
+                    AlarmQuiet : ConPrint "The alarm's quiet"
                 CASE ELSE
                     n = 0 : FOR k = 1 TO numDecos : IF decoKind(k) = DK_ALARM THEN n = n + 1
                     NEXT
@@ -1307,7 +1326,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1330,6 +1349,7 @@ SUB ConHelp(c$)
             ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7savelevel"
             ConPrint "            ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]  ^7jumppad^8 X Y ..."
+            ConPrint "            ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
             ConPrint "  ^6scripts   ^7alias^8 NAME " + CHR$(34) + "..." + CHR$(34) + "  ^7unalias^8 NAME  ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE"
             ConPrint "            ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT  ^7sound^8 NAME  ^7say^8 LINE"
@@ -1436,7 +1456,18 @@ SUB ConHelp(c$)
             ConPrint "^3block X Y X0 Y0 X1 Y1 [WALL]^0: a solid block standing in open cell X Y - a pillar, a thin wall, the back"
             ConPrint "  of an alcove. Its edges are eighths of the cell (0-8 across, then down); WALL 1-6 is the look of #, N, C, K,"
             ConPrint "  P or G. block X Y none takes it away. savelevel (or Ctrl+S in the editor) keeps it"
-        CASE "gravity" : ConPrint "^3gravity [N]^0: the sector's gravity, N percent of the usual (1-300; 100 as made - 5 or so: near zero-g) - lower, you fall slower and jump higher; a trigger can change it, a level file's gravity = sets it"
+        CASE "gravity"
+            ConPrint "^3gravity [N]^0: the sector's gravity, N percent of the usual (1-300; 100 as made, 5 or so"
+            ConPrint "  near zero-g) - lower, you fall slower and jump higher. A trigger can change it; a level"
+            ConPrint "  file's gravity = sets it. Only this sector: every other plays at 100."
+        CASE "wetness"
+            ConPrint "^3wetness [0-9|auto]^0: how wet this sector's floors look - how much of OpenGL's mirror image"
+            ConPrint "  shows in them (WET FLOORS): 0 dry, 9 soaked; auto, each as its picture is (concrete hardly,"
+            ConPrint "  ice a lot). A level file's wetness = sets it; ^3wet^0 overrides it cell by cell."
+        CASE "wet"
+            ConPrint "^3wet X0 Y0 X1 Y1 N^0: the floors from X0 Y0 to X1 Y1 as wet as N (0 dry - 9 soaked; . the"
+            ConPrint "  sector's wetness). In the editor, into the level ([floor wetness]); in play, a trigger's"
+            ConPrint "  rain or burst pipe."
         CASE "jumppad", "launchpad"
             ConPrint "^3jumppad X Y [DIR ANGLE POWER]^0: the jump pad at X Y - DIR degrees (0 east, 90 south), ANGLE up"
             ConPrint "  from the floor (5-90), POWER hundredths of a cell a frame (5-100); alone: what it's set to."

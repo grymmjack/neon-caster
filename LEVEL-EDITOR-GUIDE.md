@@ -24,7 +24,7 @@ A sector takes five minutes to start: **GAME > YOUR SECTORS > NEW SECTOR**, then
 
 A playable sector needs only four things: walls all round the edge, one start, one exit, and a way to walk from the start to the exit. NEW SECTOR gives you all four. Everything else is decoration.
 
-1. Open **GAME > YOUR SECTORS > NEW SECTOR**. You get the first free sector number - 22, since the examples below are 11 to 21 and 24 - up to 30 (past 20 they're under **MORE SECTORS**), saved as `neon-caster/levels/custom/customN.txt`, N ten less than the sector (sector 22 is `custom12.txt`). It's solid wall with one lit 8 × 8 room in the middle, cells 20 to 27 each way. You stand at (21, 24) facing east, and the exit `E` is at (28, 24).
+1. Open **GAME > YOUR SECTORS > NEW SECTOR**. You get the first free sector number - 22, since the examples below are 11 to 21 and 24 - up to 40 (past 20 they're under **MORE SECTORS**), saved as `neon-caster/levels/custom/customN.txt`, N ten less than the sector (sector 22 is `custom12.txt`). It's solid wall with one lit 8 × 8 room in the middle, cells 20 to 27 each way. You stand at (21, 24) facing east, and the exit `E` is at (28, 24).
 2. You land in the **map view**: the level from above. Press **Tab** (or the **3D** button) to be inside it instead. Either way, the **toolbar** has the tools and the **picker** has everything you can put in a level.
 3. **Push a wall back.** In the 3D view, click a wall to select it, then hold **Shift** while you turn the wheel up (away from you): the wall goes back a cell at a time and the room grows. Turn it down, towards you, and the wall comes out towards you - the wall goes the way the top of the wheel goes.
 4. **Carve a room from above.** In the map view, choose **PLACE**, open the picker's **SPECIAL** tab and click the floor tile, then hold **Shift** and drag a box. The whole box becomes floor. Make sure it touches the first room.
@@ -380,14 +380,14 @@ A **barrel of a liquid** (`:`) shot springs a leak, hisses for a moment, then bu
 | table | A table knocked on its side: cover. It stops shots, it's low enough to see over, and it takes 10 hits to break |
 | brokenmonitor | A smashed monitor on the floor (lies flat) |
 | deadscientist, deadguard, deadcyborg | More bodies (lie flat, don't block, never break) |
-| alarm | An alarm switch, chest high on its wall. Set off - by a guard, a hunting gunner, heavy, stalker, sniper or trooper slapping it as it passes, or by you - it sounds the alarm: a siren, red at the screen's edges, and every machine within 24 cells woken and coming for you, for 12 seconds. Two hits break it. Its pane: ON AT FIRST / OFF AT FIRST |
+| alarm | An alarm switch, chest high on its wall. Set off - by a guard, a hunting gunner, heavy, stalker, sniper or trooper slapping it as it passes, or by you - it sounds the alarm: a siren, red at the screen's edges, and every machine within 24 cells woken and coming for you, for 12 seconds. Press it again while it sounds and it's off; point at one and it says ON or OFF. Two hits break it. Its pane: ON AT FIRST / OFF AT FIRST |
 | alarmpc | A security console: Space switches its alarm off (or on again) - every alarm in the sector, or the one its pane's ALARM (X, Y) names. Off, a sounding alarm stops. A hacked computer whose OPENS names a switch turns it off too |
 | bookshelf | Space searches it, once: maybe something useful (its `[loot]`, `bookshelf = ...` - as made, a repair kit, a medkit, cells or shells), and any note in it |
 | safe | A safe. Its pane: CODE - the keypad's (digits, or `?` for one made up each time). With no code, only a computer opens it. Opened, it throws out its loot (`safe = ...`: armour, an overcharge, rounds, a damage amp, each by its chance) and any note in it |
 | brokenpc | A broken computer. Space on it with a repair kit fixes it: then it's a computer |
 | computer | Space on it: the word hack (as the turret control panel's). Get in and it opens what its pane's OPENS says - X, Y of a door (any lock) or a safe - and runs any `hack X Y` trigger on it. Locked out, it's dead for good, and its alarm wakes everything near |
 | camera | A security camera, up by the ceiling. Its pane: NAME (shown on its feed; CAM1, CAM2... as made) |
-| secmon | A security monitor. Space on it shows what the cameras see, Duke-style: Space again the next camera, past the last (or a step) back to you. The world goes on while you watch |
+| secmon | A security monitor. USE (Space as made) on it shows what the cameras see, Duke-style: USE again the next camera, past the last (or a step) back to you. While you watch, nothing else works - no shooting, turning or jumping - but the world goes on. With the map pickup every camera is marked on the map (a red eye and the way it looks); without it, the ones you've seen |
 | jumppad | A jump pad, flat on the floor: step on its plate and it SHOOTS you through the air - its pane's DIR (degrees: 0 east, 90 south, 180 west, 270 north), ANGLE (up from the floor, 5-90) and POWER (hundredths of a cell a frame, 5-100). In the air you can look and shoot, not walk; the sector's gravity brings you down, and a long drop hurts as any fall (water, or the jetpack fired on the way down, softens it). Monsters that walk onto one are shot off too. How far, on the level: POWER x POWER x sin(2 x ANGLE) / (100 x gravity%) cells - POWER 30, ANGLE 45: 9 cells |
 | padpc | A launch control: Space opens its pad's numbers (its pane's PAD (X, Y)) - click - and +, or the arrows, or type them; SET. Point at it (or at a pad) and its numbers show without a Space. A note with a target's coordinates, and a player works the shot out. Pads with no console keep the numbers you gave them |
 | repairkit, invuln, robodog, guard | The pickups and the monsters above |
@@ -527,6 +527,8 @@ All end in `.png`. The picker's WALLS, FLOORS and CEILINGS tabs show them all, a
 
 **`gravity = N`** (the sector pane's GRAVITY): the sector's gravity, N percent of the usual (1-300; 100 as made, and then left out of the file - a few percent is near zero-g, Quake's low gravity is about 12). Lower, you fall slower, jump higher (JUMP, Q as made) and a jetpack lifts you more easily; higher, the other way. A trigger can change it as you play: `enter 20 4 30 10 : gravity 30 ; message LOW GRAVITY`.
 
+**`wetness = N`** (the sector pane's WETNESS): how wet the sector's floors look - how much of OpenGL's mirror image shows in them (WET FLOORS): `0` dry to `9` soaked. Left out (WETNESS AUTO), each floor is as its picture is - concrete hardly, ice a lot. Floors can have their own, below. Only the look: nothing slips.
+
 **`droids = N`** says how many service droids roll about the sector, 0 to 6. Leave it out for the usual three. In the console, `droids N` sets it for the sector you're in (save to keep it), and `droids` on its own lists where they are.
 
 **`[events]`** (MAKE AN EVENT ROOM, and an event's pane) are rooms that do something when you walk in: `kind, x0, y0, x1, y1, a, b, reward`. Doors within 5 cells of the room belong to it. Up to 32.
@@ -579,6 +581,8 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 **`[fuel]`** (a jetpack's or fuel can's pane: FUEL): `x, y, amount` - its own fuel, 1-100 (as made: a jetpack's tank full, 100; a can 40).
 
 **`[liquid opacity]`** (a liquid cell's pane: LIQUID - +): a map of one character a cell, as `[liquid depth]` is - `.` as its kind is made, `1`-`9` that many tenths more solid, `x` solid: you can't see the bottom of that pool (OpenGL; the software renderer draws liquids solid anyway). Select the cells (a pool, or part of one) and step it; `liquid KIND X0 Y0 X1 Y1 DEPTH SOLID%` from the console or a trigger.
+
+**`[floor wetness]`** (a floor cell's pane: WET - +): a map of one character a cell - `.` the sector's wetness, `0` dry to `9` soaked. A dry office beside a flooded corridor, a puddle under a leak. `wet X0 Y0 X1 Y1 N` from the console does the same - in the editor, into the level; from a trigger, as you play (the rain coming in: `enter 10 4 20 8 : wet 10 4 30 20 9`).
 
 **`[smears]`**: `x, y, face, what` - blood or oil: on a wall's side (x, y a wall cell, face `E` `S` `W` `N` the side facing into the room), or an open cell's floor (`F`) or ceiling (`C`); what `blood1` `blood2` `blood3` `oil1` `oil2`. Up to 128. (In the editor: PAINT with one of the blood or oil pictures at the end of the walls, floors and ceilings tabs - painting a face with any other picture wipes it off.)
 

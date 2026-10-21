@@ -112,3 +112,18 @@ END FUNCTION
 FUNCTION LiquidOpChar$(n)
     IF n <= 0 THEN LiquidOpChar$ = "." ELSE IF n >= 10 THEN LiquidOpChar$ = "x" ELSE LiquidOpChar$ = LTRIM$(STR$(n))
 END FUNCTION
+
+' A [floor wetness] cell's character: . -1 (the sector's), 0-9
+FUNCTION WetOf(c$)
+    IF c$ >= "0" AND c$ <= "9" THEN WetOf = VAL(c$) ELSE WetOf = -1
+END FUNCTION
+
+' ...and a level's character
+FUNCTION WetChar$(n)
+    IF n < 0 OR n > 9 THEN WetChar$ = "." ELSE WetChar$ = LTRIM$(STR$(n))
+END FUNCTION
+
+' How wet cell x, y's floor is: its own, else the sector's (-1: as its picture is)
+FUNCTION FloorWet(x, y)
+    IF wetCell(x, y) >= 0 THEN FloorWet = wetCell(x, y) ELSE FloorWet = lvlWet
+END FUNCTION

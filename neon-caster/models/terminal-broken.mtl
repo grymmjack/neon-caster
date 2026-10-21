@@ -1,0 +1,4 @@
+# NEON-CASTER prop: terminal-broken - its texture, for 3D viewers
+newmtl terminal-broken
+Kd 1 1 1
+map_Kd ../hd/models/terminal-broken_tex.png

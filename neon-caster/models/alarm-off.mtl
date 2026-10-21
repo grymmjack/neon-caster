@@ -1,0 +1,4 @@
+# NEON-CASTER prop: alarm-off - its texture, for 3D viewers
+newmtl alarm-off
+Kd 1 1 1
+map_Kd ../hd/models/alarm-off_tex.png

@@ -502,8 +502,9 @@ SUB BuildLevel STATIC
     liqAny = 0 : liqWas = 0 : poisonTint = 0
     FOR k = 1 TO LQ_KINDS : lqUsed(k) = 0 : NEXT
     FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
-        liqKind(x, y) = 0 : liqZ(x, y) = 0 : liqOp(x, y) = 0
+        liqKind(x, y) = 0 : liqZ(x, y) = 0 : liqOp(x, y) = 0 : wetCell(x, y) = -1
         IF x < mapN AND y < mapN THEN
+            wetCell(x, y) = WetOf(MID$(lvlWetRow$(y), x + 1, 1)) ' (how wet its floor looks: its own, or the sector's)
             k = INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1))
             IF k AND worldMap(x, y) <= 0 AND liftCell(x, y) = 0 THEN
                 d = VAL(MID$(lvlLiqDRow$(y), x + 1, 1)) : IF d < 1 OR d > 8 THEN d = LQ_DEPTH

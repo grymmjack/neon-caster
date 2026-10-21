@@ -45,7 +45,7 @@ SUB EditLeave STATIC
         NEXT
     END IF
     IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 ELSE playerZ = 0 ' (down to the floor)
-    _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+    _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND : mouseSettle = 8
     IF editDirty THEN ShowMsg "Left the editor - not saved yet (F2, then Ctrl+S)" ELSE ShowMsg "Left the editor"
 END SUB
 
@@ -522,6 +522,20 @@ SUB EditPaneClick STATIC
                 END IF
             NEXT
             EditApply : IF n >= 10 THEN EditNote "Solid: you can't see the bottom (OpenGL)" ELSE EditNote "See-through: " + LTRIM$(STR$(n * 10)) + "% more solid than " + "as made (OpenGL)"
+        CASE 300, 301 ' The sector's wetness: auto (each floor as its picture is), then 0 dry - 9 soaked
+            lvlWet = MaxOf(-1, MinOf(9, lvlWet + 2 * pnHit - 601)) : glMeshVersion = glMeshVersion + 1 : editDirty = -1
+            IF lvlWet < 0 THEN EditNote "Wetness: auto - each floor as its picture is (OpenGL's WET FLOORS)" ELSE EditNote "Wetness:" + STR$(lvlWet) + " of 9 (0 dry - 9 soaked; OpenGL's WET FLOORS)"
+        CASE 302, 303 ' The selected floors' own wetness: . the sector's, 0 dry - 9 soaked
+            EditPushUndo : n = -1
+            FOR k = 1 TO edSelN
+                x = edSelX(k) : y = edSelY(k)
+                IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) = 0 THEN
+                    n = MaxOf(-1, MinOf(9, WetOf(MID$(lvlWetRow$(y), x + 1, 1)) + 2 * pnHit - 605))
+                    MID$(lvlWetRow$(y), x + 1, 1) = WetChar$(n) : wetCell(x, y) = n
+                END IF
+            NEXT
+            glMeshVersion = glMeshVersion + 1 : editDirty = -1
+            IF n < 0 THEN EditNote "Wet: the sector's" ELSE EditNote "Wet:" + STR$(n) + " of 9 (0 dry - 9 soaked; OpenGL's WET FLOORS)"
         CASE 286, 287 ' The sector's gravity: 10% less, more (10-300 - 100 as made: falls, jumps, the jetpack's lift)
             gs = 10 : IF lvlGravity < 10 OR (lvlGravity = 10 AND pnHit = 286) THEN gs = 1 ' (under 10%: a percent a step - near zero-g)
             lvlGravity = MaxOf(1, MinOf(300, lvlGravity + gs * (2 * pnHit - 573))) : editDirty = -1
@@ -1487,6 +1501,7 @@ FUNCTION EditSnapshot$
     FOR y = 0 TO mapN - 1 : s$ = s$ + lvlLiqRow$(y) : NEXT
     FOR y = 0 TO mapN - 1 : s$ = s$ + lvlLiqDRow$(y) : NEXT
     FOR y = 0 TO mapN - 1 : s$ = s$ + lvlLiqORow$(y) : NEXT ' (and how see-through)
+    FOR y = 0 TO mapN - 1 : s$ = s$ + lvlWetRow$(y) : NEXT ' (and how wet the floors look)
     s$ = s$ + CHR$(12) ' (the boxes, then the decorations' nudges)
     FOR k = 1 TO lvlNumBoxes : FOR j = 1 TO 7 : s$ = s$ + LTRIM$(STR$(lvlBox(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(14)
@@ -1557,6 +1572,7 @@ SUB EditRestore(s1$)
         FOR y = 0 TO mapN - 1
             lvlLiqRow$(y) = MID$(q$, y * mapN + 1, mapN) : lvlLiqDRow$(y) = MID$(q$, (mapN + y) * mapN + 1, mapN)
             lvlLiqORow$(y) = LEFT$(MID$(q$, (2 * mapN + y) * mapN + 1, mapN) + STRING$(mapN, "."), mapN)
+            lvlWetRow$(y) = LEFT$(MID$(q$, (3 * mapN + y) * mapN + 1, mapN) + STRING$(mapN, "."), mapN)
         NEXT
     END IF
     c2 = INSTR(s0$, CHR$(2)) : s$ = s0$ : f$ = "" : l$ = "" : p$ = ""
@@ -2704,6 +2720,8 @@ SUB EditPaneBuild
         n = lvlDroids : IF n < 0 THEN n = 3
         EditPaneAdd -1, x0, y + 2, 140, "DROIDS" + STR$(n), 0 : EditPaneAdd 270, x0 + 146, y, 24, "-", 0 : EditPaneAdd 271, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "GRAVITY" + STR$(lvlGravity) + "%", 0 : EditPaneAdd 286, x0 + 146, y, 24, "-", 0 : EditPaneAdd 287, x0 + 174, y, 24, "+", 0 : y = y + 24
+        IF lvlWet < 0 THEN t$ = "WETNESS AUTO" ELSE t$ = "WETNESS" + STR$(lvlWet)
+        EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 300, x0 + 146, y, 24, "-", 0 : EditPaneAdd 301, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "ALL FLOORS", 0 : EditPaneAdd 272, x0 + 146, y, 24, "-", 0 : EditPaneAdd 273, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "ALL CEILINGS", 0 : EditPaneAdd 274, x0 + 146, y, 24, "-", 0 : EditPaneAdd 275, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "LOOT " + LootSetName$(edLootSet), 0 : EditPaneAdd 276, x0 + 146, y, 24, "<", 0 : EditPaneAdd 277, x0 + 174, y, 24, ">", 0 : y = y + 24
@@ -2857,6 +2875,7 @@ SUB EditPaneBuild
             EditPaneNudge x0, y ' (a decoration under the light: still moved about from here)
             EditPaneFuel x0, y ' (a jetpack or fuel can under it: its fuel, from here too)
             EditPaneLiquid x0, y ' (a pool under it: how see-through)
+            EditPaneWet x0, y ' (its floor: how wet it looks)
             EXIT SUB
         END IF
     NEXT
@@ -2995,6 +3014,7 @@ SUB EditPaneBuild
         EditPaneNudge x0, y
         EditPaneFuel x0, y
         EditPaneLiquid x0, y
+        EditPaneWet x0, y
     ELSE
         edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
         wb = 0 : FOR k = 1 TO edSelN
@@ -3081,6 +3101,22 @@ SUB EditPaneLiquid(x0, y)
             n = LiquidOpOf(MID$(lvlLiqORow$(edSelY(k)), edSelX(k) + 1, 1))
             IF n = 0 THEN t$ = "LIQUID AS MADE" ELSE IF n >= 10 THEN t$ = "LIQUID SOLID" ELSE t$ = "LIQUID +" + LTRIM$(STR$(n * 10)) + "% SOLID"
             EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 284, x0 + 146, y, 24, "-", 0 : EditPaneAdd 285, x0 + 174, y, 24, "+", 0
+            y = y + 23
+            EXIT SUB
+        END IF
+    NEXT
+END SUB
+
+' The selected floors' wetness (their [floor wetness]): WET - + (the
+' first selected open cell says; the buttons set them all) - . the
+' sector's, then 0 dry to 9 soaked
+SUB EditPaneWet(x0, y)
+    DIM k, n, t$ ' (its own: the main program shares these names)
+    FOR k = 1 TO edSelN
+        IF INSTR("#NCKPG", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) = 0 THEN
+            n = WetOf(MID$(lvlWetRow$(edSelY(k)), edSelX(k) + 1, 1))
+            IF n < 0 THEN t$ = "WET: SECTOR'S" ELSE t$ = "WET" + STR$(n) + " OF 9"
+            EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 302, x0 + 146, y, 24, "-", 0 : EditPaneAdd 303, x0 + 174, y, 24, "+", 0
             y = y + 23
             EXIT SUB
         END IF
@@ -3480,8 +3516,8 @@ END SUB
 ' border. The selection moves with it.
 SUB EditNudge(dx, dy)
     DIM bx, by, c, e, j, k, x, y ' (its own: the main program shares these names)
-    DIM r$(MAP_SIZE - 1), f$(MAP_SIZE - 1), c$(MAP_SIZE - 1), l$(MAP_SIZE - 1), ld$(MAP_SIZE - 1), lo$(MAP_SIZE - 1), mv(MAP_SIZE, MAP_SIZE) AS INTEGER, dest(MAP_SIZE, MAP_SIZE) AS INTEGER
-    FOR y = 0 TO mapN - 1 : r$(y) = lvlRow$(y) : f$(y) = lvlFloorRow$(y) : c$(y) = lvlCeilRow$(y) : l$(y) = lvlLiqRow$(y) : ld$(y) = lvlLiqDRow$(y) : lo$(y) = lvlLiqORow$(y) : NEXT
+    DIM r$(MAP_SIZE - 1), f$(MAP_SIZE - 1), c$(MAP_SIZE - 1), l$(MAP_SIZE - 1), ld$(MAP_SIZE - 1), lo$(MAP_SIZE - 1), wo$(MAP_SIZE - 1), mv(MAP_SIZE, MAP_SIZE) AS INTEGER, dest(MAP_SIZE, MAP_SIZE) AS INTEGER
+    FOR y = 0 TO mapN - 1 : r$(y) = lvlRow$(y) : f$(y) = lvlFloorRow$(y) : c$(y) = lvlCeilRow$(y) : l$(y) = lvlLiqRow$(y) : ld$(y) = lvlLiqDRow$(y) : lo$(y) = lvlLiqORow$(y) : wo$(y) = lvlWetRow$(y) : NEXT
     FOR k = 1 TO edSelN
         x = edSelX(k) : y = edSelY(k)
         IF x + dx < 1 OR y + dy < 1 OR x + dx > mapN - 2 OR y + dy > mapN - 2 THEN EditNote "Can't move into the border" : EXIT SUB
@@ -3495,14 +3531,14 @@ SUB EditNudge(dx, dy)
             bx = x - dx : by = y - dy
             DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < mapN - 1 AND by < mapN - 1 : bx = bx - dx : by = by - dy : LOOP
             MID$(lvlRow$(y), x + 1, 1) = MID$(r$(by), bx + 1, 1) : MID$(lvlFloorRow$(y), x + 1, 1) = MID$(f$(by), bx + 1, 1) : MID$(lvlCeilRow$(y), x + 1, 1) = MID$(c$(by), bx + 1, 1)
-            MID$(lvlLiqRow$(y), x + 1, 1) = MID$(l$(by), bx + 1, 1) : MID$(lvlLiqDRow$(y), x + 1, 1) = MID$(ld$(by), bx + 1, 1) : MID$(lvlLiqORow$(y), x + 1, 1) = MID$(lo$(by), bx + 1, 1)
+            MID$(lvlLiqRow$(y), x + 1, 1) = MID$(l$(by), bx + 1, 1) : MID$(lvlLiqDRow$(y), x + 1, 1) = MID$(ld$(by), bx + 1, 1) : MID$(lvlLiqORow$(y), x + 1, 1) = MID$(lo$(by), bx + 1, 1) : MID$(lvlWetRow$(y), x + 1, 1) = MID$(wo$(by), bx + 1, 1)
             IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) = 0 THEN MID$(lvlRow$(y), x + 1, 1) = "." ' (a plain wall behind it, as that; anything else - a start, a monster, a pad, a door - never twice: floor)
         END IF
     NEXT : NEXT
     FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
         IF mv(x, y) THEN
             MID$(lvlRow$(y + dy), x + dx + 1, 1) = MID$(r$(y), x + 1, 1) : MID$(lvlFloorRow$(y + dy), x + dx + 1, 1) = MID$(f$(y), x + 1, 1) : MID$(lvlCeilRow$(y + dy), x + dx + 1, 1) = MID$(c$(y), x + 1, 1)
-            MID$(lvlLiqRow$(y + dy), x + dx + 1, 1) = MID$(l$(y), x + 1, 1) : MID$(lvlLiqDRow$(y + dy), x + dx + 1, 1) = MID$(ld$(y), x + 1, 1) : MID$(lvlLiqORow$(y + dy), x + dx + 1, 1) = MID$(lo$(y), x + 1, 1) ' (its pool too)
+            MID$(lvlLiqRow$(y + dy), x + dx + 1, 1) = MID$(l$(y), x + 1, 1) : MID$(lvlLiqDRow$(y + dy), x + dx + 1, 1) = MID$(ld$(y), x + 1, 1) : MID$(lvlLiqORow$(y + dy), x + dx + 1, 1) = MID$(lo$(y), x + 1, 1) : MID$(lvlWetRow$(y + dy), x + dx + 1, 1) = MID$(wo$(y), x + 1, 1) ' (its pool too, how wet)
         END IF
     NEXT : NEXT
     DIM clb(MAP_SIZE, MAP_SIZE) AS INTEGER, clc(MAP_SIZE, MAP_SIZE) AS _UNSIGNED LONG, clf(MAP_SIZE, MAP_SIZE) AS INTEGER ' (the cell lights too: as the rows - left behind, like the cell behind; moved, with it)
@@ -4294,10 +4330,11 @@ SUB EditMakeRoom(w, h)
     NEXT
     MID$(lvlRow$((y0 + y1) \ 2), x0 + 1, 1) = ">" : MID$(lvlRow$((y0 + y1) \ 2), x1 + 2, 1) = "E"
     lvlMonN = 0 : lvlNumZones = 0 : lvlNumLifts = 0 : lvlNumEvents = 0 : lvlNumTrigs = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0
+    lvlGravity = 100 : lvlWet = -1 ' (a new sector: the usual gravity, its floors as their pictures are)
     lvlNumLights = 1 : lvlLight(1, 1) = mapN / 2 : lvlLight(1, 2) = mapN / 2 : lvlLight(1, 3) = MaxOf(w, h) / 2 + 3 : lvlLight(1, 4) = 150
     lvlLight(1, 5) = 220 : lvlLight(1, 6) = 230 : lvlLight(1, 7) = 255 : lvlLight(1, 8) = 0
     CellLightsClear
-    FOR y = 0 TO mapN - 1 : lvlLiqRow$(y) = STRING$(mapN, ".") : lvlLiqDRow$(y) = STRING$(mapN, ".") : lvlLiqORow$(y) = STRING$(mapN, ".") : NEXT
+    FOR y = 0 TO mapN - 1 : lvlLiqRow$(y) = STRING$(mapN, ".") : lvlLiqDRow$(y) = STRING$(mapN, ".") : lvlLiqORow$(y) = STRING$(mapN, ".") : lvlWetRow$(y) = STRING$(mapN, ".") : NEXT
 END SUB
 
 ' --- The map from above, fitted to its part of the screen: a sector the
@@ -4317,11 +4354,11 @@ SUB EditResizeMap(n)
     FOR y = 0 TO n - 1
         lvlRow$(y) = LEFT$(lvlRow$(y) + STRING$(n, "#"), n) : IF y >= was THEN lvlRow$(y) = STRING$(n, "#")
         lvlFloorRow$(y) = LEFT$(lvlFloorRow$(y) + STRING$(n, "."), n) : lvlCeilRow$(y) = LEFT$(lvlCeilRow$(y) + STRING$(n, "."), n)
-        lvlLiqRow$(y) = LEFT$(lvlLiqRow$(y) + STRING$(n, "."), n) : lvlLiqDRow$(y) = LEFT$(lvlLiqDRow$(y) + STRING$(n, "."), n) : lvlLiqORow$(y) = LEFT$(lvlLiqORow$(y) + STRING$(n, "."), n)
+        lvlLiqRow$(y) = LEFT$(lvlLiqRow$(y) + STRING$(n, "."), n) : lvlLiqDRow$(y) = LEFT$(lvlLiqDRow$(y) + STRING$(n, "."), n) : lvlLiqORow$(y) = LEFT$(lvlLiqORow$(y) + STRING$(n, "."), n) : lvlWetRow$(y) = LEFT$(lvlWetRow$(y) + STRING$(n, "."), n)
         MID$(lvlRow$(y), 1, 1) = "#" : MID$(lvlRow$(y), n, 1) = "#" ' (its border)
     NEXT
     lvlRow$(0) = STRING$(n, "#") : lvlRow$(n - 1) = STRING$(n, "#")
-    FOR y = n TO MAP_SIZE - 1 : lvlRow$(y) = "" : lvlFloorRow$(y) = "" : lvlCeilRow$(y) = "" : lvlLiqRow$(y) = "" : lvlLiqDRow$(y) = "" : lvlLiqORow$(y) = "" : NEXT
+    FOR y = n TO MAP_SIZE - 1 : lvlRow$(y) = "" : lvlFloorRow$(y) = "" : lvlCeilRow$(y) = "" : lvlLiqRow$(y) = "" : lvlLiqDRow$(y) = "" : lvlLiqORow$(y) = "" : lvlWetRow$(y) = "" : NEXT
     mapN = n : edMapWant = n : editUndoN = 0
     IF n < was THEN EditDropPast n - 2 ' (cut down: what was past the new edge goes too - else the file keeps it, and the next load piles it on the border)
     IF INSTR(lvlRow$((n - 1) \ 2), ">") + INSTR(lvlRow$((n - 1) \ 2), "<") = 0 THEN ' (no start left - cut off: one, in the middle)

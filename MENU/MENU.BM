@@ -189,7 +189,7 @@ SUB RunMenu STATIC
     SaveSettings
     _KEYCLEAR
     _MOUSEHIDE _DISABLE ' Capture the mouse for mouse look again
-    WHILE _MOUSEINPUT : WEND
+    WHILE _MOUSEINPUT : WEND : mouseSettle = 8
 END SUB
 
 ' --- Show menu screen menuScreen: build its items, pick its first item
@@ -353,7 +353,7 @@ END SUB
 ' add a button or a screen: an AddMenuItem line, and - for a new action -
 ' a CASE in MenuActivate (chapter 21).
 SUB BuildMenu(scr)
-    DIM B, c, n, n0, nm$, qb$, slot ' (its own: the main program shares these names)
+    DIM B, c, n, n0, n1, nm$, qb$, slot ' (its own: the main program shares these names)
     numMI = 0 : menuWide = 0 : menuScroll = 0
     SELECT CASE scr
         CASE SCR_MAIN
@@ -399,7 +399,8 @@ SUB BuildMenu(scr)
                 sectorName$(n) = SectorNameOf$(n) ' (a name may have changed: Ctrl+S, or by hand)
                 IF LEN(sectorName$(n)) = 0 THEN free = free + 1
             NEXT
-            FOR n = n0 TO MinOf(n0 + 9, NUM_LEVELS + MAX_CUSTOM)
+            IF scr = SCR_CUSTOM THEN n1 = MinOf(n0 + 9, NUM_LEVELS + MAX_CUSTOM) ELSE n1 = NUM_LEVELS + MAX_CUSTOM ' (MORE SECTORS: all the rest - the menu scrolls)
+            FOR n = n0 TO n1
                 IF LEN(sectorName$(n)) THEN AddMenuItem LTRIM$(STR$(n)) + "  " + sectorName$(n), MI_ACTION, n, MA_SECTOR, -1, ""
             NEXT
             IF scr = SCR_CUSTOM AND MAX_CUSTOM > 10 THEN AddMenuItem "MORE SECTORS", MI_SUBMENU, SCR_CUSTOM2, 0, -1, ""

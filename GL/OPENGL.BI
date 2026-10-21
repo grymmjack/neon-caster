@@ -95,7 +95,8 @@ DIM SHARED glPost AS INTEGER, glReflecting AS INTEGER, glFloorPass AS INTEGER, g
 CONST MESH_START = 480000, MESH_MAX = 4000000
 DIM SHARED glMeshBuf AS _UNSIGNED LONG, glMeshN AS LONG, glMeshBuilding AS INTEGER, glMeshKind AS INTEGER
 DIM SHARED glMeshClient AS INTEGER ' (the mesh is drawn from glMeshData in main memory, not a buffer - GLBuildMesh)
-DIM SHARED glMeshFirst(3, GL_GLOW_TEX) AS LONG, glMeshCount(3, GL_GLOW_TEX) AS LONG ' (kinds: 0 floors, 1 ceilings, 2 walls, 3 raised or sunken floors)
+CONST GL_MESH_KINDS = 13 ' (kinds: 0 floors, 1 ceilings, 2 walls, 3 raised or sunken floors, 4-13 floors of a wetness of their own, 0-9: FloorWet)
+DIM SHARED glMeshFirst(GL_MESH_KINDS, GL_GLOW_TEX) AS LONG, glMeshCount(GL_MESH_KINDS, GL_GLOW_TEX) AS LONG
 REDIM SHARED glMBPos(MESH_START * 3) AS SINGLE, glMBUV(MESH_START * 2) AS SINGLE, glMBN(MESH_START * 3) AS SINGLE, glMBT(MESH_START * 3) AS SINGLE
 REDIM SHARED glMBSlot(MESH_START) AS INTEGER, glMBKind(MESH_START) AS INTEGER, glMeshData(MESH_START * 11) AS SINGLE
 DIM SHARED glMeshCap AS LONG: glMeshCap = MESH_START
