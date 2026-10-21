@@ -47,3 +47,9 @@ crossScale = 1
 ' the damage came from (hurtFromX, hurtFromY; -1 for nowhere in particular).
 CONST MAX_HURTDIRS = 8, HURTDIR_FRAMES = 70
 DIM SHARED hurtDirX(MAX_HURTDIRS), hurtDirY(MAX_HURTDIRS), hurtDirTime(MAX_HURTDIRS)
+' The full map's floors, textured (Duke3D's map, from above): drawn into
+' fmImg& a cell at a time when what it shows changes (fmState: 0 nothing,
+' 1 the map pickup's - dim, 2 where you've been), so holding Tab costs a
+' put, not 2304 cells of pixels a frame. fmImgN/C/L: the sector, cell size
+' and load it was made for - another, and it's made again
+DIM SHARED fmImg&, fmImgN AS INTEGER, fmImgC AS INTEGER, fmImgL AS LONG, fmState(MAP_SIZE, MAP_SIZE) AS _BYTE

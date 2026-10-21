@@ -141,6 +141,7 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
     n = mapN : x0 = 0 : y0 = 0
     IF NOT mmFull AND mapN > 48 THEN n = 48 : x0 = MaxOf(0, MinOf(mapN - 48, INT(px) - 24)) : y0 = MaxOf(0, MinOf(mapN - 48, INT(py) - 24))
     LINE (mapLeft - 2, mapTop - 2)-(mapLeft + n * cellSize + 1, mapTop + n * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
+    IF mmFull AND cellSize >= 3 THEN FullMapFloors showAll : _PUTIMAGE (mapLeft, mapTop), fmImg& ' (the floors, textured: below the rest)
     VIEW SCREEN (mapLeft - 2, mapTop - 2)-(mapLeft + n * cellSize + 1, mapTop + n * cellSize + 1)
     ml = mapLeft - x0 * cellSize : mt = mapTop - y0 * cellSize
     FOR cellY = y0 TO y0 + n - 1 : FOR cellX = x0 TO x0 + n - 1
@@ -152,8 +153,10 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
                 CASE 0
                     IF mmFull THEN ' (the full map: the floor - and what's on it that matters, once you've seen it: the map pickup shows the layout, not what's in it)
                         mmColor~& = _RGBA32(26, 32, 62, 150) ' (floor the map pickup showed you, not been to: dim)
+                        IF cellSize >= 3 THEN mmColor~& = 0 ' (textured instead: FullMapFloors)
                         IF cellSeen(cellX, cellY) THEN
                             mmColor~& = _RGBA32(58, 74, 140, 170) ' (where you've been: brighter)
+                            IF cellSize >= 3 THEN mmColor~& = 0
                             IF liqKind(cellX, cellY) THEN k = liqKind(cellX, cellY) : mmColor~& = _RGBA32(lqR(k) * 0.7, lqG(k) * 0.7, lqB(k) * 0.7, 210) ' (a pool, its colour: lava orange, acid green...)
                             IF floorH(cellX, cellY) <= PIT_DEPTH THEN mmColor~& = _RGBA32(10, 0, 20, 230) ' (a pit with no bottom: black)
                             IF liftCell(cellX, cellY) THEN mmColor~& = _RGBA32(70, 150, 90, 190) ' (a lift)
@@ -162,6 +165,14 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
                     IF glassHP(cellX, cellY) > 0 THEN mmColor~& = _RGB32(130, 220, 255) ' (glass)
                 CASE 1, 3 TO 9
                     mmColor~& = wallMapColor(worldMap(cellX, cellY))
+                    IF mmFull AND cellSize >= 3 AND diagCorner(cellX, cellY) = 0 THEN ' (the full map, textured: a wall's a line along the floor it faces - as Duke3D's)
+                        sx = ml + cellX * cellSize : sy = mt + cellY * cellSize
+                        IF MapFloorShown(cellX + 1, cellY, showAll) THEN LINE (sx + cellSize - 2, sy)-STEP(1, cellSize - 1), mmColor~&, BF
+                        IF MapFloorShown(cellX - 1, cellY, showAll) THEN LINE (sx, sy)-STEP(1, cellSize - 1), mmColor~&, BF
+                        IF MapFloorShown(cellX, cellY + 1, showAll) THEN LINE (sx, sy + cellSize - 2)-STEP(cellSize - 1, 1), mmColor~&, BF
+                        IF MapFloorShown(cellX, cellY - 1, showAll) THEN LINE (sx, sy)-STEP(cellSize - 1, 1), mmColor~&, BF
+                        mmColor~& = 0
+                    END IF
                 CASE 2
                     IF doorType(cellX, cellY) = DOOR_EXIT THEN
                         IF (TIMER * 4 AND 1) = 0 THEN mmColor~& = _RGB32(80, 255, 120) ELSE mmColor~& = _RGB32(20, 120, 50)
@@ -208,6 +219,50 @@ SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
     LINE (tipX, tipY)-(leftX, leftY), _RGB32(255, 255, 0) : LINE (leftX, leftY)-(rightX, rightY), _RGB32(255, 255, 0)
     LINE (rightX, rightY)-(tipX, tipY), _RGB32(255, 255, 0)
     VIEW
+END SUB
+
+' Is cell (x, y) an open floor the full map shows (seen, or the map pickup's)?
+FUNCTION MapFloorShown(x, y, showAll)
+    IF x < 0 OR y < 0 OR x >= mapN OR y >= mapN THEN EXIT FUNCTION
+    IF worldMap(x, y) > 0 AND worldMap(x, y) <> 2 AND diagCorner(x, y) = 0 THEN EXIT FUNCTION
+    MapFloorShown = cellSeen(x, y) OR (showAll AND secretArea(x, y) = 0)
+END FUNCTION
+
+' The full map's floor pictures into fmImg&: each open cell you know, its
+' floor's own picture from above (as Duke3D's map), shaded - full where
+' you've been, dim where only the map pickup showed it. Only cells whose
+' state changed are drawn again (fmState)
+SUB FullMapFloors(showAll)
+    DIM c, cs, k, n, px, py, sl, st, tx, ty, x, y, sh!, dst& ' (its own: the main program shares these names)
+    n = mapN : cs = MinOf(10, 480 \ mapN)
+    IF fmImg& = 0 OR fmImgN <> n OR fmImgC <> cs OR fmImgL <> trigLoadN THEN ' (another sector, or size: all of it again)
+        IF fmImg& < -1 THEN _FREEIMAGE fmImg&
+        fmImg& = _NEWIMAGE(n * cs, n * cs, 32) : fmImgN = n : fmImgC = cs : fmImgL = trigLoadN
+        FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : fmState(x, y) = 0 : NEXT : NEXT
+        dst& = _DEST : _DEST fmImg& : CLS , _RGBA32(0, 0, 0, 0) : _DEST dst&
+    END IF
+    dst& = _DEST : _DEST fmImg&
+    FOR y = 0 TO n - 1 : FOR x = 0 TO n - 1
+        st = 0
+        IF worldMap(x, y) = 0 AND diagCorner(x, y) = 0 THEN
+            IF cellSeen(x, y) THEN st = 2 ELSE IF showAll AND secretArea(x, y) = 0 THEN st = 1
+        END IF
+        IF st <> fmState(x, y) THEN
+            fmState(x, y) = st
+            IF st = 0 THEN
+                LINE (x * cs, y * cs)-STEP(cs - 1, cs - 1), _RGBA32(0, 0, 0, 0), BF
+            ELSE
+                sl = floorTex(x, y) : IF sl < 1 OR sl > T_SLOTS THEN sl = T_FLOOR + 1
+                IF st = 2 THEN sh! = 0.85 ELSE sh! = 0.38
+                FOR py = 0 TO cs - 1 : FOR px = 0 TO cs - 1
+                    tx = (px * texSize) \ cs : ty = (py * texSize) \ cs
+                    c = texture(tx, ty, sl)
+                    PSET (x * cs + px, y * cs + py), _RGBA32(_RED32(c) * sh! * 0.9, _GREEN32(c) * sh! * 0.95, MinOf(255, _BLUE32(c) * sh! + 18 * sh!), 235)
+                NEXT : NEXT
+            END IF
+        END IF
+    NEXT : NEXT
+    _DEST dst&
 END SUB
 
 ' A damage indicator for a hit that came from (x, y): into a free slot, or
