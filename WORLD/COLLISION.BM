@@ -21,7 +21,7 @@ FUNCTION Walkable%(x, y)
     IF boxOn(cellX, cellY) THEN IF InBox(x, y) THEN EXIT FUNCTION ' (a box: solid where it stands, open round it)
     deco = decoCell(cellX, cellY) : IF cyberOn THEN deco = 0 ' (the network has none)
     IF deco THEN
-        IF decoKind(deco) <> DK_BODY AND (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN EXIT FUNCTION
+        IF NOT DecoFlat(decoKind(deco)) AND (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN EXIT FUNCTION
     END IF
     IF glassHP(cellX, cellY) > 0 THEN IF InGlass(x, y) THEN EXIT FUNCTION
     IF walkFromHaz = 10 THEN IF FloorHazard(cellX, cellY) = HAZ_BURN THEN EXIT FUNCTION ' (a monster, not in fire: it won't step in)

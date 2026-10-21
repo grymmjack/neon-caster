@@ -75,6 +75,7 @@
                             monsterState(i) = 1 : monsterTimer(i) = 30
                             SfxAt mtypeAlertSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
                             IF mtype = 8 THEN Say "boss", 0 ' (the overseer: NEXUS speaks through it)
+                            IF mtype = MT_ROBODOG THEN DogBark i ' (a guard dog: its bark wakes every machine that hears it)
                             IF (mtype = 2 OR mtype = 6 OR mtype = 7) AND RND < 0.35 THEN SayAt "bark" + LTRIM$(STR$(INT(RND * 6) + 1)), monsterX(i), monsterY(i) ' (a minion reports in - from where it is)
                         END IF
                     END IF
@@ -274,6 +275,10 @@
         END IF
     END IF
     nvKeyWas = nvKey
+    IF invTimer > 0 THEN ' Invulnerability wears off
+        invTimer = invTimer - 1 : IF invTimer = 0 THEN PlaySfx sndInvulnEnd&, 0.8 : ShowMsg "Invulnerability wore off"
+    END IF
+    IF invFlash > 0 THEN invFlash = invFlash - 1
     IF ampTimer > 0 THEN ' The damage amp wears off
         ampTimer = ampTimer - 1 : IF ampTimer = 0 THEN PlaySfx sndAmpEnd&, 0.8 : ShowMsg "Damage amp wore off"
     END IF

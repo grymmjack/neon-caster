@@ -10,10 +10,12 @@
 ' which way the surface faces (nx, ny, nz), how big, and how many frames
 ' more it glows hot (decalHeat). The oldest is reused when they're all
 ' taken (decalNext). AddDecal makes one.
-CONST MAX_DECALS = 160, DECAL_HEAT = 24
+CONST MAX_DECALS = 256, DECAL_HEAT = 24
+DIM SHARED decalBase AS INTEGER ' (the level's smears - [smears]: decals 1 to decalBase, kept; the marks shots leave take turns with the rest)
 DIM SHARED decalX(MAX_DECALS), decalY(MAX_DECALS), decalZ(MAX_DECALS), decalNX(MAX_DECALS), decalNY(MAX_DECALS), decalNZ(MAX_DECALS)
 DIM SHARED decalSize(MAX_DECALS), decalHeat(MAX_DECALS) AS INTEGER, decalOn(MAX_DECALS) AS INTEGER, decalNext AS INTEGER
 ' (a decal's kind: 0 a scorch, 1 an acid splash - a chemical stain, the
+' inverse of what it's on - or 2 on, a smear of blood or oil (DK_SMEAR + n);
 ' inverse of what it's on, smoking for decalSmoke frames; newDecalKind:
 ' the next AddDecal's)
 DIM SHARED decalKind(MAX_DECALS) AS INTEGER, decalSmoke(MAX_DECALS) AS INTEGER, newDecalKind AS INTEGER

@@ -79,12 +79,12 @@ END FUNCTION
 ' A decoration's wreck's picture (and model) name: NAME-wreck - the chest's
 ' open one, chest-open (the game draws its own if there's no file - MakeWreck)
 FUNCTION DecoWreckName$(kind)
-    IF kind = DK_CHEST THEN DecoWreckName$ = "chest-open" ELSE DecoWreckName$ = DecoPicName$(kind) + "-wreck"
+    IF kind = DK_CHEST THEN DecoWreckName$ = "chest-open" ELSE IF kind = DK_SAFE THEN DecoWreckName$ = "safe-open" ELSE DecoWreckName$ = DecoPicName$(kind) + "-wreck"
 END FUNCTION
 
 ' A pickup's picture file, without its ".png" (4 on: the keycards are 1-3)
 FUNCTION ItemPicName$(kind)
-    ItemPicName$ = RTRIM$(MID$("medkit         ammo           shells         pickup-scatter pickup-repeaterarmor          bigmed         pickup-rail    map            overcharge     amp            core           goggles        suit           pickup-rocket  rockets        rounds         slugs          jetpack        jetfuel        ", (kind - 4) * 15 + 1, 15))
+    ItemPicName$ = RTRIM$(MID$("medkit         ammo           shells         pickup-scatter pickup-repeaterarmor          bigmed         pickup-rail    map            overcharge     amp            core           goggles        suit           pickup-rocket  rockets        rounds         slugs          jetpack        jetfuel        repairkit      invuln         ", (kind - 4) * 15 + 1, 15))
 END FUNCTION
 
 ' Load model NAME (tinted tintCol: 0, as it is) as the next one - its number,

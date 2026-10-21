@@ -203,7 +203,7 @@ SUB AchSetup
     AchDef "NC_CHAIN", "Chain Reaction", "Three machines in one explosion.", 0, "", 0
     AchDef "NC_ARSENAL", "Arsenal", "Carry all four guns at once.", 0, "", 0
     AchDef "NC_AMPED", "Overclocked", "Five kills on one damage amp.", 0, "", 0
-    AchDef "NC_BESTIARY", "Bestiary", "Destroy one of every kind of machine.", 0, "KillKinds", 16
+    AchDef "NC_BESTIARY", "Bestiary", "Destroy one of every kind of machine.", 0, "KillKinds", 17
     AchDef "NC_THIEF", "Stop, Thief!", "Destroy a thief.", 0, "", 0
     ' Skill
     AchDef "NC_UNTOUCHED", "Untouchable", "Finish a sector without a scratch.", 0, "", 0

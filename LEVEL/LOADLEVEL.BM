@@ -33,9 +33,10 @@ SUB BuildLevel STATIC
     NEXT
     numStations = 0 : numPads = 0 : numTerms = 0 : numTCtrl = 0 : FOR k = 0 TO MAX_PADS : padFlown(k) = 0 : NEXT
     IF NOT editRebuild THEN glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
-    FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0
+    FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0 : invTimer = 0
     FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE ' (all of it, as far as any sector can go: a smaller one's past its edge is nothing)
         worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorLockEv(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : secretCell(x, y) = 0 : closetIn(x, y) = 0 : secretArea(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
+        doorHP(x, y) = 0 : doorHPMax(x, y) = 0 : doorBroke(x, y) = 0 : doorCode(x, y) = 0 ' (stronghold and keypad doors: [doors] - ThingsBuild)
         floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
         FOR f = 1 TO FACE_MAX : faceTex(x, y, f) = 0 : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
         boxOn(x, y) = 0
@@ -230,7 +231,7 @@ SUB BuildLevel STATIC
     ' The level's lights: x, y, radius, brightness, red, green, blue, effect
     numLights = 0
     FOR l = 1 TO MAX_LIGHTS : lightBroken(l) = 0 : NEXT
-    FOR d = 1 TO MAX_DECALS : decalOn(d) = 0 : NEXT ' (no marks on a new level)
+    FOR d = 1 TO MAX_DECALS : decalOn(d) = 0 : NEXT : decalBase = 0 : decalNext = 0 ' (no marks on a new level - but its smears: ThingsBuild)
     FOR k = 1 TO lvlNumLights
         lx = lvlLight(k, 1) : ly = lvlLight(k, 2) : lRadius = lvlLight(k, 3) : lBright = lvlLight(k, 4)
         lRed = lvlLight(k, 5) : lGreen = lvlLight(k, 6) : lBlue = lvlLight(k, 7) : lEffect = lvlLight(k, 8)
@@ -289,8 +290,11 @@ SUB BuildLevel STATIC
                 CASE "&" ' A teleporter's pad
                     IF numPads < MAX_PADS THEN numPads = numPads + 1 : padX(numPads) = x : padY(numPads) = y
                 CASE "=" : glassHP(x, y) = GLASS_HP ' Glass: floor, with a pane across it (AssignGlass)
-                CASE "o", "i", "p", "t", "x", "l", "n", "f", "S", "d", "A", "F", "I", "J", "L", "O", "Q", "U", "W", "Z", "V", ":", "[" ' A decoration (every one of DecoChars$)
-                    dk = DecoOfChar(cell$) : dn = 1 ' (a barrel's [barrels] line: its liquid, how many stand on each other)
+                CASE "-" : glassHP(x, y) = BARS_HP ' Bars across a window: glass that never breaks
+                CASE "o", "i", "p", "t", "x", "l", "n", "f", "S", "d", "A", "F", "I", "J", "L", "O", "Q", "U", "W", "Z", "V", ":", "[", "'", CHR$(34) ' A decoration (every one of DecoChars$) - or a thing (", its kind in [things]: a decoration, a pickup or a monster - LEVEL/THINGS.BM)
+                    IF cell$ = CHR$(34) THEN dk = ThingAt(x, y) ELSE dk = DecoOfChar(cell$)
+                    dn = 1 ' (a barrel's [barrels] line: its liquid, how many stand on each other)
+                    IF dk > THING_ITEM THEN ThingSpawn dk, x, y : dn = 0 ' (a thing that's a pickup or a monster)
                     FOR k = 1 TO lvlNumBarrels
                         IF lvlBarrel(k, 1) = x AND lvlBarrel(k, 2) = y THEN
                             IF cell$ = ":" AND lvlBarrel(k, 3) >= 1 AND lvlBarrel(k, 3) <= LQ_KINDS THEN dk = DK_LQBARREL + lvlBarrel(k, 3)
@@ -382,7 +386,7 @@ SUB BuildLevel STATIC
     ' Chairs aren't on the list: they're 3D (ModelFacing turns one to its desk).
     FOR i = 1 TO numDecos
         IF decoFace(i) = -1 THEN decoFace(i) = 0 : _CONTINUE
-        IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
+        IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|33|34|35|36|37|38|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
             x = INT(decoX(i)) : y = INT(decoY(i))
             IF DecoWall(x - 1, y) AND NOT DecoWall(x + 1, y) THEN ' (a wall behind it, and open floor in front)
                 decoFace(i) = 1
@@ -533,6 +537,7 @@ SUB BuildLevel STATIC
     BuildThiefWay ' (the thieves' way home)
     AssignSecrets ' (the secret walls, the closets' stashes, and what the map pickup leaves out)
     blackoutTimer = 0
+    ThingsBuild ' (stronghold and keypad doors, safes' codes, computers' targets, cameras up their walls - GAME/SECURE.BM)
     monStartN = numMonsters ' (the level's monsters as they start, for the console's respawn)
     FOR i = 1 TO numMonsters : monStartX(i) = monsterX(i) : monStartY(i) = monsterY(i) : monStartType(i) = monsterType(i) : NEXT
     ' The camera plane (chapter 8): your direction turned 90 degrees, fovPlane long

@@ -119,6 +119,8 @@ SUB LootTable
     k = TakeLoot("vending  = ammo:50, shells:50, medkit:25, armor:10")
     k = TakeLoot("plant    = ammo:5, shells:5, medkit:5")
     k = TakeLoot("chest    = armor:70, medkit:70, rounds:50, overcharge:25") ' (a treasure chest: the good stuff - Space opens it)
+    k = TakeLoot("safe     = armor:80, overcharge:50, rounds:60, amp:25") ' (a safe: its code, or its computer - the best of all)
+    k = TakeLoot("bookshelf = repairkit:12, medkit:15, ammo:15, shells:10") ' (searched, as a desk is: Space - one find, or none)
     FOR i = 1 TO lvlNumLoot : k = TakeLoot(lvlLoot$(i)) : NEXT
 END SUB
 
@@ -170,7 +172,7 @@ END FUNCTION
 
 ' A pickup kind's name, as [loot] (and ItemOf) has it
 FUNCTION LootName$(k)
-    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp,core,goggles,suit,launcher,rockets,rounds,slugs,jetpack,jetfuel", k)
+    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp,core,goggles,suit,launcher,rockets,rounds,slugs,jetpack,jetfuel,repairkit,invuln", k)
 END FUNCTION
 
 ' A closet stash's loot: something good (n = 0) - armour, a big medkit, an
@@ -223,7 +225,7 @@ END FUNCTION
 ' - it's only in the network; 8 night vision, 9 the hazmat suit, ) the
 ' rocket launcher, ( a box of rockets)
 FUNCTION ItemChars$
-    ItemChars$ = "rby+ae23u*4Mqj" + CHR$(0) + "89)({}`,"
+    ItemChars$ = "rby+ae23u*4Mqj" + CHR$(0) + "89)({}`," + CHR$(0) + CHR$(0) ' (the repair kit and invulnerability: things, ", not a character of their own)
 END FUNCTION
 
 ' A pickup kind by its map character (0: not a pickup's)

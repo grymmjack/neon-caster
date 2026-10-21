@@ -24,6 +24,7 @@
     ' or a monster in the doorway (DoorBlocked), it waits, or if it was
     ' already shutting, opens again, like an automatic door.
     usedTrig = 0
+    IF viewOn = VIEW_CAM AND spaceDown AND NOT spaceWas THEN CameraNext : spaceWas = -1 ' (watching a security camera: Space, the next one - GAME/SECURE.BM)
     IF spaceDown AND NOT spaceWas AND NOT dead AND NOT editMode AND NOT cyberOn THEN ' A "use" trigger at the cell in front? (chapter 19 - not from the network)
         FOR k = 1 TO numTrigs
             IF trigWhen$(k) = "use" AND NOT trigDone(k) THEN
@@ -46,6 +47,7 @@
             cellX = INT(playerX + dirX * reach) : cellY = INT(playerY + dirY * reach)
             IF cellX = INT(playerX) AND cellY = INT(playerY) THEN _CONTINUE ' (the doorway you're in)
             IF worldMap(cellX, cellY) = 2 AND doorOpen(cellX, cellY) = 0 AND doorLock(cellX, cellY) THEN
+                IF SecureDoorUse(cellX, cellY) THEN EXIT FOR ' (a stronghold door - kick it; a keypad door - its code: GAME/SECURE.BM)
                 PlaySfx sndLocked&, 0.8
                 IF doorLock(cellX, cellY) = 2 THEN ShowMsg "SEALED - hack its data station to open it" ELSE IF doorLock(cellX, cellY) = 3 THEN ShowMsg "LOCKED DOWN - repair the terminal's program" ELSE IF doorLock(cellX, cellY) = 4 THEN ShowMsg "LOCKED" ELSE ShowMsg SealedMsg$(cellX, cellY)
                 EXIT FOR
@@ -65,7 +67,9 @@
                 PlaySfx sndLocked&, 0.8 : ShowMsg SealedMsg$(cellX, cellY)
                 EXIT FOR
             ELSEIF worldMap(cellX, cellY) = 2 THEN ' Open (or on the move): shut it - or open it again
-                IF doorMove(cellX, cellY) = -1 THEN
+                IF doorBroke(cellX, cellY) THEN
+                    ' (kicked down: there's nothing left to shut)
+                ELSEIF doorMove(cellX, cellY) = -1 THEN
                     doorMove(cellX, cellY) = 1 : PlaySfx DoorSnd&(doorType(cellX, cellY)), 0.9
                 ELSEIF NOT DoorBlocked(cellX, cellY, playerX, playerY) THEN
                     doorMove(cellX, cellY) = -1 : PlaySfx DoorSnd&(doorType(cellX, cellY)), 0.9
@@ -93,6 +97,7 @@
             END IF
             IF decoCell(cellX, cellY) AND reach <= 1.5 AND NOT cyberOn AND NOT usedTrig THEN ' A decoration you can use: a vending machine (VendStep)
                 dv = decoCell(cellX, cellY)
+                IF DecoUse(dv) THEN EXIT FOR ' (a safe, a desk or bookshelf, a computer, a security monitor, a note - GAME/SECURE.BM)
                 IF decoOn(dv) AND decoKind(dv) = DK_CHEST THEN ' (a treasure chest: open it - GAME/BARRELS.BM)
                     IF decoOpen(dv) THEN ShowMsg "Empty - you've had what was in it" ELSE ChestOpen dv
                     EXIT FOR
@@ -122,6 +127,7 @@
     END IF
     FOR doorK& = 1 TO numDoorCells ' (the doors: ListDoors)
         doorX = doorCellX(doorK&) : doorY = doorCellY(doorK&)
+        IF doorBroke(doorX, doorY) THEN doorOpen(doorX, doorY) = 1 : doorMove(doorX, doorY) = 0 : _CONTINUE ' (kicked down: open for good)
         ' (a locked door that's open shuts - as soon as nobody's in the way)
         IF doorLock(doorX, doorY) AND doorOpen(doorX, doorY) > 0 AND doorMove(doorX, doorY) <> -1 THEN
             IF NOT DoorBlocked(doorX, doorY, playerX, playerY) THEN doorMove(doorX, doorY) = -1 : doorWait(doorX, doorY) = 0

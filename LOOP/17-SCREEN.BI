@@ -93,7 +93,7 @@
         FOR i = 1 TO NUM_SETTINGS : glSet(i, glWrite) = setting(i) : NEXT
         glNight(glWrite) = nvOn ' (night vision: the post shader's)
         glPitch(glWrite) = pitch : glHurt(glWrite) = hurtFlash / 14 : glRail(glWrite) = railBeam / 8
-        glGun(glWrite) = 0 : IF gunY < 600 AND NOT editMode THEN glGun(glWrite) = currentGun ' The gun (0: out of sight - and in the editor), where on our screen
+        glGun(glWrite) = 0 : IF gunY < 600 AND NOT editMode AND viewOn = 0 THEN glGun(glWrite) = currentGun ' The gun (0: out of sight - and in the editor), where on our screen
         glGunX0(glWrite) = gunX : glGunY0(glWrite) = gunY : glGunX1(glWrite) = gunX + gunW : glGunY1(glWrite) = gunY + gunH
         glGunR(glWrite) = gunLightR : glGunG(glWrite) = gunLightG : glGunB(glWrite) = gunLightB
         glSideDim(glWrite) = 0 ' (the menu dims the sides of a wide view: GLLiveSettings)

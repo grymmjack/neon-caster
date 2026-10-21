@@ -105,5 +105,5 @@ SUB TakeTrigger(l$)
         IF sp > 1 THEN n(j) = VAL(LEFT$(w$, sp - 1)) : w$ = MID$(w$, sp + 1)
     NEXT
     trigX0(k) = MinOf(n(1), n(3)) : trigY0(k) = MinOf(n(2), n(4)) : trigX1(k) = MaxOf(n(1), n(3)) : trigY1(k) = MaxOf(n(2), n(4))
-    IF trigWhen$(k) = "use" OR trigWhen$(k) = "shoot" OR trigWhen$(k) = "time" THEN trigX0(k) = n(1) : trigY0(k) = n(2) : trigX1(k) = n(1) : trigY1(k) = n(2)
+    IF trigWhen$(k) = "use" OR trigWhen$(k) = "shoot" OR trigWhen$(k) = "time" OR trigWhen$(k) = "hack" THEN trigX0(k) = n(1) : trigY0(k) = n(2) : trigX1(k) = n(1) : trigY1(k) = n(2)
 END SUB

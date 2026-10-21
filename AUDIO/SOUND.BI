@@ -75,6 +75,11 @@ sndAlarm& = LoadSnd&("alarm.wav") : sndFanfare& = LoadSnd&("fanfare.wav") : sndF
 DIM SHARED sndSizzle& ' (a burning floor - chapter 22's heights)
 sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav") : sndSizzle& = LoadSnd&("sizzle.wav")
 DIM SHARED sndLeak&, sndJet&, sndJetFuel& : sndLeak& = LoadSnd&("barrel-leak.wav") : sndJet& = LoadSnd&("jetpack.wav") : sndJetFuel& = LoadSnd&("jetfuel.wav") ' (a barrel leaking; the jetpack's thrust, its fuel)
+' Strongholds and keypads, safes, desks, computers, cameras, notes (GAME/SECURE.BM), invulnerability
+DIM SHARED sndPadBeep&, sndPadOK&, sndPadBad&, sndDoorKick&, sndDoorBreak&, sndSafe&, sndSearch&, sndRepair&, sndInvuln&, sndInvulnEnd&, sndCamera&, sndNote&
+sndPadBeep& = LoadSnd&("keypad-beep.wav") : sndPadOK& = LoadSnd&("keypad-ok.wav") : sndPadBad& = LoadSnd&("keypad-bad.wav")
+sndDoorKick& = LoadSnd&("door-kick.wav") : sndDoorBreak& = LoadSnd&("door-break.wav") : sndSafe& = LoadSnd&("safe-open.wav") : sndSearch& = LoadSnd&("search.wav")
+sndRepair& = LoadSnd&("repair.wav") : sndInvuln& = LoadSnd&("invuln.wav") : sndInvulnEnd& = LoadSnd&("invuln-end.wav") : sndCamera& = LoadSnd&("camera.wav") : sndNote& = LoadSnd&("note.wav")
 FOR k = 1 TO 3 : sndDroid&(k) = LoadSnd&("droid-chirp" + LTRIM$(STR$(k)) + ".wav") : NEXT : sndDroidBreak& = LoadSnd&("droid-break.wav")
 DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&
 sndSteal& = LoadSnd&("thief-steal.wav") : sndHoard& = LoadSnd&("hoard-open.wav") : sndPlate& = LoadSnd&("plate-click.wav")

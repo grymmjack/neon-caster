@@ -1,0 +1,634 @@
+''
+' NEON-CASTER - GAME/SECURE.BM
+' =============================================================================
+' Strongholds and keypads, safes, searching, computers, notes, the guard
+' dog's bark (GAME/SECURE.BI).
+'
+
+' --- Once the level's built: its [doors] lines (stronghold doors, keypad
+' doors) and the things' own numbers from [things] (a safe's code, a
+' computer's target, a camera high on its wall)
+SUB ThingsBuild
+    DIM i, k, x, y, c$, kicks ' (its own: the main program shares these names)
+    FOR k = 1 TO lvlNumXtra
+        IF lvlXSec$(k) = "doors" THEN
+            x = VAL(XtraField$(k, 1)) : y = VAL(XtraField$(k, 2))
+            IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
+                IF worldMap(x, y) = 2 AND doorType(x, y) <> DOOR_EXIT THEN
+                    kicks = MaxOf(0, MinOf(99, VAL(XtraField$(k, 3)))) : doorHP(x, y) = kicks : doorHPMax(x, y) = kicks
+                    doorCode(x, y) = CodeOf&(XtraField$(k, 4))
+                    IF doorCode(x, y) THEN doorLock(x, y) = LOCK_KEYPAD ELSE IF kicks THEN doorLock(x, y) = LOCK_STRONG
+                END IF
+            END IF
+        END IF
+    NEXT
+    FOR i = 1 TO numDecos
+        decoCode(i) = 0 : decoTX(i) = -1 : decoTY(i) = -1 : decoTag$(i) = ""
+        x = INT(decoX(i)) : y = INT(decoY(i)) : k = XtraFind("things", x, y, 0)
+        IF k THEN
+            SELECT CASE decoKind(i)
+                CASE DK_SAFE : decoCode(i) = CodeOf&(XtraField$(k, 4))
+                CASE DK_PC, DK_PCBROKE
+                    c$ = XtraField$(k, 4) : IF LEN(c$) THEN decoTX(i) = VAL(c$) : decoTY(i) = VAL(XtraField$(k, 5))
+                CASE DK_CAMERA : decoTag$(i) = XtraField$(k, 4)
+            END SELECT
+        END IF
+        IF decoKind(i) = DK_CAMERA THEN decoZ(i) = MaxOf(0, ceilH(x, y) - floorH(x, y) - DecoScale(DK_CAMERA) - 0.04) ' (up by its ceiling)
+        IF decoKind(i) = DK_CAMERA AND decoTag$(i) = "" THEN decoTag$(i) = "CAM" + LTRIM$(STR$(CamNumber(i)))
+    NEXT
+    SmearsBuild
+END SUB
+
+' The [smears]: each a decal of its own (blood or oil), kept - decals 1 to
+' decalBase. x, y: a wall's cell and which side of it (E S W N), or an open
+' cell's floor (F) or ceiling (C)
+SUB SmearsBuild
+    DIM d, k, x, y, f$, nx, ny, nz, px, py, pz, ox, oy ' (its own: the main program shares these names)
+    FOR k = 1 TO lvlNumXtra
+        IF lvlXSec$(k) = "smears" AND decalBase < MAX_DECALS \ 2 THEN
+            x = VAL(XtraField$(k, 1)) : y = VAL(XtraField$(k, 2)) : f$ = UCASE$(LEFT$(XtraField$(k, 3), 1))
+            IF x < 0 OR y < 0 OR x >= mapN OR y >= mapN THEN _CONTINUE
+            nx = 0 : ny = 0 : nz = 0 : ox = x : oy = y
+            SELECT CASE f$
+                CASE "F" : px = x + 0.5 : py = y + 0.5 : pz = floorH(x, y) + 0.002 : nz = 1
+                CASE "C" : px = x + 0.5 : py = y + 0.5 : pz = ceilH(x, y) - 0.002 : nz = -1
+                CASE "E" : px = x + 1 : py = y + 0.5 : nx = 1 : ox = x + 1
+                CASE "W" : px = x : py = y + 0.5 : nx = -1 : ox = x - 1
+                CASE "S" : px = x + 0.5 : py = y + 1 : ny = 1 : oy = y + 1
+                CASE "N" : px = x + 0.5 : py = y : ny = -1 : oy = y - 1
+                CASE ELSE : _CONTINUE
+            END SELECT
+            IF nz = 0 THEN ' (on a wall: halfway up the room it faces)
+                ox = MaxOf(0, MinOf(mapN - 1, ox)) : oy = MaxOf(0, MinOf(mapN - 1, oy))
+                pz = floorH(ox, oy) + MinOf(0.5, (ceilH(ox, oy) - floorH(ox, oy)) / 2)
+            END IF
+            decalBase = decalBase + 1 : d = decalBase
+            decalX(d) = px : decalY(d) = py : decalZ(d) = pz : decalNX(d) = nx : decalNY(d) = ny : decalNZ(d) = nz
+            decalSize(d) = 0.9 : decalHeat(d) = 0 : decalSmoke(d) = 0 : decalOn(d) = -1
+            decalKind(d) = DK_SMEAR + SmearOf(XtraField$(k, 4))
+        END IF
+    NEXT
+    decalNext = decalBase
+END SUB
+
+' A smear's name (k: 0 to SMEAR_KINDS - 1): blood1-3, oil1-2
+FUNCTION SmearName$(k)
+    SmearName$ = ListItem$("blood1,blood2,blood3,oil1,oil2", k + 1)
+END FUNCTION
+
+' A smear by its name (blood: blood1; oil: oil1)
+FUNCTION SmearOf(n$)
+    DIM k, t$ ' (its own: the main program shares these names)
+    t$ = LCASE$(LTRIM$(RTRIM$(n$)))
+    IF t$ = "blood" THEN t$ = "blood1"
+    IF t$ = "oil" THEN t$ = "oil1"
+    FOR k = 0 TO SMEAR_KINDS - 1
+        IF SmearName$(k) = t$ THEN SmearOf = k
+    NEXT
+END FUNCTION
+
+' A code as [doors] and [things] write it: digits - or ? for one made up
+' now (four digits); 0 for none
+FUNCTION CodeOf&(c$)
+    DIM t$ ' (its own: the main program shares these names)
+    t$ = LTRIM$(RTRIM$(c$))
+    IF t$ = "?" THEN CodeOf& = 1000 + INT(GRnd * 9000) : EXIT FUNCTION
+    IF LEN(t$) = 0 OR LEN(t$) > PAD_DIGITS THEN EXIT FUNCTION
+    CodeOf& = VAL(t$)
+END FUNCTION
+
+' The code that opens the door or safe at cell x, y (0: none) - a note's
+' {code x y}
+FUNCTION CodeAt&(x, y)
+    DIM i ' (its own: the main program shares these names)
+    IF x < 0 OR y < 0 OR x >= mapN OR y >= mapN THEN EXIT FUNCTION
+    IF doorCode(x, y) THEN CodeAt& = doorCode(x, y) : EXIT FUNCTION
+    FOR i = 1 TO numDecos
+        IF INT(decoX(i)) = x AND INT(decoY(i)) = y AND decoKind(i) = DK_SAFE THEN CodeAt& = decoCode(i) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Camera i's number among the level's cameras (1 the first)
+FUNCTION CamNumber(i)
+    DIM j, n ' (its own: the main program shares these names)
+    FOR j = 1 TO i
+        IF decoKind(j) = DK_CAMERA THEN n = n + 1
+    NEXT
+    CamNumber = n
+END FUNCTION
+
+' --- A thing that's a pickup or a monster (code: THING_ITEM + its kind,
+' THING_MON + its type) at cell x, y
+SUB ThingSpawn(code, x, y)
+    IF code > THING_MON THEN
+        IF numMonsters < MAX_MON THEN
+            numMonsters = numMonsters + 1
+            monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = code - THING_MON
+            MonFresh numMonsters
+            monsterHP(numMonsters) = mtypeHP(monsterType(numMonsters)) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
+            monsterEv(numMonsters) = 0 : ThiefReset numMonsters
+            MonOwn numMonsters, x, y
+        END IF
+    ELSEIF code > THING_ITEM THEN
+        IF numItems < MAX_ITEMS THEN
+            numItems = numItems + 1
+            itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1 : itemKind(numItems) = code - THING_ITEM
+        END IF
+    END IF
+END SUB
+
+' Which texture a door shows: a stronghold door's (kicked half in: cracked),
+' a keypad door's, a key door's, a plain one's
+FUNCTION DoorSlot(x, y)
+    IF doorHPMax(x, y) > 0 AND doorBroke(x, y) = 0 THEN
+        IF doorHP(x, y) * 2 <= doorHPMax(x, y) THEN DoorSlot = T_STRONGHURT ELSE DoorSlot = T_STRONG
+    ELSEIF doorCode(x, y) THEN
+        DoorSlot = T_KEYPAD
+    ELSEIF doorKey(x, y) THEN
+        DoorSlot = T_DOORK + doorKey(x, y)
+    ELSE
+        DoorSlot = T_DOOR
+    END IF
+END FUNCTION
+
+' --- Space on a locked door of these kinds: a stronghold door won't open
+' (kick it); a keypad door asks for its code. -1 if it was one
+FUNCTION SecureDoorUse(x, y)
+    IF doorLock(x, y) = LOCK_STRONG THEN
+        PlaySfx sndLocked&, 0.8 : ShowMsg "BARRED - a stronghold door: kick it down (" + KeyName$(keyBind&(BIND_KICK)) + ")" : SecureDoorUse = -1
+    ELSEIF doorLock(x, y) = LOCK_KEYPAD THEN
+        SecureDoorUse = -1
+        padTitle$ = "DOOR LOCK"
+        IF KeypadUse(doorCode(x, y)) THEN
+            doorLock(x, y) = 0 : doorOpen(x, y) = 0.01 : doorMove(x, y) = 1 : PlaySfx DoorSnd&(doorType(x, y)), 0.9
+            ShowMsg "ACCESS GRANTED"
+        END IF
+    END IF
+END FUNCTION
+
+' --- The boot on a door in front of you: a stronghold door takes it (amp:
+' two kicks' worth) - at none left it's down, for good. Any other door: a
+' thud. -1 if there was a door there
+FUNCTION KickDoor
+    DIM cx, cy, kd ' (its own: the main program shares these names)
+    FOR kd = 3 TO 13
+        cx = INT(playerX + dirX * kd / 10) : cy = INT(playerY + dirY * kd / 10)
+        IF cx = INT(playerX) AND cy = INT(playerY) THEN _CONTINUE
+        IF worldMap(cx, cy) <> 2 THEN
+            IF worldMap(cx, cy) > 0 THEN EXIT FUNCTION ' (a wall first)
+            _CONTINUE
+        END IF
+        IF doorOpen(cx, cy) > 0.5 THEN EXIT FUNCTION ' (open: nothing to kick)
+        KickDoor = -1 : shake = shake + 3
+        SfxAt sndDoorKick&, cx + 0.5, cy + 0.5, playerX, playerY
+        IF doorHP(cx, cy) > 0 AND doorBroke(cx, cy) = 0 THEN
+            doorHP(cx, cy) = doorHP(cx, cy) - 1 : IF ampTimer > 0 THEN doorHP(cx, cy) = doorHP(cx, cy) - 1
+            SpawnSparks playerX + dirX * kd / 10, playerY + dirY * kd / 10, 0.4, 10, 255, 190, 120
+            IF doorHP(cx, cy) <= 0 THEN
+                doorHP(cx, cy) = 0 : doorBroke(cx, cy) = -1 : doorLock(cx, cy) = 0 : doorOpen(cx, cy) = 1 : doorMove(cx, cy) = 0 : doorWait(cx, cy) = 0
+                SfxAt sndDoorBreak&, cx + 0.5, cy + 0.5, playerX, playerY : shake = shake + 10
+                newBlastX = cx + 0.5 : newBlastY = cy + 0.5 : newBlastSize = 0.6 : AddBlast
+                SpawnSparks cx + 0.5, cy + 0.5, 0.5, 40, 220, 160, 90
+                ShowMsg "The door gives way!" : WakeNear cx + 0.5, cy + 0.5, DOG_BARK
+                glMeshVersion = glMeshVersion + 1 ' (OpenGL: it's gone)
+            ELSEIF doorHP(cx, cy) * 2 <= doorHPMax(cx, cy) AND (doorHP(cx, cy) + 1) * 2 > doorHPMax(cx, cy) THEN
+                ShowMsg "It's giving..." : glMeshVersion = glMeshVersion + 1 ' (cracked: its picture changes)
+            END IF
+        END IF
+        EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Every machine asleep within r of (x, y) wakes (a door crashing down, a
+' guard dog's bark)
+SUB WakeNear(x, y, r)
+    DIM j ' (its own: the main program shares these names)
+    FOR j = 1 TO numMonsters
+        IF monsterState(j) = 0 AND monWake(j) <> WAKE_HIT AND monsterType(j) <> MT_TURRET AND monsterType(j) <> MT_MIMIC THEN
+            IF (monsterX(j) - x) ^ 2 + (monsterY(j) - y) ^ 2 < r * r THEN monsterState(j) = 1 : monsterTimer(j) = 30
+        END IF
+    NEXT
+END SUB
+
+' --- Guard dog i has seen you: it barks, and every machine near enough to
+' hear it comes
+SUB DogBark(i)
+    WakeNear monsterX(i), monsterY(i), DOG_BARK
+END SUB
+
+' --- The keypad: KeypadRun asks for the code, and padOK says whether it
+' was right. A demo plays back what was typed's result (c: 1 right, 0 not)
+FUNCTION KeypadUse(code&)
+    IF code& = 0 THEN KeypadUse = -1 : EXIT FUNCTION
+    IF demoPlay THEN
+        demoKind$ = "c" : DemoTakeRes : padOK = (demoRes = 1) : fireWait = 15
+    ELSE
+        KeypadRun code&
+        IF demoRec THEN demoKind$ = "c" : demoRes = -(padOK <> 0) : DemoEvent
+    END IF
+    IF padOK THEN PlaySfx sndPadOK&, 0.9 ELSE IF LEN(padIn$) THEN PlaySfx sndPadBad&, 0.9 : ShowMsg "WRONG CODE"
+    KeypadUse = padOK
+END FUNCTION
+
+' The keypad's own loop (the world waits): ten keys, CLEAR and ENTER, by
+' the mouse or the keyboard's digits, Backspace, Enter; Esc walks away
+SUB KeypadRun(code&) STATIC
+    DIM f, k&, clickWas, done, pk$ ' (its own: the main program shares these names)
+    WorldLoopsOff : _MOUSESHOW : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+    padIn$ = "" : padOK = 0 : clickWas = -1 : done = 0
+    DO
+        _LIMIT 60
+        pk$ = ""
+        WHILE _MOUSEINPUT
+            IF _MOUSEBUTTON(1) AND NOT clickWas THEN pk$ = PadKeyAt$(WideMouseX(_MOUSEX), _MOUSEY)
+            clickWas = _MOUSEBUTTON(1)
+        WEND
+        k& = _KEYHIT
+        DO WHILE k& AND pk$ = ""
+            SELECT CASE k&
+                CASE 48 TO 57 : pk$ = CHR$(k&)
+                CASE 8 : pk$ = "<"
+                CASE 13 : pk$ = "E"
+                CASE 27 : pk$ = "X"
+            END SELECT
+            k& = _KEYHIT
+        LOOP
+        SELECT CASE pk$
+            CASE "0" TO "9" : IF LEN(padIn$) < PAD_DIGITS THEN padIn$ = padIn$ + pk$ : PlaySfx sndPadBeep&, 0.6
+            CASE "<" : IF LEN(padIn$) THEN padIn$ = LEFT$(padIn$, LEN(padIn$) - 1) : PlaySfx sndPadBeep&, 0.4
+            CASE "C" : padIn$ = "" : PlaySfx sndPadBeep&, 0.4
+            CASE "E" : IF LEN(padIn$) THEN padOK = (VAL(padIn$) = code& AND LEN(padIn$) = LEN(LTRIM$(STR$(code&)))) : done = -1
+            CASE "X" : done = -1 : padIn$ = ""
+        END SELECT
+        DrawKeypad ""
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady : ShowFrame
+    LOOP UNTIL done
+    IF LEN(padIn$) THEN ' (the result, a moment)
+        FOR f = 1 TO 40
+            _LIMIT 60 : WHILE _MOUSEINPUT : WEND
+            IF padOK THEN DrawKeypad "OPEN" ELSE DrawKeypad "DENIED"
+            IF glReady THEN GLSL_filter_capture
+            GLScreenLayer glReady : ShowFrame
+        NEXT
+    END IF
+    _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND
+    escWas = -1 : fireWait = 15 : spaceWas = -1
+END SUB
+
+' The keypad's key at (x, y) on the screen: 0-9, C (clear), E (enter), X
+' (walk away - outside the pad) - "" none
+FUNCTION PadKeyAt$(x, y)
+    DIM c, r ' (its own: the main program shares these names)
+    IF x < 280 OR x > 520 OR y < 150 OR y > 560 THEN PadKeyAt$ = "X" : EXIT FUNCTION
+    IF y < 230 THEN EXIT FUNCTION ' (the display)
+    c = (x - 280) \ 80 : r = (y - 240) \ 80 : IF r < 0 OR r > 3 THEN EXIT FUNCTION
+    PadKeyAt$ = MID$("123456789C0E", r * 3 + c + 1, 1)
+END FUNCTION
+
+' The keypad on the screen - big$: the result, over the display
+SUB DrawKeypad(big$)
+    DIM c, r, x, y, k$, t$, gr AS _UNSIGNED LONG, dm AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    gr = _RGB32(90, 255, 160) : dm = _RGB32(30, 90, 60)
+    LINE (0, 0)-(799, 599), _RGBA32(0, 0, 0, 255), BF
+    LINE (260, 60)-(539, 580), _RGB32(30, 32, 38), BF : LINE (260, 60)-(539, 580), _RGB32(90, 96, 110), B : LINE (262, 62)-(537, 578), _RGB32(60, 64, 74), B
+    MenuText 400, 76, padTitle$, 1.5, _RGB32(200, 210, 230), 1
+    LINE (280, 150)-(519, 220), _RGB32(4, 18, 10), BF : LINE (280, 150)-(519, 220), dm, B
+    t$ = padIn$ + STRING$(PAD_DIGITS - LEN(padIn$), "_")
+    IF LEN(big$) THEN
+        IF big$ = "OPEN" THEN MenuText 400, 170, big$, 2.5, gr, 1 ELSE MenuText 400, 170, big$, 2.5, _RGB32(255, 70, 60), 1
+    ELSE
+        MenuText 400, 172, t$, 2.5, gr, 1
+    END IF
+    FOR r = 0 TO 3 : FOR c = 0 TO 2
+        x = 284 + c * 80 : y = 244 + r * 80 : k$ = MID$("123456789C0E", r * 3 + c + 1, 1)
+        LINE (x, y)-STEP(72, 72), _RGB32(50, 54, 62), BF : LINE (x, y)-STEP(72, 72), _RGB32(120, 126, 140), B
+        IF k$ = "E" THEN MenuText x + 36, y + 24, "ENTER", 1.25, gr, 1 ELSE IF k$ = "C" THEN MenuText x + 36, y + 24, "CLEAR", 1.25, _RGB32(255, 190, 80), 1 ELSE MenuText x + 36, y + 18, k$, 2.5, _RGB32(230, 235, 245), 1
+    NEXT : NEXT
+    MenuText 400, 586, "DIGITS, BACKSPACE, ENTER  -  ESC WALKS AWAY", 1, _RGB32(150, 155, 170), 1
+END SUB
+
+' --- Space on a decoration of these kinds: a safe, a desk or a bookshelf,
+' a computer (broken or not), a security monitor, a note. -1 if it was one
+FUNCTION DecoUse(i)
+    DIM k ' (its own: the main program shares these names)
+    IF NOT decoOn(i) THEN EXIT FUNCTION
+    k = decoKind(i)
+    SELECT CASE k
+        CASE DK_SAFE
+            DecoUse = -1
+            IF decoOpen(i) THEN ShowMsg "SAFE: empty - you've had what was in it" : EXIT FUNCTION
+            IF decoCode(i) = 0 THEN
+                IF decoTX(i) >= 0 OR SafeHasPC(i) THEN ShowMsg "SAFE: locked - its computer opens it" ELSE ShowMsg "SAFE: locked" : PlaySfx sndLocked&, 0.7
+                EXIT FUNCTION
+            END IF
+            padTitle$ = "SAFE"
+            IF KeypadUse(decoCode(i)) THEN SafeOpen i
+        CASE DK_DESK, DK_SHELF
+            DecoUse = -1 : SearchDeco i
+        CASE DK_PCBROKE
+            DecoUse = -1
+            IF repairKits > 0 THEN
+                repairKits = repairKits - 1 : decoKind(i) = DK_PC : decoHP(i) = DecoMaxHP(DK_PC) : SfxAt sndRepair&, decoX(i), decoY(i), playerX, playerY
+                SpawnSparks decoX(i), decoY(i), 0.5, 16, 120, 220, 255
+                ShowMsg "Fixed it - the computer's booting up. Space to hack it" + MID$(" (repair kits left:" + STR$(repairKits) + ")", 1, -99 * (repairKits > 0))
+            ELSE
+                PlaySfx sndLocked&, 0.6 : ShowMsg "A broken computer - a repair kit would fix it"
+            END IF
+        CASE DK_PC
+            DecoUse = -1
+            IF vendState(i) = 1 THEN ShowMsg "COMPUTER: hacked - it's done what it can" ELSE IF vendState(i) = 2 THEN ShowMsg "COMPUTER: LOCKED OUT" : PlaySfx sndLocked&, 0.7 ELSE PCHack i
+        CASE DK_SECMON
+            DecoUse = -1 : CameraView i
+        CASE DK_NOTE
+            DecoUse = -1 : NoteRead i
+    END SELECT
+END FUNCTION
+
+' Does a computer (fixed or not) say it opens safe i?
+FUNCTION SafeHasPC(i)
+    DIM j ' (its own: the main program shares these names)
+    FOR j = 1 TO numDecos
+        IF (decoKind(j) = DK_PC OR decoKind(j) = DK_PCBROKE) AND decoTX(j) = INT(decoX(i)) AND decoTY(j) = INT(decoY(i)) THEN SafeHasPC = -1
+    NEXT
+END FUNCTION
+
+' --- Safe i opens: its door swings open, its loot (each by its chance, as
+' a chest's) out to you - and any note in it
+SUB SafeOpen(i)
+    DIM a!, k, n, s ' (its own: the main program shares these names)
+    IF decoOpen(i) THEN EXIT SUB
+    decoOpen(i) = -1 : SfxAt sndSafe&, decoX(i), decoY(i), playerX, playerY
+    k = decoKind(i) : a! = DAtan2(playerY - decoY(i), playerX - decoX(i))
+    FOR s = 1 TO LOOT_SLOTS
+        IF lootKind(k, s) THEN IF INT(GRnd * 100) < lootPct(k, s) THEN TossItem lootKind(k, s), decoX(i), decoY(i), a! + (GRnd - 0.5) * 1.2, playerX, playerY : n = n + 1 : AchAdd "LootDrops", 1
+    NEXT
+    IF XtraFind("notes", INT(decoX(i)), INT(decoY(i)), 0) THEN ShowMsg "SAFE: open - there's a note in it" : NoteRead i ELSE IF n = 0 THEN ShowMsg "SAFE: open - and empty" ELSE ShowMsg "SAFE: open!"
+END SUB
+
+' --- A desk or a bookshelf, searched (once): a note, if it has one; and
+' maybe something useful - by its [loot], but the roll is the cell's own,
+' not the dice (old sectors' demos stay as they were)
+SUB SearchDeco(i)
+    DIM a!, acc, k, roll, s, slot, x, y ' (its own: the main program shares these names)
+    x = INT(decoX(i)) : y = INT(decoY(i))
+    IF decoOpen(i) THEN
+        IF XtraFind("notes", x, y, 0) THEN NoteRead i ELSE ShowMsg "Nothing more here"
+        EXIT SUB
+    END IF
+    decoOpen(i) = 1 : SfxAt sndSearch&, decoX(i), decoY(i), playerX, playerY ' (1: searched - not -1, which draws it open)
+    IF XtraFind("notes", x, y, 0) THEN NoteRead i
+    k = decoKind(i) : roll = (x * 73 + y * 151 + level * 37 + i * 11) MOD 100 + 1 : acc = 0 : slot = 0
+    FOR s = 1 TO LOOT_SLOTS
+        IF lootKind(k, s) THEN acc = acc + lootPct(k, s) : IF roll <= acc THEN slot = s : EXIT FOR
+    NEXT
+    IF slot THEN
+        a! = DAtan2(playerY - decoY(i), playerX - decoX(i))
+        TossItem lootKind(k, slot), decoX(i), decoY(i), a!, playerX, playerY : AchAdd "LootDrops", 1
+        IF XtraFind("notes", x, y, 0) = 0 THEN ShowMsg "Searched it - found something"
+    ELSEIF XtraFind("notes", x, y, 0) = 0 THEN
+        ShowMsg "Searched it - nothing of use"
+    END IF
+END SUB
+
+' --- Computer i: the word hack. In, its door or safe opens (and any
+' "hack" trigger on it runs); locked out, it's dead for good - and its
+' alarm wakes the machines near it
+SUB PCHack(i)
+    hackPC = i : hackTitle$ = "COMPUTER"
+    IF demoPlay THEN
+        demoKind$ = "h" : DemoTakeRes : hackWon = (demoRes = 1) : hackLeft = (demoRes = 2) : fireWait = 15
+    ELSE
+        HackRun
+        IF demoRec THEN
+            demoKind$ = "h" : demoRes = 0
+            IF hackWon THEN demoRes = 1 ELSE IF hackLeft THEN demoRes = 2
+            DemoEvent
+        END IF
+    END IF
+    hackPC = 0 : hackTitle$ = ""
+    IF hackWon THEN
+        vendState(i) = 1 : PlaySfx sndPowerUp&, 0.9
+        IF OpenTarget(decoTX(i), decoTY(i)) THEN ShowMsg "COMPUTER: ACCESS GRANTED - it's open" ELSE ShowMsg "COMPUTER: ACCESS GRANTED"
+        RunHackTriggers INT(decoX(i)), INT(decoY(i))
+    ELSEIF hackLeft THEN
+        ShowMsg "COMPUTER: logged out"
+    ELSE
+        vendState(i) = 2 : PlaySfx sndAlarm&, 0.9 : shake = shake + 4 : ShowMsg "LOCKOUT! An alarm's going off"
+        WakeNear decoX(i), decoY(i), DOG_BARK
+    END IF
+END SUB
+
+' Open what's at cell x, y - a locked door (any lock), a safe. -1 if there
+' was something to open
+FUNCTION OpenTarget(x, y)
+    DIM j ' (its own: the main program shares these names)
+    IF x < 0 OR y < 0 OR x >= mapN OR y >= mapN THEN EXIT FUNCTION
+    IF worldMap(x, y) = 2 THEN
+        doorLock(x, y) = 0 : doorKey(x, y) = 0 : IF doorOpen(x, y) < 1 THEN doorOpen(x, y) = 0.01 : doorMove(x, y) = 1 : SfxAt DoorSnd&(doorType(x, y)), x + 0.5, y + 0.5, playerX, playerY
+        OpenTarget = -1 : EXIT FUNCTION
+    END IF
+    FOR j = 1 TO numDecos
+        IF decoKind(j) = DK_SAFE AND INT(decoX(j)) = x AND INT(decoY(j)) = y AND decoOn(j) THEN SafeOpen j : OpenTarget = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Every "hack" trigger at cell x, y: run it (a computer there hacked)
+SUB RunHackTriggers(x, y)
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO numTrigs
+        IF trigWhen$(k) = "hack" AND NOT trigDone(k) AND trigX0(k) = x AND trigY0(k) = y THEN
+            trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : TriggerRun
+        END IF
+    NEXT
+END SUB
+
+' --- A note: the one at decoration i's cell (a note, or one found in a
+' desk, a bookshelf or a safe) - read on the screen, its picture beside it
+SUB NoteRead(i)
+    DIM k, x, y ' (its own: the main program shares these names)
+    x = INT(decoX(i)) : y = INT(decoY(i)) : k = XtraFind("notes", x, y, 0)
+    PlaySfx sndNote&, 0.8
+    IF k = 0 THEN ShowMsg "A note - the words have faded" : EXIT SUB
+    notePic$ = XtraField$(k, 3) : IF notePic$ = "-" THEN notePic$ = ""
+    noteText$ = NoteWords$(XtraRest$(k, 4))
+    IF demoPlay THEN ShowMsg LEFT$(noteText$, 60) : EXIT SUB ' (a demo: no stopping for it)
+    NoteRun
+END SUB
+
+' A note's words, as it shows them: {code x y} the code of the door or safe
+' at x, y
+FUNCTION NoteWords$(w$)
+    DIM a, b, s$, t$, x, y ' (its own: the main program shares these names)
+    s$ = w$
+    DO
+        a = INSTR(LCASE$(s$), "{code") : IF a = 0 THEN EXIT DO
+        b = INSTR(a, s$, "}") : IF b = 0 THEN EXIT DO
+        t$ = LTRIM$(RTRIM$(MID$(s$, a + 5, b - a - 5))) : t$ = LTRIM$(STR$(INSTR(t$ + " ", " "))) + "|" + t$ ' (x and y: VAL alone would read "9 4" as 94)
+        x = VAL(MID$(t$, INSTR(t$, "|") + 1, VAL(t$) - 1)) : y = VAL(MID$(t$, INSTR(t$, "|") + VAL(t$) + 1))
+        t$ = LTRIM$(STR$(CodeAt&(x, y))) : IF t$ = "0" THEN t$ = "????"
+        s$ = LEFT$(s$, a - 1) + t$ + MID$(s$, b + 1)
+    LOOP
+    NoteWords$ = s$
+END FUNCTION
+
+' The note on the screen (its own loop; the world waits): its picture, if
+' it has one, and its words - | a new line. Any key or click puts it down
+SUB NoteRun STATIC
+    DIM img&, f$, clickWas, t0, gone, k& ' (its own: the main program shares these names)
+    WorldLoopsOff : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+    img& = 0 : IF LEN(notePic$) THEN f$ = ArtPath$(notePic$) : IF NOT _FILEEXISTS(f$) THEN f$ = AssetPath$(notePic$)
+    IF LEN(notePic$) THEN IF _FILEEXISTS(f$) THEN img& = _LOADIMAGE(f$, 32)
+    clickWas = -1 : t0 = 0
+    DO
+        _LIMIT 60 : t0 = t0 + 1
+        gone = 0
+        WHILE _MOUSEINPUT
+            IF _MOUSEBUTTON(1) AND NOT clickWas AND t0 > 15 THEN gone = -1
+            clickWas = _MOUSEBUTTON(1)
+        WEND
+        k& = _KEYHIT : IF k& > 0 AND t0 > 15 THEN gone = -1
+        DrawNote img&
+        IF glReady THEN GLSL_filter_capture
+        GLScreenLayer glReady : ShowFrame
+    LOOP UNTIL gone
+    IF img& < -1 THEN _FREEIMAGE img&
+    _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+    escWas = -1 : fireWait = 15 : spaceWas = -1
+END SUB
+
+' The note: a sheet of paper, its picture at the top (if it has one), its
+' words under it, wrapped
+SUB DrawNote(img&)
+    DIM l$, w$, x0, y, tw, ink AS _UNSIGNED LONG, p, sh, para$, sp, wd$ ' (its own: the main program shares these names)
+    LINE (0, 0)-(799, 599), _RGB32(0, 0, 0), BF
+    x0 = 170 : LINE (x0, 24)-(629, 575), _RGB32(232, 226, 206), BF : LINE (x0, 24)-(629, 575), _RGB32(150, 140, 120), B
+    ink = _RGB32(40, 36, 60) : y = 44
+    IF img& < -1 THEN ' (the picture: up to 420 x 230, as it is shaped)
+        sh = MinOf(420 / _WIDTH(img&), 230 / _HEIGHT(img&)) : tw = _WIDTH(img&) * sh
+        _PUTIMAGE (400 - tw \ 2, y)-STEP(tw - 1, _HEIGHT(img&) * sh - 1), img&
+        y = y + _HEIGHT(img&) * sh + 14
+    END IF
+    w$ = noteText$ + "|" : l$ = ""
+    DO WHILE LEN(w$) AND y < 540
+        p = INSTR(w$, "|")
+        para$ = LEFT$(w$, p - 1) : w$ = MID$(w$, p + 1)
+        l$ = ""
+        DO
+            sp = INSTR(para$ + " ", " ") : wd$ = LEFT$(para$, sp - 1) : para$ = LTRIM$(MID$(para$, sp + 1))
+            IF LEN(l$) + LEN(wd$) + 1 > 34 AND LEN(l$) THEN MenuText x0 + 26, y, l$, 1.5, ink, 0 : y = y + 26 : l$ = wd$ ELSE l$ = LTRIM$(l$ + " " + wd$)
+        LOOP WHILE LEN(para$) AND y < 540
+        MenuText x0 + 26, y, l$, 1.5, ink, 0 : y = y + 30
+    LOOP
+    MenuText 400, 584, "ANY KEY PUTS IT DOWN", 1, _RGB32(160, 160, 170), 1
+END SUB
+
+' --- A security monitor: what the level's cameras see - the first; Space
+' again, the next; past the last (or a step), back to you
+SUB CameraView(i)
+    DIM j ' (its own: the main program shares these names)
+    viewMon = i : j = NextCamera(0)
+    IF j = 0 THEN ShowMsg "SECURITY MONITOR: no signal" : PlaySfx sndLocked&, 0.5 : EXIT SUB
+    viewOn = VIEW_CAM : viewCam = j : PlaySfx sndCamera&, 0.8
+END SUB
+
+' The camera after decoration after (0: the first) - 0 if there's none
+FUNCTION NextCamera(after)
+    DIM j ' (its own: the main program shares these names)
+    FOR j = after + 1 TO numDecos
+        IF decoKind(j) = DK_CAMERA AND decoOn(j) THEN NextCamera = j : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Space while you're looking through a camera: the next one - past the
+' last, back to you
+SUB CameraNext
+    viewCam = NextCamera(viewCam) : PlaySfx sndCamera&, 0.8
+    IF viewCam = 0 THEN viewOn = 0
+END SUB
+
+' --- Each frame: where the view from elsewhere is, this frame (before
+' ViewAway) - a camera panning slowly side to side, or your rocket in
+' flight (a little behind it), then where it burst, a moment
+SUB ViewStep
+    DIM a!, x, y ' (its own: the main program shares these names)
+    IF viewOn = 0 THEN EXIT SUB
+    IF dead OR editMode OR cyberOn THEN viewOn = 0 : EXIT SUB
+    SELECT CASE viewOn
+        CASE VIEW_CAM
+            IF viewCam < 1 OR viewCam > numDecos THEN viewOn = 0 : EXIT SUB
+            x = INT(decoX(viewCam)) : y = INT(decoY(viewCam))
+            SELECT CASE decoFace(viewCam) ' (its back to its wall: it looks out into the room)
+                CASE 1 : a! = 0
+                CASE 2 : a! = 1.5708
+                CASE 3 : a! = 3.14159
+                CASE 4 : a! = -1.5708
+                CASE ELSE : a! = DAtan2(playerY - decoY(viewCam), playerX - decoX(viewCam))
+            END SELECT
+            viewA = a! + DSin(lvFrame * 0.012) * 0.45 : viewP = -0.22
+            viewX = decoX(viewCam) + DCos(viewA) * 0.3 : viewY = decoY(viewCam) + DSin(viewA) * 0.3
+            viewZ = floorH(x, y) + decoZ(viewCam) + DecoScale(DK_CAMERA) * 0.5
+        CASE VIEW_ROCKET
+            IF viewHold > 0 THEN
+                viewHold = viewHold - 1 : IF viewHold = 0 THEN viewOn = 0
+            ELSEIF boltOn(viewBolt) AND boltKind(viewBolt) = BK_ROCKET THEN
+                viewA = DAtan2(boltDY(viewBolt), boltDX(viewBolt)) : viewP = ATN(boltDZ(viewBolt)) ' (only what you see: ATN will do)
+                viewX = boltX(viewBolt) - boltDX(viewBolt) * 0.35 : viewY = boltY(viewBolt) - boltDY(viewBolt) * 0.35
+                IF SolidAt(viewX, viewY) THEN viewX = boltX(viewBolt) : viewY = boltY(viewBolt)
+                viewZ = boltZ(viewBolt) + 0.06
+            ELSE
+                viewHold = VIEW_HOLD ' (it burst: a moment where it was - backed off a little, to see it go)
+                FOR x = 1 TO 15
+                    IF SolidAt(viewX - DCos(viewA) * 0.1, viewY - DSin(viewA) * 0.1) THEN EXIT FOR
+                    viewX = viewX - DCos(viewA) * 0.1 : viewY = viewY - DSin(viewA) * 0.1
+                NEXT
+            END IF
+    END SELECT
+END SUB
+
+' The eye away to the view (round chapters 14-17) - and back
+SUB ViewAwayGo
+    IF viewOn = 0 THEN EXIT SUB
+    svPX = playerX : svPY = playerY : svDX = dirX : svDY = dirY : svPlX = planeX : svPlY = planeY : svEye = eyeZ : svPitch = pitch : svPZ = playerZ
+    playerX = viewX : playerY = viewY : dirX = DCos(viewA) : dirY = DSin(viewA) : planeX = -dirY * fovPlane : planeY = dirX * fovPlane
+    eyeZ = viewZ : playerZ = viewZ - EYE_H : pitch = MaxOf(-0.55, MinOf(0.55, viewP))
+    viewAway = -1
+END SUB
+SUB ViewBackGo
+    IF NOT viewAway THEN EXIT SUB
+    playerX = svPX : playerY = svPY : dirX = svDX : dirY = svDY : planeX = svPlX : planeY = svPlY : eyeZ = svEye : pitch = svPitch : playerZ = svPZ
+    viewAway = 0
+END SUB
+
+' Over the view from elsewhere: a camera's name, its feed's marks; the
+' rocket's
+SUB ViewOverlay
+    DIM t, t$ ' (its own: the main program shares these names)
+    IF viewOn = VIEW_CAM THEN
+        FOR t = 0 TO 599 STEP 4 : LINE (0, t)-(799, t), _RGBA32(0, 20, 10, 60) : NEXT
+        MenuText 24, 20, decoTag$(viewCam), 2, _RGB32(220, 255, 220), 0
+        IF (lvFrame \ 30) MOD 2 = 0 THEN CIRCLE (720, 34), 7, _RGB32(255, 40, 40) : PAINT (720, 34), _RGB32(255, 40, 40) : MenuText 734, 26, "REC", 1.5, _RGB32(255, 80, 80), 0
+        t$ = LTRIM$(STR$(lvFrame \ 3600)) + ":" + RIGHT$("0" + LTRIM$(STR$((lvFrame \ 60) MOD 60)), 2) + ":" + RIGHT$("0" + LTRIM$(STR$(lvFrame MOD 60)), 2)
+        MenuText 24, 560, t$, 1.5, _RGB32(220, 255, 220), 0
+        MenuText 776, 560, "SPACE NEXT CAMERA - MOVE TO LEAVE", 1, _RGB32(170, 210, 170), 2
+        LINE (8, 8)-(791, 591), _RGBA32(200, 255, 200, 90), B
+    ELSEIF viewOn = VIEW_ROCKET THEN
+        MenuText 400, 24, "ROCKET CAM", 1.5, _RGB32(255, 190, 90), 1
+        LINE (380, 300)-(420, 300), _RGBA32(255, 190, 90, 150) : LINE (400, 280)-(400, 320), _RGBA32(255, 190, 90, 150)
+    END IF
+END SUB
+
+' A smear on face f$ (E S W N F C) of cell x, y - kind$ (blood1...), or ""
+' none - its [smears] line (the editor's PAINT)
+SUB SmearSet(x, y, f$, kind$)
+    DIM k, j ' (its own: the main program shares these names)
+    k = 0
+    DO
+        k = XtraFind("smears", x, y, k) : IF k = 0 THEN EXIT DO
+        IF UCASE$(XtraField$(k, 3)) = f$ THEN
+            FOR j = k TO lvlNumXtra - 1 : lvlXSec$(j) = lvlXSec$(j + 1) : lvlXtra$(j) = lvlXtra$(j + 1) : NEXT
+            lvlNumXtra = lvlNumXtra - 1 : k = k - 1
+        END IF
+    LOOP
+    IF LEN(kind$) THEN XtraTake "smears", LTRIM$(STR$(x)) + ", " + LTRIM$(STR$(y)) + ", " + f$ + ", " + kind$
+END SUB

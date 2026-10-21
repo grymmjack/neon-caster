@@ -19,9 +19,9 @@ edMapX = 8 : edMapY = 8 : edCell = 12
 ' the rest) and the level built again from that (BuildLevel); editUndo$()
 ' remembers how it was before each change. texFile$(): which picture is in
 ' each texture slot now, so building it again only loads what changed.
-CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%?&;rby+*uae234Mqj89)({}`,mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:[<>^v"
+CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=-@$%?&;rby+*uae234Mqj89)({}`,mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:['<>^v"
 CONST EDIT_UNDO = 40
-CONST EDIT_OPEN$ = ".rby+*uae234Mqj89)({}`,mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:[<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
+CONST EDIT_OPEN$ = ".rby+*uae234Mqj89)({}`,mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:['<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
 DIM SHARED editMode AS INTEGER, editView AS INTEGER, editGlyph$, editDirty AS INTEGER, editRebuild AS INTEGER
 DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, editLightP AS INTEGER, editLights AS INTEGER, editHeights AS INTEGER
 ' THE EDITOR'S OWN STATE, the same in both views (the map from above and
@@ -83,6 +83,7 @@ DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER, edMapWa
 DIM SHARED edPnN AS INTEGER, edPnId(PN_MAX) AS INTEGER, edPnX(PN_MAX) AS INTEGER, edPnY(PN_MAX) AS INTEGER, edPnW(PN_MAX) AS INTEGER, edPnLab$(PN_MAX), edPnLit(PN_MAX) AS INTEGER
 DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnEvent AS INTEGER, edPnCol(PN_MAX) AS _UNSIGNED LONG
 DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick AS INTEGER, edTypeFresh AS INTEGER
+DIM SHARED edTypeX AS INTEGER, edTypeY AS INTEGER ' (typing a door's code (edTypeFor 3), a thing's own (4), a note's words (5) or picture (6): for cell edTypeX, edTypeY)
 ' The TRIGGER pane: open on the selection; the trigger being made - when
 ' (1 enter, 2 use, 3 clear, 4 time), again each time?, after how long (time),
 ' its commands; what's being typed (edTypeFor: 1 the sector's name, 2 the

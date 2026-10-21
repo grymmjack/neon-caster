@@ -909,8 +909,13 @@ SUB ConGive STATIC
             n = VAL(conB$) : IF n <= 0 THEN n = JET_MAX
             IF NOT jetHave THEN jetHave = -1 : jetFuel = 0 : ConPrint "(a jetpack too)"
             jetFuel = MinOf(JET_MAX, jetFuel + n) : ConPrint "Jet fuel:" + STR$(INT(jetFuel)) + " of" + STR$(JET_MAX)
+        CASE "repairkit", "repair", "kit", "kits" ' give repairkit [N]: N computer repair kits (as made: one), up to MAX_KITS
+            n = VAL(conB$) : IF n <= 0 THEN n = 1
+            repairKits = MinOf(MAX_KITS, repairKits + n) : ConPrint "Repair kits:" + STR$(repairKits)
+        CASE "invuln", "invulnerability", "invulnerable" ' give invuln: invulnerable for INV_FRAMES
+            invTimer = INV_FRAMES : PlaySfx sndInvuln&, 0.8 : ConPrint "Invulnerable for 5 seconds"
         CASE ELSE
-            ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health [N] / armor [N] / overcharge / amp / map / goggles / suit"
+            ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health [N] / armor [N] / overcharge / amp / map / goggles / suit / jetpack / fuel [N] / repairkit [N] / invuln"
     END SELECT
 END SUB
 
@@ -961,8 +966,13 @@ SUB ConTake STATIC
         CASE "jetfuel", "fuel" ' take fuel [N]: N of it (as made: all)
             n = VAL(conB$) : IF n <= 0 THEN n = JET_MAX
             jetFuel = MaxOf(0, jetFuel - n) : ConPrint "Jet fuel:" + STR$(INT(jetFuel))
+        CASE "repairkit", "repair", "kit", "kits" ' take repairkit [N] (as made: all)
+            n = VAL(conB$) : IF n <= 0 THEN n = MAX_KITS
+            repairKits = MaxOf(0, repairKits - n) : ConPrint "Repair kits:" + STR$(repairKits)
+        CASE "invuln", "invulnerability", "invulnerable"
+            invTimer = 0 : ConPrint "Not invulnerable"
         CASE ELSE
-            ConPrint "take all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health N / armor [N] / map"
+            ConPrint "take all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health N / armor [N] / map / jetpack / fuel [N] / repairkit [N] / invuln"
     END SELECT
 END SUB
 
@@ -995,6 +1005,8 @@ FUNCTION ItemOf(v$)
         CASE "jetpack", "jet" : ItemOf = IT_JETPACK
         CASE "jetfuel", "fuel" : ItemOf = IT_JETFUEL
         CASE "slugs" : ItemOf = IT_SLUGS
+        CASE "repairkit", "repair", "kit" : ItemOf = IT_REPAIR
+        CASE "invuln", "invulnerability", "invulnerable" : ItemOf = IT_INVULN
     END SELECT
 END FUNCTION
 
@@ -1313,8 +1325,13 @@ SUB ConHelp(c$)
         CASE "buddha" : ConPrint "^3buddha [on|off]^0: you're hurt as ever, but never below 1 health (a pit or a death trap still kills)"
         CASE "fly" : ConPrint "^3fly [on|off]^0: fly - E up, C down, Shift faster - the floor still holds you up"
         CASE "notarget" : ConPrint "^3notarget [on|off]^0: the monsters don't notice you, and hunting ones forget you"
-        CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-5 | ammo [cells|shells|rounds|slugs|rockets N] | health [N] | armor [N] | overcharge | amp | map | goggles | suit | jetpack | fuel [N]"
-        CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-5 | ammo [cells|shells|rounds|slugs|rockets N] | health N | armor [N] | map | jetpack | fuel [N]"
+        CASE "give"
+            ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-5 | health [N] | armor [N]"
+            ConPrint "  | ammo [cells|shells|rounds|slugs|rockets N] | overcharge | amp | map | goggles | suit"
+            ConPrint "  | jetpack | fuel [N] | repairkit [N] (computer repair kits) | invuln (5 seconds)"
+        CASE "take"
+            ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-5 | health N | armor [N] | map"
+            ConPrint "  | ammo [cells|shells|rounds|slugs|rockets N] | jetpack | fuel [N] | repairkit [N] | invuln"
         CASE "turret", "turrets"
             ConPrint "^3turret [WHO WHAT [N]]^0: turrets told what to do (an ambush, from a trigger); alone: lists them"
             ConPrint "  WHO: a number (as ^7turret^0 lists them), ^7all^0, or ^7at^8 X Y [R]^0 - within R cells (2 if not said)"
@@ -1392,6 +1409,7 @@ SUB ConHelp(c$)
         CASE "trigger"
             ConPrint "^3trigger WHEN ... [repeat] : COMMAND | COMMAND^0 - a new trigger for this level (| for ; when typed). WHEN:"
             ConPrint "  enter X0 Y0 X1 Y1 (you walk in) - use X Y (Space on it) - shoot X Y - clear X0 Y0 X1 Y1 (no monster left) - time S"
+            ConPrint "  - hack X Y (the computer there hacked)"
             ConPrint "  trigger del N: take trigger N away (triggers lists them). savelevel (or Ctrl+S) keeps them"
         CASE "undo" : ConPrint "^3undo^0: the editor's last change, undone (Ctrl+Z)"
         CASE "savelevel" : ConPrint "^3savelevel^0: save the level as it is now to its file (Ctrl+S in the editor)"

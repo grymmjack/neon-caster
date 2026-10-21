@@ -1,0 +1,187 @@
+''
+' NEON-CASTER - LEVEL/THINGS.BM
+' =============================================================================
+' The lines about single cells ([doors], [things], [notes], [smears] -
+' LEVEL/THINGS.BI): finding a cell's, its fields, changing them.
+'
+
+' One line of section sec$, as the file has it
+SUB XtraTake(sec$, l$)
+    IF lvlNumXtra >= MAX_XTRA THEN EXIT SUB
+    lvlNumXtra = lvlNumXtra + 1 : lvlXSec$(lvlNumXtra) = sec$ : lvlXtra$(lvlNumXtra) = l$
+END SUB
+
+' Is sec$ one of these sections?
+FUNCTION XtraSec(sec$)
+    XtraSec = (sec$ = "doors" OR sec$ = "things" OR sec$ = "notes" OR sec$ = "smears")
+END FUNCTION
+
+' Field n (from 1) of line k - split at commas, trimmed
+FUNCTION XtraField$(k, n)
+    XtraField$ = ListItem$(lvlXtra$(k), n)
+END FUNCTION
+
+' Line k from field n on (a note's words: they can have commas in them)
+FUNCTION XtraRest$(k, n)
+    DIM c, i, s$ ' (its own: the main program shares these names)
+    s$ = lvlXtra$(k)
+    FOR i = 1 TO n - 1
+        c = INSTR(s$, ",") : IF c = 0 THEN EXIT FUNCTION
+        s$ = MID$(s$, c + 1)
+    NEXT
+    XtraRest$ = LTRIM$(RTRIM$(s$))
+END FUNCTION
+
+' The line of section sec$ for cell x, y (0: none) - from line after on
+FUNCTION XtraFind(sec$, x, y, after)
+    DIM k ' (its own: the main program shares these names)
+    FOR k = after + 1 TO lvlNumXtra
+        IF lvlXSec$(k) = sec$ THEN
+            IF VAL(XtraField$(k, 1)) = x AND VAL(XtraField$(k, 2)) = y THEN XtraFind = k : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
+' Set cell x, y's line of section sec$ to "x, y, " + rest$ - or, rest$
+' empty, take it away
+SUB XtraSet(sec$, x, y, rest$)
+    DIM k, j ' (its own: the main program shares these names)
+    k = XtraFind(sec$, x, y, 0)
+    IF rest$ = "" THEN
+        IF k THEN
+            FOR j = k TO lvlNumXtra - 1 : lvlXSec$(j) = lvlXSec$(j + 1) : lvlXtra$(j) = lvlXtra$(j + 1) : NEXT
+            lvlNumXtra = lvlNumXtra - 1
+        END IF
+        EXIT SUB
+    END IF
+    IF k = 0 THEN
+        IF lvlNumXtra >= MAX_XTRA THEN EXIT SUB
+        lvlNumXtra = lvlNumXtra + 1 : k = lvlNumXtra : lvlXSec$(k) = sec$
+    END IF
+    lvlXtra$(k) = LTRIM$(STR$(x)) + ", " + LTRIM$(STR$(y)) + ", " + rest$
+END SUB
+
+' Every line about cell x, y moved to cell nx, ny (the editor moving
+' things); nx < 0: taken away
+SUB XtraMoveCell(x, y, nx, ny)
+    DIM k, j ' (its own: the main program shares these names)
+    k = 1
+    DO WHILE k <= lvlNumXtra
+        IF VAL(XtraField$(k, 1)) = x AND VAL(XtraField$(k, 2)) = y THEN
+            IF nx < 0 THEN
+                FOR j = k TO lvlNumXtra - 1 : lvlXSec$(j) = lvlXSec$(j + 1) : lvlXtra$(j) = lvlXtra$(j + 1) : NEXT
+                lvlNumXtra = lvlNumXtra - 1 : _CONTINUE
+            END IF
+            lvlXtra$(k) = LTRIM$(STR$(nx)) + ", " + LTRIM$(STR$(ny)) + ", " + XtraRest$(k, 3)
+        END IF
+        k = k + 1
+    LOOP
+END SUB
+
+' Every line moved by dx, dy (the editor shifting the whole map); those
+' that end up off it (0 to n - 1) taken away
+SUB XtraShift(dx, dy, n)
+    DIM k, j, x, y ' (its own: the main program shares these names)
+    k = 1
+    DO WHILE k <= lvlNumXtra
+        x = VAL(XtraField$(k, 1)) + dx : y = VAL(XtraField$(k, 2)) + dy
+        IF x < 0 OR y < 0 OR x >= n OR y >= n THEN
+            FOR j = k TO lvlNumXtra - 1 : lvlXSec$(j) = lvlXSec$(j + 1) : lvlXtra$(j) = lvlXtra$(j + 1) : NEXT
+            lvlNumXtra = lvlNumXtra - 1 : _CONTINUE
+        END IF
+        IF dx <> 0 OR dy <> 0 THEN lvlXtra$(k) = LTRIM$(STR$(x)) + ", " + LTRIM$(STR$(y)) + ", " + XtraRest$(k, 3)
+        k = k + 1
+    LOOP
+END SUB
+
+' The lines of section sec$ for the level file: its header, a line on what
+' its numbers are, the lines ("" if it has none)
+FUNCTION XtraWrite$(sec$, nl$)
+    DIM k, o$ ' (its own: the main program shares these names)
+    FOR k = 1 TO lvlNumXtra
+        IF lvlXSec$(k) = sec$ THEN o$ = o$ + lvlXtra$(k) + nl$
+    NEXT
+    IF o$ = "" THEN EXIT FUNCTION
+    SELECT CASE sec$
+        CASE "doors" : h$ = "' a door's own: x, y, kicks (a stronghold door: how many kicks break it down - 0 none), code (a keypad door's digits - ? one made up each time; none: no keypad)"
+        CASE "things" : h$ = "' what a " + CHR$(34) + " is: x, y, kind (table, brokenmonitor, scientist, guard, cyborg, bookshelf, safe, brokenpc, computer, camera, secmon, repairkit, invuln, robodog - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name"
+        CASE "notes" : h$ = "' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code"
+        CASE "smears" : h$ = "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)"
+    END SELECT
+    XtraWrite$ = nl$ + "[" + sec$ + "]" + nl$ + h$ + nl$ + o$
+END FUNCTION
+
+' A thing's code by its name (0: none) - one of the things, or any
+' decoration, pickup or monster by its name
+FUNCTION ThingCode(n$)
+    DIM k, t$ ' (its own: the main program shares these names)
+    t$ = LCASE$(LTRIM$(RTRIM$(n$)))
+    SELECT CASE t$
+        CASE "repairkit", "repair", "kit" : ThingCode = THING_ITEM + IT_REPAIR : EXIT FUNCTION
+        CASE "invuln", "invulnerability", "shield" : ThingCode = THING_ITEM + IT_INVULN : EXIT FUNCTION
+        CASE "robodog", "dog", "robotdog", "guarddog" : ThingCode = THING_MON + MT_ROBODOG : EXIT FUNCTION
+    END SELECT
+    k = DecoKindOf(t$) : IF k THEN ThingCode = k : EXIT FUNCTION
+    FOR k = 1 TO MON_TYPES
+        IF t$ = LCASE$(mtypeName$(k)) THEN ThingCode = THING_MON + k : EXIT FUNCTION
+    NEXT
+    k = ItemOf(t$) : IF k THEN ThingCode = THING_ITEM + k
+END FUNCTION
+
+' A thing's name, as [things] has it
+FUNCTION ThingName$(c)
+    IF c > THING_MON THEN
+        IF c = THING_MON + MT_ROBODOG THEN ThingName$ = "robodog" ELSE ThingName$ = LCASE$(mtypeName$(c - THING_MON))
+    ELSEIF c > THING_ITEM THEN
+        IF c = THING_ITEM + IT_REPAIR THEN ThingName$ = "repairkit" ELSE IF c = THING_ITEM + IT_INVULN THEN ThingName$ = "invuln" ELSE ThingName$ = LootName$(c - THING_ITEM)
+    ELSE
+        ThingName$ = DecoName$(c)
+    END IF
+END FUNCTION
+
+' The thing at cell x, y: its code (a table on its side, if it has no line)
+FUNCTION ThingAt(x, y)
+    DIM c, k ' (its own: the main program shares these names)
+    k = XtraFind("things", x, y, 0)
+    IF k THEN c = ThingCode(XtraField$(k, 3))
+    IF c = 0 THEN c = DK_TABLE
+    ThingAt = c
+END FUNCTION
+
+' The things the editor offers, in order (their names)
+FUNCTION ThingList$
+    ThingList$ = "table,brokenmonitor,scientist,guard,cyborg,bookshelf,safe,brokenpc,computer,camera,secmon,repairkit,invuln,robodog"
+END FUNCTION
+
+' A thing's name for the editor - what it is, what it does
+FUNCTION ThingTitle$(n$)
+    DIM c ' (its own: the main program shares these names)
+    c = ThingCode(n$)
+    SELECT CASE c
+        CASE DK_TABLE : ThingTitle$ = "a table on its side (cover)"
+        CASE DK_MONBROKE : ThingTitle$ = "a smashed monitor"
+        CASE DK_SCIENTIST : ThingTitle$ = "a dead scientist"
+        CASE DK_GUARD : ThingTitle$ = "a dead guard"
+        CASE DK_CYBORG : ThingTitle$ = "a dead cyborg"
+        CASE DK_SHELF : ThingTitle$ = "a BOOKSHELF - Space searches it"
+        CASE DK_SAFE : ThingTitle$ = "a SAFE - its code (or its computer) opens it"
+        CASE DK_PCBROKE : ThingTitle$ = "a BROKEN COMPUTER - a repair kit fixes it"
+        CASE DK_PC : ThingTitle$ = "a COMPUTER - hacked, it opens its door or safe"
+        CASE DK_CAMERA : ThingTitle$ = "a security CAMERA"
+        CASE DK_SECMON : ThingTitle$ = "a SECURITY MONITOR - what the cameras see"
+        CASE THING_ITEM + IT_REPAIR : ThingTitle$ = "a computer REPAIR KIT"
+        CASE THING_ITEM + IT_INVULN : ThingTitle$ = "INVULNERABILITY (5 seconds)"
+        CASE THING_MON + MT_ROBODOG : ThingTitle$ = "a ROBOT GUARD DOG"
+        CASE 0 : ThingTitle$ = "a thing (" + n$ + "?)"
+        CASE ELSE : ThingTitle$ = ThingName$(c)
+    END SELECT
+END FUNCTION
+
+' What the editor's brush picks up from cell x, y: its map character - a
+' thing's, " and its name
+FUNCTION CellGlyph$(x, y)
+    DIM c$ ' (its own: the main program shares these names)
+    c$ = MID$(lvlRow$(y), x + 1, 1)
+    IF c$ = CHR$(34) THEN c$ = c$ + ThingName$(ThingAt(x, y))
+    CellGlyph$ = c$
+END FUNCTION

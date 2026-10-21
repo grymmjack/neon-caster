@@ -39,6 +39,7 @@
 '$INCLUDE:'./GAME/GUNS.BI'
 '$INCLUDE:'./GAME/TERMINALS.BI'
 '$INCLUDE:'./GAME/HACK.BI'
+'$INCLUDE:'./GAME/SECURE.BI'
 '$INCLUDE:'./GAME/NETWORK.BI'
 '$INCLUDE:'./GAME/NEXUS.BI'
 
@@ -60,6 +61,7 @@
 
 ' LEVEL -----------------------------------------------------------------------
 '$INCLUDE:'./LEVEL/LEVELFILE.BI'
+'$INCLUDE:'./LEVEL/THINGS.BI'
 
 ' RENDER ----------------------------------------------------------------------
 '$INCLUDE:'./RENDER/HUD.BI'

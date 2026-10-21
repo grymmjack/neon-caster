@@ -80,6 +80,11 @@ SUB SaveGame STATIC
     PUT #fileNum, , lvFrame ' (the sector's own clock: time triggers)
     PUT #fileNum, , playerZ : PUT #fileNum, , playerVZ : PUT #fileNum, , rocketAir ' (in the air, as you were - not dropped to the floor, into a pit)
     PUT #fileNum, , jetHave : PUT #fileNum, , jetFuel : PUT #fileNum, , jetOn ' (a jetpack, its fuel, flying on it)
+    PUT #fileNum, , repairKits : PUT #fileNum, , invTimer ' (repair kits; invulnerable for a while yet)
+    PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , decoKind(i) : NEXT ' (a broken computer fixed is a computer now)
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 ' (stronghold doors: kicks left, kicked down)
+        IF worldMap(x, y) = 2 THEN PUT #fileNum, , doorHP(x, y) : PUT #fileNum, , doorBroke(x, y)
+    NEXT : NEXT
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 END SUB
@@ -251,6 +256,16 @@ SUB LoadGame STATIC
         GET #fileNum, , lvF&
         IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , pz! : GET #fileNum, , pvz! : GET #fileNum, , ra% : IF pz! >= floorH(INT(playerX), INT(playerY)) AND pz! < ceilH(INT(playerX), INT(playerY)) THEN playerZ = pz! : playerVZ = pvz! : rocketAir = ra% : eyeZ = playerZ + EYE_H
         jetHave = 0 : jetFuel = 0 : jetOn = 0 : IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , jetHave : GET #fileNum, , jetFuel : GET #fileNum, , jetOn
+        repairKits = 0 : invTimer = 0
+        IF LOC(fileNum) < LOF(fileNum) THEN
+            GET #fileNum, , repairKits : GET #fileNum, , invTimer
+            GET #fileNum, , savedCount
+            FOR i = 1 TO savedCount : GET #fileNum, , tk% : IF savedCount = numDecos THEN decoKind(i) = tk%
+            NEXT
+            FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
+                IF worldMap(x, y) = 2 THEN GET #fileNum, , doorHP(x, y) : GET #fileNum, , doorBroke(x, y)
+            NEXT : NEXT
+        END IF
     END IF
     CLOSE #fileNum
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)

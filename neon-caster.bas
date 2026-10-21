@@ -256,10 +256,12 @@ DO
     '$INCLUDE:'./LOOP/11-DOORS.BI'
     '$INCLUDE:'./LOOP/12-SHOOTING.BI'
     '$INCLUDE:'./LOOP/13-MONSTERS.BI'
+    ViewStep : ViewAwayGo ' (a view from elsewhere - a security camera's, your rocket's: the eye there for chapters 14-17 - GAME/SECURE.BM)
     '$INCLUDE:'./LOOP/14-FLOORS.BI'
     '$INCLUDE:'./LOOP/15-WALLS.BI'
     '$INCLUDE:'./LOOP/16-SPRITES.BI'
     '$INCLUDE:'./LOOP/17-SCREEN.BI'
+    ViewBackGo ' (...and back to you)
     '$INCLUDE:'./LOOP/18-HUD.BI'
 LOOP ' (forever: you leave the game from the menu - chapter 21)
 

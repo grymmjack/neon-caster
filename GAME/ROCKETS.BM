@@ -14,6 +14,7 @@ SUB FireKind(k, x, y, z, dx, dy, dz, sp, life, dmg)
         IF boltOn(i) = 0 THEN
             boltOn(i) = -1 : boltKind(i) = k : boltX(i) = x : boltY(i) = y : boltZ(i) = z : boltOwner(i) = boltFromMon
             boltDX(i) = dx : boltDY(i) = dy : boltDZ(i) = dz : boltSpd(i) = sp : boltLife(i) = life : boltDamage(i) = dmg : boltTgt(i) = 0 : IF boltFromMon THEN boltTgt(i) = monVs
+            lastBolt = i ' (the rocket camera's to follow)
             EXIT SUB
         END IF
     NEXT
@@ -24,7 +25,8 @@ END SUB
 SUB FireRocket
     DIM dz ' (its own: the main program shares these names)
     dz = 0 : IF lookAim THEN dz = DTan(pitch)
-    FireKind BK_ROCKET, playerX + dirX * 0.25, playerY + dirY * 0.25, eyeZ - 0.1, dirX, dirY, dz, ROCKET_SPEED, 240, ROCKET_HIT
+    lastBolt = 0 : FireKind BK_ROCKET, playerX + dirX * 0.25, playerY + dirY * 0.25, eyeZ - 0.1, dirX, dirY, dz, ROCKET_SPEED, 240, ROCKET_HIT
+    IF setting(SET_ROCKETCAM) AND lastBolt AND NOT editMode AND NOT cyberOn THEN viewOn = VIEW_ROCKET : viewBolt = lastBolt : viewHold = 0 ' (ROCKET CAMERA: followed - GAME/SECURE.BM)
 END SUB
 
 ' --- One frame of bolt i's flight - any kind but plasma (chapter 13 flies
@@ -425,7 +427,7 @@ END SUB
 ' --- Poison's got to you, amt of it: it builds up (poisonBuild) - past
 ' POISON_BUILD you're poisoned, for POISON_TIME frames more
 SUB Poisoned(amt)
-    IF godMode OR editMode OR dead THEN EXIT SUB
+    IF godMode OR editMode OR dead OR invTimer > 0 THEN EXIT SUB
     poisonBuild = poisonBuild + amt
     IF poisonBuild < POISON_BUILD AND poisonLeft = 0 THEN EXIT SUB
     IF poisonLeft = 0 THEN ShowMsg "POISONED - a health pack or medkit cures it"

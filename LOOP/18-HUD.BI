@@ -20,7 +20,7 @@
     ' The gun was placed in chapter 17 (gunX, gunY, gunW, gunH): drawn here
     ' - or with OpenGL, by the graphics card, at the window's own size
     ' (chapter 24), under all of this
-    IF gunY < 600 AND NOT glMode AND NOT editMode THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun) ' (in its light - not in the editor: nothing to shoot, and it's in the way)
+    IF gunY < 600 AND NOT glMode AND NOT editMode AND viewOn = 0 THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun) ' (in its light - not in the editor: nothing to shoot, and it's in the way)
     ' The kick: the boot comes up from the bottom of the screen (a little
     ' left of the middle), at its highest when it lands, then drops away -
     ' lit like the gun, by where you stand
@@ -54,11 +54,17 @@
     ' each recent hit, pointing where it came from. Each one remembers
     ' where the hit came from, not which way it pointed, so the arc turns
     ' as you do - turn until it's at the top, and you're facing it.
-    IF NOT dead THEN DrawCrosshair 400, 300
+    IF NOT dead AND viewOn = 0 THEN DrawCrosshair 400, 300
+    ViewOverlay ' (a security camera's feed, your rocket's - GAME/SECURE.BM)
     crossScale = 1 + (crossScale - 1) * 0.85
     IF crossFlash > 0 THEN crossFlash = crossFlash - 1
     IF hurtFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(MaxOf(painR, 120), painG, painB, hurtFlash * 5), BF ' (in what hurt you - and fainter now the edges show it)
     IF pickFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 255, 160, pickFlash * 4), BF
+    IF invTimer > 0 AND NOT (invTimer < 60 AND (invTimer \ 6) MOD 2 = 1) THEN ' Invulnerable: a golden glow round the edges (a hit that couldn't hurt: brighter) - blinking out its last second
+        invAl = 9 + invFlash * 3 + 3 * DSin(lvFrame * 0.2)
+        FOR invE = 0 TO 15 : LINE (invE, invE)-(799 - invE, 599 - invE), _RGBA32(255, 205, 70, MaxOf(0, (16 - invE) * invAl)), B : NEXT
+        MenuText 400, 70, "INVULNERABLE " + LTRIM$(STR$((invTimer + 59) \ 60)), 1.5, _RGB32(255, 215, 90), 1
+    END IF
     ' A ripper's slash: three claw marks torn across the view - drawn out
     ' fast over the first frames (the swipe), then fading
     IF clawFx > 0 THEN

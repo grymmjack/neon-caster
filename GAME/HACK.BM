@@ -129,7 +129,8 @@ SUB HackSetup
     NEXT
     hackPass = 1 + INT(RND * HACK_WORDS) : hackTries = HACK_TRIES : hackUsed$ = ""
     FOR k = 1 TO 10 : hackLog$(k) = "" : NEXT
-    HackSay "NEXUS SECURITY" : HackSay "TURRET CONTROL" : HackSay "Find the password."
+    HackSay "NEXUS SECURITY" : IF LEN(hackTitle$) THEN HackSay hackTitle$ ELSE HackSay "TURRET CONTROL"
+    HackSay "Find the password."
 END SUB
 
 ' A line on the hack's log (the right of its screen), the oldest lost
@@ -231,7 +232,7 @@ SUB DrawHack(s0, s1, big$)
     gr = _RGB32(90, 255, 140) : dm = _RGB32(40, 120, 70)
     LINE (0, 0)-(799, 599), _RGB32(2, 12, 6), BF
     FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGB32(0, 4, 2) : NEXT ' (scanlines: an old screen)
-    MenuText 40, 26, "NEXUS SECURITY OS v2.6  -  TURRET CONTROL", 1.5, gr, 0
+    IF LEN(hackTitle$) THEN MenuText 40, 26, "NEXUS SECURITY OS v2.6  -  " + hackTitle$, 1.5, gr, 0 ELSE MenuText 40, 26, "NEXUS SECURITY OS v2.6  -  TURRET CONTROL", 1.5, gr, 0
     MenuText 40, 56, "ENTER PASSWORD NOW", 1.5, gr, 0
     t$ = "" : FOR k = 1 TO hackTries : t$ = t$ + CHR$(219) + " " : NEXT
     MenuText 40, 86, LTRIM$(STR$(hackTries)) + " ATTEMPT(S) LEFT: " + t$, 1.5, gr, 0

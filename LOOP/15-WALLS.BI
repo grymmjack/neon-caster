@@ -168,7 +168,7 @@
         ELSEIF doorHit = 2 THEN ' A door's edge: a thin slice of its picture
             texX = INT(doorU * DOOR_THICK * texSize)
             SELECT CASE doorType(mapX, mapY)
-                CASE DOOR_SLIDE : IF doorKey(mapX, mapY) THEN texSlot = T_DOORK + doorKey(mapX, mapY) ELSE texSlot = T_DOOR
+                CASE DOOR_SLIDE : texSlot = DoorSlot(mapX, mapY)
                 CASE DOOR_SPLIT : texSlot = T_SPLIT
                 CASE ELSE : texSlot = T_SHUTTER
             END SELECT
@@ -178,7 +178,7 @@
             SELECT CASE doorType(mapX, mapY)
                 CASE DOOR_SLIDE
                     texX = INT((wallX - doorOpenAmt) * texSize)
-                    IF doorKey(mapX, mapY) THEN texSlot = T_DOORK + doorKey(mapX, mapY) ELSE texSlot = T_DOOR
+                    texSlot = DoorSlot(mapX, mapY)
                 CASE DOOR_SPLIT
                     IF wallX < 0.5 THEN texX = INT((wallX + doorOpenAmt / 2) * texSize) ELSE texX = INT((wallX - doorOpenAmt / 2) * texSize)
                     texSlot = T_SPLIT

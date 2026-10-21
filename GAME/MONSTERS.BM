@@ -330,7 +330,7 @@ FUNCTION BoltDeco(x, y, z)
     cx = INT(x) : cy = INT(y)
     IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN OR cyberOn THEN EXIT FUNCTION
     d = decoCell(cx, cy) : IF d = 0 THEN EXIT FUNCTION
-    IF NOT decoOn(d) OR decoKind(d) = DK_BODY THEN EXIT FUNCTION
+    IF NOT decoOn(d) OR DecoFlat(decoKind(d)) THEN EXIT FUNCTION
     IF (x - decoX(d)) ^ 2 + (y - decoY(d)) ^ 2 > 0.32 * 0.32 THEN EXIT FUNCTION
     IF z > FloorAt(decoX(d), decoY(d)) + DecoScale(decoKind(d)) THEN ' (over it - unless barrels stand on it: the one there)
         d = DecoStackAt(cx, cy, z - FloorAt(decoX(d), decoY(d))) : IF d = 0 THEN EXIT FUNCTION
@@ -367,7 +367,7 @@ SUB BuildThiefWay
             nx = x + (k = 1) - (k = 2) : ny = y + (k = 3) - (k = 4)
             IF nx > 0 AND ny > 0 AND nx < mapN - 1 AND ny < mapN - 1 THEN
                 v = worldMap(nx, ny) : ok = (v <= 0 AND diagCorner(nx, ny) = 0 AND boxOn(nx, ny) = 0 AND glassHP(nx, ny) <= 0) ' (a block's cell, or a pane of glass, is no way through for a fleeing thief)
-                IF decoCell(nx, ny) THEN IF decoKind(decoCell(nx, ny)) <> DK_BODY THEN ok = 0 ' (nor a decoration standing in the way - it would stick behind it, steps from home)
+                IF decoCell(nx, ny) THEN IF NOT DecoFlat(decoKind(decoCell(nx, ny))) THEN ok = 0 ' (nor a decoration standing in the way - it would stick behind it, steps from home)
                 IF v = 2 THEN ok = (doorKey(nx, ny) = 0 AND doorType(nx, ny) <> DOOR_EXIT)
                 IF ok AND thiefDist(nx, ny) > thiefDist(x, y) + 1 THEN
                     thiefDist(nx, ny) = thiefDist(x, y) + 1 : fillX(tail) = nx : fillY(tail) = ny : tail = tail + 1
@@ -414,7 +414,7 @@ END SUB
 ' 5 trooper, 6 ripper, 7 the warden, 0 the colossus, ~ a turret (from the
 ' ceiling; _ is one from the floor)
 FUNCTION MonChars$
-    MonChars$ = "mghcskwzT" + CHR$(1) + "15670~]" ' (] the mimic: the chest's [ the other way round)
+    MonChars$ = "mghcskwzT" + CHR$(1) + "15670~]" + CHR$(1) ' (] the mimic: the chest's [ the other way round; the robot dog: a thing, ")
 END FUNCTION
 
 ' The monster type of map character c$ - 0 if it's no monster's

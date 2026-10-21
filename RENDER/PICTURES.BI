@@ -66,7 +66,7 @@ CONST S_PAD = S_GLASS + 2 ' (a teleporter's pad)
 CONST S_DROID = S_PAD + 1 ' (the droids: the two kinds, then each broken)
 ' 3D props (RENDER/MODELS.BM): each model's texture, for OpenGL (its 8
 ' pictures round it, for the software renderer, are kept apart: mdlPic)
-CONST MAX_MODELS = 64
+CONST MAX_MODELS = 96
 CONST S_BEAM = S_DROID + 4, S_BEAM_AIM = S_BEAM + 1 ' (a laser's beam, firing and aiming: a glowing dot each - MakeBeamDot)
 CONST S_PUFF = S_BEAM_AIM ' (S_PUFF + a bolt's kind, 1 to BOLT_KINDS: a rocket's, a missile's, a spray's glowing picture - MakePuff)
 CONST S_SIGHT = S_PUFF + BOLT_KINDS + 1 ' (S_SIGHT + a turret's weapon: its laser sight's dot, in the weapon's colour)
@@ -74,7 +74,11 @@ CONST S_TURTOP = S_SIGHT + TURRET_WEAPONS + 1 ' (a turret from above: a wall tur
 CONST S_GIB = S_TURTOP ' (S_GIB + monster type, then + MON_TYPES + decoration kind: a piece of it, for when a rocket blows it apart - MakeGib)
 CONST S_ACID = S_GIB + MON_TYPES + DECO_KINDS + 1 ' (an acid stain: OpenGL's - its strength in its colour - then the software renderer's, a picture: MakeAcid)
 CONST S_MIMICNAP = S_ACID + 2 ' (the mimic asleep: the chest, all but its lock)
-CONST S_MODEL = S_ACID + 3
+CONST S_BARS = S_ACID + 3 ' (bars across a window: -)
+' Blood and oil smeared on a wall, a floor, a ceiling ([smears]): decals of
+' kind DK_SMEAR + 0 to SMEAR_KINDS - 1 - blood1-3, oil1-2 - each its picture
+CONST SMEAR_KINDS = 5, DK_SMEAR = 2, S_SMEAR = S_ACID + 4
+CONST S_MODEL = S_ACID + 4 + SMEAR_KINDS
 CONST SPR_SLOTS = S_MODEL + MAX_MODELS - 1
 ' How big each picture is kept: textures texSize, sprites up to sprTex
 ' pixels across. ART (SETTINGS > VIDEO) picks them: CLASSIC, the pixel art
@@ -108,7 +112,8 @@ CONST T_LIQUID = 27 ' (the liquids' surfaces, T_LIQUID + 1 to + LQ_KINDS: water,
 CONST T_CUSTOM = 32, T_CUSTOMN = 24 ' (after those: slots for pictures put on single faces in the editor - [faces])
 CONST T_JACKOK = T_CUSTOM + T_CUSTOMN + 1, T_CODEOK = T_CUSTOM + T_CUSTOMN + 2 ' (a hacked station's wall - CLEARED - and a solved terminal's - UNLOCKED, its lights gone green: MakeDoneTex)
 CONST T_TCTRL = T_CUSTOM + T_CUSTOMN + 3, T_TCTRLOK = T_CUSTOM + T_CUSTOMN + 4 ' (a turret control panel's wall, ; - and one that's switched its turrets off: OFFLINE)
-CONST T_SLOTS = T_CUSTOM + T_CUSTOMN + 4
+CONST T_STRONG = T_CUSTOM + T_CUSTOMN + 5, T_STRONGHURT = T_CUSTOM + T_CUSTOMN + 6, T_KEYPAD = T_CUSTOM + T_CUSTOMN + 7 ' (a stronghold door, and kicked half in; a keypad door - DoorSlot)
+CONST T_SLOTS = T_CUSTOM + T_CUSTOMN + 7
 REDIM SHARED texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
 REDIM SHARED texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
 ' For each worldMap wall value: its texture slot, and its colour on the minimap

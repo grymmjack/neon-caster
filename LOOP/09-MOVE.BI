@@ -23,6 +23,7 @@
         IF inBits AND DB_LEFT THEN strafe = strafe - 1 ' A (strafe left)
         IF inBits AND DB_RIGHT THEN strafe = strafe + 1 ' D (strafe right)
     END IF
+    IF viewOn = VIEW_CAM AND (forward <> 0 OR strafe <> 0) THEN viewOn = 0 : forward = 0 : strafe = 0 ' (watching a security camera: a step brings you back - not a step taken)
     moveX = dirX * forward - dirY * strafe : moveY = dirY * forward + dirX * strafe ' (your right: (-dirY, dirX))
     moveLen = SQR(moveX * moveX + moveY * moveY)
     moveSpeed = WALK_SPEED : IF inBits AND DB_RUN THEN moveSpeed = RUN_SPEED ' (Shift: run)

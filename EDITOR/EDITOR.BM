@@ -182,12 +182,16 @@ END SUB
 SUB EditTypeKey STATIC
     SELECT CASE k&
         CASE 13 : EditTypeDone
-        CASE 27 : edTyping = 0 : IF edTypeFor = 2 THEN EditNote "Commands unchanged" ELSE EditNote "Name unchanged"
+        CASE 27 : edTyping = 0 : IF edTypeFor = 2 THEN EditNote "Commands unchanged" ELSE IF edTypeFor >= 3 THEN EditNote "Unchanged" ELSE EditNote "Name unchanged"
         CASE 8 : IF LEN(edTypeBuf$) THEN edTypeBuf$ = LEFT$(edTypeBuf$, LEN(edTypeBuf$) - 1)
         CASE 32 TO 126
             IF edTypeFresh THEN edTypeBuf$ = "" ' (the first letter typed starts it afresh - Backspace first to change the old one)
             IF edTypeFor = 2 THEN
                 IF LEN(edTypeBuf$) < 120 THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (commands: as typed)
+            ELSEIF edTypeFor = 3 THEN
+                IF LEN(edTypeBuf$) < 8 AND (INSTR("0123456789", CHR$(k&)) OR (CHR$(k&) = "?" AND edTypeBuf$ = "")) THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (a code: digits - or ?, one made up each time)
+            ELSEIF edTypeFor >= 4 THEN
+                IF LEN(edTypeBuf$) < 240 THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (a thing's own, a note: as typed)
             ELSE
                 IF LEN(edTypeBuf$) < 30 THEN edTypeBuf$ = edTypeBuf$ + UCASE$(CHR$(k&))
             END IF
@@ -197,12 +201,55 @@ END SUB
 SUB EditTypeDone STATIC
     edTyping = 0
     IF edTypeFor = 2 THEN edTrigCmd$ = LTRIM$(RTRIM$(edTypeBuf$)) : EditNote "Now ADD IT" : EXIT SUB ' (a trigger's commands: kept for ADD IT)
+    IF edTypeFor >= 3 THEN EditTypeXtra : EXIT SUB ' (a door's code, a thing's own, a note)
     IF LEN(LTRIM$(edTypeBuf$)) THEN
         EditPushUndo
         c = INSTR(lvlName$, ": ") : IF c THEN pre$ = LEFT$(lvlName$, c + 1) ELSE pre$ = "SECTOR" + STR$(level) + ": "
         lvlName$ = pre$ + LTRIM$(edTypeBuf$) : levelName$ = lvlName$ : sectorName$(level) = lvlName$ : editDirty = -1
         EditNote "Now it's " + lvlName$ + " (save to keep it)"
     END IF
+END SUB
+
+' What was typed for cell edTypeX, edTypeY: a door's code (3), a thing's
+' own (4: a safe's code, what a computer opens - x y - or a camera's name),
+' a note's words (5) or its picture (6)
+SUB EditTypeXtra
+    DIM t$, x, y, k ' (its own: the main program shares these names)
+    t$ = LTRIM$(RTRIM$(edTypeBuf$)) : x = edTypeX : y = edTypeY
+    EditPushUndo
+    SELECT CASE edTypeFor
+        CASE 3 : EditDoorSet x, y, VAL(EditXtra$("doors", x, y, 3)), t$ : EditNote "Its code: " + MID$("none", 1, -4 * (t$ = "")) + t$
+        CASE 4
+            k = XtraFind("things", x, y, 0)
+            IF k THEN XtraSet "things", x, y, XtraField$(k, 3) + MID$(", ", 1, -2 * (t$ <> "")) + t$ : EditNote "Set: " + t$
+        CASE 5 : EditNoteSet x, y, EditXtra$("notes", x, y, 3), t$ : EditNote "The note says: " + LEFT$(t$, 40)
+        CASE 6 : EditNoteSet x, y, t$, EditNoteWords$(x, y) : EditNote "Its picture: " + MID$("none", 1, -4 * (t$ = "")) + t$
+    END SELECT
+    EditApply
+END SUB
+
+' Field n of cell x, y's line of section sec$ ("" none)
+FUNCTION EditXtra$(sec$, x, y, n)
+    DIM k ' (its own: the main program shares these names)
+    k = XtraFind(sec$, x, y, 0) : IF k THEN EditXtra$ = XtraField$(k, n)
+END FUNCTION
+
+' A note's words at cell x, y ("" none)
+FUNCTION EditNoteWords$(x, y)
+    DIM k ' (its own: the main program shares these names)
+    k = XtraFind("notes", x, y, 0) : IF k THEN EditNoteWords$ = XtraRest$(k, 4)
+END FUNCTION
+
+' A door's [doors] line: kicks to break it, its code - neither, no line
+SUB EditDoorSet(x, y, kicks, code$)
+    IF kicks <= 0 AND code$ = "" THEN XtraSet "doors", x, y, "" ELSE XtraSet "doors", x, y, LTRIM$(STR$(MaxOf(0, kicks))) + ", " + code$
+END SUB
+
+' A note's [notes] line: its picture (- none), its words - neither, no line
+SUB EditNoteSet(x, y, pic$, words$)
+    DIM p$ ' (its own: the main program shares these names)
+    p$ = pic$ : IF p$ = "" THEN p$ = "-"
+    IF p$ = "-" AND words$ = "" THEN XtraSet "notes", x, y, "" ELSE XtraSet "notes", x, y, p$ + ", " + words$
 END SUB
 
 ' A properties pane button pressed (pnHit)
@@ -332,6 +379,43 @@ SUB EditPaneClick STATIC
             NEXT
             EditApply
             IF blkN THEN EditNote LTRIM$(STR$(blkN)) + " pillar(s) - click a side of one to shape it" ELSE EditNote "A pillar needs an empty floor"
+        CASE 254, 255 ' A door's kicks: a stronghold door (0: an ordinary one)
+            EditPushUndo : n = VAL(EditXtra$("doors", edPnCX, edPnCY, 3)) : IF pnHit = 255 THEN n = MinOf(99, n + 1) ELSE n = MaxOf(0, n - 1)
+            EditDoorSet edPnCX, edPnCY, n, EditXtra$("doors", edPnCX, edPnCY, 4) : EditApply
+            IF n THEN EditNote "A stronghold door: " + LTRIM$(STR$(n)) + " kicks break it down" ELSE EditNote "An ordinary door (no kicking it down)"
+        CASE 256 ' A door's code: type it
+            IF edTyping AND edTypeFor = 3 THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 3 : edTypeFresh = -1 : edTypeX = edPnCX : edTypeY = edPnCY : edTypeBuf$ = EditXtra$("doors", edPnCX, edPnCY, 4) : EditNote "Type its code (digits, or ? for one made up each time) - Enter keeps it"
+        CASE 257, 258 ' ...one made up each time; none
+            EditPushUndo : IF pnHit = 257 THEN c$ = "?" ELSE c$ = ""
+            EditDoorSet edPnCX, edPnCY, VAL(EditXtra$("doors", edPnCX, edPnCY, 3)), c$ : EditApply
+            IF pnHit = 257 THEN EditNote "A keypad door: its code made up each time (a note can tell it - {code x y})" ELSE EditNote "No keypad"
+        CASE 259, 260 ' A thing: the one before, after (in ThingList$)
+            EditPushUndo
+            FOR k = 1 TO edSelN
+                IF MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1) = CHR$(34) THEN
+                    t$ = ThingName$(ThingAt(edSelX(k), edSelY(k))) : n = 1 : j = 0
+                    DO : IF ListItem$(ThingList$, n) = "" THEN EXIT DO
+                        IF ListItem$(ThingList$, n) = t$ THEN j = n
+                        n = n + 1
+                    LOOP
+                    n = n - 1 : IF pnHit = 259 THEN j = j - 1 ELSE j = j + 1
+                    IF j < 1 THEN j = n
+                    IF j > n THEN j = 1
+                    XtraSet "things", edSelX(k), edSelY(k), ListItem$(ThingList$, j) : t$ = ListItem$(ThingList$, j)
+                END IF
+            NEXT
+            EditApply : EditNote ThingTitle$(t$)
+        CASE 261 ' A thing's own: type it
+            IF edTyping AND edTypeFor = 4 THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 4 : edTypeFresh = -1 : edTypeX = edPnCX : edTypeY = edPnCY : k = XtraFind("things", edPnCX, edPnCY, 0) : edTypeBuf$ = "" : IF k THEN edTypeBuf$ = XtraRest$(k, 4)
+            IF edTyping AND edTypeFor = 4 THEN EditNote "A safe: its code (or ?); a computer: x, y it opens; a camera: its name - Enter keeps it"
+        CASE 262 ' A note's words
+            IF edTyping AND edTypeFor = 5 THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 5 : edTypeFresh = 0 : edTypeX = edPnCX : edTypeY = edPnCY : edTypeBuf$ = EditNoteWords$(edPnCX, edPnCY)
+            IF edTyping AND edTypeFor = 5 THEN EditNote "Type its words (| a new line, {code x y} that door's or safe's code) - Enter keeps them"
+        CASE 263 ' A note's picture
+            IF edTyping AND edTypeFor = 6 THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 6 : edTypeFresh = -1 : edTypeX = edPnCX : edTypeY = edPnCY : edTypeBuf$ = EditXtra$("notes", edPnCX, edPnCY, 3) : IF edTypeBuf$ = "-" THEN edTypeBuf$ = ""
+            IF edTyping AND edTypeFor = 6 THEN EditNote "Type a picture's file (in neon-caster/, e.g. achievements/NC_BESTIARY.png) - Enter keeps it"
+        CASE 264 ' No note
+            EditPushUndo : XtraSet "notes", edPnCX, edPnCY, "" : EditApply : EditNote "No note"
         CASE 290 TO 293 ' The selected barrels: their liquid round (a : one's), how many stand on each other
             EditPushUndo
             FOR k = 1 TO edSelN
@@ -505,6 +589,7 @@ SUB EditPaneClick STATIC
             IF LEN(edTrigCmd$) THEN edTrigCmd$ = edTrigCmd$ + " ; " + a$ ELSE edTrigCmd$ = a$
             EditNote "Commands: " + LEFT$(edTrigCmd$, 80) + "  (ADD IT when it's ready)"
         CASE 171 TO 174 : edTrigWhen = pnHit - 170
+        CASE 265 : edTrigWhen = 5 ' (a computer at the cell, hacked)
         CASE 175 : edTrigRepeat = NOT edTrigRepeat
         CASE 178 : edTrigTime = MaxOf(1, edTrigTime - 5)
         CASE 179 : edTrigTime = MinOf(900, edTrigTime + 5)
@@ -527,6 +612,7 @@ SUB EditPaneClick STATIC
                     CASE 1 : w$ = "enter" + STR$(tx0) + STR$(ty0) + STR$(tx1) + STR$(ty1)
                     CASE 2 : w$ = "use" + STR$(ux) + STR$(uy)
                     CASE 3 : w$ = "clear" + STR$(tx0) + STR$(ty0) + STR$(tx1) + STR$(ty1)
+                    CASE 5 : w$ = "hack" + STR$(ux) + STR$(uy)
                     CASE ELSE : w$ = "time" + STR$(edTrigTime)
                 END SELECT
                 IF edTrigRepeat AND edTrigWhen <= 2 THEN w$ = w$ + " repeat" ' (not time or clear: once true, they stay true)
@@ -753,7 +839,7 @@ SUB RunEditor STATIC
         IF onMap AND edTool = ET_PLACE THEN
             IF b1 AND NOT edDown THEN EditPushUndo : edDown = -1 : edRect = shiftOn : edX0 = cx : edY0 = cy
             IF b1 AND edDown AND NOT edRect THEN EditPut cx, cy, editGlyph$
-            IF b2 THEN c$ = MID$(lvlRow$(cy), cx + 1, 1) : IF c$ <> editGlyph$ THEN editGlyph$ = c$ : EditNote "Picked " + GlyphName$(c$)
+            IF b2 THEN c$ = CellGlyph$(cx, cy) : IF c$ <> editGlyph$ THEN editGlyph$ = c$ : EditNote "Picked " + GlyphName$(c$)
         END IF
         IF onMap AND editLights THEN ' The lights: click to add one, right-click to take the nearest away
             IF b1 AND NOT edDown THEN EditPushUndo : EditAddLight cx + 0.5, cy + 0.5 : edDown = -1 : edApply = -1
@@ -1034,7 +1120,7 @@ SUB EditFP STATIC
                     IF tx < 1 OR ty < 1 OR tx > mapN - 2 OR ty > mapN - 2 THEN
                         EditNote "Not in the border"
                     ELSEIF edAlt THEN
-                        editGlyph$ = MID$(lvlRow$(ty), tx + 1, 1) : edBrushKind = PK_GLYPH : EditNote "Picked up " + GlyphName$(editGlyph$)
+                        editGlyph$ = CellGlyph$(tx, ty) : edBrushKind = PK_GLYPH : EditNote "Picked up " + GlyphName$(editGlyph$)
                     ELSEIF edShift THEN
                         c$ = MID$(lvlRow$(ty), tx + 1, 1)
                         IF c$ = "." OR INSTR("<>^v", c$) THEN
@@ -1119,7 +1205,7 @@ SUB EditFP STATIC
     ' PLACE, the button held: on into each new floor cell the pointer crosses
     IF NOT fpL THEN edDragOn = 0
     IF fpL AND edDragOn AND edTool = ET_PLACE AND edHovKind = ED_FLOOR AND NOT edLooking THEN
-        IF (edHovX <> edDragX OR edHovY <> edDragY) AND MID$(lvlRow$(edHovY), edHovX + 1, 1) <> editGlyph$ THEN
+        IF (edHovX <> edDragX OR edHovY <> edDragY) AND CellGlyph$(edHovX, edHovY) <> editGlyph$ THEN
             IF edHovX > 0 AND edHovY > 0 AND edHovX < mapN - 1 AND edHovY < mapN - 1 THEN EditPut edHovX, edHovY, editGlyph$ : EditApply
             edDragX = edHovX : edDragY = edHovY
         END IF
@@ -1209,7 +1295,7 @@ SUB EditFP STATIC
             CASE 93 : EditCycleGlyph 1
             CASE 101, 69 ' E: pick up what you aim at as the brush - the thing under the crosshair (a monster, a turret, a pickup...), else the wall you aim at
                 pc$ = ""
-                IF edHovThing THEN pc$ = MID$(lvlRow$(edHovY), edHovX + 1, 1) ELSE IF aimX >= 0 THEN pc$ = MID$(lvlRow$(aimY), aimX + 1, 1)
+                IF edHovThing THEN pc$ = CellGlyph$(edHovX, edHovY) ELSE IF aimX >= 0 THEN pc$ = CellGlyph$(aimX, aimY)
                 IF LEN(pc$) THEN editGlyph$ = pc$ : edBrushKind = PK_GLYPH : edTool = ET_PLACE : EditNote "Picked up " + GlyphName$(editGlyph$) + " - PLACE paints it" ' (as the brush: painting it, not a picture)
             CASE 116, 84 ' T: the picture on that kind of wall - every one of them - the next one
                 IF aimX >= 0 THEN
@@ -1292,8 +1378,9 @@ SUB EditSetFace(x, y, f, d, p1$, p2$)
 END SUB
 
 ' Put glyph c$ at cell (x, y) of the level (not on its border)
-SUB EditPut(x, y, c$)
-    DIM c, j, k ' (its own: the main program shares these names)
+SUB EditPut(x, y, c0$)
+    DIM c, j, k, c$, nm$ ' (its own: the main program shares these names)
+    c$ = LEFT$(c0$, 1) : nm$ = MID$(c0$, 2) ' (a thing: " and its name - LEVEL/THINGS.BM)
     IF x < 1 OR y < 1 OR x > mapN - 2 OR y > mapN - 2 THEN EXIT SUB
     IF INSTR(".#NCKPG%?@$;/\DHXRBY!E=", c$) = 0 AND EditBoxIndex(x, y) > 0 THEN ' (a thing can't stand inside a block: take the block away first)
         EditNote "A block stands there - remove it first (DELETE on its side)" : EXIT SUB
@@ -1309,6 +1396,13 @@ SUB EditPut(x, y, c$)
         IF INSTR("#NCKPG%?@$;/\DHXRBY!E=", c$) THEN EditRemoveBox x, y ' (a box only stands on open floor)
         EditNudgeSet x, y, 0, 0, 0 ' (a decoration's nudge goes with it)
         EditBarrelSet x, y, -1, 1 ' (and a barrel's liquid and stack)
+        IF c$ <> CHR$(34) THEN XtraSet "things", x, y, "" ' (a thing's line)
+        IF INSTR("DHXRBY!", c$) = 0 THEN XtraSet "doors", x, y, "" ' (a door's kicks and code)
+        IF INSTR("'d" + CHR$(34), c$) = 0 THEN XtraSet "notes", x, y, "" ' (a note, or one in a desk or bookshelf or safe)
+    END IF
+    IF c$ = CHR$(34) AND LEN(nm$) THEN ' (a thing: its kind)
+        k = XtraFind("things", x, y, 0)
+        IF k = 0 THEN XtraSet "things", x, y, nm$ ELSE IF LCASE$(XtraField$(k, 3)) <> LCASE$(nm$) THEN XtraSet "things", x, y, nm$
     END IF
     IF INSTR("<>^v", c$) THEN ' (only one start: the old one becomes floor)
         FOR yy = 0 TO mapN - 1 : FOR xx = 0 TO mapN - 1
@@ -1359,6 +1453,8 @@ FUNCTION EditSnapshot$
     s$ = s$ + CHR$(16) ' (the barrels' own: liquid, stack)
     FOR k = 1 TO lvlNumBarrels : FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlBarrel(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(15) + CellLightBoxes$(CHR$(3)) ' (the cell lights, last: as the file has them)
+    s$ = s$ + CHR$(17) ' (and after them, the [doors], [things], [notes], [smears] lines)
+    FOR k = 1 TO lvlNumXtra : s$ = s$ + lvlXSec$(k) + CHR$(18) + lvlXtra$(k) + CHR$(3) : NEXT
     EditSnapshot$ = s$
 END FUNCTION
 
@@ -1366,6 +1462,15 @@ SUB EditRestore(s1$)
     DIM c, j, k, l$, p, q$, t$, y, xx, yy ' (its own: the main program shares these names)
     s0$ = s1$ : lvlNumBoxes = 0 : lvlNumNudges = 0
     rw& = mapN * mapN * 3 : r0$ = LEFT$(s0$, rw&) : s0$ = MID$(s0$, rw& + 1) ' (the map and its heights first, by length: a height past z can be any of the marks below)
+    c17 = INSTR(s0$, CHR$(17)) ' (the [doors], [things], [notes], [smears] lines: the very end)
+    IF c17 THEN
+        b$ = MID$(s0$, c17 + 1) : s0$ = LEFT$(s0$, c17 - 1) : lvlNumXtra = 0
+        DO WHILE LEN(b$)
+            c3 = INSTR(b$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+            t$ = LEFT$(b$, c3 - 1) : c = INSTR(t$, CHR$(18)) : IF c THEN XtraTake LEFT$(t$, c - 1), MID$(t$, c + 1)
+            b$ = MID$(b$, c3 + 1)
+        LOOP
+    END IF
     c15 = INSTR(s0$, CHR$(15)) ' (the cell lights, last of all: off the end first)
     IF c15 THEN
         b$ = MID$(s0$, c15 + 1) : s0$ = LEFT$(s0$, c15 - 1) : CellLightsClear
@@ -1519,7 +1624,7 @@ END SUB
 SUB EditSetLiquid(x, y, k, d)
     IF x < 1 OR y < 1 OR x > mapN - 2 OR y > mapN - 2 THEN EXIT SUB
     IF k THEN
-        IF INSTR(EDIT_OPEN$, MID$(lvlRow$(y), x + 1, 1)) = 0 THEN EXIT SUB ' (floor, or something standing on it - not a wall or a door)
+        IF INSTR(EDIT_OPEN$ + CHR$(34), MID$(lvlRow$(y), x + 1, 1)) = 0 THEN EXIT SUB ' (floor, or something standing on it - not a wall or a door)
         MID$(lvlLiqRow$(y), x + 1, 1) = MID$(LQ_CHARS$, k, 1)
         IF d = LQ_DEPTH THEN MID$(lvlLiqDRow$(y), x + 1, 1) = "." ELSE MID$(lvlLiqDRow$(y), x + 1, 1) = LTRIM$(STR$(d))
     ELSE
@@ -1565,7 +1670,11 @@ END SUB
 ' What a map character is (chapter 22's list, in a few words)
 FUNCTION GlyphName$(c$)
     DIM k ' (its own: the main program shares these names)
+    IF LEN(c$) > 1 AND LEFT$(c$, 1) = CHR$(34) THEN GlyphName$ = ThingTitle$(MID$(c$, 2)) : EXIT FUNCTION
     SELECT CASE c$
+        CASE "-" : g$ = "bars (a window: see through, can't pass)"
+        CASE "'" : g$ = "a NOTE - its words and picture on its pane"
+        CASE CHR$(34) : g$ = "a thing (what it is: its pane)"
         CASE "." : g$ = "floor"
         CASE "#", "N", "C", "K", "P", "G" : g$ = "wall " + c$ + " (" + lvlWall$(INSTR("#NCKPG", c$)) + ")"
         CASE "/", "\" : g$ = "diagonal wall " + c$
@@ -1617,9 +1726,13 @@ FUNCTION GlyphName$(c$)
 END FUNCTION
 
 ' Its colour on the editor's map
-FUNCTION GlyphColor~&(c$)
-    DIM k ' (its own: the main program shares these names)
+FUNCTION GlyphColor~&(c0$)
+    DIM k, c$ ' (its own: the main program shares these names)
+    c$ = LEFT$(c0$, 1)
     SELECT CASE c$
+        CASE "-" : col~& = _RGB32(150, 140, 130)
+        CASE "'" : col~& = _RGB32(240, 240, 220)
+        CASE CHR$(34) : col~& = _RGB32(230, 160, 230)
         CASE "." : col~& = _RGB32(28, 30, 48)
         CASE "#", "N", "C", "K", "P", "G"
             k = INSTR("#NCKPG", c$) : IF k = 1 THEN col~& = wallMapColor(1) ELSE col~& = wallMapColor(k + 1)
@@ -1668,7 +1781,7 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     VIEW SCREEN (0, 0)-(ED_VIEWW, ED_VIEWH) ' (the map stays in its part of the screen)
     FOR y = vy0 TO vy1 : FOR x = vx0 TO vx1
         c$ = MID$(lvlRow$(y), x + 1, 1) : sx = edMapX + x * edCell : sy = edMapY + y * edCell
-        IF INSTR("rby+*uae234Mqj89)({}`,mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:[<>^v", c$) THEN
+        IF INSTR("rby+*uae234Mqj89)({}`,mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:['<>^v" + CHR$(34), c$) THEN
             LINE (sx, sy)-STEP(edCell - 1, edCell - 1), GlyphColor~&("."), BF
             LINE (sx + ins, sy + ins)-STEP(MaxOf(0, edCell - 1 - 2 * ins), MaxOf(0, edCell - 1 - 2 * ins)), GlyphColor~&(c$), BF
             IF INSTR("<>^v", c$) THEN LINE (sx + 1, sy + 1)-STEP(edCell - 3, edCell - 3), _RGB32(255, 255, 255), B
@@ -1760,7 +1873,7 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     COLOR _RGB32(140, 130, 180) : _PRINTSTRING (ED_PALX, 552), "HELP / F1: every key"
     ' Along the bottom: the cell under the mouse, and the latest message
     IF onMap THEN
-        c$ = MID$(lvlRow$(hy), hx + 1, 1)
+        c$ = CellGlyph$(hx, hy) ' (a thing: its own name)
         h$ = "" : IF HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0) <> 0 OR HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1) <> 1 THEN h$ = "  floor" + STR$(HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0)) + " ceil" + STR$(HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1))
         COLOR _RGB32(200, 200, 230) : _PRINTSTRING (edMapX, 584), LEFT$(LTRIM$(STR$(hx)) + "," + LTRIM$(STR$(hy)) + "  " + GlyphName$(c$) + h$, 40)
     END IF
@@ -2165,11 +2278,18 @@ SUB EditPkBuild
         CASE 5 : g$ = "rby+*uae234Mqj89)({}`,"
         CASE 6 : g$ = "mghcskwzT15670~_|]"
         CASE 7 : g$ = DecoChars$
-        CASE 8 : g$ = "<>^v&@$;."
+        CASE 8 : g$ = "<>^v&@$;-."
     END SELECT
     FOR k = 1 TO LEN(g$)
         edPkN = edPkN + 1 : edPkKind(edPkN) = PK_GLYPH : edPkVal$(edPkN) = MID$(g$, k, 1) : edPkImg&(edPkN) = EditGlyphThumb&(MID$(g$, k, 1))
     NEXT
+    IF edPickTab = 7 THEN ' (and the things: a " each, its kind in [things])
+        k = 1
+        DO
+            t$ = ListItem$(ThingList$, k) : IF t$ = "" THEN EXIT DO
+            edPkN = edPkN + 1 : edPkKind(edPkN) = PK_GLYPH : edPkVal$(edPkN) = CHR$(34) + t$ : edPkImg&(edPkN) = EditGlyphThumb&(CHR$(34) + t$) : k = k + 1
+        LOOP
+    END IF
     IF LEN(pre$) THEN ' Every picture called wall*.png (floor*, ceiling* and sky-*), in name order
         dir$ = AssetPath$("x") : dir$ = LEFT$(dir$, LEN(dir$) - 1)
         first = edPkN + 1
@@ -2188,6 +2308,9 @@ SUB EditPkBuild
             IF LCASE$(edPkVal$(b)) < LCASE$(edPkVal$(a)) THEN SWAP edPkVal$(a), edPkVal$(b)
         NEXT : NEXT
         FOR k = first TO edPkN : edPkImg&(k) = EditFileThumb&(edPkVal$(k)) : NEXT
+        FOR k = 0 TO SMEAR_KINDS - 1 ' (and blood and oil, to smear on a wall, a floor, a ceiling - [smears])
+            edPkN = edPkN + 1 : edPkKind(edPkN) = PK_TEX : edPkVal$(edPkN) = "smear-" + SmearName$(k) + ".png" : edPkImg&(edPkN) = EditFileThumb&(edPkVal$(edPkN))
+        NEXT
     END IF
     IF edPickTab = 10 THEN ' The liquids: draining one away, then each kind two, four and six eighths deep
         edPkN = edPkN + 1 : edPkKind(edPkN) = PK_LIQUID : edPkVal$(edPkN) = "-" : edPkImg&(edPkN) = 0
@@ -2234,7 +2357,13 @@ END FUNCTION
 FUNCTION EditGlyphThumb&(c$)
     DIM k, t ' (its own: the main program shares these names)
     t = 0 : sp = 0
+    IF LEFT$(c$, 1) = CHR$(34) THEN ' (a thing: its picture)
+        k = ThingCode(MID$(c$, 2)) : IF k = 0 THEN k = DK_TABLE
+        IF k > THING_MON THEN sp = mtypeSprite(k - THING_MON) ELSE IF k > THING_ITEM THEN sp = ItemSprite(k - THING_ITEM) ELSE sp = DecoSlot(k)
+        EditGlyphThumb& = EditSlotThumb&(sp, -1) : EXIT FUNCTION
+    END IF
     SELECT CASE c$
+        CASE "-" : sp = S_BARS
         CASE "#", "N", "C", "K", "P", "G" : t = INSTR("#NCKPG", c$)
         CASE "/", "\", "%", "?" : t = 1
         CASE "D", "!" : t = T_DOOR
@@ -2596,8 +2725,9 @@ SUB EditPaneBuild
         NEXT
         IF n = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "none here yet", 0 : y = y + 22
         y = y + 4
-        FOR w = 1 TO 4
-            EditPaneAdd 170 + w, x0 + (w - 1) * 51, y, 48, RTRIM$(MID$("ENTERUSE  CLEARTIME ", w * 5 - 4, 5)), (edTrigWhen = w)
+        FOR w = 1 TO 5 ' (HACK: a computer there hacked - GAME/SECURE.BM)
+            IF w = 5 THEN id = 265 ELSE id = 170 + w
+            EditPaneAdd id, x0 + (w - 1) * 41, y, 39, RTRIM$(MID$("ENTERUSE  CLEARTIME HACK ", w * 5 - 4, 5)), (edTrigWhen = w)
         NEXT
         y = y + 23
         IF edTrigWhen = 4 THEN
@@ -2631,6 +2761,14 @@ SUB EditPaneBuild
                 EditPaneAdd t, x0 + ((t - 1) MOD 2) * 101, y + ((t - 1) \ 2) * 23, 99, RTRIM$(MID$("SLIDING SHUTTER SPLIT   SEALED  RED KEY BLUE KEYYELLOW  EXIT    ", t * 8 - 7, 8)), (g$ = c$)
             NEXT
             EditPaneAdd 170, x0, y + 96, PN_W, "TRIGGERS...", 0
+            IF c$ <> "E" THEN ' (a door's own: kicked down - a stronghold door - and a keypad's code)
+                n = VAL(EditXtra$("doors", edPnCX, edPnCY, 3))
+                EditPaneAdd -1, x0, y + 121, 140, "KICKS" + STR$(n) + MID$(" (NONE)", 1, -7 * (n = 0)), 0 : EditPaneAdd 254, x0 + 146, y + 119, 24, "-", 0 : EditPaneAdd 255, x0 + 174, y + 119, 24, "+", 0
+                IF edTyping AND edTypeFor = 3 THEN t$ = edTypeBuf$ + "_" ELSE t$ = EditXtra$("doors", edPnCX, edPnCY, 4) : IF t$ = "" THEN t$ = "NONE"
+                EditPaneAdd -1, x0, y + 144, PN_W, "KEYPAD CODE: " + t$, 0
+                IF edTyping AND edTypeFor = 3 THEN t$ = "OK" ELSE t$ = "TYPE"
+                EditPaneAdd 256, x0, y + 165, 64, t$, (edTyping AND edTypeFor = 3) : EditPaneAdd 257, x0 + 67, y + 165, 64, "RANDOM", 0 : EditPaneAdd 258, x0 + 134, y + 165, 64, "NONE", 0
+            END IF
             EXIT SUB
         END IF
     NEXT
@@ -2826,7 +2964,7 @@ SUB EditPaneNudge(x0, y)
     DIM k, ndx, ndy ' (its own: the main program shares these names)
     dk = 0
     FOR k = 1 TO edSelN
-        IF edSelKind(k) = ED_FLOOR AND dk = 0 THEN IF INSTR(DecoChars$, MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN dk = k
+        IF edSelKind(k) = ED_FLOOR AND dk = 0 THEN IF INSTR(DecoChars$ + CHR$(34), MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN dk = k
     NEXT
     IF dk = 0 THEN EXIT SUB
     EditNudgeGet edSelX(dk), edSelY(dk), ndx, ndy, nfc
@@ -2843,6 +2981,33 @@ SUB EditPaneNudge(x0, y)
             y = y + 23
         END IF
         EditPaneAdd -1, x0, y + 2, 140, "STACK" + STR$(bst) + " HIGH", 0 : EditPaneAdd 292, x0 + 146, y, 24, "-", 0 : EditPaneAdd 293, x0 + 174, y, 24, "+", 0
+        y = y + 23
+    END IF
+    edPnCX = edSelX(dk) : edPnCY = edSelY(dk) : tn$ = ""
+    IF bc$ = CHR$(34) THEN ' (a thing: what it is - and its own: a safe's code, what a computer opens, a camera's name)
+        tn$ = ThingName$(ThingAt(edPnCX, edPnCY))
+        EditPaneAdd -1, x0, y + 2, 140, UCASE$(LEFT$(tn$, 14)), 0 : EditPaneAdd 259, x0 + 146, y, 24, "<", 0 : EditPaneAdd 260, x0 + 174, y, 24, ">", 0
+        y = y + 23
+        SELECT CASE tn$
+            CASE "safe" : lab$ = "CODE"
+            CASE "computer", "brokenpc" : lab$ = "OPENS (X, Y)"
+            CASE "camera" : lab$ = "NAME"
+            CASE ELSE : lab$ = ""
+        END SELECT
+        IF LEN(lab$) THEN
+            k = XtraFind("things", edPnCX, edPnCY, 0) : t$ = "" : IF k THEN t$ = XtraRest$(k, 4)
+            IF edTyping AND edTypeFor = 4 THEN t$ = edTypeBuf$ + "_" ELSE IF t$ = "" THEN t$ = "NONE"
+            EditPaneAdd -1, x0, y + 2, 140, LEFT$(lab$ + ": " + t$, 22), 0
+            IF edTyping AND edTypeFor = 4 THEN t$ = "OK" ELSE t$ = "TYPE"
+            EditPaneAdd 261, x0 + 146, y, 52, t$, (edTyping AND edTypeFor = 4)
+            y = y + 23
+        END IF
+    END IF
+    IF bc$ = "'" OR bc$ = "d" OR tn$ = "bookshelf" OR tn$ = "safe" THEN ' (a note - or one found in it: its words, its picture)
+        IF edTyping AND edTypeFor = 5 THEN t$ = edTypeBuf$ + "_" ELSE t$ = EditNoteWords$(edPnCX, edPnCY) : IF t$ = "" THEN t$ = "(no note)"
+        EditPaneAdd -1, x0, y + 2, PN_W, LEFT$("NOTE: " + t$, 26), 0
+        y = y + 21
+        EditPaneAdd 262, x0, y, 64, "WORDS", (edTyping AND edTypeFor = 5) : EditPaneAdd 263, x0 + 67, y, 64, "PICTURE", (edTyping AND edTypeFor = 6) : EditPaneAdd 264, x0 + 134, y, 64, "NONE", 0
         y = y + 23
     END IF
 END SUB
@@ -2989,7 +3154,7 @@ FUNCTION EditTrigHere(l$, x0, y0, x1, y1, ux, uy)
     NEXT
     SELECT CASE kind$
         CASE "time" : EditTrigHere = -1
-        CASE "use", "shoot" : EditTrigHere = (n(1) = ux AND n(2) = uy)
+        CASE "use", "shoot", "hack" : EditTrigHere = (n(1) = ux AND n(2) = uy)
         CASE "enter", "clear" : EditTrigHere = NOT (MaxOf(n(1), n(3)) < x0 OR MinOf(n(1), n(3)) > x1 OR MaxOf(n(2), n(4)) < y0 OR MinOf(n(2), n(4)) > y1)
     END SELECT
 END FUNCTION
@@ -3284,6 +3449,17 @@ SUB EditNudge(dx, dy)
             END IF
         END IF
     NEXT
+    FOR k = lvlNumXtra TO 1 STEP -1 ' (a door's kicks and code, a thing's kind, a note, a smear)
+        x = VAL(XtraField$(k, 1)) : y = VAL(XtraField$(k, 2))
+        IF x >= 0 AND y >= 0 AND x <= mapN AND y <= mapN THEN
+            IF mv(x, y) THEN
+                lvlXtra$(k) = LTRIM$(STR$(x + dx)) + ", " + LTRIM$(STR$(y + dy)) + ", " + XtraRest$(k, 3)
+            ELSEIF dest(x, y) THEN
+                FOR j = k TO lvlNumXtra - 1 : lvlXSec$(j) = lvlXSec$(j + 1) : lvlXtra$(j) = lvlXtra$(j + 1) : NEXT
+                lvlNumXtra = lvlNumXtra - 1
+            END IF
+        END IF
+    NEXT
     FOR k = lvlNumBarrels TO 1 STEP -1 ' (a barrel's liquid and stack)
         x = lvlBarrel(k, 1) : y = lvlBarrel(k, 2)
         IF x >= 0 AND y >= 0 AND x <= mapN AND y <= mapN THEN
@@ -3466,6 +3642,10 @@ END SUB
 ' divided (part 0: the whole of it). "" is the usual picture.
 SUB EditPaintFace(x, y, f, part, pic$)
     DIM d, k ' (its own: the main program shares these names)
+    IF f <= 4 OR f = 9 OR f = 10 THEN ' (a wall's side, a floor, a ceiling: blood or oil on it - [smears] - or, any other picture, none)
+        IF LCASE$(LEFT$(pic$, 6)) = "smear-" THEN SmearSet x, y, FaceName$(f), MID$(pic$, 7, LEN(pic$) - 10) : EXIT SUB
+        SmearSet x, y, FaceName$(f), ""
+    END IF
     k = FaceIndex(x, y, f) : d = 0 : p1$ = "" : p2$ = ""
     IF k THEN d = lvlFaceD(k) : p1$ = lvlFaceP1$(k) : p2$ = lvlFaceP2$(k)
     IF d = 0 THEN
@@ -3500,7 +3680,7 @@ SUB EditPickThing(sx, sy)
     y0 = MaxOf(0, INT(edCamPY) - 16) : y1 = MinOf(mapN - 1, INT(edCamPY) + 16)
     FOR y = y0 TO y1 : FOR x = x0 TO x1
         c$ = MID$(lvlRow$(y), x + 1, 1)
-        IF INSTR("mghcskwzT15670~_|]rby+*uae234Mqj89)({}`,oiptxlnfSdAFIJLOQUWZV:[&", c$) THEN
+        IF INSTR("mghcskwzT15670~_|]rby+*uae234Mqj89)({}`,oiptxlnfSdAFIJLOQUWZV:['&" + CHR$(34), c$) THEN
             tz = floorH(x, y) + 0.35 ' (where it is: a thing on the floor - a turret on the ceiling, or on a wall)
             IF c$ = "~" THEN tz = ceilH(x, y) - 0.3 ELSE IF c$ = "|" THEN tz = floorH(x, y) + 0.57
             EditCam x + 0.5, y + 0.5, tz, r, u, a
@@ -3626,7 +3806,7 @@ SUB EditDrawFaces
         EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, edHovPart, _RGB32(60, k, 255)
         IF NOT edLooking THEN
             n$ = MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edHovKind * 7 - 6, 7)
-            IF edHovThing THEN n$ = GlyphName$(MID$(lvlRow$(edHovY), edHovX + 1, 1)) : IF INSTR(n$, " (") THEN n$ = LEFT$(n$, INSTR(n$, " (") - 1) ' (its name, not the note after it)
+            IF edHovThing THEN n$ = GlyphName$(CellGlyph$(edHovX, edHovY)) : IF INSTR(n$, " (") THEN n$ = LEFT$(n$, INSTR(n$, " (") - 1) ' (its name, not the note after it)
             IF edHovThing THEN n$ = UCASE$(LEFT$(n$, 20))
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
             IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
@@ -4007,7 +4187,7 @@ SUB EditMakeRoom(w, h)
         IF y >= y0 AND y <= y1 THEN MID$(lvlRow$(y), x0 + 1, w) = STRING$(w, ".")
     NEXT
     MID$(lvlRow$((y0 + y1) \ 2), x0 + 1, 1) = ">" : MID$(lvlRow$((y0 + y1) \ 2), x1 + 2, 1) = "E"
-    lvlMonN = 0 : lvlNumZones = 0 : lvlNumLifts = 0 : lvlNumEvents = 0 : lvlNumTrigs = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlNumBarrels = 0
+    lvlMonN = 0 : lvlNumZones = 0 : lvlNumLifts = 0 : lvlNumEvents = 0 : lvlNumTrigs = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0
     lvlNumLights = 1 : lvlLight(1, 1) = mapN / 2 : lvlLight(1, 2) = mapN / 2 : lvlLight(1, 3) = MaxOf(w, h) / 2 + 3 : lvlLight(1, 4) = 150
     lvlLight(1, 5) = 220 : lvlLight(1, 6) = 230 : lvlLight(1, 7) = 255 : lvlLight(1, 8) = 0
     CellLightsClear
@@ -4131,6 +4311,7 @@ SUB EditDropPast(m)
     FOR j = 1 TO lvlNumBarrels
         IF lvlBarrel(j, 1) <= m AND lvlBarrel(j, 2) <= m THEN k = k + 1 : FOR c = 1 TO 4 : lvlBarrel(k, c) = lvlBarrel(j, c) : NEXT
     NEXT : lvlNumBarrels = k
+    XtraShift 0, 0, m + 1 ' ([doors], [things], [notes], [smears]: those off it go)
     k = 0
     FOR j = 1 TO lvlMonN
         IF lvlMon(j, 1) <= m AND lvlMon(j, 2) <= m THEN k = k + 1 : FOR c = 1 TO MON_COLS : lvlMon(k, c) = lvlMon(j, c) : NEXT

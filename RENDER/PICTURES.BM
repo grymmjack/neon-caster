@@ -15,6 +15,7 @@ SUB LoadPictures STATIC
     LoadTex "door.png", T_DOOR
     LoadTex "door-shutter.png", T_SHUTTER
     LoadTex "door-split.png", T_SPLIT
+    LoadTex "door-stronghold.png", T_STRONG : LoadTex "door-stronghold-cracked.png", T_STRONGHURT : LoadTex "door-keypad.png", T_KEYPAD ' (stronghold and keypad doors - GAME/SECURE.BM)
     LoadTex "exit.png", T_EXIT : ExitSign
     LoadTex "ceiling-lamp.png", T_LAMP : MakeLampOff
     LoadTex "wall-jack.png", T_JACK ' (a data station)
@@ -53,7 +54,10 @@ SUB LoadPictures STATIC
     LoadSprite "pickup-rocket.png", ItemSprite(IT_LAUNCHER) : LoadSprite "rockets.png", ItemSprite(IT_ROCKETS)
     LoadSprite "rounds.png", ItemSprite(IT_ROUNDS) : LoadSprite "slugs.png", ItemSprite(IT_SLUGS)
     LoadSprite "jetpack.png", ItemSprite(IT_JETPACK) : LoadSprite "jetfuel.png", ItemSprite(IT_JETFUEL)
+    LoadSprite "repairkit.png", ItemSprite(IT_REPAIR) : LoadSprite "invuln.png", ItemSprite(IT_INVULN)
     MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
+    LoadSprite "bars.png", S_BARS ' (bars across a window)
+    FOR k = 0 TO SMEAR_KINDS - 1 : LoadSprite "smear-" + SmearName$(k) + ".png", S_SMEAR + k : NEXT ' (blood and oil: [smears])
     MakePad S_PAD ' (a teleporter's pad)
     LoadSprite "plate.png", S_PLATE : MakeLaser S_LASER ' (traps: a pressure plate, a laser beam)
     MakeBeamDot S_BEAM, 255, 255, 235, 255, 40, 40 : MakeBeamDot S_BEAM_AIM, 255, 70, 70, 200, 0, 20 ' (lasers: firing, white-hot; aiming, red)

@@ -35,8 +35,8 @@ SUB VendStep STATIC
 END SUB
 
 SUB HitDeco STATIC
-    IF decoKind(targetDeco) = DK_BODY THEN EXIT SUB ' (bodies don't break)
-    IF decoKind(targetDeco) = DK_CHEST THEN SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY : EXIT SUB ' (nor do chests: Space opens one)
+    IF DecoFlat(decoKind(targetDeco)) THEN EXIT SUB ' (bodies don't break - nor anything lying flat)
+    IF decoKind(targetDeco) = DK_CHEST OR decoKind(targetDeco) = DK_SAFE THEN SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY : EXIT SUB ' (nor do chests: Space opens one)
     IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
     ' Its loot, if it breaks: kicked, back the way you're facing (towards you,
     ' give or take); shot or blown up, any way at all
@@ -104,6 +104,18 @@ FUNCTION DecoKindOf(n$)
         CASE "lavabarrel" : k = DK_LQBARREL + LQ_LAVA
         CASE "acidbarrel" : k = DK_LQBARREL + LQ_ACID
         CASE "chest", "treasurechest", "cache" : k = DK_CHEST
+        CASE "table", "flippedtable" : k = DK_TABLE
+        CASE "brokenmonitor", "monitor" : k = DK_MONBROKE
+        CASE "scientist", "body", "deadscientist" : k = DK_SCIENTIST
+        CASE "guard", "deadguard" : k = DK_GUARD
+        CASE "cyborg", "deadcyborg" : k = DK_CYBORG
+        CASE "bookshelf", "shelf", "bookcase" : k = DK_SHELF
+        CASE "safe" : k = DK_SAFE
+        CASE "brokenpc", "brokencomputer", "brokenterminal" : k = DK_PCBROKE
+        CASE "computer", "pc", "hackterminal" : k = DK_PC
+        CASE "camera", "securitycamera", "cctv" : k = DK_CAMERA
+        CASE "secmon", "securitymonitor", "cameramonitor" : k = DK_SECMON
+        CASE "note" : k = DK_NOTE
         CASE ELSE : k = 0
     END SELECT
     DecoKindOf = k
@@ -113,6 +125,7 @@ END FUNCTION
 FUNCTION DecoName$(k)
     IF k > DK_LQBARREL AND k < DK_CHEST THEN DecoName$ = lqName$(k - DK_LQBARREL) + "barrel" : EXIT FUNCTION
     IF k = DK_CHEST THEN DecoName$ = "chest" : EXIT FUNCTION
+    IF k >= DK_TABLE THEN DecoName$ = ListItem$("table,brokenmonitor,scientist,guard,cyborg,bookshelf,safe,brokenpc,computer,camera,secmon,note", k - DK_TABLE + 1) : EXIT FUNCTION
     DecoName$ = RTRIM$(MID$("barrel   lamp     plant    terminal crate    rack     vending  coolant  spawner  desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", k * 9 - 8, 9))
 END FUNCTION
 
@@ -125,6 +138,7 @@ END FUNCTION
 FUNCTION DecoFile$(kind)
     IF kind > DK_LQBARREL AND kind < DK_CHEST THEN DecoFile$ = "barrel-" + lqName$(kind - DK_LQBARREL) + ".png" : EXIT FUNCTION
     IF kind = DK_CHEST THEN DecoFile$ = "chest.png" : EXIT FUNCTION
+    IF kind >= DK_TABLE THEN DecoFile$ = ListItem$("table-flipped,monitor-broken,body-scientist,body-guard,body-cyborg,bookshelf,safe,terminal-broken,terminal,camera,screens,note", kind - DK_TABLE + 1) + ".png" : EXIT FUNCTION
     DecoFile$ = RTRIM$(MID$("desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", (kind - 10) * 9 + 1, 9)) + ".png"
 END FUNCTION
 
@@ -149,7 +163,11 @@ FUNCTION DecoMaxHP(kind)
         CASE 20 : DecoMaxHP = 2 ' Chair
         CASE 21 : DecoMaxHP = 99 ' (a body: never breaks)
         CASE DK_LQBARREL + 1 TO DK_LQBARREL + LQ_KINDS : DecoMaxHP = 1 ' (a liquid barrel: a hit starts it leaking)
-        CASE DK_CHEST : DecoMaxHP = 99 ' (a chest: Space opens it, shots don't)
+        CASE DK_CHEST, DK_SAFE : DecoMaxHP = 99 ' (a chest, a safe: Space opens it, shots don't)
+        CASE DK_TABLE : DecoMaxHP = 10 ' (a table on its side: cover, for a while)
+        CASE DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_CAMERA, DK_NOTE : DecoMaxHP = 99 ' (flat: DecoFlat)
+        CASE DK_SHELF, DK_PC, DK_SECMON : DecoMaxHP = 4
+        CASE DK_PCBROKE : DecoMaxHP = 3
         CASE ELSE : DecoMaxHP = 4 ' Terminal, server rack, vending machine
     END SELECT
 END FUNCTION
@@ -179,6 +197,15 @@ FUNCTION DecoScale(kind)
         CASE 21 : DecoScale = 0.75 ' A body
         CASE DK_LQBARREL + 1 TO DK_LQBARREL + LQ_KINDS : DecoScale = 0.5 ' A liquid barrel
         CASE DK_CHEST : DecoScale = 0.5 ' A chest
+        CASE DK_TABLE : DecoScale = 0.42 ' A table on its side (low: you see over it, it stops shots)
+        CASE DK_MONBROKE : DecoScale = 0.3 ' A smashed monitor
+        CASE DK_SCIENTIST, DK_GUARD, DK_CYBORG : DecoScale = 0.75 ' More bodies
+        CASE DK_SHELF : DecoScale = 0.95 ' A bookshelf
+        CASE DK_SAFE : DecoScale = 0.55 ' A safe
+        CASE DK_PCBROKE, DK_PC : DecoScale = 0.55 ' A computer, broken or not
+        CASE DK_CAMERA : DecoScale = 0.3 ' A security camera (high on its wall)
+        CASE DK_SECMON : DecoScale = 0.85 ' A security monitor
+        CASE DK_NOTE : DecoScale = 0.2 ' A note
         CASE ELSE : DecoScale = 0.55 ' Terminal
     END SELECT
 END FUNCTION
@@ -234,7 +261,15 @@ END FUNCTION
 ' Every decoration's map character, in kind order - but the liquid barrels
 ' share one (:, its liquid in [barrels]) and the chest is the last ([)
 FUNCTION DecoChars$
-    DecoChars$ = "oiptxlnfSdAFIJLOQUWZV:["
+    DecoChars$ = "oiptxlnfSdAFIJLOQUWZV:['"
+END FUNCTION
+
+' Does decoration kind k lie flat - you walk over it, shots pass it, it
+' never breaks (a body, a note, a smashed monitor, a camera up on a wall)?
+FUNCTION DecoFlat(k)
+    SELECT CASE k
+        CASE DK_BODY, DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_CAMERA, DK_NOTE : DecoFlat = -1
+    END SELECT
 END FUNCTION
 
 ' The decoration kind map character c$ stands for (0: not one) - a liquid
@@ -243,7 +278,7 @@ FUNCTION DecoOfChar(c$)
     DIM k ' (its own: the main program shares these names)
     IF LEN(c$) <> 1 THEN EXIT FUNCTION
     k = INSTR(DecoChars$, c$)
-    IF k = DK_LQBARREL + 1 THEN k = DK_LQBARREL + LQ_POISON ELSE IF k = DK_LQBARREL + 2 THEN k = DK_CHEST
+    IF k = DK_LQBARREL + 1 THEN k = DK_LQBARREL + LQ_POISON ELSE IF k = DK_LQBARREL + 2 THEN k = DK_CHEST ELSE IF k = DK_LQBARREL + 3 THEN k = DK_NOTE
     DecoOfChar = k
 END FUNCTION
 
@@ -251,6 +286,8 @@ END FUNCTION
 FUNCTION DecoCharOf$(kind)
     IF kind > DK_LQBARREL AND kind < DK_CHEST THEN DecoCharOf$ = ":" : EXIT FUNCTION
     IF kind = DK_CHEST THEN DecoCharOf$ = "[" : EXIT FUNCTION
+    IF kind = DK_NOTE THEN DecoCharOf$ = "'" : EXIT FUNCTION
+    IF kind >= DK_TABLE THEN DecoCharOf$ = CHR$(34) : EXIT FUNCTION ' (a thing: its kind in [things])
     IF kind >= 1 AND kind <= DK_LQBARREL THEN DecoCharOf$ = MID$(DecoChars$, kind, 1)
 END FUNCTION
 

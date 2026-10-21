@@ -106,7 +106,7 @@ SUB DroidPlan(i)
     IF DRnd < 0.4 AND numDecos > 0 THEN
         FOR try = 1 TO 6
             j = 1 + INT(DRnd * numDecos)
-            IF decoOn(j) AND decoKind(j) <> 9 AND decoKind(j) <> DK_BODY THEN
+            IF decoOn(j) AND decoKind(j) <> 9 AND NOT DecoFlat(decoKind(j)) THEN
                 d = SQR((decoX(j) - x) ^ 2 + (decoY(j) - y) ^ 2)
                 IF d < 8 AND d > 0.9 THEN
                     tx = decoX(j) + (x - decoX(j)) / d * 0.7 : ty = decoY(j) + (y - decoY(j)) / d * 0.7

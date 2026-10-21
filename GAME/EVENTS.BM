@@ -230,7 +230,7 @@ SUB StepEvent STATIC
         CASE EV_GALLERY ' Break them all before the time's up
             evTimer(ev) = evTimer(ev) - 1 : left = 0
             FOR j = 1 TO numDecos ' (bodies don't count: they never break)
-                IF decoOn(j) AND decoKind(j) <> DK_BODY AND InRoom(ev, decoX(j), decoY(j)) THEN left = left + 1
+                IF decoOn(j) AND NOT DecoFlat(decoKind(j)) AND InRoom(ev, decoX(j), decoY(j)) THEN left = left + 1
             NEXT
             evCount(ev) = left ' (for the HUD: how many are still standing)
             IF left = 0 THEN

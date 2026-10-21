@@ -125,10 +125,12 @@ END SUB
 ' MAX_DECALS are taken, the oldest goes.
 SUB AddDecal(x, y, z, nx, ny, nz, size)
     DIM d ' (its own: the main program shares these names)
-    decalNext = decalNext MOD MAX_DECALS + 1 : d = decalNext
+    IF decalNext < decalBase THEN decalNext = decalBase
+    decalNext = decalBase + (decalNext - decalBase) MOD (MAX_DECALS - decalBase) + 1 : d = decalNext ' (round the ones after the level's smears)
     decalX(d) = x : decalY(d) = y : decalZ(d) = z : decalNX(d) = nx : decalNY(d) = ny : decalNZ(d) = nz
     decalSize(d) = size : decalHeat(d) = DECAL_HEAT : decalOn(d) = -1 : decalKind(d) = newDecalKind : decalSmoke(d) = 0
-    IF newDecalKind THEN decalHeat(d) = 0 : decalSmoke(d) = 420 ' (acid: no glow - it smokes)
+    IF newDecalKind THEN decalHeat(d) = 0
+    IF newDecalKind = 1 THEN decalSmoke(d) = 420 ' (acid: no glow - it smokes)
 END SUB
 
 ' Where a shot lands: (x, y, z), having come along (dx, dy) (one cell

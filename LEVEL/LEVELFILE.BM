@@ -423,7 +423,7 @@
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
     DIM got, j, k, l$, t$, clx, cly ' (its own: the main program shares these names)
-    lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumBarrels = 0 : lvlNote$ = "" : topLines = -1
+    lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0 : lvlNote$ = "" : topLines = -1
     CellLightsClear
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0 : fhRows = 0 : chRows = 0
@@ -458,6 +458,8 @@ SUB ReadLevelFile(n)
             TakeFace t$
         ELSEIF sec$ = "loot" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
             IF lvlNumLoot < DECO_KINDS THEN lvlNumLoot = lvlNumLoot + 1 : lvlLoot$(lvlNumLoot) = t$ ' (as it is: LootTable reads it)
+        ELSEIF XtraSec(sec$) AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            XtraTake sec$, t$ ' ([doors], [things], [notes], [smears]: kept as they are - LEVEL/THINGS.BM)
         ELSEIF LEN(t$) = 0 OR LEFT$(t$, 1) = "'" THEN
             ' (a blank line, or a comment - those at the top, but for the
             ' three every file starts with, are the level's notes)
@@ -735,6 +737,7 @@ SUB WriteLevelFile(f$)
             o$ = o$ + nl$
         NEXT
     END IF
+    o$ = o$ + XtraWrite$("doors", nl$) + XtraWrite$("things", nl$) + XtraWrite$("notes", nl$) + XtraWrite$("smears", nl$)
     o$ = o$ + "" + nl$ : o$ = o$ + "[map]" + nl$
     FOR y = 0 TO mapN - 1 : o$ = o$ + lvlRow$(y) + nl$ : NEXT
     ' The heights - only if there are any

@@ -90,7 +90,7 @@
                     END IF
                 NEXT
                 FOR i = 1 TO numDecos
-                    IF decoOn(i) AND decoKind(i) <> DK_BODY AND cyberOn = 0 THEN
+                    IF decoOn(i) AND NOT DecoFlat(decoKind(i)) AND cyberOn = 0 THEN
                         relX = decoX(i) - playerX : relY = decoY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
@@ -222,13 +222,14 @@
             ELSE
                 kicked = 0
                 FOR i = 1 TO numDecos
-                    IF decoOn(i) AND decoKind(i) <> DK_BODY AND cyberOn = 0 THEN
+                    IF decoOn(i) AND NOT DecoFlat(decoKind(i)) AND cyberOn = 0 THEN
                         ox = decoX(i) - playerX : oy = decoY(i) - playerY : d = SQR(ox * ox + oy * oy)
                         IF d < KICK_REACH AND d > 0.01 THEN
                             IF (ox * dirX + oy * dirY) / d > 0.7 THEN targetDeco = i : hitDamage = KICK_DAMAGE : hitKick = -1 : HitDeco : hitKick = 0 : PlaySfx sndKick&, 0.8 : shake = shake + 2 : kicked = -1 : EXIT FOR
                         END IF
                     END IF
                 NEXT
+                IF NOT kicked THEN kicked = KickDoor ' A door in front? A stronghold door takes the boot (GAME/SECURE.BM)
                 IF NOT kicked THEN ' Glass in front? The boot cracks it
                     FOR kd = 3 TO 7
                         glassAtX = playerX + dirX * kd / 10 : glassAtY = playerY + dirY * kd / 10

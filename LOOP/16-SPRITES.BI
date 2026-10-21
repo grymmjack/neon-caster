@@ -143,7 +143,7 @@
         END IF
     NEXT
     FOR i = 1 TO numDecos
-        IF cyberOn = 0 AND NOT (decoOn(i) = 0 AND decoZ(i) > 0.05) THEN ' (every one - broken ones leave their wreck - one up a stack: blown away; none in the network)
+        IF cyberOn = 0 AND NOT (decoOn(i) = 0 AND decoZ(i) > 0.05) AND NOT (viewOn = VIEW_CAM AND i = viewCam) THEN ' (not the camera you're looking through; every one - broken ones leave their wreck - one up a stack: blown away; none in the network)
             numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) : drawY(numDraw) = decoY(i)
             drawSprite(numDraw) = DecoSlot(decoKind(i)) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = decoZ(i)
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40 : drawFace(numDraw) = decoFace(i)
@@ -244,7 +244,8 @@
         FOR i = 1 TO MAX_DECALS
             IF decalOn(i) THEN
                 numDraw = numDraw + 1 : drawSprite(numDraw) = S_DECAL : drawScale(numDraw) = decalSize(i) : drawMinShade(numDraw) = 0
-                IF decalKind(i) THEN drawSprite(numDraw) = S_ACID + 1 : drawMinShade(numDraw) = 90 ' (an acid stain)
+                IF decalKind(i) = 1 THEN drawSprite(numDraw) = S_ACID + 1 : drawMinShade(numDraw) = 90 ' (an acid stain)
+                IF decalKind(i) >= DK_SMEAR THEN drawSprite(numDraw) = S_SMEAR + decalKind(i) - DK_SMEAR : drawMinShade(numDraw) = 30 ' (blood, oil)
                 drawX(numDraw) = decalX(i) + decalNX(i) * 0.03 : drawY(numDraw) = decalY(i) + decalNY(i) * 0.03
                 IF ABS(decalNZ(i)) > 0.5 THEN
                     drawSquash(numDraw) = 0.35
@@ -268,7 +269,7 @@
         END IF
     NEXT
     FOR i = 1 TO MAX_BOLTS
-        IF boltOn(i) THEN
+        IF boltOn(i) AND NOT (viewOn = VIEW_ROCKET AND i = viewBolt) THEN ' (not the rocket you're riding)
             numDraw = numDraw + 1 : drawX(numDraw) = boltX(i) : drawY(numDraw) = boltY(i)
             drawSprite(numDraw) = S_BOLT : drawScale(numDraw) = 0.22 : drawLift(numDraw) = boltZ(i) - 0.11 - floorH(INT(boltX(i)), INT(boltY(i)))
             IF boltKind(i) THEN ' (a rocket, a missile, a spray's puff: its own picture - a puff swelling as it goes)

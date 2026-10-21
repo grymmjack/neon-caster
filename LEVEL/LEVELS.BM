@@ -75,7 +75,7 @@ END SUB
 ' --- What you start a game with (and come back with, when you die): full
 ' health, no armour, the blaster and 30 cells
 SUB StartLoadout STATIC
-    health = MAX_HP : armor = 0 : ampTimer = 0 : nvHave = 0 : nvOn = 0 : suitLeft = 0 : jetHave = 0 : jetFuel = 0 : jetOn = 0
+    health = MAX_HP : armor = 0 : ampTimer = 0 : nvHave = 0 : nvOn = 0 : suitLeft = 0 : jetHave = 0 : jetFuel = 0 : jetOn = 0 : repairKits = 0 : invTimer = 0
     ammoCount(AM_CELLS) = 30 : ammoCount(AM_SHELLS) = 0 : ammoCount(AM_ROCKETS) = 0 : ammoCount(AM_ROUNDS) = 0 : ammoCount(AM_SLUGS) = 0
     FOR gun = 1 TO NUM_GUNS : hasGun(gun) = 0 : NEXT
     hasGun(W_BLASTER) = -1 : currentGun = W_BLASTER

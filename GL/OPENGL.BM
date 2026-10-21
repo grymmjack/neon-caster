@@ -514,7 +514,7 @@ SUB GLGlass(b)
         cx = glassListX(k) : cy = glassListY(k)
         IF glassHP(cx, cy) > 0 THEN
             IF GLNearSeen(cx, cy, b) THEN
-                slot = S_GLASS : IF glassHP(cx, cy) <= GLASS_HP \ 2 THEN slot = S_GLASS + 1
+                slot = S_GLASS : IF glassHP(cx, cy) >= BARS_HP THEN slot = S_BARS ELSE IF glassHP(cx, cy) <= GLASS_HP \ 2 THEN slot = S_GLASS + 1
                 GLUseTexture T_SLOTS + slot : GLSetLight cx, cy, 1, b
                 red = glLitR(cx, cy, b) / 256 : green = glLitG(cx, cy, b) / 256 : blue = glLitB(cx, cy, b) / 256
                 IF glassDir(cx, cy) = 1 THEN x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 ELSE x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1
@@ -1463,8 +1463,9 @@ SUB GLDecals(b)
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
     _glEnable _GL_POLYGON_OFFSET_FILL : _glPolygonOffset -2, -2
     GLUseTexture T_SLOTS + S_DECAL : uv = spriteSize(S_DECAL) / sprTex
-    FOR pass = 0 TO 1 ' (scorches; then acid stains - the inverse of what's under them, a third of the way: GL_ONE_MINUS_DST_COLOR)
+    FOR pass = 0 TO DK_SMEAR + SMEAR_KINDS - 1 ' (scorches; then acid stains - the inverse of what's under them, a third of the way: GL_ONE_MINUS_DST_COLOR; then blood and oil, each its own picture)
     IF pass = 1 THEN GLStopDrawing : _glBlendFunc _GL_ONE_MINUS_DST_COLOR, _GL_ONE_MINUS_SRC_COLOR : GLUseTexture T_SLOTS + S_ACID : uv = spriteSize(S_ACID) / sprTex
+    IF pass >= DK_SMEAR THEN GLStopDrawing : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : GLUseTexture T_SLOTS + S_SMEAR + pass - DK_SMEAR : uv = spriteSize(S_SMEAR + pass - DK_SMEAR) / sprTex
     FOR i = 1 TO glNumDecal(b)
         IF glDecKind(i, b) <> pass THEN _CONTINUE
         nx = glDecNX(i, b) : ny = glDecNY(i, b) : nz = glDecNZ(i, b) : sz = glDecSize(i, b) / 2
@@ -1493,7 +1494,7 @@ SUB GLDoorBox(cx, cy, b)
     half = DOOR_THICK / 2 : amt = glDoor(cx, cy, b) : kind = doorType(cx, cy) : across = DoorAcross(cx, cy)
     fz = floorH(cx, cy) : cz = ceilH(cx, cy) ' (from its own cell's floor to its ceiling: a door up a step stands on the step)
     SELECT CASE kind
-        CASE DOOR_SLIDE : IF doorKey(cx, cy) THEN slot = T_DOORK + doorKey(cx, cy) ELSE slot = T_DOOR
+        CASE DOOR_SLIDE : slot = DoorSlot(cx, cy)
         CASE DOOR_SPLIT : slot = T_SPLIT
         CASE ELSE : slot = T_SHUTTER
     END SELECT
@@ -1679,7 +1680,7 @@ SUB GLFace(cx, cy, side, b)
     dfz = floorH(cx, cy) : dcz = ceilH(cx, cy)
     SELECT CASE doorType(cx, cy)
         CASE DOOR_SLIDE ' What's left of it, from doorAmt to the end, its texture slid along
-            IF doorKey(cx, cy) THEN slot = T_DOORK + doorKey(cx, cy) ELSE slot = T_DOOR
+            slot = DoorSlot(cx, cy)
             IF doorAmt < 1 THEN GLStrip ax, ay, bx, by, doorAmt, 1, 0, 1 - doorAmt, dfz, dcz, 0, 1, slot
         CASE DOOR_SPLIT ' Two halves, parting from the middle
             IF doorAmt < 1 THEN

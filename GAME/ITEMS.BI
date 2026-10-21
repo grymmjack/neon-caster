@@ -38,6 +38,11 @@ CONST SUIT_MAX = 100, SUIT_WEAR = 0.5 ' (a suit's wear: SUIT_MAX new, and SUIT_W
 DIM SHARED suitLeft AS SINGLE ' (what's left of your suit: 0 none - lost when you die, as night vision is)
 DIM SHARED nvHave AS SINGLE, nvOn AS INTEGER ' (night vision: whether you have a headset (1), and whether it's on - ApplyNight, and OpenGL's post shader's "night")
 CONST MAX_OVER = 200, AMP_FRAMES = 1800
+' A computer repair kit (a thing, repairkit: Space on a broken computer with
+' one fixes it - then it can be hacked) and invulnerability (invuln: no harm
+' at all for INV_FRAMES)
+CONST IT_REPAIR = 24, IT_INVULN = 25, INV_FRAMES = 300, MAX_KITS = 3
+DIM SHARED repairKits AS INTEGER, invTimer AS INTEGER, invFlash AS INTEGER ' (invFlash: a hit that didn't hurt - the glow flares)
 ' MAX_ = the most there can be: the arrays below have room for this many
 CONST MAX_ITEMS = 256
 DIM SHARED itemX(MAX_ITEMS) AS SINGLE, itemY(MAX_ITEMS) AS SINGLE

@@ -16,9 +16,15 @@ DIAG = set("/\\")
 ITEMS = set("rby+ae23u*4Mqj89)({}`,")  # ` a jetpack, , jet fuel; ... q overcharge, j damage amp, 8 night vision, 9 hazmat suit, ) rocket launcher, ( rockets
 MONS = set("mghcskwzT15670~_|]")  # ] the mimic (a chest that bites); ... k stalker, w spitter, z the overseer, T thief, 1 sniper, 5 trooper, 6 ripper, 7 warden, 0 colossus, ~ _ | turrets (ceiling, floor, wall)
 BARREL_STACK = 8  # (the game's GAME/DECOS.BI: how many barrels can stand on each other)
-DECO = set("oiptxlnfSdAFIJLOQUWZV:[")  # : a liquid barrel (its liquid and stack in [barrels]), [ a treasure chest; ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
+DECO = set("oiptxlnfSdAFIJLOQUWZV:['\"")  # ' a note (its words in [notes]), " a thing (its kind in [things]: THINGS); : a liquid barrel (its liquid and stack in [barrels]), [ a treasure chest; ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
-GLASS = set("=")  # a pane of glass: see through it, but not walk
+GLASS = set("=-")  # a pane of glass: see through it, but not walk; - bars across a window, the same (they never break)
+# The things a " can be ([things] x, y, kind[, more]) - the game's ThingList$, and what each is to the kit
+THINGS = {"table": "deco", "brokenmonitor": "flat", "scientist": "flat", "guard": "flat", "cyborg": "flat", "bookshelf": "deco",
+          "safe": "deco", "brokenpc": "deco", "computer": "deco", "camera": "flat", "secmon": "deco",
+          "repairkit": "item", "invuln": "item", "robodog": "mon"}
+XTRA = ("doors", "things", "notes", "smears")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
+SMEARS = ("blood1", "blood2", "blood3", "oil1", "oil2", "blood", "oil")
 STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle
 PANEL = set(";")  # a turret control panel: a wall you hack, switching the turrets near it off
 PAD = set("&")  # a teleporter pad: they pair up in reading order (1st-2nd, 3rd-4th)
@@ -512,6 +518,53 @@ def check_liquid(lv):
     return errs
 
 
+def _xf(line):
+    """A [doors]/[things]/[notes]/[smears] line's fields, trimmed - and its x, y (None if they aren't numbers)."""
+    f = [t.strip() for t in line.split(",")]
+    try:
+        return f, int(float(f[0])), int(float(f[1]))
+    except (ValueError, IndexError):
+        return f, None, None
+
+
+def check_xtra(lv):
+    """What's wrong with a level's [doors], [things], [notes] and [smears] (a list of errors)."""
+    errs, rows = [], lv["rows"]
+    def at(x, y):
+        return rows[y][x] if 0 <= y < len(rows) and 0 <= x < len(rows[y]) else "#"
+    if sum(len(lv.get(s, [])) for s in XTRA) > 512:
+        errs.append("[doors] [things] [notes] [smears]: more than LEVEL/THINGS.BI's MAX_XTRA (512) lines")
+    for l in lv.get("doors", []):
+        f, x, y = _xf(l)
+        if x is None: errs.append("door line '%s': x, y, kicks, code" % l); continue
+        if at(x, y) not in DOORS or at(x, y) == "E":
+            errs.append("door line at %d,%d: no door there (it's '%s')" % (x, y, at(x, y)))
+        k = f[2] if len(f) > 2 else ""
+        if k and not (k.isdigit() and int(k) <= 99): errs.append("door at %d,%d: kicks '%s' (0-99)" % (x, y, k))
+        c = f[3] if len(f) > 3 else ""
+        if c and c != "?" and not (c.isdigit() and len(c) <= 8): errs.append("door at %d,%d: code '%s' (up to 8 digits, or ?)" % (x, y, c))
+    for l in lv.get("things", []):
+        f, x, y = _xf(l)
+        if x is None or len(f) < 3: errs.append("thing line '%s': x, y, kind" % l); continue
+        if at(x, y) != '"': errs.append("thing at %d,%d: no \" there (it's '%s')" % (x, y, at(x, y)))
+        if f[2].lower() not in THINGS: errs.append("thing at %d,%d: kind '%s' (one of %s)" % (x, y, f[2], ", ".join(THINGS)))
+        if f[2].lower() == "safe" and len(f) > 3 and f[3] and f[3] != "?" and not (f[3].isdigit() and len(f[3]) <= 8):
+            errs.append("safe at %d,%d: code '%s' (up to 8 digits, or ?)" % (x, y, f[3]))
+    for l in lv.get("notes", []):
+        f, x, y = _xf(l)
+        if x is None or len(f) < 4: errs.append("note line '%s': x, y, picture, words" % l); continue
+        if at(x, y) not in "'d\"": errs.append("note at %d,%d: nothing to hold it (a note ', a desk d, a bookshelf or safe \")" % (x, y))
+    for l in lv.get("smears", []):
+        f, x, y = _xf(l)
+        if x is None or len(f) < 4: errs.append("smear line '%s': x, y, face, what" % l); continue
+        face = f[2].upper()[:1]
+        if face not in "ESWNFC" or not face: errs.append("smear at %d,%d: face '%s' (E S W N F C)" % (x, y, f[2]))
+        elif face in "ESWN" and at(x, y) not in WALLS: errs.append("smear at %d,%d: a wall's side, but it's '%s'" % (x, y, at(x, y)))
+        elif face in "FC" and (at(x, y) in WALLS or at(x, y) in DOORS): errs.append("smear at %d,%d: a floor or ceiling, but it's '%s'" % (x, y, at(x, y)))
+        if f[3].lower() not in SMEARS: errs.append("smear at %d,%d: '%s' (blood1-3, oil1-2)" % (x, y, f[3]))
+    return errs
+
+
 def check_blocks(lv):
     """What's wrong with a level's blocks and nudges (a list of errors)."""
     errs, seen = [], set()
@@ -539,6 +592,7 @@ def check_blocks(lv):
             errs.append("barrel at %d,%d: no barrel (o or :) there" % (x, y))
         if not 0 <= lq <= 5 or not 1 <= st <= BARREL_STACK:
             errs.append("barrel at %d,%d: liquid %d (0-5), stack %d (1-%d)" % (x, y, lq, st, BARREL_STACK))
+    errs += check_xtra(lv)
     for n in lv.get("nudges", []):
         if len(n) < 4:
             errs.append("nudge %s: needs x, y, dx, dy" % (n,)); continue
@@ -701,6 +755,12 @@ def level_text(lv, comment=()):
         out.append("[faces]")
         out.append("' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture")
         out += list(lv["faces"])
+    for sec, h in (("doors", "' a door's own: x, y, kicks (a stronghold door: how many kicks break it down - 0 none), code (a keypad door's digits - ? one made up each time; none: no keypad)"),
+                   ("things", "' what a \" is: x, y, kind (table, brokenmonitor, scientist, guard, cyborg, bookshelf, safe, brokenpc, computer, camera, secmon, repairkit, invuln, robodog - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name"),
+                   ("notes", "' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code"),
+                   ("smears", "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)")):
+        if lv.get(sec):  # lines about single cells - kept as they are
+            out += ["", "[" + sec + "]", h] + list(lv[sec])
     out.append("")
     out.append("[map]")
     out += list(lv["rows"])
@@ -757,7 +817,8 @@ def read_level_file(path, label=None):
     """A level file as the dict check_level and level_text use."""
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
               ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[], loot=[],
-              liquid=[], liquid_depth=[], blocks=[], nudges=[], cell_lights=[], barrels=[])
+              liquid=[], liquid_depth=[], blocks=[], nudges=[], cell_lights=[], barrels=[],
+              doors=[], things=[], notes=[], smears=[])
     global N
     sec = None
     high = {"floor high": [], "ceiling high": []}
@@ -767,7 +828,7 @@ def read_level_file(path, label=None):
             if t and not t.startswith("'") and not t.startswith("["):
                 high[sec].append(t)
                 continue
-        if sec in ("triggers", "faces", "loot"):
+        if sec in ("triggers", "faces", "loot") + XTRA:
             if t and not t.startswith("'") and not t.startswith("["):
                 lv[sec].append(t)
                 continue

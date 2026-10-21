@@ -114,7 +114,7 @@ SUB HeightColumn STATIC
         ELSEIF hDoored THEN
             hnX = hcX : hnY = hcY : v = 0 : hSolid = -1
             SELECT CASE doorType(hcX, hcY)
-                CASE DOOR_SLIDE : IF doorKey(hcX, hcY) THEN hSlot = T_DOORK + doorKey(hcX, hcY) ELSE hSlot = T_DOOR
+                CASE DOOR_SLIDE : hSlot = DoorSlot(hcX, hcY)
                 CASE DOOR_SPLIT : hSlot = T_SPLIT
                 CASE ELSE : hSlot = T_SHUTTER
             END SELECT
@@ -318,7 +318,7 @@ SUB GlassColumn STATIC
     IF gTop < gClipT THEN gPos = gPos + (gClipT - gTop) * gStep : gTop = gClipT
     IF gEnd > gClipB THEN gEnd = gClipB
     gu = INT(glassU(gx) * sprTex) AND (sprTex - 1)
-    gSlot = S_GLASS : IF glassHP(glassCX(gx), glassCY(gx)) <= GLASS_HP \ 2 THEN gSlot = S_GLASS + 1
+    gSlot = S_GLASS : IF glassHP(glassCX(gx), glassCY(gx)) >= BARS_HP THEN gSlot = S_BARS ELSE IF glassHP(glassCX(gx), glassCY(gx)) <= GLASS_HP \ 2 THEN gSlot = S_GLASS + 1
     gFog& = 256 - glassT(gx) * 16 : IF gFog& < 40 THEN gFog& = 40
     gR& = litR(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gG& = litG(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gB& = litB(glassCX(gx), glassCY(gx)) * gFog& \ 256
     IF gR& > 256 THEN gR& = 256

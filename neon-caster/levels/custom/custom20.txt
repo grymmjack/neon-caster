@@ -1,0 +1,156 @@
+' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+' SECTOR 30: THE COMPOUND. A security compound gone quiet. From the
+' guard post (a monitor shows its cameras), out into the yard - tables
+' on their sides for cover, troopers, and the robot dogs that bark the
+' place awake. West, the cell block behind a stronghold door: kick it
+' in (there's a repair kit in there). North, the server office: search
+' its shelves, open its safe (a desk in the guard post knows the code),
+' fix the broken computer and hack it - it opens the vault, and the red
+' card in it. The armory's code is on a note in the guard post. The exit
+' is behind the red door, east of the yard.
+
+name     = SECTOR 30: THE COMPOUND
+walls    = wall-concrete.png, wall-hazard.png, wall-servers.png, wall-girders.png, wall-pipes.png, wall-grate.png
+floors   = floor-concrete.png, floor-plates.png, floor-hazard.png, floor-deck.png
+ceilings = ceiling-pipes.png, ceiling-girders.png
+ambient  = 120, 235, 230, 220
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+19, 37, 28, 44, 1, 1, 0
+2, 22, 38, 35, 2, 0, 0
+2, 10, 9, 20, 3, 1, 0
+14, 10, 26, 20, 4, 1, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+23.5, 40.5, 7, 150, 230, 235, 255, 0
+15.5, 25.5, 7, 150, 230, 235, 255, 0
+24.5, 25.5, 7, 150, 230, 235, 255, 0
+33.5, 25.5, 7, 150, 230, 235, 255, 0
+15.5, 32.5, 7, 150, 230, 235, 255, 0
+24.5, 32.5, 7, 150, 230, 235, 255, 0
+33.5, 32.5, 7, 150, 230, 235, 255, 0
+5.5, 13.5, 6, 140, 255, 120, 90, 1
+34.5, 15.5, 6, 160, 255, 200, 120, 0
+20.5, 15.5, 7, 150, 120, 220, 255, 0
+20.5, 6.5, 5, 170, 255, 70, 70, 2
+42.5, 28.5, 5, 160, 120, 255, 160, 0
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+
+[triggers]
+' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
+enter 2 22 38 35 : message THE YARD - the dogs bark the place awake. Tables make good cover.
+enter 2 10 9 20 : message THE CELL BLOCK
+hack 20 11 : message SERVER ROOM: VAULT UNLOCKED
+
+[doors]
+' a door's own: x, y, kicks (a stronghold door: how many kicks break it down - 0 none), code (a keypad door's digits - ? one made up each time; none: no keypad)
+6, 21, 6,
+34, 21, 0, ?
+20, 9, 10, ?
+
+[things]
+' what a " is: x, y, kind (table, brokenmonitor, scientist, guard, cyborg, bookshelf, safe, brokenpc, computer, camera, secmon, repairkit, invuln, robodog - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name
+20, 38, secmon
+28, 43, camera, GUARD POST
+16, 30, table
+22, 28, table
+30, 30, table
+26, 25, table
+13, 26, table
+35, 27, table
+12, 33, robodog
+36, 33, robodog
+24, 31, robodog
+18, 26, guard
+33, 29, scientist
+27, 34, brokenmonitor
+2, 23, camera, YARD WEST
+38, 23, camera, YARD EAST
+3, 12, repairkit
+8, 12, cyborg
+5, 18, table
+36, 18, invuln
+30, 19, camera, ARMORY
+14, 11, bookshelf
+14, 14, bookshelf
+14, 17, bookshelf
+20, 11, brokenpc, 20, 9
+25, 11, safe, ?
+23, 16, brokenmonitor
+25, 20, camera, SERVERS
+
+[notes]
+' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code
+26, 38, -, Office safe: {code 25 11}|The vault's on the server room computer - if anyone ever fixes it.
+22, 40, robodog.png, Armory code changed again: {code 34 21}.|Keep the dogs fed. Don't go in the yard after dark.|- Sgt. Ivers
+14, 14, -, Repair kits went to the cell block. Don't ask why.
+
+[smears]
+' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)
+24, 39, F, oil2
+20, 32, F, blood1
+31, 27, F, blood2
+26, 33, F, oil1
+18, 27, F, blood3
+1, 30, E, blood2
+39, 31, W, oil1
+6, 9, S, blood1
+9, 11, F, blood3
+1, 12, E, blood2
+22, 18, F, oil2
+
+[map]
+################################################
+################################################
+################################################
+################################################
+#################.......########################
+#################.q.r.*.########################
+#################.......########################
+#################.......########################
+#################.......########################
+####################D###########################
+##........####.............###.........#########
+##........####"....."....".###.........#########
+##."....".####.............###..)(.(...#########
+##........####.............###.........#########
+##........####"............###.........#########
+##..#..#..####.............###.......u.#########
+##..#..#..####...d....."...###.........#########
+##........####"............###.........#########
+##.+."..u.####.............###......"..#########
+##........####.............###"........#########
+##........####...........".###.........#########
+####-#D#-###########D#############D#############
+##.....................................#########
+##".................g................."#########
+##............5...................5....#########
+##........................"............#########
+##..........."...."....................#.....###
+##................................."...#.....###
+##...................."................R.....E##
+##...............................".....#.....###
+##.............."............."........#.....###
+##......................"..............#########
+##.....................................#########
+##.........."................g......"..#########
+##.........+.............a.".........e.#########
+##.....................................#########
+########################D#######################
+###################..........###################
+###################.".....d..###################
+###################..........###################
+###################...'......###################
+###################..........###################
+###################......M...###################
+###################....^...."###################
+###################..........###################
+################################################
+################################################
+################################################

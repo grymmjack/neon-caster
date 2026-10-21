@@ -523,7 +523,7 @@ FUNCTION BotStep(ax, ay, bx, by, haz)
     IF diagCorner(bx, by) OR glassHP(bx, by) > 0 THEN EXIT FUNCTION
     IF boxOn(bx, by) THEN IF MaxOf(MaxOf(boxX0(bx, by), 1 - boxX1(bx, by)), MaxOf(boxY0(bx, by), 1 - boxY1(bx, by))) < 0.6 THEN EXIT FUNCTION ' (a block: only one that leaves no room to get by - a slim post doesn't)
     d = decoCell(bx, by) : IF cyberOn THEN d = 0 ' (the network has no decorations)
-    IF d THEN IF decoOn(d) AND decoKind(d) <> DK_BODY THEN EXIT FUNCTION
+    IF d THEN IF decoOn(d) AND NOT DecoFlat(decoKind(d)) THEN EXIT FUNCTION
     IF NOT levelFlat THEN
         IF floorH(bx, by) <= PIT_DEPTH OR botPit(bx, by) THEN EXIT FUNCTION ' (no bottom - or a death pit's)
         IF liftCell(ax, ay) = 0 AND liftCell(bx, by) = 0 THEN IF floorH(bx, by) > floorH(ax, ay) + STEP_UP THEN EXIT FUNCTION

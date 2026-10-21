@@ -76,6 +76,10 @@
                     END IF
                 CASE IT_JETFUEL ' Its fuel: a can (none taken if your tank's full - or you've no jetpack)
                     IF jetHave AND jetFuel < JET_MAX THEN itemOn(i) = 0 : jetFuel = MinOf(JET_MAX, jetFuel + JET_CAN) : PlaySfx sndJetFuel&, 0.9 : ShowMsg "Jet fuel (+" + LTRIM$(STR$(JET_CAN)) + ")" : pickFlash = 10
+                CASE IT_REPAIR ' A computer repair kit (up to MAX_KITS)
+                    IF repairKits < MAX_KITS THEN itemOn(i) = 0 : repairKits = repairKits + 1 : PlaySfx sndArmor&, 0.8 : ShowMsg "COMPUTER REPAIR KIT - Space on a broken computer fixes it" : pickFlash = 10
+                CASE IT_INVULN ' Invulnerability: nothing hurts you for a few seconds
+                    itemOn(i) = 0 : invTimer = INV_FRAMES : PlaySfx sndInvuln&, 1 : ShowMsg "INVULNERABLE! Nothing can hurt you for 5 seconds" : pickFlash = 18
                 CASE IT_ROUNDS
                     IF GiveAmmo%(AM_ROUNDS, 40) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Repeater rounds (+40)" : pickFlash = 10
                 CASE IT_SLUGS

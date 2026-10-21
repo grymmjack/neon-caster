@@ -9,6 +9,7 @@
 ' shower of shards, and the way is open
 SUB HitGlass STATIC
     IF glassHP(glassHitX, glassHitY) <= 0 THEN EXIT SUB
+    IF glassHP(glassHitX, glassHitY) >= BARS_HP THEN SpawnSparks glassAtX, glassAtY, 0.5, 4, 255, 210, 150 : SfxAt sndDecoHit&, glassAtX, glassAtY, playerX, playerY : EXIT SUB ' (bars: a ping off the iron)
     glassHP(glassHitX, glassHitY) = glassHP(glassHitX, glassHitY) - glassDmg
     IF glassHP(glassHitX, glassHitY) > 0 THEN
         SpawnSparks glassAtX, glassAtY, 0.5, 5, 200, 240, 255

@@ -46,6 +46,15 @@ CONST ARC_TOP = 90, ARC_BOT = 570, ARC_PAD = 80, ARC_WIN = 3 ' (NEON PONG's cour
 DIM SHARED vendState(MAX_DECO) AS INTEGER, vendTimer(MAX_DECO) AS INTEGER, vendBomb(MAX_DECO) AS INTEGER ' (0 waiting, 1 counting down, 2 paying out, 3 sold out)
 CONST DK_LQBARREL = 21 ' (a barrel of a liquid: kind DK_LQBARREL + its liquid, 22-26 - one map character, :, its liquid in [barrels]: LQ_WATER to LQ_ACID)
 CONST DK_CHEST = 27 ' (a treasure chest: Space opens it - ChestOpen)
-CONST DECO_KINDS = 27, ITEM_KINDS = 23 ' (kinds of decoration and of pickup - see chapter 3)
+' The things (a " in the map, its kind named in [things] - LEVEL/THINGS.BM):
+' a table on its side (cover), a smashed monitor, three more bodies, a
+' bookshelf and (10) a desk to search, a safe (its code, or a computer's
+' hack, opens it), a broken computer (a repair kit fixes it), a computer to
+' hack, a security camera and the monitor that shows what it sees - and
+' a note (', [notes]: its picture and its words)
+CONST DK_TABLE = 28, DK_MONBROKE = 29, DK_SCIENTIST = 30, DK_GUARD = 31, DK_CYBORG = 32
+CONST DK_SHELF = 33, DK_SAFE = 34, DK_PCBROKE = 35, DK_PC = 36, DK_CAMERA = 37, DK_SECMON = 38, DK_NOTE = 39
+CONST DK_DESK = 10
+CONST DECO_KINDS = 39, ITEM_KINDS = 25 ' (kinds of decoration and of pickup - see chapter 3)
 ' ...and each decoration's wreck, the same way (MakeWreck)
 DIM SHARED wreckScale(DECO_KINDS), wreckSquash(DECO_KINDS)
