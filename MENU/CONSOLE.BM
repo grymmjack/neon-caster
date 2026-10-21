@@ -311,14 +311,15 @@ SUB ConExec STATIC
         CASE "liquid", "liquids", "flood" ' liquid KIND X0 Y0 X1 Y1 [DEPTH]: a pool (KIND water poison slime lava acid, or none to drain it)
             lk = LiquidOf(conA$) : cw$ = ConWord$(conCmd$, 6)
             IF (lk = 0 AND conA$ <> "none") OR cw$ = "" THEN
-                ConPrint "liquid KIND X0 Y0 X1 Y1 [DEPTH]: KIND water poison slime lava acid (or none), DEPTH 1-8 eighths (" + LTRIM$(STR$(LQ_DEPTH)) + ")"
+                ConPrint "liquid KIND X0 Y0 X1 Y1 [DEPTH] [SOLID%]: KIND water poison slime lava acid (or none), DEPTH 1-8 eighths (" + LTRIM$(STR$(LQ_DEPTH)) + "), SOLID% 0-100"
             ELSE
                 lx0 = ConCell(VAL(conB$)) : ly0 = ConCell(VAL(conC$)) : lx1 = ConCell(VAL(ConWord$(conCmd$, 5))) : ly1 = ConCell(VAL(cw$))
                 ld = VAL(ConWord$(conCmd$, 7)) : IF ld < 1 OR ld > 8 THEN ld = LQ_DEPTH
+                lop = MaxOf(0, MinOf(10, VAL(ConWord$(conCmd$, 8)) \ 10)) ' (SOLID%: how much more solid than as made, in tenths)
                 IF editMode THEN ' (in the editor: into the level, to keep)
                     EditPushUndo
                     FOR y = MinOf(ly0, ly1) TO MaxOf(ly0, ly1) : FOR x = MinOf(lx0, lx1) TO MaxOf(lx0, lx1)
-                        EditSetLiquid x, y, lk, ld
+                        EditSetLiquid x, y, lk, ld : IF lk THEN MID$(lvlLiqORow$(y), x + 1, 1) = LiquidOpChar$(lop)
                     NEXT : NEXT
                     EditApply : ConPrint "liquid: " + conRest$ + "   (savelevel or Ctrl+S in the editor to keep it)"
                 ELSE ' (in play - a trigger's flood: the pools change where they are, the level isn't built again, so nothing comes back to life)
@@ -326,12 +327,22 @@ SUB ConExec STATIC
                         IF lk = 0 THEN
                             liqKind(x, y) = 0 : liqZ(x, y) = 0
                         ELSEIF worldMap(x, y) <= 0 AND liftCell(x, y) = 0 THEN
-                            liqKind(x, y) = lk : liqZ(x, y) = floorH(x, y) + ld * H_STEP : liqAny = -1 : levelFlat = 0 : lqUsed(lk) = -1
+                            liqKind(x, y) = lk : liqZ(x, y) = floorH(x, y) + ld * H_STEP : liqAny = -1 : levelFlat = 0 : lqUsed(lk) = -1 : liqOp(x, y) = lop
                         END IF
                     NEXT : NEXT
                     LiquidGlows MinOf(lx0, lx1), MinOf(ly0, ly1), MaxOf(lx0, lx1), MaxOf(ly0, ly1) ' (lava poured in lights the room, as the level's own does)
                     ConPrint "liquid: " + conRest$
                 END IF
+            END IF
+        CASE "gravity" ' gravity [N]: the sector's gravity, percent of the usual (1-300) - a trigger's zero-g room; alone: what it is
+            IF conA$ = "" THEN ConPrint "Gravity:" + STR$(lvlGravity) + "%" ELSE lvlGravity = MaxOf(1, MinOf(300, VAL(conA$))) : ConPrint "Gravity:" + STR$(lvlGravity) + "%" : IF editMode THEN editDirty = -1
+        CASE "jumppad", "launchpad" ' jumppad X Y DIR ANGLE POWER: the jump pad at X Y set (a trigger's); jumppad X Y: what it's set to
+            n = JumpPadAt(ConCell(VAL(conA$)), ConCell(VAL(conB$)))
+            IF n = 0 THEN
+                ConPrint "jumppad X Y [DIR ANGLE POWER]: no jump pad at" + STR$(VAL(conA$)) + "," + STR$(VAL(conB$))
+            ELSE
+                IF LEN(conC$) THEN jpDir(n) = VAL(conC$) : jpAng(n) = VAL(ConWord$(conCmd$, 5)) : jpPow(n) = VAL(ConWord$(conCmd$, 6)) : JumpPadClamp n
+                ConPrint "Jump pad: DIR" + STR$(jpDir(n)) + "  ANGLE" + STR$(jpAng(n)) + "  POWER" + STR$(jpPow(n))
             END IF
         CASE "drain" ' drain X Y [SPEED]: the pool at X Y - all of it that's joined - going down SPEED eighths a second (4) till it's dry (a switch's trigger)
             IF conB$ = "" THEN
@@ -930,7 +941,7 @@ SUB ConGive STATIC
         CASE "suit", "hazmat", "hvac"
             suitLeft = SUIT_MAX : ConPrint "A new hazmat suit"
         CASE "jetpack", "jet"
-            jetHave = -1 : jetFuel = JET_MAX : ConPrint "A jetpack, full - " + FlyKeys$ + ", or look up or down and walk"
+            jetHave = -1 : jetFuel = JET_MAX : ConPrint "A jetpack, full - hold " + KeyName$(keyBind&(BIND_UP)) + " (or look up and walk) to fire it"
         CASE "jetfuel", "fuel" ' give fuel [N]: N more (as made: a full tank) - and a jetpack, if you've none
             n = VAL(conB$) : IF n <= 0 THEN n = JET_MAX
             IF NOT jetHave THEN jetHave = -1 : jetFuel = 0 : ConPrint "(a jetpack too)"
@@ -1296,7 +1307,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
+    ConNames$ = "alias unalias turret alarm drain gravity jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1318,7 +1329,7 @@ SUB ConHelp(c$)
             ConPrint "            ^7qb64pe^8 [PATH|auto]"
             ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7savelevel"
-            ConPrint "            ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]"
+            ConPrint "            ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]  ^7jumppad^8 X Y ..."
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
             ConPrint "  ^6scripts   ^7alias^8 NAME " + CHR$(34) + "..." + CHR$(34) + "  ^7unalias^8 NAME  ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE"
             ConPrint "            ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT  ^7sound^8 NAME  ^7say^8 LINE"
@@ -1425,6 +1436,11 @@ SUB ConHelp(c$)
             ConPrint "^3block X Y X0 Y0 X1 Y1 [WALL]^0: a solid block standing in open cell X Y - a pillar, a thin wall, the back"
             ConPrint "  of an alcove. Its edges are eighths of the cell (0-8 across, then down); WALL 1-6 is the look of #, N, C, K,"
             ConPrint "  P or G. block X Y none takes it away. savelevel (or Ctrl+S in the editor) keeps it"
+        CASE "gravity" : ConPrint "^3gravity [N]^0: the sector's gravity, N percent of the usual (1-300; 100 as made - 5 or so: near zero-g) - lower, you fall slower and jump higher; a trigger can change it, a level file's gravity = sets it"
+        CASE "jumppad", "launchpad"
+            ConPrint "^3jumppad X Y [DIR ANGLE POWER]^0: the jump pad at X Y - DIR degrees (0 east, 90 south), ANGLE up"
+            ConPrint "  from the floor (5-90), POWER hundredths of a cell a frame (5-100); alone: what it's set to."
+            ConPrint "  How far, on the level: POWER x POWER x SIN(2 x ANGLE) / (100 x GRAVITY%) cells"
         CASE "drain"
             ConPrint "^3drain X Y [SPEED]^0: the pool at cell X Y - every cell of it joined to that one, any kind, lava too -"
             ConPrint "  drains away, SPEED eighths a second (4), till the floor's dry; a glow from lava goes out with it."
@@ -1432,6 +1448,7 @@ SUB ConHelp(c$)
         CASE "liquid", "liquids", "flood"
             ConPrint "^3liquid KIND X0 Y0 X1 Y1 [DEPTH]^0: a pool over that rectangle's floor - water (slows you), slime (slows, hurts a"
             ConPrint "  little), poison (hurts), acid (eats armor first), lava (burns) - DEPTH 1-8 eighths; none drains it."
+            ConPrint "  SOLID% (0-100): how much more solid than its kind is made - 100, you can't see the bottom (OpenGL)"
             ConPrint "  savelevel (or Ctrl+S in the editor) keeps it; a trigger can flood a room with it"
         CASE "raise" : ConPrint "^3raise X Y EIGHTHS [ceil] (or raise X0 Y0 X1 Y1 EIGHTHS [ceil])^0: a floor - or, with ceil, a ceiling - up (or down, less than 0) in eighths of a wall"
         CASE "lift" : ConPrint "^3lift X0 Y0 X1 Y1 LOW HIGH [MODE] [SPEED]^0: a lift over that box - heights in eighths; MODE 1 up and down, 2 an elevator (as made), 3 on a trigger's liftgo, 4 a crusher, 5 a smasher (LOW and HIGH then its ceiling's); SPEED eighths a second (8)"

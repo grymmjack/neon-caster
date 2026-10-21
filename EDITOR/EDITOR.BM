@@ -414,6 +414,19 @@ SUB EditPaneClick STATIC
         CASE 263 ' A note's picture
             IF edTyping AND edTypeFor = 6 THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 6 : edTypeFresh = -1 : edTypeX = edPnCX : edTypeY = edPnCY : edTypeBuf$ = EditXtra$("notes", edPnCX, edPnCY, 3) : IF edTypeBuf$ = "-" THEN edTypeBuf$ = ""
             IF edTyping AND edTypeFor = 6 THEN EditNote "Type a picture's file (in neon-caster/, e.g. achievements/NC_BESTIARY.png) - Enter keeps it"
+        CASE 294 TO 299 ' A jump pad: DIR 45 degrees round, ANGLE 5 up or down, POWER 5 more or less
+            EditPushUndo : EditPadGet edPnCX, edPnCY, jd, ja, jp
+            SELECT CASE pnHit
+                CASE 294 : jd = (jd + 315) MOD 360
+                CASE 295 : jd = (jd + 45) MOD 360
+                CASE 296 : ja = MaxOf(5, ja - 5)
+                CASE 297 : ja = MinOf(90, ja + 5)
+                CASE 298 : jp = MaxOf(5, jp - 5)
+                CASE 299 : jp = MinOf(100, jp + 5)
+            END SELECT
+            XtraSet "things", edPnCX, edPnCY, "jumppad, " + LTRIM$(STR$(jd)) + ", " + LTRIM$(STR$(ja)) + ", " + LTRIM$(STR$(jp)) : EditApply
+            IF lvlGravity = 100 THEN grf! = 1 ELSE grf! = lvlGravity / 100
+            EditNote "Jump pad: DIR" + STR$(jd) + "  ANGLE" + STR$(ja) + "  POWER" + STR$(jp) + " - about" + STR$(INT(jp * jp * SIN(2 * ja * 0.0174533) / (100 * grf!) + 0.5)) + " cells, on the level"
         CASE 268 ' An alarm switch: on at first, or off
             EditPushUndo
             IF LCASE$(EditXtra$("things", edPnCX, edPnCY, 4)) = "off" THEN XtraSet "things", edPnCX, edPnCY, "alarm" : EditNote "On at first: a guard can run to it" ELSE XtraSet "things", edPnCX, edPnCY, "alarm, off" : EditNote "Off at first: a console (or alarm on) switches it on"
@@ -499,9 +512,20 @@ SUB EditPaneClick STATIC
             editDirty = -1 ' (nothing to build again: the monsters there have it already, and the game reads them when the level starts)
         CASE 100 ' The name: start typing it - or done
             IF edTyping THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 1 : edTypeFresh = -1 : edTypeBuf$ = SectorShort$ : EditNote "Type the sector's name - Enter keeps it, Esc doesn't"
-        CASE 284, 285 ' The sector's liquids: how much more solid than as made (0-100: 100, you can't see the bottom)
-            lvlLiqOp = MaxOf(0, MinOf(100, lvlLiqOp + 20 * pnHit - 5690)) : editDirty = -1
-            EditNote "Liquids:" + STR$(lvlLiqOp) + "% more solid than as made (OpenGL; 100: you can't see the bottom)"
+        CASE 284, 285 ' The selected liquid cells: how see-through - a tenth more solid, less (0 as made, 10 solid)
+            EditPushUndo : n = 0
+            FOR k = 1 TO edSelN
+                x = edSelX(k) : y = edSelY(k)
+                IF INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1)) THEN
+                    n = MaxOf(0, MinOf(10, LiquidOpOf(MID$(lvlLiqORow$(y), x + 1, 1)) + 2 * pnHit - 569))
+                    MID$(lvlLiqORow$(y), x + 1, 1) = LiquidOpChar$(n)
+                END IF
+            NEXT
+            EditApply : IF n >= 10 THEN EditNote "Solid: you can't see the bottom (OpenGL)" ELSE EditNote "See-through: " + LTRIM$(STR$(n * 10)) + "% more solid than " + "as made (OpenGL)"
+        CASE 286, 287 ' The sector's gravity: 10% less, more (10-300 - 100 as made: falls, jumps, the jetpack's lift)
+            gs = 10 : IF lvlGravity < 10 OR (lvlGravity = 10 AND pnHit = 286) THEN gs = 1 ' (under 10%: a percent a step - near zero-g)
+            lvlGravity = MaxOf(1, MinOf(300, lvlGravity + gs * (2 * pnHit - 573))) : editDirty = -1
+            EditNote "Gravity:" + STR$(lvlGravity) + "% (100 as made: lower, you fall slower and jump higher)"
         CASE 270, 271 ' The sector's droids: fewer, more (0 to MAX_DROIDS)
             n = lvlDroids : IF n < 0 THEN n = 3
             lvlDroids = MaxOf(0, MinOf(MAX_DROIDS, n + 2 * pnHit - 541)) : PlaceDroids level : editDirty = -1 : EditNote "Droids:" + STR$(lvlDroids)
@@ -1462,6 +1486,7 @@ FUNCTION EditSnapshot$
     s$ = s$ + CHR$(11) ' (the liquids: their map, then their depths)
     FOR y = 0 TO mapN - 1 : s$ = s$ + lvlLiqRow$(y) : NEXT
     FOR y = 0 TO mapN - 1 : s$ = s$ + lvlLiqDRow$(y) : NEXT
+    FOR y = 0 TO mapN - 1 : s$ = s$ + lvlLiqORow$(y) : NEXT ' (and how see-through)
     s$ = s$ + CHR$(12) ' (the boxes, then the decorations' nudges)
     FOR k = 1 TO lvlNumBoxes : FOR j = 1 TO 7 : s$ = s$ + LTRIM$(STR$(lvlBox(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(14)
@@ -1531,6 +1556,7 @@ SUB EditRestore(s1$)
         q$ = MID$(s0$, c11 + 1) : s0$ = LEFT$(s0$, c11 - 1)
         FOR y = 0 TO mapN - 1
             lvlLiqRow$(y) = MID$(q$, y * mapN + 1, mapN) : lvlLiqDRow$(y) = MID$(q$, (mapN + y) * mapN + 1, mapN)
+            lvlLiqORow$(y) = LEFT$(MID$(q$, (2 * mapN + y) * mapN + 1, mapN) + STRING$(mapN, "."), mapN)
         NEXT
     END IF
     c2 = INSTR(s0$, CHR$(2)) : s$ = s0$ : f$ = "" : l$ = "" : p$ = ""
@@ -1644,7 +1670,7 @@ SUB EditSetLiquid(x, y, k, d)
         MID$(lvlLiqRow$(y), x + 1, 1) = MID$(LQ_CHARS$, k, 1)
         IF d = LQ_DEPTH THEN MID$(lvlLiqDRow$(y), x + 1, 1) = "." ELSE MID$(lvlLiqDRow$(y), x + 1, 1) = LTRIM$(STR$(d))
     ELSE
-        MID$(lvlLiqRow$(y), x + 1, 1) = "." : MID$(lvlLiqDRow$(y), x + 1, 1) = "."
+        MID$(lvlLiqRow$(y), x + 1, 1) = "." : MID$(lvlLiqDRow$(y), x + 1, 1) = "." : MID$(lvlLiqORow$(y), x + 1, 1) = "."
     END IF
 END SUB
 
@@ -2677,8 +2703,7 @@ SUB EditPaneBuild
         y = y + 50
         n = lvlDroids : IF n < 0 THEN n = 3
         EditPaneAdd -1, x0, y + 2, 140, "DROIDS" + STR$(n), 0 : EditPaneAdd 270, x0 + 146, y, 24, "-", 0 : EditPaneAdd 271, x0 + 174, y, 24, "+", 0 : y = y + 24
-        IF lvlLiqOp THEN t$ = "LIQUIDS +" + LTRIM$(STR$(lvlLiqOp)) + "%" ELSE t$ = "LIQUIDS AS MADE"
-        EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 284, x0 + 146, y, 24, "-", 0 : EditPaneAdd 285, x0 + 174, y, 24, "+", 0 : y = y + 24
+        EditPaneAdd -1, x0, y + 2, 140, "GRAVITY" + STR$(lvlGravity) + "%", 0 : EditPaneAdd 286, x0 + 146, y, 24, "-", 0 : EditPaneAdd 287, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "ALL FLOORS", 0 : EditPaneAdd 272, x0 + 146, y, 24, "-", 0 : EditPaneAdd 273, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "ALL CEILINGS", 0 : EditPaneAdd 274, x0 + 146, y, 24, "-", 0 : EditPaneAdd 275, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "LOOT " + LootSetName$(edLootSet), 0 : EditPaneAdd 276, x0 + 146, y, 24, "<", 0 : EditPaneAdd 277, x0 + 174, y, 24, ">", 0 : y = y + 24
@@ -2831,6 +2856,7 @@ SUB EditPaneBuild
             EditPaneAdd 74, x0, y, PN_W, "REMOVE THE LIGHT", 0 : y = y + 23
             EditPaneNudge x0, y ' (a decoration under the light: still moved about from here)
             EditPaneFuel x0, y ' (a jetpack or fuel can under it: its fuel, from here too)
+            EditPaneLiquid x0, y ' (a pool under it: how see-through)
             EXIT SUB
         END IF
     NEXT
@@ -2968,6 +2994,7 @@ SUB EditPaneBuild
         EditPaneAdd 220, x0, y, PN_W, "CELL LIGHT...", 0 : y = y + 23
         EditPaneNudge x0, y
         EditPaneFuel x0, y
+        EditPaneLiquid x0, y
     ELSE
         edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
         wb = 0 : FOR k = 1 TO edSelN
@@ -3014,8 +3041,15 @@ SUB EditPaneNudge(x0, y)
             CASE "computer", "brokenpc" : lab$ = "OPENS (X, Y)"
             CASE "camera" : lab$ = "NAME"
             CASE "alarmpc" : lab$ = "ALARM (X, Y)"
+            CASE "padpc" : lab$ = "PAD (X, Y)"
             CASE ELSE : lab$ = ""
         END SELECT
+        IF tn$ = "jumppad" THEN ' (a jump pad: which way, how steep, how hard)
+            EditPadGet edPnCX, edPnCY, jd, ja, jp
+            EditPaneAdd -1, x0, y + 2, 140, "DIR" + STR$(jd), 0 : EditPaneAdd 294, x0 + 146, y, 24, "<", 0 : EditPaneAdd 295, x0 + 174, y, 24, ">", 0 : y = y + 23
+            EditPaneAdd -1, x0, y + 2, 140, "ANGLE" + STR$(ja), 0 : EditPaneAdd 296, x0 + 146, y, 24, "-", 0 : EditPaneAdd 297, x0 + 174, y, 24, "+", 0 : y = y + 23
+            EditPaneAdd -1, x0, y + 2, 140, "POWER" + STR$(jp), 0 : EditPaneAdd 298, x0 + 146, y, 24, "-", 0 : EditPaneAdd 299, x0 + 174, y, 24, "+", 0 : y = y + 23
+        END IF
         IF tn$ = "alarm" THEN ' (an alarm switch: on at first, or off till a console - or a trigger - switches it on)
             IF LCASE$(EditXtra$("things", edPnCX, edPnCY, 4)) = "off" THEN t$ = "OFF AT FIRST" ELSE t$ = "ON AT FIRST"
             EditPaneAdd 268, x0, y, PN_W, t$, (t$ = "ON AT FIRST") : y = y + 23
@@ -3035,6 +3069,32 @@ SUB EditPaneNudge(x0, y)
         y = y + 21
         EditPaneAdd 262, x0, y, 64, "WORDS", (edTyping AND edTypeFor = 5) : EditPaneAdd 263, x0 + 67, y, 64, "PICTURE", (edTyping AND edTypeFor = 6) : EditPaneAdd 264, x0 + 134, y, 64, "NONE", 0
         y = y + 23
+    END IF
+END SUB
+
+' A liquid cell's see-through (its [liquid opacity]): SOLID - + (the first
+' selected cell with liquid in it says; the buttons set them all)
+SUB EditPaneLiquid(x0, y)
+    DIM k, n, t$ ' (its own: the main program shares these names)
+    FOR k = 1 TO edSelN
+        IF INSTR(LQ_CHARS$, MID$(lvlLiqRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN
+            n = LiquidOpOf(MID$(lvlLiqORow$(edSelY(k)), edSelX(k) + 1, 1))
+            IF n = 0 THEN t$ = "LIQUID AS MADE" ELSE IF n >= 10 THEN t$ = "LIQUID SOLID" ELSE t$ = "LIQUID +" + LTRIM$(STR$(n * 10)) + "% SOLID"
+            EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 284, x0 + 146, y, 24, "-", 0 : EditPaneAdd 285, x0 + 174, y, 24, "+", 0
+            y = y + 23
+            EXIT SUB
+        END IF
+    NEXT
+END SUB
+
+' A jump pad's DIR, ANGLE, POWER (its [things] line - as made 0, 45, 30)
+SUB EditPadGet(x, y, jd, ja, jp)
+    DIM k, t$ ' (its own: the main program shares these names)
+    jd = 0 : ja = 45 : jp = 30 : k = XtraFind("things", x, y, 0)
+    IF k THEN
+        t$ = XtraField$(k, 4) : IF LEN(t$) THEN jd = VAL(t$)
+        t$ = XtraField$(k, 5) : IF LEN(t$) THEN ja = VAL(t$)
+        t$ = XtraField$(k, 6) : IF LEN(t$) THEN jp = VAL(t$)
     END IF
 END SUB
 
@@ -3420,8 +3480,8 @@ END SUB
 ' border. The selection moves with it.
 SUB EditNudge(dx, dy)
     DIM bx, by, c, e, j, k, x, y ' (its own: the main program shares these names)
-    DIM r$(MAP_SIZE - 1), f$(MAP_SIZE - 1), c$(MAP_SIZE - 1), l$(MAP_SIZE - 1), ld$(MAP_SIZE - 1), mv(MAP_SIZE, MAP_SIZE) AS INTEGER, dest(MAP_SIZE, MAP_SIZE) AS INTEGER
-    FOR y = 0 TO mapN - 1 : r$(y) = lvlRow$(y) : f$(y) = lvlFloorRow$(y) : c$(y) = lvlCeilRow$(y) : l$(y) = lvlLiqRow$(y) : ld$(y) = lvlLiqDRow$(y) : NEXT
+    DIM r$(MAP_SIZE - 1), f$(MAP_SIZE - 1), c$(MAP_SIZE - 1), l$(MAP_SIZE - 1), ld$(MAP_SIZE - 1), lo$(MAP_SIZE - 1), mv(MAP_SIZE, MAP_SIZE) AS INTEGER, dest(MAP_SIZE, MAP_SIZE) AS INTEGER
+    FOR y = 0 TO mapN - 1 : r$(y) = lvlRow$(y) : f$(y) = lvlFloorRow$(y) : c$(y) = lvlCeilRow$(y) : l$(y) = lvlLiqRow$(y) : ld$(y) = lvlLiqDRow$(y) : lo$(y) = lvlLiqORow$(y) : NEXT
     FOR k = 1 TO edSelN
         x = edSelX(k) : y = edSelY(k)
         IF x + dx < 1 OR y + dy < 1 OR x + dx > mapN - 2 OR y + dy > mapN - 2 THEN EditNote "Can't move into the border" : EXIT SUB
@@ -3435,14 +3495,14 @@ SUB EditNudge(dx, dy)
             bx = x - dx : by = y - dy
             DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < mapN - 1 AND by < mapN - 1 : bx = bx - dx : by = by - dy : LOOP
             MID$(lvlRow$(y), x + 1, 1) = MID$(r$(by), bx + 1, 1) : MID$(lvlFloorRow$(y), x + 1, 1) = MID$(f$(by), bx + 1, 1) : MID$(lvlCeilRow$(y), x + 1, 1) = MID$(c$(by), bx + 1, 1)
-            MID$(lvlLiqRow$(y), x + 1, 1) = MID$(l$(by), bx + 1, 1) : MID$(lvlLiqDRow$(y), x + 1, 1) = MID$(ld$(by), bx + 1, 1)
+            MID$(lvlLiqRow$(y), x + 1, 1) = MID$(l$(by), bx + 1, 1) : MID$(lvlLiqDRow$(y), x + 1, 1) = MID$(ld$(by), bx + 1, 1) : MID$(lvlLiqORow$(y), x + 1, 1) = MID$(lo$(by), bx + 1, 1)
             IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) = 0 THEN MID$(lvlRow$(y), x + 1, 1) = "." ' (a plain wall behind it, as that; anything else - a start, a monster, a pad, a door - never twice: floor)
         END IF
     NEXT : NEXT
     FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
         IF mv(x, y) THEN
             MID$(lvlRow$(y + dy), x + dx + 1, 1) = MID$(r$(y), x + 1, 1) : MID$(lvlFloorRow$(y + dy), x + dx + 1, 1) = MID$(f$(y), x + 1, 1) : MID$(lvlCeilRow$(y + dy), x + dx + 1, 1) = MID$(c$(y), x + 1, 1)
-            MID$(lvlLiqRow$(y + dy), x + dx + 1, 1) = MID$(l$(y), x + 1, 1) : MID$(lvlLiqDRow$(y + dy), x + dx + 1, 1) = MID$(ld$(y), x + 1, 1) ' (its pool too)
+            MID$(lvlLiqRow$(y + dy), x + dx + 1, 1) = MID$(l$(y), x + 1, 1) : MID$(lvlLiqDRow$(y + dy), x + dx + 1, 1) = MID$(ld$(y), x + 1, 1) : MID$(lvlLiqORow$(y + dy), x + dx + 1, 1) = MID$(lo$(y), x + 1, 1) ' (its pool too)
         END IF
     NEXT : NEXT
     DIM clb(MAP_SIZE, MAP_SIZE) AS INTEGER, clc(MAP_SIZE, MAP_SIZE) AS _UNSIGNED LONG, clf(MAP_SIZE, MAP_SIZE) AS INTEGER ' (the cell lights too: as the rows - left behind, like the cell behind; moved, with it)
@@ -4237,7 +4297,7 @@ SUB EditMakeRoom(w, h)
     lvlNumLights = 1 : lvlLight(1, 1) = mapN / 2 : lvlLight(1, 2) = mapN / 2 : lvlLight(1, 3) = MaxOf(w, h) / 2 + 3 : lvlLight(1, 4) = 150
     lvlLight(1, 5) = 220 : lvlLight(1, 6) = 230 : lvlLight(1, 7) = 255 : lvlLight(1, 8) = 0
     CellLightsClear
-    FOR y = 0 TO mapN - 1 : lvlLiqRow$(y) = STRING$(mapN, ".") : lvlLiqDRow$(y) = STRING$(mapN, ".") : NEXT
+    FOR y = 0 TO mapN - 1 : lvlLiqRow$(y) = STRING$(mapN, ".") : lvlLiqDRow$(y) = STRING$(mapN, ".") : lvlLiqORow$(y) = STRING$(mapN, ".") : NEXT
 END SUB
 
 ' --- The map from above, fitted to its part of the screen: a sector the
@@ -4257,11 +4317,11 @@ SUB EditResizeMap(n)
     FOR y = 0 TO n - 1
         lvlRow$(y) = LEFT$(lvlRow$(y) + STRING$(n, "#"), n) : IF y >= was THEN lvlRow$(y) = STRING$(n, "#")
         lvlFloorRow$(y) = LEFT$(lvlFloorRow$(y) + STRING$(n, "."), n) : lvlCeilRow$(y) = LEFT$(lvlCeilRow$(y) + STRING$(n, "."), n)
-        lvlLiqRow$(y) = LEFT$(lvlLiqRow$(y) + STRING$(n, "."), n) : lvlLiqDRow$(y) = LEFT$(lvlLiqDRow$(y) + STRING$(n, "."), n)
+        lvlLiqRow$(y) = LEFT$(lvlLiqRow$(y) + STRING$(n, "."), n) : lvlLiqDRow$(y) = LEFT$(lvlLiqDRow$(y) + STRING$(n, "."), n) : lvlLiqORow$(y) = LEFT$(lvlLiqORow$(y) + STRING$(n, "."), n)
         MID$(lvlRow$(y), 1, 1) = "#" : MID$(lvlRow$(y), n, 1) = "#" ' (its border)
     NEXT
     lvlRow$(0) = STRING$(n, "#") : lvlRow$(n - 1) = STRING$(n, "#")
-    FOR y = n TO MAP_SIZE - 1 : lvlRow$(y) = "" : lvlFloorRow$(y) = "" : lvlCeilRow$(y) = "" : lvlLiqRow$(y) = "" : lvlLiqDRow$(y) = "" : NEXT
+    FOR y = n TO MAP_SIZE - 1 : lvlRow$(y) = "" : lvlFloorRow$(y) = "" : lvlCeilRow$(y) = "" : lvlLiqRow$(y) = "" : lvlLiqDRow$(y) = "" : lvlLiqORow$(y) = "" : NEXT
     mapN = n : edMapWant = n : editUndoN = 0
     IF n < was THEN EditDropPast n - 2 ' (cut down: what was past the new edge goes too - else the file keeps it, and the next load piles it on the border)
     IF INSTR(lvlRow$((n - 1) \ 2), ">") + INSTR(lvlRow$((n - 1) \ 2), "<") = 0 THEN ' (no start left - cut off: one, in the middle)

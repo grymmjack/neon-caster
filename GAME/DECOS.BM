@@ -119,6 +119,8 @@ FUNCTION DecoKindOf(n$)
         CASE "note" : k = DK_NOTE
         CASE "alarm", "alarmswitch" : k = DK_ALARM
         CASE "alarmpc", "alarmconsole", "securityconsole" : k = DK_ALARMPC
+        CASE "jumppad", "launchpad", "jumpad" : k = DK_JUMPPAD
+        CASE "padpc", "launchcontrol", "padconsole" : k = DK_PADPC
         CASE ELSE : k = 0
     END SELECT
     DecoKindOf = k
@@ -128,7 +130,7 @@ END FUNCTION
 FUNCTION DecoName$(k)
     IF k > DK_LQBARREL AND k < DK_CHEST THEN DecoName$ = lqName$(k - DK_LQBARREL) + "barrel" : EXIT FUNCTION
     IF k = DK_CHEST THEN DecoName$ = "chest" : EXIT FUNCTION
-    IF k >= DK_TABLE THEN DecoName$ = ListItem$("table,brokenmonitor,deadscientist,deadguard,deadcyborg,bookshelf,safe,brokenpc,computer,camera,secmon,note,alarm,alarmpc", k - DK_TABLE + 1) : EXIT FUNCTION
+    IF k >= DK_TABLE THEN DecoName$ = ListItem$("table,brokenmonitor,deadscientist,deadguard,deadcyborg,bookshelf,safe,brokenpc,computer,camera,secmon,note,alarm,alarmpc,jumppad,padpc", k - DK_TABLE + 1) : EXIT FUNCTION
     DecoName$ = RTRIM$(MID$("barrel   lamp     plant    terminal crate    rack     vending  coolant  spawner  desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", k * 9 - 8, 9))
 END FUNCTION
 
@@ -141,7 +143,7 @@ END FUNCTION
 FUNCTION DecoFile$(kind)
     IF kind > DK_LQBARREL AND kind < DK_CHEST THEN DecoFile$ = "barrel-" + lqName$(kind - DK_LQBARREL) + ".png" : EXIT FUNCTION
     IF kind = DK_CHEST THEN DecoFile$ = "chest.png" : EXIT FUNCTION
-    IF kind >= DK_TABLE THEN DecoFile$ = ListItem$("table-flipped,monitor-broken,body-scientist,body-guard,body-cyborg,bookshelf,safe,terminal-broken,terminal,camera,screens,note,alarm,alarmpc", kind - DK_TABLE + 1) + ".png" : EXIT FUNCTION
+    IF kind >= DK_TABLE THEN DecoFile$ = ListItem$("table-flipped,monitor-broken,body-scientist,body-guard,body-cyborg,bookshelf,safe,terminal-broken,terminal,camera,screens,note,alarm,alarmpc,jumppad,console", kind - DK_TABLE + 1) + ".png" : EXIT FUNCTION
     DecoFile$ = RTRIM$(MID$("desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", (kind - 10) * 9 + 1, 9)) + ".png"
 END FUNCTION
 
@@ -168,7 +170,8 @@ FUNCTION DecoMaxHP(kind)
         CASE DK_LQBARREL + 1 TO DK_LQBARREL + LQ_KINDS : DecoMaxHP = 1 ' (a liquid barrel: a hit starts it leaking)
         CASE DK_CHEST, DK_SAFE : DecoMaxHP = 99 ' (a chest, a safe: Space opens it, shots don't)
         CASE DK_TABLE : DecoMaxHP = 10 ' (a table on its side: cover, for a while)
-        CASE DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_CAMERA, DK_NOTE : DecoMaxHP = 99 ' (flat: DecoFlat)
+        CASE DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_CAMERA, DK_NOTE, DK_JUMPPAD : DecoMaxHP = 99 ' (flat: DecoFlat)
+        CASE DK_PADPC : DecoMaxHP = 4
         CASE DK_SHELF, DK_PC, DK_SECMON, DK_ALARMPC : DecoMaxHP = 4
         CASE DK_ALARM : DecoMaxHP = 2 ' (an alarm switch: shoot it, and nobody sets it off)
         CASE DK_PCBROKE : DecoMaxHP = 3
@@ -212,6 +215,8 @@ FUNCTION DecoScale(kind)
         CASE DK_NOTE : DecoScale = 0.2 ' A note
         CASE DK_ALARM : DecoScale = 0.3 ' An alarm switch (on its wall, chest high)
         CASE DK_ALARMPC : DecoScale = 0.6 ' A security console
+        CASE DK_JUMPPAD : DecoScale = 0.85 ' A jump pad (flat on the floor)
+        CASE DK_PADPC : DecoScale = 0.5 ' A launch control
         CASE ELSE : DecoScale = 0.55 ' Terminal
     END SELECT
 END FUNCTION
@@ -274,7 +279,7 @@ END FUNCTION
 ' never breaks (a body, a note, a smashed monitor, a camera up on a wall)?
 FUNCTION DecoFlat(k)
     SELECT CASE k
-        CASE DK_BODY, DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_CAMERA, DK_NOTE : DecoFlat = -1
+        CASE DK_BODY, DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_CAMERA, DK_NOTE, DK_JUMPPAD : DecoFlat = -1
     END SELECT
 END FUNCTION
 

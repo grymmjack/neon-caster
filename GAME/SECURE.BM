@@ -28,7 +28,7 @@ SUB ThingsBuild
         IF k THEN
             SELECT CASE decoKind(i)
                 CASE DK_SAFE : decoCode(i) = CodeOf&(XtraField$(k, 4))
-                CASE DK_PC, DK_PCBROKE, DK_ALARMPC ' (a computer's door or safe - or alarm; a security console's alarm: none, every one)
+                CASE DK_PC, DK_PCBROKE, DK_ALARMPC, DK_PADPC ' (a computer's door or safe - or alarm; a security console's alarm: none, every one; a launch control's pad)
                     c$ = XtraField$(k, 4) : IF LEN(c$) THEN decoTX(i) = VAL(c$) : decoTY(i) = VAL(XtraField$(k, 5))
                 CASE DK_CAMERA : decoTag$(i) = XtraField$(k, 4)
             END SELECT
@@ -38,6 +38,7 @@ SUB ThingsBuild
     NEXT
     SmearsBuild
     AlarmsBuild ' (alarm switches on or off, the guards' way to them - GAME/ALARMS.BM)
+    JumpPadsBuild ' (each jump pad's DIR, ANGLE, POWER - GAME/JUMPPADS.BM)
 END SUB
 
 ' The [smears]: each a decal of its own (blood or oil), kept - decals 1 to
@@ -348,6 +349,8 @@ FUNCTION DecoUse(i)
             IF vendState(i) = 0 THEN ShowMsg "You hit the alarm!" : AlarmRaise i ELSE ShowMsg "ALARM SWITCH: off" : PlaySfx sndLocked&, 0.5
         CASE DK_ALARMPC
             DecoUse = -1 : AlarmConsole i
+        CASE DK_PADPC
+            DecoUse = -1 : JumpPadConsole i
     END SELECT
 END FUNCTION
 

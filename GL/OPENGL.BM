@@ -1153,7 +1153,7 @@ SUB GLBindSlot(slot)
     _glBindTexture _GL_TEXTURE_2D, glTexName(slot)
     IF glShaderOn THEN
         p~& = glWorldProg
-        rfl = glTexReflect(slot) : IF glLiquidPass AND slot > T_LIQUID AND slot <= T_LIQUID + LQ_KINDS THEN rfl = rfl * (1 - glLiqMurk) ' (LIQUID OPACITY: less see-through)
+        rfl = glTexReflect(slot) : IF glLiquidPass AND slot > T_LIQUID AND slot <= T_LIQUID + LQ_KINDS THEN rfl = rfl * (1 - glLiqMurk) ' (a liquid cell's own opacity, liqOp - this pass's: GLLiquids)
         GLSL_uniform_1f p~&, "reflectAmt", rfl * (glFloorPass OR glLiquidPass) * -1 ' (a wet floor, or a liquid: see-through)
         GLSL_uniform_1f p~&, "neon", glTexNeon(slot) * glNeonOn
         GLSL_uniform_1f p~&, "anim", glTexAnim(slot)
@@ -1417,13 +1417,20 @@ END SUB
 ' pass), rippling (anim 5), and not writing depth, so it never hides
 ' what's drawn after it. Lit by the light tables, like the world.
 SUB GLLiquids(b)
-    DIM ax, ay, bx, by, cx, cy, k, nx, ny, slot ' (its own: the main program shares these names)
+    DIM ax, ay, bx, by, cx, cy, k, nx, ny, slot, opMask, opPass ' (its own: the main program shares these names)
     GLStopDrawing
     litMode = glCellLitMode : glCellLitMode = 1 : glLiquidPass = -1
-    glLiqMurk = MaxOf(glSet(SET_LIQOP, b), lvlLiqOp) / 100 ' (LIQUID OPACITY, or the level's own: the higher)
     _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
+    opMask = 0 ' (which of the 11 steps of see-through - liqOp - are here: each its own pass, as the shader takes it per draw)
+    FOR cy = MaxOf(1, INT(playerY) - GL_FAR) TO MinOf(mapN - 2, INT(playerY) + GL_FAR) : FOR cx = MaxOf(1, INT(playerX) - GL_FAR) TO MinOf(mapN - 2, INT(playerX) + GL_FAR)
+        IF liqKind(cx, cy) THEN opMask = opMask OR 2 ^ liqOp(cx, cy)
+    NEXT : NEXT
+    FOR opPass = 0 TO 10
+    IF (opMask AND 2 ^ opPass) = 0 THEN _CONTINUE
+    glLiqMurk = opPass / 10 ' (that much more solid than its kind's made - GLBindSlot)
     FOR cy = MaxOf(1, INT(playerY) - GL_FAR) TO MinOf(mapN - 2, INT(playerY) + GL_FAR) : FOR cx = MaxOf(1, INT(playerX) - GL_FAR) TO MinOf(mapN - 2, INT(playerX) + GL_FAR) ' (only as far as OpenGL draws)
         k = liqKind(cx, cy)
+        IF k THEN IF liqOp(cx, cy) <> opPass THEN k = 0
         IF k THEN
             IF GLNearSeen(cx, cy, b) THEN
                 z = liqZ(cx, cy) : slot = T_LIQUID + k
@@ -1449,7 +1456,8 @@ SUB GLLiquids(b)
             END IF
         END IF
     NEXT : NEXT
-    GLStopDrawing
+    GLStopDrawing ' (this step's cells, drawn at its see-through)
+    NEXT
     _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
     glLiquidPass = 0 : glCellLitMode = litMode
 END SUB

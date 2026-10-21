@@ -21,7 +21,7 @@ START = set("<>^v")
 GLASS = set("=-")  # a pane of glass: see through it, but not walk; - bars across a window, the same (they never break)
 # The things a " can be ([things] x, y, kind[, more]) - the game's ThingList$, and what each is to the kit
 THINGS = {"table": "deco", "brokenmonitor": "flat", "deadscientist": "flat", "deadguard": "flat", "deadcyborg": "flat", "bookshelf": "deco",
-          "safe": "deco", "brokenpc": "deco", "computer": "deco", "camera": "flat", "secmon": "deco", "alarm": "deco", "alarmpc": "deco",
+          "safe": "deco", "brokenpc": "deco", "computer": "deco", "camera": "flat", "secmon": "deco", "alarm": "deco", "alarmpc": "deco", "jumppad": "flat", "padpc": "deco",
           "repairkit": "item", "invuln": "item", "robodog": "mon", "guard": "mon"}
 XTRA = ("doors", "things", "notes", "smears", "fuel")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
 SMEARS = ("blood1", "blood2", "blood3", "oil1", "oil2", "blood", "oil")
@@ -688,8 +688,8 @@ def level_text(lv, comment=()):
         out.append("puzzles  = %s" % lv["puzzles"])
     if lv.get("droids") is not None:  # how many droids (the game's own count, 3, if not said)
         out.append("droids   = %d" % lv["droids"])
-    if lv.get("liquid_opacity"):  # its liquids more solid than as made (0-100)
-        out.append("liquid_opacity = %d" % lv["liquid_opacity"])
+    if lv.get("gravity") not in (None, 100):  # its own gravity, percent (10-300)
+        out.append("gravity  = %d" % lv["gravity"])
     out.append("walls    = " + ", ".join(lv["walls"]))
     out.append("floors   = " + ", ".join(lv["floors"]))
     out.append("ceilings = " + ", ".join(lv["ceils"]))
@@ -788,6 +788,9 @@ def level_text(lv, comment=()):
         ld = [(ld[y] if y < len(ld) else "").ljust(N, ".")[:N] for y in range(N)]
         out += ["", "[liquid]", "' each cell's liquid: . none, w water, p poison, s slime, l lava, a acid"] + list(lq)
         out += ["", "[liquid depth]", "' how deep, in eighths of a wall: . is %d, or 1-8" % LIQUID_DEPTH] + ld
+        lo = list(lv.get("liquid_opacity_rows") or [])
+        if any(r.strip(".") for r in lo):  # how see-through each cell: . as made, 1-9 tenths more solid, x solid
+            out += ["", "[liquid opacity]", "' how solid, more than its kind is made: . as made, 1-9 tenths more, x solid (you can't see the bottom)"] + lo
     return "\n".join(out) + "\n"
 
 
@@ -825,7 +828,7 @@ def read_level_file(path, label=None):
     """A level file as the dict check_level and level_text use."""
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
               ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[], loot=[],
-              liquid=[], liquid_depth=[], blocks=[], nudges=[], cell_lights=[], barrels=[],
+              liquid=[], liquid_depth=[], liquid_opacity_rows=[], blocks=[], nudges=[], cell_lights=[], barrels=[],
               doors=[], things=[], notes=[], smears=[])
     global N
     sec = None
@@ -840,9 +843,9 @@ def read_level_file(path, label=None):
             if t and not t.startswith("'") and not t.startswith("["):
                 lv[sec].append(t)
                 continue
-        if sec in ("map", "floor", "ceiling", "liquid", "liquid depth"):
+        if sec in ("map", "floor", "ceiling", "liquid", "liquid depth", "liquid opacity"):
             if t and not t.startswith("'") and not t.startswith("["):
-                lv["rows" if sec == "map" else sec.replace(" ", "_")].append(line.rstrip("\r")[:MAX_N])
+                lv["rows" if sec == "map" else ("liquid_opacity_rows" if sec == "liquid opacity" else sec.replace(" ", "_"))].append(line.rstrip("\r")[:MAX_N])
                 continue
         if not t or t.startswith("'"):
             continue
@@ -854,7 +857,7 @@ def read_level_file(path, label=None):
             if k == "name": lv["name"] = v
             elif k == "puzzles": lv["puzzles"] = v
             elif k == "droids": lv["droids"] = int(float(v))
-            elif k == "liquid_opacity": lv["liquid_opacity"] = int(float(v))
+            elif k == "gravity": lv["gravity"] = int(float(v))
             elif k == "walls": lv["walls"] = vals
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals
@@ -875,7 +878,7 @@ def read_level_file(path, label=None):
     n = max([len(lv["rows"])] + [len(r) for r in lv["rows"]])  # (its size: the game's are 48 - the kit's checks use it, N)
     N = max(16, min(MAX_N, n))
     lv["rows"] = [(r + "#" * N)[:N] for r in lv["rows"]] + ["#" * N] * (N - len(lv["rows"]))
-    for k in ("floor", "ceiling", "liquid", "liquid_depth"):
+    for k in ("floor", "ceiling", "liquid", "liquid_depth", "liquid_opacity_rows"):
         if lv[k]:
             lv[k] = [(r + "." * N)[:N] for r in lv[k]] + ["." * N] * (N - len(lv[k]))
     return lv

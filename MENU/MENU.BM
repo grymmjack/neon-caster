@@ -107,8 +107,9 @@ SUB RunMenu STATIC
         ' The mouse: point at an item to pick it, click to choose it, click or
         ' drag along a slider to set it. (Pointing only takes over when the
         ' mouse moves, so it doesn't fight the keyboard.)
-        WHILE _MOUSEINPUT : WEND
+        menuWheel = 0 : WHILE _MOUSEINPUT : menuWheel = menuWheel + _MOUSEWHEEL : WEND
         mouseX = WideMouseX(_MOUSEX) : mouseY = _MOUSEY : mouseDown = _MOUSEBUTTON(1)
+        IF menuWheel <> 0 AND menuCapture = 0 AND NOT menuTyping AND NOT menuDone THEN menuMove = SGN(menuWheel) : MenuMoveSel ' (the wheel: up and down the list - a long one scrolls with it)
         IF menuCapture THEN ' (waiting for a key - a mouse button will do: KEY_MOUSE + 1 left, 2 right, 3 middle)
             IF _MOUSEBUTTON(3) AND NOT capM3 THEN keyCode& = KEY_MOUSE + 3 : CaptureKey
             IF _MOUSEBUTTON(2) AND NOT capM2 AND menuCapture THEN keyCode& = KEY_MOUSE + 2 : CaptureKey
@@ -353,7 +354,7 @@ END SUB
 ' a CASE in MenuActivate (chapter 21).
 SUB BuildMenu(scr)
     DIM B, c, n, n0, nm$, qb$, slot ' (its own: the main program shares these names)
-    numMI = 0 : menuWide = 0
+    numMI = 0 : menuWide = 0 : menuScroll = 0
     SELECT CASE scr
         CASE SCR_MAIN
             IF menuInGame THEN menuTitle$ = "PAUSED" ELSE menuTitle$ = "MAIN MENU"
@@ -488,7 +489,7 @@ SUB BuildMenu(scr)
             menuTitle$ = "EFFECTS (OPENGL)" : menuWide = -1
             AddSettingItem SET_BUMP : AddSettingItem SET_SMOOTH : AddSettingItem SET_NEON : AddSettingItem SET_DYNLIGHT
             AddSettingItem SET_SHADOWS : AddSettingItem SET_GLOW : AddSettingItem SET_PARTICLES : AddSettingItem SET_SHAFTS : AddSettingItem SET_REFLECT
-            AddSettingItem SET_BLOOM : AddSettingItem SET_HITFX : AddSettingItem SET_LIQOP
+            AddSettingItem SET_BLOOM : AddSettingItem SET_HITFX
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_AUDIO
             menuTitle$ = "AUDIO" : menuWide = -1
@@ -549,9 +550,9 @@ END FUNCTION
 ' Which item (that can be chosen) is the mouse over? 0 if none.
 FUNCTION MenuItemAt(mouseX, mouseY)
     DIM i ' (its own: the main program shares these names)
-    mr = MenuRowH
-    FOR i = 1 TO numMI
-        rowY = MENU_TOP + (i - 1) * mr
+    mr = MenuRowH : MenuScrollFix
+    FOR i = menuScroll + 1 TO menuScroll + MenuVis
+        rowY = MENU_TOP + (i - 1 - menuScroll) * mr
         IF mouseY >= rowY + 15 - mr \ 2 AND mouseY < rowY + 15 - mr \ 2 + mr AND mouseX >= 100 AND mouseX <= 760 THEN ' (round the bar: see DrawMenu)
             IF MenuSelectable(i) THEN MenuItemAt = i
             EXIT FUNCTION
@@ -562,8 +563,22 @@ END FUNCTION
 ' How tall a menu's rows are: MENU_ROW - or, for a long one (CONTROLS,
 ' YOUR SECTORS), less, so it all fits above the help line
 FUNCTION MenuRowH
-    MenuRowH = MENU_ROW : IF numMI > 12 THEN MenuRowH = MaxOf(26, 384 \ numMI)
+    MenuRowH = MENU_ROW : IF numMI > 12 THEN MenuRowH = MaxOf(26, 384 \ MenuVis)
 END FUNCTION
+
+' How many rows show at once: all of them - or, a long menu, MENU_FIT
+FUNCTION MenuVis
+    IF numMI > MENU_FIT THEN MenuVis = MENU_FIT ELSE MenuVis = numMI
+END FUNCTION
+
+' A long menu scrolled so the selected row shows (menuScroll: rows hidden above)
+SUB MenuScrollFix
+    DIM v ' (its own: the main program shares these names)
+    v = MenuVis
+    IF menuSel > menuScroll + v THEN menuScroll = menuSel - v
+    IF menuSel >= 1 AND menuSel <= menuScroll THEN menuScroll = menuSel - 1
+    menuScroll = MaxOf(0, MinOf(numMI - v, menuScroll))
+END SUB
 
 ' Draw the menu screen showing now, t frames after it opened: the title,
 ' then each item sliding in (see chapter 21), with the selected one lit up
@@ -577,15 +592,17 @@ SUB DrawMenu(t)
     MenuText 400, 128, menuTitle$, 2, _RGB32(255, 100, 215), 1
     LINE (250, 162)-(550, 163), _RGBA32(255, 100, 215, 120), BF
     panelA = t * 12 : IF panelA > 170 THEN panelA = 170 ' A dark panel behind the items, so they read over anything
-    mr = MenuRowH
-    LINE (96, MENU_TOP - 12)-(704, MENU_TOP + numMI * mr), _RGBA32(6, 0, 18, panelA), BF
-    FOR i = 1 TO numMI
-        p = (t - (i - 1) * 3) / 12 ' This item's progress in: 0 .. 1
+    mr = MenuRowH : MenuScrollFix
+    LINE (96, MENU_TOP - 12)-(704, MENU_TOP + MenuVis * mr), _RGBA32(6, 0, 18, panelA), BF
+    IF menuScroll > 0 THEN MenuText 698, MENU_TOP - 10, "^ MORE", 1, _RGBA32(90, 230, 255, 120 + 100 * glow), 2 ' (a long menu: rows above...)
+    IF menuScroll + MenuVis < numMI THEN MenuText 698, MENU_TOP + MenuVis * mr + 2, "v MORE", 1, _RGBA32(90, 230, 255, 120 + 100 * glow), 2 ' (...and below)
+    FOR i = menuScroll + 1 TO menuScroll + MenuVis
+        p = (t - (i - 1 - menuScroll) * 3) / 12 ' This item's progress in: 0 .. 1
         IF p < 0 THEN p = 0
         IF p > 1 THEN p = 1
         ease = 1 - (1 - p) ^ 3
         slide = (1 - ease) * 260 : alpha = ease * 255
-        rowY = MENU_TOP + (i - 1) * mr
+        rowY = MENU_TOP + (i - 1 - menuScroll) * mr
         selected = (i = menuSel)
         IF miOn(i) = 0 THEN
             col~& = _RGBA32(90, 85, 120, alpha)

@@ -387,7 +387,7 @@ SUB BuildLevel STATIC
     ' Chairs aren't on the list: they're 3D (ModelFacing turns one to its desk).
     FOR i = 1 TO numDecos
         IF decoFace(i) = -1 THEN decoFace(i) = 0 : _CONTINUE
-        IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|33|34|35|36|37|38|40|41|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
+        IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|33|34|35|36|37|38|40|41|43|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
             x = INT(decoX(i)) : y = INT(decoY(i))
             IF DecoWall(x - 1, y) AND NOT DecoWall(x + 1, y) THEN ' (a wall behind it, and open floor in front)
                 decoFace(i) = 1
@@ -502,12 +502,13 @@ SUB BuildLevel STATIC
     liqAny = 0 : liqWas = 0 : poisonTint = 0
     FOR k = 1 TO LQ_KINDS : lqUsed(k) = 0 : NEXT
     FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE
-        liqKind(x, y) = 0 : liqZ(x, y) = 0
+        liqKind(x, y) = 0 : liqZ(x, y) = 0 : liqOp(x, y) = 0
         IF x < mapN AND y < mapN THEN
             k = INSTR(LQ_CHARS$, MID$(lvlLiqRow$(y), x + 1, 1))
             IF k AND worldMap(x, y) <= 0 AND liftCell(x, y) = 0 THEN
                 d = VAL(MID$(lvlLiqDRow$(y), x + 1, 1)) : IF d < 1 OR d > 8 THEN d = LQ_DEPTH
                 liqKind(x, y) = k : liqZ(x, y) = floorH(x, y) + d * H_STEP : liqAny = -1 : levelFlat = 0 : lqUsed(k) = -1
+                liqOp(x, y) = LiquidOpOf(MID$(lvlLiqORow$(y), x + 1, 1)) ' (how see-through: as made, or more solid)
             END IF
         END IF
     NEXT : NEXT

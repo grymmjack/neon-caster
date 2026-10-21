@@ -26,6 +26,7 @@ SUB DemoInput STATIC
         IF KeyHeld(BIND_MAP) THEN inBits = inBits OR DB_MAP
         IF KeyHeld(BIND_UP) THEN inBits = inBits OR DB_UP ' (FLY / JET UP and DOWN - E and C as made: flying, the jetpack)
         IF KeyHeld(BIND_DOWN) THEN inBits = inBits OR DB_DOWN
+        IF KeyHeld(BIND_JUMP) THEN inBits = inBits OR DB_JUMP ' (JUMP: Q as made)
         IF _KEYDOWN(107) OR _KEYDOWN(75) THEN inBits = inBits OR DB_CHEATK ' (K and G: the testing cheats)
         IF _KEYDOWN(103) OR _KEYDOWN(71) THEN inBits = inBits OR DB_CHEATG
         dg = 0
@@ -532,6 +533,21 @@ FUNCTION DemoInfo$(f$)
     c = INSTR(t$, " - playdemo") : IF c THEN t$ = LEFT$(t$, c - 1)
     c = INSTR(t$, " (playdemo") : IF c THEN t$ = LEFT$(t$, c - 1)
     IF t$ = "" AND dSec > 0 THEN t$ = SetSectorName$(dSet, dSec)
+    n = DemoFrames&(f$) : IF n > 0 THEN t$ = LTRIM$(STR$(n \ 3600)) + ":" + RIGHT$("0" + LTRIM$(STR$((n \ 60) MOD 60)), 2) + "  " + t$ ' (how long it plays: its length first)
     IF LEN(t$) > 48 THEN t$ = LEFT$(t$, 47) + "~"
     DemoInfo$ = t$
+END FUNCTION
+
+' How many frames demo file f$ plays - its last line's (e FRAMES ...), read
+' from the end of the file only; 0 if it has none (a recording cut short)
+FUNCTION DemoFrames&(f$)
+    DIM fh, ln&, b$, p ' (its own: the main program shares these names)
+    fh = FREEFILE : OPEN f$ FOR BINARY AS #fh
+    ln& = LOF(fh)
+    IF ln& > 0 THEN
+        b$ = SPACE$(MinOf(400, ln&)) : GET #fh, ln& - LEN(b$) + 1, b$
+        p = _INSTRREV(b$, CHR$(10) + "e ")
+        IF p THEN b$ = MID$(b$, p + 3) + " " : DemoFrames& = VAL(LEFT$(b$, INSTR(b$, " ") - 1)) ' (its first number only: VAL would run "7601 16001" together)
+    END IF
+    CLOSE #fh
 END FUNCTION

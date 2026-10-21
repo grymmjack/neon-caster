@@ -26,7 +26,11 @@ DIM SHARED lqSlow(LQ_KINDS) AS SINGLE, lqHurt(LQ_KINDS) AS INTEGER, lqEvery(LQ_K
 CONST MAX_DRAIN = 4096, DRAIN_SPEED = 4
 DIM SHARED drainN AS INTEGER, drainX(MAX_DRAIN) AS INTEGER, drainY(MAX_DRAIN) AS INTEGER, drainS(MAX_DRAIN) AS SINGLE
 DIM SHARED drainMark(MAP_SIZE, MAP_SIZE) AS _BYTE ' (DrainStart's flood fill: the cells reached)
-DIM SHARED lvlLiqOp AS INTEGER, glLiqMurk AS SINGLE ' (liquid_opacity = in the level file, 0-100 - how much more solid than as made; OpenGL's this frame: the higher of it and the setting, 0 to 1)
+' How see-through each liquid cell is ([liquid opacity] - set where it's
+' placed, in the editor): liqOp 0 as its kind is made, 1-9 that many tenths
+' more solid, 10 solid - you can't see the bottom (OpenGL: the software
+' renderer draws liquids solid). In the file: . 0, 1-9, x 10
+DIM SHARED lvlLiqORow$(MAP_SIZE - 1), liqOp(MAP_SIZE, MAP_SIZE) AS _BYTE, glLiqMurk AS SINGLE
 DIM SHARED lqSee(LQ_KINDS) AS SINGLE, lqR(LQ_KINDS) AS INTEGER, lqG(LQ_KINDS) AS INTEGER, lqB(LQ_KINDS) AS INTEGER, lqName$(LQ_KINDS)
 DIM SHARED lvlLiqRow$(MAP_SIZE - 1), lvlLiqDRow$(MAP_SIZE - 1), lqUsed(LQ_KINDS) AS INTEGER ' (lqUsed: that kind's in this level - LiquidAnimate moves only those)
 DIM SHARED liqWait AS INTEGER, liqWas AS INTEGER, poisonTint AS INTEGER, liqTick AS LONG ' (frames to your next hurt in one; the kind you were in last frame; the green of poison, fading)

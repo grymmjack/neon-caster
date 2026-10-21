@@ -423,10 +423,10 @@
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
     DIM got, j, k, l$, t$, clx, cly ' (its own: the main program shares these names)
-    lvlPuzzles$ = "" : lvlDroids = -1 : lvlLiqOp = 0 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0 : lvlNote$ = "" : topLines = -1
+    lvlPuzzles$ = "" : lvlDroids = -1 : lvlGravity = 100 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0 : lvlNote$ = "" : topLines = -1
     CellLightsClear
-    FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
-    fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0 : fhRows = 0 : chRows = 0
+    FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : lvlLiqORow$(k) = "" : NEXT
+    fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0 : oRows = 0 : fhRows = 0 : chRows = 0
     f$ = LevelFile$(n) : IF LEN(lvlReadFrom$) THEN f$ = lvlReadFrom$ ' (another file, in its place: loadlevelfromdisk)
     IF NOT _FILEEXISTS(f$) THEN EXIT SUB
     DIM v(11) AS SINGLE ' (11: a monster's numbers, a turret's all of them)
@@ -452,6 +452,8 @@ SUB ReadLevelFile(n)
             IF lRows < MAP_SIZE THEN lvlLiqRow$(lRows) = t$ : lRows = lRows + 1
         ELSEIF sec$ = "liquid depth" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
             IF dRows < MAP_SIZE THEN lvlLiqDRow$(dRows) = t$ : dRows = dRows + 1
+        ELSEIF sec$ = "liquid opacity" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
+            IF oRows < MAP_SIZE THEN lvlLiqORow$(oRows) = t$ : oRows = oRows + 1
         ELSEIF sec$ = "triggers" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
             IF lvlNumTrigs < MAX_TRIGS THEN lvlNumTrigs = lvlNumTrigs + 1 : lvlTrig$(lvlNumTrigs) = t$
         ELSEIF sec$ = "faces" AND LEN(t$) > 0 AND LEFT$(t$, 1) <> "'" AND LEFT$(t$, 1) <> "[" THEN
@@ -476,7 +478,7 @@ SUB ReadLevelFile(n)
                     CASE "name" : lvlName$ = val$
                     CASE "puzzles" : lvlPuzzles$ = val$
                     CASE "droids" : lvlDroids = MaxOf(0, MinOf(MAX_DROIDS, VAL(val$)))
-                    CASE "liquid_opacity" : lvlLiqOp = MaxOf(0, MinOf(100, VAL(val$))) ' (its liquids more solid than as made: 100, you can't see the bottom)
+                    CASE "gravity" : lvlGravity = MaxOf(1, MinOf(300, VAL(val$))) ' (percent of the usual: falls, jumps, the jetpack's lift)
                     CASE "walls" : FOR k = 1 TO 6 : lvlWall$(k) = ListItem$(val$, k) : NEXT
                     CASE "floors" : FOR k = 1 TO 4 : lvlFloor$(k) = ListItem$(val$, k) : NEXT
                     CASE "ceilings" : FOR k = 1 TO 2 : lvlCeil$(k) = ListItem$(val$, k) : NEXT
@@ -537,6 +539,7 @@ SUB ReadLevelFile(n)
         lvlCeilRow$(k) = LEFT$(lvlCeilRow$(k) + STRING$(mapN, "."), mapN)
         lvlLiqRow$(k) = LEFT$(lvlLiqRow$(k) + STRING$(mapN, "."), mapN) ' (liquids: none where none's given)
         lvlLiqDRow$(k) = LEFT$(lvlLiqDRow$(k) + STRING$(mapN, "."), mapN)
+        lvlLiqORow$(k) = LEFT$(lvlLiqORow$(k) + STRING$(mapN, "."), mapN)
     NEXT
     FOR k = 0 TO mapN - 1 ' (and its edge all wall: nothing walks, sees or flies off the map - a file with an open edge gets one)
         IF k = 0 OR k = mapN - 1 THEN
@@ -669,7 +672,7 @@ SUB WriteLevelFile(f$)
     o$ = o$ + "name     = " + lvlName$ + nl$
     IF lvlPuzzles$ <> "" THEN o$ = o$ + "puzzles  = " + lvlPuzzles$ + nl$
     IF lvlDroids >= 0 THEN o$ = o$ + "droids   = " + LTRIM$(STR$(lvlDroids)) + nl$
-    IF lvlLiqOp > 0 THEN o$ = o$ + "liquid_opacity = " + LTRIM$(STR$(lvlLiqOp)) + nl$
+    IF lvlGravity <> 100 THEN o$ = o$ + "gravity  = " + LTRIM$(STR$(lvlGravity)) + nl$
     l$ = "" : FOR k = 1 TO 6 : l$ = l$ + lvlWall$(k) + MID$(", ", 1, -2 * (k < 6)) : NEXT : o$ = o$ + "walls    = " + l$ + nl$
     l$ = "" : FOR k = 1 TO 4 : l$ = l$ + lvlFloor$(k) + MID$(", ", 1, -2 * (k < 4)) : NEXT : o$ = o$ + "floors   = " + l$ + nl$
     o$ = o$ + "ceilings = " + lvlCeil$(1) + ", " + lvlCeil$(2) + nl$
@@ -769,6 +772,12 @@ SUB WriteLevelFile(f$)
         FOR y = 0 TO mapN - 1 : o$ = o$ + lvlLiqRow$(y) + nl$ : NEXT
         o$ = o$ + nl$ + "[liquid depth]" + nl$ + "' how deep, in eighths of a wall: . is" + STR$(LQ_DEPTH) + ", or 1-8" + nl$
         FOR y = 0 TO mapN - 1 : o$ = o$ + lvlLiqDRow$(y) + nl$ : NEXT
+        anyO = 0 : FOR y = 0 TO mapN - 1 : IF lvlLiqORow$(y) <> STRING$(mapN, ".") THEN anyO = -1
+        NEXT
+        IF anyO THEN ' (how see-through - only if any isn't as made)
+            o$ = o$ + nl$ + "[liquid opacity]" + nl$ + "' how solid, more than its kind is made: . as made, 1-9 tenths more, x solid (you can't see the bottom)" + nl$
+            FOR y = 0 TO mapN - 1 : o$ = o$ + lvlLiqORow$(y) + nl$ : NEXT
+        END IF
     END IF
     IF _FILEEXISTS(f$) THEN KILL f$
     fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh

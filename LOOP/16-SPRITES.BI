@@ -147,6 +147,7 @@
             numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) : drawY(numDraw) = decoY(i)
             drawSprite(numDraw) = DecoSlot(decoKind(i)) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = decoZ(i)
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40 : drawFace(numDraw) = decoFace(i)
+            IF decoKind(i) = DK_JUMPPAD THEN drawSquash(numDraw) = 0.16 : drawFace(numDraw) = 0 : drawMinShade(numDraw) = 200 + 56 * SIN(lvFrame * 0.08 + i) ' (a jump pad: flat on the floor, glowing - as a teleporter's)
             IF decoOpen(i) THEN ' An open chest: its open picture (its "wreck"), its open model
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i)) : drawSquash(numDraw) = wreckSquash(decoKind(i))
                 IF wreckMdl(decoKind(i)) THEN drawMdl(numDraw) = wreckMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0 : drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))

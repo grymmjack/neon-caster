@@ -102,3 +102,13 @@ SUB DrainGlowOut(x, y)
         END IF
     NEXT
 END SUB
+
+' A [liquid opacity] cell's character: . 0 (as made), 1-9, x 10 (solid)
+FUNCTION LiquidOpOf(c$)
+    IF c$ = "x" OR c$ = "X" THEN LiquidOpOf = 10 ELSE IF c$ >= "1" AND c$ <= "9" THEN LiquidOpOf = VAL(c$)
+END FUNCTION
+
+' ...and a step's character
+FUNCTION LiquidOpChar$(n)
+    IF n <= 0 THEN LiquidOpChar$ = "." ELSE IF n >= 10 THEN LiquidOpChar$ = "x" ELSE LiquidOpChar$ = LTRIM$(STR$(n))
+END FUNCTION

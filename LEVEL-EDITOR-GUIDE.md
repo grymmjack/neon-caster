@@ -324,7 +324,7 @@ A door can be both: kick it down, or find the code.
 | `9` | Hazmat suit: poison, slime and acid wear it instead of you (about 45 seconds of poison, 20 of acid). Fire and lava go straight through it. Lost when you die | | | |
 | `)` | Rocket launcher (gun 5), +5 rockets: a rocket bursts on whatever it hits - and the blast hurts you too, close up. Hold the right button to zoom right in | | `(` | Rockets +5 (50 at most) |
 | `{` | Repeater rounds +40 (200 at most) | | `}` | Railgun slugs +5 (25 at most) |
-| `` ` `` | Jetpack: FLY UP (E as made) lights it - you fly (E up, C down, or look up or down and walk) while its fuel lasts (about 8 seconds aloft), and fall when it's out; on the ground it's off till E again | | `,` | Jet fuel +40 (a jetpack's tank holds 100). Each jetpack and can can have its own: FUEL - + on its pane (`[fuel]`) - give a level just enough to reach the next can |
+| `` ` `` | Jetpack: a booster - hold FLY / JET UP (E as made), or look up and walk, and it fires, pushing you up and burning fuel (a full tank: about 7 seconds of thrust); let go and you fall, floaty as after a rocket jump (no hard landing) - fire it again to slow the fall | | `,` | Jet fuel +40 (a jetpack's tank holds 100). Each jetpack and can can have its own: FUEL - + on its pane (`[fuel]`) - give a level just enough to reach the next can |
 | `"` repairkit | Computer repair kit (up to 3): Space on a broken computer with one fixes it | | `"` invuln | Invulnerability: nothing hurts you for 5 seconds (a golden glow round the screen) |
 
 Each gun has its own ammo: cells for the blaster, shells for the scatter gun, rounds for the repeater, slugs for the railgun, rockets for the launcher. Cells that come out of something - loot, a monster's drop, a prize - come out as ammo for one of the guns you have that shoot energy (the blaster, the repeater, the railgun); cells you place stay cells.
@@ -388,6 +388,8 @@ A **barrel of a liquid** (`:`) shot springs a leak, hisses for a moment, then bu
 | computer | Space on it: the word hack (as the turret control panel's). Get in and it opens what its pane's OPENS says - X, Y of a door (any lock) or a safe - and runs any `hack X Y` trigger on it. Locked out, it's dead for good, and its alarm wakes everything near |
 | camera | A security camera, up by the ceiling. Its pane: NAME (shown on its feed; CAM1, CAM2... as made) |
 | secmon | A security monitor. Space on it shows what the cameras see, Duke-style: Space again the next camera, past the last (or a step) back to you. The world goes on while you watch |
+| jumppad | A jump pad, flat on the floor: step on its plate and it SHOOTS you through the air - its pane's DIR (degrees: 0 east, 90 south, 180 west, 270 north), ANGLE (up from the floor, 5-90) and POWER (hundredths of a cell a frame, 5-100). In the air you can look and shoot, not walk; the sector's gravity brings you down, and a long drop hurts as any fall (water, or the jetpack fired on the way down, softens it). Monsters that walk onto one are shot off too. How far, on the level: POWER x POWER x sin(2 x ANGLE) / (100 x gravity%) cells - POWER 30, ANGLE 45: 9 cells |
+| padpc | A launch control: Space opens its pad's numbers (its pane's PAD (X, Y)) - click - and +, or the arrows, or type them; SET. Point at it (or at a pad) and its numbers show without a Space. A note with a target's coordinates, and a player works the shot out. Pads with no console keep the numbers you gave them |
 | repairkit, invuln, robodog, guard | The pickups and the monsters above |
 
 A **desk** (`d`) is searched with Space as a bookshelf is. A note can be in a desk, a bookshelf or a safe as well as lying about (`'`): its pane on any of them has NOTE - WORDS, PICTURE, NONE. In a note's words, `|` starts a new line, and `{code X Y}` shows the code of the door or safe at X, Y.
@@ -523,6 +525,8 @@ All end in `.png`. The picker's WALLS, FLOORS and CEILINGS tabs show them all, a
 
 **Draining a pool.** `drain X Y [SPEED]` drains the pool at cell X, Y - every liquid cell joined to it, lava too - SPEED eighths a second (4) till the floor's dry; a lava pool's glow goes out with it. A switch to drain an enclosed room: put `wall-switch.png` on a wall's face (PAINT) and a trigger on it - `use 12 30 : drain 20 30 ; message THE LAVA DRAINS AWAY`. (`liquid KIND X0 Y0 X1 Y1` floods a rectangle at once; `liquid none ...` empties one at once.)
 
+**`gravity = N`** (the sector pane's GRAVITY): the sector's gravity, N percent of the usual (1-300; 100 as made, and then left out of the file - a few percent is near zero-g, Quake's low gravity is about 12). Lower, you fall slower, jump higher (JUMP, Q as made) and a jetpack lifts you more easily; higher, the other way. A trigger can change it as you play: `enter 20 4 30 10 : gravity 30 ; message LOW GRAVITY`.
+
 **`droids = N`** says how many service droids roll about the sector, 0 to 6. Leave it out for the usual three. In the console, `droids N` sets it for the sector you're in (save to keep it), and `droids` on its own lists where they are.
 
 **`[events]`** (MAKE AN EVENT ROOM, and an event's pane) are rooms that do something when you walk in: `kind, x0, y0, x1, y1, a, b, reward`. Doors within 5 cells of the room belong to it. Up to 32.
@@ -568,13 +572,13 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 
 **`[doors]`** (a door's pane: KICKS, KEYPAD CODE): `x, y, kicks, code` - kicks a stronghold door takes to break (0: none), code a keypad's digits (up to 8; `?` one made up each time the sector starts; nothing after the comma: no keypad).
 
-**`[things]`** (a `"` cell's pane): `x, y, kind[, more]` - kind one of `table`, `brokenmonitor`, `deadscientist`, `deadguard`, `deadcyborg`, `bookshelf`, `safe`, `brokenpc`, `computer`, `camera`, `secmon`, `alarm`, `alarmpc`, `repairkit`, `invuln`, `robodog`, `guard` (or any decoration, pickup or monster by its name). After it: a safe's code (digits or `?`); a computer's (fixed or broken) `x, y` of the door, safe or alarm switch it opens (or switches off); a camera's name; `off` for an alarm switch off at first; a security console's `x, y` of its alarm (none: every alarm). A `"` with no line is a table on its side.
+**`[things]`** (a `"` cell's pane): `x, y, kind[, more]` - kind one of `table`, `brokenmonitor`, `deadscientist`, `deadguard`, `deadcyborg`, `bookshelf`, `safe`, `brokenpc`, `computer`, `camera`, `secmon`, `alarm`, `alarmpc`, `jumppad`, `padpc`, `repairkit`, `invuln`, `robodog`, `guard` (or any decoration, pickup or monster by its name). After it: a safe's code (digits or `?`); a computer's (fixed or broken) `x, y` of the door, safe or alarm switch it opens (or switches off); a camera's name; `off` for an alarm switch off at first; a security console's `x, y` of its alarm (none: every alarm); a jump pad's `DIR, ANGLE, POWER`; a launch control's `x, y` of its pad. A `"` with no line is a table on its side.
 
 **`[notes]`** (NOTE on a `'` note's, a desk's, a bookshelf's or a safe's pane): `x, y, picture, words` - picture a file in `neon-caster/` (`-` for none: say `achievements/NC_BESTIARY.png`), then the words, commas and all; `|` starts a new line, `{code X Y}` is the code of the door or safe at X, Y.
 
 **`[fuel]`** (a jetpack's or fuel can's pane: FUEL): `x, y, amount` - its own fuel, 1-100 (as made: a jetpack's tank full, 100; a can 40).
 
-**`liquid_opacity = N`** (the sector pane's LIQUIDS): its liquids N% more solid than as made, 0-100 - at 100 you can't see the bottom of a pool (OpenGL; the software renderer draws liquids solid anyway). A player's own LIQUID OPACITY setting can make them more solid still, never less.
+**`[liquid opacity]`** (a liquid cell's pane: LIQUID - +): a map of one character a cell, as `[liquid depth]` is - `.` as its kind is made, `1`-`9` that many tenths more solid, `x` solid: you can't see the bottom of that pool (OpenGL; the software renderer draws liquids solid anyway). Select the cells (a pool, or part of one) and step it; `liquid KIND X0 Y0 X1 Y1 DEPTH SOLID%` from the console or a trigger.
 
 **`[smears]`**: `x, y, face, what` - blood or oil: on a wall's side (x, y a wall cell, face `E` `S` `W` `N` the side facing into the room), or an open cell's floor (`F`) or ceiling (`C`); what `blood1` `blood2` `blood3` `oil1` `oil2`. Up to 128. (In the editor: PAINT with one of the blood or oil pictures at the end of the walls, floors and ceilings tabs - painting a face with any other picture wipes it off.)
 

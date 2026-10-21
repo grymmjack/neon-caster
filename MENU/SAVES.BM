@@ -87,6 +87,8 @@ SUB SaveGame STATIC
     NEXT : NEXT
     PUT #fileNum, , alarmTimer : PUT #fileNum, , alarmAt ' (the alarm sounding - its switches' states are vendState, above)
     PUT #fileNum, , drainN : FOR i = 1 TO drainN : PUT #fileNum, , drainX(i) : PUT #fileNum, , drainY(i) : PUT #fileNum, , drainS(i) : NEXT ' (pools draining)
+    PUT #fileNum, , lvlGravity ' (the sector's gravity - a trigger may have changed it)
+    PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , jpDir(i) : PUT #fileNum, , jpAng(i) : PUT #fileNum, , jpPow(i) : NEXT ' (jump pads as they were last set)
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 END SUB
@@ -273,6 +275,14 @@ SUB LoadGame STATIC
         IF LOC(fileNum) < LOF(fileNum) THEN
             GET #fileNum, , drainN : drainN = MaxOf(0, MinOf(MAX_DRAIN, drainN))
             FOR i = 1 TO drainN : GET #fileNum, , drainX(i) : GET #fileNum, , drainY(i) : GET #fileNum, , drainS(i) : NEXT
+        END IF
+        IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , lvlGravity : lvlGravity = MaxOf(1, MinOf(300, lvlGravity))
+        IF LOC(fileNum) < LOF(fileNum) THEN
+            GET #fileNum, , savedCount
+            FOR i = 1 TO savedCount
+                GET #fileNum, , ja! : GET #fileNum, , jb! : GET #fileNum, , jc!
+                IF savedCount = numDecos THEN IF decoKind(i) = DK_JUMPPAD THEN jpDir(i) = ja! : jpAng(i) = jb! : jpPow(i) = jc! : JumpPadClamp i
+            NEXT
         END IF
         BuildAlarmWay ' (its switches as they were saved)
     END IF

@@ -25,6 +25,8 @@
     END IF
     IF viewOn = VIEW_CAM AND (forward <> 0 OR strafe <> 0) THEN viewOn = 0 : forward = 0 : strafe = 0 ' (watching a security camera: a step brings you back - not a step taken)
     moveX = dirX * forward - dirY * strafe : moveY = dirY * forward + dirX * strafe ' (your right: (-dirY, dirX))
+    JumpPadStep ' (a jump pad under you: shot off it - GAME/JUMPPADS.BM)
+    IF padAir THEN moveX = 0 : moveY = 0 ' (shot from a pad: no walking in the air - look, aim, shoot)
     moveLen = SQR(moveX * moveX + moveY * moveY)
     moveSpeed = WALK_SPEED : IF inBits AND DB_RUN THEN moveSpeed = RUN_SPEED ' (Shift: run)
     IF FloorHazard(INT(playerX), INT(playerY)) = HAZ_WADE THEN IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.05 THEN moveSpeed = moveSpeed * SLOW_WADE ' (wading)
@@ -44,7 +46,12 @@
     prevX = playerX : prevY = playerY
     IF knockX <> 0 OR knockY <> 0 THEN ' (a blast's knock - GAME/ROCKETS.BM: easing off; in the air, it carries you)
         moveX = moveX + knockX : moveY = moveY + knockY
-        IF playerVZ < 0 OR playerZ > floorH(INT(playerX), INT(playerY)) + 0.02 THEN knockX = knockX * 0.96 : knockY = knockY * 0.96 ELSE knockX = knockX * 0.75 : knockY = knockY * 0.75
+        IF padAir THEN ' (shot from a jump pad: it carries you all the way - a cannonball's arc)
+        ELSEIF playerVZ < 0 OR playerZ > floorH(INT(playerX), INT(playerY)) + 0.02 THEN
+            knockX = knockX * 0.96 : knockY = knockY * 0.96
+        ELSE
+            knockX = knockX * 0.75 : knockY = knockY * 0.75
+        END IF
         IF ABS(knockX) < 0.002 AND ABS(knockY) < 0.002 THEN knockX = 0 : knockY = 0
     END IF
     IF godMode OR editMode THEN ' No clipping (god mode, or the editor): straight through anything, but stay inside the border
@@ -60,23 +67,35 @@
     ' (MoveBody wouldn't have let you onto anything higher), fall off
     ' anything higher - faster and faster - and land, hard if it was far;
     ' fall into a pit and that's the end. Your eye eases up a step.
-    ' A jetpack: FLY UP (E) lights it while there's fuel - or, looking up
-    ' (LOOK UP / DOWN), walking forward does: up the way you look, not
-    ' straight up. Then you fly as fly mode does - look down and walk, and
-    ' down you go - burning fuel all the while you're up (more climbing);
-    ' out of fuel you fall, and back on the ground it's off till it's lit again
+    ' A jetpack: a booster, not a hover. While FLY / JET UP is held (E as
+    ' made) - or, looking up (LOOK UP / DOWN), walking forward - it fires:
+    ' thrust up against gravity (JET_THRUST, to JET_RISE at most), burning
+    ' JET_BURN a frame. Let go and you fall, as after a rocket jump (floaty,
+    ' no hard landing) - fire it again to slow the fall, or climb. Out of
+    ' fuel, down you come. jetOn: it's firing this frame
+    jetOn = 0
     IF jetHave AND NOT dead AND NOT editMode AND NOT flyMode AND NOT cyberOn THEN
         jetClimb = (inBits AND DB_UP) <> 0 OR (lookAim AND forward > 0 AND pitch > JET_LOOK)
-        IF NOT jetOn AND jetClimb AND jetFuel > 0 THEN jetOn = -1 : rocketAir = 0 : PlaySfx sndJet&, 0.7
-        IF jetOn THEN
-            IF NOT jetInf THEN jetFuel = jetFuel - JET_BURN : IF jetClimb THEN jetFuel = jetFuel - JET_CLIMB
+        IF jetClimb AND jetFuel > 0 THEN
+            IF NOT jetWas THEN PlaySfx sndJet&, 0.7
+            jetOn = -1 : levelFlat = 0 : rocketAir = -1 ' (in the air on it: a rocket jump's fall - floaty, no hard landing)
+            playerVZ = MaxOf(-JET_RISE, playerVZ - JET_THRUST) ' (playerVZ: down is +)
+            IF NOT jetInf THEN jetFuel = jetFuel - JET_BURN
             IF lvFrame MOD 40 = 0 THEN PlaySfx sndJet&, 0.55
             IF RND < 0.7 THEN SpawnPart PART_FLAME, playerX - dirX * 0.15, playerY - dirY * 0.15, playerZ + 0.15, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, -0.03, 10 + INT(RND * 8), 1, 0.6, 0.25, 0.04 ' (its exhaust, under you)
-            IF jetFuel <= 0 THEN jetFuel = 0 : jetOn = 0 : playerVZ = 0 : PlaySfx sndPowerDown&, 0.8 : ShowMsg "Jetpack: out of fuel"
-            IF jetOn AND NOT jetClimb AND playerZ <= floorH(INT(playerX), INT(playerY)) + 0.01 THEN jetOn = 0 ' (landed)
+            IF jetFuel <= 0 THEN jetFuel = 0 : PlaySfx sndPowerDown&, 0.8 : ShowMsg "Jetpack: out of fuel"
         END IF
     END IF
-    IF editMode OR ((flyMode OR jetOn) AND NOT dead) THEN ' The editor, fly (god mode) or a jetpack lit: you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
+    jetWas = jetOn
+    ' JUMP (Q as made): standing on something, a hop - half a wall up, as
+    ' made; higher where the sector's gravity is low (gravity =)
+    jumpDown = (inBits AND DB_JUMP) <> 0
+    IF jumpDown AND NOT jumpWas AND NOT dead AND NOT editMode AND NOT flyMode AND NOT cyberOn AND NOT jetOn AND playerVZ = 0 THEN
+        jfz = floorH(INT(playerX), INT(playerY)) : IF liqKind(INT(playerX), INT(playerY)) THEN jfz = MaxOf(jfz, liqZ(INT(playerX), INT(playerY)) - LQ_FULL)
+        IF playerZ <= jfz + 0.02 AND ceilH(INT(playerX), INT(playerY)) - playerZ > BODY_H + 0.1 THEN playerVZ = -JUMP_V : levelFlat = 0 : PlaySfx sndStep1&, 0.5
+    END IF
+    jumpWas = jumpDown
+    IF editMode OR (flyMode AND NOT dead) THEN ' The editor, fly (god mode) or a jetpack lit: you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
         flySpeed = 0.04 : IF inBits AND DB_RUN THEN flySpeed = 0.1 : IF editMode THEN flySpeed = 0.25 ' (the editor, with Shift: a hall 30 walls high in two seconds)
         IF editMode THEN flyUp = _KEYDOWN(32) : flyDown = KeyHeld(BIND_DOWN) ELSE flyUp = (inBits AND DB_UP) <> 0 : flyDown = (inBits AND DB_DOWN) <> 0 ' (in play Space opens things)
         IF flyUp AND NOT edTyping THEN playerZ = playerZ + flySpeed
@@ -104,8 +123,9 @@
         IF liqKind(INT(playerX), INT(playerY)) AND NOT cyberOn THEN fz = MaxOf(fz, liqZ(INT(playerX), INT(playerY)) - LQ_FULL) ' (in deep liquid you float, your head above it)
         IF playerZ < fz THEN playerZ = fz : playerVZ = 0
         IF liftCell(INT(playerX), INT(playerY)) THEN IF playerZ - fz < MaxOf(0.06, liftSpeed(liftCell(INT(playerX), INT(playerY))) + 0.02) AND playerVZ < 0.03 AND playerVZ >= 0 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down - however fast it goes)
-        IF playerZ > fz THEN
-            IF rocketAir THEN playerVZ = playerVZ + FALL_G * ROCKET_FALL ELSE playerVZ = playerVZ + FALL_G ' (a rocket jump: floatier)
+        IF playerZ > fz OR playerVZ < 0 THEN ' (in the air - or a jetpack lifting you off the floor)
+            IF lvlGravity = 100 THEN grav = FALL_G ELSE grav = FALL_G * lvlGravity / 100 ' (the sector's own gravity - exactly FALL_G as made: old demos)
+            IF rocketAir THEN playerVZ = playerVZ + grav * ROCKET_FALL ELSE playerVZ = playerVZ + grav ' (a rocket jump: floatier)
             playerZ = playerZ - playerVZ
             IF playerVZ < 0 AND playerZ > ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 : playerVZ = 0 ' (thrown up: your head on the ceiling)
             IF playerZ <= fz THEN
@@ -115,6 +135,7 @@
                     PlaySfx sndStep1&, 1 : shake = shake + 8
                 END IF
                 playerZ = fz : playerVZ = 0 : rocketAir = 0
+                IF padAir THEN padAir = 0 : knockX = knockX * 0.3 : knockY = knockY * 0.3 ' (landed from a pad: your feet again)
             END IF
         ELSE
             rocketAir = 0 ' (on the ground: a rocket jump's over)
@@ -172,7 +193,7 @@
     IF poisonTint > 0 THEN poisonTint = poisonTint - 1
     liqTick = liqTick + 1 ' (the monsters' clock, in harmful liquids)
     IF liqAny AND NOT editMode THEN LiquidHum playerX, playerY ' (the harmful ones bubble: louder as you near them - not in the editor, where the world's sounds are off)
-    IF levelFlat AND NOT editMode AND NOT flyMode AND NOT jetOn THEN playerZ = 0 : playerVZ = 0
+    IF levelFlat AND NOT editMode AND NOT flyMode THEN playerZ = 0 : playerVZ = 0
     IF editMode OR flyMode OR playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
     IF NOT levelFlat THEN IF eyeZ > ceilH(INT(playerX), INT(playerY)) - 0.06 THEN eyeZ = MaxOf(playerZ + 0.04, ceilH(INT(playerX), INT(playerY)) - 0.06) ' (a crusher coming down on you: you see from under it)
     ' ...and you can't walk through a monster: if a step takes you inside one

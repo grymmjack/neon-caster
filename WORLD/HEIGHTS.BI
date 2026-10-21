@@ -27,6 +27,12 @@ FOR hk = 1 TO 255 ' (every character but . 0-9 a-z A-H - and none the editor's u
     IF INSTR(".ABCDEFGH" + H_UP$, hc$) = 0 AND hk <> 3 AND hk <> 10 AND hk <> 13 THEN H_HIGH$ = H_HIGH$ + hc$
 NEXT
 CONST STEP_UP = 0.32, EYE_H = 0.5, BODY_H = 0.7, FALL_G = 0.01, PIT_DEPTH = -0.99
+' A sector's own gravity (gravity = in its file: percent of FALL_G, 1-300 (a few: near zero-g) -
+' 100 as made); a jump's push off the floor (JUMP: as high as half a wall,
+' at 100); jumpWas: the key held last frame
+CONST JUMP_V = 0.1
+DIM SHARED lvlGravity AS INTEGER, jumpWas AS INTEGER
+lvlGravity = 100
 ' Floors that do something (FloorHazard, by the floor's picture): molten or
 ' lava burns (BURN_DAMAGE every BURN_EVERY frames you stand in it); murky
 ' water or slime slows you (SLOW_WADE: how much of your speed you keep).

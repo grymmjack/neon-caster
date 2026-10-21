@@ -12,10 +12,11 @@ DIM SHARED keyDevice AS INTEGER, keyTrusted AS INTEGER, keyScanAdd AS INTEGER
 ' settings file, its menu label, and its key to start with (a _KEYDOWN
 ' code: letters as lower case, 32 Space, 100306 left Ctrl, 16128 F5,
 ' 17152 F9, 9 Tab, 100304 left Shift)
-CONST NUM_BINDS = 15
+CONST NUM_BINDS = 16
 CONST BIND_FORWARD = 1, BIND_BACK = 2, BIND_LEFT = 3, BIND_RIGHT = 4
 CONST BIND_USE = 5, BIND_FIRE = 6, BIND_QUICKSAVE = 7, BIND_QUICKLOAD = 8, BIND_MAP = 9, BIND_RUN = 10, BIND_KICK = 11, BIND_NIGHT = 12
 CONST BIND_UP = 13, BIND_DOWN = 14 ' (flying - fly mode, the jetpack - up and down)
+CONST BIND_JUMP = 16 ' (a hop off the floor - higher in a sector's low gravity)
 CONST BIND_ROCKETCAM = 15 ' (held: the rocket launcher fires, and you ride the rocket - let go, back to you)
 CONST KEY_MOUSE = 300000 ' (a binding to a mouse button: KEY_MOUSE + 1 left, 2 right, 3 middle)
 DIM SHARED keyBind&(NUM_BINDS), bindDefault&(NUM_BINDS), bindKey$(NUM_BINDS), bindLabel$(NUM_BINDS)
@@ -35,3 +36,4 @@ DefineBind BIND_NIGHT,     "key_night",     "NIGHT VISION", 110
 DefineBind BIND_UP,        "key_flyup",     "FLY / JET UP", 101
 DefineBind BIND_DOWN,      "key_flydown",   "FLY / JET DOWN", 99
 DefineBind BIND_ROCKETCAM, "key_rocketcam", "ROCKET CAM (HOLD)", KEY_MOUSE + 3
+DefineBind BIND_JUMP,      "key_jump",      "JUMP",         113

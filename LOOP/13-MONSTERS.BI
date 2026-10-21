@@ -38,6 +38,7 @@
         IF noTarget AND monsterState(i) = 1 THEN monsterState(i) = 0 : IF monsterType(i) = MT_TURRET AND monDeploy(i) > 0 AND monDeploy(i) < TURRET_UP THEN monDeploy(i) = 0 ' (notarget: whatever woke it, it forgets you - before it can chase or shoot; a turret half out, back in its housing)
         IF monsterHurt(i) > 0 THEN monsterHurt(i) = monsterHurt(i) -1
         IF monsterAtk(i) > 0 THEN monsterAtk(i) = monsterAtk(i) - 1
+        IF numDecos THEN MonPadStep i ' (jump pads: shot off one, or in the air from one - GAME/JUMPPADS.BM)
         ' Kicked over the edge of a pit with no bottom (it never walks off
         ' one): gone into the dark
         IF monsterState(i) < 2 AND NOT levelFlat THEN
@@ -146,6 +147,7 @@
                     END IF
                     IF mtypeLift(mtype) > 0 THEN walkFromHaz = walkFromHaz + 100 ' (it hovers: liquids are nothing to it)
                     mfz = floorH(INT(monsterX(i)), INT(monsterY(i))) ' (the floor it left: a flyer keeps its height, not its height off the floor)
+                    IF monPadAir(i) THEN goX = 0 : goY = 0 ' (in the air from a jump pad: it goes where the pad sent it)
                     IF goX <> 0 OR goY <> 0 THEN MoveBody monsterX(i), monsterY(i), goX * mtypeSpeed(mtype) * monSpd(i) * msl, goY * mtypeSpeed(mtype) * monSpd(i) * msl
                     IF monFly(i) > 0 THEN monFly(i) = MaxOf(0, monFly(i) - (floorH(INT(monsterX(i)), INT(monsterY(i))) - mfz))
                     walkZ = -999 : walkFromHaz = 0

@@ -74,7 +74,7 @@
                         amt = itemAmt(i) : IF amt <= 0 THEN amt = JET_MAX
                         IF jetHave THEN jetFuel = MinOf(JET_MAX, jetFuel + amt) ELSE jetFuel = amt
                         itemOn(i) = 0 : jetHave = -1 : PlaySfx sndJetFuel&, 0.9 : pickFlash = 12
-                        ShowMsg "JETPACK! " + KeyName$(keyBind&(BIND_UP)) + " up, " + KeyName$(keyBind&(BIND_DOWN)) + " down - or look up and walk - while the fuel lasts"
+                        ShowMsg "JETPACK! Hold " + KeyName$(keyBind&(BIND_UP)) + " (or look up and walk) to fire it - let go and you fall"
                     END IF
                 CASE IT_JETFUEL ' Its fuel: a can (none taken if your tank's full - or you've no jetpack)
                     amt = itemAmt(i) : IF amt <= 0 THEN amt = JET_CAN ' (its own amount - [fuel] - or JET_CAN)
