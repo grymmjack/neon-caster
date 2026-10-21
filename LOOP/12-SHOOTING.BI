@@ -90,7 +90,7 @@
                     END IF
                 NEXT
                 FOR i = 1 TO numDecos
-                    IF decoOn(i) AND NOT DecoFlat(decoKind(i)) AND cyberOn = 0 THEN
+                    IF decoOn(i) AND (NOT DecoFlat(decoKind(i)) OR decoKind(i) = DK_CAMERA) AND cyberOn = 0 THEN
                         relX = decoX(i) - playerX : relY = decoY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
@@ -222,7 +222,7 @@
             ELSE
                 kicked = 0
                 FOR i = 1 TO numDecos
-                    IF decoOn(i) AND NOT DecoFlat(decoKind(i)) AND cyberOn = 0 THEN
+                    IF decoOn(i) AND (NOT DecoFlat(decoKind(i)) OR decoKind(i) = DK_CAMERA) AND cyberOn = 0 THEN
                         ox = decoX(i) - playerX : oy = decoY(i) - playerY : d = SQR(ox * ox + oy * oy)
                         IF d < KICK_REACH AND d > 0.01 THEN
                             IF (ox * dirX + oy * dirY) / d > 0.7 THEN targetDeco = i : hitDamage = KICK_DAMAGE : hitKick = -1 : HitDeco : hitKick = 0 : PlaySfx sndKick&, 0.8 : shake = shake + 2 : kicked = -1 : EXIT FOR
@@ -244,6 +244,7 @@
     IF cyberOn THEN ' In the network (chapter 19): the clock, and the way out
         IF NOT dead THEN ' (dead in it: the clock stops - the sector starts over, network and all)
             cyberTime = cyberTime - 1
+            NetFrame ' (the firewalls, the TRACE - GAME/NETWORK.BM)
             IF cyberGot >= cyberNeed THEN
                 cyberWon = -1 : JackOut
             ELSEIF cyberTime <= 0 THEN

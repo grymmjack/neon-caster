@@ -40,5 +40,5 @@ CONST MDL_ANGLES = 8, MDL_PIC = 64
 ' pickup) only out to MODEL_NEAR_SMALL: that far off it's a few dozen
 ' pixels tall, and a stockpile's stacks of barrels were tens of thousands
 ' of corners a frame.
-CONST MODEL_NEAR = 12, MODEL_NEAR_SMALL = 6
+CONST MODEL_NEAR = 12, MODEL_NEAR_SMALL = 6, MODEL_NEAR_MID = 9 ' (under a cell across - a vending machine, a desk: 9)
 DIM SHARED mdlPic(MDL_PIC - 1, MDL_PIC - 1, MAX_MODELS * MDL_ANGLES) AS _UNSIGNED LONG, mdlFrame(MAX_MODELS) AS SINGLE

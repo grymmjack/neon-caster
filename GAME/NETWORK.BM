@@ -74,6 +74,7 @@ SUB JackIn STATIC
         e = tail - 1 - INT(GRnd * (tail \ 3 + 1)) : IF e < 0 THEN e = 0
         IF tail > 0 THEN IF SpawnMonster(MT_ICE, fillX(e) + 0.5, fillY(e) + 0.5, 0, playerX, playerY) THEN monsterTimer(numMonsters) = 90
     NEXT
+    NetSetup tail ' (the network's other modules: more kinds of ICE, firewalls - by their own dice)
     BuildThiefWay ' (the thieves' way home, which the steps above borrowed)
     dirX = -dirX : dirY = -dirY : planeX = -planeX : planeY = -planeY ' (you turn round: into the network, your back to the station)
     PlaySfx sndJackIn&, 1 : pickFlash = 30 : shake = shake + 6
@@ -88,6 +89,7 @@ END SUB
 ' (each sealed door belongs to the station nearest it)
 SUB JackOut STATIC
     CyberTextures 0
+    numFences = 0 : traceAmt = 0
     FOR i = cyberMonStart + 1 TO numMonsters ' (ICE you derezzed doesn't count in the sector's kills)
         IF monsterState(i) = 2 OR monsterState(i) = 3 THEN kills = kills - 1
     NEXT
@@ -179,4 +181,152 @@ SUB MakeCyberTex(slot, r, g, b, cell)
         IF ex < 2 AND ey < 2 THEN k = 1.6 ' (crossings glow)
         texture(xx, yy, slot) = _RGB32(MinOf(255, 6 + r * k), MinOf(255, 2 + g * k), MinOf(255, 14 + b * k))
     NEXT : NEXT
+END SUB
+
+' --- The network's own dice (NetSetup's, the TRACE's hunters): its
+' places come out the same each time for a station - and the game's
+' dice (GRnd) roll just as they did before the network had more in it
+FUNCTION NRnd!
+    netSeed = netSeed * 16807# - INT(netSeed * 16807# / 2147483647#) * 2147483647#
+    NRnd! = netSeed / 2147483647#
+END FUNCTION
+
+' --- JackIn's last step: the cells it can reach (fillX, fillY - n of
+' them, thiefDist steps from the station) get the network's other
+' modules: sentinels, tracers and black ICE on far cells, firewalls
+' across the narrow ways, and a list of far cells for the TRACE
+SUB NetSetup(n)
+    DIM d, k, e, c, x, y, x0, x1, y0, y1, w, h, ok, tries, kind, nk(3) ' (its own: the main program shares these names)
+    netSeed = 7919# * cyberStation + 104729# * level + 31# : traceAmt = 0 : numFences = 0 : numNetFar = 0
+    FOR k = cyberMonStart + 1 TO numMonsters : iceKind(k) = ICE_HUNTER : NEXT
+    IF n < 4 THEN EXIT SUB
+    d = ((level - 1) MOD 10) + 1
+    FOR k = 0 TO n - 1 ' (far cells, for the TRACE's hunters)
+        IF numNetFar < MAX_NETFAR AND thiefDist(fillX(k), fillY(k)) >= 9 THEN IF NRnd! < 0.25 THEN numNetFar = numNetFar + 1 : netFarX(numNetFar) = fillX(k) : netFarY(numNetFar) = fillY(k)
+    NEXT
+    nk(ICE_SENTRY) = d \ 3 : nk(ICE_TRACER) = 1 - (d >= 6) : nk(ICE_BLACK) = -(d >= 4) - (d >= 8)
+    FOR kind = ICE_SENTRY TO ICE_BLACK
+        FOR c = 1 TO nk(kind)
+            FOR tries = 1 TO 30
+                e = INT(NRnd! * n) : x = fillX(e) : y = fillY(e)
+                IF thiefDist(x, y) >= 6 THEN EXIT FOR
+            NEXT
+            IF thiefDist(x, y) >= 6 THEN
+                IF SpawnMonster(MT_ICE, x + 0.5, y + 0.5, 0, playerX, playerY) THEN
+                    iceKind(numMonsters) = kind : monsterTimer(numMonsters) = 90
+                    SELECT CASE kind
+                        CASE ICE_SENTRY : monsterHP(numMonsters) = 6
+                        CASE ICE_TRACER : monsterHP(numMonsters) = 2
+                        CASE ICE_BLACK : monsterHP(numMonsters) = 12
+                    END SELECT
+                END IF
+            END IF
+        NEXT
+    NEXT
+    ' Firewalls: across a way no more than 7 cells wide, 4 to 17 steps out,
+    ' each at least 5 from the others
+    FOR tries = 1 TO 400
+        IF numFences >= MinOf(MAX_FENCES, 2 + d \ 3) THEN EXIT FOR
+        e = INT(NRnd! * n) : x = fillX(e) : y = fillY(e)
+        IF thiefDist(x, y) < 4 OR thiefDist(x, y) > 17 THEN _CONTINUE
+        x0 = x : DO WHILE x0 > 1 AND worldMap(x0 - 1, y) = 0 AND x - x0 < 6 : x0 = x0 - 1 : LOOP
+        x1 = x : DO WHILE x1 < mapN - 2 AND worldMap(x1 + 1, y) = 0 AND x1 - x < 6 : x1 = x1 + 1 : LOOP
+        y0 = y : DO WHILE y0 > 1 AND worldMap(x, y0 - 1) = 0 AND y - y0 < 6 : y0 = y0 - 1 : LOOP
+        y1 = y : DO WHILE y1 < mapN - 2 AND worldMap(x, y1 + 1) = 0 AND y1 - y < 6 : y1 = y1 + 1 : LOOP
+        w = x1 - x0 + 1 : h = y1 - y0 + 1
+        IF w <= h AND w <= 7 AND ((worldMap(x0 - 1, y) > 0 AND worldMap(x1 + 1, y) > 0) OR tries > 150) THEN ' (across the way: east to west, at row y - wall to wall, or, none found, free standing)
+            y0 = y : y1 = y : x0 = MaxOf(x0, x - 3) : x1 = MinOf(x1, x + 3)
+        ELSEIF h < w AND h <= 7 AND ((worldMap(x, y0 - 1) > 0 AND worldMap(x, y1 + 1) > 0) OR tries > 150) THEN ' (north to south, at column x)
+            x0 = x : x1 = x : y0 = MaxOf(y0, y - 3) : y1 = MinOf(y1, y + 3)
+        ELSE
+            _CONTINUE
+        END IF
+        ok = -1
+        FOR k = 1 TO numFences
+            IF ABS(fenceX0(k) + fenceX1(k) - x0 - x1) \ 2 + ABS(fenceY0(k) + fenceY1(k) - y0 - y1) \ 2 < 5 THEN ok = 0
+        NEXT
+        IF ok THEN numFences = numFences + 1 : fenceX0(numFences) = x0 : fenceY0(numFences) = y0 : fenceX1(numFences) = x1 : fenceY1(numFences) = y1 : fencePh(numFences) = INT(NRnd! * FENCE_CYCLE)
+    NEXT
+END SUB
+
+' --- Each frame in the network: the firewalls (on, flickering, off - lit,
+' they burn you and take time) and the TRACE (ICE that sees you raises
+' it; full, more hunters come)
+SUB NetFrame
+    DIM f, c, z!, lit, k, sees, e, x!, y! ' (its own: the main program shares these names)
+    FOR f = 1 TO numFences
+        c = (lvFrame + fencePh(f)) MOD FENCE_CYCLE : lit = (c < FENCE_ON)
+        IF lit OR (c >= FENCE_CYCLE - FENCE_WARN AND (lvFrame \ 3) MOD 2 = 0) THEN ' (lit - or about to be: flickering)
+            FOR z! = 0.12 TO 0.8 STEP 0.22
+                IF fenceY0(f) = fenceY1(f) THEN
+                    AddBeam BEAM_SIGHT + TW_LASER, fenceX0(f), fenceY0(f) + 0.5, z!, fenceX1(f) + 1, fenceY0(f) + 0.5, z!, 2 ' (2: chapter 13 counts it down before it's drawn)
+                ELSE
+                    AddBeam BEAM_SIGHT + TW_LASER, fenceX0(f) + 0.5, fenceY0(f), z!, fenceX0(f) + 0.5, fenceY1(f) + 1, z!, 2
+                END IF
+            NEXT
+        END IF
+        IF lit AND NOT dead AND (lvFrame MOD 10) = 0 THEN ' (you in it: burnt, and the clock runs)
+            IF fenceY0(f) = fenceY1(f) THEN
+                IF playerX >= fenceX0(f) AND playerX < fenceX1(f) + 1 AND ABS(playerY - fenceY0(f) - 0.5) < 0.35 THEN k = -1 ELSE k = 0
+            ELSE
+                IF playerY >= fenceY0(f) AND playerY < fenceY1(f) + 1 AND ABS(playerX - fenceX0(f) - 0.5) < 0.35 THEN k = -1 ELSE k = 0
+            END IF
+            IF k THEN
+                damage = 5 : hurtFromX = -1 : hurtFromY = -1 : hurtElectric = -1 : HurtPlayer
+                cyberTime = MaxOf(1, cyberTime - 45) : SpawnSparks playerX, playerY, 0.4, 8, 255, 60, 60
+                IF (lvFrame MOD 60) = 0 THEN ShowMsg "FIREWALL - it burns, and the clock runs"
+            END IF
+        END IF
+    NEXT
+    ' The TRACE
+    sees = 0
+    FOR k = cyberMonStart + 1 TO numMonsters
+        IF monsterType(k) = MT_ICE AND monsterState(k) = 1 THEN
+            IF (monsterX(k) - playerX) ^ 2 + (monsterY(k) - playerY) ^ 2 < 144 THEN
+                IF CanSee(monsterX(k), monsterY(k), playerX, playerY) THEN
+                    IF iceKind(k) = ICE_TRACER THEN traceAmt = traceAmt + 0.45 ELSE traceAmt = traceAmt + 0.06
+                    sees = -1
+                END IF
+            END IF
+        END IF
+    NEXT
+    IF NOT sees THEN traceAmt = MaxOf(0, traceAmt - 0.05)
+    IF traceAmt >= 100 AND NOT dead THEN ' Traced: NEXUS sends hunters, from far off
+        traceAmt = 35 : ShowMsg "TRACE COMPLETE - NEXUS is sending more ICE" : Say "cybertrace", 0 : shake = shake + 4
+        FOR c = 1 TO 2
+            IF numNetFar > 0 THEN
+                e = INT(NRnd! * numNetFar) + 1
+                IF SpawnMonster(MT_ICE, netFarX(e) + 0.5, netFarY(e) + 0.5, 0, playerX, playerY) THEN iceKind(numMonsters) = ICE_HUNTER : monsterTimer(numMonsters) = 60
+            END IF
+        NEXT
+    END IF
+END SUB
+
+' --- ICE i (not a hunter) hunting you: how its kind fights - goX, goY for
+' its step, and its attack (it's at distance, toPlayerX/Y away)
+SUB IceTurn(i)
+    DIM sn ' (its own: the main program shares these names)
+    goX = 0 : goY = 0
+    SELECT CASE iceKind(i)
+        CASE ICE_SENTRY ' Still: it fires data bolts
+            sn = CanSee(monsterX(i), monsterY(i), monTX, monTY)
+            IF sn AND monsterTimer(i) = 0 AND distance < 12 THEN
+                FireBolt monsterX(i), monsterY(i), toPlayerX / distance, toPlayerY / distance, 6
+                monsterTimer(i) = 70 : monsterAtk(i) = ATTACK_FRAMES : SfxAt mtypeAttackSnd&(MT_ICE), monsterX(i), monsterY(i), playerX, playerY
+            END IF
+        CASE ICE_TRACER ' Quick, and keeps its distance - three or four cells off, round you: watching
+            IF distance > 4 THEN
+                goX = toPlayerX / distance * 1.7 : goY = toPlayerY / distance * 1.7
+            ELSE
+                goX = -toPlayerY / distance * 1.2 : goY = toPlayerX / distance * 1.2 : IF i MOD 2 THEN goX = -goX : goY = -goY
+                IF distance < 2.5 THEN goX = goX - toPlayerX / distance : goY = goY - toPlayerY / distance
+            END IF
+        CASE ICE_BLACK ' Slow, and it hits hard
+            IF distance > 0.85 THEN
+                goX = toPlayerX / distance * 0.6 : goY = toPlayerY / distance * 0.6
+            ELSEIF monsterTimer(i) = 0 THEN
+                MonStrike i, 14 : monsterTimer(i) = 70 : monsterAtk(i) = ATTACK_FRAMES : shake = shake + 4
+                SfxAt mtypeAttackSnd&(MT_ICE), monsterX(i), monsterY(i), playerX, playerY
+            END IF
+    END SELECT
 END SUB

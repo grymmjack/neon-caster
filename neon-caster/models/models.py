@@ -178,8 +178,8 @@ def write_obj(tris, path, name, frame):
 # Either is one clean, solid shape that matches its painting from the
 # front. The rest are pixelmon's models (src/).
 SHAPES = {
-    'barrel': ('lathe', 1, 10, 3), 'lamp': ('lathe',), 'tank': ('lathe',), 'specimen': ('lathe',), 'cryopod': ('lathe',),
-    'amp': ('lathe',),
+    'barrel': ('lathe', 1, 10, 3), 'lamp': ('lathe', 1, 12, 1.5), 'tank': ('lathe', 1, 12, 1.5), 'specimen': ('lathe', 1, 12, 1.5), 'cryopod': ('lathe', 1, 12, 1.5),
+    'amp': ('lathe', 1, 12, 1.5),
     'crate': ('extrude', 0.8), 'rack': ('extrude', 0.6), 'vending': ('extrude', 0.7), 'terminal': ('extrude', 0.6),
     'desk': ('extrude', 0.55, [(0.42, 0.18)]), 'console': ('extrude', 0.6), 'screens': ('extrude', 0.12), 'labbench': ('extrude', 0.5, [(0.45, 0.14)]),
     'generator': ('extrude', 0.7, [(0.22, 0.14)]), 'locker': ('extrude', 0.55), 'bench': ('extrude', 0.4, [(0.5, 0.22)]), 'spawner': ('extrude', 0.15),
@@ -427,6 +427,26 @@ def side_lens(name, u, v, ru, seg=16):
     return tris
 
 
+def simplify(tris, steps):
+    """Fewer triangles: every corner snapped to a grid, steps across the
+    model's biggest side, and the triangles that collapse (two corners on
+    one point) dropped. Corners that were shared still are, so it stays
+    whole; nothing moves more than half a step. The game works out every
+    corner of every model near you, every frame - fewer is faster."""
+    allp = np.concatenate([P for P, _ in tris]); lo = allp.min(axis=0); size = (allp.max(axis=0) - lo).max()
+    if size <= 0: return tris
+    step = size / steps
+    out = []
+    for P, U in tris:
+        Q = lo + np.round((P - lo) / step) * step
+        if np.linalg.norm(np.cross(Q[1] - Q[0], Q[2] - Q[0])) > 1e-9 * size * size:
+            out.append((Q, U))
+    return out
+
+
+SIMPLIFY = {'kit': None}  # (a turret's parts: as built - the game finds its muzzles by them)
+
+
 def build(name):
     shape = SHAPES.get(name)
     if shape:
@@ -436,13 +456,14 @@ def build(name):
         else:
             raw = extrude(name, *shape[1:]) if shape[0] == 'extrude' else turret_kit(name) if shape[0] == 'kit' else lathe(name, *shape[1:])
         tris = place(raw, PROPS[name] * subject_height(name))
+        if shape[0] != 'kit': tris = simplify(tris, 16 if PROPS[name] <= 0.45 else 22)
         tex = outline(name)[0]
         if shape[0] == 'kit':  # (the muzzles' white corner)
             tex = tex.copy(); h, w = tex.shape[:2]
             tex[int(h * (1 - MUZZLE_BOX)):, int(w * (1 - MUZZLE_BOX)):] = (255, 255, 255, 255)
     else:
         gltf = os.path.join(SRC, name + '_textured.gltf')
-        tris = place(read_gltf(gltf), PROPS[name] * subject_height(name))
+        tris = simplify(place(read_gltf(gltf), PROPS[name] * subject_height(name)), 16)
         tex = np.array(Image.open(os.path.join(SRC, name + '_textured_texture.png')).convert('RGBA'))
     allp = np.concatenate([p for p, _ in tris])
     reach = np.sqrt(allp[:, 0] ** 2 + allp[:, 1] ** 2).max()  # how far it reaches from its middle, any way round

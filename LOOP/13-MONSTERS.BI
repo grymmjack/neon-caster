@@ -105,6 +105,8 @@
                         ThiefStep
                     ELSEIF gRun THEN
                         ' (running for the alarm: GuardRun set goX, goY)
+                    ELSEIF mtype = MT_ICE AND iceKind(i) <> ICE_HUNTER THEN
+                        IceTurn i ' (the network's other ICE: sentinels, tracers, black ICE - GAME/NETWORK.BM)
                     ELSEIF mtypeStyle(mtype) THEN ' (the newer kinds: how each fights - MonStyleTurn)
                         MonStyleTurn i
                     ELSEIF mtypeRanged(mtype) THEN

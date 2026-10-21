@@ -35,7 +35,7 @@ SUB VendStep STATIC
 END SUB
 
 SUB HitDeco STATIC
-    IF DecoFlat(decoKind(targetDeco)) THEN EXIT SUB ' (bodies don't break - nor anything lying flat)
+    IF DecoFlat(decoKind(targetDeco)) AND decoKind(targetDeco) <> DK_CAMERA THEN EXIT SUB ' (bodies don't break - nor anything lying flat; a camera does)
     IF decoKind(targetDeco) = DK_CHEST OR decoKind(targetDeco) = DK_SAFE THEN SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY : EXIT SUB ' (nor do chests: Space opens one)
     IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
     ' Its loot, if it breaks: kicked, back the way you're facing (towards you,
@@ -56,6 +56,9 @@ SUB HitDeco STATIC
         decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES : IF NOT decoByMon THEN AchAdd "Smashed", 1
         DecoCellAfter targetDeco
         IF decoKind(targetDeco) = DK_ALARM THEN BuildAlarmWay ' (an alarm switch shot to pieces: nobody's setting that one off)
+        IF decoKind(targetDeco) = DK_CAMERA THEN ' (a camera shot down: sparks, and it drops to the floor - its feed's dead)
+            SpawnSparks decoX(targetDeco), decoY(targetDeco), decoZ(targetDeco) + 0.15, 16, 255, 220, 140 : decoZ(targetDeco) = 0
+        END IF
         SfxAt decoBreakSnd&(decoKind(targetDeco)), decoX(targetDeco), decoY(targetDeco), playerX, playerY
         IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
             newBlastX = decoX(targetDeco) : newBlastY = decoY(targetDeco) : newBlastSize = 0.35 : AddBlast
@@ -170,7 +173,8 @@ FUNCTION DecoMaxHP(kind)
         CASE DK_LQBARREL + 1 TO DK_LQBARREL + LQ_KINDS : DecoMaxHP = 1 ' (a liquid barrel: a hit starts it leaking)
         CASE DK_CHEST, DK_SAFE : DecoMaxHP = 99 ' (a chest, a safe: Space opens it, shots don't)
         CASE DK_TABLE : DecoMaxHP = 10 ' (a table on its side: cover, for a while)
-        CASE DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_CAMERA, DK_NOTE, DK_JUMPPAD : DecoMaxHP = 99 ' (flat: DecoFlat)
+        CASE DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_NOTE, DK_JUMPPAD : DecoMaxHP = 99 ' (flat: DecoFlat)
+        CASE DK_CAMERA : DecoMaxHP = 3 ' (a camera: three hits and it's down)
         CASE DK_PADPC : DecoMaxHP = 4
         CASE DK_SHELF, DK_PC, DK_SECMON, DK_ALARMPC : DecoMaxHP = 4
         CASE DK_ALARM : DecoMaxHP = 2 ' (an alarm switch: shoot it, and nobody sets it off)

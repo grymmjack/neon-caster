@@ -150,6 +150,7 @@ END FUNCTION
 FUNCTION DecoAtHeight(i, z!)
     DIM f! ' (its own: the main program shares these names)
     DecoAtHeight = -1
+    IF decoKind(i) = DK_CAMERA AND NOT lookAim THEN EXIT FUNCTION ' (a camera up its wall: hit, high or low, as a monster is - looking up and down, you aim at it)
     IF NOT lookAim THEN IF decoZ(i) > 0 THEN DecoAtHeight = 0 ' (level aim: not one up a stack - the one under it takes it)
     IF NOT lookAim THEN EXIT FUNCTION
     IF decoZ(i) = 0 THEN IF DecoStackAt(INT(decoX(i)), INT(decoY(i)), DecoScale(decoKind(i)) + 0.01) = 0 THEN EXIT FUNCTION ' (nothing stacked on it: hit, high or low, as ever)

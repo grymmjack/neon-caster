@@ -656,6 +656,8 @@ SUB ConExec STATIC
             FOR i = 1 TO numItems
                 IF itemOn(i) AND itemKind(i) = IT_CORE THEN ConPrint "core at" + STR$(itemX(i)) + STR$(itemY(i))
             NEXT
+            FOR i = 1 TO numFences : ConPrint "firewall" + STR$(fenceX0(i)) + STR$(fenceY0(i)) + " to" + STR$(fenceX1(i)) + STR$(fenceY1(i)) : NEXT
+            IF cyberOn THEN ConPrint "trace" + STR$(INT(traceAmt)) + "%"
         CASE "stations"
             IF numStations = 0 THEN ConPrint "No data stations in this sector"
             FOR k = 1 TO numStations : ConPrint LTRIM$(STR$(k)) + "  station at" + STR$(stationX(k)) + STR$(stationY(k)) + "   " + MID$("waiting hacked ", -(stationDone(k) <> 0) * 8 + 1, 8) : NEXT
@@ -1426,7 +1428,7 @@ SUB ConHelp(c$)
         CASE "events" : ConPrint "^3events^0: the sector's event rooms - kind, box, and waiting, going, won or lost"
         CASE "triggers" : ConPrint "^3triggers^0: the sector's triggers, numbered (trigger del N takes one away), and which have gone off"
         CASE "stations" : ConPrint "^3stations^0: the sector's data stations, and which are hacked"
-        CASE "cores" : ConPrint "^3cores^0: where the network's data cores are (jacked in)"
+        CASE "cores" : ConPrint "^3cores^0: where the network's data cores and firewalls are, and the TRACE (jacked in)"
         CASE "droids" : ConPrint "^3droids^0: where this sector's droids are and what they're doing. droids N (0-" + LTRIM$(STR$(MAX_DROIDS)) + "): this sector has N - then savelevel (or Ctrl+S) to keep it"
         CASE "thieves" : ConPrint "^3thieves^0: each thief bot - where, what it's doing, what it carries, how far from its hoard"
         CASE "secret" : ConPrint "^3secret^0: the secrets found, each one's wall and what opens it. secret X Y: open the secret wall at X Y - found (a trigger: a switch you shoot)"

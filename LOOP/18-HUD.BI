@@ -241,11 +241,11 @@
 
     ' In the network: what's left to grab, and the time left
     IF cyberOn AND hudShow(HE_NETWORK) THEN
-        c$ = "NETWORK   DATA " + LTRIM$(STR$(cyberGot)) + " / " + LTRIM$(STR$(cyberNeed)) + "   TIME " + LTRIM$(STR$(cyberTime \ 60))
+        c$ = "NETWORK   DATA " + LTRIM$(STR$(cyberGot)) + " / " + LTRIM$(STR$(cyberNeed)) + "   TIME " + LTRIM$(STR$(cyberTime \ 60)) + "   TRACE " + LTRIM$(STR$(INT(traceAmt))) + "%"
         nx = hudX(HE_NETWORK) : ny = hudY(HE_NETWORK)
         LINE (nx - LEN(c$) * 4 - 10, ny)-(nx + LEN(c$) * 4 + 10, ny + 20), _RGBA32(0, 20, 40, 190), BF
         LINE (nx - LEN(c$) * 4 - 10, ny)-(nx + LEN(c$) * 4 + 10, ny + 20), _RGB32(60, 240, 255), B
-        cc~& = HudColor~&(HE_NETWORK, _RGB32(150, 250, 255)) : IF cyberTime < 600 AND (cyberTime \ 15) MOD 2 = 0 THEN cc~& = _RGB32(255, 80, 120)
+        cc~& = HudColor~&(HE_NETWORK, _RGB32(150, 250, 255)) : IF (cyberTime < 600 OR traceAmt >= 75) AND (cyberTime \ 15) MOD 2 = 0 THEN cc~& = _RGB32(255, 80, 120)
         HudText nx - LEN(c$) * 4, ny + 5, c$, cc~&
     END IF
     ' What NEXUS is saying: a red-framed subtitle at the top

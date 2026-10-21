@@ -135,9 +135,19 @@ END SUB
 
 ' A line on the hack's log (the right of its screen), the oldest lost
 SUB HackSay(t$)
-    DIM k ' (its own: the main program shares these names)
-    FOR k = 1 TO 9 : hackLog$(k) = hackLog$(k + 1) : NEXT
-    hackLog$(10) = t$
+    DIM k, l$, w$, r$ ' (its own: the main program shares these names)
+    r$ = UCASE$(t$) ' (in capitals, as the rest of the screen - and wrapped to the panel: 17 a line)
+    DO
+        IF LEN(r$) <= 17 THEN
+            l$ = r$ : r$ = ""
+        ELSE
+            k = _INSTRREV(LEFT$(r$, 18), " ") : IF k < 2 THEN k = 18
+            l$ = RTRIM$(LEFT$(r$, k - 1)) : r$ = LTRIM$(MID$(r$, k))
+            IF LEFT$(t$, 1) = ">" AND LEN(r$) THEN r$ = ">" + r$ ' (a reply's next line: a reply too)
+        END IF
+        FOR k = 1 TO 9 : hackLog$(k) = hackLog$(k + 1) : NEXT
+        hackLog$(10) = l$
+    LOOP WHILE LEN(r$)
 END SUB
 
 ' Word w's letters
@@ -251,7 +261,7 @@ SUB DrawHack(s0, s1, big$)
             END IF
         NEXT
     NEXT : NEXT
-    FOR k = 1 TO 10 : MenuText 584, 130 + (k + 5) * 26, LEFT$(hackLog$(k), 21), 1.25, gr, 0 : NEXT
+    FOR k = 1 TO 10 : MenuText 584, 130 + (k + 5) * 26, LEFT$(hackLog$(k), 17), 1.5, gr, 0 : NEXT ' (the same size as the rest: 1.25 squeezed the font unevenly)
     MenuText 400, 560, "POINT AND CLICK (OR ARROWS AND ENTER)  -  ESC LOGS OUT", 1, dm, 1
     IF LEN(big$) THEN LINE (180, 250)-(619, 330), _RGB32(2, 12, 6), BF : LINE (180, 250)-(619, 330), gr, B : MenuText 400, 272, big$, 3, gr, 1
 END SUB

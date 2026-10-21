@@ -10,6 +10,7 @@
 ' computer's target, a camera high on its wall)
 SUB ThingsBuild
     DIM i, k, x, y, c$, kicks ' (its own: the main program shares these names)
+    FOR k = 1 TO MAX_DECO : camSet(k) = 0 : NEXT ' (the cameras: turned as they're built - CamTrack)
     FOR k = 1 TO lvlNumXtra
         IF lvlXSec$(k) = "doors" THEN
             x = VAL(XtraField$(k, 1)) : y = VAL(XtraField$(k, 2))
@@ -580,6 +581,7 @@ SUB ViewStep
     SELECT CASE viewOn
         CASE VIEW_CAM
             IF viewCam < 1 OR viewCam > numDecos THEN viewOn = 0 : EXIT SUB
+            IF decoOn(viewCam) = 0 THEN CameraNext : EXIT SUB ' (shot down while you watched: static, then the next one)
             x = INT(decoX(viewCam)) : y = INT(decoY(viewCam))
             SELECT CASE decoFace(viewCam) ' (its back to its wall: it looks out into the room)
                 CASE 1 : a! = 0
@@ -690,4 +692,26 @@ SUB DogPose(i, n)
         IF monHeadX(i) * planeX + monHeadY(i) * planeY > 0 THEN drawMirror(n) = -1
         IF moving THEN drawLift(n) = drawLift(n) + 0.025 * ABS(SIN(lvFrame * 0.32 + i))
     END IF
+END SUB
+
+' --- Camera i, as it's drawn (draw entry n): it turns and tilts to follow
+' you - in sight and within 14 cells - as far as it can on its mount (75
+' degrees either side of straight out from its wall), and back to its slow
+' sweep when it loses you. Looks only: nothing in the game reads it
+SUB CamTrack(i, n)
+    DIM fa!, ta!, tp!, d!, dz!, cz!, df! ' (its own: the main program shares these names)
+    IF decoFace(i) >= 1 AND decoFace(i) <= 4 THEN fa! = (decoFace(i) - 1) * 1.5708 ELSE fa! = DAtan2(playerY - decoY(i), playerX - decoX(i))
+    IF NOT camSet(i) THEN camA(i) = fa! : camP(i) = -0.25 : camSet(i) = -1
+    cz! = FloorAt(decoX(i), decoY(i)) + decoZ(i) + DecoScale(DK_CAMERA) * 0.5
+    d! = SQR((playerX - decoX(i)) ^ 2 + (playerY - decoY(i)) ^ 2)
+    ta! = fa! + 0.45 * SIN(lvFrame * 0.012 + i) : tp! = -0.25 ' (its sweep)
+    IF d! < 14 AND d! > 0.3 AND NOT dead THEN
+        IF CanSee(decoX(i), decoY(i), playerX, playerY) THEN
+            ta! = DAtan2(playerY - decoY(i), playerX - decoX(i)) : tp! = ATN((playerZ + 0.5 - cz!) / d!)
+        END IF
+    END IF
+    df! = ta! - fa! : df! = df! - 6.28319 * INT((df! + 3.14159) / 6.28319) : df! = MaxOf(-1.31, MinOf(1.31, df!)) : ta! = fa! + df! ' (no further round than its mount lets it)
+    df! = ta! - camA(i) : df! = df! - 6.28319 * INT((df! + 3.14159) / 6.28319)
+    camA(i) = camA(i) + df! * 0.08 : camP(i) = camP(i) + (tp! - camP(i)) * 0.08
+    drawAng(n) = camA(i) : drawPitch(n) = camP(i) : drawPic(n) = ModelPic(drawMdl(n), camA(i), decoX(i), decoY(i))
 END SUB

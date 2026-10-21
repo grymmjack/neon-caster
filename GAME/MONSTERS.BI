@@ -152,7 +152,7 @@ DIM SHARED monFly(MAX_MON) AS SINGLE
 ' --- Beams: a laser aiming (a faint red line - BEAM_AIM) or firing (white-
 ' hot - BEAM_SHOT), from (beamX0, beamY0, beamZ0) to (X1, Y1, Z1), for
 ' beamT more frames. Drawn as a line of glowing dots (chapter 16).
-CONST MAX_BEAMS = 24, BEAM_AIM = 0, BEAM_SHOT = 1, BEAM_SIGHT = 2 ' (BEAM_SIGHT + a turret's weapon: its laser sight, in the weapon's colour)
+CONST MAX_BEAMS = 64, BEAM_AIM = 0, BEAM_SHOT = 1, BEAM_SIGHT = 2 ' (BEAM_SIGHT + a turret's weapon: its laser sight, in the weapon's colour)
 DIM SHARED beamX0(MAX_BEAMS) AS SINGLE, beamY0(MAX_BEAMS) AS SINGLE, beamZ0(MAX_BEAMS) AS SINGLE
 DIM SHARED beamX1(MAX_BEAMS) AS SINGLE, beamY1(MAX_BEAMS) AS SINGLE, beamZ1(MAX_BEAMS) AS SINGLE
 DIM SHARED beamT(MAX_BEAMS) AS INTEGER, beamKind(MAX_BEAMS) AS INTEGER

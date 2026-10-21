@@ -62,6 +62,13 @@
         IF mtype = MT_TURRET AND NOT editMode THEN IF monDeploy(i) < 0 OR (monDeploy(i) = 0 AND monsterState(i) < 2) THEN _CONTINUE ' (a turret hidden, or switched off: nothing to see - but in the editor, it's shown out)
         numDraw = numDraw + 1 : drawX(numDraw) = monsterX(i) : drawY(numDraw) = monsterY(i)
         drawScale(numDraw) = mtypeScale(mtype) : drawMinShade(numDraw) = 40 : IF mtype = MT_ICE THEN drawMinShade(numDraw) = 230
+        IF mtype = MT_ICE THEN ' (the network's other ICE, each its own colour: sentinels orange, tracers yellow, black ICE dark - and bigger)
+            SELECT CASE iceKind(i)
+                CASE ICE_SENTRY : drawTint(numDraw) = _RGB32(255, 150, 50)
+                CASE ICE_TRACER : drawTint(numDraw) = _RGB32(255, 240, 60)
+                CASE ICE_BLACK : drawTint(numDraw) = _RGB32(30, 10, 70) : drawScale(numDraw) = drawScale(numDraw) * 1.35 : drawMinShade(numDraw) = 30
+            END SELECT
+        END IF
         IF mtype = MT_TURRET THEN drawTint(numDraw) = TurretRGB~&(monWeap(i)) ' (a turret: tinted the colour of what it fires - its wreck too)
         ' Its frame: hurt, attacking, or how far through its animation
         IF monsterHurt(i) > 0 THEN
@@ -176,6 +183,7 @@
                 drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
             END IF
             IF decoKind(i) = DK_ALARM AND alarmTimer > 0 AND vendState(i) = 0 THEN drawMinShade(numDraw) = 120 + 120 * ((lvFrame \ 15) MOD 2) ' (sounding: its switch flashing)
+            IF drawMdl(numDraw) AND decoKind(i) = DK_CAMERA AND decoOn(i) THEN CamTrack i, numDraw ' (a camera: turning and tilting to follow you, as a turret does - GAME/SECURE.BM)
             IF drawMdl(numDraw) AND (decoKind(i) = DK_CAMERA OR decoKind(i) = DK_ALARM) AND decoFace(i) >= 1 AND decoFace(i) <= 4 THEN ' (a 3D camera or alarm switch: on its wall, not out in the middle of its cell)
                 wa = (decoFace(i) - 1) * 1.5708 : IF decoKind(i) = DK_CAMERA THEN wo = 0.34 ELSE wo = 0.47
                 drawX(numDraw) = decoX(i) - COS(wa) * wo : drawY(numDraw) = decoY(i) - SIN(wa) * wo
@@ -357,7 +365,7 @@
                     IF ABS(transformX) > transformY * 2 + mdlFrame(mdlNow) THEN _CONTINUE
                     lx = INT(drawX(i)) : ly = INT(drawY(i)) ' (not seen this frame - in another room, behind a wall: nothing to draw)
                     IF glSeen(lx, ly, glWrite) <> glFrameNo AND glSeen(lx + 1, ly, glWrite) <> glFrameNo AND glSeen(lx, ly + 1, glWrite) <> glFrameNo AND glSeen(MaxOf(0, lx - 1), ly, glWrite) <> glFrameNo AND glSeen(lx, MaxOf(0, ly - 1), glWrite) <> glFrameNo THEN _CONTINUE
-                    IF transformY > MODEL_NEAR OR (transformY > MODEL_NEAR_SMALL AND mdlFrame(mdlNow) < 0.75 AND drawHead(i) = 0) THEN mdlNow = 0 ' (a small one - a barrel, a pickup - its picture sooner: a stockpile's stacks were tens of thousands of corners a frame; not a turret, whose head turns)
+                    IF transformY > MODEL_NEAR OR (transformY > MODEL_NEAR_SMALL AND mdlFrame(mdlNow) < 0.75 AND drawHead(i) = 0) OR (transformY > MODEL_NEAR_MID AND mdlFrame(mdlNow) < 1 AND drawHead(i) = 0) THEN mdlNow = 0 ' (a small one - a barrel, a pickup - its picture sooner: a stockpile's stacks were tens of thousands of corners a frame; not a turret, whose head turns)
                     IF mdlNow = 0 AND drawPic(i) = 0 AND drawSprite(i) = 0 THEN _CONTINUE ' (a model with no picture - a turret's plate: only near)
                     IF drawPic(i) THEN spriteSlot = SPR_SLOTS + drawPic(i) : sc = mdlFrame(drawMdl(i)) ' (further off, and in reflections: its picture from where you are - the model, as it stands)
                 END IF
