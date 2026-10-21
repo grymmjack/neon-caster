@@ -38,7 +38,7 @@ SUB HitMonster STATIC
         monsterState(target) = 2 : monsterTimer(target) = MON_DYING : kills = kills + 1
         mt = monsterType(target) ' (its drop - monsters.txt)
         IF NOT cyberOn THEN ' (achievements: the network's ICE doesn't count)
-            AchAdd "Kills", 1 : IF mt >= 1 AND mt <= MON_TYPES AND mt <> MT_ICE THEN AchBit "KillKinds", mt + (mt > MT_ICE) - 1 ' (bits 0-14: every kind but ICE)
+            AchAdd "Kills", 1 : IF mt >= 1 AND mt <= MON_TYPES AND mt <> MT_ICE AND mt <> MT_EYEBOT THEN AchBit "KillKinds", mt + (mt > MT_ICE) - 1 ' (bits 0-14: every kind but ICE)
             IF mt = 8 THEN Achieve "NC_OVERSEER", 0
             IF mt = MT_THIEF THEN Achieve "NC_THIEF", 0
             IF ampTimer > 0 THEN achAmpKills = achAmpKills + 1 : IF achAmpKills >= 5 THEN Achieve "NC_AMPED", 0
@@ -48,6 +48,7 @@ SUB HitMonster STATIC
         IF monsterType(target) = MT_THIEF THEN DropThiefLoot target
         IF (mt = MT_WARDEN OR mt = MT_COLOSSUS) AND NOT cyberOn THEN BossLoot target
         IF mt = MT_TURRET THEN monBlown(target) = 1 ' (it blows up - in the monsters' next turn: TurretBlown)
+        IF mt = MT_EYEBOT AND monRush(target) = 1 THEN monRush(target) = 3 ' (shot down mid-rush: it blows up where it is - in the monsters' next turn: EyebotBoom)
         IF mt = MT_TURRET AND monFrom(target) = 0 THEN SpawnSparks monsterX(target), monsterY(target), ceilH(INT(monsterX(target)), INT(monsterY(target))) - FloorAt(monsterX(target), monsterY(target)) - 0.05, 26, 255, 210, 120 ' (a turret from the ceiling: sparks out of its mount, and it falls - chapter 16)
         IF monsterType(target) = 8 THEN Say "bossdie", 0
         SfxAt mtypeDieSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
@@ -566,6 +567,29 @@ SUB MonStyleTurn(i)
                     monsterTimer(i) = mtypeCooldown(mt) + 40
                 END IF
             END IF
+        CASE STYLE_EYEBOT ' The eyebot: zaps you from five to eight cells, circling; after a couple of zaps (or you near) it rushes you - and blows up
+            IF monRush(i) = 1 THEN
+                monBurst(i) = monBurst(i) + 1
+                goX = toPlayerX / distance * EYE_DASH : goY = toPlayerY / distance * EYE_DASH
+                IF mtypeLift(mt) > 0 THEN MonFlyTurn i : MonFlyTurn i ' (up or down to you, twice as quick)
+                IF monBurst(i) MOD MaxOf(4, INT(distance * 3)) = 0 THEN SfxAt sndEyeBeep&, monsterX(i), monsterY(i), playerX, playerY ' (beeping, faster as it nears)
+                a = SQR(distance * distance + (MonFoot(i) + mtypeScale(mt) / 2 - monTZ - 0.35) ^ 2)
+                IF a < 0.8 OR monBurst(i) > EYE_FUSE THEN EyebotBoom i
+                EXIT SUB
+            END IF
+            IF monAim(i) > 0 THEN
+                IF sn THEN MonLaser i, mtypeDamage(mt) + INT(GRnd * mtypeDamageRnd(mt)), 0.12 ELSE monAim(i) = 0
+                IF monAim(i) = 0 THEN monsterTimer(i) = mtypeCooldown(mt) + INT(GRnd * 30) : monTurn(i) = monTurn(i) + 1
+                EXIT SUB
+            END IF
+            IF sn AND (distance < EYE_RUSH OR (monTurn(i) >= EYE_ZAPS AND distance < 10)) THEN
+                monRush(i) = 1 : monBurst(i) = 0 : SfxAt sndEyeRush&, monsterX(i), monsterY(i), playerX, playerY : EXIT SUB
+            END IF
+            IF distance > 8 OR NOT sn THEN goX = toPlayerX / distance : goY = toPlayerY / distance
+            IF distance < 5 THEN ' (near: round you, not at you)
+                goX = -toPlayerY / distance * 0.8 : goY = toPlayerX / distance * 0.8 : IF i MOD 2 THEN goX = -goX : goY = -goY
+            END IF
+            IF sn AND monsterTimer(i) = 0 AND distance < 14 THEN MonLaserStart i, 22 : SfxAt mtypeAlertSnd&(mt), monsterX(i), monsterY(i), playerX, playerY
         CASE STYLE_RIPPER ' The ripper: hit and run - in fast (a lunge, the last two cells), a slash, and a leap back
             IF monBurst(i) > 0 THEN ' (leaping back, a little to one side)
                 monBurst(i) = monBurst(i) - 1
@@ -601,7 +625,7 @@ END SUB
 
 ' Monster i's own fighting state, fresh: not aiming, no burst, a turret hidden
 SUB MonFresh(i)
-    monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO : monTWant(i) = 0 : monTOff(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0 : monFly(i) = 0 : monFoe(i) = 0
+    monRush(i) = 0 : monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO : monTWant(i) = 0 : monTOff(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0 : monFly(i) = 0 : monFoe(i) = 0
 END SUB
 
 ' A field boss's haul as it falls (monster i), thrown out towards you: the
@@ -625,6 +649,19 @@ SUB BossLoot(i)
         TossItem IT_SHELLS, monsterX(i), monsterY(i), a + 0.6, playerX, playerY
     END IF
     ShowMsg UCASE$(mtypeName$(monsterType(i))) + " DOWN - it drops its haul"
+END SUB
+
+' --- Eyebot i blows itself up: a rocket's blast, smaller (EYE_BOOM_R),
+' hard on you; it goes with it, in pieces
+SUB EyebotBoom(i)
+    IF monRush(i) = 2 THEN EXIT SUB
+    monRush(i) = 2
+    bsX = monsterX(i) : bsY = monsterY(i) : bsZ = MonFoot(i) + mtypeScale(MT_EYEBOT) * 0.5 : bsR = EYE_BOOM_R : bsMon = EYE_BOOM_MON : bsYou = EYE_BOOM_YOU
+    bsSurf = -1 : bsOwner = i : bsYours = 0
+    BlastSized
+    IF monsterState(i) < 2 THEN target = i : hitDamage = 999 : HitMonster
+    RocketKill i
+    monFly(i) = 0
 END SUB
 
 ' --- INFIGHTING. Monster j, hurt dmg by monster k (0: by none - you, or

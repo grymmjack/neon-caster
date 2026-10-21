@@ -73,6 +73,7 @@ SUB LoadPictures STATIC
     FOR mtype = 6 TO MON_TYPES
         LoadSprite mtypeName$(mtype) + ".png", mtypeSprite(mtype) : MakeHurt mtypeSprite(mtype), mtypeSprite(mtype) + 1
     NEXT
+    LoadSprite "eyebot-hunt.png", S_EYE : LoadSprite "eyebot-rush.png", S_EYE + 1 ' (the eyebot's eye, yellow hunting, red rushing)
     FOR mtype = 1 TO MON_TYPES : MakeCorpse mtype : NEXT ' (each one's body, for when it's dead)
     FOR k = 1 TO DECO_KINDS ' (each decoration, broken - its own painted wreck if it has one: a liquid barrel's, the chest open)
         IF _FILEEXISTS(ArtPath$(DecoWreckName$(k) + ".png")) THEN LoadSprite DecoWreckName$(k) + ".png", S_WRECK + k : wreckScale(k) = DecoScale(k) : wreckSquash(k) = 1 ELSE MakeWreck k

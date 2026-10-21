@@ -34,9 +34,10 @@ SetMonType 16,  "turret",  6,  0,     0.55,  0,   0,    0,    4,  2,   80,  S_MO
 SetMonType 17,  "mimic",   8,  0.034, 0.5,   0,   0.05, 0.95, 14, 6,   55,  S_MONX + 23
 SetMonType 18,  "robodog", 5,  0.078, 0.55,  0,   0.01, 0.85, 6,  4,   42,  S_MONX + 25
 SetMonType 19,  "guard",   4,  0.074, 0.85,  0,   0,    0,    4,  3,   85,  S_MONX + 27
+SetMonType 20,  "eyebot",  3,  0.036, 0.42,  0.45, 0.05, 0,   5,  3,   80,  S_MONX + 29
 mtypeRanged(2) = -1 : mtypeRanged(5) = -1 : mtypeRanged(7) = -1 : mtypeRanged(8) = -1
-mtypeRanged(11) = -1 : mtypeRanged(12) = -1 : mtypeRanged(14) = -1 : mtypeRanged(16) = -1 : mtypeRanged(19) = -1
-mtypeStyle(11) = STYLE_LASER : mtypeStyle(12) = STYLE_BURST : mtypeStyle(14) = STYLE_WARDEN : mtypeStyle(15) = STYLE_COLOSSUS : mtypeStyle(16) = STYLE_TURRET : mtypeStyle(13) = STYLE_RIPPER
+mtypeRanged(11) = -1 : mtypeRanged(12) = -1 : mtypeRanged(14) = -1 : mtypeRanged(16) = -1 : mtypeRanged(19) = -1 : mtypeRanged(20) = -1
+mtypeStyle(11) = STYLE_LASER : mtypeStyle(12) = STYLE_BURST : mtypeStyle(14) = STYLE_WARDEN : mtypeStyle(15) = STYLE_COLOSSUS : mtypeStyle(16) = STYLE_TURRET : mtypeStyle(13) = STYLE_RIPPER : mtypeStyle(20) = STYLE_EYEBOT
 
 ' ...and that table changed by neon-caster/monsters.txt, if it's there:
 ' every monster's numbers as plain text, to tune without changing the
@@ -65,3 +66,4 @@ SetWeakSpot 16,   0.35, 0.65, 0.30, 0.65 ' turret: its eye
 SetWeakSpot 17,   0.30, 0.70, 0.30, 0.62 ' mimic: its mouth
 SetWeakSpot 18,   0.05, 0.40, 0.10, 0.45 ' robot dog: its head
 SetWeakSpot 19,   0.38, 0.62, 0.02, 0.20 ' guard: its visor
+SetWeakSpot 20,   0.36, 0.70, 0.30, 0.64 ' eyebot: its eye

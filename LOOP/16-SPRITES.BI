@@ -35,7 +35,7 @@
     ' behind walls and doorframes. Transparent pixels (alpha 128 or less)
     ' are skipped, so you see the shape, not its square.
     numDraw = 0
-    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : drawMdl(k) = 0 : drawPic(k) = 0 : drawRed(k) = 0 : drawTint(k) = 0 : drawCap(k) = 0 : drawFlip(k) = 0 : drawUpX(k) = 0 : drawUpY(k) = 0 : drawUpZ(k) = 1 : drawOX(k) = 0 : drawPitch(k) = 0 : drawHead(k) = 0 : drawMZ(k) = 1 : NEXT ' (all of it: an entry a turret had last frame is something else's now)
+    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : drawMdl(k) = 0 : drawPic(k) = 0 : drawRed(k) = 0 : drawTint(k) = 0 : drawCap(k) = 0 : drawFlip(k) = 0 : drawMirror(k) = 0 : drawUpX(k) = 0 : drawUpY(k) = 0 : drawUpZ(k) = 1 : drawOX(k) = 0 : drawPitch(k) = 0 : drawHead(k) = 0 : drawMZ(k) = 1 : NEXT ' (all of it: an entry a turret had last frame is something else's now)
     FOR i = 1 TO numItems
         IF itemOn(i) AND (itemKind(i) = IT_CORE) = cyberOn THEN ' (in the network, just its data cores)
             numDraw = numDraw + 1 : drawX(numDraw) = itemX(i) : drawY(numDraw) = itemY(i)
@@ -87,6 +87,14 @@
             drawSquash(numDraw) = 0.55 + 0.45 * f : drawLift(numDraw) = (mtypeLift(mtype) + monFly(i)) * f : drawSprite(numDraw) = mtypeSprite(mtype) + 1 ' (a flyer: down from where it flew)
         ELSE
             drawSquash(numDraw) = 1 : drawLift(numDraw) = mtypeLift(mtype) + monFly(i) + mtypeBob(mtype) * SIN(lvFrame / 24 + i * 1.7) ' (bobbing by the frame clock, as WeakSpotHit has it: the same bob in a demo)
+            IF mtype = MT_EYEBOT AND monsterHurt(i) = 0 THEN ' (its eye says what it's doing: plain, idle - yellow, hunting you - red, rushing you, flaring as it beeps)
+                IF monRush(i) = 1 THEN
+                    drawSprite(numDraw) = S_EYE + 1 : IF (monBurst(i) \ 3) MOD 2 THEN drawMinShade(numDraw) = 255
+                ELSEIF monsterState(i) = 1 THEN
+                    drawSprite(numDraw) = S_EYE : drawMinShade(numDraw) = 150
+                END IF
+            END IF
+            IF mtype = MT_ROBODOG THEN DogPose i, numDraw ' (painted side on: head on as it runs at you, else facing the way it runs - GAME/SECURE.BM)
             IF mtype = MT_TURRET THEN ' A turret coming out: from the floor, it grows up out of it; from the ceiling, it comes down out of that; from a wall, it slides out
                 f = MinOf(1, monDeploy(i) / TURRET_UP) : IF editMode THEN f = 1
                 drawSquash(numDraw) = MaxOf(0.05, f)
@@ -361,7 +369,7 @@
                 IF drawRed(i) THEN glSprR(n, glWrite) = MaxOf(1.2, glSprR(n, glWrite) * 1.8) : glSprG(n, glWrite) = glSprG(n, glWrite) * 0.35 : glSprB(n, glWrite) = glSprB(n, glWrite) * 0.35 ' (hit: flushed red)
                 glSprMdl(n, glWrite) = mdlNow : glSprAng(n, glWrite) = drawAng(i) ' (a 3D prop: GLDrawModel)
                 glSprMZ(n, glWrite) = drawMZ(i) : glSprPitch(n, glWrite) = drawPitch(i) : glSprHead(n, glWrite) = drawHead(i) : glSprHAng(n, glWrite) = drawHAng(i) : glSprHPitch(n, glWrite) = drawHPitch(i)
-                glSprCap(n, glWrite) = drawCap(i) : glSprFlip(n, glWrite) = drawFlip(i) : glSprUpX(n, glWrite) = drawUpX(i) : glSprUpY(n, glWrite) = drawUpY(i) : glSprUpZ(n, glWrite) = drawUpZ(i)
+                glSprCap(n, glWrite) = drawCap(i) : glSprFlip(n, glWrite) = drawFlip(i) : glSprMirror(n, glWrite) = drawMirror(i) : glSprUpX(n, glWrite) = drawUpX(i) : glSprUpY(n, glWrite) = drawUpY(i) : glSprUpZ(n, glWrite) = drawUpZ(i)
                 IF mdlNow AND (drawUpZ(i) < 0.99 OR drawOX(i) <> 0) THEN glSprX(n, glWrite) = drawOX(i) : glSprY(n, glWrite) = drawOY(i) : glSprLift(n, glWrite) = drawOZ(i) ' (on its side, or upside down: its model from its mount)
             ELSE
                 FOR screenX = spriteLeft TO spriteLeft + spriteW - 1
@@ -371,7 +379,7 @@
                             ' this sprite: on now, over what's behind it - all of
                             ' that is drawn, far to near - and under this)
                             IF glassT(screenX) > 0 AND glassDone(screenX) = 0 THEN IF transformY < glassT(screenX) THEN gx = screenX : GlassColumn
-                            spriteU = (screenX - spriteLeft) * spriteSz \ spriteW
+                            spriteU = (screenX - spriteLeft) * spriteSz \ spriteW : IF drawMirror(i) THEN spriteU = spriteSz - 1 - spriteU ' (left for right)
                             ' (heights: hidden above and below by the ledges and
                             ' lintels nearer than it - HeightColumn's clips)
                             spTop = 0 : spBot = RENDER_H - 1

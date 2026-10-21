@@ -77,14 +77,18 @@
                             SfxAt mtypeAlertSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
                             IF mtype = 8 THEN Say "boss", 0 ' (the overseer: NEXUS speaks through it)
                             IF mtype = MT_ROBODOG THEN DogBark i ' (a guard dog: its bark wakes every machine that hears it)
-                            IF (mtype = 2 OR mtype = 6 OR mtype = 7) AND RND < 0.35 THEN SayAt "bark" + LTRIM$(STR$(INT(RND * 6) + 1)), monsterX(i), monsterY(i) ' (a minion reports in - from where it is)
+                            MonSpeak i, 0.5 ' (it calls it in - soldiers, heavies, cyborgs, each their own voice - from where it is)
                         END IF
                     END IF
                 END IF
             CASE 1 ' Hunting - growling or whirring as it comes (about every 4 seconds)
                 IF monsterTimer(i) > 0 THEN monsterTimer(i) = monsterTimer(i) -1
                 IF RND < 0.004 AND chatterWait = 0 THEN
-                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < SFX_CHATTER * SFX_CHATTER THEN SfxAtRange mtypeHuntSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY, SFX_CHATTER : chatterWait = 30
+                    IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < SFX_CHATTER * SFX_CHATTER THEN
+                        SfxAtRange mtypeHuntSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY, SFX_CHATTER : chatterWait = 30
+                        MonSpeak i, 0.3 ' (and now and then a word - "Flank him!")
+                        IF mtype = MT_ROBODOG THEN DogWoof i ' (a dog after you barks)
+                    END IF
                 END IF
                 ' Who it's after: you - or the monster it's turned on (monFoe:
                 ' it hurt it - GAME/MONSTERS.BM's MonHurtBy), while that's alive
@@ -172,6 +176,7 @@
             CASE 2 ' Dying: collapse
                 IF monFly(i) > 0 THEN monFly(i) = MaxOf(0, monFly(i) - 0.06) ' (a flyer: falling out of the air)
                 IF monBlown(i) = 1 THEN TurretBlown i ' (a turret, destroyed: it blows up - GAME/TURRETS.BM)
+                IF monRush(i) = 3 THEN EyebotBoom i ' (an eyebot shot down mid-rush: it blows up where it is)
                 monsterTimer(i) = monsterTimer(i) -1
                 IF monsterTimer(i) <= 0 THEN
                     monsterState(i) = 3

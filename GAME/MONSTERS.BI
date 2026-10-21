@@ -14,7 +14,7 @@
 ' MON_ = MONster settings shared by every monster: MON_TYPES kinds of monster,
 ' MON_SIGHT how far away (in cells) they notice you, MON_DYING how many
 ' frames one takes to collapse when killed
-CONST MAX_MON = 192, MON_TYPES = 19 ' (a level places up to 64 - 128 in a sector over 64 cells across: the level kit checks - and its event rooms, nests and the network bring more)
+CONST MAX_MON = 192, MON_TYPES = 20 ' (a level places up to 64 - 128 in a sector over 64 cells across: the level kit checks - and its event rooms, nests and the network bring more)
 CONST MT_ICE = 10 ' (ICE: the network's hunter programs - only in the network, chapter 19)
 CONST MT_THIEF = 9 ' (the thief bot: steals, then runs - ThiefStep, chapter 13)
 ' The newer ones: a laser sniper, a trooper with a burst rifle, the ripper
@@ -22,6 +22,15 @@ CONST MT_THIEF = 9 ' (the thief bot: steals, then runs - ThiefStep, chapter 13)
 ' the turret, hidden in the ceiling or floor till it sees you
 CONST MT_SNIPER = 11, MT_TROOPER = 12, MT_RIPPER = 13, MT_WARDEN = 14, MT_COLOSSUS = 15, MT_TURRET = 16
 CONST MT_GUARD = 19 ' (a guard: a cyborg with a plasma pistol - it sees you, and runs for the nearest alarm switch: GAME/ALARMS.BM)
+DIM SHARED monVisX(MAX_MON) AS SINGLE, monVisY(MAX_MON) AS SINGLE, monHeadX(MAX_MON) AS SINGLE, monHeadY(MAX_MON) AS SINGLE ' (looks only: where it was drawn last frame, the way it's heading - DogPose)
+CONST MT_EYEBOT = 20 ' (the eyebot: a flying cybernetic eye - it zaps you with a laser, then rushes you and blows itself up: GAME/MONSTERS.BM's STYLE_EYEBOT)
+' The eyebot's rush: it goes for you once you're within EYE_RUSH, or after
+' EYE_ZAPS zaps; it flies EYE_DASH times its speed, and blows up within
+' reach of you or after EYE_FUSE frames - a blast EYE_BOOM_R cells across,
+' EYE_BOOM_YOU to you at its middle. Shot down mid-rush, it blows up where
+' it is. monRush: 0 not, 1 rushing, 2 blown up, 3 to blow up (it was shot)
+CONST EYE_RUSH = 3.5, EYE_ZAPS = 2, EYE_DASH = 2.6, EYE_FUSE = 150, EYE_BOOM_R = 2.1, EYE_BOOM_YOU = 34, EYE_BOOM_MON = 12
+DIM SHARED monRush(MAX_MON) AS INTEGER
 CONST MT_ROBODOG = 18 ' (a robot guard dog: a thing, robodog - it barks when it sees you, waking every machine that hears it, and runs you down)
 CONST MT_MIMIC = 17 ' (a treasure chest that isn't: asleep it looks just like one - Space on it, standing by it or a shot wakes it, and it bites)
 ' How each kind fights, past a bite or a bolt (mtypeStyle): STYLE_LASER
@@ -30,7 +39,7 @@ CONST MT_MIMIC = 17 ' (a treasure chest that isn't: asleep it looks just like on
 ' STYLE_TURRET a turret's (bursts, once it's out); STYLE_RIPPER hit and
 ' run - in fast, a slash, and a leap back out of reach (monBurst: frames
 ' of it left), so you see it come at you
-CONST STYLE_LASER = 1, STYLE_BURST = 2, STYLE_WARDEN = 3, STYLE_COLOSSUS = 4, STYLE_TURRET = 5, STYLE_RIPPER = 6
+CONST STYLE_LASER = 1, STYLE_BURST = 2, STYLE_WARDEN = 3, STYLE_COLOSSUS = 4, STYLE_TURRET = 5, STYLE_RIPPER = 6, STYLE_EYEBOT = 7
 CONST RIPPER_BACK = 22 ' (frames a ripper leaps back after a slash)
 ' A ripper's slash, on the screen: three claw marks torn across it (clawFx:
 ' frames left, CLAW_FX at first; where, and at what slant, a new each hit)

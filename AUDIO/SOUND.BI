@@ -80,9 +80,13 @@ DIM SHARED sndPadBeep&, sndPadOK&, sndPadBad&, sndDoorKick&, sndDoorBreak&, sndS
 sndPadBeep& = LoadSnd&("keypad-beep.wav") : sndPadOK& = LoadSnd&("keypad-ok.wav") : sndPadBad& = LoadSnd&("keypad-bad.wav")
 sndDoorKick& = LoadSnd&("door-kick.wav") : sndDoorBreak& = LoadSnd&("door-break.wav") : sndSafe& = LoadSnd&("safe-open.wav") : sndSearch& = LoadSnd&("search.wav")
 DIM SHARED sndSiren&, sndAlarmPress&, sndAlarmOn&, sndAlarmOff&, sndDrain& ' (alarms - GAME/ALARMS.BM; a pool draining)
+DIM SHARED sndDogBark&(4) ' (the robot dog's barks: robodog-bark1-4.wav - DogWoof)
+DIM SHARED sndEyeRush&, sndEyeBeep& ' (the eyebot going for you, and its beeping as it comes)
 sndDrain& = LoadSnd&("drain.wav")
 DIM SHARED sndJumpPad& : sndJumpPad& = LoadSnd&("jumppad.wav") ' (a jump pad firing)
 sndSiren& = LoadSnd&("alarm.wav") : sndAlarmPress& = LoadSnd&("alarm-press.wav") : sndAlarmOn& = LoadSnd&("alarm-arm.wav") : sndAlarmOff& = LoadSnd&("alarm-disarm.wav")
+FOR k = 1 TO 4 : sndDogBark&(k) = LoadSnd&("robodog-bark" + LTRIM$(STR$(k)) + ".wav") : NEXT
+sndEyeRush& = LoadSnd&("eyebot-rush.wav") : sndEyeBeep& = LoadSnd&("eyebot-beep.wav")
 sndRepair& = LoadSnd&("repair.wav") : sndInvuln& = LoadSnd&("invuln.wav") : sndInvulnEnd& = LoadSnd&("invuln-end.wav") : sndCamera& = LoadSnd&("camera.wav") : sndNote& = LoadSnd&("note.wav")
 FOR k = 1 TO 3 : sndDroid&(k) = LoadSnd&("droid-chirp" + LTRIM$(STR$(k)) + ".wav") : NEXT : sndDroidBreak& = LoadSnd&("droid-break.wav")
 DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&

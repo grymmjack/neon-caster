@@ -28,7 +28,8 @@ def launchbay():
     The note by the start has the cargo platform's place and the sum; set
     the pad and ride it up there. The jetpack (fuel cans by the start)
     gets you onto the ledge in the north-west. A walker that steps on a
-    pad comes after you. The pool's water goes from clear to solid across;
+    pad comes after you; eyebots wait over the far side - shoot them
+    before they dive at you. The pool's water goes from clear to solid across;
     the floors from dry by the start to soaked by the pool. The exit's in
     the east wall, past the lava."""
     m = Show("#")
@@ -88,6 +89,8 @@ def launchbay():
     for (x, y, c) in ((12, 12, "g"), (36, 8, "g"), (18, 14, "g"), (8, 32, "m"), (40, 33, "m"), (30, 12, "c")):
         m.mon(x, y, c)
     m.put(15, 25, "+"); m.put(33, 26, "a"); m.put(10, 14, "e")
+    # Eyebots: flying eyes over the far side - they zap you in the air, then dive at you and blow up
+    thing(16, 11, "eyebot"); thing(31, 14, "eyebot"); thing(40, 8, "eyebot")
     # The way out: the exit in the east wall, past the lava
     m.put(45, 12, "E")
     # Light

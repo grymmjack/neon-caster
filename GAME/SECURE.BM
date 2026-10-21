@@ -216,6 +216,13 @@ END SUB
 ' hear it comes
 SUB DogBark(i)
     WakeNear monsterX(i), monsterY(i), DOG_BARK
+    DogWoof i
+END SUB
+
+' Guard dog i barks (just the sound: one of its barks, from where it is)
+SUB DogWoof(i)
+    DIM k ' (its own: the main program shares these names)
+    k = INT(RND * 4) + 1 : IF sndDogBark&(k) > 0 THEN SfxAt sndDogBark&(k), monsterX(i), monsterY(i), playerX, playerY
 END SUB
 
 ' --- The keypad: KeypadRun asks for the code, and padOK says whether it
@@ -648,4 +655,39 @@ SUB SmearSet(x, y, f$, kind$)
         END IF
     LOOP
     IF LEN(kind$) THEN XtraTake "smears", LTRIM$(STR$(x)) + ", " + LTRIM$(STR$(y)) + ", " + f$ + ", " + kind$
+END SUB
+
+' --- The robot dog, as it's drawn (draw entry n): it's painted side on,
+' facing left, so a dog running at you would come at you sideways. Which
+' way it's heading (monHeadX/Y: from how it moved since the last frame,
+' eased; biting, at you) picks its look: running at you, head on (its
+' attack picture), bounding; across, side on - mirrored to face the way
+' it runs - trotting; biting, a pounce: up and at you, and back. Looks
+' only: nothing in the game reads any of it
+SUB DogPose(i, n)
+    DIM dx!, dy!, ln!, vx!, vy!, toward!, f!, hop!, moving ' (its own: the main program shares these names)
+    dx! = monsterX(i) - monVisX(i) : dy! = monsterY(i) - monVisY(i)
+    monVisX(i) = monsterX(i) : monVisY(i) = monsterY(i)
+    ln! = SQR(dx! * dx! + dy! * dy!) : moving = (ln! > 0.004 AND ln! < 0.5) ' (more: a new sector, a teleport - not a step)
+    vx! = playerX - monsterX(i) : vy! = playerY - monsterY(i) : f! = SQR(vx! * vx! + vy! * vy!) : IF f! < 0.001 THEN f! = 0.001
+    vx! = vx! / f! : vy! = vy! / f!
+    IF monsterAtk(i) > 0 THEN
+        monHeadX(i) = vx! : monHeadY(i) = vy!
+    ELSEIF moving THEN
+        monHeadX(i) = monHeadX(i) * 0.75 + dx! / ln! * 0.25 : monHeadY(i) = monHeadY(i) * 0.75 + dy! / ln! * 0.25
+        f! = SQR(monHeadX(i) ^ 2 + monHeadY(i) ^ 2) : IF f! > 0.001 THEN monHeadX(i) = monHeadX(i) / f! : monHeadY(i) = monHeadY(i) / f!
+    END IF
+    toward! = monHeadX(i) * vx! + monHeadY(i) * vy!
+    IF monsterHurt(i) = 0 AND (monsterAtk(i) > 0 OR toward! > 0.6) THEN ' Head on: its front picture, bounding at you
+        drawSprite(n) = MonFrame(MT_ROBODOG, ANIM_FRAMES)
+        IF moving THEN drawLift(n) = drawLift(n) + 0.04 * ABS(SIN(lvFrame * 0.32 + i)) : drawSquash(n) = 1 - 0.05 * COS(lvFrame * 0.64 + i)
+        IF monsterAtk(i) > 0 THEN ' (the bite: a pounce - up and bigger, nearer you, and down again)
+            hop! = SIN((1 - monsterAtk(i) / ATTACK_FRAMES) * 3.14159)
+            drawLift(n) = drawLift(n) + 0.14 * hop! : drawScale(n) = drawScale(n) * (1 + 0.15 * hop!)
+            drawX(n) = monsterX(i) + vx! * 0.25 * hop! : drawY(n) = monsterY(i) + vy! * 0.25 * hop!
+        END IF
+    ELSE ' Side on (crossing, or going away): facing the way it runs - painted facing left, so mirrored running right - trotting
+        IF monHeadX(i) * planeX + monHeadY(i) * planeY > 0 THEN drawMirror(n) = -1
+        IF moving THEN drawLift(n) = drawLift(n) + 0.025 * ABS(SIN(lvFrame * 0.32 + i))
+    END IF
 END SUB

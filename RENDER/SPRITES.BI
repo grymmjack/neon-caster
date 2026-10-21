@@ -28,7 +28,7 @@ DIM SHARED drawMdl(MAX_DRAW) AS INTEGER, drawAng(MAX_DRAW), drawPic(MAX_DRAW) AS
 ' (a turret: tinted by its weapon - drawTint, its muzzles drawCap; hanging
 ' upside down - drawFlip; its model's up, if it isn't straight up - drawUpX,
 ' Y, Z - and then where its model stands, drawOX, OY, OZ: a ceiling or wall)
-DIM SHARED drawTint(MAX_DRAW) AS _UNSIGNED LONG, drawCap(MAX_DRAW) AS _UNSIGNED LONG, drawFlip(MAX_DRAW) AS INTEGER
+DIM SHARED drawTint(MAX_DRAW) AS _UNSIGNED LONG, drawCap(MAX_DRAW) AS _UNSIGNED LONG, drawFlip(MAX_DRAW) AS INTEGER, drawMirror(MAX_DRAW) AS INTEGER ' (drawMirror: left for right - the robot dog, facing the way it runs)
 ' (its pitch - nose up or down: a rocket - and a turret's head, aimed at
 ' you on its base: drawHead, its own way round and pitch)
 DIM SHARED drawMZ(MAX_DRAW) AS SINGLE ' (a model squashed down to this much of its height: a broken prop, crumpled)

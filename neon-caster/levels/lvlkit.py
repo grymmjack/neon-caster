@@ -22,7 +22,7 @@ GLASS = set("=-")  # a pane of glass: see through it, but not walk; - bars acros
 # The things a " can be ([things] x, y, kind[, more]) - the game's ThingList$, and what each is to the kit
 THINGS = {"table": "deco", "brokenmonitor": "flat", "deadscientist": "flat", "deadguard": "flat", "deadcyborg": "flat", "bookshelf": "deco",
           "safe": "deco", "brokenpc": "deco", "computer": "deco", "camera": "flat", "secmon": "deco", "alarm": "deco", "alarmpc": "deco", "jumppad": "flat", "padpc": "deco",
-          "repairkit": "item", "invuln": "item", "robodog": "mon", "guard": "mon"}
+          "repairkit": "item", "invuln": "item", "robodog": "mon", "guard": "mon", "eyebot": "mon"}
 XTRA = ("doors", "things", "notes", "smears", "fuel")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
 SMEARS = ("blood1", "blood2", "blood3", "oil1", "oil2", "blood", "oil")
 STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle

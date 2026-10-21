@@ -8,7 +8,8 @@
 ' The note by the start has the cargo platform's place and the sum; set
 ' the pad and ride it up there. The jetpack (fuel cans by the start)
 ' gets you onto the ledge in the north-west. A walker that steps on a
-' pad comes after you. The pool's water goes from clear to solid across;
+' pad comes after you; eyebots wait over the far side - shoot them
+' before they dive at you. The pool's water goes from clear to solid across;
 ' the floors from dry by the start to soaked by the pool. The exit's in
 ' the east wall, past the lava.
 
@@ -54,6 +55,9 @@ enter 21 6 27 11 : message THE CARGO PLATFORM - you did the sums.
 24, 30, jumppad, 0, 45, 20
 26, 33, padpc, 24, 30
 38, 30, jumppad, 270, 60, 32
+16, 11, eyebot
+31, 14, eyebot
+40, 8, eyebot
 
 [notes]
 ' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code
@@ -73,13 +77,13 @@ enter 21 6 27 11 : message THE CARGO PLATFORM - you did the sums.
 ################################################
 ###..........................................###
 ###...M...............).q.(..................###
-###..j.................u............g........###
+###..j.................u............g..."....###
 ###..........................................###
 ###..........................................###
-###..........................................###
+###............."............................###
 ###.........g.................c..............E##
 ###..........................................###
-###.......e.......g..........................###
+###.......e.......g............".............###
 ###..........................................###
 ###..........................................###
 ###..........................................###

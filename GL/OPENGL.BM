@@ -557,7 +557,7 @@ SUB GLGlass(b)
 END SUB
 
 SUB GLSpritesAndExtras(b, mirror)
-    DIM i, slot, sx, sy, x0, y0, y1 ' (its own: the main program shares these names)
+    DIM i, slot, sx, sy, x0, y0, y1, uL, uR ' (its own: the main program shares these names)
     glCellLitMode = 0 ' (sprites have their own light, worked out in chapter 16)
 
     ' Sprites: a rectangle across your view, right = (-dirY, dirX), one
@@ -601,9 +601,10 @@ SUB GLSpritesAndExtras(b, mirror)
             _CONTINUE
         END IF ' (a 3D prop: its model, not its picture - but in a reflection, its picture: half the cost, and you can't tell)
         vTop = 0 : vLow = uv : IF glSprFlip(i, b) THEN vTop = uv : vLow = 0 ' (upside down: a turret hanging from the ceiling)
-        GLSpriteCorner x0, y0, zHigh, 0, vTop, red, green, blue : GLSpriteCorner x1, y1, zHigh, uv, vTop, red, green, blue
-        GLSpriteCorner x1, y1, zLow, uv, vLow, red, green, blue : GLSpriteCorner x0, y0, zHigh, 0, vTop, red, green, blue
-        GLSpriteCorner x1, y1, zLow, uv, vLow, red, green, blue : GLSpriteCorner x0, y0, zLow, 0, vLow, red, green, blue
+        uL = 0 : uR = uv : IF glSprMirror(i, b) THEN uL = uv : uR = 0 ' (left for right: the robot dog, facing the way it runs)
+        GLSpriteCorner x0, y0, zHigh, uL, vTop, red, green, blue : GLSpriteCorner x1, y1, zHigh, uR, vTop, red, green, blue
+        GLSpriteCorner x1, y1, zLow, uR, vLow, red, green, blue : GLSpriteCorner x0, y0, zHigh, uL, vTop, red, green, blue
+        GLSpriteCorner x1, y1, zLow, uR, vLow, red, green, blue : GLSpriteCorner x0, y0, zLow, uL, vLow, red, green, blue
     NEXT
     GLStopDrawing
     _glDisable _GL_ALPHA_TEST

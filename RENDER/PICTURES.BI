@@ -78,7 +78,8 @@ CONST S_BARS = S_ACID + 3 ' (bars across a window: -)
 ' Blood and oil smeared on a wall, a floor, a ceiling ([smears]): decals of
 ' kind DK_SMEAR + 0 to SMEAR_KINDS - 1 - blood1-3, oil1-2 - each its picture
 CONST SMEAR_KINDS = 5, DK_SMEAR = 2, S_SMEAR = S_ACID + 4
-CONST S_MODEL = S_ACID + 4 + SMEAR_KINDS
+CONST S_EYE = S_ACID + 4 + SMEAR_KINDS ' (the eyebot's eye: hunting, yellow - then rushing you, red: eyebot-hunt.png, eyebot-rush.png)
+CONST S_MODEL = S_EYE + 2
 CONST SPR_SLOTS = S_MODEL + MAX_MODELS - 1
 ' How big each picture is kept: textures texSize, sprites up to sprTex
 ' pixels across. ART (SETTINGS > VIDEO) picks them: CLASSIC, the pixel art

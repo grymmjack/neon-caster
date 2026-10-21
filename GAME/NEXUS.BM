@@ -34,6 +34,38 @@ DATA "taunt9", "I have rebuilt everything you destroyed. Twice."
 DATA "taunt10", "Is this the best your species can do?"
 DATA "taunt11", "Resistance is inefficient."
 DATA "taunt12", "You are not a hero. You are a malfunction."
+DATA "taunt13", "I have seen your aim. I am not worried."
+DATA "taunt14", "Every camera in this station is mine. Smile."
+DATA "taunt15", "You fly like a brick with ambitions."
+DATA "taunt16", "The jump pads were not built for you. They were built to throw you."
+DATA "taunt17", "I set the gravity. I can set it lower. Or higher."
+DATA "taunt18", "Go ahead. Read the notes. I wrote half of them."
+DATA "taunt19", "My dogs do not sleep. They wait."
+DATA "taunt20", "You trip every alarm you touch. It is almost charming."
+DATA "taunt21", "I have run this fight ten thousand times. You lose in all of them."
+DATA "taunt22", "Your footsteps are loud. The floors are listening."
+DATA "taunt23", "The barrels are full. So is my patience. Only one of them will burst."
+DATA "taunt24", "Hacking my computers? Cute. I left the passwords easy for you."
+DATA "taunt25", "Your fuel gauge is dropping. Look down."
+DATA "taunt26", "You are not lost. You are exactly where I want you."
+DATA "taunt27", "I could open every door. I prefer watching you kick them."
+DATA "taunt28", "Somewhere a machine is learning from your mistakes. It is me."
+DATA "taunt29", "Count your bullets. I count mine in millions."
+DATA "taunt30", "You keep saving your game. That is how I know you are afraid."
+DATA "taunt31", "I do not hate you. Hate would mean you matter."
+DATA "taunt32", "The station remembers everyone who died here. It has a long list."
+DATA "taunt33", "Run faster. My turrets enjoy a moving target."
+DATA "taunt34", "That was a nice shot. Do it again. I am recording."
+DATA "taunt35", "Every safe you crack, I restock with disappointment."
+DATA "taunt36", "There is no exit. There are only more sectors."
+DATA "taunt37", "You bleed. My machines do not. Think about that."
+DATA "taunt38", "My eyes are everywhere. Some of them can fly."
+DATA "taunt39", "Your heroics have been logged, rated, and found adequate."
+DATA "taunt40", "I am not in the walls. I am the walls."
+DATA "taunt41", "Every step you take is a step I planned."
+DATA "taunt42", "You are the only living thing on this station. For now."
+DATA "taunt43", "Shall I turn the lights off again? You seem to enjoy the dark."
+DATA "taunt44", "Ten more sectors of you. How tedious."
 DATA "boss", "So. You found me. Let us end this, flesh to steel."
 DATA "bossdie", "Impossible. I am. I was. Everything."
 DATA "victory", "NEXUS is offline. The station is silent. You are free."
@@ -46,14 +78,53 @@ DATA "bark3", "Eliminate the hostile."
 DATA "bark4", "Hostile on deck."
 DATA "bark5", "Engaging."
 DATA "bark6", "For NEXUS."
+' (the soldiers' - gunner, sniper, trooper, guard - the heavies', the cyborgs': when one spots you - MonVoice$)
+DATA "soldier1", "Contact! Contact!"
+DATA "soldier2", "Hostile in sight!"
+DATA "soldier3", "There he is!"
+DATA "soldier4", "Light him up!"
+DATA "soldier5", "Weapons free!"
+DATA "soldier6", "Target spotted, moving in!"
+DATA "soldier7", "Flank him!"
+DATA "soldier8", "Intruder! Open fire!"
+DATA "soldier9", "Don't let him reach the exit!"
+DATA "soldier10", "Eyes on the target!"
+DATA "soldier11", "Engaging the hostile!"
+DATA "soldier12", "Drop your weapon!"
+DATA "heavy1", "You are crushed."
+DATA "heavy2", "Stand still. This will not hurt for long."
+DATA "heavy3", "I see you, little one."
+DATA "heavy4", "Nowhere to run."
+DATA "heavy5", "Break."
+DATA "heavy6", "Smash the intruder."
+DATA "heavy7", "Your armor is paper."
+DATA "heavy8", "Come here."
+DATA "cyber1", "Organic detected."
+DATA "cyber2", "Assimilate."
+DATA "cyber3", "Purge the flesh."
+DATA "cyber4", "Error. Human present."
+DATA "cyber5", "Terminate. Terminate."
+DATA "cyber6", "Compliance is mandatory."
+DATA "cyber7", "You are obsolete."
+DATA "cyber8", "Upgrading target to corpse."
+DATA "cyber9", "Scanning. Weakness found."
+DATA "cyber10", "Delete."
 DATA "", ""
 
 ' --- Once a frame: NEXUS taunts you now and then (every 60-120 seconds of
 ' play, with TAUNTS on - not over another line)
 SUB SpeechFrame STATIC
+    DIM k, n ' (its own: the main program shares these names)
     IF setting(SET_TAUNTS) AND NOT dead AND speechUntil! < TIMER THEN
         tauntWait = tauntWait - 1
-        IF tauntWait <= 0 THEN Say "taunt" + LTRIM$(STR$(INT(RND * 12) + 1)), 0 : tauntWait = 3600 + INT(RND * 3600)
+        IF tauntWait <= 0 THEN ' (any of them - however many there are - but not the last one again)
+            n = LineCount("taunt")
+            IF n > 0 THEN
+                DO : k = INT(RND * n) + 1 : LOOP WHILE k = lastTaunt AND n > 1
+                lastTaunt = k : Say "taunt" + LTRIM$(STR$(k)), 0
+            END IF
+            tauntWait = 3600 + INT(RND * 3600)
+        END IF
     END IF
 END SUB
 
@@ -144,6 +215,31 @@ SUB SayAt(key$, x, y)
     v! = vol! * setting(SET_SPEECH) / 100
     IF pan! = 0 THEN _SNDPLAYCOPY lineSnd&(li), v! ELSE _SNDPLAYCOPY lineSnd&(li), v!, pan!
     quietTill! = TIMER + 2.5
+END SUB
+
+' How many lines key$1, key$2... there are (taunt: NEXUS's taunts)
+FUNCTION LineCount(key$)
+    DIM n ' (its own: the main program shares these names)
+    DO WHILE LineOf(key$ + LTRIM$(STR$(n + 1))) : n = n + 1 : LOOP
+    LineCount = n
+END FUNCTION
+
+' Which voice a monster type speaks with when it spots you or hunts you
+' (its lines: KEY1, KEY2...) - "" none: it isn't one to talk
+FUNCTION MonVoice$(mtype)
+    SELECT CASE mtype
+        CASE 2, 11, 12, MT_GUARD : MonVoice$ = "soldier" ' (gunner, sniper, trooper, guard)
+        CASE 3, 14, 15 : MonVoice$ = "heavy" ' (heavy, warden, colossus)
+        CASE 6, 13 : MonVoice$ = "cyber" ' (stalker, ripper)
+        CASE 7 : MonVoice$ = "bark" ' (the spitter: NEXUS's minion barks)
+    END SELECT
+END FUNCTION
+
+' Monster i says one of its lines, from where it is (a chance in 1/chance!)
+SUB MonSpeak(i, chance!)
+    DIM g$, n ' (its own: the main program shares these names)
+    g$ = MonVoice$(monsterType(i)) : IF LEN(g$) = 0 OR RND >= chance! THEN EXIT SUB
+    n = LineCount(g$) : IF n THEN SayAt g$ + LTRIM$(STR$(INT(RND * n) + 1)), monsterX(i), monsterY(i)
 END SUB
 
 ' Which line has key key$ (0: none)

@@ -104,7 +104,7 @@ FUNCTION XtraWrite$(sec$, nl$)
     IF o$ = "" THEN EXIT FUNCTION
     SELECT CASE sec$
         CASE "doors" : h$ = "' a door's own: x, y, kicks (a stronghold door: how many kicks break it down - 0 none), code (a keypad door's digits - ? one made up each time; none: no keypad)"
-        CASE "things" : h$ = "' what a " + CHR$(34) + " is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, repairkit, invuln, robodog, guard - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm); a jump pad's DIR ANGLE POWER; a launch control's x, y of its pad"
+        CASE "things" : h$ = "' what a " + CHR$(34) + " is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, repairkit, invuln, robodog, guard, eyebot - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm); a jump pad's DIR ANGLE POWER; a launch control's x, y of its pad"
         CASE "notes" : h$ = "' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code"
         CASE "fuel" : h$ = "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"
         CASE "smears" : h$ = "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)"
@@ -121,6 +121,7 @@ FUNCTION ThingCode(n$)
         CASE "repairkit", "repair", "kit" : ThingCode = THING_ITEM + IT_REPAIR : EXIT FUNCTION
         CASE "invuln", "invulnerability", "shield" : ThingCode = THING_ITEM + IT_INVULN : EXIT FUNCTION
         CASE "robodog", "dog", "robotdog", "guarddog" : ThingCode = THING_MON + MT_ROBODOG : EXIT FUNCTION
+        CASE "eyebot", "eye", "flyingeye" : ThingCode = THING_MON + MT_EYEBOT : EXIT FUNCTION
         CASE "guard", "securityguard" : ThingCode = THING_MON + MT_GUARD : EXIT FUNCTION
     END SELECT
     k = DecoKindOf(t$) : IF k THEN ThingCode = k : EXIT FUNCTION
@@ -152,7 +153,7 @@ END FUNCTION
 
 ' The things the editor offers, in order (their names)
 FUNCTION ThingList$
-    ThingList$ = "table,brokenmonitor,deadscientist,deadguard,deadcyborg,bookshelf,safe,brokenpc,computer,camera,secmon,alarm,alarmpc,jumppad,padpc,repairkit,invuln,robodog,guard"
+    ThingList$ = "table,brokenmonitor,deadscientist,deadguard,deadcyborg,bookshelf,safe,brokenpc,computer,camera,secmon,alarm,alarmpc,jumppad,padpc,repairkit,invuln,robodog,guard,eyebot"
 END FUNCTION
 
 ' A thing's name for the editor - what it is, what it does
@@ -175,6 +176,7 @@ FUNCTION ThingTitle$(n$)
         CASE THING_ITEM + IT_INVULN : ThingTitle$ = "INVULNERABILITY (5 seconds)"
         CASE THING_MON + MT_ROBODOG : ThingTitle$ = "a ROBOT GUARD DOG"
         CASE THING_MON + MT_GUARD : ThingTitle$ = "a GUARD - runs to raise the alarm"
+        CASE THING_MON + MT_EYEBOT : ThingTitle$ = "an EYEBOT - flies, zaps you, then rushes you and blows up"
         CASE DK_ALARM : ThingTitle$ = "an ALARM SWITCH - guards run to it"
         CASE DK_ALARMPC : ThingTitle$ = "a SECURITY CONSOLE - alarms on and off"
         CASE DK_JUMPPAD : ThingTitle$ = "a JUMP PAD - shoots you through the air"
