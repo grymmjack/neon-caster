@@ -14,7 +14,10 @@ business, spawners you can see charging, and a villain who talks to you. With a 
 or on the map from above, with a picker of every wall, floor, door, item,
 monster and light - and a monster editor and a HUD editor. Twelve more
 sectors built with the editor come with it, three of them outdoors, and
-one, THE NEON EXPO, that shows off every feature at once. And 49
+one, THE NEON EXPO, that shows off every feature at once - and THE MONOLITH,
+256 cells across and 30 walls high, as big as a sector gets. Rocket jumps, flying
+drones, ambushes of turrets that slide out of walls, floors and ceilings, and a
+console you can script (aliases, and an autoexec.cfg run at start-up). And 50
 achievements, each with its own badge, ready for Steam, with each
 sector's best times kept as records - and DOOM-style demos: record a
 sector as you play it and play it back, exactly, frame by frame, on any

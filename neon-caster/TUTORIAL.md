@@ -370,7 +370,7 @@ In the console:
 
 `steam/README.md` covers what Steamworks needs to go live.
 
-## The other two sets
+## The other three sets
 
 **NEW SECTORS** (GAME > NEW SECTORS, `levels/new/`) are ten more, built by
 `levels/newsectors.py` on everything the game grew after the first ten:
@@ -654,7 +654,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
 | `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22), the level kit that builds and checks them (`levels.py`, `lvlkit.py`), the showcase sectors' builder (`showcase.py`), the other sets' builders (`newsectors.py`, `remaster.py`) and the skies' painter (`skies.py`) |
 | `neon-caster/levels/new/`, `remix/`, `huge/` | NEW SECTORS, OLD SECTORS NEW and HUGE SECTORS, `level1.txt`... each |
-| `neon-caster/levels/custom/` | your own sectors (`customN.txt` is sector 10+N), made by NEW SECTOR - the level kit leaves them alone; 1-11 are the showcase sectors (19-21 outdoors), 14 is THE NEON EXPO (sector 24: every feature in one, built by `levels/megasector.py`) |
+| `neon-caster/levels/custom/` | your own sectors (`customN.txt` is sector 10+N), made by NEW SECTOR - the level kit leaves them alone; 1-11 are the showcase sectors (19-21 outdoors), 14 is THE NEON EXPO (sector 24: every feature in one, built by `levels/megasector.py`), 18 is THE MONOLITH (sector 28: 256 x 256 and 30 walls high, the biggest a sector can be, built by `levels/giant.py`) |
 | `neon-caster/puzzles/` | the code terminals' QB64 programs, one a file (`README.txt` says how to write one) |
 | `neon-caster/achievements/` | each achievement's badge (`NAME.png`) and its grey, locked one (`NAME_locked.png`) |
 | `neon-caster/saves/achievements.txt`, `records.txt` | the achievements and stats (Steam's stand-in, until the game is on Steam) and each sector's best |

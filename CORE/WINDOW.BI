@@ -29,7 +29,7 @@
 ' library, a copy of it in lib/steam (included next to GLSL) - with a stand-in (the "mock") that
 ' keeps them in a file when there's no Steam, so they work anywhere.
 ' Which release this is (the create-release skill bumps it: major.minor.patch)
-CONST GAME_VERSION$ = "0.3.0"
+CONST GAME_VERSION$ = "0.4.0"
 _TITLE "NEON-CASTER " + GAME_VERSION$
 ON ERROR GOTO GameError ' (a runtime error: logged, and the game carries on - chapter 21)
 DIM SHARED grSeed AS DOUBLE ' (the game's own dice: GRnd - where they've got to)
