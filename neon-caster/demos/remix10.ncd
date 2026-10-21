@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 10: THE CORE (OLD SECTORS NEW) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo remix10
-version 0.3.0
+version 0.4.0
 set 2
 sector 10
 seed 410426752

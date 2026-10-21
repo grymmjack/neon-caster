@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 7: COLD STORAGE (NEW SECTORS) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo new7
-version 0.3.0
+version 0.4.0
 set 1
 sector 7
 seed 1404764160

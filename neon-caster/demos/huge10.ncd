@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 10: THE SPIRE (HUGE SECTORS) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo huge10
-version 0.3.0
+version 0.4.0
 set 3
 sector 10
 seed 1838713728

@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 2: REACTOR CORE (OLD SECTORS NEW) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo remix2
-version 0.3.0
+version 0.4.0
 set 2
 sector 2
 seed 1813913088

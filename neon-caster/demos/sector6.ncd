@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 6: HYDROPONICS (THE ORIGINAL TEN) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo sector6
-version 0.3.0
+version 0.4.0
 set 0
 sector 6
 seed 354706432

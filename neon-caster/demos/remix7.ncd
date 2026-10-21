@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 7: DATA VAULT (OLD SECTORS NEW) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo remix7
-version 0.3.0
+version 0.4.0
 set 2
 sector 7
 seed 260838912

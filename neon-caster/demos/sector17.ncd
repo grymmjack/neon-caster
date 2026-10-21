@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 17: THE FLOODED ARCHIVE (YOUR SECTORS) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo sector17
-version 0.3.0
+version 0.4.0
 set 0
 sector 17
 seed 395021056
