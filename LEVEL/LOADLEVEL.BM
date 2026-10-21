@@ -270,7 +270,7 @@ SUB BuildLevel STATIC
                 CASE "E" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_EXIT
                 CASE "R", "B", "Y" ' Key door: needs that keycard
                     worldMap(x, y) = 2 : doorKey(x, y) = INSTR("RBY", cell$)
-                CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8", "9", ")", "(", "{", "}" ' Something to pick up (every one of ItemChars$ - a new pickup's character goes here too)
+                CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8", "9", ")", "(", "{", "}", "`", "," ' Something to pick up (every one of ItemChars$ - a new pickup's character goes here too)
                     IF numItems < MAX_ITEMS THEN
                         numItems = numItems + 1
                         itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
