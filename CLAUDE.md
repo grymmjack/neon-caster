@@ -175,7 +175,7 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
 - Teleport tests: a `+use` on the exit stalls the command queue in the
   tally (it waits for a click) - a `timeout` there means the exit worked.
   Grab the screen with `ffmpeg -f x11grab -i :99.0` to see it.
-- `custom1-11.txt` are showcase sectors (`showcase.py`), `custom18.txt` is THE MONOLITH (`giant.py`: the biggest sector - 256 x 256, ceiling 240 eighths, a pyramid to 200 and a lift near the ceiling), `custom14.txt` is
+- `custom1-11.txt` are showcase sectors (`showcase.py`), `custom18.txt` is THE MONOLITH (`giant.py`: the biggest sector - 256 x 256, ceiling 240 eighths, a pyramid to 200 and a lift near the ceiling), `custom19.txt` is THE STOCKPILE (`stockpile.py`: liquid barrels, chests, mimics, the jetpack), `custom14.txt` is
   THE NEON EXPO (`megasector.py`: every feature in one sector). `custom12`
   and `custom13` are the user's own - never write them.
 - Players' own sectors are `neon-caster/levels/custom/customN.txt`
