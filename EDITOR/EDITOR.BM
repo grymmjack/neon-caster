@@ -332,10 +332,24 @@ SUB EditPaneClick STATIC
             NEXT
             EditApply
             IF blkN THEN EditNote LTRIM$(STR$(blkN)) + " pillar(s) - click a side of one to shape it" ELSE EditNote "A pillar needs an empty floor"
+        CASE 290 TO 293 ' The selected barrels: their liquid round (a : one's), how many stand on each other
+            EditPushUndo
+            FOR k = 1 TO edSelN
+                bc$ = MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)
+                IF edSelKind(k) = ED_FLOOR AND (bc$ = "o" OR bc$ = ":") THEN
+                    EditBarrelGet edSelX(k), edSelY(k), blq, bst
+                    IF bc$ = ":" AND pnHit = 290 THEN blq = (blq + LQ_KINDS - 2) MOD LQ_KINDS + 1
+                    IF bc$ = ":" AND pnHit = 291 THEN blq = blq MOD LQ_KINDS + 1
+                    IF pnHit = 292 THEN bst = MaxOf(1, bst - 1)
+                    IF pnHit = 293 THEN bst = MinOf(BARREL_STACK, bst + 1)
+                    EditBarrelSet edSelX(k), edSelY(k), blq, bst
+                END IF
+            NEXT
+            EditApply : EditNote "Barrels:" + STR$(bst) + " high" + MID$(" of " + lqName$(MaxOf(1, blq)), 1, -99 * (blq > 0))
         CASE 205 TO 209 ' The selected decorations moved about their cells (or turned: 209)
             EditPushUndo
             FOR k = 1 TO edSelN
-                IF edSelKind(k) = ED_FLOOR AND INSTR("oiptxlnfSdAFIJLOQUWZV", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN
+                IF edSelKind(k) = ED_FLOOR AND INSTR(DecoChars$, MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN
                     EditNudgeGet edSelX(k), edSelY(k), ndx, ndy, nfc
                     SELECT CASE pnHit
                         CASE 209 : nfc = (nfc + 1) MOD 6 ' (as built - furniture with its back to its wall - then flat facing east, south, west, north, then turning to face you)
@@ -1293,6 +1307,7 @@ SUB EditPut(x, y, c$)
         IF c$ <> "&" THEN EditUnpair x, y
         IF INSTR("#NCKPG%?@$;/\DHXRBY!E=", c$) THEN EditRemoveBox x, y ' (a box only stands on open floor)
         EditNudgeSet x, y, 0, 0, 0 ' (a decoration's nudge goes with it)
+        EditBarrelSet x, y, -1, 1 ' (and a barrel's liquid and stack)
     END IF
     IF INSTR("<>^v", c$) THEN ' (only one start: the old one becomes floor)
         FOR yy = 0 TO mapN - 1 : FOR xx = 0 TO mapN - 1
@@ -1340,6 +1355,8 @@ FUNCTION EditSnapshot$
     FOR k = 1 TO lvlNumBoxes : FOR j = 1 TO 7 : s$ = s$ + LTRIM$(STR$(lvlBox(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(14)
     FOR k = 1 TO lvlNumNudges : FOR j = 1 TO 5 : s$ = s$ + LTRIM$(STR$(lvlNudge(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
+    s$ = s$ + CHR$(16) ' (the barrels' own: liquid, stack)
+    FOR k = 1 TO lvlNumBarrels : FOR j = 1 TO 4 : s$ = s$ + LTRIM$(STR$(lvlBarrel(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
     s$ = s$ + CHR$(15) + CellLightBoxes$(CHR$(3)) ' (the cell lights, last: as the file has them)
     EditSnapshot$ = s$
 END FUNCTION
@@ -1367,7 +1384,14 @@ SUB EditRestore(s1$)
     IF c12 THEN
         b$ = MID$(s0$, c12 + 1) : s0$ = LEFT$(s0$, c12 - 1) : n$ = ""
         c14 = INSTR(b$, CHR$(14)) : IF c14 THEN n$ = MID$(b$, c14 + 1) : b$ = LEFT$(b$, c14 - 1)
+        c16 = INSTR(n$, CHR$(16)) : br$ = "" : IF c16 THEN br$ = MID$(n$, c16 + 1) : n$ = LEFT$(n$, c16 - 1)
         DIM bv(8) AS SINGLE
+        lvlNumBarrels = 0
+        DO WHILE LEN(br$)
+            c3 = INSTR(br$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
+            IF SplitNums(LEFT$(br$, c3 - 1), bv()) >= 4 AND lvlNumBarrels < MAX_BARRELS THEN lvlNumBarrels = lvlNumBarrels + 1 : FOR j = 1 TO 4 : lvlBarrel(lvlNumBarrels, j) = bv(j) : NEXT
+            br$ = MID$(br$, c3 + 1)
+        LOOP
         DO WHILE LEN(b$)
             c3 = INSTR(b$, CHR$(3)) : IF c3 = 0 THEN EXIT DO
             IF SplitNums(LEFT$(b$, c3 - 1), bv()) >= 7 AND lvlNumBoxes < MAX_BOXES THEN lvlNumBoxes = lvlNumBoxes + 1 : FOR j = 1 TO 7 : lvlBox(lvlNumBoxes, j) = bv(j) : NEXT
@@ -1581,8 +1605,10 @@ FUNCTION GlyphName$(c$)
         CASE "|" : g$ = "turret (slides out of the wall)"
         CASE "<", ">", "^", "v" : g$ = "the START, facing " + c$
         CASE ELSE
-            k = INSTR("oiptxlnfSdAFIJLOQUWZV", c$)
+            k = INSTR(DecoChars$, c$)
             IF k THEN g$ = RTRIM$(MID$("barrel     lamp       plant      terminal   crate      server rackvending    coolant    spawner    desk       console    screens    specimen   lab bench  generator  cryo pod   hologram   lockers    bench      chair      body       ", k * 11 - 10, 11)) ELSE g$ = "?"
+            IF c$ = ":" THEN g$ = "a LIQUID BARREL - its liquid and stack on its pane"
+            IF c$ = "[" THEN g$ = "a TREASURE CHEST - Space opens it"
     END SELECT
     GlyphName$ = g$
 END FUNCTION
@@ -1612,7 +1638,7 @@ FUNCTION GlyphColor~&(c$)
         CASE ELSE
             IF INSTR("rby+*uae234Mqj89)({}", c$) THEN col~& = _RGB32(80, 230, 120)
             IF MonOfChar(c$) THEN col~& = _RGB32(255, 70, 90)
-            IF INSTR("oiptxlnfSdAFIJLOQUWZV", c$) THEN col~& = _RGB32(230, 200, 90)
+            IF INSTR(DecoChars$, c$) THEN col~& = _RGB32(230, 200, 90)
     END SELECT
     GlyphColor~& = col~&
 END FUNCTION
@@ -1639,7 +1665,7 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     VIEW SCREEN (0, 0)-(ED_VIEWW, ED_VIEWH) ' (the map stays in its part of the screen)
     FOR y = vy0 TO vy1 : FOR x = vx0 TO vx1
         c$ = MID$(lvlRow$(y), x + 1, 1) : sx = edMapX + x * edCell : sy = edMapY + y * edCell
-        IF INSTR("rby+*uae234Mqj89)({}mghcskwzT15670~_|oiptxlnfSdAFIJLOQUWZV<>^v", c$) THEN
+        IF INSTR("rby+*uae234Mqj89)({}mghcskwzT15670~_|oiptxlnfSdAFIJLOQUWZV:[<>^v", c$) THEN
             LINE (sx, sy)-STEP(edCell - 1, edCell - 1), GlyphColor~&("."), BF
             LINE (sx + ins, sy + ins)-STEP(MaxOf(0, edCell - 1 - 2 * ins), MaxOf(0, edCell - 1 - 2 * ins)), GlyphColor~&(c$), BF
             IF INSTR("<>^v", c$) THEN LINE (sx + 1, sy + 1)-STEP(edCell - 3, edCell - 3), _RGB32(255, 255, 255), B
@@ -2135,7 +2161,7 @@ SUB EditPkBuild
         CASE 4 : g$ = "DHXRBY!E"
         CASE 5 : g$ = "rby+*uae234Mqj89)({}"
         CASE 6 : g$ = "mghcskwzT15670~_|"
-        CASE 7 : g$ = "oiptxlnfSdAFIJLOQUWZV"
+        CASE 7 : g$ = DecoChars$
         CASE 8 : g$ = "<>^v&@$;."
     END SELECT
     FOR k = 1 TO LEN(g$)
@@ -2238,7 +2264,7 @@ FUNCTION EditGlyphThumb&(c$)
         CASE ELSE
             k = ItemOfChar(c$) : IF k THEN sp = ItemSprite(k) ' (any other pickup: the repeater's rounds, the railgun's slugs...)
             k = MonOfChar(c$) : IF k THEN sp = mtypeSprite(k)
-            k = INSTR("oiptxlnfSdAFIJLOQUWZV", c$) : IF k THEN sp = DecoSlot(k)
+            k = DecoOfChar(c$) : IF k THEN sp = DecoSlot(k)
     END SELECT
     IF t THEN EditGlyphThumb& = EditSlotThumb&(t, 0) ELSE IF sp THEN EditGlyphThumb& = EditSlotThumb&(sp, -1) ELSE EditGlyphThumb& = 0
 END FUNCTION
@@ -2797,7 +2823,7 @@ SUB EditPaneNudge(x0, y)
     DIM k, ndx, ndy ' (its own: the main program shares these names)
     dk = 0
     FOR k = 1 TO edSelN
-        IF edSelKind(k) = ED_FLOOR AND dk = 0 THEN IF INSTR("oiptxlnfSdAFIJLOQUWZV", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN dk = k
+        IF edSelKind(k) = ED_FLOOR AND dk = 0 THEN IF INSTR(DecoChars$, MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN dk = k
     NEXT
     IF dk = 0 THEN EXIT SUB
     EditNudgeGet edSelX(dk), edSelY(dk), ndx, ndy, nfc
@@ -2806,6 +2832,52 @@ SUB EditPaneNudge(x0, y)
     y = y + 23
     EditPaneAdd 209, x0, y, PN_W, RTRIM$(MID$("AS BUILT            STANDS, FACING EAST STANDS, FACING SOUTHSTANDS, FACING WEST STANDS, FACING NORTHTURNS TO FACE YOU   ", nfc * 20 + 1, 20)), nfc > 0
     y = y + 23
+    bc$ = MID$(lvlRow$(edSelY(dk)), edSelX(dk) + 1, 1)
+    IF bc$ = "o" OR bc$ = ":" THEN ' (a barrel: its liquid - a : one - and how many stand on each other)
+        EditBarrelGet edSelX(dk), edSelY(dk), blq, bst
+        IF bc$ = ":" THEN
+            EditPaneAdd -1, x0, y + 2, 140, "LIQUID " + UCASE$(lqName$(blq)), 0 : EditPaneAdd 290, x0 + 146, y, 24, "<", 0 : EditPaneAdd 291, x0 + 174, y, 24, ">", 0
+            y = y + 23
+        END IF
+        EditPaneAdd -1, x0, y + 2, 140, "STACK" + STR$(bst) + " HIGH", 0 : EditPaneAdd 292, x0 + 146, y, 24, "-", 0 : EditPaneAdd 293, x0 + 174, y, 24, "+", 0
+        y = y + 23
+    END IF
+END SUB
+
+' A barrel's own (its [barrels] line): its liquid (a : barrel's - LQ_POISON
+' as made) and how many stand on each other there (1 as made)
+SUB EditBarrelGet(x, y, liq, stk)
+    DIM k ' (its own: the main program shares these names)
+    liq = 0 : IF MID$(lvlRow$(y), x + 1, 1) = ":" THEN liq = LQ_POISON
+    stk = 1
+    FOR k = 1 TO lvlNumBarrels
+        IF lvlBarrel(k, 1) = x AND lvlBarrel(k, 2) = y THEN
+            IF liq THEN IF lvlBarrel(k, 3) >= 1 AND lvlBarrel(k, 3) <= LQ_KINDS THEN liq = lvlBarrel(k, 3)
+            stk = MaxOf(1, MinOf(BARREL_STACK, lvlBarrel(k, 4)))
+        END IF
+    NEXT
+END SUB
+
+' ...and set (liq -1: no line - as made)
+SUB EditBarrelSet(x, y, liq, stk)
+    DIM i, j, k ' (its own: the main program shares these names)
+    k = 0
+    FOR j = 1 TO lvlNumBarrels
+        IF lvlBarrel(j, 1) = x AND lvlBarrel(j, 2) = y THEN k = j
+    NEXT
+    c$ = MID$(lvlRow$(y), x + 1, 1)
+    IF liq < 0 OR (stk <= 1 AND ((c$ = "o" AND liq = 0) OR (c$ = ":" AND liq = LQ_POISON))) THEN ' (as made: no line)
+        IF k THEN
+            FOR i = k TO lvlNumBarrels - 1 : FOR j = 1 TO 4 : lvlBarrel(i, j) = lvlBarrel(i + 1, j) : NEXT : NEXT
+            lvlNumBarrels = lvlNumBarrels - 1
+        END IF
+        EXIT SUB
+    END IF
+    IF k = 0 THEN
+        IF lvlNumBarrels >= MAX_BARRELS THEN EditNote "That's" + STR$(MAX_BARRELS) + " barrels of their own - no more" : EXIT SUB
+        lvlNumBarrels = lvlNumBarrels + 1 : k = lvlNumBarrels
+    END IF
+    lvlBarrel(k, 1) = x : lvlBarrel(k, 2) = y : lvlBarrel(k, 3) = liq : lvlBarrel(k, 4) = stk
 END SUB
 
 ' The pane's button at (x, y) - its id - or 0
@@ -3209,6 +3281,17 @@ SUB EditNudge(dx, dy)
             END IF
         END IF
     NEXT
+    FOR k = lvlNumBarrels TO 1 STEP -1 ' (a barrel's liquid and stack)
+        x = lvlBarrel(k, 1) : y = lvlBarrel(k, 2)
+        IF x >= 0 AND y >= 0 AND x <= mapN AND y <= mapN THEN
+            IF mv(x, y) THEN
+                lvlBarrel(k, 1) = x + dx : lvlBarrel(k, 2) = y + dy
+            ELSEIF dest(x, y) THEN
+                FOR j = k TO lvlNumBarrels - 1 : FOR c = 1 TO 4 : lvlBarrel(j, c) = lvlBarrel(j + 1, c) : NEXT : NEXT
+                lvlNumBarrels = lvlNumBarrels - 1
+            END IF
+        END IF
+    NEXT
     FOR k = lvlNumNudges TO 1 STEP -1
         x = lvlNudge(k, 1) : y = lvlNudge(k, 2)
         IF x >= 0 AND y >= 0 AND x <= mapN AND y <= mapN THEN
@@ -3414,7 +3497,7 @@ SUB EditPickThing(sx, sy)
     y0 = MaxOf(0, INT(edCamPY) - 16) : y1 = MinOf(mapN - 1, INT(edCamPY) + 16)
     FOR y = y0 TO y1 : FOR x = x0 TO x1
         c$ = MID$(lvlRow$(y), x + 1, 1)
-        IF INSTR("mghcskwzT15670~_|rby+*uae234Mqj89)({}oiptxlnfSdAFIJLOQUWZV&", c$) THEN
+        IF INSTR("mghcskwzT15670~_|rby+*uae234Mqj89)({}oiptxlnfSdAFIJLOQUWZV:[&", c$) THEN
             tz = floorH(x, y) + 0.35 ' (where it is: a thing on the floor - a turret on the ceiling, or on a wall)
             IF c$ = "~" THEN tz = ceilH(x, y) - 0.3 ELSE IF c$ = "|" THEN tz = floorH(x, y) + 0.57
             EditCam x + 0.5, y + 0.5, tz, r, u, a
@@ -3921,7 +4004,7 @@ SUB EditMakeRoom(w, h)
         IF y >= y0 AND y <= y1 THEN MID$(lvlRow$(y), x0 + 1, w) = STRING$(w, ".")
     NEXT
     MID$(lvlRow$((y0 + y1) \ 2), x0 + 1, 1) = ">" : MID$(lvlRow$((y0 + y1) \ 2), x1 + 2, 1) = "E"
-    lvlMonN = 0 : lvlNumZones = 0 : lvlNumLifts = 0 : lvlNumEvents = 0 : lvlNumTrigs = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumFaces = 0 : lvlNumPairs = 0
+    lvlMonN = 0 : lvlNumZones = 0 : lvlNumLifts = 0 : lvlNumEvents = 0 : lvlNumTrigs = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlNumBarrels = 0
     lvlNumLights = 1 : lvlLight(1, 1) = mapN / 2 : lvlLight(1, 2) = mapN / 2 : lvlLight(1, 3) = MaxOf(w, h) / 2 + 3 : lvlLight(1, 4) = 150
     lvlLight(1, 5) = 220 : lvlLight(1, 6) = 230 : lvlLight(1, 7) = 255 : lvlLight(1, 8) = 0
     CellLightsClear
@@ -4041,6 +4124,10 @@ SUB EditDropPast(m)
     FOR j = 1 TO lvlNumNudges
         IF lvlNudge(j, 1) <= m AND lvlNudge(j, 2) <= m THEN k = k + 1 : FOR c = 1 TO 5 : lvlNudge(k, c) = lvlNudge(j, c) : NEXT
     NEXT : lvlNumNudges = k
+    k = 0
+    FOR j = 1 TO lvlNumBarrels
+        IF lvlBarrel(j, 1) <= m AND lvlBarrel(j, 2) <= m THEN k = k + 1 : FOR c = 1 TO 4 : lvlBarrel(k, c) = lvlBarrel(j, c) : NEXT
+    NEXT : lvlNumBarrels = k
     k = 0
     FOR j = 1 TO lvlMonN
         IF lvlMon(j, 1) <= m AND lvlMon(j, 2) <= m THEN k = k + 1 : FOR c = 1 TO MON_COLS : lvlMon(k, c) = lvlMon(j, c) : NEXT

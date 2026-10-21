@@ -93,6 +93,12 @@ FUNCTION DecoKindOf(n$)
         CASE "locker" : k = 18
         CASE "bench" : k = 19
         CASE "chair" : k = 20
+        CASE "waterbarrel" : k = DK_LQBARREL + LQ_WATER
+        CASE "poisonbarrel" : k = DK_LQBARREL + LQ_POISON
+        CASE "slimebarrel" : k = DK_LQBARREL + LQ_SLIME
+        CASE "lavabarrel" : k = DK_LQBARREL + LQ_LAVA
+        CASE "acidbarrel" : k = DK_LQBARREL + LQ_ACID
+        CASE "chest", "treasurechest", "cache" : k = DK_CHEST
         CASE ELSE : k = 0
     END SELECT
     DecoKindOf = k
@@ -100,6 +106,8 @@ END FUNCTION
 
 ' A decoration kind's name, as [loot] has it
 FUNCTION DecoName$(k)
+    IF k > DK_LQBARREL AND k < DK_CHEST THEN DecoName$ = lqName$(k - DK_LQBARREL) + "barrel" : EXIT FUNCTION
+    IF k = DK_CHEST THEN DecoName$ = "chest" : EXIT FUNCTION
     DecoName$ = RTRIM$(MID$("barrel   lamp     plant    terminal crate    rack     vending  coolant  spawner  desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", k * 9 - 8, 9))
 END FUNCTION
 
@@ -110,12 +118,14 @@ END FUNCTION
 
 ' A set piece's picture file
 FUNCTION DecoFile$(kind)
+    IF kind > DK_LQBARREL AND kind < DK_CHEST THEN DecoFile$ = "barrel-" + lqName$(kind - DK_LQBARREL) + ".png" : EXIT FUNCTION
+    IF kind = DK_CHEST THEN DecoFile$ = "chest.png" : EXIT FUNCTION
     DecoFile$ = RTRIM$(MID$("desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", (kind - 10) * 9 + 1, 9)) + ".png"
 END FUNCTION
 
 ' Does a decoration kind blow up when it's hit? (A barrel, a coolant tank)
 FUNCTION Explosive(kind)
-    Explosive = (kind = 1 OR kind = 8)
+    Explosive = (kind = 1 OR kind = 8 OR (kind > DK_LQBARREL AND kind < DK_CHEST))
 END FUNCTION
 
 ' How many hits a decoration kind takes before it breaks (a barrel: 1)
@@ -133,6 +143,8 @@ FUNCTION DecoMaxHP(kind)
         CASE 15 : DecoMaxHP = 6 ' Generator
         CASE 20 : DecoMaxHP = 2 ' Chair
         CASE 21 : DecoMaxHP = 99 ' (a body: never breaks)
+        CASE DK_LQBARREL + 1 TO DK_LQBARREL + LQ_KINDS : DecoMaxHP = 1 ' (a liquid barrel: a hit starts it leaking)
+        CASE DK_CHEST : DecoMaxHP = 99 ' (a chest: Space opens it, shots don't)
         CASE ELSE : DecoMaxHP = 4 ' Terminal, server rack, vending machine
     END SELECT
 END FUNCTION
@@ -160,6 +172,8 @@ FUNCTION DecoScale(kind)
         CASE 19 : DecoScale = 0.35 ' Bench
         CASE 20 : DecoScale = 0.5 ' Chair
         CASE 21 : DecoScale = 0.75 ' A body
+        CASE DK_LQBARREL + 1 TO DK_LQBARREL + LQ_KINDS : DecoScale = 0.5 ' A liquid barrel
+        CASE DK_CHEST : DecoScale = 0.5 ' A chest
         CASE ELSE : DecoScale = 0.55 ' Terminal
     END SELECT
 END FUNCTION
@@ -210,4 +224,37 @@ FUNCTION SpawnerBurst(j, px, py)
     d = SQR((px - x) ^ 2 + (py - y) ^ 2)
     IF d < 8 THEN SpawnerBurst = 9 * (1 - d / 8)
     SfxAt sndOvercharge&, x, y, px, py
+END FUNCTION
+
+' Every decoration's map character, in kind order - but the liquid barrels
+' share one (:, its liquid in [barrels]) and the chest is the last ([)
+FUNCTION DecoChars$
+    DecoChars$ = "oiptxlnfSdAFIJLOQUWZV:["
+END FUNCTION
+
+' The decoration kind map character c$ stands for (0: not one) - a liquid
+' barrel's is LQ_POISON's till its [barrels] line says (BuildLevel)
+FUNCTION DecoOfChar(c$)
+    DIM k ' (its own: the main program shares these names)
+    IF LEN(c$) <> 1 THEN EXIT FUNCTION
+    k = INSTR(DecoChars$, c$)
+    IF k = DK_LQBARREL + 1 THEN k = DK_LQBARREL + LQ_POISON ELSE IF k = DK_LQBARREL + 2 THEN k = DK_CHEST
+    DecoOfChar = k
+END FUNCTION
+
+' A decoration kind's map character
+FUNCTION DecoCharOf$(kind)
+    IF kind > DK_LQBARREL AND kind < DK_CHEST THEN DecoCharOf$ = ":" : EXIT FUNCTION
+    IF kind = DK_CHEST THEN DecoCharOf$ = "[" : EXIT FUNCTION
+    IF kind >= 1 AND kind <= DK_LQBARREL THEN DecoCharOf$ = MID$(DecoChars$, kind, 1)
+END FUNCTION
+
+' Is decoration kind k a liquid barrel? Its liquid then (LQ_), else 0
+FUNCTION BarrelLiquid(k)
+    IF k > DK_LQBARREL AND k < DK_CHEST THEN BarrelLiquid = k - DK_LQBARREL
+END FUNCTION
+
+' How high a barrel stands - the next one in its stack stands that high on it
+FUNCTION BarrelHigh(k)
+    BarrelHigh = DecoScale(k) * 0.92
 END FUNCTION

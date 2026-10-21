@@ -15,7 +15,7 @@ DOORS = set("DHXRBYE!")  # ! a door sealed until its data station (@) is hacked
 DIAG = set("/\\")
 ITEMS = set("rby+ae23u*4Mqj89)({}")  # ... q overcharge, j damage amp, 8 night vision, 9 hazmat suit, ) rocket launcher, ( rockets
 MONS = set("mghcskwzT15670~_|")  # ... k stalker, w spitter, z the overseer, T thief, 1 sniper, 5 trooper, 6 ripper, 7 warden, 0 colossus, ~ _ | turrets (ceiling, floor, wall)
-DECO = set("oiptxlnfSdAFIJLOQUWZV")  # ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
+DECO = set("oiptxlnfSdAFIJLOQUWZV:[")  # : a liquid barrel (its liquid and stack in [barrels]), [ a treasure chest; ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
 GLASS = set("=")  # a pane of glass: see through it, but not walk
 STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle
@@ -479,7 +479,8 @@ LEVEL_HEADER = """' NEON-CASTER level file - see chapter 22 of neon-caster.bas f
 LOOT_HELP = "' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out"
 LOOT_BREAKABLES = {"barrel", "lamp", "plant", "terminal", "crate", "rack", "serverrack", "vending", "vendingmachine",
                    "coolant", "tank", "coolanttank", "spawner", "desk", "console", "screen", "specimen", "specimentank",
-                   "labbench", "generator", "cryopod", "cryo", "hologram", "locker", "bench", "chair"}
+                   "labbench", "generator", "cryopod", "cryo", "hologram", "locker", "bench", "chair",
+                   "waterbarrel", "poisonbarrel", "slimebarrel", "lavabarrel", "acidbarrel", "chest", "treasurechest", "cache"}
 LOOT_PICKUPS = {"red", "blue", "yellow", "health", "cells", "ammo", "shells", "scatter", "repeater", "armor", "armour",
                 "medkit", "bigmed", "rail", "railgun", "map", "overcharge", "amp", "goggles", "nightvision", "headset", "suit", "hazmat", "hvac",
                 "launcher", "rocketlauncher", "rocket", "rockets", "rounds", "slugs"}
@@ -529,6 +530,14 @@ def check_blocks(lv):
         if (x, y) in seen:
             errs.append("block at %d,%d: a cell has only one" % (x, y))
         seen.add((x, y))
+    for b in lv.get("barrels", []):
+        if len(b) < 3:
+            errs.append("barrel %s: needs x, y, liquid[, stack]" % (b,)); continue
+        x, y, lq = b[:3]; st = b[3] if len(b) > 3 else 1
+        if not (0 <= x < N and 0 <= y < N) or rows[y][x] not in "o:":
+            errs.append("barrel at %d,%d: no barrel (o or :) there" % (x, y))
+        if not 0 <= lq <= 5 or not 1 <= st <= 3:
+            errs.append("barrel at %d,%d: liquid %d (0-5), stack %d (1-3)" % (x, y, lq, st))
     for n in lv.get("nudges", []):
         if len(n) < 4:
             errs.append("nudge %s: needs x, y, dx, dy" % (n,)); continue
@@ -669,6 +678,12 @@ def level_text(lv, comment=()):
         out.append("' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)")
         for r in lv["nudges"]:
             out.append(", ".join(_num(v) for v in r))
+    if lv.get("barrels"):  # barrels of their own: a liquid, a stack
+        out.append("")
+        out.append("[barrels]")
+        out.append("' a barrel's own: x, y, its liquid (0 a plain barrel o, 1 water, 2 poison, 3 slime, 4 lava, 5 acid - a : barrel), how many stand on each other (1-3)")
+        for r in lv["barrels"]:
+            out.append(", ".join(_num(v) for v in r))
     if lv.get("cell_lights"):  # cells lit their own way
         out.append("")
         out.append("[cell lights]")
@@ -741,7 +756,7 @@ def read_level_file(path, label=None):
     """A level file as the dict check_level and level_text use."""
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
               ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[], loot=[],
-              liquid=[], liquid_depth=[], blocks=[], nudges=[], cell_lights=[])
+              liquid=[], liquid_depth=[], blocks=[], nudges=[], cell_lights=[], barrels=[])
     global N
     sec = None
     high = {"floor high": [], "ceiling high": []}
@@ -773,7 +788,7 @@ def read_level_file(path, label=None):
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals
             elif k == "ambient": lv["ambient"] = tuple(int(float(x)) for x in vals)
-        elif sec in ("zones", "events", "lifts", "pads", "monsters", "blocks", "nudges", "cell lights"):
+        elif sec in ("zones", "events", "lifts", "pads", "monsters", "blocks", "nudges", "cell lights", "barrels"):
             lv[sec.replace(" ", "_")].append(tuple(int(float(x)) for x in t.split(",")))
         elif sec == "lights":
             lv[sec].append(tuple(float(x) for x in t.split(",")))
@@ -1212,7 +1227,7 @@ def check_level(lv, assets=None):
         errs.append("too many lights (%d, max 256: RENDER/LIGHT.BI's MAX_LIGHTS)" % len(lv["lights"]))
     for sec, most, where in (("zones", 256, "LEVEL/LEVELFILE.BI's MAX_ZONES"), ("lifts", 32, "WORLD/LIFTS.BI's MAX_LIFTS"),
                              ("pads", 16, "LEVEL/LEVELFILE.BI's MAX_PAIRS"), ("blocks", 256, "WORLD/MAP.BI's MAX_BOXES"),
-                             ("nudges", 160, "GAME/DECOS.BI's MAX_NUDGES"), ("triggers", 96, "GAME/TRIGGERS.BI's MAX_TRIGS"),
+                             ("nudges", 160, "GAME/DECOS.BI's MAX_NUDGES"), ("barrels", 96, "GAME/DECOS.BI's MAX_BARRELS"), ("triggers", 96, "GAME/TRIGGERS.BI's MAX_TRIGS"),
                              ("faces", 4000, "LEVEL/LEVELFILE.BI's MAX_FACES")):  # (past these the game drops the rest)
         if len(lv.get(sec, [])) > most:
             errs.append("too many %s (%d, max %d: %s)" % (sec, len(lv[sec]), most, where))

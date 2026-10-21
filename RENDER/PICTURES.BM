@@ -68,7 +68,9 @@ SUB LoadPictures STATIC
         LoadSprite mtypeName$(mtype) + ".png", mtypeSprite(mtype) : MakeHurt mtypeSprite(mtype), mtypeSprite(mtype) + 1
     NEXT
     FOR mtype = 1 TO MON_TYPES : MakeCorpse mtype : NEXT ' (each one's body, for when it's dead)
-    FOR k = 1 TO DECO_KINDS : MakeWreck k : NEXT ' (each decoration, broken)
+    FOR k = 1 TO DECO_KINDS ' (each decoration, broken - its own painted wreck if it has one: a liquid barrel's, the chest open)
+        IF _FILEEXISTS(ArtPath$(DecoWreckName$(k) + ".png")) THEN LoadSprite DecoWreckName$(k) + ".png", S_WRECK + k : wreckScale(k) = DecoScale(k) : wreckSquash(k) = 1 ELSE MakeWreck k
+    NEXT
     FOR mtype = 1 TO MON_TYPES : MakeMonFrames mtype : NEXT ' (each one's animation)
     FOR mtype = 1 TO MON_TYPES : MakeGib mtypeSprite(mtype), S_GIB + mtype : NEXT ' (and pieces, for a rocket - GAME/ROCKETS.BM)
     FOR k = 1 TO DECO_KINDS : MakeGib DecoSlot(k), S_GIB + MON_TYPES + k : NEXT

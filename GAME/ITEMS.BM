@@ -118,6 +118,7 @@ SUB LootTable
     k = TakeLoot("labbench = ammo:5, shells:5, medkit:10, armor:5")
     k = TakeLoot("vending  = ammo:50, shells:50, medkit:25, armor:10")
     k = TakeLoot("plant    = ammo:5, shells:5, medkit:5")
+    k = TakeLoot("chest    = armor:70, medkit:70, rounds:50, overcharge:25") ' (a treasure chest: the good stuff - Space opens it)
     FOR i = 1 TO lvlNumLoot : k = TakeLoot(lvlLoot$(i)) : NEXT
 END SUB
 

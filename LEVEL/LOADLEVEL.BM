@@ -289,12 +289,22 @@ SUB BuildLevel STATIC
                 CASE "&" ' A teleporter's pad
                     IF numPads < MAX_PADS THEN numPads = numPads + 1 : padX(numPads) = x : padY(numPads) = y
                 CASE "=" : glassHP(x, y) = GLASS_HP ' Glass: floor, with a pane across it (AssignGlass)
-                CASE "o", "i", "p", "t", "x", "l", "n", "f", "S", "d", "A", "F", "I", "J", "L", "O", "Q", "U", "W", "Z", "V" ' A decoration
-                    IF numDecos < MAX_DECO THEN
-                        numDecos = numDecos + 1 : decoCell(x, y) = numDecos
-                        decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = INSTR("oiptxlnfSdAFIJLOQUWZV", cell$) : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0 : vendState(numDecos) = 0 : decoFace(numDecos) = 0
-                        decoHP(numDecos) = DecoMaxHP(decoKind(numDecos)) : decoTimer(numDecos) = 0 : decoLootA(numDecos) = NO_AIM
-                    END IF
+                CASE "o", "i", "p", "t", "x", "l", "n", "f", "S", "d", "A", "F", "I", "J", "L", "O", "Q", "U", "W", "Z", "V", ":", "[" ' A decoration (every one of DecoChars$)
+                    dk = DecoOfChar(cell$) : dn = 1 ' (a barrel's [barrels] line: its liquid, how many stand on each other)
+                    FOR k = 1 TO lvlNumBarrels
+                        IF lvlBarrel(k, 1) = x AND lvlBarrel(k, 2) = y THEN
+                            IF cell$ = ":" AND lvlBarrel(k, 3) >= 1 AND lvlBarrel(k, 3) <= LQ_KINDS THEN dk = DK_LQBARREL + lvlBarrel(k, 3)
+                            IF dk = 1 OR BarrelLiquid(dk) THEN dn = MaxOf(1, MinOf(BARREL_STACK, lvlBarrel(k, 4)))
+                        END IF
+                    NEXT
+                    FOR k = 1 TO dn
+                        IF numDecos < MAX_DECO THEN
+                            numDecos = numDecos + 1 : IF k = 1 THEN decoCell(x, y) = numDecos
+                            decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = dk : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0 : vendState(numDecos) = 0 : decoFace(numDecos) = 0
+                            decoHP(numDecos) = DecoMaxHP(dk) : decoTimer(numDecos) = 0 : decoLootA(numDecos) = NO_AIM
+                            decoZ(numDecos) = (k - 1) * BarrelHigh(dk) : decoLeak(numDecos) = 0 : decoOpen(numDecos) = 0 ' (one on another: as high as those under it)
+                        END IF
+                    NEXT
                 CASE "m", "g", "h", "c", "s", "k", "w", "z", "T", "1", "5", "6", "7", "0", "~", "_", "|" ' A monster (MonChars$)
                     IF numMonsters < MAX_MON THEN
                         numMonsters = numMonsters + 1

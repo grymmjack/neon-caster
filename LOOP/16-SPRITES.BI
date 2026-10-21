@@ -139,11 +139,17 @@
         END IF
     NEXT
     FOR i = 1 TO numDecos
-        IF cyberOn = 0 THEN ' (every one - broken ones leave their wreck; none in the network)
+        IF cyberOn = 0 AND NOT (decoOn(i) = 0 AND decoZ(i) > 0.05) THEN ' (every one - broken ones leave their wreck - one up a stack: blown away; none in the network)
             numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) : drawY(numDraw) = decoY(i)
-            drawSprite(numDraw) = DecoSlot(decoKind(i)) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = 0
+            drawSprite(numDraw) = DecoSlot(decoKind(i)) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = decoZ(i)
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40 : drawFace(numDraw) = decoFace(i)
-            IF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
+            IF decoOpen(i) THEN ' An open chest: its open picture (its "wreck"), its open model
+                drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i)) : drawSquash(numDraw) = wreckSquash(decoKind(i))
+                IF wreckMdl(decoKind(i)) THEN drawMdl(numDraw) = wreckMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0 : drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
+            ELSEIF NOT decoOn(i) AND wreckMdl(decoKind(i)) THEN ' Broken, with a wreck of its own: its picture, its model
+                drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i)) : drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0
+                drawMdl(numDraw) = wreckMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0 : drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
+            ELSEIF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
                 drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0 : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw)
                 IF decoMdl(decoKind(i)) AND glMode THEN ' (a 3D prop - OpenGL, near: its own model, broken - crumpled to half its height, knocked askew, charred; far off, its wreck's picture)
@@ -157,6 +163,7 @@
                 drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
             END IF
             IF decoKind(i) = 2 OR decoKind(i) = 7 OR decoKind(i) = 12 OR decoKind(i) = 13 OR decoKind(i) = 17 THEN drawMinShade(numDraw) = 200 ' Lamps (vending machines, monitors, tanks, holograms) glow
+            IF BarrelLiquid(decoKind(i)) = LQ_LAVA THEN drawMinShade(numDraw) = 150 ' (a lava barrel's cracks)
             IF decoKind(i) = 9 AND decoOn(i) AND (decoCharge(i) > 0 OR decoBurst(i) > 0) THEN ' A spawner charging: an orb of light in it, growing - and sending one out, the orb falls in on itself, then bursts
                 c = decoCharge(i) : drawMinShade(numDraw) = 40 + 200 * c
                 d = SQR((playerX - decoX(i)) ^ 2 + (playerY - decoY(i)) ^ 2) + 0.001

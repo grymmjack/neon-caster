@@ -64,8 +64,8 @@ sndDecoHit& = LoadSnd&("deco-hit.wav")
 decoBreakSnd&(2) = LoadSnd&("lamp-break.wav") : decoBreakSnd&(3) = LoadSnd&("plant-break.wav") : decoBreakSnd&(4) = LoadSnd&("terminal-break.wav")
 decoBreakSnd&(5) = LoadSnd&("crate-break.wav") : decoBreakSnd&(6) = decoBreakSnd&(4) : decoBreakSnd&(7) = decoBreakSnd&(4)
 decoBreakSnd&(9) = decoBreakSnd&(4)
-FOR k = 10 TO 19 ' (the set pieces: furniture cracks like a crate, the rest like a terminal)
-    IF k = 10 OR k = 18 OR k = 19 THEN decoBreakSnd&(k) = decoBreakSnd&(5) ELSE decoBreakSnd&(k) = decoBreakSnd&(4)
+FOR k = 10 TO DECO_KINDS ' (the set pieces: furniture cracks like a crate, the rest like a terminal)
+    IF k = 10 OR k = 18 OR k = 19 OR k = DK_CHEST THEN decoBreakSnd&(k) = decoBreakSnd&(5) ELSE decoBreakSnd&(k) = decoBreakSnd&(4)
 NEXT
 ' The event rooms' sounds (chapter 19): the lockdown alarm, a win, a loss,
 ' the trap's zap, a monster arriving

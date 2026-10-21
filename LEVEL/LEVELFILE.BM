@@ -423,7 +423,7 @@
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
     DIM got, j, k, l$, t$, clx, cly ' (its own: the main program shares these names)
-    lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNote$ = "" : topLines = -1
+    lvlPuzzles$ = "" : lvlDroids = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumBarrels = 0 : lvlNote$ = "" : topLines = -1
     CellLightsClear
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0 : fhRows = 0 : chRows = 0
@@ -508,6 +508,11 @@ SUB ReadLevelFile(n)
                             lvlCLBright(clx, cly) = MaxOf(0, MinOf(256, v(5))) : lvlCLCol(clx, cly) = _RGB32(v(6), v(7), v(8)) : lvlCLFx(clx, cly) = MaxOf(0, MinOf(5, v(9)))
                         NEXT : NEXT
                     END IF
+                CASE "barrels" ' x, y, liquid (0 plain, 1-5), stack (1-3)
+                    IF got >= 3 AND lvlNumBarrels < MAX_BARRELS THEN
+                        lvlNumBarrels = lvlNumBarrels + 1 : FOR k = 1 TO 4 : lvlBarrel(lvlNumBarrels, k) = v(k) : NEXT
+                        IF got < 4 THEN lvlBarrel(lvlNumBarrels, 4) = 1
+                    END IF
                 CASE "nudges"
                     IF got >= 4 AND lvlNumNudges < MAX_NUDGES THEN
                         lvlNumNudges = lvlNumNudges + 1 : FOR k = 1 TO 4 : lvlNudge(lvlNumNudges, k) = v(k) : NEXT
@@ -573,6 +578,10 @@ SUB LevelClamp
         lvlBox(k, 1) = MaxOf(0, MinOf(m, lvlBox(k, 1))) : lvlBox(k, 2) = MaxOf(0, MinOf(m, lvlBox(k, 2)))
         FOR j = 3 TO 6 : lvlBox(k, j) = MaxOf(0, MinOf(8, lvlBox(k, j))) : NEXT
         lvlBox(k, 7) = MaxOf(1, MinOf(6, lvlBox(k, 7)))
+    NEXT
+    FOR k = 1 TO lvlNumBarrels
+        lvlBarrel(k, 1) = MaxOf(0, MinOf(m, lvlBarrel(k, 1))) : lvlBarrel(k, 2) = MaxOf(0, MinOf(m, lvlBarrel(k, 2)))
+        lvlBarrel(k, 3) = MaxOf(0, MinOf(LQ_KINDS, lvlBarrel(k, 3))) : lvlBarrel(k, 4) = MaxOf(1, MinOf(BARREL_STACK, lvlBarrel(k, 4)))
     NEXT
     FOR k = 1 TO lvlNumNudges
         lvlNudge(k, 1) = MaxOf(0, MinOf(m, lvlNudge(k, 1))) : lvlNudge(k, 2) = MaxOf(0, MinOf(m, lvlNudge(k, 2)))
@@ -707,6 +716,10 @@ SUB WriteLevelFile(f$)
     IF lvlNumNudges THEN
         o$ = o$ + nl$ + "[nudges]" + nl$ + "' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)" + nl$
         FOR k = 1 TO lvlNumNudges : o$ = o$ + LTRIM$(STR$(lvlNudge(k, 1))) + ", " + LTRIM$(STR$(lvlNudge(k, 2))) + ", " + LTRIM$(STR$(lvlNudge(k, 3))) + ", " + LTRIM$(STR$(lvlNudge(k, 4))) + ", " + LTRIM$(STR$(lvlNudge(k, 5))) + nl$ : NEXT
+    END IF
+    IF lvlNumBarrels THEN
+        o$ = o$ + nl$ + "[barrels]" + nl$ + "' a barrel's own: x, y, its liquid (0 a plain barrel o, 1 water, 2 poison, 3 slime, 4 lava, 5 acid - a : barrel), how many stand on each other (1-3)" + nl$
+        FOR k = 1 TO lvlNumBarrels : o$ = o$ + LTRIM$(STR$(lvlBarrel(k, 1))) + ", " + LTRIM$(STR$(lvlBarrel(k, 2))) + ", " + LTRIM$(STR$(lvlBarrel(k, 3))) + ", " + LTRIM$(STR$(lvlBarrel(k, 4))) + nl$ : NEXT
     END IF
     c$ = CellLightBoxes$(nl$)
     IF LEN(c$) THEN o$ = o$ + nl$ + "[cell lights]" + nl$ + "' cells with an ambient light of their own: x0, y0, x1, y1, brightness (0-256), red, green, blue, effect (0 steady, 1 flicker, 2 pulse, 3 strobe, 4 fire, 5 dying)" + nl$ + c$

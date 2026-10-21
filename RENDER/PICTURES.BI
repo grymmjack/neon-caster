@@ -66,7 +66,7 @@ CONST S_PAD = S_GLASS + 2 ' (a teleporter's pad)
 CONST S_DROID = S_PAD + 1 ' (the droids: the two kinds, then each broken)
 ' 3D props (RENDER/MODELS.BM): each model's texture, for OpenGL (its 8
 ' pictures round it, for the software renderer, are kept apart: mdlPic)
-CONST MAX_MODELS = 48
+CONST MAX_MODELS = 64
 CONST S_BEAM = S_DROID + 4, S_BEAM_AIM = S_BEAM + 1 ' (a laser's beam, firing and aiming: a glowing dot each - MakeBeamDot)
 CONST S_PUFF = S_BEAM_AIM ' (S_PUFF + a bolt's kind, 1 to BOLT_KINDS: a rocket's, a missile's, a spray's glowing picture - MakePuff)
 CONST S_SIGHT = S_PUFF + BOLT_KINDS + 1 ' (S_SIGHT + a turret's weapon: its laser sight's dot, in the weapon's colour)
