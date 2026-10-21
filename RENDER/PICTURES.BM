@@ -39,6 +39,7 @@ SUB LoadPictures STATIC
         c~& = TurretRGB~&(k) : MakeBeamDot S_SIGHT + k, (_RED32(c~&) + 255) \ 2, (_GREEN32(c~&) + 255) \ 2, (_BLUE32(c~&) + 255) \ 2, _RED32(c~&), _GREEN32(c~&), _BLUE32(c~&)
     NEXT
     LoadSprite "turret-top.png", S_TURTOP
+    LoadSprite "mimic-asleep.png", S_MIMICNAP
     LoadSprite "barrel.png", S_DECO + 1
     LoadSprite "lamp.png", S_DECO + 2
     LoadSprite "plant.png", S_DECO + 3

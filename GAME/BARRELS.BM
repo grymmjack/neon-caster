@@ -11,7 +11,7 @@ SUB BarrelLeak(i)
     DIM a!, k, lk ' (its own: the main program shares these names)
     lk = BarrelLiquid(decoKind(i)) : IF lk = 0 THEN EXIT SUB
     decoLeak(i) = decoLeak(i) - 1
-    IF decoLeak(i) MOD 12 = 0 THEN SfxAt sndSizzle&, decoX(i), decoY(i), playerX, playerY
+    IF decoLeak(i) MOD 30 = 0 THEN SfxAt sndLeak&, decoX(i), decoY(i), playerX, playerY
     a! = i * 2.399 ' (its hole: a side of its own)
     FOR k = 1 TO 2
         SpawnPart PART_SPARK, decoX(i) + DCos(a!) * 0.2, decoY(i) + DSin(a!) * 0.2, FloorAt(decoX(i), decoY(i)) + decoZ(i) + 0.3, DCos(a!) * 0.04 + (RND - 0.5) * 0.02, DSin(a!) * 0.04 + (RND - 0.5) * 0.02, 0.01 + RND * 0.02, 18 + INT(RND * 10), lqR(lk) / 255 * 1.6, lqG(lk) / 255 * 1.6, lqB(lk) / 255 * 1.6, 0.025

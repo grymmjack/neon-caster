@@ -14,7 +14,7 @@ WALLS = set("#NCKPG")
 DOORS = set("DHXRBYE!")  # ! a door sealed until its data station (@) is hacked
 DIAG = set("/\\")
 ITEMS = set("rby+ae23u*4Mqj89)({}")  # ... q overcharge, j damage amp, 8 night vision, 9 hazmat suit, ) rocket launcher, ( rockets
-MONS = set("mghcskwzT15670~_|")  # ... k stalker, w spitter, z the overseer, T thief, 1 sniper, 5 trooper, 6 ripper, 7 warden, 0 colossus, ~ _ | turrets (ceiling, floor, wall)
+MONS = set("mghcskwzT15670~_|]")  # ] the mimic (a chest that bites); ... k stalker, w spitter, z the overseer, T thief, 1 sniper, 5 trooper, 6 ripper, 7 warden, 0 colossus, ~ _ | turrets (ceiling, floor, wall)
 DECO = set("oiptxlnfSdAFIJLOQUWZV:[")  # : a liquid barrel (its liquid and stack in [barrels]), [ a treasure chest; ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
 GLASS = set("=")  # a pane of glass: see through it, but not walk

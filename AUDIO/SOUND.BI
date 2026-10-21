@@ -74,6 +74,7 @@ DIM SHARED sndDroid&(3), sndDroidBreak& ' (a droid's chirps - two chatty, one st
 sndAlarm& = LoadSnd&("alarm.wav") : sndFanfare& = LoadSnd&("fanfare.wav") : sndFail& = LoadSnd&("fail.wav")
 DIM SHARED sndSizzle& ' (a burning floor - chapter 22's heights)
 sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav") : sndSizzle& = LoadSnd&("sizzle.wav")
+DIM SHARED sndLeak&, sndJet&, sndJetFuel& : sndLeak& = LoadSnd&("barrel-leak.wav") : sndJet& = LoadSnd&("jetpack.wav") : sndJetFuel& = LoadSnd&("jetfuel.wav") ' (a barrel leaking; the jetpack's thrust, its fuel)
 FOR k = 1 TO 3 : sndDroid&(k) = LoadSnd&("droid-chirp" + LTRIM$(STR$(k)) + ".wav") : NEXT : sndDroidBreak& = LoadSnd&("droid-break.wav")
 DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&
 sndSteal& = LoadSnd&("thief-steal.wav") : sndHoard& = LoadSnd&("hoard-open.wav") : sndPlate& = LoadSnd&("plate-click.wav")

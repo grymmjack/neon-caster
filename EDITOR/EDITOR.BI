@@ -19,9 +19,9 @@ edMapX = 8 : edMapY = 8 : edCell = 12
 ' the rest) and the level built again from that (BuildLevel); editUndo$()
 ' remembers how it was before each change. texFile$(): which picture is in
 ' each texture slot now, so building it again only loads what changed.
-CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%?&;rby+*uae234Mqj89)({}mghcskwzT15670~_|oiptxlnfSdAFIJLOQUWZV:[<>^v"
+CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=@$%?&;rby+*uae234Mqj89)({}mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:[<>^v"
 CONST EDIT_UNDO = 40
-CONST EDIT_OPEN$ = ".rby+*uae234Mqj89)({}mghcskwzT15670~_|oiptxlnfSdAFIJLOQUWZV:[<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
+CONST EDIT_OPEN$ = ".rby+*uae234Mqj89)({}mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:[<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
 DIM SHARED editMode AS INTEGER, editView AS INTEGER, editGlyph$, editDirty AS INTEGER, editRebuild AS INTEGER
 DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, editLightP AS INTEGER, editLights AS INTEGER, editHeights AS INTEGER
 ' THE EDITOR'S OWN STATE, the same in both views (the map from above and

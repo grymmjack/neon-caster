@@ -14,13 +14,14 @@
 ' MON_ = MONster settings shared by every monster: MON_TYPES kinds of monster,
 ' MON_SIGHT how far away (in cells) they notice you, MON_DYING how many
 ' frames one takes to collapse when killed
-CONST MAX_MON = 192, MON_TYPES = 16 ' (a level places up to 64 - 128 in a sector over 64 cells across: the level kit checks - and its event rooms, nests and the network bring more)
+CONST MAX_MON = 192, MON_TYPES = 17 ' (a level places up to 64 - 128 in a sector over 64 cells across: the level kit checks - and its event rooms, nests and the network bring more)
 CONST MT_ICE = 10 ' (ICE: the network's hunter programs - only in the network, chapter 19)
 CONST MT_THIEF = 9 ' (the thief bot: steals, then runs - ThiefStep, chapter 13)
 ' The newer ones: a laser sniper, a trooper with a burst rifle, the ripper
 ' (fast, all claws), two field bosses - the warden and the colossus - and
 ' the turret, hidden in the ceiling or floor till it sees you
 CONST MT_SNIPER = 11, MT_TROOPER = 12, MT_RIPPER = 13, MT_WARDEN = 14, MT_COLOSSUS = 15, MT_TURRET = 16
+CONST MT_MIMIC = 17 ' (a treasure chest that isn't: asleep it looks just like one - Space on it, standing by it or a shot wakes it, and it bites)
 ' How each kind fights, past a bite or a bolt (mtypeStyle): STYLE_LASER
 ' aims a beam you can see, lagging behind you, then fires it - step out of
 ' it; STYLE_BURST a burst of bolts; the warden's and the colossus's own;

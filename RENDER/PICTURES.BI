@@ -73,7 +73,8 @@ CONST S_SIGHT = S_PUFF + BOLT_KINDS + 1 ' (S_SIGHT + a turret's weapon: its lase
 CONST S_TURTOP = S_SIGHT + TURRET_WEAPONS + 1 ' (a turret from above: a wall turret's picture, from the room)
 CONST S_GIB = S_TURTOP ' (S_GIB + monster type, then + MON_TYPES + decoration kind: a piece of it, for when a rocket blows it apart - MakeGib)
 CONST S_ACID = S_GIB + MON_TYPES + DECO_KINDS + 1 ' (an acid stain: OpenGL's - its strength in its colour - then the software renderer's, a picture: MakeAcid)
-CONST S_MODEL = S_ACID + 2
+CONST S_MIMICNAP = S_ACID + 2 ' (the mimic asleep: the chest, all but its lock)
+CONST S_MODEL = S_ACID + 3
 CONST SPR_SLOTS = S_MODEL + MAX_MODELS - 1
 ' How big each picture is kept: textures texSize, sprites up to sprTex
 ' pixels across. ART (SETTINGS > VIDEO) picks them: CLASSIC, the pixel art

@@ -18,7 +18,7 @@ NC_OVER_EDGE,Over the Edge,Send a machine into a bottomless pit.,no,,,achievemen
 NC_CHAIN,Chain Reaction,Three machines in one explosion.,no,,,achievements/NC_CHAIN.jpg,achievements/NC_CHAIN_locked.jpg
 NC_ARSENAL,Arsenal,Carry all four guns at once.,no,,,achievements/NC_ARSENAL.jpg,achievements/NC_ARSENAL_locked.jpg
 NC_AMPED,Overclocked,Five kills on one damage amp.,no,,,achievements/NC_AMPED.jpg,achievements/NC_AMPED_locked.jpg
-NC_BESTIARY,Bestiary,Destroy one of every kind of machine.,no,KillKinds,15,achievements/NC_BESTIARY.jpg,achievements/NC_BESTIARY_locked.jpg
+NC_BESTIARY,Bestiary,Destroy one of every kind of machine.,no,KillKinds,16,achievements/NC_BESTIARY.jpg,achievements/NC_BESTIARY_locked.jpg
 NC_THIEF,"Stop, Thief!",Destroy a thief.,no,,,achievements/NC_THIEF.jpg,achievements/NC_THIEF_locked.jpg
 NC_UNTOUCHED,Untouchable,Finish a sector without a scratch.,no,,,achievements/NC_UNTOUCHED.jpg,achievements/NC_UNTOUCHED_locked.jpg
 NC_CLEAN_SWEEP,Clean Sweep,"Finish a sector, every machine down.",no,,,achievements/NC_CLEAN_SWEEP.jpg,achievements/NC_CLEAN_SWEEP_locked.jpg

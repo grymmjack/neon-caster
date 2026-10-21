@@ -100,6 +100,10 @@
                     IF monsterHurt(i) = 0 THEN drawSprite(numDraw) = S_TURTOP ' (its picture: from the room - its head at you)
                 END IF
             END IF
+            IF mtype = MT_MIMIC AND monsterState(i) = 0 THEN ' A mimic asleep: a chest, to look at (but its lock) - its model too, turned to you as a chest's is
+                drawSprite(numDraw) = S_MIMICNAP : drawScale(numDraw) = DecoScale(DK_CHEST) : drawLift(numDraw) = 0 : drawSquash(numDraw) = 1
+                IF mimicNapMdl THEN drawMdl(numDraw) = mimicNapMdl : drawAng(numDraw) = DAtan2(playerY - monsterY(i), playerX - monsterX(i)) : drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), monsterX(i), monsterY(i))
+            END IF
             IF mtypeMdl(mtype) THEN ' A monster with a model (the turret): turned to you - its barrels at you; hit, flushed red (the software renderer: its red picture)
                 drawMdl(numDraw) = mtypeMdl(mtype) : drawAng(numDraw) = DAtan2(playerY - monsterY(i), playerX - monsterX(i))
                 IF mtype = MT_TURRET THEN TurretDrawAt i, numDraw ' (its aim, its weapon's colour, and which way up: GAME/TURRETS.BM)

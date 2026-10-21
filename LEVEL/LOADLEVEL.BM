@@ -305,7 +305,7 @@ SUB BuildLevel STATIC
                             decoZ(numDecos) = (k - 1) * BarrelHigh(dk) : decoLeak(numDecos) = 0 : decoOpen(numDecos) = 0 ' (one on another: as high as those under it)
                         END IF
                     NEXT
-                CASE "m", "g", "h", "c", "s", "k", "w", "z", "T", "1", "5", "6", "7", "0", "~", "_", "|" ' A monster (MonChars$)
+                CASE "m", "g", "h", "c", "s", "k", "w", "z", "T", "1", "5", "6", "7", "0", "~", "_", "|", "]" ' A monster (MonChars$)
                     IF numMonsters < MAX_MON THEN
                         numMonsters = numMonsters + 1
                         monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = MonOfChar(cell$)

@@ -150,7 +150,7 @@ END FUNCTION
 ' as the level's [monsters] says this one is
 SUB MonOwn(i, x, y)
     DIM k ' (its own: the main program shares these names)
-    monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE
+    monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE : IF monsterType(i) = MT_MIMIC THEN monWake(i) = WAKE_HIT ' (a mimic: only a shot - or you, right by it: MimicWake)
     monWeap(i) = TW_PLASMA : monTrack(i) = TURRET_TRACK : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO ' (a turret: as made - unless its line says)
     monsterHP(i) = mtypeHP(monsterType(i)) : IF monsterType(i) = MT_TURRET AND monDeploy(i) > 0 THEN monDeploy(i) = 0 ' (folded away till it wakes: the editor can change a live one's line)
     FOR k = 1 TO lvlMonN
@@ -412,7 +412,7 @@ END SUB
 ' 5 trooper, 6 ripper, 7 the warden, 0 the colossus, ~ a turret (from the
 ' ceiling; _ is one from the floor)
 FUNCTION MonChars$
-    MonChars$ = "mghcskwzT" + CHR$(1) + "15670~"
+    MonChars$ = "mghcskwzT" + CHR$(1) + "15670~]" ' (] the mimic: the chest's [ the other way round)
 END FUNCTION
 
 ' The monster type of map character c$ - 0 if it's no monster's
@@ -672,4 +672,14 @@ SUB MonFlyTurn(i)
     IF want! < 0 THEN want! = 0
     monFly(i) = monFly(i) + MaxOf(-0.03, MinOf(0.03, want! - monFly(i)))
     IF monFly(i) > top! THEN monFly(i) = MaxOf(0, top!) ' (a ceiling coming down: under it)
+END SUB
+
+' --- Mimic i wakes: not a chest after all - the lid snaps open on teeth,
+' and it comes for you (Space on it, standing right by it; a shot wakes it
+' as it wakes anything - HitMonster)
+SUB MimicWake(i)
+    IF monsterState(i) <> 0 THEN EXIT SUB
+    monsterState(i) = 1 : monsterTimer(i) = 0
+    SfxAt mtypeAlertSnd&(MT_MIMIC), monsterX(i), monsterY(i), playerX, playerY : shake = shake + 5
+    ShowMsg "It's a MIMIC!"
 END SUB

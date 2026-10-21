@@ -33,6 +33,14 @@
             END IF
         NEXT
     END IF
+    IF spaceDown AND NOT spaceWas AND NOT dead AND NOT cyberOn AND NOT editMode THEN ' (a "chest" in front of you, asleep: it's a mimic - and it's awake now)
+        FOR k = 1 TO numMonsters
+            IF monsterType(k) = MT_MIMIC AND monsterState(k) = 0 THEN
+                d = SQR((monsterX(k) - playerX) ^ 2 + (monsterY(k) - playerY) ^ 2)
+                IF d < 1.8 AND d > 0.01 THEN IF ((monsterX(k) - playerX) * dirX + (monsterY(k) - playerY) * dirY) / d > 0.7 THEN MimicWake k : spaceWas = -1
+            END IF
+        NEXT
+    END IF
     IF spaceDown AND NOT spaceWas AND NOT dead THEN ' (once per press)
         FOR reach = 0.05 TO 2 STEP 0.05
             cellX = INT(playerX + dirX * reach) : cellY = INT(playerY + dirY * reach)

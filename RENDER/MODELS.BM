@@ -36,6 +36,7 @@ SUB LoadModels
     IF NOT done THEN
         done = -1
         FOR k = 1 TO DECO_KINDS : decoMdl(k) = NewModel(DecoPicName$(k), 0) : wreckMdl(k) = NewModel(DecoWreckName$(k), 0) : NEXT
+        mimicNapMdl = NewModel("mimic-asleep", 0)
         FOR k = 1 TO MON_TYPES : mtypeMdl(k) = NewModel(mtypeName$(k), 0) : NEXT
         rocketMdl = NewModel("rocket", 0) ' (rockets and missiles, flying)
         turPlateMdl = NewModel("turret-mount", 0) : turHoleMdl = NewModel("turret-mount-broken", 0) ' (the plate it's bolted on)

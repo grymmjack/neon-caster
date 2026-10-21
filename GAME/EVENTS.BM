@@ -312,12 +312,12 @@ SUB EvField(kind, which, lab$, unit, stp, mn, mx)
     unit = -1 : stp = 1 : mn = 0 : mx = 0 : lab$ = ""
     SELECT CASE kind * 10 + which
         CASE 11 : lab$ = "MONSTERS" : unit = 0 : mn = 1 : mx = 20
-        CASE 12 : lab$ = "OF" : unit = 3 : mn = 0 : mx = MON_TYPES - 1 ' (any kind but the turret)
+        CASE 12 : lab$ = "OF" : unit = 3 : mn = 0 : mx = MT_COLOSSUS ' (any kind but the turret and the mimic)
         CASE 21, 41 : lab$ = "LASTS" : unit = 1 : stp = 5 : mn = 5 : mx = 300
         CASE 22 : lab$ = "EVERY" : unit = 2 : stp = 15 : mn = 15 : mx = 600
         CASE 31, 121 : lab$ = "LIVE" : unit = 2 : stp = 15 : mn = 15 : mx = 600
         CASE 32, 122 : lab$ = "SAFE" : unit = 2 : stp = 15 : mn = 15 : mx = 600
-        CASE 51 : lab$ = "OF" : unit = 3 : mn = 1 : mx = MON_TYPES - 1
+        CASE 51 : lab$ = "OF" : unit = 3 : mn = 1 : mx = MT_COLOSSUS
         CASE 52 : lab$ = "EVERY" : unit = 2 : stp = 30 : mn = 30 : mx = 1200
         CASE 81 : lab$ = "BLAST IN" : unit = 2 : stp = 15 : mn = 15 : mx = 300
         CASE 82 : lab$ = "RE-ARM" : unit = 2 : stp = 30 : mn = 30 : mx = 1200

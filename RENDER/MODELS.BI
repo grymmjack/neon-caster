@@ -12,6 +12,7 @@
 DIM SHARED numModels AS INTEGER, mdlName$(MAX_MODELS), mdlTint(MAX_MODELS) AS _UNSIGNED LONG
 DIM SHARED turMuzX(2) AS SINGLE, turMuzY(2) AS SINGLE, turMuzZ(2) AS SINGLE ' (a turret head's two barrel ends - its model's muzzles: where its shots come out)
 DIM SHARED rocketMdl AS INTEGER, turBaseMdl AS INTEGER, turHeadMdl AS INTEGER, turPivot AS SINGLE, turPlateMdl AS INTEGER, turHoleMdl AS INTEGER ' (...and its mounting plate - whole, and blown open) ' (and a turret in two parts: its base, and its head turning on it turPivot up) ' (a rocket in flight: its model - models.py's rocket)
+DIM SHARED mimicNapMdl AS INTEGER ' (the mimic asleep: a chest's model, but its lock)
 DIM SHARED wreckMdl(DECO_KINDS) AS INTEGER ' (a decoration's own wreck - or an open chest - with a model: NAME-wreck.obj, chest-open.obj)
 DIM SHARED decoMdl(DECO_KINDS) AS INTEGER, itemMdl(ITEM_KINDS) AS INTEGER, mtypeMdl(MON_TYPES) AS INTEGER ' (a monster with a model: the turret - mtypeMdl, by its name)
 ' Its triangles, every model's one after another: model m's are mdlFirst(m)

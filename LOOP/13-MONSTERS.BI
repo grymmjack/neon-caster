@@ -33,6 +33,7 @@
     FOR i = 1 TO numMonsters
         IF cyberOn AND monsterType(i) <> MT_ICE THEN _CONTINUE ' (in the real world: they wait)
         IF editMode OR hudEdit THEN _CONTINUE ' (in the editors: everything waits)
+        IF monsterType(i) = MT_MIMIC AND monsterState(i) = 0 AND NOT noTarget AND NOT dead THEN IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) - playerY) ^ 2 < 1 THEN MimicWake i ' (a "chest" you've come right up to)
         IF monBlown(i) = 2 THEN TurretStump i ' (a destroyed turret's mount: sparks, arcs, smoke - GAME/TURRETS.BM)
         IF noTarget AND monsterState(i) = 1 THEN monsterState(i) = 0 : IF monsterType(i) = MT_TURRET AND monDeploy(i) > 0 AND monDeploy(i) < TURRET_UP THEN monDeploy(i) = 0 ' (notarget: whatever woke it, it forgets you - before it can chase or shoot; a turret half out, back in its housing)
         IF monsterHurt(i) > 0 THEN monsterHurt(i) = monsterHurt(i) -1
