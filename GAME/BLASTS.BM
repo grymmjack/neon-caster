@@ -8,7 +8,8 @@
 ' can see (more the closer it is), lights the fuses of other barrels close
 ' by, so they go off a moment later, and breaks the other decorations near it
 SUB Explode STATIC
-    decoOn(barrel) = 0 : decoFuse(barrel) = 0 : decoCell(INT(decoX(barrel)), INT(decoY(barrel))) = 0
+    IF BarrelLiquid(decoKind(barrel)) THEN BarrelBurst barrel : EXIT SUB ' (a barrel of a liquid: its own burst - GAME/BARRELS.BM)
+    decoOn(barrel) = 0 : decoFuse(barrel) = 0 : DecoCellAfter barrel ' (gone from its cell - the one stacked on it there now)
     blastAtX = decoX(barrel) : blastAtY = decoY(barrel) : BlastAt
     DecoLoot barrel, playerX, playerY ' (what was in it - thrown clear by the blast)
 END SUB

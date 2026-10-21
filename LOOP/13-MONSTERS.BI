@@ -214,8 +214,10 @@
     ' fuses of barrels near it, so they go off in a quick chain - and breaks
     ' the lamps, plants and terminals near it. Explosions on show fade out
     ' over BLAST_FRAMES.
+    StacksSettle ' (barrels on barrels: one with less under it falls - GAME/BARRELS.BM)
     FOR i = 1 TO numDecos
         IF decoFuse(i) > 0 THEN
+            IF decoLeak(i) > 0 THEN BarrelLeak i ' (a liquid barrel: spurting, hissing)
             decoFuse(i) = decoFuse(i) - 1
             IF decoFuse(i) = 0 THEN barrel = i : Explode
         END IF

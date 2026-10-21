@@ -146,9 +146,9 @@
             IF decoOpen(i) THEN ' An open chest: its open picture (its "wreck"), its open model
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i)) : drawSquash(numDraw) = wreckSquash(decoKind(i))
                 IF wreckMdl(decoKind(i)) THEN drawMdl(numDraw) = wreckMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0 : drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
-            ELSEIF NOT decoOn(i) AND wreckMdl(decoKind(i)) THEN ' Broken, with a wreck of its own: its picture, its model
+            ELSEIF NOT decoOn(i) AND (wreckMdl(decoKind(i)) OR BarrelLiquid(decoKind(i))) THEN ' Broken, with a wreck of its own: its picture, its model (OpenGL), standing where it stood
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i)) : drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0
-                drawMdl(numDraw) = wreckMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0 : drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
+                IF wreckMdl(decoKind(i)) THEN drawMdl(numDraw) = wreckMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0 : drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
             ELSEIF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
                 drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0 : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw)

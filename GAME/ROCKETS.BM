@@ -294,6 +294,7 @@ SUB GibsAndFires
     FOR k = 1 TO numDecos ' (a prop burning - or what's left of it)
         IF decoBurn(k) > 0 THEN
             decoBurn(k) = decoBurn(k) - 1 : x! = decoX(k) : y! = decoY(k) : z! = FloorAt(x!, y!) + 0.05
+            IF decoOn(k) AND decoFuse(k) = 0 AND BarrelLiquid(decoKind(k)) THEN decoFuse(k) = COOK_FRAMES : decoLeak(k) = COOK_FRAMES ' (a liquid barrel in the fire: it cooks off)
             IF RND < 0.6 * (decoBurn(k) / BURN_FRAMES) + 0.1 THEN SpawnPart PART_FLAME, x! + (RND - 0.5) * 0.35, y! + (RND - 0.5) * 0.35, z! + RND * 0.3, 0, 0, 0.006 + RND * 0.01, 22 + INT(RND * 14), 1, 0.45 + RND * 0.3, 0.1, 0.07 + RND * 0.05
             IF RND < 0.15 THEN SpawnPart PART_SMOKE, x! + (RND - 0.5) * 0.3, y! + (RND - 0.5) * 0.3, z! + 0.4, 0, 0, 0.007, 80, 0.12, 0.11, 0.1, 0.1
         END IF

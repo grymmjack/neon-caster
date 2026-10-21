@@ -1,0 +1,121 @@
+''
+' NEON-CASTER - GAME/BARRELS.BM
+' =============================================================================
+' Liquid barrels leaking, bursting and spilling; stacks of barrels settling;
+' treasure chests opening.
+'
+
+' --- Barrel i leaking (decoLeak frames left): its liquid spurting out of
+' the hole, a hiss now and then - poison's gas already seeping
+SUB BarrelLeak(i)
+    DIM a!, k, lk ' (its own: the main program shares these names)
+    lk = BarrelLiquid(decoKind(i)) : IF lk = 0 THEN EXIT SUB
+    decoLeak(i) = decoLeak(i) - 1
+    IF decoLeak(i) MOD 12 = 0 THEN SfxAt sndSizzle&, decoX(i), decoY(i), playerX, playerY
+    a! = i * 2.399 ' (its hole: a side of its own)
+    FOR k = 1 TO 2
+        SpawnPart PART_SPARK, decoX(i) + DCos(a!) * 0.2, decoY(i) + DSin(a!) * 0.2, FloorAt(decoX(i), decoY(i)) + decoZ(i) + 0.3, DCos(a!) * 0.04 + (RND - 0.5) * 0.02, DSin(a!) * 0.04 + (RND - 0.5) * 0.02, 0.01 + RND * 0.02, 18 + INT(RND * 10), lqR(lk) / 255 * 1.6, lqG(lk) / 255 * 1.6, lqB(lk) / 255 * 1.6, 0.025
+    NEXT
+    IF lk = LQ_POISON THEN GasAdd decoX(i), decoY(i), 0.01
+    IF lk = LQ_LAVA AND RND < 0.3 THEN SpawnPart PART_EMBER, decoX(i), decoY(i), FloorAt(decoX(i), decoY(i)) + decoZ(i) + 0.3, (RND - 0.5) * 0.03, (RND - 0.5) * 0.03, 0.03, 25, 1, 0.5, 0.1, 0.03
+END SUB
+
+' --- Barrel i bursts: a blast (water's a pop), a pool of its liquid round
+' it, and its liquid's own harm to whatever's near
+SUB BarrelBurst(i)
+    DIM bx!, by!, d!, j, k, lk, a!, sx!, sy! ' (its own: the main program shares these names)
+    lk = BarrelLiquid(decoKind(i)) : bx! = decoX(i) : by! = decoY(i)
+    decoOn(i) = 0 : decoFuse(i) = 0 : decoLeak(i) = 0 : DecoCellAfter i
+    IF lk = LQ_WATER THEN ' (a pop: wet, not deadly)
+        newBlastX = bx! : newBlastY = by! : newBlastSize = 0.5 : AddBlast : SfxAt sndSplash&, bx!, by!, playerX, playerY : shake = shake + 3
+        d! = SQR((playerX - bx!) ^ 2 + (playerY - by!) ^ 2)
+        IF d! < 1.5 AND NOT dead THEN IF CanSee(bx!, by!, playerX, playerY) THEN damage = 6 : hurtFromX = bx! : hurtFromY = by! : hurtR = lqR(lk) : hurtG = lqG(lk) : hurtB = lqB(lk) : HurtPlayer
+    ELSE
+        blastAtX = bx! : blastAtY = by! : BlastAt ' (a barrel's blast: hurts, sets off the barrels near it)
+    END IF
+    LiquidSpill bx!, by!, lk, SPILL_R + 0.4 * -(lk = LQ_WATER)
+    FOR k = 1 TO 40 ' (a splash of it)
+        a! = RND * 6.2832 : SpawnPart PART_SPARK, bx!, by!, FloorAt(bx!, by!) + 0.25, DCos(a!) * (0.02 + RND * 0.06), DSin(a!) * (0.02 + RND * 0.06), 0.02 + RND * 0.07, 20 + INT(RND * 20), lqR(lk) / 255 * 1.5, lqG(lk) / 255 * 1.5, lqB(lk) / 255 * 1.5, 0.03
+    NEXT
+    d! = SQR((playerX - bx!) ^ 2 + (playerY - by!) ^ 2)
+    SELECT CASE lk
+        CASE LQ_WATER ' Water: puts fires out
+            FOR j = 1 TO numMonsters : IF (monsterX(j) - bx!) ^ 2 + (monsterY(j) - by!) ^ 2 < 9 THEN monBurn(j) = 0
+            NEXT
+            FOR j = 1 TO numDecos : IF (decoX(j) - bx!) ^ 2 + (decoY(j) - by!) ^ 2 < 9 THEN decoBurn(j) = 0
+            NEXT
+        CASE LQ_POISON ' Poison: a cloud of it, and a dose for you if you're close
+            FOR sy! = -1 TO 1 : FOR sx! = -1 TO 1 : GasAdd bx! + sx!, by! + sy!, 0.9 : NEXT : NEXT
+            IF d! < 2.2 AND NOT dead THEN IF CanSee(bx!, by!, playerX, playerY) THEN poisonTint = 40 : PuffHurt BK_POISON, 12
+        CASE LQ_SLIME ' Slime: it burns where it lands
+            IF d! < 2 AND NOT dead THEN IF CanSee(bx!, by!, playerX, playerY) THEN damage = 10 : hurtFromX = bx! : hurtFromY = by! : hurtR = lqR(lk) : hurtG = lqG(lk) : hurtB = lqB(lk) : HurtPlayer
+        CASE LQ_LAVA ' Lava: everything near catches fire - you too, if it reaches
+            FOR j = 1 TO numMonsters
+                IF monsterState(j) < 2 AND (monsterX(j) - bx!) ^ 2 + (monsterY(j) - by!) ^ 2 < 6.25 THEN IF CanSee(bx!, by!, monsterX(j), monsterY(j)) THEN monBurn(j) = BURN_FRAMES
+            NEXT
+            FOR j = 1 TO numDecos
+                IF (decoX(j) - bx!) ^ 2 + (decoY(j) - by!) ^ 2 < 6.25 THEN IF Flammable(decoKind(j)) OR (decoOn(j) AND Explosive(decoKind(j))) THEN decoBurn(j) = BURN_FRAMES
+            NEXT
+            IF d! < 2 AND NOT dead THEN IF CanSee(bx!, by!, playerX, playerY) THEN PuffHurt BK_FLAME, 15
+            FOR k = 1 TO 24 : SpawnPart PART_EMBER, bx! + (RND - 0.5) * 2, by! + (RND - 0.5) * 2, FloorAt(bx!, by!) + 0.1, (RND - 0.5) * 0.04, (RND - 0.5) * 0.04, 0.03 + RND * 0.04, 30 + INT(RND * 30), 1, 0.45, 0.1, 0.04 : NEXT
+            SfxAt sndSizzle&, bx!, by!, playerX, playerY
+        CASE LQ_ACID ' Acid: on your armour, and eating into the walls round it
+            IF d! < 2.2 AND NOT dead THEN IF CanSee(bx!, by!, playerX, playerY) THEN PuffHurt BK_ACID, 14
+            FOR k = 0 TO 7 ' (each way, to the first wall within 2 cells: a stain on it)
+                a! = k * 0.7854 + 0.2
+                FOR j = 1 TO 20
+                    sx! = bx! + DCos(a!) * j * 0.1 : sy! = by! + DSin(a!) * j * 0.1
+                    IF NOT Walkable(sx!, sy!) THEN AcidMark sx! - DCos(a!) * 0.05, sy! - DSin(a!) * 0.05, FloorAt(bx!, by!) + 0.25, DCos(a!), DSin(a!), 0 : EXIT FOR
+                NEXT
+            NEXT
+    END SELECT
+    DecoLoot i, playerX, playerY
+END SUB
+
+' --- A pool of liquid lk, r cells round (px!, py!): every open floor there no
+' more than a step from the barrel's own - in play, as a trigger's flood
+' (the pools change where they are; LiquidGlows lights lava's)
+SUB LiquidSpill(px!, py!, lk, r!)
+    DIM cx, cy, fz!, x, y, x0, y0, x1, y1 ' (its own: the main program shares these names)
+    cx = INT(px!) : cy = INT(py!) : IF cx < 1 OR cy < 1 OR cx > mapN - 2 OR cy > mapN - 2 THEN EXIT SUB
+    fz! = floorH(cx, cy)
+    x0 = MaxOf(1, INT(px! - r!)) : y0 = MaxOf(1, INT(py! - r!)) : x1 = MinOf(mapN - 2, INT(px! + r!)) : y1 = MinOf(mapN - 2, INT(py! + r!))
+    FOR y = y0 TO y1 : FOR x = x0 TO x1
+        IF (x + 0.5 - px!) ^ 2 + (y + 0.5 - py!) ^ 2 <= r! * r! THEN
+            IF worldMap(x, y) <= 0 AND liftCell(x, y) = 0 AND diagCorner(x, y) = 0 AND ABS(floorH(x, y) - fz!) <= STEP_UP AND floorH(x, y) > PIT_DEPTH THEN
+                IF liqKind(x, y) = 0 OR liqKind(x, y) = lk OR liqZ(x, y) - floorH(x, y) < SPILL_DEPTH * H_STEP THEN ' (not over a deeper pool of something else)
+                    liqKind(x, y) = lk : liqZ(x, y) = MaxOf(liqZ(x, y), floorH(x, y) + SPILL_DEPTH * H_STEP) : liqAny = -1 : levelFlat = 0 : lqUsed(lk) = -1
+                END IF
+            END IF
+        END IF
+    NEXT : NEXT
+    LiquidGlows x0, y0, x1, y1
+END SUB
+
+' --- Decoration i is gone from its cell: what blocks the cell now is the one
+' standing on it, if any (a stack), else nothing
+SUB DecoCellAfter(i)
+    DIM cx, cy, j ' (its own: the main program shares these names)
+    cx = INT(decoX(i)) : cy = INT(decoY(i))
+    IF decoCell(cx, cy) <> i THEN EXIT SUB
+    decoCell(cx, cy) = 0
+    FOR j = 1 TO numDecos
+        IF j <> i AND decoOn(j) AND INT(decoX(j)) = cx AND INT(decoY(j)) = cy THEN decoCell(cx, cy) = j : EXIT FOR
+    NEXT
+END SUB
+
+' --- Barrels on barrels, each frame: one with less under it than it had
+' falls till it stands on what's left (or the floor)
+SUB StacksSettle
+    DIM i, j, n, t! ' (its own: the main program shares these names)
+    FOR i = 1 TO numDecos
+        IF decoZ(i) > 0 AND decoOn(i) THEN
+            n = 0
+            FOR j = 1 TO numDecos
+                IF j <> i AND decoOn(j) AND decoZ(j) < decoZ(i) - 0.01 THEN IF INT(decoX(j)) = INT(decoX(i)) AND INT(decoY(j)) = INT(decoY(i)) THEN n = n + 1
+            NEXT
+            t! = n * BarrelHigh(decoKind(i))
+            IF decoZ(i) > t! + 0.001 THEN decoZ(i) = MaxOf(t!, decoZ(i) - 0.08) : IF decoZ(i) = t! THEN SfxAt sndDecoHit&, decoX(i), decoY(i), playerX, playerY
+        END IF
+    NEXT
+END SUB

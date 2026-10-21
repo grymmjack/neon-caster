@@ -41,7 +41,11 @@ SUB HitDeco STATIC
     ' give or take); shot or blown up, any way at all
     IF hitKick THEN decoLootA(targetDeco) = DAtan2(-dirY, -dirX) + (GRnd - 0.5) * 0.7 ELSE decoLootA(targetDeco) = NO_AIM
     IF Explosive(decoKind(targetDeco)) THEN
-        IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = 1
+        IF BarrelLiquid(decoKind(targetDeco)) THEN ' (a liquid barrel: it springs a leak - and bursts when it's done hissing)
+            IF decoFuse(targetDeco) = 0 THEN decoFuse(targetDeco) = LEAK_FRAMES : decoLeak(targetDeco) = LEAK_FRAMES : SfxAt sndSizzle&, decoX(targetDeco), decoY(targetDeco), playerX, playerY
+        ELSEIF decoFuse(targetDeco) = 0 THEN
+            decoFuse(targetDeco) = 1
+        END IF
         EXIT SUB
     END IF
     decoHP(targetDeco) = decoHP(targetDeco) - hitDamage
@@ -49,7 +53,7 @@ SUB HitDeco STATIC
         SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY
     ELSE
         decoOn(targetDeco) = 0 : decoTimer(targetDeco) = DECO_BREAK_FRAMES : IF NOT decoByMon THEN AchAdd "Smashed", 1
-        decoCell(INT(decoX(targetDeco)), INT(decoY(targetDeco))) = 0
+        DecoCellAfter targetDeco
         SfxAt decoBreakSnd&(decoKind(targetDeco)), decoX(targetDeco), decoY(targetDeco), playerX, playerY
         IF decoKind(targetDeco) <> 3 THEN ' Not plants: they just fall apart
             newBlastX = decoX(targetDeco) : newBlastY = decoY(targetDeco) : newBlastSize = 0.35 : AddBlast
