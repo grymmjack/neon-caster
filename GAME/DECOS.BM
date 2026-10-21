@@ -263,3 +263,13 @@ END FUNCTION
 FUNCTION BarrelHigh(k)
     BarrelHigh = DecoScale(k) * 0.92
 END FUNCTION
+
+' How many barrels of kind k stand on each other at cell x, y: as asked
+' (want), but no more than BARREL_STACK, and no more than fit between its
+' floor and ceiling as the level file has them (at least one)
+FUNCTION StackFits(k, x, y, want)
+    DIM room AS SINGLE, n ' (its own: the main program shares these names)
+    room = HeightOf(MID$(lvlCeilRow$(y), x + 1, 1), 1) - HeightOf(MID$(lvlFloorRow$(y), x + 1, 1), 0)
+    n = INT((room - DecoScale(k)) / BarrelHigh(k) + 0.001) + 1
+    StackFits = MaxOf(1, MinOf(MinOf(BARREL_STACK, want), n))
+END FUNCTION

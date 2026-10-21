@@ -15,6 +15,7 @@ DOORS = set("DHXRBYE!")  # ! a door sealed until its data station (@) is hacked
 DIAG = set("/\\")
 ITEMS = set("rby+ae23u*4Mqj89)({}`,")  # ` a jetpack, , jet fuel; ... q overcharge, j damage amp, 8 night vision, 9 hazmat suit, ) rocket launcher, ( rockets
 MONS = set("mghcskwzT15670~_|]")  # ] the mimic (a chest that bites); ... k stalker, w spitter, z the overseer, T thief, 1 sniper, 5 trooper, 6 ripper, 7 warden, 0 colossus, ~ _ | turrets (ceiling, floor, wall)
+BARREL_STACK = 8  # (the game's GAME/DECOS.BI: how many barrels can stand on each other)
 DECO = set("oiptxlnfSdAFIJLOQUWZV:[")  # : a liquid barrel (its liquid and stack in [barrels]), [ a treasure chest; ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
 GLASS = set("=")  # a pane of glass: see through it, but not walk
@@ -536,8 +537,8 @@ def check_blocks(lv):
         x, y, lq = b[:3]; st = b[3] if len(b) > 3 else 1
         if not (0 <= x < N and 0 <= y < N) or rows[y][x] not in "o:":
             errs.append("barrel at %d,%d: no barrel (o or :) there" % (x, y))
-        if not 0 <= lq <= 5 or not 1 <= st <= 3:
-            errs.append("barrel at %d,%d: liquid %d (0-5), stack %d (1-3)" % (x, y, lq, st))
+        if not 0 <= lq <= 5 or not 1 <= st <= BARREL_STACK:
+            errs.append("barrel at %d,%d: liquid %d (0-5), stack %d (1-%d)" % (x, y, lq, st, BARREL_STACK))
     for n in lv.get("nudges", []):
         if len(n) < 4:
             errs.append("nudge %s: needs x, y, dx, dy" % (n,)); continue
@@ -681,7 +682,7 @@ def level_text(lv, comment=()):
     if lv.get("barrels"):  # barrels of their own: a liquid, a stack
         out.append("")
         out.append("[barrels]")
-        out.append("' a barrel's own: x, y, its liquid (0 a plain barrel o, 1 water, 2 poison, 3 slime, 4 lava, 5 acid - a : barrel), how many stand on each other (1-3)")
+        out.append("' a barrel's own: x, y, its liquid (0 a plain barrel o, 1 water, 2 poison, 3 slime, 4 lava, 5 acid - a : barrel), how many stand on each other (1-8, as fit under the ceiling)")
         for r in lv["barrels"]:
             out.append(", ".join(_num(v) for v in r))
     if lv.get("cell_lights"):  # cells lit their own way

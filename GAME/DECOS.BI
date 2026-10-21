@@ -34,8 +34,8 @@ DIM SHARED decoCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' Which decoration stands in 
 ' (0 on the floor), decoLeak a liquid barrel's frames of leaking (its fuse,
 ' shown), decoOpen a chest opened
 DIM SHARED decoZ(MAX_DECO) AS SINGLE, decoLeak(MAX_DECO) AS INTEGER, decoOpen(MAX_DECO) AS INTEGER
-' [barrels]: x, y, liquid (0 a plain barrel, 1-5 LQ_), stack (1-3 high)
-CONST MAX_BARRELS = 96, BARREL_STACK = 3
+' [barrels]: x, y, liquid (0 a plain barrel, 1-5 LQ_), stack (1-BARREL_STACK high, as fits under its ceiling: StackFits)
+CONST MAX_BARRELS = 96, BARREL_STACK = 8
 DIM SHARED lvlNumBarrels AS INTEGER, lvlBarrel(MAX_BARRELS, 4) AS INTEGER
 
 CONST DK_CHAIR = 20, DK_BODY = 21 ' (a body doesn't block the way, and can't be broken)

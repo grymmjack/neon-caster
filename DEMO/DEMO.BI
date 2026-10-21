@@ -26,4 +26,4 @@ CONST ATTRACT_SECONDS = 15 ' (a demo started from DEMO REPLAYS: when it's over, 
 
 ' This module's working variables, shared by its SUBs (and with the main
 ' program)
-DIM SHARED dl$, ds$, dWasBuddha, dWasFly, dWasGod, dWasNoT, dWhy$
+DIM SHARED dl$, ds$, dWasBuddha, dWasFly, dWasGod, dWasNoT, dWhy$, dWasJet, dJet

@@ -66,7 +66,7 @@ END SUB
 SUB NewGameHere STATIC ' (a new game in sector `level` - SELECT SECTOR, YOUR SECTORS)
     IF demoRec OR demoPlay THEN DemoStop
     IF editMode THEN EditLeave : editDirty = 0 ' (out of the editor first: its undo and its sector belong to the level being left)
-    achCheat = (godMode OR buddhaMode OR noTarget OR flyMode OR botOn) : achRunFrom = level ' (a fresh start: cheats forgotten - unless god mode's still on; a whole set's run counts from sector 1)
+    achCheat = (godMode OR buddhaMode OR noTarget OR flyMode OR botOn OR jetInf) : achRunFrom = level ' (a fresh start: cheats forgotten - unless god mode's still on; a whole set's run counts from sector 1)
     totalKills = 0 : totalMonsters = 0 : totalTime! = 0
     StartLoadout
     EnterLevel

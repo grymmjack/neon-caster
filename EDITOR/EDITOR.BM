@@ -341,7 +341,8 @@ SUB EditPaneClick STATIC
                     IF bc$ = ":" AND pnHit = 290 THEN blq = (blq + LQ_KINDS - 2) MOD LQ_KINDS + 1
                     IF bc$ = ":" AND pnHit = 291 THEN blq = blq MOD LQ_KINDS + 1
                     IF pnHit = 292 THEN bst = MaxOf(1, bst - 1)
-                    IF pnHit = 293 THEN bst = MinOf(BARREL_STACK, bst + 1)
+                    IF pnHit = 293 THEN bk = 1 : IF bc$ = ":" THEN bk = DK_LQBARREL + MaxOf(1, blq)
+                    IF pnHit = 293 THEN bst = StackFits(bk, edSelX(k), edSelY(k), bst + 1) ' (as many as fit under its ceiling)
                     EditBarrelSet edSelX(k), edSelY(k), blq, bst
                 END IF
             NEXT

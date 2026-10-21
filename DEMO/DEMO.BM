@@ -24,8 +24,8 @@ SUB DemoInput STATIC
         IF KeyHeld(BIND_KICK) THEN inBits = inBits OR DB_KICK
         IF KeyHeld(BIND_NIGHT) THEN inBits = inBits OR DB_NIGHT
         IF KeyHeld(BIND_MAP) THEN inBits = inBits OR DB_MAP
-        IF _KEYDOWN(101) OR _KEYDOWN(69) THEN inBits = inBits OR DB_UP ' (E and C: up and down, flying)
-        IF _KEYDOWN(99) OR _KEYDOWN(67) THEN inBits = inBits OR DB_DOWN
+        IF KeyHeld(BIND_UP) THEN inBits = inBits OR DB_UP ' (FLY / JET UP and DOWN - E and C as made: flying, the jetpack)
+        IF KeyHeld(BIND_DOWN) THEN inBits = inBits OR DB_DOWN
         IF _KEYDOWN(107) OR _KEYDOWN(75) THEN inBits = inBits OR DB_CHEATK ' (K and G: the testing cheats)
         IF _KEYDOWN(103) OR _KEYDOWN(71) THEN inBits = inBits OR DB_CHEATG
         dg = 0
@@ -196,7 +196,7 @@ END SUB
 ' --- After playing one: your own settings back - and with "quit", the end
 SUB DemoDone STATIC
     ApplySettings
-    godMode = dWasGod : flyMode = dWasFly : noTarget = dWasNoT : buddhaMode = dWasBuddha ' (your own cheats back - a demo that turned god mode on doesn't leave it on)
+    godMode = dWasGod : flyMode = dWasFly : noTarget = dWasNoT : buddhaMode = dWasBuddha : jetInf = dWasJet ' (your own cheats back - a demo that turned god mode on doesn't leave it on)
     IF demoAttract THEN demoAttract = 0 : demoAttractMenu = -1 : demoFromMenu = 0 ' (attract mode: back to the title menu - left alone again, the next demo)
     IF demoFromMenu THEN demoFromMenu = 0 : demoMenuWant = -1 ' (watched from DEMO REPLAYS: back to the list - the game loop opens it)
     IF demoQuit THEN
@@ -252,6 +252,7 @@ SUB DemoRecordStart STATIC
     DemoPut "fly" + STR$(-(flyMode <> 0))
     DemoPut "notarget" + STR$(-(noTarget <> 0))
     DemoPut "buddha" + STR$(-(buddhaMode <> 0)) ' (hurt, but never below 1 health: a demo made so plays back so)
+    IF jetInf THEN DemoPut "jetinf 1" ' (infinite jet fuel: only if it's on - older demos have no such line)
     DemoPut "begin"
     DemoFresh
     demoRec = -1 : demoFrame = 0 : demoPendN = 0
@@ -264,7 +265,7 @@ SUB DemoPlayStart STATIC
     demoFH = FREEFILE : OPEN dFile$ FOR INPUT AS #demoFH
     demoBack$ = "" : DemoNextLine
     IF dl$ <> "NEON-CASTER DEMO 1" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " isn't a demo" : EXIT SUB
-    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0 : dBud = 0
+    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0 : dBud = 0 : dJet = 0
     DO
         DemoNextLine
         IF dl$ = "" OR dl$ = "begin" THEN EXIT DO
@@ -280,6 +281,7 @@ SUB DemoPlayStart STATIC
             CASE "fly" : dFly = (VAL(dv$) <> 0)
             CASE "notarget" : dNoT = (VAL(dv$) <> 0)
             CASE "buddha" : dBud = (VAL(dv$) <> 0)
+            CASE "jetinf" : dJet = (VAL(dv$) <> 0)
         END SELECT
     LOOP
     IF dl$ <> "begin" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " has no begin" : EXIT SUB
@@ -291,8 +293,8 @@ SUB DemoPlayStart STATIC
     IF NOT SectorExists(dLevel) THEN sectorSet = dSetWas : CLOSE #demoFH : ConPrint "playdemo: its sector" + STR$(dLevel) + " isn't here" : EXIT SUB
     IF dSet <> dSetWas THEN ReadSectorNames
     IF dVer$ <> GAME_VERSION$ THEN ConPrint "demo: made with version " + dVer$ + " - this is " + GAME_VERSION$ + ", so it may not play the same"
-    dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddhaMode ' (yours, for after)
-    level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = dBud
+    dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddhaMode : dWasJet = jetInf ' (yours, for after)
+    level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = dBud : jetInf = dJet
     achCheat = -1 ' (watching isn't playing: achievements and records wait for a new game)
     grSeed = dSeed#
     demoStarting = -1 : DemoFresh : demoStarting = 0 ' (no NEXUS intro: straight to the play)
@@ -425,7 +427,7 @@ FUNCTION DemoVerb%(v$)
              "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "blocks", _
              "liquid", "liquids", "flood", "raise", "lift", "liftgo", "map", "level", "sector", "sectorset", "campaign", "set10", _
              "jackin", "jackout", "respawn", "lamp", "light", "trigger", "restart", "reset", "resetlevel", "die", "suicide", "kick", "program", "loot", "turret", "turrets", _
-             "mapsize", "reloadlevel", "pitch"
+             "mapsize", "reloadlevel", "pitch", "infinitefuel", "infjet"
             DemoVerb% = 1
         CASE "newgame", "load", "loadgame", "quickload", "edit", "editor", "newsector", "hud", "monsters", "puzzle", "undo", "loadlevelfromdisk"
             DemoVerb% = 2

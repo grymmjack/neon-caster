@@ -159,7 +159,7 @@ SUB ConExec STATIC
         SELECT CASE conVerb$
             CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
                  "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters", _
-                 "drop", "liquids", "blocks", "resetlevel", "reloadlevel", "loadlevelfromdisk", "mapsize"
+                 "drop", "liquids", "blocks", "resetlevel", "reloadlevel", "loadlevelfromdisk", "mapsize", "infinitefuel", "infjet"
                 IF NOT achCheat AND NOT achTest THEN ConPrint "^9(cheats on: achievements wait for a new game)"
                 achCheat = -1
             CASE "sectorset", "campaign", "set10", "loot", "turret", "turrets" ' (these only look, with nothing after them)
@@ -378,13 +378,16 @@ SUB ConExec STATIC
         CASE "god", "noclip", "iddqd" ' (and fly and notarget with it: each also on its own, below)
             IF conA$ = "" THEN godMode = NOT godMode ELSE godMode = ConOn(conA$)
             flyMode = godMode : noTarget = godMode
-            IF godMode THEN ConPrint "God mode ON (no damage, no clipping, flying - E up, C down - and notarget)" ELSE ConPrint "God mode OFF"
+            IF godMode THEN ConPrint "God mode ON (no damage, no clipping, flying - " + FlyKeys$ + " - and notarget)" ELSE ConPrint "God mode OFF"
         CASE "buddha" ' Buddha: you're hurt as ever, but never below 1 health (a pit or a death trap still kills)
             IF conA$ = "" THEN buddhaMode = NOT buddhaMode ELSE buddhaMode = ConOn(conA$)
             IF buddhaMode THEN ConPrint "Buddha ON (hurt, but never below 1 health)" ELSE ConPrint "Buddha OFF"
+        CASE "infinitefuel", "infjet" ' The jetpack's tank never empties (a cheat)
+            IF conA$ = "" THEN jetInf = NOT jetInf ELSE jetInf = ConOn(conA$)
+            IF jetInf THEN ConPrint "Infinite jet fuel ON" + MID$(" (no jetpack yet: give jetpack)", 1, -99 * (jetHave = 0)) ELSE ConPrint "Infinite jet fuel OFF"
         CASE "fly" ' Fly: E up, C down (Shift faster) - no falling
             IF conA$ = "" THEN flyMode = NOT flyMode ELSE flyMode = ConOn(conA$)
-            IF flyMode THEN ConPrint "Fly ON (E up, C down)" ELSE ConPrint "Fly OFF"
+            IF flyMode THEN ConPrint "Fly ON (" + FlyKeys$ + ")" ELSE ConPrint "Fly OFF"
         CASE "notarget" ' The monsters don't notice you - and the hunting ones forget you
             IF conA$ = "" THEN noTarget = NOT noTarget ELSE noTarget = ConOn(conA$)
             IF noTarget THEN ConPrint "Notarget ON (monsters ignore you)" ELSE ConPrint "Notarget OFF"
@@ -900,8 +903,12 @@ SUB ConGive STATIC
             nvHave = 1 : ConPrint "Night vision (N)"
         CASE "suit", "hazmat", "hvac"
             suitLeft = SUIT_MAX : ConPrint "A new hazmat suit"
-        CASE "jetpack", "jet", "jetfuel", "fuel"
-            jetHave = -1 : jetFuel = JET_MAX : ConPrint "A jetpack, full - E up, C down"
+        CASE "jetpack", "jet"
+            jetHave = -1 : jetFuel = JET_MAX : ConPrint "A jetpack, full - " + FlyKeys$ + ", or look up or down and walk"
+        CASE "jetfuel", "fuel" ' give fuel [N]: N more (as made: a full tank) - and a jetpack, if you've none
+            n = VAL(conB$) : IF n <= 0 THEN n = JET_MAX
+            IF NOT jetHave THEN jetHave = -1 : jetFuel = 0 : ConPrint "(a jetpack too)"
+            jetFuel = MinOf(JET_MAX, jetFuel + n) : ConPrint "Jet fuel:" + STR$(INT(jetFuel)) + " of" + STR$(JET_MAX)
         CASE ELSE
             ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health [N] / armor [N] / overcharge / amp / map / goggles / suit"
     END SELECT
@@ -949,6 +956,11 @@ SUB ConTake STATIC
             n = VAL(conB$) : IF n <= 0 THEN armor = 0 ELSE armor = MaxOf(0, armor - n)
         CASE "map"
             hasMap = 0 : mapOpen = 0
+        CASE "jetpack", "jet"
+            jetHave = 0 : jetFuel = 0 : jetOn = 0 : ConPrint "Jetpack taken"
+        CASE "jetfuel", "fuel" ' take fuel [N]: N of it (as made: all)
+            n = VAL(conB$) : IF n <= 0 THEN n = JET_MAX
+            jetFuel = MaxOf(0, jetFuel - n) : ConPrint "Jet fuel:" + STR$(INT(jetFuel))
         CASE ELSE
             ConPrint "take all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health N / armor [N] / map"
     END SELECT
@@ -1246,7 +1258,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
+    ConNames$ = "alias unalias turret help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1260,7 +1272,7 @@ SUB ConHelp(c$)
             ConPrint "            ^7sectorname^8 NAME  ^7mapsize^8 N  ^7resetlevel  ^7reloadlevel  ^7savesectorcopy"
             ConPrint "            ^7saveleveltodisk^8 [FILE]  ^7loadlevelfromdisk^8 [FILE]"
             ConPrint "  ^6cheats    ^7god  ^7buddha  ^7fly  ^7notarget  ^7give^8 WHAT  ^7take^8 WHAT  ^7kill  ^7respawn  ^7die  ^7tp^8 X Y [ANGLE]"
-            ConPrint "            ^7pitch^8 [DEG]  ^7summon^8 TYPE [N]  ^7spawn^8 TYPE X Y [N]  ^7item^8 KIND X Y"
+            ConPrint "            ^7pitch^8 [DEG]  ^7summon^8 TYPE [N]  ^7spawn^8 TYPE X Y [N]  ^7item^8 KIND X Y  ^7infinitefuel"
             ConPrint "  ^6looking   ^7pos  ^7info  ^7status  ^7mons  ^7events  ^7triggers  ^7stations  ^7cores  ^7droids  ^7thieves  ^7secret"
             ConPrint "            ^7locks  ^7loot"
             ConPrint "  ^6saves     ^7save^8 N|quick  ^7load^8 N|quick  ^7quicksave  ^7quickload"
@@ -1297,11 +1309,12 @@ SUB ConHelp(c$)
         CASE "sectorname" : ConPrint "^3sectorname NAME^0: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it. sectorname on its own: its name"
         ' --- cheats
         CASE "god", "noclip", "iddqd" : ConPrint "^3god [on|off]^0: no damage, through walls, flying (E up, C down) and notarget - for looking round a sector (G does the same)"
+        CASE "infinitefuel", "infjet" : ConPrint "^3infinitefuel [on|off]^0 (infjet): the jetpack's tank never empties - give jetpack, give fuel [N]"
         CASE "buddha" : ConPrint "^3buddha [on|off]^0: you're hurt as ever, but never below 1 health (a pit or a death trap still kills)"
         CASE "fly" : ConPrint "^3fly [on|off]^0: fly - E up, C down, Shift faster - the floor still holds you up"
         CASE "notarget" : ConPrint "^3notarget [on|off]^0: the monsters don't notice you, and hunting ones forget you"
-        CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-5 | ammo [cells|shells|rounds|slugs|rockets N] | health [N] | armor [N] | overcharge | amp | map | goggles | suit"
-        CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-5 | ammo [cells|shells|rounds|slugs|rockets N] | health N | armor [N] | map"
+        CASE "give" : ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-5 | ammo [cells|shells|rounds|slugs|rockets N] | health [N] | armor [N] | overcharge | amp | map | goggles | suit | jetpack | fuel [N]"
+        CASE "take" : ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-5 | ammo [cells|shells|rounds|slugs|rockets N] | health N | armor [N] | map | jetpack | fuel [N]"
         CASE "turret", "turrets"
             ConPrint "^3turret [WHO WHAT [N]]^0: turrets told what to do (an ambush, from a trigger); alone: lists them"
             ConPrint "  WHO: a number (as ^7turret^0 lists them), ^7all^0, or ^7at^8 X Y [R]^0 - within R cells (2 if not said)"

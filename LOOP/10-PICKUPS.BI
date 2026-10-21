@@ -72,7 +72,7 @@
                 CASE IT_JETPACK ' A jetpack: a full tank - E flies you up, C down, while its fuel lasts (one with a full tank stays where it is)
                     IF NOT jetHave OR jetFuel < JET_MAX THEN
                         itemOn(i) = 0 : jetHave = -1 : jetFuel = JET_MAX : PlaySfx sndJetFuel&, 0.9 : pickFlash = 12
-                        ShowMsg "JETPACK! E flies you up, C down - while the fuel lasts"
+                        ShowMsg "JETPACK! " + KeyName$(keyBind&(BIND_UP)) + " up, " + KeyName$(keyBind&(BIND_DOWN)) + " down - or look up and walk - while the fuel lasts"
                     END IF
                 CASE IT_JETFUEL ' Its fuel: a can (none taken if your tank's full - or you've no jetpack)
                     IF jetHave AND jetFuel < JET_MAX THEN itemOn(i) = 0 : jetFuel = MinOf(JET_MAX, jetFuel + JET_CAN) : PlaySfx sndJetFuel&, 0.9 : ShowMsg "Jet fuel (+" + LTRIM$(STR$(JET_CAN)) + ")" : pickFlash = 10
@@ -120,7 +120,7 @@
     gKeyDown = (inBits AND DB_CHEATG) <> 0
     IF CHEAT_KEYS AND gKeyDown AND NOT gKeyWas AND NOT dead AND NOT editMode THEN
         godMode = NOT godMode : flyMode = godMode : noTarget = godMode : achCheat = -1
-        IF godMode THEN ShowMsg "God mode ON - no damage, no walls, fly (E up, C down), monsters ignore you" ELSE ShowMsg "God mode OFF"
+        IF godMode THEN ShowMsg "God mode ON - no damage, no walls, fly (" + FlyKeys$ + "), monsters ignore you" ELSE ShowMsg "God mode OFF"
         PlaySfx sndCard&, 0.8
     END IF
     gKeyWas = gKeyDown

@@ -171,7 +171,7 @@ SUB LoadGame STATIC
     END IF
     achCheat = 0 : achRunFrom = 0 ' (a save from before achievements: no whole run from sector 1 in it)
     IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achCheat : GET #fileNum, , achRunFrom ' (achievements: cheats stay on through a save)
-    IF godMode OR buddhaMode OR noTarget OR flyMode OR botOn THEN achCheat = -1 ' (a cheat still on: it counts as one)
+    IF godMode OR buddhaMode OR noTarget OR flyMode OR botOn OR jetInf THEN achCheat = -1 ' (a cheat still on: it counts as one)
     IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , achLevelHurt : GET #fileNum, , achOtherGun
     IF LOC(fileNum) < LOF(fileNum) THEN ' The doors' owners, and the blocks
         boxAny = 0

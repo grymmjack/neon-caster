@@ -108,3 +108,8 @@ FUNCTION KeyName$(code&)
         CASE ELSE : KeyName$ = "KEY" + STR$(code&)
     END SELECT
 END FUNCTION
+
+' The keys that fly you up and down, as bound: "E up, C down" as made
+FUNCTION FlyKeys$
+    FlyKeys$ = KeyName$(keyBind&(BIND_UP)) + " up, " + KeyName$(keyBind&(BIND_DOWN)) + " down"
+END FUNCTION

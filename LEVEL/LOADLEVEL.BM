@@ -294,7 +294,7 @@ SUB BuildLevel STATIC
                     FOR k = 1 TO lvlNumBarrels
                         IF lvlBarrel(k, 1) = x AND lvlBarrel(k, 2) = y THEN
                             IF cell$ = ":" AND lvlBarrel(k, 3) >= 1 AND lvlBarrel(k, 3) <= LQ_KINDS THEN dk = DK_LQBARREL + lvlBarrel(k, 3)
-                            IF dk = 1 OR BarrelLiquid(dk) THEN dn = MaxOf(1, MinOf(BARREL_STACK, lvlBarrel(k, 4)))
+                            IF dk = 1 OR BarrelLiquid(dk) THEN dn = StackFits(dk, x, y, lvlBarrel(k, 4))
                         END IF
                     NEXT
                     FOR k = 1 TO dn

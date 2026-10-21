@@ -59,22 +59,25 @@
     ' (MoveBody wouldn't have let you onto anything higher), fall off
     ' anything higher - faster and faster - and land, hard if it was far;
     ' fall into a pit and that's the end. Your eye eases up a step.
-    ' A jetpack: E lights it (while there's fuel) - then you fly as fly mode
-    ' does, burning fuel all the while you're up (more climbing); out of fuel
-    ' you fall, and back on the ground it's off till E again
+    ' A jetpack: FLY UP (E) lights it while there's fuel - or, looking up
+    ' (LOOK UP / DOWN), walking forward does: up the way you look, not
+    ' straight up. Then you fly as fly mode does - look down and walk, and
+    ' down you go - burning fuel all the while you're up (more climbing);
+    ' out of fuel you fall, and back on the ground it's off till it's lit again
     IF jetHave AND NOT dead AND NOT editMode AND NOT flyMode AND NOT cyberOn THEN
-        IF NOT jetOn AND (inBits AND DB_UP) <> 0 AND jetFuel > 0 THEN jetOn = -1 : rocketAir = 0 : PlaySfx sndJet&, 0.7
+        jetClimb = (inBits AND DB_UP) <> 0 OR (lookAim AND forward > 0 AND pitch > JET_LOOK)
+        IF NOT jetOn AND jetClimb AND jetFuel > 0 THEN jetOn = -1 : rocketAir = 0 : PlaySfx sndJet&, 0.7
         IF jetOn THEN
-            jetFuel = jetFuel - JET_BURN : IF (inBits AND DB_UP) <> 0 THEN jetFuel = jetFuel - JET_CLIMB
+            IF NOT jetInf THEN jetFuel = jetFuel - JET_BURN : IF jetClimb THEN jetFuel = jetFuel - JET_CLIMB
             IF lvFrame MOD 40 = 0 THEN PlaySfx sndJet&, 0.55
             IF RND < 0.7 THEN SpawnPart PART_FLAME, playerX - dirX * 0.15, playerY - dirY * 0.15, playerZ + 0.15, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, -0.03, 10 + INT(RND * 8), 1, 0.6, 0.25, 0.04 ' (its exhaust, under you)
             IF jetFuel <= 0 THEN jetFuel = 0 : jetOn = 0 : playerVZ = 0 : PlaySfx sndPowerDown&, 0.8 : ShowMsg "Jetpack: out of fuel"
-            IF jetOn AND (inBits AND DB_UP) = 0 AND playerZ <= floorH(INT(playerX), INT(playerY)) + 0.01 THEN jetOn = 0 ' (landed)
+            IF jetOn AND NOT jetClimb AND playerZ <= floorH(INT(playerX), INT(playerY)) + 0.01 THEN jetOn = 0 ' (landed)
         END IF
     END IF
     IF editMode OR ((flyMode OR jetOn) AND NOT dead) THEN ' The editor, fly (god mode) or a jetpack lit: you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
         flySpeed = 0.04 : IF inBits AND DB_RUN THEN flySpeed = 0.1 : IF editMode THEN flySpeed = 0.25 ' (the editor, with Shift: a hall 30 walls high in two seconds)
-        IF editMode THEN flyUp = _KEYDOWN(32) : flyDown = _KEYDOWN(99) OR _KEYDOWN(67) ELSE flyUp = (inBits AND DB_UP) <> 0 : flyDown = (inBits AND DB_DOWN) <> 0 ' (in play Space opens things)
+        IF editMode THEN flyUp = _KEYDOWN(32) : flyDown = KeyHeld(BIND_DOWN) ELSE flyUp = (inBits AND DB_UP) <> 0 : flyDown = (inBits AND DB_DOWN) <> 0 ' (in play Space opens things)
         IF flyUp AND NOT edTyping THEN playerZ = playerZ + flySpeed
         IF flyDown AND NOT edTyping THEN playerZ = playerZ - flySpeed
         IF forward <> 0 THEN playerZ = playerZ + forward * moveSpeed * DSin(pitch) * 1.5 ' (and the way you look: look up and walk on, and you climb - OpenGL's look up and down)
