@@ -332,7 +332,9 @@ FUNCTION BoltDeco(x, y, z)
     d = decoCell(cx, cy) : IF d = 0 THEN EXIT FUNCTION
     IF NOT decoOn(d) OR decoKind(d) = DK_BODY THEN EXIT FUNCTION
     IF (x - decoX(d)) ^ 2 + (y - decoY(d)) ^ 2 > 0.32 * 0.32 THEN EXIT FUNCTION
-    IF z > FloorAt(decoX(d), decoY(d)) + DecoScale(decoKind(d)) THEN EXIT FUNCTION
+    IF z > FloorAt(decoX(d), decoY(d)) + DecoScale(decoKind(d)) THEN ' (over it - unless barrels stand on it: the one there)
+        d = DecoStackAt(cx, cy, z - FloorAt(decoX(d), decoY(d))) : IF d = 0 THEN EXIT FUNCTION
+    END IF
     BoltDeco = d
 END FUNCTION
 

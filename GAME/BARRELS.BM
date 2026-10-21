@@ -133,3 +133,26 @@ SUB ChestOpen(i)
     IF n = 0 THEN ShowMsg "TREASURE CHEST: empty - someone got here first" ELSE ShowMsg "TREASURE CHEST: opened!"
     newBlastX = decoX(i) : newBlastY = decoY(i) : newBlastSize = 0.25 : AddBlast ' (a glint of what's in it)
 END SUB
+
+' --- The barrel up a stack in cell (cx, cy) at height h over its floor (0:
+' none there)
+FUNCTION DecoStackAt(cx, cy, h!)
+    DIM j ' (its own: the main program shares these names)
+    FOR j = 1 TO numDecos
+        IF decoOn(j) AND decoZ(j) > 0 THEN
+            IF INT(decoX(j)) = cx AND INT(decoY(j)) = cy AND h! >= decoZ(j) AND h! <= decoZ(j) + DecoScale(decoKind(j)) THEN DecoStackAt = j : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
+' --- Is a shot at height z (as LOOK UP / DOWN aims it) on decoration i? With
+' level aim, any: the first in line - a stack's bottom barrel
+FUNCTION DecoAtHeight(i, z!)
+    DIM f! ' (its own: the main program shares these names)
+    DecoAtHeight = -1
+    IF NOT lookAim THEN IF decoZ(i) > 0 THEN DecoAtHeight = 0 ' (level aim: not one up a stack - the one under it takes it)
+    IF NOT lookAim THEN EXIT FUNCTION
+    IF decoZ(i) = 0 THEN IF DecoStackAt(INT(decoX(i)), INT(decoY(i)), DecoScale(decoKind(i)) + 0.01) = 0 THEN EXIT FUNCTION ' (nothing stacked on it: hit, high or low, as ever)
+    f! = FloorAt(decoX(i), decoY(i)) + decoZ(i)
+    DecoAtHeight = (z! >= f! - 0.15 AND z! <= f! + DecoScale(decoKind(i)) + 0.15)
+END FUNCTION

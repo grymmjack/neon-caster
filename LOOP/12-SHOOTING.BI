@@ -94,7 +94,7 @@
                         relX = decoX(i) - playerX : relY = decoY(i) -playerY
                         transformX = invDet * (dirY * relX - dirX * relY) : transformY = invDet * (-planeY * relX + planeX * relY)
                         IF transformY > 0.2 AND transformY < bestDist THEN
-                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * DecoScale(decoKind(i)) * 0.35 THEN
+                            IF ABS(RENDER_W / 2 * (transformX / transformY - aim)) < viewH / transformY * DecoScale(decoKind(i)) * 0.35 AND DecoAtHeight(i, eyeZ + DTan(pitch) * rayLen * transformY) THEN
                                 IF gunPierce(currentGun) THEN
                                     targetDeco = i : HitDeco
                                 ELSE
