@@ -46,6 +46,6 @@ CONST ARC_TOP = 90, ARC_BOT = 570, ARC_PAD = 80, ARC_WIN = 3 ' (NEON PONG's cour
 DIM SHARED vendState(MAX_DECO) AS INTEGER, vendTimer(MAX_DECO) AS INTEGER, vendBomb(MAX_DECO) AS INTEGER ' (0 waiting, 1 counting down, 2 paying out, 3 sold out)
 CONST DK_LQBARREL = 21 ' (a barrel of a liquid: kind DK_LQBARREL + its liquid, 22-26 - one map character, :, its liquid in [barrels]: LQ_WATER to LQ_ACID)
 CONST DK_CHEST = 27 ' (a treasure chest: Space opens it - ChestOpen)
-CONST DECO_KINDS = 27, ITEM_KINDS = 21 ' (kinds of decoration and of pickup - see chapter 3)
+CONST DECO_KINDS = 27, ITEM_KINDS = 23 ' (kinds of decoration and of pickup - see chapter 3)
 ' ...and each decoration's wreck, the same way (MakeWreck)
 DIM SHARED wreckScale(DECO_KINDS), wreckSquash(DECO_KINDS)

@@ -59,7 +59,20 @@
     ' (MoveBody wouldn't have let you onto anything higher), fall off
     ' anything higher - faster and faster - and land, hard if it was far;
     ' fall into a pit and that's the end. Your eye eases up a step.
-    IF editMode OR (flyMode AND NOT dead) THEN ' The editor, or fly (god mode): you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
+    ' A jetpack: E lights it (while there's fuel) - then you fly as fly mode
+    ' does, burning fuel all the while you're up (more climbing); out of fuel
+    ' you fall, and back on the ground it's off till E again
+    IF jetHave AND NOT dead AND NOT editMode AND NOT flyMode AND NOT cyberOn THEN
+        IF NOT jetOn AND (inBits AND DB_UP) <> 0 AND jetFuel > 0 THEN jetOn = -1 : rocketAir = 0 : PlaySfx sndJet&, 0.7
+        IF jetOn THEN
+            jetFuel = jetFuel - JET_BURN : IF (inBits AND DB_UP) <> 0 THEN jetFuel = jetFuel - JET_CLIMB
+            IF lvFrame MOD 40 = 0 THEN PlaySfx sndJet&, 0.55
+            IF RND < 0.7 THEN SpawnPart PART_FLAME, playerX - dirX * 0.15, playerY - dirY * 0.15, playerZ + 0.15, (RND - 0.5) * 0.01, (RND - 0.5) * 0.01, -0.03, 10 + INT(RND * 8), 1, 0.6, 0.25, 0.04 ' (its exhaust, under you)
+            IF jetFuel <= 0 THEN jetFuel = 0 : jetOn = 0 : playerVZ = 0 : PlaySfx sndPowerDown&, 0.8 : ShowMsg "Jetpack: out of fuel"
+            IF jetOn AND (inBits AND DB_UP) = 0 AND playerZ <= floorH(INT(playerX), INT(playerY)) + 0.01 THEN jetOn = 0 ' (landed)
+        END IF
+    END IF
+    IF editMode OR ((flyMode OR jetOn) AND NOT dead) THEN ' The editor, fly (god mode) or a jetpack lit: you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
         flySpeed = 0.04 : IF inBits AND DB_RUN THEN flySpeed = 0.1 : IF editMode THEN flySpeed = 0.25 ' (the editor, with Shift: a hall 30 walls high in two seconds)
         IF editMode THEN flyUp = _KEYDOWN(32) : flyDown = _KEYDOWN(99) OR _KEYDOWN(67) ELSE flyUp = (inBits AND DB_UP) <> 0 : flyDown = (inBits AND DB_DOWN) <> 0 ' (in play Space opens things)
         IF flyUp AND NOT edTyping THEN playerZ = playerZ + flySpeed
@@ -155,7 +168,7 @@
     IF poisonTint > 0 THEN poisonTint = poisonTint - 1
     liqTick = liqTick + 1 ' (the monsters' clock, in harmful liquids)
     IF liqAny AND NOT editMode THEN LiquidHum playerX, playerY ' (the harmful ones bubble: louder as you near them - not in the editor, where the world's sounds are off)
-    IF levelFlat AND NOT editMode AND NOT flyMode THEN playerZ = 0 : playerVZ = 0
+    IF levelFlat AND NOT editMode AND NOT flyMode AND NOT jetOn THEN playerZ = 0 : playerVZ = 0
     IF editMode OR flyMode OR playerVZ > 0 OR ABS(eyeZ - (playerZ + EYE_H)) < 0.01 THEN eyeZ = playerZ + EYE_H ELSE eyeZ = eyeZ + (playerZ + EYE_H - eyeZ) * 0.3
     IF NOT levelFlat THEN IF eyeZ > ceilH(INT(playerX), INT(playerY)) - 0.06 THEN eyeZ = MaxOf(playerZ + 0.04, ceilH(INT(playerX), INT(playerY)) - 0.06) ' (a crusher coming down on you: you see from under it)
     ' ...and you can't walk through a monster: if a step takes you inside one

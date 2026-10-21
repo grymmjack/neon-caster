@@ -900,6 +900,8 @@ SUB ConGive STATIC
             nvHave = 1 : ConPrint "Night vision (N)"
         CASE "suit", "hazmat", "hvac"
             suitLeft = SUIT_MAX : ConPrint "A new hazmat suit"
+        CASE "jetpack", "jet", "jetfuel", "fuel"
+            jetHave = -1 : jetFuel = JET_MAX : ConPrint "A jetpack, full - E up, C down"
         CASE ELSE
             ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health [N] / armor [N] / overcharge / amp / map / goggles / suit"
     END SELECT
@@ -978,6 +980,8 @@ FUNCTION ItemOf(v$)
         CASE "launcher", "rocketlauncher", "rocket" : ItemOf = IT_LAUNCHER
         CASE "rockets" : ItemOf = IT_ROCKETS
         CASE "rounds" : ItemOf = IT_ROUNDS
+        CASE "jetpack", "jet" : ItemOf = IT_JETPACK
+        CASE "jetfuel", "fuel" : ItemOf = IT_JETFUEL
         CASE "slugs" : ItemOf = IT_SLUGS
     END SELECT
 END FUNCTION

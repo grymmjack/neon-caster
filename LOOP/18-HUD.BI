@@ -152,6 +152,10 @@
         IF suitLeft > 50 THEN c~& = _RGB32(255, 220, 40) ELSE IF suitLeft > 20 THEN c~& = _RGB32(255, 140, 30) ELSE c~& = _RGB32(255, 50, 50)
         HudText hudX(HE_AMP) + 136, hudY(HE_AMP) + 18, "HAZMAT" + STR$(INT(suitLeft + 0.99)) + "%", c~&
     END IF
+    IF jetHave AND hudShow(HE_AMP) THEN ' (the jetpack's fuel: cyan, lit while it burns, red when it's low)
+        IF jetFuel < 20 THEN c~& = _RGB32(255, 60, 60) ELSE IF jetOn THEN c~& = _RGB32(255, 190, 60) ELSE c~& = _RGB32(90, 220, 255)
+        HudText hudX(HE_AMP) + 136, hudY(HE_AMP) + 36, "JET" + STR$(INT(jetFuel + 0.99)) + "%", c~&
+    END IF
     ' The VIGNETTES (with HIT FX on): a lockdown strobing red; low health
     ' thumping red with your heart; poison's green; the colour of the last
     ' thing that hurt you, fading

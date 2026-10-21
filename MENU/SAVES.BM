@@ -79,6 +79,7 @@ SUB SaveGame STATIC
     PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , vendState(i) : PUT #fileNum, , vendTimer(i) : PUT #fileNum, , vendBomb(i) : PUT #fileNum, , decoOpen(i) : PUT #fileNum, , decoZ(i) : NEXT ' (the vending machines and cabinets: sold out, paid out - or counting down, to a jackpot or a bang)
     PUT #fileNum, , lvFrame ' (the sector's own clock: time triggers)
     PUT #fileNum, , playerZ : PUT #fileNum, , playerVZ : PUT #fileNum, , rocketAir ' (in the air, as you were - not dropped to the floor, into a pit)
+    PUT #fileNum, , jetHave : PUT #fileNum, , jetFuel : PUT #fileNum, , jetOn ' (a jetpack, its fuel, flying on it)
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
 END SUB
@@ -249,6 +250,7 @@ SUB LoadGame STATIC
         NEXT
         GET #fileNum, , lvF&
         IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , pz! : GET #fileNum, , pvz! : GET #fileNum, , ra% : IF pz! >= floorH(INT(playerX), INT(playerY)) AND pz! < ceilH(INT(playerX), INT(playerY)) THEN playerZ = pz! : playerVZ = pvz! : rocketAir = ra% : eyeZ = playerZ + EYE_H
+        jetHave = 0 : jetFuel = 0 : jetOn = 0 : IF LOC(fileNum) < LOF(fileNum) THEN GET #fileNum, , jetHave : GET #fileNum, , jetFuel : GET #fileNum, , jetOn
     END IF
     CLOSE #fileNum
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (your direction came from the file)

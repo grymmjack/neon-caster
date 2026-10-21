@@ -465,6 +465,8 @@ FUNCTION BotWants(i, hp, ar)
         CASE IT_ROCKETS : BotWants = ammoCount(AM_ROCKETS) < ammoMax(AM_ROCKETS)
         CASE IT_GOGGLES : BotWants = NOT nvHave ' (one you have stays on the floor)
         CASE IT_SUIT : BotWants = suitLeft < SUIT_MAX
+        CASE IT_JETPACK : BotWants = NOT jetHave OR jetFuel < JET_MAX
+        CASE IT_JETFUEL : BotWants = jetHave AND jetFuel < JET_MAX
         CASE IT_MAP, IT_OVERCHARGE, IT_AMP : BotWants = -1
     END SELECT
 END FUNCTION
