@@ -74,7 +74,7 @@
                     IF (monsterX(i) - playerX) ^ 2 + (monsterY(i) -playerY) ^ 2 < monSight(i) * monSight(i) THEN
                         IF monWake(i) = WAKE_NEAR OR CanSee(monsterX(i), monsterY(i), playerX, playerY) THEN ' (an ambush: you near enough, seen or not)
                             monsterState(i) = 1 : monsterTimer(i) = 30
-                            SfxAt mtypeAlertSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY
+                            SfxAt mtypeAlertSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY : monSeen(i) = -1
                             IF mtype = 8 THEN Say "boss", 0 ' (the overseer: NEXUS speaks through it)
                             IF mtype = MT_ROBODOG THEN DogBark i ' (a guard dog: its bark wakes every machine that hears it)
                             MonSpeak i, 0.5 ' (it calls it in - soldiers, heavies, cyborgs, each their own voice - from where it is)
@@ -95,6 +95,14 @@
                 monVs = monFoe(i) : IF monVs THEN IF monsterState(monVs) >= 2 OR cyberOn OR monVs = i THEN monFoe(i) = 0 : monVs = 0
                 IF monVs THEN monTX = monsterX(monVs) : monTY = monsterY(monVs) : monTZ = MonFoot(monVs) ELSE monTX = playerX : monTY = playerY : monTZ = playerZ
                 toPlayerX = monTX - monsterX(i) : toPlayerY = monTY - monsterY(i) : distance = SQR(toPlayerX * toPlayerX + toPlayerY * toPlayerY)
+                IF monSeen(i) = 0 AND monVs = 0 AND NOT dead AND NOT cyberOn AND mtype <> MT_TURRET THEN ' (hunting you, woken some other way - an alarm, a bark, a noise, spawned - and it sees you for the first time: its alert, its call)
+                    IF distance < monSight(i) THEN
+                        IF CanSee(monsterX(i), monsterY(i), playerX, playerY) THEN
+                            monSeen(i) = -1 : SfxAt mtypeAlertSnd&(mtype), monsterX(i), monsterY(i), playerX, playerY : MonSpeak i, 0.5
+                            IF mtype = MT_ROBODOG THEN DogWoof i
+                        END IF
+                    END IF
+                END IF
                 boltFromMon = i ' (its shots are its own: what they hit, it hit)
                 IF mtypeLift(mtype) > 0 AND NOT cyberOn THEN MonFlyTurn i ' (a flyer: up or down to who it's after)
                 IF (NOT dead OR monVs) AND distance > 0.01 THEN

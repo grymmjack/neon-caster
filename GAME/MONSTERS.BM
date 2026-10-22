@@ -625,7 +625,7 @@ END SUB
 
 ' Monster i's own fighting state, fresh: not aiming, no burst, a turret hidden
 SUB MonFresh(i)
-    monRush(i) = 0 : iceKind(i) = 0 : monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO : monTWant(i) = 0 : monTOff(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0 : monFly(i) = 0 : monFoe(i) = 0
+    monSeen(i) = 0 : monRush(i) = 0 : iceKind(i) = 0 : monAim(i) = 0 : monBurst(i) = 0 : monGap(i) = 0 : monTurn(i) = 0 : monDeploy(i) = 0 : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO : monTWant(i) = 0 : monTOff(i) = 0 : monFrom(i) = TURRET_CEIL : monWeap(i) = TW_PLASMA : monBlown(i) = 0 : monAimA(i) = 0 : monTrack(i) = TURRET_TRACK : monLock(i) = 0 : monFly(i) = 0 : monFoe(i) = 0
 END SUB
 
 ' A field boss's haul as it falls (monster i), thrown out towards you: the

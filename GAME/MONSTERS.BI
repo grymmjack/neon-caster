@@ -31,6 +31,7 @@ CONST MT_EYEBOT = 20 ' (the eyebot: a flying cybernetic eye - it zaps you with a
 ' it is. monRush: 0 not, 1 rushing, 2 blown up, 3 to blow up (it was shot)
 CONST EYE_RUSH = 3.5, EYE_ZAPS = 2, EYE_DASH = 2.6, EYE_FUSE = 150, EYE_BOOM_R = 2.1, EYE_BOOM_YOU = 34, EYE_BOOM_MON = 12
 DIM SHARED monRush(MAX_MON) AS INTEGER
+DIM SHARED monSeen(MAX_MON) AS INTEGER ' (it's seen you since it woke: its alert's been heard - the first sight of you, however it woke)
 CONST MT_ROBODOG = 18 ' (a robot guard dog: a thing, robodog - it barks when it sees you, waking every machine that hears it, and runs you down)
 CONST MT_MIMIC = 17 ' (a treasure chest that isn't: asleep it looks just like one - Space on it, standing by it or a shot wakes it, and it bites)
 ' How each kind fights, past a bite or a bolt (mtypeStyle): STYLE_LASER
