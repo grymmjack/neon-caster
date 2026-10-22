@@ -141,9 +141,11 @@ SUB RunMenu STATIC
             END IF
             IF menuDrag THEN
                 IF mouseDown THEN
+                    dragWas = setting(miRef(menuDrag))
                     SliderFromMouse menuDrag, mouseX : ApplySettings
+                    IF setting(miRef(menuDrag)) <> dragWas THEN MenuSettingSfx miRef(menuDrag)
                 ELSE
-                    menuDrag = 0 : PlaySfx sndMenuMove&, 0.5
+                    menuDrag = 0
                 END IF
             END IF
         END IF
@@ -217,6 +219,24 @@ SUB MenuMoveSel STATIC
     IF i <> menuSel AND MenuSelectable(i) THEN menuSel = i : PlaySfx sndMenuMove&, 0.5
 END SUB
 
+' --- The sound of a setting changing: a slider's tick (no more than one in 50 ms
+' while it's dragged), a toggle's on or off, a choice going round
+SUB MenuSettingSfx(id) STATIC
+    DIM snd& ' (its own)
+    SELECT CASE setKind(id)
+        CASE MI_TOGGLE
+            IF setting(id) THEN snd& = sndMenuOn& ELSE snd& = sndMenuOff&
+        CASE MI_CHOICE
+            snd& = sndMenuChoice&
+        CASE ELSE
+            IF ABS(TIMER - menuSlideAt!) < 0.05 THEN EXIT SUB
+            menuSlideAt! = TIMER : snd& = sndMenuSlide&
+    END SELECT
+    IF id = SET_MODE THEN snd& = sndMenuChoice&
+    IF snd& = 0 THEN snd& = sndMenuMove&
+    PlaySfx snd&, 0.5
+END SUB
+
 ' --- Left / right (menuAdjust = -1 / 1) on a slider, toggle or choice
 SUB MenuAdjustItem STATIC
     IF menuSel = 0 THEN EXIT SUB
@@ -224,7 +244,7 @@ SUB MenuAdjustItem STATIC
         CASE MI_SLIDER, MI_TOGGLE, MI_CHOICE
             ChangeSetting miRef(menuSel), menuAdjust
             ApplySettings
-            PlaySfx sndMenuMove&, 0.5
+            MenuSettingSfx miRef(menuSel)
     END SELECT
 END SUB
 

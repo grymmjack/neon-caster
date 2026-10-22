@@ -23,7 +23,7 @@ DIM SHARED pickFlash, placed, planeX, planeY, press, pressed, pressWas, px, py, 
 DIM SHARED qb$, r, railBeam, rayDirX, rayDirY, recoil, recSet, ri, rk, rowDist, savedArmor, savedCells, savedRockets
 DIM SHARED savedGun, savedHealth, savedShells, saveSlot, score, semi, shake, shakeX, shakeY, shiftOn, slammed
 DIM SHARED slot, sndAmmo&, sndArmor&, sndBarrel&, sndDecoHit&, sndDie&, sndExit&, sndHealth&, sndHurt&
-DIM SHARED sndLocked&, sndMenuBack&, sndMenuMove&, sndMenuSelect&, sndStep1&, spaceDown, spaceWas, spBot
+DIM SHARED sndLocked&, sndMenuBack&, sndMenuMove&, sndMenuSelect&, sndMenuSlide&, sndMenuOn&, sndMenuOff&, sndMenuChoice&, menuSlideAt!, sndStep1&, spaceDown, spaceWas, spBot
 DIM SHARED spriteH, spriteSlot, spriteSz, spriteTop, spriteU, spTop, st, st$, swapTimer, sx, sy, t, t$, taken
 DIM SHARED target, targetDeco, tc~&, texel~&, tm, toPlayerX, toPlayerY, totalKills, totalMonsters, totalTime!
 DIM SHARED trigK, trigRun$, tx, ty, ux, uy, v, viewH, w, w$, wallX, win, x0, y0, y1, zoom

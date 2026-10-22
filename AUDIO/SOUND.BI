@@ -137,6 +137,8 @@ NEXT
 sndHeadshot& = LoadSnd&("headshot.wav")
 
 sndMenuMove& = LoadSnd&("menu-move.wav") : sndMenuSelect& = LoadSnd&("menu-select.wav") : sndMenuBack& = LoadSnd&("menu-back.wav")
+' A slider's step, a toggle turned on or off, a choice going round (the cursor's tick if one's missing)
+sndMenuSlide& = LoadSnd&("menu-slide.wav") : sndMenuOn& = LoadSnd&("menu-on.wav") : sndMenuOff& = LoadSnd&("menu-off.wav") : sndMenuChoice& = LoadSnd&("menu-choice.wav")
 ' Rockets and the turrets' weapons (GAME/ROCKETS.BM): a rocket's blast, and
 ' a turret's flame, spray, lightning and missile
 DIM SHARED sndRocketBoom&, sndTurFlame&, sndTurSpray&, sndTurZap&, sndTurMissile&
