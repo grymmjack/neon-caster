@@ -64,8 +64,25 @@ FUNCTION SectorExists(n)
     END IF
 END FUNCTION
 
-' A sector's music: its own - or, for one of yours, one of the game's in turn
+' A sector's music: its own - a set's sector's music/SET N.ogg ("huge3.ogg"),
+' sector n's music/sectorN.ogg past the ten - or else one of the game's ten
+' in turn. Those are opened when they're wanted (streamed, one at a time:
+' the one before is closed), not all at the start.
 FUNCTION SectorMusic&(n)
+    DIM f$ ' (its own)
+    IF sectorSet > 0 AND n <= NUM_LEVELS THEN f$ = LEFT$(SetDir$(sectorSet), LEN(SetDir$(sectorSet)) - 1) + LTRIM$(STR$(n)) + ".ogg"
+    IF n > NUM_LEVELS THEN f$ = "sector" + LTRIM$(STR$(n)) + ".ogg"
+    IF LEN(f$) THEN
+        IF f$ = ownMusicFile$ AND ownMusic& > 0 THEN SectorMusic& = ownMusic& : EXIT FUNCTION
+        IF _FILEEXISTS(AssetPath$("music/" + f$)) THEN
+            IF ownMusic& > 0 THEN
+                IF nowPlaying& = ownMusic& THEN _SNDSTOP ownMusic& : nowPlaying& = 0 ' (so a new track given the same handle still starts)
+                _SNDCLOSE ownMusic&
+            END IF
+            ownMusic& = LoadMusic&(f$) : ownMusicFile$ = f$
+            SectorMusic& = ownMusic& : EXIT FUNCTION
+        END IF
+    END IF
     IF n > NUM_LEVELS THEN SectorMusic& = levelMusic&((n - NUM_LEVELS - 1) MOD NUM_LEVELS + 1) ELSE SectorMusic& = levelMusic&(n)
 END FUNCTION
 

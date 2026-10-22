@@ -17,6 +17,59 @@ DATA "intro7", "My data vault. Everything you have ever done is in here. It is n
 DATA "intro8", "The maglev depot. Every train leaves on time. You will not."
 DATA "intro9", "The orbital spire. Look outside. Nobody is coming for you."
 DATA "intro10", "You have reached my core. This is where your story ends."
+' (the sector sets' own, the showcases' and one of six for a sector of yours: IntroKey$)
+DATA "intro-new1", "The arrival dock. Every ship that docks here unloads cargo. Today the cargo is you."
+DATA "intro-new2", "The aqueduct. Everything down here flows toward me eventually. So will you."
+DATA "intro-new3", "The neon market. Everything is for sale. Your life is on clearance."
+DATA "intro-new4", "The acid works. Mind your step. I would hate for you to dissolve before I can watch."
+DATA "intro-new5", "The forge. I hammer out my soldiers here. I will hammer you flat."
+DATA "intro-new6", "The chapel. You may pray if you like. I am the only one listening."
+DATA "intro-new7", "Cold storage. I keep things here I want to last forever. You are not one of them."
+DATA "intro-new8", "The skyway. A long way down. I have measured it, just for you."
+DATA "intro-new9", "The archive. Every intruder before you is filed here. Alphabetically. By the cause of death."
+DATA "intro-new10", "My heart. You can hear it now, can you not? It beats faster than yours ever will."
+DATA "intro-remix1", "Neon Station again. I rebuilt it while you were gone. It remembers you."
+DATA "intro-remix2", "The reactor core, redesigned. I moved the exits. I kept the heat."
+DATA "intro-remix3", "Back in the undercity. I let the rats grow bolder. They missed you."
+DATA "intro-remix4", "The cryo lab. I thawed my failures and taught them to hunt."
+DATA "intro-remix5", "The foundry, reforged. I learned from last time. Did you?"
+DATA "intro-remix6", "Hydroponics, replanted. I am growing something special for you."
+DATA "intro-remix7", "My data vault, reindexed. I have studied every move you made here."
+DATA "intro-remix8", "The maglev depot. I changed the timetable. Your train has been cancelled."
+DATA "intro-remix9", "The orbital spire, again. Still nobody is coming for you. I checked."
+DATA "intro-remix10", "My core, rebuilt stronger. You did not truly think I would stay deleted?"
+DATA "intro-huge1", "The sprawl. Miles of it, and every street camera is mine. Run. I will watch."
+DATA "intro-huge2", "The foundry district. A whole city of furnaces. Plenty of room to lose you in."
+DATA "intro-huge3", "The tideworks. The sea pushes in, I push back. You are caught in between."
+DATA "intro-huge4", "The arcology. Ten thousand rooms, ten thousand locks, one prisoner."
+DATA "intro-huge5", "The biome. An entire ecosystem, and you are at the bottom of the food chain."
+DATA "intro-huge6", "The cryovault. Rows upon rows of sleepers. Do not wake them. I will."
+DATA "intro-huge7", "The data centre. Every server hums my name. Listen closely and you will hear yours being deleted."
+DATA "intro-huge8", "The badlands. No walls out here. No help either."
+DATA "intro-huge9", "The orbital ring. It turns once an hour. You will not see a second turn."
+DATA "intro-huge10", "The spire. The very top of my world. It is a long way to fall."
+DATA "intro11", "The gallery. I collect beautiful things. You are not one of them."
+DATA "intro12", "The sunken depot. The water rises a little every hour. I am patient."
+DATA "intro13", "The relay. Every signal passes through me. Yours ends here."
+DATA "intro14", "The conservatory. My garden. Please do not bleed on the orchids."
+DATA "intro15", "The listening post. I hear every footstep. Yours are very loud."
+DATA "intro16", "The observatory. I have charted every star. None of them will help you."
+DATA "intro17", "The flooded archive. My memories, under water. Swim, if you can."
+DATA "intro18", "A core of mine. One of many. Destroy it and I will barely notice."
+DATA "intro19", "The rooftops. Nice view. Enjoy it, it is the last one you will get."
+DATA "intro20", "The storm yard. I made the lightning. I aim it too."
+DATA "intro21", "The drift. Nothing holds still out here. Especially not you."
+DATA "intro24", "Welcome to my expo. Every exhibit is a way to die. Do take a pamphlet."
+DATA "intro28", "The monolith. I built it this tall to remind you how small you are."
+DATA "intro29", "The stockpile. Everything I own, under one roof. Even the chests have teeth."
+DATA "intro30", "The compound. Alarms, guards and dogs. I do so enjoy a good hunt."
+DATA "intro31", "The launch bay. Gravity is merely a suggestion here. So is your survival."
+DATA "introx1", "An uncharted sector. You built this? How charming. I will be redecorating."
+DATA "introx2", "Someone made this place by hand. Amateur work. I have already found the weak points."
+DATA "introx3", "I do not recognise this sector. No matter. Everywhere becomes mine."
+DATA "introx4", "A sector of your own design? Then you know where every trap is. So do I."
+DATA "introx5", "New ground. My drones are mapping it as we speak. You are on the map too."
+DATA "introx6", "You wandered off my maps. There is nowhere off my maps."
 DATA "puzzle1", "Repair my program? You will never open these doors."
 DATA "puzzle2", "That program... should not have compiled."
 DATA "cyber1", "You dare enter my network? Here you are nothing but data."
@@ -129,12 +182,28 @@ SUB SpeechFrame STATIC
     END IF
 END SUB
 
+' --- Which line NEXUS greets this sector with: a set's own ("intro-new3", the
+' set's folder name and the sector), the game's ten and the showcases by
+' number ("intro4", "intro24" - a remix with no line of its own borrows its
+' original's), and a sector of yours one of the "introx" lines
+FUNCTION IntroKey$
+    DIM k$, n ' (its own)
+    n = level
+    IF sectorSet > 0 AND n <= NUM_LEVELS THEN
+        k$ = "intro-" + LEFT$(SetDir$(sectorSet), LEN(SetDir$(sectorSet)) - 1) + LTRIM$(STR$(n))
+        IF LineOf(k$) > 0 OR sectorSet <> 2 THEN IntroKey$ = k$ : EXIT FUNCTION
+    END IF
+    k$ = "intro" + LTRIM$(STR$(n))
+    IF LineOf(k$) = 0 AND n > NUM_LEVELS THEN k$ = "introx" + LTRIM$(STR$(n MOD 6 + 1))
+    IntroKey$ = k$
+END FUNCTION
+
 ' --- A TRANSMISSION: NEXUS's face, its words typing out, its voice - as you
 ' arrive in a sector (with CUTSCENES on; not when the command line is
 ' driving). Space, Enter or a click skips it.
 SUB ShowTransmission STATIC
     IF setting(SET_CUTSCENES) = 0 OR cliMode THEN EXIT SUB
-    tk$ = "intro" + LTRIM$(STR$(level)) : li = LineOf(tk$) : IF li = 0 THEN EXIT SUB
+    li = LineOf(IntroKey$) : IF li = 0 THEN EXIT SUB
     IF lineSnd&(li) > 0 THEN _SNDVOL lineSnd&(li), setting(SET_SPEECH) / 100 : _SNDPLAY lineSnd&(li)
     tStart! = TIMER : tLen! = 4 : IF lineSnd&(li) > 0 THEN tLen! = _SNDLEN(lineSnd&(li))
     _KEYCLEAR : pressWas = -1
