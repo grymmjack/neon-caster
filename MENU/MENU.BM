@@ -86,7 +86,9 @@ SUB RunMenu STATIC
         DO WHILE keyCode& <> 0 AND NOT menuDone
             IF keyCode& > 0 THEN menuActive = -1 ' (for attract mode: someone's there)
             IF keyCode& > 0 THEN ' (a negative code is a key being let go)
-                IF menuCapture THEN
+                IF stTyping THEN ' (SOUND TEST: a note being typed)
+                    StTypeKey
+                ELSEIF menuCapture THEN
                     CaptureKey
                 ELSEIF menuTyping THEN
                     MenuTypeKey
@@ -101,6 +103,14 @@ SUB RunMenu STATIC
                         CASE 102, 70 : IF menuScreen = SCR_DEMOS THEN PlaySfx sndMenuSelect&, 0.6 : OpenDemoFolder ' F (DEMO REPLAYS): your recordings' folder
                             IF menuSel > 0 THEN
                                 IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN StFlag miRef(menuSel) : miInfo$(menuSel) = StInfo$(miRef(menuSel)) ' F (SOUND TEST): flag it
+                            END IF
+                        CASE 111, 79 ' O (SOUND TEST): it's OK
+                            IF menuSel > 0 THEN
+                                IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN StMarkOK miRef(menuSel) : miInfo$(menuSel) = StInfo$(miRef(menuSel)) : PlaySfx sndMenuSelect&, 0.6
+                            END IF
+                        CASE 110, 78 ' N (SOUND TEST): a note on it
+                            IF menuSel > 0 THEN
+                                IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN stTyping = miRef(menuSel) : stTyped$ = stNote$(stTyping) : miInfo$(menuSel) = StInfo$(stTyping) : _KEYCLEAR
                             END IF
                     END SELECT
                 END IF
@@ -125,7 +135,8 @@ SUB RunMenu STATIC
         ' doesn't count, or it would pick whatever item is under it now.)
         IF displayModeNow <> menuDispWas THEN menuDispWas = displayModeNow : menuPointWait = 30
         IF menuPointWait > 0 THEN menuPointWait = menuPointWait - 1 : lastMouseX = mouseX : lastMouseY = mouseY
-        IF NOT menuDone AND menuCapture = 0 AND menuTyping = 0 THEN
+        IF stTyping AND menuSel > 0 THEN miInfo$(menuSel) = StInfo$(stTyping) ' (SOUND TEST: the note's cursor blinks)
+        IF NOT menuDone AND menuCapture = 0 AND menuTyping = 0 AND stTyping = 0 THEN
             overItem = MenuItemAt(mouseX, mouseY)
             IF overItem > 0 AND overItem <> menuSel AND (mouseX <> lastMouseX OR mouseY <> lastMouseY) THEN
                 menuSel = overItem : PlaySfx sndMenuMove&, 0.5
@@ -533,7 +544,10 @@ SUB BuildMenu(scr)
             StLoad
             FOR c = 1 TO stCats
                 n = StCount(c, 0) : n1 = StCount(c, -1)
-                info$ = LTRIM$(STR$(n)) + " sounds" : IF n1 THEN info$ = info$ + ",  " + LTRIM$(STR$(n1)) + " flagged"
+                info$ = LTRIM$(STR$(n)) + " sounds"
+                IF StCount(c, 1) THEN info$ = info$ + ",  " + LTRIM$(STR$(StCount(c, 1))) + " ok"
+                IF StCount(c, 2) THEN info$ = info$ + ",  " + LTRIM$(STR$(StCount(c, 2))) + " noted"
+                IF n1 THEN info$ = info$ + ",  " + LTRIM$(STR$(n1)) + " flagged"
                 AddMenuItem stCat$(c), MI_SUBMENU, SCR_ST1 + c - 1, 0, n > 0, info$
             NEXT
             IF stCats = 0 THEN AddMenuItem "NO SOUND LIST (sfx/soundtest.txt)", MI_TEXT, 0, 0, 0, ""
@@ -737,7 +751,11 @@ SUB DrawMenu(t)
     IF menuScreen = SCR_DEMOS THEN
         MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  PLAY     F  OPEN FOLDER     ESC  BACK", 1, _RGB32(140, 135, 175), 1
     ELSEIF menuScreen >= SCR_ST1 AND menuScreen < SCR_ST1 + ST_CATS THEN
-        MenuText 400, 574, "UP / DOWN  PICK     ENTER  PLAY     LEFT / RIGHT  PAGE     F  FLAG     ESC  BACK", 1, _RGB32(140, 135, 175), 1
+        IF stTyping THEN
+            MenuText 400, 574, "TYPE THE NOTE     ENTER  KEEP IT     ESC  DROP IT", 1, _RGB32(255, 230, 60), 1
+        ELSE
+            MenuText 400, 574, "ENTER  PLAY   O  OK   N  NOTE   F  FLAG   LEFT / RIGHT  PAGE   ESC  BACK", 1, _RGB32(140, 135, 175), 1
+        END IF
     ELSE
         MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  CHOOSE     ESC  BACK     OR POINT AND CLICK", 1, _RGB32(140, 135, 175), 1
     END IF

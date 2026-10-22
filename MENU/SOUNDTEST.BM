@@ -7,7 +7,7 @@
 ' --- The list, once: soundtest.txt's [CATEGORY] lines and path|name lines,
 ' and the flags saved last time
 SUB StLoad STATIC
-    DIM f, l$, b, i, p$ ' (its own)
+    DIM f, l$, b, b2, i, p$, r$ ' (its own)
     IF stLoaded THEN EXIT SUB
     stLoaded = -1 : stCats = 0 : stN = 0
     p$ = AssetPath$("sfx/soundtest.txt") : IF NOT _FILEEXISTS(p$) THEN EXIT SUB
@@ -18,7 +18,7 @@ SUB StLoad STATIC
             IF stCats < ST_CATS THEN stCats = stCats + 1 : stCat$(stCats) = MID$(l$, 2, LEN(l$) - 2)
         ELSEIF LEN(l$) AND stCats > 0 AND stN < ST_MAX THEN
             b = INSTR(l$, "|") : IF b = 0 THEN b = LEN(l$) + 1
-            stN = stN + 1 : stFile$(stN) = LEFT$(l$, b - 1) : stName$(stN) = MID$(l$, b + 1) : stOf(stN) = stCats : stFlagged(stN) = 0
+            stN = stN + 1 : stFile$(stN) = LEFT$(l$, b - 1) : stName$(stN) = MID$(l$, b + 1) : stOf(stN) = stCats : stFlagged(stN) = 0 : stReview(stN) = 0 : stNote$(stN) = ""
         END IF
     LOOP
     CLOSE #f
@@ -33,22 +33,97 @@ SUB StLoad STATIC
         LOOP
         CLOSE #f
     END IF
+    p$ = SaveDir$ + "soundreview.txt" ' (path|OK or NOTE|the note|name)
+    IF _FILEEXISTS(p$) THEN
+        f = FREEFILE : OPEN p$ FOR INPUT AS #f
+        DO UNTIL EOF(f)
+            LINE INPUT #f, l$
+            IF LEFT$(l$, 1) <> "#" THEN
+                b = INSTR(l$, "|")
+                IF b THEN
+                    FOR i = 1 TO stN
+                        IF stFile$(i) = LEFT$(l$, b - 1) THEN
+                            r$ = MID$(l$, b + 1) : b2 = INSTR(r$, "|") : IF b2 = 0 THEN b2 = LEN(r$) + 1
+                            IF LEFT$(r$, b2 - 1) = "OK" THEN stReview(i) = 1
+                            IF LEFT$(r$, b2 - 1) = "NOTE" THEN
+                                r$ = MID$(r$, b2 + 1) : b2 = INSTR(r$, "|") : IF b2 = 0 THEN b2 = LEN(r$) + 1
+                                stReview(i) = 2 : stNote$(i) = LEFT$(r$, b2 - 1)
+                            END IF
+                        END IF
+                    NEXT
+                END IF
+            END IF
+        LOOP
+        CLOSE #f
+    END IF
 END SUB
 
-' How many sounds category c has (and how many flagged)
-FUNCTION StCount(c, flagged)
+' How many sounds category c has - all (what 0), flagged (-1), marked OK (1) or with a note (2)
+FUNCTION StCount(c, what)
     DIM i, n ' (its own)
     FOR i = 1 TO stN
-        IF stOf(i) = c AND (stFlagged(i) OR NOT flagged) THEN n = n + 1
+        IF stOf(i) = c THEN
+            SELECT CASE what
+                CASE 0 : n = n + 1
+                CASE -1 : IF stFlagged(i) THEN n = n + 1
+                CASE ELSE : IF stReview(i) = what THEN n = n + 1
+            END SELECT
+        END IF
     NEXT
     StCount = n
 END FUNCTION
 
-' The menu line beside sound n: its name, and FLAGGED if it is
+' --- Your review: O marks sound n OK (again: unmarks it); N starts a note (StTypeKey types it)
+SUB StMarkOK(n) STATIC
+    IF stReview(n) = 1 THEN stReview(n) = 0 ELSE stReview(n) = 1 : stNote$(n) = ""
+    StSaveReview
+END SUB
+
+' A key while a note's being typed: Enter keeps it (empty: no note), Esc drops it, Backspace
+' rubs out, anything printable is typed
+SUB StTypeKey STATIC
+    SELECT CASE keyCode&
+        CASE 13
+            stNote$(stTyping) = _TRIM$(stTyped$)
+            IF LEN(stNote$(stTyping)) THEN stReview(stTyping) = 2 ELSE IF stReview(stTyping) = 2 THEN stReview(stTyping) = 0
+            stTyping = 0 : StSaveReview : PlaySfx sndMenuSelect&, 0.6
+        CASE 27
+            stTyping = 0 : PlaySfx sndMenuBack&, 0.6
+        CASE 8
+            IF LEN(stTyped$) THEN stTyped$ = LEFT$(stTyped$, LEN(stTyped$) - 1)
+        CASE 32 TO 126
+            IF LEN(stTyped$) < 80 AND keyCode& <> 124 THEN stTyped$ = stTyped$ + CHR$(keyCode&) ' (not |: it splits the file's fields)
+    END SELECT
+    IF menuSel > 0 THEN miInfo$(menuSel) = StInfo$(miRef(menuSel))
+END SUB
+
+' Save every review: one path|OK or NOTE|the note|name a line
+SUB StSaveReview STATIC
+    DIM f, i ' (its own)
+    f = FREEFILE : OPEN SaveDir$ + "soundreview.txt" FOR OUTPUT AS #f
+    PRINT #f, "# SOUND TEST review: path|OK or NOTE|the note|name"
+    FOR i = 1 TO stN
+        IF stReview(i) = 1 THEN PRINT #f, stFile$(i) + "|OK||" + stName$(i)
+        IF stReview(i) = 2 THEN PRINT #f, stFile$(i) + "|NOTE|" + stNote$(i) + "|" + stName$(i)
+    NEXT
+    CLOSE #f
+END SUB
+
+' The menu line beside sound n: its name - and OK, or its note (or the note being typed), and
+' * if it's flagged. 50 small letters fit.
 FUNCTION StInfo$(n)
-    DIM i$ ' (its own)
-    i$ = stName$(n) : IF LEN(i$) > 46 THEN i$ = LEFT$(i$, 45) + "~"
-    IF stFlagged(n) THEN i$ = "* " + LEFT$(i$, 38) + "   FLAGGED"
+    DIM i$, c$ ' (its own)
+    i$ = stName$(n)
+    IF stTyping = n THEN
+        c$ = " " : IF (menuT \ 15) MOD 2 = 0 THEN c$ = "_"
+        i$ = "NOTE> " + RIGHT$(stTyped$, 43) + c$
+    ELSEIF stReview(n) = 1 THEN
+        i$ = "OK  " + i$
+    ELSEIF stReview(n) = 2 THEN
+        i$ = "NOTE  " + LEFT$(i$, 16) + ": " + stNote$(n)
+    END IF
+    IF stFlagged(n) AND stTyping <> n THEN i$ = "* " + i$
+    IF LEN(i$) > 50 THEN i$ = LEFT$(i$, 49) + "~"
     StInfo$ = i$
 END FUNCTION
 
