@@ -1,0 +1,99 @@
+''
+' NEON-CASTER - AUDIO/SOFTEN.BM
+' =============================================================================
+' SOFTEN HIGHS: opening a sound so it can be filtered, the filter itself,
+' and putting a new strength into effect.
+'
+
+' Open a sound file whole ("noasync": unpacked into memory there and then -
+' see LoadMusic&) and remember it, softened to the strength the rest are
+FUNCTION OpenSnd&(path$)
+    DIM h& ' (its own)
+    h& = _SNDOPEN(path$, "noasync")
+    IF h& > 0 AND sndRegN < SND_REG_MAX THEN
+        sndRegN = sndRegN + 1 : sndRegH&(sndRegN) = h& : sndRegF$(sndRegN) = path$
+        IF softenNow THEN SoftenSound h&, softenNow
+    END IF
+    OpenSnd& = h&
+END FUNCTION
+
+' Forget sound h& (it's being closed): SoftenAll mustn't touch it
+SUB ForgetSnd(h&)
+    DIM k ' (its own)
+    FOR k = 1 TO sndRegN
+        IF sndRegH&(k) = h& THEN sndRegH&(k) = sndRegH&(sndRegN) : sndRegF$(k) = sndRegF$(sndRegN) : sndRegN = sndRegN - 1 : EXIT SUB
+    NEXT
+END SUB
+
+' --- The filter: a low-pass "biquad" (Robert Bristow-Johnson's cookbook) run
+' along each channel of sound h&'s samples - strength 1 once at 10 kHz, 2
+' twice at 7 kHz. The samples are copied into an array, filtered there and
+' copied back (much quicker than reading memory a sample at a time).
+SUB SoftenSound(h&, strength)
+    DIM m AS _MEM, mb AS _MEM, bps, ch, frames AS LONG, total AS LONG, i AS LONG, c, pass, passes ' (its own)
+    DIM fc!, w0#, cw#, al#, a0#, b0#, b1#, b2#, a1#, a2#, x#, x1#, x2#, y#, y1#, y2#
+    IF h& <= 0 OR strength <= 0 THEN EXIT SUB
+    m = _MEMSOUND(h&)
+    IF m.SIZE = 0 THEN EXIT SUB
+    SELECT CASE m.TYPE
+        CASE 260 : bps = 4 ' (32-bit floating point - what the sound engine unpacks to)
+        CASE 130 : bps = 2 ' (16-bit)
+        CASE ELSE : EXIT SUB
+    END SELECT
+    ch = m.ELEMENTSIZE \ bps : IF ch < 1 THEN EXIT SUB
+    frames = m.SIZE \ m.ELEMENTSIZE : total = frames * ch
+    IF strength >= 2 THEN fc! = SOFTEN_STRONG_HZ : passes = 2 ELSE fc! = SOFTEN_LIGHT_HZ : passes = 1
+    IF fc! > _SNDRATE * 0.45 THEN EXIT SUB ' (nothing that high to cut)
+    w0# = 2 * 3.14159265358979# * fc! / _SNDRATE : cw# = COS(w0#) : al# = SIN(w0#) / (2 * 0.7071068#)
+    a0# = 1 + al# : b0# = (1 - cw#) / 2 / a0# : b1# = (1 - cw#) / a0# : b2# = b0# : a1# = -2 * cw# / a0# : a2# = (1 - al#) / a0#
+    IF bps = 4 THEN
+        DIM bufS(total - 1) AS SINGLE
+        mb = _MEM(bufS()) : _MEMCOPY m, m.OFFSET, m.SIZE TO mb, mb.OFFSET
+        FOR pass = 1 TO passes
+            FOR c = 0 TO ch - 1
+                x1# = 0 : x2# = 0 : y1# = 0 : y2# = 0
+                FOR i = c TO total - 1 STEP ch
+                    x# = bufS(i) : y# = b0# * x# + b1# * x1# + b2# * x2# - a1# * y1# - a2# * y2#
+                    x2# = x1# : x1# = x# : y2# = y1# : y1# = y# : bufS(i) = y#
+                NEXT
+            NEXT
+        NEXT
+        _MEMCOPY mb, mb.OFFSET, m.SIZE TO m, m.OFFSET
+    ELSE
+        DIM bufI(total - 1) AS INTEGER
+        mb = _MEM(bufI()) : _MEMCOPY m, m.OFFSET, m.SIZE TO mb, mb.OFFSET
+        FOR pass = 1 TO passes
+            FOR c = 0 TO ch - 1
+                x1# = 0 : x2# = 0 : y1# = 0 : y2# = 0
+                FOR i = c TO total - 1 STEP ch
+                    x# = bufI(i) : y# = b0# * x# + b1# * x1# + b2# * x2# - a1# * y1# - a2# * y2#
+                    x2# = x1# : x1# = x# : y2# = y1# : y1# = y#
+                    IF y# > 32767 THEN y# = 32767 ELSE IF y# < -32768 THEN y# = -32768
+                    bufI(i) = y#
+                NEXT
+            NEXT
+        NEXT
+        _MEMCOPY mb, mb.OFFSET, m.SIZE TO m, m.OFFSET
+    END IF
+    _MEMFREE mb : _MEMFREE m
+END SUB
+
+' --- Put strength s into effect on every sound: what's been filtered is read
+' back from its file first (into the same handle - nothing else changes), then
+' filtered at the new strength
+SUB SoftenAll(s)
+    DIM k, t&, m AS _MEM, mt AS _MEM ' (its own)
+    IF s = softenNow THEN EXIT SUB
+    FOR k = 1 TO sndRegN
+        IF softenNow THEN ' (undo: the samples as they are in the file)
+            t& = _SNDOPEN(sndRegF$(k), "noasync")
+            IF t& > 0 THEN
+                m = _MEMSOUND(sndRegH&(k)) : mt = _MEMSOUND(t&)
+                IF m.SIZE = mt.SIZE AND m.SIZE > 0 THEN _MEMCOPY mt, mt.OFFSET, mt.SIZE TO m, m.OFFSET
+                _MEMFREE m : _MEMFREE mt : _SNDCLOSE t&
+            END IF
+        END IF
+        IF s THEN SoftenSound sndRegH&(k), s
+    NEXT
+    softenNow = s
+END SUB

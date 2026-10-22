@@ -1228,7 +1228,7 @@ FUNCTION ConSound&(n$)
         IF names$(k) = LCASE$(n$) THEN ConSound& = snds&(k) : EXIT FUNCTION
     NEXT
     s& = LoadSnd&(n$ + ".wav")
-    IF s& > 0 AND count >= 32 THEN _SNDCLOSE snds&(32) : count = 31 ' (full: the last one's place is taken, not leaked)
+    IF s& > 0 AND count >= 32 THEN ForgetSnd snds&(32) : _SNDCLOSE snds&(32) : count = 31 ' (full: the last one's place is taken, not leaked)
     IF s& > 0 AND count < 32 THEN count = count + 1 : names$(count) = LCASE$(n$) : snds&(count) = s&
     ConSound& = s&
 END FUNCTION

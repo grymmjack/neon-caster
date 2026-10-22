@@ -567,7 +567,7 @@ SUB BuildMenu(scr)
         CASE SCR_AUDIO
             menuTitle$ = "AUDIO" : menuWide = -1
             AddSettingItem SET_SFX : AddSettingItem SET_MUSIC : AddSettingItem SET_SPEECH
-            AddSettingItem SET_SPATIAL : AddSettingItem SET_LIMITER : AddSettingItem SET_CUTSCENES : AddSettingItem SET_TAUNTS
+            AddSettingItem SET_SPATIAL : AddSettingItem SET_LIMITER : AddSettingItem SET_SOFTEN : AddSettingItem SET_CUTSCENES : AddSettingItem SET_TAUNTS
             AddMenuItem "SOUND TEST", MI_SUBMENU, SCR_SOUNDTEST, 0, -1, "every sound, voice and track"
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_GAMEPLAY

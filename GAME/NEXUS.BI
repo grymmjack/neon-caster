@@ -15,6 +15,6 @@ RESTORE SpeechLines
 DO
     READ k$, t$ : IF k$ = "" THEN EXIT DO
     numLines = numLines + 1 : lineKey$(numLines) = k$ : lineText$(numLines) = t$
-    p$ = AssetPath$("speech/" + k$ + ".wav") : IF _FILEEXISTS(p$) THEN lineSnd&(numLines) = _SNDOPEN(p$, "noasync")
+    p$ = AssetPath$("speech/" + k$ + ".wav") : IF _FILEEXISTS(p$) THEN lineSnd&(numLines) = OpenSnd&(p$) ' (SOFTEN HIGHS can filter it)
 LOOP
 tauntWait = 3600

@@ -10,7 +10,7 @@
 ' 0, so the game still runs - silently - without its sounds.
 FUNCTION LoadSnd&(file$)
     path$ = AssetPath$("sfx/" + file$)
-    IF _FILEEXISTS(path$) THEN LoadSnd& = _SNDOPEN(path$, "noasync") ' (see LoadMusic&)
+    IF _FILEEXISTS(path$) THEN LoadSnd& = OpenSnd&(path$) ' (whole, and softened if SOFTEN HIGHS is on: AUDIO/SOFTEN.BM)
 END FUNCTION
 
 ' Play a copy of a sound (_SNDPLAYCOPY), so the same one can overlap itself

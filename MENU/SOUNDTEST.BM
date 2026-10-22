@@ -138,7 +138,7 @@ SUB StPlay(n) STATIC
         stSnd& = _SNDOPEN(p$, "stream, noasync")
         IF stSnd& > 0 THEN _SNDVOL stSnd&, setting(SET_MUSIC) / 100 : _SNDLOOP stSnd&
     ELSE
-        stSnd& = _SNDOPEN(p$, "noasync")
+        stSnd& = _SNDOPEN(p$, "noasync") : SoftenSound stSnd&, softenNow ' (as the game plays it)
         IF stSnd& > 0 THEN
             IF LEFT$(stFile$(n), 7) = "speech/" THEN _SNDVOL stSnd&, setting(SET_SPEECH) / 100 ELSE _SNDVOL stSnd&, setting(SET_SFX) / 100
             _SNDPLAY stSnd&

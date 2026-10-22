@@ -15,6 +15,7 @@
 '$INCLUDE:'./CORE/STATE.BI'
 '$INCLUDE:'./CORE/WINDOW.BI'
 '$INCLUDE:'./CORE/SETTINGS.BI'
+'$INCLUDE:'./AUDIO/SOFTEN.BI'
 '$INCLUDE:'./CORE/KEYS.BI'
 
 ' WORLD -----------------------------------------------------------------------
