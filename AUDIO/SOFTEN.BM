@@ -6,13 +6,19 @@
 '
 
 ' Open a sound file whole ("noasync": unpacked into memory there and then -
-' see LoadMusic&) and remember it, softened to the strength the rest are
+' see LoadMusic&) and remember it, softened to the strength the rest are.
+' The sound engine keeps one copy of a file however often it's opened: a
+' file opened before shares that one's samples (already softened), so it's
+' neither filtered nor remembered again.
 FUNCTION OpenSnd&(path$)
-    DIM h& ' (its own)
+    DIM h&, k ' (its own)
     h& = _SNDOPEN(path$, "noasync")
+    FOR k = 1 TO sndRegN
+        IF sndRegF$(k) = path$ THEN OpenSnd& = h& : EXIT FUNCTION
+    NEXT
     IF h& > 0 AND sndRegN < SND_REG_MAX THEN
-        sndRegN = sndRegN + 1 : sndRegH&(sndRegN) = h& : sndRegF$(sndRegN) = path$
-        IF softenNow THEN SoftenSound h&, softenNow
+        sndRegN = sndRegN + 1 : sndRegH&(sndRegN) = h& : sndRegF$(sndRegN) = path$ : sndRegHasB(sndRegN) = 0
+        IF softenNow THEN SoftenOne sndRegN, softenNow
     END IF
     OpenSnd& = h&
 END FUNCTION
@@ -21,7 +27,11 @@ END FUNCTION
 SUB ForgetSnd(h&)
     DIM k ' (its own)
     FOR k = 1 TO sndRegN
-        IF sndRegH&(k) = h& THEN sndRegH&(k) = sndRegH&(sndRegN) : sndRegF$(k) = sndRegF$(sndRegN) : sndRegN = sndRegN - 1 : EXIT SUB
+        IF sndRegH&(k) = h& THEN
+            IF sndRegHasB(k) THEN _MEMFREE sndRegB(k)
+            sndRegH&(k) = sndRegH&(sndRegN) : sndRegF$(k) = sndRegF$(sndRegN) : sndRegB(k) = sndRegB(sndRegN) : sndRegHasB(k) = sndRegHasB(sndRegN)
+            sndRegHasB(sndRegN) = 0 : sndRegN = sndRegN - 1 : EXIT SUB
+        END IF
     NEXT
 END SUB
 
@@ -78,22 +88,28 @@ SUB SoftenSound(h&, strength)
     _MEMFREE mb : _MEMFREE m
 END SUB
 
-' --- Put strength s into effect on every sound: what's been filtered is read
-' back from its file first (into the same handle - nothing else changes), then
-' filtered at the new strength
+' --- Put strength s into effect on every sound: each goes back to its
+' samples as they were (the copy kept the first time it was filtered), then
+' is filtered at the new strength
 SUB SoftenAll(s)
-    DIM k, t&, m AS _MEM, mt AS _MEM ' (its own)
+    DIM k ' (its own)
     IF s = softenNow THEN EXIT SUB
     FOR k = 1 TO sndRegN
-        IF softenNow THEN ' (undo: the samples as they are in the file)
-            t& = _SNDOPEN(sndRegF$(k), "noasync")
-            IF t& > 0 THEN
-                m = _MEMSOUND(sndRegH&(k)) : mt = _MEMSOUND(t&)
-                IF m.SIZE = mt.SIZE AND m.SIZE > 0 THEN _MEMCOPY mt, mt.OFFSET, mt.SIZE TO m, m.OFFSET
-                _MEMFREE m : _MEMFREE mt : _SNDCLOSE t&
-            END IF
-        END IF
-        IF s THEN SoftenSound sndRegH&(k), s
+        SoftenOne k, s
     NEXT
     softenNow = s
+END SUB
+
+' Sound k (of those remembered) at strength s: back to as it was, then filtered
+SUB SoftenOne(k, s)
+    DIM m AS _MEM ' (its own)
+    m = _MEMSOUND(sndRegH&(k))
+    IF m.SIZE = 0 THEN EXIT SUB
+    IF sndRegHasB(k) THEN
+        IF sndRegB(k).SIZE = m.SIZE THEN _MEMCOPY sndRegB(k), sndRegB(k).OFFSET, m.SIZE TO m, m.OFFSET
+    ELSEIF s THEN ' (the first time: keep the samples as they are)
+        sndRegB(k) = _MEMNEW(m.SIZE) : _MEMCOPY m, m.OFFSET, m.SIZE TO sndRegB(k), sndRegB(k).OFFSET : sndRegHasB(k) = -1
+    END IF
+    _MEMFREE m
+    IF s THEN SoftenSound sndRegH&(k), s
 END SUB
