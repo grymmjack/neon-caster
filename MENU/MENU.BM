@@ -72,6 +72,7 @@ SUB RunMenu STATIC
     IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusic menuMusic&
     menuGamWas = setting(SET_GAMMA) : IF nvOn THEN menuGamWas = 0 ' (the brightness that frame was drawn at - 0: none, it's night vision's green)
     menuDepth = 0 : menuScreen = SCR_MAIN : EnterMenuScreen : menuIdle = 0 : menuActive = 0
+    IF menuOpenSound THEN menuOpenSound = 0 : menuDepth = 1 : menuStack(1) = SCR_MAIN : menuStackSel(1) = 1 : menuScreen = SCR_SOUNDTEST : EnterMenuScreen ' (the soundtest command: there, BACK to the main menu)
     IF menuOpenDemos THEN menuOpenDemos = 0 : menuDepth = 1 : menuStack(1) = SCR_MAIN : menuStackSel(1) = menuSel + 1 : menuScreen = SCR_DEMOS : demoListPage = 0 : EnterMenuScreen ' (back from a demo: at DEMO REPLAYS, BACK to the main menu's line for it)
     menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1 : menuDispWas = displayModeNow : menuPointWait = 0
     _KEYCLEAR
@@ -98,6 +99,9 @@ SUB RunMenu STATIC
                         CASE 13, 32 : MenuActivate ' Enter, Space
                         CASE 27, 8 : MenuBack ' Esc, Backspace
                         CASE 102, 70 : IF menuScreen = SCR_DEMOS THEN PlaySfx sndMenuSelect&, 0.6 : OpenDemoFolder ' F (DEMO REPLAYS): your recordings' folder
+                            IF menuSel > 0 THEN
+                                IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN StFlag miRef(menuSel) : miInfo$(menuSel) = StInfo$(miRef(menuSel)) ' F (SOUND TEST): flag it
+                            END IF
                     END SELECT
                 END IF
             END IF
@@ -239,7 +243,13 @@ END SUB
 
 ' --- Left / right (menuAdjust = -1 / 1) on a slider, toggle or choice
 SUB MenuAdjustItem STATIC
+    DIM k ' (its own)
     IF menuSel = 0 THEN EXIT SUB
+    IF menuScreen >= SCR_ST1 AND menuScreen < SCR_ST1 + ST_CATS THEN ' (SOUND TEST: left / right turn the page)
+        k = StCount(menuScreen - SCR_ST1 + 1, 0) : IF k <= ST_PAGE THEN EXIT SUB
+        stPage = (stPage + menuAdjust + (k + ST_PAGE - 1) \ ST_PAGE) MOD ((k + ST_PAGE - 1) \ ST_PAGE)
+        PlaySfx sndMenuMove&, 0.5 : EnterMenuScreen : EXIT SUB
+    END IF
     SELECT CASE miKind(menuSel)
         CASE MI_SLIDER, MI_TOGGLE, MI_CHOICE
             ChangeSetting miRef(menuSel), menuAdjust
@@ -257,6 +267,7 @@ SUB MenuActivate STATIC
             PlaySfx sndMenuSelect&, 0.6
             menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
             menuScreen = miRef(menuSel) : IF menuScreen = SCR_DEMOS THEN demoListPage = 0
+            IF menuScreen >= SCR_ST1 AND menuScreen < SCR_ST1 + ST_CATS THEN stPage = 0
             EnterMenuScreen
         CASE MI_BACK
             MenuBack
@@ -265,8 +276,12 @@ SUB MenuActivate STATIC
         CASE MI_KEY ' Wait for the new key (CaptureKey)
             menuCapture = menuSel : PlaySfx sndMenuSelect&, 0.6
         CASE MI_ACTION
-            PlaySfx sndMenuSelect&, 0.6
+            IF miAct(menuSel) <> MA_STPLAY THEN PlaySfx sndMenuSelect&, 0.6 ' (SOUND TEST: just the sound)
             SELECT CASE miAct(menuSel)
+                CASE MA_STPLAY ' SOUND TEST: play it
+                    StPlay miRef(menuSel)
+                CASE MA_STPAGE ' SOUND TEST: the next page
+                    stPage = stPage + 1 : EnterMenuScreen
                 CASE MA_RESUME
                     menuDone = -1
                 CASE MA_NEW
@@ -356,6 +371,7 @@ END SUB
 ' --- Back out of a screen (Esc, Backspace, or BACK). From the top: in a
 ' game, back to the game; at the title, "do you really want to leave?"
 SUB MenuBack STATIC
+    IF menuScreen = SCR_SOUNDTEST OR (menuScreen >= SCR_ST1 AND menuScreen < SCR_ST1 + ST_CATS) THEN StStop ' (SOUND TEST: the sound stops, the music comes back)
     IF menuDepth > 0 THEN
         PlaySfx sndMenuBack&, 0.6
         menuScreen = menuStack(menuDepth) : backSel = menuStackSel(menuDepth) : menuDepth = menuDepth - 1
@@ -373,7 +389,7 @@ END SUB
 ' add a button or a screen: an AddMenuItem line, and - for a new action -
 ' a CASE in MenuActivate (chapter 21).
 SUB BuildMenu(scr)
-    DIM B, c, n, n0, n1, nm$, qb$, slot ' (its own: the main program shares these names)
+    DIM B, c, k, n, n0, n1, nm$, qb$, slot ' (its own: the main program shares these names)
     numMI = 0 : menuWide = 0 : menuScroll = 0
     SELECT CASE scr
         CASE SCR_MAIN
@@ -512,10 +528,33 @@ SUB BuildMenu(scr)
             AddSettingItem SET_SHADOWS : AddSettingItem SET_GLOW : AddSettingItem SET_PARTICLES : AddSettingItem SET_SHAFTS : AddSettingItem SET_REFLECT
             AddSettingItem SET_BLOOM : AddSettingItem SET_HITFX
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_SOUNDTEST ' SOUND TEST: the categories (MENU/SOUNDTEST.BM)
+            menuTitle$ = "SOUND TEST" : menuWide = -1
+            StLoad
+            FOR c = 1 TO stCats
+                n = StCount(c, 0) : n1 = StCount(c, -1)
+                info$ = LTRIM$(STR$(n)) + " sounds" : IF n1 THEN info$ = info$ + ",  " + LTRIM$(STR$(n1)) + " flagged"
+                AddMenuItem stCat$(c), MI_SUBMENU, SCR_ST1 + c - 1, 0, n > 0, info$
+            NEXT
+            IF stCats = 0 THEN AddMenuItem "NO SOUND LIST (sfx/soundtest.txt)", MI_TEXT, 0, 0, 0, ""
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_ST1 TO SCR_ST1 + ST_CATS - 1 ' A category's sounds, numbered, ST_PAGE a page: Enter plays one, F flags it
+            c = scr - SCR_ST1 + 1 : menuTitle$ = stCat$(c) : menuWide = -1
+            n0 = StCount(c, 0) : IF stPage * ST_PAGE >= n0 THEN stPage = 0
+            k = 0
+            FOR n = 1 TO stN
+                IF stOf(n) = c THEN
+                    k = k + 1
+                    IF k > stPage * ST_PAGE AND k <= stPage * ST_PAGE + ST_PAGE THEN AddMenuItem RIGHT$("00" + LTRIM$(STR$(k)), 3), MI_ACTION, n, MA_STPLAY, -1, StInfo$(n)
+                END IF
+            NEXT
+            IF n0 > ST_PAGE THEN AddMenuItem "MORE", MI_ACTION, 0, MA_STPAGE, -1, "page" + STR$(stPage + 1) + " of" + STR$((n0 + ST_PAGE - 1) \ ST_PAGE) + "   (left / right turns them)"
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_AUDIO
             menuTitle$ = "AUDIO" : menuWide = -1
             AddSettingItem SET_SFX : AddSettingItem SET_MUSIC : AddSettingItem SET_SPEECH
             AddSettingItem SET_SPATIAL : AddSettingItem SET_LIMITER : AddSettingItem SET_CUTSCENES : AddSettingItem SET_TAUNTS
+            AddMenuItem "SOUND TEST", MI_SUBMENU, SCR_SOUNDTEST, 0, -1, "every sound, voice and track"
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_GAMEPLAY
             menuTitle$ = "GAMEPLAY" : menuWide = -1
@@ -697,6 +736,8 @@ SUB DrawMenu(t)
     END IF
     IF menuScreen = SCR_DEMOS THEN
         MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  PLAY     F  OPEN FOLDER     ESC  BACK", 1, _RGB32(140, 135, 175), 1
+    ELSEIF menuScreen >= SCR_ST1 AND menuScreen < SCR_ST1 + ST_CATS THEN
+        MenuText 400, 574, "UP / DOWN  PICK     ENTER  PLAY     LEFT / RIGHT  PAGE     F  FLAG     ESC  BACK", 1, _RGB32(140, 135, 175), 1
     ELSE
         MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  CHOOSE     ESC  BACK     OR POINT AND CLICK", 1, _RGB32(140, 135, 175), 1
     END IF

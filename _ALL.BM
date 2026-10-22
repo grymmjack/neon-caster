@@ -71,6 +71,7 @@
 '$INCLUDE:'./MENU/SPLASH.BM'
 '$INCLUDE:'./MENU/CONSOLE.BM'
 '$INCLUDE:'./MENU/SAVES.BM'
+'$INCLUDE:'./MENU/SOUNDTEST.BM'
 
 ' EDITOR ----------------------------------------------------------------------
 '$INCLUDE:'./EDITOR/EDITOR.BM'

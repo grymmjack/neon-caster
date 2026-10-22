@@ -1,0 +1,92 @@
+''
+' NEON-CASTER - MENU/SOUNDTEST.BM
+' =============================================================================
+' SOUND TEST: loading its list, playing a sound, flagging one.
+'
+
+' --- The list, once: soundtest.txt's [CATEGORY] lines and path|name lines,
+' and the flags saved last time
+SUB StLoad STATIC
+    DIM f, l$, b, i, p$ ' (its own)
+    IF stLoaded THEN EXIT SUB
+    stLoaded = -1 : stCats = 0 : stN = 0
+    p$ = AssetPath$("sfx/soundtest.txt") : IF NOT _FILEEXISTS(p$) THEN EXIT SUB
+    f = FREEFILE : OPEN p$ FOR INPUT AS #f
+    DO UNTIL EOF(f)
+        LINE INPUT #f, l$ : l$ = _TRIM$(l$)
+        IF LEFT$(l$, 1) = "[" THEN
+            IF stCats < ST_CATS THEN stCats = stCats + 1 : stCat$(stCats) = MID$(l$, 2, LEN(l$) - 2)
+        ELSEIF LEN(l$) AND stCats > 0 AND stN < ST_MAX THEN
+            b = INSTR(l$, "|") : IF b = 0 THEN b = LEN(l$) + 1
+            stN = stN + 1 : stFile$(stN) = LEFT$(l$, b - 1) : stName$(stN) = MID$(l$, b + 1) : stOf(stN) = stCats : stFlagged(stN) = 0
+        END IF
+    LOOP
+    CLOSE #f
+    p$ = SaveDir$ + "soundflags.txt"
+    IF _FILEEXISTS(p$) THEN
+        f = FREEFILE : OPEN p$ FOR INPUT AS #f
+        DO UNTIL EOF(f)
+            LINE INPUT #f, l$ : b = INSTR(l$, "|") : IF b THEN l$ = LEFT$(l$, b - 1)
+            FOR i = 1 TO stN
+                IF stFile$(i) = l$ THEN stFlagged(i) = -1
+            NEXT
+        LOOP
+        CLOSE #f
+    END IF
+END SUB
+
+' How many sounds category c has (and how many flagged)
+FUNCTION StCount(c, flagged)
+    DIM i, n ' (its own)
+    FOR i = 1 TO stN
+        IF stOf(i) = c AND (stFlagged(i) OR NOT flagged) THEN n = n + 1
+    NEXT
+    StCount = n
+END FUNCTION
+
+' The menu line beside sound n: its name, and FLAGGED if it is
+FUNCTION StInfo$(n)
+    DIM i$ ' (its own)
+    i$ = stName$(n) : IF LEN(i$) > 46 THEN i$ = LEFT$(i$, 45) + "~"
+    IF stFlagged(n) THEN i$ = "* " + LEFT$(i$, 38) + "   FLAGGED"
+    StInfo$ = i$
+END FUNCTION
+
+' --- Play sound n (the one before stops): a track loops at MUSIC VOLUME in
+' place of the menu's music, a voice at SPEECH VOLUME, a sound at SFX VOLUME
+SUB StPlay(n) STATIC
+    DIM p$ ' (its own)
+    StStop
+    p$ = AssetPath$(stFile$(n)) : IF NOT _FILEEXISTS(p$) THEN EXIT SUB
+    IF LEFT$(stFile$(n), 6) = "music/" THEN
+        IF nowPlaying& > 0 THEN stMusicWas& = nowPlaying& : _SNDSTOP nowPlaying& : nowPlaying& = 0
+        stSnd& = _SNDOPEN(p$, "stream, noasync")
+        IF stSnd& > 0 THEN _SNDVOL stSnd&, setting(SET_MUSIC) / 100 : _SNDLOOP stSnd&
+    ELSE
+        stSnd& = _SNDOPEN(p$, "noasync")
+        IF stSnd& > 0 THEN
+            IF LEFT$(stFile$(n), 7) = "speech/" THEN _SNDVOL stSnd&, setting(SET_SPEECH) / 100 ELSE _SNDVOL stSnd&, setting(SET_SFX) / 100
+            _SNDPLAY stSnd&
+        END IF
+    END IF
+    stNow = n
+END SUB
+
+' Stop the sound playing (a track: the music it stopped comes back)
+SUB StStop STATIC
+    DIM m& ' (its own)
+    IF stSnd& > 0 THEN _SNDSTOP stSnd& : _SNDCLOSE stSnd& : stSnd& = 0
+    IF stMusicWas& > 0 THEN m& = stMusicWas& : stMusicWas& = 0 : PlayMusic m&
+    stNow = 0
+END SUB
+
+' --- Flag sound n (or unflag it), and save the flags: one path|name a line
+SUB StFlag(n) STATIC
+    DIM f, i ' (its own)
+    stFlagged(n) = NOT stFlagged(n)
+    f = FREEFILE : OPEN SaveDir$ + "soundflags.txt" FOR OUTPUT AS #f
+    FOR i = 1 TO stN
+        IF stFlagged(i) THEN PRINT #f, stFile$(i) + "|" + stName$(i)
+    NEXT
+    CLOSE #f
+END SUB

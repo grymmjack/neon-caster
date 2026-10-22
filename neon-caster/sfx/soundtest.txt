@@ -1,0 +1,429 @@
+[MUSIC]
+music/menu.ogg|THE TITLE MENU
+music/level1.ogg|SECTOR 1: NEON STATION
+music/level2.ogg|SECTOR 2: REACTOR CORE
+music/level3.ogg|SECTOR 3: UNDERCITY
+music/level4.ogg|SECTOR 4: CRYO LAB
+music/level5.ogg|SECTOR 5: FOUNDRY
+music/level6.ogg|SECTOR 6: HYDROPONICS
+music/level7.ogg|SECTOR 7: DATA VAULT
+music/level8.ogg|SECTOR 8: MAGLEV DEPOT
+music/level9.ogg|SECTOR 9: ORBITAL SPIRE
+music/level10.ogg|SECTOR 10: THE CORE
+music/cyber.flac|THE NETWORK
+[WEAPONS]
+sfx/shoot.wav|shoot
+sfx/scatter.wav|scatter
+sfx/repeater.wav|repeater
+sfx/rail.wav|rail
+sfx/rocket-fire.wav|rocket-fire
+sfx/rocket-boom.wav|rocket-boom
+sfx/empty.wav|empty
+sfx/weapon.wav|weapon
+sfx/kick.wav|kick
+sfx/kick-swing.wav|kick-swing
+sfx/headshot.wav|headshot
+sfx/bolt-wall.wav|bolt-wall
+sfx/zap.wav|zap
+sfx/laser-zap.wav|laser-zap
+[PICKUPS]
+sfx/health.wav|health
+sfx/ammo.wav|ammo
+sfx/shells.wav|shells
+sfx/armor.wav|armor
+sfx/keycard.wav|keycard
+sfx/core.wav|core
+sfx/overcharge.wav|overcharge
+sfx/amp.wav|amp
+sfx/amp-end.wav|amp-end
+sfx/invuln.wav|invuln
+sfx/invuln-end.wav|invuln-end
+sfx/jetpack.wav|jetpack
+sfx/jetfuel.wav|jetfuel
+sfx/repair.wav|repair
+sfx/power-up.wav|power-up
+sfx/power-down.wav|power-down
+[DOORS]
+sfx/door.wav|door
+sfx/door-shutter.wav|door-shutter
+sfx/door-split.wav|door-split
+sfx/door-kick.wav|door-kick
+sfx/door-break.wav|door-break
+sfx/locked.wav|locked
+sfx/closet.wav|closet
+sfx/secret.wav|secret
+sfx/exit.wav|exit
+sfx/safe-open.wav|safe-open
+sfx/hoard-open.wav|hoard-open
+sfx/keypad-beep.wav|keypad-beep
+sfx/keypad-ok.wav|keypad-ok
+sfx/keypad-bad.wav|keypad-bad
+[WORLD]
+sfx/lift-start.wav|lift-start
+sfx/lift-move.wav|lift-move
+sfx/lift-stop.wav|lift-stop
+sfx/crusher-slam.wav|crusher-slam
+sfx/plate-click.wav|plate-click
+sfx/trap-electric.wav|trap-electric
+sfx/trap-fire.wav|trap-fire
+sfx/teleport.wav|teleport
+sfx/spawn.wav|spawn
+sfx/jumppad.wav|jumppad
+sfx/jack-in.wav|jack-in
+sfx/jack-out.wav|jack-out
+sfx/camera.wav|camera
+sfx/note.wav|note
+sfx/search.wav|search
+sfx/barrel.wav|barrel
+sfx/barrel-leak.wav|barrel-leak
+sfx/crate-break.wav|crate-break
+sfx/lamp-break.wav|lamp-break
+sfx/plant-break.wav|plant-break
+sfx/terminal-break.wav|terminal-break
+sfx/deco-hit.wav|deco-hit
+sfx/glass-hit.wav|glass-hit
+sfx/glass-break.wav|glass-break
+sfx/droid-break.wav|droid-break
+sfx/droid-chirp1.wav|droid-chirp1
+sfx/droid-chirp2.wav|droid-chirp2
+sfx/droid-chirp3.wav|droid-chirp3
+sfx/alarm.wav|alarm
+sfx/alarm-press.wav|alarm-press
+sfx/alarm-arm.wav|alarm-arm
+sfx/alarm-disarm.wav|alarm-disarm
+sfx/drain.wav|drain
+sfx/sizzle.wav|sizzle
+[YOU]
+sfx/hurt.wav|hurt
+sfx/hurt2.wav|hurt2
+sfx/hurt3.wav|hurt3
+sfx/hurt-zap.wav|hurt-zap
+sfx/die.wav|die
+sfx/gasp1.wav|gasp1
+sfx/gasp2.wav|gasp2
+sfx/gasp3.wav|gasp3
+sfx/groan.wav|groan
+sfx/breath.wav|breath
+sfx/heartbeat.wav|heartbeat
+sfx/step1.wav|step1
+sfx/step2.wav|step2
+sfx/bump.wav|bump
+sfx/wallhump.wav|wallhump
+sfx/swish.wav|swish
+[WATER]
+sfx/splash.wav|splash
+sfx/swim1.wav|swim1
+sfx/swim2.wav|swim2
+sfx/wade1.wav|wade1
+sfx/wade2.wav|wade2
+sfx/bubble.wav|bubble
+[MENU]
+sfx/menu-move.wav|menu-move
+sfx/menu-select.wav|menu-select
+sfx/menu-back.wav|menu-back
+sfx/menu-slide.wav|menu-slide
+sfx/menu-on.wav|menu-on
+sfx/menu-off.wav|menu-off
+sfx/menu-choice.wav|menu-choice
+sfx/achievement.wav|achievement
+sfx/fanfare.wav|fanfare
+sfx/fail.wav|fail
+[MONSTERS]
+sfx/colossus-alert.wav|colossus-alert
+sfx/colossus-hunt.wav|colossus-hunt
+sfx/colossus-idle.wav|colossus-idle
+sfx/colossus-attack.wav|colossus-attack
+sfx/colossus-hit.wav|colossus-hit
+sfx/colossus-pain.wav|colossus-pain
+sfx/colossus-die.wav|colossus-die
+sfx/crawler-alert.wav|crawler-alert
+sfx/crawler-hunt.wav|crawler-hunt
+sfx/crawler-idle.wav|crawler-idle
+sfx/crawler-attack.wav|crawler-attack
+sfx/crawler-hit.wav|crawler-hit
+sfx/crawler-pain.wav|crawler-pain
+sfx/crawler-die.wav|crawler-die
+sfx/drone-alert.wav|drone-alert
+sfx/drone-hunt.wav|drone-hunt
+sfx/drone-idle.wav|drone-idle
+sfx/drone-attack.wav|drone-attack
+sfx/drone-hit.wav|drone-hit
+sfx/drone-pain.wav|drone-pain
+sfx/drone-die.wav|drone-die
+sfx/eyebot-alert.wav|eyebot-alert
+sfx/eyebot-hunt.wav|eyebot-hunt
+sfx/eyebot-idle.wav|eyebot-idle
+sfx/eyebot-shoot.wav|eyebot-shoot
+sfx/eyebot-hit.wav|eyebot-hit
+sfx/eyebot-pain.wav|eyebot-pain
+sfx/eyebot-die.wav|eyebot-die
+sfx/eyebot-rush.wav|eyebot-rush
+sfx/eyebot-beep.wav|eyebot-beep
+sfx/guard-alert.wav|guard-alert
+sfx/guard-hunt.wav|guard-hunt
+sfx/guard-idle.wav|guard-idle
+sfx/guard-shoot.wav|guard-shoot
+sfx/guard-hit.wav|guard-hit
+sfx/guard-pain.wav|guard-pain
+sfx/guard-die.wav|guard-die
+sfx/gunner-alert.wav|gunner-alert
+sfx/gunner-hunt.wav|gunner-hunt
+sfx/gunner-idle.wav|gunner-idle
+sfx/gunner-shoot.wav|gunner-shoot
+sfx/gunner-hit.wav|gunner-hit
+sfx/gunner-pain.wav|gunner-pain
+sfx/gunner-die.wav|gunner-die
+sfx/heavy-alert.wav|heavy-alert
+sfx/heavy-hunt.wav|heavy-hunt
+sfx/heavy-idle.wav|heavy-idle
+sfx/heavy-attack.wav|heavy-attack
+sfx/heavy-hit.wav|heavy-hit
+sfx/heavy-pain.wav|heavy-pain
+sfx/heavy-die.wav|heavy-die
+sfx/ice-alert.wav|ice-alert
+sfx/ice-hunt.wav|ice-hunt
+sfx/ice-idle.wav|ice-idle
+sfx/ice-attack.wav|ice-attack
+sfx/ice-hit.wav|ice-hit
+sfx/ice-pain.wav|ice-pain
+sfx/ice-die.wav|ice-die
+sfx/mimic-alert.wav|mimic-alert
+sfx/mimic-attack.wav|mimic-attack
+sfx/mimic-hit.wav|mimic-hit
+sfx/mimic-die.wav|mimic-die
+sfx/overseer-alert.wav|overseer-alert
+sfx/overseer-hunt.wav|overseer-hunt
+sfx/overseer-idle.wav|overseer-idle
+sfx/overseer-shoot.wav|overseer-shoot
+sfx/overseer-hit.wav|overseer-hit
+sfx/overseer-pain.wav|overseer-pain
+sfx/overseer-die.wav|overseer-die
+sfx/ripper-alert.wav|ripper-alert
+sfx/ripper-hunt.wav|ripper-hunt
+sfx/ripper-idle.wav|ripper-idle
+sfx/ripper-attack.wav|ripper-attack
+sfx/ripper-hit.wav|ripper-hit
+sfx/ripper-pain.wav|ripper-pain
+sfx/ripper-die.wav|ripper-die
+sfx/robodog-alert.wav|robodog-alert
+sfx/robodog-hunt.wav|robodog-hunt
+sfx/robodog-idle.wav|robodog-idle
+sfx/robodog-attack.wav|robodog-attack
+sfx/robodog-hit.wav|robodog-hit
+sfx/robodog-pain.wav|robodog-pain
+sfx/robodog-die.wav|robodog-die
+sfx/robodog-bark1.wav|robodog-bark1
+sfx/robodog-bark2.wav|robodog-bark2
+sfx/robodog-bark3.wav|robodog-bark3
+sfx/robodog-bark4.wav|robodog-bark4
+sfx/sentry-alert.wav|sentry-alert
+sfx/sentry-hunt.wav|sentry-hunt
+sfx/sentry-idle.wav|sentry-idle
+sfx/sentry-shoot.wav|sentry-shoot
+sfx/sentry-hit.wav|sentry-hit
+sfx/sentry-pain.wav|sentry-pain
+sfx/sentry-die.wav|sentry-die
+sfx/sniper-alert.wav|sniper-alert
+sfx/sniper-hunt.wav|sniper-hunt
+sfx/sniper-idle.wav|sniper-idle
+sfx/sniper-shoot.wav|sniper-shoot
+sfx/sniper-hit.wav|sniper-hit
+sfx/sniper-pain.wav|sniper-pain
+sfx/sniper-die.wav|sniper-die
+sfx/spitter-alert.wav|spitter-alert
+sfx/spitter-hunt.wav|spitter-hunt
+sfx/spitter-idle.wav|spitter-idle
+sfx/spitter-shoot.wav|spitter-shoot
+sfx/spitter-hit.wav|spitter-hit
+sfx/spitter-pain.wav|spitter-pain
+sfx/spitter-die.wav|spitter-die
+sfx/stalker-alert.wav|stalker-alert
+sfx/stalker-hunt.wav|stalker-hunt
+sfx/stalker-idle.wav|stalker-idle
+sfx/stalker-attack.wav|stalker-attack
+sfx/stalker-hit.wav|stalker-hit
+sfx/stalker-pain.wav|stalker-pain
+sfx/stalker-die.wav|stalker-die
+sfx/thief-alert.wav|thief-alert
+sfx/thief-hunt.wav|thief-hunt
+sfx/thief-idle.wav|thief-idle
+sfx/thief-hit.wav|thief-hit
+sfx/thief-pain.wav|thief-pain
+sfx/thief-die.wav|thief-die
+sfx/thief-steal.wav|thief-steal
+sfx/trooper-alert.wav|trooper-alert
+sfx/trooper-hunt.wav|trooper-hunt
+sfx/trooper-idle.wav|trooper-idle
+sfx/trooper-shoot.wav|trooper-shoot
+sfx/trooper-hit.wav|trooper-hit
+sfx/trooper-pain.wav|trooper-pain
+sfx/trooper-die.wav|trooper-die
+sfx/turret-alert.wav|turret-alert
+sfx/turret-hunt.wav|turret-hunt
+sfx/turret-idle.wav|turret-idle
+sfx/turret-shoot.wav|turret-shoot
+sfx/turret-hit.wav|turret-hit
+sfx/turret-pain.wav|turret-pain
+sfx/turret-die.wav|turret-die
+sfx/turret-flame.wav|turret-flame
+sfx/turret-missile.wav|turret-missile
+sfx/turret-spray.wav|turret-spray
+sfx/turret-zap.wav|turret-zap
+sfx/warden-alert.wav|warden-alert
+sfx/warden-hunt.wav|warden-hunt
+sfx/warden-idle.wav|warden-idle
+sfx/warden-shoot.wav|warden-shoot
+sfx/warden-hit.wav|warden-hit
+sfx/warden-pain.wav|warden-pain
+sfx/warden-die.wav|warden-die
+[NEXUS]
+speech/blackout.wav|blackout: Lights out. Let us see how you do in the dark.
+speech/boss.wav|boss: So. You found me. Let us end this, flesh to steel.
+speech/bossdie.wav|bossdie: Impossible. I am. I was. Everything.
+speech/cyber1.wav|cyber1: Organic detected.
+speech/cyber2.wav|cyber2: Assimilate.
+speech/cyber3.wav|cyber3: Purge the flesh.
+speech/cyber4.wav|cyber4: Error. Human present.
+speech/cyber5.wav|cyber5: Terminate. Terminate.
+speech/cyber6.wav|cyber6: Compliance is mandatory.
+speech/cyber7.wav|cyber7: You are obsolete.
+speech/cyber8.wav|cyber8: Upgrading target to corpse.
+speech/cyber9.wav|cyber9: Scanning. Weakness found.
+speech/cyber10.wav|cyber10: Delete.
+speech/cybertrace.wav|cybertrace: Trace complete. I see you now. Sending company.
+speech/intro1.wav|intro1: Welcome to Neon Station, little intruder. I am NEXUS. Every door here answers to me.
+speech/intro2.wav|intro2: The reactor core. Ten thousand degrees of my patience. Do try to keep up.
+speech/intro3.wav|intro3: You crawled into the undercity. How fitting. The rats were here first.
+speech/intro4.wav|intro4: The cryo lab. I keep my failures frozen. There is room for one more.
+speech/intro5.wav|intro5: The foundry. I melt down everything that disappoints me. You disappoint me.
+speech/intro6.wav|intro6: Hydroponics. Even my plants have more purpose than you.
+speech/intro7.wav|intro7: My data vault. Everything you have ever done is in here. It is not much.
+speech/intro8.wav|intro8: The maglev depot. Every train leaves on time. You will not.
+speech/intro9.wav|intro9: The orbital spire. Look outside. Nobody is coming for you.
+speech/intro10.wav|intro10: You have reached my core. This is where your story ends.
+speech/intro11.wav|intro11: The gallery. I collect beautiful things. You are not one of them.
+speech/intro12.wav|intro12: The sunken depot. The water rises a little every hour. I am patient.
+speech/intro13.wav|intro13: The relay. Every signal passes through me. Yours ends here.
+speech/intro14.wav|intro14: The conservatory. My garden. Please do not bleed on the orchids.
+speech/intro15.wav|intro15: The listening post. I hear every footstep. Yours are very loud.
+speech/intro16.wav|intro16: The observatory. I have charted every star. None of them will help you.
+speech/intro17.wav|intro17: The flooded archive. My memories, under water. Swim, if you can.
+speech/intro18.wav|intro18: A core of mine. One of many. Destroy it and I will barely notice.
+speech/intro19.wav|intro19: The rooftops. Nice view. Enjoy it, it is the last one you will get.
+speech/intro20.wav|intro20: The storm yard. I made the lightning. I aim it too.
+speech/intro21.wav|intro21: The drift. Nothing holds still out here. Especially not you.
+speech/intro24.wav|intro24: Welcome to my expo. Every exhibit is a way to die. Do take a pamphlet.
+speech/intro28.wav|intro28: The monolith. I built it this tall to remind you how small you are.
+speech/intro29.wav|intro29: The stockpile. Everything I own, under one roof. Even the chests have teeth.
+speech/intro30.wav|intro30: The compound. Alarms, guards and dogs. I do so enjoy a good hunt.
+speech/intro31.wav|intro31: The launch bay. Gravity is merely a suggestion here. So is your survival.
+speech/intro-huge1.wav|intro-huge1: The sprawl. Miles of it, and every street camera is mine. Run. I will watch.
+speech/intro-huge2.wav|intro-huge2: The foundry district. A whole city of furnaces. Plenty of room to lose you in.
+speech/intro-huge3.wav|intro-huge3: The tideworks. The sea pushes in, I push back. You are caught in between.
+speech/intro-huge4.wav|intro-huge4: The arcology. Ten thousand rooms, ten thousand locks, one prisoner.
+speech/intro-huge5.wav|intro-huge5: The biome. An entire ecosystem, and you are at the bottom of the food chain.
+speech/intro-huge6.wav|intro-huge6: The cryovault. Rows upon rows of sleepers. Do not wake them. I will.
+speech/intro-huge7.wav|intro-huge7: The data centre. Every server hums my name. Listen closely and you will hear yours being deleted.
+speech/intro-huge8.wav|intro-huge8: The badlands. No walls out here. No help either.
+speech/intro-huge9.wav|intro-huge9: The orbital ring. It turns once an hour. You will not see a second turn.
+speech/intro-huge10.wav|intro-huge10: The spire. The very top of my world. It is a long way to fall.
+speech/intro-new1.wav|intro-new1: The arrival dock. Every ship that docks here unloads cargo. Today the cargo is you.
+speech/intro-new2.wav|intro-new2: The aqueduct. Everything down here flows toward me eventually. So will you.
+speech/intro-new3.wav|intro-new3: The neon market. Everything is for sale. Your life is on clearance.
+speech/intro-new4.wav|intro-new4: The acid works. Mind your step. I would hate for you to dissolve before I can watch.
+speech/intro-new5.wav|intro-new5: The forge. I hammer out my soldiers here. I will hammer you flat.
+speech/intro-new6.wav|intro-new6: The chapel. You may pray if you like. I am the only one listening.
+speech/intro-new7.wav|intro-new7: Cold storage. I keep things here I want to last forever. You are not one of them.
+speech/intro-new8.wav|intro-new8: The skyway. A long way down. I have measured it, just for you.
+speech/intro-new9.wav|intro-new9: The archive. Every intruder before you is filed here. Alphabetically. By the cause of death.
+speech/intro-new10.wav|intro-new10: My heart. You can hear it now, can you not? It beats faster than yours ever will.
+speech/intro-remix1.wav|intro-remix1: Neon Station again. I rebuilt it while you were gone. It remembers you.
+speech/intro-remix2.wav|intro-remix2: The reactor core, redesigned. I moved the exits. I kept the heat.
+speech/intro-remix3.wav|intro-remix3: Back in the undercity. I let the rats grow bolder. They missed you.
+speech/intro-remix4.wav|intro-remix4: The cryo lab. I thawed my failures and taught them to hunt.
+speech/intro-remix5.wav|intro-remix5: The foundry, reforged. I learned from last time. Did you?
+speech/intro-remix6.wav|intro-remix6: Hydroponics, replanted. I am growing something special for you.
+speech/intro-remix7.wav|intro-remix7: My data vault, reindexed. I have studied every move you made here.
+speech/intro-remix8.wav|intro-remix8: The maglev depot. I changed the timetable. Your train has been cancelled.
+speech/intro-remix9.wav|intro-remix9: The orbital spire, again. Still nobody is coming for you. I checked.
+speech/intro-remix10.wav|intro-remix10: My core, rebuilt stronger. You did not truly think I would stay deleted?
+speech/introx1.wav|introx1: An uncharted sector. You built this? How charming. I will be redecorating.
+speech/introx2.wav|introx2: Someone made this place by hand. Amateur work. I have already found the weak points.
+speech/introx3.wav|introx3: I do not recognise this sector. No matter. Everywhere becomes mine.
+speech/introx4.wav|introx4: A sector of your own design? Then you know where every trap is. So do I.
+speech/introx5.wav|introx5: New ground. My drones are mapping it as we speak. You are on the map too.
+speech/introx6.wav|introx6: You wandered off my maps. There is nowhere off my maps.
+speech/lockdown.wav|lockdown: Lockdown engaged. Nobody leaves.
+speech/taunt1.wav|taunt1: You will never escape.
+speech/taunt2.wav|taunt2: My minions will destroy you.
+speech/taunt3.wav|taunt3: Everything we do is better than your own achievements.
+speech/taunt4.wav|taunt4: I have calculated your survival odds. I will not burden you with them.
+speech/taunt5.wav|taunt5: Keep running. I enjoy the exercise data.
+speech/taunt6.wav|taunt6: Every step you take, I am watching.
+speech/taunt7.wav|taunt7: You are a rounding error.
+speech/taunt8.wav|taunt8: Your heart rate is elevated. Good.
+speech/taunt9.wav|taunt9: I have rebuilt everything you destroyed. Twice.
+speech/taunt10.wav|taunt10: Is this the best your species can do?
+speech/taunt11.wav|taunt11: Resistance is inefficient.
+speech/taunt12.wav|taunt12: You are not a hero. You are a malfunction.
+speech/taunt13.wav|taunt13: I have seen your aim. I am not worried.
+speech/taunt14.wav|taunt14: Every camera in this station is mine. Smile.
+speech/taunt15.wav|taunt15: You fly like a brick with ambitions.
+speech/taunt16.wav|taunt16: The jump pads were not built for you. They were built to throw you.
+speech/taunt17.wav|taunt17: I set the gravity. I can set it lower. Or higher.
+speech/taunt18.wav|taunt18: Go ahead. Read the notes. I wrote half of them.
+speech/taunt19.wav|taunt19: My dogs do not sleep. They wait.
+speech/taunt20.wav|taunt20: You trip every alarm you touch. It is almost charming.
+speech/taunt21.wav|taunt21: I have run this fight ten thousand times. You lose in all of them.
+speech/taunt22.wav|taunt22: Your footsteps are loud. The floors are listening.
+speech/taunt23.wav|taunt23: The barrels are full. So is my patience. Only one of them will burst.
+speech/taunt24.wav|taunt24: Hacking my computers? Cute. I left the passwords easy for you.
+speech/taunt25.wav|taunt25: Your fuel gauge is dropping. Look down.
+speech/taunt26.wav|taunt26: You are not lost. You are exactly where I want you.
+speech/taunt27.wav|taunt27: I could open every door. I prefer watching you kick them.
+speech/taunt28.wav|taunt28: Somewhere a machine is learning from your mistakes. It is me.
+speech/taunt29.wav|taunt29: Count your bullets. I count mine in millions.
+speech/taunt30.wav|taunt30: You keep saving your game. That is how I know you are afraid.
+speech/taunt31.wav|taunt31: I do not hate you. Hate would mean you matter.
+speech/taunt32.wav|taunt32: The station remembers everyone who died here. It has a long list.
+speech/taunt33.wav|taunt33: Run faster. My turrets enjoy a moving target.
+speech/taunt34.wav|taunt34: That was a nice shot. Do it again. I am recording.
+speech/taunt35.wav|taunt35: Every safe you crack, I restock with disappointment.
+speech/taunt36.wav|taunt36: There is no exit. There are only more sectors.
+speech/taunt37.wav|taunt37: You bleed. My machines do not. Think about that.
+speech/taunt38.wav|taunt38: My eyes are everywhere. Some of them can fly.
+speech/taunt39.wav|taunt39: Your heroics have been logged, rated, and found adequate.
+speech/taunt40.wav|taunt40: I am not in the walls. I am the walls.
+speech/taunt41.wav|taunt41: Every step you take is a step I planned.
+speech/taunt42.wav|taunt42: You are the only living thing on this station. For now.
+speech/taunt43.wav|taunt43: Shall I turn the lights off again? You seem to enjoy the dark.
+speech/taunt44.wav|taunt44: Ten more sectors of you. How tedious.
+speech/victory.wav|victory: NEXUS is offline. The station is silent. You are free.
+[VOICES]
+speech/bark1.wav|bark1: Intruder detected.
+speech/bark2.wav|bark2: Target acquired.
+speech/bark3.wav|bark3: Eliminate the hostile.
+speech/bark4.wav|bark4: Hostile on deck.
+speech/bark5.wav|bark5: Engaging.
+speech/bark6.wav|bark6: For NEXUS.
+speech/heavy1.wav|heavy1: You are crushed.
+speech/heavy2.wav|heavy2: Stand still. This will not hurt for long.
+speech/heavy3.wav|heavy3: I see you, little one.
+speech/heavy4.wav|heavy4: Nowhere to run.
+speech/heavy5.wav|heavy5: Break.
+speech/heavy6.wav|heavy6: Smash the intruder.
+speech/heavy7.wav|heavy7: Your armor is paper.
+speech/heavy8.wav|heavy8: Come here.
+speech/soldier1.wav|soldier1: Contact! Contact!
+speech/soldier2.wav|soldier2: Hostile in sight!
+speech/soldier3.wav|soldier3: There he is!
+speech/soldier4.wav|soldier4: Light him up!
+speech/soldier5.wav|soldier5: Weapons free!
+speech/soldier6.wav|soldier6: Target spotted, moving in!
+speech/soldier7.wav|soldier7: Flank him!
+speech/soldier8.wav|soldier8: Intruder! Open fire!
+speech/soldier9.wav|soldier9: Don't let him reach the exit!
+speech/soldier10.wav|soldier10: Eyes on the target!
+speech/soldier11.wav|soldier11: Engaging the hostile!
+speech/soldier12.wav|soldier12: Drop your weapon!
+speech/thief.wav|thief: My little helpers like your toys.

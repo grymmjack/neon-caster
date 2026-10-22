@@ -909,6 +909,8 @@ SUB ConExec STATIC
             conLogN = 0
         CASE "menu"
             menuInGame = -1 : RunMenu : conLevelChanged = -1
+        CASE "soundtest", "jukebox" ' The menu, at SOUND TEST
+            menuInGame = -1 : menuOpenSound = -1 : RunMenu : conLevelChanged = -1
         CASE "quit", "exit"
             QuitGame
         CASE ELSE ' A setting's name on its own: show it, or set it (fov 90)
@@ -1328,7 +1330,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu soundtest jukebox quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1359,7 +1361,7 @@ SUB ConHelp(c$)
             ConPrint "  ^6demos     ^7record^8 NAME [SEED] [quit]  ^7playdemo^8 NAME [quit]  ^7stopdemo  ^7demos"
             ConPrint "            ^7bot^8 [on|off|human N|safe]"
             ConPrint "  ^6editors   ^7hud  ^7monsters  ^7achievements  ^7achieve^8 NAME  ^7resetachievements"
-            ConPrint "  ^6the rest  ^7version  ^7clear  ^7menu  ^7quit"
+            ConPrint "  ^6the rest  ^7version  ^7clear  ^7menu  ^7soundtest  ^7quit"
             ConPrint "^3^5Keys^0: ^7Up Down^8 earlier lines  ^7Tab^8 finish a name  ^7Ctrl+V^8 paste  ^7PgUp PgDn wheel^8 scroll back"
             ConPrint "  ^7Home End^8 oldest, newest  ^7F11^8 fill the screen  ^7` Esc^8 close"
             ConPrint "^3^5From the command line^0, each command starts with ^7+^0 ^0:"
@@ -1536,6 +1538,7 @@ SUB ConHelp(c$)
         CASE "version" : ConPrint "^3version^0: which NEON-CASTER this is"
         CASE "clear", "cls" : ConPrint "^3clear^0: empty the console"
         CASE "menu" : ConPrint "^3menu^0: the menu (Esc)"
+        CASE "soundtest", "jukebox" : ConPrint "^3soundtest^0 (or ^3jukebox^0): the menu at SOUND TEST - every sound, voice and track; F flags one (saves/soundflags.txt)"
         CASE "quit", "exit" : ConPrint "^3quit^0: leave the game"
         CASE "help", "?", "commands" : ConPrint "^3help [NAME]^0: the commands, or one of them in more detail"
         CASE ELSE
