@@ -11,6 +11,52 @@ music/level8.ogg|SECTOR 8: MAGLEV DEPOT
 music/level9.ogg|SECTOR 9: ORBITAL SPIRE
 music/level10.ogg|SECTOR 10: THE CORE
 music/cyber.flac|THE NETWORK
+music/huge1.ogg|HUGE SECTOR 1: THE SPRAWL
+music/huge2.ogg|HUGE SECTOR 2: THE FOUNDRY
+music/huge3.ogg|HUGE SECTOR 3: TIDEWORKS
+music/huge4.ogg|HUGE SECTOR 4: THE ARCOLOGY
+music/huge5.ogg|HUGE SECTOR 5: THE BIOME
+music/huge6.ogg|HUGE SECTOR 6: CRYOVAULT
+music/huge7.ogg|HUGE SECTOR 7: THE DATA CENTRE
+music/huge8.ogg|HUGE SECTOR 8: THE BADLANDS
+music/huge9.ogg|HUGE SECTOR 9: THE ORBITAL RING
+music/huge10.ogg|HUGE SECTOR 10: THE SPIRE
+music/new1.ogg|NEW SECTOR 1: ARRIVAL DOCK
+music/new2.ogg|NEW SECTOR 2: THE AQUEDUCT
+music/new3.ogg|NEW SECTOR 3: NEON MARKET
+music/new4.ogg|NEW SECTOR 4: ACID WORKS
+music/new5.ogg|NEW SECTOR 5: THE FORGE
+music/new6.ogg|NEW SECTOR 6: THE CHAPEL
+music/new7.ogg|NEW SECTOR 7: COLD STORAGE
+music/new8.ogg|NEW SECTOR 8: THE SKYWAY
+music/new9.ogg|NEW SECTOR 9: THE ARCHIVE
+music/new10.ogg|NEW SECTOR 10: NEXUS HEART
+music/remix1.ogg|OLD NEW SECTOR 1: NEON STATION
+music/remix2.ogg|OLD NEW SECTOR 2: REACTOR CORE
+music/remix3.ogg|OLD NEW SECTOR 3: UNDERCITY
+music/remix4.ogg|OLD NEW SECTOR 4: CRYO LAB
+music/remix5.ogg|OLD NEW SECTOR 5: FOUNDRY
+music/remix6.ogg|OLD NEW SECTOR 6: HYDROPONICS
+music/remix7.ogg|OLD NEW SECTOR 7: DATA VAULT
+music/remix8.ogg|OLD NEW SECTOR 8: MAGLEV DEPOT
+music/remix9.ogg|OLD NEW SECTOR 9: ORBITAL SPIRE
+music/remix10.ogg|OLD NEW SECTOR 10: THE CORE
+music/sector11.ogg|SECTOR 11: THE GALLERY
+music/sector12.ogg|SECTOR 12: THE SUNKEN DEPOT
+music/sector13.ogg|SECTOR 13: THE RELAY
+music/sector14.ogg|SECTOR 14: THE CONSERVATORY
+music/sector15.ogg|SECTOR 15: THE LISTENING POST
+music/sector16.ogg|SECTOR 16: THE OBSERVATORY
+music/sector17.ogg|SECTOR 17: THE FLOODED ARCHIVE
+music/sector18.ogg|SECTOR 18: THE CORE
+music/sector19.ogg|SECTOR 19: THE ROOFTOPS
+music/sector20.ogg|SECTOR 20: THE STORM YARD
+music/sector21.ogg|SECTOR 21: THE DRIFT
+music/sector24.ogg|SECTOR 24: THE NEON EXPO
+music/sector28.ogg|SECTOR 28: THE MONOLITH
+music/sector29.ogg|SECTOR 29: THE STOCKPILE
+music/sector30.ogg|SECTOR 30: THE COMPOUND
+music/sector31.ogg|SECTOR 31: THE LAUNCH BAY
 [WEAPONS]
 sfx/shoot.wav|shoot
 sfx/scatter.wav|scatter
