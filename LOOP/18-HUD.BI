@@ -20,6 +20,14 @@
     ' The gun was placed in chapter 17 (gunX, gunY, gunW, gunH): drawn here
     ' - or with OpenGL, by the graphics card, at the window's own size
     ' (chapter 24), under all of this
+    '
+    ' FULL WIDE (OpenGL, the window wider than 4:3): it's all drawn on a
+    ' canvas as wide as the window instead (HudWideBegin), our 800 x 600
+    ' screen a VIEW in its middle - and each part of the HUD VIEWed to its
+    ' own side (HudAtE: health and the kills at the window's left edge, the
+    ' ammo, keycards and clock at its right), washes all the way across
+    ' (HudAt -1, scrW wide)
+    HudWideBegin
     IF gunY < 600 AND NOT glMode AND NOT editMode AND viewOn = 0 THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun) ' (in its light - not in the editor: nothing to shoot, and it's in the way)
     ' The kick: the boot comes up from the bottom of the screen (a little
     ' left of the middle), at its highest when it lands, then drops away -
@@ -34,7 +42,7 @@
     END IF
     IF muzzleFlash > 0 THEN ' Muzzle flash, and a flicker of light on everything
         muzzleFlash = muzzleFlash - 1
-        LINE (0, 0)-(799, 599), _RGBA32(255, 120, 120, 18), BF
+        HudAt -1 : LINE (0, 0)-(scrW - 1, 599), _RGBA32(255, 120, 120, 18), BF : HudAt 1
         flashX = gunX + gunW * gunMuzzleX(currentGun) : flashY = gunY + gunH * gunMuzzleY(currentGun)
         FillCircle flashX, flashY, 30 + muzzleFlash * 4, _RGBA32(255, 40, 40, 90)
         FillCircle flashX, flashY, 18 + muzzleFlash * 3, _RGBA32(255, 150, 150, 170)
@@ -61,11 +69,13 @@
     JumpPadReadout ' (a launch control or jump pad you're looking at: its numbers - GAME/JUMPPADS.BM)
     crossScale = 1 + (crossScale - 1) * 0.85
     IF crossFlash > 0 THEN crossFlash = crossFlash - 1
-    IF hurtFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(MaxOf(painR, 120), painG, painB, hurtFlash * 5), BF ' (in what hurt you - and fainter now the edges show it)
-    IF pickFlash > 0 THEN LINE (0, 0)-(799, 599), _RGBA32(255, 255, 160, pickFlash * 4), BF
+    HudAt -1
+    IF hurtFlash > 0 THEN LINE (0, 0)-(scrW - 1, 599), _RGBA32(MaxOf(painR, 120), painG, painB, hurtFlash * 5), BF ' (in what hurt you - and fainter now the edges show it)
+    IF pickFlash > 0 THEN LINE (0, 0)-(scrW - 1, 599), _RGBA32(255, 255, 160, pickFlash * 4), BF
+    HudAt 1
     IF invTimer > 0 AND NOT (invTimer < 60 AND (invTimer \ 6) MOD 2 = 1) THEN ' Invulnerable: a golden glow round the edges (a hit that couldn't hurt: brighter) - blinking out its last second
         invAl = 9 + invFlash * 3 + 3 * DSin(lvFrame * 0.2)
-        FOR invE = 0 TO 15 : LINE (invE, invE)-(799 - invE, 599 - invE), _RGBA32(255, 205, 70, MaxOf(0, (16 - invE) * invAl)), B : NEXT
+        HudAt -1 : FOR invE = 0 TO 15 : LINE (invE, invE)-(scrW - 1 - invE, 599 - invE), _RGBA32(255, 205, 70, MaxOf(0, (16 - invE) * invAl)), B : NEXT : HudAt 1
         MenuText 400, 70, "INVULNERABLE " + LTRIM$(STR$((invTimer + 59) \ 60)), 1.5, _RGB32(255, 215, 90), 1
     END IF
     ' A ripper's slash: three claw marks torn across the view - drawn out
@@ -84,7 +94,7 @@
         clawFx = clawFx - 1
     END IF
     IF setting(SET_HURTDIR) THEN DrawHurtDirs playerX, playerY, dirX, dirY ' (over the red flash, so they stand out)
-    IF godMode AND hudShow(HE_GOD) THEN HudText hudX(HE_GOD), hudY(HE_GOD), hudLabel$(HE_GOD), HudColor~&(HE_GOD, _RGB32(255, 215, 30))
+    IF godMode AND hudShow(HE_GOD) THEN HudAtE HE_GOD : HudText hudX(HE_GOD), hudY(HE_GOD), hudLabel$(HE_GOD), HudColor~&(HE_GOD, _RGB32(255, 215, 30)) : HudAt 1
     IF editMode THEN EditOverlay playerX, playerY, dirX, dirY ' (the editor: what you're aiming at, what you'll place)
     IF editMode AND editView = 1 THEN EditDrawFaces ' (the face under the pointer, and the ones selected, outlined)
     IF editMode AND editView = 1 AND NOT hudEdit THEN ' The toolbar (and the help, when it's up)
@@ -106,44 +116,46 @@
     ' it as you explore - and with it, the whole level.
     killsY = hudY(HE_KILLS)
     IF hasMap AND NOT mapOpen AND hudShow(HE_MINIMAP) AND viewOn <> VIEW_CAM THEN ' (not on a camera's feed: its name and clock are there)
-        DrawMap hudX(HE_MINIMAP), hudY(HE_MINIMAP), hudW(HE_MINIMAP), -1, playerX, playerY, dirX, dirY
+        HudAtE HE_MINIMAP : DrawMap hudX(HE_MINIMAP), hudY(HE_MINIMAP), hudW(HE_MINIMAP), -1, playerX, playerY, dirX, dirY : HudAt 1
         ' (the kill count, if it's where the map is, goes under it)
         IF hudX(HE_KILLS) = hudX(HE_MINIMAP) AND hudY(HE_KILLS) = hudY(HE_MINIMAP) THEN killsY = hudY(HE_MINIMAP) + MinOf(mapN, 48) * hudW(HE_MINIMAP) + 6
     END IF
     IF mapOpen THEN
-        LINE (0, 0)-(799, 599), _RGBA32(0, 4, 14, 225), BF
+        HudAt -1 : LINE (0, 0)-(scrW - 1, 599), _RGBA32(0, 4, 14, 225), BF : HudAt 1
         MenuText 400, 14, levelName$, 2, _RGB32(255, 100, 215), 1
         fmC = MinOf(10, 480 \ mapN) : mmFull = -1 ' (the whole sector, as big as fits)
         DrawMap 400 - mapN * fmC \ 2, 60, fmC, hasMap, playerX, playerY, dirX, dirY : mmFull = 0
         IF hasMap THEN mapNote$ = "THIS SECTOR'S MAP - BRIGHTER WHERE YOU'VE BEEN.   TAB  CLOSE" ELSE mapNote$ = "NO MAP YET - ONLY WHERE YOU'VE BEEN.   TAB  CLOSE"
         MenuText 400, 552, mapNote$, 1, _RGB32(170, 170, 200), 1
     END IF
-    IF NOT mapOpen AND hudShow(HE_KILLS) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN HudText hudX(HE_KILLS), killsY, hudLabel$(HE_KILLS) + STR$(kills) + " /" + STR$(numMonsters), HudColor~&(HE_KILLS, _RGB32(255, 90, 90))
+    IF NOT mapOpen AND hudShow(HE_KILLS) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN HudAtE HE_KILLS : HudText hudX(HE_KILLS), killsY, hudLabel$(HE_KILLS) + STR$(kills) + " /" + STR$(numMonsters), HudColor~&(HE_KILLS, _RGB32(255, 90, 90)) : HudAt 1
     ' F3: where you are, in numbers (DrawInfo) - under the kills, when they're top left
     IF infoOn AND NOT mapOpen AND NOT cyberOn AND viewOn <> VIEW_CAM THEN
         infoTop = 8 : IF hudShow(HE_KILLS) AND hudX(HE_KILLS) < 300 AND killsY < 300 THEN infoTop = killsY + 22
-        DrawInfo infoTop
+        HudAt 0 : DrawInfo infoTop : HudAt 1 ' (top left)
     END IF
 
     ' Keycards you hold, top right
-    cardX = hudX(HE_CARDS)
+    cardX = hudX(HE_CARDS) : HudAtE HE_CARDS
     FOR k = 3 TO 1 STEP - 1
         IF hasCard(k) AND hudShow(HE_CARDS) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN cardX = cardX - hudW(HE_CARDS) - 4 : _PUTIMAGE (cardX, hudY(HE_CARDS))-STEP(hudW(HE_CARDS) - 1, hudW(HE_CARDS) - 1), cardImg&(k)
     NEXT
+    HudAt 1
 
     ' Armour and health (bottom left)
     IF (armor > 0 OR hudEdit) AND hudShow(HE_ARMOR) AND NOT (editMode AND NOT hudEdit) THEN
-        ac~& = HudColor~&(HE_ARMOR, _RGB32(90, 160, 255)) : ax = hudX(HE_ARMOR) : ay = hudY(HE_ARMOR)
+        ac~& = HudColor~&(HE_ARMOR, _RGB32(90, 160, 255)) : ax = hudX(HE_ARMOR) : ay = hudY(HE_ARMOR) : HudAtE HE_ARMOR
         HudText ax, ay, hudLabel$(HE_ARMOR) + STR$(armor), ac~&
         IF hudW(HE_ARMOR) > 0 THEN
             LINE (ax, ay + 18)-STEP(hudW(HE_ARMOR) + 1, hudH(HE_ARMOR) + 1), _RGBA32(0, 0, 0, 170), BF
             IF armor > 0 THEN LINE (ax + 1, ay + 19)-STEP(MaxOf(1, armor * hudW(HE_ARMOR) \ MAX_ARMOR) - 1, hudH(HE_ARMOR) - 1), ac~&, BF
         END IF
+        HudAt 1
     END IF
     IF health > 60 THEN healthColor~& = _RGB32(60, 230, 90) ELSE IF health > 25 THEN healthColor~& = _RGB32(255, 200, 40) ELSE healthColor~& = _RGB32(255, 50, 50)
     healthColor~& = HudColor~&(HE_HEALTH, healthColor~&)
     IF hudShow(HE_HEALTH) AND NOT (editMode AND NOT hudEdit) THEN
-        hx = hudX(HE_HEALTH) : hy = hudY(HE_HEALTH) : bw = hudW(HE_HEALTH) : bh = hudH(HE_HEALTH)
+        hx = hudX(HE_HEALTH) : hy = hudY(HE_HEALTH) : bw = hudW(HE_HEALTH) : bh = hudH(HE_HEALTH) : HudAtE HE_HEALTH
         HudText hx, hy, hudLabel$(HE_HEALTH) + STR$(health), healthColor~&
         IF poisonLeft > 0 AND (lvFrame \ 20) MOD 3 THEN HudText hx + 8 * (LEN(hudLabel$(HE_HEALTH) + STR$(health)) + 2), hy, "POISONED", _RGB32(90, 255, 80) ' (poisoned: it goes on hurting - a health pack cures it)
         IF bw > 0 THEN
@@ -151,7 +163,9 @@
             IF health > 0 THEN LINE (hx + 1, hy + 19)-STEP(MaxOf(1, MinOf(health, MAX_HP) * bw \ MAX_HP) - 1, bh - 1), healthColor~&, BF
             IF health > MAX_HP THEN LINE (hx + 1, hy + 19)-STEP(MaxOf(1, (health - MAX_HP) * bw \ MAX_HP) - 1, bh - 1), _RGB32(90, 200, 255), BF ' (overcharged: the extra, in blue, over it)
         END IF
+        HudAt 1
     END IF
+    HudAtE HE_AMP ' (the amp, night vision, the suit and the jetpack's fuel)
     IF ampTimer > 0 AND hudShow(HE_AMP) THEN HudText hudX(HE_AMP), hudY(HE_AMP), hudLabel$(HE_AMP) + STR$(ampTimer \ 60 + 1), HudColor~&(HE_AMP, _RGB32(255, 90, 90))
     IF nvHave AND hudShow(HE_AMP) THEN ' (night vision, beside the amp: bright while it's on)
         IF nvOn THEN c~& = _RGB32(110, 255, 120) ELSE c~& = _RGB32(60, 130, 70)
@@ -165,6 +179,7 @@
         IF jetFuel < 20 THEN c~& = _RGB32(255, 60, 60) ELSE IF jetOn THEN c~& = _RGB32(255, 190, 60) ELSE c~& = _RGB32(90, 220, 255)
         HudText hudX(HE_AMP) + 136, hudY(HE_AMP) + 36, "JET" + STR$(INT(jetFuel + 0.99)) + "%", c~&
     END IF
+    HudAt 1
     ' The VIGNETTES (with HIT FX on): a lockdown strobing red; low health
     ' thumping red with your heart; poison's green; the colour of the last
     ' thing that hurt you, fading
@@ -196,14 +211,14 @@
                 CASE EV_BLACKOUT : evText$ = "POWER FAILURE -" + STR$(blackoutTimer \ 60 + 1)
                 CASE ELSE : evText$ = "" ' (a plate, a laser...: you can see what it is - nothing to say, and no frame)
             END SELECT
-            IF evText$ <> "" AND hudShow(HE_EVENT) THEN HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT) + evLine * 16, evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90)) : evLine = evLine + 1
+            IF evText$ <> "" AND hudShow(HE_EVENT) THEN HudAtE HE_EVENT : HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT) + evLine * 16, evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90)) : evLine = evLine + 1 : HudAt 1
             IF evText$ <> "" AND evType(ev) <> EV_NEST AND evType(ev) <> EV_GALLERY THEN
                 pulse = 60 + 50 * SIN(TIMER * 6)
-                FOR k = 0 TO 3 : LINE (k, k)-(799 - k, 599 - k), _RGBA32(255, 30, 30, pulse), B : NEXT
+                HudAt -1 : FOR k = 0 TO 3 : LINE (k, k)-(scrW - 1 - k, 599 - k), _RGBA32(255, 30, 30, pulse), B : NEXT : HudAt 1
             END IF
         END IF
     NEXT
-    AchDrawToast 0 ' (an achievement just unlocked: its pop-up, bottom right)
+    HudAt 2 : AchDrawToast 0 : HudAt 1 ' (an achievement just unlocked: its pop-up, bottom right)
 
     ' Gun and its ammo (bottom right), and which guns you have
     ammoType = gunAmmoType(currentGun)
@@ -223,47 +238,50 @@
     ammoColor~& = HudColor~&(HE_AMMO, ammoColor~&)
     ammoText$ = gunName$(currentGun) + "  " + LTRIM$(STR$(ammoCount(ammoType)))
     IF hudShow(HE_AMMO) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN ' (its right edge at hudX; not on a camera's feed: no gun there)
-        rx = hudX(HE_AMMO) : ry = hudY(HE_AMMO) : bw = hudW(HE_AMMO) : bh = hudH(HE_AMMO)
+        rx = hudX(HE_AMMO) : ry = hudY(HE_AMMO) : bw = hudW(HE_AMMO) : bh = hudH(HE_AMMO) : HudAtE HE_AMMO
         HudText rx - 8 * LEN(ammoText$), ry, ammoText$, ammoColor~&
         IF bw > 0 THEN
             LINE (rx - bw - 2, ry + 18)-STEP(bw + 1, bh + 1), _RGBA32(0, 0, 0, 170), BF
             IF ammoCount(ammoType) > 0 THEN LINE (rx - 1 - ammoCount(ammoType) * bw \ ammoMax(ammoType), ry + 19)-(rx - 1, ry + 18 + bh), ammoColor~&, BF
         END IF
+        HudAt 1
     END IF
     IF hudShow(HE_GUNS) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN
+        HudAtE HE_GUNS
         FOR gun = 1 TO NUM_GUNS
             gunNumColor~& = _RGB32(60, 60, 70)
             IF hasGun(gun) THEN gunNumColor~& = _RGB32(150, 150, 160)
             IF gun = currentGun THEN gunNumColor~& = HudColor~&(HE_GUNS, _RGB32(255, 255, 255))
             HudText hudX(HE_GUNS) + (gun - 1) * 20, hudY(HE_GUNS), LTRIM$(STR$(gun)), gunNumColor~&
         NEXT
+        HudAt 1
     END IF
 
     ' In the network: what's left to grab, and the time left
     IF cyberOn AND hudShow(HE_NETWORK) THEN
         c$ = "NETWORK   DATA " + LTRIM$(STR$(cyberGot)) + " / " + LTRIM$(STR$(cyberNeed)) + "   TIME " + LTRIM$(STR$(cyberTime \ 60)) + "   TRACE " + LTRIM$(STR$(INT(traceAmt))) + "%"
-        nx = hudX(HE_NETWORK) : ny = hudY(HE_NETWORK)
+        nx = hudX(HE_NETWORK) : ny = hudY(HE_NETWORK) : HudAtE HE_NETWORK
         LINE (nx - LEN(c$) * 4 - 10, ny)-(nx + LEN(c$) * 4 + 10, ny + 20), _RGBA32(0, 20, 40, 190), BF
         LINE (nx - LEN(c$) * 4 - 10, ny)-(nx + LEN(c$) * 4 + 10, ny + 20), _RGB32(60, 240, 255), B
         cc~& = HudColor~&(HE_NETWORK, _RGB32(150, 250, 255)) : IF (cyberTime < 600 OR traceAmt >= 75) AND (cyberTime \ 15) MOD 2 = 0 THEN cc~& = _RGB32(255, 80, 120)
-        HudText nx - LEN(c$) * 4, ny + 5, c$, cc~&
+        HudText nx - LEN(c$) * 4, ny + 5, c$, cc~& : HudAt 1
     END IF
     ' What NEXUS is saying: a red-framed subtitle at the top
     IF speechUntil! > TIMER AND LEN(speechText$) AND hudShow(HE_SUBTITLE) THEN
         w = LEN(speechText$) * 8 + 24 : IF w > 780 THEN w = 780
-        sx = hudX(HE_SUBTITLE) : sy = hudY(HE_SUBTITLE)
+        sx = hudX(HE_SUBTITLE) : sy = hudY(HE_SUBTITLE) : HudAtE HE_SUBTITLE
         LINE (sx - w \ 2, sy)-(sx + w \ 2, sy + 24), _RGBA32(30, 0, 8, 190), BF
         LINE (sx - w \ 2, sy)-(sx + w \ 2, sy + 24), _RGB32(255, 60, 90), B
-        HudText sx - LEN(speechText$) * 4, sy + 5, speechText$, HudColor~&(HE_SUBTITLE, _RGB32(255, 200, 210))
+        HudText sx - LEN(speechText$) * 4, sy + 5, speechText$, HudColor~&(HE_SUBTITLE, _RGB32(255, 200, 210)) : HudAt 1
     END IF
     ' Message line
     IF TIMER < messageUntil! AND LEN(message$) AND NOT mapOpen AND hudShow(HE_MESSAGE) THEN
-        HudText hudX(HE_MESSAGE) - LEN(message$) * 4, hudY(HE_MESSAGE), message$, HudColor~&(HE_MESSAGE, _RGB32(255, 255, 255))
+        HudAtE HE_MESSAGE : HudText hudX(HE_MESSAGE) - LEN(message$) * 4, hudY(HE_MESSAGE), message$, HudColor~&(HE_MESSAGE, _RGB32(255, 255, 255)) : HudAt 1
     END IF
     IF hudEdit THEN HudEditDraw ' (the HUD layout editor: boxes round it all)
 
     IF dead THEN
-        LINE (0, 0)-(799, 599), _RGBA32(90, 0, 0, 110), BF
+        HudAt -1 : LINE (0, 0)-(scrW - 1, 599), _RGBA32(90, 0, 0, 110), BF : HudAt 1
         BigText "YOU DIED", 230, 6, _RGB32(255, 60, 60)
         IF TIMER - deadAt! > 1.2 THEN HudText 400 - 15 * 8, 330, "Click or press Space to try again", _RGB32(255, 255, 255)
     END IF
@@ -285,12 +303,13 @@
         ' so the line doesn't shift about as the numbers grow and shrink
         IF glMode THEN fpsText$ = "  OPENGL" ELSE fpsText$ = "SOFTWARE"
         fpsText$ = fpsText$ + "   FPS" + RIGHT$("   " + STR$(fpsShown), 4) + "   3D VIEW" + RIGHT$("     " + msText$, 6) + " MS"
-        IF hudShow(HE_FPS) THEN HudText hudX(HE_FPS) - LEN(fpsText$) * 4, hudY(HE_FPS), fpsText$, HudColor~&(HE_FPS, _RGB32(255, 255, 120))
+        IF hudShow(HE_FPS) THEN HudAtE HE_FPS : HudText hudX(HE_FPS) - LEN(fpsText$) * 4, hudY(HE_FPS), fpsText$, HudColor~&(HE_FPS, _RGB32(255, 255, 120)) : HudAt 1
     END IF
     ' The sector timer (SECTOR TIMER): how long you've been in it, the
     ' clock green while you're inside your best and red once past it
     ' (the keycards you hold sit top right too: the demo's lines go under them)
     ddy = 0 : IF hudShow(HE_CARDS) AND hudX(HE_CARDS) > 560 AND hudY(HE_CARDS) < 110 AND (hasCard(1) OR hasCard(2) OR hasCard(3)) THEN ddy = MaxOf(0, hudY(HE_CARDS) + hudW(HE_CARDS) + 6 - 38)
+    HudAt 2 ' (a demo's lines: top right)
     IF demoPlay THEN ' Playing one: a green play arrow and PLAYING over the clock - and, small, which demo, how long, what
         dpw = 8 * 8 + 16 : dpx = 784 - dpw : dpc~& = _RGB32(90, 255, 130)
         FOR dpy = 0 TO 10 : LINE (dpx, 42 + ddy + dpy)-(dpx + (5 - ABS(dpy - 5)) * 1.6, 42 + ddy + dpy), dpc~& : NEXT ' (the arrow: a little triangle)
@@ -314,6 +333,7 @@
         IF demoRec AND (demoFrame \ 30) MOD 2 = 0 THEN FillCircle 784 - LEN(dh$) * 8 - 10, 66 + ddy, 4, dhc~& ' (the red light, blinking)
         HudText 784 - LEN(dh$) * 8, 58 + ddy, dh$, dhc~&
     END IF
+    HudAt 1
     IF setting(SET_TIMER) AND hudShow(HE_TIMER) AND NOT editMode AND NOT cyberOn THEN
         lt! = TIMER - levelStart! : IF lt! < 0 THEN lt! = lt! + 86400
         rk = level : IF level <= NUM_LEVELS THEN rk = sectorSet * 100 + level
@@ -327,14 +347,15 @@
             IF demoPlay AND NOT demoAttract AND NOT demoQuit THEN dbot = dbot + 16 ' (and the line of keys under it: DEMO/PLAYLIST.BM's)
             tdy = MaxOf(0, dbot + 8 - hudY(HE_TIMER))
         END IF
-        MenuText hudX(HE_TIMER), hudY(HE_TIMER) + tdy, tmr$, 2, HudColor~&(HE_TIMER, tc~&), 2
+        HudAtE HE_TIMER : MenuText hudX(HE_TIMER), hudY(HE_TIMER) + tdy, tmr$, 2, HudColor~&(HE_TIMER, tc~&), 2
         IF best! > 0 THEN tmr$ = "BEST " + TimeText$(INT(best!)) : HudText hudX(HE_TIMER) - LEN(tmr$) * 8, hudY(HE_TIMER) + tdy + 34, tmr$, _RGB32(255, 220, 80)
+        HudAt 1
     END IF
 
     ' With OpenGL, the HUD goes to the graphics card as a picture, to be
-    ' laid over the 3D view there (chapter 24): GLSL_filter_capture copies
+    ' laid over the 3D view there (chapter 24): GLCapture copies
     ' the screen for SUB _GL, and our own screen layer is switched off
-    IF glMode THEN GLSL_filter_capture
+    IF glMode THEN GLCapture ' (FULL WIDE: the HUD's canvas - and back to our screen)
     GLScreenLayer glMode
     DisplayFollow ' (Alt + Enter changes the DISPLAY setting - chapter 21)
     ShowFrame ' Show the finished frame (chapter 7)

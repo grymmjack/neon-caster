@@ -60,7 +60,7 @@ SUB HackRun STATIC
         IF pick THEN HackPick cur
         IF hackWon OR hackTries = 0 THEN EXIT DO
         DrawHack s0, s1, ""
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady : ShowFrame
     LOOP
     IF NOT hackLeft THEN ' (the result, a moment)
@@ -69,7 +69,7 @@ SUB HackRun STATIC
             _LIMIT 60 : WHILE _MOUSEINPUT : WEND
             IF hackWon THEN t$ = "ACCESS GRANTED" ELSE t$ = "TERMINAL LOCKED"
             DrawHack -1, -1, t$
-            IF glReady THEN GLSL_filter_capture
+            IF glReady THEN GLCapture
             GLScreenLayer glReady : ShowFrame
         NEXT
     END IF

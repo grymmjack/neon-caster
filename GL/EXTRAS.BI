@@ -28,6 +28,14 @@
 '                      and the light on it (1 = as bright as its picture)
 DIM SHARED glPitch(1) ' (glSet, the settings: with them, chapter 21)
 DIM SHARED glWide(1), glSideDim(1), glAspectK
+' FULL WIDE's own screen (RENDER/HUD.BM, GLCapture): in play the HUD is drawn
+' on hudCanvas&, as wide as the window (scrW across, 600 down) - each part
+' VIEWed to its own side of it, so it hugs the window's edge - and a screen
+' with the synthwave backdrop gets it all the way across, our 4:3 screen in
+' its middle. hudVX: where the middle 800 start; hudViewX: the VIEW's left
+' now (HudText adds it - _PRINTSTRING doesn't see VIEW).
+DIM SHARED hudCanvas&, scrW, hudVX, hudViewX, hudWideNow, backWant, backT, backDim~&, backScan ' (backDim~&, backScan: BackdropDim's, over it)
+scrW = 800
 DIM SHARED glNumDecal(1) AS INTEGER, glDecX(MAX_DECALS, 1), glDecY(MAX_DECALS, 1), glDecZ(MAX_DECALS, 1)
 DIM SHARED glDecNX(MAX_DECALS, 1), glDecNY(MAX_DECALS, 1), glDecNZ(MAX_DECALS, 1), glDecSize(MAX_DECALS, 1), glDecHeat(MAX_DECALS, 1), glDecKind(MAX_DECALS, 1) AS INTEGER
 DIM SHARED glGun(1) AS INTEGER, glGunX0(1), glGunY0(1), glGunX1(1), glGunY1(1), glGunR(1), glGunG(1), glGunB(1)

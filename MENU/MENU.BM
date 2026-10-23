@@ -219,7 +219,7 @@ SUB RunMenu STATIC
             END IF
             DrawMenu menuT
             IF glReady THEN GLLiveSettings ' (so OpenGL shows a change as you make it: chapter 24)
-            IF glReady THEN GLSL_filter_capture ' (OpenGL draws the menu over its view: chapter 24)
+            IF glReady THEN GLCapture ' (OpenGL draws the menu over its view: chapter 24)
             GLScreenLayer glReady
             ShowFrame
         END IF
@@ -850,36 +850,53 @@ END SUB
 ' rushing towards you (its lines get closer together towards the horizon:
 ' 260 / z is the same perspective as the floor in chapter 14)
 SUB DrawMenuBackdrop(t)
-    DIM f, i, k, n, y ' (its own: the main program shares these names)
+    backWant = -1 : backT = t ' (FULL WIDE: GLCapture draws it again, as wide as the window, round our screen)
+    backDim~& = 0 : backScan = 0
+    DrawBackdropW t, 800
+END SUB
+
+' The backdrop darkened, all over (and with scan lines): FULL WIDE's
+' sides get the same (GLCapture)
+SUB BackdropDim(c~&, scan)
+    DIM y ' (its own: the main program shares these names)
+    backDim~& = c~& : backScan = scan
+    LINE (0, 0)-(799, 599), c~&, BF
+    IF scan THEN FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGBA32(0, 0, 0, 60) : NEXT
+END SUB
+
+' ...w across (its middle at w / 2): our screen's, or FULL WIDE's canvas
+SUB DrawBackdropW(t, w)
+    DIM f, i, k, n, y, cx ' (its own: the main program shares these names)
     CONST HORIZON = 330
+    cx = w \ 2
     FOR y = 0 TO HORIZON STEP 2
         f = y / HORIZON
-        LINE (0, y)-(799, y + 1), _RGB32(12 + 80 * f ^ 3, 2 + 14 * f, 30 + 70 * f ^ 2), BF
+        LINE (0, y)-(w - 1, y + 1), _RGB32(12 + 80 * f ^ 3, 2 + 14 * f, 30 + 70 * f ^ 2), BF
     NEXT
-    FOR i = 1 TO 70 ' Stars, at made-up but fixed places
+    FOR i = 1 TO 70 * w \ 800 ' Stars, at made-up but fixed places
         starB = 140 + 110 * SIN(t * 0.04 + i * 1.7)
-        PSET ((i * 137) MOD 800, (i * 61) MOD 260), _RGB32(starB, starB, starB)
+        PSET ((i * 137) MOD w, (i * 61) MOD 260), _RGB32(starB, starB, starB)
     NEXT
     FOR y = HORIZON - 120 TO HORIZON - 1 ' The sun: its lower half cut into drifting stripes
         dy = y - (HORIZON - 30) : halfW = SQR(ABS(8100 - dy * dy)) ' (radius 90)
         IF ABS(dy) <= 90 THEN
             IF NOT (y > HORIZON - 60 AND ((y + t \ 3) MOD 12) < 3 + (y - (HORIZON - 60)) \ 8) THEN
                 f = (y - (HORIZON - 120)) / 120
-                LINE (400 - halfW, y)-(400 + halfW, y), _RGB32(255, 220 - 160 * f, 90 + 60 * f)
+                LINE (cx - halfW, y)-(cx + halfW, y), _RGB32(255, 220 - 160 * f, 90 + 60 * f)
             END IF
         END IF
     NEXT
-    LINE (0, HORIZON)-(799, 599), _RGB32(8, 0, 18), BF
-    FOR k = -24 TO 24 ' The grid's lines running away from you...
-        LINE (400 + k * 14, HORIZON)-(400 + k * 110, 600), _RGBA32(255, 50, 210, 150)
+    LINE (0, HORIZON)-(w - 1, 599), _RGB32(8, 0, 18), BF
+    FOR k = -24 - (w - 800) \ 200 TO 24 + (w - 800) \ 200 ' The grid's lines running away from you...
+        LINE (cx + k * 14, HORIZON)-(cx + k * 110, 600), _RGBA32(255, 50, 210, 150)
     NEXT
     scroll = t * 0.04 - INT(t * 0.04) ' ...and across, moving towards you
     FOR n = 0 TO 24
         z = n + 1 - scroll
         gridY = HORIZON + 260 / z
-        IF gridY < 600 THEN LINE (0, gridY)-(799, gridY), _RGBA32(255, 50, 210, 40 + 200 / z)
+        IF gridY < 600 THEN LINE (0, gridY)-(w - 1, gridY), _RGBA32(255, 50, 210, 40 + 200 / z)
     NEXT
-    LINE (0, HORIZON)-(799, HORIZON + 1), _RGB32(255, 130, 235), BF
+    LINE (0, HORIZON)-(w - 1, HORIZON + 1), _RGB32(255, 130, 235), BF
 END SUB
 
 ' Something to ask before you leave, picked at random each time

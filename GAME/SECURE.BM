@@ -271,14 +271,14 @@ SUB KeypadRun(code&) STATIC
             CASE "X" : done = -1 : padIn$ = ""
         END SELECT
         DrawKeypad ""
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady : ShowFrame
     LOOP UNTIL done
     IF LEN(padIn$) THEN ' (the result, a moment)
         FOR f = 1 TO 40
             _LIMIT 60 : WHILE _MOUSEINPUT : WEND
             IF padOK THEN DrawKeypad "OPEN" ELSE DrawKeypad "DENIED"
-            IF glReady THEN GLSL_filter_capture
+            IF glReady THEN GLCapture
             GLScreenLayer glReady : ShowFrame
         NEXT
     END IF
@@ -513,7 +513,7 @@ SUB NoteRun STATIC
         WEND
         k& = _KEYHIT : IF k& > 0 AND t0 > 15 THEN gone = -1
         DrawNote img&
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady : ShowFrame
     LOOP UNTIL gone
     IF img& < -1 THEN _FREEIMAGE img&
@@ -631,13 +631,15 @@ END SUB
 SUB ViewOverlay
     DIM t, t$ ' (its own: the main program shares these names)
     IF viewOn = VIEW_CAM THEN
-        FOR t = 0 TO 599 STEP 4 : LINE (0, t)-(799, t), _RGBA32(0, 20, 10, 60) : NEXT
-        MenuText 24, 20, decoTag$(viewCam), 2, _RGB32(220, 255, 220), 0
-        IF (lvFrame \ 30) MOD 2 = 0 THEN CIRCLE (720, 34), 7, _RGB32(255, 40, 40) : PAINT (720, 34), _RGB32(255, 40, 40) : MenuText 734, 26, "REC", 1.5, _RGB32(255, 80, 80), 0
+        HudAt -1 : FOR t = 0 TO 599 STEP 4 : LINE (0, t)-(scrW - 1, t), _RGBA32(0, 20, 10, 60) : NEXT ' (FULL WIDE: across the window; the name and clock at its left, REC and the keys at its right)
+        HudAt 0 : MenuText 24, 20, decoTag$(viewCam), 2, _RGB32(220, 255, 220), 0
+        HudAt 2 : IF (lvFrame \ 30) MOD 2 = 0 THEN CIRCLE (720, 34), 7, _RGB32(255, 40, 40) : PAINT (720, 34), _RGB32(255, 40, 40) : MenuText 734, 26, "REC", 1.5, _RGB32(255, 80, 80), 0
+        HudAt 0
         t$ = LTRIM$(STR$(lvFrame \ 3600)) + ":" + RIGHT$("0" + LTRIM$(STR$((lvFrame \ 60) MOD 60)), 2) + ":" + RIGHT$("0" + LTRIM$(STR$(lvFrame MOD 60)), 2)
         MenuText 24, 52, t$, 1.5, _RGB32(220, 255, 220), 0 ' (under its name: your health is at the bottom)
+        HudAt 2
         MenuText 776, 560, KeyName$(keyBind&(BIND_USE)) + " NEXT CAMERA - " + KeyName$(keyBind&(BIND_FORWARD)) + " " + KeyName$(keyBind&(BIND_LEFT)) + " " + KeyName$(keyBind&(BIND_BACK)) + " " + KeyName$(keyBind&(BIND_RIGHT)) + " LEAVE", 1, _RGB32(170, 210, 170), 2 ' (your keys)
-        LINE (8, 8)-(791, 591), _RGBA32(200, 255, 200, 90), B
+        HudAt -1 : LINE (8, 8)-(scrW - 9, 591), _RGBA32(200, 255, 200, 90), B : HudAt 1
     ELSEIF viewOn = VIEW_ROCKET THEN
         MenuText 400, 24, "ROCKET CAM", 1.5, _RGB32(255, 190, 90), 1
         LINE (380, 300)-(420, 300), _RGBA32(255, 190, 90, 150) : LINE (400, 280)-(400, 320), _RGBA32(255, 190, 90, 150)

@@ -31,19 +31,22 @@ END SUB
 ' HUD text with a drop shadow: printed in black one pixel down and right,
 ' then in its colour on top
 SUB HudText(x, y, text$, col~&)
-    COLOR _RGB32(0, 0, 0) : _PRINTSTRING (x + 1, y + 1), text$
-    COLOR col~& : _PRINTSTRING (x, y), text$
+    DIM vx ' (its own)
+    vx = hudViewX : IF vx THEN VIEW ' (FULL WIDE's canvas: _PRINTSTRING doesn't see a VIEW - it prints nothing inside one - so the VIEW's moved by hand)
+    COLOR _RGB32(0, 0, 0) : _PRINTSTRING (x + vx + 1, y + 1), text$
+    COLOR col~& : _PRINTSTRING (x + vx, y), text$
+    IF vx THEN VIEW (vx, 0)-(vx + 799, 599)
 END SUB
 
 ' Big centred text: printed at normal size into a small image, then
 ' stretched up with _PUTIMAGE (so it's chunky, like the 3D view)
 SUB BigText(text$, y, scale, col~&)
     textW = LEN(text$) * 8
-    img& = _NEWIMAGE(textW, 16, 32)
+    img& = _NEWIMAGE(textW, 16, 32) : d& = _DEST
     _DEST img& : _PRINTMODE _KEEPBACKGROUND
     COLOR _RGB32(0, 0, 0) : _PRINTSTRING (1, 1), text$
     COLOR col~& : _PRINTSTRING (0, 0), text$
-    _DEST 0
+    _DEST d& ' (back where it was drawing: our screen, or FULL WIDE's canvas)
     _PUTIMAGE (400 - textW * scale \ 2, y)-STEP(textW * scale - 1, 16 * scale-1), img&
     _FREEIMAGE img&
 END SUB
@@ -55,11 +58,11 @@ END SUB
 SUB MenuText(x, y, text$, scale, col~&, align)
     IF LEN(text$) = 0 THEN EXIT SUB
     textW = LEN(text$) * 8
-    img& = _NEWIMAGE(textW, 16, 32)
-    _DEST img& : _PRINTMODE _KEEPBACKGROUND : COLOR col~& : _PRINTSTRING (0, 0), text$ : _DEST 0
+    img& = _NEWIMAGE(textW, 16, 32) : d& = _DEST
+    _DEST img& : _PRINTMODE _KEEPBACKGROUND : COLOR col~& : _PRINTSTRING (0, 0), text$ : _DEST d& ' (back where it was drawing: our screen, or FULL WIDE's canvas)
     textX = x
     IF align = 1 THEN textX = x - textW * scale / 2
     IF align = 2 THEN textX = x - textW * scale
-    _PUTIMAGE (textX, y)-STEP(textW * scale - 1, 16 * scale - 1), img&, 0
+    _PUTIMAGE (textX, y)-STEP(textW * scale - 1, 16 * scale - 1), img&, d&
     _FREEIMAGE img&
 END SUB

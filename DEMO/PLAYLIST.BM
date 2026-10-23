@@ -261,7 +261,7 @@ SUB DemoLoading(n, nn)
     MenuText 400, 312, UCASE$(demoName$), 2, _RGB32(160, 220, 255), 1
     i$ = DemoInfo$(dFile$) : IF LEN(i$) THEN MenuText 400, 346, i$, 1, _RGB32(120, 150, 190), 1
     IF nn > 1 THEN MenuText 400, 366, "DEMO" + STR$(n) + " OF" + STR$(nn), 1, _RGB32(90, 110, 150), 1
-    IF glReady THEN GLSL_filter_capture
+    IF glReady THEN GLCapture
     GLScreenLayer glReady : ShowFrame
     _DEST d&
 END SUB

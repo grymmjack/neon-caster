@@ -982,7 +982,7 @@ SUB RunEditor STATIC
         EditDrawPane mx, my
         EditDrawTB 0, mx, my
         IF edHelp THEN EditDrawHelp 0
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady
         ShowFrame
     LOOP

@@ -556,7 +556,11 @@ run it and see what happens. That's the fastest way to learn how it works.
   the heavy's hit points, make the crawler drop medkits - or change
   `monsters.txt` by hand.
 - **Rearrange the HUD (ch. 18, 21)**: U in the editor, then drag things;
-  S saves `hud.txt`. Delete the file for the game's own layout.
+  S saves `hud.txt`. Delete the file for the game's own layout. In
+  FULL WIDE each part keeps to its own side of a window wider than 4:3 -
+  a part in the left third of the screen hugs the window's left edge, one
+  in the right third its right edge (`HudAtE`: a QB64 `VIEW` on a canvas as
+  wide as the window, chapter 18).
 - **Steps and ledges (ch. 15, 22, 24)**: the two renderers draw heights
   their own ways - OpenGL builds them into its mesh (`GLStep`), the
   software renderer walks each column front to back (`HeightColumn`).

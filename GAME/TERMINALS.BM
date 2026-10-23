@@ -99,14 +99,14 @@ SUB RunPuzzle STATIC
         LOOP
         IF pzDone OR pzSolved THEN EXIT DO
         DrawPuzzle pzSel, pzTyping, qb$
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady
         ShowFrame
     LOOP
     IF pzSolved THEN ' (a moment to see it worked)
         FOR f = 1 TO 90
             _LIMIT 60 : DrawPuzzle 0, 0, qb$
-            IF glReady THEN GLSL_filter_capture
+            IF glReady THEN GLCapture
             GLScreenLayer glReady : ShowFrame
         NEXT
     END IF
@@ -205,7 +205,7 @@ SUB PuzzleRun STATIC
             IF _FILEEXISTS(done$) OR el! > 120 THEN EXIT DO
             pzOut$ = "COMPILING" + STRING$(INT(el! * 3) MOD 4, ".") + "   (" + LTRIM$(STR$(INT(el!))) + "s)   qb64pe is turning it into a program"
             DrawPuzzle pzSel, 0, qb$
-            IF glReady THEN GLSL_filter_capture
+            IF glReady THEN GLCapture
             GLScreenLayer glReady : ShowFrame
         LOOP
         got$ = ""

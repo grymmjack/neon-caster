@@ -127,7 +127,7 @@ SUB JumpPadRun(p) STATIC
             k& = _KEYHIT
         LOOP
         DrawJumpPad p, t$
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady : ShowFrame
     LOOP UNTIL done
     _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND : mouseSettle = 8

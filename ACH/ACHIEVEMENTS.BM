@@ -53,7 +53,7 @@ SUB ShowAchievements STATIC
         IF click AND NOT pressWas AND _MOUSEY > 556 AND ABS(amx - 400) < 60 THEN EXIT DO
         pressWas = click
         DrawMenuBackdrop achT
-        LINE (0, 0)-(799, 599), _RGBA32(6, 0, 16, 190), BF
+        BackdropDim _RGBA32(6, 0, 16, 190), 0
         FOR k = 0 TO 2 ' (the tabs: the one you're on lit)
             IF achTab = k THEN tc~& = _RGB32(255, 90, 210) ELSE tc~& = _RGB32(90, 80, 130)
             MenuText VAL(MID$("190450660", k * 3 + 1, 3)), 22, RTRIM$(MID$("ACHIEVEMENTSRECORDS     STATS       ", k * 12 + 1, 12)), 2, tc~&, 1
@@ -113,7 +113,7 @@ SUB ShowAchievements STATIC
             MenuText 400, 548, "WHEEL OR ARROWS TO SCROLL  -  TAB: RECORDS, STATS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
         END IF
         MenuText 400, 562, "BACK", 2, _RGB32(220, 220, 240), 1
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady
         ShowFrame
     LOOP

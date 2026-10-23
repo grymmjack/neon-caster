@@ -17,6 +17,52 @@ SUB GLScreenLayer(glOn)
     shown = (glOn <> 0)
 END SUB
 
+' --- Our screen to the graphics card, for SUB _GL to lay over the view
+' (everywhere GLSL_filter_capture was). FULL WIDE: in play, the HUD's own
+' canvas, as wide as the window (HudWideBegin, chapter 18); a screen with
+' the synthwave backdrop (DrawMenuBackdrop) on that backdrop drawn as wide
+' as the window, our 4:3 screen in its middle; anything else, our screen.
+SUB GLCapture
+    DIM w, y ' (its own: the main program shares these names)
+    IF hudWideNow THEN
+        VIEW : _DEST 0 : hudWideNow = 0 : hudViewX = 0
+        GLCaptureImg hudCanvas&
+        scrW = 800 : hudVX = 0
+    ELSEIF backWant THEN
+        w = 800 : IF glMode THEN w = INT(800 * WideView + 0.5)
+        IF w >= 804 THEN
+            IF hudCanvas& < -1 THEN IF _WIDTH(hudCanvas&) <> w THEN _FREEIMAGE hudCanvas& : hudCanvas& = 0
+            IF hudCanvas& >= -1 THEN hudCanvas& = _NEWIMAGE(w, 600, 32)
+            d& = _DEST : _DEST hudCanvas& : VIEW
+            DrawBackdropW backT, w
+            IF backDim~& THEN LINE (0, 0)-(w - 1, 599), backDim~&, BF
+            IF backScan THEN FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(w - 1, y), _RGBA32(0, 0, 0, 60) : NEXT
+            _PUTIMAGE ((w - 800) \ 2, 0), 0, hudCanvas& ' (our screen, backdrop and all, in the middle - the same backdrop, so no seam)
+            _DEST d&
+            GLCaptureImg hudCanvas&
+        ELSE
+            GLSL_filter_capture
+        END IF
+    ELSE
+        GLSL_filter_capture
+    END IF
+    backWant = 0
+END SUB
+
+' GLSL_filter_capture's copy, from picture img& instead of our screen
+SUB GLCaptureImg(img&)
+    DIM src AS _MEM, dst AS _MEM, w AS LONG, h AS LONG
+    w = _WIDTH(img&) : h = _HEIGHT(img&)
+    IF w <> GLSL_frameW OR h <> GLSL_frameH THEN
+        REDIM GLSL_frame(0 TO w * h - 1) AS _UNSIGNED LONG
+        GLSL_frameW = w : GLSL_frameH = h
+    END IF
+    src = _MEMIMAGE(img&) : dst = _MEM(GLSL_frame())
+    _MEMCOPY src, src.OFFSET, src.SIZE TO dst, dst.OFFSET
+    _MEMFREE src : _MEMFREE dst
+    GLSL_frameReady = -1
+END SUB
+
 ' In the menu, the game stands still, so no new frame goes to OpenGL - and
 ' the last one has the settings as they were. So the menu hands over its
 ' settings itself, into both halves (SUB _GL is drawing one of them), and

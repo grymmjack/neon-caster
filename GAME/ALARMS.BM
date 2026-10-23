@@ -225,6 +225,6 @@ SUB AlarmOverlay
     DIM e, al ' (its own: the main program shares these names)
     IF alarmTimer <= 0 THEN EXIT SUB
     al = 7 + 6 * DSin(lvFrame * 0.21)
-    FOR e = 0 TO 13 : LINE (e, e)-(799 - e, 599 - e), _RGBA32(255, 30, 30, MaxOf(0, (14 - e) * al)), B : NEXT
+    HudAt -1 : FOR e = 0 TO 13 : LINE (e, e)-(scrW - 1 - e, 599 - e), _RGBA32(255, 30, 30, MaxOf(0, (14 - e) * al)), B : NEXT : HudAt 1 ' (FULL WIDE: the window's own edges)
     IF (lvFrame \ 20) MOD 2 = 0 THEN MenuText 400, 96, "ALARM", 2, _RGB32(255, 70, 60), 1
 END SUB

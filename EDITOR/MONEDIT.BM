@@ -30,7 +30,7 @@ SUB RunMonsterEditor STATIC
         LOOP
         IF meDone THEN EXIT DO
         DrawMonsterEditor meType, meField, meMsg$
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady
         ShowFrame
     LOOP

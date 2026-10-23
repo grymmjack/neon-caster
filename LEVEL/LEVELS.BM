@@ -261,7 +261,7 @@ SUB LevelDone STATIC
             MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
         END IF
         AchDrawToast -1 ' (achievements the sector's end unlocked - at the top, clear of the badges down the right)
-        IF glReady THEN GLSL_filter_capture ' (OpenGL draws the tally over its view: chapter 24)
+        IF glReady THEN GLCapture ' (OpenGL draws the tally over its view: chapter 24)
         GLScreenLayer glReady
         ShowFrame
     LOOP
@@ -294,7 +294,7 @@ SUB ShowRoute STATIC
         IF press AND NOT pressWas AND routeT > 20 THEN EXIT DO
         pressWas = press
         DrawMenuBackdrop routeT
-        LINE (0, 0)-(799, 599), _RGBA32(6, 0, 16, 170), BF
+        BackdropDim _RGBA32(6, 0, 16, 170), 0
         MenuText 400, 40, "SECTOR MAP", 4, _RGB32(80, 255, 140), 1
         ' The route: lines between sectors - bright where you've been, dim ahead
         FOR n = 1 TO NUM_LEVELS - 1
@@ -331,7 +331,7 @@ SUB ShowRoute STATIC
             FOR k = 0 TO 8 : LINE (bx - 8 + k, by - 44 + k)-(bx + 8 - k, by - 44 + k), _RGB32(255, 240, 120) : NEXT
         END IF
         MenuText 400, 560, "CLICK OR PRESS SPACE TO GO ON", 1, _RGB32(220, 220, 240), 1
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady
         ShowFrame
     LOOP

@@ -25,15 +25,52 @@ SUB DrawVignette(r, g, b, amt)
     DIM a, c~&, i, n, x0, y0, y1 ' (its own: the main program shares these names)
     IF amt <= 0 THEN EXIT SUB
     a = MinOf(1, amt) : n = 24 : dx = 170 / n : dy = 130 / n
+    HudAt -1 ' (FULL WIDE: the window's own edges)
     FOR i = 0 TO n - 1
         al = INT(200 * a * (1 - i / n) ^ 2) : IF al < 1 THEN EXIT FOR
         c~& = _RGBA32(r, g, b, al)
         x0 = INT(i * dx) : y0 = INT(i * dy) : x1 = INT((i + 1) * dx) - 1 : y1 = INT((i + 1) * dy) - 1
-        LINE (x0, y0)-(799 - x0, y1), c~&, BF ' (top)
-        LINE (x0, 599 - y1)-(799 - x0, 599 - y0), c~&, BF ' (bottom)
+        LINE (x0, y0)-(scrW - 1 - x0, y1), c~&, BF ' (top)
+        LINE (x0, 599 - y1)-(scrW - 1 - x0, 599 - y0), c~&, BF ' (bottom)
         LINE (x0, y1 + 1)-(x1, 599 - y1 - 1), c~&, BF ' (left)
-        LINE (799 - x1, y1 + 1)-(799 - x0, 599 - y1 - 1), c~&, BF ' (right)
+        LINE (scrW - 1 - x1, y1 + 1)-(scrW - 1 - x0, 599 - y1 - 1), c~&, BF ' (right)
     NEXT
+    HudAt 1
+END SUB
+
+' --- FULL WIDE in play (OpenGL): the HUD on a canvas as wide as the window
+' (hudCanvas&, scrW across), so its parts can hug the window's edges -
+' chapter 18 draws there, GLCapture hands it to the card. Not in the
+' editors (their pointer works on our 4:3 screen) or the software renderer.
+SUB HudWideBegin
+    DIM w ' (its own: the main program shares these names)
+    hudWideNow = 0 : hudVX = 0 : hudViewX = 0 : scrW = 800
+    IF glMode = 0 OR editMode OR hudEdit THEN EXIT SUB
+    w = INT(800 * WideView + 0.5) : IF w < 804 THEN EXIT SUB
+    IF hudCanvas& < -1 THEN IF _WIDTH(hudCanvas&) <> w THEN _FREEIMAGE hudCanvas& : hudCanvas& = 0
+    IF hudCanvas& >= -1 THEN hudCanvas& = _NEWIMAGE(w, 600, 32)
+    _DEST hudCanvas& : VIEW : CLS , _RGBA32(0, 0, 0, 0) : _PRINTMODE _KEEPBACKGROUND ' (as our screen prints: CORE/WINDOW.BI)
+    scrW = w : hudVX = (w - 800) \ 2 : hudWideNow = -1
+    HudAt 1
+END SUB
+
+' Where the HUD draws now, on FULL WIDE's canvas: an 800 x 600 VIEW at its
+' left edge (side 0), in its middle (1) or at its right edge (2), so the
+' code drawing a part needs no changes - or (-1) none, the whole canvas,
+' scrW across (washes and frames). Without the canvas it does nothing.
+SUB HudAt(side)
+    IF NOT hudWideNow THEN EXIT SUB
+    IF side < 0 THEN
+        VIEW : hudViewX = 0
+    ELSE
+        hudViewX = side * hudVX : VIEW (hudViewX, 0)-(hudViewX + 799, 599)
+    END IF
+END SUB
+
+' ...the side for HUD part e: by which third of our screen it's in
+SUB HudAtE(e)
+    IF NOT hudWideNow THEN EXIT SUB
+    IF hudX(e) < 267 THEN HudAt 0 ELSE IF hudX(e) > 533 THEN HudAt 2 ELSE HudAt 1
 END SUB
 
 ' --- The HUD's layout (chapter 18's data; hud.txt; the HUD editor) --------

@@ -219,9 +219,7 @@ SUB ShowTransmission STATIC
         pressWas = press
         IF tNow! > tLen! + 1.5 THEN EXIT DO
         DrawMenuBackdrop INT(tNow! * 60)
-        LINE (0, 0)-(799, 599), _RGBA32(10, 0, 4, 190), BF
-        ' Scan lines, and the portrait flickering in
-        FOR y = 0 TO 599 STEP 3 : LINE (0, y)-(799, y), _RGBA32(0, 0, 0, 60) : NEXT
+        BackdropDim _RGBA32(10, 0, 4, 190), -1 ' (and scan lines; the portrait flickers in below)
         MenuText 400, 70, "INCOMING TRANSMISSION", 3, _RGB32(255, 70, 90), 1
         IF nexusImg& < -1 AND (tNow! > 0.3 OR INT(tNow! * 20) MOD 2) THEN
             jit = 0 : IF RND < 0.06 THEN jit = INT(RND * 9) - 4
@@ -240,7 +238,7 @@ SUB ShowTransmission STATIC
         shown = INT(LEN(lineText$(li)) * MinOf(1, tNow! / (tLen! * 0.85 + 0.01)))
         WrapText 380, 210, 50, LEFT$(lineText$(li), shown), _RGB32(255, 220, 230)
         MenuText 400, 560, "SPACE TO SKIP", 1, _RGB32(150, 130, 160), 1
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady
         ShowFrame
     LOOP

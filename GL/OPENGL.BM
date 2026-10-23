@@ -76,7 +76,7 @@
 ' glReady is 0 and it draws nothing.
 '
 ' THE HUD is drawn on our screen, as usual - but then copied to the card
-' as a picture (GLSL_filter_capture, chapter 18) and laid over the 3D view
+' as a picture (GLCapture, chapter 18) and laid over the 3D view
 ' there (GLDrawHUD), with our own screen layer switched off. That way the
 ' screen effects below can bend and scanline it too.
 '
@@ -221,6 +221,9 @@ SUB _GL
     ELSE
         _glViewport hx, hy, hw, hh ' (our screen: all of the view, but for FULL WIDE)
         GLDrawGun b
+        IF GLSL_frameW > 800 AND GLSL_frameReady THEN ' (FULL WIDE's HUD: drawn as wide as the window - its middle 800 on our screen)
+            glHudW = INT(hw * GLSL_frameW / 800 + 0.5) : _glViewport hx + (hw - glHudW) \ 2, hy, glHudW, hh
+        END IF
         GLDrawHUD
     END IF
 
@@ -836,7 +839,7 @@ SUB GLPutCornerA(x, y, z, u, v, a)
     glShadowA(glNumVerts - 1) = a
 END SUB
 
-' THE HUD (no post-processing): the captured screen (GLSL_filter_capture,
+' THE HUD (no post-processing): the captured screen (GLCapture,
 ' chapter 18) laid over the whole view. Its colours are "premultiplied" -
 ' QB64PE's blending onto a see-through screen leaves each colour already
 ' multiplied by its alpha - so it goes on with _GL_ONE for the picture and
@@ -971,6 +974,8 @@ SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
     ' WIDE, the 4:3 middle of the wider view (and how much to darken beside it)
     GLSL_uniform_4f p~&, "hudRect", (hx - vx) / vw, (hy - vy) / vh, (hx + hw - vx) / vw, (hy + hh - vy) / vh
     GLSL_uniform_1f p~&, "sideDim", glSideDim(b) * (glAspectK > 1.01) * -1
+    glHudK = 1 : IF GLSL_frameW > 800 THEN glHudK = 800 / GLSL_frameW
+    GLSL_uniform_1f p~&, "hudK", glHudK ' (FULL WIDE's HUD: as wide as the window - our screen's 800 are this much of it)
     GLSL_uniform_1f p~&, "bloomAmt", bloomOn * -0.9
     GLSL_uniform_1f p~&, "fxMode", glSet(SET_SCREENFX, b) - 1
     GLSL_uniform_1f p~&, "gamma", 100 / MaxOf(10, glSet(SET_GAMMA, b)) ' (BRIGHTNESS: the curve's power - under 1 lifts the dark)
@@ -1991,6 +1996,8 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform vec3 gunLight;    // ...and the light on it" + nl$
     fs$ = fs$ + "uniform vec4 hudRect;     // where our 4:3 screen is (0..1, from the bottom left): all of it, but for FULL WIDE" + nl$
     fs$ = fs$ + "uniform float sideDim;    // how much to darken the view beside it (in the menu)" + nl$
+    fs$ = fs$ + "uniform float hudK;       // the HUD picture: 1, our screen - under 1, FULL WIDE's canvas, wider by 1 / hudK, round it" + nl$
+    fs$ = fs$ + "vec2 hudAt(vec2 h) { return vec2(0.5 + (h.x - 0.5) * hudK, h.y); }  // our screen's place h, on the HUD picture" + nl$
     fs$ = fs$ + "vec2 onHud(vec2 q) { vec2 h = (q - hudRect.xy) / (hudRect.zw - hudRect.xy); return vec2(h.x, 1.0 - h.y); }  // q on our screen, from its top left" + nl$
     fs$ = fs$ + "float inside(vec2 t) { return step(0.0, t.x) * step(t.x, 1.0) * step(0.0, t.y) * step(t.y, 1.0); }" + nl$
     fs$ = fs$ + "uniform float scanDark, linePx, lineThick;  // scanlines: how dark, how many pixels apart, how thick" + nl$
@@ -2010,7 +2017,8 @@ SUB GLBuildShaders
     fs$ = fs$ + "        vec2 g = (t - gunRect.xy) / (gunRect.zw - gunRect.xy); vec4 k = texture2D(gun, g);" + nl$
     fs$ = fs$ + "        if (g.x >= 0.0 && g.x <= 1.0 && g.y >= 0.0 && g.y <= 1.0) c = k.rgb * gunLight + c * (1.0 - k.a);" + nl$
     fs$ = fs$ + "    }" + nl$
-    fs$ = fs$ + "    if (hudOn > 0.5 && onScreen > 0.5) { vec4 h = texture2D(hud, t); c = h.rgb + c * (1.0 - h.a); }" + nl$
+    fs$ = fs$ + "    vec2 ht = hudAt(t);" + nl$
+    fs$ = fs$ + "    if (hudOn > 0.5 && inside(ht) > 0.5) { vec4 h = texture2D(hud, ht); c = h.rgb + c * (1.0 - h.a); }" + nl$
     fs$ = fs$ + "    return c;" + nl$
     fs$ = fs$ + "}" + nl$
     fs$ = fs$ + "void main() {" + nl$
@@ -2061,8 +2069,9 @@ SUB GLBuildShaders
     fs$ = fs$ + "        float give = 1.0 / max(0.55, 1.0 - scanDark * lineThick);  // the light the dark bands take, given back to the lines between - a CRT's beam is brighter than its average - so the picture isn't darker for them" + nl$
     fs$ = fs$ + "        c *= (1.0 - scanDark * (1.0 - smoothstep(band - 0.5, band + 0.5, d)) * (1.0 - glow * lit * 0.8)) * give;  // (bright fills the dark lines)" + nl$
     fs$ = fs$ + "    }" + nl$
-    fs$ = fs$ + "    if (hudOn > 0.5 && onScreen > 0.5) { vec4 h = texture2D(hud, hp); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied), after the scanlines: on the glass, so they never cut a row out of its letters" + nl$
-    fs$ = fs$ + "    else if (hudOn > 0.5 && sideDim < 0.01 && hp.y >= 0.0 && hp.y <= 1.0) {  // FULL WIDE, beside our screen: its edge column, carried out to the window's edge - what's drawn there is only the screen's washes (hurt, a lockdown's red, low health, a pickup's flash, a vignette), so they reach the real edges too" + nl$
+    fs$ = fs$ + "    vec2 ht = hudAt(hp);  // (FULL WIDE in play: the HUD's canvas reaches the window's edges)" + nl$
+    fs$ = fs$ + "    if (hudOn > 0.5 && inside(ht) > 0.5) { vec4 h = texture2D(hud, ht); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied), after the scanlines: on the glass, so they never cut a row out of its letters" + nl$
+    fs$ = fs$ + "    else if (hudOn > 0.5 && hudK > 0.999 && sideDim < 0.01 && hp.y >= 0.0 && hp.y <= 1.0) {  // FULL WIDE, beside our screen: its edge column, carried out to the window's edge - what's drawn there is only the screen's washes (hurt, a lockdown's red, low health, a pickup's flash, a vignette), so they reach the real edges too" + nl$
     fs$ = fs$ + "        vec4 h = texture2D(hud, vec2(clamp(hp.x, 1.5 / 800.0, 1.0 - 1.5 / 800.0), hp.y)); c = h.rgb + c * (1.0 - h.a);" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    c += halo * halo * glow * 1.2;  // light spreading round bright things (squared: the bright parts, not the dim)" + nl$

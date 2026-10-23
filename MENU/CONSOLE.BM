@@ -116,7 +116,7 @@ SUB RunConsole STATIC
         CLS , _RGBA32(0, 0, 0, 0)
         _PUTIMAGE , conBackdrop&, 0
         DrawConsole conLine$
-        IF glReady THEN GLSL_filter_capture
+        IF glReady THEN GLCapture
         GLScreenLayer glReady
         ShowFrame
     LOOP
