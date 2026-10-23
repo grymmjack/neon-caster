@@ -64,7 +64,8 @@ END SUB
 
 ' Once a frame: the limiter's memory of what's playing fades
 SUB SfxFrame
-    sfxLoad! = sfxLoad! * 0.82 : sfxThisN = 0 : sfxFrameT! = TIMER(0.001)
+    IF demoPlay AND demoSpeed > PL_SPEED_1 THEN sfxLoad! = sfxLoad! * 0.82 ^ (1 / DemoSpeedX!(demoSpeed)) ELSE sfxLoad! = sfxLoad! * 0.82 ' (a demo played faster: the load fades as it does in a 60th of a second, not a frame - so the sounds coming faster don't pile up)
+    sfxThisN = 0 : sfxFrameT! = TIMER(0.001)
 END SUB
 
 ' A sound made at (x, y), heard by you at (listenX, listenY), facing

@@ -20,8 +20,22 @@ DIM SHARED demoFast AS INTEGER : demoFast = LEN(ENVIRON$("NEON_DEMO_FAST")) > 0 
 CONST MAX_DEMOLIST = 200
 DIM SHARED demoListN AS INTEGER, demoList$(MAX_DEMOLIST), demoListFile$(MAX_DEMOLIST), demoListInfo$(MAX_DEMOLIST), demoListPage AS INTEGER
 DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER, demoStarting AS INTEGER, demoTotal AS LONG, demoInfoNow$
-DIM SHARED demoAttract AS INTEGER, demoAttractMenu AS INTEGER, attractPlayed$, attractQuit AS INTEGER, menuIdle AS LONG ' (attract mode: the title menu left alone ATTRACT_SECONDS - a demo plays, then the menu again; attractPlayed$: the ones that have, |name| each)
+DIM SHARED demoAttract AS INTEGER, demoAttractMenu AS INTEGER, attractPlayed$, attractQuit AS INTEGER, menuIdle AS LONG ' (attract mode: the title menu left alone ATTRACT_SECONDS - the demo playlist plays, till a key; attractPlayed$: the last it showed)
 CONST ATTRACT_SECONDS = 15 ' (a demo started from DEMO REPLAYS: when it's over, back to that list)
+' The demo playlist (DEMO REPLAYS: Space marks a demo, P plays the list -
+' DEMO/PLAYLIST.BM; kept in saves/demoplaylist.txt). plSeq: the demos in
+' the order they play (their names and files: plSeqName$, plSeqFile$),
+' plPos the one playing; plGoTo the one to play next (0: none), plGoWant
+' says the game loop should start it. plOn: a list is playing (each demo
+' leads into the next); without one, NEXT and the like move through the
+' whole list. plPlay ALL / MARKED, plOrder IN ORDER / SHUFFLE, plEach
+' how long each (PlEachFrames&), plAfter STOP / LOOP, plSpeed the speed a
+' demo starts at; demoSpeed the speed now (PL_SPEED_1: as played).
+CONST PL_SPEEDS = 7, PL_SPEED_1 = 3, PL_OPTS = 5
+DIM SHARED plOn AS INTEGER, plSeqN AS INTEGER, plPos AS INTEGER, plGoTo AS INTEGER, plGoWant AS INTEGER, plDir AS INTEGER, plEndedOK AS INTEGER
+DIM SHARED plSeqName$(MAX_DEMOLIST), plSeqFile$(MAX_DEMOLIST)
+DIM SHARED plPlay AS INTEGER, plOrder AS INTEGER, plEach AS INTEGER, plAfter AS INTEGER, plSpeed AS INTEGER, plMarks$, plLoaded AS INTEGER
+DIM SHARED demoSpeed AS INTEGER : demoSpeed = PL_SPEED_1
 
 
 ' This module's working variables, shared by its SUBs (and with the main

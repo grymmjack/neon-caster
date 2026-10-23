@@ -298,10 +298,18 @@
         dp$ = UCASE$(demoName$) + "  " + TimeText$(demoTotal / 60)
         HudText 784 - LEN(dp$) * 8, 76 + ddy, dp$, _RGB32(160, 220, 255)
         IF LEN(demoInfoNow$) THEN HudText 784 - LEN(demoInfoNow$) * 8, 92 + ddy, demoInfoNow$, _RGB32(120, 150, 190)
+        IF NOT demoAttract AND NOT demoQuit THEN dp$ = ". NEXT  , BACK  / RANDOM  - = SPEED" : HudText 784 - LEN(dp$) * 8, 108 + ddy, dp$, _RGB32(90, 110, 150) ' (DEMO/PLAYLIST.BM's keys)
     END IF
     IF demoRec OR demoPlay THEN ' A demo going: REC (red) or DEMO (cyan), and how long, at the top right
         IF demoRec THEN dh$ = "REC " ELSE dh$ = "DEMO " : IF demoAttract THEN dh$ = "ANY KEY: MENU   DEMO "
         dh$ = dh$ + TimeText$(demoFrame / 60) : IF demoPlay AND demoBad THEN dh$ = dh$ + "  OUT OF STEP"
+        IF demoPlay AND demoSpeed <> PL_SPEED_1 THEN dh$ = DemoSpeedText$(demoSpeed) + "  " + dh$ ' (played faster or slower: DEMO/PLAYLIST.BM)
+        IF demoPlay AND plOn AND plSeqN > 1 THEN dh$ = LTRIM$(STR$(plPos)) + "/" + LTRIM$(STR$(plSeqN)) + "  " + dh$ ' (a list playing: which of how many)
+        IF demoPlay AND plOn AND plEach > 0 THEN ' (EACH cuts it short: how long till the next)
+            dleft& = PlEachFrames&(plEach) : IF demoTotal > 0 AND demoTotal < dleft& THEN dleft& = demoTotal
+            dleft& = MaxOf(0, dleft& - demoFrame)
+            dh$ = dh$ + "  NEXT IN " + TimeText$((dleft& + 59) \ 60)
+        END IF
         IF demoRec THEN dhc~& = _RGB32(255, 70, 80) ELSE dhc~& = _RGB32(90, 230, 255)
         IF demoRec AND (demoFrame \ 30) MOD 2 = 0 THEN FillCircle 784 - LEN(dh$) * 8 - 10, 66 + ddy, 4, dhc~& ' (the red light, blinking)
         HudText 784 - LEN(dh$) * 8, 58 + ddy, dh$, dhc~&
@@ -316,6 +324,7 @@
         tdy = 0 ' (a demo's lines in the same corner: the clock goes down under them)
         IF (demoRec OR demoPlay) AND hudX(HE_TIMER) > 560 AND hudY(HE_TIMER) < 140 THEN
             dbot = 74 + ddy : IF demoPlay THEN dbot = 92 + ddy + 16
+            IF demoPlay AND NOT demoAttract AND NOT demoQuit THEN dbot = dbot + 16 ' (and the line of keys under it: DEMO/PLAYLIST.BM's)
             tdy = MaxOf(0, dbot + 8 - hudY(HE_TIMER))
         END IF
         MenuText hudX(HE_TIMER), hudY(HE_TIMER) + tdy, tmr$, 2, HudColor~&(HE_TIMER, tc~&), 2

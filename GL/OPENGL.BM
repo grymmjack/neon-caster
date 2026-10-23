@@ -2062,6 +2062,9 @@ SUB GLBuildShaders
     fs$ = fs$ + "        c *= (1.0 - scanDark * (1.0 - smoothstep(band - 0.5, band + 0.5, d)) * (1.0 - glow * lit * 0.8)) * give;  // (bright fills the dark lines)" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    if (hudOn > 0.5 && onScreen > 0.5) { vec4 h = texture2D(hud, hp); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied), after the scanlines: on the glass, so they never cut a row out of its letters" + nl$
+    fs$ = fs$ + "    else if (hudOn > 0.5 && sideDim < 0.01 && hp.y >= 0.0 && hp.y <= 1.0) {  // FULL WIDE, beside our screen: its edge column, carried out to the window's edge - what's drawn there is only the screen's washes (hurt, a lockdown's red, low health, a pickup's flash, a vignette), so they reach the real edges too" + nl$
+    fs$ = fs$ + "        vec4 h = texture2D(hud, vec2(clamp(hp.x, 1.5 / 800.0, 1.0 - 1.5 / 800.0), hp.y)); c = h.rgb + c * (1.0 - h.a);" + nl$
+    fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    c += halo * halo * glow * 1.2;  // light spreading round bright things (squared: the bright parts, not the dim)" + nl$
     fs$ = fs$ + "    if (fxMode > 1.5) {  // CRT: a shadow mask and a dark rim" + nl$
     fs$ = fs$ + "        float m = mod(gl_FragCoord.x, 3.0);" + nl$

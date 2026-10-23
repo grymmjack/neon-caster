@@ -1,0 +1,167 @@
+''
+' NEON-CASTER - GAME/SKILL.BM
+' =============================================================================
+' DIFFICULTY: how tough the machines are, how many pickups lie about, and
+' (NIGHTMARE) more machines and harder hits. Everything here is worked out
+' from the sector itself - a cell's own number, never the game's dice
+' (GRnd) - so EASY is exactly the game as it was, and a demo plays back
+' the same at any difficulty.
+'
+'                 machines' health   health packs   armour, ammo   more
+'   EASY          as made            all            all
+'   NORMAL        x2                 2 in 3         all
+'   HARD          x3                 1 in 2         2 in 3
+'   NIGHTMARE     x3.5               1 in 2         ammo 2 in 5    every gun at the start, full;
+'                                                   armour 2 in 3  half the machines bring a twin;
+'                                                                  every hurt hurts a quarter more
+'
+
+' The difficulty in effect: the setting's - or, recording or playing a
+' demo, the demo's own
+FUNCTION SkillNow
+    IF demoRec OR demoPlay OR demoStarting THEN SkillNow = demoSkill ELSE SkillNow = setting(SET_SKILL)
+END FUNCTION
+
+' A difficulty's name, as the menu shows it
+FUNCTION SkillName$(s)
+    SELECT CASE s
+        CASE SKILL_NORMAL : SkillName$ = "NORMAL"
+        CASE SKILL_HARD : SkillName$ = "HARD"
+        CASE SKILL_NIGHTMARE : SkillName$ = "NIGHTMARE"
+        CASE ELSE : SkillName$ = "EASY"
+    END SELECT
+END FUNCTION
+
+' ...and what it does, a line under the menu
+FUNCTION SkillInfo$(s)
+    SELECT CASE s
+        CASE SKILL_NORMAL : SkillInfo$ = "MACHINES TAKE TWICE THE SHOTS - FEWER HEALTH PACKS"
+        CASE SKILL_HARD : SkillInfo$ = "MACHINES TAKE 3X THE SHOTS - FEWER PICKUPS OF EVERY KIND"
+        CASE SKILL_NIGHTMARE : SkillInfo$ = "EVERY GUN, FULL - BUT MORE MACHINES, LITTLE AMMO, AND IT ALL HURTS MORE"
+        CASE ELSE : SkillInfo$ = "THE GAME AS IT WAS MADE"
+    END SELECT
+END FUNCTION
+
+' A machine's health (made with hp) at this difficulty
+FUNCTION SkillHP(hp)
+    SELECT CASE SkillNow
+        CASE SKILL_NORMAL : m! = 2
+        CASE SKILL_HARD : m! = 3
+        CASE SKILL_NIGHTMARE : m! = 3.5
+        CASE ELSE : SkillHP = hp : EXIT FUNCTION
+    END SELECT
+    SkillHP = MaxOf(1, INT(hp * m! + 0.5))
+END FUNCTION
+
+' How much a hurt of d hurts at this difficulty (NIGHTMARE: a quarter more -
+' not a pit or a death trap's 999, which is the end whatever)
+FUNCTION SkillHurt(d)
+    SkillHurt = d
+    IF d > 0 AND d < 999 THEN IF SkillNow = SKILL_NIGHTMARE THEN SkillHurt = INT(d * 1.25 + 0.5)
+END FUNCTION
+
+' Cell (x, y)'s own number, 0-99: the same every time this sector loads
+' (a hash of where it is and which sector - not GRnd: EASY's demos roll as
+' they always did)
+FUNCTION SkillRoll(x, y)
+    DIM h AS _INTEGER64
+    h = x * 7919&& + y * 104729&& + level * 1299709&& + sectorSet * 15485863&& + 12345
+    h = (h * 48271&&) MOD 2147483647&& : h = h XOR (h \ 8192&&) ' (stirred - each step on its own leaves cells side by side in a pattern)
+    h = (h * 48271&&) MOD 2147483647&& : h = h XOR (h \ 2048&&)
+    h = (h * 48271&&) MOD 2147483647&&
+    SkillRoll = h MOD 100
+END FUNCTION
+
+' Is the pickup of kind k the map puts in cell (x, y) left out, at this
+' difficulty? (Only health, armour and ammo: keycards, guns, the map,
+' suits, jetpacks, fuel and the rest are always there - a way through may
+' need them)
+FUNCTION SkillDrop(k, x, y)
+    DIM s, keep
+    s = SkillNow : IF s = SKILL_EASY THEN EXIT FUNCTION
+    IF editMode THEN EXIT FUNCTION ' (the editor shows the sector as it is)
+    keep = 100
+    SELECT CASE k
+        CASE IT_HEALTH, IT_BIGMED
+            keep = 67 : IF s >= SKILL_HARD THEN keep = 50
+        CASE IT_ARMOR
+            IF s >= SKILL_HARD THEN keep = 67
+        CASE IT_CELLS, IT_SHELLS, IT_ROUNDS, IT_SLUGS, IT_ROCKETS
+            IF s = SKILL_HARD THEN keep = 67
+            IF s = SKILL_NIGHTMARE THEN keep = 40
+    END SELECT
+    SkillDrop = SkillRoll(x, y) >= keep
+END FUNCTION
+
+' NIGHTMARE: every gun at the start, and all the ammo it holds (StartLoadout)
+SUB SkillLoadout
+    DIM g
+    IF SkillNow <> SKILL_NIGHTMARE THEN EXIT SUB
+    FOR g = 1 TO NUM_GUNS : hasGun(g) = -1 : NEXT
+    FOR g = 1 TO NUM_AMMO : ammoCount(g) = ammoMax(g) : NEXT
+END SUB
+
+' NIGHTMARE: half the sector's machines (not turrets, mimics or the field
+' bosses) bring a twin, in an open cell beside it - as it loads (BuildLevel)
+SUB SkillTwins
+    DIM i, n0, k, d, x, y, nx, ny, j, ok, t
+    IF SkillNow <> SKILL_NIGHTMARE OR editMode OR editRebuild OR cyberOn THEN EXIT SUB
+    n0 = numMonsters
+    FOR i = 1 TO n0
+        t = monsterType(i)
+        IF t <> MT_TURRET AND t <> MT_MIMIC AND t <> MT_WARDEN AND t <> MT_COLOSSUS AND t <> MT_ICE AND numMonsters < MAX_MON THEN
+            x = INT(monsterX(i)) : y = INT(monsterY(i))
+            IF SkillRoll(x * 3 + 1, y * 5 + 2) < 50 THEN
+                d = SkillRoll(y, x) MOD 8 ' (which way it tries first)
+                FOR k = 0 TO 7
+                    nx = x + DirDX((d + k) MOD 8) : ny = y + DirDY((d + k) MOD 8)
+                    ok = SkillCellFree(nx, ny, x, y)
+                    IF ok THEN
+                        FOR j = 1 TO numMonsters
+                            IF INT(monsterX(j)) = nx AND INT(monsterY(j)) = ny THEN ok = 0 : EXIT FOR
+                        NEXT
+                    END IF
+                    IF ok THEN
+                        numMonsters = numMonsters + 1 : j = numMonsters
+                        monsterX(j) = nx + 0.5 : monsterY(j) = ny + 0.5 : monsterType(j) = t
+                        MonFresh j : monFrom(j) = monFrom(i)
+                        monsterState(j) = 0 : monsterTimer(j) = 0 : monsterHurt(j) = 0 : monsterAtk(j) = 0 : monsterAnim(j) = 0
+                        monsterEv(j) = 0 : ThiefReset j
+                        MonOwn j, x, y ' (its twin's own [monsters] line: the same sight, hearing, health and waking)
+                        EXIT FOR
+                    END IF
+                NEXT
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' The 8 ways round a cell (0 east, then clockwise)
+FUNCTION DirDX(d)
+    DirDX = VAL(MID$("1 1 0-1-1-1 0 1", d * 2 + 1, 2))
+END FUNCTION
+FUNCTION DirDY(d)
+    DirDY = VAL(MID$("0 1 1 1 0-1-1-1", d * 2 + 1, 2))
+END FUNCTION
+
+' Can a twin stand in cell (x, y), beside its own in (ox, oy)? Open floor,
+' nothing in it, no pit, fire or harmful liquid, on the same level (no
+' ledge between)
+FUNCTION SkillCellFree(x, y, ox, oy)
+    DIM k ' (its own: the main program shares these names)
+    IF x < 1 OR y < 1 OR x > mapN - 2 OR y > mapN - 2 THEN EXIT FUNCTION
+    IF worldMap(x, y) <> 0 OR diagCorner(x, y) OR boxOn(x, y) OR glassHP(x, y) > 0 OR decoCell(x, y) THEN EXIT FUNCTION
+    IF x <> ox AND y <> oy THEN ' (a corner's way: both cells beside it open too)
+        IF worldMap(x, oy) <> 0 OR worldMap(ox, y) <> 0 THEN EXIT FUNCTION
+    END IF
+    IF liftCell(x, y) OR FloorHazard(x, y) = HAZ_BURN THEN EXIT FUNCTION
+    IF liqKind(x, y) THEN IF lqHurt(liqKind(x, y)) > 0 THEN EXIT FUNCTION
+    IF NOT levelFlat THEN
+        IF floorH(x, y) <= PIT_DEPTH OR ABS(floorH(x, y) - floorH(ox, oy)) > 0.01 THEN EXIT FUNCTION
+        IF ceilH(x, y) - floorH(x, y) < BODY_H THEN EXIT FUNCTION
+    END IF
+    FOR k = 1 TO numPads
+        IF padX(k) = x AND padY(k) = y THEN EXIT FUNCTION
+    NEXT
+    SkillCellFree = -1
+END FUNCTION

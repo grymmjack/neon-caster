@@ -9,7 +9,7 @@ CONST BOT_FAR = 32000
 CONST BOT_MODES = "nowhere to go,to the exit,a keycard,a medkit,exploring,ammo,a data station,data cores,picking things up,after a monster"
 DIM SHARED botItemIgnore(MAX_ITEMS) AS LONG ' (a pickup it went for and couldn't get: left alone until this frame - "nowhere to go" doesn't forget it)
 DIM SHARED botPit(MAP_SIZE, MAP_SIZE) AS _BYTE, botPitSig$, botPitFrame AS LONG ' (a death pit's deadly floor: BotPits)
-DIM SHARED botOn AS INTEGER, botDist(MAP_SIZE, MAP_SIZE) AS INTEGER, botBlock(MAP_SIZE, MAP_SIZE) AS LONG, botSeen(MAP_SIZE, MAP_SIZE) AS INTEGER
+DIM SHARED botOn AS INTEGER, botDist(MAP_SIZE, MAP_SIZE) AS INTEGER, botBlock(MAP_SIZE, MAP_SIZE) AS LONG, botSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, botDone(MAP_SIZE, MAP_SIZE) AS LONG
 DIM SHARED botQ(MAP_SIZE * MAP_SIZE) AS LONG, botQT AS LONG, botTurn AS SINGLE, botMode AS INTEGER, botNX AS INTEGER, botNY AS INTEGER
 DIM SHARED botDeaths AS INTEGER, botWasDead AS INTEGER, botLastX AS SINGLE, botLastY AS SINGLE, botCheckAt AS LONG, botStuck AS INTEGER
 DIM SHARED botPathX(16) AS INTEGER, botPathY(16) AS INTEGER, botPathN AS INTEGER ' (the way ahead, up to 12 cells: it heads straight for the furthest it can walk to in a line)
@@ -28,9 +28,10 @@ DIM SHARED botPitch AS SINGLE, botAimV0 AS SINGLE ' (with LOOK UP / DOWN: where 
 DIM SHARED botAimE0 AS SINGLE, botTrig AS SINGLE ' (a new target: how far off the first flick lands - it overshoots and settles; how sure it wants to be before it shoots, this burst)
 botTrig = 1.5
 DIM SHARED botSawAt(MAX_MON) AS LONG ' (the frame the autopilot last saw each monster - a room's cleared of what it's seen)
-DIM SHARED botIgnore(MAX_MON) AS LONG, botStallX AS SINGLE, botStallY AS SINGLE, botStallAt AS LONG, botStallN AS INTEGER, botAmmoAt AS LONG ' (the autopilot's: monsters it's leaving alone a while, and its watch on whether it's moving)
+DIM SHARED botIgnore(MAX_MON) AS LONG, botStallX AS SINGLE, botStallY AS SINGLE, botStallAt AS LONG, botStallN AS INTEGER, botAmmoAt AS LONG, botCellX AS INTEGER, botCellY AS INTEGER, botCellAt AS LONG, botTrace AS INTEGER ' (the autopilot's: monsters it's leaving alone a while, and its watch on whether it's moving)
 
 
 ' This module's working variables, shared by its SUBs (and with the main
 ' program)
 DIM SHARED bcx, bcy, bmx, bmy, botBest, botBestAt, botEX, botEY, bpass
+botTrace = LEN(ENVIRON$("NEON_BOT_TRACE")) > 0 ' (NEON_BOT_TRACE: what the autopilot is after, twice a second, into the log - B lines)

@@ -5,7 +5,11 @@
 ' in neon-caster.bas, so it runs every frame.
 '
 
-    IF NOT (demoFast AND demoPlay) THEN _LIMIT 60
+    IF demoPlay AND demoSpeed <> PL_SPEED_1 AND NOT demoFast THEN ' (a demo at another speed - DEMO/PLAYLIST.BM: the same frames, coming faster or slower)
+        _LIMIT 60 * DemoSpeedX!(demoSpeed)
+    ELSEIF NOT (demoFast AND demoPlay) THEN
+        _LIMIT 60
+    END IF
     ' Commands waiting (the command line's, an exec's): one a frame - or
     ' as many as come before a "wait"
     SfxFrame : earDX = dirX : earDY = dirY ' (the limiter's memory fades; your ears face where you do)
@@ -21,6 +25,8 @@
     IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
     SpeechFrame ' (NEXUS: what it says, when - chapter 19)
+    DemoPlayFrame ' (a demo playing: . next, , previous, / at random, - and = its speed - and EACH's cut)
+    IF plGoWant THEN plGoWant = 0 : PlGo ' (the demo playlist, or NEXT and the like: the next demo - DEMO/PLAYLIST.BM; here, where DEMO REPLAYS starts one too)
     IF demoMenuWant THEN demoMenuWant = 0 : menuInGame = 0 : menuOpenDemos = -1 : RunMenu ' (a demo from DEMO REPLAYS is over: the title menu, at that list)
     IF demoAttractMenu THEN demoAttractMenu = 0 : menuInGame = 0 : RunMenu ' (attract mode: a demo over - the title menu again)
     IF demoAttract THEN ' (attract mode: a key, or a click - back to the title menu)

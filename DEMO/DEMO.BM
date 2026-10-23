@@ -172,7 +172,7 @@ END SUB
 ' went, and the game's yours again (or, playdemo NAME quit, it ends)
 SUB DemoEnded STATIC
     IF LEFT$(dl$, 2) = "e " THEN DemoCheck
-    CLOSE #demoFH : demoPlay = 0
+    CLOSE #demoFH : demoPlay = 0 : IF plOn THEN plEndedOK = -1 ' (a list playing: the next one, DemoDone)
     IF demoBad THEN dWhy$ = "OUT OF STEP from frame" + STR$(demoBadAt) + " (" + LTRIM$(STR$(demoBad)) + " checks off)" ELSE dWhy$ = "in step all the way"
     ConPrint "demo: " + demoName$ + " -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + "), " + dWhy$
     ShowMsg "DEMO OVER - " + dWhy$
@@ -198,6 +198,12 @@ END SUB
 SUB DemoDone STATIC
     ApplySettings
     godMode = dWasGod : flyMode = dWasFly : noTarget = dWasNoT : buddhaMode = dWasBuddha : jetInf = dWasJet ' (your own cheats back - a demo that turned god mode on doesn't leave it on)
+    IF plEndedOK THEN ' (DEMO/PLAYLIST.BM: a list's demo over, cut, or one skipped - on to the next, not back to the menu)
+        plEndedOK = 0
+        IF plGoTo = 0 AND plOn THEN plGoTo = plPos + 1 : plDir = 1
+        IF plGoTo <> 0 THEN plGoWant = -1 : EXIT SUB
+    END IF
+    plOn = 0 : plGoTo = 0 : plSeqN = 0 : demoSpeed = PL_SPEED_1 ' (stopped, or one on its own over: no list going, and the speed as played)
     IF demoAttract THEN demoAttract = 0 : demoAttractMenu = -1 : demoFromMenu = 0 ' (attract mode: back to the title menu - left alone again, the next demo)
     IF demoFromMenu THEN demoFromMenu = 0 : demoMenuWant = -1 ' (watched from DEMO REPLAYS: back to the list - the game loop opens it)
     IF demoQuit THEN
@@ -205,23 +211,12 @@ SUB DemoDone STATIC
     END IF
 END SUB
 
-' --- Attract mode: a demo it hasn't played yet - the first in DEMO REPLAYS'
-' list not in attractPlayed$ (so one recorded meanwhile has its turn too).
-' Every one played: from the top again.
+' --- Attract mode: the demo playlist, as DEMO REPLAYS' options have it (all
+' or the marked, in order or shuffled, each whole or cut, round again or
+' back to the title), at the speed it was played - one after another till
+' a key. In order, it goes on from the last one it showed (attractPlayed$).
 SUB AttractStart STATIC
-    DemoListLoad
-    FOR dTry = 1 TO 2
-        FOR dI = 1 TO demoListN
-            IF INSTR(attractPlayed$, "|" + LCASE$(demoList$(dI)) + "|") = 0 THEN
-                attractPlayed$ = attractPlayed$ + "|" + LCASE$(demoList$(dI)) + "|"
-                dFile$ = demoListFile$(dI) : demoName$ = demoList$(dI) : demoQuit = 0 : demoFromMenu = 0 : demoAttract = -1
-                DemoPlayStart
-                IF demoPlay THEN EXIT SUB
-            END IF
-        NEXT
-        attractPlayed$ = "" ' (all of them played - or none would: round again)
-    NEXT
-    demoAttract = 0
+    IF NOT PlStart(0, -1) THEN demoAttract = 0 ' (the demo playlist - DEMO REPLAYS' options - one after another, as played, till a key: DEMO/PLAYLIST.BM)
 END SUB
 
 ' --- What a demo starts from, recording or playing: this sector, new, as
@@ -253,6 +248,7 @@ SUB DemoRecordStart STATIC
     DemoPut "fly" + STR$(-(flyMode <> 0))
     DemoPut "notarget" + STR$(-(noTarget <> 0))
     DemoPut "buddha" + STR$(-(buddhaMode <> 0)) ' (hurt, but never below 1 health: a demo made so plays back so)
+    demoSkill = setting(SET_SKILL) : IF demoSkill THEN DemoPut "skill" + STR$(demoSkill) ' (its DIFFICULTY: only if it isn't EASY - a demo with no such line was made on EASY)
     IF jetInf THEN DemoPut "jetinf 1" ' (infinite jet fuel: only if it's on - older demos have no such line)
     DemoPut "begin"
     DemoFresh
@@ -266,7 +262,7 @@ SUB DemoPlayStart STATIC
     demoFH = FREEFILE : OPEN dFile$ FOR INPUT AS #demoFH
     demoBack$ = "" : DemoNextLine
     IF dl$ <> "NEON-CASTER DEMO 1" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " isn't a demo" : EXIT SUB
-    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0 : dBud = 0 : dJet = 0
+    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0 : dBud = 0 : dJet = 0 : dSkill = 0
     DO
         DemoNextLine
         IF dl$ = "" OR dl$ = "begin" THEN EXIT DO
@@ -283,6 +279,7 @@ SUB DemoPlayStart STATIC
             CASE "notarget" : dNoT = (VAL(dv$) <> 0)
             CASE "buddha" : dBud = (VAL(dv$) <> 0)
             CASE "jetinf" : dJet = (VAL(dv$) <> 0)
+            CASE "skill" : dSkill = MaxOf(0, MinOf(3, VAL(dv$)))
         END SELECT
     LOOP
     IF dl$ <> "begin" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " has no begin" : EXIT SUB
@@ -295,7 +292,7 @@ SUB DemoPlayStart STATIC
     IF dSet <> dSetWas THEN ReadSectorNames
     IF dVer$ <> GAME_VERSION$ THEN ConPrint "demo: made with version " + dVer$ + " - this is " + GAME_VERSION$ + ", so it may not play the same"
     dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddhaMode : dWasJet = jetInf ' (yours, for after)
-    level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = dBud : jetInf = dJet
+    level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = dBud : jetInf = dJet : demoSkill = dSkill
     achCheat = -1 ' (watching isn't playing: achievements and records wait for a new game)
     grSeed = dSeed#
     demoStarting = -1 : DemoFresh : demoStarting = 0 ' (no NEXUS intro: straight to the play)

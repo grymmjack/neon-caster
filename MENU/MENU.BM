@@ -98,13 +98,27 @@ SUB RunMenu STATIC
                         CASE 20480, 115, 83 : menuMove = 1 : MenuMoveSel ' Down, S
                         CASE 19200, 97, 65 : menuAdjust = -1 : MenuAdjustItem ' Left, A
                         CASE 19712, 100, 68 : menuAdjust = 1 : MenuAdjustItem ' Right, D
-                        CASE 13, 32 : MenuActivate ' Enter, Space
+                        CASE 13 : MenuActivate ' Enter
+                        CASE 32 ' Space: on a demo in DEMO REPLAYS, marks it for the playlist (DEMO/PLAYLIST.BM) - anywhere else, as Enter
+                            IF menuScreen = SCR_DEMOS AND menuSel > 0 THEN
+                                IF miAct(menuSel) = MA_DEMO AND miKind(menuSel) = MI_ACTION THEN
+                                    PlMarkToggle demoList$(miRef(menuSel))
+                                    IF PlMarked(demoList$(miRef(menuSel))) THEN PlaySfx sndMenuOn&, 0.6 ELSE PlaySfx sndMenuOff&, 0.6
+                                    IF miKind(1) = MI_SUBMENU AND miRef(1) = SCR_PLAYLIST THEN miInfo$(1) = PlSummary$ + " - P plays it"
+                                ELSE
+                                    MenuActivate
+                                END IF
+                            ELSE
+                                MenuActivate
+                            END IF
                         CASE 27, 8 : MenuBack ' Esc, Backspace
                         CASE 102, 70 : IF menuScreen = SCR_DEMOS THEN PlaySfx sndMenuSelect&, 0.6 : OpenDemoFolder ' F (DEMO REPLAYS): your recordings' folder
                             IF menuSel > 0 THEN
                                 IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN StFlag miRef(menuSel) : miInfo$(menuSel) = StInfo$(miRef(menuSel)) ' F (SOUND TEST): flag it
                             END IF
-                        CASE 112, 80 : IF StScreen THEN StPause ' P (SOUND TEST): pause, or carry on
+                        CASE 112, 80 ' P: SOUND TEST - pause, or carry on; DEMO REPLAYS - play the list
+                            IF StScreen THEN StPause
+                            IF menuScreen = SCR_DEMOS OR menuScreen = SCR_PLAYLIST THEN MenuPlayList
                         CASE 99, 67 ' C (SOUND TEST): AUTO on or off - the next plays when one ends
                             IF StScreen THEN
                                 stAuto = NOT stAuto : stAutoWait = 0
@@ -218,6 +232,17 @@ SUB RunMenu STATIC
     WHILE _MOUSEINPUT : WEND : mouseSettle = 8
 END SUB
 
+' --- PLAY LIST (DEMO REPLAYS' P, or its PLAYLIST screen): the demo playlist
+' starts (DEMO/PLAYLIST.BM) - and the menu closes on it. Nothing to play?
+' The first row says so.
+SUB MenuPlayList STATIC
+    IF PlStart(-1, 0) THEN menuDone = -1 : EXIT SUB
+    PlaySfx sndMenuOff&, 0.6
+    IF numMI >= 1 THEN
+        IF plPlay THEN miInfo$(1) = "none marked - Space marks a demo in DEMO REPLAYS" ELSE miInfo$(1) = "no demos to play"
+    END IF
+END SUB
+
 ' --- Show menu screen menuScreen: build its items, pick its first item
 ' (or "NO", on the "are you sure?" screen), and start its animation
 SUB EnterMenuScreen STATIC
@@ -270,6 +295,11 @@ SUB MenuAdjustItem STATIC
         stPage = (stPage + menuAdjust + (k + ST_PAGE - 1) \ ST_PAGE) MOD ((k + ST_PAGE - 1) \ ST_PAGE)
         PlaySfx sndMenuMove&, 0.5 : EnterMenuScreen : EXIT SUB
     END IF
+    IF miKind(menuSel) = MI_ACTION AND miAct(menuSel) = MA_PLOPT THEN ' (a playlist option: DEMO/PLAYLIST.BM)
+        PlOptChange miRef(menuSel), menuAdjust : PlaySfx sndMenuChoice&, 0.5
+        IF menuScreen = SCR_PLAYLIST THEN miInfo$(1) = PlSummary$
+        EXIT SUB
+    END IF
     SELECT CASE miKind(menuSel)
         CASE MI_SLIDER, MI_TOGGLE, MI_CHOICE
             ChangeSetting miRef(menuSel), menuAdjust
@@ -296,7 +326,7 @@ SUB MenuActivate STATIC
         CASE MI_KEY ' Wait for the new key (CaptureKey)
             menuCapture = menuSel : PlaySfx sndMenuSelect&, 0.6
         CASE MI_ACTION
-            IF miAct(menuSel) <> MA_STPLAY THEN PlaySfx sndMenuSelect&, 0.6 ' (SOUND TEST: just the sound)
+            IF miAct(menuSel) <> MA_STPLAY AND miAct(menuSel) <> MA_PLOPT THEN PlaySfx sndMenuSelect&, 0.6 ' (SOUND TEST: just the sound; a playlist option: its own click)
             SELECT CASE miAct(menuSel)
                 CASE MA_STPLAY ' SOUND TEST: play it
                     StPlay miRef(menuSel)
@@ -311,7 +341,7 @@ SUB MenuActivate STATIC
                     IF demoRec OR demoPlay THEN DemoStop
                     IF editMode THEN EditLeave
                     dFile$ = demoListFile$(n) : demoName$ = demoList$(n) : demoQuit = 0 : demoMenuWant = 0
-                    DemoPlayStart
+                    PlLoad : DemoLoading 1, 1 : DemoPlayStart : IF demoPlay THEN demoSpeed = plSpeed ' (at the playlist's SPEED: DEMO/PLAYLIST.BM)
                     IF demoPlay THEN demoFromMenu = -1 : menuDone = -1 ELSE ShowMsg "That demo won't play - see the console"
                 CASE MA_DEMOPAGE ' DEMO REPLAYS: the next ten
                     demoListPage = demoListPage + 1 : EnterMenuScreen
@@ -319,6 +349,15 @@ SUB MenuActivate STATIC
                     OpenDemoFolder
                 CASE MA_STOPDEMO ' (paused, a demo playing)
                     DemoStop : menuDone = -1
+                CASE MA_PLJUMP ' (paused, a demo playing: NEXT, PREVIOUS or RANDOM DEMO - DEMO/PLAYLIST.BM)
+                    DemoJump miRef(menuSel) : menuDone = -1
+                CASE MA_PLSTART ' DEMO REPLAYS: PLAY LIST
+                    MenuPlayList
+                CASE MA_PLOPT ' A playlist option: on to its next value
+                    menuAdjust = 1 : MenuAdjustItem
+                CASE MA_PLCLEAR ' PLAYLIST: CLEAR MARKS
+                    PlClearMarks : miInfo$(menuSel) = " none marked now"
+                    IF miAct(1) = MA_PLSTART THEN miInfo$(1) = PlSummary$
                 CASE MA_LINK ' A credit: its page, in the web browser
                     OpenLink MID$(miInfo$(menuSel), INSTR(miInfo$(menuSel), "|") + 1)
                 CASE MA_ACHIEVE ' The achievements (and records): a screen of their own, then back here
@@ -416,6 +455,12 @@ SUB BuildMenu(scr)
             IF menuInGame THEN menuTitle$ = "PAUSED" ELSE menuTitle$ = "MAIN MENU"
             IF menuInGame THEN AddMenuItem "RESUME", MI_ACTION, 0, MA_RESUME, -1, ""
             IF menuInGame AND demoPlay THEN AddMenuItem "STOP DEMO", MI_ACTION, 0, MA_STOPDEMO, -1, ""
+            IF menuInGame AND demoPlay AND NOT demoQuit THEN ' (DEMO/PLAYLIST.BM: on to another - in the list playing, or the whole list - and the speed)
+                AddMenuItem "NEXT DEMO", MI_ACTION, 1, MA_PLJUMP, -1, ""
+                AddMenuItem "PREVIOUS DEMO", MI_ACTION, -1, MA_PLJUMP, -1, ""
+                AddMenuItem "RANDOM DEMO", MI_ACTION, 2, MA_PLJUMP, -1, ""
+                AddMenuItem PlOptName$(6), MI_ACTION, 6, MA_PLOPT, -1, ""
+            END IF
             AddMenuItem "GAME", MI_SUBMENU, SCR_GAME, 0, -1, ""
             AddMenuItem "DEMO REPLAYS", MI_SUBMENU, SCR_DEMOS, 0, -1, ""
             AddMenuItem "SETTINGS", MI_SUBMENU, SCR_SETTINGS, 0, -1, ""
@@ -424,6 +469,7 @@ SUB BuildMenu(scr)
         CASE SCR_GAME
             menuTitle$ = "GAME"
             AddMenuItem "NEW GAME", MI_ACTION, 0, MA_NEW, -1, ""
+            AddSettingItem SET_SKILL ' (DIFFICULTY: here too - it's chosen as a game starts)
             AddMenuItem "SELECT SECTOR", MI_SUBMENU, SCR_SECTOR, 0, -1, ""
             FOR s = 1 TO NUM_SETS ' (the other sets of ten: each from any of its sectors - once there are any)
                 AddMenuItem SetName$(s), MI_SUBMENU, SCR_SET1 + s - 1, 0, LEN(SetSectorName$(s, 1)) > 0, ""
@@ -496,6 +542,7 @@ SUB BuildMenu(scr)
             menuTitle$ = "DEMO REPLAYS" : menuWide = -1
             DemoListLoad
             IF demoListPage * 10 >= demoListN THEN demoListPage = 0
+            IF demoListN THEN AddMenuItem "PLAYLIST", MI_SUBMENU, SCR_PLAYLIST, 0, -1, PlSummary$ + " - P plays it" ' (DEMO/PLAYLIST.BM: Space marks a demo)
             IF demoListN = 0 THEN
                 AddMenuItem "NO DEMOS YET", MI_TEXT, 0, 0, 0, ""
                 AddMenuItem "IN THE CONSOLE, record NAME MAKES ONE", MI_TEXT, 0, 0, 0, ""
@@ -503,11 +550,18 @@ SUB BuildMenu(scr)
             ELSE
                 FOR n = demoListPage * 10 + 1 TO MinOf(demoListPage * 10 + 10, demoListN)
                     d$ = UCASE$(demoList$(n)) : IF LEN(d$) > 9 THEN d$ = LEFT$(d$, 8) + "~" ' (nine big letters, then its description beside it)
-                    AddMenuItem d$, MI_ACTION, n, MA_DEMO, -1, demoListInfo$(n)
+                    AddMenuItem d$, MI_ACTION, n, MA_DEMO, -1, "  " + demoListInfo$(n) ' (room before it for the playlist's mark)
                 NEXT
                 IF demoListN > 10 THEN AddMenuItem "MORE", MI_ACTION, 0, MA_DEMOPAGE, -1, "page" + STR$(demoListPage + 1) + " of" + STR$((demoListN + 9) \ 10)
             END IF
             AddMenuItem "FOLDER", MI_ACTION, 0, MA_DEMOFOLDER, -1, "open it: your recordings, to copy, rename or delete (F)"
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_PLAYLIST ' DEMO REPLAYS' PLAYLIST: the demos one after another (DEMO/PLAYLIST.BM) - and how
+            menuTitle$ = "PLAYLIST" : menuWide = -1
+            DemoListLoad
+            AddMenuItem "PLAY LIST", MI_ACTION, 0, MA_PLSTART, -1, PlSummary$
+            FOR n = 1 TO PL_OPTS : AddMenuItem PlOptName$(n), MI_ACTION, n, MA_PLOPT, -1, "" : NEXT
+            n = PlMarkCount : AddMenuItem "UNMARK ALL", MI_ACTION, 0, MA_PLCLEAR, n > 0, " " + LTRIM$(STR$(n)) + " marked (Space marks one in DEMO REPLAYS)"
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_QB64 ' The qb64pe the code terminals compile with (chapter 19)
             menuTitle$ = "QB64PE COMPILER" : menuWide = -1
@@ -581,7 +635,7 @@ SUB BuildMenu(scr)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_GAMEPLAY
             menuTitle$ = "GAMEPLAY" : menuWide = -1
-            AddSettingItem SET_FOV : AddSettingItem SET_XSTYLE : AddSettingItem SET_XCOLOR
+            AddSettingItem SET_SKILL : AddSettingItem SET_FOV : AddSettingItem SET_XSTYLE : AddSettingItem SET_XCOLOR
             AddSettingItem SET_XSIZE : AddSettingItem SET_XALPHA : AddSettingItem SET_XFEEDBACK
             AddSettingItem SET_BOB : AddSettingItem SET_SHAKE : AddSettingItem SET_HURTDIR : AddSettingItem SET_AIMSENS
             AddSettingItem SET_TIMER : AddSettingItem SET_POISON
@@ -714,6 +768,8 @@ SUB DrawMenu(t)
             MenuText MENU_LABEL_X + slide, rowY, miLabel$(i), 2, col~&, 0
         ELSEIF miKind(i) = MI_CHOICE THEN ' (a choice on a centred screen - MODE: its value beside it)
             MenuText 400 + slide, rowY, miLabel$(i) + ":  <  " + SettingText$(miRef(i)) + "  >", 2, col~&, 1
+        ELSEIF miKind(i) = MI_ACTION AND miAct(i) = MA_PLOPT THEN ' (...as a playlist option is: DEMO SPEED, paused)
+            MenuText 400 + slide, rowY, miLabel$(i) + ":  <  " + PlOptText$(miRef(i)) + "  >", 2, col~&, 1
         ELSE
             MenuText 400 + slide, rowY, miLabel$(i), 2, col~&, 1
         END IF
@@ -731,6 +787,14 @@ SUB DrawMenu(t)
                 IF setting(miRef(i)) THEN MenuText wx + 36, rowY, "ON", 2, col~&, 0 ELSE MenuText wx + 36, rowY, "OFF", 2, col~&, 0
             CASE MI_CHOICE
                 IF menuWide THEN MenuText wx, rowY, "< " + SettingText$(miRef(i)) + " >", 2, col~&, 0
+            CASE MI_ACTION
+                IF menuWide AND miAct(i) = MA_PLOPT THEN MenuText wx, rowY, "< " + PlOptText$(miRef(i)) + " >", 2, col~&, 0 ' (a playlist option)
+                IF miAct(i) = MA_DEMO THEN ' (DEMO REPLAYS: a demo marked for the playlist - a cyan diamond after its name)
+                    IF PlMarked(demoList$(miRef(i))) THEN
+                        mkx = MENU_LABEL_X + 167 + slide : mky = rowY + 14
+                        FOR mkd = 0 TO 5 : LINE (mkx - mkd, mky - 5 + mkd)-(mkx + mkd, mky - 5 + mkd), _RGBA32(90, 230, 255, alpha) : LINE (mkx - mkd, mky + 5 - mkd)-(mkx + mkd, mky + 5 - mkd), _RGBA32(90, 230, 255, alpha) : NEXT
+                    END IF
+                END IF
             CASE MI_KEY
                 IF menuCapture = i THEN
                     IF (t \ 10) MOD 2 = 0 THEN MenuText wx, rowY, "PRESS A KEY", 2, _RGBA32(255, 230, 60, alpha), 0
@@ -765,13 +829,17 @@ SUB DrawMenu(t)
         flashWas = crossFlash : crossFlash = 0 : DrawCrosshair 720, 126 : crossFlash = flashWas ' (not white from a hit just before the menu opened: its countdown waits in the game loop)
     END IF
     IF menuScreen = SCR_DEMOS THEN
-        MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  PLAY     F  OPEN FOLDER     ESC  BACK", 1, _RGB32(140, 135, 175), 1
+        MenuText 400, 574, "ENTER  PLAY     SPACE  MARK     P  PLAY LIST     F  OPEN FOLDER     ESC  BACK", 1, _RGB32(140, 135, 175), 1
+    ELSEIF menuScreen = SCR_PLAYLIST THEN
+        MenuText 400, 574, "LEFT / RIGHT  CHANGE     P  PLAY     WATCHING:  . NEXT  , BACK  / RANDOM  - = SPEED", 1, _RGB32(140, 135, 175), 1
     ELSEIF menuScreen >= SCR_ST1 AND menuScreen < SCR_ST1 + ST_CATS THEN
         IF stTyping THEN
             MenuText 400, 574, "TYPE THE NOTE     ENTER  KEEP IT     ESC  DROP IT", 1, _RGB32(255, 230, 60), 1
         ELSE
             MenuText 400, 574, "ENTER PLAY  P PAUSE  [ ] SEEK  C AUTO  O OK  N NOTE  F FLAG  LEFT / RIGHT PAGE  ESC BACK", 1, _RGB32(140, 135, 175), 1
         END IF
+    ELSEIF menuSel > 0 AND miKind(menuSel) = MI_CHOICE AND miRef(menuSel) = SET_SKILL THEN ' (DIFFICULTY picked: what it does, in place of the keys)
+        MenuText 400, 574, SkillInfo$(setting(SET_SKILL)) + "  (FROM THE NEXT SECTOR)", 1, _RGB32(90, 230, 255), 1
     ELSE
         MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  CHOOSE     ESC  BACK     OR POINT AND CLICK", 1, _RGB32(140, 135, 175), 1
     END IF

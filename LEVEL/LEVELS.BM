@@ -83,6 +83,7 @@ SUB StartLoadout STATIC
         FOR gun = 1 TO NUM_GUNS : hasGun(gun) = -1 : NEXT
         FOR gun = 1 TO NUM_AMMO : ammoCount(gun) = ammoMax(gun) : NEXT
     END IF
+    SkillLoadout ' (NIGHTMARE: every gun, full)
 END SUB
 
 ' --- Into level number `level`, remembering what you bring with you

@@ -272,7 +272,7 @@ SUB BuildLevel STATIC
                 CASE "R", "B", "Y" ' Key door: needs that keycard
                     worldMap(x, y) = 2 : doorKey(x, y) = INSTR("RBY", cell$)
                 CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8", "9", ")", "(", "{", "}", "`", "," ' Something to pick up (every one of ItemChars$ - a new pickup's character goes here too)
-                    IF numItems < MAX_ITEMS THEN
+                    IF numItems < MAX_ITEMS AND NOT SkillDrop(ItemOfChar(cell$), x, y) THEN ' (at a harder DIFFICULTY, some health, armour and ammo isn't there: GAME/SKILL.BM)
                         numItems = numItems + 1
                         itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
                         itemKind(numItems) = ItemOfChar(cell$)
@@ -316,7 +316,7 @@ SUB BuildLevel STATIC
                         monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = MonOfChar(cell$)
                         MonFresh numMonsters ' (a turret: ~ drops from the ceiling, _ rises from the floor, | slides out of a wall - TurretMount, once the walls are all in)
                         IF cell$ = "_" THEN monFrom(numMonsters) = TURRET_FLOOR ELSE IF cell$ = "|" THEN monFrom(numMonsters) = TURRET_WALL
-                        monsterHP(numMonsters) = mtypeHP(monsterType(numMonsters)) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
+                        monsterHP(numMonsters) = SkillHP(mtypeHP(monsterType(numMonsters))) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
                         monsterEv(numMonsters) = 0 : ThiefReset numMonsters
                         MonOwn numMonsters, x, y ' (its own sight, hearing, health, speed, waking - [monsters])
                     END IF
@@ -400,6 +400,7 @@ SUB BuildLevel STATIC
             END IF
         END IF
     NEXT
+    SkillTwins ' (NIGHTMARE: more machines - GAME/SKILL.BM)
     FOR i = 1 TO numMonsters ' (turrets: a wall one set against its wall, pointing out of it; the rest pointing one of 8 ways, the same each time)
         IF monsterType(i) = MT_TURRET THEN
             turPrefX = 0 : turPrefY = 0 : IF monFrom(i) = TURRET_WALL THEN TurretMount i

@@ -25,6 +25,7 @@
 ' GAME ------------------------------------------------------------------------
 '$INCLUDE:'./GAME/EVENTS.BM'
 '$INCLUDE:'./GAME/PLAYER.BM'
+'$INCLUDE:'./GAME/SKILL.BM'
 '$INCLUDE:'./GAME/GUNS.BM'
 '$INCLUDE:'./GAME/MONSTERS.BM'
 '$INCLUDE:'./GAME/BLASTS.BM'
@@ -85,6 +86,7 @@
 
 ' DEMO ------------------------------------------------------------------------
 '$INCLUDE:'./DEMO/DEMO.BM'
+'$INCLUDE:'./DEMO/PLAYLIST.BM'
 '$INCLUDE:'./DEMO/BOT.BM'
 
 ' ACH -------------------------------------------------------------------------

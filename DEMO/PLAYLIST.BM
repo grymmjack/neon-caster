@@ -1,0 +1,347 @@
+''
+' NEON-CASTER - DEMO/PLAYLIST.BM
+' =============================================================================
+' The demo playlist: DEMO REPLAYS' marks (Space), the demos played one
+' after another - all of them or the marked ones, in order or shuffled,
+' each whole or cut short, and round again - and, while any demo plays,
+' the keys that move on (. next, , previous, / one at random) and change
+' its speed (- slower, = faster). Speed is only how fast the frames come:
+' the same frames, so a demo stays in step at any speed.
+'
+
+' --- The list's options and marks, from saves/demoplaylist.txt (once)
+SUB PlLoad STATIC
+    DIM l$, w$, v, fh ' (its own: the main program shares these names)
+    IF plLoaded THEN EXIT SUB
+    plLoaded = -1 : plPlay = 0 : plOrder = 1 : plEach = 3 : plAfter = 1 : plSpeed = PL_SPEED_1 : plMarks$ = "|"
+    IF NOT _FILEEXISTS(SaveDir$ + "demoplaylist.txt") THEN EXIT SUB
+    fh = FREEFILE : OPEN SaveDir$ + "demoplaylist.txt" FOR INPUT AS #fh
+    DO WHILE NOT EOF(fh)
+        LINE INPUT #fh, l$
+        l$ = LTRIM$(RTRIM$(l$)) : IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = RTRIM$(LEFT$(l$, LEN(l$) - 1))
+        IF LEN(l$) AND LEFT$(l$, 1) <> "'" THEN
+            w$ = LCASE$(DemoWord$(l$, 1)) : v = VAL(DemoWord$(l$, 2))
+            SELECT CASE w$
+                CASE "play" : plPlay = MaxOf(0, MinOf(1, v))
+                CASE "order" : plOrder = MaxOf(0, MinOf(1, v))
+                CASE "each" : plEach = MaxOf(0, MinOf(5, v))
+                CASE "after" : plAfter = MaxOf(0, MinOf(1, v))
+                CASE "speed" : plSpeed = MaxOf(1, MinOf(PL_SPEEDS, v))
+                CASE "mark" : IF LEN(DemoWord$(l$, 2)) THEN plMarks$ = plMarks$ + LCASE$(DemoWord$(l$, 2)) + "|"
+            END SELECT
+        END IF
+    LOOP
+    CLOSE #fh
+END SUB
+
+' --- ...and written back, whenever one changes
+SUB PlSave STATIC
+    DIM p, q, fh ' (its own: the main program shares these names)
+    MakeSaveDir
+    fh = FREEFILE : OPEN SaveDir$ + "demoplaylist.txt" FOR OUTPUT AS #fh
+    PRINT #fh, "' NEON-CASTER demo playlist (DEMO REPLAYS: Space marks a demo, P plays the list)"
+    PRINT #fh, "' play 0 all, 1 the marked; order 0 in order, 1 shuffled; each 0 whole, 1-5: 30 s, 1, 2, 3, 5 min; after 0 stop, 1 loop; speed 1-7: x0.25 x0.5 x1 x1.5 x2 x3 x4"
+    PRINT #fh, "play" + STR$(plPlay)
+    PRINT #fh, "order" + STR$(plOrder)
+    PRINT #fh, "each" + STR$(plEach)
+    PRINT #fh, "after" + STR$(plAfter)
+    PRINT #fh, "speed" + STR$(plSpeed)
+    p = 2
+    DO
+        q = INSTR(p, plMarks$, "|") : IF q = 0 THEN EXIT DO
+        IF q > p THEN PRINT #fh, "mark " + MID$(plMarks$, p, q - p)
+        p = q + 1
+    LOOP
+    CLOSE #fh
+END SUB
+
+' Is demo n$ marked?
+FUNCTION PlMarked(n$)
+    PlLoad
+    PlMarked = INSTR(plMarks$, "|" + LCASE$(n$) + "|") > 0
+END FUNCTION
+
+' --- Space on a demo in DEMO REPLAYS: marked, or not
+SUB PlMarkToggle(n$) STATIC
+    DIM k ' (its own: the main program shares these names)
+    PlLoad
+    IF PlMarked(n$) THEN
+        k = INSTR(plMarks$, "|" + LCASE$(n$) + "|")
+        plMarks$ = LEFT$(plMarks$, k) + MID$(plMarks$, k + LEN(n$) + 2)
+    ELSE
+        plMarks$ = plMarks$ + LCASE$(n$) + "|"
+    END IF
+    PlSave
+END SUB
+
+' How many of the demos there are now are marked
+FUNCTION PlMarkCount
+    DIM i, c ' (its own: the main program shares these names)
+    FOR i = 1 TO demoListN
+        IF PlMarked(demoList$(i)) THEN c = c + 1
+    NEXT
+    PlMarkCount = c
+END FUNCTION
+
+' --- CLEAR MARKS
+SUB PlClearMarks STATIC
+    PlLoad : plMarks$ = "|" : PlSave
+END SUB
+
+' A speed's multiple (1 - PL_SPEEDS: x0.25 to x4)
+FUNCTION DemoSpeedX!(s)
+    SELECT CASE s
+        CASE 1 : DemoSpeedX! = 0.25
+        CASE 2 : DemoSpeedX! = 0.5
+        CASE 4 : DemoSpeedX! = 1.5
+        CASE 5 : DemoSpeedX! = 2
+        CASE 6 : DemoSpeedX! = 3
+        CASE 7 : DemoSpeedX! = 4
+        CASE ELSE : DemoSpeedX! = 1
+    END SELECT
+END FUNCTION
+
+FUNCTION DemoSpeedText$(s)
+    DIM t$ ' (its own)
+    t$ = LTRIM$(STR$(DemoSpeedX!(s))) : IF LEFT$(t$, 1) = "." THEN t$ = "0" + t$
+    DemoSpeedText$ = "x" + t$
+END FUNCTION
+
+' How long EACH lets a demo play, in frames (0: the whole of it)
+FUNCTION PlEachFrames&(e)
+    SELECT CASE e
+        CASE 1 : PlEachFrames& = 1800
+        CASE 2 : PlEachFrames& = 3600
+        CASE 3 : PlEachFrames& = 7200
+        CASE 4 : PlEachFrames& = 10800
+        CASE 5 : PlEachFrames& = 18000
+    END SELECT
+END FUNCTION
+
+' An option's name and what it's set to (1 PLAY, 2 ORDER, 3 EACH, 4 AFTER
+' THE LAST, 5 SPEED - and 6, the PAUSED menu's: the speed now)
+FUNCTION PlOptName$(o)
+    SELECT CASE o
+        CASE 1 : PlOptName$ = "PLAY"
+        CASE 2 : PlOptName$ = "ORDER"
+        CASE 3 : PlOptName$ = "EACH"
+        CASE 4 : PlOptName$ = "AFTER THE LAST"
+        CASE 5 : PlOptName$ = "SPEED"
+        CASE 6 : PlOptName$ = "DEMO SPEED"
+    END SELECT
+END FUNCTION
+
+FUNCTION PlOptText$(o)
+    PlLoad
+    SELECT CASE o
+        CASE 1 : IF plPlay THEN PlOptText$ = "MARKED" ELSE PlOptText$ = "ALL"
+        CASE 2 : IF plOrder THEN PlOptText$ = "SHUFFLE" ELSE PlOptText$ = "IN ORDER"
+        CASE 3 : PlOptText$ = RTRIM$(MID$("WHOLE 30 SEC1 MIN 2 MIN 3 MIN 5 MIN ", plEach * 6 + 1, 6))
+        CASE 4 : IF plAfter THEN PlOptText$ = "LOOP" ELSE PlOptText$ = "STOP"
+        CASE 5 : PlOptText$ = DemoSpeedText$(plSpeed)
+        CASE 6 : PlOptText$ = DemoSpeedText$(demoSpeed)
+    END SELECT
+END FUNCTION
+
+' --- Left / right (d -1 / 1) on option o
+SUB PlOptChange(o, d) STATIC
+    PlLoad
+    SELECT CASE o
+        CASE 1 : plPlay = 1 - plPlay
+        CASE 2 : plOrder = 1 - plOrder
+        CASE 3 : plEach = (plEach + d + 6) MOD 6
+        CASE 4 : plAfter = 1 - plAfter
+        CASE 5 : plSpeed = MaxOf(1, MinOf(PL_SPEEDS, plSpeed + d))
+        CASE 6 : DemoSpeedSet demoSpeed + d : EXIT SUB
+    END SELECT
+    PlSave
+END SUB
+
+' The list in a line: DEMO REPLAYS' PLAY LIST says what it will do
+FUNCTION PlSummary$
+    DIM s$, n ' (its own: the main program shares these names)
+    PlLoad
+    IF plPlay THEN n = PlMarkCount : s$ = LTRIM$(STR$(n)) + " marked" ELSE s$ = "all" + STR$(demoListN)
+    IF plOrder THEN s$ = s$ + ", shuffled" ELSE s$ = s$ + ", in order"
+    IF plEach THEN s$ = s$ + ", " + LCASE$(PlOptText$(3)) + " each"
+    IF plSpeed <> PL_SPEED_1 THEN s$ = s$ + ", " + DemoSpeedText$(plSpeed)
+    IF plAfter THEN s$ = s$ + ", round again" ELSE s$ = s$ + ", once"
+    PlSummary$ = s$
+END FUNCTION
+
+' --- The order it plays in: every demo there is (whole), or as PLAY says -
+' shuffled (RND: looks, not the game's dice) if mix. avoid$: a demo not to
+' start with (round again, the one that just played)
+SUB PlBuild(whole, mix, avoid$) STATIC
+    DIM i, j ' (its own: the main program shares these names)
+    PlLoad : DemoListLoad
+    plSeqN = 0
+    FOR i = 1 TO demoListN
+        IF whole OR plPlay = 0 OR PlMarked(demoList$(i)) THEN
+            plSeqN = plSeqN + 1 : plSeqName$(plSeqN) = demoList$(i) : plSeqFile$(plSeqN) = demoListFile$(i)
+        END IF
+    NEXT
+    IF mix THEN
+        FOR i = plSeqN TO 2 STEP -1
+            j = 1 + INT(RND * i)
+            SWAP plSeqName$(i), plSeqName$(j) : SWAP plSeqFile$(i), plSeqFile$(j)
+        NEXT
+        IF plSeqN > 1 AND LCASE$(plSeqName$(1)) = LCASE$(avoid$) THEN SWAP plSeqName$(1), plSeqName$(plSeqN) : SWAP plSeqFile$(1), plSeqFile$(plSeqN)
+    END IF
+END SUB
+
+' Where demo n$ is in the order (0: not in it)
+FUNCTION PlFind(n$)
+    DIM i ' (its own: the main program shares these names)
+    FOR i = 1 TO plSeqN
+        IF LCASE$(plSeqName$(i)) = LCASE$(n$) THEN PlFind = i : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' --- PLAY LIST (DEMO REPLAYS' P, or the playlist command): the first of it.
+' From the title menu, when it's over, back to DEMO REPLAYS (fromMenu); in
+' attract mode (attract), back to the title. False if nothing would play.
+FUNCTION PlStart(fromMenu, attract)
+    DIM p ' (its own: the main program shares these names)
+    PlLoad
+    PlBuild 0, plOrder, ""
+    IF plSeqN = 0 AND attract THEN PlBuild -1, plOrder, "" ' (attract mode, none marked: all of them)
+    IF plSeqN = 0 THEN
+        IF plPlay THEN ShowMsg "NO DEMOS MARKED - SPACE MARKS ONE" ELSE ShowMsg "NO DEMOS YET"
+        EXIT FUNCTION
+    END IF
+    IF demoRec OR demoPlay THEN DemoStop
+    IF editMode THEN EditLeave
+    plOn = -1 : plPos = 0 : plGoTo = 1 : plDir = 1
+    IF attract AND plOrder = 0 THEN p = PlFind(attractPlayed$) : plGoTo = p + 1 ' (the title's show, in order: on from the last one it played)
+    demoAttract = attract : demoFromMenu = 0
+    IF attract THEN demoSpeed = PL_SPEED_1 ELSE demoSpeed = plSpeed ' (the title's own show: as played)
+    ConPrint "demo: playing the list - " + PlSummary$ + " (. next  , previous  / at random  - = speed)"
+    PlGo
+    IF demoPlay AND NOT attract THEN demoFromMenu = fromMenu
+    PlStart = demoPlay
+END FUNCTION
+
+' --- Start the demo plGoTo says - past the end, round again (LOOP) or the
+' list's over; one that won't play is passed by, the way it was going
+SUB PlGo STATIC
+    DIM p, tries ' (its own: the main program shares these names)
+    FOR tries = 1 TO plSeqN + 1
+        p = plGoTo
+        IF p > plSeqN THEN
+            IF plOn AND plAfter = 1 THEN
+                IF plOrder THEN PlBuild 0, -1, plSeqName$(plPos) ' (a new shuffle each time round)
+                p = 1
+            ELSEIF plOn THEN
+                PlFinish : EXIT SUB
+            ELSE
+                p = 1
+            END IF
+        END IF
+        IF p < 1 THEN p = plSeqN
+        IF plSeqN = 0 THEN EXIT FOR
+        dFile$ = plSeqFile$(p) : demoName$ = plSeqName$(p) : demoQuit = 0 : demoMenuWant = 0
+        DemoLoading p, plSeqN ' (a frame to look at while its sector loads - a huge one takes a while)
+        DemoPlayStart
+        IF demoPlay THEN plPos = p : plGoTo = 0 : IF demoAttract THEN attractPlayed$ = demoName$
+        IF demoPlay THEN EXIT SUB
+        plGoTo = p + plDir : IF plDir = 0 THEN plGoTo = p + 1
+    NEXT
+    PlFinish
+END SUB
+
+' --- LOADING...: the demo dFile$ (demoName$), number n of nn, while its
+' sector builds - shown at once, the screen to itself
+SUB DemoLoading(n, nn)
+    DIM d&, i$ ' (its own)
+    IF demoQuit THEN EXIT SUB ' (playdemo ... quit: a test - nothing to look at)
+    d& = _DEST : _DEST 0
+    CLS , _RGB32(4, 2, 14)
+    MenuText 400, 262, "LOADING...", 3, _RGB32(80, 240, 255), 1
+    MenuText 400, 312, UCASE$(demoName$), 2, _RGB32(160, 220, 255), 1
+    i$ = DemoInfo$(dFile$) : IF LEN(i$) THEN MenuText 400, 346, i$, 1, _RGB32(120, 150, 190), 1
+    IF nn > 1 THEN MenuText 400, 366, "DEMO" + STR$(n) + " OF" + STR$(nn), 1, _RGB32(90, 110, 150), 1
+    IF glReady THEN GLSL_filter_capture
+    GLScreenLayer glReady : ShowFrame
+    _DEST d&
+END SUB
+
+' --- The list's over (STOP after the last, or nothing would play): back to
+' where it was started from
+SUB PlFinish STATIC
+    plOn = 0 : plGoTo = 0 : plSeqN = 0 : demoSpeed = PL_SPEED_1
+    ConPrint "demo: the list's over"
+    IF demoAttract THEN
+        demoAttract = 0 : demoAttractMenu = -1 : demoFromMenu = 0
+    ELSEIF demoFromMenu THEN
+        demoFromMenu = 0 : demoMenuWant = -1
+    END IF
+END SUB
+
+' --- This demo, left where it is (not out of step - just not finished) - and
+' DemoDone goes on to plGoTo (or, a list playing, the next)
+SUB PlLeave(why$) STATIC
+    IF NOT demoPlay THEN EXIT SUB
+    CLOSE #demoFH : demoPlay = 0
+    ConPrint "demo: " + demoName$ + " - " + why$ + " at frame" + STR$(demoFrame) + " (" + TimeText$(demoFrame / 60) + ")"
+    plEndedOK = -1
+    DemoDone
+END SUB
+
+' --- NEXT (1), PREVIOUS (-1) or one AT RANDOM (2), while a demo plays: in
+' the list playing - or, with none, the whole list, from this one
+SUB DemoJump(how) STATIC
+    DIM p ' (its own: the main program shares these names)
+    IF NOT demoPlay OR demoQuit THEN EXIT SUB
+    IF NOT plOn OR PlFind(demoName$) = 0 THEN PlBuild -1, 0, "" : plPos = PlFind(demoName$)
+    IF plSeqN < 2 THEN ShowMsg "NO OTHER DEMO" : EXIT SUB
+    SELECT CASE how
+        CASE 1 : p = plPos + 1 : plDir = 1 : IF p > plSeqN AND NOT (plOn AND plAfter = 0) THEN p = 1
+        CASE -1 : p = plPos - 1 : plDir = -1 : IF p < 1 THEN p = plSeqN
+        CASE ELSE
+            p = plPos
+            DO WHILE p = plPos : p = 1 + INT(RND * plSeqN) : LOOP ' (RND: looks - the game's dice are the demo's)
+            plDir = 1
+    END SELECT
+    plGoTo = p
+    SELECT CASE how
+        CASE 1 : PlLeave "skipped"
+        CASE -1 : PlLeave "back one"
+        CASE ELSE : PlLeave "at random"
+    END SELECT
+END SUB
+
+' --- The playback speed (1 - PL_SPEEDS), said in the corner
+SUB DemoSpeedSet(s) STATIC
+    DIM s2 ' (its own)
+    s2 = MaxOf(1, MinOf(PL_SPEEDS, s))
+    IF s2 = demoSpeed THEN EXIT SUB
+    demoSpeed = s2
+    IF demoPlay THEN ShowMsg "DEMO SPEED " + DemoSpeedText$(demoSpeed)
+END SUB
+
+' --- Each frame a demo plays (not attract mode, not playdemo ... quit): the
+' keys - . next, , previous, / at random, - slower, = faster - and EACH's cut
+SUB DemoPlayFrame STATIC
+    DIM k&, jump ' (its own: the main program shares these names)
+    IF NOT demoPlay THEN EXIT SUB
+    IF plOn AND plEach > 0 AND NOT demoQuit THEN
+        IF demoFrame >= PlEachFrames&(plEach) THEN PlLeave "cut (EACH " + LCASE$(PlOptText$(3)) + ")" : EXIT SUB
+    END IF
+    IF demoQuit OR demoAttract OR edTyping THEN EXIT SUB
+    ' (the presses since last frame, from the keyboard's queue - nothing else
+    ' in the game loop reads it while a demo plays, and a quick tap between
+    ' two frames, slowed right down, still counts)
+    jump = 0 : k& = _KEYHIT
+    DO WHILE k&
+        SELECT CASE k&
+            CASE 46, 62 : jump = 1 ' . >
+            CASE 44, 60 : jump = -1 ' , <
+            CASE 47, 63 : jump = 2 ' / ?
+            CASE 45, 95 : DemoSpeedSet demoSpeed - 1 ' - _
+            CASE 61, 43 : DemoSpeedSet demoSpeed + 1 ' = +
+        END SELECT
+        k& = _KEYHIT
+    LOOP
+    IF jump THEN DemoJump jump
+END SUB

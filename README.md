@@ -105,6 +105,15 @@ explains every tool, key, map character and level-file field, and YOUR
 SECTORS starts with twelve example sectors (three of them outdoors, under skies) built with the editor to take
 apart.
 
+**Difficulty:** four levels, in **GAME** or **SETTINGS > GAMEPLAY**. EASY is
+the game as it's always been. NORMAL doubles the machines' health and leaves
+out some health packs; HARD triples it and thins out every kind of pickup.
+NIGHTMARE starts you with every gun, fully loaded, then puts half as many
+machines again in every sector, each 3.5 times as tough, with little ammo
+lying about, and everything that hurts you hurts a quarter more. A sector
+takes the difficulty as it loads, and a demo plays back at the one it was
+recorded at.
+
 **Achievements and records:** 50 achievements, from finishing sector 1 to
 a thousand kills, a sector without a scratch, or kicking a machine into a
 bottomless pit, each with its own badge. **GAME > ACHIEVEMENTS** shows
@@ -132,7 +141,7 @@ See `neon-caster/TUTORIAL.md`.
 **Quick looks:** **SETTINGS > MODE** sets every video and effects setting
 at once. OLDSCHOOL is chunky pixels with no effects, 90S is 720P with
 scanlines and most effects, and NEWSCHOOL is as sharp as your display goes
-with everything on. All three are full screen 4:3. Change any setting
+with everything on, full screen wide. The other two are full screen 4:3. Change any setting
 afterwards and MODE shows CUSTOM.
 
 **Sound:** **SETTINGS > AUDIO > SOUND TEST** (or `soundtest` in the

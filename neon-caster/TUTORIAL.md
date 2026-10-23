@@ -70,9 +70,9 @@ it yourself:
 **The console and the command line.** The console (`) runs commands for
 nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or `remix` first for another set), `give all`,
 `god`, `kill`, `respawn`, `summon heavy 3`, `tp 20 24 90`, `save 2`,
-`load quick`, `restart`, `finish`, any setting by its name (`fov 100`,
+`load quick`, `restart`, `finish`, `difficulty hard` (easy, normal, hard, nightmare), any setting by its name (`fov 100`,
 `renderer 2`, `display 2` - `settings` lists them), `bind`, `events`,
-`screenshot`, `record`, `playdemo` and `bot` (demos - below), `cutscene 4` (a sector's transmission), `say taunt2`
+`screenshot`, `record`, `playdemo`, `playlist` and `bot` (demos - below), `cutscene 4` (a sector's transmission), `say taunt2`
 (any of NEXUS's lines), `soundtest` (every sound, voice and track, to listen to) and `achievements` (with `achieve NAME` and
 `resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
@@ -110,8 +110,18 @@ comment) and the game runs it every time it starts.
 **Demos.** **DEMO REPLAYS** in the main menu lists every demo - yours
 and the ones that come with the game, one for every sector of the four sets and every showcase - and Enter plays one (Esc, then
 STOP DEMO, ends it early). F (or FOLDER) opens the folder yours are kept in,
-`neon-caster/saves/demos`, to copy, rename or delete them. Leave the title menu alone for 15 seconds and
-they play by themselves, one after another, till you press a key. Ctrl+R records one: the sector you're in
+`neon-caster/saves/demos`, to copy, rename or delete them. Space marks a
+demo (a cyan diamond) for the **playlist**, and P plays it - one demo
+after another. Its screen (PLAYLIST, at the top of the list) sets how:
+PLAY all of them or the MARKED ones, ORDER as listed or SHUFFLE, EACH whole
+or cut after 30 seconds or 1, 2, 3 or 5 minutes, AFTER THE LAST stop or
+LOOP, and the SPEED a demo starts at. While any demo plays, `.` skips to
+the next, `,` goes back one, `/` picks one at random, and `-` and `=` slow
+it down and speed it up (x0.25, x0.5, x1, x1.5, x2, x3, x4 - the same
+frames coming slower or faster, so it stays in step); Esc's menu has them
+too. The console's `playlist` does the same (`playlist next`, `playlist
+speed 2`...). Leave the title menu alone for 15 seconds and the playlist
+plays by itself, at the speed it was played, till you press a key. Ctrl+R records one: the sector you're in
 starts again, and Ctrl+R again (or the exit) keeps it as `run1`, `run2`...
 From the console, `record NAME` does the same with a name of your own. A
 demo is how DOOM did it: not a video, but every key and turn, frame by
@@ -151,7 +161,7 @@ just point and click.
 one go: OLDSCHOOL (RETRO resolution, the pixel art, no effects), 90S (720P,
 the pixel art, scanlines and phosphor glow, every effect but NEON and WET
 FLOORS) or NEWSCHOOL (as sharp as your display goes, the modern paintings,
-everything on) - all full screen 4:3. It isn't kept as itself: it shows
+everything on, full screen wide) - the other two full screen 4:3. It isn't kept as itself: it shows
 the mode your settings all match, and CUSTOM once you change one.
 (`ModeWants` lists what each one sets.)
 
@@ -241,7 +251,7 @@ program.
 | `MENU/` | the menu, the splash screen, the console, saved games |
 | `EDITOR/` | the level editor, the HUD editor, the monster editor |
 | `AUDIO/` | sounds and music |
-| `DEMO/` | demos, and the autopilot |
+| `DEMO/` | demos, their playlist (PLAYLIST.BM), and the autopilot |
 | `ACH/` | achievements and records |
 | `LOOP/` | the game loop, a chapter a file (`07-FRAME.BI` to `18-HUD.BI`) |
 

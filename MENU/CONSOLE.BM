@@ -149,7 +149,7 @@ SUB ConExec STATIC
     IF conFromTrig THEN ' (a sector's own trigger - a file anyone may have made: nothing that writes your files, your settings or your achievements)
         SELECT CASE conVerb$
             CASE "saveleveltodisk", "loadlevelfromdisk", "savelevel", "logfile", "qb64pe", "resetachievements", "achieve", "bind", "set", _
-                 "save", "quicksave", "load", "quickload", "exec", "alias", "unalias", "edit", "editor", "newsector", "screenshot", "shot", "quit", "exit", "record", "playdemo", "demo"
+                 "save", "quicksave", "load", "quickload", "exec", "alias", "unalias", "edit", "editor", "newsector", "screenshot", "shot", "quit", "exit", "record", "playdemo", "demo", "playlist"
                 ConPrint "^9(a sector's trigger can't " + conVerb$ + ")" : EXIT SUB
             CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "sectorset", "campaign", "set10" ' (ones that last past the sector: a cheat, whoever turned them on)
                 IF conA$ <> "" OR conVerb$ <> "sectorset" THEN achCheat = -1
@@ -272,6 +272,12 @@ SUB ConExec STATIC
             _KEYCLEAR
         CASE "newgame"
             NewGame : conLevelChanged = -1
+        CASE "difficulty", "skill" ' difficulty [0-3|easy|normal|hard|nightmare]: the DIFFICULTY setting (a sector takes it as it loads); alone: what it is
+            IF LEN(conA$) THEN
+                k = INSTR("0123enhx", LCASE$(LEFT$(conA$, 1))) : IF LCASE$(LEFT$(conA$, 2)) = "ni" THEN k = 8
+                IF k = 0 THEN ConPrint "difficulty: easy, normal, hard or nightmare (0-3)" ELSE setting(SET_SKILL) = (k - 1) MOD 4 : SaveSettings
+            END IF
+            ConPrint "Difficulty: " + SkillName$(setting(SET_SKILL)) + " - " + LCASE$(SkillInfo$(setting(SET_SKILL))) + " (from the next sector: restart to have it now)"
         CASE "finish", "exitlevel", "nextlevel" ' As if you'd reached the exit
             conLevelChanged = -1 : LevelDone
         CASE "item", "drop" ' item KIND X Y: a pickup appears in cell X Y (KIND: a map character - r b y + * u a e 2 3 4 M q j 8 - or health, armor, cells, shells, medkit, map, goggles...)
@@ -459,7 +465,7 @@ SUB ConExec STATIC
             numMonsters = monStartN
             FOR i = 1 TO numMonsters
                 monsterX(i) = monStartX(i) : monsterY(i) = monStartY(i) : monsterType(i) = monStartType(i)
-                monsterHP(i) = mtypeHP(monsterType(i)) : monsterState(i) = 0 : monsterTimer(i) = 0
+                monsterHP(i) = SkillHP(mtypeHP(monsterType(i))) : monsterState(i) = 0 : monsterTimer(i) = 0
                 monsterHurt(i) = 0 : monsterAtk(i) = 0 : monsterAnim(i) = 0 : monsterEv(i) = 0
                 mf = monFrom(i) : MonFresh i : monFrom(i) = mf : monFly(i) = 0 ' (a turret: folded away again, on its own mount)
                 MonOwn i, INT(monStartX(i)), INT(monStartY(i))
@@ -890,6 +896,41 @@ SUB ConExec STATIC
             END IF
         CASE "stopdemo"
             IF demoRec OR demoPlay THEN DemoStop ELSE ConPrint "stopdemo: no demo going"
+        CASE "playlist" ' playlist [next|back|random|stop|speed X]: the demo playlist - DEMO REPLAYS' marks and options (DEMO/PLAYLIST.BM)
+            SELECT CASE LCASE$(conA$)
+                CASE "", "play", "start"
+                    IF editMode THEN
+                        ConPrint "playlist: F2 out of the editor first"
+                    ELSEIF NOT PlStart(0, 0) THEN
+                        ConPrint "playlist: nothing to play (" + PlSummary$ + ") - Space marks a demo in DEMO REPLAYS"
+                    ELSE
+                        conLevelChanged = -1
+                    END IF
+                CASE "next", "back", "prev", "previous", "random"
+                    IF NOT demoPlay THEN
+                        ConPrint "playlist " + LCASE$(conA$) + ": no demo playing"
+                    ELSE
+                        SELECT CASE LCASE$(conA$)
+                            CASE "next" : DemoJump 1
+                            CASE "random" : DemoJump 2
+                            CASE ELSE : DemoJump -1
+                        END SELECT
+                        conLevelChanged = -1
+                    END IF
+                CASE "stop"
+                    IF demoPlay THEN DemoStop ELSE ConPrint "playlist stop: no demo playing"
+                CASE "speed"
+                    IF conB$ <> "" THEN ' (the nearest there is to it: 0.25 0.5 1 1.5 2 3 4)
+                        pb = 1
+                        FOR pk = 2 TO PL_SPEEDS
+                            IF ABS(DemoSpeedX!(pk) - VAL(conB$)) < ABS(DemoSpeedX!(pb) - VAL(conB$)) THEN pb = pk
+                        NEXT
+                        IF demoPlay THEN DemoSpeedSet pb ELSE PlLoad : plSpeed = pb : PlSave
+                    END IF
+                    ConPrint "demo speed now " + DemoSpeedText$(demoSpeed) + ", a demo starts at " + DemoSpeedText$(plSpeed) + " (playlist speed 0.25 / 0.5 / 1 / 1.5 / 2 / 3 / 4)"
+                CASE ELSE
+                    ConHelp "playlist"
+            END SELECT
         CASE "demos" ' The demos there are: yours (saves/demos), then the game's own
             n = 0
             FOR dd = 1 TO 2
@@ -1330,7 +1371,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo demos bot achievements achieve resetachievements clear menu soundtest jukebox quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1349,7 +1390,7 @@ SUB ConHelp(c$)
             ConPrint "            ^7locks  ^7loot"
             ConPrint "  ^6saves     ^7save^8 N|quick  ^7load^8 N|quick  ^7quicksave  ^7quickload"
             ConPrint "  ^6settings  ^7set^8 NAME VALUE  ^7get^8 NAME  ^7settings  ^7NAME^8 [VALUE]  ^7bind^8 ACTION KEY  ^7binds"
-            ConPrint "            ^7qb64pe^8 [PATH|auto]"
+            ConPrint "            ^7qb64pe^8 [PATH|auto]  ^7difficulty^8 [easy|normal|hard|nightmare]"
             ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7savelevel"
             ConPrint "            ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]  ^7jumppad^8 X Y ..."
@@ -1359,6 +1400,7 @@ SUB ConHelp(c$)
             ConPrint "            ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT  ^7sound^8 NAME  ^7say^8 LINE"
             ConPrint "            ^7cutscene^8 [SECTOR]  (and the saves folder's ^7autoexec.cfg^0, run at start-up)"
             ConPrint "  ^6demos     ^7record^8 NAME [SEED] [quit]  ^7playdemo^8 NAME [quit]  ^7stopdemo  ^7demos"
+            ConPrint "            ^7playlist^8 [next|back|random|stop|speed X]"
             ConPrint "            ^7bot^8 [on|off|human N|safe]"
             ConPrint "  ^6editors   ^7hud  ^7monsters  ^7achievements  ^7achieve^8 NAME  ^7resetachievements"
             ConPrint "  ^6the rest  ^7version  ^7clear  ^7menu  ^7soundtest  ^7quit"
@@ -1378,6 +1420,11 @@ SUB ConHelp(c$)
         CASE "saveleveltodisk" : ConPrint "^3saveleveltodisk [FILE]^0: save the sector as it is now to a file - a dialog to choose it, or FILE"
         CASE "loadlevelfromdisk" : ConPrint "^3loadlevelfromdisk [FILE]^0: a level file (a dialog, or FILE) into this sector, in place of its own - savelevel or Ctrl+S keeps it"
         CASE "newgame" : ConPrint "^3newgame^0: a new game from sector 1"
+        CASE "difficulty", "skill"
+            ConPrint "^3difficulty [easy|normal|hard|nightmare]^0 (or 0-3; ^3skill^0 too): the DIFFICULTY setting. EASY is the"
+            ConPrint "  game as made; NORMAL, machines x2 health and fewer health packs; HARD, x3 and fewer pickups of"
+            ConPrint "  every kind; NIGHTMARE, every gun full - but x3.5, more machines, little ammo, hurts a quarter more."
+            ConPrint "  A sector takes it as it loads (restart to have it now); a demo records it. Alone: what it is"
         CASE "finish", "exitlevel", "nextlevel" : ConPrint "^3finish^0: as if you'd reached the exit - the tally, then the next sector"
         CASE "newsector" : ConPrint "^3newsector^0: a blank sector of your own (levels/custom/), opened in the editor - carve rooms out with . (floor), Ctrl+S saves"
         CASE "sectorname" : ConPrint "^3sectorname NAME^0: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it. sectorname on its own: its name"
@@ -1527,6 +1574,10 @@ SUB ConHelp(c$)
         CASE "record" : ConPrint "^3record NAME [SEED] [quit]^0: this sector again from its start, recorded as a demo - every key, frame by frame - till the exit (or stopdemo). quit: the game ends when it's saved"
         CASE "playdemo", "demo" : ConPrint "^3playdemo NAME [quit]^0: a demo played back, exactly as it was played (quit: the game ends with it, for tests)"
         CASE "stopdemo" : ConPrint "^3stopdemo^0: stop recording (it's saved) or playing a demo"
+        CASE "playlist"
+            ConPrint "^3playlist^0: play the demo playlist - DEMO REPLAYS' PLAYLIST options, the demos Space marked there"
+            ConPrint "^3playlist next|back|random^0: another demo (the list playing, or every demo); ^3stop^0: stop it"
+            ConPrint "^3playlist speed X^0: playback speed (0.25 0.5 1 1.5 2 3 4) - while one plays, else where they start"
         CASE "demos" : ConPrint "^3demos^0: the demos there are (saves/demos, then the game's own)"
         CASE "bot", "autopilot" : ConPrint "^3bot [on|off]^0: the autopilot plays the sector - the exit, keycards, monsters in sight (record a demo of it). bot human 0-100: how human it plays. bot safe on|off: buddha with it"
         ' --- editors, achievements, the rest

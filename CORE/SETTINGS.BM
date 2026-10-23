@@ -52,13 +52,14 @@ SUB ApplySettings
 END SUB
 
 ' What MODE m sets setting id to - or -1 if it leaves it alone (sound,
-' controls, gameplay). All three are OpenGL, full screen 4:3:
+' controls, gameplay). All three are OpenGL and full screen - 4:3, but
+' NEWSCHOOL wide:
 '   OLDSCHOOL  RETRO resolution, the pixel art, every effect off, no
 '              scanlines
 '   90S        720P, the pixel art, every effect but NEON and WET FLOORS,
 '              scanlines and phosphor glow
-'   NEWSCHOOL  as sharp as the display goes (BestRes), the modern
-'              paintings, every effect, scanlines and phosphor glow
+'   NEWSCHOOL  FULL WIDE, as sharp as the display goes (BestRes), the
+'              modern paintings, every effect, scanlines and phosphor glow
 FUNCTION ModeWants(m, id)
     DIM fx ' (its own: the main program shares these names)
     ModeWants = -1
@@ -66,7 +67,7 @@ FUNCTION ModeWants(m, id)
     fx = 0 : IF m > MODE_OLDSCHOOL THEN fx = 1 ' (the effects: on for 90S and NEWSCHOOL)
     SELECT CASE id
         CASE SET_RENDERER : ModeWants = 2
-        CASE SET_DISPLAY : ModeWants = 3 ' FULL 4:3
+        CASE SET_DISPLAY : IF m = MODE_NEWSCHOOL THEN ModeWants = 2 ELSE ModeWants = 3 ' FULL WIDE - or FULL 4:3, as those days had it
         CASE SET_ART : IF m = MODE_NEWSCHOOL THEN ModeWants = 2 ELSE ModeWants = 1
         CASE SET_RES
             IF m = MODE_OLDSCHOOL THEN ModeWants = RES_RETRO ELSE IF m = MODE_90S THEN ModeWants = 5 ELSE ModeWants = BestRes ' (5: 720P)
@@ -220,6 +221,7 @@ FUNCTION SettingText$(id)
         CASE SET_MODE : SettingText$ = RTRIM$(MID$("CUSTOM   OLDSCHOOL90S      NEWSCHOOL", setting(id) * 9 + 1, 9))
         CASE SET_SCREENFX : SettingText$ = MID$("OFF      SCANLINESCRT      ", setting(id) * 9 - 8, 9)
         CASE SET_RES : SettingText$ = ResName$(setting(id))
+        CASE SET_SKILL : SettingText$ = SkillName$(setting(id))
         CASE SET_SOFTEN : SettingText$ = MID$("OFF   LIGHT STRONG", setting(id) * 6 + 1, 6)
         CASE SET_DISPLAY : SettingText$ = RTRIM$(MID$("WINDOWED    FULL WIDE   FULL 4:3    FULL STRETCH", setting(id) * 12 - 11, 12))
         CASE ELSE : SettingText$ = v$

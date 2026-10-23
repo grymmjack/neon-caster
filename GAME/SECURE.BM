@@ -128,7 +128,7 @@ SUB ThingSpawn(code, x, y)
             numMonsters = numMonsters + 1
             monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = code - THING_MON
             MonFresh numMonsters
-            monsterHP(numMonsters) = mtypeHP(monsterType(numMonsters)) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
+            monsterHP(numMonsters) = SkillHP(mtypeHP(monsterType(numMonsters))) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
             monsterEv(numMonsters) = 0 : ThiefReset numMonsters
             MonOwn numMonsters, x, y
         END IF

@@ -61,10 +61,10 @@ SUB BotThinkRaw STATIC
     inBits = 0 : inWheel = 0 : botTurn = 0 : botPitch = 0
     BotPits
     IF lvFrame < botFrameWas THEN ' (the sector started again - its clock back to 0: what it had ruled out, and when, is from before - forgotten)
-        FOR by = 0 TO mapN - 1 : FOR bx = 0 TO mapN - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
+        FOR by = 0 TO mapN - 1 : FOR bx = 0 TO mapN - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : botDone(bx, by) = 0 : NEXT : NEXT
         FOR bi = 1 TO MAX_MON : botIgnore(bi) = 0 : botSawAt(bi) = 0 : NEXT
         FOR bi = 1 TO MAX_ITEMS : botItemIgnore(bi) = 0 : NEXT
-        botNX = 0 : botStuck = 0 : botCheckAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0 : botBest = BOT_FAR : botBestAt = 0 : botNowhereAt = 0
+        botNX = 0 : botStuck = 0 : botCheckAt = 0 : botCellAt = 0 : botStallAt = 0 : botStallN = 0 : botAmmoAt = 0 : botBest = BOT_FAR : botBestAt = 0 : botNowhereAt = 0
         FOR bk = 0 TO 5 : botKeyAt(bk) = 0 : botKeyState(bk) = 0 : NEXT
         botTurnLeft = 0 : botLookAmp = 0 : botTurnPrev = 0 : botTarget = 0 : botTargetSeen = 0 : botBackOn = 0 : botStrafeAt = 0 : botBurstAt = 0 : botPauseUntil = 0 : botReactAt = 0
     END IF
@@ -82,6 +82,7 @@ SUB BotThinkRaw STATIC
     END IF
     IF botWasDead THEN botWasDead = 0
     bcx = INT(playerX) : bcy = INT(playerY)
+    IF bcx <> botCellX OR bcy <> botCellY THEN botCellX = bcx : botCellY = bcy : botCellAt = lvFrame ' (when it came into this cell - see "Stuck?" below)
     bh = botHuman / 100 ' How human (bot human): turns slower and eased, aim that drifts, a beat before it fires at what it's just seen, bursts not a held trigger, now and then a pause
     botTurnMax = 0.27 : botTurnK = 0.35 ' (a flick: up to 15 degrees a frame - the human filter eases it in and out)
     botAimErr = botAimErr * 0.96 + (RND - 0.5) * 0.012 * bh : botAimErr = MaxOf(-0.07 * bh, MinOf(0.07 * bh, botAimErr))
@@ -183,7 +184,7 @@ SUB BotThinkRaw STATIC
                 botStrafeOK = 0
             END IF
         END IF
-        botCheckAt = lvFrame + 60 : botBestAt = lvFrame ' (fighting isn't being stuck - nor getting nowhere)
+        botCheckAt = lvFrame + 60 : botCellAt = lvFrame : botBestAt = lvFrame ' (fighting isn't being stuck - nor getting nowhere)
         EXIT SUB
     END IF
     ' Where to? Every 15 frames (or when there's no way), the field again
@@ -191,6 +192,7 @@ SUB BotThinkRaw STATIC
     IF botMode = 0 THEN ' Nowhere to go: look round - and after three seconds of it, forget what it ruled out, and where it's been: it explores afresh
         botTurn = 0.03
         IF botNowhereAt = 0 THEN botNowhereAt = lvFrame
+        botCellAt = lvFrame
         IF lvFrame - botNowhereAt > 180 THEN
             FOR by = 0 TO mapN - 1 : FOR bx = 0 TO mapN - 1 : botBlock(bx, by) = 0 : botSeen(bx, by) = 0 : NEXT : NEXT
             botNowhereAt = 0 : botNX = 0
@@ -202,6 +204,7 @@ SUB BotThinkRaw STATIC
     IF botDist(bcx, bcy) = 0 AND botMode = 1 THEN
         ba = BotTurnTo(botEX + 0.5, botEY + 0.5, playerX, playerY, dirX, dirY)
         IF ABS(ba) < 0.25 AND (lvFrame MOD 16) < 2 THEN inBits = inBits OR DB_USE
+        botCellAt = lvFrame
         EXIT SUB
     END IF
     IF botDist(bcx, bcy) = 0 AND botMode = 6 THEN ' Beside a data station: face it and jack in
@@ -209,14 +212,14 @@ SUB BotThinkRaw STATIC
             bx = bcx + (bk = 1) - (bk = 0) : by = bcy + (bk = 3) - (bk = 2)
             IF worldMap(bx, by) = 8 THEN ba = BotTurnTo(bx + 0.5, by + 0.5, playerX, playerY, dirX, dirY) : IF ABS(ba) < 0.25 AND (lvFrame MOD 16) < 2 THEN inBits = inBits OR DB_USE
         NEXT
-        botCheckAt = lvFrame + 60
+        botCheckAt = lvFrame + 60 : botCellAt = lvFrame
         EXIT SUB
     END IF
     ' The next cell: a closed door? Face it and open it. Else, walk to its middle
     IF worldMap(botNX, botNY) = 2 AND doorOpen(botNX, botNY) < 0.8 THEN
         ba = BotTurnTo(botNX + 0.5, botNY + 0.5, playerX, playerY, dirX, dirY)
         IF doorOpen(botNX, botNY) = 0 AND doorMove(botNX, botNY) <> 1 AND ABS(ba) < 0.3 AND (lvFrame MOD 16) < 2 THEN inBits = inBits OR DB_USE
-        botCheckAt = lvFrame + 60
+        botCheckAt = lvFrame + 60 : botCellAt = lvFrame
         EXIT SUB
     END IF
     ' Where to head: the furthest cell of the way ahead it can walk to in a
@@ -238,7 +241,7 @@ SUB BotThinkRaw STATIC
         botLookAt = lvFrame : botPauseUntil = lvFrame + 30 + INT(RND * 51) : botLookAmp = 0.03 + RND * 0.05 : botLookDir = SGN(RND - 0.5) : IF botLookDir = 0 THEN botLookDir = 1
     END IF
     IF lvFrame < botPauseUntil THEN
-        botTurn = 0.025 * SIN(lvFrame / 9) : botCheckAt = lvFrame + 60 : botStallAt = lvFrame + 120
+        botTurn = 0.025 * SIN(lvFrame / 9) : botCheckAt = lvFrame + 60 : botCellAt = lvFrame : botStallAt = lvFrame + 120
         IF botLookAmp > 0 THEN botTurn = botLookDir * botLookAmp * SIN((lvFrame - botLookAt) / (botPauseUntil - botLookAt) * 6.2831853)
     ELSE
         IF ABS(ba) < 0.7 THEN inBits = inBits OR DB_FWD
@@ -247,6 +250,7 @@ SUB BotThinkRaw STATIC
         IF bh > 0 AND lvFrame >= botDriftUntil AND RND < 0.01 * bh THEN botDriftDir = SGN(RND - 0.5) : botDriftUntil = lvFrame + 10 + INT(RND * 41) ' (now and then, a strafe as it walks - a person's diagonals)
         IF lvFrame < botDriftUntil AND ABS(ba) < 0.5 THEN IF botDriftDir > 0 THEN inBits = inBits OR DB_RIGHT ELSE inBits = inBits OR DB_LEFT
     END IF
+    IF botTrace AND lvFrame MOD 30 = 0 THEN ConPrint "B" + STR$(lvFrame) + " mode" + STR$(botMode) + " at" + STR$(bcx) + STR$(bcy) + " next" + STR$(botNX) + STR$(botNY) + " head" + STR$(INT(btx * 100) / 100) + STR$(INT(bty * 100) / 100) + " path" + STR$(botPathN) + " stuck" + STR$(botStuck) + " dist" + STR$(botDist(bcx, bcy)) + " unseen" + STR$(-cellSeen(bcx + 1, bcy)) + STR$(-cellSeen(bcx - 1, bcy)) + STR$(-cellSeen(bcx, bcy + 1)) + STR$(-cellSeen(bcx, bcy - 1)) + " w" + STR$(worldMap(bcx + 1, bcy)) + STR$(worldMap(bcx - 1, bcy)) + STR$(worldMap(bcx, bcy + 1)) + STR$(worldMap(bcx, bcy - 1))
     IF INT(playerX) = botNX AND INT(playerY) = botNY THEN BotPlan ' (there: the next one)
     ' Stuck? Every second: not a quarter of a cell further (and not riding a lift)
     IF lvFrame >= botCheckAt THEN
@@ -257,6 +261,13 @@ SUB BotThinkRaw STATIC
         END IF
         botLastX = playerX : botLastY = playerY : botCheckAt = lvFrame + 60
     END IF
+    ' On the edge it was exploring to - and a second on, still the edge: what's
+    ' beside it won't be seen from here. That edge is done with, a minute
+    IF botMode = 4 AND botDist(bcx, bcy) = 0 AND lvFrame - botCellAt > 60 THEN botDone(bcx, bcy) = lvFrame + 3600 : BotPlan
+    ' ...and four seconds in one cell, walking, is stuck too, however much it
+    ' slid about in it (pressed to a wall and strafing, it moves - along it):
+    ' the next cell's out ten seconds, as above
+    IF botNX AND lvFrame - botCellAt > 240 AND liftCell(bcx, bcy) = 0 THEN botBlock(botNX, botNY) = lvFrame + 600 : botNX = 0 : botCellAt = lvFrame
     IF botStuck >= 2 THEN inBits = inBits OR DB_RIGHT : IF (lvFrame MOD 30) < 2 THEN inBits = inBits OR DB_USE
 END SUB
 
@@ -441,10 +452,14 @@ SUB BotField(haz)
 END SUB
 
 ' A frontier: a cell it's seen, that it could stand in or go through,
-' with one beside it it hasn't seen - the edge of what it knows
+' with one beside it it hasn't seen - the edge of what it knows. (Not one
+' it's stood on a second and looked round from, the one beside it still
+' unseen - botDone: no look will show it. It went round in circles on
+' one such, for minutes.)
 FUNCTION BotFrontier(x, y)
     IF NOT cellSeen(x, y) THEN EXIT FUNCTION
     IF worldMap(x, y) > 0 AND worldMap(x, y) <> 2 THEN EXIT FUNCTION
+    IF botDone(x, y) > lvFrame THEN EXIT FUNCTION
     IF NOT cellSeen(x + 1, y) OR NOT cellSeen(x - 1, y) OR NOT cellSeen(x, y + 1) OR NOT cellSeen(x, y - 1) THEN BotFrontier = -1
 END FUNCTION
 
@@ -522,6 +537,7 @@ FUNCTION BotStep(ax, ay, bx, by, haz)
     END IF
     IF diagCorner(bx, by) OR glassHP(bx, by) > 0 THEN EXIT FUNCTION
     IF boxOn(bx, by) THEN IF MaxOf(MaxOf(boxX0(bx, by), 1 - boxX1(bx, by)), MaxOf(boxY0(bx, by), 1 - boxY1(bx, by))) < 0.6 THEN EXIT FUNCTION ' (a block: only one that leaves no room to get by - a slim post doesn't)
+    IF BotBoxShut(ax, ay, bx - ax, by - ay) OR BotBoxShut(bx, by, ax - bx, ay - by) THEN EXIT FUNCTION ' (...nor one across the edge between the two: a stall's back wall, a thin wall along a cell's side)
     d = decoCell(bx, by) : IF cyberOn THEN d = 0 ' (the network has no decorations)
     IF d THEN IF decoOn(d) AND NOT DecoFlat(decoKind(d)) THEN EXIT FUNCTION
     IF NOT levelFlat THEN
@@ -535,6 +551,23 @@ FUNCTION BotStep(ax, ay, bx, by, haz)
         IF liqAny THEN IF liqKind(bx, by) THEN IF lqHurt(liqKind(bx, by)) > 0 THEN EXIT FUNCTION
     END IF
     BotStep = -1
+END FUNCTION
+
+' Does the block in cell (cx, cy) shut the cell's edge on side (ex, ey) -
+' (0, -1) its north edge, (1, 0) its east...? It does if it stretches
+' across the cell that way (no gap a body fits through beside it) and
+' leaves no body's room between itself and that edge: a thin wall along
+' the edge, say. The cell is open; it just isn't a way through, there.
+FUNCTION BotBoxShut(cx, cy, ex, ey)
+    IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT FUNCTION
+    IF boxOn(cx, cy) = 0 THEN EXIT FUNCTION
+    IF ey <> 0 AND ex = 0 THEN
+        IF MaxOf(boxX0(cx, cy), 1 - boxX1(cx, cy)) >= 0.6 THEN EXIT FUNCTION
+        IF ey < 0 THEN BotBoxShut = boxY0(cx, cy) < 0.6 ELSE BotBoxShut = 1 - boxY1(cx, cy) < 0.6
+    ELSEIF ex <> 0 AND ey = 0 THEN
+        IF MaxOf(boxY0(cx, cy), 1 - boxY1(cx, cy)) >= 0.6 THEN EXIT FUNCTION
+        IF ex < 0 THEN BotBoxShut = boxX0(cx, cy) < 0.6 ELSE BotBoxShut = 1 - boxX1(cx, cy) < 0.6
+    END IF
 END FUNCTION
 
 ' Can the autopilot walk from (x0, y0) to (x1, y1) in a straight line? Along

@@ -10,6 +10,7 @@
 SUB HurtPlayer STATIC
     IF godMode OR editMode THEN hurtFromX = -1 : hurtElectric = 0 : hurtR = 0 : hurtG = 0 : hurtB = 0 : EXIT SUB ' (nothing hurts in god mode, or in the editor)
     IF invTimer > 0 AND damage < 999 THEN hurtFromX = -1 : hurtElectric = 0 : hurtR = 0 : hurtG = 0 : hurtB = 0 : invFlash = 8 : EXIT SUB ' (invulnerable: nothing hurts - but a pit's still a pit)
+    damage = SkillHurt(damage) ' (NIGHTMARE: a quarter more)
     IF setting(SET_XFEEDBACK) THEN crossScale = 1.8 ' The crosshair jolts wide
     IF hurtFromX >= 0 THEN AddHurtDir hurtFromX, hurtFromY
     hurtFromX = -1
