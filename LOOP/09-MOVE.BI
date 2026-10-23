@@ -87,7 +87,7 @@
         END IF
     END IF
     jetWas = jetOn
-    ' JUMP (Q as made): standing on something, a hop - half a wall up, as
+    ' JUMP (Q as made): standing on something, a hop - 0.6 of a wall up, as
     ' made; higher where the sector's gravity is low (gravity =)
     jumpDown = (inBits AND DB_JUMP) <> 0
     IF jumpDown AND NOT jumpWas AND NOT dead AND NOT editMode AND NOT flyMode AND NOT cyberOn AND NOT jetOn AND playerVZ = 0 THEN
