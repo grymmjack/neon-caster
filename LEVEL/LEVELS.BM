@@ -109,7 +109,7 @@ END SUB
 ' the last, the game's totals, and a new game)
 SUB LevelDone STATIC
     IF demoRec OR demoPlay THEN DemoAtExit ' (a demo ends at the exit)
-    IF demoMenuWant OR demoAttractMenu THEN EXIT SUB ' (one watched from DEMO REPLAYS, or attract mode's: no tally)
+    IF demoMenuWant OR demoAttractMenu OR plGoWant THEN EXIT SUB ' (one watched from DEMO REPLAYS, attract mode's, or a playlist's going on to the next: no tally)
     WorldLoopsOff
     PlaySfx sndExit&, 0.9
     levelTime! = frameAt! - levelStart! : ' (to the last frame played - not the console's time open)
