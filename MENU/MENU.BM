@@ -105,6 +105,11 @@ SUB RunMenu STATIC
                                 IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN StFlag miRef(menuSel) : miInfo$(menuSel) = StInfo$(miRef(menuSel)) ' F (SOUND TEST): flag it
                             END IF
                         CASE 112, 80 : IF StScreen THEN StPause ' P (SOUND TEST): pause, or carry on
+                        CASE 99, 67 ' C (SOUND TEST): AUTO on or off - the next plays when one ends
+                            IF StScreen THEN
+                                stAuto = NOT stAuto : stAutoWait = 0
+                                IF stAuto THEN PlaySfx sndMenuOn&, 0.6 ELSE PlaySfx sndMenuOff&, 0.6
+                            END IF
                         CASE 91, 93 : IF StScreen AND stSnd& > 0 THEN StSeek StPos# + 5 * SGN(keyCode& - 92) ' [ ] (SOUND TEST): 5 seconds back or on
                         CASE 111, 79 ' O (SOUND TEST): it's OK
                             IF menuSel > 0 THEN
@@ -179,6 +184,7 @@ SUB RunMenu STATIC
             END IF
         END IF
         menuActive = 0
+        IF StScreen AND NOT menuDone THEN StFrame ' (SOUND TEST: AUTO plays the next)
 
         ' Draw: what's behind the menu, then the menu itself
         IF NOT menuDone THEN
@@ -764,7 +770,7 @@ SUB DrawMenu(t)
         IF stTyping THEN
             MenuText 400, 574, "TYPE THE NOTE     ENTER  KEEP IT     ESC  DROP IT", 1, _RGB32(255, 230, 60), 1
         ELSE
-            MenuText 400, 574, "ENTER PLAY  P PAUSE  [ ] SEEK  O OK  N NOTE  F FLAG  LEFT / RIGHT PAGE  ESC BACK", 1, _RGB32(140, 135, 175), 1
+            MenuText 400, 574, "ENTER PLAY  P PAUSE  [ ] SEEK  C AUTO  O OK  N NOTE  F FLAG  LEFT / RIGHT PAGE  ESC BACK", 1, _RGB32(140, 135, 175), 1
         END IF
     ELSE
         MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  CHOOSE     ESC  BACK     OR POINT AND CLICK", 1, _RGB32(140, 135, 175), 1

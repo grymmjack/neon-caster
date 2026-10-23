@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 4: ACID WORKS (NEW SECTORS) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo new4
-version 0.5.0
+version 0.5.1
 set 1
 sector 4
 seed 1665463936

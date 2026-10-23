@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 15: THE LISTENING POST (YOUR SECTORS) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo sector15
-version 0.5.0
+version 0.5.1
 set 0
 sector 15
 seed 1190136832

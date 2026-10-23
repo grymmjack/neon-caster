@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 10: NEXUS HEART (NEW SECTORS) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo new10
-version 0.5.0
+version 0.5.1
 set 1
 sector 10
 seed 748892800

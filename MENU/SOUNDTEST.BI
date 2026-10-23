@@ -27,7 +27,7 @@ DIM SHARED stPage, stSnd&, stNow, stMusicWas& ' (the page showing, the sound pla
 ' Hann window, stRev the bit-reversed order), into ST_BANDS bars (stBand,
 ' falling slowly; stPeak and stPeakHold, the caps above them).
 CONST ST_FFT = 2048, ST_BANDS = 48, ST_OVW = 648
-CONST ST_BOX_Y0 = 2, ST_BOX_Y1 = 94, ST_BAR_Y1 = 92, ST_BAR_H = 66 ' (the visualizer's box; the bars stand on ST_BAR_Y1)
+CONST ST_BOX_Y0 = 2, ST_BOX_Y1 = 94, ST_BAR_Y1 = 78, ST_BAR_H = 52 ' (the visualizer's box; the bars stand on ST_BAR_Y1, their reflection under it)
 CONST ST_SEEK_X0 = 16, ST_SEEK_Y0 = 98, ST_SEEK_Y1 = 118 ' (the seek bar: ST_OVW across from ST_SEEK_X0)
 REDIM SHARED stWave(0) AS SINGLE
 DIM SHARED stFrames AS LONG, stRate AS DOUBLE, stLen AS DOUBLE, stLoops, stSeekDrag, stSeekX, stFFTReady
@@ -37,5 +37,9 @@ DIM SHARED stCs(ST_FFT \ 2 - 1) AS SINGLE, stSn(ST_FFT \ 2 - 1) AS SINGLE
 ' A track whose samples can't be read (an Ogg: the engine keeps it in pages) has them worked out
 ' beforehand, by music/viz.py, in NAME.viz: the seek bar's waveform, and stVizSp$ - stVizFPS a
 ' second, a byte a bar (stVizOn: it's being used)
-DIM SHARED stVizOn, stVizFPS, stVizFrames AS LONG, stVizSp$
+DIM SHARED stVizOn, stVizFPS, stVizFrames AS LONG, stVizSp$, stVizPts, stVizSc$ ' (stVizSc$: the scope - stVizPts points a frame, signed bytes)
+' AUTO (C): when a sound ends - a track, once round - the next in its category plays (stAutoWait:
+' frames since it ended; stLastPos#: where it was last frame, to see a track come round)
+DIM SHARED stAuto, stAutoWait, stLastPos AS DOUBLE
+DIM SHARED stGain AS SINGLE ' (the scope's: its height over the sound's loudest - so a quiet one still shows its shape)
 DIM SHARED stBand(ST_BANDS - 1) AS SINGLE, stPeak(ST_BANDS - 1) AS SINGLE, stPeakHold(ST_BANDS - 1)

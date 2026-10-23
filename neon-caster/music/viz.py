@@ -8,9 +8,12 @@ for these it's worked out here, the same way the game does it:
   - the spectrum, 30 times a second: 2048 samples round that moment, a Hann window, the
     FFT, and ST_BANDS (48) bars spaced as we hear (50 Hz to 16 kHz), each the loudest
     bin in it, in decibels - 72 below full scale is 0, full scale 255
+  - the scope, 30 times a second: the 1024 samples round that moment as SCOPE (64) points,
+    each the strongest of its 16 samples, sign and all (an average cancels the highs out)
 
 A .viz is zlib-deflated (the game's _INFLATE$) text-and-bytes:
-  "NCVIZ 30 48 FRAMES\\n", then 648 x (min, max) signed bytes, then FRAMES x 48 bytes.
+  "NCVIZ 30 48 FRAMES 64\\n", then 648 x (min, max) signed bytes, then FRAMES x 48 bytes
+  of spectrum, then FRAMES x 64 bytes of scope.
 
 Run it after adding or changing a track (needs numpy and ffmpeg):
   ~/ComfyUI/.venv/bin/python viz.py          every track whose .viz is missing or older
@@ -20,7 +23,7 @@ import os, subprocess, sys, zlib
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FPS, BANDS, OVW, N, RATE = 30, 48, 648, 2048, 44100
+FPS, BANDS, OVW, N, RATE, SCOPE, SPAN = 30, 48, 648, 2048, 44100, 64, 1024
 
 
 def samples(path):
@@ -46,7 +49,7 @@ def viz(path):
     edges = [50 * (hi_f / 50) ** (b / BANDS) for b in range(BANDS + 1)]
     bins = [(int(edges[b] * N / RATE), max(int(edges[b] * N / RATE), int(edges[b + 1] * N / RATE))) for b in range(BANDS)]
     pad = np.concatenate([np.zeros(N), w, np.zeros(N)])
-    sp = bytearray()
+    sp = bytearray(); sc = bytearray()
     for f in range(frames):
         at = int(f / FPS * RATE)
         win = pad[at + N - N // 2: at + N + N // 2] * hann
@@ -56,7 +59,10 @@ def viz(path):
             m = mag[lo:hi + 1].max() if hi >= lo else 0.0
             lv = (20 * np.log10(m) + 72) / 72 if m > 1e-7 else 0.0
             sp.append(int(round(min(1.0, max(0.0, lv)) * 255)))
-    data = ('NCVIZ %d %d %d\n' % (FPS, BANDS, frames)).encode() + bytes(ov) + bytes(sp)
+        blk = pad[at + N - SPAN // 2: at + N + SPAN // 2].reshape(SCOPE, SPAN // SCOPE)
+        seg = blk[np.arange(SCOPE), np.abs(blk).argmax(axis=1)]
+        sc += bytes(int(round(max(-1.0, min(1.0, v)) * 127)) & 255 for v in seg)
+    data = ('NCVIZ %d %d %d %d\n' % (FPS, BANDS, frames, SCOPE)).encode() + bytes(ov) + bytes(sp) + bytes(sc)
     return zlib.compress(data, 9), frames
 
 

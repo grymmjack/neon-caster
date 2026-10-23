@@ -139,7 +139,8 @@ afterwards and MODE shows CUSTOM.
 console) plays every sound effect, voice and track, by category, with a
 player over the list: what's playing, how long it is and how far in, a seek
 bar drawn as its waveform (click or drag to play from anywhere; P pauses,
-[ and ] skip 5 seconds), and a spectrum moving with it (and a scope for sound effects and voices). SOFTEN
+[ and ] skip 5 seconds), a spectrum and scope moving with it, and AUTO (C) to
+play the next when one ends. SOFTEN
 HIGHS (OFF, LIGHT, STRONG) takes the edge off the sound effects and voices
 if they're too bright on your speakers or headphones; the music is left as it is.
 
