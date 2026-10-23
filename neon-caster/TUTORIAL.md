@@ -244,7 +244,7 @@ program.
 |---|---|
 | `CORE/` | the window, the dice (and the game's own `SIN`/`COS`), settings, keys, files, small helpers |
 | `WORLD/` | the grid: walls and collision, doors, heights, glass, liquids, lifts |
-| `GAME/` | you, the guns, monsters and their types, turrets and their weapons (`TURRETS.BM`), rockets, missiles and sprays (`ROCKETS.BM`), pickups, decorations, droids, explosions, event rooms, secrets, triggers, teleporters, code terminals, the network, the arcade, NEXUS |
+| `GAME/` | you, the guns, monsters and their types, turrets and their weapons (`TURRETS.BM`), rockets, missiles and sprays (`ROCKETS.BM`), pickups, decorations, droids, explosions, event rooms, secrets, triggers, teleporters, code terminals, the network, the arcade, NEXUS, the difficulty (`SKILL.BM`) |
 | `LEVEL/` | levels and sectors, loading one, and the level files |
 | `RENDER/` | pictures, the 3D view and its helpers, the sprite list, light, particles, the HUD, text, the screen |
 | `GL/` | the OpenGL renderer, and its extras |

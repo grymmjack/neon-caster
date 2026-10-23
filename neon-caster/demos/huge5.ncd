@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 5: THE BIOME (HUGE SECTORS) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo huge5
-version 0.5.1
+version 0.6.0
 set 3
 sector 5
 seed 1418009984

@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 11: THE GALLERY (YOUR SECTORS) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo sector11
-version 0.5.1
+version 0.6.0
 set 0
 sector 11
 seed 1015867520

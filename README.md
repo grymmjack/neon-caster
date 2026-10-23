@@ -134,7 +134,11 @@ NAME`.) `bot` hands the controls to an autopilot that plays like
 someone new to the sector - exploring, fighting what it notices, missing
 now and then - so it can make demos on its own: `playdemo sector1` to
 `sector10` watch it play the original ten, to the exit or till it dies.
-Leave the title screen alone for 15 seconds and they play by themselves.
+Space marks demos for a **playlist** - in order or shuffled, each whole
+or cut after a minute or two, looping - and while one plays `.` `,` `/`
+jump to the next, the last or a random one, `-` `=` slow it to x0.25 or
+speed it to x4. Leave the title screen alone for 15 seconds and the
+playlist plays by itself.
 Every sector also has a few service droids going about their business.
 See `neon-caster/TUTORIAL.md`.
 
