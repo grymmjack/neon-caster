@@ -32,7 +32,7 @@ SUB BlastAt STATIC
         IF monsterState(j) < 2 THEN
             distance = SQR((monsterX(j) - blastAtX) ^ 2 + (monsterY(j) - blastAtY) ^ 2)
             IF distance < BLAST_RADIUS THEN
-                IF CanSee(blastAtX, blastAtY, monsterX(j), monsterY(j)) THEN target = j : hitDamage = INT(8 * (1 - distance / BLAST_RADIUS)) + 1 : HitMonster
+                IF CanSee(blastAtX, blastAtY, monsterX(j), monsterY(j)) THEN target = j : hitDamage = INT(TuneNow!(tuBlast) * (1 - distance / BLAST_RADIUS)) + 1 : HitMonster
             END IF
         END IF
     NEXT

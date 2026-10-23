@@ -13,7 +13,7 @@ END SUB
 
 ' Is sec$ one of these sections?
 FUNCTION XtraSec(sec$)
-    XtraSec = (sec$ = "doors" OR sec$ = "things" OR sec$ = "notes" OR sec$ = "smears" OR sec$ = "fuel")
+    XtraSec = (sec$ = "doors" OR sec$ = "things" OR sec$ = "notes" OR sec$ = "smears" OR sec$ = "fuel" OR sec$ = "difficulty")
 END FUNCTION
 
 ' Field n (from 1) of line k - split at commas, trimmed
@@ -107,6 +107,7 @@ FUNCTION XtraWrite$(sec$, nl$)
         CASE "things" : h$ = "' what a " + CHR$(34) + " is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, repairkit, invuln, robodog, guard, eyebot - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm); a jump pad's DIR ANGLE POWER; a launch control's x, y of its pad"
         CASE "notes" : h$ = "' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code"
         CASE "fuel" : h$ = "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"
+        CASE "difficulty" : h$ = "' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one"
         CASE "smears" : h$ = "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)"
     END SELECT
     XtraWrite$ = nl$ + "[" + sec$ + "]" + nl$ + h$ + nl$ + o$

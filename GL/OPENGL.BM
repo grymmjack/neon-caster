@@ -95,7 +95,10 @@
 ' card). Otherwise, it's the same game - same maths, same light.
 SUB _GL
     DIM B, cx, cy, w ' (its own: the main program shares these names)
-    IF NOT glReady THEN EXIT SUB ' Nothing to draw (or the software renderer is on)
+    IF NOT glReady THEN ' Nothing to draw (or the software renderer is on) - but FULL WIDE's title menu: just our screen (GLShows)
+        IF glScreenOnly AND NOT artHold THEN GLScreenOnlyDraw
+        EXIT SUB
+    END IF
     IF artHold THEN glArtAck = -1 : EXIT SUB ' (the pictures are being reloaded: ArtReload)
     glStart# = TIMER(0.001)
     b = glBuf ' The newest finished snapshot
@@ -594,6 +597,7 @@ SUB GLSpritesAndExtras(b, mirror)
             GLDynAt sx, sy, (zLow + zHigh) / 2, dr, dg, db
             red = red + dr / 256 : green = green + dg / 256 : blue = blue + db / 256
         END IF
+        IF glSprMdl(i, b) AND mirror AND slot = 0 THEN _CONTINUE ' (a model with no picture - a plate: not in reflections)
         IF glSprMdl(i, b) AND NOT mirror THEN ' (a 3D prop: its model, not its picture - but in a reflection, its picture: half the cost, and you can't tell)
             IF glSprHead(i, b) THEN ' (a turret: its base on its mount, and its head on that, aimed at you)
                 GLDrawModel turBaseMdl, sx, sy, zLow, glSprAng(i, b), glSprPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), 0, 1
@@ -804,7 +808,7 @@ SUB GLShadows(b)
     _glEnable _GL_ALPHA_TEST : _glAlphaFunc _GL_GREATER, 0.05
     FOR i = 1 TO glNumSpr(b)
         slot = glSprSlot(i, b)
-        IF slot = S_BOLT OR slot = S_BLAST OR (slot > S_BOOM AND slot <= S_BOOM + BOOM_FRAMES) OR slot >= S_PLATE THEN _CONTINUE ' (they glow, or lie flat)
+        IF slot = S_BOLT OR slot = S_BLAST OR (slot > S_BOOM AND slot <= S_BOOM + BOOM_FRAMES) OR slot >= S_PLATE OR slot = 0 THEN _CONTINUE ' (they glow, or lie flat)
         sx = glSprX(i, b) : sy = glSprY(i, b) : cx = INT(sx) : cy = INT(sy)
         strength = glLitDir(cx, cy, b) * 1.2 : IF strength > 0.65 THEN strength = 0.65
         lx = glLitCX(cx, cy, b) : ly = glLitCY(cx, cy, b)

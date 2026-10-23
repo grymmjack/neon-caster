@@ -1,0 +1,486 @@
+''
+' NEON-CASTER - GAME/TUNING.BM
+' =============================================================================
+' The tuning table (GAME/TUNING.BI): its rows, the hooks the game reads
+' them through, tuning.txt, the CSV and the shots-to-destroy report.
+'
+
+' --- A row: what it is (TK_) and which, its key (in tuning.txt and the CSV),
+' its name, group and unit, its range and step, and its four values as made
+FUNCTION TuneRow(kind, ref, key$, nm$, grp$, unit$, lo!, hi!, stp!, e!, n!, h!, nm!)
+    DIM r ' (its own: the main program shares these names)
+    IF tuneN >= TUNE_MAX THEN EXIT FUNCTION
+    tuneN = tuneN + 1 : r = tuneN
+    tuneKind(r) = kind : tuneRef(r) = ref : tuneKey$(r) = key$ : tuneName$(r) = nm$ : tuneGroup$(r) = grp$ : tuneUnit$(r) = unit$
+    tuneLo(r) = lo! : tuneHi(r) = hi! : tuneStep(r) = stp!
+    tuneD(r, 0) = e! : tuneD(r, 1) = n! : tuneD(r, 2) = h! : tuneD(r, 3) = nm!
+    tuneV(r, 0) = e! : tuneV(r, 1) = n! : tuneV(r, 2) = h! : tuneV(r, 3) = nm!
+    tuneC(r, 0) = e! : tuneC(r, 1) = n! : tuneC(r, 2) = h! : tuneC(r, 3) = nm!
+    TuneRow = r
+END FUNCTION
+
+' Every row, as coded (start-up: after the monsters' and guns' numbers)
+SUB TuneSetup
+    DIM b, g, k, t, gn$ ' (its own: the main program shares these names)
+    tuneN = 0
+    FOR t = 1 TO MON_TYPES ' Machines: as made, SkillHP's x2, x3, x3.5
+        b = mtypeHP(t)
+        tuneMonRow(t) = TuneRow(TK_MONHP, t, "hp." + mtypeName$(t), UCASE$(mtypeName$(t)), "MACHINES", "health", 1, 9999, 1, b, SkillHPAt(b, 1), SkillHPAt(b, 2), SkillHPAt(b, 3))
+    NEXT
+    FOR k = 1 TO DECO_KINDS ' Breakables: the same at every difficulty, as made (not explosives: any hit sets them off)
+        b = DecoBaseHP(k)
+        IF b < 99 AND NOT Explosive(k) THEN tuneDecoRow(k) = TuneRow(TK_DECOHP, k, "hp." + DecoName$(k), UCASE$(DecoName$(k)), "BREAKABLES", "health", 1, 98, 1, b, b, b, b)
+    NEXT
+    tuGlass = TuneRow(TK_GLASS, 0, "hp.glass", "GLASS PANE", "BREAKABLES", "health", 1, 98, 1, GLASS_HP, GLASS_HP, GLASS_HP, GLASS_HP)
+    tuDroid = TuneRow(TK_DROID, 0, "hp.droid", "SERVICE DROID", "BREAKABLES", "health", 1, 98, 1, DROID_HP, DROID_HP, DROID_HP, DROID_HP)
+    FOR g = 1 TO NUM_GUNS
+        gn$ = LCASE$(gunName$(g))
+        IF g <> W_ROCKET THEN tuneGunDmg(g) = TuneRow(TK_GUNDMG, g, "gun." + gn$ + ".damage", gunName$(g) + " DAMAGE", "GUNS", "a hit", 0, 99, 1, gunDamage(g), gunDamage(g), gunDamage(g), gunDamage(g))
+        IF g = W_SCATTER THEN tuPellets = TuneRow(TK_PELLETS, g, "gun.scatter.pellets", "SCATTER PELLETS", "GUNS", "a shot", 1, 20, 1, gunPellets(g), gunPellets(g), gunPellets(g), gunPellets(g))
+        IF g = W_ROCKET THEN
+            tuRockHit = TuneRow(TK_ROCKHIT, g, "gun.launcher.hit", "ROCKET HIT", "GUNS", "a hit", 0, 99, 1, ROCKET_HIT, ROCKET_HIT, ROCKET_HIT, ROCKET_HIT)
+            tuRockMon = TuneRow(TK_ROCKMON, g, "gun.launcher.blast", "ROCKET BLAST", "GUNS", "at most +1", 0, 99, 1, ROCKET_MON, ROCKET_MON, ROCKET_MON, ROCKET_MON)
+        END IF
+        tuneGunDelay(g) = TuneRow(TK_GUNDELAY, g, "gun." + gn$ + ".delay", gunName$(g) + " DELAY", "GUNS", "frames", 1, 240, 1, gunDelay(g), gunDelay(g), gunDelay(g), gunDelay(g))
+    NEXT
+    tuKick = TuneRow(TK_KICK, 0, "kick.damage", "KICK DAMAGE", "GUNS", "a kick", 0, 99, 1, KICK_DAMAGE, KICK_DAMAGE, KICK_DAMAGE, KICK_DAMAGE)
+    tuWeak = TuneRow(TK_WEAK, 0, "headshot.times", "HEADSHOT", "GUNS", "x damage", 1, 5, 0.25, WEAK_MULT, WEAK_MULT, WEAK_MULT, WEAK_MULT)
+    tuBlast = TuneRow(TK_BLAST, 0, "blast.machines", "BARREL BLAST", "GUNS", "at most +1", 0, 99, 1, 8, 8, 8, 8)
+    FOR k = 1 TO NUM_AMMO ' Ammo: the most you carry, and a box's worth
+        gn$ = UCASE$(AmmoName$(k))
+        tuneMaxRow(k) = TuneRow(TK_AMMOMAX, k, "ammo." + LCASE$(gn$) + ".max", "MOST " + gn$, "AMMO", "carried", 1, 999, 1, ammoMax(k), ammoMax(k), ammoMax(k), ammoMax(k))
+        b = AmmoBox(k) : tuneAmmoPick(k) = TuneRow(TK_AMMOPICK, k, "ammo." + LCASE$(gn$) + ".pickup", gn$ + " PICKUP", "AMMO", "a pickup", 0, 999, 1, b, b, b, b)
+    NEXT
+    FOR g = W_SCATTER TO NUM_GUNS ' ...and what a gun comes loaded with
+        b = GunBox(g) : tuneGunPick(g) = TuneRow(TK_GUNPICK, g, "gun." + LCASE$(gunName$(g)) + ".pickup", gunName$(g) + " PICKUP", "AMMO", "its " + AmmoName$(gunAmmoType(g)), 0, 999, 1, b, b, b, b)
+    NEXT
+    tuHurt = TuneRow(TK_HURT, 0, "you.hurt", "DAMAGE YOU TAKE", "YOU", "%", 10, 400, 5, 100, 100, 100, 125)
+END SUB
+
+' --- The hooks: row r's value at the difficulty in play (a demo's own while
+' one records or plays: SkillNow)
+FUNCTION TuneNow!(r)
+    TuneNow! = tuneV(r, SkillNow)
+END FUNCTION
+
+' Row r's value at difficulty s - a monster's EASY health is its kind's own
+' (monsters.txt's, mtypeHP: the monster editor's too)
+FUNCTION TuneAt!(r, s)
+    IF tuneKind(r) = TK_MONHP AND s = 0 THEN TuneAt! = mtypeHP(tuneRef(r)) ELSE TuneAt! = tuneV(r, s)
+END FUNCTION
+
+' A machine of type t's health, pct% of its kind's ([monsters]' own: 100
+' as made), at the difficulty in play. Still as coded, SkillHP as ever.
+FUNCTION MonHP(t, pct)
+    DIM b, r, s ' (its own: the main program shares these names)
+    IF pct = 100 THEN b = mtypeHP(t) ELSE b = MaxOf(1, INT(mtypeHP(t) * pct / 100))
+    s = SkillNow : r = tuneMonRow(t)
+    IF s = 0 OR r = 0 THEN MonHP = SkillHP(b) : EXIT FUNCTION
+    IF tuneV(r, s) = tuneC(r, s) THEN MonHP = SkillHP(b) : EXIT FUNCTION
+    MonHP = MaxOf(1, INT(b * tuneV(r, s) / MaxOf(1, mtypeHP(t)) + 0.5))
+END FUNCTION
+
+' How many hits a decoration kind takes, at the difficulty in play
+FUNCTION DecoMaxHP(kind)
+    IF kind >= 1 AND kind <= DECO_KINDS THEN IF tuneDecoRow(kind) THEN DecoMaxHP = TuneNow!(tuneDecoRow(kind)) : EXIT FUNCTION
+    DecoMaxHP = DecoBaseHP(kind)
+END FUNCTION
+
+' A gun's damage a hit, its frames between shots, and how many pellets a shot
+FUNCTION GunDmgNow!(g)
+    IF tuneGunDmg(g) THEN GunDmgNow! = TuneNow!(tuneGunDmg(g)) ELSE GunDmgNow! = gunDamage(g)
+END FUNCTION
+
+FUNCTION GunDelayNow(g)
+    IF tuneGunDelay(g) THEN GunDelayNow = TuneNow!(tuneGunDelay(g)) ELSE GunDelayNow = gunDelay(g)
+END FUNCTION
+
+FUNCTION GunPelletsNow(g)
+    IF g = W_SCATTER THEN GunPelletsNow = TuneNow!(tuPellets) ELSE GunPelletsNow = gunPellets(g)
+END FUNCTION
+
+' A box of ammo k (as made), and the ammo a gun g comes with
+FUNCTION AmmoBox(k)
+    SELECT CASE k
+        CASE AM_SHELLS : AmmoBox = 8
+        CASE AM_ROCKETS : AmmoBox = 5
+        CASE AM_ROUNDS : AmmoBox = 40
+        CASE AM_SLUGS : AmmoBox = 5
+        CASE ELSE : AmmoBox = 15
+    END SELECT
+END FUNCTION
+
+FUNCTION GunBox(g)
+    SELECT CASE g
+        CASE W_SCATTER : GunBox = 8
+        CASE W_REPEATER : GunBox = 60
+        CASE W_RAIL : GunBox = 6
+        CASE ELSE : GunBox = 5
+    END SELECT
+END FUNCTION
+
+' How much a box of ammo k gives, and a gun g's pickup, at the difficulty in play
+FUNCTION AmmoBoxNow(k)
+    AmmoBoxNow = TuneNow!(tuneAmmoPick(k))
+END FUNCTION
+
+FUNCTION GunBoxNow(g)
+    IF tuneGunPick(g) THEN GunBoxNow = TuneNow!(tuneGunPick(g))
+END FUNCTION
+
+' The most of each ammo you carry, at the difficulty in play (as a sector
+' starts, a loadout's made, or the tuner changes it) - what's over it, gone
+SUB TuneAmmoMax
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO NUM_AMMO
+        ammoMax(k) = TuneNow!(tuneMaxRow(k))
+        IF ammoCount(k) > ammoMax(k) THEN ammoCount(k) = ammoMax(k)
+    NEXT
+END SUB
+
+' --- tuning.txt: "key = easy normal hard nightmare", a row a line (- keeps
+' that one as it was). Only rows that differ from the defaults are written.
+' tuning-defaults.txt is the same, read first: the defaults themselves.
+FUNCTION TunePath$
+    TunePath$ = TuneFile$("tuning.txt")
+END FUNCTION
+
+FUNCTION TuneFile$(nm$) ' (where monsters.txt is)
+    DIM f$, i ' (its own: the main program shares these names)
+    f$ = AssetPath$("monsters.txt") : i = _INSTRREV(f$, "monsters.txt")
+    TuneFile$ = LEFT$(f$, i - 1) + nm$
+END FUNCTION
+
+SUB ReadTuning
+    ReadTuneFile TuneFile$("tuning-defaults.txt"), -1
+    ReadTuneFile TunePath$, 0
+END SUB
+
+' Read a tuning file's rows into the values - and into the defaults too if deflt
+SUB ReadTuneFile(f$, deflt)
+    DIM eq, fh, l$, r, s, v$, w$ ' (its own: the main program shares these names)
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$
+        l$ = LTRIM$(RTRIM$(l$)) : IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = LEFT$(l$, LEN(l$) - 1)
+        eq = INSTR(l$, "=")
+        IF eq > 0 AND LEFT$(l$, 1) <> "'" THEN
+            r = TuneFind(LCASE$(RTRIM$(LEFT$(l$, eq - 1))))
+            IF r THEN
+                v$ = LTRIM$(MID$(l$, eq + 1))
+                FOR s = 0 TO 3
+                    w$ = TuneWord$(v$, s + 1) ' (by spaces or commas)
+                    IF LEN(w$) AND w$ <> "-" AND NOT (tuneKind(r) = TK_MONHP AND s = 0) THEN
+                        tuneV(r, s) = TuneClamp!(r, VAL(w$))
+                        IF deflt THEN tuneD(r, s) = tuneV(r, s)
+                    END IF
+                NEXT
+            END IF
+        END IF
+    LOOP
+    CLOSE #fh
+END SUB
+
+' The row whose key is k$ (0: none)
+FUNCTION TuneFind(k$)
+    DIM r ' (its own: the main program shares these names)
+    FOR r = 1 TO tuneN
+        IF tuneKey$(r) = k$ THEN TuneFind = r : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+FUNCTION TuneClamp!(r, v!)
+    IF v! < tuneLo(r) THEN v! = tuneLo(r)
+    IF v! > tuneHi(r) THEN v! = tuneHi(r)
+    TuneClamp! = v!
+END FUNCTION
+
+' Does row r differ from the defaults (any difficulty - a monster's EASY is monsters.txt's)?
+FUNCTION TuneChanged(r)
+    DIM s ' (its own: the main program shares these names)
+    FOR s = 0 TO 3
+        IF NOT (tuneKind(r) = TK_MONHP AND s = 0) THEN IF tuneV(r, s) <> tuneD(r, s) THEN TuneChanged = -1
+    NEXT
+END FUNCTION
+
+FUNCTION TuneNum$(v!)
+    DIM t$ ' (its own: the main program shares these names)
+    t$ = LTRIM$(STR$(v!)) : IF LEFT$(t$, 1) = "." THEN t$ = "0" + t$ ' (0.5, not .5)
+    TuneNum$ = t$
+END FUNCTION
+
+SUB WriteTuning
+    DIM fh, n, nl$, o$, r, s ' (its own: the main program shares these names)
+    nl$ = CHR$(10)
+    o$ = "' NEON-CASTER tuning - how many shots things take, at each difficulty. The tuner" + nl$
+    o$ = o$ + "' (the tuning command, or SETTINGS > GAMEPLAY > TUNER) writes this file; only" + nl$
+    o$ = o$ + "' what differs from the defaults (tuning-defaults.txt) is here. Each line: key =" + nl$
+    o$ = o$ + "' easy normal hard nightmare (- keeps one). A machine's EASY health is monsters.txt's." + nl$
+    o$ = o$ + "' EASY is the game every shipped demo was recorded in: change it and re-record them." + nl$ + nl$
+    FOR r = 1 TO tuneN
+        IF TuneChanged(r) THEN
+            o$ = o$ + tuneKey$(r) + " ="
+            FOR s = 0 TO 3 : o$ = o$ + " " + TuneNum$(TuneAt!(r, s)) : NEXT
+            o$ = o$ + nl$ : n = n + 1
+        END IF
+    NEXT
+    IF n = 0 THEN o$ = o$ + "' (nothing tuned: the defaults)" + nl$
+    IF _FILEEXISTS(TunePath$) THEN KILL TunePath$
+    fh = FREEFILE : OPEN TunePath$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+    IF tuneMonEasy THEN WriteMonsters : tuneMonEasy = 0
+    tuneDirty = 0
+END SUB
+
+' Set row r at difficulty s to v (a monster's EASY health: its kind's own)
+SUB TuneSet(r, s, v!)
+    v! = TuneClamp!(r, v!)
+    IF tuneKind(r) = TK_MONHP AND s = 0 THEN
+        IF mtypeHP(tuneRef(r)) <> v! THEN mtypeHP(tuneRef(r)) = v! : tuneMonEasy = -1 : tuneDirty = -1
+    ELSEIF tuneV(r, s) <> v! THEN
+        tuneV(r, s) = v! : tuneDirty = -1
+    END IF
+    IF tuneKind(r) = TK_MONHP THEN tuneV(r, 0) = mtypeHP(tuneRef(r))
+    IF tuneKind(r) = TK_AMMOMAX THEN TuneAmmoMax ' (at once: what you carry)
+END SUB
+
+' Every row back to its default - EASY too only if easy (monsters' EASY health is
+' monsters.txt's either way: the monster editor's)
+SUB TuneResetAll(easy)
+    DIM r, s ' (its own: the main program shares these names)
+    FOR r = 1 TO tuneN
+        FOR s = 0 TO 3
+            IF s > 0 OR (easy AND tuneKind(r) <> TK_MONHP) THEN TuneSet r, s, tuneD(r, s)
+        NEXT
+    NEXT
+END SUB
+
+' --- Make what's tuned now the defaults (tuning bake): tuning-defaults.txt
+' gets every row that differs from as coded, the defaults it replaces go to
+' tuning-defaults.bak, tuning-original.txt lists every row as coded (the
+' game before any defaults file - go back by deleting tuning-defaults.txt or
+' copying tuning-original.txt over it), and tuning.txt is left with nothing:
+' it all is the defaults now. How many rows differ from as coded.
+FUNCTION TuneBake
+    DIM fh, k, n, nl$, o$, r, s, v!, d$, b$ ' (its own: the main program shares these names)
+    nl$ = CHR$(10)
+    d$ = TuneFile$("tuning-defaults.txt") : b$ = TuneFile$("tuning-defaults.bak")
+    IF _FILEEXISTS(d$) THEN ' (the defaults it replaces)
+        fh = FREEFILE : OPEN d$ FOR BINARY AS #fh : o$ = SPACE$(LOF(fh)) : GET #fh, , o$ : CLOSE #fh
+        IF _FILEEXISTS(b$) THEN KILL b$
+        fh = FREEFILE : OPEN b$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+    END IF
+    o$ = "' NEON-CASTER tuning as coded - every row: the game with no tuning-defaults.txt." + nl$
+    o$ = o$ + "' The code's own numbers (tuning bake writes this, to keep). To go back to them," + nl$
+    o$ = o$ + "' delete tuning-defaults.txt, or copy this file over it." + nl$ + nl$
+    FOR r = 1 TO tuneN
+        o$ = o$ + tuneKey$(r) + " ="
+        FOR s = 0 TO 3 : o$ = o$ + " " + TuneNum$(tuneC(r, s)) : NEXT
+        o$ = o$ + nl$
+    NEXT
+    b$ = TuneFile$("tuning-original.txt")
+    IF _FILEEXISTS(b$) THEN KILL b$
+    fh = FREEFILE : OPEN b$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+    o$ = "' NEON-CASTER tuning defaults - the game as shipped, at each difficulty: the rows" + nl$
+    o$ = o$ + "' that differ from the code's numbers (tuning-original.txt has them all). Each" + nl$
+    o$ = o$ + "' line: key = easy normal hard nightmare (- keeps one as coded). tuning bake" + nl$
+    o$ = o$ + "' writes it; a player's own changes go in tuning.txt. A machine's EASY health is" + nl$
+    o$ = o$ + "' monsters.txt's." + nl$ + nl$
+    FOR r = 1 TO tuneN
+        b$ = "" : k = 0
+        FOR s = 0 TO 3
+            v! = tuneV(r, s)
+            IF tuneKind(r) = TK_MONHP AND s = 0 THEN
+                b$ = b$ + " -"
+            ELSE
+                IF v! <> tuneC(r, s) THEN k = -1
+                b$ = b$ + " " + TuneNum$(v!)
+            END IF
+            tuneD(r, s) = v!
+        NEXT
+        IF k THEN o$ = o$ + tuneKey$(r) + " =" + b$ + nl$ : n = n + 1
+    NEXT
+    IF n = 0 THEN o$ = o$ + "' (none: the defaults are as coded)" + nl$
+    IF _FILEEXISTS(d$) THEN KILL d$
+    fh = FREEFILE : OPEN d$ FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+    WriteTuning ' (the player's tuning.txt: nothing differs now)
+    TuneBake = n
+END FUNCTION
+
+' --- How many shots (or kicks) destroy row r's thing at difficulty s with
+' weapon w (1-5 the guns, 6 the kick): every pellet landing, the rocket
+' landing on it (its hit and the blast's best), no headshots, no amp. 0:
+' that weapon can't. A machine, a breakable, glass or a droid.
+FUNCTION TuneShots(r, s, w)
+    DIM d!, hp! ' (its own: the main program shares these names)
+    hp! = TuneAt!(r, s)
+    SELECT CASE w
+        CASE W_ROCKET
+            SELECT CASE tuneKind(r)
+                CASE TK_MONHP : d! = tuneV(tuRockHit, s) + tuneV(tuRockMon, s) + 1
+                CASE TK_DECOHP : d! = 9 ' (a blast's best on a breakable: BlastSized)
+                CASE TK_GLASS : d! = 99
+                CASE TK_DROID : d! = 5
+            END SELECT
+        CASE 6 ' The kick
+            SELECT CASE tuneKind(r)
+                CASE TK_MONHP, TK_DECOHP : d! = tuneV(tuKick, s)
+                CASE TK_GLASS : d! = 1
+            END SELECT
+        CASE ELSE
+            d! = tuneV(tuneGunDmg(w), s)
+            IF w = W_SCATTER THEN d! = d! * tuneV(tuPellets, s)
+            IF w = W_RAIL AND tuneKind(r) = TK_GLASS THEN d! = 99
+    END SELECT
+    IF d! <= 0 THEN EXIT FUNCTION
+    TuneShots = -INT(-hp! / d!)
+END FUNCTION
+
+' ...and how long that takes, in seconds (the first shot at once)
+FUNCTION TuneSecs!(r, s, w)
+    DIM n, f ' (its own: the main program shares these names)
+    n = TuneShots(r, s, w) : IF n = 0 THEN EXIT FUNCTION
+    IF w = 6 THEN f = KICK_FRAMES ELSE f = tuneV(tuneGunDelay(w), s)
+    TuneSecs! = (n - 1) * f / 60
+END FUNCTION
+
+' Is row r a thing to destroy (it has shots)?
+FUNCTION TuneTarget(r)
+    TuneTarget = (tuneKind(r) <= TK_DROID)
+END FUNCTION
+
+FUNCTION TuneWeapon$(w)
+    IF w = 6 THEN TuneWeapon$ = "KICK" ELSE TuneWeapon$ = gunName$(w)
+END FUNCTION
+
+' A machine type t's hit on you at difficulty s: its least and most
+SUB TuneMonHit(t, s, lo, hi)
+    DIM p! ' (its own: the main program shares these names)
+    lo = mtypeDamage(t) : hi = mtypeDamage(t) + MaxOf(0, mtypeDamageRnd(t) - 1)
+    p! = tuneV(tuHurt, s)
+    IF p! = tuneC(tuHurt, s) THEN
+        IF s = SKILL_NIGHTMARE THEN lo = INT(lo * 1.25 + 0.5) : hi = INT(hi * 1.25 + 0.5)
+    ELSE
+        IF lo > 0 THEN lo = MaxOf(1, INT(lo * p! / 100 + 0.5))
+        IF hi > 0 THEN hi = MaxOf(1, INT(hi * p! / 100 + 0.5))
+    END IF
+END SUB
+
+' --- The CSV: saves/tuning.csv, a row a line - edit easy, normal, hard and
+' nightmare in a spreadsheet, and TuneImport reads them back (by the header's
+' names, so the columns can be moved). The defaults, range and unit are there
+' to read. And saves/tuning-report.csv: every thing to destroy, at every
+' difficulty - its health, and the shots (and seconds) each weapon takes.
+SUB TuneExport
+    DIM fh, nl$, o$, r, s, t, w, lo, hi ' (its own: the main program shares these names)
+    nl$ = CHR$(13) + CHR$(10)
+    o$ = "group,key,name,unit,easy,normal,hard,nightmare,default_easy,default_normal,default_hard,default_nightmare,min,max,step" + nl$
+    FOR r = 1 TO tuneN
+        o$ = o$ + tuneGroup$(r) + "," + tuneKey$(r) + "," + tuneName$(r) + "," + tuneUnit$(r)
+        FOR s = 0 TO 3 : o$ = o$ + "," + TuneNum$(TuneAt!(r, s)) : NEXT
+        FOR s = 0 TO 3 : o$ = o$ + "," + TuneNum$(tuneD(r, s)) : NEXT
+        o$ = o$ + "," + TuneNum$(tuneLo(r)) + "," + TuneNum$(tuneHi(r)) + "," + TuneNum$(tuneStep(r)) + nl$
+    NEXT
+    IF _FILEEXISTS(SaveDir$ + "tuning.csv") THEN KILL SaveDir$ + "tuning.csv"
+    fh = FREEFILE : OPEN SaveDir$ + "tuning.csv" FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+    o$ = "difficulty,group,thing,health"
+    FOR w = 1 TO 6 : o$ = o$ + "," + LCASE$(TuneWeapon$(w)) : NEXT
+    FOR w = 1 TO 6 : o$ = o$ + "," + LCASE$(TuneWeapon$(w)) + "_seconds" : NEXT
+    o$ = o$ + ",its_hit_on_you" + nl$
+    FOR s = 0 TO 3
+        FOR r = 1 TO tuneN
+            IF TuneTarget(r) THEN
+                o$ = o$ + SkillName$(s) + "," + tuneGroup$(r) + "," + tuneName$(r) + "," + TuneNum$(TuneAt!(r, s))
+                FOR w = 1 TO 6 : IF TuneShots(r, s, w) THEN o$ = o$ + "," + TuneNum$(TuneShots(r, s, w)) ELSE o$ = o$ + ",-"
+                NEXT
+                FOR w = 1 TO 6 : IF TuneShots(r, s, w) THEN o$ = o$ + "," + TuneNum$(INT(TuneSecs!(r, s, w) * 100 + 0.5) / 100) ELSE o$ = o$ + ",-"
+                NEXT
+                IF tuneKind(r) = TK_MONHP THEN
+                    t = tuneRef(r) : TuneMonHit t, s, lo, hi
+                    IF hi > lo THEN o$ = o$ + "," + TuneNum$(lo) + "-" + TuneNum$(hi) ELSE o$ = o$ + "," + TuneNum$(lo)
+                ELSE
+                    o$ = o$ + ","
+                END IF
+                o$ = o$ + nl$
+            END IF
+        NEXT
+    NEXT
+    IF _FILEEXISTS(SaveDir$ + "tuning-report.csv") THEN KILL SaveDir$ + "tuning-report.csv"
+    fh = FREEFILE : OPEN SaveDir$ + "tuning-report.csv" FOR BINARY AS #fh : PUT #fh, , o$ : CLOSE #fh
+END SUB
+
+' Read saves/tuning.csv back: each row's normal, hard and nightmare - and
+' easy too only if easy. How many values it changed (-1: no file).
+FUNCTION TuneImport(easy)
+    DIM c, cols(4), fh, k, l$, n, r, s, v$, hdr ' (its own: the main program shares these names)
+    IF NOT _FILEEXISTS(SaveDir$ + "tuning.csv") THEN TuneImport = -1 : EXIT FUNCTION
+    fh = FREEFILE : OPEN SaveDir$ + "tuning.csv" FOR INPUT AS #fh
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$
+        IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = LEFT$(l$, LEN(l$) - 1)
+        l$ = TuneUnquote$(l$)
+        IF hdr = 0 THEN ' The header: which column is which
+            hdr = -1
+            FOR c = 1 TO 40
+                SELECT CASE LCASE$(LTRIM$(RTRIM$(TuneCell$(l$, c))))
+                    CASE "key" : cols(4) = c
+                    CASE "easy" : cols(0) = c
+                    CASE "normal" : cols(1) = c
+                    CASE "hard" : cols(2) = c
+                    CASE "nightmare" : cols(3) = c
+                END SELECT
+            NEXT
+            IF cols(4) = 0 THEN EXIT DO
+        ELSE
+            r = TuneFind(LCASE$(LTRIM$(RTRIM$(TuneCell$(l$, cols(4))))))
+            IF r THEN
+                FOR s = 0 TO 3
+                    IF cols(s) AND (s > 0 OR easy) THEN
+                        v$ = LTRIM$(RTRIM$(TuneCell$(l$, cols(s))))
+                        IF LEN(v$) THEN
+                            k = (TuneAt!(r, s) <> TuneClamp!(r, VAL(v$)))
+                            TuneSet r, s, VAL(v$) : IF k THEN n = n + 1
+                        END IF
+                    END IF
+                NEXT
+            END IF
+        END IF
+    LOOP
+    CLOSE #fh
+    TuneImport = n
+END FUNCTION
+
+' Field c of a CSV line (no commas inside a field here: a spreadsheet's
+' quotes are taken off first)
+FUNCTION TuneCell$(l$, c)
+    DIM i, p, q ' (its own: the main program shares these names)
+    p = 1
+    FOR i = 1 TO c - 1
+        q = INSTR(p, l$, ",") : IF q = 0 THEN EXIT FUNCTION
+        p = q + 1
+    NEXT
+    q = INSTR(p, l$, ",") : IF q = 0 THEN q = LEN(l$) + 1
+    TuneCell$ = MID$(l$, p, q - p)
+END FUNCTION
+
+' Word k (from 1) of a line split by spaces or commas
+FUNCTION TuneWord$(l$, k)
+    DIM i, n, c$, w$ ' (its own: the main program shares these names)
+    FOR i = 1 TO LEN(l$) + 1
+        c$ = MID$(l$, i, 1)
+        IF c$ = " " OR c$ = "," OR c$ = CHR$(9) OR c$ = "" THEN
+            IF LEN(w$) THEN n = n + 1 : IF n = k THEN TuneWord$ = w$ : EXIT FUNCTION
+            w$ = ""
+        ELSE
+            w$ = w$ + c$
+        END IF
+    NEXT
+END FUNCTION
+
+FUNCTION TuneUnquote$(l$)
+    DIM i, o$ ' (its own: the main program shares these names)
+    FOR i = 1 TO LEN(l$)
+        IF MID$(l$, i, 1) <> CHR$(34) THEN o$ = o$ + MID$(l$, i, 1)
+    NEXT
+    TuneUnquote$ = o$
+END FUNCTION

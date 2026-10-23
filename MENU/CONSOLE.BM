@@ -116,8 +116,8 @@ SUB RunConsole STATIC
         CLS , _RGBA32(0, 0, 0, 0)
         _PUTIMAGE , conBackdrop&, 0
         DrawConsole conLine$
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows
         ShowFrame
     LOOP
     _FREEIMAGE conBackdrop&
@@ -465,7 +465,7 @@ SUB ConExec STATIC
             numMonsters = monStartN
             FOR i = 1 TO numMonsters
                 monsterX(i) = monStartX(i) : monsterY(i) = monStartY(i) : monsterType(i) = monStartType(i)
-                monsterHP(i) = SkillHP(mtypeHP(monsterType(i))) : monsterState(i) = 0 : monsterTimer(i) = 0
+                monsterHP(i) = MonHP(monsterType(i), 100) : monsterState(i) = 0 : monsterTimer(i) = 0
                 monsterHurt(i) = 0 : monsterAtk(i) = 0 : monsterAnim(i) = 0 : monsterEv(i) = 0
                 mf = monFrom(i) : MonFresh i : monFrom(i) = mf : monFly(i) = 0 ' (a turret: folded away again, on its own mount)
                 MonOwn i, INT(monStartX(i)), INT(monStartY(i))
@@ -820,6 +820,20 @@ SUB ConExec STATIC
                 CASE ELSE : IF NOT hudEdit THEN HudEditEnter
             END SELECT
             conLevelChanged = -1
+        CASE "tuning", "tuner" ' The tuner (EDITOR/TUNER.BM) - or tuning export / import [easy] / save / reset [easy] / bake
+            SELECT CASE ConWord$(conA$, 1)
+                CASE "export" : TuneExport : ConPrint "wrote " + SaveDir$ + "tuning.csv and tuning-report.csv"
+                CASE "import"
+                    k = TuneImport(ConWord$(conA$, 2) = "easy")
+                    IF k < 0 THEN ConPrint "no " + SaveDir$ + "tuning.csv - tuning export writes one" ELSE ConPrint "tuning.csv read:" + STR$(k) + " changed (tuning save keeps them)"
+                CASE "save" : WriteTuning : ConPrint "wrote " + TunePath$
+                CASE "reset" : TuneResetAll ConWord$(conA$, 2) = "easy" : ConPrint "tuning: all back to the defaults (tuning save keeps it)"
+                CASE "bake"
+                    k = TuneBake
+                    ConPrint "tuning baked: the defaults now -" + STR$(k) + " rows differ from as coded (tuning-defaults.txt;"
+                    ConPrint "  the old defaults in tuning-defaults.bak, every row as coded in tuning-original.txt)"
+                CASE ELSE : RunTuner : conLevelChanged = -1
+            END SELECT
         CASE "monsters" ' The monster editor - or monsters save: write monsters.txt as they are
             IF conA$ = "save" THEN WriteMonsters : ConPrint "wrote " + AssetPath$("monsters.txt") ELSE RunMonsterEditor : conLevelChanged = -1
         CASE "puzzle" ' puzzle NAME: try a code puzzle (from neon-caster/puzzles) - no doors at stake
@@ -843,7 +857,9 @@ SUB ConExec STATIC
         CASE "record" ' record NAME [SEED]: a demo of this sector, from its start - your keys, frame by frame - till the exit (or stopdemo). SEED: the dice start there (tests)
             dn$ = DemoFileName$(DemoWord$(conRest$, 1)) : dSeedWant# = VAL(DemoWord$(conRest$, 2))
             demoRecQuit = (LCASE$(DemoWord$(conRest$, 2)) = "quit" OR LCASE$(DemoWord$(conRest$, 3)) = "quit") ' (quit: the game ends once it's saved at the exit - for scripts)
-            IF dn$ = "" THEN
+            IF dn$ = "" AND LEN(conRest$) = 0 AND NOT editMode THEN
+                DemoRecordKey : conLevelChanged = -1 ' (record alone: as Ctrl+R - with what you came in with, on through the sectors)
+            ELSEIF dn$ = "" THEN
                 ConPrint "record NAME: this sector again from its start, recorded as a demo (the exit, or stopdemo, ends it)"
             ELSEIF editMode THEN
                 ConPrint "record: F2 out of the editor first"
@@ -851,7 +867,7 @@ SUB ConExec STATIC
                 ConPrint "record: no sector to record"
             ELSE
                 IF demoRec OR demoPlay THEN DemoStop
-                demoName$ = dn$ : DemoRecordStart : conLevelChanged = -1
+                demoName$ = dn$ : dCarry$ = "" : DemoRecordStart : demoChain = 0 : conLevelChanged = -1 ' (from nothing, as ever: tests and shipped demos)
             END IF
         CASE "playdemo", "demo" ' playdemo NAME [quit]: a demo played back (quit: the game ends with it - for tests)
             dn$ = DemoFileName$(DemoWord$(conRest$, 1)) : dFile$ = ""
@@ -1371,7 +1387,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters tuning tuner use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1402,7 +1418,7 @@ SUB ConHelp(c$)
             ConPrint "  ^6demos     ^7record^8 NAME [SEED] [quit]  ^7playdemo^8 NAME [quit]  ^7stopdemo  ^7demos"
             ConPrint "            ^7playlist^8 [next|back|random|stop|speed X]"
             ConPrint "            ^7bot^8 [on|off|human N|safe]"
-            ConPrint "  ^6editors   ^7hud  ^7monsters  ^7achievements  ^7achieve^8 NAME  ^7resetachievements"
+            ConPrint "  ^6editors   ^7hud  ^7monsters  ^7tuning  ^7achievements  ^7achieve^8 NAME  ^7resetachievements"
             ConPrint "  ^6the rest  ^7version  ^7clear  ^7menu  ^7soundtest  ^7quit"
             ConPrint "^3^5Keys^0: ^7Up Down^8 earlier lines  ^7Tab^8 finish a name  ^7Ctrl+V^8 paste  ^7PgUp PgDn wheel^8 scroll back"
             ConPrint "  ^7Home End^8 oldest, newest  ^7F11^8 fill the screen  ^7` Esc^8 close"
@@ -1571,7 +1587,9 @@ SUB ConHelp(c$)
         CASE "say" : ConPrint "^3say LINE^0: NEXUS speaks a line by its key (say taunt3) - the lines are in speech.txt"
         CASE "cutscene" : ConPrint "^3cutscene [SECTOR]^0: play a sector's transmission (this one's, or SECTOR's)"
         ' --- demos
-        CASE "record" : ConPrint "^3record NAME [SEED] [quit]^0: this sector again from its start, recorded as a demo - every key, frame by frame - till the exit (or stopdemo). quit: the game ends when it's saved"
+        CASE "record"
+            ConPrint "^3record NAME [SEED] [quit]^0: this sector again from its start, recorded as a demo - every key, frame by frame - till the exit (or stopdemo). quit: the game ends when it's saved"
+            ConPrint "^3record^0 alone: as Ctrl+R - again with what you came in with, on into each sector; again: stop"
         CASE "playdemo", "demo" : ConPrint "^3playdemo NAME [quit]^0: a demo played back, exactly as it was played (quit: the game ends with it, for tests)"
         CASE "stopdemo" : ConPrint "^3stopdemo^0: stop recording (it's saved) or playing a demo"
         CASE "playlist"
@@ -1583,6 +1601,11 @@ SUB ConHelp(c$)
         ' --- editors, achievements, the rest
         CASE "hud" : ConPrint "^3hud^0: the HUD layout editor. hud off: leave it; hud save: write hud.txt as it is; hud reset: the layout as it was made"
         CASE "monsters" : ConPrint "^3monsters^0: the monster editor (every kind's numbers). monsters save: write monsters.txt as they are"
+        CASE "tuning", "tuner"
+            ConPrint "^3tuning^0 (or tuner): the tuner - health, damage and shots to destroy at each difficulty"
+            ConPrint "^3tuning export^0: saves/tuning.csv to edit, and tuning-report.csv. ^3tuning import [easy]^0: read it"
+            ConPrint "^3tuning save^0: write tuning.txt. ^3tuning reset [easy]^0: all to defaults (EASY only with easy)"
+            ConPrint "^3tuning bake^0: what's tuned becomes the defaults (tuning-defaults.txt; old ones kept: .bak)"
         CASE "achievements", "ach" : ConPrint "^3achievements^0: every one - got it or not, and how far a counted one's got"
         CASE "achieve" : ConPrint "^3achieve NAME^0: unlock one by its name (achievements lists them) - testing, a cheat"
         CASE "resetachievements" : ConPrint "^3resetachievements^0: every achievement and stat back to nothing"

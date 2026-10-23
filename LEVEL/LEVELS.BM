@@ -88,6 +88,7 @@ END SUB
 
 ' --- Into level number `level`, remembering what you bring with you
 SUB EnterLevel STATIC
+    entryCarry$ = DemoCarryNow$ ' (what Ctrl+R records this sector with)
     savedHealth = health : savedArmor = armor : savedCells = ammoCount(AM_CELLS) : savedShells = ammoCount(AM_SHELLS) : savedRockets = ammoCount(AM_ROCKETS) : savedRounds = ammoCount(AM_ROUNDS) : savedSlugs = ammoCount(AM_SLUGS) : savedGun = currentGun
     FOR gun = 1 TO NUM_GUNS : savedHasGun(gun) = hasGun(gun) : NEXT
     LoadLevel
@@ -97,6 +98,7 @@ END SUB
 ' --- You died: the level starts over, and you have what you came in with
 SUB RestartLevel STATIC
     StartLoadout ' (a clean slate: full health, the blaster, 30 cells)
+    entryCarry$ = DemoCarryNow$
     IF editDirty THEN ' (died play-testing edits not saved yet: the sector again as edited - not its file, which would lose them)
         trigLoadN = trigLoadN + 1 : editRebuild = -1 : BuildLevel : editRebuild = 0
         playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H : lvFrame = 0 : levelStart! = TIMER ' (on the start's floor, the clock from 0)
@@ -261,18 +263,19 @@ SUB LevelDone STATIC
             MenuText 400, 520, prompt$, 1, _RGB32(220, 220, 240), 1
         END IF
         AchDrawToast -1 ' (achievements the sector's end unlocked - at the top, clear of the badges down the right)
-        IF glReady THEN GLCapture ' (OpenGL draws the tally over its view: chapter 24)
-        GLScreenLayer glReady
+        IF GLShows THEN GLCapture ' (OpenGL draws the tally over its view: chapter 24)
+        GLScreenLayer GLShows
         ShowFrame
     LOOP
     _FREEIMAGE screenshot&
     IF level > NUM_LEVELS THEN ' (your own sector: again, from the start)
-        RestartLevel
+        demoChainWant = 0 : RestartLevel
     ELSEIF level = NUM_LEVELS THEN
-        NewGame
+        demoChainWant = 0 : NewGame
     ELSE
         ShowRoute ' (where you've been, where you're going)
-        level = level + 1 : EnterLevel
+        level = level + 1
+        IF demoChainWant THEN DemoChainNext ELSE EnterLevel ' (a Ctrl+R recording goes on recording, with all you bring)
     END IF
 END SUB
 
@@ -331,8 +334,8 @@ SUB ShowRoute STATIC
             FOR k = 0 TO 8 : LINE (bx - 8 + k, by - 44 + k)-(bx + 8 - k, by - 44 + k), _RGB32(255, 240, 120) : NEXT
         END IF
         MenuText 400, 560, "CLICK OR PRESS SPACE TO GO ON", 1, _RGB32(220, 220, 240), 1
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows
         ShowFrame
     LOOP
     _KEYCLEAR

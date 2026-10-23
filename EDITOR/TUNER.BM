@@ -1,0 +1,413 @@
+''
+' NEON-CASTER - EDITOR/TUNER.BM
+' =============================================================================
+' The tuner: the tuning table (GAME/TUNING.BI) on a screen - every row's four
+' values, one a difficulty, and below, how many shots the chosen thing takes
+' with each weapon at each difficulty, worked out again as you change them.
+'
+' Up/Down a row (PgUp/PgDn, Home/End), Left/Right a difficulty, + and - change
+' it (Shift: ten steps), or type a number and Enter. R puts it back to its default
+' (Shift+R: the whole row). E unlocks EASY - the game every shipped demo was
+' recorded in. S saves tuning.txt, X writes saves/tuning.csv and the report,
+' I reads tuning.csv back. Click a value to pick it; the wheel scrolls.
+'
+
+' A number for the tuner: whole, or with its fraction
+FUNCTION TnNum$(v!)
+    TnNum$ = TuneNum$(INT(v! * 100 + 0.5) / 100)
+END FUNCTION
+
+' n shots, and the seconds they take (one: just 1)
+FUNCTION TnShots$(r, s, w)
+    DIM n ' (its own: the main program shares these names)
+    n = TuneShots(r, s, w)
+    IF n = 0 THEN TnShots$ = "-" : EXIT FUNCTION
+    IF n = 1 THEN TnShots$ = "1" : EXIT FUNCTION
+    TnShots$ = LTRIM$(STR$(n)) + " " + TnNum$(INT(TuneSecs!(r, s, w) * 10 + 0.5) / 10) + "s"
+END FUNCTION
+
+' s$ right-aligned in n characters
+FUNCTION TnPad$(s$, n)
+    IF LEN(s$) >= n THEN TnPad$ = s$ ELSE TnPad$ = SPACE$(n - LEN(s$)) + s$
+END FUNCTION
+
+' s$ left-aligned in n characters
+FUNCTION TnLeft$(s$, n)
+    TnLeft$ = LEFT$(s$ + SPACE$(n), n)
+END FUNCTION
+
+' The screen's lines: a group's heading (-its first row) or a row
+SUB TnLines(vis(), nv)
+    DIM r ' (its own: the main program shares these names)
+    nv = 0
+    FOR r = 1 TO tuneN
+        IF r = 1 THEN
+            nv = nv + 1 : vis(nv) = -r
+        ELSEIF tuneGroup$(r) <> tuneGroup$(r - 1) THEN
+            nv = nv + 1 : vis(nv) = -r
+        END IF
+        nv = nv + 1 : vis(nv) = r
+    NEXT
+END SUB
+
+CONST TN_TOP = 86, TN_LINE = 18, TN_SHOW = 17 ' (the list: where, how far apart, how many lines)
+CONST TN_PICX = 636, TN_PIC = 144 ' (the chosen thing's picture: its box, top right)
+
+' The four value boxes' left edges
+FUNCTION TnColX(s)
+    TnColX = 168 + s * 84
+END FUNCTION
+
+SUB RunTuner
+    DIM vis(TUNE_MAX * 2), nv, k&, sh, i, v!, r, m, tmx, tmy, tmd, tmWas, wheel, line1, l
+    _KEYCLEAR : tnDone = 0 : tnMsg$ = "" : tnType$ = "" : tnLeave = 0
+    IF tnRow < 1 OR tnRow > tuneN THEN tnRow = 1
+    IF tnCol < 0 OR tnCol > 3 THEN tnCol = 1
+    TnLines vis(), nv
+    IF tnBlaster& = 0 THEN tnBlaster& = -1 : IF _FILEEXISTS(ArtPath$("pickup-blaster.png")) THEN tnBlaster& = _LOADIMAGE(ArtPath$("pickup-blaster.png"), 32) ' (the blaster's picture: never a pickup)
+    DO
+        _LIMIT 60
+        wheel = 0 : WHILE _MOUSEINPUT : wheel = wheel + _MOUSEWHEEL : WEND
+        tmx = WideMouseX(_MOUSEX) : tmy = _MOUSEY : tmd = _MOUSEBUTTON(1)
+        IF wheel THEN tnTop = tnTop + wheel * 3
+        IF tmd AND NOT tmWas THEN ' A click: a value picks its row and difficulty
+            l = (tmy - TN_TOP) \ TN_LINE + tnTop
+            IF tmy >= TN_TOP AND l >= 1 AND l <= nv AND l < tnTop + TN_SHOW THEN
+                IF vis(l) > 0 THEN
+                    tnRow = vis(l) : tnType$ = ""
+                    FOR i = 0 TO 3
+                        IF tmx >= TnColX(i) AND tmx < TnColX(i) + 80 THEN tnCol = i
+                    NEXT
+                END IF
+            END IF
+        END IF
+        tmWas = tmd
+        k& = _KEYHIT
+        DO WHILE k&
+            sh = _KEYDOWN(100304) OR _KEYDOWN(100303)
+            IF k& <> 27 THEN tnLeave = 0
+            SELECT CASE k&
+                CASE 27 ' Esc: a number being typed, else leave (twice, with changes not saved)
+                    IF LEN(tnType$) THEN
+                        tnType$ = ""
+                    ELSEIF tuneDirty AND tnLeave = 0 THEN
+                        tnLeave = -1 : tnMsg$ = "Not saved: S saves to tuning.txt - Esc again leaves (they last till you quit)"
+                    ELSE
+                        tnDone = -1
+                    END IF
+                CASE 18432 : TnMove -1, vis(), nv
+                CASE 20480 : TnMove 1, vis(), nv
+                CASE 18688 : TnMove -TN_SHOW + 2, vis(), nv
+                CASE 20736 : TnMove TN_SHOW - 2, vis(), nv
+                CASE 18176 : tnRow = 1 : tnType$ = ""
+                CASE 20224 : tnRow = tuneN : tnType$ = ""
+                CASE 19200 : tnCol = MaxOf(0, tnCol - 1) : tnType$ = ""
+                CASE 19712 : tnCol = MinOf(3, tnCol + 1) : tnType$ = ""
+                CASE 43, 61 : TnChange tuneStep(tnRow) * (1 - 9 * sh) ' + (Shift: x10 - a held key reads -1)
+                CASE 45, 95 : TnChange -tuneStep(tnRow) * (1 - 9 * sh) ' -
+                CASE 48 TO 57, 46 : IF LEN(tnType$) < 6 THEN tnType$ = tnType$ + CHR$(k&)
+                CASE 8 : IF LEN(tnType$) THEN tnType$ = LEFT$(tnType$, LEN(tnType$) - 1)
+                CASE 13
+                    IF LEN(tnType$) THEN
+                        IF TnCanEdit(tnCol) THEN TuneSet tnRow, tnCol, VAL(tnType$) : tnMsg$ = ""
+                        tnType$ = ""
+                    END IF
+                CASE 101, 69 ' E: EASY locked, or not
+                    tuneEasyOpen = NOT tuneEasyOpen
+                    IF tuneEasyOpen THEN tnMsg$ = "EASY unlocked: every shipped demo was recorded at EASY - change it, and re-record them" ELSE tnMsg$ = "EASY locked"
+                CASE 114 ' r: this one as made
+                    IF TnCanEdit(tnCol) THEN TuneSet tnRow, tnCol, tuneD(tnRow, tnCol) : tnMsg$ = tuneName$(tnRow) + " at " + SkillName$(tnCol) + ": default"
+                CASE 82 ' R: the whole row as made
+                    FOR i = 0 TO 3
+                        IF i > 0 OR tuneEasyOpen THEN TuneSet tnRow, i, tuneD(tnRow, i)
+                    NEXT
+                    tnMsg$ = tuneName$(tnRow) + ": defaults" : IF NOT tuneEasyOpen THEN tnMsg$ = tnMsg$ + " (but EASY: locked)"
+                CASE 115, 83 : WriteTuning : tnMsg$ = "Saved " + TunePath$ + "  (health takes effect as a sector starts)"
+                CASE 120, 88 : TuneExport : tnMsg$ = "Wrote " + SaveDir$ + "tuning.csv and tuning-report.csv"
+                CASE 105, 73 ' I: tuning.csv back
+                    m = TuneImport(tuneEasyOpen)
+                    IF m < 0 THEN
+                        tnMsg$ = "No " + SaveDir$ + "tuning.csv - X writes one"
+                    ELSE
+                        tnMsg$ = "Read tuning.csv:" + STR$(m) + " changed" : IF NOT tuneEasyOpen THEN tnMsg$ = tnMsg$ + " (EASY locked: its column left alone)"
+                    END IF
+            END SELECT
+            k& = _KEYHIT
+        LOOP
+        IF tnDone THEN EXIT DO
+        ' Keep the chosen row in view (unless the wheel's looking elsewhere)
+        line1 = 0
+        FOR i = 1 TO nv
+            IF vis(i) = tnRow THEN line1 = i
+        NEXT
+        IF wheel = 0 THEN
+            IF line1 < tnTop + 1 THEN tnTop = line1 - 1
+            IF line1 > tnTop + TN_SHOW - 1 THEN tnTop = line1 - TN_SHOW + 1
+        END IF
+        IF tnTop > nv - TN_SHOW + 1 THEN tnTop = nv - TN_SHOW + 1
+        IF tnTop < 1 THEN tnTop = 1
+        DrawTuner vis(), nv
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows
+        ShowFrame
+    LOOP
+    _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1
+END SUB
+
+' Can difficulty s's column be changed (EASY: only unlocked)?
+FUNCTION TnCanEdit(s)
+    TnCanEdit = -1
+    IF s = 0 AND NOT tuneEasyOpen THEN TnCanEdit = 0 : tnMsg$ = "EASY is locked - E unlocks it"
+END FUNCTION
+
+' The chosen value, d more
+SUB TnChange(d!)
+    IF TnCanEdit(tnCol) THEN TuneSet tnRow, tnCol, TuneAt!(tnRow, tnCol) + d! : tnMsg$ = "" : tnType$ = ""
+END SUB
+
+' The chosen row, d rows on (headings skipped)
+SUB TnMove(d, vis(), nv)
+    tnRow = tnRow + d : tnType$ = ""
+    IF tnRow < 1 THEN tnRow = 1
+    IF tnRow > tuneN THEN tnRow = tuneN
+END SUB
+
+SUB DrawTuner(vis(), nv)
+    DIM c~&, i, l, r, s, w, x, y, t$, v!, hi, lo, n ' (its own: the main program shares these names)
+    LINE (0, 0)-(799, 599), _RGB32(12, 6, 20), BF
+    COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, 12), "TUNER"
+    COLOR _RGB32(150, 140, 180) : _PRINTSTRING (80, 12), "health, damage, ammo and shots - at each difficulty"
+    IF tuneEasyOpen THEN COLOR _RGB32(255, 120, 90) : t$ = "EASY: UNLOCKED" ELSE COLOR _RGB32(120, 200, 140) : t$ = "EASY: LOCKED"
+    _PRINTSTRING (776 - 8 * LEN(t$), 12), t$
+    COLOR _RGB32(170, 160, 210)
+    _PRINTSTRING (24, 32), "Up/Down row  Left/Right difficulty  + - change (Shift x10)  or type a number + Enter"
+    _PRINTSTRING (24, 48), "R default (Shift: row)  E lock EASY  S save  X export CSV  I import CSV  Esc back"
+    ' The columns' headings
+    y = TN_TOP - 20
+    FOR s = 0 TO 3
+        IF s = tnCol THEN COLOR _RGB32(255, 255, 120) ELSE IF s = 0 AND NOT tuneEasyOpen THEN COLOR _RGB32(100, 95, 120) ELSE COLOR _RGB32(200, 200, 230)
+        _PRINTSTRING (TnColX(s) + 76 - 8 * LEN(SkillName$(s)), y), SkillName$(s)
+    NEXT
+    ' The list
+    FOR l = tnTop TO MinOf(nv, tnTop + TN_SHOW - 1)
+        y = TN_TOP + (l - tnTop) * TN_LINE : r = vis(l)
+        IF r < 0 THEN ' A group's heading
+            COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, y + 1), tuneGroup$(-r)
+            LINE (24 + 8 * LEN(tuneGroup$(-r)) + 8, y + 9)-(TN_PICX - 12, y + 9), _RGB32(70, 40, 90)
+        ELSE
+            IF r = tnRow THEN LINE (20, y - 1)-(TN_PICX - 12, y + 16), _RGB32(40, 16, 52), BF
+            IF r = tnRow THEN COLOR _RGB32(255, 255, 255) ELSE COLOR _RGB32(190, 185, 215)
+            _PRINTSTRING (32, y + 1), LEFT$(tuneName$(r), 16)
+            FOR s = 0 TO 3
+                x = TnColX(s) : v! = TuneAt!(r, s)
+                IF r = tnRow AND s = tnCol THEN LINE (x, y - 1)-(x + 80, y + 16), _RGB32(90, 30, 100), BF
+                IF v! <> tuneD(r, s) THEN c~& = _RGB32(255, 220, 90) ELSE c~& = _RGB32(200, 200, 230) ' (changed: yellow)
+                IF s = 0 AND NOT tuneEasyOpen THEN c~& = _RGB32(110, 105, 130)
+                t$ = TnNum$(v!) : IF r = tnRow AND s = tnCol AND LEN(tnType$) THEN t$ = tnType$ + "_" : c~& = _RGB32(120, 255, 255)
+                COLOR c~& : _PRINTSTRING (x + 76 - 8 * LEN(t$), y + 1), t$
+            NEXT
+            COLOR _RGB32(110, 105, 130) : _PRINTSTRING (TnColX(3) + 92, y + 1), LEFT$(tuneUnit$(r), 12)
+        END IF
+    NEXT
+    IF tnTop > 1 THEN COLOR _RGB32(150, 140, 180) : _PRINTSTRING (8, TN_TOP), CHR$(24)
+    IF tnTop + TN_SHOW - 1 < nv THEN COLOR _RGB32(150, 140, 180) : _PRINTSTRING (8, TN_TOP + (TN_SHOW - 1) * TN_LINE), CHR$(25)
+    ' Its picture, top right
+    r = tnRow
+    LINE (TN_PICX, TN_TOP)-STEP(TN_PIC, TN_PIC), _RGB32(28, 20, 40), BF
+    LINE (TN_PICX, TN_TOP)-STEP(TN_PIC, TN_PIC), _RGB32(70, 40, 90), B
+    TnPicture r, TN_PICX + 6, TN_TOP + 6, TN_PIC - 12, TN_PIC - 12
+    t$ = TnPicName$(r) : COLOR _RGB32(200, 200, 230) : _PRINTSTRING (TN_PICX + TN_PIC \ 2 - 4 * LEN(t$), TN_TOP + TN_PIC + 6), t$
+    ' Below: what the chosen row means
+    y = TN_TOP + TN_SHOW * TN_LINE + 6
+    LINE (16, y - 4)-(784, y - 4), _RGB32(70, 40, 90)
+    IF TuneTarget(r) THEN ' A thing to destroy: its shots with each weapon, at every difficulty
+        COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, y), "SHOTS TO DESTROY " + tuneName$(r) + "  (and seconds of firing; every pellet landing)"
+        FOR w = 1 TO 6 : TnWeaponPic w, 24 + 17 * 8 + (w - 1) * 80 + 14, y + 20, 64, 30 : NEXT
+        t$ = TnLeft$("", 10) + TnPad$("HEALTH", 7)
+        FOR w = 1 TO 6 : t$ = t$ + TnPad$(TuneWeapon$(w), 10) : NEXT
+        IF tuneKind(r) = TK_MONHP THEN t$ = t$ + TnPad$("HITS YOU", 10)
+        COLOR _RGB32(150, 140, 180) : _PRINTSTRING (24, y + 54), t$
+        FOR s = 0 TO 3
+            t$ = TnLeft$(SkillName$(s), 10) + TnPad$(TnNum$(TuneAt!(r, s)), 7)
+            FOR w = 1 TO 6 : t$ = t$ + TnPad$(TnShots$(r, s, w), 10) : NEXT
+            IF tuneKind(r) = TK_MONHP THEN
+                TuneMonHit tuneRef(r), s, lo, hi
+                IF hi > lo THEN t$ = t$ + TnPad$(TnNum$(lo) + "-" + TnNum$(hi), 10) ELSE t$ = t$ + TnPad$(TnNum$(lo), 10)
+            END IF
+            IF s = tnCol THEN COLOR _RGB32(255, 255, 120) ELSE COLOR _RGB32(200, 200, 230)
+            _PRINTSTRING (24, y + 74 + s * 18), t$
+        NEXT
+    ELSEIF tuneKind(r) >= TK_AMMOMAX AND tuneKind(r) <= TK_GUNPICK THEN ' Ammo: what a load, a box and a gun's pickup come to
+        IF tuneKind(r) = TK_GUNPICK THEN i = gunAmmoType(tuneRef(r)) ELSE i = tuneRef(r)
+        w = AmmoGunOf(i)
+        COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, y), UCASE$(AmmoName$(i)) + " - THE " + gunName$(w) + "'S AMMO, AT EACH DIFFICULTY"
+        COLOR _RGB32(150, 140, 180) : _PRINTSTRING (24, y + 20), TnLeft$("", 10) + TnPad$("MOST", 6) + TnPad$("A BOX", 7) + TnPad$("THE GUN", 9) + "   A FULL LOAD IS"
+        FOR s = 0 TO 3
+            t$ = TnLeft$(SkillName$(s), 10) + TnPad$(TnNum$(tuneV(tuneMaxRow(i), s)), 6) + TnPad$(TnNum$(tuneV(tuneAmmoPick(i), s)), 7)
+            IF w > 1 THEN t$ = t$ + TnPad$(TnNum$(tuneV(tuneGunPick(w), s)), 9) ELSE t$ = t$ + TnPad$("-", 9)
+            n = tuneV(tuneMaxRow(i), s) : t$ = t$ + "   " + LTRIM$(STR$(n)) + " shots, " + TnNum$(INT(n * tuneV(tuneGunDelay(w), s) / 6 + 0.5) / 10) + "s of firing"
+            IF s = tnCol THEN COLOR _RGB32(255, 255, 120) ELSE COLOR _RGB32(200, 200, 230)
+            _PRINTSTRING (24, y + 40 + s * 18), t$
+        NEXT
+    ELSE ' A weapon's number, or how hard you're hurt: what it comes to, at the chosen difficulty, for every machine
+        w = 0
+        SELECT CASE tuneKind(r)
+            CASE TK_GUNDMG, TK_GUNDELAY, TK_PELLETS : w = tuneRef(r)
+            CASE TK_ROCKHIT, TK_ROCKMON : w = W_ROCKET
+            CASE TK_KICK : w = 6
+        END SELECT
+        IF w THEN
+            COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, y), "AT " + SkillName$(tnCol) + ", THE " + TuneWeapon$(w) + " DESTROYS A MACHINE IN (shots, seconds)"
+        ELSEIF tuneKind(r) = TK_HURT THEN
+            COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, y), "AT " + SkillName$(tnCol) + ", EACH MACHINE HITS YOU FOR"
+        ELSEIF tuneKind(r) = TK_WEAK THEN
+            COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, y), "A HIT IN A MACHINE'S WEAK SPOT (its head, its eye) does this many times a hit"
+        ELSE
+            COLOR _RGB32(255, 90, 200) : _PRINTSTRING (24, y), "A BLAST (a barrel, a pressure plate, a vending machine) hurts a machine up to this +1"
+        END IF
+        IF w OR tuneKind(r) = TK_HURT THEN
+            i = 0
+            FOR l = 1 TO tuneN
+                IF tuneKind(l) = TK_MONHP THEN
+                    x = 24 + (i MOD 4) * 190 : t$ = TnLeft$(tuneName$(l), 10)
+                    IF w THEN
+                        t$ = t$ + TnShots$(l, tnCol, w)
+                    ELSE
+                        TuneMonHit tuneRef(l), tnCol, lo, hi
+                        IF hi > lo THEN t$ = t$ + TnNum$(lo) + "-" + TnNum$(hi) ELSE t$ = t$ + TnNum$(lo)
+                    END IF
+                    COLOR _RGB32(200, 200, 230) : _PRINTSTRING (x, y + 22 + (i \ 4) * 17), t$
+                    i = i + 1
+                END IF
+            NEXT
+        END IF
+    END IF
+    COLOR _RGB32(255, 220, 120) : _PRINTSTRING (24, 580), LEFT$(tnMsg$, 94)
+END SUB
+
+' --- PICTURES: the chosen row's thing, and the weapons over their columns
+
+' The gun an ammo is for
+FUNCTION AmmoGunOf(am)
+    DIM g ' (its own: the main program shares these names)
+    AmmoGunOf = W_BLASTER
+    FOR g = 1 TO NUM_GUNS
+        IF gunAmmoType(g) = am THEN AmmoGunOf = g : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' The pickup a gun is (0: the blaster - you start with it)
+FUNCTION GunItem(g)
+    SELECT CASE g
+        CASE W_SCATTER : GunItem = IT_SCATTER
+        CASE W_REPEATER : GunItem = IT_REPEATER
+        CASE W_RAIL : GunItem = IT_RAIL
+        CASE W_ROCKET : GunItem = IT_LAUNCHER
+    END SELECT
+END FUNCTION
+
+' ...and a box of an ammo
+FUNCTION AmmoItem(am)
+    SELECT CASE am
+        CASE AM_SHELLS : AmmoItem = IT_SHELLS
+        CASE AM_ROCKETS : AmmoItem = IT_ROCKETS
+        CASE AM_ROUNDS : AmmoItem = IT_ROUNDS
+        CASE AM_SLUGS : AmmoItem = IT_SLUGS
+        CASE ELSE : AmmoItem = IT_CELLS
+    END SELECT
+END FUNCTION
+
+' What the picture box is called
+FUNCTION TnPicName$(r)
+    SELECT CASE tuneKind(r)
+        CASE TK_MONHP, TK_DECOHP, TK_GLASS, TK_DROID : TnPicName$ = LEFT$(tuneName$(r), 18)
+        CASE TK_AMMOMAX, TK_AMMOPICK : TnPicName$ = UCASE$(AmmoName$(tuneRef(r)))
+        CASE TK_KICK : TnPicName$ = "KICK"
+        CASE TK_BLAST : TnPicName$ = "BARREL"
+        CASE TK_HURT, TK_WEAK : TnPicName$ = ""
+        CASE ELSE : TnPicName$ = gunName$(tuneRef(r))
+    END SELECT
+END FUNCTION
+
+' Row r's thing, fitted into (x, y) w x h: a machine, a breakable, a pickup -
+' turning slowly if it's a 3D prop (its 8 pictures: models.py), else its sprite
+SUB TnPicture(r, x, y, w, h)
+    DIM k, m ' (its own: the main program shares these names)
+    SELECT CASE tuneKind(r)
+        CASE TK_MONHP
+            k = tuneRef(r) : m = mtypeMdl(k)
+            IF m THEN TnModel m, x, y, w, h ELSE TnSprite mtypeSprite(k), x, y, w, h
+        CASE TK_DECOHP
+            k = tuneRef(r) : m = decoMdl(k)
+            IF m THEN TnModel m, x, y, w, h ELSE TnSprite DecoSlot(k), x, y, w, h
+        CASE TK_GLASS : TnSprite S_GLASS, x, y, w, h
+        CASE TK_DROID : TnSprite S_DROID, x, y, w, h
+        CASE TK_AMMOMAX, TK_AMMOPICK
+            k = AmmoItem(tuneRef(r)) : m = itemMdl(k)
+            IF m THEN TnModel m, x, y, w, h ELSE TnSprite ItemSprite(k), x, y, w, h
+        CASE TK_GUNPICK, TK_GUNDMG, TK_GUNDELAY, TK_PELLETS, TK_ROCKHIT, TK_ROCKMON : TnWeaponPic tuneRef(r), x, y, w, h
+        CASE TK_KICK : TnWeaponPic 6, x, y, w, h
+        CASE TK_BLAST : m = decoMdl(1) : IF m THEN TnModel m, x, y, w, h ELSE TnSprite DecoSlot(1), x, y, w, h
+    END SELECT
+END SUB
+
+' Weapon w's picture (1-5 the guns, 6 the boot): a gun's pickup, the blaster's
+' own (pickup-blaster.png - you never pick one up), the kick's boot
+SUB TnWeaponPic(w, x, y, bw, bh)
+    DIM k ' (its own: the main program shares these names)
+    IF w = 6 THEN
+        IF kickImg& < -1 THEN TnImage kickImg&, x, y, bw, bh
+    ELSEIF w = W_BLASTER THEN
+        IF tnBlaster& < -1 THEN TnImage tnBlaster&, x, y, bw, bh ELSE IF gunImg&(1) < -1 THEN TnImage gunImg&(1), x, y, bw, bh
+    ELSE
+        k = GunItem(w) : TnSprite ItemSprite(k), x, y, bw, bh
+    END IF
+END SUB
+
+' An image, as big as fits (its shape kept), in the middle of the box
+SUB TnImage(img&, x, y, bw, bh)
+    DIM iw, ih, sc! ' (its own: the main program shares these names)
+    iw = _WIDTH(img&) : ih = _HEIGHT(img&) : IF iw < 1 OR ih < 1 THEN EXIT SUB
+    sc! = bw / iw : IF bh / ih < sc! THEN sc! = bh / ih
+    _PUTIMAGE (x + (bw - iw * sc!) / 2, y + (bh - ih * sc!) / 2)-STEP(iw * sc! - 1, ih * sc! - 1), img&
+END SUB
+
+' A sprite (slot), its see-through edges cut off, as big as fits in the box
+SUB TnSprite(slot, x, y, bw, bh)
+    DIM sz ' (its own: the main program shares these names)
+    sz = spriteSize(slot) : IF sz < 1 THEN sz = sprTex
+    TnTexels 1, slot, sz, x, y, bw, bh
+END SUB
+
+' A 3D prop's picture from 8 ways round, turning (a picture every quarter second)
+SUB TnModel(m, x, y, bw, bh)
+    TnTexels 2, (m - 1) * MDL_ANGLES + (INT(TIMER * 4) MOD MDL_ANGLES) + 1, MDL_PIC, x, y, bw, bh
+END SUB
+
+' A square picture sz across - a sprite slot's (src 1) or a model's picture
+' (2) - its opaque part found, then drawn as big as fits, a dot a pixel
+SUB TnTexels(src, id, sz, bx, by, bw, bh)
+    DIM u, v, u0, v0, u1, v1, ox, oy, dw, dh, sc!, c~&, x, y ' (its own: the main program shares these names)
+    u0 = sz : v0 = sz : u1 = -1 : v1 = -1
+    FOR v = 0 TO sz - 1 : FOR u = 0 TO sz - 1
+        IF _ALPHA32(TnTexel~&(src, id, u, v)) > 128 THEN
+            IF u < u0 THEN u0 = u
+            IF u > u1 THEN u1 = u
+            IF v < v0 THEN v0 = v
+            IF v > v1 THEN v1 = v
+        END IF
+    NEXT : NEXT
+    IF u1 < 0 THEN EXIT SUB
+    sc! = bw / (u1 - u0 + 1) : IF bh / (v1 - v0 + 1) < sc! THEN sc! = bh / (v1 - v0 + 1)
+    IF sc! > 4 THEN sc! = 4
+    dw = INT((u1 - u0 + 1) * sc!) : dh = INT((v1 - v0 + 1) * sc!)
+    x = bx + (bw - dw) \ 2 : y = by + (bh - dh) \ 2
+    FOR oy = 0 TO dh - 1 : FOR ox = 0 TO dw - 1
+        c~& = TnTexel~&(src, id, u0 + INT(ox / sc!), v0 + INT(oy / sc!))
+        IF _ALPHA32(c~&) > 128 THEN PSET (x + ox, y + oy), c~&
+    NEXT : NEXT
+END SUB
+
+FUNCTION TnTexel~&(src, id, u, v)
+    IF src = 1 THEN TnTexel~& = spriteTex(u, v, id) ELSE TnTexel~& = mdlPic(u, v, id)
+END FUNCTION

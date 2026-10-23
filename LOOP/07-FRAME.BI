@@ -47,20 +47,12 @@
     conKey = (_KEYDOWN(96) OR _KEYDOWN(126)) AND NOT edTyping ' (typing a name in the editor: not the console)
     IF conKey AND NOT conKeyWas THEN RunConsole
     conKeyWas = conKey
-    ' Ctrl+R: record this sector - it starts again, and every key from there
-    ' goes into a demo (run1, run2...) - and Ctrl+R again (or the exit) keeps
-    ' it: DEMO REPLAYS lists it
+    ' Ctrl+R: record this sector - it starts again, with what you came into
+    ' it with, and every key from there goes into a demo (run1, run2...) -
+    ' and Ctrl+R again (or the exit) keeps it: DEMO REPLAYS lists it. At the
+    ' exit it goes on: the next sector records too (DemoChainNext)
     recKey = (_KEYDOWN(114) OR _KEYDOWN(82)) AND (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND NOT edTyping
-    IF recKey AND NOT recKeyWas AND NOT editMode AND NOT hudEdit THEN
-        IF demoRec THEN
-            DemoStop
-        ELSEIF demoPlay THEN
-            ShowMsg "A demo's playing - Esc, STOP DEMO first"
-        ELSE
-            demoName$ = DemoNextName$ : dSeedWant# = 0 : demoRecQuit = 0 : DemoRecordStart
-            ShowMsg "RECORDING " + demoName$ + " - from the sector's start. Ctrl+R again stops it"
-        END IF
-    END IF
+    IF recKey AND NOT recKeyWas AND NOT editMode AND NOT hudEdit THEN DemoRecordKey
     recKeyWas = recKey
     ' F3: where you are, in numbers (DrawInfo, chapter 18) - on or off
     IF _KEYDOWN(15616) AND NOT infoKeyWas AND NOT edTyping THEN infoOn = NOT infoOn

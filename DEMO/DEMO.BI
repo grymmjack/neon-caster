@@ -41,3 +41,11 @@ DIM SHARED demoSpeed AS INTEGER : demoSpeed = PL_SPEED_1
 ' This module's working variables, shared by its SUBs (and with the main
 ' program)
 DIM SHARED dl$, ds$, dWasBuddha, dWasFly, dWasGod, dWasNoT, dWhy$, dWasJet, dJet
+
+' What you carry into a demo (a "carry" line: health, armour, gun, night
+' vision, suit, jetpack and fuel, repair kits, ammo, guns - DemoCarryNow$):
+' a Ctrl+R recording starts its sector with what you came into it with
+' (entryCarry$, kept as each sector starts), and one that reaches the exit
+' goes on recording into the next sector with what you bring (demoChain).
+' A demo with no carry line starts with nothing, as ever.
+DIM SHARED dCarry$, entryCarry$, demoChain AS INTEGER, demoChainWant AS INTEGER

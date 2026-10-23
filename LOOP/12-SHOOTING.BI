@@ -34,7 +34,7 @@
     IF fireDown AND NOT dead AND fireWait = 0 AND swapTimer = 0 THEN
         ammoType = gunAmmoType(currentGun)
         IF ammoCount(ammoType) >= gunAmmoPerShot(currentGun) THEN
-            ammoCount(ammoType) = ammoCount(ammoType) - gunAmmoPerShot(currentGun) : fireWait = gunDelay(currentGun) : recoil = gunKick(currentGun) : muzzleFlash = 4
+            ammoCount(ammoType) = ammoCount(ammoType) - gunAmmoPerShot(currentGun) : fireWait = GunDelayNow(currentGun) : recoil = gunKick(currentGun) : muzzleFlash = 4
             PlaySfx gunSnd&(currentGun), 0.7
             FOR j = 1 TO numMonsters ' (heard: a monster that hears this far wakes - [monsters])
                 IF monsterState(j) = 0 AND monHear(j) > 0 AND monWake(j) <> WAKE_HIT AND (cyberOn = 0 OR monsterType(j) = MT_ICE) THEN
@@ -42,17 +42,17 @@
                 END IF
             NEXT
             StirDust playerX, playerY, dirX, dirY, 5, 0.02 * gunKick(currentGun) ' (the shot's wind blows the dust along - chapter 24)
-            hitDamage = gunDamage(currentGun) : IF gunPierce(currentGun) THEN railBeam = 8
+            hitDamage = GunDmgNow!(currentGun) : IF gunPierce(currentGun) THEN railBeam = 8
             IF currentGun <> W_BLASTER THEN achOtherGun = -1
             IF ampTimer > 0 THEN hitDamage = hitDamage * 2 ' (the damage amp: double)
             shake = shake + gunKick(currentGun) * 1.5 ' (a big gun shakes the screen - chapter 17)
             IF setting(SET_XFEEDBACK) THEN crossScale = 0.6 ' The crosshair tightens as you fire
             invDet = 1 /(planeX * dirY - dirX * planeY)
-            pellets = gunPellets(currentGun)
+            pellets = GunPelletsNow(currentGun) ' (the tuner's, at this difficulty: GAME/TUNING.BM)
             IF currentGun = W_ROCKET THEN FireRocket : pellets = 0 ' (a rocket: it flies - GAME/ROCKETS.BM - and there's no shot along the line)
             FOR pellet = 1 TO pellets
                 aim = (GRnd * 2 - 1) * gunSpread(currentGun) ' Across the view: -1 left edge .. 1 right
-                IF gunPellets(currentGun) > 1 THEN aim = ((pellet - 1) /(gunPellets(currentGun) -1) * 2 - 1) * gunSpread(currentGun) + (GRnd - 0.5) * 0.02
+                IF pellets > 1 THEN aim = ((pellet - 1) /(pellets -1) * 2 - 1) * gunSpread(currentGun) + (GRnd - 0.5) * 0.02
                 screenCol = INT(RENDER_W / 2 * (1 + aim)) : IF screenCol < 0 THEN screenCol = 0
                 IF screenCol > RENDER_W - 1 THEN screenCol = RENDER_W-1
                 ' (a piercing shot hits everything in its line that's nearer than
@@ -211,7 +211,7 @@
                 END IF
             NEXT
             IF best THEN
-                target = best : hitDamage = KICK_DAMAGE : IF ampTimer > 0 THEN hitDamage = hitDamage * 2
+                target = best : hitDamage = TuneNow!(tuKick) : IF ampTimer > 0 THEN hitDamage = hitDamage * 2
                 HitMonster
                 IF monsterState(best) >= 2 AND NOT cyberOn THEN Achieve "NC_KICK_KILL", 0
                 walkZ = FloorAt(monsterX(best), monsterY(best)) ' (shoved along the floor it's on: off an edge, yes - up a ledge, no)
@@ -225,7 +225,7 @@
                     IF decoOn(i) AND (NOT DecoFlat(decoKind(i)) OR decoKind(i) = DK_CAMERA) AND cyberOn = 0 THEN
                         ox = decoX(i) - playerX : oy = decoY(i) - playerY : d = SQR(ox * ox + oy * oy)
                         IF d < KICK_REACH AND d > 0.01 THEN
-                            IF (ox * dirX + oy * dirY) / d > 0.7 THEN targetDeco = i : hitDamage = KICK_DAMAGE : hitKick = -1 : HitDeco : hitKick = 0 : PlaySfx sndKick&, 0.8 : shake = shake + 2 : kicked = -1 : EXIT FOR
+                            IF (ox * dirX + oy * dirY) / d > 0.7 THEN targetDeco = i : hitDamage = TuneNow!(tuKick) : hitKick = -1 : HitDeco : hitKick = 0 : PlaySfx sndKick&, 0.8 : shake = shake + 2 : kicked = -1 : EXIT FOR
                         END IF
                     END IF
                 NEXT

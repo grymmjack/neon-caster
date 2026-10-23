@@ -24,12 +24,13 @@ END SUB
 ' as the window, our 4:3 screen in its middle; anything else, our screen.
 SUB GLCapture
     DIM w, y ' (its own: the main program shares these names)
+    glScreenOnly = (glReady = 0) ' (no 3D frame: SUB _GL shows just this - GLScreenOnlyDraw)
     IF hudWideNow THEN
         VIEW : _DEST 0 : hudWideNow = 0 : hudViewX = 0
         GLCaptureImg hudCanvas&
         scrW = 800 : hudVX = 0
     ELSEIF backWant THEN
-        w = 800 : IF glMode THEN w = INT(800 * WideView + 0.5)
+        w = 800 : IF setting(SET_RENDERER) = 2 THEN w = INT(800 * WideView + 0.5) ' (not glMode: before any sector chapter 14 hasn't set it)
         IF w >= 804 THEN
             IF hudCanvas& < -1 THEN IF _WIDTH(hudCanvas&) <> w THEN _FREEIMAGE hudCanvas& : hudCanvas& = 0
             IF hudCanvas& >= -1 THEN hudCanvas& = _NEWIMAGE(w, 600, 32)
@@ -47,6 +48,28 @@ SUB GLCapture
         GLSL_filter_capture
     END IF
     backWant = 0
+END SUB
+
+' Does the card show our screen (GLCapture, then GLScreenLayer)? With a 3D
+' frame, always - and with FULL WIDE before there is one (the title menu,
+' before any sector), so it isn't stretched across the window: SUB _GL lays
+' it in the 4:3 middle, or a backdrop screen all the way across
+FUNCTION GLShows
+    GLShows = glReady
+    IF glReady = 0 AND setting(SET_RENDERER) = 2 THEN IF WideView > 1.01 THEN GLShows = -1
+END FUNCTION
+
+' ...and SUB _GL draws it, with no view behind: black, our screen in the
+' window's 4:3 middle (or the wider picture GLCapture made, across it)
+SUB GLScreenOnlyDraw
+    DIM vw, vh, w ' (its own: the main program shares these names)
+    vw = GLSL_window_width& : vh = GLSL_window_height& : IF vw < 1 OR vh < 1 THEN EXIT SUB
+    GLSL_use 0 : _glDisable _GL_DEPTH_TEST
+    _glViewport 0, 0, vw, vh : _glClearColor 0, 0, 0, 1 : _glClear _GL_COLOR_BUFFER_BIT
+    w = INT(vh * 4 / 3) : IF GLSL_frameW > 800 THEN w = INT(w * GLSL_frameW / 800 + 0.5)
+    IF w > vw THEN w = vw
+    _glViewport (vw - w) \ 2, 0, w, vh
+    GLDrawHUD
 END SUB
 
 ' GLSL_filter_capture's copy, from picture img& instead of our screen

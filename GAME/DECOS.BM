@@ -155,31 +155,32 @@ FUNCTION Explosive(kind)
     Explosive = (kind = 1 OR kind = 8 OR (kind > DK_LQBARREL AND kind < DK_CHEST))
 END FUNCTION
 
-' How many hits a decoration kind takes before it breaks (a barrel: 1)
-FUNCTION DecoMaxHP(kind)
+' How many hits a decoration kind takes before it breaks (a barrel: 1) - as
+' made; DecoMaxHP (GAME/TUNING.BM) is the tuned one, at the difficulty in play
+FUNCTION DecoBaseHP(kind)
     SELECT CASE kind
-        CASE 1 : DecoMaxHP = 1 ' Barrel
-        CASE 2 : DecoMaxHP = 2 ' Lamp
-        CASE 3 : DecoMaxHP = 2 ' Plant
-        CASE 5 : DecoMaxHP = 3 ' Crate
-        CASE 8 : DecoMaxHP = 1 ' Coolant tank
-        CASE 9 : DecoMaxHP = 8 ' Spawner (a nest's portal)
-        CASE 10, 18, 19 : DecoMaxHP = 3 ' Desk, lockers, bench
-        CASE 14 : DecoMaxHP = 2 ' Lab bench (glass)
-        CASE 13, 16 : DecoMaxHP = 3 ' Specimen tank, cryo pod (glass)
-        CASE 15 : DecoMaxHP = 6 ' Generator
-        CASE 20 : DecoMaxHP = 2 ' Chair
-        CASE 21 : DecoMaxHP = 99 ' (a body: never breaks)
-        CASE DK_LQBARREL + 1 TO DK_LQBARREL + LQ_KINDS : DecoMaxHP = 1 ' (a liquid barrel: a hit starts it leaking)
-        CASE DK_CHEST, DK_SAFE : DecoMaxHP = 99 ' (a chest, a safe: Space opens it, shots don't)
-        CASE DK_TABLE : DecoMaxHP = 10 ' (a table on its side: cover, for a while)
-        CASE DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_NOTE, DK_JUMPPAD : DecoMaxHP = 99 ' (flat: DecoFlat)
-        CASE DK_CAMERA : DecoMaxHP = 3 ' (a camera: three hits and it's down)
-        CASE DK_PADPC : DecoMaxHP = 4
-        CASE DK_SHELF, DK_PC, DK_SECMON, DK_ALARMPC : DecoMaxHP = 4
-        CASE DK_ALARM : DecoMaxHP = 2 ' (an alarm switch: shoot it, and nobody sets it off)
-        CASE DK_PCBROKE : DecoMaxHP = 3
-        CASE ELSE : DecoMaxHP = 4 ' Terminal, server rack, vending machine
+        CASE 1 : DecoBaseHP = 1 ' Barrel
+        CASE 2 : DecoBaseHP = 2 ' Lamp
+        CASE 3 : DecoBaseHP = 2 ' Plant
+        CASE 5 : DecoBaseHP = 3 ' Crate
+        CASE 8 : DecoBaseHP = 1 ' Coolant tank
+        CASE 9 : DecoBaseHP = 8 ' Spawner (a nest's portal)
+        CASE 10, 18, 19 : DecoBaseHP = 3 ' Desk, lockers, bench
+        CASE 14 : DecoBaseHP = 2 ' Lab bench (glass)
+        CASE 13, 16 : DecoBaseHP = 3 ' Specimen tank, cryo pod (glass)
+        CASE 15 : DecoBaseHP = 6 ' Generator
+        CASE 20 : DecoBaseHP = 2 ' Chair
+        CASE 21 : DecoBaseHP = 99 ' (a body: never breaks)
+        CASE DK_LQBARREL + 1 TO DK_LQBARREL + LQ_KINDS : DecoBaseHP = 1 ' (a liquid barrel: a hit starts it leaking)
+        CASE DK_CHEST, DK_SAFE : DecoBaseHP = 99 ' (a chest, a safe: Space opens it, shots don't)
+        CASE DK_TABLE : DecoBaseHP = 10 ' (a table on its side: cover, for a while)
+        CASE DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_NOTE, DK_JUMPPAD : DecoBaseHP = 99 ' (flat: DecoFlat)
+        CASE DK_CAMERA : DecoBaseHP = 3 ' (a camera: three hits and it's down)
+        CASE DK_PADPC : DecoBaseHP = 4
+        CASE DK_SHELF, DK_PC, DK_SECMON, DK_ALARMPC : DecoBaseHP = 4
+        CASE DK_ALARM : DecoBaseHP = 2 ' (an alarm switch: shoot it, and nobody sets it off)
+        CASE DK_PCBROKE : DecoBaseHP = 3
+        CASE ELSE : DecoBaseHP = 4 ' Terminal, server rack, vending machine
     END SELECT
 END FUNCTION
 

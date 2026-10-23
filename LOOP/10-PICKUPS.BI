@@ -64,11 +64,11 @@
                         PlaySfx sndArmor&, 0.8 : ShowMsg "Armour (+50)" : pickFlash = 10
                     END IF
                 CASE IT_CELLS
-                    IF GiveAmmo%(AM_CELLS, 15) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Energy cells (+15)" : pickFlash = 10
+                    IF GiveAmmo%(AM_CELLS, AmmoBoxNow(AM_CELLS)) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Energy cells (+" + LTRIM$(STR$(AmmoBoxNow(AM_CELLS))) + ")" : pickFlash = 10
                 CASE IT_SHELLS
-                    IF GiveAmmo%(AM_SHELLS, 8) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Shells (+8)" : pickFlash = 10
+                    IF GiveAmmo%(AM_SHELLS, AmmoBoxNow(AM_SHELLS)) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Shells (+" + LTRIM$(STR$(AmmoBoxNow(AM_SHELLS))) + ")" : pickFlash = 10
                 CASE IT_ROCKETS
-                    IF GiveAmmo%(AM_ROCKETS, 5) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Rockets (+5)" : pickFlash = 10
+                    IF GiveAmmo%(AM_ROCKETS, AmmoBoxNow(AM_ROCKETS)) THEN itemOn(i) = 0 : PlaySfx sndShells&, 0.8 : ShowMsg "Rockets (+" + LTRIM$(STR$(AmmoBoxNow(AM_ROCKETS))) + ")" : pickFlash = 10
                 CASE IT_JETPACK ' A jetpack: its tank (full, as made - its [fuel] line says otherwise) - E flies you up, C down, while its fuel lasts (one more, with your tank full, stays where it is)
                     IF NOT jetHave OR jetFuel < JET_MAX THEN
                         amt = itemAmt(i) : IF amt <= 0 THEN amt = JET_MAX
@@ -84,17 +84,17 @@
                 CASE IT_INVULN ' Invulnerability: nothing hurts you for a few seconds
                     itemOn(i) = 0 : invTimer = INV_FRAMES : PlaySfx sndInvuln&, 1 : ShowMsg "INVULNERABLE! Nothing can hurt you for 5 seconds" : pickFlash = 18
                 CASE IT_ROUNDS
-                    IF GiveAmmo%(AM_ROUNDS, 40) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Repeater rounds (+40)" : pickFlash = 10
+                    IF GiveAmmo%(AM_ROUNDS, AmmoBoxNow(AM_ROUNDS)) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Repeater rounds (+" + LTRIM$(STR$(AmmoBoxNow(AM_ROUNDS))) + ")" : pickFlash = 10
                 CASE IT_SLUGS
-                    IF GiveAmmo%(AM_SLUGS, 5) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Railgun slugs (+5)" : pickFlash = 10
+                    IF GiveAmmo%(AM_SLUGS, AmmoBoxNow(AM_SLUGS)) THEN itemOn(i) = 0 : PlaySfx sndAmmo&, 0.8 : ShowMsg "Railgun slugs (+" + LTRIM$(STR$(AmmoBoxNow(AM_SLUGS))) + ")" : pickFlash = 10
                 CASE IT_SCATTER, IT_REPEATER, IT_RAIL, IT_LAUNCHER
                     IF itemKind(i) = IT_RAIL THEN gun = W_RAIL ELSE gun = itemKind(i) - IT_SCATTER + W_SCATTER
                     IF itemKind(i) = IT_LAUNCHER THEN gun = W_ROCKET
                     SELECT CASE gun ' (each comes with some of its own ammo)
-                        CASE W_SCATTER : taken = GiveAmmo%(AM_SHELLS, 8)
-                        CASE W_REPEATER : taken = GiveAmmo%(AM_ROUNDS, 60)
-                        CASE W_RAIL : taken = GiveAmmo%(AM_SLUGS, 6)
-                        CASE ELSE : taken = GiveAmmo%(AM_ROCKETS, 5)
+                        CASE W_SCATTER : taken = GiveAmmo%(AM_SHELLS, GunBoxNow(gun))
+                        CASE W_REPEATER : taken = GiveAmmo%(AM_ROUNDS, GunBoxNow(gun))
+                        CASE W_RAIL : taken = GiveAmmo%(AM_SLUGS, GunBoxNow(gun))
+                        CASE ELSE : taken = GiveAmmo%(AM_ROCKETS, GunBoxNow(gun)) ' (each: the tuner's, at this difficulty - GAME/TUNING.BM)
                     END SELECT
                     IF NOT hasGun(gun) OR taken THEN
                         itemOn(i) = 0 : PlaySfx sndWeapon&, 0.9 : pickFlash = 10

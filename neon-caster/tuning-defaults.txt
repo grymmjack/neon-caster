@@ -1,0 +1,47 @@
+' NEON-CASTER tuning defaults - the game as shipped, at each difficulty: the rows
+' that differ from the code's numbers (tuning-original.txt has them all). Each
+' line: key = easy normal hard nightmare (- keeps one as coded). tuning bake
+' writes it; a player's own changes go in tuning.txt. A machine's EASY health is
+' monsters.txt's.
+
+hp.drone = - 6 7 9
+hp.gunner = - 8 10 12
+hp.heavy = - 15 20 25
+hp.crawler = - 3 5 6
+hp.sentry = - 10 20 30
+hp.stalker = - 4 7 10
+hp.spitter = - 8 10 12
+hp.overseer = - 100 200 300
+hp.thief = - 10 15 20
+hp.ice = - 4 5 7
+hp.sniper = - 6 10 15
+hp.trooper = - 10 20 25
+hp.ripper = - 6 12 18
+hp.warden = - 125 225 325
+hp.colossus = - 150 250 350
+hp.turret = - 12 24 24
+hp.mimic = - 10 16 24
+hp.robodog = - 12 20 24
+hp.guard = - 8 12 24
+hp.eyebot = - 8 16 24
+hp.spawner = 8 8 16 24
+gun.blaster.delay = 16 16 10 5
+gun.scatter.delay = 40 40 35 30
+gun.railgun.delay = 55 55 40 35
+gun.launcher.delay = 30 30 25 20
+headshot.times = 2 2 2.5 3
+blast.machines = 8 8 10 15
+ammo.cells.max = 99 100 150 175
+ammo.cells.pickup = 15 15 20 25
+ammo.shells.max = 40 50 60 75
+ammo.shells.pickup = 8 8 10 12
+ammo.rockets.max = 50 50 75 100
+ammo.rockets.pickup = 5 5 7 10
+ammo.rounds.max = 200 200 300 350
+ammo.rounds.pickup = 40 40 50 75
+ammo.slugs.max = 25 25 50 75
+ammo.slugs.pickup = 5 5 10 15
+gun.scatter.pickup = 8 8 10 15
+gun.repeater.pickup = 60 60 100 150
+gun.railgun.pickup = 6 6 10 15
+gun.launcher.pickup = 5 5 8 10

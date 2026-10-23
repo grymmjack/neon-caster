@@ -233,8 +233,13 @@
                 FOR py = evY0(ev) TO evY1(ev) : FOR px = evX0(ev) TO evX1(ev)
                     IF numDraw < MAX_DRAW THEN
                         numDraw = numDraw + 1 : drawX(numDraw) = px + 0.5 : drawY(numDraw) = py + 0.5 : drawSprite(numDraw) = S_PLATE
-                        drawScale(numDraw) = 0.7 : drawSquash(numDraw) = 0.18 : drawLift(numDraw) = 0
-                        drawMinShade(numDraw) = 60 : IF evState(ev) = 1 AND (evTimer(ev) \ 4) MOD 2 = 0 THEN drawMinShade(numDraw) = 256
+                        drawScale(numDraw) = 0.9 : drawSquash(numDraw) = 0.08 : drawLift(numDraw) = 0
+                        drawMinShade(numDraw) = 0 : IF evState(ev) = 1 AND (evTimer(ev) \ 4) MOD 2 = 0 THEN drawMinShade(numDraw) = 200
+                        IF glMode AND plateMdl THEN ' (OpenGL: a steel plate lying across the cell, square to the map - its slit of a light dim red, flashing as it counts down)
+                            drawSprite(numDraw) = 0 : drawScale(numDraw) = 1 : drawSquash(numDraw) = 1 : drawMdl(numDraw) = plateMdl : drawAng(numDraw) = 0
+                            IF evState(ev) = 0 THEN drawCap(numDraw) = _RGB32(70, 10, 12) ' (armed: a faint glow, there if you look)
+                            IF evState(ev) = 1 AND (evTimer(ev) \ 4) MOD 2 = 0 THEN drawCap(numDraw) = _RGB32(255, 46, 40)
+                        END IF
                     END IF
                 NEXT : NEXT
             CASE EV_LASER

@@ -1,0 +1,4 @@
+# NEON-CASTER prop: plate - its texture, for 3D viewers
+newmtl plate
+Kd 1 1 1
+map_Kd ../hd/models/plate_tex.png

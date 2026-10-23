@@ -379,6 +379,23 @@ SUB EditPaneClick STATIC
             NEXT
             EditApply
             IF blkN THEN EditNote LTRIM$(STR$(blkN)) + " pillar(s) - click a side of one to shape it" ELSE EditNote "A pillar needs an empty floor"
+        CASE 310 TO 313 ' IN DIFFICULTY: one difficulty on or off, for everything placed in the selection (as the first one's was, turned round)
+            skS = pnHit - 310 : skK = EditSkillCell
+            IF skK THEN
+                EditPushUndo
+                skM = SkillMask(edSelX(skK), edSelY(skK)) : IF skM < 0 THEN skM = 15
+                skOn = (skM AND SkillBit(skS)) = 0 : skN = 0
+                FOR k = 1 TO edSelN
+                    IF EditPlaced(edSelX(k), edSelY(k)) THEN
+                        skM = SkillMask(edSelX(k), edSelY(k)) : IF skM < 0 THEN skM = 15
+                        IF skOn THEN skM = skM OR SkillBit(skS) ELSE skM = skM AND (15 - SkillBit(skS))
+                        XtraSet "difficulty", edSelX(k), edSelY(k), SkillWords$(skM) : skN = skN + 1
+                    END IF
+                NEXT
+                EditApply
+                t$ = SkillWords$(skM) : IF t$ = "" THEN t$ = "every difficulty" ELSE IF t$ = "none" THEN t$ = "no difficulty - it's never there" ELSE t$ = UCASE$(t$) + " only"
+                IF skN > 1 THEN EditNote LTRIM$(STR$(skN)) + " things: " + t$ ELSE EditNote "In " + t$
+            END IF
         CASE 254, 255 ' A door's kicks: a stronghold door (0: an ordinary one)
             EditPushUndo : n = VAL(EditXtra$("doors", edPnCX, edPnCY, 3)) : IF pnHit = 255 THEN n = MinOf(99, n + 1) ELSE n = MaxOf(0, n - 1)
             EditDoorSet edPnCX, edPnCY, n, EditXtra$("doors", edPnCX, edPnCY, 4) : EditApply
@@ -982,8 +999,8 @@ SUB RunEditor STATIC
         EditDrawPane mx, my
         EditDrawTB 0, mx, my
         IF edHelp THEN EditDrawHelp 0
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows
         ShowFrame
     LOOP
     _KEYCLEAR
@@ -1453,6 +1470,7 @@ SUB EditPut(x, y, c0$)
         IF INSTR("DHXRBY!", c$) = 0 THEN XtraSet "doors", x, y, "" ' (a door's kicks and code)
         IF INSTR("'d" + CHR$(34), c$) = 0 THEN XtraSet "notes", x, y, "" ' (a note, or one in a desk or bookshelf or safe)
         IF INSTR("`,", c$) = 0 THEN XtraSet "fuel", x, y, "" ' (a jetpack's or fuel can's own fuel)
+        XtraSet "difficulty", x, y, "" ' (the difficulties it was in: a new one's in every one)
     END IF
     IF c$ = CHR$(34) AND LEN(nm$) THEN ' (a thing: its kind)
         k = XtraFind("things", x, y, 0)
@@ -2935,6 +2953,7 @@ SUB EditPaneBuild
                 EditPaneAdd 90 + w, x0 + (w MOD 2) * 101, y + (w \ 2) * 23, 99, RTRIM$(MID$("IT SEES YOUYOU'RE NEARIT'S HIT   HUNTING    ", w * 11 + 1, 11)), (mw = w)
             NEXT
             y = y + 48
+            EditPaneSkill x0, y
             EditPaneAdd 94, x0, y, PN_W, "AS ITS KIND IS", 0
             EXIT SUB
         END IF
@@ -3015,6 +3034,7 @@ SUB EditPaneBuild
         EditPaneFuel x0, y
         EditPaneLiquid x0, y
         EditPaneWet x0, y
+        EditPaneSkill x0, y
     ELSE
         edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
         wb = 0 : FOR k = 1 TO edSelN
@@ -3025,6 +3045,34 @@ SUB EditPaneBuild
     EditPaneAdd 40, x0, y, PN_W, "ADD A LIGHT TO IT", 0
     EditPaneAdd 170, x0, y + 23, PN_W, "TRIGGERS...", 0
 END SUB
+
+' Something placed in a cell selected (a pickup, a monster, a decoration, a
+' thing): which DIFFICULTIES it's in - four toggles, its [difficulty] line
+' (none: every one). GAME/SKILL.BM plays it.
+SUB EditPaneSkill(x0, y)
+    DIM m, s, sk ' (its own: the main program shares these names)
+    sk = EditSkillCell : IF sk = 0 THEN EXIT SUB
+    m = SkillMask(edSelX(sk), edSelY(sk)) : IF m < 0 THEN m = 15
+    EditPaneAdd -1, x0, y + 2, PN_W, "IN DIFFICULTY:", 0 : y = y + 20
+    FOR s = 0 TO 3
+        EditPaneAdd 310 + s, x0 + (s MOD 2) * 92, y + (s \ 2) * 23, 90 + (s MOD 2) * 18, MID$("[ ][x]", 1 - 3 * ((m AND SkillBit(s)) <> 0), 3) + " " + SkillName$(s), (m AND SkillBit(s)) <> 0
+    NEXT
+    y = y + 48
+END SUB
+
+' The first selected cell with something placed in it (0: none)
+FUNCTION EditSkillCell
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO edSelN
+        IF EditPlaced(edSelX(k), edSelY(k)) THEN EditSkillCell = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Is there something placed in cell x, y - a pickup, a monster, a
+' decoration, a thing - that a difficulty could leave out?
+FUNCTION EditPlaced(x, y)
+    EditPlaced = INSTR(ItemChars$ + DecoChars$ + CHR$(34) + MonChars$, MID$(lvlRow$(y), x + 1, 1)) > 0
+END FUNCTION
 
 ' A decoration on a floor selected: the pane's row that moves it about its
 ' cell, an eighth at a time (and y down past it)

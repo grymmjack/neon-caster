@@ -36,8 +36,8 @@ SUB ProgramRun STATIC
         qb$ = QB64Path$
         IF qb$ = "" THEN ShowMsg "This computer's program needs qb64pe to build it (SETTINGS > QB64PE COMPILER)" : EXIT SUB
         CLS , _RGB32(4, 2, 14) : MenuText 400, 280, "LOADING " + UCASE$(pgName$) + "...", 3, _RGB32(80, 240, 255), 1 ' (a frame to look at while it builds)
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady : ShowFrame
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows : ShowFrame
         pgSrcF$ = _FULLPATH$(pgSrc$) : IF win THEN pgSrcF$ = Slashes$(pgSrcF$)
         rc = SHELL(q$ + qb$ + q$ + " -w -x " + q$ + pgSrcF$ + q$ + " -o " + q$ + pgExe$ + q$)
         IF NOT _FILEEXISTS(pgExe$) THEN ShowMsg "SYSTEM ERROR - " + pgName$ + " wouldn't build (qb64pe)" : ConPrint "program: qb64pe couldn't build " + pgSrc$ : rc = -999 : EXIT SUB
@@ -107,8 +107,8 @@ SUB ArcadeRun STATIC
         END IF
         IF arcMe >= ARC_WIN OR arcIt >= ARC_WIN THEN arcWon = (arcMe >= ARC_WIN) : EXIT DO
         DrawArcade arcPY, arcCY, arcBX, arcBY, arcMe, arcIt, (arcServe = 0 OR (arcServe \ 8) MOD 2 = 0), ""
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady : ShowFrame
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows : ShowFrame
     LOOP
     IF NOT arcDone THEN ' (the result, a moment)
         IF arcWon THEN PlaySfx sndFanfare&, 0.8 ELSE PlaySfx sndFail&, 0.8
@@ -116,8 +116,8 @@ SUB ArcadeRun STATIC
             _LIMIT 60 : WHILE _MOUSEINPUT : WEND
             IF arcWon THEN t$ = "YOU WIN!" ELSE t$ = "GAME OVER"
             DrawArcade arcPY, arcCY, 400, 300, arcMe, arcIt, 0, t$
-            IF glReady THEN GLCapture
-            GLScreenLayer glReady : ShowFrame
+            IF GLShows THEN GLCapture
+            GLScreenLayer GLShows : ShowFrame
         NEXT
     END IF
     IF demoRec THEN ' (a demo: the game's result - 1 won, 2 left with Esc, 0 lost)
@@ -233,8 +233,8 @@ SUB SlotRun STATIC
             END IF
         NEXT
         DrawSlots ""
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady : ShowFrame
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows : ShowFrame
         IF slotStop(3) THEN EXIT DO
     LOOP
     t$ = SlotSays$
@@ -242,8 +242,8 @@ SUB SlotRun STATIC
     FOR f = 1 TO 90
         _LIMIT 60 : WHILE _MOUSEINPUT : WEND
         DrawSlots t$
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady : ShowFrame
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows : ShowFrame
     NEXT
     _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND : mouseSettle = 8
     escWas = -1 : fireWait = 15 : spaceWas = -1

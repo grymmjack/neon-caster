@@ -34,6 +34,7 @@ DIM SHARED glWide(1), glSideDim(1), glAspectK
 ' with the synthwave backdrop gets it all the way across, our 4:3 screen in
 ' its middle. hudVX: where the middle 800 start; hudViewX: the VIEW's left
 ' now (HudText adds it - _PRINTSTRING doesn't see VIEW).
+DIM SHARED glScreenOnly ' (FULL WIDE with no 3D frame yet - the title menu: SUB _GL shows just our screen, GLShows)
 DIM SHARED hudCanvas&, scrW, hudVX, hudViewX, hudWideNow, backWant, backT, backDim~&, backScan ' (backDim~&, backScan: BackdropDim's, over it)
 scrW = 800
 DIM SHARED glNumDecal(1) AS INTEGER, glDecX(MAX_DECALS, 1), glDecY(MAX_DECALS, 1), glDecZ(MAX_DECALS, 1)

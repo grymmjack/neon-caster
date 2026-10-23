@@ -12,7 +12,7 @@
 ' of pain, a crunch, and a burst of sparks there
 SUB HitMonsterAimed STATIC
     IF head THEN
-        hitWas = hitDamage : hitDamage = hitDamage * WEAK_MULT : HitMonster : hitDamage = hitWas
+        hitWas = hitDamage : hitDamage = hitDamage * TuneNow!(tuWeak) : HitMonster : hitDamage = hitWas
         IF achHeadAt <> achFrame AND NOT cyberOn THEN AchAdd "Headshots", 1 : achHeadAt = achFrame ' (once a shot: the scatter's seven pellets are one headshot)
         IF monsterState(target) < 2 THEN SfxAt mtypePainSnd&(monsterType(target)), monsterX(target), monsterY(target), playerX, playerY
         IF sndHeadshot& THEN PlaySfx sndHeadshot&, 0.8
@@ -136,7 +136,7 @@ FUNCTION SpawnMonster(t, x, y, ev, px, py)
         IF monsterState(j) < 2 THEN IF (monsterX(j) - x) ^ 2 + (monsterY(j) - y) ^ 2 < 0.6 THEN EXIT FUNCTION
     NEXT
     numMonsters = numMonsters + 1 : i = numMonsters
-    monsterX(i) = x : monsterY(i) = y : monsterType(i) = t : monsterHP(i) = SkillHP(mtypeHP(t))
+    monsterX(i) = x : monsterY(i) = y : monsterType(i) = t : monsterHP(i) = MonHP(t, 100)
     monsterState(i) = 1 : monsterTimer(i) = 40 : monsterHurt(i) = 0 : monsterAtk(i) = 0 : monsterAnim(i) = 0 : monsterEv(i) = ev
     monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE
     ThiefReset i : MonFresh i
@@ -153,7 +153,7 @@ SUB MonOwn(i, x, y)
     DIM k ' (its own: the main program shares these names)
     monSight(i) = MON_SIGHT : monHear(i) = 0 : monSpd(i) = 1 : monWake(i) = WAKE_SEE : IF monsterType(i) = MT_MIMIC THEN monWake(i) = WAKE_HIT ' (a mimic: only a shot - or you, right by it: MimicWake)
     monWeap(i) = TW_PLASMA : monTrack(i) = TURRET_TRACK : monEject(i) = TURRET_UP / TURRET_EJECT : monTMode(i) = TURRET_AUTO ' (a turret: as made - unless its line says)
-    monsterHP(i) = SkillHP(mtypeHP(monsterType(i))) : IF monsterType(i) = MT_TURRET AND monDeploy(i) > 0 THEN monDeploy(i) = 0 ' (folded away till it wakes: the editor can change a live one's line)
+    monsterHP(i) = MonHP(monsterType(i), 100) : IF monsterType(i) = MT_TURRET AND monDeploy(i) > 0 THEN monDeploy(i) = 0 ' (folded away till it wakes: the editor can change a live one's line)
     FOR k = 1 TO lvlMonN
         IF lvlMon(k, 1) = x AND lvlMon(k, 2) = y THEN
             monSight(i) = lvlMon(k, 3) : monHear(i) = lvlMon(k, 4) : monSpd(i) = lvlMon(k, 6) / 100 : monWake(i) = lvlMon(k, 7)
@@ -161,7 +161,7 @@ SUB MonOwn(i, x, y)
             IF lvlMon(k, 9) > 0 THEN monTrack(i) = MaxOf(10, MinOf(360, lvlMon(k, 9))) ' (and how fast it turns)
             IF lvlMon(k, 10) > 0 THEN monEject(i) = TURRET_UP / MaxOf(4, MinOf(600, lvlMon(k, 10))) ' (how many frames it takes to come out)
             monTMode(i) = MaxOf(0, MinOf(TURRET_OUT, lvlMon(k, 11))) : IF monTMode(i) = TURRET_OUT AND monsterType(i) = MT_TURRET THEN monDeploy(i) = TURRET_UP ' (and how it starts)
-            monsterHP(i) = SkillHP(MaxOf(1, INT(mtypeHP(monsterType(i)) * lvlMon(k, 5) / 100)))
+            monsterHP(i) = MonHP(monsterType(i), lvlMon(k, 5))
             IF monWake(i) = WAKE_HUNT THEN monsterState(i) = 1 : monsterTimer(i) = 60
         END IF
     NEXT

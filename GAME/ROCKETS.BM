@@ -25,7 +25,7 @@ END SUB
 SUB FireRocket
     DIM dz ' (its own: the main program shares these names)
     dz = 0 : IF lookAim THEN dz = DTan(pitch)
-    lastBolt = 0 : FireKind BK_ROCKET, playerX + dirX * 0.25, playerY + dirY * 0.25, eyeZ - 0.1, dirX, dirY, dz, ROCKET_SPEED, 240, ROCKET_HIT
+    lastBolt = 0 : FireKind BK_ROCKET, playerX + dirX * 0.25, playerY + dirY * 0.25, eyeZ - 0.1, dirX, dirY, dz, ROCKET_SPEED, 240, TuneNow!(tuRockHit)
     IF rocketCamHeld AND lastBolt AND NOT editMode AND NOT cyberOn THEN viewOn = VIEW_ROCKET : viewBolt = lastBolt : viewHold = 0 ' (ROCKET CAM held: you ride it - GAME/SECURE.BM)
 END SUB
 
@@ -130,7 +130,7 @@ SUB BoltBurst(i)
     boltOn(i) = 0 : bsX = boltX(i) : bsY = boltY(i) : bsZ = boltZ(i) : bsDX = boltDX(i) : bsDY = boltDY(i) : bsOwner = boltOwner(i)
     bsYours = (boltKind(i) = BK_ROCKET AND boltOwner(i) = 0) ' (your own rocket: a rocket jump - a turret's missile only throws you)
     IF boltKind(i) = BK_ROCKET THEN
-        bsR = ROCKET_RADIUS : bsMon = ROCKET_MON : bsYou = ROCKET_YOU : IF ampTimer > 0 THEN bsMon = bsMon * 2
+        bsR = ROCKET_RADIUS : bsMon = TuneNow!(tuRockMon) : bsYou = ROCKET_YOU : IF ampTimer > 0 THEN bsMon = bsMon * 2
     ELSE
         bsR = MISSILE_RADIUS : bsMon = MISSILE_MON : bsYou = MISSILE_YOU
     END IF

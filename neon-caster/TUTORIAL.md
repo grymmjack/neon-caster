@@ -62,7 +62,7 @@ it yourself:
 | F5 / F9 | quick save / quick load |
 | Tab | the full-screen map (all of it once you've found the map pickup), textured as Duke3D's: each floor you know in its own picture from above, walls as lines - pools in their colours, pits, lifts and teleporter pads |
 | ` (backtick) | the console: type `help` for the commands |
-| Ctrl+R | record a demo: the sector starts again and every key from there is kept, till Ctrl+R again or the exit - **DEMO REPLAYS** (the main menu) plays it back |
+| Ctrl+R | record a demo: the sector starts again (with what you came in with) and every key from there is kept, till Ctrl+R again; at the exit it goes on recording into the next sector - **DEMO REPLAYS** (the main menu) plays them back |
 | F2 | the level editor (see below); in it, F1 shows a cheatsheet of every key |
 | F3 | where you are, in numbers (top left): x y and the cell, the way you face in degrees, heights, the wall you're looking at and its map character, a `tp` line that brings you back there, and the frame rate (the console's `info` too) |
 | K / G | testing cheats: every keycard / god mode (no damage, through walls, flying with E up and C down, and the monsters ignore you) |
@@ -122,7 +122,8 @@ frames coming slower or faster, so it stays in step); Esc's menu has them
 too. The console's `playlist` does the same (`playlist next`, `playlist
 speed 2`...). Leave the title menu alone for 15 seconds and the playlist
 plays by itself, at the speed it was played, till you press a key. Ctrl+R records one: the sector you're in
-starts again, and Ctrl+R again (or the exit) keeps it as `run1`, `run2`...
+starts again, with what you came into it with, and Ctrl+R again (or the exit) keeps it as `run1`,
+`run2`... Reach the exit and the next sector records on by itself, carrying everything you have.
 From the console, `record NAME` does the same with a name of your own. A
 demo is how DOOM did it: not a video, but every key and turn, frame by
 frame. The exit (or `stopdemo`) ends it, and `playdemo NAME` plays it

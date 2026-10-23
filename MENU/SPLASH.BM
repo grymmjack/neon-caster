@@ -13,6 +13,8 @@ SUB ShowSplash STATIC
         _LIMIT 60
         splashTime! = TIMER - splashStart! : IF splashTime! < 0 THEN splashTime! = splashTime! + 86400
         DrawSplash splashTime!
+        IF GLShows THEN GLCapture ' (FULL WIDE: OpenGL shows it 4:3 in the middle, not stretched)
+        GLScreenLayer GLShows
         ShowFrame
         anyInput = 0
         WHILE _MOUSEINPUT

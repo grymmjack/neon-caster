@@ -219,8 +219,8 @@ SUB RunMenu STATIC
             END IF
             DrawMenu menuT
             IF glReady THEN GLLiveSettings ' (so OpenGL shows a change as you make it: chapter 24)
-            IF glReady THEN GLCapture ' (OpenGL draws the menu over its view: chapter 24)
-            GLScreenLayer glReady
+            IF GLShows THEN GLCapture ' (OpenGL draws the menu over its view: chapter 24)
+            GLScreenLayer GLShows
             ShowFrame
         END IF
     LOOP UNTIL menuDone
@@ -376,6 +376,7 @@ SUB MenuActivate STATIC
                     IF loadOK THEN menuDone = -1
                 CASE MA_QUIT
                     QuitGame
+                CASE MA_TUNER : RunTuner
                 CASE MA_KEYS_DEFAULT
                     FOR b = 1 TO NUM_BINDS : keyBind&(b) = bindDefault&(b) : NEXT
                 CASE MA_QB64_TYPE ' Type qb64pe's path in (MenuTypeKey)
@@ -639,6 +640,7 @@ SUB BuildMenu(scr)
             AddSettingItem SET_XSIZE : AddSettingItem SET_XALPHA : AddSettingItem SET_XFEEDBACK
             AddSettingItem SET_BOB : AddSettingItem SET_SHAKE : AddSettingItem SET_HURTDIR : AddSettingItem SET_AIMSENS
             AddSettingItem SET_TIMER : AddSettingItem SET_POISON
+            AddMenuItem "TUNER...", MI_ACTION, 0, MA_TUNER, -1, "health, damage, shots to destroy - by difficulty"
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_CONTROLS
             menuTitle$ = "CONTROLS" : menuWide = -1

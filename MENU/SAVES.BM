@@ -110,6 +110,7 @@ SUB LoadGame STATIC
     sectorSet = 0 : IF level > 100 THEN sectorSet = level \ 100 : level = level MOD 100 ' (another set's sector)
     ReadSectorNames
     LoadLevel
+    entryCarry$ = "" ' (what you came into this sector with isn't in a save: Ctrl+R records with what you have)
     GET #fileNum, , health : GET #fileNum, , armor : GET #fileNum, , kills : GET #fileNum, , currentGun : GET #fileNum, , levelTime!
     GET #fileNum, , totalKills : GET #fileNum, , totalMonsters : GET #fileNum, , totalTime!
     GET #fileNum, , savedHealth : GET #fileNum, , savedArmor : GET #fileNum, , savedCells : GET #fileNum, , savedShells : GET #fileNum, , savedGun

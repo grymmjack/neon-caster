@@ -128,7 +128,7 @@ SUB ThingSpawn(code, x, y)
             numMonsters = numMonsters + 1
             monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = code - THING_MON
             MonFresh numMonsters
-            monsterHP(numMonsters) = SkillHP(mtypeHP(monsterType(numMonsters))) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
+            monsterHP(numMonsters) = MonHP(monsterType(numMonsters), 100) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
             monsterEv(numMonsters) = 0 : ThiefReset numMonsters
             MonOwn numMonsters, x, y
         END IF
@@ -271,15 +271,15 @@ SUB KeypadRun(code&) STATIC
             CASE "X" : done = -1 : padIn$ = ""
         END SELECT
         DrawKeypad ""
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady : ShowFrame
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows : ShowFrame
     LOOP UNTIL done
     IF LEN(padIn$) THEN ' (the result, a moment)
         FOR f = 1 TO 40
             _LIMIT 60 : WHILE _MOUSEINPUT : WEND
             IF padOK THEN DrawKeypad "OPEN" ELSE DrawKeypad "DENIED"
-            IF glReady THEN GLCapture
-            GLScreenLayer glReady : ShowFrame
+            IF GLShows THEN GLCapture
+            GLScreenLayer GLShows : ShowFrame
         NEXT
     END IF
     _KEYCLEAR : _MOUSEHIDE _DISABLE : WHILE _MOUSEINPUT : WEND : mouseSettle = 8
@@ -513,8 +513,8 @@ SUB NoteRun STATIC
         WEND
         k& = _KEYHIT : IF k& > 0 AND t0 > 15 THEN gone = -1
         DrawNote img&
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady : ShowFrame
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows : ShowFrame
     LOOP UNTIL gone
     IF img& < -1 THEN _FREEIMAGE img&
     _KEYCLEAR : WHILE _MOUSEINPUT : WEND

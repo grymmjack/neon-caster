@@ -15,6 +15,10 @@
 '                                                   armour 2 in 3  half the machines bring a twin;
 '                                                                  every hurt hurts a quarter more
 '
+' And a sector's maker can say which difficulties anything placed is in -
+' the editor's IN DIFFICULTY, a [difficulty] line: then it's in exactly
+' those, with none of the above thinning it (SkillMask, SkillLeftOut).
+'
 
 ' The difficulty in effect: the setting's - or, recording or playing a
 ' demo, the demo's own
@@ -44,20 +48,33 @@ END FUNCTION
 
 ' A machine's health (made with hp) at this difficulty
 FUNCTION SkillHP(hp)
-    SELECT CASE SkillNow
+    SkillHP = SkillHPAt(hp, SkillNow)
+END FUNCTION
+
+' ...at difficulty s (the tuning table's NORMAL, HARD and NIGHTMARE as made)
+FUNCTION SkillHPAt(hp, s)
+    SELECT CASE s
         CASE SKILL_NORMAL : m! = 2
         CASE SKILL_HARD : m! = 3
         CASE SKILL_NIGHTMARE : m! = 3.5
-        CASE ELSE : SkillHP = hp : EXIT FUNCTION
+        CASE ELSE : SkillHPAt = hp : EXIT FUNCTION
     END SELECT
-    SkillHP = MaxOf(1, INT(hp * m! + 0.5))
+    SkillHPAt = MaxOf(1, INT(hp * m! + 0.5))
 END FUNCTION
 
 ' How much a hurt of d hurts at this difficulty (NIGHTMARE: a quarter more -
 ' not a pit or a death trap's 999, which is the end whatever)
 FUNCTION SkillHurt(d)
+    DIM p, s ' (its own: the main program shares these names)
     SkillHurt = d
-    IF d > 0 AND d < 999 THEN IF SkillNow = SKILL_NIGHTMARE THEN SkillHurt = INT(d * 1.25 + 0.5)
+    IF d > 0 AND d < 999 THEN
+        s = SkillNow : p = tuneV(tuHurt, s)
+        IF p = tuneC(tuHurt, s) THEN ' (as coded - the tuner's DAMAGE YOU TAKE untouched)
+            IF s = SKILL_NIGHTMARE THEN SkillHurt = INT(d * 1.25 + 0.5)
+        ELSE
+            SkillHurt = MaxOf(1, INT(d * p / 100 + 0.5))
+        END IF
+    END IF
 END FUNCTION
 
 ' Cell (x, y)'s own number, 0-99: the same every time this sector loads
@@ -80,6 +97,7 @@ FUNCTION SkillDrop(k, x, y)
     DIM s, keep
     s = SkillNow : IF s = SKILL_EASY THEN EXIT FUNCTION
     IF editMode THEN EXIT FUNCTION ' (the editor shows the sector as it is)
+    IF SkillMask(x, y) >= 0 THEN EXIT FUNCTION ' (it has difficulties of its own, its [difficulty] line: those exactly - SkillLeftOut)
     keep = 100
     SELECT CASE k
         CASE IT_HEALTH, IT_BIGMED
@@ -93,9 +111,52 @@ FUNCTION SkillDrop(k, x, y)
     SkillDrop = SkillRoll(x, y) >= keep
 END FUNCTION
 
+' A cell's own difficulties - the editor's IN DIFFICULTY, a [difficulty]
+' line (x, y, the names it's in: easy normal hard nightmare, or none):
+' -1 no line (every difficulty, and the game's own thinning - SkillDrop,
+' SkillTwins); else bit s (1, 2, 4, 8) set for each difficulty s it's in
+FUNCTION SkillMask(x, y)
+    DIM k, m, s, w$ ' (its own: the main program shares these names)
+    SkillMask = -1
+    k = XtraFind("difficulty", x, y, 0) : IF k = 0 THEN EXIT FUNCTION
+    w$ = " " + LCASE$(XtraRest$(k, 3)) + " "
+    DO WHILE INSTR(w$, ",") : MID$(w$, INSTR(w$, ","), 1) = " " : LOOP ' (hard, nightmare as well as hard nightmare)
+    FOR s = 0 TO 3
+        IF INSTR(w$, " " + LCASE$(SkillName$(s)) + " ") THEN m = m OR SkillBit(s)
+    NEXT
+    SkillMask = m
+END FUNCTION
+
+' Difficulty s's bit in a mask
+FUNCTION SkillBit(s)
+    SkillBit = VAL(MID$("1248", s + 1, 1))
+END FUNCTION
+
+' ...a mask as its line has it ("" every one - no line)
+FUNCTION SkillWords$(m)
+    DIM s, w$ ' (its own: the main program shares these names)
+    IF m >= 15 OR m < 0 THEN EXIT FUNCTION
+    FOR s = 0 TO 3
+        IF m AND SkillBit(s) THEN w$ = w$ + " " + LCASE$(SkillName$(s))
+    NEXT
+    IF w$ = "" THEN w$ = " none"
+    SkillWords$ = MID$(w$, 2)
+END FUNCTION
+
+' Is what starts in cell (x, y) - a pickup, a monster, a decoration, a
+' thing - left out at this difficulty by its own line? (Never in the
+' editor: it shows the sector as it is)
+FUNCTION SkillLeftOut(x, y)
+    DIM m ' (its own: the main program shares these names)
+    IF editMode THEN EXIT FUNCTION
+    m = SkillMask(x, y) : IF m < 0 THEN EXIT FUNCTION
+    SkillLeftOut = (m AND SkillBit(SkillNow)) = 0
+END FUNCTION
+
 ' NIGHTMARE: every gun at the start, and all the ammo it holds (StartLoadout)
 SUB SkillLoadout
     DIM g
+    TuneAmmoMax ' (the most of each you carry, at this difficulty: GAME/TUNING.BM)
     IF SkillNow <> SKILL_NIGHTMARE THEN EXIT SUB
     FOR g = 1 TO NUM_GUNS : hasGun(g) = -1 : NEXT
     FOR g = 1 TO NUM_AMMO : ammoCount(g) = ammoMax(g) : NEXT
@@ -111,7 +172,7 @@ SUB SkillTwins
         t = monsterType(i)
         IF t <> MT_TURRET AND t <> MT_MIMIC AND t <> MT_WARDEN AND t <> MT_COLOSSUS AND t <> MT_ICE AND numMonsters < MAX_MON THEN
             x = INT(monsterX(i)) : y = INT(monsterY(i))
-            IF SkillRoll(x * 3 + 1, y * 5 + 2) < 50 THEN
+            IF SkillRoll(x * 3 + 1, y * 5 + 2) < 50 AND SkillMask(x, y) < 0 THEN ' (not one with difficulties of its own: it's as its line says)
                 d = SkillRoll(y, x) MOD 8 ' (which way it tries first)
                 FOR k = 0 TO 7
                     nx = x + DirDX((d + k) MOD 8) : ny = y + DirDY((d + k) MOD 8)

@@ -649,6 +649,56 @@ def build_table():
     return len(tris), frame
 
 
+def plate():
+    """A pressure plate (the PLATE event's trap): a low steel plate lying
+    flat across its cell - 0.94 cells square, 0.03 high, its edges bevelled -
+    worn tread on top, a bolt in each corner, and a slit of a light in the
+    middle, textured from the white corner (MUZZLE_UV): dim red as made; the
+    game lights it (its cap colour) while the plate counts down. It never
+    turns: square to the map. Its own texture: top (quarter), edges, the light."""
+    T = 64; tex = np.zeros((T, T, 4), np.uint8); tex[..., 3] = 255
+    tex[:32, :32, :3] = (82, 86, 98)  # the top: steel, near a floor's own grey
+    for k in range(-32, 32, 4):  # (worn diagonal tread, faint)
+        for i in range(32):
+            j = i + k
+            if 0 <= j < 32: tex[i, j, :3] = (89, 93, 105)
+    tex[2:30, 2, :3] = tex[2:30, 29, :3] = (62, 65, 75); tex[2, 2:30, :3] = tex[29, 2:30, :3] = (62, 65, 75)  # (a seam round it, just in)
+    for by, bx in ((4, 4), (4, 27), (27, 4), (27, 27)): tex[by:by + 2, bx:bx + 2, :3] = (96, 100, 110)  # (bolts)
+    tex[:32, 32:, :3] = (60, 63, 72); tex[2:4, 32:, :3] = (96, 100, 112)  # its bevelled edge: darker, a lit lip
+    tex[32:, :, :3] = (40, 42, 49)
+    tex[int(T * (1 - MUZZLE_BOX)):, int(T * (1 - MUZZLE_BOX)):, :3] = (120, 26, 32)  # the light, unlit: a dim red
+    B, Tp, h = 0.47, 0.445, 0.03
+    tris = []
+    top = lambda x, y: (0.02 + (x + Tp) / (2 * Tp) * 0.46, 0.02 + (y + Tp) / (2 * Tp) * 0.46)
+    _quad(tris, [(-Tp, -Tp, h), (Tp, -Tp, h), (Tp, Tp, h), (-Tp, Tp, h)], [top(-Tp, -Tp), top(Tp, -Tp), top(Tp, Tp), top(-Tp, Tp)], (0, 0, 1))
+    eu = [(0.52, 0.48), (0.98, 0.48), (0.98, 0.02), (0.52, 0.02)]
+    for sx, sy in ((1, 0), (-1, 0), (0, 1), (0, -1)):  # its four bevelled sides
+        if sx: q = [(sx * B, -B, 0), (sx * B, B, 0), (sx * Tp, Tp, h), (sx * Tp, -Tp, h)]
+        else: q = [(-B, sy * B, 0), (B, sy * B, 0), (Tp, sy * Tp, h), (-Tp, sy * Tp, h)]
+        _quad(tris, q, eu, (sx, sy, 0.6))
+    L, W, d = 0.11, 0.016, 0.006  # the light: a slit, just proud of the top
+    lu = [(MUZZLE_UV, MUZZLE_UV)] * 4
+    _quad(tris, [(-L, -W, h + d), (L, -W, h + d), (L, W, h + d), (-L, W, h + d)], lu, (0, 0, 1))
+    for sx, sy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        if sx: q = [(sx * L, -W, h), (sx * L, W, h), (sx * L, W, h + d), (sx * L, -W, h + d)]
+        else: q = [(-L, sy * W, h), (L, sy * W, h), (L, sy * W, h + d), (-L, sy * W, h + d)]
+        _quad(tris, q, lu, (sx, sy, 0))
+    return tris, tex
+
+
+def build_plate():
+    tris, tex = plate()
+    frame = 1.0
+    write_obj(tris, os.path.join(HERE, 'plate.obj'), 'plate', frame)
+    t = Image.fromarray(tex, 'RGBA')
+    t.resize((64, 64), Image.NEAREST).save(os.path.join(HERE, 'plate_tex.png'))
+    os.makedirs(HD, exist_ok=True)
+    t.resize((256, 256), Image.NEAREST).save(os.path.join(HD, 'plate_tex.png'))
+    for f in range(8):
+        Image.fromarray(render(tris, tex, f, PIC, 4, frame), 'RGBA').save(os.path.join(HERE, f'plate_{f}.png'))
+    return len(tris), frame
+
+
 def build_rocket():
     tris, tex = rocket()
     frame = 0.42
@@ -671,6 +721,9 @@ def main():
     if write and (not only or 'table-flipped' in only):
         n, frame = build_table()
         print(f'{"table-flipped":16s} {n} triangles, its pictures {frame:.2f} cells across')
+    if write and (not only or 'plate' in only):
+        n, frame = build_plate()
+        print(f'{"plate":16s} {n} triangles, its pictures {frame:.2f} cells across')
     if write and (not only or 'rocket' in only):
         n, frame = build_rocket()
         print(f'{"rocket":16s} {n} triangles, its pictures {frame:.2f} cells across')

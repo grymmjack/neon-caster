@@ -53,6 +53,7 @@
 
 ' GAME ------------------------------------------------------------------------
 '$INCLUDE:'./GAME/MONTYPES.BI'
+'$INCLUDE:'./GAME/TUNING.BI'
 '$INCLUDE:'./GAME/TRIGGERS.BI'
 '$INCLUDE:'./GAME/TELEPORTERS.BI'
 '$INCLUDE:'./GAME/ARCADE.BI'

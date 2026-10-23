@@ -39,6 +39,7 @@ SUB LoadModels
         mimicNapMdl = NewModel("mimic-asleep", 0)
         FOR k = 1 TO MON_TYPES : mtypeMdl(k) = NewModel(mtypeName$(k), 0) : NEXT
         rocketMdl = NewModel("rocket", 0) ' (rockets and missiles, flying)
+        plateMdl = NewModel("plate", 0) ' (the PLATE trap's pressure plates)
         turPlateMdl = NewModel("turret-mount", 0) : turHoleMdl = NewModel("turret-mount-broken", 0) ' (the plate it's bolted on)
         turBaseMdl = NewModel("turret-base", 0) : turHeadMdl = NewModel("turret-head", 0) ' (a turret's two parts, for aiming its head: TurretDrawAt)
         IF turBaseMdl THEN ' (its head turns on the top of its base)

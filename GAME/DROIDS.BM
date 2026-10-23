@@ -91,7 +91,7 @@ SUB PlaceDroids(lv)
             IF roomy < 4 OR NOT DroidCanGo(0, cx + 0.5, cy + 0.5, z) THEN _CONTINUE
             numDroids = numDroids + 1 : i = numDroids
             droidX(i) = cx + 0.5 : droidY(i) = cy + 0.5 : droidZ(i) = z : droidKind(i) = 1 + (n MOD 2 = 0)* -1
-            droidA(i) = DRnd * 6.2832 : droidState(i) = 0 : droidTimer(i) = 30 + INT(DRnd * 90) : droidHP(i) = DROID_HP : droidWork(i) = 0
+            droidA(i) = DRnd * 6.2832 : droidState(i) = 0 : droidTimer(i) = 30 + INT(DRnd * 90) : droidHP(i) = TuneNow!(tuDroid) : droidWork(i) = 0
             EXIT FOR
         NEXT
     NEXT

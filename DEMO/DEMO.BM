@@ -155,8 +155,10 @@ END SUB
 ' --- The exit: recording, the demo's done; playing, it should end here too
 SUB DemoAtExit STATIC
     IF demoRec THEN
+        dChainWas = demoChain AND NOT demoRecQuit ' (a Ctrl+R recording: on into the next sector - LevelDone, DemoChainNext)
         DemoStop
         IF demoRecQuit THEN ConPrint "demo: recorded to the exit - quitting" : SYSTEM 0
+        demoChainWant = dChainWas
         EXIT SUB
     END IF
     IF demoLeft > 0 THEN
@@ -183,7 +185,7 @@ END SUB
 ' new game, the editor): recording, the demo's saved; playing, it stops
 SUB DemoStop STATIC
     IF demoRec THEN
-        DemoFlush : DemoStateNow : DemoPut "e " + ds$ : CLOSE #demoFH : demoRec = 0
+        DemoFlush : DemoStateNow : DemoPut "e " + ds$ : CLOSE #demoFH : demoRec = 0 : demoChain = 0
         ConPrint "demo: " + demoName$ + " saved -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + ")" : ShowMsg "DEMO SAVED: " + demoName$ + " - in DEMO REPLAYS"
         ApplySettings ' (the view's width: yours again)
     END IF
@@ -220,14 +222,75 @@ SUB AttractStart STATIC
 END SUB
 
 ' --- What a demo starts from, recording or playing: this sector, new, as
-' SELECT SECTOR starts it - with nothing left over from before. (grSeed is
-' set first: everything from here on rolls the same.)
+' SELECT SECTOR starts it - with nothing left over from before but what
+' its carry line says you brought (dCarry$). (grSeed is set first:
+' everything from here on rolls the same.)
 SUB DemoFresh STATIC
     kickTimer = 0 : pitch = 0 : playerVZ = 0 : conFire = 0 : conUse = 0 : clicked = 0 : mouseWheel = 0
     fireWas = 0 : spaceWas = 0 : kickWas = 0 : nvKeyWas = 0 : mapKeyWas = 0 : kKeyWas = 0 : gKeyWas = 0
     aimTarget = 0 : burnWait = 0 : pzTerm = 0 : deadTicks = 0
     StartLoadout
+    IF LEN(dCarry$) THEN DemoCarrySet dCarry$
     EnterLevel
+END SUB
+
+' --- What you carry, as a carry line's numbers: health, armour, the gun in
+' hand, night vision (have, on), suit, jetpack (have, fuel), repair kits,
+' then each ammo and each gun (1: had)
+FUNCTION DemoCarryNow$
+    DIM c$, k ' (its own: the main program shares these names)
+    c$ = DemoNum$(health) + " " + DemoNum$(armor) + " " + DemoNum$(currentGun) + " " + DemoNum$(nvHave) + " " + DemoNum$(-(nvOn <> 0))
+    c$ = c$ + " " + DemoNum$(suitLeft) + " " + DemoNum$(-(jetHave <> 0)) + " " + DemoNum$(jetFuel) + " " + DemoNum$(repairKits)
+    FOR k = 1 TO NUM_AMMO : c$ = c$ + " " + DemoNum$(ammoCount(k)) : NEXT
+    FOR k = 1 TO NUM_GUNS : c$ = c$ + " " + DemoNum$(-(hasGun(k) <> 0)) : NEXT
+    DemoCarryNow$ = c$
+END FUNCTION
+
+FUNCTION DemoNum$(v!)
+    DemoNum$ = LTRIM$(STR$(v!))
+END FUNCTION
+
+' ...and back: what a carry line says you have (a recording sets it from the
+' very line it writes, so both start from the same numbers)
+SUB DemoCarrySet(c$)
+    DIM k, w ' (its own: the main program shares these names)
+    health = VAL(DemoWord$(c$, 1)) : armor = VAL(DemoWord$(c$, 2)) : currentGun = VAL(DemoWord$(c$, 3))
+    nvHave = VAL(DemoWord$(c$, 4)) : nvOn = -(VAL(DemoWord$(c$, 5)) <> 0)
+    suitLeft = VAL(DemoWord$(c$, 6)) : jetHave = -(VAL(DemoWord$(c$, 7)) <> 0) : jetFuel = VAL(DemoWord$(c$, 8)) : repairKits = VAL(DemoWord$(c$, 9))
+    w = 10
+    FOR k = 1 TO NUM_AMMO : ammoCount(k) = VAL(DemoWord$(c$, w)) : w = w + 1 : NEXT
+    FOR k = 1 TO NUM_GUNS : hasGun(k) = -(VAL(DemoWord$(c$, w)) <> 0) : w = w + 1 : NEXT
+    IF health <= 0 THEN health = MAX_HP
+    IF currentGun < 1 OR currentGun > NUM_GUNS THEN currentGun = W_BLASTER
+    IF NOT hasGun(currentGun) THEN currentGun = W_BLASTER : hasGun(W_BLASTER) = -1
+END SUB
+
+' What Ctrl+R starts this sector again with: what you came into it with
+' (a loaded game's, not known: what you have now)
+FUNCTION DemoEntryCarry$
+    IF LEN(entryCarry$) THEN DemoEntryCarry$ = entryCarry$ ELSE DemoEntryCarry$ = DemoCarryNow$
+END FUNCTION
+
+' --- Ctrl+R (or record with no name): recording, stop and keep it; else
+' record this sector again from its start, with what you came into it with
+SUB DemoRecordKey STATIC
+    IF demoRec THEN
+        DemoStop
+    ELSEIF demoPlay THEN
+        ShowMsg "A demo's playing - Esc, STOP DEMO first"
+    ELSE
+        demoName$ = DemoNextName$ : dSeedWant# = 0 : demoRecQuit = 0 : dCarry$ = DemoEntryCarry$ : DemoRecordStart : demoChain = -1
+        ShowMsg "RECORDING " + demoName$ + " - the sector again, with what you came in with. Ctrl+R stops it"
+    END IF
+END SUB
+
+' --- A Ctrl+R recording reached the exit: after the tally, the next sector
+' starts recording at once (the next runN), with everything you bring
+SUB DemoChainNext STATIC
+    demoChainWant = 0
+    dCarry$ = DemoCarryNow$ : demoName$ = DemoNextName$ : dSeedWant# = 0 : demoRecQuit = 0
+    DemoRecordStart : demoChain = -1
+    ShowMsg "RECORDING " + demoName$ + " - going on from the last sector. Ctrl+R stops it"
 END SUB
 
 ' --- record NAME: start recording (DemoFresh - this sector from its start)
@@ -250,10 +313,12 @@ SUB DemoRecordStart STATIC
     DemoPut "buddha" + STR$(-(buddhaMode <> 0)) ' (hurt, but never below 1 health: a demo made so plays back so)
     demoSkill = setting(SET_SKILL) : IF demoSkill THEN DemoPut "skill" + STR$(demoSkill) ' (its DIFFICULTY: only if it isn't EASY - a demo with no such line was made on EASY)
     IF jetInf THEN DemoPut "jetinf 1" ' (infinite jet fuel: only if it's on - older demos have no such line)
+    IF LEN(dCarry$) THEN DemoPut "carry " + dCarry$ ' (what you bring into it - a Ctrl+R recording's: one with none starts with nothing)
     DemoPut "begin"
     DemoFresh
     demoRec = -1 : demoFrame = 0 : demoPendN = 0
-    ConPrint "demo: recording " + demoName$ + " - " + sectorName$(level) + ", from its start (the exit, or stopdemo, ends it)"
+    IF LEN(dCarry$) THEN dWhy$ = ", from its start with what you brought" ELSE dWhy$ = ", from its start"
+    ConPrint "demo: recording " + demoName$ + " - " + sectorName$(level) + dWhy$ + " (the exit, or stopdemo, ends it)"
     ShowMsg "RECORDING " + demoName$
 END SUB
 
@@ -262,7 +327,7 @@ SUB DemoPlayStart STATIC
     demoFH = FREEFILE : OPEN dFile$ FOR INPUT AS #demoFH
     demoBack$ = "" : DemoNextLine
     IF dl$ <> "NEON-CASTER DEMO 1" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " isn't a demo" : EXIT SUB
-    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0 : dBud = 0 : dJet = 0 : dSkill = 0
+    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0 : dBud = 0 : dJet = 0 : dSkill = 0 : dCarry$ = ""
     DO
         DemoNextLine
         IF dl$ = "" OR dl$ = "begin" THEN EXIT DO
@@ -280,6 +345,7 @@ SUB DemoPlayStart STATIC
             CASE "buddha" : dBud = (VAL(dv$) <> 0)
             CASE "jetinf" : dJet = (VAL(dv$) <> 0)
             CASE "skill" : dSkill = MaxOf(0, MinOf(3, VAL(dv$)))
+            CASE "carry" : dCarry$ = LTRIM$(MID$(dl$, 6)) ' (what the player brought into it)
         END SELECT
     LOOP
     IF dl$ <> "begin" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " has no begin" : EXIT SUB
@@ -427,7 +493,7 @@ FUNCTION DemoVerb%(v$)
              "jackin", "jackout", "respawn", "lamp", "light", "trigger", "restart", "reset", "resetlevel", "die", "suicide", "kick", "program", "loot", "turret", "turrets", _
              "mapsize", "reloadlevel", "pitch", "infinitefuel", "infjet"
             DemoVerb% = 1
-        CASE "newgame", "load", "loadgame", "quickload", "edit", "editor", "newsector", "hud", "monsters", "puzzle", "undo", "loadlevelfromdisk"
+        CASE "newgame", "load", "loadgame", "quickload", "edit", "editor", "newsector", "hud", "monsters", "tuning", "tuner", "puzzle", "undo", "loadlevelfromdisk"
             DemoVerb% = 2
     END SELECT
 END FUNCTION

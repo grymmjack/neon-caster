@@ -113,8 +113,8 @@ SUB ShowAchievements STATIC
             MenuText 400, 548, "WHEEL OR ARROWS TO SCROLL  -  TAB: RECORDS, STATS  -  ESC TO GO BACK", 1, _RGB32(130, 120, 170), 1
         END IF
         MenuText 400, 562, "BACK", 2, _RGB32(220, 220, 240), 1
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows
         ShowFrame
     LOOP
     _KEYCLEAR

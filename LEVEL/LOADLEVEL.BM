@@ -26,6 +26,7 @@ END SUB
 ' lvlRow$() and the rest, as it's been changed - not from its file
 SUB BuildLevel STATIC
     DIM n ' (its own: the editor reads the main program's n after a rebuild - a zone's number, a floor's)
+    TuneAmmoMax ' (the most of each ammo you carry, at this sector's difficulty: GAME/TUNING.BM)
     IF cyberOn THEN CyberTextures 0 : cyberOn = 0 ' (died in the network: the real pictures back)
     FOR k = 1 TO MAX_EVENTS ' (each event room's own looping sound - a trap's buzz or roar - closed: the next level's room k may be another kind)
         IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k) : _SNDCLOSE evHum&(k)
@@ -250,10 +251,14 @@ SUB BuildLevel STATIC
         END IF
     NEXT
     playerX = 0 : playerY = 0 ' (where the start is: below - none, and the first open floor)
+    skLines = 0 : FOR k = 1 TO lvlNumXtra : IF lvlXSec$(k) = "difficulty" THEN skLines = -1
+    NEXT
+    skChars$ = ItemChars$ + DecoChars$ + CHR$(34) + MonChars$
     FOR y = 0 TO mapN - 1
         row$ = lvlRow$(y)
         FOR x = 0 TO mapN - 1
             cell$ = MID$(row$, x + 1, 1)
+            IF skLines THEN IF INSTR(skChars$, cell$) THEN IF SkillLeftOut(x, y) THEN cell$ = "." ' (not at this DIFFICULTY - its [difficulty] line: GAME/SKILL.BM)
             SELECT CASE cell$
                 CASE "#" : worldMap(x, y) = 1
                 CASE "%" : worldMap(x, y) = 1 : closetCell(x, y) = -1 ' A closet's secret wall (its look: the walls beside it - AssignClosets)
@@ -290,7 +295,7 @@ SUB BuildLevel STATIC
                     IF numTCtrl < MAX_TCTRL THEN numTCtrl = numTCtrl + 1 : tcX(numTCtrl) = x : tcY(numTCtrl) = y : tcState(numTCtrl) = 0
                 CASE "&" ' A teleporter's pad
                     IF numPads < MAX_PADS THEN numPads = numPads + 1 : padX(numPads) = x : padY(numPads) = y
-                CASE "=" : glassHP(x, y) = GLASS_HP ' Glass: floor, with a pane across it (AssignGlass)
+                CASE "=" : glassHP(x, y) = TuneNow!(tuGlass) ' Glass: floor, with a pane across it (AssignGlass)
                 CASE "-" : glassHP(x, y) = BARS_HP ' Bars across a window: glass that never breaks
                 CASE "o", "i", "p", "t", "x", "l", "n", "f", "S", "d", "A", "F", "I", "J", "L", "O", "Q", "U", "W", "Z", "V", ":", "[", "'", CHR$(34) ' A decoration (every one of DecoChars$) - or a thing (", its kind in [things]: a decoration, a pickup or a monster - LEVEL/THINGS.BM)
                     IF cell$ = CHR$(34) THEN dk = ThingAt(x, y) ELSE dk = DecoOfChar(cell$)
@@ -316,7 +321,7 @@ SUB BuildLevel STATIC
                         monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = MonOfChar(cell$)
                         MonFresh numMonsters ' (a turret: ~ drops from the ceiling, _ rises from the floor, | slides out of a wall - TurretMount, once the walls are all in)
                         IF cell$ = "_" THEN monFrom(numMonsters) = TURRET_FLOOR ELSE IF cell$ = "|" THEN monFrom(numMonsters) = TURRET_WALL
-                        monsterHP(numMonsters) = SkillHP(mtypeHP(monsterType(numMonsters))) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
+                        monsterHP(numMonsters) = MonHP(monsterType(numMonsters), 100) : monsterState(numMonsters) = 0 : monsterTimer(numMonsters) = 0 : monsterHurt(numMonsters) = 0
                         monsterEv(numMonsters) = 0 : ThiefReset numMonsters
                         MonOwn numMonsters, x, y ' (its own sight, hearing, health, speed, waking - [monsters])
                     END IF

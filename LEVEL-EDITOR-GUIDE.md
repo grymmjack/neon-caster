@@ -178,6 +178,7 @@ Select something and its pane opens: on the right in the 3D view, over the map's
 | A teleporter pad | Where it goes. **LINK...** and then click another pad to pair the two (saved as `[pads]`); **UNLINK** returns it to pairing in reading order. In 3D every pair is joined by a purple line. |
 | A face with a light | Its colour (twelve), effect (six), REACH and BRIGHT, REMOVE THE LIGHT. The swatch in the corner shows it going. |
 | A monster | SIGHT, HEARING, HEALTH and SPEED, and what WAKES it; AS ITS KIND IS resets it. Its sight (cyan) and hearing (yellow) are drawn as rings on the floor round it. |
+| A pickup, monster, decoration or thing (on its floor's or monster's pane) | **IN DIFFICULTY:** `[x] EASY` `[x] NORMAL` `[x] HARD` `[x] NIGHTMARE` - click one to tick or untick it; any mix will do (only HARD and NIGHTMARE, only EASY...). As made all four are ticked: it's there at every difficulty, and the game thins it as it does everything (fewer pickups at NORMAL and up, NIGHTMARE's twins). Untick any and it's there at exactly the ticked ones, as placed - no thinning, no twin. Changes every selected cell with something in it. Saved as `[difficulty]`. |
 | A floor of a lift | LOW, HIGH and SPEED in eighths, the mode (click it: UP AND DOWN, ELEVATOR, ON A TRIGGER - moves only on `liftgo`, CRUSHER, SMASHER - see below), REMOVE |
 | An event room (EVENT ROOM... on a floor's pane) | Its kind (AMBUSH, SURVIVE, TRAP, GALLERY, NEST, CLOSET, HOARD, PLATE, LASER, CUTTER, BLACKOUT, FIRETRAP, DEATHPIT - switching kind gives it numbers that suit), its two numbers by what they mean for that kind (how many monsters and of what kind, how long, live and safe times, how often), the PRIZE for winning it (ambush, survive, trap, gallery), REMOVE THE EVENT, BACK (to the floor's pane). The table under `[events]` below says what each kind does. |
 | A block's side | Its edges in eighths; PUSH IN and PULL OUT move the selected side an eighth (every block side selected); LOOKS LIKE THE WALL: `#` `N` `C` `K` `P` `G`; REMOVE THE BLOCK; ADD A LIGHT TO IT |
@@ -587,7 +588,9 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 
 **`[smears]`**: `x, y, face, what` - blood or oil: on a wall's side (x, y a wall cell, face `E` `S` `W` `N` the side facing into the room), or an open cell's floor (`F`) or ceiling (`C`); what `blood1` `blood2` `blood3` `oil1` `oil2`. Up to 128. (In the editor: PAINT with one of the blood or oil pictures at the end of the walls, floors and ceilings tabs - painting a face with any other picture wipes it off.)
 
-Together `[doors]`, `[things]`, `[notes]`, `[smears]` and `[fuel]` hold up to 512 lines.
+**`[difficulty]`** (IN DIFFICULTY on a pickup's, monster's, decoration's or thing's pane): `x, y, words` - which difficulties what starts at x, y is in: any of `easy` `normal` `hard` `nightmare` (spaces or commas between), or `none` (in none: put away for later). No line: every difficulty, thinned as the game thins everything; a line: exactly those, as placed (no thinning, no NIGHTMARE twin). A keycard must be in every one - the level kit says so. A sector that leaves its harder pickups out at EASY: `12, 30, hard nightmare`.
+
+Together `[doors]`, `[things]`, `[notes]`, `[smears]`, `[fuel]` and `[difficulty]` hold up to 512 lines.
 
 **`[nudges]`** (MOVE IT): a decoration moved off its cell's middle, `x, y, dx, dy, facing` - `dx` and `dy` in eighths across and down, -3 to 3; `facing` 0 (or left out) is as built (furniture against a wall stands flat with its back to it; anything else turns to face you), 1-4 stands it flat facing east, south, west or north, 5 turns it to face you always. Up to 160.
 

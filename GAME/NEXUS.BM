@@ -238,8 +238,8 @@ SUB ShowTransmission STATIC
         shown = INT(LEN(lineText$(li)) * MinOf(1, tNow! / (tLen! * 0.85 + 0.01)))
         WrapText 380, 210, 50, LEFT$(lineText$(li), shown), _RGB32(255, 220, 230)
         MenuText 400, 560, "SPACE TO SKIP", 1, _RGB32(150, 130, 160), 1
-        IF glReady THEN GLCapture
-        GLScreenLayer glReady
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows
         ShowFrame
     LOOP
     IF lineSnd&(li) > 0 THEN _SNDSTOP lineSnd&(li)
