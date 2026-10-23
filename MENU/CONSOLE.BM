@@ -1538,7 +1538,7 @@ SUB ConHelp(c$)
         CASE "version" : ConPrint "^3version^0: which NEON-CASTER this is"
         CASE "clear", "cls" : ConPrint "^3clear^0: empty the console"
         CASE "menu" : ConPrint "^3menu^0: the menu (Esc)"
-        CASE "soundtest", "jukebox" : ConPrint "^3soundtest^0 (or ^3jukebox^0): the menu at SOUND TEST - every sound, voice and track" : ConPrint "  O marks one OK, N types a note (saves/soundreview.txt), F flags it (saves/soundflags.txt)"
+        CASE "soundtest", "jukebox" : ConPrint "^3soundtest^0 (or ^3jukebox^0): the menu at SOUND TEST - every sound, voice and track" : ConPrint "  O marks one OK, N types a note (saves/soundreview.txt), F flags it (saves/soundflags.txt)" : ConPrint "  P pauses, [ and ] skip 5 seconds, a click or drag on the waveform plays from there"
         CASE "quit", "exit" : ConPrint "^3quit^0: leave the game"
         CASE "help", "?", "commands" : ConPrint "^3help [NAME]^0: the commands, or one of them in more detail"
         CASE ELSE

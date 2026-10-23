@@ -55,7 +55,7 @@ enter 32 14 42 36 : message THE VAULT - Space opens a chest. Look at the locks b
 enter 18 18 30 30 : message THE ATRIUM - a jetpack: E flies you up, C down, while the fuel lasts
 
 [barrels]
-' a barrel's own: x, y, its liquid (0 a plain barrel o, 1 water, 2 poison, 3 slime, 4 lava, 5 acid - a : barrel), how many stand on each other (1-3)
+' a barrel's own: x, y, its liquid (0 a plain barrel o, 1 water, 2 poison, 3 slime, 4 lava, 5 acid - a : barrel), how many stand on each other (1-8, as fit under the ceiling)
 8, 17, 1, 1
 11, 17, 2, 2
 14, 17, 4, 3

@@ -128,31 +128,334 @@ FUNCTION StInfo$(n)
 END FUNCTION
 
 ' --- Play sound n (the one before stops): a track loops at MUSIC VOLUME in
-' place of the menu's music, a voice at SPEECH VOLUME, a sound at SFX VOLUME
+' place of the menu's music, a voice at SPEECH VOLUME, a sound at SFX VOLUME.
+' A track is opened whole (not streamed, as the game's music is - they're
+' under a minute) so the player can read its samples too.
 SUB StPlay(n) STATIC
     DIM p$ ' (its own)
     StStop
     p$ = AssetPath$(stFile$(n)) : IF NOT _FILEEXISTS(p$) THEN EXIT SUB
-    IF LEFT$(stFile$(n), 6) = "music/" THEN
+    stLoops = LEFT$(stFile$(n), 6) = "music/"
+    IF stLoops THEN
         IF nowPlaying& > 0 THEN stMusicWas& = nowPlaying& : _SNDSTOP nowPlaying& : nowPlaying& = 0
-        stSnd& = _SNDOPEN(p$, "stream, noasync")
-        IF stSnd& > 0 THEN _SNDVOL stSnd&, setting(SET_MUSIC) / 100 : _SNDLOOP stSnd&
+        stSnd& = _SNDOPEN(StFileBytes$(p$), "memory, noasync") ' (from its bytes: the file itself is the game's stream already, and opening it again hands back that - with no samples to read)
+        IF stSnd& > 0 THEN _SNDVOL stSnd&, setting(SET_MUSIC) / 100
     ELSE
         stSnd& = _SNDOPEN(p$, "noasync") ' (the game's own copy of it - softened if SOFTEN HIGHS is on)
         IF stSnd& > 0 THEN
             IF LEFT$(stFile$(n), 7) = "speech/" THEN _SNDVOL stSnd&, setting(SET_SPEECH) / 100 ELSE _SNDVOL stSnd&, setting(SET_SFX) / 100
-            _SNDPLAY stSnd&
         END IF
     END IF
+    IF stSnd& <= 0 THEN stSnd& = 0 : EXIT SUB
+    StReadWave
+    IF stFrames = 0 THEN StReadViz p$ ' (no samples to read: the ones music/viz.py worked out)
+    IF stLoops THEN _SNDLOOP stSnd& ELSE _SNDPLAY stSnd&
     stNow = n
 END SUB
+
+' A file's bytes, whole
+FUNCTION StFileBytes$(p$)
+    DIM f, b$ ' (its own)
+    f = FREEFILE : OPEN p$ FOR BINARY ACCESS READ AS #f
+    b$ = SPACE$(LOF(f)) : GET #f, , b$
+    CLOSE #f
+    StFileBytes$ = b$
+END FUNCTION
 
 ' Stop the sound playing (a track: the music it stopped comes back)
 SUB StStop STATIC
     DIM m& ' (its own)
     IF stSnd& > 0 THEN _SNDSTOP stSnd& : _SNDCLOSE stSnd& : stSnd& = 0
     IF stMusicWas& > 0 THEN m& = stMusicWas& : stMusicWas& = 0 : PlayMusic m&
-    stNow = 0
+    stNow = 0 : stFrames = 0 : stLen = 0 : stSeekDrag = 0 : REDIM stWave(0) AS SINGLE : stVizOn = 0 : stVizSp$ = ""
+END SUB
+
+' The playing sound's samples, mixed to one channel, into stWave() - and the
+' seek bar's waveform from them. (Copied out of the sound engine's memory into
+' an array first, as SoftenSound does: much quicker than a sample at a time.)
+SUB StReadWave
+    DIM m AS _MEM, mb AS _MEM, bps, ch, c, total AS LONG, i AS LONG, f AS LONG, col, v!, lo!, hi! ' (its own)
+    stFrames = 0 : stLen = _SNDLEN(stSnd&) : stRate = _SNDRATE
+    m = _MEMSOUND(stSnd&)
+    IF m.SIZE = 0 THEN EXIT SUB
+    SELECT CASE m.TYPE
+        CASE 260 : bps = 4 ' (32-bit floating point)
+        CASE 130 : bps = 2 ' (16-bit)
+        CASE ELSE : _MEMFREE m : EXIT SUB
+    END SELECT
+    ch = m.ELEMENTSIZE \ bps : IF ch < 1 THEN _MEMFREE m : EXIT SUB
+    stFrames = m.SIZE \ m.ELEMENTSIZE : total = stFrames * ch
+    IF stFrames < 1 THEN _MEMFREE m : EXIT SUB
+    IF stLen > 0 THEN stRate = stFrames / stLen ELSE stLen = stFrames / stRate ' (the samples' own rate, whatever the engine unpacked it to)
+    REDIM stWave(stFrames - 1) AS SINGLE
+    IF bps = 4 THEN
+        DIM bufS(total - 1) AS SINGLE
+        mb = _MEM(bufS()) : _MEMCOPY m, m.OFFSET, m.SIZE TO mb, mb.OFFSET
+        FOR f = 0 TO stFrames - 1
+            v! = 0
+            FOR c = 0 TO ch - 1 : v! = v! + bufS(f * ch + c) : NEXT
+            stWave(f) = v! / ch
+        NEXT
+    ELSE
+        DIM bufI(total - 1) AS INTEGER
+        mb = _MEM(bufI()) : _MEMCOPY m, m.OFFSET, m.SIZE TO mb, mb.OFFSET
+        FOR f = 0 TO stFrames - 1
+            v! = 0
+            FOR c = 0 TO ch - 1 : v! = v! + bufI(f * ch + c) : NEXT
+            stWave(f) = v! / ch / 32768
+        NEXT
+    END IF
+    _MEMFREE mb : _MEMFREE m
+    FOR col = 0 TO ST_OVW - 1 ' The seek bar's waveform: each column the lowest and highest of its stretch
+        lo! = 0 : hi! = 0
+        FOR i = CLNG(col) * stFrames \ ST_OVW TO MaxOfL(CLNG(col) * stFrames \ ST_OVW, (CLNG(col) + 1) * stFrames \ ST_OVW - 1)
+            IF i < stFrames THEN
+                IF stWave(i) < lo! THEN lo! = stWave(i)
+                IF stWave(i) > hi! THEN hi! = stWave(i)
+            END IF
+        NEXT
+        stOvMin(col) = lo! : stOvMax(col) = hi!
+    NEXT
+END SUB
+
+' A track's NAME.viz (music/viz.py's - its format is there): the seek bar's waveform into
+' stOvMin / stOvMax, and the spectrum's bytes into stVizSp$
+SUB StReadViz(p$)
+    DIM v$, d$, h$, e, col, b1, b2 ' (its own)
+    stVizOn = 0 : stVizSp$ = ""
+    v$ = LEFT$(p$, _INSTRREV(p$, ".")) + "viz" : IF NOT _FILEEXISTS(v$) THEN EXIT SUB
+    d$ = _INFLATE$(StFileBytes$(v$))
+    e = INSTR(d$, CHR$(10)) : IF e = 0 OR LEFT$(d$, 6) <> "NCVIZ " THEN EXIT SUB
+    h$ = MID$(d$, 7, e - 7) + " " ' ("FPS BANDS FRAMES" - each read up to its space: VAL skips spaces, and would read all three as one)
+    stVizFPS = VAL(LEFT$(h$, INSTR(h$, " "))) : h$ = MID$(h$, INSTR(h$, " ") + 1)
+    IF VAL(LEFT$(h$, INSTR(h$, " "))) <> ST_BANDS OR stVizFPS < 1 THEN EXIT SUB
+    h$ = MID$(h$, INSTR(h$, " ") + 1) : stVizFrames = VAL(LEFT$(h$, INSTR(h$, " ")))
+    IF LEN(d$) < e + ST_OVW * 2 + stVizFrames * ST_BANDS THEN EXIT SUB
+    FOR col = 0 TO ST_OVW - 1
+        b1 = ASC(d$, e + 1 + col * 2) : b2 = ASC(d$, e + 2 + col * 2) ' (signed bytes)
+        IF b1 > 127 THEN b1 = b1 - 256
+        IF b2 > 127 THEN b2 = b2 - 256
+        stOvMin(col) = b1 / 127 : stOvMax(col) = b2 / 127
+    NEXT
+    stVizSp$ = MID$(d$, e + 1 + ST_OVW * 2, stVizFrames * ST_BANDS) : stVizOn = -1
+END SUB
+
+FUNCTION MaxOfL& (a AS LONG, b AS LONG)
+    IF a > b THEN MaxOfL& = a ELSE MaxOfL& = b
+END FUNCTION
+
+' Is a SOUND TEST category's screen showing?
+FUNCTION StScreen
+    StScreen = menuScreen >= SCR_ST1 AND menuScreen < SCR_ST1 + ST_CATS
+END FUNCTION
+
+' Where the playing sound is, in seconds (one that has played out: at its end)
+FUNCTION StPos#
+    IF stSnd& <= 0 THEN EXIT FUNCTION
+    IF _SNDPLAYING(stSnd&) OR _SNDPAUSED(stSnd&) THEN StPos# = _SNDGETPOS(stSnd&) ELSE StPos# = stLen
+END FUNCTION
+
+' Play from s seconds in (one that had played out starts again)
+SUB StSeek(s#)
+    IF stSnd& <= 0 OR stLen <= 0 THEN EXIT SUB
+    IF s# < 0 THEN s# = 0
+    IF s# > stLen - 0.01 THEN s# = stLen - 0.01
+    IF NOT _SNDPLAYING(stSnd&) AND NOT _SNDPAUSED(stSnd&) THEN
+        IF stLoops THEN _SNDLOOP stSnd& ELSE _SNDPLAY stSnd&
+    END IF
+    _SNDSETPOS stSnd&, s#
+END SUB
+
+' P: pause, or carry on (one that had played out: again from the start)
+SUB StPause
+    IF stSnd& <= 0 THEN EXIT SUB
+    IF _SNDPAUSED(stSnd&) OR NOT _SNDPLAYING(stSnd&) THEN
+        IF stLoops THEN _SNDLOOP stSnd& ELSE _SNDPLAY stSnd&
+    ELSE
+        _SNDPAUSE stSnd&
+    END IF
+END SUB
+
+' The mouse on the seek bar: press or drag along it to play from there
+SUB StMouse(mx, my, down, wasDown)
+    DIM f# ' (its own)
+    IF stSnd& <= 0 OR stLen <= 0 THEN stSeekDrag = 0 : EXIT SUB
+    IF down AND NOT wasDown AND mx >= ST_SEEK_X0 - 4 AND mx <= ST_SEEK_X0 + ST_OVW + 4 AND my >= ST_SEEK_Y0 - 4 AND my <= ST_SEEK_Y1 + 4 THEN stSeekDrag = -1 : stSeekX = -1
+    IF NOT down THEN stSeekDrag = 0
+    IF stSeekDrag AND mx <> stSeekX THEN ' (only when it moves: seeking every frame stutters)
+        stSeekX = mx : f# = (mx - ST_SEEK_X0) / ST_OVW
+        IF f# < 0 THEN f# = 0
+        IF f# > 1 THEN f# = 1
+        StSeek f# * stLen
+    END IF
+END SUB
+
+' --- The spectrum, once a frame: ST_FFT samples round the play position,
+' windowed, through the FFT, and into ST_BANDS bars spaced as we hear (each
+' twice as wide in hertz every few bars, 50 Hz to 16 kHz), in decibels -
+' 72 dB below full scale is an empty bar. Bars jump up and sink slowly; the
+' caps over them hang a moment, then fall.
+SUB StAnalyse(at AS LONG)
+    DIM k AS LONG, b, i0 AS LONG, i1 AS LONG, j AS LONG, mx!, mg!, lv!, f0!, f1!, fHi!, sm AS LONG, sz AS LONG, hf AS LONG, tw AS LONG, st AS LONG, a AS LONG, bb AS LONG, tr!, ti!, ur!, ui! ' (its own)
+    IF NOT stFFTReady THEN ' The tables, once: the window, the bit-reversed order, the turns
+        FOR k = 0 TO ST_FFT - 1
+            stHann(k) = 0.5 - 0.5 * COS(2 * _PI * k / (ST_FFT - 1))
+            sm = 0 : j = k : sz = ST_FFT \ 2
+            DO WHILE sz > 0 : IF j AND 1 THEN sm = sm + sz
+                j = j \ 2 : sz = sz \ 2
+            LOOP
+            stRev(k) = sm
+        NEXT
+        FOR k = 0 TO ST_FFT \ 2 - 1 : stCs(k) = COS(2 * _PI * k / ST_FFT) : stSn(k) = SIN(2 * _PI * k / ST_FFT) : NEXT
+        stFFTReady = -1
+    END IF
+    FOR k = 0 TO ST_FFT - 1
+        j = at - ST_FFT \ 2 + k
+        IF j >= 0 AND j < stFrames THEN stRe(stRev(k)) = stWave(j) * stHann(k) ELSE stRe(stRev(k)) = 0
+        stIm(stRev(k)) = 0
+    NEXT
+    sz = 2 ' The FFT: pairs, then fours, then eights... each a "butterfly"
+    DO WHILE sz <= ST_FFT
+        hf = sz \ 2 : tw = ST_FFT \ sz
+        FOR st = 0 TO ST_FFT - 1 STEP sz
+            FOR j = 0 TO hf - 1
+                a = st + j : bb = a + hf
+                ur! = stCs(j * tw) : ui! = -stSn(j * tw)
+                tr! = stRe(bb) * ur! - stIm(bb) * ui! : ti! = stRe(bb) * ui! + stIm(bb) * ur!
+                stRe(bb) = stRe(a) - tr! : stIm(bb) = stIm(a) - ti!
+                stRe(a) = stRe(a) + tr! : stIm(a) = stIm(a) + ti!
+            NEXT
+        NEXT
+        sz = sz * 2
+    LOOP
+    fHi! = 16000 : IF fHi! > stRate * 0.48 THEN fHi! = stRate * 0.48
+    FOR b = 0 TO ST_BANDS - 1
+        f0! = 50 * (fHi! / 50) ^ (b / ST_BANDS) : f1! = 50 * (fHi! / 50) ^ ((b + 1) / ST_BANDS)
+        i0 = INT(f0! * ST_FFT / stRate) : i1 = INT(f1! * ST_FFT / stRate)
+        IF i1 < i0 THEN i1 = i0
+        mx! = 0
+        FOR k = i0 TO i1
+            IF k >= 1 AND k < ST_FFT \ 2 THEN
+                mg! = stRe(k) * stRe(k) + stIm(k) * stIm(k)
+                IF mg! > mx! THEN mx! = mg!
+            END IF
+        NEXT
+        mx! = SQR(mx!) * 4 / ST_FFT ' (a full-scale sine reads 1: the window halves it, the FFT's two sides halve it again)
+        IF mx! > 0.0000001 THEN lv! = (20 * LOG(mx!) / LOG(10) + 72) / 72 ELSE lv! = 0
+        StBandSet b, lv!
+    NEXT
+END SUB
+
+' Bar b to level lv! (0 to 1): up at once, down slowly; its cap hangs, then falls
+SUB StBandSet(b, lv!)
+    IF lv! < 0 THEN lv! = 0
+    IF lv! > 1 THEN lv! = 1
+    IF lv! > stBand(b) THEN stBand(b) = lv! ELSE stBand(b) = stBand(b) - 0.025 : IF stBand(b) < lv! THEN stBand(b) = lv!
+    IF stBand(b) >= stPeak(b) THEN
+        stPeak(b) = stBand(b) : stPeakHold(b) = 24
+    ELSEIF stPeakHold(b) > 0 THEN
+        stPeakHold(b) = stPeakHold(b) - 1
+    ELSE
+        stPeak(b) = stPeak(b) - 0.012 : IF stPeak(b) < 0 THEN stPeak(b) = 0
+    END IF
+END SUB
+
+' Seconds as the player shows them: a short sound to the hundredth
+' (1.37), a longer one in minutes and seconds (0:42)
+FUNCTION StTime$(s#)
+    DIM w AS LONG ' (its own)
+    IF s# < 0 THEN s# = 0
+    IF stLen < 10 THEN
+        StTime$ = LTRIM$(STR$(INT(s#))) + "." + RIGHT$("0" + LTRIM$(STR$(INT((s# - INT(s#)) * 100))), 2)
+    ELSE
+        w = INT(s#) : StTime$ = LTRIM$(STR$(w \ 60)) + ":" + RIGHT$("0" + LTRIM$(STR$(w MOD 60)), 2)
+    END IF
+END FUNCTION
+
+' --- Draw the player, t frames after the screen opened: the box with what's
+' playing and its spectrum and scope, then the seek bar under it
+SUB StDrawPlayer(t)
+    DIM b, k AS LONG, x, y, h, yy, s#, at AS LONG, playing, f!, col~&, sx AS LONG, x2, y2, px, py, ln$, rt$, v! ' (its own)
+    playing = 0 : s# = 0
+    IF stSnd& > 0 THEN
+        playing = _SNDPLAYING(stSnd&) AND NOT _SNDPAUSED(stSnd&)
+        s# = StPos#
+    END IF
+    IF playing AND stFrames > 0 THEN
+        at = s# * stRate : IF at >= stFrames THEN at = stFrames - 1
+        StAnalyse at
+    ELSEIF playing AND stVizOn THEN ' (a track worked out beforehand: its bars at this moment)
+        at = INT(s# * stVizFPS) : IF at >= stVizFrames THEN at = stVizFrames - 1
+        IF at < 0 THEN at = 0
+        FOR b = 0 TO ST_BANDS - 1 : StBandSet b, ASC(stVizSp$, at * ST_BANDS + b + 1) / 255 : NEXT
+    ELSEIF stSnd& = 0 OR NOT _SNDPAUSED(stSnd&) THEN ' (stopped or played out: the bars sink; paused, they hold)
+        FOR b = 0 TO ST_BANDS - 1 : StBandSet b, 0 : NEXT
+    END IF
+    LINE (12, ST_BOX_Y0)-(788, ST_BOX_Y1), _RGBA32(6, 0, 18, 200), BF
+    LINE (12, ST_BOX_Y0)-(788, ST_BOX_Y1), _RGBA32(90, 230, 255, 90), B
+    FOR b = 0 TO ST_BANDS - 1 ' The spectrum: low notes on the left, LED blocks from magenta up to cyan
+        x = 16 + b * 16 : h = stBand(b) * ST_BAR_H
+        FOR yy = 0 TO h - 1 STEP 3
+            f! = yy / ST_BAR_H
+            LINE (x + 1, ST_BAR_Y1 - yy - 2)-(x + 13, ST_BAR_Y1 - yy), _RGBA32(255 - 165 * f!, 40 + 190 * f!, 200 + 55 * f!, 210), BF
+        NEXT
+        IF stPeak(b) > 0.02 THEN y = ST_BAR_Y1 - stPeak(b) * ST_BAR_H - 2 : LINE (x + 1, y - 1)-(x + 13, y), _RGBA32(255, 255, 255, 200), BF
+    NEXT
+    IF playing AND stFrames > 0 THEN ' The scope: the wave itself, round the play position, over the bars
+        y = (ST_BAR_Y1 + 26) \ 2 : px = -1
+        FOR k = 0 TO 767 STEP 2
+            sx = at - 512 + (k * 4) \ 3 ' (768 across: 1024 samples)
+            v! = 0 : IF sx >= 0 AND sx < stFrames THEN v! = stWave(sx)
+            y2 = y - v! * 30 : IF y2 < 26 THEN y2 = 26
+            IF y2 > ST_BAR_Y1 THEN y2 = ST_BAR_Y1
+            x2 = 16 + k
+            IF px >= 0 THEN LINE (px, py)-(x2, y2), _RGBA32(150, 255, 255, 230)
+            px = x2 : py = y2
+        NEXT
+    END IF
+    IF stNow > 0 THEN ' What's playing: its number and name, and its file, how long, and whether it loops
+        ln$ = "NOW PLAYING  " + stName$(stNow)
+        rt$ = stFile$(stNow)
+        IF stSnd& > 0 THEN
+            IF _SNDPAUSED(stSnd&) THEN
+                rt$ = rt$ + "  PAUSED"
+            ELSEIF NOT playing THEN
+                rt$ = rt$ + "  ENDED"
+            ELSEIF stLoops THEN
+                rt$ = rt$ + "  LOOPING"
+            END IF
+        END IF
+        IF LEN(ln$) > 93 - LEN(rt$) THEN ln$ = LEFT$(ln$, 92 - LEN(rt$)) + "~" ' (two spaces at least before the file)
+        MenuText 18, ST_BOX_Y0 + 3, ln$, 1, _RGB32(90, 230, 255), 0
+        MenuText 782, ST_BOX_Y0 + 3, rt$, 1, _RGBA32(200, 160, 255, 220), 2
+    ELSE
+        MenuText 400, ST_BOX_Y0 + 3, "SOUND TEST - ENTER PLAYS ONE", 1, _RGBA32(200, 160, 255, 150 + 80 * SIN(t * 0.06)), 1
+    END IF
+    ' The seek bar: the whole sound's waveform, cyan where it has played; a white line where it is
+    LINE (ST_SEEK_X0 - 2, ST_SEEK_Y0)-(ST_SEEK_X0 + ST_OVW + 1, ST_SEEK_Y1), _RGBA32(6, 0, 18, 200), BF
+    LINE (ST_SEEK_X0 - 2, ST_SEEK_Y0)-(ST_SEEK_X0 + ST_OVW + 1, ST_SEEK_Y1), _RGBA32(90, 230, 255, 90), B
+    px = -1 : IF stLen > 0 THEN px = ST_SEEK_X0 + ST_OVW * s# / stLen
+    y = (ST_SEEK_Y0 + ST_SEEK_Y1) \ 2
+    IF stFrames > 0 OR stVizOn THEN
+        FOR k = 0 TO ST_OVW - 1
+            x = ST_SEEK_X0 + k
+            IF x <= px THEN col~& = _RGBA32(90, 230, 255, 230) ELSE col~& = _RGBA32(150, 90, 200, 170)
+            LINE (x, y - stOvMax(k) * 9)-(x, y - stOvMin(k) * 9), col~&
+        NEXT
+    ELSE
+        LINE (ST_SEEK_X0, y)-(ST_SEEK_X0 + ST_OVW - 1, y), _RGBA32(150, 90, 200, 120)
+    END IF
+    IF px >= 0 THEN LINE (px, ST_SEEK_Y0 + 1)-(px + 1, ST_SEEK_Y1 - 1), _RGB32(255, 255, 255), BF
+    IF stLen > 0 THEN MenuText 784, ST_SEEK_Y0 + 3, StTime$(s#) + " / " + StTime$(stLen), 1, _RGB32(255, 255, 255), 2
+END SUB
+
+' The row of the sound playing: three little bars, moving with it
+SUB StRowIcon(x, y)
+    DIM b, h ' (its own)
+    FOR b = 0 TO 2
+        h = 3 + stBand(b * 12 + 4) * 16
+        LINE (x + b * 6, y + 24 - h)-(x + b * 6 + 3, y + 24), _RGBA32(90, 230, 255, 230), BF
+    NEXT
 END SUB
 
 ' --- Flag sound n (or unflag it), and save the flags: one path|name a line

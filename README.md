@@ -3,26 +3,27 @@
 A first-person shooter in QB64 Phoenix Edition BASIC, and a course in
 how it's made. Forty sectors of a neon space station in four
 sets of ten - the originals, ten NEW SECTORS, OLD SECTORS NEW (the
-first ten remade) and ten HUGE SECTORS, up to 192 cells across - sixteen kinds of monster (turrets with seven weapons among them), five guns, each with its own ammo - a rocket launcher the fifth - and a kick, glass you can shoot through, floors and
+first ten remade) and ten HUGE SECTORS, up to 192 cells across - twenty kinds of monster (turrets with seven weapons among them, and eyebots that zap you, then rush you and blow up), five guns, each with its own ammo - a rocket launcher the fifth - and a kick, glass you can shoot through, floors and
 ceilings at every height, lifts and bottomless pits, open skies, teleporters, data
 stations that turn the level into a wireframe network, code terminals that
 lock you in until you fix a real QB64 program, DOOM-style secrets in
 every sector (walls that slide away, switches you shoot, closets that hide
 stashes), slot machines that pay out, blow up or let monsters out, NEON PONG on the
 computers, a night vision headset, service droids going about their
-business, spawners you can see charging, and a villain who talks to you. With a level editor built in - point and click inside the level in 3D
+business, spawners you can see charging, and a villain who talks to you - NEXUS greets you in every sector, and the monsters have voices of their own. Every sector has its own music. With a level editor built in - point and click inside the level in 3D
 or on the map from above, with a picker of every wall, floor, door, item,
 monster and light - and a monster editor and a HUD editor. Twelve more
 sectors built with the editor come with it, three of them outdoors, and
 one, THE NEON EXPO, that shows off every feature at once - and THE MONOLITH,
-256 cells across and 30 walls high, as big as a sector gets. Rocket jumps, a jetpack, flying
+256 cells across and 30 walls high, as big as a sector gets - and THE STOCKPILE, THE COMPOUND and THE LAUNCH BAY, built to show off the newest of what follows. Jumping, rocket jumps, a jetpack, flying
 drones, barrels of poison, lava and acid that leak and burst (stacked up to eight high),
 treasure chests - and mimics that only look like them - ambushes of turrets that slide out of walls, floors and ceilings,
 stronghold doors to kick down, keypad doors and safes whose codes are on notes you find, desks and
 bookshelves to search, broken computers to fix and hack, security cameras to watch through, robot
 guard dogs and guards who run to raise the alarm, a rocket camera (hold the middle button as you fire), jump pads that
 shoot you across a sector (some set from a launch control, by sums you work out), a sector's own gravity, floors
-as wet or dry as a level says, and a
+as wet or dry as a level says, a harder network (hunters, sentinels, tracers and black ICE, firewalls, and a TRACE that climbs while ICE sees you - full, and more hunters come), a map
+textured from above like Duke3D's, and a
 console you can script (aliases, and an autoexec.cfg run at start-up). And 50
 achievements, each with its own badge, ready for Steam, with each
 sector's best times kept as records - and DOOM-style demos: record a
@@ -134,6 +135,14 @@ scanlines and most effects, and NEWSCHOOL is as sharp as your display goes
 with everything on. All three are full screen 4:3. Change any setting
 afterwards and MODE shows CUSTOM.
 
+**Sound:** **SETTINGS > AUDIO > SOUND TEST** (or `soundtest` in the
+console) plays every sound effect, voice and track, by category, with a
+player over the list: what's playing, how long it is and how far in, a seek
+bar drawn as its waveform (click or drag to play from anywhere; P pauses,
+[ and ] skip 5 seconds), and a spectrum moving with it (and a scope for sound effects and voices). SOFTEN
+HIGHS (OFF, LIGHT, STRONG) takes the edge off the sound effects and voices
+if they're too bright on your speakers or headphones; the music is left as it is.
+
 ## Learn from it
 
 The source is written to be read: its comments are a course in 24
@@ -176,14 +185,11 @@ built from a pinned commit.
 
 Written by grymmjack with Claude. The modern art was painted with
 pixelmon (Stable Diffusion XL, guided by the pixel art); the sound effects
-and music were synthesized; NEXUS's voice is text-to-speech through a
-vocoder.
+and music were synthesized (with soundmon); NEXUS's and the monsters' voices are
+text-to-speech through a vocoder.
 
-The footsteps, your cries when hurt or killed, the shock, the glass, the
-lifts and the traps (`neon-caster/sfx/step1.wav`, `step2.wav`, `hurt.wav`,
-`hurt2.wav`, `hurt3.wav`, `hurt-zap.wav`, `die.wav`, `glass-hit.wav`,
-`glass-break.wav`, `lift-start.wav`, `lift-move.wav`, `lift-stop.wav`,
-`trap-fire.wav` and `trap-electric.wav`) are from Imphenzia's Universal
+The footsteps and your cries when hurt (`neon-caster/sfx/step1.wav`,
+`step2.wav`, `hurt.wav`, `hurt2.wav` and `hurt3.wav`) are from Imphenzia's Universal
 Sound FX pack, used under its licence, and are not covered by the MIT
 licence.
 

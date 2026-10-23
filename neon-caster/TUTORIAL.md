@@ -1,8 +1,8 @@
 # NEON-CASTER: make a little FPS in QB64PE
 
 NEON-CASTER is a complete first-person shooter in plain QB64PE:
-ten levels, sixteen kinds of monster (one of them a thief, one a turret
-with seven weapons), five guns (the fifth a rocket launcher, each with its own ammo) and a
+ten levels, twenty kinds of monster (one of them a thief, one a mimic
+that looks like a treasure chest, one a turret with seven weapons), five guns (the fifth a rocket launcher, each with its own ammo) and a
 kick, doors and keycards, exploding barrels, traps and event rooms, glass
 you can see (and shoot) through, floors and ceilings at different heights
 with lifts and pits, teleporters, data stations that turn the level into a
@@ -60,7 +60,7 @@ it yourself:
 | Right button (hold) | aim down the sights (zooms in) |
 | Esc | the menu: pause, new game, save, load, settings, exit |
 | F5 / F9 | quick save / quick load |
-| Tab | the full-screen map (all of it once you've found the map pickup): pools in their colours, pits, lifts and teleporter pads |
+| Tab | the full-screen map (all of it once you've found the map pickup), textured as Duke3D's: each floor you know in its own picture from above, walls as lines - pools in their colours, pits, lifts and teleporter pads |
 | ` (backtick) | the console: type `help` for the commands |
 | Ctrl+R | record a demo: the sector starts again and every key from there is kept, till Ctrl+R again or the exit - **DEMO REPLAYS** (the main menu) plays it back |
 | F2 | the level editor (see below); in it, F1 shows a cheatsheet of every key |
@@ -73,7 +73,7 @@ nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or 
 `load quick`, `restart`, `finish`, any setting by its name (`fov 100`,
 `renderer 2`, `display 2` - `settings` lists them), `bind`, `events`,
 `screenshot`, `record`, `playdemo` and `bot` (demos - below), `cutscene 4` (a sector's transmission), `say taunt2`
-(any of NEXUS's lines) and `achievements` (with `achieve NAME` and
+(any of NEXUS's lines), `soundtest` (every sound, voice and track, to listen to) and `achievements` (with `achieve NAME` and
 `resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 `savelevel` - and `door`, `wall`, `light`, `liftgo`, `message`, `sound`,
@@ -650,19 +650,19 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `CORE/` ... `LOOP/` | the rest of the game and the course - see "How the source is laid out" |
 | `neon-caster/*.png` | textures (64 x 64), sprites, the guns: the CLASSIC pixel art |
 | `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
-| `neon-caster/sfx/` | sound effects, made with soundmon (the droids' chirps are synthesized whistles); `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
+| `neon-caster/sfx/` | sound effects, made with soundmon (the droids' chirps are synthesized whistles), every one mastered by `mastering/` (`README.md` there); `soundtest.txt` lists them all for the SOUND TEST (`soundtest.py` writes it); `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
 | `neon-caster/models/` | 3D props: decorations and pickups as models. `NAME.obj` is the model OpenGL draws; `NAME_0.png` to `NAME_7.png`, it seen from 8 ways round, for the software renderer (as DOOM did); `NAME_tex.png`, its texture (MODERN: `hd/models/`). `models.py` builds them from the paintings - each prop's outline pushed out to a depth (boxes, guns, cards) or spun round (barrels, tanks, jars); the chair and plant from `src/`, models pixelmon made - delete a prop's `.obj` and it's a sprite again |
-| `neon-caster/demos/` | demos that come with the game: `sector1.ncd` to `sector10.ncd`, the autopilot playing each of the original ten (`playdemo sector3`) - plain text, a line a frame |
+| `neon-caster/demos/` | demos that come with the game: the autopilot playing every sector of the four sets and the showcases (`sector1.ncd`..., `new1.ncd`, `remix1.ncd`, `huge1.ncd`...; `playdemo sector3`) - plain text, a line a frame |
 | `neon-caster/programs/` | programs the computers in a level can run (`program NAME` in a trigger): `invaders.bas`, NEON INVADERS - copy it and make your own |
-| `neon-caster/speech/` | NEXUS's lines and the minions' barks: a text-to-speech voice through a channel vocoder |
+| `neon-caster/speech/` | NEXUS's lines - a greeting for every sector - and the monsters' voices and barks: text-to-speech voices through a channel vocoder |
 | `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22), the level kit that builds and checks them (`levels.py`, `lvlkit.py`), the showcase sectors' builder (`showcase.py`), the other sets' builders (`newsectors.py`, `remaster.py`) and the skies' painter (`skies.py`) |
 | `neon-caster/levels/new/`, `remix/`, `huge/` | NEW SECTORS, OLD SECTORS NEW and HUGE SECTORS, `level1.txt`... each |
-| `neon-caster/levels/custom/` | your own sectors (`customN.txt` is sector 10+N), made by NEW SECTOR - the level kit leaves them alone; 1-11 are the showcase sectors (19-21 outdoors), 14 is THE NEON EXPO (sector 24: every feature in one, built by `levels/megasector.py`), 18 is THE MONOLITH (sector 28: 256 x 256 and 30 walls high, the biggest a sector can be, built by `levels/giant.py`), 19 is THE STOCKPILE (sector 29: liquid barrels stacked three high, treasure chests and mimics, a jetpack - `levels/stockpile.py`) |
+| `neon-caster/levels/custom/` | your own sectors (`customN.txt` is sector 10+N), made by NEW SECTOR - the level kit leaves them alone; 1-11 are the showcase sectors (19-21 outdoors), 14 is THE NEON EXPO (sector 24: every feature in one, built by `levels/megasector.py`), 18 is THE MONOLITH (sector 28: 256 x 256 and 30 walls high, the biggest a sector can be, built by `levels/giant.py`), 19 is THE STOCKPILE (sector 29: liquid barrels stacked three high, treasure chests and mimics, a jetpack - `levels/stockpile.py`), 20 THE COMPOUND (sector 30: stronghold and keypad doors, notes, safes, cameras, alarms and guards, robot dogs - `levels/compound.py`), 21 THE LAUNCH BAY (sector 31: jump pads and their launch control, 60% gravity, the jetpack - `levels/launchbay.py`) |
 | `neon-caster/puzzles/` | the code terminals' QB64 programs, one a file (`README.txt` says how to write one) |
 | `neon-caster/achievements/` | each achievement's badge (`NAME.png`) and its grey, locked one (`NAME_locked.png`) |
 | `neon-caster/saves/achievements.txt`, `records.txt` | the achievements and stats (Steam's stand-in, until the game is on Steam) and each sector's best |
 | `neon-caster/monsters.txt`, `hud.txt` | every monster's numbers and what it drops; the HUD's layout - both changed by their editors, or by hand |
-| `neon-caster/music/` | a track for each sector, the menu's, and the network's (`cyber.flac`) |
+| `neon-caster/music/` | a track for each sector of every set and each showcase (`level3.ogg`, `new3.ogg`, `remix3.ogg`, `huge3.ogg`, `sector11.ogg`...), the menu's, and the network's (`cyber.flac`); `NAME.viz` beside each `.ogg` is what the SOUND TEST's player draws for it (its waveform and spectrum, worked out by `viz.py` - the game can't read an Ogg's samples) |
 | `lib/glsl/`, `lib/steam/` | libraries from QB64_GJ_LIB: the OpenGL shaders' helpers, and Steam's achievements and stats (with a stand-in until the game is on Steam) |
 
 ## Further reading

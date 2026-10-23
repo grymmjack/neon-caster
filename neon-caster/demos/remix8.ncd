@@ -1,6 +1,6 @@
 NEON-CASTER DEMO 1
 # SECTOR 8: MAGLEV DEPOT (OLD SECTORS NEW) - the autopilot playing it, recorded on a Mac in OpenGL with LOOK UP / DOWN - playdemo remix8
-version 0.4.0
+version 0.5.0
 set 2
 sector 8
 seed 619659392

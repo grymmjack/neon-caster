@@ -104,6 +104,8 @@ SUB RunMenu STATIC
                             IF menuSel > 0 THEN
                                 IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN StFlag miRef(menuSel) : miInfo$(menuSel) = StInfo$(miRef(menuSel)) ' F (SOUND TEST): flag it
                             END IF
+                        CASE 112, 80 : IF StScreen THEN StPause ' P (SOUND TEST): pause, or carry on
+                        CASE 91, 93 : IF StScreen AND stSnd& > 0 THEN StSeek StPos# + 5 * SGN(keyCode& - 92) ' [ ] (SOUND TEST): 5 seconds back or on
                         CASE 111, 79 ' O (SOUND TEST): it's OK
                             IF menuSel > 0 THEN
                                 IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN StMarkOK miRef(menuSel) : miInfo$(menuSel) = StInfo$(miRef(menuSel)) : PlaySfx sndMenuSelect&, 0.6
@@ -130,6 +132,7 @@ SUB RunMenu STATIC
             IF mouseDown AND NOT mouseWasDown AND menuCapture THEN keyCode& = KEY_MOUSE + 1 : CaptureKey : mouseWasDown = -1
         END IF
         capM2 = _MOUSEBUTTON(2) : capM3 = _MOUSEBUTTON(3)
+        IF StScreen AND NOT menuDone AND menuCapture = 0 AND stTyping = 0 THEN StMouse mouseX, mouseY, mouseDown, mouseWasDown ' (SOUND TEST: the seek bar)
         ' (The display switching - DISPLAY, or a MODE - moves where the mouse
         ' seems to be without it moving: so for half a second after, pointing
         ' doesn't count, or it would pick whatever item is under it now.)
@@ -169,7 +172,7 @@ SUB RunMenu STATIC
         ' Attract mode: the title menu left alone ATTRACT_SECONDS, and the demos
         ' play - one after another, round and round - till a key brings it back
         IF NOT menuInGame AND NOT menuDone THEN
-            IF menuActive OR menuCapture OR menuTyping THEN menuIdle = 0 ELSE menuIdle = menuIdle + 1
+            IF menuActive OR menuCapture OR menuTyping OR menuScreen = SCR_SOUNDTEST OR StScreen THEN menuIdle = 0 ELSE menuIdle = menuIdle + 1 ' (never while you're listening in SOUND TEST)
             IF menuIdle >= ATTRACT_SECONDS * 60 THEN
                 menuIdle = 0 : AttractStart
                 IF demoPlay THEN menuDone = -1
@@ -660,8 +663,12 @@ END SUB
 SUB DrawMenu(t)
     DIM B, f, i, p ' (its own: the main program shares these names)
     glow = 0.5 + 0.5 * SIN(t * 0.05)
-    MenuText 404, 30, "NEON-CASTER", 6, _RGBA32(255, 40, 200, 110), 1 ' (a magenta shadow, for the glow)
-    MenuText 400, 26, "NEON-CASTER", 6, _RGB32(120 + 120 * glow, 235, 255), 1
+    IF StScreen THEN ' (SOUND TEST: the player where the name was)
+        StDrawPlayer t
+    ELSE
+        MenuText 404, 30, "NEON-CASTER", 6, _RGBA32(255, 40, 200, 110), 1 ' (a magenta shadow, for the glow)
+        MenuText 400, 26, "NEON-CASTER", 6, _RGB32(120 + 120 * glow, 235, 255), 1
+    END IF
     MenuText 792, 584, "v" + GAME_VERSION$, 1, _RGBA32(150, 140, 200, 160), 2 ' (the version, bottom right)
     MenuText 400, 128, menuTitle$, 2, _RGB32(255, 100, 215), 1
     LINE (250, 162)-(550, 163), _RGBA32(255, 100, 215, 120), BF
@@ -742,6 +749,9 @@ SUB DrawMenu(t)
         ELSEIF LEN(miInfo$(i)) THEN
             MenuText MENU_LABEL_X + 160 + slide, rowY + 9, miInfo$(i), 1, col~&, 0
         END IF
+        IF miAct(i) = MA_STPLAY AND miKind(i) = MI_ACTION AND stNow > 0 THEN
+            IF miRef(i) = stNow THEN StRowIcon MENU_LABEL_X + 70 + slide, rowY ' (SOUND TEST: the one playing)
+        END IF
     NEXT
     IF menuScreen = SCR_GAMEPLAY THEN ' What your crosshair looks like
         LINE (690, 96)-(750, 156), _RGBA32(0, 0, 0, 180), BF
@@ -754,7 +764,7 @@ SUB DrawMenu(t)
         IF stTyping THEN
             MenuText 400, 574, "TYPE THE NOTE     ENTER  KEEP IT     ESC  DROP IT", 1, _RGB32(255, 230, 60), 1
         ELSE
-            MenuText 400, 574, "ENTER  PLAY   O  OK   N  NOTE   F  FLAG   LEFT / RIGHT  PAGE   ESC  BACK", 1, _RGB32(140, 135, 175), 1
+            MenuText 400, 574, "ENTER PLAY  P PAUSE  [ ] SEEK  O OK  N NOTE  F FLAG  LEFT / RIGHT PAGE  ESC BACK", 1, _RGB32(140, 135, 175), 1
         END IF
     ELSE
         MenuText 400, 574, "ARROWS / WASD  MOVE     ENTER  CHOOSE     ESC  BACK     OR POINT AND CLICK", 1, _RGB32(140, 135, 175), 1
