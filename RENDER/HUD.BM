@@ -57,6 +57,24 @@ SUB HudWideBegin
     HudAt 1
 END SUB
 
+' --- FULL WIDE for a screen with a loop of its own (the MUSIC ARRANGER, the
+' tuner...): draw this frame on a canvas as wide as the window (scrW
+' across, hudCanvas&; GLCapture hands it over and comes back to our
+' screen). Anything else - a window, FULL 4:3, the software renderer - our
+' 800 x 600 screen, scrW 800. The mouse's x on it: WideMouseX(_MOUSEX) +
+' hudLastVX. Its background is the screen's to fill (it starts opaque black).
+SUB ScreenWideBegin
+    DIM w ' (its own: the main program shares these names)
+    hudWideNow = 0 : hudVX = 0 : hudViewX = 0 : scrW = 800 : hudLastVX = 0 : hudLastW = 800
+    _DEST 0
+    IF setting(SET_RENDERER) <> 2 OR NOT GLShows THEN EXIT SUB
+    w = INT(800 * WideView + 0.5) : IF w < 804 THEN EXIT SUB
+    IF hudCanvas& < -1 THEN IF _WIDTH(hudCanvas&) <> w THEN _FREEIMAGE hudCanvas& : hudCanvas& = 0
+    IF hudCanvas& >= -1 THEN hudCanvas& = _NEWIMAGE(w, 600, 32)
+    _DEST hudCanvas& : VIEW : CLS , _RGB32(0, 0, 0) : _PRINTMODE _KEEPBACKGROUND
+    scrW = w : hudVX = (w - 800) \ 2 : hudWideNow = -1 : hudLastVX = hudVX : hudLastW = w
+END SUB
+
 ' Where the HUD draws now, on FULL WIDE's canvas: an 800 x 600 VIEW at its
 ' left edge (side 0), in its middle (1) or at its right edge (2), so the
 ' code drawing a part needs no changes - or (-1) none, the whole canvas,

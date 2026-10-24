@@ -20,9 +20,42 @@ END FUNCTION
 ' nothing, so it doesn't restart.
 SUB PlayMusic(snd&)
     IF snd& = nowPlaying& THEN EXIT SUB
-    IF nowPlaying& > 0 THEN _SNDSTOP nowPlaying&
+    MusicStop
     nowPlaying& = snd&
     IF snd& > 0 THEN _SNDVOL snd&, MusicVol! : _SNDLOOP snd&
+END SUB
+
+' The same, starting with an intro (NAME-intro.ogg, from an arrangement
+' with a | in it - music/README.md): it plays once, and MusicFrame hands
+' over to the loop where the intro ends.
+SUB PlayMusicIntro(snd&, intro&)
+    IF snd& = nowPlaying& THEN EXIT SUB
+    IF intro& <= 0 OR snd& <= 0 THEN PlayMusic snd& : EXIT SUB
+    MusicStop
+    nowPlaying& = snd& : musIntro& = intro&
+    _SNDVOL intro&, MusicVol! : _SNDPLAY intro&
+END SUB
+
+' Stop the music (its intro too)
+SUB MusicStop
+    IF musIntro& > 0 THEN _SNDSTOP musIntro& : musIntro& = 0
+    IF nowPlaying& > 0 THEN _SNDSTOP nowPlaying& : nowPlaying& = 0
+END SUB
+
+' Every frame (ShowFrame): an intro hands over to its loop. The intro file
+' runs on INTRO_TAIL seconds into the loop, so the loop starts as far in as
+' the intro has got past its end - the same music, whenever the frame
+' comes. (An intro that already stopped - a loop of its own that didn't
+' show frames - starts the loop from the top.)
+SUB MusicFrame
+    DIM p#, core# ' (its own)
+    IF musIntro& <= 0 THEN EXIT SUB
+    p# = _SNDGETPOS(musIntro&)
+    core# = _SNDLEN(musIntro&) - INTRO_TAIL
+    IF _SNDPLAYING(musIntro&) AND p# < core# THEN EXIT SUB
+    _SNDVOL nowPlaying&, MusicVol! : _SNDLOOP nowPlaying&
+    IF _SNDPLAYING(musIntro&) THEN _SNDSETPOS nowPlaying&, p# - core#
+    _SNDSTOP musIntro& : musIntro& = 0
 END SUB
 
 ' How loud the music plays: the MUSIC VOLUME setting - halved while the
@@ -41,4 +74,5 @@ END FUNCTION
 ' of musicDuck!)
 SUB SetMusicVol
     IF nowPlaying& > 0 THEN _SNDVOL nowPlaying&, MusicVol!
+    IF musIntro& > 0 THEN _SNDVOL musIntro&, MusicVol!
 END SUB

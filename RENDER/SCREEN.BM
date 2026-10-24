@@ -77,5 +77,10 @@ END SUB
 ' tells it so, instead of ending the program on the spot.)
 SUB ShowFrame
     _DISPLAY
+    MusicFrame
     IF _EXIT THEN QuitGame
+    ' Alt+X: out of the game from anywhere, at once - no question asked (every screen shows its frames here)
+    IF _KEYDOWN(100307) OR _KEYDOWN(100308) THEN
+        IF _KEYDOWN(120) OR _KEYDOWN(88) THEN QuitGame
+    END IF
 END SUB

@@ -92,6 +92,7 @@
 '$INCLUDE:'./MENU/SAVES.BI'
 '$INCLUDE:'./MENU/SPLASH.BI'
 '$INCLUDE:'./MENU/SOUNDTEST.BI'
+'$INCLUDE:'./EDITOR/ARRANGER.BI'
 
 ' EDITOR ----------------------------------------------------------------------
 '$INCLUDE:'./EDITOR/MONEDIT.BI'

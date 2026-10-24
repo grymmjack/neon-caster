@@ -59,7 +59,7 @@ END SUB
 FUNCTION MonsterFieldText$(t, f)
     SELECT CASE f
         CASE 1 : n$ = "HIT POINTS" : v$ = STR$(mtypeHP(t))
-        CASE 2 : n$ = "SPEED" : v$ = STR$(mtypeSpeed(t)) + "   (you walk .06, run .12)"
+        CASE 2 : n$ = "SPEED" : v$ = STR$(mtypeSpeed(t)) + "  (walk .06, run .12)" ' (yours - short, to fit before the screen's edge)
         CASE 3 : n$ = "HEIGHT" : v$ = STR$(mtypeScale(t)) + " walls"
         CASE 4 : n$ = "HOVERS" : v$ = STR$(mtypeLift(t))
         CASE 5 : n$ = "BOBS" : v$ = STR$(mtypeBob(t))

@@ -1,0 +1,2541 @@
+''
+' NEON-CASTER - EDITOR/ARRANGER.BM
+' =============================================================================
+' The MUSIC ARRANGER: a track's .arr read and written, played live from its
+' take, and the screen you change it on.
+'
+
+' === THE .ARR =================================================================
+
+FUNCTION ArPath$(name$)
+    ArPath$ = AssetPath$("music/" + name$ + ".arr")
+END FUNCTION
+
+' The music folder (where NAME.arr is), with its / on
+FUNCTION ArMusicDir$
+    DIM p$ ' (its own)
+    p$ = ArPath$(arName$)
+    ArMusicDir$ = LEFT$(p$, LEN(p$) - LEN(arName$) - 4)
+END FUNCTION
+
+' The file of one of track name$'s arrangements: alt$ "" is the game's (music/NAME.arr),
+' any other an arrangement of the same take to try things in - music/arrangements/NAME/ALT.arr
+FUNCTION ArFile$(name$, alt$)
+    IF alt$ = "" THEN ArFile$ = ArPath$(name$) ELSE ArFile$ = ArMusicDir$ + "arrangements/" + name$ + "/" + alt$ + ".arr"
+END FUNCTION
+
+' The arrangement as it's named: MENU, or MENU / CHILL (UNTITLED: a new one not saved yet)
+FUNCTION ArShownName$
+    IF arUntitled THEN
+        ArShownName$ = UCASE$(arName$) + " / UNTITLED"
+    ELSEIF LEN(arAlt$) THEN
+        ArShownName$ = UCASE$(arName$) + " / " + UCASE$(arAlt$)
+    ELSE
+        ArShownName$ = UCASE$(arName$)
+    END IF
+END FUNCTION
+
+' The name the music/ tools take for it: NAME, or NAME/ALT
+FUNCTION ArToolName$
+    IF LEN(arAlt$) THEN ArToolName$ = arName$ + "/" + arAlt$ ELSE ArToolName$ = arName$
+END FUNCTION
+
+' Pattern p's name: A1 ... F9 (bank letter, slot number)
+FUNCTION ArPatName$(p)
+    ArPatName$ = CHR$(65 + (p - 1) \ 9) + LTRIM$(STR$((p - 1) MOD 9 + 1))
+END FUNCTION
+
+' The pattern called n$ (A1-F9; 0: not a pattern's name)
+FUNCTION ArFindPat(n$)
+    DIM b, s ' (its own)
+    IF LEN(n$) <> 2 THEN EXIT FUNCTION
+    b = ASC(UCASE$(n$)) - 65 : s = ASC(n$, 2) - 48
+    IF b >= 0 AND b <= 5 AND s >= 1 AND s <= 9 THEN ArFindPat = b * 9 + s
+END FUNCTION
+
+' The nth word of s$ (split at spaces and tabs) - "" past the last
+FUNCTION ArWord$(s$, n)
+    DIM i, k, c$, w$, inW ' (its own)
+    k = 0 : w$ = "" : inW = 0
+    FOR i = 1 TO LEN(s$)
+        c$ = MID$(s$, i, 1)
+        IF c$ = " " OR c$ = CHR$(9) THEN
+            IF inW THEN
+                IF k = n THEN ArWord$ = w$ : EXIT FUNCTION
+                inW = 0 : w$ = ""
+            END IF
+        ELSE
+            IF NOT inW THEN inW = -1 : k = k + 1
+            w$ = w$ + c$
+        END IF
+    NEXT
+    IF inW AND k = n THEN ArWord$ = w$
+END FUNCTION
+
+' v# with d places after the point (as Python's %.3f writes it)
+FUNCTION ArFix$(v#, d)
+    DIM s$, n AS _INTEGER64 ' (its own)
+    n = _ROUND(ABS(v#) * 10 ^ d)
+    s$ = LTRIM$(STR$(n))
+    IF d > 0 THEN
+        DO WHILE LEN(s$) <= d : s$ = "0" + s$ : LOOP
+        s$ = LEFT$(s$, LEN(s$) - d) + "." + RIGHT$(s$, d)
+    END IF
+    IF v# < 0 AND n <> 0 THEN s$ = "-" + s$
+    ArFix$ = s$
+END FUNCTION
+
+' Seconds as m:ss
+FUNCTION ArTime$(s#)
+    DIM w AS LONG ' (its own)
+    w = INT(s# + 0.5) : IF w < 0 THEN w = 0
+    ArTime$ = LTRIM$(STR$(w \ 60)) + ":" + RIGHT$("0" + LTRIM$(STR$(w MOD 60)), 2)
+END FUNCTION
+
+' The clip called n$ (0: none)
+FUNCTION ArFindClip(n$)
+    DIM c ' (its own)
+    FOR c = 1 TO arClipN
+        IF UCASE$(arClipName$(c)) = UCASE$(n$) THEN ArFindClip = c : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' One line of a .arr (a ; and what follows it is a comment). The
+' arrangement's line is handed back in arr$, to be read once every clip is in.
+' A clip is whole bars (clip A  bars 1-4  intro: its first and last) or,
+' shorter or off the bar lines, bar places (clip K  at 5.25-5.5  groove:
+' where it starts and where it stops - a quarter of bar 5's second half)
+SUB ArParse(l$, arr$)
+    DIM t$, w$, a$, b, k, i ' (its own)
+    t$ = l$ : b = INSTR(t$, ";") : IF b THEN t$ = LEFT$(t$, b - 1)
+    t$ = _TRIM$(t$) : IF LEN(t$) = 0 THEN EXIT SUB
+    SELECT CASE LCASE$(ArWord$(t$, 1))
+        CASE "bpm" ' bpm B   offset S   bars N   tail N
+            FOR i = 1 TO 7 STEP 2
+                a$ = LCASE$(ArWord$(t$, i)) : w$ = ArWord$(t$, i + 1)
+                SELECT CASE a$
+                    CASE "bpm" : arBpm = VAL(w$)
+                    CASE "offset" : arOffs = VAL(w$)
+                    CASE "bars" : arBars = VAL(w$)
+                    CASE "tail" : arTail = VAL(w$)
+                END SELECT
+            NEXT
+        CASE "source" : arSource$ = _TRIM$(MID$(t$, 7))
+        CASE "auto" : arAuto = LCASE$(ArWord$(t$, 2)) = "yes"
+        CASE "clip" ' clip A  bars 1-4  intro  - or  clip K  at 5.25-5.5  groove
+            w$ = ArWord$(t$, 4) : b = INSTR(w$, "-")
+            IF b > 0 AND arClipN < AR_CLIPS THEN
+                arClipN = arClipN + 1 : k = arClipN
+                arClipName$(k) = ArWord$(t$, 2) : arClipKind$(k) = ArWord$(t$, 5)
+                IF LCASE$(ArWord$(t$, 3)) = "at" THEN
+                    arClipA(k) = CLNG(VAL(LEFT$(w$, b - 1)) * AR_TPB) : arClipE(k) = CLNG(VAL(MID$(w$, b + 1)) * AR_TPB)
+                ELSE
+                    arClipA(k) = VAL(LEFT$(w$, b - 1)) * AR_TPB : arClipE(k) = (VAL(MID$(w$, b + 1)) + 1) * AR_TPB
+                END IF
+            END IF
+        CASE "arrange" : arr$ = _TRIM$(MID$(t$, 8))
+        CASE "pattern" ' pattern A1  C*7 B*2  (its clips in order: read once they're all in)
+            k = ArFindPat(ArWord$(t$, 2))
+            IF k > 0 THEN
+                arPatRaw$(k) = "" : i = 3
+                DO WHILE LEN(ArWord$(t$, i)) : arPatRaw$(k) = arPatRaw$(k) + " " + ArWord$(t$, i) : i = i + 1 : LOOP
+            END IF
+        CASE "seam" ' seam I J S
+            IF arSeamN < AR_SEAMS THEN
+                arSeamN = arSeamN + 1 : arSeamI(arSeamN) = VAL(ArWord$(t$, 2)) : arSeamJ(arSeamN) = VAL(ArWord$(t$, 3)) : arSeamS(arSeamN) = VAL(ArWord$(t$, 4))
+            END IF
+    END SELECT
+END SUB
+
+' The patterns' and the arrangement's words into their rows
+SUB ArResolve(arr$)
+    DIM p ' (its own)
+    FOR p = 1 TO AR_PATS : ArRowFromText p, arPatRaw$(p) : arPatRaw$(p) = "" : NEXT
+    ArRowFromText 0, arr$
+    ArLoopFix
+END SUB
+
+' Row r from its words (A B*2 C... - the arrangement's can name patterns too, and has a | where
+' the loop starts): a name that's no clip (or no pattern with anything in it) is left out
+SUB ArRowFromText(r, s$)
+    DIM i, w$, b, c, n ' (its own)
+    arRowN(r) = 0 : IF r = 0 THEN arLoopK = 0
+    i = 1
+    DO
+        w$ = ArWord$(s$, i) : IF w$ = "" THEN EXIT DO
+        i = i + 1
+        IF w$ = "|" THEN
+            IF r = 0 THEN arLoopK = arRowN(0) + 1 ' (the loop starts at the next block)
+            _CONTINUE
+        END IF
+        b = INSTR(w$, "*") : n = 1
+        IF b THEN n = VAL(MID$(w$, b + 1)) : w$ = LEFT$(w$, b - 1)
+        c = ArFindClip(w$)
+        IF c = 0 AND r = 0 THEN
+            c = ArFindPat(w$)
+            IF c > 0 THEN
+                IF arRowN(c) = 0 THEN c = 0
+            END IF
+            c = -c
+        END IF
+        IF c <> 0 AND n > 0 AND arRowN(r) < AR_SEQ THEN arRowN(r) = arRowN(r) + 1 : arRowC(r, arRowN(r)) = c : arRowT(r, arRowN(r)) = MinOf(n, 16)
+    LOOP
+END SUB
+
+' The loop's start kept to a block that has one before it (else: none - it all loops)
+SUB ArLoopFix
+    IF arLoopK <= 1 OR arLoopK > arRowN(0) THEN arLoopK = 0
+END SUB
+
+' The block the arrangement comes round to (1, or the loop's after an intro)
+FUNCTION ArLoopFrom
+    IF arLoopK > 1 THEN ArLoopFrom = arLoopK ELSE ArLoopFrom = 1
+END FUNCTION
+
+' Ctrl+L: the loop starts at the block picked (what's before it plays once: an intro) - or, on it already, nowhere
+SUB ArSetLoop
+    IF arRowSel(0) < 1 OR arRowSel(0) > arRowN(0) THEN EXIT SUB
+    IF arRowSel(0) = 1 AND arLoopK = 0 THEN ArNote "The loop starts at block 1 already: pick a later block to make what's before it an intro" : EXIT SUB
+    ArPushUndo
+    IF arLoopK = arRowSel(0) OR arRowSel(0) = 1 THEN
+        arLoopK = 0 : ArNote "No intro: the whole arrangement loops"
+    ELSE
+        arLoopK = arRowSel(0) : ArNote "The loop starts at block" + STR$(arRowSel(0)) + ": blocks 1-" + LTRIM$(STR$(arRowSel(0) - 1)) + " are an intro, played once (Ctrl+E renders NAME-intro.ogg too)"
+    END IF
+END SUB
+
+' Read music/NAME.arr (the game's arrangement) - and its take's samples too, if withSound
+SUB ArLoad(name$, withSound)
+    ArLoadAlt name$, "", withSound
+END SUB
+
+' Read one of track name$'s arrangements (alt$: "" the game's) - and its take's samples too,
+' if withSound (2: the take's kept as it is - another arrangement of the one loaded)
+SUB ArLoadAlt(name$, alt$, withSound)
+    DIM f, l$, arr$, p$, r ' (its own)
+    arName$ = name$ : arAlt$ = alt$ : arUntitled = 0
+    arClipN = 0 : arSeamN = 0 : arBpm = 120 : arOffs = 0 : arBars = 0 : arTail = 0
+    FOR r = 0 TO AR_PATS : arRowN(r) = 0 : arRowSel(r) = 0 : arPatRaw$(r) = "" : NEXT
+    arSource$ = "" : arAuto = -1 : arLoaded = 0 : arr$ = "" : arLoopK = 0
+    p$ = ArFile$(name$, alt$)
+    IF _FILEEXISTS(p$) THEN
+        f = FREEFILE : OPEN p$ FOR INPUT AS #f
+        DO UNTIL EOF(f)
+            LINE INPUT #f, l$ : ArParse l$, arr$
+        LOOP
+        CLOSE #f
+        ArResolve arr$ : arLoaded = -1
+    END IF
+    IF arBpm < 20 OR arBpm > 400 THEN arBpm = 120
+    IF arBars < 1 THEN arBars = 1
+    IF arTail < 1 OR arTail > arBars + 1 THEN arTail = arBars + 1
+    ArClampClips : ArSelFix : ArFlatten 0
+    IF withSound = 2 THEN EXIT SUB
+    IF withSound THEN ArLoadSound ELSE arFrames = 0 : arRate = 44100
+    ArZoomAll
+END SUB
+
+' Every row's pick kept on it
+SUB ArSelFix
+    DIM r ' (its own)
+    FOR r = 0 TO AR_PATS
+        IF arRowSel(r) > arRowN(r) THEN arRowSel(r) = arRowN(r)
+        IF arRowSel(r) < 1 AND arRowN(r) > 0 THEN arRowSel(r) = 1
+    NEXT
+    IF arSelK2 < 1 OR arSelK2 > arRowN(0) THEN arSelK2 = arRowSel(0)
+END SUB
+
+' Every clip kept on the take (its end after its start, a step at least; bar 0 is the lead-in)
+SUB ArClampClips
+    DIM c ' (its own)
+    FOR c = 1 TO arClipN
+        IF arClipA(c) < ArFirstBar * AR_TPB THEN arClipA(c) = ArFirstBar * AR_TPB
+        IF arClipA(c) > ArEndTick - 1 THEN arClipA(c) = ArEndTick - 1
+        IF arClipE(c) <= arClipA(c) THEN arClipE(c) = arClipA(c) + 1
+        IF arClipE(c) > ArEndTick THEN arClipE(c) = ArEndTick
+    NEXT
+    ArLanes
+END SUB
+
+' Each clip's lane under the take: the first where it overlaps none before it
+SUB ArLanes
+    DIM c, d, l, ok ' (its own)
+    FOR c = 1 TO arClipN
+        FOR l = 0 TO AR_LANES - 1
+            ok = -1
+            FOR d = 1 TO c - 1
+                IF arLane(d) = l AND arClipA(d) < arClipE(c) AND arClipE(d) > arClipA(c) THEN ok = 0 : EXIT FOR
+            NEXT
+            IF ok THEN EXIT FOR
+        NEXT
+        IF l > AR_LANES - 1 THEN l = AR_LANES - 1
+        arLane(c) = l
+    NEXT
+END SUB
+
+' The take's samples (music/edit/NAME.flac - arrange.py --sources) into arL / arR, and its
+' waveform for the strip. (Copied out of the sound engine's memory in one go, as StReadWave does.)
+SUB ArLoadSound
+    DIM p$, h&, m AS _MEM, mb AS _MEM, bps, ch, total AS LONG, f AS LONG, col, i AS LONG, i0 AS LONG, i1 AS LONG, lo!, hi!, v!, ln# ' (its own)
+    arFrames = 0 : arRate = 44100 : REDIM arL(0) AS SINGLE, arR(0) AS SINGLE
+    p$ = AssetPath$("music/edit/" + arName$ + ".flac") : IF NOT _FILEEXISTS(p$) THEN EXIT SUB
+    h& = _SNDOPEN(StFileBytes$(p$), "memory, noasync") : IF h& <= 0 THEN EXIT SUB
+    ln# = _SNDLEN(h&) : m = _MEMSOUND(h&)
+    IF m.SIZE = 0 THEN _SNDCLOSE h& : EXIT SUB
+    SELECT CASE m.TYPE
+        CASE 260 : bps = 4 ' (32-bit floating point)
+        CASE 130 : bps = 2 ' (16-bit)
+        CASE ELSE : _MEMFREE m : _SNDCLOSE h& : EXIT SUB
+    END SELECT
+    ch = m.ELEMENTSIZE \ bps : IF ch < 1 THEN _MEMFREE m : _SNDCLOSE h& : EXIT SUB
+    arFrames = m.SIZE \ m.ELEMENTSIZE : total = arFrames * ch
+    IF arFrames < 2 THEN arFrames = 0 : _MEMFREE m : _SNDCLOSE h& : EXIT SUB
+    REDIM arL(arFrames - 1) AS SINGLE, arR(arFrames - 1) AS SINGLE
+    IF bps = 4 THEN
+        DIM bufS(total - 1) AS SINGLE
+        mb = _MEM(bufS()) : _MEMCOPY m, m.OFFSET, m.SIZE TO mb, mb.OFFSET
+        FOR f = 0 TO arFrames - 1
+            arL(f) = bufS(f * ch) : IF ch > 1 THEN arR(f) = bufS(f * ch + 1) ELSE arR(f) = arL(f)
+        NEXT
+    ELSE
+        DIM bufI(total - 1) AS INTEGER
+        mb = _MEM(bufI()) : _MEMCOPY m, m.OFFSET, m.SIZE TO mb, mb.OFFSET
+        FOR f = 0 TO arFrames - 1
+            arL(f) = bufI(f * ch) / 32768 : IF ch > 1 THEN arR(f) = bufI(f * ch + 1) / 32768 ELSE arR(f) = arL(f)
+        NEXT
+    END IF
+    _MEMFREE mb : _MEMFREE m : _SNDCLOSE h&
+    IF ln# > 0 THEN arRate = CLNG(arFrames / ln#) ' (the samples' own rate, whatever the engine unpacked them to)
+    arOvW = 0 : ArOverview
+END SUB
+
+' The strip's waveform, arW columns over what's in view (arView0, arViewN frames): each column
+' the lowest and highest of its stretch - every sample of it zoomed in, one in so many zoomed out
+SUB ArOverview
+    DIM col, i0 AS LONG, i1 AS LONG, i AS LONG, st AS LONG, lo!, hi!, v! ' (its own)
+    IF arFrames <= 0 OR arW < 1 THEN EXIT SUB
+    REDIM arOvMin(arW - 1) AS SINGLE, arOvMax(arW - 1) AS SINGLE
+    FOR col = 0 TO arW - 1
+        i0 = INT(arView0 + arViewN * col / arW) : i1 = INT(arView0 + arViewN * (col + 1) / arW) - 1 : IF i1 < i0 THEN i1 = i0
+        IF i0 < 0 THEN i0 = 0
+        IF i1 > arFrames - 1 THEN i1 = arFrames - 1
+        lo! = 0 : hi! = 0
+        IF i1 >= i0 THEN
+            st = (i1 - i0) \ 256 + 1
+            FOR i = i0 TO i1 STEP st
+                v! = (arL(i) + arR(i)) / 2
+                IF v! < lo! THEN lo! = v!
+                IF v! > hi! THEN hi! = v!
+            NEXT
+        END IF
+        arOvMin(col) = lo! : arOvMax(col) = hi!
+    NEXT
+    arOvW = arW : arOvV0 = arView0 : arOvN = arViewN
+END SUB
+
+' This frame's widths: the take and the arrangement as wide as the screen (FULL WIDE: the window), the pads a row
+SUB ArLayout
+    arW = scrW - 32 : arPadsRow = (arW + 3) \ (AR_PAD_W + 3)
+    IF arOvW <> arW OR arOvV0 <> arView0 OR arOvN <> arViewN THEN ArOverview
+    arGrid = ArGridNow
+END SUB
+
+' Clip k as the .arr writes it (as arrange.py's write_arr does: the two are read by each other) -
+' whole bars as "bars 1-4", anything finer as bar places, "at 5.25-5.5"
+FUNCTION ArClipLine$(k)
+    DIM r$, n$, w$ ' (its own)
+    n$ = arClipName$(k) : IF LEN(n$) < 2 THEN n$ = LEFT$(n$ + "  ", 2)
+    IF arClipA(k) MOD AR_TPB = 0 AND arClipE(k) MOD AR_TPB = 0 THEN
+        w$ = " bars " : r$ = LTRIM$(STR$(arClipA(k) \ AR_TPB)) + "-" + LTRIM$(STR$(arClipE(k) \ AR_TPB - 1))
+    ELSE
+        w$ = " at " : r$ = ArBarsDec$(arClipA(k)) + "-" + ArBarsDec$(arClipE(k))
+    END IF
+    ArClipLine$ = "clip " + n$ + w$ + r$ + SPACE$(MaxOf(1, 8 - LEN(r$))) + arClipKind$(k)
+END FUNCTION
+
+' The arrangement as words: A B*2 A1 C...
+FUNCTION ArArrangeText$
+    ArArrangeText$ = ArRowText$(0)
+END FUNCTION
+
+' Row r as words: C*7 B*2 (the arrangement's: a | where the loop starts, and patterns by name)
+FUNCTION ArRowText$(r)
+    DIM k, s$, v ' (its own)
+    FOR k = 1 TO arRowN(r)
+        IF k > 1 THEN s$ = s$ + " "
+        IF r = 0 AND k = arLoopK THEN s$ = s$ + "| "
+        v = arRowC(r, k)
+        IF v > 0 THEN s$ = s$ + arClipName$(v) ELSE s$ = s$ + ArPatName$(-v)
+        IF arRowT(r, k) > 1 THEN s$ = s$ + "*" + LTRIM$(STR$(arRowT(r, k)))
+    NEXT
+    ArRowText$ = s$
+END FUNCTION
+
+' The patterns' lines, as the .arr keeps them (those with something in them; arrange.py writes them the same)
+FUNCTION ArPatLines$
+    DIM p, s$ ' (its own)
+    FOR p = 1 TO AR_PATS
+        IF arRowN(p) > 0 THEN s$ = s$ + "pattern " + ArPatName$(p) + "  " + ArRowText$(p) + CHR$(10)
+    NEXT
+    ArPatLines$ = s$
+END FUNCTION
+
+' The clips, the patterns and the arrangement as text (undo and redo keep these)
+FUNCTION ArState$
+    DIM k, s$ ' (its own)
+    FOR k = 1 TO arClipN : s$ = s$ + ArClipLine$(k) + CHR$(10) : NEXT
+    ArState$ = s$ + ArPatLines$ + "arrange " + ArArrangeText$
+END FUNCTION
+
+SUB ArSetState(s$)
+    DIM b, l$, r$, arr$, p ' (its own)
+    arClipN = 0 : arr$ = "" : r$ = s$
+    FOR p = 1 TO AR_PATS : arRowN(p) = 0 : arPatRaw$(p) = "" : NEXT
+    DO WHILE LEN(r$)
+        b = INSTR(r$, CHR$(10)) : IF b = 0 THEN b = LEN(r$) + 1
+        l$ = LEFT$(r$, b - 1) : r$ = MID$(r$, b + 1)
+        ArParse l$, arr$
+    LOOP
+    ArResolve arr$ : ArClampClips
+    IF arSelClip > arClipN THEN arSelClip = arClipN
+    ArSelFix : ArFlatten 0
+    arSelK2 = arRowSel(0) ' (a run picked before isn't one now)
+END SUB
+
+' Before a change: what it was goes on the undo list (and redo's emptied)
+SUB ArPushUndo
+    DIM i ' (its own)
+    IF arUndoN >= AR_UNDO THEN
+        FOR i = 1 TO AR_UNDO - 1 : arUndo$(i) = arUndo$(i + 1) : NEXT
+        arUndoN = AR_UNDO - 1
+    END IF
+    arUndoN = arUndoN + 1 : arUndo$(arUndoN) = ArState$ : arRedoN = 0 : arDirty = -1
+END SUB
+
+SUB ArUndoStep
+    IF arUndoN = 0 THEN ArNote "Nothing to undo" : EXIT SUB
+    IF arRedoN < AR_UNDO THEN arRedoN = arRedoN + 1 : arRedo$(arRedoN) = ArState$
+    ArSetState arUndo$(arUndoN) : arUndoN = arUndoN - 1 : arDirty = -1 : ArNote "Undone"
+END SUB
+
+SUB ArRedoStep
+    IF arRedoN = 0 THEN ArNote "Nothing to redo" : EXIT SUB
+    IF arUndoN < AR_UNDO THEN arUndoN = arUndoN + 1 : arUndo$(arUndoN) = ArState$
+    ArSetState arRedo$(arRedoN) : arRedoN = arRedoN - 1 : arDirty = -1 : ArNote "Redone"
+END SUB
+
+' Write the arrangement's file (music/NAME.arr, or music/arrangements/NAME/ALT.arr) - auto no from
+' now on: arrange.py --analyze leaves your clips and arrangement be
+SUB ArSave
+    DIM f, i, p$, t$, nl$, d$ ' (its own)
+    IF arUntitled THEN ArAskStart : EXIT SUB ' (a new one: named first)
+    nl$ = CHR$(10) ' (the file is built as one string and written as it is: PRINT # ends lines with CR LF, git would see every line change)
+    t$ = "; NEON-CASTER - " + arName$ + "'s bars, clips and arrangement (music/arrange.py; bars count from 1 - bar 0 is the lead-in before it)" + nl$
+    t$ = t$ + "; arrange: clips in order, CLIP*N repeats one; it loops as a whole - or, after a |, from there (what's before it plays once: an intro). seam I J S: after bar I, bar J can follow (S: how alike, 0-1)" + nl$
+    t$ = t$ + "bpm " + ArFix$(arBpm, 3) + "   offset " + ArFix$(arOffs, 4) + "   bars" + STR$(arBars) + "   tail" + STR$(arTail) + nl$
+    t$ = t$ + "source " + arSource$ + nl$
+    t$ = t$ + "auto no          ; yes: arrange.py --analyze may rewrite the clips and arrangement - no: they're yours" + nl$
+    FOR i = 1 TO arClipN : t$ = t$ + ArClipLine$(i) + nl$ : NEXT
+    t$ = t$ + ArPatLines$
+    t$ = t$ + "arrange " + ArArrangeText$ + nl$
+    FOR i = 1 TO arSeamN : t$ = t$ + "seam" + STR$(arSeamI(i)) + STR$(arSeamJ(i)) + " " + ArFix$(arSeamS(i), 2) + nl$ : NEXT
+    IF LEN(arAlt$) THEN ' (music/arrangements/NAME/: made the first time)
+        d$ = ArMusicDir$ + "arrangements" : IF NOT _DIREXISTS(d$) THEN MKDIR d$
+        d$ = d$ + "/" + arName$ : IF NOT _DIREXISTS(d$) THEN MKDIR d$
+    END IF
+    p$ = ArFile$(arName$, arAlt$)
+    f = FREEFILE : OPEN p$ FOR OUTPUT AS #f : PRINT #f, t$; : CLOSE #f
+    arAuto = 0 : arDirty = 0 : arLeave = 0 : arLoaded = -1
+    IF LEN(arAlt$) THEN
+        ArNote "Saved music/arrangements/" + arName$ + "/" + arAlt$ + ".arr - Ctrl+Shift+S as " + UCASE$(arName$) + " makes it the game's"
+    ELSE
+        ArNote "Saved music/" + arName$ + ".arr - Ctrl+E makes the .ogg from it (arrange.py --render " + arName$ + ")"
+    END IF
+END SUB
+
+' Ctrl+Shift+S: SAVE AS - a name typed (ArAskKey); Ctrl+S on a new one starts here too
+SUB ArAskStart
+    arAsk = -1 : arConfirm$ = "" : arAskT$ = arAlt$
+    IF arUntitled THEN arAskT$ = ""
+    arAskSel = (arAskT$ <> "")
+END SUB
+
+' A key while the name's typed: letters, digits, - and _ (a space is a -); Enter saves, Esc doesn't
+SUB ArAskKey(k&)
+    DIM t$ ' (its own)
+    t$ = arAskT$
+    SELECT CASE k&
+        CASE 27 : arAsk = 0 : ArNote "Not saved"
+        CASE 13 : ArSaveAs arAskT$
+        CASE 8
+            IF arAskSel THEN arAskT$ = "" ELSE IF LEN(arAskT$) THEN arAskT$ = LEFT$(arAskT$, LEN(arAskT$) - 1)
+        CASE 32
+            IF arAskSel THEN arAskT$ = ""
+            IF LEN(arAskT$) < 24 THEN arAskT$ = arAskT$ + "-"
+        CASE 45, 95, 48 TO 57, 65 TO 90, 97 TO 122
+            IF arAskSel THEN arAskT$ = ""
+            IF LEN(arAskT$) < 24 THEN arAskT$ = arAskT$ + LCASE$(CHR$(k&))
+        CASE 19200, 19712, 18176, 20224 ' (an arrow, Home or End: the name kept, to add to)
+        CASE ELSE : EXIT SUB
+    END SELECT
+    arAskSel = 0
+    IF t$ <> arAskT$ THEN arConfirm$ = ""
+END SUB
+
+' Save as n$: the track's own name is the game's arrangement (music/NAME.arr - the one it had is
+' kept first, as arrangements/NAME/beforeN.arr), any other music/arrangements/NAME/N$.arr.
+' One there already is replaced only on a second Enter
+SUB ArSaveAs(n$)
+    DIM a$, p$, b$, w$ ' (its own)
+    a$ = LCASE$(_TRIM$(n$))
+    IF a$ = "" THEN ArNote "Type a name for it (Esc: not saved)" : EXIT SUB
+    IF a$ = LCASE$(arName$) THEN a$ = ""
+    p$ = ArFile$(arName$, a$)
+    IF _FILEEXISTS(p$) AND (a$ <> arAlt$ OR arUntitled) AND arConfirm$ <> p$ THEN
+        IF a$ = "" THEN w$ = "the game's arrangement (" + arName$ + ".arr)" ELSE w$ = "an arrangement called " + UCASE$(a$)
+        arConfirm$ = p$ : ArNote "There's " + w$ + " already - Enter again replaces it (Esc: not saved)" : EXIT SUB
+    END IF
+    IF a$ = "" AND _FILEEXISTS(p$) AND (arAlt$ <> "" OR arUntitled) THEN ' (the game's, about to be replaced: kept)
+        b$ = ArFreeAlt$("before")
+        ArCopyFile p$, ArFile$(arName$, b$)
+    END IF
+    arAlt$ = a$ : arUntitled = 0 : arAsk = 0 : arConfirm$ = ""
+    ArSave
+    IF LEN(b$) THEN ArNote "Saved as the game's music/" + arName$ + ".arr - the one it was is kept as " + UCASE$(b$) + " (Ctrl+O)"
+END SUB
+
+' The first name b$1, b$2... no arrangement of this track has (making the folder)
+FUNCTION ArFreeAlt$(b$)
+    DIM n, d$ ' (its own)
+    d$ = ArMusicDir$ + "arrangements" : IF NOT _DIREXISTS(d$) THEN MKDIR d$
+    d$ = d$ + "/" + arName$ : IF NOT _DIREXISTS(d$) THEN MKDIR d$
+    n = 1
+    DO WHILE _FILEEXISTS(ArFile$(arName$, b$ + LTRIM$(STR$(n)))) : n = n + 1 : LOOP
+    ArFreeAlt$ = b$ + LTRIM$(STR$(n))
+END FUNCTION
+
+SUB ArCopyFile(a$, b$)
+    DIM f, t$ ' (its own)
+    f = FREEFILE : OPEN a$ FOR BINARY AS #f : t$ = SPACE$(LOF(f)) : GET #f, , t$ : CLOSE #f
+    IF _FILEEXISTS(b$) THEN KILL b$
+    f = FREEFILE : OPEN b$ FOR BINARY AS #f : PUT #f, , t$ : CLOSE #f
+END SUB
+
+' Ctrl+O: OPEN - the track's arrangements, the game's first (twice, with changes not saved)
+SUB ArOpenStart
+    DIM i ' (its own)
+    IF arDirty AND arConfirm$ <> "open" THEN arConfirm$ = "open" : ArNote "Not saved - Ctrl+O again opens another without saving (Ctrl+S saves)" : EXIT SUB
+    arConfirm$ = "" : ArOpenList : arOpenOn = -1 : arOpenSel = 1
+    FOR i = 1 TO arOpenN
+        IF arOpenName$(i) = arAlt$ AND NOT arUntitled THEN arOpenSel = i
+    NEXT
+END SUB
+
+' This track's arrangements: the game's ("") then music/arrangements/NAME/*.arr, A-Z
+SUB ArOpenList
+    DIM d$, n$, sl, i, j ' (its own)
+    arOpenN = 1 : arOpenName$(1) = ""
+    d$ = ArMusicDir$ + "arrangements/" + arName$
+    IF _DIREXISTS(d$) THEN
+        n$ = _FILES$(d$ + "/*.arr")
+        DO WHILE LEN(n$) AND arOpenN < 200
+            sl = _INSTRREV(n$, "/") : IF _INSTRREV(n$, "\") > sl THEN sl = _INSTRREV(n$, "\")
+            n$ = MID$(n$, sl + 1)
+            IF LCASE$(RIGHT$(n$, 4)) = ".arr" AND LEN(n$) > 4 THEN arOpenN = arOpenN + 1 : arOpenName$(arOpenN) = LEFT$(n$, LEN(n$) - 4)
+            n$ = _FILES$
+        LOOP
+    END IF
+    FOR i = 2 TO arOpenN - 1 : FOR j = i + 1 TO arOpenN
+        IF LCASE$(arOpenName$(j)) < LCASE$(arOpenName$(i)) THEN SWAP arOpenName$(i), arOpenName$(j)
+    NEXT : NEXT
+END SUB
+
+' A key in OPEN's list: up and down, Enter opens, Esc doesn't
+SUB ArOpenKey(k&)
+    SELECT CASE k&
+        CASE 27 : arOpenOn = 0
+        CASE 18432 : arOpenSel = arOpenSel - 1 : IF arOpenSel < 1 THEN arOpenSel = arOpenN
+        CASE 20480 : arOpenSel = arOpenSel + 1 : IF arOpenSel > arOpenN THEN arOpenSel = 1
+        CASE 18176 : arOpenSel = 1
+        CASE 20224 : arOpenSel = arOpenN
+        CASE 13 : ArOpenPick arOpenSel
+    END SELECT
+END SUB
+
+' Open arrangement i of the list (the take stays loaded; undo starts again)
+SUB ArOpenPick(i)
+    DIM a$ ' (its own)
+    IF i < 1 OR i > arOpenN THEN EXIT SUB
+    a$ = arOpenName$(i) : arOpenOn = 0
+    ArStop
+    ArLoadAlt arName$, a$, 2
+    arSelClip = MinOf(1, arClipN) : arSelK2 = arRowSel(0) : arDirty = 0 : arUndoN = 0 : arRedoN = 0 : arLeave = 0
+    IF arPatEd > 0 THEN
+        IF arRowN(arPatEd) = 0 THEN arFocus = 0
+    END IF
+    ArNote "Opened " + ArShownName$ + ": " + ArArrangeText$
+END SUB
+
+' Ctrl+Shift+N: a NEW arrangement of the take - the same clips and patterns, nothing arranged
+' yet, not named till it's saved (twice, with changes not saved)
+SUB ArNewArr
+    IF arDirty AND arConfirm$ <> "new" THEN arConfirm$ = "new" : ArNote "Not saved - Ctrl+Shift+N again starts a new one without saving (Ctrl+S saves)" : EXIT SUB
+    arConfirm$ = ""
+    IF arPlaying AND arMode = AR_ARRANGE THEN ArStop
+    arRowN(0) = 0 : arRowSel(0) = 0 : arSelK2 = 0 : arLoopK = 0 : arFocus = 0
+    arUntitled = -1 : arDirty = -1 : arUndoN = 0 : arRedoN = 0
+    ArNote "A new arrangement of " + UCASE$(arName$) + ": its clips and patterns, nothing arranged - Ctrl+S names it and saves it"
+END SUB
+
+' How alike the join is from a clip that stops at step e to one that starts
+' at step a: 2 none (a carries on from e), the analysis's seam score (0-1)
+' between whole bars, -1 - not one it kept (or between places off the bar
+' lines: not scored), or -2 into the lead-in (the music stops and starts
+' again - nothing to score)
+FUNCTION ArJoin!(e, a)
+    DIM s ' (its own)
+    IF a = e THEN ArJoin! = 2 : EXIT FUNCTION
+    IF a < AR_TPB AND ArFirstBar = 0 THEN ArJoin! = -2 : EXIT FUNCTION
+    ArJoin! = -1
+    IF a MOD AR_TPB OR e MOD AR_TPB THEN EXIT FUNCTION
+    FOR s = 1 TO arSeamN
+        IF arSeamI(s) = e \ AR_TPB - 1 AND arSeamJ(s) = a \ AR_TPB THEN ArJoin! = arSeamS(s) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' A join's colour: green alike, yellow fair, red poor (or unknown)
+FUNCTION ArJoinCol~&(s!)
+    IF s! < 0 THEN
+        ArJoinCol~& = _RGB32(130, 120, 150) ' (not a seam the analysis kept: unknown - arrange.py --seams scores it)
+    ELSEIF s! >= 0.75 THEN
+        ArJoinCol~& = _RGB32(110, 255, 140)
+    ELSEIF s! >= 0.5 THEN
+        ArJoinCol~& = _RGB32(255, 220, 90)
+    ELSE
+        ArJoinCol~& = _RGB32(255, 80, 90)
+    END IF
+END FUNCTION
+
+FUNCTION ArJoinText$(s!)
+    IF s! > 1.5 THEN
+        ArJoinText$ = "runs on"
+    ELSEIF s! < -1.5 THEN
+        ArJoinText$ = "a restart (the lead-in)"
+    ELSEIF s! < 0 THEN
+        ArJoinText$ = "not scored (arrange.py --seams)"
+    ELSE
+        ArJoinText$ = ArFix$(s!, 2)
+    END IF
+END FUNCTION
+
+' A note on the message line
+SUB ArNote(t$)
+    arMsg$ = t$ : arMsgT = TIMER(0.001)
+END SUB
+
+' === THE PLAYER ================================================================
+
+' The frame of the take bar b starts on (bars are 4 beats; bar 1 at the offset)
+FUNCTION ArBarAt#(b)
+    ArBarAt# = (arOffs + (b - 1) * 240# / arBpm) * arRate
+END FUNCTION
+
+' The first bar a clip can start on: 0 when the take has a lead-in before
+' bar 1 (bar 0 is a whole bar ending at bar 1 - silence before the take
+' starts, so the beat goes on through it), else 1
+FUNCTION ArFirstBar
+    IF arOffs >= 0.01 THEN ArFirstBar = 0 ELSE ArFirstBar = 1
+END FUNCTION
+
+' Bar b as it's shown: IN for the lead-in
+FUNCTION ArBarName$(b)
+    IF b = 0 THEN ArBarName$ = "IN" ELSE ArBarName$ = LTRIM$(STR$(b))
+END FUNCTION
+
+' How long the take is, in frames (with no sound: to the end of its last bar)
+FUNCTION ArSpan#
+    IF arFrames > 0 THEN ArSpan# = arFrames ELSE ArSpan# = ArBarAt#(arBars + 1)
+END FUNCTION
+
+' Stop: the sound queued is silenced and let go (a raw stream closed plays out what it has)
+SUB ArStop
+    IF arPipe& > 0 THEN _SNDVOL arPipe&, 0 : _SNDCLOSE arPipe& : arPipe& = 0
+    IF arRecOn OR arRecN > 0 THEN ArRecCommit
+    arPlaying = 0 : arQueued = 0 : arRingCnt = 0 : arHeard = 0
+END SUB
+
+' Play: mode, from step t (block k, its time rep, or clip c launched)
+SUB ArPlay(mode, t, k, rep, c)
+    DIM mm, tt, kk, rr, cc ' (its own - copies: ArStop changes what might have been handed in)
+    mm = mode : tt = t : kk = k : rr = rep : cc = c
+    ArStop
+    IF arFrames = 0 THEN ArNote "Nothing to play: no music/edit/" + arName$ + ".flac - run music/arrange.py --sources " + arName$ : EXIT SUB
+    arPipe& = _SNDOPENRAW
+    IF arPipe& <= 0 THEN arPipe& = 0 : ArNote "Couldn't open a sound stream" : EXIT SUB
+    _SNDVOL arPipe&, setting(SET_MUSIC) / 100
+    arOutRate = _SNDRATE : arStep = arRate / arOutRate
+    arMode = mm : arTick = tt : arK = kk : arRep = rr : arClip = cc
+    arPos = 0 : arNext = AR_UNDECIDED : arGen = 0 : arFadeIn = 0 : arQueued = 0 : arPlaying = -1 : arRingCnt = 0 : arClock = 0
+    ' (the lead-in: from where the take starts, not its silence - the steps wholly before it skipped, within the clip)
+    DO WHILE ArTickAt#(arTick + 1) <= 0
+        IF arMode <> AR_SOURCE AND arClip > 0 AND arTick + 1 >= arClipE(arClip) THEN EXIT DO
+        arTick = arTick + 1 : arClock = arClock + 1
+    LOOP
+    IF ArTickAt#(arTick) < 0 THEN arPos = -ArTickAt#(arTick)
+    ArRingAdd
+    IF arRec AND arMode = AR_SESSION THEN ArRecTick
+    ArFeed
+END SUB
+
+' The arrangement, from block k (the player walks it opened out: ArFlatten)
+SUB ArPlayFrom(k)
+    DIM f ' (its own)
+    ArFlatten 0
+    IF arFlatN = 0 THEN ArNote "The arrangement's empty: Ins (or right-click a clip) adds the clip picked" : EXIT SUB
+    f = ArFlatFirst(k) : IF f < 1 THEN f = 1
+    ArPlay AR_ARRANGE, arClipA(arFlatClip(f)), f, 1, arFlatClip(f)
+END SUB
+
+' Pattern p round and round, from its entry i
+SUB ArPlayPattern(p, i)
+    DIM pp, f ' (its own)
+    pp = p : f = i
+    IF pp < 1 OR pp > AR_PATS THEN ArNote "No pattern open: click a bank letter, then a number" : EXIT SUB
+    IF arRowN(pp) = 0 THEN ArNote "Pattern " + ArPatName$(pp) + " is empty: Ins adds the clip picked to it" : EXIT SUB
+    arPlayPat = pp : ArFlatten pp
+    f = ArFlatFirst(f) : IF f < 1 THEN f = 1
+    ArPlay AR_PATTERN, arClipA(arFlatClip(f)), f, 1, arFlatClip(f)
+END SUB
+
+' Space and Enter: the row the keys are on, from its entry picked - the arrangement, or the pattern open (round and round)
+SUB ArPlayRow
+    IF ArRowNow > 0 THEN ArPlayPattern arPatEd, arRowSel(arPatEd) ELSE ArPlayFrom arRowSel(0)
+END SUB
+
+' The row the keys edit: the pattern open (when it has them), else the arrangement
+FUNCTION ArRowNow
+    IF arFocus AND arPatEd > 0 THEN ArRowNow = arPatEd ELSE ArRowNow = 0
+END FUNCTION
+
+' The player's list from row r (0: the arrangement, its patterns opened out - else that pattern alone)
+SUB ArFlatten(r)
+    DIM i, j, v, t, p ' (its own)
+    arFlatN = 0 : arFlatOf = r : arFlatLoop = 1
+    FOR i = 1 TO arRowN(r)
+        IF r = 0 AND i = arLoopK THEN arFlatLoop = arFlatN + 1
+        v = arRowC(r, i)
+        IF v > 0 THEN
+            ArFlatAdd v, arRowT(r, i), i, 0, 1
+        ELSEIF v < 0 THEN
+            p = -v
+            FOR t = 1 TO arRowT(r, i)
+                FOR j = 1 TO arRowN(p) : ArFlatAdd arRowC(p, j), arRowT(p, j), i, j, t : NEXT
+            NEXT
+        END IF
+    NEXT
+    IF arFlatLoop > arFlatN THEN arFlatLoop = 1
+END SUB
+
+SUB ArFlatAdd(c, n, k, j, t)
+    IF arFlatN >= AR_FLAT OR c < 1 OR c > arClipN THEN EXIT SUB
+    arFlatN = arFlatN + 1
+    arFlatClip(arFlatN) = c : arFlatTimes(arFlatN) = n : arFlatBlock(arFlatN) = k : arFlatInner(arFlatN) = j : arFlatRep(arFlatN) = t
+END SUB
+
+' The first entry of the player's list that block k (of the row it was made from) plays - 0: none
+FUNCTION ArFlatFirst(k)
+    DIM f ' (its own)
+    FOR f = 1 TO arFlatN
+        IF arFlatBlock(f) >= k THEN ArFlatFirst = f : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Entry f of the player's list: its steps
+FUNCTION ArFlatTicks&(f)
+    DIM c ' (its own)
+    c = arFlatClip(f)
+    ArFlatTicks& = (arClipE(c) - arClipA(c)) * arFlatTimes(f)
+END FUNCTION
+
+' Launch clip c: playing nothing, it starts now; else on the next bar (or as
+' the clip playing ends, with arQuantClip), and loops till another's launched
+SUB ArLaunch(c)
+    DIM cc ' (its own)
+    cc = c : IF cc < 1 OR cc > arClipN THEN EXIT SUB
+    arSelClip = cc
+    IF NOT arPlaying THEN ArPlay AR_SESSION, arClipA(cc), 0, 0, cc : EXIT SUB
+    IF arMode = AR_ARRANGE OR arMode = AR_PATTERN THEN ' (the arrangement's clip playing carries on till it starts)
+        IF arK >= 1 AND arK <= arFlatN THEN arClip = arFlatClip(arK) ELSE arClip = 0
+        arMode = AR_SESSION
+    END IF
+    IF arMode = AR_SOURCE THEN arClip = 0 : arMode = AR_SESSION
+    arQueued = cc
+END SUB
+
+' Which step follows the one playing (decided a crossfade before its end)
+SUB ArDecide
+    DIM c ' (its own)
+    arNextK = arK : arNextRep = arRep : arNextClip = arClip
+    SELECT CASE arMode
+        CASE AR_SOURCE
+            arNext = arTick + 1 : IF ArTickAt#(arNext) >= arFrames THEN arNext = -1
+        CASE AR_ARRANGE, AR_PATTERN ' (the list ArFlatten made: the arrangement opened out, or the pattern)
+            IF arFlatN = 0 THEN arNext = -1 : EXIT SUB
+            IF arK < 1 OR arK > arFlatN THEN arK = arFlatN : arRep = arFlatTimes(arK) : arTick = arClipE(arFlatClip(arK)) - 1 ' (its entry was taken out: on to the start)
+            c = arFlatClip(arK)
+            IF arTick >= arClipA(c) AND arTick < arClipE(c) - 1 THEN
+                arNext = arTick + 1
+            ELSEIF arRep < arFlatTimes(arK) THEN
+                arNextRep = arRep + 1 : arNext = arClipA(c)
+            ELSE
+                arNextK = arK + 1 : IF arNextK > arFlatN THEN arNextK = arFlatLoop
+                arNextRep = 1 : arNext = arClipA(arFlatClip(arNextK))
+            END IF
+            arNextClip = arFlatClip(arNextK)
+        CASE AR_SESSION
+            IF arQueued > 0 AND ArLaunchNow THEN
+                arNextClip = arQueued : arQueued = 0 : arNext = arClipA(arNextClip)
+            ELSEIF arClip > 0 THEN
+                IF arTick >= arClipA(arClip) AND arTick < arClipE(arClip) - 1 THEN arNext = arTick + 1 ELSE arNext = arClipA(arClip)
+            ELSE
+                arNext = arTick + 1 : IF ArTickAt#(arNext) >= arFrames THEN arNext = -1
+            END IF
+    END SELECT
+END SUB
+
+' Note where the player is, against how much sound it has pushed
+SUB ArRingAdd
+    arRingN = (arRingN + 1) MOD AR_RING : IF arRingCnt < AR_RING THEN arRingCnt = arRingCnt + 1
+    arRingF(arRingN) = arGen : arRingTick(arRingN) = arTick : arRingPos(arRingN) = arPos
+    arRingK(arRingN) = arK : arRingRep(arRingN) = arRep : arRingClip(arRingN) = arClip : arRingMode(arRingN) = arMode
+END SUB
+
+' Once a frame: push sound till AR_LEAD seconds are queued - each frame of it
+' read from the take between its samples (its rate to the card's), and over
+' a jump's last AR_XF seconds the next step's lead-in faded in as this one
+' fades out (equal power: cos and sin, so it's no quieter in the middle)
+SUB ArFeed
+    DIM i, p#, j AS LONG, fr!, l!, r!, l2!, r2!, q#, t!, g1!, g2!, tl#, xf#, n ' (its own)
+    IF NOT arPlaying OR arPipe& = 0 THEN EXIT SUB
+    tl# = ArTickLen# : xf# = AR_XF * arRate : IF xf# > tl# THEN xf# = tl#
+    n = 0
+    DO WHILE _SNDRAWLEN(arPipe&) < AR_LEAD AND n < 40
+        n = n + 1
+        FOR i = 0 TO 511
+            IF arPlaying THEN
+                IF arNext = AR_UNDECIDED AND arPos >= tl# - xf# THEN ArDecide
+                p# = ArTickAt#(arTick) + arPos
+                j = INT(p#) : fr! = p# - j
+                IF j >= 0 AND j < arFrames - 1 THEN
+                    l! = arL(j) + (arL(j + 1) - arL(j)) * fr! : r! = arR(j) + (arR(j + 1) - arR(j)) * fr!
+                ELSE
+                    l! = 0 : r! = 0
+                END IF
+                IF arPos > tl# - xf# AND arNext <> arTick + 1 THEN ' (a jump - or the end, faded out)
+                    t! = (arPos - (tl# - xf#)) / xf# : IF t! > 1 THEN t! = 1
+                    g1! = COS(t! * _PI / 2) : g2! = SIN(t! * _PI / 2) : l2! = 0 : r2! = 0
+                    IF arNext >= 0 THEN
+                        q# = ArTickAt#(arNext) - (tl# - arPos)
+                        j = INT(q#) : fr! = q# - j
+                        IF j >= 0 AND j < arFrames - 1 THEN l2! = arL(j) + (arL(j + 1) - arL(j)) * fr! : r2! = arR(j) + (arR(j + 1) - arR(j)) * fr!
+                    END IF
+                    l! = l! * g1! + l2! * g2! : r! = r! * g1! + r2! * g2!
+                END IF
+                IF arFadeIn < 256 THEN arFadeIn = arFadeIn + 1 : l! = l! * arFadeIn / 256 : r! = r! * arFadeIn / 256 ' (no click as it starts)
+                arBuf(i * 2) = l! : arBuf(i * 2 + 1) = r!
+                arPos = arPos + arStep : arGen = arGen + 1
+                IF arPos >= tl# THEN arPos = arPos - tl# : ArNextTick
+            ELSE
+                arBuf(i * 2) = 0 : arBuf(i * 2 + 1) = 0
+            END IF
+        NEXT
+        _SNDRAWBATCH arBuf(), 2, arPipe&, 512
+    LOOP
+END SUB
+
+' What's being heard now: the sound pushed, less what's still queued, found
+' in the notes ArRingAdd made (arH...; arHeard: something is)
+SUB ArHeardNow
+    DIM h#, k, n, q# ' (its own)
+    arHeard = 0
+    IF arPipe& = 0 OR arRingCnt = 0 THEN EXIT SUB
+    q# = _SNDRAWLEN(arPipe&)
+    IF NOT arPlaying AND q# <= 0 THEN EXIT SUB
+    h# = arGen - q# * arOutRate
+    k = arRingN
+    FOR n = 1 TO arRingCnt - 1
+        IF arRingF(k) <= h# THEN EXIT FOR
+        k = (k - 1 + AR_RING) MOD AR_RING
+    NEXT
+    arHTick = arRingTick(k) : arHPos = arRingPos(k) + (h# - arRingF(k)) * arStep : IF arHPos < 0 THEN arHPos = 0
+    arHK = arRingK(k) : arHRep = arRingRep(k) : arHClip = arRingClip(k) : arHMode = arRingMode(k) : arHeard = -1
+END SUB
+
+' === RECORDING WHAT'S LAUNCHED ==================================================
+
+' The clip that is steps a up to e: one already, or a new one (kind k$) - 0 if no name's left
+FUNCTION ArClipFor(a, e, k$)
+    DIM c, n$ ' (its own)
+    FOR c = 1 TO arClipN
+        IF arClipA(c) = a AND arClipE(c) = e THEN ArClipFor = c : EXIT FUNCTION
+    NEXT
+    n$ = ArNewName$ : IF n$ = "" OR arClipN >= AR_CLIPS THEN EXIT FUNCTION
+    arClipN = arClipN + 1 : arClipName$(arClipN) = n$ : arClipA(arClipN) = a : arClipE(arClipN) = e : arClipKind$(arClipN) = k$
+    ArClipFor = arClipN
+END FUNCTION
+
+' The first letter no clip has ("" when all 26 are)
+FUNCTION ArNewName$
+    DIM i ' (its own)
+    FOR i = 65 TO 90
+        IF ArFindClip(CHR$(i)) = 0 THEN ArNewName$ = CHR$(i) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Recording's over: the runs played become the arrangement (each run a clip -
+' one that's cut short, a new clip of the steps it played; the same clip
+' running on is one block, played so many times). A run the stop cut short
+' at the end is left off - so nothing's recorded till a clip plays through.
+SUB ArRecCommit
+    DIM i, c, n ' (its own)
+    arRecOn = 0
+    n = arRecN : arRecN = 0
+    IF n > 0 THEN
+        IF arRecA(n) <> arClipA(arRecClip(n)) OR arRecB(n) <> arClipE(arRecClip(n)) - 1 THEN n = n - 1
+    END IF
+    IF n = 0 THEN ArNote "Nothing recorded: a clip has to play through once" : EXIT SUB
+    ArPushUndo
+    arRowN(0) = 0 : arLoopK = 0
+    FOR i = 1 TO n
+        c = arRecClip(i)
+        IF arRecA(i) <> arClipA(c) OR arRecB(i) <> arClipE(c) - 1 THEN c = ArClipFor(arRecA(i), arRecB(i) + 1, arClipKind$(c))
+        IF c > 0 AND arRowN(0) > 0 THEN
+            IF arRowC(0, arRowN(0)) = c THEN arRowT(0, arRowN(0)) = arRowT(0, arRowN(0)) + 1 : c = 0
+        END IF
+        IF c > 0 AND arRowN(0) < AR_SEQ THEN arRowN(0) = arRowN(0) + 1 : arRowC(0, arRowN(0)) = c : arRowT(0, arRowN(0)) = 1
+    NEXT
+    arRowSel(0) = 1 : ArLanes
+    ArNote "Recorded into the arrangement: " + ArArrangeText$ + "   (Ctrl+Z: the one before)"
+END SUB
+
+SUB ArRecToggle
+    arRec = NOT arRec
+    IF arRec THEN
+        arRecOn = 0 : arRecN = 0
+        IF arPlaying AND arMode = AR_SESSION AND arClip > 0 THEN ArNote "REC: from the next clip's start" ELSE ArNote "REC: launch clips - what plays becomes the arrangement (Ctrl+R again, or stop)"
+    ELSE
+        ArRecCommit
+    END IF
+END SUB
+
+' === EDITING ===================================================================
+
+' The entry picked (in the row the keys are on) so many more (or fewer) times: 1 to 16
+SUB ArTimes(d)
+    DIM t, r, k ' (its own)
+    r = ArRowNow : k = arRowSel(r)
+    IF k < 1 OR k > arRowN(r) THEN EXIT SUB
+    t = arRowT(r, k) + d : IF t < 1 THEN t = 1
+    IF t > 16 THEN t = 16
+    IF t <> arRowT(r, k) THEN ArPushUndo : arRowT(r, k) = t
+END SUB
+
+' The clip picked, into the row the keys are on (the arrangement, or the pattern open) after its entry picked
+SUB ArInsert
+    ArInsertAt ArRowNow, arRowSel(ArRowNow), arSelClip
+END SUB
+
+' Into row r after its entry k: v - a clip, or -p a pattern (into the arrangement only)
+SUB ArInsertAt(r, k, v)
+    DIM i, kk ' (its own)
+    kk = k
+    IF v = 0 OR v > arClipN OR arRowN(r) >= AR_SEQ THEN EXIT SUB
+    IF v < 0 AND r > 0 THEN EXIT SUB
+    ArPushUndo
+    IF kk < 0 THEN kk = 0
+    IF kk > arRowN(r) THEN kk = arRowN(r)
+    FOR i = arRowN(r) TO kk + 1 STEP -1
+        arRowC(r, i + 1) = arRowC(r, i) : arRowT(r, i + 1) = arRowT(r, i)
+    NEXT
+    arRowN(r) = arRowN(r) + 1 : kk = kk + 1 : arRowC(r, kk) = v : arRowT(r, kk) = 1 : arRowSel(r) = kk
+    IF r = 0 THEN
+        IF arLoopK > 0 AND arLoopK >= kk THEN arLoopK = arLoopK + 1 ' (in just before the loop's start: one more of the intro)
+        arSelK2 = kk
+    END IF
+END SUB
+
+' The same, before it (Shift+Ins)
+SUB ArInsertBefore
+    DIM r ' (its own)
+    r = ArRowNow
+    IF arRowSel(r) > arRowN(r) THEN arRowSel(r) = arRowN(r)
+    ArInsertAt r, arRowSel(r) - 1, arSelClip
+END SUB
+
+' Ctrl+Del: the whole arrangement taken away (the clips stay; Ctrl+Z brings it back)
+SUB ArClear
+    IF arRowN(0) = 0 THEN ArNote "The arrangement's empty already: Ins (or right-click a pad) adds the clip picked" : EXIT SUB
+    IF arPlaying AND arMode = AR_ARRANGE THEN ArStop
+    ArPushUndo
+    arRowN(0) = 0 : arRowSel(0) = 0 : arLoopK = 0
+    ArNote "Arrangement cleared (Ctrl+Z brings it back) - Ins or right-click a pad adds the clip picked"
+END SUB
+
+' A new clip of steps a up to e (dragged across the take), picked - one that's
+' those steps already is just picked. Its kind: intro from the lead-in, else
+' the kind of the clip its first step was in
+SUB ArMakeClip(a, e)
+    DIM c, n$, k$, aa, ee ' (its own)
+    aa = MinOf(a, e) : ee = MaxOf(a, e)
+    IF aa < ArFirstBar * AR_TPB THEN aa = ArFirstBar * AR_TPB
+    IF ee > ArEndTick THEN ee = ArEndTick
+    IF aa >= ee THEN EXIT SUB
+    FOR c = 1 TO arClipN
+        IF arClipA(c) = aa AND arClipE(c) = ee THEN arSelClip = c : ArNote "Clip " + arClipName$(c) + " is those already" : EXIT SUB
+    NEXT
+    n$ = ArNewName$
+    IF n$ = "" OR arClipN >= AR_CLIPS THEN ArNote "Every letter's a clip already (Ctrl+D deletes one)" : EXIT SUB
+    k$ = "groove"
+    IF aa < AR_TPB THEN
+        k$ = "intro"
+    ELSE
+        FOR c = 1 TO arClipN
+            IF arClipA(c) <= aa AND arClipE(c) > aa THEN k$ = arClipKind$(c) : EXIT FOR
+        NEXT
+    END IF
+    ArPushUndo
+    arClipN = arClipN + 1 : arClipName$(arClipN) = n$ : arClipA(arClipN) = aa : arClipE(arClipN) = ee : arClipKind$(arClipN) = k$
+    arSelClip = arClipN : ArLanes
+    ArNote "New clip " + n$ + ": " + ArRangeName$(aa, ee) + " (" + ArLenName$(ee - aa) + ") - Ins adds it (Shift+Ins: before), Ctrl+K: its kind"
+END SUB
+
+' Ctrl+K: the clip picked's kind, the next of intro groove build peak break lull outro
+SUB ArNextKind
+    DIM ks$, i, w$, n ' (its own)
+    IF arSelClip < 1 OR arSelClip > arClipN THEN EXIT SUB
+    ks$ = "intro groove build peak break lull outro" : n = 7
+    FOR i = 1 TO n
+        IF ArWord$(ks$, i) = LCASE$(arClipKind$(arSelClip)) THEN EXIT FOR
+    NEXT
+    i = i + 1 : IF i > n THEN i = 1
+    w$ = ArWord$(ks$, i)
+    ArPushUndo : arClipKind$(arSelClip) = w$
+    ArNote "Clip " + arClipName$(arSelClip) + " is " + UCASE$(w$) + " (Ctrl+K again: the next kind)"
+END SUB
+
+' The entry picked out of the row the keys are on (the arrangement: the run picked, Shift+click)
+SUB ArRemove
+    DIM r, a, b, i, n ' (its own)
+    r = ArRowNow : a = arRowSel(r) : b = a
+    IF r = 0 THEN a = MinOf(arRowSel(0), arSelK2) : b = MaxOf(arRowSel(0), arSelK2)
+    IF a < 1 OR b > arRowN(r) THEN EXIT SUB
+    IF r > 0 AND arRowN(r) = b - a + 1 AND ArPatUsed(r) THEN ArNote "Pattern " + ArPatName$(r) + " is in the arrangement: it can't be emptied - take it out there first (or Ctrl+Shift+P there opens it into its clips)" : EXIT SUB
+    ArPushUndo
+    n = b - a + 1
+    FOR i = a TO arRowN(r) - n
+        arRowC(r, i) = arRowC(r, i + n) : arRowT(r, i) = arRowT(r, i + n)
+    NEXT
+    arRowN(r) = arRowN(r) - n
+    IF r = 0 THEN
+        IF arLoopK > b THEN
+            arLoopK = arLoopK - n
+        ELSEIF arLoopK >= a THEN
+            arLoopK = a ' (its start taken out: the block after)
+        END IF
+        ArLoopFix
+    END IF
+    arRowSel(r) = a : IF arRowSel(r) > arRowN(r) THEN arRowSel(r) = arRowN(r)
+    IF r = 0 THEN arSelK2 = arRowSel(0)
+END SUB
+
+' Is pattern p in the arrangement?
+FUNCTION ArPatUsed(p)
+    DIM k ' (its own)
+    FOR k = 1 TO arRowN(0)
+        IF arRowC(0, k) = -p THEN ArPatUsed = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Row r's entry picked moved to place k (the others shuffle along)
+SUB ArMoveTo(r, k)
+    DIM c, t, i, kk, s ' (its own)
+    s = arRowSel(r) : kk = k
+    IF s < 1 OR s > arRowN(r) OR kk < 1 OR kk > arRowN(r) OR kk = s THEN EXIT SUB
+    c = arRowC(r, s) : t = arRowT(r, s)
+    IF kk > s THEN
+        FOR i = s TO kk - 1 : arRowC(r, i) = arRowC(r, i + 1) : arRowT(r, i) = arRowT(r, i + 1) : NEXT
+    ELSE
+        FOR i = s TO kk + 1 STEP -1 : arRowC(r, i) = arRowC(r, i - 1) : arRowT(r, i) = arRowT(r, i - 1) : NEXT
+    END IF
+    arRowC(r, kk) = c : arRowT(r, kk) = t : arRowSel(r) = kk
+    IF r = 0 THEN arSelK2 = kk
+END SUB
+
+' Shift+arrow: the entry picked a place along (d -1 or 1)
+SUB ArMoveBy(r, d)
+    DIM k ' (its own)
+    k = arRowSel(r) + d
+    IF arRowSel(r) < 1 OR k < 1 OR k > arRowN(r) THEN EXIT SUB
+    ArPushUndo : ArMoveTo r, k
+END SUB
+
+' Clip c's start (which 0) or end (1) to the grid line before it (d -1) or after it
+SUB ArEdge(c, which, d)
+    DIM a, e, g ' (its own)
+    IF c < 1 OR c > arClipN THEN EXIT SUB
+    a = arClipA(c) : e = arClipE(c) : g = arGrid : IF g < 1 THEN g = AR_TPB
+    IF which = 0 THEN a = ArGridStep(a, d, g) ELSE e = ArGridStep(e, d, g)
+    IF a < ArFirstBar * AR_TPB OR e > ArEndTick OR a >= e THEN EXIT SUB
+    ArPushUndo : arClipA(c) = a : arClipE(c) = e : ArLanes
+END SUB
+
+' A new clip: the steps of the one picked, under the next free letter
+SUB ArNewClip
+    DIM n$, a, e, k$ ' (its own)
+    n$ = ArNewName$
+    IF n$ = "" OR arClipN >= AR_CLIPS THEN ArNote "Every letter's a clip already" : EXIT SUB
+    a = AR_TPB : e = (MinOf(4, arBars) + 1) * AR_TPB : k$ = "new"
+    IF arSelClip > 0 THEN a = arClipA(arSelClip) : e = arClipE(arSelClip) : k$ = arClipKind$(arSelClip)
+    ArPushUndo
+    arClipN = arClipN + 1 : arClipName$(arClipN) = n$ : arClipA(arClipN) = a : arClipE(arClipN) = e : arClipKind$(arClipN) = k$
+    arSelClip = arClipN : ArLanes
+    ArNote "New clip " + n$ + " - its ends: , . (start) < > (end) by the grid, or drag them"
+END SUB
+
+' The clip picked, deleted - if the arrangement doesn't use it
+SUB ArDeleteClip
+    DIM c, k, i, r ' (its own)
+    c = arSelClip : IF c < 1 OR c > arClipN THEN EXIT SUB
+    FOR r = 0 TO AR_PATS
+        FOR k = 1 TO arRowN(r)
+            IF arRowC(r, k) = c THEN
+                IF r = 0 THEN ArNote "Clip " + arClipName$(c) + " is in the arrangement - take it out there first" ELSE ArNote "Clip " + arClipName$(c) + " is in pattern " + ArPatName$(r) + " - take it out there first"
+                EXIT SUB
+            END IF
+        NEXT
+    NEXT
+    IF arPlaying AND arMode = AR_SESSION THEN ArStop
+    ArPushUndo
+    FOR i = c TO arClipN - 1
+        arClipName$(i) = arClipName$(i + 1) : arClipA(i) = arClipA(i + 1) : arClipE(i) = arClipE(i + 1) : arClipKind$(i) = arClipKind$(i + 1)
+    NEXT
+    arClipN = arClipN - 1
+    FOR r = 0 TO AR_PATS
+        FOR k = 1 TO arRowN(r)
+            IF arRowC(r, k) > c THEN arRowC(r, k) = arRowC(r, k) - 1
+        NEXT
+    NEXT
+    IF arSelClip > arClipN THEN arSelClip = arClipN
+    ArLanes
+END SUB
+
+' === PATTERNS ==================================================================
+
+' Pattern p: bank b (0-5, A-F) slot s (1-9)
+FUNCTION ArPatOf(b, s)
+    ArPatOf = b * 9 + s
+END FUNCTION
+
+' Open pattern p in the editor (empty: one to fill), its bank and slot lit; keys too, if keys
+SUB ArPatOpen(p, keys)
+    IF p < 1 OR p > AR_PATS THEN EXIT SUB
+    arPatEd = p : arBank = (p - 1) \ 9 : arSlot = (p - 1) MOD 9 + 1
+    IF keys THEN arFocus = -1
+    IF arRowSel(p) < 1 AND arRowN(p) > 0 THEN arRowSel(p) = 1
+END SUB
+
+' Ctrl+P: a pattern of the blocks picked (Shift+click picks a run) - into the slot open if it's
+' empty, else the first empty one from there on - and they're that one block now. A pattern in
+' the run is its clips in it (patterns hold clips, not patterns)
+SUB ArMakePattern
+    DIM a, b, p, i, j, t, v, n ' (its own)
+    a = MinOf(arRowSel(0), arSelK2) : b = MaxOf(arRowSel(0), arSelK2)
+    IF a < 1 OR b > arRowN(0) THEN ArNote "Pick blocks in the arrangement first (Shift+click a second one picks the run between)" : EXIT SUB
+    p = arPatEd : IF p < 1 THEN p = ArPatOf(arBank, MaxOf(1, arSlot))
+    IF arRowN(p) > 0 THEN
+        FOR i = 0 TO AR_PATS - 1
+            j = (p - 1 + i) MOD AR_PATS + 1
+            IF arRowN(j) = 0 THEN p = j : EXIT FOR
+        NEXT
+        IF arRowN(p) > 0 THEN ArNote "Every pattern, A1 to F9, has something in it" : EXIT SUB
+    END IF
+    ArPushUndo
+    FOR i = a TO b
+        v = arRowC(0, i)
+        IF v > 0 THEN
+            ArPatAdd p, v, arRowT(0, i)
+        ELSEIF v < 0 THEN
+            FOR t = 1 TO arRowT(0, i)
+                FOR j = 1 TO arRowN(-v) : ArPatAdd p, arRowC(-v, j), arRowT(-v, j) : NEXT
+            NEXT
+        END IF
+    NEXT
+    n = b - a ' (the run is one block now: the rest taken out)
+    FOR i = a + 1 TO arRowN(0) - n
+        arRowC(0, i) = arRowC(0, i + n) : arRowT(0, i) = arRowT(0, i + n)
+    NEXT
+    arRowN(0) = arRowN(0) - n : arRowC(0, a) = -p : arRowT(0, a) = 1
+    IF arLoopK > b THEN
+        arLoopK = arLoopK - n
+    ELSEIF arLoopK > a THEN
+        arLoopK = a + 1 ' (the loop started inside the run: it starts after it)
+    END IF
+    ArLoopFix
+    arRowSel(0) = a : arSelK2 = a : ArPatOpen p, 0 : arRowSel(p) = 1
+    ArNote "Pattern " + ArPatName$(p) + ": " + ArRowText$(p) + " - one block in the arrangement now, open below the clips (Ctrl+Shift+P on it: back into clips)"
+END SUB
+
+SUB ArPatAdd(p, c, t)
+    IF arRowN(p) >= AR_SEQ THEN EXIT SUB
+    arRowN(p) = arRowN(p) + 1 : arRowC(p, arRowN(p)) = c : arRowT(p, arRowN(p)) = t
+END SUB
+
+' Ctrl+Shift+P: the pattern block picked opened out into its clips, in its place (the pattern stays)
+SUB ArUnpattern
+    DIM k, p, n, i, j, t, m ' (its own)
+    k = arRowSel(0)
+    IF k < 1 OR k > arRowN(0) THEN EXIT SUB
+    IF arRowC(0, k) >= 0 THEN ArNote "The block picked is a clip, not a pattern" : EXIT SUB
+    p = -arRowC(0, k) : n = arRowN(p) * arRowT(0, k)
+    IF arRowN(0) - 1 + n > AR_SEQ THEN ArNote "No room in the arrangement for its clips" : EXIT SUB
+    ArPushUndo
+    t = arRowT(0, k) : m = n - 1
+    FOR i = arRowN(0) TO k + 1 STEP -1 ' (room for them)
+        arRowC(0, i + m) = arRowC(0, i) : arRowT(0, i + m) = arRowT(0, i)
+    NEXT
+    i = k
+    FOR j = 1 TO t
+        FOR n = 1 TO arRowN(p) : arRowC(0, i) = arRowC(p, n) : arRowT(0, i) = arRowT(p, n) : i = i + 1 : NEXT
+    NEXT
+    arRowN(0) = arRowN(0) + m
+    IF arLoopK > k THEN arLoopK = arLoopK + m
+    arSelK2 = k + m
+    ArNote "Pattern " + ArPatName$(p) + " opened out into its clips (picked: blocks" + STR$(k) + " to" + STR$(k + m) + ")"
+END SUB
+
+' Ctrl+Ins (or right-click a pattern's number): the pattern into the arrangement after the
+' block picked (Shift: before it) - p 0: the one open
+SUB ArInsertPattern(p, before)
+    DIM pp ' (its own)
+    pp = p : IF pp = 0 THEN pp = arPatEd
+    IF pp < 1 THEN ArNote "No pattern open: click a bank letter, then a number" : EXIT SUB
+    IF arRowN(pp) = 0 THEN ArNote "Pattern " + ArPatName$(pp) + " is empty: Ins adds the clip picked to it" : EXIT SUB
+    IF before THEN ArInsertAt 0, arRowSel(0) - 1, -pp ELSE ArInsertAt 0, arRowSel(0), -pp
+    arFocus = 0
+END SUB
+
+' How many steps row r is (a pattern: as long as its clips, times over)
+FUNCTION ArRowTicks&(r)
+    DIM i, n& ' (its own)
+    FOR i = 1 TO arRowN(r) : n& = n& + ArEntTicks&(r, i) : NEXT
+    ArRowTicks& = n&
+END FUNCTION
+
+' Entry i of row r: its steps (its clip's, or its pattern's, times over)
+FUNCTION ArEntTicks&(r, i)
+    DIM v, n& ' (its own)
+    v = arRowC(r, i)
+    IF v > 0 THEN
+        n& = arClipE(v) - arClipA(v)
+    ELSEIF v < 0 THEN
+        n& = ArRowTicks&(-v)
+    END IF
+    ArEntTicks& = n& * arRowT(r, i)
+END FUNCTION
+
+' The clip entry i of row r starts with, and ends with (a pattern's first and last - 0: empty)
+FUNCTION ArEntFirst(r, i)
+    DIM v ' (its own)
+    v = arRowC(r, i)
+    IF v > 0 THEN
+        ArEntFirst = v
+    ELSEIF v < 0 THEN
+        IF arRowN(-v) > 0 THEN ArEntFirst = arRowC(-v, 1)
+    END IF
+END FUNCTION
+
+FUNCTION ArEntLast(r, i)
+    DIM v ' (its own)
+    v = arRowC(r, i)
+    IF v > 0 THEN
+        ArEntLast = v
+    ELSEIF v < 0 THEN
+        IF arRowN(-v) > 0 THEN ArEntLast = arRowC(-v, arRowN(-v))
+    END IF
+END FUNCTION
+
+' The join into entry i of row r - from the one before it (the first's: from the last,
+' coming round; 9: none - an intro's start, or an empty pattern)
+FUNCTION ArEntJoin!(r, i)
+    DIM a, e, k ' (its own)
+    ArEntJoin! = 9
+    IF i < 1 OR i > arRowN(r) THEN EXIT FUNCTION
+    IF r = 0 AND i = 1 AND arLoopK > 1 THEN EXIT FUNCTION
+    k = i - 1 : IF k < 1 THEN k = arRowN(r)
+    IF r = 0 AND i = 1 THEN k = arRowN(0)
+    a = ArEntFirst(r, i) : e = ArEntLast(r, k)
+    IF a < 1 OR e < 1 THEN EXIT FUNCTION
+    ArEntJoin! = ArJoin!(arClipE(e), arClipA(a))
+END FUNCTION
+
+' Entry k of row r as it's named: C*7, A1*2
+FUNCTION ArEntName$(r, k)
+    DIM v, s$ ' (its own)
+    v = arRowC(r, k)
+    IF v > 0 THEN s$ = arClipName$(v) ELSE s$ = ArPatName$(-v)
+    IF arRowT(r, k) > 1 THEN s$ = s$ + "*" + LTRIM$(STR$(arRowT(r, k)))
+    ArEntName$ = s$
+END FUNCTION
+
+' Where what's heard is in row r: its entry there (e) and how many steps into the row (n&) - false if it isn't
+FUNCTION ArHeardIn(r, e, n&)
+    DIM f, k, j, p ' (its own)
+    e = 0 : n& = 0
+    IF NOT arHeard THEN EXIT FUNCTION
+    f = arHK : IF f < 1 OR f > arFlatN THEN EXIT FUNCTION
+    IF arHMode = AR_ARRANGE AND arFlatOf = 0 THEN
+        k = arFlatBlock(f) : IF k < 1 OR k > arRowN(0) THEN EXIT FUNCTION
+        p = -arRowC(0, k)
+        IF r = 0 THEN
+            e = k
+            IF p > 0 THEN
+                FOR j = 1 TO k - 1 : n& = n& + ArEntTicks&(0, j) : NEXT
+                n& = n& + (arFlatRep(f) - 1) * ArRowTicks&(p) + ArInnerAt&(p, arFlatInner(f))
+            ELSE
+                n& = ArInnerAt&(0, k)
+            END IF
+        ELSEIF p = r THEN
+            e = arFlatInner(f) : n& = ArInnerAt&(r, e)
+        END IF
+    ELSEIF arHMode = AR_PATTERN AND arFlatOf = r AND r > 0 THEN
+        e = arFlatBlock(f) : n& = ArInnerAt&(r, e)
+    END IF
+    ArHeardIn = e > 0
+END FUNCTION
+
+' Steps into row r to what's heard, in its entry e (a clip's)
+FUNCTION ArInnerAt&(r, e)
+    DIM j, n&, c ' (its own)
+    FOR j = 1 TO e - 1 : n& = n& + ArEntTicks&(r, j) : NEXT
+    c = arRowC(r, e)
+    IF c > 0 THEN n& = n& + (arHRep - 1) * (arClipE(c) - arClipA(c)) + arHTick - arClipA(c)
+    ArInnerAt& = n&
+END FUNCTION
+
+' How many times clip c plays in the arrangement (in its patterns too)
+FUNCTION ArClipPlays&(c)
+    DIM k, j, v, n&, m& ' (its own)
+    FOR k = 1 TO arRowN(0)
+        v = arRowC(0, k)
+        IF v = c THEN n& = n& + arRowT(0, k)
+        IF v < 0 THEN
+            m& = 0
+            FOR j = 1 TO arRowN(-v)
+                IF arRowC(-v, j) = c THEN m& = m& + arRowT(-v, j)
+            NEXT
+            n& = n& + m& * arRowT(0, k)
+        END IF
+    NEXT
+    ArClipPlays& = n&
+END FUNCTION
+
+' Ctrl+E: the .ogg made from the .arr - arrange.py --render, then viz.py, in the
+' background (it wants Python with librosa: arrange.py's docstring says how). A dev's tool.
+SUB ArRender
+    ArRunTool "render"
+END SUB
+
+' Ctrl+B: the arrangement to Renoise (.xrns) and Bitwig (.dawproject) - music/daw.py, into ~/Music/NEON-CASTER/daw/
+SUB ArExport
+    ArRunTool "export"
+END SUB
+
+' A music/ tool on the arrangement saved, in the background (its log in music/edit/; ArRenderCheck
+' says when it's done): "render" - arrange.py --render, then viz.py; "export" - daw.py
+SUB ArRunTool(what$)
+    DIM md$, py$, c$, lg$, t$, cmd$ ' (its own)
+    IF LEN(arRenderLog$) THEN ArNote "Still busy with the last one - a moment" : EXIT SUB
+    IF arRowN(0) = 0 THEN ArNote "Nothing to " + what$ + ": the arrangement's empty" : EXIT SUB
+    IF arUntitled THEN ArNote "Name it first: Ctrl+S" : ArAskStart : EXIT SUB
+    IF what$ = "render" AND LEN(arAlt$) THEN ArNote "Ctrl+E renders the game's arrangement - Ctrl+Shift+S as " + UCASE$(arName$) + " makes this one it" : EXIT SUB
+    IF arDirty THEN ArSave
+    IF what$ = "export" THEN t$ = "daw.py" ELSE t$ = "arrange.py"
+    md$ = AssetPath$("music/" + t$)
+    IF NOT _FILEEXISTS(md$) THEN ArNote "No music/" + t$ + " here to " + what$ + " with" : EXIT SUB
+    md$ = LEFT$(md$, LEN(md$) - LEN(t$))
+    IF what$ = "export" THEN cmd$ = "daw.py --xrns --dawproject " + ArToolName$ ELSE cmd$ = "arrange.py --render " + arName$
+    IF INSTR(_OS$, "[WINDOWS]") THEN ArNote "From a terminal: python music/" + cmd$ : EXIT SUB
+    py$ = ENVIRON$("HOME") + "/.venvs/music/bin/python" : IF NOT _FILEEXISTS(py$) THEN py$ = "python3"
+    IF NOT _DIREXISTS(md$ + "edit") THEN MKDIR md$ + "edit"
+    lg$ = "edit/" + arName$ + "-" : IF LEN(arAlt$) THEN lg$ = lg$ + arAlt$ + "-"
+    lg$ = lg$ + what$ + ".log" : arRenderLog$ = md$ + lg$ : arRenderWhat$ = what$
+    IF _FILEEXISTS(arRenderLog$) THEN KILL arRenderLog$
+    c$ = "cd '" + md$ + "' && { '" + py$ + "' " + cmd$ + " > '" + lg$ + "' 2>&1; "
+    IF what$ = "render" THEN c$ = c$ + "'" + py$ + "' viz.py >> '" + lg$ + "' 2>&1; " ' (then viz.py: the SOUND TEST's picture of it)
+    c$ = c$ + "echo RENDER-DONE >> '" + lg$ + "'; }"
+    SHELL _HIDE _DONTWAIT c$
+    arRenderT = TIMER(0.001)
+    IF what$ = "export" THEN
+        ArNote "Exporting " + ArShownName$ + " to Renoise and Bitwig in the background..."
+    ELSE
+        ArNote "Rendering music/" + arName$ + ".ogg in the background..."
+    END IF
+END SUB
+
+' Twice a second while a render runs: is it done (its log's last word)?
+SUB ArRenderCheck
+    DIM f, l$, last$, ok$, n ' (its own)
+    IF ABS(TIMER(0.001) - arRenderT) < 0.5 THEN EXIT SUB
+    arRenderT = TIMER(0.001)
+    IF NOT _FILEEXISTS(arRenderLog$) THEN EXIT SUB
+    f = FREEFILE : OPEN arRenderLog$ FOR INPUT AS #f
+    DO UNTIL EOF(f)
+        LINE INPUT #f, l$
+        IF LEFT$(l$, LEN(ArToolName$) + 1) = ArToolName$ + " " THEN
+            ok$ = l$ : n = n + 1
+        END IF
+        IF LEN(_TRIM$(l$)) THEN last$ = _TRIM$(l$)
+    LOOP
+    CLOSE #f
+    IF last$ <> "RENDER-DONE" THEN EXIT SUB
+    DO WHILE INSTR(ok$, "  ") : ok$ = LEFT$(ok$, INSTR(ok$, "  ")) + MID$(ok$, INSTR(ok$, "  ") + 2) : LOOP ' (its columns' spaces squeezed out)
+    IF arRenderWhat$ = "export" THEN
+        l$ = arName$ : IF LEN(arAlt$) THEN l$ = l$ + "-" + arAlt$
+        IF n >= 2 THEN ArNote "Exported to ~/Music/NEON-CASTER/daw/: renoise/" + l$ + ".xrns, bitwig/" + l$ + ".dawproject" ELSE ArNote "The export failed - see music/edit/" + l$ + "-export.log"
+    ELSE
+        IF LEN(ok$) THEN ArNote "Rendered " + ok$ ELSE ArNote "The render failed - see music/edit/" + arName$ + "-render.log"
+    END IF
+    arRenderLog$ = ""
+END SUB
+
+' === WHERE THINGS ARE ON THE SCREEN ============================================
+
+' x across the take's strip of frame f# (zoomed: it can be off the strip, either side)
+FUNCTION ArXOfFrame(f#)
+    IF arViewN <= 0 THEN ArXOfFrame = AR_X0 : EXIT FUNCTION
+    ArXOfFrame = AR_X0 + arW * (f# - arView0) / arViewN
+END FUNCTION
+
+' The clip whose block in the lanes is under (x, y) - the one picked, if it's one of them
+FUNCTION ArClipAt(x, y)
+    DIM l, c, found ' (its own)
+    IF y < AR_LANE_Y OR y >= AR_LANE_Y + AR_LANES * AR_LANE_H THEN EXIT FUNCTION
+    l = (y - AR_LANE_Y) \ AR_LANE_H
+    FOR c = 1 TO arClipN
+        IF arLane(c) = l AND ArXOfTick(arClipE(c)) >= AR_X0 AND ArXOfTick(arClipA(c)) <= AR_X0 + arW THEN
+            IF x >= ArXOfTickC(arClipA(c)) - 4 AND x <= ArXOfTickC(arClipE(c)) + 4 THEN
+                IF found = 0 OR c = arSelClip THEN found = c
+            END IF
+        END IF
+    NEXT
+    ArClipAt = found
+END FUNCTION
+
+FUNCTION ArPadX(c)
+    ArPadX = AR_X0 + ((c - 1) MOD arPadsRow) * (AR_PAD_W + 3)
+END FUNCTION
+
+FUNCTION ArPadY(c)
+    ArPadY = AR_PAD_Y + ((c - 1) \ arPadsRow) * (AR_PAD_H + 4)
+END FUNCTION
+
+FUNCTION ArPadAt(x, y)
+    DIM c ' (its own)
+    FOR c = 1 TO MinOf(arClipN, arPadsRow * 2)
+        IF x >= ArPadX(c) AND x < ArPadX(c) + AR_PAD_W AND y >= ArPadY(c) AND y < ArPadY(c) + AR_PAD_H THEN ArPadAt = c : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Where block k starts across the arrangement's row
+FUNCTION ArBlockX(k)
+    ArBlockX = ArRowX(0, k)
+END FUNCTION
+
+' Row r across the screen: the arrangement's row from AR_X0, arW across; the pattern
+' editor's from AR_X0 + AR_PBOX (its buttons are at the left), so much less across
+FUNCTION ArRowX0(r)
+    IF r = 0 THEN ArRowX0 = AR_X0 ELSE ArRowX0 = AR_X0 + AR_PBOX
+END FUNCTION
+
+FUNCTION ArRowW(r)
+    IF r = 0 THEN ArRowW = arW ELSE ArRowW = arW - AR_PBOX
+END FUNCTION
+
+' Where entry k of row r starts across its row (the steps before it, of all of them)
+FUNCTION ArRowX(r, k)
+    DIM i, n&, t& ' (its own)
+    t& = ArRowTicks&(r) : IF t& = 0 THEN ArRowX = ArRowX0(r) : EXIT FUNCTION
+    FOR i = 1 TO k - 1 : n& = n& + ArEntTicks&(r, i) : NEXT
+    ArRowX = ArRowX0(r) + ArRowW(r) * n& / t&
+END FUNCTION
+
+' The entry of row r at x (past its end: its last)
+FUNCTION ArRowAt(r, x)
+    DIM k, n&, t&, x0, x1 ' (its own)
+    t& = ArRowTicks&(r) : IF t& = 0 OR arRowN(r) = 0 THEN EXIT FUNCTION
+    x0 = ArRowX0(r)
+    FOR k = 1 TO arRowN(r)
+        n& = n& + ArEntTicks&(r, k) : x1 = ArRowX0(r) + ArRowW(r) * n& / t&
+        IF x >= x0 AND x < x1 THEN ArRowAt = k : EXIT FUNCTION
+        x0 = x1
+    NEXT
+    IF x >= ArRowX0(r) + ArRowW(r) THEN ArRowAt = arRowN(r)
+END FUNCTION
+
+' The row at y: 0 the arrangement's, the pattern open's, or -1 neither
+FUNCTION ArRowOfY(y)
+    ArRowOfY = -1
+    IF y >= AR_SEQ_Y0 AND y <= AR_SEQ_Y1 THEN ArRowOfY = 0
+    IF y >= AR_PAT_Y0 AND y <= AR_PAT_Y1 AND arPatEd > 0 THEN ArRowOfY = arPatEd
+END FUNCTION
+
+' The pattern editor's buttons: bank b (0-5) and slot s (1-9) - where, and which is at (x, y)
+FUNCTION ArBankX(b)
+    ArBankX = AR_X0 + (b MOD 3) * 17
+END FUNCTION
+FUNCTION ArBankY(b)
+    ArBankY = AR_PAT_Y0 + (b \ 3) * 18
+END FUNCTION
+FUNCTION ArSlotX(s)
+    ArSlotX = AR_X0 + 56 + ((s - 1) MOD 3) * 17
+END FUNCTION
+FUNCTION ArSlotY(s)
+    ArSlotY = AR_PAT_Y0 + ((s - 1) \ 3) * 12
+END FUNCTION
+FUNCTION ArBankAt(x, y)
+    DIM b ' (its own)
+    ArBankAt = -1
+    FOR b = 0 TO 5
+        IF x >= ArBankX(b) AND x < ArBankX(b) + 16 AND y >= ArBankY(b) AND y < ArBankY(b) + 17 THEN ArBankAt = b
+    NEXT
+END FUNCTION
+FUNCTION ArSlotAt(x, y)
+    DIM s ' (its own)
+    FOR s = 1 TO 9
+        IF x >= ArSlotX(s) AND x < ArSlotX(s) + 16 AND y >= ArSlotY(s) AND y < ArSlotY(s) + 11 THEN ArSlotAt = s
+    NEXT
+END FUNCTION
+
+
+' Clip c's colour (alpha a)
+FUNCTION ArCol~&(c, a)
+    SELECT CASE (c - 1) MOD 12
+        CASE 0 : ArCol~& = _RGBA32(255, 90, 200, a)
+        CASE 1 : ArCol~& = _RGBA32(90, 230, 255, a)
+        CASE 2 : ArCol~& = _RGBA32(255, 220, 90, a)
+        CASE 3 : ArCol~& = _RGBA32(120, 255, 140, a)
+        CASE 4 : ArCol~& = _RGBA32(255, 140, 60, a)
+        CASE 5 : ArCol~& = _RGBA32(170, 120, 255, a)
+        CASE 6 : ArCol~& = _RGBA32(255, 100, 110, a)
+        CASE 7 : ArCol~& = _RGBA32(90, 170, 255, a)
+        CASE 8 : ArCol~& = _RGBA32(200, 255, 90, a)
+        CASE 9 : ArCol~& = _RGBA32(255, 170, 220, a)
+        CASE 10 : ArCol~& = _RGBA32(100, 255, 220, a)
+        CASE ELSE : ArCol~& = _RGBA32(230, 230, 230, a)
+    END SELECT
+END FUNCTION
+
+' === THE SCREEN ================================================================
+
+' The MUSIC ARRANGER for track name$ (music/NAME.arr), in a loop of its own
+' till Esc. The SOUND TEST's sound and the menu's music wait meanwhile.
+SUB RunArranger(name$)
+    DIM k&, mx, my, md, mWas, rd, mid, wheel, m&, p1, p2, p3, i ' (its own)
+    StStop
+    m& = nowPlaying& : MusicStop
+    ArLoad name$, -1
+    arSelClip = MinOf(1, arClipN) : arRowSel(0) = MinOf(1, arRowN(0)) : arDirty = 0 : arUndoN = 0 : arRedoN = 0 : arLeave = 0 : arDone = 0
+    arSelK2 = arRowSel(0) : arFocus = 0 : arAsk = 0 : arOpenOn = 0 : arConfirm$ = "" : arPatEd = 0 : arBank = 0 : arSlot = 1
+    FOR i = AR_PATS TO 1 STEP -1 ' (the first pattern there is open below the clips - else A1, empty)
+        IF arRowN(i) > 0 THEN arPatEd = i
+    NEXT
+    IF arPatEd = 0 THEN arPatEd = 1
+    ArPatOpen arPatEd, 0
+    arRec = 0 : arRecOn = 0 : arRecN = 0 : arDrag = 0 : arMsg$ = "" : arQuantClip = 0
+    IF NOT arLoaded THEN
+        ArNote "No music/" + name$ + ".arr - music/arrange.py --analyze " + name$ + " makes one"
+    ELSEIF arFrames = 0 THEN
+        ArNote "No music/edit/" + name$ + ".flac to play (music/arrange.py --sources " + name$ + ") - it can still be changed"
+    END IF
+    _KEYCLEAR : mWas = -1
+    DO
+        _LIMIT 60
+        wheel = 0 : p1 = 0 : p2 = 0 : p3 = 0
+        WHILE _MOUSEINPUT ' (a press seen on the way: a quick click can be down and up again within a frame)
+            wheel = wheel + _MOUSEWHEEL
+            IF _MOUSEBUTTON(1) THEN p1 = -1
+            IF _MOUSEBUTTON(2) THEN p2 = -1
+            IF _MOUSEBUTTON(3) THEN p3 = -1
+        WEND
+        ScreenWideBegin : ArLayout ' (FULL WIDE: this frame on a canvas as wide as the window)
+        mx = WideMouseX(_MOUSEX) + hudLastVX : my = _MOUSEY : md = _MOUSEBUTTON(1) OR p1 : rd = _MOUSEBUTTON(2) OR p2 : mid = _MOUSEBUTTON(3) OR p3
+        arMouseX = mx : arMouseY = my
+        ArMouse mx, my, md, mWas, rd, mid, wheel
+        mWas = md
+        ' (Ctrl and Shift are followed through the queue, in order and from frame to frame - a quick
+        ' Ctrl+S can be let go before the S is read, and its press and the S can come in different
+        ' frames. Held now is held; with no keys at all this frame, the keyboard says.)
+        IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN arCtrlK = -1
+        IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN arShiftK = -1
+        k& = _KEYHIT : IF k& = 0 THEN arCtrlK = _KEYDOWN(100305) OR _KEYDOWN(100306) : arShiftK = _KEYDOWN(100304) OR _KEYDOWN(100303)
+        DO WHILE k&
+            SELECT CASE ABS(k&)
+                CASE 100305, 100306 : arCtrlK = k& > 0
+                CASE 100303, 100304 : arShiftK = k& > 0
+            END SELECT
+            IF k& > 0 AND ABS(k&) < 100000 THEN ArKey k&
+            k& = _KEYHIT
+        LOOP
+        IF arDone THEN EXIT DO
+        IF arPlaying AND arMode = AR_PATTERN THEN ArFlatten arPlayPat ELSE ArFlatten 0 ' (what the player walks, after this frame's changes)
+        ArFeed
+        ArHeardNow
+        IF LEN(arRenderLog$) THEN ArRenderCheck
+        DrawArranger
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows
+        ShowFrame
+    LOOP
+    ArStop
+    ArLoad name$, 0 ' (SOUND TEST's seek bar reads the game's arrangement, not the one left open here)
+    IF m& > 0 THEN PlayMusic m&
+    _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1
+END SUB
+
+' A key
+SUB ArKey(k&)
+    DIM sh, c, r, s0 ' (its own)
+    DIM kk& ' (its own)
+    IF arAsk THEN ArAskKey k& : EXIT SUB ' (SAVE AS: the name typed)
+    IF arOpenOn THEN ArOpenKey k& : EXIT SUB ' (OPEN's list)
+    sh = arShiftK
+    kk& = k& ' (Ctrl held: a letter is its Ctrl code - however the key arrives, as the editor does)
+    IF arCtrlK THEN
+        IF (kk& >= 65 AND kk& <= 90) OR (kk& >= 97 AND kk& <= 122) THEN kk& = (kk& OR 32) - 96
+    END IF
+    IF kk& <> 27 THEN arLeave = 0
+    IF kk& <> 15 AND kk& <> 14 THEN arConfirm$ = ""
+    r = ArRowNow : s0 = arRowSel(0)
+    SELECT CASE kk&
+        CASE 27 ' Esc: leave (twice, with changes not saved)
+            IF arDirty AND NOT arLeave THEN arLeave = -1 : ArNote "Not saved: Ctrl+S saves " + ArShownName$ + " - Esc again leaves without" ELSE arDone = -1
+        CASE 32 : IF arPlaying THEN ArStop ELSE ArPlayRow ' Space
+        CASE 13 : ArPlayRow ' Enter
+        CASE 19 : IF sh THEN ArAskStart ELSE ArSave ' Ctrl+S (Ctrl+Shift+S: save as)
+        CASE 15 : ArOpenStart ' Ctrl+O
+        CASE 26 : IF sh THEN ArRedoStep ELSE ArUndoStep ' Ctrl+Z (Ctrl+Shift+Z: redo)
+        CASE 25 : ArRedoStep ' Ctrl+Y
+        CASE 18 : ArRecToggle ' Ctrl+R
+        CASE 17 ' Ctrl+Q: a launch on the next bar, or as the clip playing ends
+            arQuantClip = NOT arQuantClip
+            IF arQuantClip THEN ArNote "Launches wait for the clip playing to end" ELSE ArNote "Launches start on the next bar"
+        CASE 14 : IF sh THEN ArNewArr ELSE ArNewClip ' Ctrl+N (Ctrl+Shift+N: a new arrangement)
+        CASE 16 : IF sh THEN ArUnpattern ELSE ArMakePattern ' Ctrl+P (Ctrl+Shift+P: back into clips)
+        CASE 11 : ArNextKind ' Ctrl+K
+        CASE 12 : ArSetLoop ' Ctrl+L
+        CASE 4 : ArDeleteClip ' Ctrl+D
+        CASE 5 : ArRender ' Ctrl+E
+        CASE 2 : ArExport ' Ctrl+B
+        CASE 19200 : IF sh THEN ArMoveBy r, -1 ELSE arRowSel(r) = arRowSel(r) - 1 ' Left (Shift: move it)
+        CASE 19712 : IF sh THEN ArMoveBy r, 1 ELSE arRowSel(r) = arRowSel(r) + 1 ' Right
+        CASE 18176 : arRowSel(r) = 1 ' Home
+        CASE 20224 : arRowSel(r) = arRowN(r) ' End
+        CASE 18432 : ArTimes 1 ' Up: once more
+        CASE 20480 : ArTimes -1 ' Down: once fewer
+        CASE 18688 ' PgUp: the keys to the pattern open
+            IF arPatEd > 0 THEN arFocus = -1 : ArNote "Keys on pattern " + ArPatName$(arPatEd) + " (PgDn: on the arrangement)"
+        CASE 20736 : arFocus = 0 : ArNote "Keys on the arrangement (PgUp: on the pattern)" ' PgDn
+        CASE 20992 ' Ins (Shift: before; Ctrl: the pattern open, into the arrangement)
+            IF arCtrlK THEN
+                ArInsertPattern 0, sh
+            ELSEIF sh THEN
+                ArInsertBefore
+            ELSE
+                ArInsert
+            END IF
+        CASE 43, 61 : ArInsert ' +
+        CASE 21248, 8, 127 : IF arCtrlK THEN ArClear ELSE ArRemove ' Del, Backspace (Ctrl: the whole arrangement)
+        CASE 45 : ArRemove ' -
+        CASE 9 ' Tab: the next clip (Shift: the one before)
+            IF arClipN > 0 THEN
+                IF sh THEN arSelClip = arSelClip - 1 ELSE arSelClip = arSelClip + 1
+                IF arSelClip < 1 THEN arSelClip = arClipN
+                IF arSelClip > arClipN THEN arSelClip = 1
+            END IF
+        CASE 44 : ArEdge arSelClip, 0, -1 ' , . the clip's start a grid square earlier or later
+        CASE 46 : ArEdge arSelClip, 0, 1
+        CASE 60 : ArEdge arSelClip, 1, -1 ' < > its end
+        CASE 62 : ArEdge arSelClip, 1, 1
+        CASE 65 TO 90, 97 TO 122 ' A letter: launch that clip
+            c = ArFindClip(UCASE$(CHR$(kk&)))
+            IF c THEN ArLaunch c ELSE ArNote "No clip " + UCASE$(CHR$(kk&))
+    END SELECT
+    ArSelFix
+    IF arRowSel(0) <> s0 THEN arSelK2 = arRowSel(0) ' (a run picked is one block again once the pick moves)
+END SUB
+
+' The mouse: the take's strip plays from a grid square (dragged across squares: a new clip of them -
+' one square is a clip too); the wheel over the take or its lanes zooms (up in, down out; Shift:
+' slides along), the middle button shows it all; a clip's block picks it (its ends drag, to the
+' grid); a pad launches (right button: into the arrangement); a block in the arrangement picks it
+' (twice quickly: plays from it), drags along the row to move it, and the wheel over it repeats it
+' more or fewer times
+SUB ArMouse(mx, my, md, mWas, rd, mid, wheel)
+    STATIC rWas, mdWas
+    DIM c, k, b, e, w, r, s, v ' (its own)
+    IF arAsk THEN rWas = rd : mdWas = mid : EXIT SUB
+    IF arOpenOn THEN ' (OPEN's list: a click opens one, outside it closes it)
+        IF md AND NOT mWas THEN
+            k = ArOpenRowAt(mx, my)
+            IF k THEN ArOpenPick k ELSE arOpenOn = 0
+        END IF
+        IF wheel THEN arOpenSel = arOpenSel + SGN(wheel) : arOpenSel = MaxOf(1, MinOf(arOpenN, arOpenSel))
+        rWas = rd : mdWas = mid : EXIT SUB
+    END IF
+    IF md AND NOT mWas THEN
+        IF my >= AR_SRC_Y0 AND my <= AR_SRC_Y1 AND mx >= AR_X0 AND mx < AR_X0 + arW THEN arDrag = 3 : arDragA = ArCellOfX(mx) : arDragB = arDragA : arDragX = mx : arDragMoved = 0
+        c = ArClipAt(mx, my)
+        IF c THEN
+            arSelClip = c : e = -1
+            ' (its ends where they're drawn: zoomed in, an end off the strip is grabbed at the strip's edge, where its block is cut off)
+            IF ABS(mx - ArXOfTickC(arClipA(c))) <= 6 THEN e = 0
+            IF ABS(mx - ArXOfTickC(arClipE(c))) <= 6 THEN
+                IF e = 0 THEN
+                    IF ABS(mx - ArXOfTickC(arClipE(c))) < ABS(mx - ArXOfTickC(arClipA(c))) THEN e = 1
+                ELSE
+                    e = 1
+                END IF
+            END IF
+            IF e >= 0 THEN
+                arDrag = 1 : arDragClip = c : arDragEdge = e : arDragPushed = 0
+            ELSE ' (its body: dragged, the whole clip moves along - arDragA its start then, arDragB the step pressed on)
+                arDrag = 4 : arDragClip = c : arDragPushed = 0 : arDragX = mx : arDragMoved = 0
+                arDragA = arClipA(c) : arDragB = ArTickOfX#(mx)
+            END IF
+        END IF
+        c = ArPadAt(mx, my) : IF c THEN ArLaunch c
+        ' The pattern editor's buttons: a bank's letter, then a pattern's number opens it (empty: one to fill)
+        b = ArBankAt(mx, my)
+        IF b >= 0 THEN
+            arBank = b : w = 0
+            FOR s = 1 TO 9 : IF arRowN(ArPatOf(b, s)) > 0 THEN w = w + 1
+            NEXT
+            ArNote "Bank " + CHR$(65 + b) + ":" + STR$(w) + " of its 9 patterns have clips - click a number to open one"
+        END IF
+        s = ArSlotAt(mx, my)
+        IF s THEN
+            arSlot = s : ArPatOpen ArPatOf(arBank, s), -1
+            arDrag = 5 : arDragPat = arPatEd : arDragX = mx : arDragMoved = 0
+            IF arRowN(arPatEd) = 0 THEN
+                ArNote "Pattern " + ArPatName$(arPatEd) + " is empty: Ins adds the clip picked - or Shift+click a run of blocks in the arrangement and Ctrl+P"
+            ELSE
+                ArNote "Pattern " + ArPatName$(arPatEd) + ": " + ArRowText$(arPatEd) + " - drag its number into the arrangement (or right-click it, Ctrl+Ins) to put it in"
+            END IF
+        END IF
+        ' The rows: the arrangement's, the pattern open's - a click picks (twice quickly: plays from it), a drag moves along
+        r = ArRowOfY(my)
+        IF r >= 0 AND mx >= ArRowX0(r) - 2 THEN
+            IF r = 0 THEN arFocus = 0 ELSE arFocus = -1
+            k = ArRowAt(r, mx)
+            IF k THEN
+                IF r = 0 AND arShiftK THEN
+                    arSelK2 = k ' (a run: from the block picked to this one)
+                    ArNote "Blocks" + STR$(MinOf(arRowSel(0), k)) + " to" + STR$(MaxOf(arRowSel(0), k)) + " picked - Ctrl+P makes a pattern of them, Del takes them out"
+                ELSE
+                    IF k = arClickK AND r = arClickR AND ABS(TIMER(0.001) - arClickT) < 0.35 THEN
+                        IF r = 0 THEN ArPlayFrom k ELSE ArPlayPattern r, k
+                    END IF
+                    arClickK = k : arClickR = r : arClickT = TIMER(0.001)
+                    arRowSel(r) = k : IF r = 0 THEN arSelK2 = k
+                    v = arRowC(r, k)
+                    IF v > 0 THEN arSelClip = v
+                    IF v < 0 THEN ArPatOpen -v, 0 ' (a pattern's block: it opens in the editor above)
+                    arDrag = 2 : arDragK = k : arDragRow = r : arDragPushed = 0
+                END IF
+            END IF
+        END IF
+    END IF
+    IF md AND arDrag = 1 THEN ' A clip's end, to the grid line nearest (a step from the other end at least)
+        c = arDragClip : b = ArGridNear(mx)
+        IF arDragEdge = 0 THEN
+            IF b >= arClipE(c) THEN b = arClipE(c) - 1
+            IF b <> arClipA(c) THEN
+                IF NOT arDragPushed THEN ArPushUndo : arDragPushed = -1
+                arClipA(c) = b : ArLanes
+            END IF
+        ELSE
+            IF b <= arClipA(c) THEN b = arClipA(c) + 1
+            IF b <> arClipE(c) THEN
+                IF NOT arDragPushed THEN ArPushUndo : arDragPushed = -1
+                arClipE(c) = b : ArLanes
+            END IF
+        END IF
+    END IF
+    IF md AND arDrag = 2 THEN ' An entry, along its row
+        k = ArRowAt(arDragRow, mx)
+        IF k > 0 AND k <> arRowSel(arDragRow) THEN
+            IF NOT arDragPushed THEN ArPushUndo : arDragPushed = -1
+            ArMoveTo arDragRow, k
+        END IF
+    END IF
+    IF md AND arDrag = 4 THEN ' A clip, along the take: its start to the grid line nearest, its length kept
+        c = arDragClip
+        IF ABS(mx - arDragX) >= 4 THEN arDragMoved = -1
+        IF arDragMoved AND c >= 1 AND c <= arClipN THEN
+            w = arClipE(c) - arClipA(c)
+            b = INT((arDragA + ArTickOfX#(mx) - arDragB) / arGrid + 0.5) * arGrid
+            IF b + w > ArEndTick THEN b = ArEndTick - w
+            IF b < ArFirstBar * AR_TPB THEN b = ArFirstBar * AR_TPB
+            IF b <> arClipA(c) THEN
+                IF NOT arDragPushed THEN ArPushUndo : arDragPushed = -1
+                arClipA(c) = b : arClipE(c) = b + w
+            END IF
+        END IF
+    END IF
+    IF NOT md AND arDrag = 4 THEN ' (let go: its lanes sorted again - not while it moves, or it would hop lanes under the pointer)
+        IF arDragPushed THEN
+            c = arDragClip : ArLanes
+            ArNote "Clip " + arClipName$(c) + " moved: " + ArRangeName$(arClipA(c), arClipE(c)) + " (" + ArLenName$(arClipE(c) - arClipA(c)) + ") - Ctrl+Z puts it back"
+        END IF
+    END IF
+    IF md AND arDrag = 3 THEN ' Across the take: the squares of a new clip
+        arDragB = ArCellOfX(mx) : IF ABS(mx - arDragX) >= 4 THEN arDragMoved = -1
+    END IF
+    IF NOT md AND arDrag = 3 THEN ' (let go where it was pressed: played from there; dragged - even within one square - a new clip)
+        IF NOT arDragMoved AND arDragB = arDragA THEN ArPlay AR_SOURCE, arDragA, 0, 0, 0 ELSE ArMakeClip MinOf(arDragA, arDragB), MaxOf(arDragA, arDragB) + arGrid
+    END IF
+    IF md AND arDrag = 5 THEN ' A pattern's number, dragged
+        IF ABS(mx - arDragX) >= 4 THEN arDragMoved = -1
+    END IF
+    IF NOT md AND arDrag = 5 THEN ' (let go on the arrangement: the pattern goes in there)
+        IF arDragMoved AND my >= AR_SEQ_Y0 - 12 AND my <= AR_SEQ_Y1 + 12 THEN
+            IF arRowN(arDragPat) = 0 THEN
+                ArNote "Pattern " + ArPatName$(arDragPat) + " is empty: nothing to put in"
+            ELSE
+                ArInsertAt 0, ArDropAfter(mx), -arDragPat : arFocus = 0
+                ArNote "Pattern " + ArPatName$(arDragPat) + " in the arrangement: block" + STR$(arRowSel(0))
+            END IF
+        END IF
+    END IF
+    IF NOT md THEN arDrag = 0
+    IF rd AND NOT rWas THEN
+        c = ArPadAt(mx, my)
+        IF c THEN
+            arSelClip = c
+            IF arShiftK THEN ArInsertBefore ELSE ArInsert
+        END IF
+        s = ArSlotAt(mx, my)
+        IF s THEN ArInsertPattern ArPatOf(arBank, s), arShiftK
+    END IF
+    rWas = rd
+    IF mid AND NOT mdWas THEN ' The middle button over the take or its lanes: all of it in view
+        IF my >= AR_SRC_Y0 AND my < AR_LANE_Y + AR_LANES * AR_LANE_H THEN ArZoomAll : ArNote "The whole take in view (the wheel over it zooms)"
+    END IF
+    mdWas = mid
+    IF wheel THEN
+        IF my >= AR_SRC_Y0 AND my < AR_LANE_Y + AR_LANES * AR_LANE_H THEN
+            ArZoom mx, wheel, arShiftK
+        ELSE
+            r = ArRowOfY(my)
+            IF r >= 0 THEN
+                k = ArRowAt(r, mx)
+                IF k THEN
+                    IF r = 0 THEN arFocus = 0 ELSE arFocus = -1
+                    arRowSel(r) = k : IF r = 0 THEN arSelK2 = k
+                    ArTimes -SGN(wheel)
+                END IF
+            END IF
+        END IF
+    END IF
+END SUB
+
+' A pattern dropped at x on the arrangement: the block it goes in after (0: first)
+FUNCTION ArDropAfter(x)
+    DIM k ' (its own)
+    IF arRowN(0) = 0 THEN EXIT FUNCTION
+    k = ArRowAt(0, x)
+    IF k = 0 THEN
+        IF x >= AR_X0 + arW THEN ArDropAfter = arRowN(0)
+        EXIT FUNCTION
+    END IF
+    IF x < (ArRowX(0, k) + ArRowX(0, k + 1)) / 2 THEN ArDropAfter = k - 1 ELSE ArDropAfter = k
+END FUNCTION
+
+' OPEN's list: where it is, the first shown, and the line at (x, y) - 0 none
+FUNCTION ArOpenTop
+    ArOpenTop = MaxOf(0, arOpenSel - 14)
+END FUNCTION
+
+FUNCTION ArOpenRowAt(x, y)
+    DIM i, x0 ' (its own)
+    x0 = scrW \ 2 - 220
+    IF x < x0 OR x > x0 + 440 THEN EXIT FUNCTION
+    i = (y - 152) \ 18 + 1 + ArOpenTop
+    IF y >= 152 AND i >= 1 AND i <= arOpenN AND i <= ArOpenTop + 14 THEN ArOpenRowAt = i
+END FUNCTION
+
+' What's playing, in words
+FUNCTION ArStatus$
+    DIM s$, n&, k, f, c, r ' (its own)
+    IF NOT arHeard THEN
+        IF ArRowNow > 0 THEN
+            s$ = "STOPPED - SPACE PLAYS PATTERN " + ArPatName$(arPatEd) + ", ROUND AND ROUND"
+            IF arRowSel(arPatEd) > 1 THEN s$ = s$ + ", FROM ITS" + STR$(arRowSel(arPatEd))
+        ELSE
+            s$ = "STOPPED - SPACE PLAYS THE ARRANGEMENT"
+            IF arRowN(0) > 0 AND arRowSel(0) > 1 THEN s$ = s$ + " FROM BLOCK" + STR$(arRowSel(0))
+        END IF
+        ArStatus$ = s$ : EXIT FUNCTION
+    END IF
+    SELECT CASE arHMode
+        CASE AR_SOURCE : s$ = "THE TAKE AS IT IS - BAR " + ArPosName$(arHTick)
+        CASE AR_ARRANGE, AR_PATTERN
+            r = 0 : IF arHMode = AR_PATTERN THEN r = arFlatOf
+            IF ArHeardIn(r, k, n&) THEN
+                f = arHK : c = arFlatClip(f)
+                IF r = 0 THEN
+                    s$ = "THE ARRANGEMENT - BLOCK" + STR$(k) + " OF" + STR$(arRowN(0)) + " ("
+                    IF arRowC(0, k) < 0 THEN s$ = s$ + ArPatName$(-arRowC(0, k)) + ": "
+                ELSE
+                    s$ = "PATTERN " + ArPatName$(r) + " ROUND AND ROUND - " + LTRIM$(STR$(k)) + " OF" + STR$(arRowN(r)) + " ("
+                END IF
+                s$ = s$ + arClipName$(c)
+                IF arFlatTimes(f) > 1 THEN s$ = s$ + "," + STR$(arHRep) + " OF" + STR$(arFlatTimes(f))
+                s$ = s$ + ") - BAR " + ArPosName$(arHTick) + " - " + ArTime$(ArSecs#(n&) + arHPos / arRate) + " OF " + ArTime$(ArSecs#(ArRowTicks&(r)))
+            END IF
+        CASE AR_SESSION
+            IF arHClip > 0 THEN s$ = "CLIP " + arClipName$(arHClip) + " LOOPING - BAR " + ArPosName$(arHTick) ELSE s$ = "THE TAKE - BAR " + ArPosName$(arHTick)
+            IF arQueued > 0 THEN
+                s$ = s$ + " - NEXT: " + arClipName$(arQueued)
+                IF arQuantClip AND arHClip > 0 THEN s$ = s$ + " WHEN " + arClipName$(arHClip) + " ENDS" ELSE s$ = s$ + " ON THE NEXT BAR"
+            END IF
+    END SELECT
+    ArStatus$ = s$
+END FUNCTION
+
+SUB DrawArranger
+    DIM x, y, i, k, c, b, x0, x1, t$, l$, r$, n&, a, w, f!, s!, col~&, blink, g, t0, t1, tk, lw, p, r, e, u ' (its own)
+    LINE (0, 0)-(scrW - 1, 599), _RGB32(12, 6, 20), BF
+    _PRINTMODE _KEEPBACKGROUND
+    blink = (INT(TIMER(0.001) * 4) MOD 2) = 0
+    ' The title: the arrangement, the track's tempo and bars; the grid and zoom
+    COLOR _RGB32(255, 90, 200) : _PRINTSTRING (16, 6), "MUSIC ARRANGER"
+    COLOR _RGB32(255, 255, 255) : _PRINTSTRING (136, 6), ArShownName$
+    t$ = ArFix$(arBpm, 3) + " BPM   " + LTRIM$(STR$(arBars)) + " BARS   BAR 1 AT " + ArFix$(arOffs, 3) + " S   GRID " + ArGridName$(arGrid)
+    IF arViewN < ArSpan# - 1 THEN t$ = t$ + "   ZOOM X" + ArFix$(ArSpan# / arViewN, 1)
+    COLOR _RGB32(150, 140, 180) : _PRINTSTRING (scrW - 16 - 8 * LEN(t$), 6), t$
+    ' What's playing; REC, the launch, unsaved
+    IF arHeard THEN COLOR _RGB32(90, 230, 255) ELSE COLOR _RGB32(150, 140, 180)
+    t$ = ArStatus$ : IF LEN(t$) > (scrW - 180) \ 8 THEN t$ = LEFT$(t$, (scrW - 180) \ 8 - 1) + "~"
+    _PRINTSTRING (16, 26), t$
+    x = scrW - 16
+    IF arRec THEN
+        IF arRecOn OR blink THEN LINE (x - 34, 25)-(x, 41), _RGB32(220, 30, 50), BF
+        COLOR _RGB32(255, 255, 255) : _PRINTSTRING (x - 29, 26), "REC" : x = x - 42
+    END IF
+    IF arDirty THEN COLOR _RGB32(255, 200, 90) : _PRINTSTRING (x - 56, 26), "UNSAVED" : x = x - 64
+    ' THE TAKE: its waveform, bars and grid, the fade, what's heard
+    t$ = "THE TAKE  " + arSource$ + "  - CLICK: PLAY FROM THERE   DRAG: A NEW CLIP (TO THE GRID)   WHEEL: ZOOM (SHIFT: SLIDE)   MIDDLE: ALL"
+    IF ArFirstBar = 0 THEN t$ = t$ + "   IN: THE LEAD-IN"
+    TinyText 16, 64, t$, _RGB32(150, 140, 180)
+    LINE (AR_X0 - 2, AR_SRC_Y0)-(AR_X0 + arW + 1, AR_SRC_Y1), _RGB32(6, 0, 18), BF
+    IF arTail <= arBars THEN
+        x0 = ArXOfTickC(arTail * AR_TPB)
+        IF x0 < AR_X0 + arW THEN
+            LINE (x0, AR_SRC_Y0 + 1)-(AR_X0 + arW, AR_SRC_Y1 - 1), _RGBA32(90, 0, 40, 255), BF
+            TinyText x0 + 3, AR_SRC_Y1 - 11, "FADE", _RGB32(255, 120, 150)
+        END IF
+    END IF
+    IF arSelClip > 0 THEN
+        x0 = ArXOfTickC(arClipA(arSelClip)) : x1 = ArXOfTickC(arClipE(arSelClip)) - 1
+        IF x1 >= x0 THEN LINE (x0, AR_SRC_Y0 + 1)-(x1, AR_SRC_Y1 - 1), ArCol~&(arSelClip, 40), BF
+    END IF
+    y = (AR_SRC_Y0 + AR_SRC_Y1) \ 2
+    IF arFrames > 0 THEN
+        FOR i = 0 TO arW - 1
+            LINE (AR_X0 + i, y - arOvMax(i) * 30)-(AR_X0 + i, y - arOvMin(i) * 30), _RGBA32(170, 110, 230, 210)
+        NEXT
+    ELSE
+        LINE (AR_X0, y)-(AR_X0 + arW - 1, y), _RGBA32(150, 90, 200, 120)
+        TinyText AR_X0 + 300, y - 12, "NO SOUND: MUSIC/EDIT/" + UCASE$(arName$) + ".FLAC", _RGB32(255, 120, 150)
+    END IF
+    ' (the grid's lines: bars bright, every 4th brighter, beats, 16ths and finer squares fainter; each labelled where there's room)
+    g = arGrid : IF g < 1 THEN g = AR_TPB
+    t0 = INT(ArTickOfX#(AR_X0) / g) * g : IF t0 < ArFirstBar * AR_TPB THEN t0 = ArFirstBar * AR_TPB
+    t1 = INT(ArTickOfX#(AR_X0 + arW) / g + 1) * g : IF t1 > ArEndTick THEN t1 = ArEndTick
+    lw = 0
+    FOR tk = t0 TO t1 STEP g
+        x = ArXOfTick(tk)
+        IF x >= AR_X0 AND x <= AR_X0 + arW THEN
+            IF tk MOD AR_TPB = 0 THEN
+                IF (tk \ AR_TPB) MOD 4 = 1 THEN col~& = _RGBA32(90, 230, 255, 150) ELSE col~& = _RGBA32(90, 230, 255, 70)
+            ELSEIF tk MOD (AR_TPB \ 4) = 0 THEN
+                col~& = _RGBA32(90, 230, 255, 38)
+            ELSEIF tk MOD (AR_TPB \ 16) = 0 THEN
+                col~& = _RGBA32(90, 230, 255, 24)
+            ELSE
+                col~& = _RGBA32(90, 230, 255, 14)
+            END IF
+            IF tk >= AR_TPB OR tk MOD AR_TPB THEN LINE (x, AR_SRC_Y0 + 1)-(x, AR_SRC_Y1 - 1), col~&
+            IF tk < ArEndTick THEN
+                l$ = ArPosName$(tk)
+                IF x >= lw AND (ArXOfTick(tk + g) - x >= TinyW(l$) + 4 OR (tk MOD (AR_TPB * 4) = AR_TPB)) THEN
+                    IF tk MOD AR_TPB = 0 THEN col~& = _RGB32(130, 200, 230) ELSE col~& = _RGB32(90, 140, 170)
+                    IF tk = 0 THEN col~& = _RGB32(255, 150, 210)
+                    TinyText x + 2, AR_SRC_Y0 + 3, l$, col~& : lw = x + TinyW(l$) + 6
+                END IF
+            END IF
+        END IF
+    NEXT
+    IF arDrag = 3 AND (arDragB <> arDragA OR arDragMoved) THEN ' (squares being dragged across: the clip they'll make)
+        a = MinOf(arDragA, arDragB) : b = MaxOf(arDragA, arDragB) + arGrid
+        x0 = ArXOfTickC(a) : x1 = ArXOfTickC(b) - 1
+        LINE (x0, AR_SRC_Y0 + 1)-(x1, AR_SRC_Y1 - 1), _RGBA32(255, 255, 255, 50), BF
+        LINE (x0, AR_SRC_Y0 + 1)-(x1, AR_SRC_Y1 - 1), _RGB32(255, 255, 255), B
+        TinyText x0 + 3, AR_SRC_Y1 - 11, "NEW CLIP " + ArRangeName$(a, b) + " (" + ArLenName$(b - a) + ")", _RGB32(255, 255, 255)
+    END IF
+    LINE (AR_X0 - 2, AR_SRC_Y0)-(AR_X0 + arW + 1, AR_SRC_Y1), _RGBA32(90, 230, 255, 90), B
+    IF arHeard THEN
+        x = ArXOfFrame(ArTickAt#(arHTick) + arHPos)
+        IF x >= AR_X0 AND x < AR_X0 + arW THEN LINE (x, AR_SRC_Y0 + 1)-(x + 1, AR_SRC_Y1 - 1), _RGB32(255, 255, 255), BF
+    END IF
+    ' The clips, in lanes under it: the one picked outlined white, with handles at its ends
+    FOR c = 1 TO arClipN
+        IF ArXOfTick(arClipE(c)) < AR_X0 OR ArXOfTick(arClipA(c)) > AR_X0 + arW THEN _CONTINUE ' (out of view)
+        x0 = ArXOfTickC(arClipA(c)) : x1 = ArXOfTickC(arClipE(c)) - 1 : IF x1 < x0 THEN x1 = x0
+        y = AR_LANE_Y + arLane(c) * AR_LANE_H
+        a = 80 : IF arHeard AND arHClip = c THEN a = 170
+        LINE (x0, y)-(x1, y + AR_LANE_H - 3), ArCol~&(c, a), BF
+        IF c = arSelClip THEN
+            LINE (x0, y)-(x1, y + AR_LANE_H - 3), _RGB32(255, 255, 255), B
+            LINE (x0 - 1, y + 2)-(x0 + 1, y + AR_LANE_H - 5), _RGB32(255, 255, 255), BF
+            LINE (x1 - 1, y + 2)-(x1 + 1, y + AR_LANE_H - 5), _RGB32(255, 255, 255), BF
+        ELSE
+            LINE (x0, y)-(x1, y + AR_LANE_H - 3), ArCol~&(c, 200), B
+        END IF
+        l$ = arClipName$(c) + " " + arClipKind$(c) : IF TinyW(l$) > x1 - x0 - 5 THEN l$ = arClipName$(c)
+        IF TinyW(l$) <= x1 - x0 - 2 THEN TinyText x0 + 3, y + 3, l$, _RGB32(255, 255, 255)
+    NEXT
+    ' The launcher: a pad a clip - lit while it plays (a bar along it: how far through), blinking while it's queued
+    t$ = "CLIPS - CLICK ONE OR TYPE ITS LETTER: IT STARTS ON THE NEXT BAR AND LOOPS.  RIGHT-CLICK: INTO THE ROW THE KEYS ARE ON"
+    IF arClipN > arPadsRow * 2 THEN t$ = t$ + "   (" + LTRIM$(STR$(arClipN - arPadsRow * 2)) + " MORE: TAB PICKS THEM)"
+    TinyText 16, AR_PAD_Y - 11, t$, _RGB32(150, 140, 180)
+    FOR c = 1 TO MinOf(arClipN, arPadsRow * 2)
+        x = ArPadX(c) : y = ArPadY(c)
+        a = 55 : IF arHeard AND arHClip = c THEN a = 175
+        LINE (x, y)-(x + AR_PAD_W - 1, y + AR_PAD_H - 1), ArCol~&(c, a), BF
+        LINE (x, y)-(x + AR_PAD_W - 1, y + AR_PAD_H - 1), ArCol~&(c, 220), B
+        IF c = arSelClip THEN LINE (x + 1, y + 1)-(x + AR_PAD_W - 2, y + AR_PAD_H - 2), _RGB32(255, 255, 255), B
+        IF arQueued = c AND blink THEN LINE (x - 2, y - 2)-(x + AR_PAD_W + 1, y + AR_PAD_H + 1), _RGB32(255, 255, 255), B
+        COLOR _RGB32(255, 255, 255) : _PRINTSTRING (x + 4, y + 1), arClipName$(c)
+        IF arClipA(c) MOD AR_TPB = 0 AND arClipE(c) MOD AR_TPB = 0 THEN
+            TinyText x + 17, y + 5, ArRangeName$(arClipA(c), arClipE(c)), _RGB32(230, 230, 240)
+        ELSE ' (finer than bars: where it starts, and how long)
+            TinyText x + 17, y + 2, ArPosName$(arClipA(c)), _RGB32(230, 230, 240)
+            l$ = ArLenName$(arClipE(c) - arClipA(c)) : IF RIGHT$(l$, 4) = " BAR" THEN l$ = LEFT$(l$, LEN(l$) - 4)
+            IF RIGHT$(l$, 5) = " BARS" THEN l$ = LEFT$(l$, LEN(l$) - 5)
+            TinyText x + 17, y + 10, l$, _RGB32(200, 230, 255)
+        END IF
+        l$ = arClipKind$(c) : IF TinyW(l$) > AR_PAD_W - 8 THEN l$ = LEFT$(l$, 7)
+        TinyText x + 4, y + 18, l$, _RGB32(200, 200, 220)
+        IF arHeard AND arHClip = c THEN
+            f! = (arHTick - arClipA(c) + arHPos / ArTickLen#) / (arClipE(c) - arClipA(c))
+            IF f! < 0 THEN f! = 0
+            IF f! > 1 THEN f! = 1
+            LINE (x + 2, y + AR_PAD_H - 3)-(x + 2 + f! * (AR_PAD_W - 5), y + AR_PAD_H - 2), _RGB32(255, 255, 255), BF
+        END IF
+    NEXT
+    ' The pattern editor: the bank's letters and the patterns' numbers, and the pattern open - its clips across
+    TinyText ArBankX(0), AR_PAT_Y0 - 11, "BANK", _RGB32(150, 140, 180)
+    TinyText ArSlotX(1), AR_PAT_Y0 - 11, "PATTERN", _RGB32(150, 140, 180)
+    FOR b = 0 TO 5
+        x = ArBankX(b) : y = ArBankY(b) : u = 0
+        FOR i = 1 TO 9 : IF arRowN(ArPatOf(b, i)) > 0 THEN u = -1
+        NEXT
+        IF b = arBank THEN
+            LINE (x, y)-(x + 15, y + 16), _RGBA32(255, 90, 200, 210), BF
+        ELSEIF u THEN
+            LINE (x, y)-(x + 15, y + 16), _RGBA32(255, 90, 200, 60), BF
+        ELSE
+            LINE (x, y)-(x + 15, y + 16), _RGB32(22, 13, 36), BF
+        END IF
+        LINE (x, y)-(x + 15, y + 16), _RGBA32(255, 90, 200, 150), B
+        TinyText x + 6, y + 5, CHR$(65 + b), _RGB32(255, 255, 255)
+    NEXT
+    FOR i = 1 TO 9
+        p = ArPatOf(arBank, i) : x = ArSlotX(i) : y = ArSlotY(i)
+        IF arRowN(p) > 0 THEN LINE (x, y)-(x + 15, y + 10), ArCol~&(arRowC(p, 1), 130), BF ELSE LINE (x, y)-(x + 15, y + 10), _RGB32(22, 13, 36), BF
+        IF p = arPatEd THEN LINE (x, y)-(x + 15, y + 10), _RGB32(255, 255, 255), B ELSE LINE (x, y)-(x + 15, y + 10), _RGBA32(200, 190, 230, 90), B
+        TinyText x + 6, y + 2, LTRIM$(STR$(i)), _RGB32(255, 255, 255)
+        IF ArPatUsed(p) THEN LINE (x + 12, y + 2)-(x + 13, y + 3), _RGB32(255, 255, 255), BF ' (a dot: it's in the arrangement)
+    NEXT
+    IF arPatEd > 0 THEN
+        p = arPatEd
+        t$ = "PATTERN " + ArPatName$(p)
+        IF arRowN(p) > 0 THEN
+            n& = ArRowTicks&(p)
+            t$ = t$ + " - " + ArRowText$(p) + " - " + ArLenName$(n&) + ", " + ArTime$(ArSecs#(n&))
+            IF ArPatUsed(p) THEN t$ = t$ + " - IN THE ARRANGEMENT" ELSE t$ = t$ + " - DRAG ITS NUMBER INTO THE ARRANGEMENT (OR CTRL+INS)"
+        END IF
+        IF ArRowNow = p THEN t$ = t$ + "   [KEYS HERE - PGDN: THE ARRANGEMENT]" ELSE t$ = t$ + "   [PGUP: KEYS HERE]"
+        TinyText ArRowX0(p), AR_PAT_Y0 - 11, t$, _RGB32(200, 190, 230)
+        IF arRowN(p) > 0 THEN
+            ArDrawRow p, AR_PAT_Y0, AR_PAT_Y1
+        ELSE
+            LINE (ArRowX0(p) - 2, AR_PAT_Y0 - 1)-(ArRowX0(p) + ArRowW(p) + 1, AR_PAT_Y1 + 1), _RGB32(6, 0, 18), BF
+            IF ArRowNow = p THEN LINE (ArRowX0(p) - 2, AR_PAT_Y0 - 1)-(ArRowX0(p) + ArRowW(p) + 1, AR_PAT_Y1 + 1), _RGBA32(255, 255, 255, 70), B
+            TinyText ArRowX0(p) + 8, AR_PAT_Y0 + 8, "EMPTY - INS ADDS THE CLIP PICKED TO IT (THE KEYS ARE HERE ONCE YOU CLICK IT, OR PGUP)", _RGB32(150, 140, 180)
+            TinyText ArRowX0(p) + 8, AR_PAT_Y0 + 20, "OR SHIFT+CLICK A RUN OF BLOCKS IN THE ARRANGEMENT AND CTRL+P: THEY'RE " + ArPatName$(p) + ", AND ONE BLOCK", _RGB32(150, 140, 180)
+        END IF
+    END IF
+    ' The arrangement: its blocks across the row, as long as they play (a pattern's: its clips in it); the joins under them
+    n& = ArSeqTicks&
+    IF arLoopK > 1 THEN r$ = ", THEN ROUND FROM BLOCK" + STR$(arLoopK) + " (CTRL+L)." ELSE r$ = ", THEN ROUND AGAIN (CTRL+L: AN INTRO)."
+    t$ = "THE ARRANGEMENT -" + STR$(arRowN(0)) + " BLOCKS, " + ArLenName$(n&) + ", " + ArTime$(ArSecs#(n&)) + r$ + "  DOUBLE-CLICK OR ENTER: PLAY FROM ONE  DRAG: MOVE  WHEEL, UP/DOWN: REPEATS  SHIFT+CLICK: A RUN"
+    TinyText 16, AR_SEQ_Y0 - 11, t$, _RGB32(150, 140, 180)
+    ArDrawRow 0, AR_SEQ_Y0, AR_SEQ_Y1
+    IF arDrag = 5 AND arDragMoved THEN ' (a pattern's number dragged: where it would go, and its name at the pointer)
+        IF arMouseY >= AR_SEQ_Y0 - 12 AND arMouseY <= AR_SEQ_Y1 + 12 THEN
+            x = ArRowX(0, ArDropAfter(arMouseX) + 1)
+            LINE (x - 1, AR_SEQ_Y0 - 4)-(x + 1, AR_SEQ_Y1 + 4), _RGB32(255, 255, 255), BF
+        END IF
+        LINE (arMouseX + 8, arMouseY - 4)-(arMouseX + 30, arMouseY + 9), _RGBA32(255, 90, 200, 220), BF
+        TinyText arMouseX + 12, arMouseY - 1, ArPatName$(arDragPat), _RGB32(255, 255, 255)
+    END IF
+    ' About the clip, and the entry picked in the row the keys are on
+    y = 436
+    IF arSelClip > 0 THEN
+        c = arSelClip : n& = ArClipPlays&(c)
+        w = arClipE(c) - arClipA(c)
+        IF arClipA(c) MOD AR_TPB = 0 AND arClipE(c) MOD AR_TPB = 0 THEN l$ = "  BARS " ELSE l$ = "  "
+        t$ = "CLIP " + arClipName$(c) + l$ + ArRangeName$(arClipA(c), arClipE(c)) + "  (" + ArLenName$(w) + ", " + ArFix$(ArSecs#(w), 2) + " S)  " + UCASE$(arClipKind$(c))
+        COLOR ArCol~&(c, 255) : _PRINTSTRING (16, y), t$
+        t$ = "PLAYED" + STR$(n&) + "X IN THE ARRANGEMENT - LOOPING ON ITSELF: " + UCASE$(ArJoinText$(ArJoin!(arClipE(c), arClipA(c))))
+        COLOR _RGB32(190, 185, 215) : _PRINTSTRING (16, y + 18), t$
+    END IF
+    r = ArRowNow : k = arRowSel(r)
+    IF r = 0 AND arSelK2 <> arRowSel(0) AND arSelK2 >= 1 THEN
+        a = MinOf(arRowSel(0), arSelK2) : b = MaxOf(arRowSel(0), arSelK2)
+        t$ = "BLOCKS" + STR$(a) + " TO" + STR$(b) + " PICKED - CTRL+P: A PATTERN OF THEM (ONE BLOCK THEN)   DEL: TAKE THEM OUT"
+        COLOR _RGB32(255, 255, 255) : _PRINTSTRING (16, y + 36), LEFT$(t$, (scrW - 32) \ 8)
+    ELSEIF k >= 1 AND k <= arRowN(r) THEN
+        IF r = 0 THEN t$ = "BLOCK" + STR$(k) + " OF" + STR$(arRowN(0)) + ": " ELSE t$ = "PATTERN " + ArPatName$(r) + "," + STR$(k) + " OF" + STR$(arRowN(r)) + ": "
+        t$ = t$ + ArEntName$(r, k)
+        IF arRowC(r, k) < 0 THEN t$ = t$ + " (" + ArRowText$(-arRowC(r, k)) + ")"
+        e = k - 1 : IF e < 1 THEN e = arRowN(r)
+        IF r = 0 AND k = 1 AND arLoopK > 1 THEN
+            t$ = t$ + "   THE INTRO'S START"
+        ELSEIF ArEntLast(r, e) > 0 THEN
+            t$ = t$ + "   INTO IT, FROM " + ArStopName$(arClipE(ArEntLast(r, e))) + ": " + UCASE$(ArJoinText$(ArEntJoin!(r, k)))
+        END IF
+        e = k + 1 : IF e > arRowN(r) THEN e = 1
+        IF r = 0 AND k = arRowN(0) THEN e = ArLoopFrom
+        IF ArEntFirst(r, e) > 0 AND ArEntLast(r, k) > 0 THEN t$ = t$ + "   OUT, TO " + ArStartName$(arClipA(ArEntFirst(r, e))) + ": " + UCASE$(ArJoinText$(ArJoin!(arClipE(ArEntLast(r, k)), arClipA(ArEntFirst(r, e)))))
+        COLOR _RGB32(255, 255, 255) : _PRINTSTRING (16, y + 36), LEFT$(t$, (scrW - 32) \ 8)
+    END IF
+    ' The message line
+    IF LEN(arMsg$) AND ABS(TIMER(0.001) - arMsgT) < 8 THEN
+        t$ = arMsg$ : IF LEN(t$) > (scrW - 32) \ 8 THEN t$ = LEFT$(t$, (scrW - 32) \ 8 - 1) + "~"
+        COLOR _RGB32(255, 220, 90) : _PRINTSTRING (16, 488), t$
+    END IF
+    ' The keys
+    ArHelpDraw 506
+    IF arAsk OR arOpenOn THEN LINE (0, 0)-(scrW - 1, 599), _RGBA32(0, 0, 0, 140), BF ' (what's behind a box, dimmed)
+    IF arAsk THEN ArAskDraw
+    IF arOpenOn THEN ArOpenDraw
+END SUB
+
+' Row r between y0 and y1 (the arrangement's, or the pattern open's): each entry as long as it
+' plays - a clip's block its colour, a pattern's its clips in theirs under its name - the
+' entries picked outlined (twice in the row the keys are on), the joins under them, what's heard
+SUB ArDrawRow(r, y0, y1)
+    DIM k, v, xa, x1, x, i, j, t, a, c, l$, s!, n&, tot&, he, hn&, a1, b1, foc, p, pt&, q&, xx0, xx1, X0, W, sp& ' (its own)
+    X0 = ArRowX0(r) : W = ArRowW(r) : foc = (ArRowNow = r)
+    LINE (X0 - 2, y0 - 1)-(X0 + W + 1, y1 + 1), _RGB32(6, 0, 18), BF
+    IF foc THEN LINE (X0 - 3, y0 - 2)-(X0 + W + 2, y1 + 2), _RGBA32(255, 255, 255, 70), B
+    tot& = ArRowTicks&(r) : IF tot& = 0 THEN EXIT SUB
+    IF NOT ArHeardIn(r, he, hn&) THEN he = 0
+    a1 = arRowSel(r) : b1 = a1
+    IF r = 0 THEN a1 = MinOf(arRowSel(0), arSelK2) : b1 = MaxOf(arRowSel(0), arSelK2)
+    n& = 0
+    FOR k = 1 TO arRowN(r)
+        xa = X0 + W * n& / tot& : n& = n& + ArEntTicks&(r, k) : x1 = X0 + W * n& / tot& - 1 : IF x1 < xa THEN x1 = xa
+        v = arRowC(r, k)
+        a = 80 : IF k = he THEN a = 170
+        IF v > 0 THEN
+            LINE (xa, y0)-(x1, y1), ArCol~&(v, a), BF
+            LINE (xa, y0)-(x1, y1), ArCol~&(v, 220), B
+            FOR i = 1 TO arRowT(r, k) - 1 ' (each time round marked)
+                x = xa + (x1 - xa + 1) * i / arRowT(r, k)
+                LINE (x, y0 + 6)-(x, y1 - 6), ArCol~&(v, 160)
+            NEXT
+            l$ = ArEntName$(r, k)
+            IF TinyW(l$) <= x1 - xa - 3 THEN
+                TinyText xa + 3, y0 + 4, l$, _RGB32(255, 255, 255)
+            ELSEIF TinyW(arClipName$(v)) <= x1 - xa - 2 THEN
+                TinyText xa + 2, y0 + 4, arClipName$(v), _RGB32(255, 255, 255)
+            END IF
+        ELSEIF v < 0 THEN ' (a pattern: its clips in proportion, each time round, under a band with its name)
+            p = -v : pt& = ArRowTicks&(p) * arRowT(r, k) : q& = 0
+            LINE (xa, y0)-(x1, y1), _RGB32(26, 16, 44), BF
+            IF pt& > 0 THEN
+                FOR t = 1 TO arRowT(r, k)
+                    FOR j = 1 TO arRowN(p)
+                        c = arRowC(p, j) : sp& = ArEntTicks&(p, j)
+                        xx0 = xa + (x1 - xa + 1) * q& / pt& : q& = q& + sp& : xx1 = xa + (x1 - xa + 1) * q& / pt& - 1
+                        IF xx1 >= xx0 THEN
+                            LINE (xx0, y0 + 12)-(xx1, y1 - 1), ArCol~&(c, a + 40), BF
+                            IF xx1 > xx0 + 1 THEN LINE (xx1, y0 + 12)-(xx1, y1 - 1), _RGB32(26, 16, 44)
+                        END IF
+                    NEXT
+                    IF t > 1 THEN x = xa + (x1 - xa + 1) * (t - 1) / arRowT(r, k) : LINE (x, y0 + 1)-(x, y1 - 1), _RGB32(220, 210, 255)
+                NEXT
+            END IF
+            LINE (xa, y0)-(x1, y1), _RGB32(220, 210, 255), B
+            l$ = ArEntName$(r, k)
+            IF TinyW(l$) > x1 - xa - 3 THEN l$ = ArPatName$(p)
+            IF TinyW(l$) <= x1 - xa - 2 THEN TinyText xa + 3, y0 + 3, l$, _RGB32(255, 255, 255)
+        END IF
+        IF k >= a1 AND k <= b1 THEN
+            LINE (xa, y0 - 1)-(x1, y1 + 1), _RGB32(255, 255, 255), B
+            IF foc THEN LINE (xa + 1, y0)-(x1 - 1, y1), _RGB32(255, 255, 255), B
+        END IF
+        s! = ArEntJoin!(r, k)
+        IF s! <= 1.5 THEN LINE (xa - 2, y1 + 3)-(xa + 2, y1 + 9), ArJoinCol~&(s!), BF
+        IF r = 0 AND k = arLoopK THEN ' (the loop's start: what's before it is the intro)
+            LINE (xa - 1, y0 - 2)-(xa, y1 + 12), _RGB32(255, 255, 255), BF
+            TinyText xa + 3, y1 + 3, "LOOP", _RGB32(255, 255, 255)
+            IF TinyW("INTRO (ONCE)") <= xa - X0 - 6 THEN
+                TinyText X0 + 2, y1 + 3, "INTRO (ONCE)", _RGB32(255, 150, 210)
+            ELSEIF TinyW("INTRO") <= xa - X0 - 6 THEN
+                TinyText X0 + 2, y1 + 3, "INTRO", _RGB32(255, 150, 210)
+            END IF
+        END IF
+    NEXT
+    IF r = 0 THEN ' (the way round, at the end too)
+        k = ArLoopFrom
+        IF ArEntLast(0, arRowN(0)) > 0 AND ArEntFirst(0, k) > 0 THEN
+            s! = ArJoin!(arClipE(ArEntLast(0, arRowN(0))), arClipA(ArEntFirst(0, k)))
+            IF s! <= 1.5 THEN LINE (X0 + W - 2, y1 + 3)-(X0 + W + 2, y1 + 9), ArJoinCol~&(s!), BF
+        END IF
+    END IF
+    IF he THEN x = X0 + W * (hn& + arHPos / ArTickLen#) / tot& : LINE (x, y0)-(x + 1, y1), _RGB32(255, 255, 255), BF
+END SUB
+
+' SAVE AS: the name being typed, in a box over the middle
+SUB ArAskDraw
+    DIM x0, y0, t$, p$ ' (its own)
+    x0 = scrW \ 2 - 260 : y0 = 200
+    LINE (x0, y0)-(x0 + 520, y0 + 96), _RGB32(22, 13, 36), BF
+    LINE (x0, y0)-(x0 + 520, y0 + 96), _RGB32(255, 90, 200), B
+    COLOR _RGB32(255, 90, 200) : _PRINTSTRING (x0 + 14, y0 + 10), "SAVE " + UCASE$(arName$) + "'S ARRANGEMENT AS"
+    LINE (x0 + 14, y0 + 32)-(x0 + 506, y0 + 52), _RGB32(6, 0, 18), BF
+    t$ = arAskT$
+    IF arAskSel THEN LINE (x0 + 19, y0 + 33)-(x0 + 20 + 8 * LEN(t$), y0 + 51), _RGB32(255, 90, 200), BF
+    IF (INT(TIMER(0.001) * 3) MOD 2) = 0 AND NOT arAskSel THEN t$ = t$ + "_"
+    COLOR _RGB32(255, 255, 255) : _PRINTSTRING (x0 + 20, y0 + 34), t$
+    IF arAskT$ = "" THEN
+        p$ = "TYPE A NAME"
+    ELSEIF LCASE$(arAskT$) = LCASE$(arName$) THEN
+        p$ = "MUSIC/" + UCASE$(arName$) + ".ARR - THE GAME'S ARRANGEMENT (THE ONE THERE IS KEPT AS BEFOREN)"
+    ELSE
+        p$ = "MUSIC/ARRANGEMENTS/" + UCASE$(arName$) + "/" + UCASE$(arAskT$) + ".ARR"
+    END IF
+    TinyText x0 + 14, y0 + 60, p$, _RGB32(150, 220, 255)
+    TinyText x0 + 14, y0 + 76, "LETTERS, DIGITS, - AND _ (TYPING REPLACES THE NAME LIT, AN ARROW KEEPS IT)   ENTER: SAVE   ESC: DON'T", _RGB32(150, 140, 180)
+END SUB
+
+' OPEN: the track's arrangements, the one picked lit
+SUB ArOpenDraw
+    DIM x0, y0, i, y, n, l$ ' (its own)
+    x0 = scrW \ 2 - 220 : y0 = 110 : n = MinOf(arOpenN, 15)
+    LINE (x0, y0)-(x0 + 440, y0 + 70 + n * 18), _RGB32(22, 13, 36), BF
+    LINE (x0, y0)-(x0 + 440, y0 + 70 + n * 18), _RGB32(90, 230, 255), B
+    COLOR _RGB32(90, 230, 255) : _PRINTSTRING (x0 + 14, y0 + 10), "OPEN AN ARRANGEMENT OF " + UCASE$(arName$)
+    FOR i = ArOpenTop + 1 TO MinOf(arOpenN, ArOpenTop + 15)
+        y = 152 + (i - 1 - ArOpenTop) * 18
+        IF i = arOpenSel THEN LINE (x0 + 8, y - 1)-(x0 + 432, y + 16), _RGBA32(90, 230, 255, 70), BF
+        IF arOpenName$(i) = "" THEN l$ = UCASE$(arName$) + "  (THE GAME'S)" ELSE l$ = UCASE$(arOpenName$(i))
+        IF (arOpenName$(i) = arAlt$) AND NOT arUntitled THEN l$ = l$ + "  - OPEN NOW"
+        COLOR _RGB32(255, 255, 255) : _PRINTSTRING (x0 + 16, y), l$
+    NEXT
+    TinyText x0 + 14, y0 + 52 + n * 18, "UP, DOWN, ENTER - OR CLICK ONE   ESC: NONE   CTRL+SHIFT+S SAVES ONE MORE", _RGB32(150, 140, 180)
+END SUB
+
+' The keys, a panel along the bottom from y0: a column a group (its name over it in its colour),
+' each line the key in the group's colour and what it does in grey; the joins' colours under PLAY.
+' Columns are as wide as their longest line, spread across the screen
+SUB ArHelpDraw(y0)
+    DIM g$(1 TO 6), col~&(1 TO 6), kw(1 TO 6), gw(1 TO 6), n, i, j, p, q, x, y, tot, gap, e$, k$, d$ ' (its own)
+    n = 6
+    g$(1) = "PLAY|SPACE=PLAY / STOP|ENTER=FROM THE ONE PICKED|A-Z=LAUNCH A CLIP|CTRL+Q=AT BAR / CLIP END|CTRL+R=RECORD LAUNCHES"
+    g$(2) = "ARRANGEMENT, PATTERN|LEFT RIGHT=PICK|SHIFT+ARROW=MOVE IT|UP DOWN=REPEATS|INS=ADD THE CLIP AFTER|SHIFT+INS=ADD IT BEFORE|DEL=TAKE IT OUT|CTRL+DEL=CLEAR ALL|PGUP PGDN=KEYS: PATTERN / ARR."
+    g$(3) = "PATTERNS|BANK, 1-9=OPEN ONE|SHIFT+CLICK=PICK A RUN|CTRL+P=A PATTERN OF IT|CTRL+SHIFT+P=BACK INTO CLIPS|DRAG 1-9=INTO THE ARR.|RIGHT-CLICK 1-9=IN, AFTER|CTRL+INS=THE OPEN ONE IN"
+    g$(4) = "CLIPS|TAB=PICK A CLIP|, .=ITS START|< >=ITS END|CTRL+K=ITS KIND|CTRL+N=COPY IT|CTRL+D=DELETE IT|CTRL+L=LOOP FROM BLOCK"
+    g$(5) = "MOUSE ON THE TAKE|DRAG=A NEW CLIP|DRAG A CLIP=MOVE IT|DRAG ITS END=RESIZE IT|CLICK=PLAY FROM THERE|WHEEL=ZOOM (TO 1/128)|SHIFT+WHEEL=SLIDE ALONG|MIDDLE=ZOOM ALL"
+    g$(6) = "FILE|CTRL+S=SAVE|CTRL+SHIFT+S=SAVE AS|CTRL+O=OPEN ANOTHER|CTRL+SHIFT+N=NEW ARRANGEMENT|CTRL+E=RENDER THE .OGG|CTRL+B=RENOISE + BITWIG|CTRL+Z Y=UNDO, REDO|ESC=BACK"
+    col~&(1) = _RGB32(90, 230, 255) : col~&(2) = _RGB32(255, 160, 70) : col~&(3) = _RGB32(220, 190, 255) : col~&(4) = _RGB32(255, 90, 200)
+    col~&(5) = _RGB32(120, 255, 140) : col~&(6) = _RGB32(255, 220, 90)
+    ' How wide each column is: its keys', then the lines'
+    FOR i = 1 TO n
+        e$ = g$(i) + "|" : p = INSTR(e$, "|") : gw(i) = TinyW(LEFT$(e$, p - 1))
+        DO
+            q = INSTR(p + 1, e$, "|") : IF q = 0 THEN EXIT DO
+            k$ = MID$(e$, p + 1, q - p - 1) : j = INSTR(k$, "=")
+            IF TinyW(LEFT$(k$, j - 1)) > kw(i) THEN kw(i) = TinyW(LEFT$(k$, j - 1))
+            p = q
+        LOOP
+        p = INSTR(e$, "|")
+        DO
+            q = INSTR(p + 1, e$, "|") : IF q = 0 THEN EXIT DO
+            k$ = MID$(e$, p + 1, q - p - 1) : j = INSTR(k$, "=")
+            IF kw(i) + 6 + TinyW(MID$(k$, j + 1)) > gw(i) THEN gw(i) = kw(i) + 6 + TinyW(MID$(k$, j + 1))
+            p = q
+        LOOP
+        tot = tot + gw(i)
+    NEXT
+    gap = (scrW - 32 - tot) \ (n - 1) : IF gap < 8 THEN gap = 8
+    IF gap > 48 THEN gap = 48 ' (a wide screen: kept together, in the middle)
+    ' The panel
+    LINE (8, y0)-(scrW - 9, 599), _RGB32(22, 13, 36), BF
+    LINE (8, y0)-(scrW - 9, y0), _RGB32(70, 50, 110)
+    x = MaxOf(12, (scrW - tot - gap * (n - 1)) \ 2)
+    FOR i = 1 TO n
+        e$ = g$(i) + "|" : p = INSTR(e$, "|")
+        TinyText x, y0 + 5, LEFT$(e$, p - 1), col~&(i)
+        LINE (x, y0 + 14)-(x + gw(i), y0 + 14), _RGBA32(_RED32(col~&(i)), _GREEN32(col~&(i)), _BLUE32(col~&(i)), 90)
+        y = y0 + 18 : j = 0
+        DO
+            q = INSTR(p + 1, e$, "|") : IF q = 0 THEN EXIT DO
+            k$ = MID$(e$, p + 1, q - p - 1) : d$ = MID$(k$, INSTR(k$, "=") + 1) : k$ = LEFT$(k$, INSTR(k$, "=") - 1)
+            TinyText x, y, k$, col~&(i)
+            TinyText x + kw(i) + 6, y, d$, _RGB32(175, 168, 200)
+            y = y + 9 : j = j + 1 : p = q
+        LOOP
+        IF i = 1 THEN ' (the joins' colours, two a line)
+            y = y + 5 : TinyText x, y, "JOINS", _RGB32(200, 190, 230) : y = y + 10
+            FOR j = 0 TO 3
+                q = x + (j MOD 2) * 52 : p = y + (j \ 2) * 9
+                LINE (q, p)-(q + 6, p + 6), ArJoinCol~&(VAL(MID$("0.9 0.6 0.1 -1", j * 4 + 1, 4))), BF
+                TinyText q + 10, p, MID$("ALIKE     FAIR      POOR      NOT SCORED", j * 10 + 1, 10), _RGB32(175, 168, 200)
+            NEXT
+        END IF
+        x = x + gw(i) + gap
+        IF i < n THEN LINE (x - gap \ 2, y0 + 5)-(x - gap \ 2, 595), _RGB32(45, 32, 70)
+    NEXT
+END SUB
+
+' The step the take's last bar ends on
+FUNCTION ArEndTick
+    ArEndTick = (arBars + 1) * AR_TPB
+END FUNCTION
+
+' Step t as a bar place in decimals, as few places as it needs: 5.25 (bar 5's second beat), 5.0078125
+FUNCTION ArBarsDec$(t)
+    DIM s$ ' (its own)
+    s$ = ArFix$(t / AR_TPB, 7)
+    IF INSTR(s$, ".") THEN
+        DO WHILE RIGHT$(s$, 1) = "0" : s$ = LEFT$(s$, LEN(s$) - 1) : LOOP
+        IF RIGHT$(s$, 1) = "." THEN s$ = LEFT$(s$, LEN(s$) - 1)
+    END IF
+    ArBarsDec$ = s$
+END FUNCTION
+
+' Step t as it's shown: BAR.BEAT.16TH, as far as it needs - 5, 5.2, 5.2.3 (and +N for N 128ths
+' past the 16th: +4 is a 32nd after it); bar 0 is IN
+FUNCTION ArPosName$(t)
+    DIM b, r, s$ ' (its own)
+    b = INT(t / AR_TPB) : r = t - b * AR_TPB
+    s$ = ArBarName$(b)
+    IF r > 0 THEN
+        s$ = s$ + "." + LTRIM$(STR$(r \ (AR_TPB \ 4) + 1))
+        IF r MOD (AR_TPB \ 4) THEN s$ = s$ + "." + LTRIM$(STR$((r MOD (AR_TPB \ 4)) \ (AR_TPB \ 16) + 1)) : IF r MOD (AR_TPB \ 16) THEN s$ = s$ + "+" + LTRIM$(STR$(r MOD (AR_TPB \ 16)))
+    END IF
+    ArPosName$ = s$
+END FUNCTION
+
+' n steps as a length: 3 BARS, 1 BAR, 1/4 BAR, 2 3/8 BARS
+FUNCTION ArLenName$(n)
+    DIM w, r, d, s$ ' (its own)
+    w = INT(n / AR_TPB) : r = n - w * AR_TPB : d = AR_TPB
+    DO WHILE r > 0 AND r MOD 2 = 0 : r = r \ 2 : d = d \ 2 : LOOP
+    IF w > 0 THEN s$ = LTRIM$(STR$(w))
+    IF r > 0 THEN
+        IF LEN(s$) THEN s$ = s$ + " "
+        s$ = s$ + LTRIM$(STR$(r)) + "/" + LTRIM$(STR$(d))
+    END IF
+    IF n = AR_TPB OR (w = 0 AND r > 0) THEN s$ = s$ + " BAR" ELSE s$ = s$ + " BARS"
+    ArLenName$ = s$
+END FUNCTION
+
+' Steps a up to e as they're shown: whole bars as 21-23 (the first and last), else 5.2-5.3 (from, to)
+FUNCTION ArRangeName$(a, e)
+    IF a MOD AR_TPB = 0 AND e MOD AR_TPB = 0 THEN
+        ArRangeName$ = ArBarName$(a \ AR_TPB) + "-" + ArBarName$(e \ AR_TPB - 1)
+    ELSE
+        ArRangeName$ = ArPosName$(a) + "-" + ArPosName$(e)
+    END IF
+END FUNCTION
+
+' Where a clip stops, as the joins name it: BAR 16 (its last whole bar), or the place 5.2.3
+FUNCTION ArStopName$(e)
+    IF e MOD AR_TPB = 0 THEN ArStopName$ = "BAR " + ArBarName$(e \ AR_TPB - 1) ELSE ArStopName$ = ArPosName$(e)
+END FUNCTION
+
+' Where a clip starts, as the joins name it: BAR 13, or the place 5.2.3
+FUNCTION ArStartName$(a)
+    IF a MOD AR_TPB = 0 THEN ArStartName$ = "BAR " + ArBarName$(a \ AR_TPB) ELSE ArStartName$ = ArPosName$(a)
+END FUNCTION
+
+' The frame of the take step t starts on (bar t / AR_TPB)
+FUNCTION ArTickAt#(t)
+    ArTickAt# = ArBarAt#(t / AR_TPB)
+END FUNCTION
+
+' A step's length, in frames
+FUNCTION ArTickLen#
+    ArTickLen# = 240# / arBpm * arRate / AR_TPB
+END FUNCTION
+
+' Does a launch waiting start after this step? On a bar: the take's own bar
+' lines while the take plays, else a whole bar of steps since it started (a
+' clip of a bar's quarter loops four times) - or, with arQuantClip, as the
+' clip playing ends
+FUNCTION ArLaunchNow
+    IF arClip = 0 THEN
+        ArLaunchNow = (arTick + 1) MOD AR_TPB = 0
+    ELSEIF arQuantClip THEN
+        ArLaunchNow = arTick >= arClipE(arClip) - 1
+    ELSE
+        ArLaunchNow = (arClock + 1) MOD AR_TPB = 0
+    END IF
+END FUNCTION
+
+' A step ran out: on to the one decided (none: the end)
+SUB ArNextTick
+    IF arNext = AR_UNDECIDED THEN ArDecide ' (with no crossfade, nothing was decided before the step ran out)
+    IF arNext < 0 THEN arPlaying = 0 : arNext = AR_UNDECIDED : EXIT SUB
+    arTick = arNext : arK = arNextK : arRep = arNextRep : arClip = arNextClip : arNext = AR_UNDECIDED : arClock = arClock + 1
+    ArRingAdd
+    IF arRec AND arMode = AR_SESSION THEN ArRecTick
+END SUB
+
+' A step starts in a launched clip: it carries on that clip's run of steps, or
+' starts a run. (Recording starts at a clip's start - not halfway in.)
+SUB ArRecTick
+    IF arClip < 1 THEN EXIT SUB
+    IF NOT arRecOn THEN
+        IF arTick <> arClipA(arClip) THEN EXIT SUB
+        arRecOn = -1 : arRecN = 0
+    END IF
+    IF arRecN > 0 THEN
+        IF arRecClip(arRecN) = arClip AND arTick = arRecB(arRecN) + 1 THEN arRecB(arRecN) = arTick : EXIT SUB
+    END IF
+    IF arRecN < AR_REC THEN arRecN = arRecN + 1 : arRecClip(arRecN) = arClip : arRecA(arRecN) = arTick : arRecB(arRecN) = arTick
+END SUB
+
+' The grid line (every g steps) after step t (d 1) or before it (d -1)
+FUNCTION ArGridStep(t, d, g)
+    IF d > 0 THEN ArGridStep = (INT(t / g) + 1) * g ELSE ArGridStep = INT((t - 1) / g) * g
+END FUNCTION
+
+FUNCTION ArXOfTick(t)
+    ArXOfTick = ArXOfFrame(ArTickAt#(t))
+END FUNCTION
+
+' The same, kept on the strip
+FUNCTION ArXOfTickC(t)
+    DIM x ' (its own)
+    x = ArXOfTick(t) : IF x < AR_X0 THEN x = AR_X0
+    IF x > AR_X0 + arW THEN x = AR_X0 + arW
+    ArXOfTickC = x
+END FUNCTION
+
+' The step (and how far through it) under x on the take's strip
+FUNCTION ArTickOfX#(x)
+    DIM f# ' (its own)
+    f# = arView0 + (x - AR_X0) / arW * arViewN
+    ArTickOfX# = ((f# / arRate - arOffs) * arBpm / 240 + 1) * AR_TPB
+END FUNCTION
+
+' The grid square under x (its first step), kept on the take
+FUNCTION ArCellOfX(x)
+    DIM t ' (its own)
+    t = INT(ArTickOfX#(x) / arGrid) * arGrid
+    IF t > ArEndTick - arGrid THEN t = ArEndTick - arGrid
+    IF t < ArFirstBar * AR_TPB THEN t = ArFirstBar * AR_TPB
+    ArCellOfX = t
+END FUNCTION
+
+' The grid line nearest x, kept on the take
+FUNCTION ArGridNear(x)
+    DIM t ' (its own)
+    t = INT(ArTickOfX#(x) / arGrid + 0.5) * arGrid
+    IF t > ArEndTick THEN t = ArEndTick
+    IF t < ArFirstBar * AR_TPB THEN t = ArFirstBar * AR_TPB
+    ArGridNear = t
+END FUNCTION
+
+' The grid as fine as the zoom shows it - a bar, a half... down to a 128th - its squares 40 pixels across at least
+FUNCTION ArGridNow
+    DIM g, px# ' (its own)
+    IF arViewN <= 0 THEN ArGridNow = AR_TPB : EXIT FUNCTION
+    px# = arW * ArTickLen# / arViewN ' (a step's pixels)
+    g = AR_TPB
+    DO WHILE g > 1 AND px# * g / 2 >= 40
+        g = g \ 2
+    LOOP
+    ArGridNow = g
+END FUNCTION
+
+' The grid's name: 1/1 (a bar), 1/2... 1/128
+FUNCTION ArGridName$(g)
+    ArGridName$ = "1/" + LTRIM$(STR$(AR_TPB \ g))
+END FUNCTION
+
+' The whole take in view (the middle button over it)
+SUB ArZoomAll
+    arView0 = 0 : arViewN = ArSpan#
+END SUB
+
+' The wheel over the take: up zooms in round the pointer, down out (all of it at most - a beat
+' across at the least); with Shift it slides the view along
+SUB ArZoom(mx, wheel, slide)
+    DIM f#, n#, lo#, hi#, u# ' (its own)
+    lo# = ArBarAt#(ArFirstBar) : IF lo# > 0 THEN lo# = 0
+    hi# = ArSpan#
+    IF slide THEN
+        arView0 = arView0 + wheel * arViewN / 8
+    ELSE
+        u# = (mx - AR_X0) / arW : IF u# < 0 THEN u# = 0
+        IF u# > 1 THEN u# = 1
+        f# = arView0 + u# * arViewN
+        n# = arViewN * 0.8 ^ (-wheel)
+        IF n# < ArTickLen# * 12 THEN n# = ArTickLen# * 12 ' (12 128ths across at the most: the 1/128 grid's squares wide)
+        IF n# >= hi# THEN ArZoomAll : EXIT SUB
+        arViewN = n# : arView0 = f# - u# * n#
+    END IF
+    IF arView0 + arViewN > hi# THEN arView0 = hi# - arViewN
+    IF arView0 < lo# THEN arView0 = lo#
+END SUB
+
+' Block k's steps (its clip's or its pattern's, times over)
+FUNCTION ArBlockTicks&(k)
+    ArBlockTicks& = ArEntTicks&(0, k)
+END FUNCTION
+
+FUNCTION ArSeqTicks&
+    ArSeqTicks& = ArRowTicks&(0)
+END FUNCTION
+
+' The same, from the loop's start (NAME.ogg's steps: an intro is NAME-intro.ogg)
+FUNCTION ArLoopTicks&
+    DIM k, n& ' (its own)
+    FOR k = ArLoopFrom TO arRowN(0) : n& = n& + ArEntTicks&(0, k) : NEXT
+    ArLoopTicks& = n&
+END FUNCTION
+
+' Steps as seconds
+FUNCTION ArSecs#(n&)
+    ArSecs# = n& * 240# / arBpm / AR_TPB
+END FUNCTION

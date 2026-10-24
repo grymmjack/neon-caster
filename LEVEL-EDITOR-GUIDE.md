@@ -48,6 +48,7 @@ The main menu's **EDIT** is the editor on its own, for building rather than play
 - **RESUME LAST EDIT** opens the sector you edited last, in the editor, where you were and in the view you had (the map from above or 3D). Under it are the four sectors you edited before that.
 - **SELECT SECTOR**, the other sets and **YOUR SECTORS** are GAME's lists, but a sector chosen there opens straight in the editor. YOUR SECTORS has **NEW SECTOR**.
 - **TUNER** (every machine's health, each gun's damage, ammo - by difficulty) and **MONSTER KINDS** (each kind's numbers, `monsters.txt`).
+- **HUD LAYOUT** (where the health, ammo and map go) and **MUSIC**: the tracks, as in SOUND TEST - press E on one for the **MUSIC ARRANGER** (its clips, a clip launcher, and the arrangement the game plays; `neon-caster/music/README.md` has the rest).
 
 A sector opened from EDIT is an **edit session**: NEXUS doesn't greet you, no music plays and NEXUS keeps its taunts to itself. Press F2 to play-test as usual; reaching the exit brings you back to the editor instead of the tally and the next sector. Starting a game from GAME (or loading one) ends the session. The list is kept in `saves/editrecent.txt`.
 

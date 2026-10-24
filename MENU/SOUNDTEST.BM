@@ -134,7 +134,7 @@ END FUNCTION
 SUB StPlay(n) STATIC
     DIM p$, m& ' (its own)
     m& = stMusicWas& : stMusicWas& = 0 : StStop : stMusicWas& = m& ' (the one before stops - but the music it stopped stays stopped)
-    IF nowPlaying& > 0 THEN stMusicWas& = nowPlaying& : _SNDSTOP nowPlaying& : nowPlaying& = 0 ' (every sound, not just a track: heard on its own, the menu's music waits till you leave)
+    IF nowPlaying& > 0 THEN stMusicWas& = nowPlaying& : MusicStop ' (every sound, not just a track: heard on its own, the menu's music waits till you leave)
     p$ = AssetPath$(stFile$(n)) : IF NOT _FILEEXISTS(p$) THEN EXIT SUB
     stLoops = LEFT$(stFile$(n), 6) = "music/"
     IF stLoops THEN
@@ -152,6 +152,32 @@ SUB StPlay(n) STATIC
     StGainSet
     IF stLoops THEN _SNDLOOP stSnd& ELSE _SNDPLAY stSnd&
     stNow = n : stAutoWait = 0 : stLastPos = 0
+    stArr = 0
+    IF stLoops THEN ' (its arrangement, if the .ogg is the one the .arr makes)
+        ArLoad StTrackName$(n), 0
+        IF arLoaded AND arRowN(0) > 0 THEN stArr = ABS(ArSecs#(ArLoopTicks&) - stLen) < 1.5 ' (NAME.ogg: the loop - an intro is NAME-intro.ogg)
+    END IF
+END SUB
+
+' A track's name: music/level1.ogg is level1
+FUNCTION StTrackName$(n)
+    DIM f$, b ' (its own)
+    f$ = MID$(stFile$(n), _INSTRREV(stFile$(n), "/") + 1) : b = _INSTRREV(f$, ".") : IF b THEN f$ = LEFT$(f$, b - 1)
+    StTrackName$ = f$
+END FUNCTION
+
+' Where s# seconds into an arranged track is: its entry k (in the arrangement opened out), and the take's step t (the arranger's 128ths of a bar)
+SUB StArrAt(s#, k, t)
+    DIM n&, i, w, before& ' (its own)
+    k = 0 : t = 0 : IF NOT stArr THEN EXIT SUB
+    n& = INT(s# * arBpm / 240 * AR_TPB)
+    FOR i = arFlatLoop TO arFlatN ' (the arrangement as the player walks it: its patterns opened out)
+        IF n& < before& + ArFlatTicks&(i) THEN
+            w = arClipE(arFlatClip(i)) - arClipA(arFlatClip(i))
+            k = i : t = arClipA(arFlatClip(i)) + (n& - before&) MOD w : EXIT SUB
+        END IF
+        before& = before& + ArFlatTicks&(i)
+    NEXT
 END SUB
 
 ' A file's bytes, whole
@@ -168,7 +194,7 @@ SUB StStop STATIC
     DIM m& ' (its own)
     IF stSnd& > 0 THEN _SNDSTOP stSnd& : _SNDCLOSE stSnd& : stSnd& = 0
     IF stMusicWas& > 0 THEN m& = stMusicWas& : stMusicWas& = 0 : PlayMusic m&
-    stNow = 0 : stFrames = 0 : stLen = 0 : stSeekDrag = 0 : REDIM stWave(0) AS SINGLE : stVizOn = 0 : stVizSp$ = "" : stVizSc$ = "" : stVizPts = 0
+    stNow = 0 : stFrames = 0 : stLen = 0 : stSeekDrag = 0 : stArr = 0 : REDIM stWave(0) AS SINGLE : stVizOn = 0 : stVizSp$ = "" : stVizSc$ = "" : stVizPts = 0
 END SUB
 
 ' The playing sound's samples, mixed to one channel, into stWave() - and the
@@ -422,7 +448,7 @@ END FUNCTION
 ' --- Draw the player, t frames after the screen opened: the box with what's
 ' playing and its spectrum and scope, then the seek bar under it
 SUB StDrawPlayer(t)
-    DIM b, k AS LONG, x, y, h, yy, s#, at AS LONG, playing, f!, col~&, sx AS LONG, x2, y2, px, py, ln$, rt$, v! ' (its own)
+    DIM b, k AS LONG, x, y, h, yy, s#, at AS LONG, playing, f!, col~&, sx AS LONG, x2, y2, px, py, ln$, rt$, v!, ak, ab ' (its own)
     playing = 0 : s# = 0
     IF stSnd& > 0 THEN
         playing = _SNDPLAYING(stSnd&) AND NOT _SNDPAUSED(stSnd&)
@@ -487,6 +513,10 @@ SUB StDrawPlayer(t)
             END IF
         END IF
         IF stAuto THEN rt$ = rt$ + "  AUTO"
+        IF stArr AND stSnd& > 0 THEN ' (an arranged track: the bar of the take playing, and its clip)
+            StArrAt s#, ak, ab
+            IF ak > 0 THEN rt$ = "BAR " + ArPosName$(INT(ab / (AR_TPB \ 4)) * (AR_TPB \ 4)) + " " + arClipName$(arFlatClip(ak)) + "  " + ArFix$(arBpm, 1) + " BPM  " + rt$
+        END IF
         IF LEN(ln$) > 93 - LEN(rt$) THEN ln$ = LEFT$(ln$, 92 - LEN(rt$)) + "~" ' (two spaces at least before the file)
         MenuText 18, ST_BOX_Y0 + 3, ln$, 1, _RGB32(90, 230, 255), 0
         MenuText 782, ST_BOX_Y0 + 3, rt$, 1, _RGBA32(200, 160, 255, 220), 2
@@ -507,6 +537,14 @@ SUB StDrawPlayer(t)
         NEXT
     ELSE
         LINE (ST_SEEK_X0, y)-(ST_SEEK_X0 + ST_OVW - 1, y), _RGBA32(150, 90, 200, 120)
+    END IF
+    IF stArr AND stLen > 0 THEN ' An arranged track's blocks, along the seek bar's foot (each clip its colour)
+        ab = 0
+        FOR ak = arFlatLoop TO arFlatN
+            x = ST_SEEK_X0 + ST_OVW * ArSecs#(ab) / stLen : ab = ab + ArFlatTicks&(ak)
+            x2 = ST_SEEK_X0 + ST_OVW * ArSecs#(ab) / stLen - 1 : IF x2 > ST_SEEK_X0 + ST_OVW - 1 THEN x2 = ST_SEEK_X0 + ST_OVW - 1
+            IF x2 >= x THEN LINE (x, ST_SEEK_Y1 - 4)-(x2, ST_SEEK_Y1 - 2), ArCol~&(arFlatClip(ak), 200), BF
+        NEXT
     END IF
     IF px >= 0 THEN LINE (px, ST_SEEK_Y0 + 1)-(px + 1, ST_SEEK_Y1 - 1), _RGB32(255, 255, 255), BF
     IF stLen > 0 THEN MenuText 784, ST_SEEK_Y0 + 3, StTime$(s#) + " / " + StTime$(stLen), 1, _RGB32(255, 255, 255), 2
