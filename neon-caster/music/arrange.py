@@ -12,7 +12,7 @@ then renders that, at the shipped loudness, as the .ogg the game streams.
     ~/.venvs/music/bin/python arrange.py --render  [NAME ...]   # NAME.arr -> NAME.ogg (from the lossless source; NAME/ALT -> arrangements/NAME/ALT.ogg)
     ~/.venvs/music/bin/python arrange.py --clicks  NAME         # the source with a click on every beat (bar 1s louder) - checking the grid
     ~/.venvs/music/bin/python arrange.py --seams   [NAME ...]   # score every join the .arr's arrangement makes (and each clip looping on itself) into its seams
-    ~/.venvs/music/bin/python arrange.py --sources [NAME ...]   # edit/NAME.flac: the source at the shipped loudness, for SOUND TEST's arranger (git-ignored)
+    ~/.venvs/music/bin/python arrange.py --sources [NAME ...]   # edit/NAME.flac: the source at the shipped loudness, for SOUND TEST's arranger (shipped: commit it)
 
 (needs librosa, numpy, soundfile, scipy: python3 -m venv ~/.venvs/music &&
 ~/.venvs/music/bin/pip install librosa soundfile numpy scipy matplotlib)

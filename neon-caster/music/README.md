@@ -84,10 +84,12 @@ the loop. The game plays the intro once and hands over to the loop on the
 same sample (`PlayMusicIntro`, `MusicFrame`). Only the menu's music has one
 so far (`menu.arr`: clip L, the lead-in and the first four bars).
 
-It plays from `edit/NAME.flac`, which isn't in git:
+It plays from `edit/NAME.flac` (each take, lossless, at the shipped
+loudness - they ship with the game). After a take is added or changed, make
+its FLAC again and commit it:
 
 ```
-~/.venvs/music/bin/python arrange.py --sources          # edit/*.flac, once
+~/.venvs/music/bin/python arrange.py --sources NAME     # edit/NAME.flac
 ```
 
 ## From the command line
