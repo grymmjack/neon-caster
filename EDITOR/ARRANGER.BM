@@ -1357,13 +1357,12 @@ SUB ArRunTool(what$)
     IF LEN(arRenderLog$) THEN ArNote "Still busy with the last one - a moment" : EXIT SUB
     IF arRowN(0) = 0 THEN ArNote "Nothing to " + what$ + ": the arrangement's empty" : EXIT SUB
     IF arUntitled THEN ArNote "Name it first: Ctrl+S" : ArAskStart : EXIT SUB
-    IF what$ = "render" AND LEN(arAlt$) THEN ArNote "Ctrl+E renders the game's arrangement - Ctrl+Shift+S as " + UCASE$(arName$) + " makes this one it" : EXIT SUB
     IF arDirty THEN ArSave
     IF what$ = "export" THEN t$ = "daw.py" ELSE t$ = "arrange.py"
     md$ = AssetPath$("music/" + t$)
     IF NOT _FILEEXISTS(md$) THEN ArNote "No music/" + t$ + " here to " + what$ + " with" : EXIT SUB
     md$ = LEFT$(md$, LEN(md$) - LEN(t$))
-    IF what$ = "export" THEN cmd$ = "daw.py --xrns --dawproject " + ArToolName$ ELSE cmd$ = "arrange.py --render " + arName$
+    IF what$ = "export" THEN cmd$ = "daw.py --xrns --dawproject " + ArToolName$ ELSE cmd$ = "arrange.py --render " + ArToolName$
     IF INSTR(_OS$, "[WINDOWS]") THEN ArNote "From a terminal: python music/" + cmd$ : EXIT SUB
     py$ = ENVIRON$("HOME") + "/.venvs/music/bin/python" : IF NOT _FILEEXISTS(py$) THEN py$ = "python3"
     IF NOT _DIREXISTS(md$ + "edit") THEN MKDIR md$ + "edit"
@@ -1371,16 +1370,21 @@ SUB ArRunTool(what$)
     lg$ = lg$ + what$ + ".log" : arRenderLog$ = md$ + lg$ : arRenderWhat$ = what$
     IF _FILEEXISTS(arRenderLog$) THEN KILL arRenderLog$
     c$ = "cd '" + md$ + "' && { '" + py$ + "' " + cmd$ + " > '" + lg$ + "' 2>&1; "
-    IF what$ = "render" THEN c$ = c$ + "'" + py$ + "' viz.py >> '" + lg$ + "' 2>&1; " ' (then viz.py: the SOUND TEST's picture of it)
+    IF what$ = "render" AND arAlt$ = "" THEN c$ = c$ + "'" + py$ + "' viz.py >> '" + lg$ + "' 2>&1; " ' (then viz.py: the SOUND TEST's picture of the game's)
     c$ = c$ + "echo RENDER-DONE >> '" + lg$ + "'; }"
     SHELL _HIDE _DONTWAIT c$
     arRenderT = TIMER(0.001)
     IF what$ = "export" THEN
         ArNote "Exporting " + ArShownName$ + " to Renoise and Bitwig in the background..."
     ELSE
-        ArNote "Rendering music/" + arName$ + ".ogg in the background..."
+        ArNote "Rendering " + ArOggName$ + " in the background..."
     END IF
 END SUB
+
+' Where Ctrl+E's .ogg goes: the game's music/NAME.ogg, or another arrangement's beside its .arr
+FUNCTION ArOggName$
+    IF LEN(arAlt$) THEN ArOggName$ = "music/arrangements/" + arName$ + "/" + arAlt$ + ".ogg" ELSE ArOggName$ = "music/" + arName$ + ".ogg"
+END FUNCTION
 
 ' Twice a second while a render runs: is it done (its log's last word)?
 SUB ArRenderCheck
@@ -1403,7 +1407,8 @@ SUB ArRenderCheck
         l$ = arName$ : IF LEN(arAlt$) THEN l$ = l$ + "-" + arAlt$
         IF n >= 2 THEN ArNote "Exported to ~/Music/NEON-CASTER/daw/: renoise/" + l$ + ".xrns, bitwig/" + l$ + ".dawproject" ELSE ArNote "The export failed - see music/edit/" + l$ + "-export.log"
     ELSE
-        IF LEN(ok$) THEN ArNote "Rendered " + ok$ ELSE ArNote "The render failed - see music/edit/" + arName$ + "-render.log"
+        l$ = arName$ : IF LEN(arAlt$) THEN l$ = l$ + "-" + arAlt$
+        IF LEN(ok$) THEN ArNote "Rendered " + ArOggName$ + ": " + MID$(ok$, LEN(ArToolName$) + 2) ELSE ArNote "The render failed - see music/edit/" + l$ + "-render.log"
     END IF
     arRenderLog$ = ""
 END SUB

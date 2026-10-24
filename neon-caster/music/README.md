@@ -70,8 +70,10 @@ from its take, so you hear a change at once:
   `NAME.arr` again - the one there is kept first, as `arrangements/NAME/before1.arr`
   (2, 3... after that). Ctrl+O lists them all to open (the game's first),
   Ctrl+Shift+N starts an empty one (the clips and patterns kept; Ctrl+S asks
-  its name). Ctrl+E renders only the game's (open an alternative and save it
-  as the track's name first); Ctrl+B exports any, as `NAME-THAT.xrns`.
+  its name). Ctrl+E renders an alternative beside its .arr
+  (`arrangements/NAME/THAT.ogg` - the game never plays it; save it as the
+  track's name to make it the game's), Ctrl+B exports it as `NAME-THAT.xrns`
+  and `.dawproject`.
   `arrangements/` is left out of the downloads.
 
 Without a loop point the .ogg loops as a whole, so an intro comes round again

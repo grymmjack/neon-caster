@@ -9,7 +9,7 @@ being heard (seams), and arranges the clips into 3-4 minutes that loop -
 then renders that, at the shipped loudness, as the .ogg the game streams.
 
     ~/.venvs/music/bin/python arrange.py --analyze [NAME ...]   # write NAME.arr (keeps a hand-edited arrangement: --fresh to redo it)
-    ~/.venvs/music/bin/python arrange.py --render  [NAME ...]   # NAME.arr -> NAME.ogg (from the lossless source)
+    ~/.venvs/music/bin/python arrange.py --render  [NAME ...]   # NAME.arr -> NAME.ogg (from the lossless source; NAME/ALT -> arrangements/NAME/ALT.ogg)
     ~/.venvs/music/bin/python arrange.py --clicks  NAME         # the source with a click on every beat (bar 1s louder) - checking the grid
     ~/.venvs/music/bin/python arrange.py --seams   [NAME ...]   # score every join the .arr's arrangement makes (and each clip looping on itself) into its seams
     ~/.venvs/music/bin/python arrange.py --sources [NAME ...]   # edit/NAME.flac: the source at the shipped loudness, for SOUND TEST's arranger (git-ignored)
@@ -441,6 +441,12 @@ def arr_path(name):
     if "/" in name:
         return os.path.join(HERE, "arrangements", name + ".arr")
     return os.path.join(HERE, name + ".arr")
+
+
+def ogg_path(name):
+    """Where --render writes: music/NAME.ogg (the game's), or beside another arrangement's .arr
+    (music/arrangements/NAME/ALT.ogg - the game never plays it)."""
+    return os.path.splitext(arr_path(name))[0] + ".ogg"
 
 
 def take(name):
@@ -981,11 +987,12 @@ def render_to(name, path, A=None):
     down and encoded again if it does). Returns render's figures."""
     import soundfile as sf
     A = A or read_arr(name)
-    y = load(name)
+    t = take(name)                   # (NAME/ALT: another arrangement of NAME's take)
+    y = load(t)
     y2, joins = render(name, A, y)
     ins, gdb = render.bars_in, render.gain_db
     p = render.loop_at
-    ipath = os.path.join(os.path.dirname(path), name + "-intro.ogg")
+    ipath = os.path.splitext(path)[0] + "-intro.ogg"
     intro = None
     if p > 0:
         # the intro: from where the take's sound begins (a lead-in's bar starts before it), and
@@ -998,9 +1005,9 @@ def render_to(name, path, A=None):
         ins = ins[len(ins) - len(joins):]
     elif os.path.exists(ipath):
         os.remove(ipath)             # no intro now
-    _, _, lossless = source_path(name)
+    _, _, lossless = source_path(t)
     q = 5 if lossless else 6
-    limit = max(min(shipped_peak(name), 0.891), 0.5)
+    limit = max(min(shipped_peak(t), 0.891), 0.5)
     for _ in range(3):
         write_ogg(y2, path, q)
         d, _ = sf.read(path, dtype="float32")
@@ -1075,7 +1082,7 @@ def main(argv):
             print(summary(n, A, info), flush=True)
     if "--render" in argv:
         for n in names:
-            r = render_to(n, os.path.join(HERE, n + ".ogg"))
+            r = render_to(n, ogg_path(n))
             print("%-9s %4.0f s  %.1f MB  peak %.3f  turned %+.1f dB  %d jumps, clickiest %.2f" % (
                 n, r["seconds"], r["mb"], r["peak"], r["gain_db"], r["joins"], r["worst_click"]), flush=True)
     if "--clicks" in argv:
