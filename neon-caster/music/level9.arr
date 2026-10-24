@@ -12,6 +12,7 @@ clip F  bars 5-16    groove
 clip G  bars 5-12    groove
 arrange D E F*2 C D G*2 F D F C E
 seam 1 3 0.44
+seam 2 1 0.13
 seam 2 4 0.79
 seam 2 5 0.52
 seam 2 6 0.49
@@ -60,6 +61,7 @@ seam 9 9 0.98
 seam 9 11 1.00
 seam 9 12 0.83
 seam 9 13 0.72
+seam 10 3 0.28
 seam 10 8 0.61
 seam 10 9 0.81
 seam 10 10 1.00
@@ -73,6 +75,7 @@ seam 11 11 0.83
 seam 11 13 0.70
 seam 11 14 0.65
 seam 12 4 0.72
+seam 12 5 0.60
 seam 12 10 0.72
 seam 12 12 0.70
 seam 12 14 0.84
@@ -97,7 +100,9 @@ seam 15 13 0.76
 seam 15 14 1.00
 seam 15 15 1.00
 seam 16 4 0.70
+seam 16 5 0.69
 seam 16 6 0.71
+seam 16 9 0.64
 seam 16 13 0.87
 seam 16 14 1.00
 seam 16 15 1.00

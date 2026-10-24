@@ -11,6 +11,7 @@ then renders that, at the shipped loudness, as the .ogg the game streams.
     ~/.venvs/music/bin/python arrange.py --analyze [NAME ...]   # write NAME.arr (keeps a hand-edited arrangement: --fresh to redo it)
     ~/.venvs/music/bin/python arrange.py --render  [NAME ...]   # NAME.arr -> NAME.ogg (from the lossless source)
     ~/.venvs/music/bin/python arrange.py --clicks  NAME         # the source with a click on every beat (bar 1s louder) - checking the grid
+    ~/.venvs/music/bin/python arrange.py --seams   [NAME ...]   # score every join the .arr's arrangement makes (and each clip looping on itself) into its seams
     ~/.venvs/music/bin/python arrange.py --sources [NAME ...]   # edit/NAME.flac: the source at the shipped loudness, for SOUND TEST's arranger (git-ignored)
 
 (needs librosa, numpy, soundfile, scipy: python3 -m venv ~/.venvs/music &&
@@ -899,6 +900,28 @@ def summary(name, A, info=None):
     return s
 
 
+def score_seams(name):
+    """Every join NAME.arr's arrangement makes, and each clip looping round on itself, scored into
+    its seams (SOUND TEST's arranger shows them; the renderer sizes a jump's crossfade by them) -
+    for an arrangement changed by hand. The clips and arrangement are left as they are."""
+    A = read_arr(name)
+    y = load(name)
+    g = analyze_grid(name, y)
+    if abs(g["bpm"] - A["bpm"]) > 0.01 or abs(g["offset"] - A["offset"]) > 0.002:
+        return "%-9s the grid's moved (.arr %.3f bpm at %.4f s, now %.3f at %.4f) - left alone" % (
+            name, A["bpm"], A["offset"], g["bpm"], g["offset"])
+    S = bar_similarity(bar_features(y, g))
+    n = 0
+    pairs = [(b, na) for b, na, sc in arrangement_joins(A, S) if na != b + 1]
+    pairs += [(b, a) for c, a, b, k in A["clips"] if a != b + 1]
+    for b, na in pairs:
+        if (b, na) not in A["seams"] and 1 <= b <= S.shape[0] and 1 <= na <= S.shape[0]:
+            A["seams"][(b, na)] = jump_score(S, b - 1, na - 1, A["tail"] - 1)
+            n += 1
+    write_arr(name, A)
+    return "%-9s %d joins scored" % (name, n)
+
+
 def write_source(name):
     """music/edit/NAME.flac: what the .arr's bars are counted on (the source, at the shipped
     loudness, 44.1 kHz) - SOUND TEST's arranger plays its clips from it. Ogg's samples can't be
@@ -930,10 +953,13 @@ def main(argv):
             out = os.path.join(HERE, n + "-clicks.wav")
             click_track(n, out)
             print("wrote", out)
+    if "--seams" in argv:
+        for n in names:
+            print(score_seams(n), flush=True)
     if "--sources" in argv:
         for n in names:
             print(write_source(n), flush=True)
-    if not any(a in argv for a in ("--analyze", "--render", "--clicks", "--sources")):
+    if not any(a in argv for a in ("--analyze", "--render", "--clicks", "--seams", "--sources")):
         print(__doc__)
 
 

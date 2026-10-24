@@ -15,6 +15,7 @@ clip I  bars 5-20    peak
 arrange D E F C G H D*2 I G D*2
 seam 1 4 0.40
 seam 3 2 0.40
+seam 4 1 0.26
 seam 4 9 0.57
 seam 4 13 0.52
 seam 4 17 0.48
@@ -63,6 +64,7 @@ seam 11 11 0.85
 seam 11 14 0.86
 seam 11 16 1.00
 seam 11 20 0.95
+seam 12 5 0.52
 seam 12 9 0.94
 seam 12 11 0.91
 seam 12 12 0.80
@@ -111,6 +113,7 @@ seam 19 12 0.95
 seam 19 16 1.00
 seam 19 18 0.80
 seam 19 22 0.76
+seam 20 5 0.57
 seam 20 7 0.83
 seam 20 9 0.97
 seam 20 13 0.95

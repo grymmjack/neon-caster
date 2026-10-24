@@ -15,6 +15,7 @@ clip I  bars 17-20   groove
 arrange E F G H E I*2 E*2 F E I G H D I
 seam 2 4 0.63
 seam 3 3 0.63
+seam 4 1 0.46
 seam 5 7 0.77
 seam 5 18 0.37
 seam 5 22 0.41
@@ -25,6 +26,7 @@ seam 6 22 0.37
 seam 6 23 0.39
 seam 6 24 0.38
 seam 6 25 0.38
+seam 8 5 0.13
 seam 9 11 0.95
 seam 9 12 0.94
 seam 9 14 0.97
@@ -67,6 +69,7 @@ seam 15 13 1.00
 seam 15 14 0.99
 seam 15 15 1.00
 seam 15 20 0.99
+seam 16 9 0.10
 seam 16 12 0.91
 seam 16 13 0.94
 seam 16 14 0.93
@@ -93,6 +96,7 @@ seam 19 19 1.00
 seam 19 23 1.00
 seam 20 13 0.95
 seam 20 15 0.99
+seam 20 17 0.93
 seam 20 19 0.99
 seam 20 20 0.95
 seam 20 23 0.96
@@ -115,6 +119,8 @@ seam 23 20 0.95
 seam 23 21 0.99
 seam 23 22 0.97
 seam 23 23 0.98
+seam 24 13 0.75
+seam 24 17 0.81
 seam 24 19 0.87
 seam 24 20 0.83
 seam 24 21 0.91

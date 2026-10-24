@@ -129,6 +129,12 @@ SUB RunMenu STATIC
                             IF menuSel > 0 THEN
                                 IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN StMarkOK miRef(menuSel) : miInfo$(menuSel) = StInfo$(miRef(menuSel)) : PlaySfx sndMenuSelect&, 0.6
                             END IF
+                        CASE 101, 69 ' E (SOUND TEST): a track's arrangement, in the MUSIC ARRANGER (EDITOR/ARRANGER.BM)
+                            IF menuSel > 0 THEN
+                                IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN
+                                    IF LEFT$(stFile$(miRef(menuSel)), 6) = "music/" THEN RunArranger StTrackName$(miRef(menuSel)) : mouseWasDown = -1 ELSE PlaySfx sndMenuBack&, 0.6
+                                END IF
+                            END IF
                         CASE 110, 78 ' N (SOUND TEST): a note on it
                             IF menuSel > 0 THEN
                                 IF miAct(menuSel) = MA_STPLAY AND miKind(menuSel) = MI_ACTION THEN stTyping = miRef(menuSel) : stTyped$ = stNote$(stTyping) : miInfo$(menuSel) = StInfo$(stTyping) : _KEYCLEAR
@@ -503,6 +509,11 @@ SUB BuildMenu(scr)
             AddMenuItem "TUNER", MI_ACTION, 0, MA_TUNER, -1, "health, damage, ammo - by difficulty"
             AddMenuItem "MONSTER KINDS", MI_ACTION, 0, MA_MONKINDS, -1, "every kind's numbers - monsters.txt"
             AddMenuItem "HUD LAYOUT", MI_ACTION, 0, MA_HUDLAYOUT, -1, "where health, ammo, the map go - hud.txt"
+            StLoad : n = 0 ' (MUSIC: SOUND TEST's tracks - E on one opens the MUSIC ARRANGER)
+            FOR c = 1 TO stCats
+                IF stCat$(c) = "MUSIC" THEN n = c
+            NEXT
+            IF n THEN AddMenuItem "MUSIC", MI_SUBMENU, SCR_ST1 + n - 1, 0, -1, "the tracks - E on one: the MUSIC ARRANGER"
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_SECTOR ' A new game, starting in any sector
             menuTitle$ = "SELECT SECTOR" : menuWide = -1
@@ -641,6 +652,7 @@ SUB BuildMenu(scr)
             IF stCats = 0 THEN AddMenuItem "NO SOUND LIST (sfx/soundtest.txt)", MI_TEXT, 0, 0, 0, ""
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_ST1 TO SCR_ST1 + ST_CATS - 1 ' A category's sounds, numbered, ST_PAGE a page: Enter plays one, F flags it
+            StLoad ' (EDIT's MUSIC comes straight here)
             c = scr - SCR_ST1 + 1 : menuTitle$ = stCat$(c) : menuWide = -1
             n0 = StCount(c, 0) : IF stPage * ST_PAGE >= n0 THEN stPage = 0
             k = 0
@@ -864,7 +876,7 @@ SUB DrawMenu(t)
         IF stTyping THEN
             MenuText 400, 574, "TYPE THE NOTE     ENTER  KEEP IT     ESC  DROP IT", 1, _RGB32(255, 230, 60), 1
         ELSE
-            MenuText 400, 574, "ENTER PLAY  P PAUSE  [ ] SEEK  C AUTO  O OK  N NOTE  F FLAG  LEFT / RIGHT PAGE  ESC BACK", 1, _RGB32(140, 135, 175), 1
+            MenuText 400, 574, "ENTER PLAY  P PAUSE  [ ] SEEK  C AUTO  O OK  N NOTE  F FLAG  E ARRANGE  LEFT/RIGHT PAGE  ESC BACK", 1, _RGB32(140, 135, 175), 1
         END IF
     ELSEIF menuSel > 0 AND miKind(menuSel) = MI_CHOICE AND miRef(menuSel) = SET_SKILL THEN ' (DIFFICULTY picked: what it does, in place of the keys)
         MenuText 400, 574, SkillInfo$(setting(SET_SKILL)) + "  (FROM THE NEXT SECTOR)", 1, _RGB32(90, 230, 255), 1

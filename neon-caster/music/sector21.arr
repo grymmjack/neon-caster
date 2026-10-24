@@ -32,6 +32,7 @@ seam 3 5 0.74
 seam 3 6 0.66
 seam 3 7 0.86
 seam 3 11 0.71
+seam 4 1 0.86
 seam 4 2 0.66
 seam 4 3 0.78
 seam 4 4 0.74
@@ -56,6 +57,8 @@ seam 7 4 0.54
 seam 7 7 0.40
 seam 7 19 0.35
 seam 7 20 0.36
+seam 8 1 0.76
+seam 8 5 0.39
 seam 8 11 0.45
 seam 8 13 0.40
 seam 8 19 0.43
@@ -80,6 +83,7 @@ seam 11 14 0.80
 seam 11 18 0.78
 seam 11 19 0.79
 seam 11 24 0.82
+seam 12 1 0.63
 seam 12 10 0.76
 seam 12 11 0.72
 seam 12 12 0.72
@@ -99,6 +103,9 @@ seam 14 19 0.76
 seam 14 21 0.78
 seam 14 23 0.77
 seam 15 11 0.37
+seam 16 1 0.56
+seam 16 5 0.19
+seam 16 9 0.24
 seam 16 11 0.35
 seam 16 18 0.35
 seam 17 10 0.97
@@ -143,6 +150,10 @@ seam 23 20 0.91
 seam 23 21 0.97
 seam 23 22 1.00
 seam 23 23 1.00
+seam 24 1 0.30
+seam 24 5 0.52
+seam 24 13 0.69
+seam 24 17 0.07
 seam 24 19 1.00
 seam 24 20 1.00
 seam 24 21 0.97

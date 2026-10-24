@@ -43,3 +43,6 @@ DIM SHARED stVizOn, stVizFPS, stVizFrames AS LONG, stVizSp$, stVizPts, stVizSc$ 
 DIM SHARED stAuto, stAutoWait, stLastPos AS DOUBLE
 DIM SHARED stGain AS SINGLE ' (the scope's: its height over the sound's loudest - so a quiet one still shows its shape)
 DIM SHARED stBand(ST_BANDS - 1) AS SINGLE, stPeak(ST_BANDS - 1) AS SINGLE, stPeakHold(ST_BANDS - 1)
+' A track with an arrangement (music/NAME.arr, read into the arranger's arrays - EDITOR/ARRANGER):
+' its blocks along the seek bar, and the bar playing (only when the .ogg is as long as the .arr says)
+DIM SHARED stArr

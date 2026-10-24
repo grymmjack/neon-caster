@@ -1,0 +1,1136 @@
+''
+' NEON-CASTER - EDITOR/ARRANGER.BM
+' =============================================================================
+' The MUSIC ARRANGER: a track's .arr read and written, played live from its
+' take, and the screen you change it on.
+'
+
+' === THE .ARR =================================================================
+
+FUNCTION ArPath$(name$)
+    ArPath$ = AssetPath$("music/" + name$ + ".arr")
+END FUNCTION
+
+' The nth word of s$ (split at spaces and tabs) - "" past the last
+FUNCTION ArWord$(s$, n)
+    DIM i, k, c$, w$, inW ' (its own)
+    k = 0 : w$ = "" : inW = 0
+    FOR i = 1 TO LEN(s$)
+        c$ = MID$(s$, i, 1)
+        IF c$ = " " OR c$ = CHR$(9) THEN
+            IF inW THEN
+                IF k = n THEN ArWord$ = w$ : EXIT FUNCTION
+                inW = 0 : w$ = ""
+            END IF
+        ELSE
+            IF NOT inW THEN inW = -1 : k = k + 1
+            w$ = w$ + c$
+        END IF
+    NEXT
+    IF inW AND k = n THEN ArWord$ = w$
+END FUNCTION
+
+' v# with d places after the point (as Python's %.3f writes it)
+FUNCTION ArFix$(v#, d)
+    DIM s$, n AS _INTEGER64 ' (its own)
+    n = _ROUND(ABS(v#) * 10 ^ d)
+    s$ = LTRIM$(STR$(n))
+    IF d > 0 THEN
+        DO WHILE LEN(s$) <= d : s$ = "0" + s$ : LOOP
+        s$ = LEFT$(s$, LEN(s$) - d) + "." + RIGHT$(s$, d)
+    END IF
+    IF v# < 0 AND n <> 0 THEN s$ = "-" + s$
+    ArFix$ = s$
+END FUNCTION
+
+' Seconds as m:ss
+FUNCTION ArTime$(s#)
+    DIM w AS LONG ' (its own)
+    w = INT(s# + 0.5) : IF w < 0 THEN w = 0
+    ArTime$ = LTRIM$(STR$(w \ 60)) + ":" + RIGHT$("0" + LTRIM$(STR$(w MOD 60)), 2)
+END FUNCTION
+
+' The clip called n$ (0: none)
+FUNCTION ArFindClip(n$)
+    DIM c ' (its own)
+    FOR c = 1 TO arClipN
+        IF UCASE$(arClipName$(c)) = UCASE$(n$) THEN ArFindClip = c : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' One line of a .arr (a ; and what follows it is a comment). The
+' arrangement's line is handed back in arr$, to be read once every clip is in.
+SUB ArParse(l$, arr$)
+    DIM t$, w$, a$, b, k, i ' (its own)
+    t$ = l$ : b = INSTR(t$, ";") : IF b THEN t$ = LEFT$(t$, b - 1)
+    t$ = _TRIM$(t$) : IF LEN(t$) = 0 THEN EXIT SUB
+    SELECT CASE LCASE$(ArWord$(t$, 1))
+        CASE "bpm" ' bpm B   offset S   bars N   tail N
+            FOR i = 1 TO 7 STEP 2
+                a$ = LCASE$(ArWord$(t$, i)) : w$ = ArWord$(t$, i + 1)
+                SELECT CASE a$
+                    CASE "bpm" : arBpm = VAL(w$)
+                    CASE "offset" : arOffs = VAL(w$)
+                    CASE "bars" : arBars = VAL(w$)
+                    CASE "tail" : arTail = VAL(w$)
+                END SELECT
+            NEXT
+        CASE "source" : arSource$ = _TRIM$(MID$(t$, 7))
+        CASE "auto" : arAuto = LCASE$(ArWord$(t$, 2)) = "yes"
+        CASE "clip" ' clip A  bars 1-4  intro
+            w$ = ArWord$(t$, 4) : b = INSTR(w$, "-")
+            IF b > 0 AND arClipN < AR_CLIPS THEN
+                arClipN = arClipN + 1 : k = arClipN
+                arClipName$(k) = ArWord$(t$, 2) : arClipA(k) = VAL(LEFT$(w$, b - 1)) : arClipB(k) = VAL(MID$(w$, b + 1)) : arClipKind$(k) = ArWord$(t$, 5)
+            END IF
+        CASE "arrange" : arr$ = _TRIM$(MID$(t$, 8))
+        CASE "seam" ' seam I J S
+            IF arSeamN < AR_SEAMS THEN
+                arSeamN = arSeamN + 1 : arSeamI(arSeamN) = VAL(ArWord$(t$, 2)) : arSeamJ(arSeamN) = VAL(ArWord$(t$, 3)) : arSeamS(arSeamN) = VAL(ArWord$(t$, 4))
+            END IF
+    END SELECT
+END SUB
+
+' The arrangement's words (A B*2 C...) into arSeq (a name that's no clip is left out)
+SUB ArResolve(arr$)
+    DIM i, w$, b, c, n ' (its own)
+    arSeqN = 0 : i = 1
+    DO
+        w$ = ArWord$(arr$, i) : IF w$ = "" THEN EXIT DO
+        b = INSTR(w$, "*") : n = 1
+        IF b THEN n = VAL(MID$(w$, b + 1)) : w$ = LEFT$(w$, b - 1)
+        c = ArFindClip(w$)
+        IF c > 0 AND n > 0 AND arSeqN < AR_SEQ THEN arSeqN = arSeqN + 1 : arSeqClip(arSeqN) = c : arSeqTimes(arSeqN) = n
+        i = i + 1
+    LOOP
+END SUB
+
+' Read music/NAME.arr - and its take's samples too, if withSound
+SUB ArLoad(name$, withSound)
+    DIM f, l$, arr$, p$ ' (its own)
+    arName$ = name$ : arClipN = 0 : arSeqN = 0 : arSeamN = 0 : arBpm = 120 : arOffs = 0 : arBars = 0 : arTail = 0
+    arSource$ = "" : arAuto = -1 : arLoaded = 0 : arr$ = ""
+    p$ = ArPath$(name$)
+    IF _FILEEXISTS(p$) THEN
+        f = FREEFILE : OPEN p$ FOR INPUT AS #f
+        DO UNTIL EOF(f)
+            LINE INPUT #f, l$ : ArParse l$, arr$
+        LOOP
+        CLOSE #f
+        ArResolve arr$ : arLoaded = -1
+    END IF
+    IF arBpm < 20 OR arBpm > 400 THEN arBpm = 120
+    IF arBars < 1 THEN arBars = 1
+    IF arTail < 1 OR arTail > arBars + 1 THEN arTail = arBars + 1
+    ArClampClips
+    IF withSound THEN ArLoadSound ELSE arFrames = 0 : arRate = 44100
+END SUB
+
+' Every clip's bars kept on the take (and its end not before its start)
+SUB ArClampClips
+    DIM c ' (its own)
+    FOR c = 1 TO arClipN
+        IF arClipA(c) < 1 THEN arClipA(c) = 1
+        IF arClipA(c) > arBars THEN arClipA(c) = arBars
+        IF arClipB(c) < arClipA(c) THEN arClipB(c) = arClipA(c)
+        IF arClipB(c) > arBars THEN arClipB(c) = arBars
+    NEXT
+    ArLanes
+END SUB
+
+' Each clip's lane under the take: the first where it overlaps none before it
+SUB ArLanes
+    DIM c, d, l, ok ' (its own)
+    FOR c = 1 TO arClipN
+        FOR l = 0 TO AR_LANES - 1
+            ok = -1
+            FOR d = 1 TO c - 1
+                IF arLane(d) = l AND arClipA(d) <= arClipB(c) AND arClipB(d) >= arClipA(c) THEN ok = 0 : EXIT FOR
+            NEXT
+            IF ok THEN EXIT FOR
+        NEXT
+        IF l > AR_LANES - 1 THEN l = AR_LANES - 1
+        arLane(c) = l
+    NEXT
+END SUB
+
+' The take's samples (music/edit/NAME.flac - arrange.py --sources) into arL / arR, and its
+' waveform for the strip. (Copied out of the sound engine's memory in one go, as StReadWave does.)
+SUB ArLoadSound
+    DIM p$, h&, m AS _MEM, mb AS _MEM, bps, ch, total AS LONG, f AS LONG, col, i AS LONG, i0 AS LONG, i1 AS LONG, lo!, hi!, v!, ln# ' (its own)
+    arFrames = 0 : arRate = 44100 : REDIM arL(0) AS SINGLE, arR(0) AS SINGLE
+    p$ = AssetPath$("music/edit/" + arName$ + ".flac") : IF NOT _FILEEXISTS(p$) THEN EXIT SUB
+    h& = _SNDOPEN(StFileBytes$(p$), "memory, noasync") : IF h& <= 0 THEN EXIT SUB
+    ln# = _SNDLEN(h&) : m = _MEMSOUND(h&)
+    IF m.SIZE = 0 THEN _SNDCLOSE h& : EXIT SUB
+    SELECT CASE m.TYPE
+        CASE 260 : bps = 4 ' (32-bit floating point)
+        CASE 130 : bps = 2 ' (16-bit)
+        CASE ELSE : _MEMFREE m : _SNDCLOSE h& : EXIT SUB
+    END SELECT
+    ch = m.ELEMENTSIZE \ bps : IF ch < 1 THEN _MEMFREE m : _SNDCLOSE h& : EXIT SUB
+    arFrames = m.SIZE \ m.ELEMENTSIZE : total = arFrames * ch
+    IF arFrames < 2 THEN arFrames = 0 : _MEMFREE m : _SNDCLOSE h& : EXIT SUB
+    REDIM arL(arFrames - 1) AS SINGLE, arR(arFrames - 1) AS SINGLE
+    IF bps = 4 THEN
+        DIM bufS(total - 1) AS SINGLE
+        mb = _MEM(bufS()) : _MEMCOPY m, m.OFFSET, m.SIZE TO mb, mb.OFFSET
+        FOR f = 0 TO arFrames - 1
+            arL(f) = bufS(f * ch) : IF ch > 1 THEN arR(f) = bufS(f * ch + 1) ELSE arR(f) = arL(f)
+        NEXT
+    ELSE
+        DIM bufI(total - 1) AS INTEGER
+        mb = _MEM(bufI()) : _MEMCOPY m, m.OFFSET, m.SIZE TO mb, mb.OFFSET
+        FOR f = 0 TO arFrames - 1
+            arL(f) = bufI(f * ch) / 32768 : IF ch > 1 THEN arR(f) = bufI(f * ch + 1) / 32768 ELSE arR(f) = arL(f)
+        NEXT
+    END IF
+    _MEMFREE mb : _MEMFREE m : _SNDCLOSE h&
+    IF ln# > 0 THEN arRate = CLNG(arFrames / ln#) ' (the samples' own rate, whatever the engine unpacked them to)
+    FOR col = 0 TO AR_W - 1 ' The strip's waveform: each column the lowest and highest of its stretch
+        i0 = CLNG(col) * arFrames \ AR_W : i1 = (CLNG(col) + 1) * arFrames \ AR_W - 1 : IF i1 < i0 THEN i1 = i0
+        lo! = 0 : hi! = 0
+        FOR i = i0 TO i1 STEP 4
+            v! = (arL(i) + arR(i)) / 2
+            IF v! < lo! THEN lo! = v!
+            IF v! > hi! THEN hi! = v!
+        NEXT
+        arOvMin(col) = lo! : arOvMax(col) = hi!
+    NEXT
+END SUB
+
+' Clip k as the .arr writes it (as arrange.py's write_arr does: the two are read by each other)
+FUNCTION ArClipLine$(k)
+    DIM r$, n$ ' (its own)
+    n$ = arClipName$(k) : IF LEN(n$) < 2 THEN n$ = LEFT$(n$ + "  ", 2)
+    r$ = LTRIM$(STR$(arClipA(k))) + "-" + LTRIM$(STR$(arClipB(k)))
+    ArClipLine$ = "clip " + n$ + " bars " + r$ + SPACE$(MaxOf(1, 8 - LEN(r$))) + arClipKind$(k)
+END FUNCTION
+
+' The arrangement as words: A B*2 C...
+FUNCTION ArArrangeText$
+    DIM k, s$ ' (its own)
+    FOR k = 1 TO arSeqN
+        IF k > 1 THEN s$ = s$ + " "
+        s$ = s$ + arClipName$(arSeqClip(k))
+        IF arSeqTimes(k) > 1 THEN s$ = s$ + "*" + LTRIM$(STR$(arSeqTimes(k)))
+    NEXT
+    ArArrangeText$ = s$
+END FUNCTION
+
+' The clips and the arrangement as text (undo and redo keep these)
+FUNCTION ArState$
+    DIM k, s$ ' (its own)
+    FOR k = 1 TO arClipN : s$ = s$ + ArClipLine$(k) + CHR$(10) : NEXT
+    ArState$ = s$ + "arrange " + ArArrangeText$
+END FUNCTION
+
+SUB ArSetState(s$)
+    DIM b, l$, r$, arr$ ' (its own)
+    arClipN = 0 : arr$ = "" : r$ = s$
+    DO WHILE LEN(r$)
+        b = INSTR(r$, CHR$(10)) : IF b = 0 THEN b = LEN(r$) + 1
+        l$ = LEFT$(r$, b - 1) : r$ = MID$(r$, b + 1)
+        ArParse l$, arr$
+    LOOP
+    ArResolve arr$ : ArClampClips
+    IF arSelClip > arClipN THEN arSelClip = arClipN
+    IF arSelK > arSeqN THEN arSelK = arSeqN
+    IF arSelK < 1 AND arSeqN > 0 THEN arSelK = 1
+END SUB
+
+' Before a change: what it was goes on the undo list (and redo's emptied)
+SUB ArPushUndo
+    DIM i ' (its own)
+    IF arUndoN >= AR_UNDO THEN
+        FOR i = 1 TO AR_UNDO - 1 : arUndo$(i) = arUndo$(i + 1) : NEXT
+        arUndoN = AR_UNDO - 1
+    END IF
+    arUndoN = arUndoN + 1 : arUndo$(arUndoN) = ArState$ : arRedoN = 0 : arDirty = -1
+END SUB
+
+SUB ArUndoStep
+    IF arUndoN = 0 THEN ArNote "Nothing to undo" : EXIT SUB
+    IF arRedoN < AR_UNDO THEN arRedoN = arRedoN + 1 : arRedo$(arRedoN) = ArState$
+    ArSetState arUndo$(arUndoN) : arUndoN = arUndoN - 1 : arDirty = -1 : ArNote "Undone"
+END SUB
+
+SUB ArRedoStep
+    IF arRedoN = 0 THEN ArNote "Nothing to redo" : EXIT SUB
+    IF arUndoN < AR_UNDO THEN arUndoN = arUndoN + 1 : arUndo$(arUndoN) = ArState$
+    ArSetState arRedo$(arRedoN) : arRedoN = arRedoN - 1 : arDirty = -1 : ArNote "Redone"
+END SUB
+
+' Write music/NAME.arr - auto no from now on: arrange.py --analyze leaves your clips and arrangement be
+SUB ArSave
+    DIM f, i, p$, t$, nl$ ' (its own)
+    nl$ = CHR$(10) ' (the file is built as one string and written as it is: PRINT # ends lines with CR LF, git would see every line change)
+    t$ = "; NEON-CASTER - " + arName$ + "'s bars, clips and arrangement (music/arrange.py; bars count from 1)" + nl$
+    t$ = t$ + "; arrange: clips in order, CLIP*N repeats one; the file loops as a whole. seam I J S: after bar I, bar J can follow (S: how alike, 0-1)" + nl$
+    t$ = t$ + "bpm " + ArFix$(arBpm, 3) + "   offset " + ArFix$(arOffs, 4) + "   bars" + STR$(arBars) + "   tail" + STR$(arTail) + nl$
+    t$ = t$ + "source " + arSource$ + nl$
+    t$ = t$ + "auto no          ; yes: arrange.py --analyze may rewrite the clips and arrangement - no: they're yours" + nl$
+    FOR i = 1 TO arClipN : t$ = t$ + ArClipLine$(i) + nl$ : NEXT
+    t$ = t$ + "arrange " + ArArrangeText$ + nl$
+    FOR i = 1 TO arSeamN : t$ = t$ + "seam" + STR$(arSeamI(i)) + STR$(arSeamJ(i)) + " " + ArFix$(arSeamS(i), 2) + nl$ : NEXT
+    p$ = ArPath$(arName$)
+    f = FREEFILE : OPEN p$ FOR OUTPUT AS #f : PRINT #f, t$; : CLOSE #f
+    arAuto = 0 : arDirty = 0 : arLeave = 0 : arLoaded = -1
+    ArNote "Saved music/" + arName$ + ".arr - Ctrl+E makes the .ogg from it (arrange.py --render " + arName$ + ")"
+END SUB
+
+' How alike the join from bar i to bar j is: 2 none (j follows i), the
+' analysis's seam score (0-1), or -1 - not among bar i's best few
+FUNCTION ArJoin!(i, j)
+    DIM s ' (its own)
+    IF j = i + 1 THEN ArJoin! = 2 : EXIT FUNCTION
+    ArJoin! = -1
+    FOR s = 1 TO arSeamN
+        IF arSeamI(s) = i AND arSeamJ(s) = j THEN ArJoin! = arSeamS(s) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' A join's colour: green alike, yellow fair, red poor (or unknown)
+FUNCTION ArJoinCol~&(s!)
+    IF s! < 0 THEN
+        ArJoinCol~& = _RGB32(130, 120, 150) ' (not a seam the analysis kept: unknown - arrange.py --seams scores it)
+    ELSEIF s! >= 0.75 THEN
+        ArJoinCol~& = _RGB32(110, 255, 140)
+    ELSEIF s! >= 0.5 THEN
+        ArJoinCol~& = _RGB32(255, 220, 90)
+    ELSE
+        ArJoinCol~& = _RGB32(255, 80, 90)
+    END IF
+END FUNCTION
+
+FUNCTION ArJoinText$(s!)
+    IF s! > 1.5 THEN
+        ArJoinText$ = "runs on"
+    ELSEIF s! < 0 THEN
+        ArJoinText$ = "not scored (arrange.py --seams)"
+    ELSE
+        ArJoinText$ = ArFix$(s!, 2)
+    END IF
+END FUNCTION
+
+' A note on the message line
+SUB ArNote(t$)
+    arMsg$ = t$ : arMsgT = TIMER(0.001)
+END SUB
+
+' === THE PLAYER ================================================================
+
+' The frame of the take bar b starts on (bars are 4 beats; bar 1 at the offset)
+FUNCTION ArBarAt#(b)
+    ArBarAt# = (arOffs + (b - 1) * 240# / arBpm) * arRate
+END FUNCTION
+
+FUNCTION ArBarLen#
+    ArBarLen# = 240# / arBpm * arRate
+END FUNCTION
+
+' How long the take is, in frames (with no sound: to the end of its last bar)
+FUNCTION ArSpan#
+    IF arFrames > 0 THEN ArSpan# = arFrames ELSE ArSpan# = ArBarAt#(arBars + 1)
+END FUNCTION
+
+' Stop: the sound queued is silenced and let go (a raw stream closed plays out what it has)
+SUB ArStop
+    IF arPipe& > 0 THEN _SNDVOL arPipe&, 0 : _SNDCLOSE arPipe& : arPipe& = 0
+    IF arRecOn OR arRecN > 0 THEN ArRecCommit
+    arPlaying = 0 : arQueued = 0 : arRingCnt = 0 : arHeard = 0
+END SUB
+
+' Play: mode, from bar b (block k, its time rep, or clip c launched)
+SUB ArPlay(mode, b, k, rep, c)
+    DIM mm, bb, kk, rr, cc ' (its own - copies: ArStop changes what might have been handed in)
+    mm = mode : bb = b : kk = k : rr = rep : cc = c
+    ArStop
+    IF arFrames = 0 THEN ArNote "Nothing to play: no music/edit/" + arName$ + ".flac - run music/arrange.py --sources " + arName$ : EXIT SUB
+    arPipe& = _SNDOPENRAW
+    IF arPipe& <= 0 THEN arPipe& = 0 : ArNote "Couldn't open a sound stream" : EXIT SUB
+    _SNDVOL arPipe&, setting(SET_MUSIC) / 100
+    arOutRate = _SNDRATE : arStep = arRate / arOutRate
+    arMode = mm : arBar = bb : arK = kk : arRep = rr : arClip = cc
+    arPos = 0 : arNext = 0 : arGen = 0 : arFadeIn = 0 : arQueued = 0 : arPlaying = -1 : arRingCnt = 0
+    ArRingAdd
+    IF arRec AND arMode = AR_SESSION THEN ArRecBar
+    ArFeed
+END SUB
+
+' The arrangement, from block k
+SUB ArPlayFrom(k)
+    DIM kk ' (its own)
+    kk = k
+    IF arSeqN = 0 THEN ArNote "The arrangement's empty: Ins (or right-click a clip) adds the clip picked" : EXIT SUB
+    IF kk < 1 OR kk > arSeqN THEN kk = 1
+    ArPlay AR_ARRANGE, arClipA(arSeqClip(kk)), kk, 1, arSeqClip(kk)
+END SUB
+
+' Launch clip c: playing nothing, it starts now; else on the next bar (or as
+' the clip playing ends, with arQuantClip), and loops till another's launched
+SUB ArLaunch(c)
+    DIM cc ' (its own)
+    cc = c : IF cc < 1 OR cc > arClipN THEN EXIT SUB
+    arSelClip = cc
+    IF NOT arPlaying THEN ArPlay AR_SESSION, arClipA(cc), 0, 0, cc : EXIT SUB
+    IF arMode = AR_ARRANGE THEN arClip = arSeqClip(arK) : arMode = AR_SESSION ' (the arrangement's block carries on till it starts)
+    IF arMode = AR_SOURCE THEN arClip = 0 : arMode = AR_SESSION
+    arQueued = cc
+END SUB
+
+' Which bar follows the one playing (decided a crossfade before its end)
+SUB ArDecide
+    DIM c ' (its own)
+    arNextK = arK : arNextRep = arRep : arNextClip = arClip
+    SELECT CASE arMode
+        CASE AR_SOURCE
+            arNext = arBar + 1 : IF ArBarAt#(arNext) >= arFrames THEN arNext = -1
+        CASE AR_ARRANGE
+            IF arSeqN = 0 THEN arNext = -1 : EXIT SUB
+            IF arK < 1 OR arK > arSeqN THEN arK = arSeqN : arRep = arSeqTimes(arK) : arBar = arClipB(arSeqClip(arK)) ' (its block was taken out: on to the start)
+            c = arSeqClip(arK)
+            IF arBar >= arClipA(c) AND arBar < arClipB(c) THEN
+                arNext = arBar + 1
+            ELSEIF arRep < arSeqTimes(arK) THEN
+                arNextRep = arRep + 1 : arNext = arClipA(c)
+            ELSE
+                arNextK = arK + 1 : IF arNextK > arSeqN THEN arNextK = 1
+                arNextRep = 1 : arNext = arClipA(arSeqClip(arNextK))
+            END IF
+            arNextClip = arSeqClip(arNextK)
+        CASE AR_SESSION
+            IF arQueued > 0 AND (NOT arQuantClip OR arClip = 0 OR arBar >= arClipB(arClip)) THEN
+                arNextClip = arQueued : arQueued = 0 : arNext = arClipA(arNextClip)
+            ELSEIF arClip > 0 THEN
+                IF arBar >= arClipA(arClip) AND arBar < arClipB(arClip) THEN arNext = arBar + 1 ELSE arNext = arClipA(arClip)
+            ELSE
+                arNext = arBar + 1 : IF ArBarAt#(arNext) >= arFrames THEN arNext = -1
+            END IF
+    END SELECT
+END SUB
+
+' A bar ran out: on to the one decided (none: the end)
+SUB ArNextBar
+    IF arNext = 0 THEN ArDecide ' (with no crossfade, nothing was decided before the bar ran out)
+    IF arNext <= 0 THEN arPlaying = 0 : arNext = 0 : EXIT SUB
+    arBar = arNext : arK = arNextK : arRep = arNextRep : arClip = arNextClip : arNext = 0
+    ArRingAdd
+    IF arRec AND arMode = AR_SESSION THEN ArRecBar
+END SUB
+
+' Note where the player is, against how much sound it has pushed
+SUB ArRingAdd
+    arRingN = (arRingN + 1) MOD AR_RING : IF arRingCnt < AR_RING THEN arRingCnt = arRingCnt + 1
+    arRingF(arRingN) = arGen : arRingBar(arRingN) = arBar : arRingPos(arRingN) = arPos
+    arRingK(arRingN) = arK : arRingRep(arRingN) = arRep : arRingClip(arRingN) = arClip : arRingMode(arRingN) = arMode
+END SUB
+
+' Once a frame: push sound till AR_LEAD seconds are queued - each frame of it
+' read from the take between its samples (its rate to the card's), and over
+' a jump's last AR_XF seconds the next bar's lead-in faded in as this one
+' fades out (equal power: cos and sin, so it's no quieter in the middle)
+SUB ArFeed
+    DIM i, p#, j AS LONG, fr!, l!, r!, l2!, r2!, q#, t!, g1!, g2!, blen#, xf#, n ' (its own)
+    IF NOT arPlaying OR arPipe& = 0 THEN EXIT SUB
+    blen# = ArBarLen# : xf# = AR_XF * arRate
+    n = 0
+    DO WHILE _SNDRAWLEN(arPipe&) < AR_LEAD AND n < 40
+        n = n + 1
+        FOR i = 0 TO 511
+            IF arPlaying THEN
+                IF arNext = 0 AND arPos >= blen# - xf# THEN ArDecide
+                p# = ArBarAt#(arBar) + arPos
+                j = INT(p#) : fr! = p# - j
+                IF j >= 0 AND j < arFrames - 1 THEN
+                    l! = arL(j) + (arL(j + 1) - arL(j)) * fr! : r! = arR(j) + (arR(j + 1) - arR(j)) * fr!
+                ELSE
+                    l! = 0 : r! = 0
+                END IF
+                IF arPos > blen# - xf# AND arNext <> arBar + 1 THEN ' (a jump - or the end, faded out)
+                    t! = (arPos - (blen# - xf#)) / xf# : IF t! > 1 THEN t! = 1
+                    g1! = COS(t! * _PI / 2) : g2! = SIN(t! * _PI / 2) : l2! = 0 : r2! = 0
+                    IF arNext > 0 THEN
+                        q# = ArBarAt#(arNext) - (blen# - arPos)
+                        j = INT(q#) : fr! = q# - j
+                        IF j >= 0 AND j < arFrames - 1 THEN l2! = arL(j) + (arL(j + 1) - arL(j)) * fr! : r2! = arR(j) + (arR(j + 1) - arR(j)) * fr!
+                    END IF
+                    l! = l! * g1! + l2! * g2! : r! = r! * g1! + r2! * g2!
+                END IF
+                IF arFadeIn < 256 THEN arFadeIn = arFadeIn + 1 : l! = l! * arFadeIn / 256 : r! = r! * arFadeIn / 256 ' (no click as it starts)
+                arBuf(i * 2) = l! : arBuf(i * 2 + 1) = r!
+                arPos = arPos + arStep : arGen = arGen + 1
+                IF arPos >= blen# THEN arPos = arPos - blen# : ArNextBar
+            ELSE
+                arBuf(i * 2) = 0 : arBuf(i * 2 + 1) = 0
+            END IF
+        NEXT
+        _SNDRAWBATCH arBuf(), 2, arPipe&, 512
+    LOOP
+END SUB
+
+' What's being heard now: the sound pushed, less what's still queued, found
+' in the notes ArRingAdd made (arH...; arHeard: something is)
+SUB ArHeardNow
+    DIM h#, k, n, q# ' (its own)
+    arHeard = 0
+    IF arPipe& = 0 OR arRingCnt = 0 THEN EXIT SUB
+    q# = _SNDRAWLEN(arPipe&)
+    IF NOT arPlaying AND q# <= 0 THEN EXIT SUB
+    h# = arGen - q# * arOutRate
+    k = arRingN
+    FOR n = 1 TO arRingCnt - 1
+        IF arRingF(k) <= h# THEN EXIT FOR
+        k = (k - 1 + AR_RING) MOD AR_RING
+    NEXT
+    arHBar = arRingBar(k) : arHPos = arRingPos(k) + (h# - arRingF(k)) * arStep : IF arHPos < 0 THEN arHPos = 0
+    arHK = arRingK(k) : arHRep = arRingRep(k) : arHClip = arRingClip(k) : arHMode = arRingMode(k) : arHeard = -1
+END SUB
+
+' === RECORDING WHAT'S LAUNCHED ==================================================
+
+' A bar starts in a launched clip: it carries on that clip's run of bars, or
+' starts a run. (Recording starts at a clip's first bar - not halfway in.)
+SUB ArRecBar
+    IF arClip < 1 THEN EXIT SUB
+    IF NOT arRecOn THEN
+        IF arBar <> arClipA(arClip) THEN EXIT SUB
+        arRecOn = -1 : arRecN = 0
+    END IF
+    IF arRecN > 0 THEN
+        IF arRecClip(arRecN) = arClip AND arBar = arRecB(arRecN) + 1 THEN arRecB(arRecN) = arBar : EXIT SUB
+    END IF
+    IF arRecN < AR_REC THEN arRecN = arRecN + 1 : arRecClip(arRecN) = arClip : arRecA(arRecN) = arBar : arRecB(arRecN) = arBar
+END SUB
+
+' The clip that is bars a-b: one already, or a new one (kind k$) - 0 if no name's left
+FUNCTION ArClipFor(a, b, k$)
+    DIM c, n$ ' (its own)
+    FOR c = 1 TO arClipN
+        IF arClipA(c) = a AND arClipB(c) = b THEN ArClipFor = c : EXIT FUNCTION
+    NEXT
+    n$ = ArNewName$ : IF n$ = "" OR arClipN >= AR_CLIPS THEN EXIT FUNCTION
+    arClipN = arClipN + 1 : arClipName$(arClipN) = n$ : arClipA(arClipN) = a : arClipB(arClipN) = b : arClipKind$(arClipN) = k$
+    ArClipFor = arClipN
+END FUNCTION
+
+' The first letter no clip has ("" when all 26 are)
+FUNCTION ArNewName$
+    DIM i ' (its own)
+    FOR i = 65 TO 90
+        IF ArFindClip(CHR$(i)) = 0 THEN ArNewName$ = CHR$(i) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Recording's over: the runs played become the arrangement (each run a clip -
+' one that's cut short, a new clip of the bars it played; the same clip
+' running on is one block, played so many times). A run the stop cut short
+' at the end is left off - so nothing's recorded till a clip plays through.
+SUB ArRecCommit
+    DIM i, c, n ' (its own)
+    arRecOn = 0
+    n = arRecN : arRecN = 0
+    IF n > 0 THEN
+        IF arRecA(n) <> arClipA(arRecClip(n)) OR arRecB(n) <> arClipB(arRecClip(n)) THEN n = n - 1
+    END IF
+    IF n = 0 THEN ArNote "Nothing recorded: a clip has to play through once" : EXIT SUB
+    ArPushUndo
+    arSeqN = 0
+    FOR i = 1 TO n
+        c = arRecClip(i)
+        IF arRecA(i) <> arClipA(c) OR arRecB(i) <> arClipB(c) THEN c = ArClipFor(arRecA(i), arRecB(i), arClipKind$(c))
+        IF c > 0 AND arSeqN > 0 THEN
+            IF arSeqClip(arSeqN) = c THEN arSeqTimes(arSeqN) = arSeqTimes(arSeqN) + 1 : c = 0
+        END IF
+        IF c > 0 AND arSeqN < AR_SEQ THEN arSeqN = arSeqN + 1 : arSeqClip(arSeqN) = c : arSeqTimes(arSeqN) = 1
+    NEXT
+    arSelK = 1 : ArLanes
+    ArNote "Recorded into the arrangement: " + ArArrangeText$ + "   (Ctrl+Z: the one before)"
+END SUB
+
+SUB ArRecToggle
+    arRec = NOT arRec
+    IF arRec THEN
+        arRecOn = 0 : arRecN = 0
+        IF arPlaying AND arMode = AR_SESSION AND arClip > 0 THEN ArNote "REC: from the next clip's start" ELSE ArNote "REC: launch clips - what plays becomes the arrangement (Ctrl+R again, or stop)"
+    ELSE
+        ArRecCommit
+    END IF
+END SUB
+
+' === EDITING ===================================================================
+
+' Block k's clip so many more (or fewer) times: 1 to 16
+SUB ArTimes(d)
+    DIM t ' (its own)
+    IF arSelK < 1 OR arSelK > arSeqN THEN EXIT SUB
+    t = arSeqTimes(arSelK) + d : IF t < 1 THEN t = 1
+    IF t > 16 THEN t = 16
+    IF t <> arSeqTimes(arSelK) THEN ArPushUndo : arSeqTimes(arSelK) = t
+END SUB
+
+' The clip picked, into the arrangement after the block picked
+SUB ArInsert
+    DIM i ' (its own)
+    IF arSelClip < 1 OR arSeqN >= AR_SEQ THEN EXIT SUB
+    ArPushUndo
+    IF arSelK < 0 THEN arSelK = 0
+    FOR i = arSeqN TO arSelK + 1 STEP -1
+        arSeqClip(i + 1) = arSeqClip(i) : arSeqTimes(i + 1) = arSeqTimes(i)
+    NEXT
+    arSeqN = arSeqN + 1 : arSelK = arSelK + 1 : arSeqClip(arSelK) = arSelClip : arSeqTimes(arSelK) = 1
+END SUB
+
+' The block picked, out of the arrangement
+SUB ArRemove
+    DIM i ' (its own)
+    IF arSelK < 1 OR arSelK > arSeqN THEN EXIT SUB
+    ArPushUndo
+    FOR i = arSelK TO arSeqN - 1
+        arSeqClip(i) = arSeqClip(i + 1) : arSeqTimes(i) = arSeqTimes(i + 1)
+    NEXT
+    arSeqN = arSeqN - 1 : IF arSelK > arSeqN THEN arSelK = arSeqN
+END SUB
+
+' The block picked moved to place k (the others shuffle along)
+SUB ArMoveBlockTo(k)
+    DIM c, t, i, kk ' (its own)
+    kk = k : IF arSelK < 1 OR arSelK > arSeqN OR kk < 1 OR kk > arSeqN OR kk = arSelK THEN EXIT SUB
+    c = arSeqClip(arSelK) : t = arSeqTimes(arSelK)
+    IF kk > arSelK THEN
+        FOR i = arSelK TO kk - 1 : arSeqClip(i) = arSeqClip(i + 1) : arSeqTimes(i) = arSeqTimes(i + 1) : NEXT
+    ELSE
+        FOR i = arSelK TO kk + 1 STEP -1 : arSeqClip(i) = arSeqClip(i - 1) : arSeqTimes(i) = arSeqTimes(i - 1) : NEXT
+    END IF
+    arSeqClip(kk) = c : arSeqTimes(kk) = t : arSelK = kk
+END SUB
+
+' Clip c's start (which 0) or end (1) a bar earlier (d -1) or later
+SUB ArEdge(c, which, d)
+    DIM a, b ' (its own)
+    IF c < 1 OR c > arClipN THEN EXIT SUB
+    a = arClipA(c) : b = arClipB(c)
+    IF which = 0 THEN a = a + d ELSE b = b + d
+    IF a < 1 OR b > arBars OR a > b THEN EXIT SUB
+    ArPushUndo : arClipA(c) = a : arClipB(c) = b : ArLanes
+END SUB
+
+' A new clip: the bars of the one picked, under the next free letter
+SUB ArNewClip
+    DIM n$, a, b, k$ ' (its own)
+    n$ = ArNewName$
+    IF n$ = "" OR arClipN >= AR_CLIPS THEN ArNote "Every letter's a clip already" : EXIT SUB
+    a = 1 : b = MinOf(4, arBars) : k$ = "new"
+    IF arSelClip > 0 THEN a = arClipA(arSelClip) : b = arClipB(arSelClip) : k$ = arClipKind$(arSelClip)
+    ArPushUndo
+    arClipN = arClipN + 1 : arClipName$(arClipN) = n$ : arClipA(arClipN) = a : arClipB(arClipN) = b : arClipKind$(arClipN) = k$
+    arSelClip = arClipN : ArLanes
+    ArNote "New clip " + n$ + " - its ends: , . (start) < > (end), or drag them"
+END SUB
+
+' The clip picked, deleted - if the arrangement doesn't use it
+SUB ArDeleteClip
+    DIM c, k, i ' (its own)
+    c = arSelClip : IF c < 1 OR c > arClipN THEN EXIT SUB
+    FOR k = 1 TO arSeqN
+        IF arSeqClip(k) = c THEN ArNote "Clip " + arClipName$(c) + " is in the arrangement - take it out there first" : EXIT SUB
+    NEXT
+    IF arPlaying AND arMode = AR_SESSION THEN ArStop
+    ArPushUndo
+    FOR i = c TO arClipN - 1
+        arClipName$(i) = arClipName$(i + 1) : arClipA(i) = arClipA(i + 1) : arClipB(i) = arClipB(i + 1) : arClipKind$(i) = arClipKind$(i + 1)
+    NEXT
+    arClipN = arClipN - 1
+    FOR k = 1 TO arSeqN
+        IF arSeqClip(k) > c THEN arSeqClip(k) = arSeqClip(k) - 1
+    NEXT
+    IF arSelClip > arClipN THEN arSelClip = arClipN
+    ArLanes
+END SUB
+
+' Ctrl+E: the .ogg made from the .arr - arrange.py --render, then viz.py, in the
+' background (it wants Python with librosa: arrange.py's docstring says how). A dev's tool.
+SUB ArRender
+    DIM md$, py$, c$, lg$ ' (its own)
+    IF arDirty THEN ArSave
+    md$ = AssetPath$("music/arrange.py")
+    IF NOT _FILEEXISTS(md$) THEN ArNote "No music/arrange.py here to render with" : EXIT SUB
+    md$ = LEFT$(md$, LEN(md$) - LEN("arrange.py"))
+    IF INSTR(_OS$, "[WINDOWS]") THEN ArNote "Render it from a terminal: python music/arrange.py --render " + arName$ : EXIT SUB
+    py$ = ENVIRON$("HOME") + "/.venvs/music/bin/python" : IF NOT _FILEEXISTS(py$) THEN py$ = "python3"
+    IF NOT _DIREXISTS(md$ + "edit") THEN MKDIR md$ + "edit"
+    lg$ = "edit/" + arName$ + "-render.log" : arRenderLog$ = md$ + lg$
+    IF _FILEEXISTS(arRenderLog$) THEN KILL arRenderLog$
+    c$ = "cd '" + md$ + "' && { '" + py$ + "' arrange.py --render " + arName$ + " > '" + lg$ + "' 2>&1; '" + py$ + "' viz.py >> '" + lg$ + "' 2>&1; echo RENDER-DONE >> '" + lg$ + "'; }" ' (then viz.py: the SOUND TEST's picture of it)
+    SHELL _HIDE _DONTWAIT c$
+    arRenderT = TIMER(0.001)
+    ArNote "Rendering music/" + arName$ + ".ogg in the background..."
+END SUB
+
+' Twice a second while a render runs: is it done (its log's last word)?
+SUB ArRenderCheck
+    DIM f, l$, last$, ok$ ' (its own)
+    IF ABS(TIMER(0.001) - arRenderT) < 0.5 THEN EXIT SUB
+    arRenderT = TIMER(0.001)
+    IF NOT _FILEEXISTS(arRenderLog$) THEN EXIT SUB
+    f = FREEFILE : OPEN arRenderLog$ FOR INPUT AS #f
+    DO UNTIL EOF(f)
+        LINE INPUT #f, l$
+        IF LEFT$(l$, LEN(arName$) + 1) = arName$ + " " THEN ok$ = l$
+        IF LEN(_TRIM$(l$)) THEN last$ = _TRIM$(l$)
+    LOOP
+    CLOSE #f
+    IF last$ <> "RENDER-DONE" THEN EXIT SUB
+    DO WHILE INSTR(ok$, "  ") : ok$ = LEFT$(ok$, INSTR(ok$, "  ")) + MID$(ok$, INSTR(ok$, "  ") + 2) : LOOP ' (its columns' spaces squeezed out)
+    IF LEN(ok$) THEN ArNote "Rendered " + ok$ ELSE ArNote "The render failed - see music/edit/" + arName$ + "-render.log"
+    arRenderLog$ = ""
+END SUB
+
+' === WHERE THINGS ARE ON THE SCREEN ============================================
+
+FUNCTION ArXOfFrame(f#)
+    ArXOfFrame = AR_X0 + AR_W * f# / ArSpan#
+END FUNCTION
+
+FUNCTION ArXOfBar(b)
+    ArXOfBar = ArXOfFrame(ArBarAt#(b))
+END FUNCTION
+
+' The bar under x on the take's strip (1 before bar 1)
+FUNCTION ArBarOfX(x)
+    DIM s#, b ' (its own)
+    s# = (x - AR_X0) / AR_W * ArSpan# / arRate
+    b = INT((s# - arOffs) * arBpm / 240) + 1 : IF b < 1 THEN b = 1
+    ArBarOfX = b
+END FUNCTION
+
+' The bar line nearest x (1 to arBars + 1)
+FUNCTION ArBarNear(x)
+    DIM s#, b ' (its own)
+    s# = (x - AR_X0) / AR_W * ArSpan# / arRate
+    b = INT((s# - arOffs) * arBpm / 240 + 0.5) + 1
+    IF b < 1 THEN b = 1
+    IF b > arBars + 1 THEN b = arBars + 1
+    ArBarNear = b
+END FUNCTION
+
+' The clip whose block in the lanes is under (x, y) - the one picked, if it's one of them
+FUNCTION ArClipAt(x, y)
+    DIM l, c, found ' (its own)
+    IF y < AR_LANE_Y OR y >= AR_LANE_Y + AR_LANES * AR_LANE_H THEN EXIT FUNCTION
+    l = (y - AR_LANE_Y) \ AR_LANE_H
+    FOR c = 1 TO arClipN
+        IF arLane(c) = l AND x >= ArXOfBar(arClipA(c)) - 4 AND x <= ArXOfBar(arClipB(c) + 1) + 4 THEN
+            IF found = 0 OR c = arSelClip THEN found = c
+        END IF
+    NEXT
+    ArClipAt = found
+END FUNCTION
+
+FUNCTION ArPadX(c)
+    ArPadX = AR_X0 + ((c - 1) MOD AR_PADS_ROW) * (AR_PAD_W + 3)
+END FUNCTION
+
+FUNCTION ArPadY(c)
+    ArPadY = AR_PAD_Y + ((c - 1) \ AR_PADS_ROW) * (AR_PAD_H + 4)
+END FUNCTION
+
+FUNCTION ArPadAt(x, y)
+    DIM c ' (its own)
+    FOR c = 1 TO MinOf(arClipN, AR_PADS_ROW * 2)
+        IF x >= ArPadX(c) AND x < ArPadX(c) + AR_PAD_W AND y >= ArPadY(c) AND y < ArPadY(c) + AR_PAD_H THEN ArPadAt = c : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Block k's bars (its clip's, times over)
+FUNCTION ArBlockBars(k)
+    ArBlockBars = (arClipB(arSeqClip(k)) - arClipA(arSeqClip(k)) + 1) * arSeqTimes(k)
+END FUNCTION
+
+FUNCTION ArSeqBars&
+    DIM k, n& ' (its own)
+    FOR k = 1 TO arSeqN : n& = n& + ArBlockBars(k) : NEXT
+    ArSeqBars& = n&
+END FUNCTION
+
+' Where block k starts across the row (bars before it of all of them)
+FUNCTION ArBlockX(k)
+    DIM i, n&, t& ' (its own)
+    t& = ArSeqBars& : IF t& = 0 THEN ArBlockX = AR_X0 : EXIT FUNCTION
+    FOR i = 1 TO k - 1 : n& = n& + ArBlockBars(i) : NEXT
+    ArBlockX = AR_X0 + AR_W * n& / t&
+END FUNCTION
+
+' The block across the row at x (y: on the row, unless any y does - a drag)
+FUNCTION ArBlockAt(x, y)
+    DIM k ' (its own)
+    IF y < AR_SEQ_Y0 OR y > AR_SEQ_Y1 THEN EXIT FUNCTION
+    FOR k = 1 TO arSeqN
+        IF x >= ArBlockX(k) AND x < ArBlockX(k + 1) THEN ArBlockAt = k : EXIT FUNCTION
+    NEXT
+    IF arSeqN > 0 AND x >= AR_X0 + AR_W THEN ArBlockAt = arSeqN
+END FUNCTION
+
+' Clip c's colour (alpha a)
+FUNCTION ArCol~&(c, a)
+    SELECT CASE (c - 1) MOD 12
+        CASE 0 : ArCol~& = _RGBA32(255, 90, 200, a)
+        CASE 1 : ArCol~& = _RGBA32(90, 230, 255, a)
+        CASE 2 : ArCol~& = _RGBA32(255, 220, 90, a)
+        CASE 3 : ArCol~& = _RGBA32(120, 255, 140, a)
+        CASE 4 : ArCol~& = _RGBA32(255, 140, 60, a)
+        CASE 5 : ArCol~& = _RGBA32(170, 120, 255, a)
+        CASE 6 : ArCol~& = _RGBA32(255, 100, 110, a)
+        CASE 7 : ArCol~& = _RGBA32(90, 170, 255, a)
+        CASE 8 : ArCol~& = _RGBA32(200, 255, 90, a)
+        CASE 9 : ArCol~& = _RGBA32(255, 170, 220, a)
+        CASE 10 : ArCol~& = _RGBA32(100, 255, 220, a)
+        CASE ELSE : ArCol~& = _RGBA32(230, 230, 230, a)
+    END SELECT
+END FUNCTION
+
+' === THE SCREEN ================================================================
+
+' The MUSIC ARRANGER for track name$ (music/NAME.arr), in a loop of its own
+' till Esc. The SOUND TEST's sound and the menu's music wait meanwhile.
+SUB RunArranger(name$)
+    DIM k&, mx, my, md, mWas, rd, wheel, m&, p1, p2 ' (its own)
+    StStop
+    m& = nowPlaying& : IF m& > 0 THEN _SNDSTOP m& : nowPlaying& = 0
+    ArLoad name$, -1
+    arSelClip = MinOf(1, arClipN) : arSelK = MinOf(1, arSeqN) : arDirty = 0 : arUndoN = 0 : arRedoN = 0 : arLeave = 0 : arDone = 0
+    arRec = 0 : arRecOn = 0 : arRecN = 0 : arDrag = 0 : arMsg$ = "" : arQuantClip = 0
+    IF NOT arLoaded THEN
+        ArNote "No music/" + name$ + ".arr - music/arrange.py --analyze " + name$ + " makes one"
+    ELSEIF arFrames = 0 THEN
+        ArNote "No music/edit/" + name$ + ".flac to play (music/arrange.py --sources " + name$ + ") - it can still be changed"
+    END IF
+    _KEYCLEAR : mWas = -1
+    DO
+        _LIMIT 60
+        wheel = 0 : p1 = 0 : p2 = 0
+        WHILE _MOUSEINPUT ' (a press seen on the way: a quick click can be down and up again within a frame)
+            wheel = wheel + _MOUSEWHEEL
+            IF _MOUSEBUTTON(1) THEN p1 = -1
+            IF _MOUSEBUTTON(2) THEN p2 = -1
+        WEND
+        mx = WideMouseX(_MOUSEX) : my = _MOUSEY : md = _MOUSEBUTTON(1) OR p1 : rd = _MOUSEBUTTON(2) OR p2
+        ArMouse mx, my, md, mWas, rd, wheel
+        mWas = md
+        ' (Ctrl and Shift are followed through the queue, in order and from frame to frame - a quick
+        ' Ctrl+S can be let go before the S is read, and its press and the S can come in different
+        ' frames. Held now is held; with no keys at all this frame, the keyboard says.)
+        IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN arCtrlK = -1
+        IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN arShiftK = -1
+        k& = _KEYHIT : IF k& = 0 THEN arCtrlK = _KEYDOWN(100305) OR _KEYDOWN(100306) : arShiftK = _KEYDOWN(100304) OR _KEYDOWN(100303)
+        DO WHILE k&
+            SELECT CASE ABS(k&)
+                CASE 100305, 100306 : arCtrlK = k& > 0
+                CASE 100303, 100304 : arShiftK = k& > 0
+            END SELECT
+            IF k& > 0 AND ABS(k&) < 100000 THEN ArKey k&
+            k& = _KEYHIT
+        LOOP
+        IF arDone THEN EXIT DO
+        ArFeed
+        ArHeardNow
+        IF LEN(arRenderLog$) THEN ArRenderCheck
+        DrawArranger
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows
+        ShowFrame
+    LOOP
+    ArStop
+    IF m& > 0 THEN PlayMusic m&
+    _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1
+END SUB
+
+' A key
+SUB ArKey(k&)
+    DIM sh, c ' (its own)
+    DIM kk& ' (its own)
+    sh = arShiftK
+    kk& = k& ' (Ctrl held: a letter is its Ctrl code - however the key arrives, as the editor does)
+    IF arCtrlK THEN
+        IF (kk& >= 65 AND kk& <= 90) OR (kk& >= 97 AND kk& <= 122) THEN kk& = (kk& OR 32) - 96
+    END IF
+    IF kk& <> 27 THEN arLeave = 0
+    SELECT CASE kk&
+        CASE 27 ' Esc: leave (twice, with changes not saved)
+            IF arDirty AND NOT arLeave THEN arLeave = -1 : ArNote "Not saved: Ctrl+S saves music/" + arName$ + ".arr - Esc again leaves without" ELSE arDone = -1
+        CASE 32 : IF arPlaying THEN ArStop ELSE ArPlayFrom arSelK ' Space
+        CASE 13 : ArPlayFrom arSelK ' Enter
+        CASE 19 : ArSave ' Ctrl+S
+        CASE 26 : IF sh THEN ArRedoStep ELSE ArUndoStep ' Ctrl+Z (Ctrl+Shift+Z: redo)
+        CASE 25 : ArRedoStep ' Ctrl+Y
+        CASE 18 : ArRecToggle ' Ctrl+R
+        CASE 17 ' Ctrl+Q: a launch on the next bar, or as the clip playing ends
+            arQuantClip = NOT arQuantClip
+            IF arQuantClip THEN ArNote "Launches wait for the clip playing to end" ELSE ArNote "Launches start on the next bar"
+        CASE 14 : ArNewClip ' Ctrl+N
+        CASE 4 : ArDeleteClip ' Ctrl+D
+        CASE 5 : ArRender ' Ctrl+E
+        CASE 19200 : IF sh THEN ArPushUndo : ArMoveBlockTo arSelK - 1 ELSE arSelK = arSelK - 1 ' Left (Shift: move the block)
+        CASE 19712 : IF sh THEN ArPushUndo : ArMoveBlockTo arSelK + 1 ELSE arSelK = arSelK + 1 ' Right
+        CASE 18176 : arSelK = 1 ' Home
+        CASE 20224 : arSelK = arSeqN ' End
+        CASE 18432 : ArTimes 1 ' Up: once more
+        CASE 20480 : ArTimes -1 ' Down: once fewer
+        CASE 20992, 43, 61 : ArInsert ' Ins, +
+        CASE 21248, 8, 45 : ArRemove ' Del, Backspace, -
+        CASE 9 ' Tab: the next clip (Shift: the one before)
+            IF arClipN > 0 THEN
+                IF sh THEN arSelClip = arSelClip - 1 ELSE arSelClip = arSelClip + 1
+                IF arSelClip < 1 THEN arSelClip = arClipN
+                IF arSelClip > arClipN THEN arSelClip = 1
+            END IF
+        CASE 44 : ArEdge arSelClip, 0, -1 ' , . the clip's start a bar earlier or later
+        CASE 46 : ArEdge arSelClip, 0, 1
+        CASE 60 : ArEdge arSelClip, 1, -1 ' < > its end
+        CASE 62 : ArEdge arSelClip, 1, 1
+        CASE 65 TO 90, 97 TO 122 ' A letter: launch that clip
+            c = ArFindClip(UCASE$(CHR$(kk&)))
+            IF c THEN ArLaunch c ELSE ArNote "No clip " + UCASE$(CHR$(kk&))
+    END SELECT
+    IF arSelK > arSeqN THEN arSelK = arSeqN
+    IF arSelK < 1 AND arSeqN > 0 THEN arSelK = 1
+END SUB
+
+' The mouse: the take's strip plays from a bar; a clip's block picks it (its
+' ends drag); a pad launches (right button: into the arrangement); a block in
+' the arrangement picks it (twice quickly: plays from it), drags along the row
+' to move it, and the wheel over it repeats it more or fewer times
+SUB ArMouse(mx, my, md, mWas, rd, wheel)
+    STATIC rWas
+    DIM c, k, b, e ' (its own)
+    IF md AND NOT mWas THEN
+        IF my >= AR_SRC_Y0 AND my <= AR_SRC_Y1 AND mx >= AR_X0 AND mx < AR_X0 + AR_W THEN ArPlay AR_SOURCE, ArBarOfX(mx), 0, 0, 0
+        c = ArClipAt(mx, my)
+        IF c THEN
+            arSelClip = c : e = -1
+            IF ABS(mx - ArXOfBar(arClipA(c))) <= 4 THEN e = 0
+            IF ABS(mx - ArXOfBar(arClipB(c) + 1)) <= 4 THEN e = 1
+            IF e >= 0 THEN arDrag = 1 : arDragClip = c : arDragEdge = e : arDragPushed = 0
+        END IF
+        c = ArPadAt(mx, my) : IF c THEN ArLaunch c
+        k = ArBlockAt(mx, my)
+        IF k THEN
+            IF k = arClickK AND ABS(TIMER(0.001) - arClickT) < 0.35 THEN ArPlayFrom k
+            arClickK = k : arClickT = TIMER(0.001)
+            arSelK = k : arSelClip = arSeqClip(k) : arDrag = 2 : arDragK = k : arDragPushed = 0
+        END IF
+    END IF
+    IF md AND arDrag = 1 THEN ' A clip's end, to the bar line nearest
+        c = arDragClip : b = ArBarNear(mx)
+        IF arDragEdge = 0 THEN
+            IF b > arClipB(c) THEN b = arClipB(c)
+            IF b <> arClipA(c) THEN
+                IF NOT arDragPushed THEN ArPushUndo : arDragPushed = -1
+                arClipA(c) = b : ArLanes
+            END IF
+        ELSE
+            b = b - 1 : IF b < arClipA(c) THEN b = arClipA(c)
+            IF b > arBars THEN b = arBars
+            IF b <> arClipB(c) THEN
+                IF NOT arDragPushed THEN ArPushUndo : arDragPushed = -1
+                arClipB(c) = b : ArLanes
+            END IF
+        END IF
+    END IF
+    IF md AND arDrag = 2 THEN ' A block, along the row
+        k = ArBlockAt(mx, AR_SEQ_Y0 + 1)
+        IF k > 0 AND k <> arSelK THEN
+            IF NOT arDragPushed THEN ArPushUndo : arDragPushed = -1
+            ArMoveBlockTo k
+        END IF
+    END IF
+    IF NOT md THEN arDrag = 0
+    IF rd AND NOT rWas THEN
+        c = ArPadAt(mx, my) : IF c THEN arSelClip = c : ArInsert
+    END IF
+    rWas = rd
+    IF wheel THEN
+        k = ArBlockAt(mx, my) : IF k THEN arSelK = k : ArTimes -SGN(wheel)
+    END IF
+END SUB
+
+' What's playing, in words
+FUNCTION ArStatus$
+    DIM s$, n&, k ' (its own)
+    IF NOT arHeard THEN
+        s$ = "STOPPED - SPACE PLAYS THE ARRANGEMENT"
+        IF arSeqN > 0 AND arSelK > 1 THEN s$ = s$ + " FROM BLOCK" + STR$(arSelK)
+        ArStatus$ = s$ : EXIT FUNCTION
+    END IF
+    SELECT CASE arHMode
+        CASE AR_SOURCE : s$ = "THE TAKE AS IT IS - BAR" + STR$(arHBar)
+        CASE AR_ARRANGE
+            IF arHK >= 1 AND arHK <= arSeqN THEN
+                FOR k = 1 TO arHK - 1 : n& = n& + ArBlockBars(k) : NEXT
+                n& = n& + (arHRep - 1) * (arClipB(arSeqClip(arHK)) - arClipA(arSeqClip(arHK)) + 1) + arHBar - arClipA(arSeqClip(arHK))
+                s$ = "THE ARRANGEMENT - BLOCK" + STR$(arHK) + " OF" + STR$(arSeqN) + " (" + arClipName$(arSeqClip(arHK))
+                IF arSeqTimes(arHK) > 1 THEN s$ = s$ + "," + STR$(arHRep) + " OF" + STR$(arSeqTimes(arHK))
+                s$ = s$ + ") - BAR" + STR$(arHBar) + " - " + ArTime$((n& + arHPos / ArBarLen#) * 240 / arBpm) + " OF " + ArTime$(ArSeqBars& * 240 / arBpm)
+            END IF
+        CASE AR_SESSION
+            IF arHClip > 0 THEN s$ = "CLIP " + arClipName$(arHClip) + " LOOPING - BAR" + STR$(arHBar) ELSE s$ = "THE TAKE - BAR" + STR$(arHBar)
+            IF arQueued > 0 THEN
+                s$ = s$ + " - NEXT: " + arClipName$(arQueued)
+                IF arQuantClip AND arHClip > 0 THEN s$ = s$ + " WHEN " + arClipName$(arHClip) + " ENDS" ELSE s$ = s$ + " ON THE NEXT BAR"
+            END IF
+    END SELECT
+    ArStatus$ = s$
+END FUNCTION
+
+SUB DrawArranger
+    DIM x, y, i, k, c, b, x0, x1, t$, l$, n&, tot&, a, w, f!, s!, hk, col~&, blink ' (its own)
+    LINE (0, 0)-(799, 599), _RGB32(12, 6, 20), BF
+    _PRINTMODE _KEEPBACKGROUND
+    blink = (INT(TIMER(0.001) * 4) MOD 2) = 0
+    ' The title: the track, its tempo and bars
+    COLOR _RGB32(255, 90, 200) : _PRINTSTRING (16, 6), "MUSIC ARRANGER"
+    COLOR _RGB32(255, 255, 255) : _PRINTSTRING (136, 6), UCASE$(arName$)
+    t$ = ArFix$(arBpm, 3) + " BPM   " + LTRIM$(STR$(arBars)) + " BARS   BAR 1 AT " + ArFix$(arOffs, 3) + " S"
+    COLOR _RGB32(150, 140, 180) : _PRINTSTRING (784 - 8 * LEN(t$), 6), t$
+    ' What's playing; REC, the launch, unsaved
+    IF arHeard THEN COLOR _RGB32(90, 230, 255) ELSE COLOR _RGB32(150, 140, 180)
+    t$ = ArStatus$ : IF LEN(t$) > 76 THEN t$ = LEFT$(t$, 75) + "~"
+    _PRINTSTRING (16, 26), t$
+    x = 784
+    IF arRec THEN
+        IF arRecOn OR blink THEN LINE (x - 34, 25)-(x, 41), _RGB32(220, 30, 50), BF
+        COLOR _RGB32(255, 255, 255) : _PRINTSTRING (x - 29, 26), "REC" : x = x - 42
+    END IF
+    IF arDirty THEN COLOR _RGB32(255, 200, 90) : _PRINTSTRING (x - 56, 26), "UNSAVED" : x = x - 64
+    ' THE TAKE: its waveform, bars, the fade, what's heard
+    t$ = "THE TAKE  " + arSource$ + "  - CLICK: PLAY IT FROM THAT BAR"
+    TinyText 16, 64, t$, _RGB32(150, 140, 180)
+    LINE (AR_X0 - 2, AR_SRC_Y0)-(AR_X0 + AR_W + 1, AR_SRC_Y1), _RGB32(6, 0, 18), BF
+    IF arTail <= arBars THEN
+        x0 = ArXOfBar(arTail)
+        LINE (x0, AR_SRC_Y0 + 1)-(AR_X0 + AR_W, AR_SRC_Y1 - 1), _RGBA32(90, 0, 40, 255), BF
+        TinyText x0 + 3, AR_SRC_Y1 - 11, "FADE", _RGB32(255, 120, 150)
+    END IF
+    IF arSelClip > 0 THEN LINE (ArXOfBar(arClipA(arSelClip)), AR_SRC_Y0 + 1)-(ArXOfBar(arClipB(arSelClip) + 1) - 1, AR_SRC_Y1 - 1), ArCol~&(arSelClip, 40), BF
+    y = (AR_SRC_Y0 + AR_SRC_Y1) \ 2
+    IF arFrames > 0 THEN
+        FOR i = 0 TO AR_W - 1
+            LINE (AR_X0 + i, y - arOvMax(i) * 38)-(AR_X0 + i, y - arOvMin(i) * 38), _RGBA32(170, 110, 230, 210)
+        NEXT
+    ELSE
+        LINE (AR_X0, y)-(AR_X0 + AR_W - 1, y), _RGBA32(150, 90, 200, 120)
+        TinyText AR_X0 + 300, y - 12, "NO SOUND: MUSIC/EDIT/" + UCASE$(arName$) + ".FLAC", _RGB32(255, 120, 150)
+    END IF
+    FOR b = 1 TO arBars + 1
+        x = ArXOfBar(b)
+        IF b MOD 4 = 1 THEN col~& = _RGBA32(90, 230, 255, 150) ELSE col~& = _RGBA32(90, 230, 255, 55)
+        LINE (x, AR_SRC_Y0 + 1)-(x, AR_SRC_Y1 - 1), col~&
+        IF b <= arBars THEN
+            IF ArXOfBar(b + 1) - x >= 13 OR b MOD 4 = 1 THEN TinyText x + 2, AR_SRC_Y0 + 3, LTRIM$(STR$(b)), _RGB32(130, 200, 230)
+        END IF
+    NEXT
+    LINE (AR_X0 - 2, AR_SRC_Y0)-(AR_X0 + AR_W + 1, AR_SRC_Y1), _RGBA32(90, 230, 255, 90), B
+    IF arHeard THEN
+        x = ArXOfFrame(ArBarAt#(arHBar) + arHPos)
+        IF x >= AR_X0 AND x < AR_X0 + AR_W THEN LINE (x, AR_SRC_Y0 + 1)-(x + 1, AR_SRC_Y1 - 1), _RGB32(255, 255, 255), BF
+    END IF
+    ' The clips, in lanes under it: the one picked outlined white, with handles at its ends
+    FOR c = 1 TO arClipN
+        x0 = ArXOfBar(arClipA(c)) : x1 = ArXOfBar(arClipB(c) + 1) - 1
+        y = AR_LANE_Y + arLane(c) * AR_LANE_H
+        a = 80 : IF arHeard AND arHClip = c THEN a = 170
+        LINE (x0, y)-(x1, y + AR_LANE_H - 3), ArCol~&(c, a), BF
+        IF c = arSelClip THEN
+            LINE (x0, y)-(x1, y + AR_LANE_H - 3), _RGB32(255, 255, 255), B
+            LINE (x0 - 1, y + 2)-(x0 + 1, y + AR_LANE_H - 5), _RGB32(255, 255, 255), BF
+            LINE (x1 - 1, y + 2)-(x1 + 1, y + AR_LANE_H - 5), _RGB32(255, 255, 255), BF
+        ELSE
+            LINE (x0, y)-(x1, y + AR_LANE_H - 3), ArCol~&(c, 200), B
+        END IF
+        l$ = arClipName$(c) + " " + arClipKind$(c) : IF TinyW(l$) > x1 - x0 - 5 THEN l$ = arClipName$(c)
+        TinyText x0 + 3, y + 4, l$, _RGB32(255, 255, 255)
+    NEXT
+    ' The launcher: a pad a clip - lit while it plays (a bar along it: how far through), blinking while it's queued
+    TinyText 16, AR_PAD_Y - 11, "CLIPS - CLICK ONE OR TYPE ITS LETTER: IT STARTS ON THE NEXT BAR AND LOOPS.  RIGHT-CLICK: INTO THE ARRANGEMENT", _RGB32(150, 140, 180)
+    FOR c = 1 TO MinOf(arClipN, AR_PADS_ROW * 2)
+        x = ArPadX(c) : y = ArPadY(c)
+        a = 55 : IF arHeard AND arHClip = c THEN a = 175
+        LINE (x, y)-(x + AR_PAD_W - 1, y + AR_PAD_H - 1), ArCol~&(c, a), BF
+        LINE (x, y)-(x + AR_PAD_W - 1, y + AR_PAD_H - 1), ArCol~&(c, 220), B
+        IF c = arSelClip THEN LINE (x + 1, y + 1)-(x + AR_PAD_W - 2, y + AR_PAD_H - 2), _RGB32(255, 255, 255), B
+        IF arQueued = c AND blink THEN LINE (x - 2, y - 2)-(x + AR_PAD_W + 1, y + AR_PAD_H + 1), _RGB32(255, 255, 255), B
+        COLOR _RGB32(255, 255, 255) : _PRINTSTRING (x + 5, y + 3), arClipName$(c)
+        TinyText x + 18, y + 7, LTRIM$(STR$(arClipA(c))) + "-" + LTRIM$(STR$(arClipB(c))), _RGB32(230, 230, 240)
+        l$ = arClipKind$(c) : IF TinyW(l$) > AR_PAD_W - 8 THEN l$ = LEFT$(l$, 7)
+        TinyText x + 5, y + 22, l$, _RGB32(200, 200, 220)
+        IF arHeard AND arHClip = c THEN
+            f! = (arHBar - arClipA(c) + arHPos / ArBarLen#) / (arClipB(c) - arClipA(c) + 1)
+            IF f! < 0 THEN f! = 0
+            IF f! > 1 THEN f! = 1
+            LINE (x + 2, y + AR_PAD_H - 5)-(x + 2 + f! * (AR_PAD_W - 5), y + AR_PAD_H - 3), _RGB32(255, 255, 255), BF
+        END IF
+    NEXT
+    IF arClipN > AR_PADS_ROW * 2 THEN TinyText 16, AR_PAD_Y + 2 * (AR_PAD_H + 4), "(" + LTRIM$(STR$(arClipN - AR_PADS_ROW * 2)) + " MORE CLIPS: TAB PICKS THEM)", _RGB32(150, 140, 180)
+    ' The arrangement: its blocks across the row, as long as they play; the joins under them
+    tot& = ArSeqBars&
+    t$ = "THE ARRANGEMENT -" + STR$(arSeqN) + " BLOCKS," + STR$(tot&) + " BARS, " + ArTime$(tot& * 240 / arBpm) + ", THEN ROUND AGAIN.  DOUBLE-CLICK OR ENTER: PLAY FROM ONE  DRAG: MOVE  WHEEL, UP/DOWN: REPEATS"
+    TinyText 16, AR_SEQ_Y0 - 11, t$, _RGB32(150, 140, 180)
+    LINE (AR_X0 - 2, AR_SEQ_Y0 - 1)-(AR_X0 + AR_W + 1, AR_SEQ_Y1 + 1), _RGB32(6, 0, 18), BF
+    hk = 0 : IF arHeard AND arHMode = AR_ARRANGE THEN hk = arHK
+    FOR k = 1 TO arSeqN
+        c = arSeqClip(k) : x0 = ArBlockX(k) : x1 = ArBlockX(k + 1) - 1 : IF x1 < x0 THEN x1 = x0
+        a = 80 : IF k = hk THEN a = 170
+        LINE (x0, AR_SEQ_Y0)-(x1, AR_SEQ_Y1), ArCol~&(c, a), BF
+        LINE (x0, AR_SEQ_Y0)-(x1, AR_SEQ_Y1), ArCol~&(c, 220), B
+        FOR i = 1 TO arSeqTimes(k) - 1 ' (each time round marked)
+            x = x0 + (x1 - x0 + 1) * i / arSeqTimes(k)
+            LINE (x, AR_SEQ_Y0 + 6)-(x, AR_SEQ_Y1 - 6), ArCol~&(c, 160)
+        NEXT
+        IF k = arSelK THEN LINE (x0, AR_SEQ_Y0 - 1)-(x1, AR_SEQ_Y1 + 1), _RGB32(255, 255, 255), B : LINE (x0 + 1, AR_SEQ_Y0)-(x1 - 1, AR_SEQ_Y1), _RGB32(255, 255, 255), B
+        l$ = arClipName$(c) : IF arSeqTimes(k) > 1 THEN l$ = l$ + "*" + LTRIM$(STR$(arSeqTimes(k)))
+        IF TinyW(l$) <= x1 - x0 - 3 THEN TinyText x0 + 3, AR_SEQ_Y0 + 4, l$, _RGB32(255, 255, 255) ELSE IF TinyW(arClipName$(c)) <= x1 - x0 - 2 THEN TinyText x0 + 2, AR_SEQ_Y0 + 4, arClipName$(c), _RGB32(255, 255, 255)
+        IF k > 1 THEN s! = ArJoin!(arClipB(arSeqClip(k - 1)), arClipA(c)) ELSE s! = ArJoin!(arClipB(arSeqClip(arSeqN)), arClipA(c)) ' (the first's: from the last, coming round)
+        IF s! <= 1.5 THEN LINE (x0 - 2, AR_SEQ_Y1 + 3)-(x0 + 2, AR_SEQ_Y1 + 9), ArJoinCol~&(s!), BF
+    NEXT
+    IF arSeqN > 0 THEN ' (the way round, at the end too)
+        s! = ArJoin!(arClipB(arSeqClip(arSeqN)), arClipA(arSeqClip(1)))
+        IF s! <= 1.5 THEN LINE (AR_X0 + AR_W - 2, AR_SEQ_Y1 + 3)-(AR_X0 + AR_W + 2, AR_SEQ_Y1 + 9), ArJoinCol~&(s!), BF
+    END IF
+    IF hk >= 1 AND hk <= arSeqN THEN
+        n& = 0 : FOR k = 1 TO hk - 1 : n& = n& + ArBlockBars(k) : NEXT
+        n& = n& + (arHRep - 1) * (arClipB(arSeqClip(hk)) - arClipA(arSeqClip(hk)) + 1) + arHBar - arClipA(arSeqClip(hk))
+        IF tot& > 0 THEN x = AR_X0 + AR_W * (n& + arHPos / ArBarLen#) / tot& : LINE (x, AR_SEQ_Y0)-(x + 1, AR_SEQ_Y1), _RGB32(255, 255, 255), BF
+    END IF
+    ' About the clip and the block picked
+    y = 436
+    IF arSelClip > 0 THEN
+        c = arSelClip : n& = 0
+        FOR k = 1 TO arSeqN
+            IF arSeqClip(k) = c THEN n& = n& + arSeqTimes(k)
+        NEXT
+        w = arClipB(c) - arClipA(c) + 1
+        t$ = "CLIP " + arClipName$(c) + "  BARS" + STR$(arClipA(c)) + " -" + STR$(arClipB(c)) + "  (" + LTRIM$(STR$(w)) + " BARS, " + ArFix$(w * 240 / arBpm, 1) + " S)  " + UCASE$(arClipKind$(c))
+        COLOR ArCol~&(c, 255) : _PRINTSTRING (16, y), t$
+        t$ = "PLAYED" + STR$(n&) + "X IN THE ARRANGEMENT - LOOPING ON ITSELF: " + UCASE$(ArJoinText$(ArJoin!(arClipB(c), arClipA(c))))
+        COLOR _RGB32(190, 185, 215) : _PRINTSTRING (16, y + 18), t$
+    END IF
+    IF arSelK >= 1 AND arSelK <= arSeqN THEN
+        c = arSeqClip(arSelK)
+        t$ = "BLOCK" + STR$(arSelK) + " OF" + STR$(arSeqN) + ": " + arClipName$(c) : IF arSeqTimes(arSelK) > 1 THEN t$ = t$ + " *" + LTRIM$(STR$(arSeqTimes(arSelK)))
+        IF arSelK > 1 THEN k = arSelK - 1 ELSE k = arSeqN
+        t$ = t$ + "   INTO IT, FROM BAR" + STR$(arClipB(arSeqClip(k))) + ": " + UCASE$(ArJoinText$(ArJoin!(arClipB(arSeqClip(k)), arClipA(c))))
+        IF arSelK < arSeqN THEN k = arSelK + 1 ELSE k = 1
+        t$ = t$ + "   OUT, TO BAR" + STR$(arClipA(arSeqClip(k))) + ": " + UCASE$(ArJoinText$(ArJoin!(arClipB(c), arClipA(arSeqClip(k)))))
+        COLOR _RGB32(255, 255, 255) : _PRINTSTRING (16, y + 42), LEFT$(t$, 96)
+    END IF
+    ' The message line
+    IF LEN(arMsg$) AND ABS(TIMER(0.001) - arMsgT) < 8 THEN
+        t$ = arMsg$ : IF LEN(t$) > 96 THEN t$ = LEFT$(t$, 95) + "~"
+        COLOR _RGB32(255, 220, 90) : _PRINTSTRING (16, 516), t$
+    END IF
+    ' The keys
+    TinyText 16, 548, "SPACE PLAY / STOP   ENTER PLAY FROM THE BLOCK   A-Z LAUNCH A CLIP   CTRL+R RECORD LAUNCHES INTO THE ARRANGEMENT   CTRL+Q LAUNCH AT THE BAR / CLIP'S END", _RGB32(170, 160, 210)
+    TinyText 16, 560, "LEFT RIGHT PICK A BLOCK (SHIFT: MOVE IT)   UP DOWN REPEATS   INS + ADD THE CLIP AFTER IT   DEL - TAKE IT OUT   TAB PICK A CLIP", _RGB32(170, 160, 210)
+    TinyText 16, 572, ", . THE CLIP'S START   < > ITS END (OR DRAG ITS ENDS)   CTRL+N NEW CLIP   CTRL+D DELETE CLIP   CTRL+Z UNDO   CTRL+Y REDO", _RGB32(170, 160, 210)
+    TinyText 16, 584, "CTRL+S SAVE THE .ARR   CTRL+E RENDER THE .OGG FROM IT   ESC BACK      JOINS: GREEN ALIKE, YELLOW FAIR, RED POOR, GREY NOT SCORED", _RGB32(170, 160, 210)
+END SUB

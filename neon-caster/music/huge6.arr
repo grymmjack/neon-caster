@@ -27,6 +27,7 @@ seam 3 8 0.63
 seam 3 12 0.58
 seam 3 16 0.59
 seam 3 18 0.68
+seam 4 1 0.47
 seam 4 3 0.52
 seam 4 9 0.74
 seam 4 11 0.59
@@ -75,6 +76,8 @@ seam 11 13 1.00
 seam 11 14 1.00
 seam 11 15 1.00
 seam 11 16 0.98
+seam 12 5 0.60
+seam 12 9 0.95
 seam 12 10 1.00
 seam 12 11 1.00
 seam 12 12 1.00
@@ -99,6 +102,8 @@ seam 15 12 0.98
 seam 15 13 0.96
 seam 15 14 1.00
 seam 15 15 1.00
+seam 16 1 0.80
+seam 16 5 0.55
 seam 16 9 0.75
 seam 16 11 0.74
 seam 16 13 0.74

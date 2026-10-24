@@ -13,6 +13,7 @@ clip G  bars 13-20   peak
 clip H  bars 13-16   peak
 clip I  bars 9-12    peak
 arrange E F G C H I F*2 G E C H I F H
+seam 4 1 0.08
 seam 5 7 0.62
 seam 5 8 0.62
 seam 5 18 0.69
@@ -31,6 +32,7 @@ seam 7 9 0.65
 seam 7 18 0.61
 seam 7 19 0.65
 seam 7 20 0.66
+seam 8 5 0.14
 seam 8 10 0.76
 seam 8 12 0.76
 seam 8 13 0.79
@@ -55,6 +57,7 @@ seam 11 13 1.00
 seam 11 14 1.00
 seam 11 15 0.97
 seam 11 16 1.00
+seam 12 9 0.79
 seam 12 10 0.98
 seam 12 11 1.00
 seam 12 12 1.00
@@ -79,6 +82,7 @@ seam 15 12 1.00
 seam 15 13 0.98
 seam 15 14 1.00
 seam 15 15 1.00
+seam 16 9 0.68
 seam 16 11 0.86
 seam 16 13 0.88
 seam 16 16 0.87
@@ -103,7 +107,9 @@ seam 19 17 0.93
 seam 19 18 1.00
 seam 19 19 1.00
 seam 19 21 0.82
+seam 20 9 0.73
 seam 20 12 0.76
+seam 20 13 0.73
 seam 20 17 0.77
 seam 20 18 0.96
 seam 20 19 0.88

@@ -158,7 +158,12 @@ console) plays every sound effect, voice and track, by category, with a
 player over the list: what's playing, how long it is and how far in, a seek
 bar drawn as its waveform (click or drag to play from anywhere; P pauses,
 [ and ] skip 5 seconds), a spectrum and scope moving with it, and AUTO (C) to
-play the next when one ends. SOFTEN
+play the next when one ends. The music was ~45 second takes that looped
+abruptly; each is now arranged on its own bars into 3-4 minutes that loop,
+and E on a track opens the **MUSIC ARRANGER**: the take with its bars and
+clips, a clip launcher (a clip starts on the next bar and loops), and the
+arrangement as blocks to add, take out, repeat and move - heard as you change
+it, and recordable from what you launch. SOFTEN
 HIGHS (OFF, LIGHT, STRONG) takes the edge off the sound effects and voices
 if they're too bright on your speakers or headphones; the music is left as it is.
 

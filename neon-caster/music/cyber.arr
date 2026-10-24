@@ -15,6 +15,7 @@ arrange D B D E D*2 B F G D E H B F E
 seam 1 6 0.40
 seam 1 10 0.40
 seam 1 14 0.40
+seam 2 1 0.13
 seam 2 7 0.63
 seam 2 11 0.63
 seam 2 15 0.63
