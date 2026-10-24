@@ -161,9 +161,12 @@ bar drawn as its waveform (click or drag to play from anywhere; P pauses,
 play the next when one ends. The music was ~45 second takes that looped
 abruptly; each is now arranged on its own bars into 3-4 minutes that loop,
 and E on a track opens the **MUSIC ARRANGER**: the take with its bars and
-clips, a clip launcher (a clip starts on the next bar and loops), and the
+clips (zoom in with the wheel and the grid goes down to a 32nd of a bar, so
+clips can be a beat or a single hit), a clip launcher (a clip starts on the next bar and loops), and the
 arrangement as blocks to add, take out, repeat and move - heard as you change
-it, and recordable from what you launch. SOFTEN
+it, and recordable from what you launch. An arrangement can have an intro
+that plays once before the loop (the title music has one), and the arranger
+sends any track to Renoise and Bitwig in a key (Ctrl+B). SOFTEN
 HIGHS (OFF, LIGHT, STRONG) takes the edge off the sound effects and voices
 if they're too bright on your speakers or headphones; the music is left as it is.
 

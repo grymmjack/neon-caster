@@ -1,8 +1,8 @@
-; NEON-CASTER - menu's bars, clips and arrangement (music/arrange.py; bars count from 1)
-; arrange: clips in order, CLIP*N repeats one; the file loops as a whole. seam I J S: after bar I, bar J can follow (S: how alike, 0-1)
+; NEON-CASTER - menu's bars, clips and arrangement (music/arrange.py; bars count from 1 - bar 0 is the lead-in before it)
+; arrange: clips in order, CLIP*N repeats one; it loops as a whole - or, after a |, from there (what's before it plays once: an intro). seam I J S: after bar I, bar J can follow (S: how alike, 0-1)
 bpm 130.011   offset 1.1653   bars 22   tail 23
 source menu.ogg (lossy)
-auto yes          ; yes: arrange.py --analyze may rewrite the clips and arrangement - no: they're yours
+auto no          ; yes: arrange.py --analyze may rewrite the clips and arrangement - no: they're yours
 clip A  bars 1-4     groove
 clip B  bars 5-8     groove
 clip C  bars 9-16    groove
@@ -14,7 +14,8 @@ clip H  bars 5-12    groove
 clip I  bars 1-20    groove
 clip J  bars 9-12    groove
 clip K  bars 5-16    groove
-arrange A C E F G H I E B A I J K A
+clip L  bars 0-0     intro
+arrange L | C E F G H I E B A I J K A
 seam 1 5 0.49
 seam 1 6 1.00
 seam 1 10 0.95

@@ -2094,7 +2094,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "vec3 under(vec2 q) {  // the picture at q - view, gun, HUD - for the phosphor glow" + nl$
     fs$ = fs$ + "    vec3 c = texture2D(scene, q).rgb + texture2D(bloom, q).rgb * bloomAmt;" + nl$
     fs$ = fs$ + "    vec2 t = onHud(q); float onScreen = inside(t);" + nl$
-    fs$ = fs$ + "    c *= mix(1.0 - sideDim, 1.0, onScreen);" + nl$
+    fs$ = fs$ + "    c = mix(c * (1.0 - sideDim) + sideDim * vec3(0.0314, 0.0, 0.0784), c, onScreen);  // (the menu's own darkening is purple: RGBA 8, 0, 20, 200 - so the sides match it)" + nl$
     fs$ = fs$ + "    if (gunOn > 0.5) {" + nl$
     fs$ = fs$ + "        vec2 g = (t - gunRect.xy) / (gunRect.zw - gunRect.xy); vec4 k = texture2D(gun, g);" + nl$
     fs$ = fs$ + "        if (g.x >= 0.0 && g.x <= 1.0 && g.y >= 0.0 && g.y <= 1.0) c = k.rgb * gunLight + c * (1.0 - k.a);" + nl$
@@ -2136,7 +2136,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "    float edge = smoothstep(0.3, 0.75, length((p - 0.5) * vec2(1.25, 1.0)));" + nl$
     fs$ = fs$ + "    c = mix(c, vec3(0.75, 0.0, 0.05), hurt * edge * (0.65 + 0.35 * sin(secs * 18.0)));  // hurt: a red pulse at the edges" + nl$
     fs$ = fs$ + "    vec2 hp = onHud(p); float onScreen = inside(hp);  // where this is on our screen (the HUD's)" + nl$
-    fs$ = fs$ + "    c *= mix(1.0 - sideDim, 1.0, onScreen);  // (beside it, in the menu: darker, as the menu darkens our screen)" + nl$
+    fs$ = fs$ + "    c = mix(c * (1.0 - sideDim) + sideDim * vec3(0.0314, 0.0, 0.0784), c, onScreen);  // (beside it, in the menu: darker and purple, as the menu darkens our screen - RGBA 8, 0, 20, 200)" + nl$
     fs$ = fs$ + "    if (gunOn > 0.5) {  // the gun (premultiplied), read from its own picture at the window's size" + nl$
     fs$ = fs$ + "        vec2 g = (hp - gunRect.xy) / (gunRect.zw - gunRect.xy);" + nl$
     fs$ = fs$ + "        vec4 t = texture2D(gun, g);" + nl$

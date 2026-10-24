@@ -11,6 +11,7 @@ source level1.ogg (lossy)
 auto yes          ; no once you've changed it: arrange.py --analyze leaves it alone then
 clip E  bars 17-20   groove
 clip F  bars 9-20    peak
+clip J  at 17.25-17.5 groove   ; finer than a bar: bar places, to a 32nd (17.25 = bar 17's 2nd beat; the end not included)
 arrange E F G C H I F*2 G E C H I F H
 seam 20 9 0.73    ; after bar 20, bar 9 can follow - how alike the join is (0-1)
 ```
@@ -24,13 +25,38 @@ In the game: SETTINGS > AUDIO > SOUND TEST, MUSIC, pick a track and press
 **E** (or `arranger level1` in the console). The MUSIC ARRANGER plays it live
 from its take, so you hear a change at once:
 
-- the take across the top, with its bars and clips (click: play from that bar;
-  drag a clip's end to move it),
+- the take across the top, with its bars and clips (click: play from there;
+  drag a clip's end to resize it, or the clip itself to move it along - its
+  start lands on the grid, its length stays). Drag across it to make a new clip - a click
+  and a drag are told apart by a 4-pixel move, so even one square of the grid
+  is a clip. The mouse wheel over the take zooms round the pointer (Shift+wheel
+  slides along, the middle button shows it all), and the **grid follows the
+  zoom**: a bar, 1/2, 1/4... down to a 32nd of a bar, whichever is the finest
+  with squares 40 pixels wide (GRID in the header). Clips, their ends (`,` `.`
+  `<` `>` move them a square) and the clip launcher all work to it. Places
+  read BAR.BEAT.16TH (17.2.3; a `+` is a 32nd on), lengths as "1/4 BAR".
+  Most takes start a little before bar 1: that's the lead-in, IN (bar 0 in
+  the .arr), and a clip can start there - an intro, with the take's very
+  first notes,
 - a pad for each clip: click it (or type its letter) and it starts on the next
-  bar and loops - Ctrl+R records what you launch into the arrangement,
-- the arrangement as blocks: Ins/Del, Up/Down for repeats, Shift+arrows or a
-  drag to move one, Enter or a double-click to play from it,
-- Ctrl+S saves `NAME.arr`, Ctrl+E makes `NAME.ogg` from it.
+  bar and loops - Ctrl+R records what you launch into the arrangement.
+  Ctrl+K changes the picked clip's kind (intro, groove, build, peak...),
+- the arrangement as blocks: Ins adds the picked clip after the block,
+  Shift+Ins before it (Home, then Shift+Ins: first), Del takes one out,
+  Ctrl+Del clears them all (Ctrl+Z brings them back), Up/Down for repeats,
+  Shift+arrows or a drag to move one, Enter or a double-click to play from it,
+  Ctrl+L: the loop goes round from this block (the ones before it are an
+  intro, played once),
+- Ctrl+S saves `NAME.arr`, Ctrl+E makes `NAME.ogg` from it, Ctrl+B makes the
+  Renoise and Bitwig sessions (below). Both run in the background.
+
+Without a loop point the .ogg loops as a whole, so an intro comes round again
+each loop. With one (`|` in the arrange line: `arrange L | C E F...`) the
+render makes two files: `NAME-intro.ogg`, the blocks before the `|` (from the
+take's very start, with half a second of the loop after them), and `NAME.ogg`,
+the loop. The game plays the intro once and hands over to the loop on the
+same sample (`PlayMusicIntro`, `MusicFrame`). Only the menu's music has one
+so far (`menu.arr`: clip L, the lead-in and the first four bars).
 
 It plays from `edit/NAME.flac`, which isn't in git:
 
@@ -60,8 +86,21 @@ librosa soundfile numpy scipy matplotlib beat_this`.)
 ~/.venvs/music/bin/python daw.py --from-dawproject FILE
 ```
 
-Renoise: the take is one instrument sliced at every bar (bar 1 is C-4), a
-pattern per clip, the sequence is the arrangement; clips it doesn't use come
-after a CLIPS section, to schedule live. Bitwig: the arrangement on one audio
-track with a marker at each clip, and the clip launcher with a scene per clip.
+Renoise: the take is one instrument sliced at every bar (bar 1 is C-4, the
+lead-in B-3, played late by its delay column), a pattern per clip, the
+sequence is the arrangement; clips it doesn't use come after a CLIPS section,
+to schedule live. Bitwig: the arrangement on one audio track with a marker at
+each clip (a repeat is the clip again, end to end), and the clip launcher with
+a scene per clip, each looping on exactly its bars; every clip has its colour
+from the game's arranger. A loop point goes across as a Renoise section and a
+Bitwig marker named `| ...`, and comes back from them.
+
+Bitwig also gets the track's **stems** when they're there
+(`~/Music/NEON-CASTER/samples/NAME - TITLE/`, made by soundmon's `tools/stems.py`
+on the farm - its `INFINITE-SAMPLES.md` has the steps): a track per stem, cut on
+the same clips, in groups - STEMS (drums, bass, synths + fx, vocals: playing,
+with the take muted beside them) and the finer splits, muted (DRUMS SPLIT,
+SYNTHS BY RANGE, SYNTHS BY KIND, SYNTHS DRY + REVERB). The same folder's
+`5 Instruments/` has the one-shots as Sampler instruments (`.multisample`: a drum
+kit, each part's notes, chords, pads) to drag onto a track.
 Then `arrange.py --seams NAME` and `--render NAME`.

@@ -20,8 +20,12 @@ music/edit/NAME.flac (arrange.py --sources writes it), and put it in the song.
 RENOISE (.xrns: a zip of Song.xml and the sample). One instrument, the
 source, sliced at every bar line: a bar is a note (bar 1 is C-4, bar 2 C#4...
 in every track; the slices are named "bar N", and any lead-in before bar 1 is
-a slice of its own on B-3). One pattern per clip, named
-after it ("F peak"): 16 lines a bar (LPB 4), the bar's note on its first line.
+a slice of its own on B-3). A clip finer than a bar (the game's arranger cuts to
+a 32nd: "clip J at 17.25-17.5") adds a slice at each edge between bar lines
+("bar 17.25"), so a clip is still whole slices. One pattern per clip, named
+after it ("F peak"): 16 lines a bar (LPB 4; 32, LPB 8, when a clip's edge is
+finer than a 16th), each slice's note on its line. A note plays its slice to
+the next note or its slice's end, and the import reads them back that way.
 The pattern sequence is the arrangement, each entry a section named after its
 clip ("F peak x2" over a repeat), so the sequence reads as the .arr does.
 Clips the arrangement doesn't use come after it, in a section called CLIPS
@@ -40,8 +44,21 @@ the audio). One audio track. The arrangement: a clip per entry (a repeat is
 the clip again, end to end), each its bars of the source (warped at the .arr's
 tempo: played as is), with a cue marker at each entry named after its clip.
 The clip launcher: one scene per clip (the arrangement's order first, then any
-it doesn't use), each scene that clip in the track's slot, looping - launch a
-scene, or the slot. Reading one back: the track's arrangement clips in time
+it doesn't use), each scene that clip in the track's slot, looping on exactly
+its bars - launch a scene, or the slot. Each clip is coloured as its pad in the
+game's arranger, and its copies in the arrangement with it.
+With the track's stems (soundmon's stems.py, in ~/Music/NEON-CASTER/samples/
+NAME - TITLE: each part as long as the take and lined up with it to the
+sample) every stem is a track too, with the take's clips in the arrangement
+and the launcher, in group tracks as the parts add up: STEMS (drums, bass,
+synths + fx, vocals - they sum to the take, so they play and the take is
+muted, kept to compare) and the finer splits of the same sound, muted: DRUMS
+SPLIT, SYNTHS BY RANGE, SYNTHS BY KIND, SYNTHS DRY + REVERB. The stems are
+read where they are (external files), not copied in. The one-shots as
+sampler instruments (.multisample: soundmon's instruments.py) are in the
+folder's 5 Instruments/ - DAWproject can't hold Bitwig's own devices.
+Reading one back: the take's own track (named NAME), else the one with the
+most clips: its arrangement clips in time
 order, each placed back on bars by where it starts in the source and how long
 it is (a looped clip longer than its loop is that clip repeated); named as
 for Renoise, by the clip's name first.
@@ -86,6 +103,16 @@ def label(clip):
     return ("%s %s" % (c, kind)).strip()
 
 
+# the game arranger's clip colours (ArCol~&, EDITOR/ARRANGER.BM), by the clip's place in the .arr
+CLIP_COLOURS = ["#ff5ac8", "#5ae6ff", "#ffdc5a", "#78ff8c", "#ff8c3c", "#aa78ff",
+                "#ff646e", "#5aaaff", "#c8ff5a", "#ffaadc", "#64ffdc", "#e6e6e6"]
+
+
+def clip_colour(A, clip):
+    k = [c[0] for c in A["clips"]].index(clip[0])
+    return CLIP_COLOURS[k % len(CLIP_COLOURS)]
+
+
 def used_order(A):
     """The clips in the order the arrangement first plays them, then the ones it doesn't."""
     seen = []
@@ -97,12 +124,13 @@ def used_order(A):
     return [by[c] for c in seen if c in by]
 
 
-def runs_of(bars):
-    """Bars in play order -> runs [(first, last)]: each bar after the one before it carries a run on."""
+def runs_of_pieces(pieces):
+    """Pieces of the source in play order [(from, to)] -> runs: a piece starting where the one
+    before it ended carries a run on."""
     runs = []
-    for b in bars:
-        if runs and b == runs[-1][1] + 1: runs[-1] = (runs[-1][0], b)
-        else: runs.append((b, b))
+    for a, e in pieces:
+        if runs and abs(a - runs[-1][1]) < 1e-6: runs[-1] = (runs[-1][0], e)
+        else: runs.append((a, e))
     return runs
 
 
@@ -133,13 +161,21 @@ def collapse(names):
     return seq
 
 
-def finish(name, A, clips, order, out=None):
+LOOP_MARK = "|"      # a section (Renoise) or marker (Bitwig) named "| ..." is where the loop starts: what's before it is an intro
+
+
+def finish(name, A, clips, order, out=None, loop_i=None):
     """The .arr with the DAW's clips and arrangement (the rest kept), auto no - written to out
-    (or music/NAME.arr)."""
+    (or music/NAME.arr). loop_i: the play the loop starts on (after an intro), if one was marked."""
     if not order:
         raise SystemExit("%s: the song plays no bars - nothing to arrange" % name)
     B = dict(A)
-    B["clips"], B["arrange"], B["auto"] = clips, collapse(order), False
+    B["clips"], B["auto"] = clips, False
+    if loop_i and 0 < loop_i < len(order):
+        intro = collapse(order[:loop_i])
+        B["arrange"], B["loop"] = intro + collapse(order[loop_i:]), len(intro)
+    else:
+        B["arrange"], B["loop"] = collapse(order), 0
     if out:
         keep = arrange.arr_path
         arrange.arr_path = lambda n: out
@@ -170,12 +206,27 @@ def note_number(s):
     return None
 
 
+def clip_edges(A):
+    """Clip starts and ends between bar lines (a clip finer than a bar - the game's arranger cuts to a 32nd)."""
+    E = set()
+    for c, a, b, k in A["clips"]:
+        for x in (a, b + 1):
+            if not arrange.whole(x) and x > 1: E.add(x)
+    return sorted(E)
+
+
+def lpb_for(A):
+    """Lines a beat: 4 (a line a 16th), or 8 when a clip's edge is finer than a 16th."""
+    return LPB if all(arrange.whole(x * 4 * LPB) for x in clip_edges(A)) else 2 * LPB
+
+
 def slices(A, frames, sr):
-    """The slice markers (sample positions) and each slice's bar (0: the lead-in before bar 1)."""
+    """The slice markers (sample positions) and each slice's bar place (0: the lead-in before bar 1):
+    one a bar, and one more at each clip edge between bar lines - so every clip is whole slices."""
     pos, bars = [], []
     if A["offset"] >= 0.01:                              # more than 10 ms before bar 1: a lead-in slice
         pos.append(0); bars.append(0)
-    for b in range(1, A["bars"] + 1):
+    for b in sorted(set(range(1, A["bars"] + 1)) | set(clip_edges(A))):
         p = max(0, int(round(bar_start(A, b) * sr))) if pos else 0     # the first slice starts the sample (Renoise's way)
         if p >= frames: break
         if pos and p <= pos[-1]: continue
@@ -201,7 +252,7 @@ def xml_sample(name, note_lo, note_hi, base, length, markers=None, alias=False):
     return "".join(L)
 
 
-def xml_track_devices(master, bpm=None):
+def xml_track_devices(master, bpm=None, lpb=LPB):
     if master:
         return ("<FilterDevices><Devices><MasterTrackMixerDevice type=\"MasterTrackMixerDevice\">"
                 "<IsActive><Value>1.0</Value></IsActive><Panning><Value>0.5</Value></Panning>"
@@ -209,7 +260,7 @@ def xml_track_devices(master, bpm=None):
                 "<PostVolume><Value>1.0</Value></PostVolume>"
                 "<BpmAutomator><Value>%s</Value></BpmAutomator><LpbAutomator><Value>%d</Value></LpbAutomator>"
                 "<TplAutomator><Value>12</Value></TplAutomator>"
-                "</MasterTrackMixerDevice></Devices></FilterDevices>" % (fmt(bpm), LPB))
+                "</MasterTrackMixerDevice></Devices></FilterDevices>" % (fmt(bpm), lpb))
     return ("<FilterDevices><Devices><TrackMixerDevice type=\"TrackMixerDevice\">"
             "<IsActive><Value>1.0</Value></IsActive><Panning><Value>0.5</Value></Panning>"
             "<Volume><Value>1.0</Value></Volume><PostPanning><Value>0.5</Value></PostPanning>"
@@ -223,6 +274,8 @@ def fmt(x):
 
 def song_xml(name, A, frames, sr, sample_file):
     pos, sbars = slices(A, frames, sr)
+    lpb = lpb_for(A)
+    BL = 4 * lpb                                                       # lines a bar
     base = FIRST_SLICE - 1 - (1 if sbars and sbars[0] == 0 else 0)     # bar 1 is always C-4: a lead-in goes on B-3
     note_of = {b: base + 1 + k for k, b in enumerate(sbars)}
     ends = pos[1:] + [frames]
@@ -230,7 +283,7 @@ def song_xml(name, A, frames, sr, sample_file):
     samples = [xml_sample(name, base, base, base, frames, markers=pos)]
     for k, b in enumerate(sbars):
         n = base + 1 + k
-        samples.append(xml_sample("%s %s [%s]" % (name, "lead-in" if b == 0 else "bar %d" % b, note_name(n)),
+        samples.append(xml_sample("%s %s [%s]" % (name, "lead-in" if b == 0 else "bar %s" % arrange.bar_dec(b), note_name(n)),
                                   n, n, n, ends[k] - pos[k], alias=True))
     instrument = ("<Instrument><Name>%s</Name><GlobalProperties><Volume>1.0</Volume><Transpose>0</Transpose>"
                   "<BeatsPerMin>%s</BeatsPerMin></GlobalProperties><SampleGenerator><Samples>%s</Samples>"
@@ -243,20 +296,28 @@ def song_xml(name, A, frames, sr, sample_file):
     for c in clips:
         cn, a, b, kind = c
         lines = []
-        for k, bar in enumerate(range(a, b + 1)):
-            if bar not in note_of: continue
-            lines.append("<Line index=\"%d\"><NoteColumns><NoteColumn><Note>%s</Note><Instrument>00</Instrument>"
-                         "</NoteColumn></NoteColumns></Line>" % (k * BAR_LINES, note_name(note_of[bar])))
+        for bar in sbars:                 # every slice that starts in the clip, on its line
+            if not (a <= bar < b + 1): continue
+            at = (bar - a) * BL
+            if bar == 0:                  # the lead-in: on the line (and delay, 256ths of a line) where the source starts in bar 0
+                at = max(0.0, -bar_start(A, 0) / bar_len(A)) * BL
+            n, d = int(at + 1e-9), int(round((at - int(at + 1e-9)) * 256))
+            if d >= 256: n, d = n + 1, 0
+            if bar == 0: n = min(n, BL - 1)
+            line, delay = n, ("<Delay>%02X</Delay>" % d if d else "")
+            lines.append("<Line index=\"%d\"><NoteColumns><NoteColumn><Note>%s</Note><Instrument>00</Instrument>%s"
+                         "</NoteColumn></NoteColumns></Line>" % (line, note_name(note_of[bar]), delay))
         pats.append("<Pattern><Name>%s</Name><NumberOfLines>%d</NumberOfLines><Tracks>"
                     "<PatternTrack type=\"PatternTrack\"><Lines>%s</Lines></PatternTrack>"
                     "<PatternMasterTrack type=\"PatternMasterTrack\"><Lines/></PatternMasterTrack>"
-                    "</Tracks></Pattern>" % (escape(label(c)), (b - a + 1) * BAR_LINES, "".join(lines)))
+                    "</Tracks></Pattern>" % (escape(label(c)), int(round((b - a + 1) * BL)), "".join(lines)))
     # the sequence: the arrangement, a section an entry; then the spare clips
     seq = []
     lab = {c[0]: label(c) for c in clips}
-    for c, r in A["arrange"]:
+    for q, (c, r) in enumerate(A["arrange"]):
         for k in range(r):
             sec = lab[c] + (" x%d" % r if r > 1 else "")
+            if q == A.get("loop", 0) and q > 0: sec = LOOP_MARK + " " + sec
             seq.append((pidx[c], k == 0, sec))
     spare = [c for c in clips if c[0] not in {x for x, r in A["arrange"]}]
     for k, c in enumerate(spare):
@@ -267,14 +328,14 @@ def song_xml(name, A, frames, sr, sample_file):
     track = ("<SequencerTrack type=\"SequencerTrack\"><Name>%s</Name><Color>0,200,220</Color><State>Active</State>"
              "<NumberOfVisibleNoteColumns>1</NumberOfVisibleNoteColumns><NumberOfVisibleEffectColumns>1</NumberOfVisibleEffectColumns>"
              "<VolumeColumnIsVisible>true</VolumeColumnIsVisible><PanningColumnIsVisible>false</PanningColumnIsVisible>"
-             "<DelayColumnIsVisible>false</DelayColumnIsVisible><TrackRouting>0</TrackRouting><Visible>true</Visible>%s"
+             "<DelayColumnIsVisible>true</DelayColumnIsVisible><TrackRouting>0</TrackRouting><Visible>true</Visible>%s"
              "</SequencerTrack>" % (escape(name), xml_track_devices(False)))
     master = ("<SequencerMasterTrack type=\"SequencerMasterTrack\"><Name>Mst</Name><State>Active</State>"
               "<NumberOfVisibleNoteColumns>0</NumberOfVisibleNoteColumns><NumberOfVisibleEffectColumns>1</NumberOfVisibleEffectColumns>"
-              "<TrackRouting>0</TrackRouting><Visible>true</Visible>%s</SequencerMasterTrack>" % xml_track_devices(True, A["bpm"]))
+              "<TrackRouting>0</TrackRouting><Visible>true</Visible>%s</SequencerMasterTrack>" % xml_track_devices(True, A["bpm"], lpb))
     comments = ["NEON-CASTER - %s, from music/%s.arr (music/daw.py)." % (name, name),
                 "Each pattern is a clip; the sequence (up to the CLIPS section) is the arrangement, and loops.",
-                "A note is a bar of the source (the instrument's slices). Edit, save, then:",
+                "A note is a bar of the source, or a clip's piece of one (the instrument's slices). Edit, save, then:",
                 "  daw.py --from-xrns %s.xrns" % name]
     return ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<RenoiseSong doc_version=\"63\">"
             "<GlobalSongData><BeatsPerMin>%s</BeatsPerMin><LinesPerBeat>%d</LinesPerBeat><TicksPerLine>12</TicksPerLine>"
@@ -287,7 +348,7 @@ def song_xml(name, A, frames, sr, sample_file):
             "<PatternPool><Patterns>%s</Patterns></PatternPool>"
             "<PatternSequence><SequenceEntries>%s</SequenceEntries><PatternNameWidth>150</PatternNameWidth><KeepSequenceSorted>false</KeepSequenceSorted>"
             "</PatternSequence></RenoiseSong>\n"
-            % (fmt(A["bpm"]), LPB, escape(name), "".join("<SongComment>%s</SongComment>" % escape(c) for c in comments),
+            % (fmt(A["bpm"]), lpb, escape(name), "".join("<SongComment>%s</SongComment>" % escape(c) for c in comments),
                instrument, track, master, "".join(pats), entries))
 
 
@@ -329,9 +390,12 @@ def import_xrns(path, name=None, out=None):
         if sdir:
             try: sr = sf.info(io.BytesIO(z.read(sorted(sdir)[0]))).samplerate
             except Exception: pass
-    # each slice's note -> its bar (by where it starts in the source)
-    def bar_at(p):
-        return int(round((p / sr - A["offset"]) / bar_len(A))) + 1
+        try: lpb = int(root.findtext("./GlobalSongData/LinesPerBeat") or LPB)
+        except ValueError: lpb = LPB
+    BL = 4 * lpb                                          # lines a bar
+    # each slice's note -> its bar place (by where it starts in the source, to a 32nd)
+    def place_at(p):
+        return round(((p / sr - A["offset"]) / bar_len(A) + 1) * 32) / 32
     note_bar, near = {}, {}
     try: base = int(smp[0].findtext("./Mapping/BaseNote"))
     except (TypeError, ValueError): base = FIRST_SLICE - 1
@@ -340,16 +404,26 @@ def import_xrns(path, name=None, out=None):
         if k + 1 < len(smp):
             try: n = int(smp[k + 1].findtext("./Mapping/NoteStart"))
             except (TypeError, ValueError): pass
-        b = bar_at(p)
+        b = place_at(p)
         miss = abs(p / sr - bar_start(A, b))
-        if b in near and near[b][1] <= miss: b = 0           # another slice is nearer that bar line (a lead-in)
+        if b in near and near[b][1] <= miss: b = 0           # another slice is nearer that place (a lead-in)
         elif b in near: note_bar[near[b][0]] = 0
+        if b < 1 - 1e-6 and k == 0 and A["offset"] >= 0.01: b = 0    # the first slice, before bar 1: the lead-in
         if b: near[b] = (n, miss)
-        note_bar[n] = b
-    # each pattern: its bars, in line order (any track but the master)
+        note_bar[n] = arrange.bar_num(b)
+    places = sorted(set(note_bar.values()))
+    def slice_end(b):                                     # where a slice's piece of the source ends
+        if b == 0: return 1
+        later = [x for x in places if x > b + 1e-6]
+        return later[0] if later else A["bars"] + 1
+    # each pattern: the pieces of the source it plays, in order - a note plays its slice to the
+    # next note or the slice's end (any track but the master)
+    lead_at = max(0.0, -bar_start(A, 0) / bar_len(A))     # where the lead-in's note sits in its bar
     pats = []
     for pt in root.findall("./PatternPool/Patterns/Pattern"):
         notes = []
+        try: plen = int(pt.findtext("NumberOfLines") or 64) / BL
+        except ValueError: plen = 64 / BL
         for tr in pt.findall("./Tracks/*"):
             if tr.tag != "PatternTrack": continue
             for ln in tr.findall("./Lines/Line"):
@@ -359,22 +433,34 @@ def import_xrns(path, name=None, out=None):
                     ins = nc.findtext("Instrument")
                     if n is None or n not in note_bar: continue
                     if ins not in (None, "", "..") and int(ins, 16) != k_inst: continue
-                    if note_bar[n] >= 1: notes.append((li, col, note_bar[n]))
+                    try: dl = int(nc.findtext("Delay") or "0", 16)
+                    except ValueError: dl = 0
+                    at = (li + dl / 256.0) / BL               # where in the pattern, in bars
+                    b = note_bar[n]
+                    if b == 0: at = max(0.0, at - lead_at)    # (the lead-in's note sits where the source starts: its bar began before)
+                    notes.append((round(at * 32) / 32, col, b))
         notes.sort()
+        pieces = []
+        for q, (at, col, b) in enumerate(notes):
+            nxt = notes[q + 1][0] if q + 1 < len(notes) else plen
+            d = min(nxt - at, slice_end(b) - b)
+            if d > 1e-6: pieces.append((b, b + d))
         hint = (pt.findtext("Name") or "").split()
-        pats.append((hint[0] if hint else None, [b for li, col, b in notes]))
+        pats.append((hint[0] if hint else None, pieces))
     # the sequence, up to CLIPS
-    namer, order, cache = Namer(A), [], {}
+    namer, order, cache, loop_i = Namer(A), [], {}, None
     for e in root.findall("./PatternSequence/SequenceEntries/SequenceEntry"):
         if e.findtext("IsSectionStart") == "true" and (e.findtext("SectionName") or "").strip().upper() == CLIPS_SECTION:
             break
+        if e.findtext("IsSectionStart") == "true" and (e.findtext("SectionName") or "").strip().startswith(LOOP_MARK):
+            loop_i = len(order)
         p = int(e.findtext("Pattern", "0"))
         if p >= len(pats): continue
         if p not in cache:
-            hint, bars = pats[p]
-            cache[p] = [namer.name(a, b, hint) for a, b in runs_of(bars)]
+            hint, pieces = pats[p]
+            cache[p] = [namer.name(arrange.bar_num(a), arrange.bar_num(e - 1), hint) for a, e in runs_of_pieces(pieces)]
         order += cache[p]
-    return finish(name, A, namer.clips, order, out)
+    return finish(name, A, namer.clips, order, out, loop_i)
 
 
 # --- BITWIG (DAWproject) ----------------------------------------------------
@@ -385,63 +471,134 @@ class Ids:
         return "id%d" % (self.n - 1)
 
 
-def dp_clip(A, clip, time, seconds, audio_path, ids, loop=False):
-    """A clip of the source's bars a..b at time (beats): the audio warped at the .arr's tempo."""
+def dp_clip(A, clip, time, seconds, audio_path, ids, loop=False, external=False):
+    """A clip of the source's bars a..b at time (beats), nested as Bitwig writes its own: the outer
+    clip is the bars (looping round them in its own beats, 0 to their length, in the launcher), the
+    inner one the audio warped at the .arr's tempo, played from bar a. The lead-in's bar (0) starts
+    before the file does: its inner clip starts that much later, so the beat still lines up."""
     c, a, b, kind = clip
     bpm = A["bpm"]
     start = bar_start(A, a) * bpm / 60.0               # the bar in the content's beats (the file's 0 is beat 0)
     dur = 4.0 * (b - a + 1)
+    late = 0.0
+    if start < 0: late, start = -start, 0.0            # the lead-in: silence till the file starts
     end_beats = seconds * bpm / 60.0
-    lp = ' loopStart="%s" loopEnd="%s"' % (fmt(start), fmt(start + dur)) if loop else ""
-    return ('<Clip time="%s" duration="%s" contentTimeUnit="beats" playStart="%s"%s fadeTimeUnit="beats" '
-            'fadeInTime="0.0" fadeOutTime="0.0" name="%s">'
+    lp = ' loopStart="0.0" loopEnd="%s"' % fmt(dur) if loop else ""
+    return ('<Clip time="%s" duration="%s" contentTimeUnit="beats" playStart="0.0"%s fadeTimeUnit="beats" '
+            'fadeInTime="0.0" fadeOutTime="0.0" name="%s" color="%s"><Clips id="%s">'
+            '<Clip time="%s" duration="%s" contentTimeUnit="beats" playStart="%s" fadeTimeUnit="beats" '
+            'fadeInTime="0.0" fadeOutTime="0.0">'
             '<Warps contentTimeUnit="seconds" timeUnit="beats" id="%s">'
-            '<Audio algorithm="stretch" channels="2" duration="%s" sampleRate="%d" id="%s"><File path="%s"/></Audio>'
-            '<Warp time="0.0" contentTime="0.0"/><Warp time="%s" contentTime="%s"/></Warps></Clip>'
-            % (fmt(time), fmt(dur), fmt(start), lp, escape(label(clip)), ids(), fmt(seconds), arrange.SR, ids(),
-               escape(audio_path), fmt(end_beats), fmt(seconds)))
+            '<Audio algorithm="stretch" channels="2" duration="%s" sampleRate="%d" id="%s"><File path="%s"%s/></Audio>'
+            '<Warp time="0.0" contentTime="0.0"/><Warp time="%s" contentTime="%s"/></Warps></Clip></Clips></Clip>'
+            % (fmt(time), fmt(dur), lp, escape(label(clip)), clip_colour(A, clip), ids(),
+               fmt(late), fmt(dur - late), fmt(start), ids(), fmt(seconds), arrange.SR, ids(),
+               escape(audio_path), ' external="true"' if external else "", fmt(end_beats), fmt(seconds)))
 
 
-def project_xml(name, A, seconds, audio_path):
+# The stems (soundmon's stems.py, ~/Music/NEON-CASTER/samples/NAME - TITLE/1 Stems): each part of
+# the take, as long as it and lined up with it to the sample - so every stem gets the take's clips.
+# In groups, as they add up: the four-part split plays (it sums to the take, which is muted, kept
+# to compare); the finer splits of the same sound are muted, to bring in in its place.
+STEM_GROUPS = [
+    ("STEMS", ["drums", "bass", "synths + fx", "vocals"], False),
+    ("DRUMS SPLIT", ["kick", "snare", "toms", "hats", "ride", "crash"], True),
+    ("SYNTHS BY RANGE", ["synth low", "synth mid", "synth high"], True),
+    ("SYNTHS BY KIND", ["synth held", "synth hits"], True),
+    ("SYNTHS DRY + REVERB", ["synth dry", "reverb"], True),
+]
+STEM_COLOURS = {"STEMS": "#ff5ac8", "DRUMS SPLIT": "#ffdc5a", "SYNTHS BY RANGE": "#5ae6ff",
+                "SYNTHS BY KIND": "#aa78ff", "SYNTHS DRY + REVERB": "#78ff8c"}
+SAMPLES = os.path.expanduser("~/Music/NEON-CASTER/samples")
+
+
+def stems_folder(name):
+    """The stems of track name (the folder stems.py made: "NAME - TITLE"), or None"""
+    if not os.path.isdir(SAMPLES): return None
+    for d in sorted(os.listdir(SAMPLES)):
+        if d.startswith(name + " - ") and os.path.isfile(os.path.join(SAMPLES, d, "stems.json")):
+            return os.path.join(SAMPLES, d)
+    return None
+
+
+def stem_groups(name):
+    """[(group, colour, muted, [(part, absolute path, seconds)])] - the parts there are"""
+    import soundfile as sf
+    folder = stems_folder(name)
+    if not folder: return []
+    groups = []
+    for g, parts, muted in STEM_GROUPS:
+        have = []
+        for part in parts:
+            f = os.path.join(folder, "1 Stems", "%s - stem - %s.wav" % (name, part))
+            if os.path.isfile(f):
+                info = sf.info(f)
+                have.append((part, f, info.frames / info.samplerate))
+        if have: groups.append((g, STEM_COLOURS[g], muted, have))
+    return groups
+
+
+def project_xml(name, A, seconds, audio_path, stems=()):
     ids = Ids()
     bpm = A["bpm"]
     by = {c[0]: c for c in A["clips"]}
     tempo, sig = ids(), ids()
     master, mch = ids(), ids()
-    track, tch = ids(), ids()
-    def channel(cid, role, dest=""):
+    def channel(cid, role, dest="", muted=False):
         return ('<Channel audioChannels="2"%s role="%s" solo="false" id="%s">'
-                '<Mute value="false" id="%s" name="Mute"/>'
+                '<Mute value="%s" id="%s" name="Mute"/>'
                 '<Pan max="1.000000" min="0.000000" unit="normalized" value="0.500000" id="%s" name="Pan"/>'
                 '<Volume max="2.000000" min="0.000000" unit="linear" value="1.000000" id="%s" name="Volume"/>'
-                '</Channel>' % (' destination="%s"' % dest if dest else "", role, cid, ids(), ids(), ids()))
-    structure = ('<Track contentType="audio" loaded="true" id="%s" name="%s" color="#00c8dc">%s</Track>'
-                 '<Track contentType="audio notes" loaded="true" id="%s" name="Master">%s</Track>'
-                 % (track, escape(name), channel(tch, "regular", mch), master, channel(mch, "master")))
-    # the arrangement: a clip per play, a marker per entry
-    clips, markers, t = [], [], 0.0
-    for c, r in A["arrange"]:
+                '</Channel>' % (' destination="%s"' % dest if dest else "", role, cid,
+                                "true" if muted else "false", ids(), ids(), ids()))
+    # the tracks: the take, then each group of stems - (track id, audio path, external, seconds)
+    track, tch = ids(), ids()
+    audio = [(track, audio_path, False, seconds)]
+    structure = ['<Track contentType="audio" loaded="true" id="%s" name="%s" color="#00c8dc">%s</Track>'
+                 % (track, escape(name), channel(tch, "regular", mch, muted=bool(stems)))]
+    for g, colour, muted, parts in stems:
+        gid, gch = ids(), ids()
+        kids = []
+        for part, path, secs in parts:
+            tid, cid = ids(), ids()
+            audio.append((tid, path, True, secs))
+            kids.append('<Track contentType="audio" loaded="true" id="%s" name="%s" color="%s">%s</Track>'
+                        % (tid, escape("%s %s" % (name, part)), colour, channel(cid, "regular", gch)))
+        structure.append('<Track contentType="tracks" loaded="true" id="%s" name="%s" color="%s">%s%s</Track>'
+                         % (gid, escape(g), colour, channel(gch, "submix", mch, muted=muted), "".join(kids)))
+    structure.append('<Track contentType="audio notes" loaded="true" id="%s" name="Master">%s</Track>'
+                     % (master, channel(mch, "master")))
+    # the arrangement: a clip per play on every track, a marker per entry
+    lanes = {tid: [] for tid, _, _, _ in audio}
+    markers, t = [], 0.0
+    for q, (c, r) in enumerate(A["arrange"]):
         cl = by[c]
-        markers.append('<Marker time="%s" name="%s"/>' % (fmt(t), escape(label(cl) + (" x%d" % r if r > 1 else ""))))
+        mk_name = label(cl) + (" x%d" % r if r > 1 else "")
+        if q == A.get("loop", 0) and q > 0: mk_name = LOOP_MARK + " " + mk_name
+        markers.append('<Marker time="%s" name="%s"/>' % (fmt(t), escape(mk_name)))
         for k in range(r):
-            clips.append(dp_clip(A, cl, t, seconds, audio_path, ids))
+            for tid, path, ext, secs in audio:
+                lanes[tid].append(dp_clip(A, cl, t, secs, path, ids, external=ext))
             t += 4.0 * (cl[2] - cl[1] + 1)
-    lanes, clipsid, mk = ids(), ids(), ids()
-    arrangement = ('<Arrangement id="%s"><Lanes timeUnit="beats" id="%s"><Clips track="%s" id="%s">%s</Clips></Lanes>'
+    mk = ids()
+    arrangement = ('<Arrangement id="%s"><Lanes timeUnit="beats" id="%s">%s</Lanes>'
                    '<Markers id="%s">%s</Markers></Arrangement>'
-                   % (ids(), lanes, track, clipsid, "".join(clips), mk, "".join(markers)))
-    # the launcher: a scene a clip, the clip in the track's slot, looping
+                   % (ids(), ids(), "".join('<Clips track="%s" id="%s">%s</Clips>' % (tid, ids(), "".join(lanes[tid]))
+                                            for tid, _, _, _ in audio), mk, "".join(markers)))
+    # the launcher: a scene a clip, the clip in every track's slot, looping
     scenes = []
     for cl in used_order(A):
-        scenes.append('<Scene id="%s" name="%s"><Lanes timeUnit="beats" id="%s"><ClipSlot track="%s" hasStop="true" id="%s">%s'
-                      '</ClipSlot></Lanes></Scene>' % (ids(), escape(label(cl)), ids(), track, ids(),
-                                                      dp_clip(A, cl, 0.0, seconds, audio_path, ids, loop=True)))
+        slots = "".join('<ClipSlot track="%s" hasStop="true" id="%s">%s</ClipSlot>'
+                        % (tid, ids(), dp_clip(A, cl, 0.0, secs, path, ids, loop=True, external=ext))
+                        for tid, path, ext, secs in audio)
+        scenes.append('<Scene id="%s" name="%s"><Lanes timeUnit="beats" id="%s">%s</Lanes></Scene>'
+                      % (ids(), escape(label(cl)), ids(), slots))
     return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Project version="1.0">'
             '<Application name="NEON-CASTER daw.py" version="1.0"/>'
             '<Transport><Tempo max="666.000000" min="20.000000" unit="bpm" value="%s" id="%s" name="Tempo"/>'
             '<TimeSignature denominator="4" numerator="4" id="%s"/></Transport>'
             '<Structure>%s</Structure>%s<Scenes>%s</Scenes></Project>\n'
-            % ("%.6f" % bpm, tempo, sig, structure, arrangement, "".join(scenes)))
+            % ("%.6f" % bpm, tempo, sig, "".join(structure), arrangement, "".join(scenes)))
 
 
 def metadata_xml(name):
@@ -462,7 +619,8 @@ def export_dawproject(name, folder=None):
     audio = "audio/%s.flac" % name
     tmp = path + ".part"
     with zipfile.ZipFile(tmp, "w") as z:
-        z.writestr("project.xml", project_xml(name, A, info.frames / info.samplerate, audio), compress_type=zipfile.ZIP_DEFLATED)
+        z.writestr("project.xml", project_xml(name, A, info.frames / info.samplerate, audio, stem_groups(name)),
+                   compress_type=zipfile.ZIP_DEFLATED)
         z.writestr("metadata.xml", metadata_xml(name), compress_type=zipfile.ZIP_DEFLATED)
         z.write(src, audio, compress_type=zipfile.ZIP_STORED)
     os.replace(tmp, path)
@@ -567,7 +725,10 @@ def import_dawproject(path, name=None, out=None):
     for x in arr:
         if x.tag == "Lanes": walk(x, x.get("timeUnit") or "beats")
     plays = []      # (time in beats, duration in beats, source seconds, loop beats or None, name hint)
-    for trk, lst in sorted(found.items(), key=lambda kv: -sum(len(c.findall("Clip")) for c, u in kv[1])):
+    def take_first(kv):          # the take's track (named as the song; the stems are "NAME part"), else the most clips
+        named = (refs.get(kv[0]) is not None and (refs[kv[0]].get("name") or "") == name)
+        return (not named, -sum(len(c.findall("Clip")) for c, u in kv[1]))
+    for trk, lst in sorted(found.items(), key=take_first):
         for clips_el, unit in lst:
             for c in clips_el.findall("Clip"):
                 if c.get("enable") == "false": continue
@@ -587,20 +748,33 @@ def import_dawproject(path, name=None, out=None):
                 plays.append((t, d, s, loop, hint[0] if hint else None))
         if plays: break          # the first track (most clips) with audio
     plays.sort()
-    namer, order = Namer(A), []
+    loop_t = None                # a marker named "| ...": the loop starts there (what's before it is an intro)
+    for mk in arr.iter("Marker"):
+        if (mk.get("name") or "").strip().startswith(LOOP_MARK):
+            mu = None
+            for el in arr.iter("Markers"): mu = el.get("timeUnit") or mu
+            loop_t = to_unit(_f(mk, "time", 0.0), mu or "beats", "beats", bpm)
+    namer, order, loop_i = Namer(A), [], None
     bl = bar_len(A)
+    lead = A["offset"] >= 0.01
+    q32 = lambda x: round(x * 32) / 32                  # (to a 32nd of a bar: the game's arranger's finest)
     for t, d, s, loop, hint in plays:
-        first = int(round((s - A["offset"]) / bl)) + 1
-        n = max(1, int(round(d / 4.0)))
+        first = q32((s - A["offset"]) / bl + 1)
+        if lead and s < A["offset"] - 0.02:            # it starts before bar 1: the lead-in - bar 0 counted whole
+            first = 0
+            d += (s - bar_start(A, 0)) / bl * 4.0
+        n = max(1 / 32, q32(d / 4.0))
         reps = 1
         if loop and loop < d - 1e-3:
-            ln = max(1, int(round(loop / 4.0)))
+            ln = max(1 / 32, q32(loop / 4.0))
             reps, n = max(1, int(round(d / loop))), ln
-        first = max(1, first)
+        first = max(0 if lead else 1, first)
         last = min(A["bars"], first + n - 1)
-        if last < first: continue
+        if last + 1 <= first: continue
+        first, last = arrange.bar_num(first), arrange.bar_num(last)
+        if loop_t is not None and loop_i is None and t >= loop_t - 1e-3: loop_i = len(order)
         order += [namer.name(first, last, hint)] * reps
-    return finish(name, A, namer.clips, order, out)
+    return finish(name, A, namer.clips, order, out, loop_i)
 
 
 # --- THE COMMAND LINE -------------------------------------------------------

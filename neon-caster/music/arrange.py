@@ -50,6 +50,8 @@ def tracks():
     for pat in ("*.ogg", "*.flac", "src/*.ogg", "src/*.flac"):
         for f in glob.glob(os.path.join(HERE, pat)):
             names.add(os.path.splitext(os.path.basename(f))[0])
+    # NAME-intro.ogg is NAME's intro, rendered from NAME.arr: not a track of its own
+    names = {n for n in names if not (n.endswith("-intro") and n[:-6] in names)}
     def key(n):
         m = re.match(r"([a-z]+)(\d*)$", n)
         return (m.group(1), int(m.group(2) or 0)) if m else (n, 0)
@@ -434,21 +436,47 @@ def arr_path(name):
 def write_arr(name, A):
     """A: bpm, offset, bars, tail, clips [(name, first, last, kind)] 1-based, arrange [(clip, times)],
     auto, seams {(i, j): score} 1-based, source."""
-    L = ["; NEON-CASTER - %s's bars, clips and arrangement (music/arrange.py; bars count from 1)" % name,
-         "; arrange: clips in order, CLIP*N repeats one; the file loops as a whole. seam I J S: after bar I, bar J can follow (S: how alike, 0-1)",
+    L = ["; NEON-CASTER - %s's bars, clips and arrangement (music/arrange.py; bars count from 1 - bar 0 is the lead-in before it)" % name,
+         "; arrange: clips in order, CLIP*N repeats one; it loops as a whole - or, after a |, from there (what's before it plays once: an intro). seam I J S: after bar I, bar J can follow (S: how alike, 0-1)",
          "bpm %.3f   offset %.4f   bars %d   tail %d" % (A["bpm"], A["offset"], A["bars"], A["tail"]),
          "source %s" % A.get("source", ""),
          "auto %s          ; yes: arrange.py --analyze may rewrite the clips and arrangement - no: they're yours" % ("yes" if A.get("auto", True) else "no")]
     for c, a, b, kind in A["clips"]:
-        L.append("clip %-2s bars %d-%d%s%s" % (c, a, b, " " * max(1, 8 - len("%d-%d" % (a, b))), kind))
-    L.append("arrange " + " ".join(c if t == 1 else "%s*%d" % (c, t) for c, t in A["arrange"]))
+        if whole(a) and whole(b):
+            w, r = "bars", "%d-%d" % (a, b)
+        else:                         # finer than a bar (the game's arranger, to a 32nd): bar places, end not included
+            w, r = "at", "%s-%s" % (bar_dec(a), bar_dec(b + 1))
+        L.append("clip %-2s %s %s%s%s" % (c, w, r, " " * max(1, 8 - len(r)), kind))     # (as the game's ArClipLine$)
+    L.append("arrange " + arrange_text(A))
     for (i, j), sc in sorted(A.get("seams", {}).items()):
-        L.append("seam %d %d %.2f" % (i, j, sc))
+        if whole(i) and whole(j): L.append("seam %d %d %.2f" % (i, j, sc))
     open(arr_path(name), "w").write("\n".join(L) + "\n")
 
 
+def whole(x):
+    """A whole bar (a clip finer than a bar starts or ends between them)."""
+    return abs(x - round(x)) < 1e-6
+
+
+def bar_num(x):
+    """A bar place as the .arr keeps it: an int when it's whole."""
+    return int(round(x)) if whole(x) else x
+
+
+def bar_dec(x):
+    """A bar place in decimals, as few places as it needs (the game's ArBarsDec$): 5.25, 5.03125."""
+    return ("%.5f" % x).rstrip("0").rstrip(".")
+
+
+def arrange_text(A):
+    """The arrange line's clips: CLIP*N for a repeat, a | where the loop starts (after an intro)."""
+    w = [c if t == 1 else "%s*%d" % (c, t) for c, t in A["arrange"]]
+    if A.get("loop", 0) > 0: w.insert(A["loop"], "|")
+    return " ".join(w)
+
+
 def read_arr(name):
-    A = dict(clips=[], arrange=[], seams={}, auto=True, source="")
+    A = dict(clips=[], arrange=[], seams={}, auto=True, source="", loop=0)
     for line in open(arr_path(name), encoding="utf-8"):
         line = line.split(";")[0].strip()
         if not line: continue
@@ -460,9 +488,14 @@ def read_arr(name):
         elif w[0] == "auto": A["auto"] = w[1].lower() == "yes"
         elif w[0] == "clip":
             a, b = w[3].split("-")
-            A["clips"].append((w[1], int(a), int(b), w[4] if len(w) > 4 else ""))
+            if w[2] == "at":           # clip X at 5.25-5.5: bar places, the end not included
+                a, b = bar_num(float(a)), bar_num(float(b) - 1)
+            else:                      # clip X bars 1-4: the first bar and the last
+                a, b = int(a), int(b)
+            A["clips"].append((w[1], a, b, w[4] if len(w) > 4 else ""))
         elif w[0] == "arrange":
             for t in w[1:]:
+                if t == "|": A["loop"] = len(A["arrange"]); continue      # the loop starts here
                 c, _, n = t.partition("*")
                 A["arrange"].append((c, int(n) if n else 1))
         elif w[0] == "seam":
@@ -494,7 +527,7 @@ def analyze(name, fresh=False):
     if os.path.exists(arr_path(name)) and not fresh:
         old = read_arr(name)
         if not old["auto"]:
-            A["clips"], A["arrange"], A["auto"] = old["clips"], old["arrange"], False
+            A["clips"], A["arrange"], A["auto"], A["loop"] = old["clips"], old["arrange"], False, old.get("loop", 0)
             write_arr(name, A)
             return A, info
     A["clips"], A["arrange"] = runs_to_clips(A, auto_arrange(A, info))
@@ -547,7 +580,11 @@ def target_energy(f):
 def jump_score(S, i, j, tail):
     """Bar i (0-based) followed by bar j instead of the bar after it: how alike the bars round the
     join are - bar i against the bar before j, the bar after i against j (when that isn't the
-    fade). 1 = as alike as a loop's repeats."""
+    fade). 1 = as alike as a loop's repeats. Into or out of the lead-in (bar 0, j or i -1 here)
+    there's nothing to compare: the renderer's own guess for an unscored jump, 0.4."""
+    if i < 0 or j < 0: return 0.4
+    if not (whole(i) and whole(j)): return 0.4    # (a clip finer than a bar: between bar lines, nothing to compare)
+    i, j = int(round(i)), int(round(j))
     v = []
     if j >= 1: v.append(S[i, j - 1])
     if i + 1 < tail: v.append(S[i + 1, j])
@@ -681,15 +718,22 @@ def runs_to_clips(A, runs):
     return clips, seq
 
 
-def arrangement_joins(A, S):
-    """Every join in the arrangement (the loop back to the start included): [(from bar, to bar, score)], 1-based."""
+def blocks(A):
+    """The arrangement as bars played, [(first, last)] a play, and the play the loop goes back to (after an intro)."""
     cl = {c: (a, b) for c, a, b, k in A["clips"]}
-    seq = []
-    for c, r in A["arrange"]:
+    seq, back = [], 0
+    for q, (c, r) in enumerate(A["arrange"]):
+        if q == A.get("loop", 0): back = len(seq)
         seq += [cl[c]] * r
+    return seq, back
+
+
+def arrangement_joins(A, S):
+    """Every join in the arrangement (the loop back to its start included): [(from bar, to bar, score)], 1-based."""
+    seq, back = blocks(A)
     out = []
     for q in range(len(seq)):
-        a, b = seq[q]; na, nb = seq[(q + 1) % len(seq)]
+        a, b = seq[q]; na, nb = seq[q + 1] if q + 1 < len(seq) else seq[back]
         out.append((b, na, 1.0 if na == b + 1 else jump_score(S, b - 1, na - 1, A["tail"] - 1)))
     return out
 
@@ -745,13 +789,12 @@ def xfade(a, b):
 def render(name, A=None, y=None, S=None):
     """The arrangement as audio: (samples, joins [(sample, score)]). Natural joins run on; a
     jump crossfades (equal power) over the stretch just before the bar line, so the new bar's
-    hit is never blurred; the end crossfades into the start, so the file loops without a seam."""
+    hit is never blurred; the end crossfades into the start (the loop's, after an intro), so it loops
+    without a seam. render.loop_at: the sample the loop starts on (0 with no intro)."""
     if A is None: A = read_arr(name)
     if y is None: y = load(name)
-    cl = {c: (a, b) for c, a, b, k in A["clips"]}
-    seq = []
-    for c, r in A["arrange"]:
-        seq += [cl[c]] * r
+    seq, back = blocks(A)
+    render.loop_at = sum(bar_sample(A, b + 1) - bar_sample(A, a) for a, b in seq[:back])
     tail = A["tail"] - 1
     def score(b, na):
         if na == b + 1: return 1.0
@@ -794,8 +837,9 @@ def render(name, A=None, y=None, S=None):
         out.append(seg)
         pos += len(seg)
     y2 = np.concatenate(out)
-    # the loop: the end crossfades into what comes before the first bar line
-    s0, firstbar = spans[0][0], spans[0][3]
+    # the loop: the end crossfades into what comes before its first bar line
+    firstbar = seq[back][0]
+    s0 = bar_sample(A, firstbar)
     sc = score(spans[-1][2], firstbar)
     X = xfade_len(sc)
     pre = piece(y, s0 - X, s0)
@@ -863,6 +907,14 @@ def shipped_peak(name):
     return 0.891
 
 
+INTRO_TAIL = 0.5       # seconds of the loop on the end of NAME-intro.ogg (the game's hand-over)
+
+
+def seq_first(A):
+    """The first bar the arrangement plays."""
+    return {c: a for c, a, b, k in A["clips"]}[A["arrange"][0][0]]
+
+
 def render_to(name, path, A=None):
     """Render NAME.arr to path (.ogg: q5 from a lossless source, q6 from a lossy one - less lost
     again), its decoded peak no higher than the game's copy had (encoding adds a few %: turned
@@ -872,6 +924,20 @@ def render_to(name, path, A=None):
     y = load(name)
     y2, joins = render(name, A, y)
     ins, gdb = render.bars_in, render.gain_db
+    p = render.loop_at
+    ipath = os.path.join(os.path.dirname(path), name + "-intro.ogg")
+    intro = None
+    if p > 0:
+        # the intro: from where the take's sound begins (a lead-in's bar starts before it), and
+        # INTRO_TAIL seconds of the loop after it - the game hands over to the loop in there,
+        # at the same place, whenever its frame comes
+        lead = max(0, -bar_sample(A, seq_first(A)))
+        intro = y2[lead:p + int(INTRO_TAIL * SR)]
+        y2 = y2[p:]
+        joins = [(at - p, sc) for at, sc in joins if at > p]
+        ins = ins[len(ins) - len(joins):]
+    elif os.path.exists(ipath):
+        os.remove(ipath)             # no intro now
     _, _, lossless = source_path(name)
     q = 5 if lossless else 6
     limit = max(min(shipped_peak(name), 0.891), 0.5)
@@ -879,9 +945,14 @@ def render_to(name, path, A=None):
         write_ogg(y2, path, q)
         d, _ = sf.read(path, dtype="float32")
         pk = float(np.abs(d).max())
+        if intro is not None:        # the same gain for both, or the hand-over would jump
+            write_ogg(intro, ipath, q)
+            d, _ = sf.read(ipath, dtype="float32")
+            pk = max(pk, float(np.abs(d).max()))
         if pk <= limit * 1.002: break
         g = limit / pk * 0.995
         y2 = y2 * np.float32(g); gdb += 20 * np.log10(g)
+        if intro is not None: intro = intro * np.float32(g)
     clicks = join_clicks(y2, joins, y, A, ins)
     return dict(seconds=len(y2) / SR, peak=pk, gain_db=gdb, worst_click=max([c[2] for c in clicks if c[1] < 1] or [0]),
                 joins=len([c for c in clicks if c[1] < 1]), mb=os.path.getsize(path) / 1e6)
@@ -891,8 +962,7 @@ def render_to(name, path, A=None):
 def summary(name, A, info=None):
     L = {c: b - a + 1 for c, a, b, k in A["clips"]}
     bars = sum(r * L[c] for c, r in A["arrange"])
-    s = "%-9s %6.2f bpm  %2d bars  %3.0f s  %s" % (name, A["bpm"], A["bars"], bars * 240 / A["bpm"],
-        " ".join(c if r == 1 else "%s*%d" % (c, r) for c, r in A["arrange"]))
+    s = "%-9s %6.2f bpm  %2d bars  %3.0f s  %s" % (name, A["bpm"], A["bars"], bars * 240 / A["bpm"], arrange_text(A))
     if info is not None:
         J = arrangement_joins(A, info["S"])
         jumps = [j for j in J if j[1] != j[0] + 1]
@@ -915,7 +985,7 @@ def score_seams(name):
     pairs = [(b, na) for b, na, sc in arrangement_joins(A, S) if na != b + 1]
     pairs += [(b, a) for c, a, b, k in A["clips"] if a != b + 1]
     for b, na in pairs:
-        if (b, na) not in A["seams"] and 1 <= b <= S.shape[0] and 1 <= na <= S.shape[0]:
+        if (b, na) not in A["seams"] and whole(b) and whole(na) and 1 <= b <= S.shape[0] and 1 <= na <= S.shape[0]:
             A["seams"][(b, na)] = jump_score(S, b - 1, na - 1, A["tail"] - 1)
             n += 1
     write_arr(name, A)

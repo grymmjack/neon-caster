@@ -59,6 +59,7 @@ it yourself:
 | 1-5 or mouse wheel | choose a gun (5: the rocket launcher - hold the right button to zoom right in) |
 | Right button (hold) | aim down the sights (zooms in) |
 | Esc | the menu: pause, new game, save, load, settings, exit |
+| Alt+X | quit, from anywhere, at once (no question asked; your settings are saved) |
 | F5 / F9 | quick save / quick load |
 | Tab | the full-screen map (all of it once you've found the map pickup), textured as Duke3D's: each floor you know in its own picture from above, walls as lines - pools in their colours, pits, lifts and teleporter pads |
 | ` (backtick) | the console: type `help` for the commands |
