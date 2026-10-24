@@ -81,6 +81,7 @@
 '$INCLUDE:'./EDITOR/HUDEDIT.BM'
 '$INCLUDE:'./EDITOR/MONEDIT.BM'
 '$INCLUDE:'./EDITOR/TUNER.BM'
+'$INCLUDE:'./EDITOR/SESSION.BM'
 
 ' AUDIO -----------------------------------------------------------------------
 '$INCLUDE:'./AUDIO/SOUND.BM'

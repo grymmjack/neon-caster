@@ -32,9 +32,11 @@ SUB EditEnter STATIC
     IF editGlyph$ = "" THEN editGlyph$ = "#"
     FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
     EditNote "EDITOR: " + levelName$
+    EditRecentNote ' (the sectors edited last: EDIT's RESUME LAST EDIT - EDITOR/SESSION.BM)
 END SUB
 
 SUB EditLeave STATIC
+    EditRecentNote ' (where you were, and the view, for RESUME LAST EDIT)
     editMode = 0 : editView = 0 : EditReset
     IF NOT Walkable(playerX, playerY) THEN ' (left inside something: step out to the nearest open cell)
         FOR r = 1 TO 8
@@ -93,7 +95,8 @@ SUB EditTBClick STATIC
         CASE TB_PREV : EditOtherLevel_Prev
         CASE TB_NEXT : EditOtherLevel_Next
         CASE TB_KINDS : RunMonsterEditor : _MOUSESHOW
-        CASE TB_SECTOR : edSectorPane = NOT edSectorPane : edTyping = 0 : edSlotPick = 0
+        CASE TB_SECTOR : edSectorPane = NOT edSectorPane : edTyping = 0 : edSlotPick = 0 : edVerPane = 0
+        CASE TB_VERSIONS : edVerPane = NOT edVerPane : edSectorPane = 0 : edTyping = 0 : edSlotPick = 0 : edVerTop = 0 : IF edVerPane THEN EditVerList ' (EDITOR/SESSION.BM)
     END SELECT
     editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT) ' (the map from above's own names for two of the tools)
 END SUB
@@ -106,7 +109,15 @@ SUB EditPkClick STATIC
     SELECT CASE edPkKind(pkIdx)
         CASE PK_GLYPH
             edSlotPick = 0 ' (a sector picture being chosen: not any more)
-            editGlyph$ = edPkVal$(pkIdx) : edBrushKind = PK_GLYPH : edTool = ET_PLACE
+            pkWallK = INSTR("#NCKPG", edPkVal$(pkIdx))
+            IF edTool = ET_PAINT AND pkWallK > 0 AND LEN(edPkVal$(pkIdx)) = 1 THEN ' PAINT on: a kind of wall is its picture - the brush, still painting (not PLACE: that built a wall where you clicked next)
+                edBrushTex$ = lvlWall$(pkWallK) : edBrushKind = PK_TEX
+                IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+                edBrushImg& = EditFileThumb&(edBrushTex$)
+                IF edSelN THEN EditPaintSel ELSE EditNote "PAINT " + edBrushTex$ + " (" + GlyphName$(edPkVal$(pkIdx)) + "'s picture): click a face"
+                EXIT SUB
+            END IF
+            editGlyph$ = edPkVal$(pkIdx) ' (PLACE's brush - the tool stays as it is: never switched for you)
             IF edSelN THEN
                 EditPushUndo : n = 0
                 FOR k = 1 TO edSelN
@@ -114,8 +125,10 @@ SUB EditPkClick STATIC
                     IF tx > 0 AND ty > 0 AND tx < mapN - 1 AND ty < mapN - 1 THEN EditPut tx, ty, editGlyph$ : n = n + 1
                 NEXT
                 EditApply : EditNote GlyphName$(editGlyph$) + ": put in" + STR$(n) + " cells"
-            ELSE
+            ELSEIF edTool = ET_PLACE THEN
                 EditNote "PLACE " + GlyphName$(editGlyph$) + ": click where it goes"
+            ELSE
+                EditNote "PLACE's brush: " + GlyphName$(editGlyph$) + " (choose PLACE to put it)"
             END IF
         CASE PK_TEX
             IF edSlotPick THEN ' (the SECTOR pane's: one of the sector's own pictures - every wall of that kind, that floor, that ceiling)
@@ -128,16 +141,28 @@ SUB EditPkClick STATIC
                 edSlotPick = 0 : EditApply : EditNote "The sector's picture changed: " + edPkVal$(pkIdx)
                 EXIT SUB
             END IF
-            edBrushTex$ = edPkVal$(pkIdx) : edBrushKind = PK_TEX : edTool = ET_PAINT
+            edBrushTex$ = edPkVal$(pkIdx) : edBrushKind = PK_TEX ' (PAINT's brush - the tool stays as it is)
             IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
             edBrushImg& = EditFileThumb&(edBrushTex$)
-            IF edSelN THEN EditPaintSel ELSE EditNote "PAINT " + edBrushTex$ + ": click a face"
+            IF edSelN THEN
+                EditPaintSel
+            ELSEIF edTool = ET_PAINT THEN
+                EditNote "PAINT " + edBrushTex$ + ": click a face"
+            ELSE
+                EditNote "PAINT's picture: " + edBrushTex$ + " (choose PAINT to paint it)"
+            END IF
         CASE PK_LIQUID ' A liquid (or draining one) for PAINT - and poured into the floors selected, if any
-            edSlotPick = 0 : edBrushLiq$ = edPkVal$(pkIdx) : edBrushKind = PK_LIQUID : edTool = ET_PAINT
-            IF edSelN THEN EditPaintSel ELSE EditNote "PAINT " + LiquidBrushName$(edBrushLiq$) + ": click a floor (Ctrl+click: all of it; Shift: drain)"
+            edSlotPick = 0 : edBrushLiq$ = edPkVal$(pkIdx) : edBrushKind = PK_LIQUID ' (PAINT's brush - the tool stays as it is)
+            IF edSelN THEN
+                EditPaintSel
+            ELSEIF edTool = ET_PAINT THEN
+                EditNote "PAINT " + LiquidBrushName$(edBrushLiq$) + ": click a floor (Ctrl+click: all of it; Shift: drain)"
+            ELSE
+                EditNote "PAINT's brush: " + LiquidBrushName$(edBrushLiq$) + " (choose PAINT to pour it)"
+            END IF
         CASE PK_LIGHT ' An effect or a colour for the light brush - and the lights on the faces selected
             edSlotPick = 0
-            v = VAL(MID$(edPkVal$(pkIdx), 2)) : edBrushKind = PK_LIGHT : edTool = ET_LIGHT
+            v = VAL(MID$(edPkVal$(pkIdx), 2)) ' (LIGHT's brush - the tool stays as it is)
             IF LEFT$(edPkVal$(pkIdx), 1) = "F" THEN
                 edLFx = v
             ELSE
@@ -152,9 +177,89 @@ SUB EditPkClick STATIC
                     IF LEFT$(edPkVal$(pkIdx), 1) = "F" THEN lvlLight(lt, 8) = edLFx ELSE lvlLight(lt, 5) = edLR : lvlLight(lt, 6) = edLG : lvlLight(lt, 7) = edLB
                 END IF
             NEXT
-            IF n THEN EditApply : EditNote LTRIM$(STR$(n)) + " light(s) changed" ELSE EditNote "LIGHT: click a face to light it - " + LCASE$(EditFxName$(edLFx))
+            IF n THEN
+                EditApply : EditNote LTRIM$(STR$(n)) + " light(s) changed"
+            ELSEIF edTool = ET_LIGHT THEN
+                EditNote "LIGHT: click a face to light it - " + LCASE$(EditFxName$(edLFx))
+            ELSE
+                EditNote "LIGHT's brush: " + LCASE$(EditFxName$(edLFx)) + " (choose LIGHT to light a face)"
+            END IF
     END SELECT
     editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT)
+END SUB
+
+' PAINT's brush: the picture on the face under the pointer (its half's, if
+' it's divided) - or, with none of its own, the usual one there. Alt+click
+' with PAINT, or E.
+SUB EditPickPicture
+    DIM bi, fc, k, w ' (its own: the main program shares these names)
+    IF edHovKind = 0 THEN EditNote "Point at a face to pick its picture up" : EXIT SUB
+    fc = EditFaceCode(edHovKind, edHovSide)
+    k = FaceIndex(edHovX, edHovY, fc) : pic$ = ""
+    IF k THEN IF edHovPart = 2 THEN pic$ = lvlFaceP2$(k) ELSE pic$ = lvlFaceP1$(k)
+    IF pic$ = "" THEN ' (the usual one: the level's own picture for it)
+        SELECT CASE edHovKind
+            CASE ED_FLOOR : pic$ = texFile$(floorTex(edHovX, edHovY))
+            CASE ED_CEIL : pic$ = texFile$(ceilTex(edHovX, edHovY))
+            CASE ED_WALL : w = INSTR("#NCKPG", MID$(lvlRow$(edHovY), edHovX + 1, 1)) : IF w THEN pic$ = lvlWall$(w)
+            CASE ED_BOX : bi = EditBoxIndex(edHovX, edHovY) : pic$ = lvlWall$(1) : IF bi THEN IF lvlBox(bi, 7) >= 1 AND lvlBox(bi, 7) <= 6 THEN pic$ = lvlWall$(lvlBox(bi, 7))
+            CASE ELSE : pic$ = lvlWall$(1)
+        END SELECT
+    END IF
+    IF pic$ = "" THEN EditNote "No picture of its own there to pick up (the exit's sign, a door's)" : EXIT SUB
+    edBrushTex$ = pic$ : edBrushKind = PK_TEX
+    IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+    edBrushImg& = EditFileThumb&(edBrushTex$) : EditNote "Picked up " + pic$
+END SUB
+
+'' The map from above: the cell (x, y) under the mouse, in the panel - what
+' it is, and its pictures (a wall's, or its floor's and ceiling's): what E
+' picks up
+SUB EditInspect(x, y)
+    DIM c$, w ' (its own: the main program shares these names)
+    c$ = MID$(lvlRow$(y), x + 1, 1)
+    COLOR _RGB32(255, 90, 200) : _PRINTSTRING (ED_PALX, 496), LEFT$("CELL" + STR$(x) + "," + LTRIM$(STR$(y)) + ": " + GlyphName$(CellGlyph$(x, y)), 25)
+    w = INSTR("#NCKPG", c$)
+    COLOR _RGB32(190, 180, 230)
+    IF w THEN
+        _PRINTSTRING (ED_PALX, 512), LEFT$("wall: " + EditCellPic$(x, y, 1), 25)
+    ELSEIF worldMap(x, y) <= 0 OR worldMap(x, y) = 2 THEN
+        _PRINTSTRING (ED_PALX, 512), LEFT$("floor: " + EditCellPic$(x, y, 9), 25)
+        _PRINTSTRING (ED_PALX, 528), LEFT$("ceiling: " + EditCellPic$(x, y, 10), 25)
+    END IF
+END SUB
+
+' The picture on face f of cell (x, y) - its own (the first half's, if it's
+' divided), else the usual one there
+FUNCTION EditCellPic$(x, y, f)
+    DIM k, w ' (its own: the main program shares these names)
+    p$ = "" : k = FaceIndex(x, y, f) : IF k THEN p$ = lvlFaceP1$(k)
+    IF p$ = "" THEN
+        SELECT CASE f
+            CASE 9 : p$ = texFile$(floorTex(x, y))
+            CASE 10 : p$ = texFile$(ceilTex(x, y))
+            CASE ELSE : w = INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) : IF w THEN p$ = lvlWall$(w)
+        END SELECT
+    END IF
+    EditCellPic$ = p$
+END FUNCTION
+
+' E on the map from above: cell (x, y) as the brush of the tool in use -
+' PAINT: its floor's picture (ceil: its ceiling's; a wall: its own); any
+' other tool: what's in it
+SUB EditPickCell(x, y, ceil)
+    DIM f ' (its own: the main program shares these names)
+    IF edTool = ET_PAINT THEN
+        f = 9 : IF ceil THEN f = 10
+        IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) THEN f = 1
+        p$ = EditCellPic$(x, y, f)
+        IF p$ = "" THEN EditNote "No picture there to pick up" : EXIT SUB
+        edBrushTex$ = p$ : edBrushKind = PK_TEX
+        IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+        edBrushImg& = EditFileThumb&(edBrushTex$) : EditNote "Picked up " + p$
+    ELSE
+        editGlyph$ = CellGlyph$(x, y) : EditNote "Picked up " + GlyphName$(editGlyph$) + " - PLACE's brush"
+    END IF
 END SUB
 
 ' The brush's picture on every face selected
@@ -255,6 +360,7 @@ END SUB
 ' A properties pane button pressed (pnHit)
 SUB EditPaneClick STATIC
     DIM x, y ' (its own: the main program shares these names)
+    IF pnHit >= 400 AND pnHit < 500 THEN EditVerClick : EXIT SUB ' (the VERSIONS pane's: EDITOR/SESSION.BM)
     SELECT CASE pnHit
         CASE 1 TO 8 ' A door's kind: every door selected
             EditPushUndo : g$ = MID$("DHX!RBYE", pnHit, 1)
@@ -718,9 +824,10 @@ END SUB
 ' The grid slider, dragged: how strong, from where the pointer is along it
 SUB EditTBSlide STATIC
     EditTBLayout editView
+    slX = tbMX : IF editView = 1 THEN slX = tbMX + edWX ' (FULL WIDE: the toolbar's at the window's left edge)
     FOR k = 1 TO edTbN
         IF edTbId(k) = TB_ALPHA THEN
-            a = (tbMX - edTbX(k) - 2) * 255 / (edTbW(k) - 4)
+            a = (slX - edTbX(k) - 2) * 255 / (edTbW(k) - 4)
             IF a < 16 THEN a = 16
             IF a > 255 THEN a = 255
             edGridAlpha = a : edGrid = -1
@@ -898,10 +1005,15 @@ SUB RunEditor STATIC
                 IF edBrushTex$ = "" AND NOT shiftOn THEN
                     EditNote "Pick a picture first (the picker: WALLS, FLOORS, CEILINGS)"
                 ELSE
-                    IF NOT edDown THEN EditPushUndo
                     pic$ = edBrushTex$ : IF shiftOn THEN pic$ = ""
-                    EditPaintCell cx, cy, pic$, _KEYDOWN(100305) OR _KEYDOWN(100306)
-                    edApply = -1
+                    lp$ = LCASE$(pic$)
+                    IF INSTR("#NCKPG%?@$;", MID$(lvlRow$(cy), cx + 1, 1)) AND (LEFT$(lp$, 5) = "floor" OR LEFT$(lp$, 7) = "ceiling" OR LEFT$(lp$, 4) = "sky-") THEN
+                        EditNote "That's wall: PAINT only colours it. For floor there: PLACE open floor (FLOORS tab, first)"
+                    ELSE
+                        IF NOT edDown THEN EditPushUndo
+                        EditPaintCell cx, cy, pic$, _KEYDOWN(100305) OR _KEYDOWN(100306)
+                        edApply = -1
+                    END IF
                 END IF
                 edDown = -1 : edX0 = cx : edY0 = cy
             END IF
@@ -981,6 +1093,8 @@ SUB RunEditor STATIC
                     IF edTool = ET_HEIGHT THEN edTool = ET_PLACE ELSE edTool = ET_HEIGHT
                     IF edTool = ET_HEIGHT THEN EditNote "HEIGHTS: click raises the floor, right-click lowers it (Shift: the ceiling)" ELSE EditNote "PLACE: paint with the mouse"
                 CASE 49 TO 56 : EditLightPreset k& - 49 : EditNote "Light: " + LightPresetName$(editLightP)
+                CASE 101, 69 ' E: pick up the cell under the mouse as the brush of the tool in use - PAINT: its floor's picture (Ctrl: its ceiling's; a wall: its own); any other: what's in it. The tool stays as it is.
+                    IF onMap THEN EditPickCell cx, cy, _KEYDOWN(100305) OR _KEYDOWN(100306) ELSE EditNote "Point at a cell to pick it up"
                 CASE 116, 84 ' T: teleport you to the cell under the mouse
                     IF onMap THEN playerX = cx + 0.5 : playerY = cy + 0.5 : EditNote "You're at" + STR$(cx) + STR$(cy) + " (Tab to look)"
                 CASE 18688 : EditOtherLevel_Prev ' PgUp: the sector before
@@ -1028,6 +1142,7 @@ SUB EditGoLevel STATIC
     editAskT! = -99
     LoadLevel : EditFreshLevel
     EditNote "EDITOR: " + levelName$
+    EditRecentNote
 END SUB
 
 ' Another sector in the editor (PgUp/PgDn, or map N / restart typed in it):
@@ -1035,6 +1150,7 @@ END SUB
 ' sizes and loot, its view of the map
 SUB EditFreshLevel
     editUndoN = 0 : editDirty = 0 : levelWas = level : EditReset
+    IF edVerPane THEN edVerTop = 0 : EditVerList ' (this sector's versions now)
     edMapWant = mapN : edRoomW = 0 : edRoomH = 0 : edLootSet = 0 : EditFitMap
 END SUB
 
@@ -1190,7 +1306,7 @@ SUB EditFP STATIC
                     IF tx < 1 OR ty < 1 OR tx > mapN - 2 OR ty > mapN - 2 THEN
                         EditNote "Not in the border"
                     ELSEIF edAlt THEN
-                        editGlyph$ = CellGlyph$(tx, ty) : edBrushKind = PK_GLYPH : EditNote "Picked up " + GlyphName$(editGlyph$)
+                        editGlyph$ = CellGlyph$(tx, ty) : EditNote "Picked up " + GlyphName$(editGlyph$)
                     ELSEIF edShift THEN
                         c$ = MID$(lvlRow$(ty), tx + 1, 1)
                         IF c$ = "." OR INSTR("<>^v", c$) THEN
@@ -1233,22 +1349,7 @@ SUB EditFP STATIC
                     ELSEIF edHovKind = ED_WALL AND INSTR("/\", MID$(lvlRow$(edHovY), edHovX + 1, 1)) THEN
                         EditNote "A diagonal wall takes the look of the walls by it - paint those"
                     ELSEIF edAlt THEN
-                        k = FaceIndex(edHovX, edHovY, fc) : pic$ = ""
-                        IF k THEN IF edHovPart = 2 THEN pic$ = lvlFaceP2$(k) ELSE pic$ = lvlFaceP1$(k)
-                        IF pic$ = "" THEN ' (the usual one: the level's own picture for it)
-                            SELECT CASE edHovKind
-                                CASE ED_FLOOR : pic$ = texFile$(floorTex(edHovX, edHovY))
-                                CASE ED_CEIL : pic$ = texFile$(ceilTex(edHovX, edHovY))
-                                CASE ED_WALL : w = INSTR("#NCKPG", MID$(lvlRow$(edHovY), edHovX + 1, 1)) : IF w THEN pic$ = lvlWall$(w)
-                                CASE ED_BOX : bi = EditBoxIndex(edHovX, edHovY) : pic$ = lvlWall$(1) : IF bi THEN IF lvlBox(bi, 7) >= 1 AND lvlBox(bi, 7) <= 6 THEN pic$ = lvlWall$(lvlBox(bi, 7))
-                                CASE ELSE : pic$ = lvlWall$(1)
-                            END SELECT
-                        END IF
-                        IF pic$ <> "" THEN
-                            edBrushTex$ = pic$ : edBrushKind = PK_TEX
-                            IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
-                            edBrushImg& = EditFileThumb&(edBrushTex$) : EditNote "Picked up " + pic$
-                        END IF
+                        EditPickPicture ' (the face's picture, as PAINT's brush)
                     ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) AND edBrushTex$ <> "" THEN
                         EditSelKeep 0 : EditSelFlood edHovKind, edHovX, edHovY : EditPaintSel : EditSelKeep -1 ' (what you'd selected, back as it was)
                     ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND edHovKind = ED_WALL AND edBrushTex$ <> "" THEN ' (a wall's whole side: EditSelWallFlood)
@@ -1363,10 +1464,16 @@ SUB EditFP STATIC
             CASE 26 : EditUndoStep
             CASE 91 : EditCycleGlyph -1
             CASE 93 : EditCycleGlyph 1
-            CASE 101, 69 ' E: pick up what you aim at as the brush - the thing under the crosshair (a monster, a turret, a pickup...), else the wall you aim at
-                pc$ = ""
-                IF edHovThing THEN pc$ = CellGlyph$(edHovX, edHovY) ELSE IF aimX >= 0 THEN pc$ = CellGlyph$(aimX, aimY)
-                IF LEN(pc$) THEN editGlyph$ = pc$ : edBrushKind = PK_GLYPH : edTool = ET_PLACE : EditNote "Picked up " + GlyphName$(editGlyph$) + " - PLACE paints it" ' (as the brush: painting it, not a picture)
+            CASE 101, 69 ' E: pick up what's under the pointer (the crosshair, looking round) as the brush of the tool in use - PAINT: the face's picture; any other: what's in that cell (a monster, a pickup, the wall...). The tool stays as it is.
+                IF edTool = ET_PAINT THEN
+                    EditPickPicture
+                ELSEIF edHovKind = 0 THEN
+                    EditNote "Point at something to pick it up"
+                ELSE
+                    pc$ = CellGlyph$(edHovX, edHovY) ' (the cell the face is of: a wall's own, a floor's, the thing standing there)
+                    IF edHovKind = ED_BOX THEN pc$ = "" ' (a block isn't a map character)
+                    IF LEN(pc$) THEN editGlyph$ = pc$ : EditNote "Picked up " + GlyphName$(editGlyph$) + " - PLACE's brush" ELSE EditNote "Nothing there to pick up (PAINT + E picks up a picture)"
+                END IF
             CASE 116, 84 ' T: the picture on that kind of wall - every one of them - the next one
                 IF aimX >= 0 THEN
                     w = INSTR("#NCKPG", MID$(lvlRow$(aimY), aimX + 1, 1))
@@ -1692,6 +1799,7 @@ SUB EditSave(lev)
     WriteLevelFile f$
     Achieve "NC_ARCHITECT", -1
     editDirty = 0
+    IF edVerPane THEN EditVerList ' (its .bak is the save before this one now)
     EditNote "Saved " + f$ + warn$
 END SUB
 
@@ -1751,7 +1859,7 @@ FUNCTION GlyphName$(c$)
         CASE "-" : g$ = "bars (a window: see through, can't pass)"
         CASE "'" : g$ = "a NOTE - its words and picture on its pane"
         CASE CHR$(34) : g$ = "a thing (what it is: its pane)"
-        CASE "." : g$ = "floor"
+        CASE "." : g$ = "open floor (PLACE it: a room bigger)"
         CASE "#", "N", "C", "K", "P", "G" : g$ = "wall " + c$ + " (" + lvlWall$(INSTR("#NCKPG", c$)) + ")"
         CASE "/", "\" : g$ = "diagonal wall " + c$
         CASE "D" : g$ = "sliding door"
@@ -1947,6 +2055,7 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     IF editHeights THEN COLOR _RGB32(255, 220, 120) : _PRINTSTRING (ED_PALX, y + 18), "HEIGHTS: click up, right down"
     
     COLOR _RGB32(140, 130, 180) : _PRINTSTRING (ED_PALX, 552), "HELP / F1: every key"
+    IF onMap THEN EditInspect hx, hy ' (the cell under the mouse: what it is, its pictures)
     ' Along the bottom: the cell under the mouse, and the latest message
     IF onMap THEN
         c$ = CellGlyph$(hx, hy) ' (a thing: its own name)
@@ -2114,7 +2223,7 @@ FUNCTION EditOverUI(x, y)
     IF edHelp THEN EditOverUI = -1 : EXIT FUNCTION ' (the help is up: a click closes it)
     IF EditTBAt(x, y, editView) THEN EditOverUI = -1
     IF editView = 1 AND edPickOpen AND y >= PK_Y - 4 THEN EditOverUI = -1 ' (the picker: the bottom of the screen)
-    IF editView = 1 AND x >= edPnX0 - 6 AND y >= edPnY0 AND y <= edPnBot AND edPnTitle$ <> "" THEN EditOverUI = -1 ' (the properties pane)
+    IF editView = 1 AND x - edWX >= edPnX0 - 6 AND y >= edPnY0 AND y <= edPnBot AND edPnTitle$ <> "" THEN EditOverUI = -1 ' (the properties pane)
     IF editView = 1 AND edPickOn AND NOT edPickOpen AND y >= PK_TUCK THEN EditOverUI = -1 ' (tucked away: its strip)
 END FUNCTION
 
@@ -2127,7 +2236,7 @@ END FUNCTION
 ' order string a | is a gap between groups, a / a new row.
 SUB EditTBLayout(v)
     DIM c$, k, w, x, x0, y ' (its own: the main program shares these names)
-    IF v = 1 THEN o$ = "SPTLH|DUW|GA|ZKVQ" : x = 8 : y = 4 ELSE o$ = "SPT/LHD/UWQ/GA/V<>/BZ" : x = ED_PALX : y = 290
+    IF v = 1 THEN o$ = "SPTLH|DUW|GA|ZRKVQ" : x = 8 : y = 4 ELSE o$ = "SPT/LHD/UWQ/GA/V<>/BZ/R" : x = ED_PALX : y = 290
     x0 = x : edTbN = 0
     FOR k = 1 TO LEN(o$)
         c$ = MID$(o$, k, 1)
@@ -2136,10 +2245,10 @@ SUB EditTBLayout(v)
         ELSEIF c$ = "/" THEN
             x = x0 : y = y + 24
         ELSE
-            id = INSTR("SPLHDUWGAVQTK<>BZ", c$)
-            IF v = 1 THEN w = LEN(EditTBLabel$(id)) * 8 + 8 ELSE w = 64
+            id = INSTR("SPLHDUWGAVQTK<>BZR", c$)
+            IF v = 1 THEN w = LEN(EditTBLabel$(id)) * 8 + 8 + 4 * (edWX = 0) ELSE w = 64 ' (on our 800 screen a little tighter: they all fit)
             IF id = TB_ALPHA THEN w = 64 : IF v = 0 THEN w = 132
-            IF id = TB_KINDS AND v = 0 THEN w = 132
+            IF (id = TB_KINDS OR id = TB_VERSIONS) AND v = 0 THEN w = 132
             edTbN = edTbN + 1 : edTbId(edTbN) = id : edTbX(edTbN) = x : edTbY(edTbN) = y : edTbW(edTbN) = w : edTbH(edTbN) = 20
             x = x + w + 3 : IF v = 0 THEN x = x + 1
         END IF
@@ -2165,6 +2274,7 @@ FUNCTION EditTBLabel$(id)
         CASE TB_NEXT : t$ = "SECT >"
         CASE TB_KINDS : t$ = "MONSTER KINDS"
         CASE TB_SECTOR : t$ = "SECTOR"
+        CASE TB_VERSIONS : t$ = "VERSIONS"
     END SELECT
     EditTBLabel$ = t$
 END FUNCTION
@@ -2190,17 +2300,19 @@ FUNCTION EditTBTip$(id)
         CASE TB_NEXT : t$ = "The sector after (PgDn) - save first"
         CASE TB_KINDS : t$ = "Every monster kind's numbers - monsters.txt (M)"
         CASE TB_SECTOR : t$ = "The sector: its name, its light, its pictures"
+        CASE TB_VERSIONS : t$ = "Revert to the saved sector, save a version, go back to one"
     END SELECT
     EditTBTip$ = t$
 END FUNCTION
 
 ' The button at (x, y) in view v - its TB_ number - or 0
 FUNCTION EditTBAt(x, y, v)
-    DIM k ' (its own: the main program shares these names)
+    DIM k, tbLX ' (its own: the main program shares these names)
     EditTBAt = 0
     EditTBLayout v
+    tbLX = x : IF v = 1 THEN tbLX = x + edWX ' (FULL WIDE: the toolbar's at the window's left edge)
     FOR k = 1 TO edTbN
-        IF x >= edTbX(k) AND y >= edTbY(k) AND x < edTbX(k) + edTbW(k) AND y < edTbY(k) + edTbH(k) THEN EditTBAt = edTbId(k) : EXIT FUNCTION
+        IF tbLX >= edTbX(k) AND y >= edTbY(k) AND tbLX < edTbX(k) + edTbW(k) AND y < edTbY(k) + edTbH(k) THEN EditTBAt = edTbId(k) : EXIT FUNCTION
     NEXT
 END FUNCTION
 
@@ -2216,6 +2328,7 @@ FUNCTION EditTBOn(id)
         CASE TB_PAINT : EditTBOn = (edTool = ET_PAINT)
         CASE TB_PICK : EditTBOn = (edPickOn <> 0)
         CASE TB_SECTOR : EditTBOn = edSectorPane
+        CASE TB_VERSIONS : EditTBOn = edVerPane
         CASE ELSE : EditTBOn = 0
     END SELECT
 END FUNCTION
@@ -2223,13 +2336,16 @@ END FUNCTION
 ' Draw the toolbar for view v, the pointer at (mx, my): lit buttons in
 ' magenta, the one under the pointer brighter, and what it does under it
 SUB EditDrawTB(v, mx, my)
-    DIM B, f, k, l$, t$, tc~&, tx, ty, w, x, y ' (its own: the main program shares these names)
+    DIM B, f, k, l$, t$, tc~&, tx, ty, w, x, y, pmx ' (its own: the main program shares these names)
     EditTBLayout v
-    IF v = 1 THEN LINE (0, 0)-(799, 27), _RGBA32(6, 2, 18, 190), BF : LINE (0, 28)-(799, 28), _RGBA32(255, 60, 200, 120)
+    IF v = 1 THEN
+        HudAt -1 : LINE (0, 0)-(scrW - 1, 27), _RGBA32(6, 2, 18, 190), BF : LINE (0, 28)-(scrW - 1, 28), _RGBA32(255, 60, 200, 120) ' (FULL WIDE: all the way across - from the window's left edge)
+    END IF
+    pmx = mx : IF v = 1 AND mx <> -1 THEN pmx = mx + edWX ' (the pointer, on the toolbar at the window's left edge - a copy: mx is the caller's)
     hov = 0
     FOR k = 1 TO edTbN
         id = edTbId(k) : x = edTbX(k) : y = edTbY(k) : w = edTbW(k) : h = edTbH(k)
-        over = (mx >= x AND my >= y AND mx < x + w AND my < y + h) : IF over THEN hov = k
+        over = (pmx >= x AND my >= y AND pmx < x + w AND my < y + h) : IF over THEN hov = k
         IF id = TB_ALPHA THEN ' The slider: filled as far as the grid is strong
             LINE (x, y)-STEP(w - 1, h - 1), _RGBA32(14, 6, 30, 230), BF
             f = (w - 4) * edGridAlpha / 255
@@ -2257,7 +2373,7 @@ SUB EditDrawTB(v, mx, my)
     IF hov THEN
         t$ = EditTBTip$(edTbId(hov))
         IF v = 1 THEN
-            tx = edTbX(hov) : IF tx + LEN(t$) * 8 + 8 > 796 THEN tx = 796 - LEN(t$) * 8 - 8
+            tx = edTbX(hov) : IF tx + LEN(t$) * 8 + 8 > scrW - 4 THEN tx = scrW - 4 - LEN(t$) * 8 - 8
             LINE (tx, 32)-STEP(LEN(t$) * 8 + 8, 19), _RGBA32(0, 0, 0, 220), BF
             HudText tx + 4, 34, t$, _RGB32(150, 240, 255)
         ELSE
@@ -2279,16 +2395,16 @@ SUB EditDrawHelp(v)
     IF v = 1 THEN
         h$ = "#MOVE AND LOOK|walk keys~fly that way - through walls|look up + walk~climb (look down: sink)|Space / C~straight up / down|Shift~faster|hold Right~look round (crosshair picks)|Tab~the map from above|F2~play the level as it is|"
         h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor, ceiling, or wall side|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
-        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / Alt~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / Alt~the usual / pick it up|LIGHT~a light on the face|  Shift~take it away|HEIGHT~floor/ceiling up; Shift down|"
+        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|LIGHT~a light on the face|  Shift~take it away|HEIGHT~floor/ceiling up; Shift down|"
         h$ = h$ + "#THE WHEEL (the selection)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
         h$ = h$ + "#FACES|H~divide left / right|V~divide top / bottom|H or V again~whole again|click a half~select / paint it alone|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
         h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
         h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Ctrl+S~save|Ctrl+Z~undo|U~the HUD layout editor|F1~this sheet|"
-        h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|E~pick up what you aim at|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|1-8~light presets|PgUp/PgDn~floor up/down (Shift: ceil)"
+        h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|1-8~light presets|PgUp/PgDn~floor up/down (Shift: ceil)"
         t$ = "EDITOR CHEATSHEET - 3D VIEW"
     ELSE
-        h$ = "#THE TOOLS (toolbar)|SELECT~click a cell, drag a box|  Shift~add to the selection|PLACE~paint the brush; drag on|  Shift+drag~a box of it|  Right click~pick up what's there|PAINT~picture on a floor, or|~  on a wall's four sides|  Ctrl / Shift~ceiling / the usual|LIGHT~a light; Right: take away|HEIGHT~floor up; Right: down|  Shift~the ceiling|"
+        h$ = "#THE TOOLS (toolbar)|SELECT~click a cell, drag a box|  Shift~add to the selection|PLACE~paint the brush; drag on|  Shift+drag~a box of it|  Right click~pick up what's there|  FLOORS: open floor~a room bigger|PAINT~picture on a floor, or|~  on a wall's four sides|E~pick up the cell (the tool's)|  Ctrl / Shift~ceiling / the usual|LIGHT~a light; Right: take away|HEIGHT~floor up; Right: down|  Shift~the ceiling|"
         h$ = h$ + "#THE WHEEL|on the picker~scroll it|on the map~selected floors up / down|  Ctrl~their ceilings|elsewhere~the brush back / on|"
         h$ = h$ + "#THE SELECTION|arrows~move it a cell (up is north)|Del~delete it|Ctrl+D~select nothing|its pane~door, pad, light, monster,|~  event, lift, floor, triggers|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT drag~pour it on (Shift: drain)|"
@@ -2350,7 +2466,7 @@ SUB EditPkBuild
     edPkN = 0
     SELECT CASE edPickTab
         CASE 1 : g$ = "#NCKPG/\%?=" : pre$ = "wall"
-        CASE 2 : pre$ = "floor"
+        CASE 2 : g$ = "." : pre$ = "floor" ' (open floor first: PLACE it to carve a room bigger)
         CASE 3 : pre$ = "ceiling" : pre2$ = "sky-" ' (and the skies: a ceiling that's open to the sky)
         CASE 4 : g$ = "DHXRBY!E"
         CASE 5 : g$ = "rby+*uae234Mqj89)({}`,"
@@ -2508,16 +2624,26 @@ END FUNCTION
 SUB EditPkGeom(gx, gy, cols, rows, sz)
     DIM tx, ty, w ' (its own: the main program shares these names)
     IF editView = 1 THEN
-        gx = PK_X : gy = PK_Y + 22 : cols = PK_COLS : rows = PK_ROWS : sz = PK_SIZE
+        gx = PK_X : gy = PK_Y + 22 : cols = PK_COLS + MaxOf(0, EditPkRight - 792) \ (PK_SIZE + 4) : rows = PK_ROWS : sz = PK_SIZE ' (FULL WIDE: more of them across)
     ELSE ' (the map view: under the tabs, however many rows they wrap to - a little smaller if that's four)
         EditPkTab PK_TABS, tx, ty, w
         gx = ED_PALX : gy = MaxOf(100, ty + 24) : cols = 4 : rows = 3 : sz = 43 : IF gy > 100 THEN sz = 39
     END IF
 END SUB
 
+' The picker's right edge, in 3D: our screen's (792) - FULL WIDE, the
+' window's, or short of the pane if it comes down that far (the pane as it
+' was last built)
+FUNCTION EditPkRight
+    DIM pr ' (its own)
+    pr = 792 + 2 * edWX
+    IF edWX > 0 AND edPnTitle$ <> "" AND edPnBot >= PK_Y - 4 THEN pr = MinOf(pr, edPnX0 + 2 * edWX - 14)
+    EditPkRight = pr
+END FUNCTION
+
 SUB EditPkTab(t, tx, ty, w)
     DIM k, x0, y0 ' (its own: the main program shares these names)
-    IF editView = 1 THEN x0 = PK_X : y0 = PK_Y : wrap = 800 : pad = 10 ELSE x0 = ED_PALX : y0 = 40 : wrap = ED_PALX + 202 : pad = 6
+    IF editView = 1 THEN x0 = PK_X : y0 = PK_Y : wrap = EditPkRight + 8 : pad = 10 ELSE x0 = ED_PALX : y0 = 40 : wrap = ED_PALX + 202 : pad = 6
     tx = x0 : ty = y0
     FOR k = 1 TO t
         w = LEN(EditPkTabName$(k)) * 8 + pad
@@ -2543,22 +2669,23 @@ FUNCTION EditPkShown
 END FUNCTION
 
 SUB EditPkHit(x, y, what, idx)
-    DIM gx, gy, k, sx, t, tx, ty, w ' (its own: the main program shares these names)
+    DIM gx, gy, k, sx, t, tx, ty, w, px ' (its own: the main program shares these names)
     what = 0 : idx = 0
     IF NOT EditPkShown THEN EXIT SUB
+    px = x : IF editView = 1 THEN px = x + edWX ' (FULL WIDE: the picker's all the way across - a copy: x is the caller's)
     FOR t = 1 TO PK_TABS
         EditPkTab t, tx, ty, w
-        IF x >= tx AND x < tx + w AND y >= ty AND y < ty + 18 THEN what = 1 : idx = t : EXIT SUB
+        IF px >= tx AND px < tx + w AND y >= ty AND y < ty + 18 THEN what = 1 : idx = t : EXIT SUB
     NEXT
     EditPkGeom gx, gy, cols, rows, sz
-    IF x >= gx AND x < gx + cols * (sz + 4) AND y >= gy AND y < gy + rows * (sz + 4) THEN
-        k = edPickScroll * cols + ((y - gy) \ (sz + 4)) * cols + (x - gx) \ (sz + 4) + 1
+    IF px >= gx AND px < gx + cols * (sz + 4) AND y >= gy AND y < gy + rows * (sz + 4) THEN
+        k = edPickScroll * cols + ((y - gy) \ (sz + 4)) * cols + (px - gx) \ (sz + 4) + 1
         IF k <= edPkN THEN what = 2 : idx = k
         EXIT SUB
     END IF
     sx = gx + cols * (sz + 4) : ah = (rows * (sz + 4) - 4) \ 2
-    IF x >= sx AND x < sx + 16 AND y >= gy AND y < gy + ah THEN what = 3
-    IF x >= sx AND x < sx + 16 AND y >= gy + ah + 4 AND y < gy + 2 * ah + 4 THEN what = 4
+    IF px >= sx AND px < sx + 16 AND y >= gy AND y < gy + ah THEN what = 3
+    IF px >= sx AND px < sx + 16 AND y >= gy + ah + 4 AND y < gy + 2 * ah + 4 THEN what = 4
 END SUB
 
 ' Is picker entry k the brush?
@@ -2566,7 +2693,7 @@ FUNCTION EditPkIsBrush(k)
     DIM v ' (its own: the main program shares these names)
     EditPkIsBrush = 0
     SELECT CASE edPkKind(k)
-        CASE PK_GLYPH : EditPkIsBrush = (edBrushKind = PK_GLYPH AND edPkVal$(k) = editGlyph$)
+        CASE PK_GLYPH : EditPkIsBrush = (edPkVal$(k) = editGlyph$)
         CASE PK_TEX
             IF edSlotPick THEN ' (choosing a sector picture: the one it has now)
                 SELECT CASE edSlotPick
@@ -2575,7 +2702,7 @@ FUNCTION EditPkIsBrush(k)
                     CASE ELSE : EditPkIsBrush = (LCASE$(edPkVal$(k)) = LCASE$(lvlCeil$(edSlotPick - 10)))
                 END SELECT
             ELSE
-                EditPkIsBrush = (edBrushKind = PK_TEX AND edPkVal$(k) = edBrushTex$)
+                EditPkIsBrush = (edBrushKind <> PK_LIQUID AND edPkVal$(k) = edBrushTex$)
             END IF
         CASE PK_LIQUID : EditPkIsBrush = (edBrushKind = PK_LIQUID AND edPkVal$(k) = edBrushLiq$)
         CASE PK_LIGHT
@@ -2632,10 +2759,10 @@ END SUB
 
 ' The picker, drawn - the pointer at (mx, my)
 SUB EditDrawPicker(mx, my)
-    DIM ay, B, bh, bx, by, c, c~&, d, gx, gy, j, k, l$, r, sx, t, t$, tx, ty, w, x, y ' (its own: the main program shares these names)
+    DIM ay, B, bh, bx, by, c, c~&, d, gx, gy, j, k, l$, r, sx, t, t$, tx, ty, w, x, y, bk ' (its own: the main program shares these names)
     EditPkBuild
     EditPkGeom gx, gy, cols, rows, sz
-    IF editView = 1 THEN LINE (0, PK_Y - 4)-(799, 599), _RGBA32(6, 2, 18, 215), BF : LINE (0, PK_Y - 5)-(799, PK_Y - 5), _RGBA32(255, 60, 200, 160)
+    IF editView = 1 THEN LINE (0, PK_Y - 4)-(scrW - 1, 599), _RGBA32(6, 2, 18, 215), BF : LINE (0, PK_Y - 5)-(scrW - 1, PK_Y - 5), _RGBA32(255, 60, 200, 160)
     EditPkHit mx, my, hw, hi
     FOR t = 1 TO PK_TABS ' The tabs
         EditPkTab t, tx, ty, w : t$ = EditPkTabName$(t)
@@ -2677,9 +2804,14 @@ SUB EditDrawPicker(mx, my)
         bh = rows * (sz + 4) - 4 : LINE (sx + 18, gy)-STEP(3, bh - 1), _RGBA32(60, 50, 90, 200), BF
         LINE (sx + 18, gy + bh * edPickScroll \ all)-STEP(3, bh * rows \ all - 1), _RGB32(255, 60, 200), BF
     END IF
-    ' The brush - in 3D big, on the right; and what the pointer's over
-    SELECT CASE edBrushKind
+    ' The brush - in 3D big, on the right; and what the pointer's over. The
+    ' tool in use's: PAINT's picture (or liquid), LIGHT's light, else PLACE's
+    bk = PK_GLYPH
+    IF edTool = ET_PAINT THEN IF edBrushKind = PK_LIQUID THEN bk = PK_LIQUID ELSE bk = PK_TEX
+    IF edTool = ET_LIGHT THEN bk = PK_LIGHT
+    SELECT CASE bk
         CASE PK_TEX : n$ = edBrushTex$
+        CASE PK_LIQUID : n$ = LiquidBrushName$(edBrushLiq$)
         CASE PK_LIGHT : n$ = "light: " + LCASE$(EditFxName$(edLFx)) + ", reach" + STR$(edLRad) + ", bright" + STR$(edLBri)
         CASE ELSE : n$ = GlyphName$(editGlyph$)
     END SELECT
@@ -2692,9 +2824,13 @@ SUB EditDrawPicker(mx, my)
     bx = sx + 30
     HudText bx, gy, "BRUSH", _RGB32(255, 90, 200)
     LINE (bx, gy + 18)-STEP(67, 67), _RGBA32(16, 12, 30, 240), BF : LINE (bx, gy + 18)-STEP(67, 67), _RGB32(255, 60, 200), B
-    SELECT CASE edBrushKind
+    SELECT CASE bk
         CASE PK_TEX
             IF edBrushImg& < -1 THEN _PUTIMAGE (bx + 2, gy + 20)-STEP(63, 63), edBrushImg&
+        CASE PK_LIQUID
+            k = 0 : FOR j = 1 TO edPkN : IF edPkKind(j) = PK_LIQUID AND edPkVal$(j) = edBrushLiq$ THEN k = j
+            NEXT
+            IF k THEN EditPkPicture k, bx + 2, gy + 20, 64
         CASE PK_LIGHT
             EditGlow bx + 2, gy + 20, 64, _RGB32(edLR, edLG, edLB), EditFxNow(edLFx)
         CASE ELSE ' (a map character: its picture, made again when the brush changes - [ ] or E too)
@@ -2711,12 +2847,12 @@ SUB EditDrawPicker(mx, my)
                 IF k THEN EditPkPicture k, bx + 2, gy + 20, 64 ELSE LINE (bx + 6, gy + 24)-STEP(55, 55), GlyphColor~&(editGlyph$), BF
             END IF
     END SELECT
-    tw = (792 - bx - 76) \ 8 ' (its name beside it, in lines that fit)
+    tw = (EditPkRight - bx - 76) \ 8 ' (its name beside it, in lines that fit)
     ty = gy + 18
     DO WHILE LEN(n$) AND ty < gy + 86
         l$ = LEFT$(n$, tw) : HudText bx + 76, ty, l$, _RGB32(255, 255, 255) : ty = ty + 16 : n$ = MID$(n$, tw + 1)
     LOOP
-    HudText PK_X, gy + 2 * (PK_SIZE + 4) + 2, LEFT$(h$, 98), _RGB32(150, 240, 255)
+    HudText PK_X, gy + 2 * (PK_SIZE + 4) + 2, LEFT$(h$, 98 + edWX \ 4), _RGB32(150, 240, 255)
 END SUB
 
 ' --- THE PROPERTIES PANE: down the right of the 3D view, for what's
@@ -2735,6 +2871,7 @@ SUB EditPaneBuild
     IF editView = 1 THEN edPnX0 = PN_X : edPnY0 = PN_Y ELSE edPnX0 = 380 : edPnY0 = 12
     edPnN = 0 : edPnTitle$ = "" : edPnBot = edPnY0 : edPnLift = 0 : edPnLight = 0 : edPnEvent = 0
     x0 = edPnX0 : y = edPnY0 + 24
+    IF edVerPane THEN EditPaneVersions x0, y : EXIT SUB ' (VERSIONS: EDITOR/SESSION.BM)
     IF edSectorPane THEN ' The sector itself: its name, its light, its pictures
         edPnTitle$ = "THE SECTOR"
         IF edTyping THEN n$ = edTypeBuf$ + "_" ELSE n$ = SectorShort$
@@ -3254,16 +3391,18 @@ END SUB
 
 ' The pane's button at (x, y) - its id - or 0
 FUNCTION EditPaneAt(x, y)
-    DIM k ' (its own: the main program shares these names)
+    DIM k, pnLX ' (its own: the main program shares these names)
     EditPaneAt = 0 : EditPaneBuild
+    pnLX = x : IF editView = 1 THEN pnLX = x - edWX ' (FULL WIDE: the pane's at the window's right edge)
     FOR k = 1 TO edPnN
-        IF edPnId(k) > 0 AND x >= edPnX(k) AND y >= edPnY(k) AND x < edPnX(k) + edPnW(k) AND y < edPnY(k) + 20 THEN EditPaneAt = edPnId(k) : EXIT FUNCTION
+        IF edPnId(k) > 0 AND pnLX >= edPnX(k) AND y >= edPnY(k) AND pnLX < edPnX(k) + edPnW(k) AND y < edPnY(k) + 20 THEN EditPaneAt = edPnId(k) : EXIT FUNCTION
     NEXT
 END FUNCTION
 
 SUB EditDrawPane(mx, my)
-    DIM B, k, w, x, y ' (its own: the main program shares these names)
+    DIM B, k, w, x, y, pmx ' (its own: the main program shares these names)
     EditPaneBuild : IF edPnTitle$ = "" THEN EXIT SUB
+    pmx = mx : IF editView = 1 AND mx <> -1 THEN pmx = mx - edWX ' (FULL WIDE: the pane's at the window's right edge - a copy: mx is the caller's)
     LINE (edPnX0 - 6, edPnY0)-(edPnX0 + PN_W + 6, edPnBot + 6), _RGBA32(6, 2, 18, 215), BF
     LINE (edPnX0 - 6, edPnY0)-(edPnX0 + PN_W + 6, edPnBot + 6), _RGB32(255, 60, 200), B
     HudText edPnX0, edPnY0 + 5, edPnTitle$, _RGB32(255, 90, 200)
@@ -3272,7 +3411,7 @@ SUB EditDrawPane(mx, my)
         IF edPnId(k) < 0 THEN
             HudText x, y + 2, edPnLab$(k), _RGB32(210, 220, 255)
         ELSE
-            over = (mx >= x AND my >= y AND mx < x + w AND my < y + 20)
+            over = (pmx >= x AND my >= y AND pmx < x + w AND my < y + 20)
             IF edPnLit(k) THEN bg~& = _RGBA32(120, 20, 100, 230) ELSE bg~& = _RGBA32(14, 6, 30, 230)
             IF over THEN bg~& = _RGBA32(40, 70, 110, 240)
             LINE (x, y)-STEP(w - 1, 19), bg~&, BF
@@ -3923,6 +4062,7 @@ SUB EditLine3D(x1, y1, z1, x2, y2, z2, col~&)
     sx1 = (r1 / (a1 * edCamPlane * ak) + 1) * 400 : sy1 = (1 - u1 * 2 * edCamZoom / a1) * 300
     sx2 = (r2 / (a2 * edCamPlane * ak) + 1) * 400 : sy2 = (1 - u2 * 2 * edCamZoom / a2) * 300
     IF ABS(sx1) > 20000 OR ABS(sy1) > 20000 OR ABS(sx2) > 20000 OR ABS(sy2) > 20000 THEN EXIT SUB
+    sx1 = sx1 + edWX : sx2 = sx2 + edWX ' (FULL WIDE: drawn on the canvas, our screen in its middle)
     LINE (sx1, sy1)-(sx2, sy2), col~&
     LINE (sx1 + 1, sy1)-(sx2 + 1, sy2), col~& ' (two pixels wide)
 END SUB
@@ -3963,7 +4103,7 @@ END SUB
 ' The 3D editor's outlines, over the view: the face under the pointer
 ' (cyan, pulsing) - and what it is, by the pointer
 SUB EditDrawFaces
-    DIM cx, cy, c~&, k, ok, sx, sy, tx, ty ' (its own: the main program shares these names)
+    DIM cx, cy, c~&, k, ok, sx, sy, tx, ty, lbX ' (its own: the main program shares these names)
     IF edTool = ET_PLACE AND edHovKind AND NOT edLooking THEN ' PLACE: where it would go - a box on that cell's floor, and up from it
         EditFaceCell edHovKind, edHovX, edHovY, edHovSide, tx, ty
         IF tx > 0 AND ty > 0 AND tx < mapN - 1 AND ty < mapN - 1 THEN
@@ -3980,7 +4120,7 @@ SUB EditDrawFaces
                     ghostImg& = EditGlyphThumb&(editGlyph$) : ghostOf$ = editGlyph$ + STR$(artNow)
                     IF ghostImg& < -1 THEN _SETALPHA 150, &H01000000~& TO &HFFFFFFFF~&, ghostImg& ' (see-through: a ghost of it - its clear parts stay clear)
                 END IF
-                IF ghostImg& < -1 THEN _PUTIMAGE (sx - 20, sy - 20)-STEP(39, 39), ghostImg&
+                IF ghostImg& < -1 THEN _PUTIMAGE (sx + edWX - 20, sy - 20)-STEP(39, 39), ghostImg&
             END IF
         END IF
     END IF
@@ -4015,7 +4155,8 @@ SUB EditDrawFaces
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
             IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
             IF edHovPart THEN n$ = n$ + " half" + STR$(edHovPart)
-            COLOR _RGB32(150, 230, 255) : _PRINTSTRING (edCurX + 14, edCurY + 10), n$
+            lbX = edCurX + edWX + 14 : IF lbX + LEN(n$) * 8 > scrW - 4 THEN lbX = edCurX + edWX - 14 - LEN(n$) * 8 ' (by the window's right edge: on the pointer's left)
+            COLOR _RGB32(150, 230, 255) : _PRINTSTRING (lbX, edCurY + 10), n$
         END IF
     END IF
 END SUB
@@ -4037,8 +4178,10 @@ SUB EditOverlay(px, py, fx, fy)
     IF TIMER < editMsgUntil! THEN
         my = 470 : IF edPickOpen AND editView = 1 THEN my = PK_Y - 30 ' (above the picker)
         IF edPickOn AND NOT edPickOpen AND editView = 1 THEN my = PK_TUCK - 24
-        LINE (0, my)-(799, my + 20), _RGBA32(0, 0, 0, 170), BF
-        HudText 400 - LEN(LEFT$(editMsg$, 98)) * 4, my + 4, LEFT$(editMsg$, 98), _RGB32(255, 220, 120)
+        IF editView = 1 THEN HudAt -1 ' (FULL WIDE: all the way across)
+        LINE (0, my)-(scrW - 1, my + 20), _RGBA32(0, 0, 0, 170), BF
+        HudText scrW \ 2 - LEN(LEFT$(editMsg$, 98)) * 4, my + 4, LEFT$(editMsg$, 98), _RGB32(255, 220, 120)
+        IF editView = 1 THEN HudAt 0
     END IF
 END SUB
 

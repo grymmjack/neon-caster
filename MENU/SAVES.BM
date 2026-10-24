@@ -91,6 +91,7 @@ SUB SaveGame STATIC
     PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , jpDir(i) : PUT #fileNum, , jpAng(i) : PUT #fileNum, , jpPow(i) : NEXT ' (jump pads as they were last set)
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
+    nexSaves = nexSaves + 1 ' (NEXUS noticed: "You keep saving your game" - TauntFits)
 END SUB
 
 ' --- Load the game in slot saveSlot: read which level, build that level

@@ -166,21 +166,71 @@ DATA "cyber10", "Delete."
 DATA "", ""
 
 ' --- Once a frame: NEXUS taunts you now and then (every 60-120 seconds of
-' play, with TAUNTS on - not over another line)
+' play, with TAUNTS on - not over another line, nor in the editor or an
+' edit session, EDIT's)
 SUB SpeechFrame STATIC
-    DIM k, n ' (its own: the main program shares these names)
-    IF setting(SET_TAUNTS) AND NOT dead AND speechUntil! < TIMER THEN
+    DIM k, n, c, r ' (its own: the main program shares these names)
+    IF setting(SET_TAUNTS) AND NOT dead AND speechUntil! < TIMER AND NOT editMode AND NOT editSession THEN
         tauntWait = tauntWait - 1
-        IF tauntWait <= 0 THEN ' (any of them - however many there are - but not the last one again)
-            n = LineCount("taunt")
-            IF n > 0 THEN
-                DO : k = INT(RND * n) + 1 : LOOP WHILE k = lastTaunt AND n > 1
+        IF tauntWait <= 0 THEN ' (any that fits now - however many there are - but not the last one again)
+            n = LineCount("taunt") : c = 0
+            FOR k = 1 TO n
+                IF k <> lastTaunt THEN IF TauntFits(k) THEN c = c + 1
+            NEXT
+            IF c > 0 THEN
+                r = INT(RND * c) + 1
+                FOR k = 1 TO n
+                    IF k <> lastTaunt THEN
+                        IF TauntFits(k) THEN r = r - 1 : IF r = 0 THEN EXIT FOR
+                    END IF
+                NEXT
                 lastTaunt = k : Say "taunt" + LTRIM$(STR$(k)), 0
             END IF
             tauntWait = 3600 + INT(RND * 3600)
         END IF
     END IF
 END SUB
+
+' Does taunt k fit now? Most go anywhere; the ones about something - the
+' jetpack's fuel, jump pads, gravity, notes, dogs, alarms, barrels, hacking,
+' saving, turrets, safes, eyebots, a blackout - only where (and when) it's so
+FUNCTION TauntFits(k)
+    TauntFits = -1
+    SELECT CASE k
+        CASE 15 : TauntFits = jetHave OR TauntDeco(DK_JUMPPAD, DK_JUMPPAD) ' (You fly like a brick)
+        CASE 16 : TauntFits = TauntDeco(DK_JUMPPAD, DK_JUMPPAD)
+        CASE 17 : TauntFits = (lvlGravity <> 100)
+        CASE 18 : TauntFits = TauntDeco(DK_NOTE, DK_NOTE)
+        CASE 19 : TauntFits = TauntMon(MT_ROBODOG)
+        CASE 20 : TauntFits = TauntDeco(DK_ALARM, DK_ALARM)
+        CASE 23 : TauntFits = TauntDeco(1, 1) OR TauntDeco(8, 8) OR TauntDeco(DK_LQBARREL + 1, DK_LQBARREL + LQ_KINDS) ' (barrels, coolant tanks, liquid barrels)
+        CASE 24 : TauntFits = (numTCtrl > 0) OR TauntDeco(DK_PC, DK_PC) ' (computers to hack: turret panels, PCs)
+        CASE 25 : TauntFits = jetHave AND (jetOn OR rocketAir) ' (Your fuel gauge is dropping: up on the jetpack)
+        CASE 30 : TauntFits = (nexSaves > 0)
+        CASE 33 : TauntFits = TauntMon(MT_TURRET)
+        CASE 34 : TauntFits = (kills > 0) ' (That was a nice shot)
+        CASE 35 : TauntFits = TauntDeco(DK_SAFE, DK_SAFE)
+        CASE 38 : TauntFits = TauntMon(MT_EYEBOT) ' (Some of them can fly)
+        CASE 43 : TauntFits = nexBlackout ' (turn the lights off AGAIN)
+        CASE 44 : TauntFits = (level <= 2) ' (Ten more sectors of you)
+    END SELECT
+END FUNCTION
+
+' Is there a decoration of kind lo to hi here, not broken?
+FUNCTION TauntDeco(lo, hi)
+    DIM i ' (its own: the main program shares these names)
+    FOR i = 1 TO numDecos
+        IF decoOn(i) THEN IF decoKind(i) >= lo AND decoKind(i) <= hi THEN TauntDeco = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Is there a monster of type t here, still going?
+FUNCTION TauntMon(t)
+    DIM i ' (its own: the main program shares these names)
+    FOR i = 1 TO numMonsters
+        IF monsterType(i) = t AND monsterState(i) < 2 THEN TauntMon = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
 
 ' --- Which line NEXUS greets this sector with: a set's own ("intro-new3", the
 ' set's folder name and the sector), the game's ten and the showcases by

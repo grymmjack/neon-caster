@@ -324,6 +324,7 @@ END SUB
 
 ' --- playdemo NAME: play one (dFile$) - its header first, then DemoFresh
 SUB DemoPlayStart STATIC
+    editSession = 0 ' (a demo is the game: no edit session - EDITOR/SESSION.BM)
     demoFH = FREEFILE : OPEN dFile$ FOR INPUT AS #demoFH
     demoBack$ = "" : DemoNextLine
     IF dl$ <> "NEON-CASTER DEMO 1" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " isn't a demo" : EXIT SUB

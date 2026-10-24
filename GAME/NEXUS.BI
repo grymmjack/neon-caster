@@ -10,6 +10,7 @@
 CONST MAX_LINES = 220
 DIM SHARED lineKey$(MAX_LINES), lineText$(MAX_LINES), lineSnd&(MAX_LINES), numLines AS INTEGER
 DIM SHARED speechText$, speechUntil!, tauntWait AS LONG, lastTaunt AS INTEGER, cliMode AS INTEGER, nexusImg&
+DIM SHARED nexBlackout AS INTEGER, nexSaves AS INTEGER ' (a blackout's happened in this sector; games saved - for the taunts that need them: TauntFits)
 ' NEXUS's lines (and its minions' barks): key, then words
 RESTORE SpeechLines
 DO

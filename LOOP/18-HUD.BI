@@ -95,19 +95,21 @@
     END IF
     IF setting(SET_HURTDIR) THEN DrawHurtDirs playerX, playerY, dirX, dirY ' (over the red flash, so they stand out)
     IF godMode AND hudShow(HE_GOD) THEN HudAtE HE_GOD : HudText hudX(HE_GOD), hudY(HE_GOD), hudLabel$(HE_GOD), HudColor~&(HE_GOD, _RGB32(255, 215, 30)) : HudAt 1
-    IF editMode THEN EditOverlay playerX, playerY, dirX, dirY ' (the editor: what you're aiming at, what you'll place)
-    IF editMode AND editView = 1 THEN EditDrawFaces ' (the face under the pointer, and the ones selected, outlined)
+    ' (FULL WIDE: the editor's parts to the window's edges - edWX)
+    IF editMode AND editView = 1 THEN HudAt -1 : EditDrawFaces : HudAt 1 ' (the face under the pointer, and the ones selected, outlined - across the whole view)
+    IF editMode THEN HudAt 0 : EditOverlay playerX, playerY, dirX, dirY : HudAt 1 ' (the editor: what you're aiming at, what you'll place)
     IF editMode AND editView = 1 AND NOT hudEdit THEN ' The toolbar (and the help, when it's up)
+        HudAt -1
         IF edPickOpen THEN
             IF edLooking THEN EditDrawPicker -1, -1 ELSE EditDrawPicker edCurX, edCurY
         ELSEIF edPickOn THEN ' (tucked away: a strip saying what the brush is)
-            LINE (0, PK_TUCK)-(799, 599), _RGBA32(6, 2, 18, 200), BF : LINE (0, PK_TUCK)-(799, PK_TUCK), _RGBA32(255, 60, 200, 160)
+            LINE (0, PK_TUCK)-(scrW - 1, 599), _RGBA32(6, 2, 18, 200), BF : LINE (0, PK_TUCK)-(scrW - 1, PK_TUCK), _RGBA32(255, 60, 200, 160)
             IF edTool = ET_PAINT THEN t$ = EditPaintName$ ELSE IF edTool = ET_LIGHT THEN t$ = "light: " + LCASE$(EditFxName$(edLFx)) ELSE t$ = GlyphName$(editGlyph$)
-            HudText 8, PK_TUCK + 2, LEFT$("^ PICKER  (point here to open it)   brush: " + t$, 98), _RGB32(190, 180, 230)
+            HudText 8, PK_TUCK + 2, LEFT$("^ PICKER  (point here to open it)   brush: " + t$, (scrW - 16) \ 8), _RGB32(190, 180, 230)
         END IF
-        IF edLooking THEN EditDrawPane -1, -1 ELSE EditDrawPane edCurX, edCurY
-        IF edLooking THEN EditDrawTB 1, -1, -1 ELSE EditDrawTB 1, edCurX, edCurY
-        IF edHelp THEN EditDrawHelp 1
+        HudAt 2 : IF edLooking THEN EditDrawPane -1, -1 ELSE EditDrawPane edCurX, edCurY
+        HudAt 0 : IF edLooking THEN EditDrawTB 1, -1, -1 ELSE EditDrawTB 1, edCurX, edCurY
+        HudAt 1 : IF edHelp THEN EditDrawHelp 1
     END IF
 
     ' The map (DrawMap, chapter 23). The minimap in the corner only appears

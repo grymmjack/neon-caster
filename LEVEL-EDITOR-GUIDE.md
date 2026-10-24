@@ -1,8 +1,9 @@
 # NEON-CASTER Level Editor Guide
 
-A sector takes five minutes to start: **GAME > YOUR SECTORS > NEW SECTOR**, then carve rooms, put things in them and save. You can build from above on the map, or from inside, pointing at walls and floors with the mouse. Everything below is checked against `neon-caster.bas`.
+A sector takes five minutes to start: **EDIT > YOUR SECTORS > NEW SECTOR** (or GAME's), then carve rooms, put things in them and save. You can build from above on the map, or from inside, pointing at walls and floors with the mouse. Everything below is checked against `neon-caster.bas`.
 
 - [Your first sector](#your-first-sector)
+- [The EDIT menu](#the-edit-menu)
 - [How the editor fits together](#how-the-editor-fits-together)
 - [The toolbar and the picker](#the-toolbar-and-the-picker)
 - [The 3D view](#the-3d-view)
@@ -39,6 +40,16 @@ To rename it, open the console (`` ` ``), type `sectorname MY FIRST MAP`, then `
 **Twelve examples to take apart.** YOUR SECTORS starts with twelve sectors built to show the editor off (so your first NEW SECTOR is number 22, and there's room for eight of yours - 24 is taken; delete an example's file in `neon-caster/levels/custom/` for more): **11, THE GALLERY** (pictures on single faces, a checkerboard floor laid cell by cell, two-tone pillars, paintings lit and tinted by lights on their faces, statues that wake only when shot and guards that hear it), **12, THE SUNKEN DEPOT** (a walkway a wall up, a shaft with no bottom and a causeway across it, beams hanging from the dark, firelight on the furnace wall, crawler closets, a stalker hunting you from the start), **13, THE RELAY** (chambers only teleporters reach, each pad LINKed to its own, each chamber in pictures of its own), **14, THE CONSERVATORY** (a floor woven from divided cells, a bottomless pond crossed on lifts that each rise and fall at their own pace, a garden behind glass, and the light lab: all six ways a light can go, side by side), **15, THE LISTENING POST** (guards that see four cells but hear a shot from fourteen, crawler closets, a room you must survive for the blue card, an archive locked by a timed trigger and opened by a USE trigger on a terminal) **16, THE OBSERVATORY** (a tower climbed by stairs, an elevator and a lift that rises and falls by itself, glass windows, each ledge lit its own colour, and pads LINKed out of reading order), **17, THE FLOODED ARCHIVE** (a hall under murky water - its floor painted `floor-murky` cell by cell, and a floor's picture says what it does: you wade - crawlers among the shelves, a fallen catwalk, dying lights), **18, THE CORE** (a reactor glowing red on an island in a ring of molten metal painted to burn, bridges that are lifts rising and falling each at its own pace, fire traps, strobing alarms), and three outdoors under skies: **19, THE ROOFTOPS** (night over the neon city, roofs joined by bridges over alleys that are a death pit), **20, THE STORM YARD** (a shipyard under lightning, containers to climb, puddles that slow you) and **21, THE DRIFT** (platforms adrift in orbit over a bottomless void, crossed by catwalks, lifts and LINKed pads), and **24, THE NEON EXPO**: every feature in one sector - eight pavilions round a grand atrium, all thirteen kinds of event room, every kind of trigger, all five liquids, blocks and alcoves, standing decorations, lifts that bob or are called from a console, a skydeck over a street that kills, and the overseer on the summit (built by `neon-caster/levels/megasector.py`). Open one with F2 and click about: the panes show how each thing is set up. They're made by `neon-caster/levels/showcase.py`, which writes them again from scratch, so don't run it once you've changed them.
 
 Undo is **UNDO** or **Ctrl+Z**, up to 40 steps. One drag, or one run of wheel turns, counts as one step. **F1** (or **HELP**) shows every key for the view you're in.
+
+## The EDIT menu
+
+The main menu's **EDIT** is the editor on its own, for building rather than playing:
+
+- **RESUME LAST EDIT** opens the sector you edited last, in the editor, where you were and in the view you had (the map from above or 3D). Under it are the four sectors you edited before that.
+- **SELECT SECTOR**, the other sets and **YOUR SECTORS** are GAME's lists, but a sector chosen there opens straight in the editor. YOUR SECTORS has **NEW SECTOR**.
+- **TUNER** (every machine's health, each gun's damage, ammo - by difficulty) and **MONSTER KINDS** (each kind's numbers, `monsters.txt`).
+
+A sector opened from EDIT is an **edit session**: NEXUS doesn't greet you, no music plays and NEXUS keeps its taunts to itself. Press F2 to play-test as usual; reaching the exit brings you back to the editor instead of the tally and the next sector. Starting a game from GAME (or loading one) ends the session. The list is kept in `saves/editrecent.txt`.
 
 ## How the editor fits together
 
@@ -82,6 +93,7 @@ The world is a grid of cells, 48 × 48. Walls fill whole cells, and each cell ha
 | GRID, and the slider | Lines on every cell's edge, drawn into the world, and how strong they are (also **G**, and **Shift+G**) |
 | PICKER | 3D only: the picker tucked away (it opens when the pointer reaches the bottom of the screen), always open, or off (also **P**) |
 | SECTOR | The sector's own pane: its name, its light, and the pictures of its six kinds of wall, four floors and two ceilings |
+| VERSIONS | The sector's versions: **REVERT TO SAVED** (back to its file as last saved), **SAVE A VERSION NOW** (a copy as it is now, in `versions/` beside its file, named for when - its own file isn't touched), and the versions saved, newest first, with **BEFORE THE LAST SAVE** (its `.bak`) at the end - click one to load it. A loaded version isn't saved till you SAVE; Ctrl+Z puts back what you had, for REVERT too. (The console's `savesectorcopy` and `loadlevelfromdisk` do the same.) |
 | 2D MAP / 3D | The other view (also **Tab**) |
 | HELP | The cheatsheet for this view (also **F1**): every key, click and wheel turn, grouped; F1 or a click closes it |
 | < SECT, SECT > | Map view only: the sector before or after (PgUp, PgDn). With unsaved changes it asks first: press it again within three seconds to go anyway and lose them. |
@@ -101,7 +113,7 @@ The world is a grid of cells, 48 × 48. Walls fill whole cells, and each cell ha
 | LIGHTS | The six ways a light can go (steady, flicker, pulse, strobe, fire, dying), each shown going, in the brush's colour; then twelve colours |
 | LIQUIDS | DRAIN, then water, poison, slime, lava and acid, each 2, 4 and 6 eighths deep: pick one and PAINT pours it (see [Liquids](#liquids)) |
 
-Click one and it's the **brush**, and the tool that uses it is chosen for you: a map character picks PLACE, a picture picks PAINT, an effect or colour picks LIGHT. If something is **selected** when you click, it's done to the selection at once: the character is put in every selected cell (for a wall face, the cell in front of it), the picture painted on every selected face, the effect or colour given to every selected face's light.
+Click one and it's the **brush** of the tool that uses it - a map character PLACE's, a picture or liquid PAINT's, an effect or colour LIGHT's. The tool never changes by itself: choose it on the toolbar. Each tool keeps its own brush, and the BRUSH box shows the one for the tool you're using. **E** picks up what's under the pointer as the brush of the tool you're using: with PAINT the face's picture, with any other tool what's in that cell. If something is **selected** when you click, it's done to the selection at once: the character is put in every selected cell (for a wall face, the cell in front of it), the picture painted on every selected face, the effect or colour given to every selected face's light.
 
 ## The 3D view
 
@@ -137,7 +149,7 @@ The game, frozen, with a mouse pointer. Monsters don't move, pickups aren't take
 
 In PLACE, a magenta box on the floor and a see-through copy of the brush show where it will go before you click. Monsters, pickups and decorations can be clicked: they select their cell.
 
-The older keys still work, aimed along the middle of the view: **T** steps every wall of the aimed letter through the wall pictures (Shift: back), **F** the front cell's floor picture, **Z** gives the front cell the next of the level's four floors, **L** a light over the front cell and **K** takes away the light nearest you, **PgUp**/**PgDn** the front cell's floor (Shift: its ceiling), **E** picks up the aimed cell's character, `[` `]` step the brush, **1**-**8** a light preset, **U** the HUD layout editor.
+The older keys still work, aimed along the middle of the view: **T** steps every wall of the aimed letter through the wall pictures (Shift: back), **F** the front cell's floor picture, **Z** gives the front cell the next of the level's four floors, **L** a light over the front cell and **K** takes away the light nearest you, **PgUp**/**PgDn** the front cell's floor (Shift: its ceiling), `[` `]` step the brush, **1**-**8** a light preset, **U** the HUD layout editor.
 
 **Every change rebuilds the level.** Killed monsters come back, pickups reappear, doors shut, and your keycards and map are taken away. You stay where you are.
 
@@ -162,15 +174,19 @@ Rough a level out this way: Shift+wheel walls back to make rooms and corridors, 
 
 ## Pictures on faces, and Divide
 
-Any face can have a picture of its own: a wall's side, a step's or lintel's face, a floor, a ceiling. Pick a picture in the picker (it chooses PAINT) and click faces. **Ctrl+click** paints a whole floor or ceiling - or a wall's whole side: every face along it in the same plane with open floor in front, as far as it goes (your selection stays as it was), **Shift+click** puts back the usual picture, **Alt+click** picks a face's picture up. Picking a picture with faces selected paints them all. From above, PAINT paints a cell's floor (Ctrl: its ceiling), or all four sides of a wall.
+Any face can have a picture of its own: a wall's side, a step's or lintel's face, a floor, a ceiling. Choose **PAINT**, pick a picture in the picker and click faces. With PAINT on, a kind of wall in the WALLS tab (`#` `N` `C` `K` `P` `G`) is its picture - so to give a divided exit's top half the wall round it, click that wall's kind (or point at the wall itself and press **E**), then the top half. **Ctrl+click** paints a whole floor or ceiling - or a wall's whole side: every face along it in the same plane with open floor in front, as far as it goes (your selection stays as it was), **Shift+click** puts back the usual picture, **E** (or Alt+click, where the desktop doesn't take Alt+click for itself - KDE moves windows with it) picks up the picture of the face under the pointer. Picking a picture with faces selected paints them all. From above, PAINT paints a cell's floor (Ctrl: its ceiling), or all four sides of a wall.
 
 **Divide** splits a face in two for pictures. Select a face (or several) and press **H** for left | right or **V** for top | bottom; press it again to make the face whole. The halves start with the face's picture. Each half is outlined on its own when you point at it ("half 1", "half 2"), can be selected on its own, and painted on its own. A floor or ceiling divides west | east (H) or north | south (V). Top | bottom splits at the face's middle height, so on a tall wall it may be above your eye.
+
+**The exit, and doors.** An exit's sides take pictures and Divide like a wall's. Its sign fills whatever it's on: divide a tall exit top | bottom and paint the top half with the wall round it, and the sign below is whole, not stretched. A door (or a pane of glass) stands from its own cell's floor to its own ceiling: for a lintel over a tall door, lower that cell's ceiling with **HEIGHT** (click the ceiling above the door), and paint the lintel's face like any other.
 
 Both renderers draw every picture and half. A sector can use up to **24** pictures of its own on faces, counting the tinted copies lights make (below); past that, extra ones are ignored without a message.
 
 ## The properties pane
 
 Select something and its pane opens: on the right in the 3D view, over the map's right side in the map view. Changes apply to everything selected of that kind.
+
+With **FULL WIDE** (OpenGL, a screen wider than 4:3) the 3D view's controls use the whole screen: the toolbar and the info box at its left edge, the pane at its right edge, and the picker and messages all the way across the bottom - more thumbnails a row, and the middle of the view clear. The map view stays 4:3 in the middle.
 
 | Selected | The pane |
 | --- | --- |
@@ -213,6 +229,8 @@ To check an ambush, play it and type `mons` in the console: it says which monste
 **Size.** A sector is a square of cells: the game's own are 48 x 48, yours can be anything from 16 to 256 each way. The SECTOR pane's **MAP SIZE** (- and +, then MAKE IT) or the console's `mapsize N` grows it (new cells are wall, with the border all round) or cuts it down (lights, rooms, lifts and the rest past the new edge go with it; a room or lift across it is cut short). A big sector opens fitted to the view; **hold Space and drag** to pan the map, **hold Space and turn the wheel** to zoom in and out where the mouse is. In play, the minimap shows the 48 cells round you, and Tab's map the whole sector.
 
 The whole 48 × 48 map from above, one square per cell, with the picker, the toolbar and the help line in the panel on the right.
+
+**Carving a room bigger, fast.** Choose **PLACE**, point at a floor cell and press **E** (or right-click it): the brush is open floor (it's also the first entry in the **FLOORS** tab). Then hold **Shift** and drag a box over the walls you want gone: let go and it's floor. Or **SELECT**, drag a box over them and press **Del**. Then go into 3D (Tab) to set heights and pictures. The panel's **CELL** lines show what's under the mouse and its pictures (a wall's, or its floor's and ceiling's). With PAINT, **E** picks up the cell's floor picture (Ctrl+E: its ceiling's; on a wall: the wall's). PAINT on a wall cell only changes its picture: a floor picture there does nothing, and the message says to PLACE open floor instead.
 
 | Tool | Left button | Right button | Shift |
 | --- | --- | --- | --- |

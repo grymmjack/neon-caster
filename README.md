@@ -100,7 +100,10 @@ blank sector (one room in solid wall) and opens the level editor on it.
 Push walls back, sink pits, stand blocks in cells (pillars, thin walls,
 alcoves), flood floors with liquids, add doors, monsters and lights, paint
 any picture on any face, set up ambushes, and Ctrl+S saves it to
-`neon-caster/levels/custom/`. The [level editor guide](LEVEL-EDITOR-GUIDE.md)
+`neon-caster/levels/custom/`. The main menu's **EDIT** opens any sector
+straight in the editor - RESUME LAST EDIT picks up where you left off -
+with no intro, music or taunts, and the editor's VERSIONS keeps copies to
+go back to (and REVERT TO SAVED). The [level editor guide](LEVEL-EDITOR-GUIDE.md)
 explains every tool, key, map character and level-file field, and YOUR
 SECTORS starts with twelve example sectors (three of them outdoors, under skies) built with the editor to take
 apart.

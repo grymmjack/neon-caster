@@ -210,8 +210,8 @@ back to playing it. M opens the monster kinds editor (every kind's
 numbers, and what it drops: `monsters.txt`), U the HUD layout editor (drag
 the HUD about, over the game: `hud.txt`).
 
-**Your own sectors.** To start from nothing, **GAME > YOUR SECTORS > NEW
-SECTOR** makes a blank one - solid wall, with one lit room in the middle,
+**Your own sectors.** To start from nothing, **EDIT > YOUR SECTORS > NEW
+SECTOR** (or GAME's) makes a blank one - solid wall, with one lit room in the middle,
 you facing the exit - and opens the editor on it. Carve rooms outwards by
 pushing walls back or placing floor (`.`), add doors, keycards,
 monsters, lights and heights, and Ctrl+S saves it. Your sectors are numbered on from the game's (11, 12

@@ -30,5 +30,6 @@ RESUME NEXT
 ' Leave the game: the achievements' stats stored, Steam let go of, the
 ' settings saved
 SUB QuitGame
+    IF editMode THEN EditRecentNote ' (quitting from the editor: RESUME LAST EDIT starts where you were)
     AchStore : STEAM_shutdown : SaveSettings : SYSTEM
 END SUB

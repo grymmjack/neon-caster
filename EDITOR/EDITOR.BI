@@ -54,8 +54,9 @@ DIM SHARED edCtrl AS INTEGER ' (Ctrl, as the keys arrive - in order, so a quick 
 DIM SHARED gridOn AS INTEGER, gridW AS INTEGER ' (the software renderer's grid this frame, and its lines' width in texels)
 ' THE TOOLBAR (EditTBLayout): its buttons this frame - which (TB_), where -
 ' the one under the pointer, the slider being dragged, the help panel
-CONST TB_SELECT = 1, TB_PLACE = 2, TB_LIGHT = 3, TB_HEIGHT = 4, TB_DELETE = 5, TB_UNDO = 6, TB_SAVE = 7, TB_GRID = 8, TB_ALPHA = 9, TB_VIEW = 10, TB_HELP = 11, TB_PAINT = 12, TB_PICK = 13, TB_PREV = 14, TB_NEXT = 15, TB_KINDS = 16, TB_SECTOR = 17
-DIM SHARED edTbN AS INTEGER, edTbId(16) AS INTEGER, edTbX(16) AS INTEGER, edTbY(16) AS INTEGER, edTbW(16) AS INTEGER, edTbH(16) AS INTEGER
+CONST TB_SELECT = 1, TB_PLACE = 2, TB_LIGHT = 3, TB_HEIGHT = 4, TB_DELETE = 5, TB_UNDO = 6, TB_SAVE = 7, TB_GRID = 8, TB_ALPHA = 9, TB_VIEW = 10, TB_HELP = 11, TB_PAINT = 12, TB_PICK = 13, TB_PREV = 14, TB_NEXT = 15, TB_KINDS = 16, TB_SECTOR = 17, TB_VERSIONS = 18
+CONST TB_MAX = 24 ' (the most buttons a toolbar has)
+DIM SHARED edTbN AS INTEGER, edTbId(TB_MAX) AS INTEGER, edTbX(TB_MAX) AS INTEGER, edTbY(TB_MAX) AS INTEGER, edTbW(TB_MAX) AS INTEGER, edTbH(TB_MAX) AS INTEGER
 DIM SHARED edTbDrag AS INTEGER, edHelp AS INTEGER
 ' THE PICKER (EditPkBuild): the tab's entries - each a kind (PK_), what it
 ' is (a map character, a picture's file name, a light's number) and its
@@ -92,6 +93,14 @@ DIM SHARED edEvPane AS INTEGER ' (the event room's pane is open - EVENT ROOM... 
 DIM SHARED edCellLtPane AS INTEGER ' (the selection's CELL LIGHT pane is open)
 DIM SHARED edTrigPane AS INTEGER, edTrigWhen AS INTEGER, edTrigRepeat AS INTEGER, edTrigTime AS INTEGER, edTrigCmd$, edTypeFor AS INTEGER, edTrigIdx(8) AS INTEGER
 edTrigWhen = 1 : edTrigTime = 10 ' (the SECTOR pane; typing its name; which of its pictures the picker's choosing - 1-6 a wall kind, 7-10 a floor, 11-12 a ceiling)
+' FULL WIDE (the 3D view, OpenGL, the window wider than 4:3): the editor is
+' drawn on the HUD's canvas (HudWideBegin) - the toolbar and the info box at
+' the window's left edge, the pane at its right, the picker and the message
+' bar all the way across. edWX: how far the canvas reaches past our 800
+' screen on each side (0 otherwise). The pointer (edCurX) stays in our
+' screen's numbers, the 3D picking with it; each part's own (EditTBAt,
+' EditPaneAt, EditPkHit) moves it onto itself.
+DIM SHARED edWX AS INTEGER
 DIM SHARED edPnX0 AS INTEGER, edPnY0 AS INTEGER ' (where the pane is: down the right in 3D, over the map's right from above)
 DIM SHARED edLinkPad AS INTEGER, edLinkX AS INTEGER, edLinkY AS INTEGER ' (LINK: waiting for the pad this one's to go to)
 edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1

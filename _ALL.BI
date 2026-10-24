@@ -97,6 +97,7 @@
 '$INCLUDE:'./EDITOR/MONEDIT.BI'
 '$INCLUDE:'./EDITOR/EDITOR.BI'
 '$INCLUDE:'./EDITOR/HUDEDIT.BI'
+'$INCLUDE:'./EDITOR/SESSION.BI'
 
 ' DEMO ------------------------------------------------------------------------
 '$INCLUDE:'./DEMO/DEMO.BI'

@@ -186,6 +186,11 @@
                     texX = INT(wallX * texSize) : texSlot = T_EXIT
                     IF side = 0 AND rayDirX < 0 THEN texX = texSize - 1 - texX
                     IF side = 1 AND rayDirY > 0 THEN texX = texSize - 1 - texX
+                    IF faceAny THEN ' (painted, or divided, in the editor: as a wall's side)
+                        IF side = 0 THEN IF rayDirX > 0 THEN sd = 3 ELSE sd = 1
+                        IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
+                        IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, texX / texSize, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, texX / texSize, 0, texSlot)
+                    END IF
                 CASE ELSE
                     texX = INT(wallX * texSize) : texSlot = T_SHUTTER
             END SELECT

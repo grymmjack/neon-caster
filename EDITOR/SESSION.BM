@@ -1,0 +1,199 @@
+''
+' NEON-CASTER - EDITOR/SESSION.BM
+' =============================================================================
+' Editing as its own thing: the sectors edited last (RESUME LAST EDIT), and
+' a sector's versions (REVERT TO SAVED, SAVE A VERSION, load one).
+'
+
+' This sector's code, as the menus have it: a set's sector set * 100 + its
+' number; the game's ten and your own, the number
+FUNCTION EditCodeNow
+    IF level <= NUM_LEVELS THEN EditCodeNow = sectorSet * 100 + level ELSE EditCodeNow = level
+END FUNCTION
+
+' Sector code c's name, without its "SECTOR n: " - "" if it's gone
+FUNCTION EditCodeName$(c)
+    DIM nm$, k ' (its own: the main program shares these names)
+    IF c > 100 THEN
+        nm$ = SetSectorName$(c \ 100, c MOD 100)
+    ELSEIF c <= NUM_LEVELS THEN
+        nm$ = SetSectorName$(0, c)
+    ELSE
+        nm$ = SectorNameOf$(c)
+    END IF
+    k = INSTR(nm$, ": ") : IF k THEN nm$ = MID$(nm$, k + 2)
+    EditCodeName$ = nm$
+END FUNCTION
+
+' The list, from saves/editrecent.txt (a line each: code x y dirX dirY view)
+SUB EditRecentLoad
+    DIM f$, l$, fh, k, p, v$ ' (its own: the main program shares these names)
+    erN = 0
+    f$ = SaveDir$ + "editrecent.txt" : IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    DO UNTIL EOF(fh) OR erN >= ER_MAX
+        LINE INPUT #fh, l$ : l$ = LTRIM$(RTRIM$(l$))
+        IF LEN(l$) THEN
+            erN = erN + 1
+            FOR k = 1 TO 6 ' (its six numbers, space apart)
+                p = INSTR(l$, " ") : IF p = 0 THEN p = LEN(l$) + 1
+                v$ = LEFT$(l$, p - 1) : l$ = LTRIM$(MID$(l$, p + 1))
+                SELECT CASE k
+                    CASE 1 : erCode(erN) = VAL(v$)
+                    CASE 2 : erX(erN) = VAL(v$)
+                    CASE 3 : erY(erN) = VAL(v$)
+                    CASE 4 : erDX(erN) = VAL(v$)
+                    CASE 5 : erDY(erN) = VAL(v$)
+                    CASE 6 : erView(erN) = VAL(v$)
+                END SELECT
+            NEXT
+            IF erCode(erN) < 1 OR LEN(EditCodeName$(erCode(erN))) = 0 THEN erN = erN - 1 ' (a sector of yours since deleted: off the list)
+        END IF
+    LOOP
+    CLOSE #fh
+END SUB
+
+SUB EditRecentSave
+    DIM f$, fh, k ' (its own: the main program shares these names)
+    f$ = SaveDir$ + "editrecent.txt"
+    fh = FREEFILE : OPEN f$ FOR OUTPUT AS #fh
+    FOR k = 1 TO erN
+        PRINT #fh, LTRIM$(STR$(erCode(k))); " "; LTRIM$(STR$(erX(k))); " "; LTRIM$(STR$(erY(k))); " "; LTRIM$(STR$(erDX(k))); " "; LTRIM$(STR$(erDY(k))); " "; LTRIM$(STR$(erView(k)))
+    NEXT
+    CLOSE #fh
+END SUB
+
+' This sector, as it is in the editor now (where you are, which view), to
+' the top of the list - into the editor, another sector, out of it, quitting
+SUB EditRecentNote
+    DIM c, k, j ' (its own: the main program shares these names)
+    IF demoPlay OR demoRec OR cyberOn THEN EXIT SUB
+    EditRecentLoad
+    c = EditCodeNow : j = erN + 1
+    FOR k = 1 TO erN
+        IF erCode(k) = c THEN j = k : EXIT FOR
+    NEXT
+    IF j > ER_MAX THEN j = ER_MAX
+    FOR k = j TO 2 STEP -1 ' (the ones above it down one)
+        erCode(k) = erCode(k - 1) : erX(k) = erX(k - 1) : erY(k) = erY(k - 1) : erDX(k) = erDX(k - 1) : erDY(k) = erDY(k - 1) : erView(k) = erView(k - 1)
+    NEXT
+    erCode(1) = c : erX(1) = INT(playerX * 100) / 100 : erY(1) = INT(playerY * 100) / 100 : erDX(1) = INT(dirX * 1000) / 1000 : erDY(1) = INT(dirY * 1000) / 1000 : erView(1) = editView
+    IF j > erN THEN erN = j
+    EditRecentSave
+END SUB
+
+' --- RESUME LAST EDIT (i 1), or one edited before it (EDIT's list): that
+' sector, in the editor, where you were and in the view you had. Already
+' editing it: just back to it.
+SUB EditResume(i)
+    DIM c, v, x!, y!, dx!, dy! ' (its own: the main program shares these names)
+    EditRecentLoad : IF i < 1 OR i > erN THEN EXIT SUB
+    c = erCode(i) : x! = erX(i) : y! = erY(i) : dx! = erDX(i) : dy! = erDY(i) : v = erView(i)
+    IF menuInGame AND c = EditCodeNow AND (editMode OR editSession) THEN ' (the one open now: nothing to load - its edits not saved yet stay)
+        editSession = -1 : IF NOT editMode THEN EditEnter
+        menuDone = -1 : EXIT SUB
+    END IF
+    level = c : sectorSet = 0
+    IF level > 100 THEN sectorSet = level \ 100 : level = level MOD 100
+    ReadSectorNames
+    IF NOT SectorExists(level) THEN ShowMsg "That sector isn't there any more" : EXIT SUB
+    editSession = -1 : NewGameHere : EditEnter
+    IF x! > 0 AND y! > 0 AND x! < mapN AND y! < mapN AND (dx! <> 0 OR dy! <> 0) THEN ' (where you were: in the editor you fly, so anywhere will do)
+        playerX = x! : playerY = y! : dirX = dx! : dirY = dy!
+        planeX = -dirY * fovPlane : planeY = dirX * fovPlane
+        playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
+    END IF
+    IF v = 1 THEN editView = 1 : edMouseFix = -1 : EditNote "3D: point at a face - hold the right button to look round - F1 for help"
+    EditRecentNote
+    menuDone = -1
+END SUB
+
+' --- THE VERSIONS: this sector's saved copies (versions/ beside its file,
+' named for when: custom3-2026-10-20-081512.txt), newest first - then the
+' save before the last (its file's .bak)
+SUB EditVerList
+    DIM f$, d$, b$, n$, t$, k, j, sl ' (its own: the main program shares these names)
+    edVerN = 0
+    f$ = LevelFile$(level) : d$ = EditCopyDir$
+    k = _INSTRREV(f$, "/") : IF _INSTRREV(f$, "\") > k THEN k = _INSTRREV(f$, "\")
+    b$ = MID$(f$, k + 1) : b$ = LEFT$(b$, LEN(b$) - 4) + "-" ' (custom3-)
+    IF _DIREXISTS(LEFT$(d$, LEN(d$) - 1)) THEN
+        n$ = _FILES$(d$ + b$ + "*.txt")
+        DO WHILE LEN(n$) AND edVerN < VER_MAX - 1
+            sl = _INSTRREV(n$, "/") : IF _INSTRREV(n$, "\") > sl THEN sl = _INSTRREV(n$, "\")
+            n$ = MID$(n$, sl + 1)
+            IF LCASE$(LEFT$(n$, LEN(b$))) = LCASE$(b$) AND LEN(n$) = LEN(b$) + 21 THEN ' (b$ + 2026-10-20-081512.txt: just its own - custom3-, not custom30-)
+                edVerN = edVerN + 1 : edVerF$(edVerN) = d$ + n$
+                t$ = MID$(n$, LEN(b$) + 1, 17) ' (2026-10-20-081512)
+                edVerLab$(edVerN) = LEFT$(t$, 10) + " " + MID$(t$, 12, 2) + ":" + MID$(t$, 14, 2) + ":" + MID$(t$, 16, 2)
+            END IF
+            n$ = _FILES$
+        LOOP
+    END IF
+    FOR k = 1 TO edVerN - 1 : FOR j = k + 1 TO edVerN ' (newest first: their names sort by when)
+        IF edVerF$(j) > edVerF$(k) THEN SWAP edVerF$(j), edVerF$(k) : SWAP edVerLab$(j), edVerLab$(k)
+    NEXT : NEXT
+    IF _FILEEXISTS(f$ + ".bak") THEN edVerN = edVerN + 1 : edVerF$(edVerN) = f$ + ".bak" : edVerLab$(edVerN) = "BEFORE THE LAST SAVE"
+    IF edVerTop > MaxOf(0, edVerN - VER_ROWS) THEN edVerTop = MaxOf(0, edVerN - VER_ROWS)
+    IF edVerTop < 0 THEN edVerTop = 0
+END SUB
+
+' The sector from file f$ ("": its own, as last saved - REVERT) in place of
+' what's in the editor now - one step of undo, so Ctrl+Z has back what you
+' had. You stay where you are.
+SUB EditLoadFrom(f$)
+    EditPushUndo
+    EditKeepPlace -1
+    lvlReadFrom$ = f$ : ReadLevelFile level : lvlReadFrom$ = ""
+    IF NOT lvlOK THEN ' (not a sector: what you had, back)
+        EditRestore editUndo$(editUndoN) : editUndoN = editUndoN - 1
+        editRebuild = -1 : BuildLevel : editRebuild = 0 : EditKeepPlace 0
+        EditNote "Can't read that as a sector: " + f$ : EXIT SUB
+    END IF
+    sectorName$(level) = lvlName$
+    editRebuild = -1 : BuildLevel : editRebuild = 0 : kills = 0
+    EditKeepPlace 0
+    IF LEN(f$) THEN editDirty = -1 : editFresh = 0 ELSE editDirty = 0 : editFresh = 0
+END SUB
+
+' --- The VERSIONS pane (the toolbar's VERSIONS): REVERT TO SAVED, SAVE A
+' VERSION, and the versions to go back to - a click loads one, Ctrl+Z
+' undoes that (button ids 400-499)
+SUB EditPaneVersions(x0, y0)
+    DIM k, y, t$ ' (its own: the main program shares these names)
+    y = y0 : edPnTitle$ = "VERSIONS"
+    EditPaneAdd -1, x0, y + 2, PN_W, LEFT$(SectorShort$, 24), 0 : y = y + 22
+    IF editDirty THEN t$ = "* not saved yet" ELSE t$ = "as saved"
+    EditPaneAdd -1, x0, y + 2, PN_W, t$, 0 : y = y + 24
+    EditPaneAdd 400, x0, y, PN_W, "REVERT TO SAVED", editDirty : y = y + 24
+    EditPaneAdd 401, x0, y, PN_W, "SAVE A VERSION NOW", 0 : y = y + 30
+    IF edVerN = 0 THEN
+        EditPaneAdd -1, x0, y + 2, PN_W, "No versions saved yet", 0 : y = y + 22
+    ELSE
+        EditPaneAdd -1, x0, y + 2, PN_W, LTRIM$(STR$(edVerN)) + " - click one to load it:", 0 : y = y + 22
+        FOR k = edVerTop + 1 TO MinOf(edVerN, edVerTop + VER_ROWS)
+            EditPaneAdd 410 + k - edVerTop - 1, x0, y, PN_W, edVerLab$(k), 0 : y = y + 23
+        NEXT
+        IF edVerN > VER_ROWS THEN
+            EditPaneAdd 402, x0, y, 98, "NEWER", 0 : EditPaneAdd 403, x0 + 102, y, 98, "OLDER", 0 : y = y + 24
+        END IF
+    END IF
+    EditPaneAdd -1, x0, y + 4, PN_W, "Loaded: SAVE keeps it,", 0 : EditPaneAdd -1, x0, y + 20, PN_W, "Ctrl+Z goes back", 0
+END SUB
+
+SUB EditVerClick
+    DIM k, f$ ' (its own: the main program shares these names)
+    SELECT CASE pnHit
+        CASE 400 ' REVERT TO SAVED: the sector's file, as last saved
+            EditLoadFrom "" : EditNote "Back to the saved sector (Ctrl+Z: your changes again)"
+        CASE 401 ' SAVE A VERSION: a copy as it is now, in versions/ (not the sector's own file)
+            f$ = EditSaveCopy$ : EditVerList : edVerTop = 0 : EditNote "Version saved: " + f$
+        CASE 402 : edVerTop = MaxOf(0, edVerTop - VER_ROWS)
+        CASE 403 : edVerTop = MinOf(MaxOf(0, edVerN - VER_ROWS), edVerTop + VER_ROWS)
+        CASE 410 TO 410 + VER_ROWS - 1 ' A version: loaded in place of what's here (not saved till you save)
+            k = edVerTop + pnHit - 409
+            IF k >= 1 AND k <= edVerN THEN
+                EditLoadFrom edVerF$(k) : EditNote "Loaded the version of " + edVerLab$(k) + " - SAVE keeps it, Ctrl+Z goes back"
+            END IF
+    END SELECT
+END SUB

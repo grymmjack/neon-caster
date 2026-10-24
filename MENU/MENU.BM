@@ -316,6 +316,7 @@ SUB MenuActivate STATIC
         CASE MI_SUBMENU ' Into another screen, remembering this one
             PlaySfx sndMenuSelect&, 0.6
             menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
+            IF menuScreen = SCR_EDIT THEN menuEditPick = -1 ELSE IF menuScreen = SCR_GAME THEN menuEditPick = 0 ' (the sector lists: to play, from GAME - to edit, from EDIT)
             menuScreen = miRef(menuSel) : IF menuScreen = SCR_DEMOS THEN demoListPage = 0
             IF menuScreen >= SCR_ST1 AND menuScreen < SCR_ST1 + ST_CATS THEN stPage = 0
             EnterMenuScreen
@@ -335,7 +336,7 @@ SUB MenuActivate STATIC
                 CASE MA_RESUME
                     menuDone = -1
                 CASE MA_NEW
-                    sectorSet = 0 : ReadSectorNames : NewGame : menuDone = -1
+                    editSession = 0 : sectorSet = 0 : ReadSectorNames : NewGame : menuDone = -1
                 CASE MA_DEMO ' A demo (DEMO REPLAYS), played back - and when it's over, back to the list
                     n = miRef(menuSel)
                     IF demoRec OR demoPlay THEN DemoStop
@@ -365,18 +366,21 @@ SUB MenuActivate STATIC
                 CASE MA_SECTOR ' A new game, in sector miRef (straight there: no stop in sector 1) - over 100, another set's
                     level = miRef(menuSel) : sectorSet = 0
                     IF level > 100 THEN sectorSet = level \ 100 : level = level MOD 100
-                    ReadSectorNames : NewGameHere
+                    ReadSectorNames : editSession = menuEditPick : NewGameHere
+                    IF menuEditPick THEN EditEnter ' (from EDIT: straight into the editor - EDITOR/SESSION.BM)
                     menuDone = -1
                 CASE MA_NEWSECTOR ' A blank sector of your own, straight into the editor
-                    NewSector : IF level > NUM_LEVELS THEN menuDone = -1
+                    editSession = -1 : NewSector : IF level > NUM_LEVELS THEN menuDone = -1
                 CASE MA_SAVE
                     saveSlot = miRef(menuSel) : SaveGame : menuDone = -1
                 CASE MA_LOAD
                     saveSlot = miRef(menuSel) : LoadGame
-                    IF loadOK THEN menuDone = -1
+                    IF loadOK THEN menuDone = -1 : editSession = 0
                 CASE MA_QUIT
                     QuitGame
                 CASE MA_TUNER : RunTuner
+                CASE MA_MONKINDS : RunMonsterEditor ' (EDIT's MONSTER KINDS: EDITOR/MONEDIT.BM)
+                CASE MA_EDITRESUME : EditResume miRef(menuSel) ' (RESUME LAST EDIT, or one before it: EDITOR/SESSION.BM)
                 CASE MA_KEYS_DEFAULT
                     FOR b = 1 TO NUM_BINDS : keyBind&(b) = bindDefault&(b) : NEXT
                 CASE MA_QB64_TYPE ' Type qb64pe's path in (MenuTypeKey)
@@ -463,6 +467,7 @@ SUB BuildMenu(scr)
                 AddMenuItem PlOptName$(6), MI_ACTION, 6, MA_PLOPT, -1, ""
             END IF
             AddMenuItem "GAME", MI_SUBMENU, SCR_GAME, 0, -1, ""
+            AddMenuItem "EDIT", MI_SUBMENU, SCR_EDIT, 0, -1, "" ' (the editor as its own thing: EDITOR/SESSION.BM)
             AddMenuItem "DEMO REPLAYS", MI_SUBMENU, SCR_DEMOS, 0, -1, ""
             AddMenuItem "SETTINGS", MI_SUBMENU, SCR_SETTINGS, 0, -1, ""
             AddMenuItem "CREDITS", MI_SUBMENU, SCR_CREDITS, 0, -1, ""
@@ -479,6 +484,23 @@ SUB BuildMenu(scr)
             AddMenuItem "ACHIEVEMENTS", MI_ACTION, 0, MA_ACHIEVE, -1, ""
             AddMenuItem "LOAD GAME", MI_SUBMENU, SCR_LOAD, 0, -1, ""
             AddMenuItem "SAVE GAME", MI_SUBMENU, SCR_SAVE, 0, menuInGame, "" ' (only during a game)
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_EDIT ' EDIT: the sectors edited last, any sector straight into the editor, and the game's numbers (EDITOR/SESSION.BM)
+            menuTitle$ = "EDIT" : menuWide = -1
+            EditRecentLoad
+            IF erN THEN AddMenuItem "RESUME LAST EDIT", MI_ACTION, 1, MA_EDITRESUME, -1, EditCodeName$(erCode(1)) ELSE AddMenuItem "RESUME LAST EDIT", MI_ACTION, 1, MA_EDITRESUME, 0, "nothing edited yet"
+            FOR n = 2 TO erN ' (the ones edited before it)
+                nm$ = UCASE$(EditCodeName$(erCode(n))) : IF LEN(nm$) > 18 THEN nm$ = LEFT$(nm$, 17) + "~"
+                c = erCode(n) : IF c > 100 THEN info$ = SetName$(c \ 100) + "," + STR$(c MOD 100) ELSE info$ = "sector" + STR$(c)
+                AddMenuItem "  " + nm$, MI_ACTION, n, MA_EDITRESUME, -1, info$
+            NEXT
+            AddMenuItem "SELECT SECTOR", MI_SUBMENU, SCR_SECTOR, 0, -1, "the game's ten - in the editor"
+            FOR s = 1 TO NUM_SETS
+                AddMenuItem SetName$(s), MI_SUBMENU, SCR_SET1 + s - 1, 0, LEN(SetSectorName$(s, 1)) > 0, ""
+            NEXT
+            AddMenuItem "YOUR SECTORS", MI_SUBMENU, SCR_CUSTOM, 0, -1, "or a NEW SECTOR"
+            AddMenuItem "TUNER", MI_ACTION, 0, MA_TUNER, -1, "health, damage, ammo - by difficulty"
+            AddMenuItem "MONSTER KINDS", MI_ACTION, 0, MA_MONKINDS, -1, "every kind's numbers - monsters.txt"
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_SECTOR ' A new game, starting in any sector
             menuTitle$ = "SELECT SECTOR" : menuWide = -1
@@ -665,6 +687,7 @@ SUB BuildMenu(scr)
             AddMenuItem "YES", MI_ACTION, 0, MA_QUIT, -1, ""
             AddMenuItem "NO", MI_BACK, 0, 0, -1, ""
     END SELECT
+    IF menuEditPick AND (scr = SCR_SECTOR OR scr = SCR_CUSTOM OR scr = SCR_CUSTOM2 OR (scr >= SCR_SET1 AND scr < SCR_SET1 + NUM_SETS)) THEN menuTitle$ = "EDIT: " + menuTitle$ ' (from EDIT: a sector opens in the editor)
 END SUB
 
 ' One more item on the menu screen being built (see the mi... arrays)
@@ -723,7 +746,7 @@ END SUB
 ' then each item sliding in (see chapter 21), with the selected one lit up
 ' and each control drawn the way its kind needs
 SUB DrawMenu(t)
-    DIM B, f, i, p ' (its own: the main program shares these names)
+    DIM B, f, i, p, ix ' (its own: the main program shares these names)
     glow = 0.5 + 0.5 * SIN(t * 0.05)
     IF StScreen THEN ' (SOUND TEST: the player where the name was)
         StDrawPlayer t
@@ -819,7 +842,8 @@ SUB DrawMenu(t)
                 MenuText 400, 548, MID$(miInfo$(i), bar + 1) + "  (ENTER OR CLICK OPENS IT)", 1, _RGBA32(90, 230, 255, alpha), 1
             END IF
         ELSEIF LEN(miInfo$(i)) THEN
-            MenuText MENU_LABEL_X + 160 + slide, rowY + 9, miInfo$(i), 1, col~&, 0
+            ix = MENU_LABEL_X + MaxOf(160, LEN(miLabel$(i)) * 16 + 16) ' (past a long label - EDIT's - not over it)
+            MenuText ix + slide, rowY + 9, LEFT$(miInfo$(i), MaxOf(0, (712 - ix) \ 8)), 1, col~&, 0
         END IF
         IF miAct(i) = MA_STPLAY AND miKind(i) = MI_ACTION AND stNow > 0 THEN
             IF miRef(i) = stNow THEN StRowIcon MENU_LABEL_X + 70 + slide, rowY ' (SOUND TEST: the one playing)

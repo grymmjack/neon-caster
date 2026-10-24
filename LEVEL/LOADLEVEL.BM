@@ -17,6 +17,7 @@ SUB LoadLevel STATIC
     IF conQHead >= conQTail THEN conWait = 0 ' (and a trigger's "wait" with them - unless typed commands still queue behind it)
     achSectN = 0
     achLevelHurt = 0 : achOtherGun = 0 : achInLava = 0 ' (for the sector's end: hurt? any gun but the blaster?)
+    nexBlackout = 0 ' (no blackout here yet: NEXUS's "lights off again" taunt waits for one)
     ReadLevelFile level ' (its file: neon-caster/levels/levelN.txt - chapter 22)
     IF NOT lvlOK THEN PRINT "Can't read the level file "; LevelFile$(level) : SLEEP : SYSTEM
     BuildLevel ' (and on into the next part)
@@ -558,7 +559,10 @@ SUB BuildLevel STATIC
     bobPhase = 2.2 ' The first footstep sounds soon after you start walking (a foot lands at pi)
     levelStart! = TIMER : frameAt! = TIMER : shake = 0 : hurtFromX = -1 : lvFrame = 0
     FOR i = 1 TO MAX_HURTDIRS : hurtDirTime(i) = 0 : NEXT
-    IF NOT editRebuild THEN PlayMusic SectorMusic&(level) : ShowMsg levelName$ + "  -  find the EXIT"
+    IF NOT editRebuild THEN
+        IF editSession THEN PlayMusic 0 ELSE PlayMusic SectorMusic&(level) ' (an edit session, EDIT's: no music)
+        ShowMsg levelName$ + "  -  find the EXIT"
+    END IF
     ListDoors
     ' (built again in the editor: OpenGL's turn now - new pictures if any,
     ' and the world again. Only now: SUB _GL runs alongside this, and asked

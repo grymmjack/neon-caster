@@ -133,7 +133,7 @@ SUB RunEvents STATIC
             CASE EV_BLACKOUT ' Walk in: the power fails; things come out of the dark
                 IF evState(ev) = 0 AND inside AND NOT dead THEN
                     evState(ev) = 1 : blackoutTimer = evA(ev) * 60 : evCount(ev) = 0 : evNext(ev) = 60
-                    PlaySfx sndPowerDown&, 1 : ShowMsg "POWER FAILURE" : Say "blackout", 0
+                    PlaySfx sndPowerDown&, 1 : ShowMsg "POWER FAILURE" : Say "blackout", 0 : nexBlackout = -1
                 ELSEIF evState(ev) = 1 THEN
                     IF evNext(ev) > 0 THEN evNext(ev) = evNext(ev) - 1
                     IF evCount(ev) < evB(ev) AND evNext(ev) = 0 THEN

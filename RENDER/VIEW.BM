@@ -163,7 +163,7 @@ SUB HeightColumn STATIC
             IF hBoxed THEN
                 fu = BoxFaceU(hcX, hcY, hSd, hTexX / texSize) ' (a block's sides: faces of their own)
                 hSlot2 = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 1, hSlot) : hSlot = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 0, hSlot)
-            ELSEIF hSolid AND v <> 2 AND diagCorner(hnX, hnY) = 0 AND NOT hDoored THEN
+            ELSEIF hSolid AND (v <> 2 OR hSlot = T_EXIT) AND diagCorner(hnX, hnY) = 0 AND NOT hDoored THEN
                 hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot) ' (a diagonal: its neighbours' look, always; a door, its own)
             END IF
         END IF
@@ -227,8 +227,19 @@ SUB HeightFace STATIC
     vStep = hDOut / viewH * texSize : v = (hVOff + 1 - eyeZ + (yA + 0.5 - hor) * hDOut / viewH) * texSize : tMask = texSize - 1
     IF hSlot2 = 0 THEN hSlot2 = hSlot
     hMidY = (y0 + y1) / 2 : hSl = hSlot ' (divided top | bottom: hSlot2 below the middle)
+    hExitV = (hSlot = T_EXIT OR hSlot2 = T_EXIT) ' (the exit's sign fills its face - or its half - top to bottom, as OpenGL draws it)
     FOR y = yA TO yB
         IF y > hMidY THEN hSl = hSlot2
+        IF hExitV THEN
+            IF hSl = T_EXIT THEN
+                zr = eyeZ - (y + 0.5 - hor) * hDOut / viewH : ezT = hZ0 : ezB = hZ1
+                IF hSlot <> hSlot2 THEN IF y > hMidY THEN ezT = (hZ0 + hZ1) / 2 ELSE ezB = (hZ0 + hZ1) / 2
+                IF ezT - ezB > 0.001 THEN v = (ezT - zr) / (ezT - ezB) * texSize ELSE v = 0
+                IF v > texSize - 1 THEN v = texSize - 1
+            ELSE
+                v = (hVOff + 1 - eyeZ + (y + 0.5 - hor) * hDOut / viewH) * texSize
+            END IF
+        END IF
         texel~& = texture(hTexX, INT(v) AND tMask, hSl)
         pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * hR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * hG& \ 256) * 256 OR ((texel~& AND 255) * hB& \ 256)
         IF gridOn THEN IF hTexX < gridW OR (INT(v) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))

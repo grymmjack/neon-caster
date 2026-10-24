@@ -1735,11 +1735,41 @@ SUB GLFace(cx, cy, side, b)
                 GLStrip ax, ay, bx, by, 0, 0.5 - doorAmt / 2, doorAmt / 2, 0.5, dfz, dcz, 0, 1, T_SPLIT
                 GLStrip ax, ay, bx, by, 0.5 + doorAmt / 2, 1, 0.5, 1 - doorAmt / 2, dfz, dcz, 0, 1, T_SPLIT
             END IF
-        CASE DOOR_EXIT ' Turned like a wall, so its sign reads the right way
-            GLStrip ax, ay, bx, by, 0, 1, u0, u1, dfz, dcz, 0, 1, T_EXIT
+        CASE DOOR_EXIT ' Turned like a wall, so its sign reads the right way - painted or divided in the editor, as a wall's side is
+            GLExitFace ax, ay, bx, by, u0, u1, dfz, dcz, cx, cy, VAL(MID$("3142", side, 1))
         CASE ELSE ' A shutter: the part still hanging down, showing the bottom of its texture
             IF doorAmt < 1 THEN GLStrip ax, ay, bx, by, 0, 1, 0, 1, dfz + doorAmt * (dcz - dfz), dcz, doorAmt, 1, T_SHUTTER
     END SELECT
+END SUB
+
+' The exit's side: its sign, from its floor to its ceiling - or, painted
+' in the editor ([faces]), its own pictures; divided top | bottom, a tall
+' exit's sign in one half (the whole sign, not stretched) and a wall's
+' picture in the other, say
+SUB GLExitFace(ax, ay, bx, by, u0, u1, zLow, zHigh, x, y, f)
+    DIM um, zm ' (its own: the main program shares these names)
+    SELECT CASE faceDiv(x, y, f)
+        CASE 1
+            um = (u0 + u1) / 2
+            GLExitStrip ax, ay, bx, by, 0, 0.5, u0, um, zLow, zHigh, FaceSlot(x, y, f, (u0 + um) / 2, 0, T_EXIT)
+            GLExitStrip ax, ay, bx, by, 0.5, 1, um, u1, zLow, zHigh, FaceSlot(x, y, f, (um + u1) / 2, 0, T_EXIT)
+        CASE 2
+            zm = (zLow + zHigh) / 2
+            GLExitStrip ax, ay, bx, by, 0, 1, u0, u1, zm, zHigh, FaceSlot(x, y, f, 0, 0, T_EXIT)
+            GLExitStrip ax, ay, bx, by, 0, 1, u0, u1, zLow, zm, FaceSlot(x, y, f, 0, 1, T_EXIT)
+        CASE ELSE
+            GLExitStrip ax, ay, bx, by, 0, 1, u0, u1, zLow, zHigh, FaceSlot(x, y, f, 0, 0, T_EXIT)
+    END SELECT
+END SUB
+
+' Part of the exit's side: its sign fills it, top to bottom; any other
+' picture is by height, as a wall's (so it lines up with the walls by it)
+SUB GLExitStrip(ax, ay, bx, by, s0, s1, u0, u1, zLow, zHigh, slot)
+    IF slot = T_EXIT THEN
+        GLStrip ax, ay, bx, by, s0, s1, u0, u1, zLow, zHigh, 0, 1, slot
+    ELSE
+        GLStrip ax, ay, bx, by, s0, s1, u0, u1, zLow, zHigh, 1 - zHigh, 1 - zLow, slot
+    END IF
 END SUB
 
 ' A box's four sides (each one only if you're in front of it - the mesh
