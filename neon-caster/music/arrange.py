@@ -31,6 +31,12 @@ editor, or read back from Renoise / Bitwig):
     arrange A B*2 C D B*3
     seam 12 5 0.93      ; after bar 12, bar 5 can follow (how alike: 0-1) - the analysis's, for the editors
 
+A clip can start and end between bar lines ("clip J  at 17.25-17.5", to a
+128th of a bar). A pattern is a little arrangement of clips that plays as one
+block ("pattern A1  C*2 B", then "arrange E A1*2 F"; A1-F9, clips only).
+NAME can be NAME/ALT: music/arrangements/NAME/ALT.arr, an alternative
+arrangement of NAME's take (made by the game's arranger, Ctrl+Shift+S).
+
 A clip repeated (B*2) plays its bars again; a clip followed by one that
 doesn't start on the bar after it jumps - at a bar line, with a short
 equal-power crossfade. The file loops as a whole, so the arrangement's
@@ -430,7 +436,16 @@ CLIP_NAMES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
 def arr_path(name):
+    """music/NAME.arr - the game's arrangement; NAME/ALT is another arrangement of the same take,
+    music/arrangements/NAME/ALT.arr (the game's arranger saves them: SAVE AS)."""
+    if "/" in name:
+        return os.path.join(HERE, "arrangements", name + ".arr")
     return os.path.join(HERE, name + ".arr")
+
+
+def take(name):
+    """The track an arrangement's name is of: NAME/ALT -> NAME."""
+    return name.split("/")[0]
 
 
 def write_arr(name, A):
@@ -444,9 +459,11 @@ def write_arr(name, A):
     for c, a, b, kind in A["clips"]:
         if whole(a) and whole(b):
             w, r = "bars", "%d-%d" % (a, b)
-        else:                         # finer than a bar (the game's arranger, to a 32nd): bar places, end not included
+        else:                         # finer than a bar (the game's arranger, to a 128th): bar places, end not included
             w, r = "at", "%s-%s" % (bar_dec(a), bar_dec(b + 1))
         L.append("clip %-2s %s %s%s%s" % (c, w, r, " " * max(1, 8 - len(r)), kind))     # (as the game's ArClipLine$)
+    for p in sorted(A.get("patterns", {}), key=pattern_key):     # (as the game's ArPatLines$)
+        if A["patterns"][p]: L.append("pattern %s  %s" % (p, " ".join(c if t == 1 else "%s*%d" % (c, t) for c, t in A["patterns"][p])))
     L.append("arrange " + arrange_text(A))
     for (i, j), sc in sorted(A.get("seams", {}).items()):
         if whole(i) and whole(j): L.append("seam %d %d %.2f" % (i, j, sc))
@@ -464,8 +481,15 @@ def bar_num(x):
 
 
 def bar_dec(x):
-    """A bar place in decimals, as few places as it needs (the game's ArBarsDec$): 5.25, 5.03125."""
-    return ("%.5f" % x).rstrip("0").rstrip(".")
+    """A bar place in decimals, as few places as it needs (the game's ArBarsDec$): 5.25, 5.0078125."""
+    return ("%.7f" % x).rstrip("0").rstrip(".")
+
+
+PATTERN_RE = re.compile(r"^[A-F][1-9]$")      # a pattern's name: A1-F9 (bank, slot - the game's arranger's)
+
+
+def pattern_key(p):
+    return (p[0], int(p[1:]))
 
 
 def arrange_text(A):
@@ -476,7 +500,11 @@ def arrange_text(A):
 
 
 def read_arr(name):
-    A = dict(clips=[], arrange=[], seams={}, auto=True, source="", loop=0)
+    """A .arr: bpm, offset, bars, tail, source, auto; clips [(name, first, last, kind)]; patterns
+    {A1: [(clip, times)]} (a little arrangement of clips that goes in the arrangement as one
+    block); arrange [(clip or pattern, times)] and loop (the entry it goes back to); seams."""
+    A = dict(clips=[], arrange=[], seams={}, auto=True, source="", loop=0, patterns={})
+    raw = {}
     for line in open(arr_path(name), encoding="utf-8"):
         line = line.split(";")[0].strip()
         if not line: continue
@@ -493,13 +521,27 @@ def read_arr(name):
             else:                      # clip X bars 1-4: the first bar and the last
                 a, b = int(a), int(b)
             A["clips"].append((w[1], a, b, w[4] if len(w) > 4 else ""))
+        elif w[0] == "pattern" and len(w) > 1 and PATTERN_RE.match(w[1]):
+            raw[w[1]] = w[2:]
         elif w[0] == "arrange":
-            for t in w[1:]:
-                if t == "|": A["loop"] = len(A["arrange"]); continue      # the loop starts here
-                c, _, n = t.partition("*")
-                A["arrange"].append((c, int(n) if n else 1))
+            raw[None] = w[1:]
         elif w[0] == "seam":
             A["seams"][(int(w[1]), int(w[2]))] = float(w[3])
+    # the patterns and the arrangement, once every clip is in (as the game reads them: a name
+    # that's no clip - or, in the arrangement, no pattern with anything in it - is left out)
+    names = {c[0] for c in A["clips"]}
+    def entries(words, pats):
+        out, loop = [], 0
+        for t in words:
+            if t == "|": loop = len(out); continue      # the loop starts here
+            c, _, n = t.partition("*")
+            if c in names or c in pats: out.append((c, min(int(n), 16) if n else 1))
+        return out, loop
+    for p in sorted((k for k in raw if k), key=pattern_key):
+        e = entries(raw[p], {})[0]
+        if e: A["patterns"][p] = e
+    A["arrange"], A["loop"] = entries(raw.get(None, []), A["patterns"])
+    if A["loop"] >= len(A["arrange"]): A["loop"] = 0
     return A
 
 
@@ -528,6 +570,7 @@ def analyze(name, fresh=False):
         old = read_arr(name)
         if not old["auto"]:
             A["clips"], A["arrange"], A["auto"], A["loop"] = old["clips"], old["arrange"], False, old.get("loop", 0)
+            A["patterns"] = old.get("patterns", {})
             write_arr(name, A)
             return A, info
     A["clips"], A["arrange"] = runs_to_clips(A, auto_arrange(A, info))
@@ -718,12 +761,29 @@ def runs_to_clips(A, runs):
     return clips, seq
 
 
+def flat(A):
+    """The arrangement with its patterns opened out: [(clip, times, pattern, first)] - pattern the
+    one an entry is in (None: a clip of the arrangement's own), first: the start of a pattern's
+    play - and the entry the loop goes back to (after an intro)."""
+    pats, out, back = A.get("patterns", {}), [], 0
+    for q, (c, r) in enumerate(A["arrange"]):
+        if q == A.get("loop", 0): back = len(out)
+        if c in pats:
+            for k in range(r):
+                for j, (cc, t) in enumerate(pats[c]):
+                    out.append((cc, t, c, j == 0))
+        else:
+            out.append((c, r, None, True))
+    return out, back
+
+
 def blocks(A):
     """The arrangement as bars played, [(first, last)] a play, and the play the loop goes back to (after an intro)."""
     cl = {c: (a, b) for c, a, b, k in A["clips"]}
     seq, back = [], 0
-    for q, (c, r) in enumerate(A["arrange"]):
-        if q == A.get("loop", 0): back = len(seq)
+    F, fb = flat(A)
+    for q, (c, r, p, first) in enumerate(F):
+        if q == fb: back = len(seq)
         seq += [cl[c]] * r
     return seq, back
 
@@ -912,7 +972,7 @@ INTRO_TAIL = 0.5       # seconds of the loop on the end of NAME-intro.ogg (the g
 
 def seq_first(A):
     """The first bar the arrangement plays."""
-    return {c: a for c, a, b, k in A["clips"]}[A["arrange"][0][0]]
+    return {c: a for c, a, b, k in A["clips"]}[flat(A)[0][0][0]]
 
 
 def render_to(name, path, A=None):
@@ -961,7 +1021,7 @@ def render_to(name, path, A=None):
 # --- THE COMMAND LINE -------------------------------------------------------
 def summary(name, A, info=None):
     L = {c: b - a + 1 for c, a, b, k in A["clips"]}
-    bars = sum(r * L[c] for c, r in A["arrange"])
+    bars = sum(r * L[c] for c, r, p, first in flat(A)[0])
     s = "%-9s %6.2f bpm  %2d bars  %3.0f s  %s" % (name, A["bpm"], A["bars"], bars * 240 / A["bpm"], arrange_text(A))
     if info is not None:
         J = arrangement_joins(A, info["S"])

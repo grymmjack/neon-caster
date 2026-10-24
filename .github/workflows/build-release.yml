@@ -95,7 +95,7 @@ jobs:
           PKG=neon-caster
           mkdir -p "pkg/$PKG"
           cp neon-caster.run neon-caster.bas _ALL.BI _ALL.BM README.md LEVEL-EDITOR-GUIDE.md LICENSE "pkg/$PKG/"
-          rsync -a --exclude saves --exclude __pycache__ --exclude music/src neon-caster lib CORE WORLD GAME LEVEL RENDER GL MENU EDITOR AUDIO DEMO ACH LOOP "pkg/$PKG/"
+          rsync -a --exclude saves --exclude __pycache__ --exclude music/src --exclude music/arrangements neon-caster lib CORE WORLD GAME LEVEL RENDER GL MENU EDITOR AUDIO DEMO ACH LOOP "pkg/$PKG/"
           tar -czf neon-caster-linux-x64.tar.gz -C pkg "$PKG"
 
       - name: Upload artifact
@@ -140,7 +140,7 @@ jobs:
           PKG=neon-caster
           mkdir -p "pkg/$PKG"
           cp neon-caster-mac neon-caster.bas _ALL.BI _ALL.BM README.md LEVEL-EDITOR-GUIDE.md LICENSE "pkg/$PKG/"
-          rsync -a --exclude saves --exclude __pycache__ --exclude music/src neon-caster lib CORE WORLD GAME LEVEL RENDER GL MENU EDITOR AUDIO DEMO ACH LOOP "pkg/$PKG/"
+          rsync -a --exclude saves --exclude __pycache__ --exclude music/src --exclude music/arrangements neon-caster lib CORE WORLD GAME LEVEL RENDER GL MENU EDITOR AUDIO DEMO ACH LOOP "pkg/$PKG/"
           # ditto keeps the program's "can run" permission inside the zip
           (cd pkg && ditto -c -k --keepParent "$PKG" "../neon-caster-macos-arm64.zip")
 

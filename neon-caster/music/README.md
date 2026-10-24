@@ -11,8 +11,9 @@ source level1.ogg (lossy)
 auto yes          ; no once you've changed it: arrange.py --analyze leaves it alone then
 clip E  bars 17-20   groove
 clip F  bars 9-20    peak
-clip J  at 17.25-17.5 groove   ; finer than a bar: bar places, to a 32nd (17.25 = bar 17's 2nd beat; the end not included)
-arrange E F G C H I F*2 G E C H I F H
+clip J  at 17.25-17.5 groove   ; finer than a bar: bar places, to a 128th (17.25 = bar 17's 2nd beat; the end not included)
+pattern A1  C*2 B   ; a pattern: a little arrangement of clips, played as one block
+arrange E A1 F G C H I F*2 G E C H I A1*2
 seam 20 9 0.73    ; after bar 20, bar 9 can follow - how alike the join is (0-1)
 ```
 
@@ -31,10 +32,10 @@ from its take, so you hear a change at once:
   and a drag are told apart by a 4-pixel move, so even one square of the grid
   is a clip. The mouse wheel over the take zooms round the pointer (Shift+wheel
   slides along, the middle button shows it all), and the **grid follows the
-  zoom**: a bar, 1/2, 1/4... down to a 32nd of a bar, whichever is the finest
+  zoom**: a bar, 1/2, 1/4... down to a 128th of a bar, whichever is the finest
   with squares 40 pixels wide (GRID in the header). Clips, their ends (`,` `.`
   `<` `>` move them a square) and the clip launcher all work to it. Places
-  read BAR.BEAT.16TH (17.2.3; a `+` is a 32nd on), lengths as "1/4 BAR".
+  read BAR.BEAT.16TH (17.2.3; `+N` is N 128ths past it - `+4` a 32nd), lengths as "1/4 BAR".
   Most takes start a little before bar 1: that's the lead-in, IN (bar 0 in
   the .arr), and a clip can start there - an intro, with the take's very
   first notes,
@@ -47,8 +48,31 @@ from its take, so you hear a change at once:
   Shift+arrows or a drag to move one, Enter or a double-click to play from it,
   Ctrl+L: the loop goes round from this block (the ones before it are an
   intro, played once),
+- **patterns** (between the pads and the arrangement): a pattern is a little
+  arrangement of clips that goes into the arrangement as one block, drawn
+  with its clips' colours and its name. There are 54, A1-F9: click a BANK
+  (A-F) and a slot (1-9) to open one in the pattern row (a slot with a pattern
+  in it is lit). Shift+click a run of blocks in the arrangement and Ctrl+P
+  makes a pattern of them (the next free slot; they become one block of it),
+  Ctrl+Shift+P opens a pattern block back out into its clips. In the pattern
+  row the same keys edit it as edit the arrangement (PgUp: the keys work on
+  the pattern, PgDn: on the arrangement; clicking a row does it too). Drag a
+  slot's number into the arrangement, right-click it (Shift: before the
+  block picked), or Ctrl+Ins, to put that pattern in. A pattern is as long as
+  its clips, and holds clips only (no patterns in patterns). Clicking a
+  pattern block in the arrangement opens it above,
 - Ctrl+S saves `NAME.arr`, Ctrl+E makes `NAME.ogg` from it, Ctrl+B makes the
   Renoise and Bitwig sessions (below). Both run in the background.
+- **other arrangements**, to try things without losing the game's: Ctrl+Shift+S
+  saves as a name you type (the name it has is filled in, lit: typing
+  replaces it, an arrow key keeps it to add to). Any name but the track's is
+  `arrangements/NAME/THAT.arr`; the track's own name is the game's
+  `NAME.arr` again - the one there is kept first, as `arrangements/NAME/before1.arr`
+  (2, 3... after that). Ctrl+O lists them all to open (the game's first),
+  Ctrl+Shift+N starts an empty one (the clips and patterns kept; Ctrl+S asks
+  its name). Ctrl+E renders only the game's (open an alternative and save it
+  as the track's name first); Ctrl+B exports any, as `NAME-THAT.xrns`.
+  `arrangements/` is left out of the downloads.
 
 Without a loop point the .ogg loops as a whole, so an intro comes round again
 each loop. With one (`|` in the arrange line: `arrange L | C E F...`) the
@@ -65,6 +89,8 @@ It plays from `edit/NAME.flac`, which isn't in git:
 ```
 
 ## From the command line
+
+(Any NAME can be `NAME/ALT` - `level1/test` is `arrangements/level1/test.arr`.)
 
 ```
 ~/.venvs/music/bin/python arrange.py --analyze NAME     # the grid, clips and an arrangement (keeps one marked auto no)
@@ -93,7 +119,10 @@ to schedule live. Bitwig: the arrangement on one audio track with a marker at
 each clip (a repeat is the clip again, end to end), and the clip launcher with
 a scene per clip, each looping on exactly its bars; every clip has its colour
 from the game's arranger. A loop point goes across as a Renoise section and a
-Bitwig marker named `| ...`, and comes back from them.
+Bitwig marker named `| ...`, and comes back from them. A pattern's block is
+its clips, one after another, the first named `[A1] C peak` and the rest
+`(A1) B groove`; those names bring it back as the pattern (a play of it that
+was changed there comes back as its clips).
 
 The track's **sampler instruments** (soundmon's `tools/instruments.py`: a drum
 kit, each part's notes, chords, pads) are made beside its stems, in

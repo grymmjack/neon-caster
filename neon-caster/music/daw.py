@@ -21,10 +21,11 @@ RENOISE (.xrns: a zip of Song.xml and the sample). One instrument, the
 source, sliced at every bar line: a bar is a note (bar 1 is C-4, bar 2 C#4...
 in every track; the slices are named "bar N", and any lead-in before bar 1 is
 a slice of its own on B-3). A clip finer than a bar (the game's arranger cuts to
-a 32nd: "clip J at 17.25-17.5") adds a slice at each edge between bar lines
+a 128th: "clip J at 17.25-17.5") adds a slice at each edge between bar lines
 ("bar 17.25"), so a clip is still whole slices. One pattern per clip, named
 after it ("F peak"): 16 lines a bar (LPB 4; 32, LPB 8, when a clip's edge is
-finer than a 16th), each slice's note on its line. A note plays its slice to
+finer than a 16th), each slice's note on its line (an edge finer than a 32nd
+played late by the line's delay column). A note plays its slice to
 the next note or its slice's end, and the import reads them back that way.
 The pattern sequence is the arrangement, each entry a section named after its
 clip ("F peak x2" over a repeat), so the sequence reads as the .arr does.
@@ -63,6 +64,15 @@ order, each placed back on bars by where it starts in the source and how long
 it is (a looped clip longer than its loop is that clip repeated); named as
 for Renoise, by the clip's name first.
 
+PATTERNS (the arrangement's "pattern A1  C*2 B" lines): a pattern's block goes
+across as its clips, one after another; the first entry's section (Renoise) or
+marker (Bitwig) is named "[A1] C peak", the rest "(A1) B groove". Read back,
+those make the pattern again (its first play says what it is; a later play
+that differs comes back as its clips).
+
+NAME can be NAME/ALT, an alternative arrangement (music/arrangements/NAME/
+ALT.arr): its songs are NAME-ALT.xrns / .dawproject, with NAME's audio.
+
 (needs numpy and soundfile: the music venv - see arrange.py)
 """
 import io, os, re, sys, zipfile
@@ -78,6 +88,7 @@ NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", 
 FIRST_SLICE = 48          # C-4: bar 1's note (the slices go up from the whole sample's note, as Renoise lays them out)
 LPB = 4                   # lines a beat
 BAR_LINES = 4 * LPB       # lines a bar
+STEPS = 128              # the game's arranger's finest step: a 128th of a bar
 CLIPS_SECTION = "CLIPS"   # the Renoise sequence's spare clips (not the arrangement) start a section of this name
 
 
@@ -114,9 +125,9 @@ def clip_colour(A, clip):
 
 
 def used_order(A):
-    """The clips in the order the arrangement first plays them, then the ones it doesn't."""
+    """The clips in the order the arrangement first plays them (in its patterns too), then the ones it doesn't."""
     seen = []
-    for c, r in A["arrange"]:
+    for c, r, p, first in arrange.flat(A)[0]:
         if c not in seen: seen.append(c)
     for c, a, b, k in A["clips"]:
         if c not in seen: seen.append(c)
@@ -162,20 +173,69 @@ def collapse(names):
 
 
 LOOP_MARK = "|"      # a section (Renoise) or marker (Bitwig) named "| ..." is where the loop starts: what's before it is an intro
+# A pattern's play (A1: the game arranger's little arrangement of clips, one block in the
+# arrangement): its first clip's section or marker is named "[A1] C peak", the rest "(A1) B groove"
 
 
-def finish(name, A, clips, order, out=None, loop_i=None):
+def pattern_prefix(pat, first):
+    return ("[%s] " if first else "(%s) ") % pat if pat else ""
+
+
+def entry_label(clip, r, pat, first, loop):
+    """A section's (Renoise) or marker's (Bitwig) name for an entry of the arrangement opened out."""
+    n = pattern_prefix(pat, first) + label(clip) + (" x%d" % r if r > 1 else "")
+    return LOOP_MARK + " " + n if loop else n
+
+
+class Groups:
+    """Reading names back: which pattern's play an entry is in - None, or (pattern, its play's number)."""
+    def __init__(self): self.n, self.now = 0, None
+    def at(self, name):
+        n = (name or "").strip()
+        if n.startswith(LOOP_MARK): n = n[len(LOOP_MARK):].strip()
+        m = re.match(r"^([\[(])([A-F][1-9])[\])]", n)
+        if not m: self.now = None; return None
+        if m.group(1) == "[" or self.now is None or self.now[0] != m.group(2):
+            self.n += 1; self.now = (m.group(2), self.n)
+        return self.now
+
+
+def tokens_of(order, groups, pats):
+    """Clips played in order (and the pattern's play each is in) -> the arrangement's entries: a
+    pattern's play is the pattern (the first play of it says what it is; a later one that differs
+    goes in as its clips), and repeats run together (C*3, A1*2)."""
+    out, i = [], 0
+    while i < len(order):
+        g = groups[i] if groups else None
+        if g is None:
+            out.append(order[i]); i += 1; continue
+        j = i
+        while j < len(order) and groups[j] == g: j += 1
+        content = collapse(order[i:j])
+        if g[0] not in pats: pats[g[0]] = content
+        if pats[g[0]] == content: out.append(g[0])
+        else: out.extend(order[i:j])
+        i = j
+    return collapse(out)
+
+
+def finish(name, A, clips, order, out=None, loop_i=None, groups=None):
     """The .arr with the DAW's clips and arrangement (the rest kept), auto no - written to out
-    (or music/NAME.arr). loop_i: the play the loop starts on (after an intro), if one was marked."""
+    (or music/NAME.arr). loop_i: the play the loop starts on (after an intro), if one was marked;
+    groups: the pattern's play each play is in (None: none), so the patterns come back."""
     if not order:
         raise SystemExit("%s: the song plays no bars - nothing to arrange" % name)
     B = dict(A)
     B["clips"], B["auto"] = clips, False
+    groups = groups or [None] * len(order)
+    pats = {}
     if loop_i and 0 < loop_i < len(order):
-        intro = collapse(order[:loop_i])
-        B["arrange"], B["loop"] = intro + collapse(order[loop_i:]), len(intro)
+        intro = tokens_of(order[:loop_i], groups[:loop_i], pats)
+        B["arrange"], B["loop"] = intro + tokens_of(order[loop_i:], groups[loop_i:], pats), len(intro)
     else:
-        B["arrange"], B["loop"] = collapse(order), 0
+        B["arrange"], B["loop"] = tokens_of(order, groups, pats), 0
+    B["patterns"] = dict(A.get("patterns", {}))       # (any the song doesn't play are kept)
+    B["patterns"].update(pats)
     if out:
         keep = arrange.arr_path
         arrange.arr_path = lambda n: out
@@ -207,7 +267,7 @@ def note_number(s):
 
 
 def clip_edges(A):
-    """Clip starts and ends between bar lines (a clip finer than a bar - the game's arranger cuts to a 32nd)."""
+    """Clip starts and ends between bar lines (a clip finer than a bar - the game's arranger cuts to a 128th)."""
     E = set()
     for c, a, b, k in A["clips"]:
         for x in (a, b + 1):
@@ -216,7 +276,8 @@ def clip_edges(A):
 
 
 def lpb_for(A):
-    """Lines a beat: 4 (a line a 16th), or 8 when a clip's edge is finer than a 16th."""
+    """Lines a beat: 4 (a line a 16th), or 8 when a clip's edge is finer than a 16th (finer than a
+    32nd: a note's delay puts it between lines - 256ths of one)."""
     return LPB if all(arrange.whole(x * 4 * LPB) for x in clip_edges(A)) else 2 * LPB
 
 
@@ -313,13 +374,12 @@ def song_xml(name, A, frames, sr, sample_file):
                     "</Tracks></Pattern>" % (escape(label(c)), int(round((b - a + 1) * BL)), "".join(lines)))
     # the sequence: the arrangement, a section an entry; then the spare clips
     seq = []
-    lab = {c[0]: label(c) for c in clips}
-    for q, (c, r) in enumerate(A["arrange"]):
+    by = {c[0]: c for c in clips}
+    F, fb = arrange.flat(A)
+    for q, (c, r, pat, first) in enumerate(F):
         for k in range(r):
-            sec = lab[c] + (" x%d" % r if r > 1 else "")
-            if q == A.get("loop", 0) and q > 0: sec = LOOP_MARK + " " + sec
-            seq.append((pidx[c], k == 0, sec))
-    spare = [c for c in clips if c[0] not in {x for x, r in A["arrange"]}]
+            seq.append((pidx[c], k == 0, entry_label(by[c], r, pat, first, q == fb and q > 0)))
+    spare = [c for c in clips if c[0] not in {x[0] for x in F}]
     for k, c in enumerate(spare):
         seq.append((pidx[c[0]], k == 0, CLIPS_SECTION))
     entries = "".join("<SequenceEntry><Pattern>%d</Pattern><IsSectionStart>%s</IsSectionStart>"
@@ -352,21 +412,27 @@ def song_xml(name, A, frames, sr, sample_file):
                instrument, track, master, "".join(pats), entries))
 
 
+def out_name(name):
+    """A song's file name: NAME, or NAME-ALT for another arrangement of the take (NAME/ALT)."""
+    return name.replace("/", "-")
+
+
 def export_xrns(name, folder=None):
     import soundfile as sf
     A = arrange.read_arr(name)
-    src = source_flac(name)
+    tk = arrange.take(name)
+    src = source_flac(tk)
     info = sf.info(src)
     folder = folder or os.path.join(OUT, "renoise")
     os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, name + ".xrns")
-    xml = song_xml(name, A, info.frames, info.samplerate, src)
+    path = os.path.join(folder, out_name(name) + ".xrns")
+    xml = song_xml(tk, A, info.frames, info.samplerate, src)
     tmp = path + ".part"
     with zipfile.ZipFile(tmp, "w") as z:
         z.writestr("Song.xml", xml, compress_type=zipfile.ZIP_DEFLATED)
-        z.write(src, "SampleData/Instrument00 (%s)/Sample00 (%s).flac" % (name, name), compress_type=zipfile.ZIP_STORED)
+        z.write(src, "SampleData/Instrument00 (%s)/Sample00 (%s).flac" % (tk, tk), compress_type=zipfile.ZIP_STORED)
     os.replace(tmp, path)
-    link_instruments(name, folder)
+    link_instruments(tk, folder)
     return A, path
 
 
@@ -414,9 +480,9 @@ def import_xrns(path, name=None, out=None):
         try: lpb = int(root.findtext("./GlobalSongData/LinesPerBeat") or LPB)
         except ValueError: lpb = LPB
     BL = 4 * lpb                                          # lines a bar
-    # each slice's note -> its bar place (by where it starts in the source, to a 32nd)
+    # each slice's note -> its bar place (by where it starts in the source, to a 128th)
     def place_at(p):
-        return round(((p / sr - A["offset"]) / bar_len(A) + 1) * 32) / 32
+        return round(((p / sr - A["offset"]) / bar_len(A) + 1) * STEPS) / STEPS
     note_bar, near = {}, {}
     try: base = int(smp[0].findtext("./Mapping/BaseNote"))
     except (TypeError, ValueError): base = FIRST_SLICE - 1
@@ -459,7 +525,7 @@ def import_xrns(path, name=None, out=None):
                     at = (li + dl / 256.0) / BL               # where in the pattern, in bars
                     b = note_bar[n]
                     if b == 0: at = max(0.0, at - lead_at)    # (the lead-in's note sits where the source starts: its bar began before)
-                    notes.append((round(at * 32) / 32, col, b))
+                    notes.append((round(at * STEPS) / STEPS, col, b))
         notes.sort()
         pieces = []
         for q, (at, col, b) in enumerate(notes):
@@ -470,18 +536,21 @@ def import_xrns(path, name=None, out=None):
         pats.append((hint[0] if hint else None, pieces))
     # the sequence, up to CLIPS
     namer, order, cache, loop_i = Namer(A), [], {}, None
+    groups, G, g = [], Groups(), None
     for e in root.findall("./PatternSequence/SequenceEntries/SequenceEntry"):
         if e.findtext("IsSectionStart") == "true" and (e.findtext("SectionName") or "").strip().upper() == CLIPS_SECTION:
             break
         if e.findtext("IsSectionStart") == "true" and (e.findtext("SectionName") or "").strip().startswith(LOOP_MARK):
             loop_i = len(order)
+        if e.findtext("IsSectionStart") == "true": g = G.at(e.findtext("SectionName"))
         p = int(e.findtext("Pattern", "0"))
         if p >= len(pats): continue
         if p not in cache:
             hint, pieces = pats[p]
             cache[p] = [namer.name(arrange.bar_num(a), arrange.bar_num(e - 1), hint) for a, e in runs_of_pieces(pieces)]
         order += cache[p]
-    return finish(name, A, namer.clips, order, out, loop_i)
+        groups += [g] * len(cache[p])
+    return finish(name, A, namer.clips, order, out, loop_i, groups)
 
 
 # --- BITWIG (DAWproject) ----------------------------------------------------
@@ -592,10 +661,10 @@ def project_xml(name, A, seconds, audio_path, stems=()):
     # the arrangement: a clip per play on every track, a marker per entry
     lanes = {tid: [] for tid, _, _, _ in audio}
     markers, t = [], 0.0
-    for q, (c, r) in enumerate(A["arrange"]):
+    F, fb = arrange.flat(A)
+    for q, (c, r, pat, first) in enumerate(F):
         cl = by[c]
-        mk_name = label(cl) + (" x%d" % r if r > 1 else "")
-        if q == A.get("loop", 0) and q > 0: mk_name = LOOP_MARK + " " + mk_name
+        mk_name = entry_label(cl, r, pat, first, q == fb and q > 0)
         markers.append('<Marker time="%s" name="%s"/>' % (fmt(t), escape(mk_name)))
         for k in range(r):
             for tid, path, ext, secs in audio:
@@ -632,17 +701,18 @@ def metadata_xml(name):
 def export_dawproject(name, folder=None):
     import soundfile as sf
     A = arrange.read_arr(name)
-    src = source_flac(name)
+    tk = arrange.take(name)
+    src = source_flac(tk)
     info = sf.info(src)
     folder = folder or os.path.join(OUT, "bitwig")
     os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, name + ".dawproject")
-    audio = "audio/%s.flac" % name
+    path = os.path.join(folder, out_name(name) + ".dawproject")
+    audio = "audio/%s.flac" % tk
     tmp = path + ".part"
     with zipfile.ZipFile(tmp, "w") as z:
-        z.writestr("project.xml", project_xml(name, A, info.frames / info.samplerate, audio, stem_groups(name)),
+        z.writestr("project.xml", project_xml(tk, A, info.frames / info.samplerate, audio, stem_groups(tk)),
                    compress_type=zipfile.ZIP_DEFLATED)
-        z.writestr("metadata.xml", metadata_xml(name), compress_type=zipfile.ZIP_DEFLATED)
+        z.writestr("metadata.xml", metadata_xml(tk), compress_type=zipfile.ZIP_DEFLATED)
         z.write(src, audio, compress_type=zipfile.ZIP_STORED)
     os.replace(tmp, path)
     return A, path
@@ -719,6 +789,7 @@ def clip_start_seconds(c, into, unit, bpm, refs):
 def import_dawproject(path, name=None, out=None):
     name = name or name_from(path)
     A = arrange.read_arr(name)
+    track_name = arrange.take(name)              # (the take's track is named after the track, NAME/ALT's too)
     with zipfile.ZipFile(path) as z:
         root = ET.fromstring(z.read("project.xml"))
     refs = {e.get("id"): e for e in root.iter() if e.get("id")}
@@ -747,7 +818,7 @@ def import_dawproject(path, name=None, out=None):
         if x.tag == "Lanes": walk(x, x.get("timeUnit") or "beats")
     plays = []      # (time in beats, duration in beats, source seconds, loop beats or None, name hint)
     def take_first(kv):          # the take's track (named as the song; the stems are "NAME part"), else the most clips
-        named = (refs.get(kv[0]) is not None and (refs[kv[0]].get("name") or "") == name)
+        named = (refs.get(kv[0]) is not None and (refs[kv[0]].get("name") or "") == track_name)
         return (not named, -sum(len(c.findall("Clip")) for c, u in kv[1]))
     for trk, lst in sorted(found.items(), key=take_first):
         for clips_el, unit in lst:
@@ -775,19 +846,33 @@ def import_dawproject(path, name=None, out=None):
             mu = None
             for el in arr.iter("Markers"): mu = el.get("timeUnit") or mu
             loop_t = to_unit(_f(mk, "time", 0.0), mu or "beats", "beats", bpm)
-    namer, order, loop_i = Namer(A), [], None
+    namer, order, loop_i, groups = Namer(A), [], None, []
+    marks = []                   # every marker (beats, name): the pattern's play a clip is in, by the one it's under
+    for mk in arr.iter("Marker"):
+        mu = None
+        for el in arr.iter("Markers"): mu = el.get("timeUnit") or mu
+        marks.append((to_unit(_f(mk, "time", 0.0), mu or "beats", "beats", bpm), mk.get("name") or ""))
+    marks.sort()
+    G, mg = Groups(), []
+    for mt, mn in marks: mg.append((mt, G.at(mn)))
+    def group_at(t):
+        g = None
+        for mt, gg in mg:
+            if mt <= t + 1e-3: g = gg
+            else: break
+        return g
     bl = bar_len(A)
     lead = A["offset"] >= 0.01
-    q32 = lambda x: round(x * 32) / 32                  # (to a 32nd of a bar: the game's arranger's finest)
+    qs = lambda x: round(x * STEPS) / STEPS             # (to a 128th of a bar: the game's arranger's finest)
     for t, d, s, loop, hint in plays:
-        first = q32((s - A["offset"]) / bl + 1)
+        first = qs((s - A["offset"]) / bl + 1)
         if lead and s < A["offset"] - 0.02:            # it starts before bar 1: the lead-in - bar 0 counted whole
             first = 0
             d += (s - bar_start(A, 0)) / bl * 4.0
-        n = max(1 / 32, q32(d / 4.0))
+        n = max(1 / STEPS, qs(d / 4.0))
         reps = 1
         if loop and loop < d - 1e-3:
-            ln = max(1 / 32, q32(loop / 4.0))
+            ln = max(1 / STEPS, qs(loop / 4.0))
             reps, n = max(1, int(round(d / loop))), ln
         first = max(0 if lead else 1, first)
         last = min(A["bars"], first + n - 1)
@@ -795,7 +880,8 @@ def import_dawproject(path, name=None, out=None):
         first, last = arrange.bar_num(first), arrange.bar_num(last)
         if loop_t is not None and loop_i is None and t >= loop_t - 1e-3: loop_i = len(order)
         order += [namer.name(first, last, hint)] * reps
-    return finish(name, A, namer.clips, order, out, loop_i)
+        groups += [group_at(t)] * reps
+    return finish(name, A, namer.clips, order, out, loop_i, groups)
 
 
 # --- THE COMMAND LINE -------------------------------------------------------

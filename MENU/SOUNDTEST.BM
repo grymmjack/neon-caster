@@ -155,7 +155,7 @@ SUB StPlay(n) STATIC
     stArr = 0
     IF stLoops THEN ' (its arrangement, if the .ogg is the one the .arr makes)
         ArLoad StTrackName$(n), 0
-        IF arLoaded AND arSeqN > 0 THEN stArr = ABS(ArSecs#(ArLoopTicks&) - stLen) < 1.5 ' (NAME.ogg: the loop - an intro is NAME-intro.ogg)
+        IF arLoaded AND arRowN(0) > 0 THEN stArr = ABS(ArSecs#(ArLoopTicks&) - stLen) < 1.5 ' (NAME.ogg: the loop - an intro is NAME-intro.ogg)
     END IF
 END SUB
 
@@ -166,17 +166,17 @@ FUNCTION StTrackName$(n)
     StTrackName$ = f$
 END FUNCTION
 
-' Where s# seconds into an arranged track is: its block k, and the take's step t (the arranger's 32nds of a bar)
+' Where s# seconds into an arranged track is: its entry k (in the arrangement opened out), and the take's step t (the arranger's 128ths of a bar)
 SUB StArrAt(s#, k, t)
     DIM n&, i, w, before& ' (its own)
     k = 0 : t = 0 : IF NOT stArr THEN EXIT SUB
     n& = INT(s# * arBpm / 240 * AR_TPB)
-    FOR i = ArLoopFrom TO arSeqN
-        IF n& < before& + ArBlockTicks&(i) THEN
-            w = arClipE(arSeqClip(i)) - arClipA(arSeqClip(i))
-            k = i : t = arClipA(arSeqClip(i)) + (n& - before&) MOD w : EXIT SUB
+    FOR i = arFlatLoop TO arFlatN ' (the arrangement as the player walks it: its patterns opened out)
+        IF n& < before& + ArFlatTicks&(i) THEN
+            w = arClipE(arFlatClip(i)) - arClipA(arFlatClip(i))
+            k = i : t = arClipA(arFlatClip(i)) + (n& - before&) MOD w : EXIT SUB
         END IF
-        before& = before& + ArBlockTicks&(i)
+        before& = before& + ArFlatTicks&(i)
     NEXT
 END SUB
 
@@ -515,7 +515,7 @@ SUB StDrawPlayer(t)
         IF stAuto THEN rt$ = rt$ + "  AUTO"
         IF stArr AND stSnd& > 0 THEN ' (an arranged track: the bar of the take playing, and its clip)
             StArrAt s#, ak, ab
-            IF ak > 0 THEN rt$ = "BAR " + ArPosName$(INT(ab / 8) * 8) + " " + arClipName$(arSeqClip(ak)) + "  " + ArFix$(arBpm, 1) + " BPM  " + rt$
+            IF ak > 0 THEN rt$ = "BAR " + ArPosName$(INT(ab / (AR_TPB \ 4)) * (AR_TPB \ 4)) + " " + arClipName$(arFlatClip(ak)) + "  " + ArFix$(arBpm, 1) + " BPM  " + rt$
         END IF
         IF LEN(ln$) > 93 - LEN(rt$) THEN ln$ = LEFT$(ln$, 92 - LEN(rt$)) + "~" ' (two spaces at least before the file)
         MenuText 18, ST_BOX_Y0 + 3, ln$, 1, _RGB32(90, 230, 255), 0
@@ -540,10 +540,10 @@ SUB StDrawPlayer(t)
     END IF
     IF stArr AND stLen > 0 THEN ' An arranged track's blocks, along the seek bar's foot (each clip its colour)
         ab = 0
-        FOR ak = ArLoopFrom TO arSeqN
-            x = ST_SEEK_X0 + ST_OVW * ArSecs#(ab) / stLen : ab = ab + ArBlockTicks&(ak)
+        FOR ak = arFlatLoop TO arFlatN
+            x = ST_SEEK_X0 + ST_OVW * ArSecs#(ab) / stLen : ab = ab + ArFlatTicks&(ak)
             x2 = ST_SEEK_X0 + ST_OVW * ArSecs#(ab) / stLen - 1 : IF x2 > ST_SEEK_X0 + ST_OVW - 1 THEN x2 = ST_SEEK_X0 + ST_OVW - 1
-            IF x2 >= x THEN LINE (x, ST_SEEK_Y1 - 4)-(x2, ST_SEEK_Y1 - 2), ArCol~&(arSeqClip(ak), 200), BF
+            IF x2 >= x THEN LINE (x, ST_SEEK_Y1 - 4)-(x2, ST_SEEK_Y1 - 2), ArCol~&(arFlatClip(ak), 200), BF
         NEXT
     END IF
     IF px >= 0 THEN LINE (px, ST_SEEK_Y0 + 1)-(px + 1, ST_SEEK_Y1 - 1), _RGB32(255, 255, 255), BF
