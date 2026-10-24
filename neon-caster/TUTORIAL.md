@@ -74,7 +74,7 @@ nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or 
 `load quick`, `restart`, `finish`, `difficulty hard` (easy, normal, hard, nightmare), any setting by its name (`fov 100`,
 `renderer 2`, `display 2` - `settings` lists them), `bind`, `events`,
 `screenshot`, `record`, `playdemo`, `playlist` and `bot` (demos - below), `cutscene 4` (a sector's transmission), `say taunt2`
-(any of NEXUS's lines), `soundtest` (every sound, voice and track, to listen to), `arranger level3` (a track's clips and arrangement: the MUSIC ARRANGER) and `achievements` (with `achieve NAME` and
+(any of NEXUS's lines), `soundtest` (every sound, voice and track, to listen to), `arranger level3` (a track's clips and arrangement: the MUSIC ARRANGER), `tuner` (every machine's health and gun's damage, a value per difficulty: the TUNER; `tuning export` writes it as a spreadsheet) and `achievements` (with `achieve NAME` and
 `resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 `savelevel` - and `door`, `wall`, `light`, `liftgo`, `message`, `sound`,
@@ -246,12 +246,12 @@ program.
 |---|---|
 | `CORE/` | the window, the dice (and the game's own `SIN`/`COS`), settings, keys, files, small helpers |
 | `WORLD/` | the grid: walls and collision, doors, heights, glass, liquids, lifts |
-| `GAME/` | you, the guns, monsters and their types, turrets and their weapons (`TURRETS.BM`), rockets, missiles and sprays (`ROCKETS.BM`), pickups, decorations, droids, explosions, event rooms, secrets, triggers, teleporters, code terminals, the network, the arcade, NEXUS, the difficulty (`SKILL.BM`) |
+| `GAME/` | you, the guns, monsters and their types, turrets and their weapons (`TURRETS.BM`), rockets, missiles and sprays (`ROCKETS.BM`), pickups, decorations, droids, explosions, event rooms, secrets, triggers, teleporters, code terminals, the network, the arcade, NEXUS, the difficulty (`SKILL.BM`), the tuning table (`TUNING.BM`) |
 | `LEVEL/` | levels and sectors, loading one, and the level files |
 | `RENDER/` | pictures, the 3D view and its helpers, the sprite list, light, particles, the HUD, text, the screen |
 | `GL/` | the OpenGL renderer, and its extras |
 | `MENU/` | the menu, the splash screen, the console, saved games |
-| `EDITOR/` | the level editor, the HUD editor, the monster editor |
+| `EDITOR/` | the level editor, the HUD editor, the monster editor, the tuner, the MUSIC ARRANGER, EDIT's sessions and versions |
 | `AUDIO/` | sounds and music |
 | `DEMO/` | demos, their playlist (PLAYLIST.BM), and the autopilot |
 | `ACH/` | achievements and records |
@@ -687,6 +687,8 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/achievements/` | each achievement's badge (`NAME.png`) and its grey, locked one (`NAME_locked.png`) |
 | `neon-caster/saves/achievements.txt`, `records.txt` | the achievements and stats (Steam's stand-in, until the game is on Steam) and each sector's best |
 | `neon-caster/monsters.txt`, `hud.txt` | every monster's numbers and what it drops; the HUD's layout - both changed by their editors, or by hand |
+| `neon-caster/tuning-defaults.txt` | the game's tuning as it ships (the TUNER's defaults: only what differs from the code's own numbers); `tuning-original.txt` is every number as the code has it. Your own changes go in `tuning.txt` |
+| `neon-caster/fonts/` | Tiny5, the editors' small print (SIL Open Font License, `OFL.txt`) |
 | `neon-caster/music/` | a track for each sector of every set and each showcase (`level3.ogg`, `new3.ogg`, `remix3.ogg`, `huge3.ogg`, `sector11.ogg`...), the menu's, and the network's (`cyber.ogg`), each 3-4 minutes arranged from a ~45 second take by `arrange.py`; `NAME.arr` beside it is that arrangement as text (the take's tempo and bars, its clips, the order they play in - the MUSIC ARRANGER changes it); `NAME.viz` is what the SOUND TEST's player draws for it (its waveform and spectrum, worked out by `viz.py` - the game can't read an Ogg's samples). `daw.py` takes the arrangements to Renoise and Bitwig and back; `README.md` there has the steps. (The takes themselves are in `src/`, left out of the downloads.) |
 | `lib/glsl/`, `lib/steam/` | libraries from QB64_GJ_LIB: the OpenGL shaders' helpers, and Steam's achievements and stats (with a stand-in until the game is on Steam) |
 

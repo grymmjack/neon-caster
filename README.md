@@ -115,7 +115,12 @@ NIGHTMARE starts you with every gun, fully loaded, then puts half as many
 machines again in every sector, each 3.5 times as tough, with little ammo
 lying about, and everything that hurts you hurts a quarter more. A sector
 takes the difficulty as it loads, and a demo plays back at the one it was
-recorded at.
+recorded at. The **TUNER** (SETTINGS > GAMEPLAY, or `tuner` in the console)
+lays every number behind that out in one table - each machine's and
+breakable's health, each gun's damage and rate, blasts, kicks, the damage you
+take, how much ammo you carry and pick up - with a value per difficulty, a
+picture of what's tuned and how many shots it takes; `tuning export` writes
+it as a spreadsheet to edit and read back.
 
 **Achievements and records:** 50 achievements, from finishing sector 1 to
 a thousand kills, a sector without a scratch, or kicking a machine into a
@@ -161,10 +166,13 @@ bar drawn as its waveform (click or drag to play from anywhere; P pauses,
 play the next when one ends. The music was ~45 second takes that looped
 abruptly; each is now arranged on its own bars into 3-4 minutes that loop,
 and E on a track opens the **MUSIC ARRANGER**: the take with its bars and
-clips (zoom in with the wheel and the grid goes down to a 32nd of a bar, so
+clips (zoom in with the wheel and the grid goes down to a 128th of a bar, so
 clips can be a beat or a single hit), a clip launcher (a clip starts on the next bar and loops), and the
 arrangement as blocks to add, take out, repeat and move - heard as you change
-it, and recordable from what you launch. An arrangement can have an intro
+it, and recordable from what you launch. **Patterns** (A1 to F9) are little
+arrangements of clips that go into the arrangement as one block, and Save As
+and Open keep other arrangements of a track to try things out beside the
+game's own. An arrangement can have an intro
 that plays once before the loop (the title music has one), and the arranger
 sends any track to Renoise and Bitwig in a key (Ctrl+B). SOFTEN
 HIGHS (OFF, LIGHT, STRONG) takes the edge off the sound effects and voices
