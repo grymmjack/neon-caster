@@ -25,7 +25,7 @@ SUB EditEnter STATIC
     achCheat = -1 ' (in the editor you can put anything anywhere: achievements wait for a new game - but the editor's own)
     WorldLoopsOff ' (the world stops: so do its sounds)
     EditReset
-    IF editFresh OR level <> levelWas THEN editDirty = 0 : editUndoN = 0 : EditFitMap ' (a new sector: its map fitted to the view) ' (back in after F2 to try it: the changes not saved yet, and their undo, still there)
+    IF editFresh OR level <> levelWas THEN editDirty = 0 : editUndoN = 0 : editRedoN = 0 : EditFitMap ' (a new sector: its map fitted to the view) ' (back in after F2 to try it: the changes not saved yet, and their undo, still there)
     editFresh = 0
     editMode = -1 : editView = 0 : editLights = 0 : mapOpen = 0
     levelWas = level
@@ -65,13 +65,35 @@ SUB EditPushUndo STATIC
         editUndoN = editUndoN + 1
     END IF
     editUndo$(editUndoN) = EditSnapshot$
+    editRedoN = 0 ' (a new change: what was undone can't come back over it)
 END SUB
 
+' Ctrl+Z: the level as it was before the last change - and what it was,
+' kept for Ctrl+Y (redo)
 SUB EditUndoStep STATIC
     IF editUndoN = 0 THEN EditNote "Nothing to undo" : EXIT SUB
+    EditRedoPush EditSnapshot$
     EditRestore editUndo$(editUndoN) : editUndoN = editUndoN - 1
     sectorName$(level) = lvlName$
-    EditApply : EditNote "Undone"
+    EditApply : EditNote "Undone (Ctrl+Y: redo)"
+END SUB
+
+' Ctrl+Y (or Ctrl+Shift+Z): the change undone last, made again
+SUB EditRedoStep STATIC
+    IF editRedoN = 0 THEN EditNote "Nothing to redo" : EXIT SUB
+    keepRedo = editRedoN : EditPushUndo : editRedoN = keepRedo ' (onto the undo list as any change, without losing the rest of the redo)
+    EditRestore editRedo$(editRedoN) : editRedoN = editRedoN - 1
+    sectorName$(level) = lvlName$
+    EditApply : EditNote "Redone"
+END SUB
+
+SUB EditRedoPush(snap$)
+    IF editRedoN = EDIT_UNDO THEN
+        FOR redoK = 1 TO EDIT_UNDO - 1 : editRedo$(redoK) = editRedo$(redoK + 1) : NEXT ' (its own counter)
+    ELSE
+        editRedoN = editRedoN + 1
+    END IF
+    editRedo$(editRedoN) = snap$
 END SUB
 
 ' A toolbar button pressed: tbHit (a TB_ number), in either view (the map
@@ -85,6 +107,7 @@ SUB EditTBClick STATIC
         CASE TB_DELETE
             IF edSelN THEN EditPushUndo : EditDeleteSel : EditApply ELSE EditNote "Select something to delete first"
         CASE TB_UNDO : EditUndoStep
+        CASE TB_REDO : EditRedoStep
         CASE TB_SAVE : EditSave level
         CASE TB_GRID : EditGridKey 0
         CASE TB_ALPHA : edTbDrag = -1 ' (dragged from here, while the button's held)
@@ -426,7 +449,7 @@ SUB EditPaneClick STATIC
             NEXT
             EditApply
             IF n = 0 AND lvlNumLights >= MAX_LIGHTS THEN EditNote "Too many lights (" + LTRIM$(STR$(MAX_LIGHTS)) + ")" ELSE EditNote LTRIM$(STR$(n)) + " light(s) added - set them in the pane"
-        CASE 41 TO 52, 60 TO 65, 70 TO 75 ' A light's colour, effect, reach, brightness: every selected face's light (and the brush, for the next)
+        CASE 41 TO 52, 60 TO 65, 70 TO 73, 75 ' A light's colour, effect, reach, brightness: every selected face's light (and the brush, for the next)
             EditPushUndo : lmp = 0
             FOR k = 1 TO edSelN
                 lt = EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
@@ -438,13 +461,21 @@ SUB EditPaneClick STATIC
                         CASE 71 : lvlLight(lt, 3) = MinOf(12, lvlLight(lt, 3) + 0.5)
                         CASE 72 : lvlLight(lt, 4) = MaxOf(20, lvlLight(lt, 4) - 10)
                         CASE 73 : lvlLight(lt, 4) = MinOf(255, lvlLight(lt, 4) + 10)
-                        CASE 75 : IF k = 1 OR lmp = 0 THEN lmp = 1 + (lvlLight(lt, 9) = 0) ' (all as the first one goes: 2 none, 1 a lamp)
+                        CASE 75 : IF k = 1 OR lmp = 0 THEN lmp = 1 - (lvlLight(lt, 9) = 0) ' (all as the first one goes: 2 none, 1 a lamp)
                             lvlLight(lt, 9) = -(lmp = 2)
                     END SELECT
                     edLR = lvlLight(lt, 5) : edLG = lvlLight(lt, 6) : edLB = lvlLight(lt, 7) : edLFx = lvlLight(lt, 8) : edLRad = lvlLight(lt, 3) : edLBri = lvlLight(lt, 4) : edLNoLamp = lvlLight(lt, 9)
                 END IF
             NEXT
             EditApply
+        CASE 330 TO 333 ' The selected faces' pictures slid: a pixel (Shift: 4)
+            st = 1 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN st = 4
+            EditTexOp 0, VAL(MID$("19200197121843220480", (pnHit - 330) * 5 + 1, 5)), 0, st, -1 ' (the arrow keys' codes: left, right, up, down)
+        CASE 334 TO 337 ' ...stretched across or up: to the next step (Shift: a percent)
+            st = 0 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN st = 1
+            EditTexOp 1 - (pnHit >= 336), 0, 2 * (pnHit AND 1) - 1, st, -1 ' (334, 336 the - buttons)
+        CASE 338 ' ...and put back as made
+            EditTexOp 3, 0, 0, 0, -1
         CASE 74 ' The selected faces' lights, gone
             EditPushUndo
             FOR k = 1 TO edSelN
@@ -1087,7 +1118,8 @@ SUB RunEditor STATIC
                 CASE 9 : edDone = 1 ' Tab: walk round inside it
                 CASE 27, 15360 : edDone = 2 ' Esc, F2: back to the game
                 CASE 19 : EditSave level ' Ctrl+S
-                CASE 26 : EditUndoStep ' Ctrl+Z
+                CASE 26 : IF shiftOn THEN EditRedoStep ELSE EditUndoStep ' Ctrl+Z (Ctrl+Shift+Z: redo)
+                CASE 25 : EditRedoStep ' Ctrl+Y
                 CASE 108, 76 ' L: the light tool (again: back to placing)
                     IF edTool = ET_LIGHT THEN edTool = ET_PLACE ELSE edTool = ET_LIGHT
                     IF edTool = ET_LIGHT THEN EditNote "LIGHTS: click adds, right-click takes away, 1-8 the colour" ELSE EditNote "PLACE: paint with the mouse"
@@ -1151,7 +1183,7 @@ END SUB
 ' nothing of the last one's - its undo, its selection, its SECTOR pane's
 ' sizes and loot, its view of the map
 SUB EditFreshLevel
-    editUndoN = 0 : editDirty = 0 : levelWas = level : EditReset
+    editUndoN = 0 : editRedoN = 0 : editDirty = 0 : levelWas = level : EditReset
     IF edVerPane THEN edVerTop = 0 : EditVerList ' (this sector's versions now)
     edMapWant = mapN : edRoomW = 0 : edRoomH = 0 : edLootSet = 0 : EditFitMap
 END SUB
@@ -1427,14 +1459,16 @@ SUB EditFP STATIC
                 edKeyHeld(kc) = -1 : edKeyCtrl(kc) = edCtrl
             END IF
         END IF
-        IF edCtrl OR edKeyCtrl(kc) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z, Ctrl+D - however the key arrives)
-            IF kc = 115 OR kc = 122 OR kc = 100 THEN
+        IF edCtrl OR edKeyCtrl(kc) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D - however the key arrives)
+            IF kc = 115 OR kc = 122 OR kc = 121 OR kc = 100 THEN
                 IF k& < 0 OR NOT edKeyCtrl(kc) THEN
                     k& = 0 ' (a walking key's repeat - pressed before Ctrl - is no shortcut)
                 ELSEIF kc = 115 THEN
                     k& = 19
                 ELSEIF kc = 122 THEN
                     k& = 26
+                ELSEIF kc = 121 THEN
+                    k& = 25
                 ELSE
                     k& = 4
                 END IF
@@ -1446,6 +1480,8 @@ SUB EditFP STATIC
             CASE 21248 ' Del: delete what's selected
                 IF edSelN THEN EditPushUndo : EditDeleteSel : EditApply ELSE EditNote "Select something to delete first"
             CASE 15104 : edHelp = NOT edHelp ' F1: the help
+            CASE 123, 125, 95, 43 ' PAINT + Shift+[ ] (narrower, wider), Shift+- = (shorter, taller): stretch the picture
+                IF edTool = ET_PAINT THEN EditOffsetKey k&
             CASE 112, 80 : EditPickMode ' P: the picker - tucked away, always open, off
             CASE 18432, 20480, 19200, 19712, 18176 ' The arrows: nudge the selection a cell - away, back, left, right of the way you face (PAINT + Shift: slide the picture)
                 IF edTool = ET_PAINT AND shiftOn THEN
@@ -1467,7 +1503,8 @@ SUB EditFP STATIC
                 END IF
             CASE 9 : editView = 0 ' Tab: the map from above
             CASE 19 : EditSave level
-            CASE 26 : EditUndoStep
+            CASE 26 : IF shiftOn THEN EditRedoStep ELSE EditUndoStep ' (Ctrl+Shift+Z: redo)
+            CASE 25 : EditRedoStep ' Ctrl+Y
             CASE 91 : EditCycleGlyph -1
             CASE 93 : EditCycleGlyph 1
             CASE 101, 69 ' E: pick up what's under the pointer (the crosshair, looking round) as the brush of the tool in use - PAINT: the face's picture; any other: what's in that cell (a monster, a pickup, the wall...). The tool stays as it is.
@@ -1545,10 +1582,10 @@ SUB EditSetFace(x, y, f, d, p1$, p2$)
     NEXT
     IF p1$ = "" AND p2$ = "" AND d = 0 THEN ' (taken away - unless its picture's slid: then it keeps that)
         IF k THEN
-            IF lvlFaceO(k) THEN lvlFaceD(k) = 0 : lvlFaceP1$(k) = "" : lvlFaceP2$(k) = "" : EXIT SUB
+            IF lvlFaceO(k) OR lvlFaceK(k) THEN lvlFaceD(k) = 0 : lvlFaceP1$(k) = "" : lvlFaceP2$(k) = "" : EXIT SUB
             FOR j = k TO lvlNumFaces - 1
                 lvlFaceX(j) = lvlFaceX(j + 1) : lvlFaceY(j) = lvlFaceY(j + 1) : lvlFaceS(j) = lvlFaceS(j + 1) : lvlFaceD(j) = lvlFaceD(j + 1)
-                lvlFaceP1$(j) = lvlFaceP1$(j + 1) : lvlFaceP2$(j) = lvlFaceP2$(j + 1) : lvlFaceO(j) = lvlFaceO(j + 1)
+                lvlFaceP1$(j) = lvlFaceP1$(j + 1) : lvlFaceP2$(j) = lvlFaceP2$(j + 1) : lvlFaceO(j) = lvlFaceO(j + 1) : lvlFaceK(j) = lvlFaceK(j + 1)
             NEXT
             lvlNumFaces = lvlNumFaces - 1
         END IF
@@ -1556,87 +1593,133 @@ SUB EditSetFace(x, y, f, d, p1$, p2$)
     END IF
     IF k = 0 THEN
         IF lvlNumFaces >= MAX_FACES THEN EditNote "That's" + STR$(MAX_FACES) + " faces with pictures of their own - no more" : EXIT SUB
-        lvlNumFaces = lvlNumFaces + 1 : k = lvlNumFaces : lvlFaceO(k) = 0
+        lvlNumFaces = lvlNumFaces + 1 : k = lvlNumFaces : lvlFaceO(k) = 0 : lvlFaceK(k) = 0
     END IF
     lvlFaceX(k) = x : lvlFaceY(k) = y : lvlFaceS(k) = f : lvlFaceD(k) = d : lvlFaceP1$(k) = p1$ : lvlFaceP2$(k) = p2$
 END SUB
 
-' Face f of cell (x, y): its picture slid ou 16ths along it and ov up it
-' (0-15 each, wrapping round) - kept in its [faces] line, made for it if
-' it has none (the usual picture, slid)
-SUB EditSetFaceOff(x, y, f, ou, ov)
-    DIM k, o ' (its own: the main program shares these names)
-    o = (ou AND 15) + 16 * (ov AND 15)
+' Face f of cell (x, y): its picture slid ou 64ths along it and ov up it
+' (0-63 each - a pixel of a 64 picture - wrapping round) and stretched ku
+' percent across, kv up (100 as it is) - kept in its [faces] line, made for
+' it if it has none (the usual picture, slid or stretched)
+SUB EditSetFaceTex(x, y, f, ou, ov, ku, kv)
+    DIM k, o, kk&, u, v ' (its own: the main program shares these names)
+    o = (ou AND 63) + 64 * (ov AND 63)
+    u = ku : v = kv : IF u = 100 THEN u = 0
+    IF v = 100 THEN v = 0
+    IF u THEN u = MaxOf(TEX_K_MIN, MinOf(TEX_K_MAX, u))
+    IF v THEN v = MaxOf(TEX_K_MIN, MinOf(TEX_K_MAX, v))
+    kk& = u + 2048& * v
     k = FaceIndex(x, y, f)
     IF k = 0 THEN
-        IF o = 0 THEN EXIT SUB
+        IF o = 0 AND kk& = 0 THEN EXIT SUB
         IF lvlNumFaces >= MAX_FACES THEN EditNote "That's" + STR$(MAX_FACES) + " faces with pictures of their own - no more" : EXIT SUB
         lvlNumFaces = lvlNumFaces + 1 : k = lvlNumFaces
         lvlFaceX(k) = x : lvlFaceY(k) = y : lvlFaceS(k) = f : lvlFaceD(k) = 0 : lvlFaceP1$(k) = "" : lvlFaceP2$(k) = ""
     END IF
-    lvlFaceO(k) = o
-    IF o = 0 AND lvlFaceD(k) = 0 AND lvlFaceP1$(k) = "" AND lvlFaceP2$(k) = "" THEN EditSetFace x, y, f, 0, "", "" ' (nothing of its own left: out of [faces])
+    lvlFaceO(k) = o : lvlFaceK(k) = kk&
+    IF o = 0 AND kk& = 0 AND lvlFaceD(k) = 0 AND lvlFaceP1$(k) = "" AND lvlFaceP2$(k) = "" THEN EditSetFace x, y, f, 0, "", "" ' (nothing of its own left: out of [faces])
 END SUB
 
-' PAINT + Shift+arrows: slide the picture on the face under the pointer -
-' or on every selected face, when that's one of them (or nothing's under
-' it) - a 16th of the picture (Ctrl: a quarter). Walls: left, right, up,
-' down as you face them. Floors and ceilings: the way you face is up.
-' Shift+Home: back where it was made. One undo for a run of presses.
-SUB EditOffsetKey(k&) STATIC
-    DIM fc, fwX, fwY, j, n, ou, ov, st, useSel, mx, my, kd, fx, fy, sd ' (its own: the main program shares these names)
-    useSel = 0
-    IF edHovKind = 0 OR edHovThing THEN
-        IF edSelN = 0 THEN EditNote "Point at a face (or select some) to slide its picture" : EXIT SUB
-        useSel = -1
-    ELSE
-        FOR j = 1 TO edSelN
-            IF edSelKind(j) = edHovKind AND edSelX(j) = edHovX AND edSelY(j) = edHovY AND edSelSide(j) = edHovSide THEN useSel = -1
-        NEXT
+' A face's offset (64ths: ou along, ov up) and stretch (percent: ku across,
+' kv up) - 0, 0, 100, 100 if it has none
+SUB EditGetFaceTex(x, y, f, ou, ov, ku, kv)
+    DIM k ' (its own: the main program shares these names)
+    ou = 0 : ov = 0 : ku = 100 : kv = 100 : k = FaceIndex(x, y, f)
+    IF k THEN
+        ou = lvlFaceO(k) AND 63 : ov = (lvlFaceO(k) \ 64) AND 63
+        ku = lvlFaceK(k) AND 2047 : kv = lvlFaceK(k) \ 2048
+        IF ku = 0 THEN ku = 100
+        IF kv = 0 THEN kv = 100
     END IF
-    st = 1 : IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN st = 4
-    IF ABS(TIMER - offT!) > 0.5 THEN EditPushUndo
-    offT! = TIMER
+END SUB
+
+' PAINT: the picture on the face under the pointer - or on every selected
+' face, when that's one of them (or nothing's under it) - slid, stretched
+' or put back. op: 0 slid (k& an arrow key: walls left, right, up, down as
+' you face them; floors and ceilings, the way you face is up) by st pixels
+' (64ths); 1 stretched across, 2 up - dir +1 wider/taller, -1 narrower/
+' shorter, by st percent (0: to the next of TEX_K_STEPS$); 3 put back. One
+' undo for a run of presses. fromPane: the selection, always.
+SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
+    DIM fc, fwX, fwY, j, n, ou, ov, ku, kv, useSel, mx, my, kd, fx, fy, sd, w, kn, sv ' (its own: the main program shares these names)
+    useSel = fromPane
+    IF NOT useSel THEN
+        IF edHovKind = 0 OR edHovThing THEN
+            IF edSelN = 0 THEN EditNote "Point at a face (or select some) to change its picture" : EXIT SUB
+            useSel = -1
+        ELSE
+            FOR j = 1 TO edSelN
+                IF edSelKind(j) = edHovKind AND edSelX(j) = edHovX AND edSelY(j) = edHovY AND edSelSide(j) = edHovSide THEN useSel = -1
+            NEXT
+        END IF
+    END IF
+    IF ABS(TIMER - texOpT!) > 0.5 THEN EditPushUndo
+    texOpT! = TIMER
     fwX = 0 : fwY = 0 : IF ABS(edCamDX) >= ABS(edCamDY) THEN fwX = SGN(edCamDX) ELSE fwY = SGN(edCamDY)
     IF useSel THEN n = edSelN ELSE n = 1
     FOR j = 1 TO n
         IF useSel THEN kd = edSelKind(j) : fx = edSelX(j) : fy = edSelY(j) : sd = edSelSide(j) ELSE kd = edHovKind : fx = edHovX : fy = edHovY : sd = edHovSide
-        fc = EditFaceCode(kd, sd)
-        EditGetFaceOff fx, fy, fc, ou, ov
-        IF k& = 18176 THEN
-            ou = 0 : ov = 0
-        ELSEIF kd = ED_FLOOR OR kd = ED_CEIL THEN ' (the picture moved on the map: mx, my - u runs east, v south)
-            SELECT CASE k&
-                CASE 18432 : mx = fwX : my = fwY
-                CASE 20480 : mx = -fwX : my = -fwY
-                CASE 19200 : mx = fwY : my = -fwX
-                CASE ELSE : mx = -fwY : my = fwX
-            END SELECT
-            ou = ou - mx * st : ov = ov - my * st
-        ELSE ' (a wall: u runs left to right as you face it, v down)
-            SELECT CASE k&
-                CASE 18432 : ov = ov + st
-                CASE 20480 : ov = ov - st
-                CASE 19200 : ou = ou + st
-                CASE ELSE : ou = ou - st
-            END SELECT
-        END IF
-        ou = (ou + 16) AND 15 : ov = (ov + 16) AND 15
-        EditSetFaceOff fx, fy, fc, ou, ov
+        fc = EditFaceCode(kd, sd) : IF fc < 1 OR fc > FACE_MAX THEN _CONTINUE
+        EditGetFaceTex fx, fy, fc, ou, ov, ku, kv
+        SELECT CASE op
+            CASE 3 : ou = 0 : ov = 0 : ku = 100 : kv = 100
+            CASE 1, 2
+                IF op = 1 THEN w = ku ELSE w = kv
+                IF st THEN
+                    w = w + dir * st
+                ELSE ' (the next of the steps up, or down)
+                    sv = w
+                    FOR kn = 1 TO LEN(TEX_K_STEPS$) \ 5
+                        IF dir > 0 AND VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5)) > sv THEN w = VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5)) : EXIT FOR
+                        IF dir < 0 AND VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5)) < sv THEN w = VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5))
+                    NEXT
+                END IF
+                w = MaxOf(TEX_K_MIN, MinOf(TEX_K_MAX, w))
+                IF op = 1 THEN ku = w ELSE kv = w
+            CASE ELSE
+                IF kd = ED_FLOOR OR kd = ED_CEIL THEN ' (the picture moved on the map: mx, my - u runs east, v south)
+                    SELECT CASE k&
+                        CASE 18432 : mx = fwX : my = fwY
+                        CASE 20480 : mx = -fwX : my = -fwY
+                        CASE 19200 : mx = fwY : my = -fwX
+                        CASE ELSE : mx = -fwY : my = fwX
+                    END SELECT
+                    ou = ou - mx * st : ov = ov - my * st
+                ELSE ' (a wall: u runs left to right as you face it, v down)
+                    SELECT CASE k&
+                        CASE 18432 : ov = ov + st
+                        CASE 20480 : ov = ov - st
+                        CASE 19200 : ou = ou + st
+                        CASE ELSE : ou = ou - st
+                    END SELECT
+                END IF
+                ou = (ou + 64) AND 63 : ov = (ov + 64) AND 63
+        END SELECT
+        EditSetFaceTex fx, fy, fc, ou, ov, ku, kv
     NEXT
     EditApply
-    IF k& = 18176 THEN
-        EditNote "Picture back where it was" + MID$("s", 1, -(n > 1))
+    IF op = 3 THEN
+        EditNote "Picture" + MID$("s", 1, -(n > 1)) + " back as made"
     ELSE
-        EditNote "Picture slid:" + STR$(ou) + "/16 along," + STR$(ov) + "/16 up" + MID$(" (" + LTRIM$(STR$(n)) + " faces)", 1, 99 * -(n > 1)) + " - Ctrl: a quarter; Shift+Home: back"
+        EditNote "Picture slid" + STR$(((ou + 32) AND 63) - 32) + "," + LTRIM$(STR$(((ov + 32) AND 63) - 32)) + " px, stretched" + STR$(ku) + "% x" + STR$(kv) + "%" + MID$(" (" + LTRIM$(STR$(n)) + " faces)", 1, 99 * -(n > 1))
     END IF
 END SUB
 
-' A face's offset (16ths: ou along, ov up) - 0, 0 if it has none
-SUB EditGetFaceOff(x, y, f, ou, ov)
-    DIM k ' (its own: the main program shares these names)
-    ou = 0 : ov = 0 : k = FaceIndex(x, y, f)
-    IF k THEN ou = lvlFaceO(k) AND 15 : ov = (lvlFaceO(k) \ 16) AND 15
+' PAINT + Shift+arrows (Ctrl: a pixel), Shift+[ ] and Shift+- = (stretch),
+' Shift+Home (back as made): EditTexOp for the key
+SUB EditOffsetKey(k&)
+    DIM st ' (its own: the main program shares these names)
+    SELECT CASE k&
+        CASE 18176 : EditTexOp 3, k&, 0, 0, 0
+        CASE 123 : EditTexOp 1, k&, -1, 0, 0 ' { (Shift+[): narrower
+        CASE 125 : EditTexOp 1, k&, 1, 0, 0 ' } (Shift+]): wider
+        CASE 95 : EditTexOp 2, k&, -1, 0, 0 ' _ (Shift+-): shorter
+        CASE 43 : EditTexOp 2, k&, 1, 0, 0 ' + (Shift+=): taller
+        CASE ELSE
+            st = 4 : IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN st = 1 ' (a 16th of the picture - Ctrl: a pixel)
+            EditTexOp 0, k&, 0, st, 0
+    END SELECT
 END SUB
 
 ' Put glyph c$ at cell (x, y) of the level (not on its border)
@@ -1693,7 +1776,7 @@ FUNCTION EditSnapshot$
     FOR k = 1 TO 2 : s$ = s$ + lvlCeil$(k) + "|" : NEXT
     s$ = s$ + CHR$(2) ' (the faces' own pictures)
     FOR k = 1 TO lvlNumFaces
-        s$ = s$ + LTRIM$(STR$(lvlFaceX(k))) + "," + LTRIM$(STR$(lvlFaceY(k))) + "," + FaceName$(lvlFaceS(k)) + "," + LTRIM$(STR$(lvlFaceD(k))) + "," + lvlFaceP1$(k) + "," + lvlFaceP2$(k) + "," + LTRIM$(STR$(lvlFaceO(k) AND 15)) + "," + LTRIM$(STR$(lvlFaceO(k) \ 16)) + CHR$(3)
+        s$ = s$ + LTRIM$(STR$(lvlFaceX(k))) + "," + LTRIM$(STR$(lvlFaceY(k))) + "," + FaceName$(lvlFaceS(k)) + "," + LTRIM$(STR$(lvlFaceD(k))) + "," + lvlFaceP1$(k) + "," + lvlFaceP2$(k) + FaceTexText$(k, ",") + CHR$(3)
     NEXT
     s$ = s$ + CHR$(4) ' (the lifts, and the pads paired by hand)
     FOR k = 1 TO lvlNumLifts : FOR j = 1 TO 8 : s$ = s$ + LTRIM$(STR$(lvlLift(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
@@ -2321,7 +2404,7 @@ END FUNCTION
 ' order string a | is a gap between groups, a / a new row.
 SUB EditTBLayout(v)
     DIM c$, k, w, x, x0, y ' (its own: the main program shares these names)
-    IF v = 1 THEN o$ = "SPTLH|DUW|GA|ZRKVQ" : x = 8 : y = 4 ELSE o$ = "SPT/LHD/UWQ/GA/V<>/BZ/R" : x = ED_PALX : y = 290
+    IF v = 1 THEN o$ = "SPTLH|DUYW|GA|ZRKVQ" : x = 8 : y = 4 ELSE o$ = "SPT/LHD/UYW/GA/V<>/BZ/RQ" : x = ED_PALX : y = 290
     x0 = x : edTbN = 0
     FOR k = 1 TO LEN(o$)
         c$ = MID$(o$, k, 1)
@@ -2330,7 +2413,7 @@ SUB EditTBLayout(v)
         ELSEIF c$ = "/" THEN
             x = x0 : y = y + 24
         ELSE
-            id = INSTR("SPLHDUWGAVQTK<>BZR", c$)
+            id = INSTR("SPLHDUWGAVQTK<>BZRY", c$)
             IF v = 1 THEN w = TinyW(EditTBLabel$(id)) + 14 ELSE w = 64 ' (small print: they all fit, even on our 800 screen)
             IF id = TB_ALPHA THEN w = 64 : IF v = 0 THEN w = 132
             IF (id = TB_KINDS OR id = TB_VERSIONS) AND v = 0 THEN w = 132
@@ -2349,6 +2432,7 @@ FUNCTION EditTBLabel$(id)
         CASE TB_HEIGHT : t$ = "HEIGHT"
         CASE TB_DELETE : t$ = "DELETE"
         CASE TB_UNDO : t$ = "UNDO"
+        CASE TB_REDO : t$ = "REDO"
         CASE TB_SAVE : t$ = "SAVE"
         CASE TB_GRID : t$ = "GRID"
         CASE TB_VIEW : IF editView = 1 THEN t$ = "2D MAP" ELSE t$ = "3D"
@@ -2374,6 +2458,7 @@ FUNCTION EditTBTip$(id)
         CASE TB_HEIGHT : t$ = "Height: click raises a floor/ceiling, Shift+click lowers"
         CASE TB_DELETE : t$ = "Delete the selection: walls opened, things gone (Del)"
         CASE TB_UNDO : t$ = "Undo (Ctrl+Z)"
+        CASE TB_REDO : t$ = "Redo what was undone (Ctrl+Y, Ctrl+Shift+Z)"
         CASE TB_SAVE : t$ = "Save the sector to its file (Ctrl+S)"
         CASE TB_GRID : t$ = "The grid over the world on/off (G)"
         CASE TB_ALPHA : t$ = "How strong the grid is: drag (Shift+G)"
@@ -2480,12 +2565,12 @@ SUB EditDrawHelp(v)
     IF v = 1 THEN
         h$ = "#MOVE AND LOOK|walk keys~fly that way - through walls|look up + walk~climb (look down: sink)|Space / C~straight up / down|Shift~faster|hold Right~look round (crosshair picks)|Tab~the map from above|F2~play the level as it is|"
         h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor, ceiling, or wall side|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
-        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|  Shift+arrows~slide its picture (Ctrl: 1/4)|  Shift+Home~the picture back|LIGHT~a light on the face|  Shift~take it away|HEIGHT~floor/ceiling up; Shift down|"
+        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|  Shift+arrows~slide its picture (Ctrl: 1 px)|  Shift+[ ] - =~stretch it: wide, tall|  Shift+Home~the picture as made|LIGHT~a light on the face|  Shift~take it away|  its pane~CEILING LAMP on/off, REMOVE|  painted ceiling~stays: the light shines from it|HEIGHT~floor/ceiling up; Shift down|"
         h$ = h$ + "#THE WHEEL (the selection)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
         h$ = h$ + "#FACES|H~divide left / right|V~divide top / bottom|H or V again~whole again|click a half~select / paint it alone|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
-        h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
-        h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Ctrl+S~save|Ctrl+Z~undo|U~the HUD layout editor|F1~this sheet|"
+        h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|PAINT + selection~PICTURE pane: slide a pixel,|~  stretch wide / tall, as made|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
+        h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|U~the HUD layout editor|F1~this sheet|"
         h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|1-8~light presets|PgUp/PgDn~floor up/down (Shift: ceil)"
         t$ = "EDITOR CHEATSHEET - 3D VIEW"
     ELSE
@@ -2494,7 +2579,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "#THE SELECTION|arrows~move it a cell (up is north)|Del~delete it|Ctrl+D~select nothing|its pane~door, pad, light, monster,|~  event, lift, floor, triggers|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT drag~pour it on (Shift: drain)|"
         h$ = h$ + "#KEYS|L / H~the LIGHT / HEIGHT tool|[ ]~the brush back / on|1-8~light presets|G / Shift+G~grid on-off / stronger|T~put yourself at the mouse|PgUp/PgDn~the sector before / after|M~the monster kinds editor|U~the HUD layout editor|"
-        h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Ctrl+S~save|Ctrl+Z~undo|F1~this sheet"
+        h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|F1~this sheet"
         t$ = "EDITOR CHEATSHEET - THE MAP FROM ABOVE"
     END IF
     y0 = 32 : IF v = 0 THEN y0 = 4
@@ -3083,6 +3168,7 @@ SUB EditPaneLay
         EditPaneAdd 190, x0, y, PN_W, "BACK", 0
         EXIT SUB
     END IF
+    IF editView = 1 AND edTool = ET_PAINT AND edSelN > 0 THEN EditPanePicture x0, y : EXIT SUB ' (PAINT: the selected faces' pictures - slid, stretched)
     ' A door: the first selected face that's a door's
     FOR k = 1 TO edSelN
         c$ = MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)
@@ -3414,6 +3500,28 @@ END SUB
 ' The selected floors' wetness (their [floor wetness]): WET - + (the
 ' first selected open cell says; the buttons set them all) - . the
 ' sector's, then 0 dry to 9 soaked
+' PAINT with faces selected: their pictures slid a pixel at a time
+' (Shift+click: 4), stretched across and up (by TEX_K_STEPS$ - Shift+click:
+' a percent), or put back as made. The numbers are the first face's.
+SUB EditPanePicture(x0, y)
+    DIM fc, k, ou, ov, ku, kv, n ' (its own: the main program shares these names)
+    n = 0 : ou = 0 : ov = 0 : ku = 100 : kv = 100
+    FOR k = 1 TO edSelN
+        fc = EditFaceCode(edSelKind(k), edSelSide(k))
+        IF fc >= 1 AND fc <= FACE_MAX THEN
+            n = n + 1 : IF n = 1 THEN EditGetFaceTex edSelX(k), edSelY(k), fc, ou, ov, ku, kv
+        END IF
+    NEXT
+    edPnTitle$ = "PICTURE (" + LTRIM$(STR$(n)) + " face" + MID$("s", 1, -(n <> 1)) + ")"
+    IF n = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "SELECT FACES TO SLIDE THEIR PICTURES", 0 : y = y + 23 : EXIT SUB
+    EditPaneAdd -1, x0, y + 2, PN_W, "SLID" + STR$(((ou + 32) AND 63) - 32) + " ALONG," + STR$(((ov + 32) AND 63) - 32) + " UP (PIXELS)", 0 ' (shown -32 to 31: 3 left is -3, not 61) : y = y + 20
+    EditPaneAdd 330, x0, y, 48, "LEFT", 0 : EditPaneAdd 331, x0 + 50, y, 48, "RIGHT", 0 : EditPaneAdd 332, x0 + 100, y, 48, "UP", 0 : EditPaneAdd 333, x0 + 150, y, 50, "DOWN", 0 : y = y + 23
+    EditPaneAdd -1, x0, y + 2, 140, "WIDE" + STR$(ku) + "%", 0 : EditPaneAdd 334, x0 + 146, y, 24, "-", 0 : EditPaneAdd 335, x0 + 174, y, 24, "+", 0 : y = y + 23
+    EditPaneAdd -1, x0, y + 2, 140, "TALL" + STR$(kv) + "%", 0 : EditPaneAdd 336, x0 + 146, y, 24, "-", 0 : EditPaneAdd 337, x0 + 174, y, 24, "+", 0 : y = y + 23
+    EditPaneAdd -1, x0, y + 2, PN_W, "SHIFT+CLICK: 4 PIXELS / 1 PERCENT", 0 : y = y + 20
+    EditPaneAdd 338, x0, y, PN_W, "AS MADE (NOT SLID OR STRETCHED)", 0 : y = y + 23
+END SUB
+
 SUB EditPaneWet(x0, y)
     DIM k, n, t$ ' (its own: the main program shares these names)
     FOR k = 1 TO edSelN
@@ -4208,7 +4316,7 @@ END SUB
 ' The 3D editor's outlines, over the view: the face under the pointer
 ' (cyan, pulsing) - and what it is, by the pointer
 SUB EditDrawFaces
-    DIM cx, cy, c~&, k, ok, sx, sy, tx, ty, lbX, lbOU, lbOV ' (its own: the main program shares these names)
+    DIM cx, cy, c~&, k, ok, sx, sy, tx, ty, lbX, lbOU, lbOV, lbKU, lbKV ' (its own: the main program shares these names)
     IF edTool = ET_PLACE AND edHovKind AND NOT edLooking THEN ' PLACE: where it would go - a box on that cell's floor, and up from it
         EditFaceCell edHovKind, edHovX, edHovY, edHovSide, tx, ty
         IF tx > 0 AND ty > 0 AND tx < mapN - 1 AND ty < mapN - 1 THEN
@@ -4260,7 +4368,11 @@ SUB EditDrawFaces
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
             IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
             IF edHovPart THEN n$ = n$ + " half" + STR$(edHovPart)
-            IF NOT edHovThing THEN EditGetFaceOff edHovX, edHovY, EditFaceCode(edHovKind, edHovSide), lbOU, lbOV : IF lbOU OR lbOV THEN n$ = n$ + "  slid" + STR$(lbOU) + "," + LTRIM$(STR$(lbOV)) ' (its picture's offset, 16ths)
+            IF NOT edHovThing THEN ' (its picture's offset, in pixels, and stretch)
+                EditGetFaceTex edHovX, edHovY, EditFaceCode(edHovKind, edHovSide), lbOU, lbOV, lbKU, lbKV
+                IF lbOU OR lbOV THEN n$ = n$ + "  slid" + STR$(((lbOU + 32) AND 63) - 32) + "," + LTRIM$(STR$(((lbOV + 32) AND 63) - 32))
+                IF lbKU <> 100 OR lbKV <> 100 THEN n$ = n$ + "  stretched" + STR$(lbKU) + "% x" + STR$(lbKV) + "%"
+            END IF
             lbX = edCurX + edWX + 14 : IF lbX + TinyW(n$) > scrW - 4 THEN lbX = edCurX + edWX - 14 - TinyW(n$) ' (by the window's right edge: on the pointer's left)
             TinyText lbX, edCurY + 14, n$, _RGB32(150, 230, 255)
         END IF
@@ -4571,7 +4683,7 @@ SUB EditReload(f$)
     IF NOT lvlOK THEN ReadLevelFile level : ConPrint "^1Can't read that as a level - the sector as it was" ' (its own file again)
     editRebuild = -1 : BuildLevel : editRebuild = 0 : kills = 0
     EditKeepPlace 0
-    editUndoN = 0
+    editUndoN = 0 : editRedoN = 0
     IF LEN(f$) AND lvlOK THEN editDirty = -1 : editFresh = 0 ELSE editDirty = 0 : editFresh = -1
 END SUB
 
@@ -4670,7 +4782,7 @@ SUB EditResizeMap(n)
     NEXT
     lvlRow$(0) = STRING$(n, "#") : lvlRow$(n - 1) = STRING$(n, "#")
     FOR y = n TO MAP_SIZE - 1 : lvlRow$(y) = "" : lvlFloorRow$(y) = "" : lvlCeilRow$(y) = "" : lvlLiqRow$(y) = "" : lvlLiqDRow$(y) = "" : lvlLiqORow$(y) = "" : lvlWetRow$(y) = "" : NEXT
-    mapN = n : edMapWant = n : editUndoN = 0
+    mapN = n : edMapWant = n : editUndoN = 0 : editRedoN = 0
     IF n < was THEN EditDropPast n - 2 ' (cut down: what was past the new edge goes too - else the file keeps it, and the next load piles it on the border)
     IF INSTR(lvlRow$((n - 1) \ 2), ">") + INSTR(lvlRow$((n - 1) \ 2), "<") = 0 THEN ' (no start left - cut off: one, in the middle)
         FOR y = 0 TO n - 1 : IF INSTR(lvlRow$(y), ">") OR INSTR(lvlRow$(y), "<") OR INSTR(lvlRow$(y), "^") OR INSTR(lvlRow$(y), "v") THEN EXIT FOR
@@ -4774,7 +4886,7 @@ SUB EditDropPast(m)
     FOR j = 1 TO lvlNumFaces
         IF lvlFaceX(j) <= m AND lvlFaceY(j) <= m THEN
             k = k + 1 : lvlFaceX(k) = lvlFaceX(j) : lvlFaceY(k) = lvlFaceY(j) : lvlFaceS(k) = lvlFaceS(j) : lvlFaceD(k) = lvlFaceD(j)
-            lvlFaceP1$(k) = lvlFaceP1$(j) : lvlFaceP2$(k) = lvlFaceP2$(j) : lvlFaceO(k) = lvlFaceO(j)
+            lvlFaceP1$(k) = lvlFaceP1$(j) : lvlFaceP2$(k) = lvlFaceP2$(j) : lvlFaceO(k) = lvlFaceO(j) : lvlFaceK(k) = lvlFaceK(j)
         END IF
     NEXT : lvlNumFaces = k
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (the cell lights past it: none)

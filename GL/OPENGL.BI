@@ -126,7 +126,8 @@ DIM SHARED glDynMasks(GL_BATCH * 4) AS SINGLE, glShadowA(GL_BATCH) AS SINGLE, gl
 ' corners each texture has, and where its part of the list starts)
 DIM SHARED glVertSlot(GL_BATCH) AS INTEGER, glIndex(GL_BATCH) AS _UNSIGNED LONG, glCurSlot AS INTEGER, glBumpOn AS INTEGER
 DIM SHARED glSlotCount(GL_GLOW_TEX) AS LONG, glSlotStart(GL_GLOW_TEX) AS LONG, glSlotFill(GL_GLOW_TEX) AS LONG
-DIM SHARED glOffU, glOffV ' (a face's picture slid along and up it - faceOU/faceOV in pictures: GLCorner adds them; set round that face's corners only, then 0 again)
+DIM SHARED glOffU, glOffV, glKU, glKV ' (a face's picture slid along and up it - faceOU/faceOV in pictures - and stretched, glKU/glKV times as many pictures across a cell: GLCorner works them in; set round that face's corners only, then 0 and 1 again - GLTexOff)
+glKU = 1 : glKV = 1
 DIM SHARED glFaceNX, glFaceNY, glFaceNZ, glFaceTX, glFaceTY, glFaceTZ, glCellLX, glCellLY, glCellDir
 DIM SHARED glCornerLX, glCornerLY, glCornerLZ
 DIM SHARED glMat(15) AS SINGLE, glMs

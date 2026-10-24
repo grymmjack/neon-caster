@@ -241,7 +241,7 @@ SUB BreakLight(l, loud)
     DIM cx, cy ' (its own: the main program shares these names)
     lightBroken(l) = -1
     cx = INT(lightX(l)) : cy = INT(lightY(l))
-    IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN ceilTex(cx, cy) = T_LAMPOFF : IF mapN <= 64 OR NOT loud THEN glMeshVersion = glMeshVersion + 1 ' (a big sector: no rebuilding all of it for one lamp - a hitch - its dark mark shows it. OpenGL's world built again with it dark: a scorch decal alone gets recycled, and the lit lamp showed again)
+    IF cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN IF ceilTex(cx, cy) = T_LAMP THEN ceilTex(cx, cy) = T_LAMPOFF : IF mapN <= 64 OR NOT loud THEN glMeshVersion = glMeshVersion + 1 ' (a big sector: no rebuilding all of it for one lamp - a hitch - its dark mark shows it. OpenGL's world built again with it dark: a scorch decal alone gets recycled, and the lit lamp showed again)
     AddDecal lightX(l), lightY(l), CeilAt(lightX(l), lightY(l)) - 0.001, 0, 0, -1, 0.75 : decalHeat(decalNext) = 0
     IF loud THEN
         lh = CeilAt(lightX(l), lightY(l)) - FloorAt(lightX(l), lightY(l)) - 0.05 ' (just under its own ceiling, however high)

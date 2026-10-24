@@ -134,13 +134,20 @@
                     IF cellX >= 0 AND cellX < mapN AND cellY >= 0 AND cellY < mapN THEN
                         cellFloor = floorTex(cellX, cellY) : cellCeil = ceilTex(cellX, cellY)
                         cFU = 0 : cFV = 0 : cCU = 0 : cCV = 0 ' (the floor's and ceiling's pictures slid: [faces])
-                        IF faceOffAny THEN cFU = faceOU(cellX, cellY, 9) * texSize \ 16 : cFV = faceOV(cellX, cellY, 9) * texSize \ 16 : cCU = faceOU(cellX, cellY, 10) * texSize \ 16 : cCV = faceOV(cellX, cellY, 10) * texSize \ 16
+                        cFSU = texSize : cFSV = texSize : cCSU = texSize : cCSV = texSize ' (texels a cell across: texSize, or stretched)
+                        IF faceOffAny THEN
+                            cFU = faceOU(cellX, cellY, 9) * texSize \ 64 : cFV = faceOV(cellX, cellY, 9) * texSize \ 64 : cCU = faceOU(cellX, cellY, 10) * texSize \ 64 : cCV = faceOV(cellX, cellY, 10) * texSize \ 64
+                            IF faceKU(cellX, cellY, 9) THEN cFSU = texSize * 100 / faceKU(cellX, cellY, 9)
+                            IF faceKV(cellX, cellY, 9) THEN cFSV = texSize * 100 / faceKV(cellX, cellY, 9)
+                            IF faceKU(cellX, cellY, 10) THEN cCSU = texSize * 100 / faceKU(cellX, cellY, 10)
+                            IF faceKV(cellX, cellY, 10) THEN cCSV = texSize * 100 / faceKV(cellX, cellY, 10)
+                        END IF
                         splitCell = floorSplit(cellX, cellY) OR ceilSplit(cellX, cellY)
                         cellTrack = 0 ' A door's track: 1 running along x, 2 along y (DoorAcross + 1)
                         IF worldMap(cellX, cellY) = 2 THEN IF doorType(cellX, cellY) <> DOOR_EXIT THEN cellTrack = DoorAcross(cellX, cellY) + 1
                         lightR& = litR(cellX, cellY) * fog& \ 256 : lightG& = litG(cellX, cellY) * fog& \ 256 : lightB& = litB(cellX, cellY) * fog& \ 256
                     ELSE
-                        cellFloor = T_FLOOR + 1 : cellCeil = T_CEIL + 1 : cellTrack = 0 : cFU = 0 : cFV = 0 : cCU = 0 : cCV = 0
+                        cellFloor = T_FLOOR + 1 : cellCeil = T_CEIL + 1 : cellTrack = 0 : cFU = 0 : cFV = 0 : cCU = 0 : cCV = 0 : cFSU = texSize : cFSV = texSize : cCSU = texSize : cCSV = texSize
                         lightR& = ambientR * fog& \ 256 : lightG& = ambientG * fog& \ 256 : lightB& = ambientB * fog& \ 256
                     END IF
                     IF lightR& > 256 THEN lightR& = 256 ' (full brightness at most: then the sums below can't overflow)
@@ -156,12 +163,12 @@
                 ' The same sum as ShadeRGB~& (chapter 23), written out here: this
                 ' runs 120,000 times a frame, and calling a FUNCTION each time
                 ' would cost more than the sum itself
-                texel~& = texture((texU + cFU) AND (texSize - 1), (texV + cFV) AND (texSize - 1), floorSlot)
+                texel~& = texture((INT(floorX * cFSU) + cFU) AND (texSize - 1), (INT(floorY * cFSV) + cFV) AND (texSize - 1), floorSlot)
                 pixels(floorRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                 IF texSky(ceilSlot) THEN ' (a sky: by the way you look, full bright)
                     pixels(ceilRow + x) = texture(skyU(x), skyV(RENDER_H - 1 - y), ceilSlot) OR &HFF000000~&
                 ELSE
-                    texel~& = texture((texU + cCU) AND (texSize - 1), (texV + cCV) AND (texSize - 1), ceilSlot)
+                    texel~& = texture((INT(floorX * cCSU) + cCU) AND (texSize - 1), (INT(floorY * cCSV) + cCV) AND (texSize - 1), ceilSlot)
                     pixels(ceilRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                 END IF
                 IF gridOn THEN IF texU < gridW OR texV < gridW THEN pixels(floorRow + x) = GridMix~&(pixels(floorRow + x)) : pixels(ceilRow + x) = GridMix~&(pixels(ceilRow + x)) ' (the editor's grid: chapter 21)

@@ -604,14 +604,31 @@ SUB LevelClamp
     NEXT
 END SUB
 
+' A [faces] line's offset and stretch (the 7th number on), each after sep$:
+' across and up in 64ths, then - stretched - across and up in percent
+FUNCTION FaceTexText$(k, sep$)
+    DIM ku, kv, t$ ' (its own: the main program shares these names)
+    t$ = sep$ + LTRIM$(STR$(lvlFaceO(k) AND 63)) + sep$ + LTRIM$(STR$(lvlFaceO(k) \ 64))
+    IF lvlFaceK(k) THEN
+        ku = lvlFaceK(k) AND 2047 : kv = lvlFaceK(k) \ 2048
+        IF ku = 0 THEN ku = 100
+        IF kv = 0 THEN kv = 100
+        t$ = t$ + sep$ + LTRIM$(STR$(ku)) + sep$ + LTRIM$(STR$(kv))
+    END IF
+    FaceTexText$ = t$
+END FUNCTION
+
 ' One line of [faces]: x, y, face (E S W N, LE LS LW LN, F or C), how it's
 ' divided (0, 1 left|right, 2 top|bottom), its picture - and the second
 ' half's
 SUB TakeFace(l$)
-    DIM f ' (its own: the main program shares these names)
+    DIM f, ku, kv ' (its own: the main program shares these names)
     f = FaceCode(ListItem$(l$, 3)) : IF f = 0 THEN EXIT SUB
     EditSetFace VAL(ListItem$(l$, 1)), VAL(ListItem$(l$, 2)), f, VAL(ListItem$(l$, 4)), ListItem$(l$, 5), ListItem$(l$, 6)
-    IF LEN(ListItem$(l$, 7)) THEN EditSetFaceOff VAL(ListItem$(l$, 1)), VAL(ListItem$(l$, 2)), f, VAL(ListItem$(l$, 7)), VAL(ListItem$(l$, 8)) ' (its picture slid along and up)
+    IF LEN(ListItem$(l$, 7)) THEN ' (its picture slid along and up - and stretched)
+        ku = 100 : kv = 100 : IF LEN(ListItem$(l$, 9)) THEN ku = VAL(ListItem$(l$, 9)) : kv = VAL(ListItem$(l$, 10))
+        EditSetFaceTex VAL(ListItem$(l$, 1)), VAL(ListItem$(l$, 2)), f, VAL(ListItem$(l$, 7)), VAL(ListItem$(l$, 8)), ku, kv
+    END IF
 END SUB
 
 FUNCTION FaceCode(f$)
@@ -743,11 +760,11 @@ SUB WriteLevelFile(f$)
         FOR k = 1 TO lvlNumLoot : o$ = o$ + lvlLoot$(k) + nl$ : NEXT
     END IF
     IF lvlNumFaces THEN
-        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture, then its offset if it has one (16ths of the picture: across, up)" + nl$
+        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture, then its offset if it has one (64ths of the picture - its pixels at 64: across, up) and stretch (percent: across, up)" + nl$
         FOR k = 1 TO lvlNumFaces
             o$ = o$ + LTRIM$(STR$(lvlFaceX(k))) + ", " + LTRIM$(STR$(lvlFaceY(k))) + ", " + FaceName$(lvlFaceS(k)) + ", " + LTRIM$(STR$(lvlFaceD(k))) + ", " + lvlFaceP1$(k)
-            IF lvlFaceP2$(k) <> "" OR lvlFaceO(k) THEN o$ = o$ + ", " + lvlFaceP2$(k)
-            IF lvlFaceO(k) THEN o$ = o$ + ", " + LTRIM$(STR$(lvlFaceO(k) AND 15)) + ", " + LTRIM$(STR$(lvlFaceO(k) \ 16)) ' (its picture's offset: 16ths across, up)
+            IF lvlFaceP2$(k) <> "" OR lvlFaceO(k) OR lvlFaceK(k) THEN o$ = o$ + ", " + lvlFaceP2$(k)
+            IF lvlFaceO(k) OR lvlFaceK(k) THEN o$ = o$ + FaceTexText$(k, ", ") ' (its picture's offset, 64ths across and up - and its stretch)
             o$ = o$ + nl$
         NEXT
     END IF

@@ -229,7 +229,8 @@ END SUB
 ' level's own (a lamp or terminal's light is its glow), standing in an
 ' open cell (not a door, a wall or a diagonal) - into shaftCell(). Each
 ' one hangs from a lamp: its cell's ceiling is the lamp's picture (T_LAMP),
-' so a light (and its beam) comes from somewhere - with the cell's light
+' unless that ceiling's painted (the editor's PAINT), so a light (and its
+' beam) comes from somewhere - with the cell's light
 ' falling on it, it glows its light's colour.
 SUB BuildShafts
     DIM cx, cy, l, x, y ' (its own: the main program shares these names)
@@ -238,7 +239,8 @@ SUB BuildShafts
         cx = INT(lightX(l)) : cy = INT(lightY(l))
         IF lightDeco(l) = 0 AND NOT lightLow(l) AND NOT lightNoLamp(l) AND cx >= 0 AND cy >= 0 AND cx < mapN AND cy < mapN THEN
             IF worldMap(cx, cy) <= 0 AND diagCorner(cx, cy) = 0 AND texSky(ceilTex(cx, cy)) = 0 THEN ' (under a sky: no lamp hanging in the air, no beam)
-                shaftCell(cx, cy) = l : ceilTex(cx, cy) = T_LAMP : ceilSplit(cx, cy) = 0
+                shaftCell(cx, cy) = l
+                IF ceilTex(cx, cy) <= T_CUSTOM OR ceilTex(cx, cy) > T_CUSTOM + T_CUSTOMN THEN ceilTex(cx, cy) = T_LAMP : ceilSplit(cx, cy) = 0 ' (a ceiling painted a picture of its own - [faces] - keeps it: the light shines from that)
             END IF
         END IF
     NEXT

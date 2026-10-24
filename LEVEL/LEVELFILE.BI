@@ -30,14 +30,20 @@ DIM SHARED lvlReadFrom$ ' (a level file to read in place of the sector's own - l
 DIM SHARED lvlMonN AS INTEGER, lvlMon(MAX_MON, MON_COLS) AS SINGLE
 DIM SHARED lvlNumFaces AS INTEGER, lvlFaceX(MAX_FACES) AS INTEGER, lvlFaceY(MAX_FACES) AS INTEGER, lvlFaceS(MAX_FACES) AS INTEGER, lvlFaceD(MAX_FACES) AS INTEGER
 DIM SHARED lvlFaceP1$(MAX_FACES), lvlFaceP2$(MAX_FACES)
-DIM SHARED lvlFaceO(MAX_FACES) AS INTEGER ' (its picture's offset: across + 16 * up, each in 16ths of the picture, 0-15 - the 7th and 8th numbers of a [faces] line)
+DIM SHARED lvlFaceO(MAX_FACES) AS INTEGER ' (its picture's offset: across + 64 * up, each in 64ths of the picture - a pixel of a 64 one - 0-63: the 7th and 8th numbers of a [faces] line)
+DIM SHARED lvlFaceK(MAX_FACES) AS LONG ' (its picture's stretch: across + 2048 * up, each a percentage - 0 as it is, 100 - the 9th and 10th numbers)
 DIM SHARED faceAny AS INTEGER ' (any face with a slot of its own this level: the renderers ask faceTex only then)
 CONST FACE_BOX = 10, FACE_MAX = 14 ' (a box's sides are faces 11 to 14 - FACE_BOX + 1 east .. 4 north: BE, BS, BW, BN)
 DIM SHARED faceTex(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceTex2(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceDiv(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER
-' A face's picture slid along (across) and up it, in 16ths of the picture (0-15;
-' floors and ceilings too, faces 9 and 10): both renderers add it to where
-' they read the picture. faceOffAny: any this sector.
+' A face's picture slid along (across) and up it, in 64ths of the picture (0-63;
+' floors and ceilings too, faces 9 and 10), and stretched across and up
+' (faceKU, faceKV: percent, 0 as it is): both renderers read the picture at
+' (where they would) / stretch + slide - the stretch measured from the
+' map's own grid, so faces stretched alike run on into each other (a
+' picture 200% wide covers two cells of a wall, not one cell's half twice).
+' faceOffAny: any this sector.
 DIM SHARED faceOU(MAP_SIZE, MAP_SIZE, FACE_MAX) AS _BYTE, faceOV(MAP_SIZE, MAP_SIZE, FACE_MAX) AS _BYTE, faceOffAny AS INTEGER
+DIM SHARED faceKU(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceKV(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER
 DIM SHARED lvlName$, lvlWall$(6), lvlFloor$(4), lvlCeil$(2), lvlAmb(4), lvlOK AS INTEGER
 ' Cell lights ([cell lights]): a cell with an ambient light of its own, not
 ' the sector's - lvlCLBright 0-256 (-1: the sector's light), its colour

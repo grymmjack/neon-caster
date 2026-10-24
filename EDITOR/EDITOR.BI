@@ -23,7 +23,7 @@ CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=-@$%?&;rby+*uae234Mqj89)({}`,mghcskwzT156
 CONST EDIT_UNDO = 40
 CONST EDIT_OPEN$ = ".rby+*uae234Mqj89)({}`,mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:['<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
 DIM SHARED editMode AS INTEGER, editView AS INTEGER, editGlyph$, editDirty AS INTEGER, editRebuild AS INTEGER
-DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editMsg$, editMsgUntil!, editLightP AS INTEGER, editLights AS INTEGER, editHeights AS INTEGER
+DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editRedo$(EDIT_UNDO), editRedoN AS INTEGER, editMsg$, editMsgUntil!, editLightP AS INTEGER, editLights AS INTEGER, editHeights AS INTEGER
 ' THE EDITOR'S OWN STATE, the same in both views (the map from above and
 ' the 3D view), so switching between them loses nothing:
 '   ed hover...   the face under the cursor (kind, cell, side, part) - ED_ kinds
@@ -54,7 +54,7 @@ DIM SHARED edCtrl AS INTEGER ' (Ctrl, as the keys arrive - in order, so a quick 
 DIM SHARED gridOn AS INTEGER, gridW AS INTEGER ' (the software renderer's grid this frame, and its lines' width in texels)
 ' THE TOOLBAR (EditTBLayout): its buttons this frame - which (TB_), where -
 ' the one under the pointer, the slider being dragged, the help panel
-CONST TB_SELECT = 1, TB_PLACE = 2, TB_LIGHT = 3, TB_HEIGHT = 4, TB_DELETE = 5, TB_UNDO = 6, TB_SAVE = 7, TB_GRID = 8, TB_ALPHA = 9, TB_VIEW = 10, TB_HELP = 11, TB_PAINT = 12, TB_PICK = 13, TB_PREV = 14, TB_NEXT = 15, TB_KINDS = 16, TB_SECTOR = 17, TB_VERSIONS = 18
+CONST TB_SELECT = 1, TB_PLACE = 2, TB_LIGHT = 3, TB_HEIGHT = 4, TB_DELETE = 5, TB_UNDO = 6, TB_SAVE = 7, TB_GRID = 8, TB_ALPHA = 9, TB_VIEW = 10, TB_HELP = 11, TB_PAINT = 12, TB_PICK = 13, TB_PREV = 14, TB_NEXT = 15, TB_KINDS = 16, TB_SECTOR = 17, TB_VERSIONS = 18, TB_REDO = 19
 CONST TB_MAX = 24 ' (the most buttons a toolbar has)
 DIM SHARED edTbN AS INTEGER, edTbId(TB_MAX) AS INTEGER, edTbX(TB_MAX) AS INTEGER, edTbY(TB_MAX) AS INTEGER, edTbW(TB_MAX) AS INTEGER, edTbH(TB_MAX) AS INTEGER
 DIM SHARED edTbDrag AS INTEGER, edHelp AS INTEGER
@@ -82,6 +82,10 @@ CONST PN_X = 592, PN_Y = 58, PN_W = 200
 ' The pane in small print (TinyText): built on a 23-pixel row, then packed
 ' to PN_SQ of that - its buttons PN_BH tall (EditPaneBuild)
 CONST PN_SQ = 0.7, PN_BH = 14
+' A face's picture stretched (PAINT: Shift+[ ] and Shift+- =, the PICTURE
+' pane): percent, from TEX_K_MIN to TEX_K_MAX, by these steps (5 a number)
+CONST TEX_K_MIN = 10, TEX_K_MAX = 1000
+CONST TEX_K_STEPS$ = "   10   25   50   75  100  125  150  200  250  300  400  500  600  800 1000"
 CONST PN_MAX = 64 ' (the most buttons and lines a pane has)
 DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER, edMapWant AS INTEGER ' (the SECTOR pane: its loot preset - 0 as made - and the room MAKE THE ROOM makes)
 DIM SHARED edPnN AS INTEGER, edPnId(PN_MAX) AS INTEGER, edPnX(PN_MAX) AS INTEGER, edPnY(PN_MAX) AS INTEGER, edPnW(PN_MAX) AS INTEGER, edPnLab$(PN_MAX), edPnLit(PN_MAX) AS INTEGER

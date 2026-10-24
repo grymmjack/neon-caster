@@ -846,6 +846,8 @@ SUB ConExec STATIC
             END IF
         CASE "undo" ' The editor's last change, undone
             EditUndoStep
+        CASE "redo" ' ...and the change undone last, made again
+            EditRedoStep
         CASE "savelevel" ' Save the level as it is now to its file
             EditSave level : ConPrint editMsg$
         CASE "use" ' Press Space (open a door, jack in...), once
@@ -1387,7 +1389,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo savelevel hud monsters tuning tuner use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1408,9 +1410,9 @@ SUB ConHelp(c$)
             ConPrint "  ^6settings  ^7set^8 NAME VALUE  ^7get^8 NAME  ^7settings  ^7NAME^8 [VALUE]  ^7bind^8 ACTION KEY  ^7binds"
             ConPrint "            ^7qb64pe^8 [PATH|auto]  ^7difficulty^8 [easy|normal|hard|nightmare]"
             ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
-            ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7savelevel"
-            ConPrint "            ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]  ^7jumppad^8 X Y ..."
-            ConPrint "            ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N"
+            ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7redo"
+            ConPrint "            ^7savelevel  ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]"
+            ConPrint "            ^7jumppad^8 X Y ...  ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
             ConPrint "  ^6scripts   ^7alias^8 NAME " + CHR$(34) + "..." + CHR$(34) + "  ^7unalias^8 NAME  ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE"
             ConPrint "            ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT  ^7sound^8 NAME  ^7say^8 LINE"
@@ -1561,6 +1563,7 @@ SUB ConHelp(c$)
             ConPrint "  - hack X Y (the computer there hacked) - alarm [X Y] (that switch - or, alone, any - sets the alarm off)"
             ConPrint "  trigger del N: take trigger N away (triggers lists them). savelevel (or Ctrl+S) keeps them"
         CASE "undo" : ConPrint "^3undo^0: the editor's last change, undone (Ctrl+Z)"
+        CASE "redo" : ConPrint "^3redo^0: the change undone last, made again (Ctrl+Y, Ctrl+Shift+Z)"
         CASE "savelevel" : ConPrint "^3savelevel^0: save the level as it is now to its file (Ctrl+S in the editor)"
         ' --- playing, scripts
         CASE "use" : ConPrint "^3use^0: press Space once - open a door, use a terminal, a vending machine, a turret control (for scripts)"
