@@ -38,6 +38,27 @@ SUB HudText(x, y, text$, col~&)
     IF vx THEN VIEW (vx, 0)-(vx + 799, 599)
 END SUB
 
+' Small print (the editor's): Tiny5, 8 pixels tall and about half as wide as
+' HudText's, always in capitals (it reads best so) - y is its top. With no
+' font file, HudText's (a line 16 tall, a little higher up).
+SUB TinyText(x, y, text$, col~&)
+    DIM vx, f& ' (its own)
+    IF fontTiny& <= 0 THEN HudText x, y - 4, text$, col~& : EXIT SUB
+    f& = _FONT : _FONT fontTiny& : _PRINTMODE _KEEPBACKGROUND
+    vx = hudViewX : IF vx THEN VIEW ' (as HudText: _PRINTSTRING prints nothing inside a VIEW)
+    COLOR _RGB32(0, 0, 0) : _PRINTSTRING (x + vx + 1, y + 1), UCASE$(text$)
+    COLOR col~& : _PRINTSTRING (x + vx, y), UCASE$(text$)
+    IF vx THEN VIEW (vx, 0)-(vx + 799, 599)
+    _FONT f&
+END SUB
+
+' How wide TinyText prints text$, in pixels
+FUNCTION TinyW(text$)
+    DIM f& ' (its own)
+    IF fontTiny& <= 0 THEN TinyW = LEN(text$) * 8 : EXIT FUNCTION
+    f& = _FONT : _FONT fontTiny& : TinyW = _PRINTWIDTH(UCASE$(text$)) : _FONT f&
+END FUNCTION
+
 ' Big centred text: printed at normal size into a small image, then
 ' stretched up with _PUTIMAGE (so it's chunky, like the 3D view)
 SUB BigText(text$, y, scale, col~&)

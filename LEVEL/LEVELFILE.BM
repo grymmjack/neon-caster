@@ -494,7 +494,7 @@ SUB ReadLevelFile(n)
                 CASE "zones"
                     IF got >= 7 AND lvlNumZones < MAX_ZONES THEN lvlNumZones = lvlNumZones + 1 : FOR k = 1 TO 7 : lvlZone(lvlNumZones, k) = v(k) : NEXT
                 CASE "lights"
-                    IF got >= 8 AND lvlNumLights < MAX_LIGHTS THEN lvlNumLights = lvlNumLights + 1 : FOR k = 1 TO 8 : lvlLight(lvlNumLights, k) = v(k) : NEXT
+                    IF got >= 8 AND lvlNumLights < MAX_LIGHTS THEN lvlNumLights = lvlNumLights + 1 : FOR k = 1 TO 9 : lvlLight(lvlNumLights, k) = v(k) * -(k <= got) : NEXT ' (a 9th, 1: no lamp)
                 CASE "events"
                     IF got >= 8 AND lvlNumEvents < MAX_EVENTS THEN lvlNumEvents = lvlNumEvents + 1 : FOR k = 1 TO 8 : lvlEvent(lvlNumEvents, k) = v(k) : NEXT
                 CASE "lifts"
@@ -570,7 +570,7 @@ SUB LevelClamp
         lvlLight(k, 1) = MaxOf(0, MinOf(mapN, lvlLight(k, 1))) : lvlLight(k, 2) = MaxOf(0, MinOf(mapN, lvlLight(k, 2)))
         lvlLight(k, 3) = MaxOf(0, MinOf(64, lvlLight(k, 3))) : lvlLight(k, 4) = MaxOf(0, MinOf(1000, lvlLight(k, 4)))
         FOR j = 5 TO 7 : lvlLight(k, j) = MaxOf(0, MinOf(255, lvlLight(k, j))) : NEXT
-        lvlLight(k, 8) = MaxOf(0, MinOf(99, lvlLight(k, 8)))
+        lvlLight(k, 8) = MaxOf(0, MinOf(99, lvlLight(k, 8))) : lvlLight(k, 9) = -(lvlLight(k, 9) <> 0)
     NEXT
     FOR k = 1 TO lvlNumEvents
         lvlEvent(k, 1) = MaxOf(1, MinOf(EV_KINDS, lvlEvent(k, 1)))
@@ -611,6 +611,7 @@ SUB TakeFace(l$)
     DIM f ' (its own: the main program shares these names)
     f = FaceCode(ListItem$(l$, 3)) : IF f = 0 THEN EXIT SUB
     EditSetFace VAL(ListItem$(l$, 1)), VAL(ListItem$(l$, 2)), f, VAL(ListItem$(l$, 4)), ListItem$(l$, 5), ListItem$(l$, 6)
+    IF LEN(ListItem$(l$, 7)) THEN EditSetFaceOff VAL(ListItem$(l$, 1)), VAL(ListItem$(l$, 2)), f, VAL(ListItem$(l$, 7)), VAL(ListItem$(l$, 8)) ' (its picture slid along and up)
 END SUB
 
 FUNCTION FaceCode(f$)
@@ -686,9 +687,11 @@ SUB WriteLevelFile(f$)
     FOR k = 1 TO lvlNumZones
         l$ = "" : FOR j = 1 TO 7 : l$ = l$ + LTRIM$(STR$(lvlZone(k, j))) + MID$(", ", 1, -2 * (j < 7)) : NEXT : o$ = o$ + l$ + nl$
     NEXT
-    o$ = o$ + "" + nl$ : o$ = o$ + "[lights]" + nl$ : o$ = o$ + "' x, y, radius, brightness, red, green, blue, effect" + nl$
+    o$ = o$ + "" + nl$ : o$ = o$ + "[lights]" + nl$ : o$ = o$ + "' x, y, radius, brightness, red, green, blue, effect (and 1 if it hangs no lamp on its ceiling)" + nl$
     FOR k = 1 TO lvlNumLights
-        l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlLight(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT : o$ = o$ + l$ + nl$
+        l$ = "" : FOR j = 1 TO 8 : l$ = l$ + LTRIM$(STR$(lvlLight(k, j))) + MID$(", ", 1, -2 * (j < 8)) : NEXT
+        IF lvlLight(k, 9) THEN l$ = l$ + ", 1" ' (no lamp - left off otherwise, as before)
+        o$ = o$ + l$ + nl$
     NEXT
     o$ = o$ + "" + nl$ : o$ = o$ + "[events]" + nl$ : o$ = o$ + "' kind, x0, y0, x1, y1, a, b, reward" + nl$
     FOR k = 1 TO lvlNumEvents
@@ -740,10 +743,11 @@ SUB WriteLevelFile(f$)
         FOR k = 1 TO lvlNumLoot : o$ = o$ + lvlLoot$(k) + nl$ : NEXT
     END IF
     IF lvlNumFaces THEN
-        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture" + nl$
+        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture, then its offset if it has one (16ths of the picture: across, up)" + nl$
         FOR k = 1 TO lvlNumFaces
             o$ = o$ + LTRIM$(STR$(lvlFaceX(k))) + ", " + LTRIM$(STR$(lvlFaceY(k))) + ", " + FaceName$(lvlFaceS(k)) + ", " + LTRIM$(STR$(lvlFaceD(k))) + ", " + lvlFaceP1$(k)
-            IF lvlFaceP2$(k) <> "" THEN o$ = o$ + ", " + lvlFaceP2$(k)
+            IF lvlFaceP2$(k) <> "" OR lvlFaceO(k) THEN o$ = o$ + ", " + lvlFaceP2$(k)
+            IF lvlFaceO(k) THEN o$ = o$ + ", " + LTRIM$(STR$(lvlFaceO(k) AND 15)) + ", " + LTRIM$(STR$(lvlFaceO(k) \ 16)) ' (its picture's offset: 16ths across, up)
             o$ = o$ + nl$
         NEXT
     END IF

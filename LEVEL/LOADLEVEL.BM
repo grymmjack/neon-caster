@@ -40,7 +40,7 @@ SUB BuildLevel STATIC
         worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorLockEv(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : secretCell(x, y) = 0 : closetIn(x, y) = 0 : secretArea(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
         doorHP(x, y) = 0 : doorHPMax(x, y) = 0 : doorBroke(x, y) = 0 : doorCode(x, y) = 0 ' (stronghold and keypad doors: [doors] - ThingsBuild)
         floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
-        FOR f = 1 TO FACE_MAX : faceTex(x, y, f) = 0 : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : NEXT
+        FOR f = 1 TO FACE_MAX : faceTex(x, y, f) = 0 : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 0 : faceOU(x, y, f) = 0 : faceOV(x, y, f) = 0 : NEXT
         boxOn(x, y) = 0
         cellSeen(x, y) = 0
     NEXT : NEXT
@@ -112,10 +112,11 @@ SUB BuildLevel STATIC
     NEXT
     ' Single faces' own pictures ([faces]): each picture a slot of its own
     ' (T_CUSTOM + 1...), loaded only if it isn't there already
-    customN = 0 : faceAny = (lvlNumFaces > 0) : facesFull = 0
+    customN = 0 : faceAny = (lvlNumFaces > 0) : facesFull = 0 : faceOffAny = 0
     FOR k = 1 TO lvlNumFaces
         x = lvlFaceX(k) : y = lvlFaceY(k) : f = lvlFaceS(k)
         IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
+            IF lvlFaceO(k) AND f >= 1 AND f <= FACE_MAX THEN faceOU(x, y, f) = lvlFaceO(k) AND 15 : faceOV(x, y, f) = (lvlFaceO(k) \ 16) AND 15 : faceOffAny = -1 ' (its picture slid along and up)
             FOR half = 1 TO 2
                 IF half = 1 THEN pic$ = lvlFaceP1$(k) ELSE pic$ = lvlFaceP2$(k)
                 slot = 0
@@ -237,7 +238,8 @@ SUB BuildLevel STATIC
     FOR k = 1 TO lvlNumLights
         lx = lvlLight(k, 1) : ly = lvlLight(k, 2) : lRadius = lvlLight(k, 3) : lBright = lvlLight(k, 4)
         lRed = lvlLight(k, 5) : lGreen = lvlLight(k, 6) : lBlue = lvlLight(k, 7) : lEffect = lvlLight(k, 8)
-        AddLight lx, ly, lRadius, lBright * lRed / 255, lBright * lGreen / 255, lBright * lBlue / 255, lEffect, 0
+        n0 = numLights : AddLight lx, ly, lRadius, lBright * lRed / 255, lBright * lGreen / 255, lBright * lBlue / 255, lEffect, 0
+        IF numLights > n0 AND lvlLight(k, 9) THEN lightNoLamp(numLights) = -1 ' (no lamp on its ceiling)
     NEXT
     ' The level's event rooms: kind, x0, y0, x1, y1, a, b, reward
     numEvents = lvlNumEvents

@@ -61,7 +61,7 @@ SUB AddLight(x, y, radius, r, g, b, effect, deco)
     numLights = numLights + 1
     lightX(numLights) = x : lightY(numLights) = y : lightRadius(numLights) = radius
     lightR(numLights) = r : lightG(numLights) = g : lightB(numLights) = b
-    lightEffect(numLights) = effect : lightDeco(numLights) = deco : lightLow(numLights) = 0
+    lightEffect(numLights) = effect : lightDeco(numLights) = deco : lightLow(numLights) = 0 : lightNoLamp(numLights) = 0
     lightPhase(numLights) = RND * 6.28 : lightTimer(numLights) = 0 ' (so no two flicker in step)
 END SUB
 

@@ -376,8 +376,12 @@ SUB GLBuildMesh
         IF GLOpenCell(cx, cy) THEN
             glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0
             glMeshKind = 0 : IF floorH(cx, cy) <> 0 THEN glMeshKind = 3 ELSE IF FloorWet(cx, cy) >= 0 THEN glMeshKind = 4 + FloorWet(cx, cy) ' (a floor up or down: not see-through, for the wet floors; one wet as it says: drawn with its own)
+            IF faceOffAny THEN glOffU = faceOU(cx, cy, 9) / 16 : glOffV = faceOV(cx, cy, 9) / 16 ' (its picture slid)
             glFaceNZ = 1 : IF liftCell(cx, cy) = 0 THEN GLFlat cx, cy, floorH(cx, cy), floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy) ' (lifts: GLLifts)
+            glOffU = 0 : glOffV = 0
+            IF faceOffAny THEN glOffU = faceOU(cx, cy, 10) / 16 : glOffV = faceOV(cx, cy, 10) / 16 ' (its picture slid)
             glMeshKind = 1 : glFaceNZ = -1 : IF NOT GLCrusherCell(cx, cy) THEN GLFlat cx, cy, ceilH(cx, cy), ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy) ' (crushers' ceilings move: GLLifts)
+            glOffU = 0 : glOffV = 0
             IF boxOn(cx, cy) THEN glMeshKind = 2 : GLBox cx, cy, glBuf
         END IF
         IF worldMap(cx, cy) = 2 THEN
@@ -497,10 +501,14 @@ SUB GLWorld(b, mirror)
                 glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0 ' (u runs along x)
                 IF z = 0 THEN
                     glFaceNZ = 1 ' (the floor faces up...)
+                    IF faceOffAny THEN glOffU = faceOU(cx, cy, 9) / 16 : glOffV = faceOV(cx, cy, 9) / 16 ' (its picture slid)
                     GLFlat cx, cy, floorH(cx, cy), floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy)
+                    glOffU = 0 : glOffV = 0
                 ELSE
                     glFaceNZ = -1 ' (...the ceiling down)
+                    IF faceOffAny THEN glOffU = faceOU(cx, cy, 10) / 16 : glOffV = faceOV(cx, cy, 10) / 16 ' (its picture slid)
                     GLFlat cx, cy, ceilH(cx, cy), ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy)
+                    glOffU = 0 : glOffV = 0
                 END IF
             END IF
         NEXT
@@ -1357,7 +1365,7 @@ END SUB
 ' too, at each corner (GLDynAt).
 SUB GLCorner(x, y, z, u, v)
     DIM fx, fy, i, j, tx, ty, w ' (its own: the main program shares these names)
-    IF glMeshBuilding THEN GLMeshCorner x, y, z, u, v : EXIT SUB ' (building the world mesh: just the shape)
+    IF glMeshBuilding THEN GLMeshCorner x, y, z, u + glOffU, v + glOffV : EXIT SUB ' (building the world mesh: just the shape)
     lr = glLR : lg = glLG : lb = glLB
     IF glSet(SET_SMOOTH, glBuf) THEN
         fx = x - 0.5 : fy = y - 0.5 : ix = INT(fx) : iy = INT(fy) : tx = fx - ix : ty = fy - iy
@@ -1382,7 +1390,7 @@ SUB GLCorner(x, y, z, u, v)
     green = lg * fog : IF green > 1 THEN green = 1
     blue = lb * fog : IF blue > 1 THEN blue = 1
     glCornerLX = glCellLX - x : glCornerLY = glCellLY - y : glCornerLZ = GL_LIGHT_Z - z ' (the way to the light, for bumps)
-    GLPutCorner x, y, z, u, v, red, green, blue
+    GLPutCorner x, y, z, u + glOffU, v + glOffV, red, green, blue
 END SUB
 
 ' A floor (z = 0) or ceiling (z = 1) tile: two triangles, cut along the
@@ -1419,6 +1427,7 @@ END SUB
 ' strips: left | right (by the picture's u, as the software renderer has
 ' it) or top | bottom
 SUB GLFaceStrip(ax, ay, bx, by, u0, u1, zLow, zHigh, vTop, vBottom, x, y, f, deflt)
+    IF faceOffAny THEN glOffU = faceOU(x, y, f) / 16 : glOffV = faceOV(x, y, f) / 16 ' (its picture slid: [faces] - GLCorner adds it)
     SELECT CASE faceDiv(x, y, f)
         CASE 1
             um = (u0 + u1) / 2
@@ -1431,6 +1440,7 @@ SUB GLFaceStrip(ax, ay, bx, by, u0, u1, zLow, zHigh, vTop, vBottom, x, y, f, def
         CASE ELSE
             GLStrip ax, ay, bx, by, 0, 1, u0, u1, zLow, zHigh, vTop, vBottom, FaceSlot(x, y, f, 0, 0, deflt)
     END SELECT
+    glOffU = 0 : glOffV = 0
 END SUB
 
 ' Part of an upright face that runs from map point (ax, ay) to (bx, by):
@@ -1648,8 +1658,12 @@ SUB GLLifts(b)
                 IF GLNearSeen(cx, cy, b) THEN
                     GLSetLight cx, cy, 1, b
                     glFaceTX = 1 : glFaceTY = 0 : glFaceTZ = 0 : glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = 1
+                    IF faceOffAny THEN glOffU = faceOU(cx, cy, 9) / 16 : glOffV = faceOV(cx, cy, 9) / 16 ' (its picture slid)
                     GLFlat cx, cy, floorH(cx, cy), floorTex(cx, cy), floorTex2(cx, cy), floorSplit(cx, cy)
+                    glOffU = 0 : glOffV = 0
+                    IF faceOffAny THEN glOffU = faceOU(cx, cy, 10) / 16 : glOffV = faceOV(cx, cy, 10) / 16 ' (its picture slid)
                     IF liftMode(k) = LIFT_CRUSHER OR liftMode(k) = LIFT_SMASHER THEN glFaceNZ = -1 : GLFlat cx, cy, ceilH(cx, cy), ceilTex(cx, cy), ceilTex2(cx, cy), ceilSplit(cx, cy) : glFaceNZ = 1 ' (a crusher's ceiling, where it is now)
+                    glOffU = 0 : glOffV = 0
                     IF liftCell(cx + 1, cy) <> k AND GLOpenCell(cx + 1, cy) THEN GLStep cx, cy, cx + 1, cy, b
                     IF liftCell(cx - 1, cy) <> k AND GLOpenCell(cx - 1, cy) THEN GLStep cx - 1, cy, cx, cy, b
                     IF liftCell(cx, cy + 1) <> k AND GLOpenCell(cx, cy + 1) THEN GLStep cx, cy, cx, cy + 1, b
@@ -1806,8 +1820,10 @@ SUB GLBoxSide(ax, ay, bx, by, u0, u1, fz, cz, cx, cy, f, deflt)
     DIM r ' (its own: the main program shares these names)
     IF faceDiv(cx, cy, f) = 1 THEN
         um = (u0 + u1) / 2 : IF u0 < u1 THEN r = 0.25 ELSE r = 0.75
+        IF faceOffAny THEN glOffU = faceOU(cx, cy, f) / 16 : glOffV = faceOV(cx, cy, f) / 16
         GLStrip ax, ay, bx, by, 0, 0.5, u0, um, fz, cz, 1 - cz, 1 - fz, FaceSlot(cx, cy, f, r, 0, deflt)
         GLStrip ax, ay, bx, by, 0.5, 1, um, u1, fz, cz, 1 - cz, 1 - fz, FaceSlot(cx, cy, f, 1 - r, 0, deflt)
+        glOffU = 0 : glOffV = 0
     ELSE
         GLFaceStrip ax, ay, bx, by, u0, u1, fz, cz, 1 - cz, 1 - fz, cx, cy, f, deflt
     END IF

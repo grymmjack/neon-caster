@@ -1283,10 +1283,10 @@ def check_level(lv, assets=None):
     if len(amb) != 4 or not (0 <= amb[0] <= 256 and all(0 <= c <= 255 for c in amb[1:])):
         errs.append("ambient %s: brightness 0-256, then r g b 0-255" % (amb,))
     for l in lv.get("lights", []):
-        if len(l) != 8:
-            errs.append("light %s: needs 8 numbers" % (l,))
+        if len(l) not in (8, 9):
+            errs.append("light %s: needs 8 numbers (and a 9th, 1: no lamp)" % (l,))
             continue
-        x, y, rad, br, cr, cg, cb, fx = l
+        x, y, rad, br, cr, cg, cb, fx = l[:8]
         if not (0 < x < N and 0 < y < N):
             errs.append("light %s: outside the map" % (l,))
         elif lv["rows"][int(y)][int(x)] in WALLS:

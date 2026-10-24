@@ -158,7 +158,7 @@
         zBuffer(x) = perpWallDist
 
         ' Texture column and slot (a door's texture slides along with it)
-        texSlot2 = 0 ' (a face divided top | bottom in the editor: the bottom half's)
+        texSlot2 = 0 : wallVO = 0 ' (a face divided top | bottom in the editor: the bottom half's; wallVO: its picture slid up)
         IF side = 0 THEN wallX = playerY + perpWallDist * rayDirY ELSE wallX = playerX + perpWallDist * rayDirX
         wallX = wallX - INT(wallX)
         IF diagHit THEN ' Along the diagonal, left to right as you see it
@@ -207,6 +207,7 @@
                 fu = texX / texSize
                 IF boxHit THEN fu = BoxFaceU(mapX, mapY, sd, fu) : sd = sd + FACE_BOX ' (a block's sides are faces of their own)
                 IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, fu, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, fu, 0, texSlot)
+                IF faceOffAny THEN texX = texX + faceOU(mapX, mapY, sd) * texSize \ 16 : wallVO = faceOV(mapX, mapY, sd) * texSize \ 16 ' (its picture slid along and up: [faces])
             END IF
         END IF
         texX = texX AND (texSize - 1)
@@ -244,7 +245,7 @@
             wSl = texSlot : texMid = texSize / 2
             FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
                 IF texPos >= texMid THEN wSl = texSlot2
-                texel~& = texture(texX, INT(texPos) AND (texSize - 1), wSl)
+                texel~& = texture(texX, (INT(texPos) + wallVO) AND (texSize - 1), wSl)
                 pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                 IF gridOn THEN IF texX < gridW OR (INT(texPos) AND (texSize - 1)) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
                 texPos = texPos + texStep

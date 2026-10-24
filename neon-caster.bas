@@ -201,6 +201,7 @@ IF keyDevice THEN
 END IF
 ApplySettings
 ArtReload ' Every picture, as ART asks (chapter 6's list: LoadPictures)
+fontTiny& = _LOADFONT("neon-caster/fonts/Tiny5-Regular.ttf", 8, "DONTBLEND") : IF fontTiny& <= 0 THEN fontTiny& = 0 ' (the small print: the editor's - RENDER/TEXT.BM)
 ' Commands on the command line (chapter 21): each starts with a + -
 '   neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit
 ' They skip the splash and the title, start a new game and run, one a

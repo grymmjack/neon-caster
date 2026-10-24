@@ -62,7 +62,7 @@
     ' each recent hit, pointing where it came from. Each one remembers
     ' where the hit came from, not which way it pointed, so the arc turns
     ' as you do - turn until it's at the top, and you're facing it.
-    IF NOT dead AND viewOn = 0 THEN DrawCrosshair 400, 300
+    IF NOT dead AND viewOn = 0 AND (NOT editMode OR edLooking) THEN DrawCrosshair 400, 300 ' (in the editor only while looking round: then the middle of the view is what's picked)
     ViewOverlay ' (a security camera's feed, your rocket's - GAME/SECURE.BM)
     AlarmOverlay ' (the alarm sounding: red at the edges)
     AlarmReadout ' (an alarm switch you're looking at: ON or OFF - GAME/ALARMS.BM)
@@ -105,7 +105,7 @@
         ELSEIF edPickOn THEN ' (tucked away: a strip saying what the brush is)
             LINE (0, PK_TUCK)-(scrW - 1, 599), _RGBA32(6, 2, 18, 200), BF : LINE (0, PK_TUCK)-(scrW - 1, PK_TUCK), _RGBA32(255, 60, 200, 160)
             IF edTool = ET_PAINT THEN t$ = EditPaintName$ ELSE IF edTool = ET_LIGHT THEN t$ = "light: " + LCASE$(EditFxName$(edLFx)) ELSE t$ = GlyphName$(editGlyph$)
-            HudText 8, PK_TUCK + 2, LEFT$("^ PICKER  (point here to open it)   brush: " + t$, (scrW - 16) \ 8), _RGB32(190, 180, 230)
+            TinyText 8, PK_TUCK + 7, "^ PICKER  (point here to open it)   brush: " + t$, _RGB32(190, 180, 230)
         END IF
         HudAt 2 : IF edLooking THEN EditDrawPane -1, -1 ELSE EditDrawPane edCurX, edCurY
         HudAt 0 : IF edLooking THEN EditDrawTB 1, -1, -1 ELSE EditDrawTB 1, edCurX, edCurY

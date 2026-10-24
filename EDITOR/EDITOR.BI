@@ -74,11 +74,14 @@ edPickOn = 1 : edBrushKind = PK_GLYPH
 ' The light brush: what LIGHT puts on a face (colour, effect - FX_ -
 ' reach in cells, brightness): set by the picker's LIGHTS tab, the keys
 ' 1-8 (EditLightPreset) and a light's pane
-DIM SHARED edLR AS INTEGER, edLG AS INTEGER, edLB AS INTEGER, edLFx AS INTEGER, edLRad, edLBri AS INTEGER
+DIM SHARED edLR AS INTEGER, edLG AS INTEGER, edLB AS INTEGER, edLFx AS INTEGER, edLRad, edLBri AS INTEGER, edLNoLamp AS INTEGER ' (edLNoLamp: a light's lamp picture left off its ceiling)
 edLR = 230 : edLG = 235 : edLB = 255 : edLFx = FX_STEADY : edLRad = 3 : edLBri = 150
 ' THE PROPERTIES PANE (EditPaneBuild): what's selected - a door, a
 ' teleporter's pad, a lift, a floor - and its buttons, down the right
 CONST PN_X = 592, PN_Y = 58, PN_W = 200
+' The pane in small print (TinyText): built on a 23-pixel row, then packed
+' to PN_SQ of that - its buttons PN_BH tall (EditPaneBuild)
+CONST PN_SQ = 0.7, PN_BH = 14
 CONST PN_MAX = 64 ' (the most buttons and lines a pane has)
 DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER, edMapWant AS INTEGER ' (the SECTOR pane: its loot preset - 0 as made - and the room MAKE THE ROOM makes)
 DIM SHARED edPnN AS INTEGER, edPnId(PN_MAX) AS INTEGER, edPnX(PN_MAX) AS INTEGER, edPnY(PN_MAX) AS INTEGER, edPnW(PN_MAX) AS INTEGER, edPnLab$(PN_MAX), edPnLit(PN_MAX) AS INTEGER

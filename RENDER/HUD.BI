@@ -19,6 +19,10 @@ CONST HE_MESSAGE = 8, HE_SUBTITLE = 9, HE_AMP = 10, HE_GOD = 11, HE_EVENT = 12, 
 DIM SHARED hudName$(HUD_ELEMS), hudShow(HUD_ELEMS) AS INTEGER, hudX(HUD_ELEMS) AS INTEGER, hudY(HUD_ELEMS) AS INTEGER
 DIM SHARED hudW(HUD_ELEMS) AS INTEGER, hudH(HUD_ELEMS) AS INTEGER, hudCol(HUD_ELEMS) AS _UNSIGNED LONG, hudLabel$(HUD_ELEMS)
 DIM SHARED hudEdit AS INTEGER, hudSel AS INTEGER, hudMsg$
+' The small print: Tiny5 (neon-caster/fonts - SIL Open Font License), 8
+' pixels tall, in capitals (TinyText, RENDER/TEXT.BM). 0: not there - the
+' usual font instead.
+DIM SHARED fontTiny&
 ' The map: which cells you've seen (the raycaster marks every cell a ray
 ' passes through - chapter 15), and whether you've found this level's map
 DIM SHARED cellSeen(MAP_SIZE, MAP_SIZE) AS INTEGER, hasMap AS INTEGER, mmFull AS INTEGER ' (mmFull: DrawMap's drawing the full-screen map, not the minimap)

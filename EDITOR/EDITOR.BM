@@ -426,8 +426,8 @@ SUB EditPaneClick STATIC
             NEXT
             EditApply
             IF n = 0 AND lvlNumLights >= MAX_LIGHTS THEN EditNote "Too many lights (" + LTRIM$(STR$(MAX_LIGHTS)) + ")" ELSE EditNote LTRIM$(STR$(n)) + " light(s) added - set them in the pane"
-        CASE 41 TO 52, 60 TO 65, 70 TO 73 ' A light's colour, effect, reach, brightness: every selected face's light (and the brush, for the next)
-            EditPushUndo
+        CASE 41 TO 52, 60 TO 65, 70 TO 75 ' A light's colour, effect, reach, brightness: every selected face's light (and the brush, for the next)
+            EditPushUndo : lmp = 0
             FOR k = 1 TO edSelN
                 lt = EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
                 IF lt THEN
@@ -438,8 +438,10 @@ SUB EditPaneClick STATIC
                         CASE 71 : lvlLight(lt, 3) = MinOf(12, lvlLight(lt, 3) + 0.5)
                         CASE 72 : lvlLight(lt, 4) = MaxOf(20, lvlLight(lt, 4) - 10)
                         CASE 73 : lvlLight(lt, 4) = MinOf(255, lvlLight(lt, 4) + 10)
+                        CASE 75 : IF k = 1 OR lmp = 0 THEN lmp = 1 + (lvlLight(lt, 9) = 0) ' (all as the first one goes: 2 none, 1 a lamp)
+                            lvlLight(lt, 9) = -(lmp = 2)
                     END SELECT
-                    edLR = lvlLight(lt, 5) : edLG = lvlLight(lt, 6) : edLB = lvlLight(lt, 7) : edLFx = lvlLight(lt, 8) : edLRad = lvlLight(lt, 3) : edLBri = lvlLight(lt, 4)
+                    edLR = lvlLight(lt, 5) : edLG = lvlLight(lt, 6) : edLB = lvlLight(lt, 7) : edLFx = lvlLight(lt, 8) : edLRad = lvlLight(lt, 3) : edLBri = lvlLight(lt, 4) : edLNoLamp = lvlLight(lt, 9)
                 END IF
             NEXT
             EditApply
@@ -448,7 +450,7 @@ SUB EditPaneClick STATIC
             FOR k = 1 TO edSelN
                 lt = EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
                 IF lt THEN
-                    FOR i = lt TO lvlNumLights - 1 : FOR j = 1 TO 8 : lvlLight(i, j) = lvlLight(i + 1, j) : NEXT : NEXT
+                    FOR i = lt TO lvlNumLights - 1 : FOR j = 1 TO 9 : lvlLight(i, j) = lvlLight(i + 1, j) : NEXT : NEXT
                     lvlNumLights = lvlNumLights - 1
                 END IF
             NEXT
@@ -1324,7 +1326,7 @@ SUB EditFP STATIC
                     IF edShift THEN
                         IF lt THEN
                             EditPushUndo
-                            FOR k = lt TO lvlNumLights - 1 : FOR j = 1 TO 8 : lvlLight(k, j) = lvlLight(k + 1, j) : NEXT : NEXT
+                            FOR k = lt TO lvlNumLights - 1 : FOR j = 1 TO 9 : lvlLight(k, j) = lvlLight(k + 1, j) : NEXT : NEXT
                             lvlNumLights = lvlNumLights - 1 : EditApply : EditNote "Light taken away"
                         ELSE
                             EditNote "No light on that face"
@@ -1445,8 +1447,12 @@ SUB EditFP STATIC
                 IF edSelN THEN EditPushUndo : EditDeleteSel : EditApply ELSE EditNote "Select something to delete first"
             CASE 15104 : edHelp = NOT edHelp ' F1: the help
             CASE 112, 80 : EditPickMode ' P: the picker - tucked away, always open, off
-            CASE 18432, 20480, 19200, 19712 ' The arrows: nudge the selection a cell - away, back, left, right of the way you face
-                IF edSelN THEN
+            CASE 18432, 20480, 19200, 19712, 18176 ' The arrows: nudge the selection a cell - away, back, left, right of the way you face (PAINT + Shift: slide the picture)
+                IF edTool = ET_PAINT AND shiftOn THEN
+                    EditOffsetKey k&
+                ELSEIF k& = 18176 THEN
+                    ' (Home: only PAINT's Shift+Home)
+                ELSEIF edSelN THEN
                     fwX = 0 : fwY = 0 : IF ABS(edCamDX) >= ABS(edCamDY) THEN fwX = SGN(edCamDX) ELSE fwY = SGN(edCamDY)
                     SELECT CASE k&
                         CASE 18432 : ndx = fwX : ndy = fwY
@@ -1537,11 +1543,12 @@ SUB EditSetFace(x, y, f, d, p1$, p2$)
     FOR j = 1 TO lvlNumFaces
         IF lvlFaceX(j) = x AND lvlFaceY(j) = y AND lvlFaceS(j) = f THEN k = j : EXIT FOR
     NEXT
-    IF p1$ = "" AND p2$ = "" AND d = 0 THEN ' (taken away)
+    IF p1$ = "" AND p2$ = "" AND d = 0 THEN ' (taken away - unless its picture's slid: then it keeps that)
         IF k THEN
+            IF lvlFaceO(k) THEN lvlFaceD(k) = 0 : lvlFaceP1$(k) = "" : lvlFaceP2$(k) = "" : EXIT SUB
             FOR j = k TO lvlNumFaces - 1
                 lvlFaceX(j) = lvlFaceX(j + 1) : lvlFaceY(j) = lvlFaceY(j + 1) : lvlFaceS(j) = lvlFaceS(j + 1) : lvlFaceD(j) = lvlFaceD(j + 1)
-                lvlFaceP1$(j) = lvlFaceP1$(j + 1) : lvlFaceP2$(j) = lvlFaceP2$(j + 1)
+                lvlFaceP1$(j) = lvlFaceP1$(j + 1) : lvlFaceP2$(j) = lvlFaceP2$(j + 1) : lvlFaceO(j) = lvlFaceO(j + 1)
             NEXT
             lvlNumFaces = lvlNumFaces - 1
         END IF
@@ -1549,9 +1556,87 @@ SUB EditSetFace(x, y, f, d, p1$, p2$)
     END IF
     IF k = 0 THEN
         IF lvlNumFaces >= MAX_FACES THEN EditNote "That's" + STR$(MAX_FACES) + " faces with pictures of their own - no more" : EXIT SUB
-        lvlNumFaces = lvlNumFaces + 1 : k = lvlNumFaces
+        lvlNumFaces = lvlNumFaces + 1 : k = lvlNumFaces : lvlFaceO(k) = 0
     END IF
     lvlFaceX(k) = x : lvlFaceY(k) = y : lvlFaceS(k) = f : lvlFaceD(k) = d : lvlFaceP1$(k) = p1$ : lvlFaceP2$(k) = p2$
+END SUB
+
+' Face f of cell (x, y): its picture slid ou 16ths along it and ov up it
+' (0-15 each, wrapping round) - kept in its [faces] line, made for it if
+' it has none (the usual picture, slid)
+SUB EditSetFaceOff(x, y, f, ou, ov)
+    DIM k, o ' (its own: the main program shares these names)
+    o = (ou AND 15) + 16 * (ov AND 15)
+    k = FaceIndex(x, y, f)
+    IF k = 0 THEN
+        IF o = 0 THEN EXIT SUB
+        IF lvlNumFaces >= MAX_FACES THEN EditNote "That's" + STR$(MAX_FACES) + " faces with pictures of their own - no more" : EXIT SUB
+        lvlNumFaces = lvlNumFaces + 1 : k = lvlNumFaces
+        lvlFaceX(k) = x : lvlFaceY(k) = y : lvlFaceS(k) = f : lvlFaceD(k) = 0 : lvlFaceP1$(k) = "" : lvlFaceP2$(k) = ""
+    END IF
+    lvlFaceO(k) = o
+    IF o = 0 AND lvlFaceD(k) = 0 AND lvlFaceP1$(k) = "" AND lvlFaceP2$(k) = "" THEN EditSetFace x, y, f, 0, "", "" ' (nothing of its own left: out of [faces])
+END SUB
+
+' PAINT + Shift+arrows: slide the picture on the face under the pointer -
+' or on every selected face, when that's one of them (or nothing's under
+' it) - a 16th of the picture (Ctrl: a quarter). Walls: left, right, up,
+' down as you face them. Floors and ceilings: the way you face is up.
+' Shift+Home: back where it was made. One undo for a run of presses.
+SUB EditOffsetKey(k&) STATIC
+    DIM fc, fwX, fwY, j, n, ou, ov, st, useSel, mx, my, kd, fx, fy, sd ' (its own: the main program shares these names)
+    useSel = 0
+    IF edHovKind = 0 OR edHovThing THEN
+        IF edSelN = 0 THEN EditNote "Point at a face (or select some) to slide its picture" : EXIT SUB
+        useSel = -1
+    ELSE
+        FOR j = 1 TO edSelN
+            IF edSelKind(j) = edHovKind AND edSelX(j) = edHovX AND edSelY(j) = edHovY AND edSelSide(j) = edHovSide THEN useSel = -1
+        NEXT
+    END IF
+    st = 1 : IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN st = 4
+    IF ABS(TIMER - offT!) > 0.5 THEN EditPushUndo
+    offT! = TIMER
+    fwX = 0 : fwY = 0 : IF ABS(edCamDX) >= ABS(edCamDY) THEN fwX = SGN(edCamDX) ELSE fwY = SGN(edCamDY)
+    IF useSel THEN n = edSelN ELSE n = 1
+    FOR j = 1 TO n
+        IF useSel THEN kd = edSelKind(j) : fx = edSelX(j) : fy = edSelY(j) : sd = edSelSide(j) ELSE kd = edHovKind : fx = edHovX : fy = edHovY : sd = edHovSide
+        fc = EditFaceCode(kd, sd)
+        EditGetFaceOff fx, fy, fc, ou, ov
+        IF k& = 18176 THEN
+            ou = 0 : ov = 0
+        ELSEIF kd = ED_FLOOR OR kd = ED_CEIL THEN ' (the picture moved on the map: mx, my - u runs east, v south)
+            SELECT CASE k&
+                CASE 18432 : mx = fwX : my = fwY
+                CASE 20480 : mx = -fwX : my = -fwY
+                CASE 19200 : mx = fwY : my = -fwX
+                CASE ELSE : mx = -fwY : my = fwX
+            END SELECT
+            ou = ou - mx * st : ov = ov - my * st
+        ELSE ' (a wall: u runs left to right as you face it, v down)
+            SELECT CASE k&
+                CASE 18432 : ov = ov + st
+                CASE 20480 : ov = ov - st
+                CASE 19200 : ou = ou + st
+                CASE ELSE : ou = ou - st
+            END SELECT
+        END IF
+        ou = (ou + 16) AND 15 : ov = (ov + 16) AND 15
+        EditSetFaceOff fx, fy, fc, ou, ov
+    NEXT
+    EditApply
+    IF k& = 18176 THEN
+        EditNote "Picture back where it was" + MID$("s", 1, -(n > 1))
+    ELSE
+        EditNote "Picture slid:" + STR$(ou) + "/16 along," + STR$(ov) + "/16 up" + MID$(" (" + LTRIM$(STR$(n)) + " faces)", 1, 99 * -(n > 1)) + " - Ctrl: a quarter; Shift+Home: back"
+    END IF
+END SUB
+
+' A face's offset (16ths: ou along, ov up) - 0, 0 if it has none
+SUB EditGetFaceOff(x, y, f, ou, ov)
+    DIM k ' (its own: the main program shares these names)
+    ou = 0 : ov = 0 : k = FaceIndex(x, y, f)
+    IF k THEN ou = lvlFaceO(k) AND 15 : ov = (lvlFaceO(k) \ 16) AND 15
 END SUB
 
 ' Put glyph c$ at cell (x, y) of the level (not on its border)
@@ -1601,14 +1686,14 @@ FUNCTION EditSnapshot$
     s$ = s$ + CHR$(1) + LTRIM$(STR$(lvlNumZones))
     FOR k = 1 TO lvlNumZones : FOR j = 1 TO 7 : s$ = s$ + "," + LTRIM$(STR$(lvlZone(k, j))) : NEXT : NEXT
     s$ = s$ + CHR$(1) + LTRIM$(STR$(lvlNumLights))
-    FOR k = 1 TO lvlNumLights : FOR j = 1 TO 8 : s$ = s$ + "," + LTRIM$(STR$(lvlLight(k, j))) : NEXT : NEXT
+    FOR k = 1 TO lvlNumLights : FOR j = 1 TO 9 : s$ = s$ + "," + LTRIM$(STR$(lvlLight(k, j))) : NEXT : NEXT
     s$ = s$ + CHR$(1)
     FOR k = 1 TO 6 : s$ = s$ + lvlWall$(k) + "|" : NEXT
     FOR k = 1 TO 4 : s$ = s$ + lvlFloor$(k) + "|" : NEXT
     FOR k = 1 TO 2 : s$ = s$ + lvlCeil$(k) + "|" : NEXT
     s$ = s$ + CHR$(2) ' (the faces' own pictures)
     FOR k = 1 TO lvlNumFaces
-        s$ = s$ + LTRIM$(STR$(lvlFaceX(k))) + "," + LTRIM$(STR$(lvlFaceY(k))) + "," + FaceName$(lvlFaceS(k)) + "," + LTRIM$(STR$(lvlFaceD(k))) + "," + lvlFaceP1$(k) + "," + lvlFaceP2$(k) + CHR$(3)
+        s$ = s$ + LTRIM$(STR$(lvlFaceX(k))) + "," + LTRIM$(STR$(lvlFaceY(k))) + "," + FaceName$(lvlFaceS(k)) + "," + LTRIM$(STR$(lvlFaceD(k))) + "," + lvlFaceP1$(k) + "," + lvlFaceP2$(k) + "," + LTRIM$(STR$(lvlFaceO(k) AND 15)) + "," + LTRIM$(STR$(lvlFaceO(k) \ 16)) + CHR$(3)
     NEXT
     s$ = s$ + CHR$(4) ' (the lifts, and the pads paired by hand)
     FOR k = 1 TO lvlNumLifts : FOR j = 1 TO 8 : s$ = s$ + LTRIM$(STR$(lvlLift(k, j))) + "," : NEXT : s$ = s$ + CHR$(3) : NEXT
@@ -1767,7 +1852,7 @@ SUB EditRestore(s1$)
     NEXT : NEXT
     p = q + 1 : q = INSTR(p, s$, CHR$(1)) : z$ = MID$(s$, p, q - p) + ","
     lvlNumLights = VAL(z$) : z$ = MID$(z$, INSTR(z$, ",") + 1)
-    FOR k = 1 TO lvlNumLights : FOR j = 1 TO 8
+    FOR k = 1 TO lvlNumLights : FOR j = 1 TO 9
         c = INSTR(z$, ",") : lvlLight(k, j) = VAL(LEFT$(z$, c - 1)) : z$ = MID$(z$, c + 1)
     NEXT : NEXT
     z$ = MID$(s$, q + 1)
@@ -2246,7 +2331,7 @@ SUB EditTBLayout(v)
             x = x0 : y = y + 24
         ELSE
             id = INSTR("SPLHDUWGAVQTK<>BZR", c$)
-            IF v = 1 THEN w = LEN(EditTBLabel$(id)) * 8 + 8 + 4 * (edWX = 0) ELSE w = 64 ' (on our 800 screen a little tighter: they all fit)
+            IF v = 1 THEN w = TinyW(EditTBLabel$(id)) + 14 ELSE w = 64 ' (small print: they all fit, even on our 800 screen)
             IF id = TB_ALPHA THEN w = 64 : IF v = 0 THEN w = 132
             IF (id = TB_KINDS OR id = TB_VERSIONS) AND v = 0 THEN w = 132
             edTbN = edTbN + 1 : edTbId(edTbN) = id : edTbX(edTbN) = x : edTbY(edTbN) = y : edTbW(edTbN) = w : edTbH(edTbN) = 20
@@ -2355,7 +2440,7 @@ SUB EditDrawTB(v, mx, my)
             IF over OR edTbDrag THEN bc~& = _RGB32(150, 240, 255) ELSE bc~& = _RGB32(90, 70, 140)
             LINE (x, y)-STEP(w - 1, h - 1), bc~&, B
             t$ = LTRIM$(STR$(INT(edGridAlpha * 100 / 255 + 0.5))) + "%"
-            HudText x + (w - LEN(t$) * 8) \ 2, y + 2, t$, _RGB32(255, 255, 255)
+            TinyText x + (w - TinyW(t$)) \ 2, y + 6, t$, _RGB32(255, 255, 255)
         ELSE
             lit = EditTBOn(id)
             IF lit THEN bg~& = _RGBA32(120, 20, 100, 230) ELSE bg~& = _RGBA32(14, 6, 30, 230)
@@ -2366,22 +2451,22 @@ SUB EditDrawTB(v, mx, my)
             LINE (x, y)-STEP(w - 1, h - 1), bc~&, B
             t$ = EditTBLabel$(id)
             IF lit OR over THEN tc~& = _RGB32(255, 255, 255) ELSE tc~& = _RGB32(200, 190, 240)
-            HudText x + (w - LEN(t$) * 8) \ 2, y + 2, t$, tc~&
+            TinyText x + (w - TinyW(t$)) \ 2, y + 6, t$, tc~&
         END IF
     NEXT
     ' What the one under the pointer does
     IF hov THEN
         t$ = EditTBTip$(edTbId(hov))
         IF v = 1 THEN
-            tx = edTbX(hov) : IF tx + LEN(t$) * 8 + 8 > scrW - 4 THEN tx = scrW - 4 - LEN(t$) * 8 - 8
-            LINE (tx, 32)-STEP(LEN(t$) * 8 + 8, 19), _RGBA32(0, 0, 0, 220), BF
-            HudText tx + 4, 34, t$, _RGB32(150, 240, 255)
+            tx = edTbX(hov) : IF tx + TinyW(t$) + 8 > scrW - 4 THEN tx = scrW - 4 - TinyW(t$) - 8
+            LINE (tx, 32)-STEP(TinyW(t$) + 8, 13), _RGBA32(0, 0, 0, 220), BF
+            TinyText tx + 4, 35, t$, _RGB32(150, 240, 255)
         ELSE
-            ty = 440
-            DO WHILE LEN(t$) ' (the panel's narrow: in lines of 25)
-                l$ = LEFT$(t$, 25)
-                IF LEN(t$) > 25 THEN sp = _INSTRREV(l$, " ") : IF sp > 8 THEN l$ = LEFT$(t$, sp - 1)
-                HudText ED_PALX, ty, l$, _RGB32(150, 240, 255) : ty = ty + 16 : t$ = LTRIM$(MID$(t$, LEN(l$) + 1))
+            ty = 466
+            DO WHILE LEN(t$) ' (the panel's narrow: in lines of 44, small print)
+                l$ = LEFT$(t$, 44)
+                IF LEN(t$) > 44 THEN sp = _INSTRREV(l$, " ") : IF sp > 8 THEN l$ = LEFT$(t$, sp - 1)
+                TinyText ED_PALX, ty, l$, _RGB32(150, 240, 255) : ty = ty + 11 : t$ = LTRIM$(MID$(t$, LEN(l$) + 1))
             LOOP
         END IF
     END IF
@@ -2395,7 +2480,7 @@ SUB EditDrawHelp(v)
     IF v = 1 THEN
         h$ = "#MOVE AND LOOK|walk keys~fly that way - through walls|look up + walk~climb (look down: sink)|Space / C~straight up / down|Shift~faster|hold Right~look round (crosshair picks)|Tab~the map from above|F2~play the level as it is|"
         h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor, ceiling, or wall side|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
-        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|LIGHT~a light on the face|  Shift~take it away|HEIGHT~floor/ceiling up; Shift down|"
+        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|  Shift+arrows~slide its picture (Ctrl: 1/4)|  Shift+Home~the picture back|LIGHT~a light on the face|  Shift~take it away|HEIGHT~floor/ceiling up; Shift down|"
         h$ = h$ + "#THE WHEEL (the selection)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
         h$ = h$ + "#FACES|H~divide left / right|V~divide top / bottom|H or V again~whole again|click a half~select / paint it alone|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
@@ -2415,7 +2500,7 @@ SUB EditDrawHelp(v)
     y0 = 32 : IF v = 0 THEN y0 = 4
     LINE (8, y0)-(791, 594), _RGBA32(6, 2, 18, 238), BF
     LINE (8, y0)-(791, 594), _RGB32(255, 60, 200), B
-    HudText 400 - LEN(t$) * 4, y0 + 6, t$, _RGB32(255, 90, 200)
+    TinyText 400 - TinyW(t$) \ 2, y0 + 8, t$, _RGB32(255, 90, 200) ' (small print: 11 pixels a line)
     x = 18 : y = y0 + 26 : col = 0
     DO WHILE LEN(h$)
         bar = INSTR(h$, "|") : IF bar = 0 THEN bar = LEN(h$) + 1
@@ -2423,21 +2508,21 @@ SUB EditDrawHelp(v)
         IF LEFT$(l$, 1) = "#" AND col = 0 THEN ' (a group that won't fit under it: the next column, so a group stays together)
             n = 0 : r$ = h$ + "|"
             DO WHILE LEN(r$) AND LEFT$(r$, 1) <> "#" : n = n + 1 : r$ = MID$(r$, INSTR(r$, "|") + 1) : LOOP
-            IF y + 22 + n * 15 > 574 THEN col = 1 : x = 404 : y = y0 + 26
+            IF y + 16 + n * 11 > 574 THEN col = 1 : x = 404 : y = y0 + 26
         END IF
         IF LEFT$(l$, 1) = "#" THEN
-            IF y > y0 + 28 THEN y = y + 4
-            HudText x, y, MID$(l$, 2), _RGB32(255, 220, 120) : LINE (x, y + 16)-STEP(370, 0), _RGBA32(255, 220, 120, 90)
-            y = y + 18
+            IF y > y0 + 28 THEN y = y + 5
+            TinyText x, y, MID$(l$, 2), _RGB32(255, 220, 120) : LINE (x, y + 10)-STEP(370, 0), _RGBA32(255, 220, 120, 90)
+            y = y + 14
         ELSE
             c = INSTR(l$, "~")
-            HudText x, y, LEFT$(l$, c - 1), _RGB32(150, 240, 255)
-            HudText x + 136, y, LEFT$(MID$(l$, c + 1), 31), _RGB32(225, 230, 255)
-            y = y + 15
+            TinyText x, y, LEFT$(l$, c - 1), _RGB32(150, 240, 255)
+            TinyText x + 110, y, MID$(l$, c + 1), _RGB32(225, 230, 255)
+            y = y + 11
         END IF
-        IF y > 556 AND col = 0 THEN col = 1 : x = 404 : y = y0 + 26
+        IF y > 562 AND col = 0 THEN col = 1 : x = 404 : y = y0 + 26
     LOOP
-    HudText 791 - 21 * 8, 578, "F1 or a click: close", _RGB32(140, 130, 180)
+    TinyText 785 - TinyW("F1 or a click: close"), 582, "F1 or a click: close", _RGB32(140, 130, 180)
 END SUB
 
 ' --- THE PICKER: along the bottom of the 3D view, a tab for each kind of
@@ -2646,7 +2731,7 @@ SUB EditPkTab(t, tx, ty, w)
     IF editView = 1 THEN x0 = PK_X : y0 = PK_Y : wrap = EditPkRight + 8 : pad = 10 ELSE x0 = ED_PALX : y0 = 40 : wrap = ED_PALX + 202 : pad = 6
     tx = x0 : ty = y0
     FOR k = 1 TO t
-        w = LEN(EditPkTabName$(k)) * 8 + pad
+        w = TinyW(EditPkTabName$(k)) + pad + 6
         IF tx + w > wrap THEN tx = x0 : ty = ty + 20
         IF k < t THEN tx = tx + w + 3
     NEXT
@@ -2729,8 +2814,8 @@ SUB EditPkPicture(k, x, y, n)
     IF edPkKind(k) = PK_LIQUID THEN ' A liquid: its picture and how deep - or DRAIN
         IF edPkImg&(k) < -1 THEN _PUTIMAGE (x, y)-STEP(n - 1, n - 1), edPkImg&(k)
         IF edPkVal$(k) = "-" THEN t$ = "DRAIN" ELSE t$ = MID$(edPkVal$(k), 2) + "/8"
-        LINE (x + (n - LEN(t$) * 8) \ 2 - 2, y + n - 16)-STEP(LEN(t$) * 8 + 3, 14), _RGBA32(0, 0, 0, 170), BF
-        HudText x + (n - LEN(t$) * 8) \ 2, y + n - 15, t$, _RGB32(255, 255, 255)
+        LINE (x + (n - TinyW(t$)) \ 2 - 2, y + n - 12)-STEP(TinyW(t$) + 3, 11), _RGBA32(0, 0, 0, 170), BF
+        TinyText x + (n - TinyW(t$)) \ 2, y + n - 10, t$, _RGB32(255, 255, 255)
         EXIT SUB
     END IF
     IF edPkImg&(k) < -1 THEN _PUTIMAGE (x, y)-STEP(n - 1, n - 1), edPkImg&(k) : EXIT SUB
@@ -2739,7 +2824,7 @@ SUB EditPkPicture(k, x, y, n)
         v = VAL(MID$(edPkVal$(k), 2))
         IF LEFT$(edPkVal$(k), 1) = "F" THEN ' An effect: the brush's colour, going as it goes, and its name
             EditGlow x, y, n, _RGB32(edLR, edLG, edLB), EditFxNow(v)
-            t$ = EditFxName$(v) : HudText x + (n - LEN(t$) * 8) \ 2, y + n - 15, t$, _RGB32(255, 255, 255)
+            t$ = EditFxName$(v) : TinyText x + (n - TinyW(t$)) \ 2, y + n - 11, t$, _RGB32(255, 255, 255)
         ELSE
             EditGlow x, y, n, EditPaletteRGB~&(v), 1
         END IF
@@ -2750,7 +2835,7 @@ SUB EditPkPicture(k, x, y, n)
             LINE (cx - ax * h, cy - ay * h)-(cx + ax * h, cy + ay * h), _RGB32(255, 255, 255)
             LINE (cx + ax * h, cy + ay * h)-(cx + ax * h * 0.3 - ay * h * 0.5, cy + ay * h * 0.3 + ax * h * 0.5), _RGB32(255, 255, 255)
             LINE (cx + ax * h, cy + ay * h)-(cx + ax * h * 0.3 + ay * h * 0.5, cy + ay * h * 0.3 - ax * h * 0.5), _RGB32(255, 255, 255)
-            HudText cx - 20, y + n - 14, "START", _RGB32(255, 255, 255)
+            TinyText cx - TinyW("START") \ 2, y + n - 11, "START", _RGB32(255, 255, 255)
         ELSE
             LINE (x + 4, y + 4)-STEP(n - 9, n - 9), GlyphColor~&(edPkVal$(k)), BF
         END IF
@@ -2771,7 +2856,7 @@ SUB EditDrawPicker(mx, my)
         LINE (tx, ty)-STEP(w - 1, 17), bg~&, BF
         IF t = edPickTab THEN LINE (tx, ty)-STEP(w - 1, 17), _RGB32(255, 60, 200), B
         IF t = edPickTab THEN c~& = _RGB32(255, 255, 255) ELSE c~& = _RGB32(190, 180, 230)
-        HudText tx + (w - LEN(t$) * 8) \ 2, ty + 1, t$, c~&
+        TinyText tx + (w - TinyW(t$)) \ 2, ty + 5, t$, c~&
     NEXT
     FOR r = 0 TO rows - 1 : FOR c = 0 TO cols - 1 ' The thumbnails
         k = (edPickScroll + r) * cols + c + 1
@@ -2818,11 +2903,11 @@ SUB EditDrawPicker(mx, my)
     IF hw = 2 THEN h$ = EditPkName$(hi) ELSE h$ = "Click one: it's the brush" + MID$(" (and the selection's)", 1, -22 * (edSelN > 0))
     IF editView <> 1 THEN ' (the map from above: under the thumbnails, the brush - or what the pointer's over)
         IF hw = 2 THEN t$ = h$ ELSE t$ = n$
-        HudText ED_PALX, gy + rows * (sz + 4) + 2, LEFT$(t$, 25), _RGB32(150, 240, 255)
+        TinyText ED_PALX, gy + rows * (sz + 4) + 6, LEFT$(t$, 48), _RGB32(150, 240, 255)
         EXIT SUB
     END IF
     bx = sx + 30
-    HudText bx, gy, "BRUSH", _RGB32(255, 90, 200)
+    TinyText bx, gy + 6, "BRUSH", _RGB32(255, 90, 200)
     LINE (bx, gy + 18)-STEP(67, 67), _RGBA32(16, 12, 30, 240), BF : LINE (bx, gy + 18)-STEP(67, 67), _RGB32(255, 60, 200), B
     SELECT CASE bk
         CASE PK_TEX
@@ -2847,12 +2932,12 @@ SUB EditDrawPicker(mx, my)
                 IF k THEN EditPkPicture k, bx + 2, gy + 20, 64 ELSE LINE (bx + 6, gy + 24)-STEP(55, 55), GlyphColor~&(editGlyph$), BF
             END IF
     END SELECT
-    tw = (EditPkRight - bx - 76) \ 8 ' (its name beside it, in lines that fit)
-    ty = gy + 18
-    DO WHILE LEN(n$) AND ty < gy + 86
-        l$ = LEFT$(n$, tw) : HudText bx + 76, ty, l$, _RGB32(255, 255, 255) : ty = ty + 16 : n$ = MID$(n$, tw + 1)
+    tw = MaxOf(8, (EditPkRight - bx - 76) \ 5) ' (its name beside it, in lines that fit - small print, about 5 pixels a letter)
+    ty = gy + 20
+    DO WHILE LEN(n$) AND ty < gy + 80
+        l$ = LEFT$(n$, tw) : TinyText bx + 76, ty, l$, _RGB32(255, 255, 255) : ty = ty + 10 : n$ = MID$(n$, tw + 1)
     LOOP
-    HudText PK_X, gy + 2 * (PK_SIZE + 4) + 2, LEFT$(h$, 98 + edWX \ 4), _RGB32(150, 240, 255)
+    TinyText PK_X, gy + 2 * (PK_SIZE + 4) + 6, LEFT$(h$, 160 + edWX \ 2), _RGB32(150, 240, 255)
 END SUB
 
 ' --- THE PROPERTIES PANE: down the right of the 3D view, for what's
@@ -2866,7 +2951,19 @@ SUB EditPaneAdd(id, x, y, w, l$, lit)
     IF y + 20 > edPnBot THEN edPnBot = y + 20
 END SUB
 
+' The pane: built (EditPaneLay) on the old 23-pixel rows, then packed for
+' the small print - every row PN_SQ as far down, each button PN_BH tall
 SUB EditPaneBuild
+    DIM k ' (its own: the main program shares these names)
+    EditPaneLay
+    edPnBot = edPnY0 + 14
+    FOR k = 1 TO edPnN
+        edPnY(k) = edPnY0 + INT((edPnY(k) - edPnY0) * PN_SQ + 0.5) - 4
+        IF edPnY(k) + PN_BH > edPnBot THEN edPnBot = edPnY(k) + PN_BH
+    NEXT
+END SUB
+
+SUB EditPaneLay
     DIM bi, c, c$, ev, f, j, k, kd, lt, mx, n, r, t, t$, ux, uy, w, x0, y, cx, cy, clB, clFx ' (its own: the main program shares these names)
     IF editView = 1 THEN edPnX0 = PN_X : edPnY0 = PN_Y ELSE edPnX0 = 380 : edPnY0 = 12
     edPnN = 0 : edPnTitle$ = "" : edPnBot = edPnY0 : edPnLift = 0 : edPnLight = 0 : edPnEvent = 0
@@ -2901,15 +2998,21 @@ SUB EditPaneBuild
         IF edMapWant < 16 THEN edMapWant = mapN
         EditPaneAdd -1, x0, y + 2, 140, "MAP SIZE" + STR$(edMapWant), 0 : EditPaneAdd 281, x0 + 146, y, 24, "-", 0 : EditPaneAdd 282, x0 + 174, y, 24, "+", 0 : y = y + 22
         IF edMapWant <> mapN THEN EditPaneAdd 283, x0, y, PN_W, "MAKE IT" + STR$(edMapWant) + " x" + STR$(edMapWant), -1 : y = y + 26 ELSE y = y + 6
-        EditPaneAdd -1, x0, y, PN_W, "ITS PICTURES: click one,", 0 : EditPaneAdd -1, x0, y + 16, PN_W, "then one in the picker", 0
-        y = y + 36
-        FOR k = 1 TO 12
+        EditPaneAdd -1, x0, y, PN_W, "ITS PICTURES: CLICK ONE, THEN THE PICKER", 0
+        y = y + 22
+        FOR k = 1 TO 12 ' (under a heading each: WALLS, FLOORS, CEILINGS - so a slot says what it's for, whatever picture it has)
+            SELECT CASE k
+                CASE 1 : EditPaneAdd -1, x0, y, PN_W, "WALLS (# N C K P G)", 0 : y = y + 18
+                CASE 7 : EditPaneAdd -1, x0, y, PN_W, "FLOORS", 0 : y = y + 18
+                CASE 11 : EditPaneAdd -1, x0, y, PN_W, "CEILINGS", 0 : y = y + 18
+            END SELECT
             SELECT CASE k
                 CASE 1 TO 6 : t$ = MID$("#NCKPG", k, 1) + " " + EditPicShort$(lvlWall$(k))
-                CASE 7 TO 10 : t$ = "F" + LTRIM$(STR$(k - 6)) + " " + EditPicShort$(lvlFloor$(k - 6))
-                CASE ELSE : t$ = "C" + LTRIM$(STR$(k - 10)) + " " + EditPicShort$(lvlCeil$(k - 10))
+                CASE 7 TO 10 : t$ = LTRIM$(STR$(k - 6)) + " " + EditPicShort$(lvlFloor$(k - 6))
+                CASE ELSE : t$ = LTRIM$(STR$(k - 10)) + " " + EditPicShort$(lvlCeil$(k - 10))
             END SELECT
-            EditPaneAdd 129 + k, x0 + ((k - 1) MOD 2) * 101, y + ((k - 1) \ 2) * 23, 99, LEFT$(t$, 12), (edSlotPick = k)
+            EditPaneAdd 129 + k, x0 + ((k - 1) MOD 2) * 101, y, 99, LEFT$(t$, 24), (edSlotPick = k)
+            IF k MOD 2 = 0 THEN y = y + 23
         NEXT
         EXIT SUB
     END IF
@@ -3040,6 +3143,8 @@ SUB EditPaneBuild
             y = y + 50
             EditPaneAdd -1, x0, y + 2, 140, "REACH " + LTRIM$(STR$(lvlLight(lt, 3))), 0 : EditPaneAdd 70, x0 + 146, y, 24, "-", 0 : EditPaneAdd 71, x0 + 174, y, 24, "+", 0 : y = y + 23
             EditPaneAdd -1, x0, y + 2, 140, "BRIGHT" + STR$(lvlLight(lt, 4)), 0 : EditPaneAdd 72, x0 + 146, y, 24, "-", 0 : EditPaneAdd 73, x0 + 174, y, 24, "+", 0 : y = y + 23
+            IF lvlLight(lt, 9) THEN lmp$ = "CEILING LAMP: OFF" ELSE lmp$ = "CEILING LAMP: ON"
+            EditPaneAdd 75, x0, y, PN_W, lmp$, (lvlLight(lt, 9) = 0) : y = y + 23 ' (a lit light hangs a lamp picture on its cell's ceiling - or doesn't)
             EditPaneAdd 74, x0, y, PN_W, "REMOVE THE LIGHT", 0 : y = y + 23
             EditPaneNudge x0, y ' (a decoration under the light: still moved about from here)
             EditPaneFuel x0, y ' (a jetpack or fuel can under it: its fuel, from here too)
@@ -3395,7 +3500,7 @@ FUNCTION EditPaneAt(x, y)
     EditPaneAt = 0 : EditPaneBuild
     pnLX = x : IF editView = 1 THEN pnLX = x - edWX ' (FULL WIDE: the pane's at the window's right edge)
     FOR k = 1 TO edPnN
-        IF edPnId(k) > 0 AND pnLX >= edPnX(k) AND y >= edPnY(k) AND pnLX < edPnX(k) + edPnW(k) AND y < edPnY(k) + 20 THEN EditPaneAt = edPnId(k) : EXIT FUNCTION
+        IF edPnId(k) > 0 AND pnLX >= edPnX(k) AND y >= edPnY(k) AND pnLX < edPnX(k) + edPnW(k) AND y < edPnY(k) + PN_BH THEN EditPaneAt = edPnId(k) : EXIT FUNCTION
     NEXT
 END FUNCTION
 
@@ -3405,20 +3510,20 @@ SUB EditDrawPane(mx, my)
     pmx = mx : IF editView = 1 AND mx <> -1 THEN pmx = mx - edWX ' (FULL WIDE: the pane's at the window's right edge - a copy: mx is the caller's)
     LINE (edPnX0 - 6, edPnY0)-(edPnX0 + PN_W + 6, edPnBot + 6), _RGBA32(6, 2, 18, 215), BF
     LINE (edPnX0 - 6, edPnY0)-(edPnX0 + PN_W + 6, edPnBot + 6), _RGB32(255, 60, 200), B
-    HudText edPnX0, edPnY0 + 5, edPnTitle$, _RGB32(255, 90, 200)
+    TinyText edPnX0, edPnY0 + 4, edPnTitle$, _RGB32(255, 90, 200)
     FOR k = 1 TO edPnN
         x = edPnX(k) : y = edPnY(k) : w = edPnW(k)
         IF edPnId(k) < 0 THEN
-            HudText x, y + 2, edPnLab$(k), _RGB32(210, 220, 255)
+            TinyText x, y + 3, edPnLab$(k), _RGB32(210, 220, 255)
         ELSE
-            over = (pmx >= x AND my >= y AND pmx < x + w AND my < y + 20)
+            over = (pmx >= x AND my >= y AND pmx < x + w AND my < y + PN_BH)
             IF edPnLit(k) THEN bg~& = _RGBA32(120, 20, 100, 230) ELSE bg~& = _RGBA32(14, 6, 30, 230)
             IF over THEN bg~& = _RGBA32(40, 70, 110, 240)
-            LINE (x, y)-STEP(w - 1, 19), bg~&, BF
+            LINE (x, y)-STEP(w - 1, PN_BH - 1), bg~&, BF
             IF over THEN bc~& = _RGB32(150, 240, 255) ELSE IF edPnLit(k) THEN bc~& = _RGB32(255, 60, 200) ELSE bc~& = _RGB32(90, 70, 140)
-            IF edPnCol(k) THEN LINE (x + 3, y + 3)-STEP(w - 7, 13), edPnCol(k), BF ' (a colour to choose)
-            LINE (x, y)-STEP(w - 1, 19), bc~&, B
-            HudText x + (w - LEN(edPnLab$(k)) * 8) \ 2, y + 2, edPnLab$(k), _RGB32(255, 255, 255)
+            IF edPnCol(k) THEN LINE (x + 3, y + 3)-STEP(w - 7, PN_BH - 7), edPnCol(k), BF ' (a colour to choose)
+            LINE (x, y)-STEP(w - 1, PN_BH - 1), bc~&, B
+            TinyText x + (w - TinyW(edPnLab$(k))) \ 2, y + 3, edPnLab$(k), _RGB32(255, 255, 255)
         END IF
     NEXT
     IF edPnLight THEN EditGlow edPnX0 + 170, edPnY0 + 1, 30, _RGB32(lvlLight(edPnLight, 5), lvlLight(edPnLight, 6), lvlLight(edPnLight, 7)), EditFxNow(lvlLight(edPnLight, 8)) ' (the light as it'll go)
@@ -4090,8 +4195,8 @@ SUB EditFaceOutline(kind, x, y, side, part, col~&)
             zm = (z0 + z1) / 2 : mx = (ax + bx) / 2 : my = (ay + by) / 2
             IF d = 1 THEN EditLine3D mx, my, z0, mx, my, z1, _RGBA32(255, 255, 255, 140)
             IF d = 2 THEN EditLine3D ax, ay, zm, bx, by, zm, _RGBA32(255, 255, 255, 140)
-            IF d = 1 AND part > 0 THEN ' (half 1 is u < 0.5: the edge's first half on east and north faces, its second on south and west)
-                IF (part = 1) = (side = 1 OR side = 4) THEN bx = mx : by = my ELSE ax = mx : ay = my
+            IF d = 1 AND part > 0 THEN ' (half 1 is u < 0.5: the edge's second half - a to b - on east and north faces, its first on south and west; EditFacePart)
+                IF (part = 1) = (side = 1 OR side = 4) THEN ax = mx : ay = my ELSE bx = mx : by = my
             END IF
             IF d = 2 AND part = 1 THEN z0 = zm
             IF d = 2 AND part = 2 THEN z1 = zm
@@ -4103,7 +4208,7 @@ END SUB
 ' The 3D editor's outlines, over the view: the face under the pointer
 ' (cyan, pulsing) - and what it is, by the pointer
 SUB EditDrawFaces
-    DIM cx, cy, c~&, k, ok, sx, sy, tx, ty, lbX ' (its own: the main program shares these names)
+    DIM cx, cy, c~&, k, ok, sx, sy, tx, ty, lbX, lbOU, lbOV ' (its own: the main program shares these names)
     IF edTool = ET_PLACE AND edHovKind AND NOT edLooking THEN ' PLACE: where it would go - a box on that cell's floor, and up from it
         EditFaceCell edHovKind, edHovX, edHovY, edHovSide, tx, ty
         IF tx > 0 AND ty > 0 AND tx < mapN - 1 AND ty < mapN - 1 THEN
@@ -4155,32 +4260,33 @@ SUB EditDrawFaces
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
             IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
             IF edHovPart THEN n$ = n$ + " half" + STR$(edHovPart)
-            lbX = edCurX + edWX + 14 : IF lbX + LEN(n$) * 8 > scrW - 4 THEN lbX = edCurX + edWX - 14 - LEN(n$) * 8 ' (by the window's right edge: on the pointer's left)
-            COLOR _RGB32(150, 230, 255) : _PRINTSTRING (lbX, edCurY + 10), n$
+            IF NOT edHovThing THEN EditGetFaceOff edHovX, edHovY, EditFaceCode(edHovKind, edHovSide), lbOU, lbOV : IF lbOU OR lbOV THEN n$ = n$ + "  slid" + STR$(lbOU) + "," + LTRIM$(STR$(lbOV)) ' (its picture's offset, 16ths)
+            lbX = edCurX + edWX + 14 : IF lbX + TinyW(n$) > scrW - 4 THEN lbX = edCurX + edWX - 14 - TinyW(n$) ' (by the window's right edge: on the pointer's left)
+            TinyText lbX, edCurY + 14, n$, _RGB32(150, 230, 255)
         END IF
     END IF
 END SUB
 
 SUB EditOverlay(px, py, fx, fy)
     DIM B, my ' (its own: the main program shares these names)
-    LINE (8, 56)-(330, 124), _RGBA32(6, 2, 18, 190), BF
-    LINE (8, 56)-(330, 124), _RGB32(255, 60, 200), B
-    HudText 16, 60, "TOOL: " + RTRIM$(MID$("SELECTPLACE PAINT LIGHT HEIGHT", edTool * 6 - 5, 6)), _RGB32(255, 90, 200)
+    LINE (8, 34)-(330, 80), _RGBA32(6, 2, 18, 190), BF ' (small print: under the toolbar)
+    LINE (8, 34)-(330, 80), _RGB32(255, 60, 200), B
+    TinyText 14, 38, "TOOL: " + RTRIM$(MID$("SELECTPLACE PAINT LIGHT HEIGHT", edTool * 6 - 5, 6)), _RGB32(255, 90, 200)
     IF edTool = ET_LIGHT THEN
-        HudText 16, 76, "LIGHT: " + EditFxName$(edLFx) + " reach" + STR$(edLRad), _RGB32(edLR, edLG, edLB)
+        TinyText 14, 48, "LIGHT: " + EditFxName$(edLFx) + " reach" + STR$(edLRad) + MID$(" (no lamp)", 1, -10 * (edLNoLamp <> 0)), _RGB32(edLR, edLG, edLB)
     ELSEIF edTool = ET_PAINT THEN
-        HudText 16, 76, LEFT$("PICTURE: " + EditPaintName$, 38), _RGB32(150, 240, 255)
+        TinyText 14, 48, LEFT$("PICTURE: " + EditPaintName$, 70), _RGB32(150, 240, 255)
     ELSE
-        HudText 16, 76, LEFT$("BRUSH: " + GlyphName$(editGlyph$), 38), GlyphColor~&(editGlyph$)
+        TinyText 14, 48, LEFT$("BRUSH: " + GlyphName$(editGlyph$), 70), GlyphColor~&(editGlyph$)
     END IF
-    IF edSelN THEN HudText 16, 92, LTRIM$(STR$(edSelN)) + " selected (Ctrl+D: none)", _RGB32(255, 190, 80) ELSE HudText 16, 92, "Nothing selected", _RGB32(140, 130, 180)
-    IF editDirty THEN HudText 16, 108, "* not saved (Ctrl+S)", _RGB32(255, 90, 90) ELSE HudText 16, 108, "Saved", _RGB32(140, 130, 180)
+    IF edSelN THEN TinyText 14, 58, LTRIM$(STR$(edSelN)) + " selected (Ctrl+D: none)", _RGB32(255, 190, 80) ELSE TinyText 14, 58, "Nothing selected", _RGB32(140, 130, 180)
+    IF editDirty THEN TinyText 14, 68, "* not saved (Ctrl+S)", _RGB32(255, 90, 90) ELSE TinyText 14, 68, "Saved", _RGB32(140, 130, 180)
     IF TIMER < editMsgUntil! THEN
         my = 470 : IF edPickOpen AND editView = 1 THEN my = PK_Y - 30 ' (above the picker)
         IF edPickOn AND NOT edPickOpen AND editView = 1 THEN my = PK_TUCK - 24
         IF editView = 1 THEN HudAt -1 ' (FULL WIDE: all the way across)
-        LINE (0, my)-(scrW - 1, my + 20), _RGBA32(0, 0, 0, 170), BF
-        HudText scrW \ 2 - LEN(LEFT$(editMsg$, 98)) * 4, my + 4, LEFT$(editMsg$, 98), _RGB32(255, 220, 120)
+        LINE (0, my + 4)-(scrW - 1, my + 18), _RGBA32(0, 0, 0, 170), BF
+        TinyText scrW \ 2 - TinyW(editMsg$) \ 2, my + 7, editMsg$, _RGB32(255, 220, 120)
         IF editView = 1 THEN HudAt 0
     END IF
 END SUB
@@ -4293,7 +4399,7 @@ SUB EditAddLight(x, y)
     DIM k ' (its own: the main program shares these names)
     IF lvlNumLights >= MAX_LIGHTS THEN EditNote "Too many lights" : EXIT SUB
     lvlNumLights = lvlNumLights + 1 : k = lvlNumLights
-    lvlLight(k, 1) = x : lvlLight(k, 2) = y : lvlLight(k, 3) = edLRad : lvlLight(k, 4) = edLBri : lvlLight(k, 8) = edLFx
+    lvlLight(k, 1) = x : lvlLight(k, 2) = y : lvlLight(k, 3) = edLRad : lvlLight(k, 4) = edLBri : lvlLight(k, 8) = edLFx : lvlLight(k, 9) = edLNoLamp
     lvlLight(k, 5) = edLR : lvlLight(k, 6) = edLG : lvlLight(k, 7) = edLB
     EditNote "Light (" + EditFxName$(edLFx) + ") at" + STR$(INT(x)) + STR$(INT(y))
 END SUB
@@ -4401,7 +4507,7 @@ SUB EditRemoveLight(x, y)
         IF d < bestD THEN bestD = d : best = k
     NEXT
     IF best = 0 THEN EditNote "No light near" : EXIT SUB
-    FOR k = best TO lvlNumLights - 1 : FOR j = 1 TO 8 : lvlLight(k, j) = lvlLight(k + 1, j) : NEXT : NEXT
+    FOR k = best TO lvlNumLights - 1 : FOR j = 1 TO 9 : lvlLight(k, j) = lvlLight(k + 1, j) : NEXT : NEXT
     lvlNumLights = lvlNumLights - 1 : EditNote "Light taken away"
 END SUB
 
@@ -4537,7 +4643,7 @@ SUB EditMakeRoom(w, h)
     lvlMonN = 0 : lvlNumZones = 0 : lvlNumLifts = 0 : lvlNumEvents = 0 : lvlNumTrigs = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0
     lvlGravity = 100 : lvlWet = -1 ' (a new sector: the usual gravity, its floors as their pictures are)
     lvlNumLights = 1 : lvlLight(1, 1) = mapN / 2 : lvlLight(1, 2) = mapN / 2 : lvlLight(1, 3) = MaxOf(w, h) / 2 + 3 : lvlLight(1, 4) = 150
-    lvlLight(1, 5) = 220 : lvlLight(1, 6) = 230 : lvlLight(1, 7) = 255 : lvlLight(1, 8) = 0
+    lvlLight(1, 5) = 220 : lvlLight(1, 6) = 230 : lvlLight(1, 7) = 255 : lvlLight(1, 8) = 0 : lvlLight(1, 9) = 0
     CellLightsClear
     FOR y = 0 TO mapN - 1 : lvlLiqRow$(y) = STRING$(mapN, ".") : lvlLiqDRow$(y) = STRING$(mapN, ".") : lvlLiqORow$(y) = STRING$(mapN, ".") : lvlWetRow$(y) = STRING$(mapN, ".") : NEXT
 END SUB
@@ -4620,7 +4726,7 @@ SUB EditDropPast(m)
     DIM c, j, k, x, y ' (its own: the main program shares these names)
     k = 0
     FOR j = 1 TO lvlNumLights
-        IF lvlLight(j, 1) < m + 1 AND lvlLight(j, 2) < m + 1 THEN k = k + 1 : FOR c = 1 TO 8 : lvlLight(k, c) = lvlLight(j, c) : NEXT
+        IF lvlLight(j, 1) < m + 1 AND lvlLight(j, 2) < m + 1 THEN k = k + 1 : FOR c = 1 TO 9 : lvlLight(k, c) = lvlLight(j, c) : NEXT
     NEXT : lvlNumLights = k
     k = 0
     FOR j = 1 TO lvlNumEvents
@@ -4668,7 +4774,7 @@ SUB EditDropPast(m)
     FOR j = 1 TO lvlNumFaces
         IF lvlFaceX(j) <= m AND lvlFaceY(j) <= m THEN
             k = k + 1 : lvlFaceX(k) = lvlFaceX(j) : lvlFaceY(k) = lvlFaceY(j) : lvlFaceS(k) = lvlFaceS(j) : lvlFaceD(k) = lvlFaceD(j)
-            lvlFaceP1$(k) = lvlFaceP1$(j) : lvlFaceP2$(k) = lvlFaceP2$(j)
+            lvlFaceP1$(k) = lvlFaceP1$(j) : lvlFaceP2$(k) = lvlFaceP2$(j) : lvlFaceO(k) = lvlFaceO(j)
         END IF
     NEXT : lvlNumFaces = k
     FOR y = 0 TO MAP_SIZE - 1 : FOR x = 0 TO MAP_SIZE - 1 ' (the cell lights past it: none)

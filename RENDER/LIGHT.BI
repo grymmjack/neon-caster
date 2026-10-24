@@ -37,6 +37,7 @@ DIM SHARED lightX(MAX_LIGHTS), lightY(MAX_LIGHTS), lightRadius(MAX_LIGHTS)
 DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhase(MAX_LIGHTS)
 DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
 DIM SHARED numLightsBase AS INTEGER ' (the level's own lights - those after them are pools flooded in play: LiquidGlows)
+DIM SHARED lightNoLamp(MAX_LIGHTS) AS INTEGER ' (a level's light set to hang no lamp: its ceiling keeps its own picture, no beam)
 DIM SHARED lightLow(MAX_LIGHTS) AS INTEGER ' (a glow from the floor - a pool of lava: no lamp on the ceiling over it, no beam)
 DIM SHARED lightNow(MAX_LIGHTS) ' How bright its effect has it this frame (0 off .. 1 full): for its glow
 DIM SHARED numLights AS INTEGER

@@ -64,7 +64,8 @@ SUB HeightColumn STATIC
             ' looked up once, before it, and ShadeRGB's sum is written out - a
             ' FUNCTION call a pixel costs more than the sum)
             hk = eyeZ - hf : slot = floorTex(hcX, hcY) : hSplit = floorSplit(hcX, hcY) : tMask = texSize - 1
-            IF hLq THEN slot = T_LIQUID + hLq : hSplit = 0
+            hFU = 0 : hFV = 0 : IF faceOffAny THEN hFU = faceOU(hcX, hcY, 9) * texSize \ 16 : hFV = faceOV(hcX, hcY, 9) * texSize \ 16 ' (its picture slid: [faces])
+            IF hLq THEN slot = T_LIQUID + hLq : hSplit = 0 : hFU = 0 : hFV = 0
             FOR y = yFar TO yNear
                 rowDist = hk * rowF(y)
                 fx = playerX + rowDist * rayDirX : fy = playerY + rowDist * rayDirY
@@ -73,7 +74,7 @@ SUB HeightColumn STATIC
                 lR& = hR& * f& \ 256 : IF lR& > 256 THEN lR& = 256
                 lG& = hG& * f& \ 256 : IF lG& > 256 THEN lG& = 256
                 lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
-                texel~& = texture(INT(fx * texSize) AND tMask, INT(fy * texSize) AND tMask, s2)
+                texel~& = texture((INT(fx * texSize) + hFU) AND tMask, (INT(fy * texSize) + hFV) AND tMask, s2)
                 pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
                 IF gridOn THEN IF (INT(fx * texSize) AND tMask) < gridW OR (INT(fy * texSize) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
             NEXT
@@ -87,6 +88,7 @@ SUB HeightColumn STATIC
             IF yNear < hTop THEN yNear = hTop
             IF yFar > hBot THEN yFar = hBot
             hk = hc - eyeZ : slot = ceilTex(hcX, hcY) : hSplit = ceilSplit(hcX, hcY) : tMask = texSize - 1
+            hFU = 0 : hFV = 0 : IF faceOffAny THEN hFU = faceOU(hcX, hcY, 10) * texSize \ 16 : hFV = faceOV(hcX, hcY, 10) * texSize \ 16
             IF texSky(slot) THEN ' (a sky: by the way you look, full bright - its rows, and on to the next cell)
                 FOR y = yNear TO yFar : pixels(y * RENDER_W + x) = texture(skyU(x), skyV(y), slot) OR &HFF000000~& : NEXT
                 yNear = yFar + 1
@@ -99,7 +101,7 @@ SUB HeightColumn STATIC
                 lR& = hR& * f& \ 256 : IF lR& > 256 THEN lR& = 256
                 lG& = hG& * f& \ 256 : IF lG& > 256 THEN lG& = 256
                 lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
-                texel~& = texture(INT(fx * texSize) AND tMask, INT(fy * texSize) AND tMask, s2)
+                texel~& = texture((INT(fx * texSize) + hFU) AND tMask, (INT(fy * texSize) + hFV) AND tMask, s2)
                 pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
                 IF gridOn THEN IF (INT(fx * texSize) AND tMask) < gridW OR (INT(fy * texSize) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
             NEXT
@@ -172,6 +174,13 @@ SUB HeightColumn STATIC
         hR& = MinOf(256, litR(hcX, hcY) * hFog& \ 256) : hG& = MinOf(256, litG(hcX, hcY) * hFog& \ 256) : hB& = MinOf(256, litB(hcX, hcY) * hFog& \ 256)
         IF hSolid THEN ' A wall: from this cell's ceiling to its floor
             y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut)
+            IF faceOffAny AND hSd > 0 THEN ' (its picture slid along and up: [faces])
+                IF hBoxed THEN
+                    HeightOff hcX, hcY, hSd + FACE_BOX
+                ELSEIF (v <> 2 OR hSlot = T_EXIT) AND diagCorner(hnX, hnY) = 0 AND NOT hDoored THEN
+                    HeightOff hnX, hnY, hSd
+                END IF
+            END IF
             hZ0 = hc : hZ1 = hf : hVOff = 0 : HeightFace
             hTop = hBot + 1 ' (the column's done: nothing left to fill)
             EXIT DO
@@ -184,6 +193,7 @@ SUB HeightColumn STATIC
             IF hSd THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
             IF nLq THEN hSlot = T_LIQUID + nLq : hSlot2 = 0
             IF liftCell(hnX, hnY) THEN hSlot2 = 0 : hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
+            IF faceOffAny AND hSd > 0 AND nLq = 0 AND liftCell(hnX, hnY) = 0 THEN HeightOff hnX, hnY, hSd
             hZ0 = nf : hZ1 = hf : HeightFace
             IF y0 - 1 < hBot THEN hBot = y0 - 1
         END IF
@@ -199,6 +209,7 @@ SUB HeightColumn STATIC
             ELSE
                 hZ0 = hc : hZ1 = nc : hVOff = 0
                 IF liftCell(hnX, hnY) THEN IF liftMode(liftCell(hnX, hnY)) >= LIFT_CRUSHER THEN hVOff = nc ' (a crusher's side: its picture pinned to its bottom edge - it comes down whole)
+                IF faceOffAny AND hSd > 0 THEN HeightOff hnX, hnY, hSd + 4
                 HeightFace
             END IF
             IF y1 + 1 > hTop THEN hTop = y1 + 1
@@ -240,12 +251,18 @@ SUB HeightFace STATIC
                 v = (hVOff + 1 - eyeZ + (y + 0.5 - hor) * hDOut / viewH) * texSize
             END IF
         END IF
-        texel~& = texture(hTexX, INT(v) AND tMask, hSl)
+        texel~& = texture((hTexX + hOU) AND tMask, (INT(v) + hOV) AND tMask, hSl)
         pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * hR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * hG& \ 256) * 256 OR ((texel~& AND 255) * hB& \ 256)
         IF gridOn THEN IF hTexX < gridW OR (INT(v) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
         v = v + vStep
     NEXT
-    hSlot2 = 0
+    hSlot2 = 0 : hOU = 0 : hOV = 0
+END SUB
+
+' The next HeightFace's picture slid as face f of (x, y)'s is ([faces]), in
+' texels: hOU along, hOV up
+SUB HeightOff(x, y, f)
+    hOU = faceOU(x, y, f) * texSize \ 16 : hOV = faceOV(x, y, f) * texSize \ 16
 END SUB
 
 ' --- A sprite standing flat (drawFace 1-4: facing east, south, west or
