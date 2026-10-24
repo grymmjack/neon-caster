@@ -1975,7 +1975,7 @@ END SUB
 SUB EditRay(sx, sy, rdx, rdy, rdz)
     DIM c, r ' (its own: the main program shares these names)
     ndcX = sx / 400 - 1 : ndcY = 1 - sy / 300
-    ak = 1 : IF glMode THEN ak = glAspectK
+    ak = 1 ' (FULL WIDE too: the view is wider than our screen, but our screen is its 4:3 middle - which sees just what a 4:3 view does)
     r = ndcX * edCamPlane * ak : u = ndcY / (2 * edCamZoom)
     c = COS(pitch) : sn = SIN(pitch)
     rdx = -r * edCamDY - u * sn * edCamDX + c * edCamDX ' (your right: (-dirY, dirX))
@@ -2335,10 +2335,12 @@ FUNCTION EditPkTabName$(t)
 END FUNCTION
 
 ' The tab's entries, and their thumbnails - made again only when the tab,
-' the level, its wall pictures or ART have changed
+' the level, its wall pictures or ART have changed. While one of the
+' sector's own pictures is being chosen (the SECTOR pane: edSlotPick), only
+' the picture files - no map characters (they'd be a PLACE brush), no smears
 SUB EditPkBuild
     DIM a, B, d, k ' (its own: the main program shares these names)
-    key$ = STR$(edPickTab) + STR$(level) + STR$(artNow) + lvlFloor$(1) + lvlWall$(1) + lvlWall$(2) + lvlWall$(3) + lvlWall$(4) + lvlWall$(5) + lvlWall$(6)
+    key$ = STR$(edPickTab) + STR$(edSlotPick > 0) + STR$(level) + STR$(artNow) + lvlFloor$(1) + lvlWall$(1) + lvlWall$(2) + lvlWall$(3) + lvlWall$(4) + lvlWall$(5) + lvlWall$(6)
     IF key$ = edPkKey$ THEN EXIT SUB
     edPkKey$ = key$
     FOR k = 1 TO edPkN
@@ -2356,10 +2358,11 @@ SUB EditPkBuild
         CASE 7 : g$ = DecoChars$
         CASE 8 : g$ = "<>^v&@$;-."
     END SELECT
+    IF edSlotPick THEN g$ = "" ' (choosing a sector picture: the files only)
     FOR k = 1 TO LEN(g$)
         edPkN = edPkN + 1 : edPkKind(edPkN) = PK_GLYPH : edPkVal$(edPkN) = MID$(g$, k, 1) : edPkImg&(edPkN) = EditGlyphThumb&(MID$(g$, k, 1))
     NEXT
-    IF edPickTab = 7 THEN ' (and the things: a " each, its kind in [things])
+    IF edPickTab = 7 AND edSlotPick = 0 THEN ' (and the things: a " each, its kind in [things])
         k = 1
         DO
             t$ = ListItem$(ThingList$, k) : IF t$ = "" THEN EXIT DO
@@ -2384,9 +2387,11 @@ SUB EditPkBuild
             IF LCASE$(edPkVal$(b)) < LCASE$(edPkVal$(a)) THEN SWAP edPkVal$(a), edPkVal$(b)
         NEXT : NEXT
         FOR k = first TO edPkN : edPkImg&(k) = EditFileThumb&(edPkVal$(k)) : NEXT
-        FOR k = 0 TO SMEAR_KINDS - 1 ' (and blood and oil, to smear on a wall, a floor, a ceiling - [smears])
-            edPkN = edPkN + 1 : edPkKind(edPkN) = PK_TEX : edPkVal$(edPkN) = "smear-" + SmearName$(k) + ".png" : edPkImg&(edPkN) = EditFileThumb&(edPkVal$(edPkN))
-        NEXT
+        IF edSlotPick = 0 THEN ' (a sector picture: no smears)
+            FOR k = 0 TO SMEAR_KINDS - 1 ' (and blood and oil, to smear on a wall, a floor, a ceiling - [smears])
+                edPkN = edPkN + 1 : edPkKind(edPkN) = PK_TEX : edPkVal$(edPkN) = "smear-" + SmearName$(k) + ".png" : edPkImg&(edPkN) = EditFileThumb&(edPkVal$(edPkN))
+            NEXT
+        END IF
     END IF
     IF edPickTab = 10 THEN ' The liquids: draining one away, then each kind two, four and six eighths deep
         edPkN = edPkN + 1 : edPkKind(edPkN) = PK_LIQUID : edPkVal$(edPkN) = "-" : edPkImg&(edPkN) = 0
@@ -2562,7 +2567,16 @@ FUNCTION EditPkIsBrush(k)
     EditPkIsBrush = 0
     SELECT CASE edPkKind(k)
         CASE PK_GLYPH : EditPkIsBrush = (edBrushKind = PK_GLYPH AND edPkVal$(k) = editGlyph$)
-        CASE PK_TEX : EditPkIsBrush = (edBrushKind = PK_TEX AND edPkVal$(k) = edBrushTex$)
+        CASE PK_TEX
+            IF edSlotPick THEN ' (choosing a sector picture: the one it has now)
+                SELECT CASE edSlotPick
+                    CASE 1 TO 6 : EditPkIsBrush = (LCASE$(edPkVal$(k)) = LCASE$(lvlWall$(edSlotPick)))
+                    CASE 7 TO 10 : EditPkIsBrush = (LCASE$(edPkVal$(k)) = LCASE$(lvlFloor$(edSlotPick - 6)))
+                    CASE ELSE : EditPkIsBrush = (LCASE$(edPkVal$(k)) = LCASE$(lvlCeil$(edSlotPick - 10)))
+                END SELECT
+            ELSE
+                EditPkIsBrush = (edBrushKind = PK_TEX AND edPkVal$(k) = edBrushTex$)
+            END IF
         CASE PK_LIQUID : EditPkIsBrush = (edBrushKind = PK_LIQUID AND edPkVal$(k) = edBrushLiq$)
         CASE PK_LIGHT
             v = VAL(MID$(edPkVal$(k), 2))
@@ -3892,7 +3906,7 @@ SUB EditPoint(wx, wy, wz, sx, sy, ok)
     DIM a, r ' (its own: the main program shares these names)
     EditCam wx, wy, wz, r, u, a : ok = 0
     IF a < 0.05 THEN EXIT SUB
-    ak = 1 : IF glMode THEN ak = glAspectK
+    ak = 1 ' (FULL WIDE too: our screen is the wide view's 4:3 middle)
     sx = (r / (a * edCamPlane * ak) + 1) * 400 : sy = (1 - u * 2 * edCamZoom / a) * 300 : ok = -1
 END SUB
 
@@ -3905,7 +3919,7 @@ SUB EditLine3D(x1, y1, z1, x2, y2, z2, col~&)
     IF a1 < nr AND a2 < nr THEN EXIT SUB
     IF a1 < nr THEN f = (nr - a1) / (a2 - a1) : r1 = r1 + (r2 - r1) * f : u1 = u1 + (u2 - u1) * f : a1 = nr
     IF a2 < nr THEN f = (nr - a2) / (a1 - a2) : r2 = r2 + (r1 - r2) * f : u2 = u2 + (u1 - u2) * f : a2 = nr
-    ak = 1 : IF glMode THEN ak = glAspectK
+    ak = 1 ' (FULL WIDE too: our screen is the wide view's 4:3 middle)
     sx1 = (r1 / (a1 * edCamPlane * ak) + 1) * 400 : sy1 = (1 - u1 * 2 * edCamZoom / a1) * 300
     sx2 = (r2 / (a2 * edCamPlane * ak) + 1) * 400 : sy2 = (1 - u2 * 2 * edCamZoom / a2) * 300
     IF ABS(sx1) > 20000 OR ABS(sy1) > 20000 OR ABS(sx2) > 20000 OR ABS(sy2) > 20000 THEN EXIT SUB

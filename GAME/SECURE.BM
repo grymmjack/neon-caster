@@ -176,6 +176,7 @@ FUNCTION KickDoor
     DIM cx, cy, kd ' (its own: the main program shares these names)
     FOR kd = 3 TO 13
         cx = INT(playerX + dirX * kd / 10) : cy = INT(playerY + dirY * kd / 10)
+        IF glassHP(cx, cy) > 0 THEN IF InGlass(playerX + dirX * kd / 10, playerY + dirY * kd / 10) THEN EXIT FUNCTION ' (a pane first - before the exit, say: the boot's for the glass, even from inside its cell)
         IF cx = INT(playerX) AND cy = INT(playerY) THEN _CONTINUE
         IF worldMap(cx, cy) <> 2 THEN
             IF worldMap(cx, cy) > 0 THEN EXIT FUNCTION ' (a wall first)

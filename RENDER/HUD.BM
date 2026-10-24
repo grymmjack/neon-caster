@@ -172,15 +172,16 @@ END FUNCTION
 ' on the big map the floor you've seen is a dim blue. Then keycards, and
 ' you - an arrow pointing the way you face.
 SUB DrawMap(mapLeft, mapTop, cellSize, showAll, px, py, facingX, facingY)
-    DIM ax, ay, i, k, sx, sy, n, x0, y0, ml, mt, cA! ' (its own: the main program shares these names)
+    DIM ax, ay, i, k, sx, sy, n, x0, y0, ml, mt, vl, cA! ' (its own: the main program shares these names)
     ' (a sector bigger than the game's 48: the minimap is the 48 cells round
     ' you; the full map all of it, smaller - its caller picks the size)
     n = mapN : x0 = 0 : y0 = 0
     IF NOT mmFull AND mapN > 48 THEN n = 48 : x0 = MaxOf(0, MinOf(mapN - 48, INT(px) - 24)) : y0 = MaxOf(0, MinOf(mapN - 48, INT(py) - 24))
     LINE (mapLeft - 2, mapTop - 2)-(mapLeft + n * cellSize + 1, mapTop + n * cellSize + 1), _RGBA32(0, 0, 0, 160), BF
     IF mmFull AND cellSize >= 3 THEN FullMapFloors showAll : _PUTIMAGE (mapLeft, mapTop), fmImg& ' (the floors, textured: below the rest)
-    VIEW SCREEN (mapLeft - 2, mapTop - 2)-(mapLeft + n * cellSize + 1, mapTop + n * cellSize + 1)
-    ml = mapLeft - x0 * cellSize : mt = mapTop - y0 * cellSize
+    vl = mapLeft + hudViewX ' (FULL WIDE: VIEW SCREEN is the canvas's own place, not the side's VIEW HudAt set - so the side's offset, added by hand)
+    VIEW SCREEN (vl - 2, mapTop - 2)-(vl + n * cellSize + 1, mapTop + n * cellSize + 1)
+    ml = vl - x0 * cellSize : mt = mapTop - y0 * cellSize
     FOR cellY = y0 TO y0 + n - 1 : FOR cellX = x0 TO x0 + n - 1
         IF showAll OR cellSeen(cellX, cellY) THEN
             mmColor~& = 0 : hideIt = 0

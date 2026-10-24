@@ -978,6 +978,7 @@ SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
     ' WIDE, the 4:3 middle of the wider view (and how much to darken beside it)
     GLSL_uniform_4f p~&, "hudRect", (hx - vx) / vw, (hy - vy) / vh, (hx + hw - vx) / vw, (hy + hh - vy) / vh
     GLSL_uniform_1f p~&, "sideDim", glSideDim(b) * (glAspectK > 1.01) * -1
+    GLSL_uniform_1f p~&, "edgeOn", (editMode = 0) * -1 ' (FULL WIDE: our screen's edge columns carried out to the window's edges - not the editor's: its panes reach the edge, and the view beside them is to be seen)
     glHudK = 1 : IF GLSL_frameW > 800 THEN glHudK = 800 / GLSL_frameW
     GLSL_uniform_1f p~&, "hudK", glHudK ' (FULL WIDE's HUD: as wide as the window - our screen's 800 are this much of it)
     GLSL_uniform_1f p~&, "bloomAmt", bloomOn * -0.9
@@ -2000,6 +2001,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform vec3 gunLight;    // ...and the light on it" + nl$
     fs$ = fs$ + "uniform vec4 hudRect;     // where our 4:3 screen is (0..1, from the bottom left): all of it, but for FULL WIDE" + nl$
     fs$ = fs$ + "uniform float sideDim;    // how much to darken the view beside it (in the menu)" + nl$
+    fs$ = fs$ + "uniform float edgeOn;     // 1: carry our screen's edge columns out to the window's edges (0 in the editor)" + nl$
     fs$ = fs$ + "uniform float hudK;       // the HUD picture: 1, our screen - under 1, FULL WIDE's canvas, wider by 1 / hudK, round it" + nl$
     fs$ = fs$ + "vec2 hudAt(vec2 h) { return vec2(0.5 + (h.x - 0.5) * hudK, h.y); }  // our screen's place h, on the HUD picture" + nl$
     fs$ = fs$ + "vec2 onHud(vec2 q) { vec2 h = (q - hudRect.xy) / (hudRect.zw - hudRect.xy); return vec2(h.x, 1.0 - h.y); }  // q on our screen, from its top left" + nl$
@@ -2075,7 +2077,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    vec2 ht = hudAt(hp);  // (FULL WIDE in play: the HUD's canvas reaches the window's edges)" + nl$
     fs$ = fs$ + "    if (hudOn > 0.5 && inside(ht) > 0.5) { vec4 h = texture2D(hud, ht); c = h.rgb + c * (1.0 - h.a); }  // the HUD (premultiplied), after the scanlines: on the glass, so they never cut a row out of its letters" + nl$
-    fs$ = fs$ + "    else if (hudOn > 0.5 && hudK > 0.999 && sideDim < 0.01 && hp.y >= 0.0 && hp.y <= 1.0) {  // FULL WIDE, beside our screen: its edge column, carried out to the window's edge - what's drawn there is only the screen's washes (hurt, a lockdown's red, low health, a pickup's flash, a vignette), so they reach the real edges too" + nl$
+    fs$ = fs$ + "    else if (hudOn > 0.5 && hudK > 0.999 && edgeOn > 0.5 && sideDim < 0.01 && hp.y >= 0.0 && hp.y <= 1.0) {  // FULL WIDE, beside our screen: its edge column, carried out to the window's edge - what's drawn there is only the screen's washes (hurt, a lockdown's red, low health, a pickup's flash, a vignette), so they reach the real edges too" + nl$
     fs$ = fs$ + "        vec4 h = texture2D(hud, vec2(clamp(hp.x, 1.5 / 800.0, 1.0 - 1.5 / 800.0), hp.y)); c = h.rgb + c * (1.0 - h.a);" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    c += halo * halo * glow * 1.2;  // light spreading round bright things (squared: the bright parts, not the dim)" + nl$
