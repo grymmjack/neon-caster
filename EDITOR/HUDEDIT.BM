@@ -9,25 +9,37 @@
 ' it (HudEditDraw). Drag one with the mouse; Tab the next one; the arrows
 ' nudge it (Shift: 8 pixels); V shows or hides it; C its colour; + and -
 ' its bar's width, [ and ] its height; S saves hud.txt; R puts back the
-' game's own layout; U or Esc leaves.
+' game's own layout; U or Esc leaves. FULL WIDE: it's on the canvas as
+' wide as the window (HudWideBegin), and a part dragged keeps to the side
+' of the window it's dropped in (hudSide: the left edge, the middle, the
+' right edge - by its box's middle); A sets that by hand.
 SUB HudEditEnter STATIC
     hudEdit = -1 : hudSel = HE_HEALTH : hudDrag = 0 : _MOUSESHOW : _KEYCLEAR
-    hudMsg$ = "HUD LAYOUT: drag things about - Tab next, V show/hide, C colour, +/- [ ] bar, S save, R reset, U done"
+    hudMsg$ = "HUD LAYOUT: drag - Tab next, V show/hide, C colour, +/- [ ] bar, A anchor, S save, R reset, U done"
 END SUB
 SUB HudEditLeave STATIC
     hudEdit = 0 : _MOUSEHIDE _DISABLE : _KEYCLEAR : WHILE _MOUSEINPUT : WEND : mouseSettle = 8 : escWas = -1 : fireWait = 15 : edMouseFix = -1
 END SUB
 SUB HudEditFrame STATIC
-    hmx = WideMouseX(_MOUSEX) : hmy = _MOUSEY : hb = _MOUSEBUTTON(1)
+    hmx = WideMouseX(_MOUSEX) + hudLastVX : hmy = _MOUSEY : hb = _MOUSEBUTTON(1) ' (FULL WIDE: on the canvas, our screen hudLastVX in - the last frame's)
     IF hb AND NOT hudDrag THEN ' Press: the part under the mouse (the smallest, if two overlap)
         best = 0 : bestA = 1E+9
         FOR e = 1 TO HUD_ELEMS
-            HudBox e, bx0, by0, bx1, by1
+            HudBoxC e, bx0, by0, bx1, by1
             IF hmx >= bx0 AND hmx <= bx1 AND hmy >= by0 AND hmy <= by1 THEN IF (bx1 - bx0) * (by1 - by0) < bestA THEN bestA = (bx1 - bx0) * (by1 - by0) : best = e
         NEXT
         IF best THEN hudSel = best : hudDrag = -1 : hdx = hmx : hdy = hmy
     END IF
-    IF hb AND hudDrag THEN hudX(hudSel) = hudX(hudSel) + hmx - hdx : hudY(hudSel) = hudY(hudSel) + hmy - hdy : hdx = hmx : hdy = hmy
+    IF hb AND hudDrag THEN
+        hudX(hudSel) = hudX(hudSel) + hmx - hdx : hudY(hudSel) = hudY(hudSel) + hmy - hdy : hdx = hmx : hdy = hmy
+        IF hudLastVX > 0 THEN ' FULL WIDE: it keeps to the side of the window its box's middle is on
+            HudBoxC hudSel, bx0, by0, bx1, by1 : bc = (bx0 + bx1) / 2
+            IF bc < hudLastW / 3 THEN hn = 0 ELSE IF bc > hudLastW * 2 / 3 THEN hn = 2 ELSE hn = 1
+            HudAnchor hudSel, hn
+        ELSE
+            hudSide(hudSel) = -1 ' (4:3: by its third of the screen, as the game always did)
+        END IF
+    END IF
     IF NOT hb THEN hudDrag = 0
     k& = _KEYHIT
     DO WHILE k&
@@ -46,6 +58,7 @@ SUB HudEditFrame STATIC
             CASE 91 : hudH(hudSel) = MaxOf(1, hudH(hudSel) - 1)
             CASE 93 : hudH(hudSel) = hudH(hudSel) + 1
             CASE 115, 83 : WriteHud : hudMsg$ = "Saved " + AssetPath$("hud.txt")
+            CASE 97, 65 : HudAnchor hudSel, (HudSideOf(hudSel) + 1) MOD 3 : hudMsg$ = UCASE$(hudName$(hudSel)) + " keeps to " + HudSideName$(hudSel) + " (A again: the next)"
             CASE 114, 82 : HudDefaults : hudMsg$ = "The game's own layout, back (S to keep it)"
         END SELECT
         k& = _KEYHIT
@@ -81,19 +94,46 @@ SUB HudBox(e, x0, y0, x1, y1)
     END SELECT
 END SUB
 
+' Part e keeps to side n now (hudSide), where it is on the window: its x
+' moved by the difference between the two sides' 800 x 600s
+SUB HudAnchor(e, n)
+    hudX(e) = hudX(e) + (HudSideOf(e) - n) * hudLastVX : hudSide(e) = n
+END SUB
+
+' ...which side, in words
+FUNCTION HudSideName$(e)
+    SELECT CASE HudSideOf(e)
+        CASE 0 : HudSideName$ = "the left edge"
+        CASE 2 : HudSideName$ = "the right edge"
+        CASE ELSE : HudSideName$ = "the middle"
+    END SELECT
+END FUNCTION
+
+' HudBox on FULL WIDE's canvas (as it's drawn: HudAtE) - on a 4:3 screen
+' the same
+SUB HudBoxC(e, x0, y0, x1, y1)
+    DIM o ' (its own: the main program shares these names)
+    HudBox e, x0, y0, x1, y1
+    o = HudSideOf(e) * hudLastVX : x0 = x0 + o : x1 = x1 + o
+END SUB
+
 ' The HUD editor's boxes: every part, the chosen one bright (with its name)
+' - across the whole canvas, FULL WIDE
 SUB HudEditDraw
-    DIM B, c~&, e, t$, x0, y0, y1 ' (its own: the main program shares these names)
+    DIM B, c~&, e, t$, x0, x1, y0, y1 ' (its own: the main program shares these names)
+    HudAt -1
     FOR e = 1 TO HUD_ELEMS
-        HudBox e, x0, y0, x1, y1
+        HudBoxC e, x0, y0, x1, y1
         IF e = hudSel THEN c~& = _RGB32(255, 255, 255) ELSE c~& = _RGBA32(255, 60, 200, 150)
         IF NOT hudShow(e) THEN c~& = _RGBA32(150, 150, 150, 130)
         LINE (x0 - 2, y0 - 2)-(x1 + 2, y1 + 2), c~&, B
         t$ = hudName$(e) : IF NOT hudShow(e) THEN t$ = t$ + " (hidden)"
+        IF e = hudSel AND hudLastVX > 0 THEN t$ = t$ + " - " + HudSideName$(e)
         IF e = hudSel THEN HudText x0, y0 - 14, t$, _RGB32(255, 255, 255) ELSE HudText x0, y0 - 14, t$, _RGBA32(255, 120, 220, 200)
     NEXT
-    LINE (0, 582)-(799, 599), _RGBA32(0, 0, 0, 200), BF
-    HudText 4, 584, LEFT$(hudMsg$, 98), _RGB32(255, 220, 120)
+    LINE (0, 582)-(scrW - 1, 599), _RGBA32(0, 0, 0, 200), BF
+    HudText 4, 584, LEFT$(hudMsg$, (scrW - 8) \ 8), _RGB32(255, 220, 120)
+    HudAt 1
 END SUB
 
 SUB WriteHud
@@ -106,6 +146,9 @@ SUB WriteHud
     o$ = o$ + "'   message, subtitle, event, network, fps: their middle)   bar: width," + nl$
     o$ = o$ + "'   height   size: the minimap's cells, the keycards' pictures" + nl$
     o$ = o$ + "'   color: auto (the game's own) or red, green, blue   label: its word" + nl$
+    o$ = o$ + "'   anchor: left, middle or right - with FULL WIDE, the side of the window" + nl$
+    o$ = o$ + "'   it keeps to, x measured from that side's 800 x 600 (left out: by" + nl$
+    o$ = o$ + "'   which third of the 800 its x is in)" + nl$
     FOR e = 1 TO HUD_ELEMS
         o$ = o$ + nl$ + "[" + hudName$(e) + "]" + nl$
         IF hudShow(e) THEN o$ = o$ + "show  = yes" + nl$ ELSE o$ = o$ + "show  = no" + nl$
@@ -116,6 +159,7 @@ SUB WriteHud
         END SELECT
         IF hudCol(e) THEN o$ = o$ + "color = " + LTRIM$(STR$(_RED32(hudCol(e)))) + ", " + LTRIM$(STR$(_GREEN32(hudCol(e)))) + ", " + LTRIM$(STR$(_BLUE32(hudCol(e)))) + nl$ ELSE o$ = o$ + "color = auto" + nl$
         IF LEN(hudLabel$(e)) THEN o$ = o$ + "label = " + hudLabel$(e) + nl$
+        IF hudSide(e) >= 0 THEN o$ = o$ + "anchor = " + RTRIM$(MID$("left  middleright ", hudSide(e) * 6 + 1, 6)) + nl$
     NEXT
     f$ = AssetPath$("hud.txt")
     IF _FILEEXISTS(f$) THEN KILL f$

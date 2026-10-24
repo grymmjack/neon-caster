@@ -41,18 +41,18 @@ END SUB
 ' --- FULL WIDE in play (OpenGL): the HUD on a canvas as wide as the window
 ' (hudCanvas&, scrW across), so its parts can hug the window's edges -
 ' chapter 18 draws there, GLCapture hands it to the card. The 3D editor
-' too (edWX); not the map from above, the HUD editor or the software
+' too (edWX), and the HUD editor; not the map from above or the software
 ' renderer.
 SUB HudWideBegin
     DIM w ' (its own: the main program shares these names)
-    hudWideNow = 0 : hudVX = 0 : hudViewX = 0 : scrW = 800 : edWX = 0
-    IF glMode = 0 OR hudEdit THEN EXIT SUB
+    hudWideNow = 0 : hudVX = 0 : hudViewX = 0 : scrW = 800 : edWX = 0 : hudLastVX = 0 : hudLastW = 800
+    IF glMode = 0 THEN EXIT SUB
     IF editMode AND editView <> 1 THEN EXIT SUB ' (the map from above has its own loop, on our screen)
     w = INT(800 * WideView + 0.5) : IF w < 804 THEN EXIT SUB
     IF hudCanvas& < -1 THEN IF _WIDTH(hudCanvas&) <> w THEN _FREEIMAGE hudCanvas& : hudCanvas& = 0
     IF hudCanvas& >= -1 THEN hudCanvas& = _NEWIMAGE(w, 600, 32)
     _DEST hudCanvas& : VIEW : CLS , _RGBA32(0, 0, 0, 0) : _PRINTMODE _KEEPBACKGROUND ' (as our screen prints: CORE/WINDOW.BI)
-    scrW = w : hudVX = (w - 800) \ 2 : hudWideNow = -1
+    scrW = w : hudVX = (w - 800) \ 2 : hudWideNow = -1 : hudLastVX = hudVX : hudLastW = w
     IF editMode THEN edWX = hudVX ' (the 3D editor's parts out to the edges)
     HudAt 1
 END SUB
@@ -70,16 +70,30 @@ SUB HudAt(side)
     END IF
 END SUB
 
-' ...the side for HUD part e: by which third of our screen it's in
+' ...the side for HUD part e (HudSideOf)
 SUB HudAtE(e)
     IF NOT hudWideNow THEN EXIT SUB
-    IF hudX(e) < 267 THEN HudAt 0 ELSE IF hudX(e) > 533 THEN HudAt 2 ELSE HudAt 1
+    HudAt HudSideOf(e)
 END SUB
+
+' Part e's side: its anchor (hudSide) - or, with none, by which third of
+' our screen its x is in
+FUNCTION HudSideOf(e)
+    IF hudSide(e) >= 0 THEN
+        HudSideOf = hudSide(e)
+    ELSEIF hudX(e) < 267 THEN
+        HudSideOf = 0
+    ELSEIF hudX(e) > 533 THEN
+        HudSideOf = 2
+    ELSE
+        HudSideOf = 1
+    END IF
+END FUNCTION
 
 ' --- The HUD's layout (chapter 18's data; hud.txt; the HUD editor) --------
 SUB HudDefaults
     DIM e ' (its own: the main program shares these names)
-    FOR e = 1 TO HUD_ELEMS : hudShow(e) = -1 : hudCol(e) = 0 : hudW(e) = 0 : hudH(e) = 0 : hudLabel$(e) = "" : NEXT
+    FOR e = 1 TO HUD_ELEMS : hudShow(e) = -1 : hudSide(e) = -1 : hudCol(e) = 0 : hudW(e) = 0 : hudH(e) = 0 : hudLabel$(e) = "" : NEXT
     hudName$(HE_HEALTH) = "health" : hudX(HE_HEALTH) = 16 : hudY(HE_HEALTH) = 552 : hudW(HE_HEALTH) = 200 : hudH(HE_HEALTH) = 12 : hudLabel$(HE_HEALTH) = "HEALTH"
     hudName$(HE_ARMOR) = "armor" : hudX(HE_ARMOR) = 16 : hudY(HE_ARMOR) = 516 : hudW(HE_ARMOR) = 200 : hudH(HE_ARMOR) = 8 : hudLabel$(HE_ARMOR) = "ARMOR"
     hudName$(HE_AMMO) = "ammo" : hudX(HE_AMMO) = 784 : hudY(HE_AMMO) = 552 : hudW(HE_AMMO) = 200 : hudH(HE_AMMO) = 12
@@ -103,7 +117,7 @@ FUNCTION HudColor~&(e, dflt~&)
 END FUNCTION
 
 ' hud.txt: one [name] section a part - show, x, y, bar (width, height),
-' color (auto, or red, green, blue), label
+' color (auto, or red, green, blue), label, anchor (left, middle, right)
 SUB ReadHud
     DIM e, k, l$ ' (its own: the main program shares these names)
     f$ = AssetPath$("hud.txt")
@@ -127,6 +141,13 @@ SUB ReadHud
                 CASE "size" : hudW(e) = VAL(v$)
                 CASE "color", "colour" : IF LCASE$(v$) = "auto" THEN hudCol(e) = 0 ELSE hudCol(e) = _RGB32(VAL(ListItem$(v$, 1)), VAL(ListItem$(v$, 2)), VAL(ListItem$(v$, 3)))
                 CASE "label" : hudLabel$(e) = v$
+                CASE "anchor" ' (FULL WIDE: the window's left edge, its middle or its right edge)
+                    SELECT CASE LCASE$(v$)
+                        CASE "left" : hudSide(e) = 0
+                        CASE "middle", "centre", "center" : hudSide(e) = 1
+                        CASE "right" : hudSide(e) = 2
+                        CASE ELSE : hudSide(e) = -1
+                    END SELECT
             END SELECT
         END IF
     LOOP

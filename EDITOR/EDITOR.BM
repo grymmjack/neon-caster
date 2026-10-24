@@ -217,38 +217,103 @@ END SUB
 SUB EditPickPicture
     DIM bi, fc, k, w ' (its own: the main program shares these names)
     IF edHovKind = 0 THEN EditNote "Point at a face to pick its picture up" : EXIT SUB
-    fc = EditFaceCode(edHovKind, edHovSide)
-    k = FaceIndex(edHovX, edHovY, fc) : pic$ = ""
-    IF k THEN IF edHovPart = 2 THEN pic$ = lvlFaceP2$(k) ELSE pic$ = lvlFaceP1$(k)
-    IF pic$ = "" THEN ' (the usual one: the level's own picture for it)
-        SELECT CASE edHovKind
-            CASE ED_FLOOR : pic$ = texFile$(floorTex(edHovX, edHovY))
-            CASE ED_CEIL : pic$ = texFile$(ceilTex(edHovX, edHovY))
-            CASE ED_WALL : w = INSTR("#NCKPG", MID$(lvlRow$(edHovY), edHovX + 1, 1)) : IF w THEN pic$ = lvlWall$(w)
-            CASE ED_BOX : bi = EditBoxIndex(edHovX, edHovY) : pic$ = lvlWall$(1) : IF bi THEN IF lvlBox(bi, 7) >= 1 AND lvlBox(bi, 7) <= 6 THEN pic$ = lvlWall$(lvlBox(bi, 7))
-            CASE ELSE : pic$ = lvlWall$(1)
-        END SELECT
-    END IF
+    pic$ = EditFacePic$(edHovKind, edHovX, edHovY, edHovSide, edHovPart)
     IF pic$ = "" THEN EditNote "No picture of its own there to pick up (the exit's sign, a door's)" : EXIT SUB
     edBrushTex$ = pic$ : edBrushKind = PK_TEX
     IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
     edBrushImg& = EditFileThumb&(edBrushTex$) : EditNote "Picked up " + pic$
 END SUB
 
+' The picture face (kind, side) of cell (x, y) shows - its half part (2:
+' the second) if it's divided - by name: its own, or the usual one there
+' ("" for one with none: the exit's sign, a door's)
+FUNCTION EditFacePic$(kind, x, y, side, part)
+    DIM bi, fc, k, w, p$ ' (its own: the main program shares these names)
+    fc = EditFaceCode(kind, side)
+    k = FaceIndex(x, y, fc) : p$ = ""
+    IF k THEN IF part = 2 THEN p$ = lvlFaceP2$(k) ELSE p$ = lvlFaceP1$(k)
+    IF p$ = "" THEN ' (the usual one: the level's own picture for it)
+        SELECT CASE kind
+            CASE ED_FLOOR : p$ = texFile$(floorTex(x, y))
+            CASE ED_CEIL : p$ = texFile$(ceilTex(x, y))
+            CASE ED_WALL : w = INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) : IF w THEN p$ = lvlWall$(w)
+            CASE ED_BOX : bi = EditBoxIndex(x, y) : p$ = lvlWall$(1) : IF bi THEN IF lvlBox(bi, 7) >= 1 AND lvlBox(bi, 7) <= 6 THEN p$ = lvlWall$(lvlBox(bi, 7))
+            CASE ELSE : p$ = lvlWall$(1)
+        END SELECT
+    END IF
+    EditFacePic$ = p$
+END FUNCTION
+
+' PAINT's COPY: face (kind, side) of cell (x, y)'s look into the clipboard -
+' divided or not, its pictures by name, slid, stretched
+SUB EditClipCopy(kind, x, y, side)
+    DIM fc, k, ou, ov, ku, kv ' (its own: the main program shares these names)
+    fc = EditFaceCode(kind, side) : IF fc < 1 OR fc > FACE_MAX THEN EditNote "Point at a face to copy its picture" : EXIT SUB
+    k = FaceIndex(x, y, fc) : edClipD = 0 : IF k THEN edClipD = lvlFaceD(k)
+    edClipP1$ = EditFacePic$(kind, x, y, side, 1) : edClipP2$ = ""
+    IF edClipD THEN edClipP2$ = EditFacePic$(kind, x, y, side, 2)
+    EditGetFaceTex x, y, fc, ou, ov, ku, kv ' (into its own first: the clipboard's are INTEGERs, and a SUB's SINGLE parameter given one hands back nothing)
+    edClipOU = ou : edClipOV = ov : edClipKU = ku : edClipKV = kv
+    edClipOn = -1
+    EditNote "Copied: " + EditClipName$ + " - Ctrl+V (or PASTE) puts it on a face"
+END SUB
+
+' What's copied, in words
+FUNCTION EditClipName$
+    DIM t$ ' (its own: the main program shares these names)
+    IF NOT edClipOn THEN EditClipName$ = "nothing" : EXIT FUNCTION
+    t$ = edClipP1$ : IF t$ = "" THEN t$ = "the usual picture"
+    IF edClipD THEN t$ = t$ + " | " + edClipP2$
+    IF edClipOU OR edClipOV THEN t$ = t$ + ", slid" + STR$(((edClipOU + 32) AND 63) - 32) + "," + LTRIM$(STR$(((edClipOV + 32) AND 63) - 32))
+    IF edClipKU <> 100 OR edClipKV <> 100 THEN t$ = t$ + "," + STR$(edClipKU) + "% x" + STR$(edClipKV) + "%"
+    EditClipName$ = t$
+END FUNCTION
+
+' PAINT's PASTE: the clipboard's look on the face under the pointer - or on
+' every selected face, when that's one of them (or nothing's under it, or
+' fromPane). One undo.
+SUB EditClipPaste(fromPane)
+    DIM fc, j, n, kd, fx, fy, sd, useSel, done ' (its own: the main program shares these names)
+    IF NOT edClipOn THEN EditNote "Nothing copied yet: Ctrl+C on a face (or COPY) first" : EXIT SUB
+    useSel = fromPane
+    IF NOT useSel THEN
+        IF edHovKind = 0 OR edHovThing THEN
+            IF edSelN = 0 THEN EditNote "Point at a face (or select some) to paste onto" : EXIT SUB
+            useSel = -1
+        ELSE
+            FOR j = 1 TO edSelN
+                IF edSelKind(j) = edHovKind AND edSelX(j) = edHovX AND edSelY(j) = edHovY AND edSelSide(j) = edHovSide THEN useSel = -1
+            NEXT
+        END IF
+    END IF
+    EditPushUndo
+    IF useSel THEN n = edSelN ELSE n = 1
+    done = 0
+    FOR j = 1 TO n
+        IF useSel THEN kd = edSelKind(j) : fx = edSelX(j) : fy = edSelY(j) : sd = edSelSide(j) ELSE kd = edHovKind : fx = edHovX : fy = edHovY : sd = edHovSide
+        fc = EditFaceCode(kd, sd) : IF fc < 1 OR fc > FACE_MAX THEN _CONTINUE
+        IF kd = ED_WALL AND INSTR("/\", MID$(lvlRow$(fy), fx + 1, 1)) THEN _CONTINUE ' (a diagonal takes its neighbours' look)
+        EditSetFace fx, fy, fc, edClipD, edClipP1$, edClipP2$
+        EditSetFaceTex fx, fy, fc, edClipOU, edClipOV, edClipKU, edClipKV
+        done = done + 1
+    NEXT
+    EditApply
+    EditNote "Pasted " + EditClipName$ + " on" + STR$(done) + " face" + MID$("s", 1, -(done <> 1))
+END SUB
+
 '' The map from above: the cell (x, y) under the mouse, in the panel - what
 ' it is, and its pictures (a wall's, or its floor's and ceiling's): what E
 ' picks up
 SUB EditInspect(x, y)
-    DIM c$, w ' (its own: the main program shares these names)
+    DIM c$, w, yy ' (its own: the main program shares these names)
     c$ = MID$(lvlRow$(y), x + 1, 1)
-    COLOR _RGB32(255, 90, 200) : _PRINTSTRING (ED_PALX, 496), LEFT$("CELL" + STR$(x) + "," + LTRIM$(STR$(y)) + ": " + GlyphName$(CellGlyph$(x, y)), 25)
+    yy = TinyWrap(ED_PALX, 478, 800 - ED_PALX - 6, "CELL" + STR$(x) + "," + LTRIM$(STR$(y)) + ": " + GlyphName$(CellGlyph$(x, y)), _RGB32(255, 90, 200), 10) ' (small print, wrapped: all of it, not cut short)
     w = INSTR("#NCKPG", c$)
-    COLOR _RGB32(190, 180, 230)
     IF w THEN
-        _PRINTSTRING (ED_PALX, 512), LEFT$("wall: " + EditCellPic$(x, y, 1), 25)
+        yy = TinyWrap(ED_PALX, yy + 2, 800 - ED_PALX - 6, "WALL: " + EditCellPic$(x, y, 1), _RGB32(190, 180, 230), 10)
     ELSEIF worldMap(x, y) <= 0 OR worldMap(x, y) = 2 THEN
-        _PRINTSTRING (ED_PALX, 512), LEFT$("floor: " + EditCellPic$(x, y, 9), 25)
-        _PRINTSTRING (ED_PALX, 528), LEFT$("ceiling: " + EditCellPic$(x, y, 10), 25)
+        yy = TinyWrap(ED_PALX, yy + 2, 800 - ED_PALX - 6, "FLOOR: " + EditCellPic$(x, y, 9) + "  (" + LTRIM$(STR$(CINT(floorH(x, y) * 8))) + " EIGHTHS)", _RGB32(190, 180, 230), 10)
+        yy = TinyWrap(ED_PALX, yy, 800 - ED_PALX - 6, "CEILING: " + EditCellPic$(x, y, 10) + "  (" + LTRIM$(STR$(CINT(ceilH(x, y) * 8))) + " EIGHTHS)", _RGB32(190, 180, 230), 10)
     END IF
 END SUB
 
@@ -476,6 +541,13 @@ SUB EditPaneClick STATIC
             EditTexOp 1 - (pnHit >= 336), 0, 2 * (pnHit AND 1) - 1, st, -1 ' (334, 336 the - buttons)
         CASE 338 ' ...and put back as made
             EditTexOp 3, 0, 0, 0, -1
+        CASE 339 ' COPY: the first selected face's look (picture, slid, stretched)
+            FOR k = 1 TO edSelN
+                fc = EditFaceCode(edSelKind(k), edSelSide(k))
+                IF fc >= 1 AND fc <= FACE_MAX THEN EditClipCopy edSelKind(k), edSelX(k), edSelY(k), edSelSide(k) : EXIT FOR
+            NEXT
+        CASE 340 ' PASTE: it on every selected face
+            EditClipPaste -1
         CASE 74 ' The selected faces' lights, gone
             EditPushUndo
             FOR k = 1 TO edSelN
@@ -1460,7 +1532,7 @@ SUB EditFP STATIC
             END IF
         END IF
         IF edCtrl OR edKeyCtrl(kc) THEN ' (Ctrl held: Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+D - however the key arrives)
-            IF kc = 115 OR kc = 122 OR kc = 121 OR kc = 100 THEN
+            IF kc = 115 OR kc = 122 OR kc = 121 OR kc = 100 OR kc = 99 OR kc = 118 THEN
                 IF k& < 0 OR NOT edKeyCtrl(kc) THEN
                     k& = 0 ' (a walking key's repeat - pressed before Ctrl - is no shortcut)
                 ELSEIF kc = 115 THEN
@@ -1469,6 +1541,10 @@ SUB EditFP STATIC
                     k& = 26
                 ELSEIF kc = 121 THEN
                     k& = 25
+                ELSEIF kc = 99 THEN
+                    k& = 3
+                ELSEIF kc = 118 THEN
+                    k& = 22
                 ELSE
                     k& = 4
                 END IF
@@ -1480,6 +1556,15 @@ SUB EditFP STATIC
             CASE 21248 ' Del: delete what's selected
                 IF edSelN THEN EditPushUndo : EditDeleteSel : EditApply ELSE EditNote "Select something to delete first"
             CASE 15104 : edHelp = NOT edHelp ' F1: the help
+            CASE 3 ' Ctrl+C (PAINT): copy the look of the face under the pointer (or the first selected)
+                IF edTool = ET_PAINT THEN
+                    IF edHovKind AND NOT edHovThing THEN
+                        EditClipCopy edHovKind, edHovX, edHovY, edHovSide
+                    ELSEIF edSelN THEN
+                        EditClipCopy edSelKind(1), edSelX(1), edSelY(1), edSelSide(1)
+                    END IF
+                END IF
+            CASE 22 : IF edTool = ET_PAINT THEN EditClipPaste 0 ' Ctrl+V (PAINT): paste it on the face under the pointer (or the selection, if that's in it)
             CASE 123, 125, 95, 43 ' PAINT + Shift+[ ] (narrower, wider), Shift+- = (shorter, taller): stretch the picture
                 IF edTool = ET_PAINT THEN EditOffsetKey k&
             CASE 112, 80 : EditPickMode ' P: the picker - tucked away, always open, off
@@ -2212,26 +2297,26 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
         END IF
     END IF
     VIEW ' (the whole screen again)
-    IF mapN > 48 OR edCell <> 12 THEN COLOR _RGB32(120, 110, 160) : _PRINTSTRING (ED_PALX, 568), LEFT$("MAP" + STR$(mapN) + " x" + STR$(mapN) + "  SPACE: PAN/ZOOM", 25)
+    IF mapN > 48 OR edCell <> 12 THEN TinyText ED_PALX, 570, "MAP" + STR$(mapN) + " x" + STR$(mapN) + "  SPACE: PAN/ZOOM", _RGB32(120, 110, 160)
     ' The palette, two-and-a-bit columns of glyphs on the right
     COLOR _RGB32(255, 90, 200) : _PRINTSTRING (ED_PALX, 4), "LEVEL EDITOR"
     shortName$ = lname$ : c = INSTR(lname$, ": ") : IF c THEN shortName$ = MID$(lname$, c + 2) ' ("SECTOR 1: NEON STATION" - just its name)
     COLOR _RGB32(170, 160, 210) : _PRINTSTRING (ED_PALX, 22), LEFT$("Sector" + STR$(lev) + ": " + shortName$, 24)
     ' (the picker's under these: EditDrawPicker, from RunEditor)
     y = 254
-    IF editLights THEN COLOR _RGB32(edLR, edLG, edLB) : _PRINTSTRING (ED_PALX, y + 18), "LIGHT: " + EditFxName$(edLFx) + " (right: away)"
-    IF editHeights THEN COLOR _RGB32(255, 220, 120) : _PRINTSTRING (ED_PALX, y + 18), "HEIGHTS: click up, right down"
-    
-    COLOR _RGB32(140, 130, 180) : _PRINTSTRING (ED_PALX, 552), "HELP / F1: every key"
+    IF editLights THEN TinyText ED_PALX, y + 20, "LIGHT: " + EditFxName$(edLFx) + " (right click: take it away)", _RGB32(edLR, edLG, edLB)
+    IF editHeights THEN TinyText ED_PALX, y + 20, "HEIGHTS: click up, right click down", _RGB32(255, 220, 120)
+
+    TinyText ED_PALX, 558, "HELP / F1: every key", _RGB32(140, 130, 180)
     IF onMap THEN EditInspect hx, hy ' (the cell under the mouse: what it is, its pictures)
     ' Along the bottom: the cell under the mouse, and the latest message
     IF onMap THEN
         c$ = CellGlyph$(hx, hy) ' (a thing: its own name)
         h$ = "" : IF HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0) <> 0 OR HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1) <> 1 THEN h$ = "  floor" + STR$(HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0)) + " ceil" + STR$(HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1))
-        COLOR _RGB32(200, 200, 230) : _PRINTSTRING (edMapX, 584), LEFT$(LTRIM$(STR$(hx)) + "," + LTRIM$(STR$(hy)) + "  " + GlyphName$(c$) + h$, 40)
+        TinyText 4, 581, LTRIM$(STR$(hx)) + "," + LTRIM$(STR$(hy)) + "  " + GlyphName$(c$) + h$, _RGB32(200, 200, 230) ' (small print, the map's whole width: two lines, this and the message)
     END IF
-    IF TIMER < editMsgUntil! THEN COLOR _RGB32(255, 220, 120) : _PRINTSTRING (330, 584), LEFT$(editMsg$, 58)
-    IF editDirty THEN COLOR _RGB32(255, 90, 90) : _PRINTSTRING (ED_PALX, 584), "* not saved"
+    IF TIMER < editMsgUntil! THEN TinyText 4, 591, LEFT$(editMsg$, 116), _RGB32(255, 220, 120)
+    IF editDirty THEN TinyText ED_PALX, 586, "* NOT SAVED (CTRL+S)", _RGB32(255, 90, 90)
     EditDrawSelMap ' (the selection - the same one the 3D view has)
 END SUB
 
@@ -2565,7 +2650,7 @@ SUB EditDrawHelp(v)
     IF v = 1 THEN
         h$ = "#MOVE AND LOOK|walk keys~fly that way - through walls|look up + walk~climb (look down: sink)|Space / C~straight up / down|Shift~faster|hold Right~look round (crosshair picks)|Tab~the map from above|F2~play the level as it is|"
         h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor, ceiling, or wall side|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
-        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|  Shift+arrows~slide its picture (Ctrl: 1 px)|  Shift+[ ] - =~stretch it: wide, tall|  Shift+Home~the picture as made|LIGHT~a light on the face|  Shift~take it away|  its pane~CEILING LAMP on/off, REMOVE|  painted ceiling~stays: the light shines from it|HEIGHT~floor/ceiling up; Shift down|"
+        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|  Shift+arrows~slide its picture (Ctrl: 1 px)|  Shift+[ ] - =~stretch it: wide, tall|  Shift+Home~the picture as made|  Ctrl+C / Ctrl+V~copy / paste a face's look|LIGHT~a light on the face|  Shift~take it away|  its pane~CEILING LAMP on/off, REMOVE|  painted ceiling~stays: the light shines from it|HEIGHT~floor/ceiling up; Shift down|"
         h$ = h$ + "#THE WHEEL (the selection)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
         h$ = h$ + "#FACES|H~divide left / right|V~divide top / bottom|H or V again~whole again|click a half~select / paint it alone|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
@@ -3514,12 +3599,14 @@ SUB EditPanePicture(x0, y)
     NEXT
     edPnTitle$ = "PICTURE (" + LTRIM$(STR$(n)) + " face" + MID$("s", 1, -(n <> 1)) + ")"
     IF n = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "SELECT FACES TO SLIDE THEIR PICTURES", 0 : y = y + 23 : EXIT SUB
-    EditPaneAdd -1, x0, y + 2, PN_W, "SLID" + STR$(((ou + 32) AND 63) - 32) + " ALONG," + STR$(((ov + 32) AND 63) - 32) + " UP (PIXELS)", 0 ' (shown -32 to 31: 3 left is -3, not 61) : y = y + 20
+    EditPaneAdd -1, x0, y + 2, PN_W, "SLID" + STR$(((ou + 32) AND 63) - 32) + " ALONG," + STR$(((ov + 32) AND 63) - 32) + " UP (PIXELS)", 0 : y = y + 20 ' (shown -32 to 31: 3 left is -3, not 61)
     EditPaneAdd 330, x0, y, 48, "LEFT", 0 : EditPaneAdd 331, x0 + 50, y, 48, "RIGHT", 0 : EditPaneAdd 332, x0 + 100, y, 48, "UP", 0 : EditPaneAdd 333, x0 + 150, y, 50, "DOWN", 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, 140, "WIDE" + STR$(ku) + "%", 0 : EditPaneAdd 334, x0 + 146, y, 24, "-", 0 : EditPaneAdd 335, x0 + 174, y, 24, "+", 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, 140, "TALL" + STR$(kv) + "%", 0 : EditPaneAdd 336, x0 + 146, y, 24, "-", 0 : EditPaneAdd 337, x0 + 174, y, 24, "+", 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, PN_W, "SHIFT+CLICK: 4 PIXELS / 1 PERCENT", 0 : y = y + 20
     EditPaneAdd 338, x0, y, PN_W, "AS MADE (NOT SLID OR STRETCHED)", 0 : y = y + 23
+    EditPaneAdd 339, x0, y, 99, "COPY", 0 : EditPaneAdd 340, x0 + 101, y, 99, "PASTE", 0 : y = y + 23
+    IF edClipOn THEN EditPaneAdd -1, x0, y + 2, PN_W, LEFT$("COPIED: " + EditClipName$, 40), 0 : y = y + 20
 END SUB
 
 SUB EditPaneWet(x0, y)

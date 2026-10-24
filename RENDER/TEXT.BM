@@ -59,6 +59,24 @@ FUNCTION TinyW(text$)
     f& = _FONT : _FONT fontTiny& : TinyW = _PRINTWIDTH(UCASE$(text$)) : _FONT f&
 END FUNCTION
 
+' TinyText wrapped at the spaces to lines no wider than w pixels (a word
+' too long for one, cut), lineH pixels apart: where the next line goes
+FUNCTION TinyWrap(x, y, w, text$, col~&, lineH)
+    DIM b, c, l$, r$, yy ' (its own)
+    r$ = LTRIM$(text$) : yy = y
+    DO WHILE LEN(r$)
+        IF TinyW(r$) <= w THEN TinyText x, yy, r$, col~& : yy = yy + lineH : EXIT DO
+        b = 0
+        FOR c = 1 TO LEN(r$) ' (the last space that still fits)
+            IF TinyW(LEFT$(r$, c)) > w THEN EXIT FOR
+            IF MID$(r$, c, 1) = " " THEN b = c
+        NEXT
+        IF b = 0 THEN b = MaxOf(1, c - 1) : l$ = LEFT$(r$, b) : r$ = MID$(r$, b + 1) ELSE l$ = LEFT$(r$, b - 1) : r$ = LTRIM$(MID$(r$, b + 1))
+        TinyText x, yy, l$, col~& : yy = yy + lineH
+    LOOP
+    TinyWrap = yy
+END FUNCTION
+
 ' Big centred text: printed at normal size into a small image, then
 ' stretched up with _PUTIMAGE (so it's chunky, like the 3D view)
 SUB BigText(text$, y, scale, col~&)

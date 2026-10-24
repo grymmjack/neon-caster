@@ -85,6 +85,10 @@ CONST PN_SQ = 0.7, PN_BH = 14
 ' A face's picture stretched (PAINT: Shift+[ ] and Shift+- =, the PICTURE
 ' pane): percent, from TEX_K_MIN to TEX_K_MAX, by these steps (5 a number)
 CONST TEX_K_MIN = 10, TEX_K_MAX = 1000
+' PAINT's COPY / PASTE (Ctrl+C / Ctrl+V, the PICTURE pane): a face's look -
+' how it's divided, its pictures (the usual one written out by name), slid
+' and stretched - pasted onto other faces
+DIM SHARED edClipOn AS INTEGER, edClipD AS INTEGER, edClipP1$, edClipP2$, edClipOU AS INTEGER, edClipOV AS INTEGER, edClipKU AS INTEGER, edClipKV AS INTEGER
 CONST TEX_K_STEPS$ = "   10   25   50   75  100  125  150  200  250  300  400  500  600  800 1000"
 CONST PN_MAX = 64 ' (the most buttons and lines a pane has)
 DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER, edMapWant AS INTEGER ' (the SECTOR pane: its loot preset - 0 as made - and the room MAKE THE ROOM makes)

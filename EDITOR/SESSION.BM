@@ -108,6 +108,26 @@ SUB EditResume(i)
     menuDone = -1
 END SUB
 
+' EDIT's HUD LAYOUT: the HUD layout editor (EDITOR/HUDEDIT.BM) over the
+' game as it is - or, with no game going, over the sector edited last (the
+' first of the ten if none), opened in the 3D editor as an edit session.
+' Done (U), you're in the editor.
+SUB EditHudLayout
+    IF NOT menuInGame THEN
+        EditRecentLoad
+        IF erN THEN
+            EditResume 1
+        ELSE
+            level = 1 : sectorSet = 0 : ReadSectorNames
+            editSession = -1 : NewGameHere : EditEnter
+        END IF
+        IF NOT editMode THEN EXIT SUB ' (it couldn't be opened: EditResume said why)
+    END IF
+    IF editMode AND editView <> 1 THEN editView = 1 : edMouseFix = -1 ' (the HUD is over the 3D view)
+    IF NOT hudEdit THEN HudEditEnter
+    menuDone = -1
+END SUB
+
 ' --- THE VERSIONS: this sector's saved copies (versions/ beside its file,
 ' named for when: custom3-2026-10-20-081512.txt), newest first - then the
 ' save before the last (its file's .bak)

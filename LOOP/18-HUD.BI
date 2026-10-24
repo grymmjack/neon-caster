@@ -117,7 +117,7 @@
     ' map: without the pickup it shows only the cells you've seen - you draw
     ' it as you explore - and with it, the whole level.
     killsY = hudY(HE_KILLS)
-    IF hasMap AND NOT mapOpen AND hudShow(HE_MINIMAP) AND viewOn <> VIEW_CAM THEN ' (not on a camera's feed: its name and clock are there)
+    IF hasMap AND NOT mapOpen AND hudShow(HE_MINIMAP) AND viewOn <> VIEW_CAM AND (NOT editMode OR hudEdit) THEN ' (not on a camera's feed: its name and clock are there; not in the level editor - it covers its toolbar - but in the HUD layout editor)
         HudAtE HE_MINIMAP : DrawMap hudX(HE_MINIMAP), hudY(HE_MINIMAP), hudW(HE_MINIMAP), -1, playerX, playerY, dirX, dirY : HudAt 1
         ' (the kill count, if it's where the map is, goes under it)
         IF hudX(HE_KILLS) = hudX(HE_MINIMAP) AND hudY(HE_KILLS) = hudY(HE_MINIMAP) THEN killsY = hudY(HE_MINIMAP) + MinOf(mapN, 48) * hudW(HE_MINIMAP) + 6

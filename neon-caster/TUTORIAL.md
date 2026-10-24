@@ -561,7 +561,9 @@ run it and see what happens. That's the fastest way to learn how it works.
   FULL WIDE each part keeps to its own side of a window wider than 4:3 -
   a part in the left third of the screen hugs the window's left edge, one
   in the right third its right edge (`HudAtE`: a QB64 `VIEW` on a canvas as
-  wide as the window, chapter 18).
+  wide as the window, chapter 18). The editor works across the whole
+  window there: a part dropped anywhere keeps to the side it's on
+  (`hudSide`, `anchor =` in `hud.txt`; A changes it).
 - **Steps and ledges (ch. 15, 22, 24)**: the two renderers draw heights
   their own ways - OpenGL builds them into its mesh (`GLStep`), the
   software renderer walks each column front to back (`HeightColumn`).

@@ -379,6 +379,7 @@ SUB MenuActivate STATIC
                 CASE MA_QUIT
                     QuitGame
                 CASE MA_TUNER : RunTuner
+                CASE MA_HUDLAYOUT : EditHudLayout ' (EDIT's HUD LAYOUT: EDITOR/SESSION.BM)
                 CASE MA_MONKINDS : RunMonsterEditor ' (EDIT's MONSTER KINDS: EDITOR/MONEDIT.BM)
                 CASE MA_EDITRESUME : EditResume miRef(menuSel) ' (RESUME LAST EDIT, or one before it: EDITOR/SESSION.BM)
                 CASE MA_KEYS_DEFAULT
@@ -501,6 +502,7 @@ SUB BuildMenu(scr)
             AddMenuItem "YOUR SECTORS", MI_SUBMENU, SCR_CUSTOM, 0, -1, "or a NEW SECTOR"
             AddMenuItem "TUNER", MI_ACTION, 0, MA_TUNER, -1, "health, damage, ammo - by difficulty"
             AddMenuItem "MONSTER KINDS", MI_ACTION, 0, MA_MONKINDS, -1, "every kind's numbers - monsters.txt"
+            AddMenuItem "HUD LAYOUT", MI_ACTION, 0, MA_HUDLAYOUT, -1, "where health, ammo, the map go - hud.txt"
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_SECTOR ' A new game, starting in any sector
             menuTitle$ = "SELECT SECTOR" : menuWide = -1

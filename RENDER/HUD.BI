@@ -19,6 +19,14 @@ CONST HE_MESSAGE = 8, HE_SUBTITLE = 9, HE_AMP = 10, HE_GOD = 11, HE_EVENT = 12, 
 DIM SHARED hudName$(HUD_ELEMS), hudShow(HUD_ELEMS) AS INTEGER, hudX(HUD_ELEMS) AS INTEGER, hudY(HUD_ELEMS) AS INTEGER
 DIM SHARED hudW(HUD_ELEMS) AS INTEGER, hudH(HUD_ELEMS) AS INTEGER, hudCol(HUD_ELEMS) AS _UNSIGNED LONG, hudLabel$(HUD_ELEMS)
 DIM SHARED hudEdit AS INTEGER, hudSel AS INTEGER, hudMsg$
+' FULL WIDE: which side of the window a part keeps to (hud.txt's anchor:
+' 0 the left edge, 1 the middle, 2 the right edge; -1 none given - by
+' which third of our screen its x is in: HudSideOf). Its x is measured
+' from that side's 800 x 600 (HudAt), so on a 4:3 screen it's just x.
+DIM SHARED hudSide(HUD_ELEMS) AS INTEGER
+' ...and the canvas the last frame had (hudVX, scrW: GLCapture puts those
+' back to our screen's once it's handed over) - for the HUD editor's mouse
+DIM SHARED hudLastVX, hudLastW
 ' The small print: Tiny5 (neon-caster/fonts - SIL Open Font License), 8
 ' pixels tall, in capitals (TinyText, RENDER/TEXT.BM). 0: not there - the
 ' usual font instead.
