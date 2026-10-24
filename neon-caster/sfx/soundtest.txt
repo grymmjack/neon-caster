@@ -10,7 +10,7 @@ music/level7.ogg|SECTOR 7: DATA VAULT
 music/level8.ogg|SECTOR 8: MAGLEV DEPOT
 music/level9.ogg|SECTOR 9: ORBITAL SPIRE
 music/level10.ogg|SECTOR 10: THE CORE
-music/cyber.flac|THE NETWORK
+music/cyber.ogg|THE NETWORK
 music/huge1.ogg|HUGE SECTOR 1: THE SPRAWL
 music/huge2.ogg|HUGE SECTOR 2: THE FOUNDRY
 music/huge3.ogg|HUGE SECTOR 3: TIDEWORKS

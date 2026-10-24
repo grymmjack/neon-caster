@@ -11,3 +11,5 @@ __pycache__/
 pkg/
 qb64pe/
 compilelog.txt
+# the arranger's sources (music/arrange.py --sources): dev-only, made from the originals
+neon-caster/music/edit/
