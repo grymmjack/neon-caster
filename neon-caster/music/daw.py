@@ -366,7 +366,28 @@ def export_xrns(name, folder=None):
         z.writestr("Song.xml", xml, compress_type=zipfile.ZIP_DEFLATED)
         z.write(src, "SampleData/Instrument00 (%s)/Sample00 (%s).flac" % (name, name), compress_type=zipfile.ZIP_STORED)
     os.replace(tmp, path)
+    link_instruments(name, folder)
     return A, path
+
+
+def link_instruments(name, folder=None):
+    """Beside the songs, instruments/NAME - TITLE/: a link to each of the track's Renoise
+    instruments (soundmon's instruments.py writes them in its samples folder, 5 Instruments/
+    Renoise) - so Renoise's browser finds them next to the song. Links, not copies; any old
+    link there is replaced. Returns how many."""
+    src = stems_folder(name)
+    rn = os.path.join(src, "5 Instruments", "Renoise") if src else None
+    if not rn or not os.path.isdir(rn): return 0
+    folder = folder or os.path.join(OUT, "renoise")
+    dst = os.path.join(folder, "instruments", os.path.basename(src))
+    os.makedirs(dst, exist_ok=True)
+    for f in os.listdir(dst):                       # (only our links: anything else there is left alone)
+        if os.path.islink(os.path.join(dst, f)): os.remove(os.path.join(dst, f))
+    n = 0
+    for f in sorted(os.listdir(rn)):
+        if f.endswith(".xrni"):
+            os.symlink(os.path.relpath(os.path.join(rn, f), dst), os.path.join(dst, f)); n += 1
+    return n
 
 
 def import_xrns(path, name=None, out=None):

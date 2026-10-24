@@ -95,6 +95,13 @@ a scene per clip, each looping on exactly its bars; every clip has its colour
 from the game's arranger. A loop point goes across as a Renoise section and a
 Bitwig marker named `| ...`, and comes back from them.
 
+The track's **sampler instruments** (soundmon's `tools/instruments.py`: a drum
+kit, each part's notes, chords, pads) are made beside its stems, in
+`samples/NAME - TITLE/5 Instruments/` - `Renoise/*.xrni`, `Bitwig/*.bwpreset`
+and `.multisample`. `--xrns` also links the Renoise ones next to the songs, in
+`daw/renoise/instruments/NAME - TITLE/` (links, not copies), so Renoise's
+browser (Instr. tab) finds them there.
+
 Bitwig also gets the track's **stems** when they're there
 (`~/Music/NEON-CASTER/samples/NAME - TITLE/`, made by soundmon's `tools/stems.py`
 on the farm - its `INFINITE-SAMPLES.md` has the steps): a track per stem, cut on
