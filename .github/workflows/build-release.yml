@@ -72,18 +72,6 @@ jobs:
           test -f smoke-opengl.png && test -f smoke-software.png || { echo "::error::the game didn't run"; exit 1; }
           rm -rf neon-caster/saves
 
-      - name: Demo test (two shipped demos must still play the same)
-        run: |
-          for d in sector1 sector3; do
-            set +e
-            xvfb-run -a -s "-screen 0 800x600x24" ./neon-caster.run +logfile "$PWD/demo-$d.log" +set cutscenes 0 +set renderer 1 +playdemo $d quit
-            rc=$?
-            set -e
-            grep "demo: $d -" "demo-$d.log" || true
-            if [ $rc -ne 0 ]; then echo "::warning::demo $d played differently (exit $rc) - a gameplay change? Re-record the demos in neon-caster/demos"; fi
-          done
-          rm -rf neon-caster/saves
-
       - name: Upload smoke-test screenshots
         uses: actions/upload-artifact@v4
         with:

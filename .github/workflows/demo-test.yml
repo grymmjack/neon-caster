@@ -1,0 +1,89 @@
+name: Demo test
+
+# Shipped demos must still play frame for frame the same: a change to the
+# game's rules puts them out of step (then re-record them - CLAUDE.md,
+# "Demos are tests"). Its own workflow, not part of a release build (it
+# made every release wait for it): it runs on a push to main that touches
+# the game's code or levels, and by hand from the Actions tab.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.bas'
+      - '**.BI'
+      - '**.BM'
+      - '**.h'
+      - 'neon-caster/levels/**'
+      - 'neon-caster/demos/**'
+      - 'neon-caster/monsters.txt'
+      - 'neon-caster/tuning-defaults.txt'
+      - '.github/workflows/demo-test.yml'
+  workflow_dispatch:
+    inputs:
+      demos:
+        description: 'Demos to play (names in neon-caster/demos, space between)'
+        type: string
+        default: 'sector1 sector3'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # (the same QB64-PE as the release builds: build-release.yml's QB64PE_REF)
+  QB64PE_REPO: https://github.com/QB64-Phoenix-Edition/QB64pe.git
+  QB64PE_REF: 8d8e9e475d240c8914e33916f1820021a21c3a37
+
+concurrency:
+  group: demo-test-${{ github.ref }}
+  cancel-in-progress: true   # (a newer push replaces a run still going)
+
+jobs:
+  demos:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential x11-utils mesa-common-dev libglu1-mesa-dev libgl1-mesa-dri \
+            libasound2-dev libpng-dev pulseaudio dbus-x11 libportaudio2 \
+            libcurl4-openssl-dev libx11-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libwayland-dev libxkbcommon-dev \
+            wayland-protocols xvfb
+
+      - name: Build QB64-PE (pinned)
+        run: |
+          mkdir -p "$HOME/.local/share/applications" "$HOME/.local/share/icons"
+          git init -q qb64pe && cd qb64pe
+          git fetch -q --depth 1 "$QB64PE_REPO" "$QB64PE_REF" && git checkout -q FETCH_HEAD
+          chmod +x ./setup_lnx.sh
+          ./setup_lnx.sh nogui
+          test -x ./qb64pe || { echo "::error::qb64pe compiler was not built"; exit 1; }
+
+      - name: Compile NEON-CASTER
+        run: xvfb-run -a ./qb64pe/qb64pe -w -x -f:ExtraCppFlags=-ffp-contract=off -o neon-caster.run neon-caster.bas
+
+      - name: Play the demos
+        env:
+          DEMOS: ${{ github.event.inputs.demos || 'sector1 sector3' }}
+        run: |
+          dbus-launch pulseaudio --start || true
+          bad=""
+          for d in $DEMOS; do
+            set +e
+            NEON_DEMO_FAST=1 xvfb-run -a -s "-screen 0 800x600x24" ./neon-caster.run +logfile "$PWD/demo-$d.log" +set cutscenes 0 +set renderer 1 +playdemo $d quit
+            rc=$?
+            set -e
+            grep "demo: $d -" "demo-$d.log" || true
+            if [ $rc -ne 0 ]; then echo "::error::demo $d played differently (exit $rc) - a gameplay change? Re-record it (neon-caster/demos)"; bad="$bad $d"; fi
+          done
+          test -z "$bad" || exit 1
+
+      - name: Upload the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-logs
+          path: demo-*.log

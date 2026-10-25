@@ -104,6 +104,7 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
   `lvFrame`. Any change to gameplay can put shipped demos (neon-caster/demos)
   out of step: replay them, and re-record what changed.
   Droids roll by their own dice, `DRnd` (so they never shift `GRnd`).
+  CI replays `sector1` and `sector3` in its own workflow (`demo-test.yml`: a push to main touching code or levels, or by hand with other demos) - not in a release build.
   The shipped demos - one a sector, every set: `sectorN`, `newN`, `remixN`,
   `hugeN` - were recorded on the Mac (full speed OpenGL):
   `+renderer 2 +set look_up_down 1 +wait 30 +sectorset SET +map N +record NAME quit +bot on +wait 18000 +stopdemo`
