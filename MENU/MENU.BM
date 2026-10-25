@@ -676,7 +676,14 @@ SUB BuildMenu(scr)
             AddSettingItem SET_XSIZE : AddSettingItem SET_XALPHA : AddSettingItem SET_XFEEDBACK
             AddSettingItem SET_BOB : AddSettingItem SET_SHAKE : AddSettingItem SET_HURTDIR : AddSettingItem SET_AIMSENS
             AddSettingItem SET_TIMER : AddSettingItem SET_POISON : AddSettingItem SET_CHARGE
+            AddMenuItem "FLASHLIGHT", MI_SUBMENU, SCR_FLASH, 0, -1, "its beam, colour, effect and battery"
             AddMenuItem "TUNER...", MI_ACTION, 0, MA_TUNER, -1, "health, damage, shots to destroy - by difficulty"
+            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_FLASH ' The flashlight's beam (GAME/FLASHLIGHT.BM)
+            menuTitle$ = "FLASHLIGHT" : menuWide = -1
+            AddSettingItem SET_FL_WIDTH : AddSettingItem SET_FL_REACH : AddSettingItem SET_FL_BRIGHT : AddSettingItem SET_FL_SOFT
+            AddSettingItem SET_FL_COLOUR : AddSettingItem SET_FL_HAZE : AddSettingItem SET_FL_FX : AddSettingItem SET_FL_BATTERY
+            AddMenuItem "YOUR OWN: flashlight colour RRGGBB", MI_TEXT, 0, 0, 0, ""
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_CONTROLS
             menuTitle$ = "CONTROLS" : menuWide = -1

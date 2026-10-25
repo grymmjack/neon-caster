@@ -28,6 +28,7 @@
     ' ammo, keycards and clock at its right), washes all the way across
     ' (HudAt -1, scrW wide)
     HudWideBegin
+    FlHaze ' (the flashlight's beam in the air - GAME/FLASHLIGHT.BM)
     IF gunY < 600 AND NOT glMode AND NOT editMode AND viewOn = 0 THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun) ' (in its light - not in the editor: nothing to shoot, and it's in the way)
     ' The kick: the boot comes up from the bottom of the screen (a little
     ' left of the middle), at its highest when it lands, then drops away -
@@ -183,6 +184,7 @@
         IF jetFuel < 20 THEN c~& = _RGB32(255, 60, 60) ELSE IF jetOn THEN c~& = _RGB32(255, 190, 60) ELSE c~& = _RGB32(90, 220, 255)
         HudText hudX(HE_AMP) + 136, hudY(HE_AMP) + 36, "JET" + STR$(INT(jetFuel + 0.99)) + "%", c~&
     END IF
+    IF hudShow(HE_AMP) THEN FlHud hudX(HE_AMP) + 136, hudY(HE_AMP) + 54 ' (the flashlight's battery, and its spares)
     HudAt 1
     ' The VIGNETTES (with HIT FX on): a lockdown strobing red; low health
     ' thumping red with your heart; poison's green; the colour of the last

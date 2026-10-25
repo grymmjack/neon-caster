@@ -15,7 +15,7 @@ or on the map from above, with a picker of every wall, floor, door, item,
 monster and light, and a paint program of its own to draw the pictures in place - and a monster editor and a HUD editor. Twelve more
 sectors built with the editor come with it, three of them outdoors, and
 one, THE NEON EXPO, that shows off every feature at once - and THE MONOLITH,
-256 cells across and 30 walls high, as big as a sector gets - and THE STOCKPILE, THE COMPOUND and THE LAUNCH BAY, built to show off the newest of what follows. Jumping, rocket jumps, a jetpack, flying
+256 cells across and 30 walls high, as big as a sector gets - and THE STOCKPILE, THE COMPOUND and THE LAUNCH BAY, built to show off the newest of what follows. Jumping, rocket jumps, a jetpack, a flashlight for the dark (mind its battery), flying
 drones, barrels of poison, lava and acid that leak and burst (stacked up to eight high),
 treasure chests - and mimics that only look like them - ambushes of turrets that slide out of walls, floors and ceilings,
 stronghold doors to kick down, keypad doors and safes whose codes are on notes you find, desks and

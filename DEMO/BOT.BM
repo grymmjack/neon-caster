@@ -482,6 +482,8 @@ FUNCTION BotWants(i, hp, ar)
         CASE IT_SUIT : BotWants = suitLeft < SUIT_MAX
         CASE IT_JETPACK : BotWants = NOT jetHave OR jetFuel < JET_MAX
         CASE IT_JETFUEL : BotWants = jetHave AND jetFuel < JET_MAX
+        CASE IT_FLASHLIGHT : BotWants = NOT flHave OR flSpares < FL_SPARES
+        CASE IT_BATTERY : BotWants = flSpares < FL_SPARES
         CASE IT_MAP, IT_OVERCHARGE, IT_AMP : BotWants = -1
     END SELECT
 END FUNCTION

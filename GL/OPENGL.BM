@@ -304,6 +304,7 @@ SUB GLWorldGPU(b, mirror)
     DIM k, slot ' (its own: the main program shares these names)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
+    IF glShaderOn THEN GLFlashUni b, mirror ' (the flashlight's beam - GAME/FLASHLIGHT.BM)
     IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
     glCellLitMode = 1
     GLSL_buffer_bind glMeshBuf
@@ -482,6 +483,7 @@ SUB GLWorld(b, mirror)
     DIM cx, cy, k, wp, wetMask ' (its own: the main program shares these names)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
+    IF glShaderOn THEN GLFlashUni b, mirror ' (the flashlight's beam - GAME/FLASHLIGHT.BM)
     IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
 
     ' Floors, then ceilings (one at a time, so neighbours mostly share a
@@ -2295,6 +2297,8 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform vec3 dynPos[4];     // the moving lights: where..." + nl$
     fs$ = fs$ + "uniform vec3 dynCol[4];     // ...what colour..." + nl$
     fs$ = fs$ + "uniform float dynRad[4];    // ...and how far they reach" + nl$
+    fs$ = fs$ + "uniform vec3 flashPos, flashDir, flashCol;  // the flashlight: where it is, the way it points, its colour x strength (0: off)" + nl$
+    fs$ = fs$ + "uniform vec3 flashCone;     // ...the cosines of its edge and of where it's full, and its reach" + nl$
     fs$ = fs$ + "uniform sampler2D litTex, infoTex, dynTex;  // the light tables (cellLit)" + nl$
     fs$ = fs$ + "uniform float cellLit, smoothOn;  // light from the tables, not the corners; blended between cells" + nl$
     fs$ = fs$ + "varying vec3 vPos, vNormal, vTangent;" + nl$
@@ -2360,7 +2364,17 @@ SUB GLBuildShaders
     fs$ = fs$ + "        dyn += dynCol[i] * fall * facing;" + nl$
     fs$ = fs$ + "        dynShine += fall * pow(max(dot(nb, normalize(dn + toEye)), 0.0), 24.0) * (dynCol[i].r + dynCol[i].g + dynCol[i].b);" + nl$
     fs$ = fs$ + "    }" + nl$
-    fs$ = fs$ + "    vec3 col = c.rgb * (lightCol * shade + dyn * fog) + lightCol * highlight + vec3(dynShine * shine * fog * 0.3);" + nl$
+    fs$ = fs$ + "    vec3 flash = vec3(0.0); float flashSpec = 0.0;" + nl$
+    fs$ = fs$ + "    if (flashCol.r + flashCol.g + flashCol.b > 0.0) {  // THE FLASHLIGHT: a cone from you, brighter in its middle, fading to its reach" + nl$
+    fs$ = fs$ + "        vec3 fd = vPos - flashPos; float fdist = max(length(fd), 0.001); vec3 fdn = fd / fdist;" + nl$
+    fs$ = fs$ + "        float fcs = dot(fdn, flashDir);" + nl$
+    fs$ = fs$ + "        float fcone = smoothstep(flashCone.x, flashCone.y, fcs) * (0.7 + 0.3 * smoothstep(flashCone.y, 1.0, fcs));" + nl$
+    fs$ = fs$ + "        float ffr = clamp(fdist / flashCone.z, 0.0, 1.0); float ffall = 1.0 - ffr * ffr;  // (strong till near its reach, then gone)" + nl$
+    fs$ = fs$ + "        float ffacing = isSprite > 0.5 ? 0.85 : max(dot(nb, -fdn), 0.0);" + nl$
+    fs$ = fs$ + "        flash = flashCol * fcone * ffall * (0.3 + 0.7 * ffacing);" + nl$
+    fs$ = fs$ + "        flashSpec = pow(max(dot(nb, -fdn), 0.0), 24.0) * shine * fcone * ffall * 0.35;" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    vec3 col = c.rgb * (lightCol * shade + dyn * fog + flash) + lightCol * highlight + vec3(dynShine * shine * fog * 0.3) + flashCol * flashSpec;" + nl$
     fs$ = fs$ + "    float hi = max(c.r, max(c.g, c.b)), lo = min(c.r, min(c.g, c.b));" + nl$
     fs$ = fs$ + "    float e = smoothstep(0.68, 0.95, hi) * smoothstep(0.45, 0.75, (hi - lo) / (hi + 0.0001)) * neon;  // neon: bright and colourful" + nl$
     fs$ = fs$ + "    if (anim > 0.5 && anim < 1.5) e *= 0.45 + 0.55 * step(0.35, fract(sin(dot(floor(uv * 8.0), vec2(12.9898, 78.233)) + floor(secs * 6.0)) * 43758.5453));" + nl$

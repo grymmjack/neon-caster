@@ -279,6 +279,12 @@ FUNCTION SettingText$(id)
     SELECT CASE id
         CASE SET_SFX, SET_MUSIC, SET_SPEECH, SET_XALPHA, SET_SCANLINES, SET_PHOSPHOR, SET_SCANTHICK, SET_AIMSENS, SET_GAMMA : SettingText$ = v$ + "%"
         CASE SET_SCANGAP : SettingText$ = v$ + " PX"
+        CASE SET_FL_BRIGHT, SET_FL_SOFT, SET_FL_HAZE : SettingText$ = v$ + "%"
+        CASE SET_FL_WIDTH : SettingText$ = v$ + CHR$(248)
+        CASE SET_FL_REACH : SettingText$ = v$ + " CELLS"
+        CASE SET_FL_COLOUR : SettingText$ = FlColourName$(setting(id))
+        CASE SET_FL_FX : SettingText$ = FlFxName$(setting(id))
+        CASE SET_FL_BATTERY : IF setting(id) = 0 THEN SettingText$ = "FOREVER" ELSE SettingText$ = v$ + " MIN"
         CASE SET_FOV : SettingText$ = v$ + CHR$(248) ' (a degree sign in QB64PE's font)
         CASE SET_XSTYLE : SettingText$ = CrossStyleName$(setting(id))
         CASE SET_XCOLOR : SettingText$ = CrossColorName$(setting(id))
@@ -301,7 +307,7 @@ SUB LoadSettings
     DIM fileNum, i, v ' (its own: the main program shares these names)
     FOR i = 1 TO NUM_SETTINGS : setting(i) = setDefault(i) : NEXT
     FOR i = 1 TO NUM_BINDS : keyBind&(i) = bindDefault&(i) : NEXT
-    qbChosen$ = "" : imgEditor$ = "" : conTall = 0 : cpFile$ = ""
+    qbChosen$ = "" : imgEditor$ = "" : conTall = 0 : cpFile$ = "" : flRGB$ = ""
     file$ = SaveDir$ + "settings.ini"
     IF NOT _FILEEXISTS(file$) THEN EXIT SUB
     fileNum = FREEFILE
@@ -326,6 +332,7 @@ SUB LoadSettings
                 cpFile$ = MID$(text$, eq + 1) : IF RIGHT$(cpFile$, 1) = CHR$(13) THEN cpFile$ = LEFT$(cpFile$, LEN(cpFile$) - 1)
                 cpFile$ = LTRIM$(RTRIM$(cpFile$))
             END IF
+            IF iniKey$ = "flashlight_rgb" THEN flRGB$ = UCASE$(LEFT$(LTRIM$(MID$(text$, eq + 1)), 6)) : IF NOT HueOK(flRGB$) THEN flRGB$ = "" ' (the flashlight's YOUR OWN colour)
             IF iniKey$ = "console_tall" THEN conTall = (v <> 0) ' (F11 in the console: it fills the screen)
             IF iniKey$ = "retro_res" AND v = 1 THEN setting(SET_RES) = RES_RETRO ' (what RESOLUTION was called once)
             FOR i = 1 TO NUM_BINDS
@@ -355,6 +362,7 @@ SUB SaveSettings
     PRINT #fileNum, "image_editor=" + imgEditor$
     PRINT #fileNum, "; palette: the editor's colour helper's palette - a .gpl's path, or a name in neon-caster/palettes/"
     PRINT #fileNum, "palette=" + cpFile$
+    PRINT #fileNum, "flashlight_rgb=" + flRGB$ + "   ; the flashlight's YOUR OWN colour (RRGGBB)"
     PRINT #fileNum, "console_tall=" + LTRIM$(STR$(-conTall)) + "   ; F11 in the console: 1 fills the screen"
     FOR i = 1 TO NUM_BINDS
         PRINT #fileNum, bindKey$(i) + "=" + LTRIM$(STR$(keyBind&(i))) + "   ; " + KeyName$(keyBind&(i))

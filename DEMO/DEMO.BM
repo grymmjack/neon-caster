@@ -244,6 +244,7 @@ FUNCTION DemoCarryNow$
     c$ = c$ + " " + DemoNum$(suitLeft) + " " + DemoNum$(-(jetHave <> 0)) + " " + DemoNum$(jetFuel) + " " + DemoNum$(repairKits)
     FOR k = 1 TO NUM_AMMO : c$ = c$ + " " + DemoNum$(ammoCount(k)) : NEXT
     FOR k = 1 TO NUM_GUNS : c$ = c$ + " " + DemoNum$(-(hasGun(k) <> 0)) : NEXT
+    IF flHave THEN c$ = c$ + " " + DemoNum$(1) + " " + DemoNum$(INT(flBatt)) + " " + DemoNum$(flSpares) + " " + DemoNum$(-(flOn <> 0)) ' (the flashlight - left off with none, so older carry lines read the same)
     DemoCarryNow$ = c$
 END FUNCTION
 
@@ -261,6 +262,7 @@ SUB DemoCarrySet(c$)
     w = 10
     FOR k = 1 TO NUM_AMMO : ammoCount(k) = VAL(DemoWord$(c$, w)) : w = w + 1 : NEXT
     FOR k = 1 TO NUM_GUNS : hasGun(k) = -(VAL(DemoWord$(c$, w)) <> 0) : w = w + 1 : NEXT
+    flHave = -(VAL(DemoWord$(c$, w)) <> 0) : flBatt = VAL(DemoWord$(c$, w + 1)) : flSpares = VAL(DemoWord$(c$, w + 2)) : flOn = -(VAL(DemoWord$(c$, w + 3)) <> 0) ' (the flashlight: none, if the line stops here)
     IF health <= 0 THEN health = MAX_HP
     IF currentGun < 1 OR currentGun > NUM_GUNS THEN currentGun = W_BLASTER
     IF NOT hasGun(currentGun) THEN currentGun = W_BLASTER : hasGun(W_BLASTER) = -1

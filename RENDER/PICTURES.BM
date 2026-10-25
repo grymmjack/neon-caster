@@ -55,6 +55,7 @@ SUB LoadPictures STATIC
     LoadSprite "rounds.png", ItemSprite(IT_ROUNDS) : LoadSprite "slugs.png", ItemSprite(IT_SLUGS)
     LoadSprite "jetpack.png", ItemSprite(IT_JETPACK) : LoadSprite "jetfuel.png", ItemSprite(IT_JETFUEL)
     LoadSprite "repairkit.png", ItemSprite(IT_REPAIR) : LoadSprite "invuln.png", ItemSprite(IT_INVULN)
+    LoadSprite "flashlight.png", ItemSprite(IT_FLASHLIGHT) : LoadSprite "battery.png", ItemSprite(IT_BATTERY)
     MakeGlass S_GLASS, 0, 0 : MakeGlass S_GLASS + 1, 2, 0 ' (glass, whole and cracked - the tuner's)
     FOR k = 0 TO GLASS_STAGES * GLASS_LOOKS - 1 : MakeGlass S_CRACK + k, k \ GLASS_LOOKS + 1, k MOD GLASS_LOOKS : NEXT ' (hit glass: each stage, each pattern)
     LoadSprite "bars.png", S_BARS ' (bars across a window)

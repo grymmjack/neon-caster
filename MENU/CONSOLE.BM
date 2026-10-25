@@ -438,6 +438,8 @@ SUB ConExec STATIC
         CASE "buddha" ' Buddha: you're hurt as ever, but never below 1 health (a pit or a death trap still kills)
             IF conA$ = "" THEN buddhaMode = NOT buddhaMode ELSE buddhaMode = ConOn(conA$)
             IF buddhaMode THEN ConPrint "Buddha ON (hurt, but never below 1 health)" ELSE ConPrint "Buddha OFF"
+        CASE "flashlight", "torch" ' flashlight on|off|toggle, or its look: width, reach, bright, soft, haze, colour, fx, battery (GAME/FLASHLIGHT.BM)
+            ConPrint FlCmd$(conA$, conB$)
         CASE "infinitefuel", "infjet" ' The jetpack's tank never empties (a cheat)
             IF conA$ = "" THEN jetInf = NOT jetInf ELSE jetInf = ConOn(conA$)
             IF jetInf THEN ConPrint "Infinite jet fuel ON" + MID$(" (no jetpack yet: give jetpack)", 1, -99 * (jetHave = 0)) ELSE ConPrint "Infinite jet fuel OFF"
@@ -1046,8 +1048,13 @@ SUB ConGive STATIC
             repairKits = MinOf(MAX_KITS, repairKits + n) : ConPrint "Repair kits:" + STR$(repairKits)
         CASE "invuln", "invulnerability", "invulnerable" ' give invuln: invulnerable for INV_FRAMES
             invTimer = INV_FRAMES : PlaySfx sndInvuln&, 0.8 : ConPrint "Invulnerable for 5 seconds"
+        CASE "flashlight", "torch" ' give flashlight: one, its battery full (and on)
+            flHave = -1 : flBatt = 100 : flOn = -1 : flLowSaid = 0 : ConPrint "A flashlight - " + KeyName$(keyBind&(BIND_FLASH)) + " switches it on and off"
+        CASE "battery", "batteries" ' give battery [N]: N spares (as made: one), up to FL_SPARES
+            n = VAL(conB$) : IF n <= 0 THEN n = 1
+            flSpares = MinOf(FL_SPARES, flSpares + n) : ConPrint "Spare batteries:" + STR$(flSpares) + MID$(" (no flashlight yet: give flashlight)", 1, -99 * (flHave = 0))
         CASE ELSE
-            ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health [N] / armor [N] / overcharge / amp / map / goggles / suit / jetpack / fuel [N] / repairkit [N] / invuln"
+            ConPrint "give all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health [N] / armor [N] / overcharge / amp / map / goggles / suit / jetpack / fuel [N] / repairkit [N] / invuln / flashlight / battery [N]"
     END SELECT
 END SUB
 
@@ -1103,8 +1110,13 @@ SUB ConTake STATIC
             repairKits = MaxOf(0, repairKits - n) : ConPrint "Repair kits:" + STR$(repairKits)
         CASE "invuln", "invulnerability", "invulnerable"
             invTimer = 0 : ConPrint "Not invulnerable"
+        CASE "flashlight", "torch"
+            flHave = 0 : flOn = 0 : flBatt = 0 : ConPrint "Flashlight taken"
+        CASE "battery", "batteries" ' take battery: the one in it (it goes dark); take battery N: N spares
+            n = VAL(conB$)
+            IF n <= 0 THEN flBatt = 0 : ConPrint "The flashlight's battery taken" ELSE flSpares = MaxOf(0, flSpares - n) : ConPrint "Spare batteries:" + STR$(flSpares)
         CASE ELSE
-            ConPrint "take all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health N / armor [N] / map / jetpack / fuel [N] / repairkit [N] / invuln"
+            ConPrint "take all / keys / key r|b|y / weapons / gun N / ammo [cells|shells|rounds|slugs|rockets N] / health N / armor [N] / map / jetpack / fuel [N] / repairkit [N] / invuln / flashlight / battery [N]"
     END SELECT
 END SUB
 
@@ -1139,6 +1151,8 @@ FUNCTION ItemOf(v$)
         CASE "slugs" : ItemOf = IT_SLUGS
         CASE "repairkit", "repair", "kit" : ItemOf = IT_REPAIR
         CASE "invuln", "invulnerability", "invulnerable" : ItemOf = IT_INVULN
+        CASE "flashlight", "torch" : ItemOf = IT_FLASHLIGHT
+        CASE "battery", "batteries" : ItemOf = IT_BATTERY
     END SELECT
 END FUNCTION
 
@@ -1402,7 +1416,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1429,6 +1443,7 @@ SUB ConHelp(c$)
             ConPrint "            ^7jumppad^8 X Y ...  ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N"
             ConPrint "            ^7ambient^8 [BRIGHT RRGGBB FX]  ^7celllight^8 X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]|off"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
+            ConPrint "            ^7flashlight^8 [on|off|width|reach|bright|soft|haze|colour|fx|battery ...]"
             ConPrint "  ^6scripts   ^7alias^8 NAME " + CHR$(34) + "..." + CHR$(34) + "  ^7unalias^8 NAME  ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE"
             ConPrint "            ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT  ^7sound^8 NAME  ^7say^8 LINE"
             ConPrint "            ^7cutscene^8 [SECTOR]  (and the saves folder's ^7autoexec.cfg^0, run at start-up)"
@@ -1463,6 +1478,11 @@ SUB ConHelp(c$)
         CASE "sectorname" : ConPrint "^3sectorname NAME^0: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it. sectorname on its own: its name"
         ' --- cheats
         CASE "god", "noclip", "iddqd" : ConPrint "^3god [on|off]^0: no damage, through walls, flying (E up, C down) and notarget - for looking round a sector (G does the same)"
+        CASE "flashlight", "torch"
+            ConPrint "^3flashlight [on|off|toggle]^0 (torch): yours on or off (" + KeyName$(keyBind&(BIND_FLASH)) + " does it too) - alone, how it is. Its look, as"
+            ConPrint "  SETTINGS > GAMEPLAY > FLASHLIGHT: ^3flashlight width DEG^0 (10-120), ^3reach CELLS^0 (2-16), ^3bright %^0 (10-400),"
+            ConPrint "  ^3soft %^0 (its edge), ^3haze %^0 (the beam in the air), ^3colour RRGGBB^0 or warm/white/cool/led/amber/red/green/uv,"
+            ConPrint "  ^3fx^0 auto/steady/flicker/pulse/strobe/fire/dying, ^3battery MINUTES^0 (0: never runs down). give flashlight, give battery"
         CASE "infinitefuel", "infjet" : ConPrint "^3infinitefuel [on|off]^0 (infjet): the jetpack's tank never empties - give jetpack, give fuel [N]"
         CASE "buddha" : ConPrint "^3buddha [on|off]^0: you're hurt as ever, but never below 1 health (a pit or a death trap still kills)"
         CASE "fly" : ConPrint "^3fly [on|off]^0: fly - E up, C down, Shift faster - the floor still holds you up"
@@ -1471,9 +1491,11 @@ SUB ConHelp(c$)
             ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-5 | health [N] | armor [N]"
             ConPrint "  | ammo [cells|shells|rounds|slugs|rockets N] | overcharge | amp | map | goggles | suit"
             ConPrint "  | jetpack | fuel [N] | repairkit [N] (computer repair kits) | invuln (5 seconds)"
+            ConPrint "  | flashlight | battery [N] (spares, up to 4)"
         CASE "take"
             ConPrint "take all | keys | key red|blue|yellow | weapons | gun 2-5 | health N | armor [N] | map"
             ConPrint "  | ammo [cells|shells|rounds|slugs|rockets N] | jetpack | fuel [N] | repairkit [N] | invuln"
+            ConPrint "  | flashlight | battery [N] (the one in it, or N spares)"
         CASE "alarm", "alarms"
             ConPrint "^3alarm [on|off|raise|stop]^0: the alarm switches - every one on, every one off; sound the alarm"
             ConPrint "  (the nearest switch that's on), or quiet it; alone: how many, how many on, sounding or not"

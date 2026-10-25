@@ -44,6 +44,7 @@ CONST MAX_OVER = 200, AMP_FRAMES = 1800
 ' one fixes it - then it can be hacked) and invulnerability (invuln: no harm
 ' at all for INV_FRAMES)
 CONST IT_REPAIR = 24, IT_INVULN = 25, INV_FRAMES = 300, MAX_KITS = 3
+CONST IT_FLASHLIGHT = 26, IT_BATTERY = 27 ' (things - flashlight, battery: the flashlight, L on and off, and a battery for it - GAME/FLASHLIGHT.BI)
 DIM SHARED repairKits AS INTEGER, invTimer AS INTEGER, invFlash AS INTEGER ' (invFlash: a hit that didn't hurt - the glow flares)
 ' MAX_ = the most there can be: the arrays below have room for this many
 CONST MAX_ITEMS = 256

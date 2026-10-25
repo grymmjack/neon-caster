@@ -22,7 +22,7 @@ GLASS = set("=-")  # a pane of glass: see through it, but not walk; - bars acros
 # The things a " can be ([things] x, y, kind[, more]) - the game's ThingList$, and what each is to the kit
 THINGS = {"table": "deco", "brokenmonitor": "flat", "deadscientist": "flat", "deadguard": "flat", "deadcyborg": "flat", "bookshelf": "deco",
           "safe": "deco", "brokenpc": "deco", "computer": "deco", "camera": "flat", "secmon": "deco", "alarm": "deco", "alarmpc": "deco", "jumppad": "flat", "padpc": "deco",
-          "repairkit": "item", "invuln": "item", "robodog": "mon", "guard": "mon", "eyebot": "mon"}
+          "repairkit": "item", "invuln": "item", "flashlight": "item", "battery": "item", "robodog": "mon", "guard": "mon", "eyebot": "mon"}
 XTRA = ("doors", "things", "notes", "smears", "fuel", "difficulty", "looks")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
 SMEARS = ("blood1", "blood2", "blood3", "oil1", "oil2", "blood", "oil")
 STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle
@@ -490,7 +490,7 @@ LOOT_BREAKABLES = {"barrel", "lamp", "plant", "terminal", "crate", "rack", "serv
                    "waterbarrel", "poisonbarrel", "slimebarrel", "lavabarrel", "acidbarrel", "chest", "treasurechest", "cache"}
 LOOT_PICKUPS = {"red", "blue", "yellow", "health", "cells", "ammo", "shells", "scatter", "repeater", "armor", "armour",
                 "medkit", "bigmed", "rail", "railgun", "map", "overcharge", "amp", "goggles", "nightvision", "headset", "suit", "hazmat", "hvac",
-                "launcher", "rocketlauncher", "rocket", "rockets", "rounds", "slugs", "jetpack", "jetfuel", "fuel"}
+                "launcher", "rocketlauncher", "rocket", "rockets", "rounds", "slugs", "jetpack", "jetfuel", "fuel", "flashlight", "torch", "battery", "batteries"}
 
 
 # [liquid]: the game's LQ_CHARS$ and LQ_DEPTH; the map characters a liquid can lie on (EDIT_OPEN$)
@@ -783,7 +783,7 @@ def level_text(lv, comment=()):
         out.append("' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side - DG a diagonal's slanted face, DE a door's edges, DT its track), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture")
         out += list(lv["faces"])
     for sec, h in (("doors", "' a door's own: x, y, kicks (a stronghold door: how many kicks break it down - 0 none), code (a keypad door's digits - ? one made up each time; none: no keypad)"),
-                   ("things", "' what a \" is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, repairkit, invuln, robodog, guard - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm)"),
+                   ("things", "' what a \" is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, repairkit, invuln, flashlight, battery, robodog, guard - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm)"),
                    ("notes", "' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code"),
                    ("smears", "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)"),
                    ("fuel", "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"),

@@ -13,7 +13,7 @@
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 48
+CONST NUM_SETTINGS = 56
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -24,6 +24,7 @@ CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
 CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
 CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_SOFTEN = 45, SET_SKILL = 46, SET_CHARGE = 47, SET_WINSIZE = 48
+CONST SET_FL_WIDTH = 49, SET_FL_REACH = 50, SET_FL_BRIGHT = 51, SET_FL_SOFT = 52, SET_FL_COLOUR = 53, SET_FL_HAZE = 54, SET_FL_FX = 55, SET_FL_BATTERY = 56 ' (the flashlight's: GAME/FLASHLIGHT.BI)
 ' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
 ' don't all match one
 CONST MODE_CUSTOM = 0, MODE_OLDSCHOOL = 1, MODE_90S = 2, MODE_NEWSCHOOL = 3
@@ -107,6 +108,17 @@ DefineSetting SET_SOFTEN,    "soften_highs",       "SOFTEN HIGHS",       MI_CHOI
 DefineSetting SET_SKILL,     "difficulty",         "DIFFICULTY",         MI_CHOICE, 0,  3,   1,   0
 ' CHARGED SHOTS: hold fire on the blaster or the railgun to charge a shot - let go full for twice the damage, at twice the ammo (GAME/GUNS.BM's ChargeStep)
 DefineSetting SET_CHARGE,    "charged_shots",      "CHARGED SHOTS",      MI_TOGGLE, 0,  1,   1,   1
+' THE FLASHLIGHT (SETTINGS > GAMEPLAY > FLASHLIGHT; GAME/FLASHLIGHT.BM): how wide its beam is (degrees, edge to edge), how far it
+' reaches (cells), how bright it is, how soft its edge, its colour (YOUR OWN: flashlight_rgb=), how much the beam shows in the air,
+' its effect (AUTO: steady, flickering as the battery runs low, then dying) and how long a battery lasts (minutes; 0 for ever)
+DefineSetting SET_FL_WIDTH,  "flashlight_width",   "BEAM WIDTH",         MI_SLIDER, 10, 120, 5,   40
+DefineSetting SET_FL_REACH,  "flashlight_reach",   "REACH",              MI_SLIDER, 2,  16,  1,   10
+DefineSetting SET_FL_BRIGHT, "flashlight_bright",  "BRIGHTNESS",         MI_SLIDER, 10, 400, 10,  150
+DefineSetting SET_FL_SOFT,   "flashlight_soft",    "SOFT EDGE",          MI_SLIDER, 0,  100, 10,  40
+DefineSetting SET_FL_COLOUR, "flashlight_colour",  "COLOUR",             MI_CHOICE, 1,  9,   1,   1
+DefineSetting SET_FL_HAZE,   "flashlight_haze",    "BEAM IN THE AIR",    MI_SLIDER, 0,  100, 5,   20
+DefineSetting SET_FL_FX,     "flashlight_fx",      "EFFECT",             MI_CHOICE, 0,  6,   1,   0
+DefineSetting SET_FL_BATTERY, "flashlight_battery", "BATTERY LIFE",      MI_SLIDER, 0,  30,  1,   5
 DefineSetting SET_AIMSENS,   "aim_sensitivity",    "AIM SENSITIVITY",    MI_SLIDER, 10, 100, 5,   50
 DefineSetting SET_SHAFTS,    "light_shafts",       "LIGHT SHAFTS",       MI_TOGGLE, 0,  1,   1,   1
 ' MODE: OLDSCHOOL, 90S or NEWSCHOOL - every video and effects setting at

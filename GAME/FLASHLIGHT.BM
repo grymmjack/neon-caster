@@ -1,0 +1,231 @@
+''
+' NEON-CASTER - GAME/FLASHLIGHT.BM
+' =============================================================================
+' The flashlight (GAME/FLASHLIGHT.BI): on and off, its battery, its effect,
+' and its beam - OpenGL's (GLFlashUni) and the software renderer's (FlCells).
+'
+
+' Once a frame (chapter 13): FLASHLIGHT's key, the battery running down,
+' a new one going in, and this frame's strength (flNow) by its EFFECT -
+' AUTO is steady till the battery's low, then flickers, then dies
+SUB FlStep
+    DIM k, fx, mins!, f! ' (its own: the main program shares these names)
+    k = KeyHeld(BIND_FLASH)
+    IF k AND NOT flKeyWas AND NOT editMode AND NOT dead AND NOT demoPlay AND NOT hudEdit THEN FlSwitch -1, -1
+    flKeyWas = k
+    flNow = 0
+    IF NOT flOn OR NOT flHave THEN EXIT SUB
+    IF dead OR cyberOn OR editMode THEN EXIT SUB ' (still on: back in the world, it shines again)
+    mins! = setting(SET_FL_BATTERY) : IF demoRec OR demoPlay THEN mins! = FL_DEMO_MINS
+    IF mins! > 0 THEN flBatt = flBatt - 100 / (mins! * 3600)
+    IF flBatt <= 0 THEN
+        IF flSpares > 0 THEN
+            flSpares = flSpares - 1 : flBatt = 100 : flLowSaid = 0 : PlaySfx sndFlBatt&, 0.8
+            ShowMsg "Flashlight: a new battery in (" + LTRIM$(STR$(flSpares)) + " spare)"
+        ELSE
+            flBatt = 0 : flOn = 0 : PlaySfx sndPowerDown&, 0.6 : ShowMsg "Flashlight: the battery's dead - find another"
+            EXIT SUB
+        END IF
+    END IF
+    IF flBatt < 15 AND NOT flLowSaid AND mins! > 0 THEN flLowSaid = -1 : ShowMsg "Flashlight: battery low" + MID$(" (no spare)", 1, -11 * (flSpares = 0))
+    fx = setting(SET_FL_FX) - 1 ' (EFFECT: 0 AUTO, then a lamp's effects, FX_STEADY + 1 on)
+    IF fx < 0 THEN ' AUTO: by the battery
+        fx = FX_STEADY
+        IF mins! > 0 AND flBatt < 12 THEN fx = FX_FLICKER
+        IF mins! > 0 AND flBatt < 5 THEN fx = FX_DYING
+    END IF
+    f! = 1
+    SELECT CASE fx ' (as a lamp's - UpdateLight)
+        CASE FX_FLICKER
+            IF flTimer > 0 THEN
+                flTimer = flTimer - 1 : f! = 0.15
+            ELSEIF RND < 0.025 THEN
+                flTimer = 2 + INT(RND * 6)
+            END IF
+        CASE FX_PULSE : f! = 0.55 + 0.45 * SIN(TIMER * 2.4)
+        CASE FX_STROBE : IF INT(TIMER * 2) MOD 2 = 0 THEN f! = 1 ELSE f! = 0.05
+        CASE FX_FIRE : f! = 0.75 + RND * 0.25
+        CASE FX_DYING
+            f! = 0.08
+            IF flTimer > 0 THEN
+                flTimer = flTimer - 1 : f! = 0.5 + RND * 0.5
+            ELSEIF RND < 0.03 THEN
+                flTimer = 3 + INT(RND * 10)
+            END IF
+    END SELECT
+    IF mins! > 0 AND flBatt < 25 THEN f! = f! * (0.55 + 0.45 * flBatt / 25) ' (a low battery: dimmer)
+    flNow = f!
+END SUB
+
+' On (1), off (0) or the other way (-1). fromKey: FLASHLIGHT's key - a
+' recording keeps it (a console line, so the demo plays it back)
+SUB FlSwitch(want, fromKey)
+    DIM w ' (its own: the main program shares these names)
+    IF NOT flHave THEN
+        IF fromKey THEN ShowMsg "No flashlight - find one"
+        EXIT SUB
+    END IF
+    IF want < 0 THEN w = NOT flOn ELSE w = (want <> 0)
+    IF w AND flBatt <= 0 THEN
+        IF flSpares > 0 THEN
+            flSpares = flSpares - 1 : flBatt = 100 : flLowSaid = 0 : PlaySfx sndFlBatt&, 0.8
+        ELSE
+            PlaySfx sndFlClick&, 0.7 : ShowMsg "Flashlight: the battery's dead - find another" : EXIT SUB
+        END IF
+    END IF
+    IF w = flOn THEN EXIT SUB
+    flOn = w : PlaySfx sndFlClick&, 0.7
+    IF fromKey AND demoRec THEN DemoFlush : DemoPut "c flashlight " + MID$("offon ", 1 - 3 * (flOn <> 0), 3) ' (played back as typed: c lines run at their frame)
+END SUB
+
+' COLOUR's choice c as a colour (YOUR OWN: flashlight_rgb=)
+FUNCTION FlColour~&(c)
+    SELECT CASE c
+        CASE 1 : FlColour~& = _RGB32(255, 222, 180) ' WARM (a tungsten bulb)
+        CASE 2 : FlColour~& = _RGB32(255, 252, 244) ' WHITE
+        CASE 3 : FlColour~& = _RGB32(214, 232, 255) ' COOL
+        CASE 4 : FlColour~& = _RGB32(160, 200, 255) ' LED BLUE
+        CASE 5 : FlColour~& = _RGB32(255, 176, 64) ' AMBER
+        CASE 6 : FlColour~& = _RGB32(255, 60, 50) ' RED (keeps your night eyes)
+        CASE 7 : FlColour~& = _RGB32(100, 255, 130) ' GREEN
+        CASE 8 : FlColour~& = _RGB32(170, 90, 255) ' UV
+        CASE ELSE : IF HueOK(flRGB$) THEN FlColour~& = HueOf~&(flRGB$) ELSE FlColour~& = _RGB32(255, 255, 255) ' YOUR OWN
+    END SELECT
+END FUNCTION
+
+FUNCTION FlColourName$(c)
+    FlColourName$ = ListItem$("WARM,WHITE,COOL,LED BLUE,AMBER,RED,GREEN,UV,YOUR OWN", c)
+    IF c = FL_COLOURS AND HueOK(flRGB$) THEN FlColourName$ = "YOUR OWN " + UCASE$(flRGB$)
+END FUNCTION
+
+FUNCTION FlFxName$(f)
+    FlFxName$ = ListItem$("AUTO,STEADY,FLICKER,PULSE,STROBE,FIRE,DYING", f + 1)
+END FUNCTION
+
+' OpenGL's world shader's flashlight, for this frame's snapshot b - the
+' mirror image's (WET FLOORS) upside down. Off: no colour, nothing added.
+SUB GLFlashUni(b, mirror)
+    DIM half!, soft!, c!, s!, k!, pz!, dz!, col AS _UNSIGNED LONG
+    IF glFl(b) <= 0 THEN GLSL_uniform_3f glWorldProg, "flashCol", 0, 0, 0 : EXIT SUB
+    half! = glSet(SET_FL_WIDTH, b) / 2 * 3.14159265 / 180 : soft! = glSet(SET_FL_SOFT, b) / 100
+    c! = COS(glPitch(b)) : s! = SIN(glPitch(b))
+    pz! = glEyeZ - 0.06 : dz! = s! ' (held a little below your eye)
+    ' (the mirror pass too, unflipped: the shader's vPos is the real world's, so a reflection shows the real beam on the real walls)
+    GLSL_uniform_3f glWorldProg, "flashPos", glEyeX, glEyeY, pz!
+    GLSL_uniform_3f glWorldProg, "flashDir", glEyeDX * c!, glEyeDY * c!, dz!
+    GLSL_uniform_3f glWorldProg, "flashCone", COS(half!), COS(half! * (1 - 0.85 * soft!)), glSet(SET_FL_REACH, b)
+    col = FlColour~&(glSet(SET_FL_COLOUR, b)) : k! = glFl(b) * glSet(SET_FL_BRIGHT, b) / 100 / 255
+    GLSL_uniform_3f glWorldProg, "flashCol", _RED32(col) * k!, _GREEN32(col) * k!, _BLUE32(col) * k!
+END SUB
+
+' The software renderer's beam (and OpenGL's with no shaders): the cells in
+' the cone, lit - brighter near, fading to REACH - added to this frame's
+' light (after UpdateLight, chapter 14), past the walls in the way none
+SUB FlCells
+    DIM cx, cy, x0, x1, y0, y1, reach!, half!, soft!, d!, vx!, vy!, cs!, co!, ci!, w!, k!, h! ' (its own: the main program shares these names)
+    DIM col AS _UNSIGNED LONG
+    IF flNow <= 0 THEN EXIT SUB
+    IF glMode AND glWorldProg <> 0 THEN EXIT SUB ' (the shader lights it, pixel by pixel)
+    reach! = setting(SET_FL_REACH) : half! = setting(SET_FL_WIDTH) / 2 * 3.14159265 / 180 : soft! = setting(SET_FL_SOFT) / 100
+    col = FlColour~&(setting(SET_FL_COLOUR)) : k! = flNow * setting(SET_FL_BRIGHT) / 100 * 256 / 255
+    x0 = MaxOf(litX0, INT(playerX - reach!)) : x1 = MinOf(litX1, INT(playerX + reach!))
+    y0 = MaxOf(litY0, INT(playerY - reach!)) : y1 = MinOf(litY1, INT(playerY + reach!))
+    FOR cy = y0 TO y1 : FOR cx = x0 TO x1
+        IF IsWall(cx, cy) AND diagCorner(cx, cy) = 0 THEN _CONTINUE
+        vx! = cx + 0.5 - playerX : vy! = cy + 0.5 - playerY : d! = SQR(vx! * vx! + vy! * vy!)
+        IF d! >= reach! THEN _CONTINUE
+        IF d! < 0.75 THEN
+            w! = 0.6 ' (your own cell: lit round your feet)
+        ELSE
+            h! = half! + ATN(0.5 / d!) ' (a cell is wide: near, it's in the beam sooner)
+            co! = COS(h!) : ci! = COS(h! * (1 - 0.85 * soft!)) : cs! = (vx! * dirX + vy! * dirY) / d!
+            IF cs! <= co! THEN _CONTINUE
+            w! = (cs! - co!) / MaxOf(0.0001, ci! - co!) : IF w! > 1 THEN w! = 1
+            w! = w! * w! * (3 - 2 * w!)
+            IF d! > 1.2 THEN IF NOT LightReaches(playerX, playerY, cx + 0.5, cy + 0.5) THEN _CONTINUE
+        END IF
+        w! = w! * (1 - (d! / reach!) ^ 2) * k! ' (as OpenGL's: strong till near its reach)
+        litR(cx, cy) = litR(cx, cy) + _RED32(col) * w! : litG(cx, cy) = litG(cx, cy) + _GREEN32(col) * w! : litB(cx, cy) = litB(cx, cy) + _BLUE32(col) * w!
+    NEXT : NEXT
+END SUB
+
+' BEAM IN THE AIR: a soft glow round the middle of the view, as the beam
+' lights the dust it goes through - its width the beam's, its colour the
+' beam's, as strong as the setting (chapter 18, under the HUD)
+SUB FlHaze
+    DIM r, hz, x, y, d!, a, k$, s& ' (its own: the main program shares these names)
+    DIM col AS _UNSIGNED LONG
+    IF flNow < 0.5 OR editMode OR viewOn <> 0 THEN EXIT SUB
+    hz = setting(SET_FL_HAZE) : IF hz <= 0 THEN EXIT SUB
+    col = FlColour~&(setting(SET_FL_COLOUR))
+    k$ = HEX$(col) + STR$(hz)
+    IF k$ <> flHazeKey$ OR flHazeImg& >= -1 THEN ' (made again: a soft disc, clear at its edge)
+        IF flHazeImg& < -1 THEN _FREEIMAGE flHazeImg&
+        flHazeImg& = _NEWIMAGE(96, 96, 32) : s& = _DEST : _DEST flHazeImg& : CLS , 0 : _DONTBLEND flHazeImg& ' (its pixels as they are: blended onto clear, they'd stay clear)
+        FOR y = 0 TO 95 : FOR x = 0 TO 95
+            d! = SQR((x - 47.5) ^ 2 + (y - 47.5) ^ 2) / 48
+            IF d! < 1 THEN a = hz * 1.1 * (1 - d!) ^ 2 : PSET (x, y), _RGBA32(_RED32(col), _GREEN32(col), _BLUE32(col), a)
+        NEXT : NEXT
+        _BLEND flHazeImg& : _DEST s& : flHazeKey$ = k$
+    END IF
+    r = TAN(setting(SET_FL_WIDTH) / 2 * 3.14159265 / 180) / MaxOf(0.05, fovPlane / zoom) * 400 * 1.15
+    IF r > 700 THEN r = 700
+    _PUTIMAGE (400 - r, 300 - r)-(400 + r, 300 + r), flHazeImg&
+END SUB
+
+' The flashlight on the HUD (beside the jetpack's fuel): its battery, and the
+' spares - bright while it's on, red when the battery's low
+SUB FlHud(x, y)
+    DIM c~&, t$ ' (its own: the main program shares these names)
+    IF NOT flHave THEN EXIT SUB
+    IF flBatt < 15 THEN c~& = _RGB32(255, 60, 60) ELSE IF flOn THEN c~& = _RGB32(255, 236, 150) ELSE c~& = _RGB32(150, 140, 110)
+    t$ = "LIGHT" + STR$(INT(flBatt + 0.99)) + "%" : IF setting(SET_FL_BATTERY) = 0 AND NOT demoPlay AND NOT demoRec THEN t$ = "LIGHT"
+    IF flSpares > 0 THEN t$ = t$ + " +" + LTRIM$(STR$(flSpares))
+    HudText x, y, t$, c~&
+END SUB
+
+' The console's flashlight: on|off|toggle, or one of its settings by name
+' (colour RRGGBB sets YOUR OWN) - alone, how it is
+FUNCTION FlCmd$(a$, b$)
+    DIM v, s, c$ ' (its own: the main program shares these names)
+    s = 0 : v = VAL(b$)
+    SELECT CASE LCASE$(a$)
+        CASE "" : FlCmd$ = FlStatus$ : EXIT FUNCTION
+        CASE "on", "1" : FlSwitch 1, 0
+        CASE "off", "0" : FlSwitch 0, 0
+        CASE "toggle" : FlSwitch -1, 0
+        CASE "width", "beam" : s = SET_FL_WIDTH
+        CASE "reach", "range" : s = SET_FL_REACH
+        CASE "bright", "brightness", "strength" : s = SET_FL_BRIGHT
+        CASE "soft", "edge" : s = SET_FL_SOFT
+        CASE "haze", "air", "opacity" : s = SET_FL_HAZE
+        CASE "battery", "life" : s = SET_FL_BATTERY
+        CASE "colour", "color"
+            c$ = UCASE$(b$) : IF LEFT$(c$, 1) = "#" THEN c$ = MID$(c$, 2)
+            IF HueOK(c$) THEN
+                flRGB$ = c$ : setting(SET_FL_COLOUR) = FL_COLOURS
+            ELSE
+                FOR v = 1 TO FL_COLOURS - 1
+                    IF c$ = FlColourName$(v) OR c$ = LEFT$(FlColourName$(v), INSTR(FlColourName$(v) + " ", " ") - 1) THEN setting(SET_FL_COLOUR) = v
+                NEXT
+            END IF
+            SaveSettings
+        CASE "fx", "effect"
+            FOR v = 0 TO 6
+                IF UCASE$(b$) = FlFxName$(v) THEN setting(SET_FL_FX) = v : SaveSettings
+            NEXT
+        CASE ELSE : FlCmd$ = "flashlight on|off|toggle | width DEG | reach CELLS | bright % | soft % | haze % | colour RRGGBB|NAME | fx NAME | battery MINUTES" : EXIT FUNCTION
+    END SELECT
+    IF s THEN
+        IF b$ = "" THEN FlCmd$ = setLabel$(s) + ": " + SettingText$(s) : EXIT FUNCTION
+        setting(s) = MaxOf(setMin(s), MinOf(setMax(s), v)) : SaveSettings
+    END IF
+    FlCmd$ = FlStatus$
+END FUNCTION
+
+FUNCTION FlStatus$
+    DIM t$ ' (its own: the main program shares these names)
+    IF flHave THEN t$ = "Flashlight " + ListItem$("off,on", 1 - (flOn <> 0)) + ", battery" + STR$(INT(flBatt + 0.99)) + "%," + STR$(flSpares) + " spare" ELSE t$ = "No flashlight (give flashlight)"
+    t$ = t$ + " - width" + STR$(setting(SET_FL_WIDTH)) + ", reach" + STR$(setting(SET_FL_REACH)) + ", bright" + STR$(setting(SET_FL_BRIGHT)) + "%, soft" + STR$(setting(SET_FL_SOFT)) + "%, haze" + STR$(setting(SET_FL_HAZE)) + "%, "
+    FlStatus$ = t$ + LCASE$(FlColourName$(setting(SET_FL_COLOUR))) + ", " + LCASE$(FlFxName$(setting(SET_FL_FX))) + ", battery " + SettingText$(SET_FL_BATTERY)
+END FUNCTION

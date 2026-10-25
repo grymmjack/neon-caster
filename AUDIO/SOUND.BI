@@ -77,6 +77,7 @@ sndAlarm& = LoadSnd&("alarm.wav") : sndFanfare& = LoadSnd&("fanfare.wav") : sndF
 DIM SHARED sndSizzle& ' (a burning floor - chapter 22's heights)
 sndZap& = LoadSnd&("zap.wav") : sndSpawn& = LoadSnd&("spawn.wav") : sndSizzle& = LoadSnd&("sizzle.wav")
 DIM SHARED sndLeak&, sndJet&, sndJetFuel& : sndLeak& = LoadSnd&("barrel-leak.wav") : sndJet& = LoadSnd&("jetpack.wav") : sndJetFuel& = LoadSnd&("jetfuel.wav") ' (a barrel leaking; the jetpack's thrust, its fuel)
+DIM SHARED sndFlClick&, sndFlBatt& : sndFlClick& = LoadSnd&("flashlight.wav") : sndFlBatt& = LoadSnd&("battery.wav") ' (the flashlight's switch; a battery going in)
 ' Strongholds and keypads, safes, desks, computers, cameras, notes (GAME/SECURE.BM), invulnerability
 DIM SHARED sndPadBeep&, sndPadOK&, sndPadBad&, sndDoorKick&, sndDoorBreak&, sndSafe&, sndSearch&, sndRepair&, sndInvuln&, sndInvulnEnd&, sndCamera&, sndNote&
 sndPadBeep& = LoadSnd&("keypad-beep.wav") : sndPadOK& = LoadSnd&("keypad-ok.wav") : sndPadBad& = LoadSnd&("keypad-bad.wav")

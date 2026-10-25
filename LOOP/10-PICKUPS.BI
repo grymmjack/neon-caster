@@ -81,6 +81,19 @@
                     IF jetHave AND jetFuel < JET_MAX THEN itemOn(i) = 0 : jetFuel = MinOf(JET_MAX, jetFuel + amt) : PlaySfx sndJetFuel&, 0.9 : ShowMsg "Jet fuel (+" + LTRIM$(STR$(amt)) + ")" : pickFlash = 10
                 CASE IT_REPAIR ' A computer repair kit (up to MAX_KITS)
                     IF repairKits < MAX_KITS THEN itemOn(i) = 0 : repairKits = repairKits + 1 : PlaySfx sndArmor&, 0.8 : ShowMsg "COMPUTER REPAIR KIT - Space on a broken computer fixes it" : pickFlash = 10
+                CASE IT_FLASHLIGHT ' A flashlight: yours, its battery full, and on - one more is its battery (as a spare)
+                    IF NOT flHave THEN
+                        itemOn(i) = 0 : flHave = -1 : flBatt = 100 : flOn = -1 : flLowSaid = 0 : PlaySfx sndFlClick&, 0.9 : pickFlash = 12
+                        ShowMsg "FLASHLIGHT - " + KeyName$(keyBind&(BIND_FLASH)) + " switches it on and off; batteries keep it going"
+                    ELSEIF flSpares < FL_SPARES THEN
+                        itemOn(i) = 0 : flSpares = flSpares + 1 : PlaySfx sndFlBatt&, 0.8 : ShowMsg "Its battery, as a spare (" + LTRIM$(STR$(flSpares)) + ")" : pickFlash = 10
+                    END IF
+                CASE IT_BATTERY ' A battery: a spare (up to FL_SPARES) - straight in, if the flashlight's is dead
+                    IF flSpares < FL_SPARES THEN
+                        itemOn(i) = 0 : flSpares = flSpares + 1 : PlaySfx sndFlBatt&, 0.8 : pickFlash = 10
+                        IF flHave AND flBatt <= 0 THEN flSpares = flSpares - 1 : flBatt = 100 : flLowSaid = 0
+                        ShowMsg "Battery (" + LTRIM$(STR$(flSpares)) + " spare)" + MID$(" - for a flashlight", 1, -19 * (flHave = 0))
+                    END IF
                 CASE IT_INVULN ' Invulnerability: nothing hurts you for a few seconds
                     itemOn(i) = 0 : invTimer = INV_FRAMES : PlaySfx sndInvuln&, 1 : ShowMsg "INVULNERABLE! Nothing can hurt you for 5 seconds" : pickFlash = 18
                 CASE IT_ROUNDS

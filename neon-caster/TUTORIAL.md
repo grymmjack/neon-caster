@@ -56,6 +56,7 @@ it yourself:
 | Click or Ctrl | fire - on the blaster or the railgun, hold to charge a shot and let go for twice the damage (twice the ammo; CHARGED SHOTS in SETTINGS > GAMEPLAY) |
 | Space | open or shut doors, use the exit, jack into a data station, use a code terminal, search a wall for a secret, pull a slot machine (a vending machine), hack a turret control panel, play NEON PONG on a computer; read a note, search a desk or bookshelf, type a keypad's code, fix or hack a computer, watch the security cameras, switch an alarm console |
 | N | night vision on and off, once you've found a headset |
+| L | the flashlight on and off, once you've found one - batteries keep it going (its beam, colour and effect: SETTINGS > GAMEPLAY > FLASHLIGHT) |
 | 1-5 or mouse wheel | choose a gun (5: the rocket launcher - hold the right button to zoom right in) |
 | Right button (hold) | aim down the sights (zooms in) |
 | Esc | the menu: pause, new game, save, load, settings, exit |

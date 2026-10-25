@@ -57,6 +57,6 @@ CONST DK_SHELF = 33, DK_SAFE = 34, DK_PCBROKE = 35, DK_PC = 36, DK_CAMERA = 37, 
 CONST DK_JUMPPAD = 42, DK_PADPC = 43 ' (a jump pad - it shoots you through the air; a launch control that sets one's numbers: GAME/JUMPPADS.BM)
 CONST DK_ALARM = 40, DK_ALARMPC = 41 ' (an alarm switch on its wall - a guard runs to it; a security console that switches alarms on and off: GAME/ALARMS.BM)
 CONST DK_DESK = 10
-CONST DECO_KINDS = 43, ITEM_KINDS = 25 ' (kinds of decoration and of pickup - see chapter 3)
+CONST DECO_KINDS = 43, ITEM_KINDS = 27 ' (kinds of decoration and of pickup - see chapter 3)
 ' ...and each decoration's wreck, the same way (MakeWreck)
 DIM SHARED wreckScale(DECO_KINDS), wreckSquash(DECO_KINDS)

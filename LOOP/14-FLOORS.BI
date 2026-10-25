@@ -101,6 +101,7 @@
             AddGlow decoX(i), decoY(i), 1.3 + 2.2 * c + 3 * f, (40 + 230 * c) * pulse + 500 * f, (10 + 50 * c) * pulse + 220 * f, (50 + 220 * c) * pulse + 480 * f
         END IF
     NEXT
+    FlCells ' (the flashlight's beam: the software renderer's - GAME/FLASHLIGHT.BM)
     IF NOT glMode THEN ' The sky's column for each screen column (by its ray's angle) and row for each screen row (by how far above the horizon)
         FOR x = 0 TO RENDER_W - 1
             cameraX = 2 * x / RENDER_W - 1 : a = _ATAN2(dirY + planeY * cameraX, dirX + planeX * cameraX) / 6.2831853 * SKY_REPEAT

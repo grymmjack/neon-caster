@@ -477,6 +477,8 @@ speech/soldier11.wav|soldier11: Engaging the hostile!
 speech/soldier12.wav|soldier12: Drop your weapon!
 speech/thief.wav|thief: My little helpers like your toys.
 [OTHER]
+sfx/battery.wav|battery
+sfx/flashlight.wav|flashlight
 sfx/jump.wav|jump
 sfx/jump2.wav|jump2
 sfx/jump3.wav|jump3

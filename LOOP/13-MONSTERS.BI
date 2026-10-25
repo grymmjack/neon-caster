@@ -296,6 +296,7 @@
         END IF
     END IF
     nvKeyWas = nvKey
+    FlStep ' (the flashlight: L on and off, its battery - GAME/FLASHLIGHT.BM)
     IF invTimer > 0 THEN ' Invulnerability wears off
         invTimer = invTimer - 1 : IF invTimer = 0 THEN PlaySfx sndInvulnEnd&, 0.8 : ShowMsg "Invulnerability wore off"
     END IF

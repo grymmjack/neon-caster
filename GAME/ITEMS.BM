@@ -172,7 +172,7 @@ END FUNCTION
 
 ' A pickup kind's name, as [loot] (and ItemOf) has it
 FUNCTION LootName$(k)
-    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp,core,goggles,suit,launcher,rockets,rounds,slugs,jetpack,jetfuel,repairkit,invuln", k)
+    LootName$ = ListItem$("red,blue,yellow,health,ammo,shells,scatter,repeater,armor,medkit,rail,map,overcharge,amp,core,goggles,suit,launcher,rockets,rounds,slugs,jetpack,jetfuel,repairkit,invuln,flashlight,battery", k)
 END FUNCTION
 
 ' A closet stash's loot: something good (n = 0) - armour, a big medkit, an
@@ -225,7 +225,7 @@ END FUNCTION
 ' - it's only in the network; 8 night vision, 9 the hazmat suit, ) the
 ' rocket launcher, ( a box of rockets)
 FUNCTION ItemChars$
-    ItemChars$ = "rby+ae23u*4Mqj" + CHR$(0) + "89)({}`," + CHR$(0) + CHR$(0) ' (the repair kit and invulnerability: things, ", not a character of their own)
+    ItemChars$ = "rby+ae23u*4Mqj" + CHR$(0) + "89)({}`," + CHR$(0) + CHR$(0) + CHR$(0) + CHR$(0) ' (the repair kit, invulnerability, the flashlight and its battery: things, ", not a character of their own)
 END FUNCTION
 
 ' A pickup kind by its map character (0: not a pickup's)
