@@ -427,7 +427,7 @@
 ' row. lvlOK says whether it worked.
 SUB ReadLevelFile(n)
     DIM got, j, k, l$, t$, clx, cly ' (its own: the main program shares these names)
-    lvlPuzzles$ = "" : lvlDroids = -1 : lvlGravity = 100 : lvlWet = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0 : lvlNote$ = "" : topLines = -1
+    lvlPuzzles$ = "" : lvlDroids = -1 : lvlGravity = 100 : lvlWet = -1 : lvlGlassRef = -1 : lvlOK = 0 : lvlName$ = "?" : lvlNumZones = 0 : lvlNumLights = 0 : lvlNumEvents = 0 : lvlNumLifts = 0 : lvlNumTrigs = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlMonN = 0 : lvlNumLoot = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0 : lvlNote$ = "" : topLines = -1
     CellLightsClear
     FOR k = 0 TO MAP_SIZE - 1 : lvlRow$(k) = "" : lvlFloorRow$(k) = "" : lvlCeilRow$(k) = "" : lvlLiqRow$(k) = "" : lvlLiqDRow$(k) = "" : lvlLiqORow$(k) = "" : lvlWetRow$(k) = "" : NEXT
     fRows = 0 : cRows = 0 : lRows = 0 : dRows = 0 : oRows = 0 : wRows = 0 : fhRows = 0 : chRows = 0
@@ -486,6 +486,7 @@ SUB ReadLevelFile(n)
                     CASE "droids" : lvlDroids = MaxOf(0, MinOf(MAX_DROIDS, VAL(val$)))
                     CASE "gravity" : lvlGravity = MaxOf(1, MinOf(300, VAL(val$))) ' (percent of the usual: falls, jumps, the jetpack's lift)
                     CASE "wetness" : IF LCASE$(LEFT$(val$, 1)) = "a" THEN lvlWet = -1 ELSE lvlWet = MaxOf(0, MinOf(9, VAL(val$))) ' (its floors: 0 dry - 9 soaked; auto, each floor as its picture is)
+                    CASE "glass_reflect" : lvlGlassRef = MaxOf(0, MinOf(9, VAL(val$))) ' (how much its glass reflects: 0 none - 9 a mirror; OpenGL)
                     CASE "walls" : FOR k = 1 TO 6 : lvlWall$(k) = ListItem$(val$, k) : NEXT
                     CASE "floors" : FOR k = 1 TO 4 : lvlFloor$(k) = ListItem$(val$, k) : NEXT
                     CASE "ceilings" : FOR k = 1 TO 2 : lvlCeil$(k) = ListItem$(val$, k) : NEXT
@@ -752,6 +753,7 @@ SUB WriteLevelFile(f$)
     IF lvlDroids >= 0 THEN o$ = o$ + "droids   = " + LTRIM$(STR$(lvlDroids)) + nl$
     IF lvlGravity <> 100 THEN o$ = o$ + "gravity  = " + LTRIM$(STR$(lvlGravity)) + nl$
     IF lvlWet >= 0 THEN o$ = o$ + "wetness  = " + LTRIM$(STR$(lvlWet)) + nl$
+    IF lvlGlassRef >= 0 THEN o$ = o$ + "glass_reflect = " + LTRIM$(STR$(lvlGlassRef)) + nl$
     l$ = "" : FOR k = 1 TO 6 : l$ = l$ + lvlWall$(k) + MID$(", ", 1, -2 * (k < 6)) : NEXT : o$ = o$ + "walls    = " + l$ + nl$
     l$ = "" : FOR k = 1 TO 4 : l$ = l$ + lvlFloor$(k) + MID$(", ", 1, -2 * (k < 4)) : NEXT : o$ = o$ + "floors   = " + l$ + nl$
     o$ = o$ + "ceilings = " + lvlCeil$(1) + ", " + lvlCeil$(2) + nl$
@@ -824,7 +826,7 @@ SUB WriteLevelFile(f$)
             o$ = o$ + nl$
         NEXT
     END IF
-    o$ = o$ + XtraWrite$("doors", nl$) + XtraWrite$("things", nl$) + XtraWrite$("notes", nl$) + XtraWrite$("smears", nl$) + XtraWrite$("fuel", nl$) + XtraWrite$("difficulty", nl$) + XtraWrite$("looks", nl$)
+    o$ = o$ + XtraWrite$("doors", nl$) + XtraWrite$("things", nl$) + XtraWrite$("notes", nl$) + XtraWrite$("smears", nl$) + XtraWrite$("fuel", nl$) + XtraWrite$("difficulty", nl$) + XtraWrite$("looks", nl$) + XtraWrite$("glass", nl$)
     o$ = o$ + "" + nl$ : o$ = o$ + "[map]" + nl$
     FOR y = 0 TO mapN - 1 : o$ = o$ + lvlRow$(y) + nl$ : NEXT
     ' The heights - only if there are any

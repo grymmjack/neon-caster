@@ -17,3 +17,10 @@ CONST BARS_HP = 999 ' (bars across a window, -: glass that never breaks - a shot
 DIM SHARED glassHP(MAP_SIZE, MAP_SIZE) AS INTEGER, glassDir(MAP_SIZE, MAP_SIZE) AS INTEGER
 DIM SHARED glassFull AS INTEGER ' (a whole pane's hits, this sector: AssignGlass)
 DIM SHARED numGlass AS INTEGER, glassListX(MAX_GLASS) AS INTEGER, glassListY(MAX_GLASS) AS INTEGER
+' How much each pane reflects (OpenGL's GLASS REFLECTIONS - GL/OPENGL.BM's
+' GLMirrors): 0 none to 9 a mirror, for glassList's k (glassRefK, GlassRefBuild):
+' its [glass] line's (x, y, amount), else the sector's (glass_reflect =, lvlGlassRef:
+' -1 in the file left out - GLASS_REF_USUAL). glassRefAny: a pane that does.
+CONST GLASS_REF_USUAL = 2
+DIM SHARED lvlGlassRef AS INTEGER, glassRefK(MAX_GLASS) AS _BYTE, glassRefAny AS INTEGER
+lvlGlassRef = -1

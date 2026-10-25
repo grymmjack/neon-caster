@@ -635,7 +635,7 @@ SUB BuildMenu(scr)
         CASE SCR_EFFECTS
             menuTitle$ = "EFFECTS (OPENGL)" : menuWide = -1
             AddSettingItem SET_BUMP : AddSettingItem SET_SMOOTH : AddSettingItem SET_NEON : AddSettingItem SET_DYNLIGHT
-            AddSettingItem SET_SHADOWS : AddSettingItem SET_GLOW : AddSettingItem SET_PARTICLES : AddSettingItem SET_SHAFTS : AddSettingItem SET_REFLECT
+            AddSettingItem SET_SHADOWS : AddSettingItem SET_GLOW : AddSettingItem SET_PARTICLES : AddSettingItem SET_SHAFTS : AddSettingItem SET_REFLECT : AddSettingItem SET_GLASSREF
             AddSettingItem SET_BLOOM : AddSettingItem SET_HITFX
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_SOUNDTEST ' SOUND TEST: the categories (MENU/SOUNDTEST.BM)

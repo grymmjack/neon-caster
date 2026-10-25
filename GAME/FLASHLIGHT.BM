@@ -111,8 +111,8 @@ SUB GLFlashUni(b, mirror)
     c! = COS(glPitch(b)) : s! = SIN(glPitch(b))
     pz! = glEyeZ - 0.06 : dz! = s! ' (held a little below your eye)
     ' (the mirror pass too, unflipped: the shader's vPos is the real world's, so a reflection shows the real beam on the real walls)
-    GLSL_uniform_3f glWorldProg, "flashPos", glEyeX, glEyeY, pz!
-    GLSL_uniform_3f glWorldProg, "flashDir", glEyeDX * c!, glEyeDY * c!, dz!
+    GLSL_uniform_3f glWorldProg, "flashPos", glRealX, glRealY, pz! ' (your eye: in a pane's reflection glEyeX... are the reflected one's)
+    GLSL_uniform_3f glWorldProg, "flashDir", glRealDX * c!, glRealDY * c!, dz!
     GLSL_uniform_3f glWorldProg, "flashCone", COS(half!), COS(half! * (1 - 0.85 * soft!)), glSet(SET_FL_REACH, b)
     col = FlColour~&(glSet(SET_FL_COLOUR, b)) : k! = glFl(b) * glSet(SET_FL_BRIGHT, b) / 100 / 255
     GLSL_uniform_3f glWorldProg, "flashCol", _RED32(col) * k!, _GREEN32(col) * k!, _BLUE32(col) * k!

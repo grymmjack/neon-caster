@@ -31,8 +31,8 @@ sector as you play it and play it back, exactly, frame by frame, on any
 computer. Leave the title screen alone and an autopilot's demos play.
 
 It draws its 3D two ways: a software raycaster, like Wolfenstein 3D, and an
-OpenGL renderer with bump mapping, moving lights, wet floors, bloom and CRT
-effects. Every picture comes in pixel art or a high-resolution painting
+OpenGL renderer with bump mapping, moving lights, wet floors, glass that
+reflects the room, bloom and CRT effects. Every picture comes in pixel art or a high-resolution painting
 (ART in the video settings).
 
 | | |

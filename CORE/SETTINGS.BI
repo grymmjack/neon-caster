@@ -13,7 +13,7 @@
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 56
+CONST NUM_SETTINGS = 57
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -25,6 +25,7 @@ CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
 CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_SOFTEN = 45, SET_SKILL = 46, SET_CHARGE = 47, SET_WINSIZE = 48
 CONST SET_FL_WIDTH = 49, SET_FL_REACH = 50, SET_FL_BRIGHT = 51, SET_FL_SOFT = 52, SET_FL_COLOUR = 53, SET_FL_HAZE = 54, SET_FL_FX = 55, SET_FL_BATTERY = 56 ' (the flashlight's: GAME/FLASHLIGHT.BI)
+CONST SET_GLASSREF = 57
 ' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
 ' don't all match one
 CONST MODE_CUSTOM = 0, MODE_OLDSCHOOL = 1, MODE_90S = 2, MODE_NEWSCHOOL = 3
@@ -69,6 +70,8 @@ DefineSetting SET_DYNLIGHT,  "moving_lights",      "MOVING LIGHTS",      MI_TOGG
 DefineSetting SET_SHADOWS,   "shadows",            "SHADOWS",            MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_PARTICLES, "particles",          "PARTICLES",          MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_REFLECT,   "reflections",        "WET FLOORS",         MI_TOGGLE, 0,  1,   1,   1
+' GLASS REFLECTIONS: panes of glass mirror the room you're in, as much as each says (WORLD/GLASS.BI; GL/OPENGL.BM's GLMirrors)
+DefineSetting SET_GLASSREF,  "glass_reflections",  "GLASS REFLECTIONS",  MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_BLOOM,     "bloom",              "BLOOM",              MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_SCREENFX,  "screen_fx",          "SCREEN FX",          MI_CHOICE, 1,  3,   1,   2
 DefineSetting SET_HITFX,     "hit_fx",             "HIT FX",             MI_TOGGLE, 0,  1,   1,   1

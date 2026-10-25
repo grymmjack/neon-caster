@@ -94,7 +94,7 @@
 ' be lit brighter than their picture (a colour can't go past 1 on the
 ' card). Otherwise, it's the same game - same maths, same light.
 SUB _GL
-    DIM B, cx, cy, w ' (its own: the main program shares these names)
+    DIM B, cx, cy, w, mirW, mirH ' (its own: the main program shares these names)
     IF NOT glReady THEN ' Nothing to draw (or the software renderer is on) - but FULL WIDE's title menu: just our screen (GLShows)
         IF glScreenOnly AND NOT artHold THEN GLScreenOnlyDraw
         EXIT SUB
@@ -186,6 +186,7 @@ SUB _GL
     ' The cells to draw: the ones this frame's rays reached, and their
     ' neighbours
     glEyeX = glCamX(b) : glEyeY = glCamY(b) : glEyeDX = glDirX(b) : glEyeDY = glDirY(b) : glEyeZ = glCamZ(b)
+    glRealX = glEyeX : glRealY = glEyeY : glRealDX = glEyeDX : glRealDY = glEyeDY
     stamp& = glFrame(b) : glNumVis = 0
     IF NOT glGPU THEN ' (with the world mesh, it's drawn whole: the card's depth buffer hides what you can't see)
         FOR cy = 0 TO mapN - 1 : FOR cx = 0 TO mapN - 1
@@ -196,6 +197,20 @@ SUB _GL
         NEXT : NEXT
     END IF
     IF glGPU THEN GLSendLightTables b
+
+    ' GLASS REFLECTIONS: the world as each pane in view mirrors it, drawn
+    ' first into pictures of their own (GLMirrors) - then back to the view
+    IF glPost THEN mirW = sw : mirH = sh ELSE mirW = vw : mirH = vh
+    GLMirrors b, mirW, mirH
+    IF glMirN THEN
+        IF glPost THEN
+            GLSL_target_use glTargScene : _glViewport 0, 0, sw, sh
+            glMirView(0) = 0 : glMirView(1) = 0 : glMirView(2) = sw : glMirView(3) = sh
+        ELSE
+            GLSL_target_use 0 : _glViewport vx, vy, vw, vh
+            glMirView(0) = vx : glMirView(1) = vy : glMirView(2) = vw : glMirView(3) = vh
+        END IF
+    END IF
 
     ' WET FLOORS: first the whole world upside down, below the floor - a
     ' mirror image (GLCamera with mirror on flips every height) - then the
@@ -305,7 +320,7 @@ SUB GLWorldGPU(b, mirror)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
     IF glShaderOn THEN GLFlashUni b, mirror ' (the flashlight's beam - GAME/FLASHLIGHT.BM)
-    IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
+    IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror AND glGlassMir = 0 THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
     glCellLitMode = 1
     GLSL_buffer_bind glMeshBuf
     n& = glMeshN
@@ -497,7 +512,7 @@ SUB GLWorld(b, mirror)
         IF z = 0 AND mirror THEN _CONTINUE ' (no floor in the mirror)
         wetMask = 1
         IF z = 0 AND glReflecting THEN
-            FOR k = 1 TO glNumVis : IF GLOpenCell(glVisX(k), glVisY(k)) THEN wetMask = wetMask OR 2 ^ GLWetKey(glVisX(k), glVisY(k))
+            FOR k = glVis0 + 1 TO glNumVis : IF GLOpenCell(glVisX(k), glVisY(k)) THEN wetMask = wetMask OR 2 ^ GLWetKey(glVisX(k), glVisY(k))
             NEXT
         END IF
         FOR wp = 0 TO 10
@@ -506,7 +521,7 @@ SUB GLWorld(b, mirror)
             _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : glFloorPass = -1
             IF wp THEN glFloorWet = (wp - 1) * WET_STEP ELSE glFloorWet = -1
         END IF
-        FOR k = 1 TO glNumVis
+        FOR k = glVis0 + 1 TO glNumVis
             cx = glVisX(k) : cy = glVisY(k)
             IF GLOpenCell(cx, cy) THEN
                 IF glFloorPass THEN IF GLWetKey(cx, cy) <> wp THEN _CONTINUE
@@ -534,7 +549,7 @@ SUB GLWorld(b, mirror)
     ' Walls, doors and diagonals: each side of a wall cell (1 west, 2 east,
     ' 3 north, 4 south). A diagonal cell only has the two sides that touch
     ' its solid corner, plus its slanted face.
-    FOR k = 1 TO glNumVis
+    FOR k = glVis0 + 1 TO glNumVis
         cx = glVisX(k) : cy = glVisY(k)
         IF boxOn(cx, cy) THEN GLBox cx, cy, b
         IF worldMap(cx, cy) > 0 THEN
@@ -594,6 +609,7 @@ SUB GLGlass(b)
         NEXT
     END IF
     _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA
+    IF glMirN AND glGlassMir = 0 THEN GLGlassMirrors b ' (what each reflects - GLMirrors - under its own picture)
     FOR k = 1 TO numGlass
         cx = glassListX(k) : cy = glassListY(k)
         IF glassHP(cx, cy) > 0 THEN
@@ -666,8 +682,223 @@ SUB GLPaneQuad(cx, cy, spot, red, green, blue, a)
     GLSpriteCorner x0, y0, gz0, u0, v1, red, green, blue : glShadowA(glNumVerts - 1) = a
 END SUB
 
+' GLASS REFLECTIONS. A pane of glass mirrors the room you're in - as much
+' as it says (glassRefK: 0 none to 9 a mirror). Every pane on one line
+' (along x at y = c, or along y at x = c) mirrors the same: the world turned
+' over that line - x becomes 2c - x - so first the lines the panes in view
+' stand on are found and weighed (how much their panes reflect, how near),
+' and the GLASS_MIRRORS that matter most each get the whole world drawn,
+' reflected, into a picture of its own (glMirTarg, half the view's size):
+' the camera as ever, times the reflection, so the picture lines up with
+' the view exactly where the pane is - each pane then shows its part of it
+' (GLGlassMirrors). What's past the pane (its far side, turned over to your
+' side) is left out (clipPl in the shader, a clip plane for the rest), and
+' the eye the shader and the sprites see is yours reflected (glEyeX...):
+' the sky, the fog and the shine as seen along the bounced path, sprites
+' turned to face it. Lights stay where they are - the flashlight's beam,
+' the muzzle flashes, explosions light the reflected walls as the real ones.
+SUB GLMirrors(b, rw, rh)
+    DIM k, m, n, j, best, cx, cy, dd, sd, c, e, w, tw, th, rf ' (its own: the main program shares these names)
+    DIM pd(GLASS_PLANES) AS INTEGER, pc(GLASS_PLANES) AS SINGLE, ps(GLASS_PLANES) AS INTEGER, pw(GLASS_PLANES) AS SINGLE
+    IF glSet(SET_GLASSREF, b) = 0 OR glassRefAny = 0 OR numGlass = 0 OR glWorldProg = 0 THEN EXIT SUB
+    IF glMirTried = 0 THEN GLBuildMirProg
+    IF glMirProg = 0 THEN EXIT SUB
+    ' The lines the panes in view stand on, each weighed
+    FOR k = 1 TO numGlass
+        IF glassRefK(k) = 0 THEN _CONTINUE
+        cx = glassListX(k) : cy = glassListY(k)
+        IF glassHP(cx, cy) <= 0 THEN _CONTINUE
+        IF NOT GLNearSeen(cx, cy, b) THEN _CONTINUE
+        IF glassDir(cx, cy) = 1 THEN dd = 1 : c = cy + 0.5 : e = glRealY ELSE dd = 2 : c = cx + 0.5 : e = glRealX
+        IF ABS(e - c) < 0.03 THEN _CONTINUE ' (in it: edge on)
+        sd = SGN(e - c)
+        w = glassRefK(k) / (1 + SQR((cx + 0.5 - glRealX) ^ 2 + (cy + 0.5 - glRealY) ^ 2))
+        best = 0
+        FOR j = 1 TO n
+            IF pd(j) = dd AND pc(j) = c AND ps(j) = sd THEN best = j : EXIT FOR
+        NEXT
+        IF best = 0 THEN
+            IF n >= GLASS_PLANES THEN _CONTINUE
+            n = n + 1 : best = n : pd(n) = dd : pc(n) = c : ps(n) = sd : pw(n) = 0
+        END IF
+        pw(best) = pw(best) + w
+    NEXT
+    FOR m = 1 TO GLASS_MIRRORS ' ...the weightiest
+        best = 0
+        FOR j = 1 TO n : IF pw(j) > pw(best) THEN best = j
+        NEXT
+        IF best = 0 THEN EXIT FOR
+        glMirN = m : glMirDir(m) = pd(best) : glMirC(m) = pc(best) : glMirSide(m) = ps(best) : pw(best) = 0
+    NEXT
+    IF glMirN = 0 THEN EXIT SUB
+    tw = MaxOf(16, rw \ 2) : th = MaxOf(16, rh \ 2)
+    FOR m = 1 TO glMirN
+        IF glMirTarg(m) = 0 THEN glMirTarg(m) = GLSL_target_new&(tw, th, -1)
+        IF glMirTarg(m) = 0 THEN glMirN = m - 1 : EXIT FOR
+        GLSL_target_resize glMirTarg(m), tw, th
+    NEXT
+    IF glMirN = 0 THEN glMirProg = 0 : EXIT SUB ' (no pictures of their own on this driver: never again)
+    ' Each one: the world, reflected
+    rf = glReflecting : glReflecting = 0 ' (its floors solid: no wet floors in a reflection)
+    FOR m = 1 TO glMirN
+        GLSL_target_use glMirTarg(m) : _glViewport 0, 0, tw, th
+        _glClearColor 0, 0, 0, 1 : _glClear _GL_COLOR_BUFFER_BIT OR _GL_DEPTH_BUFFER_BIT
+        GLCamera b, 0
+        FOR j = 0 TO 15 : glMirMat(j) = 0 : NEXT
+        glMirMat(0) = 1 : glMirMat(5) = 1 : glMirMat(10) = 1 : glMirMat(15) = 1
+        IF glMirDir(m) = 1 THEN glMirMat(5) = -1 : glMirMat(13) = 2 * glMirC(m) ELSE glMirMat(0) = -1 : glMirMat(12) = 2 * glMirC(m)
+        _glMultMatrixf _OFFSET(glMirMat(0))
+        ' (your side of the pane kept: side x (x - c) >= a hair - the plane in
+        ' the world's numbers, as it's given with the reflection on)
+        FOR j = 0 TO 3 : glMirPlane(j) = 0 : NEXT
+        glMirPlane(2 - glMirDir(m)) = glMirSide(m) : glMirPlane(3) = -glMirC(m) * glMirSide(m) - 0.004
+        _glClipPlane _GL_CLIP_PLANE0, _OFFSET(glMirPlane(0))
+        IF glMirDir(m) = 1 THEN glEyeY = 2 * glMirC(m) - glRealY : glEyeDY = -glRealDY ELSE glEyeX = 2 * glMirC(m) - glRealX : glEyeDX = -glRealDX
+        glGlassMir = m
+        IF glGPU THEN
+            GLWorldGPU b, 0
+        ELSE ' (no world mesh: the cells round you on your side of it, after the view's own - GLWorld draws those)
+            nv& = glNumVis : GLMirVis m : GLWorld b, 0 : glVis0 = 0 : glNumVis = nv&
+        END IF
+        glGlassMir = 0 : glEyeX = glRealX : glEyeY = glRealY : glEyeDX = glRealDX : glEyeDY = glRealDY
+    NEXT
+    glReflecting = rf
+    GLCamera b, 0
+END SUB
+
+' Without the world mesh, GLWorld draws only the cells in glVis: for mirror
+' m's, the open cells (and walls) round you, on your side of its line, put
+' after the view's own (glVis0 says where they start)
+SUB GLMirVis(m)
+    DIM cx, cy, x0, x1, y0, y1, r ' (its own: the main program shares these names)
+    r = 10 : glVis0 = glNumVis
+    x0 = MaxOf(0, INT(glRealX) - r) : x1 = MinOf(mapN - 1, INT(glRealX) + r)
+    y0 = MaxOf(0, INT(glRealY) - r) : y1 = MinOf(mapN - 1, INT(glRealY) + r)
+    IF glMirDir(m) = 1 THEN
+        IF glMirSide(m) > 0 THEN y0 = MaxOf(y0, INT(glMirC(m))) ELSE y1 = MinOf(y1, INT(glMirC(m)))
+    ELSE
+        IF glMirSide(m) > 0 THEN x0 = MaxOf(x0, INT(glMirC(m))) ELSE x1 = MinOf(x1, INT(glMirC(m)))
+    END IF
+    FOR cy = y0 TO y1 : FOR cx = x0 TO x1
+        IF glNumVis >= UBOUND(glVisX) THEN EXIT SUB
+        glNumVis = glNumVis + 1 : glVisX(glNumVis) = cx : glVisY(glNumVis) = cy
+    NEXT : NEXT
+END SUB
+
+' The panes' reflections (GLGlass, before their own pictures): each pane on
+' a mirrored line shows that line's picture where it is on the screen
+' (glMirProg reads it by the pixel's own place - gl_FragCoord), mixed in by
+' how much it reflects - and more the more slantwise you look (as glass
+' does: head on, mostly what's behind it; along it, mostly what's in front).
+' Then the flashlight's glare, if it's pointed at one.
+SUB GLGlassMirrors(b)
+    DIM k, m, cx, cy, x0, y0, x1, y1, gz0, gz1 ' (its own: the main program shares these names)
+    GLStopDrawing
+    GLSL_use glMirProg
+    GLSL_uniform_1i glMirProg, "mir", 0
+    GLSL_uniform_4f glMirProg, "view", glMirView(0), glMirView(1), glMirView(2), glMirView(3)
+    GLSL_uniform_3f glMirProg, "eye", glRealX, glRealY, glEyeZ
+    _glColor4f 1, 1, 1, 1
+    FOR m = 1 TO glMirN
+        _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glMirTarg(m))
+        IF glMirDir(m) = 1 THEN GLSL_uniform_2f glMirProg, "nrm", 0, 1 ELSE GLSL_uniform_2f glMirProg, "nrm", 1, 0
+        FOR k = 1 TO numGlass
+            IF glassRefK(k) THEN
+                cx = glassListX(k) : cy = glassListY(k)
+                IF glassHP(cx, cy) > 0 AND GLPaneOn(cx, cy, m) THEN
+                    IF GLNearSeen(cx, cy, b) THEN
+                        GLSL_uniform_1f glMirProg, "amt", glassRefK(k) / 9
+                        IF glassDir(cx, cy) = 1 THEN x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 ELSE x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1
+                        gz0 = floorH(cx, cy) : gz1 = ceilH(cx, cy)
+                        _glBegin _GL_QUADS
+                        _glVertex3f x0, y0, gz1 : _glVertex3f x1, y1, gz1 : _glVertex3f x1, y1, gz0 : _glVertex3f x0, y0, gz0
+                        _glEnd
+                    END IF
+                END IF
+            END IF
+        NEXT
+    NEXT
+    GLSL_use 0
+    _glBindTexture _GL_TEXTURE_2D, 0
+    IF glFl(b) > 0 THEN
+        FOR m = 1 TO glMirN : GLFlashGlare m, b : NEXT
+    END IF
+END SUB
+
+' Is pane (cx, cy) on mirror m's line, with you on the side it was drawn for?
+FUNCTION GLPaneOn(cx, cy, m)
+    IF glassDir(cx, cy) = 1 THEN
+        GLPaneOn = (glMirDir(m) = 1 AND glMirC(m) = cy + 0.5 AND glMirSide(m) = SGN(glRealY - glMirC(m)))
+    ELSE
+        GLPaneOn = (glMirDir(m) = 2 AND glMirC(m) = cx + 0.5 AND glMirSide(m) = SGN(glRealX - glMirC(m)))
+    END IF
+END FUNCTION
+
+' The flashlight's glare in mirror m's glass: you see your own lamp where
+' the pane is square in front of you (the foot of the line from your eye
+' to it) - bright as the beam is there (its cone, its reach there and
+' back) and as much as that pane reflects. A soft spot, added.
+SUB GLFlashGlare(m, b)
+    DIM k, cx, cy, fx, fy, fz, d, cs, half, soft, e0, e1, t, s, col AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    fz = glEyeZ - 0.06 ' (the lamp: a little below your eye - GLFlashUni)
+    IF glMirDir(m) = 1 THEN
+        fx = glRealX : fy = glMirC(m) : d = ABS(glRealY - fy) : cs = -glMirSide(m) * glRealDY
+    ELSE
+        fx = glMirC(m) : fy = glRealY : d = ABS(glRealX - fx) : cs = -glMirSide(m) * glRealDX
+    END IF
+    cx = INT(fx) : cy = INT(fy)
+    IF glassHP(cx, cy) <= 0 OR glassHP(cx, cy) >= BARS_HP THEN EXIT SUB
+    IF NOT GLPaneOn(cx, cy, m) THEN EXIT SUB
+    IF fz < floorH(cx, cy) OR fz > ceilH(cx, cy) THEN EXIT SUB
+    FOR k = 1 TO numGlass : IF glassListX(k) = cx AND glassListY(k) = cy THEN EXIT FOR
+    NEXT
+    IF k > numGlass THEN EXIT SUB
+    IF glassRefK(k) = 0 THEN EXIT SUB
+    cs = cs * COS(glPitch(b)) ' (the beam's way, against the pane's: pointed up or down, less of it)
+    half = glSet(SET_FL_WIDTH, b) / 2 * 3.14159265 / 180 : soft = glSet(SET_FL_SOFT, b) / 100
+    e0 = COS(half) : e1 = COS(half * (1 - 0.85 * soft))
+    IF cs <= e0 THEN EXIT SUB
+    t = (cs - e0) / (e1 - e0 + 0.00001) : IF t > 1 THEN t = 1
+    t = t * t * (3 - 2 * t) ' (smoothstep, as the shader's cone)
+    s = 1 - (2 * d / glSet(SET_FL_REACH, b)) ^ 2 : IF s <= 0 THEN EXIT SUB ' (there and back)
+    s = s * t * glFl(b) * glSet(SET_FL_BRIGHT, b) / 100 * (0.25 + glassRefK(k) / 9) * 1.4
+    col = FlColour~&(glSet(SET_FL_COLOUR, b))
+    _glBlendFunc _GL_SRC_ALPHA, _GL_ONE
+    t = 0.1 + 0.03 * d ' (its size: a lamp's lens, and its glow round it - smaller the further it is, but not to nothing)
+    d = SQR(glRealDX * glRealDX + glRealDY * glRealDY)
+    GLGlowSpot fx + (glRealX - fx) * 0.02, fy + (glRealY - fy) * 0.02, fz, t, _RED32(col) / 255 * s, _GREEN32(col) / 255 * s, _BLUE32(col) / 255 * s, -glRealDY / d, glRealDX / d
+    GLStopDrawing
+    _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA
+END SUB
+
+' The shader that lays a mirror's picture on its panes (GLGlassMirrors)
+SUB GLBuildMirProg
+    DIM nl$, vs$, fs$ ' (its own: the main program shares these names)
+    glMirTried = -1 : glMirProg = 0
+    IF NOT GLSL_targets_supported% THEN EXIT SUB
+    nl$ = CHR$(10)
+    vs$ = "#version 120" + nl$ + "varying vec3 vPos;" + nl$
+    vs$ = vs$ + "void main() { gl_Position = ftransform(); vPos = gl_Vertex.xyz; }" + nl$
+    fs$ = "#version 120" + nl$
+    fs$ = fs$ + "uniform sampler2D mir;  // the world as this line mirrors it" + nl$
+    fs$ = fs$ + "uniform vec4 view;      // where the view is: its corner and size, in pixels" + nl$
+    fs$ = fs$ + "uniform vec3 eye;       // you" + nl$
+    fs$ = fs$ + "uniform vec2 nrm;       // the pane's facing (along x or y)" + nl$
+    fs$ = fs$ + "uniform float amt;      // how much it reflects: 0..1 (0-9)" + nl$
+    fs$ = fs$ + "varying vec3 vPos;" + nl$
+    fs$ = fs$ + "void main() {" + nl$
+    fs$ = fs$ + "    vec3 c = texture2D(mir, (gl_FragCoord.xy - view.xy) / view.zw).rgb;" + nl$
+    fs$ = fs$ + "    float ci = abs(dot(normalize(vPos - eye), vec3(nrm, 0.0)));  // head on 1, along it 0" + nl$
+    fs$ = fs$ + "    float fr = pow(1.0 - ci, 3.0);" + nl$
+    fs$ = fs$ + "    gl_FragColor = vec4(c, clamp(amt * (0.35 + 0.65 * fr) * (1.0 + amt), 0.0, 1.0));" + nl$
+    fs$ = fs$ + "}" + nl$
+    glMirProg = GLSL_program~&(vs$, fs$)
+    IF glMirProg = 0 THEN glShaderError$ = "glass: " + GLSL_error$
+END SUB
+
 SUB GLSpritesAndExtras(b, mirror)
-    DIM i, lk, slot, sx, sy, x0, y0, y1, uL, uR, tr, tg, tb ' (its own: the main program shares these names)
+    DIM i, lk, slot, sx, sy, x0, y0, y1, uL, uR, tr, tg, tb, mir ' (its own: the main program shares these names)
+    mir = (mirror <> 0 OR glGlassMir <> 0) ' (a reflection: the floor's, or a pane's)
     glCellLitMode = 0 ' (sprites have their own light, worked out in chapter 16)
 
     ' Sprites: a rectangle across your view, right = (-dirY, dirX), one
@@ -701,7 +932,7 @@ SUB GLSpritesAndExtras(b, mirror)
             GLDynAt sx, sy, (zLow + zHigh) / 2, dr, dg, db
             red = red + dr / 256 : green = green + dg / 256 : blue = blue + db / 256
         END IF
-        IF glSprMdl(i, b) AND mirror AND slot = 0 THEN _CONTINUE ' (a model with no picture - a plate: not in reflections)
+        IF glSprMdl(i, b) AND mir AND slot = 0 THEN _CONTINUE ' (a model with no picture - a plate: not in reflections)
         lk = glSprLk(i, b) : IF lk THEN IF lkMode(lk) = 0 THEN lk = 0
         IF lk THEN ' Its look ([looks]): the world shader tints it - drawn on its own, so the tint is only its; no shader, its light tinted as near as that gets
             tr = ((lkCol(lk) \ 65536) AND 255) / 255 : tg = ((lkCol(lk) \ 256) AND 255) / 255 : tb = (lkCol(lk) AND 255) / 255
@@ -713,7 +944,7 @@ SUB GLSpritesAndExtras(b, mirror)
             END IF
         END IF
         glMdlK = glSprSz(i, b)
-        IF glSprMdl(i, b) AND NOT mirror THEN ' (a 3D prop: its model, not its picture - but in a reflection, its picture: half the cost, and you can't tell)
+        IF glSprMdl(i, b) AND NOT mir THEN ' (a 3D prop: its model, not its picture - but in a reflection, its picture: half the cost, and you can't tell)
             IF glSprHead(i, b) THEN ' (a turret: its base on its mount, and its head on that, aimed at you)
                 GLDrawModel turBaseMdl, sx, sy, zLow, glSprAng(i, b), glSprPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), 0, 1
                 GLDrawModel turHeadMdl, sx + glSprUpX(i, b) * turPivot, sy + glSprUpY(i, b) * turPivot, zLow + glSprUpZ(i, b) * turPivot, glSprHAng(i, b), glSprHPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), glSprCap(i, b), 1
@@ -734,6 +965,7 @@ SUB GLSpritesAndExtras(b, mirror)
     _glDisable _GL_ALPHA_TEST
     IF liqAny AND NOT mirror AND NOT cyberOn THEN GLLiquids b ' (after the sprites, so what's in a pool shows through it)
     GLShaderStop
+    IF glGlassMir THEN _glEnable _GL_CLIP_PLANE0 ' (a pane's reflection: only what's on your side of it - the shader did its own, clipPl)
 
     IF glSet(SET_SHADOWS, b) AND NOT mirror THEN GLShadows b
     GLDecals b
@@ -773,6 +1005,7 @@ SUB GLSpritesAndExtras(b, mirror)
     END IF
     GLStopDrawing
     _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
+    _glDisable _GL_CLIP_PLANE0
 END SUB
 
 ' A 3D PROP (RENDER/MODELS.BM): model m's triangles, turned to face ang
@@ -1393,6 +1626,7 @@ SUB GLShaderStart(b)
     GLSL_uniform_1f p~&, "eyeZ", glEyeZ ' (the sky's: where the eye really is, up and down)
     GLSL_uniform_2f p~&, "viewDir", glEyeDX, glEyeDY
     GLSL_uniform_1f p~&, "lookMode", 0 ' (no look: a thing with one sets it while it's drawn)
+    IF glGlassMir THEN GLSL_uniform_4f p~&, "clipPl", glMirPlane(0), glMirPlane(1), glMirPlane(2), glMirPlane(3) ELSE GLSL_uniform_4f p~&, "clipPl", 0, 0, 0, 1 ' (a pane's reflection: only your side of it)
     glBumpOn = (glSet(SET_BUMP, b) <> 0) * -1 ' (1 or 0: GLBindSlot uses it)
     GLSL_uniform_1f p~&, "smoothOn", (glSet(SET_SMOOTH, b) <> 0) * -1
     GLSL_uniform_1f p~&, "secs", glClock# - INT(glClock# / 1000) * 1000
@@ -1930,6 +2164,7 @@ END SUB
 
 ' Did this frame's rays reach cell (cx, cy), or a cell beside it?
 FUNCTION GLNearSeen(cx, cy, b)
+    IF glGlassMir THEN IF ABS(cx + 0.5 - glRealX) < GLASS_BEHIND AND ABS(cy + 0.5 - glRealY) < GLASS_BEHIND THEN GLNearSeen = -1 : EXIT FUNCTION ' (a pane's reflection: what's round you, seen or not)
     stamp& = glFrame(b)
     IF glSeen(cx, cy, b) = stamp& OR glSeen(cx + 1, cy, b) = stamp& OR glSeen(cx, cy + 1, b) = stamp& THEN GLNearSeen = -1 : EXIT FUNCTION
     IF cx > 0 THEN IF glSeen(cx - 1, cy, b) = stamp& THEN GLNearSeen = -1 : EXIT FUNCTION
@@ -2290,6 +2525,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform vec2 viewDir;       // the way you face" + nl$
     fs$ = fs$ + "uniform float bump, texel, shine, reflectAmt, neon, anim, isSprite, secs;" + nl$
     fs$ = fs$ + "uniform float mirrorCut;    // the mirror image: leave out what's below the floor" + nl$
+    fs$ = fs$ + "uniform vec4 clipPl;        // a pane's reflection: leave out what's past it (its far side)" + nl$
     fs$ = fs$ + "uniform float eyeZ;         // the eye's real height (for a sky)" + nl$
     fs$ = fs$ + "uniform float gridAmt;      // the editor's grid: how strong (0 off)" + nl$
     fs$ = fs$ + "uniform float lookMode;     // a thing's look ([looks]): 1 TINT, 2 WASH, 3 GLOW - 0 none" + nl$
@@ -2309,6 +2545,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "}" + nl$
     fs$ = fs$ + "void main() {" + nl$
     fs$ = fs$ + "    if (mirrorCut > 0.5 && vPos.z < 0.0) discard;  // WET FLOORS: a pit's sides would reflect up into the room" + nl$
+    fs$ = fs$ + "    if (dot(vec4(vPos, 1.0), clipPl) < 0.0) discard;  // GLASS REFLECTIONS: only what's on your side of the pane" + nl$
     fs$ = fs$ + "    if (anim > 3.5 && anim < 4.5) {  // A SKY: by the way you look, not where the ceiling is - so it's endlessly far off" + nl$
     fs$ = fs$ + "        vec3 d = vPos - vec3(eye.xy, eyeZ);" + nl$
     fs$ = fs$ + "        float el = clamp(atan(d.z, length(d.xy)) / 1.2566, 0.0, 1.0);" + nl$

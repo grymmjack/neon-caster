@@ -42,6 +42,31 @@ SUB AssignGlass
     NEXT : NEXT
 END SUB
 
+' How much each pane reflects (glassRefK): its [glass] line's amount, else
+' the sector's - bars never
+SUB GlassRefBuild
+    DIM k ' (its own: the main program shares these names)
+    glassRefAny = 0
+    FOR k = 1 TO numGlass
+        glassRefK(k) = GlassRefOf(glassListX(k), glassListY(k))
+        IF glassHP(glassListX(k), glassListY(k)) >= BARS_HP THEN glassRefK(k) = 0
+        IF glassRefK(k) > 0 THEN glassRefAny = -1
+    NEXT
+END SUB
+
+' The pane at x, y's amount: its own [glass] line's, else the sector's
+FUNCTION GlassRefOf(x, y)
+    DIM k ' (its own: the main program shares these names)
+    k = XtraFind("glass", x, y, 0)
+    IF k THEN GlassRefOf = MaxOf(0, MinOf(9, VAL(XtraField$(k, 3)))) : EXIT FUNCTION
+    GlassRefOf = GlassRefSector
+END FUNCTION
+
+' The sector's amount (glass_reflect =; left out, GLASS_REF_USUAL)
+FUNCTION GlassRefSector
+    IF lvlGlassRef < 0 THEN GlassRefSector = GLASS_REF_USUAL ELSE GlassRefSector = lvlGlassRef
+END FUNCTION
+
 ' Which picture the glass at (cx, cy) shows: whole, hit (chipped, cracked,
 ' falling apart - by the hits it has left), bars. Hit panes take one of
 ' GLASS_LOOKS patterns by their cell, so neighbours differ (along a row

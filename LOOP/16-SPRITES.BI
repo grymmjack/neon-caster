@@ -332,6 +332,9 @@
         IF drawDistSq(drawOrder(b)) > drawDistSq(drawOrder(a)) THEN SWAP drawOrder(a), drawOrder(b)
     NEXT : NEXT
     invDet = 1 /(planeX * dirY - dirX * planeY)
+    ' (with GLASS REFLECTIONS, what's behind you goes to OpenGL too, within
+    ' GLASS_BEHIND cells: a pane in front of you shows it - GL/OPENGL.BM's GLMirrors)
+    glassBehind = glMode AND setting(SET_GLASSREF) <> 0 AND glassRefAny
     FOR drawIdx = 1 TO numDraw
         i = drawOrder(drawIdx)
         lkS = 1 : IF drawLk(i) THEN lkS = lkSize(drawLk(i)) : IF lkS <> 1 THEN drawScale(i) = drawScale(i) * lkS ' (sized by its look: [looks])
@@ -340,7 +343,8 @@
         transformY = invDet * ( - planeY * relX + planeX * relY) ' Depth
         IF drawFace(i) THEN
             DrawFlat ' (standing flat, facing one way: RENDER/VIEW.BM)
-        ELSEIF transformY > 0.1 THEN
+        ELSEIF transformY > 0.1 OR (glassBehind AND transformY > -GLASS_BEHIND AND transformY < -0.3) THEN
+            behindNow = transformY < 0 : IF behindNow THEN transformY = -transformY ' (behind you - well behind, so all of it is: as far, for its fog - it's only ever seen in glass)
             sc = drawScale(i) : IF drawPic(i) AND NOT glMode THEN sc = mdlFrame(drawMdl(i)) * lkS ' (a 3D prop's picture: wider than its sprite, to fit it from any way round)
             spriteW = INT(viewH / transformY * sc) : spriteH = INT(spriteW * drawSquash(i))
             IF spriteH < 1 THEN spriteH = 1
@@ -370,7 +374,10 @@
                 ' a model costs hundreds of triangles, and that far off it's a
                 ' few pixels tall.)
                 mdlNow = drawMdl(i) : sc = drawScale(i)
-                IF mdlNow THEN
+                IF mdlNow AND behindNow THEN ' (behind you: its picture, or nothing)
+                    IF drawPic(i) = 0 AND drawSprite(i) = 0 THEN _CONTINUE
+                    mdlNow = 0 : IF drawPic(i) THEN spriteSlot = SPR_SLOTS + drawPic(i) : sc = mdlFrame(drawMdl(i)) * lkS
+                ELSEIF mdlNow THEN
                     IF ABS(transformX) > transformY * 2 + mdlFrame(mdlNow) THEN _CONTINUE
                     lx = INT(drawX(i)) : ly = INT(drawY(i)) ' (not seen this frame - in another room, behind a wall: nothing to draw)
                     IF glSeen(lx, ly, glWrite) <> glFrameNo AND glSeen(lx + 1, ly, glWrite) <> glFrameNo AND glSeen(lx, ly + 1, glWrite) <> glFrameNo AND glSeen(MaxOf(0, lx - 1), ly, glWrite) <> glFrameNo AND glSeen(lx, MaxOf(0, ly - 1), glWrite) <> glFrameNo THEN _CONTINUE

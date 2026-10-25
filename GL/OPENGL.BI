@@ -116,7 +116,20 @@ DIM SHARED glTexShine(GL_GLOW_TEX), glTexReflect(GL_GLOW_TEX), glTexNeon(GL_GLOW
 ' hang (in walls: the ceiling is 1)
 CONST GL_BUMP = 2.5, GL_LIGHT_Z = 0.85
 DIM SHARED glVisX(MAP_SIZE * MAP_SIZE) AS INTEGER, glVisY(MAP_SIZE * MAP_SIZE) AS INTEGER, glNumVis AS LONG
+DIM SHARED glVis0 AS LONG ' (GLWorld draws glVis from glVis0 + 1: past the view's own, a pane's reflection's - GLMirVis)
 DIM SHARED glEyeX, glEyeY, glEyeDX, glEyeDY, glLR, glLG, glLB, glShade
+' GLASS REFLECTIONS (GLMirrors): the panes in view that reflect, by the line
+' each stands on (its plane: along x at y = glMirC, or along y at x =) - the
+' GLASS_MIRRORS that matter most each drawn as the world reflected in it,
+' into a picture of its own (glMirTarg), then laid on its panes (GLGlass).
+' While one's drawn, glGlassMir is which and glEyeX... are the eye reflected
+' (the shader's view, the sprites turned to it); glRealX... are yours.
+' GLASS_BEHIND: how far behind you things are handed over (chapter 16).
+CONST GLASS_MIRRORS = 2, GLASS_PLANES = 16, GLASS_BEHIND = 12
+DIM SHARED glGlassMir AS INTEGER, glMirN AS INTEGER, glMirDir(GLASS_MIRRORS) AS INTEGER, glMirC(GLASS_MIRRORS) AS SINGLE, glMirSide(GLASS_MIRRORS) AS INTEGER
+DIM SHARED glMirTarg(GLASS_MIRRORS) AS LONG, glMirProg AS _UNSIGNED LONG, glMirTried AS INTEGER, glMirView(3) AS SINGLE
+DIM SHARED glMirMat(15) AS SINGLE, glMirPlane(3) AS DOUBLE
+DIM SHARED glRealX, glRealY, glRealDX, glRealDY
 ' The corners waiting to be drawn (GLCorner puts them here; GLDraw hands
 ' them to the card in one go): position (x, y, z), texture spot (u, v) and
 ' colour (red, green, blue) for up to GL_BATCH corners

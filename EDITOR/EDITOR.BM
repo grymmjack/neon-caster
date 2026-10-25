@@ -942,6 +942,20 @@ SUB EditPaneClick STATIC
         CASE 300, 301 ' The sector's wetness: auto (each floor as its picture is), then 0 dry - 9 soaked
             lvlWet = MaxOf(-1, MinOf(9, lvlWet + 2 * pnHit - 601)) : glMeshVersion = glMeshVersion + 1 : editDirty = -1
             IF lvlWet < 0 THEN EditNote "Wetness: auto - each floor as its picture is (OpenGL's WET FLOORS)" ELSE EditNote "Wetness:" + STR$(lvlWet) + " of 9 (0 dry - 9 soaked; OpenGL's WET FLOORS)"
+        CASE 620, 621 ' The selected panes of glass: how much each reflects (0 none - 9 a mirror; the sector's: no [glass] line)
+            EditPushUndo : n = -1
+            FOR k = 1 TO edSelN
+                x = edSelX(k) : y = edSelY(k)
+                IF MID$(lvlRow$(y), x + 1, 1) = "=" THEN
+                    n = MaxOf(0, MinOf(9, GlassRefOf(x, y) + 2 * pnHit - 1241))
+                    IF n = GlassRefSector THEN XtraSet "glass", x, y, "" ELSE XtraSet "glass", x, y, LTRIM$(STR$(n))
+                END IF
+            NEXT
+            GlassRefBuild : editDirty = -1
+            IF n >= 0 THEN EditNote "Reflects" + STR$(n) + " of 9 (0 none - 9 a mirror; OpenGL's GLASS REFLECTIONS)"
+        CASE 622, 623 ' The sector's glass: how much it reflects (each pane with no [glass] line of its own)
+            lvlGlassRef = MaxOf(0, MinOf(9, GlassRefSector + 2 * pnHit - 1245)) : GlassRefBuild : editDirty = -1
+            EditNote "Glass reflects" + STR$(lvlGlassRef) + " of 9 (0 none - 9 a mirror; a pane can have its own - OpenGL's GLASS REFLECTIONS)"
         CASE 302, 303 ' The selected floors' own wetness: . the sector's, 0 dry - 9 soaked
             EditPushUndo : n = -1
             FOR k = 1 TO edSelN
@@ -2405,6 +2419,7 @@ SUB EditPut(x, y, c0$)
         IF INSTR("'d" + CHR$(34), c$) = 0 THEN XtraSet "notes", x, y, "" ' (a note, or one in a desk or bookshelf or safe)
         IF INSTR("`,", c$) = 0 THEN XtraSet "fuel", x, y, "" ' (a jetpack's or fuel can's own fuel)
         XtraSet "difficulty", x, y, "" ' (the difficulties it was in: a new one's in every one)
+        IF c$ <> "=" THEN XtraSet "glass", x, y, "" ' (a pane's own reflection)
         IF INSTR(".#NCKPG", c$) THEN XtraSet "looks", x, y, "" ' (the thing's look goes with it: emptied, or walled up - what's put there later starts as made)
         IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) > 0 AND INSTR("#NCKPG", c$) = 0 THEN ' (a plain wall opened: its floor and ceiling the usual - whatever it kept, unseen in a wall, isn't carved in with it)
             MID$(lvlFloorRow$(y), x + 1, 1) = "." : MID$(lvlCeilRow$(y), x + 1, 1) = "."
@@ -3879,6 +3894,7 @@ SUB EditPaneLay
         EditPaneAdd -1, x0, y + 2, 140, "GRAVITY" + STR$(lvlGravity) + "%", 0 : EditPaneAdd 286, x0 + 146, y, 24, "-", 0 : EditPaneAdd 287, x0 + 174, y, 24, "+", 0 : y = y + 24
         IF lvlWet < 0 THEN t$ = "WETNESS AUTO" ELSE t$ = "WETNESS" + STR$(lvlWet)
         EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 300, x0 + 146, y, 24, "-", 0 : EditPaneAdd 301, x0 + 174, y, 24, "+", 0 : y = y + 24
+        EditPaneAdd -1, x0, y + 2, 140, "GLASS REFLECTS" + STR$(GlassRefSector), 0 : EditPaneAdd 622, x0 + 146, y, 24, "-", 0 : EditPaneAdd 623, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "ALL FLOORS", 0 : EditPaneAdd 272, x0 + 146, y, 24, "-", 0 : EditPaneAdd 273, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "ALL CEILINGS", 0 : EditPaneAdd 274, x0 + 146, y, 24, "-", 0 : EditPaneAdd 275, x0 + 174, y, 24, "+", 0 : y = y + 24
         EditPaneAdd -1, x0, y + 2, 140, "LOOT " + LootSetName$(edLootSet), 0 : EditPaneAdd 276, x0 + 146, y, 24, "<", 0 : EditPaneAdd 277, x0 + 174, y, 24, ">", 0 : y = y + 24
@@ -4250,6 +4266,9 @@ SUB EditPaneLook(x0, y)
     DIM a, c, k, m, sz, c~&, t$ ' (its own: the main program shares these names)
     k = EditLookCell : IF k = 0 THEN EXIT SUB
     EditLookGet edSelX(k), edSelY(k), m, a, c~&, sz
+    IF MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1) = "=" THEN ' (glass: how much it reflects - OpenGL's GLASS REFLECTIONS)
+        EditPaneAdd -1, x0, y + 2, 140, "REFLECTS" + STR$(GlassRefOf(edSelX(k), edSelY(k))) + " OF 9", 0 : EditPaneAdd 620, x0 + 146, y, 24, "-", 0 : EditPaneAdd 621, x0 + 174, y, 24, "+", 0 : y = y + 23
+    END IF
     EditPaneAdd -1, x0, y + 2, PN_W, "ITS LOOK:", 0 : y = y + 20
     FOR c = 0 TO 3 : EditPaneAdd 376 + c, x0 + c * 50, y, 48, EditTintName$(c), (m = c) : NEXT : y = y + 23
     IF m THEN
@@ -6056,7 +6075,7 @@ SUB EditMakeRoom(w, h)
     NEXT
     MID$(lvlRow$((y0 + y1) \ 2), x0 + 1, 1) = ">" : MID$(lvlRow$((y0 + y1) \ 2), x1 + 2, 1) = "E"
     lvlMonN = 0 : lvlNumZones = 0 : lvlNumLifts = 0 : lvlNumEvents = 0 : lvlNumTrigs = 0 : lvlNumBoxes = 0 : lvlNumNudges = 0 : lvlNumFaces = 0 : lvlNumPairs = 0 : lvlNumBarrels = 0 : lvlNumXtra = 0
-    lvlGravity = 100 : lvlWet = -1 ' (a new sector: the usual gravity, its floors as their pictures are)
+    lvlGravity = 100 : lvlWet = -1 : lvlGlassRef = -1 ' (a new sector: the usual gravity, its floors as their pictures are)
     lvlNumLights = 1 : lvlLight(1, 1) = mapN / 2 : lvlLight(1, 2) = mapN / 2 : lvlLight(1, 3) = MaxOf(w, h) / 2 + 3 : lvlLight(1, 4) = 150
     lvlLight(1, 5) = 220 : lvlLight(1, 6) = 230 : lvlLight(1, 7) = 255 : lvlLight(1, 8) = 0 : lvlLight(1, 9) = 0
     CellLightsClear

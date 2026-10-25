@@ -23,7 +23,7 @@ GLASS = set("=-")  # a pane of glass: see through it, but not walk; - bars acros
 THINGS = {"table": "deco", "brokenmonitor": "flat", "deadscientist": "flat", "deadguard": "flat", "deadcyborg": "flat", "bookshelf": "deco",
           "safe": "deco", "brokenpc": "deco", "computer": "deco", "camera": "flat", "secmon": "deco", "alarm": "deco", "alarmpc": "deco", "jumppad": "flat", "padpc": "deco",
           "repairkit": "item", "invuln": "item", "flashlight": "item", "battery": "item", "robodog": "mon", "guard": "mon", "eyebot": "mon"}
-XTRA = ("doors", "things", "notes", "smears", "fuel", "difficulty", "looks")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
+XTRA = ("doors", "things", "notes", "smears", "fuel", "difficulty", "looks", "glass")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
 SMEARS = ("blood1", "blood2", "blood3", "oil1", "oil2", "blood", "oil")
 STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle
 PANEL = set(";")  # a turret control panel: a wall you hack, switching the turrets near it off
@@ -585,6 +585,13 @@ def check_xtra(lv):
         if len(f) > 5 and not (f[5].isdigit() and 10 <= int(f[5]) <= 400): errs.append("looks at %d,%d: size '%s' (10-400 percent)" % (x, y, f[5]))
         c = at(x, y)
         if c not in ITEMS and c not in MONS and c not in DECO and c not in GLASS: errs.append("looks at %d,%d: nothing there to look (it's '%s')" % (x, y, c))
+    for l in lv.get("glass", []):
+        f, x, y = _xf(l)
+        if x is None or len(f) < 3: errs.append("glass line '%s': x, y, how much it reflects 0-9" % l); continue
+        if not (f[2].isdigit() and int(f[2]) <= 9): errs.append("glass at %d,%d: '%s' (0 none - 9 a mirror)" % (x, y, f[2]))
+        if at(x, y) != "=": errs.append("glass at %d,%d: no pane of glass there (it's '%s')" % (x, y, at(x, y)))
+    g = lv.get("glass_reflect")
+    if g is not None and not (0 <= g <= 9): errs.append("glass_reflect = %d: 0 none - 9 a mirror" % g)
     return errs
 
 
@@ -710,6 +717,8 @@ def level_text(lv, comment=()):
         out.append("gravity  = %d" % lv["gravity"])
     if lv.get("wetness") is not None and lv["wetness"] >= 0:  # how wet its floors look, 0-9 (left out: each as its picture is)
         out.append("wetness  = %d" % lv["wetness"])
+    if lv.get("glass_reflect") is not None and lv["glass_reflect"] >= 0:  # how much its glass reflects, 0-9 (left out: 2)
+        out.append("glass_reflect = %d" % lv["glass_reflect"])
     out.append("walls    = " + ", ".join(lv["walls"]))
     out.append("floors   = " + ", ".join(lv["floors"]))
     out.append("ceilings = " + ", ".join(lv["ceils"]))
@@ -788,7 +797,8 @@ def level_text(lv, comment=()):
                    ("smears", "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)"),
                    ("fuel", "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"),
                    ("difficulty", "' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one"),
-                   ("looks", "' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)")):
+                   ("looks", "' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)"),
+                   ("glass", "' how much the pane of glass at x, y reflects (OpenGL): x, y, 0 none - 9 a mirror (no line: the sector's, glass_reflect)")):
         if lv.get(sec):  # lines about single cells - kept as they are
             out += ["", "[" + sec + "]", h] + list(lv[sec])
     out.append("")
@@ -854,7 +864,7 @@ def read_level_file(path, label=None):
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
               ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[], loot=[],
               liquid=[], liquid_depth=[], liquid_opacity_rows=[], wetness_rows=[], blocks=[], nudges=[], cell_lights=[], barrels=[],
-              doors=[], things=[], notes=[], smears=[], fuel=[], difficulty=[], looks=[])
+              doors=[], things=[], notes=[], smears=[], fuel=[], difficulty=[], looks=[], glass=[])
     global N
     sec = None
     high = {"floor high": [], "ceiling high": []}
@@ -884,6 +894,7 @@ def read_level_file(path, label=None):
             elif k == "droids": lv["droids"] = int(float(v))
             elif k == "gravity": lv["gravity"] = int(float(v))
             elif k == "wetness": lv["wetness"] = -1 if v.lower().startswith("a") else int(float(v))
+            elif k == "glass_reflect": lv["glass_reflect"] = int(float(v))
             elif k == "walls": lv["walls"] = vals
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals

@@ -361,6 +361,26 @@ SUB ConExec STATIC
                 glMeshVersion = glMeshVersion + 1 : IF editMode THEN editDirty = -1
             END IF
             IF lvlWet < 0 THEN ConPrint "Wetness: auto (each floor as its picture is)" ELSE ConPrint "Wetness:" + STR$(lvlWet) + " (0 dry - 9 soaked)"
+        CASE "glassreflect" ' glassreflect [N] / glassreflect X Y [N|auto]: how much the sector's glass reflects (0-9, OpenGL) - or one pane's (auto: the sector's)
+            IF LEN(conB$) THEN
+                grX = INT(VAL(conA$)) : grY = INT(VAL(conB$))
+                IF grX < 0 OR grY < 0 OR grX >= mapN OR grY >= mapN THEN
+                    ConPrint "No such cell"
+                ELSEIF MID$(lvlRow$(grY), grX + 1, 1) <> "=" THEN
+                    ConPrint "No glass at" + STR$(grX) + STR$(grY)
+                ELSE
+                    IF LCASE$(LEFT$(conC$, 1)) = "a" THEN
+                        XtraSet "glass", grX, grY, ""
+                    ELSEIF LEN(conC$) THEN
+                        XtraSet "glass", grX, grY, LTRIM$(STR$(MaxOf(0, MinOf(9, VAL(conC$)))))
+                    END IF
+                    IF LEN(conC$) THEN GlassRefBuild : IF editMode THEN editDirty = -1
+                    ConPrint "The glass at" + STR$(grX) + STR$(grY) + " reflects" + STR$(GlassRefOf(grX, grY)) + " of 9"
+                END IF
+            ELSE
+                IF LEN(conA$) THEN lvlGlassRef = MaxOf(0, MinOf(9, VAL(conA$))) : GlassRefBuild : IF editMode THEN editDirty = -1
+                ConPrint "Glass reflects" + STR$(GlassRefSector) + " of 9 (0 none - 9 a mirror)"
+            END IF
         CASE "wet" ' wet X0 Y0 X1 Y1 N: those floors' own wetness (0-9; . the sector's) - in the editor, into the level; in play, a trigger's rain
             IF LEN(ConWord$(conCmd$, 6)) = 0 THEN
                 ConPrint "wet X0 Y0 X1 Y1 N   (N: 0 dry - 9 soaked, or . the sector's)"
@@ -1416,7 +1436,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet glassreflect jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1440,7 +1460,7 @@ SUB ConHelp(c$)
             ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7redo"
             ConPrint "            ^7savelevel  ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]"
-            ConPrint "            ^7jumppad^8 X Y ...  ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N"
+            ConPrint "            ^7jumppad^8 X Y ...  ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N  ^7glassreflect^8 [X Y] [N]"
             ConPrint "            ^7ambient^8 [BRIGHT RRGGBB FX]  ^7celllight^8 X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]|off"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
             ConPrint "            ^7flashlight^8 [on|off|width|reach|bright|soft|haze|colour|fx|battery ...]"
@@ -1571,6 +1591,10 @@ SUB ConHelp(c$)
             ConPrint "^3wetness [0-9|auto]^0: how wet this sector's floors look - how much of OpenGL's mirror image"
             ConPrint "  shows in them (WET FLOORS): 0 dry, 9 soaked; auto, each as its picture is (concrete hardly,"
             ConPrint "  ice a lot). A level file's wetness = sets it; ^3wet^0 overrides it cell by cell."
+        CASE "glassreflect"
+            ConPrint "^3glassreflect [N]^0: how much this sector's glass reflects the room you're in (OpenGL's GLASS"
+            ConPrint "  REFLECTIONS): 0 none - 9 a mirror, 2 as made. ^3glassreflect X Y [N|auto]^0: one pane's own"
+            ConPrint "  (auto: the sector's). A level file's glass_reflect = and [glass] lines keep them."
         CASE "wet"
             ConPrint "^3wet X0 Y0 X1 Y1 N^0: the floors from X0 Y0 to X1 Y1 as wet as N (0 dry - 9 soaked; . the"
             ConPrint "  sector's wetness). In the editor, into the level ([floor wetness]); in play, a trigger's"
