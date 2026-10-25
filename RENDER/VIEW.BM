@@ -202,6 +202,7 @@ SUB HeightColumn STATIC
                     HeightOff hnX, hnY, hSd
                 END IF
             END IF
+            IF hDoored = 2 AND faceAny THEN IF FaceLook(hcX, hcY, FACE_DEDGE) THEN HeightEdgeOff hcX, hcY ' (painted edges: slid and stretched as their own say)
             hZ0 = hc : hZ1 = hf : hVOff = 0 : IF hDoorLook THEN hVOff = hc - 1 ' (a door's face: its picture from the door's top)
             HeightFace
             hTop = hBot + 1 ' (the column's done: nothing left to fill)
@@ -303,6 +304,14 @@ SUB HeightFace STATIC
         v = v + vStep
     NEXT
     hSlot2 = 0 : hOU = 0 : hOV = 0 : hKV = 1
+END SUB
+
+' A door edge's own slide and stretch (FaceLookUV: from its own corner) for
+' the column HeightFace draws
+SUB HeightEdgeOff(x, y)
+    DIM ou, ov, ku, kv ' (its own)
+    FaceLookUV x, y, FACE_DEDGE, ou, ov, ku, kv
+    hOU = INT(hTexX * (ku - 1)) + ou * texSize \ 64 : hOV = ov * texSize \ 64 : hKV = kv
 END SUB
 
 ' The next HeightFace's picture slid as face f of (x, y)'s is ([faces]), in

@@ -1,0 +1,876 @@
+''
+' NEON-CASTER - EDITOR/NEWPICS.BM
+' =============================================================================
+' + NEW placeholders, Alt+E (a picture opened in your paint program) and the
+' watch that loads one again when it's saved (EDITOR/NEWPICS.BI says how).
+'
+
+' The picker tab's kind of picture: wall, floor, ceiling ("" for the others)
+FUNCTION NpKind$(pkTab)
+    SELECT CASE pkTab
+        CASE 1 : NpKind$ = "wall"
+        CASE 2 : NpKind$ = "floor"
+        CASE 3 : NpKind$ = "ceiling"
+        CASE ELSE : NpKind$ = ""
+    END SELECT
+END FUNCTION
+
+FUNCTION NpColour~&(pkTab)
+    SELECT CASE pkTab
+        CASE 2 : NpColour~& = _RGB32(60, 220, 255)
+        CASE 3 : NpColour~& = _RGB32(255, 210, 60)
+        CASE ELSE : NpColour~& = _RGB32(255, 60, 200)
+    END SELECT
+END FUNCTION
+
+' Words centred on a 64-wide picture (TinyText, with no VIEW in the way)
+SUB NpWords(y, t$, c~&)
+    DIM vx ' (its own)
+    vx = hudViewX : hudViewX = 0
+    TinyText (64 - TinyW(t$)) \ 2, y, t$, c~&
+    hudViewX = vx
+END SUB
+
+' + NEW: a placeholder picture of the tab's kind, its next free number -
+' wall-newN.png in neon-caster/, 64 square (CLASSIC art's size); hd (Shift):
+' and hd/wall-newN.png beside the game's paintings, 512 square (MODERN's -
+' drawn at 64 and blown up). Its name, "" if it couldn't be written
+FUNCTION NpMake$(pkTab, hd)
+    DIM n, f$, kind$ ' (its own)
+    NpMake$ = "" : kind$ = NpKind$(pkTab) : IF kind$ = "" THEN EXIT FUNCTION
+    n = 1
+    DO WHILE _FILEEXISTS(AssetPath$(kind$ + "-new" + LTRIM$(STR$(n)) + ".png")) OR _FILEEXISTS(AssetPath$("hd/" + kind$ + "-new" + LTRIM$(STR$(n)) + ".png"))
+        n = n + 1
+    LOOP
+    f$ = kind$ + "-new" + LTRIM$(STR$(n)) + ".png"
+    NpDrawPlaceholder AssetPath$(f$), pkTab, n, 64
+    IF hd THEN
+        IF NOT _DIREXISTS(AssetPath$("hd")) THEN MKDIR AssetPath$("hd")
+        NpDrawPlaceholder AssetPath$("hd/" + f$), pkTab, n, 512
+    END IF
+    IF _FILEEXISTS(AssetPath$(f$)) THEN NpMake$ = f$
+END FUNCTION
+
+' One placeholder picture written to p$: sz square, saying so
+SUB NpDrawPlaceholder(p$, pkTab, n, sz)
+    DIM c~&, d&, img&, big&, x, y, kind$ ' (its own)
+    kind$ = NpKind$(pkTab) : c~& = NpColour~&(pkTab)
+    d& = _DEST : img& = _NEWIMAGE(64, 64, 32) : _DEST img&
+    FOR y = 0 TO 7 : FOR x = 0 TO 7 ' (a checker, dark - so it reads as unfinished on any wall)
+        IF (x + y) AND 1 THEN LINE (x * 8, y * 8)-STEP(7, 7), _RGB32(34, 30, 46), BF ELSE LINE (x * 8, y * 8)-STEP(7, 7), _RGB32(22, 20, 30), BF
+    NEXT : NEXT
+    LINE (0, 0)-(63, 63), c~&, B : LINE (1, 1)-(62, 62), _RGBA32(_RED32(c~&), _GREEN32(c~&), _BLUE32(c~&), 110), B
+    NpWords 8, "PLACEHOLDER", _RGB32(255, 255, 255)
+    NpWords 20, LTRIM$(STR$(n)), c~&
+    NpWords 32, UCASE$(kind$), c~&
+    NpWords 46, LTRIM$(STR$(sz)) + "X" + LTRIM$(STR$(sz)), _RGB32(170, 170, 190)
+    _DEST d&
+    IF sz <> 64 THEN
+        big& = _NEWIMAGE(sz, sz, 32) : _DONTBLEND big&
+        _PUTIMAGE (0, 0)-(sz - 1, sz - 1), img&, big&
+        _FREEIMAGE img& : img& = big&
+    END IF
+    _SAVEIMAGE p$, img&
+    _FREEIMAGE img&
+END SUB
+
+' + NEW's thumbnail in the picker
+FUNCTION NpThumb&(pkTab)
+    DIM c~&, d&, img&, n, cx, cy, a, vx ' (its own)
+    n = PK_SIZE - 4 : c~& = NpColour~&(pkTab)
+    d& = _DEST : img& = _NEWIMAGE(n, n, 32) : _DEST img&
+    LINE (0, 0)-(n - 1, n - 1), _RGB32(16, 12, 30), BF : LINE (0, 0)-(n - 1, n - 1), c~&, B
+    cx = n \ 2 : cy = (n - 14) \ 2 + 1 : a = MinOf(13, cy - 4) ' (a cross on one middle, above the word: each bar 6 thick, 2a long)
+    LINE (cx - 3, cy - a)-STEP(5, 2 * a - 1), c~&, BF : LINE (cx - a, cy - 3)-STEP(2 * a - 1, 5), c~&, BF
+    vx = hudViewX : hudViewX = 0
+    TinyText (n - TinyW("NEW")) \ 2, n - 12, "NEW", _RGB32(255, 255, 255)
+    hudViewX = vx
+    _DEST d&
+    NpThumb& = img&
+END FUNCTION
+
+' The paint program: image_editor= if it's there, else DRAW where it's
+' usually kept, else "" (the system's opener)
+FUNCTION NpEditor$
+    DIM h$, t$ ' (its own)
+    NpEditor$ = ""
+    IF LEN(imgEditor$) THEN
+        IF _FILEEXISTS(imgEditor$) OR _DIREXISTS(imgEditor$) THEN NpEditor$ = imgEditor$ : EXIT FUNCTION
+    END IF
+    IF INSTR(_OS$, "[WINDOWS]") THEN
+        h$ = ENVIRON$("USERPROFILE") : t$ = h$ + "\git\DRAW\DRAW.exe"
+    ELSE
+        h$ = ENVIRON$("HOME") : t$ = h$ + "/git/DRAW/DRAW.run"
+    END IF
+    IF LEN(h$) THEN IF _FILEEXISTS(t$) THEN NpEditor$ = t$
+END FUNCTION
+
+' Its name, for the buttons and notes: DRAW, the program's file name, or
+' "the picture viewer"
+FUNCTION NpEditorName$
+    DIM e$, s ' (its own)
+    e$ = NpEditor$
+    IF e$ = "" THEN NpEditorName$ = "your picture viewer" : EXIT FUNCTION
+    s = _INSTRREV(e$, "/") : IF _INSTRREV(e$, "\") > s THEN s = _INSTRREV(e$, "\")
+    e$ = MID$(e$, s + 1)
+    IF UCASE$(LEFT$(e$, 5)) = "DRAW." THEN e$ = "DRAW"
+    IF INSTR(e$, ".") > 1 THEN e$ = LEFT$(e$, INSTR(e$, ".") - 1)
+    NpEditorName$ = e$
+END FUNCTION
+
+' Watch picture f$: saved from outside, it's loaded again (NpFrame) - and
+' DRAW's NAME.draw beside it, flattened into it when that's saved
+SUB NpWatch(f$)
+    DIM k, j ' (its own)
+    k = 0
+    FOR j = 1 TO npN
+        IF LCASE$(npFile$(j)) = LCASE$(f$) THEN k = j
+    NEXT
+    IF k = 0 THEN
+        IF npN < NP_WATCH THEN
+            npN = npN + 1 : k = npN
+        ELSE ' (full: the oldest goes)
+            FOR j = 1 TO NP_WATCH - 1
+                npFile$(j) = npFile$(j + 1) : npPath$(j) = npPath$(j + 1) : npSum&(j) = npSum&(j + 1) : npWant&(j) = npWant&(j + 1)
+                npDPath$(j) = npDPath$(j + 1) : npDSum&(j) = npDSum&(j + 1) : npDWant&(j) = npDWant&(j + 1)
+            NEXT
+            k = NP_WATCH
+        END IF
+    END IF
+    npFile$(k) = f$ : npPath$(k) = ArtPath$(f$) : npSum&(k) = NpSig&(npPath$(k)) : npWant&(k) = npSum&(k)
+    npDPath$(k) = NpDrawOf$(npPath$(k)) : npDSum&(k) = NpSig&(npDPath$(k)) : npDWant&(k) = npDSum&(k)
+END SUB
+
+' A picture's DRAW project: the same name, .draw
+FUNCTION NpDrawOf$(p$)
+    DIM d ' (its own)
+    d = _INSTRREV(p$, ".")
+    IF d > _INSTRREV(p$, "/") AND d > _INSTRREV(p$, "\") THEN NpDrawOf$ = LEFT$(p$, d - 1) + ".draw" ELSE NpDrawOf$ = p$ + ".draw"
+END FUNCTION
+
+' A file's look, cheaply (0: none): its length, and its bytes - every one of a
+' small file's, every so many of a big one's (a DRAW project with its layers
+' can be megabytes) and all of its last 4K
+FUNCTION NpSig&(f$)
+    DIM fh, i&, n&, st&, h&, c$ ' (its own)
+    NpSig& = 0 : IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
+    fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : n& = LOF(fh)
+    IF n& = 0 THEN CLOSE #fh : NpSig& = 1 : EXIT FUNCTION
+    c$ = SPACE$(n&) : GET #fh, 1, c$ : CLOSE #fh
+    st& = 1 + n& \ 262144 : h& = n& AND &HFFFFFF
+    FOR i& = 1 TO n& STEP st& : h& = (h& * 31 + ASC(c$, i&)) AND &HFFFFFF : NEXT
+    IF st& > 1 THEN
+        FOR i& = MaxOf(1, n& - 4095) TO n& : h& = (h& * 31 + ASC(c$, i&)) AND &HFFFFFF : NEXT
+    END IF
+    NpSig& = h& + 2
+END FUNCTION
+
+' Watched picture k's DRAW project saved: its flattened picture (a .draw is a
+' PNG) written over the picture - which NpFrame then loads again. -1 done
+FUNCTION NpFromDraw(k)
+    DIM t$, img&, fh, c$ ' (its own)
+    NpFromDraw = 0
+    MakeSaveDir : t$ = SaveDir$ + "np-draw.png" ' (a copy named .png: the loader goes by the name's end)
+    fh = FREEFILE : OPEN npDPath$(k) FOR BINARY AS #fh : c$ = SPACE$(LOF(fh)) : GET #fh, 1, c$ : CLOSE #fh
+    IF _FILEEXISTS(t$) THEN KILL t$
+    fh = FREEFILE : OPEN t$ FOR BINARY AS #fh : PUT #fh, 1, c$ : CLOSE #fh
+    img& = _LOADIMAGE(t$, 32)
+    KILL t$
+    IF img& >= -1 THEN EXIT FUNCTION
+    _SAVEIMAGE npPath$(k), img&
+    _FREEIMAGE img&
+    NpFromDraw = -1
+END FUNCTION
+
+' Picture f$ opened in the paint program (and watched)
+SUB NpOpen(f$)
+    DIM p$, e$, d$, c$, s ' (its own)
+    p$ = ArtPath$(f$)
+    IF NOT _FILEEXISTS(p$) THEN EditNote "There's no " + f$ + " to open" : EXIT SUB
+    IF _FILEEXISTS(NpDrawOf$(p$)) THEN p$ = NpDrawOf$(p$) ' (DRAW's project beside it: its layers too)
+    p$ = _FULLPATH$(p$) : e$ = NpEditor$
+    IF INSTR(_OS$, "[WINDOWS]") THEN
+        IF LEN(e$) THEN
+            s = _INSTRREV(e$, "\") : d$ = LEFT$(e$, s)
+            c$ = "start " + CHR$(34) + CHR$(34) + " /D " + CHR$(34) + d$ + CHR$(34) + " " + CHR$(34) + e$ + CHR$(34) + " " + CHR$(34) + p$ + CHR$(34)
+        ELSE
+            c$ = "start " + CHR$(34) + CHR$(34) + " " + CHR$(34) + p$ + CHR$(34)
+        END IF
+    ELSE
+        p$ = NpQuote$(p$)
+        IF e$ = "" THEN
+            IF INSTR(_OS$, "[MACOSX]") THEN c$ = "open " + p$ ELSE c$ = "xdg-open " + p$ + " >/dev/null 2>&1 &"
+        ELSEIF INSTR(_OS$, "[MACOSX]") AND LCASE$(RIGHT$(e$, 4)) = ".app" THEN
+            c$ = "open -a " + NpQuote$(e$) + " " + p$
+        ELSE ' (from its own folder: DRAW finds its pieces there)
+            s = _INSTRREV(e$, "/") : d$ = LEFT$(e$, s)
+            c$ = "cd " + NpQuote$(d$) + " && setsid " + NpQuote$(e$) + " " + p$ + " >/dev/null 2>&1 < /dev/null &"
+            IF s = 0 THEN c$ = "setsid " + NpQuote$(e$) + " " + p$ + " >/dev/null 2>&1 < /dev/null &"
+        END IF
+    END IF
+    SHELL _HIDE _DONTWAIT c$
+    NpWatch f$
+    EditNote "Opened " + f$ + " in " + NpEditorName$ + " - save it there and it's loaded again here"
+END SUB
+
+' A path in single quotes for the shell (a ' in it: '\'')
+FUNCTION NpQuote$(p$)
+    DIM k, r$ ' (its own)
+    r$ = "'"
+    FOR k = 1 TO LEN(p$)
+        IF MID$(p$, k, 1) = "'" THEN r$ = r$ + "'\''" ELSE r$ = r$ + MID$(p$, k, 1)
+    NEXT
+    NpQuote$ = r$ + "'"
+END FUNCTION
+
+' Alt+E with the pointer at (px, py): the picture in the picker there (+ NEW:
+' a placeholder made first), else on the face under it (3D), else PAINT's
+SUB NpOpenKey(px, py)
+    DIM w, i, f$ ' (its own)
+    f$ = ""
+    EditPkHit px, py, w, i
+    IF w = 2 THEN
+        IF edPkKind(i) = PK_TEX THEN f$ = edPkVal$(i)
+        IF edPkKind(i) = PK_NEW THEN pkIdx = i : EditPkClick : f$ = edBrushTex$
+    END IF
+    IF f$ = "" AND editView = 1 AND edHovKind <> 0 AND NOT edHovThing THEN f$ = EditFacePic$(edHovKind, edHovX, edHovY, edHovSide, edHovPart)
+    IF f$ = "" AND edBrushKind = PK_TEX THEN f$ = edBrushTex$
+    IF f$ = "" THEN EditNote "Point at a picture - in the picker, or on a face - to open it in " + NpEditorName$ : EXIT SUB
+    NpOpen f$
+END SUB
+
+' OPEN IN DRAW on the PICTURE pane: the first selected face's picture
+SUB NpOpenSel
+    DIM k, fc, f$ ' (its own)
+    FOR k = 1 TO edSelN
+        fc = EditFaceCode(edSelKind(k), edSelSide(k))
+        IF fc >= 1 AND fc <= FACE_MAX THEN f$ = EditFacePic$(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), edSelPart(k)) : EXIT FOR
+    NEXT
+    IF f$ = "" THEN EditNote "No picture of its own there to open (the exit's sign, a door's)" : EXIT SUB
+    NpOpen f$
+END SUB
+
+' Twice a second in the editor: has a watched picture changed? Loaded again
+' once it's the same two looks running (not half written)
+SUB NpFrame
+    DIM k, s& ' (its own)
+    IF npN = 0 THEN EXIT SUB
+    IF ABS(TIMER(0.001) - npT#) < 0.5 THEN EXIT SUB
+    npT# = TIMER(0.001)
+    FOR k = 1 TO npN
+        s& = NpSig&(npDPath$(k)) ' (DRAW's project saved: flattened into the picture first)
+        IF s& <> npDSum&(k) THEN
+            IF s& = npDWant&(k) AND s& <> 0 THEN
+                IF NpFromDraw(k) THEN npDSum&(k) = s&
+            ELSE
+                npDWant&(k) = s&
+            END IF
+        END IF
+        s& = NpSig&(npPath$(k))
+        IF s& <> npSum&(k) THEN
+            IF s& = npWant&(k) AND s& <> 0 THEN npSum&(k) = s& : NpReload npFile$(k) ELSE npWant&(k) = s&
+        END IF
+    NEXT
+END SUB
+
+' Picture f$ loaded again: every slot it's in, the copies made from them
+' (turned, tinted, glowing) made again, OpenGL's pictures sent again, the
+' picker's and the brush's thumbnails
+SUB NpReload(f$)
+    DIM j, n, keepD, keepF, lf$ ' (its own)
+    lf$ = LCASE$(f$) : n = 0
+    FOR j = 1 TO T_SLOTS
+        IF LCASE$(texFile$(j)) = lf$ THEN LoadTex f$, j : n = n + 1
+    NEXT
+    FOR j = T_CUSTOM + 1 TO T_CUSTOM + T_CUSTOMN
+        IF INSTR(texFile$(j), ":") THEN texFile$(j) = "" ' (pc: and glow: copies - BuildLevel makes them again)
+    NEXT
+    keepD = editDirty : keepF = editFresh
+    EditApply
+    editDirty = keepD : editFresh = keepF
+    MakeLiftTex
+    glRetexVersion = glRetexVersion + 1
+    edPkKey$ = ""
+    IF LCASE$(edBrushTex$) = lf$ THEN
+        IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+        edBrushImg& = EditFileThumb&(edBrushTex$)
+    END IF
+    IF n THEN EditNote f$ + " changed: loaded again" ELSE EditNote f$ + " changed (it's on nothing in this sector yet)"
+END SUB
+
+' --- THE PICKER'S RIGHT-CLICK MENU (EDITOR/NEWPICS.BI says what's on it).
+' A rename moves the picture's files - neon-caster/NAME.png, hd/NAME.png and
+' DRAW's .draw beside each - and swaps the name everywhere it's used: this
+' sector in memory (its undo and redo too), every level file that names it
+' (this one's, the others', their saved versions), PAINT's presets, the
+' clipboard, the brush, the watch. DELETE does the same with the kind's
+' plain picture (wall.png, floor.png, ceiling.png) and moves the files to
+' saves/deleted/ - after asking, and saying what uses it. The pictures that
+' come with the game (pictures-shipped.txt) are never renamed or deleted,
+' nor one a level kit script names.
+
+' Animation a's ending word: 1 -flicker, 2 -wave, 3 -pulse, 4 -pulse-dry
+' (pulsing, and no mirror image on a floor - as molten floors are, without
+' the burn), 5 -still (none, whatever its name's words say)
+FUNCTION NpEnd$(a)
+    SELECT CASE a
+        CASE 1 : NpEnd$ = "-flicker"
+        CASE 2 : NpEnd$ = "-wave"
+        CASE 3 : NpEnd$ = "-pulse"
+        CASE 4 : NpEnd$ = "-pulse-dry"
+        CASE 5 : NpEnd$ = "-still"
+        CASE ELSE : NpEnd$ = ""
+    END SELECT
+END FUNCTION
+
+' Which ending word picture n$ has (0 none)
+FUNCTION NpAnimEnd(n$)
+    DIM a, b$, e$ ' (its own)
+    NpAnimEnd = 0 : b$ = LCASE$(n$) : IF RIGHT$(b$, 4) = ".png" THEN b$ = LEFT$(b$, LEN(b$) - 4)
+    FOR a = 1 TO 5
+        e$ = NpEnd$(a) : IF RIGHT$(b$, LEN(e$)) = e$ THEN NpAnimEnd = a
+    NEXT
+END FUNCTION
+
+' How picture n$ goes in OpenGL, as the menu counts it: 0 still, 1 flicker,
+' 2 wave, 3 pulse, 4 pulse with no reflection - by its ending, else its words
+FUNCTION NpAnimNow(n$)
+    DIM a, b$ ' (its own)
+    b$ = LCASE$(n$) : a = NpAnimEnd(b$)
+    IF a = 5 THEN NpAnimNow = 0 : EXIT FUNCTION
+    IF a THEN NpAnimNow = a : EXIT FUNCTION
+    a = TexWordAnim(b$)
+    IF a = 0 AND LEFT$(b$, 5) = "floor" AND (INSTR(b$, "molten") > 0 OR INSTR(b$, "lava") > 0) THEN a = 4
+    NpAnimNow = a
+END FUNCTION
+
+FUNCTION NpAnimName$(a)
+    SELECT CASE a
+        CASE 1 : NpAnimName$ = "FLICKER"
+        CASE 2 : NpAnimName$ = "LIGHT WAVE"
+        CASE 3 : NpAnimName$ = "PULSE"
+        CASE 4 : NpAnimName$ = "PULSE NO REFLECTION"
+        CASE ELSE : NpAnimName$ = "NONE"
+    END SELECT
+END FUNCTION
+
+' Picture n$ in its parts: pre$ its kind ("wall-": up to its first -), mid1$
+' the rest of its name, e its ending word (NpAnimEnd) - wall-glowy-pulse.png
+' is wall-, glowy, 3
+SUB NpParts(n$, pre$, mid1$, e)
+    DIM b$, d ' (its own)
+    b$ = LCASE$(n$) : IF RIGHT$(b$, 4) = ".png" THEN b$ = LEFT$(b$, LEN(b$) - 4)
+    d = INSTR(b$, "-") : pre$ = LEFT$(b$, d) : mid1$ = MID$(b$, d + 1)
+    e = NpAnimEnd(b$) : IF e THEN mid1$ = LEFT$(mid1$, LEN(mid1$) - LEN(NpEnd$(e)))
+END SUB
+
+' A picture that comes with the game (neon-caster/pictures-shipped.txt) -
+' never renamed or deleted
+FUNCTION NpShipped(n$)
+    DIM fh, l$ ' (its own)
+    IF NOT npShipRead THEN ' (read once: one name a line, ' a comment)
+        npShipRead = -1 : npShip$ = " wall.png wall-jack.png wall-code.png wall-turret.png ceiling-lamp.png floor.png ceiling.png "
+        IF _FILEEXISTS(AssetPath$("pictures-shipped.txt")) THEN
+            fh = FREEFILE : OPEN AssetPath$("pictures-shipped.txt") FOR INPUT AS #fh
+            DO WHILE NOT EOF(fh)
+                LINE INPUT #fh, l$ : l$ = LCASE$(LTRIM$(RTRIM$(l$)))
+                IF LEN(l$) AND LEFT$(l$, 1) <> "'" THEN npShip$ = npShip$ + l$ + " "
+            LOOP
+            CLOSE #fh
+        END IF
+    END IF
+    NpShipped = INSTR(npShip$, " " + LCASE$(n$) + " ") > 0
+END FUNCTION
+
+' s$ with every use of picture o$ (from character from& on) made n$ - a whole
+' name only: not part of a longer one (xwall-a.png, hd/wall-a.png)
+FUNCTION NpSwap$(s$, o$, n$, from&)
+    DIM l$, lo$, r$, p&, q&, ok, c$ ' (its own)
+    l$ = LCASE$(s$) : lo$ = LCASE$(o$) : r$ = LEFT$(s$, from& - 1) : p& = from&
+    DO
+        q& = INSTR(p&, l$, lo$) : IF q& = 0 THEN EXIT DO
+        ok = -1
+        IF q& > 1 THEN c$ = MID$(l$, q& - 1, 1) : IF INSTR("abcdefghijklmnopqrstuvwxyz0123456789-_/\.", c$) THEN ok = 0
+        c$ = MID$(l$, q& + LEN(lo$), 1) : IF LEN(c$) THEN IF INSTR("abcdefghijklmnopqrstuvwxyz0123456789-_", c$) THEN ok = 0
+        IF ok THEN r$ = r$ + MID$(s$, p&, q& - p&) + n$ ELSE r$ = r$ + MID$(s$, p&, q& - p& + LEN(lo$))
+        p& = q& + LEN(lo$)
+    LOOP
+    NpSwap$ = r$ + MID$(s$, p&)
+END FUNCTION
+
+' A whole file, as one string ("" none)
+FUNCTION NpReadAll$(f$)
+    DIM fh, a$ ' (its own)
+    NpReadAll$ = "" : IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
+    fh = FREEFILE : OPEN f$ FOR BINARY AS #fh
+    a$ = SPACE$(LOF(fh)) : GET #fh, , a$
+    CLOSE #fh
+    NpReadAll$ = a$
+END FUNCTION
+
+' The other sectors (every set's, the players' own) and the level kit's
+' scripts that use picture o$: their names, the first few ("" none)
+
+' Every level file there is, one a line: the game's sets, the players' own,
+' and the versions saved beside each
+FUNCTION NpLevelList$
+    DIM d, v, base$, sb$, f$, b$, sl, r$ ' (its own)
+    base$ = AssetPath$("levels/level1.txt") : base$ = LEFT$(base$, LEN(base$) - LEN("level1.txt")) : r$ = ""
+    FOR d = 1 TO 5
+        SELECT CASE d
+            CASE 1 : sb$ = ""
+            CASE 2 : sb$ = "new/"
+            CASE 3 : sb$ = "remix/"
+            CASE 4 : sb$ = "huge/"
+            CASE ELSE : sb$ = "custom/"
+        END SELECT
+        FOR v = 0 TO 1
+            IF v THEN sb$ = sb$ + "versions/"
+            IF _DIREXISTS(base$ + sb$) OR sb$ = "" THEN
+                f$ = _FILES$(base$ + sb$ + "*.txt")
+                DO WHILE LEN(f$)
+                    b$ = f$ : sl = _INSTRREV(b$, "/") : IF sl THEN b$ = MID$(b$, sl + 1)
+                    IF RIGHT$(f$, 1) <> "/" AND LEN(b$) THEN r$ = r$ + base$ + sb$ + b$ + CHR$(10)
+                    f$ = _FILES$
+                LOOP
+            END IF
+        NEXT
+    NEXT
+    NpLevelList$ = r$
+END FUNCTION
+
+' A level kit script (levels/*.py) that names picture o$ ("" none)
+FUNCTION NpInKit$(o$)
+    DIM base$, f$, b$, sl, a$ ' (its own)
+    NpInKit$ = ""
+    base$ = AssetPath$("levels/level1.txt") : base$ = LEFT$(base$, LEN(base$) - LEN("level1.txt"))
+    f$ = _FILES$(base$ + "*.py")
+    DO WHILE LEN(f$)
+        b$ = f$ : sl = _INSTRREV(b$, "/") : IF sl THEN b$ = MID$(b$, sl + 1)
+        a$ = NpReadAll$(base$ + b$)
+        IF NpSwap$(a$, o$, CHR$(0), 1) <> a$ THEN NpInKit$ = b$
+        f$ = _FILES$
+    LOOP
+END FUNCTION
+
+' The level files besides this sector's that name picture o$: their names
+' (under levels/, the first few) in names$, how many in n, and how many saved
+' versions (any sector's) in nv. doIt: each file - this one's too - written
+' again with n$ in o$'s place
+SUB NpUsers(o$, n$, doIt, names$, n, nv)
+    DIM l$, p$, a$, b$, c, cur$, base$, fh, shown ' (its own)
+    names$ = "" : n = 0 : nv = 0 : shown = 0
+    base$ = AssetPath$("levels/level1.txt") : base$ = LEFT$(base$, LEN(base$) - LEN("level1.txt"))
+    cur$ = LCASE$(LevelFile$(level)) : l$ = NpLevelList$
+    DO WHILE LEN(l$)
+        c = INSTR(l$, CHR$(10)) : p$ = LEFT$(l$, c - 1) : l$ = MID$(l$, c + 1)
+        a$ = NpReadAll$(p$) : b$ = NpSwap$(a$, o$, n$, 1)
+        IF b$ <> a$ THEN
+            IF doIt THEN
+                fh = FREEFILE : OPEN p$ FOR OUTPUT AS #fh : CLOSE #fh
+                fh = FREEFILE : OPEN p$ FOR BINARY AS #fh : PUT #fh, , b$ : CLOSE #fh
+            END IF
+            IF INSTR(p$, "versions/") THEN
+                nv = nv + 1
+            ELSEIF LCASE$(p$) <> cur$ THEN
+                n = n + 1
+                IF shown < 4 THEN shown = shown + 1 : names$ = names$ + MID$(", ", 1, -2 * (shown > 1)) + MID$(p$, LEN(base$) + 1)
+            END IF
+        END IF
+    LOOP
+    IF n > shown THEN names$ = names$ + " and" + STR$(n - shown) + " more"
+END SUB
+
+' How many times picture o$ is named in this sector (as it is now, in memory)
+FUNCTION NpHereN(o$)
+    DIM s$, l$, lo$, p&, q&, c ' (its own)
+    s$ = EditSnapshot$ : s$ = MID$(s$, CLNG(mapN) * mapN * 3 + 1)
+    l$ = NpSwap$(s$, o$, CHR$(1), 1) : c = 0
+    FOR p& = 1 TO LEN(l$) : IF ASC(l$, p&) = 1 THEN c = c + 1
+    NEXT
+    NpHereN = c
+END FUNCTION
+
+' Every use of picture o$ made n$ - this sector (in memory, by its snapshot
+' past the map's rows, its undo and redo), every level file, PAINT's presets
+' (del: a deleted picture's own shelf goes), the clipboard, the brush, the
+' watch, the menu. npOtherN: how many other sectors' files changed
+SUB NpSwapAll(o$, n$, del)
+    DIM k, j, rw&, s$, s2$, changed, a$, b$, keepD, keepF, lo$, nm$, nv, o1$ ' (its own)
+    o1$ = o$ ' (a copy: o$ may be npMenuPic$, which this changes)
+    lo$ = LCASE$(o1$)
+    rw& = CLNG(mapN) * mapN * 3
+    s$ = EditSnapshot$ : s2$ = NpSwap$(s$, o1$, n$, rw& + 1) : changed = (s2$ <> s$)
+    FOR k = 1 TO editUndoN : editUndo$(k) = NpSwap$(editUndo$(k), o1$, n$, rw& + 1) : NEXT
+    FOR k = 1 TO editRedoN : editRedo$(k) = NpSwap$(editRedo$(k), o1$, n$, rw& + 1) : NEXT
+    NpUsers o1$, n$, -1, nm$, npOtherN, nv ' (the files: so none names a picture that's gone)
+    PrLoad : a$ = "" : k = 1
+    DO WHILE k <= prN
+        b$ = NpSwap$(prLeaves$(k), o1$, n$, 1) : IF b$ <> prLeaves$(k) THEN prLeaves$(k) = b$ : a$ = "y"
+        IF LCASE$(prPic$(k)) = lo$ THEN
+            a$ = "y"
+            IF del THEN
+                IF prImg&(k) < -1 THEN _FREEIMAGE prImg&(k)
+                FOR j = k TO prN - 1
+                    prPic$(j) = prPic$(j + 1) : prShape$(j) = prShape$(j + 1) : prLeaves$(j) = prLeaves$(j + 1) : prImg&(j) = prImg&(j + 1)
+                NEXT
+                prImg&(prN) = 0 : prN = prN - 1 : edPrSel = 0 : edPrKey$ = "" : _CONTINUE
+            END IF
+            prPic$(k) = LCASE$(n$)
+        END IF
+        k = k + 1
+    LOOP
+    IF LEN(a$) THEN PrWrite
+    edClipP1$ = NpSwap$(edClipP1$, o1$, n$, 1) : edClipP2$ = NpSwap$(edClipP2$, o1$, n$, 1)
+    IF LCASE$(edBrushTex$) = lo$ THEN
+        edBrushTex$ = n$
+        IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+        edBrushImg& = EditFileThumb&(edBrushTex$)
+    END IF
+    FOR k = npN TO 1 STEP -1
+        IF LCASE$(npFile$(k)) = lo$ THEN
+            IF del THEN
+                FOR j = k TO npN - 1
+                    npFile$(j) = npFile$(j + 1) : npPath$(j) = npPath$(j + 1) : npSum&(j) = npSum&(j + 1) : npWant&(j) = npWant&(j + 1)
+                    npDPath$(j) = npDPath$(j + 1) : npDSum&(j) = npDSum&(j + 1) : npDWant&(j) = npDWant&(j + 1)
+                NEXT
+                npN = npN - 1
+            ELSE
+                npFile$(k) = n$ : npPath$(k) = ArtPath$(n$) : npDPath$(k) = NpDrawOf$(npPath$(k))
+            END IF
+        END IF
+    NEXT
+    IF LCASE$(npMenuPic$) = lo$ THEN npMenuPic$ = n$
+    edPkKey$ = ""
+    IF changed THEN ' (the sector built again with it - its new name's effects too; saved as it was, its file changed with it)
+        keepD = editDirty : keepF = editFresh
+        EditRestore s2$ : EditApply
+        editDirty = keepD : editFresh = keepF
+    END IF
+END SUB
+
+' Why picture o$ can't be renamed or deleted ("" it can)
+FUNCTION NpLocked$(o$)
+    DIM k$, pre$, mid1$, e ' (its own)
+    NpLocked$ = ""
+    NpParts o$, pre$, mid1$, e
+    IF NpShipped(o$) OR pre$ = "" THEN NpLocked$ = o$ + " comes with the game: it keeps its name (OPEN IN " + UCASE$(NpEditorName$) + " still paints it)" : EXIT FUNCTION
+    k$ = NpInKit$(o$)
+    IF LEN(k$) THEN NpLocked$ = "The level kit's " + k$ + " uses " + o$ + ": it keeps its name"
+END FUNCTION
+
+' Picture o$ renamed n$ (both plain names, wall-x.png): its files and every
+' use of it - true if it was
+FUNCTION NpRenameTo(o$, n$)
+    DIM pass, po$, pn$, d$, moved, why$, o1$ ' (its own)
+    o1$ = o$ ' (a copy: o$ may be npMenuPic$, which the swap changes)
+    NpRenameTo = 0
+    IF LCASE$(o1$) = LCASE$(n$) THEN EditNote "That's its name already" : EXIT FUNCTION
+    why$ = NpLocked$(o1$) : IF LEN(why$) THEN EditNote why$ : EXIT FUNCTION
+    po$ = AssetPath$(o1$) : d$ = LEFT$(po$, LEN(po$) - LEN(o1$)) ' (its folder: the new name goes beside it)
+    IF _FILEEXISTS(d$ + n$) OR _FILEEXISTS(d$ + "hd/" + n$) THEN EditNote "There's a " + n$ + " already" : EXIT FUNCTION
+    moved = 0
+    FOR pass = 0 TO 1 ' The files: the picture and its hd/ one, and DRAW's projects beside them
+        po$ = d$ + MID$("hd/", 1, 3 * pass) + o1$ : pn$ = d$ + MID$("hd/", 1, 3 * pass) + n$
+        IF _FILEEXISTS(po$) THEN NAME po$ AS pn$ : IF _FILEEXISTS(pn$) THEN moved = moved + 1
+        IF _FILEEXISTS(NpDrawOf$(po$)) AND NOT _FILEEXISTS(NpDrawOf$(pn$)) THEN NAME NpDrawOf$(po$) AS NpDrawOf$(pn$)
+    NEXT
+    IF moved = 0 THEN EditNote "Couldn't rename " + o1$ + " (saves/errors.log may say why)" : EXIT FUNCTION
+    NpSwapAll o1$, n$, 0
+    NpRenameTo = -1
+END FUNCTION
+
+' The plain picture of picture o$'s kind: what a deleted one's uses get
+FUNCTION NpKindDefault$(o$)
+    SELECT CASE LEFT$(LCASE$(o$), INSTR(o$, "-"))
+        CASE "floor-" : NpKindDefault$ = "floor.png"
+        CASE "ceiling-", "sky-" : NpKindDefault$ = "ceiling.png"
+        CASE ELSE : NpKindDefault$ = "wall.png"
+    END SELECT
+END FUNCTION
+
+' DELETE: what it would do, on the menu, to be said yes to (npAsk)
+SUB NpAskDelete
+    DIM why$, here, nm$, n, nv, k, t$, c ' (its own)
+    why$ = NpLocked$(npMenuPic$) : IF LEN(why$) THEN EditNote why$ : EXIT SUB
+    IF edTyping AND edTypeFor = 9 THEN edTyping = 0
+    here = NpHereN(npMenuPic$) : NpUsers npMenuPic$, "", 0, nm$, n, nv
+    FOR k = 1 TO 8 : npAskLine$(k) = "" : NEXT
+    k = 1
+    IF here = 0 AND n = 0 AND nv = 0 THEN
+        npAskLine$(k) = "NOTHING USES IT" : k = k + 1
+    ELSE
+        IF here THEN npAskLine$(k) = "THIS SECTOR USES IT" : k = k + 1
+        IF n THEN ' (the others, a line or two)
+            t$ = MID$("AND ", 1, -4 * (here > 0)) + nm$
+            DO WHILE LEN(t$) AND k <= 4
+                c = (NP_MW - 12) \ 5 : IF LEN(t$) > c THEN c = _INSTRREV(LEFT$(t$, c), " ") : IF c < 10 THEN c = (NP_MW - 12) \ 5
+                npAskLine$(k) = LEFT$(t$, c) : t$ = LTRIM$(MID$(t$, c + 1)) : k = k + 1
+            LOOP
+        END IF
+        IF nv THEN npAskLine$(k) = "AND" + STR$(nv) + " SAVED VERSION" + MID$("S", 1, -(nv > 1)) : k = k + 1
+        npAskLine$(k) = "THEY'LL SHOW " + UCASE$(NpKindDefault$(npMenuPic$)) + " INSTEAD" : k = k + 1
+    END IF
+    npAskLine$(k + 1) = "ITS FILES GO TO SAVES/DELETED/"
+    npAsk = -1
+END SUB
+
+' Picture o$ deleted: its files moved to saves/deleted/, every use of it
+' given its kind's plain picture
+SUB NpDelete(o$)
+    DIM pass, po$, pn$, d$, dd$, moved, df$, why$, here, nm$, n, nv, o1$ ' (its own)
+    o1$ = o$ ' (a copy: o$ may be npMenuPic$, which the swap changes)
+    why$ = NpLocked$(o1$) : IF LEN(why$) THEN EditNote why$ : EXIT SUB
+    po$ = AssetPath$(o1$) : d$ = LEFT$(po$, LEN(po$) - LEN(o1$))
+    dd$ = SaveDir$ + "deleted/"
+    IF NOT _DIREXISTS(LEFT$(SaveDir$, LEN(SaveDir$) - 1)) THEN MKDIR LEFT$(SaveDir$, LEN(SaveDir$) - 1)
+    IF NOT _DIREXISTS(dd$ + "hd") THEN
+        IF NOT _DIREXISTS(LEFT$(dd$, LEN(dd$) - 1)) THEN MKDIR LEFT$(dd$, LEN(dd$) - 1)
+        MKDIR dd$ + "hd"
+    END IF
+    moved = 0
+    FOR pass = 0 TO 1 ' The files - the picture, its hd/ one, DRAW's projects - into saves/deleted/ (over any deleted before by that name)
+        po$ = d$ + MID$("hd/", 1, 3 * pass) + o1$ : pn$ = dd$ + MID$("hd/", 1, 3 * pass) + o1$
+        IF _FILEEXISTS(po$) THEN
+            IF _FILEEXISTS(pn$) THEN KILL pn$
+            NAME po$ AS pn$ : IF _FILEEXISTS(pn$) THEN moved = moved + 1
+        END IF
+        IF _FILEEXISTS(NpDrawOf$(po$)) THEN
+            IF _FILEEXISTS(NpDrawOf$(pn$)) THEN KILL NpDrawOf$(pn$)
+            NAME NpDrawOf$(po$) AS NpDrawOf$(pn$)
+        END IF
+    NEXT
+    IF moved = 0 OR _FILEEXISTS(d$ + o1$) THEN EditNote "Couldn't delete " + o1$ + " (saves/errors.log may say why)" : EXIT SUB
+    df$ = NpKindDefault$(o1$) : here = NpHereN(o1$)
+    NpSwapAll o1$, df$, -1
+    EditNote "Deleted " + o1$ + " (its files are in saves/deleted/)" + MID$(" - what used it shows " + df$, 1, 99 * -(here + npOtherN > 0)) + MID$(" - save the sector to keep it", 1, -99 * editDirty)
+END SUB
+
+' Its folder opened (the picture shown in it, where the file manager can)
+SUB NpOpenFolder(f$)
+    DIM p$, d$, s, c$ ' (its own)
+    p$ = ArtPath$(f$) : IF NOT _FILEEXISTS(p$) THEN EditNote "There's no " + f$ : EXIT SUB
+    p$ = _FULLPATH$(p$) : s = _INSTRREV(p$, "/") : IF _INSTRREV(p$, "\") > s THEN s = _INSTRREV(p$, "\")
+    d$ = LEFT$(p$, s)
+    IF INSTR(_OS$, "[WINDOWS]") THEN
+        c$ = "explorer /select," + CHR$(34) + p$ + CHR$(34)
+    ELSEIF INSTR(_OS$, "[MACOSX]") THEN
+        c$ = "open -R " + NpQuote$(p$)
+    ELSE ' (the file manager showing it - Dolphin, Nautilus...; else just the folder)
+        c$ = "( dbus-send --session --print-reply --dest=org.freedesktop.FileManager1 /org/freedesktop/FileManager1 org.freedesktop.FileManager1.ShowItems array:string:" + NpQuote$("file://" + NpUri$(p$)) + " string:'' || xdg-open " + NpQuote$(d$) + " ) >/dev/null 2>&1 &"
+    END IF
+    NpRun c$
+    EditNote "Opened its folder: " + d$
+END SUB
+
+' A path as a file:// URI's path: spaces and the like %-coded
+FUNCTION NpUri$(p$)
+    DIM k, c$, r$ ' (its own)
+    r$ = ""
+    FOR k = 1 TO LEN(p$)
+        c$ = MID$(p$, k, 1)
+        IF INSTR("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/-_.~", c$) THEN r$ = r$ + c$ ELSE r$ = r$ + "%" + RIGHT$("0" + HEX$(ASC(c$)), 2)
+    NEXT
+    NpUri$ = r$
+END FUNCTION
+
+' kaleidotron, where it's usually kept ("" not there)
+FUNCTION NpKaleido$
+    DIM h$, t$ ' (its own)
+    NpKaleido$ = ""
+    IF INSTR(_OS$, "[WINDOWS]") THEN
+        h$ = ENVIRON$("USERPROFILE") : t$ = h$ + "\git\kaleidotron\target\release\kaleidotron.exe"
+    ELSE
+        h$ = ENVIRON$("HOME") : t$ = h$ + "/git/kaleidotron/target/release/kaleidotron"
+    END IF
+    IF LEN(h$) THEN IF _FILEEXISTS(t$) THEN NpKaleido$ = t$
+END FUNCTION
+
+SUB NpOpenKaleido(f$)
+    DIM p$, k$, c$ ' (its own)
+    k$ = NpKaleido$ : IF k$ = "" THEN EditNote "No kaleidotron in ~/git/kaleidotron/target/release" : EXIT SUB
+    p$ = ArtPath$(f$) : IF NOT _FILEEXISTS(p$) THEN EditNote "There's no " + f$ : EXIT SUB
+    p$ = _FULLPATH$(p$)
+    IF INSTR(_OS$, "[WINDOWS]") THEN
+        c$ = "start " + CHR$(34) + CHR$(34) + " " + CHR$(34) + k$ + CHR$(34) + " --open " + CHR$(34) + p$ + CHR$(34)
+    ELSE
+        c$ = "setsid " + NpQuote$(k$) + " --open " + NpQuote$(p$) + " >/dev/null 2>&1 < /dev/null &"
+    END IF
+    NpRun c$
+    EditNote "Opened " + f$ + " in kaleidotron"
+END SUB
+
+' A program started (NEON_NP_DRYRUN set: only written in the console - tests)
+SUB NpRun(c$)
+    IF LEN(ENVIRON$("NEON_NP_DRYRUN")) THEN ConPrint "np run: " + c$ : EXIT SUB
+    SHELL _HIDE _DONTWAIT c$
+END SUB
+
+' The menu, opened on picker entry k by a right-click at (x, y)
+SUB NpMenuOpen(k, x, y)
+    DIM px, h, rt ' (its own)
+    npMenuPic$ = edPkVal$(k) : npMenuOn = -1 : npAsk = 0
+    IF edTyping AND edTypeFor = 9 THEN edTyping = 0
+    px = x : rt = 800 : IF editView = 1 THEN px = x + edWX : rt = 800 + 2 * edWX
+    h = NP_MROWS * NP_MROWH + 6
+    npMenuX = MaxOf(2, MinOf(px - 10, rt - NP_MW - 2))
+    npMenuY = y - h - 6 : IF npMenuY < 2 THEN npMenuY = MinOf(y + 8, 598 - h)
+    IF editView = 1 THEN npMenuY = MinOf(npMenuY, PK_Y - 34 - h) ' (3D: above the line the editor's notes are on - a rename refused says why there)
+    npMenuY = MaxOf(2, npMenuY)
+END SUB
+
+' Which of the menu's rows (x, y) is on: 0 to NP_MROWS - 1, -1 off it
+FUNCTION NpMenuRow(x, y)
+    DIM px, r ' (its own)
+    NpMenuRow = -1 : IF NOT npMenuOn THEN EXIT FUNCTION
+    px = x : IF editView = 1 THEN px = x + edWX
+    IF px < npMenuX OR px >= npMenuX + NP_MW OR y < npMenuY OR y >= npMenuY + NP_MROWS * NP_MROWH + 6 THEN EXIT FUNCTION
+    r = (y - npMenuY - 3) \ NP_MROWH : IF r < 0 THEN r = 0
+    IF r > NP_MROWS - 1 THEN r = NP_MROWS - 1
+    NpMenuRow = r
+END FUNCTION
+
+' Can row r be clicked (and lit under the pointer)? Shipped pictures: no
+' renaming, animating or deleting
+FUNCTION NpRowLive(r)
+    DIM lk ' (its own)
+    IF npAsk THEN NpRowLive = (r = NP_MROWS - 2 OR r = NP_MROWS - 1) : EXIT FUNCTION
+    lk = NpShipped(npMenuPic$)
+    SELECT CASE r
+        CASE 1, 3 TO 7, 11 : NpRowLive = NOT lk
+        CASE 8, 9 : NpRowLive = -1
+        CASE 10 : NpRowLive = (NpKaleido$ <> "")
+        CASE ELSE : NpRowLive = 0
+    END SELECT
+END FUNCTION
+
+' A right-button press at (x, y): on a picture in the picker, its menu; with
+' the menu up, anywhere else, it goes. npEatR when it was the menu's
+SUB NpRightPress(x, y)
+    DIM w, i ' (its own)
+    EditPkHit x, y, w, i
+    IF w = 2 THEN
+        IF edPkKind(i) = PK_TEX THEN NpMenuOpen i, x, y : npEatR = -1 : EXIT SUB
+    END IF
+    IF npMenuOn AND NpMenuRow(x, y) < 0 THEN NpMenuClose : npEatR = -1
+END SUB
+
+SUB NpMenuClose
+    npMenuOn = 0 : npAsk = 0
+    IF edTyping AND edTypeFor = 9 THEN edTyping = 0
+END SUB
+
+' A click at (x, y) with the menu up: its row's - off it, the menu goes
+SUB NpMenuClick(x, y)
+    DIM r, e, pre$, mid1$, why$ ' (its own)
+    r = NpMenuRow(x, y)
+    IF r < 0 THEN NpMenuClose : EXIT SUB
+    IF npAsk THEN ' DELETE asked: yes, or back to the menu
+        IF r = NP_MROWS - 2 THEN NpMenuClose : NpDelete npMenuPic$ + "" ' (a copy: the swap changes npMenuPic$)
+        IF r = NP_MROWS - 1 THEN npAsk = 0
+        EXIT SUB
+    END IF
+    IF NOT NpRowLive(r) THEN
+        why$ = NpLocked$(npMenuPic$)
+        IF (r = 1 OR (r >= 3 AND r <= 7) OR r = 11) AND LEN(why$) THEN EditNote why$
+        IF r = 10 THEN EditNote "No kaleidotron in ~/git/kaleidotron/target/release"
+        EXIT SUB
+    END IF
+    SELECT CASE r
+        CASE 1 ' RENAME: type it (OK: what's typed)
+            IF edTyping AND edTypeFor = 9 THEN
+                EditTypeDone
+            ELSE
+                why$ = NpLocked$(npMenuPic$) : IF LEN(why$) THEN EditNote why$ : EXIT SUB
+                NpParts npMenuPic$, pre$, mid1$, e
+                edTyping = -1 : edTypeFor = 9 : edTypeFresh = -1 : edTypeBuf$ = mid1$
+                EditNote "Type its new name (after " + pre$ + ": letters, digits, - and _) - Enter keeps it, Esc doesn't"
+            END IF
+        CASE 3 TO 7 : IF edTyping AND edTypeFor = 9 THEN edTyping = 0
+            NpSetAnim npMenuPic$ + "", r - 3 : npMenuOn = 0
+        CASE 8 : NpMenuClose : NpOpen npMenuPic$
+        CASE 9 : NpMenuClose : NpOpenFolder npMenuPic$
+        CASE 10 : NpMenuClose : NpOpenKaleido npMenuPic$
+        CASE 11 : NpAskDelete
+    END SELECT
+END SUB
+
+' Picture f$ given animation a (0 none - NpAnimNow's numbers): its ending word
+SUB NpSetAnim(f$, a)
+    DIM e, ne, pre$, mid1$, n$ ' (its own)
+    IF NpAnimNow(f$) = a THEN EditNote f$ + ": " + NpAnimName$(a) + " already" : EXIT SUB
+    NpParts f$, pre$, mid1$, e
+    ne = a
+    IF a = 0 THEN IF NpAnimNow(pre$ + mid1$ + ".png") THEN ne = 5 ' (its words would make it go: -still)
+    n$ = pre$ + mid1$ + NpEnd$(ne) + ".png"
+    IF NpRenameTo(f$, n$) THEN EditNote "Now " + n$ + ": " + NpAnimName$(a) + MID$(" in OpenGL (the software renderer draws it still)", 1, -99 * (a > 0)) + NpOthers$ + MID$(" - save the sector to keep it", 1, -99 * editDirty)
+END SUB
+
+' What else a rename changed, for its note
+FUNCTION NpOthers$
+    NpOthers$ = "" : IF npOtherN THEN NpOthers$ = " (and in" + STR$(npOtherN) + " other sector" + MID$("s", 1, -(npOtherN > 1)) + ")"
+END FUNCTION
+
+' Enter on RENAME: what was typed is the middle of its name (its kind and
+' its ending stay - an ending typed is its animation)
+SUB NpRenameDone
+    DIM e, e2, pre$, mid1$, t$, n$ ' (its own)
+    NpParts npMenuPic$, pre$, mid1$, e
+    t$ = LCASE$(LTRIM$(RTRIM$(edTypeBuf$)))
+    IF RIGHT$(t$, 4) = ".png" THEN t$ = LEFT$(t$, LEN(t$) - 4)
+    IF LEFT$(t$, LEN(pre$)) = pre$ THEN t$ = MID$(t$, LEN(pre$) + 1)
+    e2 = NpAnimEnd(t$) : IF e2 THEN e = e2 : t$ = LEFT$(t$, LEN(t$) - LEN(NpEnd$(e2)))
+    DO WHILE LEFT$(t$, 1) = "-" : t$ = MID$(t$, 2) : LOOP
+    DO WHILE RIGHT$(t$, 1) = "-" : t$ = LEFT$(t$, LEN(t$) - 1) : LOOP
+    IF t$ = "" THEN EditNote "Unchanged" : EXIT SUB
+    n$ = pre$ + t$ + NpEnd$(e) + ".png"
+    IF NpRenameTo(npMenuPic$ + "", n$) THEN EditNote "Renamed " + n$ + NpOthers$ + MID$(" - save the sector to keep it", 1, -99 * editDirty) + MID$(" (DRAW still has the old name: Alt+E opens it again)", 1, -99 * (npN > 0))
+END SUB
+
+' The menu, drawn (on the canvas the picker's on) - the pointer at (mx, my)
+SUB NpMenuDraw(mx, my)
+    DIM r, x0, y0, y, h, hv, cur, e, t$, pre$, mid1$, c~&, typ, lk ' (its own)
+    IF NOT npMenuOn THEN EXIT SUB
+    IF editView = 1 AND NOT edPickOpen THEN NpMenuClose : EXIT SUB
+    x0 = npMenuX : y0 = npMenuY : h = NP_MROWS * NP_MROWH + 6
+    hv = -2 : IF mx >= 0 THEN hv = NpMenuRow(mx, my)
+    LINE (x0, y0)-STEP(NP_MW - 1, h - 1), _RGBA32(10, 4, 26, 248), BF
+    IF npAsk THEN c~& = _RGB32(255, 70, 70) ELSE c~& = _RGB32(255, 60, 200)
+    LINE (x0, y0)-STEP(NP_MW - 1, h - 1), c~&, B
+    NpParts npMenuPic$, pre$, mid1$, e : cur = NpAnimNow(npMenuPic$)
+    typ = edTyping AND edTypeFor = 9 : lk = NpShipped(npMenuPic$)
+    FOR r = 0 TO NP_MROWS - 1
+        y = y0 + 3 + r * NP_MROWH
+        IF r = hv AND NpRowLive(r) THEN LINE (x0 + 2, y)-STEP(NP_MW - 5, NP_MROWH - 1), _RGBA32(40, 70, 110, 240), BF
+        c~& = _RGB32(220, 215, 245) : IF NOT NpRowLive(r) THEN c~& = _RGB32(95, 88, 125)
+        t$ = ""
+        IF npAsk THEN
+            SELECT CASE r
+                CASE 0 : t$ = "DELETE " + npMenuPic$ + "?" : c~& = _RGB32(255, 90, 90)
+                CASE 1 TO 8 : t$ = npAskLine$(r) : c~& = _RGB32(200, 195, 230)
+                CASE NP_MROWS - 2 : t$ = "YES - DELETE IT"
+                CASE NP_MROWS - 1 : t$ = "NO - KEEP IT"
+            END SELECT
+        ELSE
+            SELECT CASE r
+                CASE 0 : t$ = npMenuPic$ + MID$("  (COMES WITH THE GAME)", 1, -99 * lk) : c~& = _RGB32(255, 90, 200)
+                CASE 1
+                    IF typ THEN
+                        t$ = pre$ + edTypeBuf$ + "_" + NpEnd$(e) + ".png  (enter)" : c~& = _RGB32(150, 240, 255)
+                        LINE (x0 + 2, y)-STEP(NP_MW - 5, NP_MROWH - 1), _RGBA32(60, 20, 80, 240), BF
+                    ELSE
+                        t$ = "RENAME..."
+                    END IF
+                CASE 2 : t$ = "ANIMATION (OPENGL)" : c~& = _RGB32(130, 120, 170)
+                CASE 3 TO 7
+                    t$ = "   " + NpAnimName$(r - 3)
+                    IF r - 3 = cur THEN t$ = "> " + NpAnimName$(r - 3) : IF NOT lk THEN c~& = _RGB32(255, 255, 255)
+                CASE 8 : t$ = "OPEN IN " + NpEditorName$ + " (ALT+E)"
+                CASE 9 : t$ = "OPEN FOLDER"
+                CASE 10 : t$ = "OPEN IN KALEIDOTRON" + MID$(" (NOT FOUND)", 1, -99 * (NpKaleido$ = ""))
+                CASE 11 : t$ = "DELETE..."
+            END SELECT
+        END IF
+        IF LEN(t$) THEN TinyText x0 + 6, y + 3, LEFT$(t$, (NP_MW - 12) \ 5), c~&
+    NEXT
+END SUB

@@ -35,7 +35,8 @@ SUB BuildLevel STATIC
     NEXT
     numStations = 0 : numPads = 0 : numTerms = 0 : numTCtrl = 0 : FOR k = 0 TO MAX_PADS : padFlown(k) = 0 : NEXT
     IF NOT editRebuild THEN glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
-    FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : pitch = 0 : ampTimer = 0 : invTimer = 0 : drainN = 0
+    FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : ampTimer = 0 : invTimer = 0 : drainN = 0
+    IF NOT editRebuild THEN pitch = 0 ' (the editor's rebuilds keep where you're looking: up or down at a track, a ceiling)
     FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE ' (all of it, as far as any sector can go: a smaller one's past its edge is nothing)
         worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorLockEv(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : secretCell(x, y) = 0 : closetIn(x, y) = 0 : secretArea(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
         doorHP(x, y) = 0 : doorHPMax(x, y) = 0 : doorBroke(x, y) = 0 : doorCode(x, y) = 0 ' (stronghold and keypad doors: [doors] - ThingsBuild)

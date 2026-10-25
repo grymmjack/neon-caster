@@ -190,6 +190,10 @@
                 IF DoorAcross(mapX, mapY) = 0 THEN dEdA = rayDirX ELSE dEdA = rayDirY
                 dEdP = 0.01 : IF doorType(mapX, mapY) = DOOR_SPLIT THEN IF dEdA > 0 THEN dEdP = 0.51 ELSE dEdP = 0.49
                 texSlot = DoorEdgeSlot(mapX, mapY, dEdP, texSlot)
+                IF FaceLook(mapX, mapY, FACE_DEDGE) THEN ' (painted edges: slid and stretched as their own say - FaceLookUV)
+                    FaceLookUV mapX, mapY, FACE_DEDGE, dEdOU, dEdOV, dEdKU, dEdKV
+                    texX = INT((doorU * DOOR_THICK * dEdKU + dEdOU / 64) * texSize) AND (texSize - 1) : wallVO = dEdOV * texSize \ 64 : wallVK = dEdKV
+                END IF
             END IF
         ELSEIF hit = 2 THEN
             IF doorHit THEN wallX = doorU ' (where along the slab)
@@ -370,8 +374,15 @@
                 IF shutterOpen > 0.5 AND shutterBack > shutterDist THEN
                     underEnd = INT(RENDER_H / 2 + viewH / shutterBack * (0.5 - shutterOpen))
                     IF underEnd > RENDER_H - 1 THEN underEnd = RENDER_H - 1
+                    dEdTX = texX : dEdTY = texSize - 2 : dEdSl = DoorEdgeSlot(shutterCX, shutterCY, 0.5, T_SHUTTER)
+                    IF faceAny THEN
+                        IF FaceLook(shutterCX, shutterCY, FACE_DEDGE) THEN ' (painted: slid and stretched as its own say, as OpenGL's rows 0.96 to 1)
+                            FaceLookUV shutterCX, shutterCY, FACE_DEDGE, dEdOU, dEdOV, dEdKU, dEdKV
+                            dEdTX = INT((texX / texSize * dEdKU + dEdOU / 64) * texSize) AND (texSize - 1) : dEdTY = INT((0.98 * dEdKV + dEdOV / 64) * texSize) AND (texSize - 1)
+                        END IF
+                    END IF
                     FOR y = drawEnd + 1 TO underEnd
-                        IF y >= 0 THEN pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, texSize - 2, DoorEdgeSlot(shutterCX, shutterCY, 0.5, T_SHUTTER)), lightR& \ 2, lightG& \ 2, lightB& \ 2)
+                        IF y >= 0 THEN pixels(y * RENDER_W + x) = ShadeRGB~&(texture(dEdTX, dEdTY, dEdSl), lightR& \ 2, lightG& \ 2, lightB& \ 2)
                     NEXT
                 END IF
             END IF

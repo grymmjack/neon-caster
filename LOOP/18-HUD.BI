@@ -109,6 +109,7 @@
         END IF
         HudAt 2 : IF edLooking THEN EditDrawPane -1, -1 ELSE EditDrawPane edCurX, edCurY
         HudAt 0 : IF edLooking THEN EditDrawTB 1, -1, -1 ELSE EditDrawTB 1, edCurX, edCurY
+        IF npMenuOn THEN HudAt -1 : IF edLooking THEN NpMenuDraw -1, -1 ELSE NpMenuDraw edCurX, edCurY ' (a picture's right-click menu, over the rest)
         HudAt 1 : IF edHelp THEN EditDrawHelp 1
     END IF
 

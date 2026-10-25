@@ -65,7 +65,7 @@ DIM SHARED edTbDrag AS INTEGER, edHelp AS INTEGER
 ' thumbnail, made once per tab (and again when the level or ART changes:
 ' edPkKey$) - the brush (what PLACE puts, PAINT paints), and whether the
 ' picker's up at all
-CONST PK_GLYPH = 1, PK_TEX = 2, PK_LIGHT = 3, PK_LIQUID = 4 ' (PK_LIQUID: a liquid and its depth - "w3"; "-" drains)
+CONST PK_GLYPH = 1, PK_TEX = 2, PK_LIGHT = 3, PK_LIQUID = 4, PK_NEW = 5 ' (PK_LIQUID: a liquid and its depth - "w3"; "-" drains)
 CONST PK_TABS = 10, PK_MAX = 160, PK_COLS = 8, PK_ROWS = 2, PK_SIZE = 50
 CONST PK_X = 8, PK_Y = 438 ' (the picker's top left, in 3D: tabs, then the thumbnails under them)
 DIM SHARED edPkN AS INTEGER, edPkKind(PK_MAX) AS INTEGER, edPkVal$(PK_MAX), edPkImg&(PK_MAX), edPkKey$

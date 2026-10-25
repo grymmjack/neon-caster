@@ -148,7 +148,7 @@ SUB ConExec STATIC
     END IF
     IF conFromTrig THEN ' (a sector's own trigger - a file anyone may have made: nothing that writes your files, your settings or your achievements)
         SELECT CASE conVerb$
-            CASE "saveleveltodisk", "loadlevelfromdisk", "savelevel", "logfile", "qb64pe", "resetachievements", "achieve", "bind", "set", _
+            CASE "saveleveltodisk", "loadlevelfromdisk", "savelevel", "logfile", "qb64pe", "imageeditor", "resetachievements", "achieve", "bind", "set", _
                  "save", "quicksave", "load", "quickload", "exec", "alias", "unalias", "edit", "editor", "newsector", "screenshot", "shot", "quit", "exit", "record", "playdemo", "demo", "playlist"
                 ConPrint "^9(a sector's trigger can't " + conVerb$ + ")" : EXIT SUB
             CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "sectorset", "campaign", "set10" ' (ones that last past the sector: a cheat, whoever turned them on)
@@ -187,6 +187,19 @@ SUB ConExec STATIC
                 ConPrint "qb64pe: " + qbNow$ + "   (yours - qb64pe auto to look for it instead)"
             ELSE
                 ConPrint "qb64pe: " + qbNow$ + "   (found - qb64pe PATH for another)"
+            END IF
+        CASE "imageeditor" ' The editor's paint program (Alt+E): imageeditor PATH, imageeditor auto, or imageeditor to see it
+            IF conA$ = "auto" THEN
+                imgEditor$ = "" : SaveSettings
+            ELSEIF LEN(conRest$) THEN
+                IF _FILEEXISTS(conRest$) OR _DIREXISTS(conRest$) THEN imgEditor$ = conRest$ : SaveSettings ELSE ConPrint "imageeditor: there's nothing at " + conRest$
+            END IF
+            IF NpEditor$ = "" THEN
+                ConPrint "imageeditor: none found - Alt+E opens pictures with the system's own (imageeditor PATH for one)"
+            ELSEIF LEN(imgEditor$) THEN
+                ConPrint "imageeditor: " + NpEditor$ + "   (yours - imageeditor auto to look for DRAW instead)"
+            ELSE
+                ConPrint "imageeditor: " + NpEditor$ + "   (found - imageeditor PATH for another)"
             END IF
         CASE "map", "level", "sector" ' Go to a sector, keeping what you carry
             n = VAL(conA$)
@@ -1397,7 +1410,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe edit put box block liquid raise lift lamp wall door light liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1417,6 +1430,7 @@ SUB ConHelp(c$)
             ConPrint "  ^6saves     ^7save^8 N|quick  ^7load^8 N|quick  ^7quicksave  ^7quickload"
             ConPrint "  ^6settings  ^7set^8 NAME VALUE  ^7get^8 NAME  ^7settings  ^7NAME^8 [VALUE]  ^7bind^8 ACTION KEY  ^7binds"
             ConPrint "            ^7qb64pe^8 [PATH|auto]  ^7difficulty^8 [easy|normal|hard|nightmare]"
+            ConPrint "            ^7imageeditor^8 [PATH|auto]"
             ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7redo"
             ConPrint "            ^7savelevel  ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]"
@@ -1524,6 +1538,7 @@ SUB ConHelp(c$)
         CASE "settings", "cvars", "cvarlist" : ConPrint "^3settings^0: every setting - its name, value, range and what it is in the menu (set NAME VALUE changes one; NAME VALUE does too)"
         CASE "bind" : ConPrint "^3bind ACTION KEY^0: a key for an action (binds lists them; KEY a letter, a number, space, or a key code). bind ACTION: its key"
         CASE "binds", "bindlist" : ConPrint "^3binds^0: every action and its key"
+        CASE "imageeditor" : ConPrint "^3imageeditor PATH^0: the paint program the editor's Alt+E opens pictures in; imageeditor auto: DRAW, else the system's; imageeditor: which"
         CASE "qb64pe" : ConPrint "^3qb64pe PATH^0: the qb64pe the code terminals compile with (a folder with it in will do); qb64pe auto: look for it; qb64pe: which"
         ' --- the level (the editor's commands, built at once; savelevel keeps them)
         CASE "edit", "editor" : ConPrint "^3edit [walk|off]^0: the level editor (F2) - the map from above, or walk: inside it, or off: back to the game"

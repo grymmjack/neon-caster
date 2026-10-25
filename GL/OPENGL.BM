@@ -1174,6 +1174,17 @@ SUB GLDynAt(x, y, z, r, g, bl)
     NEXT
 END SUB
 
+' A picture's animation by the words in its name (n$, small letters): 1
+' flickering screens, 2 chasing lights, 3 pulsing - 0 none
+FUNCTION TexWordAnim(n$)
+    DIM a ' (its own)
+    a = 0
+    IF INSTR(n$, "servers") OR INSTR(n$, "terminals") OR INSTR(n$, "control") THEN a = 1
+    IF INSTR(n$, "hazard") OR INSTR(n$, "stripes") OR INSTR(n$, "warning") THEN a = 2
+    IF INSTR(n$, "glow") OR INSTR(n$, "lights") OR INSTR(n$, "reactor") OR INSTR(n$, "cryo") OR INSTR(n$, "coils") THEN a = 3
+    TexWordAnim = a
+END FUNCTION
+
 ' Send every texture and sprite picture to the graphics card. Each gets a
 ' name (a number) from _glGenTextures the first time; the textures are
 ' names 1-20 of glTexName(), the sprites after them, then the glow spot.
@@ -1217,9 +1228,12 @@ SUB GLSendTextures
         IF slot = T_FIRE THEN glTexShine(slot) = 0.2 : glTexNeon(slot) = 1 : glTexAnim(slot) = 3 ' (embers: pulsing)
         IF INSTR(n$, "white") OR INSTR(n$, "ice") OR INSTR(n$, "frost") THEN glTexNeon(slot) = 0 ' (white isn't neon)
         IF INSTR(n$, "brick") OR INSTR(n$, "rust") OR INSTR(n$, "moss") OR INSTR(n$, "biolab") OR INSTR(n$, "slime") THEN glTexNeon(slot) = 0.35 ' (nor rust and slime, much)
-        IF INSTR(n$, "servers") OR INSTR(n$, "terminals") OR INSTR(n$, "control") THEN glTexAnim(slot) = 1
-        IF INSTR(n$, "hazard") OR INSTR(n$, "stripes") OR INSTR(n$, "warning") THEN glTexAnim(slot) = 2
-        IF INSTR(n$, "glow") OR INSTR(n$, "lights") OR INSTR(n$, "reactor") OR INSTR(n$, "cryo") OR INSTR(n$, "coils") THEN glTexAnim(slot) = 3
+        IF TexWordAnim(n$) THEN glTexAnim(slot) = TexWordAnim(n$)
+        SELECT CASE NpAnimEnd(n$) ' (an ending word - the picker's right-click ANIMATION, EDITOR/NEWPICS.BM: it glows, and goes as it says)
+            CASE 1 TO 3 : glTexAnim(slot) = NpAnimEnd(n$) : glTexNeon(slot) = 1
+            CASE 4 : glTexAnim(slot) = 3 : glTexNeon(slot) = 1 : glTexReflect(slot) = 0.05 ' (-pulse-dry: as molten floors - no mirror image to speak of)
+            CASE 5 : glTexAnim(slot) = 0 ' (-still: none, whatever its name says)
+        END SELECT
         IF slot = T_EXIT THEN glTexAnim(slot) = 3
         IF texSky(slot) THEN glTexAnim(slot) = 4 : glTexNeon(slot) = 0 : glTexShine(slot) = 0 : glTexReflect(slot) = 0 ' (a sky: the shader draws it by the way you look)
         IF LEFT$(n$, 9) = "faceglow-" THEN ' A face with a light on it: lit by itself, going as the light goes
@@ -1608,6 +1622,12 @@ SUB GLPieceStrips(ax, ay, bx, by, u0, u1, zLow, zHigh, vTop, vBottom, p, deflt, 
     GLTexOff
 END SUB
 
+' A door edge's or track's own slide and stretch (FaceLookUV), for GLCorner
+SUB GLLookTex(x, y, f)
+    DIM ou, ov, ku, kv ' (its own)
+    FaceLookUV x, y, f, ou, ov, ku, kv
+    glOffU = ou / 64 : glOffV = ov / 64 : glKU = ku : glKV = kv
+END SUB
 SUB GLTexOff
     glOffU = 0 : glOffV = 0 : glKU = 1 : glKV = 1
 END SUB
@@ -1777,6 +1797,7 @@ SUB GLDoorBox(cx, cy, b)
         END IF
     NEXT
     GLSetLight cx, cy, 0.85, b
+    IF faceAny THEN IF FaceLook(cx, cy, FACE_DEDGE) THEN GLLookTex cx, cy, FACE_DEDGE ' (painted edges: slid and stretched as their own say)
     SELECT CASE kind ' Its edges (in its south or east face's picture, if it has one there: DoorEdgeSlot)
         CASE DOOR_SLIDE : GLDoorEdge cx, cy, across, amt, -1, DoorEdgeSlot(cx, cy, 0.01, slot)
         CASE DOOR_SPLIT : GLDoorEdge cx, cy, across, 0.5 - amt / 2, 1, DoorEdgeSlot(cx, cy, 0.49, slot) : GLDoorEdge cx, cy, across, 0.5 + amt / 2, -1, DoorEdgeSlot(cx, cy, 0.51, slot)
@@ -1786,6 +1807,7 @@ SUB GLDoorBox(cx, cy, b)
                 GLDoorFlat cx, cy, across, -half, half, fz + amt * (cz - fz), 0.96, 1, DoorEdgeSlot(cx, cy, 0.5, slot)
             END IF
     END SELECT
+    GLTexOff
 END SUB
 
 ' A door's face with a look of its own ([faces] face code of its cell):
@@ -1874,8 +1896,10 @@ SUB GLDoorTrack(cx, cy, b)
     IF faceAny THEN IF FaceLook(cx, cy, FACE_TRACK) THEN slot = FaceSlot(cx, cy, FACE_TRACK, 0.5, 0.5, T_SHUTTER)
     IF slot THEN
         GLSetLight cx, cy, 1, b : v1 = 2 * TRACK_HALF
+        GLLookTex cx, cy, FACE_TRACK ' (slid and stretched: its own)
         glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = 1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, floorH(cx, cy) + 0.004, 0, v1, slot
         glFaceNZ = -1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, ceilH(cx, cy) - 0.004, 0, v1, slot
+        GLTexOff
         EXIT SUB
     END IF
     GLSetLight cx, cy, 0.25, b

@@ -65,7 +65,10 @@
     ' round instead: the pointer is captured while you do (chapter 1). The
     ' wheel is the editor's (EditFP), not for changing guns.
     IF editMode AND editView = 1 AND NOT hudEdit THEN
-        lookNow = _MOUSEBUTTON(2)
+        IF (_MOUSEBUTTON(2) OR edClickR) AND NOT npRWas AND NOT edLooking THEN NpRightPress WideMouseX(_MOUSEX), _MOUSEY ' (on a picture in the picker: its menu - EDITOR/NEWPICS.BM)
+        npRWas = _MOUSEBUTTON(2)
+        IF npEatR AND NOT _MOUSEBUTTON(2) THEN npEatR = 0
+        lookNow = _MOUSEBUTTON(2) AND NOT npEatR ' (that press was the menu's: no looking round)
         IF lookNow <> edLooking OR edMouseFix THEN
             IF lookNow THEN _MOUSEHIDE _DISABLE ELSE _MOUSESHOW
             edLooking = lookNow : edMouseFix = 0
@@ -88,13 +91,13 @@
     IF conUse THEN conUse = 0 : spaceDown = -1 ' (the console's use: Space, once)
 
     ' Esc opens the menu (chapter 21), and the game waits while it's open
-    escDown = _KEYDOWN(27) AND NOT hudEdit AND NOT edTyping
+    escDown = _KEYDOWN(27) AND NOT hudEdit AND NOT edTyping AND NOT npMenuOn
     IF escDown AND NOT escWas THEN
         menuInGame = -1 : RunMenu : edMouseFix = -1 ' (the menu captured the mouse: the editor's pointer back)
         mouseDX = 0 : mouseDY = 0 : mouseWheel = 0 : clicked = 0 : fireDown = 0 : spaceDown = 0
         fireWait = 15 ' (so the click that closed the menu doesn't fire)
     END IF
-    escWas = _KEYDOWN(27) OR edTyping
+    escWas = _KEYDOWN(27) OR edTyping OR npMenuOn
 
     ' This frame's keys and buttons, as bits (inBits - DemoInput): yours -
     ' or, with a demo playing, the ones it recorded. Everything below asks

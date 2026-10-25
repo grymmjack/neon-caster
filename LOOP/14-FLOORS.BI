@@ -145,7 +145,7 @@
                         splitCell = floorSplit(cellX, cellY) OR ceilSplit(cellX, cellY)
                         cellTrack = 0 ' A door's track: 1 running along x, 2 along y (DoorAcross + 1)
                         IF worldMap(cellX, cellY) = 2 THEN IF doorType(cellX, cellY) <> DOOR_EXIT THEN cellTrack = DoorAcross(cellX, cellY) + 1
-                        trackSlot = 0 : IF cellTrack THEN IF faceAny THEN IF FaceLook(cellX, cellY, FACE_TRACK) THEN trackSlot = FaceSlot(cellX, cellY, FACE_TRACK, 0.5, 0.5, T_SHUTTER) ' (painted: its picture)
+                        trackSlot = 0 : IF cellTrack THEN IF faceAny THEN IF FaceLook(cellX, cellY, FACE_TRACK) THEN trackSlot = FaceSlot(cellX, cellY, FACE_TRACK, 0.5, 0.5, T_SHUTTER) : FaceLookUV cellX, cellY, FACE_TRACK, trkOU, trkOV, trkKU, trkKV ' (painted: its picture, slid and stretched)
                         lightR& = litR(cellX, cellY) * fog& \ 256 : lightG& = litG(cellX, cellY) * fog& \ 256 : lightB& = litB(cellX, cellY) * fog& \ 256
                     ELSE
                         cellFloor = T_FLOOR + 1 : cellCeil = T_CEIL + 1 : cellTrack = 0 : cFU = 0 : cFV = 0 : cCU = 0 : cCV = 0 : cFSU = texSize : cFSV = texSize : cCSU = texSize : cCSV = texSize
@@ -186,7 +186,7 @@
                     IF trackD < TRACK_HALF THEN
                         IF trackSlot THEN ' (painted: its picture, along the track and across it, lit as the cell)
                             IF cellTrack = 1 THEN trackA = floorX - cellX : trackN = floorY - cellY - 0.5 + TRACK_HALF ELSE trackA = floorY - cellY : trackN = floorX - cellX - 0.5 + TRACK_HALF
-                            texel~& = texture(INT(trackA * texSize) AND (texSize - 1), INT(trackN * texSize) AND (texSize - 1), trackSlot)
+                            texel~& = texture(INT((trackA * trkKU + trkOU / 64) * texSize) AND (texSize - 1), INT((trackN * trkKV + trkOV / 64) * texSize) AND (texSize - 1), trackSlot)
                             pixels(floorRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                             IF NOT texSky(ceilSlot) THEN pixels(ceilRow + x) = pixels(floorRow + x)
                         ELSE

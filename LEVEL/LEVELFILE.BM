@@ -690,6 +690,26 @@ END FUNCTION
 ' A door's edge (and a shutter's underside): its own picture (DE), else
 ' the picture of its south (or east) face where the panel ends, at p
 ' along it - else deflt
+' A door's edges' or track's own slide and stretch ([faces] DE, DT - whole,
+' or one piece: they don't divide): ou, ov in 64ths of the picture, ku, kv
+' how many pictures across one (1 as made) - measured from the face's own
+' corner, its u and v 0 to 1
+SUB FaceLookUV(x, y, f, ou, ov, ku, kv)
+    DIM p ' (its own)
+    ou = 0 : ov = 0 : ku = 1 : kv = 1
+    IF faceDiv(x, y, f) = 3 THEN
+        p = faceTex(x, y, f) : IF p = 0 THEN EXIT SUB
+        ou = pcOU(p, 1) : ov = pcOV(p, 1)
+        IF pcKU(p, 1) THEN ku = 100 / pcKU(p, 1)
+        IF pcKV(p, 1) THEN kv = 100 / pcKV(p, 1)
+        EXIT SUB
+    END IF
+    IF faceOffAny = 0 THEN EXIT SUB
+    ou = faceOU(x, y, f) : ov = faceOV(x, y, f)
+    IF faceKU(x, y, f) THEN ku = 100 / faceKU(x, y, f)
+    IF faceKV(x, y, f) THEN kv = 100 / faceKV(x, y, f)
+END SUB
+
 FUNCTION DoorEdgeSlot(x, y, p, deflt)
     DIM f ' (its own: the main program shares these names)
     DoorEdgeSlot = deflt
