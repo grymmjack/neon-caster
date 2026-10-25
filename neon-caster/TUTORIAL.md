@@ -77,7 +77,8 @@ nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or 
 (any of NEXUS's lines), `soundtest` (every sound, voice and track, to listen to), `arranger level3` (a track's clips and arrangement: the MUSIC ARRANGER), `tuner` (every machine's health and gun's damage, a value per difficulty: the TUNER; `tuning export` writes it as a spreadsheet) and `achievements` (with `achieve NAME` and
 `resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
-`savelevel` - and `door`, `wall`, `light`, `liftgo`, `message`, `sound`,
+`savelevel` - and `door`, `wall`, `light` (`light 3 toggle`, `colour FF2020`, `bright`, `fx pulse`), `ambient`
+and `celllight` (the sector's own light, or a box of cells', changed as it plays), `liftgo`, `message`, `sound`,
 `give`/`take` (health, armour, ammo by kind, all), `die`, `spawn TYPE X Y`
 and `item KIND X Y`, which a level's triggers use. `mons` lists every
 monster and whether it's awake. `qb64pe` says which compiler the code
@@ -607,7 +608,11 @@ run it and see what happens. That's the fastest way to learn how it works.
 
 - **Your own lights** (ch. 14, 22): add a line to a level's lights - try
   a red strobe (effect 3) in a dark corridor, or set a level's ambient
-  brightness to 40 and light it only with lamps.
+  brightness to 40 and light it only with lamps. Then make them change as it
+  plays (`LightCmd$`, RENDER/LIGHT.BM): a light switch is a trigger,
+  `use 12 8 repeat : light 3 toggle`; an alarm can turn a room red with
+  `alarm : celllight 10 4 18 9 150 FF2020 pulse`, and `calm` (the alarm
+  stops) put it back with `celllight 10 4 18 9 off`.
 
 **The graphics card** (the game starts with RENDERER on OPENGL - turn
 SHOW FPS on to see what each effect costs; both are in SETTINGS > VIDEO,

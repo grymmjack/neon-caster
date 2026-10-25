@@ -20,9 +20,9 @@ drones, barrels of poison, lava and acid that leak and burst (stacked up to eigh
 treasure chests - and mimics that only look like them - ambushes of turrets that slide out of walls, floors and ceilings,
 stronghold doors to kick down, keypad doors and safes whose codes are on notes you find, desks and
 bookshelves to search, broken computers to fix and hack, security cameras to watch through, robot
-guard dogs and guards who run to raise the alarm, a rocket camera (hold the middle button as you fire), jump pads that
+guard dogs and guards who run to raise the alarm, a rocket camera (hold the middle button as you fire), charged shots (hold fire on the blaster or railgun, let go for twice the damage), jump pads that
 shoot you across a sector (some set from a launch control, by sums you work out), a sector's own gravity, floors
-as wet or dry as a level says, a harder network (hunters, sentinels, tracers and black ICE, firewalls, and a TRACE that climbs while ICE sees you - full, and more hunters come), a map
+as wet or dry as a level says, lights a sector switches and recolours as it plays (light switches, alarms that turn a room red), glass that cracks its own way, a window you can drag to any size, a harder network (hunters, sentinels, tracers and black ICE, firewalls, and a TRACE that climbs while ICE sees you - full, and more hunters come), a map
 textured from above like Duke3D's, and a
 console you can script (aliases, and an autoexec.cfg run at start-up). And 50
 achievements, each with its own badge, ready for Steam, with each
