@@ -76,9 +76,10 @@ SUB BuildLevel STATIC
     IF texNew OR NOT editRebuild THEN MakeLiftTex ' (the lifts' pictures, from these)
     baseNew = texNew : texNew = 0 ' (the sector's own pictures changed - and below, any face's)
     IF NOT editRebuild THEN glTexVersion = glTexVersion + 1 ' (a new level: OpenGL needs it all again - chapter 24)
-    ambientLevel = lvlAmb(1) : ambientTintR = lvlAmb(2) : ambientTintG = lvlAmb(3) : ambientTintB = lvlAmb(4) ' The level's ambient light: brightness, then colour
+    ambientLevel = MaxOf(0, lvlAmb(1)) : ambientTintR = lvlAmb(2) : ambientTintG = lvlAmb(3) : ambientTintB = lvlAmb(4) ' The level's ambient light: brightness, then colour
     ambientR = ambientLevel * ambientTintR / 255 : ambientG = ambientLevel * ambientTintG / 255 : ambientB = ambientLevel * ambientTintB / 255
-    ambBri = ambientLevel : ambHue = _RGB32(ambientTintR, ambientTintG, ambientTintB) : ambFx = 0 : lightLog$ = "" ' (the sector's light as the file has it - ambient changes it in play - and no changes yet)
+    ambDim = AmbDimOf(lvlAmb(1)) ' (below 0: no light of its own, and every lamp and cell light dimmer)
+    ambBri = lvlAmb(1) : ambHue = _RGB32(ambientTintR, ambientTintG, ambientTintB) : ambFx = 0 : lightLog$ = "" ' (the sector's light as the file has it - ambient changes it in play - and no changes yet)
     FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 ' Each cell's own: a cell light, or the sector's
         cellAmbOwn(x, y) = (lvlCLBright(x, y) >= 0)
         IF lvlCLBright(x, y) >= 0 THEN

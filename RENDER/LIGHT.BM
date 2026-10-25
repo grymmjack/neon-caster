@@ -149,7 +149,7 @@ SUB UpdateLight
     ambFxNow(FX_DYING) = 0.08
     IF ambFxTimer(FX_DYING) > 0 THEN ambFxTimer(FX_DYING) = ambFxTimer(FX_DYING) - 1 : ambFxNow(FX_DYING) = 0.5 + RND * 0.5 ELSE IF RND < 0.03 THEN ambFxTimer(FX_DYING) = 3 + INT(RND * 10)
     FOR cellY = litY0 TO litY1 : FOR cellX = litX0 TO litX1
-        f = ambFxNow(cellAmbFx(cellX, cellY)) ' (its own ambient light - a cell light, or the sector's)
+        f = ambFxNow(cellAmbFx(cellX, cellY)) * ambDim ' (its own ambient light - a cell light, or the sector's - turned down by a sector light below 0)
         litR(cellX, cellY) = cellAmbR(cellX, cellY) * f : litG(cellX, cellY) = cellAmbG(cellX, cellY) * f : litB(cellX, cellY) = cellAmbB(cellX, cellY) * f
         IF blackoutTimer > 0 THEN litR(cellX, cellY) = litR(cellX, cellY) \ 4 : litG(cellX, cellY) = litG(cellX, cellY) \ 5 : litB(cellX, cellY) = litB(cellX, cellY) \ 4 ' (a power failure: darker)
         litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
@@ -182,6 +182,7 @@ SUB UpdateLight
         END IF
         IF lightBroken(l) THEN f = 0 ' (shot out)
         IF blackoutTimer > 0 AND lightEffect(l) <> FX_STROBE THEN f = f * 0.05 ' (no power: only the alarms)
+        f = f * ambDim ' (a sector light below 0 turns every lamp down - its glow too)
         lightNow(l) = f
         IF f > 0 AND lightX(l) + lightRadius(l) >= litX0 AND lightX(l) - lightRadius(l) <= litX1 + 1 AND lightY(l) + lightRadius(l) >= litY0 AND lightY(l) - lightRadius(l) <= litY1 + 1 THEN ' (one that reaches the cells near you)
             r = lightR(l) * f : g = lightG(l) * f : b = lightB(l) * f
@@ -294,13 +295,13 @@ FUNCTION LightCmd$(c$)
         CASE "ambient"
             w$ = ConWord$(c$, 2)
             IF w$ = "" THEN LightCmd$ = "ambient: bright" + STR$(ambBri) + ", colour " + HueHex$(ambHue) + ", " + FxName$(ambFx) : EXIT FUNCTION
-            bri = MaxOf(0, MinOf(400, VAL(w$))) : hue = ambHue : fx = ambFx
+            bri = MaxOf(-255, MinOf(400, VAL(w$))) : hue = ambHue : fx = ambFx ' (below 0: none of its own, and every light turned down - -255 dark)
             IF ConWord$(c$, 3) <> "" THEN
                 IF HueOK(ConWord$(c$, 3)) THEN hue = HueOf~&(ConWord$(c$, 3)) ELSE fx = FxOf(ConWord$(c$, 3))
             END IF
             IF ConWord$(c$, 4) <> "" THEN fx = FxOf(ConWord$(c$, 4))
             IF fx < 0 THEN LightCmd$ = "ambient BRIGHT [RRGGBB] [steady|flicker|pulse|strobe|fire|dying]" : EXIT FUNCTION
-            ambBri = bri : ambHue = hue : ambFx = fx
+            ambBri = bri : ambHue = hue : ambFx = fx : ambDim = AmbDimOf(bri) : bri = MaxOf(0, bri)
             ambientR = bri * _RED32(hue) / 255 : ambientG = bri * _GREEN32(hue) / 255 : ambientB = bri * _BLUE32(hue) / 255
             FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
                 IF NOT cellAmbOwn(x, y) THEN cellAmbR(x, y) = ambientR : cellAmbG(x, y) = ambientG : cellAmbB(x, y) = ambientB : cellAmbFx(x, y) = fx
@@ -342,6 +343,12 @@ SUB LightSwitch(l, dark)
 END SUB
 
 ' Light l's red, green and blue from its brightness and colour
+' A sector light below 0 (to -255): how much of every light in it is left -
+' 1 at 0 and above, none at -255
+FUNCTION AmbDimOf!(bri)
+    AmbDimOf! = 1 + MaxOf(-255, MinOf(0, bri)) / 255
+END FUNCTION
+
 SUB LightTone(l)
     lightR(l) = lightBri(l) * _RED32(lightHue(l)) / 255 : lightG(l) = lightBri(l) * _GREEN32(lightHue(l)) / 255 : lightB(l) = lightBri(l) * _BLUE32(lightHue(l)) / 255
 END SUB

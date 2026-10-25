@@ -44,6 +44,8 @@ DIM SHARED numLightsBase AS INTEGER ' (the level's own lights - those after them
 ' of their own (cellAmbOwn: a [cell lights] cell, or a celllight's) - and
 ' every change made, a line each (lightLog$), for a saved game to make again
 DIM SHARED lightBri(MAX_LIGHTS) AS SINGLE, lightHue(MAX_LIGHTS) AS _UNSIGNED LONG
+DIM SHARED ambDim AS SINGLE ' (1 - or less, a sector's light below 0: every light in it turned down by that much, -255 out - UpdateLight)
+ambDim = 1
 DIM SHARED ambBri AS INTEGER, ambHue AS _UNSIGNED LONG, ambFx AS INTEGER, cellAmbOwn(MAP_SIZE, MAP_SIZE) AS _BYTE, lightLog$
 DIM SHARED lightNoLamp(MAX_LIGHTS) AS INTEGER ' (a level's light set to hang no lamp: its ceiling keeps its own picture, no beam)
 DIM SHARED lightLow(MAX_LIGHTS) AS INTEGER ' (a glow from the floor - a pool of lava: no lamp on the ceiling over it, no beam)

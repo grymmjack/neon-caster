@@ -36,7 +36,9 @@
 ' (pictures from neon-caster/, 64x64; doors, keycards and the exit are the
 ' same in every level). On the minimap each wall kind is its picture's
 ' colour. The ambient light is the light every cell has before any lights
-' are added: brightness 0 (black) to 256 (textures in their own colours),
+' are added: brightness 0 (black) to 256 (textures in their own colours) -
+' or below 0, to -255: none, and every lamp and cell light turned down by
+' that much (AmbDimOf: -255 is dark) -
 ' tinted by red, green and blue (0-255 each; 255, 255, 255 is white).
 '
 ' --- Part 2: [zones] - floor / ceiling zones --------------------------------

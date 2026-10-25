@@ -980,7 +980,7 @@ SUB EditPaneClick STATIC
         CASE 101, 102 ' Its light, brighter or darker
             EditPushUndo
             IF pnHit = 102 THEN lvlAmb(1) = lvlAmb(1) + 10 ELSE lvlAmb(1) = lvlAmb(1) - 10
-            IF lvlAmb(1) < 0 THEN lvlAmb(1) = 0
+            IF lvlAmb(1) < -255 THEN lvlAmb(1) = -255 ' (below 0: every light in the sector turned down by that much - -255 pitch black)
             IF lvlAmb(1) > 256 THEN lvlAmb(1) = 256
             EditApply
         CASE 110 TO 121 ' Its light's colour
@@ -3919,7 +3919,7 @@ SUB EditPaneLay
         IF lvlCLBright(cx, cy) < 0 THEN
             EditPaneAdd -1, x0, y + 2, PN_W, "THE SECTOR'S LIGHT", 0 : y = y + 22
             EditPaneAdd -1, x0, y + 2, PN_W, "(- + or a colour: its own)", 0 : y = y + 24
-            clB = lvlAmb(1) : cl~& = _RGB32(lvlAmb(2), lvlAmb(3), lvlAmb(4)) : clFx = 0
+            clB = MaxOf(0, lvlAmb(1)) : cl~& = _RGB32(lvlAmb(2), lvlAmb(3), lvlAmb(4)) : clFx = 0
         ELSE
             clB = lvlCLBright(cx, cy) : cl~& = lvlCLCol(cx, cy) : clFx = lvlCLFx(cx, cy)
             EditPaneAdd 221, x0, y, PN_W, "BACK TO THE SECTOR'S", 0 : y = y + 24
@@ -5929,7 +5929,7 @@ SUB EditCellLight(op, v)
             IF op = 0 THEN
                 lvlCLBright(x, y) = -1 : lvlCLFx(x, y) = 0
             ELSE
-                IF lvlCLBright(x, y) < 0 THEN lvlCLBright(x, y) = lvlAmb(1) : lvlCLCol(x, y) = _RGB32(lvlAmb(2), lvlAmb(3), lvlAmb(4)) : lvlCLFx(x, y) = 0
+                IF lvlCLBright(x, y) < 0 THEN lvlCLBright(x, y) = MaxOf(0, lvlAmb(1)) : lvlCLCol(x, y) = _RGB32(lvlAmb(2), lvlAmb(3), lvlAmb(4)) : lvlCLFx(x, y) = 0
                 SELECT CASE op
                     CASE 1 : lvlCLBright(x, y) = MaxOf(0, MinOf(256, lvlCLBright(x, y) + v))
                     CASE 2 : lvlCLCol(x, y) = EditPaletteRGB~&(v)

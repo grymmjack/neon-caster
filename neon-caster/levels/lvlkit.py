@@ -1290,8 +1290,8 @@ def check_level(lv, assets=None):
         if sh and x1 - x0 != y1 - y0:
             errs.append("zone %s: a triangle needs a square" % (z,))
     amb = lv.get("ambient", ())
-    if len(amb) != 4 or not (0 <= amb[0] <= 256 and all(0 <= c <= 255 for c in amb[1:])):
-        errs.append("ambient %s: brightness 0-256, then r g b 0-255" % (amb,))
+    if len(amb) != 4 or not (-255 <= amb[0] <= 256 and all(0 <= c <= 255 for c in amb[1:])):
+        errs.append("ambient %s: brightness -255-256 (below 0: every light dimmer), then r g b 0-255" % (amb,))
     for l in lv.get("lights", []):
         if len(l) not in (8, 9):
             errs.append("light %s: needs 8 numbers (and a 9th, 1: no lamp)" % (l,))
