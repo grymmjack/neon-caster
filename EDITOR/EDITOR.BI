@@ -23,6 +23,7 @@ CONST EDIT_GLYPHS = ".#NCKPG/\DHXRBYE!=-@$%?&;rby+*uae234Mqj89)({}`,mghcskwzT156
 CONST EDIT_UNDO = 40
 CONST EDIT_OPEN$ = ".rby+*uae234Mqj89)({}`,mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:['<>^v&" ' (the map characters that are floor - with something on it, or not: where a liquid can lie)
 DIM SHARED editMode AS INTEGER, editView AS INTEGER, editGlyph$, editDirty AS INTEGER, editRebuild AS INTEGER
+DIM SHARED edFullBright AS INTEGER, edFBDown AS INTEGER, edFBAlt AS INTEGER ' (Alt+L: every cell lit evenly while editing - UpdateLight; and the key still down)
 DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editRedo$(EDIT_UNDO), editRedoN AS INTEGER, editMsg$, editMsgUntil!, editLightP AS INTEGER, editLights AS INTEGER, editHeights AS INTEGER
 ' THE EDITOR'S OWN STATE, the same in both views (the map from above and
 ' the 3D view), so switching between them loses nothing:

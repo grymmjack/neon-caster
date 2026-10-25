@@ -28,6 +28,7 @@ SUB EditEnter STATIC
     IF editFresh OR level <> levelWas THEN editDirty = 0 : editUndoN = 0 : editRedoN = 0 : EditFitMap ' (a new sector: its map fitted to the view) ' (back in after F2 to try it: the changes not saved yet, and their undo, still there)
     editFresh = 0
     editMode = -1 : editView = 0 : editLights = 0 : mapOpen = 0
+    IF edFullBright THEN litAll = 3 ' (FULL BRIGHT on from last time: every cell lit so)
     levelWas = level
     IF editGlyph$ = "" THEN editGlyph$ = "#"
     FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
@@ -38,6 +39,7 @@ END SUB
 SUB EditLeave STATIC
     EditRecentNote ' (where you were, and the view, for RESUME LAST EDIT)
     editMode = 0 : editView = 0 : EditReset
+    IF edFullBright THEN litAll = 3 ' (out of FULL BRIGHT: the sector's own light again, every cell)
     IF NOT Walkable(playerX, playerY) THEN ' (left inside something: step out to the nearest open cell)
         FOR r = 1 TO 8
             FOR a = 0 TO 15
@@ -1163,6 +1165,7 @@ SUB RunEditor STATIC
                 IF k& > 0 THEN EditTypeKey
                 k& = _KEYHIT : _CONTINUE
             END IF
+            IF EditFullBrightKey(k&) THEN k& = 0 ' (Alt+L: full bright)
             IF ABS(k&) = 100305 OR ABS(k&) = 100306 THEN mapCtrl = (k& > 0)
             IF mapCtrl THEN ' (Ctrl held: Ctrl+S, Ctrl+Z, Ctrl+D - however the key arrives)
                 IF k& = 115 OR k& = 83 THEN k& = 19
@@ -1521,6 +1524,7 @@ SUB EditFP STATIC
             k& = _KEYHIT : _CONTINUE
         END IF
         shiftOn = _KEYDOWN(100304) OR _KEYDOWN(100303)
+        IF EditFullBrightKey(k&) THEN k& = 0 ' (Alt+L: full bright)
         IF ABS(k&) = 100305 OR ABS(k&) = 100306 THEN edCtrl = (k& > 0)
         kc = 0 : IF ABS(k&) >= 65 AND ABS(k&) <= 122 THEN kc = ABS(k&) OR 32 ' (a letter, as its small letter)
         IF kc < 97 OR kc > 122 THEN kc = 0
@@ -2346,7 +2350,7 @@ SUB EditRay(sx, sy, rdx, rdy, rdz)
 END SUB
 
 SUB EditPick(sx, sy)
-    DIM bt, f, mx, my, nx, ny, t ' (its own: the main program shares these names)
+    DIM bt, f, mx, my, nx, ny, t, dk, dh, dt, du, dsd, dlx, dly, dbk, tLim ' (its own: the main program shares these names)
     edHovKind = 0
     EditRay sx, sy, rdx, rdy, rdz
     ex = edCamPX : ey = edCamPY : ez = eyeZ
@@ -2374,8 +2378,15 @@ SUB EditPick(sx, sy)
                 END IF
             END IF
         END IF
-        IF worldMap(mx, my) <= 0 THEN ' An open cell: through its floor or ceiling, on the way across?
-            f = floorH(mx, my) : cz = ceilH(mx, my) : zOut = ez + rdz * tOut
+        dk = EditDoorIn(mx, my)
+        IF worldMap(mx, my) <= 0 OR dk THEN ' An open cell (or a doorway): through its floor or ceiling, on the way across?
+            tLim = tOut : dh = 0
+            IF dk THEN ' (a doorway: its floor and ceiling either side of the door, up to the door's slab across its middle)
+                IF DoorRay(mx, my, ex, ey, rdx, rdy, dt, du, dsd, dlx, dly, dbk) THEN
+                    IF dt >= tIn - 0.001 AND dt <= tOut THEN tLim = dt : dh = -1
+                END IF
+            END IF
+            f = floorH(mx, my) : cz = ceilH(mx, my) : zOut = ez + rdz * tLim
             IF rdz < 0 AND zOut < f THEN
                 t = (f - ez) / rdz
                 IF t >= tIn - 0.001 THEN EditHit ED_FLOOR, mx, my, 0, ex + rdx * t, ey + rdy * t, f : EXIT SUB
@@ -2383,6 +2394,14 @@ SUB EditPick(sx, sy)
             IF rdz > 0 AND zOut > cz THEN
                 t = (cz - ez) / rdz
                 IF t >= tIn - 0.001 THEN EditHit ED_CEIL, mx, my, 0, ex + rdx * t, ey + rdy * t, cz : EXIT SUB
+            END IF
+            IF dh THEN ' (the door itself: its face towards you - the side it's painted on)
+                IF DoorAcross(mx, my) = 0 THEN
+                    dsd = 2 : IF rdy > 0 THEN dsd = 4
+                ELSE
+                    dsd = 1 : IF rdx > 0 THEN dsd = 3
+                END IF
+                EditHit ED_WALL, mx, my, dsd, ex + rdx * dt, ey + rdy * dt, ez + rdz * dt : EXIT SUB
             END IF
         END IF
         ' On to the next cell, across its edge
@@ -2393,8 +2412,8 @@ SUB EditPick(sx, sy)
         END IF
         IF nx < 0 OR ny < 0 OR nx >= mapN OR ny >= mapN THEN EXIT SUB
         zOut = ez + rdz * tOut : hx = ex + rdx * tOut : hy = ey + rdy * tOut
-        IF worldMap(mx, my) <= 0 THEN ' (from an open cell - a face is only a face seen from the open side)
-            IF worldMap(nx, ny) > 0 THEN
+        IF worldMap(mx, my) <= 0 OR EditDoorIn(mx, my) THEN ' (from an open cell or a doorway - a face is only a face seen from the open side)
+            IF worldMap(nx, ny) > 0 AND NOT EditDoorIn(nx, ny) THEN
                 EditHit ED_WALL, nx, ny, side, hx, hy, zOut : EXIT SUB
             ELSEIF zOut < floorH(nx, ny) THEN
                 EditHit ED_STEP, nx, ny, side, hx, hy, zOut : EXIT SUB
@@ -2405,6 +2424,26 @@ SUB EditPick(sx, sy)
         mx = nx : my = ny : tIn = tOut
     NEXT
 END SUB
+
+' A doorway the editor's pointer goes into (its floor and ceiling either side
+' of the door): any door but the exit, which is flat in its wall
+FUNCTION EditDoorIn(x, y)
+    IF worldMap(x, y) = 2 THEN EditDoorIn = (doorType(x, y) <> DOOR_EXIT)
+END FUNCTION
+
+' Alt+L, in either view: FULL BRIGHT on or off - every cell lit evenly, as its
+' pictures are (UpdateLight), to see what's what. Only while editing; the
+' key held down toggles it once. True if k& was it (then it's used up)
+FUNCTION EditFullBrightKey(k&)
+    IF ABS(k&) = 100307 OR ABS(k&) = 100308 THEN edFBAlt = (k& > 0) ' (Alt followed through the key queue too: a quick Alt+L is down and up within a frame)
+    IF ABS(k&) <> 108 AND ABS(k&) <> 76 THEN EXIT FUNCTION
+    IF k& < 0 THEN edFBDown = 0 : EXIT FUNCTION
+    IF NOT (edFBAlt OR _KEYDOWN(100307) OR _KEYDOWN(100308)) THEN EXIT FUNCTION
+    EditFullBrightKey = -1
+    IF edFBDown THEN EXIT FUNCTION
+    edFBDown = -1 : edFullBright = NOT edFullBright : litAll = 3 ' (every cell lit again: both of OpenGL's halves)
+    IF edFullBright THEN EditNote "FULL BRIGHT: every cell lit evenly (Alt+L: the sector's own lights)" ELSE EditNote "The sector's own lights (Alt+L: full bright)"
+END FUNCTION
 
 ' THE SELECTION: faces, by kind, cell, side and part. EditSelToggle puts
 ' one in (or takes it out, if it's there); EditSelFlood takes every floor
@@ -2655,7 +2694,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "#FACES|H~divide left / right|V~divide top / bottom|H or V again~whole again|click a half~select / paint it alone|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
         h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|PAINT + selection~PICTURE pane: slide a pixel,|~  stretch wide / tall, as made|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
-        h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|U~the HUD layout editor|F1~this sheet|"
+        h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Alt+L~full bright: everything lit evenly|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|U~the HUD layout editor|F1~this sheet|"
         h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|1-8~light presets|PgUp/PgDn~floor up/down (Shift: ceil)"
         t$ = "EDITOR CHEATSHEET - 3D VIEW"
     ELSE
@@ -2664,7 +2703,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "#THE SELECTION|arrows~move it a cell (up is north)|Del~delete it|Ctrl+D~select nothing|its pane~door, pad, light, monster,|~  event, lift, floor, triggers|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT drag~pour it on (Shift: drain)|"
         h$ = h$ + "#KEYS|L / H~the LIGHT / HEIGHT tool|[ ]~the brush back / on|1-8~light presets|G / Shift+G~grid on-off / stronger|T~put yourself at the mouse|PgUp/PgDn~the sector before / after|M~the monster kinds editor|U~the HUD layout editor|"
-        h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|F1~this sheet"
+        h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Alt+L~full bright (in 3D)|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|F1~this sheet"
         t$ = "EDITOR CHEATSHEET - THE MAP FROM ABOVE"
     END IF
     y0 = 32 : IF v = 0 THEN y0 = 4

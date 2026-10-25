@@ -130,9 +130,9 @@ SUB UpdateLight
         litX0 = MaxOf(0, INT(playerX) - LIGHT_NEAR) : litX1 = MinOf(mapN - 1, INT(playerX) + LIGHT_NEAR)
         litY0 = MaxOf(0, INT(playerY) - LIGHT_NEAR) : litY1 = MinOf(mapN - 1, INT(playerY) + LIGHT_NEAR)
     END IF
-    IF cyberOn THEN ' The network: no lamps, no shadows - everything lit the same (near you, once it's all been lit)
+    IF cyberOn OR (editMode AND edFullBright) THEN ' The network: no lamps, no shadows - everything lit the same (near you, once it's all been lit). The editor's FULL BRIGHT (Alt+L) the same, at the pictures' own colours
         FOR cellY = litY0 TO litY1 : FOR cellX = litX0 TO litX1
-            litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230
+            IF cyberOn THEN litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230 ELSE litR(cellX, cellY) = 256 : litG(cellX, cellY) = 256 : litB(cellX, cellY) = 256
             litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
         NEXT : NEXT
         FOR l = 1 TO numLights : lightNow(l) = 0 : NEXT
