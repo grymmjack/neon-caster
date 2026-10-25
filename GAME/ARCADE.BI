@@ -7,11 +7,14 @@
 ' This module's working variables, shared by its SUBs (and with the main
 ' program)
 DIM SHARED arcDone, arcWon, pgName$, rc
+DIM SHARED pgShowOn AS INTEGER, pgShowT0 AS DOUBLE, pgShowAt AS DOUBLE ' (the window kept shown a while after a program: ProgramShowFrame)
 
 ' The full screen mode in effect now (fullnow.h: _FULLSCREEN is the one asked for)
 DECLARE LIBRARY "fullnow"
     FUNCTION fullnow_mode& ()
     FUNCTION fullnow_hidden& ()
+    FUNCTION fullnow_minimized& ()
+    SUB fullnow_restore ()
 END DECLARE
 
 ' --- The slot machine (a vending machine: Space on it - SlotUse). Its

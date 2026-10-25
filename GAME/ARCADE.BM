@@ -74,6 +74,7 @@ SUB ProgramRun STATIC
     END IF
     ProgramShowWindow
     IF pgFull THEN displayModeNow = -1 : ApplyDisplay : ProgramWaitFull DisplayMode(setting(SET_DISPLAY))
+    pgShowOn = -1 : pgShowT0 = TIMER(.001) : pgShowAt = 0 ' (and watched a while: ProgramShowFrame)
     ProgramPaid
 END SUB
 
@@ -89,6 +90,35 @@ SUB ProgramShowWindow
         _LIMIT 30
     LOOP
     IF n > 1 THEN ConPrint "program: the window shown again after" + STR$(n) + " tries"
+END SUB
+
+' After a program: is the game's window still up, as QB64PE sees it?
+' QB64PE carries out _SCREENHIDE and ProgramShowWindow's _SCREENSHOWs on
+' its window's thread, and that thread waits while SHELL runs - so they're
+' done only after the program, as the game goes back to full screen.
+' Without the focus then, KWin minimizes it (to the desktop); a _SCREENSHOW
+' done just then finds it not shown, QB64PE takes it for hidden and never
+' draws it again - brought back from the taskbar, the game ran on with its
+' picture frozen. So, a fifth of a second apart: for six seconds after a
+' program, minimized, it's restored (and given the focus); and any time
+' it's taken for hidden while it's up - the game never hides but for a
+' program - it's shown again. (From ShowFrame's WindowFrame: every loop
+' runs it.)
+SUB ProgramShowFrame
+    DIM t AS DOUBLE, m, h ' (its own)
+    t = TIMER(.001)
+    IF ABS(t - pgShowAt) < 0.2 THEN EXIT SUB
+    pgShowAt = t
+    IF pgShowOn THEN IF ABS(t - pgShowT0) > 6 THEN pgShowOn = 0
+    h = fullnow_hidden& : m = fullnow_minimized&
+    IF NOT pgShowOn THEN ' (later: minimized by the player is theirs - shown when they bring it back)
+        IF m THEN EXIT SUB
+        IF h THEN _SCREENSHOW : ConPrint "program: the window shown again"
+        EXIT SUB
+    END IF
+    IF m THEN fullnow_restore
+    IF h THEN _SCREENSHOW
+    IF m OR h THEN ConPrint "program: the window" + MID$(" restored", 1, 9 * -(m <> 0)) + MID$(" shown again", 1, 12 * -(h <> 0)) + " (" + LTRIM$(STR$(INT((t - pgShowT0) * 10) / 10)) + " s after)"
 END SUB
 
 ' Till QB64PE has switched to full screen mode m (at its next frame), two

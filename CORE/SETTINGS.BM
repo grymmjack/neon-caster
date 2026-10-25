@@ -158,6 +158,7 @@ END FUNCTION
 SUB WindowFrame
     STATIC pend, pendAt!, pw, ph
     DIM k ' (its own)
+    ProgramShowFrame ' (after a program: the window kept shown - GAME/ARCADE.BM)
     IF _RESIZE THEN pw = _RESIZEWIDTH : ph = _RESIZEHEIGHT : pend = -1 : pendAt! = TIMER ' (dragged - or our own size arriving)
     IF fullnow_mode& <> 0 OR _FULLSCREEN <> 0 THEN EXIT SUB ' (full screen: the window's size waits)
     IF winWantK THEN

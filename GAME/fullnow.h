@@ -21,3 +21,12 @@ static int32_t fullnow_mode(void) { return full_screen; }
 // (_SCREENSHOW again) once it is, it knows.
 bool GLUTEmu_WindowIsHidden(); // (libqb's, glut-emu.h)
 static int32_t fullnow_hidden(void) { return GLUTEmu_WindowIsHidden() ? -1 : 0; }
+
+// And whether it's minimized - KWin minimizes the game's window as it goes
+// back to full screen without the focus (after a program) - and the window
+// restored and given the focus (both queued to the window's thread)
+bool GLUTEmu_WindowIsMinimized(); // (libqb's, glut-emu.h)
+void GLUTEmu_WindowRestore();
+void GLUTEmu_WindowFocus();
+static int32_t fullnow_minimized(void) { return GLUTEmu_WindowIsMinimized() ? -1 : 0; }
+static void fullnow_restore(void) { GLUTEmu_WindowRestore(); GLUTEmu_WindowFocus(); }
