@@ -170,7 +170,7 @@ The older keys still work, aimed along the middle of the view: **T** steps every
 
 Rough a level out this way: Shift+wheel walls back to make rooms and corridors, wheel floors down for pits and up for platforms, Ctrl+Shift for a counter or a crate-sized block, Alt+Shift for a low beam to duck under.
 
-**The arrows** move the selection's cells a cell: in 3D, away from you, back, left and right as you face (whichever way along the grid is nearest); on the map, up the screen is north. Everything in a cell goes with it: what's there, its floor and ceiling, a monster's own settings. A cell left behind becomes like the cell behind it, so a platform slides along leaving floor like the floor round it. Nothing moves into the border, and a start is never copied.
+**The arrows** move the selection's cells a cell: in 3D, away from you, back, left and right as you face (whichever way along the grid is nearest); on the map, up the screen is north. Everything in a cell goes with it: what's there, its floor and ceiling, a monster's own settings. A cell left behind becomes like the cell behind it, so a platform slides along leaving floor like the floor round it. Nothing moves into the border, and a start is never copied. On the map, with **SELECT**, you can also press on a selected cell and **drag**: the selection follows the pointer and lands where you let go (one Ctrl+Z puts it back). Only the cells it lands on are replaced - what it passes over on the way is left as it was. To make a two-cell doorway one cell, say, select the door and drag it into the cell beside it: the cell it leaves takes after the room behind it.
 
 **Delete** (Del, or DELETE): a selected wall is opened up (its floor and ceiling like the cell in front), a thing on a selected floor is taken away (never the start), and a selected step or lintel is flattened to the floor or ceiling in front of it.
 
@@ -253,6 +253,7 @@ The whole 48 × 48 map from above, one square per cell, with the picker, the too
 | Wheel | Over the picker: scroll it. Over the map, with something selected: the selected floors up / down an eighth (Ctrl: ceilings). Otherwise the brush, back and forth. |
 | `[` `]` | The brush, back and forth |
 | Arrows | Move the selection a cell (up the screen is north) |
+| Drag a selected cell (SELECT) | Move the selection with the mouse - it lands where you let go |
 | Del, Ctrl+D | Delete the selection, select nothing |
 | L, H | The LIGHT tool, the HEIGHT tool (again: back to PLACE) |
 | 1–8 | A light preset (below) |

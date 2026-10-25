@@ -1098,8 +1098,14 @@ SUB RunEditor STATIC
             b1 = 0 : edForce1 = 0
         END IF
         b3Any = 0
-        IF onMap AND edTool = ET_SELECT THEN ' Selecting: press, drag a box, let go (Shift adds to what's selected)
-            IF b1 AND NOT edDown THEN edDown = -1 : edRect = -1 : edX0 = cx : edY0 = cy : edSelAdd = shiftOn
+        IF onMap AND edTool = ET_SELECT THEN ' Selecting: press, drag a box, let go (Shift adds to what's selected) - or press on what's selected and drag: it moves with the pointer (EditDragMove; one undo)
+            IF b1 AND NOT edDown THEN
+                edDown = -1 : edX0 = cx : edY0 = cy : edSelAdd = shiftOn : edMoving = 0 : edMvDX = 0 : edMvDY = 0
+                IF NOT shiftOn AND EditSelOnCell(cx, cy) THEN edMoving = 1 ELSE edRect = -1
+            END IF
+            IF b1 AND edDown AND edMoving > 0 THEN
+                IF cx - edX0 <> edMvDX OR cy - edY0 <> edMvDY THEN EditDragMove cx - edX0, cy - edY0 : edApply = -1
+            END IF
         END IF
         IF onMap AND edTool = ET_PAINT AND edBrushKind = PK_LIQUID THEN ' Pouring a liquid: on each floor cell dragged over (Shift: drain it)
             IF b1 AND (NOT edDown OR cx <> edX0 OR cy <> edY0) THEN
@@ -1152,7 +1158,8 @@ SUB RunEditor STATIC
                 FOR y = MinOf(edY0, cy) TO MaxOf(edY0, cy) : FOR x = MinOf(edX0, cx) TO MaxOf(edX0, cx) : EditPut x, y, editGlyph$ : NEXT : NEXT
             END IF
             IF edTool = ET_PLACE THEN edApply = -1 ' (the others built as they went)
-            edDown = 0 : edRect = 0
+            IF edMoving = 2 THEN EditNote "Moved " + LTRIM$(STR$(edSelN)) + MID$(" cells", 1, 6 + (edSelN = 1)) + " - Ctrl+Z puts them back"
+            edDown = 0 : edRect = 0 : edMoving = 0
         END IF
         IF edApply THEN edApply = 0 : EditApply
         ' Keys
@@ -2425,6 +2432,33 @@ SUB EditPick(sx, sy)
     NEXT
 END SUB
 
+' A drag from above moving the selection: the sector as it was when the drag
+' began, and the selection moved (tx, ty) from there in one go - so what it
+' passes over on the way is left as it was; only the cells it ends on are
+' replaced. (EditNudge, as the arrows - one undo for the whole drag)
+SUB EditDragMove(tx, ty)
+    DIM k ' (its own: the main program shares these names)
+    IF edMoving = 1 THEN EditPushUndo : edMvSnap$ = EditSnapshot$ : edMoving = 2
+    EditRestore edMvSnap$
+    FOR k = 1 TO edSelN : edSelX(k) = edSelX(k) - edMvDX : edSelY(k) = edSelY(k) - edMvDY : NEXT
+    IF tx = 0 AND ty = 0 THEN edMvDX = 0 : edMvDY = 0 : EXIT SUB
+    mwx = edSelX(1) : mwy = edSelY(1)
+    EditNudge tx, ty
+    IF edSelX(1) = mwx AND edSelY(1) = mwy THEN ' (into the border: back where it got to)
+        IF edMvDX <> 0 OR edMvDY <> 0 THEN EditNudge edMvDX, edMvDY
+    ELSE
+        edMvDX = tx : edMvDY = ty
+    END IF
+END SUB
+
+' Is anything selected in cell (x, y)? (Pressed there from above, a drag moves the selection)
+FUNCTION EditSelOnCell(x, y)
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO edSelN
+        IF edSelX(k) = x AND edSelY(k) = y THEN EditSelOnCell = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
 ' A doorway the editor's pointer goes into (its floor and ceiling either side
 ' of the door): any door but the exit, which is flat in its wall
 FUNCTION EditDoorIn(x, y)
@@ -2700,7 +2734,7 @@ SUB EditDrawHelp(v)
     ELSE
         h$ = "#THE TOOLS (toolbar)|SELECT~click a cell, drag a box|  Shift~add to the selection|PLACE~paint the brush; drag on|  Shift+drag~a box of it|  Right click~pick up what's there|  FLOORS: open floor~a room bigger|PAINT~picture on a floor, or|~  on a wall's four sides|E~pick up the cell (the tool's)|  Ctrl / Shift~ceiling / the usual|LIGHT~a light; Right: take away|HEIGHT~floor up; Right: down|  Shift~the ceiling|"
         h$ = h$ + "#THE WHEEL|on the picker~scroll it|on the map~selected floors up / down|  Ctrl~their ceilings|elsewhere~the brush back / on|"
-        h$ = h$ + "#THE SELECTION|arrows~move it a cell (up is north)|Del~delete it|Ctrl+D~select nothing|its pane~door, pad, light, monster,|~  event, lift, floor, triggers|"
+        h$ = h$ + "#THE SELECTION|arrows~move it a cell (up is north)|drag it~move it with the mouse|Del~delete it|Ctrl+D~select nothing|its pane~door, pad, light, monster,|~  event, lift, floor, triggers|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT drag~pour it on (Shift: drain)|"
         h$ = h$ + "#KEYS|L / H~the LIGHT / HEIGHT tool|[ ]~the brush back / on|1-8~light presets|G / Shift+G~grid on-off / stronger|T~put yourself at the mouse|PgUp/PgDn~the sector before / after|M~the monster kinds editor|U~the HUD layout editor|"
         h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Alt+L~full bright (in 3D)|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|F1~this sheet"
@@ -4068,8 +4102,8 @@ SUB EditNudge(dx, dy)
     NEXT : NEXT
     FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
         IF mv(x, y) AND NOT dest(x, y) THEN ' (left behind: like the cell behind it)
-            bx = x - dx : by = y - dy
-            DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < mapN - 1 AND by < mapN - 1 : bx = bx - dx : by = by - dy : LOOP
+            bx = x - SGN(dx) : by = y - SGN(dy) ' (the cell behind it, the way it went - a cell, however far it went)
+            DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < mapN - 1 AND by < mapN - 1 : bx = bx - SGN(dx) : by = by - SGN(dy) : LOOP
             MID$(lvlRow$(y), x + 1, 1) = MID$(r$(by), bx + 1, 1) : MID$(lvlFloorRow$(y), x + 1, 1) = MID$(f$(by), bx + 1, 1) : MID$(lvlCeilRow$(y), x + 1, 1) = MID$(c$(by), bx + 1, 1)
             MID$(lvlLiqRow$(y), x + 1, 1) = MID$(l$(by), bx + 1, 1) : MID$(lvlLiqDRow$(y), x + 1, 1) = MID$(ld$(by), bx + 1, 1) : MID$(lvlLiqORow$(y), x + 1, 1) = MID$(lo$(by), bx + 1, 1) : MID$(lvlWetRow$(y), x + 1, 1) = MID$(wo$(by), bx + 1, 1)
             IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) = 0 THEN MID$(lvlRow$(y), x + 1, 1) = "." ' (a plain wall behind it, as that; anything else - a start, a monster, a pad, a door - never twice: floor)
@@ -4085,8 +4119,8 @@ SUB EditNudge(dx, dy)
     FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1 : clb(x, y) = lvlCLBright(x, y) : clc(x, y) = lvlCLCol(x, y) : clf(x, y) = lvlCLFx(x, y) : NEXT : NEXT
     FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
         IF mv(x, y) AND NOT dest(x, y) THEN
-            bx = x - dx : by = y - dy
-            DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < mapN - 1 AND by < mapN - 1 : bx = bx - dx : by = by - dy : LOOP
+            bx = x - SGN(dx) : by = y - SGN(dy)
+            DO WHILE mv(bx, by) AND bx > 0 AND by > 0 AND bx < mapN - 1 AND by < mapN - 1 : bx = bx - SGN(dx) : by = by - SGN(dy) : LOOP
             lvlCLBright(x, y) = clb(bx, by) : lvlCLCol(x, y) = clc(bx, by) : lvlCLFx(x, y) = clf(bx, by)
         END IF
     NEXT : NEXT
