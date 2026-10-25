@@ -13,7 +13,7 @@
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 46
+CONST NUM_SETTINGS = 47
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -23,7 +23,7 @@ CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, S
 CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
 CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
-CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_SOFTEN = 45, SET_SKILL = 46
+CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_SOFTEN = 45, SET_SKILL = 46, SET_CHARGE = 47
 ' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
 ' don't all match one
 CONST MODE_CUSTOM = 0, MODE_OLDSCHOOL = 1, MODE_90S = 2, MODE_NEWSCHOOL = 3
@@ -102,6 +102,8 @@ DefineSetting SET_TAUNTS,    "taunts",             "NEXUS TAUNTS",       MI_TOGG
 DefineSetting SET_SOFTEN,    "soften_highs",       "SOFTEN HIGHS",       MI_CHOICE, 0,  2,   1,   0
 ' DIFFICULTY: EASY (the game as made), NORMAL, HARD, NIGHTMARE - GAME/SKILL.BM; a sector takes it as it loads
 DefineSetting SET_SKILL,     "difficulty",         "DIFFICULTY",         MI_CHOICE, 0,  3,   1,   0
+' CHARGED SHOTS: hold fire on the blaster or the railgun to charge a shot - let go full for twice the damage, at twice the ammo (GAME/GUNS.BM's ChargeStep)
+DefineSetting SET_CHARGE,    "charged_shots",      "CHARGED SHOTS",      MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_AIMSENS,   "aim_sensitivity",    "AIM SENSITIVITY",    MI_SLIDER, 10, 100, 5,   50
 DefineSetting SET_SHAFTS,    "light_shafts",       "LIGHT SHAFTS",       MI_TOGGLE, 0,  1,   1,   1
 ' MODE: OLDSCHOOL, 90S or NEWSCHOOL - every video and effects setting at

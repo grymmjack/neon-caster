@@ -11,6 +11,14 @@
 ' once: it flies, and bursts on what it meets (GAME/ROCKETS.BM).
 CONST W_BLASTER = 1, W_SCATTER = 2, W_REPEATER = 3, W_RAIL = 4, W_ROCKET = 5, NUM_GUNS = 5
 DIM SHARED hasGun(NUM_GUNS) AS INTEGER
+' CHARGED SHOTS (the setting; ChargeStep, GAME/GUNS.BM): fire held on the
+' blaster or the railgun once it's ready again charges a shot, CHARGE_FULL
+' frames to full (chargeT); let go full and the shot does CHARGE_K times
+' the damage, for CHARGE_K times the ammo (chargeShot). shotGo: this frame
+' fires (fireDown, but for a charge). demoCharge: a demo's own - one with
+' no "charge" line was made without them.
+CONST CHARGE_FULL = 40, CHARGE_K = 2
+DIM SHARED chargeT AS INTEGER, chargeShot AS INTEGER, shotGo AS INTEGER, demoCharge AS INTEGER
 ' Per gun: name, ammo kind, ammo per shot, frames between shots, pellets,
 ' spread (of the view's width), damage per hit, whether a shot goes through
 ' every monster in its line, recoil, how far it zooms when you aim down its

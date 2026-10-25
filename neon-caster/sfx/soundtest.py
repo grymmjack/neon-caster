@@ -7,7 +7,7 @@ import os, re
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 
 GROUPS = [
-    ('WEAPONS', 'shoot scatter repeater rail rocket-fire rocket-boom empty weapon kick kick-swing headshot bolt-wall zap laser-zap'),
+    ('WEAPONS', 'shoot charge charge-full scatter repeater rail rocket-fire rocket-boom empty weapon kick kick-swing headshot bolt-wall zap laser-zap'),
     ('PICKUPS', 'health ammo shells armor keycard core overcharge amp amp-end invuln invuln-end jetpack jetfuel repair power-up power-down'),
     ('DOORS', 'door door-shutter door-split door-kick door-break locked closet secret exit safe-open hoard-open keypad-beep keypad-ok keypad-bad'),
     ('WORLD', 'lift-start lift-move lift-stop crusher-slam plate-click trap-electric trap-fire teleport spawn jumppad jack-in jack-out camera note search barrel barrel-leak crate-break lamp-break plant-break terminal-break deco-hit glass-hit glass-break droid-break droid-chirp1 droid-chirp2 droid-chirp3 alarm alarm-press alarm-arm alarm-disarm drain sizzle'),

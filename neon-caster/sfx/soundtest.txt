@@ -60,6 +60,8 @@ music/sector30.ogg|SECTOR 30: THE COMPOUND
 music/sector31.ogg|SECTOR 31: THE LAUNCH BAY
 [WEAPONS]
 sfx/shoot.wav|shoot
+sfx/charge.wav|charge
+sfx/charge-full.wav|charge-full
 sfx/scatter.wav|scatter
 sfx/repeater.wav|repeater
 sfx/rail.wav|rail

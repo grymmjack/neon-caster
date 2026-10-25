@@ -41,6 +41,10 @@
     IF glMode AND setting(SET_DYNLIGHT) <> 0 AND muzzleFlash > 0 THEN
         wantR = wantR + 70 * muzzleFlash : wantG = wantG + 40 * muzzleFlash : wantB = wantB + 40 * muzzleFlash
     END IF
+    IF chargeT > 0 THEN ' (CHARGED SHOTS: the charge lights the gun, in its colour)
+        chgF = chargeT / CHARGE_FULL
+        IF currentGun = W_RAIL THEN wantR = wantR + 40 * chgF : wantG = wantG + 80 * chgF : wantB = wantB + 100 * chgF ELSE wantR = wantR + 100 * chgF : wantG = wantG + 25 * chgF : wantB = wantB + 60 * chgF
+    END IF
     wantR = wantR / 256 : wantG = wantG / 256 : wantB = wantB / 256
     grey = (wantR + wantG + wantB) / 3 ' (its colour pushed further from grey - GUN_TINT - so a coloured light shows)
     wantR = grey + (wantR - grey) * GUN_TINT : wantG = grey + (wantG - grey) * GUN_TINT : wantB = grey + (wantB - grey) * GUN_TINT

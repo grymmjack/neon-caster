@@ -31,11 +31,16 @@
     ' the gun can fire again.
     IF fireWait > 0 THEN fireWait = fireWait - 1
     IF editMode THEN fireDown = 0 ' (in the editor the button builds, not shoots: EditFP)
-    IF fireDown AND NOT dead AND fireWait = 0 AND swapTimer = 0 THEN
+    ' CHARGED SHOTS (a setting): on the blaster or the railgun, fire held on
+    ' charges a shot instead, and letting go fires it (ChargeStep, GAME/GUNS.BM -
+    ' shotGo is fireDown but for that, chargeShot a full charge)
+    ChargeStep
+    IF shotGo AND NOT dead AND fireWait = 0 AND swapTimer = 0 THEN
         ammoType = gunAmmoType(currentGun)
         IF ammoCount(ammoType) >= gunAmmoPerShot(currentGun) THEN
             ammoCount(ammoType) = ammoCount(ammoType) - gunAmmoPerShot(currentGun) : fireWait = GunDelayNow(currentGun) : recoil = gunKick(currentGun) : muzzleFlash = 4
-            PlaySfx gunSnd&(currentGun), 0.7
+            IF chargeShot THEN ammoCount(ammoType) = ammoCount(ammoType) - gunAmmoPerShot(currentGun) * (CHARGE_K - 1) : recoil = recoil * 1.6 : muzzleFlash = 7 ' (a charged shot: twice the ammo, a bigger kick)
+            PlaySfx gunSnd&(currentGun), 0.7 - 0.25 * chargeShot
             FOR j = 1 TO numMonsters ' (heard: a monster that hears this far wakes - [monsters])
                 IF monsterState(j) = 0 AND monHear(j) > 0 AND monWake(j) <> WAKE_HIT AND (cyberOn = 0 OR monsterType(j) = MT_ICE) THEN
                     IF (monsterX(j) - playerX) ^ 2 + (monsterY(j) - playerY) ^ 2 < monHear(j) * monHear(j) THEN monsterState(j) = 1 : monsterTimer(j) = 30 : SfxAt mtypeAlertSnd&(monsterType(j)), monsterX(j), monsterY(j), playerX, playerY
@@ -45,6 +50,7 @@
             hitDamage = GunDmgNow!(currentGun) : IF gunPierce(currentGun) THEN railBeam = 8
             IF currentGun <> W_BLASTER THEN achOtherGun = -1
             IF ampTimer > 0 THEN hitDamage = hitDamage * 2 ' (the damage amp: double)
+            IF chargeShot THEN hitDamage = hitDamage * CHARGE_K : shake = shake + gunKick(currentGun) ' (fully charged)
             shake = shake + gunKick(currentGun) * 1.5 ' (a big gun shakes the screen - chapter 17)
             IF setting(SET_XFEEDBACK) THEN crossScale = 0.6 ' The crosshair tightens as you fire
             invDet = 1 /(planeX * dirY - dirX * planeY)

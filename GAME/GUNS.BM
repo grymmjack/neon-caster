@@ -19,3 +19,52 @@ SUB SetGun(gun, title$, ammoType, ammoPerShot, delay, pellets, spread, damage, p
     gunPellets(gun) = pellets : gunSpread(gun) = spread : gunDamage(gun) = damage : gunPierce(gun) = pierce : gunKick(gun) = kick
     gunZoom(gun) = zoom
 END SUB
+
+' ---------------------------------------------------------------------------
+' CHARGED SHOTS (SETTINGS > GAMEPLAY). Hold fire: the first press fires as
+' ever; held on, once the gun's ready again, it charges instead of firing
+' again (chargeT, CHARGE_FULL frames to full - a rising whine, then a ping).
+' Let go full: a shot of CHARGE_K times the damage for CHARGE_K times the
+' ammo. Let go sooner: an ordinary shot (holding is never worse than
+' tapping). Only the blaster and the railgun; a demo plays with its own.
+FUNCTION ChargeOn
+    IF demoRec OR demoPlay OR demoStarting THEN ChargeOn = demoCharge ELSE ChargeOn = (setting(SET_CHARGE) <> 0)
+END FUNCTION
+
+' Chapter 12, before the shot: sets shotGo (and chargeShot) for this frame
+SUB ChargeStep
+    DIM per ' (its own)
+    shotGo = fireDown : chargeShot = 0
+    IF (currentGun <> W_BLASTER AND currentGun <> W_RAIL) OR NOT ChargeOn OR editMode OR dead OR swapTimer > 0 THEN chargeT = 0 : EXIT SUB
+    per = gunAmmoPerShot(currentGun)
+    IF fireDown AND fireWas AND fireWait = 0 THEN ' Held on, the gun ready again: charging, not firing
+        shotGo = 0
+        IF ammoCount(gunAmmoType(currentGun)) < per THEN chargeT = 0 : EXIT SUB ' (nothing to charge)
+        IF chargeT < CHARGE_FULL THEN
+            chargeT = chargeT + 1
+            IF chargeT = 1 THEN PlaySfx sndCharge&, 0.6
+            IF chargeT = CHARGE_FULL THEN PlaySfx sndChargeFull&, 0.7
+        END IF
+    ELSEIF NOT fireDown AND chargeT > 0 THEN ' Let go: the shot
+        shotGo = (fireWait = 0)
+        IF chargeT >= CHARGE_FULL AND ammoCount(gunAmmoType(currentGun)) >= per * CHARGE_K THEN chargeShot = -1
+        chargeT = 0
+    END IF
+END SUB
+
+' Chapter 18: the charge glowing at the muzzle - growing as it charges,
+' pulsing when full - in the gun's colour
+SUB ChargeGlow
+    DIM f, r, a, cx, cy, cr, cg, cb ' (its own)
+    IF chargeT <= 0 OR editMode OR viewOn <> 0 OR dead THEN EXIT SUB
+    f = chargeT / CHARGE_FULL
+    IF currentGun = W_RAIL THEN cr = 120 : cg = 220 : cb = 255 ELSE cr = 255 : cg = 70 : cb = 150
+    cx = gunX + gunW * gunMuzzleX(currentGun) : cy = gunY + gunH * gunMuzzleY(currentGun)
+    r = 4 + 18 * f : a = 60 + 90 * f
+    IF chargeT >= CHARGE_FULL THEN r = r + 4 * DSin(lvFrame * 0.45) : a = 170 + 50 * DSin(lvFrame * 0.45)
+    FillCircle cx, cy, r * 2.2, _RGBA32(cr, cg, cb, a * 0.3)
+    FillCircle cx, cy, r * 1.5, _RGBA32(cr, cg, cb, a * 0.5)
+    FillCircle cx, cy, r, _RGBA32(cr, cg, cb, a)
+    FillCircle cx, cy, r * 0.4, _RGBA32(255, 255, 255, a)
+    IF chargeT >= CHARGE_FULL THEN CIRCLE (400, 300), 14 + 2 * DSin(lvFrame * 0.45), _RGBA32(cr, cg, cb, 200) ' (and round the crosshair: ready)
+END SUB

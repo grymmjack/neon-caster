@@ -53,7 +53,7 @@ it yourself:
 | Q | jump (higher in a sector with low gravity) |
 | E / C | with a jetpack: hold E to fire it (or look up and walk) - let go and you fall; in fly mode, up and down |
 | Middle button (hold) | ROCKET CAM: with the launcher out, fires a rocket and you ride it while it's held |
-| Click or Ctrl | fire |
+| Click or Ctrl | fire - on the blaster or the railgun, hold to charge a shot and let go for twice the damage (twice the ammo; CHARGED SHOTS in SETTINGS > GAMEPLAY) |
 | Space | open or shut doors, use the exit, jack into a data station, use a code terminal, search a wall for a secret, pull a slot machine (a vending machine), hack a turret control panel, play NEON PONG on a computer; read a note, search a desk or bookshelf, type a keypad's code, fix or hack a computer, watch the security cameras, switch an alarm console |
 | N | night vision on and off, once you've found a headset |
 | 1-5 or mouse wheel | choose a gun (5: the rocket launcher - hold the right button to zoom right in) |

@@ -91,7 +91,7 @@ FOR k = 1 TO 4 : sndDogBark&(k) = LoadSnd&("robodog-bark" + LTRIM$(STR$(k)) + ".
 sndEyeRush& = LoadSnd&("eyebot-rush.wav") : sndEyeBeep& = LoadSnd&("eyebot-beep.wav")
 sndRepair& = LoadSnd&("repair.wav") : sndInvuln& = LoadSnd&("invuln.wav") : sndInvulnEnd& = LoadSnd&("invuln-end.wav") : sndCamera& = LoadSnd&("camera.wav") : sndNote& = LoadSnd&("note.wav")
 FOR k = 1 TO 3 : sndDroid&(k) = LoadSnd&("droid-chirp" + LTRIM$(STR$(k)) + ".wav") : NEXT : sndDroidBreak& = LoadSnd&("droid-break.wav")
-DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&
+DIM SHARED sndSteal&, sndHoard&, sndPlate&, sndLaser&, sndCloset&, sndPowerDown&, sndPowerUp&, sndCharge&, sndChargeFull&
 sndSteal& = LoadSnd&("thief-steal.wav") : sndHoard& = LoadSnd&("hoard-open.wav") : sndPlate& = LoadSnd&("plate-click.wav")
 sndLaser& = LoadSnd&("laser-zap.wav") : sndCloset& = LoadSnd&("closet.wav")
 sndSecret& = LoadSnd&("secret.wav") : IF sndSecret& = 0 THEN sndSecret& = LoadSnd&("fanfare.wav")
@@ -100,6 +100,7 @@ sndGlassHit& = LoadSnd&("glass-hit.wav") : sndGlassBreak& = LoadSnd&("glass-brea
 sndTeleport& = LoadSnd&("teleport.wav") : IF sndTeleport& = 0 THEN sndTeleport& = LoadSnd&("jack-out.wav")
 sndJackIn& = LoadSnd&("jack-in.wav") : sndJackOut& = LoadSnd&("jack-out.wav") : sndCore& = LoadSnd&("core.wav")
 sndPowerDown& = LoadSnd&("power-down.wav") : sndPowerUp& = LoadSnd&("power-up.wav")
+sndCharge& = LoadSnd&("charge.wav") : sndChargeFull& = LoadSnd&("charge-full.wav") ' (CHARGED SHOTS: charging, and full - ChargeStep)
 IF sndSteal& = 0 THEN sndSteal& = LoadSnd&("keycard.wav")
 IF sndHoard& = 0 THEN sndHoard& = LoadSnd&("exit.wav")
 IF sndPlate& = 0 THEN sndPlate& = LoadSnd&("locked.wav")

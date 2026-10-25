@@ -11,6 +11,7 @@ SUB DemoInput STATIC
     IF demoPlay THEN DemoReadFrame
     IF botOn AND NOT demoPlay AND NOT editMode THEN
         BotThink ' (the autopilot's keys, in place of yours)
+        IF ChargeOn AND fireWas THEN inBits = inBits AND NOT DB_FIRE ' (CHARGED SHOTS: it taps - held, it'd charge)
     ELSEIF NOT demoPlay THEN
         inBits = 0 : inWheel = mouseWheel
         IF KeyHeld(BIND_FORWARD) THEN inBits = inBits OR DB_FWD
@@ -312,6 +313,7 @@ SUB DemoRecordStart STATIC
     DemoPut "notarget" + STR$(-(noTarget <> 0))
     DemoPut "buddha" + STR$(-(buddhaMode <> 0)) ' (hurt, but never below 1 health: a demo made so plays back so)
     demoSkill = setting(SET_SKILL) : IF demoSkill THEN DemoPut "skill" + STR$(demoSkill) ' (its DIFFICULTY: only if it isn't EASY - a demo with no such line was made on EASY)
+    demoCharge = (setting(SET_CHARGE) <> 0) : IF demoCharge THEN DemoPut "charge 1" ' (CHARGED SHOTS: only if on - a demo with no such line was made without them)
     IF jetInf THEN DemoPut "jetinf 1" ' (infinite jet fuel: only if it's on - older demos have no such line)
     IF LEN(dCarry$) THEN DemoPut "carry " + dCarry$ ' (what you bring into it - a Ctrl+R recording's: one with none starts with nothing)
     DemoPut "begin"
@@ -328,7 +330,7 @@ SUB DemoPlayStart STATIC
     demoFH = FREEFILE : OPEN dFile$ FOR INPUT AS #demoFH
     demoBack$ = "" : DemoNextLine
     IF dl$ <> "NEON-CASTER DEMO 1" THEN CLOSE #demoFH : ConPrint "playdemo: " + dFile$ + " isn't a demo" : EXIT SUB
-    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0 : dBud = 0 : dJet = 0 : dSkill = 0 : dCarry$ = ""
+    dVer$ = "" : dSet = 0 : dLevel = 0 : dSeed# = 1 : demoFovQ = CLNG(fovPlane * 100000) : demoLook = 0 : dGod = 0 : dFly = 0 : dNoT = 0 : dBud = 0 : dJet = 0 : dSkill = 0 : dCharge = 0 : dCarry$ = ""
     DO
         DemoNextLine
         IF dl$ = "" OR dl$ = "begin" THEN EXIT DO
@@ -346,6 +348,7 @@ SUB DemoPlayStart STATIC
             CASE "buddha" : dBud = (VAL(dv$) <> 0)
             CASE "jetinf" : dJet = (VAL(dv$) <> 0)
             CASE "skill" : dSkill = MaxOf(0, MinOf(3, VAL(dv$)))
+            CASE "charge" : dCharge = (VAL(dv$) <> 0)
             CASE "carry" : dCarry$ = LTRIM$(MID$(dl$, 6)) ' (what the player brought into it)
         END SELECT
     LOOP
@@ -359,7 +362,7 @@ SUB DemoPlayStart STATIC
     IF dSet <> dSetWas THEN ReadSectorNames
     IF dVer$ <> GAME_VERSION$ THEN ConPrint "demo: made with version " + dVer$ + " - this is " + GAME_VERSION$ + ", so it may not play the same"
     dWasGod = godMode : dWasFly = flyMode : dWasNoT = noTarget : dWasBuddha = buddhaMode : dWasJet = jetInf ' (yours, for after)
-    level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = dBud : jetInf = dJet : demoSkill = dSkill
+    level = dLevel : godMode = dGod : flyMode = dFly : noTarget = dNoT : buddhaMode = dBud : jetInf = dJet : demoSkill = dSkill : demoCharge = dCharge
     achCheat = -1 ' (watching isn't playing: achievements and records wait for a new game)
     grSeed = dSeed#
     demoStarting = -1 : DemoFresh : demoStarting = 0 ' (no NEXUS intro: straight to the play)
