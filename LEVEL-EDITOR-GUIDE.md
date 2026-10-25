@@ -434,7 +434,7 @@ Every cell has its own floor and ceiling height, measured in **eighths of a wall
 **Raising and lowering**
 
 - **3D view:** select a floor or ceiling (or several) and turn the **wheel**; Ctrl moves a whole wall at a time. Or the HEIGHT tool: click to raise, Shift+click to lower.
-- **Map view:** select cells and turn the wheel (Ctrl: ceilings); or the HEIGHT tool: click to raise a cell's floor, right-click to lower it, Shift for the ceiling.
+- **Map view:** select cells and turn the wheel (Ctrl: ceilings); or the HEIGHT tool: click to raise a cell's floor, right-click to lower it, Shift for the ceiling. Walls have no heights: the HEIGHT tool and the wheel leave wall cells alone, and a wall carved into floor starts at the usual floor and ceiling.
 - **Console:** `raise X Y EIGHTHS` for one cell, or `raise X0 Y0 X1 Y1 EIGHTHS` for a box; add `ceil` for the ceiling.
 
 | Rule | Value |

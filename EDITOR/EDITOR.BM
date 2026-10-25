@@ -1025,7 +1025,9 @@ SUB RunEditor STATIC
             ELSEIF onMap AND edSelN THEN
                 IF ABS(TIMER - edWheelT!) > 0.5 THEN EditPushUndo
                 edWheelT! = TIMER : wc = _KEYDOWN(100305) OR _KEYDOWN(100306)
-                FOR k = 1 TO edSelN : EditRaise edSelX(k), edSelY(k), -SGN(wheel) * H_STEP, wc : NEXT
+                FOR k = 1 TO edSelN ' (not a plain wall's: unseen there)
+                    IF INSTR("#NCKPG", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) = 0 THEN EditRaise edSelX(k), edSelY(k), -SGN(wheel) * H_STEP, wc
+                NEXT
                 edApply = -1
                 IF wc THEN EditNote "Ceiling" + STR$(ceilH(edSelX(1), edSelY(1)) * 8 - SGN(wheel)) + " eighths" ELSE EditNote "Floor" + STR$(floorH(edSelX(1), edSelY(1)) * 8 - SGN(wheel)) + " eighths"
             ELSE
@@ -1083,9 +1085,13 @@ SUB RunEditor STATIC
         editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT)
         ' Painting: press, drag, let go (one undo for the whole stroke); with
         ' Shift, a rectangle from where you pressed to where you let go
-        IF onMap AND editHeights THEN ' The heights: click raises the floor an eighth, right-click lowers it (Shift: the ceiling)
-            IF b1 AND NOT edDown THEN EditPushUndo : EditRaise cx, cy, H_STEP, shiftOn : edDown = -1 : edApply = -1
-            IF b2 AND NOT edB2 THEN EditPushUndo : EditRaise cx, cy, -H_STEP, shiftOn : edApply = -1
+        IF onMap AND editHeights THEN ' The heights: click raises the floor an eighth, right-click lowers it (Shift: the ceiling) - not a plain wall's (unseen there)
+            IF INSTR("#NCKPG", MID$(lvlRow$(cy), cx + 1, 1)) THEN
+                IF (b1 AND NOT edDown) OR (b2 AND NOT edB2) THEN EditNote "That's wall - heights are for open cells" : edDown = b1
+            ELSE
+                IF b1 AND NOT edDown THEN EditPushUndo : EditRaise cx, cy, H_STEP, shiftOn : edDown = -1 : edApply = -1
+                IF b2 AND NOT edB2 THEN EditPushUndo : EditRaise cx, cy, -H_STEP, shiftOn : edApply = -1
+            END IF
         END IF
         ' Middle click (or Alt+click) on the map: you, there - to walk round from (Tab)
         edAltNow = _KEYDOWN(100307) OR _KEYDOWN(100308)
@@ -1842,6 +1848,9 @@ SUB EditPut(x, y, c0$)
         IF INSTR("'d" + CHR$(34), c$) = 0 THEN XtraSet "notes", x, y, "" ' (a note, or one in a desk or bookshelf or safe)
         IF INSTR("`,", c$) = 0 THEN XtraSet "fuel", x, y, "" ' (a jetpack's or fuel can's own fuel)
         XtraSet "difficulty", x, y, "" ' (the difficulties it was in: a new one's in every one)
+        IF INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) > 0 AND INSTR("#NCKPG", c$) = 0 THEN ' (a plain wall opened: its floor and ceiling the usual - whatever it kept, unseen in a wall, isn't carved in with it)
+            MID$(lvlFloorRow$(y), x + 1, 1) = "." : MID$(lvlCeilRow$(y), x + 1, 1) = "."
+        END IF
     END IF
     IF c$ = CHR$(34) AND LEN(nm$) THEN ' (a thing: its kind)
         k = XtraFind("things", x, y, 0)
@@ -2317,13 +2326,21 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     y = 254
     IF editLights THEN TinyText ED_PALX, y + 20, "LIGHT: " + EditFxName$(edLFx) + " (right click: take it away)", _RGB32(edLR, edLG, edLB)
     IF editHeights THEN TinyText ED_PALX, y + 20, "HEIGHTS: click up, right click down", _RGB32(255, 220, 120)
+    IF editHeights THEN ' The heights layer's key, each mark drawn as the map draws it
+        y = 524
+        LINE (ED_PALX, y)-STEP(7, 7), _RGB32(170, 136, 40), BF : TinyText ED_PALX + 11, y, "FLOOR RAISED (BRIGHTER: HIGHER)", _RGB32(190, 180, 230)
+        LINE (ED_PALX, y + 11)-STEP(7, 7), _RGB32(40, 20, 155), BF : TinyText ED_PALX + 11, y + 11, "FLOOR SUNK", _RGB32(190, 180, 230)
+        LINE (ED_PALX + 100, y + 11)-STEP(7, 7), _RGB32(120, 255, 120), B : TinyText ED_PALX + 111, y + 11, "LIFT", _RGB32(190, 180, 230)
+        LINE (ED_PALX, y + 22)-STEP(7, 7), _RGB32(40, 40, 70), BF : PSET (ED_PALX + 5, y + 24), _RGB32(120, 220, 255) : PSET (ED_PALX + 4, y + 24), _RGB32(120, 220, 255)
+        TinyText ED_PALX + 11, y + 22, "CEILING NOT THE USUAL 8 EIGHTHS", _RGB32(120, 220, 255)
+    END IF
 
     TinyText ED_PALX, 558, "HELP / F1: every key", _RGB32(140, 130, 180)
     IF onMap THEN EditInspect hx, hy ' (the cell under the mouse: what it is, its pictures)
     ' Along the bottom: the cell under the mouse, and the latest message
     IF onMap THEN
         c$ = CellGlyph$(hx, hy) ' (a thing: its own name)
-        h$ = "" : IF HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0) <> 0 OR HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1) <> 1 THEN h$ = "  floor" + STR$(HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0)) + " ceil" + STR$(HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1))
+        h$ = "" : IF HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0) <> 0 OR HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1) <> 1 THEN h$ = "  floor" + STR$(CINT(HeightOf(MID$(lvlFloorRow$(hy), hx + 1, 1), 0) * 8)) + "  ceiling" + STR$(CINT(HeightOf(MID$(lvlCeilRow$(hy), hx + 1, 1), 1) * 8)) + " eighths"
         TinyText 4, 581, LTRIM$(STR$(hx)) + "," + LTRIM$(STR$(hy)) + "  " + GlyphName$(c$) + h$, _RGB32(200, 200, 230) ' (small print, the map's whole width: two lines, this and the message)
     END IF
     IF TIMER < editMsgUntil! THEN TinyText 4, 591, LEFT$(editMsg$, 116), _RGB32(255, 220, 120)
