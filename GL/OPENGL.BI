@@ -46,6 +46,7 @@ DIM SHARED glSprMZ(MAX_DRAW, 1) ' (its model squashed: a broken prop)
 DIM SHARED glSprPitch(MAX_DRAW, 1), glSprHead(MAX_DRAW, 1) AS INTEGER, glSprHAng(MAX_DRAW, 1), glSprHPitch(MAX_DRAW, 1) ' (pitched - a rocket; a turret's head, aimed)
 ' The turrets' laser sights: a glowing line each (GLSight)
 DIM SHARED glNumSight(1) AS INTEGER, glSightX0(MAX_BEAMS, 1), glSightY0(MAX_BEAMS, 1), glSightZ0(MAX_BEAMS, 1), glSightX1(MAX_BEAMS, 1), glSightY1(MAX_BEAMS, 1), glSightZ1(MAX_BEAMS, 1), glSightC(MAX_BEAMS, 1) AS _UNSIGNED LONG
+DIM SHARED glMdlK AS SINGLE, glSprLk(MAX_DRAW, 1) AS INTEGER, glSprSz(MAX_DRAW, 1) AS SINGLE ' (its look, [looks]: tinted by the world shader - lookMode, lookCol - and a model sized)
 DIM SHARED glSprCap(MAX_DRAW, 1) AS _UNSIGNED LONG, glSprFlip(MAX_DRAW, 1) AS INTEGER, glSprMirror(MAX_DRAW, 1) AS INTEGER, glSprUpX(MAX_DRAW, 1), glSprUpY(MAX_DRAW, 1), glSprUpZ(MAX_DRAW, 1) ' (a turret: its muzzles' colour, upside down, its model's up)
 DIM SHARED glSprR(MAX_DRAW, 1), glSprG(MAX_DRAW, 1), glSprB(MAX_DRAW, 1)
 DIM SHARED glTexVersion AS LONG

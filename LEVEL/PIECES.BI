@@ -10,7 +10,8 @@
 ' isn't - "H.V.." is a left piece, and a right one split top and bottom.
 ' The pieces (the dots, in order) each have a line of their own:
 '   picture*turn*slide*stretch*tint*amount*colour*start
-' picture "" the usual one; turn 0-3 (quarter turns clockwise); slide and
+' picture "" the usual one; turn 0-3 (quarter turns clockwise; 4-7 the
+' same, flipped left for right first); slide and
 ' stretch as a [faces] line's (across + 64 * up, across + 2048 * up - 0 as
 ' made); tint 0 none, 1 TINT (multiplied), 2 WASH (mixed), 3 GLOW (added),
 ' its amount 0-100 and colour RRGGBB; start where its picture starts - 0

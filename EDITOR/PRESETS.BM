@@ -1,0 +1,202 @@
+''
+' NEON-CASTER - EDITOR/PRESETS.BM
+' =============================================================================
+' PAINT's PRESETS (EDITOR/PRESETS.BI): the shelf of looks kept for a
+' picture - read and written, shown in the PICTURE pane, put on faces.
+'
+
+FUNCTION PrFile$
+    PrFile$ = TuneFile$("presets.txt") ' (beside monsters.txt: neon-caster/)
+END FUNCTION
+
+' The presets from the file, the first time they're wanted
+SUB PrLoad
+    DIM f, c1, c2, l$ ' (its own: the main program shares these names)
+    IF prLoaded THEN EXIT SUB
+    prLoaded = -1 : prN = 0
+    IF NOT _FILEEXISTS(PrFile$) THEN EXIT SUB
+    f = FREEFILE : OPEN PrFile$ FOR INPUT AS #f
+    DO WHILE NOT EOF(f) AND prN < PR_MAX
+        LINE INPUT #f, l$
+        c1 = INSTR(l$, CHR$(9)) : IF c1 THEN c2 = INSTR(c1 + 1, l$, CHR$(9)) ELSE c2 = 0
+        IF LEFT$(l$, 1) <> "'" AND c2 > 0 THEN
+            prN = prN + 1 : prPic$(prN) = LCASE$(LTRIM$(RTRIM$(LEFT$(l$, c1 - 1))))
+            prShape$(prN) = MID$(l$, c1 + 1, c2 - c1 - 1) : prLeaves$(prN) = MID$(l$, c2 + 1) : prImg&(prN) = 0
+        END IF
+    LOOP
+    CLOSE #f
+END SUB
+
+SUB PrWrite
+    DIM f, k ' (its own: the main program shares these names)
+    f = FREEFILE : OPEN PrFile$ FOR OUTPUT AS #f
+    PRINT #f, "' PAINT's presets (the editor's PICTURE pane): picture <tab> its pieces' shape <tab> its pieces, as a [faces] line's division 3"
+    FOR k = 1 TO prN : PRINT #f, prPic$(k) + CHR$(9) + prShape$(k) + CHR$(9) + prLeaves$(k) : NEXT
+    CLOSE #f
+END SUB
+
+' The selected face whose look the shelf is for: the first selected face
+' (a selection index, 0 none) - and its picture, the shelf's key
+FUNCTION PrSelFace(key$)
+    DIM fc, k ' (its own: the main program shares these names)
+    key$ = ""
+    FOR k = 1 TO edSelN
+        fc = EditFaceCode(edSelKind(k), edSelSide(k))
+        IF fc >= 1 AND fc <= FACE_MAX THEN
+            EditTreeGet edSelX(k), edSelY(k), fc
+            key$ = ptPic$(1) : IF key$ = "" THEN key$ = EditUsualPic$(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
+            key$ = LCASE$(key$) : PrSelFace = k : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
+' The n-th (from 1) preset on key$'s shelf - its index, 0 none - and how
+' many the shelf has
+FUNCTION PrNth(key$, n, count)
+    DIM k ' (its own: the main program shares these names)
+    count = 0
+    FOR k = 1 TO prN
+        IF prPic$(k) = key$ THEN count = count + 1 : IF count = n THEN PrNth = k
+    NEXT
+END FUNCTION
+
+' The selected face's look as a preset's: its shape and pieces (the usual
+' picture filled in by name: it's this picture wherever it's put)
+SUB PrFromSel(k, shape$, leaves$)
+    DIM fc, j, u$ ' (its own: the main program shares these names)
+    fc = EditFaceCode(edSelKind(k), edSelSide(k))
+    u$ = EditUsualPic$(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
+    EditTreeGet edSelX(k), edSelY(k), fc
+    FOR j = 1 TO ptN : IF ptPic$(j) = "" THEN ptPic$(j) = u$
+    NEXT
+    shape$ = ptShape$ : leaves$ = ""
+    FOR j = 1 TO ptN : leaves$ = leaves$ + MID$("|", 1, -(j > 1)) + PcLeafText$(j) : NEXT
+END SUB
+
+' SAVE (op 1), REPLACE (2), DELETE (3) - and 4: preset v put on every
+' selected face (one undo)
+SUB PrOp(op, v)
+    DIM fc, j, k, n, key$, shape$, leaves$ ' (its own: the main program shares these names)
+    PrLoad
+    k = PrSelFace(key$)
+    SELECT CASE op
+        CASE 1
+            IF k = 0 THEN EditNote "Select a face to keep its look" : EXIT SUB
+            IF prN >= PR_MAX THEN EditNote "The presets are full" : EXIT SUB
+            PrFromSel k, shape$, leaves$
+            prN = prN + 1 : prPic$(prN) = key$ : prShape$(prN) = shape$ : prLeaves$(prN) = leaves$ : prImg&(prN) = 0
+            edPrSel = prN : PrWrite
+            j = PrNth(key$, 1, n) : edPrScroll = MaxOf(0, (n - 1) \ 3 - 1) ' (the new one showing: the last row)
+            EditNote "Kept as a preset of " + key$ + " (" + LTRIM$(STR$(n)) + " now)"
+        CASE 2
+            IF k = 0 OR edPrSel < 1 OR edPrSel > prN THEN EditNote "Click a preset first, then REPLACE puts this face's look over it" : EXIT SUB
+            PrFromSel k, shape$, leaves$
+            prShape$(edPrSel) = shape$ : prLeaves$(edPrSel) = leaves$
+            IF prImg&(edPrSel) < -1 THEN _FREEIMAGE prImg&(edPrSel)
+            prImg&(edPrSel) = 0 : PrWrite : EditNote "Preset replaced"
+        CASE 3
+            IF edPrSel < 1 OR edPrSel > prN THEN EditNote "Click a preset first, then DELETE throws it away" : EXIT SUB
+            IF prImg&(edPrSel) < -1 THEN _FREEIMAGE prImg&(edPrSel)
+            FOR j = edPrSel TO prN - 1
+                prPic$(j) = prPic$(j + 1) : prShape$(j) = prShape$(j + 1) : prLeaves$(j) = prLeaves$(j + 1) : prImg&(j) = prImg&(j + 1)
+            NEXT
+            prN = prN - 1 : edPrSel = 0 : PrWrite : EditNote "Preset deleted"
+        CASE 4
+            IF v < 1 OR v > prN THEN EXIT SUB
+            edPrSel = v
+            IF edSelN = 0 THEN EXIT SUB
+            EditPushUndo : n = 0
+            FOR j = 1 TO edSelN
+                fc = EditFaceCode(edSelKind(j), edSelSide(j))
+                IF fc >= 1 AND fc <= FACE_MAX THEN PcTreeRead 3, prShape$(v), prLeaves$(v), 0, 0 : EditTreePut edSelX(j), edSelY(j), fc : n = n + 1
+            NEXT
+            EditApply : EditNote "Preset on" + STR$(n) + " face" + MID$("s", 1, -(n <> 1)) + " (Ctrl+Z: as it was)"
+    END SELECT
+END SUB
+
+' The shelf, at the end of the PICTURE pane: two rows of three, the arrows
+' beside them scrolling, then SAVE, REPLACE, DELETE
+SUB EditPanePresets(x0, y)
+    DIM c, count, i, j, k, key$ ' (its own: the main program shares these names)
+    PrLoad
+    k = PrSelFace(key$) : IF k = 0 OR key$ = "" THEN EXIT SUB
+    IF key$ <> edPrKey$ THEN edPrKey$ = key$ : edPrScroll = 0 : edPrSel = 0
+    j = PrNth(key$, 1, count)
+    IF edPrScroll > MaxOf(0, (count + 2) \ 3 - 2) THEN edPrScroll = MaxOf(0, (count + 2) \ 3 - 2)
+    EditPaneAdd -1, x0, y + 2, PN_W, LEFT$("PRESETS: " + UCASE$(key$) + " (" + LTRIM$(STR$(count)) + ")", 40), 0 : y = y + 20
+    FOR i = 0 TO 5
+        j = PrNth(key$, edPrScroll * 3 + i + 1, c)
+        IF j THEN
+            EditPaneAdd 500 + i, x0 + (i MOD 3) * 61, y + (i \ 3) * 89, PR_THUMB, "", (j = edPrSel)
+            edPnH(edPnN) = PR_THUMB : edPnImg&(edPnN) = PrThumbOf&(j)
+        END IF
+    NEXT
+    IF count > 6 THEN EditPaneAdd 506, x0 + 184, y, 16, "^", 0 : EditPaneAdd 507, x0 + 184, y + 89 + 45, 16, "V", 0
+    IF count = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "NONE YET - SAVE KEEPS THIS LOOK", 0 : y = y + 23 ELSE y = y + 89 * ((MinOf(6, count) + 2) \ 3)
+    EditPaneAdd 508, x0, y, 64, "SAVE", 0 : EditPaneAdd 509, x0 + 67, y, 64, "REPLACE", 0 : EditPaneAdd 510, x0 + 134, y, 66, "DELETE", 0 : y = y + 23
+END SUB
+
+' Preset k's thumbnail (made the first time it's wanted)
+FUNCTION PrThumbOf&(k)
+    IF prImg&(k) = 0 THEN prImg&(k) = PrThumb&(k)
+    PrThumbOf& = prImg&(k)
+END FUNCTION
+
+' Preset k drawn on a square: each piece its picture turned, slid,
+' stretched and tinted as it says (from the face's corner, as near as a
+' square can show it). The tree being worked on is kept as it was.
+FUNCTION PrThumb&(k)
+    DIM a, c~&, f, i, j, jj, n, px, py, rot, sx, sy, tu, tv, u, v, ku, kv, keepN, keepS$, w, h, img&, d&, s& ' (its own: the main program shares these names)
+    DIM keep$(PC_LEAF), src&(PC_LEAF), mine(PC_LEAF), f$
+    keepS$ = ptShape$ : keepN = ptN
+    FOR j = 1 TO keepN : keep$(j) = PcLeafText$(j) : NEXT
+    PcTreeRead 3, prShape$(k), prLeaves$(k), 0, 0
+    FOR j = 1 TO ptN ' (each piece's picture, loaded once)
+        f$ = ptPic$(j) : IF f$ = "" THEN f$ = prPic$(k)
+        src&(j) = 0 : mine(j) = 0
+        FOR jj = 1 TO j - 1
+            IF LCASE$(ptPic$(jj)) = LCASE$(f$) OR (ptPic$(jj) = "" AND LCASE$(prPic$(k)) = LCASE$(f$)) THEN src&(j) = src&(jj)
+        NEXT
+        IF src&(j) = 0 THEN src&(j) = _LOADIMAGE(ArtPath$(f$), 32) : mine(j) = -1 : IF src&(j) >= -1 THEN src&(j) = 0 : mine(j) = 0
+    NEXT
+    n = PR_THUMB - 4
+    img& = _NEWIMAGE(n, n, 32) : d& = _DEST : s& = _SOURCE
+    _DEST img& : CLS , _RGB32(20, 10, 30)
+    FOR py = 0 TO n - 1 : FOR px = 0 TO n - 1
+        u = (px + 0.5) / n : v = (py + 0.5) / n
+        j = 1
+        FOR i = 1 TO ptN
+            IF u >= pcRU0(i) AND u < pcRU1(i) AND v >= pcRV0(i) AND v < pcRV1(i) THEN j = i : EXIT FOR
+        NEXT
+        IF src&(j) THEN
+            SELECT CASE ptA(j)
+                CASE 1 : tu = u - pcRU0(j) : tv = v - pcRV0(j)
+                CASE 2 : tu = (u - pcRU0(j)) / (pcRU1(j) - pcRU0(j)) : tv = (v - pcRV0(j)) / (pcRV1(j) - pcRV0(j))
+                CASE ELSE : tu = u : tv = v
+            END SELECT
+            ku = ptK(j) MOD 2048 : kv = ptK(j) \ 2048
+            IF ku > 0 THEN tu = tu * 100 / ku
+            IF kv > 0 THEN tv = tv * 100 / kv
+            tu = tu + (ptO(j) AND 63) / 64 : tv = tv + (ptO(j) \ 64) / 64
+            tu = tu - INT(tu) : tv = tv - INT(tv)
+            SELECT CASE ptRot(j) ' (where it was before the quarter turns: MakePieceTex's)
+                CASE 1 : sx = tv : sy = 1 - tu
+                CASE 2 : sx = 1 - tu : sy = 1 - tv
+                CASE 3 : sx = 1 - tv : sy = tu
+                CASE ELSE : sx = tu : sy = tv
+            END SELECT
+            IF ptRot(j) AND 4 THEN sx = 1 - sx ' (and the flip)
+            w = _WIDTH(src&(j)) : h = _HEIGHT(src&(j))
+            _SOURCE src&(j) : c~& = POINT(MinOf(w - 1, INT(sx * w)), MinOf(h - 1, INT(sy * h)))
+            IF ptTM(j) THEN c~& = TintPx~&(c~&, ptTM(j), ptTA(j) / 100, ptTC(j))
+            PSET (px, py), c~& OR &HFF000000~&
+        END IF
+    NEXT : NEXT
+    FOR i = 1 TO ptN : IF mine(i) THEN _FREEIMAGE src&(i)
+    NEXT
+    _DEST d& : _SOURCE s&
+    PcTreeRead 3, keepS$, "", 0, 0 ' (the tree as it was: its shape, its rectangles...)
+    FOR j = 1 TO keepN : PcLeafRead keep$(j), j : NEXT ' (...and its pieces)
+    ptN = keepN : ptShape$ = keepS$
+    PrThumb& = img&
+END FUNCTION

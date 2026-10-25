@@ -567,6 +567,7 @@ SUB BuildLevel STATIC
     AssignSecrets ' (the secret walls, the closets' stashes, and what the map pickup leaves out)
     blackoutTimer = 0
     ThingsBuild ' (stronghold and keypad doors, safes' codes, computers' targets, cameras up their walls - GAME/SECURE.BM)
+    LooksBuild ' ([looks]: tinted and sized things - LEVEL/THINGS.BM)
     monStartN = numMonsters ' (the level's monsters as they start, for the console's respawn)
     FOR i = 1 TO numMonsters : monStartX(i) = monsterX(i) : monStartY(i) = monsterY(i) : monStartType(i) = monsterType(i) : NEXT
     ' The camera plane (chapter 8): your direction turned 90 degrees, fovPlane long

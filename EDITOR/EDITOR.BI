@@ -93,6 +93,7 @@ CONST TEX_K_MIN = 10, TEX_K_MAX = 1000
 DIM SHARED edClipOn AS INTEGER, edClipD AS INTEGER, edClipP1$, edClipP2$, edClipOU AS INTEGER, edClipOV AS INTEGER, edClipKU AS INTEGER, edClipKV AS INTEGER
 CONST TEX_K_STEPS$ = "   10   25   50   75  100  125  150  200  250  300  400  500  600  800 1000"
 CONST PN_MAX = 96 ' (the most buttons and lines a pane has)
+DIM SHARED edPnH(PN_MAX) AS INTEGER, edPnImg&(PN_MAX) ' (a button taller than PN_BH, in pixels - 0 as usual; a picture in it: a preset's)
 DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER, edMapWant AS INTEGER ' (the SECTOR pane: its loot preset - 0 as made - and the room MAKE THE ROOM makes)
 DIM SHARED edPnN AS INTEGER, edPnId(PN_MAX) AS INTEGER, edPnX(PN_MAX) AS INTEGER, edPnY(PN_MAX) AS INTEGER, edPnW(PN_MAX) AS INTEGER, edPnLab$(PN_MAX), edPnLit(PN_MAX) AS INTEGER
 DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnEvent AS INTEGER, edPnCol(PN_MAX) AS _UNSIGNED LONG

@@ -546,10 +546,41 @@ END SUB
 ' over what's behind it (_GL_BLEND by its picture's alpha), hidden by
 ' anything in front (the depth test) but hiding nothing (_glDepthMask off)
 SUB GLGlass(b)
-    DIM cx, cy, k, slot, x0, y0, y1 ' (its own: the main program shares these names)
+    DIM a, cx, cy, k, lk, m, slot, red, green, blue, tr, tg, tb ' (its own: the main program shares these names)
     IF numGlass = 0 THEN EXIT SUB
-    _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
+    _glEnable _GL_BLEND : _glDepthMask _GL_FALSE
     glCellLitMode = 0
+    ' A pane with a look ([looks]): first what's behind it, coloured - TINT
+    ' multiplies it by the colour (glass filters light), WASH mixes it
+    ' towards it (frosted), GLOW adds it - a pass for each, as each blends
+    ' its own way: the glow spot's white middle, the colour all over
+    IF lkN THEN
+        FOR m = 1 TO 3
+            SELECT CASE m
+                CASE 1 : _glBlendFunc _GL_ZERO, _GL_SRC_COLOR
+                CASE 2 : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA
+                CASE 3 : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE
+            END SELECT
+            FOR k = 1 TO numGlass
+                cx = glassListX(k) : cy = glassListY(k) : lk = lookCell(cx, cy)
+                IF lk THEN
+                    IF lkMode(lk) = m AND glassHP(cx, cy) > 0 AND glassHP(cx, cy) < BARS_HP THEN
+                        IF GLNearSeen(cx, cy, b) THEN
+                            red = ((lkCol(lk) \ 65536) AND 255) / 255 : green = ((lkCol(lk) \ 256) AND 255) / 255 : blue = (lkCol(lk) AND 255) / 255 : a = 1
+                            SELECT CASE m
+                                CASE 1 : red = 1 + (red - 1) * lkAmt(lk) : green = 1 + (green - 1) * lkAmt(lk) : blue = 1 + (blue - 1) * lkAmt(lk)
+                                CASE 2 : a = lkAmt(lk) * 0.5
+                                CASE 3 : a = lkAmt(lk) * 0.4
+                            END SELECT
+                            GLUseTexture GL_GLOW_TEX : GLPaneQuad cx, cy, 1, red, green, blue, a
+                        END IF
+                    END IF
+                END IF
+            NEXT
+            GLStopDrawing
+        NEXT
+    END IF
+    _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA
     FOR k = 1 TO numGlass
         cx = glassListX(k) : cy = glassListY(k)
         IF glassHP(cx, cy) > 0 THEN
@@ -557,21 +588,73 @@ SUB GLGlass(b)
                 slot = S_GLASS : IF glassHP(cx, cy) >= BARS_HP THEN slot = S_BARS ELSE IF glassHP(cx, cy) <= GLASS_HP \ 2 THEN slot = S_GLASS + 1
                 GLUseTexture T_SLOTS + slot : GLSetLight cx, cy, 1, b
                 red = glLitR(cx, cy, b) / 256 : green = glLitG(cx, cy, b) / 256 : blue = glLitB(cx, cy, b) / 256
-                IF glassDir(cx, cy) = 1 THEN x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 ELSE x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1
-                glFaceNX = y1 - y0 : glFaceNY = x1 - x0 : glFaceNZ = 0 : glFaceTX = x1 - x0 : glFaceTY = y1 - y0 : glFaceTZ = 0
-                gz0 = floorH(cx, cy) : gz1 = ceilH(cx, cy) ' (floor to ceiling, however high)
-                GLSpriteCorner x0, y0, gz1, 0, 0, red, green, blue : GLSpriteCorner x1, y1, gz1, 1, 0, red, green, blue
-                GLSpriteCorner x1, y1, gz0, 1, 1, red, green, blue : GLSpriteCorner x0, y0, gz1, 0, 0, red, green, blue
-                GLSpriteCorner x1, y1, gz0, 1, 1, red, green, blue : GLSpriteCorner x0, y0, gz0, 0, 1, red, green, blue
+                lk = lookCell(cx, cy)
+                IF lk THEN ' (TINT: its picture multiplied by the colour - WASH and GLOW go over it, below)
+                    IF lkMode(lk) = 1 THEN
+                        tr = ((lkCol(lk) \ 65536) AND 255) / 255 : tg = ((lkCol(lk) \ 256) AND 255) / 255 : tb = (lkCol(lk) AND 255) / 255
+                        red = red * (1 + (tr - 1) * lkAmt(lk)) : green = green * (1 + (tg - 1) * lkAmt(lk)) : blue = blue * (1 + (tb - 1) * lkAmt(lk))
+                    END IF
+                END IF
+                GLPaneQuad cx, cy, 0, red, green, blue, 1
             END IF
         END IF
     NEXT
     GLStopDrawing
+    IF lkN THEN ' WASH and GLOW on the pane's own picture (the bars, the glass's streaks): it again over itself, the colour mixed in (lit as the pane is) or added
+        ' (the colour all over, the picture only its shape - its alpha: OpenGL
+        ' 1.3's texture combiner, by number - GL_COMBINE &H8570, COMBINE_RGB
+        ' &H8571 REPLACE from SOURCE0_RGB &H8580 = PRIMARY_COLOR &H8577,
+        ' COMBINE_ALPHA &H8572 MODULATE of SOURCE0_ALPHA &H8588 the texture's
+        ' and SOURCE1_ALPHA &H8589 the corners')
+        _glTexEnvi _GL_TEXTURE_ENV, _GL_TEXTURE_ENV_MODE, &H8570
+        _glTexEnvi _GL_TEXTURE_ENV, &H8571, _GL_REPLACE : _glTexEnvi _GL_TEXTURE_ENV, &H8580, &H8577
+        _glTexEnvi _GL_TEXTURE_ENV, &H8572, _GL_MODULATE : _glTexEnvi _GL_TEXTURE_ENV, &H8588, _GL_TEXTURE : _glTexEnvi _GL_TEXTURE_ENV, &H8589, &H8577
+        FOR m = 2 TO 3
+            IF m = 2 THEN _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA ELSE _glBlendFunc _GL_SRC_ALPHA, _GL_ONE
+            FOR k = 1 TO numGlass
+                cx = glassListX(k) : cy = glassListY(k) : lk = lookCell(cx, cy)
+                IF lk THEN
+                    IF lkMode(lk) = m AND glassHP(cx, cy) > 0 THEN
+                        IF GLNearSeen(cx, cy, b) THEN
+                            slot = S_GLASS : IF glassHP(cx, cy) >= BARS_HP THEN slot = S_BARS ELSE IF glassHP(cx, cy) <= GLASS_HP \ 2 THEN slot = S_GLASS + 1
+                            GLUseTexture T_SLOTS + slot : GLSetLight cx, cy, 1, b
+                            tr = ((lkCol(lk) \ 65536) AND 255) / 255 : tg = ((lkCol(lk) \ 256) AND 255) / 255 : tb = (lkCol(lk) AND 255) / 255
+                            IF m = 2 THEN
+                                tr = tr * glLitR(cx, cy, b) / 256 : tg = tg * glLitG(cx, cy, b) / 256 : tb = tb * glLitB(cx, cy, b) / 256 : a = lkAmt(lk)
+                            ELSE
+                                tr = tr * lkAmt(lk) : tg = tg * lkAmt(lk) : tb = tb * lkAmt(lk) : a = 1
+                            END IF
+                            GLPaneQuad cx, cy, 0, tr, tg, tb, a
+                        END IF
+                    END IF
+                END IF
+            NEXT
+            GLStopDrawing
+        NEXT
+        _glTexEnvi _GL_TEXTURE_ENV, _GL_TEXTURE_ENV_MODE, _GL_MODULATE ' (back as everything else draws)
+    END IF
     _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
 END SUB
 
+' Cell (cx, cy)'s pane, floor to ceiling across its middle: its picture
+' (spot 0), or all of it the glow spot's white middle (spot 1) - in colour
+' (red, green, blue), see-through a
+SUB GLPaneQuad(cx, cy, spot, red, green, blue, a)
+    DIM x0, y0, x1, y1, gz0, gz1, u0, u1, v0, v1 ' (its own: the main program shares these names)
+    IF glassDir(cx, cy) = 1 THEN x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 ELSE x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1
+    glFaceNX = y1 - y0 : glFaceNY = x1 - x0 : glFaceNZ = 0 : glFaceTX = x1 - x0 : glFaceTY = y1 - y0 : glFaceTZ = 0
+    gz0 = floorH(cx, cy) : gz1 = ceilH(cx, cy) ' (floor to ceiling, however high)
+    u0 = 0 : u1 = 1 : v0 = 0 : v1 = 1 : IF spot THEN u0 = 0.5 : u1 = 0.5 : v0 = 0.5 : v1 = 0.5
+    GLSpriteCorner x0, y0, gz1, u0, v0, red, green, blue : glShadowA(glNumVerts - 1) = a
+    GLSpriteCorner x1, y1, gz1, u1, v0, red, green, blue : glShadowA(glNumVerts - 1) = a
+    GLSpriteCorner x1, y1, gz0, u1, v1, red, green, blue : glShadowA(glNumVerts - 1) = a
+    GLSpriteCorner x0, y0, gz1, u0, v0, red, green, blue : glShadowA(glNumVerts - 1) = a
+    GLSpriteCorner x1, y1, gz0, u1, v1, red, green, blue : glShadowA(glNumVerts - 1) = a
+    GLSpriteCorner x0, y0, gz0, u0, v1, red, green, blue : glShadowA(glNumVerts - 1) = a
+END SUB
+
 SUB GLSpritesAndExtras(b, mirror)
-    DIM i, slot, sx, sy, x0, y0, y1, uL, uR ' (its own: the main program shares these names)
+    DIM i, lk, slot, sx, sy, x0, y0, y1, uL, uR, tr, tg, tb ' (its own: the main program shares these names)
     glCellLitMode = 0 ' (sprites have their own light, worked out in chapter 16)
 
     ' Sprites: a rectangle across your view, right = (-dirY, dirX), one
@@ -606,6 +689,17 @@ SUB GLSpritesAndExtras(b, mirror)
             red = red + dr / 256 : green = green + dg / 256 : blue = blue + db / 256
         END IF
         IF glSprMdl(i, b) AND mirror AND slot = 0 THEN _CONTINUE ' (a model with no picture - a plate: not in reflections)
+        lk = glSprLk(i, b) : IF lk THEN IF lkMode(lk) = 0 THEN lk = 0
+        IF lk THEN ' Its look ([looks]): the world shader tints it - drawn on its own, so the tint is only its; no shader, its light tinted as near as that gets
+            tr = ((lkCol(lk) \ 65536) AND 255) / 255 : tg = ((lkCol(lk) \ 256) AND 255) / 255 : tb = (lkCol(lk) AND 255) / 255
+            IF glShaderOn THEN
+                GLStopDrawing : GLSL_uniform_1f glWorldProg, "lookMode", lkMode(lk) : GLSL_uniform_4f glWorldProg, "lookCol", tr, tg, tb, lkAmt(lk)
+            ELSE
+                IF lkMode(lk) = 3 THEN tr = 1 + tr : tg = 1 + tg : tb = 1 + tb
+                red = red * (1 + (tr - 1) * lkAmt(lk)) : green = green * (1 + (tg - 1) * lkAmt(lk)) : blue = blue * (1 + (tb - 1) * lkAmt(lk))
+            END IF
+        END IF
+        glMdlK = glSprSz(i, b)
         IF glSprMdl(i, b) AND NOT mirror THEN ' (a 3D prop: its model, not its picture - but in a reflection, its picture: half the cost, and you can't tell)
             IF glSprHead(i, b) THEN ' (a turret: its base on its mount, and its head on that, aimed at you)
                 GLDrawModel turBaseMdl, sx, sy, zLow, glSprAng(i, b), glSprPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), 0, 1
@@ -613,6 +707,7 @@ SUB GLSpritesAndExtras(b, mirror)
             ELSE
                 GLDrawModel glSprMdl(i, b), sx, sy, zLow, glSprAng(i, b), glSprPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), glSprCap(i, b), glSprMZ(i, b)
             END IF
+            glMdlK = 1 : IF lk AND glShaderOn THEN GLStopDrawing : GLSL_uniform_1f glWorldProg, "lookMode", 0
             _CONTINUE
         END IF ' (a 3D prop: its model, not its picture - but in a reflection, its picture: half the cost, and you can't tell)
         vTop = 0 : vLow = uv : IF glSprFlip(i, b) THEN vTop = uv : vLow = 0 ' (upside down: a turret hanging from the ceiling)
@@ -620,6 +715,7 @@ SUB GLSpritesAndExtras(b, mirror)
         GLSpriteCorner x0, y0, zHigh, uL, vTop, red, green, blue : GLSpriteCorner x1, y1, zHigh, uR, vTop, red, green, blue
         GLSpriteCorner x1, y1, zLow, uR, vLow, red, green, blue : GLSpriteCorner x0, y0, zHigh, uL, vTop, red, green, blue
         GLSpriteCorner x1, y1, zLow, uR, vLow, red, green, blue : GLSpriteCorner x0, y0, zLow, uL, vLow, red, green, blue
+        glMdlK = 1 : IF lk AND glShaderOn THEN GLStopDrawing : GLSL_uniform_1f glWorldProg, "lookMode", 0
     NEXT
     GLStopDrawing
     _glDisable _GL_ALPHA_TEST
@@ -677,8 +773,9 @@ END SUB
 ' sides towards the cell's light (glCellLX, GLSetLight) brighter than
 ' those away from it - as models.py shades the 8 pictures.
 SUB GLDrawModel(m, sx, sy, sz, ang, pit, red, green, blue, ux, uy, uz, cap~&, zs)
-    DIM c, j, k, l, lx, ly, n, nx, ny, nz, s, slot, t, uvk, fx, fy, fz, rx, ry, rz, cr, cg, cb ' (its own: the main program shares these names)
+    DIM c, j, k, l, lx, ly, n, nx, ny, nz, s, slot, t, uvk, fx, fy, fz, rx, ry, rz, cr, cg, cb, mk ' (its own: the main program shares these names)
     IF mdlCount(m) = 0 THEN EXIT SUB
+    mk = glMdlK : IF mk <= 0 THEN mk = 1 ' (sized by its look: [looks])
     slot = S_MODEL + m - 1 : GLUseTexture T_SLOTS + slot
     uvk = spriteSize(slot) / sprTex ' (a smaller picture uses only part of its square)
     c = COS(ang) : s = SIN(ang)
@@ -704,13 +801,13 @@ SUB GLDrawModel(m, sx, sy, sz, ang, pit, red, green, blue, ux, uy, uz, cap~&, zs
         IF cap~& AND mdlU(n) > 0.95 AND mdlV(n) > 0.95 THEN ' (a muzzle - textured from the white corner: models.py)
             FOR j = 0 TO 2
                 n = t * 3 + j
-                GLSpriteCorner sx + mdlPX(n) * fx + mdlPY(n) * rx + mdlPZ(n) * zs * ux, sy + mdlPX(n) * fy + mdlPY(n) * ry + mdlPZ(n) * zs * uy, sz + mdlPX(n) * fz + mdlPY(n) * rz + mdlPZ(n) * zs * uz, mdlU(n) * uvk, mdlV(n) * uvk, cr, cg, cb
+                GLSpriteCorner sx + mdlPX(n) * mk * fx + mdlPY(n) * mk * rx + mdlPZ(n) * mk * zs * ux, sy + mdlPX(n) * mk * fy + mdlPY(n) * mk * ry + mdlPZ(n) * mk * zs * uy, sz + mdlPX(n) * mk * fz + mdlPY(n) * mk * rz + mdlPZ(n) * mk * zs * uz, mdlU(n) * uvk, mdlV(n) * uvk, cr, cg, cb
             NEXT
             _CONTINUE
         END IF
         FOR j = 0 TO 2
             n = t * 3 + j
-            GLSpriteCorner sx + mdlPX(n) * fx + mdlPY(n) * rx + mdlPZ(n) * zs * ux, sy + mdlPX(n) * fy + mdlPY(n) * ry + mdlPZ(n) * zs * uy, sz + mdlPX(n) * fz + mdlPY(n) * rz + mdlPZ(n) * zs * uz, mdlU(n) * uvk, mdlV(n) * uvk, red * k, green * k, blue * k
+            GLSpriteCorner sx + mdlPX(n) * mk * fx + mdlPY(n) * mk * rx + mdlPZ(n) * mk * zs * ux, sy + mdlPX(n) * mk * fy + mdlPY(n) * mk * ry + mdlPZ(n) * mk * zs * uy, sz + mdlPX(n) * mk * fz + mdlPY(n) * mk * rz + mdlPZ(n) * mk * zs * uz, mdlU(n) * uvk, mdlV(n) * uvk, red * k, green * k, blue * k
         NEXT
     NEXT
     glFaceNZ = 0 : glFaceTZ = 0 ' (the sprites after it stand upright)
@@ -1231,6 +1328,7 @@ SUB GLShaderStart(b)
     GLSL_uniform_3f p~&, "eye", glEyeX, glEyeY, 0.5
     GLSL_uniform_1f p~&, "eyeZ", glEyeZ ' (the sky's: where the eye really is, up and down)
     GLSL_uniform_2f p~&, "viewDir", glEyeDX, glEyeDY
+    GLSL_uniform_1f p~&, "lookMode", 0 ' (no look: a thing with one sets it while it's drawn)
     glBumpOn = (glSet(SET_BUMP, b) <> 0) * -1 ' (1 or 0: GLBindSlot uses it)
     GLSL_uniform_1f p~&, "smoothOn", (glSet(SET_SMOOTH, b) <> 0) * -1
     GLSL_uniform_1f p~&, "secs", glClock# - INT(glClock# / 1000) * 1000
@@ -2110,6 +2208,8 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform float mirrorCut;    // the mirror image: leave out what's below the floor" + nl$
     fs$ = fs$ + "uniform float eyeZ;         // the eye's real height (for a sky)" + nl$
     fs$ = fs$ + "uniform float gridAmt;      // the editor's grid: how strong (0 off)" + nl$
+    fs$ = fs$ + "uniform float lookMode;     // a thing's look ([looks]): 1 TINT, 2 WASH, 3 GLOW - 0 none" + nl$
+    fs$ = fs$ + "uniform vec4 lookCol;       // ...its colour, and how much (a)" + nl$
     fs$ = fs$ + "uniform vec3 dynPos[4];     // the moving lights: where..." + nl$
     fs$ = fs$ + "uniform vec3 dynCol[4];     // ...what colour..." + nl$
     fs$ = fs$ + "uniform float dynRad[4];    // ...and how far they reach" + nl$
@@ -2133,6 +2233,11 @@ SUB GLBuildShaders
     fs$ = fs$ + "    if (anim > 4.5) uv += vec2(sin(uv.y * 12.566 + secs * 1.6), cos(uv.x * 12.566 + secs * 1.3)) * 0.03 + vec2(secs * 0.025, secs * 0.04);  // a LIQUID: rippling, drifting" + nl$
     fs$ = fs$ + "    vec4 c = texture2D(tex, uv);" + nl$
     fs$ = fs$ + "    if (isSprite > 0.5 && c.a < 0.502) discard;  // a sprite's see-through pixels" + nl$
+    fs$ = fs$ + "    if (lookMode > 0.5) {  // its look: as a face's tinted piece (MakePieceTex)" + nl$
+    fs$ = fs$ + "        if (lookMode < 1.5) c.rgb = mix(c.rgb, c.rgb * lookCol.rgb, lookCol.a);" + nl$
+    fs$ = fs$ + "        else if (lookMode < 2.5) c.rgb = mix(c.rgb, lookCol.rgb, lookCol.a);" + nl$
+    fs$ = fs$ + "        else c.rgb = min(c.rgb + lookCol.rgb * lookCol.a, vec3(1.0));" + nl$
+    fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    vec3 n = normalize(vNormal);" + nl$
     fs$ = fs$ + "    vec3 t = normalize(vTangent);" + nl$
     fs$ = fs$ + "    vec3 b = abs(n.z) > 0.5 ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, -1.0);  // the way v grows" + nl$

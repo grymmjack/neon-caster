@@ -13,7 +13,7 @@ END SUB
 
 ' Is sec$ one of these sections?
 FUNCTION XtraSec(sec$)
-    XtraSec = (sec$ = "doors" OR sec$ = "things" OR sec$ = "notes" OR sec$ = "smears" OR sec$ = "fuel" OR sec$ = "difficulty")
+    XtraSec = (sec$ = "doors" OR sec$ = "things" OR sec$ = "notes" OR sec$ = "smears" OR sec$ = "fuel" OR sec$ = "difficulty" OR sec$ = "looks")
 END FUNCTION
 
 ' Field n (from 1) of line k - split at commas, trimmed
@@ -108,6 +108,7 @@ FUNCTION XtraWrite$(sec$, nl$)
         CASE "notes" : h$ = "' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code"
         CASE "fuel" : h$ = "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"
         CASE "difficulty" : h$ = "' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one"
+        CASE "looks" : h$ = "' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)"
         CASE "smears" : h$ = "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)"
     END SELECT
     XtraWrite$ = nl$ + "[" + sec$ + "]" + nl$ + h$ + nl$ + o$
@@ -194,4 +195,63 @@ FUNCTION CellGlyph$(x, y)
     c$ = MID$(lvlRow$(y), x + 1, 1)
     IF c$ = CHR$(34) THEN c$ = c$ + ThingName$(ThingAt(x, y))
     CellGlyph$ = c$
+END FUNCTION
+
+' [looks]: each line's look, the cell's (lookCell), and each decoration's,
+' pickup's and monster's as the sector starts - by the cell it's in
+SUB LooksBuild
+    DIM i, k, m, x, y, a, sz ' (its own: the main program shares these names)
+    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : lookCell(x, y) = 0 : NEXT : NEXT
+    lkN = 0
+    FOR k = 1 TO lvlNumXtra
+        IF lvlXSec$(k) = "looks" AND lkN < MAX_LOOKS THEN
+            x = VAL(XtraField$(k, 1)) : y = VAL(XtraField$(k, 2))
+            m = VAL(XtraField$(k, 3)) : a = VAL(XtraField$(k, 4)) : sz = VAL(XtraField$(k, 6))
+            IF m < 0 OR m > 3 THEN m = 0
+            IF a < 0 THEN a = 0
+            IF a > 100 THEN a = 100
+            IF sz <= 0 THEN sz = 100
+            IF sz < 10 THEN sz = 10
+            IF sz > 400 THEN sz = 400
+            IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN AND (m > 0 OR sz <> 100) THEN
+                lkN = lkN + 1 : lkMode(lkN) = m : lkAmt(lkN) = a / 100 : lkSize(lkN) = sz / 100
+                lkCol(lkN) = PcHex~&(RIGHT$("000000" + XtraField$(k, 5), 6)) AND &HFFFFFF
+                lookCell(x, y) = lkN
+            END IF
+        END IF
+    NEXT
+    FOR i = 1 TO numDecos : decoLk(i) = LookAt(decoX(i), decoY(i)) : NEXT
+    FOR i = 1 TO numItems : itemLk(i) = LookAt(itemX(i), itemY(i)) : NEXT
+    FOR i = 1 TO numMonsters : monLk(i) = LookAt(monsterX(i), monsterY(i)) : NEXT
+    lkItemN = numItems : lkMonN = numMonsters
+END SUB
+
+' The look of the cell a spot's in (0: none)
+FUNCTION LookAt(x, y)
+    DIM cx, cy ' (its own: the main program shares these names)
+    cx = INT(x) : cy = INT(y)
+    IF lkN = 0 OR cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT FUNCTION
+    LookAt = lookCell(cx, cy)
+END FUNCTION
+
+' A pixel in look k: tinted as a face's piece is (MakePieceTex), its alpha kept
+FUNCTION LookPx~&(c~&, k)
+    LookPx~& = TintPx~&(c~&, lkMode(k), lkAmt(k), lkCol(k))
+END FUNCTION
+
+' Pixel c~& tinted: mode 1 TINT (multiplied by colour col~&), 2 WASH (mixed
+' with it), 3 GLOW (added), by amount a (0-1) - its alpha kept
+FUNCTION TintPx~&(c~&, mode, a, col~&)
+    DIM b, g, r, tr, tg, tb ' (its own: the main program shares these names)
+    r = (c~& \ 65536) AND 255 : g = (c~& \ 256) AND 255 : b = c~& AND 255
+    tr = (col~& \ 65536) AND 255 : tg = (col~& \ 256) AND 255 : tb = col~& AND 255
+    SELECT CASE mode
+        CASE 1 : r = r + (r * tr / 255 - r) * a : g = g + (g * tg / 255 - g) * a : b = b + (b * tb / 255 - b) * a
+        CASE 2 : r = r + (tr - r) * a : g = g + (tg - g) * a : b = b + (tb - b) * a
+        CASE 3 : r = r + tr * a : g = g + tg * a : b = b + tb * a
+    END SELECT
+    IF r > 255 THEN r = 255
+    IF g > 255 THEN g = 255
+    IF b > 255 THEN b = 255
+    TintPx~& = (c~& AND &HFF000000~&) OR (INT(r) * 65536) OR (INT(g) * 256) OR INT(b)
 END FUNCTION

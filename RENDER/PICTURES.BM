@@ -289,7 +289,8 @@ END SUB
 
 ' A face piece's picture turned and tinted (LEVEL/PIECES.BM), into slot:
 ' texFile$(slot) says how - "pc:base:turn:tint:amount:colour:..." - base
-' the slot it's made from, turn 0-3 quarter turns clockwise, tint 1 TINT
+' the slot it's made from, turn 0-3 quarter turns clockwise (+4: flipped
+' left for right first), tint 1 TINT
 ' (multiplied by the colour), 2 WASH (mixed with it), 3 GLOW (added), by
 ' amount percent. It keeps the base's name: OpenGL's floors still shine.
 SUB MakePieceTex(slot)
@@ -297,7 +298,7 @@ SUB MakePieceTex(slot)
     DIM k$
     k$ = texFile$(slot) + ":" : k$ = MID$(k$, 4)
     c = INSTR(k$, ":") : baseSl = VAL(LEFT$(k$, c - 1)) : k$ = MID$(k$, c + 1)
-    c = INSTR(k$, ":") : rot = VAL(LEFT$(k$, c - 1)) AND 3 : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : rot = VAL(LEFT$(k$, c - 1)) AND 7 : k$ = MID$(k$, c + 1) ' (4 and up: flipped left for right, then turned)
     c = INSTR(k$, ":") : tm = VAL(LEFT$(k$, c - 1)) : k$ = MID$(k$, c + 1)
     c = INSTR(k$, ":") : a = VAL(LEFT$(k$, c - 1)) / 100 : k$ = MID$(k$, c + 1)
     c = INSTR(k$, ":") : col~& = PcHex~&(RIGHT$("00000" + LEFT$(k$, c - 1), 6))
@@ -305,12 +306,13 @@ SUB MakePieceTex(slot)
     IF baseSl < 1 OR baseSl > T_SLOTS THEN baseSl = 1
     n = texSize - 1
     FOR y = 0 TO n : FOR x = 0 TO n
-        SELECT CASE rot ' (where this pixel was before the turn)
+        SELECT CASE rot AND 3 ' (where this pixel was before the turn...)
             CASE 1 : sx = y : sy = n - x
             CASE 2 : sx = n - x : sy = n - y
             CASE 3 : sx = n - y : sy = x
             CASE ELSE : sx = x : sy = y
         END SELECT
+        IF rot AND 4 THEN sx = n - sx ' (...and before the flip)
         col~& = texture(sx, sy, baseSl)
         r = (col~& \ 65536) AND 255 : g = (col~& \ 256) AND 255 : b = col~& AND 255
         SELECT CASE tm

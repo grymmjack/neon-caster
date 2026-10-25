@@ -35,3 +35,4 @@ DIM SHARED drawMZ(MAX_DRAW) AS SINGLE ' (a model squashed down to this much of i
 DIM SHARED drawPitch(MAX_DRAW) AS SINGLE, drawHead(MAX_DRAW) AS INTEGER, drawHAng(MAX_DRAW) AS SINGLE, drawHPitch(MAX_DRAW) AS SINGLE
 DIM SHARED drawUpX(MAX_DRAW) AS SINGLE, drawUpY(MAX_DRAW) AS SINGLE, drawUpZ(MAX_DRAW) AS SINGLE, drawOX(MAX_DRAW) AS SINGLE, drawOY(MAX_DRAW) AS SINGLE, drawOZ(MAX_DRAW) AS SINGLE
 DIM SHARED drawFace(MAX_DRAW) AS INTEGER ' (0: it turns to face you; 1-4: it stands flat, facing east, south, west or north - DrawFlat)
+DIM SHARED drawLk(MAX_DRAW) AS INTEGER ' (its look - [looks], LEVEL/THINGS.BI: tinted, sized - 0 as made)

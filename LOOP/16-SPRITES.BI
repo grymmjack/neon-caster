@@ -35,10 +35,11 @@
     ' behind walls and doorframes. Transparent pixels (alpha 128 or less)
     ' are skipped, so you see the shape, not its square.
     numDraw = 0
-    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : drawMdl(k) = 0 : drawPic(k) = 0 : drawRed(k) = 0 : drawTint(k) = 0 : drawCap(k) = 0 : drawFlip(k) = 0 : drawMirror(k) = 0 : drawUpX(k) = 0 : drawUpY(k) = 0 : drawUpZ(k) = 1 : drawOX(k) = 0 : drawPitch(k) = 0 : drawHead(k) = 0 : drawMZ(k) = 1 : NEXT ' (all of it: an entry a turret had last frame is something else's now)
+    FOR k = 1 TO MAX_DRAW : drawFace(k) = 0 : drawMdl(k) = 0 : drawPic(k) = 0 : drawRed(k) = 0 : drawTint(k) = 0 : drawCap(k) = 0 : drawFlip(k) = 0 : drawMirror(k) = 0 : drawUpX(k) = 0 : drawUpY(k) = 0 : drawUpZ(k) = 1 : drawOX(k) = 0 : drawPitch(k) = 0 : drawHead(k) = 0 : drawMZ(k) = 1 : drawLk(k) = 0 : NEXT ' (all of it: an entry a turret had last frame is something else's now)
     FOR i = 1 TO numItems
         IF itemOn(i) AND (itemKind(i) = IT_CORE) = cyberOn THEN ' (in the network, just its data cores)
             numDraw = numDraw + 1 : drawX(numDraw) = itemX(i) : drawY(numDraw) = itemY(i)
+            IF i <= lkItemN THEN drawLk(numDraw) = itemLk(i) ' (its look: [looks])
             drawSprite(numDraw) = ItemSprite(itemKind(i)) : drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 96 ' They glow: less fog
             SELECT CASE itemKind(i)
                 CASE 1 TO 3 : drawScale(numDraw) = CARD_SCALE
@@ -61,6 +62,7 @@
         IF mtype = MT_TURRET AND glMode AND turPlateMdl AND numDraw < MAX_DRAW - 1 THEN TurretPlate i ' (its mounting plate - blown open, once it's destroyed: GAME/TURRETS.BM)
         IF mtype = MT_TURRET AND NOT editMode THEN IF monDeploy(i) < 0 OR (monDeploy(i) = 0 AND monsterState(i) < 2) THEN _CONTINUE ' (a turret hidden, or switched off: nothing to see - but in the editor, it's shown out)
         numDraw = numDraw + 1 : drawX(numDraw) = monsterX(i) : drawY(numDraw) = monsterY(i)
+        IF i <= lkMonN THEN drawLk(numDraw) = monLk(i) ' (its look: [looks])
         drawScale(numDraw) = mtypeScale(mtype) : drawMinShade(numDraw) = 40 : IF mtype = MT_ICE THEN drawMinShade(numDraw) = 230
         IF mtype = MT_ICE THEN ' (the network's other ICE, each its own colour: sentinels orange, tracers yellow, black ICE dark - and bigger)
             SELECT CASE iceKind(i)
@@ -160,6 +162,7 @@
     FOR i = 1 TO numDecos
         IF cyberOn = 0 AND NOT (decoOn(i) = 0 AND decoZ(i) > 0.05) AND NOT (viewOn = VIEW_CAM AND i = viewCam) THEN ' (not the camera you're looking through; every one - broken ones leave their wreck - one up a stack: blown away; none in the network)
             numDraw = numDraw + 1 : drawX(numDraw) = decoX(i) : drawY(numDraw) = decoY(i)
+            drawLk(numDraw) = decoLk(i) ' (its look: [looks])
             drawSprite(numDraw) = DecoSlot(decoKind(i)) : drawScale(numDraw) = DecoScale(decoKind(i)) : drawLift(numDraw) = decoZ(i)
             drawSquash(numDraw) = 1 : drawMinShade(numDraw) = 40 : drawFace(numDraw) = decoFace(i)
             IF decoKind(i) = DK_JUMPPAD THEN drawSquash(numDraw) = 0.16 : drawFace(numDraw) = 0 : drawMinShade(numDraw) = 200 + 56 * SIN(lvFrame * 0.08 + i) ' (a jump pad: flat on the floor, glowing - as a teleporter's)
@@ -331,13 +334,14 @@
     invDet = 1 /(planeX * dirY - dirX * planeY)
     FOR drawIdx = 1 TO numDraw
         i = drawOrder(drawIdx)
+        lkS = 1 : IF drawLk(i) THEN lkS = lkSize(drawLk(i)) : IF lkS <> 1 THEN drawScale(i) = drawScale(i) * lkS ' (sized by its look: [looks])
         relX = drawX(i) - playerX : relY = drawY(i) -playerY
         transformX = invDet * (dirY * relX - dirX * relY) ' Sideways from the view
         transformY = invDet * ( - planeY * relX + planeX * relY) ' Depth
         IF drawFace(i) THEN
             DrawFlat ' (standing flat, facing one way: RENDER/VIEW.BM)
         ELSEIF transformY > 0.1 THEN
-            sc = drawScale(i) : IF drawPic(i) AND NOT glMode THEN sc = mdlFrame(drawMdl(i)) ' (a 3D prop's picture: wider than its sprite, to fit it from any way round)
+            sc = drawScale(i) : IF drawPic(i) AND NOT glMode THEN sc = mdlFrame(drawMdl(i)) * lkS ' (a 3D prop's picture: wider than its sprite, to fit it from any way round)
             spriteW = INT(viewH / transformY * sc) : spriteH = INT(spriteW * drawSquash(i))
             IF spriteH < 1 THEN spriteH = 1
             spriteTop = INT(RENDER_H / 2 + (eyeZ - FloorAt(drawX(i), drawY(i)) - drawLift(i)) * viewH / transformY) -spriteH ' Bottom edge on its floor, lifted off it - below your eye
@@ -372,7 +376,7 @@
                     IF glSeen(lx, ly, glWrite) <> glFrameNo AND glSeen(lx + 1, ly, glWrite) <> glFrameNo AND glSeen(lx, ly + 1, glWrite) <> glFrameNo AND glSeen(MaxOf(0, lx - 1), ly, glWrite) <> glFrameNo AND glSeen(lx, MaxOf(0, ly - 1), glWrite) <> glFrameNo THEN _CONTINUE
                     IF transformY > MODEL_NEAR OR (transformY > MODEL_NEAR_SMALL AND mdlFrame(mdlNow) < 0.75 AND drawHead(i) = 0) OR (transformY > MODEL_NEAR_MID AND mdlFrame(mdlNow) < 1 AND drawHead(i) = 0) THEN mdlNow = 0 ' (a small one - a barrel, a pickup - its picture sooner: a stockpile's stacks were tens of thousands of corners a frame; not a turret, whose head turns)
                     IF mdlNow = 0 AND drawPic(i) = 0 AND drawSprite(i) = 0 THEN _CONTINUE ' (a model with no picture - a turret's plate: only near)
-                    IF drawPic(i) THEN spriteSlot = SPR_SLOTS + drawPic(i) : sc = mdlFrame(drawMdl(i)) ' (further off, and in reflections: its picture from where you are - the model, as it stands)
+                    IF drawPic(i) THEN spriteSlot = SPR_SLOTS + drawPic(i) : sc = mdlFrame(drawMdl(i)) * lkS ' (further off, and in reflections: its picture from where you are - the model, as it stands)
                 END IF
                 n = glNumSpr(glWrite) + 1 : glNumSpr(glWrite) = n
                 glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i) + FloorAt(drawX(i), drawY(i))
@@ -381,6 +385,7 @@
                 glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = 0
                 IF drawRed(i) THEN glSprR(n, glWrite) = MaxOf(1.2, glSprR(n, glWrite) * 1.8) : glSprG(n, glWrite) = glSprG(n, glWrite) * 0.35 : glSprB(n, glWrite) = glSprB(n, glWrite) * 0.35 ' (hit: flushed red)
                 glSprMdl(n, glWrite) = mdlNow : glSprAng(n, glWrite) = drawAng(i) ' (a 3D prop: GLDrawModel)
+                glSprLk(n, glWrite) = drawLk(i) : glSprSz(n, glWrite) = lkS ' (its look: tinted, and a model sized - GLSpritesAndExtras)
                 glSprMZ(n, glWrite) = drawMZ(i) : glSprPitch(n, glWrite) = drawPitch(i) : glSprHead(n, glWrite) = drawHead(i) : glSprHAng(n, glWrite) = drawHAng(i) : glSprHPitch(n, glWrite) = drawHPitch(i)
                 glSprCap(n, glWrite) = drawCap(i) : glSprFlip(n, glWrite) = drawFlip(i) : glSprMirror(n, glWrite) = drawMirror(i) : glSprUpX(n, glWrite) = drawUpX(i) : glSprUpY(n, glWrite) = drawUpY(i) : glSprUpZ(n, glWrite) = drawUpZ(i)
                 IF mdlNow AND (drawUpZ(i) < 0.99 OR drawOX(i) <> 0) THEN glSprX(n, glWrite) = drawOX(i) : glSprY(n, glWrite) = drawOY(i) : glSprLift(n, glWrite) = drawOZ(i) ' (on its side, or upside down: its model from its mount)
@@ -403,6 +408,7 @@
                                 IF screenY >= spTop AND screenY <= spBot THEN
                                     spriteV = (screenY - spriteTop) * spriteSz \ spriteH : IF drawFlip(i) THEN spriteV = spriteSz - 1 - spriteV ' (upside down)
                                     IF drawPic(i) THEN texel~& = mdlPic(spriteU, spriteV, drawPic(i)) ELSE texel~& = spriteTex(spriteU, spriteV, spriteSlot)
+                                    IF drawLk(i) THEN IF lkMode(drawLk(i)) THEN texel~& = LookPx~&(texel~&, drawLk(i)) ' (its look: tinted as a face's piece is)
                                     IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = ShadeRGB~&(texel~&, lightR&, lightG&, lightB&)
                                 END IF
                             NEXT

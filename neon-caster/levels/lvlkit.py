@@ -23,7 +23,7 @@ GLASS = set("=-")  # a pane of glass: see through it, but not walk; - bars acros
 THINGS = {"table": "deco", "brokenmonitor": "flat", "deadscientist": "flat", "deadguard": "flat", "deadcyborg": "flat", "bookshelf": "deco",
           "safe": "deco", "brokenpc": "deco", "computer": "deco", "camera": "flat", "secmon": "deco", "alarm": "deco", "alarmpc": "deco", "jumppad": "flat", "padpc": "deco",
           "repairkit": "item", "invuln": "item", "robodog": "mon", "guard": "mon", "eyebot": "mon"}
-XTRA = ("doors", "things", "notes", "smears", "fuel", "difficulty")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
+XTRA = ("doors", "things", "notes", "smears", "fuel", "difficulty", "looks")  # lines about single cells, kept as text (LEVEL/THINGS.BM)
 SMEARS = ("blood1", "blood2", "blood3", "oil1", "oil2", "blood", "oil")
 STATION = set("@$")  # a data station (@): a wall you jack into; a code terminal ($): a QB64 puzzle
 PANEL = set(";")  # a turret control panel: a wall you hack, switching the turrets near it off
@@ -576,6 +576,15 @@ def check_xtra(lv):
         c = at(x, y)
         if c not in ITEMS and c not in MONS and c not in DECO: errs.append("difficulty at %d,%d: nothing starts there (it's '%s')" % (x, y, c))
         if c in "rby" and set(words) != {"easy", "normal", "hard", "nightmare"}: errs.append("difficulty at %d,%d: a keycard must be in every difficulty" % (x, y))
+    for l in lv.get("looks", []):
+        f, x, y = _xf(l)
+        if x is None or len(f) < 5: errs.append("looks line '%s': x, y, tint 0-3, amount 0-100, colour RRGGBB[, size %%]" % l); continue
+        if not (f[2].isdigit() and int(f[2]) <= 3): errs.append("looks at %d,%d: tint '%s' (0 none, 1 TINT, 2 WASH, 3 GLOW)" % (x, y, f[2]))
+        if not (f[3].isdigit() and int(f[3]) <= 100): errs.append("looks at %d,%d: amount '%s' (0-100)" % (x, y, f[3]))
+        if not re.fullmatch(r"[0-9A-Fa-f]{1,6}", f[4]): errs.append("looks at %d,%d: colour '%s' (RRGGBB)" % (x, y, f[4]))
+        if len(f) > 5 and not (f[5].isdigit() and 10 <= int(f[5]) <= 400): errs.append("looks at %d,%d: size '%s' (10-400 percent)" % (x, y, f[5]))
+        c = at(x, y)
+        if c not in ITEMS and c not in MONS and c not in DECO and c not in GLASS: errs.append("looks at %d,%d: nothing there to look (it's '%s')" % (x, y, c))
     return errs
 
 
@@ -778,7 +787,8 @@ def level_text(lv, comment=()):
                    ("notes", "' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code"),
                    ("smears", "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)"),
                    ("fuel", "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"),
-                   ("difficulty", "' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one")):
+                   ("difficulty", "' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one"),
+                   ("looks", "' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)")):
         if lv.get(sec):  # lines about single cells - kept as they are
             out += ["", "[" + sec + "]", h] + list(lv[sec])
     out.append("")
@@ -844,7 +854,7 @@ def read_level_file(path, label=None):
     lv = dict(label=label or os.path.basename(path), name="", walls=[], floors=[], ceils=[],
               ambient=(), zones=[], lights=[], events=[], rows=[], lifts=[], floor=[], ceiling=[], triggers=[], faces=[], pads=[], monsters=[], loot=[],
               liquid=[], liquid_depth=[], liquid_opacity_rows=[], wetness_rows=[], blocks=[], nudges=[], cell_lights=[], barrels=[],
-              doors=[], things=[], notes=[], smears=[], fuel=[], difficulty=[])
+              doors=[], things=[], notes=[], smears=[], fuel=[], difficulty=[], looks=[])
     global N
     sec = None
     high = {"floor high": [], "ceiling high": []}

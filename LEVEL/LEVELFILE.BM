@@ -796,7 +796,7 @@ SUB WriteLevelFile(f$)
             o$ = o$ + nl$
         NEXT
     END IF
-    o$ = o$ + XtraWrite$("doors", nl$) + XtraWrite$("things", nl$) + XtraWrite$("notes", nl$) + XtraWrite$("smears", nl$) + XtraWrite$("fuel", nl$) + XtraWrite$("difficulty", nl$)
+    o$ = o$ + XtraWrite$("doors", nl$) + XtraWrite$("things", nl$) + XtraWrite$("notes", nl$) + XtraWrite$("smears", nl$) + XtraWrite$("fuel", nl$) + XtraWrite$("difficulty", nl$) + XtraWrite$("looks", nl$)
     o$ = o$ + "" + nl$ : o$ = o$ + "[map]" + nl$
     FOR y = 0 TO mapN - 1 : o$ = o$ + lvlRow$(y) + nl$ : NEXT
     ' The heights - only if there are any

@@ -396,6 +396,7 @@ SUB DrawFlat STATIC
         glSprX(n, glWrite) = drawX(i) : glSprY(n, glWrite) = drawY(i) : glSprLift(n, glWrite) = drawLift(i) + FloorAt(drawX(i), drawY(i))
         glSprHalfW(n, glWrite) = fhw : glSprH(n, glWrite) = drawScale(i) * drawSquash(i) : glSprSlot(n, glWrite) = spriteSlot
         glSprR(n, glWrite) = lightR& / 256 : glSprG(n, glWrite) = lightG& / 256 : glSprB(n, glWrite) = lightB& / 256 : glSprFace(n, glWrite) = drawFace(i) : glSprMdl(n, glWrite) = 0 ' (flat: never a 3D prop - this entry may have been one last frame)
+        glSprLk(n, glWrite) = drawLk(i) : glSprSz(n, glWrite) = 1
         EXIT SUB
     END IF
     IF fDist > 24 THEN EXIT SUB ' (the software view: past where its fog has it gone)
@@ -421,6 +422,7 @@ SUB DrawFlat STATIC
                 NEXT
                 FOR screenY = MaxOf(spriteTop, spTop) TO MinOf(spriteTop + spriteH - 1, spBot)
                     texel~& = spriteTex(spriteU, (screenY - spriteTop) * spriteSz \ spriteH, spriteSlot)
+                    IF drawLk(i) THEN IF lkMode(drawLk(i)) THEN texel~& = LookPx~&(texel~&, drawLk(i))
                     IF _ALPHA32(texel~&) > 128 THEN pixels(screenY * RENDER_W + screenX) = ShadeRGB~&(texel~&, lightR&, lightG&, lightB&)
                 NEXT
             END IF
@@ -456,8 +458,29 @@ SUB GlassColumn STATIC
     ' (A pane can cover the whole view, so this loop can run 100,000 times a
     ' frame: the shading and the mix are written out, not FUNCTION calls)
     gMask = sprTex - 1
+    gLk = lookCell(glassCX(gx), glassCY(gx)) : IF gLk THEN IF lkMode(gLk) = 0 THEN gLk = 0
+    IF gLk AND gSlot <> S_BARS THEN ' A pane with a look ([looks]): what's behind it coloured first - TINT multiplied (glass filters light), WASH mixed towards it, GLOW added (as GLGlass)
+        gTR& = (lkCol(gLk) \ 65536) AND 255 : gTG& = (lkCol(gLk) \ 256) AND 255 : gTB& = lkCol(gLk) AND 255 : gLA& = lkAmt(gLk) * 256
+        IF lkMode(gLk) = 1 THEN gTR& = 256 + (gTR& - 255) * gLA& \ 256 : gTG& = 256 + (gTG& - 255) * gLA& \ 256 : gTB& = 256 + (gTB& - 255) * gLA& \ 256
+        IF lkMode(gLk) = 2 THEN gLA& = gLA& \ 2
+        IF lkMode(gLk) = 3 THEN gTR& = gTR& * gLA& * 2 \ 1280 : gTG& = gTG& * gLA& * 2 \ 1280 : gTB& = gTB& * gLA& * 2 \ 1280
+        FOR gy = gTop TO gEnd
+            gIdx& = gy * RENDER_W + gx : gOld~& = pixels(gIdx&)
+            gCR& = (gOld~& \ 65536) AND 255 : gCG& = (gOld~& \ 256) AND 255 : gCB& = gOld~& AND 255
+            SELECT CASE lkMode(gLk)
+                CASE 1 : gCR& = gCR& * gTR& \ 256 : gCG& = gCG& * gTG& \ 256 : gCB& = gCB& * gTB& \ 256
+                CASE 2 : gCR& = gCR& + (gTR& - gCR&) * gLA& \ 256 : gCG& = gCG& + (gTG& - gCG&) * gLA& \ 256 : gCB& = gCB& + (gTB& - gCB&) * gLA& \ 256
+                CASE 3 : gCR& = gCR& + gTR& : gCG& = gCG& + gTG& : gCB& = gCB& + gTB&
+            END SELECT
+            IF gCR& > 255 THEN gCR& = 255
+            IF gCG& > 255 THEN gCG& = 255
+            IF gCB& > 255 THEN gCB& = 255
+            pixels(gIdx&) = &HFF000000~& OR gCR& * 65536 OR gCG& * 256 OR gCB&
+        NEXT
+    END IF
     FOR gy = gTop TO gEnd
-        gTex~& = spriteTex(gu, INT(gPos) AND gMask, gSlot) : gA& = (gTex~& \ &H1000000) AND 255
+        gTex~& = spriteTex(gu, INT(gPos) AND gMask, gSlot) : IF gLk THEN gTex~& = LookPx~&(gTex~&, gLk)
+        gA& = (gTex~& \ &H1000000) AND 255
         IF gA& THEN
             gIdx& = gy * RENDER_W + gx : gOld~& = pixels(gIdx&) : gK& = 255 - gA&
             gCR& = ((gTex~& \ 65536) AND 255) * gR& \ 256 : gCG& = ((gTex~& \ 256) AND 255) * gG& \ 256 : gCB& = (gTex~& AND 255) * gB& \ 256

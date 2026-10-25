@@ -95,7 +95,7 @@ SUB PcLeafRead(s$, j)
         f$ = LEFT$(t$, c - 1) : t$ = MID$(t$, c + 1) : i = i + 1
         SELECT CASE i
             CASE 1 : ptPic$(j) = LTRIM$(RTRIM$(f$))
-            CASE 2 : ptRot(j) = VAL(f$) AND 3
+            CASE 2 : ptRot(j) = VAL(f$) AND 7 ' (4 and up: flipped left for right first)
             CASE 3 : ptO(j) = VAL(f$) AND 4095
             CASE 4 : ptK(j) = VAL(f$) : IF ptK(j) < 0 THEN ptK(j) = 0
             CASE 5 : ptTM(j) = MaxOf(0, MinOf(3, VAL(f$)))

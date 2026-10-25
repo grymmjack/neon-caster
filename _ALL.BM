@@ -79,6 +79,7 @@
 
 ' EDITOR ----------------------------------------------------------------------
 '$INCLUDE:'./EDITOR/EDITOR.BM'
+'$INCLUDE:'./EDITOR/PRESETS.BM'
 '$INCLUDE:'./EDITOR/HUDEDIT.BM'
 '$INCLUDE:'./EDITOR/MONEDIT.BM'
 '$INCLUDE:'./EDITOR/TUNER.BM'

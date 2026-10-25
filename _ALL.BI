@@ -98,6 +98,7 @@
 ' EDITOR ----------------------------------------------------------------------
 '$INCLUDE:'./EDITOR/MONEDIT.BI'
 '$INCLUDE:'./EDITOR/EDITOR.BI'
+'$INCLUDE:'./EDITOR/PRESETS.BI'
 '$INCLUDE:'./EDITOR/HUDEDIT.BI'
 '$INCLUDE:'./EDITOR/SESSION.BI'
 

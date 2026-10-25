@@ -127,9 +127,9 @@ SUB EditTBClick STATIC
 END SUB
 
 ' A picker entry clicked (pkIdx): it's the brush now, and the tool that
-' uses it - and with something selected, it's done to the selection: a
-' map character put in each cell (a wall's: the cell in front of it), a
-' picture painted on each face (PAINT, EditPaintSel)
+' uses it - and with faces selected, a picture is painted on each
+' (PAINT, EditPaintSel). A map character is only PLACE's brush: nothing
+' is put in for you
 SUB EditPkClick STATIC
     SELECT CASE edPkKind(pkIdx)
         CASE PK_GLYPH
@@ -142,15 +142,27 @@ SUB EditPkClick STATIC
                 IF edSelN THEN EditPaintSel ELSE EditNote "PAINT " + edBrushTex$ + " (" + GlyphName$(edPkVal$(pkIdx)) + "'s picture): click a face"
                 EXIT SUB
             END IF
-            editGlyph$ = edPkVal$(pkIdx) ' (PLACE's brush - the tool stays as it is: never switched for you)
-            IF edSelN THEN
-                EditPushUndo : n = 0
-                FOR k = 1 TO edSelN
-                    EditFaceCell edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), tx, ty
-                    IF tx > 0 AND ty > 0 AND tx < mapN - 1 AND ty < mapN - 1 THEN EditPut tx, ty, editGlyph$ : n = n + 1
-                NEXT
-                EditApply : EditNote GlyphName$(editGlyph$) + ": put in" + STR$(n) + " cells"
-            ELSEIF edTool = ET_PLACE THEN
+            pkDoorK = INSTR("DHX!ERBY", edPkVal$(pkIdx))
+            IF edTool = ET_PAINT AND pkDoorK > 0 AND LEN(edPkVal$(pkIdx)) = 1 THEN ' PAINT on: a door is its picture too - the brush, still painting (it built a door in front of the face selected)
+                SELECT CASE pkDoorK
+                    CASE 2 : edBrushTex$ = "door-shutter.png"
+                    CASE 3 : edBrushTex$ = "door-split.png"
+                    CASE 5 : edBrushTex$ = "exit.png"
+                    CASE ELSE : edBrushTex$ = "door.png"
+                END SELECT
+                edBrushKind = PK_TEX
+                IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+                edBrushImg& = EditFileThumb&(edBrushTex$)
+                IF edSelN THEN
+                    EditPaintSel
+                ELSE
+                    t$ = "" : IF pkDoorK >= 6 THEN t$ = " - a key door's own colour: Shift+click it, or USUAL PICTURE"
+                    EditNote "PAINT " + edBrushTex$ + " (" + GlyphName$(edPkVal$(pkIdx)) + "'s picture): click a face" + t$
+                END IF
+                EXIT SUB
+            END IF
+            editGlyph$ = edPkVal$(pkIdx) ' (PLACE's brush - the tool stays as it is: never switched for you, and nothing put in for you either - not even where something's selected: Rick's rule)
+            IF edTool = ET_PLACE THEN
                 EditNote "PLACE " + GlyphName$(editGlyph$) + ": click where it goes"
             ELSE
                 EditNote "PLACE's brush: " + GlyphName$(editGlyph$) + " (choose PLACE to put it)"
@@ -415,7 +427,7 @@ SUB EditTypeKey STATIC
                 IF LEN(edTypeBuf$) < 120 THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (commands: as typed)
             ELSEIF edTypeFor = 3 THEN
                 IF LEN(edTypeBuf$) < 8 AND (INSTR("0123456789", CHR$(k&)) OR (CHR$(k&) = "?" AND edTypeBuf$ = "")) THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (a code: digits - or ?, one made up each time)
-            ELSEIF edTypeFor = 7 THEN
+            ELSEIF edTypeFor = 7 OR edTypeFor = 8 THEN
                 IF LEN(edTypeBuf$) < 6 AND INSTR("0123456789ABCDEF", UCASE$(CHR$(k&))) > 0 THEN edTypeBuf$ = edTypeBuf$ + UCASE$(CHR$(k&)) ' (a colour: hex digits)
             ELSEIF edTypeFor >= 4 THEN
                 IF LEN(edTypeBuf$) < 240 THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (a thing's own, a note: as typed)
@@ -430,6 +442,10 @@ SUB EditTypeDone STATIC
     IF edTypeFor = 2 THEN edTrigCmd$ = LTRIM$(RTRIM$(edTypeBuf$)) : EditNote "Now ADD IT" : EXIT SUB ' (a trigger's commands: kept for ADD IT)
     IF edTypeFor = 7 THEN ' (a picture's tint colour: on the selection)
         IF LEN(edTypeBuf$) THEN EditTexOp 7, PcHex~&(RIGHT$("000000" + edTypeBuf$, 6)), 0, 0, -1
+        EXIT SUB
+    END IF
+    IF edTypeFor = 8 THEN ' (a thing's look's colour: on the selection)
+        IF LEN(edTypeBuf$) THEN EditLookOp 3, PcHex~&(RIGHT$("000000" + edTypeBuf$, 6))
         EXIT SUB
     END IF
     IF edTypeFor >= 3 THEN EditTypeXtra : EXIT SUB ' (a door's code, a thing's own, a note)
@@ -577,8 +593,40 @@ SUB EditPaneClick STATIC
         CASE 334 TO 337 ' ...stretched across or up: to the next step (Shift: a percent)
             st = 0 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN st = 1
             EditTexOp 1 - (pnHit >= 336), 0, 2 * (pnHit AND 1) - 1, st, -1 ' (334, 336 the - buttons)
+        CASE 500 TO 505 ' A preset: on everything selected (and chosen, for REPLACE and DELETE)
+            j = PrNth(edPrKey$, edPrScroll * 3 + pnHit - 499, prCount) : IF j THEN PrOp 4, j
+        CASE 506 : edPrScroll = MaxOf(0, edPrScroll - 1) ' (the shelf scrolled)
+        CASE 507 : edPrScroll = edPrScroll + 1
+        CASE 508 TO 510 ' SAVE, REPLACE, DELETE
+            PrOp pnHit - 507, 0
+        CASE 376 TO 379 ' ITS LOOK: tinted - none, TINT, WASH, GLOW
+            EditLookOp 1, pnHit - 376
+        CASE 380, 381 ' ...how much (10 - Shift: 1)
+            st = 10 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN st = 1
+            IF pnHit = 380 THEN st = -st
+            EditLookOp 2, st
+        CASE 382, 383 ' ...its size (10% - Shift: 1)
+            st = 10 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN st = 1
+            IF pnHit = 382 THEN st = -st
+            EditLookOp 4, st
+        CASE 384 TO 395 ' ...its colour, one of the quick ones
+            EditLookOp 3, EditPaletteRGB~&(pnHit - 383) AND &HFFFFFF
+        CASE 396, 397 ' ...its colour typed (RRGGBB)
+            IF edTyping AND edTypeFor = 8 THEN
+                EditTypeDone
+            ELSE
+                edTyping = -1 : edTypeFor = 8 : edTypeFresh = -1 : edTypeBuf$ = ""
+                EditNote "Type its colour - RRGGBB, six hex digits (FF8800 orange) - Enter keeps it"
+            END IF
         CASE 338 ' ...and put back as made
             EditTexOp 3, 0, 0, 0, -1
+        CASE 375 ' ...its usual picture again (a door's, a wall's - the look kept: slid, stretched, tinted as it was)
+            EditPushUndo : n = 0
+            FOR k = 1 TO edSelN
+                fc = EditFaceCode(edSelKind(k), edSelSide(k))
+                IF fc >= 1 AND fc <= FACE_MAX THEN EditPaintFace edSelX(k), edSelY(k), fc, edSelPart(k), "" : n = n + 1
+            NEXT
+            EditApply : EditNote "The usual picture again on" + STR$(n) + " faces"
         CASE 339 ' COPY: the first selected face's look (picture, slid, stretched)
             FOR k = 1 TO edSelN
                 fc = EditFaceCode(edSelKind(k), edSelSide(k))
@@ -586,6 +634,8 @@ SUB EditPaneClick STATIC
             NEXT
         CASE 340 ' PASTE: it on every selected face
             EditClipPaste -1
+        CASE 398, 399 ' ...flipped: left for right, upside down
+            EditTexOp 10 + pnHit - 398, 0, 0, 0, -1
         CASE 341, 342 ' ...turned a quarter (342 clockwise)
             EditTexOp 4, 0, -1 - 2 * (pnHit = 342), 0, -1
         CASE 343 TO 346 ' ...tinted: none, TINT, WASH, GLOW
@@ -1697,6 +1747,8 @@ SUB EditFP STATIC
                 EditJoinSel
             CASE 114, 82 ' R: the picture turned a quarter clockwise (Shift+R: back) - on the face or piece under the pointer, or the selection
                 IF edTool = ET_PAINT THEN EditTexOp 4, 0, 1 + 2 * shiftOn, 0, 0 ELSE EditNote "PAINT turns pictures: R a quarter clockwise, Shift+R back"
+            CASE 109, 77 ' M: the picture flipped left for right (Shift+M: upside down) - as R turns it
+                IF edTool = ET_PAINT THEN EditTexOp 10 - shiftOn, 0, 0, 0, 0 ELSE EditNote "PAINT flips pictures: M left for right, Shift+M upside down"
             CASE 122, 90 ' Z: that cell's floor - the next of the level's four (a zone one cell big)
                 IF frontX >= 0 THEN
                     n = FloorNumberAt(frontX, frontY) MOD 4 + 1
@@ -1880,7 +1932,8 @@ FUNCTION EditLookName$(j)
     EditPcTexGet j, ou, ov, ku, kv
     IF ou OR ov THEN t$ = t$ + "  slid" + STR$(((ou + 32) AND 63) - 32) + "," + LTRIM$(STR$(((ov + 32) AND 63) - 32))
     IF ku <> 100 OR kv <> 100 THEN t$ = t$ + "  stretched" + STR$(ku) + "% x" + STR$(kv) + "%"
-    IF ptRot(j) THEN t$ = t$ + "  turned" + STR$(ptRot(j) * 90)
+    IF ptRot(j) AND 3 THEN t$ = t$ + "  turned" + STR$((ptRot(j) AND 3) * 90)
+    IF ptRot(j) AND 4 THEN t$ = t$ + "  flipped"
     IF ptTM(j) THEN t$ = t$ + "  " + EditTintName$(ptTM(j)) + STR$(ptTA(j)) + "% " + RIGHT$("00000" + HEX$(ptTC(j) AND &HFFFFFF), 6)
     IF ptA(j) = 1 THEN t$ = t$ + "  from its corner"
     IF ptA(j) = 2 THEN t$ = t$ + "  fitted"
@@ -2073,7 +2126,9 @@ SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
                     END IF
                     w = MaxOf(TEX_K_MIN, MinOf(TEX_K_MAX, w))
                     IF op = 1 THEN ku = w ELSE kv = w
-                CASE 4 : ptRot(j) = (ptRot(j) + dir + 4) AND 3
+                CASE 4 : ptRot(j) = (ptRot(j) AND 4) OR ((ptRot(j) + dir + 4) AND 3) ' (turned as you see it: flipped stays flipped)
+                CASE 10 : ptRot(j) = (4 - (ptRot(j) AND 4)) OR ((4 - (ptRot(j) AND 3)) AND 3) ' (flipped left for right, as you see it - after its turn: its turn the other way round)
+                CASE 11 : ptRot(j) = (4 - (ptRot(j) AND 4)) OR ((6 - (ptRot(j) AND 3)) AND 3) ' (flipped upside down: left for right, then half a turn)
                 CASE 5 : ptTM(j) = st
                 CASE 6 : ptTA(j) = MaxOf(0, MinOf(100, ptTA(j) + dir * st)) : IF ptTM(j) = 0 THEN ptTM(j) = 1
                 CASE 7 : ptTC(j) = k& AND &HFFFFFF : IF ptTM(j) = 0 THEN ptTM(j) = 1
@@ -3056,7 +3111,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor, ceiling, or wall side|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
         h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|  Shift+arrows~slide its picture (Ctrl: 1 px)|  Shift+[ ] - =~stretch it: wide, tall|  Shift+Home~the picture as made|  Ctrl+C / Ctrl+V~copy / paste a face's look|LIGHT~a light on the face|  Shift~take it away|  its pane~CEILING LAMP on/off, REMOVE|  painted ceiling~stays: the light shines from it|HEIGHT~floor/ceiling up; Shift down|"
         h$ = h$ + "#THE WHEEL (the selection)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
-        h$ = h$ + "#FACES IN PIECES|H / V~divide: left-right, top-bottom|  on a piece~divide it again (4 deep)|  a halved face~whole again|J~join a piece back up|click a piece~select / paint it alone|R / Shift+R~turn its picture (PAINT)|"
+        h$ = h$ + "#FACES IN PIECES|H / V~divide: left-right, top-bottom|  on a piece~divide it again (4 deep)|  a halved face~whole again|J~join a piece back up|click a piece~select / paint it alone|R / Shift+R~turn its picture (PAINT)|M / Shift+M~flip it left-right / upside down|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
         h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|PAINT + selection~PICTURE pane: slide, stretch,|~  turn, tint (any colour), as made|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
         h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Alt+L~full bright: everything lit evenly|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|U~the HUD layout editor|F1~this sheet|"
@@ -3103,8 +3158,8 @@ END SUB
 ' thing (WALLS... LIGHTS), and under it the tab's things as pictures, two
 ' rows of eight at a time - the wheel (or the arrows beside them) scrolls.
 ' Click one and it's the brush: PLACE puts a map character, PAINT paints a
-' picture, LIGHT lights - and if something's selected, it's done to the
-' selection there and then.
+' picture, LIGHT lights - and if faces are selected, a picture or light
+' is put on them there and then (a map character never is).
 FUNCTION EditPkTabName$(t)
     EditPkTabName$ = RTRIM$(MID$("WALLS    FLOORS   CEILINGS DOORS    ITEMS    MONSTERS DECOR    SPECIAL  LIGHTS   LIQUIDS  ", t * 9 - 8, 9))
 END FUNCTION
@@ -3521,7 +3576,7 @@ END SUB
 ' list, made again each time it's asked: edPn...); id < 0 is just words.
 SUB EditPaneAdd(id, x, y, w, l$, lit)
     IF edPnN >= PN_MAX THEN EXIT SUB
-    edPnN = edPnN + 1 : edPnId(edPnN) = id : edPnX(edPnN) = x : edPnY(edPnN) = y : edPnW(edPnN) = w : edPnLab$(edPnN) = l$ : edPnLit(edPnN) = lit : edPnCol(edPnN) = 0
+    edPnN = edPnN + 1 : edPnId(edPnN) = id : edPnX(edPnN) = x : edPnY(edPnN) = y : edPnW(edPnN) = w : edPnLab$(edPnN) = l$ : edPnLit(edPnN) = lit : edPnCol(edPnN) = 0 : edPnH(edPnN) = 0 : edPnImg&(edPnN) = 0
     IF y + 20 > edPnBot THEN edPnBot = y + 20
 END SUB
 
@@ -3534,6 +3589,7 @@ SUB EditPaneBuild
     FOR k = 1 TO edPnN
         edPnY(k) = edPnY0 + INT((edPnY(k) - edPnY0) * PN_SQ + 0.5) - 4
         IF edPnY(k) + PN_BH > edPnBot THEN edPnBot = edPnY(k) + PN_BH
+        IF edPnY(k) + edPnH(k) > edPnBot THEN edPnBot = edPnY(k) + edPnH(k)
     NEXT
 END SUB
 
@@ -3785,6 +3841,7 @@ SUB EditPaneLay
             NEXT
             y = y + 48
             EditPaneSkill x0, y
+            EditPaneLook x0, y
             EditPaneAdd 94, x0, y, PN_W, "AS ITS KIND IS", 0
             EXIT SUB
         END IF
@@ -3874,12 +3931,14 @@ SUB EditPaneLay
         EditPaneLiquid x0, y
         EditPaneWet x0, y
         EditPaneSkill x0, y
+        EditPaneLook x0, y
     ELSE
         edPnTitle$ = EditKindName$(edSelKind(1)) + " (" + LTRIM$(STR$(edSelN)) + ")"
         wb = 0 : FOR k = 1 TO edSelN
             IF edSelKind(k) = ED_WALL THEN IF INSTR("#NCKPG", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN wb = -1
         NEXT
         IF wb THEN EditPaneAdd 203, x0, y, PN_W, "MAKE IT A BLOCK", 0 : y = y + 23
+        EditPaneLook x0, y ' (a pane of glass or bars)
     END IF
     EditPaneAdd 40, x0, y, PN_W, "ADD A LIGHT TO IT", 0
     EditPaneAdd 170, x0, y + 23, PN_W, "TRIGGERS...", 0
@@ -3897,6 +3956,83 @@ SUB EditPaneSkill(x0, y)
         EditPaneAdd 310 + s, x0 + (s MOD 2) * 92, y + (s \ 2) * 23, 90 + (s MOD 2) * 18, MID$("[ ][x]", 1 - 3 * ((m AND SkillBit(s)) <> 0), 3) + " " + SkillName$(s), (m AND SkillBit(s)) <> 0
     NEXT
     y = y + 48
+END SUB
+
+' Something placed in a cell selected, or a pane of glass or bars: ITS
+' LOOK - tinted (NONE TINT WASH GLOW, as a face's picture is), how much, its
+' colour, and its size - its [looks] line (LEVEL/THINGS.BM)
+SUB EditPaneLook(x0, y)
+    DIM a, c, k, m, sz, c~&, t$ ' (its own: the main program shares these names)
+    k = EditLookCell : IF k = 0 THEN EXIT SUB
+    EditLookGet edSelX(k), edSelY(k), m, a, c~&, sz
+    EditPaneAdd -1, x0, y + 2, PN_W, "ITS LOOK:", 0 : y = y + 20
+    FOR c = 0 TO 3 : EditPaneAdd 376 + c, x0 + c * 50, y, 48, EditTintName$(c), (m = c) : NEXT : y = y + 23
+    IF m THEN
+        EditPaneAdd -1, x0, y + 2, 140, "AMOUNT" + STR$(a) + "%", 0 : EditPaneAdd 380, x0 + 146, y, 24, "-", 0 : EditPaneAdd 381, x0 + 174, y, 24, "+", 0 : y = y + 23
+        FOR c = 1 TO 12 ' (quick colours: the lights' - and any colour, typed)
+            EditPaneAdd 383 + c, x0 + ((c - 1) MOD 6) * 34, y + ((c - 1) \ 6) * 23, 30, "", ((EditPaletteRGB~&(c) AND &HFFFFFF) = c~&) : edPnCol(edPnN) = EditPaletteRGB~&(c)
+        NEXT
+        y = y + 46
+        IF edTyping AND edTypeFor = 8 THEN t$ = edTypeBuf$ + "_" ELSE t$ = RIGHT$("00000" + HEX$(c~&), 6)
+        EditPaneAdd -1, x0, y + 2, 70, "COLOUR " + t$, 0
+        EditPaneAdd 397, x0 + 100, y, 30, "", 0 : edPnCol(edPnN) = _RGB32((c~& \ 65536) AND 255, (c~& \ 256) AND 255, c~& AND 255)
+        IF edTyping AND edTypeFor = 8 THEN t$ = "OK" ELSE t$ = "TYPE"
+        EditPaneAdd 396, x0 + 134, y, 64, t$, (edTyping AND edTypeFor = 8) : y = y + 23
+    END IF
+    EditPaneAdd -1, x0, y + 2, 140, "SIZE" + STR$(sz) + "%", 0 : EditPaneAdd 382, x0 + 146, y, 24, "-", 0 : EditPaneAdd 383, x0 + 174, y, 24, "+", 0 : y = y + 23
+END SUB
+
+' The first selected cell that can have a look: something placed in it, or
+' a pane of glass or bars (0: none)
+FUNCTION EditLookCell
+    DIM k ' (its own: the main program shares these names)
+    FOR k = 1 TO edSelN
+        IF EditLookable(edSelX(k), edSelY(k)) THEN EditLookCell = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+FUNCTION EditLookable(x, y)
+    EditLookable = EditPlaced(x, y) OR INSTR("=-", MID$(lvlRow$(y), x + 1, 1)) > 0
+END FUNCTION
+
+' Cell x, y's [looks] line: tint, amount, colour, size (none: no tint, 60%,
+' cyan, 100%)
+SUB EditLookGet(x, y, m, a, c~&, sz)
+    DIM k ' (its own: the main program shares these names)
+    m = 0 : a = 60 : c~& = &H00FFCC : sz = 100
+    k = XtraFind("looks", x, y, 0) : IF k = 0 THEN EXIT SUB
+    m = VAL(XtraField$(k, 3)) : a = VAL(XtraField$(k, 4)) : sz = VAL(XtraField$(k, 6)) : IF sz <= 0 THEN sz = 100
+    IF LEN(XtraField$(k, 5)) THEN c~& = PcHex~&(RIGHT$("000000" + XtraField$(k, 5), 6)) AND &HFFFFFF
+END SUB
+
+SUB EditLookPut(x, y, m, a, c~&, sz)
+    IF m = 0 AND sz = 100 THEN XtraSet "looks", x, y, "" : EXIT SUB
+    XtraSet "looks", x, y, LTRIM$(STR$(m)) + ", " + LTRIM$(STR$(a)) + ", " + RIGHT$("00000" + HEX$(c~& AND &HFFFFFF), 6) + ", " + LTRIM$(STR$(sz))
+END SUB
+
+' ITS LOOK changed on everything selected that can have one: op 1 the tint
+' (v), 2 its amount by v, 3 its colour (v), 4 its size by v - choosing an
+' amount or colour on something not tinted tints it
+SUB EditLookOp(op, v&)
+    DIM a, j, k, m, n, sz, x, y, c~&, dup ' (its own: the main program shares these names)
+    EditPushUndo : n = 0
+    FOR k = 1 TO edSelN
+        x = edSelX(k) : y = edSelY(k) : dup = 0
+        FOR j = 1 TO k - 1 : IF edSelX(j) = x AND edSelY(j) = y THEN dup = -1
+        NEXT
+        IF EditLookable(x, y) AND NOT dup THEN
+            EditLookGet x, y, m, a, c~&, sz
+            SELECT CASE op
+                CASE 1 : m = v&
+                CASE 2 : a = MinOf(100, MaxOf(0, a + v&)) : IF m = 0 THEN m = 1
+                CASE 3 : c~& = v& AND &HFFFFFF : IF m = 0 THEN m = 1
+                CASE 4 : sz = MinOf(400, MaxOf(10, sz + v&))
+            END SELECT
+            EditLookPut x, y, m, a, c~&, sz : n = n + 1
+        END IF
+    NEXT
+    EditApply
+    IF n THEN EditNote "Its look:" + STR$(n) + " changed"
 END SUB
 
 ' The first selected cell with something placed in it (0: none)
@@ -4021,8 +4157,10 @@ SUB EditPanePicture(x0, y)
     EditPaneAdd 330, x0, y, 48, "LEFT", 0 : EditPaneAdd 331, x0 + 50, y, 48, "RIGHT", 0 : EditPaneAdd 332, x0 + 100, y, 48, "UP", 0 : EditPaneAdd 333, x0 + 150, y, 50, "DOWN", 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, 140, "WIDE" + STR$(ku) + "%", 0 : EditPaneAdd 334, x0 + 146, y, 24, "-", 0 : EditPaneAdd 335, x0 + 174, y, 24, "+", 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, 140, "TALL" + STR$(kv) + "%", 0 : EditPaneAdd 336, x0 + 146, y, 24, "-", 0 : EditPaneAdd 337, x0 + 174, y, 24, "+", 0 : y = y + 23
-    IF ptRot(pj) THEN t$ = "TURNED" + STR$(ptRot(pj) * 90) + " (R)" ELSE t$ = "NOT TURNED (R)"
-    EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 341, x0 + 146, y, 24, "<", 0 : EditPaneAdd 342, x0 + 174, y, 24, ">", 0 : y = y + 23
+    IF ptRot(pj) AND 3 THEN t$ = "TURNED" + STR$((ptRot(pj) AND 3) * 90) ELSE t$ = "NOT TURNED"
+    IF ptRot(pj) AND 4 THEN t$ = t$ + ", FLIPPED"
+    EditPaneAdd -1, x0, y + 2, 92, t$, 0 : EditPaneAdd 341, x0 + 146, y, 24, "<", 0 : EditPaneAdd 342, x0 + 174, y, 24, ">", 0 : y = y + 23
+    EditPaneAdd -1, x0, y + 2, 50, "FLIP (M)", 0 : EditPaneAdd 398, x0 + 52, y, 72, "LEFT-RIGHT", 0 : EditPaneAdd 399, x0 + 126, y, 74, "UPSIDE DOWN", 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, 50, "START AT", 0
     FOR c = 0 TO 2 : EditPaneAdd 372 + c, x0 + 52 + c * 50, y, 48 + 2 * (c = 2), RTRIM$(MID$("FACE PIECEFIT  ", c * 5 + 1, 5)), (ptA(pj) = c) : NEXT : y = y + 23
     FOR c = 0 TO 3 : EditPaneAdd 343 + c, x0 + c * 50, y, 48, EditTintName$(c), (tm = c) : NEXT : y = y + 23
@@ -4044,10 +4182,11 @@ SUB EditPanePicture(x0, y)
         EditPaneAdd 355, x0 + 134, y, 64, t$, (edTyping AND edTypeFor = 7) : y = y + 23
     END IF
     EditPaneAdd -1, x0, y + 2, PN_W, "SHIFT+CLICK: FINER STEPS", 0 : y = y + 20
-    EditPaneAdd 338, x0, y, PN_W, "AS MADE (NONE OF THESE)", 0 : y = y + 23
+    EditPaneAdd 338, x0, y, 99, "AS MADE", 0 : EditPaneAdd 375, x0 + 101, y, 99, "USUAL PICTURE", 0 : y = y + 23
     EditPaneAdd 356, x0, y, 64, "H: L-R", 0 : EditPaneAdd 357, x0 + 67, y, 64, "V: T-B", 0 : EditPaneAdd 358, x0 + 134, y, 64, "J: JOIN", 0 : y = y + 23
     EditPaneAdd 339, x0, y, 99, "COPY", 0 : EditPaneAdd 340, x0 + 101, y, 99, "PASTE", 0 : y = y + 23
     IF edClipOn THEN EditPaneAdd -1, x0, y + 2, PN_W, LEFT$("COPIED: " + EditClipName$, 40), 0 : y = y + 20
+    EditPanePresets x0, y ' (the shelf of looks kept for this picture: EDITOR/PRESETS.BM)
 END SUB
 
 SUB EditPaneWet(x0, y)
@@ -4136,12 +4275,12 @@ FUNCTION EditPaneAt(x, y)
     EditPaneAt = 0 : EditPaneBuild
     pnLX = x : IF editView = 1 THEN pnLX = x - edWX ' (FULL WIDE: the pane's at the window's right edge)
     FOR k = 1 TO edPnN
-        IF edPnId(k) > 0 AND pnLX >= edPnX(k) AND y >= edPnY(k) AND pnLX < edPnX(k) + edPnW(k) AND y < edPnY(k) + PN_BH THEN EditPaneAt = edPnId(k) : EXIT FUNCTION
+        IF edPnId(k) > 0 AND pnLX >= edPnX(k) AND y >= edPnY(k) AND pnLX < edPnX(k) + edPnW(k) AND y < edPnY(k) + MaxOf(PN_BH, edPnH(k)) THEN EditPaneAt = edPnId(k) : EXIT FUNCTION
     NEXT
 END FUNCTION
 
 SUB EditDrawPane(mx, my)
-    DIM B, k, w, x, y, pmx ' (its own: the main program shares these names)
+    DIM B, bh, k, w, x, y, pmx ' (its own: the main program shares these names)
     EditPaneBuild : IF edPnTitle$ = "" THEN EXIT SUB
     pmx = mx : IF editView = 1 AND mx <> -1 THEN pmx = mx - edWX ' (FULL WIDE: the pane's at the window's right edge - a copy: mx is the caller's)
     LINE (edPnX0 - 6, edPnY0)-(edPnX0 + PN_W + 6, edPnBot + 6), _RGBA32(6, 2, 18, 215), BF
@@ -4152,13 +4291,16 @@ SUB EditDrawPane(mx, my)
         IF edPnId(k) < 0 THEN
             TinyText x, y + 3, edPnLab$(k), _RGB32(210, 220, 255)
         ELSE
-            over = (pmx >= x AND my >= y AND pmx < x + w AND my < y + PN_BH)
+            bh = PN_BH : IF edPnH(k) THEN bh = edPnH(k)
+            over = (pmx >= x AND my >= y AND pmx < x + w AND my < y + bh)
             IF edPnLit(k) THEN bg~& = _RGBA32(120, 20, 100, 230) ELSE bg~& = _RGBA32(14, 6, 30, 230)
             IF over THEN bg~& = _RGBA32(40, 70, 110, 240)
-            LINE (x, y)-STEP(w - 1, PN_BH - 1), bg~&, BF
+            LINE (x, y)-STEP(w - 1, bh - 1), bg~&, BF
             IF over THEN bc~& = _RGB32(150, 240, 255) ELSE IF edPnLit(k) THEN bc~& = _RGB32(255, 60, 200) ELSE bc~& = _RGB32(90, 70, 140)
-            IF edPnCol(k) THEN LINE (x + 3, y + 3)-STEP(w - 7, PN_BH - 7), edPnCol(k), BF ' (a colour to choose)
-            LINE (x, y)-STEP(w - 1, PN_BH - 1), bc~&, B
+            IF edPnCol(k) THEN LINE (x + 3, y + 3)-STEP(w - 7, bh - 7), edPnCol(k), BF ' (a colour to choose)
+            IF edPnImg&(k) < -1 THEN _PUTIMAGE (x + 2, y + 2)-STEP(w - 5, bh - 5), edPnImg&(k) ' (a picture: a preset's)
+            LINE (x, y)-STEP(w - 1, bh - 1), bc~&, B
+            IF edPnLit(k) AND edPnImg&(k) < -1 THEN LINE (x + 1, y + 1)-STEP(w - 3, bh - 3), bc~&, B ' (the one chosen: thicker)
             TinyText x + (w - TinyW(edPnLab$(k))) \ 2, y + 3, edPnLab$(k), _RGB32(255, 255, 255)
         END IF
     NEXT
