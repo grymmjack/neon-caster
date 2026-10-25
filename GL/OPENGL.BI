@@ -28,6 +28,13 @@
 '                 picture, and how they're lit
 '   glTexVersion  goes up whenever the textures change (a level loads), so
 '                 SUB _GL knows to send them to the graphics card again
+' The last frame, kept on the card in the editor (keepframe.h): a frame
+' held while the editor rebuilds shows it, not a black window
+DECLARE LIBRARY "keepframe"
+    SUB keepframe_save (BYVAL w AS LONG, BYVAL h AS LONG)
+    SUB keepframe_forget ()
+    SUB keepframe_draw (BYVAL w AS LONG, BYVAL h AS LONG)
+END DECLARE
 ' GL_NEAR and GL_FAR: the nearest and furthest OpenGL draws (in cells)
 CONST GL_NEAR = 0.05, GL_FAR = 100 ' (the fog's black by 16 cells: past that only neon and skies show)
 ' GL_DYN: how many moving lights; MAX_PART: particles; GL_HEAT: explosions

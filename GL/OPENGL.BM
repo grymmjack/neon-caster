@@ -99,8 +99,11 @@ SUB _GL
         IF glScreenOnly AND NOT artHold THEN GLScreenOnlyDraw
         EXIT SUB
     END IF
-    IF artHold THEN glArtAck = -1 : EXIT SUB ' (the pictures are being reloaded: ArtReload)
-    IF glEdHold THEN glEdAck = -1 : EXIT SUB ' (the editor's rebuilding the sector: EditApply - drawn now, it'd be half built)
+    IF artHold THEN glArtAck = -1 : keepframe_draw GLSL_window_width&, GLSL_window_height& : EXIT SUB ' (the pictures are being reloaded: ArtReload - in the editor, its last frame)
+    IF glEdHold THEN ' (the editor's rebuilding the sector: EditApply - drawn now, it'd be half built)
+        glEdAck = -1 : keepframe_draw GLSL_window_width&, GLSL_window_height& ' (QB64PE cleared the window: the frame before, not black)
+        EXIT SUB
+    END IF
     glStart# = TIMER(0.001)
     b = glBuf ' The newest finished snapshot
     IF glTexDone <> glTexVersion THEN GLSendTextures : glMeshClient = 0 : GLBuildMesh : glMeshDone = glMeshVersion ' (a new level)
@@ -243,6 +246,10 @@ SUB _GL
             glShotReq = 2
         END IF
     END IF
+
+    ' In the editor, keep this frame on the card: one held while the
+    ' editor rebuilds the sector shows it (keepframe.h)
+    IF editMode THEN keepframe_save GLSL_window_width&, GLSL_window_height& ELSE keepframe_forget
 
     ' Leave OpenGL as we found it
     FOR u = 3 TO 1 STEP -1 : GLSL_texture_unit u : _glBindTexture _GL_TEXTURE_2D, 0 : NEXT : GLSL_texture_unit 0
