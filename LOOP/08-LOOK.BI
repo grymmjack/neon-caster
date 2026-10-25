@@ -144,8 +144,9 @@
     IF glMode AND setting(SET_LOOK) AND NOT dead THEN
         pitch = pitch - mouseDY / DisplayScale! * turnSpeed / zoom * aimSlow
         IF botOn AND NOT demoPlay AND NOT editMode THEN pitch = pitch + MaxOf(-0.035, MinOf(0.035, (botPitch - pitch) * 0.25)) ' (the autopilot looks up and down too, eased)
-        IF pitch > 0.6 THEN pitch = 0.6
-        IF pitch < -0.6 THEN pitch = -0.6
+        pitchMax = 0.6 : IF editMode THEN pitchMax = 1.55 ' (the editor's camera: nearly straight up and down - about 89 degrees - to pick what's over or under you)
+        IF pitch > pitchMax THEN pitch = pitchMax
+        IF pitch < -pitchMax THEN pitch = -pitchMax
     ELSE
         pitch = pitch * 0.8
     END IF

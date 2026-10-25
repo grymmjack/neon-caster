@@ -124,7 +124,7 @@ The game, frozen, with a mouse pointer. Monsters don't move, pickups aren't take
 | Input | Does |
 | --- | --- |
 | Mouse | Points. Whatever's under the pointer is outlined in pulsing cyan and named: a WALL, FLOOR, CEILING, STEP (the face of a floor stepping up) or LINTEL (the face of a ceiling stepping down), its cell and side - or a monster, pickup or decoration by name |
-| Right button (hold) | Look round instead; the crosshair picks while you do |
+| Right button (hold) | Look round instead; the crosshair picks while you do. With OpenGL you can look nearly straight up and down (the game itself stops at about 34 degrees), to pick a ceiling, a lintel or a ledge right over you |
 | Your walk keys | Fly, straight through walls |
 | Space, C | Up, down (Shift: faster), as high as a sector goes - 30 walls |
 | Look up (or down) and walk | Climb (or sink) as you go - OpenGL, with LOOK UP / DOWN on |

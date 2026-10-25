@@ -115,6 +115,7 @@ SUB GLMarkWide(px, py, dx, dy, planeLen, zoom)
     FOR r = 0 TO 159
         camX = r / 159 * 2 - 1
         rayX = dx + dy * wide * camX : rayY = dy - dx * wide * camX
+        IF p > 0.75 THEN rayX = COS(r * 0.0395) : rayY = SIN(r * 0.0395) ' (looking steeply up or down - the editor's camera: the view takes in every side of you, behind too - rays all the way round)
         mapX = INT(px) : mapY = INT(py)
         deltaX = ABS(1 / (rayX + 0.000001)) : deltaY = ABS(1 / (rayY + 0.000001))
         IF rayX < 0 THEN stepX = -1 : sideX = (px - mapX) * deltaX ELSE stepX = 1 : sideX = (mapX + 1 - px) * deltaX
