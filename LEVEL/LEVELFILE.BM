@@ -290,7 +290,9 @@
 '   =  a pane of glass across the middle of the cell, in a wall one cell
 '      thick (like a door: wall - or more glass - on two opposite sides).
 '      You see through it, but can't walk through it: shots stop on it,
-'      crack it, and after 4 hits break it - then the way is open.
+'      chip it, crack it, and after 4 hits break it (GLASS PANE in the
+'      tuner) - then the way is open. Panes side by side crack each its own
+'      way (GlassSlot).
 '      Monsters see you through it; their bolts and barrels break it too. The level kit lets
 '      windows into the walls between rooms, and carves sealed observation
 '      rooms behind them (chairs, consoles, bodies - and worse).

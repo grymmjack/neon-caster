@@ -594,7 +594,7 @@ SUB GLGlass(b)
         cx = glassListX(k) : cy = glassListY(k)
         IF glassHP(cx, cy) > 0 THEN
             IF GLNearSeen(cx, cy, b) THEN
-                slot = S_GLASS : IF glassHP(cx, cy) >= BARS_HP THEN slot = S_BARS ELSE IF glassHP(cx, cy) <= GLASS_HP \ 2 THEN slot = S_GLASS + 1
+                slot = GlassSlot(cx, cy)
                 GLUseTexture T_SLOTS + slot : GLSetLight cx, cy, 1, b
                 red = glLitR(cx, cy, b) / 256 : green = glLitG(cx, cy, b) / 256 : blue = glLitB(cx, cy, b) / 256
                 lk = lookCell(cx, cy)
@@ -625,7 +625,7 @@ SUB GLGlass(b)
                 IF lk THEN
                     IF lkMode(lk) = m AND glassHP(cx, cy) > 0 THEN
                         IF GLNearSeen(cx, cy, b) THEN
-                            slot = S_GLASS : IF glassHP(cx, cy) >= BARS_HP THEN slot = S_BARS ELSE IF glassHP(cx, cy) <= GLASS_HP \ 2 THEN slot = S_GLASS + 1
+                            slot = GlassSlot(cx, cy)
                             GLUseTexture T_SLOTS + slot : GLSetLight cx, cy, 1, b
                             tr = ((lkCol(lk) \ 65536) AND 255) / 255 : tg = ((lkCol(lk) \ 256) AND 255) / 255 : tb = (lkCol(lk) AND 255) / 255
                             IF m = 2 THEN

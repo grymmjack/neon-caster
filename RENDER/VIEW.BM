@@ -458,7 +458,7 @@ SUB GlassColumn STATIC
     IF gTop < gClipT THEN gPos = gPos + (gClipT - gTop) * gStep : gTop = gClipT
     IF gEnd > gClipB THEN gEnd = gClipB
     gu = INT(glassU(gx) * sprTex) AND (sprTex - 1)
-    gSlot = S_GLASS : IF glassHP(glassCX(gx), glassCY(gx)) >= BARS_HP THEN gSlot = S_BARS ELSE IF glassHP(glassCX(gx), glassCY(gx)) <= GLASS_HP \ 2 THEN gSlot = S_GLASS + 1
+    gSlot = GlassSlot(glassCX(gx), glassCY(gx))
     gFog& = 256 - glassT(gx) * 16 : IF gFog& < 40 THEN gFog& = 40
     gR& = litR(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gG& = litG(glassCX(gx), glassCY(gx)) * gFog& \ 256 : gB& = litB(glassCX(gx), glassCY(gx)) * gFog& \ 256
     IF gR& > 256 THEN gR& = 256

@@ -79,7 +79,11 @@ CONST S_BARS = S_ACID + 3 ' (bars across a window: -)
 ' kind DK_SMEAR + 0 to SMEAR_KINDS - 1 - blood1-3, oil1-2 - each its picture
 CONST SMEAR_KINDS = 5, DK_SMEAR = 2, S_SMEAR = S_ACID + 4
 CONST S_EYE = S_ACID + 4 + SMEAR_KINDS ' (the eyebot's eye: hunting, yellow - then rushing you, red: eyebot-hunt.png, eyebot-rush.png)
-CONST S_MODEL = S_EYE + 2
+' Glass hit but not yet broken (GlassSlot): GLASS_STAGES pictures, chipped to
+' falling apart, each in GLASS_LOOKS patterns - panes side by side crack
+' differently (MakeGlass)
+CONST GLASS_STAGES = 3, GLASS_LOOKS = 4, S_CRACK = S_EYE + 2
+CONST S_MODEL = S_CRACK + GLASS_STAGES * GLASS_LOOKS
 CONST SPR_SLOTS = S_MODEL + MAX_MODELS - 1
 ' How big each picture is kept: textures texSize, sprites up to sprTex
 ' pixels across. ART (SETTINGS > VIDEO) picks them: CLASSIC, the pixel art

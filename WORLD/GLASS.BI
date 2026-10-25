@@ -15,4 +15,5 @@
 CONST GLASS_HP = 4, GLASS_HALF = 0.1, MAX_GLASS = 240
 CONST BARS_HP = 999 ' (bars across a window, -: glass that never breaks - a shot pings off them; drawn with S_BARS) ' (GLASS_HALF: half the thickness you bump into)
 DIM SHARED glassHP(MAP_SIZE, MAP_SIZE) AS INTEGER, glassDir(MAP_SIZE, MAP_SIZE) AS INTEGER
+DIM SHARED glassFull AS INTEGER ' (a whole pane's hits, this sector: AssignGlass)
 DIM SHARED numGlass AS INTEGER, glassListX(MAX_GLASS) AS INTEGER, glassListY(MAX_GLASS) AS INTEGER

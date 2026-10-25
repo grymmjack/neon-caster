@@ -55,7 +55,8 @@ SUB LoadPictures STATIC
     LoadSprite "rounds.png", ItemSprite(IT_ROUNDS) : LoadSprite "slugs.png", ItemSprite(IT_SLUGS)
     LoadSprite "jetpack.png", ItemSprite(IT_JETPACK) : LoadSprite "jetfuel.png", ItemSprite(IT_JETFUEL)
     LoadSprite "repairkit.png", ItemSprite(IT_REPAIR) : LoadSprite "invuln.png", ItemSprite(IT_INVULN)
-    MakeGlass S_GLASS, 0 : MakeGlass S_GLASS + 1, -1 ' (glass, whole and cracked)
+    MakeGlass S_GLASS, 0, 0 : MakeGlass S_GLASS + 1, 2, 0 ' (glass, whole and cracked - the tuner's)
+    FOR k = 0 TO GLASS_STAGES * GLASS_LOOKS - 1 : MakeGlass S_CRACK + k, k \ GLASS_LOOKS + 1, k MOD GLASS_LOOKS : NEXT ' (hit glass: each stage, each pattern)
     LoadSprite "bars.png", S_BARS ' (bars across a window)
     FOR k = 0 TO SMEAR_KINDS - 1 : LoadSprite "smear-" + SmearName$(k) + ".png", S_SMEAR + k : NEXT ' (blood and oil: [smears])
     MakePad S_PAD ' (a teleporter's pad)
@@ -939,10 +940,16 @@ END SUB
 ' The glass picture, into sprite slot slot: faintly blue, mostly see-
 ' through (low alpha), two streaks of shine across it, and a solid metal
 ' frame top and bottom (and a thin upright at each edge, so panes side by
-' side look like a row of windows). Cracked: white cracks spreading from a
-' point
-SUB MakeGlass(slot, cracked)
-    DIM a, B, cx, cy, g, k, r, st, x, y ' (its own: the main program shares these names)
+' side look like a row of windows). Hit (stage 1-3, GLASS_STAGES): cracks
+' from where it was struck - stage 1 a chip and a little star of them, 2
+' long cracks out across it and a ring, 3 a second strike, more rings and
+' a hole knocked out at the first. look (0 to GLASS_LOOKS - 1) is which
+' pattern: where it was struck, how many cracks, which way they wander. A
+' pane's look stays as it goes from stage to stage, so its cracks grow.
+' (Its own dice, GlassRnd!, so the pictures are the same every time.)
+SUB MakeGlass(slot, stage, look)
+    DIM a, b, g, gk, k, r, st, x, y, xx, yy, n, ox, oy, px, py, ang, stp, ln, ring, hx, hy ' (its own: the main program shares these names)
+    DIM rs AS _INTEGER64, c~&
     spriteSize(slot) = sprTex : gk = sprTex \ 64 ' (designed 64 pixels across: each of those gk x gk)
     FOR yy = 0 TO sprTex - 1 : FOR xx = 0 TO sprTex - 1
         x = xx \ gk : y = yy \ gk
@@ -954,19 +961,68 @@ SUB MakeGlass(slot, cracked)
         IF x = 0 OR x = 63 THEN a = 255 : r = 70 : g = 80 : b = 96
         spriteTex(xx, yy, slot) = _RGBA32(r, g, b, a)
     NEXT : NEXT
-    IF cracked THEN
-        FOR k = 0 TO 8 ' Cracks: wandering lines out from (40, 26)
-            ang = k * 0.71 + 0.4 * SIN(k * 3.7) : cx = 40 : cy = 26
-            FOR stp = 1 TO 26 + (k MOD 3) * 8
-                ang = ang + 0.25 * SIN(stp * 1.3 + k)
-                cx = cx + COS(ang) : cy = cy + SIN(ang)
-                IF cx >= 1 AND cy >= 4 AND cx < 63 AND cy < 60 THEN
-                    FOR yy = 0 TO gk - 1 : FOR xx = 0 TO gk - 1 : spriteTex(INT(cx) * gk + xx, INT(cy) * gk + yy, slot) = _RGBA32(235, 250, 255, 210) : NEXT : NEXT
-                END IF
+    IF stage <= 0 THEN EXIT SUB
+    rs = 1 + look * 7919 ' Where it was struck: the same at every stage
+    ox = VAL(MID$("16424030", (look MOD 4) * 2 + 1, 2)) + INT(GlassRnd!(rs) * 8) - 4 ' (each pattern struck in its own part of the pane)
+    oy = VAL(MID$("18402442", (look MOD 4) * 2 + 1, 2)) + INT(GlassRnd!(rs) * 8) - 4
+    c~& = _RGBA32(235, 250, 255, 210) : IF stage = 1 THEN c~& = _RGBA32(225, 245, 255, 170)
+    n = 5 + INT(GlassRnd!(rs) * 5) ' (how many cracks)
+    FOR k = 0 TO n - 1 ' Cracks: wandering lines out from where it was struck
+        ang = (k + GlassRnd!(rs) * 0.6) * 6.2832 / n
+        ln = 3 + INT(GlassRnd!(rs) * 6) ' (stage 1: a little star)
+        IF stage >= 2 THEN ln = 16 + INT(GlassRnd!(rs) * 26)
+        px = ox : py = oy
+        FOR stp = 1 TO ln
+            ang = ang + 0.3 * SIN(stp * 1.1 + k * 2.3 + look)
+            px = px + COS(ang) : py = py + SIN(ang)
+            GlassDot slot, px, py, c~&
+            IF stage = 3 AND stp > 6 AND (stp MOD 9) = look MOD 3 THEN GlassDot slot, px + SIN(ang) * 1.5, py - COS(ang) * 1.5, c~& ' (stage 3: chips off the cracks)
+        NEXT
+    NEXT
+    FOR k = -1 TO 1 : FOR stp = -1 TO 1 : GlassDot slot, ox + k * 0.6, oy + stp * 0.6, _RGBA32(250, 255, 255, 235) : NEXT : NEXT ' (the chip where it was struck)
+    IF stage >= 2 THEN ' Rings round it: pieces of a circle between the cracks
+        FOR ring = 1 TO stage - 1
+            r = 4 + ring * 4 + INT(GlassRnd!(rs) * 3)
+            FOR stp = 0 TO 63
+                ang = stp * 6.2832 / 64
+                IF SIN(ang * 3 + look + ring) > -0.2 THEN GlassDot slot, ox + COS(ang) * r, oy + SIN(ang) * r * 0.9, c~&
             NEXT
         NEXT
     END IF
+    IF stage = 3 THEN
+        hx = ox + 22 : IF hx > 54 THEN hx = ox - 24 ' A second strike, across the pane
+        hy = 10 + INT(GlassRnd!(rs) * 44)
+        FOR k = 0 TO 5
+            ang = k * 1.047 + GlassRnd!(rs) * 0.5 : px = hx : py = hy
+            FOR stp = 1 TO 10 + INT(GlassRnd!(rs) * 14)
+                ang = ang + 0.3 * SIN(stp * 1.4 + k)
+                px = px + COS(ang) : py = py + SIN(ang)
+                GlassDot slot, px, py, c~&
+            NEXT
+        NEXT
+        r = 3 + (look MOD 2) ' The hole knocked out at the first: clear, a bright edge
+        FOR y = -r - 1 TO r + 1 : FOR x = -r - 1 TO r + 1
+            st = x * x + y * y + ((x * 3 + y * 5 + look) MOD 3) * 2 ' (ragged)
+            IF st <= r * r THEN GlassDot slot, ox + x, oy + y, _RGBA32(0, 0, 0, 0) ELSE IF st <= (r + 1) * (r + 1) + 2 THEN GlassDot slot, ox + x, oy + y, _RGBA32(245, 255, 255, 235)
+        NEXT : NEXT
+    END IF
 END SUB
+
+' One of the glass picture's pixels (in its 64 across - gk x gk of slot's),
+' kept off its frame
+SUB GlassDot(slot, px, py, c~&)
+    DIM gk, xx, yy, ix, iy
+    ix = INT(px) : iy = INT(py)
+    IF ix < 1 OR iy < 4 OR ix > 62 OR iy > 59 THEN EXIT SUB
+    gk = sprTex \ 64
+    FOR yy = 0 TO gk - 1 : FOR xx = 0 TO gk - 1 : spriteTex(ix * gk + xx, iy * gk + yy, slot) = c~& : NEXT : NEXT
+END SUB
+
+' The glass pictures' own dice: 0 to 1, rs moved on (the same every time)
+FUNCTION GlassRnd! (rs AS _INTEGER64)
+    rs = (rs * 16807) MOD 2147483647
+    GlassRnd! = rs / 2147483647
+END FUNCTION
 
 ' The laser beam's picture: three bright red lines across, at knee, chest
 ' and head height, with a glow round each - into sprite slot slot

@@ -32,7 +32,7 @@ END SUB
 ' glass) to its left and right, else along y - and the list of them all
 SUB AssignGlass
     DIM l, r, x, y ' (its own: the main program shares these names)
-    numGlass = 0
+    numGlass = 0 : glassFull = MaxOf(1, TuneNow!(tuGlass))
     FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
         IF glassHP(x, y) > 0 THEN
             l = IsWall(x - 1, y) OR glassHP(x - 1, y) > 0 : r = IsWall(x + 1, y) OR glassHP(x + 1, y) > 0
@@ -41,6 +41,19 @@ SUB AssignGlass
         END IF
     NEXT : NEXT
 END SUB
+
+' Which picture the glass at (cx, cy) shows: whole, hit (chipped, cracked,
+' falling apart - by the hits it has left), bars. Hit panes take one of
+' GLASS_LOOKS patterns by their cell, so neighbours differ (along a row
+' each is one on from the last; down a column two)
+FUNCTION GlassSlot(cx, cy)
+    DIM hp, st
+    hp = glassHP(cx, cy)
+    IF hp >= BARS_HP THEN GlassSlot = S_BARS : EXIT FUNCTION
+    IF hp >= glassFull THEN GlassSlot = S_GLASS : EXIT FUNCTION
+    IF hp * 2 > glassFull THEN st = 0 ELSE IF hp * 4 > glassFull THEN st = 1 ELSE st = 2
+    GlassSlot = S_CRACK + st * GLASS_LOOKS + (cx + 2 * cy + cx \ 4) MOD GLASS_LOOKS
+END FUNCTION
 
 ' Is map point (x, y) inside a pane of glass (its thickness, GLASS_HALF
 ' either side of the middle of its cell)?
