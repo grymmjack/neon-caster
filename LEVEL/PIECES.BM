@@ -289,6 +289,10 @@ FUNCTION PcUsual(x, y, f)
         CASE 9 : PcUsual = floorTex(x, y)
         CASE 10 : PcUsual = ceilTex(x, y)
         CASE FACE_DIAG : PcUsual = PcDiagUsual(x, y)
+        CASE FACE_DEDGE ' (a door's edges: its own picture)
+            c$ = MID$(lvlRow$(y), x + 1, 1)
+            IF INSTR("DRBYHX!", c$) THEN PcUsual = PcDoorUsual(x, y, c$)
+        CASE FACE_TRACK : PcUsual = T_SHUTTER ' (a door's track)
         CASE FACE_BOX + 1 TO FACE_BOX + 4
             FOR k = 1 TO lvlNumBoxes
                 IF lvlBox(k, 1) = x AND lvlBox(k, 2) = y THEN IF lvlBox(k, 7) >= 1 AND lvlBox(k, 7) <= 6 THEN PcUsual = lvlBox(k, 7)

@@ -52,7 +52,7 @@ SUB JumpPadStep
     a! = jpDir(i) * 0.0174533 : e! = jpAng(i) * 0.0174533 : v! = jpPow(i) / 100
     playerVZ = -v! * DSin(e!) ' (up: playerVZ, down is +)
     knockX = DCos(a!) * v! * DCos(e!) : knockY = DSin(a!) * v! * DCos(e!) ' (and along: kept all the way - padAir)
-    padAir = -1 : jpLast = i : levelFlat = 0 : rocketAir = 0
+    padAir = -1 : jpLast = i : levelFlat = 0 : rocketAir = 0 : jumpAir = 0
     SfxAt sndJumpPad&, decoX(i), decoY(i), playerX, playerY : shake = shake + 3
     SpawnSparks decoX(i), decoY(i), 0.1, 18, 255, 200, 80
 END SUB

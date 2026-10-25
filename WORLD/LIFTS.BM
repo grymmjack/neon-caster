@@ -24,6 +24,7 @@ SUB MoveLifts(px, py)
     DIM k, x, y ' (its own: the main program shares these names)
     me = liftCell(INT(px), INT(py))
     FOR k = 1 TO numLifts
+        IF editMode THEN IF EditLiftHeld(k) THEN _CONTINUE ' (held up or down in the editor - O)
         IF liftMode(k) = LIFT_CRUSHER OR liftMode(k) = LIFT_SMASHER THEN MoveCrusher k, px, py : _CONTINUE
         IF liftMode(k) = 2 AND me <> k THEN liftArm(k) = -1
         IF liftDir(k) = 0 THEN ' Waiting at one end

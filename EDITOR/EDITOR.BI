@@ -33,7 +33,7 @@ DIM SHARED editUndo$(EDIT_UNDO), editUndoN AS INTEGER, editRedo$(EDIT_UNDO), edi
 '   edTool        what a click does (ET_ tools); edBrush... what it places
 '   edGrid...     the wireframe grid over the world, and how strong it is
 '   edPick...     the picker panel: its tab and how far it's scrolled
-CONST ED_WALL = 1, ED_FLOOR = 2, ED_CEIL = 3, ED_STEP = 4, ED_LINTEL = 5, ED_BOX = 6, ED_DIAG = 7 ' (a face: a diagonal wall's slanted face (side 0); a box's side; a wall's side, a floor, a ceiling, the face of a step up, the face of a ceiling stepping down)
+CONST ED_WALL = 1, ED_FLOOR = 2, ED_CEIL = 3, ED_STEP = 4, ED_LINTEL = 5, ED_BOX = 6, ED_DIAG = 7, ED_DEDGE = 8, ED_TRACK = 9 ' (a door's edges - a shutter's underside - and its track; a face: a diagonal wall's slanted face (side 0); a box's side; a wall's side, a floor, a ceiling, the face of a step up, the face of a ceiling stepping down)
 CONST ED_MAXSEL = 16384 ' (a 128 x 128 plaza - a 48 map's whole, twice over and more)
 CONST ET_SELECT = 1, ET_PLACE = 2, ET_PAINT = 3, ET_LIGHT = 4, ET_HEIGHT = 5
 DIM SHARED edHovKind AS INTEGER, edHovX AS INTEGER, edHovY AS INTEGER, edHovSide AS INTEGER, edHovPart AS INTEGER
@@ -123,3 +123,12 @@ edTool = ET_SELECT : edGridAlpha = 120 : edPickTab = 1
 ' This module's working variables, shared by its SUBs (and with the main
 ' program)
 DIM SHARED edDone, edDragOn, fpLWas, levelWas, lt, ndx, ndy, pkIdx, pkWhat, pnHit, tbHit, tbMX
+
+' Doors, lifts and crushers held still in the editor, to see and paint
+' them open, up or down (O): by cell - a door's own, a lift's first
+' corner (liftX0, liftY0) - 1 open / at the top, -1 at the bottom, 0 as
+' in play (a door shut, a lift running). Only the editor's: never saved,
+' forgotten when a sector loads (BuildLevel), put back after each change
+' (EditHeldSnap)
+DIM SHARED edHeld(MAP_SIZE, MAP_SIZE) AS _BYTE
+DIM SHARED edStateBack AS INTEGER ' (EditEnter: this sector's editor state came back from its save - EditStateLoad)

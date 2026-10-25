@@ -8,6 +8,11 @@
 
 ' A sound from neon-caster/sfx/. A missing file gives 0, and PlaySfx skips
 ' 0, so the game still runs - silently - without its sounds.
+' A jump's grunt: one of three (RND - a sound, not the game's dice)
+FUNCTION JumpGrunt&
+    JumpGrunt& = sndJump&(1 + INT(RND * 3))
+END FUNCTION
+
 FUNCTION LoadSnd&(file$)
     path$ = AssetPath$("sfx/" + file$)
     IF _FILEEXISTS(path$) THEN LoadSnd& = OpenSnd&(path$) ' (whole, and softened if SOFTEN HIGHS is on: AUDIO/SOFTEN.BM)

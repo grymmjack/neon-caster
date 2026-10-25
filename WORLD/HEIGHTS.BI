@@ -29,9 +29,12 @@ NEXT
 CONST STEP_UP = 0.32, EYE_H = 0.5, BODY_H = 0.7, FALL_G = 0.01, PIT_DEPTH = -0.99
 ' A sector's own gravity (gravity = in its file: percent of FALL_G, 1-300 (a few: near zero-g) -
 ' 100 as made); a jump's push off the floor (JUMP: 0.6 of a wall up, at
-' 100 - v * v / 2g, less half a step); jumpWas: the key held last frame
-CONST JUMP_V = 0.115
-DIM SHARED lvlGravity AS INTEGER, jumpWas AS INTEGER
+' 100 - v * v / 2g, less half a step); jumpWas: the key held last frame.
+' A jump's way down is floatier than a fall (JUMP_FALL of the pull: it
+' lands a quarter slower) and it carries you on a little faster
+' (JUMP_AHEAD) - jumpAir: in the air from a jump
+CONST JUMP_V = 0.122, JUMP_FALL = 0.64, JUMP_AHEAD = 1.05
+DIM SHARED lvlGravity AS INTEGER, jumpWas AS INTEGER, jumpAir AS INTEGER
 lvlGravity = 100
 ' Floors that do something (FloorHazard, by the floor's picture): molten or
 ' lava burns (BURN_DAMAGE every BURN_EVERY frames you stand in it); murky

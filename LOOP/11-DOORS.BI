@@ -127,6 +127,7 @@
     END IF
     FOR doorK& = 1 TO numDoorCells ' (the doors: ListDoors)
         doorX = doorCellX(doorK&) : doorY = doorCellY(doorK&)
+        IF editMode THEN EditDoorHeld doorX, doorY : _CONTINUE ' (in the editor: shut, or held open - O)
         IF doorBroke(doorX, doorY) THEN doorOpen(doorX, doorY) = 1 : doorMove(doorX, doorY) = 0 : _CONTINUE ' (kicked down: open for good)
         ' (a locked door that's open shuts - as soon as nobody's in the way)
         IF doorLock(doorX, doorY) AND doorOpen(doorX, doorY) > 0 AND doorMove(doorX, doorY) <> -1 THEN

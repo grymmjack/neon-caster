@@ -217,3 +217,82 @@ SUB EditVerClick
             END IF
     END SELECT
 END SUB
+
+' --- THE EDITOR'S STATE, kept with a save (Ctrl+S): saves/editstate/CODE.bin
+' - the view, tool, grid, picker, brushes, the map's pan and zoom, and the
+' undo and redo steps - so the sector opens in the editor next time as you
+' left it. The steps are kept only while the level file is still the one
+' saved with them (its length and a sum of its bytes): changed since (the
+' level kit, another editor), they'd undo it back - the rest still comes.
+FUNCTION EditStateFile$
+    EditStateFile$ = SaveDir$ + "editstate/" + LTRIM$(STR$(EditCodeNow)) + ".bin"
+END FUNCTION
+
+' A level file's sum: its length and its bytes' (0 if there's none)
+FUNCTION EditFileSum&(f$)
+    DIM fh, i&, s$, h& ' (its own: the main program shares these names)
+    EditFileSum& = 0 : IF NOT _FILEEXISTS(f$) THEN EXIT FUNCTION
+    fh = FREEFILE : OPEN f$ FOR BINARY AS #fh : s$ = SPACE$(LOF(fh)) : GET #fh, , s$ : CLOSE #fh
+    h& = LEN(s$)
+    FOR i& = 1 TO LEN(s$) : h& = (h& * 31 + ASC(s$, i&)) AND &HFFFFFF : NEXT
+    EditFileSum& = h& + 1
+END FUNCTION
+
+SUB EditStateSave
+    DIM d$, fh, k, n&, s$, t$ ' (its own: the main program shares these names)
+    MakeSaveDir : d$ = SaveDir$ + "editstate" : IF NOT _DIREXISTS(d$) THEN MKDIR d$
+    t$ = "NCES1" + MKL$(EditFileSum&(LevelFile$(level)))
+    t$ = t$ + MKI$(editView) + MKI$(edTool) + MKI$(edGrid) + MKI$(edGridAlpha) + MKI$(edPickOn) + MKI$(edPickTab) + MKI$(edPickScroll) + MKI$(edFullBright)
+    t$ = t$ + MKI$(edBrushKind) + MKI$(edLR) + MKI$(edLG) + MKI$(edLB) + MKI$(edLFx) + MKS$(edLRad) + MKI$(edLBri) + MKI$(edLNoLamp)
+    t$ = t$ + MKI$(edMapX) + MKI$(edMapY) + MKI$(edCell)
+    t$ = t$ + EditStr$(editGlyph$) + EditStr$(edBrushTex$) + EditStr$(edBrushLiq$)
+    t$ = t$ + MKI$(editUndoN) : FOR k = 1 TO editUndoN : t$ = t$ + EditStr$(editUndo$(k)) : NEXT
+    t$ = t$ + MKI$(editRedoN) : FOR k = 1 TO editRedoN : t$ = t$ + EditStr$(editRedo$(k)) : NEXT
+    s$ = EditStateFile$ : IF _FILEEXISTS(s$) THEN KILL s$
+    fh = FREEFILE : OPEN s$ FOR BINARY AS #fh : PUT #fh, , t$ : CLOSE #fh
+END SUB
+
+' A string as its length and itself (EditStateSave)
+FUNCTION EditStr$(s$)
+    EditStr$ = MKL$(LEN(s$)) + s$
+END FUNCTION
+
+' The state saved with this sector, back - and yes; none (or not one of
+' ours), no
+FUNCTION EditStateLoad
+    DIM fh, k, n, p&, sum&, t$ ' (its own: the main program shares these names)
+    EditStateLoad = 0
+    IF NOT _FILEEXISTS(EditStateFile$) THEN EXIT FUNCTION
+    fh = FREEFILE : OPEN EditStateFile$ FOR BINARY AS #fh : t$ = SPACE$(LOF(fh)) : GET #fh, , t$ : CLOSE #fh
+    IF LEFT$(t$, 5) <> "NCES1" OR LEN(t$) < 60 THEN EXIT FUNCTION
+    p& = 6 : sum& = CVL(MID$(t$, p&, 4)) : p& = p& + 4
+    editView = EditGetI(t$, p&) : edTool = EditGetI(t$, p&) : edGrid = EditGetI(t$, p&) : edGridAlpha = EditGetI(t$, p&)
+    edPickOn = EditGetI(t$, p&) : edPickTab = EditGetI(t$, p&) : edPickScroll = EditGetI(t$, p&) : edFullBright = EditGetI(t$, p&)
+    edBrushKind = EditGetI(t$, p&) : edLR = EditGetI(t$, p&) : edLG = EditGetI(t$, p&) : edLB = EditGetI(t$, p&) : edLFx = EditGetI(t$, p&)
+    edLRad = CVS(MID$(t$, p&, 4)) : p& = p& + 4
+    edLBri = EditGetI(t$, p&) : edLNoLamp = EditGetI(t$, p&)
+    edMapX = EditGetI(t$, p&) : edMapY = EditGetI(t$, p&) : edCell = MaxOf(2, EditGetI(t$, p&))
+    editGlyph$ = EditGetS$(t$, p&) : edBrushTex$ = EditGetS$(t$, p&) : edBrushLiq$ = EditGetS$(t$, p&)
+    IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+    edBrushImg& = 0 : edPkKey$ = "" ' (the brush's picture and the picker made again)
+    IF edBrushTex$ <> "" THEN edBrushImg& = EditFileThumb&(edBrushTex$)
+    editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT)
+    IF edFullBright THEN litAll = 3
+    IF sum& = EditFileSum&(LevelFile$(level)) THEN ' (the level file as saved with them: its undo and redo too)
+        n = EditGetI(t$, p&) : IF n > EDIT_UNDO THEN n = EDIT_UNDO
+        FOR k = 1 TO n : editUndo$(k) = EditGetS$(t$, p&) : NEXT : editUndoN = n
+        n = EditGetI(t$, p&) : IF n > EDIT_UNDO THEN n = EDIT_UNDO
+        FOR k = 1 TO n : editRedo$(k) = EditGetS$(t$, p&) : NEXT : editRedoN = n
+    END IF
+    EditStateLoad = -1
+END FUNCTION
+
+FUNCTION EditGetI(t$, p&)
+    EditGetI = CVI(MID$(t$, p&, 2)) : p& = p& + 2
+END FUNCTION
+
+FUNCTION EditGetS$(t$, p&)
+    DIM n& ' (its own: the main program shares these names)
+    n& = CVL(MID$(t$, p&, 4)) : p& = p& + 4
+    EditGetS$ = MID$(t$, p&, n&) : p& = p& + n&
+END FUNCTION

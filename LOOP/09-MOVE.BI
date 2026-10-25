@@ -32,6 +32,7 @@
     IF FloorHazard(INT(playerX), INT(playerY)) = HAZ_WADE THEN IF playerZ - floorH(INT(playerX), INT(playerY)) < 0.05 THEN moveSpeed = moveSpeed * SLOW_WADE ' (wading)
     IF health <= LOW_HP AND NOT godMode AND NOT editMode THEN moveSpeed = moveSpeed * LOW_SLOW ' (badly hurt: you drag yourself along)
     IF liqWas THEN moveSpeed = moveSpeed * LiquidSlow(liqWas, liqZ(INT(playerX), INT(playerY)) - playerZ) ' (wading in a liquid: slower the deeper - LQ_FULL deep, as slow as it gets)
+    IF jumpAir THEN moveSpeed = moveSpeed * JUMP_AHEAD ' (in the air from a jump: carried on a little further)
     IF moveLen > 0 THEN
         moveX = moveX / moveLen * moveSpeed : moveY = moveY / moveLen * moveSpeed
     END IF
@@ -92,7 +93,7 @@
     jumpDown = (inBits AND DB_JUMP) <> 0
     IF jumpDown AND NOT jumpWas AND NOT dead AND NOT editMode AND NOT flyMode AND NOT cyberOn AND NOT jetOn AND playerVZ = 0 THEN
         jfz = floorH(INT(playerX), INT(playerY)) : IF liqKind(INT(playerX), INT(playerY)) THEN jfz = MaxOf(jfz, liqZ(INT(playerX), INT(playerY)) - LQ_FULL)
-        IF playerZ <= jfz + 0.02 AND ceilH(INT(playerX), INT(playerY)) - playerZ > BODY_H + 0.1 THEN playerVZ = -JUMP_V : levelFlat = 0 : PlaySfx sndStep1&, 0.5
+        IF playerZ <= jfz + 0.02 AND ceilH(INT(playerX), INT(playerY)) - playerZ > BODY_H + 0.1 THEN playerVZ = -JUMP_V : jumpAir = -1 : levelFlat = 0 : PlaySfx sndStep1&, 0.5 : PlaySfx JumpGrunt&, 0.8 ' (and a grunt)
     END IF
     jumpWas = jumpDown
     IF editMode OR (flyMode AND NOT dead) THEN ' The editor, fly (god mode) or a jetpack lit: you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
@@ -107,7 +108,7 @@
             IF playerZ > ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 ' (room to move on: Walkable wants BODY_H)
             IF playerZ < floorH(INT(playerX), INT(playerY)) THEN playerZ = floorH(INT(playerX), INT(playerY))
         END IF
-        playerVZ = 0 : rocketAir = 0
+        playerVZ = 0 : rocketAir = 0 : jumpAir = 0
     ELSEIF NOT levelFlat THEN
         ' Just dropped off something higher, and still hanging over its edge?
         ' Slide off it - else its rim, more than a step up, blocks every move
@@ -125,7 +126,7 @@
         IF liftCell(INT(playerX), INT(playerY)) THEN IF playerZ - fz < MaxOf(0.06, liftSpeed(liftCell(INT(playerX), INT(playerY))) + 0.02) AND playerVZ < 0.03 AND playerVZ >= 0 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down - however fast it goes)
         IF playerZ > fz OR playerVZ < 0 THEN ' (in the air - or a jetpack lifting you off the floor)
             IF lvlGravity = 100 THEN grav = FALL_G ELSE grav = FALL_G * lvlGravity / 100 ' (the sector's own gravity - exactly FALL_G as made: old demos)
-            IF rocketAir THEN playerVZ = playerVZ + grav * ROCKET_FALL ELSE playerVZ = playerVZ + grav ' (a rocket jump: floatier)
+            IF rocketAir THEN playerVZ = playerVZ + grav * ROCKET_FALL ELSE IF jumpAir AND playerVZ > 0 THEN playerVZ = playerVZ + grav * JUMP_FALL ELSE playerVZ = playerVZ + grav ' (a rocket jump: floatier - a jump's way down too, a little)
             playerZ = playerZ - playerVZ
             IF playerVZ < 0 AND playerZ > ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 : playerVZ = 0 ' (thrown up: your head on the ceiling)
             IF playerZ <= fz THEN
@@ -134,11 +135,11 @@
                     damage = INT((playerVZ - 0.13) * 260) + 2 : hurtFromX = -1 : hurtFromY = -1 : HurtPlayer
                     PlaySfx sndStep1&, 1 : shake = shake + 8
                 END IF
-                playerZ = fz : playerVZ = 0 : rocketAir = 0
+                playerZ = fz : playerVZ = 0 : rocketAir = 0 : jumpAir = 0
                 IF padAir THEN padAir = 0 : knockX = knockX * 0.3 : knockY = knockY * 0.3 ' (landed from a pad: your feet again)
             END IF
         ELSE
-            rocketAir = 0 ' (on the ground: a rocket jump's over)
+            rocketAir = 0 : jumpAir = 0 ' (on the ground: a rocket jump's over)
         END IF
         IF fz <= PIT_DEPTH AND playerZ < -0.6 AND NOT dead AND NOT godMode AND liftCell(INT(playerX), INT(playerY)) = 0 THEN damage = 999 : hurtFromX = -1 : hurtFromY = -1 : HurtPlayer : ShowMsg "You fell into the dark"
     END IF

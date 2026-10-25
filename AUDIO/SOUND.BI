@@ -53,6 +53,8 @@ CONST SFX_HEADROOM = 1.6
 DIM SHARED sfxLoad!, sfxThis&(32), sfxThisV!(32), sfxThisN AS INTEGER, earDX, earDY, sfxFrameT! ' (sfxFrameT!: when SfxFrame last ran)
 earDX = 1 : earDY = 0
 sndHurt2& = LoadSnd&("hurt2.wav") : sndHurt3& = LoadSnd&("hurt3.wav")
+DIM SHARED sndJump&(3) ' (a jump's grunt: JumpGrunt& picks one)
+sndJump&(1) = LoadSnd&("jump.wav") : sndJump&(2) = LoadSnd&("jump2.wav") : sndJump&(3) = LoadSnd&("jump3.wav")
 sndKick& = LoadSnd&("kick.wav") : sndKickSwing& = LoadSnd&("kick-swing.wav")
 IF sndKick& = 0 THEN sndKick& = LoadSnd&("bump.wav")
 gunSnd&(1) = LoadSnd&("shoot.wav") : gunSnd&(2) = LoadSnd&("scatter.wav") : gunSnd&(3) = LoadSnd&("repeater.wav")

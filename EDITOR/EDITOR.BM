@@ -25,9 +25,10 @@ SUB EditEnter STATIC
     achCheat = -1 ' (in the editor you can put anything anywhere: achievements wait for a new game - but the editor's own)
     WorldLoopsOff ' (the world stops: so do its sounds)
     EditReset
-    IF editFresh OR level <> levelWas THEN editDirty = 0 : editUndoN = 0 : editRedoN = 0 : EditFitMap ' (a new sector: its map fitted to the view) ' (back in after F2 to try it: the changes not saved yet, and their undo, still there)
+    edStateBack = 0
+    IF editFresh OR level <> levelWas THEN editDirty = 0 : editUndoN = 0 : editRedoN = 0 : edStateBack = EditStateLoad : IF NOT edStateBack THEN EditFitMap ' (a new sector: as you left it when you saved it (EditStateLoad) - or its map fitted to the view) ' (back in after F2 to try it: the changes not saved yet, and their undo, still there)
     editFresh = 0
-    editMode = -1 : editView = 0 : editLights = 0 : mapOpen = 0
+    IF edStateBack THEN editMode = -1 : mapOpen = 0 ELSE editMode = -1 : editView = 0 : editLights = 0 : mapOpen = 0 ' (its saved state: in the view and with the tool it had)
     IF edFullBright THEN litAll = 3 ' (FULL BRIGHT on from last time: every cell lit so)
     levelWas = level
     IF editGlyph$ = "" THEN editGlyph$ = "#"
@@ -266,6 +267,10 @@ FUNCTION EditUsualPic$(kind, x, y, side)
             END IF
         CASE ED_BOX : bi = EditBoxIndex(x, y) : p$ = lvlWall$(1) : IF bi THEN IF lvlBox(bi, 7) >= 1 AND lvlBox(bi, 7) <= 6 THEN p$ = lvlWall$(lvlBox(bi, 7))
         CASE ED_STEP : p$ = lvlWall$(1) : IF liftCell(x, y) THEN p$ = "" ' (a lift's side: made, so none by name)
+        CASE ED_DEDGE ' (a door's edges: the door's own picture, if it's a file)
+            w = PcDoorUsual(x, y, MID$(lvlRow$(y), x + 1, 1))
+            IF w = T_DOOR OR w = T_SHUTTER OR w = T_SPLIT OR w = T_STRONG OR w = T_KEYPAD THEN p$ = texName$(w)
+        CASE ED_TRACK : p$ = texName$(T_SHUTTER)
         CASE ELSE : p$ = lvlWall$(1)
     END SELECT
     EditUsualPic$ = p$
@@ -599,6 +604,8 @@ SUB EditPaneClick STATIC
         CASE 507 : edPrScroll = edPrScroll + 1
         CASE 508 TO 510 ' SAVE, REPLACE, DELETE
             PrOp pnHit - 507, 0
+        CASE 511 ' Held open, up or down - in the editor only (O; Shift+click: as in play)
+            EditHoldToggle edPnCX, edPnCY, (_KEYDOWN(100304) OR _KEYDOWN(100303))
         CASE 376 TO 379 ' ITS LOOK: tinted - none, TINT, WASH, GLOW
             EditLookOp 1, pnHit - 376
         CASE 380, 381 ' ...how much (10 - Shift: 1)
@@ -1321,11 +1328,11 @@ SUB RunEditor STATIC
                 CASE 25 : EditRedoStep ' Ctrl+Y
                 CASE 108, 76 ' L: the light tool (again: back to placing)
                     IF edTool = ET_LIGHT THEN edTool = ET_PLACE ELSE edTool = ET_LIGHT
-                    IF edTool = ET_LIGHT THEN EditNote "LIGHTS: click adds, right-click takes away, 1-8 the colour" ELSE EditNote "PLACE: paint with the mouse"
+                    IF edTool = ET_LIGHT THEN EditNote "LIGHTS: click adds, right-click takes away (the picker's LIGHTS: the colour)" ELSE EditNote "PLACE: paint with the mouse"
                 CASE 104, 72 ' H: the height tool
                     IF edTool = ET_HEIGHT THEN edTool = ET_PLACE ELSE edTool = ET_HEIGHT
                     IF edTool = ET_HEIGHT THEN EditNote "HEIGHTS: click raises the floor, right-click lowers it (Shift: the ceiling)" ELSE EditNote "PLACE: paint with the mouse"
-                CASE 49 TO 56 : EditLightPreset k& - 49 : EditNote "Light: " + LightPresetName$(editLightP)
+                CASE 49 TO 56 : EditNumKey k& - 48 ' 1-8: SELECT, PLACE, PAINT, LIGHT, HEIGHT, SECTOR, VERSIONS, the picker open
                 CASE 101, 69 ' E: pick up the cell under the mouse as the brush of the tool in use - PAINT: its floor's picture (Ctrl: its ceiling's; a wall: its own); any other: what's in it. The tool stays as it is.
                     IF onMap THEN EditPickCell cx, cy, _KEYDOWN(100305) OR _KEYDOWN(100306) ELSE EditNote "Point at a cell to pick it up"
                 CASE 116, 84 ' T: teleport you to the cell under the mouse
@@ -1581,10 +1588,14 @@ SUB EditFP STATIC
                         END IF
                     ELSEIF edAlt THEN
                         EditPickPicture ' (the face's picture, as PAINT's brush)
-                    ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) AND edBrushTex$ <> "" THEN
-                        EditSelKeep 0 : EditSelFlood edHovKind, edHovX, edHovY : EditPaintSel : EditSelKeep -1 ' (what you'd selected, back as it was)
-                    ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND edHovKind = ED_WALL AND edBrushTex$ <> "" THEN ' (a wall's whole side: EditSelWallFlood)
-                        EditSelKeep 0 : EditSelWallFlood edHovX, edHovY, edHovSide : n = edSelN : EditPaintSel : EditSelKeep -1 : EditNote "Painted" + STR$(n) + " faces of that wall"
+                    ELSEIF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' Ctrl+click: the face (or piece) selected - never painted; Ctrl+Shift: added to the selection, or taken out
+                        IF edHovThing THEN
+                            EditNote "That's a thing, not a face - SELECT selects it"
+                        ELSEIF edShift THEN
+                            EditSelToggle edHovKind, edHovX, edHovY, edHovSide, edHovPart : EditNote STR$(edSelN) + " selected"
+                        ELSE
+                            edSelN = 0 : EditSelAdd edHovKind, edHovX, edHovY, edHovSide, edHovPart : EditNote "Selected - its look is in the PICTURE pane"
+                        END IF
                     ELSEIF edShift THEN
                         EditPushUndo : EditPaintFace edHovX, edHovY, fc, edHovPart, "" : EditApply : EditNote "The usual picture again"
                         IF NOT edHovThing THEN edSelN = 0 : EditSelAdd edHovKind, edHovX, edHovY, edHovSide, edHovPart ' (and it's the selection: the PICTURE pane shows it)
@@ -1747,6 +1758,7 @@ SUB EditFP STATIC
                 EditJoinSel
             CASE 114, 82 ' R: the picture turned a quarter clockwise (Shift+R: back) - on the face or piece under the pointer, or the selection
                 IF edTool = ET_PAINT THEN EditTexOp 4, 0, 1 + 2 * shiftOn, 0, 0 ELSE EditNote "PAINT turns pictures: R a quarter clockwise, Shift+R back"
+            CASE 111, 79 : EditHoldKey shiftOn ' O: the door under the pointer opened (or shut), a lift or crusher held up or down - in the editor only; Shift+O: as in play
             CASE 109, 77 ' M: the picture flipped left for right (Shift+M: upside down) - as R turns it
                 IF edTool = ET_PAINT THEN EditTexOp 10 - shiftOn, 0, 0, 0, 0 ELSE EditNote "PAINT flips pictures: M left for right, Shift+M upside down"
             CASE 122, 90 ' Z: that cell's floor - the next of the level's four (a zone one cell big)
@@ -1759,7 +1771,7 @@ SUB EditFP STATIC
                 IF frontX >= 0 THEN EditPushUndo : EditAddLight frontX + 0.5, frontY + 0.5 : EditApply
             CASE 107, 75
                 EditPushUndo : EditRemoveLight playerX, playerY : EditApply
-            CASE 49 TO 56 : EditLightPreset k& - 49 : EditNote "Light: " + LightPresetName$(editLightP)
+            CASE 49 TO 56 : EditNumKey k& - 48 ' 1-8: SELECT, PLACE, PAINT, LIGHT, HEIGHT, SECTOR, VERSIONS, the picker open
             CASE 18688, 20736 ' PgUp / PgDn: the floor in front up or down an eighth (with Shift, its ceiling)
                 IF frontX >= 0 THEN
                     d = H_STEP : IF k& = 20736 THEN d = -H_STEP
@@ -1903,7 +1915,7 @@ SUB EditPcStartHere(kind, x, y, side, j)
     EditPcTexGet j, ou, ov, kku, kkv
     IF kind = ED_FLOOR OR kind = ED_CEIL THEN
         uu = 100 / kku * (x + pcRU0(j)) : vv = 100 / kkv * (y + pcRV0(j))
-    ELSEIF kind = ED_WALL AND EditDoorIn(x, y) THEN ' (a door's face: its picture runs across it, and down it, once)
+    ELSEIF (kind = ED_WALL AND EditDoorIn(x, y)) OR kind = ED_DEDGE OR kind = ED_TRACK THEN ' (a door's face: its picture runs across it, and down it, once - its edges and track too)
         uu = 100 / kku * pcRU0(j) : vv = 100 / kkv * pcRV0(j)
     ELSEIF kind = ED_DIAG THEN ' (a diagonal's: x across from the map's grid, the way the picture runs - as GLFaceTex has it)
         EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
@@ -1924,6 +1936,23 @@ SUB EditPcStartHere(kind, x, y, side, j)
     END IF
     ou = (ou + INT((uu - INT(uu)) * 64 + 0.5)) AND 63 : ov = (ov + INT((vv - INT(vv)) * 64 + 0.5)) AND 63
     EditPcTexSet j, ou, ov, kku, kkv : ptA(j) = 1
+END SUB
+
+' How far piece j of a face reaches across (w) and down (h), in what its
+' picture is measured by from the piece's corner (START AT PIECE): a cell
+' along a wall or floor, a wall's height up it - a door's face, its own
+' width and height, once; FIT: the piece is 1 each way
+SUB EditPcSpan(kind, x, y, side, j, w, h)
+    DIM ax, ay, bx, by, ok, z0, z1 ' (its own: the main program shares these names)
+    w = 1 : h = 1
+    IF PcRects(ptShape$) < j OR j < 1 THEN EXIT SUB
+    IF ptA(j) = 2 THEN EXIT SUB
+    w = pcRU1(j) - pcRU0(j) : h = pcRV1(j) - pcRV0(j)
+    IF kind = ED_FLOOR OR kind = ED_CEIL THEN EXIT SUB
+    IF (kind = ED_WALL AND EditDoorIn(x, y)) OR kind = ED_DEDGE OR kind = ED_TRACK THEN EXIT SUB
+    EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
+    h = h * (z1 - z0)
+    IF kind <> ED_DIAG THEN w = w * SQR((bx - ax) ^ 2 + (by - ay) ^ 2)
 END SUB
 
 ' Piece j's look in words - slid, stretched, turned, tinted ("" as made)
@@ -1962,7 +1991,7 @@ SUB EditDivideSel(dir$)
     FOR k = 1 TO nf
         fc = EditFaceCode(fK(k), fS(k))
         IF fK(k) = -1 THEN _CONTINUE ' (done with its face already)
-        IF fc < 1 OR fc > FACE_MAX THEN EditSelAdd fK(k), fX(k), fY(k), fS(k), fP(k) : _CONTINUE
+        IF fc < 1 OR fc > FACE_DIAG THEN EditSelAdd fK(k), fX(k), fY(k), fS(k), fP(k) : _CONTINUE ' (a door's edges and track stay whole)
         EditTreeGet fX(k), fY(k), fc
         whole = 0 : FOR j = 1 TO PC_LEAF + 1 : mk(j) = 0 : NEXT
         FOR i = k TO nf ' (every part of this face that's selected)
@@ -2087,7 +2116,7 @@ END SUB
 ' corner, 2 fitted to the piece). A colour or amount on a picture not tinted tints it (TINT). One
 ' undo for a run of presses. fromPane: the selection, always.
 SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
-    DIM fc, fwX, fwY, i, j, j0, j1, n, ou, ov, ku, kv, useSel, mx, my, kd, fx, fy, sd, pt, w, kn, sv, cr, cg, cb, lastJ, t$ ' (its own: the main program shares these names)
+    DIM fc, fwX, fwY, i, j, j0, j1, n, ou, ov, ku, kv, useSel, mx, my, kd, fx, fy, sd, pt, w, kn, sv, cr, cg, cb, lastJ, t$, spW, spH ' (its own: the main program shares these names)
     useSel = fromPane
     IF NOT useSel THEN
         IF edHovKind = 0 OR edHovThing THEN
@@ -2127,8 +2156,16 @@ SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
                     w = MaxOf(TEX_K_MIN, MinOf(TEX_K_MAX, w))
                     IF op = 1 THEN ku = w ELSE kv = w
                 CASE 4 : ptRot(j) = (ptRot(j) AND 4) OR ((ptRot(j) + dir + 4) AND 3) ' (turned as you see it: flipped stays flipped)
-                CASE 10 : ptRot(j) = (4 - (ptRot(j) AND 4)) OR ((4 - (ptRot(j) AND 3)) AND 3) ' (flipped left for right, as you see it - after its turn: its turn the other way round)
-                CASE 11 : ptRot(j) = (4 - (ptRot(j) AND 4)) OR ((6 - (ptRot(j) AND 3)) AND 3) ' (flipped upside down: left for right, then half a turn)
+                CASE 10, 11 ' Flipped: what the piece shows, mirrored where it is (not the whole picture: a piece is a window onto it)
+                    IF ptA(j) = 0 THEN EditPcStartHere kd, fx, fy, sd, j : EditPcTexGet j, ou, ov, ku, kv ' (from its own corner first, showing the same)
+                    EditPcSpan kd, fx, fy, sd, j, spW, spH
+                    IF op = 10 THEN
+                        ptRot(j) = (4 - (ptRot(j) AND 4)) OR ((4 - (ptRot(j) AND 3)) AND 3) ' (the picture left for right, as you see it - after its turn: its turn the other way round)
+                        ou = (64 - ou - INT(6400 / ku * spW + 0.5)) AND 63 ' (slid so the piece's far edge is where its near one was: s' = 1 - s - stretch x width)
+                    ELSE
+                        ptRot(j) = (4 - (ptRot(j) AND 4)) OR ((6 - (ptRot(j) AND 3)) AND 3) ' (upside down: left for right, then half a turn)
+                        ov = (64 - ov - INT(6400 / kv * spH + 0.5)) AND 63
+                    END IF
                 CASE 5 : ptTM(j) = st
                 CASE 6 : ptTA(j) = MaxOf(0, MinOf(100, ptTA(j) + dir * st)) : IF ptTM(j) = 0 THEN ptTM(j) = 1
                 CASE 7 : ptTC(j) = k& AND &HFFFFFF : IF ptTM(j) = 0 THEN ptTM(j) = 1
@@ -2435,6 +2472,7 @@ SUB EditSave(lev)
     WriteLevelFile f$
     Achieve "NC_ARCHITECT", -1
     editDirty = 0
+    EditStateSave ' (the editor as it is - view, tools, grid, undo and redo - kept with it: EDITOR/SESSION.BM)
     IF edVerPane THEN EditVerList ' (its .bak is the save before this one now)
     EditNote "Saved " + f$ + warn$
 END SUB
@@ -2737,7 +2775,7 @@ SUB EditRay(sx, sy, rdx, rdy, rdz)
 END SUB
 
 SUB EditPick(sx, sy)
-    DIM bt, f, mx, my, nx, ny, t, dk, dh, dt, du, dsd, dlx, dly, dbk, tLim, dg, dgt ' (its own: the main program shares these names)
+    DIM bt, f, mx, my, nx, ny, t, dk, dh, dt, du, dsd, dlx, dly, dbk, tLim, dg, dgt, dr, zsb, thx, thy ' (its own: the main program shares these names)
     edHovKind = 0
     EditRay sx, sy, rdx, rdy, rdz
     ex = edCamPX : ey = edCamPY : ez = eyeZ
@@ -2773,20 +2811,46 @@ SUB EditPick(sx, sy)
                 IF dgt >= 0 THEN tLim = dgt : dh = 2 : dt = dgt
             END IF
             IF dk THEN ' (a doorway: its floor and ceiling either side of the door, up to the door's slab across its middle)
-                IF DoorRay(mx, my, ex, ey, rdx, rdy, dt, du, dsd, dlx, dly, dbk) THEN
-                    IF dt >= tIn - 0.001 AND dt <= tOut THEN tLim = dt : dh = -1
+                dr = DoorRay(mx, my, ex, ey, rdx, rdy, dt, du, dsd, dlx, dly, dbk)
+                IF dr THEN
+                    IF dt >= tIn - 0.001 AND dt <= tOut THEN
+                        IF doorType(mx, my) = DOOR_SHUTTER THEN ' (a shutter's face: from its bottom up - under it, through)
+                            IF ez + rdz * dt >= floorH(mx, my) + DoorShown(mx, my) * (ceilH(mx, my) - floorH(mx, my)) THEN tLim = dt : dh = -1
+                        ELSE
+                            tLim = dt : dh = -1 : IF dr = 2 THEN dh = 3 ' (3: its edge)
+                        END IF
+                    END IF
+                END IF
+                IF doorType(mx, my) = DOOR_SHUTTER AND rdz > 0 AND DoorShown(mx, my) > 0 THEN ' (a lifted shutter's underside, from below)
+                    zsb = floorH(mx, my) + DoorShown(mx, my) * (ceilH(mx, my) - floorH(mx, my))
+                    IF ez < zsb THEN
+                        t = (zsb - ez) / rdz
+                        IF t >= tIn - 0.001 AND t <= tLim THEN
+                            thx = ex + rdx * t : thy = ey + rdy * t
+                            IF ABS(EditDoorN(mx, my, thx, thy)) <= DOOR_THICK / 2 THEN EditHit ED_DEDGE, mx, my, 0, thx, thy, zsb : EXIT SUB
+                        END IF
+                    END IF
                 END IF
             END IF
             f = floorH(mx, my) : cz = ceilH(mx, my) : zOut = ez + rdz * tLim
             IF rdz < 0 AND zOut < f THEN
                 t = (f - ez) / rdz
-                IF t >= tIn - 0.001 THEN EditHit ED_FLOOR, mx, my, 0, ex + rdx * t, ey + rdy * t, f : EXIT SUB
+                IF t >= tIn - 0.001 THEN
+                    thx = ex + rdx * t : thy = ey + rdy * t
+                    IF dk THEN IF doorType(mx, my) <> DOOR_EXIT AND ABS(EditDoorN(mx, my, thx, thy)) < TRACK_HALF THEN EditHit ED_TRACK, mx, my, 0, thx, thy, f : EXIT SUB ' (its track)
+                    EditHit ED_FLOOR, mx, my, 0, thx, thy, f : EXIT SUB
+                END IF
             END IF
             IF rdz > 0 AND zOut > cz THEN
                 t = (cz - ez) / rdz
-                IF t >= tIn - 0.001 THEN EditHit ED_CEIL, mx, my, 0, ex + rdx * t, ey + rdy * t, cz : EXIT SUB
+                IF t >= tIn - 0.001 THEN
+                    thx = ex + rdx * t : thy = ey + rdy * t
+                    IF dk THEN IF doorType(mx, my) <> DOOR_EXIT AND ABS(EditDoorN(mx, my, thx, thy)) < TRACK_HALF THEN EditHit ED_TRACK, mx, my, 0, thx, thy, cz : EXIT SUB
+                    EditHit ED_CEIL, mx, my, 0, thx, thy, cz : EXIT SUB
+                END IF
             END IF
             IF dh = 2 THEN EditHit ED_DIAG, mx, my, 0, ex + rdx * dt, ey + rdy * dt, ez + rdz * dt : EXIT SUB ' (the diagonal's slanted face)
+            IF dh = 3 THEN EditHit ED_DEDGE, mx, my, 0, ex + rdx * dt, ey + rdy * dt, ez + rdz * dt : EXIT SUB ' (the door's edge)
             IF dh THEN ' (the door itself: its face towards you - the side it's painted on)
                 IF DoorAcross(mx, my) = 0 THEN
                     dsd = 2 : IF rdy > 0 THEN dsd = 4
@@ -3109,20 +3173,20 @@ SUB EditDrawHelp(v)
     IF v = 1 THEN
         h$ = "#MOVE AND LOOK|walk keys~fly that way - through walls|look up + walk~climb (look down: sink)|Space / C~straight up / down|Shift~faster|hold Right~look round (crosshair picks)|Tab~the map from above|F2~play the level as it is|"
         h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor, ceiling, or wall side|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
-        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|  Shift+arrows~slide its picture (Ctrl: 1 px)|  Shift+[ ] - =~stretch it: wide, tall|  Shift+Home~the picture as made|  Ctrl+C / Ctrl+V~copy / paste a face's look|LIGHT~a light on the face|  Shift~take it away|  its pane~CEILING LAMP on/off, REMOVE|  painted ceiling~stays: the light shines from it|HEIGHT~floor/ceiling up; Shift down|"
+        h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl+click~select the face (Shift: add)|  Shift / E~the usual / pick it up|  Shift+arrows~slide its picture (Ctrl: 1 px)|  Shift+[ ] - =~stretch it: wide, tall|  Shift+Home~the picture as made|  Ctrl+C / Ctrl+V~copy / paste a face's look|LIGHT~a light on the face|  Shift~take it away|  its pane~CEILING LAMP on/off, REMOVE|  painted ceiling~stays: the light shines from it|HEIGHT~floor/ceiling up; Shift down|"
         h$ = h$ + "#THE WHEEL (the selection)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
-        h$ = h$ + "#FACES IN PIECES|H / V~divide: left-right, top-bottom|  on a piece~divide it again (4 deep)|  a halved face~whole again|J~join a piece back up|click a piece~select / paint it alone|R / Shift+R~turn its picture (PAINT)|M / Shift+M~flip it left-right / upside down|"
+        h$ = h$ + "#FACES IN PIECES|H / V~divide: left-right, top-bottom|  on a piece~divide it again (4 deep)|  a halved face~whole again|J~join a piece back up|click a piece~select / paint it alone|R / Shift+R~turn its picture (PAINT)|M / Shift+M~flip it left-right / upside down|O~open a door, hold a lift up / down|  Shift+O~as in play (at nothing: all)|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
         h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|PAINT + selection~PICTURE pane: slide, stretch,|~  turn, tint (any colour), as made|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
-        h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Alt+L~full bright: everything lit evenly|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|U~the HUD layout editor|F1~this sheet|"
-        h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|1-8~light presets|PgUp/PgDn~floor up/down (Shift: ceil)"
+        h$ = h$ + "#VIEW AND FILE|1-5~SELECT PLACE PAINT LIGHT HEIGHT|6 / 7 / 8~SECTOR / VERSIONS / picker open|G / Shift+G~grid on-off / stronger|Alt+L~full bright: everything lit evenly|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|U~the HUD layout editor|F1~this sheet|"
+        h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|PgUp/PgDn~floor up/down (Shift: ceil)"
         t$ = "EDITOR CHEATSHEET - 3D VIEW"
     ELSE
         h$ = "#THE TOOLS (toolbar)|SELECT~click a cell, drag a box|  Shift~add to the selection|PLACE~paint the brush; drag on|  Shift+drag~a box of it|  Right click~pick up what's there|  FLOORS: open floor~a room bigger|PAINT~picture on a floor, or|~  on a wall's four sides|E~pick up the cell (the tool's)|  Ctrl / Shift~ceiling / the usual|LIGHT~a light; Right: take away|HEIGHT~floor up; Right: down|  Shift~the ceiling|"
         h$ = h$ + "#THE WHEEL|on the picker~scroll it|on the map~selected floors up / down|  Ctrl~their ceilings|elsewhere~the brush back / on|"
         h$ = h$ + "#THE SELECTION|arrows~move it a cell (up is north)|drag it~move it with the mouse|Del~delete it|Ctrl+D~select nothing|its pane~door, pad, light, monster,|~  event, lift, floor, triggers|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT drag~pour it on (Shift: drain)|"
-        h$ = h$ + "#KEYS|L / H~the LIGHT / HEIGHT tool|[ ]~the brush back / on|1-8~light presets|G / Shift+G~grid on-off / stronger|T~put yourself at the mouse|PgUp/PgDn~the sector before / after|M~the monster kinds editor|U~the HUD layout editor|"
+        h$ = h$ + "#KEYS|1-5~SELECT PLACE PAINT LIGHT HEIGHT|6 / 7 / 8~SECTOR / VERSIONS / picker open|L / H~the LIGHT / HEIGHT tool|[ ]~the brush back / on|G / Shift+G~grid on-off / stronger|T~put yourself at the mouse|PgUp/PgDn~the sector before / after|M~the monster kinds editor|U~the HUD layout editor|"
         h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Alt+L~full bright (in 3D)|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|F1~this sheet"
         t$ = "EDITOR CHEATSHEET - THE MAP FROM ABOVE"
     END IF
@@ -3733,6 +3797,7 @@ SUB EditPaneLay
                 EditPaneAdd -1, x0, y + 144, PN_W, "KEYPAD CODE: " + t$, 0
                 IF edTyping AND edTypeFor = 3 THEN t$ = "OK" ELSE t$ = "TYPE"
                 EditPaneAdd 256, x0, y + 165, 64, t$, (edTyping AND edTypeFor = 3) : EditPaneAdd 257, x0 + 67, y + 165, 64, "RANDOM", 0 : EditPaneAdd 258, x0 + 134, y + 165, 64, "NONE", 0
+                IF editView = 1 THEN EditPaneAdd 511, x0, y + 190, PN_W, EditHoldLabel$(edPnCX, edPnCY), (edHeld(edPnCX, edPnCY) = 1) ' (open it, to paint its edges and track)
             END IF
             EXIT SUB
         END IF
@@ -3900,6 +3965,8 @@ SUB EditPaneLay
                 CASE ELSE : t$ = "UP AND DOWN"
             END SELECT
             EditPaneAdd 27, x0, y, 130, t$, 0 : EditPaneAdd 28, x0 + 134, y, 66, "REMOVE", 0
+            edPnCX = edSelX(k) : edPnCY = edSelY(k)
+            IF editView = 1 THEN EditPaneAdd 511, x0, y + 25, PN_W, EditHoldLabel$(edPnCX, edPnCY), (edHeld(liftX0(lf), liftY0(lf)) <> 0) ' (held up or down, to paint it there)
             EXIT SUB
         END IF
     NEXT
@@ -4145,6 +4212,10 @@ SUB EditPanePicture(x0, y)
     NEXT
     edPnTitle$ = "PICTURE (" + LTRIM$(STR$(n)) + " selected)"
     IF n = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "SELECT FACES TO SLIDE THEIR PICTURES", 0 : y = y + 23 : EXIT SUB
+    IF EditHoldThing(edSelX(k1), edSelY(k1), c) THEN ' (a door or lift: opened, held up or down - to paint it so)
+        edPnCX = edSelX(k1) : edPnCY = edSelY(k1)
+        EditPaneAdd 511, x0, y, PN_W, EditHoldLabel$(edPnCX, edPnCY), 0 : y = y + 23
+    END IF
     EditTreeGet edSelX(k1), edSelY(k1), EditFaceCode(edSelKind(k1), edSelSide(k1)) ' (the first one's look: its piece's - or its first piece's)
     pj = edSelPart(k1) : IF pj < 1 OR pj > ptN THEN pj = 0
     IF ptN > 1 THEN
@@ -4422,6 +4493,8 @@ FUNCTION EditFaceCode(kind, side)
         CASE ED_LINTEL : EditFaceCode = side + 4
         CASE ED_BOX : EditFaceCode = FACE_BOX + side
         CASE ED_DIAG : EditFaceCode = FACE_DIAG
+        CASE ED_DEDGE : EditFaceCode = FACE_DEDGE
+        CASE ED_TRACK : EditFaceCode = FACE_TRACK
         CASE ELSE : EditFaceCode = side
     END SELECT
 END FUNCTION
@@ -4445,7 +4518,7 @@ END FUNCTION
 ' Where a click with PLACE or LIGHT goes for a face: a floor or ceiling's
 ' own cell; a wall's (a step's, a lintel's) the open cell in front of it
 SUB EditFaceCell(kind, x, y, side, tx, ty)
-    IF kind = ED_FLOOR OR kind = ED_CEIL OR kind = ED_BOX THEN tx = x : ty = y ELSE EditFaceFront x, y, side, tx, ty ' (a box's side: the cell it stands in)
+    IF kind = ED_FLOOR OR kind = ED_CEIL OR kind = ED_BOX OR kind = ED_DEDGE OR kind = ED_TRACK THEN tx = x : ty = y ELSE EditFaceFront x, y, side, tx, ty ' (a box's side: the cell it stands in; a door's edge, its track: the doorway)
     IF kind = ED_DIAG THEN ' (a diagonal's: the open cell beside its open half - its solid corner's the other way)
         tx = x - SGN(EditDiagDX(diagCorner(x, y))) : ty = y
         IF NOT EditCellOpen(tx, ty) THEN tx = x : ty = y - SGN(EditDiagDY(diagCorner(x, y)))
@@ -4454,8 +4527,8 @@ END SUB
 
 ' A face's kind in words: WALL, FLOOR... DIAGONAL
 FUNCTION EditKindName$(kind)
-    IF kind < 1 OR kind > 7 THEN EXIT FUNCTION
-    EditKindName$ = RTRIM$(MID$("WALL    FLOOR   CEILING STEP    LINTEL  BLOCK   DIAGONAL", kind * 8 - 7, 8))
+    IF kind < 1 OR kind > 9 THEN EXIT FUNCTION
+    EditKindName$ = RTRIM$(MID$("WALL     FLOOR    CEILING  STEP     LINTEL   BLOCK    DIAGONAL DOOR EDGETRACK    ", kind * 9 - 8, 9))
 END FUNCTION
 
 ' A diagonal's solid corner (1 top left, 2 top right, 3 bottom right, 4
@@ -4602,6 +4675,8 @@ SUB EditDrawSelMap
             CASE ED_FLOOR, ED_CEIL
                 LINE (sx + 1, sy + 1)-STEP(edCell - 3, edCell - 3), c~&, B
                 IF edSelKind(k) = ED_CEIL THEN LINE (sx + 3, sy + 3)-STEP(edCell - 7, edCell - 7), c~&, B ' (a ceiling: a box in a box)
+            CASE ED_DEDGE, ED_TRACK ' (a door's edges, its track: along its middle)
+                IF DoorAcross(edSelX(k), edSelY(k)) = 0 THEN LINE (sx, sy + edCell \ 2 - 1)-STEP(edCell - 1, 1), c~&, BF ELSE LINE (sx + edCell \ 2 - 1, sy)-STEP(1, edCell - 1), c~&, BF
             CASE ELSE
                 SELECT CASE edSelSide(k)
                     CASE 1 : LINE (sx + edCell - 2, sy)-STEP(1, edCell - 1), c~&, BF
@@ -4791,7 +4866,7 @@ END SUB
 ' An upright face's place: the edge it's on, (ax, ay) to (bx, by), and its
 ' bottom and top, z0 and z1
 SUB EditFaceRect(kind, x, y, side, ax, ay, bx, by, z0, z1, ok)
-    DIM x0, y0, y1 ' (its own: the main program shares these names)
+    DIM e, x0, y0, y1 ' (its own: the main program shares these names)
     ok = 0
     IF kind = ED_BOX THEN ' (a box's side: where it stands in its cell, floor to ceiling)
         IF boxOn(x, y) = 0 THEN EXIT SUB
@@ -4809,6 +4884,17 @@ SUB EditFaceRect(kind, x, y, side, ax, ay, bx, by, z0, z1, ok)
         IF diagCorner(x, y) = 0 THEN EXIT SUB
         IF diagCorner(x, y) = 1 OR diagCorner(x, y) = 3 THEN ax = x : ay = y + 1 : bx = x + 1 : by = y ELSE ax = x : ay = y : bx = x + 1 : by = y + 1
         IF diagCorner(x, y) > 2 THEN SWAP ax, bx : SWAP ay, by
+        z0 = floorH(x, y) : z1 = ceilH(x, y) : ok = -1
+        EXIT SUB
+    END IF
+    IF kind = ED_DEDGE THEN ' (a door's edge - a sliding door's, a split door's first: square to it, across its thickness; a shutter's underside is flat - EditFaceOutline)
+        IF NOT EditDoorIn(x, y) OR doorType(x, y) = DOOR_SHUTTER OR doorType(x, y) = DOOR_EXIT THEN EXIT SUB
+        e = DoorShown(x, y) : IF doorType(x, y) = DOOR_SPLIT THEN e = 0.5 - e / 2
+        IF DoorAcross(x, y) = 0 THEN
+            ax = x + e : bx = ax : ay = y + 0.5 - DOOR_THICK / 2 : by = y + 0.5 + DOOR_THICK / 2
+        ELSE
+            ay = y + e : by = ay : ax = x + 0.5 - DOOR_THICK / 2 : bx = x + 0.5 + DOOR_THICK / 2
+        END IF
         z0 = floorH(x, y) : z1 = ceilH(x, y) : ok = -1
         EXIT SUB
     END IF
@@ -4846,6 +4932,7 @@ END SUB
 FUNCTION EditFacePart(kind, x, y, side, hx, hy, hz)
     DIM ax, ay, bx, by, ok, t, u, v, z0, z1 ' (its own: the main program shares these names)
     EditFacePart = 0
+    IF kind = ED_DEDGE OR kind = ED_TRACK THEN EXIT FUNCTION ' (a door's edges and track: whole, never in pieces)
     EditTreeGet x, y, EditFaceCode(kind, side) : IF ptN < 2 THEN EXIT FUNCTION
     IF kind = ED_FLOOR OR kind = ED_CEIL THEN
         u = hx - x : v = hy - y
@@ -4976,6 +5063,21 @@ SUB EditFaceOutline(kind, x, y, side, part, col~&)
             IF kind = ED_FLOOR THEN z = floorH(x, y) ELSE z = ceilH(x, y)
         CASE ED_WALL, ED_STEP, ED_LINTEL, ED_BOX, ED_DIAG
             EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
+        CASE ED_TRACK, ED_DEDGE ' (a door's track, floor and ceiling; its edges - a shutter's underside)
+            IF col~& = 0 THEN EXIT SUB
+            IF kind = ED_TRACK THEN
+                EditDoorStrip x, y, TRACK_HALF, floorH(x, y) + 0.01, col~& : EditDoorStrip x, y, TRACK_HALF, ceilH(x, y) - 0.01, col~&
+            ELSEIF doorType(x, y) = DOOR_SHUTTER THEN
+                EditDoorStrip x, y, DOOR_THICK / 2, floorH(x, y) + DoorShown(x, y) * (ceilH(x, y) - floorH(x, y)) - 0.01, col~&
+            ELSE
+                EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
+                EditFaceBox kind, x, y, 2, ax, ay, bx, by, 0, z0, z1, 0, 0, 1, 1, col~&
+                IF doorType(x, y) = DOOR_SPLIT THEN ' (and its other edge)
+                    IF DoorAcross(x, y) = 0 THEN ax = 2 * x + 1 - ax : bx = ax ELSE ay = 2 * y + 1 - ay : by = ay
+                    EditFaceBox kind, x, y, 2, ax, ay, bx, by, 0, z0, z1, 0, 0, 1, 1, col~&
+                END IF
+            END IF
+            EXIT SUB
         CASE ELSE : EXIT SUB
     END SELECT
     EditTreeGet x, y, EditFaceCode(kind, side) : n = PcRects(ptShape$)
@@ -5069,6 +5171,7 @@ SUB EditDrawFaces
         IF NOT edLooking THEN
             n$ = EditKindName$(edHovKind)
             IF edHovKind = ED_WALL THEN IF EditDoorIn(edHovX, edHovY) THEN n$ = "DOOR"
+            IF edHovKind = ED_TRACK THEN n$ = "DOOR TRACK"
             IF edHovThing THEN n$ = GlyphName$(CellGlyph$(edHovX, edHovY)) : IF INSTR(n$, " (") THEN n$ = LEFT$(n$, INSTR(n$, " (") - 1) ' (its name, not the note after it)
             IF edHovThing THEN n$ = UCASE$(LEFT$(n$, 20))
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
@@ -5195,7 +5298,26 @@ END SUB
 FUNCTION LightPresetName$(p)
     LightPresetName$ = RTRIM$(MID$("white      cyan       magenta    orange     green      red alarm  flickering firelight  ", p * 11 + 1, 11))
 END FUNCTION
-' Preset p (0-7: the keys 1-8) as the light brush - a room's light, five
+' The keys 1-8: a tool (1 SELECT, 2 PLACE, 3 PAINT, 4 LIGHT, 5 HEIGHT) or
+' a pane (6 THE SECTOR, 7 VERSIONS) - as its toolbar button - or 8 the
+' picker opened and left open (8 again: tucked away)
+SUB EditNumKey(n)
+    SELECT CASE n
+        CASE 1 : tbHit = TB_SELECT
+        CASE 2 : tbHit = TB_PLACE
+        CASE 3 : tbHit = TB_PAINT
+        CASE 4 : tbHit = TB_LIGHT
+        CASE 5 : tbHit = TB_HEIGHT
+        CASE 6 : tbHit = TB_SECTOR
+        CASE 7 : tbHit = TB_VERSIONS
+        CASE ELSE
+            IF edPickOn = -1 THEN edPickOn = 1 : EditNote "Picker: tucked away (8: open it)" ELSE edPickOn = -1 : EditNote "Picker: open (8 again: tucked away)"
+            EXIT SUB
+    END SELECT
+    EditTBClick
+END SUB
+
+' Preset p (0-7) as the light brush - a room's light, five
 ' cells across
 SUB EditLightPreset(p)
     editLightP = p : edLRad = 5 : edLBri = 140 : edLFx = FX_STEADY
@@ -5609,3 +5731,168 @@ FUNCTION EditRectMoved(mv() AS INTEGER, x0, y0, x1, y1)
     NEXT : NEXT
     EditRectMoved = -1
 END FUNCTION
+
+' THE EDITOR'S HOLDS (O): a door held open, a lift or crusher held at its
+' top or bottom, to see and paint them so - its edges, its track, a lift's
+' sides. Only the editor's (edHeld): in play they're as ever.
+
+' Cell (x, y)'s door or lift to hold: 1 a door (not the exit), 2 a lift
+' or crusher (k its number), 0 neither
+FUNCTION EditHoldThing(x, y, k)
+    EditHoldThing = 0 : k = 0
+    IF x < 0 OR y < 0 OR x >= mapN OR y >= mapN THEN EXIT FUNCTION
+    IF EditDoorIn(x, y) THEN IF doorType(x, y) <> DOOR_EXIT THEN EditHoldThing = 1 : EXIT FUNCTION
+    k = liftCell(x, y) : IF k THEN EditHoldThing = 2
+END FUNCTION
+
+' Its button's words: what it is now, and what O does to it
+FUNCTION EditHoldLabel$(x, y)
+    DIM h, k, t ' (its own: the main program shares these names)
+    t = EditHoldThing(x, y, k)
+    IF t = 1 THEN
+        IF edHeld(x, y) = 1 THEN EditHoldLabel$ = "OPEN HERE - SHUT IT (O)" ELSE EditHoldLabel$ = "SHUT - OPEN IT HERE (O)"
+    ELSEIF t = 2 THEN
+        h = edHeld(liftX0(k), liftY0(k))
+        IF h = 1 THEN
+            EditHoldLabel$ = "HELD UP - SEND IT DOWN (O)"
+        ELSEIF h = -1 THEN
+            EditHoldLabel$ = "HELD DOWN - SEND IT UP (O)"
+        ELSEIF liftZ(k) > (liftLow(k) + liftHigh(k)) / 2 THEN
+            EditHoldLabel$ = "RUNNING - HOLD IT DOWN (O)"
+        ELSE
+            EditHoldLabel$ = "RUNNING - HOLD IT UP (O)"
+        END IF
+    END IF
+END FUNCTION
+
+' O on (x, y) - or, if that's neither, the cell in front of the face
+' there: a door opened (or shut again), a lift sent to its other end and
+' held there. release: back as in play (a door shut, a lift running)
+SUB EditHoldToggle(x, y, release)
+    DIM h, k, t ' (its own: the main program shares these names)
+    t = EditHoldThing(x, y, k)
+    IF t = 0 THEN EditNote "O holds a door open, or a lift or crusher up or down - point at one" : EXIT SUB
+    IF t = 1 THEN
+        IF release OR edHeld(x, y) = 1 THEN edHeld(x, y) = 0 ELSE edHeld(x, y) = 1
+        IF edHeld(x, y) THEN EditNote "Door open - in the editor only (O shuts it)" ELSE EditNote "Door shut"
+        EXIT SUB
+    END IF
+    h = edHeld(liftX0(k), liftY0(k))
+    IF release THEN
+        h = 0
+    ELSEIF h = 0 THEN
+        IF liftZ(k) > (liftLow(k) + liftHigh(k)) / 2 THEN h = -1 ELSE h = 1 ' (to the end it's further from)
+    ELSE
+        h = -h
+    END IF
+    edHeld(liftX0(k), liftY0(k)) = h
+    SELECT CASE h
+        CASE 1 : EditNote "Held at the top - in the editor only (O: down, Shift+O: running)"
+        CASE -1 : EditNote "Held at the bottom - in the editor only (O: up, Shift+O: running)"
+        CASE ELSE : EditNote "Running, as in play"
+    END SELECT
+END SUB
+
+' The O key: what's under the pointer (a face's cell, or the cell in front
+' of it - a lift's side), else the first selected. Shift+O: that one back
+' as in play - pointing at nothing, every one
+SUB EditHoldKey(release)
+    DIM k, tx, ty, x, y ' (its own: the main program shares these names)
+    x = -1
+    IF edHovKind THEN
+        x = edHovX : y = edHovY
+        IF EditHoldThing(x, y, k) = 0 THEN EditFaceCell edHovKind, edHovX, edHovY, edHovSide, tx, ty : IF EditHoldThing(tx, ty, k) THEN x = tx : y = ty
+    ELSEIF edSelN THEN
+        x = edSelX(1) : y = edSelY(1)
+    END IF
+    IF x < 0 THEN
+        IF release THEN EditHeldClear : EditNote "Every door and lift as in play" ELSE EditNote "O holds a door open, or a lift or crusher up or down - point at one"
+        EXIT SUB
+    END IF
+    EditHoldToggle x, y, release
+END SUB
+
+' A door's place across its doorway: how far (hx, hy) is from its middle
+' line, square to it
+FUNCTION EditDoorN(x, y, hx, hy)
+    IF DoorAcross(x, y) = 0 THEN EditDoorN = hy - y - 0.5 ELSE EditDoorN = hx - x - 0.5
+END FUNCTION
+
+' A strip along door (x, y)'s middle line, n either side of it, flat at z
+' - its track, a shutter's underside - outlined
+SUB EditDoorStrip(x, y, n, z, col~&)
+    IF DoorAcross(x, y) = 0 THEN
+        EditLine3D x, y + 0.5 - n, z, x + 1, y + 0.5 - n, z, col~& : EditLine3D x + 1, y + 0.5 - n, z, x + 1, y + 0.5 + n, z, col~&
+        EditLine3D x + 1, y + 0.5 + n, z, x, y + 0.5 + n, z, col~& : EditLine3D x, y + 0.5 + n, z, x, y + 0.5 - n, z, col~&
+    ELSE
+        EditLine3D x + 0.5 - n, y, z, x + 0.5 - n, y + 1, z, col~& : EditLine3D x + 0.5 - n, y + 1, z, x + 0.5 + n, y + 1, z, col~&
+        EditLine3D x + 0.5 + n, y + 1, z, x + 0.5 + n, y, z, col~& : EditLine3D x + 0.5 + n, y, z, x + 0.5 - n, y, z, col~&
+    END IF
+END SUB
+
+' Chapter 11, in the editor: door (x, y) shut - or held open - moving
+' there as it does in play
+SUB EditDoorHeld(x, y)
+    DIM sp, want ' (its own: the main program shares these names)
+    want = 0 : IF edHeld(x, y) = 1 AND doorType(x, y) <> DOOR_EXIT THEN want = 1
+    sp = DoorSpeed(doorType(x, y)) : doorMove(x, y) = 0 : doorWait(x, y) = DoorHold(doorType(x, y))
+    IF doorOpen(x, y) < want THEN doorOpen(x, y) = MinOf(want, doorOpen(x, y) + sp)
+    IF doorOpen(x, y) > want THEN doorOpen(x, y) = MaxOf(want, doorOpen(x, y) - sp)
+END SUB
+
+' MoveLifts, in the editor: lift k held up or down? Then it's moved there
+' (and stays) - and the answer's yes; not held, it runs as in play
+FUNCTION EditLiftHeld(k)
+    DIM h, sp, want ' (its own: the main program shares these names)
+    EditLiftHeld = 0
+    h = edHeld(liftX0(k), liftY0(k)) : IF h = 0 THEN EXIT FUNCTION
+    IF h > 0 THEN want = liftHigh(k) ELSE want = liftLow(k)
+    sp = liftSpeed(k) : IF sp <= 0 THEN sp = 0.05
+    IF liftZ(k) < want THEN liftZ(k) = MinOf(want, liftZ(k) + sp) ELSE IF liftZ(k) > want THEN liftZ(k) = MaxOf(want, liftZ(k) - sp)
+    liftDir(k) = 0 : liftWait(k) = 120 : liftWasDir(k) = 0
+    EditLiftCells k
+    EditLiftHeld = -1
+END FUNCTION
+
+' Lift k's cells at its height: their floors - a crusher's, their ceilings
+SUB EditLiftCells(k)
+    DIM x, y ' (its own: the main program shares these names)
+    FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
+        IF liftCell(x, y) = k THEN
+            IF liftMode(k) = LIFT_CRUSHER OR liftMode(k) = LIFT_SMASHER THEN ceilH(x, y) = liftZ(k) ELSE floorH(x, y) = liftZ(k)
+        END IF
+    NEXT : NEXT
+END SUB
+
+' After the editor builds the sector again (BuildLevel): the held doors
+' open and lifts up or down at once, as they were - holds on what's no
+' longer a door or a lift's corner forgotten
+SUB EditHeldSnap
+    DIM d&, h, k, ok, x, y ' (its own: the main program shares these names)
+    FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
+        IF edHeld(x, y) THEN
+            ok = 0
+            IF edHeld(x, y) = 1 AND EditDoorIn(x, y) THEN IF doorType(x, y) <> DOOR_EXIT THEN ok = -1
+            FOR k = 1 TO numLifts : IF liftX0(k) = x AND liftY0(k) = y THEN ok = -1
+            NEXT
+            IF NOT ok THEN edHeld(x, y) = 0
+        END IF
+    NEXT : NEXT
+    FOR d& = 1 TO numDoorCells
+        x = doorCellX(d&) : y = doorCellY(d&)
+        IF edHeld(x, y) = 1 THEN doorOpen(x, y) = 1 : doorMove(x, y) = 0
+    NEXT
+    FOR k = 1 TO numLifts
+        h = edHeld(liftX0(k), liftY0(k))
+        IF h THEN
+            IF h > 0 THEN liftZ(k) = liftHigh(k) ELSE liftZ(k) = liftLow(k)
+            liftDir(k) = 0 : EditLiftCells k
+        END IF
+    NEXT
+END SUB
+
+' Every hold let go (a sector loaded; Shift+O at nothing)
+SUB EditHeldClear
+    DIM x, y ' (its own: the main program shares these names)
+    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE : edHeld(x, y) = 0 : NEXT : NEXT
+END SUB

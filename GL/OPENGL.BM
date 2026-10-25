@@ -1866,8 +1866,18 @@ END FUNCTION
 
 ' The track door (cx, cy) runs in: a dark groove across the floor and the
 ' ceiling, a quarter as bright as the cell (as chapter 14's floor does it)
+' - or, painted (DT), its picture: along the track, and across it as wide
+' as the track is (not squeezed), lit as the cell is
 SUB GLDoorTrack(cx, cy, b)
+    DIM slot, v1 ' (its own: the main program shares these names)
     across = DoorAcross(cx, cy)
+    IF faceAny THEN IF FaceLook(cx, cy, FACE_TRACK) THEN slot = FaceSlot(cx, cy, FACE_TRACK, 0.5, 0.5, T_SHUTTER)
+    IF slot THEN
+        GLSetLight cx, cy, 1, b : v1 = 2 * TRACK_HALF
+        glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = 1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, floorH(cx, cy) + 0.004, 0, v1, slot
+        glFaceNZ = -1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, ceilH(cx, cy) - 0.004, 0, v1, slot
+        EXIT SUB
+    END IF
     GLSetLight cx, cy, 0.25, b
     glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = 1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, floorH(cx, cy) + 0.004, 0.4, 0.5, T_SHUTTER
     glFaceNZ = -1 : GLDoorFlat cx, cy, across, -TRACK_HALF, TRACK_HALF, ceilH(cx, cy) - 0.004, 0.4, 0.5, T_SHUTTER

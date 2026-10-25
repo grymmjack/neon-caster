@@ -34,7 +34,7 @@ DIM SHARED lvlFaceP1$(MAX_FACES), lvlFaceP2$(MAX_FACES)
 DIM SHARED lvlFaceO(MAX_FACES) AS INTEGER ' (its picture's offset: across + 64 * up, each in 64ths of the picture - a pixel of a 64 one - 0-63: the 7th and 8th numbers of a [faces] line)
 DIM SHARED lvlFaceK(MAX_FACES) AS LONG ' (its picture's stretch: across + 2048 * up, each a percentage - 0 as it is, 100 - the 9th and 10th numbers)
 DIM SHARED faceAny AS INTEGER ' (any face with a slot of its own this level: the renderers ask faceTex only then)
-CONST FACE_BOX = 10, FACE_DIAG = 15, FACE_MAX = 15 ' (a box's sides are faces 11 to 14 - FACE_BOX + 1 east .. 4 north: BE, BS, BW, BN; a diagonal wall's slanted face 15, DG)
+CONST FACE_BOX = 10, FACE_DIAG = 15, FACE_DEDGE = 16, FACE_TRACK = 17, FACE_MAX = 17 ' (a box's sides are faces 11 to 14 - FACE_BOX + 1 east .. 4 north: BE, BS, BW, BN; a diagonal wall's slanted face 15, DG; a door's edges - and a shutter's underside - 16, DE; its track in the floor and ceiling 17, DT)
 DIM SHARED faceTex(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceTex2(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER, faceDiv(MAP_SIZE, MAP_SIZE, FACE_MAX) AS INTEGER
 ' A face's picture slid along (across) and up it, in 64ths of the picture (0-63;
 ' floors and ceilings too, faces 9 and 10), and stretched across and up

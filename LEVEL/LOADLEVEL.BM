@@ -561,7 +561,7 @@ SUB BuildLevel STATIC
     FOR k = 1 TO numPads : AddLight padX(k) + 0.5, padY(k) + 0.5, 2.5, 120, 60, 220, FX_PULSE, 0 : NEXT
     numLightsBase = numLights ' (the level's own lights, pads' included: what a save lists - LiquidGlows' come after)
     padReady = 0
-    IF NOT editRebuild THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
+    IF NOT editRebuild THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : jumpAir = 0 : eyeZ = playerZ + EYE_H
     walkZ = -999
     BuildThiefWay ' (the thieves' way home)
     AssignSecrets ' (the secret walls, the closets' stashes, and what the map pickup leaves out)
@@ -584,6 +584,7 @@ SUB BuildLevel STATIC
         ShowMsg levelName$ + "  -  find the EXIT"
     END IF
     ListDoors
+    IF editRebuild THEN EditHeldSnap ELSE EditHeldClear ' (the editor's doors held open, lifts up or down: as they were - a sector loaded, none)
     ' (built again in the editor: OpenGL's turn now - new pictures if any,
     ' and the world again. Only now: SUB _GL runs alongside this, and asked
     ' halfway through it would build half a level)

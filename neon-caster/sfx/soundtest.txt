@@ -1,4 +1,5 @@
 [MUSIC]
+music/menu-intro.ogg|MENU-INTRO
 music/menu.ogg|THE TITLE MENU
 music/level1.ogg|SECTOR 1: NEON STATION
 music/level2.ogg|SECTOR 2: REACTOR CORE
@@ -473,3 +474,7 @@ speech/soldier10.wav|soldier10: Eyes on the target!
 speech/soldier11.wav|soldier11: Engaging the hostile!
 speech/soldier12.wav|soldier12: Drop your weapon!
 speech/thief.wav|thief: My little helpers like your toys.
+[OTHER]
+sfx/jump.wav|jump
+sfx/jump2.wav|jump2
+sfx/jump3.wav|jump3
