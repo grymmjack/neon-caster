@@ -72,9 +72,23 @@ SUB ProgramRun STATIC
     ELSE ' (still full screen: _SHELLHIDE doesn't touch it - its answer as the system's, the exit code in its second byte but on Windows)
         rc = _SHELLHIDE(q$ + pgExe$ + q$ + pgArg$) : IF NOT win THEN rc = (rc \ 256) AND 255
     END IF
-    _SCREENSHOW
+    ProgramShowWindow
     IF pgFull THEN displayModeNow = -1 : ApplyDisplay : ProgramWaitFull DisplayMode(setting(SET_DISPLAY))
     ProgramPaid
+END SUB
+
+' The game's window shown again - asked till QB64PE knows it is (three
+' seconds at most): it looks once, as it asks, and a window manager that
+' hasn't shown it yet left it sure it was hidden, never drawn again
+SUB ProgramShowWindow
+    DIM t0 AS DOUBLE, n ' (its own)
+    t0 = TIMER(.001)
+    DO
+        _SCREENSHOW : n = n + 1
+        IF fullnow_hidden& = 0 OR ABS(TIMER(.001) - t0) > 3 THEN EXIT DO
+        _LIMIT 30
+    LOOP
+    IF n > 1 THEN ConPrint "program: the window shown again after" + STR$(n) + " tries"
 END SUB
 
 ' Till QB64PE has switched to full screen mode m (at its next frame), two

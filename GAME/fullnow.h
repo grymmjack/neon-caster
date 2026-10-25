@@ -13,3 +13,11 @@
 extern int32_t full_screen; // (libqb's: 0 windowed, 1 stretched, 2 square pixels)
 
 static int32_t fullnow_mode(void) { return full_screen; }
+
+// And whether QB64PE thinks its window is hidden. _SCREENSHOW asks the
+// window manager to show it and looks once, at once: under KWin (X on
+// Wayland) it isn't shown yet then - and QB64PE, thinking it hidden, never
+// draws it again (the game went on, its picture frozen). Asked again
+// (_SCREENSHOW again) once it is, it knows.
+bool GLUTEmu_WindowIsHidden(); // (libqb's, glut-emu.h)
+static int32_t fullnow_hidden(void) { return GLUTEmu_WindowIsHidden() ? -1 : 0; }

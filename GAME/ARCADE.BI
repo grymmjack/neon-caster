@@ -11,6 +11,7 @@ DIM SHARED arcDone, arcWon, pgName$, rc
 ' The full screen mode in effect now (fullnow.h: _FULLSCREEN is the one asked for)
 DECLARE LIBRARY "fullnow"
     FUNCTION fullnow_mode& ()
+    FUNCTION fullnow_hidden& ()
 END DECLARE
 
 ' --- The slot machine (a vending machine: Space on it - SlotUse). Its
