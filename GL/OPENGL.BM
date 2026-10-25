@@ -1641,7 +1641,7 @@ END SUB
 ' two), a thin slice of its picture; and a lifted shutter's underside.
 ' (Its track is GLDoorTrack's.)
 SUB GLDoorBox(cx, cy, b)
-    DIM ax, ay, bx, by, f, fz, half, slot ' (its own: the main program shares these names)
+    DIM ax, ay, bx, by, code, f, fz, half, slot ' (its own: the main program shares these names)
     half = DOOR_THICK / 2 : amt = glDoor(cx, cy, b) : kind = doorType(cx, cy) : across = DoorAcross(cx, cy)
     fz = floorH(cx, cy) : cz = ceilH(cx, cy) ' (from its own cell's floor to its ceiling: a door up a step stands on the step)
     SELECT CASE kind
@@ -1658,28 +1658,104 @@ SUB GLDoorBox(cx, cy, b)
             GLSetLight cx + f, cy, 1, b : glFaceNX = f : glFaceNY = 0
         END IF
         glFaceNZ = 0
-        SELECT CASE kind
-            CASE DOOR_SLIDE
-                IF amt < 1 THEN GLStrip ax, ay, bx, by, amt, 1, 0, 1 - amt, fz, cz, 0, 1, slot
-            CASE DOOR_SPLIT
-                IF amt < 1 THEN
-                    GLStrip ax, ay, bx, by, 0, 0.5 - amt / 2, amt / 2, 0.5, fz, cz, 0, 1, slot
-                    GLStrip ax, ay, bx, by, 0.5 + amt / 2, 1, 0.5, 1 - amt / 2, fz, cz, 0, 1, slot
-                END IF
-            CASE ELSE
-                IF amt < 1 THEN GLStrip ax, ay, bx, by, 0, 1, 0, 1, fz + amt * (cz - fz), cz, amt, 1, slot
-        END SELECT
+        code = 0 ' (its face in [faces]: its cell's side it looks out of)
+        IF faceAny THEN
+            IF across = 0 THEN code = 3 - f ELSE code = 2 - f
+            IF NOT FaceLook(cx, cy, code) THEN code = 0
+        END IF
+        IF code THEN GLDoorFace cx, cy, code, kind, amt, ax, ay, bx, by, fz, cz, slot ' (a look of its own)
+        IF code = 0 THEN
+            SELECT CASE kind
+                CASE DOOR_SLIDE
+                    IF amt < 1 THEN GLStrip ax, ay, bx, by, amt, 1, 0, 1 - amt, fz, cz, 0, 1, slot
+                CASE DOOR_SPLIT
+                    IF amt < 1 THEN
+                        GLStrip ax, ay, bx, by, 0, 0.5 - amt / 2, amt / 2, 0.5, fz, cz, 0, 1, slot
+                        GLStrip ax, ay, bx, by, 0.5 + amt / 2, 1, 0.5, 1 - amt / 2, fz, cz, 0, 1, slot
+                    END IF
+                CASE ELSE
+                    IF amt < 1 THEN GLStrip ax, ay, bx, by, 0, 1, 0, 1, fz + amt * (cz - fz), cz, amt, 1, slot
+            END SELECT
+        END IF
     NEXT
     GLSetLight cx, cy, 0.85, b
-    SELECT CASE kind ' Its edges
-        CASE DOOR_SLIDE : GLDoorEdge cx, cy, across, amt, -1, slot
-        CASE DOOR_SPLIT : GLDoorEdge cx, cy, across, 0.5 - amt / 2, 1, slot : GLDoorEdge cx, cy, across, 0.5 + amt / 2, -1, slot
+    SELECT CASE kind ' Its edges (in its south or east face's picture, if it has one there: DoorEdgeSlot)
+        CASE DOOR_SLIDE : GLDoorEdge cx, cy, across, amt, -1, DoorEdgeSlot(cx, cy, 0.01, slot)
+        CASE DOOR_SPLIT : GLDoorEdge cx, cy, across, 0.5 - amt / 2, 1, DoorEdgeSlot(cx, cy, 0.49, slot) : GLDoorEdge cx, cy, across, 0.5 + amt / 2, -1, DoorEdgeSlot(cx, cy, 0.51, slot)
         CASE ELSE ' A shutter's underside, at the height it's lifted to
             IF amt > 0 THEN
                 glFaceNX = 0 : glFaceNY = 0 : glFaceNZ = -1
-                GLDoorFlat cx, cy, across, -half, half, fz + amt * (cz - fz), 0.96, 1, slot
+                GLDoorFlat cx, cy, across, -half, half, fz + amt * (cz - fz), 0.96, 1, DoorEdgeSlot(cx, cy, 0.5, slot)
             END IF
     END SELECT
+END SUB
+
+' A door's face with a look of its own ([faces] face code of its cell):
+' each piece of it (or half, or the whole) a rectangle of the face - u
+' across as you see it, v down, 0 to 1 - with its picture, slide and
+' stretch, drawn where the door still is (GLDoorRect). The face's picture
+' moves with the door, as the door's own does.
+SUB GLDoorFace(cx, cy, code, kind, amt, ax, ay, bx, by, fz, cz, deflt)
+    DIM j, p, sl, u0, u1, v0, v1 ' (its own: the main program shares these names)
+    p = 0 : IF faceDiv(cx, cy, code) = 3 THEN p = faceTex(cx, cy, code)
+    IF p THEN
+        FOR j = 1 TO pcNL(p)
+            u0 = pcGU0(p, j) / 16 : u1 = pcGU1(p, j) / 16 : v0 = pcGV0(p, j) / 16 : v1 = pcGV1(p, j) / 16
+            sl = pcSl(p, j) : IF sl = 0 THEN sl = deflt
+            GLTexOff : glOffU = pcOU(p, j) / 64 : glOffV = pcOV(p, j) / 64
+            IF pcKU(p, j) THEN glKU = 100 / pcKU(p, j)
+            IF pcKV(p, j) THEN glKV = 100 / pcKV(p, j)
+            IF pcAn(p, j) THEN ' (from the piece's own top left corner - fitted to it, 2)
+                IF pcAn(p, j) = 2 THEN glKU = glKU / MaxOf(0.001, u1 - u0) : glKV = glKV / MaxOf(0.001, v1 - v0)
+                glOffU = glOffU - glKU * u0 : glOffV = glOffV - glKV * v0
+            END IF
+            GLDoorRect code, kind, amt, ax, ay, bx, by, fz, cz, u0, u1, v0, v1, sl
+        NEXT
+    ELSE
+        GLTexOff
+        glOffU = faceOU(cx, cy, code) / 64 : glOffV = faceOV(cx, cy, code) / 64
+        IF faceKU(cx, cy, code) THEN glKU = 100 / faceKU(cx, cy, code)
+        IF faceKV(cx, cy, code) THEN glKV = 100 / faceKV(cx, cy, code)
+        SELECT CASE faceDiv(cx, cy, code)
+            CASE 1
+                GLDoorRect code, kind, amt, ax, ay, bx, by, fz, cz, 0, 0.5, 0, 1, FaceSlot(cx, cy, code, 0.25, 0, deflt)
+                GLDoorRect code, kind, amt, ax, ay, bx, by, fz, cz, 0.5, 1, 0, 1, FaceSlot(cx, cy, code, 0.75, 0, deflt)
+            CASE 2
+                GLDoorRect code, kind, amt, ax, ay, bx, by, fz, cz, 0, 1, 0, 0.5, FaceSlot(cx, cy, code, 0, 0, deflt)
+                GLDoorRect code, kind, amt, ax, ay, bx, by, fz, cz, 0, 1, 0.5, 1, FaceSlot(cx, cy, code, 0, 1, deflt)
+            CASE ELSE
+                GLDoorRect code, kind, amt, ax, ay, bx, by, fz, cz, 0, 1, 0, 1, FaceSlot(cx, cy, code, 0, 0, deflt)
+        END SELECT
+    END IF
+    GLTexOff
+END SUB
+
+' Rectangle u0-u1 across, v0-v1 down of a door's face (as GLDoorFace): the
+' part of it still in the doorway - a sliding door's panel slid amt along,
+' a split door's halves apart, a shutter lifted (its top in the ceiling)
+SUB GLDoorRect(code, kind, amt, ax, ay, bx, by, fz, cz, u0, u1, v0, v1, slot)
+    DIM pa, pb, q, qa, qb, sh, za, zb ' (its own: the main program shares these names)
+    IF amt >= 1 THEN EXIT SUB
+    IF code = 1 OR code = 4 THEN pa = 1 - u1 : pb = 1 - u0 ELSE pa = u0 : pb = u1 ' (along the panel, the way x or y grows)
+    IF kind = DOOR_SLIDE OR kind = DOOR_SPLIT THEN
+        za = cz - v0 * (cz - fz) : zb = cz - v1 * (cz - fz)
+        FOR q = 1 TO 2
+            IF kind = DOOR_SLIDE THEN
+                IF q = 2 THEN EXIT FOR
+                qa = pa : qb = MinOf(pb, 1 - amt) : sh = amt
+            ELSEIF q = 1 THEN
+                qa = MaxOf(pa, amt / 2) : qb = MinOf(pb, 0.5) : sh = -amt / 2
+            ELSE
+                qa = MaxOf(pa, 0.5) : qb = MinOf(pb, 1 - amt / 2) : sh = amt / 2
+            END IF
+            IF qb > qa + 0.0001 THEN GLStrip ax, ay, bx, by, qa + sh, qb + sh, DoorFaceU(code, qa), DoorFaceU(code, qb), zb, za, v0, v1, slot
+        NEXT
+    ELSE ' A shutter: what's below its lifted part, v amt and down
+        IF v0 < amt THEN v0 = amt
+        IF v1 <= v0 + 0.0001 THEN EXIT SUB
+        za = cz - (v0 - amt) * (cz - fz) : zb = cz - (v1 - amt) * (cz - fz)
+        GLStrip ax, ay, bx, by, pa, pb, DoorFaceU(code, pa), DoorFaceU(code, pb), zb, za, v0, v1, slot
+    END IF
 END SUB
 
 ' Did this frame's rays reach cell (cx, cy), or a cell beside it?
@@ -1786,7 +1862,12 @@ SUB GLStep(ax, ay, bx, by, b)
         ' The picture by height, as the walls'... but a lift's side (the
         ' higher cell is a lift) hangs from its top edge in its own picture,
         ' so it rides up and down with it instead of sliding past
-        IF liftCell(ax + bx - lx, ay + by - ly) THEN
+        hx = ax + bx - lx : hy = ay + by - ly : lsf = 0
+        IF liftCell(hx, hy) THEN IF faceAny THEN IF FaceLook(hx, hy, SideToward(hx, hy, lx, ly)) THEN lsf = SideToward(hx, hy, lx, ly)
+        IF lsf THEN ' (a lift's side with a look of its own: [faces], hanging from its top as its own picture does)
+            su0 = 1 : su1 = 0 : IF (ax = bx AND ly > hy) OR (ay = by AND lx < hx) THEN su0 = 0 : su1 = 1
+            GLFaceStrip ex0, ey0, ex1, ey1, su0, su1, zl, zh, 0, zh - zl, hx, hy, lsf, T_LIFTSIDE
+        ELSEIF liftCell(hx, hy) THEN
             GLStrip ex0, ey0, ex1, ey1, 0, 1, 0, 1, zl, zh, 0, zh - zl, T_LIFTSIDE
         ELSE ' (the step's face is the higher cell's side towards the lower one - its own picture, if it has one - the picture turned as the software renderer turns it)
             hx = ax + bx - lx : hy = ay + by - ly
@@ -1939,7 +2020,7 @@ SUB GLDiagonal(cx, cy, corner, b)
     GLSetLight cx, cy, 0.85, b
     glFaceNX = -(by - ay) * 0.7071 : glFaceNY = (bx - ax) * 0.7071 : glFaceNZ = 0 ' Square to the diagonal...
     IF InDiagonalWall(corner, 0.5 + glFaceNX * 0.1, 0.5 + glFaceNY * 0.1) THEN glFaceNX = -glFaceNX : glFaceNY = -glFaceNY ' ...on its open side
-    GLStrip ax, ay, bx, by, 0, 1, u0, u1, floorH(cx, cy), ceilH(cx, cy), 1 - ceilH(cx, cy), 1 - floorH(cx, cy), wallTexSlot(worldMap(cx, cy))
+    GLFaceStrip ax, ay, bx, by, u0, u1, floorH(cx, cy), ceilH(cx, cy), 1 - ceilH(cx, cy), 1 - floorH(cx, cy), cx, cy, FACE_DIAG, wallTexSlot(worldMap(cx, cy)) ' (its own look, if it has one: [faces] DG)
 END SUB
 
 ' THE SHADERS. OpenGL's fixed recipe colours a pixel as texture times the

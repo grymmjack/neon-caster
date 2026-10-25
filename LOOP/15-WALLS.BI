@@ -139,7 +139,7 @@
                     IF doorHit = 3 THEN ' A rising shutter: drawn afterwards, over what's behind
                         IF shutterSeen = 0 THEN
                             shutterSeen = -1 : shutterDist = doorDist : shutterBack = doorBack : shutterU = doorU : shutterOpen = DoorShown(mapX, mapY)
-                            shutterSide = doorSide : shutterLitX = doorLitX : shutterLitY = doorLitY
+                            shutterSide = doorSide : shutterLitX = doorLitX : shutterLitY = doorLitY : shutterCX = mapX : shutterCY = mapY
                         END IF
                         doorHit = 0
                     ELSEIF doorHit THEN
@@ -165,6 +165,20 @@
             wallX = playerX + perpWallDist * rayDirX - mapX
             IF diagHit > 2 THEN wallX = 1 - wallX
             texX = INT(wallX * texSize) : texSlot = wallTexSlot(hit)
+            IF faceAny THEN ' (its own look: [faces] DG - stretched from the map's grid as OpenGL has it: x across, the way the picture runs)
+                IF FaceLook(mapX, mapY, FACE_DIAG) THEN
+                    fu = MaxOf(0, MinOf(0.9999, wallX)) : dgC = mapX : IF diagHit > 2 THEN dgC = -(mapX + 1)
+                    IF faceDiv(mapX, mapY, FACE_DIAG) = 3 THEN
+                        wallPc = faceTex(mapX, mapY, FACE_DIAG) : wallPcD = texSlot : wallPcX = texX : wallPcC = dgC : wallPcG = MaxOf(0, MinOf(15, INT(fu * 16))) : wallPcFX = mapX : wallPcFY = mapY : wallPcF = FACE_DIAG
+                    END IF
+                    texSlot2 = FaceSlot(mapX, mapY, FACE_DIAG, fu, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, FACE_DIAG, fu, 0, texSlot)
+                    IF faceOffAny THEN
+                        IF faceKU(mapX, mapY, FACE_DIAG) THEN texX = INT((texX / texSize + dgC) * 100 / faceKU(mapX, mapY, FACE_DIAG) * texSize)
+                        texX = texX + faceOU(mapX, mapY, FACE_DIAG) * texSize \ 64 : wallVO = faceOV(mapX, mapY, FACE_DIAG) * texSize \ 64
+                        IF faceKV(mapX, mapY, FACE_DIAG) THEN wallVK = 100 / faceKV(mapX, mapY, FACE_DIAG)
+                    END IF
+                END IF
+            END IF
         ELSEIF doorHit = 2 THEN ' A door's edge: a thin slice of its picture
             texX = INT(doorU * DOOR_THICK * texSize)
             SELECT CASE doorType(mapX, mapY)
@@ -172,6 +186,11 @@
                 CASE DOOR_SPLIT : texSlot = T_SPLIT
                 CASE ELSE : texSlot = T_SHUTTER
             END SELECT
+            IF faceAny THEN ' (in its south or east face's picture there, if it has one: DoorEdgeSlot)
+                IF DoorAcross(mapX, mapY) = 0 THEN dEdA = rayDirX ELSE dEdA = rayDirY
+                dEdP = 0.01 : IF doorType(mapX, mapY) = DOOR_SPLIT THEN IF dEdA > 0 THEN dEdP = 0.51 ELSE dEdP = 0.49
+                texSlot = DoorEdgeSlot(mapX, mapY, dEdP, texSlot)
+            END IF
         ELSEIF hit = 2 THEN
             IF doorHit THEN wallX = doorU ' (where along the slab)
             doorOpenAmt = DoorShown(mapX, mapY)
@@ -197,6 +216,23 @@
                 CASE ELSE
                     texX = INT(wallX * texSize) : texSlot = T_SHUTTER
             END SELECT
+            IF faceAny AND doorHit = 1 THEN ' A door's face with a look of its own: its cell's side, left to right as you see it (as OpenGL's), moving with the door
+                IF side = 0 THEN IF rayDirX > 0 THEN sd = 3 ELSE sd = 1
+                IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
+                IF FaceLook(mapX, mapY, sd) THEN
+                    texX = texX AND (texSize - 1) : IF sd = 1 OR sd = 4 THEN texX = texSize - 1 - texX
+                    fu = texX / texSize
+                    IF faceDiv(mapX, mapY, sd) = 3 THEN ' (in pieces - LEVEL/PIECES.BM)
+                        wallPc = faceTex(mapX, mapY, sd) : wallPcD = texSlot : wallPcX = texX : wallPcC = 0 : wallPcG = MaxOf(0, MinOf(15, INT(fu * 16))) : wallPcFX = mapX : wallPcFY = mapY : wallPcF = sd
+                    END IF
+                    texSlot2 = FaceSlot(mapX, mapY, sd, fu, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, fu, 0, texSlot)
+                    IF faceOffAny THEN
+                        IF faceKU(mapX, mapY, sd) THEN texX = INT(fu * 100 / faceKU(mapX, mapY, sd) * texSize)
+                        texX = texX + faceOU(mapX, mapY, sd) * texSize \ 64 : wallVO = faceOV(mapX, mapY, sd) * texSize \ 64
+                        IF faceKV(mapX, mapY, sd) THEN wallVK = 100 / faceKV(mapX, mapY, sd)
+                    END IF
+                END IF
+            END IF
         ELSE
             texX = INT(wallX * texSize) : texSlot = wallTexSlot(hit)
             ' (a picture reads left to right as you face it: wallX grows with y
@@ -304,9 +340,28 @@
             IF shutterSide = 1 THEN fog& = fog& * 0.7
             lightR& = litR(shutterLitX, shutterLitY) * fog& \ 256 : lightG& = litG(shutterLitX, shutterLitY) * fog& \ 256 : lightB& = litB(shutterLitX, shutterLitY) * fog& \ 256
             texX = INT(shutterU * texSize) AND (texSize - 1)
+            shSd = 0 ' (a face with a look of its own: its picture by where on it - FaceSlot - slid and stretched)
+            IF faceAny THEN
+                IF shutterSide = 0 THEN IF rayDirX > 0 THEN shSd = 3 ELSE shSd = 1
+                IF shutterSide = 1 THEN IF rayDirY > 0 THEN shSd = 4 ELSE shSd = 2
+                IF NOT FaceLook(shutterCX, shutterCY, shSd) THEN shSd = 0
+            END IF
+            IF shSd THEN
+                IF shSd = 1 OR shSd = 4 THEN texX = texSize - 1 - texX
+                shU = texX / texSize : shVO = 0 : shVK = 1
+                IF faceOffAny THEN
+                    IF faceKU(shutterCX, shutterCY, shSd) THEN texX = INT(shU * 100 / faceKU(shutterCX, shutterCY, shSd) * texSize)
+                    texX = (texX + faceOU(shutterCX, shutterCY, shSd) * texSize \ 64) AND (texSize - 1) : shVO = faceOV(shutterCX, shutterCY, shSd) * texSize \ 64
+                    IF faceKV(shutterCX, shutterCY, shSd) THEN shVK = 100 / faceKV(shutterCX, shutterCY, shSd)
+                END IF
+            END IF
             IF NOT glMode AND levelFlat THEN
                 FOR y = drawStart TO drawEnd
-                    pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, INT(texPos) AND (texSize - 1), T_SHUTTER), lightR&, lightG&, lightB&)
+                    IF shSd THEN
+                        pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, (INT(texPos * shVK) + shVO) AND (texSize - 1), FaceSlot(shutterCX, shutterCY, shSd, shU, texPos / texSize, T_SHUTTER)), lightR&, lightG&, lightB&)
+                    ELSE
+                        pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, INT(texPos) AND (texSize - 1), T_SHUTTER), lightR&, lightG&, lightB&)
+                    END IF
                     texPos = texPos + texStep
                 NEXT
                 ' Lifted above your eyes, you see its underside: from its front
@@ -316,7 +371,7 @@
                     underEnd = INT(RENDER_H / 2 + viewH / shutterBack * (0.5 - shutterOpen))
                     IF underEnd > RENDER_H - 1 THEN underEnd = RENDER_H - 1
                     FOR y = drawEnd + 1 TO underEnd
-                        IF y >= 0 THEN pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, texSize - 2, T_SHUTTER), lightR& \ 2, lightG& \ 2, lightB& \ 2)
+                        IF y >= 0 THEN pixels(y * RENDER_W + x) = ShadeRGB~&(texture(texX, texSize - 2, DoorEdgeSlot(shutterCX, shutterCY, 0.5, T_SHUTTER)), lightR& \ 2, lightG& \ 2, lightB& \ 2)
                     NEXT
                 END IF
             END IF

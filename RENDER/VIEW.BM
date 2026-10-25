@@ -120,6 +120,11 @@ SUB HeightColumn STATIC
                 CASE DOOR_SPLIT : hSlot = T_SPLIT
                 CASE ELSE : hSlot = T_SHUTTER
             END SELECT
+            IF hDoored = 2 AND faceAny THEN ' (its edge: its south or east face's picture there - DoorEdgeSlot)
+                IF DoorAcross(hcX, hcY) = 0 THEN dEdA = rayDirX ELSE dEdA = rayDirY
+                dEdP = 0.01 : IF doorType(hcX, hcY) = DOOR_SPLIT THEN IF dEdA > 0 THEN dEdP = 0.51 ELSE dEdP = 0.49
+                hSlot = DoorEdgeSlot(hcX, hcY, dEdP, hSlot)
+            END IF
         ELSEIF hBoxed THEN
             hnX = hcX : hnY = hcY : v = 0 : hSolid = -1 : hSlot = wallTexSlot(boxOn(hcX, hcY))
         ELSE
@@ -158,15 +163,26 @@ SUB HeightColumn STATIC
             END IF
             hTexX = hTexX AND (texSize - 1) : hSlot2 = 0
         END IF
-        hSd = 0 ' (which side of the next cell this is - for a picture of its own: [faces])
+        hSd = 0 : hDoorLook = 0 : hDiagLook = 0 ' (which side of the next cell this is - for a picture of its own: [faces])
         IF faceAny THEN
             IF hSide = 0 THEN IF rayDirX > 0 THEN hSd = 3 ELSE hSd = 1
             IF hSide = 1 THEN IF rayDirY > 0 THEN hSd = 4 ELSE hSd = 2
-            IF hBoxed THEN
+            IF hDiag THEN ' (a diagonal's slanted face: its own look - [faces] DG - stretched from the grid as OpenGL has it)
+                IF FaceLook(hcX, hcY, FACE_DIAG) THEN
+                    hDiagLook = -1 : hWallC = hcX : IF diagCorner(hcX, hcY) > 2 THEN hWallC = -(hcX + 1)
+                    IF rayDirX < 0 THEN hWallC = -hWallC ' (HeightOff turns it back: it takes hSide 0's way round)
+                    HeightPick hcX, hcY, FACE_DIAG, hTexX / texSize
+                END IF
+            ELSEIF hDoored = 1 THEN ' (a door's face - its cell's side, as OpenGL's: left to right as you see it, moving with the door)
+                IF FaceLook(hcX, hcY, hSd) THEN
+                    hDoorLook = -1 : IF hSd = 1 OR hSd = 4 THEN hTexX = texSize - 1 - hTexX
+                    hWallC = 0 : HeightPick hcX, hcY, hSd, hTexX / texSize
+                END IF
+            ELSEIF hBoxed THEN
                 fu = BoxFaceU(hcX, hcY, hSd, hTexX / texSize) ' (a block's sides: faces of their own)
                 HeightPick hcX, hcY, hSd + FACE_BOX, fu
-            ELSEIF hSolid AND (v <> 2 OR hSlot = T_EXIT) AND diagCorner(hnX, hnY) = 0 AND NOT hDoored THEN
-                HeightPick hnX, hnY, hSd, hTexX / texSize ' (a diagonal: its neighbours' look, always; a door, its own)
+            ELSEIF hSolid AND (v <> 2 OR hSlot = T_EXIT) AND NOT hDoored THEN
+                HeightPick hnX, hnY, hSd, hTexX / texSize ' (a diagonal's straight side too: its own, if it has one)
             END IF
         END IF
         hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
@@ -177,11 +193,17 @@ SUB HeightColumn STATIC
             IF faceOffAny AND hSd > 0 THEN ' (its picture slid along and up: [faces])
                 IF hBoxed THEN
                     HeightOff hcX, hcY, hSd + FACE_BOX
-                ELSEIF (v <> 2 OR hSlot = T_EXIT) AND diagCorner(hnX, hnY) = 0 AND NOT hDoored THEN
+                ELSEIF hDoorLook THEN
+                    HeightOff hcX, hcY, hSd
+                ELSEIF hDiagLook THEN
+                    HeightOff hcX, hcY, FACE_DIAG
+                ELSEIF hDiag THEN
+                ELSEIF (v <> 2 OR hSlot = T_EXIT) AND NOT hDoored THEN
                     HeightOff hnX, hnY, hSd
                 END IF
             END IF
-            hZ0 = hc : hZ1 = hf : hVOff = 0 : HeightFace
+            hZ0 = hc : hZ1 = hf : hVOff = 0 : IF hDoorLook THEN hVOff = hc - 1 ' (a door's face: its picture from the door's top)
+            HeightFace
             hTop = hBot + 1 ' (the column's done: nothing left to fill)
             EXIT DO
         END IF
@@ -192,7 +214,15 @@ SUB HeightColumn STATIC
             y0 = INT(hor + (eyeZ - nf) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut) : hSlot = wallTexSlot(1) : hVOff = 0
             IF hSd THEN HeightPick hnX, hnY, hSd, hTexX / texSize
             IF nLq THEN hSlot = T_LIQUID + nLq : hSlot2 = 0 : hPc = 0
-            IF liftCell(hnX, hnY) THEN hSlot2 = 0 : hPc = 0 : hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
+            IF liftCell(hnX, hnY) THEN ' (a lift's side: hangs from its top - MakeLiftTex - in its own look, if it has one)
+                hSlot2 = 0 : hPc = 0 : hSlot = T_LIFTSIDE : hVOff = nf - 1
+                IF hSd THEN
+                    IF FaceLook(hnX, hnY, hSd) THEN
+                        HeightPick hnX, hnY, hSd, hTexX / texSize
+                        IF faceOffAny THEN HeightOff hnX, hnY, hSd
+                    END IF
+                END IF
+            END IF
             IF faceOffAny AND hSd > 0 AND nLq = 0 AND liftCell(hnX, hnY) = 0 THEN HeightOff hnX, hnY, hSd
             hZ0 = nf : hZ1 = hf : HeightFace
             IF y0 - 1 < hBot THEN hBot = y0 - 1

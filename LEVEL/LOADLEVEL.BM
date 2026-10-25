@@ -112,6 +112,15 @@ SUB BuildLevel STATIC
     NEXT
     ' Single faces' own pictures ([faces]): each picture a slot of its own
     ' (T_CUSTOM + 1...), loaded only if it isn't there already
+    ' (a lift's top is its own plate, T_LIFT - set before them, so a floor's own
+    ' look there is the lift's, and a piece with no picture of its own shows the plate)
+    FOR k = 1 TO lvlNumLifts
+        IF lvlLift(k, 7) <> LIFT_CRUSHER AND lvlLift(k, 7) <> LIFT_SMASHER THEN
+            FOR y = MinOf(lvlLift(k, 2), lvlLift(k, 4)) TO MaxOf(lvlLift(k, 2), lvlLift(k, 4)) : FOR x = MinOf(lvlLift(k, 1), lvlLift(k, 3)) TO MaxOf(lvlLift(k, 1), lvlLift(k, 3))
+                IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0
+            NEXT : NEXT
+        END IF
+    NEXT
     customN = 0 : faceAny = (lvlNumFaces > 0) : facesFull = 0 : faceOffAny = 0 : pcN = 0
     FOR k = 1 TO lvlNumFaces
         x = lvlFaceX(k) : y = lvlFaceY(k) : f = lvlFaceS(k)
@@ -510,7 +519,7 @@ SUB BuildLevel STATIC
         NEXT : NEXT
         IF liftHigh(k) > lc - BODY_H THEN liftHigh(k) = MaxOf(liftLow(k), lc - BODY_H)
         FOR y = liftY0(k) TO liftY1(k) : FOR x = liftX0(k) TO liftX1(k)
-            IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0 : floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0 : boxOn(x, y) = 0 ' (a lift's top: its own plate - MakeLiftTex; no block on it: it stands floor to ceiling, and the floor moves)
+            IF x > 0 AND y > 0 AND x < mapN - 1 AND y < mapN - 1 THEN liftCell(x, y) = k : floorH(x, y) = liftZ(k) : levelFlat = 0 : boxOn(x, y) = 0 : IF FaceIndex(x, y, 9) = 0 THEN floorTex(x, y) = T_LIFT : floorSplit(x, y) = 0 ' (a lift's top: its own plate - MakeLiftTex, set before [faces] too - or its own look; no block on it: it stands floor to ceiling, and the floor moves)
         NEXT : NEXT
     NEXT
     ' The liquids ([liquid], [liquid depth]): a pool on each open cell the map

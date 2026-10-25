@@ -245,8 +245,15 @@ FUNCTION EditUsualPic$(kind, x, y, side)
     SELECT CASE kind
         CASE ED_FLOOR : p$ = texFile$(floorTex(x, y))
         CASE ED_CEIL : p$ = texFile$(ceilTex(x, y))
-        CASE ED_WALL : w = INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) : IF w THEN p$ = lvlWall$(w)
+        CASE ED_WALL, ED_DIAG
+            w = INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) : IF w THEN p$ = lvlWall$(w)
+            IF diagCorner(x, y) THEN w = wallTexSlot(worldMap(x, y)) : IF w >= 1 AND w <= 6 THEN p$ = lvlWall$(w) ' (a diagonal: the wall it took after)
+            IF EditDoorIn(x, y) THEN ' (a door's own picture, if it's a file - a keycard door's is made, so none by name)
+                w = PcDoorUsual(x, y, MID$(lvlRow$(y), x + 1, 1))
+                IF w = T_DOOR OR w = T_SHUTTER OR w = T_SPLIT OR w = T_STRONG OR w = T_KEYPAD THEN p$ = texName$(w)
+            END IF
         CASE ED_BOX : bi = EditBoxIndex(x, y) : p$ = lvlWall$(1) : IF bi THEN IF lvlBox(bi, 7) >= 1 AND lvlBox(bi, 7) <= 6 THEN p$ = lvlWall$(lvlBox(bi, 7))
+        CASE ED_STEP : p$ = lvlWall$(1) : IF liftCell(x, y) THEN p$ = "" ' (a lift's side: made, so none by name)
         CASE ELSE : p$ = lvlWall$(1)
     END SELECT
     EditUsualPic$ = p$
@@ -313,7 +320,6 @@ SUB EditClipPaste(fromPane)
     FOR j = 1 TO n
         IF useSel THEN kd = edSelKind(j) : fx = edSelX(j) : fy = edSelY(j) : sd = edSelSide(j) : pt = edSelPart(j) ELSE kd = edHovKind : fx = edHovX : fy = edHovY : sd = edHovSide : pt = edHovPart
         fc = EditFaceCode(kd, sd) : IF fc < 1 OR fc > FACE_MAX THEN _CONTINUE
-        IF kd = ED_WALL AND INSTR("/\", MID$(lvlRow$(fy), fx + 1, 1)) THEN _CONTINUE ' (a diagonal takes its neighbours' look)
         IF edClipP1$ = "." THEN ' (a look: on that piece - or the face, every piece of it)
             EditTreeGet fx, fy, fc : EditPcRange pt, j0, j1
             FOR jj = j0 TO j1 : PcLeafRead edClipP2$, jj : NEXT
@@ -1523,8 +1529,6 @@ SUB EditFP STATIC
                             EditPushUndo : EditBrushLiquid edHovX, edHovY, edShift : EditApply
                             IF edShift THEN EditNote "Drained" ELSE EditNote LiquidBrushName$(edBrushLiq$) + " at" + STR$(edHovX) + STR$(edHovY)
                         END IF
-                    ELSEIF edHovKind = ED_WALL AND INSTR("/\", MID$(lvlRow$(edHovY), edHovX + 1, 1)) THEN
-                        EditNote "A diagonal wall takes the look of the walls by it - paint those"
                     ELSEIF edAlt THEN
                         EditPickPicture ' (the face's picture, as PAINT's brush)
                     ELSEIF (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND (edHovKind = ED_FLOOR OR edHovKind = ED_CEIL) AND edBrushTex$ <> "" THEN
@@ -1847,6 +1851,13 @@ SUB EditPcStartHere(kind, x, y, side, j)
     EditPcTexGet j, ou, ov, kku, kkv
     IF kind = ED_FLOOR OR kind = ED_CEIL THEN
         uu = 100 / kku * (x + pcRU0(j)) : vv = 100 / kkv * (y + pcRV0(j))
+    ELSEIF kind = ED_WALL AND EditDoorIn(x, y) THEN ' (a door's face: its picture runs across it, and down it, once)
+        uu = 100 / kku * pcRU0(j) : vv = 100 / kkv * pcRV0(j)
+    ELSEIF kind = ED_DIAG THEN ' (a diagonal's: x across from the map's grid, the way the picture runs - as GLFaceTex has it)
+        EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
+        w = x : IF diagCorner(x, y) > 2 THEN w = -(x + 1)
+        zt = z1 - pcRV0(j) * (z1 - z0)
+        uu = 100 / kku * (pcRU0(j) + w) : vv = 100 / kkv * (1 - zt)
     ELSE
         EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
         IF side = 1 OR side = 4 THEN ' (east and north faces: the picture reads from b back to a)
@@ -1857,6 +1868,7 @@ SUB EditPcStartHere(kind, x, y, side, j)
         IF ABS(ay - by) < 0.0001 THEN w = px ELSE w = py
         zt = z1 - pcRV0(j) * (z1 - z0)
         uu = 100 / kku * dr * w : vv = 100 / kkv * (1 - zt)
+        IF kind = ED_STEP AND liftCell(x, y) THEN vv = 100 / kkv * (z1 - zt) ' (a lift's side: from its top)
     END IF
     ou = (ou + INT((uu - INT(uu)) * 64 + 0.5)) AND 63 : ov = (ov + INT((vv - INT(vv)) * 64 + 0.5)) AND 63
     EditPcTexSet j, ou, ov, kku, kkv : ptA(j) = 1
@@ -2670,7 +2682,7 @@ SUB EditRay(sx, sy, rdx, rdy, rdz)
 END SUB
 
 SUB EditPick(sx, sy)
-    DIM bt, f, mx, my, nx, ny, t, dk, dh, dt, du, dsd, dlx, dly, dbk, tLim ' (its own: the main program shares these names)
+    DIM bt, f, mx, my, nx, ny, t, dk, dh, dt, du, dsd, dlx, dly, dbk, tLim, dg, dgt ' (its own: the main program shares these names)
     edHovKind = 0
     EditRay sx, sy, rdx, rdy, rdz
     ex = edCamPX : ey = edCamPY : ez = eyeZ
@@ -2698,9 +2710,13 @@ SUB EditPick(sx, sy)
                 END IF
             END IF
         END IF
-        dk = EditDoorIn(mx, my)
-        IF worldMap(mx, my) <= 0 OR dk THEN ' An open cell (or a doorway): through its floor or ceiling, on the way across?
+        dk = EditDoorIn(mx, my) : dg = diagCorner(mx, my)
+        IF worldMap(mx, my) <= 0 OR dk OR dg THEN ' An open cell (or a doorway, or a diagonal's open half): through its floor or ceiling, on the way across?
             tLim = tOut : dh = 0
+            IF dg THEN ' (a diagonal's open half: up to its slanted face)
+                dgt = DiagonalHit(dg, mx, my, ex, ey, rdx, rdy, tIn, tOut)
+                IF dgt >= 0 THEN tLim = dgt : dh = 2 : dt = dgt
+            END IF
             IF dk THEN ' (a doorway: its floor and ceiling either side of the door, up to the door's slab across its middle)
                 IF DoorRay(mx, my, ex, ey, rdx, rdy, dt, du, dsd, dlx, dly, dbk) THEN
                     IF dt >= tIn - 0.001 AND dt <= tOut THEN tLim = dt : dh = -1
@@ -2715,6 +2731,7 @@ SUB EditPick(sx, sy)
                 t = (cz - ez) / rdz
                 IF t >= tIn - 0.001 THEN EditHit ED_CEIL, mx, my, 0, ex + rdx * t, ey + rdy * t, cz : EXIT SUB
             END IF
+            IF dh = 2 THEN EditHit ED_DIAG, mx, my, 0, ex + rdx * dt, ey + rdy * dt, ez + rdz * dt : EXIT SUB ' (the diagonal's slanted face)
             IF dh THEN ' (the door itself: its face towards you - the side it's painted on)
                 IF DoorAcross(mx, my) = 0 THEN
                     dsd = 2 : IF rdy > 0 THEN dsd = 4
@@ -2732,8 +2749,9 @@ SUB EditPick(sx, sy)
         END IF
         IF nx < 0 OR ny < 0 OR nx >= mapN OR ny >= mapN THEN EXIT SUB
         zOut = ez + rdz * tOut : hx = ex + rdx * tOut : hy = ey + rdy * tOut
-        IF worldMap(mx, my) <= 0 OR EditDoorIn(mx, my) THEN ' (from an open cell or a doorway - a face is only a face seen from the open side)
-            IF worldMap(nx, ny) > 0 AND NOT EditDoorIn(nx, ny) THEN
+        IF worldMap(mx, my) <= 0 OR EditDoorIn(mx, my) OR diagCorner(mx, my) <> 0 THEN ' (from an open cell or a doorway - a face is only a face seen from the open side)
+            dg = 0 : IF diagCorner(nx, ny) THEN IF NOT InDiagonalWall(diagCorner(nx, ny), hx + rdx * 0.0001 - nx, hy + rdy * 0.0001 - ny) THEN dg = -1 ' (into a diagonal's open half: on into it)
+            IF worldMap(nx, ny) > 0 AND NOT EditDoorIn(nx, ny) AND NOT dg THEN
                 EditHit ED_WALL, nx, ny, side, hx, hy, zOut : EXIT SUB
             ELSEIF zOut < floorH(nx, ny) THEN
                 EditHit ED_STEP, nx, ny, side, hx, hy, zOut : EXIT SUB
@@ -3687,7 +3705,7 @@ SUB EditPaneLay
     FOR k = 1 TO edSelN
         lt = EditFaceLight(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k))
         IF lt THEN
-            edPnLight = lt : edPnTitle$ = "LIGHT on " + RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edSelKind(k) * 7 - 6, 7))
+            edPnLight = lt : edPnTitle$ = "LIGHT on " + EditKindName$(edSelKind(k))
             FOR c = 1 TO 12
                 cl~& = EditPaletteRGB~&(c)
                 EditPaneAdd 40 + c, x0 + ((c - 1) MOD 6) * 34, y + ((c - 1) \ 6) * 23, 30, "", (cl~& = _RGB32(lvlLight(lt, 5), lvlLight(lt, 6), lvlLight(lt, 7)))
@@ -3857,7 +3875,7 @@ SUB EditPaneLay
         EditPaneWet x0, y
         EditPaneSkill x0, y
     ELSE
-        edPnTitle$ = RTRIM$(MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edSelKind(1) * 7 - 6, 7)) + " (" + LTRIM$(STR$(edSelN)) + ")"
+        edPnTitle$ = EditKindName$(edSelKind(1)) + " (" + LTRIM$(STR$(edSelN)) + ")"
         wb = 0 : FOR k = 1 TO edSelN
             IF edSelKind(k) = ED_WALL THEN IF INSTR("#NCKPG", MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)) THEN wb = -1
         NEXT
@@ -4261,6 +4279,7 @@ FUNCTION EditFaceCode(kind, side)
         CASE ED_CEIL : EditFaceCode = 10
         CASE ED_LINTEL : EditFaceCode = side + 4
         CASE ED_BOX : EditFaceCode = FACE_BOX + side
+        CASE ED_DIAG : EditFaceCode = FACE_DIAG
         CASE ELSE : EditFaceCode = side
     END SELECT
 END FUNCTION
@@ -4285,7 +4304,26 @@ END FUNCTION
 ' own cell; a wall's (a step's, a lintel's) the open cell in front of it
 SUB EditFaceCell(kind, x, y, side, tx, ty)
     IF kind = ED_FLOOR OR kind = ED_CEIL OR kind = ED_BOX THEN tx = x : ty = y ELSE EditFaceFront x, y, side, tx, ty ' (a box's side: the cell it stands in)
+    IF kind = ED_DIAG THEN ' (a diagonal's: the open cell beside its open half - its solid corner's the other way)
+        tx = x - SGN(EditDiagDX(diagCorner(x, y))) : ty = y
+        IF NOT EditCellOpen(tx, ty) THEN tx = x : ty = y - SGN(EditDiagDY(diagCorner(x, y)))
+    END IF
 END SUB
+
+' A face's kind in words: WALL, FLOOR... DIAGONAL
+FUNCTION EditKindName$(kind)
+    IF kind < 1 OR kind > 7 THEN EXIT FUNCTION
+    EditKindName$ = RTRIM$(MID$("WALL    FLOOR   CEILING STEP    LINTEL  BLOCK   DIAGONAL", kind * 8 - 7, 8))
+END FUNCTION
+
+' A diagonal's solid corner (1 top left, 2 top right, 3 bottom right, 4
+' bottom left), as a way from its cell's middle: -1 or 1 along x, along y
+FUNCTION EditDiagDX(c)
+    IF c = 2 OR c = 3 THEN EditDiagDX = 1 ELSE EditDiagDX = -1
+END FUNCTION
+FUNCTION EditDiagDY(c)
+    IF c >= 3 THEN EditDiagDY = 1 ELSE EditDiagDY = -1
+END FUNCTION
 
 ' BOXES IN THE EDITOR: lvlBox's line for cell (x, y), or 0
 FUNCTION EditBoxIndex(x, y)
@@ -4316,7 +4354,7 @@ SUB EditRemoveBox(x, y)
     k = EditBoxIndex(x, y) : IF k = 0 THEN EXIT SUB
     FOR i = k TO lvlNumBoxes - 1 : FOR j = 1 TO 7 : lvlBox(i, j) = lvlBox(i + 1, j) : NEXT : NEXT
     lvlNumBoxes = lvlNumBoxes - 1
-    FOR f = FACE_BOX + 1 TO FACE_MAX : EditSetFace x, y, f, 0, "", "" : NEXT
+    FOR f = FACE_BOX + 1 TO FACE_BOX + 4 : EditSetFace x, y, f, 0, "", "" : NEXT
 END SUB
 
 ' Side (1 east, 2 south, 3 west, 4 north) of (x, y)'s box moved an eighth
@@ -4428,6 +4466,8 @@ SUB EditDrawSelMap
                     CASE 2 : LINE (sx, sy + edCell - 2)-STEP(edCell - 1, 1), c~&, BF
                     CASE 3 : LINE (sx, sy)-STEP(1, edCell - 1), c~&, BF
                     CASE 4 : LINE (sx, sy)-STEP(edCell - 1, 1), c~&, BF
+                    CASE 0 ' (a diagonal's slanted face: corner to corner)
+                        IF diagCorner(edSelX(k), edSelY(k)) = 1 OR diagCorner(edSelX(k), edSelY(k)) = 3 THEN LINE (sx, sy + edCell - 1)-(sx + edCell - 1, sy), c~& ELSE LINE (sx, sy)-(sx + edCell - 1, sy + edCell - 1), c~&
                 END SELECT
         END SELECT
     NEXT
@@ -4623,6 +4663,24 @@ SUB EditFaceRect(kind, x, y, side, ax, ay, bx, by, z0, z1, ok)
         z0 = floorH(x, y) : z1 = ceilH(x, y) : ok = -1
         EXIT SUB
     END IF
+    IF kind = ED_DIAG THEN ' (a diagonal's slanted face, corner to corner: from a, where its picture starts, to b)
+        IF diagCorner(x, y) = 0 THEN EXIT SUB
+        IF diagCorner(x, y) = 1 OR diagCorner(x, y) = 3 THEN ax = x : ay = y + 1 : bx = x + 1 : by = y ELSE ax = x : ay = y : bx = x + 1 : by = y + 1
+        IF diagCorner(x, y) > 2 THEN SWAP ax, bx : SWAP ay, by
+        z0 = floorH(x, y) : z1 = ceilH(x, y) : ok = -1
+        EXIT SUB
+    END IF
+    IF kind = ED_WALL AND EditDoorIn(x, y) THEN ' (a door's face: its slab across the doorway's middle, its own floor to ceiling)
+        IF DoorAcross(x, y) = 0 THEN
+            ax = x : bx = x + 1 : ay = y + 0.5 + DOOR_THICK / 2 : IF side = 4 THEN ay = y + 0.5 - DOOR_THICK / 2
+            by = ay
+        ELSE
+            ay = y : by = y + 1 : ax = x + 0.5 + DOOR_THICK / 2 : IF side = 3 THEN ax = x + 0.5 - DOOR_THICK / 2
+            bx = ax
+        END IF
+        z0 = floorH(x, y) : z1 = ceilH(x, y) : ok = -1
+        EXIT SUB
+    END IF
     SELECT CASE side ' (the edge, and the open cell on its far side)
         CASE 1 : ax = x + 1 : ay = y : bx = x + 1 : by = y + 1 : ox = x + 1 : oy = y
         CASE 2 : ax = x : ay = y + 1 : bx = x + 1 : by = y + 1 : ox = x : oy = y + 1
@@ -4653,6 +4711,7 @@ FUNCTION EditFacePart(kind, x, y, side, hx, hy, hz)
         EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT FUNCTION
         IF side = 1 OR side = 3 THEN t = hy - y ELSE t = hx - x
         IF side = 1 OR side = 4 THEN u = 1 - t ELSE u = t
+        IF kind = ED_DIAG THEN u = (hx - ax) / (bx - ax) ' (a diagonal's: along x, from a)
         IF kind = ED_BOX THEN u = BoxFaceU(x, y, side, u) ' (a block's side: across its own width)
         IF z1 - z0 > 0.001 THEN v = (z1 - hz) / (z1 - z0) ELSE v = 0
     END IF
@@ -4669,8 +4728,12 @@ END FUNCTION
 ' a diagonal's) four sides, else its floor (ceil: its ceiling)
 SUB EditPaintCell(x, y, pic$, ceil)
     DIM f ' (its own: the main program shares these names)
-    IF INSTR("/\", MID$(lvlRow$(y), x + 1, 1)) THEN EditNote "A diagonal wall takes the look of the walls by it - paint those" : EXIT SUB
-    IF INSTR("#NCKPG%?@$;", MID$(lvlRow$(y), x + 1, 1)) THEN
+    IF INSTR("/\", MID$(lvlRow$(y), x + 1, 1)) THEN ' (a diagonal: its slanted face, and the two straight sides by its solid corner)
+        FOR f = 1 TO 4
+            IF SideTouchesCorner(VAL(MID$("2413", f, 1)), diagCorner(x, y)) THEN EditPaintFace x, y, f, 0, pic$
+        NEXT
+        EditPaintFace x, y, FACE_DIAG, 0, pic$
+    ELSEIF INSTR("#NCKPG%?@$;", MID$(lvlRow$(y), x + 1, 1)) THEN
         FOR f = 1 TO 4 : EditPaintFace x, y, f, 0, pic$ : NEXT
     ELSEIF ceil THEN
         EditPaintFace x, y, 10, 0, pic$
@@ -4769,7 +4832,7 @@ SUB EditFaceOutline(kind, x, y, side, part, col~&)
     SELECT CASE kind
         CASE ED_FLOOR, ED_CEIL
             IF kind = ED_FLOOR THEN z = floorH(x, y) ELSE z = ceilH(x, y)
-        CASE ED_WALL, ED_STEP, ED_LINTEL, ED_BOX
+        CASE ED_WALL, ED_STEP, ED_LINTEL, ED_BOX, ED_DIAG
             EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
         CASE ELSE : EXIT SUB
     END SELECT
@@ -4862,11 +4925,12 @@ SUB EditDrawFaces
         k = 160 + 95 * SIN(TIMER * 6)
         EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, edHovPart, _RGB32(60, k, 255)
         IF NOT edLooking THEN
-            n$ = MID$("WALL   FLOOR  CEILINGSTEP   LINTEL BLOCK  ", edHovKind * 7 - 6, 7)
+            n$ = EditKindName$(edHovKind)
+            IF edHovKind = ED_WALL THEN IF EditDoorIn(edHovX, edHovY) THEN n$ = "DOOR"
             IF edHovThing THEN n$ = GlyphName$(CellGlyph$(edHovX, edHovY)) : IF INSTR(n$, " (") THEN n$ = LEFT$(n$, INSTR(n$, " (") - 1) ' (its name, not the note after it)
             IF edHovThing THEN n$ = UCASE$(LEFT$(n$, 20))
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
-            IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
+            IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL AND edHovSide >= 1 THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
             IF NOT edHovThing THEN ' (its piece, and its picture's look: slid, stretched, turned, tinted)
                 EditTreeGet edHovX, edHovY, EditFaceCode(edHovKind, edHovSide)
                 IF edHovPart >= 1 AND edHovPart <= ptN THEN n$ = n$ + "  piece" + STR$(edHovPart) + " of" + STR$(ptN) : lbX = edHovPart ELSE lbX = 1
@@ -5073,6 +5137,7 @@ SUB EditFaceAnchor(kind, x, y, side, ax, ay)
     DIM mx, my ' (its own: the main program shares these names)
     ax = x + 0.5 : ay = y + 0.5
     IF kind = ED_FLOOR OR kind = ED_CEIL THEN EXIT SUB
+    IF kind = ED_DIAG THEN ax = x + 0.5 - 0.25 * EditDiagDX(diagCorner(x, y)) : ay = y + 0.5 - 0.25 * EditDiagDY(diagCorner(x, y)) : EXIT SUB ' (in its open half)
     IF kind = ED_BOX THEN ' (a box's side: just in front of its middle)
         IF boxOn(x, y) = 0 THEN EXIT SUB
         mx = x + (boxX0(x, y) + boxX1(x, y)) / 2 : my = y + (boxY0(x, y) + boxY1(x, y)) / 2

@@ -259,7 +259,7 @@ END FUNCTION
 FUNCTION PcPicU(x, y, f, s)
     DIM lo, hi ' (its own: the main program shares these names)
     PcPicU = s
-    IF f <= FACE_BOX OR f > FACE_MAX THEN EXIT FUNCTION
+    IF f <= FACE_BOX OR f > FACE_BOX + 4 THEN EXIT FUNCTION
     IF x < 0 OR y < 0 OR x >= mapN OR y >= mapN THEN EXIT FUNCTION
     SELECT CASE f - FACE_BOX
         CASE 1 : lo = 1 - boxY1(x, y) : hi = 1 - boxY0(x, y)
@@ -283,12 +283,72 @@ FUNCTION PcUsual(x, y, f)
             IF c$ = "@" THEN PcUsual = T_JACK
             IF c$ = "$" THEN PcUsual = T_CODE
             IF c$ = "E" THEN PcUsual = T_EXIT
+            IF INSTR("DRBYHX!", c$) THEN PcUsual = PcDoorUsual(x, y, c$) ' (a door's own)
+            IF INSTR("#NCKPG@$EDRBYHX!%?;/\", c$) = 0 THEN IF PcLiftAt(x, y) THEN PcUsual = T_LIFTSIDE ' (an open cell's side, a step's: a lift's side)
+            IF c$ = "/" OR c$ = "\" THEN PcUsual = PcDiagUsual(x, y) ' (a diagonal's straight sides)
         CASE 9 : PcUsual = floorTex(x, y)
         CASE 10 : PcUsual = ceilTex(x, y)
-        CASE FACE_BOX + 1 TO FACE_MAX
+        CASE FACE_DIAG : PcUsual = PcDiagUsual(x, y)
+        CASE FACE_BOX + 1 TO FACE_BOX + 4
             FOR k = 1 TO lvlNumBoxes
                 IF lvlBox(k, 1) = x AND lvlBox(k, 2) = y THEN IF lvlBox(k, 7) >= 1 AND lvlBox(k, 7) <= 6 THEN PcUsual = lvlBox(k, 7)
             NEXT
+    END SELECT
+END FUNCTION
+
+' A diagonal wall's picture: a wall's beside it (as BuildLevel gives it the
+' look of the wall by its solid half - read here from the map's
+' characters, before that's worked out), else the second wall's
+FUNCTION PcDiagUsual(x, y)
+    DIM c$, k, nx, ny ' (its own: the main program shares these names)
+    PcDiagUsual = 2
+    FOR k = 1 TO 4
+        nx = x : ny = y
+        SELECT CASE k
+            CASE 1 : ny = y - 1
+            CASE 2 : ny = y + 1
+            CASE 3 : nx = x - 1
+            CASE ELSE : nx = x + 1
+        END SELECT
+        IF nx >= 0 AND ny >= 0 AND nx < mapN AND ny < mapN THEN
+            c$ = MID$(lvlRow$(ny), nx + 1, 1)
+            IF INSTR("#NCKPG", c$) THEN PcDiagUsual = INSTR("#NCKPG", c$) : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
+' Is cell (x, y) on a lift that rises (not a crusher)? From the level's
+' [lifts] - BuildLevel asks before the lifts are built
+FUNCTION PcLiftAt(x, y)
+    DIM k ' (its own: the main program shares these names)
+    PcLiftAt = 0
+    FOR k = 1 TO lvlNumLifts
+        IF lvlLift(k, 7) <> LIFT_CRUSHER AND lvlLift(k, 7) <> LIFT_SMASHER THEN
+            IF x >= MinOf(lvlLift(k, 1), lvlLift(k, 3)) AND x <= MaxOf(lvlLift(k, 1), lvlLift(k, 3)) AND y >= MinOf(lvlLift(k, 2), lvlLift(k, 4)) AND y <= MaxOf(lvlLift(k, 2), lvlLift(k, 4)) THEN PcLiftAt = -1 : EXIT FUNCTION
+        END IF
+    NEXT
+END FUNCTION
+
+' A door's picture (as DoorSlot has it, once it's built) from its map
+' character and its [doors] line: a stronghold's, a keypad's, a keycard's,
+' a shutter's, a split door's - or the plain door's. (A keypad's code of ?
+' is made up later: only whether it has one is read here.)
+FUNCTION PcDoorUsual(x, y, c$)
+    DIM k, c2$ ' (its own: the main program shares these names)
+    SELECT CASE c$
+        CASE "H" : PcDoorUsual = T_SHUTTER
+        CASE "X" : PcDoorUsual = T_SPLIT
+        CASE ELSE
+            PcDoorUsual = T_DOOR : IF INSTR("RBY", c$) THEN PcDoorUsual = T_DOORK + INSTR("RBY", c$)
+            k = XtraFind("doors", x, y, 0)
+            IF k THEN
+                c2$ = LTRIM$(RTRIM$(XtraField$(k, 4)))
+                IF VAL(XtraField$(k, 3)) > 0 THEN
+                    PcDoorUsual = T_STRONG
+                ELSEIF c2$ = "?" OR (LEN(c2$) <= PAD_DIGITS AND VAL(c2$) <> 0) THEN ' (CodeOf&'s rule)
+                    PcDoorUsual = T_KEYPAD
+                END IF
+            END IF
     END SELECT
 END FUNCTION
 

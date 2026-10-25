@@ -648,11 +648,12 @@ FUNCTION FaceCode(f$)
         CASE "BS" : FaceCode = FACE_BOX + 2
         CASE "BW" : FaceCode = FACE_BOX + 3
         CASE "BN" : FaceCode = FACE_BOX + 4
+        CASE "DG" : FaceCode = FACE_DIAG ' (a diagonal wall's slanted face)
     END SELECT
 END FUNCTION
 
 FUNCTION FaceName$(f)
-    FaceName$ = RTRIM$(MID$("E S W N LELSLWLNF C BEBSBWBN", f * 2 - 1, 2))
+    FaceName$ = RTRIM$(MID$("E S W N LELSLWLNF C BEBSBWBNDG", f * 2 - 1, 2))
 END FUNCTION
 
 ' The picture slot for face f of cell (x, y) at (u, v) on it - u across as
@@ -666,6 +667,32 @@ FUNCTION FaceSlot(x, y, f, u, v, deflt)
         CASE 3 : sl = pcSl(sl, PcAt(sl, u, v)) ' (in pieces: the one there - LEVEL/PIECES.BM)
     END SELECT
     IF sl THEN FaceSlot = sl ELSE FaceSlot = deflt
+END FUNCTION
+
+' Has face f of cell (x, y) a look of its own ([faces]: a picture, halves,
+' pieces, a slide or stretch)?
+FUNCTION FaceLook(x, y, f)
+    FaceLook = 0
+    IF faceTex(x, y, f) OR faceTex2(x, y, f) OR faceDiv(x, y, f) THEN FaceLook = -1 : EXIT FUNCTION
+    IF faceOffAny THEN IF faceOU(x, y, f) OR faceOV(x, y, f) OR faceKU(x, y, f) OR faceKV(x, y, f) THEN FaceLook = -1
+END FUNCTION
+
+' A door's faces are its cell's sides (across its doorway: N 4 and S 2;
+' along it: W 3 and E 1). The face's u, left to right as you see it, at p
+' along the door's panel (its picture's own across, as it was made - the
+' way x or y grows): the north and east faces see it the other way round
+FUNCTION DoorFaceU(f, p)
+    IF f = 1 OR f = 4 THEN DoorFaceU = 1 - p ELSE DoorFaceU = p
+END FUNCTION
+
+' A door's edge (and a shutter's underside): the picture of its south (or
+' east) face where the panel ends, at p along it - else deflt
+FUNCTION DoorEdgeSlot(x, y, p, deflt)
+    DIM f ' (its own: the main program shares these names)
+    DoorEdgeSlot = deflt
+    IF faceAny = 0 THEN EXIT FUNCTION
+    IF DoorAcross(x, y) = 0 THEN f = 2 ELSE f = 1
+    IF FaceLook(x, y, f) THEN DoorEdgeSlot = FaceSlot(x, y, f, DoorFaceU(f, p), 0.5, deflt)
 END FUNCTION
 
 ' Which side of cell (x, y) looks towards the cell next to it, (tx, ty):
