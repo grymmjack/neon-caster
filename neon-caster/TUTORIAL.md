@@ -202,7 +202,13 @@ pictures, in tabs (walls, floors, ceilings, doors, items, monsters,
 decorations, specials, lights). Click faces to select them, then the wheel
 raises and lowers floors and ceilings, and with Shift pushes walls back or
 pulls them out a cell; the arrows slide the selection along; H and V divide
-a face in two for its pictures; PAINT puts any picture on any face; LIGHT
+a face (and its pieces again, up to 16) for its pictures; PAINT puts any
+picture on any face, piece, door, lift or diagonal wall - slid, stretched,
+turned, flipped, tinted, filtered (blur, hue, posterize...) or a solid
+colour or gradient made on the spot, and kept as presets; Ctrl+E opens the
+picture under the pointer in a little paint program of the editor's own
+(brush, lines, boxes, ellipses, fill), and painting across several selected
+faces makes them one sheet; LIGHT
 puts a light on one, in any colour, steady, pulsing or flickering. Select a
 door, a teleporter, a lift or a monster and a pane sets it up - a monster's
 own sight, hearing, health, speed and what wakes it, for staging ambushes.
@@ -251,7 +257,7 @@ program.
 | `RENDER/` | pictures, the 3D view and its helpers, the sprite list, light, particles, the HUD, text, the screen |
 | `GL/` | the OpenGL renderer, and its extras |
 | `MENU/` | the menu, the splash screen, the console, saved games |
-| `EDITOR/` | the level editor, the HUD editor, the monster editor, the tuner, the MUSIC ARRANGER, EDIT's sessions and versions |
+| `EDITOR/` | the level editor, its painter (PAINTER.BM), new pictures and the picker's picture menu (NEWPICS.BM), presets, the HUD editor, the monster editor, the tuner, the MUSIC ARRANGER, EDIT's sessions and versions |
 | `AUDIO/` | sounds and music |
 | `DEMO/` | demos, their playlist (PLAYLIST.BM), and the autopilot |
 | `ACH/` | achievements and records |
@@ -572,6 +578,15 @@ run it and see what happens. That's the fastest way to learn how it works.
   wide as the window, chapter 18). The editor works across the whole
   window there: a part dropped anywhere keeps to the side it's on
   (`hudSide`, `anchor =` in `hud.txt`; A changes it).
+- **Make a picture from nothing (ch. 6, 21)**: `#FF2080-2040FF-R` as a
+  picture's name is no file - `MakeGenTex` (RENDER/PICTURES.BM) works out
+  each pixel of a round gradient from the two colours. Add a direction
+  letter of your own to `GenAt~&`: stripes, a checkerboard, noise.
+- **Paint a mural (ch. 21)**: in the editor select three walls in a row,
+  then PAINT ACROSS THE 3 FACES on the PICTURE pane - one picture laid
+  across all three (`PaAcross`, EDITOR/PAINTER.BM), saved as a picture a
+  face. The painter is a loop of its own, drawing straight into the
+  picture's memory (`_MEMIMAGE`, `PaDot1`).
 - **Steps and ledges (ch. 15, 22, 24)**: the two renderers draw heights
   their own ways - OpenGL builds them into its mesh (`GLStep`), the
   software renderer walks each column front to back (`HeightColumn`).

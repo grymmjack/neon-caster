@@ -12,7 +12,7 @@ stashes), slot machines that pay out, blow up or let monsters out, NEON PONG on 
 computers, a night vision headset, service droids going about their
 business, spawners you can see charging, and a villain who talks to you - NEXUS greets you in every sector, and the monsters have voices of their own. Every sector has its own music. With a level editor built in - point and click inside the level in 3D
 or on the map from above, with a picker of every wall, floor, door, item,
-monster and light - and a monster editor and a HUD editor. Twelve more
+monster and light, and a paint program of its own to draw the pictures in place - and a monster editor and a HUD editor. Twelve more
 sectors built with the editor come with it, three of them outdoors, and
 one, THE NEON EXPO, that shows off every feature at once - and THE MONOLITH,
 256 cells across and 30 walls high, as big as a sector gets - and THE STOCKPILE, THE COMPOUND and THE LAUNCH BAY, built to show off the newest of what follows. Jumping, rocket jumps, a jetpack, flying
@@ -99,7 +99,12 @@ it's from.
 blank sector (one room in solid wall) and opens the level editor on it.
 Push walls back, sink pits, stand blocks in cells (pillars, thin walls,
 alcoves), flood floors with liquids, add doors, monsters and lights, paint
-any picture on any face, set up ambushes, and Ctrl+S saves it to
+any picture on any face - cut into as many as 16 pieces, each slid,
+stretched, turned, flipped, tinted or filtered, or a solid colour or
+gradient made on the spot - draw new pictures in the editor's own little
+paint program (Ctrl+E: brush, lines, boxes, ellipses, fill; across several
+faces at once as one sheet) or in DRAW, tint and size any monster or
+thing, set up ambushes, and Ctrl+S saves it to
 `neon-caster/levels/custom/`. The main menu's **EDIT** opens any sector
 straight in the editor - RESUME LAST EDIT picks up where you left off -
 with no intro, music or taunts, and the editor's VERSIONS keeps copies to
