@@ -688,6 +688,7 @@ SUB EditPaneClick STATIC
             st = 0 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN st = 1
             EditTexOp 12, (pnHit - 531) \ 2 + 1, 2 * ((pnHit - 531) MOD 2) - 1, st, -1
         CASE 549 : EditTexOp 12, 10, 1, 0, -1 ' INVERT: on, or off
+        CASE 553 TO 555 : EditTexOp 12, INSTR(PC_FX$, MID$("FMN", pnHit - 552, 1)), 1, 0, -1 ' OPENGL: NO BUMPS, NO SHINE, NO NEON - on, or off
         CASE 551 : EditTexOp 13, 0, 0, 0, -1 ' NO FILTERS
         CASE 552 : edFxPane = 0 ' BACK
         CASE 560 TO 590 : EditGenClick pnHit ' A made colour's (EditPaneGen)
@@ -4456,7 +4457,8 @@ SUB EditPanePicture(x0, y)
 END SUB
 
 ' The PICTURE pane's FILTERS (edFxPane): each filter's number with - and +
-' (ids 531 + 2 x its place in PC_FX$, + 1 for +), INVERT, NO FILTERS, BACK
+' (ids 531 + 2 x its place in PC_FX$, + 1 for +), INVERT, OpenGL's NO BUMPS /
+' NO SHINE / NO NEON (553-555: F M N), NO FILTERS, BACK
 ' - piece pj's shown, every selected face's changed (EditTexOp 12)
 SUB EditPaneFilters(x0, y, pj)
     DIM i, k, v, l$, t$ ' (its own: the main program shares these names)
@@ -4473,6 +4475,8 @@ SUB EditPaneFilters(x0, y, pj)
         y = y + 23
     NEXT
     EditPaneAdd 549, x0, y, PN_W, "INVERT", PcFxGet(ptFx$(pj), "I") <> 0 : y = y + 23
+    EditPaneAdd -1, x0, y + 2, PN_W, "OPENGL, ON THESE FACES:", 0 : y = y + 20
+    EditPaneAdd 553, x0, y, 66, "NO BUMPS", PcFxGet(ptFx$(pj), "F") <> 0 : EditPaneAdd 554, x0 + 67, y, 66, "NO SHINE", PcFxGet(ptFx$(pj), "M") <> 0 : EditPaneAdd 555, x0 + 134, y, 66, "NO NEON", PcFxGet(ptFx$(pj), "N") <> 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, PN_W, "SHIFT+CLICK: FINER STEPS", 0 : y = y + 20
     EditPaneAdd 551, x0, y, 99, "NO FILTERS", 0 : EditPaneAdd 552, x0 + 101, y, 99, "BACK", 0 : y = y + 23
 END SUB
@@ -4598,7 +4602,7 @@ FUNCTION EditFxStep(l$, v, dir, fine)
         CASE "L", "R", "E" : w = v + dir
         CASE "B", "C", "S" : IF fine THEN w = v + dir ELSE w = v + 10 * dir
         CASE "H" : IF fine THEN w = v + dir ELSE w = v + 15 * dir
-        CASE "I" : w = -(v = 0)
+        CASE "I", "F", "M", "N" : w = -(v = 0)
     END SELECT
     EditFxStep = PcFxClamp(l$, w)
 END FUNCTION

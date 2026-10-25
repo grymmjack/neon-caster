@@ -104,7 +104,7 @@ DIM SHARED glMeshCap AS LONG: glMeshCap = MESH_START
 DIM SHARED glNumDoors AS INTEGER, glDoorCX(MAP_SIZE * MAP_SIZE) AS INTEGER, glDoorCY(MAP_SIZE * MAP_SIZE) AS INTEGER
 DIM SHARED glLitTex AS _UNSIGNED LONG, glInfoTex AS _UNSIGNED LONG, glDynTex AS _UNSIGNED LONG, glCellLitMode AS INTEGER
 ' ...and each texture's effects (GLSendTextures)
-DIM SHARED glTexShine(GL_GLOW_TEX), glTexReflect(GL_GLOW_TEX), glTexNeon(GL_GLOW_TEX), glTexAnim(GL_GLOW_TEX)
+DIM SHARED glTexShine(GL_GLOW_TEX), glTexReflect(GL_GLOW_TEX), glTexNeon(GL_GLOW_TEX), glTexAnim(GL_GLOW_TEX), glTexBump(GL_GLOW_TEX)
 ' GL_BUMP: how strongly bumps tilt the light; GL_LIGHT_Z: how high lights
 ' hang (in walls: the ceiling is 1)
 CONST GL_BUMP = 2.5, GL_LIGHT_Z = 0.85

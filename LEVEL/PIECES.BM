@@ -481,7 +481,7 @@ FUNCTION PcFxClamp(l$, v)
         CASE "B", "C", "S" : w = MaxOf(-100, MinOf(100, w))
         CASE "H" : w = ((w MOD 360) + 540) MOD 360 - 180 : IF w = -180 THEN w = 180
         CASE "P" : IF w <> 0 THEN w = MaxOf(2, MinOf(32, w))
-        CASE "I" : w = -(w <> 0)
+        CASE "I", "F", "M", "N" : w = -(w <> 0)
     END SELECT
     PcFxClamp = w
 END FUNCTION
@@ -495,7 +495,7 @@ FUNCTION PcFxSet$(fx$, l$, v)
         IF c$ = UCASE$(l$) THEN n = v ELSE n = PcFxGet(fx$, c$)
         n = PcFxClamp(c$, n)
         IF n <> 0 THEN
-            IF c$ = "I" THEN t$ = t$ + "I" ELSE t$ = t$ + c$ + LTRIM$(STR$(n))
+            IF INSTR("IFMN", c$) THEN t$ = t$ + c$ ELSE t$ = t$ + c$ + LTRIM$(STR$(n))
         END IF
     NEXT
     PcFxSet$ = t$
@@ -515,6 +515,9 @@ FUNCTION PcFxName$(fx$)
             w$ = PcFxWord$(c$)
             SELECT CASE c$
                 CASE "I" : w$ = "INVERTED"
+                CASE "F" : w$ = "NO BUMPS"
+                CASE "M" : w$ = "NO SHINE"
+                CASE "N" : w$ = "NO NEON"
                 CASE "B", "C", "S", "H" : IF n > 0 THEN w$ = w$ + " +" + LTRIM$(STR$(n)) ELSE w$ = w$ + STR$(n)
                 CASE ELSE : w$ = w$ + STR$(n)
             END SELECT
@@ -529,7 +532,7 @@ END FUNCTION
 FUNCTION PcFxWord$(l$)
     DIM i ' (its own: the main program shares these names)
     i = INSTR(PC_FX$, UCASE$(l$)) : IF i = 0 THEN EXIT FUNCTION
-    PcFxWord$ = RTRIM$(MID$("PIXELATE  BLUR      SHARPEN   EMBOSS    BRIGHT    CONTRAST  SATURATE  HUE       POSTERIZE INVERT    ", i * 10 - 9, 10))
+    PcFxWord$ = RTRIM$(MID$("PIXELATE  BLUR      SHARPEN   EMBOSS    BRIGHT    CONTRAST  SATURATE  HUE       POSTERIZE INVERT    NO BUMPS  NO SHINE  NO NEON   ", i * 10 - 9, 10))
 END FUNCTION
 
 ' The filters fx$ on picture b() - n x n, row by row (y * n + x), opaque

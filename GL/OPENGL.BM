@@ -1235,7 +1235,7 @@ END SUB
 ' made from its brightness - and how it shines, mirrors, glows and moves.
 ' A face slot the sector doesn't use (texUsed) isn't sent
 SUB GLSendSlot(slot)
-    DIM d, lk, x, y ' (its own: the main program shares these names)
+    DIM d, lk, x, y, fx$ ' (its own: the main program shares these names)
     IF slot > T_CUSTOM AND slot <= T_CUSTOM + T_CUSTOMN THEN IF NOT texUsed(slot - T_CUSTOM) OR texFile$(slot) = "" THEN EXIT SUB
     FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
         col~& = texture(x, y, slot)
@@ -1281,7 +1281,25 @@ SUB GLSendSlot(slot)
         lk = slot - T_LIQUID : glTexReflect(slot) = lqSee(lk) : glTexAnim(slot) = 5 : glTexShine(slot) = 0.7 : glTexNeon(slot) = 0.5
         IF lk = LQ_LAVA THEN glTexNeon(slot) = 1 : glTexShine(slot) = 0.15
     END IF
+    glTexBump(slot) = 1
+    IF LEFT$(texFile$(slot), 3) = "pc:" THEN ' A piece's look with OpenGL's effects off (the FILTERS pane: F no bumps, M no shine, N no neon)
+        fx$ = GLPieceFx$(texFile$(slot))
+        IF PcFxGet(fx$, "F") THEN glTexBump(slot) = 0
+        IF PcFxGet(fx$, "M") THEN glTexShine(slot) = 0
+        IF PcFxGet(fx$, "N") THEN glTexNeon(slot) = 0
+    END IF
 END SUB
+
+' A piece's filters, from its slot's key: pc:base:turn:tint:amount:colour:FILTERS:file
+FUNCTION GLPieceFx$(k$)
+    DIM c, i, t$ ' (its own)
+    t$ = k$
+    FOR i = 1 TO 6
+        c = INSTR(t$, ":") : IF c = 0 THEN EXIT FUNCTION
+        t$ = MID$(t$, c + 1)
+    NEXT
+    c = INSTR(t$, ":") : IF c THEN GLPieceFx$ = LEFT$(t$, c - 1)
+END FUNCTION
 
 ' The editor changed some face pictures (BuildLevel's texDirty): only
 ' those sent again, not every picture, sprite and model - a rebuild was a
@@ -1341,7 +1359,7 @@ SUB GLBindSlot(slot)
             GLSL_uniform_1f p~&, "bump", 0 : GLSL_uniform_1f p~&, "shine", 0
         ELSE
             GLSL_uniform_1f p~&, "isSprite", 0 : GLSL_uniform_1f p~&, "texel", 1 / texSize
-            GLSL_uniform_1f p~&, "bump", GL_BUMP * glBumpOn : GLSL_uniform_1f p~&, "shine", glTexShine(slot)
+            GLSL_uniform_1f p~&, "bump", GL_BUMP * glBumpOn * glTexBump(slot) : GLSL_uniform_1f p~&, "shine", glTexShine(slot)
         END IF
     END IF
 END SUB

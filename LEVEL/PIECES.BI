@@ -47,7 +47,7 @@ DIM SHARED ptShape$, ptN AS INTEGER
 DIM SHARED ptPic$(PC_LEAF), ptRot(PC_LEAF) AS INTEGER, ptO(PC_LEAF) AS INTEGER, ptK(PC_LEAF) AS LONG
 DIM SHARED ptTM(PC_LEAF) AS INTEGER, ptTA(PC_LEAF) AS INTEGER, ptTC(PC_LEAF) AS _UNSIGNED LONG, ptA(PC_LEAF) AS INTEGER
 DIM SHARED ptFx$(PC_LEAF) ' (its filters: "" none)
-CONST PC_FX$ = "XLREBCSHPI" ' (the filters, in the order they're done)
+CONST PC_FX$ = "XLREBCSHPIFMN" ' (the filters, in the order they're done - and after them three OpenGL effects off, no change to the picture: F flat (no bumps), M matt (no shine), N no neon - GLSendSlot)
 REDIM SHARED pcFxBuf(0) AS _UNSIGNED LONG ' (a picture being filtered: n x n, row by row - PcFxApply)
 ' The pieces' rectangles (PcRects): u across, v down, 0 to 1
 DIM SHARED pcRU0(PC_LEAF), pcRV0(PC_LEAF), pcRU1(PC_LEAF), pcRV1(PC_LEAF)
