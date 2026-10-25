@@ -48,7 +48,7 @@
         FillCircle flashX, flashY, 18 + muzzleFlash * 3, _RGBA32(255, 150, 150, 170)
         FillCircle flashX, flashY, 8, _RGBA32(255, 255, 255, 230)
     END IF
-    ChargeGlow ' (CHARGED SHOTS: the charge at the muzzle - GAME/GUNS.BM)
+    IF chargeT > 0 THEN ChargeGlow gunX + gunW * gunMuzzleX(currentGun), gunY + gunH * gunMuzzleY(currentGun) ' (CHARGED SHOTS: the charge at the muzzle - GAME/GUNS.BM)
     IF railBeam > 0 THEN ' The railgun's beam, from the muzzle to the crosshair
         flashX = gunX + gunW * gunMuzzleX(currentGun) : flashY = gunY + gunH * gunMuzzleY(currentGun)
         FOR k = -3 TO 3
