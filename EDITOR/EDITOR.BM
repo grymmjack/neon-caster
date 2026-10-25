@@ -3855,7 +3855,7 @@ SUB EditPaneBuild
 END SUB
 
 SUB EditPaneLay
-    DIM bi, c, c$, ev, f, j, k, kd, lt, mx, n, r, t, t$, ux, uy, w, x0, y, cx, cy, clB, clFx ' (its own: the main program shares these names)
+    DIM bi, c, c$, ev, f, j, k, kd, lt, mx, n, r, t, t$, ux, uy, w, x0, y, cx, cy, clB, clFx, mcl ' (its own: the main program shares these names)
     IF editView = 1 THEN edPnX0 = PN_X : edPnY0 = PN_Y ELSE edPnX0 = 380 : edPnY0 = 12
     edPnN = 0 : edPnTitle$ = "" : edPnBot = edPnY0 : edPnLift = 0 : edPnLight = 0 : edPnEvent = 0
     x0 = edPnX0 : y = edPnY0 + 24
@@ -3982,6 +3982,14 @@ SUB EditPaneLay
         EXIT SUB
     END IF
     IF editView = 1 AND edTool = ET_PAINT AND edSelN > 0 THEN EditPanePicture x0, y : EXIT SUB ' (PAINT: the selected faces' pictures - slid, stretched)
+    ' Two cells or more (a box, a room): CELL LIGHT... at the top of whichever
+    ' pane is shown - a light, a monster or a door among them would hide the
+    ' floor's pane, and its button with it
+    mcl = 0
+    FOR k = 2 TO edSelN
+        IF edSelX(k) <> edSelX(1) OR edSelY(k) <> edSelY(1) THEN mcl = -1 : EXIT FOR
+    NEXT
+    IF mcl THEN EditPaneAdd 220, x0, y, PN_W, "CELL LIGHT (ALL SELECTED)...", 0 : y = y + 26
     ' A door: the first selected face that's a door's
     FOR k = 1 TO edSelN
         c$ = MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1)
@@ -4202,7 +4210,7 @@ SUB EditPaneLay
             EditPaneAdd 169, x0, y, PN_W, "MAKE AN EVENT ROOM", 0 : y = y + 23
         END IF
         EditPaneAdd 204, x0, y, PN_W, "ADD A PILLAR", 0 : y = y + 23
-        EditPaneAdd 220, x0, y, PN_W, "CELL LIGHT...", 0 : y = y + 23
+        IF NOT mcl THEN EditPaneAdd 220, x0, y, PN_W, "CELL LIGHT...", 0 : y = y + 23 ' (more than a cell: it's at the top)
         EditPaneNudge x0, y
         EditPaneFuel x0, y
         EditPaneLiquid x0, y
