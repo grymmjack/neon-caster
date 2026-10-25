@@ -62,6 +62,8 @@ SUB AddLight(x, y, radius, r, g, b, effect, deco)
     lightX(numLights) = x : lightY(numLights) = y : lightRadius(numLights) = radius
     lightR(numLights) = r : lightG(numLights) = g : lightB(numLights) = b
     lightEffect(numLights) = effect : lightDeco(numLights) = deco : lightLow(numLights) = 0 : lightNoLamp(numLights) = 0
+    lightBri(numLights) = MaxOf(r, MaxOf(g, b)) : lightHue(numLights) = _RGB32(255, 255, 255) ' (its brightness and colour, to change in play: the level's own get theirs exactly - BuildLevel)
+    IF lightBri(numLights) > 0 THEN lightHue(numLights) = _RGB32(r * 255 / lightBri(numLights), g * 255 / lightBri(numLights), b * 255 / lightBri(numLights))
     lightPhase(numLights) = RND * 6.28 : lightTimer(numLights) = 0 ' (so no two flicker in step)
 END SUB
 
@@ -250,3 +252,142 @@ SUB BreakLight(l, loud)
         PlaySfx decoBreakSnd&(2), 0.9
     END IF
 END SUB
+
+' ---------------------------------------------------------------------------
+' LIGHTS THAT CHANGE AS A SECTOR PLAYS - console commands, so a trigger's
+' too (a light switch: use X Y repeat : light 3 toggle; an alarm that
+' turns a room red: alarm : celllight 10 4 18 9 150 FF2020 pulse; calm,
+' when it stops, puts it back: calm : celllight 10 4 18 9 off).
+'   light N on|off|toggle         one of the level's lights ([lights], from 1)
+'   light N colour RRGGBB         its colour      light N bright 0-400
+'   light N fx steady|flicker|pulse|strobe|fire|dying
+'   ambient BRIGHT [RRGGBB] [FX]  the sector's own light: every cell with
+'                                 no light of its own
+'   celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]  those cells a light of their
+'                                 own (0 is dark) - or "off": the sector's again
+' Light only (the game plays the same: demos don't mind). What changed is
+' kept in lightLog$ - on/off isn't: shot-out and switched-off lamps are
+' saved as they are - and a saved game makes it all again (LightReplay).
+' Returns "" when done, else what to say (a mistake, or what was asked).
+FUNCTION LightCmd$(c$)
+    DIM v$, w$, l, x, y, x0, y0, x1, y1, bri, fx, hue AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    v$ = ConWord$(c$, 1)
+    SELECT CASE v$
+        CASE "light"
+            l = VAL(ConWord$(c$, 2)) : w$ = ConWord$(c$, 3)
+            IF l < 1 OR l > numLights THEN LightCmd$ = "light: no light" + STR$(l) + " - this sector's are 1 to" + STR$(numLightsBase) : EXIT FUNCTION
+            SELECT CASE w$
+                CASE "" : LightCmd$ = "light" + STR$(l) + ": at" + STR$(INT(lightX(l))) + STR$(INT(lightY(l))) + ", bright" + STR$(INT(lightBri(l))) + ", colour " + HueHex$(lightHue(l)) + ", " + FxName$(lightEffect(l)) + MID$(", off", 1, -5 * (lightBroken(l) <> 0)) : EXIT FUNCTION
+                CASE "on" : LightSwitch l, 0 : EXIT FUNCTION
+                CASE "off" : LightSwitch l, -1 : EXIT FUNCTION
+                CASE "toggle" : LightSwitch l, NOT lightBroken(l) : EXIT FUNCTION
+                CASE "colour", "color"
+                    IF NOT HueOK(ConWord$(c$, 4)) THEN LightCmd$ = "light N colour RRGGBB - six hex digits (FF2020 red)" : EXIT FUNCTION
+                    lightHue(l) = HueOf~&(ConWord$(c$, 4)) : LightTone l
+                CASE "bright"
+                    lightBri(l) = MaxOf(0, MinOf(400, VAL(ConWord$(c$, 4)))) : LightTone l
+                CASE "fx", "effect"
+                    fx = FxOf(ConWord$(c$, 4)) : IF fx < 0 THEN LightCmd$ = "light N fx steady|flicker|pulse|strobe|fire|dying" : EXIT FUNCTION
+                    lightEffect(l) = fx
+                CASE ELSE : LightCmd$ = "light N on|off|toggle, colour RRGGBB, bright 0-400, fx NAME" : EXIT FUNCTION
+            END SELECT
+        CASE "ambient"
+            w$ = ConWord$(c$, 2)
+            IF w$ = "" THEN LightCmd$ = "ambient: bright" + STR$(ambBri) + ", colour " + HueHex$(ambHue) + ", " + FxName$(ambFx) : EXIT FUNCTION
+            bri = MaxOf(0, MinOf(400, VAL(w$))) : hue = ambHue : fx = ambFx
+            IF ConWord$(c$, 3) <> "" THEN
+                IF HueOK(ConWord$(c$, 3)) THEN hue = HueOf~&(ConWord$(c$, 3)) ELSE fx = FxOf(ConWord$(c$, 3))
+            END IF
+            IF ConWord$(c$, 4) <> "" THEN fx = FxOf(ConWord$(c$, 4))
+            IF fx < 0 THEN LightCmd$ = "ambient BRIGHT [RRGGBB] [steady|flicker|pulse|strobe|fire|dying]" : EXIT FUNCTION
+            ambBri = bri : ambHue = hue : ambFx = fx
+            ambientR = bri * _RED32(hue) / 255 : ambientG = bri * _GREEN32(hue) / 255 : ambientB = bri * _BLUE32(hue) / 255
+            FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
+                IF NOT cellAmbOwn(x, y) THEN cellAmbR(x, y) = ambientR : cellAmbG(x, y) = ambientG : cellAmbB(x, y) = ambientB : cellAmbFx(x, y) = fx
+            NEXT : NEXT
+        CASE "celllight"
+            x0 = VAL(ConWord$(c$, 2)) : y0 = VAL(ConWord$(c$, 3)) : x1 = VAL(ConWord$(c$, 4)) : y1 = VAL(ConWord$(c$, 5)) : w$ = ConWord$(c$, 6)
+            IF w$ = "" THEN LightCmd$ = "celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX] - or off (the sector's light again)" : EXIT FUNCTION
+            IF x1 < x0 THEN SWAP x0, x1
+            IF y1 < y0 THEN SWAP y0, y1
+            x0 = MaxOf(0, x0) : y0 = MaxOf(0, y0) : x1 = MinOf(mapN - 1, x1) : y1 = MinOf(mapN - 1, y1)
+            IF w$ = "off" OR w$ = "sector" THEN
+                FOR y = y0 TO y1 : FOR x = x0 TO x1
+                    cellAmbOwn(x, y) = 0 : cellAmbR(x, y) = ambientR : cellAmbG(x, y) = ambientG : cellAmbB(x, y) = ambientB : cellAmbFx(x, y) = ambFx
+                NEXT : NEXT
+            ELSE
+                IF NOT HueOK(ConWord$(c$, 7)) THEN LightCmd$ = "celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX] - the colour six hex digits (FF2020 red)" : EXIT FUNCTION
+                bri = MaxOf(0, MinOf(400, VAL(w$))) : hue = HueOf~&(ConWord$(c$, 7)) : fx = 0
+                IF ConWord$(c$, 8) <> "" THEN fx = FxOf(ConWord$(c$, 8))
+                IF fx < 0 THEN LightCmd$ = "celllight ... FX: steady|flicker|pulse|strobe|fire|dying" : EXIT FUNCTION
+                FOR y = y0 TO y1 : FOR x = x0 TO x1
+                    cellAmbOwn(x, y) = -1 : cellAmbR(x, y) = bri * _RED32(hue) / 255 : cellAmbG(x, y) = bri * _GREEN32(hue) / 255 : cellAmbB(x, y) = bri * _BLUE32(hue) / 255 : cellAmbFx(x, y) = fx
+                NEXT : NEXT
+            END IF
+        CASE ELSE : EXIT FUNCTION
+    END SELECT
+    lightLog$ = lightLog$ + c$ + CHR$(10) : litAll = 3 ' (kept for a save; the whole sector lit afresh - OpenGL's two halves too)
+END FUNCTION
+
+' Light l on or off (a light switch) - its lamp on the ceiling lit or dark with it
+SUB LightSwitch(l, dark)
+    DIM cx, cy ' (its own: the main program shares these names)
+    lightBroken(l) = dark
+    cx = INT(lightX(l)) : cy = INT(lightY(l))
+    IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT SUB
+    IF shaftCell(cx, cy) = l THEN ' (its lamp: lit, or dark - and OpenGL's world built again to show it)
+        IF dark THEN ceilTex(cx, cy) = T_LAMPOFF ELSE ceilTex(cx, cy) = T_LAMP
+        glMeshVersion = glMeshVersion + 1
+    END IF
+END SUB
+
+' Light l's red, green and blue from its brightness and colour
+SUB LightTone(l)
+    lightR(l) = lightBri(l) * _RED32(lightHue(l)) / 255 : lightG(l) = lightBri(l) * _GREEN32(lightHue(l)) / 255 : lightB(l) = lightBri(l) * _BLUE32(lightHue(l)) / 255
+END SUB
+
+' A saved game's light changes (lightLog$), made again on the sector as it loads
+SUB LightReplay
+    DIM all$, ln$, nl, e$ ' (its own)
+    all$ = lightLog$ : lightLog$ = ""
+    DO WHILE LEN(all$)
+        nl = INSTR(all$, CHR$(10)) : IF nl = 0 THEN nl = LEN(all$) + 1
+        ln$ = LEFT$(all$, nl - 1) : all$ = MID$(all$, nl + 1)
+        IF LEN(ln$) THEN e$ = LightCmd$(ln$)
+    LOOP
+END SUB
+
+' RRGGBB: is it six hex digits? Its colour?
+FUNCTION HueOK(h$)
+    DIM i ' (its own)
+    HueOK = 0 : IF LEN(h$) <> 6 THEN EXIT FUNCTION
+    FOR i = 1 TO 6 : IF INSTR("0123456789abcdefABCDEF", MID$(h$, i, 1)) = 0 THEN EXIT FUNCTION
+    NEXT
+    HueOK = -1
+END FUNCTION
+
+FUNCTION HueOf~&(h$)
+    HueOf~& = _RGB32(VAL("&H" + MID$(h$, 1, 2)), VAL("&H" + MID$(h$, 3, 2)), VAL("&H" + MID$(h$, 5, 2)))
+END FUNCTION
+
+FUNCTION HueHex$(c AS _UNSIGNED LONG)
+    HueHex$ = RIGHT$("00000" + HEX$(c AND &HFFFFFF), 6)
+END FUNCTION
+
+' A light effect's FX_ number from its name (or 0-5) - -1 if it's neither
+FUNCTION FxOf(n$)
+    SELECT CASE LCASE$(n$)
+        CASE "", "steady", "0" : FxOf = FX_STEADY
+        CASE "flicker", "1" : FxOf = FX_FLICKER
+        CASE "pulse", "2" : FxOf = FX_PULSE
+        CASE "strobe", "3" : FxOf = FX_STROBE
+        CASE "fire", "4" : FxOf = FX_FIRE
+        CASE "dying", "5" : FxOf = FX_DYING
+        CASE ELSE : FxOf = -1
+    END SELECT
+END FUNCTION
+
+' ...and its name
+FUNCTION FxName$(fx)
+    FxName$ = RTRIM$(MID$("steady  flicker pulse   strobe  fire    dying   ", MaxOf(0, MinOf(5, fx)) * 8 + 1, 8))
+END FUNCTION

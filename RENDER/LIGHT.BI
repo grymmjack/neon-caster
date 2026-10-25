@@ -37,6 +37,14 @@ DIM SHARED lightX(MAX_LIGHTS), lightY(MAX_LIGHTS), lightRadius(MAX_LIGHTS)
 DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhase(MAX_LIGHTS)
 DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
 DIM SHARED numLightsBase AS INTEGER ' (the level's own lights - those after them are pools flooded in play: LiquidGlows)
+' Lights a sector changes as it plays (light N colour/bright/fx, ambient,
+' celllight - LightCmd$, RENDER/LIGHT.BM): each light's brightness and
+' colour (lightBri, lightHue~&: lightR/G/B are made from them), the
+' sector's own light (ambBri, ambHue~&, ambFx), which cells have a light
+' of their own (cellAmbOwn: a [cell lights] cell, or a celllight's) - and
+' every change made, a line each (lightLog$), for a saved game to make again
+DIM SHARED lightBri(MAX_LIGHTS) AS SINGLE, lightHue(MAX_LIGHTS) AS _UNSIGNED LONG
+DIM SHARED ambBri AS INTEGER, ambHue AS _UNSIGNED LONG, ambFx AS INTEGER, cellAmbOwn(MAP_SIZE, MAP_SIZE) AS _BYTE, lightLog$
 DIM SHARED lightNoLamp(MAX_LIGHTS) AS INTEGER ' (a level's light set to hang no lamp: its ceiling keeps its own picture, no beam)
 DIM SHARED lightLow(MAX_LIGHTS) AS INTEGER ' (a glow from the floor - a pool of lava: no lamp on the ceiling over it, no beam)
 DIM SHARED lightNow(MAX_LIGHTS) ' How bright its effect has it this frame (0 off .. 1 full): for its glow

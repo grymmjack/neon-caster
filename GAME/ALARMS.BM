@@ -32,7 +32,18 @@ END SUB
 SUB AlarmSet(i, onOff)
     IF decoKind(i) <> DK_ALARM THEN EXIT SUB
     IF onOff THEN vendState(i) = 0 : decoOpen(i) = 0 ELSE vendState(i) = 3 : decoOpen(i) = -1
-    IF NOT onOff AND alarmTimer > 0 AND alarmAt = i THEN AlarmQuiet
+    IF NOT onOff AND alarmTimer > 0 AND alarmAt = i THEN AlarmCalm
+END SUB
+
+' The alarm, sounding, stopped in play (run out, shut off at a switch, the
+' console's alarm stop): quiet - and every "calm" trigger runs (a room lit
+' red for the alarm put back: calm : celllight ... off)
+SUB AlarmCalm
+    DIM k ' (its own: the main program shares these names)
+    IF alarmTimer > 0 THEN AlarmQuiet
+    FOR k = 1 TO numTrigs
+        IF trigWhen$(k) = "calm" AND NOT trigDone(k) THEN trigRun$ = trigCmd$(k) : trigDone(k) = NOT trigRepeat(k) : TriggerRun
+    NEXT
 END SUB
 
 ' The alarm stopped: the siren too, at once
@@ -116,7 +127,7 @@ SUB AlarmStep
     IF alarmTimer <= 0 THEN EXIT SUB
     alarmTimer = alarmTimer - 1
     IF alarmTimer MOD 110 = 0 AND alarmTimer > 0 THEN SirenPlay 0.55
-    IF alarmTimer = 0 THEN ShowMsg "The alarm's stopped"
+    IF alarmTimer = 0 THEN ShowMsg "The alarm's stopped" : AlarmCalm
 END SUB
 
 ' --- Guard i, hunting you: while the alarm's quiet and a switch that's on

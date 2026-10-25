@@ -460,7 +460,7 @@ SUB ConExec STATIC
                     NEXT
                     IF j THEN AlarmRaise j ELSE ConPrint "No alarm switch is on"
                 CASE "stop", "quiet"
-                    AlarmQuiet : ConPrint "The alarm's quiet"
+                    AlarmCalm : ConPrint "The alarm's quiet"
                 CASE ELSE
                     n = 0 : FOR k = 1 TO numDecos : IF decoKind(k) = DK_ALARM THEN n = n + 1
                     NEXT
@@ -788,16 +788,8 @@ SUB ConExec STATIC
                 BuildLights : glMeshVersion = glMeshVersion + 1
                 IF k = 2 THEN SpawnSparks x + 0.5, y + 0.5, 0.3, 14, 160, 150, 140 : SfxAt sndCloset&, x + 0.5, y + 0.5, playerX, playerY
             END IF
-        CASE "light" ' light N on|off: one of the level's lights ([lights], from 1)
-            l = VAL(conA$)
-            IF l >= 1 AND l <= numLights THEN
-                IF conB$ = "off" THEN lightBroken(l) = -1 ELSE lightBroken(l) = 0
-                cx = INT(lightX(l)) : cy = INT(lightY(l))
-                IF shaftCell(cx, cy) = l THEN ' (its lamp on the ceiling: lit, or dark - and OpenGL's world built again to show it)
-                    IF conB$ = "off" THEN ceilTex(cx, cy) = T_LAMPOFF ELSE ceilTex(cx, cy) = T_LAMP
-                    glMeshVersion = glMeshVersion + 1
-                END IF
-            END IF
+        CASE "light", "ambient", "celllight" ' light N on|off|toggle|colour|bright|fx, ambient BRIGHT [RRGGBB] [FX], celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]|off - lights that change as a sector plays (LightCmd$, RENDER/LIGHT.BM)
+            e$ = LightCmd$(conCmd$) : IF LEN(e$) THEN ConPrint e$
         CASE "liftgo" ' liftgo N up|down: a lift on its way
             l = VAL(conA$)
             IF l >= 1 AND l <= numLifts THEN
@@ -1410,7 +1402,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1435,6 +1427,7 @@ SUB ConHelp(c$)
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7redo"
             ConPrint "            ^7savelevel  ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]"
             ConPrint "            ^7jumppad^8 X Y ...  ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N"
+            ConPrint "            ^7ambient^8 [BRIGHT RRGGBB FX]  ^7celllight^8 X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]|off"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
             ConPrint "  ^6scripts   ^7alias^8 NAME " + CHR$(34) + "..." + CHR$(34) + "  ^7unalias^8 NAME  ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE"
             ConPrint "            ^7logfile^8 FILE|off  ^7screenshot^8 [FILE]  ^7message^8 TEXT  ^7sound^8 NAME  ^7say^8 LINE"
@@ -1578,12 +1571,20 @@ SUB ConHelp(c$)
         CASE "lamp" : ConPrint "^3lamp X Y [1-8]^0: a light over cell X Y - 1 white, 2 cyan, 3 magenta, 4 orange, 5 green, 6 red alarm, 7 flickering, 8 firelight"
         CASE "wall" : ConPrint "^3wall X Y CHAR^0: a cell changed in the running level - a wall (# N C K P G) or floor (.) - as a monster closet opens (not saved)"
         CASE "door" : ConPrint "^3door X Y open|close|lock|unlock|toggle^0: a door, as a trigger works it (toggle if nothing's said)"
-        CASE "light" : ConPrint "^3light N on|off^0: one of the level's lights ([lights], from 1) - its lamp goes dark with it"
+        CASE "light"
+            ConPrint "^3light N on|off|toggle^0: one of the level's lights ([lights], from 1) - its lamp goes dark with it; ^3light N^0: how it is"
+            ConPrint "  ^3light N colour RRGGBB^0, ^3light N bright 0-400^0, ^3light N fx steady|flicker|pulse|strobe|fire|dying^0"
+            ConPrint "  a light switch is a trigger: use X Y repeat : light 3 toggle"
+        CASE "ambient" : ConPrint "^3ambient [BRIGHT [RRGGBB] [FX]]^0: the sector's own light - every cell with none of its own (alone: how it is)"
+        CASE "celllight"
+            ConPrint "^3celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]^0: those cells a light of their own (0: dark) - ^3... off^0: the sector's again"
+            ConPrint "  FX steady flicker pulse strobe fire dying. An alarm's red: alarm : celllight 10 4 18 9 150 FF2020 pulse"
         CASE "liftgo" : ConPrint "^3liftgo N up|down^0: lift N on its way (a mode 3 lift waits for this)"
         CASE "trigger"
             ConPrint "^3trigger WHEN ... [repeat] : COMMAND | COMMAND^0 - a new trigger for this level (| for ; when typed). WHEN:"
             ConPrint "  enter X0 Y0 X1 Y1 (you walk in) - use X Y (Space on it) - shoot X Y - clear X0 Y0 X1 Y1 (no monster left) - time S"
             ConPrint "  - hack X Y (the computer there hacked) - alarm [X Y] (that switch - or, alone, any - sets the alarm off)"
+            ConPrint "  - calm (the alarm stops)"
             ConPrint "  trigger del N: take trigger N away (triggers lists them). savelevel (or Ctrl+S) keeps them"
         CASE "undo" : ConPrint "^3undo^0: the editor's last change, undone (Ctrl+Z)"
         CASE "redo" : ConPrint "^3redo^0: the change undone last, made again (Ctrl+Y, Ctrl+Shift+Z)"

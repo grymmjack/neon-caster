@@ -267,7 +267,7 @@ With **FULL WIDE** (OpenGL, a screen wider than 4:3) the 3D view's controls use 
 | Floor | MAKE A LIFT OF IT (the selected cells' box, from their floor up a wall), MAKE AN EVENT ROOM (the same box, an ambush to start with) - or, on a floor already in one, EVENT ROOM: its kind..., which opens that room's pane, ADD A PILLAR (a block a quarter of a cell square, in the middle), CELL LIGHT... (the cells' own ambient light - see Lights), ADD A LIGHT TO IT - and, with a decoration on it, MOVE IT `<` `>` `^` `v`, an eighth at a time, and which way it faces: TURNS TO FACE YOU (as every sprite does), or STANDS, FACING EAST / SOUTH / WEST / NORTH (these rows are on a light's pane too, when the light is over the decoration) |
 | A plain wall | MAKE IT A BLOCK (the wall becomes a block filling its cell, its sides' pictures kept, and the side you clicked stays selected, ready to PUSH IN), ADD A LIGHT TO IT |
 | Any other face | ADD A LIGHT TO IT |
-| TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead) or TIME (seconds into the level); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them, or click the action buttons (+25 HP, -25 HP, DIE, +CELLS, -CELLS, +SHELLS, -SHELLS, GIVE ALL, TAKE ALL) to add theirs; ADD IT. |
+| TRIGGERS... (on a door's, a floor's, a wall's pane) | The triggers about the selection: an enter or clear box taking it in, a use of it, and the timed ones (which are everywhere), each with an **x** to take it away. Then a new one: ENTER (walking into the selection's box - for a wall, the cells in front of it), USE (Space facing the first face's cell: a wall, a door, a terminal), CLEAR (every monster that started in the box is dead), TIME (seconds into the level), HACK, ALARM or CALM (the alarm stops); JUST ONCE or EVERY TIME; TYPE its commands as in the console, `;` between them, or click the action buttons (+25 HP, -25 HP, DIE, +CELLS, -CELLS, +SHELLS, -SHELLS, GIVE ALL, TAKE ALL; and the lights' LAMP O/I, AREA RED, AREA OFF) to add theirs; ADD IT. |
 | Nothing (the SECTOR button) | NAME: type the sector's name, Enter to keep it (Esc not). LIGHT: the ambient light, brighter or darker, and twelve colours to tint it. DROIDS: how many service droids roam it (0-12). ALL FLOORS / ALL CEILINGS: every floor (or ceiling) in the sector down or up an eighth - Shift, a whole wall. LOOT: what every breakable leaves, at once - AS MADE (the game's table), NONE, LITTLE (half the chances), PLENTY (half again), LOTS (twice); the console's `loot` sets one kind exactly. ROOM W x H (- and +; Shift for its depth) and MAKE THE MAP THIS ROOM: the whole map wall again but for one room that size in its middle, you at its west end, the exit in its east wall - the quick start for a new sector (Ctrl+Z undoes it). ITS PICTURES, under WALLS, FLOORS and CEILINGS: the six kinds of wall (`#` `N` `C` `K` `P` `G`), the four floors (1-4) and two ceilings (1-2) the level's zones use - click one, and the picker opens at its tab, showing only the picture files (the one it has now lit): the next picture you click is that one's, everywhere it's used. |
 
 **Monsters, for ambushes.** Each monster can be set apart from its kind:
@@ -577,7 +577,18 @@ Lights add to what's there, and the brightest a pixel can be is its picture's ow
 
 **The 96-light budget includes automatic lights.** Lamps, terminals, server racks, glowing decorations, the exit and teleporter pads each add a light of their own. Past 96, extra lights are dropped without a message, and the editor can't warn you because it only counts the level's own list. If a light you placed doesn't show, you've probably hit the limit.
 
-The console can switch a light while you play: `light N on` or `light N off`, where N counts the `[lights]` lines from 1. A trigger can do the same.
+**Lights that change as the sector plays.** The console - so a trigger too - can change the light while you play (N counts the `[lights]` lines from 1):
+
+| Command | What it does |
+| --- | --- |
+| `light N on` / `off` / `toggle` | Switch a light (its lamp goes dark with it). `light N` alone says how it is |
+| `light N colour RRGGBB` | Its colour (`FF2020` red) |
+| `light N bright 0-400` | Its brightness |
+| `light N fx steady\|flicker\|pulse\|strobe\|fire\|dying` | Its effect |
+| `ambient BRIGHT [RRGGBB] [FX]` | The sector's own light: every cell with no cell light of its own. `ambient` alone says how it is |
+| `celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]` | Those cells a light of their own (0 is dark) - `celllight X0 Y0 X1 Y1 off` gives them the sector's light again |
+
+A **light switch** is a trigger on a wall: `use 12 8 repeat : light 3 toggle` (put `wall-switch.png` on the face). An **alarm that turns a room red**: `alarm : celllight 10 4 18 9 150 FF2020 pulse` and, when it stops, `calm : celllight 10 4 18 9 off`. A power cut: `enter 30 2 34 6 : ambient 20 4060FF flicker`. The TRIGGERS pane has three buttons for these: **LAMP O/I** (switch the light nearest the selection), **AREA RED** and **AREA OFF** (the selection's cells). The changes are light only - the game plays the same - and a saved game keeps them.
 
 **Cell lights: ambient light, cell by cell.** A cell light isn't a lamp. It replaces the sector's ambient light in the cells it covers, so a room can be dim and red, or a corridor bright and cold blue, while the rest of the sector keeps its own light. Lights still add on top. Select floor cells (drag a box, or Shift+click several), and the floor pane's **CELL LIGHT...** opens their pane: **-** and **+** for brightness, a colour (twelve swatches, or **TYPE** any as six hex digits, `FF8800` orange, Enter to keep it), and **EFFECT** (steady, flicker, pulse, strobe, fire, dying - every cell with the same effect goes as one, so a room flickers together). A cell with no light of its own starts from the sector's light when you change it; **BACK TO THE SECTOR'S** gives it the sector's light again. They cost nothing: there's no budget, as there is for lights. **To see a cell's light**, point at it: the 3D view's info box (top left) and the map view's **CELL** lines say `LIGHT 48 ITS OWN` (a cell light, and its effect) or `LIGHT 0 THE SECTOR'S`, then `LIT 112 NOW` - how bright it is with every light and glow reaching it (256 shows a picture in its own colours), in its light's colour. A dark patch in a lit room is usually a cell the cell light missed.
 
@@ -687,8 +698,9 @@ Together `[doors]`, `[things]`, `[notes]`, `[smears]`, `[fuel]` and `[difficulty
 | `time S` | S seconds into the level |
 | `hack X Y` | The computer (a `"` computer) at that cell is hacked (HACK in the pane) |
 | `alarm [X Y]` | The alarm switch at that cell sets the alarm off - or, with no cell, any switch (ALARM in the pane) |
+| `calm` | The alarm stops - run out, shut off at a switch or a console (CALM in the pane) |
 
-Without `repeat`, a trigger fires once. Don't put `repeat` on `time` or `clear`: once true they stay true, so the trigger fires every frame. If you start inside an `enter` rectangle, it waits until you leave and come back. Up to 96. For example:
+Without `repeat`, a trigger fires once (`alarm` and `calm` can take it: the alarm can go off again). Don't put `repeat` on `time` or `clear`: once true they stay true, so the trigger fires every frame. If you start inside an `enter` rectangle, it waits until you leave and come back. Up to 96. For example:
 
 ```
 enter 20 20 22 22 : message AMBUSH! ; spawn stalker 24 21 3

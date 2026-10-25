@@ -12,6 +12,9 @@
 '   shoot X Y           you shoot (or kick) the wall or the thing in that cell
 '   clear X0 Y0 X1 Y1   every monster that started in it is dead
 '   time SECONDS        that long into the level
+'   hack X Y            the computer there hacked (GAME/SECURE.BM)
+'   alarm [X Y]         that alarm switch - or any - sets the alarm off
+'   calm                the alarm stops (AlarmCalm, GAME/ALARMS.BM)
 ' and "repeat" after it to go off every time (else just once).
 ' trig...: each one taken apart (TakeTrigger); trigWas: you were in it
 ' last frame (an enter goes off as you step in, not while you stand there).

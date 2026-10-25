@@ -1069,6 +1069,14 @@ SUB EditPaneClick STATIC
         CASE 171 TO 174 : edTrigWhen = pnHit - 170
         CASE 265 : edTrigWhen = 5 ' (a computer at the cell, hacked)
         CASE 269 : edTrigWhen = 6 ' (the alarm switch at the cell set off)
+        CASE 600 : edTrigWhen = 7 ' (the alarm stops)
+        CASE 601 TO 603 ' A light action onto its commands (EditTrigLight$)
+            IF edTyping AND edTypeFor = 2 THEN EditTypeDone
+            a$ = EditTrigLight$(pnHit - 600)
+            IF LEN(a$) THEN
+                IF LEN(edTrigCmd$) THEN edTrigCmd$ = edTrigCmd$ + " ; " + a$ ELSE edTrigCmd$ = a$
+                EditNote "Commands: " + LEFT$(edTrigCmd$, 80) + "  (ADD IT when it's ready)"
+            END IF
         CASE 175 : edTrigRepeat = NOT edTrigRepeat
         CASE 178 : edTrigTime = MaxOf(1, edTrigTime - 5)
         CASE 179 : edTrigTime = MinOf(900, edTrigTime + 5)
@@ -1093,9 +1101,10 @@ SUB EditPaneClick STATIC
                     CASE 3 : w$ = "clear" + STR$(tx0) + STR$(ty0) + STR$(tx1) + STR$(ty1)
                     CASE 5 : w$ = "hack" + STR$(ux) + STR$(uy)
                     CASE 6 : w$ = "alarm" + STR$(ux) + STR$(uy)
+                    CASE 7 : w$ = "calm"
                     CASE ELSE : w$ = "time" + STR$(edTrigTime)
                 END SELECT
-                IF edTrigRepeat AND edTrigWhen <= 2 THEN w$ = w$ + " repeat" ' (not time or clear: once true, they stay true)
+                IF edTrigRepeat AND (edTrigWhen <= 2 OR edTrigWhen >= 6) THEN w$ = w$ + " repeat" ' (not time or clear: once true, they stay true - an alarm, and its calm, can come again)
                 EditPushUndo
                 lvlNumTrigs = lvlNumTrigs + 1 : lvlTrig$(lvlNumTrigs) = w$ + " : " + LTRIM$(edTrigCmd$)
                 EditApply : EditNote "Trigger: " + LEFT$(lvlTrig$(lvlNumTrigs), 80)
@@ -3927,12 +3936,11 @@ SUB EditPaneLay
         NEXT
         IF n = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "none here yet", 0 : y = y + 22
         y = y + 4
-        FOR w = 1 TO 6 ' (HACK: a computer there hacked - GAME/SECURE.BM; ALARM: an alarm switch there - or any - set off, GAME/ALARMS.BM)
-            IF w = 5 THEN id = 265 ELSE IF w = 6 THEN id = 269 ELSE id = 170 + w
-            EditPaneAdd id, x0 + ((w - 1) MOD 3) * 67, y + ((w - 1) \ 3) * 23, 64, RTRIM$(MID$("ENTERUSE  CLEARTIME HACK ALARM", w * 5 - 4, 5)), (edTrigWhen = w)
+        FOR w = 1 TO 7 ' (HACK: a computer there hacked - GAME/SECURE.BM; ALARM: an alarm switch there - or any - set off, CALM: the alarm stops - GAME/ALARMS.BM)
+            IF w = 5 THEN id = 265 ELSE IF w = 6 THEN id = 269 ELSE IF w = 7 THEN id = 600 ELSE id = 170 + w
+            EditPaneAdd id, x0 + ((w - 1) MOD 3) * 67, y + ((w - 1) \ 3) * 23, 64, RTRIM$(MID$("ENTERUSE  CLEARTIME HACK ALARMCALM ", w * 5 - 4, 5)), (edTrigWhen = w)
         NEXT
-        y = y + 23
-        y = y + 23
+        y = y + 23 * 3
         IF edTrigWhen = 4 THEN
             EditPaneAdd -1, x0, y + 2, 140, "AFTER" + STR$(edTrigTime) + "s", 0 : EditPaneAdd 178, x0 + 146, y, 24, "-", 0 : EditPaneAdd 179, x0 + 174, y, 24, "+", 0
         ELSE
@@ -3945,7 +3953,10 @@ SUB EditPaneLay
         FOR q = 1 TO 9 ' (actions to add to its commands with a click)
             EditPaneAdd 190 + q, x0 + ((q - 1) MOD 3) * 67, y + ((q - 1) \ 3) * 23, 65, TrigAction$(q, 0), 0
         NEXT
-        y = y + 70
+        FOR q = 1 TO 3 ' (and the lights: the nearest light switched, the selection lit red - an alarm's - or back to the sector's light)
+            EditPaneAdd 600 + q, x0 + (q - 1) * 67, y + 69, 65, RTRIM$(MID$("LAMP O/IAREA REDAREA OFF", q * 8 - 7, 8)), 0
+        NEXT
+        y = y + 93
         IF edTyping AND edTypeFor = 2 THEN t$ = "OK" ELSE t$ = "TYPE"
         EditPaneAdd 176, x0, y, 99, t$, (edTyping AND edTypeFor = 2) : EditPaneAdd 177, x0 + 101, y, 99, "ADD IT", 0
         y = y + 23
@@ -4796,6 +4807,26 @@ SUB EditTrigPlace(x0, y0, x1, y1, ux, uy)
     ux = edSelX(1) : uy = edSelY(1)
 END SUB
 
+' The trigger pane's light actions, for the selection: 1 the light nearest
+' it switched (a light switch), 2 its cells lit red and pulsing (an
+' alarm's), 3 its cells back to the sector's light
+FUNCTION EditTrigLight$(q)
+    DIM x0, y0, x1, y1, ux, uy, k, t, bd, d ' (its own: the main program shares these names)
+    EditTrigLight$ = ""
+    EditTrigPlace x0, y0, x1, y1, ux, uy
+    SELECT CASE q
+        CASE 1
+            bd = 1E+09 : t = 0
+            FOR k = 1 TO lvlNumLights
+                d = (lvlLight(k, 1) - ux - 0.5) ^ 2 + (lvlLight(k, 2) - uy - 0.5) ^ 2
+                IF d < bd THEN bd = d : t = k
+            NEXT
+            IF t THEN EditTrigLight$ = "light" + STR$(t) + " toggle" ELSE EditNote "No light in this sector to switch - LIGHT puts one"
+        CASE 2 : EditTrigLight$ = "celllight" + STR$(x0) + STR$(y0) + STR$(x1) + STR$(y1) + " 150 FF2020 pulse"
+        CASE ELSE : EditTrigLight$ = "celllight" + STR$(x0) + STR$(y0) + STR$(x1) + STR$(y1) + " off"
+    END SELECT
+END FUNCTION
+
 ' Is trigger line l$ about this place: an enter / clear box that takes in
 ' (x0, y0), a use of (ux, uy) - or a time, which is everywhere?
 FUNCTION EditTrigHere(l$, x0, y0, x1, y1, ux, uy)
@@ -4810,7 +4841,7 @@ FUNCTION EditTrigHere(l$, x0, y0, x1, y1, ux, uy)
         IF sp > 1 THEN n(j) = VAL(LEFT$(w$, sp - 1)) : w$ = MID$(w$, sp + 1)
     NEXT
     SELECT CASE kind$
-        CASE "time" : EditTrigHere = -1
+        CASE "time", "calm" : EditTrigHere = -1
         CASE "use", "shoot", "hack", "alarm" : EditTrigHere = (n(1) = ux AND n(2) = uy) OR (kind$ = "alarm" AND n(1) = 0 AND n(2) = 0)
         CASE "enter", "clear" : EditTrigHere = NOT (MaxOf(n(1), n(3)) < x0 OR MinOf(n(1), n(3)) > x1 OR MaxOf(n(2), n(4)) < y0 OR MinOf(n(2), n(4)) > y1)
     END SELECT

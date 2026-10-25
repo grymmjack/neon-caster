@@ -89,6 +89,7 @@ SUB SaveGame STATIC
     PUT #fileNum, , drainN : FOR i = 1 TO drainN : PUT #fileNum, , drainX(i) : PUT #fileNum, , drainY(i) : PUT #fileNum, , drainS(i) : NEXT ' (pools draining)
     PUT #fileNum, , lvlGravity ' (the sector's gravity - a trigger may have changed it)
     PUT #fileNum, , numDecos : FOR i = 1 TO numDecos : PUT #fileNum, , jpDir(i) : PUT #fileNum, , jpAng(i) : PUT #fileNum, , jpPow(i) : NEXT ' (jump pads as they were last set)
+    lgN& = LEN(lightLog$) : PUT #fileNum, , lgN& : IF lgN& THEN PUT #fileNum, , lightLog$ ' (the lights changed in play - LightCmd$: made again as it loads)
     CLOSE #fileNum
     IF saveSlot = 0 THEN ShowMsg "Quick saved" ELSE ShowMsg "Saved to slot" + STR$(saveSlot)
     nexSaves = nexSaves + 1 ' (NEXUS noticed: "You keep saving your game" - TauntFits)
@@ -285,6 +286,10 @@ SUB LoadGame STATIC
                 GET #fileNum, , ja! : GET #fileNum, , jb! : GET #fileNum, , jc!
                 IF savedCount = numDecos THEN IF decoKind(i) = DK_JUMPPAD THEN jpDir(i) = ja! : jpAng(i) = jb! : jpPow(i) = jc! : JumpPadClamp i
             NEXT
+        END IF
+        IF LOC(fileNum) < LOF(fileNum) THEN ' (the lights changed in play: made again - LightReplay)
+            GET #fileNum, , lgN&
+            IF lgN& > 0 AND lgN& <= LOF(fileNum) - LOC(fileNum) THEN lg$ = SPACE$(lgN&) : GET #fileNum, , lg$ : lightLog$ = lg$ : LightReplay
         END IF
         BuildAlarmWay ' (its switches as they were saved)
     END IF

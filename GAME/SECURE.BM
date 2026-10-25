@@ -358,7 +358,7 @@ FUNCTION DecoUse(i)
             IF vendState(i) THEN
                 ShowMsg "ALARM SWITCH: disarmed - a security console arms it" : PlaySfx sndLocked&, 0.5
             ELSEIF alarmTimer > 0 THEN ' (sounding: hit it again, and it's off)
-                AlarmQuiet : ShowMsg "You shut the alarm off" : SfxAt sndAlarmOff&, decoX(i), decoY(i), playerX, playerY
+                AlarmCalm : ShowMsg "You shut the alarm off" : SfxAt sndAlarmOff&, decoX(i), decoY(i), playerX, playerY
             ELSE
                 ShowMsg "You hit the alarm!" : AlarmRaise i
             END IF
