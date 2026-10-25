@@ -74,7 +74,7 @@ SUB HeightColumn STATIC
                 lR& = hR& * f& \ 256 : IF lR& > 256 THEN lR& = 256
                 lG& = hG& * f& \ 256 : IF lG& > 256 THEN lG& = 256
                 lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
-                texel~& = texture((INT(fx * hFSU) + hFU) AND tMask, (INT(fy * hFSV) + hFV) AND tMask, s2)
+                IF hSplit = 7 THEN texel~& = PcFlatTexel~&(floorTex2(hcX, hcY), fx, fy, hcX, hcY, slot) ELSE texel~& = texture((INT(fx * hFSU) + hFU) AND tMask, (INT(fy * hFSV) + hFV) AND tMask, s2) ' (7: in pieces - LEVEL/PIECES.BM)
                 pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
                 IF gridOn THEN IF (INT(fx * texSize) AND tMask) < gridW OR (INT(fy * texSize) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
             NEXT
@@ -101,7 +101,7 @@ SUB HeightColumn STATIC
                 lR& = hR& * f& \ 256 : IF lR& > 256 THEN lR& = 256
                 lG& = hG& * f& \ 256 : IF lG& > 256 THEN lG& = 256
                 lB& = hB& * f& \ 256 : IF lB& > 256 THEN lB& = 256
-                texel~& = texture((INT(fx * hFSU) + hFU) AND tMask, (INT(fy * hFSV) + hFV) AND tMask, s2)
+                IF hSplit = 7 THEN texel~& = PcFlatTexel~&(ceilTex2(hcX, hcY), fx, fy, hcX, hcY, slot) ELSE texel~& = texture((INT(fx * hFSU) + hFU) AND tMask, (INT(fy * hFSV) + hFV) AND tMask, s2) ' (7: in pieces - LEVEL/PIECES.BM)
                 pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lG& \ 256) * 256 OR ((texel~& AND 255) * lB& \ 256)
                 IF gridOn THEN IF (INT(fx * texSize) AND tMask) < gridW OR (INT(fy * texSize) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
             NEXT
@@ -164,9 +164,9 @@ SUB HeightColumn STATIC
             IF hSide = 1 THEN IF rayDirY > 0 THEN hSd = 4 ELSE hSd = 2
             IF hBoxed THEN
                 fu = BoxFaceU(hcX, hcY, hSd, hTexX / texSize) ' (a block's sides: faces of their own)
-                hSlot2 = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 1, hSlot) : hSlot = FaceSlot(hcX, hcY, hSd + FACE_BOX, fu, 0, hSlot)
+                HeightPick hcX, hcY, hSd + FACE_BOX, fu
             ELSEIF hSolid AND (v <> 2 OR hSlot = T_EXIT) AND diagCorner(hnX, hnY) = 0 AND NOT hDoored THEN
-                hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot) ' (a diagonal: its neighbours' look, always; a door, its own)
+                HeightPick hnX, hnY, hSd, hTexX / texSize ' (a diagonal: its neighbours' look, always; a door, its own)
             END IF
         END IF
         hFog& = 256 - hDOut * 16 : IF hFog& < 0 THEN hFog& = 0
@@ -190,9 +190,9 @@ SUB HeightColumn STATIC
         nf = floorH(hnX, hnY) : nLq = 0 : IF liqKind(hnX, hnY) AND NOT cyberOn THEN nLq = liqKind(hnX, hnY) : nf = liqZ(hnX, hnY)
         IF nf > hf THEN
             y0 = INT(hor + (eyeZ - nf) * viewH / hDOut) : y1 = INT(hor + (eyeZ - hf) * viewH / hDOut) : hSlot = wallTexSlot(1) : hVOff = 0
-            IF hSd THEN hSlot2 = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd, hTexX / texSize, 0, hSlot)
-            IF nLq THEN hSlot = T_LIQUID + nLq : hSlot2 = 0
-            IF liftCell(hnX, hnY) THEN hSlot2 = 0 : hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
+            IF hSd THEN HeightPick hnX, hnY, hSd, hTexX / texSize
+            IF nLq THEN hSlot = T_LIQUID + nLq : hSlot2 = 0 : hPc = 0
+            IF liftCell(hnX, hnY) THEN hSlot2 = 0 : hPc = 0 : hSlot = T_LIFTSIDE : hVOff = nf - 1 ' (a lift's side: hangs from its top - MakeLiftTex)
             IF faceOffAny AND hSd > 0 AND nLq = 0 AND liftCell(hnX, hnY) = 0 THEN HeightOff hnX, hnY, hSd
             hZ0 = nf : hZ1 = hf : HeightFace
             IF y0 - 1 < hBot THEN hBot = y0 - 1
@@ -201,7 +201,7 @@ SUB HeightColumn STATIC
         nc = ceilH(hnX, hnY)
         IF nc < hc THEN
             y0 = INT(hor - (hc - eyeZ) * viewH / hDOut) : y1 = INT(hor - (nc - eyeZ) * viewH / hDOut) : hSlot = wallTexSlot(1)
-            IF hSd THEN hSlot2 = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 1, hSlot) : hSlot = FaceSlot(hnX, hnY, hSd + 4, hTexX / texSize, 0, hSlot)
+            IF hSd THEN HeightPick hnX, hnY, hSd + 4, hTexX / texSize
             IF texSky(ceilTex(hcX, hcY)) AND texSky(ceilTex(hnX, hnY)) THEN ' (between two skies: sky, not a wall hanging in the air)
                 yA = y0 : IF yA < hTop THEN yA = hTop
                 yB = y1 : IF yB > hBot THEN yB = hBot
@@ -236,6 +236,22 @@ SUB HeightFace STATIC
     ' The picture's row runs evenly down the face: work out the first, then
     ' step (the height at row y is eyeZ - (y + 0.5 - hor) * hDOut / viewH)
     vStep = hDOut / viewH * texSize : v = (hVOff + 1 - eyeZ + (yA + 0.5 - hor) * hDOut / viewH) * texSize : tMask = texSize - 1
+    IF hPc THEN ' (in pieces: each as it comes down the face - its picture, slide, stretch)
+        pl = -1 : hSl = hSlot : fh = y1 - y0 + 1 : IF fh < 1 THEN fh = 1
+        FOR y = yA TO yB
+            gv = INT((y - y0) * 16 / fh) : IF gv < 0 THEN gv = 0 ELSE IF gv > 15 THEN gv = 15
+            IF pcGrid(hPc, hPcG + 16 * gv) <> pl THEN
+                pl = pcGrid(hPc, hPcG + 16 * gv) : hSl = pcSl(hPc, pl) : IF hSl = 0 THEN hSl = hSlot
+                HeightOffPc hPc, pl
+            END IF
+            texel~& = texture((hTexX + hOU) AND tMask, (INT(v * hKV) + hOV) AND tMask, hSl)
+            pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * hR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * hG& \ 256) * 256 OR ((texel~& AND 255) * hB& \ 256)
+            IF gridOn THEN IF hTexX < gridW OR (INT(v) AND tMask) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
+            v = v + vStep
+        NEXT
+        hSlot2 = 0 : hOU = 0 : hOV = 0 : hKV = 1 : hPc = 0
+        EXIT SUB
+    END IF
     IF hSlot2 = 0 THEN hSlot2 = hSlot
     hMidY = (y0 + y1) / 2 : hSl = hSlot ' (divided top | bottom: hSlot2 below the middle)
     hExitV = (hSlot = T_EXIT OR hSlot2 = T_EXIT) ' (the exit's sign fills its face - or its half - top to bottom, as OpenGL draws it)
@@ -270,6 +286,29 @@ SUB HeightOff(x, y, f)
     IF faceKU(x, y, f) THEN
         c = hWallC : IF (hSide = 0 AND rayDirX < 0) OR (hSide = 1 AND rayDirY > 0) THEN c = -c
         hOU = hOU + INT((hTexX / texSize + c) * 100 / faceKU(x, y, f) * texSize) - hTexX
+    END IF
+END SUB
+
+' HeightColumn's face f of cell (x, y), at u across it: its pictures -
+' hSlot (the usual, coming in) and, divided top | bottom, hSlot2 - or, in
+' pieces, hPc and its column of the grid, hPcG (hSlot staying the usual)
+SUB HeightPick(x, y, f, u)
+    IF faceDiv(x, y, f) = 3 THEN
+        hPc = faceTex(x, y, f) : hPcG = INT(u * 16) : hSlot2 = 0
+        IF hPcG < 0 THEN hPcG = 0 ELSE IF hPcG > 15 THEN hPcG = 15
+    ELSE
+        hPc = 0 : hSlot2 = FaceSlot(x, y, f, u, 1, hSlot) : hSlot = FaceSlot(x, y, f, u, 0, hSlot)
+    END IF
+END SUB
+
+' ...and piece pl of face p's slide and stretch, as HeightOff's
+SUB HeightOffPc(p, pl)
+    DIM c ' (its own: the main program shares these names)
+    hOU = pcOU(p, pl) * texSize \ 64 : hOV = pcOV(p, pl) * texSize \ 64 : hKV = 1
+    IF pcKV(p, pl) THEN hKV = 100 / pcKV(p, pl)
+    IF pcKU(p, pl) THEN
+        c = hWallC : IF (hSide = 0 AND rayDirX < 0) OR (hSide = 1 AND rayDirY > 0) THEN c = -c
+        hOU = hOU + INT((hTexX / texSize + c) * 100 / pcKU(p, pl) * texSize) - hTexX
     END IF
 END SUB
 

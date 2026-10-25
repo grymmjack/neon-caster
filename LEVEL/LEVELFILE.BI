@@ -13,7 +13,8 @@ DIM SHARED lvlNote$ ' (the comments at the top of its file, kept when the editor
 ' a floor, a ceiling - instead of the usual. lvlFaceS: 1-4 a side (east,
 ' south, west, north - a wall's, or a step's face), 5-8 a lintel's side,
 ' 9 the floor, 10 the ceiling. lvlFaceD: 0 the whole face; 1 divided
-' left | right, 2 top | bottom - the second picture on the second half.
+' left | right, 2 top | bottom - the second picture on the second half;
+' 3 in pieces (LEVEL/PIECES.BI: the tree and each piece's look).
 ' BuildLevel gives each picture a slot (T_CUSTOM + n) and the cells
 ' faceTex(x, y, 1-8) - 0: the usual - floorTex, ceilTex.
 CONST MAX_FACES = 4000

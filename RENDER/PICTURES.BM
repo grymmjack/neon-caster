@@ -287,6 +287,45 @@ SUB MakeGlowTex(slot)
     texName$(slot) = "faceglow-" + LCASE$(RTRIM$(MID$("steady  flicker pulse   strobe  fire    dying   ", fx * 8 + 1, 8)))
 END SUB
 
+' A face piece's picture turned and tinted (LEVEL/PIECES.BM), into slot:
+' texFile$(slot) says how - "pc:base:turn:tint:amount:colour:..." - base
+' the slot it's made from, turn 0-3 quarter turns clockwise, tint 1 TINT
+' (multiplied by the colour), 2 WASH (mixed with it), 3 GLOW (added), by
+' amount percent. It keeps the base's name: OpenGL's floors still shine.
+SUB MakePieceTex(slot)
+    DIM a, b, baseSl, c, g, n, r, rot, sx, sy, tm, tr, tg, tb, x, y ' (its own: the main program shares these names)
+    DIM k$
+    k$ = texFile$(slot) + ":" : k$ = MID$(k$, 4)
+    c = INSTR(k$, ":") : baseSl = VAL(LEFT$(k$, c - 1)) : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : rot = VAL(LEFT$(k$, c - 1)) AND 3 : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : tm = VAL(LEFT$(k$, c - 1)) : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : a = VAL(LEFT$(k$, c - 1)) / 100 : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : col~& = PcHex~&(RIGHT$("00000" + LEFT$(k$, c - 1), 6))
+    tr = (col~& \ 65536) AND 255 : tg = (col~& \ 256) AND 255 : tb = col~& AND 255
+    IF baseSl < 1 OR baseSl > T_SLOTS THEN baseSl = 1
+    n = texSize - 1
+    FOR y = 0 TO n : FOR x = 0 TO n
+        SELECT CASE rot ' (where this pixel was before the turn)
+            CASE 1 : sx = y : sy = n - x
+            CASE 2 : sx = n - x : sy = n - y
+            CASE 3 : sx = n - y : sy = x
+            CASE ELSE : sx = x : sy = y
+        END SELECT
+        col~& = texture(sx, sy, baseSl)
+        r = (col~& \ 65536) AND 255 : g = (col~& \ 256) AND 255 : b = col~& AND 255
+        SELECT CASE tm
+            CASE 1 : r = r + (r * tr / 255 - r) * a : g = g + (g * tg / 255 - g) * a : b = b + (b * tb / 255 - b) * a
+            CASE 2 : r = r + (tr - r) * a : g = g + (tg - g) * a : b = b + (tb - b) * a
+            CASE 3 : r = r + tr * a : g = g + tg * a : b = b + tb * a
+        END SELECT
+        IF r > 255 THEN r = 255
+        IF g > 255 THEN g = 255
+        IF b > 255 THEN b = 255
+        texture(x, y, slot) = &HFF000000~& OR (INT(r) * 65536) OR (INT(g) * 256) OR INT(b)
+    NEXT : NEXT
+    texHD(slot) = texHD(baseSl) : texName$(slot) = texName$(baseSl) : texSky(slot) = 0
+END SUB
+
 SUB LoadTex(file$, slot AS INTEGER)
     texName$(slot) = LCASE$(file$) ' (what it is, for OpenGL's effects - chapter 24)
     texSky(slot) = (LEFT$(LCASE$(file$), 4) = "sky-") ' (a sky: drawn by the way you look)

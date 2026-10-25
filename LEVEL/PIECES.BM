@@ -1,0 +1,329 @@
+''
+' NEON-CASTER - LEVEL/PIECES.BM
+' =============================================================================
+' Pieces (LEVEL/PIECES.BI): a face's tree of pieces read, written, divided,
+' joined - and built for the renderers.
+'
+
+' The rectangles of tree shape$'s pieces, in order, into pcRU0.. (u
+' across, v down, 0 to 1): how many - or -1 if it isn't a tree (pieces
+' left over or missing, a letter it doesn't know, finer than PC_DEPTH)
+FUNCTION PcRects(shape$)
+    DIM c$, i, m, n, sp, u0, u1, v0, v1 ' (its own: the main program shares these names)
+    DIM su0(24), sv0(24), su1(24), sv1(24)
+    n = 0 : sp = 1 : su0(1) = 0 : sv0(1) = 0 : su1(1) = 1 : sv1(1) = 1
+    FOR i = 1 TO LEN(shape$)
+        IF sp = 0 THEN PcRects = -1 : EXIT FUNCTION ' (more after the tree's done)
+        u0 = su0(sp) : v0 = sv0(sp) : u1 = su1(sp) : v1 = sv1(sp) : sp = sp - 1
+        c$ = MID$(shape$, i, 1)
+        SELECT CASE c$
+            CASE "H", "V"
+                IF (u1 - u0) * (v1 - v0) < 2 / 2 ^ PC_DEPTH - 0.0001 OR sp > 20 THEN PcRects = -1 : EXIT FUNCTION
+                IF c$ = "H" THEN ' (the second half pushed first: the first comes off next)
+                    m = (u0 + u1) / 2
+                    sp = sp + 1 : su0(sp) = m : sv0(sp) = v0 : su1(sp) = u1 : sv1(sp) = v1
+                    sp = sp + 1 : su0(sp) = u0 : sv0(sp) = v0 : su1(sp) = m : sv1(sp) = v1
+                ELSE
+                    m = (v0 + v1) / 2
+                    sp = sp + 1 : su0(sp) = u0 : sv0(sp) = m : su1(sp) = u1 : sv1(sp) = v1
+                    sp = sp + 1 : su0(sp) = u0 : sv0(sp) = v0 : su1(sp) = u1 : sv1(sp) = m
+                END IF
+            CASE "."
+                n = n + 1 : IF n > PC_LEAF THEN PcRects = -1 : EXIT FUNCTION
+                pcRU0(n) = u0 : pcRV0(n) = v0 : pcRU1(n) = u1 : pcRV1(n) = v1
+            CASE ELSE
+                PcRects = -1 : EXIT FUNCTION
+        END SELECT
+    NEXT
+    IF sp <> 0 OR n = 0 THEN PcRects = -1 ELSE PcRects = n
+END FUNCTION
+
+' The piece of tree shape$ at (u, v) on its face (u across, v down, 0 to
+' 1): 1... (0: not a tree)
+FUNCTION PcLeafAt(shape$, u, v)
+    DIM j, n, uu, vv ' (its own: the main program shares these names)
+    n = PcRects(shape$) : IF n < 1 THEN EXIT FUNCTION
+    uu = MaxOf(0, MinOf(0.99999, u)) : vv = MaxOf(0, MinOf(0.99999, v))
+    FOR j = 1 TO n
+        IF uu >= pcRU0(j) AND uu < pcRU1(j) AND vv >= pcRV0(j) AND vv < pcRV1(j) THEN PcLeafAt = j : EXIT FUNCTION
+    NEXT
+    PcLeafAt = 1
+END FUNCTION
+
+' Where in shape$ its piece j is (the j-th .): 0 none
+FUNCTION PcDotPos(shape$, j)
+    DIM i, n ' (its own: the main program shares these names)
+    FOR i = 1 TO LEN(shape$)
+        IF MID$(shape$, i, 1) = "." THEN n = n + 1 : IF n = j THEN PcDotPos = i : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Piece a's look onto piece b (the tree being worked on)
+SUB PcCopyLeaf(a, b)
+    ptPic$(b) = ptPic$(a) : ptRot(b) = ptRot(a) : ptO(b) = ptO(a) : ptK(b) = ptK(a)
+    ptTM(b) = ptTM(a) : ptTA(b) = ptTA(a) : ptTC(b) = ptTC(a)
+END SUB
+SUB PcClearLeaf(j)
+    ptPic$(j) = "" : ptRot(j) = 0 : ptO(j) = 0 : ptK(j) = 0 : ptTM(j) = 0 : ptTA(j) = 50 : ptTC(j) = &HFFFFFF
+END SUB
+
+' Piece j as text: picture*turn*slide*stretch*tint*amount*colour - left
+' off from the end as far as it's as made
+FUNCTION PcLeafText$(j)
+    DIM i, last, t$ ' (its own: the main program shares these names)
+    DIM f$(7)
+    f$(1) = ptPic$(j) : f$(2) = LTRIM$(STR$(ptRot(j))) : f$(3) = LTRIM$(STR$(ptO(j))) : f$(4) = LTRIM$(STR$(ptK(j)))
+    f$(5) = LTRIM$(STR$(ptTM(j))) : f$(6) = LTRIM$(STR$(ptTA(j))) : f$(7) = RIGHT$("00000" + HEX$(ptTC(j) AND &HFFFFFF), 6)
+    last = 1
+    IF ptRot(j) THEN last = 2
+    IF ptO(j) THEN last = 3
+    IF ptK(j) THEN last = 4
+    IF ptTM(j) THEN last = 7
+    t$ = f$(1)
+    FOR i = 2 TO last : t$ = t$ + "*" + f$(i) : NEXT
+    PcLeafText$ = t$
+END FUNCTION
+
+' ...and back, into piece j
+SUB PcLeafRead(s$, j)
+    DIM c, i, f$, t$ ' (its own: the main program shares these names)
+    PcClearLeaf j
+    t$ = s$ + "*" : i = 0
+    DO
+        c = INSTR(t$, "*") : IF c = 0 THEN EXIT DO
+        f$ = LEFT$(t$, c - 1) : t$ = MID$(t$, c + 1) : i = i + 1
+        SELECT CASE i
+            CASE 1 : ptPic$(j) = LTRIM$(RTRIM$(f$))
+            CASE 2 : ptRot(j) = VAL(f$) AND 3
+            CASE 3 : ptO(j) = VAL(f$) AND 4095
+            CASE 4 : ptK(j) = VAL(f$) : IF ptK(j) < 0 THEN ptK(j) = 0
+            CASE 5 : ptTM(j) = MaxOf(0, MinOf(3, VAL(f$)))
+            CASE 6 : ptTA(j) = MaxOf(0, MinOf(100, VAL(f$)))
+            CASE 7 : IF LEN(f$) THEN ptTC(j) = PcHex~&(f$)
+        END SELECT
+    LOOP
+END SUB
+
+' A colour as RRGGBB (hex digits; anything else counts 0)
+FUNCTION PcHex~&(h$)
+    DIM c, i, v AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    v = 0
+    FOR i = 1 TO MinOf(6, LEN(h$))
+        c = INSTR("0123456789ABCDEF", UCASE$(MID$(h$, i, 1))) - 1 : IF c < 0 THEN c = 0
+        v = v * 16 + c
+    NEXT
+    PcHex~& = v
+END FUNCTION
+
+' A face's tree from its [faces] line (division d, pictures p1$ and p2$,
+' slide o and stretch k&) into ptShape$, ptN and the pieces: whole, halved
+' (both halves slid and stretched as the face) or, 3, its own tree
+SUB PcTreeRead(d, p1$, p2$, o, k&)
+    DIM c, j, t$ ' (its own: the main program shares these names)
+    SELECT CASE d
+        CASE 1 : ptShape$ = "H.." : ptN = 2
+        CASE 2 : ptShape$ = "V.." : ptN = 2
+        CASE 3
+            ptShape$ = p1$ : ptN = PcRects(p1$)
+            IF ptN < 1 THEN ptShape$ = "." : ptN = 1 ' (not a tree: whole)
+        CASE ELSE : ptShape$ = "." : ptN = 1
+    END SELECT
+    FOR j = 1 TO ptN
+        PcClearLeaf j
+        IF d <> 3 THEN ptO(j) = o : ptK(j) = k&
+    NEXT
+    IF d = 3 THEN
+        t$ = p2$ + "|"
+        FOR j = 1 TO ptN
+            c = INSTR(t$, "|") : IF c = 0 THEN EXIT FOR
+            PcLeafRead LEFT$(t$, c - 1), j : t$ = MID$(t$, c + 1)
+        NEXT
+    ELSE
+        ptPic$(1) = p1$ : IF ptN = 2 THEN ptPic$(2) = p2$
+    END IF
+END SUB
+
+' ...and the tree back as a [faces] line's numbers: the old line where it
+' can be (whole or halved, nothing turned or tinted, every piece slid and
+' stretched alike), else division 3
+SUB PcTreeForm(d, p1$, p2$, o, k&)
+    DIM j, simple, t$ ' (its own: the main program shares these names)
+    simple = (ptShape$ = "." OR ptShape$ = "H.." OR ptShape$ = "V..")
+    FOR j = 1 TO ptN
+        IF ptRot(j) OR ptTM(j) THEN simple = 0
+        IF ptO(j) <> ptO(1) OR ptK(j) <> ptK(1) THEN simple = 0
+    NEXT
+    IF simple THEN
+        o = ptO(1) : k& = ptK(1) : p1$ = ptPic$(1) : p2$ = "" : d = 0
+        IF ptShape$ = "H.." THEN d = 1 ELSE IF ptShape$ = "V.." THEN d = 2
+        IF d THEN p2$ = ptPic$(2)
+    ELSE
+        d = 3 : o = 0 : k& = 0 : p1$ = ptShape$ : t$ = ""
+        FOR j = 1 TO ptN
+            IF j > 1 THEN t$ = t$ + "|"
+            t$ = t$ + PcLeafText$(j)
+        NEXT
+        p2$ = t$
+    END IF
+END SUB
+
+' Piece j divided (dir$ "H" left | right, "V" top | bottom), both halves
+' with its look: TRUE if it could be (not past PC_DEPTH, PC_LEAF pieces)
+FUNCTION PcSplit(j, dir$)
+    DIM i, n, p ' (its own: the main program shares these names)
+    n = PcRects(ptShape$) : IF j < 1 OR j > n OR n >= PC_LEAF THEN EXIT FUNCTION
+    IF (pcRU1(j) - pcRU0(j)) * (pcRV1(j) - pcRV0(j)) < 2 / 2 ^ PC_DEPTH - 0.0001 THEN EXIT FUNCTION
+    p = PcDotPos(ptShape$, j) : IF p = 0 THEN EXIT FUNCTION
+    ptShape$ = LEFT$(ptShape$, p - 1) + dir$ + ".." + MID$(ptShape$, p + 1)
+    FOR i = ptN TO j + 1 STEP -1 : PcCopyLeaf i, i + 1 : NEXT
+    PcCopyLeaf j, j + 1 : ptN = ptN + 1
+    PcSplit = -1
+END FUNCTION
+
+' Piece j and the rest of what was divided with it made one piece again,
+' with piece j's look: its number now (0: the face is whole already)
+FUNCTION PcJoin(j)
+    DIM c$, i, l1, l2, n, p, q, sp ' (its own: the main program shares these names)
+    DIM par(40), en(40), stP(24), stR(24)
+    p = PcDotPos(ptShape$, j) : IF p = 0 THEN EXIT FUNCTION
+    sp = 0
+    FOR i = 1 TO LEN(ptShape$) ' (each node's parent, and where its part of the tree ends)
+        IF sp THEN par(i) = stP(sp) ELSE par(i) = 0
+        c$ = MID$(ptShape$, i, 1)
+        IF c$ = "." THEN
+            en(i) = i
+            DO WHILE sp > 0
+                stR(sp) = stR(sp) - 1
+                IF stR(sp) = 0 THEN en(stP(sp)) = i : sp = sp - 1 ELSE EXIT DO
+            LOOP
+        ELSE
+            sp = sp + 1 : stP(sp) = i : stR(sp) = 2
+        END IF
+    NEXT
+    q = par(p) : IF q = 0 THEN EXIT FUNCTION
+    l1 = 1 : l2 = 0
+    FOR i = 1 TO en(q)
+        IF MID$(ptShape$, i, 1) = "." THEN
+            l2 = l2 + 1 : IF i < q THEN l1 = l1 + 1
+        END IF
+    NEXT
+    PcCopyLeaf j, l1
+    n = l2 - l1
+    FOR i = l1 + 1 TO ptN - n : PcCopyLeaf i + n, i : NEXT
+    ptN = ptN - n
+    ptShape$ = LEFT$(ptShape$, q - 1) + "." + MID$(ptShape$, en(q) + 1)
+    PcJoin = l1
+END FUNCTION
+
+' How deep piece j is (0: the face whole) - for "as fine as it goes"
+FUNCTION PcDepth(j)
+    DIM a ' (its own: the main program shares these names)
+    IF PcRects(ptShape$) < j THEN EXIT FUNCTION
+    a = (pcRU1(j) - pcRU0(j)) * (pcRV1(j) - pcRV0(j))
+    PcDepth = CINT(LOG(1 / a) / LOG(2))
+END FUNCTION
+
+' The piece at (u, v) of face p's grid (u across, v down, 0 to 1)
+FUNCTION PcAt(p, u, v)
+    DIM gu, gv ' (its own: the main program shares these names)
+    gu = INT(u * 16) : IF gu < 0 THEN gu = 0 ELSE IF gu > 15 THEN gu = 15
+    gv = INT(v * 16) : IF gv < 0 THEN gv = 0 ELSE IF gv > 15 THEN gv = 15
+    PcAt = pcGrid(p, gu + 16 * gv)
+END FUNCTION
+
+' A floor's or ceiling's texel at map point (fx, fy) of cell (cx, cy), when
+' it's in pieces (p): its piece's picture (deflt, the usual, if it has
+' none of its own), slid and stretched as that piece is
+FUNCTION PcFlatTexel~&(p, fx, fy, cx, cy, deflt)
+    DIM lf AS INTEGER, sl AS INTEGER, su, sv, gu AS LONG, gv AS LONG ' (its own: the main program shares these names)
+    gu = INT((fx - cx) * 16) : IF gu < 0 THEN gu = 0 ELSE IF gu > 15 THEN gu = 15
+    gv = INT((fy - cy) * 16) : IF gv < 0 THEN gv = 0 ELSE IF gv > 15 THEN gv = 15
+    lf = pcGrid(p, gu + 16 * gv) : sl = pcSl(p, lf) : IF sl = 0 THEN sl = deflt
+    su = texSize : sv = texSize
+    IF pcKU(p, lf) THEN su = texSize * 100 / pcKU(p, lf)
+    IF pcKV(p, lf) THEN sv = texSize * 100 / pcKV(p, lf)
+    PcFlatTexel~& = texture((INT(fx * su) + pcOU(p, lf) * texSize \ 64) AND (texSize - 1), (INT(fy * sv) + pcOV(p, lf) * texSize \ 64) AND (texSize - 1), sl)
+END FUNCTION
+
+' The picture face f of cell (x, y) has when it has none of its own - its
+' slot (for a turned or tinted copy of it). Read from the level's own
+' characters: BuildLevel calls it before the map's built.
+FUNCTION PcUsual(x, y, f)
+    DIM c$, k ' (its own: the main program shares these names)
+    PcUsual = 1
+    SELECT CASE f
+        CASE 1 TO 4
+            c$ = MID$(lvlRow$(y), x + 1, 1)
+            IF INSTR("#NCKPG", c$) THEN PcUsual = INSTR("#NCKPG", c$)
+            IF c$ = "@" THEN PcUsual = T_JACK
+            IF c$ = "$" THEN PcUsual = T_CODE
+            IF c$ = "E" THEN PcUsual = T_EXIT
+        CASE 9 : PcUsual = floorTex(x, y)
+        CASE 10 : PcUsual = ceilTex(x, y)
+        CASE FACE_BOX + 1 TO FACE_MAX
+            FOR k = 1 TO lvlNumBoxes
+                IF lvlBox(k, 1) = x AND lvlBox(k, 2) = y THEN IF lvlBox(k, 7) >= 1 AND lvlBox(k, 7) <= 6 THEN PcUsual = lvlBox(k, 7)
+            NEXT
+    END SELECT
+END FUNCTION
+
+' A face picture's slot, want$ by name: kind 0 a picture file (loaded),
+' 1 a turned or tinted copy (MakePieceTex) - in the next free face slot if
+' it isn't in one already (0: none free, or no such file)
+FUNCTION PcSlotFor(want$, kind, customN, facesFull, texNew)
+    DIM j, slot ' (its own: the main program shares these names)
+    slot = 0
+    FOR j = T_CUSTOM + 1 TO T_CUSTOM + customN
+        IF texFile$(j) = want$ THEN slot = j
+    NEXT
+    IF slot = 0 AND customN >= T_CUSTOMN THEN facesFull = -1
+    IF slot = 0 AND customN < T_CUSTOMN THEN
+        IF kind = 1 OR _FILEEXISTS(ArtPath$(want$)) THEN
+            customN = customN + 1 : slot = T_CUSTOM + customN
+            IF texFile$(slot) <> want$ THEN
+                texFile$(slot) = want$ : texNew = -1
+                IF kind = 1 THEN MakePieceTex slot ELSE LoadTex want$, slot
+            END IF
+        END IF
+    END IF
+    PcSlotFor = slot
+END FUNCTION
+
+' Face f of cell (x, y) in pieces ([faces] line k, division 3), built:
+' one of pcN - its grid, and each piece's slot, slide and stretch. The
+' renderers find it by faceDiv 3 (faceTex its number) - a floor or
+' ceiling by its split 7 (floorTex2 / ceilTex2 its number).
+SUB PcBuild(x, y, f, k, customN, facesFull, texNew)
+    DIM dflt, gu, gv, j, n, p, sl, ku, kv ' (its own: the main program shares these names)
+    PcTreeRead 3, lvlFaceP1$(k), lvlFaceP2$(k), 0, 0
+    IF pcN >= PC_MAX THEN facesFull = -1 : EXIT SUB
+    n = PcRects(ptShape$) : IF n < 1 THEN EXIT SUB
+    pcN = pcN + 1 : p = pcN : dflt = PcUsual(x, y, f) : pcNL(p) = n
+    FOR j = 1 TO n
+        sl = 0
+        IF ptPic$(j) <> "" THEN sl = PcSlotFor(ptPic$(j), 0, customN, facesFull, texNew)
+        IF ptRot(j) OR ptTM(j) THEN ' (turned or tinted: a copy of its own)
+            IF sl = 0 THEN sl = dflt
+            sl = PcSlotFor("pc:" + LTRIM$(STR$(sl)) + ":" + LTRIM$(STR$(ptRot(j))) + ":" + LTRIM$(STR$(ptTM(j))) + ":" + LTRIM$(STR$(ptTA(j))) + ":" + HEX$(ptTC(j)) + ":" + texFile$(sl), 1, customN, facesFull, texNew)
+        END IF
+        pcSl(p, j) = sl
+        pcOU(p, j) = ptO(j) AND 63 : pcOV(p, j) = (ptO(j) \ 64) AND 63
+        ku = ptK(j) AND 2047 : kv = ptK(j) \ 2048
+        IF ku = 100 THEN ku = 0
+        IF kv = 100 THEN kv = 0
+        pcKU(p, j) = ku : pcKV(p, j) = kv
+        pcGU0(p, j) = INT(pcRU0(j) * 16 + 0.001) : pcGV0(p, j) = INT(pcRV0(j) * 16 + 0.001) : pcGU1(p, j) = INT(pcRU1(j) * 16 + 0.001) : pcGV1(p, j) = INT(pcRV1(j) * 16 + 0.001)
+        FOR gv = INT(pcRV0(j) * 16 + 0.001) TO INT(pcRV1(j) * 16 + 0.001) - 1
+            FOR gu = INT(pcRU0(j) * 16 + 0.001) TO INT(pcRU1(j) * 16 + 0.001) - 1
+                pcGrid(p, gu + 16 * gv) = j
+            NEXT
+        NEXT
+    NEXT
+    SELECT CASE f
+        CASE 9 : floorTex2(x, y) = p : floorSplit(x, y) = 7
+        CASE 10 : ceilTex2(x, y) = p : ceilSplit(x, y) = 7
+        CASE 1 TO 8, FACE_BOX + 1 TO FACE_MAX
+            faceTex(x, y, f) = p : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 3 : faceAny = -1
+            faceOU(x, y, f) = 0 : faceOV(x, y, f) = 0 : faceKU(x, y, f) = 0 : faceKV(x, y, f) = 0
+    END SELECT
+END SUB

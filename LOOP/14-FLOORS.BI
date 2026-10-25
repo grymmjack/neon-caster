@@ -163,12 +163,20 @@
                 ' The same sum as ShadeRGB~& (chapter 23), written out here: this
                 ' runs 120,000 times a frame, and calling a FUNCTION each time
                 ' would cost more than the sum itself
-                texel~& = texture((INT(floorX * cFSU) + cFU) AND (texSize - 1), (INT(floorY * cFSV) + cFV) AND (texSize - 1), floorSlot)
+                IF splitCell THEN
+                    IF floorSplit(cellX, cellY) = 7 THEN texel~& = PcFlatTexel~&(floorTex2(cellX, cellY), floorX, floorY, cellX, cellY, cellFloor) ELSE texel~& = texture((INT(floorX * cFSU) + cFU) AND (texSize - 1), (INT(floorY * cFSV) + cFV) AND (texSize - 1), floorSlot)
+                ELSE
+                    texel~& = texture((INT(floorX * cFSU) + cFU) AND (texSize - 1), (INT(floorY * cFSV) + cFV) AND (texSize - 1), floorSlot)
+                END IF
                 pixels(floorRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                 IF texSky(ceilSlot) THEN ' (a sky: by the way you look, full bright)
                     pixels(ceilRow + x) = texture(skyU(x), skyV(RENDER_H - 1 - y), ceilSlot) OR &HFF000000~&
                 ELSE
-                    texel~& = texture((INT(floorX * cCSU) + cCU) AND (texSize - 1), (INT(floorY * cCSV) + cCV) AND (texSize - 1), ceilSlot)
+                    IF splitCell THEN
+                        IF ceilSplit(cellX, cellY) = 7 THEN texel~& = PcFlatTexel~&(ceilTex2(cellX, cellY), floorX, floorY, cellX, cellY, cellCeil) ELSE texel~& = texture((INT(floorX * cCSU) + cCU) AND (texSize - 1), (INT(floorY * cCSV) + cCV) AND (texSize - 1), ceilSlot)
+                    ELSE
+                        texel~& = texture((INT(floorX * cCSU) + cCU) AND (texSize - 1), (INT(floorY * cCSV) + cCV) AND (texSize - 1), ceilSlot)
+                    END IF
                     pixels(ceilRow + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
                 END IF
                 IF gridOn THEN IF texU < gridW OR texV < gridW THEN pixels(floorRow + x) = GridMix~&(pixels(floorRow + x)) : pixels(ceilRow + x) = GridMix~&(pixels(ceilRow + x)) ' (the editor's grid: chapter 21)

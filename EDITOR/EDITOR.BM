@@ -213,7 +213,7 @@ SUB EditPkClick STATIC
     editLights = (edTool = ET_LIGHT) : editHeights = (edTool = ET_HEIGHT)
 END SUB
 
-' PAINT's brush: the picture on the face under the pointer (its half's, if
+' PAINT's brush: the picture on the face under the pointer (its piece's, if
 ' it's divided) - or, with none of its own, the usual one there. Alt+click
 ' with PAINT, or E.
 SUB EditPickPicture
@@ -226,48 +226,66 @@ SUB EditPickPicture
     edBrushImg& = EditFileThumb&(edBrushTex$) : EditNote "Picked up " + pic$
 END SUB
 
-' The picture face (kind, side) of cell (x, y) shows - its half part (2:
-' the second) if it's divided - by name: its own, or the usual one there
+' The picture face (kind, side) of cell (x, y) shows - its piece part if
+' it's divided (0: the first) - by name: its own, or the usual one there
 ' ("" for one with none: the exit's sign, a door's)
 FUNCTION EditFacePic$(kind, x, y, side, part)
-    DIM bi, fc, k, w, p$ ' (its own: the main program shares these names)
-    fc = EditFaceCode(kind, side)
-    k = FaceIndex(x, y, fc) : p$ = ""
-    IF k THEN IF part = 2 THEN p$ = lvlFaceP2$(k) ELSE p$ = lvlFaceP1$(k)
-    IF p$ = "" THEN ' (the usual one: the level's own picture for it)
-        SELECT CASE kind
-            CASE ED_FLOOR : p$ = texFile$(floorTex(x, y))
-            CASE ED_CEIL : p$ = texFile$(ceilTex(x, y))
-            CASE ED_WALL : w = INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) : IF w THEN p$ = lvlWall$(w)
-            CASE ED_BOX : bi = EditBoxIndex(x, y) : p$ = lvlWall$(1) : IF bi THEN IF lvlBox(bi, 7) >= 1 AND lvlBox(bi, 7) <= 6 THEN p$ = lvlWall$(lvlBox(bi, 7))
-            CASE ELSE : p$ = lvlWall$(1)
-        END SELECT
-    END IF
+    DIM j, p$ ' (its own: the main program shares these names)
+    EditTreeGet x, y, EditFaceCode(kind, side)
+    j = part : IF j < 1 OR j > ptN THEN j = 1
+    p$ = ptPic$(j) : IF p$ = "" THEN p$ = EditUsualPic$(kind, x, y, side)
     EditFacePic$ = p$
 END FUNCTION
 
+' The usual picture on face (kind, side) of cell (x, y): the level's own
+' for it, by name
+FUNCTION EditUsualPic$(kind, x, y, side)
+    DIM bi, w, p$ ' (its own: the main program shares these names)
+    p$ = ""
+    SELECT CASE kind
+        CASE ED_FLOOR : p$ = texFile$(floorTex(x, y))
+        CASE ED_CEIL : p$ = texFile$(ceilTex(x, y))
+        CASE ED_WALL : w = INSTR("#NCKPG", MID$(lvlRow$(y), x + 1, 1)) : IF w THEN p$ = lvlWall$(w)
+        CASE ED_BOX : bi = EditBoxIndex(x, y) : p$ = lvlWall$(1) : IF bi THEN IF lvlBox(bi, 7) >= 1 AND lvlBox(bi, 7) <= 6 THEN p$ = lvlWall$(lvlBox(bi, 7))
+        CASE ELSE : p$ = lvlWall$(1)
+    END SELECT
+    EditUsualPic$ = p$
+END FUNCTION
+
 ' PAINT's COPY: face (kind, side) of cell (x, y)'s look into the clipboard -
-' divided or not, its pictures by name, slid, stretched
-SUB EditClipCopy(kind, x, y, side)
-    DIM fc, k, ou, ov, ku, kv ' (its own: the main program shares these names)
+' piece part's (its picture by name, slid, stretched, turned, tinted), or
+' with part 0 the whole face, every piece it's divided into. The clipboard
+' is a tree: edClipP1$ its shape ("." one piece's look), edClipP2$ its
+' pieces (PcLeafText$, joined by |).
+SUB EditClipCopy(kind, x, y, side, part)
+    DIM fc, j, u$ ' (its own: the main program shares these names)
     fc = EditFaceCode(kind, side) : IF fc < 1 OR fc > FACE_MAX THEN EditNote "Point at a face to copy its picture" : EXIT SUB
-    k = FaceIndex(x, y, fc) : edClipD = 0 : IF k THEN edClipD = lvlFaceD(k)
-    edClipP1$ = EditFacePic$(kind, x, y, side, 1) : edClipP2$ = ""
-    IF edClipD THEN edClipP2$ = EditFacePic$(kind, x, y, side, 2)
-    EditGetFaceTex x, y, fc, ou, ov, ku, kv ' (into its own first: the clipboard's are INTEGERs, and a SUB's SINGLE parameter given one hands back nothing)
-    edClipOU = ou : edClipOV = ov : edClipKU = ku : edClipKV = kv
+    u$ = EditUsualPic$(kind, x, y, side)
+    EditTreeGet x, y, fc
+    FOR j = 1 TO ptN : IF ptPic$(j) = "" THEN ptPic$(j) = u$ ' (the usual one here, by name: it's this picture wherever it's pasted)
+    NEXT
+    IF part >= 1 AND part <= ptN THEN
+        edClipP1$ = "." : edClipP2$ = PcLeafText$(part)
+    ELSE
+        edClipP1$ = ptShape$ : edClipP2$ = ""
+        FOR j = 1 TO ptN : edClipP2$ = edClipP2$ + MID$("|", 1, -(j > 1)) + PcLeafText$(j) : NEXT
+    END IF
     edClipOn = -1
     EditNote "Copied: " + EditClipName$ + " - Ctrl+V (or PASTE) puts it on a face"
 END SUB
 
 ' What's copied, in words
 FUNCTION EditClipName$
-    DIM t$ ' (its own: the main program shares these names)
+    DIM n, t$ ' (its own: the main program shares these names)
     IF NOT edClipOn THEN EditClipName$ = "nothing" : EXIT FUNCTION
-    t$ = edClipP1$ : IF t$ = "" THEN t$ = "the usual picture"
-    IF edClipD THEN t$ = t$ + " | " + edClipP2$
-    IF edClipOU OR edClipOV THEN t$ = t$ + ", slid" + STR$(((edClipOU + 32) AND 63) - 32) + "," + LTRIM$(STR$(((edClipOV + 32) AND 63) - 32))
-    IF edClipKU <> 100 OR edClipKV <> 100 THEN t$ = t$ + "," + STR$(edClipKU) + "% x" + STR$(edClipKV) + "%"
+    IF edClipP1$ = "." THEN
+        PcLeafRead edClipP2$, 0 ' (piece 0: the trees' spare, for words)
+        t$ = ptPic$(0) : IF t$ = "" THEN t$ = "the usual picture"
+        IF LEN(EditLookName$(0)) THEN t$ = t$ + ", " + EditLookName$(0)
+    ELSE
+        n = PcRects(edClipP1$)
+        IF edClipP1$ = "H.." THEN t$ = "left | right halves" ELSE IF edClipP1$ = "V.." THEN t$ = "top | bottom halves" ELSE t$ = "a face in" + STR$(n) + " pieces"
+    END IF
     EditClipName$ = t$
 END FUNCTION
 
@@ -275,7 +293,7 @@ END FUNCTION
 ' every selected face, when that's one of them (or nothing's under it, or
 ' fromPane). One undo.
 SUB EditClipPaste(fromPane)
-    DIM fc, j, n, kd, fx, fy, sd, useSel, done ' (its own: the main program shares these names)
+    DIM fc, j, jj, j0, j1, n, kd, fx, fy, sd, pt, useSel, done ' (its own: the main program shares these names)
     IF NOT edClipOn THEN EditNote "Nothing copied yet: Ctrl+C on a face (or COPY) first" : EXIT SUB
     useSel = fromPane
     IF NOT useSel THEN
@@ -284,7 +302,7 @@ SUB EditClipPaste(fromPane)
             useSel = -1
         ELSE
             FOR j = 1 TO edSelN
-                IF edSelKind(j) = edHovKind AND edSelX(j) = edHovX AND edSelY(j) = edHovY AND edSelSide(j) = edHovSide THEN useSel = -1
+                IF edSelKind(j) = edHovKind AND edSelX(j) = edHovX AND edSelY(j) = edHovY AND edSelSide(j) = edHovSide THEN IF edSelPart(j) = edHovPart OR edSelPart(j) = 0 THEN useSel = -1 ' (that piece selected - or its whole face)
             NEXT
         END IF
     END IF
@@ -292,11 +310,16 @@ SUB EditClipPaste(fromPane)
     IF useSel THEN n = edSelN ELSE n = 1
     done = 0
     FOR j = 1 TO n
-        IF useSel THEN kd = edSelKind(j) : fx = edSelX(j) : fy = edSelY(j) : sd = edSelSide(j) ELSE kd = edHovKind : fx = edHovX : fy = edHovY : sd = edHovSide
+        IF useSel THEN kd = edSelKind(j) : fx = edSelX(j) : fy = edSelY(j) : sd = edSelSide(j) : pt = edSelPart(j) ELSE kd = edHovKind : fx = edHovX : fy = edHovY : sd = edHovSide : pt = edHovPart
         fc = EditFaceCode(kd, sd) : IF fc < 1 OR fc > FACE_MAX THEN _CONTINUE
         IF kd = ED_WALL AND INSTR("/\", MID$(lvlRow$(fy), fx + 1, 1)) THEN _CONTINUE ' (a diagonal takes its neighbours' look)
-        EditSetFace fx, fy, fc, edClipD, edClipP1$, edClipP2$
-        EditSetFaceTex fx, fy, fc, edClipOU, edClipOV, edClipKU, edClipKV
+        IF edClipP1$ = "." THEN ' (a look: on that piece - or the face, every piece of it)
+            EditTreeGet fx, fy, fc : EditPcRange pt, j0, j1
+            FOR jj = j0 TO j1 : PcLeafRead edClipP2$, jj : NEXT
+        ELSE ' (a face's pieces: the face is divided as that one was)
+            PcTreeRead 3, edClipP1$, edClipP2$, 0, 0
+        END IF
+        EditTreePut fx, fy, fc
         done = done + 1
     NEXT
     EditApply
@@ -323,7 +346,7 @@ END SUB
 ' divided), else the usual one there
 FUNCTION EditCellPic$(x, y, f)
     DIM k, w ' (its own: the main program shares these names)
-    p$ = "" : k = FaceIndex(x, y, f) : IF k THEN p$ = lvlFaceP1$(k)
+    EditTreeGet x, y, f : p$ = ptPic$(1)
     IF p$ = "" THEN
         SELECT CASE f
             CASE 9 : p$ = texFile$(floorTex(x, y))
@@ -385,6 +408,8 @@ SUB EditTypeKey STATIC
                 IF LEN(edTypeBuf$) < 120 THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (commands: as typed)
             ELSEIF edTypeFor = 3 THEN
                 IF LEN(edTypeBuf$) < 8 AND (INSTR("0123456789", CHR$(k&)) OR (CHR$(k&) = "?" AND edTypeBuf$ = "")) THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (a code: digits - or ?, one made up each time)
+            ELSEIF edTypeFor = 7 THEN
+                IF LEN(edTypeBuf$) < 6 AND INSTR("0123456789ABCDEF", UCASE$(CHR$(k&))) > 0 THEN edTypeBuf$ = edTypeBuf$ + UCASE$(CHR$(k&)) ' (a colour: hex digits)
             ELSEIF edTypeFor >= 4 THEN
                 IF LEN(edTypeBuf$) < 240 THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (a thing's own, a note: as typed)
             ELSE
@@ -396,6 +421,10 @@ END SUB
 SUB EditTypeDone STATIC
     edTyping = 0
     IF edTypeFor = 2 THEN edTrigCmd$ = LTRIM$(RTRIM$(edTypeBuf$)) : EditNote "Now ADD IT" : EXIT SUB ' (a trigger's commands: kept for ADD IT)
+    IF edTypeFor = 7 THEN ' (a picture's tint colour: on the selection)
+        IF LEN(edTypeBuf$) THEN EditTexOp 7, PcHex~&(RIGHT$("000000" + edTypeBuf$, 6)), 0, 0, -1
+        EXIT SUB
+    END IF
     IF edTypeFor >= 3 THEN EditTypeXtra : EXIT SUB ' (a door's code, a thing's own, a note)
     IF LEN(LTRIM$(edTypeBuf$)) THEN
         EditPushUndo
@@ -546,10 +575,33 @@ SUB EditPaneClick STATIC
         CASE 339 ' COPY: the first selected face's look (picture, slid, stretched)
             FOR k = 1 TO edSelN
                 fc = EditFaceCode(edSelKind(k), edSelSide(k))
-                IF fc >= 1 AND fc <= FACE_MAX THEN EditClipCopy edSelKind(k), edSelX(k), edSelY(k), edSelSide(k) : EXIT FOR
+                IF fc >= 1 AND fc <= FACE_MAX THEN EditClipCopy edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), edSelPart(k) : EXIT FOR
             NEXT
         CASE 340 ' PASTE: it on every selected face
             EditClipPaste -1
+        CASE 341, 342 ' ...turned a quarter (342 clockwise)
+            EditTexOp 4, 0, -1 - 2 * (pnHit = 342), 0, -1
+        CASE 343 TO 346 ' ...tinted: none, TINT, WASH, GLOW
+            EditTexOp 5, 0, 0, pnHit - 343, -1
+        CASE 347, 348 ' ...its tint's amount (10 - Shift: 1)
+            st = 10 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN st = 1
+            EditTexOp 6, 0, -1 - 2 * (pnHit = 348), st, -1
+        CASE 349 TO 354 ' ...its colour's red, green, blue (16 - Shift: 1)
+            st = 16 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN st = 1
+            EditTexOp 8, (pnHit - 349) \ 2, -1 - 2 * ((pnHit AND 1) = 0), st, -1
+        CASE 360 TO 371 ' ...its colour, one of the quick ones
+            EditTexOp 7, EditPaletteRGB~&(pnHit - 359) AND &HFFFFFF, 0, 0, -1
+        CASE 355, 359 ' ...its colour typed (RRGGBB)
+            IF edTyping AND edTypeFor = 7 THEN
+                EditTypeDone
+            ELSE
+                edTyping = -1 : edTypeFor = 7 : edTypeFresh = -1 : edTypeBuf$ = ""
+                EditNote "Type its colour - RRGGBB, six hex digits (FF8800 orange) - Enter keeps it"
+            END IF
+        CASE 356, 357 ' ...divided: H left | right, V top / bottom
+            IF pnHit = 356 THEN EditDivideSel "H" ELSE EditDivideSel "V"
+        CASE 358 ' ...joined again
+            EditJoinSel
         CASE 74 ' The selected faces' lights, gone
             EditPushUndo
             FOR k = 1 TO edSelN
@@ -1576,9 +1628,9 @@ SUB EditFP STATIC
             CASE 3 ' Ctrl+C (PAINT): copy the look of the face under the pointer (or the first selected)
                 IF edTool = ET_PAINT THEN
                     IF edHovKind AND NOT edHovThing THEN
-                        EditClipCopy edHovKind, edHovX, edHovY, edHovSide
+                        EditClipCopy edHovKind, edHovX, edHovY, edHovSide, edHovPart
                     ELSEIF edSelN THEN
-                        EditClipCopy edSelKind(1), edSelX(1), edSelY(1), edSelSide(1)
+                        EditClipCopy edSelKind(1), edSelX(1), edSelY(1), edSelSide(1), edSelPart(1)
                     END IF
                 END IF
             CASE 22 : IF edTool = ET_PAINT THEN EditClipPaste 0 ' Ctrl+V (PAINT): paste it on the face under the pointer (or the selection, if that's in it)
@@ -1626,29 +1678,12 @@ SUB EditFP STATIC
                 END IF
             CASE 102, 70 ' F: the floor's picture (that floor number, everywhere)
                 IF frontX >= 0 THEN n = FloorNumberAt(frontX, frontY) : EditPushUndo : lvlFloor$(n) = EditNextPicture$("floor", lvlFloor$(n), 1 + 2 * shiftOn) : EditApply : EditNote "Floor" + STR$(n) + ": " + lvlFloor$(n)
-            CASE 104, 72, 118, 86 ' H: divide the face left | right, V: top | bottom (again: whole) - the selection's (never just the one under the pointer)
-                dv = 1 : IF k& = 118 OR k& = 86 THEN dv = 2
-                IF edSelN = 0 THEN
-                    EditNote "Select a face first (click it) to divide it"
-                ELSE
-                    EditPushUndo
-                    FOR j = 1 TO edSelN ' (each face once - both its halves may be selected)
-                        dup = 0
-                        FOR i = 1 TO j - 1
-                            IF edSelKind(i) = edSelKind(j) AND edSelX(i) = edSelX(j) AND edSelY(i) = edSelY(j) AND edSelSide(i) = edSelSide(j) THEN dup = -1
-                        NEXT
-                        IF NOT dup THEN EditDivideFace edSelX(j), edSelY(j), EditFaceCode(edSelKind(j), edSelSide(j)), dv
-                    NEXT
-                    FOR j = edSelN TO 1 STEP -1 ' (the halves selected are halves no more: the faces, whole - a face stays selected, once)
-                        IF edSelPart(j) = 2 AND (EditSelIndex(edSelKind(j), edSelX(j), edSelY(j), edSelSide(j), 1) OR EditSelIndex(edSelKind(j), edSelX(j), edSelY(j), edSelSide(j), 0)) THEN
-                            EditSelToggle edSelKind(j), edSelX(j), edSelY(j), edSelSide(j), 2 ' (its other half is in the selection too: that one stands for the face)
-                        ELSE
-                            edSelPart(j) = 0
-                        END IF
-                    NEXT
-                    EditApply
-                    IF dv = 1 THEN EditNote "Left | right (H again: whole) - click a half to select it, PAINT it on its own" ELSE EditNote "Top | bottom (V again: whole) - click a half to select it, PAINT it on its own"
-                END IF
+            CASE 104, 72, 118, 86 ' H: divide the selected faces (or pieces) left | right, V: top | bottom - the selection's (never just the one under the pointer)
+                IF k& = 118 OR k& = 86 THEN EditDivideSel "V" ELSE EditDivideSel "H"
+            CASE 106, 74 ' J: the selected pieces joined again (with what each was divided from)
+                EditJoinSel
+            CASE 114, 82 ' R: the picture turned a quarter clockwise (Shift+R: back) - on the face or piece under the pointer, or the selection
+                IF edTool = ET_PAINT THEN EditTexOp 4, 0, 1 + 2 * shiftOn, 0, 0 ELSE EditNote "PAINT turns pictures: R a quarter clockwise, Shift+R back"
             CASE 122, 90 ' Z: that cell's floor - the next of the level's four (a zone one cell big)
                 IF frontX >= 0 THEN
                     n = FloorNumberAt(frontX, frontY) MOD 4 + 1
@@ -1736,15 +1771,218 @@ SUB EditGetFaceTex(x, y, f, ou, ov, ku, kv)
     END IF
 END SUB
 
-' PAINT: the picture on the face under the pointer - or on every selected
-' face, when that's one of them (or nothing's under it) - slid, stretched
-' or put back. op: 0 slid (k& an arrow key: walls left, right, up, down as
-' you face them; floors and ceilings, the way you face is up) by st pixels
-' (64ths); 1 stretched across, 2 up - dir +1 wider/taller, -1 narrower/
-' shorter, by st percent (0: to the next of TEX_K_STEPS$); 3 put back. One
+' FACES IN PIECES (LEVEL/PIECES.BI): every change to a face's pictures
+' reads its tree of pieces (EditTreeGet), changes them, and writes it back
+' (EditTreePut). A selection's part is a piece of its face (0: the whole).
+
+' Face f of cell (x, y)'s pieces into the tree being worked on (ptShape$,
+' ptN, ptPic$...) - one piece, the usual picture, if it has no [faces] line
+SUB EditTreeGet(x, y, f)
+    DIM k ' (its own: the main program shares these names)
+    k = FaceIndex(x, y, f)
+    IF k THEN PcTreeRead lvlFaceD(k), lvlFaceP1$(k), lvlFaceP2$(k), lvlFaceO(k), lvlFaceK(k) ELSE PcTreeRead 0, "", "", 0, 0
+END SUB
+
+' ...and the tree back as face f's [faces] line (the old kind of line where
+' it can be: PcTreeForm) - taken out, when nothing's left of its own
+SUB EditTreePut(x, y, f)
+    DIM d, k, o, kk&, p1$, p2$ ' (its own: the main program shares these names)
+    PcTreeForm d, p1$, p2$, o, kk&
+    k = FaceIndex(x, y, f)
+    IF d = 0 AND p1$ = "" AND o = 0 AND kk& = 0 THEN
+        IF k THEN lvlFaceO(k) = 0 : lvlFaceK(k) = 0 : EditSetFace x, y, f, 0, "", ""
+        EXIT SUB
+    END IF
+    IF k = 0 THEN
+        IF lvlNumFaces >= MAX_FACES THEN EditNote "That's" + STR$(MAX_FACES) + " faces with pictures of their own - no more" : EXIT SUB
+        lvlNumFaces = lvlNumFaces + 1 : k = lvlNumFaces
+    END IF
+    lvlFaceX(k) = x : lvlFaceY(k) = y : lvlFaceS(k) = f : lvlFaceD(k) = d
+    lvlFaceP1$(k) = p1$ : lvlFaceP2$(k) = p2$ : lvlFaceO(k) = o : lvlFaceK(k) = kk&
+END SUB
+
+' The pieces part stands for, j0 to j1: that piece - or (0, or one the face
+' hasn't) every one
+SUB EditPcRange(part, j0, j1)
+    IF part >= 1 AND part <= ptN THEN j0 = part : j1 = part ELSE j0 = 1 : j1 = ptN
+END SUB
+
+' Piece j's slide (64ths: ou along, ov up) and stretch (percent: ku across,
+' kv up - 100 as made)...
+SUB EditPcTexGet(j, ou, ov, ku, kv)
+    ou = ptO(j) AND 63 : ov = (ptO(j) \ 64) AND 63
+    ku = ptK(j) AND 2047 : kv = ptK(j) \ 2048
+    IF ku = 0 THEN ku = 100
+    IF kv = 0 THEN kv = 100
+END SUB
+' ...and set
+SUB EditPcTexSet(j, ou, ov, ku, kv)
+    DIM u, v ' (its own: the main program shares these names)
+    u = ku : v = kv : IF u = 100 THEN u = 0
+    IF v = 100 THEN v = 0
+    IF u THEN u = MaxOf(TEX_K_MIN, MinOf(TEX_K_MAX, u))
+    IF v THEN v = MaxOf(TEX_K_MIN, MinOf(TEX_K_MAX, v))
+    ptO(j) = (ou AND 63) + 64 * (ov AND 63) : ptK(j) = u + 2048& * v
+END SUB
+
+' Piece j's look in words - slid, stretched, turned, tinted ("" as made)
+FUNCTION EditLookName$(j)
+    DIM ou, ov, ku, kv, t$ ' (its own: the main program shares these names)
+    EditPcTexGet j, ou, ov, ku, kv
+    IF ou OR ov THEN t$ = t$ + "  slid" + STR$(((ou + 32) AND 63) - 32) + "," + LTRIM$(STR$(((ov + 32) AND 63) - 32))
+    IF ku <> 100 OR kv <> 100 THEN t$ = t$ + "  stretched" + STR$(ku) + "% x" + STR$(kv) + "%"
+    IF ptRot(j) THEN t$ = t$ + "  turned" + STR$(ptRot(j) * 90)
+    IF ptTM(j) THEN t$ = t$ + "  " + EditTintName$(ptTM(j)) + STR$(ptTA(j)) + "% " + RIGHT$("00000" + HEX$(ptTC(j) AND &HFFFFFF), 6)
+    EditLookName$ = LTRIM$(t$)
+END FUNCTION
+
+' A tint's kind in words: 0 none, 1 TINT (the picture times the colour), 2
+' WASH (mixed with it), 3 GLOW (it added)
+FUNCTION EditTintName$(m)
+    EditTintName$ = RTRIM$(MID$("NONETINTWASHGLOW", m * 4 + 1, 4))
+END FUNCTION
+
+' H / V: the selected faces divided - dir$ "H" left | right, "V" top |
+' bottom, up to PC_DEPTH times. A piece selected: that piece, in two (both
+' halves selected after, with its look). A whole face: in two - halved that
+' way already, whole again; halved the other way, turned that way; in more
+' pieces than two, every piece in two. One undo.
+SUB EditDivideSel(dir$)
+    DIM fc, i, j, k, m, n, nf, nSplit, nJoin, nFine, whole, ok, t$ ' (its own: the main program shares these names)
+    DIM fK(ED_MAXSEL), fX(ED_MAXSEL), fY(ED_MAXSEL), fS(ED_MAXSEL), fP(ED_MAXSEL), mk(PC_LEAF + 1)
+    IF edSelN = 0 THEN EditNote "Select a face first (click it) to divide it" : EXIT SUB
+    EditPushUndo
+    nf = edSelN
+    FOR k = 1 TO nf : fK(k) = edSelKind(k) : fX(k) = edSelX(k) : fY(k) = edSelY(k) : fS(k) = edSelSide(k) : fP(k) = edSelPart(k) : NEXT
+    edSelN = 0
+    FOR k = 1 TO nf
+        fc = EditFaceCode(fK(k), fS(k))
+        IF fK(k) = -1 THEN _CONTINUE ' (done with its face already)
+        IF fc < 1 OR fc > FACE_MAX THEN EditSelAdd fK(k), fX(k), fY(k), fS(k), fP(k) : _CONTINUE
+        EditTreeGet fX(k), fY(k), fc
+        whole = 0 : FOR j = 1 TO PC_LEAF + 1 : mk(j) = 0 : NEXT
+        FOR i = k TO nf ' (every part of this face that's selected)
+            IF fK(i) = fK(k) AND fX(i) = fX(k) AND fY(i) = fY(k) AND fS(i) = fS(k) THEN
+                IF fP(i) >= 1 AND fP(i) <= ptN THEN mk(fP(i)) = -1 ELSE whole = -1
+                IF i > k THEN fK(i) = -1
+            END IF
+        NEXT
+        IF whole THEN
+            IF ptN = 1 THEN
+                IF PcSplit(1, dir$) THEN nSplit = nSplit + 1
+            ELSEIF ptShape$ = dir$ + ".." THEN
+                ptShape$ = "." : ptN = 1 : nJoin = nJoin + 1 ' (whole again: its first half's look)
+            ELSEIF ptN = 2 THEN
+                ptShape$ = dir$ + ".." : nSplit = nSplit + 1
+            ELSE
+                FOR j = 1 TO ptN : mk(j) = -1 : NEXT
+            END IF
+        END IF
+        m = ptN
+        FOR j = m TO 1 STEP -1 ' (from the last: a piece divided moves the ones after it up one, never those before)
+            IF mk(j) THEN
+                IF PcSplit(j, dir$) THEN
+                    FOR i = ptN TO j + 2 STEP -1 : mk(i) = mk(i - 1) : NEXT
+                    mk(j + 1) = -1 : nSplit = nSplit + 1
+                ELSE
+                    nFine = nFine + 1
+                END IF
+            END IF
+        NEXT
+        EditTreePut fX(k), fY(k), fc
+        IF whole THEN
+            EditSelAdd fK(k), fX(k), fY(k), fS(k), 0
+        ELSE
+            FOR j = 1 TO ptN : IF mk(j) THEN EditSelAdd fK(k), fX(k), fY(k), fS(k), j
+            NEXT
+        END IF
+    NEXT
+    EditApply
+    IF nSplit = 0 AND nJoin = 0 THEN
+        EditNote "As fine as it goes:" + STR$(PC_DEPTH) + " divisions (J joins pieces again)"
+    ELSEIF nSplit = 0 THEN
+        EditNote "Whole again"
+    ELSE
+        IF dir$ = "H" THEN t$ = "Left | right" ELSE t$ = "Top | bottom"
+        IF nFine THEN t$ = t$ + " (" + LTRIM$(STR$(nFine)) + " as fine as they go)"
+        EditNote t$ + " - click a piece to select it: PAINT it, H / V divide it again, J join it"
+    END IF
+END SUB
+
+' J: each selected piece joined with what it was divided from - one
+' division undone, the piece's look on all of it; a whole face selected:
+' whole again (its first piece's look). One undo.
+SUB EditJoinSel
+    DIM fc, i, j, k, l1, m, n, nf, nJoin, whole, tg ' (its own: the main program shares these names)
+    DIM fK(ED_MAXSEL), fX(ED_MAXSEL), fY(ED_MAXSEL), fS(ED_MAXSEL), fP(ED_MAXSEL), mk(PC_LEAF + 1), mk2(PC_LEAF + 1)
+    IF edSelN = 0 THEN EditNote "Select a piece of a divided face first (click it) to join it" : EXIT SUB
+    EditPushUndo
+    nf = edSelN
+    FOR k = 1 TO nf : fK(k) = edSelKind(k) : fX(k) = edSelX(k) : fY(k) = edSelY(k) : fS(k) = edSelSide(k) : fP(k) = edSelPart(k) : NEXT
+    edSelN = 0
+    FOR k = 1 TO nf
+        fc = EditFaceCode(fK(k), fS(k))
+        IF fK(k) = -1 THEN _CONTINUE
+        IF fc < 1 OR fc > FACE_MAX THEN EditSelAdd fK(k), fX(k), fY(k), fS(k), fP(k) : _CONTINUE
+        EditTreeGet fX(k), fY(k), fc
+        whole = 0 : FOR j = 1 TO PC_LEAF + 1 : mk(j) = 0 : NEXT
+        FOR i = k TO nf
+            IF fK(i) = fK(k) AND fX(i) = fX(k) AND fY(i) = fY(k) AND fS(i) = fS(k) THEN
+                IF fP(i) >= 1 AND fP(i) <= ptN THEN mk(fP(i)) = 1 ELSE whole = -1
+                IF i > k THEN fK(i) = -1
+            END IF
+        NEXT
+        IF ptN > 1 THEN
+            IF whole THEN
+                ptShape$ = "." : ptN = 1 : nJoin = nJoin + 1
+                FOR j = 1 TO PC_LEAF + 1 : mk(j) = 0 : NEXT
+            ELSE
+                FOR j = ptN TO 1 STEP -1 ' (from the last: a join moves only the pieces after it down)
+                    IF j <= ptN THEN
+                        IF mk(j) = 1 THEN
+                            m = ptN : l1 = PcJoin(j)
+                            IF l1 THEN
+                                n = m - ptN : nJoin = nJoin + 1
+                                FOR i = 1 TO PC_LEAF + 1 : mk2(i) = 0 : NEXT
+                                FOR i = 1 TO m ' (each piece's mark to its number now: those joined are piece l1)
+                                    IF i < l1 THEN tg = i ELSE IF i <= l1 + n THEN tg = l1 ELSE tg = i - n
+                                    IF mk(i) > mk2(tg) THEN mk2(tg) = mk(i)
+                                NEXT
+                                mk2(l1) = 2 ' (joined: not joined again this time)
+                                FOR i = 1 TO PC_LEAF + 1 : mk(i) = mk2(i) : NEXT
+                            END IF
+                        END IF
+                    END IF
+                NEXT
+            END IF
+            EditTreePut fX(k), fY(k), fc
+        END IF
+        IF whole OR ptN = 1 THEN
+            EditSelAdd fK(k), fX(k), fY(k), fS(k), 0
+        ELSE
+            FOR j = 1 TO ptN : IF mk(j) THEN EditSelAdd fK(k), fX(k), fY(k), fS(k), j
+            NEXT
+        END IF
+    NEXT
+    EditApply
+    IF nJoin = 0 THEN EditNote "Nothing divided there to join" ELSE EditNote "Joined" + STR$(nJoin) + " - J again joins it to the next piece up"
+END SUB
+
+' PAINT: the picture on the face (or piece) under the pointer - or on every
+' selected one, when that's one of them (or nothing's under it) - slid,
+' stretched, turned, tinted or put back. A whole face that's divided: each
+' of its pieces. op: 0 slid (k& an arrow key: walls left, right, up, down
+' as you face them; floors and ceilings, the way you face is up) by st
+' pixels (64ths); 1 stretched across, 2 up - dir +1 wider/taller, -1
+' narrower/shorter, by st percent (0: to the next of TEX_K_STEPS$); 3 put
+' back as made (not slid, stretched, turned or tinted); 4 turned dir
+' quarters clockwise; 5 tinted the way st says (0 none, 1 TINT, 2 WASH, 3
+' GLOW); 6 its tint's amount dir * st percent more; 7 its tint's colour
+' k& (RRGGBB); 8 its colour's red (k& 0), green (1) or blue (2) dir * st
+' more. A colour or amount on a picture not tinted tints it (TINT). One
 ' undo for a run of presses. fromPane: the selection, always.
 SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
-    DIM fc, fwX, fwY, j, n, ou, ov, ku, kv, useSel, mx, my, kd, fx, fy, sd, w, kn, sv ' (its own: the main program shares these names)
+    DIM fc, fwX, fwY, i, j, j0, j1, n, ou, ov, ku, kv, useSel, mx, my, kd, fx, fy, sd, pt, w, kn, sv, cr, cg, cb, lastJ, t$ ' (its own: the main program shares these names)
     useSel = fromPane
     IF NOT useSel THEN
         IF edHovKind = 0 OR edHovThing THEN
@@ -1752,7 +1990,7 @@ SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
             useSel = -1
         ELSE
             FOR j = 1 TO edSelN
-                IF edSelKind(j) = edHovKind AND edSelX(j) = edHovX AND edSelY(j) = edHovY AND edSelSide(j) = edHovSide THEN useSel = -1
+                IF edSelKind(j) = edHovKind AND edSelX(j) = edHovX AND edSelY(j) = edHovY AND edSelSide(j) = edHovSide THEN IF edSelPart(j) = edHovPart OR edSelPart(j) = 0 THEN useSel = -1 ' (that piece selected - or its whole face)
             NEXT
         END IF
     END IF
@@ -1760,51 +1998,68 @@ SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
     texOpT! = TIMER
     fwX = 0 : fwY = 0 : IF ABS(edCamDX) >= ABS(edCamDY) THEN fwX = SGN(edCamDX) ELSE fwY = SGN(edCamDY)
     IF useSel THEN n = edSelN ELSE n = 1
-    FOR j = 1 TO n
-        IF useSel THEN kd = edSelKind(j) : fx = edSelX(j) : fy = edSelY(j) : sd = edSelSide(j) ELSE kd = edHovKind : fx = edHovX : fy = edHovY : sd = edHovSide
+    lastJ = 0
+    FOR i = 1 TO n
+        IF useSel THEN kd = edSelKind(i) : fx = edSelX(i) : fy = edSelY(i) : sd = edSelSide(i) : pt = edSelPart(i) ELSE kd = edHovKind : fx = edHovX : fy = edHovY : sd = edHovSide : pt = edHovPart
         fc = EditFaceCode(kd, sd) : IF fc < 1 OR fc > FACE_MAX THEN _CONTINUE
-        EditGetFaceTex fx, fy, fc, ou, ov, ku, kv
-        SELECT CASE op
-            CASE 3 : ou = 0 : ov = 0 : ku = 100 : kv = 100
-            CASE 1, 2
-                IF op = 1 THEN w = ku ELSE w = kv
-                IF st THEN
-                    w = w + dir * st
-                ELSE ' (the next of the steps up, or down)
-                    sv = w
-                    FOR kn = 1 TO LEN(TEX_K_STEPS$) \ 5
-                        IF dir > 0 AND VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5)) > sv THEN w = VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5)) : EXIT FOR
-                        IF dir < 0 AND VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5)) < sv THEN w = VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5))
-                    NEXT
-                END IF
-                w = MaxOf(TEX_K_MIN, MinOf(TEX_K_MAX, w))
-                IF op = 1 THEN ku = w ELSE kv = w
-            CASE ELSE
-                IF kd = ED_FLOOR OR kd = ED_CEIL THEN ' (the picture moved on the map: mx, my - u runs east, v south)
-                    SELECT CASE k&
-                        CASE 18432 : mx = fwX : my = fwY
-                        CASE 20480 : mx = -fwX : my = -fwY
-                        CASE 19200 : mx = fwY : my = -fwX
-                        CASE ELSE : mx = -fwY : my = fwX
-                    END SELECT
-                    ou = ou - mx * st : ov = ov - my * st
-                ELSE ' (a wall: u runs left to right as you face it, v down)
-                    SELECT CASE k&
-                        CASE 18432 : ov = ov + st
-                        CASE 20480 : ov = ov - st
-                        CASE 19200 : ou = ou + st
-                        CASE ELSE : ou = ou - st
-                    END SELECT
-                END IF
-                ou = (ou + 64) AND 63 : ov = (ov + 64) AND 63
-        END SELECT
-        EditSetFaceTex fx, fy, fc, ou, ov, ku, kv
+        EditTreeGet fx, fy, fc : EditPcRange pt, j0, j1
+        FOR j = j0 TO j1
+            EditPcTexGet j, ou, ov, ku, kv
+            SELECT CASE op
+                CASE 3 : ou = 0 : ov = 0 : ku = 100 : kv = 100 : ptRot(j) = 0 : ptTM(j) = 0
+                CASE 1, 2
+                    IF op = 1 THEN w = ku ELSE w = kv
+                    IF st THEN
+                        w = w + dir * st
+                    ELSE ' (the next of the steps up, or down)
+                        sv = w
+                        FOR kn = 1 TO LEN(TEX_K_STEPS$) \ 5
+                            IF dir > 0 AND VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5)) > sv THEN w = VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5)) : EXIT FOR
+                            IF dir < 0 AND VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5)) < sv THEN w = VAL(MID$(TEX_K_STEPS$, kn * 5 - 4, 5))
+                        NEXT
+                    END IF
+                    w = MaxOf(TEX_K_MIN, MinOf(TEX_K_MAX, w))
+                    IF op = 1 THEN ku = w ELSE kv = w
+                CASE 4 : ptRot(j) = (ptRot(j) + dir + 4) AND 3
+                CASE 5 : ptTM(j) = st
+                CASE 6 : ptTA(j) = MaxOf(0, MinOf(100, ptTA(j) + dir * st)) : IF ptTM(j) = 0 THEN ptTM(j) = 1
+                CASE 7 : ptTC(j) = k& AND &HFFFFFF : IF ptTM(j) = 0 THEN ptTM(j) = 1
+                CASE 8
+                    cr = (ptTC(j) \ 65536) AND 255 : cg = (ptTC(j) \ 256) AND 255 : cb = ptTC(j) AND 255
+                    IF k& = 0 THEN cr = MaxOf(0, MinOf(255, cr + dir * st))
+                    IF k& = 1 THEN cg = MaxOf(0, MinOf(255, cg + dir * st))
+                    IF k& = 2 THEN cb = MaxOf(0, MinOf(255, cb + dir * st))
+                    ptTC(j) = cr * 65536 + cg * 256 + cb : IF ptTM(j) = 0 THEN ptTM(j) = 1
+                CASE ELSE
+                    IF kd = ED_FLOOR OR kd = ED_CEIL THEN ' (the picture moved on the map: mx, my - u runs east, v south)
+                        SELECT CASE k&
+                            CASE 18432 : mx = fwX : my = fwY
+                            CASE 20480 : mx = -fwX : my = -fwY
+                            CASE 19200 : mx = fwY : my = -fwX
+                            CASE ELSE : mx = -fwY : my = fwX
+                        END SELECT
+                        ou = ou - mx * st : ov = ov - my * st
+                    ELSE ' (a wall: u runs left to right as you face it, v down)
+                        SELECT CASE k&
+                            CASE 18432 : ov = ov + st
+                            CASE 20480 : ov = ov - st
+                            CASE 19200 : ou = ou + st
+                            CASE ELSE : ou = ou - st
+                        END SELECT
+                    END IF
+                    ou = (ou + 64) AND 63 : ov = (ov + 64) AND 63
+            END SELECT
+            EditPcTexSet j, ou, ov, ku, kv
+        NEXT
+        EditTreePut fx, fy, fc : lastJ = j0
     NEXT
     EditApply
+    IF lastJ = 0 THEN EditNote "No picture there to change" : EXIT SUB
     IF op = 3 THEN
         EditNote "Picture" + MID$("s", 1, -(n > 1)) + " back as made"
     ELSE
-        EditNote "Picture slid" + STR$(((ou + 32) AND 63) - 32) + "," + LTRIM$(STR$(((ov + 32) AND 63) - 32)) + " px, stretched" + STR$(ku) + "% x" + STR$(kv) + "%" + MID$(" (" + LTRIM$(STR$(n)) + " faces)", 1, 99 * -(n > 1))
+        t$ = EditLookName$(lastJ) : IF t$ = "" THEN t$ = "as made"
+        EditNote "Picture: " + t$ + MID$(" (" + LTRIM$(STR$(n)) + " selected)", 1, 99 * -(n > 1))
     END IF
 END SUB
 
@@ -2742,9 +2997,9 @@ SUB EditDrawHelp(v)
         h$ = h$ + "#POINT AND SELECT|Left click~the tool on the face / thing|SELECT click~select it|Shift+click~add it / take it out|Ctrl+click~the whole floor, ceiling, or wall side|Ctrl+D~select nothing|Del~delete the selection|arrows~move the selection a cell|"
         h$ = h$ + "#THE TOOLS (toolbar)|PLACE~the brush there; drag along|  Shift / E~take away / pick it up|PAINT~the picture on the face|  Ctrl~a whole floor or ceiling|  Shift / E~the usual / pick it up|  Shift+arrows~slide its picture (Ctrl: 1 px)|  Shift+[ ] - =~stretch it: wide, tall|  Shift+Home~the picture as made|  Ctrl+C / Ctrl+V~copy / paste a face's look|LIGHT~a light on the face|  Shift~take it away|  its pane~CEILING LAMP on/off, REMOVE|  painted ceiling~stays: the light shines from it|HEIGHT~floor/ceiling up; Shift down|"
         h$ = h$ + "#THE WHEEL (the selection)|floor, ceiling~up / down an eighth|  Ctrl~a whole wall|wall + Shift~pull out / push back|wall + Alt~push back / pull out|wall+Ctrl+Shift~a block on the floor|wall+Alt+Shift~a block from the ceiling|"
-        h$ = h$ + "#FACES|H~divide left / right|V~divide top / bottom|H or V again~whole again|click a half~select / paint it alone|"
+        h$ = h$ + "#FACES IN PIECES|H / V~divide: left-right, top-bottom|  on a piece~divide it again (4 deep)|  a halved face~whole again|J~join a piece back up|click a piece~select / paint it alone|R / Shift+R~turn its picture (PAINT)|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
-        h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|PAINT + selection~PICTURE pane: slide a pixel,|~  stretch wide / tall, as made|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
+        h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|PAINT + selection~PICTURE pane: slide, stretch,|~  turn, tint (any colour), as made|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
         h$ = h$ + "#VIEW AND FILE|G / Shift+G~grid on-off / stronger|Alt+L~full bright: everything lit evenly|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|U~the HUD layout editor|F1~this sheet|"
         h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|1-8~light presets|PgUp/PgDn~floor up/down (Shift: ceil)"
         t$ = "EDITOR CHEATSHEET - 3D VIEW"
@@ -3533,7 +3788,15 @@ SUB EditPaneLay
         END IF
     NEXT
     ' Floor, not a lift yet
-    n = 0 : FOR k = 1 TO edSelN : IF edSelKind(k) = ED_FLOOR THEN IF EditCellOpen(edSelX(k), edSelY(k)) THEN n = n + 1
+    n = 0
+    FOR k = 1 TO edSelN ' (cells: a floor's pieces count once)
+        IF edSelKind(k) = ED_FLOOR THEN
+            IF EditCellOpen(edSelX(k), edSelY(k)) THEN
+                n = n + 1
+                FOR j = 1 TO k - 1 : IF edSelKind(j) = ED_FLOOR AND edSelX(j) = edSelX(k) AND edSelY(j) = edSelY(k) THEN n = n - 1 : EXIT FOR
+                NEXT
+            END IF
+        END IF
     NEXT
     IF n THEN
         edPnTitle$ = "FLOOR (" + LTRIM$(STR$(n)) + " cell" + MID$("s", 1, -(n > 1)) + ")"
@@ -3679,22 +3942,49 @@ END SUB
 ' (Shift+click: 4), stretched across and up (by TEX_K_STEPS$ - Shift+click:
 ' a percent), or put back as made. The numbers are the first face's.
 SUB EditPanePicture(x0, y)
-    DIM fc, k, ou, ov, ku, kv, n ' (its own: the main program shares these names)
-    n = 0 : ou = 0 : ov = 0 : ku = 100 : kv = 100
+    DIM c, c~&, fc, k, k1, n, ou, ov, ku, kv, pj, tm, tc&, t$ ' (its own: the main program shares these names)
+    n = 0 : k1 = 0
     FOR k = 1 TO edSelN
         fc = EditFaceCode(edSelKind(k), edSelSide(k))
-        IF fc >= 1 AND fc <= FACE_MAX THEN
-            n = n + 1 : IF n = 1 THEN EditGetFaceTex edSelX(k), edSelY(k), fc, ou, ov, ku, kv
-        END IF
+        IF fc >= 1 AND fc <= FACE_MAX THEN n = n + 1 : IF n = 1 THEN k1 = k
     NEXT
-    edPnTitle$ = "PICTURE (" + LTRIM$(STR$(n)) + " face" + MID$("s", 1, -(n <> 1)) + ")"
+    edPnTitle$ = "PICTURE (" + LTRIM$(STR$(n)) + " selected)"
     IF n = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "SELECT FACES TO SLIDE THEIR PICTURES", 0 : y = y + 23 : EXIT SUB
+    EditTreeGet edSelX(k1), edSelY(k1), EditFaceCode(edSelKind(k1), edSelSide(k1)) ' (the first one's look: its piece's - or its first piece's)
+    pj = edSelPart(k1) : IF pj < 1 OR pj > ptN THEN pj = 0
+    IF ptN > 1 THEN
+        IF pj THEN t$ = "PIECE" + STR$(pj) + " OF" + STR$(ptN) ELSE t$ = "THE WHOLE FACE:" + STR$(ptN) + " PIECES"
+        EditPaneAdd -1, x0, y + 2, PN_W, t$, 0 : y = y + 20
+    END IF
+    IF pj = 0 THEN pj = 1
+    EditPcTexGet pj, ou, ov, ku, kv : tm = ptTM(pj) : tc& = ptTC(pj) AND &HFFFFFF
     EditPaneAdd -1, x0, y + 2, PN_W, "SLID" + STR$(((ou + 32) AND 63) - 32) + " ALONG," + STR$(((ov + 32) AND 63) - 32) + " UP (PIXELS)", 0 : y = y + 20 ' (shown -32 to 31: 3 left is -3, not 61)
     EditPaneAdd 330, x0, y, 48, "LEFT", 0 : EditPaneAdd 331, x0 + 50, y, 48, "RIGHT", 0 : EditPaneAdd 332, x0 + 100, y, 48, "UP", 0 : EditPaneAdd 333, x0 + 150, y, 50, "DOWN", 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, 140, "WIDE" + STR$(ku) + "%", 0 : EditPaneAdd 334, x0 + 146, y, 24, "-", 0 : EditPaneAdd 335, x0 + 174, y, 24, "+", 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, 140, "TALL" + STR$(kv) + "%", 0 : EditPaneAdd 336, x0 + 146, y, 24, "-", 0 : EditPaneAdd 337, x0 + 174, y, 24, "+", 0 : y = y + 23
-    EditPaneAdd -1, x0, y + 2, PN_W, "SHIFT+CLICK: 4 PIXELS / 1 PERCENT", 0 : y = y + 20
-    EditPaneAdd 338, x0, y, PN_W, "AS MADE (NOT SLID OR STRETCHED)", 0 : y = y + 23
+    IF ptRot(pj) THEN t$ = "TURNED" + STR$(ptRot(pj) * 90) + " (R)" ELSE t$ = "NOT TURNED (R)"
+    EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 341, x0 + 146, y, 24, "<", 0 : EditPaneAdd 342, x0 + 174, y, 24, ">", 0 : y = y + 23
+    FOR c = 0 TO 3 : EditPaneAdd 343 + c, x0 + c * 50, y, 48, EditTintName$(c), (tm = c) : NEXT : y = y + 23
+    IF tm THEN
+        EditPaneAdd -1, x0, y + 2, 140, "AMOUNT" + STR$(ptTA(pj)) + "%", 0 : EditPaneAdd 347, x0 + 146, y, 24, "-", 0 : EditPaneAdd 348, x0 + 174, y, 24, "+", 0 : y = y + 23
+        FOR c = 0 TO 2
+            EditPaneAdd -1, x0, y + 2, 140, MID$("REDGRNBLU", c * 3 + 1, 3) + STR$((tc& \ 256 ^ (2 - c)) AND 255), 0
+            EditPaneAdd 349 + 2 * c, x0 + 146, y, 24, "-", 0 : EditPaneAdd 350 + 2 * c, x0 + 174, y, 24, "+", 0 : y = y + 23
+        NEXT
+        FOR c = 1 TO 12 ' (quick colours: the lights' - and any colour, typed)
+            c~& = EditPaletteRGB~&(c)
+            EditPaneAdd 359 + c, x0 + ((c - 1) MOD 6) * 34, y + ((c - 1) \ 6) * 23, 30, "", ((c~& AND &HFFFFFF) = tc&) : edPnCol(edPnN) = c~&
+        NEXT
+        y = y + 46
+        IF edTyping AND edTypeFor = 7 THEN t$ = edTypeBuf$ + "_" ELSE t$ = RIGHT$("00000" + HEX$(tc&), 6)
+        EditPaneAdd -1, x0, y + 2, 70, "COLOUR " + t$, 0
+        EditPaneAdd 359, x0 + 100, y, 30, "", 0 : edPnCol(edPnN) = _RGB32((tc& \ 65536) AND 255, (tc& \ 256) AND 255, tc& AND 255)
+        IF edTyping AND edTypeFor = 7 THEN t$ = "OK" ELSE t$ = "TYPE"
+        EditPaneAdd 355, x0 + 134, y, 64, t$, (edTyping AND edTypeFor = 7) : y = y + 23
+    END IF
+    EditPaneAdd -1, x0, y + 2, PN_W, "SHIFT+CLICK: FINER STEPS", 0 : y = y + 20
+    EditPaneAdd 338, x0, y, PN_W, "AS MADE (NONE OF THESE)", 0 : y = y + 23
+    EditPaneAdd 356, x0, y, 64, "H: L-R", 0 : EditPaneAdd 357, x0 + 67, y, 64, "V: T-B", 0 : EditPaneAdd 358, x0 + 134, y, 64, "J: JOIN", 0 : y = y + 23
     EditPaneAdd 339, x0, y, 99, "COPY", 0 : EditPaneAdd 340, x0 + 101, y, 99, "PASTE", 0 : y = y + 23
     IF edClipOn THEN EditPaneAdd -1, x0, y + 2, PN_W, LEFT$("COPIED: " + EditClipName$, 40), 0 : y = y + 20
 END SUB
@@ -4273,13 +4563,6 @@ SUB EditHit(kind, x, y, side, hx, hy, hz)
     edHovPart = EditFacePart(kind, x, y, side, hx, hy, hz)
 END SUB
 
-' How face f of (x, y) is divided ([faces]: 0 not, 1 left | right, 2 top |
-' bottom)
-FUNCTION EditFaceDiv(x, y, f)
-    DIM k ' (its own: the main program shares these names)
-    k = FaceIndex(x, y, f) : IF k THEN EditFaceDiv = lvlFaceD(k) ELSE EditFaceDiv = 0
-END FUNCTION
-
 ' An upright face's place: the edge it's on, (ax, ay) to (bx, by), and its
 ' bottom and top, z0 and z1
 SUB EditFaceRect(kind, x, y, side, ax, ay, bx, by, z0, z1, ok)
@@ -4312,44 +4595,26 @@ SUB EditFaceRect(kind, x, y, side, ax, ay, bx, by, z0, z1, ok)
     ok = -1
 END SUB
 
-' Which half of a divided face the point (hx, hy, hz) on it is in - 1 or 2
-' (0: it isn't divided). Left | right is by the picture's u - it runs
-' against the edge on east and north faces, with it on south and west, as
-' the renderers draw it; on a floor, west | east and north | south.
+' Which piece of a divided face the point (hx, hy, hz) on it is in - 1...
+' (0: it isn't divided). Across is by the picture's u - it runs against
+' the edge on east and north faces, with it on south and west, as the
+' renderers draw it - and down from the top; on a floor, west to east and
+' north to south.
 FUNCTION EditFacePart(kind, x, y, side, hx, hy, hz)
-    DIM ax, ay, bx, by, d, ok, t ' (its own: the main program shares these names)
+    DIM ax, ay, bx, by, ok, t, u, v, z0, z1 ' (its own: the main program shares these names)
     EditFacePart = 0
-    d = EditFaceDiv(x, y, EditFaceCode(kind, side)) : IF d = 0 THEN EXIT FUNCTION
+    EditTreeGet x, y, EditFaceCode(kind, side) : IF ptN < 2 THEN EXIT FUNCTION
     IF kind = ED_FLOOR OR kind = ED_CEIL THEN
-        IF d = 1 THEN EditFacePart = 1 - (hx - x >= 0.5) ELSE EditFacePart = 1 - (hy - y >= 0.5)
-        EXIT FUNCTION
-    END IF
-    EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT FUNCTION
-    IF d = 1 THEN
+        u = hx - x : v = hy - y
+    ELSE
+        EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT FUNCTION
         IF side = 1 OR side = 3 THEN t = hy - y ELSE t = hx - x
         IF side = 1 OR side = 4 THEN u = 1 - t ELSE u = t
-        IF kind = ED_BOX THEN u = BoxFaceU(x, y, side, u) ' (a block's side: split at its own middle)
-        EditFacePart = 1 - (u >= 0.5)
-    ELSE
-        IF z1 - z0 > 0.001 THEN vt = (z1 - hz) / (z1 - z0) ELSE vt = 0
-        EditFacePart = 1 - (vt >= 0.5)
+        IF kind = ED_BOX THEN u = BoxFaceU(x, y, side, u) ' (a block's side: across its own width)
+        IF z1 - z0 > 0.001 THEN v = (z1 - hz) / (z1 - z0) ELSE v = 0
     END IF
+    EditFacePart = PcLeafAt(ptShape$, u, v)
 END FUNCTION
-
-' Divide face f of (x, y): d 1 left | right, 2 top | bottom - both halves
-' starting with the picture it had. Divided that way already: whole again
-' (the first half's picture on it all).
-SUB EditDivideFace(x, y, f, d)
-    DIM k ' (its own: the main program shares these names)
-    k = FaceIndex(x, y, f) : od = 0 : p1$ = "" : p2$ = ""
-    IF k THEN od = lvlFaceD(k) : p1$ = lvlFaceP1$(k) : p2$ = lvlFaceP2$(k)
-    IF od = d THEN
-        EditSetFace x, y, f, 0, p1$, ""
-    ELSE
-        IF od = 0 THEN p2$ = p1$
-        EditSetFace x, y, f, d, p1$, p2$
-    END IF
-END SUB
 
 ' Is cell (x, y) open - floor, or a thing on floor - rather than a wall, a
 ' door, a station? (A box from above selects every cell in it, walls too.)
@@ -4371,23 +4636,17 @@ SUB EditPaintCell(x, y, pic$, ceil)
     END IF
 END SUB
 
-' The picture pic$ on face f of (x, y) - on half `part` of it, if it's
-' divided (part 0: the whole of it). "" is the usual picture.
+' The picture pic$ on face f of (x, y) - on piece `part` of it, if it's
+' divided (part 0: the whole of it, every piece). "" is the usual picture.
 SUB EditPaintFace(x, y, f, part, pic$)
-    DIM d, k ' (its own: the main program shares these names)
+    DIM j, j0, j1 ' (its own: the main program shares these names)
     IF f <= 4 OR f = 9 OR f = 10 THEN ' (a wall's side, a floor, a ceiling: blood or oil on it - [smears] - or, any other picture, none)
         IF LCASE$(LEFT$(pic$, 6)) = "smear-" THEN SmearSet x, y, FaceName$(f), MID$(pic$, 7, LEN(pic$) - 10) : EXIT SUB
         SmearSet x, y, FaceName$(f), ""
     END IF
-    k = FaceIndex(x, y, f) : d = 0 : p1$ = "" : p2$ = ""
-    IF k THEN d = lvlFaceD(k) : p1$ = lvlFaceP1$(k) : p2$ = lvlFaceP2$(k)
-    IF d = 0 THEN
-        EditSetFace x, y, f, 0, pic$, ""
-    ELSE
-        IF part <> 2 THEN p1$ = pic$
-        IF part <> 1 THEN p2$ = pic$
-        EditSetFace x, y, f, d, p1$, p2$
-    END IF
+    EditTreeGet x, y, f : EditPcRange part, j0, j1
+    FOR j = j0 TO j1 : ptPic$(j) = pic$ : NEXT
+    EditTreePut x, y, f
 END SUB
 
 ' A point in the world on the screen (sx, sy) - or ok = 0 if it's behind
@@ -4459,35 +4718,52 @@ END SUB
 
 ' A face's outline: a floor or ceiling's square, or a side's rectangle -
 ' from the open cell's floor to its ceiling, for a wall; the step's height,
-' for a step or a lintel (the open cell beside it is on its other side)
+' for a step or a lintel (the open cell beside it is on its other side).
+' Divided: piece `part` (0: the whole face) in col - col 0: every piece,
+' faintly (drawn first, under the outlines)
 SUB EditFaceOutline(kind, x, y, side, part, col~&)
-    DIM ax, ay, bx, by, d, mx, my, ok, x0, y0, y1 ' (its own: the main program shares these names)
-    d = EditFaceDiv(x, y, EditFaceCode(kind, side))
+    DIM ax, ay, bx, by, j, n, ok, z, z0, z1 ' (its own: the main program shares these names)
     SELECT CASE kind
         CASE ED_FLOOR, ED_CEIL
             IF kind = ED_FLOOR THEN z = floorH(x, y) ELSE z = ceilH(x, y)
-            x0 = x : y0 = y : x1 = x + 1 : y1 = y + 1
-            IF d = 1 THEN EditLine3D x + 0.5, y, z, x + 0.5, y + 1, z, _RGBA32(255, 255, 255, 140) ' (the line it's divided on)
-            IF d = 2 THEN EditLine3D x, y + 0.5, z, x + 1, y + 0.5, z, _RGBA32(255, 255, 255, 140)
-            IF d = 1 AND part = 1 THEN x1 = x + 0.5
-            IF d = 1 AND part = 2 THEN x0 = x + 0.5
-            IF d = 2 AND part = 1 THEN y1 = y + 0.5
-            IF d = 2 AND part = 2 THEN y0 = y + 0.5
-            EditLine3D x0, y0, z, x1, y0, z, col~& : EditLine3D x1, y0, z, x1, y1, z, col~&
-            EditLine3D x1, y1, z, x0, y1, z, col~& : EditLine3D x0, y1, z, x0, y0, z, col~&
         CASE ED_WALL, ED_STEP, ED_LINTEL, ED_BOX
             EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
-            zm = (z0 + z1) / 2 : mx = (ax + bx) / 2 : my = (ay + by) / 2
-            IF d = 1 THEN EditLine3D mx, my, z0, mx, my, z1, _RGBA32(255, 255, 255, 140)
-            IF d = 2 THEN EditLine3D ax, ay, zm, bx, by, zm, _RGBA32(255, 255, 255, 140)
-            IF d = 1 AND part > 0 THEN ' (half 1 is u < 0.5: the edge's second half - a to b - on east and north faces, its first on south and west; EditFacePart)
-                IF (part = 1) = (side = 1 OR side = 4) THEN ax = mx : ay = my ELSE bx = mx : by = my
-            END IF
-            IF d = 2 AND part = 1 THEN z0 = zm
-            IF d = 2 AND part = 2 THEN z1 = zm
-            EditLine3D ax, ay, z0, bx, by, z0, col~& : EditLine3D bx, by, z0, bx, by, z1, col~&
-            EditLine3D bx, by, z1, ax, ay, z1, col~& : EditLine3D ax, ay, z1, ax, ay, z0, col~&
+        CASE ELSE : EXIT SUB
     END SELECT
+    EditTreeGet x, y, EditFaceCode(kind, side) : n = PcRects(ptShape$)
+    IF col~& = 0 THEN
+        IF n > 1 THEN
+            FOR j = 1 TO n : EditFaceBox kind, x, y, side, ax, ay, bx, by, z, z0, z1, pcRU0(j), pcRV0(j), pcRU1(j), pcRV1(j), _RGBA32(255, 255, 255, 110) : NEXT
+        END IF
+    ELSEIF part >= 1 AND part <= n THEN
+        EditFaceBox kind, x, y, side, ax, ay, bx, by, z, z0, z1, pcRU0(part), pcRV0(part), pcRU1(part), pcRV1(part), col~&
+    ELSE
+        EditFaceBox kind, x, y, side, ax, ay, bx, by, z, z0, z1, 0, 0, 1, 1, col~&
+    END IF
+END SUB
+
+' A rectangle on a face - u0 to u1 across, v0 to v1 down (0 to 1: as
+' EditFacePart reads them) - drawn: a floor's or ceiling's at height z, an
+' upright one's on its edge (ax, ay)-(bx, by) from z1 at the top to z0
+SUB EditFaceBox(kind, x, y, side, ax, ay, bx, by, z, z0, z1, u0, v0, u1, v1, col~&)
+    DIM i, u, v ' (its own: the main program shares these names)
+    DIM px(4), py(4), pz(4)
+    FOR i = 1 TO 4
+        IF i = 2 OR i = 3 THEN u = u1 ELSE u = u0
+        IF i >= 3 THEN v = v1 ELSE v = v0
+        IF kind = ED_FLOOR OR kind = ED_CEIL THEN
+            px(i) = x + u : py(i) = y + v : pz(i) = z
+        ELSE
+            IF side = 1 OR side = 4 THEN ' (u runs from b back to a on east and north faces)
+                px(i) = bx + u * (ax - bx) : py(i) = by + u * (ay - by)
+            ELSE
+                px(i) = ax + u * (bx - ax) : py(i) = ay + u * (by - ay)
+            END IF
+            pz(i) = z1 - v * (z1 - z0)
+        END IF
+    NEXT
+    EditLine3D px(1), py(1), pz(1), px(2), py(2), pz(2), col~& : EditLine3D px(2), py(2), pz(2), px(3), py(3), pz(3), col~&
+    EditLine3D px(3), py(3), pz(3), px(4), py(4), pz(4), col~& : EditLine3D px(4), py(4), pz(4), px(1), py(1), pz(1), col~&
 END SUB
 
 ' The 3D editor's outlines, over the view: the face under the pointer
@@ -4532,7 +4808,11 @@ SUB EditDrawFaces
             IF mw <> WAKE_HIT AND mw <> WAKE_HUNT THEN EditRing edSelX(k) + 0.5, edSelY(k) + 0.5, mh, z, _RGBA32(255, 220, 60, 190)
         END IF
     NEXT
-    FOR k = 1 TO edSelN ' The selection: orange
+    FOR k = 1 TO edSelN ' Faces divided: their pieces, faintly - then the selection over them, orange
+        EditFaceOutline edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), 0, 0
+    NEXT
+    IF edHovKind THEN EditFaceOutline edHovKind, edHovX, edHovY, edHovSide, 0, 0
+    FOR k = 1 TO edSelN
         EditFaceOutline edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), edSelPart(k), _RGB32(255, 170, 40)
     NEXT
     IF edHovKind THEN
@@ -4544,11 +4824,10 @@ SUB EditDrawFaces
             IF edHovThing THEN n$ = UCASE$(LEFT$(n$, 20))
             n$ = RTRIM$(n$) + STR$(edHovX) + "," + LTRIM$(STR$(edHovY))
             IF edHovKind <> ED_FLOOR AND edHovKind <> ED_CEIL THEN n$ = n$ + " " + MID$("ESWN", edHovSide, 1)
-            IF edHovPart THEN n$ = n$ + " half" + STR$(edHovPart)
-            IF NOT edHovThing THEN ' (its picture's offset, in pixels, and stretch)
-                EditGetFaceTex edHovX, edHovY, EditFaceCode(edHovKind, edHovSide), lbOU, lbOV, lbKU, lbKV
-                IF lbOU OR lbOV THEN n$ = n$ + "  slid" + STR$(((lbOU + 32) AND 63) - 32) + "," + LTRIM$(STR$(((lbOV + 32) AND 63) - 32))
-                IF lbKU <> 100 OR lbKV <> 100 THEN n$ = n$ + "  stretched" + STR$(lbKU) + "% x" + STR$(lbKV) + "%"
+            IF NOT edHovThing THEN ' (its piece, and its picture's look: slid, stretched, turned, tinted)
+                EditTreeGet edHovX, edHovY, EditFaceCode(edHovKind, edHovSide)
+                IF edHovPart >= 1 AND edHovPart <= ptN THEN n$ = n$ + "  piece" + STR$(edHovPart) + " of" + STR$(ptN) : lbX = edHovPart ELSE lbX = 1
+                IF LEN(EditLookName$(lbX)) THEN n$ = n$ + "  " + EditLookName$(lbX)
             END IF
             lbX = edCurX + edWX + 14 : IF lbX + TinyW(n$) > scrW - 4 THEN lbX = edCurX + edWX - 14 - TinyW(n$) ' (by the window's right edge: on the pointer's left)
             TinyText lbX, edCurY + 14, n$, _RGB32(150, 230, 255)

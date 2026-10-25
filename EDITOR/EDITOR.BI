@@ -92,12 +92,12 @@ CONST TEX_K_MIN = 10, TEX_K_MAX = 1000
 ' and stretched - pasted onto other faces
 DIM SHARED edClipOn AS INTEGER, edClipD AS INTEGER, edClipP1$, edClipP2$, edClipOU AS INTEGER, edClipOV AS INTEGER, edClipKU AS INTEGER, edClipKV AS INTEGER
 CONST TEX_K_STEPS$ = "   10   25   50   75  100  125  150  200  250  300  400  500  600  800 1000"
-CONST PN_MAX = 64 ' (the most buttons and lines a pane has)
+CONST PN_MAX = 96 ' (the most buttons and lines a pane has)
 DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER, edMapWant AS INTEGER ' (the SECTOR pane: its loot preset - 0 as made - and the room MAKE THE ROOM makes)
 DIM SHARED edPnN AS INTEGER, edPnId(PN_MAX) AS INTEGER, edPnX(PN_MAX) AS INTEGER, edPnY(PN_MAX) AS INTEGER, edPnW(PN_MAX) AS INTEGER, edPnLab$(PN_MAX), edPnLit(PN_MAX) AS INTEGER
 DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnEvent AS INTEGER, edPnCol(PN_MAX) AS _UNSIGNED LONG
 DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick AS INTEGER, edTypeFresh AS INTEGER
-DIM SHARED edTypeX AS INTEGER, edTypeY AS INTEGER ' (typing a door's code (edTypeFor 3), a thing's own (4), a note's words (5) or picture (6): for cell edTypeX, edTypeY)
+DIM SHARED edTypeX AS INTEGER, edTypeY AS INTEGER ' (typing a door's code (edTypeFor 3), a thing's own (4), a note's words (5) or picture (6): for cell edTypeX, edTypeY - or a picture's tint colour (7), for the selection)
 ' The TRIGGER pane: open on the selection; the trigger being made - when
 ' (1 enter, 2 use, 3 clear, 4 time), again each time?, after how long (time),
 ' its commands; what's being typed (edTypeFor: 1 the sector's name, 2 the

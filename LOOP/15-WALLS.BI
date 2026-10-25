@@ -158,7 +158,7 @@
         zBuffer(x) = perpWallDist
 
         ' Texture column and slot (a door's texture slides along with it)
-        texSlot2 = 0 : wallVO = 0 : wallVK = 1 ' (a face divided top | bottom in the editor: the bottom half's; wallVO, wallVK: its picture slid up, stretched)
+        texSlot2 = 0 : wallVO = 0 : wallVK = 1 : wallPc = 0 ' (a face divided top | bottom in the editor: the bottom half's; wallVO, wallVK: its picture slid up, stretched)
         IF side = 0 THEN wallX = playerY + perpWallDist * rayDirY ELSE wallX = playerX + perpWallDist * rayDirX
         wallCell = INT(wallX) : wallX = wallX - wallCell ' (wallCell: which cell along the wall - a stretched picture's measured from the map's grid)
         IF diagHit THEN ' Along the diagonal, left to right as you see it
@@ -189,6 +189,9 @@
                     IF faceAny THEN ' (painted, or divided, in the editor: as a wall's side)
                         IF side = 0 THEN IF rayDirX > 0 THEN sd = 3 ELSE sd = 1
                         IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
+                        IF faceDiv(mapX, mapY, sd) = 3 THEN ' (in pieces: each its own picture, slide, stretch - LEVEL/PIECES.BM)
+                            wallPc = faceTex(mapX, mapY, sd) : wallPcD = texSlot : wallPcX = texX : wallPcC = 0 : wallPcG = MinOf(15, INT(texX / texSize * 16))
+                        END IF
                         IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, texX / texSize, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, texX / texSize, 0, texSlot)
                     END IF
                 CASE ELSE
@@ -206,6 +209,10 @@
                 IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
                 fu = texX / texSize
                 IF boxHit THEN fu = BoxFaceU(mapX, mapY, sd, fu) : sd = sd + FACE_BOX ' (a block's sides are faces of their own)
+                IF faceDiv(mapX, mapY, sd) = 3 THEN ' (in pieces: each its own picture, slide, stretch - LEVEL/PIECES.BM)
+                    wallPc = faceTex(mapX, mapY, sd) : wallPcD = texSlot : wallPcX = texX : wallPcG = MaxOf(0, MinOf(15, INT(fu * 16)))
+                    wallPcC = wallCell : IF (side = 0 AND rayDirX < 0) OR (side = 1 AND rayDirY > 0) THEN wallPcC = -wallCell
+                END IF
                 IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, fu, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, fu, 0, texSlot)
                 IF faceOffAny THEN ' (its picture slid along and up, and stretched: [faces])
                     IF faceKU(mapX, mapY, sd) THEN ' (u as the map's grid has it, the way the picture runs - then stretched)
@@ -250,13 +257,30 @@
         IF NOT glMode AND levelFlat THEN ' (OpenGL draws the walls itself)
             IF texSlot2 = 0 THEN texSlot2 = texSlot
             wSl = texSlot : texMid = texSize / 2
-            FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
-                IF texPos >= texMid THEN wSl = texSlot2
-                texel~& = texture(texX, (INT(texPos * wallVK) + wallVO) AND (texSize - 1), wSl)
-                pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
-                IF gridOn THEN IF texX < gridW OR (INT(texPos) AND (texSize - 1)) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
-                texPos = texPos + texStep
-            NEXT
+            IF wallPc THEN ' A face in pieces: down the column, each piece as it comes - its picture, slide and stretch
+                pcL = -1 : pcTX = texX
+                FOR y = drawStart TO drawEnd
+                    pcV = INT(texPos * 16 / texSize) : IF pcV < 0 THEN pcV = 0 ELSE IF pcV > 15 THEN pcV = 15
+                    IF pcGrid(wallPc, wallPcG + 16 * pcV) <> pcL THEN
+                        pcL = pcGrid(wallPc, wallPcG + 16 * pcV) : wSl = pcSl(wallPc, pcL) : IF wSl = 0 THEN wSl = wallPcD
+                        pcTX = wallPcX : IF pcKU(wallPc, pcL) THEN pcTX = INT((wallPcX / texSize + wallPcC) * 100 / pcKU(wallPc, pcL) * texSize)
+                        pcTX = (pcTX + pcOU(wallPc, pcL) * texSize \ 64) AND (texSize - 1)
+                        wallVO = pcOV(wallPc, pcL) * texSize \ 64 : wallVK = 1 : IF pcKV(wallPc, pcL) THEN wallVK = 100 / pcKV(wallPc, pcL)
+                    END IF
+                    texel~& = texture(pcTX, (INT(texPos * wallVK) + wallVO) AND (texSize - 1), wSl)
+                    pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                    IF gridOn THEN IF texX < gridW OR (INT(texPos) AND (texSize - 1)) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
+                    texPos = texPos + texStep
+                NEXT
+            ELSE
+                FOR y = drawStart TO drawEnd ' (ShadeRGB~&, written out - see the floor)
+                    IF texPos >= texMid THEN wSl = texSlot2
+                    texel~& = texture(texX, (INT(texPos * wallVK) + wallVO) AND (texSize - 1), wSl)
+                    pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)
+                    IF gridOn THEN IF texX < gridW OR (INT(texPos) AND (texSize - 1)) < gridW THEN pixels(y * RENDER_W + x) = GridMix~&(pixels(y * RENDER_W + x))
+                    texPos = texPos + texStep
+                NEXT
+            END IF
         END IF
 
         ' A rising shutter in front: its lower edge has lifted shutterOpen of

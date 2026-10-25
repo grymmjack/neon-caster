@@ -43,5 +43,6 @@ DIM cellFloor AS LONG, cellCeil AS LONG, splitCell AS LONG, cellTrack AS LONG
 
 ' This module's working variables, shared by its SUBs (and with the main
 ' program)
+DIM SHARED hPc AS INTEGER, hPcG AS INTEGER ' (the face HeightFace draws is in pieces: which, and its column of their grid - HeightPick)
 DIM SHARED hB&, hBot, hDOut, hG&, hor, hR&, hSlot, hSlot2, hTexX, hTop, hVOff, tMask, yA, yB, hZ0, hZ1, hOU, hOV, hKV, hWallC, hFU, hFV, hFSU, hFSV, hSide ' (hZ0 and hZ1: the face's top and bottom, for the exit's sign; hOU, hOV: its picture slid along and up, in texels - HeightOff)
 hKV = 1

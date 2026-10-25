@@ -52,6 +52,7 @@
 '$INCLUDE:'./LEVEL/LOADLEVEL.BM'
 '$INCLUDE:'./LEVEL/SECTORS.BM'
 '$INCLUDE:'./LEVEL/LEVELFILE.BM'
+'$INCLUDE:'./LEVEL/PIECES.BM'
 '$INCLUDE:'./LEVEL/THINGS.BM'
 
 ' RENDER ----------------------------------------------------------------------

@@ -663,6 +663,7 @@ FUNCTION FaceSlot(x, y, f, u, v, deflt)
     SELECT CASE faceDiv(x, y, f)
         CASE 1 : IF u >= 0.5 THEN sl = faceTex2(x, y, f)
         CASE 2 : IF v >= 0.5 THEN sl = faceTex2(x, y, f)
+        CASE 3 : sl = pcSl(sl, PcAt(sl, u, v)) ' (in pieces: the one there - LEVEL/PIECES.BM)
     END SELECT
     IF sl THEN FaceSlot = sl ELSE FaceSlot = deflt
 END FUNCTION
@@ -760,7 +761,7 @@ SUB WriteLevelFile(f$)
         FOR k = 1 TO lvlNumLoot : o$ = o$ + lvlLoot$(k) + nl$ : NEXT
     END IF
     IF lvlNumFaces THEN
-        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture, then its offset if it has one (64ths of the picture - its pixels at 64: across, up) and stretch (percent: across, up)" + nl$
+        o$ = o$ + nl$ + "[faces]" + nl$ + "' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom, 3 in pieces: the tree, H V and . - then each piece as picture*turn*slide*stretch*tint*amount*RRGGBB, joined by |), picture, second half's picture, then its offset if it has one (64ths of the picture - its pixels at 64: across, up) and stretch (percent: across, up)" + nl$
         FOR k = 1 TO lvlNumFaces
             o$ = o$ + LTRIM$(STR$(lvlFaceX(k))) + ", " + LTRIM$(STR$(lvlFaceY(k))) + ", " + FaceName$(lvlFaceS(k)) + ", " + LTRIM$(STR$(lvlFaceD(k))) + ", " + lvlFaceP1$(k)
             IF lvlFaceP2$(k) <> "" OR lvlFaceO(k) OR lvlFaceK(k) THEN o$ = o$ + ", " + lvlFaceP2$(k)

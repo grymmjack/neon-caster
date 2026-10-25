@@ -112,10 +112,12 @@ SUB BuildLevel STATIC
     NEXT
     ' Single faces' own pictures ([faces]): each picture a slot of its own
     ' (T_CUSTOM + 1...), loaded only if it isn't there already
-    customN = 0 : faceAny = (lvlNumFaces > 0) : facesFull = 0 : faceOffAny = 0
+    customN = 0 : faceAny = (lvlNumFaces > 0) : facesFull = 0 : faceOffAny = 0 : pcN = 0
     FOR k = 1 TO lvlNumFaces
         x = lvlFaceX(k) : y = lvlFaceY(k) : f = lvlFaceS(k)
-        IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
+        IF lvlFaceD(k) = 3 AND x >= 0 AND y >= 0 AND x < mapN AND y < mapN AND f >= 1 AND f <= FACE_MAX THEN ' (in pieces: LEVEL/PIECES.BM)
+            PcBuild x, y, f, k, customN, facesFull, texNew
+        ELSEIF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN
             IF (lvlFaceO(k) OR lvlFaceK(k)) AND f >= 1 AND f <= FACE_MAX THEN ' (its picture slid along and up, and stretched)
                 faceOU(x, y, f) = lvlFaceO(k) AND 63 : faceOV(x, y, f) = (lvlFaceO(k) \ 64) AND 63 : faceOffAny = -1
                 faceKU(x, y, f) = lvlFaceK(k) AND 2047 : faceKV(x, y, f) = lvlFaceK(k) \ 2048
@@ -213,8 +215,9 @@ SUB BuildLevel STATIC
                             CASE ELSE : IF bxW THEN dflt = bxW ELSE dflt = wallTexSlot(1) ' (a block's: its wall's)
                         END SELECT
                         hMax = 1 : IF faceDiv(gx, gy, g) THEN hMax = 2 ' (divided: each half its own copy)
+                        pcG = 0 : IF faceDiv(gx, gy, g) = 3 THEN pcG = faceTex(gx, gy, g) : hMax = pcNL(pcG) ' (in pieces: each piece its own)
                         FOR half = 1 TO hMax
-                            IF half = 1 THEN glBaseSl = faceTex(gx, gy, g) ELSE glBaseSl = faceTex2(gx, gy, g)
+                            IF pcG THEN glBaseSl = pcSl(pcG, half) ELSE IF half = 1 THEN glBaseSl = faceTex(gx, gy, g) ELSE glBaseSl = faceTex2(gx, gy, g)
                             IF glBaseSl = 0 THEN glBaseSl = dflt
                             want$ = "glow:" + LTRIM$(STR$(glBaseSl)) + key$ + ":" + texFile$(glBaseSl) : slot = 0 ' (the picture it's made from, named too: a new picture there, a new copy)
                             FOR j = T_CUSTOM + 1 TO T_CUSTOM + customN
@@ -227,7 +230,7 @@ SUB BuildLevel STATIC
                             END IF
                             IF slot THEN
                                 faceAny = -1
-                                IF half = 1 THEN faceTex(gx, gy, g) = slot ELSE faceTex2(gx, gy, g) = slot
+                                IF pcG THEN pcSl(pcG, half) = slot ELSE IF half = 1 THEN faceTex(gx, gy, g) = slot ELSE faceTex2(gx, gy, g) = slot
                             END IF
                         NEXT
                     END IF

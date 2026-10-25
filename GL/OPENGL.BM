@@ -1397,7 +1397,14 @@ END SUB
 ' diagonal its split uses (chapter 2) so each half can have its own texture.
 ' The texture lies flat: u runs with x, v with y, as in chapter 14.
 SUB GLFlat(cx, cy, z, tex1, tex2, split)
-    IF split = 5 OR split = 6 THEN ' Divided in the editor: west | east, or north | south
+    IF split = 7 THEN ' In pieces (LEVEL/PIECES.BM): each its own picture, slid and stretched as it is
+        FOR pj = 1 TO pcNL(tex2)
+            psl = pcSl(tex2, pj) : IF psl = 0 THEN psl = tex1
+            GLFlatTexPc cx, cy, tex2, pj : GLUseTexture psl
+            GLFlatPart cx, cy, z, pcGU0(tex2, pj) / 16, pcGV0(tex2, pj) / 16, pcGU1(tex2, pj) / 16, pcGV1(tex2, pj) / 16
+        NEXT
+        GLTexOff
+    ELSEIF split = 5 OR split = 6 THEN ' Divided in the editor: west | east, or north | south
         GLUseTexture tex1
         IF split = 5 THEN GLFlatPart cx, cy, z, 0, 0, 0.5, 1 ELSE GLFlatPart cx, cy, z, 0, 0, 1, 0.5
         GLUseTexture tex2
@@ -1448,6 +1455,47 @@ SUB GLFaceTex(x, y, f, ax, ay, bx, by, u0, u1)
         IF wb <> wa THEN glOffU = glOffU + glKU * ((u1 - u0) / (wb - wa) * wa - u0) ' (u at a, where the map's grid would have it)
     END IF
 END SUB
+' ...a piece's (face p, piece j - LEVEL/PIECES.BM): its own slide and
+' stretch, as GLFlatTex and GLFaceTex work them out
+SUB GLFlatTexPc(cx, cy, p, j)
+    GLTexOff
+    glOffU = pcOU(p, j) / 64 : glOffV = pcOV(p, j) / 64
+    IF pcKU(p, j) THEN glKU = 100 / pcKU(p, j) : glOffU = glOffU + glKU * cx
+    IF pcKV(p, j) THEN glKV = 100 / pcKV(p, j) : glOffV = glOffV + glKV * cy
+END SUB
+SUB GLFaceTexPc(p, j, ax, ay, bx, by, u0, u1)
+    DIM wa, wb ' (its own: the main program shares these names)
+    GLTexOff
+    glOffU = pcOU(p, j) / 64 : glOffV = pcOV(p, j) / 64
+    IF pcKV(p, j) THEN glKV = 100 / pcKV(p, j)
+    IF pcKU(p, j) THEN
+        glKU = 100 / pcKU(p, j)
+        IF ax <> bx THEN wa = ax : wb = bx ELSE wa = ay : wb = by
+        IF wb <> wa THEN glOffU = glOffU + glKU * ((u1 - u0) / (wb - wa) * wa - u0)
+    END IF
+END SUB
+
+' An upright face in pieces: each piece's part of it (s along the edge,
+' its picture's u - measured across the face from its lower u, as the
+' software renderer has it - and its height), as its own strip. exitF:
+' the exit's side (GLExitStrip: its sign fills its part)
+SUB GLPieceStrips(ax, ay, bx, by, u0, u1, zLow, zHigh, vTop, vBottom, p, deflt, exitF)
+    DIM j, sl, s0, s1, t0, t1, umn, umx, zt, zb, vt, vb ' (its own: the main program shares these names)
+    IF u1 = u0 THEN EXIT SUB
+    umn = MinOf(u0, u1) : umx = MaxOf(u0, u1)
+    FOR j = 1 TO pcNL(p)
+        t0 = umn + pcGU0(p, j) / 16 * (umx - umn) : t1 = umn + pcGU1(p, j) / 16 * (umx - umn)
+        s0 = (t0 - u0) / (u1 - u0) : s1 = (t1 - u0) / (u1 - u0)
+        IF s0 > s1 THEN SWAP s0, s1 : SWAP t0, t1
+        zt = zHigh - pcGV0(p, j) / 16 * (zHigh - zLow) : zb = zHigh - pcGV1(p, j) / 16 * (zHigh - zLow)
+        vt = vTop + pcGV0(p, j) / 16 * (vBottom - vTop) : vb = vTop + pcGV1(p, j) / 16 * (vBottom - vTop)
+        sl = pcSl(p, j) : IF sl = 0 THEN sl = deflt
+        GLFaceTexPc p, j, ax, ay, bx, by, u0, u1
+        IF exitF THEN GLExitStrip ax, ay, bx, by, s0, s1, t0, t1, zb, zt, sl ELSE GLStrip ax, ay, bx, by, s0, s1, t0, t1, zb, zt, vt, vb, sl
+    NEXT
+    GLTexOff
+END SUB
+
 SUB GLTexOff
     glOffU = 0 : glOffV = 0 : glKU = 1 : glKV = 1
 END SUB
@@ -1459,6 +1507,7 @@ END SUB
 SUB GLFaceStrip(ax, ay, bx, by, u0, u1, zLow, zHigh, vTop, vBottom, x, y, f, deflt)
     GLFaceTex x, y, f, ax, ay, bx, by, u0, u1 ' (its picture slid and stretched: [faces] - GLCorner works it in)
     SELECT CASE faceDiv(x, y, f)
+        CASE 3 : GLPieceStrips ax, ay, bx, by, u0, u1, zLow, zHigh, vTop, vBottom, faceTex(x, y, f), deflt, 0
         CASE 1
             um = (u0 + u1) / 2
             GLStrip ax, ay, bx, by, 0, 0.5, u0, um, zLow, zHigh, vTop, vBottom, FaceSlot(x, y, f, (u0 + um) / 2, 0, deflt)
@@ -1793,6 +1842,7 @@ END SUB
 SUB GLExitFace(ax, ay, bx, by, u0, u1, zLow, zHigh, x, y, f)
     DIM um, zm ' (its own: the main program shares these names)
     SELECT CASE faceDiv(x, y, f)
+        CASE 3 : GLPieceStrips ax, ay, bx, by, u0, u1, zLow, zHigh, 0, 1, faceTex(x, y, f), T_EXIT, -1
         CASE 1
             um = (u0 + u1) / 2
             GLExitStrip ax, ay, bx, by, 0, 0.5, u0, um, zLow, zHigh, FaceSlot(x, y, f, (u0 + um) / 2, 0, T_EXIT)
