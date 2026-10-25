@@ -369,7 +369,7 @@ FUNCTION PcSlotFor(want$, kind, customN, facesFull, texNew)
     NEXT
     IF slot = 0 AND customN >= T_CUSTOMN THEN facesFull = -1
     IF slot = 0 AND customN < T_CUSTOMN THEN
-        IF kind = 1 OR _FILEEXISTS(ArtPath$(want$)) THEN
+        IF kind = 1 OR GenPic(want$) OR _FILEEXISTS(ArtPath$(want$)) THEN
             customN = customN + 1 : slot = T_CUSTOM + customN
             IF texFile$(slot) <> want$ THEN
                 texFile$(slot) = want$ : texNew = -1

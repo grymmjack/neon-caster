@@ -1276,7 +1276,7 @@ def check_level(lv, assets=None):
         errs.append("need 6 walls, 4 floors, 2 ceilings")
     if assets:
         for f in lv["walls"] + lv["floors"] + lv["ceils"]:
-            if not os.path.exists(os.path.join(assets, f)):
+            if not f.startswith("#") and not os.path.exists(os.path.join(assets, f)):  # (#RRGGBB...: a colour the game makes)
                 errs.append("missing texture %s" % f)
     for z in lv["zones"]:
         if len(z) != 7:

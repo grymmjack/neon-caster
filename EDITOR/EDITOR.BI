@@ -106,6 +106,14 @@ DIM SHARED edTypeX AS INTEGER, edTypeY AS INTEGER ' (typing a door's code (edTyp
 DIM SHARED edEvPane AS INTEGER ' (the event room's pane is open - EVENT ROOM... on a floor's)
 DIM SHARED edCellLtPane AS INTEGER ' (the selection's CELL LIGHT pane is open)
 DIM SHARED edFxPane AS INTEGER ' (the PICTURE pane's FILTERS are open - EditPaneFilters)
+' Made colours (generated pictures, #RRGGBB and #RRGGBB-RRGGBB-D - RENDER/PICTURES.BM):
+' the picker's COLOUR and GRADIENT tiles are edGenC1 (and to edGenC2, edGenDir$'s way);
+' edGenPane: the PICTURE pane's COLOUR (EditPaneGen) is open - edGenWhich the colour
+' being set (1 FROM, 2 TO), edGenSrc$ what it shows, edGenFromSel whether that's the
+' selected faces' (EditTexOp 14 puts edGenSet$ on them) or the tiles'
+DIM SHARED edGenC1 AS _UNSIGNED LONG, edGenC2 AS _UNSIGNED LONG, edGenDir$, edGenPane AS INTEGER, edGenWhich AS INTEGER
+DIM SHARED edGenSrc$, edGenFromSel AS INTEGER, edGenSet$, edGenFrom$ ' (edGenFrom$: EditTexOp 15 puts edGenSet$ where exactly that picture is)
+edGenC1 = &HFF2080 : edGenC2 = &H2040FF : edGenDir$ = "V" : edGenWhich = 1
 DIM SHARED edTrigPane AS INTEGER, edTrigWhen AS INTEGER, edTrigRepeat AS INTEGER, edTrigTime AS INTEGER, edTrigCmd$, edTypeFor AS INTEGER, edTrigIdx(8) AS INTEGER
 edTrigWhen = 1 : edTrigTime = 10 ' (the SECTOR pane; typing its name; which of its pictures the picker's choosing - 1-6 a wall kind, 7-10 a floor, 11-12 a ceiling)
 ' FULL WIDE (the 3D view, OpenGL, the window wider than 4:3): the editor is

@@ -28,11 +28,12 @@ DIM SHARED npDPath$(NP_WATCH), npDSum&(NP_WATCH), npDWant&(NP_WATCH) ' (DRAW's p
 ' OpenGL reads - NpEnd$: -flicker, -wave, -pulse, -pulse-dry, and -still
 ' for none when its name's words would make it go), OPEN IN DRAW, OPEN
 ' FOLDER, OPEN IN KALEIDOTRON and DELETE (npAsk: the menu asks first, its
-' lines npAskLine$ saying what uses it). A picture that comes with the game
+' lines npAskLine$ saying what uses it), and PAINT HERE (the painter -
+' EDITOR/PAINTER.BM). A picture that comes with the game
 ' (pictures-shipped.txt, read into npShip$) is never renamed or deleted.
 ' npMenuX/Y: its corner on the canvas the picker's drawn on (FULL WIDE: our
 ' screen's numbers + edWX in 3D). npEatR: the right press that opened (or
 ' closed) it isn't a look round, or a right-click on the map, till let go.
-CONST NP_MW = 230, NP_MROWS = 12, NP_MROWH = 13
+CONST NP_MW = 230, NP_MROWS = 13, NP_MROWH = 13
 DIM SHARED npMenuOn AS INTEGER, npMenuPic$, npMenuX, npMenuY, npEatR AS INTEGER, npRWas AS INTEGER
 DIM SHARED npAsk AS INTEGER, npAskLine$(8), npShip$, npShipRead AS INTEGER, npOtherN ' (npOtherN: how many other sectors' files the last rename or delete changed)

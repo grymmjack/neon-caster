@@ -142,7 +142,7 @@ SUB BuildLevel STATIC
                         IF texFile$(j) = pic$ THEN slot = j
                     NEXT
                     IF slot = 0 AND customN >= T_CUSTOMN THEN facesFull = -1
-                    IF slot = 0 AND customN < T_CUSTOMN AND _FILEEXISTS(ArtPath$(pic$)) THEN
+                    IF slot = 0 AND customN < T_CUSTOMN AND (GenPic(pic$) OR _FILEEXISTS(ArtPath$(pic$))) THEN
                         customN = customN + 1 : slot = T_CUSTOM + customN
                         IF texFile$(slot) <> pic$ THEN LoadTex pic$, slot : texFile$(slot) = pic$ : texNew = -1
                     END IF

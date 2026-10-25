@@ -340,6 +340,7 @@ END SUB
 
 SUB LoadTex(file$, slot AS INTEGER)
     texName$(slot) = LCASE$(file$) ' (what it is, for OpenGL's effects - chapter 24)
+    IF GenPic(file$) THEN texSky(slot) = 0 : MakeGenTex file$, slot : EXIT SUB ' (a colour or a gradient: made, not loaded)
     texSky(slot) = (LEFT$(LCASE$(file$), 4) = "sky-") ' (a sky: drawn by the way you look)
     path$ = ArtPath$(file$) : texHD(slot) = INSTR(path$, "hd/") > 0
     img& = _LOADIMAGE(path$, 32)
@@ -351,6 +352,83 @@ SUB LoadTex(file$, slot AS INTEGER)
     ReadPicture img&, texSize, 0, slot
     _FREEIMAGE img&
 END SUB
+
+' --- Generated pictures: a picture name starting # is a colour, not a
+' file - #RRGGBB one solid colour, #RRGGBB-RRGGBB-D a gradient from the
+' first colour to the second, D its way: V top to bottom, H left to right,
+' D top left to bottom right, R round (the middle out), M mirrored (the
+' first at top and bottom, the second across the middle - so it tiles up a
+' wall without a seam). Made in memory at whatever size the pictures are
+' (MakeGenTex) wherever a picture file would be loaded, and drawn for the
+' editor's thumbnails (GenImage&). Filters, tints and turns work on them as
+' on any picture (a pc: copy).
+FUNCTION GenPic(f$)
+    GenPic = (LEFT$(f$, 1) = "#")
+END FUNCTION
+
+' A generated picture's colours and way ("" for a solid colour)
+SUB GenParse(f$, c1 AS _UNSIGNED LONG, c2 AS _UNSIGNED LONG, d$)
+    c1 = PcHex~&(MID$(f$, 2, 6)) : c2 = c1 : d$ = ""
+    IF LEN(f$) >= 16 THEN
+        d$ = UCASE$(MID$(f$, 16, 1)) : c2 = PcHex~&(MID$(f$, 9, 6))
+        IF INSTR("VHDRM", d$) = 0 THEN d$ = "" : c2 = c1
+    END IF
+END SUB
+
+' A generated picture's name, from its colours and way (d$ "": solid)
+FUNCTION GenName$(c1 AS _UNSIGNED LONG, c2 AS _UNSIGNED LONG, d$)
+    IF d$ = "" THEN GenName$ = "#" + GenHex$(c1) ELSE GenName$ = "#" + GenHex$(c1) + "-" + GenHex$(c2) + "-" + UCASE$(LEFT$(d$, 1))
+END FUNCTION
+
+FUNCTION GenHex$(c AS _UNSIGNED LONG)
+    GenHex$ = RIGHT$("00000" + HEX$(c AND &HFFFFFF), 6)
+END FUNCTION
+
+' Pixel (x, y) of an n-pixel-square generated picture
+FUNCTION GenAt~&(c1 AS _UNSIGNED LONG, c2 AS _UNSIGNED LONG, d$, x, y, n)
+    DIM t AS SINGLE, dx AS SINGLE, dy AS SINGLE, m, r AS SINGLE, g AS SINGLE, b AS SINGLE ' (its own: the main program shares these names)
+    m = n - 1 : IF m < 1 THEN m = 1
+    SELECT CASE d$
+        CASE "V" : t = y / m
+        CASE "H" : t = x / m
+        CASE "D" : t = (x + y) / (2 * m)
+        CASE "R" : dx = (x + 0.5) / n - 0.5 : dy = (y + 0.5) / n - 0.5 : t = SQR(dx * dx + dy * dy) / 0.70711
+        CASE "M" : t = 1 - ABS(y / m * 2 - 1)
+        CASE ELSE : GenAt~& = &HFF000000~& OR (c1 AND &HFFFFFF) : EXIT FUNCTION
+    END SELECT
+    IF t > 1 THEN t = 1
+    r = (c1 \ 65536) AND 255 : g = (c1 \ 256) AND 255 : b = c1 AND 255
+    r = r + (((c2 \ 65536) AND 255) - r) * t : g = g + (((c2 \ 256) AND 255) - g) * t : b = b + ((c2 AND 255) - b) * t
+    GenAt~& = &HFF000000~& OR (INT(r + 0.5) * 65536) OR (INT(g + 0.5) * 256) OR INT(b + 0.5)
+END FUNCTION
+
+' A generated picture into texture slot `slot`, texSize square
+SUB MakeGenTex(f$, slot)
+    DIM c1 AS _UNSIGNED LONG, c2 AS _UNSIGNED LONG, d$, x, y ' (its own: the main program shares these names)
+    GenParse f$, c1, c2, d$
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
+        texture(x, y, slot) = GenAt~&(c1, c2, d$, x, y, texSize)
+    NEXT : NEXT
+    texHD(slot) = (d$ <> "") ' (a gradient drawn smooth by OpenGL)
+END SUB
+
+' A generated picture as an image, size square (thumbnails)
+FUNCTION GenImage&(f$, size)
+    DIM c1 AS _UNSIGNED LONG, c2 AS _UNSIGNED LONG, d$, x, y, m AS _MEM, img&, px AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    GenParse f$, c1, c2, d$
+    img& = _NEWIMAGE(size, size, 32) : m = _MEMIMAGE(img&)
+    FOR y = 0 TO size - 1 : FOR x = 0 TO size - 1
+        px = GenAt~&(c1, c2, d$, x, y, size) : _MEMPUT m, m.OFFSET + (y * size + x) * 4, px
+    NEXT : NEXT
+    _MEMFREE m
+    GenImage& = img&
+END FUNCTION
+
+' A picture file, or a generated picture, as an image (-1 or less: none) -
+' for the editor's thumbnails, which load pictures themselves
+FUNCTION PicImage&(f$)
+    IF GenPic(f$) THEN PicImage& = GenImage&(f$, 64) ELSE PicImage& = _LOADIMAGE(ArtPath$(f$), 32)
+END FUNCTION
 
 ' A sprite picture from neon-caster/ (or hd/) into spriteTex slot `slot`
 ' (up to sprTex pixels square - bigger pictures are shrunk). Pixels keep

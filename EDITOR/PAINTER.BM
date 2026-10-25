@@ -1,0 +1,838 @@
+''
+' NEON-CASTER - EDITOR/PAINTER.BM
+' =============================================================================
+' THE PAINTER (EDITOR/PAINTER.BI says what it does): opening a picture, its
+' loop, the tools, saving.
+'
+
+' --- OPENING ---------------------------------------------------------------
+
+' Ctrl+E with the pointer at (px, py): the picture in the picker there (+ NEW:
+' a placeholder made first), else on the face under it (3D), else the first
+' selected face's, else PAINT's
+SUB PaOpenKey(px, py)
+    DIM w, i, f$, kind, fc ' (its own)
+    f$ = "" : kind = 1
+    EditPkHit px, py, w, i
+    IF w = 2 THEN
+        IF edPkKind(i) = PK_TEX THEN f$ = edPkVal$(i) : kind = MaxOf(1, MinOf(3, edPickTab))
+        IF edPkKind(i) = PK_NEW THEN pkIdx = i : EditPkClick : f$ = edBrushTex$ : kind = edPickTab
+    END IF
+    IF f$ = "" AND editView = 1 AND edHovKind <> 0 AND NOT edHovThing THEN
+        f$ = EditFacePic$(edHovKind, edHovX, edHovY, edHovSide, edHovPart) : kind = PaKindOf(EditFaceCode(edHovKind, edHovSide))
+    END IF
+    IF f$ = "" THEN
+        FOR i = 1 TO edSelN
+            fc = EditFaceCode(edSelKind(i), edSelSide(i))
+            IF fc >= 1 AND fc <= FACE_MAX THEN f$ = EditFacePic$(edSelKind(i), edSelX(i), edSelY(i), edSelSide(i), edSelPart(i)) : kind = PaKindOf(fc) : EXIT FOR
+        NEXT
+    END IF
+    IF f$ = "" AND edBrushKind = PK_TEX THEN f$ = edBrushTex$
+    IF f$ = "" THEN EditNote "Point at a picture - in the picker, or on a face - to paint it (Ctrl+E)" : EXIT SUB
+    PaOpenPic f$, kind
+END SUB
+
+' A face code's kind of picture, as the picker's tabs number them: 1 wall,
+' 2 floor, 3 ceiling
+FUNCTION PaKindOf(fc)
+    SELECT CASE fc
+        CASE 9 : PaKindOf = 2
+        CASE 10 : PaKindOf = 3
+        CASE ELSE : PaKindOf = 1
+    END SELECT
+END FUNCTION
+
+' PAINT HERE on the PICTURE pane: the first selected face's picture
+SUB PaOpenSel
+    DIM k, fc, f$ ' (its own)
+    FOR k = 1 TO edSelN
+        fc = EditFaceCode(edSelKind(k), edSelSide(k))
+        IF fc >= 1 AND fc <= FACE_MAX THEN f$ = EditFacePic$(edSelKind(k), edSelX(k), edSelY(k), edSelSide(k), edSelPart(k)) : EXIT FOR
+    NEXT
+    IF f$ = "" THEN EditNote "No picture of its own there to paint (the exit's sign, a door's)" : EXIT SUB
+    PaOpenPic f$, PaKindOf(fc)
+END SUB
+
+' Picture f$ in the painter. A made colour (#...) has no file: it's the
+' start of a new picture of that kind (kind: 1 wall, 2 floor, 3 ceiling -
+' NpMake$), PAINT's brush now, and on the selected faces that had it
+SUB PaOpenPic(f$, kind)
+    DIM p$, img&, n$, t&, g$ ' (its own)
+    paNew = 0 : paSaved = 0
+    IF GenPic(f$) THEN
+        g$ = f$
+        n$ = NpMake$(kind, 0)
+        IF n$ = "" THEN EditNote "Couldn't write a new picture in neon-caster/" : EXIT SUB
+        t& = GenImage&(f$, 64) : _SAVEIMAGE AssetPath$(n$), t& : _FREEIMAGE t&
+        edGenFrom$ = f$ : edGenSet$ = n$
+        IF edSelN THEN EditTexOp 15, 0, 0, 0, -1 ' (the selected faces with that colour: the new picture)
+        edBrushTex$ = n$ : edBrushKind = PK_TEX
+        IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+        edBrushImg& = EditFileThumb&(edBrushTex$)
+        edPkKey$ = ""
+        paNew = -1 : f$ = n$
+    END IF
+    p$ = ArtPath$(f$)
+    IF NOT _FILEEXISTS(p$) THEN EditNote "There's no " + f$ + " to paint" : EXIT SUB
+    img& = _LOADIMAGE(p$, 32)
+    IF img& >= -1 THEN EditNote "Couldn't read " + p$ : EXIT SUB
+    paPut = 0 : paTN = 1 : paTF$(1) = f$ : paTP$(1) = p$ : paTX(1) = 0 : paTY(1) = 0 : paTW(1) = _WIDTH(img&) : paTH(1) = _HEIGHT(img&) : paTS = 0
+    PaRun img&
+    IF paNew AND NOT paSaved THEN ' (left without saving: still the colour - the new file gone again)
+        edGenFrom$ = f$ : edGenSet$ = g$
+        IF edSelN THEN EditTexOp 15, 0, 0, 0, -1
+        edBrushTex$ = g$
+        IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+        edBrushImg& = EditFileThumb&(edBrushTex$)
+        IF _FILEEXISTS(AssetPath$(f$)) THEN KILL AssetPath$(f$)
+        edPkKey$ = "" : EditNote "Not saved - still the colour " + g$
+    ELSEIF paNew THEN
+        EditNote "Made " + f$ + " from the colour: PAINT's picture now" + MID$(" (and the selected faces')", 1, -99 * (edSelN > 0))
+    END IF
+END SUB
+
+' --- THE LOOP --------------------------------------------------------------
+
+' The painter on sheet img& (its tiles set: paTN...), till Esc
+SUB PaRun(img&)
+    DIM k&, sh, ct, b1, b2, b3, wheel, was1, was2, was3, inC, cx, cy, sx, sy, lx, ly, stroke, c AS _UNSIGNED LONG, d&, vx, i, id, nz, panX, panY, spaceK, p1, p2, q1, q2, pmx, pmy ' (its own)
+    IF paPal~&(1) = 0 THEN PaPalette
+    paImg& = img& : _DONTBLEND paImg& : paW = _WIDTH(paImg&) : paH = _HEIGHT(paImg&) : PaMemTake
+    paView& = _NEWIMAGE(PA_CW, PA_CH, 32)
+    paUndoN = 0 : paRedoN = 0 : paDirty = 0 : paTyping = 0 : paAsk = 0 : paBack& = 0 : stroke = 0
+    paMsg$ = "Left: paint   Right: the second colour   Ctrl+click: pick a colour   Wheel: zoom   Middle drag (or Space): move   Ctrl+S: save   Esc: back"
+    PaFit
+    d& = _DEST : _DEST 0 : vx = hudViewX : hudViewX = 0
+    _MOUSESHOW : _KEYCLEAR
+    WHILE _MOUSEINPUT : WEND
+    was1 = -1 : was2 = -1 : was3 = 0 : q1 = _MOUSEBUTTON(1) : q2 = _MOUSEBUTTON(2) ' (the click that opened it isn't a stroke)
+    DO
+        _LIMIT 60
+        wheel = 0 : p1 = 0 : p2 = 0
+        WHILE _MOUSEINPUT ' (each press seen, however quick: down and up inside one frame is still a click)
+            wheel = wheel + _MOUSEWHEEL
+            IF _MOUSEBUTTON(1) AND NOT q1 AND p1 = 0 AND p2 = 0 THEN p1 = -1 : pmx = WideMouseX(_MOUSEX) : pmy = _MOUSEY
+            IF _MOUSEBUTTON(2) AND NOT q2 AND p1 = 0 AND p2 = 0 THEN p2 = -1 : pmx = WideMouseX(_MOUSEX) : pmy = _MOUSEY
+            q1 = _MOUSEBUTTON(1) : q2 = _MOUSEBUTTON(2)
+        WEND
+        paMX = WideMouseX(_MOUSEX) : paMY = _MOUSEY
+        b1 = _MOUSEBUTTON(1) : b2 = _MOUSEBUTTON(2) : b3 = _MOUSEBUTTON(3)
+        sh = _KEYDOWN(100304) OR _KEYDOWN(100303) : ct = _KEYDOWN(100305) OR _KEYDOWN(100306) : spaceK = _KEYDOWN(32)
+        inC = (paMX >= PA_CX AND paMX < PA_CX + PA_CW AND paMY >= PA_CY AND paMY < PA_CY + PA_CH)
+        cx = INT((paMX - PA_CX - paOX) / paZ) : cy = INT((paMY - PA_CY - paOY) / paZ)
+        IF wheel AND inC THEN ' Zoom, the point under the pointer staying put
+            nz = PaZoomStep(paZ, -SGN(wheel))
+            paOX = (paMX - PA_CX) - (paMX - PA_CX - paOX) * nz / paZ : paOY = (paMY - PA_CY) - (paMY - PA_CY - paOY) * nz / paZ : paZ = nz
+        END IF
+        ' Moving the picture: the middle button, or Space, held and dragged
+        IF (b3 OR (spaceK AND b1)) AND stroke = 0 THEN
+            IF NOT was3 THEN panX = paMX : panY = paMY
+            paOX = paOX + paMX - panX : paOY = paOY + paMY - panY : panX = paMX : panY = paMY : was3 = -1
+            was1 = b1 : was2 = b2
+        ELSE
+            was3 = 0
+        END IF
+        ' A press: on the canvas a stroke starts - else a button
+        IF (p1 OR p2) AND stroke = 0 AND NOT was3 AND NOT spaceK AND b3 = 0 THEN
+            inC = (pmx >= PA_CX AND pmx < PA_CX + PA_CW AND pmy >= PA_CY AND pmy < PA_CY + PA_CH)
+            cx = INT((pmx - PA_CX - paOX) / paZ) : cy = INT((pmy - PA_CY - paOY) / paZ)
+            IF inC THEN
+                IF p1 THEN c = paFg ELSE c = paBg
+                IF ct OR paTool = PA_PICK THEN ' (the colour under the pointer)
+                    IF PaInSheet(cx, cy) THEN
+                        IF p1 THEN paFg = PaGet~&(PaWX(cx), PaWY(cy)) ELSE paBg = PaGet~&(PaWX(cx), PaWY(cy))
+                    END IF
+                ELSEIF paTool = PA_FILL THEN
+                    IF PaInSheet(cx, cy) THEN PaPush : PaFlood PaWX(cx), PaWY(cy), c : paDirty = -1
+                ELSE
+                    PaPush : stroke = 2 : IF p1 THEN stroke = 1
+                    sx = cx : sy = cy : lx = cx : ly = cy
+                    IF paTool = PA_PENCIL OR paTool = PA_BRUSH THEN PaStamp cx, cy, c ELSE paBack& = _COPYIMAGE(paImg&)
+                    paDirty = -1
+                END IF
+            ELSE
+                id = PaHit(pmx, pmy)
+                IF id THEN PaClick id, p2 <> 0, sh
+            END IF
+            inC = (paMX >= PA_CX AND paMX < PA_CX + PA_CW AND paMY >= PA_CY AND paMY < PA_CY + PA_CH)
+            cx = INT((paMX - PA_CX - paOX) / paZ) : cy = INT((paMY - PA_CY - paOY) / paZ)
+        END IF
+        ' A stroke going on: drawn to the pointer (a shape, again from its start)
+        IF stroke THEN
+            IF stroke = 1 THEN c = paFg ELSE c = paBg
+            IF (stroke = 1 AND b1 = 0) OR (stroke = 2 AND b2 = 0) THEN
+                stroke = 0
+                IF paBack& < -1 THEN _FREEIMAGE paBack& : paBack& = 0
+            ELSE
+                SELECT CASE paTool
+                    CASE PA_PENCIL, PA_BRUSH
+                        IF cx <> lx OR cy <> ly THEN PaLine lx, ly, cx, cy, c : lx = cx : ly = cy
+                    CASE ELSE
+                        _PUTIMAGE (0, 0), paBack&, paImg&
+                        lx = cx : ly = cy
+                        IF sh THEN PaConstrain sx, sy, lx, ly
+                        SELECT CASE paTool
+                            CASE PA_LINE : PaLine sx, sy, lx, ly, c
+                            CASE PA_RECT, PA_RECTF : PaRect sx, sy, lx, ly, c, (paTool = PA_RECTF)
+                            CASE PA_ELL, PA_ELLF : PaEllipse sx, sy, lx, ly, c, (paTool = PA_ELLF)
+                        END SELECT
+                END SELECT
+            END IF
+        END IF
+        was1 = b1 : was2 = b2
+        ' The keys
+        k& = _KEYHIT
+        DO WHILE k&
+            IF k& > 0 THEN PaKey k&, sh, (ct OR ABS(k&) = 19 OR ABS(k&) = 26 OR ABS(k&) = 25)
+            k& = _KEYHIT
+        LOOP
+        IF paAsk = 2 THEN EXIT DO
+        PaDraw cx, cy, inC
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows
+        ShowFrame
+    LOOP
+    IF paBack& < -1 THEN _FREEIMAGE paBack& : paBack& = 0
+    FOR i = 1 TO paUndoN : _FREEIMAGE paUndo&(i) : NEXT
+    FOR i = 1 TO paRedoN : _FREEIMAGE paRedo&(i) : NEXT
+    paUndoN = 0 : paRedoN = 0
+    IF paMemOn THEN _MEMFREE paMem : paMemOn = 0
+    _FREEIMAGE paImg& : paImg& = 0 : _FREEIMAGE paView& : paView& = 0
+    hudViewX = vx : _DEST d&
+    _KEYCLEAR : WHILE _MOUSEINPUT : WEND : escWas = -1 : mouseSettle = 8
+END SUB
+
+' A key k& (ct: Ctrl held - or the key a Ctrl+letter arrives as)
+SUB PaKey(k&, sh, ct)
+    DIM v ' (its own)
+    IF paTyping THEN ' (a colour typed: hex digits)
+        SELECT CASE k&
+            CASE 13 : paTyping = 0 : IF LEN(paType$) THEN paFg = &HFF000000~& OR PcHex~&(RIGHT$("000000" + paType$, 6))
+            CASE 27 : paTyping = 0
+            CASE 8 : IF LEN(paType$) THEN paType$ = LEFT$(paType$, LEN(paType$) - 1)
+            CASE ELSE : IF LEN(paType$) < 6 AND INSTR("0123456789ABCDEF", UCASE$(CHR$(k& AND 255))) > 0 AND k& < 256 THEN paType$ = paType$ + UCASE$(CHR$(k&))
+        END SELECT
+        EXIT SUB
+    END IF
+    IF k& <> 27 THEN paAsk = 0
+    IF ct THEN
+        SELECT CASE k&
+            CASE 115, 83, 19 : PaSave
+            CASE 122, 90, 26 : IF sh THEN PaRedoStep ELSE PaUndoStep
+            CASE 121, 89, 25 : PaRedoStep
+        END SELECT
+        EXIT SUB
+    END IF
+    SELECT CASE k&
+        CASE 27
+            IF paDirty AND paAsk = 0 THEN paAsk = 1 : paMsg$ = "Not saved: Ctrl+S saves it - Esc again leaves without saving" ELSE paAsk = 2
+        CASE 112 : paTool = PA_PENCIL ' p
+        CASE 98 : paTool = PA_BRUSH ' b
+        CASE 108 : paTool = PA_LINE ' l
+        CASE 114 : paTool = PA_RECT ' r (R: filled)
+        CASE 82 : paTool = PA_RECTF
+        CASE 111 : paTool = PA_ELL ' o (O: filled)
+        CASE 79 : paTool = PA_ELLF
+        CASE 102, 70 : paTool = PA_FILL ' f
+        CASE 105, 73 : paTool = PA_PICK ' i
+        CASE 120, 88 : SWAP paFg, paBg ' x
+        CASE 91 : paSize = MaxOf(1, paSize - 1) ' [ ]
+        CASE 93 : paSize = MinOf(64, paSize + 1)
+        CASE 103, 71 : paGrid = NOT paGrid ' g
+        CASE 116, 84 : paTile = NOT paTile : PaFit ' t
+        CASE 119, 87 : paWrap = NOT paWrap ' w
+        CASE 109 : paMirX = NOT paMirX ' m (M: up-down)
+        CASE 77 : paMirY = NOT paMirY
+        CASE 43, 61 : PaZoomAt PaZoomStep(paZ, 1) ' + -
+        CASE 45, 95 : PaZoomAt PaZoomStep(paZ, -1)
+        CASE 48, 18176 : PaFit ' 0, Home
+        CASE 19200 : paOX = paOX + 32 ' (the arrows move the picture)
+        CASE 19712 : paOX = paOX - 32
+        CASE 18432 : paOY = paOY + 32
+        CASE 20480 : paOY = paOY - 32
+    END SELECT
+END SUB
+
+' --- THE SCREEN ------------------------------------------------------------
+
+' Everything, the pointer over canvas pixel (cx, cy) (inC: it's on the canvas)
+SUB PaDraw(cx, cy, inC)
+    DIM i, j, x, y, x0, y0, s, t$, c AS _UNSIGNED LONG, z, bx, by, ox, oy, w, h, fit ' (its own)
+    LINE (0, 0)-(799, 599), _RGB32(14, 8, 24), BF
+    paBN = 0
+    ' The canvas: a checker (see-through), the sheet - tiled round itself, dimmed, with TILED
+    _DEST paView&
+    FOR y = 0 TO PA_CH - 1 STEP 16 : FOR x = 0 TO PA_CW - 1 STEP 16
+        IF ((x + y) \ 16) AND 1 THEN c = _RGB32(40, 36, 52) ELSE c = _RGB32(30, 27, 40)
+        LINE (x, y)-STEP(15, 15), c, BF
+    NEXT : NEXT
+    w = paW * paZ : h = paH * paZ
+    FOR j = -1 TO 1 : FOR i = -1 TO 1
+        IF (i = 0 AND j = 0) OR paTile THEN
+            x0 = paOX + i * w : y0 = paOY + j * h
+            IF x0 < PA_CW AND y0 < PA_CH AND x0 + w > 0 AND y0 + h > 0 THEN
+                _PUTIMAGE (x0, y0)-(x0 + w - 1, y0 + h - 1), paImg&, paView&
+                IF i OR j THEN LINE (x0, y0)-(x0 + w - 1, y0 + h - 1), _RGBA32(10, 6, 20, 120), BF
+            END IF
+        END IF
+    NEXT : NEXT
+    IF paTN > 1 AND paTS > 0 THEN ' (a sheet's gaps: dark, not painted)
+        FOR j = 0 TO paH \ paTS - 1 : FOR i = 0 TO paW \ paTS - 1
+            IF paTG(i, j) = 0 THEN LINE (paOX + i * paTS * paZ, paOY + j * paTS * paZ)-STEP(paTS * paZ - 1, paTS * paZ - 1), _RGB32(14, 8, 24), BF
+        NEXT : NEXT
+    END IF
+    IF paGrid AND paZ >= 6 THEN ' (a line between the pixels)
+        FOR x = 1 TO paW - 1
+            bx = paOX + x * paZ : IF bx >= 0 AND bx < PA_CW THEN LINE (bx, MaxOf(0, paOY))-(bx, MinOf(PA_CH - 1, paOY + h - 1)), _RGBA32(255, 255, 255, 22)
+        NEXT
+        FOR y = 1 TO paH - 1
+            by = paOY + y * paZ : IF by >= 0 AND by < PA_CH THEN LINE (MaxOf(0, paOX), by)-(MinOf(PA_CW - 1, paOX + w - 1), by), _RGBA32(255, 255, 255, 22)
+        NEXT
+    END IF
+    FOR i = 1 TO paTN ' (each tile's edge, a sheet's - and the picture's)
+        IF paTN > 1 THEN LINE (paOX + paTX(i) * paZ, paOY + paTY(i) * paZ)-STEP(paTW(i) * paZ - 1, paTH(i) * paZ - 1), _RGBA32(60, 220, 255, 150), B
+    NEXT
+    LINE (paOX - 1, paOY - 1)-STEP(w + 1, h + 1), _RGB32(255, 60, 200), B
+    IF paMirX THEN LINE (paOX + w / 2, paOY)-(paOX + w / 2, paOY + h - 1), _RGBA32(255, 230, 60, 120)
+    IF paMirY THEN LINE (paOX, paOY + h / 2)-(paOX + w - 1, paOY + h / 2), _RGBA32(255, 230, 60, 120)
+    IF inC AND paTool <> PA_FILL AND paTool <> PA_PICK THEN ' (the brush's size, round the pointer)
+        s = 1 : IF paTool <> PA_PENCIL THEN s = paSize
+        x0 = paOX + (cx - (s - 1) \ 2) * paZ : y0 = paOY + (cy - (s - 1) \ 2) * paZ
+        LINE (x0, y0)-STEP(s * paZ - 1, s * paZ - 1), _RGBA32(255, 255, 255, 170), B
+    END IF
+    _DEST 0
+    _PUTIMAGE (PA_CX, PA_CY), paView&
+    LINE (PA_CX - 1, PA_CY - 1)-STEP(PA_CW + 1, PA_CH + 1), _RGB32(70, 50, 100), B
+    ' The top: what it is, SAVE, BACK
+    IF paTN = 1 THEN t$ = "PAINT  " + paTP$(1) ELSE t$ = "PAINT ACROSS " + LTRIM$(STR$(paTN)) + " FACES  (" + paTF$(1) + " ...)"
+    t$ = t$ + "   " + LTRIM$(STR$(paW)) + " X" + STR$(paH) + "   ZOOM" + STR$(paZ) + MID$("   * NOT SAVED", 1, -99 * paDirty)
+    TinyText 8, 10, LEFT$(t$, 110), _RGB32(255, 90, 200)
+    PaBtn 1, 640, 4, 74, 20, "SAVE (CTRL+S)", 0
+    PaBtn 2, 718, 4, 76, 20, "BACK (ESC)", 0
+    ' The tools, on the left
+    y = PA_CY
+    FOR i = 1 TO 9
+        PaBtn 10 + i, 4, y, 88, 18, PaToolName$(i), (paTool = i) : y = y + 20
+    NEXT
+    y = y + 4
+    TinyText 6, y + 5, "SIZE" + STR$(paSize), _RGB32(200, 195, 230) : PaBtn 30, 52, y, 18, 18, "-", 0 : PaBtn 31, 74, y, 18, 18, "+", 0 : y = y + 24
+    PaBtn 32, 4, y, 88, 18, "MIRROR L-R (M)", paMirX : y = y + 20
+    PaBtn 33, 4, y, 88, 18, "MIRROR U-D (SH+M)", paMirY : y = y + 20
+    PaBtn 34, 4, y, 88, 18, "WRAP (W)", paWrap : y = y + 20
+    PaBtn 35, 4, y, 88, 18, "TILED (T)", paTile : y = y + 20
+    PaBtn 36, 4, y, 88, 18, "GRID (G)", paGrid : y = y + 24
+    PaBtn 37, 4, y, 43, 18, "UNDO", 0 : PaBtn 38, 49, y, 43, 18, "REDO", 0 : y = y + 24
+    TinyText 6, y + 5, "ZOOM", _RGB32(200, 195, 230) : PaBtn 39, 52, y, 18, 18, "-", 0 : PaBtn 40, 74, y, 18, 18, "+", 0 : y = y + 20
+    PaBtn 41, 4, y, 88, 18, "FIT (0)", 0 : y = y + 24
+    TinyText 6, y, "CTRL+Z UNDO, CTRL+Y", _RGB32(130, 120, 170) : y = y + 11
+    TinyText 6, y, "REDO. SHIFT: A", _RGB32(130, 120, 170) : y = y + 11
+    TinyText 6, y, "STRAIGHT LINE, SQUARE", _RGB32(130, 120, 170) : y = y + 11
+    TinyText 6, y, "OR CIRCLE. [ ] SIZE", _RGB32(130, 120, 170) : y = y + 11
+    TinyText 6, y, "X SWAPS THE COLOURS", _RGB32(130, 120, 170)
+    ' The colours, on the right: the two, the palette, red green blue, hex
+    x0 = PA_CX + PA_CW + 6 : y = PA_CY
+    TinyText x0, y, "LEFT", _RGB32(200, 195, 230) : TinyText x0 + 54, y, "RIGHT", _RGB32(200, 195, 230) : y = y + 10
+    PaBtn 50, x0, y, 50, 30, "", -1 : PaSwatch x0, y, 50, 30, paFg
+    PaBtn 51, x0 + 54, y, 50, 30, "", 0 : PaSwatch x0 + 54, y, 50, 30, paBg : y = y + 34
+    PaBtn 52, x0, y, 104, 16, "SWAP (X)", 0 : y = y + 22
+    FOR i = 1 TO 32
+        bx = x0 + ((i - 1) MOD 4) * 26 : by = y + ((i - 1) \ 4) * 20
+        PaBtn 60 + i, bx, by, 24, 18, "", ((paPal~&(i) AND &HFFFFFF) = (paFg AND &HFFFFFF)) : PaSwatch bx + 2, by + 2, 20, 14, paPal~&(i)
+    NEXT
+    y = y + 8 * 20 + 6
+    FOR i = 0 TO 2
+        TinyText x0, y + 5, MID$("REDGRNBLU", i * 3 + 1, 3) + STR$((paFg \ 256 ^ (2 - i)) AND 255), _RGB32(200, 195, 230)
+        PaBtn 100 + 2 * i, x0 + 60, y, 20, 18, "-", 0 : PaBtn 101 + 2 * i, x0 + 84, y, 20, 18, "+", 0 : y = y + 20
+    NEXT
+    IF paTyping THEN t$ = paType$ + "_" ELSE t$ = GenHex$(paFg)
+    TinyText x0, y + 5, t$, _RGB32(150, 240, 255)
+    IF paTyping THEN t$ = "OK" ELSE t$ = "TYPE"
+    PaBtn 106, x0 + 54, y, 50, 18, t$, paTyping : y = y + 26
+    ' The picture as it'll look: its own size (a big one shrunk), and tiled 2 x 2
+    s = MinOf(104, MaxOf(paW, paH)) : fit = MinOf(104, 52 * 2)
+    TinyText x0, y, "AS IT IS, AND TILED", _RGB32(130, 120, 170) : y = y + 10
+    _PUTIMAGE (x0, y)-STEP(MinOf(104, paW * s / MaxOf(paW, paH)) - 1, MinOf(104, paH * s / MaxOf(paW, paH)) - 1), paImg&
+    y = y + MinOf(104, paH * s / MaxOf(paW, paH)) + 4
+    z = 52 / MaxOf(paW, paH)
+    FOR j = 0 TO 1 : FOR i = 0 TO 1
+        _PUTIMAGE (x0 + i * paW * z, y + j * paH * z)-STEP(paW * z - 1, paH * z - 1), paImg&
+    NEXT : NEXT
+    ' The foot: where the pointer is, and what's said
+    t$ = ""
+    IF inC AND PaInSheet(cx, cy) THEN t$ = LTRIM$(STR$(PaWX(cx))) + "," + LTRIM$(STR$(PaWY(cy))) + "  " + GenHex$(PaGet~&(PaWX(cx), PaWY(cy))) + "    "
+    TinyText 8, 580, LEFT$(t$ + paMsg$, 150), _RGB32(200, 195, 230)
+END SUB
+
+' A colour's swatch (a see-through one on a checker)
+SUB PaSwatch(x, y, w, h, c AS _UNSIGNED LONG)
+    LINE (x + 2, y + 2)-STEP(w - 5, h - 5), _RGB32(60, 60, 70), BF
+    LINE (x + 2, y + 2)-STEP((w - 5) \ 2, (h - 5) \ 2), _RGB32(110, 110, 120), BF
+    LINE (x + 2, y + 2)-STEP(w - 5, h - 5), c, BF
+END SUB
+
+' A button: drawn (lit, or under the pointer) and kept for PaHit
+SUB PaBtn(id, x, y, w, h, t$, lit)
+    DIM c AS _UNSIGNED LONG, hv ' (its own)
+    IF paBN < PA_BTNS THEN paBN = paBN + 1 : paBId(paBN) = id : paBX(paBN) = x : paBY(paBN) = y : paBW(paBN) = w : paBH(paBN) = h
+    hv = (paMX >= x AND paMX < x + w AND paMY >= y AND paMY < y + h)
+    c = _RGB32(28, 20, 44) : IF hv THEN c = _RGB32(40, 70, 110)
+    IF lit THEN c = _RGB32(90, 30, 100)
+    LINE (x, y)-STEP(w - 1, h - 1), c, BF
+    IF lit THEN LINE (x, y)-STEP(w - 1, h - 1), _RGB32(255, 90, 200), B ELSE LINE (x, y)-STEP(w - 1, h - 1), _RGB32(70, 55, 100), B
+    IF LEN(t$) THEN TinyText x + (w - TinyW(t$)) \ 2, y + (h - 8) \ 2, t$, _RGB32(235, 230, 250)
+END SUB
+
+FUNCTION PaHit(x, y)
+    DIM i ' (its own)
+    PaHit = 0
+    FOR i = paBN TO 1 STEP -1
+        IF x >= paBX(i) AND x < paBX(i) + paBW(i) AND y >= paBY(i) AND y < paBY(i) + paBH(i) THEN PaHit = paBId(i) : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Button id clicked (rb: with the right button - a palette colour is the
+' second colour then)
+SUB PaClick(id, rb, sh)
+    DIM ch, st, r, g, b ' (its own)
+    SELECT CASE id
+        CASE 1 : PaSave
+        CASE 2 : PaKey 27, 0, 0
+        CASE 11 TO 19 : paTool = id - 10
+        CASE 30 : paSize = MaxOf(1, paSize - 1)
+        CASE 31 : paSize = MinOf(64, paSize + 1)
+        CASE 32 : paMirX = NOT paMirX
+        CASE 33 : paMirY = NOT paMirY
+        CASE 34 : paWrap = NOT paWrap
+        CASE 35 : paTile = NOT paTile : PaFit
+        CASE 36 : paGrid = NOT paGrid
+        CASE 37 : PaUndoStep
+        CASE 38 : PaRedoStep
+        CASE 39 : PaZoomAt PaZoomStep(paZ, -1)
+        CASE 40 : PaZoomAt PaZoomStep(paZ, 1)
+        CASE 41 : PaFit
+        CASE 52 : SWAP paFg, paBg
+        CASE 61 TO 92 : IF rb THEN paBg = paPal~&(id - 60) ELSE paFg = paPal~&(id - 60)
+        CASE 100 TO 105 ' red, green, blue - and + (16 - Shift: 1)
+            st = 16 : IF sh THEN st = 1
+            ch = (id - 100) \ 2 : IF (id - 100) MOD 2 = 0 THEN st = -st
+            r = (paFg \ 65536) AND 255 : g = (paFg \ 256) AND 255 : b = paFg AND 255
+            SELECT CASE ch
+                CASE 0 : r = MaxOf(0, MinOf(255, r + st))
+                CASE 1 : g = MaxOf(0, MinOf(255, g + st))
+                CASE 2 : b = MaxOf(0, MinOf(255, b + st))
+            END SELECT
+            paFg = (paFg AND &HFF000000~&) OR (r * 65536 + g * 256 + b)
+        CASE 106
+            IF paTyping THEN PaKey 13, 0, 0 ELSE paTyping = -1 : paType$ = "" : paMsg$ = "Type the left colour: RRGGBB, six hex digits - Enter keeps it, Esc doesn't"
+    END SELECT
+END SUB
+
+FUNCTION PaToolName$(t)
+    SELECT CASE t
+        CASE PA_PENCIL : PaToolName$ = "PENCIL (P)"
+        CASE PA_BRUSH : PaToolName$ = "BRUSH (B)"
+        CASE PA_LINE : PaToolName$ = "LINE (L)"
+        CASE PA_RECT : PaToolName$ = "BOX (R)"
+        CASE PA_RECTF : PaToolName$ = "FILLED BOX (SH+R)"
+        CASE PA_ELL : PaToolName$ = "ELLIPSE (O)"
+        CASE PA_ELLF : PaToolName$ = "FILLED ELL. (SH+O)"
+        CASE PA_FILL : PaToolName$ = "FILL (F)"
+        CASE PA_PICK : PaToolName$ = "PICK COLOUR (I)"
+    END SELECT
+END FUNCTION
+
+' The palette: PICO-8's sixteen, then neon and greys
+SUB PaPalette
+    DIM i, h$ ' (its own)
+    h$ = "0000001D2B537E2553008751AB52365F574FC2C3C7FFF1E8FF004DFFA300FFEC2700E43629ADFF83769CFF77A8FFCCAA"
+    h$ = h$ + "FF2080FF00FFB000FF6020FF2040FF00FFFF00FF8080FF00FFE63CFF8000FF3030FFFFFF808080404040202030100818"
+    FOR i = 1 TO 32 : paPal~&(i) = &HFF000000~& OR PcHex~&(MID$(h$, i * 6 - 5, 6)) : NEXT
+END SUB
+
+' --- ZOOM ------------------------------------------------------------------
+
+FUNCTION PaZoomStep(z, dir)
+    DIM i, s$, n, v ' (its own)
+    s$ = " 1 2 3 4 6 8 12 16 24 32 48 64 " : n = 12
+    FOR i = 1 TO n
+        v = VAL(EditWord$(MID$(s$, 2), i))
+        IF dir > 0 AND v > z THEN PaZoomStep = v : EXIT FUNCTION
+    NEXT
+    PaZoomStep = z
+    IF dir < 0 THEN
+        FOR i = n TO 1 STEP -1
+            v = VAL(EditWord$(MID$(s$, 2), i))
+            IF v < z THEN PaZoomStep = v : EXIT FUNCTION
+        NEXT
+    END IF
+END FUNCTION
+
+' Zoomed to z round the canvas's middle
+SUB PaZoomAt(z)
+    paOX = PA_CW / 2 - (PA_CW / 2 - paOX) * z / paZ : paOY = PA_CH / 2 - (PA_CH / 2 - paOY) * z / paZ : paZ = z
+END SUB
+
+' The biggest zoom that shows it whole (TILED: a bit of each neighbour too), in the middle
+SUB PaFit
+    DIM z, m ' (its own)
+    m = 1 : IF paTile THEN m = 1.5
+    paZ = 1
+    DO
+        z = PaZoomStep(paZ, 1)
+        IF z = paZ OR paW * z * m > PA_CW - 16 OR paH * z * m > PA_CH - 16 THEN EXIT DO
+        paZ = z
+    LOOP
+    paOX = (PA_CW - paW * paZ) \ 2 : paOY = (PA_CH - paH * paZ) \ 2
+END SUB
+
+' --- THE PICTURE'S PIXELS --------------------------------------------------
+
+SUB PaMemTake
+    IF paMemOn THEN _MEMFREE paMem
+    paMem = _MEMIMAGE(paImg&) : paMemOn = -1
+END SUB
+
+FUNCTION PaGet~&(x, y)
+    PaGet~& = 0
+    IF x < 0 OR y < 0 OR x >= paW OR y >= paH THEN EXIT FUNCTION
+    PaGet~& = _MEMGET(paMem, paMem.OFFSET + (y * paW + x) * 4, _UNSIGNED LONG)
+END FUNCTION
+
+' (x, y) round into the sheet (WRAP or TILED: off one edge is in at the other)
+FUNCTION PaWX(x)
+    IF paWrap OR paTile THEN PaWX = ((x MOD paW) + paW) MOD paW ELSE PaWX = x
+END FUNCTION
+FUNCTION PaWY(y)
+    IF paWrap OR paTile THEN PaWY = ((y MOD paH) + paH) MOD paH ELSE PaWY = y
+END FUNCTION
+
+' Is (x, y) a pixel that's painted - on the sheet, and not in a gap?
+FUNCTION PaInSheet(x0, y0)
+    DIM x, y ' (its own)
+    x = PaWX(x0) : y = PaWY(y0) : PaInSheet = 0
+    IF x < 0 OR y < 0 OR x >= paW OR y >= paH THEN EXIT FUNCTION
+    IF paTN > 1 AND paTS > 0 THEN IF paTG(x \ paTS, y \ paTS) = 0 THEN EXIT FUNCTION
+    PaInSheet = -1
+END FUNCTION
+
+' One pixel - and its mirror images
+SUB PaDot(x, y, c AS _UNSIGNED LONG)
+    PaDot1 x, y, c
+    IF paMirX THEN PaDot1 paW - 1 - PaWX(x), y, c
+    IF paMirY THEN PaDot1 x, paH - 1 - PaWY(y), c
+    IF paMirX AND paMirY THEN PaDot1 paW - 1 - PaWX(x), paH - 1 - PaWY(y), c
+END SUB
+
+SUB PaDot1(x0, y0, c AS _UNSIGNED LONG)
+    DIM x, y ' (its own)
+    x = PaWX(x0) : y = PaWY(y0)
+    IF x < 0 OR y < 0 OR x >= paW OR y >= paH THEN EXIT SUB
+    IF paTN > 1 AND paTS > 0 THEN IF paTG(x \ paTS, y \ paTS) = 0 THEN EXIT SUB
+    _MEMPUT paMem, paMem.OFFSET + (y * paW + x) * 4, c
+END SUB
+
+' The brush at (x, y): the pencil a pixel, else a round spot paSize across
+SUB PaStamp(x, y, c AS _UNSIGNED LONG)
+    DIM i, j, s, h AS SINGLE, r2 AS SINGLE ' (its own)
+    s = paSize : IF paTool = PA_PENCIL THEN s = 1
+    IF s <= 1 THEN PaDot x, y, c : EXIT SUB
+    h = (s - 1) / 2 : r2 = (s / 2) * (s / 2) + 0.3
+    FOR j = 0 TO s - 1 : FOR i = 0 TO s - 1
+        IF (i - h) * (i - h) + (j - h) * (j - h) <= r2 THEN PaDot x - (s - 1) \ 2 + i, y - (s - 1) \ 2 + j, c
+    NEXT : NEXT
+END SUB
+
+' A line of the brush from (x0, y0) to (x1, y1)
+SUB PaLine(x0, y0, x1, y1, c AS _UNSIGNED LONG)
+    DIM dx, dy, sx, sy, er, e2, x, y, n ' (its own)
+    x = x0 : y = y0 : dx = ABS(x1 - x0) : dy = -ABS(y1 - y0) : sx = SGN(x1 - x0) : sy = SGN(y1 - y0) : er = dx + dy
+    DO
+        PaStamp x, y, c
+        IF x = x1 AND y = y1 THEN EXIT DO
+        n = n + 1 : IF n > 20000 THEN EXIT DO
+        e2 = 2 * er
+        IF e2 >= dy THEN er = er + dy : x = x + sx
+        IF e2 <= dx THEN er = er + dx : y = y + sy
+    LOOP
+END SUB
+
+' Shift: a line straight across, down or at 45 degrees; a box square, an
+' ellipse round
+SUB PaConstrain(sx, sy, x, y)
+    DIM dx, dy, m ' (its own)
+    dx = x - sx : dy = y - sy
+    IF paTool = PA_LINE THEN
+        IF ABS(dx) > 2 * ABS(dy) THEN
+            y = sy
+        ELSEIF ABS(dy) > 2 * ABS(dx) THEN
+            x = sx
+        ELSE
+            m = MaxOf(ABS(dx), ABS(dy)) : x = sx + SGN(dx) * m : y = sy + SGN(dy) * m
+        END IF
+    ELSE
+        m = MaxOf(ABS(dx), ABS(dy)) : x = sx + SGN(dx) * m : y = sy + SGN(dy) * m
+        IF dx = 0 THEN x = sx + m
+        IF dy = 0 THEN y = sy + m
+    END IF
+END SUB
+
+' A box from corner to corner: its edge paSize thick, or filled
+SUB PaRect(x0, y0, x1, y1, c AS _UNSIGNED LONG, filled)
+    DIM ax, ay, bx, by, x, y, s ' (its own)
+    ax = MinOf(x0, x1) : bx = MaxOf(x0, x1) : ay = MinOf(y0, y1) : by = MaxOf(y0, y1) : s = paSize
+    FOR y = ay TO by : FOR x = ax TO bx
+        IF filled OR x < ax + s OR x > bx - s OR y < ay + s OR y > by - s THEN PaDot x, y, c
+    NEXT : NEXT
+END SUB
+
+' An ellipse in the box from corner to corner: its edge paSize thick, or filled
+SUB PaEllipse(x0, y0, x1, y1, c AS _UNSIGNED LONG, filled)
+    DIM ax, ay, bx, by, x, y, s, cx AS SINGLE, cy AS SINGLE, rx AS SINGLE, ry AS SINGLE, ix AS SINGLE, iy AS SINGLE, u AS SINGLE, v AS SINGLE, inner ' (its own)
+    ax = MinOf(x0, x1) : bx = MaxOf(x0, x1) : ay = MinOf(y0, y1) : by = MaxOf(y0, y1) : s = paSize
+    cx = (ax + bx) / 2 : cy = (ay + by) / 2 : rx = (bx - ax) / 2 + 0.5 : ry = (by - ay) / 2 + 0.5
+    ix = rx - s : iy = ry - s
+    FOR y = ay TO by : FOR x = ax TO bx
+        u = (x - cx) / rx : v = (y - cy) / ry
+        IF u * u + v * v <= 1 THEN
+            inner = 0
+            IF NOT filled AND ix > 0 AND iy > 0 THEN u = (x - cx) / ix : v = (y - cy) / iy : inner = (u * u + v * v < 1)
+            IF NOT inner THEN PaDot x, y, c
+        END IF
+    NEXT : NEXT
+END SUB
+
+' Flood fill from (x, y): every pixel joined to it of its colour, c (and
+' the same from its mirror images)
+SUB PaFlood(x, y, c AS _UNSIGNED LONG)
+    PaFlood1 x, y, c
+    IF paMirX THEN PaFlood1 paW - 1 - x, y, c
+    IF paMirY THEN PaFlood1 x, paH - 1 - y, c
+    IF paMirX AND paMirY THEN PaFlood1 paW - 1 - x, paH - 1 - y, c
+END SUB
+
+SUB PaFlood1(x0, y0, c AS _UNSIGNED LONG)
+    DIM n AS LONG, p AS LONG, x, y, i, nx, ny, was AS _UNSIGNED LONG, keepX, keepY ' (its own)
+    IF NOT PaInSheet(x0, y0) THEN EXIT SUB
+    was = PaGet~&(x0, y0) : IF was = c THEN EXIT SUB
+    keepX = paMirX : keepY = paMirY : paMirX = 0 : paMirY = 0 ' (each pixel once: PaDot without its mirrors)
+    REDIM st(paW * paH + 4) AS LONG
+    n = 1 : st(1) = y0 * paW + x0 : PaDot1 x0, y0, c
+    DO WHILE n > 0
+        p = st(n) : n = n - 1 : x = p MOD paW : y = p \ paW
+        FOR i = 0 TO 3
+            nx = x + (i = 0) - (i = 1) : ny = y + (i = 2) - (i = 3)
+            IF paWrap OR paTile THEN nx = PaWX(nx) : ny = PaWY(ny)
+            IF nx >= 0 AND ny >= 0 AND nx < paW AND ny < paH THEN
+                IF PaGet~&(nx, ny) = was THEN
+                    IF PaInSheet(nx, ny) THEN PaDot1 nx, ny, c : IF n < UBOUND(st) THEN n = n + 1 : st(n) = ny * paW + nx
+                END IF
+            END IF
+        NEXT
+    LOOP
+    paMirX = keepX : paMirY = keepY
+END SUB
+
+' --- UNDO ------------------------------------------------------------------
+
+' Before a change: the picture kept (the oldest let go past PA_UNDO), redo emptied
+SUB PaPush
+    DIM i ' (its own)
+    IF paUndoN >= PA_UNDO THEN
+        _FREEIMAGE paUndo&(1)
+        FOR i = 1 TO PA_UNDO - 1 : paUndo&(i) = paUndo&(i + 1) : NEXT
+        paUndoN = PA_UNDO - 1
+    END IF
+    paUndoN = paUndoN + 1 : paUndo&(paUndoN) = _COPYIMAGE(paImg&)
+    FOR i = 1 TO paRedoN : _FREEIMAGE paRedo&(i) : NEXT
+    paRedoN = 0
+END SUB
+
+SUB PaUndoStep
+    DIM i ' (its own)
+    IF paUndoN = 0 THEN paMsg$ = "Nothing to undo" : EXIT SUB
+    IF paRedoN >= PA_UNDO THEN _FREEIMAGE paRedo&(1) : FOR i = 1 TO PA_UNDO - 1 : paRedo&(i) = paRedo&(i + 1) : NEXT : paRedoN = PA_UNDO - 1
+    paRedoN = paRedoN + 1 : paRedo&(paRedoN) = paImg&
+    PaSwapIn paUndo&(paUndoN) : paUndoN = paUndoN - 1 : paDirty = -1
+END SUB
+
+SUB PaRedoStep
+    IF paRedoN = 0 THEN paMsg$ = "Nothing to redo" : EXIT SUB
+    paUndoN = paUndoN + 1 : paUndo&(paUndoN) = paImg&
+    PaSwapIn paRedo&(paRedoN) : paRedoN = paRedoN - 1 : paDirty = -1
+END SUB
+
+' img& the picture now (the old one kept by whoever called)
+SUB PaSwapIn(img&)
+    IF paMemOn THEN _MEMFREE paMem : paMemOn = 0
+    paImg& = img& : _DONTBLEND paImg& : PaMemTake
+END SUB
+
+' --- SAVING ----------------------------------------------------------------
+
+' Every tile into its file - and loaded again, wherever it's used (a sheet's
+' tiles put on their faces the first time: PaAcrossPut)
+SUB PaSave
+    DIM i, t& ' (its own)
+    FOR i = 1 TO paTN
+        t& = _NEWIMAGE(paTW(i), paTH(i), 32) : _DONTBLEND t&
+        _PUTIMAGE (0, 0), paImg&, t&, (paTX(i), paTY(i))-(paTX(i) + paTW(i) - 1, paTY(i) + paTH(i) - 1)
+        _SAVEIMAGE paTP$(i), t&
+        _FREEIMAGE t&
+    NEXT
+    IF paTN > 1 THEN PaAcrossPut
+    FOR i = 1 TO paTN : NpReload paTF$(i) : NEXT
+    paDirty = 0 : paAsk = 0 : paSaved = -1
+    IF paTN = 1 THEN paMsg$ = "Saved " + paTP$(1) + " - the sector shows it" ELSE paMsg$ = "Saved" + STR$(paTN) + " pictures (" + paTF$(1) + " ...) - on their faces"
+END SUB
+
+' --- PAINT ACROSS: a sheet of the selected faces --------------------------
+
+' PAINT ACROSS on the PICTURE pane: every selected face (a whole face - a
+' piece selected stands for its face) a 64-pixel tile of one sheet, laid
+' out as they sit: floors and ceilings as on the map; walls all facing one
+' way along the wall as you see them (a gap kept where a face isn't
+' selected), each line of them a row; faces facing different ways in a row,
+' in the order they were selected. Each starts as its picture now; Ctrl+S
+' writes each tile to a picture of its own (wall-sheetN-K.png, floor-,
+' ceiling-) and, the first time, puts it on its face - the face's look
+' (slide, stretch, turn, tint, filters, pieces) let go: the tile is the look.
+SUB PaAcross
+    DIM k, j, n, fc, dr, mixed, flat, a, b, amin, amax, nr, cols, sh&, t&, ts, f$, nm, ok, i, d& ' (its own)
+    DIM fx(PA_TILES), fy(PA_TILES), ff(PA_TILES), fk(PA_TILES), fs(PA_TILES), fa(PA_TILES), fr(PA_TILES), rr(PA_TILES)
+    n = 0
+    FOR k = 1 TO edSelN
+        fc = EditFaceCode(edSelKind(k), edSelSide(k))
+        IF fc >= 1 AND fc <= FACE_MAX AND NOT (edSelKind(k) = ED_FLOOR AND NOT EditCellOpen(edSelX(k), edSelY(k))) THEN
+            ok = -1
+            FOR j = 1 TO n
+                IF fx(j) = edSelX(k) AND fy(j) = edSelY(k) AND ff(j) = fc THEN ok = 0 ' (a face once, however many of its pieces are selected)
+            NEXT
+            IF ok THEN
+                IF n >= PA_TILES THEN EditNote "PAINT ACROSS takes" + STR$(PA_TILES) + " faces at most" : EXIT SUB
+                n = n + 1 : fx(n) = edSelX(k) : fy(n) = edSelY(k) : ff(n) = fc : fk(n) = edSelKind(k) : fs(n) = edSelSide(k)
+            END IF
+        END IF
+    NEXT
+    IF n < 2 THEN EditNote "Select two faces or more to paint across them (one: PAINT HERE)" : EXIT SUB
+    ' Where each goes: column fa, row fr
+    flat = -1 : dr = PaFaceDir(ff(1)) : mixed = 0
+    FOR j = 1 TO n
+        IF ff(j) <> 9 AND ff(j) <> 10 THEN flat = 0
+    NEXT
+    FOR j = 1 TO n
+        IF flat THEN
+            IF ff(j) <> ff(1) THEN mixed = -1 ' (floors with ceilings)
+        ELSE
+            IF PaFaceDir(ff(j)) <> dr OR dr = 0 THEN mixed = -1 ' (walls facing different ways - or with a floor)
+        END IF
+    NEXT
+    IF flat AND NOT mixed THEN
+        FOR j = 1 TO n : fa(j) = fx(j) : fr(j) = fy(j) : NEXT
+    ELSEIF NOT mixed THEN
+        FOR j = 1 TO n
+            SELECT CASE dr
+                CASE 1 : fa(j) = -fy(j) : fr(j) = fx(j) ' (seen from the east, looking west: north is to the right)
+                CASE 2 : fa(j) = fx(j) : fr(j) = fy(j)
+                CASE 3 : fa(j) = fy(j) : fr(j) = fx(j)
+                CASE 4 : fa(j) = -fx(j) : fr(j) = fy(j)
+            END SELECT
+        NEXT
+    END IF
+    IF NOT mixed THEN ' (rows: each line of them, in order, none empty between)
+        FOR j = 1 TO n : rr(j) = PaRowsBelow(fr(), n, fr(j)) : NEXT
+        FOR j = 1 TO n : fr(j) = rr(j) : NEXT
+        amin = 32767 : amax = -32767
+        FOR j = 1 TO n : amin = MinOf(amin, fa(j)) : amax = MaxOf(amax, fa(j)) : NEXT
+        FOR j = 1 TO n : fa(j) = fa(j) - amin : NEXT
+        cols = amax - amin + 1 : nr = 0
+        FOR j = 1 TO n : nr = MaxOf(nr, fr(j) + 1) : NEXT
+        IF cols > 32 OR nr > 32 THEN mixed = -1
+        FOR j = 1 TO n : FOR i = j + 1 TO n
+            IF fa(i) = fa(j) AND fr(i) = fr(j) THEN mixed = -1
+        NEXT : NEXT
+    END IF
+    IF mixed THEN ' (a row, as selected)
+        FOR j = 1 TO n : fa(j) = j - 1 : fr(j) = 0 : NEXT
+        cols = n : nr = 1
+    END IF
+    ' The sheet, each tile its face's picture now
+    ts = 64 : paTS = ts
+    FOR a = 0 TO 32 : FOR b = 0 TO 32 : paTG(a, b) = 0 : NEXT : NEXT
+    sh& = _NEWIMAGE(cols * ts, nr * ts, 32) : _DONTBLEND sh& : d& = _DEST
+    nm = 1 ' (the sheet's number: its files' names free)
+    DO
+        ok = -1
+        FOR j = 1 TO n
+            IF _FILEEXISTS(AssetPath$(PaSheetName$(ff(j), nm, j))) THEN ok = 0
+        NEXT
+        IF ok THEN EXIT DO
+        nm = nm + 1
+    LOOP
+    FOR j = 1 TO n
+        paTF$(j) = PaSheetName$(ff(j), nm, j) : paTP$(j) = AssetPath$(paTF$(j))
+        paTX(j) = fa(j) * ts : paTY(j) = fr(j) * ts : paTW(j) = ts : paTH(j) = ts
+        paTG(fa(j), fr(j)) = j
+        paTFace(j, 1) = fx(j) : paTFace(j, 2) = fy(j) : paTFace(j, 3) = ff(j) : paTFace(j, 4) = fk(j) : paTFace(j, 5) = fs(j)
+        f$ = EditFacePic$(fk(j), fx(j), fy(j), fs(j), 0)
+        t& = 0 : IF LEN(f$) THEN t& = PicImage&(f$)
+        IF t& < -1 THEN
+            _PUTIMAGE (paTX(j), paTY(j))-STEP(ts - 1, ts - 1), t&, sh&
+            _FREEIMAGE t&
+        ELSE
+            _DEST sh& : LINE (paTX(j), paTY(j))-STEP(ts - 1, ts - 1), _RGB32(40, 40, 50), BF : _DEST d&
+        END IF
+    NEXT
+    paTN = n : paPut = 0 : paNew = 0
+    PaRun sh&
+    IF paPut THEN EditNote "PAINT ACROSS:" + STR$(n) + " faces, a picture each (" + paTF$(1) + " ...)" ELSE EditNote "PAINT ACROSS: not saved - the faces are as they were"
+END SUB
+
+' How many different rows of r() (n of them) are less than v
+FUNCTION PaRowsBelow(r(), n, v)
+    DIM i, j, c, seen ' (its own)
+    c = 0
+    FOR i = 1 TO n
+        IF r(i) < v THEN
+            seen = 0
+            FOR j = 1 TO i - 1
+                IF r(j) = r(i) THEN seen = -1
+            NEXT
+            IF NOT seen THEN c = c + 1
+        END IF
+    NEXT
+    PaRowsBelow = c
+END FUNCTION
+
+' Which way face code fc faces: 1 E, 2 S, 3 W, 4 N (a side, a lintel's, a
+' block's); 0 a floor, a ceiling or anything else
+FUNCTION PaFaceDir(fc)
+    SELECT CASE fc
+        CASE 1 TO 4 : PaFaceDir = fc
+        CASE 5 TO 8 : PaFaceDir = fc - 4
+        CASE FACE_BOX + 1 TO FACE_BOX + 4 : PaFaceDir = fc - FACE_BOX
+        CASE ELSE : PaFaceDir = 0
+    END SELECT
+END FUNCTION
+
+' Sheet nm's tile k's picture's name, for face code fc
+FUNCTION PaSheetName$(fc, nm, k)
+    DIM kind$ ' (its own)
+    kind$ = "wall" : IF fc = 9 THEN kind$ = "floor" ELSE IF fc = 10 THEN kind$ = "ceiling"
+    PaSheetName$ = kind$ + "-sheet" + LTRIM$(STR$(nm)) + "-" + LTRIM$(STR$(k)) + ".png"
+END FUNCTION
+
+' The first save of a sheet: each tile's picture on its face, whole, its
+' look let go (one undo step)
+SUB PaAcrossPut
+    DIM i, x, y, f ' (its own)
+    IF paPut THEN EXIT SUB
+    EditPushUndo
+    FOR i = 1 TO paTN
+        x = paTFace(i, 1) : y = paTFace(i, 2) : f = paTFace(i, 3)
+        PcTreeRead 0, "", "", 0, 0 : ptPic$(1) = paTF$(i)
+        EditTreePut x, y, f
+        IF f <= 4 OR f = 9 OR f = 10 THEN SmearSet x, y, FaceName$(f), "" ' (as PAINT does: no blood or oil left on it)
+    NEXT
+    EditApply
+    paPut = -1
+END SUB

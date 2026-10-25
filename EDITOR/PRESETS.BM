@@ -157,7 +157,7 @@ FUNCTION PrThumb&(k)
         FOR jj = 1 TO j - 1
             IF (LCASE$(ptPic$(jj)) = LCASE$(f$) OR (ptPic$(jj) = "" AND LCASE$(prPic$(k)) = LCASE$(f$))) AND ptFx$(jj) = ptFx$(j) THEN src&(j) = src&(jj)
         NEXT
-        IF src&(j) = 0 THEN src&(j) = _LOADIMAGE(ArtPath$(f$), 32) : mine(j) = -1 : IF src&(j) >= -1 THEN src&(j) = 0 : mine(j) = 0
+        IF src&(j) = 0 THEN src&(j) = PicImage&(f$) : mine(j) = -1 : IF src&(j) >= -1 THEN src&(j) = 0 : mine(j) = 0
         IF src&(j) < -1 AND mine(j) AND LEN(ptFx$(j)) THEN PrFiltered src&(j), ptFx$(j) ' (its filters: on its own copy)
     NEXT
     n = PR_THUMB - 4

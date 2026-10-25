@@ -57,7 +57,7 @@ END SUB
 ' What the editor was in the middle of, forgotten: in and out of it, and
 ' on to another sector (the selection's cells would be another level's)
 SUB EditReset STATIC
-    edSelN = 0 : edHovKind = 0 : edLinkPad = 0 : edSlotPick = 0 : edTyping = 0 : edDragOn = 0 : edTbDrag = 0 : edClickL = 0 : edClickR = 0 : edTrigPane = 0 : edEvPane = 0 : edCellLtPane = 0 : edFxPane = 0
+    edSelN = 0 : edHovKind = 0 : edLinkPad = 0 : edSlotPick = 0 : edTyping = 0 : edDragOn = 0 : edTbDrag = 0 : edClickL = 0 : edClickR = 0 : edTrigPane = 0 : edEvPane = 0 : edCellLtPane = 0 : edFxPane = 0 : edGenPane = 0
 END SUB
 
 ' Remember the level as it is, for Ctrl+Z
@@ -143,7 +143,7 @@ SUB EditPkClick STATIC
         NpWatch npF$ : EditPkClick
         IF npSz THEN npT$ = " 64x64, and hd/" + npF$ + " 512x512 (MODERN art shows that one)" ELSE npT$ = " (64x64"
         IF npSz THEN npT$ = npT$ + " - placeholders" ELSE npT$ = npT$ + ", a placeholder)"
-        EditNote "Made " + npF$ + npT$ + ": PAINT's picture now. Alt+E opens it in " + NpEditorName$ + " - saved there, it changes here"
+        EditNote "Made " + npF$ + npT$ + ": PAINT's picture now. Ctrl+E paints it here, Alt+E opens it in " + NpEditorName$
         EXIT SUB
     END IF
     SELECT CASE edPkKind(pkIdx)
@@ -470,7 +470,7 @@ SUB EditTypeKey STATIC
                 IF LEN(edTypeBuf$) < 120 THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (commands: as typed)
             ELSEIF edTypeFor = 3 THEN
                 IF LEN(edTypeBuf$) < 8 AND (INSTR("0123456789", CHR$(k&)) OR (CHR$(k&) = "?" AND edTypeBuf$ = "")) THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (a code: digits - or ?, one made up each time)
-            ELSEIF edTypeFor = 7 OR edTypeFor = 8 OR edTypeFor = 10 OR edTypeFor = 11 THEN
+            ELSEIF edTypeFor = 7 OR edTypeFor = 8 OR edTypeFor = 10 OR edTypeFor = 11 OR edTypeFor = 12 THEN
                 IF LEN(edTypeBuf$) < 6 AND INSTR("0123456789ABCDEF", UCASE$(CHR$(k&))) > 0 THEN edTypeBuf$ = edTypeBuf$ + UCASE$(CHR$(k&)) ' (a colour: hex digits)
             ELSEIF edTypeFor = 9 THEN
                 IF LEN(edTypeBuf$) < 40 AND INSTR("abcdefghijklmnopqrstuvwxyz0123456789-_", LCASE$(CHR$(k&))) > 0 THEN edTypeBuf$ = edTypeBuf$ + LCASE$(CHR$(k&)) ' (a picture's new name: what a file name can safely be)
@@ -499,6 +499,10 @@ SUB EditTypeDone STATIC
     END IF
     IF edTypeFor = 11 THEN ' (the selected cells' own light's colour)
         IF LEN(edTypeBuf$) THEN EditPushUndo : EditCellLight 4, PcHex~&(RIGHT$("000000" + edTypeBuf$, 6)) : EditApply
+        EXIT SUB
+    END IF
+    IF edTypeFor = 12 THEN ' (a made colour's colour: EditPaneGen)
+        IF LEN(edTypeBuf$) THEN EditGenClick 1000
         EXIT SUB
     END IF
     IF edTypeFor = 9 THEN NpRenameDone : EXIT SUB ' (a picture renamed - the picker's right-click menu, EDITOR/NEWPICS.BM)
@@ -653,6 +657,8 @@ SUB EditPaneClick STATIC
         CASE 507 : edPrScroll = edPrScroll + 1
         CASE 508 TO 510 ' SAVE, REPLACE, DELETE
             PrOp pnHit - 507, 0
+        CASE 514 : PaAcross ' PAINT ACROSS: the selected faces as one sheet
+        CASE 513 : PaOpenSel ' PAINT HERE: the first selected face's picture in the painter (EDITOR/PAINTER.BM)
         CASE 512 : NpOpenSel ' OPEN IN DRAW: the first selected face's picture (EDITOR/NEWPICS.BM)
         CASE 511 ' Held open, up or down - in the editor only (O; Shift+click: as in play)
             EditHoldToggle edPnCX, edPnCY, (_KEYDOWN(100304) OR _KEYDOWN(100303))
@@ -684,6 +690,7 @@ SUB EditPaneClick STATIC
         CASE 549 : EditTexOp 12, 10, 1, 0, -1 ' INVERT: on, or off
         CASE 551 : EditTexOp 13, 0, 0, 0, -1 ' NO FILTERS
         CASE 552 : edFxPane = 0 ' BACK
+        CASE 560 TO 590 : EditGenClick pnHit ' A made colour's (EditPaneGen)
         CASE 375 ' ...its usual picture again (a door's, a wall's - the look kept: slid, stretched, tinted as it was)
             EditPushUndo : n = 0
             FOR k = 1 TO edSelN
@@ -1384,6 +1391,7 @@ SUB RunEditor STATIC
             IF k& = 27 AND npMenuOn THEN NpMenuClose : k& = 0 ' (Esc: a picture's menu goes - not the editor)
             IF (k& = 101 OR k& = 69) AND (edFBAlt OR _KEYDOWN(100307) OR _KEYDOWN(100308)) THEN NpOpenKey mx, my : k& = 0 ' (Alt+E: the picture opened in DRAW)
             IF ABS(k&) = 100305 OR ABS(k&) = 100306 THEN mapCtrl = (k& > 0)
+            IF (k& = 101 OR k& = 69 OR k& = 5) AND mapCtrl AND (_KEYDOWN(100304) OR _KEYDOWN(100303)) THEN PaOpenKey mx, my : k& = 0 ' (Ctrl+Shift+E: painted here - EDITOR/PAINTER.BM; Ctrl+E is picking up a ceiling's picture, from above)
             IF mapCtrl THEN ' (Ctrl held: Ctrl+S, Ctrl+Z, Ctrl+D - however the key arrives)
                 IF k& = 115 OR k& = 83 THEN k& = 19
                 IF k& = 122 OR k& = 90 THEN k& = 26
@@ -1769,6 +1777,7 @@ SUB EditFP STATIC
         IF k& = 27 AND npMenuOn THEN NpMenuClose : k& = 0 : escWas = -1 ' (Esc: a picture's menu goes - not the game's menu too: chapter 8 asks after this)
         IF (k& = 101 OR k& = 69) AND (edFBAlt OR _KEYDOWN(100307) OR _KEYDOWN(100308)) THEN NpOpenKey edCurX, edCurY : k& = 0 ' (Alt+E: the picture opened in DRAW - EDITOR/NEWPICS.BM)
         IF ABS(k&) = 100305 OR ABS(k&) = 100306 THEN edCtrl = (k& > 0)
+        IF (k& = 101 OR k& = 69 OR k& = 5) AND edCtrl AND NOT (edFBAlt OR _KEYDOWN(100307) OR _KEYDOWN(100308)) THEN PaOpenKey edCurX, edCurY : k& = 0 ' (Ctrl+E: painted here - EDITOR/PAINTER.BM)
         kc = 0 : IF ABS(k&) >= 65 AND ABS(k&) <= 122 THEN kc = ABS(k&) OR 32 ' (a letter, as its small letter)
         IF kc < 97 OR kc > 122 THEN kc = 0
         IF kc THEN ' Down (a fresh press, or its auto-repeat) or up
@@ -2249,6 +2258,8 @@ SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
                 CASE 12 ' A filter (k&: which, PC_FX$'s order) a step up or down (st: Shift's finer step)
                     fl$ = MID$(PC_FX$, k&, 1) : ptFx$(j) = PcFxSet$(ptFx$(j), fl$, EditFxStep(fl$, PcFxGet(ptFx$(j), fl$), dir, st))
                 CASE 13 : ptFx$(j) = "" ' No filters
+                CASE 14 : IF GenPic(ptPic$(j)) THEN ptPic$(j) = edGenSet$ ' A made colour's colours or way (EditGenApply)
+                CASE 15 : IF ptPic$(j) = edGenFrom$ THEN ptPic$(j) = edGenSet$ ' One picture for another (a made colour painted in the painter: its new file)
                 CASE 9 : ptA(j) = st
                 CASE 1, 2
                     IF op = 1 THEN w = ku ELSE w = kv
@@ -3288,7 +3299,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "#FACES IN PIECES|H / V~divide: left-right, top-bottom|  on a piece~divide it again (4 deep)|  a halved face~whole again|J~join a piece back up|click a piece~select / paint it alone|R / Shift+R~turn its picture (PAINT)|M / Shift+M~flip it left-right / upside down|O~open a door, hold a lift up / down|  Shift+O~as in play (at nothing: all)|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT click~pour it on a floor|  Ctrl / Shift~the whole floor / drain|"
         h$ = h$ + "#PICKER AND PANES|P~picker: tucked / open / off|picker click~the brush - and the|~  selection's, if any|wheel on picker~scroll it|selection~its pane: door, pad, light,|~  monster, event, lift, floor|PAINT + selection~PICTURE pane: slide, stretch,|~  turn, tint (any colour), filters,|~  as made|TRIGGERS...~its triggers (in a pane)|SECTOR~name, light, its pictures|"
-        h$ = h$ + "#VIEW AND FILE|1-5~SELECT PLACE PAINT LIGHT HEIGHT|6 / 7 / 8~SECTOR / VERSIONS / picker open|G / Shift+G~grid on-off / stronger|Alt+L~full bright: everything lit evenly|Alt+E~the picture opened in DRAW (+ NEW: a placeholder)|Right-click~a picture in the picker: rename, animate, delete|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|U~the HUD layout editor|F1~this sheet|"
+        h$ = h$ + "#VIEW AND FILE|1-5~SELECT PLACE PAINT LIGHT HEIGHT|6 / 7 / 8~SECTOR / VERSIONS / picker open|G / Shift+G~grid on-off / stronger|Alt+L~full bright: everything lit evenly|Alt+E~the picture opened in DRAW (+ NEW: a placeholder)|Ctrl+E~the picture painted here: the painter|Right-click~a picture in the picker: paint, rename, animate, delete|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|U~the HUD layout editor|F1~this sheet|"
         h$ = h$ + "#OLDER KEYS (aimed ahead)|[ ]~the brush back / on|T / F~wall kind's / floor's picture|Z~the cell's floor number|L / K~a light here / take nearest|PgUp/PgDn~floor up/down (Shift: ceil)"
         t$ = "EDITOR CHEATSHEET - 3D VIEW"
     ELSE
@@ -3297,7 +3308,7 @@ SUB EditDrawHelp(v)
         h$ = h$ + "#THE SELECTION|arrows~move it a cell (up is north)|drag it~move it with the mouse|Del~delete it|Ctrl+D~select nothing|its pane~door, pad, light, monster,|~  event, lift, floor, triggers|"
         h$ = h$ + "#LIQUIDS (picker tab)|PAINT drag~pour it on (Shift: drain)|"
         h$ = h$ + "#KEYS|1-5~SELECT PLACE PAINT LIGHT HEIGHT|6 / 7 / 8~SECTOR / VERSIONS / picker open|L / H~the LIGHT / HEIGHT tool|[ ]~the brush back / on|G / Shift+G~grid on-off / stronger|T~put yourself at the mouse|PgUp/PgDn~the sector before / after|M~the monster kinds editor|U~the HUD layout editor|"
-        h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Alt+L~full bright (in 3D)|Alt+E~PAINT's picture opened in DRAW|Right-click~a picture in the picker: rename, animate, delete|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|F1~this sheet"
+        h$ = h$ + "#VIEW AND FILE|Tab~walk round inside it (3D)|Esc / F2~play the level|SECTOR~name, light, its pictures|Alt+L~full bright (in 3D)|Alt+E~PAINT's picture opened in DRAW|Ctrl+Shift+E~the picture painted here: the painter|Right-click~a picture in the picker: paint, rename, animate, delete|Ctrl+S~save|Ctrl+Z / UNDO~undo|Ctrl+Y / REDO~redo (or Ctrl+Shift+Z)|F1~this sheet"
         t$ = "EDITOR CHEATSHEET - THE MAP FROM ABOVE"
     END IF
     y0 = 32 : IF v = 0 THEN y0 = 4
@@ -3343,8 +3354,18 @@ END FUNCTION
 ' sector's own pictures is being chosen (the SECTOR pane: edSlotPick), only
 ' the picture files - no map characters (they'd be a PLACE brush), no smears
 SUB EditPkBuild
-    DIM a, B, d, k ' (its own: the main program shares these names)
-    key$ = STR$(edPickTab) + STR$(edSlotPick > 0) + STR$(level) + STR$(artNow) + lvlFloor$(1) + lvlWall$(1) + lvlWall$(2) + lvlWall$(3) + lvlWall$(4) + lvlWall$(5) + lvlWall$(6)
+    DIM a, B, c, d, k, gl$, t$ ' (its own: the main program shares these names)
+    gl$ = "" ' (the sector's own made colours, each once: tiles to use again)
+    FOR k = T_CUSTOM + 1 TO T_CUSTOM + T_CUSTOMN
+        IF GenPic(texFile$(k)) THEN IF INSTR(gl$, " " + texFile$(k) + " ") = 0 THEN gl$ = gl$ + " " + texFile$(k) + " "
+    NEXT
+    FOR k = 1 TO 6 : IF GenPic(lvlWall$(k)) THEN IF INSTR(gl$, " " + lvlWall$(k) + " ") = 0 THEN gl$ = gl$ + " " + lvlWall$(k) + " "
+    NEXT
+    FOR k = 1 TO 4 : IF GenPic(lvlFloor$(k)) THEN IF INSTR(gl$, " " + lvlFloor$(k) + " ") = 0 THEN gl$ = gl$ + " " + lvlFloor$(k) + " "
+    NEXT
+    FOR k = 1 TO 2 : IF GenPic(lvlCeil$(k)) THEN IF INSTR(gl$, " " + lvlCeil$(k) + " ") = 0 THEN gl$ = gl$ + " " + lvlCeil$(k) + " "
+    NEXT
+    key$ = STR$(edPickTab) + STR$(edSlotPick > 0) + STR$(level) + STR$(artNow) + lvlFloor$(1) + lvlWall$(1) + lvlWall$(2) + lvlWall$(3) + lvlWall$(4) + lvlWall$(5) + lvlWall$(6) + GenName$(edGenC1, edGenC2, edGenDir$) + gl$
     IF key$ = edPkKey$ THEN EXIT SUB
     edPkKey$ = key$
     FOR k = 1 TO edPkN
@@ -3376,6 +3397,16 @@ SUB EditPkBuild
     IF LEN(pre$) THEN ' Every picture called wall*.png (floor*, ceiling* and sky-*), in name order
         dir$ = AssetPath$("x") : dir$ = LEFT$(dir$, LEN(dir$) - 1)
         IF edPickTab <= 3 THEN edPkN = edPkN + 1 : edPkKind(edPkN) = PK_NEW : edPkVal$(edPkN) = "new" : edPkImg&(edPkN) = NpThumb&(edPickTab) ' (+ NEW: a placeholder to draw - EDITOR/NEWPICS.BM)
+        IF edPickTab <= 3 THEN ' (COLOUR and GRADIENT: made colours, set on the PICTURE pane - then the sector's own made colours)
+            gl$ = GenName$(edGenC1, 0, "") + " " + GenName$(edGenC1, edGenC2, edGenDir$) + " " + gl$
+            DO WHILE LEN(LTRIM$(gl$)) AND edPkN < PK_MAX
+                gl$ = LTRIM$(gl$) : c = INSTR(gl$, " ") : IF c = 0 THEN c = LEN(gl$) + 1
+                t$ = LEFT$(gl$, c - 1) : gl$ = MID$(gl$, c + 1)
+                a = 0 : FOR d = 1 TO edPkN : IF edPkKind(d) = PK_TEX AND edPkVal$(d) = t$ THEN a = d
+                NEXT
+                IF a = 0 THEN edPkN = edPkN + 1 : edPkKind(edPkN) = PK_TEX : edPkVal$(edPkN) = t$ : edPkImg&(edPkN) = EditFileThumb&(t$)
+            LOOP
+        END IF
         first = edPkN + 1
         FOR pass = 1 TO 2
             IF pass = 1 THEN pp$ = pre$ ELSE pp$ = pre2$
@@ -3430,7 +3461,7 @@ END FUNCTION
 FUNCTION EditFileThumb&(f$)
     DIM n ' (its own: the main program shares these names)
     EditFileThumb& = 0
-    src& = _LOADIMAGE(ArtPath$(f$), 32) : IF src& >= -1 THEN EXIT FUNCTION
+    src& = PicImage&(f$) : IF src& >= -1 THEN EXIT FUNCTION
     n = PK_SIZE - 4 : img& = _NEWIMAGE(n, n, 32)
     _PUTIMAGE (0, 0)-(n - 1, n - 1), src&, img&
     _FREEIMAGE src&
@@ -3603,7 +3634,12 @@ END FUNCTION
 FUNCTION EditPkName$(k)
     SELECT CASE edPkKind(k)
         CASE PK_GLYPH : EditPkName$ = GlyphName$(edPkVal$(k))
-        CASE PK_TEX : EditPkName$ = edPkVal$(k) + "   (right-click: rename, animate, open, delete)"
+        CASE PK_TEX
+            IF GenPic(edPkVal$(k)) THEN
+                EditPkName$ = edPkVal$(k) + "   a colour the game makes - its colours: the PICTURE pane (select nothing: these tiles')"
+            ELSE
+                EditPkName$ = edPkVal$(k) + "   (right-click: rename, animate, open, delete)"
+            END IF
         CASE PK_NEW : EditPkName$ = "+ NEW: a placeholder " + NpKind$(edPickTab) + " to draw, 64 square (Shift: and a 512 HD one)"
         CASE PK_LIQUID : EditPkName$ = LiquidBrushName$(edPkVal$(k))
         CASE PK_LIGHT
@@ -3623,7 +3659,17 @@ SUB EditPkPicture(k, x, y, n)
         TinyText x + (n - TinyW(t$)) \ 2, y + n - 10, t$, _RGB32(255, 255, 255)
         EXIT SUB
     END IF
-    IF edPkImg&(k) < -1 THEN _PUTIMAGE (x, y)-STEP(n - 1, n - 1), edPkImg&(k) : EXIT SUB
+    IF edPkImg&(k) < -1 THEN
+        _PUTIMAGE (x, y)-STEP(n - 1, n - 1), edPkImg&(k)
+        t$ = ""
+        IF k >= 2 AND edPkKind(k) = PK_TEX AND GenPic(edPkVal$(k)) THEN IF edPkKind(k - 1) = PK_NEW THEN t$ = "COLOUR"
+        IF k >= 3 AND t$ = "" AND edPkKind(k) = PK_TEX AND GenPic(edPkVal$(k)) THEN IF edPkKind(k - 2) = PK_NEW THEN t$ = "GRADIENT"
+        IF LEN(t$) THEN ' (the picker's made colours: named)
+            LINE (x + (n - TinyW(t$)) \ 2 - 2, y + n - 12)-STEP(TinyW(t$) + 3, 11), _RGBA32(0, 0, 0, 170), BF
+            TinyText x + (n - TinyW(t$)) \ 2, y + n - 10, t$, _RGB32(255, 255, 255)
+        END IF
+        EXIT SUB
+    END IF
     cx = x + n \ 2 : cy = y + n \ 2
     IF edPkKind(k) = PK_LIGHT THEN
         v = VAL(MID$(edPkVal$(k), 2))
@@ -3823,7 +3869,7 @@ SUB EditPaneLay
         EXIT SUB
     END IF
     IF edSelN = 0 THEN ' (nothing selected: no pane - nor typing into one that's gone)
-        edTrigPane = 0 : edEvPane = 0 : edCellLtPane = 0 : edFxPane = 0 : IF edTypeFor = 2 THEN edTyping = 0
+        edTrigPane = 0 : edEvPane = 0 : edCellLtPane = 0 : edFxPane = 0 : edGenPane = 0 : IF edTypeFor = 2 THEN edTyping = 0
         EXIT SUB
     END IF
     IF edCellLtPane THEN ' The selection's cells' own light: an ambient light of their own, not the sector's
@@ -4334,7 +4380,11 @@ SUB EditPanePicture(x0, y)
         IF fc >= 1 AND fc <= FACE_MAX THEN n = n + 1 : IF n = 1 THEN k1 = k
     NEXT
     edPnTitle$ = "PICTURE (" + LTRIM$(STR$(n)) + " selected)"
-    IF n = 0 THEN EditPaneAdd -1, x0, y + 2, PN_W, "SELECT FACES TO SLIDE THEIR PICTURES", 0 : y = y + 23 : EXIT SUB
+    IF n = 0 THEN ' (nothing selected: the picker's COLOUR and GRADIENT, to set before painting)
+        edGenPane = 0 : EditPaneAdd -1, x0, y + 2, PN_W, "SELECT FACES TO SLIDE THEIR PICTURES", 0 : y = y + 26
+        EditPaneGen x0, y, GenName$(edGenC1, edGenC2, edGenDir$), 0
+        EXIT SUB
+    END IF
     IF EditHoldThing(edSelX(k1), edSelY(k1), c) THEN ' (a door or lift: opened, held up or down - to paint it so)
         edPnCX = edSelX(k1) : edPnCY = edSelY(k1)
         EditPaneAdd 511, x0, y, PN_W, EditHoldLabel$(edPnCX, edPnCY), 0 : y = y + 23
@@ -4347,6 +4397,9 @@ SUB EditPanePicture(x0, y)
     END IF
     IF pj = 0 THEN pj = 1
     IF edFxPane THEN edPnTitle$ = "FILTERS (" + LTRIM$(STR$(n)) + " selected)" : EditPaneFilters x0, y, pj : EXIT SUB
+    IF NOT GenPic(ptPic$(pj)) THEN edGenPane = 0
+    IF edGenPane THEN edPnTitle$ = "COLOUR (" + LTRIM$(STR$(n)) + " selected)" : EditPaneGen x0, y, ptPic$(pj), -1 : EditPaneAdd 590, x0, y, PN_W, "BACK", 0 : y = y + 23 : EXIT SUB
+    IF GenPic(ptPic$(pj)) THEN EditPaneAdd 560, x0, y, PN_W, "COLOUR: " + MID$(ptPic$(pj), 2) + " (CHANGE...)", -1 : y = y + 23 ' (a made colour: its colours and way)
     EditPcTexGet pj, ou, ov, ku, kv : tm = ptTM(pj) : tc& = ptTC(pj) AND &HFFFFFF
     EditPaneAdd -1, x0, y + 2, PN_W, "SLID" + STR$(((ou + 32) AND 63) - 32) + " ALONG," + STR$(((ov + 32) AND 63) - 32) + " UP (PIXELS)", 0 : y = y + 20 ' (shown -32 to 31: 3 left is -3, not 61)
     EditPaneAdd 330, x0, y, 48, "LEFT", 0 : EditPaneAdd 331, x0 + 50, y, 48, "RIGHT", 0 : EditPaneAdd 332, x0 + 100, y, 48, "UP", 0 : EditPaneAdd 333, x0 + 150, y, 50, "DOWN", 0 : y = y + 23
@@ -4383,7 +4436,12 @@ SUB EditPanePicture(x0, y)
     EditPaneAdd 338, x0, y, 99, "AS MADE", 0 : EditPaneAdd 375, x0 + 101, y, 99, "USUAL PICTURE", 0 : y = y + 23
     EditPaneAdd 356, x0, y, 64, "H: L-R", 0 : EditPaneAdd 357, x0 + 67, y, 64, "V: T-B", 0 : EditPaneAdd 358, x0 + 134, y, 64, "J: JOIN", 0 : y = y + 23
     EditPaneAdd 339, x0, y, 99, "COPY", 0 : EditPaneAdd 340, x0 + 101, y, 99, "PASTE", 0 : y = y + 23
-    EditPaneAdd 512, x0, y, PN_W, "OPEN IN " + UCASE$(NpEditorName$) + " (ALT+E)", 0 : y = y + 23
+    IF GenPic(ptPic$(pj)) THEN ' (a made colour: no file to open - painted, it's a new picture)
+        EditPaneAdd 513, x0, y, PN_W, "PAINT IT AS A PICTURE (CTRL+E)", 0 : y = y + 23
+    ELSE
+        EditPaneAdd 513, x0, y, 99, "PAINT HERE (CTRL+E)", 0 : EditPaneAdd 512, x0 + 101, y, 99, "OPEN IN " + UCASE$(LEFT$(NpEditorName$, 8)), 0 : y = y + 23
+    END IF
+    IF n > 1 THEN EditPaneAdd 514, x0, y, PN_W, "PAINT ACROSS THE" + STR$(n) + " FACES (ONE SHEET)", 0 : y = y + 23 ' (EDITOR/PAINTER.BM: PaAcross)
     IF edClipOn THEN EditPaneAdd -1, x0, y + 2, PN_W, LEFT$("COPIED: " + EditClipName$, 40), 0 : y = y + 20
     EditPanePresets x0, y ' (the shelf of looks kept for this picture: EDITOR/PRESETS.BM)
 END SUB
@@ -4408,6 +4466,108 @@ SUB EditPaneFilters(x0, y, pj)
     EditPaneAdd 549, x0, y, PN_W, "INVERT", PcFxGet(ptFx$(pj), "I") <> 0 : y = y + 23
     EditPaneAdd -1, x0, y + 2, PN_W, "SHIFT+CLICK: FINER STEPS", 0 : y = y + 20
     EditPaneAdd 551, x0, y, 99, "NO FILTERS", 0 : EditPaneAdd 552, x0 + 101, y, 99, "BACK", 0 : y = y + 23
+END SUB
+
+' A made colour's (RENDER/PICTURES.BM: GenPic) colours and way, src$ - the
+' selected faces' (fromSel: EditTexOp 14 changes theirs) or the picker's
+' COLOUR and GRADIENT tiles'. SOLID / GRADIENT (the selection's), FROM and
+' TO (which one the swatches, red green blue and TYPE set), its way, SWAP.
+' Ids 561-589 (EditGenClick); 560 opens it from the PICTURE pane, 590 BACK.
+SUB EditPaneGen(x0, y, src$, fromSel)
+    DIM c, c1 AS _UNSIGNED LONG, c2 AS _UNSIGNED LONG, cw AS _UNSIGNED LONG, cl AS _UNSIGNED LONG, d$, t$, wh ' (its own: the main program shares these names)
+    GenParse src$, c1, c2, d$
+    edGenSrc$ = src$ : edGenFromSel = fromSel
+    IF fromSel THEN
+        EditPaneAdd 561, x0, y, 99, "SOLID", (d$ = "") : EditPaneAdd 562, x0 + 101, y, 99, "GRADIENT", (d$ <> "") : y = y + 23
+    ELSE
+        EditPaneAdd -1, x0, y + 2, PN_W, "THE PICKER'S COLOUR AND GRADIENT", 0 : y = y + 20
+    END IF
+    wh = edGenWhich : IF d$ = "" THEN wh = 1
+    IF wh = 1 THEN cw = c1 ELSE cw = c2
+    IF d$ <> "" THEN
+        EditPaneAdd 563, x0, y, 30, "", (wh = 1) : edPnCol(edPnN) = &HFF000000~& OR c1
+        EditPaneAdd -1, x0 + 34, y + 2, 30, "FROM", 0
+        EditPaneAdd 564, x0 + 70, y, 30, "", (wh = 2) : edPnCol(edPnN) = &HFF000000~& OR c2
+        EditPaneAdd -1, x0 + 104, y + 2, 30, "TO", 0
+        EditPaneAdd 589, x0 + 146, y, 54, "SWAP", 0 : y = y + 23
+        FOR c = 1 TO 5
+            EditPaneAdd 583 + c, x0 + (c - 1) * 40, y, 38, RTRIM$(MID$("DOWN  ACROSSSLANT ROUND BAND  ", c * 6 - 5, 6)), (d$ = MID$("VHDRM", c, 1))
+        NEXT
+        y = y + 23
+    END IF
+    FOR c = 1 TO 12 ' (quick colours: the lights')
+        cl = EditPaletteRGB~&(c)
+        EditPaneAdd 564 + c, x0 + ((c - 1) MOD 6) * 34, y + ((c - 1) \ 6) * 23, 30, "", ((cl AND &HFFFFFF) = cw) : edPnCol(edPnN) = cl
+    NEXT
+    y = y + 46
+    FOR c = 0 TO 2
+        EditPaneAdd -1, x0, y + 2, 140, MID$("REDGRNBLU", c * 3 + 1, 3) + STR$((cw \ 256 ^ (2 - c)) AND 255), 0
+        EditPaneAdd 577 + 2 * c, x0 + 146, y, 24, "-", 0 : EditPaneAdd 578 + 2 * c, x0 + 174, y, 24, "+", 0 : y = y + 23
+    NEXT
+    IF edTyping AND edTypeFor = 12 THEN t$ = edTypeBuf$ + "_" ELSE t$ = GenHex$(cw)
+    IF d$ <> "" THEN t$ = MID$("FROM TO   ", wh * 5 - 4, 5) + t$ ELSE t$ = "COLOUR " + t$
+    EditPaneAdd -1, x0, y + 2, 100, t$, 0
+    IF edTyping AND edTypeFor = 12 THEN t$ = "OK" ELSE t$ = "TYPE"
+    EditPaneAdd 583, x0 + 134, y, 64, t$, (edTyping AND edTypeFor = 12) : y = y + 23
+    IF NOT fromSel THEN EditPaneAdd -1, x0, y + 2, PN_W, "CLICK COLOUR OR GRADIENT IN THE PICKER", 0 : y = y + 20
+END SUB
+
+' A click on the made colour's pane (EditPaneGen), id - 1000: TYPE's colour
+' typed (edTypeBuf$). The new name goes on the selected faces (fromSel)
+' and the picker's tiles follow it either way
+SUB EditGenClick(id)
+    DIM c1 AS _UNSIGNED LONG, c2 AS _UNSIGNED LONG, cw AS _UNSIGNED LONG, d$, wh, st, ch, r, g, b ' (its own: the main program shares these names)
+    IF id = 560 THEN edGenPane = -1 : edGenWhich = 1 : EXIT SUB
+    IF id = 590 THEN edGenPane = 0 : EXIT SUB
+    GenParse edGenSrc$, c1, c2, d$
+    wh = edGenWhich : IF d$ = "" THEN wh = 1
+    IF wh = 1 THEN cw = c1 ELSE cw = c2
+    SELECT CASE id
+        CASE 561 : d$ = "" ' SOLID
+        CASE 562 ' GRADIENT: to the tiles' second colour, their way
+            IF d$ = "" THEN d$ = edGenDir$ : c2 = edGenC2 : IF c2 = c1 THEN c2 = (c1 \ 4) AND &H3F3F3F
+        CASE 563, 564 : edGenWhich = id - 562 : EXIT SUB ' FROM, TO: which the colours below set
+        CASE 565 TO 576 : cw = EditPaletteRGB~&(id - 564) AND &HFFFFFF
+        CASE 577 TO 582 ' red, green, blue - and + (16 - Shift: 1)
+            st = 16 : IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN st = 1
+            ch = (id - 577) \ 2 : IF (id - 577) MOD 2 = 0 THEN st = -st
+            r = (cw \ 65536) AND 255 : g = (cw \ 256) AND 255 : b = cw AND 255
+            SELECT CASE ch
+                CASE 0 : r = MaxOf(0, MinOf(255, r + st))
+                CASE 1 : g = MaxOf(0, MinOf(255, g + st))
+                CASE 2 : b = MaxOf(0, MinOf(255, b + st))
+            END SELECT
+            cw = r * 65536 + g * 256 + b
+        CASE 583 ' TYPE (OK: what's typed)
+            IF edTyping AND edTypeFor = 12 THEN
+                EditTypeDone
+            ELSE
+                edTyping = -1 : edTypeFor = 12 : edTypeFresh = -1 : edTypeBuf$ = ""
+                EditNote "Type the colour - RRGGBB, six hex digits (FF8800 orange) - Enter keeps it"
+            END IF
+            EXIT SUB
+        CASE 584 TO 588 : d$ = MID$("VHDRM", id - 583, 1) ' its way
+        CASE 589 : SWAP c1, c2 : EditGenApply c1, c2, d$ : EXIT SUB
+        CASE 1000 : cw = PcHex~&(RIGHT$("000000" + edTypeBuf$, 6)) ' (typed)
+        CASE ELSE : EXIT SUB
+    END SELECT
+    IF (id >= 565 AND id <= 582) OR id = 1000 THEN IF wh = 1 THEN c1 = cw ELSE c2 = cw
+    IF d$ = "" THEN c2 = c1
+    EditGenApply c1, c2, d$
+END SUB
+
+' A made colour changed to (c1, c2, d$): on the selected faces (the pane
+' showing theirs), and the picker's tiles - and PAINT's brush, if it's one
+SUB EditGenApply(c1 AS _UNSIGNED LONG, c2 AS _UNSIGNED LONG, d$)
+    edGenC1 = c1 : IF d$ <> "" THEN edGenC2 = c2 : edGenDir$ = d$
+    IF edGenFromSel THEN edGenSet$ = GenName$(c1, c2, d$) : EditTexOp 14, 0, 0, 0, -1
+    IF edBrushKind = PK_TEX AND GenPic(edBrushTex$) THEN
+        GenParse edBrushTex$, c1, c2, d$ ' (the brush the same kind it was: solid or gradient)
+        IF d$ = "" THEN edBrushTex$ = GenName$(edGenC1, 0, "") ELSE edBrushTex$ = GenName$(edGenC1, edGenC2, edGenDir$)
+        IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
+        edBrushImg& = EditFileThumb&(edBrushTex$)
+    END IF
+    IF NOT edGenFromSel THEN EditNote "COLOUR " + GenName$(edGenC1, 0, "") + ", GRADIENT " + GenName$(edGenC1, edGenC2, edGenDir$) + " - in the picker"
 END SUB
 
 ' A filter's next number, dir up (1) or down (-1): fine, a finer step

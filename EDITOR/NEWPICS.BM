@@ -185,6 +185,7 @@ END FUNCTION
 ' Picture f$ opened in the paint program (and watched)
 SUB NpOpen(f$)
     DIM p$, e$, d$, c$, s ' (its own)
+    IF GenPic(f$) THEN EditNote f$ + " is a colour the game makes - no file to open (its colours are on the PICTURE pane)" : EXIT SUB
     p$ = ArtPath$(f$)
     IF NOT _FILEEXISTS(p$) THEN EditNote "There's no " + f$ + " to open" : EXIT SUB
     IF _FILEEXISTS(NpDrawOf$(p$)) THEN p$ = NpDrawOf$(p$) ' (DRAW's project beside it: its layers too)
@@ -553,6 +554,7 @@ END SUB
 FUNCTION NpLocked$(o$)
     DIM k$, pre$, mid1$, e ' (its own)
     NpLocked$ = ""
+    IF GenPic(o$) THEN NpLocked$ = o$ + " is a colour the game makes, not a file: its colours are on the PICTURE pane" : EXIT FUNCTION
     NpParts o$, pre$, mid1$, e
     IF NpShipped(o$) OR pre$ = "" THEN NpLocked$ = o$ + " comes with the game: it keeps its name (OPEN IN " + UCASE$(NpEditorName$) + " still paints it)" : EXIT FUNCTION
     k$ = NpInKit$(o$)
@@ -736,10 +738,11 @@ FUNCTION NpRowLive(r)
     DIM lk ' (its own)
     IF npAsk THEN NpRowLive = (r = NP_MROWS - 2 OR r = NP_MROWS - 1) : EXIT FUNCTION
     lk = NpShipped(npMenuPic$)
+    IF GenPic(npMenuPic$) THEN NpRowLive = (r = 8) : EXIT FUNCTION ' (a made colour: no file to rename, open or delete - painted, it's a new picture)
     SELECT CASE r
-        CASE 1, 3 TO 7, 11 : NpRowLive = NOT lk
-        CASE 8, 9 : NpRowLive = -1
-        CASE 10 : NpRowLive = (NpKaleido$ <> "")
+        CASE 1, 3 TO 7, 12 : NpRowLive = NOT lk
+        CASE 8, 9, 10 : NpRowLive = -1
+        CASE 11 : NpRowLive = (NpKaleido$ <> "")
         CASE ELSE : NpRowLive = 0
     END SELECT
 END FUNCTION
@@ -772,8 +775,8 @@ SUB NpMenuClick(x, y)
     END IF
     IF NOT NpRowLive(r) THEN
         why$ = NpLocked$(npMenuPic$)
-        IF (r = 1 OR (r >= 3 AND r <= 7) OR r = 11) AND LEN(why$) THEN EditNote why$
-        IF r = 10 THEN EditNote "No kaleidotron in ~/git/kaleidotron/target/release"
+        IF ((r = 1 OR (r >= 3 AND r <= 7) OR r = 12) OR GenPic(npMenuPic$)) AND LEN(why$) THEN EditNote why$
+        IF r = 11 THEN EditNote "No kaleidotron in ~/git/kaleidotron/target/release"
         EXIT SUB
     END IF
     SELECT CASE r
@@ -788,10 +791,11 @@ SUB NpMenuClick(x, y)
             END IF
         CASE 3 TO 7 : IF edTyping AND edTypeFor = 9 THEN edTyping = 0
             NpSetAnim npMenuPic$ + "", r - 3 : npMenuOn = 0
-        CASE 8 : NpMenuClose : NpOpen npMenuPic$
-        CASE 9 : NpMenuClose : NpOpenFolder npMenuPic$
-        CASE 10 : NpMenuClose : NpOpenKaleido npMenuPic$
-        CASE 11 : NpAskDelete
+        CASE 8 : NpMenuClose : PaOpenPic npMenuPic$ + "", MaxOf(1, MinOf(3, edPickTab)) ' (the painter: EDITOR/PAINTER.BM)
+        CASE 9 : NpMenuClose : NpOpen npMenuPic$
+        CASE 10 : NpMenuClose : NpOpenFolder npMenuPic$
+        CASE 11 : NpMenuClose : NpOpenKaleido npMenuPic$
+        CASE 12 : NpAskDelete
     END SELECT
 END SUB
 
@@ -853,7 +857,7 @@ SUB NpMenuDraw(mx, my)
             END SELECT
         ELSE
             SELECT CASE r
-                CASE 0 : t$ = npMenuPic$ + MID$("  (COMES WITH THE GAME)", 1, -99 * lk) : c~& = _RGB32(255, 90, 200)
+                CASE 0 : t$ = npMenuPic$ + MID$("  (COMES WITH THE GAME)", 1, -99 * (lk AND NOT GenPic(npMenuPic$))) + MID$("  (A MADE COLOUR)", 1, -99 * GenPic(npMenuPic$)) : c~& = _RGB32(255, 90, 200)
                 CASE 1
                     IF typ THEN
                         t$ = pre$ + edTypeBuf$ + "_" + NpEnd$(e) + ".png  (enter)" : c~& = _RGB32(150, 240, 255)
@@ -865,10 +869,11 @@ SUB NpMenuDraw(mx, my)
                 CASE 3 TO 7
                     t$ = "   " + NpAnimName$(r - 3)
                     IF r - 3 = cur THEN t$ = "> " + NpAnimName$(r - 3) : IF NOT lk THEN c~& = _RGB32(255, 255, 255)
-                CASE 8 : t$ = "OPEN IN " + NpEditorName$ + " (ALT+E)"
-                CASE 9 : t$ = "OPEN FOLDER"
-                CASE 10 : t$ = "OPEN IN KALEIDOTRON" + MID$(" (NOT FOUND)", 1, -99 * (NpKaleido$ = ""))
-                CASE 11 : t$ = "DELETE..."
+                CASE 8 : t$ = "PAINT HERE (CTRL+E)" : IF GenPic(npMenuPic$) THEN t$ = "PAINT IT AS A NEW PICTURE (CTRL+E)"
+                CASE 9 : t$ = "OPEN IN " + NpEditorName$ + " (ALT+E)"
+                CASE 10 : t$ = "OPEN FOLDER"
+                CASE 11 : t$ = "OPEN IN KALEIDOTRON" + MID$(" (NOT FOUND)", 1, -99 * (NpKaleido$ = ""))
+                CASE 12 : t$ = "DELETE..."
             END SELECT
         END IF
         IF LEN(t$) THEN TinyText x0 + 6, y + 3, LEFT$(t$, (NP_MW - 12) \ 5), c~&
