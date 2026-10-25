@@ -252,7 +252,7 @@ END SUB
 ' --- Show menu screen menuScreen: build its items, pick its first item
 ' (or "NO", on the "are you sure?" screen), and start its animation
 SUB EnterMenuScreen STATIC
-    BuildMenu menuScreen
+    BuildMenu menuScreen : menuPanR = 0
     menuSel = 0
     FOR i = numMI TO 1 STEP -1
         IF MenuSelectable(i) THEN menuSel = i
@@ -736,11 +736,33 @@ FUNCTION MenuItemAt(mouseX, mouseY)
     mr = MenuRowH : MenuScrollFix
     FOR i = menuScroll + 1 TO menuScroll + MenuVis
         rowY = MENU_TOP + (i - 1 - menuScroll) * mr
-        IF mouseY >= rowY + 15 - mr \ 2 AND mouseY < rowY + 15 - mr \ 2 + mr AND mouseX >= 100 AND mouseX <= 760 THEN ' (round the bar: see DrawMenu)
+        IF mouseY >= rowY + 15 - mr \ 2 AND mouseY < rowY + 15 - mr \ 2 + mr AND mouseX >= 800 - MenuPanelR + 4 AND mouseX <= MaxOf(760, MenuPanelR) THEN ' (round the bar: see DrawMenu)
             IF MenuSelectable(i) THEN MenuItemAt = i
             EXIT FUNCTION
         END IF
     NEXT
+END FUNCTION
+
+' The menu panel's right edge (its left is as far from the other side):
+' 704 as made, further for a row that reaches past it - a slider's value
+' (10 CELLS), a choice, a key's name, a line of text. It only grows while
+' a screen's open, so it doesn't jump as a slider moves
+FUNCTION MenuPanelR
+    DIM i, e, r ' (its own: the main program shares these names)
+    r = 704
+    FOR i = 1 TO numMI
+        e = 0
+        SELECT CASE miKind(i)
+            CASE MI_SLIDER : e = MENU_WIDGET_X + MENU_WIDGET_W + 12 + LEN(SettingText$(miRef(i))) * 16
+            CASE MI_CHOICE : IF menuWide THEN e = MENU_WIDGET_X + (LEN(SettingText$(miRef(i))) + 4) * 16
+            CASE MI_KEY : e = MENU_WIDGET_X + LEN(KeyName$(keyBind&(miRef(i)))) * 16
+            CASE MI_TEXT : e = 400 + LEN(miLabel$(i)) * 8
+        END SELECT
+        IF e + 20 > r THEN r = e + 20
+    NEXT
+    IF r > 794 THEN r = 794
+    IF r > menuPanR THEN menuPanR = r
+    MenuPanelR = menuPanR
 END FUNCTION
 
 ' How tall a menu's rows are: MENU_ROW - or, for a long one (CONTROLS,
@@ -780,9 +802,10 @@ SUB DrawMenu(t)
     LINE (250, 162)-(550, 163), _RGBA32(255, 100, 215, 120), BF
     panelA = t * 12 : IF panelA > 170 THEN panelA = 170 ' A dark panel behind the items, so they read over anything
     mr = MenuRowH : MenuScrollFix
-    LINE (96, MENU_TOP - 12)-(704, MENU_TOP + MenuVis * mr), _RGBA32(6, 0, 18, panelA), BF
-    IF menuScroll > 0 THEN MenuText 698, MENU_TOP - 10, "^ MORE", 1, _RGBA32(90, 230, 255, 120 + 100 * glow), 2 ' (a long menu: rows above...)
-    IF menuScroll + MenuVis < numMI THEN MenuText 698, MENU_TOP + MenuVis * mr + 2, "v MORE", 1, _RGBA32(90, 230, 255, 120 + 100 * glow), 2 ' (...and below)
+    pr = MenuPanelR : pl = 800 - pr ' (96 to 704, or wider for a long value: 10 CELLS, 2880 x 2160)
+    LINE (pl, MENU_TOP - 12)-(pr, MENU_TOP + MenuVis * mr), _RGBA32(6, 0, 18, panelA), BF
+    IF menuScroll > 0 THEN MenuText pr - 6, MENU_TOP - 10, "^ MORE", 1, _RGBA32(90, 230, 255, 120 + 100 * glow), 2 ' (a long menu: rows above...)
+    IF menuScroll + MenuVis < numMI THEN MenuText pr - 6, MENU_TOP + MenuVis * mr + 2, "v MORE", 1, _RGBA32(90, 230, 255, 120 + 100 * glow), 2 ' (...and below)
     FOR i = menuScroll + 1 TO menuScroll + MenuVis
         p = (t - (i - 1 - menuScroll) * 3) / 12 ' This item's progress in: 0 .. 1
         IF p < 0 THEN p = 0
@@ -803,9 +826,9 @@ SUB DrawMenu(t)
         IF selected AND miKind(i) <> MI_TEXT THEN ' The bar behind the selected item
             barA = alpha * (0.3 + 0.1 * SIN(t * 0.2))
             barT = rowY + 15 - (mr - 2) \ 2 : barB = barT + mr - 2 ' (centred on the letters - rowY + 3 to rowY + 26 - however close the rows)
-            LINE (110 + slide, barT)-(690 + slide, barB), _RGBA32(255, 40, 170, barA), BF
-            LINE (110 + slide, barT)-(690 + slide, barT), _RGBA32(90, 230, 255, alpha), BF
-            LINE (110 + slide, barB)-(690 + slide, barB), _RGBA32(90, 230, 255, alpha), BF
+            LINE (pl + 14 + slide, barT)-(pr - 14 + slide, barB), _RGBA32(255, 40, 170, barA), BF
+            LINE (pl + 14 + slide, barT)-(pr - 14 + slide, barT), _RGBA32(90, 230, 255, alpha), BF
+            LINE (pl + 14 + slide, barB)-(pr - 14 + slide, barB), _RGBA32(90, 230, 255, alpha), BF
             IF (t \ 15) MOD 2 = 0 THEN MenuText 118 + slide, rowY, ">", 2, _RGBA32(90, 230, 255, alpha), 0
         END IF
         IF miKind(i) = MI_TEXT THEN

@@ -20,6 +20,7 @@ CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11
 ' (MA_), whether it can be chosen, and a line of small print beside it
 CONST MAX_MI = 22
 DIM SHARED miLabel$(MAX_MI), miKind(MAX_MI), miRef(MAX_MI), miAct(MAX_MI), miOn(MAX_MI), miInfo$(MAX_MI)
+DIM SHARED menuPanR ' (the panel's right edge this screen: as wide as its widest row, mirrored round the middle - MenuPanelR; 0 when a screen opens)
 DIM SHARED numMI, menuTitle$, menuSel, menuCapture, menuWide, menuScreen, menuInGame
 DIM SHARED menuTyping, menuTyped$, menuTypeBad ' (typing qb64pe's path: MenuTypeKey)
 DIM SHARED menuStack(10), menuStackSel(10) ' The screens you came through (for BACK)
