@@ -132,6 +132,7 @@ QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
 - **Loops of their own** (menu, tally, puzzle, editor, console) don't run the
   game loop's per-frame work. The sound limiter now keeps its own time
   because only the game loop called `SfxFrame`.
+- **Never a plain `SHELL` from a full screen game**: QB64PE's SHELL leaves full screen and, after, spins with no end waiting to be back in - a window manager can keep that from happening (the game hung after a computer's program). Use `_SHELLHIDE` / `SHELL _HIDE` / `_DONTWAIT` (they don't touch it), or leave full screen first as `ProgramRun` does (GAME/ARCADE.BM: `fullnow_mode&`, GAME/fullnow.h - `_FULLSCREEN` answers the mode *asked for*, not the one in effect). Programs (`neon-caster/programs/NAME.bas`) are rebuilt when their source changes (`NAME.sig` beside the build), get `--fullscreen` / `--window`, and run with the game hidden; no qb64pe is `NeedQB64$`'s box.
 - **Runtime errors are trapped** (`ON ERROR GOTO GameError`): logged to
   `neon-caster/saves/errors.log` and the console, then `RESUME NEXT`. Check
   that log when something silently misbehaves.

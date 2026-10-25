@@ -8,6 +8,11 @@
 ' program)
 DIM SHARED arcDone, arcWon, pgName$, rc
 
+' The full screen mode in effect now (fullnow.h: _FULLSCREEN is the one asked for)
+DECLARE LIBRARY "fullnow"
+    FUNCTION fullnow_mode& ()
+END DECLARE
+
 ' --- The slot machine (a vending machine: Space on it - SlotUse). Its
 ' symbols: SL_BOMB a bomb, SL_MON a monster, SL_GUN a gun, SL_MED health,
 ' SL_AMMO ammo, SL_ARMOR armour, SL_SEVEN the lucky 7. Three alike pays out

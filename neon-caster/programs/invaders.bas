@@ -1,18 +1,21 @@
 ' NEON INVADERS - a program a computer in NEON-CASTER runs.
 '
 ' A level starts it with a trigger: use X Y : program invaders - Space at
-' that computer, and the game builds this file with qb64pe (the first time
-' only: neon-caster/saves/programs/ keeps it), runs it, and waits. How it
-' ends is the answer: SYSTEM 1 - you won, and the computer pays out;
-' SYSTEM 0 (or Esc) - you didn't. Copy it, change it, make your own: any
-' QB64PE program in this folder is a program a computer can run.
+' that computer, and the game builds this file with qb64pe (the first time,
+' and again whenever this file changes: neon-caster/saves/programs/ keeps
+' the build), hides itself, runs it, and waits. How it ends is the answer:
+' SYSTEM 1 - you won, and the computer pays out; SYSTEM 0 (or Esc) - you
+' didn't. The game says how it was showing: --fullscreen or --window on
+' the command line (COMMAND$) - so the program can take its place. Copy
+' it, change it, make your own: any QB64PE program in this folder is a
+' program a computer can run.
 '
 ' Left / Right (or A / D) move, Space or Up fires, Esc gives up. Shoot all
 ' 24 invaders before they land - three hits and you're out.
 
 _TITLE "NEON INVADERS"
 SCREEN _NEWIMAGE(800, 600, 32)
-_SCREENMOVE _MIDDLE
+IF INSTR(COMMAND$, "--fullscreen") THEN _FULLSCREEN _SQUAREPIXELS , _SMOOTH ELSE _SCREENMOVE _MIDDLE ' (as the game was showing)
 RANDOMIZE TIMER
 
 CONST COLS = 8, ROWS = 3

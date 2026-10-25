@@ -754,7 +754,7 @@ These only change the running level, so they're for testing and for triggers rat
 | Command | Does |
 | --- | --- |
 | `door X Y open\|close\|lock\|unlock\|toggle` | Work a door |
-| `program NAME` | A computer runs `neon-caster/programs/NAME.bas` - any QB64PE program, built by qb64pe the first time (SETTINGS > QB64PE COMPILER) and kept in `saves/programs/`. The game waits while it runs. If it ends with `SYSTEM 1` you beat it, and the computer pays out. Put it on a computer with a trigger: `use 31 8 repeat : program invaders` (THE NEON EXPO's terminal plays NEON INVADERS) |
+| `program NAME` | A computer runs `neon-caster/programs/NAME.bas` - any QB64PE program, built by qb64pe the first time and again whenever the `.bas` changes (SETTINGS > QB64PE COMPILER), kept in `saves/programs/`. No qb64pe on the computer? A box says how to get it (GET QB64PE opens its download page, FIND IT looks again, SET ITS PATH points at it). The program takes the game's place: the game hides and waits, and tells it how it was showing - `--fullscreen` or `--window` on its command line (`COMMAND$`). If it ends with `SYSTEM 1` you beat it, and the computer pays out. Put it on a computer with a trigger: `use 31 8 repeat : program invaders` (THE NEON EXPO's terminal plays NEON INVADERS) |
 | `secret X Y` | Open the secret wall (`?`) at X Y - found, counted. `secret` alone lists the sector's secrets and what opens each |
 | `wall X Y CHAR` | Swap a wall (`#` `.` `N` `C` `K` `P` `G`) until the next rebuild |
 | `light N on\|off` | Switch one of the level's lights |

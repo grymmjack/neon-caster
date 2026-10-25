@@ -7,8 +7,10 @@
 ' --- A computer runs a program (the console's program NAME - a level's
 ' "use" trigger on a computer, say: use 20 14 : program invaders). It's
 ' neon-caster/programs/NAME.bas, any QB64PE program at all: built by
-' qb64pe the first time (as a code terminal's is - into saves/programs,
-' kept for next time), then run - the game waits, frozen, while it does.
+' qb64pe the first time, and again whenever it changes (as a code
+' terminal's is - into saves/programs, kept for next time), then run in the
+' game's place (--fullscreen or --window: as the game was showing) - the
+' game hidden, waiting, while it does.
 ' How it ends is the answer (SHELL gives back its SYSTEM code): SYSTEM 1
 ' and you beat it - the computer pays out, from the trigger's cell (or in
 ' front of you); anything else, you didn't. No qb64pe to build it with,
@@ -32,19 +34,147 @@ SUB ProgramRun STATIC
     pgDir$ = _FULLPATH$(pgDir$) : IF RIGHT$(pgDir$, 1) = "/" OR RIGHT$(pgDir$, 1) = "\" THEN pgDir$ = LEFT$(pgDir$, LEN(pgDir$) - 1)
     win = INSTR(_OS$, "[WINDOWS]") > 0 : q$ = CHR$(34)
     pgExe$ = pgDir$ + "/" + pgName$ : IF win THEN pgExe$ = Slashes$(pgExe$ + ".exe")
-    IF NOT _FILEEXISTS(pgExe$) THEN ' (built once: the next time it just runs)
+    ' Built when it's new - or when its .bas has changed since (the sum of
+    ' the source it was built from is kept beside it: NAME.sig)
+    pgSig& = NpSig&(pgSrc$) : pgHad& = 0 : pgSigF$ = pgExe$ + ".sig"
+    IF _FILEEXISTS(pgSigF$) THEN
+        pgFh = FREEFILE : OPEN pgSigF$ FOR INPUT AS #pgFh
+        IF NOT EOF(pgFh) THEN INPUT #pgFh, pgHad&
+        CLOSE #pgFh
+    END IF
+    IF NOT _FILEEXISTS(pgExe$) OR pgHad& <> pgSig& THEN
         qb$ = QB64Path$
-        IF qb$ = "" THEN ShowMsg "This computer's program needs qb64pe to build it (SETTINGS > QB64PE COMPILER)" : EXIT SUB
+        IF qb$ = "" THEN qb$ = NeedQB64$(pgName$) ' (none: a box says where to get it, and finds it once it's there)
+        IF qb$ = "" THEN EXIT SUB
         CLS , _RGB32(4, 2, 14) : MenuText 400, 280, "LOADING " + UCASE$(pgName$) + "...", 3, _RGB32(80, 240, 255), 1 ' (a frame to look at while it builds)
         IF GLShows THEN GLCapture
         GLScreenLayer GLShows : ShowFrame
         pgSrcF$ = _FULLPATH$(pgSrc$) : IF win THEN pgSrcF$ = Slashes$(pgSrcF$)
-        rc = SHELL(q$ + qb$ + q$ + " -w -x " + q$ + pgSrcF$ + q$ + " -o " + q$ + pgExe$ + q$)
+        IF _FILEEXISTS(pgExe$) THEN KILL pgExe$ ' (the old build gone: if the new one fails, it says so - not the old one running)
+        rc = _SHELLHIDE(q$ + qb$ + q$ + " -w -x " + q$ + pgSrcF$ + q$ + " -o " + q$ + pgExe$ + q$) ' (_SHELLHIDE: no console window, and full screen left as it is - SHELL leaves it and can hang coming back)
         IF NOT _FILEEXISTS(pgExe$) THEN ShowMsg "SYSTEM ERROR - " + pgName$ + " wouldn't build (qb64pe)" : ConPrint "program: qb64pe couldn't build " + pgSrc$ : rc = -999 : EXIT SUB
+        pgFh = FREEFILE : OPEN pgSigF$ FOR OUTPUT AS #pgFh : PRINT #pgFh, pgSig& : CLOSE #pgFh
     END IF
     WorldLoopsOff
-    rc = SHELL(q$ + pgExe$ + q$)
+    ' The program takes the game's place: told how the game shows
+    ' (--fullscreen or --window), and the game's window hidden while it
+    ' runs - shown again, it has the keyboard back (a program's window
+    ' closing left a full screen game with no keys). Out of full screen
+    ' first, by the game itself: SHELL would, and then wait with no end to
+    ' be back in (a window manager can keep that from happening - the game
+    ' hung). Back in after, waiting a moment at most.
+    pgFull = fullnow_mode& <> 0
+    IF pgFull THEN pgArg$ = " --fullscreen" ELSE pgArg$ = " --window"
+    IF pgFull THEN _FULLSCREEN _OFF : ProgramWaitFull 0
+    _SCREENHIDE
+    IF fullnow_mode& = 0 THEN
+        rc = SHELL(q$ + pgExe$ + q$ + pgArg$)
+    ELSE ' (still full screen: _SHELLHIDE doesn't touch it - its answer as the system's, the exit code in its second byte but on Windows)
+        rc = _SHELLHIDE(q$ + pgExe$ + q$ + pgArg$) : IF NOT win THEN rc = (rc \ 256) AND 255
+    END IF
+    _SCREENSHOW
+    IF pgFull THEN displayModeNow = -1 : ApplyDisplay : ProgramWaitFull DisplayMode(setting(SET_DISPLAY))
     ProgramPaid
+END SUB
+
+' Till QB64PE has switched to full screen mode m (at its next frame), two
+' seconds at most
+SUB ProgramWaitFull(m)
+    DIM t0 AS DOUBLE ' (its own)
+    t0 = TIMER(.001)
+    DO WHILE fullnow_mode& <> m AND ABS(TIMER(.001) - t0) < 2
+        _LIMIT 100
+    LOOP
+END SUB
+
+' --- No qb64pe: a box over the game says what a computer's program needs -
+' QB64 Phoenix Edition, the free compiler this game is written for - and
+' how to get it: GET QB64PE opens its download page in the browser,
+' FIND IT looks again (once it's installed), SET ITS PATH picks it in a
+' file window (kept, as SETTINGS > QB64PE COMPILER keeps it). Gives back
+' where it is, or "" - NOT NOW, or Esc.
+FUNCTION NeedQB64$(what$)
+    DIM t, mx, my, p1, b1, k&, hit, i, bx, msg$, msgC AS _UNSIGNED LONG, f$, pat$, os$ ' (its own: the main program shares these names)
+    NeedQB64$ = "" : WorldLoopsOff : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+    b1 = _MOUSEBUTTON(1) : msg$ = "" : t = 0
+    IF INSTR(_OS$, "[WINDOWS]") THEN
+        os$ = "Windows: unzip it anywhere - qb64pe.exe is ready to go."
+    ELSEIF INSTR(_OS$, "[MACOSX]") THEN
+        os$ = "macOS: unzip it, then run setup_osx.command in its folder once."
+    ELSE
+        os$ = "Linux: unpack it, then run ./setup_lnx.sh in its folder once."
+    END IF
+    _MOUSESHOW
+    DO
+        _LIMIT 60 : t = t + 1 : p1 = 0
+        WHILE _MOUSEINPUT
+            mx = WideMouseX(_MOUSEX) : my = _MOUSEY
+            IF _MOUSEBUTTON(1) AND NOT b1 THEN p1 = -1
+            b1 = _MOUSEBUTTON(1)
+        WEND
+        hit = 0
+        k& = _KEYHIT
+        IF k& = 27 THEN EXIT DO
+        IF k& = 13 OR k& = 103 OR k& = 71 THEN hit = 1 ' (Enter or G: get it)
+        IF k& = 102 OR k& = 70 THEN hit = 2 ' (F: find it)
+        IF k& = 112 OR k& = 80 THEN hit = 3 ' (P: its path)
+        IF p1 AND my >= 420 AND my < 452 THEN
+            FOR i = 1 TO 4
+                bx = 64 + (i - 1) * 172
+                IF mx >= bx AND mx < bx + 160 THEN hit = i
+            NEXT
+        END IF
+        SELECT CASE hit
+            CASE 1
+                OpenLink "https://github.com/QB64-Phoenix-Edition/QB64pe/releases/latest"
+                msg$ = "Its page is opening in your browser. Install it, then FIND IT." : msgC = _RGB32(90, 230, 255)
+            CASE 2
+                f$ = QB64Path$
+                IF LEN(f$) THEN NeedQB64$ = f$ : EXIT DO
+                msg$ = "Not found yet. Installed it somewhere else? SET ITS PATH." : msgC = _RGB32(255, 200, 60)
+            CASE 3
+                IF INSTR(_OS$, "[WINDOWS]") THEN pat$ = "*.exe" ELSE pat$ = ""
+                f$ = _OPENFILEDIALOG$("Where is qb64pe?", "", pat$, "qb64pe", 0)
+                _KEYCLEAR : WHILE _MOUSEINPUT : WEND : b1 = -1
+                IF LEN(f$) THEN
+                    IF LEN(QB64At$(f$)) THEN qbChosen$ = QB64At$(f$) : SaveSettings : NeedQB64$ = qbChosen$ : EXIT DO
+                    msg$ = "That isn't qb64pe - pick the qb64pe program, or its folder." : msgC = _RGB32(255, 90, 90)
+                END IF
+            CASE 4 : EXIT DO
+        END SELECT
+        DrawNeedQB64 what$, os$, msg$, msgC, mx, my
+        IF GLShows THEN GLCapture
+        GLScreenLayer GLShows : ShowFrame
+    LOOP
+    _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+    escWas = -1 : fireWait = 15 : spaceWas = -1 : mouseSettle = 8
+END FUNCTION
+
+' NeedQB64$'s box: what's wanted, the steps, four buttons (the one under
+' the pointer lit), and the last thing that happened
+SUB DrawNeedQB64(what$, os$, msg$, msgC AS _UNSIGNED LONG, mx, my)
+    DIM i, bx, lit, b$, ink AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    DrawMenuBackdrop 0 : BackdropDim _RGBA32(0, 0, 0, 170), -1
+    LINE (40, 90)-(759, 500), _RGBA32(12, 4, 30, 240), BF : LINE (40, 90)-(759, 500), _RGB32(255, 60, 200), B
+    MenuText 400, 112, "THIS COMPUTER NEEDS QB64PE", 2, _RGB32(255, 90, 220), 1
+    ink = _RGB32(225, 230, 255)
+    MenuText 70, 172, UCASE$(what$) + " is a real QB64 program. The game builds it with qb64pe -", 1, ink, 0
+    MenuText 70, 194, "QB64 Phoenix Edition, the free BASIC compiler this game is made in -", 1, ink, 0
+    MenuText 70, 216, "and qb64pe isn't on this computer (or the game can't find it).", 1, ink, 0
+    MenuText 70, 254, "1. GET QB64PE opens its download page. Install it:", 1, _RGB32(150, 240, 255), 0
+    MenuText 94, 276, os$, 1, ink, 0
+    MenuText 70, 306, "2. FIND IT: the game looks for it - on the PATH and in the usual places.", 1, _RGB32(150, 240, 255), 0
+    MenuText 70, 336, "   Put it somewhere else? SET ITS PATH and point at it.", 1, _RGB32(150, 240, 255), 0
+    MenuText 70, 366, "(It's kept: SETTINGS > QB64PE COMPILER. Code terminals use it too.)", 1, _RGB32(140, 135, 175), 0
+    FOR i = 1 TO 4
+        bx = 64 + (i - 1) * 172 : lit = (mx >= bx AND mx < bx + 160 AND my >= 420 AND my < 452)
+        b$ = MID$("GET QB64PE  FIND IT     SET ITS PATHNOT NOW     ", (i - 1) * 12 + 1, 12)
+        IF lit THEN LINE (bx, 420)-STEP(159, 31), _RGB32(90, 20, 80), BF
+        LINE (bx, 420)-STEP(159, 31), _RGB32(255, 60, 200), B
+        MenuText bx + 80, 428, RTRIM$(b$), 1, _RGB32(255, 255, 255), 1
+    NEXT
+    IF LEN(msg$) THEN MenuText 400, 470, msg$, 1, msgC, 1
+    MenuText 400, 574, "G  GET     F  FIND IT     P  SET ITS PATH     ESC  NOT NOW", 1, _RGB32(140, 135, 175), 1
 END SUB
 
 SUB ProgramPaid STATIC ' (what its answer brings: the same whether it ran just now or a demo says so)

@@ -906,7 +906,7 @@ END SUB
 
 ' ...w across (its middle at w / 2): our screen's, or FULL WIDE's canvas
 SUB DrawBackdropW(t, w)
-    DIM f, i, k, n, y, cx ' (its own: the main program shares these names)
+    DIM f, i, k, n, y, cx, kMax ' (its own: the main program shares these names)
     CONST HORIZON = 330
     cx = w \ 2
     FOR y = 0 TO HORIZON STEP 2
@@ -927,7 +927,8 @@ SUB DrawBackdropW(t, w)
         END IF
     NEXT
     LINE (0, HORIZON)-(w - 1, 599), _RGB32(8, 0, 18), BF
-    FOR k = -24 - (w - 800) \ 200 TO 24 + (w - 800) \ 200 ' The grid's lines running away from you...
+    kMax = w \ 28 + 3 ' (14 pixels apart at the horizon: as many as reach both edges there, and a few past - FULL WIDE's sides had none)
+    FOR k = -kMax TO kMax ' The grid's lines running away from you...
         LINE (cx + k * 14, HORIZON)-(cx + k * 110, 600), _RGBA32(255, 50, 210, 150)
     NEXT
     scroll = t * 0.04 - INT(t * 0.04) ' ...and across, moving towards you
