@@ -111,12 +111,15 @@ SUB ArtReload STATIC
     artNow = artWant
     IF artNow = 2 THEN texSize = 512 : sprTex = 256 ELSE texSize = 128 : sprTex = 64
     REDIM texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
-    REDIM texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
+    REDIM texBak(0, 0, 0) AS _UNSIGNED LONG ' (made only in the network: CyberTextures)
     REDIM glUpload(texSize * texSize - 1) AS _UNSIGNED LONG
     REDIM spriteTex(sprTex - 1, sprTex - 1, SPR_SLOTS) AS _UNSIGNED LONG
     LoadPictures
     FOR k = 1 TO T_SLOTS ' The level's own walls, floors and ceilings, again
-        IF texFile$(k) <> "" AND LEFT$(texFile$(k), 5) <> "glow:" THEN LoadTex texFile$(k), k
+        IF texFile$(k) <> "" AND LEFT$(texFile$(k), 5) <> "glow:" AND LEFT$(texFile$(k), 3) <> "pc:" THEN LoadTex texFile$(k), k
+    NEXT
+    FOR k = 1 TO T_SLOTS ' (the turned, tinted and filtered copies, made again from them - not loaded: there's no such file)
+        IF LEFT$(texFile$(k), 3) = "pc:" THEN MakePieceTex k
     NEXT
     FOR k = 1 TO T_SLOTS ' (and the tinted copies of them, made again from them)
         IF LEFT$(texFile$(k), 5) = "glow:" THEN MakeGlowTex k
@@ -288,23 +291,30 @@ SUB MakeGlowTex(slot)
 END SUB
 
 ' A face piece's picture turned and tinted (LEVEL/PIECES.BM), into slot:
-' texFile$(slot) says how - "pc:base:turn:tint:amount:colour:..." - base
-' the slot it's made from, turn 0-3 quarter turns clockwise (+4: flipped
-' left for right first), tint 1 TINT
-' (multiplied by the colour), 2 WASH (mixed with it), 3 GLOW (added), by
-' amount percent. It keeps the base's name: OpenGL's floors still shine.
+' texFile$(slot) says how - "pc:base:turn:tint:amount:colour:filters:..." -
+' base the slot it's made from, filtered first (PcFxApply, LEVEL/PIECES.BM),
+' then turned 0-3 quarter turns clockwise (+4: flipped left for right
+' first), then tinted 1 TINT (multiplied by the colour), 2 WASH (mixed with
+' it), 3 GLOW (added), by amount percent. It keeps the base's name:
+' OpenGL's floors still shine.
 SUB MakePieceTex(slot)
     DIM a, b, baseSl, c, g, n, r, rot, sx, sy, tm, tr, tg, tb, x, y ' (its own: the main program shares these names)
-    DIM k$
+    DIM k$, fx$
     k$ = texFile$(slot) + ":" : k$ = MID$(k$, 4)
     c = INSTR(k$, ":") : baseSl = VAL(LEFT$(k$, c - 1)) : k$ = MID$(k$, c + 1)
     c = INSTR(k$, ":") : rot = VAL(LEFT$(k$, c - 1)) AND 7 : k$ = MID$(k$, c + 1) ' (4 and up: flipped left for right, then turned)
     c = INSTR(k$, ":") : tm = VAL(LEFT$(k$, c - 1)) : k$ = MID$(k$, c + 1)
     c = INSTR(k$, ":") : a = VAL(LEFT$(k$, c - 1)) / 100 : k$ = MID$(k$, c + 1)
-    c = INSTR(k$, ":") : col~& = PcHex~&(RIGHT$("00000" + LEFT$(k$, c - 1), 6))
+    c = INSTR(k$, ":") : col~& = PcHex~&(RIGHT$("00000" + LEFT$(k$, c - 1), 6)) : k$ = MID$(k$, c + 1)
+    c = INSTR(k$, ":") : IF c THEN fx$ = LEFT$(k$, c - 1)
     tr = (col~& \ 65536) AND 255 : tg = (col~& \ 256) AND 255 : tb = col~& AND 255
     IF baseSl < 1 OR baseSl > T_SLOTS THEN baseSl = 1
     n = texSize - 1
+    IF LEN(fx$) THEN ' (filtered first: the picture whole, into pcFxBuf)
+        REDIM pcFxBuf(texSize * texSize - 1) AS _UNSIGNED LONG
+        FOR y = 0 TO n : FOR x = 0 TO n : pcFxBuf(y * texSize + x) = texture(x, y, baseSl) : NEXT : NEXT
+        PcFxApply pcFxBuf(), texSize, fx$
+    END IF
     FOR y = 0 TO n : FOR x = 0 TO n
         SELECT CASE rot AND 3 ' (where this pixel was before the turn...)
             CASE 1 : sx = y : sy = n - x
@@ -313,7 +323,7 @@ SUB MakePieceTex(slot)
             CASE ELSE : sx = x : sy = y
         END SELECT
         IF rot AND 4 THEN sx = n - sx ' (...and before the flip)
-        col~& = texture(sx, sy, baseSl)
+        IF LEN(fx$) THEN col~& = pcFxBuf(sy * texSize + sx) ELSE col~& = texture(sx, sy, baseSl)
         r = (col~& \ 65536) AND 255 : g = (col~& \ 256) AND 255 : b = col~& AND 255
         SELECT CASE tm
             CASE 1 : r = r + (r * tr / 255 - r) * a : g = g + (g * tg / 255 - g) * a : b = b + (b * tb / 255 - b) * a

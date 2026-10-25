@@ -110,13 +110,13 @@ CONST T_CODE = 23 ' (a code terminal's wall, $)
 CONST T_LIFT = 24, T_LIFTSIDE = 25 ' (a lift's top and sides: made from the level's own - MakeLiftTex)
 CONST T_TRAP = 26, T_FIRE = 27 ' (a trap's floor: a live wire grid, a burner grate - MakeTrapTex)
 CONST T_LIQUID = 27 ' (the liquids' surfaces, T_LIQUID + 1 to + LQ_KINDS: water, poison, slime, lava, acid - MakeLiquidTex)
-CONST T_CUSTOM = 32, T_CUSTOMN = 56 ' (after those: slots for pictures put on single faces in the editor - [faces])
+CONST T_CUSTOM = 32, T_CUSTOMN = 200 ' (after those: slots for pictures put on single faces in the editor - [faces] - and their turned, tinted, filtered copies. Only the ones a sector uses are sent to OpenGL)
 CONST T_JACKOK = T_CUSTOM + T_CUSTOMN + 1, T_CODEOK = T_CUSTOM + T_CUSTOMN + 2 ' (a hacked station's wall - CLEARED - and a solved terminal's - UNLOCKED, its lights gone green: MakeDoneTex)
 CONST T_TCTRL = T_CUSTOM + T_CUSTOMN + 3, T_TCTRLOK = T_CUSTOM + T_CUSTOMN + 4 ' (a turret control panel's wall, ; - and one that's switched its turrets off: OFFLINE)
 CONST T_STRONG = T_CUSTOM + T_CUSTOMN + 5, T_STRONGHURT = T_CUSTOM + T_CUSTOMN + 6, T_KEYPAD = T_CUSTOM + T_CUSTOMN + 7 ' (a stronghold door, and kicked half in; a keypad door - DoorSlot)
 CONST T_SLOTS = T_CUSTOM + T_CUSTOMN + 7
 REDIM SHARED texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
-REDIM SHARED texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network)
+REDIM SHARED texBak(0, 0, 0) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network - made only then: CyberTextures)
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
 DIM SHARED wallTexSlot(10) AS INTEGER, wallMapColor(10) AS _UNSIGNED LONG
 wallTexSlot(1) = 1 : wallTexSlot(3) = 2 : wallTexSlot(4) = 3 : wallTexSlot(5) = 4 : wallTexSlot(6) = 5 : wallTexSlot(7) = 6 : wallTexSlot(8) = T_JACK : wallTexSlot(9) = T_CODE : wallTexSlot(10) = T_TCTRL ' (8: a data station; 9: a code terminal; 10: a turret control panel)

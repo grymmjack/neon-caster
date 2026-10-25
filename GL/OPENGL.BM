@@ -1201,6 +1201,7 @@ SUB GLSendTextures
     ' light parts stand out, dark parts (mortar, cracks, grooves) sink in.
     ' That's the "bump map", made from the picture itself.
     FOR slot = 1 TO T_SLOTS
+        IF slot > T_CUSTOM AND slot <= T_CUSTOM + T_CUSTOMN AND texFile$(slot) = "" THEN _CONTINUE ' (a face slot the sector doesn't use: not sent)
         FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
             col~& = texture(x, y, slot)
             height = (((col~& \ 65536) AND 255) * 0.3 + ((col~& \ 256) AND 255) * 0.59 + (col~& AND 255) * 0.11)

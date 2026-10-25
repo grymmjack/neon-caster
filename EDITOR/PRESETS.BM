@@ -155,9 +155,10 @@ FUNCTION PrThumb&(k)
         f$ = ptPic$(j) : IF f$ = "" THEN f$ = prPic$(k)
         src&(j) = 0 : mine(j) = 0
         FOR jj = 1 TO j - 1
-            IF LCASE$(ptPic$(jj)) = LCASE$(f$) OR (ptPic$(jj) = "" AND LCASE$(prPic$(k)) = LCASE$(f$)) THEN src&(j) = src&(jj)
+            IF (LCASE$(ptPic$(jj)) = LCASE$(f$) OR (ptPic$(jj) = "" AND LCASE$(prPic$(k)) = LCASE$(f$))) AND ptFx$(jj) = ptFx$(j) THEN src&(j) = src&(jj)
         NEXT
         IF src&(j) = 0 THEN src&(j) = _LOADIMAGE(ArtPath$(f$), 32) : mine(j) = -1 : IF src&(j) >= -1 THEN src&(j) = 0 : mine(j) = 0
+        IF src&(j) < -1 AND mine(j) AND LEN(ptFx$(j)) THEN PrFiltered src&(j), ptFx$(j) ' (its filters: on its own copy)
     NEXT
     n = PR_THUMB - 4
     img& = _NEWIMAGE(n, n, 32) : d& = _DEST : s& = _SOURCE
@@ -200,3 +201,20 @@ FUNCTION PrThumb&(k)
     ptN = keepN : ptShape$ = keepS$
     PrThumb& = img&
 END FUNCTION
+
+' Picture img& (32-bit) with filters fx$ on it, in place - square (its
+' width: a picture that isn't is cut to it), as MakePieceTex does a face's
+SUB PrFiltered(img&, fx$)
+    DIM m AS _MEM, n AS LONG, w AS LONG, x AS LONG, y AS LONG
+    w = _WIDTH(img&) : n = MinOf(w, _HEIGHT(img&)) : IF n < 2 THEN EXIT SUB
+    REDIM pcFxBuf(n * n - 1) AS _UNSIGNED LONG
+    m = _MEMIMAGE(img&)
+    FOR y = 0 TO n - 1 : FOR x = 0 TO n - 1
+        pcFxBuf(y * n + x) = _MEMGET(m, m.OFFSET + (y * w + x) * 4, _UNSIGNED LONG) OR &HFF000000~&
+    NEXT : NEXT
+    PcFxApply pcFxBuf(), n, fx$
+    FOR y = 0 TO n - 1 : FOR x = 0 TO n - 1
+        _MEMPUT m, m.OFFSET + (y * w + x) * 4, pcFxBuf(y * n + x) AS _UNSIGNED LONG
+    NEXT : NEXT
+    _MEMFREE m
+END SUB

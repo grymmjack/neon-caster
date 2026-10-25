@@ -98,13 +98,14 @@ DIM SHARED edLootSet AS INTEGER, edRoomW AS INTEGER, edRoomH AS INTEGER, edMapWa
 DIM SHARED edPnN AS INTEGER, edPnId(PN_MAX) AS INTEGER, edPnX(PN_MAX) AS INTEGER, edPnY(PN_MAX) AS INTEGER, edPnW(PN_MAX) AS INTEGER, edPnLab$(PN_MAX), edPnLit(PN_MAX) AS INTEGER
 DIM SHARED edPnTitle$, edPnBot AS INTEGER, edPnCX AS INTEGER, edPnCY AS INTEGER, edPnLift AS INTEGER, edPnLight AS INTEGER, edPnEvent AS INTEGER, edPnCol(PN_MAX) AS _UNSIGNED LONG
 DIM SHARED edSectorPane AS INTEGER, edTyping AS INTEGER, edTypeBuf$, edSlotPick AS INTEGER, edTypeFresh AS INTEGER
-DIM SHARED edTypeX AS INTEGER, edTypeY AS INTEGER ' (typing a door's code (edTypeFor 3), a thing's own (4), a note's words (5) or picture (6): for cell edTypeX, edTypeY - or a picture's tint colour (7), for the selection)
+DIM SHARED edTypeX AS INTEGER, edTypeY AS INTEGER ' (typing a door's code (edTypeFor 3), a thing's own (4), a note's words (5) or picture (6): for cell edTypeX, edTypeY - or a picture's tint colour (7), a thing's look's (8), a picture's new name (9), a light's colour (10), a cell light's (11) - for the selection)
 ' The TRIGGER pane: open on the selection; the trigger being made - when
 ' (1 enter, 2 use, 3 clear, 4 time), again each time?, after how long (time),
 ' its commands; what's being typed (edTypeFor: 1 the sector's name, 2 the
 ' commands); the triggers listed (edTrigIdx: their numbers in lvlTrig$)
 DIM SHARED edEvPane AS INTEGER ' (the event room's pane is open - EVENT ROOM... on a floor's)
 DIM SHARED edCellLtPane AS INTEGER ' (the selection's CELL LIGHT pane is open)
+DIM SHARED edFxPane AS INTEGER ' (the PICTURE pane's FILTERS are open - EditPaneFilters)
 DIM SHARED edTrigPane AS INTEGER, edTrigWhen AS INTEGER, edTrigRepeat AS INTEGER, edTrigTime AS INTEGER, edTrigCmd$, edTypeFor AS INTEGER, edTrigIdx(8) AS INTEGER
 edTrigWhen = 1 : edTrigTime = 10 ' (the SECTOR pane; typing its name; which of its pictures the picker's choosing - 1-6 a wall kind, 7-10 a floor, 11-12 a ceiling)
 ' FULL WIDE (the 3D view, OpenGL, the window wider than 4:3): the editor is

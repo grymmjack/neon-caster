@@ -61,25 +61,26 @@ END FUNCTION
 ' Piece a's look onto piece b (the tree being worked on)
 SUB PcCopyLeaf(a, b)
     ptPic$(b) = ptPic$(a) : ptRot(b) = ptRot(a) : ptO(b) = ptO(a) : ptK(b) = ptK(a)
-    ptTM(b) = ptTM(a) : ptTA(b) = ptTA(a) : ptTC(b) = ptTC(a) : ptA(b) = ptA(a)
+    ptTM(b) = ptTM(a) : ptTA(b) = ptTA(a) : ptTC(b) = ptTC(a) : ptA(b) = ptA(a) : ptFx$(b) = ptFx$(a)
 END SUB
 SUB PcClearLeaf(j)
-    ptPic$(j) = "" : ptRot(j) = 0 : ptO(j) = 0 : ptK(j) = 0 : ptTM(j) = 0 : ptTA(j) = 50 : ptTC(j) = &HFFFFFF : ptA(j) = 0
+    ptPic$(j) = "" : ptRot(j) = 0 : ptO(j) = 0 : ptK(j) = 0 : ptTM(j) = 0 : ptTA(j) = 50 : ptTC(j) = &HFFFFFF : ptA(j) = 0 : ptFx$(j) = ""
 END SUB
 
 ' Piece j as text: picture*turn*slide*stretch*tint*amount*colour*start -
 ' left off from the end as far as it's as made
 FUNCTION PcLeafText$(j)
     DIM i, last, t$ ' (its own: the main program shares these names)
-    DIM f$(8)
+    DIM f$(9)
     f$(1) = ptPic$(j) : f$(2) = LTRIM$(STR$(ptRot(j))) : f$(3) = LTRIM$(STR$(ptO(j))) : f$(4) = LTRIM$(STR$(ptK(j)))
-    f$(5) = LTRIM$(STR$(ptTM(j))) : f$(6) = LTRIM$(STR$(ptTA(j))) : f$(7) = RIGHT$("00000" + HEX$(ptTC(j) AND &HFFFFFF), 6) : f$(8) = LTRIM$(STR$(ptA(j)))
+    f$(5) = LTRIM$(STR$(ptTM(j))) : f$(6) = LTRIM$(STR$(ptTA(j))) : f$(7) = RIGHT$("00000" + HEX$(ptTC(j) AND &HFFFFFF), 6) : f$(8) = LTRIM$(STR$(ptA(j))) : f$(9) = ptFx$(j)
     last = 1
     IF ptRot(j) THEN last = 2
     IF ptO(j) THEN last = 3
     IF ptK(j) THEN last = 4
     IF ptTM(j) THEN last = 7
     IF ptA(j) THEN last = 8
+    IF LEN(ptFx$(j)) THEN last = 9
     t$ = f$(1)
     FOR i = 2 TO last : t$ = t$ + "*" + f$(i) : NEXT
     PcLeafText$ = t$
@@ -102,6 +103,7 @@ SUB PcLeafRead(s$, j)
             CASE 6 : ptTA(j) = MaxOf(0, MinOf(100, VAL(f$)))
             CASE 7 : IF LEN(f$) THEN ptTC(j) = PcHex~&(f$)
             CASE 8 : ptA(j) = MaxOf(0, MinOf(2, VAL(f$)))
+            CASE 9 : ptFx$(j) = PcFxClean$(f$)
         END SELECT
     LOOP
 END SUB
@@ -152,7 +154,7 @@ SUB PcTreeForm(d, p1$, p2$, o, k&)
     DIM j, simple, t$ ' (its own: the main program shares these names)
     simple = (ptShape$ = "." OR ptShape$ = "H.." OR ptShape$ = "V..")
     FOR j = 1 TO ptN
-        IF ptRot(j) OR ptTM(j) OR ptA(j) THEN simple = 0
+        IF ptRot(j) OR ptTM(j) OR ptA(j) OR LEN(ptFx$(j)) THEN simple = 0
         IF ptO(j) <> ptO(1) OR ptK(j) <> ptK(1) THEN simple = 0
     NEXT
     IF simple THEN
@@ -391,9 +393,9 @@ SUB PcBuild(x, y, f, k, customN, facesFull, texNew)
     FOR j = 1 TO n
         sl = 0
         IF ptPic$(j) <> "" THEN sl = PcSlotFor(ptPic$(j), 0, customN, facesFull, texNew)
-        IF ptRot(j) OR ptTM(j) THEN ' (turned or tinted: a copy of its own)
+        IF ptRot(j) OR ptTM(j) OR LEN(ptFx$(j)) THEN ' (turned, tinted or filtered: a copy of its own)
             IF sl = 0 THEN sl = dflt
-            sl = PcSlotFor("pc:" + LTRIM$(STR$(sl)) + ":" + LTRIM$(STR$(ptRot(j))) + ":" + LTRIM$(STR$(ptTM(j))) + ":" + LTRIM$(STR$(ptTA(j))) + ":" + HEX$(ptTC(j)) + ":" + texFile$(sl), 1, customN, facesFull, texNew)
+            sl = PcSlotFor("pc:" + LTRIM$(STR$(sl)) + ":" + LTRIM$(STR$(ptRot(j))) + ":" + LTRIM$(STR$(ptTM(j))) + ":" + LTRIM$(STR$(ptTA(j))) + ":" + HEX$(ptTC(j)) + ":" + ptFx$(j) + ":" + texFile$(sl), 1, customN, facesFull, texNew)
         END IF
         pcSl(p, j) = sl
         pcOU(p, j) = ptO(j) AND 63 : pcOV(p, j) = (ptO(j) \ 64) AND 63
@@ -415,4 +417,198 @@ SUB PcBuild(x, y, f, k, customN, facesFull, texNew)
             faceTex(x, y, f) = p : faceTex2(x, y, f) = 0 : faceDiv(x, y, f) = 3 : faceAny = -1
             faceOU(x, y, f) = 0 : faceOV(x, y, f) = 0 : faceKU(x, y, f) = 0 : faceKV(x, y, f) = 0
     END SELECT
+END SUB
+
+' --- FILTERS: a piece's picture changed as a whole, before it's turned and
+' tinted (MakePieceTex; the presets' thumbnails too). fx$ is letters each
+' with its number (LEVEL/PIECES.BI); PC_FX$ is their order.
+
+' Filter l$'s number in fx$ (0: not there)
+FUNCTION PcFxGet(fx$, l$)
+    DIM c, e ' (its own: the main program shares these names)
+    PcFxGet = 0
+    c = INSTR(UCASE$(fx$), UCASE$(l$)) : IF c = 0 THEN EXIT FUNCTION
+    e = c + 1
+    DO WHILE e <= LEN(fx$)
+        IF INSTR("-0123456789", MID$(fx$, e, 1)) = 0 THEN EXIT DO
+        e = e + 1
+    LOOP
+    IF e = c + 1 THEN PcFxGet = 1 ELSE PcFxGet = VAL(MID$(fx$, c + 1, e - c - 1)) ' (a letter alone: 1)
+END FUNCTION
+
+' Filter l$'s number kept within its range
+FUNCTION PcFxClamp(l$, v)
+    DIM w ' (its own: the main program shares these names)
+    w = INT(v)
+    SELECT CASE UCASE$(l$)
+        CASE "X" : IF w <> 0 THEN w = MaxOf(2, MinOf(64, w))
+        CASE "L", "R", "E" : w = MaxOf(0, MinOf(4, w))
+        CASE "B", "C", "S" : w = MaxOf(-100, MinOf(100, w))
+        CASE "H" : w = ((w MOD 360) + 540) MOD 360 - 180 : IF w = -180 THEN w = 180
+        CASE "P" : IF w <> 0 THEN w = MaxOf(2, MinOf(32, w))
+        CASE "I" : w = -(w <> 0)
+    END SELECT
+    PcFxClamp = w
+END FUNCTION
+
+' fx$ with filter l$ set to v (0 takes it off) - always in PC_FX$'s order,
+' so the same filters are the same text (one picture slot between them)
+FUNCTION PcFxSet$(fx$, l$, v)
+    DIM i, n, t$, c$ ' (its own: the main program shares these names)
+    FOR i = 1 TO LEN(PC_FX$)
+        c$ = MID$(PC_FX$, i, 1)
+        IF c$ = UCASE$(l$) THEN n = v ELSE n = PcFxGet(fx$, c$)
+        n = PcFxClamp(c$, n)
+        IF n <> 0 THEN
+            IF c$ = "I" THEN t$ = t$ + "I" ELSE t$ = t$ + c$ + LTRIM$(STR$(n))
+        END IF
+    NEXT
+    PcFxSet$ = t$
+END FUNCTION
+
+' fx$ as read from a file: in order, in range, nothing else
+FUNCTION PcFxClean$(fx$)
+    PcFxClean$ = PcFxSet$(fx$, "?", 0)
+END FUNCTION
+
+' The filters in words: "BLUR 2, BRIGHT +20, INVERTED"
+FUNCTION PcFxName$(fx$)
+    DIM i, n, t$, c$, w$ ' (its own: the main program shares these names)
+    FOR i = 1 TO LEN(PC_FX$)
+        c$ = MID$(PC_FX$, i, 1) : n = PcFxGet(fx$, c$)
+        IF n THEN
+            w$ = PcFxWord$(c$)
+            SELECT CASE c$
+                CASE "I" : w$ = "INVERTED"
+                CASE "B", "C", "S", "H" : IF n > 0 THEN w$ = w$ + " +" + LTRIM$(STR$(n)) ELSE w$ = w$ + STR$(n)
+                CASE ELSE : w$ = w$ + STR$(n)
+            END SELECT
+            IF LEN(t$) THEN t$ = t$ + ", "
+            t$ = t$ + w$
+        END IF
+    NEXT
+    PcFxName$ = t$
+END FUNCTION
+
+' A filter's name
+FUNCTION PcFxWord$(l$)
+    DIM i ' (its own: the main program shares these names)
+    i = INSTR(PC_FX$, UCASE$(l$)) : IF i = 0 THEN EXIT FUNCTION
+    PcFxWord$ = RTRIM$(MID$("PIXELATE  BLUR      SHARPEN   EMBOSS    BRIGHT    CONTRAST  SATURATE  HUE       POSTERIZE INVERT    ", i * 10 - 9, 10))
+END FUNCTION
+
+' The filters fx$ on picture b() - n x n, row by row (y * n + x), opaque
+' colours - in place. Sizes are as parts of the picture, so CLASSIC's 128
+' and MODERN's 512 look alike: a blur of 1 is a 128th across.
+SUB PcFxApply(b() AS _UNSIGNED LONG, n AS LONG, fx$)
+    DIM i AS LONG, x AS LONG, y AS LONG, xx AS LONG, yy AS LONG, k AS LONG, s AS LONG, d AS LONG, m AS LONG, bs AS LONG, cnt AS LONG
+    DIM v, c$, f!, l!, r!, g!, bl!, a!, ca!, sa!, lv
+    DIM tr!, tg!, tb!
+    IF LEN(fx$) = 0 OR n < 2 THEN EXIT SUB
+    m = n * n
+    DIM cr!(m - 1), cg!(m - 1), cb!(m - 1), wr!(m - 1), wg!(m - 1), wb!(m - 1)
+    FOR i = 0 TO m - 1
+        cr!(i) = (b(i) \ 65536) AND 255 : cg!(i) = (b(i) \ 256) AND 255 : cb!(i) = b(i) AND 255
+    NEXT
+    s = n \ 128 : IF s < 1 THEN s = 1 ' (a 128th of the picture: a step)
+    FOR k = 1 TO LEN(PC_FX$)
+        c$ = MID$(PC_FX$, k, 1) : v = PcFxGet(fx$, c$) : IF v = 0 THEN _CONTINUE
+        SELECT CASE c$
+            CASE "X" ' Pixelate: v blocks across, each its average
+                bs = n \ v : IF bs < 1 THEN bs = 1
+                FOR y = 0 TO n - 1 STEP bs : FOR x = 0 TO n - 1 STEP bs
+                    r! = 0 : g! = 0 : bl! = 0 : cnt = 0
+                    FOR yy = y TO MinOf(n - 1, y + bs - 1) : FOR xx = x TO MinOf(n - 1, x + bs - 1)
+                        i = yy * n + xx : r! = r! + cr!(i) : g! = g! + cg!(i) : bl! = bl! + cb!(i) : cnt = cnt + 1
+                    NEXT : NEXT
+                    r! = r! / cnt : g! = g! / cnt : bl! = bl! / cnt
+                    FOR yy = y TO MinOf(n - 1, y + bs - 1) : FOR xx = x TO MinOf(n - 1, x + bs - 1)
+                        i = yy * n + xx : cr!(i) = r! : cg!(i) = g! : cb!(i) = bl!
+                    NEXT : NEXT
+                NEXT : NEXT
+            CASE "L", "R" ' Blur (a box, across then down - round the edges, as it tiles); sharpen: away from the blur
+                d = v * s : IF c$ = "R" THEN d = s
+                PcFxBox cr!(), cg!(), cb!(), wr!(), wg!(), wb!(), n, d
+                IF c$ = "L" THEN
+                    FOR i = 0 TO m - 1 : cr!(i) = wr!(i) : cg!(i) = wg!(i) : cb!(i) = wb!(i) : NEXT
+                ELSE
+                    a! = v * 0.6
+                    FOR i = 0 TO m - 1
+                        cr!(i) = cr!(i) + (cr!(i) - wr!(i)) * a! : cg!(i) = cg!(i) + (cg!(i) - wg!(i)) * a! : cb!(i) = cb!(i) + (cb!(i) - wb!(i)) * a!
+                    NEXT
+                END IF
+            CASE "E" ' Emboss: lit from the top left - each pixel by how much brighter it is up-left than down-right
+                d = s
+                FOR i = 0 TO m - 1 : wr!(i) = cr!(i) * 0.3 + cg!(i) * 0.59 + cb!(i) * 0.11 : NEXT
+                a! = v * 0.9
+                FOR y = 0 TO n - 1 : FOR x = 0 TO n - 1
+                    l! = (wr!(((y - d + n) MOD n) * n + (x - d + n) MOD n) - wr!(((y + d) MOD n) * n + (x + d) MOD n)) * a!
+                    i = y * n + x : cr!(i) = cr!(i) + l! : cg!(i) = cg!(i) + l! : cb!(i) = cb!(i) + l!
+                NEXT : NEXT
+            CASE "B" ' Brightness: v% of white added (or taken away)
+                f! = v * 2.55
+                FOR i = 0 TO m - 1 : cr!(i) = cr!(i) + f! : cg!(i) = cg!(i) + f! : cb!(i) = cb!(i) + f! : NEXT
+            CASE "C" ' Contrast: away from the middle grey (to 3 times), or towards it
+                IF v > 0 THEN f! = 1 + v / 50 ELSE f! = 1 + v / 100
+                FOR i = 0 TO m - 1 : cr!(i) = (cr!(i) - 128) * f! + 128 : cg!(i) = (cg!(i) - 128) * f! + 128 : cb!(i) = (cb!(i) - 128) * f! + 128 : NEXT
+            CASE "S" ' Saturation: from its grey (-100 grey, 100 twice the colour)
+                f! = 1 + v / 100
+                FOR i = 0 TO m - 1
+                    l! = cr!(i) * 0.3 + cg!(i) * 0.59 + cb!(i) * 0.11
+                    cr!(i) = l! + (cr!(i) - l!) * f! : cg!(i) = l! + (cg!(i) - l!) * f! : cb!(i) = l! + (cb!(i) - l!) * f!
+                NEXT
+            CASE "H" ' Hue: the colours turned v degrees round the colour wheel (its brightness kept)
+                ca! = COS(v * 3.14159265 / 180) : sa! = SIN(v * 3.14159265 / 180)
+                FOR i = 0 TO m - 1
+                    r! = cr!(i) : g! = cg!(i) : bl! = cb!(i)
+                    tr! = r! * (0.213 + ca! * 0.787 - sa! * 0.213) + g! * (0.715 - ca! * 0.715 - sa! * 0.715) + bl! * (0.072 - ca! * 0.072 + sa! * 0.928)
+                    tg! = r! * (0.213 - ca! * 0.213 + sa! * 0.143) + g! * (0.715 + ca! * 0.285 + sa! * 0.14) + bl! * (0.072 - ca! * 0.072 - sa! * 0.283)
+                    tb! = r! * (0.213 - ca! * 0.213 - sa! * 0.787) + g! * (0.715 - ca! * 0.715 + sa! * 0.715) + bl! * (0.072 + ca! * 0.928 + sa! * 0.072)
+                    cr!(i) = tr! : cg!(i) = tg! : cb!(i) = tb!
+                NEXT
+            CASE "P" ' Posterize: v levels of each colour
+                lv = v - 1
+                FOR i = 0 TO m - 1
+                    cr!(i) = INT(PcFx255!(cr!(i)) / 255 * lv + 0.5) * 255 / lv
+                    cg!(i) = INT(PcFx255!(cg!(i)) / 255 * lv + 0.5) * 255 / lv
+                    cb!(i) = INT(PcFx255!(cb!(i)) / 255 * lv + 0.5) * 255 / lv
+                NEXT
+            CASE "I" ' Invert
+                FOR i = 0 TO m - 1 : cr!(i) = 255 - PcFx255!(cr!(i)) : cg!(i) = 255 - PcFx255!(cg!(i)) : cb!(i) = 255 - PcFx255!(cb!(i)) : NEXT
+        END SELECT
+    NEXT
+    FOR i = 0 TO m - 1
+        b(i) = &HFF000000~& OR (INT(PcFx255!(cr!(i))) * 65536) OR (INT(PcFx255!(cg!(i))) * 256) OR INT(PcFx255!(cb!(i)))
+    NEXT
+END SUB
+
+' A colour's part kept 0 to 255
+FUNCTION PcFx255!(v!)
+    IF v! < 0 THEN PcFx255! = 0 ELSE IF v! > 255 THEN PcFx255! = 255 ELSE PcFx255! = v!
+END FUNCTION
+
+' A box blur, d each way, of picture (r, g, b) into (wr, wg, wb): across,
+' then down - wrapping round the edges (pictures tile)
+SUB PcFxBox(r!(), g!(), b!(), wr!(), wg!(), wb!(), n AS LONG, d AS LONG)
+    DIM x AS LONG, y AS LONG, i AS LONG, j AS LONG, w AS LONG, sr!, sg!, sb!
+    DIM tr!(n * n - 1), tg!(n * n - 1), tb!(n * n - 1)
+    w = 2 * d + 1
+    FOR y = 0 TO n - 1 ' (across: a running sum)
+        sr! = 0 : sg! = 0 : sb! = 0
+        FOR j = -d TO d : i = y * n + ((j + n * 4) MOD n) : sr! = sr! + r!(i) : sg! = sg! + g!(i) : sb! = sb! + b!(i) : NEXT
+        FOR x = 0 TO n - 1
+            i = y * n + x : tr!(i) = sr! / w : tg!(i) = sg! / w : tb!(i) = sb! / w
+            j = y * n + ((x + d + 1) MOD n) : sr! = sr! + r!(j) : sg! = sg! + g!(j) : sb! = sb! + b!(j)
+            j = y * n + ((x - d + n * 4) MOD n) : sr! = sr! - r!(j) : sg! = sg! - g!(j) : sb! = sb! - b!(j)
+        NEXT
+    NEXT
+    FOR x = 0 TO n - 1 ' (then down)
+        sr! = 0 : sg! = 0 : sb! = 0
+        FOR j = -d TO d : i = ((j + n * 4) MOD n) * n + x : sr! = sr! + tr!(i) : sg! = sg! + tg!(i) : sb! = sb! + tb!(i) : NEXT
+        FOR y = 0 TO n - 1
+            i = y * n + x : wr!(i) = sr! / w : wg!(i) = sg! / w : wb!(i) = sb! / w
+            j = ((y + d + 1) MOD n) * n + x : sr! = sr! + tr!(j) : sg! = sg! + tg!(j) : sb! = sb! + tb!(j)
+            j = ((y - d + n * 4) MOD n) * n + x : sr! = sr! - tr!(j) : sg! = sg! - tg!(j) : sb! = sb! - tb!(j)
+        NEXT
+    NEXT
 END SUB

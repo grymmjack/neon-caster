@@ -145,6 +145,7 @@ END FUNCTION
 ' world, which hasn't moved
 SUB CyberTextures(goIn)
     DIM slot, x, y ' (its own: the main program shares these names)
+    IF goIn THEN REDIM texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures' keeping place: only while you're in)
     FOR slot = 1 TO T_SLOTS
         IF goIn THEN
             FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texBak(x, y, slot) = texture(x, y, slot) : NEXT : NEXT
@@ -162,6 +163,7 @@ SUB CyberTextures(goIn)
             FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texture(x, y, slot) = texBak(x, y, slot) : NEXT : NEXT
         END IF
     NEXT
+    IF NOT goIn THEN REDIM texBak(0, 0, 0) AS _UNSIGNED LONG ' (put back: let the memory go)
     glRetexVersion = glRetexVersion + 1
 END SUB
 

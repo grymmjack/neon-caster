@@ -249,6 +249,7 @@ SUB BuildLevel STATIC
         END IF
     NEXT
     IF facesFull AND editMode THEN EditNote "More than" + STR$(T_CUSTOMN) + " pictures on faces (lights' tints too) - the rest show as usual"
+    FOR j = T_CUSTOM + customN + 1 TO T_CUSTOM + T_CUSTOMN : texFile$(j) = "" : NEXT ' (the face slots this sector doesn't use: empty - OpenGL skips them)
     ' The level's lights: x, y, radius, brightness, red, green, blue, effect
     numLights = 0
     FOR l = 1 TO MAX_LIGHTS : lightBroken(l) = 0 : NEXT
