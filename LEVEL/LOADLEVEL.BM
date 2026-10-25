@@ -37,7 +37,13 @@ SUB BuildLevel STATIC
     IF NOT editRebuild THEN glReady = 0 ' (OpenGL: nothing to draw until the level's first frame - chapter 24)
     FOR i = 1 TO MAX_PART : partLife(i) = 0 : NEXT : ampTimer = 0 : invTimer = 0 : drainN = 0
     IF NOT editRebuild THEN pitch = 0 ' (the editor's rebuilds keep where you're looking: up or down at a track, a ceiling)
-    FOR y = 0 TO MAP_SIZE : FOR x = 0 TO MAP_SIZE ' (all of it, as far as any sector can go: a smaller one's past its edge is nothing)
+    ' The map's tables cleared - as far as any sector built since the last
+    ' clear went (bldN: at first, all of it): a smaller one's past its edge
+    ' is nothing. Only that far, since the editor rebuilds on every change
+    ' and the whole of them is 257 x 257 cells
+    IF bldN = 0 THEN bldN = MAP_SIZE
+    bldN = MinOf(MAP_SIZE, MaxOf(bldN, mapN) + 1)
+    FOR y = 0 TO bldN : FOR x = 0 TO bldN
         worldMap(x, y) = 0 : doorOpen(x, y) = 0 : doorMove(x, y) = 0 : doorWait(x, y) = 0 : doorLock(x, y) = 0 : doorLockEv(x, y) = 0 : doorKey(x, y) = 0 : closetCell(x, y) = 0 : secretCell(x, y) = 0 : closetIn(x, y) = 0 : secretArea(x, y) = 0 : doorType(x, y) = 0 : diagCorner(x, y) = 0 : glassHP(x, y) = 0 : glassDir(x, y) = 0 : floorH(x, y) = 0 : ceilH(x, y) = 1
         doorHP(x, y) = 0 : doorHPMax(x, y) = 0 : doorBroke(x, y) = 0 : doorCode(x, y) = 0 ' (stronghold and keypad doors: [doors] - ThingsBuild)
         floorTex(x, y) = T_FLOOR + 1 : ceilTex(x, y) = T_CEIL + 1 : floorSplit(x, y) = 0 : ceilSplit(x, y) = 0 : decoCell(x, y) = 0
@@ -45,6 +51,7 @@ SUB BuildLevel STATIC
         boxOn(x, y) = 0
         cellSeen(x, y) = 0
     NEXT : NEXT
+    bldN = mapN
     numItems = 0 : numMonsters = 0 : numDecos = 0 : hasMap = 0 : mapOpen = 0 : FOR i = 1 TO MAX_ITEMS : itemAmt(i) = 0 : NEXT
     ERASE decoCharge, decoBurst
     FOR i = 1 TO MAX_ITEMS : itemToss(i) = 0 : NEXT
@@ -67,6 +74,7 @@ SUB BuildLevel STATIC
         IF texFile$(T_CEIL + k) <> lvlCeil$(k) THEN LoadTex lvlCeil$(k), T_CEIL + k : texFile$(T_CEIL + k) = lvlCeil$(k) : texNew = -1
     NEXT
     IF texNew OR NOT editRebuild THEN MakeLiftTex ' (the lifts' pictures, from these)
+    baseNew = texNew : texNew = 0 ' (the sector's own pictures changed - and below, any face's)
     IF NOT editRebuild THEN glTexVersion = glTexVersion + 1 ' (a new level: OpenGL needs it all again - chapter 24)
     ambientLevel = lvlAmb(1) : ambientTintR = lvlAmb(2) : ambientTintG = lvlAmb(3) : ambientTintB = lvlAmb(4) ' The level's ambient light: brightness, then colour
     ambientR = ambientLevel * ambientTintR / 255 : ambientG = ambientLevel * ambientTintG / 255 : ambientB = ambientLevel * ambientTintB / 255
@@ -123,6 +131,7 @@ SUB BuildLevel STATIC
         END IF
     NEXT
     customN = 0 : faceAny = (lvlNumFaces > 0) : facesFull = 0 : faceOffAny = 0 : pcN = 0
+    FOR j = 1 TO T_CUSTOMN : texUsed(j) = 0 : NEXT ' (PcSlotFor marks the ones this sector uses)
     FOR k = 1 TO lvlNumFaces
         x = lvlFaceX(k) : y = lvlFaceY(k) : f = lvlFaceS(k)
         IF lvlFaceD(k) = 3 AND x >= 0 AND y >= 0 AND x < mapN AND y < mapN AND f >= 1 AND f <= FACE_MAX THEN ' (in pieces: LEVEL/PIECES.BM)
@@ -137,16 +146,7 @@ SUB BuildLevel STATIC
             FOR half = 1 TO 2
                 IF half = 1 THEN pic$ = lvlFaceP1$(k) ELSE pic$ = lvlFaceP2$(k)
                 slot = 0
-                IF pic$ <> "" THEN
-                    FOR j = T_CUSTOM + 1 TO T_CUSTOM + customN
-                        IF texFile$(j) = pic$ THEN slot = j
-                    NEXT
-                    IF slot = 0 AND customN >= T_CUSTOMN THEN facesFull = -1
-                    IF slot = 0 AND customN < T_CUSTOMN AND (GenPic(pic$) OR _FILEEXISTS(ArtPath$(pic$))) THEN
-                        customN = customN + 1 : slot = T_CUSTOM + customN
-                        IF texFile$(slot) <> pic$ THEN LoadTex pic$, slot : texFile$(slot) = pic$ : texNew = -1
-                    END IF
-                END IF
+                IF pic$ <> "" THEN slot = PcSlotFor(pic$, 0, customN, facesFull, texNew) ' (LEVEL/PIECES.BM)
                 IF half = 1 THEN slot1 = slot ELSE slot2 = slot
             NEXT
             d = lvlFaceD(k) ' (divided: a half with no picture of its own keeps the usual)
@@ -229,15 +229,8 @@ SUB BuildLevel STATIC
                         FOR half = 1 TO hMax
                             IF pcG THEN glBaseSl = pcSl(pcG, half) ELSE IF half = 1 THEN glBaseSl = faceTex(gx, gy, g) ELSE glBaseSl = faceTex2(gx, gy, g)
                             IF glBaseSl = 0 THEN glBaseSl = dflt
-                            want$ = "glow:" + LTRIM$(STR$(glBaseSl)) + key$ + ":" + texFile$(glBaseSl) : slot = 0 ' (the picture it's made from, named too: a new picture there, a new copy)
-                            FOR j = T_CUSTOM + 1 TO T_CUSTOM + customN
-                                IF texFile$(j) = want$ THEN slot = j
-                            NEXT
-                            IF slot = 0 AND customN >= T_CUSTOMN THEN facesFull = -1
-                            IF slot = 0 AND customN < T_CUSTOMN THEN
-                                customN = customN + 1 : slot = T_CUSTOM + customN
-                                IF texFile$(slot) <> want$ THEN texFile$(slot) = want$ : MakeGlowTex slot : texNew = -1
-                            END IF
+                            want$ = "glow:" + LTRIM$(STR$(glBaseSl)) + key$ + ":" + texFile$(glBaseSl) ' (the picture it's made from, named too: a new picture there, a new copy)
+                            slot = PcSlotFor(want$, 2, customN, facesFull, texNew)
                             IF slot THEN
                                 faceAny = -1
                                 IF pcG THEN pcSl(pcG, half) = slot ELSE IF half = 1 THEN faceTex(gx, gy, g) = slot ELSE faceTex2(gx, gy, g) = slot
@@ -249,7 +242,10 @@ SUB BuildLevel STATIC
         END IF
     NEXT
     IF facesFull AND editMode THEN EditNote "More than" + STR$(T_CUSTOMN) + " pictures on faces (lights' tints too) - the rest show as usual"
-    FOR j = T_CUSTOM + customN + 1 TO T_CUSTOM + T_CUSTOMN : texFile$(j) = "" : NEXT ' (the face slots this sector doesn't use: empty - OpenGL skips them)
+    IF NOT editRebuild THEN ' (a sector loaded: the face slots it doesn't use emptied. The editor's rebuilds keep them - a picture taken off and put back is still there. OpenGL skips them either way: texUsed)
+        FOR j = 1 TO T_CUSTOMN : IF NOT texUsed(j) THEN texFile$(T_CUSTOM + j) = ""
+        NEXT
+    END IF
     ' The level's lights: x, y, radius, brightness, red, green, blue, effect
     numLights = 0
     FOR l = 1 TO MAX_LIGHTS : lightBroken(l) = 0 : NEXT
@@ -591,7 +587,7 @@ SUB BuildLevel STATIC
     ' and the world again. Only now: SUB _GL runs alongside this, and asked
     ' halfway through it would build half a level)
     IF editRebuild THEN
-        IF texNew THEN glRetexVersion = glRetexVersion + 1
+        IF baseNew THEN glRetexVersion = glRetexVersion + 1 ELSE IF texNew THEN glDirtyVersion = glDirtyVersion + 1 ' (the sector's own pictures: all of them again; else only the face slots that changed)
         glMeshVersion = glMeshVersion + 1
     END IF
 

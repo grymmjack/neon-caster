@@ -125,3 +125,5 @@ wallTexSlot(1) = 1 : wallTexSlot(3) = 2 : wallTexSlot(4) = 3 : wallTexSlot(5) = 
 DIM SHARED texName$(T_SLOTS)
 DIM SHARED texHD(T_SLOTS) AS INTEGER, texSky(T_SLOTS) AS INTEGER ' (each texture slot: a MODERN painting from hd/? OpenGL draws those smooth)
 DIM SHARED texFile$(T_SLOTS)
+DIM SHARED texUsed(T_CUSTOMN) AS INTEGER, texDirty(T_SLOTS) AS INTEGER ' (a face slot this sector uses - one it doesn't keeps its picture, for the editor's next rebuild; a slot changed since OpenGL had it: GLSendDirty sends those alone)
+DIM SHARED glDirtyVersion AS LONG, glDirtyDone AS LONG, glEdHold AS INTEGER, glEdAck AS INTEGER, bldN AS LONG ' (glEdHold: the editor's rebuilding - OpenGL keeps its hands off, glEdAck: it has; bldN: the largest sector built since the last clear)

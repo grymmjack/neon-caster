@@ -100,11 +100,13 @@ SUB _GL
         EXIT SUB
     END IF
     IF artHold THEN glArtAck = -1 : EXIT SUB ' (the pictures are being reloaded: ArtReload)
+    IF glEdHold THEN glEdAck = -1 : EXIT SUB ' (the editor's rebuilding the sector: EditApply - drawn now, it'd be half built)
     glStart# = TIMER(0.001)
     b = glBuf ' The newest finished snapshot
     IF glTexDone <> glTexVersion THEN GLSendTextures : glMeshClient = 0 : GLBuildMesh : glMeshDone = glMeshVersion ' (a new level)
     IF glMeshDone <> glMeshVersion THEN glMeshClient = -1 : GLBuildMesh : glMeshDone = glMeshVersion ' (the map changed: a closet opened)
-    IF glRetexDone <> glRetexVersion THEN GLSendTextures : glRetexDone = glRetexVersion ' (the pictures changed: in or out of the network)
+    IF glRetexDone <> glRetexVersion THEN GLSendTextures : glRetexDone = glRetexVersion : glDirtyDone = glDirtyVersion ' (the pictures changed: in or out of the network)
+    IF glDirtyDone <> glDirtyVersion THEN GLSendDirty : glDirtyDone = glDirtyVersion ' (the editor changed a few face pictures: those)
     IF glGunDone <> glGunVersion THEN GLSendGuns : glGunDone = glGunVersion ' (the guns' pictures: at the start, and when ART changes)
     IF glWorldTried = 0 THEN GLBuildShaders
     glGPU = (glWorldProg <> 0 AND (glMeshBuf <> 0 OR glMeshClient)) ' The world mesh, lit by the shader from the light tables
@@ -1201,51 +1203,7 @@ SUB GLSendTextures
     ' light parts stand out, dark parts (mortar, cracks, grooves) sink in.
     ' That's the "bump map", made from the picture itself.
     FOR slot = 1 TO T_SLOTS
-        IF slot > T_CUSTOM AND slot <= T_CUSTOM + T_CUSTOMN AND texFile$(slot) = "" THEN _CONTINUE ' (a face slot the sector doesn't use: not sent)
-        FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
-            col~& = texture(x, y, slot)
-            height = (((col~& \ 65536) AND 255) * 0.3 + ((col~& \ 256) AND 255) * 0.59 + (col~& AND 255) * 0.11)
-            glUpload(y * texSize + x) = (col~& AND &HFFFFFF) OR _SHL(INT(height) AND 255, 24)
-        NEXT : NEXT
-        GLSendPicture glTexName(slot), texSize, _OFFSET(glUpload(0)), -1, texHD(slot) AND NOT cyberOn
-        n$ = texName$(slot)
-        glTexShine(slot) = 0.2 : glTexReflect(slot) = 0 : glTexNeon(slot) = 1 : glTexAnim(slot) = 0
-        IF slot >= T_DOOR AND slot <= T_SPLIT THEN glTexShine(slot) = 0.6
-        IF INSTR(n$, "plates") OR INSTR(n$, "grate") OR INSTR(n$, "pipes") OR INSTR(n$, "coils") THEN glTexShine(slot) = 0.5
-        IF INSTR(n$, "ice") OR INSTR(n$, "frost") OR INSTR(n$, "cryo") THEN glTexShine(slot) = 0.7
-        IF (slot > T_FLOOR AND slot <= T_FLOOR + 4) OR (slot > T_CUSTOM AND LEFT$(n$, 5) = "floor") THEN ' Floors: how wet (a single face's floor picture too)
-            glTexReflect(slot) = 0.16 : glTexNeon(slot) = 0.5
-            IF INSTR(n$, "ice") THEN glTexReflect(slot) = 0.45
-            IF INSTR(n$, "murky") THEN glTexReflect(slot) = 0.4
-            IF INSTR(n$, "molten") OR INSTR(n$, "lava") THEN glTexNeon(slot) = 1 : glTexAnim(slot) = 3 : glTexReflect(slot) = 0.05 ' (it glows, and pulses)
-            IF INSTR(n$, "glow") OR INSTR(n$, "frost") THEN glTexReflect(slot) = 0.32
-            IF INSTR(n$, "white") OR INSTR(n$, "lab") OR INSTR(n$, "plates") THEN glTexReflect(slot) = 0.28
-            IF INSTR(n$, "concrete") OR INSTR(n$, "cobbles") OR INSTR(n$, "scorched") THEN glTexReflect(slot) = 0.08
-            IF INSTR(n$, "glow") THEN glTexNeon(slot) = 1
-        END IF
-        IF (slot > T_CEIL AND slot <= T_CUSTOM) OR (slot > T_CUSTOM AND LEFT$(n$, 7) = "ceiling") THEN glTexShine(slot) = 0.1
-        IF slot = T_LIFT OR slot = T_LIFTSIDE THEN glTexShine(slot) = 0.5 : glTexNeon(slot) = 0.35 ' (a lift: metal, its stripes faintly lit)
-        IF slot = T_TRAP THEN glTexShine(slot) = 0.4 : glTexNeon(slot) = 0.9 : glTexAnim(slot) = 1 ' (live wires: flickering)
-        IF slot = T_FIRE THEN glTexShine(slot) = 0.2 : glTexNeon(slot) = 1 : glTexAnim(slot) = 3 ' (embers: pulsing)
-        IF INSTR(n$, "white") OR INSTR(n$, "ice") OR INSTR(n$, "frost") THEN glTexNeon(slot) = 0 ' (white isn't neon)
-        IF INSTR(n$, "brick") OR INSTR(n$, "rust") OR INSTR(n$, "moss") OR INSTR(n$, "biolab") OR INSTR(n$, "slime") THEN glTexNeon(slot) = 0.35 ' (nor rust and slime, much)
-        IF TexWordAnim(n$) THEN glTexAnim(slot) = TexWordAnim(n$)
-        SELECT CASE NpAnimEnd(n$) ' (an ending word - the picker's right-click ANIMATION, EDITOR/NEWPICS.BM: it glows, and goes as it says)
-            CASE 1 TO 3 : glTexAnim(slot) = NpAnimEnd(n$) : glTexNeon(slot) = 1
-            CASE 4 : glTexAnim(slot) = 3 : glTexNeon(slot) = 1 : glTexReflect(slot) = 0.05 ' (-pulse-dry: as molten floors - no mirror image to speak of)
-            CASE 5 : glTexAnim(slot) = 0 ' (-still: none, whatever its name says)
-        END SELECT
-        IF slot = T_EXIT THEN glTexAnim(slot) = 3
-        IF texSky(slot) THEN glTexAnim(slot) = 4 : glTexNeon(slot) = 0 : glTexShine(slot) = 0 : glTexReflect(slot) = 0 ' (a sky: the shader draws it by the way you look)
-        IF LEFT$(n$, 9) = "faceglow-" THEN ' A face with a light on it: lit by itself, going as the light goes
-            glTexNeon(slot) = 1 : glTexShine(slot) = 0.3 : glTexAnim(slot) = 0
-            IF INSTR(n$, "pulse") OR INSTR(n$, "fire") THEN glTexAnim(slot) = 3
-            IF INSTR(n$, "flicker") OR INSTR(n$, "dying") OR INSTR(n$, "strobe") THEN glTexAnim(slot) = 1
-        END IF
-        IF slot > T_LIQUID AND slot <= T_LIQUID + LQ_KINDS THEN ' A liquid: see-through as its kind is, rippling (anim 5), glossy - lava glowing
-            lk = slot - T_LIQUID : glTexReflect(slot) = lqSee(lk) : glTexAnim(slot) = 5 : glTexShine(slot) = 0.7 : glTexNeon(slot) = 0.5
-            IF lk = LQ_LAVA THEN glTexNeon(slot) = 1 : glTexShine(slot) = 0.15
-        END IF
+        texDirty(slot) = 0 : GLSendSlot slot
     NEXT
     FOR slot = 1 TO SPR_SLOTS
         sz = spriteSize(slot) ' (a smaller picture's unused part cleared: smoothed, it would bleed in)
@@ -1271,6 +1229,68 @@ SUB GLSendTextures
     NEXT : NEXT
     GLSendPicture glTexName(GL_GLOW_TEX), 64, _OFFSET(glUpload(0)), 0, 0
     glTexDone = glTexVersion
+END SUB
+
+' One wall, floor or ceiling picture (slot) onto the card - its bump map
+' made from its brightness - and how it shines, mirrors, glows and moves.
+' A face slot the sector doesn't use (texUsed) isn't sent
+SUB GLSendSlot(slot)
+    DIM d, lk, x, y ' (its own: the main program shares these names)
+    IF slot > T_CUSTOM AND slot <= T_CUSTOM + T_CUSTOMN THEN IF NOT texUsed(slot - T_CUSTOM) OR texFile$(slot) = "" THEN EXIT SUB
+    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
+        col~& = texture(x, y, slot)
+        height = (((col~& \ 65536) AND 255) * 0.3 + ((col~& \ 256) AND 255) * 0.59 + (col~& AND 255) * 0.11)
+        glUpload(y * texSize + x) = (col~& AND &HFFFFFF) OR _SHL(INT(height) AND 255, 24)
+    NEXT : NEXT
+    GLSendPicture glTexName(slot), texSize, _OFFSET(glUpload(0)), -1, texHD(slot) AND NOT cyberOn
+    n$ = texName$(slot)
+    glTexShine(slot) = 0.2 : glTexReflect(slot) = 0 : glTexNeon(slot) = 1 : glTexAnim(slot) = 0
+    IF slot >= T_DOOR AND slot <= T_SPLIT THEN glTexShine(slot) = 0.6
+    IF INSTR(n$, "plates") OR INSTR(n$, "grate") OR INSTR(n$, "pipes") OR INSTR(n$, "coils") THEN glTexShine(slot) = 0.5
+    IF INSTR(n$, "ice") OR INSTR(n$, "frost") OR INSTR(n$, "cryo") THEN glTexShine(slot) = 0.7
+    IF (slot > T_FLOOR AND slot <= T_FLOOR + 4) OR (slot > T_CUSTOM AND LEFT$(n$, 5) = "floor") THEN ' Floors: how wet (a single face's floor picture too)
+        glTexReflect(slot) = 0.16 : glTexNeon(slot) = 0.5
+        IF INSTR(n$, "ice") THEN glTexReflect(slot) = 0.45
+        IF INSTR(n$, "murky") THEN glTexReflect(slot) = 0.4
+        IF INSTR(n$, "molten") OR INSTR(n$, "lava") THEN glTexNeon(slot) = 1 : glTexAnim(slot) = 3 : glTexReflect(slot) = 0.05 ' (it glows, and pulses)
+        IF INSTR(n$, "glow") OR INSTR(n$, "frost") THEN glTexReflect(slot) = 0.32
+        IF INSTR(n$, "white") OR INSTR(n$, "lab") OR INSTR(n$, "plates") THEN glTexReflect(slot) = 0.28
+        IF INSTR(n$, "concrete") OR INSTR(n$, "cobbles") OR INSTR(n$, "scorched") THEN glTexReflect(slot) = 0.08
+        IF INSTR(n$, "glow") THEN glTexNeon(slot) = 1
+    END IF
+    IF (slot > T_CEIL AND slot <= T_CUSTOM) OR (slot > T_CUSTOM AND LEFT$(n$, 7) = "ceiling") THEN glTexShine(slot) = 0.1
+    IF slot = T_LIFT OR slot = T_LIFTSIDE THEN glTexShine(slot) = 0.5 : glTexNeon(slot) = 0.35 ' (a lift: metal, its stripes faintly lit)
+    IF slot = T_TRAP THEN glTexShine(slot) = 0.4 : glTexNeon(slot) = 0.9 : glTexAnim(slot) = 1 ' (live wires: flickering)
+    IF slot = T_FIRE THEN glTexShine(slot) = 0.2 : glTexNeon(slot) = 1 : glTexAnim(slot) = 3 ' (embers: pulsing)
+    IF INSTR(n$, "white") OR INSTR(n$, "ice") OR INSTR(n$, "frost") THEN glTexNeon(slot) = 0 ' (white isn't neon)
+    IF INSTR(n$, "brick") OR INSTR(n$, "rust") OR INSTR(n$, "moss") OR INSTR(n$, "biolab") OR INSTR(n$, "slime") THEN glTexNeon(slot) = 0.35 ' (nor rust and slime, much)
+    IF TexWordAnim(n$) THEN glTexAnim(slot) = TexWordAnim(n$)
+    SELECT CASE NpAnimEnd(n$) ' (an ending word - the picker's right-click ANIMATION, EDITOR/NEWPICS.BM: it glows, and goes as it says)
+        CASE 1 TO 3 : glTexAnim(slot) = NpAnimEnd(n$) : glTexNeon(slot) = 1
+        CASE 4 : glTexAnim(slot) = 3 : glTexNeon(slot) = 1 : glTexReflect(slot) = 0.05 ' (-pulse-dry: as molten floors - no mirror image to speak of)
+        CASE 5 : glTexAnim(slot) = 0 ' (-still: none, whatever its name says)
+    END SELECT
+    IF slot = T_EXIT THEN glTexAnim(slot) = 3
+    IF texSky(slot) THEN glTexAnim(slot) = 4 : glTexNeon(slot) = 0 : glTexShine(slot) = 0 : glTexReflect(slot) = 0 ' (a sky: the shader draws it by the way you look)
+    IF LEFT$(n$, 9) = "faceglow-" THEN ' A face with a light on it: lit by itself, going as the light goes
+        glTexNeon(slot) = 1 : glTexShine(slot) = 0.3 : glTexAnim(slot) = 0
+        IF INSTR(n$, "pulse") OR INSTR(n$, "fire") THEN glTexAnim(slot) = 3
+        IF INSTR(n$, "flicker") OR INSTR(n$, "dying") OR INSTR(n$, "strobe") THEN glTexAnim(slot) = 1
+    END IF
+    IF slot > T_LIQUID AND slot <= T_LIQUID + LQ_KINDS THEN ' A liquid: see-through as its kind is, rippling (anim 5), glossy - lava glowing
+        lk = slot - T_LIQUID : glTexReflect(slot) = lqSee(lk) : glTexAnim(slot) = 5 : glTexShine(slot) = 0.7 : glTexNeon(slot) = 0.5
+        IF lk = LQ_LAVA THEN glTexNeon(slot) = 1 : glTexShine(slot) = 0.15
+    END IF
+END SUB
+
+' The editor changed some face pictures (BuildLevel's texDirty): only
+' those sent again, not every picture, sprite and model - a rebuild was a
+' second and more with them all
+SUB GLSendDirty
+    DIM slot ' (its own)
+    FOR slot = 1 TO T_SLOTS
+        IF texDirty(slot) THEN texDirty(slot) = 0 : GLSendSlot slot
+    NEXT
 END SUB
 
 ' One square picture, size pixels across, from memory at pixelsAt. Pixel

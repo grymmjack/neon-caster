@@ -1154,6 +1154,14 @@ SUB EditApply STATIC
         IF NOT itemOn(j) AND nKeepI < MAX_ITEMS THEN nKeepI = nKeepI + 1 : keepIX(nKeepI) = itemX(j) : keepIY(nKeepI) = itemY(j) : keepIK(nKeepI) = itemKind(j)
     NEXT
     kc1 = hasCard(1) : kc2 = hasCard(2) : kc3 = hasCard(3) : km = hasMap ' (and the keycards and map you'd picked up: their pickups stay taken)
+    ' OpenGL draws alongside this (SUB _GL): mid-rebuild it drew the sector
+    ' half made - doors without their pictures, ceilings the sector's own,
+    ' then the painted ones. It holds off till the rebuild's done
+    ' (glEdHold, said so - glEdAck - before anything's touched)
+    IF glReady AND NOT artHold THEN
+        glEdAck = 0 : glEdHold = -1 : holdT! = TIMER
+        DO WHILE glEdAck = 0 AND ABS(TIMER - holdT!) < 0.25 : _LIMIT 1000 : LOOP
+    END IF
     editRebuild = -1 : BuildLevel : editRebuild = 0
     hasCard(1) = kc1 : hasCard(2) = kc2 : hasCard(3) = kc3 : hasMap = km
     FOR k = 1 TO nKeepM
@@ -1170,6 +1178,7 @@ SUB EditApply STATIC
     playerX = keepX : playerY = keepY : dirX = keepDX : dirY = keepDY
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane ' (in the editor you fly through walls, so building over where you are is fine)
     editDirty = -1 : editFresh = 0
+    glEdHold = 0
 END SUB
 
 ' The map from above: draw it, read the mouse and keys, until Tab (walk
@@ -3357,7 +3366,7 @@ SUB EditPkBuild
     DIM a, B, c, d, k, gl$, t$ ' (its own: the main program shares these names)
     gl$ = "" ' (the sector's own made colours, each once: tiles to use again)
     FOR k = T_CUSTOM + 1 TO T_CUSTOM + T_CUSTOMN
-        IF GenPic(texFile$(k)) THEN IF INSTR(gl$, " " + texFile$(k) + " ") = 0 THEN gl$ = gl$ + " " + texFile$(k) + " "
+        IF GenPic(texFile$(k)) AND texUsed(k - T_CUSTOM) THEN IF INSTR(gl$, " " + texFile$(k) + " ") = 0 THEN gl$ = gl$ + " " + texFile$(k) + " "
     NEXT
     FOR k = 1 TO 6 : IF GenPic(lvlWall$(k)) THEN IF INSTR(gl$, " " + lvlWall$(k) + " ") = 0 THEN gl$ = gl$ + " " + lvlWall$(k) + " "
     NEXT

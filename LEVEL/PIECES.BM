@@ -359,26 +359,61 @@ FUNCTION PcDoorUsual(x, y, c$)
 END FUNCTION
 
 ' A face picture's slot, want$ by name: kind 0 a picture file (loaded),
-' 1 a turned or tinted copy (MakePieceTex) - in the next free face slot if
-' it isn't in one already (0: none free, or no such file)
+' 1 a turned or tinted copy (MakePieceTex), 2 a light's tinted copy
+' (MakeGlowTex) - 0: none free, or no such file. A picture already in a
+' face slot stays there: the editor's rebuilds (every change) find it
+' where it was, so only a picture new to the sector is loaded or made -
+' and only that slot is sent to OpenGL again (texDirty, GLSendDirty).
+' texUsed: the slots this sector uses (BuildLevel clears it first);
+' customN: the highest of them.
 FUNCTION PcSlotFor(want$, kind, customN, facesFull, texNew)
     DIM j, slot ' (its own: the main program shares these names)
     slot = 0
-    FOR j = T_CUSTOM + 1 TO T_CUSTOM + customN
-        IF texFile$(j) = want$ THEN slot = j
+    FOR j = T_CUSTOM + 1 TO T_CUSTOM + T_CUSTOMN
+        IF texFile$(j) = want$ THEN slot = j : EXIT FOR
     NEXT
-    IF slot = 0 AND customN >= T_CUSTOMN THEN facesFull = -1
-    IF slot = 0 AND customN < T_CUSTOMN THEN
-        IF kind = 1 OR GenPic(want$) OR _FILEEXISTS(ArtPath$(want$)) THEN
-            customN = customN + 1 : slot = T_CUSTOM + customN
-            IF texFile$(slot) <> want$ THEN
-                texFile$(slot) = want$ : texNew = -1
-                IF kind = 1 THEN MakePieceTex slot ELSE LoadTex want$, slot
-            END IF
-        END IF
+    IF slot = 0 THEN
+        IF kind = 0 THEN IF NOT GenPic(want$) AND NOT _FILEEXISTS(ArtPath$(want$)) THEN PcSlotFor = 0 : EXIT FUNCTION
+        slot = PcFreeSlot
+        IF slot = 0 THEN facesFull = -1 : PcSlotFor = 0 : EXIT FUNCTION
+        PcForget slot
+        texFile$(slot) = want$ : texNew = -1 : texDirty(slot) = -1
+        SELECT CASE kind
+            CASE 1 : MakePieceTex slot
+            CASE 2 : MakeGlowTex slot
+            CASE ELSE : LoadTex want$, slot
+        END SELECT
     END IF
+    texUsed(slot - T_CUSTOM) = -1 : IF slot - T_CUSTOM > customN THEN customN = slot - T_CUSTOM
     PcSlotFor = slot
 END FUNCTION
+
+' A face slot for a picture new to the sector: an empty one, else one
+' holding a picture it no longer uses (0: every one in use)
+FUNCTION PcFreeSlot
+    DIM j ' (its own)
+    PcFreeSlot = 0
+    FOR j = 1 TO T_CUSTOMN
+        IF NOT texUsed(j) AND texFile$(T_CUSTOM + j) = "" THEN PcFreeSlot = T_CUSTOM + j : EXIT FUNCTION
+    NEXT
+    FOR j = 1 TO T_CUSTOMN
+        IF NOT texUsed(j) THEN PcFreeSlot = T_CUSTOM + j : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Face slot sl about to take another picture: the unused copies made from
+' what it held (pc:sl:... glow:sl:...) go too - they'd be made from the
+' wrong picture if ART or a reload remade them
+SUB PcForget(sl)
+    DIM j, a$, b$ ' (its own)
+    IF texFile$(sl) = "" THEN EXIT SUB
+    a$ = "pc:" + LTRIM$(STR$(sl)) + ":" : b$ = "glow:" + LTRIM$(STR$(sl)) + ":"
+    FOR j = 1 TO T_CUSTOMN
+        IF NOT texUsed(j) THEN
+            IF LEFT$(texFile$(T_CUSTOM + j), LEN(a$)) = a$ OR LEFT$(texFile$(T_CUSTOM + j), LEN(b$)) = b$ THEN texFile$(T_CUSTOM + j) = ""
+        END IF
+    NEXT
+END SUB
 
 ' Face f of cell (x, y) in pieces ([faces] line k, division 3), built:
 ' one of pcN - its grid, and each piece's slot, slide and stretch. The

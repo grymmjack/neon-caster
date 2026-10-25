@@ -278,19 +278,21 @@ END SUB
 ' (turned, tinted, glowing) made again, OpenGL's pictures sent again, the
 ' picker's and the brush's thumbnails
 SUB NpReload(f$)
-    DIM j, n, keepD, keepF, lf$ ' (its own)
-    lf$ = LCASE$(f$) : n = 0
+    DIM j, n, keepD, keepF, lf$, baseHit ' (its own)
+    lf$ = LCASE$(f$) : n = 0 : baseHit = 0
     FOR j = 1 TO T_SLOTS
-        IF LCASE$(texFile$(j)) = lf$ THEN LoadTex f$, j : n = n + 1
+        IF LCASE$(texFile$(j)) = lf$ THEN
+            LoadTex f$, j : n = n + 1 : texDirty(j) = -1
+            IF j <= T_CUSTOM THEN baseHit = -1 ' (one of the sector's own: the lifts' pictures come from them - all sent again)
+        END IF
     NEXT
     FOR j = T_CUSTOM + 1 TO T_CUSTOM + T_CUSTOMN
-        IF INSTR(texFile$(j), ":") THEN texFile$(j) = "" ' (pc: and glow: copies - BuildLevel makes them again)
+        IF INSTR(texFile$(j), ":") AND LCASE$(RIGHT$(texFile$(j), LEN(lf$) + 1)) = ":" + lf$ THEN texFile$(j) = "" ' (its pc: and glow: copies - named for the picture they're made from: BuildLevel makes them again)
     NEXT
     keepD = editDirty : keepF = editFresh
     EditApply
     editDirty = keepD : editFresh = keepF
-    MakeLiftTex
-    glRetexVersion = glRetexVersion + 1
+    IF baseHit THEN MakeLiftTex : glRetexVersion = glRetexVersion + 1 ELSE glDirtyVersion = glDirtyVersion + 1 ' (else only the slots it's in, and their copies)
     edPkKey$ = ""
     IF LCASE$(edBrushTex$) = lf$ THEN
         IF edBrushImg& < -1 THEN _FREEIMAGE edBrushImg&
