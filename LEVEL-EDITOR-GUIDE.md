@@ -93,6 +93,7 @@ The world is a grid of cells, 48 × 48. Walls fill whole cells, and each cell ha
 | HEIGHT | A click raises a floor or ceiling an eighth; Shift+click lowers it. Click one that's selected and the whole selection moves |
 | DELETE | Deletes the selection (also **Del**) |
 | UNDO, REDO, SAVE | Ctrl+Z, Ctrl+Y (or Ctrl+Shift+Z), Ctrl+S |
+| REVERT TO SAVED | Ctrl+Alt+Shift+R - the sector again from its file (Ctrl+Z: your changes back). In play too, when the sector was opened from EDIT: everything you played - machines, doors, pickups - put back, where you stand |
 | GRID, and the slider | Lines on every cell's edge, drawn into the world, and how strong they are (also **G**, and **Shift+G**) |
 | (no button) | **Alt+L**: FULL BRIGHT - every cell lit evenly, at its pictures' own colours, to see what's what in a dark sector; again for the sector's own lights. Only in the editor (and saved nowhere) |
 | (no button) | **Alt+E**: the picture under the pointer (in the picker, or on a face) opened in DRAW or your own paint program - saved there, it's loaded again here (see *New pictures, drawn in DRAW*) |
@@ -100,7 +101,7 @@ The world is a grid of cells, 48 × 48. Walls fill whole cells, and each cell ha
 | (no button) | **Right-click** a picture in the picker: its menu - RENAME, ANIMATION (how it glows and moves in OpenGL), OPEN IN DRAW, OPEN FOLDER, OPEN IN KALEIDOTRON, DELETE (see *Renaming a picture, and making it glow and move*) |
 | PICKER | 3D only: the picker tucked away (it opens when the pointer reaches the bottom of the screen), always open, or off (also **P**) |
 | SECTOR | The sector's own pane: its name, its light, and the pictures of its six kinds of wall, four floors and two ceilings |
-| VERSIONS | The sector's versions: **REVERT TO SAVED** (back to its file as last saved), **SAVE A VERSION NOW** (a copy as it is now, in `versions/` beside its file, named for when - its own file isn't touched), and the versions saved, newest first, with **BEFORE THE LAST SAVE** (its `.bak`) at the end - click one to load it. A loaded version isn't saved till you SAVE; Ctrl+Z puts back what you had, for REVERT too. (The console's `savesectorcopy` and `loadlevelfromdisk` do the same.) |
+| VERSIONS | The sector's versions: **REVERT TO SAVED** (back to its file as last saved), **SAVE A VERSION NOW** (a copy as it is now, in `versions/` beside its file, named for when - its own file isn't touched), and the versions saved, newest first, with **BEFORE THE LAST SAVE** (its `.bak`) at the end - click one to load it. A loaded version isn't saved till you SAVE; Ctrl+Z puts back what you had, for REVERT too (**Ctrl+Alt+Shift+R** is REVERT TO SAVED from anywhere in the editor - and in play, in a sector opened from EDIT). (The console's `savesectorcopy` and `loadlevelfromdisk` do the same.) |
 | 2D MAP / 3D | The other view (also **Tab**) |
 | HELP | The cheatsheet for this view (also **F1**): every key, click and wheel turn, grouped; F1 or a click closes it |
 | < SECT, SECT > | Map view only: the sector before or after (PgUp, PgDn). With unsaved changes it asks first: press it again within three seconds to go anyway and lose them. |

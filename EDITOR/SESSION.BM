@@ -176,6 +176,26 @@ SUB EditLoadFrom(f$)
     IF LEN(f$) THEN editDirty = -1 : editFresh = 0 ELSE editDirty = 0 : editFresh = 0
 END SUB
 
+' --- Ctrl+Alt+Shift+R: the sector again as last saved, from its file -
+' REVERT TO SAVED (one step of undo: Ctrl+Z in the editor has your changes
+' back). In the editor always; in play only in an edit session (a sector
+' opened from EDIT), where you go back and forth between the two - there it
+' puts back everything played (machines, doors, pickups) where you stand.
+' k&: a key from the editor's queue (eaten if it's this one)
+FUNCTION SectorReloadKey(k&)
+    IF k& <> 114 AND k& <> 82 AND k& <> 18 THEN EXIT FUNCTION
+    IF NOT (_KEYDOWN(100305) OR _KEYDOWN(100306)) THEN EXIT FUNCTION
+    IF NOT (_KEYDOWN(100303) OR _KEYDOWN(100304)) THEN EXIT FUNCTION
+    IF NOT (edFBAlt OR _KEYDOWN(100307) OR _KEYDOWN(100308)) THEN EXIT FUNCTION
+    SectorReloadKey = -1 : SectorReload
+END FUNCTION
+
+SUB SectorReload
+    EditLoadFrom ""
+    IF NOT lvlOK THEN EXIT SUB
+    IF editMode THEN EditNote "The sector as last saved (Ctrl+Z: your changes again)" ELSE ShowMsg "The sector as last saved - played again from here"
+END SUB
+
 ' --- The VERSIONS pane (the toolbar's VERSIONS): REVERT TO SAVED, SAVE A
 ' VERSION, and the versions to go back to - a click loads one, Ctrl+Z
 ' undoes that (button ids 400-499)

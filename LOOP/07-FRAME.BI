@@ -51,8 +51,16 @@
     ' it with, and every key from there goes into a demo (run1, run2...) -
     ' and Ctrl+R again (or the exit) keeps it: DEMO REPLAYS lists it. At the
     ' exit it goes on: the next sector records too (DemoChainNext)
+    altShift = (_KEYDOWN(100307) OR _KEYDOWN(100308)) AND (_KEYDOWN(100303) OR _KEYDOWN(100304))
     recKey = (_KEYDOWN(114) OR _KEYDOWN(82)) AND (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND NOT edTyping
-    IF recKey AND NOT recKeyWas AND NOT editMode AND NOT hudEdit THEN DemoRecordKey
+    IF recKey AND NOT recKeyWas AND NOT editMode AND NOT hudEdit THEN
+        ' (Ctrl+Alt+Shift+R: the sector as last saved - only in an edit session: EDITOR/SESSION.BM)
+        IF altShift THEN
+            IF editSession AND NOT cyberOn AND NOT dead AND NOT demoPlay AND NOT demoRec THEN SectorReload
+        ELSE
+            DemoRecordKey
+        END IF
+    END IF
     recKeyWas = recKey
     ' F3: where you are, in numbers (DrawInfo, chapter 18) - on or off
     IF _KEYDOWN(15616) AND NOT infoKeyWas AND NOT edTyping THEN infoOn = NOT infoOn

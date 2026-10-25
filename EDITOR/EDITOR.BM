@@ -1398,6 +1398,8 @@ SUB RunEditor STATIC
                 k& = _KEYHIT : _CONTINUE
             END IF
             IF EditFullBrightKey(k&) THEN k& = 0 ' (Alt+L: full bright)
+        IF SectorReloadKey(k&) THEN k& = 0 ' (Ctrl+Alt+Shift+R: the sector as last saved)
+            IF SectorReloadKey(k&) THEN k& = 0 ' (Ctrl+Alt+Shift+R: the sector as last saved)
             IF k& = 27 AND npMenuOn THEN NpMenuClose : k& = 0 ' (Esc: a picture's menu goes - not the editor)
             IF (k& = 101 OR k& = 69) AND (edFBAlt OR _KEYDOWN(100307) OR _KEYDOWN(100308)) THEN NpOpenKey mx, my : k& = 0 ' (Alt+E: the picture opened in DRAW)
             IF ABS(k&) = 100305 OR ABS(k&) = 100306 THEN mapCtrl = (k& > 0)
