@@ -142,8 +142,8 @@ The game, frozen, with a mouse pointer. Monsters don't move, pickups aren't take
 | R, Shift+R | PAINT: turn the picture a quarter clockwise, or back |
 | M, Shift+M | PAINT: flip the picture left-right, or upside down |
 | O, Shift+O | Open the door under the pointer (O again shuts it), or hold a lift or crusher at its top or bottom (O again: the other end) - in the editor only, to see and paint it so; Shift+O lets that one go as in play (at nothing: every one) |
-| 1-5 | The tools: SELECT, PLACE, PAINT, LIGHT, HEIGHT |
-| 6, 7 | THE SECTOR's pane, VERSIONS |
+| 1-5 | The tools: 1 SELECT, 2 PLACE, 3 PAINT, 4 LIGHT, 5 HEIGHT |
+| 6, 7 | 6 THE SECTOR's pane, 7 VERSIONS |
 | 8 | The picker, open (and left open - 8 again tucks it away) |
 | G, Shift+G | The grid, and how strong it is |
 | P | The picker: tucked away, always open, off |
