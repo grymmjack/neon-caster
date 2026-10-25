@@ -1460,6 +1460,13 @@ END SUB
 SUB GLFlatTexPc(cx, cy, p, j)
     GLTexOff
     glOffU = pcOU(p, j) / 64 : glOffV = pcOV(p, j) / 64
+    IF pcAn(p, j) THEN ' (from the piece's own corner - fitted to it, 2)
+        IF pcKU(p, j) THEN glKU = 100 / pcKU(p, j)
+        IF pcKV(p, j) THEN glKV = 100 / pcKV(p, j)
+        IF pcAn(p, j) = 2 THEN glKU = glKU * 16 / MaxOf(1, pcGU1(p, j) - pcGU0(p, j)) : glKV = glKV * 16 / MaxOf(1, pcGV1(p, j) - pcGV0(p, j))
+        glOffU = glOffU - glKU * pcGU0(p, j) / 16 : glOffV = glOffV - glKV * pcGV0(p, j) / 16
+        EXIT SUB
+    END IF
     IF pcKU(p, j) THEN glKU = 100 / pcKU(p, j) : glOffU = glOffU + glKU * cx
     IF pcKV(p, j) THEN glKV = 100 / pcKV(p, j) : glOffV = glOffV + glKV * cy
 END SUB
@@ -1491,6 +1498,13 @@ SUB GLPieceStrips(ax, ay, bx, by, u0, u1, zLow, zHigh, vTop, vBottom, p, deflt, 
         vt = vTop + pcGV0(p, j) / 16 * (vBottom - vTop) : vb = vTop + pcGV1(p, j) / 16 * (vBottom - vTop)
         sl = pcSl(p, j) : IF sl = 0 THEN sl = deflt
         GLFaceTexPc p, j, ax, ay, bx, by, u0, u1
+        IF pcAn(p, j) THEN ' (from the piece's own top left corner - fitted to it, 2)
+            glKU = 1 : glKV = 1
+            IF pcKU(p, j) THEN glKU = 100 / pcKU(p, j)
+            IF pcKV(p, j) THEN glKV = 100 / pcKV(p, j)
+            IF pcAn(p, j) = 2 THEN glKU = glKU / MaxOf(0.001, ABS(t1 - t0)) : glKV = glKV / MaxOf(0.001, ABS(vb - vt))
+            glOffU = pcOU(p, j) / 64 - glKU * MinOf(t0, t1) : glOffV = pcOV(p, j) / 64 - glKV * vt
+        END IF
         IF exitF THEN GLExitStrip ax, ay, bx, by, s0, s1, t0, t1, zb, zt, sl ELSE GLStrip ax, ay, bx, by, s0, s1, t0, t1, zb, zt, vt, vb, sl
     NEXT
     GLTexOff

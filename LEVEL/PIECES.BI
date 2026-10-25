@@ -9,11 +9,14 @@
 ' right (across, as you see it), V one split top | bottom, . a piece that
 ' isn't - "H.V.." is a left piece, and a right one split top and bottom.
 ' The pieces (the dots, in order) each have a line of their own:
-'   picture*turn*slide*stretch*tint*amount*colour
+'   picture*turn*slide*stretch*tint*amount*colour*start
 ' picture "" the usual one; turn 0-3 (quarter turns clockwise); slide and
 ' stretch as a [faces] line's (across + 64 * up, across + 2048 * up - 0 as
 ' made); tint 0 none, 1 TINT (multiplied), 2 WASH (mixed), 3 GLOW (added),
-' its amount 0-100 and colour RRGGBB. Left off from the end when as made.
+' its amount 0-100 and colour RRGGBB; start where its picture starts - 0
+' the face's (it runs on across the pieces), 1 the piece's own top left
+' corner, 2 one picture fitted to the piece. Left off from the end when as
+' made.
 ' A [faces] line with division 3 keeps the tree as its first picture and
 ' the pieces, joined by |, as its second; a face only whole or halved,
 ' with no turn or tint and its halves slid alike, keeps the old line.
@@ -32,10 +35,11 @@ DIM SHARED pcGU0(PC_MAX, PC_LEAF) AS _BYTE, pcGV0(PC_MAX, PC_LEAF) AS _BYTE, pcG
 DIM SHARED pcSl(PC_MAX, PC_LEAF) AS INTEGER ' (0: the usual picture)
 DIM SHARED pcOU(PC_MAX, PC_LEAF) AS INTEGER, pcOV(PC_MAX, PC_LEAF) AS INTEGER ' (slid: 64ths of the picture)
 DIM SHARED pcKU(PC_MAX, PC_LEAF) AS INTEGER, pcKV(PC_MAX, PC_LEAF) AS INTEGER ' (stretched: percent - 0 as made)
+DIM SHARED pcAn(PC_MAX, PC_LEAF) AS _BYTE ' (where its picture starts: 0 the face's, 1 the piece's corner, 2 fitted to the piece)
 ' A tree being read or changed (PcTreeRead, PcTreeForm and the editor):
 ' its shape and its pieces
 DIM SHARED ptShape$, ptN AS INTEGER
 DIM SHARED ptPic$(PC_LEAF), ptRot(PC_LEAF) AS INTEGER, ptO(PC_LEAF) AS INTEGER, ptK(PC_LEAF) AS LONG
-DIM SHARED ptTM(PC_LEAF) AS INTEGER, ptTA(PC_LEAF) AS INTEGER, ptTC(PC_LEAF) AS _UNSIGNED LONG
+DIM SHARED ptTM(PC_LEAF) AS INTEGER, ptTA(PC_LEAF) AS INTEGER, ptTC(PC_LEAF) AS _UNSIGNED LONG, ptA(PC_LEAF) AS INTEGER
 ' The pieces' rectangles (PcRects): u across, v down, 0 to 1
 DIM SHARED pcRU0(PC_LEAF), pcRV0(PC_LEAF), pcRU1(PC_LEAF), pcRV1(PC_LEAF)

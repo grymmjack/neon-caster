@@ -61,24 +61,25 @@ END FUNCTION
 ' Piece a's look onto piece b (the tree being worked on)
 SUB PcCopyLeaf(a, b)
     ptPic$(b) = ptPic$(a) : ptRot(b) = ptRot(a) : ptO(b) = ptO(a) : ptK(b) = ptK(a)
-    ptTM(b) = ptTM(a) : ptTA(b) = ptTA(a) : ptTC(b) = ptTC(a)
+    ptTM(b) = ptTM(a) : ptTA(b) = ptTA(a) : ptTC(b) = ptTC(a) : ptA(b) = ptA(a)
 END SUB
 SUB PcClearLeaf(j)
-    ptPic$(j) = "" : ptRot(j) = 0 : ptO(j) = 0 : ptK(j) = 0 : ptTM(j) = 0 : ptTA(j) = 50 : ptTC(j) = &HFFFFFF
+    ptPic$(j) = "" : ptRot(j) = 0 : ptO(j) = 0 : ptK(j) = 0 : ptTM(j) = 0 : ptTA(j) = 50 : ptTC(j) = &HFFFFFF : ptA(j) = 0
 END SUB
 
-' Piece j as text: picture*turn*slide*stretch*tint*amount*colour - left
-' off from the end as far as it's as made
+' Piece j as text: picture*turn*slide*stretch*tint*amount*colour*start -
+' left off from the end as far as it's as made
 FUNCTION PcLeafText$(j)
     DIM i, last, t$ ' (its own: the main program shares these names)
-    DIM f$(7)
+    DIM f$(8)
     f$(1) = ptPic$(j) : f$(2) = LTRIM$(STR$(ptRot(j))) : f$(3) = LTRIM$(STR$(ptO(j))) : f$(4) = LTRIM$(STR$(ptK(j)))
-    f$(5) = LTRIM$(STR$(ptTM(j))) : f$(6) = LTRIM$(STR$(ptTA(j))) : f$(7) = RIGHT$("00000" + HEX$(ptTC(j) AND &HFFFFFF), 6)
+    f$(5) = LTRIM$(STR$(ptTM(j))) : f$(6) = LTRIM$(STR$(ptTA(j))) : f$(7) = RIGHT$("00000" + HEX$(ptTC(j) AND &HFFFFFF), 6) : f$(8) = LTRIM$(STR$(ptA(j)))
     last = 1
     IF ptRot(j) THEN last = 2
     IF ptO(j) THEN last = 3
     IF ptK(j) THEN last = 4
     IF ptTM(j) THEN last = 7
+    IF ptA(j) THEN last = 8
     t$ = f$(1)
     FOR i = 2 TO last : t$ = t$ + "*" + f$(i) : NEXT
     PcLeafText$ = t$
@@ -100,6 +101,7 @@ SUB PcLeafRead(s$, j)
             CASE 5 : ptTM(j) = MaxOf(0, MinOf(3, VAL(f$)))
             CASE 6 : ptTA(j) = MaxOf(0, MinOf(100, VAL(f$)))
             CASE 7 : IF LEN(f$) THEN ptTC(j) = PcHex~&(f$)
+            CASE 8 : ptA(j) = MaxOf(0, MinOf(2, VAL(f$)))
         END SELECT
     LOOP
 END SUB
@@ -150,7 +152,7 @@ SUB PcTreeForm(d, p1$, p2$, o, k&)
     DIM j, simple, t$ ' (its own: the main program shares these names)
     simple = (ptShape$ = "." OR ptShape$ = "H.." OR ptShape$ = "V..")
     FOR j = 1 TO ptN
-        IF ptRot(j) OR ptTM(j) THEN simple = 0
+        IF ptRot(j) OR ptTM(j) OR ptA(j) THEN simple = 0
         IF ptO(j) <> ptO(1) OR ptK(j) <> ptK(1) THEN simple = 0
     NEXT
     IF simple THEN
@@ -233,16 +235,39 @@ END FUNCTION
 
 ' A floor's or ceiling's texel at map point (fx, fy) of cell (cx, cy), when
 ' it's in pieces (p): its piece's picture (deflt, the usual, if it has
-' none of its own), slid and stretched as that piece is
+' none of its own), slid and stretched as that piece is - from the map's
+' grid, or (pcAn) from the piece's own corner
 FUNCTION PcFlatTexel~&(p, fx, fy, cx, cy, deflt)
-    DIM lf AS INTEGER, sl AS INTEGER, su, sv, gu AS LONG, gv AS LONG ' (its own: the main program shares these names)
+    DIM lf AS INTEGER, sl AS INTEGER, su, sv, gu AS LONG, gv AS LONG, au, av ' (its own: the main program shares these names)
     gu = INT((fx - cx) * 16) : IF gu < 0 THEN gu = 0 ELSE IF gu > 15 THEN gu = 15
     gv = INT((fy - cy) * 16) : IF gv < 0 THEN gv = 0 ELSE IF gv > 15 THEN gv = 15
     lf = pcGrid(p, gu + 16 * gv) : sl = pcSl(p, lf) : IF sl = 0 THEN sl = deflt
     su = texSize : sv = texSize
     IF pcKU(p, lf) THEN su = texSize * 100 / pcKU(p, lf)
     IF pcKV(p, lf) THEN sv = texSize * 100 / pcKV(p, lf)
-    PcFlatTexel~& = texture((INT(fx * su) + pcOU(p, lf) * texSize \ 64) AND (texSize - 1), (INT(fy * sv) + pcOV(p, lf) * texSize \ 64) AND (texSize - 1), sl)
+    au = 0 : av = 0
+    IF pcAn(p, lf) THEN
+        au = cx + pcGU0(p, lf) / 16 : av = cy + pcGV0(p, lf) / 16
+        IF pcAn(p, lf) = 2 THEN su = su * 16 / MaxOf(1, pcGU1(p, lf) - pcGU0(p, lf)) : sv = sv * 16 / MaxOf(1, pcGV1(p, lf) - pcGV0(p, lf))
+    END IF
+    PcFlatTexel~& = texture((INT((fx - au) * su) + pcOU(p, lf) * texSize \ 64) AND (texSize - 1), (INT((fy - av) * sv) + pcOV(p, lf) * texSize \ 64) AND (texSize - 1), sl)
+END FUNCTION
+
+' Where along face f of cell (x, y) its picture's u is, at s across it (0
+' to 1, as the pieces' grid): a block's side is only as wide as the block
+' - its picture's place there is the cell's (as BoxFaceU, turned round)
+FUNCTION PcPicU(x, y, f, s)
+    DIM lo, hi ' (its own: the main program shares these names)
+    PcPicU = s
+    IF f <= FACE_BOX OR f > FACE_MAX THEN EXIT FUNCTION
+    IF x < 0 OR y < 0 OR x >= mapN OR y >= mapN THEN EXIT FUNCTION
+    SELECT CASE f - FACE_BOX
+        CASE 1 : lo = 1 - boxY1(x, y) : hi = 1 - boxY0(x, y)
+        CASE 2 : lo = boxX0(x, y) : hi = boxX1(x, y)
+        CASE 3 : lo = boxY0(x, y) : hi = boxY1(x, y)
+        CASE ELSE : lo = 1 - boxX1(x, y) : hi = 1 - boxX0(x, y)
+    END SELECT
+    PcPicU = lo + s * (hi - lo)
 END FUNCTION
 
 ' The picture face f of cell (x, y) has when it has none of its own - its
@@ -311,7 +336,7 @@ SUB PcBuild(x, y, f, k, customN, facesFull, texNew)
         ku = ptK(j) AND 2047 : kv = ptK(j) \ 2048
         IF ku = 100 THEN ku = 0
         IF kv = 100 THEN kv = 0
-        pcKU(p, j) = ku : pcKV(p, j) = kv
+        pcKU(p, j) = ku : pcKV(p, j) = kv : pcAn(p, j) = ptA(j)
         pcGU0(p, j) = INT(pcRU0(j) * 16 + 0.001) : pcGV0(p, j) = INT(pcRV0(j) * 16 + 0.001) : pcGU1(p, j) = INT(pcRU1(j) * 16 + 0.001) : pcGV1(p, j) = INT(pcRV1(j) * 16 + 0.001)
         FOR gv = INT(pcRV0(j) * 16 + 0.001) TO INT(pcRV1(j) * 16 + 0.001) - 1
             FOR gu = INT(pcRU0(j) * 16 + 0.001) TO INT(pcRU1(j) * 16 + 0.001) - 1

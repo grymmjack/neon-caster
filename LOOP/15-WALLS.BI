@@ -190,7 +190,7 @@
                         IF side = 0 THEN IF rayDirX > 0 THEN sd = 3 ELSE sd = 1
                         IF side = 1 THEN IF rayDirY > 0 THEN sd = 4 ELSE sd = 2
                         IF faceDiv(mapX, mapY, sd) = 3 THEN ' (in pieces: each its own picture, slide, stretch - LEVEL/PIECES.BM)
-                            wallPc = faceTex(mapX, mapY, sd) : wallPcD = texSlot : wallPcX = texX : wallPcC = 0 : wallPcG = MinOf(15, INT(texX / texSize * 16))
+                            wallPc = faceTex(mapX, mapY, sd) : wallPcD = texSlot : wallPcX = texX : wallPcC = 0 : wallPcG = MinOf(15, INT(texX / texSize * 16)) : wallPcFX = mapX : wallPcFY = mapY : wallPcF = sd
                         END IF
                         IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, texX / texSize, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, texX / texSize, 0, texSlot)
                     END IF
@@ -210,7 +210,7 @@
                 fu = texX / texSize
                 IF boxHit THEN fu = BoxFaceU(mapX, mapY, sd, fu) : sd = sd + FACE_BOX ' (a block's sides are faces of their own)
                 IF faceDiv(mapX, mapY, sd) = 3 THEN ' (in pieces: each its own picture, slide, stretch - LEVEL/PIECES.BM)
-                    wallPc = faceTex(mapX, mapY, sd) : wallPcD = texSlot : wallPcX = texX : wallPcG = MaxOf(0, MinOf(15, INT(fu * 16)))
+                    wallPc = faceTex(mapX, mapY, sd) : wallPcD = texSlot : wallPcX = texX : wallPcG = MaxOf(0, MinOf(15, INT(fu * 16))) : wallPcFX = mapX : wallPcFY = mapY : wallPcF = sd
                     wallPcC = wallCell : IF (side = 0 AND rayDirX < 0) OR (side = 1 AND rayDirY > 0) THEN wallPcC = -wallCell
                 END IF
                 IF faceTex(mapX, mapY, sd) OR faceTex2(mapX, mapY, sd) THEN texSlot2 = FaceSlot(mapX, mapY, sd, fu, 1, texSlot) : texSlot = FaceSlot(mapX, mapY, sd, fu, 0, texSlot)
@@ -266,6 +266,13 @@
                         pcTX = wallPcX : IF pcKU(wallPc, pcL) THEN pcTX = INT((wallPcX / texSize + wallPcC) * 100 / pcKU(wallPc, pcL) * texSize)
                         pcTX = (pcTX + pcOU(wallPc, pcL) * texSize \ 64) AND (texSize - 1)
                         wallVO = pcOV(wallPc, pcL) * texSize \ 64 : wallVK = 1 : IF pcKV(wallPc, pcL) THEN wallVK = 100 / pcKV(wallPc, pcL)
+                        IF pcAn(wallPc, pcL) THEN ' (from the piece's own top left corner - fitted to it, 2)
+                            pcAnKU = 1 : IF pcKU(wallPc, pcL) THEN pcAnKU = 100 / pcKU(wallPc, pcL)
+                            pcAnA = PcPicU(wallPcFX, wallPcFY, wallPcF, pcGU0(wallPc, pcL) / 16)
+                            IF pcAn(wallPc, pcL) = 2 THEN pcAnKU = pcAnKU / MaxOf(0.001, PcPicU(wallPcFX, wallPcFY, wallPcF, pcGU1(wallPc, pcL) / 16) - pcAnA) : wallVK = wallVK * 16 / MaxOf(1, pcGV1(wallPc, pcL) - pcGV0(wallPc, pcL))
+                            pcTX = (INT((wallPcX / texSize - pcAnA) * pcAnKU * texSize) + pcOU(wallPc, pcL) * texSize \ 64) AND (texSize - 1)
+                            wallVO = wallVO - INT(pcGV0(wallPc, pcL) / 16 * texSize * wallVK)
+                        END IF
                     END IF
                     texel~& = texture(pcTX, (INT(texPos * wallVK) + wallVO) AND (texSize - 1), wSl)
                     pixels(y * RENDER_W + x) = &HFF000000~& OR (((texel~& AND &HFF0000) \ 65536) * lightR& \ 256) * 65536 OR (((texel~& AND &HFF00&) \ 256) * lightG& \ 256) * 256 OR ((texel~& AND 255) * lightB& \ 256)

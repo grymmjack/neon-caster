@@ -265,6 +265,7 @@ SUB EditClipCopy(kind, x, y, side, part)
     FOR j = 1 TO ptN : IF ptPic$(j) = "" THEN ptPic$(j) = u$ ' (the usual one here, by name: it's this picture wherever it's pasted)
     NEXT
     IF part >= 1 AND part <= ptN THEN
+        IF ptN > 1 AND ptA(part) = 0 THEN EditPcStartHere kind, x, y, side, part ' (its picture from its own corner, slid to show just what it shows here: pasted on another piece, it looks the same)
         edClipP1$ = "." : edClipP2$ = PcLeafText$(part)
     ELSE
         edClipP1$ = ptShape$ : edClipP2$ = ""
@@ -602,6 +603,8 @@ SUB EditPaneClick STATIC
             IF pnHit = 356 THEN EditDivideSel "H" ELSE EditDivideSel "V"
         CASE 358 ' ...joined again
             EditJoinSel
+        CASE 372 TO 374 ' ...its picture starting at the face's grid, the piece's own corner, or fitted to the piece
+            EditTexOp 9, 0, 0, pnHit - 372, -1
         CASE 74 ' The selected faces' lights, gone
             EditPushUndo
             FOR k = 1 TO edSelN
@@ -1530,11 +1533,17 @@ SUB EditFP STATIC
                         EditSelKeep 0 : EditSelWallFlood edHovX, edHovY, edHovSide : n = edSelN : EditPaintSel : EditSelKeep -1 : EditNote "Painted" + STR$(n) + " faces of that wall"
                     ELSEIF edShift THEN
                         EditPushUndo : EditPaintFace edHovX, edHovY, fc, edHovPart, "" : EditApply : EditNote "The usual picture again"
+                        IF NOT edHovThing THEN edSelN = 0 : EditSelAdd edHovKind, edHovX, edHovY, edHovSide, edHovPart ' (and it's the selection: the PICTURE pane shows it)
                     ELSEIF edBrushTex$ = "" THEN
-                        EditNote "Pick a picture first (the picker: WALLS, FLOORS, CEILINGS)"
+                        IF edHovThing THEN
+                            EditNote "Pick a picture first (the picker: WALLS, FLOORS, CEILINGS)"
+                        ELSE ' (no picture to paint: the click selects it - slide, turn, tint it in the PICTURE pane)
+                            edSelN = 0 : EditSelAdd edHovKind, edHovX, edHovY, edHovSide, edHovPart : EditNote "Selected - its look is in the PICTURE pane (pick a picture to paint)"
+                        END IF
                     ELSE
                         EditPushUndo : EditPaintFace edHovX, edHovY, fc, edHovPart, edBrushTex$ : EditApply
                         EditNote edBrushTex$ + " on " + FaceName$(fc) + " of" + STR$(edHovX) + STR$(edHovY)
+                        IF NOT edHovThing THEN edSelN = 0 : EditSelAdd edHovKind, edHovX, edHovY, edHovSide, edHovPart ' (and it's the selection: the PICTURE pane shows it)
                     END IF
                 CASE ET_HEIGHT
                     d = H_STEP : IF edShift THEN d = -H_STEP
@@ -1825,6 +1834,34 @@ SUB EditPcTexSet(j, ou, ov, ku, kv)
     ptO(j) = (ou AND 63) + 64 * (ov AND 63) : ptK(j) = u + 2048& * v
 END SUB
 
+' Piece j of face (kind, side) of cell (x, y) - the tree being worked on -
+' made to start its picture at its own corner (ptA 1), slid so it shows
+' just what it showed from the face's grid: its picture's place at its top
+' left corner, worked out as the renderers do (across: the map's own
+' coordinate along the face, the way the picture reads; down: a wall high
+' a picture, from 1 - the height; a floor's, the map's x and y), less the
+' whole pictures
+SUB EditPcStartHere(kind, x, y, side, j)
+    DIM ax, ay, bx, by, dr, ok, ou, ov, kku, kkv, px, py, uu, vv, w, z0, z1, zt ' (its own: the main program shares these names)
+    IF PcRects(ptShape$) < j OR j < 1 THEN EXIT SUB
+    EditPcTexGet j, ou, ov, kku, kkv
+    IF kind = ED_FLOOR OR kind = ED_CEIL THEN
+        uu = 100 / kku * (x + pcRU0(j)) : vv = 100 / kkv * (y + pcRV0(j))
+    ELSE
+        EditFaceRect kind, x, y, side, ax, ay, bx, by, z0, z1, ok : IF NOT ok THEN EXIT SUB
+        IF side = 1 OR side = 4 THEN ' (east and north faces: the picture reads from b back to a)
+            px = bx + pcRU0(j) * (ax - bx) : py = by + pcRU0(j) * (ay - by) : dr = -1
+        ELSE
+            px = ax + pcRU0(j) * (bx - ax) : py = ay + pcRU0(j) * (by - ay) : dr = 1
+        END IF
+        IF ABS(ay - by) < 0.0001 THEN w = px ELSE w = py
+        zt = z1 - pcRV0(j) * (z1 - z0)
+        uu = 100 / kku * dr * w : vv = 100 / kkv * (1 - zt)
+    END IF
+    ou = (ou + INT((uu - INT(uu)) * 64 + 0.5)) AND 63 : ov = (ov + INT((vv - INT(vv)) * 64 + 0.5)) AND 63
+    EditPcTexSet j, ou, ov, kku, kkv : ptA(j) = 1
+END SUB
+
 ' Piece j's look in words - slid, stretched, turned, tinted ("" as made)
 FUNCTION EditLookName$(j)
     DIM ou, ov, ku, kv, t$ ' (its own: the main program shares these names)
@@ -1833,6 +1870,8 @@ FUNCTION EditLookName$(j)
     IF ku <> 100 OR kv <> 100 THEN t$ = t$ + "  stretched" + STR$(ku) + "% x" + STR$(kv) + "%"
     IF ptRot(j) THEN t$ = t$ + "  turned" + STR$(ptRot(j) * 90)
     IF ptTM(j) THEN t$ = t$ + "  " + EditTintName$(ptTM(j)) + STR$(ptTA(j)) + "% " + RIGHT$("00000" + HEX$(ptTC(j) AND &HFFFFFF), 6)
+    IF ptA(j) = 1 THEN t$ = t$ + "  from its corner"
+    IF ptA(j) = 2 THEN t$ = t$ + "  fitted"
     EditLookName$ = LTRIM$(t$)
 END FUNCTION
 
@@ -1979,7 +2018,8 @@ END SUB
 ' quarters clockwise; 5 tinted the way st says (0 none, 1 TINT, 2 WASH, 3
 ' GLOW); 6 its tint's amount dir * st percent more; 7 its tint's colour
 ' k& (RRGGBB); 8 its colour's red (k& 0), green (1) or blue (2) dir * st
-' more. A colour or amount on a picture not tinted tints it (TINT). One
+' more; 9 where its picture starts (st: 0 the face's, 1 the piece's
+' corner, 2 fitted to the piece). A colour or amount on a picture not tinted tints it (TINT). One
 ' undo for a run of presses. fromPane: the selection, always.
 SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
     DIM fc, fwX, fwY, i, j, j0, j1, n, ou, ov, ku, kv, useSel, mx, my, kd, fx, fy, sd, pt, w, kn, sv, cr, cg, cb, lastJ, t$ ' (its own: the main program shares these names)
@@ -2006,7 +2046,8 @@ SUB EditTexOp(op, k&, dir, st, fromPane) STATIC
         FOR j = j0 TO j1
             EditPcTexGet j, ou, ov, ku, kv
             SELECT CASE op
-                CASE 3 : ou = 0 : ov = 0 : ku = 100 : kv = 100 : ptRot(j) = 0 : ptTM(j) = 0
+                CASE 3 : ou = 0 : ov = 0 : ku = 100 : kv = 100 : ptRot(j) = 0 : ptTM(j) = 0 : ptA(j) = 0
+                CASE 9 : ptA(j) = st
                 CASE 1, 2
                     IF op = 1 THEN w = ku ELSE w = kv
                     IF st THEN
@@ -3964,6 +4005,8 @@ SUB EditPanePicture(x0, y)
     EditPaneAdd -1, x0, y + 2, 140, "TALL" + STR$(kv) + "%", 0 : EditPaneAdd 336, x0 + 146, y, 24, "-", 0 : EditPaneAdd 337, x0 + 174, y, 24, "+", 0 : y = y + 23
     IF ptRot(pj) THEN t$ = "TURNED" + STR$(ptRot(pj) * 90) + " (R)" ELSE t$ = "NOT TURNED (R)"
     EditPaneAdd -1, x0, y + 2, 140, t$, 0 : EditPaneAdd 341, x0 + 146, y, 24, "<", 0 : EditPaneAdd 342, x0 + 174, y, 24, ">", 0 : y = y + 23
+    EditPaneAdd -1, x0, y + 2, 50, "START AT", 0
+    FOR c = 0 TO 2 : EditPaneAdd 372 + c, x0 + 52 + c * 50, y, 48 + 2 * (c = 2), RTRIM$(MID$("FACE PIECEFIT  ", c * 5 + 1, 5)), (ptA(pj) = c) : NEXT : y = y + 23
     FOR c = 0 TO 3 : EditPaneAdd 343 + c, x0 + c * 50, y, 48, EditTintName$(c), (tm = c) : NEXT : y = y + 23
     IF tm THEN
         EditPaneAdd -1, x0, y + 2, 140, "AMOUNT" + STR$(ptTA(pj)) + "%", 0 : EditPaneAdd 347, x0 + 146, y, 24, "-", 0 : EditPaneAdd 348, x0 + 174, y, 24, "+", 0 : y = y + 23

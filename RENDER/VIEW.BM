@@ -294,7 +294,7 @@ END SUB
 ' pieces, hPc and its column of the grid, hPcG (hSlot staying the usual)
 SUB HeightPick(x, y, f, u)
     IF faceDiv(x, y, f) = 3 THEN
-        hPc = faceTex(x, y, f) : hPcG = INT(u * 16) : hSlot2 = 0
+        hPc = faceTex(x, y, f) : hPcG = INT(u * 16) : hSlot2 = 0 : hPcX = x : hPcY = y : hPcF = f
         IF hPcG < 0 THEN hPcG = 0 ELSE IF hPcG > 15 THEN hPcG = 15
     ELSE
         hPc = 0 : hSlot2 = FaceSlot(x, y, f, u, 1, hSlot) : hSlot = FaceSlot(x, y, f, u, 0, hSlot)
@@ -303,8 +303,21 @@ END SUB
 
 ' ...and piece pl of face p's slide and stretch, as HeightOff's
 SUB HeightOffPc(p, pl)
-    DIM c ' (its own: the main program shares these names)
+    DIM a, c, ku, kv, zt ' (its own: the main program shares these names)
     hOU = pcOU(p, pl) * texSize \ 64 : hOV = pcOV(p, pl) * texSize \ 64 : hKV = 1
+    IF pcAn(p, pl) THEN ' (from the piece's own top left corner - fitted to it, 2)
+        ku = 1 : kv = 1
+        IF pcKU(p, pl) THEN ku = 100 / pcKU(p, pl)
+        IF pcKV(p, pl) THEN kv = 100 / pcKV(p, pl)
+        a = PcPicU(hPcX, hPcY, hPcF, pcGU0(p, pl) / 16) : zt = hZ0 - pcGV0(p, pl) / 16 * (hZ0 - hZ1)
+        IF pcAn(p, pl) = 2 THEN
+            ku = ku / MaxOf(0.001, PcPicU(hPcX, hPcY, hPcF, pcGU1(p, pl) / 16) - a)
+            kv = kv / MaxOf(0.001, (pcGV1(p, pl) - pcGV0(p, pl)) / 16 * (hZ0 - hZ1))
+        END IF
+        hOU = hOU + INT((hTexX / texSize - a) * ku * texSize) - hTexX
+        hKV = kv : hOV = hOV - INT((hVOff + 1 - zt) * texSize * kv)
+        EXIT SUB
+    END IF
     IF pcKV(p, pl) THEN hKV = 100 / pcKV(p, pl)
     IF pcKU(p, pl) THEN
         c = hWallC : IF (hSide = 0 AND rayDirX < 0) OR (hSide = 1 AND rayDirY > 0) THEN c = -c
