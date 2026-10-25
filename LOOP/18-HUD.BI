@@ -108,7 +108,7 @@
             IF edTool = ET_PAINT THEN t$ = EditPaintName$ ELSE IF edTool = ET_LIGHT THEN t$ = "light: " + LCASE$(EditFxName$(edLFx)) ELSE t$ = GlyphName$(editGlyph$)
             TinyText 8, PK_TUCK + 7, "^ PICKER  (point here to open it)   brush: " + t$, _RGB32(190, 180, 230)
         END IF
-        HudAt 2 : IF edLooking THEN EditDrawPane -1, -1 ELSE EditDrawPane edCurX, edCurY
+        HudAt 2 : IF edLooking THEN EditDrawPane -1, -1 : CpDraw -1, -1 ELSE EditDrawPane edCurX, edCurY : CpDraw edCurX, edCurY ' (and the colour helper beside it, while a colour's typed)
         HudAt 0 : IF edLooking THEN EditDrawTB 1, -1, -1 ELSE EditDrawTB 1, edCurX, edCurY
         IF npMenuOn THEN HudAt -1 : IF edLooking THEN NpMenuDraw -1, -1 ELSE NpMenuDraw edCurX, edCurY ' (a picture's right-click menu, over the rest)
         HudAt 1 : IF edHelp THEN EditDrawHelp 1

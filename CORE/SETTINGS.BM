@@ -301,7 +301,7 @@ SUB LoadSettings
     DIM fileNum, i, v ' (its own: the main program shares these names)
     FOR i = 1 TO NUM_SETTINGS : setting(i) = setDefault(i) : NEXT
     FOR i = 1 TO NUM_BINDS : keyBind&(i) = bindDefault&(i) : NEXT
-    qbChosen$ = "" : imgEditor$ = "" : conTall = 0
+    qbChosen$ = "" : imgEditor$ = "" : conTall = 0 : cpFile$ = ""
     file$ = SaveDir$ + "settings.ini"
     IF NOT _FILEEXISTS(file$) THEN EXIT SUB
     fileNum = FREEFILE
@@ -321,6 +321,10 @@ SUB LoadSettings
             IF iniKey$ = "image_editor" THEN ' (a path too: the editor's Alt+E - EDITOR/NEWPICS.BM)
                 imgEditor$ = MID$(text$, eq + 1) : IF RIGHT$(imgEditor$, 1) = CHR$(13) THEN imgEditor$ = LEFT$(imgEditor$, LEN(imgEditor$) - 1)
                 imgEditor$ = LTRIM$(RTRIM$(imgEditor$))
+            END IF
+            IF iniKey$ = "palette" THEN ' (a path too, or a palette's name in neon-caster/palettes/: the editor's colour helper)
+                cpFile$ = MID$(text$, eq + 1) : IF RIGHT$(cpFile$, 1) = CHR$(13) THEN cpFile$ = LEFT$(cpFile$, LEN(cpFile$) - 1)
+                cpFile$ = LTRIM$(RTRIM$(cpFile$))
             END IF
             IF iniKey$ = "console_tall" THEN conTall = (v <> 0) ' (F11 in the console: it fills the screen)
             IF iniKey$ = "retro_res" AND v = 1 THEN setting(SET_RES) = RES_RETRO ' (what RESOLUTION was called once)
@@ -349,6 +353,8 @@ SUB SaveSettings
     PRINT #fileNum, "; image_editor: the paint program the editor's Alt+E opens pictures in. Left empty:"
     PRINT #fileNum, "; DRAW if it's in ~/git/DRAW, else the system's own (xdg-open, open, start)."
     PRINT #fileNum, "image_editor=" + imgEditor$
+    PRINT #fileNum, "; palette: the editor's colour helper's palette - a .gpl's path, or a name in neon-caster/palettes/"
+    PRINT #fileNum, "palette=" + cpFile$
     PRINT #fileNum, "console_tall=" + LTRIM$(STR$(-conTall)) + "   ; F11 in the console: 1 fills the screen"
     FOR i = 1 TO NUM_BINDS
         PRINT #fileNum, bindKey$(i) + "=" + LTRIM$(STR$(keyBind&(i))) + "   ; " + KeyName$(keyBind&(i))

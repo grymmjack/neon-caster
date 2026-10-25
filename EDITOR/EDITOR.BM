@@ -461,10 +461,14 @@ END SUB
 ' Typing the sector's name: a key (k&) - Enter keeps it, Esc doesn't
 SUB EditTypeKey STATIC
     SELECT CASE k&
-        CASE 13 : EditTypeDone
-        CASE 27 : edTyping = 0 : IF edTypeFor = 2 THEN EditNote "Commands unchanged" ELSE IF edTypeFor >= 3 THEN EditNote "Unchanged" ELSE EditNote "Name unchanged"
+        CASE 13 : IF cpUsed AND edTypeFresh THEN edTyping = 0 : EditNote "Done" ELSE EditTypeDone ' (a colour clicked or picked, nothing typed since: it's in)
+        CASE 27
+            IF cpPick THEN cpPick = 0 : EditNote "No pick" : EXIT SUB ' (PICK: never mind - still typing)
+            IF cpUsed THEN edTyping = 0 : EditNote "Done" : EXIT SUB
+            edTyping = 0 : IF edTypeFor = 2 THEN EditNote "Commands unchanged" ELSE IF edTypeFor >= 3 THEN EditNote "Unchanged" ELSE EditNote "Name unchanged"
         CASE 8 : IF LEN(edTypeBuf$) THEN edTypeBuf$ = LEFT$(edTypeBuf$, LEN(edTypeBuf$) - 1)
         CASE 32 TO 126
+            IF CpKey(k&) THEN EXIT SUB ' (a colour: I picks, L loads a palette, [ ] the palettes - EDITOR/COLOURS.BM)
             IF edTypeFresh THEN edTypeBuf$ = "" ' (the first letter typed starts it afresh - Backspace first to change the old one)
             IF edTypeFor = 2 THEN
                 IF LEN(edTypeBuf$) < 120 THEN edTypeBuf$ = edTypeBuf$ + CHR$(k&) ' (commands: as typed)
@@ -1235,7 +1239,9 @@ SUB RunEditor STATIC
         IF wheel THEN
             EditPkHit mx, my, pkWhat, pkIdx
             EditPkGeom pgx, pgy, pcols, prows, psz
-            IF pkWhat OR (mx >= ED_PALX AND my >= 40 AND my < pgy + prows * (psz + 4)) THEN
+            IF CpAt(mx, my) THEN
+                CpScroll SGN(wheel) ' (the colour helper's palette)
+            ELSEIF pkWhat OR (mx >= ED_PALX AND my >= 40 AND my < pgy + prows * (psz + 4)) THEN
                 EditPkScroll SGN(wheel)
             ELSEIF edPnTitle$ <> "" AND mx >= edPnX0 - 6 AND mx <= edPnX0 + PN_W + 6 AND my <= edPnBot + 6 THEN
                 ' (over the pane: nothing under it moves)
@@ -1265,6 +1271,9 @@ SUB RunEditor STATIC
         IF NOT b1 THEN edTbDrag = 0 : edTbDown = 0
         fresh = b1 AND NOT edB1 : edB1 = b1
         IF fresh AND npMenuOn AND NOT edDown THEN NpMenuClick mx, my : edTbDown = -1 : fresh = 0 ' (a picture's menu up: the click is its)
+        CpFrame
+        IF fresh AND cpPick AND NOT edDown THEN CpPickAt mx, my : edTbDown = -1 : fresh = 0 ' (PICK: the colour there - EDITOR/COLOURS.BM)
+        IF fresh AND NOT edDown AND CpAt(mx, my) THEN CpClick CpAt(mx, my) : edTbDown = -1 : fresh = 0 ' (the colour helper)
         ' The properties pane (over the map's right), and the picker (in the
         ' panel) - a press on them is theirs till it's let go
         IF fresh AND NOT edTbDown AND NOT edHelp AND NOT edDown THEN
@@ -1283,6 +1292,7 @@ SUB RunEditor STATIC
             END IF
         END IF
         EditPaneBuild : IF edPnTitle$ <> "" AND mx >= edPnX0 - 6 AND mx <= edPnX0 + PN_W + 6 AND my <= edPnBot + 6 THEN onMap = 0 ' (under the pane)
+        IF CpAt(mx, my) THEN onMap = 0 ' (under the colour helper)
         IF edLinkPad AND fresh AND onMap THEN ' LINK: this is the pad it goes to
             IF MID$(lvlRow$(cy), cx + 1, 1) = "&" AND (cx <> edLinkX OR cy <> edLinkY) THEN
                 EditPushUndo
@@ -1467,6 +1477,7 @@ SUB RunEditor STATIC
         DrawEditor cx, cy, onMap, edRect AND edDown, edX0, edY0, playerX, playerY, dirX, dirY, level, levelName$
         EditDrawPicker mx, my
         EditDrawPane mx, my
+        CpDraw mx, my
         EditDrawTB 0, mx, my
         NpMenuDraw mx, my
         IF edHelp THEN EditDrawHelp 0
@@ -1621,9 +1632,14 @@ SUB EditFP STATIC
     ' With another tool, a click does that tool's thing to the face instead;
     ' on the toolbar, it's the toolbar's.
     tbHit = 0 : IF NOT edLooking THEN tbHit = EditTBAt(edCurX, edCurY, 1)
+    CpFrame
     IF fpL AND NOT fpLWas AND NOT edLooking AND npMenuOn THEN NpMenuClick edCurX, edCurY : fpLWas = -1 ' (a picture's menu up: the click is its - off it, it goes)
     IF fpL AND NOT fpLWas AND NOT edLooking AND edHelp THEN
         edHelp = 0 : fpLWas = -1 ' (the help was up: the click puts it away)
+    ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND cpPick THEN
+        CpPickAt edCurX, edCurY : fpLWas = -1 ' (PICK: the colour there - EDITOR/COLOURS.BM)
+    ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND CpAt(edCurX, edCurY) THEN
+        CpClick CpAt(edCurX, edCurY) : fpLWas = -1 ' (the colour helper)
     ELSEIF fpL AND NOT fpLWas AND tbHit THEN
         EditTBClick : fpLWas = -1 ' (the toolbar's - never the world's too, even when it changed the view)
     ELSEIF fpL AND NOT fpLWas AND NOT edLooking AND EditPaneAt(edCurX, edCurY) THEN
@@ -1781,6 +1797,7 @@ SUB EditFP STATIC
     IF edWheel <> 0 AND edPickOpen AND edCurY >= PK_Y - 4 AND NOT edLooking THEN ' (over the picker: the wheel scrolls it)
         EditPkScroll SGN(edWheel) : edWheel = 0 ' (down the wheel: down the list)
     END IF
+    IF edWheel <> 0 AND NOT edLooking AND CpAt(edCurX, edCurY) THEN CpScroll SGN(edWheel) : edWheel = 0 ' (over the colour helper: its palette)
     IF edWheel <> 0 AND NOT EditOverUI(edCurX, edCurY) THEN EditWheel
     edWheel = 0
     FOR kc = 97 TO 122 ' (a letter let go in another loop - the map from above, the menu - is let go here too)
@@ -3143,6 +3160,7 @@ FUNCTION EditOverUI(x, y)
     IF editView = 1 AND x - edWX >= edPnX0 - 6 AND y >= edPnY0 AND y <= edPnBot AND edPnTitle$ <> "" THEN EditOverUI = -1 ' (the properties pane)
     IF editView = 1 AND edPickOn AND NOT edPickOpen AND y >= PK_TUCK THEN EditOverUI = -1 ' (tucked away: its strip)
     IF NpMenuRow(x, y) >= 0 THEN EditOverUI = -1 ' (a picture's right-click menu)
+    IF CpAt(x, y) THEN EditOverUI = -1 ' (the colour helper)
 END FUNCTION
 
 ' --- THE TOOLBAR: the editor's buttons, in both views - along the top in

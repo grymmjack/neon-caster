@@ -1,0 +1,335 @@
+' ============================================================================
+' THE COLOUR HELPER (EDITOR/COLOURS.BI): while a colour's being typed, a
+' panel beside the pane - a palette to click, PICK from the screen.
+' ============================================================================
+
+' Is a colour being typed? (a tint 7, a thing's look 8, a light 10, a
+' cell's light 11, a made colour 12 - the colours EditTypeKey takes hex for)
+FUNCTION CpWanted
+    CpWanted = 0
+    IF NOT edTyping THEN EXIT FUNCTION
+    SELECT CASE edTypeFor
+        CASE 7, 8, 10, 11, 12 : CpWanted = -1
+    END SELECT
+END FUNCTION
+
+' Where the panel goes: left of the pane (3D, and the map from above)
+SUB CpPlace
+    IF editView = 1 THEN cpX0 = PN_X - CP_W - 18 : cpY0 = PN_Y ELSE cpX0 = 380 - CP_W - 18 : cpY0 = 12
+    cpBot = cpY0 + 72 + CP_ROWS * CP_SQ + 44
+END SUB
+
+' The folder of the palettes that come with the game
+FUNCTION CpDir$
+    DIM s$ ' (its own: the main program shares these names)
+    s$ = SaveDir$ : CpDir$ = LEFT$(s$, LEN(s$) - 6) + "palettes/"
+END FUNCTION
+
+' The palettes that come with the game: every .gpl in neon-caster/palettes/,
+' in order by name
+SUB CpScan
+    DIM d$, n$, j, k, sl ' (its own: the main program shares these names)
+    cpBuiltN = 0 : d$ = CpDir$
+    IF NOT _DIREXISTS(LEFT$(d$, LEN(d$) - 1)) THEN EXIT SUB
+    n$ = _FILES$(d$ + "*")
+    DO WHILE LEN(n$)
+        sl = _INSTRREV(n$, "/") : IF _INSTRREV(n$, "\") > sl THEN sl = _INSTRREV(n$, "\")
+        n$ = MID$(n$, sl + 1)
+        IF UCASE$(RIGHT$(n$, 4)) = ".GPL" AND cpBuiltN < CP_BUILT THEN cpBuiltN = cpBuiltN + 1 : cpBuilt$(cpBuiltN) = n$
+        n$ = _FILES$
+    LOOP
+    FOR k = 1 TO cpBuiltN - 1 : FOR j = k + 1 TO cpBuiltN
+        IF UCASE$(cpBuilt$(j)) < UCASE$(cpBuilt$(k)) THEN SWAP cpBuilt$(j), cpBuilt$(k)
+    NEXT : NEXT
+END SUB
+
+' A palette ready the first time the panel's wanted: the one last chosen,
+' else ENDESGA 64
+SUB CpEnsure
+    STATIC scanned
+    DIM k ' (its own: the main program shares these names)
+    IF NOT scanned THEN CpScan : scanned = -1
+    IF cpN > 0 THEN EXIT SUB
+    IF LEN(cpFile$) THEN CpLoad cpFile$
+    IF cpN > 0 THEN EXIT SUB
+    FOR k = 1 TO cpBuiltN
+        IF UCASE$(LEFT$(cpBuilt$(k), 10)) = "ENDESGA-64" THEN CpLoad cpBuilt$(k)
+    NEXT
+    IF cpN = 0 AND cpBuiltN > 0 THEN CpLoad cpBuilt$(1)
+END SUB
+
+' A GIMP palette (.gpl): "R G B name" a line, after a "GIMP Palette" line
+' (Name:, Columns: and # lines are skipped - a # Palette Name: line, or
+' Name:, names it). f$ with no folder in it is one of the game's own.
+SUB CpLoad(f$)
+    DIM p$, t$, l$, w$(3), fh, k, n, c, r, g, b, title$ ' (its own: the main program shares these names)
+    DIM col(CP_MAX) AS _UNSIGNED LONG, nm$(CP_MAX)
+    p$ = f$ : IF INSTR(p$, "/") = 0 AND INSTR(p$, "\") = 0 THEN p$ = CpDir$ + p$
+    IF NOT _FILEEXISTS(p$) THEN EditNote "No palette at " + PathTail$(p$, 60) : EXIT SUB
+    fh = FREEFILE : OPEN p$ FOR INPUT AS #fh
+    n = 0 : title$ = ""
+    DO WHILE NOT EOF(fh) AND n < CP_MAX
+        LINE INPUT #fh, l$
+        l$ = LTRIM$(RTRIM$(l$))
+        IF LEFT$(l$, 3) = CHR$(239) + CHR$(187) + CHR$(191) THEN l$ = MID$(l$, 4) ' (UTF-8's mark)
+        IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = RTRIM$(LEFT$(l$, LEN(l$) - 1))
+        DO WHILE INSTR(l$, CHR$(9)) : MID$(l$, INSTR(l$, CHR$(9)), 1) = " " : LOOP
+        IF l$ = "" THEN _CONTINUE
+        IF LEFT$(l$, 1) = "#" THEN
+            k = INSTR(LCASE$(l$), "palette name:") : IF k THEN title$ = LTRIM$(MID$(l$, k + 13))
+            _CONTINUE
+        END IF
+        IF LCASE$(LEFT$(l$, 5)) = "name:" THEN title$ = LTRIM$(MID$(l$, 6)) : _CONTINUE
+        IF LCASE$(LEFT$(l$, 4)) = "gimp" OR LCASE$(LEFT$(l$, 8)) = "columns:" THEN _CONTINUE
+        ' Three numbers, then the colour's name
+        t$ = l$
+        FOR c = 1 TO 3
+            t$ = LTRIM$(t$) : k = INSTR(t$, " ") : IF k = 0 THEN k = LEN(t$) + 1
+            w$(c) = LEFT$(t$, k - 1) : t$ = MID$(t$, k + 1)
+        NEXT
+        IF w$(3) = "" OR INSTR("0123456789", LEFT$(w$(1), 1)) = 0 THEN _CONTINUE
+        r = VAL(w$(1)) : g = VAL(w$(2)) : b = VAL(w$(3))
+        IF r < 0 OR g < 0 OR b < 0 OR r > 255 OR g > 255 OR b > 255 THEN _CONTINUE
+        n = n + 1 : col(n) = _RGB32(r, g, b) : nm$(n) = LTRIM$(RTRIM$(t$))
+    LOOP
+    CLOSE #fh
+    IF n = 0 THEN EditNote "No colours in " + PathTail$(p$, 60) : EXIT SUB
+    cpN = n : cpTop = 0
+    FOR k = 1 TO n : cpCol(k) = col(k) : cpName$(k) = nm$(k) : NEXT
+    IF title$ = "" THEN ' (none given: the file's name, without .gpl)
+        k = _INSTRREV(p$, "/") : IF _INSTRREV(p$, "\") > k THEN k = _INSTRREV(p$, "\")
+        title$ = MID$(p$, k + 1) : IF UCASE$(RIGHT$(title$, 4)) = ".GPL" THEN title$ = LEFT$(title$, LEN(title$) - 4)
+    END IF
+    cpTitle$ = UCASE$(title$) : IF RIGHT$(cpTitle$, 4) = ".GPL" THEN cpTitle$ = LEFT$(cpTitle$, LEN(cpTitle$) - 4) ' (Name: amstradcpc.gpl)
+    cpFile$ = f$ : cpBuiltAt = 0
+    FOR k = 1 TO cpBuiltN
+        IF cpBuilt$(k) = f$ THEN cpBuiltAt = k
+    NEXT
+END SUB
+
+' Which part of the panel (x, y) is on: 1 LOAD, 2 PICK, 3 the palette
+' before, 4 the next, 5 up, 6 down, 100 + n the palette's colour n - -1 the
+' panel but none of those, 0 not on it
+FUNCTION CpAt(x, y)
+    DIM lx, c, r ' (its own: the main program shares these names)
+    CpAt = 0
+    IF NOT CpWanted THEN EXIT FUNCTION
+    CpPlace
+    lx = x : IF editView = 1 THEN lx = x - edWX ' (FULL WIDE: beside the pane, at the window's right edge)
+    IF lx < cpX0 - 6 OR lx > cpX0 + CP_W + 6 OR y < cpY0 OR y > cpBot + 6 THEN EXIT FUNCTION
+    CpAt = -1
+    IF y >= cpY0 + 18 AND y < cpY0 + 32 AND lx >= cpX0 + CP_W - 90 THEN CpAt = 1
+    IF y >= cpY0 + 36 AND y < cpY0 + 50 THEN CpAt = 2
+    IF y >= cpY0 + 54 AND y < cpY0 + 68 THEN
+        IF lx < cpX0 + 20 THEN CpAt = 3
+        IF lx >= cpX0 + CP_W - 20 THEN CpAt = 4
+    END IF
+    IF y >= cpY0 + 72 AND y < cpY0 + 72 + CP_ROWS * CP_SQ AND lx >= cpX0 AND lx < cpX0 + CP_COLS * CP_SQ THEN
+        c = (lx - cpX0) \ CP_SQ : r = (y - cpY0 - 72) \ CP_SQ
+        IF (cpTop + r) * CP_COLS + c + 1 <= cpN THEN CpAt = 100 + (cpTop + r) * CP_COLS + c + 1
+    END IF
+    IF y >= cpY0 + 76 + CP_ROWS * CP_SQ AND y < cpY0 + 90 + CP_ROWS * CP_SQ THEN
+        IF lx >= cpX0 + CP_W - 60 AND lx < cpX0 + CP_W - 32 THEN CpAt = 5
+        IF lx >= cpX0 + CP_W - 28 THEN CpAt = 6
+    END IF
+END FUNCTION
+
+' A button of the panel, as the pane's are
+SUB CpButton(x, y, w, l$, over, lit)
+    DIM bg~&, bc~& ' (its own: the main program shares these names)
+    IF lit THEN bg~& = _RGBA32(120, 20, 100, 230) ELSE bg~& = _RGBA32(14, 6, 30, 230)
+    IF over THEN bg~& = _RGBA32(40, 70, 110, 240)
+    LINE (x, y)-STEP(w - 1, PN_BH - 1), bg~&, BF
+    IF over THEN bc~& = _RGB32(150, 240, 255) ELSE IF lit THEN bc~& = _RGB32(255, 60, 200) ELSE bc~& = _RGB32(90, 70, 140)
+    LINE (x, y)-STEP(w - 1, PN_BH - 1), bc~&, B
+    TinyText x + (w - TinyW(l$)) \ 2, y + 3, l$, _RGB32(255, 255, 255)
+END SUB
+
+SUB CpDraw(mx, my)
+    DIM hv, k, n, r, c, x, y, rows, t$, h$ ' (its own: the main program shares these names)
+    DIM cc AS _UNSIGNED LONG
+    IF NOT CpWanted THEN EXIT SUB
+    CpEnsure : CpPlace
+    hv = 0 : IF mx <> -1 THEN hv = CpAt(mx, my)
+    LINE (cpX0 - 6, cpY0)-(cpX0 + CP_W + 6, cpBot + 6), _RGBA32(6, 2, 18, 225), BF
+    LINE (cpX0 - 6, cpY0)-(cpX0 + CP_W + 6, cpBot + 6), _RGB32(255, 60, 200), B
+    TinyText cpX0, cpY0 + 4, "COLOUR HELPER", _RGB32(255, 90, 200)
+    ' What's typed so far, as a colour
+    IF LEN(edTypeBuf$) = 6 THEN
+        cc = PcHex~&(edTypeBuf$) OR &HFF000000~&
+        LINE (cpX0, cpY0 + 18)-STEP(29, PN_BH - 1), cc, BF : LINE (cpX0, cpY0 + 18)-STEP(29, PN_BH - 1), _RGB32(90, 70, 140), B
+    END IF
+    TinyText cpX0 + 36, cpY0 + 21, edTypeBuf$ + "_", _RGB32(255, 255, 255)
+    CpButton cpX0 + CP_W - 90, cpY0 + 18, 90, "LOAD .GPL (L)", (hv = 1), 0
+    CpButton cpX0, cpY0 + 36, CP_W, "PICK FROM THE SCREEN (I)", (hv = 2), cpPick
+    CpButton cpX0, cpY0 + 54, 20, "<", (hv = 3), 0
+    CpButton cpX0 + CP_W - 20, cpY0 + 54, 20, ">", (hv = 4), 0
+    t$ = cpTitle$ : IF TinyW(t$) > CP_W - 48 THEN t$ = LEFT$(t$, (CP_W - 48) \ 5)
+    TinyText cpX0 + (CP_W - TinyW(t$)) \ 2, cpY0 + 57, t$, _RGB32(210, 220, 255)
+    ' The palette's colours
+    FOR r = 0 TO CP_ROWS - 1 : FOR c = 0 TO CP_COLS - 1
+        n = (cpTop + r) * CP_COLS + c + 1
+        IF n <= cpN THEN
+            x = cpX0 + c * CP_SQ : y = cpY0 + 72 + r * CP_SQ
+            LINE (x + 1, y + 1)-STEP(CP_SQ - 3, CP_SQ - 3), cpCol(n), BF
+            IF hv = 100 + n THEN LINE (x, y)-STEP(CP_SQ - 1, CP_SQ - 1), _RGB32(150, 240, 255), B
+            IF LEN(edTypeBuf$) = 6 THEN IF (cpCol(n) AND &HFFFFFF) = (PcHex~&(edTypeBuf$) AND &HFFFFFF) THEN LINE (x, y)-STEP(CP_SQ - 1, CP_SQ - 1), _RGB32(255, 60, 200), B
+        END IF
+    NEXT : NEXT
+    rows = (cpN + CP_COLS - 1) \ CP_COLS
+    y = cpY0 + 76 + CP_ROWS * CP_SQ
+    TinyText cpX0, y + 3, LTRIM$(STR$(cpN)) + " COLOURS" + MID$("  ROWS" + STR$(cpTop + 1) + "-" + LTRIM$(STR$(MinOf(rows, cpTop + CP_ROWS))) + " OF" + STR$(rows), 1, -40 * (rows > CP_ROWS)), _RGB32(150, 140, 190)
+    IF rows > CP_ROWS THEN CpButton cpX0 + CP_W - 60, y, 28, "UP", (hv = 5), 0 : CpButton cpX0 + CP_W - 28, y, 28, "DN", (hv = 6), 0
+    ' What the pointer's on - or what to do
+    y = y + 20
+    IF cpPick THEN
+        TinyText cpX0, y, "CLICK ANYWHERE: ITS COLOUR", _RGB32(255, 215, 90)
+        TinyText cpX0, y + 11, "SHIFT+CLICK: THE PICTURE'S OWN  ESC: NO", _RGB32(255, 215, 90)
+    ELSEIF hv > 100 THEN
+        h$ = RIGHT$("00000" + HEX$(cpCol(hv - 100) AND &HFFFFFF), 6)
+        TinyText cpX0, y, h$ + "  " + LEFT$(UCASE$(cpName$(hv - 100)), 30), _RGB32(255, 255, 255)
+    ELSE
+        TinyText cpX0, y, "CLICK A COLOUR: IT'S USED", _RGB32(150, 140, 190)
+        TinyText cpX0, y + 11, "[ ] PALETTE  WHEEL: SCROLL  ENTER: DONE", _RGB32(150, 140, 190)
+    END IF
+END SUB
+
+' A click on the panel (CpAt's id)
+SUB CpClick(id)
+    DIM f$ ' (its own: the main program shares these names)
+    CpEnsure
+    SELECT CASE id
+        CASE 1 : CpLoadAsk
+        CASE 2 : cpPick = NOT cpPick : IF cpPick THEN EditNote "Click anything to take its colour (Shift+click: the picture's own, unlit) - Esc: never mind"
+        CASE 3 : CpStep -1
+        CASE 4 : CpStep 1
+        CASE 5 : CpScroll -1
+        CASE 6 : CpScroll 1
+        CASE IS > 100 : IF id - 100 <= cpN THEN CpUse cpCol(id - 100)
+    END SELECT
+END SUB
+
+' The palette before (-1) or after (1) among the game's own
+SUB CpStep(d)
+    DIM k ' (its own: the main program shares these names)
+    CpEnsure
+    IF cpBuiltN = 0 THEN EditNote "No palettes in " + CpDir$ : EXIT SUB
+    k = cpBuiltAt + d : IF cpBuiltAt = 0 AND d < 0 THEN k = cpBuiltN
+    IF k < 1 THEN k = cpBuiltN
+    IF k > cpBuiltN THEN k = 1
+    CpLoad cpBuilt$(k) : SaveSettings
+    EditNote "Palette: " + cpTitle$ + " (" + LTRIM$(STR$(cpN)) + " colours)"
+END SUB
+
+SUB CpScroll(d)
+    DIM rows ' (its own: the main program shares these names)
+    rows = (cpN + CP_COLS - 1) \ CP_COLS
+    cpTop = MaxOf(0, MinOf(MaxOf(0, rows - CP_ROWS), cpTop + d))
+END SUB
+
+' LOAD: a .gpl from anywhere
+SUB CpLoadAsk
+    DIM f$, d$ ' (its own: the main program shares these names)
+    d$ = cpFile$ : IF d$ = "" OR (INSTR(d$, "/") = 0 AND INSTR(d$, "\") = 0) THEN d$ = CpDir$
+    f$ = _OPENFILEDIALOG$("Load a palette", d$, "*.gpl|*.GPL", "GIMP palettes", 0)
+    _KEYCLEAR
+    IF f$ = "" THEN EXIT SUB
+    CpLoad f$
+    IF cpFile$ = f$ THEN SaveSettings : EditNote "Palette: " + cpTitle$ + " (" + LTRIM$(STR$(cpN)) + " colours)"
+END SUB
+
+' A key while a colour's typed (k&): I picks, L loads, [ ] the palettes -
+' -1 if it was one of those (not hex)
+FUNCTION CpKey(k&)
+    CpKey = 0
+    IF NOT CpWanted THEN EXIT FUNCTION
+    SELECT CASE k&
+        CASE 73, 105 : CpClick 2 : CpKey = -1 ' I
+        CASE 76, 108 : CpClick 1 : CpKey = -1 ' L
+        CASE 91 : CpStep -1 : CpKey = -1 ' [
+        CASE 93 : CpStep 1 : CpKey = -1 ' ]
+    END SELECT
+END FUNCTION
+
+' The colour c~& chosen: as though typed and Enter pressed - and still
+' typing, for another
+SUB CpUse(c~&)
+    DIM f, h$ ' (its own: the main program shares these names)
+    h$ = RIGHT$("00000" + HEX$(c~& AND &HFFFFFF), 6)
+    f = edTypeFor : edTypeBuf$ = h$ : EditTypeDone
+    edTyping = -1 : edTypeFor = f : edTypeBuf$ = h$ : edTypeFresh = -1 : cpUsed = -1
+    EditNote "Colour " + h$ + " - another, or Enter when done"
+END SUB
+
+' PICK's click at (x, y), in our screen's numbers: the colour shown there
+' (OpenGL's 3D view: read by SUB _GL from what it drew - CpFrame uses it),
+' or with Shift the picture's own on the face under the pointer
+SUB CpPickAt(x, y)
+    DIM ok, s& ' (its own: the main program shares these names)
+    DIM c AS _UNSIGNED LONG
+    cpPick = 0
+    IF _KEYDOWN(100304) OR _KEYDOWN(100303) THEN
+        IF editView <> 1 THEN EditNote "The picture's own colour: in 3D, on a face" : EXIT SUB
+        c = CpPicColour~&(ok)
+        IF ok THEN CpUse c ELSE EditNote "No picture there to take a colour from"
+        EXIT SUB
+    END IF
+    IF editView = 1 AND glReady THEN cpGLX = x : cpGLY = y : cpGLReq = 1 : EXIT SUB
+    IF x < 0 OR y < 0 OR x > 799 OR y > 599 THEN EXIT SUB
+    s& = _SOURCE : _SOURCE 0 : c = POINT(x, y) : _SOURCE s&
+    CpUse c
+END SUB
+
+' Once a frame in the editor: OpenGL's answer to a PICK
+SUB CpFrame
+    IF NOT CpWanted THEN cpPick = 0 : cpUsed = 0
+    IF cpGLReq = 2 THEN
+        cpGLReq = 0
+        IF CpWanted THEN CpUse cpGLCol
+    END IF
+END SUB
+
+' In SUB _GL, the frame drawn: the pixel PICK asked for. (hx, hy, hw, hh):
+' where our 800 x 600 is on the window
+SUB CpGLRead(hx, hy, hw, hh)
+    DIM px AS _UNSIGNED LONG, wx AS LONG, wy AS LONG
+    wx = hx + INT((cpGLX + 0.5) * hw / 800) : wy = hy + hh - 1 - INT((cpGLY + 0.5) * hh / 600)
+    IF wx < 0 THEN wx = 0
+    IF wy < 0 THEN wy = 0
+    IF wx > GLSL_window_width& - 1 THEN wx = GLSL_window_width& - 1
+    IF wy > GLSL_window_height& - 1 THEN wy = GLSL_window_height& - 1
+    _glPixelStorei _GL_PACK_ALIGNMENT, 4
+    _glReadPixels wx, wy, 1, 1, _GL_BGRA_EXT, _GL_UNSIGNED_BYTE, _OFFSET(px)
+    cpGLCol = px OR &HFF000000~& : cpGLReq = 2
+END SUB
+
+' The picture's own colour where the pointer is on the face under it (as
+' painted, unlit - a few pixels round the spot, averaged); ok 0 if none.
+' Where on the picture: across and down the face from the cell's corner -
+' a picture slid, stretched or turned on it is near enough for a colour.
+FUNCTION CpPicColour~&(ok)
+    DIM p$, img&, s&, w, h, u!, v!, px, py, dx, dy, n, rr&, gg&, bb&, rd, qx, qy ' (its own: the main program shares these names)
+    DIM c AS _UNSIGNED LONG
+    ok = 0 : CpPicColour~& = 0
+    IF edHovKind = 0 THEN EXIT FUNCTION
+    p$ = EditFacePic$(edHovKind, edHovX, edHovY, edHovSide, edHovPart)
+    IF p$ = "" THEN EXIT FUNCTION
+    img& = PicImage&(p$) : IF img& >= -1 THEN EXIT FUNCTION
+    w = _WIDTH(img&) : h = _HEIGHT(img&)
+    SELECT CASE edHovKind
+        CASE ED_FLOOR, ED_CEIL, ED_TRACK : u! = edHovPX - INT(edHovPX) : v! = edHovPY - INT(edHovPY)
+        CASE ELSE
+            IF edHovSide = 1 OR edHovSide = 3 THEN u! = edHovPY - INT(edHovPY) ELSE u! = edHovPX - INT(edHovPX)
+            v! = 1 - (edHovPZ - INT(edHovPZ))
+    END SELECT
+    px = INT(u! * w) : py = INT(v! * h) : rd = MaxOf(1, w \ 64)
+    s& = _SOURCE : _SOURCE img&
+    FOR dy = -rd TO rd : FOR dx = -rd TO rd
+        qx = (px + dx + w) MOD w : qy = (py + dy + h) MOD h
+        c = POINT(qx, qy)
+        IF (c \ &H1000000) > 0 THEN rr& = rr& + ((c \ 65536) AND 255) : gg& = gg& + ((c \ 256) AND 255) : bb& = bb& + (c AND 255) : n = n + 1
+    NEXT : NEXT
+    _SOURCE s& : _FREEIMAGE img&
+    IF n = 0 THEN EXIT FUNCTION
+    CpPicColour~& = _RGB32(rr& \ n, gg& \ n, bb& \ n) : ok = -1
+END FUNCTION

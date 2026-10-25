@@ -79,6 +79,7 @@
 
 ' EDITOR ----------------------------------------------------------------------
 '$INCLUDE:'./EDITOR/EDITOR.BM'
+'$INCLUDE:'./EDITOR/COLOURS.BM'
 '$INCLUDE:'./EDITOR/PRESETS.BM'
 '$INCLUDE:'./EDITOR/NEWPICS.BM'
 '$INCLUDE:'./EDITOR/PAINTER.BM'

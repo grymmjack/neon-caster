@@ -235,6 +235,8 @@ SUB _GL
         GLDrawHUD
     END IF
 
+    IF cpGLReq = 1 THEN CpGLRead hx, hy, hw, hh ' (the editor's PICK: the pixel under the pointer - EDITOR/COLOURS.BM)
+
     ' A screenshot asked for: the whole window, read back into glShotMem
     ' (asking OpenGL for pixels makes it wait for the card - fine once)
     IF glShotReq = 1 THEN
