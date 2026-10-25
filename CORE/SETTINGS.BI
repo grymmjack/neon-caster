@@ -13,7 +13,7 @@
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 47
+CONST NUM_SETTINGS = 48
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -23,7 +23,7 @@ CONST SET_PARTICLES = 22, SET_REFLECT = 23, SET_BLOOM = 24, SET_SCREENFX = 25, S
 CONST SET_SCANLINES = 29, SET_PHOSPHOR = 30, SET_SHAFTS = 31
 CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
-CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_SOFTEN = 45, SET_SKILL = 46, SET_CHARGE = 47
+CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_SOFTEN = 45, SET_SKILL = 46, SET_CHARGE = 47, SET_WINSIZE = 48
 ' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
 ' don't all match one
 CONST MODE_CUSTOM = 0, MODE_OLDSCHOOL = 1, MODE_90S = 2, MODE_NEWSCHOOL = 3
@@ -85,6 +85,9 @@ DefineSetting SET_SCANTHICK, "scanline_thickness", "SCANLINE THICKNESS", MI_SLID
 ' middle), 3 4:3 (our shape, black bars at the sides), 4 STRETCH (all of
 ' it stretched to fill the screen) - ApplyDisplay, chapter 21
 DefineSetting SET_DISPLAY,   "display",            "DISPLAY",            MI_CHOICE, 1,  4,   1,   1
+' WINDOW SIZE: the window's size, windowed - one of NUM_WINSIZES (CORE/WINDOW.BI:
+' 800 x 600 to 2880 x 2160); dragging the window's edge sets it too (WindowFrame)
+DefineSetting SET_WINSIZE,   "window_size",        "WINDOW SIZE",        MI_CHOICE, 1,  10,  1,   1
 DefineSetting SET_PHOSPHOR,  "phosphor_glow",      "PHOSPHOR GLOW",      MI_SLIDER, 0,  100, 5,   50
 ' Beams of light under the ceiling lights, with the dust hanging in them
 ' How fast the mouse turns you while you aim down the sights, as well as

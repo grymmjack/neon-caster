@@ -613,6 +613,7 @@ run it and see what happens. That's the fastest way to learn how it works.
 SHOW FPS on to see what each effect costs; both are in SETTINGS > VIDEO,
 along with ART (CLASSIC: the pixel art; MODERN: high-resolution paintings
 of the same things, from `neon-caster/hd/`), DISPLAY (a window, or full screen: WIDE, 4:3 or stretched),
+WINDOW SIZE (800 x 600 up to 2880 x 2160 - or drag the window's edge: it settles on the nearest),
 RESOLUTION, LOOK UP / DOWN and the screen effects - SCREEN FX, the
 scanlines' darkness, spacing and thickness, and PHOSPHOR GLOW; every other
 effect has a switch in SETTINGS > EFFECTS. Settings change behind the menu

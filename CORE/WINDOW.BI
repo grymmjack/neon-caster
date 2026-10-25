@@ -37,6 +37,20 @@ DIM SHARED grSeed AS DOUBLE ' (the game's own dice: GRnd - where they've got to)
 RANDOMIZE TIMER ' (RND's dice start somewhere new each time: without this, every game rolls the same numbers - the same loot, the same vending machines)
 grSeed = 1 + INT(RND * 2147483645) ' (and the game's own, GRnd's, with them)
 SCREEN _NEWIMAGE(800, 600, 32)
+' The window can be dragged to any size (kept 4:3, our screen stretched to
+' fill it) - and settles on the nearest of WINDOW SIZE's sizes once you let
+' go (WindowFrame, chapter 21). winsize.h sets its size: QB64PE can't.
+_RESIZE ON , _SMOOTH
+DECLARE LIBRARY "winsize"
+    SUB winsize_set (BYVAL w AS LONG, BYVAL h AS LONG)
+    FUNCTION winsize_w& ()
+    FUNCTION winsize_h& ()
+END DECLARE
+' WINDOW SIZE's sizes (4:3): our 800 x 600 and its whole multiples, and the
+' displays' 4:3 sizes between - as tall as WIN_H(k)
+CONST NUM_WINSIZES = 10
+DIM SHARED winSizeH(NUM_WINSIZES) AS INTEGER, winWantK AS INTEGER
+FOR winI = 1 TO NUM_WINSIZES : winSizeH(winI) = VAL(MID$("0600076808640960105010801200144018002160", winI * 4 - 3, 4)) : NEXT
 _MOUSEHIDE _DISABLE
 _PRINTMODE _KEEPBACKGROUND
 _DISPLAYORDER _GLRENDER , _SOFTWARE

@@ -626,7 +626,7 @@ SUB BuildMenu(scr)
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_VIDEO
             menuTitle$ = "VIDEO" : menuWide = -1
-            AddSettingItem SET_DISPLAY : AddSettingItem SET_RENDERER : AddSettingItem SET_ART : AddSettingItem SET_GAMMA : AddSettingItem SET_FPS
+            AddSettingItem SET_DISPLAY : AddSettingItem SET_WINSIZE : AddSettingItem SET_RENDERER : AddSettingItem SET_ART : AddSettingItem SET_GAMMA : AddSettingItem SET_FPS
             AddMenuItem "OPENGL ONLY:", MI_TEXT, 0, 0, 0, ""
             AddSettingItem SET_RES : AddSettingItem SET_LOOK
             AddSettingItem SET_SCREENFX : AddSettingItem SET_SCANLINES : AddSettingItem SET_SCANGAP

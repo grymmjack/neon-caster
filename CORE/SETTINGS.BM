@@ -49,6 +49,8 @@ SUB ApplySettings
     ' ART: which pictures, how big (the game loop reloads them - ArtReload)
     artWant = 0 : IF setting(SET_ART) = 2 THEN artWant = 1 : IF setting(SET_RENDERER) = 2 THEN artWant = 2
     ApplyDisplay
+    STATIC winWas
+    IF setting(SET_WINSIZE) <> winWas THEN winWas = setting(SET_WINSIZE) : winWantK = winWas ' (WINDOW SIZE: WindowFrame sets it)
 END SUB
 
 ' What MODE m sets setting id to - or -1 if it leaves it alone (sound,
@@ -119,6 +121,66 @@ SUB ApplyDisplay
         CASE 2 : _FULLSCREEN _SQUAREPIXELS
         CASE ELSE : _FULLSCREEN _OFF
     END SELECT
+END SUB
+
+' WINDOW SIZE k's width (4:3)
+FUNCTION WinSizeW(k)
+    WinSizeW = winSizeH(k) * 4 \ 3
+END FUNCTION
+
+' Whether size k fits on this display, with room for the window's frame
+FUNCTION WinSizeFits(k)
+    WinSizeFits = -1
+    IF _DESKTOPHEIGHT < 1 THEN EXIT FUNCTION
+    IF WinSizeW(k) > _DESKTOPWIDTH OR winSizeH(k) > _DESKTOPHEIGHT - 60 THEN WinSizeFits = 0
+END FUNCTION
+
+' The WINDOW SIZE nearest a window w x h: the closest in height - one
+' taller than that only if it fits on the display (it was dragged smaller
+' than it, so the display may have no room)
+FUNCTION WinSnap(w, h)
+    DIM k, best, d, bd ' (its own: the main program shares these names)
+    best = 1 : bd = 99999
+    FOR k = 1 TO NUM_WINSIZES
+        d = ABS(winSizeH(k) - h)
+        IF winSizeH(k) > h AND NOT WinSizeFits(k) THEN d = 99999
+        IF d < bd THEN bd = d : best = k
+    NEXT
+    WinSnap = best
+END FUNCTION
+
+' Once a frame (ShowFrame - every loop): in a window, WINDOW SIZE asked for
+' (winWantK: the menu, the settings at start-up) is set; a window dragged to
+' a size of its own settles, once it's been let go a moment, on the nearest
+' WINDOW SIZE - and that's the setting now. Our screen is drawn into it
+' with square pixels (_STRETCH) at a whole multiple of 800 x 600, smoothed
+' at any other size.
+SUB WindowFrame
+    STATIC pend, pendAt!, pw, ph
+    DIM k ' (its own)
+    IF _RESIZE THEN pw = _RESIZEWIDTH : ph = _RESIZEHEIGHT : pend = -1 : pendAt! = TIMER ' (dragged - or our own size arriving)
+    IF fullnow_mode& <> 0 OR _FULLSCREEN <> 0 THEN EXIT SUB ' (full screen: the window's size waits)
+    IF winWantK THEN
+        k = winWantK : winWantK = 0 : pend = 0
+        IF k < 1 OR k > NUM_WINSIZES THEN EXIT SUB
+        DO WHILE k > 1 AND NOT WinSizeFits(k) : k = k - 1 : LOOP ' (too big for this display: the biggest that fits)
+        IF winsize_w& <> WinSizeW(k) OR winsize_h& <> winSizeH(k) THEN winsize_set WinSizeW(k), winSizeH(k)
+        WindowFilter k
+        EXIT SUB
+    END IF
+    IF pend AND ABS(TIMER - pendAt!) > 0.4 THEN ' Let go: the nearest size
+        pend = 0
+        IF pw < 1 OR ph < 1 THEN EXIT SUB
+        k = WinSnap(pw, ph)
+        IF pw <> WinSizeW(k) OR ph <> winSizeH(k) THEN winsize_set WinSizeW(k), winSizeH(k)
+        IF setting(SET_WINSIZE) <> k THEN setting(SET_WINSIZE) = k : SaveSettings ' (ApplySettings will see it's what the window is)
+        WindowFilter k
+    END IF
+END SUB
+
+' Square pixels at a whole multiple of our screen, smoothed between
+SUB WindowFilter(k)
+    IF winSizeH(k) MOD 600 = 0 THEN _RESIZE ON , _STRETCH ELSE _RESIZE ON , _SMOOTH
 END SUB
 
 ' QB64PE's _FULLSCREEN number for DISPLAY choice d: 0 off, 1 stretched, 2
@@ -224,6 +286,7 @@ FUNCTION SettingText$(id)
         CASE SET_SKILL : SettingText$ = SkillName$(setting(id))
         CASE SET_SOFTEN : SettingText$ = MID$("OFF   LIGHT STRONG", setting(id) * 6 + 1, 6)
         CASE SET_DISPLAY : SettingText$ = RTRIM$(MID$("WINDOWED    FULL WIDE   FULL 4:3    FULL STRETCH", setting(id) * 12 - 11, 12))
+        CASE SET_WINSIZE : SettingText$ = LTRIM$(STR$(WinSizeW(setting(id)))) + " X" + STR$(winSizeH(setting(id))) + MID$(" (TOO BIG HERE)", 1, 15 * -(NOT WinSizeFits(setting(id))))
         CASE ELSE : SettingText$ = v$
     END SELECT
 END FUNCTION
