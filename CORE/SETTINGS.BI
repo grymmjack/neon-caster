@@ -111,13 +111,13 @@ DefineSetting SET_CHARGE,    "charged_shots",      "CHARGED SHOTS",      MI_TOGG
 ' THE FLASHLIGHT (SETTINGS > GAMEPLAY > FLASHLIGHT; GAME/FLASHLIGHT.BM): how wide its beam is (degrees, edge to edge), how far it
 ' reaches (cells), how bright it is, how soft its edge, its colour (YOUR OWN: flashlight_rgb=), how much the beam shows in the air,
 ' its effect (AUTO: steady, flickering as the battery runs low, then dying) and how long a battery lasts (minutes; 0 for ever)
-DefineSetting SET_FL_WIDTH,  "flashlight_width",   "BEAM WIDTH",         MI_SLIDER, 10, 120, 5,   40
-DefineSetting SET_FL_REACH,  "flashlight_reach",   "REACH",              MI_SLIDER, 2,  16,  1,   10
-DefineSetting SET_FL_BRIGHT, "flashlight_bright",  "BRIGHTNESS",         MI_SLIDER, 10, 400, 10,  150
-DefineSetting SET_FL_SOFT,   "flashlight_soft",    "SOFT EDGE",          MI_SLIDER, 0,  100, 10,  40
-DefineSetting SET_FL_COLOUR, "flashlight_colour",  "COLOUR",             MI_CHOICE, 1,  9,   1,   1
-DefineSetting SET_FL_HAZE,   "flashlight_haze",    "BEAM IN THE AIR",    MI_SLIDER, 0,  100, 5,   20
-DefineSetting SET_FL_FX,     "flashlight_fx",      "EFFECT",             MI_CHOICE, 0,  6,   1,   0
+DefineSetting SET_FL_WIDTH,  "flashlight_width",   "BEAM WIDTH",         MI_SLIDER, 10, 120, 5,   25
+DefineSetting SET_FL_REACH,  "flashlight_reach",   "REACH",              MI_SLIDER, 2,  16,  1,   6
+DefineSetting SET_FL_BRIGHT, "flashlight_bright",  "BRIGHTNESS",         MI_SLIDER, 10, 400, 10,  120
+DefineSetting SET_FL_SOFT,   "flashlight_soft",    "SOFT EDGE",          MI_SLIDER, 0,  100, 10,  30
+DefineSetting SET_FL_COLOUR, "flashlight_colour",  "COLOUR",             MI_CHOICE, 1,  9,   1,   2
+DefineSetting SET_FL_HAZE,   "flashlight_haze",    "BEAM IN THE AIR",    MI_SLIDER, 0,  100, 5,   55
+DefineSetting SET_FL_FX,     "flashlight_fx",      "EFFECT",             MI_CHOICE, 0,  6,   1,   1
 DefineSetting SET_FL_BATTERY, "flashlight_battery", "BATTERY LIFE",      MI_SLIDER, 0,  30,  1,   5
 DefineSetting SET_AIMSENS,   "aim_sensitivity",    "AIM SENSITIVITY",    MI_SLIDER, 10, 100, 5,   50
 DefineSetting SET_SHAFTS,    "light_shafts",       "LIGHT SHAFTS",       MI_TOGGLE, 0,  1,   1,   1
