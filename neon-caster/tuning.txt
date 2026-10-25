@@ -1,0 +1,7 @@
+' NEON-CASTER tuning - how many shots things take, at each difficulty. The tuner
+' (the tuning command, or SETTINGS > GAMEPLAY > TUNER) writes this file; only
+' what differs from the defaults (tuning-defaults.txt) is here. Each line: key =
+' easy normal hard nightmare (- keeps one). A machine's EASY health is monsters.txt's.
+' EASY is the game every shipped demo was recorded in: change it and re-record them.
+
+' (nothing tuned: the defaults)

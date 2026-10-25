@@ -1,0 +1,8 @@
+' PAINT's presets (the editor's PICTURE pane): picture <tab> its pieces' shape <tab> its pieces, as a [faces] line's division 3
+door-split.png	.	door-split.png*0*15*200*1*100*5AFF78*1
+wall-concrete.png	H.HH..VV..V..	wall-concrete.png|wall-concrete.png|wall-concrete.png*0*0*0*3*91*5AFF78|wall-servers.png*0*50*0*0*50*FFFFFF*2|door-split.png|wall-concrete.png|wall-servers.png*0*754*409600*3*50*FFE63C*2
+ceiling-girders.png	.	ceiling-girders.png*0*512
+wall-adverts.png	.	wall-adverts.png*6*77*512250*0*20*5AFF78*1*X32E4B-50I
+wall-adverts.png	.	wall-adverts.png*4*3008*102525*0*20*5AFF78*1*X32E4B-50I
+wall-adverts.png	.	wall-adverts.png*2*259*1639000*0*20*5AFF78*1*X32E4B-50I
+wall-adverts.png	.	wall-adverts.png*2*259*1639000*0*20*5AFF78*1*X16E4B-70C30S10I

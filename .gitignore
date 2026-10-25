@@ -13,3 +13,7 @@ qb64pe/
 compilelog.txt
 # the arranger's sources (music/arrange.py --sources): dev-only, made from the originals
 neon-caster/music/edit/*.log
+
+# Editor backups, and programs built in the old place (now saves/programs)
+neon-caster/levels/**/*.bak
+neon-caster/programs/*.run
