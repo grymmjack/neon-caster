@@ -116,10 +116,13 @@ SUB ApplyDisplay
     want = DisplayMode(setting(SET_DISPLAY))
     IF setting(SET_DISPLAY) = displayAsked AND want = displayModeNow THEN EXIT SUB
     displayAsked = setting(SET_DISPLAY) : displayModeNow = want
+    ' (Resizing only in a window: with _RESIZE on, QB64PE letterboxes even a
+    ' full screen - black bars over the sides of FULL WIDE, on Windows and
+    ' macOS)
     SELECT CASE want
-        CASE 1 : _FULLSCREEN _STRETCH
-        CASE 2 : _FULLSCREEN _SQUAREPIXELS
-        CASE ELSE : _FULLSCREEN _OFF
+        CASE 1 : _RESIZE OFF : _FULLSCREEN _STRETCH
+        CASE 2 : _RESIZE OFF : _FULLSCREEN _SQUAREPIXELS
+        CASE ELSE : _FULLSCREEN _OFF : WindowFilter MaxOf(1, MinOf(NUM_WINSIZES, setting(SET_WINSIZE)))
     END SELECT
 END SUB
 
