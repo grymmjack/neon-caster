@@ -2325,7 +2325,7 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     ' (the picker's under these: EditDrawPicker, from RunEditor)
     y = 254
     IF editLights THEN TinyText ED_PALX, y + 20, "LIGHT: " + EditFxName$(edLFx) + " (right click: take it away)", _RGB32(edLR, edLG, edLB)
-    IF editHeights THEN TinyText ED_PALX, y + 20, "HEIGHTS: click up, right click down", _RGB32(255, 220, 120)
+    IF editHeights THEN TinyText ED_PALX, y + 9, "HEIGHTS: click floor up, right click down", _RGB32(255, 220, 120) : TinyText ED_PALX, y + 20, "SHIFT+CLICK ceiling up, SHIFT+RIGHT CLICK down", _RGB32(120, 220, 255)
     IF editHeights THEN ' The heights layer's key, each mark drawn as the map draws it
         y = 524
         LINE (ED_PALX, y)-STEP(7, 7), _RGB32(170, 136, 40), BF : TinyText ED_PALX + 11, y, "FLOOR RAISED (BRIGHTER: HIGHER)", _RGB32(190, 180, 230)
