@@ -38,3 +38,23 @@ REDIM SHARED gfBuf(0) AS _UNSIGNED LONG ' (a frosted pane's column, as it was be
 ' ripple only on its reflection, what's seen through it sharp (glassClrK)
 DIM SHARED lvlGlassSty AS INTEGER, glassStyC(MAP_SIZE, MAP_SIZE) AS _BYTE, glassClrK(MAX_GLASS) AS _BYTE
 lvlGlassRef = -1 : lvlGlassSty = -1
+' Where it was shot: GLASS_HITS panes at a time (the ones hit most lately)
+' each have a picture of their own, S_GHIT + i - 1, with a hole and cracks
+' drawn where each shot struck (GlassMark, GlassHitDraw - looks only; the
+' rest show MakeGlass's ready-made cracks, as a pane does after a load).
+' glassAtZ: how high the shot struck (-999 not known: halfway up). Pane i's
+' marks: ghU across it 0-1 (the way GLPaneQuad lays its picture), ghV down
+' from its top, ghS the stage it was at (1-3); ghVer counts its redraws, for
+' OpenGL (ghGLVer: the one it has - GLSendGlassHits)
+CONST GLASS_HITS = 24, GLASS_MARKS = 12
+' STRENGTH (the [glass] line's 9th): how much a pane takes before it breaks -
+' 0 or left out as tuned (the tuner's GLASS, glassFull), GLASS_UNBREAKABLE
+' never (bulletproof: shots chip and crack it, nothing gets through).
+' glassMax by cell: its whole (0 unbreakable) - AssignGlass
+CONST GLASS_UNBREAKABLE = 999
+DIM SHARED glassMax(MAP_SIZE, MAP_SIZE) AS INTEGER
+DIM SHARED glassAtZ, glassHitSlot(MAP_SIZE, MAP_SIZE) AS _BYTE
+DIM SHARED ghCX(GLASS_HITS) AS INTEGER, ghCY(GLASS_HITS) AS INTEGER, ghN(GLASS_HITS) AS INTEGER, ghAge(GLASS_HITS) AS LONG, ghClock AS LONG
+DIM SHARED ghU(GLASS_HITS, GLASS_MARKS) AS SINGLE, ghV(GLASS_HITS, GLASS_MARKS) AS SINGLE, ghS(GLASS_HITS, GLASS_MARKS) AS _BYTE
+DIM SHARED ghVer(GLASS_HITS) AS LONG, ghGLVer(GLASS_HITS) AS LONG
+glassAtZ = -999

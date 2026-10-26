@@ -211,7 +211,7 @@
             IF boltOn(i) = 0 THEN
             ELSEIF InGlass(boltX(i), boltY(i)) THEN ' Glass: it bursts on it, and cracks it
                 boltOn(i) = 0 : SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, 0.49, 7, 255, 60, 230
-                glassHitX = INT(boltX(i)) : glassHitY = INT(boltY(i)) : glassAtX = boltX(i) : glassAtY = boltY(i) : glassDmg = 1 : HitGlass
+                glassHitX = INT(boltX(i)) : glassHitY = INT(boltY(i)) : glassAtX = boltX(i) : glassAtY = boltY(i) : glassAtZ = boltZ(i) : glassDmg = 1 : HitGlass
             ELSEIF BoltDeco(boltX(i), boltY(i), boltZ(i)) THEN ' A decoration in its way: the bolt bursts on it - and hurts it as your shots do (a crate breaks, loot and all; a barrel blows)
                 targetDeco = BoltDeco(boltX(i), boltY(i), boltZ(i)) : boltOn(i) = 0
                 SpawnSparks boltX(i) - boltDX(i) * 0.15, boltY(i) - boltDY(i) * 0.15, boltZ(i) - FloorAt(boltX(i), boltY(i)), 7, 255, 60, 230

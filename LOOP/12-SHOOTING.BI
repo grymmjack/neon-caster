@@ -70,6 +70,7 @@
                 IF glassT(screenCol) > 0 AND glassT(screenCol) < bestDist THEN
                     glassHitX = glassCX(screenCol) : glassHitY = glassCY(screenCol)
                     glassAtX = playerX + (dirX + planeX * aim) * glassT(screenCol) : glassAtY = playerY + (dirY + planeY * aim) * glassT(screenCol)
+                    glassAtZ = eyeZ + DTan(pitch) * SQR((dirX + planeX * aim) ^ 2 + (dirY + planeY * aim) ^ 2) * glassT(screenCol) ' (how high: the shot rises TAN(pitch) a cell - only for where its crack is drawn)
                     IF gunPierce(currentGun) THEN glassDmg = 99 : HitGlass ELSE bestDist = glassT(screenCol) : glassShot = -1
                 END IF
                 ' Where it lands on a monster counts too: in its weak spot (a head,
@@ -239,7 +240,7 @@
                 IF NOT kicked THEN ' Glass in front? The boot cracks it
                     FOR kd = 3 TO 7
                         glassAtX = playerX + dirX * kd / 10 : glassAtY = playerY + dirY * kd / 10
-                        IF InGlass(glassAtX, glassAtY) THEN glassHitX = INT(glassAtX) : glassHitY = INT(glassAtY) : glassDmg = 1 : HitGlass : PlaySfx sndKick&, 0.8 : shake = shake + 2 : EXIT FOR
+                        IF InGlass(glassAtX, glassAtY) THEN glassHitX = INT(glassAtX) : glassHitY = INT(glassAtY) : glassAtZ = playerZ + 0.3 : glassDmg = 1 : HitGlass : PlaySfx sndKick&, 0.8 : shake = shake + 2 : EXIT FOR
                     NEXT
                 END IF
             END IF

@@ -110,6 +110,7 @@ SUB _GL
     IF glMeshDone <> glMeshVersion THEN glMeshClient = -1 : GLBuildMesh : glMeshDone = glMeshVersion ' (the map changed: a closet opened)
     IF glRetexDone <> glRetexVersion THEN GLSendTextures : glRetexDone = glRetexVersion : glDirtyDone = glDirtyVersion ' (the pictures changed: in or out of the network)
     IF glDirtyDone <> glDirtyVersion THEN GLSendDirty : glDirtyDone = glDirtyVersion ' (the editor changed a few face pictures: those)
+    GLSendGlassHits ' (a pane shot: its picture, cracked where it was struck)
     IF glGunDone <> glGunVersion THEN GLSendGuns : glGunDone = glGunVersion ' (the guns' pictures: at the start, and when ART changes)
     IF glWorldTried = 0 THEN GLBuildShaders
     glGPU = (glWorldProg <> 0 AND (glMeshBuf <> 0 OR glMeshClient)) ' The world mesh, lit by the shader from the light tables
@@ -1652,6 +1653,17 @@ END SUB
 ' art: nearest pixel (no smoothing); a MODERN painting (smooth): smoothed,
 ' with mipmaps. And "clamp" (wrap off): a texture coordinate of 1 is the
 ' last pixel, not the first one again.
+' Panes' own pictures (GlassMark) redrawn since OpenGL last had them: those
+SUB GLSendGlassHits
+    DIM i, slot ' (its own: the main program shares these names)
+    FOR i = 1 TO GLASS_HITS
+        IF ghGLVer(i) <> ghVer(i) THEN
+            ghGLVer(i) = ghVer(i) : slot = S_GHIT + i - 1
+            GLSendPicture glTexName(T_SLOTS + slot), sprTex, _OFFSET(spriteTex(0, 0, slot)), 0, spriteSize(slot) >= 128
+        END IF
+    NEXT
+END SUB
+
 SUB GLSendPicture(texName AS _UNSIGNED LONG, size, pixelsAt AS _OFFSET, wrap, smooth)
     _glBindTexture _GL_TEXTURE_2D, texName
     IF smooth THEN ' A MODERN painting: smooth, with smaller copies for far away (mipmaps), not pixels

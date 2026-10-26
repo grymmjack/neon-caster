@@ -89,7 +89,8 @@ CONST GLASS_STAGES = 3, GLASS_LOOKS = 4, S_CRACK = S_EYE + 2
 ' streaked glass, is S_GLASS and S_CRACK's)
 CONST GLASS_STYLES = 8, GLASS_SLOOKS = 2, GLASS_SPS = 1 + GLASS_STAGES * GLASS_SLOOKS
 CONST S_GSTY = S_CRACK + GLASS_STAGES * GLASS_LOOKS
-CONST S_MODEL = S_GSTY + (GLASS_STYLES - 1) * GLASS_SPS
+CONST S_GHIT = S_GSTY + (GLASS_STYLES - 1) * GLASS_SPS ' (panes' own pictures, cracked where they were shot: GLASS_HITS of them - GlassMark)
+CONST S_MODEL = S_GHIT + GLASS_HITS
 CONST SPR_SLOTS = S_MODEL + MAX_MODELS - 1
 ' How big each picture is kept: textures texSize, sprites up to sprTex
 ' pixels across. ART (SETTINGS > VIDEO) picks them: CLASSIC, the pixel art

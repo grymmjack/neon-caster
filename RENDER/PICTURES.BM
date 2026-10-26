@@ -61,6 +61,9 @@ SUB LoadPictures STATIC
     FOR k = 0 TO (GLASS_STYLES - 1) * GLASS_SPS - 1 ' (the other styles: each whole, then hit)
         IF (k MOD GLASS_SPS) = 0 THEN MakeGlass S_GSTY + k, k \ GLASS_SPS + 1, 0, 0 ELSE MakeGlass S_GSTY + k, k \ GLASS_SPS + 1, (k MOD GLASS_SPS - 1) \ GLASS_SLOOKS + 1, (k MOD GLASS_SPS - 1) MOD GLASS_SLOOKS
     NEXT
+    FOR k = 1 TO GLASS_HITS : IF ghN(k) THEN GlassHitDraw k ' (panes cracked where they were shot: again, at this size)
+    NEXT
+    FOR k = 0 TO GLASS_HITS - 1 : spriteSize(S_GHIT + k) = sprTex : NEXT
     LoadSprite "bars.png", S_BARS ' (bars across a window)
     FOR k = 0 TO SMEAR_KINDS - 1 : LoadSprite "smear-" + SmearName$(k) + ".png", S_SMEAR + k : NEXT ' (blood and oil: [smears])
     MakePad S_PAD ' (a teleporter's pad)
@@ -1008,12 +1011,26 @@ SUB MakeGlass(slot, style, stage, look)
     rs = 1 + look * 7919 ' Where it was struck: the same at every stage
     ox = VAL(MID$("16424030", (look MOD 4) * 2 + 1, 2)) + INT(GlassRnd!(rs) * 8) - 4 ' (each pattern struck in its own part of the pane)
     oy = VAL(MID$("18402442", (look MOD 4) * 2 + 1, 2)) + INT(GlassRnd!(rs) * 8) - 4
+    GlassCrack slot, stage, look, ox, oy, -1, rs
+END SUB
+
+' Cracks out from where the glass at slot was struck - (ox, oy) in its 64
+' across - as much as stage says (1 a chip and a little star, 2 long cracks
+' and a ring, 3 more rings and a hole knocked out); look and rs (GlassRnd!'s
+' dice) which way they wander. extra -1: MakeGlass's ready-made pictures - a
+' second strike across the pane at stage 3, a big hole; 0 (a shot's own
+' mark, GlassHitDraw) a small hole where the shot went through; 1 no hole
+' (unbreakable glass).
+SUB GlassCrack(slot, stage, look, ox, oy, extra, rs AS _INTEGER64)
+    DIM k, n, r, st, x, y, px, py, ang, stp, ln, ring, hx, hy, c~& ' (its own: the main program shares these names)
     c~& = _RGBA32(235, 250, 255, 210) : IF stage = 1 THEN c~& = _RGBA32(225, 245, 255, 170)
+    IF extra = 1 THEN c~& = _RGBA32(225, 245, 255, 150) ' (bulletproof: a tight star, fainter)
     n = 5 + INT(GlassRnd!(rs) * 5) ' (how many cracks)
     FOR k = 0 TO n - 1 ' Cracks: wandering lines out from where it was struck
         ang = (k + GlassRnd!(rs) * 0.6) * 6.2832 / n
         ln = 3 + INT(GlassRnd!(rs) * 6) ' (stage 1: a little star)
         IF stage >= 2 THEN ln = 16 + INT(GlassRnd!(rs) * 26)
+        IF extra = 1 THEN ln = 5 + INT(GlassRnd!(rs) * 8)
         px = ox : py = oy
         FOR stp = 1 TO ln
             ang = ang + 0.3 * SIN(stp * 1.1 + k * 2.3 + look)
@@ -1025,14 +1042,14 @@ SUB MakeGlass(slot, style, stage, look)
     FOR k = -1 TO 1 : FOR stp = -1 TO 1 : GlassDot slot, ox + k * 0.6, oy + stp * 0.6, _RGBA32(250, 255, 255, 235) : NEXT : NEXT ' (the chip where it was struck)
     IF stage >= 2 THEN ' Rings round it: pieces of a circle between the cracks
         FOR ring = 1 TO stage - 1
-            r = 4 + ring * 4 + INT(GlassRnd!(rs) * 3)
+            r = 4 + ring * 4 + INT(GlassRnd!(rs) * 3) : IF extra = 1 THEN r = 3 + INT(GlassRnd!(rs) * 2)
             FOR stp = 0 TO 63
                 ang = stp * 6.2832 / 64
                 IF SIN(ang * 3 + look + ring) > -0.2 THEN GlassDot slot, ox + COS(ang) * r, oy + SIN(ang) * r * 0.9, c~&
             NEXT
         NEXT
     END IF
-    IF stage = 3 THEN
+    IF stage = 3 AND extra = -1 THEN
         hx = ox + 22 : IF hx > 54 THEN hx = ox - 24 ' A second strike, across the pane
         hy = 10 + INT(GlassRnd!(rs) * 44)
         FOR k = 0 TO 5
@@ -1043,7 +1060,10 @@ SUB MakeGlass(slot, style, stage, look)
                 GlassDot slot, px, py, c~&
             NEXT
         NEXT
-        r = 3 + (look MOD 2) ' The hole knocked out at the first: clear, a bright edge
+    END IF
+    IF (stage = 3 AND extra = -1) OR extra = 0 THEN
+        r = 3 + (look MOD 2) ' The hole knocked out at the first: clear, a bright edge (a shot's own: small)
+        IF extra = 0 THEN r = 1 - (stage = 3)
         FOR y = -r - 1 TO r + 1 : FOR x = -r - 1 TO r + 1
             st = x * x + y * y + ((x * 3 + y * 5 + look) MOD 3) * 2 ' (ragged)
             IF st <= r * r THEN GlassDot slot, ox + x, oy + y, _RGBA32(0, 0, 0, 0) ELSE IF st <= (r + 1) * (r + 1) + 2 THEN GlassDot slot, ox + x, oy + y, _RGBA32(245, 255, 255, 235)

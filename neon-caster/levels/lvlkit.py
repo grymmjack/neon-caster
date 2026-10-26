@@ -594,6 +594,7 @@ def check_xtra(lv):
             if not (n.isdigit() and int(n) <= 9): errs.append("glass at %d,%d: %s '%s' (0-9)" % (x, y, what, n))
         if len(f) > 6 and not (f[6] == "." or (f[6].isdigit() and int(f[6]) < GLASS_STYLES)): errs.append("glass at %d,%d: style '%s' (. or 0-%d)" % (x, y, f[6], GLASS_STYLES - 1))
         if len(f) > 7 and f[7] not in ("0", "1"): errs.append("glass at %d,%d: through '%s' (0 bent, 1 clear)" % (x, y, f[7]))
+        if len(f) > 8 and not (f[8].isdigit() and int(f[8]) <= 999): errs.append("glass at %d,%d: strength '%s' (0 as tuned, 1-998, 999 unbreakable)" % (x, y, f[8]))
         if at(x, y) != "=": errs.append("glass at %d,%d: no pane of glass there (it's '%s')" % (x, y, at(x, y)))
     g = lv.get("glass_reflect")
     if g is not None and not (0 <= g <= 9): errs.append("glass_reflect = %d: 0 none - 9 a mirror" % g)
@@ -807,7 +808,7 @@ def level_text(lv, comment=()):
                    ("fuel", "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"),
                    ("difficulty", "' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one"),
                    ("looks", "' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)"),
-                   ("glass", "' the pane of glass at x, y: x, y, how much it reflects (OpenGL) 0 none - 9 a mirror (. or no line: the sector's, glass_reflect), then blur (the reflection's), frost, ripple - each 0-9 - its style (. the sector's, glass_style: 0 streaks 1 clear 2 sheer 3 panes 4 grid 5 bricks 6 leaded 7 privacy), 1 to keep what's seen through it clear")):
+                   ("glass", "' the pane of glass at x, y: x, y, how much it reflects (OpenGL) 0 none - 9 a mirror (. or no line: the sector's, glass_reflect), then blur (the reflection's), frost, ripple - each 0-9 - its style (. the sector's, glass_style: 0 streaks 1 clear 2 sheer 3 panes 4 grid 5 bricks 6 leaded 7 privacy), 1 to keep what's seen through it clear, its strength (0 as tuned, 999 unbreakable)")):
         if lv.get(sec):  # lines about single cells - kept as they are
             out += ["", "[" + sec + "]", h] + list(lv[sec])
     out.append("")

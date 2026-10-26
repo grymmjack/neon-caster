@@ -10,8 +10,14 @@
 SUB HitGlass STATIC
     IF glassHP(glassHitX, glassHitY) <= 0 THEN EXIT SUB
     IF glassHP(glassHitX, glassHitY) >= BARS_HP THEN SpawnSparks glassAtX, glassAtY, 0.5, 4, 255, 210, 150 : SfxAt sndDecoHit&, glassAtX, glassAtY, playerX, playerY : EXIT SUB ' (bars: a ping off the iron)
+    IF glassMax(glassHitX, glassHitY) = 0 THEN ' Unbreakable (bulletproof): it cracks where it's struck, and holds
+        GlassMark glassHitX, glassHitY, glassAtX, glassAtY, glassAtZ
+        SpawnSparks glassAtX, glassAtY, 0.5, 5, 200, 240, 255 : SfxAt sndGlassHit&, glassAtX, glassAtY, playerX, playerY
+        glassAtZ = -999 : EXIT SUB
+    END IF
     glassHP(glassHitX, glassHitY) = glassHP(glassHitX, glassHitY) - glassDmg
     IF glassHP(glassHitX, glassHitY) > 0 THEN
+        GlassMark glassHitX, glassHitY, glassAtX, glassAtY, glassAtZ ' (its picture cracked where it was struck)
         SpawnSparks glassAtX, glassAtY, 0.5, 5, 200, 240, 255
         SfxAt sndGlassHit&, glassAtX, glassAtY, playerX, playerY
     ELSE
@@ -26,6 +32,53 @@ SUB HitGlass STATIC
             IF monsterState(gj) = 0 AND (cyberOn = 0 OR monsterType(gj) = MT_ICE) THEN IF (monsterX(gj) - glassAtX) ^ 2 + (monsterY(gj) - glassAtY) ^ 2 < 36 THEN monsterState(gj) = 1 : monsterTimer(gj) = 20
         NEXT
     END IF
+    glassAtZ = -999 ' (the next hit says its own height, or it's not known)
+END SUB
+
+' The pane at (cx, cy) struck at map point (ax, ay), az high (-999: not
+' known - halfway up): a mark on its own picture (a free one of GLASS_HITS,
+' else the one hit longest ago - that pane goes back to the ready-made
+' cracks), redrawn. Looks only: it reads nothing the game rolls.
+SUB GlassMark(cx, cy, ax, ay, az)
+    DIM i, j, best, u, v, st, hp, fz, cz ' (its own: the main program shares these names)
+    i = glassHitSlot(cx, cy)
+    IF i = 0 THEN
+        best = 1
+        FOR j = 1 TO GLASS_HITS
+            IF ghN(j) = 0 THEN best = j : EXIT FOR
+            IF ghAge(j) < ghAge(best) THEN best = j
+        NEXT
+        i = best
+        IF ghN(i) THEN IF glassHitSlot(ghCX(i), ghCY(i)) = i THEN glassHitSlot(ghCX(i), ghCY(i)) = 0
+        ghCX(i) = cx : ghCY(i) = cy : ghN(i) = 0
+    END IF
+    ghClock = ghClock + 1 : ghAge(i) = ghClock
+    IF glassDir(cx, cy) = 1 THEN u = ax - cx ELSE u = ay - cy
+    fz = floorH(cx, cy) : cz = ceilH(cx, cy) : v = 0.5
+    IF az > -900 AND cz - fz > 0.01 THEN v = (cz - az) / (cz - fz)
+    hp = glassHP(cx, cy) : fz = glassMax(cx, cy)
+    IF fz = 0 THEN st = 4 ELSE IF hp * 2 > fz THEN st = 1 ELSE IF hp * 4 > fz THEN st = 2 ELSE st = 3 ' (4: unbreakable - a web of cracks, no hole)
+    IF ghN(i) >= GLASS_MARKS THEN ' (the oldest mark goes)
+        FOR j = 1 TO GLASS_MARKS - 1 : ghU(i, j) = ghU(i, j + 1) : ghV(i, j) = ghV(i, j + 1) : ghS(i, j) = ghS(i, j + 1) : NEXT
+        ghN(i) = GLASS_MARKS - 1
+    END IF
+    ghN(i) = ghN(i) + 1 : j = ghN(i)
+    ghU(i, j) = MaxOf(0.03, MinOf(0.97, u)) : ghV(i, j) = MaxOf(0.08, MinOf(0.92, v)) : ghS(i, j) = st
+    GlassHitDraw i
+    glassHitSlot(cx, cy) = i ' (only now: OpenGL may be drawing it)
+END SUB
+
+' Pane picture i (S_GHIT + i - 1): its style, whole, then each shot's mark
+SUB GlassHitDraw(i)
+    DIM j, slot, ox, oy, rs AS _INTEGER64 ' (its own: the main program shares these names)
+    slot = S_GHIT + i - 1
+    MakeGlass slot, glassStyC(ghCX(i), ghCY(i)), 0, 0
+    FOR j = 1 TO ghN(i)
+        rs = 1 + (ghCX(i) * 31 + ghCY(i) * 17 + j * 7) * 7919 ' (each mark's cracks their own way, the same every redraw)
+        ox = ghU(i, j) * 64 : oy = ghV(i, j) * 64
+        IF ghS(i, j) = 4 THEN GlassCrack slot, 2, j + ghCX(i) + ghCY(i), ox, oy, 1, rs ELSE GlassCrack slot, ghS(i, j), j + ghCX(i) + ghCY(i), ox, oy, 0, rs
+    NEXT
+    ghVer(i) = ghVer(i) + 1
 END SUB
 
 ' Each pane of glass: which way it runs - along x if there's wall (or more
@@ -33,14 +86,60 @@ END SUB
 SUB AssignGlass
     DIM l, r, x, y ' (its own: the main program shares these names)
     numGlass = 0 : glassFull = MaxOf(1, TuneNow!(tuGlass))
+    FOR x = 1 TO GLASS_HITS ' (no pane has its own cracked picture yet)
+        IF ghN(x) THEN glassHitSlot(ghCX(x), ghCY(x)) = 0 : ghN(x) = 0
+    NEXT
     FOR y = 1 TO mapN - 2 : FOR x = 1 TO mapN - 2
         IF glassHP(x, y) > 0 THEN
             l = IsWall(x - 1, y) OR glassHP(x - 1, y) > 0 : r = IsWall(x + 1, y) OR glassHP(x + 1, y) > 0
             IF l AND r THEN glassDir(x, y) = 1 ELSE glassDir(x, y) = 2
             IF numGlass < MAX_GLASS THEN numGlass = numGlass + 1 : glassListX(numGlass) = x : glassListY(numGlass) = y
+            glassMax(x, y) = -1 : GlassStrApply x, y ' (its STRENGTH, whole)
         END IF
     NEXT : NEXT
 END SUB
+
+' The pane at x, y's STRENGTH into glassMax (as tuned, its own, or 0
+' unbreakable): a whole pane (glassMax -1: just built) made whole at it, a
+' hit one kept no stronger than it
+SUB GlassStrApply(x, y)
+    DIM l, m ' (its own: the main program shares these names)
+    IF glassHP(x, y) <= 0 OR glassHP(x, y) >= BARS_HP THEN EXIT SUB
+    l = GlassStrOwn(x, y)
+    IF l >= GLASS_UNBREAKABLE THEN m = 0 ELSE IF l > 0 THEN m = l ELSE m = glassFull
+    IF glassMax(x, y) <= 0 OR glassHP(x, y) >= glassMax(x, y) THEN
+        IF m = 0 THEN glassHP(x, y) = glassFull ELSE glassHP(x, y) = m
+    ELSEIF m > 0 THEN
+        glassHP(x, y) = MinOf(glassHP(x, y), m)
+    END IF
+    glassMax(x, y) = m
+END SUB
+
+' The pane at x, y's own STRENGTH ([glass] line's 9th): 0 none (as tuned),
+' GLASS_UNBREAKABLE never breaks
+FUNCTION GlassStrOwn(x, y)
+    DIM k, v ' (its own: the main program shares these names)
+    k = XtraFind("glass", x, y, 0)
+    IF k THEN v = MaxOf(0, MinOf(GLASS_UNBREAKABLE, VAL(XtraField$(k, 9))))
+    GlassStrOwn = v
+END FUNCTION
+
+' STRENGTH's steps (the editor's < >): as tuned, then hits... unbreakable
+FUNCTION GlassStrStep(v, d)
+    DIM i, n, t$ ' (its own: the main program shares these names)
+    t$ = "0 1 2 3 4 6 8 12 16 24 32 48 64 100 200 999 " : n = 16
+    FOR i = 1 TO n : IF VAL(ConWord$(t$, i)) >= v THEN EXIT FOR
+    NEXT
+    IF i > n THEN i = n
+    IF VAL(ConWord$(t$, i)) > v AND d > 0 THEN i = i - 1 ' (between steps: the next one up is a step on)
+    i = MaxOf(1, MinOf(n, i + d))
+    GlassStrStep = VAL(ConWord$(t$, i))
+END FUNCTION
+
+' A pane's strength in words
+FUNCTION GlassStrName$ (v)
+    IF v >= GLASS_UNBREAKABLE THEN GlassStrName$ = "UNBREAKABLE" ELSE IF v <= 0 THEN GlassStrName$ = "AS TUNED" + STR$(MaxOf(1, TuneNow!(tuGlass))) ELSE GlassStrName$ = LTRIM$(STR$(v))
+END FUNCTION
 
 ' How much each pane reflects (glassRefK): its [glass] line's amount, else
 ' the sector's - bars never
@@ -52,6 +151,7 @@ SUB GlassRefBuild
         x = glassListX(k) : y = glassListY(k)
         glassRefK(k) = GlassRefOf(x, y) : glassBlurK(k) = GlassFxOf(x, y, 4) : glassFrostK(k) = GlassFxOf(x, y, 5) : glassRipK(k) = GlassFxOf(x, y, 6)
         glassClrK(k) = GlassFxOf(x, y, 8) : glassStyC(x, y) = GlassStyleOf(x, y)
+        GlassStrApply x, y ' (its strength, changed in the editor or by the console)
         IF glassHP(x, y) >= BARS_HP THEN glassRefK(k) = 0 : glassFrostK(k) = 0 : glassRipK(k) = 0 : glassStyC(x, y) = 0
         IF glassRefK(k) > 0 THEN glassRefAny = -1
         IF (glassFrostK(k) > 0 OR glassRipK(k) > 0) AND glassClrK(k) = 0 THEN glassFxAny = -1
@@ -120,30 +220,34 @@ FUNCTION GlassStyleList$
 END FUNCTION
 
 ' Change the pane at x, y: what (1 reflects, 2 blur, 3 frost, 4 ripple, 5
-' style - round, 6 through - 1 clear, 0 bent) by d (to d, for 6) - its
+' style - round, 6 through - 1 clear, 0 bent, 7 strength - steps, 8
+' strength - to d) by d (to d, for 6 and 8) - its
 ' [glass] line written short (none at all when it's as made)
 SUB GlassFxSet(x, y, what, d)
-    DIM k, r, v(6) ' (its own: the main program shares these names)
+    DIM k, r, v(7) ' (its own: the main program shares these names)
     r = GlassRefOf(x, y) : k = XtraFind("glass", x, y, 0)
     v(1) = -1 : IF k THEN IF LEFT$(XtraField$(k, 3), 1) <> "." AND LEN(XtraField$(k, 3)) > 0 THEN v(1) = r
     FOR k = 2 TO 4 : v(k) = GlassFxOf(x, y, k + 2) : NEXT
-    v(5) = GlassStyleOwn(x, y) : v(6) = GlassFxOf(x, y, 8)
+    v(5) = GlassStyleOwn(x, y) : v(6) = GlassFxOf(x, y, 8) : v(7) = GlassStrOwn(x, y)
     IF what = 1 THEN v(1) = MaxOf(0, MinOf(9, r + d)) : IF v(1) = GlassRefSector THEN v(1) = -1
     IF what > 1 AND what < 5 THEN v(what) = MaxOf(0, MinOf(9, v(what) + d))
     IF what = 5 THEN v(5) = (GlassStyleOf(x, y) + d + GLASS_STYLES * 4) MOD GLASS_STYLES : IF v(5) = GlassStyleSector THEN v(5) = -1
     IF what = 6 THEN v(6) = 0 : IF d THEN v(6) = 1
-    GlassFxPut x, y, v(1), v(2), v(3), v(4), v(5), v(6)
+    IF what = 7 THEN v(7) = GlassStrStep(v(7), d) ' (STRENGTH: a step up or down)
+    IF what = 8 THEN v(7) = MaxOf(0, MinOf(GLASS_UNBREAKABLE, d)) ' (STRENGTH: d itself)
+    GlassFxPut x, y, v(1), v(2), v(3), v(4), v(5), v(6), v(7)
 END SUB
 
 ' The pane at x, y's [glass] line: reflects r (-1 the sector's), blur, frost,
-' ripple, style st (-1 the sector's), through th (1 clear)
-SUB GlassFxPut(x, y, r, bl, fr, rp, st, th)
+' ripple, style st (-1 the sector's), through th (1 clear), strength sg (0 as tuned)
+SUB GlassFxPut(x, y, r, bl, fr, rp, st, th, sg)
     DIM t$ ' (its own: the main program shares these names)
     IF r < 0 THEN t$ = "." ELSE t$ = LTRIM$(STR$(r))
-    IF bl OR fr OR rp OR st >= 0 OR th THEN
+    IF bl OR fr OR rp OR st >= 0 OR th OR sg THEN
         t$ = t$ + ", " + LTRIM$(STR$(bl)) + ", " + LTRIM$(STR$(fr)) + ", " + LTRIM$(STR$(rp))
-        IF st >= 0 OR th THEN IF st < 0 THEN t$ = t$ + ", ." ELSE t$ = t$ + ", " + LTRIM$(STR$(st))
-        IF th THEN t$ = t$ + ", 1"
+        IF st >= 0 OR th OR sg THEN IF st < 0 THEN t$ = t$ + ", ." ELSE t$ = t$ + ", " + LTRIM$(STR$(st))
+        IF th OR sg THEN t$ = t$ + ", " + LTRIM$(STR$(th))
+        IF sg THEN t$ = t$ + ", " + LTRIM$(STR$(sg))
     ELSEIF r < 0 THEN
         t$ = ""
     END IF
@@ -165,11 +269,13 @@ FUNCTION GlassSlot(cx, cy)
     hp = glassHP(cx, cy)
     IF hp >= BARS_HP THEN GlassSlot = S_BARS : EXIT FUNCTION
     s0 = glassStyC(cx, cy) ' (its style: 0 the streaked glass, else its own pictures - S_GSTY)
-    IF hp >= glassFull THEN
+    IF glassHitSlot(cx, cy) THEN GlassSlot = S_GHIT + glassHitSlot(cx, cy) - 1 : EXIT FUNCTION ' (cracked where it was shot)
+    st = glassMax(cx, cy) ' (its whole: 0 unbreakable - whole till shot)
+    IF hp >= st OR st = 0 THEN
         IF s0 = 0 THEN GlassSlot = S_GLASS ELSE GlassSlot = S_GSTY + (s0 - 1) * GLASS_SPS
         EXIT FUNCTION
     END IF
-    IF hp * 2 > glassFull THEN st = 0 ELSE IF hp * 4 > glassFull THEN st = 1 ELSE st = 2
+    IF hp * 2 > st THEN st = 0 ELSE IF hp * 4 > st THEN st = 1 ELSE st = 2
     IF s0 THEN GlassSlot = S_GSTY + (s0 - 1) * GLASS_SPS + 1 + st * GLASS_SLOOKS + (cx + 2 * cy + cx \ 4) MOD GLASS_SLOOKS : EXIT FUNCTION
     GlassSlot = S_CRACK + st * GLASS_LOOKS + (cx + 2 * cy + cx \ 4) MOD GLASS_LOOKS
 END FUNCTION
