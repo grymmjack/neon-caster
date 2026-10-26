@@ -79,7 +79,7 @@ nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or 
 `resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 `savelevel` - and `door`, `wall`, `light` (`light 3 toggle`, `colour FF2020`, `bright`, `fx pulse`), `ambient`
-and `celllight` (the sector's own light, or a box of cells', changed as it plays), `liftgo`, `message`, `sound`,
+and `celllight` (the sector's own light, or a box of cells', changed as it plays; `ambient -200` darkens every lamp too), `flashlight` (on, off, its beam's width, reach, colour...), `glass X Y` (a pane's reflection, blur, frost, ripple, style and strength - `glass 13 11 style bricks`, `strength unbreakable`) and `glassreflect`, `liftgo`, `message`, `sound`,
 `give`/`take` (health, armour, ammo by kind, all), `die`, `spawn TYPE X Y`
 and `item KIND X Y`, which a level's triggers use. `mons` lists every
 monster and whether it's awake. `qb64pe` says which compiler the code
@@ -615,6 +615,18 @@ run it and see what happens. That's the fastest way to learn how it works.
   `alarm : celllight 10 4 18 9 150 FF2020 pulse`, and `calm` (the alarm
   stops) put it back with `celllight 10 4 18 9 off`.
 
+- **Lights out** (ch. 13, 14): `give flashlight`, then `ambient -255` - the
+  sector is pitch black but for your beam, muzzle flashes and neon. Shape
+  the beam in SETTINGS > GAMEPLAY > FLASHLIGHT, and find how OpenGL lights
+  its cone a pixel at a time (`GLFlashUni`, GL/OPENGL.BM) while the
+  software renderer lights whole cells (`FlCells`, GAME/FLASHLIGHT.BM).
+
+- **Glass** (OpenGL): in sector 1, stand in front of the glass and try
+  `glass 14 11 reflect 9` (a mirror), then `blur 5`, `frost 7`, `ripple 8`,
+  `style leaded` or `strength unbreakable` and shoot it. The reflection is
+  the whole world drawn again, turned over the pane's line (`GLMirrors`);
+  the cracks are drawn where each shot lands (`GlassMark`, WORLD/GLASS.BM).
+
 **The graphics card** (the game starts with RENDERER on OPENGL - turn
 SHOW FPS on to see what each effect costs; both are in SETTINGS > VIDEO,
 along with ART (CLASSIC: the pixel art; MODERN: high-resolution paintings
@@ -711,6 +723,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/monsters.txt`, `hud.txt` | every monster's numbers and what it drops; the HUD's layout - both changed by their editors, or by hand |
 | `neon-caster/tuning-defaults.txt` | the game's tuning as it ships (the TUNER's defaults: only what differs from the code's own numbers); `tuning-original.txt` is every number as the code has it. Your own changes go in `tuning.txt` |
 | `neon-caster/fonts/` | Tiny5, the editors' small print (SIL Open Font License, `OFL.txt`) |
+| `neon-caster/palettes/` | GIMP palettes (`.gpl`) for the editor's colour helper - click a colour wherever one is typed |
 | `neon-caster/music/` | a track for each sector of every set and each showcase (`level3.ogg`, `new3.ogg`, `remix3.ogg`, `huge3.ogg`, `sector11.ogg`...), the menu's, and the network's (`cyber.ogg`), each 3-4 minutes arranged from a ~45 second take by `arrange.py`; `NAME.arr` beside it is that arrangement as text (the take's tempo and bars, its clips, the order they play in - the MUSIC ARRANGER changes it); `NAME.viz` is what the SOUND TEST's player draws for it (its waveform and spectrum, worked out by `viz.py` - the game can't read an Ogg's samples). `daw.py` takes the arrangements to Renoise and Bitwig and back; `README.md` there has the steps. (The takes themselves are in `src/`, left out of the downloads.) |
 | `lib/glsl/`, `lib/steam/` | libraries from QB64_GJ_LIB: the OpenGL shaders' helpers, and Steam's achievements and stats (with a stand-in until the game is on Steam) |
 

@@ -12,7 +12,7 @@ stashes), slot machines that pay out, blow up or let monsters out, NEON PONG on 
 computers, a night vision headset, service droids going about their
 business, spawners you can see charging, and a villain who talks to you - NEXUS greets you in every sector, and the monsters have voices of their own. Every sector has its own music. With a level editor built in - point and click inside the level in 3D
 or on the map from above, with a picker of every wall, floor, door, item,
-monster and light, and a paint program of its own to draw the pictures in place - and a monster editor and a HUD editor. Twelve more
+monster and light, and a paint program of its own to draw the pictures in place, palettes to pick colours from - and a monster editor and a HUD editor. Twelve more
 sectors built with the editor come with it, three of them outdoors, and
 one, THE NEON EXPO, that shows off every feature at once - and THE MONOLITH,
 256 cells across and 30 walls high, as big as a sector gets - and THE STOCKPILE, THE COMPOUND and THE LAUNCH BAY, built to show off the newest of what follows. Jumping, rocket jumps, a jetpack, a flashlight for the dark (mind its battery), flying
@@ -22,7 +22,7 @@ stronghold doors to kick down, keypad doors and safes whose codes are on notes y
 bookshelves to search, broken computers to fix and hack, security cameras to watch through, robot
 guard dogs and guards who run to raise the alarm, a rocket camera (hold the middle button as you fire), charged shots (hold fire on the blaster or railgun, let go for twice the damage), jump pads that
 shoot you across a sector (some set from a launch control, by sums you work out), a sector's own gravity, floors
-as wet or dry as a level says, lights a sector switches and recolours as it plays (light switches, alarms that turn a room red), glass that cracks its own way, a window you can drag to any size, a harder network (hunters, sentinels, tracers and black ICE, firewalls, and a TRACE that climbs while ICE sees you - full, and more hunters come), a map
+as wet or dry as a level says, lights a sector switches and recolours as it plays (light switches, alarms that turn a room red), glass that cracks where you shoot it (or never breaks: bulletproof), sectors dark enough to need the flashlight, a window you can drag to any size, a harder network (hunters, sentinels, tracers and black ICE, firewalls, and a TRACE that climbs while ICE sees you - full, and more hunters come), a map
 textured from above like Duke3D's, and a
 console you can script (aliases, and an autoexec.cfg run at start-up). And 50
 achievements, each with its own badge, ready for Steam, with each
