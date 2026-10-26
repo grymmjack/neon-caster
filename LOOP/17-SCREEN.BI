@@ -97,6 +97,7 @@
         FOR i = 1 TO NUM_SETTINGS : glSet(i, glWrite) = setting(i) : NEXT
         glNight(glWrite) = nvOn ' (night vision: the post shader's)
         glFl(glWrite) = flNow ' (the flashlight: the world shader's - GLFlashUni)
+        IF viewOn THEN glFl(glWrite) = 0 ' (not through a camera or your rocket: the lamp's in your hand)
         glPitch(glWrite) = pitch : glHurt(glWrite) = hurtFlash / 14 : glRail(glWrite) = railBeam / 8
         glGun(glWrite) = 0 : IF gunY < 600 AND NOT editMode AND viewOn = 0 THEN glGun(glWrite) = currentGun ' The gun (0: out of sight - and in the editor), where on our screen
         glGunX0(glWrite) = gunX : glGunY0(glWrite) = gunY : glGunX1(glWrite) = gunX + gunW : glGunY1(glWrite) = gunY + gunH

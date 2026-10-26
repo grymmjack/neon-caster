@@ -124,7 +124,7 @@ END SUB
 SUB FlCells
     DIM cx, cy, x0, x1, y0, y1, reach!, half!, soft!, d!, vx!, vy!, cs!, co!, ci!, w!, k!, h! ' (its own: the main program shares these names)
     DIM col AS _UNSIGNED LONG
-    IF flNow <= 0 THEN EXIT SUB
+    IF flNow <= 0 OR viewOn <> 0 THEN EXIT SUB ' (none through a camera or your rocket: the lamp's in your hand)
     IF glMode AND glWorldProg <> 0 THEN EXIT SUB ' (the shader lights it, pixel by pixel)
     reach! = setting(SET_FL_REACH) : half! = setting(SET_FL_WIDTH) / 2 * 3.14159265 / 180 : soft! = setting(SET_FL_SOFT) / 100
     col = FlColour~&(setting(SET_FL_COLOUR)) : k! = flNow * setting(SET_FL_BRIGHT) / 100 * 256 / 255

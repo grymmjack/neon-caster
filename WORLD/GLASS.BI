@@ -21,6 +21,15 @@ DIM SHARED numGlass AS INTEGER, glassListX(MAX_GLASS) AS INTEGER, glassListY(MAX
 ' GLMirrors): 0 none to 9 a mirror, for glassList's k (glassRefK, GlassRefBuild):
 ' its [glass] line's (x, y, amount), else the sector's (glass_reflect =, lvlGlassRef:
 ' -1 in the file left out - GLASS_REF_USUAL). glassRefAny: a pane that does.
+' A pane's [glass] line goes on: x, y, reflects (. the sector's), BLUR (its
+' reflection's, 0 sharp - 9 a smear), FROST (what's behind it blurred, 0
+' clear - 9 shapes and light), RIPPLE (reeded glass: what's behind it
+' wobbling in bands) - glassBlurK, glassFrostK, glassRipK; glassFrostC by
+' cell for the software renderer (GlassColumn). glassFxAny: a pane frosted
+' or rippled.
 CONST GLASS_REF_USUAL = 2
 DIM SHARED lvlGlassRef AS INTEGER, glassRefK(MAX_GLASS) AS _BYTE, glassRefAny AS INTEGER
+DIM SHARED glassBlurK(MAX_GLASS) AS _BYTE, glassFrostK(MAX_GLASS) AS _BYTE, glassRipK(MAX_GLASS) AS _BYTE, glassFxAny AS INTEGER
+DIM SHARED glassFrostC(MAP_SIZE, MAP_SIZE) AS _BYTE
+REDIM SHARED gfBuf(0) AS _UNSIGNED LONG ' (a frosted pane's column, as it was behind it: GlassColumn)
 lvlGlassRef = -1

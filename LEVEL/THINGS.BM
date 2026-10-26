@@ -109,7 +109,7 @@ FUNCTION XtraWrite$(sec$, nl$)
         CASE "fuel" : h$ = "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"
         CASE "difficulty" : h$ = "' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one"
         CASE "looks" : h$ = "' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)"
-        CASE "glass" : h$ = "' how much the pane of glass at x, y reflects (OpenGL): x, y, 0 none - 9 a mirror (no line: the sector's, glass_reflect)"
+        CASE "glass" : h$ = "' how much the pane of glass at x, y reflects (OpenGL): x, y, reflects 0 none - 9 a mirror (. or no line: the sector's, glass_reflect), then blur (the reflection's), frost, ripple - each 0-9"
         CASE "smears" : h$ = "' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)"
     END SELECT
     XtraWrite$ = nl$ + "[" + sec$ + "]" + nl$ + h$ + nl$ + o$

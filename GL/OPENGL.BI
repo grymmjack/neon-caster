@@ -128,6 +128,7 @@ DIM SHARED glEyeX, glEyeY, glEyeDX, glEyeDY, glLR, glLG, glLB, glShade
 CONST GLASS_MIRRORS = 2, GLASS_PLANES = 16, GLASS_BEHIND = 12
 DIM SHARED glGlassMir AS INTEGER, glMirN AS INTEGER, glMirDir(GLASS_MIRRORS) AS INTEGER, glMirC(GLASS_MIRRORS) AS SINGLE, glMirSide(GLASS_MIRRORS) AS INTEGER
 DIM SHARED glMirTarg(GLASS_MIRRORS) AS LONG, glMirProg AS _UNSIGNED LONG, glMirTried AS INTEGER, glMirView(3) AS SINGLE
+DIM SHARED glFxProg AS _UNSIGNED LONG, glFxTarg AS LONG ' (frosted and rippled glass: GLGlassFrost)
 DIM SHARED glMirMat(15) AS SINGLE, glMirPlane(3) AS DOUBLE
 DIM SHARED glRealX, glRealY, glRealDX, glRealDY
 ' The corners waiting to be drawn (GLCorner puts them here; GLDraw hands

@@ -200,16 +200,15 @@ SUB _GL
 
     ' GLASS REFLECTIONS: the world as each pane in view mirrors it, drawn
     ' first into pictures of their own (GLMirrors) - then back to the view
-    IF glPost THEN mirW = sw : mirH = sh ELSE mirW = vw : mirH = vh
+    ' (where the view is drawn: the panes find their place in it - GLGlassMirrors, GLGlassFrost)
+    IF glPost THEN
+        mirW = sw : mirH = sh : glMirView(0) = 0 : glMirView(1) = 0 : glMirView(2) = sw : glMirView(3) = sh
+    ELSE
+        mirW = vw : mirH = vh : glMirView(0) = vx : glMirView(1) = vy : glMirView(2) = vw : glMirView(3) = vh
+    END IF
     GLMirrors b, mirW, mirH
     IF glMirN THEN
-        IF glPost THEN
-            GLSL_target_use glTargScene : _glViewport 0, 0, sw, sh
-            glMirView(0) = 0 : glMirView(1) = 0 : glMirView(2) = sw : glMirView(3) = sh
-        ELSE
-            GLSL_target_use 0 : _glViewport vx, vy, vw, vh
-            glMirView(0) = vx : glMirView(1) = vy : glMirView(2) = vw : glMirView(3) = vh
-        END IF
+        IF glPost THEN GLSL_target_use glTargScene : _glViewport 0, 0, sw, sh ELSE GLSL_target_use 0 : _glViewport vx, vy, vw, vh
     END IF
 
     ' WET FLOORS: first the whole world upside down, below the floor - a
@@ -578,6 +577,7 @@ SUB GLGlass(b)
     IF numGlass = 0 THEN EXIT SUB
     _glEnable _GL_BLEND : _glDepthMask _GL_FALSE
     glCellLitMode = 0
+    IF glassFxAny AND glGlassMir = 0 THEN GLGlassFrost b ' (frosted and rippled panes: what's behind them, blurred or bent - first, so a tint goes over it)
     ' A pane with a look ([looks]): first what's behind it, coloured - TINT
     ' multiplies it by the colour (glass filters light), WASH mixes it
     ' towards it (frosted), GLOW adds it - a pass for each, as each blends
@@ -795,19 +795,20 @@ SUB GLGlassMirrors(b)
     DIM k, m, cx, cy, x0, y0, x1, y1, gz0, gz1 ' (its own: the main program shares these names)
     GLStopDrawing
     GLSL_use glMirProg
-    GLSL_uniform_1i glMirProg, "mir", 0
+    GLSL_uniform_1i glMirProg, "src", 0
     GLSL_uniform_4f glMirProg, "view", glMirView(0), glMirView(1), glMirView(2), glMirView(3)
     GLSL_uniform_3f glMirProg, "eye", glRealX, glRealY, glEyeZ
     _glColor4f 1, 1, 1, 1
     FOR m = 1 TO glMirN
         _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glMirTarg(m))
-        IF glMirDir(m) = 1 THEN GLSL_uniform_2f glMirProg, "nrm", 0, 1 ELSE GLSL_uniform_2f glMirProg, "nrm", 1, 0
+        IF glMirDir(m) = 1 THEN GLSL_uniform_2f glMirProg, "nrm", 0, 1 : GLSL_uniform_2f glMirProg, "along", 1, 0 ELSE GLSL_uniform_2f glMirProg, "nrm", 1, 0 : GLSL_uniform_2f glMirProg, "along", 0, 1
         FOR k = 1 TO numGlass
             IF glassRefK(k) THEN
                 cx = glassListX(k) : cy = glassListY(k)
                 IF glassHP(cx, cy) > 0 AND GLPaneOn(cx, cy, m) THEN
                     IF GLNearSeen(cx, cy, b) THEN
                         GLSL_uniform_1f glMirProg, "amt", glassRefK(k) / 9
+                        GLSL_uniform_1f glMirProg, "blur", glassBlurK(k) : GLSL_uniform_1f glMirProg, "rip", glassRipK(k)
                         IF glassDir(cx, cy) = 1 THEN x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 ELSE x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1
                         gz0 = floorH(cx, cy) : gz1 = ceilH(cx, cy)
                         _glBegin _GL_QUADS
@@ -871,29 +872,118 @@ SUB GLFlashGlare(m, b)
     _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA
 END SUB
 
-' The shader that lays a mirror's picture on its panes (GLGlassMirrors)
+' The shaders that lay a picture on panes of glass: a mirror's (GLGlassMirrors,
+' glMirProg) and what's behind them (GLGlassFrost, glFxProg). Both read
+' their picture where the pane is on the screen (gl_FragCoord), bent by its
+' RIPPLE - reeded glass: bands four to a cell, along the pane (along) - and
+' blurred by its BLUR or FROST: 16 spots in a spiral round it, turned a
+' different way each pixel (a frosted pane's grain), averaged. GlassFxSrc$:
+' the part they share.
 SUB GLBuildMirProg
     DIM nl$, vs$, fs$ ' (its own: the main program shares these names)
-    glMirTried = -1 : glMirProg = 0
+    glMirTried = -1 : glMirProg = 0 : glFxProg = 0
     IF NOT GLSL_targets_supported% THEN EXIT SUB
     nl$ = CHR$(10)
     vs$ = "#version 120" + nl$ + "varying vec3 vPos;" + nl$
     vs$ = vs$ + "void main() { gl_Position = ftransform(); vPos = gl_Vertex.xyz; }" + nl$
-    fs$ = "#version 120" + nl$
-    fs$ = fs$ + "uniform sampler2D mir;  // the world as this line mirrors it" + nl$
-    fs$ = fs$ + "uniform vec4 view;      // where the view is: its corner and size, in pixels" + nl$
+    fs$ = GlassFxSrc$
     fs$ = fs$ + "uniform vec3 eye;       // you" + nl$
     fs$ = fs$ + "uniform vec2 nrm;       // the pane's facing (along x or y)" + nl$
     fs$ = fs$ + "uniform float amt;      // how much it reflects: 0..1 (0-9)" + nl$
-    fs$ = fs$ + "varying vec3 vPos;" + nl$
+    fs$ = fs$ + "uniform float blur;     // how blurred: 0-9" + nl$
     fs$ = fs$ + "void main() {" + nl$
-    fs$ = fs$ + "    vec3 c = texture2D(mir, (gl_FragCoord.xy - view.xy) / view.zw).rgb;" + nl$
+    fs$ = fs$ + "    vec3 c = look(blur * 0.0045);" + nl$
     fs$ = fs$ + "    float ci = abs(dot(normalize(vPos - eye), vec3(nrm, 0.0)));  // head on 1, along it 0" + nl$
     fs$ = fs$ + "    float fr = pow(1.0 - ci, 3.0);" + nl$
     fs$ = fs$ + "    gl_FragColor = vec4(c, clamp(amt * (0.35 + 0.65 * fr) * (1.0 + amt), 0.0, 1.0));" + nl$
     fs$ = fs$ + "}" + nl$
     glMirProg = GLSL_program~&(vs$, fs$)
-    IF glMirProg = 0 THEN glShaderError$ = "glass: " + GLSL_error$
+    IF glMirProg = 0 THEN glShaderError$ = "glass: " + GLSL_error$ : EXIT SUB
+    fs$ = GlassFxSrc$
+    fs$ = fs$ + "uniform float frost;    // how frosted: 0-9" + nl$
+    fs$ = fs$ + "void main() {" + nl$
+    fs$ = fs$ + "    vec3 c = look(frost * 0.0065);" + nl$
+    fs$ = fs$ + "    float m = frost / 9.0;" + nl$
+    fs$ = fs$ + "    c = mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), 0.35 * m) + 0.05 * m;  // frosted: paler, milky" + nl$
+    fs$ = fs$ + "    gl_FragColor = vec4(c, 1.0);" + nl$
+    fs$ = fs$ + "}" + nl$
+    glFxProg = GLSL_program~&(vs$, fs$)
+    IF glFxProg = 0 THEN glShaderError$ = "frosted glass: " + GLSL_error$
+END SUB
+
+FUNCTION GlassFxSrc$
+    DIM nl$, fs$ ' (its own: the main program shares these names)
+    nl$ = CHR$(10)
+    fs$ = "#version 120" + nl$
+    fs$ = fs$ + "uniform sampler2D src;  // the picture: a mirror's, or the view behind the glass" + nl$
+    fs$ = fs$ + "uniform vec4 view;      // where the view is: its corner and size, in pixels" + nl$
+    fs$ = fs$ + "uniform vec2 along;     // the way the pane runs (x or y)" + nl$
+    fs$ = fs$ + "uniform float rip;      // RIPPLE: 0-9" + nl$
+    fs$ = fs$ + "varying vec3 vPos;" + nl$
+    fs$ = fs$ + "vec3 look(float r) {  // the picture here: bent by the ripple, blurred r of the view's height round" + nl$
+    fs$ = fs$ + "    vec2 uv = (gl_FragCoord.xy - view.xy) / view.zw;" + nl$
+    fs$ = fs$ + "    float a = dot(vPos.xy, along);" + nl$
+    fs$ = fs$ + "    uv += vec2(sin(a * 25.1327) * 0.0028, sin(vPos.z * 9.0 + a * 3.0) * 0.0007) * rip;" + nl$
+    fs$ = fs$ + "    if (r <= 0.0) return texture2D(src, uv).rgb;" + nl$
+    fs$ = fs$ + "    vec2 rr = vec2(r * view.w / view.z, r);" + nl$
+    fs$ = fs$ + "    float rot = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2832;" + nl$
+    fs$ = fs$ + "    vec3 c = vec3(0.0);" + nl$
+    fs$ = fs$ + "    for (int i = 0; i < 16; i++) {" + nl$
+    fs$ = fs$ + "        float fi = float(i); float an = fi * 2.39996 + rot;" + nl$
+    fs$ = fs$ + "        c += texture2D(src, uv + vec2(cos(an), sin(an)) * sqrt((fi + 0.5) / 16.0) * rr).rgb;" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    return c / 16.0;" + nl$
+    fs$ = fs$ + "}" + nl$
+    GlassFxSrc$ = fs$
+END FUNCTION
+
+' FROSTED AND RIPPLED GLASS: the view as it is now - everything but the
+' glass and what glows - copied into a picture of its own (glFxTarg), then
+' each frosted or rippled pane in view drawn over with that picture as it
+' is through it (glFxProg): blurred, bent. What's in front of the pane hides
+' it as ever (the depth test).
+SUB GLGlassFrost(b)
+    DIM k, cx, cy, fxAny, w, h, x0, y0, x1, y1, gz0, gz1 ' (its own: the main program shares these names)
+    IF glMirTried = 0 THEN GLBuildMirProg
+    IF glFxProg = 0 THEN EXIT SUB
+    FOR k = 1 TO numGlass
+        IF glassFrostK(k) OR glassRipK(k) THEN
+            cx = glassListX(k) : cy = glassListY(k)
+            IF glassHP(cx, cy) > 0 THEN IF GLNearSeen(cx, cy, b) THEN fxAny = -1 : EXIT FOR
+        END IF
+    NEXT
+    IF NOT fxAny THEN EXIT SUB
+    w = glMirView(2) : h = glMirView(3)
+    IF glFxTarg = 0 THEN glFxTarg = GLSL_target_new&(w, h, 0) : IF glFxTarg = 0 THEN glFxProg = 0 : EXIT SUB
+    GLSL_target_resize glFxTarg, w, h
+    GLStopDrawing
+    _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glFxTarg)
+    _glCopyTexSubImage2D _GL_TEXTURE_2D, 0, 0, 0, glMirView(0), glMirView(1), w, h ' (from what's being drawn on: the scene's target, or the window)
+    GLSL_use glFxProg
+    GLSL_uniform_1i glFxProg, "src", 0
+    GLSL_uniform_4f glFxProg, "view", glMirView(0), glMirView(1), glMirView(2), glMirView(3)
+    _glColor4f 1, 1, 1, 1
+    FOR k = 1 TO numGlass
+        IF glassFrostK(k) OR glassRipK(k) THEN
+            cx = glassListX(k) : cy = glassListY(k)
+            IF glassHP(cx, cy) > 0 THEN
+                IF GLNearSeen(cx, cy, b) THEN
+                    GLSL_uniform_1f glFxProg, "frost", glassFrostK(k) : GLSL_uniform_1f glFxProg, "rip", glassRipK(k)
+                    IF glassDir(cx, cy) = 1 THEN
+                        x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 : GLSL_uniform_2f glFxProg, "along", 1, 0
+                    ELSE
+                        x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1 : GLSL_uniform_2f glFxProg, "along", 0, 1
+                    END IF
+                    gz0 = floorH(cx, cy) : gz1 = ceilH(cx, cy)
+                    _glBegin _GL_QUADS
+                    _glVertex3f x0, y0, gz1 : _glVertex3f x1, y1, gz1 : _glVertex3f x1, y1, gz0 : _glVertex3f x0, y0, gz0
+                    _glEnd
+                END IF
+            END IF
+        END IF
+    NEXT
+    GLSL_use 0
+    _glBindTexture _GL_TEXTURE_2D, 0
 END SUB
 
 SUB GLSpritesAndExtras(b, mirror)

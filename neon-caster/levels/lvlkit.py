@@ -587,8 +587,10 @@ def check_xtra(lv):
         if c not in ITEMS and c not in MONS and c not in DECO and c not in GLASS: errs.append("looks at %d,%d: nothing there to look (it's '%s')" % (x, y, c))
     for l in lv.get("glass", []):
         f, x, y = _xf(l)
-        if x is None or len(f) < 3: errs.append("glass line '%s': x, y, how much it reflects 0-9" % l); continue
-        if not (f[2].isdigit() and int(f[2]) <= 9): errs.append("glass at %d,%d: '%s' (0 none - 9 a mirror)" % (x, y, f[2]))
+        if x is None or len(f) < 3: errs.append("glass line '%s': x, y, how much it reflects 0-9 (. the sector's)" % l); continue
+        if not (f[2] == "." or (f[2].isdigit() and int(f[2]) <= 9)): errs.append("glass at %d,%d: '%s' (0 none - 9 a mirror, . the sector's)" % (x, y, f[2]))
+        for n, what in zip(f[3:6], ("blur", "frost", "ripple")):
+            if not (n.isdigit() and int(n) <= 9): errs.append("glass at %d,%d: %s '%s' (0-9)" % (x, y, what, n))
         if at(x, y) != "=": errs.append("glass at %d,%d: no pane of glass there (it's '%s')" % (x, y, at(x, y)))
     g = lv.get("glass_reflect")
     if g is not None and not (0 <= g <= 9): errs.append("glass_reflect = %d: 0 none - 9 a mirror" % g)
@@ -798,7 +800,7 @@ def level_text(lv, comment=()):
                    ("fuel", "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"),
                    ("difficulty", "' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one"),
                    ("looks", "' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)"),
-                   ("glass", "' how much the pane of glass at x, y reflects (OpenGL): x, y, 0 none - 9 a mirror (no line: the sector's, glass_reflect)")):
+                   ("glass", "' the pane of glass at x, y: x, y, how much it reflects 0 none - 9 a mirror (. or no line: the sector's, glass_reflect), then blur (the reflection's), frost, ripple - each 0-9")):
         if lv.get(sec):  # lines about single cells - kept as they are
             out += ["", "[" + sec + "]", h] + list(lv[sec])
     out.append("")

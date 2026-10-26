@@ -468,6 +468,22 @@ SUB GlassColumn STATIC
     ' frame: the shading and the mix are written out, not FUNCTION calls)
     gMask = sprTex - 1
     gLk = lookCell(glassCX(gx), glassCY(gx)) : IF gLk THEN IF lkMode(gLk) = 0 THEN gLk = 0
+    gFr = glassFrostC(glassCX(gx), glassCY(gx))
+    IF gFr > 0 AND gSlot <> S_BARS AND gEnd >= gTop THEN ' FROSTED: what's behind it smeared up and down (a column at a time: OpenGL blurs it every way) and milky
+        IF UBOUND(gfBuf) < RENDER_H THEN REDIM gfBuf(RENDER_H) AS _UNSIGNED LONG
+        FOR gy = gTop TO gEnd : gfBuf(gy) = pixels(gy * RENDER_W + gx) : NEXT
+        gfR = 1 + gFr \ 2 : gfM& = gFr * 14 ' (how far it smears, how milky - of 256)
+        gfW& = (gR& + gG& + gB&) \ 5 ' (the milk: as lit as the pane)
+        FOR gy = gTop TO gEnd
+            gCR& = 0 : gCG& = 0 : gCB& = 0 : gfN& = 0
+            FOR gfY = MaxOf(gTop, gy - gfR) TO MinOf(gEnd, gy + gfR)
+                gOld~& = gfBuf(gfY) : gCR& = gCR& + ((gOld~& \ 65536) AND 255) : gCG& = gCG& + ((gOld~& \ 256) AND 255) : gCB& = gCB& + (gOld~& AND 255) : gfN& = gfN& + 1
+            NEXT
+            gCR& = gCR& \ gfN& : gCG& = gCG& \ gfN& : gCB& = gCB& \ gfN&
+            gCR& = gCR& + (gfW& - gCR&) * gfM& \ 256 : gCG& = gCG& + (gfW& - gCG&) * gfM& \ 256 : gCB& = gCB& + (gfW& - gCB&) * gfM& \ 256
+            pixels(gy * RENDER_W + gx) = &HFF000000~& OR gCR& * 65536 OR gCG& * 256 OR gCB&
+        NEXT
+    END IF
     IF gLk AND gSlot <> S_BARS THEN ' A pane with a look ([looks]): what's behind it coloured first - TINT multiplied (glass filters light), WASH mixed towards it, GLOW added (as GLGlass)
         gTR& = (lkCol(gLk) \ 65536) AND 255 : gTG& = (lkCol(gLk) \ 256) AND 255 : gTB& = lkCol(gLk) AND 255 : gLA& = lkAmt(gLk) * 256
         IF lkMode(gLk) = 1 THEN gTR& = 256 + (gTR& - 255) * gLA& \ 256 : gTG& = 256 + (gTG& - 255) * gLA& \ 256 : gTB& = 256 + (gTB& - 255) * gLA& \ 256

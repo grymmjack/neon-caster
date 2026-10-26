@@ -45,22 +45,57 @@ END SUB
 ' How much each pane reflects (glassRefK): its [glass] line's amount, else
 ' the sector's - bars never
 SUB GlassRefBuild
-    DIM k ' (its own: the main program shares these names)
-    glassRefAny = 0
+    DIM k, x, y ' (its own: the main program shares these names)
+    glassRefAny = 0 : glassFxAny = 0
+    FOR y = 0 TO MinOf(MAP_SIZE, bldN) : FOR x = 0 TO MinOf(MAP_SIZE, bldN) : glassFrostC(x, y) = 0 : NEXT : NEXT
     FOR k = 1 TO numGlass
-        glassRefK(k) = GlassRefOf(glassListX(k), glassListY(k))
-        IF glassHP(glassListX(k), glassListY(k)) >= BARS_HP THEN glassRefK(k) = 0
+        x = glassListX(k) : y = glassListY(k)
+        glassRefK(k) = GlassRefOf(x, y) : glassBlurK(k) = GlassFxOf(x, y, 4) : glassFrostK(k) = GlassFxOf(x, y, 5) : glassRipK(k) = GlassFxOf(x, y, 6)
+        IF glassHP(x, y) >= BARS_HP THEN glassRefK(k) = 0 : glassFrostK(k) = 0 : glassRipK(k) = 0
         IF glassRefK(k) > 0 THEN glassRefAny = -1
+        IF glassFrostK(k) > 0 OR glassRipK(k) > 0 THEN glassFxAny = -1
+        glassFrostC(x, y) = glassFrostK(k)
     NEXT
 END SUB
 
-' The pane at x, y's amount: its own [glass] line's, else the sector's
+' The pane at x, y's amount: its own [glass] line's, else (none, or .) the sector's
 FUNCTION GlassRefOf(x, y)
     DIM k ' (its own: the main program shares these names)
     k = XtraFind("glass", x, y, 0)
-    IF k THEN GlassRefOf = MaxOf(0, MinOf(9, VAL(XtraField$(k, 3)))) : EXIT FUNCTION
+    IF k THEN IF LEFT$(XtraField$(k, 3), 1) <> "." AND LEN(XtraField$(k, 3)) > 0 THEN GlassRefOf = MaxOf(0, MinOf(9, VAL(XtraField$(k, 3)))) : EXIT FUNCTION
     GlassRefOf = GlassRefSector
 END FUNCTION
+
+' The pane at x, y's BLUR (n 4), FROST (5) or RIPPLE (6): 0-9, none 0
+FUNCTION GlassFxOf(x, y, n)
+    DIM k ' (its own: the main program shares these names)
+    k = XtraFind("glass", x, y, 0)
+    IF k THEN GlassFxOf = MaxOf(0, MinOf(9, VAL(XtraField$(k, n))))
+END FUNCTION
+
+' Change the pane at x, y: what (1 reflects, 2 blur, 3 frost, 4 ripple) by
+' d - its [glass] line written short (none at all when it's as made)
+SUB GlassFxSet(x, y, what, d)
+    DIM k, r, v(4) ' (its own: the main program shares these names)
+    r = GlassRefOf(x, y) : k = XtraFind("glass", x, y, 0)
+    v(1) = -1 : IF k THEN IF LEFT$(XtraField$(k, 3), 1) <> "." AND LEN(XtraField$(k, 3)) > 0 THEN v(1) = r
+    FOR k = 2 TO 4 : v(k) = GlassFxOf(x, y, k + 2) : NEXT
+    IF what = 1 THEN v(1) = MaxOf(0, MinOf(9, r + d)) : IF v(1) = GlassRefSector THEN v(1) = -1
+    IF what > 1 THEN v(what) = MaxOf(0, MinOf(9, v(what) + d))
+    GlassFxPut x, y, v(1), v(2), v(3), v(4)
+END SUB
+
+' The pane at x, y's [glass] line: reflects r (-1 the sector's), blur, frost, ripple
+SUB GlassFxPut(x, y, r, bl, fr, rp)
+    DIM t$ ' (its own: the main program shares these names)
+    IF r < 0 THEN t$ = "." ELSE t$ = LTRIM$(STR$(r))
+    IF bl OR fr OR rp THEN
+        t$ = t$ + ", " + LTRIM$(STR$(bl)) + ", " + LTRIM$(STR$(fr)) + ", " + LTRIM$(STR$(rp))
+    ELSEIF r < 0 THEN
+        t$ = ""
+    END IF
+    XtraSet "glass", x, y, t$
+END SUB
 
 ' The sector's amount (glass_reflect =; left out, GLASS_REF_USUAL)
 FUNCTION GlassRefSector

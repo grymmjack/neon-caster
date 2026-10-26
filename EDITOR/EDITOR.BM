@@ -942,17 +942,26 @@ SUB EditPaneClick STATIC
         CASE 300, 301 ' The sector's wetness: auto (each floor as its picture is), then 0 dry - 9 soaked
             lvlWet = MaxOf(-1, MinOf(9, lvlWet + 2 * pnHit - 601)) : glMeshVersion = glMeshVersion + 1 : editDirty = -1
             IF lvlWet < 0 THEN EditNote "Wetness: auto - each floor as its picture is (OpenGL's WET FLOORS)" ELSE EditNote "Wetness:" + STR$(lvlWet) + " of 9 (0 dry - 9 soaked; OpenGL's WET FLOORS)"
-        CASE 620, 621 ' The selected panes of glass: how much each reflects (0 none - 9 a mirror; the sector's: no [glass] line)
+        CASE 620, 621, 624 TO 629 ' The selected panes of glass: how much each reflects (0 none - 9 a mirror; the sector's: none of its own), its reflection's BLUR, FROST, RIPPLE (0-9) - its [glass] line
             EditPushUndo : n = -1
+            IF pnHit <= 621 THEN gfc = 1 ELSE gfc = (pnHit - 624) \ 2 + 2
+            gfs = 1 : IF (pnHit MOD 2) = 0 THEN gfs = -1
             FOR k = 1 TO edSelN
                 x = edSelX(k) : y = edSelY(k)
                 IF MID$(lvlRow$(y), x + 1, 1) = "=" THEN
-                    n = MaxOf(0, MinOf(9, GlassRefOf(x, y) + 2 * pnHit - 1241))
-                    IF n = GlassRefSector THEN XtraSet "glass", x, y, "" ELSE XtraSet "glass", x, y, LTRIM$(STR$(n))
+                    GlassFxSet x, y, gfc, gfs
+                    IF gfc = 1 THEN n = GlassRefOf(x, y) ELSE n = GlassFxOf(x, y, gfc + 2)
                 END IF
             NEXT
             GlassRefBuild : editDirty = -1
-            IF n >= 0 THEN EditNote "Reflects" + STR$(n) + " of 9 (0 none - 9 a mirror; OpenGL's GLASS REFLECTIONS)"
+            IF n >= 0 THEN
+                SELECT CASE gfc
+                    CASE 1 : EditNote "Reflects" + STR$(n) + " of 9 (0 none - 9 a mirror; OpenGL's GLASS REFLECTIONS)"
+                    CASE 2 : EditNote "Blur" + STR$(n) + " of 9: its reflection, 0 sharp - 9 a smear (OpenGL)"
+                    CASE 3 : EditNote "Frost" + STR$(n) + " of 9: what's behind it, 0 clear - 9 only shapes and light"
+                    CASE 4 : EditNote "Ripple" + STR$(n) + " of 9: reeded glass - what's behind it wobbles in bands (OpenGL)"
+                END SELECT
+            END IF
         CASE 622, 623 ' The sector's glass: how much it reflects (each pane with no [glass] line of its own)
             lvlGlassRef = MaxOf(0, MinOf(9, GlassRefSector + 2 * pnHit - 1245)) : GlassRefBuild : editDirty = -1
             EditNote "Glass reflects" + STR$(lvlGlassRef) + " of 9 (0 none - 9 a mirror; a pane can have its own - OpenGL's GLASS REFLECTIONS)"
@@ -4268,6 +4277,10 @@ SUB EditPaneLook(x0, y)
     EditLookGet edSelX(k), edSelY(k), m, a, c~&, sz
     IF MID$(lvlRow$(edSelY(k)), edSelX(k) + 1, 1) = "=" THEN ' (glass: how much it reflects - OpenGL's GLASS REFLECTIONS)
         EditPaneAdd -1, x0, y + 2, 140, "REFLECTS" + STR$(GlassRefOf(edSelX(k), edSelY(k))) + " OF 9", 0 : EditPaneAdd 620, x0 + 146, y, 24, "-", 0 : EditPaneAdd 621, x0 + 174, y, 24, "+", 0 : y = y + 23
+        FOR c = 1 TO 3 ' (its reflection blurred; what's behind it frosted, rippled)
+            EditPaneAdd -1, x0, y + 2, 140, MID$("BLUR  FROST RIPPLE", c * 6 - 5, 6) + STR$(GlassFxOf(edSelX(k), edSelY(k), c + 3)), 0
+            EditPaneAdd 622 + 2 * c, x0 + 146, y, 24, "-", 0 : EditPaneAdd 623 + 2 * c, x0 + 174, y, 24, "+", 0 : y = y + 23
+        NEXT
     END IF
     EditPaneAdd -1, x0, y + 2, PN_W, "ITS LOOK:", 0 : y = y + 20
     FOR c = 0 TO 3 : EditPaneAdd 376 + c, x0 + c * 50, y, 48, EditTintName$(c), (m = c) : NEXT : y = y + 23
