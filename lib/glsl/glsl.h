@@ -101,6 +101,44 @@ static void glsl_upload_sub(uintptr_t pixels, int32_t w, int32_t h, GLenum forma
     }
 }
 
+// New pixels (w x h, BGRA bytes) for an ordinary texture tex, through the
+// stream - no stall. Leaves it bound on the current texture unit.
+static void glsl_native_tex_sub(uint32_t tex, int32_t w, int32_t h, uintptr_t pixels) {
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glsl_upload_sub(pixels, w, h, GL_BGRA, GL_UNSIGNED_BYTE, 4);
+}
+
+// ---- reading pixels back, without waiting ------------------------------------
+// glReadPixels into our memory makes the card finish everything first, and
+// Mesa's threaded driver stop the program's thread with it. Instead: read
+// into one of two pixel buffers (the card fills it in its own time), and copy
+// out the one started last frame, done by now. So what comes back is a frame
+// old. dst 0: start this frame's, copy nothing. Returns -1 when dst was filled.
+static GLuint glsl_rb_buf[2] = {0, 0};
+static int32_t glsl_rb_size[2] = {0, 0}, glsl_rb_have[2] = {0, 0}, glsl_rb_k = 0;
+static int32_t glsl_native_readback(int32_t w, int32_t h, uintptr_t dst) {
+    int32_t bytes = w * h * 4, k = glsl_rb_k, o = 1 - glsl_rb_k, got = 0;
+    if (glGenBuffers == NULL || glMapBufferRange == NULL || glUnmapBuffer == NULL) {
+        if (dst) { glReadPixels(0, 0, w, h, GL_BGRA, GL_UNSIGNED_BYTE, (void *)dst); return -1; }
+        return 0;
+    }
+    if (!glsl_rb_buf[k]) glGenBuffers(1, &glsl_rb_buf[k]);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, glsl_rb_buf[k]);
+    if (glsl_rb_size[k] != bytes) { glBufferData(GL_PIXEL_PACK_BUFFER, bytes, NULL, GL_STREAM_READ); glsl_rb_size[k] = bytes; }
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glReadPixels(0, 0, w, h, GL_BGRA, GL_UNSIGNED_BYTE, (void *)0);
+    glsl_rb_have[k] = bytes;
+    if (dst && glsl_rb_buf[o] && glsl_rb_have[o] == bytes) {
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, glsl_rb_buf[o]);
+        void *p = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, bytes, GL_MAP_READ_BIT);
+        if (p) { memcpy((void *)dst, p, (size_t)bytes); glUnmapBuffer(GL_PIXEL_PACK_BUFFER); got = -1; }
+    }
+    glsl_rb_have[o] = 0;
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    glsl_rb_k = o;
+    return got;
+}
+
 // ---- data textures and static buffers ---------------------------------------
 // A data texture holds numbers, not colours: four floats a pixel (RGBA32F),
 // read exactly (nearest pixel) - a table a shader can look things up in.

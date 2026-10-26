@@ -47,6 +47,7 @@
 '$INCLUDE:'./GAME/JUMPPADS.BI'
 '$INCLUDE:'./GAME/NETWORK.BI'
 '$INCLUDE:'./GAME/NEXUS.BI'
+'$INCLUDE:'./GAME/PHOTO.BI'
 
 ' RENDER ----------------------------------------------------------------------
 '$INCLUDE:'./RENDER/PICTURES.BI'
@@ -77,6 +78,7 @@
 
 ' GL --------------------------------------------------------------------------
 '$INCLUDE:'./GL/OPENGL.BI'
+'$INCLUDE:'./GL/TEXTART.BI'
 
 ' RENDER ----------------------------------------------------------------------
 '$INCLUDE:'./RENDER/PARTICLES.BI'

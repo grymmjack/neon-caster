@@ -173,13 +173,15 @@ SUB FlHaze
     _PUTIMAGE (400 - r, 300 - r)-(400 + r, 300 + r), flHazeImg&
 END SUB
 
-' The flashlight on the HUD (beside the jetpack's fuel): its battery, and the
-' spares - bright while it's on, red when the battery's low
+' The flashlight on the HUD (its own part, under the jetpack's fuel): its
+' battery, and the spares - bright while it's on, red when the battery's low
 SUB FlHud(x, y)
-    DIM c~&, t$ ' (its own: the main program shares these names)
-    IF NOT flHave THEN EXIT SUB
-    IF flBatt < 15 THEN c~& = _RGB32(255, 60, 60) ELSE IF flOn THEN c~& = _RGB32(255, 236, 150) ELSE c~& = _RGB32(150, 140, 110)
-    t$ = "LIGHT" + STR$(INT(flBatt + 0.99)) + "%" : IF setting(SET_FL_BATTERY) = 0 AND NOT demoPlay AND NOT demoRec THEN t$ = "LIGHT"
+    DIM c~&, t$, b ' (its own: the main program shares these names)
+    IF NOT flHave AND NOT hudEdit THEN EXIT SUB ' (the HUD editor: a sample, to place and colour)
+    b = INT(flBatt + 0.99) : IF NOT flHave THEN b = 100
+    c~& = HudColor~&(HE_FLASH, _RGB32(255, 236, 150)) : IF NOT flOn AND flHave THEN c~& = HudDim~&(c~&) ' (its own colour, or the game's: dimmer while it's off)
+    IF b < 15 THEN c~& = _RGB32(255, 60, 60)
+    t$ = hudLabel$(HE_FLASH) + STR$(b) + "%" : IF setting(SET_FL_BATTERY) = 0 AND NOT demoPlay AND NOT demoRec THEN t$ = hudLabel$(HE_FLASH)
     IF flSpares > 0 THEN t$ = t$ + " +" + LTRIM$(STR$(flSpares))
     HudText x, y, t$, c~&
 END SUB

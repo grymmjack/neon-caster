@@ -95,11 +95,14 @@
         glPlaneLen(glWrite) = fovPlane / zoom : glZoom(glWrite) = zoom : glFullMode(glWrite) = _FULLSCREEN
         glShakeX(glWrite) = shakeX : glShakeY(glWrite) = shakeY : glShakeEdge(glWrite) = shakeEdge
         FOR i = 1 TO NUM_SETTINGS : glSet(i, glWrite) = setting(i) : NEXT
+        IF setting(SET_ASCII) > 0 AND NOT taMade THEN TextArtFont ' (TEXT ART's characters: made here, sent by SUB _GL)
+        IF setting(SET_ASCII) = TA_RETRO THEN RetroPalSync ' (RETRO: its palette, if another's been chosen)
+        IF setting(SET_ASCII) = TA_MAC AND taMacState = 1 THEN TaMacDither : taMacState = 2 ' (MAC: the pixels SUB _GL read back, dithered here - not on its thread)
         glNight(glWrite) = nvOn ' (night vision: the post shader's)
         glFl(glWrite) = flNow ' (the flashlight: the world shader's - GLFlashUni)
         IF viewOn THEN glFl(glWrite) = 0 ' (not through a camera or your rocket: the lamp's in your hand)
         glPitch(glWrite) = pitch : glHurt(glWrite) = hurtFlash / 14 : glRail(glWrite) = railBeam / 8
-        glGun(glWrite) = 0 : IF gunY < 600 AND NOT editMode AND viewOn = 0 THEN glGun(glWrite) = currentGun ' The gun (0: out of sight - and in the editor), where on our screen
+        glGun(glWrite) = 0 : IF gunY < 600 AND NOT editMode AND viewOn = 0 AND (photoHands OR NOT photoOn) THEN glGun(glWrite) = currentGun ' The gun (0: out of sight - and in the editor), where on our screen
         glGunX0(glWrite) = gunX : glGunY0(glWrite) = gunY : glGunX1(glWrite) = gunX + gunW : glGunY1(glWrite) = gunY + gunH
         glGunR(glWrite) = gunLightR : glGunG(glWrite) = gunLightG : glGunB(glWrite) = gunLightB
         glSideDim(glWrite) = 0 ' (the menu dims the sides of a wide view: GLLiveSettings)

@@ -32,7 +32,7 @@ computer. Leave the title screen alone and an autopilot's demos play.
 
 It draws its 3D two ways: a software raycaster, like Wolfenstein 3D, and an
 OpenGL renderer with bump mapping, moving lights, wet floors, glass that
-reflects the room (blurred, frosted or reeded as a pane says; clear, leaded, glass bricks and more - bulletproof if you like, cracked where it's shot), bloom and CRT effects. Every picture comes in pixel art or a high-resolution painting
+reflects the room (blurred, frosted or reeded as a pane says; clear, leaded, glass bricks and more - bulletproof if you like, cracked where it's shot), bloom and CRT effects - and TEXT ART: the whole view drawn in ASCII, ANSI (DOS's blocks and shades, 9 x 16 VGA cells), PETSCII, falling MATRIX code, a 1-bit Mac, or RETRO big pixels in any palette (Apple II, C64, CGA, Game Boy and fifty more), dithered or not, kept as presets. PHOTO MODE (F10) stops the game dead and lets you fly round it for screenshots. Every picture comes in pixel art or a high-resolution painting
 (ART in the video settings).
 
 | | |

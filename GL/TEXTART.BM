@@ -1,0 +1,779 @@
+''
+' NEON-CASTER - GL/TEXTART.BM
+' =============================================================================
+' TEXT ART: the characters (TextArtFont), its names, the console's textart.
+' The drawing is the post shader's ascii() (GL/OPENGL.BM): each cell's four
+' quarters are looked at - an edge across it (ANSI, PETSCII) is the
+' character whose shape it is, its two sides' colours ink and paper; a flat
+' cell is a character as full as it is bright (or, in DOS's or the C64's
+' colours, two of the palette's mixed by how full). MATRIX is rain.
+'
+
+FUNCTION TextArtName$(n)
+    SELECT CASE n
+        CASE TA_ASCII : TextArtName$ = "ASCII"
+        CASE TA_ANSI : TextArtName$ = "ANSI"
+        CASE TA_PETSCII : TextArtName$ = "PETSCII"
+        CASE TA_MATRIX : TextArtName$ = "MATRIX"
+        CASE TA_MAC : TextArtName$ = "MAC 1-BIT"
+        CASE TA_RETRO : TextArtName$ = "RETRO"
+        CASE ELSE : TextArtName$ = "OFF"
+    END SELECT
+END FUNCTION
+
+FUNCTION TextArtColName$(n)
+    SELECT CASE n
+        CASE TC_OWN : TextArtColName$ = "OWN COLOUR"
+        CASE TC_GREEN : TextArtColName$ = "GREEN"
+        CASE TC_AMBER : TextArtColName$ = "AMBER"
+        CASE TC_WHITE : TextArtColName$ = "WHITE"
+        CASE TC_DOS : TextArtColName$ = "EGA 16"
+        CASE TC_C64 : TextArtColName$ = "C64 16"
+        CASE ELSE : TextArtColName$ = "AUTO"
+    END SELECT
+END FUNCTION
+
+' The colours set s is drawn in: col, or for AUTO, the set's own
+FUNCTION TextArtCol(s, col)
+    IF col <> TC_AUTO THEN TextArtCol = col : EXIT FUNCTION
+    SELECT CASE s
+        CASE TA_ANSI : TextArtCol = TC_DOS
+        CASE TA_PETSCII : TextArtCol = TC_C64
+        CASE TA_MATRIX : TextArtCol = TC_RAIN
+        CASE TA_MAC : TextArtCol = TC_WHITE ' (black on white)
+        CASE ELSE : TextArtCol = TC_OWN
+    END SELECT
+END FUNCTION
+
+' A cell's width for its height: square for PETSCII (the C64's 8 x 8),
+' half for the rest (8 x 16), a little more for MATRIX's code
+FUNCTION TextArtAspect!(s)
+    SELECT CASE s
+        CASE TA_PETSCII : TextArtAspect! = 1
+        CASE TA_MATRIX : TextArtAspect! = 0.6
+        CASE ELSE : TextArtAspect! = 0.5
+    END SELECT
+END FUNCTION
+
+' The characters of every set, into taPix (see TEXTART.BI). Made once, on
+' the main thread (QB64PE's pictures aren't for SUB _GL's)
+SUB TextArtFont
+    DIM img&, d&, sr&, s, k, x, y, n, best, bd, want, c$, ramp$, used$, gh ' (its own: the main program shares these names)
+    DIM ink(255), q(3), use(TA_MAX - 1), full, kat$(21)
+    IF taMade THEN EXIT SUB
+    img& = _NEWIMAGE(TA_W, 16, 32) : d& = _DEST : sr& = _SOURCE
+    _DEST img& : _SOURCE img& : _PRINTMODE _KEEPBACKGROUND
+    FOR s = 1 TO TA_SETS
+        CLS , _RGBA32(0, 0, 0, 0) : COLOR _RGB32(255, 255, 255)
+        FOR k = 0 TO TA_MAX - 1 : use(k) = 0 : NEXT
+        gh = 16
+        SELECT CASE s
+            CASE TA_ASCII ' the classic ramp of 70, each one's pixels counted, then 16 picked evenly from a space to the fullest
+                ramp$ = " .'`^" + CHR$(34) + ",:;Il!i><~+_-?][}{1)(|\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
+                _PRINTSTRING (0, 0), ramp$
+                FOR k = 1 TO LEN(ramp$)
+                    n = 0
+                    FOR y = 0 TO 15 : FOR x = 0 TO 7
+                        IF _ALPHA32(POINT((k - 1) * 8 + x, y)) > 127 THEN n = n + 1
+                    NEXT : NEXT
+                    ink(k) = n
+                NEXT
+                best = 0 : FOR k = 1 TO LEN(ramp$) : IF ink(k) > best THEN best = ink(k)
+                NEXT
+                used$ = ""
+                FOR n = 0 TO 15
+                    want = best * n / 15 : bd = 9999 : c$ = " "
+                    FOR k = 1 TO LEN(ramp$)
+                        IF ABS(ink(k) - want) < bd AND INSTR(used$, MID$(ramp$, k, 1)) = 0 THEN bd = ABS(ink(k) - want) : c$ = MID$(ramp$, k, 1)
+                    NEXT
+                    used$ = used$ + c$
+                NEXT
+                CLS , _RGBA32(0, 0, 0, 0) : _PRINTSTRING (0, 0), used$
+                taCount(s) = 16 : FOR k = 0 TO 15 : use(k) = 1 : NEXT
+            CASE TA_ANSI ' DOS's code page 437: space, light, medium and dark shade, full block; the half blocks (shapes)
+                _PRINTSTRING (0, 0), CHR$(32) + CHR$(176) + CHR$(177) + CHR$(178) + CHR$(219) + CHR$(223) + CHR$(220) + CHR$(221) + CHR$(222)
+                taCount(s) = 9 : FOR k = 0 TO 4 : use(k) = 1 : NEXT : FOR k = 5 TO 8 : use(k) = 2 : NEXT
+            CASE TA_PETSCII ' the C64's graphics, 8 x 8: a dot and checks (the ramp), then quarters, three quarters, halves, diagonals, slants
+                gh = 8 : taCount(s) = 24
+                FOR k = 0 TO 23
+                    FOR y = 0 TO 7 : FOR x = 0 TO 7
+                        IF PetInk(k, x, y) THEN PSET (k * 8 + x, y), _RGB32(255, 255, 255)
+                    NEXT : NEXT
+                    IF k < 6 THEN use(k) = 1 ELSE use(k) = 2
+                NEXT
+            CASE TA_MATRIX ' code: katakana, mirrored, drawn from strokes (x0 y0 x1 y1 in hex, 0-6 across), and the digits
+                kat$(0) = "0262 6244 3437 371C" : kat$(1) = "6227 444C" : kat$(2) = "3233 0363 0306 6368 681C"
+                kat$(3) = "1252 323B 0B6B" : kat$(4) = "0464 323C 3418 3C2C" : kat$(5) = "0464 646B 6B5C 321C"
+                kat$(6) = "1555 0868 223C" : kat$(7) = "3216 3262 621C" : kat$(8) = "2215 2363 432C"
+                kat$(9) = "0262 626B 0B6B" : kat$(10) = "0464 2228 4249 491C" : kat$(11) = "0203 0506 0C64"
+                kat$(12) = "0262 621C 3769" : kat$(13) = "0204 621C" : kat$(14) = "0204 2325 621C"
+                kat$(15) = "1252 0565 353A 3A2C" : kat$(16) = "222C 2465" : kat$(17) = "0565 323A 3A1C"
+                kat$(18) = "0262 621C 2A5C" : kat$(19) = "0464 222C 2418 3469" : kat$(20) = "0262 6237 2A4C"
+                kat$(21) = "1253 1556 0A6C"
+                FOR k = 0 TO 21
+                    FOR n = 1 TO LEN(kat$(k)) STEP 5 ' (mirrored, verticals two pixels wide as the font's)
+                        x = VAL("&H" + MID$(kat$(k), n, 1)) : y = VAL("&H" + MID$(kat$(k), n + 1, 1))
+                        want = VAL("&H" + MID$(kat$(k), n + 2, 1)) : bd = VAL("&H" + MID$(kat$(k), n + 3, 1))
+                        LINE (k * 8 + 6 - x, y)-(k * 8 + 6 - want, bd), _RGB32(255, 255, 255)
+                        LINE (k * 8 + 7 - x, y)-(k * 8 + 7 - want, bd), _RGB32(255, 255, 255)
+                    NEXT
+                NEXT
+                _PRINTSTRING (22 * 8, 0), "0123456789"
+                taCount(s) = 32 : FOR k = 0 TO 31 : use(k) = 1 : NEXT
+        END SELECT
+        ' Into taPix: the characters, then each one's quarters and use
+        full = 1
+        FOR k = 0 TO taCount(s) - 1
+            n = 0
+            FOR y = 0 TO gh - 1 : FOR x = 0 TO 7
+                IF _ALPHA32(POINT(k * 8 + x, y)) > 127 THEN n = n + 1
+            NEXT : NEXT
+            ink(k) = n : IF use(k) = 1 AND n > full THEN full = n
+        NEXT
+        FOR y = 0 TO 15 : FOR x = 0 TO TA_W - 1
+            IF _ALPHA32(POINT(x, y)) > 127 THEN taPix(((s - 1) * 16 + y) * TA_W + x) = &HFFFFFFFF~& ELSE taPix(((s - 1) * 16 + y) * TA_W + x) = 0
+        NEXT : NEXT
+        FOR k = 0 TO taCount(s) - 1
+            FOR n = 0 TO 3 : q(n) = 0 : NEXT
+            FOR y = 0 TO gh - 1 : FOR x = 0 TO 7
+                IF _ALPHA32(POINT(k * 8 + x, y)) > 127 THEN n = -(x >= 4) - 2 * (y >= gh \ 2) : q(n) = q(n) + 1
+            NEXT : NEXT
+            FOR x = 0 TO 7
+                taPix((64 + s - 1) * TA_W + k * 8 + x) = _RGBA32(q(0) * 255 \ (2 * gh), q(1) * 255 \ (2 * gh), q(2) * 255 \ (2 * gh), q(3) * 255 \ (2 * gh))
+                taPix((68 + s - 1) * TA_W + k * 8 + x) = _RGBA32(255 * -(use(k) = 1), 255 * -(use(k) = 2), MinOf(255, ink(k) * 255 \ full), 255 * -(s = TA_ANSI AND k >= 4)) ' (A: a VGA line-drawing character, 0xC0-0xDF - the blocks: its 8th column goes on into the 9th)
+            NEXT
+        NEXT
+    NEXT
+    _DEST d& : _SOURCE sr& : _FREEIMAGE img&
+    taMade = -1
+END SUB
+
+' PETSCII's character k: whether (x, y) of its 8 x 8 is ink
+FUNCTION PetInk(k, x, y)
+    DIM l, t ' (its own)
+    l = (x < 4) : t = (y < 4)
+    SELECT CASE k
+        CASE 1 : PetInk = (x = 3 OR x = 4) AND (y = 3 OR y = 4) ' a dot
+        CASE 2 : PetInk = ((x \ 2) MOD 2 = 0) AND ((y \ 2) MOD 2 = 0) ' a light check (the C64's are in pairs of pixels)
+        CASE 3 : PetInk = ((x \ 2 + y \ 2) MOD 2 = 0) ' the check
+        CASE 4 : PetInk = NOT (((x \ 2) MOD 2 = 0) AND ((y \ 2) MOD 2 = 0)) ' a heavy check
+        CASE 5 : PetInk = -1 ' full
+        CASE 6 : PetInk = l AND t ' quarters
+        CASE 7 : PetInk = NOT l AND t
+        CASE 8 : PetInk = l AND NOT t
+        CASE 9 : PetInk = NOT l AND NOT t
+        CASE 10 : PetInk = NOT (NOT l AND NOT t) ' three quarters
+        CASE 11 : PetInk = NOT (l AND NOT t)
+        CASE 12 : PetInk = NOT (NOT l AND t)
+        CASE 13 : PetInk = NOT (l AND t)
+        CASE 14 : PetInk = t ' halves
+        CASE 15 : PetInk = NOT t
+        CASE 16 : PetInk = l
+        CASE 17 : PetInk = NOT l
+        CASE 18 : PetInk = (l = t) ' diagonal quarters
+        CASE 19 : PetInk = (l <> t)
+        CASE 20 : PetInk = (x + y <= 7) ' slants
+        CASE 21 : PetInk = (y <= x)
+        CASE 22 : PetInk = (y >= x)
+        CASE 23 : PetInk = (x + y >= 7)
+    END SELECT
+END FUNCTION
+
+' The console's textart (ascii, ansi, petscii): words in any order - a set
+' (off ascii ansi petscii matrix), colours (auto own green amber white dos
+' c64), size N or just N. ascii / ansi / petscii start in that set
+FUNCTION TextArtCmd$(verb$, cmd$)
+    DIM i, w$, done, c$, k, rn, rw ' (its own)
+    c$ = cmd$ : DO WHILE INSTR(c$, ",") : MID$(c$, INSTR(c$, ","), 1) = " " : LOOP ' (retro 2, 1, ...: commas as spaces)
+    SELECT CASE verb$
+        CASE "ascii" : setting(SET_ASCII) = TA_ASCII : done = -1
+        CASE "ansi" : setting(SET_ASCII) = TA_ANSI : done = -1
+        CASE "petscii" : setting(SET_ASCII) = TA_PETSCII : done = -1
+        CASE "mac" : setting(SET_ASCII) = TA_MAC : done = -1
+        CASE "retro", "retroshade" : setting(SET_ASCII) = TA_RETRO : done = -1
+    END SELECT
+    w$ = LCASE$(ConWord$(c$, 2))
+    IF NOT taQuiet THEN ' (a preset's own words are never these)
+        SELECT CASE w$
+            CASE "presets", "list" : TextArtCmd$ = TaPresetList$ : EXIT FUNCTION
+            CASE "preset", "use", "load"
+                i = TaPresetFind(TaRest$(c$, 3))
+                IF i = 0 THEN TextArtCmd$ = "No such preset: " + TaRest$(c$, 3) + " (textart presets)" : EXIT FUNCTION
+                TaPresetApply i : SaveSettings : ApplySettings
+                TextArtCmd$ = "Preset " + taPreName$(i) + ": " + MID$(TaStatus$, 11) : EXIT FUNCTION
+            CASE "save"
+                i = TaPresetSaveNow(TaRest$(c$, 3))
+                IF i = 0 THEN TextArtCmd$ = "No room for another preset (" + LTRIM$(STR$(TA_PRESETS)) + ")" : EXIT FUNCTION
+                TextArtCmd$ = "Saved preset " + taPreName$(i) + " = " + taPreWords$(i) + " (saves/textart-presets.txt)" : EXIT FUNCTION
+            CASE "delete", "forget", "remove"
+                i = TaPresetFind(TaRest$(c$, 3))
+                IF i = 0 THEN TextArtCmd$ = "No such preset: " + TaRest$(c$, 3) : EXIT FUNCTION
+                IF NOT taPreMine(i) THEN TextArtCmd$ = taPreName$(i) + " is one of the game's: it stays" : EXIT FUNCTION
+                w$ = taPreName$(i) : TaPresetDelete i
+                TextArtCmd$ = "Deleted preset " + w$ : EXIT FUNCTION
+        END SELECT
+    END IF
+    i = 2
+    DO
+        w$ = LCASE$(ConWord$(c$, i)) : IF w$ = "" THEN EXIT DO
+        done = -1
+        IF setting(SET_ASCII) = TA_RETRO AND INSTR(" off on ascii ansi petscii matrix code rain katakana mac macintosh retro retroshade pixel pixels size authentic strict free loose ", " " + w$ + " ") = 0 THEN
+            ' RETRO's words: a palette by name, a dither, then numbers - pixel width, height, the dither's amount
+            k = 0 : IF LTRIM$(STR$(VAL(w$))) <> w$ THEN k = RetroPalFind(w$)
+            rw = -1
+            IF k THEN
+                setting(SET_RETROPAL) = k
+            ELSE
+                SELECT CASE w$
+                    CASE "none", "threshold" : setting(SET_RETRODITH) = 0
+                    CASE "bayer2" : setting(SET_RETRODITH) = 1
+                    CASE "bayer4" : setting(SET_RETRODITH) = 2
+                    CASE "bayer8", "bayer" : setting(SET_RETRODITH) = 3
+                    CASE "noise", "random" : setting(SET_RETRODITH) = 4
+                    CASE ELSE
+                        IF LTRIM$(STR$(VAL(w$))) = w$ AND VAL(w$) >= 0 THEN
+                            rn = rn + 1
+                            IF rn = 1 THEN setting(SET_RETROW) = MaxOf(1, MinOf(setMax(SET_RETROW), INT(VAL(w$))))
+                            IF rn = 2 THEN setting(SET_RETROH) = MaxOf(1, MinOf(setMax(SET_RETROH), INT(VAL(w$))))
+                            IF rn >= 3 THEN setting(SET_RETROAMT) = MaxOf(0, MinOf(100, INT(VAL(w$))))
+                        ELSE
+                            rw = 0
+                        END IF
+                END SELECT
+            END IF
+            IF rw THEN i = i + 1 : _CONTINUE
+        END IF
+        SELECT CASE w$
+            CASE "off", "0" : setting(SET_ASCII) = 0
+            CASE "on" : IF setting(SET_ASCII) = 0 THEN setting(SET_ASCII) = TA_ASCII
+            CASE "ascii" : setting(SET_ASCII) = TA_ASCII
+            CASE "ansi" : setting(SET_ASCII) = TA_ANSI
+            CASE "petscii" : setting(SET_ASCII) = TA_PETSCII
+            CASE "matrix", "code", "rain", "katakana" : setting(SET_ASCII) = TA_MATRIX
+            CASE "mac", "macintosh", "1bit", "1-bit" : setting(SET_ASCII) = TA_MAC
+            CASE "retro", "retroshade", "pixel", "pixels" : setting(SET_ASCII) = TA_RETRO : rn = 0
+            CASE "auto" : setting(SET_ASCIICOL) = TC_AUTO
+            CASE "own", "colour", "color", "colours", "colors" : setting(SET_ASCIICOL) = TC_OWN
+            CASE "green" : setting(SET_ASCIICOL) = TC_GREEN
+            CASE "amber" : setting(SET_ASCIICOL) = TC_AMBER
+            CASE "white" : setting(SET_ASCIICOL) = TC_WHITE
+            CASE "ega", "dos", "cga" : setting(SET_ASCIICOL) = TC_DOS
+            CASE "blockshade", "blocks", "block", "shade" : setting(SET_TABLOCK) = 1
+            CASE "detail", "shapes" : setting(SET_TABLOCK) = 0
+            CASE "9px", "9x16", "vga", "nine" : setting(SET_TA9) = 1
+            CASE "8px", "8x16", "eight" : setting(SET_TA9) = 0
+            CASE "authentic", "strict" : setting(SET_ASCIIRULE) = 1
+            CASE "free", "loose" : setting(SET_ASCIIRULE) = 0
+            CASE "atkinson" : setting(SET_MACDITH) = 0 : setting(SET_ASCII) = TA_MAC
+            CASE "floyd", "fs", "floyd-steinberg", "floydsteinberg" : setting(SET_MACDITH) = 1 : setting(SET_ASCII) = TA_MAC
+            CASE "jarvis", "jjn" : setting(SET_MACDITH) = 2 : setting(SET_ASCII) = TA_MAC
+            CASE "stucki" : setting(SET_MACDITH) = 3 : setting(SET_ASCII) = TA_MAC
+            CASE "sierra" : setting(SET_MACDITH) = 4 : setting(SET_ASCII) = TA_MAC
+            CASE "bayer2" : setting(SET_MACDITH) = 5 : setting(SET_ASCII) = TA_MAC
+            CASE "bayer4" : setting(SET_MACDITH) = 6 : setting(SET_ASCII) = TA_MAC
+            CASE "bayer", "bayer8" : setting(SET_MACDITH) = 7 : setting(SET_ASCII) = TA_MAC
+            CASE "noise", "random" : setting(SET_MACDITH) = 8 : setting(SET_ASCII) = TA_MAC
+            CASE "threshold", "none" : setting(SET_MACDITH) = 9 : setting(SET_ASCII) = TA_MAC
+            CASE "c64", "commodore" : setting(SET_ASCIICOL) = TC_C64
+            CASE "size" : i = i + 1 : w$ = ConWord$(c$, i) : IF VAL(w$) > 0 THEN setting(SET_ASCIISIZE) = MaxOf(setMin(SET_ASCIISIZE), MinOf(setMax(SET_ASCIISIZE), VAL(w$)))
+            CASE ELSE
+                IF VAL(w$) > 0 THEN
+                    setting(SET_ASCIISIZE) = MaxOf(setMin(SET_ASCIISIZE), MinOf(setMax(SET_ASCIISIZE), VAL(w$)))
+                ELSE
+                    TextArtCmd$ = "No such text art word: " + w$ + " (help textart)" : EXIT FUNCTION
+                END IF
+        END SELECT
+        i = i + 1
+    LOOP
+    IF done AND NOT taQuiet THEN SaveSettings
+    TextArtCmd$ = TaStatus$
+END FUNCTION
+
+' How TEXT ART is set, in a line: "Text art: ANSI, EGA 16, size 32, ..."
+FUNCTION TaStatus$
+    DIM w$ ' (its own)
+    w$ = "Text art: " + TextArtName$(setting(SET_ASCII))
+    IF setting(SET_ASCII) = TA_RETRO THEN
+        w$ = w$ + ", " + LTRIM$(STR$(setting(SET_RETROW))) + " x" + STR$(setting(SET_RETROH)) + " px, " + RetroPalName$(setting(SET_RETROPAL))
+        w$ = w$ + " (" + LTRIM$(STR$(retroPalCount(MaxOf(0, MinOf(RETRO_PALS, setting(SET_RETROPAL)))))) + "), " + RetroDithName$(setting(SET_RETRODITH))
+        IF setting(SET_RETRODITH) THEN w$ = w$ + STR$(setting(SET_RETROAMT)) + "%"
+        IF setting(SET_ASCIIRULE) THEN w$ = w$ + ", AUTHENTIC" ELSE w$ = w$ + ", FREE"
+    ELSEIF setting(SET_ASCII) THEN
+        w$ = w$ + ", " + TextArtColName$(setting(SET_ASCIICOL)) + ", size" + STR$(setting(SET_ASCIISIZE))
+        IF setting(SET_ASCII) = TA_ANSI OR setting(SET_ASCII) = TA_PETSCII THEN IF setting(SET_TABLOCK) THEN w$ = w$ + ", BLOCKSHADE" ELSE w$ = w$ + ", DETAIL"
+        IF setting(SET_ASCII) = TA_ANSI OR setting(SET_ASCII) = TA_ASCII THEN IF setting(SET_TA9) THEN w$ = w$ + ", 9 x 16" ELSE w$ = w$ + ", 8 x 16"
+        IF setting(SET_ASCIIRULE) THEN w$ = w$ + ", AUTHENTIC" ELSE w$ = w$ + ", FREE"
+        IF setting(SET_ASCII) = TA_MAC THEN w$ = w$ + ", " + MacDitherName$(setting(SET_MACDITH)) + " dither"
+    END IF
+    IF NOT glMode THEN w$ = w$ + " (OpenGL only: renderer 2)"
+    TaStatus$ = w$
+END FUNCTION
+
+' --- TEXT ART PRESETS (see TEXTART.BI) -------------------------------------
+
+' The settings a preset sets (1: which set - the one that turns it off)
+FUNCTION TaSetId(n)
+    SELECT CASE n
+        CASE 1 : TaSetId = SET_ASCII
+        CASE 2 : TaSetId = SET_ASCIICOL
+        CASE 3 : TaSetId = SET_ASCIISIZE
+        CASE 4 : TaSetId = SET_TABLOCK
+        CASE 5 : TaSetId = SET_TA9
+        CASE 6 : TaSetId = SET_ASCIIRULE
+        CASE 7 : TaSetId = SET_MACDITH
+        CASE 8 : TaSetId = SET_RETROW
+        CASE 9 : TaSetId = SET_RETROH
+        CASE 10 : TaSetId = SET_RETROPAL
+        CASE 11 : TaSetId = SET_RETRODITH
+        CASE 12 : TaSetId = SET_RETROAMT
+    END SELECT
+END FUNCTION
+
+' The words of cmd$ from the n-th on, as typed (lower case)
+FUNCTION TaRest$(cmd$, n)
+    DIM i, w$, r$ ' (its own)
+    i = n
+    DO
+        w$ = ConWord$(cmd$, i) : IF w$ = "" THEN EXIT DO
+        IF LEN(r$) THEN r$ = r$ + " "
+        r$ = r$ + w$ : i = i + 1
+    LOOP
+    TaRest$ = r$
+END FUNCTION
+
+' The game's presets, then yours over them
+SUB TaPresetsLoad
+    taPreN = 0 : taPreLoaded = -1 ' (first: TaPresetFind, reading them, would load them again)
+    TaPresetsRead AssetPath$("textart-presets.txt"), 0
+    TaPresetsRead SaveDir$ + "textart-presets.txt", -1
+    setMax(SET_TAPRESET) = MaxOf(1, taPreN) : taPreLoaded = -1
+END SUB
+
+SUB TaPresetsRead(f$, mine)
+    DIM fh, l$, n$, w$, eq, k ' (its own)
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+    DO UNTIL EOF(fh)
+        LINE INPUT #fh, l$
+        IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = LEFT$(l$, LEN(l$) - 1)
+        l$ = LTRIM$(RTRIM$(l$))
+        IF LEN(l$) = 0 OR INSTR("';#", LEFT$(l$, 1)) > 0 THEN _CONTINUE
+        eq = INSTR(l$, "=")
+        IF eq THEN n$ = UCASE$(RTRIM$(LEFT$(l$, eq - 1))) : w$ = LCASE$(LTRIM$(MID$(l$, eq + 1))) ELSE n$ = UCASE$(l$) : w$ = LCASE$(l$)
+        IF n$ = "" OR w$ = "" OR n$ = "CUSTOM" THEN _CONTINUE
+        k = TaPresetFind(n$)
+        IF k = 0 OR VAL(n$) > 0 THEN ' (a name that's a number would be found as one)
+            IF taPreN >= TA_PRESETS THEN _CONTINUE
+            taPreN = taPreN + 1 : k = taPreN
+        END IF
+        taPreName$(k) = n$ : taPreWords$(k) = w$ : taPreMine(k) = mine
+    LOOP
+    CLOSE #fh
+END SUB
+
+' Yours, written back (saves/textart-presets.txt)
+SUB TaPresetsSave
+    DIM fh, k ' (its own)
+    MakeSaveDir
+    fh = FREEFILE : OPEN SaveDir$ + "textart-presets.txt" FOR OUTPUT AS #fh
+    PRINT #fh, "' NEON-CASTER TEXT ART presets of yours (SETTINGS > EFFECTS: SAVE AS PRESET, or textart save NAME)."
+    PRINT #fh, "' A line each: NAME = the console's textart words, or just the words. One named as one of the game's"
+    PRINT #fh, "' (neon-caster/textart-presets.txt) takes its place."
+    FOR k = 1 TO taPreN
+        IF taPreMine(k) THEN
+            IF taPreName$(k) = UCASE$(taPreWords$(k)) THEN PRINT #fh, taPreWords$(k) ELSE PRINT #fh, taPreName$(k) + " = " + taPreWords$(k)
+        END IF
+    NEXT
+    CLOSE #fh
+END SUB
+
+' A preset by its name or its number (0: none)
+FUNCTION TaPresetFind(n$)
+    DIM k, u$ ' (its own)
+    IF NOT taPreLoaded THEN TaPresetsLoad
+    u$ = UCASE$(LTRIM$(RTRIM$(n$))) : IF u$ = "" THEN EXIT FUNCTION
+    FOR k = 1 TO taPreN
+        IF taPreName$(k) = u$ THEN TaPresetFind = k : EXIT FUNCTION
+    NEXT
+    k = VAL(u$) : IF k >= 1 AND k <= taPreN AND LTRIM$(STR$(k)) = u$ THEN TaPresetFind = k
+END FUNCTION
+
+' Preset k into the settings: its words over TEXT ART as it first was - so
+' a preset is the same wherever it starts from. One that turns it off
+' leaves the rest as they were
+SUB TaPresetApply(k)
+    DIM v(TA_IDS), i, r$ ' (its own)
+    IF k < 1 OR k > taPreN THEN EXIT SUB
+    FOR i = 1 TO TA_IDS : v(i) = setting(TaSetId(i)) : NEXT
+    FOR i = 2 TO TA_IDS : setting(TaSetId(i)) = setDefault(TaSetId(i)) : NEXT
+    setting(SET_RETROPAL) = MaxOf(1, RetroPalFind("APPLE2-HIRES")) ' (RETRO's palette as it first is)
+    taQuiet = -1 : r$ = TextArtCmd$("textart", "textart " + taPreWords$(k)) : taQuiet = 0
+    IF setting(SET_ASCII) = 0 THEN
+        FOR i = 2 TO TA_IDS : setting(TaSetId(i)) = v(i) : NEXT
+    END IF
+END SUB
+
+' The preset TEXT ART is set as now (0: none - CUSTOM)
+FUNCTION TaPresetNow
+    DIM v(TA_IDS), i, k, ok ' (its own)
+    IF NOT taPreLoaded THEN TaPresetsLoad
+    FOR i = 1 TO TA_IDS : v(i) = setting(TaSetId(i)) : NEXT
+    FOR k = 1 TO taPreN
+        TaPresetApply k
+        IF setting(SET_ASCII) = 0 THEN
+            ok = (v(1) = 0)
+        ELSE
+            ok = -1 : FOR i = 1 TO TA_IDS : IF setting(TaSetId(i)) <> v(i) THEN ok = 0
+            NEXT
+        END IF
+        FOR i = 1 TO TA_IDS : setting(TaSetId(i)) = v(i) : NEXT
+        IF ok THEN TaPresetNow = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' The menu's < >: the next preset (or the one before), put into effect
+SUB TaPresetStep(dir)
+    DIM k ' (its own)
+    IF NOT taPreLoaded THEN TaPresetsLoad
+    IF taPreN = 0 THEN EXIT SUB
+    k = TaPresetNow + dir
+    IF k > taPreN THEN k = 1
+    IF k < 1 THEN k = taPreN
+    TaPresetApply k : SaveSettings
+END SUB
+
+' TEXT ART as it's set, in textart's words (what SAVE AS PRESET keeps)
+FUNCTION TaWordsNow$
+    DIM s, w$ ' (its own)
+    s = setting(SET_ASCII)
+    IF s = 0 THEN TaWordsNow$ = "off" : EXIT FUNCTION
+    IF s = TA_RETRO THEN
+        w$ = "retro" + STR$(setting(SET_RETROW)) + STR$(setting(SET_RETROH)) + " " + LCASE$(RetroPalName$(setting(SET_RETROPAL)))
+        w$ = w$ + " " + RTRIM$(MID$("none   bayer2 bayer4 bayer8 noise  ", setting(SET_RETRODITH) * 7 + 1, 7)) + STR$(setting(SET_RETROAMT))
+        IF setting(SET_ASCIIRULE) THEN w$ = w$ + " authentic" ELSE w$ = w$ + " free"
+        TaWordsNow$ = w$ : EXIT FUNCTION
+    END IF
+    w$ = LCASE$(LEFT$(TextArtName$(s), INSTR(TextArtName$(s) + " ", " ") - 1))
+    SELECT CASE setting(SET_ASCIICOL)
+        CASE TC_OWN : w$ = w$ + " own"
+        CASE TC_GREEN : w$ = w$ + " green"
+        CASE TC_AMBER : w$ = w$ + " amber"
+        CASE TC_WHITE : w$ = w$ + " white"
+        CASE TC_DOS : w$ = w$ + " ega"
+        CASE TC_C64 : w$ = w$ + " c64"
+    END SELECT
+    IF s = TA_ANSI OR s = TA_PETSCII THEN IF setting(SET_TABLOCK) THEN w$ = w$ + " blockshade" ELSE w$ = w$ + " detail"
+    IF s = TA_ANSI OR s = TA_ASCII THEN IF setting(SET_TA9) THEN w$ = w$ + " 9px" ELSE w$ = w$ + " 8px"
+    IF s = TA_MAC THEN w$ = w$ + " " + MID$("atkinson floyd    jarvis   stucki   sierra   bayer2   bayer4   bayer8   noise    threshold", setting(SET_MACDITH) * 9 + 1, 9) : w$ = RTRIM$(w$)
+    IF setting(SET_ASCIIRULE) THEN w$ = w$ + " authentic" ELSE w$ = w$ + " free"
+    TaWordsNow$ = w$ + " " + LTRIM$(STR$(setting(SET_ASCIISIZE)))
+END FUNCTION
+
+' TEXT ART as it's set, kept as a preset of yours named n$ (none: its
+' words) - one already of that name is replaced. Its number, 0 if no room
+FUNCTION TaPresetSaveNow(n$)
+    DIM j, k, u$, w$ ' (its own)
+    IF NOT taPreLoaded THEN TaPresetsLoad
+    w$ = TaWordsNow$ : u$ = UCASE$(LTRIM$(RTRIM$(n$))) : IF u$ = "" THEN u$ = UCASE$(w$)
+    k = 0 : FOR j = 1 TO taPreN : IF taPreName$(j) = u$ THEN k = j
+    NEXT
+    IF k = 0 THEN
+        IF taPreN >= TA_PRESETS THEN TaPresetSaveNow = 0 : EXIT FUNCTION
+        taPreN = taPreN + 1 : k = taPreN
+    END IF
+    taPreName$(k) = u$ : taPreWords$(k) = w$ : taPreMine(k) = -1
+    TaPresetsSave : setMax(SET_TAPRESET) = MaxOf(1, taPreN)
+    TaPresetSaveNow = k
+END FUNCTION
+
+' One of yours forgotten (if it stood in for one of the game's, that's back)
+SUB TaPresetDelete(k)
+    IF k < 1 OR k > taPreN THEN EXIT SUB
+    IF NOT taPreMine(k) THEN EXIT SUB
+    taPreMine(k) = 0 : taPreName$(k) = "" ' (not written back...)
+    TaPresetsSave : TaPresetsLoad ' (...and read again: the game's one in its place, if there was one)
+END SUB
+
+' textart presets: the list, for the console
+FUNCTION TaPresetList$
+    DIM k, now ' (its own)
+    IF NOT taPreLoaded THEN TaPresetsLoad
+    now = TaPresetNow
+    FOR k = 1 TO taPreN
+        ConPrint MID$(">", 1, -(k = now)) + MID$(" ", 1, -(k <> now)) + RIGHT$(" " + LTRIM$(STR$(k)), 2) + " ^7" + taPreName$(k) + "^0" + MID$("  ^8" + taPreWords$(k), 1, -999 * (UCASE$(taPreWords$(k)) <> taPreName$(k))) + MID$("  ^5(yours)", 1, -99 * (taPreMine(k) <> 0))
+    NEXT
+    TaPresetList$ = LTRIM$(STR$(taPreN)) + " presets - textart preset N (or NAME), textart save [NAME], textart delete N"
+END FUNCTION
+
+' MAC (in SUB _GL, from GLPostProcess, its program p in use): the view and
+' gun drawn small - MAC_LINES / size lines, as wide as the window's shape -
+' and read back without waiting (GLSL_readback: what comes is a frame old)
+' into taMacIn for the game's own thread to dither (TaMacDither, chapter
+' 17); what it dithered (taMacOut) is sent to unit 6, drawn as square
+' pixels. Anything that waits for the card here - a plain glReadPixels, a
+' glTexImage2D each frame - held the game's thread up for seconds a frame.
+' taMacState: 0 waiting for pixels, 1 pixels in (to dither), 2 dithered (to send)
+SUB TaMacPass(p~&, size, vw, vh)
+    DIM w&, h&, got& ' (its own)
+    h& = MaxOf(60, MinOf(MinOf(vh, MAC_MAXH), INT(MAC_LINES / MaxOf(4, size)))) : w& = INT(h& * vw / MaxOf(1, vh) + 0.5)
+    IF w& > MAC_MAXW THEN w& = MAC_MAXW : h& = INT(w& * vh / MaxOf(1, vw)) ' (a very wide window)
+    IF taMacTarg = 0 THEN taMacTarg = GLSL_target_new&(w&, h&, 0) : GLSL_target_smooth taMacTarg, 0
+    IF w& <> taMacW OR h& <> taMacH THEN GLSL_target_resize taMacTarg, w&, h& : taMacW = w& : taMacH = h&
+    GLSL_target_use taMacTarg : _glViewport 0, 0, w&, h&
+    GLSL_uniform_1f p~&, "passMode", 2 : GLSL_fullscreen 0
+    IF taMacState = 0 THEN
+        IF GLSL_readback&(w&, h&, _OFFSET(taMacIn(0))) THEN taMacInW = w& : taMacInH = h& : taMacState = 1
+    ELSE
+        got& = GLSL_readback&(w&, h&, 0) ' (the game's thread is still at the last: just keep the reading going)
+    END IF
+    GLSL_target_use 0
+    GLSL_texture_unit 6
+    IF taMacState = 2 THEN
+        IF taMacTex = 0 OR taMacTexW <> taMacOutW OR taMacTexH <> taMacOutH THEN ' (made at its size: once, and when that changes)
+            IF taMacTex = 0 THEN _glGenTextures 1, _OFFSET(taMacTex)
+            _glBindTexture _GL_TEXTURE_2D, taMacTex
+            _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST : _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
+            _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_S, _GL_CLAMP : _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_T, _GL_CLAMP
+            _glTexParameteri _GL_TEXTURE_2D, GL_GENERATE_MIPMAP, _GL_FALSE
+            _glTexImage2D _GL_TEXTURE_2D, 0, _GL_RGBA, taMacOutW, taMacOutH, 0, _GL_BGRA_EXT, _GL_UNSIGNED_BYTE, _OFFSET(taMacOut(0))
+            taMacTexW = taMacOutW : taMacTexH = taMacOutH
+        ELSE
+            GLSL_texture_update_bgra taMacTex, taMacOutW, taMacOutH, _OFFSET(taMacOut(0))
+        END IF
+        taMacState = 0
+    END IF
+    IF taMacTex THEN _glBindTexture _GL_TEXTURE_2D, taMacTex
+    GLSL_texture_unit 0 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
+    IF taMacTex THEN GLSL_uniform_1i p~&, "macTex", 6
+END SUB
+
+' MAC's dithers (MAC DITHER, SET_MACDITH)
+FUNCTION MacDitherName$(n)
+    SELECT CASE n
+        CASE 1 : MacDitherName$ = "FLOYD-STEINBERG"
+        CASE 2 : MacDitherName$ = "JARVIS"
+        CASE 3 : MacDitherName$ = "STUCKI"
+        CASE 4 : MacDitherName$ = "SIERRA"
+        CASE 5 : MacDitherName$ = "BAYER 2X2"
+        CASE 6 : MacDitherName$ = "BAYER 4X4"
+        CASE 7 : MacDitherName$ = "BAYER 8X8"
+        CASE 8 : MacDitherName$ = "NOISE"
+        CASE 9 : MacDitherName$ = "THRESHOLD"
+        CASE ELSE : MacDitherName$ = "ATKINSON"
+    END SELECT
+END FUNCTION
+
+' An error-diffusing dither's spread: "across down share" for each pixel it
+' passes to (down: rows under), over what the shares are out of
+FUNCTION MacKernel$(n, outOf)
+    SELECT CASE n
+        CASE 1 : outOf = 16 : MacKernel$ = "1 0 7  -1 1 3  0 1 5  1 1 1" ' Floyd and Steinberg's (1976)
+        CASE 2 : outOf = 48 : MacKernel$ = "1 0 7  2 0 5  -2 1 3  -1 1 5  0 1 7  1 1 5  2 1 3  -2 2 1  -1 2 3  0 2 5  1 2 3  2 2 1" ' Jarvis, Judice and Ninke's
+        CASE 3 : outOf = 42 : MacKernel$ = "1 0 8  2 0 4  -2 1 2  -1 1 4  0 1 8  1 1 4  2 1 2  -2 2 1  -1 2 2  0 2 4  1 2 2  2 2 1" ' Stucki's
+        CASE 4 : outOf = 32 : MacKernel$ = "1 0 5  2 0 3  -2 1 2  -1 1 4  0 1 5  1 1 4  2 1 2  -1 2 2  0 2 3  1 2 2" ' Sierra's
+        CASE ELSE : outOf = 8 : MacKernel$ = "1 0 1  2 0 1  -1 1 1  0 1 1  1 1 1  0 2 1" ' Atkinson's: only 6/8 passed on, so whites and blacks stay clean
+    END SELECT
+END FUNCTION
+
+' Bayer's ordered threshold for (x, y) on an n x n grid (n 2, 4 or 8): 0-1.
+' Its cells are each other's halves, quarters... spread as evenly as can be
+FUNCTION MacBayer!(x&, y&, n)
+    DIM v, s, a, b, m ' (its own)
+    s = 1 : v = 0 : m = n * n \ 4
+    DO WHILE s < n ' (B(2n) = 4 B(n) + B(2) by the high bits: so the lowest bits of x and y count the most)
+        a = (x& \ s) AND 1 : b = (y& \ s) AND 1
+        v = v + ((a XOR b) * 2 + b) * m
+        s = s * 2 : m = m \ 4
+    LOOP
+    MacBayer! = (v + 0.5) / (n * n)
+END FUNCTION
+
+' MAC's dither (the game's thread, chapter 17: when TaMacPass has pixels in):
+' each pixel black or white. The error diffusers pass what a pixel was short
+' or over by on to the ones after it (MacKernel$); Bayer's compare each to a
+' grid of thresholds (MacBayer!), noise to a random one, threshold to half
+SUB TaMacDither
+    DIM w&, h&, x&, y&, i&, n&, v!, e!, c~&, t, k, kn, kd, k$, xx&, yy&, top& ' (its own: the main program shares these names)
+    DIM kx(15), ky(15), kw(15), bay!(63)
+    w& = taMacInW : h& = taMacInH : t = setting(SET_MACDITH)
+    IF taMacLift(255) = 0 THEN FOR i& = 0 TO 255 : taMacLift(i&) = (i& / 255) ^ 0.7 * 1.05 : NEXT ' (made once: ^ is slow)
+    FOR i& = 0 TO w& * h& - 1 ' (its brightness first, lifted - row h - 1 is the top)
+        c~& = taMacIn(i&)
+        taMacErr(i&) = taMacLift(_SHR((_SHR(c~&, 16) AND 255) * 77 + (_SHR(c~&, 8) AND 255) * 150 + (c~& AND 255) * 29, 8))
+    NEXT
+    IF t >= 5 THEN ' Ordered, or none: each pixel on its own
+        n& = 2 ^ (t - 4) : IF t = 7 THEN n& = 8
+        IF t <= 7 THEN FOR y& = 0 TO n& - 1 : FOR x& = 0 TO n& - 1 : bay!(y& * 8 + x&) = MacBayer!(x&, y&, n&) : NEXT : NEXT
+        FOR y& = h& - 1 TO 0 STEP -1
+            top& = h& - 1 - y&
+            FOR x& = 0 TO w& - 1
+                i& = y& * w& + x&
+                SELECT CASE t
+                    CASE 8 : v! = RND ' (looks only: the game's dice are GRnd)
+                    CASE 9 : v! = 0.5
+                    CASE ELSE : v! = bay!((top& MOD n&) * 8 + (x& MOD n&))
+                END SELECT
+                IF taMacErr(i&) >= v! THEN taMacOut(i&) = &HFFFFFFFF~& ELSE taMacOut(i&) = &HFF000000~&
+            NEXT
+        NEXT
+    ELSE ' Error diffusion, top row down
+        k$ = MacKernel$(t, kd) : kn = 0
+        DO WHILE LEN(LTRIM$(k$)) > 0 AND kn <= 15
+            FOR k = 1 TO 3
+                k$ = LTRIM$(k$) : n& = INSTR(k$, " ") : IF n& = 0 THEN n& = LEN(k$) + 1
+                SELECT CASE k
+                    CASE 1 : kx(kn) = VAL(LEFT$(k$, n& - 1))
+                    CASE 2 : ky(kn) = VAL(LEFT$(k$, n& - 1))
+                    CASE 3 : kw(kn) = VAL(LEFT$(k$, n& - 1)) / kd
+                END SELECT
+                k$ = MID$(k$, n& + 1)
+            NEXT
+            kn = kn + 1
+        LOOP
+        FOR y& = h& - 1 TO 0 STEP -1
+            FOR x& = 0 TO w& - 1
+                i& = y& * w& + x& : v! = taMacErr(i&)
+                IF v! >= 0.5 THEN taMacOut(i&) = &HFFFFFFFF~& : e! = v! - 1 ELSE taMacOut(i&) = &HFF000000~& : e! = v!
+                FOR k = 0 TO kn - 1
+                    xx& = x& + kx(k) : yy& = y& - ky(k) ' (down the screen is down the rows)
+                    IF xx& >= 0 AND xx& < w& AND yy& >= 0 THEN taMacErr(yy& * w& + xx&) = taMacErr(yy& * w& + xx&) + e! * kw(k)
+                NEXT
+            NEXT
+        NEXT
+    END IF
+    taMacOutW = w& : taMacOutH = h&
+END SUB
+
+' --- RETRO's palettes (see TEXTART.BI) -------------------------------------
+
+' Every .gpl in the game's palettes and yours (saves/palettes/), by name
+SUB RetroPalsScan
+    DIM j, k ' (its own)
+    retroPalsN = 0 : retroScanned = -1
+    RetroPalsDir CpDir$
+    RetroPalsDir SaveDir$ + "palettes/"
+    FOR k = 1 TO retroPalsN - 1 : FOR j = k + 1 TO retroPalsN
+        IF retroPals$(j) < retroPals$(k) THEN SWAP retroPals$(j), retroPals$(k) : SWAP retroPalPath$(j), retroPalPath$(k) : SWAP retroPalCount(j), retroPalCount(k)
+    NEXT : NEXT
+    setMax(SET_RETROPAL) = MaxOf(1, retroPalsN) : retroLoadedK = 0
+END SUB
+
+SUB RetroPalsDir(d$)
+    DIM n$, nm$, sl, k, q ' (its own)
+    IF NOT _DIREXISTS(LEFT$(d$, LEN(d$) - 1)) THEN EXIT SUB
+    n$ = _FILES$(d$ + "*")
+    DO WHILE LEN(n$)
+        sl = _INSTRREV(n$, "/") : IF _INSTRREV(n$, "\") > sl THEN sl = _INSTRREV(n$, "\")
+        n$ = MID$(n$, sl + 1)
+        IF UCASE$(RIGHT$(n$, 4)) = ".GPL" THEN
+            nm$ = UCASE$(LEFT$(n$, LEN(n$) - 4)) : q = 0
+            IF RIGHT$(nm$, 1) = ")" AND _INSTRREV(nm$, " (") > 0 THEN q = VAL(MID$(nm$, _INSTRREV(nm$, " (") + 2)) : nm$ = LEFT$(nm$, _INSTRREV(nm$, " (") - 1)
+            DO WHILE INSTR(nm$, " ") : MID$(nm$, INSTR(nm$, " "), 1) = "-" : LOOP ' (a name is one word)
+            k = 0 : FOR sl = 1 TO retroPalsN : IF retroPals$(sl) = nm$ THEN k = sl
+            NEXT
+            IF k = 0 AND retroPalsN < RETRO_PALS THEN retroPalsN = retroPalsN + 1 : k = retroPalsN
+            IF k THEN retroPals$(k) = nm$ : retroPalPath$(k) = d$ + n$ : retroPalCount(k) = q
+        END IF
+        n$ = _FILES$
+    LOOP
+END SUB
+
+' A name's letters and digits (c64 finds C=64)
+FUNCTION RetroPalKey$(s$)
+    DIM i, c$, r$ ' (its own)
+    FOR i = 1 TO LEN(s$)
+        c$ = UCASE$(MID$(s$, i, 1)) : IF INSTR("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", c$) THEN r$ = r$ + c$
+    NEXT
+    RetroPalKey$ = r$
+END FUNCTION
+
+' A palette by its name (0: none)
+FUNCTION RetroPalFind(n$)
+    DIM k, u$ ' (its own)
+    IF NOT retroScanned THEN RetroPalsScan
+    u$ = UCASE$(n$) : IF u$ = "" THEN EXIT FUNCTION
+    FOR k = 1 TO retroPalsN : IF retroPals$(k) = u$ THEN RetroPalFind = k : EXIT FUNCTION
+    NEXT
+    u$ = RetroPalKey$(u$) : IF u$ = "" THEN EXIT FUNCTION
+    FOR k = 1 TO retroPalsN : IF RetroPalKey$(retroPals$(k)) = u$ THEN RetroPalFind = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+FUNCTION RetroPalName$(k)
+    IF NOT retroScanned THEN RetroPalsScan
+    IF k >= 1 AND k <= retroPalsN THEN RetroPalName$ = retroPals$(k) ELSE RetroPalName$ = "NONE"
+END FUNCTION
+
+FUNCTION RetroDithName$(n)
+    SELECT CASE n
+        CASE 1 : RetroDithName$ = "BAYER 2X2"
+        CASE 2 : RetroDithName$ = "BAYER 4X4"
+        CASE 3 : RetroDithName$ = "BAYER 8X8"
+        CASE 4 : RetroDithName$ = "NOISE"
+        CASE ELSE : RetroDithName$ = "NONE"
+    END SELECT
+END FUNCTION
+
+' Palette k's colours into retroPal (a GIMP palette: three numbers a line)
+SUB RetroPalLoad(k)
+    DIM fh, l$, t$, w$(3), c, j, n, r, g, b ' (its own)
+    retroLoadedK = k : n = 0
+    IF k >= 1 AND k <= retroPalsN THEN
+        IF _FILEEXISTS(retroPalPath$(k)) THEN
+            fh = FREEFILE : OPEN retroPalPath$(k) FOR INPUT AS #fh
+            DO WHILE NOT EOF(fh) AND n < 256
+                LINE INPUT #fh, l$
+                l$ = LTRIM$(RTRIM$(l$))
+                IF LEFT$(l$, 3) = CHR$(239) + CHR$(187) + CHR$(191) THEN l$ = MID$(l$, 4)
+                IF RIGHT$(l$, 1) = CHR$(13) THEN l$ = RTRIM$(LEFT$(l$, LEN(l$) - 1))
+                DO WHILE INSTR(l$, CHR$(9)) : MID$(l$, INSTR(l$, CHR$(9)), 1) = " " : LOOP
+                IF l$ = "" OR LEFT$(l$, 1) = "#" THEN _CONTINUE
+                t$ = l$
+                FOR c = 1 TO 3
+                    t$ = LTRIM$(t$) : j = INSTR(t$, " ") : IF j = 0 THEN j = LEN(t$) + 1
+                    w$(c) = LEFT$(t$, j - 1) : t$ = MID$(t$, j + 1)
+                NEXT
+                IF w$(3) = "" OR INSTR("0123456789", LEFT$(w$(1), 1)) = 0 THEN _CONTINUE
+                r = VAL(w$(1)) : g = VAL(w$(2)) : b = VAL(w$(3))
+                IF r < 0 OR g < 0 OR b < 0 OR r > 255 OR g > 255 OR b > 255 THEN _CONTINUE
+                retroPal(n) = _RGB32(r, g, b) : n = n + 1
+            LOOP
+            CLOSE #fh
+        END IF
+    END IF
+    IF n = 0 THEN retroPal(0) = _RGB32(0, 0, 0) : retroPal(1) = _RGB32(255, 255, 255) : n = 2 ' (no palette there: black and white)
+    retroN = n : retroPalCount(k) = n : retroVer = retroVer + 1 ' (SUB _GL sends it again)
+    RetroRampCheck
+END SUB
+
+' RETRO's palette loaded, if the setting names another
+SUB RetroPalSync
+    DIM k ' (its own)
+    IF NOT retroScanned THEN RetroPalsScan
+    k = setting(SET_RETROPAL)
+    IF k < 1 OR k > retroPalsN THEN k = MaxOf(1, RetroPalFind("APPLE2-HIRES")) : setting(SET_RETROPAL) = k
+    IF k <> retroLoadedK OR retroN = 0 THEN RetroPalLoad k
+END SUB
+
+' Is the palette one hue (or none) - a ramp, dark to light? Then RETRO
+' matches it by brightness alone, stretched to the palette's own range: by
+' colour, a Game Boy's greens all came out the same muddy middle
+SUB RetroRampCheck
+    DIM i, r, g, b, mx, mn, h, l, h0, h1, hued ' (its own)
+    retroLo = 1 : retroHi = 0 : h0 = 999 : h1 = -999
+    FOR i = 0 TO retroN - 1
+        r = _RED32(retroPal(i)) : g = _GREEN32(retroPal(i)) : b = _BLUE32(retroPal(i))
+        l = (r * 0.3 + g * 0.59 + b * 0.11) / 255 : IF l < retroLo THEN retroLo = l
+        IF l > retroHi THEN retroHi = l
+        mx = MaxOf(r, MaxOf(g, b)) : mn = MinOf(r, MinOf(g, b))
+        IF mx - mn > 24 THEN ' (a colour, not a grey: its hue, 0-360)
+            IF mx = r THEN h = 60 * ((g - b) / (mx - mn)) ELSE IF mx = g THEN h = 60 * ((b - r) / (mx - mn) + 2) ELSE h = 60 * ((r - g) / (mx - mn) + 4)
+            IF h < 0 THEN h = h + 360
+            IF h < h0 THEN h0 = h
+            IF h > h1 THEN h1 = h
+            hued = -1
+        END IF
+    NEXT
+    retroRamp = (NOT hued) OR (h1 - h0 < 60) ' (a Game Boy's greens: 71-120)
+    IF retroHi - retroLo < 0.05 THEN retroRamp = 0
+END SUB

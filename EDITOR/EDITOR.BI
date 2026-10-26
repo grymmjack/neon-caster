@@ -54,6 +54,7 @@ DIM SHARED edWheelT! ' (when the wheel last moved something: a run of turns is o
 DIM SHARED edKeyHeld(122) AS INTEGER, edKeyCtrl(122) AS INTEGER
 DIM SHARED edCtrl AS INTEGER ' (Ctrl, as the keys arrive - in order, so a quick Ctrl+S still is one)
 DIM SHARED gridOn AS INTEGER, gridW AS INTEGER ' (the software renderer's grid this frame, and its lines' width in texels)
+DIM SHARED gridA AS INTEGER, gridKeyWas AS INTEGER ' (...how strong, 0-255: the editor's edGridAlpha, or in play GRID STRENGTH - and the grid keys held last frame)
 ' THE TOOLBAR (EditTBLayout): its buttons this frame - which (TB_), where -
 ' the one under the pointer, the slider being dragged, the help panel
 CONST TB_SELECT = 1, TB_PLACE = 2, TB_LIGHT = 3, TB_HEIGHT = 4, TB_DELETE = 5, TB_UNDO = 6, TB_SAVE = 7, TB_GRID = 8, TB_ALPHA = 9, TB_VIEW = 10, TB_HELP = 11, TB_PAINT = 12, TB_PICK = 13, TB_PREV = 14, TB_NEXT = 15, TB_KINDS = 16, TB_SECTOR = 17, TB_VERSIONS = 18, TB_REDO = 19

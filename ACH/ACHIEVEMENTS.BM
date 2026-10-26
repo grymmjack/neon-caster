@@ -353,8 +353,17 @@ END SUB
 ' drops in at the top of the screen, waits, and rises away, a chime as it
 ' comes; any more queue behind it
 SUB AchDrawToast(atTop)
-    DIM B, bw, bx, c, ic&, k, t, w, x0, y ' (its own: the main program shares these names)
-    IF achToastN = 0 THEN EXIT SUB
+    DIM B, bw, bx, c, ic&, k, t, w, x0, y, fc~&, rx ' (its own: the main program shares these names)
+    fc~& = _RGB32(255, 70, 210) : IF NOT atTop THEN fc~& = HudColor~&(HE_ACH, fc~&) ' (in play: its own part of the HUD - hud.txt's place and colour)
+    rx = hudX(HE_ACH) : y = hudY(HE_ACH)
+    IF achToastN = 0 THEN ' (none: but in the HUD editor, a sample to place and colour)
+        IF hudEdit AND NOT atTop AND hudShow(HE_ACH) THEN
+            x0 = rx - 300 : LINE (x0, y)-(x0 + 300, y + 58), _RGBA32(10, 4, 26, 225), BF : LINE (x0, y)-(x0 + 300, y + 58), fc~&, B
+            HudText x0 + 62, y + 8, "ACHIEVEMENT UNLOCKED", _RGB32(90, 240, 255) : MenuText x0 + 62, y + 20, "HUD DESIGNER", 1, _RGB32(255, 255, 255), 0
+            HudText x0 + 62, y + 42, "Its place, its colour", _RGB32(200, 190, 230)
+        END IF
+        EXIT SUB
+    END IF
     achToastT = achToastT + 1
     pa = -achToastI(1) ' (above 0: a progress note for achievement pa - quiet, quicker, its grey badge and a bar)
     IF pa > 0 AND achToastT = 110 THEN achToastT = 220 ' (it stays a shorter while)
@@ -369,42 +378,44 @@ SUB AchDrawToast(atTop)
     END IF
     c = INSTR(achToast$(1), CHR$(1)) : ttl$ = LEFT$(achToast$(1), c - 1) : dsc$ = MID$(achToast$(1), c + 1)
     w = MaxOf(300, MaxOf(LEN(ttl$), LEN(dsc$)) * 8 + 80) : x0 = 400 - w \ 2
-    IF NOT atTop THEN ' In play: bottom right, sliding in from the side (as Steam's) - clear of NEXUS's words and the event line up top
-        y = 444 : x0 = 792 - w
-        IF t < 16 THEN x0 = 800 - (w + 8) * t / 16
-        IF t >= 220 THEN x0 = 792 - w + (w + 8) * (t - 220) / 16
+    IF NOT atTop THEN ' In play: bottom right (the HUD's achievement part: rx its right edge), sliding in from the side (as Steam's) - clear of NEXUS's words and the event line up top
+        y = hudY(HE_ACH) : x0 = rx - w
+        IF t < 16 THEN x0 = rx + 8 - (w + 8) * t / 16
+        IF t >= 220 THEN x0 = rx - w + (w + 8) * (t - 220) / 16
     END IF
-    LINE (x0, y)-(x0 + w, y + 58), _RGBA32(10, 4, 26, 225), BF
-    LINE (x0, y)-(x0 + w, y + 58), _RGB32(255, 70, 210), B
-    LINE (x0 + 1, y + 1)-(x0 + w - 1, y + 57), _RGBA32(255, 70, 210, 90), B
-    ic& = 0 : IF achToastI(1) >= 1 AND achToastI(1) <= NUM_ACH THEN ic& = achIcon&(achToastI(1))
-    IF pa >= 1 AND pa <= NUM_ACH THEN ic& = achIconOff&(pa)
-    IF ic& < -1 THEN ' (its badge)
-        _PUTIMAGE (x0 + 6, y + 5)-STEP(47, 47), ic&
-    ELSE
-        gl = 120 + 100 * ABS(SIN(t / 9)) ' (no badge: a trophy - a gold cup, glinting)
-        LINE (x0 + 16, y + 12)-(x0 + 44, y + 30), _RGB32(255, 200, 60), BF
-        CIRCLE (x0 + 30, y + 30), 14, _RGB32(255, 200, 60), 3.1416, 0
-        PAINT (x0 + 30, y + 36), _RGB32(255, 200, 60), _RGB32(255, 200, 60)
-        CIRCLE (x0 + 14, y + 20), 6, _RGB32(255, 200, 60) : CIRCLE (x0 + 46, y + 20), 6, _RGB32(255, 200, 60)
-        LINE (x0 + 27, y + 42)-(x0 + 33, y + 47), _RGB32(255, 200, 60), BF
-        LINE (x0 + 20, y + 47)-(x0 + 40, y + 51), _RGB32(255, 200, 60), BF
-        LINE (x0 + 21, y + 14)-(x0 + 24, y + 26), _RGBA32(255, 255, 255, gl), BF
-    END IF
-    IF pa > 0 THEN
-        HudText x0 + 62, y + 8, "ACHIEVEMENT PROGRESS", _RGB32(255, 200, 60)
-        MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
-        HudText x0 + 62, y + 42, dsc$, _RGB32(150, 230, 255)
-        bw = w - 62 - 10 - LEN(dsc$) * 8 - 12 : bx = x0 + 62 + LEN(dsc$) * 8 + 12 ' (and a bar: how far)
-        IF bw > 20 AND pa <= NUM_ACH THEN
-            pr& = AchProgress&(pa) : IF pr& > achGoal(pa) THEN pr& = achGoal(pa)
-            LINE (bx, y + 45)-(bx + bw, y + 51), _RGB32(40, 30, 70), BF
-            LINE (bx, y + 45)-(bx + bw * pr& / achGoal(pa), y + 51), _RGB32(90, 230, 255), BF
+    IF atTop OR hudShow(HE_ACH) THEN ' (hidden in hud.txt: it still comes and goes, unseen)
+        LINE (x0, y)-(x0 + w, y + 58), _RGBA32(10, 4, 26, 225), BF
+        LINE (x0, y)-(x0 + w, y + 58), fc~&, B
+        LINE (x0 + 1, y + 1)-(x0 + w - 1, y + 57), _RGBA32(_RED32(fc~&), _GREEN32(fc~&), _BLUE32(fc~&), 90), B
+        ic& = 0 : IF achToastI(1) >= 1 AND achToastI(1) <= NUM_ACH THEN ic& = achIcon&(achToastI(1))
+        IF pa >= 1 AND pa <= NUM_ACH THEN ic& = achIconOff&(pa)
+        IF ic& < -1 THEN ' (its badge)
+            _PUTIMAGE (x0 + 6, y + 5)-STEP(47, 47), ic&
+        ELSE
+            gl = 120 + 100 * ABS(SIN(t / 9)) ' (no badge: a trophy - a gold cup, glinting)
+            LINE (x0 + 16, y + 12)-(x0 + 44, y + 30), _RGB32(255, 200, 60), BF
+            CIRCLE (x0 + 30, y + 30), 14, _RGB32(255, 200, 60), 3.1416, 0
+            PAINT (x0 + 30, y + 36), _RGB32(255, 200, 60), _RGB32(255, 200, 60)
+            CIRCLE (x0 + 14, y + 20), 6, _RGB32(255, 200, 60) : CIRCLE (x0 + 46, y + 20), 6, _RGB32(255, 200, 60)
+            LINE (x0 + 27, y + 42)-(x0 + 33, y + 47), _RGB32(255, 200, 60), BF
+            LINE (x0 + 20, y + 47)-(x0 + 40, y + 51), _RGB32(255, 200, 60), BF
+            LINE (x0 + 21, y + 14)-(x0 + 24, y + 26), _RGBA32(255, 255, 255, gl), BF
         END IF
-    ELSE
-        HudText x0 + 62, y + 8, "ACHIEVEMENT UNLOCKED", _RGB32(90, 240, 255)
-        MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
-        HudText x0 + 62, y + 42, dsc$, _RGB32(200, 190, 230)
+        IF pa > 0 THEN
+            HudText x0 + 62, y + 8, "ACHIEVEMENT PROGRESS", _RGB32(255, 200, 60)
+            MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
+            HudText x0 + 62, y + 42, dsc$, _RGB32(150, 230, 255)
+            bw = w - 62 - 10 - LEN(dsc$) * 8 - 12 : bx = x0 + 62 + LEN(dsc$) * 8 + 12 ' (and a bar: how far)
+            IF bw > 20 AND pa <= NUM_ACH THEN
+                pr& = AchProgress&(pa) : IF pr& > achGoal(pa) THEN pr& = achGoal(pa)
+                LINE (bx, y + 45)-(bx + bw, y + 51), _RGB32(40, 30, 70), BF
+                LINE (bx, y + 45)-(bx + bw * pr& / achGoal(pa), y + 51), _RGB32(90, 230, 255), BF
+            END IF
+        ELSE
+            HudText x0 + 62, y + 8, "ACHIEVEMENT UNLOCKED", _RGB32(90, 240, 255)
+            MenuText x0 + 62, y + 20, ttl$, 1, _RGB32(255, 255, 255), 0
+            HudText x0 + 62, y + 42, dsc$, _RGB32(200, 190, 230)
+        END IF
     END IF
     IF t >= 236 THEN ' Gone: the next, if there is one
         FOR k = 1 TO achToastN - 1 : achToast$(k) = achToast$(k + 1) : achToastI(k) = achToastI(k + 1) : NEXT

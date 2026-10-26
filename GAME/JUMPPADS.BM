@@ -164,7 +164,7 @@ END SUB
 ' near enough to use - its pad's numbers on a little screen, without a
 ' Space (and Space adjusts them)
 SUB JumpPadReadout
-    DIM r!, cx, cy, i, p, t$ ' (its own: the main program shares these names)
+    DIM r!, cx, cy, i, p, t$, ox, oy, fc~& ' (its own: the main program shares these names)
     IF dead OR editMode OR cyberOn OR viewOn THEN EXIT SUB
     FOR r! = 0.4 TO 2 STEP 0.1
         cx = INT(playerX + dirX * r!) : cy = INT(playerY + dirY * r!)
@@ -177,13 +177,19 @@ SUB JumpPadReadout
             IF decoOn(i) AND decoKind(i) = DK_JUMPPAD AND r! <= 1.4 THEN p = i : t$ = "JUMP PAD" : EXIT FOR
         END IF
     NEXT
-    IF LEN(t$) = 0 THEN EXIT SUB
-    LINE (255, 372)-(545, 448), _RGBA32(4, 14, 10, 210), BF : LINE (255, 372)-(545, 448), _RGBA32(90, 255, 160, 200), B
-    MenuText 400, 378, t$, 1.25, _RGB32(255, 200, 90), 1
-    IF p = 0 THEN MenuText 400, 400, "NO PAD ANSWERS", 1.25, _RGB32(255, 110, 90), 1 : EXIT SUB
-    MenuText 400, 398, "PAD" + STR$(INT(decoX(p))) + "," + LTRIM$(STR$(INT(decoY(p)))), 1, _RGB32(150, 200, 170), 1
-    MenuText 400, 414, "DIR" + STR$(jpDir(p)) + "  ANGLE" + STR$(jpAng(p)) + "  POWER" + STR$(jpPow(p)), 1.25, _RGB32(150, 255, 190), 1
-    IF t$ = "LAUNCH CONTROL" THEN MenuText 400, 433, "SPACE: ADJUST", 1, _RGB32(120, 170, 140), 1
+    IF LEN(t$) = 0 OR NOT hudShow(HE_READOUT) THEN EXIT SUB
+    ox = hudX(HE_READOUT) - 400 : oy = hudY(HE_READOUT) - 372 : fc~& = HudColor~&(HE_READOUT, _RGB32(90, 255, 160)) ' (the HUD's readout part: where it was made, 400 across and 372 down)
+    HudAtE HE_READOUT
+    LINE (255 + ox, 372 + oy)-(545 + ox, 448 + oy), _RGBA32(4, 14, 10, 210), BF : LINE (255 + ox, 372 + oy)-(545 + ox, 448 + oy), _RGBA32(_RED32(fc~&), _GREEN32(fc~&), _BLUE32(fc~&), 200), B
+    MenuText 400 + ox, 378 + oy, t$, 1.25, _RGB32(255, 200, 90), 1
+    IF p = 0 THEN
+        MenuText 400 + ox, 400 + oy, "NO PAD ANSWERS", 1.25, _RGB32(255, 110, 90), 1
+    ELSE
+        MenuText 400 + ox, 398 + oy, "PAD" + STR$(INT(decoX(p))) + "," + LTRIM$(STR$(INT(decoY(p)))), 1, _RGB32(150, 200, 170), 1
+        MenuText 400 + ox, 414 + oy, "DIR" + STR$(jpDir(p)) + "  ANGLE" + STR$(jpAng(p)) + "  POWER" + STR$(jpPow(p)), 1.25, _RGB32(150, 255, 190), 1
+        IF t$ = "LAUNCH CONTROL" THEN MenuText 400 + ox, 433 + oy, "SPACE: ADJUST", 1, _RGB32(120, 170, 140), 1
+    END IF
+    HudAt 1
 END SUB
 
 ' --- Each frame, monster i: in the air from a pad, its arc - along (walls

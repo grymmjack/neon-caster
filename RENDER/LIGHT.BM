@@ -122,24 +122,11 @@ END FUNCTION
 ' tube drops out for a few frames now and then, a pulse rises and falls,
 ' a strobe blinks twice a second, firelight jitters, and a dying tube is
 ' mostly dark but sputters on. A broken lamp's light is out for good.
-SUB UpdateLight
-    DIM B, e, f, g, l, r, w ' (its own: the main program shares these names)
-    ' (only the cells near you - LIGHT_NEAR - but all of a sector at first)
-    litX0 = 0 : litY0 = 0 : litX1 = mapN - 1 : litY1 = mapN - 1
-    IF cyberOn <> litCyberWas THEN litCyberWas = cyberOn : litAll = 3 ' (into the network or out: all of it again, for a few frames - both of OpenGL's halves)
-    IF litAll > 0 THEN litAll = litAll - 1
-    IF lvFrame > 2 AND litAll = 0 THEN
-        litX0 = MaxOf(0, INT(playerX) - LIGHT_NEAR) : litX1 = MinOf(mapN - 1, INT(playerX) + LIGHT_NEAR)
-        litY0 = MaxOf(0, INT(playerY) - LIGHT_NEAR) : litY1 = MinOf(mapN - 1, INT(playerY) + LIGHT_NEAR)
-    END IF
-    IF cyberOn OR (editMode AND edFullBright) THEN ' The network: no lamps, no shadows - everything lit the same (near you, once it's all been lit). The editor's FULL BRIGHT (Alt+L) the same, at the pictures' own colours
-        FOR cellY = litY0 TO litY1 : FOR cellX = litX0 TO litX1
-            IF cyberOn THEN litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230 ELSE litR(cellX, cellY) = 256 : litG(cellX, cellY) = 256 : litB(cellX, cellY) = 256
-            litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
-        NEXT : NEXT
-        FOR l = 1 TO numLights : lightNow(l) = 0 : NEXT
-        EXIT SUB
-    END IF
+' The lamps' effects this frame (UpdateLight's): each cell kind's (ambFxNow)
+' and each light's (lightNow) - flickering, pulsing, strobing... PHOTO MODE
+' skips it, so they hold as they were
+SUB UpdateLightFx
+    DIM f, l ' (its own: the main program shares these names)
     ' The cell lights' effects, this frame - as a light's below, one for all
     ' the cells of a kind (a room flickers as one)
     ambFxNow(FX_STEADY) = 1 : ambFxNow(FX_PULSE) = 0.55 + 0.45 * SIN(TIMER * 2.4) : ambFxNow(FX_FIRE) = 0.75 + RND * 0.25
@@ -148,12 +135,6 @@ SUB UpdateLight
     IF ambFxTimer(FX_FLICKER) > 0 THEN ambFxTimer(FX_FLICKER) = ambFxTimer(FX_FLICKER) - 1 : ambFxNow(FX_FLICKER) = 0.15 ELSE IF RND < 0.025 THEN ambFxTimer(FX_FLICKER) = 2 + INT(RND * 6)
     ambFxNow(FX_DYING) = 0.08
     IF ambFxTimer(FX_DYING) > 0 THEN ambFxTimer(FX_DYING) = ambFxTimer(FX_DYING) - 1 : ambFxNow(FX_DYING) = 0.5 + RND * 0.5 ELSE IF RND < 0.03 THEN ambFxTimer(FX_DYING) = 3 + INT(RND * 10)
-    FOR cellY = litY0 TO litY1 : FOR cellX = litX0 TO litX1
-        f = ambFxNow(cellAmbFx(cellX, cellY)) * ambDim ' (its own ambient light - a cell light, or the sector's - turned down by a sector light below 0)
-        litR(cellX, cellY) = cellAmbR(cellX, cellY) * f : litG(cellX, cellY) = cellAmbG(cellX, cellY) * f : litB(cellX, cellY) = cellAmbB(cellX, cellY) * f
-        IF blackoutTimer > 0 THEN litR(cellX, cellY) = litR(cellX, cellY) \ 4 : litG(cellX, cellY) = litG(cellX, cellY) \ 5 : litB(cellX, cellY) = litB(cellX, cellY) \ 4 ' (a power failure: darker)
-        litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
-    NEXT : NEXT
     FOR l = 1 TO numLights
         f = 1
         SELECT CASE lightEffect(l)
@@ -184,6 +165,36 @@ SUB UpdateLight
         IF blackoutTimer > 0 AND lightEffect(l) <> FX_STROBE THEN f = f * 0.05 ' (no power: only the alarms)
         f = f * ambDim ' (a sector light below 0 turns every lamp down - its glow too)
         lightNow(l) = f
+    NEXT
+END SUB
+
+SUB UpdateLight
+    DIM B, e, f, g, l, r, w ' (its own: the main program shares these names)
+    ' (only the cells near you - LIGHT_NEAR - but all of a sector at first)
+    litX0 = 0 : litY0 = 0 : litX1 = mapN - 1 : litY1 = mapN - 1
+    IF (cyberOn OR cyberLook) <> litCyberWas THEN litCyberWas = (cyberOn OR cyberLook) : litAll = 3 ' (into the network or out: all of it again, for a few frames - both of OpenGL's halves)
+    IF litAll > 0 THEN litAll = litAll - 1
+    IF lvFrame > 2 AND litAll = 0 THEN
+        litX0 = MaxOf(0, INT(playerX) - LIGHT_NEAR) : litX1 = MinOf(mapN - 1, INT(playerX) + LIGHT_NEAR)
+        litY0 = MaxOf(0, INT(playerY) - LIGHT_NEAR) : litY1 = MinOf(mapN - 1, INT(playerY) + LIGHT_NEAR)
+    END IF
+    IF cyberOn OR cyberLook OR (editMode AND edFullBright) THEN ' The network: no lamps, no shadows - everything lit the same (near you, once it's all been lit). The editor's FULL BRIGHT (Alt+L) the same, at the pictures' own colours
+        FOR cellY = litY0 TO litY1 : FOR cellX = litX0 TO litX1
+            IF cyberOn OR cyberLook THEN litR(cellX, cellY) = 200 : litG(cellX, cellY) = 200 : litB(cellX, cellY) = 230 ELSE litR(cellX, cellY) = 256 : litG(cellX, cellY) = 256 : litB(cellX, cellY) = 256
+            litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
+        NEXT : NEXT
+        FOR l = 1 TO numLights : lightNow(l) = 0 : NEXT
+        EXIT SUB
+    END IF
+    IF NOT photoOn THEN UpdateLightFx ' (the lamps' effects - PHOTO MODE: held as they were, GAME/PHOTO.BM)
+    FOR cellY = litY0 TO litY1 : FOR cellX = litX0 TO litX1
+        f = ambFxNow(cellAmbFx(cellX, cellY)) * ambDim ' (its own ambient light - a cell light, or the sector's - turned down by a sector light below 0)
+        litR(cellX, cellY) = cellAmbR(cellX, cellY) * f : litG(cellX, cellY) = cellAmbG(cellX, cellY) * f : litB(cellX, cellY) = cellAmbB(cellX, cellY) * f
+        IF blackoutTimer > 0 THEN litR(cellX, cellY) = litR(cellX, cellY) \ 4 : litG(cellX, cellY) = litG(cellX, cellY) \ 5 : litB(cellX, cellY) = litB(cellX, cellY) \ 4 ' (a power failure: darker)
+        litSumX(cellX, cellY) = 0 : litSumY(cellX, cellY) = 0 : litSumW(cellX, cellY) = 0
+    NEXT : NEXT
+    FOR l = 1 TO numLights
+        f = lightNow(l)
         IF f > 0 AND lightX(l) + lightRadius(l) >= litX0 AND lightX(l) - lightRadius(l) <= litX1 + 1 AND lightY(l) + lightRadius(l) >= litY0 AND lightY(l) - lightRadius(l) <= litY1 + 1 THEN ' (one that reaches the cells near you)
             r = lightR(l) * f : g = lightG(l) * f : b = lightB(l) * f
             FOR e = lightFirst(l) TO lightFirst(l) + lightCount(l) - 1

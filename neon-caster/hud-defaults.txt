@@ -1,0 +1,184 @@
+' NEON-CASTER HUD - the game's own layout (chapter 18's numbers, then this
+' file over them). Your own goes in hud.txt beside it: the HUD layout
+' editor (U in the level editor, or hud in the console) writes that, and
+' R or hud reset come back here. The same fields as hud.txt:
+'   show: yes or no   x, y: on the 800 x 600 screen (ammo: its right edge;
+'   message, subtitle, event, network, fps, invulnerable, alarm, readout:
+'   their middle; demo, achievement: their right edge)   bar: width,
+'   height   size: the minimap's cells, the keycards' pictures
+'   color: auto (the game's own) or red, green, blue   label: its word
+'   anchor: left, middle or right - with FULL WIDE, the side of the window
+'   it keeps to, x measured from that side's 800 x 600 (left out: by
+'   which third of the 800 its x is in)
+
+[health]
+show  = yes
+x     = 16
+y     = 552
+bar   = 200, 12
+color = 80, 255, 120
+label = HEALTH
+
+[armor]
+show  = yes
+x     = 16
+y     = 506
+bar   = 200, 8
+color = 255, 230, 60
+label = ARMOR
+
+[ammo]
+show  = yes
+x     = 784
+y     = 552
+bar   = 200, 12
+color = 255, 70, 70
+
+[guns]
+show  = yes
+x     = 582
+y     = 521
+color = 255, 70, 70
+
+[kills]
+show  = yes
+x     = 8
+y     = 13
+color = auto
+label = KILLS
+
+[minimap]
+show  = yes
+x     = 8
+y     = 45
+size  = 3
+color = auto
+
+[keycards]
+show  = yes
+x     = 784
+y     = 13
+size  = 64
+color = auto
+
+[message]
+show  = yes
+x     = 400
+y     = 529
+color = auto
+
+[subtitle]
+show  = yes
+x     = 400
+y     = 93
+color = auto
+
+[amp]
+show  = yes
+x     = 582
+y     = 490
+color = auto
+label = DAMAGE AMP
+
+[godmode]
+show  = yes
+x     = 16
+y     = 474
+color = auto
+label = GOD MODE
+
+[event]
+show  = yes
+x     = 400
+y     = 54
+color = auto
+
+[network]
+show  = yes
+x     = 399
+y     = 133
+color = auto
+
+[fps]
+show  = yes
+x     = 400
+y     = 16
+color = auto
+
+[timer]
+show  = yes
+x     = 784
+y     = 95
+color = auto
+
+[nightvision]
+show  = yes
+x     = 17
+y     = 442
+color = auto
+label = NIGHT VISION
+anchor = left
+
+[hazmat]
+show  = yes
+x     = 16
+y     = 378
+color = auto
+label = HAZMAT
+anchor = left
+
+[jetpack]
+show  = yes
+x     = 14
+y     = 348
+color = auto
+label = JET
+anchor = left
+
+[flashlight]
+show  = yes
+x     = 16
+y     = 410
+color = auto
+label = LIGHT
+anchor = left
+
+[poisoned]
+show  = yes
+x     = 154
+y     = 552
+color = auto
+label = POISONED
+anchor = left
+
+[invulnerable]
+show  = yes
+x     = 400
+y     = 470
+color = auto
+label = INVULNERABLE
+
+[alarm]
+show  = yes
+x     = 59
+y     = 206
+color = auto
+label = ALARM
+
+[demo]
+show  = yes
+x     = 784
+y     = 168
+color = auto
+
+[achievement]
+show  = yes
+x     = 784
+y     = 260
+color = auto
+
+[readout]
+show  = yes
+x     = 400
+y     = 368
+color = auto

@@ -87,6 +87,8 @@ DECLARE LIBRARY "glsl"
     FUNCTION glsl_native_window_size& (BYVAL wantHeight AS LONG)
     FUNCTION glsl_native_data_texture_new~& (BYVAL w AS LONG, BYVAL h AS LONG)
     SUB glsl_native_data_texture_update (BYVAL tex AS _UNSIGNED LONG, BYVAL w AS LONG, BYVAL h AS LONG, BYVAL dataAt AS _OFFSET)
+    SUB glsl_native_tex_sub (BYVAL tex AS _UNSIGNED LONG, BYVAL w AS LONG, BYVAL h AS LONG, BYVAL pixels AS _OFFSET)
+    FUNCTION glsl_native_readback& (BYVAL w AS LONG, BYVAL h AS LONG, BYVAL dst AS _OFFSET)
     FUNCTION glsl_native_buffer_new~& (BYVAL dataAt AS _OFFSET, BYVAL bytes AS LONG)
     SUB glsl_native_buffer_bind (BYVAL buf AS _UNSIGNED LONG)
     SUB glsl_native_buffer_delete (BYVAL buf AS _UNSIGNED LONG)

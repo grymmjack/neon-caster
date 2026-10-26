@@ -1,0 +1,53 @@
+' NEON-CASTER TEXT ART presets - SETTINGS > EFFECTS > TEXT ART PRESET, or
+' textart preset N (textart presets lists them). Each is a line of the
+' console's textart words (help textart), set over TEXT ART as it first
+' was - its name the words in capitals, or NAME = words. Yours go in
+' saves/textart-presets.txt (SAVE AS PRESET, textart save NAME).
+off
+ascii white
+ascii green 48
+ascii amber 24
+ascii own 16
+ansi dos ega 9px authentic 32
+ansi ega blockshade 9px authentic 48
+ansi ega blockshade 9px authentic 24
+ansi ega detail 9px authentic 16
+ansi ega 8px free 16
+petscii c64 authentic 32
+petscii c64 blockshade authentic 24
+matrix katakana green 32
+matrix katakana 24
+mac white bayer8 1-bit
+mac atkinson 1-bit
+mac floyd 1-bit
+retro 3 3 apple2-hires bayer4 50
+retro 20 12 apple2-lores bayer4 30
+retro 4 4 gameboy bayer8 60
+retro 3 3 c64 bayer4 40
+retro 3 3 cga1-high bayer4 50
+retro 2 2 ega bayer8 40
+retro 6 6 pico-8 bayer4 40
+retro 3 3 nes bayer4 30
+retro 2 2 1bit bayer8 100
+' Rick's
+TELETEXT = retro 3 3 teletext bayer2 45 authentic
+SPECCY = retro 16 12 zxspectrum bayer2 45 authentic
+MAC CLASSIC = retro 4 4 1bit bayer8 100 authentic
+APPLE2 HIRES MODE = retro 12 6 apple2-hires bayer8 100 authentic
+APPLE2 LORES MODE = retro 32 16 apple2-lores bayer8 15 authentic
+ATARI XL = retro 24 12 atari-8bit noise 5 authentic
+ATARI 2600 = retro 32 32 atari2600 none 0 authentic
+CGA0 HIGH = retro 5 8 cga0-high bayer4 35 authentic
+CGA1 HIGH = retro 5 8 cga1-high bayer4 35 authentic
+CATACOMBS OF THE ABYSS = retro 6 6 ega bayer4 45 authentic
+FAIRCHILD = retro 17 5 fairchild bayer2 5 authentic
+GAMEBOY = retro 8 8 gameboy-bgb bayer4 15 authentic
+WINDOWS = retro 4 4 ms-windows noise 15 authentic
+NINTENDO = retro 10 10 nes noise 20 authentic
+QUAKE = retro 6 6 quake noise 40 authentic
+DOS VGA = retro 8 8 vga none 0 authentic
+ANSCII = ascii 9px free 32
+ANSI BLOCKS = ansi blockshade 9px authentic 32
+C64 = petscii blockshade free 32
+ANSI 80X25 = ansi blockshade 9px authentic 48
+ANSI 80X50 = ansi ega blockshade 9px authentic 32

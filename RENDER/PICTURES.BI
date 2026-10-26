@@ -128,6 +128,7 @@ CONST T_STRONG = T_CUSTOM + T_CUSTOMN + 5, T_STRONGHURT = T_CUSTOM + T_CUSTOMN +
 CONST T_SLOTS = T_CUSTOM + T_CUSTOMN + 7
 REDIM SHARED texture(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG
 REDIM SHARED texBak(0, 0, 0) AS _UNSIGNED LONG ' (the real pictures, kept while you're in the network - made only then: CyberTextures)
+DIM SHARED cyberBakAt(T_SLOTS) AS INTEGER ' (which of texBak's pictures is slot's: 0 a slot the network leaves alone - a face slot this sector doesn't use)
 ' For each worldMap wall value: its texture slot, and its colour on the minimap
 DIM SHARED wallTexSlot(10) AS INTEGER, wallMapColor(10) AS _UNSIGNED LONG
 wallTexSlot(1) = 1 : wallTexSlot(3) = 2 : wallTexSlot(4) = 3 : wallTexSlot(5) = 4 : wallTexSlot(6) = 5 : wallTexSlot(7) = 6 : wallTexSlot(8) = T_JACK : wallTexSlot(9) = T_CODE : wallTexSlot(10) = T_TCTRL ' (8: a data station; 9: a code terminal; 10: a turret control panel)

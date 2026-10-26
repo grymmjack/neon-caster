@@ -42,6 +42,8 @@ SUB ApplySettings
         NEXT
     END IF
     setting(SET_MODE) = ModeNow : modeWas = setting(SET_MODE)
+    RetroPalSync ' (RETRO's palette: loaded if it's another)
+    setting(SET_TAPRESET) = TaPresetNow ' (TEXT ART PRESET: which one matches, if any)
     fovPlane = TAN(setting(SET_FOV) / 2 * 3.14159265 / 180)
     turnSpeed = setting(SET_MOUSE) * 0.0006
     SetMusicVol
@@ -242,6 +244,9 @@ END FUNCTION
 ' Left (-1) or right (1) on setting id: a slider moves a step (and stops at
 ' its ends), a choice goes round to the next one, a toggle flips
 SUB ChangeSetting(id, dir)
+    IF id = SET_TAPRESET THEN ' (round the presets, each put into effect - CUSTOM isn't one you choose)
+        TaPresetStep dir : EXIT SUB
+    END IF
     IF id = SET_MODE THEN ' (round the three looks - CUSTOM isn't one you choose)
         setting(id) = setting(id) + dir
         IF setting(id) > MODE_NEWSCHOOL THEN setting(id) = MODE_OLDSCHOOL
@@ -278,8 +283,19 @@ FUNCTION SettingText$(id)
     v$ = LTRIM$(STR$(setting(id)))
     SELECT CASE id
         CASE SET_SFX, SET_MUSIC, SET_SPEECH, SET_XALPHA, SET_SCANLINES, SET_PHOSPHOR, SET_SCANTHICK, SET_AIMSENS, SET_GAMMA : SettingText$ = v$ + "%"
-        CASE SET_SCANGAP : SettingText$ = v$ + " PX"
-        CASE SET_FL_BRIGHT, SET_FL_SOFT, SET_FL_HAZE : SettingText$ = v$ + "%"
+        CASE SET_SCANGAP, SET_ASCIISIZE : SettingText$ = v$ + " PX"
+        CASE SET_FL_BRIGHT, SET_FL_SOFT, SET_FL_HAZE, SET_GRIDA : SettingText$ = v$ + "%"
+        CASE SET_ASCII : SettingText$ = TextArtName$(setting(id))
+        CASE SET_ASCIICOL : SettingText$ = TextArtColName$(setting(id))
+        CASE SET_ASCIIRULE : IF setting(id) THEN SettingText$ = "AUTHENTIC" ELSE SettingText$ = "FREE"
+        CASE SET_MACDITH : SettingText$ = MacDitherName$(setting(id))
+        CASE SET_TABLOCK : IF setting(id) THEN SettingText$ = "BLOCKSHADE" ELSE SettingText$ = "DETAIL"
+        CASE SET_TA9 : IF setting(id) THEN SettingText$ = "9 X 16 (VGA)" ELSE SettingText$ = "8 X 16"
+        CASE SET_RETROW, SET_RETROH : SettingText$ = v$ + " PX"
+        CASE SET_RETROAMT : SettingText$ = v$ + "%"
+        CASE SET_RETROPAL : SettingText$ = RetroPalName$(setting(id))
+        CASE SET_RETRODITH : SettingText$ = RetroDithName$(setting(id))
+        CASE SET_TAPRESET : IF TaPresetNow THEN SettingText$ = taPreName$(TaPresetNow) ELSE SettingText$ = "CUSTOM"
         CASE SET_FL_WIDTH : SettingText$ = v$ + CHR$(248)
         CASE SET_FL_REACH : SettingText$ = v$ + " CELLS"
         CASE SET_FL_COLOUR : SettingText$ = FlColourName$(setting(id))
@@ -307,9 +323,9 @@ SUB LoadSettings
     DIM fileNum, i, v ' (its own: the main program shares these names)
     FOR i = 1 TO NUM_SETTINGS : setting(i) = setDefault(i) : NEXT
     FOR i = 1 TO NUM_BINDS : keyBind&(i) = bindDefault&(i) : NEXT
-    qbChosen$ = "" : imgEditor$ = "" : conTall = 0 : cpFile$ = "" : flRGB$ = ""
+    qbChosen$ = "" : imgEditor$ = "" : conTall = 0 : cpFile$ = "" : flRGB$ = "" : retroPalWant$ = ""
     file$ = SaveDir$ + "settings.ini"
-    IF NOT _FILEEXISTS(file$) THEN EXIT SUB
+    IF NOT _FILEEXISTS(file$) THEN setting(SET_RETROPAL) = MaxOf(1, RetroPalFind("APPLE2-HIRES")) : EXIT SUB ' (RETRO's palette as it first is: the Apple II's high resolution)
     fileNum = FREEFILE
     OPEN file$ FOR INPUT AS #fileNum
     DO UNTIL EOF(fileNum)
@@ -332,6 +348,7 @@ SUB LoadSettings
                 cpFile$ = MID$(text$, eq + 1) : IF RIGHT$(cpFile$, 1) = CHR$(13) THEN cpFile$ = LEFT$(cpFile$, LEN(cpFile$) - 1)
                 cpFile$ = LTRIM$(RTRIM$(cpFile$))
             END IF
+            IF iniKey$ = "retro_palette_name" THEN retroPalWant$ = UCASE$(LTRIM$(RTRIM$(MID$(text$, eq + 1)))) : IF RIGHT$(retroPalWant$, 1) = CHR$(13) THEN retroPalWant$ = LEFT$(retroPalWant$, LEN(retroPalWant$) - 1)
             IF iniKey$ = "flashlight_rgb" THEN flRGB$ = UCASE$(LEFT$(LTRIM$(MID$(text$, eq + 1)), 6)) : IF NOT HueOK(flRGB$) THEN flRGB$ = "" ' (the flashlight's YOUR OWN colour)
             IF iniKey$ = "console_tall" THEN conTall = (v <> 0) ' (F11 in the console: it fills the screen)
             IF iniKey$ = "retro_res" AND v = 1 THEN setting(SET_RES) = RES_RETRO ' (what RESOLUTION was called once)
@@ -342,6 +359,9 @@ SUB LoadSettings
     LOOP
     CLOSE #fileNum
     setting(SET_MODE) = ModeNow : modeWas = setting(SET_MODE) ' (worked out from the rest - not put into effect)
+    IF retroPalWant$ = "" THEN retroPalWant$ = "APPLE2-HIRES"
+    setting(SET_RETROPAL) = MaxOf(1, RetroPalFind(retroPalWant$)) ' (RETRO's palette: kept by its name - the list is what's on disk)
+    setting(SET_TAPRESET) = TaPresetNow ' (so is TEXT ART PRESET)
 END SUB
 
 ' Write every setting and key binding to the settings file
@@ -363,6 +383,7 @@ SUB SaveSettings
     PRINT #fileNum, "; palette: the editor's colour helper's palette - a .gpl's path, or a name in neon-caster/palettes/"
     PRINT #fileNum, "palette=" + cpFile$
     PRINT #fileNum, "flashlight_rgb=" + flRGB$ + "   ; the flashlight's YOUR OWN colour (RRGGBB)"
+    PRINT #fileNum, "retro_palette_name=" + RetroPalName$(setting(SET_RETROPAL)) + "   ; TEXT ART RETRO's palette (neon-caster/palettes/ or saves/palettes/)"
     PRINT #fileNum, "console_tall=" + LTRIM$(STR$(-conTall)) + "   ; F11 in the console: 1 fills the screen"
     FOR i = 1 TO NUM_BINDS
         PRINT #fileNum, bindKey$(i) + "=" + LTRIM$(STR$(keyBind&(i))) + "   ; " + KeyName$(keyBind&(i))

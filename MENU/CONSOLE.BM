@@ -500,6 +500,25 @@ SUB ConExec STATIC
             IF buddhaMode THEN ConPrint "Buddha ON (hurt, but never below 1 health)" ELSE ConPrint "Buddha OFF"
         CASE "flashlight", "torch" ' flashlight on|off|toggle, or its look: width, reach, bright, soft, haze, colour, fx, battery (GAME/FLASHLIGHT.BM)
             ConPrint FlCmd$(conA$, conB$)
+        CASE "textart", "ascii", "ansi", "petscii", "mac", "retro", "retroshade" ' textart [off|ascii|ansi|petscii|matrix] [COLOURS] [size N]: TEXT ART (OpenGL's post shader, EFFECTS; GL/TEXTART.BM)
+            ConPrint TextArtCmd$(LCASE$(conVerb$), conCmd$)
+        CASE "photo" ' photo [on|off]: PHOTO MODE (F10) - the game stopped, a camera to fly round it
+            IF conA$ = "" THEN PhotoSet NOT photoOn ELSE PhotoSet ConOn(conA$)
+            IF photoOn THEN ConPrint "PHOTO MODE (F10 or Esc: back)" ELSE ConPrint "Photo mode off"
+        CASE "matrix" ' matrix [on|off]: MATRIX VIEW (F4) - the sector in the network's look, for looking only
+            IF conA$ = "" THEN CyberLookSet NOT cyberLook ELSE CyberLookSet ConOn(conA$)
+            IF cyberLook THEN ConPrint "Matrix view on (F4: back)" ELSE ConPrint "Matrix view off"
+        CASE "grid" ' grid [on|off|N]: the grid over the floors and walls in play (' ; :) - N its strength, 10-100 %
+            IF LEN(conA$) THEN
+                IF VAL(conA$) > 0 THEN
+                    setting(SET_GRID) = 1 : setting(SET_GRIDA) = MaxOf(setMin(SET_GRIDA), MinOf(setMax(SET_GRIDA), VAL(conA$)))
+                ELSE
+                    setting(SET_GRID) = -ConOn(conA$)
+                END IF
+                SaveSettings
+            END IF
+            IF NOT editMode THEN gridOn = (setting(SET_GRID) <> 0) : gridA = setting(SET_GRIDA) * 255 \ 100
+            IF setting(SET_GRID) THEN ConPrint "Grid on," + STR$(setting(SET_GRIDA)) + "%" ELSE ConPrint "Grid off"
         CASE "infinitefuel", "infjet" ' The jetpack's tank never empties (a cheat)
             IF conA$ = "" THEN jetInf = NOT jetInf ELSE jetInf = ConOn(conA$)
             IF jetInf THEN ConPrint "Infinite jet fuel ON" + MID$(" (no jetpack yet: give jetpack)", 1, -99 * (jetHave = 0)) ELSE ConPrint "Infinite jet fuel OFF"
@@ -1063,7 +1082,11 @@ SUB ConGive STATIC
             FOR k = 1 TO 3 : hasCard(k) = -1 : NEXT
             FOR g = 1 TO NUM_GUNS : hasGun(g) = -1 : NEXT
             FOR k = 1 TO NUM_AMMO : ammoCount(k) = ammoMax(k) : NEXT
-            health = MAX_HP : armor = MAX_ARMOR : hasMap = -1 : ConPrint "Everything"
+            health = MaxOf(health, MAX_HP) : armor = MAX_ARMOR : hasMap = -1
+            nvHave = 1 : suitLeft = SUIT_MAX : jetHave = -1 : jetFuel = JET_MAX : repairKits = MAX_KITS ' (night vision, a new hazmat suit, the jetpack full, every repair kit)
+            flHave = -1 : flBatt = 100 : flSpares = FL_SPARES : flLowSaid = 0 ' (the flashlight, its battery full and every spare - left as it was, on or off)
+            ConPrint "Everything: keycards, guns, full ammo, health, armour, the map, night vision, hazmat, a full jetpack,"
+            ConPrint "  a flashlight (" + KeyName$(keyBind&(BIND_FLASH)) + ") with" + STR$(FL_SPARES) + " spare batteries, " + LTRIM$(STR$(MAX_KITS)) + " repair kits"
         CASE "keys", "keycards", "cards"
             FOR k = 1 TO 3 : hasCard(k) = -1 : NEXT : ConPrint "All keycards"
         CASE "key", "card", "keycard"
@@ -1476,7 +1499,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet glassreflect glass jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet glassreflect glass jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange textart ascii ansi petscii mac retro retroshade photo matrix grid quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1511,6 +1534,8 @@ SUB ConHelp(c$)
             ConPrint "  ^6demos     ^7record^8 NAME [SEED] [quit]  ^7playdemo^8 NAME [quit]  ^7stopdemo  ^7demos"
             ConPrint "            ^7playlist^8 [next|back|random|stop|speed X]"
             ConPrint "            ^7bot^8 [on|off|human N|safe]"
+            ConPrint "  ^6looks     ^7textart^8 [SET] [COLOURS] [SHAPES] [RULES] [DITHER] [size N]  ^7ascii  ^7ansi  ^7petscii"
+            ConPrint "            ^7mac  ^7retro^8 (^7help textart^8: every word, presets)  ^7photo  ^7matrix  ^7grid^8 [on|off|N]"
             ConPrint "  ^6editors   ^7hud  ^7monsters  ^7tuning  ^7achievements  ^7achieve^8 NAME  ^7resetachievements"
             ConPrint "  ^6the rest  ^7version  ^7clear  ^7menu  ^7soundtest  ^7arranger^8 TRACK  ^7quit"
             ConPrint "^3^5Keys^0: ^7Up Down^8 earlier lines  ^7Tab^8 finish a name  ^7Ctrl+V^8 paste  ^7PgUp PgDn wheel^8 scroll back"
@@ -1539,6 +1564,42 @@ SUB ConHelp(c$)
         CASE "sectorname" : ConPrint "^3sectorname NAME^0: rename the sector you're in - then savelevel (or Ctrl+S in the editor) to keep it. sectorname on its own: its name"
         ' --- cheats
         CASE "god", "noclip", "iddqd" : ConPrint "^3god [on|off]^0: no damage, through walls, flying (E up, C down) and notarget - for looking round a sector (G does the same)"
+        CASE "textart", "ascii", "ansi", "petscii", "mac", "retro", "retroshade"
+            ConPrint "^3textart [SET] [COLOURS] [SHAPES] [CELL] [RULES] [DITHER] [size N]^0: TEXT ART - OpenGL draws"
+            ConPrint "  the view as a computer of old would have. Words in any order; alone, it says how it's set."
+            ConPrint "  ^6SET^0      ^7off  ascii^8 (fuller where brighter)  ^7ansi^8 (DOS's shades and half blocks)"
+            ConPrint "           ^7petscii^8 (the C64's quarters, checks, slants)  ^7matrix^8 (falling code)"
+            ConPrint "           ^7mac^8 (1 bit, dithered)  ^7retro^8 (big pixels in a palette, dithered - below)"
+            ConPrint "  ^6COLOURS^0  ^7auto^8 (each set's own: ASCII its own colour, ANSI EGA, PETSCII C64, MATRIX green,"
+            ConPrint "           MAC black on white)  ^7own  green  amber  white  ega^8 (EGA's 16 - dos, cga too)  ^7c64"
+            ConPrint "  ^6SHAPES^0   (ANSI's, PETSCII's)  ^7detail^8 (an edge is the half block or quarter it looks like)"
+            ConPrint "           ^7blockshade^8 (full blocks, shaded only where one colour turns into the next)"
+            ConPrint "  ^6CELL^0     (ANSI's, ASCII's)  ^79px^8 (9 x 16, VGA's: blocks join, shades keep a seam - vga too)"
+            ConPrint "           ^78px^8 (8 x 16)"
+            ConPrint "  ^6RULES^0    ^7authentic^8 (only the palette's colours on screen - no scanlines or glow over it;"
+            ConPrint "           ANSI's paper one of EGA's 8 dark colours (DOS text mode), PETSCII's black (a C64))"
+            ConPrint "           ^7free^8 (any paper, the screen effects over it)"
+            ConPrint "  ^6DITHER^0   (MAC's; each turns MAC on)  ^7atkinson^8 (MacPaint's)  ^7floyd  jarvis  stucki  sierra"
+            ConPrint "           ^7bayer2  bayer4  bayer^8 (8 x 8)  ^7noise  threshold"
+            ConPrint "  ^6size N^0   a character's height (8-48 px; MAC: 5472 / N lines, 342 at 16) - or just N"
+            ConPrint "  ^3ascii^0, ^3ansi^0, ^3petscii^0, ^3mac^0 start in that set: ^3ansi ega blockshade 48^0, ^3petscii c64 free^0, ^3mac bayer^0"
+            ConPrint "  ^3textart matrix amber^0, ^3textart off^0. SETTINGS > EFFECTS has every one of them too."
+            ConPrint "  ^6RETRO^0    ^3retro W H PALETTE DITHER AMOUNT^0: a pixel W x H of the 800 x 600 screen's, any GIMP"
+            ConPrint "           palette in neon-caster/palettes/ or saves/palettes/ (by name: apple2-hires, c64, gameboy,"
+            ConPrint "           pico-8...), ^7none  bayer2  bayer4  bayer8  noise^8, AMOUNT 0-100 - commas or not:"
+            ConPrint "           ^3retroshade 3, 3, APPLE2-HIRES, BAYER4, 50^0  ^3retro 20 12 apple2-lores bayer4 30^0"
+            ConPrint "  ^6PRESETS^0  ^3textart presets^0 (the list)  ^3textart preset N^0 (or its NAME)  ^3textart save [NAME]^0 (as set"
+            ConPrint "           now - none: its words)  ^3textart delete N^0 (yours: saves/textart-presets.txt)"
+        CASE "photo"
+            ConPrint "^3photo [on|off]^0: PHOTO MODE (F10) - the game stops dead (shots, sparks, lamps), and you fly"
+            ConPrint "  round it: WASD, Space and FLY DOWN, Shift faster, the wheel zooms, P the hands, H the keys,"
+            ConPrint "  F12 a screenshot (saves). F10 or Esc puts you back where you were, the game carrying on."
+        CASE "matrix"
+            ConPrint "^3matrix [on|off]^0: MATRIX VIEW (F4) - this sector in the network's look, just to see it: nothing"
+            ConPrint "  else changes. Off on its own as you jack in, change sector or open the editor."
+        CASE "grid"
+            ConPrint "^3grid [on|off|N]^0: the grid over floors and walls in play - N its strength (10-100 %)."
+            ConPrint "  Keys: ^7'^0 on and off, ^7;^0 weaker, ^7:^0 stronger."
         CASE "flashlight", "torch"
             ConPrint "^3flashlight [on|off|toggle]^0 (torch): yours on or off (" + KeyName$(keyBind&(BIND_FLASH)) + " does it too) - alone, how it is. Its look, as"
             ConPrint "  SETTINGS > GAMEPLAY > FLASHLIGHT: ^3flashlight width DEG^0 (10-120), ^3reach CELLS^0 (2-16), ^3bright %^0 (10-400),"
@@ -1549,7 +1610,8 @@ SUB ConHelp(c$)
         CASE "fly" : ConPrint "^3fly [on|off]^0: fly - E up, C down, Shift faster - the floor still holds you up"
         CASE "notarget" : ConPrint "^3notarget [on|off]^0: the monsters don't notice you, and hunting ones forget you"
         CASE "give"
-            ConPrint "give all | keys | key red|blue|yellow | weapons | gun 1-5 | health [N] | armor [N]"
+            ConPrint "give all (every one below but overcharge, amp and invuln: all full) | keys | key red|blue|yellow"
+            ConPrint "  | weapons | gun 1-5 | health [N] | armor [N]"
             ConPrint "  | ammo [cells|shells|rounds|slugs|rockets N] | overcharge | amp | map | goggles | suit"
             ConPrint "  | jetpack | fuel [N] | repairkit [N] (computer repair kits) | invuln (5 seconds)"
             ConPrint "  | flashlight | battery [N] (spares, up to 4)"

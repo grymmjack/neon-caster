@@ -28,7 +28,8 @@ END SUB
 SUB BuildLevel STATIC
     DIM n ' (its own: the editor reads the main program's n after a rebuild - a zone's number, a floor's)
     TuneAmmoMax ' (the most of each ammo you carry, at this sector's difficulty: GAME/TUNING.BM)
-    IF cyberOn THEN CyberTextures 0 : cyberOn = 0 ' (died in the network: the real pictures back)
+    IF cyberOn THEN cyberOn = 0 : CyberTextures 0 ' (died in the network: the real pictures back)
+    CyberLookSet 0 ' (F4's MATRIX VIEW: the same)
     FOR k = 1 TO MAX_EVENTS ' (each event room's own looping sound - a trap's buzz or roar - closed: the next level's room k may be another kind)
         IF evHum&(k) > 0 THEN _SNDSTOP evHum&(k) : _SNDCLOSE evHum&(k)
         evHum&(k) = 0

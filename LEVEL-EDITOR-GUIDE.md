@@ -839,7 +839,9 @@ The numbers: hit points (1–200), speed, height, hover, bob, reach, damage (plu
 | R | The game's own layout (S to keep it) |
 | U, Esc | Leave |
 
-The parts are health, armour, ammo, guns, kills, minimap, keycards, message, subtitle, amp, god mode, event, network and FPS.
+The parts are health, armour, ammo, guns, kills, minimap, keycards, message, subtitle, amp, night vision, hazmat, jetpack, flashlight, poisoned, god mode, invulnerable, alarm, event, network, demo (REC, PLAYING and the demo's keys), achievement (the pop-up), readout (an alarm switch's or launch control's panel), FPS and timer.
+
+While you're editing, every part shows sample text (a message, a subtitle, an event, an achievement and so on), even the ones that only show now and then in play. That way there's always something to see while you move it or colour it. Older `hud.txt` files that have no night vision, hazmat, jetpack, flashlight or poisoned lines put those parts beside the amp and health bars, as before.
 
 ## Gotchas, and a checklist before you save
 

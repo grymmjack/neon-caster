@@ -1,0 +1,112 @@
+''
+' NEON-CASTER - GAME/PHOTO.BM
+' =============================================================================
+' F10: PHOTO MODE - the game frozen in motion, and a free camera round it.
+'
+
+' --- PHOTO MODE. While it's on, the game loop runs PhotoStep instead of
+' chapters 8-13 (looking, moving, pickups, doors, shooting, the machines,
+' the particles): nothing in the game takes a step - lvFrame stands still
+' (chapter 7), the lamps hold their flicker (UpdateLight), OpenGL's clock
+' stops (glFrozen, as under the pause menu) - and chapters 14-17 draw it
+' all from wherever the camera is. The HUD is left out (chapter 18): just
+' a line of keys, H to hide it, P the hands, F12 a screenshot.
+'
+' Going in keeps where you were and what you've seen (cellSeen); coming
+' out puts it all back, so the game - a demo recording, the autopilot -
+' carries on exactly as it would have. A demo playing waits too: its
+' frames are read in chapter 8, which isn't run.
+SUB PhotoSet(want)
+    IF want AND NOT photoOn THEN
+        IF editMode OR hudEdit OR viewOn <> 0 OR demoAttract THEN EXIT SUB ' (the editors have cameras of their own; a security camera's or a rocket's view isn't yours to fly)
+        phX = playerX : phY = playerY : phZ = playerZ : phVZ = playerVZ : phEye = eyeZ
+        phDX = dirX : phDY = dirY : phPX = planeX : phPY = planeY : phPitch = pitch : phZoom = zoom : phAim = aimAmount : phViewH = viewH
+        PhotoSeen -1
+        glFrozenAt# = TIMER(0.001) : glFrozen = -1 ' (OpenGL's ripples, flicker and shimmer: held)
+        WorldLoopsOff ' (the world's hums and motors: quiet while it's stopped)
+        photoOn = -1 : photoHint = -1 : photoQuiet = 0 : photoZoom = 1 : mouseSettle = 4
+        photoKeys(1) = -1 : photoKeys(2) = -1 : photoKeys(3) = -1 : photoKeys(4) = -1 ' (keys held as it starts aren't presses)
+    ELSEIF NOT want AND photoOn THEN
+        photoOn = 0
+        playerX = phX : playerY = phY : playerZ = phZ : playerVZ = phVZ : eyeZ = phEye
+        dirX = phDX : dirY = phDY : planeX = phPX : planeY = phPY : pitch = phPitch : zoom = phZoom : aimAmount = phAim : viewH = phViewH
+        PhotoSeen 0
+        glFrozen = 0
+        mouseSettle = 8 : escWas = -1 : fireWait = 15 ' (the Esc or click that ended it isn't the menu, or a shot)
+        _KEYCLEAR
+    END IF
+END SUB
+
+' cellSeen kept (goIn) or put back: the cells the camera flew past aren't
+' ones you've seen - the map, and the autopilot's plans, as they were
+SUB PhotoSeen(goIn)
+    DIM mS AS _MEM, mP AS _MEM
+    mS = _MEM(cellSeen()) : mP = _MEM(phSeen())
+    IF goIn THEN _MEMCOPY mS, mS.OFFSET, mS.SIZE TO mP, mP.OFFSET ELSE _MEMCOPY mP, mP.OFFSET, mP.SIZE TO mS, mS.OFFSET
+    _MEMFREE mS : _MEMFREE mP
+END SUB
+
+' One frame of PHOTO MODE, instead of chapters 8-13: the mouse looks (and
+' with OpenGL, up and down nearly straight), WASD fly the way you look,
+' Space / FLY UP and FLY DOWN straight up and down, RUN (Shift) faster, the
+' wheel zooms; P the hands, H the line of keys, F12 a screenshot, F10 or
+' Esc back to the game
+SUB PhotoStep
+    DIM mdx, mdy, mw, t, fwd, sid, upd, sp, k, kd(4), cp ' (its own: the main program shares these names)
+    WHILE _MOUSEINPUT
+        mdx = mdx + _MOUSEMOVEMENTX : mdy = mdy + _MOUSEMOVEMENTY : mw = mw + _MOUSEWHEEL
+    WEND
+    IF mouseSettle > 0 THEN mouseSettle = mouseSettle - 1 : mdx = 0 : mdy = 0
+    ' Zoom (the wheel): narrower is closer - 0.6 (wider than you see) to 4
+    IF mw <> 0 THEN photoZoom = MaxOf(0.6, MinOf(4, photoZoom * 1.1 ^ (-mw)))
+    zoom = photoZoom : aimAmount = 0
+    ' Turning, and looking up and down (only OpenGL's camera tilts)
+    t = mdx / DisplayScale! * turnSpeed / zoom
+    k = dirX : dirX = dirX * COS(t) - dirY * SIN(t) : dirY = k * SIN(t) + dirY * COS(t)
+    IF glMode THEN
+        pitch = pitch - mdy / DisplayScale! * turnSpeed / zoom
+        IF pitch > 1.55 THEN pitch = 1.55
+        IF pitch < -1.55 THEN pitch = -1.55
+    ELSE
+        pitch = 0
+    END IF
+    planeX = -dirY * fovPlane / zoom : planeY = dirX * fovPlane / zoom : viewH = RENDER_H * zoom
+    ' Flying: through anything, the way you look, inside the sector's edge
+    fwd = -KeyHeld(BIND_FORWARD) + KeyHeld(BIND_BACK) : sid = -KeyHeld(BIND_RIGHT) + KeyHeld(BIND_LEFT)
+    upd = 0 : IF _KEYDOWN(32) OR KeyHeld(BIND_UP) THEN upd = 1
+    IF KeyHeld(BIND_DOWN) THEN upd = upd - 1
+    sp = 0.05 : IF KeyHeld(BIND_RUN) THEN sp = 0.2
+    cp = COS(pitch)
+    playerX = playerX + (dirX * fwd * cp - dirY * sid) * sp : playerY = playerY + (dirY * fwd * cp + dirX * sid) * sp
+    playerZ = playerZ + (SIN(pitch) * fwd + upd) * sp
+    IF playerX < 1.01 THEN playerX = 1.01
+    IF playerX > mapN - 1.01 THEN playerX = mapN - 1.01
+    IF playerY < 1.01 THEN playerY = 1.01
+    IF playerY > mapN - 1.01 THEN playerY = mapN - 1.01
+    IF playerZ < -1.4 THEN playerZ = -1.4
+    IF playerZ > H_MAX * H_STEP + 0.5 THEN playerZ = H_MAX * H_STEP + 0.5
+    eyeZ = playerZ + EYE_H
+    ' Its keys: a press each (held last frame: not again)
+    kd(1) = _KEYDOWN(112) OR _KEYDOWN(80) : kd(2) = _KEYDOWN(104) OR _KEYDOWN(72) : kd(3) = _KEYDOWN(34304) : kd(4) = _KEYDOWN(27)
+    IF kd(1) AND NOT photoKeys(1) THEN photoHands = NOT photoHands ' P: the hands (and the gun)
+    IF kd(2) AND NOT photoKeys(2) THEN photoHint = NOT photoHint ' H: the line of keys
+    IF kd(3) AND NOT photoKeys(3) THEN ' F12: a screenshot - without the line of keys
+        MakeSaveDir : shotFile$ = SaveDir$ + "photo-" + DATE$ + "-" + LTRIM$(STR$(INT(TIMER))) + ".png"
+        IF glMode THEN glShotReq = 1
+        photoQuiet = 8
+    END IF
+    k = kd(4) AND NOT photoKeys(4) ' Esc: back to the game
+    FOR cp = 1 TO 4 : photoKeys(cp) = kd(cp) : NEXT
+    IF k THEN PhotoSet 0
+END SUB
+
+' The line of keys (chapter 18, instead of the HUD) - hidden by H, and for
+' a moment round a screenshot
+SUB PhotoHud
+    DIM t$ ' (its own: the main program shares these names)
+    IF photoQuiet > 0 THEN photoQuiet = photoQuiet - 1 : EXIT SUB
+    IF NOT photoHint THEN EXIT SUB
+    HudAt -1 : LINE (0, 0)-(scrW - 1, 17), _RGBA32(0, 0, 0, 170), BF : HudAt 1
+    t$ = "PHOTO MODE   WASD FLY  SPACE/" + KeyName$(keyBind&(BIND_DOWN)) + " UP/DOWN  SHIFT FAST  WHEEL ZOOM  P HANDS  H HIDE  F12 SHOT  F10 BACK"
+    HudText 400 - LEN(t$) * 4, 2, t$, _RGB32(255, 220, 120)
+END SUB

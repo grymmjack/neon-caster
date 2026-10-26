@@ -20,10 +20,29 @@
     frameGap! = TIMER - frameAt! : IF frameGap! < 0 THEN frameGap! = frameGap! + 86400
     IF frameAt! <> 0 AND frameGap! > 0.5 THEN levelStart! = levelStart! + frameGap! - 1 / 60
     frameAt! = TIMER
-    IF NOT editMode THEN lvFrame = lvFrame + 1 ' (the sector's clock in frames: a trigger's "time", and a demo's)
+    ' F10: PHOTO MODE on and off (GAME/PHOTO.BM) - the game frozen, its clocks too
+    IF _KEYDOWN(17408) AND NOT photoKeyWas AND NOT edTyping THEN PhotoSet NOT photoOn
+    photoKeyWas = _KEYDOWN(17408)
+    IF photoOn AND frameAt! <> 0 AND frameGap! <= 0.5 THEN levelStart! = levelStart! + frameGap! ' (the sector clock waits too - a longer frame it skips already, above)
+    IF NOT editMode AND NOT photoOn THEN lvFrame = lvFrame + 1 ' (the sector's clock in frames: a trigger's "time", and a demo's)
     IF dead THEN deadTicks = deadTicks + 1 ELSE deadTicks = 0
     IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
-    gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) ' (the editor's grid this frame: chapter 21)
+    gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) : gridA = edGridAlpha ' (the editor's grid this frame: chapter 21)
+    ' THE GRID IN PLAY: ' shows or hides it, ; makes it weaker and : stronger
+    ' (Shift+;) - the editor's grid, over the world while you play: where
+    ' each cell starts, to see where things are
+    gridKey = 0 : IF NOT editMode AND NOT edTyping THEN IF _KEYDOWN(39) THEN gridKey = 1 ELSE IF _KEYDOWN(58) THEN gridKey = 3 ELSE IF _KEYDOWN(59) THEN gridKey = 2
+    IF gridKey <> 0 AND gridKey <> gridKeyWas THEN
+        SELECT CASE gridKey
+            CASE 1 : setting(SET_GRID) = 1 - setting(SET_GRID)
+            CASE 2 : setting(SET_GRID) = 1 : setting(SET_GRIDA) = MaxOf(setMin(SET_GRIDA), setting(SET_GRIDA) - setStep(SET_GRIDA))
+            CASE 3 : setting(SET_GRID) = 1 : setting(SET_GRIDA) = MinOf(setMax(SET_GRIDA), setting(SET_GRIDA) + setStep(SET_GRIDA))
+        END SELECT
+        IF setting(SET_GRID) THEN ShowMsg "Grid " + LTRIM$(STR$(setting(SET_GRIDA))) + "%   ( ' off   ; weaker   : stronger )" ELSE ShowMsg "Grid off"
+        SaveSettings
+    END IF
+    gridKeyWas = gridKey
+    IF NOT editMode AND setting(SET_GRID) THEN gridOn = -1 : gridA = setting(SET_GRIDA) * 255 \ 100
     SpeechFrame ' (NEXUS: what it says, when - chapter 19)
     DemoPlayFrame ' (a demo playing: . next, , previous, / at random, - and = its speed - and EACH's cut)
     IF plGoWant THEN plGoWant = 0 : PlGo ' (the demo playlist, or NEXT and the like: the next demo - DEMO/PLAYLIST.BM; here, where DEMO REPLAYS starts one too)
@@ -53,7 +72,7 @@
     ' exit it goes on: the next sector records too (DemoChainNext)
     altShift = (_KEYDOWN(100307) OR _KEYDOWN(100308)) AND (_KEYDOWN(100303) OR _KEYDOWN(100304))
     recKey = (_KEYDOWN(114) OR _KEYDOWN(82)) AND (_KEYDOWN(100305) OR _KEYDOWN(100306)) AND NOT edTyping
-    IF recKey AND NOT recKeyWas AND NOT editMode AND NOT hudEdit THEN
+    IF recKey AND NOT recKeyWas AND NOT editMode AND NOT hudEdit AND NOT photoOn THEN
         ' (Ctrl+Alt+Shift+R: the sector as last saved - only in an edit session: EDITOR/SESSION.BM)
         IF altShift THEN
             IF editSession AND NOT cyberOn AND NOT dead AND NOT demoPlay AND NOT demoRec THEN SectorReload
@@ -65,9 +84,12 @@
     ' F3: where you are, in numbers (DrawInfo, chapter 18) - on or off
     IF _KEYDOWN(15616) AND NOT infoKeyWas AND NOT edTyping THEN infoOn = NOT infoOn
     infoKeyWas = _KEYDOWN(15616)
+    ' F4: MATRIX VIEW - the sector in the network's look, on and off (GAME/NETWORK.BM)
+    IF _KEYDOWN(15872) AND NOT cyberLookKeyWas AND NOT edTyping AND NOT editMode AND NOT cyberOn THEN CyberLookSet NOT cyberLook
+    cyberLookKeyWas = _KEYDOWN(15872)
     ' F2: the level editor (chapter 21) - into it, at the map from above
     edKey = _KEYDOWN(15360)
-    IF edKey AND NOT edKeyWas AND NOT cyberOn AND NOT dead AND NOT edTyping THEN
+    IF edKey AND NOT edKeyWas AND NOT cyberOn AND NOT dead AND NOT edTyping AND NOT photoOn THEN
         IF editMode THEN EditLeave ELSE EditEnter
     END IF
     edKeyWas = _KEYDOWN(15360)

@@ -45,6 +45,7 @@
 '$INCLUDE:'./GAME/ALARMS.BM'
 '$INCLUDE:'./GAME/JUMPPADS.BM'
 '$INCLUDE:'./GAME/NETWORK.BM'
+'$INCLUDE:'./GAME/PHOTO.BM'
 '$INCLUDE:'./GAME/ARCADE.BM'
 '$INCLUDE:'./GAME/NEXUS.BM'
 
@@ -68,6 +69,7 @@
 
 ' GL --------------------------------------------------------------------------
 '$INCLUDE:'./GL/OPENGL.BM'
+'$INCLUDE:'./GL/TEXTART.BM'
 '$INCLUDE:'./GL/EXTRAS.BM'
 
 ' MENU ------------------------------------------------------------------------

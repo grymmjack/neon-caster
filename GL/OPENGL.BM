@@ -320,7 +320,7 @@ SUB GLWorldGPU(b, mirror)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
     IF glShaderOn THEN GLFlashUni b, mirror ' (the flashlight's beam - GAME/FLASHLIGHT.BM)
-    IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror AND glGlassMir = 0 THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
+    IF glShaderOn THEN IF gridOn AND NOT mirror AND glGlassMir = 0 THEN GLSL_uniform_1f glWorldProg, "gridAmt", gridA / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0 ' (the editor's grid, or the grid in play: chapter 7)
     glCellLitMode = 1
     GLSL_buffer_bind glMeshBuf
     n& = glMeshN
@@ -499,7 +499,7 @@ SUB GLWorld(b, mirror)
     GLShaderStart b
     IF glShaderOn THEN GLSL_uniform_1f glWorldProg, "mirrorCut", -mirror ' (1 in the mirror: nothing from below the floor)
     IF glShaderOn THEN GLFlashUni b, mirror ' (the flashlight's beam - GAME/FLASHLIGHT.BM)
-    IF glShaderOn THEN IF editMode AND edGrid AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", edGridAlpha / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
+    IF glShaderOn THEN IF gridOn AND NOT mirror THEN GLSL_uniform_1f glWorldProg, "gridAmt", gridA / 255 ELSE GLSL_uniform_1f glWorldProg, "gridAmt", 0
 
     ' Floors, then ceilings (one at a time, so neighbours mostly share a
     ' texture - changing texture means stopping and starting again). Over
@@ -1386,7 +1386,7 @@ END FUNCTION
 '               on a tube's glass - and into the dark between the lines
 ' and the HUD goes in between, so a CRT curves it too.
 SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
-    DIM g, i, k ' (its own: the main program shares these names)
+    DIM g, i, k, j, c~& ' (its own: the main program shares these names)
     aw = GLSL_target_width&(glTargA) : ah = GLSL_target_height&(glTargA)
     bloomOn = (glSet(SET_BLOOM, b) <> 0) AND glBrightProg <> 0 AND glBlurProg <> 0 ' (TRUE is -1; a setting's "on" is 1)
     _glEnable _GL_TEXTURE_2D : _glDisable _GL_BLEND : _glColor4f 1, 1, 1, 1
@@ -1461,6 +1461,51 @@ SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
         GLSL_texture_unit 4 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
         GLSL_texture_unit 0
     END IF
+    ' TEXT ART: its characters (sent the first time - TextArtFont made them), unit 5
+    IF glSet(SET_ASCII, b) > 0 AND taTex = 0 AND taMade THEN
+        _glGenTextures 1, _OFFSET(taTex) : _glBindTexture _GL_TEXTURE_2D, taTex
+        _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST : _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
+        _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_S, _GL_CLAMP : _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_T, _GL_CLAMP
+        _glTexParameteri _GL_TEXTURE_2D, GL_GENERATE_MIPMAP, _GL_FALSE
+        _glTexImage2D _GL_TEXTURE_2D, 0, _GL_RGBA, TA_W, TA_H, 0, _GL_BGRA_EXT, _GL_UNSIGNED_BYTE, _OFFSET(taPix(0))
+    END IF
+    GLSL_texture_unit 5 : IF taTex THEN _glBindTexture _GL_TEXTURE_2D, taTex ELSE _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
+    GLSL_texture_unit 0 : _glBindTexture _GL_TEXTURE_2D, GLSL_target_texture~&(glTargScene)
+    GLSL_uniform_1i p~&, "asciiTex", 5 : GLSL_uniform_1i p~&, "macTex", 5 ' (MAC's own, unit 6, only while it's on: TaMacPass)
+    i = glSet(SET_ASCII, b) : IF taTex = 0 OR i < 1 OR i > TA_RETRO THEN i = 0
+    IF i = TA_RETRO AND retroN = 0 THEN i = 0 ' (no palette yet)
+    GLSL_uniform_1i p~&, "retroPal", 5 ' (RETRO's own, unit 7, only while it's on)
+    GLSL_uniform_1f p~&, "asciiMode", i : GLSL_uniform_1f p~&, "asciiStrict", glSet(SET_ASCIIRULE, b) * -(i > 0) : GLSL_uniform_1f p~&, "asciiBlock", glSet(SET_TABLOCK, b)
+    IF i THEN
+        k = TextArtCol(i, glSet(SET_ASCIICOL, b))
+        GLSL_uniform_1f p~&, "asciiCol", k : GLSL_uniform_1f p~&, "asciiPx", glSet(SET_ASCIISIZE, b) * (GLSL_frameH / 600)
+        j = -(glSet(SET_TA9, b) <> 0 AND (i = TA_ANSI OR i = TA_ASCII)) : GLSL_uniform_1f p~&, "asciiNine", j ' (VGA's 9 x 16 cell)
+        GLSL_uniform_1f p~&, "asciiAsp", TextArtAspect!(i) * (1 + j / 8) : IF i <= TA_SETS THEN GLSL_uniform_1f p~&, "asciiN", taCount(i)
+        IF i = TA_PETSCII THEN GLSL_uniform_1f p~&, "asciiGH", 8 ELSE GLSL_uniform_1f p~&, "asciiGH", 16
+        IF k = TC_DOS OR k = TC_C64 THEN ' (the palette)
+            FOR j = 0 TO 15
+                c~& = taPal(k - TC_DOS, j)
+                GLSL_uniform_3f p~&, "taPalU[" + LTRIM$(STR$(j)) + "]", _RED32(c~&) / 255, _GREEN32(c~&) / 255, _BLUE32(c~&) / 255
+            NEXT
+        END IF
+        IF i = TA_MAC THEN TaMacPass p~&, glSet(SET_ASCIISIZE, b), vw, vh ' (MAC: the view small, read back, dithered to 1 bit - unit 6)
+        IF i = TA_RETRO THEN ' (RETRO: its palette, 256 x 1 on unit 7 - sent again only when it's another)
+            IF retroTex = 0 THEN _glGenTextures 1, _OFFSET(retroTex) : retroSent = -1
+            GLSL_texture_unit 7 : _glBindTexture _GL_TEXTURE_2D, retroTex
+            IF retroSent <> retroVer THEN
+                _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST : _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
+                _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_S, _GL_CLAMP : _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_WRAP_T, _GL_CLAMP
+                _glTexParameteri _GL_TEXTURE_2D, GL_GENERATE_MIPMAP, _GL_FALSE
+                _glTexImage2D _GL_TEXTURE_2D, 0, _GL_RGBA, 256, 1, 0, _GL_BGRA_EXT, _GL_UNSIGNED_BYTE, _OFFSET(retroPal(0))
+                retroSent = retroVer
+            END IF
+            GLSL_texture_unit 0
+            GLSL_uniform_1i p~&, "retroPal", 7 : GLSL_uniform_1f p~&, "retroN", retroN
+            GLSL_uniform_2f p~&, "retroPx", glSet(SET_RETROW, b) * (GLSL_frameH / 600), glSet(SET_RETROH, b) * (GLSL_frameH / 600)
+            GLSL_uniform_1f p~&, "retroDith", glSet(SET_RETRODITH, b) : GLSL_uniform_1f p~&, "retroAmt", glSet(SET_RETROAMT, b)
+            GLSL_uniform_3f p~&, "retroRamp", -retroRamp, retroLo, retroHi
+        END IF
+    END IF
     GLSL_uniform_1f p~&, "passMode", 0
     _glViewport vx, vy, vw, vh
     GLSL_uniform_2f p~&, "res", vw, vh
@@ -1474,6 +1519,9 @@ SUB GLPostProcess(b, vx, vy, vw, vh, sw, sh, hx, hy, hw, hh)
     NEXT
     GLSL_fullscreen 0
     GLSL_use 0
+    GLSL_texture_unit 7 : _glBindTexture _GL_TEXTURE_2D, 0
+    GLSL_texture_unit 6 : _glBindTexture _GL_TEXTURE_2D, 0
+    GLSL_texture_unit 5 : _glBindTexture _GL_TEXTURE_2D, 0
     GLSL_texture_unit 4 : _glBindTexture _GL_TEXTURE_2D, 0
     GLSL_texture_unit 3 : _glBindTexture _GL_TEXTURE_2D, 0
     GLSL_texture_unit 2 : _glBindTexture _GL_TEXTURE_2D, 0
@@ -1573,14 +1621,15 @@ END SUB
 ' made from its brightness - and how it shines, mirrors, glows and moves.
 ' A face slot the sector doesn't use (texUsed) isn't sent
 SUB GLSendSlot(slot)
-    DIM d, lk, x, y, fx$ ' (its own: the main program shares these names)
+    DIM d, lk, x AS LONG, y AS LONG, row AS LONG, col AS _UNSIGNED LONG, h AS _UNSIGNED LONG, fx$ ' (its own: the main program shares these names)
     IF slot > T_CUSTOM AND slot <= T_CUSTOM + T_CUSTOMN THEN IF NOT texUsed(slot - T_CUSTOM) OR texFile$(slot) = "" THEN EXIT SUB
-    FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1
-        col~& = texture(x, y, slot)
-        height = (((col~& \ 65536) AND 255) * 0.3 + ((col~& \ 256) AND 255) * 0.59 + (col~& AND 255) * 0.11)
-        glUpload(y * texSize + x) = (col~& AND &HFFFFFF) OR _SHL(INT(height) AND 255, 24)
+    FOR y = 0 TO texSize - 1 : row = y * texSize ' (whole numbers throughout: a MODERN picture is 262,144 pixels)
+        FOR x = 0 TO texSize - 1
+            col = texture(x, y, slot)
+            h = (_SHR(col, 16) AND 255) * 30 + (_SHR(col, 8) AND 255) * 59 + (col AND 255) * 11 ' (its brightness, 100 times over)
+            glUpload(row + x) = (col AND &HFFFFFF) OR _SHL(h \ 100, 24)
     NEXT : NEXT
-    GLSendPicture glTexName(slot), texSize, _OFFSET(glUpload(0)), -1, texHD(slot) AND NOT cyberOn
+    GLSendPicture glTexName(slot), texSize, _OFFSET(glUpload(0)), -1, texHD(slot) AND NOT (cyberOn OR cyberLook)
     n$ = texName$(slot)
     glTexShine(slot) = 0.2 : glTexReflect(slot) = 0 : glTexNeon(slot) = 1 : glTexAnim(slot) = 0
     IF slot >= T_DOOR AND slot <= T_SPLIT THEN glTexShine(slot) = 0.6
@@ -1649,10 +1698,6 @@ SUB GLSendDirty
     NEXT
 END SUB
 
-' One square picture, size pixels across, from memory at pixelsAt. Pixel
-' art: nearest pixel (no smoothing); a MODERN painting (smooth): smoothed,
-' with mipmaps. And "clamp" (wrap off): a texture coordinate of 1 is the
-' last pixel, not the first one again.
 ' Panes' own pictures (GlassMark) redrawn since OpenGL last had them: those
 SUB GLSendGlassHits
     DIM i, slot ' (its own: the main program shares these names)
@@ -1664,6 +1709,10 @@ SUB GLSendGlassHits
     NEXT
 END SUB
 
+' One square picture, size pixels across, from memory at pixelsAt. Pixel
+' art: nearest pixel (no smoothing); a MODERN painting (smooth): smoothed,
+' with mipmaps. And "clamp" (wrap off): a texture coordinate of 1 is the
+' last pixel, not the first one again.
 SUB GLSendPicture(texName AS _UNSIGNED LONG, size, pixelsAt AS _OFFSET, wrap, smooth)
     _glBindTexture _GL_TEXTURE_2D, texName
     IF smooth THEN ' A MODERN painting: smooth, with smaller copies for far away (mipmaps), not pixels
@@ -2775,6 +2824,14 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform float gamma;  // BRIGHTNESS: the view's colours to this power (1.0: as they are)" + nl$
     fs$ = fs$ + "uniform float night;  // night vision on: the view in green, the dark lifted, grain, the edges dim" + nl$
     fs$ = fs$ + "uniform sampler2D glowTex;" + nl$
+    fs$ = fs$ + "uniform sampler2D asciiTex;  // TEXT ART: every set's characters, and what each is (GL/TEXTART.BI)" + nl$
+    fs$ = fs$ + "uniform float asciiNine;  // TEXT ART's VGA cells: 9 dots wide, the 9th blank but for the line-drawing characters (the blocks), which repeat their 8th" + nl$
+    fs$ = fs$ + "uniform float asciiMode, asciiCol, asciiPx, asciiAsp, asciiGH, asciiN;  // ...the set (0 off), its colours (TC_), a cell's height in pixels, width for height, a character's height in the picture, how many" + nl$
+    fs$ = fs$ + "uniform vec3 taPalU[16];  // ...EGA's or the C64's colours" + nl$
+    fs$ = fs$ + "uniform float asciiBlock;  // ...BLOCKSHADE: no shapes - full blocks, shaded only where one colour turns into the next" + nl$
+    fs$ = fs$ + "uniform float asciiStrict;  // ...AUTHENTIC: only the palette's colours on screen, paper as the machine had it" + nl$
+    fs$ = fs$ + "uniform sampler2D retroPal; uniform float retroN, retroDith, retroAmt; uniform vec2 retroPx; uniform vec3 retroRamp;  // ...RETRO's palette (256 x 1, retroN of them), its dither (0 none, 1-3 Bayer 2 4 8, 4 noise) and how much, a pixel's size on screen" + nl$
+    fs$ = fs$ + "uniform sampler2D macTex;  // ...MAC's picture: 1 bit, Atkinson's dither (TaMacPass)" + nl$
     fs$ = fs$ + "uniform vec2 res;         // the window's size in pixels" + nl$
     fs$ = fs$ + "uniform vec4 heat[4];     // explosions: where (0..1), how big, how strong" + nl$
     fs$ = fs$ + "varying vec2 uv;" + nl$
@@ -2791,10 +2848,149 @@ SUB GLBuildShaders
     fs$ = fs$ + "    if (hudOn > 0.5 && inside(ht) > 0.5) { vec4 h = texture2D(hud, ht); c = h.rgb + c * (1.0 - h.a); }" + nl$
     fs$ = fs$ + "    return c;" + nl$
     fs$ = fs$ + "}" + nl$
+    fs$ = fs$ + "vec3 asciiSrc(vec2 q) {  // ASCII ART: the view at q - scene, bloom, BRIGHTNESS, and the gun in its light" + nl$
+    fs$ = fs$ + "    vec3 c = texture2D(scene, q).rgb + texture2D(bloom, q).rgb * bloomAmt;" + nl$
+    fs$ = fs$ + "    c = pow(clamp(c, 0.0, 1.0), vec3(gamma));" + nl$
+    fs$ = fs$ + "    if (gunOn > 0.5) {" + nl$
+    fs$ = fs$ + "        vec2 g = (onHud(q) - gunRect.xy) / (gunRect.zw - gunRect.xy); vec4 k = texture2D(gun, g);" + nl$
+    fs$ = fs$ + "        if (g.x >= 0.0 && g.x <= 1.0 && g.y >= 0.0 && g.y <= 1.0) c = k.rgb * gunLight + c * (1.0 - k.a);" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    return c;" + nl$
+    fs$ = fs$ + "}" + nl$
+    fs$ = fs$ + "float taLum(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }" + nl$
+    fs$ = fs$ + "float taHash(vec2 v) { return fract(sin(dot(v, vec2(12.9898, 78.233))) * 43758.5453); }" + nl$
+    fs$ = fs$ + "vec4 taInfo(float g, float r) { return texture2D(asciiTex, vec2((g * 8.0 + 4.0) / 256.0, (r + 0.5) / 128.0)); }  // a pixel row under the characters: character g's quarters (r 64+), or its use (r 68+)" + nl$
+    fs$ = fs$ + "vec3 taNear(vec3 c) { vec3 b = taPalU[0]; float e = 99.0; for (int i = 0; i < 16; i++) { vec3 d = c - taPalU[i]; float k = dot(d, d); if (k < e) { e = k; b = taPalU[i]; } } return b; }  // the palette's nearest" + nl$
+    fs$ = fs$ + "vec3 taNear8(vec3 c) { vec3 b = taPalU[0]; float e = 99.0; for (int i = 0; i < 8; i++) { vec3 d = c - taPalU[i]; float k = dot(d, d); if (k < e) { e = k; b = taPalU[i]; } } return b; }  // ...of its first 8 (EGA's dark ones: DOS text mode's paper)" + nl$
+    fs$ = fs$ + "vec3 taPaper(vec3 c) { if (asciiStrict < 0.5) return taNear(c); if (asciiMode > 2.5) return taPalU[0]; return taNear8(c); }  // paper: any colour, or as the machine had it - PETSCII one for the screen, ANSI and ASCII EGA's 8 dark" + nl$
+    fs$ = fs$ + "vec3 taLift(vec3 c) { return clamp(pow(c, vec3(0.8)) * 1.15, 0.0, 1.0); }  // (a little brighter: characters are mostly paper)" + nl$
+    fs$ = fs$ + "vec3 taPrep(vec3 c) { float l = taLum(c); return clamp(pow(max(vec3(l) + (c - l) * 1.9, 0.0), vec3(0.8)) * 1.2, 0.0, 1.0); }  // (for a palette: brighter and much more colourful - its colours are strong, the view's dim purples would all be grey)" + nl$
+    fs$ = fs$ + "vec3 taTone(float md) { return md < 2.5 ? vec3(0.3, 1.0, 0.4) : (md < 3.5 ? vec3(1.0, 0.68, 0.18) : vec3(0.92)); }  // a terminal's green, amber, white" + nl$
+    fs$ = fs$ + "vec3 taTint(vec3 c, float md) {  // ink in the style's colours: 1 its own (at full strength - the character says how bright), 2-4 a terminal's" + nl$
+    fs$ = fs$ + "    float l = taLum(c);" + nl$
+    fs$ = fs$ + "    if (md < 1.5) return clamp(c / max(max(c.r, max(c.g, c.b)), 0.04) * (0.5 + 0.8 * sqrt(l)), 0.0, 1.0);" + nl$
+    fs$ = fs$ + "    return taTone(md) * (0.55 + 0.6 * sqrt(l));" + nl$
+    fs$ = fs$ + "}" + nl$
+    fs$ = fs$ + "float taRamp(float t, float r) {  // the step of the ramp nearest t full" + nl$
+    fs$ = fs$ + "    float g = 0.0; float e = 9.0;" + nl$
+    fs$ = fs$ + "    for (int i = 0; i < 32; i++) { if (float(i) >= asciiN) break; vec4 u = taInfo(float(i), r + 68.0); if (u.r > 0.5) { float k = abs(u.b - t); if (k < e) { e = k; g = float(i); } } }" + nl$
+    fs$ = fs$ + "    return g;" + nl$
+    fs$ = fs$ + "}" + nl$
+    fs$ = fs$ + "float taE(vec3 a, vec3 b) { vec3 d = a - b; return dot(d, d); }" + nl$
+    fs$ = fs$ + "vec3 taQ(vec2 c, vec2 o) { vec2 h = o * 0.5; return (asciiSrc(c + vec2(-h.x, h.y)) + asciiSrc(c + h) + asciiSrc(c - h) + asciiSrc(c + vec2(h.x, -h.y))) * 0.25; }  // a quarter of a cell: four looks at it, averaged (one pixel was a speckle on a busy wall)" + nl$
+    fs$ = fs$ + "void taAnsi(vec3 c0, vec3 c1, vec3 c2, vec3 c3, float sp, out float g, out vec3 fg, out vec3 bg) {  // ANSI in its palette, as an ANSI artist would: of a full block, the four half blocks and the three shades, each with its best ink and paper, the one nearest the cell's four quarters" + nl$
+    fs$ = fs$ + "    vec3 m = (c0 + c1 + c2 + c3) * 0.25; vec3 pm = taPaper(m);" + nl$
+    fs$ = fs$ + "    vec3 f = taNear(m); float be = taE(c0, f) + taE(c1, f) + taE(c2, f) + taE(c3, f); g = 4.0; fg = f; bg = pm;  // a full block" + nl$
+    fs$ = fs$ + "    float e = taE(c0, pm) + taE(c1, pm) + taE(c2, pm) + taE(c3, pm); if (e < be) { be = e; g = 0.0; fg = pm; bg = pm; }  // (or the paper alone)" + nl$
+    fs$ = fs$ + "    for (int h = 0; h < 4; h++) {  // the half blocks: 223 top, 220 bottom, 221 left, 222 right - ink one half, paper the other" + nl$
+    fs$ = fs$ + "        vec3 a0 = c0, a1 = c1, b0 = c2, b1 = c3;" + nl$
+    fs$ = fs$ + "        if (h == 1) { a0 = c2; a1 = c3; b0 = c0; b1 = c1; } else if (h == 2) { a0 = c0; a1 = c2; b0 = c1; b1 = c3; } else if (h == 3) { a0 = c1; a1 = c3; b0 = c0; b1 = c2; }" + nl$
+    fs$ = fs$ + "        vec3 fi = taNear((a0 + a1) * 0.5), pa = taPaper((b0 + b1) * 0.5);" + nl$
+    fs$ = fs$ + "        e = taE(a0, fi) + taE(a1, fi) + taE(b0, pa) + taE(b1, pa); if (e < be) { be = e; g = 5.0 + float(h); fg = fi; bg = pa; }" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    float V = taE(c0, m) + taE(c1, m) + taE(c2, m) + taE(c3, m); float np = asciiStrict > 0.5 ? 8.0 : 16.0;  // (a flat colour's error is 4 x its distance from the middle, plus the cell's own spread)" + nl$
+    fs$ = fs$ + "    for (int j = 0; j < 16; j++) { if (float(j) >= np) break; vec3 pp = taPalU[j];  // the shades - F1 F2 F3, 25 50 75 % ink - on every paper the rules allow: grey on black, black on grey..." + nl$
+    fs$ = fs$ + "        for (int i = 0; i < 16; i++) { if (i == j) continue; for (int t = 1; t < 4; t++) {" + nl$
+    fs$ = fs$ + "            vec3 k = mix(pp, taPalU[i], float(t) * 0.25); e = 4.0 * taE(m, k) + V + sp;" + nl$
+    fs$ = fs$ + "            if (e < be) { be = e; g = float(t); fg = taPalU[i]; bg = pp; }" + nl$
+    fs$ = fs$ + "        } }" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "}" + nl$
+    fs$ = fs$ + "float taBayer(vec2 c, float lv) {  // Bayer's ordered threshold, 2 x 2 (lv 1), 4 x 4, 8 x 8: the lowest bits of where count the most" + nl$
+    fs$ = fs$ + "    float v = 0.0;" + nl$
+    fs$ = fs$ + "    for (int i = 0; i < 3; i++) { if (float(i) >= lv) break; vec2 b = mod(floor(c / exp2(float(i))), 2.0); v += (2.0 * abs(b.x - b.y) + b.y) * exp2(2.0 * (lv - 1.0 - float(i))); }" + nl$
+    fs$ = fs$ + "    return (v + 0.5) / exp2(2.0 * lv);" + nl$
+    fs$ = fs$ + "}" + nl$
+    fs$ = fs$ + "vec3 retro(vec2 p) {  // RETRO: the view in big pixels, each the palette's nearest colour - dithered first, by Bayer's pattern or noise" + nl$
+    fs$ = fs$ + "    vec2 ci = floor(p * res / retroPx); vec2 cc = (ci + 0.5) * retroPx / res; vec2 o = retroPx * 0.25 / res;" + nl$
+    fs$ = fs$ + "    vec3 a0 = (asciiSrc(cc + vec2(-o.x, o.y)) + asciiSrc(cc + o) + asciiSrc(cc - o) + asciiSrc(cc + vec2(o.x, -o.y))) * 0.25;  // (four looks at the pixel, averaged)" + nl$
+    fs$ = fs$ + "    float d = retroDith > 3.5 ? taHash(ci) : (retroDith > 0.5 ? taBayer(ci, retroDith) : 0.5);" + nl$
+    fs$ = fs$ + "    vec3 best = vec3(0.0); float e = 99.0;" + nl$
+    fs$ = fs$ + "    if (retroRamp.x > 0.5) {  // one hue (a Game Boy's, 1 bit): by brightness, stretched over the palette's own darkest to brightest" + nl$
+    fs$ = fs$ + "        float l = mix(retroRamp.y, retroRamp.z, clamp(pow(taLum(a0), 0.7) * 1.3, 0.0, 1.0));" + nl$
+    fs$ = fs$ + "        l += (d - 0.5) * retroAmt * 0.01 * (retroRamp.z - retroRamp.y) / max(retroN - 1.0, 1.0);  // (at 100: a step's width - a smooth ramp of patterns)" + nl$
+    fs$ = fs$ + "        for (int i = 0; i < 256; i++) { if (float(i) >= retroN) break; vec3 q = texture2D(retroPal, vec2((float(i) + 0.5) / 256.0, 0.5)).rgb; float k = abs(l - taLum(q)); if (k < e) { e = k; best = q; } }" + nl$
+    fs$ = fs$ + "        return best;" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    vec3 a = taPrep(a0);  // (brighter and more colourful, as for ANSI)" + nl$
+    fs$ = fs$ + "    a += (d - 0.5) * retroAmt * 0.01 * (retroN <= 4.0 ? 0.9 : (retroN <= 16.0 ? 0.5 : 0.25));  // (the dither: fewer colours, further apart - a wider nudge)" + nl$
+    fs$ = fs$ + "    for (int i = 0; i < 256; i++) { if (float(i) >= retroN) break; vec3 q = texture2D(retroPal, vec2((float(i) + 0.5) / 256.0, 0.5)).rgb; vec3 dd = a - q; float k = dot(dd, dd); if (k < e) { e = k; best = q; } }" + nl$
+    fs$ = fs$ + "    return best;" + nl$
+    fs$ = fs$ + "}" + nl$
+    fs$ = fs$ + "vec3 ascii(vec2 p) {  // TEXT ART: the screen in cells, a character each" + nl$
+    fs$ = fs$ + "    vec2 cell = vec2(asciiPx * asciiAsp, asciiPx);" + nl$
+    fs$ = fs$ + "    vec2 px = p * res; vec2 ci = floor(px / cell); vec2 f = fract(px / cell);" + nl$
+    fs$ = fs$ + "    vec2 m = (ci + 0.5) * cell / res; vec2 o = cell * 0.25 / res;  // the cell's middle; its quarters' middles are o from it" + nl$
+    fs$ = fs$ + "    vec3 q0 = taQ(m + vec2(-o.x, o.y), o), q1 = taQ(m + o, o), q2 = taQ(m - o, o), q3 = taQ(m + vec2(o.x, -o.y), o);  // top left, top right, bottom left, bottom right" + nl$
+    fs$ = fs$ + "    vec3 a = (q0 + q1 + q2 + q3) * 0.25;" + nl$
+    fs$ = fs$ + "    float l = clamp(taLum(a), 0.0, 1.0);" + nl$
+    fs$ = fs$ + "    float r = asciiMode - 1.0;  // the set's rows" + nl$
+    fs$ = fs$ + "    float md = night > 0.5 ? 2.0 : asciiCol;  // (NIGHT VISION: green, whatever the colours)" + nl$
+    fs$ = fs$ + "    bool pal = md > 4.5 && md < 6.5;" + nl$
+    fs$ = fs$ + "    float g = 0.0; vec3 fg = vec3(0.0), bg = vec3(0.0);" + nl$
+    fs$ = fs$ + "    if (pal && abs(asciiMode - 2.0) < 0.5) {  // ANSI in EGA's or the C64's colours: the solver" + nl$
+    fs$ = fs$ + "        vec2 dx = vec2(cell.x / res.x, 0.0), dy = vec2(0.0, cell.y / res.y);" + nl$
+    fs$ = fs$ + "        vec3 mc = taPrep(a), nl = taPrep(taQ(m - dx, o)), nr = taPrep(taQ(m + dx, o)), nd = taPrep(taQ(m - dy, o)), nu = taPrep(taQ(m + dy, o));  // this cell and the four round it" + nl$
+    fs$ = fs$ + "        float gr = (length(nr - nl) + length(nu - nd)) * 0.5;  // how much the colour changes across them" + nl$
+    fs$ = fs$ + "        float cv = (length(mc - (nl + nr) * 0.5) + length(mc - (nu + nd) * 0.5)) * 0.5;  // and how unevenly: a gradient runs straight through the cell (little), a busy texture or a speck doesn't" + nl$
+    fs$ = fs$ + "        float gw = smoothstep(0.05, 0.3, gr) * (1.0 - smoothstep(0.04, 0.14, cv));  // (1: a gradient - where a shade belongs)" + nl$
+    fs$ = fs$ + "        float sp = asciiBlock > 0.5 ? mix(0.22, 0.0, gw) : mix(0.1, -0.04, gw);  // a shade's handicap: kept out of flat colour and busy texture (BLOCKSHADE: firmly), welcome in a gradient - a hard edge still goes to a half block" + nl$
+
+    fs$ = fs$ + "        taAnsi(taPrep(q0), taPrep(q1), taPrep(q2), taPrep(q3), sp, g, fg, bg);" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    else if (asciiMode > 3.5) {  // MATRIX: columns of falling code, each its own speed and length - the view shows through in how bright" + nl$
+    fs$ = fs$ + "        float rows = floor(res.y / cell.y) + 1.0; float top = rows - 1.0 - ci.y;" + nl$
+    fs$ = fs$ + "        float h1 = taHash(vec2(ci.x, 7.0)), h2 = taHash(vec2(ci.x, 13.0));" + nl$
+    fs$ = fs$ + "        float len = rows * (0.4 + 0.7 * h2); float d = mod(secs * (5.0 + 12.0 * h1) + h2 * 97.0, rows + len) - top;" + nl$
+    fs$ = fs$ + "        float tr = (d >= 0.0 && d < len) ? 1.0 - d / len : 0.0;  // in a falling trail: 1 at its head, fading behind" + nl$
+    fs$ = fs$ + "        g = floor(taHash(ci + floor(secs * (0.7 + 4.0 * taHash(ci * 1.37)))) * asciiN);  // a character that changes now and then" + nl$
+    fs$ = fs$ + "        float b = clamp(pow(l, 0.6) * 1.3, 0.0, 1.0) * (0.3 + 0.7 * tr) + 0.3 * tr * tr;  // (the view shows through; a trail glows even in the dark)" + nl$
+    fs$ = fs$ + "        if (md > 6.5) fg = vec3(0.15, 1.0, 0.3) * b;" + nl$
+    fs$ = fs$ + "        else if (pal) fg = taNear(taPrep(a) * (0.3 + 0.7 * tr) + vec3(0.25 * tr * tr));" + nl$
+    fs$ = fs$ + "        else if (md < 1.5) fg = clamp(a / max(max(a.r, max(a.g, a.b)), 0.04), 0.0, 1.0) * b;" + nl$
+    fs$ = fs$ + "        else fg = taTone(md) * b;" + nl$
+    fs$ = fs$ + "        if (d >= 0.0 && d < 1.0 && !pal) fg = mix(fg, vec3(0.85, 1.0, 0.9), 0.7);  // (the head: white)" + nl$
+    fs$ = fs$ + "    } else {" + nl$
+    fs$ = fs$ + "        vec4 L = vec4(taLum(q0), taLum(q1), taLum(q2), taLum(q3));" + nl$
+    fs$ = fs$ + "        float lo = min(min(L.x, L.y), min(L.z, L.w)), hi = max(max(L.x, L.y), max(L.z, L.w));" + nl$
+    fs$ = fs$ + "        float best = 99.0; float gs = -1.0;" + nl$
+    fs$ = fs$ + "        if (hi - lo > 0.08) {  // an edge across the cell: the shape it is, if the set has one near enough (BLOCKSHADE: only a half block)" + nl$
+    fs$ = fs$ + "            vec4 n = (L - lo) / (hi - lo);" + nl$
+    fs$ = fs$ + "            vec4 du = n - vec4(dot(n, vec4(0.25))); float eu = dot(du, du);" + nl$
+    fs$ = fs$ + "            for (int i = 0; i < 32; i++) { if (float(i) >= asciiN) break; if (taInfo(float(i), r + 68.0).g > 0.5) { vec4 sq = taInfo(float(i), r + 64.0); if (asciiBlock > 0.5 && (abs(dot(sq, vec4(1.0)) - 2.0) > 0.6 || max(max(sq.x + sq.y, sq.z + sq.w), max(sq.x + sq.z, sq.y + sq.w)) < 1.7)) continue; vec4 dq = n - sq; float e = dot(dq, dq); if (e < best) { best = e; gs = float(i); } } }" + nl$
+    fs$ = fs$ + "            if (best > eu * 0.5) gs = -1.0;" + nl$
+    fs$ = fs$ + "        }" + nl$
+    fs$ = fs$ + "        if (gs >= 0.0) {  // its ink the inked quarters' colour, its paper the rest's" + nl$
+    fs$ = fs$ + "            g = gs; vec4 s = taInfo(g, r + 64.0); float w = dot(s, vec4(1.0));" + nl$
+    fs$ = fs$ + "            fg = (q0 * s.x + q1 * s.y + q2 * s.z + q3 * s.w) / max(w, 0.01);" + nl$
+    fs$ = fs$ + "            bg = (q0 * (1.0 - s.x) + q1 * (1.0 - s.y) + q2 * (1.0 - s.z) + q3 * (1.0 - s.w)) / max(4.0 - w, 0.01);" + nl$
+    fs$ = fs$ + "            if (pal) { fg = taNear(taPrep(fg)); bg = taPaper(taPrep(bg)); }" + nl$
+    fs$ = fs$ + "            else if (md < 1.5) { fg = taLift(fg); bg = taLift(bg); }" + nl$
+    fs$ = fs$ + "            else { bg = taTone(md) * taLum(bg) * 0.9; fg = taTint(fg, md); }" + nl$
+    fs$ = fs$ + "        } else if (pal) {  // flat, in a palette: its two colours nearest, mixed by how full a character" + nl$
+    fs$ = fs$ + "            vec3 c = taPrep(a); vec3 p1 = taPaper(c), p2 = p1; float tb = 0.0; float eb = dot(c - p1, c - p1);" + nl$
+    fs$ = fs$ + "            for (int i = 0; i < 16; i++) { vec3 dd = taPalU[i] - p1; float k = dot(dd, dd); if (k > 0.0001) { float t = clamp(dot(c - p1, dd) / k, 0.0, 1.0); vec3 e3 = c - p1 - dd * t; float e = dot(e3, e3); if (e < eb) { eb = e; p2 = taPalU[i]; tb = t; } } }" + nl$
+    fs$ = fs$ + "            if (asciiBlock > 0.5) {  // BLOCKSHADE, as ANSI artists shade: a flat cell is solid, the nearer colour; a shade only where it changes across the cell" + nl$
+    fs$ = fs$ + "                if (hi - lo < 0.07) tb = tb < 0.5 ? 0.0 : 1.0; else tb = tb < 0.15 ? 0.0 : (tb > 0.85 ? 1.0 : tb);" + nl$
+    fs$ = fs$ + "            }" + nl$
+    fs$ = fs$ + "            g = taRamp(tb, r); fg = p2; bg = p1;" + nl$
+    fs$ = fs$ + "        } else {  // flat: a character as full as it is bright" + nl$
+    fs$ = fs$ + "            float tt = clamp(pow(l, 0.5) * 1.35, 0.0, 1.0);" + nl$
+    fs$ = fs$ + "            if (asciiBlock > 0.5) { if (hi - lo < 0.07) tt = tt > 0.35 ? 1.0 : 0.0; else tt = tt > 0.8 ? 1.0 : (tt < 0.12 ? 0.0 : tt); }  // (BLOCKSHADE: flat is a full block or none)" + nl$
+    fs$ = fs$ + "            g = taRamp(tt, r); fg = taTint(a, md);" + nl$
+    fs$ = fs$ + "        }" + nl$
+    fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    float gx = f.x * (8.0 + asciiNine);  // (the dot across: 0-8, or 0-9 in a VGA cell)" + nl$
+    fs$ = fs$ + "    float ink = texture2D(asciiTex, vec2((g * 8.0 + min(gx, 7.99)) / 256.0, (r * 16.0 + min((1.0 - f.y) * asciiGH, asciiGH - 0.01)) / 128.0)).a;" + nl$
+    fs$ = fs$ + "    if (gx >= 8.0 && taInfo(g, r + 68.0).a < 0.5) ink = 0.0;  // (the 9th dot: paper, but for the line-drawing characters)" + nl$
+    fs$ = fs$ + "    return mix(bg, fg, ink);" + nl$
+    fs$ = fs$ + "}" + nl$
     fs$ = fs$ + "void main() {" + nl$
+    fs$ = fs$ + "    if (passMode > 1.5) { gl_FragColor = vec4(asciiSrc(uv), 1.0); return; }  // (MAC: the view and gun, to be read back and dithered)" + nl$
     fs$ = fs$ + "    if (passMode > 0.5) { gl_FragColor = vec4(under(uv), 1.0); return; }" + nl$
     fs$ = fs$ + "    vec2 p = uv;" + nl$
-    fs$ = fs$ + "    if (fxMode > 1.5) {  // CRT: a curved glass screen" + nl$
+    fs$ = fs$ + "    bool pure = asciiMode > 0.5 && asciiStrict > 0.5;  // (TEXT ART, AUTHENTIC: no screen effects over it - only the palette's colours)" + nl$
+    fs$ = fs$ + "    if (fxMode > 1.5 && !pure) {  // CRT: a curved glass screen" + nl$
     fs$ = fs$ + "        p = curve(uv);" + nl$
     fs$ = fs$ + "        if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }" + nl$
     fs$ = fs$ + "    }" + nl$
@@ -2830,10 +3026,21 @@ SUB GLBuildShaders
     fs$ = fs$ + "        vec4 t = texture2D(gun, g);" + nl$
     fs$ = fs$ + "        if (g.x >= 0.0 && g.x <= 1.0 && g.y >= 0.0 && g.y <= 1.0) c = t.rgb * gunLight + c * (1.0 - t.a);  // (in its light)" + nl$
     fs$ = fs$ + "    }" + nl$
+    fs$ = fs$ + "    if (asciiMode > 0.5) {  // ASCII ART: the view (and the gun) in characters - the HUD still over it, as it is" + nl$
+    fs$ = fs$ + "        if (asciiMode > 5.5) c = retro(p);  // RETRO" + nl$
+    fs$ = fs$ + "        else if (asciiMode > 4.5) {  // MAC: 1 bit - black on white, a phosphor's colour on black, or white as the view's own colour" + nl$
+    fs$ = fs$ + "            float k = texture2D(macTex, p).r; float md = night > 0.5 ? 2.0 : asciiCol;" + nl$
+    fs$ = fs$ + "            if (md < 1.5) { vec3 a = asciiSrc(p); c = clamp(a / max(max(a.r, max(a.g, a.b)), 0.04), 0.0, 1.0) * k; }" + nl$
+    fs$ = fs$ + "            else if (md < 3.5) c = taTone(md) * k;" + nl$
+    fs$ = fs$ + "            else c = vec3(k);" + nl$
+    fs$ = fs$ + "        } else c = ascii(p);" + nl$
+    fs$ = fs$ + "        c *= mix(1.0 - sideDim, 1.0, onScreen);" + nl$
+    fs$ = fs$ + "        if (!pure) c = mix(c, vec3(0.75, 0.0, 0.05), hurt * edge * 0.5);  // (hurt: still red at the edges)" + nl$
+    fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    vec3 halo = vec3(0.0);  // phosphor glow: the picture, blurred" + nl$
-    fs$ = fs$ + "    if (glow > 0.001) halo = texture2D(glowTex, p).rgb;" + nl$
+    fs$ = fs$ + "    if (glow > 0.001 && !pure) halo = texture2D(glowTex, p).rgb;" + nl$
     fs$ = fs$ + "    float lit = clamp(dot(halo, vec3(0.3, 0.59, 0.11)) * 2.0, 0.0, 1.0);  // how bright it is round here" + nl$
-    fs$ = fs$ + "    if (fxMode > 0.5) {  // scanlines: a dark band lineThick of each linePx pixels, its edges a pixel soft" + nl$
+    fs$ = fs$ + "    if (fxMode > 0.5 && !pure) {  // scanlines: a dark band lineThick of each linePx pixels, its edges a pixel soft" + nl$
     fs$ = fs$ + "        float d = abs(fract(p.y * res.y / linePx) - 0.5) * linePx;  // pixels from the band's middle" + nl$
     fs$ = fs$ + "        float band = lineThick * linePx * 0.5;  // (half the band; 'half' is a word GLSL keeps for itself)" + nl$
     fs$ = fs$ + "        float give = 1.0 / max(0.55, 1.0 - scanDark * lineThick);  // the light the dark bands take, given back to the lines between - a CRT's beam is brighter than its average - so the picture isn't darker for them" + nl$
@@ -2845,7 +3052,7 @@ SUB GLBuildShaders
     fs$ = fs$ + "        vec4 h = texture2D(hud, vec2(clamp(hp.x, 1.5 / 800.0, 1.0 - 1.5 / 800.0), hp.y)); c = h.rgb + c * (1.0 - h.a);" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    c += halo * halo * glow * 1.2;  // light spreading round bright things (squared: the bright parts, not the dim)" + nl$
-    fs$ = fs$ + "    if (fxMode > 1.5) {  // CRT: a shadow mask and a dark rim" + nl$
+    fs$ = fs$ + "    if (fxMode > 1.5 && !pure) {  // CRT: a shadow mask and a dark rim" + nl$
     fs$ = fs$ + "        float m = mod(gl_FragCoord.x, 3.0);" + nl$
     fs$ = fs$ + "        c *= m < 1.0 ? vec3(1.0, 0.8, 0.8) : (m < 2.0 ? vec3(0.8, 1.0, 0.8) : vec3(0.8, 0.8, 1.0));" + nl$
     fs$ = fs$ + "        vec2 e2 = p * (1.0 - p.yx); c *= clamp(pow(e2.x * e2.y * 20.0, 0.3), 0.0, 1.0) * 1.2;" + nl$

@@ -28,6 +28,10 @@
     ' ammo, keycards and clock at its right), washes all the way across
     ' (HudAt -1, scrW wide)
     HudWideBegin
+    IF photoOn THEN ' F10's PHOTO MODE: no HUD - the hands if P says so, and a line of keys (GAME/PHOTO.BM)
+        IF photoHands AND gunY < 600 AND NOT glMode AND viewOn = 0 THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun)
+        PhotoHud
+    ELSE ' (to the screenshot's lines at the end: the whole HUD)
     FlHaze ' (the flashlight's beam in the air - GAME/FLASHLIGHT.BM)
     IF gunY < 600 AND NOT glMode AND NOT editMode AND viewOn = 0 THEN _PUTIMAGE (gunX, gunY)-(gunX + gunW - 1, gunY + gunH - 1), TintedGun&(currentGun) ' (in its light - not in the editor: nothing to shoot, and it's in the way)
     ' The kick: the boot comes up from the bottom of the screen (a little
@@ -78,7 +82,10 @@
     IF invTimer > 0 AND NOT (invTimer < 60 AND (invTimer \ 6) MOD 2 = 1) THEN ' Invulnerable: a golden glow round the edges (a hit that couldn't hurt: brighter) - blinking out its last second
         invAl = 9 + invFlash * 3 + 3 * DSin(lvFrame * 0.2)
         HudAt -1 : FOR invE = 0 TO 15 : LINE (invE, invE)-(scrW - 1 - invE, 599 - invE), _RGBA32(255, 205, 70, MaxOf(0, (16 - invE) * invAl)), B : NEXT : HudAt 1
-        MenuText 400, 70, "INVULNERABLE " + LTRIM$(STR$((invTimer + 59) \ 60)), 1.5, _RGB32(255, 215, 90), 1
+    END IF
+    IF hudShow(HE_INVULN) AND ((invTimer > 0 AND NOT (invTimer < 60 AND (invTimer \ 6) MOD 2 = 1)) OR hudEdit) THEN ' (its words: their own part of the HUD - in the HUD editor, a sample)
+        hpN = (invTimer + 59) \ 60 : IF invTimer <= 0 THEN hpN = 9
+        HudAtE HE_INVULN : MenuText hudX(HE_INVULN), hudY(HE_INVULN), hudLabel$(HE_INVULN) + " " + LTRIM$(STR$(hpN)), 1.5, HudColor~&(HE_INVULN, _RGB32(255, 215, 90)), 1 : HudAt 1
     END IF
     ' A ripper's slash: three claw marks torn across the view - drawn out
     ' fast over the first frames (the swipe), then fading
@@ -96,7 +103,7 @@
         clawFx = clawFx - 1
     END IF
     IF setting(SET_HURTDIR) THEN DrawHurtDirs playerX, playerY, dirX, dirY ' (over the red flash, so they stand out)
-    IF godMode AND hudShow(HE_GOD) THEN HudAtE HE_GOD : HudText hudX(HE_GOD), hudY(HE_GOD), hudLabel$(HE_GOD), HudColor~&(HE_GOD, _RGB32(255, 215, 30)) : HudAt 1
+    IF (godMode OR hudEdit) AND hudShow(HE_GOD) THEN HudAtE HE_GOD : HudText hudX(HE_GOD), hudY(HE_GOD), hudLabel$(HE_GOD), HudColor~&(HE_GOD, _RGB32(255, 215, 30)) : HudAt 1
     ' (FULL WIDE: the editor's parts to the window's edges - edWX)
     IF editMode AND editView = 1 THEN HudAt -1 : EditDrawFaces : HudAt 1 ' (the face under the pointer, and the ones selected, outlined - across the whole view)
     IF editMode THEN HudAt 0 : EditOverlay playerX, playerY, dirX, dirY : HudAt 1 ' (the editor: what you're aiming at, what you'll place)
@@ -120,7 +127,7 @@
     ' map: without the pickup it shows only the cells you've seen - you draw
     ' it as you explore - and with it, the whole level.
     killsY = hudY(HE_KILLS)
-    IF hasMap AND NOT mapOpen AND hudShow(HE_MINIMAP) AND viewOn <> VIEW_CAM AND (NOT editMode OR hudEdit) THEN ' (not on a camera's feed: its name and clock are there; not in the level editor - it covers its toolbar - but in the HUD layout editor)
+    IF (hasMap OR hudEdit) AND NOT mapOpen AND hudShow(HE_MINIMAP) AND viewOn <> VIEW_CAM AND (NOT editMode OR hudEdit) THEN ' (not on a camera's feed: its name and clock are there; not in the level editor - it covers its toolbar - but in the HUD layout editor)
         HudAtE HE_MINIMAP : DrawMap hudX(HE_MINIMAP), hudY(HE_MINIMAP), hudW(HE_MINIMAP), -1, playerX, playerY, dirX, dirY : HudAt 1
         ' (the kill count, if it's where the map is, goes under it)
         IF hudX(HE_KILLS) = hudX(HE_MINIMAP) AND hudY(HE_KILLS) = hudY(HE_MINIMAP) THEN killsY = hudY(HE_MINIMAP) + MinOf(mapN, 48) * hudW(HE_MINIMAP) + 6
@@ -143,7 +150,7 @@
     ' Keycards you hold, top right
     cardX = hudX(HE_CARDS) : HudAtE HE_CARDS
     FOR k = 3 TO 1 STEP - 1
-        IF hasCard(k) AND hudShow(HE_CARDS) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN cardX = cardX - hudW(HE_CARDS) - 4 : _PUTIMAGE (cardX, hudY(HE_CARDS))-STEP(hudW(HE_CARDS) - 1, hudW(HE_CARDS) - 1), cardImg&(k)
+        IF (hasCard(k) OR hudEdit) AND hudShow(HE_CARDS) AND NOT (editMode AND NOT hudEdit) AND viewOn <> VIEW_CAM THEN cardX = cardX - hudW(HE_CARDS) - 4 : _PUTIMAGE (cardX, hudY(HE_CARDS))-STEP(hudW(HE_CARDS) - 1, hudW(HE_CARDS) - 1), cardImg&(k)
     NEXT
     HudAt 1
 
@@ -162,7 +169,6 @@
     IF hudShow(HE_HEALTH) AND NOT (editMode AND NOT hudEdit) THEN
         hx = hudX(HE_HEALTH) : hy = hudY(HE_HEALTH) : bw = hudW(HE_HEALTH) : bh = hudH(HE_HEALTH) : HudAtE HE_HEALTH
         HudText hx, hy, hudLabel$(HE_HEALTH) + STR$(health), healthColor~&
-        IF poisonLeft > 0 AND (lvFrame \ 20) MOD 3 THEN HudText hx + 8 * (LEN(hudLabel$(HE_HEALTH) + STR$(health)) + 2), hy, "POISONED", _RGB32(90, 255, 80) ' (poisoned: it goes on hurting - a health pack cures it)
         IF bw > 0 THEN
             LINE (hx, hy + 18)-STEP(bw + 1, bh + 1), _RGBA32(0, 0, 0, 170), BF
             IF health > 0 THEN LINE (hx + 1, hy + 19)-STEP(MaxOf(1, MinOf(health, MAX_HP) * bw \ MAX_HP) - 1, bh - 1), healthColor~&, BF
@@ -170,22 +176,32 @@
         END IF
         HudAt 1
     END IF
-    HudAtE HE_AMP ' (the amp, night vision, the suit and the jetpack's fuel)
-    IF ampTimer > 0 AND hudShow(HE_AMP) THEN HudText hudX(HE_AMP), hudY(HE_AMP), hudLabel$(HE_AMP) + STR$(ampTimer \ 60 + 1), HudColor~&(HE_AMP, _RGB32(255, 90, 90))
-    IF nvHave AND hudShow(HE_AMP) THEN ' (night vision, beside the amp: bright while it's on)
-        IF nvOn THEN c~& = _RGB32(110, 255, 120) ELSE c~& = _RGB32(60, 130, 70)
-        HudText hudX(HE_AMP) + 136, hudY(HE_AMP), "NIGHT VISION", c~&
+    IF hudShow(HE_POISON) AND NOT (editMode AND NOT hudEdit) AND ((poisonLeft > 0 AND (lvFrame \ 20) MOD 3) OR hudEdit) THEN ' (poisoned: it goes on hurting - a health pack cures it)
+        HudAtE HE_POISON : HudText hudX(HE_POISON), hudY(HE_POISON), hudLabel$(HE_POISON), HudColor~&(HE_POISON, _RGB32(90, 255, 80)) : HudAt 1
     END IF
-    IF suitLeft > 0 AND hudShow(HE_AMP) THEN ' (the hazmat suit, under them: what's left of it, going orange then red as it wears)
-        IF suitLeft > 50 THEN c~& = _RGB32(255, 220, 40) ELSE IF suitLeft > 20 THEN c~& = _RGB32(255, 140, 30) ELSE c~& = _RGB32(255, 50, 50)
-        HudText hudX(HE_AMP) + 136, hudY(HE_AMP) + 18, "HAZMAT" + STR$(INT(suitLeft + 0.99)) + "%", c~&
+    ' The amp, night vision, the suit, the jetpack's fuel and the flashlight:
+    ' each its own part (in the HUD editor, each with a sample to colour)
+    IF NOT (editMode AND NOT hudEdit) THEN
+        IF (ampTimer > 0 OR hudEdit) AND hudShow(HE_AMP) THEN
+            hpN = ampTimer \ 60 + 1 : IF ampTimer <= 0 THEN hpN = 30
+            HudAtE HE_AMP : HudText hudX(HE_AMP), hudY(HE_AMP), hudLabel$(HE_AMP) + STR$(hpN), HudColor~&(HE_AMP, _RGB32(255, 90, 90)) : HudAt 1
+        END IF
+        IF (nvHave OR hudEdit) AND hudShow(HE_NIGHTVIS) THEN ' (bright while it's on)
+            c~& = HudColor~&(HE_NIGHTVIS, _RGB32(110, 255, 120)) : IF NOT nvOn AND NOT hudEdit THEN c~& = HudDim~&(c~&)
+            HudAtE HE_NIGHTVIS : HudText hudX(HE_NIGHTVIS), hudY(HE_NIGHTVIS), hudLabel$(HE_NIGHTVIS), c~& : HudAt 1
+        END IF
+        IF (suitLeft > 0 OR hudEdit) AND hudShow(HE_HAZMAT) THEN ' (what's left of the suit, going orange then red as it wears)
+            hpN = INT(suitLeft + 0.99) : IF suitLeft <= 0 THEN hpN = 100
+            IF hpN > 50 THEN c~& = HudColor~&(HE_HAZMAT, _RGB32(255, 220, 40)) ELSE IF hpN > 20 THEN c~& = _RGB32(255, 140, 30) ELSE c~& = _RGB32(255, 50, 50)
+            HudAtE HE_HAZMAT : HudText hudX(HE_HAZMAT), hudY(HE_HAZMAT), hudLabel$(HE_HAZMAT) + STR$(hpN) + "%", c~& : HudAt 1
+        END IF
+        IF (jetHave OR hudEdit) AND hudShow(HE_JET) THEN ' (the jetpack's fuel: lit while it burns, red when it's low)
+            hpN = INT(jetFuel + 0.99) : IF NOT jetHave THEN hpN = 100
+            IF hpN < 20 THEN c~& = _RGB32(255, 60, 60) ELSE IF jetOn THEN c~& = _RGB32(255, 190, 60) ELSE c~& = HudColor~&(HE_JET, _RGB32(90, 220, 255))
+            HudAtE HE_JET : HudText hudX(HE_JET), hudY(HE_JET), hudLabel$(HE_JET) + STR$(hpN) + "%", c~& : HudAt 1
+        END IF
+        IF hudShow(HE_FLASH) THEN HudAtE HE_FLASH : FlHud hudX(HE_FLASH), hudY(HE_FLASH) : HudAt 1 ' (the flashlight's battery, and its spares)
     END IF
-    IF jetHave AND hudShow(HE_AMP) THEN ' (the jetpack's fuel: cyan, lit while it burns, red when it's low)
-        IF jetFuel < 20 THEN c~& = _RGB32(255, 60, 60) ELSE IF jetOn THEN c~& = _RGB32(255, 190, 60) ELSE c~& = _RGB32(90, 220, 255)
-        HudText hudX(HE_AMP) + 136, hudY(HE_AMP) + 36, "JET" + STR$(INT(jetFuel + 0.99)) + "%", c~&
-    END IF
-    IF hudShow(HE_AMP) THEN FlHud hudX(HE_AMP) + 136, hudY(HE_AMP) + 54 ' (the flashlight's battery, and its spares)
-    HudAt 1
     ' The VIGNETTES (with HIT FX on): a lockdown strobing red; low health
     ' thumping red with your heart; poison's green; the colour of the last
     ' thing that hurt you, fading
@@ -224,7 +240,9 @@
             END IF
         END IF
     NEXT
-    HudAt 2 : AchDrawToast 0 : HudAt 1 ' (an achievement just unlocked: its pop-up, bottom right)
+    IF hudEdit AND evLine = 0 AND hudShow(HE_EVENT) THEN evText$ = "LOCKDOWN - HOSTILES LEFT: 3" : HudAtE HE_EVENT : HudText hudX(HE_EVENT) - LEN(evText$) * 4, hudY(HE_EVENT), evText$, HudColor~&(HE_EVENT, _RGB32(255, 120, 90)) : HudAt 1 ' (the HUD editor: a sample)
+    HudAtE HE_ACH : AchDrawToast 0 : HudAt 1 ' (an achievement just unlocked: its pop-up, bottom right)
+    IF hudEdit AND hudShow(HE_READOUT) THEN HudAtE HE_READOUT : AlarmPanel 0 : HudAt 1 ' (the HUD editor: an alarm switch's panel, as a sample)
 
     ' Gun and its ammo (bottom right), and which guns you have
     ammoType = gunAmmoType(currentGun)
@@ -264,7 +282,7 @@
     END IF
 
     ' In the network: what's left to grab, and the time left
-    IF cyberOn AND hudShow(HE_NETWORK) THEN
+    IF (cyberOn OR hudEdit) AND hudShow(HE_NETWORK) THEN
         c$ = "NETWORK   DATA " + LTRIM$(STR$(cyberGot)) + " / " + LTRIM$(STR$(cyberNeed)) + "   TIME " + LTRIM$(STR$(cyberTime \ 60)) + "   TRACE " + LTRIM$(STR$(INT(traceAmt))) + "%"
         nx = hudX(HE_NETWORK) : ny = hudY(HE_NETWORK) : HudAtE HE_NETWORK
         LINE (nx - LEN(c$) * 4 - 10, ny)-(nx + LEN(c$) * 4 + 10, ny + 20), _RGBA32(0, 20, 40, 190), BF
@@ -273,16 +291,18 @@
         HudText nx - LEN(c$) * 4, ny + 5, c$, cc~& : HudAt 1
     END IF
     ' What NEXUS is saying: a red-framed subtitle at the top
-    IF speechUntil! > TIMER AND LEN(speechText$) AND hudShow(HE_SUBTITLE) THEN
-        w = LEN(speechText$) * 8 + 24 : IF w > 780 THEN w = 780
+    IF ((speechUntil! > TIMER AND LEN(speechText$) > 0) OR hudEdit) AND hudShow(HE_SUBTITLE) THEN
+        sp$ = speechText$ : IF speechUntil! <= TIMER OR LEN(sp$) = 0 THEN sp$ = "NEXUS: Every word I say, here." ' (the HUD editor: a sample)
+        w = LEN(sp$) * 8 + 24 : IF w > 780 THEN w = 780
         sx = hudX(HE_SUBTITLE) : sy = hudY(HE_SUBTITLE) : HudAtE HE_SUBTITLE
         LINE (sx - w \ 2, sy)-(sx + w \ 2, sy + 24), _RGBA32(30, 0, 8, 190), BF
         LINE (sx - w \ 2, sy)-(sx + w \ 2, sy + 24), _RGB32(255, 60, 90), B
-        HudText sx - LEN(speechText$) * 4, sy + 5, speechText$, HudColor~&(HE_SUBTITLE, _RGB32(255, 200, 210)) : HudAt 1
+        HudText sx - LEN(sp$) * 4, sy + 5, sp$, HudColor~&(HE_SUBTITLE, _RGB32(255, 200, 210)) : HudAt 1
     END IF
     ' Message line
-    IF TIMER < messageUntil! AND LEN(message$) AND NOT mapOpen AND hudShow(HE_MESSAGE) THEN
-        HudAtE HE_MESSAGE : HudText hudX(HE_MESSAGE) - LEN(message$) * 4, hudY(HE_MESSAGE), message$, HudColor~&(HE_MESSAGE, _RGB32(255, 255, 255)) : HudAt 1
+    IF ((TIMER < messageUntil! AND LEN(message$) > 0) OR hudEdit) AND NOT mapOpen AND hudShow(HE_MESSAGE) THEN
+        ms$ = message$ : IF TIMER >= messageUntil! OR LEN(ms$) = 0 THEN ms$ = "Picked up 20 cells" ' (the HUD editor: a sample)
+        HudAtE HE_MESSAGE : HudText hudX(HE_MESSAGE) - LEN(ms$) * 4, hudY(HE_MESSAGE), ms$, HudColor~&(HE_MESSAGE, _RGB32(255, 255, 255)) : HudAt 1
     END IF
     IF hudEdit THEN HudEditDraw ' (the HUD layout editor: boxes round it all)
 
@@ -304,7 +324,7 @@
     tenths = INT(viewAvg * 10 + 0.5) : IF tenths > 9999 THEN tenths = 9999
     msText$ = LTRIM$(STR$(tenths \ 10)) + "." + LTRIM$(STR$(tenths MOD 10))
     infoFps$ = "FPS" + STR$(fpsShown) + "   3D VIEW " + msText$ + " MS   " + MID$("SOFTWAREOPENGL", 1 - 8 * glMode, 8 + 2 * glMode) ' (for the F3 panel, next frame)
-    IF setting(SET_FPS) THEN
+    IF setting(SET_FPS) OR hudEdit THEN
         ' Every part padded to the same width (RIGHT$ of spaces and the number),
         ' so the line doesn't shift about as the numbers grow and shrink
         IF glMode THEN fpsText$ = "  OPENGL" ELSE fpsText$ = "SOFTWARE"
@@ -315,17 +335,19 @@
     ' clock green while you're inside your best and red once past it
     ' (the keycards you hold sit top right too: the demo's lines go under them)
     ddy = 0 : IF hudShow(HE_CARDS) AND hudX(HE_CARDS) > 560 AND hudY(HE_CARDS) < 110 AND (hasCard(1) OR hasCard(2) OR hasCard(3)) THEN ddy = MaxOf(0, hudY(HE_CARDS) + hudW(HE_CARDS) + 6 - 38)
-    HudAt 2 ' (a demo's lines: top right)
-    IF demoPlay THEN ' Playing one: a green play arrow and PLAYING over the clock - and, small, which demo, how long, what
-        dpw = 8 * 8 + 16 : dpx = 784 - dpw : dpc~& = _RGB32(90, 255, 130)
-        FOR dpy = 0 TO 10 : LINE (dpx, 42 + ddy + dpy)-(dpx + (5 - ABS(dpy - 5)) * 1.6, 42 + ddy + dpy), dpc~& : NEXT ' (the arrow: a little triangle)
-        HudText dpx + 14, 40 + ddy, "PLAYING", dpc~&
+    HudAtE HE_DEMO ' (a demo's lines: top right - its own part, dmX/dmY from where it was made)
+    dmX = hudX(HE_DEMO) - 784 : dmY = hudY(HE_DEMO) - 40
+    IF hudEdit AND NOT demoPlay AND NOT demoRec AND hudShow(HE_DEMO) THEN dh$ = "REC 0:12" : HudText 784 + dmX - LEN(dh$) * 8, 58 + dmY, dh$, HudColor~&(HE_DEMO, _RGB32(255, 70, 80)) ' (the HUD editor: a sample)
+    IF demoPlay AND hudShow(HE_DEMO) THEN ' Playing one: a green play arrow and PLAYING over the clock - and, small, which demo, how long, what
+        dpw = 8 * 8 + 16 : dpx = 784 + dmX - dpw : dpc~& = HudColor~&(HE_DEMO, _RGB32(90, 255, 130))
+        FOR dpy = 0 TO 10 : LINE (dpx, 42 + ddy + dmY + dpy)-(dpx + (5 - ABS(dpy - 5)) * 1.6, 42 + ddy + dmY + dpy), dpc~& : NEXT ' (the arrow: a little triangle)
+        HudText dpx + 14, 40 + ddy + dmY, "PLAYING", dpc~&
         dp$ = UCASE$(demoName$) + "  " + TimeText$(demoTotal / 60)
-        HudText 784 - LEN(dp$) * 8, 76 + ddy, dp$, _RGB32(160, 220, 255)
-        IF LEN(demoInfoNow$) THEN HudText 784 - LEN(demoInfoNow$) * 8, 92 + ddy, demoInfoNow$, _RGB32(120, 150, 190)
-        IF NOT demoAttract AND NOT demoQuit THEN dp$ = ". NEXT  , BACK  / RANDOM  - = SPEED" : HudText 784 - LEN(dp$) * 8, 108 + ddy, dp$, _RGB32(90, 110, 150) ' (DEMO/PLAYLIST.BM's keys)
+        HudText 784 + dmX - LEN(dp$) * 8, 76 + ddy + dmY, dp$, _RGB32(160, 220, 255)
+        IF LEN(demoInfoNow$) THEN HudText 784 + dmX - LEN(demoInfoNow$) * 8, 92 + ddy + dmY, demoInfoNow$, _RGB32(120, 150, 190)
+        IF NOT demoAttract AND NOT demoQuit THEN dp$ = ". NEXT  , BACK  / RANDOM  - = SPEED" : HudText 784 + dmX - LEN(dp$) * 8, 108 + ddy + dmY, dp$, _RGB32(90, 110, 150) ' (DEMO/PLAYLIST.BM's keys)
     END IF
-    IF demoRec OR demoPlay THEN ' A demo going: REC (red) or DEMO (cyan), and how long, at the top right
+    IF (demoRec OR demoPlay) AND hudShow(HE_DEMO) THEN ' A demo going: REC (red) or DEMO (cyan), and how long, at the top right
         IF demoRec THEN dh$ = "REC " ELSE dh$ = "DEMO " : IF demoAttract THEN dh$ = "ANY KEY: MENU   DEMO "
         dh$ = dh$ + TimeText$(demoFrame / 60) : IF demoPlay AND demoBad THEN dh$ = dh$ + "  OUT OF STEP"
         IF demoPlay AND demoSpeed <> PL_SPEED_1 THEN dh$ = DemoSpeedText$(demoSpeed) + "  " + dh$ ' (played faster or slower: DEMO/PLAYLIST.BM)
@@ -336,11 +358,12 @@
             dh$ = dh$ + "  NEXT IN " + TimeText$((dleft& + 59) \ 60)
         END IF
         IF demoRec THEN dhc~& = _RGB32(255, 70, 80) ELSE dhc~& = _RGB32(90, 230, 255)
-        IF demoRec AND (demoFrame \ 30) MOD 2 = 0 THEN FillCircle 784 - LEN(dh$) * 8 - 10, 66 + ddy, 4, dhc~& ' (the red light, blinking)
-        HudText 784 - LEN(dh$) * 8, 58 + ddy, dh$, dhc~&
+        dhc~& = HudColor~&(HE_DEMO, dhc~&)
+        IF demoRec AND (demoFrame \ 30) MOD 2 = 0 THEN FillCircle 784 + dmX - LEN(dh$) * 8 - 10, 66 + ddy + dmY, 4, dhc~& ' (the red light, blinking)
+        HudText 784 + dmX - LEN(dh$) * 8, 58 + ddy + dmY, dh$, dhc~&
     END IF
     HudAt 1
-    IF setting(SET_TIMER) AND hudShow(HE_TIMER) AND NOT editMode AND NOT cyberOn THEN
+    IF (setting(SET_TIMER) OR hudEdit) AND hudShow(HE_TIMER) AND (NOT editMode OR hudEdit) AND NOT cyberOn THEN
         lt! = TIMER - levelStart! : IF lt! < 0 THEN lt! = lt! + 86400
         rk = level : IF level <= NUM_LEVELS THEN rk = sectorSet * 100 + level
         best! = RecordBest!(rk) : tc~& = _RGB32(240, 240, 255)
@@ -357,6 +380,8 @@
         IF best! > 0 THEN tmr$ = "BEST " + TimeText$(INT(best!)) : HudText hudX(HE_TIMER) - LEN(tmr$) * 8, hudY(HE_TIMER) + tdy + 34, tmr$, _RGB32(255, 220, 80)
         HudAt 1
     END IF
+
+    END IF ' (PHOTO MODE's ELSE: the HUD)
 
     ' With OpenGL, the HUD goes to the graphics card as a picture, to be
     ' laid over the 3D view there (chapter 24): GLCapture copies

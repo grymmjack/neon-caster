@@ -90,6 +90,11 @@ SUB HudBox(e, x0, y0, x1, y1)
         CASE HE_CARDS : x0 = x - 3 * (hudW(e) + 4) : y0 = y : x1 = x : y1 = y + hudW(e)
         CASE HE_TIMER : x0 = x - 112 : y0 = y : x1 = x : y1 = y + 34
         CASE HE_MESSAGE, HE_SUBTITLE, HE_EVENT, HE_NETWORK, HE_FPS : x0 = x - 160 : y0 = y : x1 = x + 160 : y1 = y + 22
+        CASE HE_INVULN : x0 = x - 110 : y0 = y : x1 = x + 110 : y1 = y + 24 ' (their middle)
+        CASE HE_ALARM : x0 = x - 50 : y0 = y : x1 = x + 50 : y1 = y + 32
+        CASE HE_DEMO : x0 = x - 300 : y0 = y : x1 = x : y1 = y + 84 ' (their right edge)
+        CASE HE_ACH : x0 = x - 300 : y0 = y : x1 = x : y1 = y + 58
+        CASE HE_READOUT : x0 = x - 145 : y0 = y : x1 = x + 145 : y1 = y + 76
         CASE ELSE : x0 = x : y0 = y : x1 = x + 120 : y1 = y + 16
     END SELECT
 END SUB
@@ -143,7 +148,8 @@ SUB WriteHud
     o$ = o$ + "' layout editor (U in the level editor, or hud in the console) writes" + nl$
     o$ = o$ + "' this file; delete it for the game's own layout." + nl$
     o$ = o$ + "'   show: yes or no   x, y: on the 800 x 600 screen (ammo: its right edge;" + nl$
-    o$ = o$ + "'   message, subtitle, event, network, fps: their middle)   bar: width," + nl$
+    o$ = o$ + "'   message, subtitle, event, network, fps, invulnerable, alarm, readout:" + nl$
+    o$ = o$ + "'   their middle; demo, achievement: their right edge)   bar: width," + nl$
     o$ = o$ + "'   height   size: the minimap's cells, the keycards' pictures" + nl$
     o$ = o$ + "'   color: auto (the game's own) or red, green, blue   label: its word" + nl$
     o$ = o$ + "'   anchor: left, middle or right - with FULL WIDE, the side of the window" + nl$

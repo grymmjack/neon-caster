@@ -15,7 +15,14 @@ CONST MINIMAP_CELL = 3, MINIMAP_X = 8, MINIMAP_Y = 8
 ' layout editor (chapter 21: U in the level editor) moves things about
 ' with the mouse, over the game as it runs, and saves hud.txt.
 CONST HE_HEALTH = 1, HE_ARMOR = 2, HE_AMMO = 3, HE_GUNS = 4, HE_KILLS = 5, HE_MINIMAP = 6, HE_CARDS = 7
-CONST HE_MESSAGE = 8, HE_SUBTITLE = 9, HE_AMP = 10, HE_GOD = 11, HE_EVENT = 12, HE_NETWORK = 13, HE_FPS = 14, HE_TIMER = 15, HUD_ELEMS = 15
+CONST HE_MESSAGE = 8, HE_SUBTITLE = 9, HE_AMP = 10, HE_GOD = 11, HE_EVENT = 12, HE_NETWORK = 13, HE_FPS = 14, HE_TIMER = 15
+' (and the ones that were drawn beside others, or at a place of their own:
+' night vision, the hazmat suit, the jetpack's fuel and the flashlight
+' beside the amp; POISONED beside your health; INVULNERABLE, ALARM, a
+' demo's lines, an achievement's pop-up, and the alarm switch's or launch
+' control's panel - hud.txt without them puts them where they were: HudFollow)
+CONST HE_NIGHTVIS = 16, HE_HAZMAT = 17, HE_JET = 18, HE_FLASH = 19, HE_POISON = 20, HE_INVULN = 21, HE_ALARM = 22
+CONST HE_DEMO = 23, HE_ACH = 24, HE_READOUT = 25, HUD_ELEMS = 25
 DIM SHARED hudName$(HUD_ELEMS), hudShow(HUD_ELEMS) AS INTEGER, hudX(HUD_ELEMS) AS INTEGER, hudY(HUD_ELEMS) AS INTEGER
 DIM SHARED hudW(HUD_ELEMS) AS INTEGER, hudH(HUD_ELEMS) AS INTEGER, hudCol(HUD_ELEMS) AS _UNSIGNED LONG, hudLabel$(HUD_ELEMS)
 DIM SHARED hudEdit AS INTEGER, hudSel AS INTEGER, hudMsg$

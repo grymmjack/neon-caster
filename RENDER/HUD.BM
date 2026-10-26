@@ -127,7 +127,41 @@ SUB HudDefaults
     hudName$(HE_NETWORK) = "network" : hudX(HE_NETWORK) = 400 : hudY(HE_NETWORK) = 74
     hudName$(HE_FPS) = "fps" : hudX(HE_FPS) = 400 : hudY(HE_FPS) = 8
     hudName$(HE_TIMER) = "timer" : hudX(HE_TIMER) = 784 : hudY(HE_TIMER) = 80
+    hudName$(HE_NIGHTVIS) = "nightvision" : hudLabel$(HE_NIGHTVIS) = "NIGHT VISION"
+    hudName$(HE_HAZMAT) = "hazmat" : hudLabel$(HE_HAZMAT) = "HAZMAT"
+    hudName$(HE_JET) = "jetpack" : hudLabel$(HE_JET) = "JET"
+    hudName$(HE_FLASH) = "flashlight" : hudLabel$(HE_FLASH) = "LIGHT"
+    hudName$(HE_POISON) = "poisoned" : hudLabel$(HE_POISON) = "POISONED"
+    FOR e = HE_NIGHTVIS TO HE_POISON : HudFollow e : NEXT
+    hudName$(HE_INVULN) = "invulnerable" : hudX(HE_INVULN) = 400 : hudY(HE_INVULN) = 70 : hudLabel$(HE_INVULN) = "INVULNERABLE"
+    hudName$(HE_ALARM) = "alarm" : hudX(HE_ALARM) = 400 : hudY(HE_ALARM) = 96 : hudLabel$(HE_ALARM) = "ALARM"
+    hudName$(HE_DEMO) = "demo" : hudX(HE_DEMO) = 784 : hudY(HE_DEMO) = 40 ' (its right edge: PLAYING, then REC or DEMO and the time, which demo, its keys)
+    hudName$(HE_ACH) = "achievement" : hudX(HE_ACH) = 792 : hudY(HE_ACH) = 444 ' (its right edge: the pop-up slides in from the side)
+    hudName$(HE_READOUT) = "readout" : hudX(HE_READOUT) = 400 : hudY(HE_READOUT) = 372 ' (its middle: an alarm switch's or launch control's panel)
+    ReadHudFile AssetPath$("hud-defaults.txt") ' (the layout the game ships with - Rick's, over the one above)
 END SUB
+
+' A part that was drawn beside another (the amp's night vision, hazmat,
+' jetpack and flashlight; health's POISONED) put where it was beside it -
+' shown, and keeping to its side, as that one is (HudDefaults; and
+' ReadHud, for a hud.txt that hasn't got it yet)
+SUB HudFollow(e)
+    DIM l ' (its own: the main program shares these names)
+    l = HE_AMP : IF e = HE_POISON THEN l = HE_HEALTH
+    SELECT CASE e
+        CASE HE_NIGHTVIS : hudX(e) = hudX(l) + 136 : hudY(e) = hudY(l)
+        CASE HE_HAZMAT : hudX(e) = hudX(l) + 136 : hudY(e) = hudY(l) + 18
+        CASE HE_JET : hudX(e) = hudX(l) + 136 : hudY(e) = hudY(l) + 36
+        CASE HE_FLASH : hudX(e) = hudX(l) + 136 : hudY(e) = hudY(l) + 54
+        CASE HE_POISON : hudX(e) = hudX(l) + 8 * (LEN(hudLabel$(l)) + 6) : hudY(e) = hudY(l) ' (past HEALTH 100)
+    END SELECT
+    hudShow(e) = hudShow(l) : hudSide(e) = HudSideOf(l)
+END SUB
+
+' A part's colour, dimmer: night vision that's off, a flashlight that's off
+FUNCTION HudDim~&(c~&)
+    HudDim~& = _RGB32(_RED32(c~&) * 0.55, _GREEN32(c~&) * 0.55, _BLUE32(c~&) * 0.55)
+END FUNCTION
 
 ' A part's colour: its own from hud.txt - or, if it has none, the game's
 FUNCTION HudColor~&(e, dflt~&)
@@ -137,8 +171,13 @@ END FUNCTION
 ' hud.txt: one [name] section a part - show, x, y, bar (width, height),
 ' color (auto, or red, green, blue), label, anchor (left, middle, right)
 SUB ReadHud
-    DIM e, k, l$ ' (its own: the main program shares these names)
-    f$ = AssetPath$("hud.txt")
+    ReadHudFile AssetPath$("hud.txt")
+END SUB
+
+' A layout file read over the layout as it is: hud.txt, or hud-defaults.txt
+' (the game's own - HudDefaults reads it, so R and hud reset go back to it)
+SUB ReadHudFile(f$)
+    DIM e, k, l$, seen(HUD_ELEMS), fh, n$, eq, k$, v$ ' (its own: the main program shares these names)
     IF NOT _FILEEXISTS(f$) THEN EXIT SUB
     fh = FREEFILE : OPEN f$ FOR INPUT AS #fh : e = 0
     DO UNTIL EOF(fh)
@@ -149,6 +188,7 @@ SUB ReadHud
             FOR k = 1 TO HUD_ELEMS
                 IF hudName$(k) = n$ THEN e = k
             NEXT
+            IF e THEN seen(e) = -1
         ELSEIF e > 0 AND INSTR(l$, "=") AND LEFT$(l$, 1) <> "'" THEN
             eq = INSTR(l$, "=") : k$ = LCASE$(RTRIM$(LEFT$(l$, eq - 1))) : v$ = LTRIM$(MID$(l$, eq + 1))
             SELECT CASE k$
@@ -170,6 +210,9 @@ SUB ReadHud
         END IF
     LOOP
     CLOSE #fh
+    FOR e = HE_NIGHTVIS TO HE_POISON ' (a hud.txt from before they were parts of their own: where they were, beside the amp and health)
+        IF NOT seen(e) THEN HudFollow e
+    NEXT
 END SUB
 
 ' The crosshair at (cx, cy), in the style, colour, size and opacity the

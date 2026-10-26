@@ -327,6 +327,27 @@ END SUB
 
 
 ''
+' New pixels for an ordinary texture tex~& (made at w& x h& already): BGRA
+' bytes from pixelsAt (e.g. _OFFSET(myPixels(0)) of _UNSIGNED LONGs). Sent
+' through the stream - no stall. Leaves the texture bound on the current unit.
+'
+SUB GLSL_texture_update_bgra (tex~&, w&, h&, pixelsAt AS _OFFSET)
+    glsl_native_tex_sub tex~&, w&, h&, pixelsAt
+END SUB
+
+
+''
+' The bound target's w& x h& pixels (BGRA bytes, bottom row first), read
+' back without waiting for the card: this frame's are started, and LAST
+' frame's (if it was the same size) copied to dst - TRUE when they were.
+' dst 0 starts this frame's only. A frame late, but no stall.
+'
+FUNCTION GLSL_readback& (w&, h&, dst AS _OFFSET)
+    GLSL_readback& = glsl_native_readback&(w&, h&, dst)
+END FUNCTION
+
+
+''
 ' A buffer of vertex data in graphics memory, filled once with bytes& from
 ' dataAt - for things that don't change. Bind it (GLSL_buffer_bind) and give
 ' the pointer calls offsets into it (0 = its start); unbind (0) afterwards.

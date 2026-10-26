@@ -22,6 +22,7 @@
 ' is built again from that (EditApply), keeping you where you are.
 SUB EditEnter STATIC
     IF demoRec OR demoPlay THEN DemoStop
+    CyberLookSet 0 : PhotoSet 0 ' (F4's MATRIX VIEW and F10's PHOTO MODE put away: the editor shows the sector as it is)
     achCheat = -1 ' (in the editor you can put anything anywhere: achievements wait for a new game - but the editor's own)
     WorldLoopsOff ' (the world stops: so do its sounds)
     EditReset
@@ -5304,7 +5305,7 @@ END SUB
 ' once a frame, so the drawing only asks one question when it's off
 FUNCTION GridMix~&(pix~&)
     DIM a, B, g, r ' (its own: the main program shares these names)
-    a = edGridAlpha / 255
+    a = gridA / 255 ' (the editor's strength, or in play GRID STRENGTH: chapter 7)
     r = (pix~& \ 65536) AND 255 : g = (pix~& \ 256) AND 255 : b = pix~& AND 255
     GridMix~& = &HFF000000~& OR (INT(r + (90 - r) * a) * 65536) OR (INT(g + (230 - g) * a) * 256) OR INT(b + (255 - b) * a)
 END FUNCTION

@@ -14,6 +14,8 @@
 ' run out of time and you're thrown out, to try again.
 CONST MAX_STATIONS = 8, CYBER_SECONDS = 50
 DIM SHARED numStations AS INTEGER, stationX(MAX_STATIONS) AS INTEGER, stationY(MAX_STATIONS) AS INTEGER, stationDone(MAX_STATIONS) AS INTEGER
+' cyberLook: F4's MATRIX VIEW - the network's look (its grids, its even light) on the sector as it is, nothing else changed (CyberLookSet)
+DIM SHARED cyberLook AS INTEGER, cyberLookKeyWas AS INTEGER
 DIM SHARED cyberOn AS INTEGER, cyberStation AS INTEGER, cyberTime AS LONG, cyberNeed AS INTEGER, cyberGot AS INTEGER
 DIM SHARED cyberMonStart AS INTEGER, cyberItemStart AS INTEGER, glRetexVersion AS LONG, glRetexDone AS LONG
 DIM SHARED sndJackIn&, sndJackOut&, sndCore&, cyberMusic&, sndTeleport&

@@ -67,6 +67,9 @@ it yourself:
 | Ctrl+R | record a demo: the sector starts again (with what you came in with) and every key from there is kept, till Ctrl+R again; at the exit it goes on recording into the next sector - **DEMO REPLAYS** (the main menu) plays them back |
 | F2 | the level editor (see below); in it, F1 shows a cheatsheet of every key |
 | F3 | where you are, in numbers (top left): x y and the cell, the way you face in degrees, heights, the wall you're looking at and its map character, a `tp` line that brings you back there, and the frame rate (the console's `info` too) |
+| F10 | PHOTO MODE: the game stops dead (shots in the air, sparks, flickering lamps) and you fly round it to look from anywhere. WASD fly, Space and FLY DOWN go up and down, Shift is faster, the wheel zooms, P shows or hides the hands, H hides the line of keys, F12 takes a screenshot (in the saves folder). F10 or Esc puts you back exactly where you were |
+| F4 | MATRIX VIEW: the sector in the network's look, just to see it (off again as you jack in, change sector or open the editor) |
+| ' / ; / : | the grid on floors and walls on or off / weaker / stronger (the console's `grid` too) |
 | K / G | testing cheats: every keycard / god mode (no damage, through walls, flying with E up and C down, and the monsters ignore you) |
 
 **The console and the command line.** The console (`) runs commands for
@@ -79,7 +82,7 @@ nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or 
 `resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 `savelevel` - and `door`, `wall`, `light` (`light 3 toggle`, `colour FF2020`, `bright`, `fx pulse`), `ambient`
-and `celllight` (the sector's own light, or a box of cells', changed as it plays; `ambient -200` darkens every lamp too), `flashlight` (on, off, its beam's width, reach, colour...), `glass X Y` (a pane's reflection, blur, frost, ripple, style and strength - `glass 13 11 style bricks`, `strength unbreakable`) and `glassreflect`, `liftgo`, `message`, `sound`,
+and `celllight` (the sector's own light, or a box of cells', changed as it plays; `ambient -200` darkens every lamp too), `flashlight` (on, off, its beam's width, reach, colour...), `textart` (TEXT ART, OpenGL: the view drawn as ASCII, ANSI's DOS blocks and shades, PETSCII's C64 graphics, falling MATRIX code, a RETRO computer's big pixels in any palette (`retro 3 3 apple2-hires bayer4 50` - every GIMP palette in `palettes/` and yours in `saves/palettes/`), or a 1-bit MAC - dithered Atkinson's way, or Floyd-Steinberg's, Jarvis's, Stucki's, Sierra's, Bayer's 2x2, 4x4 or 8x8, noise or a plain threshold - in each one's own colours, the view's, a terminal's green, amber or white, EGA's 16 or the C64's 16; AUTHENTIC keeps it to the palette's own colours and each machine's rules, BLOCKSHADE draws flat colour as full blocks and shades only where it changes, ANSI and ASCII cells are VGA's 9 x 16 (`8px` for 8 x 16): `ansi ega`, `ansi ega blockshade 48`, `petscii c64 12`, `mac bayer`, `textart matrix`, `help textart` for every word; EFFECTS has it too, and TEXT ART PRESET - `textart-presets.txt`, a line of these words each - with SAVE AS PRESET for your own: `textart presets`, `textart save NAME`), `photo`, `matrix`, `grid 60`, `glass X Y` (a pane's reflection, blur, frost, ripple, style and strength - `glass 13 11 style bricks`, `strength unbreakable`) and `glassreflect`, `liftgo`, `message`, `sound`,
 `give`/`take` (health, armour, ammo by kind, all), `die`, `spawn TYPE X Y`
 and `item KIND X Y`, which a level's triggers use. `mons` lists every
 monster and whether it's awake. `qb64pe` says which compiler the code

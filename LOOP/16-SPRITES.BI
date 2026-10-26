@@ -47,10 +47,10 @@
                 CASE IT_CORE : drawScale(numDraw) = 0.42 : drawMinShade(numDraw) = 256
                 CASE ELSE : drawScale(numDraw) = ITEM_SCALE
             END SELECT
-            drawLift(numDraw) = 0.12 + 0.04 * SIN(TIMER * 3 + i) ' Hovering, bobbing
+            drawLift(numDraw) = 0.12 + 0.04 * SIN(glClock# * 3 + i) ' Hovering, bobbing (glClock#: TIMER - held still by the pause menu and PHOTO MODE)
             IF itemToss(i) > 0 THEN f = itemToss(i) / LOOT_TOSS : drawLift(numDraw) = drawLift(numDraw) + 1.4 * f * (1 - f) ' (tossed: up and over, and down - TossItem)
             IF itemMdl(itemKind(i)) THEN ' A 3D pickup, turning slowly as it hovers (RENDER/MODELS.BM)
-                drawMdl(numDraw) = itemMdl(itemKind(i)) : drawAng(numDraw) = TIMER * 1.6 + i * 1.3
+                drawMdl(numDraw) = itemMdl(itemKind(i)) : drawAng(numDraw) = glClock# * 1.6 + i * 1.3
                 drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), itemX(i), itemY(i))
             END IF
         END IF
@@ -226,7 +226,7 @@
     FOR k = 1 TO numPads ' Teleporters' pads: flat and glowing
         IF numDraw < MAX_DRAW THEN
             numDraw = numDraw + 1 : drawX(numDraw) = padX(k) + 0.5 : drawY(numDraw) = padY(k) + 0.5 : drawSprite(numDraw) = S_PAD
-            drawScale(numDraw) = 0.85 : drawSquash(numDraw) = 0.16 : drawLift(numDraw) = 0 : drawMinShade(numDraw) = 200 + 56 * SIN(TIMER * 4 + k)
+            drawScale(numDraw) = 0.85 : drawSquash(numDraw) = 0.16 : drawLift(numDraw) = 0 : drawMinShade(numDraw) = 200 + 56 * SIN(glClock# * 4 + k)
         END IF
     NEXT
     FOR ev = 1 TO numEvents

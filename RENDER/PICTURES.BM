@@ -132,7 +132,7 @@ SUB ArtReload STATIC
     FOR k = 1 TO T_SLOTS ' (and the tinted copies of them, made again from them)
         IF LEFT$(texFile$(k), 5) = "glow:" THEN MakeGlowTex k
     NEXT
-    IF cyberOn THEN CyberTextures -1 ' (in the network: its grid, at the new size)
+    IF cyberOn OR cyberLook THEN CyberTextures -1 ' (in the network, or F4's look of it: its grid, at the new size)
     MakeLiftTex ' (the lifts' pictures, made again from the new ones)
     glTexVersion = glTexVersion + 1 : glRetexVersion = glRetexVersion + 1
     artHold = 0

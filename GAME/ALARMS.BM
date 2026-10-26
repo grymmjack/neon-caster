@@ -216,26 +216,37 @@ SUB AlarmReadout
         IF i THEN IF decoOn(i) AND decoKind(i) = DK_ALARM THEN EXIT FOR
         i = 0
     NEXT
-    IF i = 0 THEN EXIT SUB
-    k$ = KeyName$(keyBind&(BIND_USE))
-    LINE (285, 380)-(515, 440), _RGBA32(14, 4, 4, 210), BF : LINE (285, 380)-(515, 440), _RGBA32(255, 90, 80, 200), B
-    MenuText 400, 386, "ALARM SWITCH", 1.25, _RGB32(255, 200, 90), 1
-    IF vendState(i) THEN
-        MenuText 400, 404, "DISARMED", 1.5, _RGB32(150, 150, 160), 1
-    ELSEIF alarmTimer > 0 THEN
-        IF (lvFrame \ 15) MOD 2 = 0 THEN MenuText 400, 404, "ON", 1.5, _RGB32(255, 70, 60), 1
-        MenuText 400, 426, k$ + ": SHUT IT OFF", 1, _RGB32(220, 170, 160), 1
+    IF i = 0 OR NOT hudShow(HE_READOUT) THEN EXIT SUB
+    HudAtE HE_READOUT
+    IF vendState(i) THEN AlarmPanel 2 ELSE AlarmPanel -(alarmTimer > 0)
+    HudAt 1
+END SUB
+
+' The alarm switch's panel: st 0 OFF, 1 ON, 2 disarmed (the HUD's readout
+' part: its place and frame colour - the HUD editor draws it as a sample)
+SUB AlarmPanel(st)
+    DIM k$, ox, oy, fc~& ' (its own: the main program shares these names)
+    ox = hudX(HE_READOUT) - 400 : oy = hudY(HE_READOUT) - 372 ' (where it was made: 400 across, 372 down)
+    k$ = KeyName$(keyBind&(BIND_USE)) : fc~& = HudColor~&(HE_READOUT, _RGB32(255, 90, 80))
+    LINE (285 + ox, 380 + oy)-(515 + ox, 440 + oy), _RGBA32(14, 4, 4, 210), BF : LINE (285 + ox, 380 + oy)-(515 + ox, 440 + oy), _RGBA32(_RED32(fc~&), _GREEN32(fc~&), _BLUE32(fc~&), 200), B
+    MenuText 400 + ox, 386 + oy, "ALARM SWITCH", 1.25, _RGB32(255, 200, 90), 1
+    IF st = 2 THEN
+        MenuText 400 + ox, 404 + oy, "DISARMED", 1.5, _RGB32(150, 150, 160), 1
+    ELSEIF st = 1 THEN
+        IF (lvFrame \ 15) MOD 2 = 0 THEN MenuText 400 + ox, 404 + oy, "ON", 1.5, _RGB32(255, 70, 60), 1
+        MenuText 400 + ox, 426 + oy, k$ + ": SHUT IT OFF", 1, _RGB32(220, 170, 160), 1
     ELSE
-        MenuText 400, 404, "OFF", 1.5, _RGB32(110, 255, 140), 1
-        MenuText 400, 426, k$ + ": SOUND THE ALARM", 1, _RGB32(220, 170, 160), 1
+        MenuText 400 + ox, 404 + oy, "OFF", 1.5, _RGB32(110, 255, 140), 1
+        MenuText 400 + ox, 426 + oy, k$ + ": SOUND THE ALARM", 1, _RGB32(220, 170, 160), 1
     END IF
 END SUB
 
 ' --- Over the view while the alarm sounds: the screen's edges flashing red
 SUB AlarmOverlay
     DIM e, al ' (its own: the main program shares these names)
+    IF hudEdit AND alarmTimer <= 0 AND hudShow(HE_ALARM) THEN HudAtE HE_ALARM : MenuText hudX(HE_ALARM), hudY(HE_ALARM), hudLabel$(HE_ALARM), 2, HudColor~&(HE_ALARM, _RGB32(255, 70, 60)), 1 : HudAt 1 ' (the HUD editor: a sample)
     IF alarmTimer <= 0 THEN EXIT SUB
     al = 7 + 6 * DSin(lvFrame * 0.21)
     HudAt -1 : FOR e = 0 TO 13 : LINE (e, e)-(scrW - 1 - e, 599 - e), _RGBA32(255, 30, 30, MaxOf(0, (14 - e) * al)), B : NEXT : HudAt 1 ' (FULL WIDE: the window's own edges)
-    IF (lvFrame \ 20) MOD 2 = 0 THEN MenuText 400, 96, "ALARM", 2, _RGB32(255, 70, 60), 1
+    IF (lvFrame \ 20) MOD 2 = 0 AND hudShow(HE_ALARM) THEN HudAtE HE_ALARM : MenuText hudX(HE_ALARM), hudY(HE_ALARM), hudLabel$(HE_ALARM), 2, HudColor~&(HE_ALARM, _RGB32(255, 70, 60)), 1 : HudAt 1
 END SUB

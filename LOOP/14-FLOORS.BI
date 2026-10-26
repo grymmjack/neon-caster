@@ -113,7 +113,7 @@
             skyV(y) = INT((1 - el) * (texSize - 1))
         NEXT
     END IF
-    IF NOT glMode AND liqAny AND NOT cyberOn THEN LiquidAnimate ' (the liquids' pictures, rippling - OpenGL's shader does its own)
+    IF NOT glMode AND liqAny AND NOT cyberOn AND NOT photoOn THEN LiquidAnimate ' (the liquids' pictures, rippling - OpenGL's shader does its own)
     IF NOT glMode AND levelFlat THEN ' (OpenGL draws the floor and ceiling itself; with heights, HeightColumn does - chapter 15)
         rayDirX0 = dirX - planeX : rayDirY0 = dirY - planeY
         rayDirX1 = dirX + planeX : rayDirY1 = dirY + planeY

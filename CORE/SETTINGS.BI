@@ -13,7 +13,7 @@
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 57
+CONST NUM_SETTINGS = 72
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -26,6 +26,7 @@ CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, S
 CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_SOFTEN = 45, SET_SKILL = 46, SET_CHARGE = 47, SET_WINSIZE = 48
 CONST SET_FL_WIDTH = 49, SET_FL_REACH = 50, SET_FL_BRIGHT = 51, SET_FL_SOFT = 52, SET_FL_COLOUR = 53, SET_FL_HAZE = 54, SET_FL_FX = 55, SET_FL_BATTERY = 56 ' (the flashlight's: GAME/FLASHLIGHT.BI)
 CONST SET_GLASSREF = 57
+CONST SET_GRID = 58, SET_GRIDA = 59, SET_ASCII = 60, SET_ASCIISIZE = 61, SET_ASCIICOL = 62, SET_ASCIIRULE = 63, SET_MACDITH = 64, SET_TABLOCK = 65, SET_TA9 = 66, SET_TAPRESET = 67, SET_RETROW = 68, SET_RETROH = 69, SET_RETROPAL = 70, SET_RETRODITH = 71, SET_RETROAMT = 72 ' (the grid in play - ' ; : - and TEXT ART)
 ' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
 ' don't all match one
 CONST MODE_CUSTOM = 0, MODE_OLDSCHOOL = 1, MODE_90S = 2, MODE_NEWSCHOOL = 3
@@ -72,6 +73,37 @@ DefineSetting SET_PARTICLES, "particles",          "PARTICLES",          MI_TOGG
 DefineSetting SET_REFLECT,   "reflections",        "WET FLOORS",         MI_TOGGLE, 0,  1,   1,   1
 ' GLASS REFLECTIONS: panes of glass mirror the room you're in, as much as each says (WORLD/GLASS.BI; GL/OPENGL.BM's GLMirrors)
 DefineSetting SET_GLASSREF,  "glass_reflections",  "GLASS REFLECTIONS",  MI_TOGGLE, 0,  1,   1,   1
+' THE GRID IN PLAY: the editor's grid over the world while you play (' on and off, ; and : weaker and stronger - LOOP/07-FRAME.BI)
+DefineSetting SET_GRID,      "play_grid",          "GRID IN PLAY",       MI_TOGGLE, 0,  1,   1,   0
+DefineSetting SET_GRIDA,     "play_grid_strength", "GRID STRENGTH",      MI_SLIDER, 10, 100, 10,  40
+' TEXT ART (OpenGL; GL/TEXTART): the view drawn in characters - ASCII, ANSI, PETSCII or MATRIX's code - in
+' COLOURS (AUTO: the set's own; its own colour, a terminal's, DOS's 16 or the C64's 16), SIZE pixels tall
+DefineSetting SET_ASCII,     "text_art",           "TEXT ART",           MI_CHOICE, 0,  6,   1,   0
+DefineSetting SET_ASCIICOL,  "text_art_colours",   "TEXT ART COLOURS",   MI_CHOICE, 0,  6,   1,   0
+DefineSetting SET_ASCIISIZE, "text_art_size",      "TEXT ART SIZE",      MI_SLIDER, 8,  48,  2,   16
+' RULES: AUTHENTIC (1) - only the palette's own colours on screen (no scanlines, glow or CRT over it), ANSI's paper
+' one of EGA's 8 dark colours (DOS text mode), PETSCII's one colour for the screen (black, as a C64's); FREE (0) - any.
+' MAC DITHER: how MAC makes its 1 bit (TaMacDither: MacDitherName$)
+DefineSetting SET_ASCIIRULE, "text_art_rules",     "TEXT ART RULES",     MI_CHOICE, 0,  1,   1,   1
+DefineSetting SET_MACDITH,   "mac_dither",         "MAC DITHER",         MI_CHOICE, 0,  9,   1,   0
+' SHAPES: DETAIL (0) - an edge across a cell is the half block, quarter or slant whose shape it is; BLOCKSHADE (1) -
+' as ANSI artists shade: full blocks of the palette's colours, a shade (or a check) only where one turns into the next
+DefineSetting SET_TABLOCK,   "text_art_shapes",    "TEXT ART SHAPES",    MI_CHOICE, 0,  1,   1,   0
+' CELL: ANSI's and ASCII's cells 9 x 16, as VGA's text mode drew them (1): the 9th column blank, but for 0xC0-0xDF - the
+' line drawing and the full and half blocks - which repeat their 8th there, so blocks join and shades keep a seam; or 8 x 16 (0)
+DefineSetting SET_TA9,       "text_art_cell",      "TEXT ART CELL",      MI_CHOICE, 0,  1,   1,   1
+' PRESET: TEXT ART's settings all at once - a line of textart's words each (GL/TEXTART.BM: textart-presets.txt, and yours
+' in saves/). Like MODE it's worked out from the rest (TaPresetNow: CUSTOM, 0, if none matches), never loaded; its top is
+' how many there are (TaPresetsLoad)
+DefineSetting SET_TAPRESET,  "text_art_preset",    "TEXT ART PRESET",    MI_CHOICE, 0,  1,   1,   0
+' RETRO (TEXT ART's sixth set, TA_RETRO): the view in big pixels - W x H of the 800 x 600 screen's - in a palette (a
+' GIMP .gpl in neon-caster/palettes/ or saves/palettes/: RetroPalsScan; kept by name, retro_palette_name=), dithered
+' (none, Bayer 2 4 8, noise) by so much
+DefineSetting SET_RETROW,    "retro_pixel_w",      "RETRO PIXEL W",      MI_SLIDER, 1,  32,  1,   3
+DefineSetting SET_RETROH,    "retro_pixel_h",      "RETRO PIXEL H",      MI_SLIDER, 1,  32,  1,   3
+DefineSetting SET_RETROPAL,  "retro_palette",      "RETRO PALETTE",      MI_CHOICE, 1,  1,   1,   1
+DefineSetting SET_RETRODITH, "retro_dither",       "RETRO DITHER",       MI_CHOICE, 0,  4,   1,   2
+DefineSetting SET_RETROAMT,  "retro_dither_amount", "RETRO DITHER %",    MI_SLIDER, 0,  100, 5,   50
 DefineSetting SET_BLOOM,     "bloom",              "BLOOM",              MI_TOGGLE, 0,  1,   1,   1
 DefineSetting SET_SCREENFX,  "screen_fx",          "SCREEN FX",          MI_CHOICE, 1,  3,   1,   2
 DefineSetting SET_HITFX,     "hit_fx",             "HIT FX",             MI_TOGGLE, 0,  1,   1,   1

@@ -390,6 +390,11 @@ SUB MenuActivate STATIC
                 CASE MA_EDITRESUME : EditResume miRef(menuSel) ' (RESUME LAST EDIT, or one before it: EDITOR/SESSION.BM)
                 CASE MA_KEYS_DEFAULT
                     FOR b = 1 TO NUM_BINDS : keyBind&(b) = bindDefault&(b) : NEXT
+                CASE MA_TASAVE ' TEXT ART: the settings as a preset of yours - its name typed (MenuTypeKey)
+                    menuTyping = -1 : menuTyped$ = "" : menuTypeBad = 0
+                CASE MA_TADEL ' ...and one of yours deleted
+                    qbSel = TaPresetNow : IF qbSel THEN IF taPreMine(qbSel) THEN TaPresetDelete qbSel : PlaySfx sndMenuBack&, 0.6
+                    qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
                 CASE MA_QB64_TYPE ' Type qb64pe's path in (MenuTypeKey)
                     menuTyping = -1 : menuTyped$ = qbChosen$ : menuTypeBad = 0
                 CASE MA_QB64_BROWSE ' Pick it in the system's file window
@@ -413,6 +418,17 @@ END SUB
 ' means look for it) - and Esc leaves it as it was.
 SUB MenuTypeKey STATIC
     menuTypeBad = 0
+    IF miAct(menuSel) = MA_TASAVE THEN ' (a TEXT ART preset's name: Enter saves it, Esc doesn't)
+        SELECT CASE keyCode&
+            CASE 13
+                qbSel = TaPresetSaveNow(menuTyped$) : menuTyping = 0 : PlaySfx sndMenuSelect&, 0.6
+                qbSel = menuSel : BuildMenu menuScreen : menuSel = qbSel
+            CASE 27 : menuTyping = 0 : PlaySfx sndMenuBack&, 0.6
+            CASE 8 : IF LEN(menuTyped$) THEN menuTyped$ = LEFT$(menuTyped$, LEN(menuTyped$) - 1)
+            CASE 32 TO 126 : IF LEN(menuTyped$) < 32 AND keyCode& <> 61 THEN menuTyped$ = menuTyped$ + UCASE$(CHR$(keyCode&)) ' (no =: it parts a name from its words)
+        END SELECT
+        EXIT SUB
+    END IF
     IF _KEYDOWN(100305) OR _KEYDOWN(100306) THEN ' Ctrl
         IF keyCode& = 118 OR keyCode& = 86 OR keyCode& = 22 THEN ' V: the clipboard's first line
             qbClip$ = _CLIPBOARD$ : qbCut = INSTR(qbClip$, CHR$(10)) : IF qbCut THEN qbClip$ = LEFT$(qbClip$, qbCut - 1)
@@ -636,7 +652,12 @@ SUB BuildMenu(scr)
             menuTitle$ = "EFFECTS (OPENGL)" : menuWide = -1
             AddSettingItem SET_BUMP : AddSettingItem SET_SMOOTH : AddSettingItem SET_NEON : AddSettingItem SET_DYNLIGHT
             AddSettingItem SET_SHADOWS : AddSettingItem SET_GLOW : AddSettingItem SET_PARTICLES : AddSettingItem SET_SHAFTS : AddSettingItem SET_REFLECT : AddSettingItem SET_GLASSREF
-            AddSettingItem SET_BLOOM : AddSettingItem SET_HITFX
+            AddSettingItem SET_BLOOM : AddSettingItem SET_HITFX : AddSettingItem SET_TAPRESET : AddSettingItem SET_ASCII : AddSettingItem SET_ASCIICOL : AddSettingItem SET_ASCIISIZE : AddSettingItem SET_TABLOCK : AddSettingItem SET_TA9 : AddSettingItem SET_ASCIIRULE : AddSettingItem SET_MACDITH
+            AddSettingItem SET_RETROW : AddSettingItem SET_RETROH : AddSettingItem SET_RETROPAL : AddSettingItem SET_RETRODITH : AddSettingItem SET_RETROAMT
+            AddMenuItem "SAVE AS PRESET", MI_ACTION, 0, MA_TASAVE, -1, "type its name (none: its words)"
+            n = TaPresetNow : IF n THEN n = -(taPreMine(n) <> 0) ' (only one of yours)
+            info$ = "pick one of yours above" : IF n THEN info$ = taPreName$(TaPresetNow)
+            AddMenuItem "DELETE PRESET", MI_ACTION, 0, MA_TADEL, n, info$
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_SOUNDTEST ' SOUND TEST: the categories (MENU/SOUNDTEST.BM)
             menuTitle$ = "SOUND TEST" : menuWide = -1
@@ -855,7 +876,10 @@ SUB DrawMenu(t)
                 IF setting(miRef(i)) THEN LINE (wx + 5, rowY + 8)-STEP(12, 12), _RGBA32(80, 220, 255, alpha), BF
                 IF setting(miRef(i)) THEN MenuText wx + 36, rowY, "ON", 2, col~&, 0 ELSE MenuText wx + 36, rowY, "OFF", 2, col~&, 0
             CASE MI_CHOICE
-                IF menuWide THEN MenuText wx, rowY, "< " + SettingText$(miRef(i)) + " >", 2, col~&, 0
+                IF menuWide THEN
+                    v$ = SettingText$(miRef(i))
+                    IF LEN(v$) > 12 THEN MenuText wx, rowY + 9, "< " + LEFT$(v$, 28) + " >", 1, col~&, 0 ELSE MenuText wx, rowY, "< " + v$ + " >", 2, col~&, 0 ' (a long one - a TEXT ART preset's name - in small letters)
+                END IF
             CASE MI_ACTION
                 IF menuWide AND miAct(i) = MA_PLOPT THEN MenuText wx, rowY, "< " + PlOptText$(miRef(i)) + " >", 2, col~&, 0 ' (a playlist option)
                 IF miAct(i) = MA_DEMO THEN ' (DEMO REPLAYS: a demo marked for the playlist - a cyan diamond after its name)
@@ -878,6 +902,9 @@ SUB DrawMenu(t)
                 cur$ = " " : IF (t \ 15) MOD 2 = 0 THEN cur$ = "_"
                 MenuText MENU_LABEL_X + 160 + slide, rowY + 9, PathTail$(menuTyped$, 47) + cur$, 1, _RGBA32(255, 230, 60, alpha), 0 ' (48 small letters from MENU_LABEL_X + 160 end inside the panel)
             END IF
+        ELSEIF menuTyping AND miAct(i) = MA_TASAVE AND miKind(i) = MI_ACTION THEN ' A TEXT ART preset's name being typed
+            cur$ = " " : IF (t \ 15) MOD 2 = 0 THEN cur$ = "_"
+            MenuText MENU_LABEL_X + 256 + slide, rowY + 9, "NAME: " + menuTyped$ + cur$, 1, _RGBA32(255, 230, 60, alpha), 0
         ELSEIF miAct(i) = MA_LINK AND miKind(i) = MI_ACTION THEN ' A link: its name underlined - and picked, its address under the panel
             bar = INSTR(miInfo$(i), "|") : lw$ = LEFT$(miInfo$(i), bar - 1) : lx = 400 + slide - LEN(miLabel$(i)) * 8 + (INSTR(miLabel$(i), lw$) - 1) * 16
             LINE (lx, rowY + 28)-(lx + LEN(lw$) * 16 - 3, rowY + 29), _RGBA32(90, 230, 255, alpha), BF

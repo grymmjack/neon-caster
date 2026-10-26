@@ -10,6 +10,7 @@
 ' it, without going through a door), and ICE let loose, far off
 SUB JackIn STATIC
     DIM head ' (its own: the main program shares this name)
+    CyberLookSet 0 ' (F4's look first put away: the real pictures are the ones to keep)
     WorldLoopsOff
     cyberOn = -1 : cyberStation = st
     cyberSlot = 0
@@ -88,7 +89,7 @@ END SUB
 ' added), you back at the station - and if you won, its doors unsealed
 ' (each sealed door belongs to the station nearest it)
 SUB JackOut STATIC
-    CyberTextures 0
+    cyberOn = 0 : CyberTextures 0 ' (out first: the real pictures go to OpenGL smoothed again)
     numFences = 0 : traceAmt = 0
     FOR i = cyberMonStart + 1 TO numMonsters ' (ICE you derezzed doesn't count in the sector's kills)
         IF monsterState(i) = 2 OR monsterState(i) = 3 THEN kills = kills - 1
@@ -96,7 +97,6 @@ SUB JackOut STATIC
     numMonsters = cyberMonStart : numItems = cyberItemStart
     IF cyberSlot THEN itemKind(cyberSlot) = cyberSlotKind : itemX(cyberSlot) = cyberSlotX : itemY(cyberSlot) = cyberSlotY : itemOn(cyberSlot) = 0 : cyberSlot = 0
     FOR i = 1 TO MAX_BOLTS : boltOn(i) = 0 : NEXT
-    cyberOn = 0
     playerX = cyberBackX : playerY = cyberBackY : dirX = cyberBackDX : dirY = cyberBackDY ' (back at the station, as you jacked in - not wherever you'd got to)
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane
     IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
@@ -139,49 +139,103 @@ FUNCTION StationNear(x, y)
     StationNear = best
 END FUNCTION
 
+' F4: MATRIX VIEW - the network's look on the sector, just to see it: its
+' grids for every picture and its even light (UpdateLight), the game going
+' on as it was - looks only, so a demo doesn't mind. Not in the network
+' itself (that's the real thing) or the editor; a sector built, the
+' network jacked into or the editor opened puts it away first
+SUB CyberLookSet(want)
+    IF want AND NOT cyberLook AND NOT cyberOn THEN
+        cyberLook = -1 : CyberTextures -1 : ShowMsg "MATRIX VIEW   (F4: back)"
+    ELSEIF NOT want AND cyberLook THEN
+        cyberLook = 0 : CyberTextures 0 ' (off first: the real pictures go to OpenGL smoothed again)
+    END IF
+END SUB
+
 ' Into the network (goIn): every wall, door, floor and ceiling picture is
 ' kept in texBak and replaced by a neon grid; out: put back. OpenGL
-' is told to send them all again (glRetexVersion) - but not to rebuild its
-' world, which hasn't moved
+' is sent just those pictures again (glDirtyVersion) - not the sprites or
+' models, and not its world, which hasn't moved. Set cyberOn first: going
+' out, the real pictures are sent smoothed again (GLSendSlot)
 SUB CyberTextures(goIn)
-    DIM slot, x, y ' (its own: the main program shares these names)
-    IF goIn THEN REDIM texBak(texSize - 1, texSize - 1, T_SLOTS) AS _UNSIGNED LONG ' (the real pictures' keeping place: only while you're in)
+    DIM slot, n, k, sz&, mT AS _MEM, mB AS _MEM, cyK$(15), cyKAt(15), cyKN, cyKey$ ' (its own: the main program shares these names)
+    ' (Only the slots a sector shows: of the T_CUSTOMN face slots, just the
+    ' ones it uses - the rest were 200 more 512 x 512 pictures to copy and
+    ' paint. Each slot's picture is a block of memory - texture(x, y, slot),
+    ' the slot last - so it's copied whole, and each kind of grid is drawn
+    ' once and copied to the slots that share it. OpenGL gets only those
+    ' slots: GLSendDirty.)
+    IF goIn THEN
+        n = 0
+        FOR slot = 1 TO T_SLOTS
+            cyberBakAt(slot) = 0
+            k = -1 : IF slot > T_CUSTOM AND slot <= T_CUSTOM + T_CUSTOMN THEN IF NOT texUsed(slot - T_CUSTOM) OR texFile$(slot) = "" THEN k = 0
+            IF k THEN n = n + 1 : cyberBakAt(slot) = n
+        NEXT
+        REDIM texBak(texSize - 1, texSize - 1, MaxOf(1, n)) AS _UNSIGNED LONG ' (the real pictures' keeping place: only while you're in)
+    END IF
+    sz& = texSize * texSize * 4
+    mT = _MEM(texture()) : mB = _MEM(texBak())
     FOR slot = 1 TO T_SLOTS
-        IF goIn THEN
-            FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texBak(x, y, slot) = texture(x, y, slot) : NEXT : NEXT
-            SELECT CASE slot
-                CASE 1, 3, 5 : MakeCyberTex slot, 255, 40, 210, 32 ' Walls: magenta...
-                CASE 2, 4, 6 : MakeCyberTex slot, 40, 230, 255, 32 ' ...and cyan
-                CASE T_DOOR TO T_SPLIT : MakeCyberTex slot, 255, 200, 40, 16 ' Doors: gold, a finer grid
-                CASE T_EXIT : MakeCyberTex slot, 60, 255, 120, 16
-                CASE T_FLOOR + 1 TO T_FLOOR + 4 : MakeCyberTex slot, 40, 200, 255, 32 ' The floor: a cyan grid
-                CASE T_CEIL + 1 TO T_CEIL + 2 : MakeCyberTex slot, 110, 40, 200, 64 ' The ceiling: dim violet
-                CASE T_JACK : MakeCyberTex slot, 255, 255, 255, 16
-                CASE ELSE : MakeCyberTex slot, 200, 200, 255, 64
-            END SELECT
-        ELSE
-            FOR y = 0 TO texSize - 1 : FOR x = 0 TO texSize - 1 : texture(x, y, slot) = texBak(x, y, slot) : NEXT : NEXT
+        IF cyberBakAt(slot) THEN
+            IF goIn THEN
+                _MEMCOPY mT, mT.OFFSET + slot * sz&, sz& TO mB, mB.OFFSET + cyberBakAt(slot) * sz&
+                SELECT CASE slot ' (the grid's colour and spacing: a key)
+                    CASE 1, 3, 5 : cyKey$ = "255,40,210,32" ' Walls: magenta...
+                    CASE 2, 4, 6 : cyKey$ = "40,230,255,32" ' ...and cyan
+                    CASE T_DOOR TO T_SPLIT : cyKey$ = "255,200,40,16" ' Doors: gold, a finer grid
+                    CASE T_EXIT : cyKey$ = "60,255,120,16"
+                    CASE T_FLOOR + 1 TO T_FLOOR + 4 : cyKey$ = "40,200,255,32" ' The floor: a cyan grid
+                    CASE T_CEIL + 1 TO T_CEIL + 2 : cyKey$ = "110,40,200,64" ' The ceiling: dim violet
+                    CASE T_JACK : cyKey$ = "255,255,255,16"
+                    CASE ELSE : cyKey$ = "200,200,255,64"
+                END SELECT
+                FOR k = 1 TO cyKN : IF cyK$(k) = cyKey$ THEN EXIT FOR
+                NEXT
+                IF k <= cyKN THEN
+                    _MEMCOPY mT, mT.OFFSET + cyKAt(k) * sz&, sz& TO mT, mT.OFFSET + slot * sz& ' (drawn already: copied)
+                ELSE
+                    MakeCyberTex slot, VAL(cyKey$), VAL(MID$(cyKey$, INSTR(cyKey$, ",") + 1)), VAL(MID$(cyKey$, INSTR(INSTR(cyKey$, ",") + 1, cyKey$, ",") + 1)), VAL(MID$(cyKey$, _INSTRREV(cyKey$, ",") + 1))
+                    IF cyKN < 15 THEN cyKN = cyKN + 1 : cyK$(cyKN) = cyKey$ : cyKAt(cyKN) = slot
+                END IF
+            ELSE
+                _MEMCOPY mB, mB.OFFSET + cyberBakAt(slot) * sz&, sz& TO mT, mT.OFFSET + slot * sz&
+            END IF
+            texDirty(slot) = -1
         END IF
     NEXT
+    _MEMFREE mT : _MEMFREE mB
     IF NOT goIn THEN REDIM texBak(0, 0, 0) AS _UNSIGNED LONG ' (put back: let the memory go)
-    glRetexVersion = glRetexVersion + 1
+    glDirtyVersion = glDirtyVersion + 1 ' (OpenGL: just those slots)
 END SUB
 
 ' A grid picture for the network, into texture slot slot: near-black, with
 ' bright lines (colour r, g, b) every cell'th texel and round the edge,
 ' fainter ones in between, and a dot of light where lines cross
 SUB MakeCyberTex(slot, r, g, b, cell)
-    DIM k, x, y ' (its own: the main program shares these names)
-    sk = texSize \ 128 ' (designed 128 pixels across)
-    FOR yy = 0 TO texSize - 1 : FOR xx = 0 TO texSize - 1
-        x = xx \ sk : y = yy \ sk
+    ' The design is 128 pixels across: worked out once, then scaled up to
+    ' the picture's size (each pixel at 512 was 10 us - 23 s a jack-in).
+    DIM k AS SINGLE, x AS LONG, y AS LONG, ex AS LONG, ey AS LONG, c4 AS LONG ' (its own: the main program shares these names)
+    DIM sk AS LONG, xx AS LONG, yy AS LONG, cr AS SINGLE, cg AS SINGLE, cb AS SINGLE, cyPat(127, 127) AS _UNSIGNED LONG
+    c4 = cell \ 4
+    FOR y = 0 TO 127 : FOR x = 0 TO 127
         ex = x MOD cell : ey = y MOD cell
         k = 0
         IF ex < 2 OR ey < 2 THEN k = 1 ' (the grid's lines)
-        IF (x \ 4) MOD (cell \ 4) = 0 OR (y \ 4) MOD (cell \ 4) = 0 THEN IF k = 0 AND ((x + y) MOD 4 = 0) THEN k = 0.18 ' (faint dots between)
+        IF (x \ 4) MOD c4 = 0 OR (y \ 4) MOD c4 = 0 THEN IF k = 0 AND ((x + y) MOD 4 = 0) THEN k = 0.18 ' (faint dots between)
         IF x < 3 OR y < 3 OR x > 124 OR y > 124 THEN k = 1 ' (the edge)
         IF ex < 2 AND ey < 2 THEN k = 1.6 ' (crossings glow)
-        texture(xx, yy, slot) = _RGB32(MinOf(255, 6 + r * k), MinOf(255, 2 + g * k), MinOf(255, 14 + b * k))
+        cr = 6 + r * k : cg = 2 + g * k : cb = 14 + b * k
+        IF cr > 255 THEN cr = 255
+        IF cg > 255 THEN cg = 255
+        IF cb > 255 THEN cb = 255
+        cyPat(x, y) = _RGB32(cr, cg, cb)
+    NEXT : NEXT
+    sk = texSize \ 128 ' (texSize is 128 times a power of two)
+    IF sk < 1 THEN sk = 1
+    FOR yy = 0 TO texSize - 1 : y = yy \ sk
+        FOR xx = 0 TO texSize - 1
+            texture(xx, yy, slot) = cyPat(xx \ sk, y)
     NEXT : NEXT
 END SUB
 
