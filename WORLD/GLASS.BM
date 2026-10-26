@@ -47,14 +47,15 @@ END SUB
 SUB GlassRefBuild
     DIM k, x, y ' (its own: the main program shares these names)
     glassRefAny = 0 : glassFxAny = 0
-    FOR y = 0 TO MinOf(MAP_SIZE, bldN) : FOR x = 0 TO MinOf(MAP_SIZE, bldN) : glassFrostC(x, y) = 0 : NEXT : NEXT
+    FOR y = 0 TO MinOf(MAP_SIZE, bldN) : FOR x = 0 TO MinOf(MAP_SIZE, bldN) : glassFrostC(x, y) = 0 : glassStyC(x, y) = 0 : NEXT : NEXT
     FOR k = 1 TO numGlass
         x = glassListX(k) : y = glassListY(k)
         glassRefK(k) = GlassRefOf(x, y) : glassBlurK(k) = GlassFxOf(x, y, 4) : glassFrostK(k) = GlassFxOf(x, y, 5) : glassRipK(k) = GlassFxOf(x, y, 6)
-        IF glassHP(x, y) >= BARS_HP THEN glassRefK(k) = 0 : glassFrostK(k) = 0 : glassRipK(k) = 0
+        glassClrK(k) = GlassFxOf(x, y, 8) : glassStyC(x, y) = GlassStyleOf(x, y)
+        IF glassHP(x, y) >= BARS_HP THEN glassRefK(k) = 0 : glassFrostK(k) = 0 : glassRipK(k) = 0 : glassStyC(x, y) = 0
         IF glassRefK(k) > 0 THEN glassRefAny = -1
-        IF glassFrostK(k) > 0 OR glassRipK(k) > 0 THEN glassFxAny = -1
-        glassFrostC(x, y) = glassFrostK(k)
+        IF (glassFrostK(k) > 0 OR glassRipK(k) > 0) AND glassClrK(k) = 0 THEN glassFxAny = -1
+        IF glassClrK(k) = 0 THEN glassFrostC(x, y) = glassFrostK(k)
     NEXT
 END SUB
 
@@ -66,31 +67,83 @@ FUNCTION GlassRefOf(x, y)
     GlassRefOf = GlassRefSector
 END FUNCTION
 
-' The pane at x, y's BLUR (n 4), FROST (5) or RIPPLE (6): 0-9, none 0
+' The pane at x, y's BLUR (n 4), FROST (5), RIPPLE (6) - 0-9 - or THROUGH (8:
+' 1 clear); none 0
 FUNCTION GlassFxOf(x, y, n)
-    DIM k ' (its own: the main program shares these names)
+    DIM k, v ' (its own: the main program shares these names)
     k = XtraFind("glass", x, y, 0)
-    IF k THEN GlassFxOf = MaxOf(0, MinOf(9, VAL(XtraField$(k, n))))
+    IF k THEN v = MaxOf(0, MinOf(9, VAL(XtraField$(k, n))))
+    IF n = 8 AND v <> 0 THEN v = 1
+    GlassFxOf = v
 END FUNCTION
 
-' Change the pane at x, y: what (1 reflects, 2 blur, 3 frost, 4 ripple) by
-' d - its [glass] line written short (none at all when it's as made)
+' The pane at x, y's own STYLE (its [glass] line's 7th), -1 none (the sector's)
+FUNCTION GlassStyleOwn(x, y)
+    DIM k, t$ ' (its own: the main program shares these names)
+    GlassStyleOwn = -1 : k = XtraFind("glass", x, y, 0)
+    IF k THEN t$ = LTRIM$(XtraField$(k, 7))
+    IF LEN(t$) > 0 AND LEFT$(t$, 1) <> "." THEN GlassStyleOwn = MaxOf(0, MinOf(GLASS_STYLES - 1, VAL(t$)))
+END FUNCTION
+
+' The style the pane at x, y is drawn in: its own, else the sector's
+FUNCTION GlassStyleOf(x, y)
+    DIM s ' (its own: the main program shares these names)
+    s = GlassStyleOwn(x, y) : IF s < 0 THEN s = GlassStyleSector
+    GlassStyleOf = s
+END FUNCTION
+
+FUNCTION GlassStyleSector
+    IF lvlGlassSty < 0 THEN GlassStyleSector = 0 ELSE GlassStyleSector = MinOf(lvlGlassSty, GLASS_STYLES - 1)
+END FUNCTION
+
+' A style's name (0 to GLASS_STYLES - 1)
+FUNCTION GlassStyleName$ (s)
+    GlassStyleName$ = _TRIM$(MID$("STREAKS CLEAR   SHEER   PANES   GRID    BRICKS  LEADED  PRIVACY ", MaxOf(0, MinOf(GLASS_STYLES - 1, s)) * 8 + 1, 8))
+END FUNCTION
+
+' A style typed: a number or (the start of) a name - else was
+FUNCTION GlassStyleWord(w$, was)
+    DIM s ' (its own: the main program shares these names)
+    GlassStyleWord = was
+    IF VAL(w$) > 0 OR LEFT$(w$, 1) = "0" THEN GlassStyleWord = MaxOf(0, MinOf(GLASS_STYLES - 1, VAL(w$))) : EXIT FUNCTION
+    FOR s = 0 TO GLASS_STYLES - 1
+        IF LEN(w$) THEN IF LEFT$(GlassStyleName$(s), LEN(w$)) = UCASE$(w$) THEN GlassStyleWord = s : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Every style, numbered: "0 streaks, 1 clear..."
+FUNCTION GlassStyleList$
+    DIM s, t$ ' (its own: the main program shares these names)
+    FOR s = 0 TO GLASS_STYLES - 1 : t$ = t$ + LTRIM$(STR$(s)) + " " + LCASE$(GlassStyleName$(s)) : IF s < GLASS_STYLES - 1 THEN t$ = t$ + ", "
+    NEXT
+    GlassStyleList$ = t$
+END FUNCTION
+
+' Change the pane at x, y: what (1 reflects, 2 blur, 3 frost, 4 ripple, 5
+' style - round, 6 through - 1 clear, 0 bent) by d (to d, for 6) - its
+' [glass] line written short (none at all when it's as made)
 SUB GlassFxSet(x, y, what, d)
-    DIM k, r, v(4) ' (its own: the main program shares these names)
+    DIM k, r, v(6) ' (its own: the main program shares these names)
     r = GlassRefOf(x, y) : k = XtraFind("glass", x, y, 0)
     v(1) = -1 : IF k THEN IF LEFT$(XtraField$(k, 3), 1) <> "." AND LEN(XtraField$(k, 3)) > 0 THEN v(1) = r
     FOR k = 2 TO 4 : v(k) = GlassFxOf(x, y, k + 2) : NEXT
+    v(5) = GlassStyleOwn(x, y) : v(6) = GlassFxOf(x, y, 8)
     IF what = 1 THEN v(1) = MaxOf(0, MinOf(9, r + d)) : IF v(1) = GlassRefSector THEN v(1) = -1
-    IF what > 1 THEN v(what) = MaxOf(0, MinOf(9, v(what) + d))
-    GlassFxPut x, y, v(1), v(2), v(3), v(4)
+    IF what > 1 AND what < 5 THEN v(what) = MaxOf(0, MinOf(9, v(what) + d))
+    IF what = 5 THEN v(5) = (GlassStyleOf(x, y) + d + GLASS_STYLES * 4) MOD GLASS_STYLES : IF v(5) = GlassStyleSector THEN v(5) = -1
+    IF what = 6 THEN v(6) = 0 : IF d THEN v(6) = 1
+    GlassFxPut x, y, v(1), v(2), v(3), v(4), v(5), v(6)
 END SUB
 
-' The pane at x, y's [glass] line: reflects r (-1 the sector's), blur, frost, ripple
-SUB GlassFxPut(x, y, r, bl, fr, rp)
+' The pane at x, y's [glass] line: reflects r (-1 the sector's), blur, frost,
+' ripple, style st (-1 the sector's), through th (1 clear)
+SUB GlassFxPut(x, y, r, bl, fr, rp, st, th)
     DIM t$ ' (its own: the main program shares these names)
     IF r < 0 THEN t$ = "." ELSE t$ = LTRIM$(STR$(r))
-    IF bl OR fr OR rp THEN
+    IF bl OR fr OR rp OR st >= 0 OR th THEN
         t$ = t$ + ", " + LTRIM$(STR$(bl)) + ", " + LTRIM$(STR$(fr)) + ", " + LTRIM$(STR$(rp))
+        IF st >= 0 OR th THEN IF st < 0 THEN t$ = t$ + ", ." ELSE t$ = t$ + ", " + LTRIM$(STR$(st))
+        IF th THEN t$ = t$ + ", 1"
     ELSEIF r < 0 THEN
         t$ = ""
     END IF
@@ -108,10 +161,16 @@ END FUNCTION
 ' each is one on from the last; down a column two)
 FUNCTION GlassSlot(cx, cy)
     DIM hp, st
+    DIM s0 ' (its own: the main program shares these names)
     hp = glassHP(cx, cy)
     IF hp >= BARS_HP THEN GlassSlot = S_BARS : EXIT FUNCTION
-    IF hp >= glassFull THEN GlassSlot = S_GLASS : EXIT FUNCTION
+    s0 = glassStyC(cx, cy) ' (its style: 0 the streaked glass, else its own pictures - S_GSTY)
+    IF hp >= glassFull THEN
+        IF s0 = 0 THEN GlassSlot = S_GLASS ELSE GlassSlot = S_GSTY + (s0 - 1) * GLASS_SPS
+        EXIT FUNCTION
+    END IF
     IF hp * 2 > glassFull THEN st = 0 ELSE IF hp * 4 > glassFull THEN st = 1 ELSE st = 2
+    IF s0 THEN GlassSlot = S_GSTY + (s0 - 1) * GLASS_SPS + 1 + st * GLASS_SLOOKS + (cx + 2 * cy + cx \ 4) MOD GLASS_SLOOKS : EXIT FUNCTION
     GlassSlot = S_CRACK + st * GLASS_LOOKS + (cx + 2 * cy + cx \ 4) MOD GLASS_LOOKS
 END FUNCTION
 

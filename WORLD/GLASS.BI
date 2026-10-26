@@ -32,4 +32,9 @@ DIM SHARED lvlGlassRef AS INTEGER, glassRefK(MAX_GLASS) AS _BYTE, glassRefAny AS
 DIM SHARED glassBlurK(MAX_GLASS) AS _BYTE, glassFrostK(MAX_GLASS) AS _BYTE, glassRipK(MAX_GLASS) AS _BYTE, glassFxAny AS INTEGER
 DIM SHARED glassFrostC(MAP_SIZE, MAP_SIZE) AS _BYTE
 REDIM SHARED gfBuf(0) AS _UNSIGNED LONG ' (a frosted pane's column, as it was behind it: GlassColumn)
-lvlGlassRef = -1
+' Then its STYLE (. or left out: the sector's, glass_style = - lvlGlassSty,
+' -1 left out: 0) - which picture, GLASS_STYLES of them (GlassStyleName$;
+' glassStyC by cell, GlassSlot) - and THROUGH: 1 CLEAR, its frost and
+' ripple only on its reflection, what's seen through it sharp (glassClrK)
+DIM SHARED lvlGlassSty AS INTEGER, glassStyC(MAP_SIZE, MAP_SIZE) AS _BYTE, glassClrK(MAX_GLASS) AS _BYTE
+lvlGlassRef = -1 : lvlGlassSty = -1

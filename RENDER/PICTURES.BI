@@ -83,7 +83,13 @@ CONST S_EYE = S_ACID + 4 + SMEAR_KINDS ' (the eyebot's eye: hunting, yellow - th
 ' falling apart, each in GLASS_LOOKS patterns - panes side by side crack
 ' differently (MakeGlass)
 CONST GLASS_STAGES = 3, GLASS_LOOKS = 4, S_CRACK = S_EYE + 2
-CONST S_MODEL = S_CRACK + GLASS_STAGES * GLASS_LOOKS
+' Glass in other styles (GLASS_STYLES, a pane's [glass] line or the sector's
+' glass_style - MakeGlass): style s (1 on) whole at S_GSTY + (s - 1) *
+' GLASS_SPS, then hit, each stage in GLASS_SLOOKS patterns (style 0, the
+' streaked glass, is S_GLASS and S_CRACK's)
+CONST GLASS_STYLES = 8, GLASS_SLOOKS = 2, GLASS_SPS = 1 + GLASS_STAGES * GLASS_SLOOKS
+CONST S_GSTY = S_CRACK + GLASS_STAGES * GLASS_LOOKS
+CONST S_MODEL = S_GSTY + (GLASS_STYLES - 1) * GLASS_SPS
 CONST SPR_SLOTS = S_MODEL + MAX_MODELS - 1
 ' How big each picture is kept: textures texSize, sprites up to sprTex
 ' pixels across. ART (SETTINGS > VIDEO) picks them: CLASSIC, the pixel art

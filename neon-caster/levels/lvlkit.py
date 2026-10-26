@@ -18,6 +18,7 @@ MONS = set("mghcskwzT15670~_|]")  # ] the mimic (a chest that bites); ... k stal
 BARREL_STACK = 8  # (the game's GAME/DECOS.BI: how many barrels can stand on each other)
 DECO = set("oiptxlnfSdAFIJLOQUWZV:['\"")  # ' a note (its words in [notes]), " a thing (its kind in [things]: THINGS); : a liquid barrel (its liquid and stack in [barrels]), [ a treasure chest; ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
+GLASS_STYLES = 8  # glass pictures: streaks clear sheer panes grid bricks leaded privacy (RENDER/PICTURES.BI)
 GLASS = set("=-")  # a pane of glass: see through it, but not walk; - bars across a window, the same (they never break)
 # The things a " can be ([things] x, y, kind[, more]) - the game's ThingList$, and what each is to the kit
 THINGS = {"table": "deco", "brokenmonitor": "flat", "deadscientist": "flat", "deadguard": "flat", "deadcyborg": "flat", "bookshelf": "deco",
@@ -591,9 +592,13 @@ def check_xtra(lv):
         if not (f[2] == "." or (f[2].isdigit() and int(f[2]) <= 9)): errs.append("glass at %d,%d: '%s' (0 none - 9 a mirror, . the sector's)" % (x, y, f[2]))
         for n, what in zip(f[3:6], ("blur", "frost", "ripple")):
             if not (n.isdigit() and int(n) <= 9): errs.append("glass at %d,%d: %s '%s' (0-9)" % (x, y, what, n))
+        if len(f) > 6 and not (f[6] == "." or (f[6].isdigit() and int(f[6]) < GLASS_STYLES)): errs.append("glass at %d,%d: style '%s' (. or 0-%d)" % (x, y, f[6], GLASS_STYLES - 1))
+        if len(f) > 7 and f[7] not in ("0", "1"): errs.append("glass at %d,%d: through '%s' (0 bent, 1 clear)" % (x, y, f[7]))
         if at(x, y) != "=": errs.append("glass at %d,%d: no pane of glass there (it's '%s')" % (x, y, at(x, y)))
     g = lv.get("glass_reflect")
     if g is not None and not (0 <= g <= 9): errs.append("glass_reflect = %d: 0 none - 9 a mirror" % g)
+    g = lv.get("glass_style")
+    if g is not None and not (0 <= g < GLASS_STYLES): errs.append("glass_style = %d: 0-%d" % (g, GLASS_STYLES - 1))
     return errs
 
 
@@ -721,6 +726,8 @@ def level_text(lv, comment=()):
         out.append("wetness  = %d" % lv["wetness"])
     if lv.get("glass_reflect") is not None and lv["glass_reflect"] >= 0:  # how much its glass reflects, 0-9 (left out: 2)
         out.append("glass_reflect = %d" % lv["glass_reflect"])
+    if lv.get("glass_style"):  # its glass's picture (0 streaks ... 7 privacy - GLASS_STYLES; left out: 0)
+        out.append("glass_style = %d" % lv["glass_style"])
     out.append("walls    = " + ", ".join(lv["walls"]))
     out.append("floors   = " + ", ".join(lv["floors"]))
     out.append("ceilings = " + ", ".join(lv["ceils"]))
@@ -800,7 +807,7 @@ def level_text(lv, comment=()):
                    ("fuel", "' a jetpack's (`) or fuel can's (,) own fuel: x, y, how much (1-100: as made a jetpack's tank is full, 100, a can 40)"),
                    ("difficulty", "' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one"),
                    ("looks", "' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)"),
-                   ("glass", "' the pane of glass at x, y: x, y, how much it reflects 0 none - 9 a mirror (. or no line: the sector's, glass_reflect), then blur (the reflection's), frost, ripple - each 0-9")):
+                   ("glass", "' the pane of glass at x, y: x, y, how much it reflects (OpenGL) 0 none - 9 a mirror (. or no line: the sector's, glass_reflect), then blur (the reflection's), frost, ripple - each 0-9 - its style (. the sector's, glass_style: 0 streaks 1 clear 2 sheer 3 panes 4 grid 5 bricks 6 leaded 7 privacy), 1 to keep what's seen through it clear")):
         if lv.get(sec):  # lines about single cells - kept as they are
             out += ["", "[" + sec + "]", h] + list(lv[sec])
     out.append("")
@@ -897,6 +904,7 @@ def read_level_file(path, label=None):
             elif k == "gravity": lv["gravity"] = int(float(v))
             elif k == "wetness": lv["wetness"] = -1 if v.lower().startswith("a") else int(float(v))
             elif k == "glass_reflect": lv["glass_reflect"] = int(float(v))
+            elif k == "glass_style": lv["glass_style"] = int(float(v))
             elif k == "walls": lv["walls"] = vals
             elif k == "floors": lv["floors"] = vals
             elif k == "ceilings": lv["ceils"] = vals

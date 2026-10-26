@@ -32,7 +32,7 @@ computer. Leave the title screen alone and an autopilot's demos play.
 
 It draws its 3D two ways: a software raycaster, like Wolfenstein 3D, and an
 OpenGL renderer with bump mapping, moving lights, wet floors, glass that
-reflects the room (blurred, frosted or reeded as a pane says), bloom and CRT effects. Every picture comes in pixel art or a high-resolution painting
+reflects the room (blurred, frosted or reeded as a pane says; clear, leaded, glass bricks and more), bloom and CRT effects. Every picture comes in pixel art or a high-resolution painting
 (ART in the video settings).
 
 | | |

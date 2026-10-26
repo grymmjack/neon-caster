@@ -369,10 +369,10 @@ SUB ConExec STATIC
                 ELSEIF MID$(lvlRow$(grY), grX + 1, 1) <> "=" THEN
                     ConPrint "No glass at" + STR$(grX) + STR$(grY)
                 ELSE
-                    IF LCASE$(LEFT$(conC$, 1)) = "a" THEN
-                        XtraSet "glass", grX, grY, ""
+                    IF LCASE$(LEFT$(conC$, 1)) = "a" THEN ' (its blur, frost... kept)
+                        GlassFxSet grX, grY, 1, GlassRefSector - GlassRefOf(grX, grY) : GlassFxSet grX, grY, 1, 0
                     ELSEIF LEN(conC$) THEN
-                        XtraSet "glass", grX, grY, LTRIM$(STR$(MaxOf(0, MinOf(9, VAL(conC$)))))
+                        GlassFxSet grX, grY, 1, MaxOf(0, MinOf(9, VAL(conC$))) - GlassRefOf(grX, grY)
                     END IF
                     IF LEN(conC$) THEN GlassRefBuild : IF editMode THEN editDirty = -1
                     ConPrint "The glass at" + STR$(grX) + STR$(grY) + " reflects" + STR$(GlassRefOf(grX, grY)) + " of 9"
@@ -381,23 +381,32 @@ SUB ConExec STATIC
                 IF LEN(conA$) THEN lvlGlassRef = MaxOf(0, MinOf(9, VAL(conA$))) : GlassRefBuild : IF editMode THEN editDirty = -1
                 ConPrint "Glass reflects" + STR$(GlassRefSector) + " of 9 (0 none - 9 a mirror)"
             END IF
-        CASE "glass" ' glass X Y [reflect|blur|frost|ripple N]: a pane of glass's own look (each 0-9; reflect auto: the sector's) - alone, what it is
+        CASE "glass" ' glass X Y [reflect|blur|frost|ripple|style|through N]: a pane of glass's own look (each 0-9; reflect and style auto: the sector's) - alone, what it is; glass style [N]: the sector's style
             grX = INT(VAL(conA$)) : grY = INT(VAL(conB$))
-            IF conB$ = "" THEN
-                ConPrint "glass X Y [reflect|blur|frost|ripple N]"
+            IF LCASE$(conA$) = "style" THEN
+                IF LEN(conB$) THEN lvlGlassSty = GlassStyleWord(conB$, GlassStyleSector) : GlassRefBuild : IF editMode THEN editDirty = -1
+                ConPrint "The sector's glass: " + GlassStyleName$(GlassStyleSector) : ConPrint "  (" + GlassStyleList$ + ")"
+            ELSEIF conB$ = "" THEN
+                ConPrint "glass X Y [reflect|blur|frost|ripple|style|through N]   glass style [N]"
             ELSEIF grX < 0 OR grY < 0 OR grX >= mapN OR grY >= mapN THEN
                 ConPrint "No such cell"
             ELSEIF MID$(lvlRow$(grY), grX + 1, 1) <> "=" THEN
                 ConPrint "No glass at" + STR$(grX) + STR$(grY)
             ELSE
-                grW = INSTR("reflect blur    frost   ripple  ", LCASE$(LEFT$(conC$, 3))) : grN$ = ConWord$(conCmd$, 5)
+                grW = INSTR("reflect blur    frost   ripple  style   through ", LCASE$(LEFT$(conC$, 3))) : grN$ = ConWord$(conCmd$, 5)
                 IF LEN(conC$) THEN
                     IF grW = 0 OR (grW - 1) MOD 8 <> 0 OR grN$ = "" THEN
-                        ConPrint "glass X Y reflect|blur|frost|ripple N"
+                        ConPrint "glass X Y reflect|blur|frost|ripple N, style N|NAME|auto, through clear|bent"
                     ELSE
                         grW = (grW - 1) \ 8 + 1
                         IF grW = 1 AND LCASE$(LEFT$(grN$, 1)) = "a" THEN
                             GlassFxSet grX, grY, 1, GlassRefSector - GlassRefOf(grX, grY) : GlassFxSet grX, grY, 1, 0 ' (back to the sector's)
+                        ELSEIF grW = 5 AND LCASE$(LEFT$(grN$, 2)) = "au" THEN
+                            GlassFxSet grX, grY, 5, GlassStyleSector - GlassStyleOf(grX, grY)
+                        ELSEIF grW = 5 THEN
+                            GlassFxSet grX, grY, 5, GlassStyleWord(grN$, GlassStyleOf(grX, grY)) - GlassStyleOf(grX, grY)
+                        ELSEIF grW = 6 THEN
+                            GlassFxSet grX, grY, 6, (LCASE$(LEFT$(grN$, 1)) = "c" OR VAL(grN$) <> 0)
                         ELSEIF grW = 1 THEN
                             GlassFxSet grX, grY, 1, MaxOf(0, MinOf(9, VAL(grN$))) - GlassRefOf(grX, grY)
                         ELSE
@@ -406,7 +415,8 @@ SUB ConExec STATIC
                         GlassRefBuild : IF editMode THEN editDirty = -1
                     END IF
                 END IF
-                ConPrint "The glass at" + STR$(grX) + STR$(grY) + ": reflects" + STR$(GlassRefOf(grX, grY)) + ", blur" + STR$(GlassFxOf(grX, grY, 4)) + ", frost" + STR$(GlassFxOf(grX, grY, 5)) + ", ripple" + STR$(GlassFxOf(grX, grY, 6))
+                grN$ = "bent" : IF GlassFxOf(grX, grY, 8) THEN grN$ = "clear"
+                ConPrint "The glass at" + STR$(grX) + STR$(grY) + ": reflects" + STR$(GlassRefOf(grX, grY)) + ", blur" + STR$(GlassFxOf(grX, grY, 4)) + ", frost" + STR$(GlassFxOf(grX, grY, 5)) + ", ripple" + STR$(GlassFxOf(grX, grY, 6)) : ConPrint "  style " + LCASE$(GlassStyleName$(GlassStyleOf(grX, grY))) + ", through " + grN$
             END IF
         CASE "wet" ' wet X0 Y0 X1 Y1 N: those floors' own wetness (0-9; . the sector's) - in the editor, into the level; in play, a trigger's rain
             IF LEN(ConWord$(conCmd$, 6)) = 0 THEN
@@ -1488,7 +1498,7 @@ SUB ConHelp(c$)
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7redo"
             ConPrint "            ^7savelevel  ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]"
             ConPrint "            ^7jumppad^8 X Y ...  ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N"
-            ConPrint "            ^7glassreflect^8 [X Y] [N]  ^7glass^8 X Y [reflect|blur|frost|ripple N]"
+            ConPrint "            ^7glassreflect^8 [X Y] [N]  ^7glass^8 X Y [reflect|blur|frost|ripple|style|through N]"
             ConPrint "            ^7ambient^8 [BRIGHT RRGGBB FX]  ^7celllight^8 X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]|off"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
             ConPrint "            ^7flashlight^8 [on|off|width|reach|bright|soft|haze|colour|fx|battery ...]"
@@ -1623,6 +1633,10 @@ SUB ConHelp(c$)
             ConPrint "^3glass X Y [reflect|blur|frost|ripple N]^0: a pane of glass's own look, each 0-9 - reflect how much"
             ConPrint "  it mirrors the room (auto: the sector's), blur that reflection, frost what's behind it"
             ConPrint "  (0 clear, 9 only shapes and light), ripple it in bands (reeded glass). Alone: what it is."
+            ConPrint "  ^3glass X Y style N|NAME|auto^0: its picture (auto: the sector's) -"
+            ConPrint "    " + GlassStyleList$ + "."
+            ConPrint "  ^3glass X Y through clear|bent^0: clear keeps what's seen through it sharp (frost and ripple"
+            ConPrint "  only on its reflection). ^3glass style [N|NAME]^0: the sector's style (glass_style =)."
         CASE "glassreflect"
             ConPrint "^3glassreflect [N]^0: how much this sector's glass reflects the room you're in (OpenGL's GLASS"
             ConPrint "  REFLECTIONS): 0 none - 9 a mirror, 2 as made. ^3glassreflect X Y [N|auto]^0: one pane's own"

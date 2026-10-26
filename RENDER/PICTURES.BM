@@ -56,8 +56,11 @@ SUB LoadPictures STATIC
     LoadSprite "jetpack.png", ItemSprite(IT_JETPACK) : LoadSprite "jetfuel.png", ItemSprite(IT_JETFUEL)
     LoadSprite "repairkit.png", ItemSprite(IT_REPAIR) : LoadSprite "invuln.png", ItemSprite(IT_INVULN)
     LoadSprite "flashlight.png", ItemSprite(IT_FLASHLIGHT) : LoadSprite "battery.png", ItemSprite(IT_BATTERY)
-    MakeGlass S_GLASS, 0, 0 : MakeGlass S_GLASS + 1, 2, 0 ' (glass, whole and cracked - the tuner's)
-    FOR k = 0 TO GLASS_STAGES * GLASS_LOOKS - 1 : MakeGlass S_CRACK + k, k \ GLASS_LOOKS + 1, k MOD GLASS_LOOKS : NEXT ' (hit glass: each stage, each pattern)
+    MakeGlass S_GLASS, 0, 0, 0 : MakeGlass S_GLASS + 1, 0, 2, 0 ' (glass, whole and cracked - the tuner's)
+    FOR k = 0 TO GLASS_STAGES * GLASS_LOOKS - 1 : MakeGlass S_CRACK + k, 0, k \ GLASS_LOOKS + 1, k MOD GLASS_LOOKS : NEXT ' (hit glass: each stage, each pattern)
+    FOR k = 0 TO (GLASS_STYLES - 1) * GLASS_SPS - 1 ' (the other styles: each whole, then hit)
+        IF (k MOD GLASS_SPS) = 0 THEN MakeGlass S_GSTY + k, k \ GLASS_SPS + 1, 0, 0 ELSE MakeGlass S_GSTY + k, k \ GLASS_SPS + 1, (k MOD GLASS_SPS - 1) \ GLASS_SLOOKS + 1, (k MOD GLASS_SPS - 1) MOD GLASS_SLOOKS
+    NEXT
     LoadSprite "bars.png", S_BARS ' (bars across a window)
     FOR k = 0 TO SMEAR_KINDS - 1 : LoadSprite "smear-" + SmearName$(k) + ".png", S_SMEAR + k : NEXT ' (blood and oil: [smears])
     MakePad S_PAD ' (a teleporter's pad)
@@ -941,25 +944,64 @@ END SUB
 ' The glass picture, into sprite slot slot: faintly blue, mostly see-
 ' through (low alpha), two streaks of shine across it, and a solid metal
 ' frame top and bottom (and a thin upright at each edge, so panes side by
-' side look like a row of windows). Hit (stage 1-3, GLASS_STAGES): cracks
+' side look like a row of windows). That's style 0 (GLASS_STYLES): 1 CLEAR
+' is it with no streaks, 2 SHEER no frame either, 3 PANES a window of four,
+' 4 GRID sixteen small panes (old glass, each a little different), 5 BRICKS
+' glass blocks (mortar, bevelled edges, rings), 6 LEADED diamonds in lead,
+' some warm, 7 PRIVACY a frosted band across the middle. Hit (stage 1-3, GLASS_STAGES): cracks
 ' from where it was struck - stage 1 a chip and a little star of them, 2
 ' long cracks out across it and a ring, 3 a second strike, more rings and
 ' a hole knocked out at the first. look (0 to GLASS_LOOKS - 1) is which
 ' pattern: where it was struck, how many cracks, which way they wander. A
 ' pane's look stays as it goes from stage to stage, so its cracks grow.
 ' (Its own dice, GlassRnd!, so the pictures are the same every time.)
-SUB MakeGlass(slot, stage, look)
-    DIM a, b, g, gk, k, r, st, x, y, xx, yy, n, ox, oy, px, py, ang, stp, ln, ring, hx, hy ' (its own: the main program shares these names)
+SUB MakeGlass(slot, style, stage, look)
+    DIM a, b, g, gk, k, r, st, x, y, xx, yy, n, ox, oy, px, py, ang, stp, ln, ring, hx, hy, lx, ly, d ' (its own: the main program shares these names)
     DIM rs AS _INTEGER64, c~&
     spriteSize(slot) = sprTex : gk = sprTex \ 64 ' (designed 64 pixels across: each of those gk x gk)
     FOR yy = 0 TO sprTex - 1 : FOR xx = 0 TO sprTex - 1
         x = xx \ gk : y = yy \ gk
         a = 40 : r = 150 : g = 215 : b = 235
-        st = (x + INT(y * 0.6)) MOD 64
-        IF st >= 12 AND st < 16 THEN a = 95 : r = 225 : g = 248 : b = 255
-        IF st >= 20 AND st < 21 THEN a = 75 : r = 210 : g = 240 : b = 255
-        IF y < 4 OR y > 59 THEN a = 255 : r = 80 : g = 90 : b = 108 : IF y = 3 OR y = 60 THEN r = 130 : g = 145 : b = 165
-        IF x = 0 OR x = 63 THEN a = 255 : r = 70 : g = 80 : b = 96
+        SELECT CASE style
+            CASE 0 ' (STREAKS: two streaks of shine)
+                st = (x + INT(y * 0.6)) MOD 64
+                IF st >= 12 AND st < 16 THEN a = 95 : r = 225 : g = 248 : b = 255
+                IF st >= 20 AND st < 21 THEN a = 75 : r = 210 : g = 240 : b = 255
+            CASE 2 : a = 34 ' (SHEER: glass and nothing else)
+            CASE 3 ' (PANES: a cross of glazing bars)
+                IF x = 31 OR x = 32 OR y = 31 OR y = 32 THEN
+                    a = 255 : r = 70 : g = 80 : b = 96 : IF x = 31 OR y = 31 THEN r = 112 : g = 124 : b = 142
+                END IF
+            CASE 4 ' (GRID: 4 x 4 small panes, each its own)
+                lx = x \ 16 : ly = (y - 4) \ 14
+                a = 32 + ((lx * 7 + ly * 13) MOD 5) * 5 : g = 210 + ((lx * 3 + ly) MOD 3) * 9 : b = 228 + ((lx + ly * 2) MOD 3) * 6
+                IF ((x MOD 16) = 0 AND x > 0) OR (((y - 4) MOD 14) = 0 AND y > 4 AND y < 59) THEN a = 255 : r = 62 : g = 68 : b = 78
+            CASE 5 ' (BRICKS: glass blocks, 4 x 4 - mortar, bevelled edges, rings in each)
+                lx = x MOD 16 : ly = y MOD 16
+                IF lx = 0 OR ly = 0 THEN
+                    a = 255 : r = 160 : g = 166 : b = 172
+                ELSEIF lx = 15 OR ly = 15 THEN
+                    a = 255 : r = 128 : g = 134 : b = 142
+                ELSE
+                    d = SQR((lx - 7.5) ^ 2 + (ly - 7.5) ^ 2)
+                    a = 46 + INT(14 * (0.5 + 0.5 * COS(d * 1.3))) : r = 176 + a : g = 222 : b = 240 : IF r > 230 THEN r = 230
+                    IF lx = 1 OR ly = 1 THEN a = 150 : r = 228 : g = 246 : b = 255
+                    IF lx = 14 OR ly = 14 THEN a = 140 : r = 92 : g = 126 : b = 146
+                END IF
+            CASE 6 ' (LEADED: diamonds in lead, every other one warm)
+                IF (((x + y) \ 16 + (x - y + 64) \ 16) MOD 2) THEN a = 50 : r = 222 : g = 222 : b = 186
+                IF ((x + y) MOD 16) = 0 OR ((x - y + 64) MOD 16) = 0 THEN a = 255 : r = 56 : g = 58 : b = 62
+                IF y < 2 OR y > 61 OR x = 0 OR x = 63 THEN a = 255 : r = 62 : g = 66 : b = 72
+            CASE 7 ' (PRIVACY: a frosted band across the middle)
+                IF y >= 22 AND y <= 42 THEN
+                    a = 118 + ((x * 7 + y * 11) MOD 3) * 8 : r = 196 : g = 212 : b = 222
+                    IF y = 22 OR y = 42 THEN a = 160 : r = 222 : g = 234 : b = 242
+                END IF
+        END SELECT
+        IF style <> 2 AND style <> 5 AND style <> 6 THEN ' (a metal frame top and bottom, a thin upright each side)
+            IF y < 4 OR y > 59 THEN a = 255 : r = 80 : g = 90 : b = 108 : IF y = 3 OR y = 60 THEN r = 130 : g = 145 : b = 165
+            IF x = 0 OR x = 63 THEN a = 255 : r = 70 : g = 80 : b = 96
+        END IF
         spriteTex(xx, yy, slot) = _RGBA32(r, g, b, a)
     NEXT : NEXT
     IF stage <= 0 THEN EXIT SUB

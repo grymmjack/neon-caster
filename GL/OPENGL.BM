@@ -809,6 +809,7 @@ SUB GLGlassMirrors(b)
                     IF GLNearSeen(cx, cy, b) THEN
                         GLSL_uniform_1f glMirProg, "amt", glassRefK(k) / 9
                         GLSL_uniform_1f glMirProg, "blur", glassBlurK(k) : GLSL_uniform_1f glMirProg, "rip", glassRipK(k)
+                        GLSL_uniform_1f glMirProg, "frost", glassFrostK(k) * glassClrK(k) ' (THROUGH CLEAR: its frost on the reflection, not what's behind it)
                         IF glassDir(cx, cy) = 1 THEN x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 ELSE x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1
                         gz0 = floorH(cx, cy) : gz1 = ceilH(cx, cy)
                         _glBegin _GL_QUADS
@@ -891,8 +892,10 @@ SUB GLBuildMirProg
     fs$ = fs$ + "uniform vec2 nrm;       // the pane's facing (along x or y)" + nl$
     fs$ = fs$ + "uniform float amt;      // how much it reflects: 0..1 (0-9)" + nl$
     fs$ = fs$ + "uniform float blur;     // how blurred: 0-9" + nl$
+    fs$ = fs$ + "uniform float frost;    // frosted, when what's behind it is left clear: 0-9" + nl$
     fs$ = fs$ + "void main() {" + nl$
-    fs$ = fs$ + "    vec3 c = look(blur * 0.0045);" + nl$
+    fs$ = fs$ + "    vec3 c = look(blur * 0.0045 + frost * 0.0065);" + nl$
+    fs$ = fs$ + "    c = mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), 0.35 * frost / 9.0) + 0.05 * frost / 9.0;" + nl$
     fs$ = fs$ + "    float ci = abs(dot(normalize(vPos - eye), vec3(nrm, 0.0)));  // head on 1, along it 0" + nl$
     fs$ = fs$ + "    float fr = pow(1.0 - ci, 3.0);" + nl$
     fs$ = fs$ + "    gl_FragColor = vec4(c, clamp(amt * (0.35 + 0.65 * fr) * (1.0 + amt), 0.0, 1.0));" + nl$
@@ -947,7 +950,7 @@ SUB GLGlassFrost(b)
     IF glMirTried = 0 THEN GLBuildMirProg
     IF glFxProg = 0 THEN EXIT SUB
     FOR k = 1 TO numGlass
-        IF glassFrostK(k) OR glassRipK(k) THEN
+        IF (glassFrostK(k) OR glassRipK(k)) AND glassClrK(k) = 0 THEN
             cx = glassListX(k) : cy = glassListY(k)
             IF glassHP(cx, cy) > 0 THEN IF GLNearSeen(cx, cy, b) THEN fxAny = -1 : EXIT FOR
         END IF
@@ -964,7 +967,7 @@ SUB GLGlassFrost(b)
     GLSL_uniform_4f glFxProg, "view", glMirView(0), glMirView(1), glMirView(2), glMirView(3)
     _glColor4f 1, 1, 1, 1
     FOR k = 1 TO numGlass
-        IF glassFrostK(k) OR glassRipK(k) THEN
+        IF (glassFrostK(k) OR glassRipK(k)) AND glassClrK(k) = 0 THEN ' (THROUGH CLEAR: left as it is)
             cx = glassListX(k) : cy = glassListY(k)
             IF glassHP(cx, cy) > 0 THEN
                 IF GLNearSeen(cx, cy, b) THEN
