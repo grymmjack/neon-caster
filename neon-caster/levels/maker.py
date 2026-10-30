@@ -113,14 +113,14 @@ SPECS = {
             walls=["wall-concrete.png", "wall-control.png", "wall-servers.png", "wall-grate.png", "wall-hull.png", "wall-stripes.png"],
             floors=["floor-deck.png", "floor-plates.png", "floor-circuit.png", "floor-concrete.png"],
             ceils=["ceiling-lights.png", "ceiling-cables.png"], ambient=(160, 210, 225, 255),
-            mons="gg5km", nmons=16, guns="23", puzzles="",
+            mons="gg)km", nmons=16, guns="23", puzzles="",
             story="Cameras everywhere and guards who run for the alarm. Find the monitors first."),
     3: dict(name="TURRET LINE", style="data", seed=31, gates=["key:y", "fix", "pad"],
             enc=["gauntlet", "gauntlet", "nest"], side=["workshop", "server", "office", "storage", "security"],
             walls=["wall-hull.png", "wall-terminals.png", "wall-datastream.png", "wall-coils.png", "wall-turret.png", "wall-code.png"],
             floors=["floor-circuit.png", "floor-deck.png", "floor-platform.png", "floor-rustgrate.png"],
             ceils=["ceiling-cables.png", "ceiling-girders.png"], ambient=(150, 200, 190, 255),
-            mons="ggh51", nmons=16, guns="23", puzzles="",
+            mons="ggh)1", nmons=16, guns="23", puzzles="",
             story="The corridors are covered. Every turret line has a panel within reach - get to it."),
     4: dict(name="SPILLWAY", style="toxic", seed=41, gates=["key:r", "pad", "key:b"],
             enc=["crossing", "crossing", "fire"], side=["lab", "workshop", "office", "storage", "garden"],
@@ -141,35 +141,35 @@ SPECS = {
             walls=["wall-brick.png", "wall-control.png", "wall-terminals.png", "wall-girders.png", "wall-vault.png", "wall-obsidian.png"],
             floors=["floor-plates.png", "floor-deck.png", "floor-scorched.png", "floor-concrete.png"],
             ceils=["ceiling-hull.png", "ceiling-girders.png"], ambient=(160, 255, 220, 180),
-            mons="gh5k6", nmons=17, guns="234)", puzzles="", kick=True,
+            mons="gh)k6", nmons=17, guns="2345", puzzles="", kick=True,
             story="Safes, a strongroom you have to kick your way into, and a chest that bites."),
     7: dict(name="DEEP NETWORK", style="data", seed=71, gates=["seal", "pad", "seal"],
             enc=["network", "cutter", "network"], side=["server", "office", "server", "storage", "security"],
             walls=["wall-servers.png", "wall-terminals.png", "wall-datastream.png", "wall-coils.png", "wall-jack.png", "wall-code.png"],
             floors=["floor-circuit.png", "floor-glow.png", "floor-deck.png", "floor-platform.png"],
             ceils=["ceiling-cables.png", "ceiling-core.png"], ambient=(150, 170, 150, 255),
-            mons="gk51E", nmons=18, guns="234)", puzzles="password, select",
+            mons="gk)1E", nmons=18, guns="2345", puzzles="password, select",
             story="Sealed doors only the network opens. Jack in at each data station."),
     8: dict(name="LOW ORBIT", style="outdoor", seed=81, gates=["key:b", "pad", "key:r"],
             enc=["shaft", "crossing", "survive"], side=["storage", "workshop", "office", "lab", "security"],
             walls=["wall-hull.png", "wall-viewport.png", "wall-control.png", "wall-girders.png", "wall-transit.png", "wall-lightstrip.png"],
             floors=["floor-platform.png", "floor-deck.png", "floor-plates.png", "floor-glow.png"],
             ceils=["ceiling-girders.png", "ceiling-hull.png"], ambient=(150, 200, 190, 255),
-            mons="m1Egw", nmons=18, guns="234)", puzzles="", gravity=60,
+            mons="m1Egw", nmons=18, guns="2345", puzzles="", gravity=60,
             story="Gravity at sixty percent. A jetpack, fuel, and shafts to climb."),
     9: dict(name="COMPOUND", style="neon", seed=91, gates=["key:b", "pad", "fix", "key:r"],
             enc=["alarm", "gauntlet", "crossing", "blackout"], side=["security", "office", "workshop", "server", "vault", "storage"],
             walls=["wall-concrete.png", "wall-control.png", "wall-servers.png", "wall-pipes.png", "wall-vault.png", "wall-hazard.png"],
             floors=["floor-deck.png", "floor-plates.png", "floor-circuit.png", "floor-hazard.png"],
             ceils=["ceiling-lights.png", "ceiling-warning.png"], ambient=(150, 210, 210, 255),
-            mons="g5kh7", nmons=20, guns="234)", puzzles="", kick=True,
+            mons="g)kh7", nmons=20, guns="2345", puzzles="", kick=True,
             story="Everything at once: alarms, turrets, acid, the dark."),
     10: dict(name="CORE BREACH", style="infernal", seed=101, gates=["seal", "key:y", "pad", "key:r"],
              enc=["reactor", "gauntlet", "survive", "boss"], side=["security", "server", "workshop", "office", "storage"],
              walls=["wall-reactor.png", "wall-control.png", "wall-core.png", "wall-furnace.png", "wall-vault.png", "wall-obsidian.png"],
              floors=["floor-core.png", "floor-scorched.png", "floor-molten.png", "floor-plates.png"],
              ceils=["ceiling-core.png", "ceiling-girders.png"], ambient=(150, 255, 190, 150),
-             mons="h5k06", nmons=20, guns="234)", puzzles="sum",
+             mons="h)k06", nmons=20, guns="2345", puzzles="sum",
              story="The core. Lava round it, its guardian on it."),
 }
 
@@ -919,8 +919,8 @@ def alarm_wing(L, r):
     for (x, y) in floor_spots(L, r, 2)[:2]:
         L.thing(x, y, "table"); take(r, (x, y))
     box = (r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
-    L.triggers.append("alarm : celllight %d %d %d %d 150 FF2020 pulse ; message ALARM - every machine near here is awake" % box)
-    L.triggers.append("calm : celllight %d %d %d %d off" % box)
+    L.triggers.append("alarm : cell-light %d %d %d %d 150 FF2020 pulse ; message ALARM - every machine near here is awake" % box)
+    L.triggers.append("calm : cell-light %d %d %d %d off" % box)
     r.switches = sw
 
 
@@ -1098,7 +1098,7 @@ def populate(L):
         f = floor_spots(L, r, 1)
         if f:
             L.g[f[0][1]][f[0][0]] = guns[z]; take(r, f[0])
-            if guns[z] == ")":
+            if guns[z] == "5":
                 if len(f) > 1:
                     L.g[f[1][1]][f[1][0]] = "("; take(r, f[1])
     m = [r for r in order if r.zone == 0 and not r.path] or order

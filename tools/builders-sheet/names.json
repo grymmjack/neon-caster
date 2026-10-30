@@ -1,0 +1,650 @@
+{
+ "_notes": {
+  "monsters": "hp = EASY health = blaster hits (blaster does 1). hp_by_difficulty = EASY / NORMAL / HARD / NIGHTMARE as shipped (neon-caster/tuning-defaults.txt over monsters.txt / GAME/MONTYPES.BI). Damage is EASY's; NIGHTMARE: you take x1.25, and every machine but turrets, mimics, wardens, colossi and ICE comes in twins. Speeds in cells a frame: you walk 0.06, run 0.12. Weak spot hit = x2 damage (x2.5 HARD, x3 NIGHTMARE). type_no is the number summon/spawn/[events] take; summon also takes the name or its start. All woken monsters open doors, and their shots hit other monsters (who may turn on them).",
+  "pickups": "name = LootName$ (the [loot] / item / [things] name). Amounts are EASY (as shipped); by_difficulty = EASY / NORMAL / HARD / NIGHTMARE. Weapons: blaster (gun 1, cells, never a pickup), scatter 2, repeater 3, railgun 4, launcher 5.",
+  "puzzles": "Code terminals ($). default_sector = which sector's terminals use it when the level file has no 'puzzles =' line (sector number MOD 10). blanks = the words cut out (spoilers)."
+ },
+ "monsters": [
+  {
+   "name": "drone",
+   "type_no": 1,
+   "char": "m",
+   "picture": "drone.png",
+   "hp": 3,
+   "hp_by_difficulty": "3 / 6 / 7 / 9",
+   "damage": "6-9",
+   "attack": "melee bite up close (about once a second)",
+   "speed": "slow - 0.03 (half your walk)",
+   "sight/notes": "Flies (hovers, rises and drops to your height). Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "nothing",
+   "weak_spot": "its red eye"
+  },
+  {
+   "name": "gunner",
+   "type_no": 2,
+   "char": "g",
+   "picture": "gunner.png",
+   "hp": 4,
+   "hp_by_difficulty": "4 / 8 / 10 / 12",
+   "damage": "7-10 a bolt",
+   "attack": "plasma bolt (range 11 cells, about every 2 s)",
+   "speed": "slow - 0.025",
+   "sight/notes": "Keeps 3.5-7 cells away, backs off if you close in. Slaps an alarm switch it passes. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "energy cells (30%)",
+   "weak_spot": "its head"
+  },
+  {
+   "name": "heavy",
+   "type_no": 3,
+   "char": "h",
+   "picture": "heavy.png",
+   "hp": 10,
+   "hp_by_difficulty": "10 / 15 / 20 / 25",
+   "damage": "15-22",
+   "attack": "melee smash (reach 1.25, about every 1.6 s)",
+   "speed": "slow - 0.02",
+   "sight/notes": "Big: a scatter blast lands more pellets. Slaps alarm switches. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "shells (40%)",
+   "weak_spot": "its head"
+  },
+  {
+   "name": "crawler",
+   "type_no": 4,
+   "char": "c",
+   "picture": "crawler.png",
+   "hp": 2,
+   "hp_by_difficulty": "2 / 3 / 5 / 6",
+   "damage": "3-5",
+   "attack": "melee nip (about once a second)",
+   "speed": "normal - 0.045 (3/4 your walk)",
+   "sight/notes": "Small spider bot, low to the ground; comes in packs. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "nothing",
+   "weak_spot": "its red eyes, low at the front"
+  },
+  {
+   "name": "sentry",
+   "type_no": 5,
+   "char": "s",
+   "picture": "sentry.png",
+   "hp": 8,
+   "hp_by_difficulty": "8 / 10 / 20 / 30",
+   "damage": "5-8 a bolt",
+   "attack": "plasma bolt (range 11, about every 1.2-1.7 s)",
+   "speed": "still - 0",
+   "sight/notes": "A gun post: never moves. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "energy cells (25%)",
+   "weak_spot": "its camera, on top"
+  },
+  {
+   "name": "stalker",
+   "type_no": 6,
+   "char": "k",
+   "picture": "stalker.png",
+   "hp": 3,
+   "hp_by_difficulty": "3 / 4 / 7 / 10",
+   "damage": "5-8",
+   "attack": "melee blade slash (about once a second)",
+   "speed": "normal - 0.052 (nearly your walk; run to lose it)",
+   "sight/notes": "Cyborg with blades. Slaps alarm switches. A broken specimen tank lets out a stalker or spitter half the time. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "health pack (20%)",
+   "weak_spot": "its visor"
+  },
+  {
+   "name": "spitter",
+   "type_no": 7,
+   "char": "w",
+   "picture": "spitter.png",
+   "hp": 6,
+   "hp_by_difficulty": "6 / 8 / 10 / 12",
+   "damage": "6-9 a bolt",
+   "attack": "spits bolts (range 11, about every 1.6-2 s)",
+   "speed": "slow - 0.022",
+   "sight/notes": "Mutant; keeps its distance like a gunner (3.5-7 cells). Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "shells (30%)",
+   "weak_spot": "its head",
+   "unsure": "Docs call them acid bolts, but the code fires the same plasma bolt as the gunner (no acid effect)."
+  },
+  {
+   "name": "overseer",
+   "type_no": 8,
+   "char": "z",
+   "picture": "overseer.png",
+   "hp": 80,
+   "hp_by_difficulty": "80 / 100 / 200 / 300",
+   "damage": "9-13 middle bolt, 9 each side bolt",
+   "attack": "fan of 3 plasma bolts (about every 0.75-1.25 s)",
+   "speed": "very slow - 0.014",
+   "sight/notes": "Boss: a giant floating eye (flies). NEXUS speaks through it when it wakes. Keeps 3.5-7 cells off. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "big medkit (100%)",
+   "weak_spot": "its great red eye"
+  },
+  {
+   "name": "thief",
+   "type_no": 9,
+   "char": "T",
+   "picture": "thief.png",
+   "hp": 5,
+   "hp_by_difficulty": "5 / 10 / 15 / 20",
+   "damage": "0 (never fights)",
+   "attack": "steals: half your cells and shells, and the gun in your hands (else your best gun - never the blaster)",
+   "speed": "fast - 0.09 (faster than you walk, slower than you run)",
+   "sight/notes": "Then runs home to its hoard (event 7) - if it gets in, the hoard is locked for good. Each hit knocks some of your things loose; hit before it steals, it runs home empty-handed. No hoard: just runs from you.",
+   "drops": "everything it stole",
+   "weak_spot": "its head"
+  },
+  {
+   "name": "ice",
+   "type_no": 10,
+   "char": "(none)",
+   "picture": "ice.png",
+   "hp": 2,
+   "hp_by_difficulty": "2 / 4 / 5 / 7",
+   "damage": "5-7 (hunter); 6 a bolt (sentinel); 14 (black ICE)",
+   "attack": "hunter: bite; sentinel: data bolts; tracer: watches; black ICE: heavy hit",
+   "speed": "normal - 0.05",
+   "sight/notes": "The network's ICE (after jacking in at a data station @): NOT placeable on a map, and summon/spawn only hunts in the network. Kinds: hunter, sentinel (still, 6 hp), tracer (2 hp, keeps 3-4 cells off and fills the TRACE fast), black ICE (12 hp, slow). Flies.",
+   "drops": "nothing",
+   "weak_spot": "its core",
+   "unsure": "Network-only; sentinel/tracer/black hp are fixed in NetSetup (6/2/12) and ignore difficulty."
+  },
+  {
+   "name": "sniper",
+   "type_no": 11,
+   "char": "1",
+   "picture": "sniper.png",
+   "hp": 4,
+   "hp_by_difficulty": "4 / 6 / 10 / 15",
+   "damage": "16-21",
+   "attack": "laser: aims a faint red line that follows you (a little behind) for under a second, then fires a white-hot beam - step out of it",
+   "speed": "slow - 0.022",
+   "sight/notes": "Keeps 6-12 cells off; fires from up to 18 cells. Slaps alarm switches. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "nothing",
+   "weak_spot": "its head"
+  },
+  {
+   "name": "trooper",
+   "type_no": 12,
+   "char": ")",
+   "picture": "trooper.png",
+   "hp": 6,
+   "hp_by_difficulty": "6 / 10 / 20 / 25",
+   "damage": "5-7 a bolt",
+   "attack": "3-bolt burst (range 13, about every 1.7-2.2 s)",
+   "speed": "slow - 0.028",
+   "sight/notes": "Keeps 3.5-7 cells away. Slaps alarm switches. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "nothing",
+   "weak_spot": "its visor"
+  },
+  {
+   "name": "ripper",
+   "type_no": 13,
+   "char": "6",
+   "picture": "ripper.png",
+   "hp": 3,
+   "hp_by_difficulty": "3 / 6 / 12 / 18",
+   "damage": "6-9",
+   "attack": "melee slash: lunges in, slashes (claw marks on screen), leaps back out of reach",
+   "speed": "fast - 0.072 (quicker than you walk)",
+   "sight/notes": "Hit and run. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "nothing",
+   "weak_spot": "its eyes"
+  },
+  {
+   "name": "warden",
+   "type_no": 14,
+   "char": "7",
+   "picture": "warden.png",
+   "hp": 60,
+   "hp_by_difficulty": "60 / 125 / 225 / 325",
+   "damage": "laser 24; ring bolts 5 each; aimed bolts 10 each",
+   "attack": "turn about: an aimed laser, then a ring of 10 bolts plus 3 at you",
+   "speed": "very slow - 0.016",
+   "sight/notes": "Field boss. Keeps 5-10 cells off. Not twinned on NIGHTMARE. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "an overcharge, armour, and a gun you haven't got (else a big medkit)",
+   "weak_spot": "its core"
+  },
+  {
+   "name": "colossus",
+   "type_no": 15,
+   "char": "0",
+   "picture": "colossus.png",
+   "hp": 90,
+   "hp_by_difficulty": "90 / 150 / 250 / 350",
+   "damage": "slam 22-29; bolts 12 each",
+   "attack": "up close a slam that shakes the floor (reach 1.9); 3-12 cells off a fan of 3 heavy bolts",
+   "speed": "very slow - 0.015",
+   "sight/notes": "Field boss: comes on and on, never backs off. Not twinned on NIGHTMARE. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "a damage amp, a big medkit, cells and shells",
+   "weak_spot": "its furnace"
+  },
+  {
+   "name": "turret",
+   "type_no": 16,
+   "char": "~",
+   "picture": "turret.png",
+   "hp": 6,
+   "hp_by_difficulty": "6 / 12 / 24 / 24",
+   "damage": "plasma 4-5 a bolt (other weapons: see notes)",
+   "attack": "ceiling turret: hidden till it sees you, slides down, turns onto you, then 5-bolt bursts (range 13)",
+   "speed": "still - 0 (turns 90 degrees a second as made)",
+   "sight/notes": "3D model; can't be hit till fully out (a shot at its hatch wakes it). WEAPON per turret ([monsters] 8th number): plasma, laser 14-19, lightning 10-15 (11 cells), flame / poison / acid sprays (3, 2, 3 a puff; 5-6 cells), missiles (homing, blast 22). A turret control panel (;) hacked switches off every turret within 12 cells. Destroyed it blows up; a ceiling one falls. Not twinned on NIGHTMARE.",
+   "drops": "nothing (it blows up)",
+   "weak_spot": "its eye",
+   "summon_names": "turret, ceilingturret"
+  },
+  {
+   "name": "floorturret",
+   "type_no": 16,
+   "char": "_",
+   "picture": "turret.png",
+   "hp": 6,
+   "hp_by_difficulty": "6 / 12 / 24 / 24",
+   "damage": "as the ceiling turret",
+   "attack": "rises out of the floor, then as the ceiling turret",
+   "speed": "still - 0",
+   "sight/notes": "Same as ~, mounted in the floor.",
+   "drops": "nothing (it blows up)",
+   "weak_spot": "its eye",
+   "summon_names": "floorturret, _"
+  },
+  {
+   "name": "wallturret",
+   "type_no": 16,
+   "char": "|",
+   "picture": "turret.png",
+   "hp": 6,
+   "hp_by_difficulty": "6 / 12 / 24 / 24",
+   "damage": "as the ceiling turret",
+   "attack": "slides out of a wall beside its cell at chest height, then as the ceiling turret",
+   "speed": "still - 0",
+   "sight/notes": "Can only turn 70 degrees either side of straight out of its wall. With no wall beside it, it's a floor turret. Summoned: in the wall you face, out already.",
+   "drops": "nothing (it blows up)",
+   "weak_spot": "its eye",
+   "summon_names": "wallturret, |"
+  },
+  {
+   "name": "mimic",
+   "type_no": 17,
+   "char": "]",
+   "picture": "mimic.png (asleep: mimic-asleep.png)",
+   "hp": 8,
+   "hp_by_difficulty": "8 / 10 / 16 / 24",
+   "damage": "14-19",
+   "attack": "melee bite (about every 0.9 s)",
+   "speed": "slow - 0.034",
+   "sight/notes": "Looks just like a treasure chest ([) while asleep (lock glows pink, not cyan). Woken only by Space on it, standing within a cell of it, or a shot - not by alarms or barks. Not twinned on NIGHTMARE.",
+   "drops": "nothing",
+   "weak_spot": "its mouth"
+  },
+  {
+   "name": "robodog",
+   "type_no": 18,
+   "char": "\"",
+   "picture": "robodog.png (biting: robodog-attack.png)",
+   "hp": 5,
+   "hp_by_difficulty": "5 / 12 / 20 / 24",
+   "damage": "6-9",
+   "attack": "melee bite (about every 0.7 s)",
+   "speed": "fast - 0.078 (quicker than you walk, slower than you run)",
+   "sight/notes": "A thing (\" with [things] robodog). When it sees you it barks: every sleeping machine within 10 cells wakes and comes (not turrets or mimics). Keeps barking while it hunts. Asleep till it sees you within 14 cells (or is shot); then hunts you for good.",
+   "drops": "nothing",
+   "weak_spot": "its head",
+   "summon_names": "robodog (things also take dog, robotdog, guarddog)"
+  },
+  {
+   "name": "guard",
+   "type_no": 19,
+   "char": "\"",
+   "picture": "guard.png",
+   "hp": 4,
+   "hp_by_difficulty": "4 / 8 / 12 / 24",
+   "damage": "4-6 a bolt",
+   "attack": "plasma pistol bolt (range 11, every 1.4-1.9 s)",
+   "speed": "fast - 0.074 (quicker than you walk)",
+   "sight/notes": "A thing (\" with [things] guard). Sees you, then runs for the nearest alarm switch that's on (40 steps at most) and sets the alarm off (every machine within 24 cells wakes); then fights like a gunner (3.5-7 cells off). Shoot the switch first or switch the alarms off.",
+   "drops": "nothing",
+   "weak_spot": "its visor"
+  },
+  {
+   "name": "eyebot",
+   "type_no": 20,
+   "char": "\"",
+   "picture": "eyebot.png (eye: eyebot-hunt.png yellow, eyebot-rush.png red)",
+   "hp": 3,
+   "hp_by_difficulty": "3 / 8 / 16 / 24",
+   "damage": "laser 5-7; blast 34 at its middle (less further off, 2.1 cells across)",
+   "attack": "laser zaps, then rushes you and explodes",
+   "speed": "slow - 0.036 (2.6x that when rushing)",
+   "sight/notes": "A thing (\" with [things] eyebot). Flies, rising or dropping to you. Circles 5-8 cells off zapping; after 2 zaps or once you're within 3.5 cells it dives at you beeping faster and blows up (or after 2.5 s). Shot down mid-dive it blows up where it is. Counts for the Bestiary.",
+   "drops": "nothing (it explodes)",
+   "weak_spot": "its eye",
+   "summon_names": "eyebot (things also take eye, flyingeye)"
+  }
+ ],
+ "pickups": [
+  {
+   "name": "red",
+   "char": "r",
+   "picture": "keycard.png (tinted red)",
+   "what": "Red keycard: kept for the rest of the sector, opens every red door (R).",
+   "for": "red key doors"
+  },
+  {
+   "name": "blue",
+   "char": "b",
+   "picture": "keycard.png (tinted blue)",
+   "what": "Blue keycard: kept for the rest of the sector, opens every blue door (B).",
+   "for": "blue key doors"
+  },
+  {
+   "name": "yellow",
+   "char": "y",
+   "picture": "keycard.png (tinted yellow)",
+   "what": "Yellow keycard: kept for the rest of the sector, opens every yellow door (Y).",
+   "for": "yellow key doors"
+  },
+  {
+   "name": "health",
+   "char": "+",
+   "picture": "medkit.png",
+   "what": "Health pack: +25 health, up to 100; cures poison. Left lying if you're full and not poisoned.",
+   "for": "health"
+  },
+  {
+   "name": "ammo",
+   "char": "a",
+   "picture": "ammo.png",
+   "what": "Energy cells: +15, up to 99 carried. Left lying if you're full. Cells dropped or thrown out (loot, a monster's drop) become ammo for one of your energy guns (cells, rounds or slugs); cells placed on the map stay cells.",
+   "for": "blaster",
+   "by_difficulty": "pickup 15 / 15 / 20 / 25, most carried 99 / 100 / 150 / 175",
+   "aliases": "cells"
+  },
+  {
+   "name": "shells",
+   "char": "e",
+   "picture": "shells.png",
+   "what": "Shells: +8, up to 40 carried. Left lying if you're full.",
+   "for": "scatter gun",
+   "by_difficulty": "pickup 8 / 8 / 10 / 12, most carried 40 / 50 / 60 / 75"
+  },
+  {
+   "name": "scatter",
+   "char": "2",
+   "picture": "pickup-scatter.png",
+   "what": "Scatter gun (gun 2) with 8 shells: 7 pellets in a spread, 1 damage each, a shot every 2/3 s. First one: you switch to it; again later it's just its shells.",
+   "for": "gun 2 (shells)",
+   "by_difficulty": "comes with 8 / 8 / 10 / 15 shells"
+  },
+  {
+   "name": "repeater",
+   "char": "3",
+   "picture": "pickup-repeater.png",
+   "what": "Repeater (gun 3) with 60 rounds: automatic, about 12 shots a second, 1 damage each. Again later it's just its rounds.",
+   "for": "gun 3 (rounds)",
+   "by_difficulty": "comes with 60 / 60 / 100 / 150 rounds"
+  },
+  {
+   "name": "armor",
+   "char": "u",
+   "picture": "armor.png",
+   "what": "Armour: +50, up to 100. Armour takes a third of each hit until it runs out. Left lying if you're full.",
+   "for": "armour",
+   "aliases": "armour"
+  },
+  {
+   "name": "medkit",
+   "char": "*",
+   "picture": "bigmed.png",
+   "what": "Big medkit: +50 health, up to 100; cures poison. Left lying if you're full and not poisoned.",
+   "for": "health",
+   "aliases": "bigmed"
+  },
+  {
+   "name": "rail",
+   "char": "4",
+   "picture": "pickup-rail.png",
+   "what": "Railgun (gun 4) with 6 slugs: 5 damage to every machine in its line up to the wall (sets off every barrel in it), a shot about every 0.9 s; right button zooms. Again later it's just its slugs.",
+   "for": "gun 4 (slugs)",
+   "by_difficulty": "comes with 6 / 6 / 10 / 15 slugs",
+   "aliases": "railgun"
+  },
+  {
+   "name": "map",
+   "char": "M",
+   "picture": "map.png",
+   "what": "The map: puts the minimap in the corner and shows the whole sector on the full map (Tab). Without it Tab shows only where you've been. One a sector.",
+   "for": "navigation"
+  },
+  {
+   "name": "overcharge",
+   "char": "q",
+   "picture": "overcharge.png",
+   "what": "Overcharge: +100 health past full, up to 200 (the extra in blue on the health bar). Left lying at 200.",
+   "for": "health"
+  },
+  {
+   "name": "amp",
+   "char": "j",
+   "picture": "amp.png",
+   "what": "Damage amp: every shot does double damage for 30 seconds.",
+   "for": "damage boost"
+  },
+  {
+   "name": "core",
+   "char": "(none)",
+   "picture": "core.png",
+   "what": "Data core: only in the network (after jacking in) - grab the sector's cores against the clock to clear a data station. Not placeable on a map.",
+   "for": "the network",
+   "unsure": "Network-only; included for completeness."
+  },
+  {
+   "name": "goggles",
+   "char": "8",
+   "picture": "goggles.png",
+   "what": "Night vision headset: yours till you die (as a gun is), on as you pick it up; NIGHT VISION (N) switches it. The world in green, the dark lifted. No battery. One you have already stays on the floor.",
+   "for": "seeing in the dark",
+   "aliases": "nightvision, headset"
+  },
+  {
+   "name": "suit",
+   "char": "9",
+   "picture": "suit.png",
+   "what": "Hazmat suit: poison, slime and acid wear the suit instead of you (about 45 s of poison, 20 of acid); fire and lava go straight through. Lost when you die. Left lying while yours is as good as new.",
+   "for": "hazards",
+   "aliases": "hazmat"
+  },
+  {
+   "name": "launcher",
+   "char": "5",
+   "picture": "pickup-rocket.png",
+   "what": "Rocket launcher (gun 5) with 5 rockets: a rocket bursts on what it hits - 6 on a direct hit plus a blast (up to 14, 2.4 cells across) that hurts you too up close (up to 30); right button zooms. Again later it's just its rockets.",
+   "for": "gun 5 (rockets)",
+   "by_difficulty": "comes with 5 / 5 / 8 / 10 rockets",
+   "aliases": "rocketlauncher, rocket"
+  },
+  {
+   "name": "rockets",
+   "char": "(",
+   "picture": "rockets.png",
+   "what": "Rockets: +5, up to 50 carried. Left lying if you're full.",
+   "for": "rocket launcher",
+   "by_difficulty": "pickup 5 / 5 / 7 / 10, most carried 50 / 50 / 75 / 100"
+  },
+  {
+   "name": "rounds",
+   "char": "{",
+   "picture": "rounds.png",
+   "what": "Repeater rounds: +40, up to 200 carried. Left lying if you're full.",
+   "for": "repeater",
+   "by_difficulty": "pickup 40 / 40 / 50 / 75, most carried 200 / 200 / 300 / 350"
+  },
+  {
+   "name": "slugs",
+   "char": "}",
+   "picture": "slugs.png",
+   "what": "Railgun slugs: +5, up to 25 carried. Left lying if you're full.",
+   "for": "railgun",
+   "by_difficulty": "pickup 5 / 5 / 10 / 15, most carried 25 / 25 / 50 / 75"
+  },
+  {
+   "name": "jetpack",
+   "char": "`",
+   "picture": "jetpack.png",
+   "what": "Jetpack: yours till you die, its tank full (100 - or its own [fuel] amount). Hold FLY / JET UP (E as made), or look up and walk, to fire it and rise; let go and you fall. A full tank is about 7 s of thrust. Another one tops your tank up.",
+   "for": "flying",
+   "aliases": "jet"
+  },
+  {
+   "name": "jetfuel",
+   "char": ",",
+   "picture": "jetfuel.png",
+   "what": "Jet fuel can: +40 fuel (or its own [fuel] amount), tank holds 100. Only taken if you have a jetpack that isn't full.",
+   "for": "jetpack",
+   "aliases": "fuel"
+  },
+  {
+   "name": "repairkit",
+   "char": "\"",
+   "picture": "repairkit.png",
+   "what": "Computer repair kit: carry up to 3; Space on a broken computer with one fixes it (then it can be hacked).",
+   "for": "broken computers",
+   "aliases": "repair, kit"
+  },
+  {
+   "name": "invuln",
+   "char": "\"",
+   "picture": "invuln.png",
+   "what": "Invulnerability: nothing hurts you for 5 seconds (a golden glow round the screen).",
+   "for": "protection",
+   "aliases": "invulnerability"
+  },
+  {
+   "name": "flashlight",
+   "char": "\"",
+   "picture": "flashlight.png",
+   "what": "Flashlight: yours till you die, battery full and on as you pick it up; FLASHLIGHT (L) switches it. Lights a cone where you look while its battery lasts (BATTERY LIFE, 5 minutes as made). A second one is a spare battery. Looks only - no machine notices it.",
+   "for": "seeing in the dark",
+   "aliases": "torch"
+  },
+  {
+   "name": "battery",
+   "char": "\"",
+   "picture": "battery.png",
+   "what": "Flashlight battery: a spare (up to 4); one goes in as the battery runs out - straight away if it's already dead.",
+   "for": "flashlight",
+   "aliases": "batteries"
+  }
+ ],
+ "puzzles": [
+  {
+   "name": "hello",
+   "title": "HELLO, NEXUS",
+   "lesson": "PRINT shows text - and a program runs top to bottom",
+   "what": "Put the two PRINT lines in order and fill the missing PRINT so it prints ACCESS then GRANTED.",
+   "file": "neon-caster/puzzles/hello.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "PRINT",
+   "default_sector": 1,
+   "course_chapter": 1
+  },
+  {
+   "name": "multiply",
+   "title": "THE DOOR CODE",
+   "lesson": "Variables hold numbers; * multiplies",
+   "what": "Order the lines (set a and b, multiply, then PRINT) and fill the * so it prints 42.",
+   "file": "neon-caster/puzzles/multiply.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "*",
+   "default_sector": 2,
+   "course_chapter": 4
+  },
+  {
+   "name": "countdown",
+   "title": "COUNTDOWN",
+   "lesson": "FOR ... NEXT repeats - STEP -1 counts down",
+   "what": "Order the loop and fill STEP and NEXT so it prints 3 2 1 LIFTOFF.",
+   "file": "neon-caster/puzzles/countdown.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "STEP, NEXT",
+   "default_sector": 3,
+   "course_chapter": 7
+  },
+  {
+   "name": "password",
+   "title": "THE PASSWORD",
+   "lesson": "IF ... THEN ... ELSE chooses",
+   "what": "Order the IF block and fill THEN and ELSE so the right password prints OPEN.",
+   "file": "neon-caster/puzzles/password.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "THEN, ELSE",
+   "default_sector": 4,
+   "course_chapter": 10
+  },
+  {
+   "name": "sum",
+   "title": "POWER CELLS",
+   "lesson": "Arrays: a list of numbers, one name, an index",
+   "what": "Order the lines and fill DIM and total so it adds three cells' charge and prints 60.",
+   "file": "neon-caster/puzzles/sum.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "DIM, total",
+   "default_sector": 5,
+   "course_chapter": 3
+  },
+  {
+   "name": "pythagoras",
+   "title": "HOW FAR?",
+   "lesson": "SQR and Pythagoras: the distance between two points",
+   "what": "Order the lines and fill SQR so it works out the distance 3 across, 4 down and prints 5.",
+   "file": "neon-caster/puzzles/pythagoras.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "SQR",
+   "default_sector": 6,
+   "course_chapter": 10
+  },
+  {
+   "name": "select",
+   "title": "THREAT LEVEL",
+   "lesson": "SELECT CASE: one of several",
+   "what": "Order the SELECT CASE block and fill SELECT and END so monster state 1 prints HUNTING.",
+   "file": "neon-caster/puzzles/select.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "SELECT, END",
+   "default_sector": 7,
+   "course_chapter": 13
+  },
+  {
+   "name": "function",
+   "title": "DOUBLE OR NOTHING",
+   "lesson": "A FUNCTION gives back a value",
+   "what": "Order the lines (main program first, the FUNCTION after) and fill FUNCTION and Twice so it prints 42.",
+   "file": "neon-caster/puzzles/function.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "FUNCTION, Twice",
+   "default_sector": 8,
+   "course_chapter": 23
+  },
+  {
+   "name": "reverse",
+   "title": "MIRROR WRITING",
+   "lesson": "Strings: MID$ takes letters out; LEN counts them",
+   "what": "Order the loop and fill LEN and MID$ so it prints NEXUS backwards: SUXEN.",
+   "file": "neon-caster/puzzles/reverse.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "LEN, MID$",
+   "default_sector": 9,
+   "course_chapter": 23
+  },
+  {
+   "name": "wrap",
+   "title": "WRAP AROUND",
+   "lesson": "AND 63: wrapping a number into 0..63, the way textures repeat",
+   "what": "Order the lines and fill AND so pixel 70 wraps into a 64-pixel texture and prints 6.",
+   "file": "neon-caster/puzzles/wrap.txt",
+   "code": "GAME/TERMINALS.BM: TerminalUse (Space at a $ code terminal, called from LOOP/11-DOORS.BI: locks the doors within 7 cells, picks the puzzle - the level's 'puzzles =' list, one a terminal in reading order, else one by sector number), LoadPuzzle (reads neon-caster/puzzles/NAME.txt via AssetPath$, shuffles lines, blanks words), RunPuzzle (the puzzle screen), PuzzleRun (compiles with qb64pe - QB64Path$ - and checks output against 'expect'), PuzzleMatches (no qb64pe: lines checked against [lines]); console 'puzzle NAME' (MENU/CONSOLE.BM ConExec) tries one with no doors at stake.",
+   "blanks": "AND",
+   "default_sector": 10,
+   "course_chapter": 14
+  }
+ ]
+}

@@ -43,6 +43,11 @@ reflects the room (blurred, frosted or reeded as a pane says; clear, leaded, gla
 | ![A code terminal: a real QB64 program, compiled and run](docs/screenshots/code-terminal.jpg) | ![The level editor in 3D: a statue's pane, the picker, a lit painting](docs/screenshots/editor-walk.jpg) |
 | ![The level editor's map view: a door's pane, the picker](docs/screenshots/editor-map.jpg) | ![The Conservatory's light lab, built with the editor](docs/screenshots/light-lab.jpg) |
 
+**Building your own sectors?** Start here:
+
+- [Level editor guide](LEVEL-EDITOR-GUIDE.md) - every tool, key, map character and level-file field.
+- [Builder's sheet](BUILDERS-SHEET.html) - every texture, map character, thing, sound and console command on one page, to keep open while you build. GitHub shows it as source code: open it from a release download (it's beside the game) or a clone of this repository.
+
 ## Play it
 
 Download it for your computer from the
@@ -81,23 +86,25 @@ folders), so you may find it's already set. Without QB64PE the terminals
 still let you through, but they only check your lines against the answer:
 nothing is compiled or run.
 
-**Five sets of ten:** **GAME > NEW GAME** (or SELECT SECTOR) plays the
-original ten. **GAME > NEW SECTORS** is ten more, built on everything the
+**Five sets of ten:** **GAME > NEW GAME** plays the original ten, and
+**GAME > SECTORS** has every sector in folders (AI GENERATED holds the
+sets, MAN MADE yours - make, name and move your own folders there, ten
+deep). **NEW SECTORS** is ten more, built on everything the
 game has grown since: blocks inside cells (slim lit pillars, thin walls,
 alcoves with terminals glowing in them), water, slime, poison, acid and
 lava, loot in the breakables, lockdowns that slam shut, rooftops under a
-storm, and the overseer at the end. **GAME > OLD SECTORS NEW** is the
+storm, and the overseer at the end. **OLD SECTORS NEW** is the
 first ten again, remade with all of that - same maps and routes, new
-detail. **GAME > HUGE SECTORS** is ten big ones, 112 to 192 cells across:
+detail. **HUGE SECTORS** is ten big ones, 112 to 192 cells across:
 districts of every kind - plazas under the sky, office floors, flooded
 halls, reactors, server farms, gardens, turret towers with lifts, arenas
 that lock round you while the turrets come out of the walls - three
 keycards on the way to each exit, and a field boss waiting at the end of
-the later ones. **GAME > INFILTRATION** is ten more, 64 cells
+the later ones. **INFILTRATION** is ten more, 64 cells
 across (`levels/infil/`). Each set runs 1 to 10 on its own, and a save remembers which set
 it's from.
 
-**Make your own:** **GAME > YOUR SECTORS > NEW SECTOR** gives you a
+**Make your own:** **GAME > SECTORS > NEW SECTOR** (in any folder) gives you a
 blank sector (one room in solid wall) and opens the level editor on it.
 Push walls back, sink pits, stand blocks in cells (pillars, thin walls,
 alcoves), flood floors with liquids, add doors, monsters and lights, paint
@@ -111,8 +118,11 @@ thing, set up ambushes, and Ctrl+S saves it to
 straight in the editor - RESUME LAST EDIT picks up where you left off -
 with no intro, music or taunts, and the editor's VERSIONS keeps copies to
 go back to (and REVERT TO SAVED). The [level editor guide](LEVEL-EDITOR-GUIDE.md)
-explains every tool, key, map character and level-file field, and YOUR
-SECTORS starts with twelve example sectors (three of them outdoors, under skies) built with the editor to take
+explains every tool, key, map character and level-file field; the
+[builder's sheet](BUILDERS-SHEET.html) has every texture, map character,
+thing, sound and console command on one page, to keep open while you
+build; and SECTORS > AI GENERATED > SHOWCASES has twelve example sectors
+(three of them outdoors, under skies) built with the editor to take
 apart.
 
 **Difficulty:** four levels, in **GAME** or **SETTINGS > GAMEPLAY**. EASY is

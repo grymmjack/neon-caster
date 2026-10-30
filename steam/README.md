@@ -89,9 +89,9 @@ Steam's servers, and your profile.
 | | `NC_KICK_KILL` | Boot to the Head | A kill with the kick |
 | | `NC_OVER_EDGE` | Over the Edge | A machine into a bottomless pit |
 | | `NC_CHAIN` | Chain Reaction | Three kills in one explosion |
-| | `NC_ARSENAL` | Arsenal | All four guns |
+| | `NC_ARSENAL` | Arsenal | All five guns at once |
 | | `NC_AMPED` | Overclocked | Five kills on one damage amp |
-| | `NC_BESTIARY` | Bestiary | One of each of the nine machines (stat `KillKinds`) |
+| | `NC_BESTIARY` | Bestiary | One of each of the 19 kinds of machine - every kind but the network's ICE (stat `KillKinds`) |
 | | `NC_THIEF` | Stop, Thief! | Destroy a thief |
 | Skill | `NC_UNTOUCHED` | Untouchable | A sector without taking damage |
 | | `NC_CLEAN_SWEEP` / `NC_PACKRAT` / `NC_PERFECT` | Clean Sweep / Packrat / Perfectionist | Every kill / every item / both |

@@ -92,6 +92,7 @@
 
 ' MENU ------------------------------------------------------------------------
 '$INCLUDE:'./MENU/MENU.BI'
+'$INCLUDE:'./MENU/FOLDERS.BI'
 '$INCLUDE:'./MENU/CONSOLE.BI'
 '$INCLUDE:'./MENU/SAVES.BI'
 '$INCLUDE:'./MENU/SPLASH.BI'

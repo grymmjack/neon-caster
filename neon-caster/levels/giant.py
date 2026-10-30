@@ -61,7 +61,7 @@ def build():
     g[N - 10][C] = "^"
     g[7][C] = "E"
     # On top: the reward - and on the way up, things to fight
-    g[C - 2][C] = "q"; g[C - 2][C - 1] = "("; g[C - 2][C + 1] = ")"  # (by the lift, on the pyramid's top)
+    g[C - 2][C] = "q"; g[C - 2][C - 1] = "("; g[C - 2][C + 1] = "5"  # (by the lift, on the pyramid's top)
     k = N / 128.0
     for (x, y, c) in ((40, 90, "g"), (88, 90, "g"), (64, 100, "h"), (30, 64, "s"), (98, 64, "s"), (64, 40, "w"), (50, 50, "m"), (78, 78, "m"),
                       (64, 110, "g"), (20, 64, "h"), (108, 64, "h"), (45, 30, "m"), (83, 30, "m"), (64, 75, "s"), (75, 64, "w"), (53, 64, "w"),

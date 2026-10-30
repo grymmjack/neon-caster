@@ -82,7 +82,7 @@ nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or 
 `resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 `savelevel` - and `door`, `wall`, `light` (`light 3 toggle`, `colour FF2020`, `bright`, `fx pulse`), `ambient`
-and `celllight` (the sector's own light, or a box of cells', changed as it plays; `ambient -200` darkens every lamp too), `flashlight` (on, off, its beam's width, reach, colour...), `textart` (TEXT ART, OpenGL: the view drawn as ASCII, ANSI's DOS blocks and shades, PETSCII's C64 graphics, falling MATRIX code, a RETRO computer's big pixels in any palette (`retro 3 3 apple2-hires bayer4 50` - every GIMP palette in `palettes/` and yours in `saves/palettes/`), or a 1-bit MAC - dithered Atkinson's way, or Floyd-Steinberg's, Jarvis's, Stucki's, Sierra's, Bayer's 2x2, 4x4 or 8x8, noise or a plain threshold - in each one's own colours, the view's, a terminal's green, amber or white, EGA's 16 or the C64's 16; AUTHENTIC keeps it to the palette's own colours and each machine's rules, BLOCKSHADE draws flat colour as full blocks and shades only where it changes, ANSI and ASCII cells are VGA's 9 x 16 (`8px` for 8 x 16): `ansi ega`, `ansi ega blockshade 48`, `petscii c64 12`, `mac bayer`, `textart matrix`, `help textart` for every word; EFFECTS has it too, and TEXT ART PRESET - `textart-presets.txt`, a line of these words each - with SAVE AS PRESET for your own: `textart presets`, `textart save NAME`), `photo`, `matrix`, `grid 60`, `glass X Y` (a pane's reflection, blur, frost, ripple, style and strength - `glass 13 11 style bricks`, `strength unbreakable`) and `glassreflect`, `liftgo`, `message`, `sound`,
+and `cell-light` (the sector's own light, or a box of cells', changed as it plays; `ambient -200` darkens every lamp too), `flashlight` (on, off, its beam's width, reach, colour...), `textart` (TEXT ART, OpenGL: the view drawn as ASCII, ANSI's DOS blocks and shades, PETSCII's C64 graphics, falling MATRIX code, a RETRO computer's big pixels in any palette (`retro 3 3 apple2-hires bayer4 50` - every GIMP palette in `palettes/` and yours in `saves/palettes/`), or a 1-bit MAC - dithered Atkinson's way, or Floyd-Steinberg's, Jarvis's, Stucki's, Sierra's, Bayer's 2x2, 4x4 or 8x8, noise or a plain threshold - in each one's own colours, the view's, a terminal's green, amber or white, EGA's 16 or the C64's 16; AUTHENTIC keeps it to the palette's own colours and each machine's rules, BLOCKSHADE draws flat colour as full blocks and shades only where it changes, ANSI and ASCII cells are VGA's 9 x 16 (`8px` for 8 x 16): `ansi ega`, `ansi ega blockshade 48`, `petscii c64 12`, `mac bayer`, `textart matrix`, `help textart` for every word; EFFECTS has it too, and TEXT ART PRESET - `textart-presets.txt`, a line of these words each - with SAVE AS PRESET for your own: `textart presets`, `textart save NAME`), `photo`, `matrix`, `grid 60`, `glass X Y` (a pane's reflection, blur, frost, ripple, style and strength - `glass 13 11 style bricks`, `strength unbreakable`) and `glassreflect`, `liftgo`, `message`, `sound`,
 `give`/`take` (health, armour, ammo by kind, all), `die`, `spawn TYPE X Y`
 and `item KIND X Y`, which a level's triggers use. `mons` lists every
 monster and whether it's awake. `qb64pe` says which compiler the code
@@ -222,14 +222,14 @@ back to playing it. M opens the monster kinds editor (every kind's
 numbers, and what it drops: `monsters.txt`), U the HUD layout editor (drag
 the HUD about, over the game: `hud.txt`).
 
-**Your own sectors.** To start from nothing, **EDIT > YOUR SECTORS > NEW
-SECTOR** (or GAME's) makes a blank one - solid wall, with one lit room in the middle,
+**Your own sectors.** To start from nothing, **EDIT > SECTORS > NEW
+SECTOR** (or GAME's, in any folder - it goes in the one you're in) makes a blank one - solid wall, with one lit room in the middle,
 you facing the exit - and opens the editor on it. Carve rooms outwards by
 pushing walls back or placing floor (`.`), add doors, keycards,
 monsters, lights and heights, and Ctrl+S saves it. Your sectors are numbered on from the game's (11, 12
 and so on, up to 30 - the first eleven are examples built with the editor) and kept in `neon-caster/levels/custom/` (`custom1.txt`
-is sector 11), where the level kit never touches them. YOUR SECTORS lists
-them to play; finishing one starts it again. In the console, `newsector`
+is sector 11), where the level kit never touches them. SECTORS lists
+them to play, in folders (MENU/FOLDERS.BM: only the menu's - `levels/folders.txt`, yours in `saves/folders.txt`); finishing one starts it again. In the console, `newsector`
 makes one, `sectorname NAME` renames the sector you're in (then
 `savelevel`), `map 11` goes there and `maps` lists them all. In the
 editor, PgUp/PgDn steps through every sector, yours included. The whole
@@ -398,7 +398,7 @@ In the console:
 
 ## The other four sets
 
-**NEW SECTORS** (GAME > NEW SECTORS, `levels/new/`) are ten more, built by
+**NEW SECTORS** (GAME > SECTORS > AI GENERATED, `levels/new/`) are ten more, built by
 `levels/newsectors.py` on everything the game grew after the first ten:
 
 | Sector | What it shows off |
@@ -414,7 +414,7 @@ In the console:
 | 9 The Archive | rack rows between partitions, rack alcoves, laser grids, a cutter sweeping the sorter, stalker closets |
 | 10 Nexus Heart | the overseer on a platform ringed by red-lit pillars in a lava moat, spawners, two lockdowns on the way in |
 
-**OLD SECTORS NEW** (GAME > OLD SECTORS NEW, `levels/remix/`) are the
+**OLD SECTORS NEW** (GAME > SECTORS > AI GENERATED, `levels/remix/`) are the
 first ten remade by `levels/remaster.py`, which reads each original and
 adds to it without moving its walls, keys or doors: alcoves cut into long
 walls with the sector's theme glowing in them, slim lit columns in open
@@ -425,7 +425,7 @@ Station's hub, coolant in the Reactor's bowl, the Foundry's pillars lit
 like fire, neon adverts on the Maglev's platforms, red pillars round the
 overseer.
 
-**HUGE SECTORS** (GAME > HUGE SECTORS, `levels/huge/`) are ten big ones,
+**HUGE SECTORS** (GAME > SECTORS > AI GENERATED, `levels/huge/`) are ten big ones,
 112 to 192 cells across, built by `levels/hugesectors.py` from districts:
 a grid of blocks, some merged into great halls, joined along a spanning
 tree with some loops, and three keycard doors splitting the way to the
@@ -439,7 +439,7 @@ held turrets come out of the walls. The campaign's dressers then add
 closets, windows, lasers, plates, a hoard, a data station, teleporters, a
 code terminal and a secret stash, and the level kit checks every one.
 
-**INFILTRATION** (GAME > INFILTRATION, `levels/infil/`) is the fifth set:
+**INFILTRATION** (GAME > SECTORS > AI GENERATED, `levels/infil/`) is the fifth set:
 ten sectors 64 cells across (`sectorset infil` in the console). The menu
 shows it greyed until its files are there.
 
@@ -548,7 +548,7 @@ run it and see what happens. That's the fastest way to learn how it works.
 - **Marks that fade** (ch. 12, 24): shot marks and scorches (`AddDecal`)
   stay until 96 newer ones push them out. Fade each one's alpha with age
   instead.
-- **Your own level (ch. 21, 22)**: GAME > YOUR SECTORS > NEW SECTOR, and
+- **Your own level (ch. 21, 22)**: GAME > SECTORS > NEW SECTOR, and
   build from a blank slate - push walls back with Shift+wheel, wheel
   floors down into pits, paint pictures on single faces, light them,
   stage an ambush in a monster's pane, Ctrl+S. For an outdoor level, give
@@ -619,8 +619,8 @@ run it and see what happens. That's the fastest way to learn how it works.
   brightness to 40 and light it only with lamps. Then make them change as it
   plays (`LightCmd$`, RENDER/LIGHT.BM): a light switch is a trigger,
   `use 12 8 repeat : light 3 toggle`; an alarm can turn a room red with
-  `alarm : celllight 10 4 18 9 150 FF2020 pulse`, and `calm` (the alarm
-  stops) put it back with `celllight 10 4 18 9 off`.
+  `alarm : cell-light 10 4 18 9 150 FF2020 pulse`, and `calm` (the alarm
+  stops) put it back with `cell-light 10 4 18 9 off`.
 
 - **Lights out** (ch. 13, 14): `give flashlight`, then `ambient -255` - the
   sector is pitch black but for your beam, muzzle flashes and neon. Shape

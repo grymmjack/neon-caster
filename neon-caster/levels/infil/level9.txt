@@ -192,8 +192,8 @@ ambient  = 150, 210, 210, 255
 [triggers]
 ' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
 hack 36 37 : message The door to the CROSSING unlocks.
-alarm : celllight 17 48 28 59 150 FF2020 pulse ; message ALARM - every machine near here is awake
-calm : celllight 17 48 28 59 off
+alarm : cell-light 17 48 28 59 150 FF2020 pulse ; message ALARM - every machine near here is awake
+calm : cell-light 17 48 28 59 off
 
 [monsters]
 ' x, y, sight, hearing (cells), health %, speed %, wake (0 seeing you, 1 you close by, 2 being hit, 3 hunting from the start) [, a turret's weapon: 0 plasma, 1 laser, 2 lightning, 3 flame, 4 poison, 5 acid, 6 missiles [, how fast it turns: degrees a second, 0 as made]]
@@ -1387,8 +1387,8 @@ crate    = cells:30, shells:25, medkit:20, armor:10
 ####K..."."..K####K...........K####K........K##K.....g....K#####
 ####K..x..o..K####K...........K####K.....9..K##KL.ef..xx..K#####
 ####K....x.*.K####K.........g.K####K...x....K##K...7r.....K#####
-####KL.....g.K####K...........K####K.(hx....H..........5..K#####
-####K........K####K......*....K####K..x..)..K##K..........K#####
+####KL.....g.K####K...........K####K.(hx....H..........)..K#####
+####K........K####K......*....K####K..x..5..K##K..........K#####
 ####K....x....................K####K..:.hx..K##K.......x..K#####
 ####K.........................K####K...o....K##K...x......K#####
 ####K........K####K...7.......R.............K##K..........K#####
@@ -1401,12 +1401,12 @@ crate    = cells:30, shells:25, medkit:20, armor:10
 #####PPPPP.PPPP###C=CCCCCCCCCC####################G.........G###
 #####P........P###C......l...C#####PPPPPPPPPPP####G.........G###
 #####P........P###C.........lC#####P..|"...|.P####G.a.....7.G###
-#####P........P###Cl.54......C#####P........|P####G.........G###
+#####P........P###Cl.)4......C#####P........|P####G.........G###
 #####P........P###Cl.........................P####G.........G###
 #####P......h.P###C......".................a|P####G.........G###
 #####P........P###C..........C#####P.."".."..P####G"".....h.G###
 #####P..u.....P###CA.........C#####P.Z.....g.P####G.........G###
-#####P........P###Cl..*5.....C#####;.d.......P####G.........G###
+#####P........P###Cl..*).....C#####;.d.......P####G.........G###
 #####PPEPPPPPPP###C..........C#####PPPPP..PPPP####GGGDGGGGGGG###
 ##################C.".ll.....C##########..###########.##########
 ##################CCCCCCCDCCCC##########..###########.##########
@@ -1421,7 +1421,7 @@ crate    = cells:30, shells:25, medkit:20, armor:10
 ##N.........u..N##P...........P####C........C##P.......q.]P#####
 ##N............N##P"..........P####C.u................k...P#####
 ##N............N##P....q...*..P####C......................P#####
-##N............N##P........q..P####C..5.....C##P......"...P#####
+##N............N##P........q..P####C..).....C##P......"...P#####
 ##NNNNNNNNNN..NN##P...........P####C.l..ll..C##PPPPPPPPPPPP#####
 ############..####P.......]...P####CCCC=CCCCC###################
 ############..####PPP..PPPPPPPP########l########################

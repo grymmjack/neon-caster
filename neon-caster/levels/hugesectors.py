@@ -36,70 +36,70 @@ THEMES = {
             floors=["floor-concrete.png", "floor-cobbles.png", "floor-plates.png", "floor-deck.png"],
             ceils=["ceiling-lights.png", "sky-neon-night.png"], ambient=(150, 200, 210, 255), liquid="w",
             kinds=dict(plaza=4, office=3, store=3, pool=1, hall=3, arena=2, tower=1, garden=1),
-            mons=["mmcg", "gmck", "gk5w", "g5hw"], weapons=[0, 1, 0], puzzles="hello", droids=8,
+            mons=["mmcg", "gmck", "gk)w", "g)hw"], weapons=[0, 1, 0], puzzles="hello", droids=8,
             light=(255, 120, 220), light2=(90, 230, 255)),
     2: dict(name="SECTOR 2: THE FOUNDRY",
             walls=["wall-furnace.png", "wall-rusty.png", "wall-girders.png", "wall-hazard.png", "wall-coils.png", "wall-pipes.png"],
             floors=["floor-rustgrate.png", "floor-scorched.png", "floor-molten.png", "floor-plates.png"],
             ceils=["ceiling-girders.png", "sky-dusk.png"], ambient=(150, 230, 190, 160), liquid="l",
             kinds=dict(reactor=4, store=3, pool=3, hall=3, arena=2, tower=2, plaza=1),
-            mons=["mcgg", "gcwk", "w5gh", "h5w0"], weapons=[3, 3, 6], puzzles="multiply", droids=6,
+            mons=["mcgg", "gcwk", "w)gh", "h)w0"], weapons=[3, 3, 6], puzzles="multiply", droids=6,
             light=(255, 150, 60), light2=(255, 90, 40)),
     3: dict(name="SECTOR 3: TIDEWORKS",
             walls=["wall-greenpipes.png", "wall-grate.png", "wall-moss.png", "wall-pipes.png", "wall-slime.png", "wall-brick.png"],
             floors=["floor-concrete.png", "floor-rustgrate.png", "floor-murky.png", "floor-cobbles.png"],
             ceils=["ceiling-pipes.png", "sky-storm.png"], ambient=(140, 180, 220, 220), liquid="w",
             kinds=dict(pool=6, hall=3, store=2, reactor=1, arena=2, tower=1, plaza=2),
-            mons=["mmcc", "ckmg", "wkg6", "w6h5"], weapons=[2, 0, 4], puzzles="countdown", droids=6,
+            mons=["mmcc", "ckmg", "wkg6", "w6h)"], weapons=[2, 0, 4], puzzles="countdown", droids=6,
             light=(90, 200, 255), light2=(120, 255, 200)),
     4: dict(name="SECTOR 4: THE ARCOLOGY",
             walls=["wall-white.png", "wall-tiles.png", "wall-viewport.png", "wall-lightstrip.png", "wall-control.png", "wall-hull.png"],
             floors=["floor-white.png", "floor-platform.png", "floor-deck.png", "floor-circuit.png"],
             ceils=["ceiling-lights.png", "sky-dusk.png"], ambient=(165, 220, 230, 255), liquid="w",
             kinds=dict(tower=5, office=3, plaza=3, garden=2, hall=2, arena=2, lab=1),
-            mons=["mmgc", "gk1m", "5g1k", "5h17"], weapons=[1, 1, 2], puzzles="password", droids=10,
+            mons=["mmgc", "gk1m", ")g1k", ")h17"], weapons=[1, 1, 2], puzzles="password", droids=10,
             light=(200, 230, 255), light2=(255, 200, 120)),
     5: dict(name="SECTOR 5: THE BIOME",
             walls=["wall-greenhouse.png", "wall-vines.png", "wall-moss.png", "wall-biolab.png", "wall-slime.png", "wall-lightstrip.png"],
             floors=["floor-soil.png", "floor-lab.png", "floor-murky.png", "floor-deck.png"],
             ceils=["ceiling-growlights.png", "sky-dusk.png"], ambient=(150, 200, 255, 170), liquid="s",
             kinds=dict(garden=6, lab=3, pool=3, plaza=2, arena=2, hall=1, tower=1),
-            mons=["ccmk", "kcw6", "w6kc", "6wh5"], weapons=[4, 4, 5], puzzles="sum", droids=8,
+            mons=["ccmk", "kcw6", "w6kc", "6wh)"], weapons=[4, 4, 5], puzzles="sum", droids=8,
             light=(160, 255, 120), light2=(255, 230, 120)),
     6: dict(name="SECTOR 6: CRYOVAULT",
             walls=["wall-ice.png", "wall-frost.png", "wall-cryo.png", "wall-vault.png", "wall-hull.png", "wall-white.png"],
             floors=["floor-ice.png", "floor-frostgrate.png", "floor-white.png", "floor-plates.png"],
             ceils=["ceiling-frost.png", "sky-storm.png"], ambient=(150, 200, 230, 255), liquid="w",
             kinds=dict(lab=4, store=3, hall=3, pool=2, arena=2, tower=2, plaza=1),
-            mons=["mgsm", "gs1k", "s15g", "s15h"], weapons=[1, 2, 1], puzzles="pythagoras", droids=6,
+            mons=["mgsm", "gs1k", "s1)g", "s1)h"], weapons=[1, 2, 1], puzzles="pythagoras", droids=6,
             light=(150, 220, 255), light2=(230, 240, 255)),
     7: dict(name="SECTOR 7: THE DATA CENTRE",
             walls=["wall-servers.png", "wall-datastream.png", "wall-code.png", "wall-core.png", "wall-terminals.png", "wall-jack.png"],
             floors=["floor-circuit.png", "floor-core.png", "floor-glow.png", "floor-plates.png"],
             ceils=["ceiling-cables.png", "sky-neon-night.png"], ambient=(140, 170, 255, 210), liquid="p",
             kinds=dict(server=6, office=3, hall=2, arena=2, tower=2, lab=1, plaza=1),
-            mons=["mmgk", "gk15", "51kh", "5h17"], weapons=[2, 1, 6], puzzles="select", droids=10,
+            mons=["mmgk", "gk1)", ")1kh", ")h17"], weapons=[2, 1, 6], puzzles="select", droids=10,
             light=(80, 255, 160), light2=(120, 160, 255)),
     8: dict(name="SECTOR 8: THE BADLANDS",
             walls=["wall-rusty.png", "wall-hazard.png", "wall-concrete.png", "wall-slime.png", "wall-girders.png", "wall-stripes.png"],
             floors=["floor-scorched.png", "floor-hazard.png", "floor-soil.png", "floor-rustgrate.png"],
             ceils=["ceiling-warning.png", "sky-dusk.png"], ambient=(150, 255, 210, 150), liquid="a",
             kinds=dict(plaza=6, pool=3, store=2, reactor=2, arena=3, tower=1, hall=1),
-            mons=["mcgw", "wgk6", "w65h", "h650"], weapons=[5, 6, 5], puzzles="function", droids=4,
+            mons=["mcgw", "wgk6", "w6)h", "h6)0"], weapons=[5, 6, 5], puzzles="function", droids=4,
             light=(255, 210, 90), light2=(200, 255, 80)),
     9: dict(name="SECTOR 9: THE ORBITAL RING",
             walls=["wall-hull.png", "wall-viewport.png", "wall-control.png", "wall-core.png", "wall-lightstrip.png", "wall-obsidian.png"],
             floors=["floor-platform.png", "floor-deck.png", "floor-circuit.png", "floor-core.png"],
             ceils=["ceiling-hull.png", "sky-orbit.png"], ambient=(150, 210, 220, 255), liquid="p",
             kinds=dict(hall=3, lab=3, server=2, plaza=3, arena=3, tower=2, office=1, reactor=1),
-            mons=["mgk1", "g15k", "51h6", "5h76"], weapons=[6, 2, 1], puzzles="reverse", droids=8,
+            mons=["mgk1", "g1)k", ")1h6", ")h76"], weapons=[6, 2, 1], puzzles="reverse", droids=8,
             light=(160, 200, 255), light2=(255, 120, 200)),
     10: dict(name="SECTOR 10: THE SPIRE",
              walls=["wall-obsidian.png", "wall-core.png", "wall-reactor.png", "wall-vault.png", "wall-lightstrip.png", "wall-turret.png"],
              floors=["floor-core.png", "floor-glow.png", "floor-platform.png", "floor-circuit.png"],
              ceils=["ceiling-core.png", "sky-neon-night.png"], ambient=(140, 200, 160, 255), liquid="l",
              kinds=dict(tower=4, arena=4, reactor=2, hall=2, plaza=2, server=1, lab=1),
-             mons=["gmk5", "5k1h", "51h6", "h175"], weapons=[6, 2, 3], puzzles="wrap", droids=6,
+             mons=["gmk)", ")k1h", ")1h6", "h17)"], weapons=[6, 2, 3], puzzles="wrap", droids=6,
              light=(255, 90, 160), light2=(140, 120, 255)),
 }
 
@@ -291,7 +291,7 @@ def build(k, seed):
             shape_region(m, rng, kind[r], box[r], floor[r], (regions[r][2] - regions[r][0] + 1) * (regions[r][3] - regions[r][1] + 1) > 1)
     # ---- each district's dressing, lights, monsters and pickups
     pick = lambda r: open_cells(m, box[r])
-    weapons_by_zone = {0: "2", 1: "3", 2: "4)", 3: "("}
+    weapons_by_zone = {0: "2", 1: "3", 2: "45", 3: "("}
     for r in range(R):
         dress_region(m, rng, k, th, r, kind[r], box[r], floor[r], zone[r], r == s0, r == exit_r)
     # guns along the way: the scatter gun near the start, the repeater, the railgun and launcher later
@@ -331,7 +331,7 @@ def trim(m, rng, mons=104, deco=136, items=140):
     nests use), pickups (not keys, guns, the map or the gear) picked out at
     random until there are few enough"""
     import lvlkit
-    for chars, most, keep in ((lvlkit.MONS, mons, "~_|70zT"), (lvlkit.DECO, deco, "S"), (lvlkit.ITEMS, items, "rby234M89)q")):
+    for chars, most, keep in ((lvlkit.MONS, mons, "~_|70zT"), (lvlkit.DECO, deco, "S"), (lvlkit.ITEMS, items, "rby2345M89q")):
         cells = [(x, y) for y, r in enumerate(m.g) for x, c in enumerate(r) if c in chars]
         spare = [c for c in cells if m.g[c[1]][c[0]] not in keep]
         rng.shuffle(spare)

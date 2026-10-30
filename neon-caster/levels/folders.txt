@@ -1,0 +1,28 @@
+' NEON-CASTER - the sector folders (GAME / EDIT > SECTORS)
+' The menu's folders only: the sectors stay where they are on disk. Once
+' you change them in the menu, yours are saves/folders.txt (delete that
+' file to come back to these). Two spaces in for each folder a line is in;
+' folders go ten deep at most.
+'   folder NAME              a folder
+'   set original|new|remix|huge|infil   a set's sectors
+'   sector SET N             one of a set's ("sector huge 3")
+'   custom N N-M ...         your own (customN.txt)
+'   rest                     where new sectors of yours go
+' A sector not listed is put in anyway: yours in the rest folder, a set's
+' in a folder named for the set.
+
+folder AI GENERATED
+  folder THE ORIGINAL TEN
+    set original
+  folder NEW SECTORS
+    set new
+  folder OLD SECTORS NEW
+    set remix
+  folder HUGE SECTORS
+    set huge
+  folder INFILTRATION
+    set infil
+  folder SHOWCASES
+    custom 1-11 14 18-21
+folder MAN MADE
+  rest

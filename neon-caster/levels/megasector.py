@@ -368,7 +368,7 @@ def build(write=False, show=False):
         if k > mx:
             print("  TOO MANY %s: %d (max %d)" % (what, k, mx)); good = False
     rows = "".join(lv["rows"])
-    missing = [ch for ch in "rbyM+*uae234qj)({}mghcskwzT|oiptxlnfSdAFIJLOQUWZV/\\%?=@$&!DHXRBYE" if ch not in rows]
+    missing = [ch for ch in "rbyM+*uae2345qj({}mghcskwzT|oiptxlnfSdAFIJLOQUWZV/\\%?=@$&!DHXRBYE" if ch not in rows]
     if missing:
         print("  NOT USED YET:", " ".join(missing))
     if len(kinds) < 13:

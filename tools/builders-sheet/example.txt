@@ -1,0 +1,47 @@
+' Lines starting with ' are comments: notes to yourself.
+' SECTOR 22: THE SMALL VAULT - a start room, an ambush for the red card,
+' a vault behind the red door, and the exit past a trooper.
+
+name     = SECTOR 22: THE SMALL VAULT
+walls    = wall-concrete.png, wall-hull.png, wall-pipes.png, wall-vault.png, wall-servers.png, wall-grate.png
+floors   = floor-deck.png, floor-plates.png, floor-concrete.png, floor-circuit.png
+ceilings = ceiling-vents.png, ceiling-pipes.png
+ambient  = 150, 220, 225, 255
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+1, 8, 6, 14, 2, 2, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+4.5, 3.5, 5, 160, 90, 220, 255, 0
+11.5, 3.5, 5, 180, 255, 60, 40, 2
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+1, 8, 1, 14, 6, 4, 0, 13
+
+[triggers]
+enter 1 8 6 14 : message THE VAULT - mind the barrel
+enter 8 8 14 14 : cell-light 8 8 14 14 120 FF4020 pulse
+
+[looks]
+10, 9, 1, 60, 40FF80, 130
+
+[map]
+################
+#......#.......#
+#.>....#..m..g.#
+#..+...D.......#
+#......#...r...#
+#..2...#.......#
+#......#.......#
+###R#####==#E###
+#......#.......#
+#..o...#..)....#
+#..5...D.......#
+#..(...#....x..#
+#......#.......#
+#..i...#.......#
+#......#.......#
+################

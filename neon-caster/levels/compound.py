@@ -53,7 +53,7 @@ def compound():
     m.rect(2, 22, 38, 35)
     for (x, y) in ((16, 30), (22, 28), (30, 30), (26, 25), (13, 26), (35, 27)):
         thing(x, y, "table")
-    for (x, y, c) in ((14, 24, "5"), (34, 24, "5"), (20, 23, "g"), (29, 33, "g")):
+    for (x, y, c) in ((14, 24, ")"), (34, 24, ")"), (20, 23, "g"), (29, 33, "g")):
         m.mon(x, y, c)
     thing(12, 33, "robodog"); thing(36, 33, "robodog"); thing(24, 31, "robodog")
     thing(18, 26, "deadguard"); thing(33, 29, "deadscientist"); thing(27, 34, "brokenmonitor")
@@ -79,7 +79,7 @@ def compound():
     # The armory (north-east): a keypad door - its code on the guard post's note
     m.rect(30, 10, 38, 20)
     m.put(34, 21, "D"); m.doors.append("34, 21, 0, ?")
-    m.put(32, 12, ")"); m.put(33, 12, "("); m.put(35, 12, "("); m.put(37, 15, "u")
+    m.put(32, 12, "5"); m.put(33, 12, "("); m.put(35, 12, "("); m.put(37, 15, "u")
     thing(36, 18, "invuln")
     thing(30, 19, "camera", "ARMORY")
     # The server office (north): shelves to search, a safe, the broken computer

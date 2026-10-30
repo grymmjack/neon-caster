@@ -394,7 +394,7 @@ def arm(m, lev):
     rng.shuffle(cells)
     if a.get("launcher"):  # (about halfway in)
         for c in sorted(cells, key=lambda c: abs(dist[c] - far // 2)):
-            if open_cell(*c) and try_put(c, ")"):
+            if open_cell(*c) and try_put(c, "5"):
                 break
     for k in range(a.get("rockets", 0)):
         for c in cells:

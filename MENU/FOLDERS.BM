@@ -1,0 +1,523 @@
+''
+' NEON-CASTER - MENU/FOLDERS.BM
+' =============================================================================
+' GAME / EDIT > SECTORS: the sector folders (MENU/FOLDERS.BI says what they
+' are). Enter (or Right) opens a folder, Left / Esc goes back up, and Right
+' goes down again into the one you came back from. N makes a folder, R
+' names one, X picks up a folder or sector and V puts it in the folder
+' showing, [ ] move one up and down its list, Delete takes a folder away
+' (what was in it moves up a level).
+'
+
+' --- The tree, read: yours (saves/folders.txt) if you've changed it, else
+' the game's (levels/folders.txt). One thing a line, two spaces in for
+' each folder it's inside:
+'   folder NAME             a folder (the lines in from it are inside it)
+'   set original|new|remix|huge|infil       that set's sectors
+'   sector SET N            one of a set's ("sector huge 3")
+'   custom N N-M ...        your own sectors (customN.txt: sector 10 + N)
+'   rest                    the folder new sectors of yours go in
+' Then anything not in it - a sector made since, a set added - is put in:
+' yours in the rest folder, a set's in a folder named for the set.
+SUB FdLoad
+    DIM f$, l$, t$, w$, r$, fh, d, s, n, a, b, node, lv(FD_DEEP), placed(NUM_SETS * 100 + 10 + MAX_CUSTOM), j, tok$ ' (its own: the main program shares these names)
+    FOR j = 0 TO FD_MAX : fdKind(j) = 0 : fdName$(j) = "" : fdCode(j) = 0 : fdUp(j) = 0 : fdOrd(j) = 0 : NEXT
+    fdN = 0 : fdOrdNext = 0 : fdRest = 0 : fdKind(0) = 1 : fdName$(0) = "SECTORS"
+    f$ = SaveDir$ + "folders.txt" : IF NOT _FILEEXISTS(f$) THEN f$ = AssetPath$("levels/folders.txt")
+    IF _FILEEXISTS(f$) THEN
+        fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
+        DO UNTIL EOF(fh)
+            LINE INPUT #fh, l$
+            l$ = FdUntab$(l$) : t$ = LTRIM$(RTRIM$(l$))
+            IF t$ = "" OR LEFT$(t$, 1) = "'" THEN _CONTINUE
+            d = (LEN(l$) - LEN(LTRIM$(l$))) \ 2 ' (how far in: which folder it's inside)
+            IF d > FD_DEEP THEN d = FD_DEEP
+            FOR j = d TO 1 STEP -1 ' (inside the nearest folder open at that depth or above)
+                IF lv(j) > 0 THEN EXIT FOR
+            NEXT
+            IF j < 1 THEN node = 0 ELSE node = lv(j)
+            IF j < d THEN d = j ' (two spaces too many: as if it lined up)
+            j = INSTR(t$, " ") : IF j THEN w$ = LCASE$(LEFT$(t$, j - 1)) : r$ = LTRIM$(MID$(t$, j + 1)) ELSE w$ = LCASE$(t$) : r$ = ""
+            SELECT CASE w$
+                CASE "folder"
+                    IF d < FD_DEEP AND LEN(r$) THEN
+                        a = FdNew(1, node, UCASE$(LEFT$(r$, FD_NAME_MAX)), 0)
+                        IF a THEN
+                            lv(d + 1) = a
+                            FOR j = d + 2 TO FD_DEEP : lv(j) = 0 : NEXT ' (the deeper ones it closes)
+                        END IF
+                    END IF
+                CASE "rest"
+                    fdRest = node
+                CASE "set"
+                    s = FdSetOf(r$)
+                    IF s >= 0 THEN
+                        FOR n = 1 TO NUM_LEVELS
+                            a = FdSetCode(s, n)
+                            IF placed(a) = 0 AND FdExists(a) THEN placed(a) = -1 : b = FdNew(2, node, "", a)
+                        NEXT
+                    END IF
+                CASE "sector"
+                    j = INSTR(r$, " ")
+                    IF j THEN s = FdSetOf(LEFT$(r$, j - 1)) : n = VAL(MID$(r$, j + 1)) ELSE s = -1 : n = VAL(r$)
+                    IF s >= 0 THEN a = FdSetCode(s, n) ELSE a = n ' (a sector's own number: 3, 103...)
+                    IF a >= 1 AND a <= UBOUND(placed) THEN
+                        IF placed(a) = 0 AND FdExists(a) THEN placed(a) = -1 : b = FdNew(2, node, "", a)
+                    END IF
+                CASE "custom"
+                    r$ = r$ + " "
+                    DO WHILE LEN(LTRIM$(r$)) ' (numbers and ranges: 1-11 14 18-21)
+                        r$ = LTRIM$(r$) : j = INSTR(r$, " ") : tok$ = LEFT$(r$, j - 1) : r$ = MID$(r$, j + 1)
+                        j = INSTR(tok$, "-")
+                        IF j THEN a = VAL(LEFT$(tok$, j - 1)) : b = VAL(MID$(tok$, j + 1)) ELSE a = VAL(tok$) : b = a
+                        FOR n = MaxOf(1, a) TO MinOf(MAX_CUSTOM, b)
+                            IF placed(NUM_LEVELS + n) = 0 AND FdExists(NUM_LEVELS + n) THEN placed(NUM_LEVELS + n) = -1 : j = FdNew(2, node, "", NUM_LEVELS + n)
+                        NEXT
+                    LOOP
+            END SELECT
+        LOOP
+        CLOSE #fh
+    END IF
+    ' What the tree doesn't have yet: yours in the rest folder, a set's in a folder named for it
+    FOR s = 0 TO NUM_SETS
+        node = -1
+        FOR n = 1 TO NUM_LEVELS
+            a = FdSetCode(s, n)
+            IF placed(a) = 0 AND FdExists(a) THEN
+                IF node < 0 THEN node = FdFolderNamed(0, SetName$(s))
+                IF node < 0 THEN node = FdNew(1, 0, SetName$(s), 0)
+                IF node > 0 THEN placed(a) = -1 : b = FdNew(2, node, "", a)
+            END IF
+        NEXT
+    NEXT
+    FOR n = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM
+        IF placed(n) = 0 AND FdExists(n) THEN placed(n) = -1 : b = FdNew(2, fdRest, "", n)
+    NEXT
+END SUB
+
+' --- The tree, written: saves/folders.txt (as FdLoad reads it)
+SUB FdSave
+    DIM fh ' (its own)
+    MakeSaveDir
+    fh = FREEFILE : OPEN SaveDir$ + "folders.txt" FOR OUTPUT AS #fh
+    PRINT #fh, "' NEON-CASTER - your sector folders (GAME / EDIT > SECTORS). Written by the"
+    PRINT #fh, "' menu; delete this file to go back to the game's (levels/folders.txt)."
+    PRINT #fh, "' folder NAME / set NAME / sector SET N / custom N / rest - two spaces in a folder"
+    IF fdRest = 0 THEN PRINT #fh, "rest"
+    FdWrite 0, 0, fh
+    CLOSE #fh
+END SUB
+
+SUB FdWrite (p, d, fh)
+    DIM kid(FD_MAX) AS INTEGER, kn, j, node, c, ind$ ' (its own: each folder inside writes its own list)
+    ind$ = SPACE$(d * 2)
+    kn = FdKids(p, kid())
+    FOR j = 1 TO kn
+        node = kid(j)
+        IF fdKind(node) = 1 THEN
+            PRINT #fh, ind$ + "folder " + fdName$(node)
+            IF node = fdRest THEN PRINT #fh, ind$ + "  rest"
+            FdWrite node, d + 1, fh
+        ELSE
+            c = fdCode(node)
+            IF c > NUM_LEVELS AND c <= NUM_LEVELS + MAX_CUSTOM THEN
+                PRINT #fh, ind$ + "custom" + STR$(c - NUM_LEVELS)
+            ELSE
+                PRINT #fh, ind$ + "sector " + FdSetWord$(c \ 100) + STR$(c MOD 100)
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' --- A folder's insides, in order: into kid(), how many
+FUNCTION FdKids% (p, kid() AS INTEGER)
+    DIM j, m, kn, t ' (its own)
+    FOR j = 1 TO fdN
+        IF fdKind(j) > 0 AND fdUp(j) = p THEN
+            kn = kn + 1 : kid(kn) = j
+            FOR m = kn TO 2 STEP -1 ' (in by fdOrd as they come: insertion)
+                IF fdOrd(kid(m)) >= fdOrd(kid(m - 1)) THEN EXIT FOR
+                t = kid(m) : kid(m) = kid(m - 1) : kid(m - 1) = t
+            NEXT
+        END IF
+    NEXT
+    FdKids% = kn
+END FUNCTION
+
+' --- A new folder (kind 1) or sector (2) at the end of folder up's list: its node (0: no room)
+FUNCTION FdNew% (kind, up, name$, code)
+    DIM j ' (its own)
+    FOR j = 1 TO fdN
+        IF fdKind(j) = 0 THEN EXIT FOR
+    NEXT
+    IF j > fdN THEN
+        IF fdN >= FD_MAX THEN EXIT FUNCTION
+        fdN = fdN + 1 : j = fdN
+    END IF
+    fdOrdNext = fdOrdNext + 1
+    fdKind(j) = kind : fdUp(j) = up : fdName$(j) = name$ : fdCode(j) = code : fdOrd(j) = fdOrdNext
+    FdNew% = j
+END FUNCTION
+
+' --- Folder p's folder of that name (-1: none)
+FUNCTION FdFolderNamed% (p, name$)
+    DIM j ' (its own)
+    FdFolderNamed% = -1
+    FOR j = 1 TO fdN
+        IF fdKind(j) = 1 AND fdUp(j) = p AND fdName$(j) = UCASE$(name$) THEN FdFolderNamed% = j : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' --- How many folders node is inside (the top's are 1 deep), and how many deep a folder goes itself
+FUNCTION FdDepth% (node)
+    DIM j, d ' (its own)
+    j = node
+    DO WHILE j > 0 AND d <= FD_MAX
+        d = d + 1 : j = fdUp(j)
+    LOOP
+    FdDepth% = d
+END FUNCTION
+
+FUNCTION FdHeight% (node)
+    DIM j, h, m ' (its own)
+    IF fdKind(node) <> 1 THEN EXIT FUNCTION
+    FOR j = 1 TO fdN
+        IF fdKind(j) = 1 THEN
+            IF FdInside(j, node) THEN
+                h = FdDepth(j) - FdDepth(node) : IF h > m THEN m = h
+            END IF
+        END IF
+    NEXT
+    FdHeight% = m + 1
+END FUNCTION
+
+' --- Is node inside folder f (at any depth - or f itself)?
+FUNCTION FdInside% (node, f)
+    DIM j, g ' (its own)
+    j = node
+    DO WHILE g <= FD_MAX
+        IF j = f THEN FdInside% = -1 : EXIT FUNCTION
+        IF j = 0 THEN EXIT FUNCTION
+        j = fdUp(j) : g = g + 1
+    LOOP
+END FUNCTION
+
+' --- Can what's picked up (fdMove) go in folder f?
+FUNCTION FdCanMove% (node, f)
+    IF node = 0 OR fdKind(node) = 0 THEN EXIT FUNCTION
+    IF fdUp(node) = f THEN EXIT FUNCTION ' (it's there already)
+    IF fdKind(node) = 1 THEN
+        IF FdInside(f, node) THEN EXIT FUNCTION ' (a folder can't go inside itself)
+        IF FdDepth(f) + FdHeight(node) > FD_DEEP THEN EXIT FUNCTION
+    END IF
+    FdCanMove% = -1
+END FUNCTION
+
+' --- Sets by their word in the file (-1: no such set), and back
+FUNCTION FdSetOf% (w$)
+    DIM s ' (its own)
+    FdSetOf% = -1
+    FOR s = 0 TO NUM_SETS
+        IF LCASE$(LTRIM$(RTRIM$(w$))) = FdSetWord$(s) OR LTRIM$(RTRIM$(w$)) = LTRIM$(STR$(s)) THEN FdSetOf% = s : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+FUNCTION FdSetWord$ (s)
+    IF s = 0 THEN FdSetWord$ = "original" ELSE FdSetWord$ = LEFT$(SetDir$(s), LEN(SetDir$(s)) - 1)
+END FUNCTION
+
+' --- Set s's sector n, by the number the game knows it by (the original ten: just n)
+FUNCTION FdSetCode% (s, n)
+    IF s = 0 THEN FdSetCode% = n ELSE FdSetCode% = s * 100 + n
+END FUNCTION
+
+' --- Is there a sector by that number (its file there)?
+FUNCTION FdExists% (code)
+    DIM was ' (its own)
+    IF code >= 1 AND code <= NUM_LEVELS THEN FdExists% = -1 : EXIT FUNCTION
+    IF code > NUM_LEVELS AND code <= NUM_LEVELS + MAX_CUSTOM THEN FdExists% = _FILEEXISTS(LevelFile$(code)) : EXIT FUNCTION
+    IF code > 100 AND code \ 100 <= NUM_SETS AND code MOD 100 >= 1 AND code MOD 100 <= NUM_LEVELS THEN
+        was = sectorSet : sectorSet = code \ 100
+        FdExists% = _FILEEXISTS(LevelFile$(code MOD 100))
+        sectorSet = was
+    END IF
+END FUNCTION
+
+' --- A sector's name as the list shows it (without its "SECTOR n: ")
+FUNCTION FdSecName$ (code)
+    DIM nm$, c ' (its own)
+    IF code > NUM_LEVELS AND code <= NUM_LEVELS + MAX_CUSTOM THEN nm$ = SectorNameOf$(code) ELSE nm$ = SetSectorName$(code \ 100, code MOD 100)
+    c = INSTR(nm$, ": ") : IF c THEN nm$ = MID$(nm$, c + 2)
+    FdSecName$ = nm$
+END FUNCTION
+
+' --- Tabs as two spaces each (a hand-written file's indent)
+FUNCTION FdUntab$ (l$)
+    DIM j, o$ ' (its own)
+    FOR j = 1 TO LEN(l$)
+        IF MID$(l$, j, 1) = CHR$(9) THEN o$ = o$ + "  " ELSE o$ = o$ + MID$(l$, j, 1)
+    NEXT
+    FdUntab$ = o$
+END FUNCTION
+
+' --- Where you are: the folders from the top, the last ones if it's long
+FUNCTION FdPath$ (node)
+    DIM j, p$, g ' (its own)
+    j = node
+    DO WHILE j > 0 AND g < FD_DEEP + 1
+        IF p$ = "" THEN
+            p$ = fdName$(j)
+        ELSEIF LEN(fdName$(j)) + LEN(p$) + 3 > 40 THEN
+            p$ = ".. / " + p$ : EXIT DO ' (too long: the folders nearest, whole)
+        ELSE
+            p$ = fdName$(j) + " / " + p$
+        END IF
+        j = fdUp(j) : g = g + 1
+    LOOP
+    IF p$ = "" THEN p$ = "SECTORS"
+    FdPath$ = p$
+END FUNCTION
+
+' --- What's in a folder, in a few words
+FUNCTION FdCount$ (node)
+    DIM j, nf, ns, o$ ' (its own)
+    FOR j = 1 TO fdN
+        IF fdUp(j) = node AND fdKind(j) = 1 THEN nf = nf + 1
+        IF fdUp(j) = node AND fdKind(j) = 2 THEN ns = ns + 1
+    NEXT
+    IF nf THEN o$ = LTRIM$(STR$(nf)) + " folder" : IF nf > 1 THEN o$ = o$ + "s"
+    IF ns THEN
+        IF LEN(o$) THEN o$ = o$ + ", "
+        o$ = o$ + LTRIM$(STR$(ns)) + " sector" : IF ns > 1 THEN o$ = o$ + "s"
+    END IF
+    IF o$ = "" THEN o$ = "empty"
+    FdCount$ = o$
+END FUNCTION
+
+' --- The first of your sector numbers with no file yet (0: all made)
+FUNCTION FdFreeCustom%
+    DIM n ' (its own)
+    FOR n = NUM_LEVELS + 1 TO NUM_LEVELS + MAX_CUSTOM
+        IF NOT _FILEEXISTS(LevelFile$(n)) THEN FdFreeCustom% = n : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' --- SECTORS opened (from GAME or EDIT): the tree read again, at the top
+SUB FdEnter
+    FdLoad : fdAt = 0 : fdFwdN = 0 : fdMove = 0 : fdNote$ = ""
+END SUB
+
+' --- The folder showing, as menu rows (BuildMenu)
+SUB FdRows
+    DIM kid(FD_MAX) AS INTEGER, kn, j, node, c, nm$, info$, sets, setWas, s ' (its own)
+    menuWide = -1
+    IF fdKind(fdAt) <> 1 THEN fdAt = 0
+    menuTitle$ = FdPath$(fdAt)
+    FOR j = 0 TO MAX_MI : fdRow(j) = 0 : NEXT
+    kn = FdKids(fdAt, kid())
+    setWas = -2 ' (sectors from more than one set here? Then each says which)
+    FOR j = 1 TO kn
+        IF fdKind(kid(j)) = 2 THEN
+            c = fdCode(kid(j)) : IF c > NUM_LEVELS AND c <= NUM_LEVELS + MAX_CUSTOM THEN s = -1 ELSE s = c \ 100
+            IF s <> setWas THEN sets = sets + 1 : setWas = s
+        END IF
+    NEXT
+    FOR j = 1 TO kn
+        node = kid(j)
+        IF numMI >= MAX_MI - 5 THEN EXIT FOR ' (room left for the rows under the list)
+        IF fdKind(node) = 1 THEN
+            nm$ = fdName$(node) : IF LEN(nm$) > 20 THEN nm$ = LEFT$(nm$, 19) + "~"
+            info$ = FdCount$(node)
+            IF node = fdMove THEN info$ = "MOVING - V puts it in a folder"
+            AddMenuItem nm$ + " /", MI_ACTION, node, MA_FDOPEN, -1, info$
+        ELSE
+            c = fdCode(node)
+            nm$ = FdSecName$(c) : IF LEN(nm$) > 20 THEN nm$ = LEFT$(nm$, 19) + "~"
+            IF c > NUM_LEVELS AND c <= NUM_LEVELS + MAX_CUSTOM THEN
+                nm$ = LTRIM$(STR$(c)) + "  " + nm$ : info$ = "" : IF sets > 1 THEN info$ = "yours"
+            ELSE
+                nm$ = LTRIM$(STR$(c MOD 100)) + "  " + nm$ : info$ = "" : IF sets > 1 THEN info$ = LCASE$(SetName$(c \ 100))
+            END IF
+            IF node = fdMove THEN info$ = "MOVING - V puts it in a folder"
+            AddMenuItem nm$, MI_ACTION, c, MA_SECTOR, -1, info$
+        END IF
+        fdRow(numMI) = node
+    NEXT
+    IF kn = 0 THEN AddMenuItem "EMPTY", MI_TEXT, 0, 0, 0, ""
+    IF fdMove THEN
+        nm$ = fdName$(fdMove) : IF fdKind(fdMove) = 2 THEN nm$ = FdSecName$(fdCode(fdMove))
+        AddMenuItem "MOVE HERE", MI_ACTION, 0, MA_FDHERE, FdCanMove(fdMove, fdAt), LEFT$(nm$, 30)
+    END IF
+    AddMenuItem "NEW FOLDER", MI_ACTION, 0, MA_FDNEW, FdDepth(fdAt) < FD_DEEP, "" ' (FD_DEEP inside one another, at most)
+    AddMenuItem "NEW SECTOR", MI_ACTION, 0, MA_NEWSECTOR, FdFreeCustom > 0, "a blank one, in this folder"
+    IF fdAt THEN AddMenuItem "BACK", MI_ACTION, 0, MA_FDUP, -1, "up to " + LCASE$(FdPath$(fdUp(fdAt))) ELSE AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+END SUB
+
+' --- The menu row of node (0: not on it)
+FUNCTION FdRowOf% (node)
+    DIM j ' (its own)
+    FOR j = 1 TO numMI
+        IF fdRow(j) = node THEN FdRowOf% = j : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' --- The list again (something changed), the selection on node if it's there
+SUB FdRefresh (node)
+    DIM r, sl ' (its own)
+    sl = menuSel : BuildMenu menuScreen : menuPanR = 0
+    r = 0 : IF node THEN r = FdRowOf(node)
+    IF r THEN menuSel = r ELSE menuSel = MinOf(sl, numMI)
+    IF NOT MenuSelectable(menuSel) THEN menuMove = 1 : MenuMoveSel
+END SUB
+
+' --- Into a folder (Enter or a click: a new way, so forward forgets)
+SUB FdOpen (node)
+    IF fdKind(node) <> 1 THEN EXIT SUB
+    fdAt = node : fdFwdN = 0 : fdNote$ = ""
+    EnterMenuScreen
+END SUB
+
+' --- Back up a folder (Left, Esc, BACK): the one you were in picked, and remembered for forward
+SUB FdGoUp
+    DIM was ' (its own)
+    IF fdAt = 0 THEN EXIT SUB
+    was = fdAt : PlaySfx sndMenuBack&, 0.6
+    IF fdFwdN >= FD_DEEP THEN fdFwdN = FD_DEEP - 1
+    fdFwdN = fdFwdN + 1 : fdFwd(fdFwdN) = was
+    fdAt = fdUp(was) : fdNote$ = ""
+    EnterMenuScreen
+    IF FdRowOf(was) THEN menuSel = FdRowOf(was)
+END SUB
+
+' --- Forward (Right): down again into the folder you came back up from - or,
+' with none, into the folder picked
+SUB FdForward
+    DIM node ' (its own)
+    IF fdFwdN > 0 THEN
+        node = fdFwd(fdFwdN) : fdFwdN = fdFwdN - 1
+        IF fdKind(node) = 1 AND fdUp(node) = fdAt THEN
+            PlaySfx sndMenuSelect&, 0.6 : fdAt = node : fdNote$ = "" : EnterMenuScreen : EXIT SUB
+        END IF
+        fdFwdN = 0
+    END IF
+    IF menuSel > 0 THEN
+        node = fdRow(menuSel)
+        IF node THEN IF fdKind(node) = 1 THEN PlaySfx sndMenuSelect&, 0.6 : FdOpen node
+    END IF
+END SUB
+
+' --- NEW FOLDER (N): one here, its name typed at once
+SUB FdNewFolder
+    DIM node ' (its own)
+    IF FdDepth(fdAt) >= FD_DEEP THEN fdNote$ = "TEN FOLDERS DEEP IS AS FAR AS THEY GO" : PlaySfx sndMenuBack&, 0.6 : EXIT SUB
+    node = FdNew(1, fdAt, "NEW FOLDER", 0)
+    IF node = 0 THEN fdNote$ = "NO ROOM FOR ANOTHER" : PlaySfx sndMenuBack&, 0.6 : EXIT SUB
+    FdRefresh node
+    fdTypeNode = node : fdTypeNew = -1 : menuTyping = -1 : menuTyped$ = "" : menuTypeBad = 0
+END SUB
+
+' --- A key while a folder's name is typed: Enter keeps it, Esc drops it
+' (and a NEW FOLDER with it)
+SUB FdTypeKey
+    DIM t$, node ' (its own)
+    node = fdTypeNode
+    SELECT CASE keyCode&
+        CASE 13
+            t$ = LTRIM$(RTRIM$(menuTyped$))
+            IF LEN(t$) THEN fdName$(node) = t$
+            menuTyping = 0 : fdTypeNode = 0 : FdSave : FdRefresh node : PlaySfx sndMenuSelect&, 0.6
+        CASE 27
+            menuTyping = 0 : fdTypeNode = 0
+            IF fdTypeNew THEN fdKind(node) = 0 : node = 0
+            FdRefresh node : PlaySfx sndMenuBack&, 0.6
+        CASE 8 : IF LEN(menuTyped$) THEN menuTyped$ = LEFT$(menuTyped$, LEN(menuTyped$) - 1)
+        CASE 32 TO 126 : IF LEN(menuTyped$) < FD_NAME_MAX THEN menuTyped$ = menuTyped$ + UCASE$(CHR$(keyCode&))
+    END SELECT
+END SUB
+
+' --- MOVE HERE (V): what's picked up goes in the folder showing, at the end of its list
+SUB FdMoveHere
+    DIM node ' (its own)
+    node = fdMove
+    IF NOT FdCanMove(node, fdAt) THEN
+        IF node THEN
+            IF fdKind(node) = 1 THEN fdNote$ = "IT CAN'T GO INSIDE ITSELF, OR PAST TEN FOLDERS DEEP" ELSE fdNote$ = "IT'S IN THIS FOLDER ALREADY"
+        END IF
+        PlaySfx sndMenuBack&, 0.6 : EXIT SUB
+    END IF
+    fdOrdNext = fdOrdNext + 1
+    fdUp(node) = fdAt : fdOrd(node) = fdOrdNext : fdMove = 0
+    FdSave : FdRefresh node : PlaySfx sndMenuSelect&, 0.6
+END SUB
+
+' --- The folders' own keys (RunMenu, on SCR_FOLDERS): -1 when it was one of theirs
+FUNCTION FdKey% (k&)
+    DIM node, kid(FD_MAX) AS INTEGER, kn, j, t AS LONG, up ' (its own)
+    node = 0 : IF menuSel > 0 THEN node = fdRow(menuSel)
+    FdKey% = -1
+    SELECT CASE k&
+        CASE 19200, 97, 65 : fdNote$ = "" : FdGoUp ' Left, A: back up
+        CASE 19712, 100, 68 : fdNote$ = "" : FdForward ' Right, D: forward
+        CASE 27, 8 ' Esc, Backspace: a move dropped, else up a folder - at the top, out (MenuBack)
+            IF fdMove THEN
+                fdMove = 0 : fdNote$ = "" : FdRefresh node : PlaySfx sndMenuBack&, 0.6
+            ELSEIF fdAt THEN
+                FdGoUp
+            ELSE
+                FdKey% = 0
+            END IF
+        CASE 110, 78 : fdNote$ = "" : FdNewFolder ' N
+        CASE 114, 82 ' R: name the folder picked
+            IF node THEN
+                IF fdKind(node) = 1 THEN fdTypeNode = node : fdTypeNew = 0 : menuTyping = -1 : menuTyped$ = fdName$(node) : menuTypeBad = 0 : fdNote$ = "" : EXIT FUNCTION
+            END IF
+            fdNote$ = "R NAMES A FOLDER - PICK ONE" : PlaySfx sndMenuBack&, 0.6
+        CASE 120, 88 ' X: pick it up to move (again: put it down)
+            IF node THEN
+                IF fdMove = node THEN fdMove = 0 ELSE fdMove = node
+                fdNote$ = "" : FdRefresh node : PlaySfx sndMenuSelect&, 0.6
+            END IF
+        CASE 118, 86 : fdNote$ = "" : FdMoveHere ' V
+        CASE 91, 93 ' [ ]: up or down the list
+            IF node THEN
+                kn = FdKids(fdAt, kid())
+                FOR j = 1 TO kn
+                    IF kid(j) = node THEN EXIT FOR
+                NEXT
+                IF k& = 91 THEN up = j - 1 ELSE up = j + 1 ' ([ swaps with the one before, ] the one after)
+                IF up >= 1 AND up <= kn THEN
+                    t = fdOrd(node) : fdOrd(node) = fdOrd(kid(up)) : fdOrd(kid(up)) = t
+                    FdSave : FdRefresh node : PlaySfx sndMenuMove&, 0.5
+                END IF
+            END IF
+        CASE 21248 ' Delete: a folder taken away - what was in it, up into its place
+            IF node THEN
+                IF fdKind(node) = 1 THEN
+                    t = fdOrd(node)
+                    kn = FdKids(node, kid())
+                    FOR j = 1 TO kn : fdUp(kid(j)) = fdUp(node) : NEXT
+                    IF fdRest = node THEN fdRest = fdUp(node)
+                    IF fdMove = node THEN fdMove = 0
+                    fdKind(node) = 0
+                    fdNote$ = "FOLDER GONE" : IF kn THEN fdNote$ = fdNote$ + " - WHAT WAS IN IT IS HERE NOW"
+                    FdSave : FdRefresh 0 : PlaySfx sndMenuBack&, 0.6
+                ELSE
+                    fdNote$ = "A SECTOR ISN'T DELETED HERE - X MOVES IT" : PlaySfx sndMenuBack&, 0.6
+                END IF
+            END IF
+        CASE ELSE
+            FdKey% = 0
+    END SELECT
+END FUNCTION
+
+' --- NEW SECTOR from a folder: the one just made goes in it
+SUB FdPlaceNew (code)
+    DIM node ' (its own)
+    IF code = 0 THEN EXIT SUB
+    IF NOT _FILEEXISTS(LevelFile$(code)) THEN EXIT SUB
+    FOR node = 1 TO fdN
+        IF fdKind(node) = 2 AND fdCode(node) = code THEN fdKind(node) = 0 ' (somewhere already - a file made and gone before)
+    NEXT
+    node = FdNew(2, fdAt, "", code)
+    FdSave
+END SUB

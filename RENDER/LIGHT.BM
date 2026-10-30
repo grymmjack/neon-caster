@@ -268,14 +268,14 @@ END SUB
 ' ---------------------------------------------------------------------------
 ' LIGHTS THAT CHANGE AS A SECTOR PLAYS - console commands, so a trigger's
 ' too (a light switch: use X Y repeat : light 3 toggle; an alarm that
-' turns a room red: alarm : celllight 10 4 18 9 150 FF2020 pulse; calm,
-' when it stops, puts it back: calm : celllight 10 4 18 9 off).
+' turns a room red: alarm : cell-light 10 4 18 9 150 FF2020 pulse; calm,
+' when it stops, puts it back: calm : cell-light 10 4 18 9 off).
 '   light N on|off|toggle         one of the level's lights ([lights], from 1)
 '   light N colour RRGGBB         its colour      light N bright 0-400
 '   light N fx steady|flicker|pulse|strobe|fire|dying
 '   ambient BRIGHT [RRGGBB] [FX]  the sector's own light: every cell with
 '                                 no light of its own
-'   celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]  those cells a light of their
+'   cell-light X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]  those cells a light of their
 '                                 own (0 is dark) - or "off": the sector's again
 ' Light only (the game plays the same: demos don't mind). What changed is
 ' kept in lightLog$ - on/off isn't: shot-out and switched-off lamps are
@@ -317,9 +317,9 @@ FUNCTION LightCmd$(c$)
             FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1
                 IF NOT cellAmbOwn(x, y) THEN cellAmbR(x, y) = ambientR : cellAmbG(x, y) = ambientG : cellAmbB(x, y) = ambientB : cellAmbFx(x, y) = fx
             NEXT : NEXT
-        CASE "celllight"
+        CASE "cell-light", "celllight" ' (celllight: its older name - old triggers and saved games still say it)
             x0 = VAL(ConWord$(c$, 2)) : y0 = VAL(ConWord$(c$, 3)) : x1 = VAL(ConWord$(c$, 4)) : y1 = VAL(ConWord$(c$, 5)) : w$ = ConWord$(c$, 6)
-            IF w$ = "" THEN LightCmd$ = "celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX] - or off (the sector's light again)" : EXIT FUNCTION
+            IF w$ = "" THEN LightCmd$ = "cell-light X0 Y0 X1 Y1 BRIGHT RRGGBB [FX] - or off (the sector's light again)" : EXIT FUNCTION
             IF x1 < x0 THEN SWAP x0, x1
             IF y1 < y0 THEN SWAP y0, y1
             x0 = MaxOf(0, x0) : y0 = MaxOf(0, y0) : x1 = MinOf(mapN - 1, x1) : y1 = MinOf(mapN - 1, y1)
@@ -328,10 +328,10 @@ FUNCTION LightCmd$(c$)
                     cellAmbOwn(x, y) = 0 : cellAmbR(x, y) = ambientR : cellAmbG(x, y) = ambientG : cellAmbB(x, y) = ambientB : cellAmbFx(x, y) = ambFx
                 NEXT : NEXT
             ELSE
-                IF NOT HueOK(ConWord$(c$, 7)) THEN LightCmd$ = "celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX] - the colour six hex digits (FF2020 red)" : EXIT FUNCTION
+                IF NOT HueOK(ConWord$(c$, 7)) THEN LightCmd$ = "cell-light X0 Y0 X1 Y1 BRIGHT RRGGBB [FX] - the colour six hex digits (FF2020 red)" : EXIT FUNCTION
                 bri = MaxOf(0, MinOf(400, VAL(w$))) : hue = HueOf~&(ConWord$(c$, 7)) : fx = 0
                 IF ConWord$(c$, 8) <> "" THEN fx = FxOf(ConWord$(c$, 8))
-                IF fx < 0 THEN LightCmd$ = "celllight ... FX: steady|flicker|pulse|strobe|fire|dying" : EXIT FUNCTION
+                IF fx < 0 THEN LightCmd$ = "cell-light ... FX: steady|flicker|pulse|strobe|fire|dying" : EXIT FUNCTION
                 FOR y = y0 TO y1 : FOR x = x0 TO x1
                     cellAmbOwn(x, y) = -1 : cellAmbR(x, y) = bri * _RED32(hue) / 255 : cellAmbG(x, y) = bri * _GREEN32(hue) / 255 : cellAmbB(x, y) = bri * _BLUE32(hue) / 255 : cellAmbFx(x, y) = fx
                 NEXT : NEXT

@@ -440,7 +440,39 @@ def simplify(tris, steps):
     for P, U in tris:
         Q = lo + np.round((P - lo) / step) * step
         if np.linalg.norm(np.cross(Q[1] - Q[0], Q[2] - Q[0])) > 1e-9 * size * size:
-            out.append((Q, U))
+            # the picture stays where it was on the face: each moved corner's
+            # place in the painting worked out from the triangle as it was (a
+            # corner moved and its old place kept slid the picture - a
+            # terminal's keys slanted, slivers at its edges)
+            E = np.stack([P[1] - P[0], P[2] - P[0]], axis=1); F = np.stack([U[1] - U[0], U[2] - U[0]], axis=1)
+            k = np.linalg.lstsq(E, (Q - P[0]).T, rcond=None)[0]
+            V = np.clip(U[0] + (F @ k).T, 0, 1)
+            out.append((Q, V))
+    return out
+
+
+def bleed(tex):
+    """The painting with its see-through pixels filled from the nearest
+    painted ones, and all of it solid. The game throws a model's
+    see-through pixels away, and a face reaching a pixel past the
+    painting's outline (its grid is coarser than the painting) showed
+    what's behind it: a sliver down a terminal's edge."""
+    rgb = tex[..., :3].astype(float); have = tex[..., 3] > 128
+    if have.all() or not have.any(): return tex
+    rgb[~have] = 0
+    for _ in range(max(tex.shape[:2])):
+        if have.all(): break
+        s = np.zeros_like(rgb); n = np.zeros(have.shape)
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            h = np.roll(have, (dy, dx), (0, 1)); c = np.roll(rgb, (dy, dx), (0, 1))
+            if dy == 1: h[0] = False
+            if dy == -1: h[-1] = False
+            if dx == 1: h[:, 0] = False
+            if dx == -1: h[:, -1] = False
+            s += c * h[..., None]; n += h
+        grow = ~have & (n > 0)
+        rgb[grow] = s[grow] / n[grow][:, None]; have = have | grow
+    out = tex.copy(); out[..., :3] = np.clip(np.round(rgb), 0, 255).astype(np.uint8); out[..., 3] = 255
     return out
 
 
@@ -457,7 +489,7 @@ def build(name):
             raw = extrude(name, *shape[1:]) if shape[0] == 'extrude' else turret_kit(name) if shape[0] == 'kit' else lathe(name, *shape[1:])
         tris = place(raw, PROPS[name] * subject_height(name))
         if shape[0] != 'kit': tris = simplify(tris, 16 if PROPS[name] <= 0.45 else 22)
-        tex = outline(name)[0]
+        tex = bleed(outline(name)[0])
         if shape[0] == 'kit':  # (the muzzles' white corner)
             tex = tex.copy(); h, w = tex.shape[:2]
             tex[int(h * (1 - MUZZLE_BOX)):, int(w * (1 - MUZZLE_BOX)):] = (255, 255, 255, 255)

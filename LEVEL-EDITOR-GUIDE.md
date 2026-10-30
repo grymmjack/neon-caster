@@ -1,6 +1,6 @@
 # NEON-CASTER Level Editor Guide
 
-A sector takes five minutes to start: **EDIT > YOUR SECTORS > NEW SECTOR** (or GAME's), then carve rooms, put things in them and save. You can build from above on the map, or from inside, pointing at walls and floors with the mouse. Everything below is checked against `neon-caster.bas`.
+A sector takes five minutes to start: **EDIT > SECTORS > NEW SECTOR** (or GAME's), then carve rooms, put things in them and save. You can build from above on the map, or from inside, pointing at walls and floors with the mouse. Everything below is checked against `neon-caster.bas`.
 
 - [Your first sector](#your-first-sector)
 - [The EDIT menu](#the-edit-menu)
@@ -25,7 +25,7 @@ A sector takes five minutes to start: **EDIT > YOUR SECTORS > NEW SECTOR** (or G
 
 A playable sector needs only four things: walls all round the edge, one start, one exit, and a way to walk from the start to the exit. NEW SECTOR gives you all four. Everything else is decoration.
 
-1. Open **GAME > YOUR SECTORS > NEW SECTOR**. You get the first free sector number - 22, since the examples below are 11 to 21 and 24 - up to 40 (past 20 they're under **MORE SECTORS**), saved as `neon-caster/levels/custom/customN.txt`, N ten less than the sector (sector 22 is `custom12.txt`). It's solid wall with one lit 8 × 8 room in the middle, cells 20 to 27 each way. You stand at (21, 24) facing east, and the exit `E` is at (28, 24).
+1. Open **GAME > SECTORS**, go into a folder (MAN MADE, or one of your own), and choose **NEW SECTOR**: it's made in that folder. You get the first free sector number - 22, since the examples below are 11 to 21 and 24 - up to 40, saved as `neon-caster/levels/custom/customN.txt`, N ten less than the sector (sector 22 is `custom12.txt`). It's solid wall with one lit 8 × 8 room in the middle, cells 20 to 27 each way. You stand at (21, 24) facing east, and the exit `E` is at (28, 24).
 2. You land in the **map view**: the level from above. Press **Tab** (or the **3D** button) to be inside it instead. Either way, the **toolbar** has the tools and the **picker** has everything you can put in a level.
 3. **Push a wall back.** In the 3D view, click a wall to select it, then hold **Shift** while you turn the wheel up (away from you): the wall goes back a cell at a time and the room grows. Turn it down, towards you, and the wall comes out towards you - the wall goes the way the top of the wheel goes.
 4. **Carve a room from above.** In the map view, choose **PLACE**, open the picker's **SPECIAL** tab and click the floor tile, then hold **Shift** and drag a box. The whole box becomes floor. Make sure it touches the first room.
@@ -37,7 +37,7 @@ A playable sector needs only four things: walls all round the edge, one start, o
 
 To rename it, open the console (`` ` ``), type `sectorname MY FIRST MAP`, then `savelevel`.
 
-**Twelve examples to take apart.** YOUR SECTORS starts with twelve sectors built to show the editor off (so your first NEW SECTOR is number 22, and there's room for eight of yours - 24 is taken; delete an example's file in `neon-caster/levels/custom/` for more): **11, THE GALLERY** (pictures on single faces, a checkerboard floor laid cell by cell, two-tone pillars, paintings lit and tinted by lights on their faces, statues that wake only when shot and guards that hear it), **12, THE SUNKEN DEPOT** (a walkway a wall up, a shaft with no bottom and a causeway across it, beams hanging from the dark, firelight on the furnace wall, crawler closets, a stalker hunting you from the start), **13, THE RELAY** (chambers only teleporters reach, each pad LINKed to its own, each chamber in pictures of its own), **14, THE CONSERVATORY** (a floor woven from divided cells, a bottomless pond crossed on lifts that each rise and fall at their own pace, a garden behind glass, and the light lab: all six ways a light can go, side by side), **15, THE LISTENING POST** (guards that see four cells but hear a shot from fourteen, crawler closets, a room you must survive for the blue card, an archive locked by a timed trigger and opened by a USE trigger on a terminal) **16, THE OBSERVATORY** (a tower climbed by stairs, an elevator and a lift that rises and falls by itself, glass windows, each ledge lit its own colour, and pads LINKed out of reading order), **17, THE FLOODED ARCHIVE** (a hall under murky water - its floor painted `floor-murky` cell by cell, and a floor's picture says what it does: you wade - crawlers among the shelves, a fallen catwalk, dying lights), **18, THE CORE** (a reactor glowing red on an island in a ring of molten metal painted to burn, bridges that are lifts rising and falling each at its own pace, fire traps, strobing alarms), and three outdoors under skies: **19, THE ROOFTOPS** (night over the neon city, roofs joined by bridges over alleys that are a death pit), **20, THE STORM YARD** (a shipyard under lightning, containers to climb, puddles that slow you) and **21, THE DRIFT** (platforms adrift in orbit over a bottomless void, crossed by catwalks, lifts and LINKed pads), and **24, THE NEON EXPO**: every feature in one sector - eight pavilions round a grand atrium, all thirteen kinds of event room, every kind of trigger, all five liquids, blocks and alcoves, standing decorations, lifts that bob or are called from a console, a skydeck over a street that kills, and the overseer on the summit (built by `neon-caster/levels/megasector.py`). Open one with F2 and click about: the panes show how each thing is set up. They're made by `neon-caster/levels/showcase.py`, which writes them again from scratch, so don't run it once you've changed them.
+**Twelve examples to take apart.** SECTORS > AI GENERATED > SHOWCASES holds twelve sectors built to show the editor off (so your first NEW SECTOR is number 22, and there's room for eight of yours - 24 is taken; delete an example's file in `neon-caster/levels/custom/` for more): **11, THE GALLERY** (pictures on single faces, a checkerboard floor laid cell by cell, two-tone pillars, paintings lit and tinted by lights on their faces, statues that wake only when shot and guards that hear it), **12, THE SUNKEN DEPOT** (a walkway a wall up, a shaft with no bottom and a causeway across it, beams hanging from the dark, firelight on the furnace wall, crawler closets, a stalker hunting you from the start), **13, THE RELAY** (chambers only teleporters reach, each pad LINKed to its own, each chamber in pictures of its own), **14, THE CONSERVATORY** (a floor woven from divided cells, a bottomless pond crossed on lifts that each rise and fall at their own pace, a garden behind glass, and the light lab: all six ways a light can go, side by side), **15, THE LISTENING POST** (guards that see four cells but hear a shot from fourteen, crawler closets, a room you must survive for the blue card, an archive locked by a timed trigger and opened by a USE trigger on a terminal) **16, THE OBSERVATORY** (a tower climbed by stairs, an elevator and a lift that rises and falls by itself, glass windows, each ledge lit its own colour, and pads LINKed out of reading order), **17, THE FLOODED ARCHIVE** (a hall under murky water - its floor painted `floor-murky` cell by cell, and a floor's picture says what it does: you wade - crawlers among the shelves, a fallen catwalk, dying lights), **18, THE CORE** (a reactor glowing red on an island in a ring of molten metal painted to burn, bridges that are lifts rising and falling each at its own pace, fire traps, strobing alarms), and three outdoors under skies: **19, THE ROOFTOPS** (night over the neon city, roofs joined by bridges over alleys that are a death pit), **20, THE STORM YARD** (a shipyard under lightning, containers to climb, puddles that slow you) and **21, THE DRIFT** (platforms adrift in orbit over a bottomless void, crossed by catwalks, lifts and LINKed pads), and **24, THE NEON EXPO**: every feature in one sector - eight pavilions round a grand atrium, all thirteen kinds of event room, every kind of trigger, all five liquids, blocks and alcoves, standing decorations, lifts that bob or are called from a console, a skydeck over a street that kills, and the overseer on the summit (built by `neon-caster/levels/megasector.py`). Open one with F2 and click about: the panes show how each thing is set up. They're made by `neon-caster/levels/showcase.py`, which writes them again from scratch, so don't run it once you've changed them.
 
 Undo is **UNDO** or **Ctrl+Z**, up to 40 steps; **REDO** (**Ctrl+Y** or **Ctrl+Shift+Z**) makes again what you undid, until you change something else. One drag, or one run of wheel turns, counts as one step. **F1** (or **HELP**) shows every key for the view you're in. **Alt+L** turns FULL BRIGHT on and off: every cell lit evenly, to see what's going on in a dark corner. The minimap stays out of the editor's way (even with the sector's map picked up); the HUD layout editor still shows it.
 
@@ -48,9 +48,24 @@ Undo is **UNDO** or **Ctrl+Z**, up to 40 steps; **REDO** (**Ctrl+Y** or **Ctrl+S
 The main menu's **EDIT** is the editor on its own, for building rather than playing:
 
 - **RESUME LAST EDIT** opens the sector you edited last, in the editor, where you were and in the view you had (the map from above or 3D). Under it are the four sectors you edited before that.
-- **SELECT SECTOR**, the other sets and **YOUR SECTORS** are GAME's lists, but a sector chosen there opens straight in the editor. YOUR SECTORS has **NEW SECTOR**.
+- **SECTORS** is GAME's, but a sector chosen there opens straight in the editor. Every folder has **NEW SECTOR**.
 - **TUNER** (every machine's health, each gun's damage, ammo - by difficulty) and **MONSTER KINDS** (each kind's numbers, `monsters.txt`).
 - **HUD LAYOUT** (where the health, ammo and map go) and **MUSIC**: the tracks, as in SOUND TEST - press E on one for the **MUSIC ARRANGER** (its clips, a clip launcher, and the arrangement the game plays; `neon-caster/music/README.md` has the rest).
+
+**SECTORS: folders.** GAME > SECTORS and EDIT > SECTORS show every sector in folders: **AI GENERATED** (the five sets of ten and the showcases) and **MAN MADE** (yours - a NEW SECTOR made at the top or from the console goes there). The folders are only the menu's: the sectors stay where they are on disk, and keep their numbers for saves and demos. Make your own, folders inside folders, ten deep at most; a folder can hold sectors, folders or both.
+
+| Key | In SECTORS |
+| --- | --- |
+| **Enter**, **Right** | open the folder picked (or play / edit the sector) |
+| **Left**, **Esc** | back up a folder (Esc at the top leaves) |
+| **Right** | forward: down again into the folder you just came back up from, as a browser's |
+| **N** | a new folder here - type its name, Enter keeps it, Esc drops it |
+| **R** | rename the folder picked |
+| **X**, then **V** | pick up a folder or sector, open the folder it should go in, put it there (Esc puts it down) |
+| **[** **]** | move the one picked up or down its list |
+| **Delete** | take a folder away - what was in it moves up into its place (sectors aren't deleted here) |
+
+The game's folders are `neon-caster/levels/folders.txt`; your first change writes yours to `saves/folders.txt` (delete it to start again from the game's). Both are text, a line each, two spaces in for each folder a line is inside: `folder NAME`, `set original|new|remix|huge|infil`, `sector huge 3`, `custom 2 5-7` (your `custom2.txt`... - sector 12), and `rest` (the folder new sectors of yours go in). A sector left out of the file is put in anyway: yours in the `rest` folder, a set's in a folder named for the set.
 
 A sector opened from EDIT is an **edit session**: NEXUS doesn't greet you, no music plays and NEXUS keeps its taunts to itself. Press F2 to play-test as usual; reaching the exit brings you back to the editor instead of the tally and the next sector. Starting a game from GAME (or loading one) ends the session. The list is kept in `saves/editrecent.txt`.
 
@@ -61,7 +76,7 @@ flowchart LR
     play["Playing the level<br/><small>the game as normal</small>"]
     map["<b>Map view</b><br/><small>the level from above</small>"]
     walk["3D view<br/><small>inside it, pointing at faces</small>"]
-    new["NEW SECTOR<br/><small>in GAME, YOUR SECTORS</small>"]
+    new["NEW SECTOR<br/><small>in GAME or EDIT, SECTORS</small>"]
     mon["Monster kinds editor<br/><small>numbers for every kind</small>"]
     hud["HUD layout editor<br/><small>move the displays</small>"]
     play -- F2 --> map
@@ -345,10 +360,10 @@ Each cell of the map is one character, and case matters: `m` is a drone, `M` is 
 \ D H X R B Y E
 ! = @ $ % ? & ;
 r b y + * u a e
-2 3 4 M q j 8 9
-) ( { } ` , m g
+2 3 4 5 M q j 8
+9 ( { } ` , m g
 h c s k w z T 1
-5 6 7 0 ~ _ | ]
+) 6 7 0 ~ _ | ]
 o i p t x l n f
 S d A F I J L O
 Q U W Z V : [ '
@@ -401,7 +416,7 @@ A door can be both: kick it down, or find the code.
 | `3` | Repeater, +60 rounds | | `j` | Damage amp: double damage for 30 s |
 | `8` | Night vision headset: yours till you die, as a gun is. N switches it on and off | | | |
 | `9` | Hazmat suit: poison, slime and acid wear it instead of you (about 45 seconds of poison, 20 of acid). Fire and lava go straight through it. Lost when you die | | | |
-| `)` | Rocket launcher (gun 5), +5 rockets: a rocket bursts on whatever it hits - and the blast hurts you too, close up. Hold the right button to zoom right in | | `(` | Rockets +5 (50 at most) |
+| `5` | Rocket launcher (gun 5), +5 rockets: a rocket bursts on whatever it hits - and the blast hurts you too, close up. Hold the right button to zoom right in | | `(` | Rockets +5 (50 at most) |
 | `{` | Repeater rounds +40 (200 at most) | | `}` | Railgun slugs +5 (25 at most) |
 | `` ` `` | Jetpack: a booster - hold FLY / JET UP (E as made), or look up and walk, and it fires, pushing you up and burning fuel (a full tank: about 7 seconds of thrust); let go and you fall, floaty as after a rocket jump (no hard landing) - fire it again to slow the fall | | `,` | Jet fuel +40 (a jetpack's tank holds 100). Each jetpack and can can have its own: FUEL - + on its pane (`[fuel]`) - give a level just enough to reach the next can |
 | `"` repairkit | Computer repair kit (up to 3): Space on a broken computer with one fixes it | | `"` invuln | Invulnerability: nothing hurts you for 5 seconds (a golden glow round the screen) |
@@ -423,7 +438,7 @@ Each gun has its own ammo: cells for the blaster, shells for the scatter gun, ro
 | `z` | overseer (boss) | 80 |
 | `T` | thief | 5 - grabs your ammo and gun and runs for its hoard (event 7). Each hit knocks some loose; if it gets home, the hoard is locked for good |
 | `1` | sniper | 4 - keeps well back and aims a laser: a faint red line that follows you, a little behind, then a white-hot beam. Step out of the line (or out of sight) before it fires |
-| `5` | trooper | 6 - a burst rifle: three bolts at a time |
+| `)` | trooper | 6 - a burst rifle: three bolts at a time |
 | `6` | ripper | 3 - fast (quicker than you walk), all claws: it lunges in, slashes and leaps back out of reach |
 | `7` | warden (field boss) | 60 - a laser, then a ring of ten bolts and three at you, turn about. Drops an overcharge, armour and a gun you haven't got |
 | `0` | colossus (field boss) | 90 - comes on and on: up close, a slam that shakes the floor; further off, heavy bolts. Drops a damage amp, a big medkit, cells and shells |
@@ -560,7 +575,7 @@ The console makes blocks too: `block X Y X0 Y0 X1 Y1 [WALL]` (edges in eighths, 
 
 ## Lights
 
-A level is lit by one **ambient** level everywhere (unless a cell has a **cell light** of its own, below), plus up to 96 **lights** that stop at walls.
+A level is lit by one **ambient** level everywhere (unless a cell has a **cell light** of its own, below), plus up to 1024 **lights** that stop at walls.
 
 **Lights on faces.** With the LIGHT tool, a click puts a light just in front of the middle of the face you click, in the light brush's colour and effect. The **LIGHTS** tab sets the brush (each effect is shown going, as it will in the game), and a face's pane sets its light's colour, effect, reach (in cells) and brightness, or removes it. A light on a wall's face also **tints the face itself** its colour: a coloured copy of its picture, which OpenGL lights by itself and pulses or flickers with the light. So a red light shows red on its wall even in a room already as bright as it can be, where light alone would add nothing. A light on a floor or ceiling, or in the middle of a cell, lights the room round it the usual way. Each light is a little star in its colour in the 3D view.
 
@@ -581,7 +596,7 @@ Lights add to what's there, and the brightest a pixel can be is its picture's ow
 | `effect` | 0 steady · 1 flickering tube · 2 slow pulse · 3 alarm strobe · 4 firelight · 5 dying tube |
 | (a 9th) | `1`: no lamp - the light's cell keeps its own ceiling picture and has no beam (the pane's CEILING LAMP: OFF). Left off, the light hangs a lamp there as always. |
 
-**The 96-light budget includes automatic lights.** Lamps, terminals, server racks, glowing decorations, the exit and teleporter pads each add a light of their own. Past 96, extra lights are dropped without a message, and the editor can't warn you because it only counts the level's own list. If a light you placed doesn't show, you've probably hit the limit.
+**The 1024-light budget includes automatic lights.** Lamps, terminals, server racks, glowing decorations, the exit and teleporter pads each add a light of their own. Past 1024, extra lights are dropped without a message, and the editor can't warn you because it only counts the level's own list. If a light you placed doesn't show, you've probably hit the limit.
 
 **Lights that change as the sector plays.** The console - so a trigger too - can change the light while you play (N counts the `[lights]` lines from 1):
 
@@ -592,9 +607,9 @@ Lights add to what's there, and the brightest a pixel can be is its picture's ow
 | `light N bright 0-400` | Its brightness |
 | `light N fx steady\|flicker\|pulse\|strobe\|fire\|dying` | Its effect |
 | `ambient BRIGHT [RRGGBB] [FX]` | The sector's own light: every cell with no cell light of its own (below 0, to -255: none, and every light dimmer). `ambient` alone says how it is |
-| `celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]` | Those cells a light of their own (0 is dark) - `celllight X0 Y0 X1 Y1 off` gives them the sector's light again |
+| `cell-light X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]` | Those cells a light of their own (0 is dark) - `cell-light X0 Y0 X1 Y1 off` gives them the sector's light again |
 
-A **light switch** is a trigger on a wall: `use 12 8 repeat : light 3 toggle` (put `wall-switch.png` on the face). An **alarm that turns a room red**: `alarm : celllight 10 4 18 9 150 FF2020 pulse` and, when it stops, `calm : celllight 10 4 18 9 off`. A power cut: `enter 30 2 34 6 : ambient 20 4060FF flicker`. The TRIGGERS pane has three buttons for these: **LAMP O/I** (switch the light nearest the selection), **AREA RED** and **AREA OFF** (the selection's cells). The changes are light only - the game plays the same - and a saved game keeps them.
+A **light switch** is a trigger on a wall: `use 12 8 repeat : light 3 toggle` (put `wall-switch.png` on the face). An **alarm that turns a room red**: `alarm : cell-light 10 4 18 9 150 FF2020 pulse` and, when it stops, `calm : cell-light 10 4 18 9 off`. A power cut: `enter 30 2 34 6 : ambient 20 4060FF flicker`. The TRIGGERS pane has three buttons for these: **LAMP O/I** (switch the light nearest the selection), **AREA RED** and **AREA OFF** (the selection's cells). The changes are light only - the game plays the same - and a saved game keeps them.
 
 **Cell lights: ambient light, cell by cell.** A cell light isn't a lamp. It replaces the sector's ambient light in the cells it covers, so a room can be dim and red, or a corridor bright and cold blue, while the rest of the sector keeps its own light. Lights still add on top. Select floor cells (drag a box, or Shift+click several; in 3D, Ctrl+click a floor takes the whole room's floor at that height), and the floor pane's **CELL LIGHT...** opens their pane - with two or more cells selected it's at the top of whatever pane shows (**CELL LIGHT (ALL SELECTED)...**), so a light, a monster or a door in the box doesn't hide it: **-** and **+** for brightness, a colour (twelve swatches, or **TYPE** any as six hex digits, `FF8800` orange, Enter to keep it), and **EFFECT** (steady, flicker, pulse, strobe, fire, dying - every cell with the same effect goes as one, so a room flickers together). A cell with no light of its own starts from the sector's light when you change it; **BACK TO THE SECTOR'S** gives it the sector's light again. They cost nothing: there's no budget, as there is for lights. **To see a cell's light**, point at it: the 3D view's info box (top left) and the map view's **CELL** lines say `LIGHT 48 ITS OWN` (a cell light, and its effect) or `LIGHT 0 THE SECTOR'S`, then `LIT 112 NOW` - how bright it is with every light and glow reaching it (256 shows a picture in its own colours), in its light's colour. A dark patch in a lit room is usually a cell the cell light missed.
 
@@ -606,7 +621,7 @@ Only the puzzles have no editor tool yet. Write them into the level file, `neon-
 
 Ctrl+S rewrites the whole file in a fixed layout. Only the comments at the very top survive, so keep your notes there.
 
-**Pictures.** `walls =` needs exactly 6 picture names (for `# N C K P G`), `floors =` 4 and `ceilings =` 2. A misspelled name makes the game quit with "Missing texture". These are the pictures in `neon-caster/`:
+**Pictures.** `walls =` needs exactly 6 picture names (for `# N C K P G`), `floors =` 4 and `ceilings =` 2. A misspelled name is drawn as the plain `wall.png`, and the console says "Missing texture" with the name (only a missing `wall.png` itself stops the game). These are the pictures in `neon-caster/`:
 
 - **Walls:** wall, wall2, wall-adverts, wall-biolab, wall-brick, wall-coils, wall-concrete, wall-control, wall-core, wall-cryo, wall-datastream, wall-frost, wall-furnace, wall-girders, wall-graffiti, wall-grate, wall-greenhouse, wall-greenpipes, wall-hazard, wall-hull, wall-ice, wall-lightstrip, wall-moss, wall-obsidian, wall-pipes, wall-reactor, wall-rusty, wall-servers, wall-slime, wall-stripes, wall-terminals, wall-tiles, wall-transit, wall-vault, wall-viewport, wall-vines, wall-white. (`wall-jack` and `wall-code` are the data station's and code terminal's own.)
 - **Floors:** floor, floor-circuit, floor-cobbles, floor-concrete, floor-core, floor-deck, floor-frostgrate, floor-glow, floor-hazard, floor-ice, floor-lab, floor-molten (burns), floor-murky (slows), floor-plates, floor-platform, floor-rustgrate, floor-scorched, floor-soil, floor-white.

@@ -66,7 +66,7 @@ def launchbay():
     thing(38, 30, "jumppad", 270, 60, 32)
     # The cargo platform (north, a wall up): only the middle pad gets you there
     m.floor(21, 6, 27, 11, 8)
-    m.put(24, 7, "q"); m.put(22, 7, ")"); m.put(26, 7, "("); m.put(23, 8, "u")
+    m.put(24, 7, "q"); m.put(22, 7, "5"); m.put(26, 7, "("); m.put(23, 8, "u")
     # The ledge (north-west, four walls up): the jetpack's
     m.floor(3, 6, 8, 10, 32)
     m.put(5, 8, "j"); m.put(6, 7, "M")

@@ -113,7 +113,7 @@
                         itemOn(i) = 0 : PlaySfx sndWeapon&, 0.9 : pickFlash = 10
                         IF NOT hasGun(gun) THEN
                             hasGun(gun) = -1 : nextGun = gun : swapTimer = SWAP_FRAMES
-                            IF hasGun(1) AND hasGun(2) AND hasGun(3) AND hasGun(4) THEN Achieve "NC_ARSENAL", 0
+                            IF hasGun(1) AND hasGun(2) AND hasGun(3) AND hasGun(4) AND hasGun(5) THEN Achieve "NC_ARSENAL", 0
                             ShowMsg "You got the " + gunName$(gun) + "!  (" + LTRIM$(STR$(gun)) + " or mouse wheel to switch)"
                         ELSE
                             ShowMsg gunName$(gun) + " ammo"

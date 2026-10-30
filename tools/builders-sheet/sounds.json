@@ -1,0 +1,640 @@
+[
+ {
+  "name": "step1",
+  "cat": "Player",
+  "when": "Footsteps on dry floor (left foot); also the thud of a hard landing or a jump's push-off."
+ },
+ {
+  "name": "step2",
+  "cat": "Player",
+  "when": "Footsteps on dry floor (right foot), alternating with step1."
+ },
+ {
+  "name": "wade1",
+  "cat": "Player",
+  "when": "Footsteps sloshing while you walk through a liquid you can stand in."
+ },
+ {
+  "name": "wade2",
+  "cat": "Player",
+  "when": "Footsteps sloshing through a liquid, alternating with wade1."
+ },
+ {
+  "name": "swim1",
+  "cat": "Player",
+  "when": "A swimming stroke while you're out of your depth in a liquid."
+ },
+ {
+  "name": "swim2",
+  "cat": "Player",
+  "when": "A swimming stroke out of your depth, alternating with swim1."
+ },
+ {
+  "name": "jump",
+  "cat": "Player",
+  "when": "You jump (one of three grunts, picked at random)."
+ },
+ {
+  "name": "jump2",
+  "cat": "Player",
+  "when": "You jump (one of three grunts, picked at random)."
+ },
+ {
+  "name": "jump3",
+  "cat": "Player",
+  "when": "You jump (one of three grunts, picked at random)."
+ },
+ {
+  "name": "hurt",
+  "cat": "Player",
+  "when": "You take damage (one of three grunts, picked at random)."
+ },
+ {
+  "name": "hurt2",
+  "cat": "Player",
+  "when": "You take damage (one of three grunts, picked at random)."
+ },
+ {
+  "name": "hurt3",
+  "cat": "Player",
+  "when": "You take damage (one of three grunts, picked at random)."
+ },
+ {
+  "name": "hurt-zap",
+  "cat": "Player",
+  "when": "You're shocked - by a laser, a live floor or the network - on top of the grunt."
+ },
+ {
+  "name": "die",
+  "cat": "Player",
+  "when": "You die, including hitting the bottom of a death pit."
+ },
+ {
+  "name": "heartbeat",
+  "cat": "Player",
+  "when": "A heartbeat while your health is low, quicker as it drops.",
+  "trigger_use": "Tension: a low-health or danger cue."
+ },
+ {
+  "name": "breath",
+  "cat": "Player",
+  "when": "A heavy breath now and then while your health is low."
+ },
+ {
+  "name": "groan",
+  "cat": "Player",
+  "when": "A quiet groan now and then while your health is low."
+ },
+ {
+  "name": "gasp1",
+  "cat": "Player",
+  "when": "A quiet gasp now and then while your health is low (one of three)."
+ },
+ {
+  "name": "gasp2",
+  "cat": "Player",
+  "when": "A quiet gasp now and then while your health is low (one of three)."
+ },
+ {
+  "name": "gasp3",
+  "cat": "Player",
+  "when": "A quiet gasp now and then while your health is low (one of three)."
+ },
+ {
+  "name": "kick-swing",
+  "cat": "Player",
+  "when": "You kick: the swing, hit or miss."
+ },
+ {
+  "name": "kick",
+  "cat": "Player",
+  "when": "Your kick lands on a machine, a prop or a glass pane."
+ },
+ {
+  "name": "wallhump",
+  "cat": "Player",
+  "when": "You press USE on a plain wall with nothing there."
+ },
+ {
+  "name": "bump",
+  "cat": "Player",
+  "when": "Not played by the game itself (spare: it only stands in for the kick if kick.wav is missing)."
+ },
+ {
+  "name": "shoot",
+  "cat": "Weapons",
+  "when": "Firing the blaster; also ticks while the sector-clear tally counts up."
+ },
+ {
+  "name": "scatter",
+  "cat": "Weapons",
+  "when": "Firing the scatter gun."
+ },
+ {
+  "name": "repeater",
+  "cat": "Weapons",
+  "when": "Firing the repeater."
+ },
+ {
+  "name": "rail",
+  "cat": "Weapons",
+  "when": "Firing the railgun."
+ },
+ {
+  "name": "rocket-fire",
+  "cat": "Weapons",
+  "when": "Firing the rocket launcher."
+ },
+ {
+  "name": "rocket-boom",
+  "cat": "Weapons",
+  "when": "A rocket or a turret's missile explodes.",
+  "trigger_use": "A distant explosion."
+ },
+ {
+  "name": "empty",
+  "cat": "Weapons",
+  "when": "Pulling the trigger with no ammo: a dry click."
+ },
+ {
+  "name": "charge",
+  "cat": "Weapons",
+  "when": "The blaster or railgun starts charging (CHARGED SHOTS setting).",
+  "trigger_use": "Something powering up to fire."
+ },
+ {
+  "name": "charge-full",
+  "cat": "Weapons",
+  "when": "A charged shot reaches full power (CHARGED SHOTS setting)."
+ },
+ {
+  "name": "headshot",
+  "cat": "Weapons",
+  "when": "You land a headshot on a machine."
+ },
+ {
+  "name": "bolt-wall",
+  "cat": "Weapons",
+  "when": "A machine's plasma bolt bursts against a wall, floor or ceiling."
+ },
+ {
+  "name": "health",
+  "cat": "Pickups",
+  "when": "Picking up a health pack or a big medkit."
+ },
+ {
+  "name": "overcharge",
+  "cat": "Pickups",
+  "when": "Picking up an overcharge (+100 health); also a monster spawner bursting as it sends one out."
+ },
+ {
+  "name": "armor",
+  "cat": "Pickups",
+  "when": "Picking up armour, a hazmat suit or a computer repair kit."
+ },
+ {
+  "name": "ammo",
+  "cat": "Pickups",
+  "when": "Picking up energy cells, repeater rounds or railgun slugs."
+ },
+ {
+  "name": "shells",
+  "cat": "Pickups",
+  "when": "Picking up shells or rockets."
+ },
+ {
+  "name": "weapon",
+  "cat": "Pickups",
+  "when": "Picking up a new gun."
+ },
+ {
+  "name": "keycard",
+  "cat": "Pickups",
+  "when": "Picking up a keycard or the sector map.",
+  "trigger_use": "Something important collected."
+ },
+ {
+  "name": "amp",
+  "cat": "Pickups",
+  "when": "Picking up the damage amp (double damage)."
+ },
+ {
+  "name": "amp-end",
+  "cat": "Pickups",
+  "when": "The damage amp wears off."
+ },
+ {
+  "name": "invuln",
+  "cat": "Pickups",
+  "when": "Picking up invulnerability."
+ },
+ {
+  "name": "invuln-end",
+  "cat": "Pickups",
+  "when": "Invulnerability wears off."
+ },
+ {
+  "name": "jetfuel",
+  "cat": "Pickups",
+  "when": "Picking up the jetpack or a can of jet fuel."
+ },
+ {
+  "name": "battery",
+  "cat": "Pickups",
+  "when": "Picking up a flashlight battery, or a spare being swapped in."
+ },
+ {
+  "name": "jetpack",
+  "cat": "Player",
+  "when": "The jetpack fires: as thrust starts, then repeating while it burns."
+ },
+ {
+  "name": "flashlight",
+  "cat": "Player",
+  "when": "The flashlight clicks on or off, or is picked up.",
+  "trigger_use": "A switch click in the dark."
+ },
+ {
+  "name": "power-up",
+  "cat": "Machines",
+  "when": "Something powers up: night vision on, power back after a blackout, a computer hacked open.",
+  "trigger_use": "Power restored, a machine waking."
+ },
+ {
+  "name": "power-down",
+  "cat": "Machines",
+  "when": "Something dies: a blackout, night vision off, jetpack or flashlight empty, suit worn out, turrets hacked.",
+  "trigger_use": "Lights out, a machine shutting off."
+ },
+ {
+  "name": "door",
+  "cat": "Doors",
+  "when": "A sliding door (the usual kind) opens or closes."
+ },
+ {
+  "name": "door-shutter",
+  "cat": "Doors",
+  "when": "A shutter door opens or closes."
+ },
+ {
+  "name": "door-split",
+  "cat": "Doors",
+  "when": "A split door (two halves) opens or closes."
+ },
+ {
+  "name": "locked",
+  "cat": "Doors",
+  "when": "Denied: a locked or sealed door, a locked safe, no signal, or saving not allowed.",
+  "trigger_use": "Something refuses: 'not yet'."
+ },
+ {
+  "name": "door-kick",
+  "cat": "Doors",
+  "when": "You kick a stronghold door."
+ },
+ {
+  "name": "door-break",
+  "cat": "Doors",
+  "when": "A stronghold door gives way under your kicks."
+ },
+ {
+  "name": "lift-start",
+  "cat": "Doors",
+  "when": "A lift sets off; also a turret folding out of or back into its housing."
+ },
+ {
+  "name": "lift-move",
+  "cat": "Doors",
+  "when": "A lift's motor hum, looping while it moves."
+ },
+ {
+  "name": "lift-stop",
+  "cat": "Doors",
+  "when": "A lift stops; also each reel landing on a slot machine."
+ },
+ {
+  "name": "crusher-slam",
+  "cat": "Hazards",
+  "when": "A crusher slams onto the floor."
+ },
+ {
+  "name": "closet",
+  "cat": "World",
+  "when": "Hidden walls grind away: a trap room's closets opening, a secret found, a wall carved by command.",
+  "trigger_use": "A hidden passage opening."
+ },
+ {
+  "name": "secret",
+  "cat": "World",
+  "when": "You find a secret.",
+  "trigger_use": "Reward for finding something hidden."
+ },
+ {
+  "name": "teleport",
+  "cat": "World",
+  "when": "A teleporter pad sends you across; also things appearing out of nowhere by command."
+ },
+ {
+  "name": "jumppad",
+  "cat": "World",
+  "when": "A jump pad launches you or a machine."
+ },
+ {
+  "name": "exit",
+  "cat": "World",
+  "when": "You use the sector's exit."
+ },
+ {
+  "name": "plate-click",
+  "cat": "World",
+  "when": "A click: a pressure plate pressed, a shoot switch hit, a secret unlatching, a vending machine dispensing.",
+  "trigger_use": "A switch or plate clicking."
+ },
+ {
+  "name": "drain",
+  "cat": "World",
+  "when": "A pool drains (repeating while it drains)."
+ },
+ {
+  "name": "splash",
+  "cat": "World",
+  "when": "You enter water or another liquid that doesn't burn; a water barrel bursts."
+ },
+ {
+  "name": "swish",
+  "cat": "World",
+  "when": "Liquid swishing round you as you move through it (a loop, louder the faster and deeper)."
+ },
+ {
+  "name": "bubble",
+  "cat": "Hazards",
+  "when": "A looping bubble near a harmful liquid like lava, acid or slime, louder as you near it."
+ },
+ {
+  "name": "sizzle",
+  "cat": "Hazards",
+  "when": "Burning: stepping into lava or acid or on a burning floor, fire traps, flames, a laser warming up."
+ },
+ {
+  "name": "trap-fire",
+  "cat": "Hazards",
+  "when": "A fire trap's roar, looping while it's lit, louder as you near it."
+ },
+ {
+  "name": "trap-electric",
+  "cat": "Hazards",
+  "when": "The buzz of a live electric floor trap or a laser beam, looping while it's on."
+ },
+ {
+  "name": "zap",
+  "cat": "Hazards",
+  "when": "An electric crack: an electric trap hurting you, a laser beam coming on, a lightning turret's arc."
+ },
+ {
+  "name": "laser-zap",
+  "cat": "Hazards",
+  "when": "A laser beam burns you."
+ },
+ {
+  "name": "barrel",
+  "cat": "World",
+  "when": "An explosion: a barrel, a blast trap, a slot machine's bomb; also the sector-clear tally's slams.",
+  "trigger_use": "A big bang somewhere."
+ },
+ {
+  "name": "barrel-leak",
+  "cat": "World",
+  "when": "A shot liquid barrel hisses as it leaks."
+ },
+ {
+  "name": "deco-hit",
+  "cat": "World",
+  "when": "A prop takes a hit without breaking; also shots pinging off bars, a stacked thing landing."
+ },
+ {
+  "name": "crate-break",
+  "cat": "World",
+  "when": "A crate, desk, table, piece of furniture or chest is smashed."
+ },
+ {
+  "name": "lamp-break",
+  "cat": "World",
+  "when": "A lamp is shot out, standing or in the ceiling."
+ },
+ {
+  "name": "plant-break",
+  "cat": "World",
+  "when": "A potted plant is smashed."
+ },
+ {
+  "name": "terminal-break",
+  "cat": "World",
+  "when": "A terminal, computer or other machine prop is smashed."
+ },
+ {
+  "name": "glass-hit",
+  "cat": "World",
+  "when": "A glass pane is hit and cracks, but holds."
+ },
+ {
+  "name": "glass-break",
+  "cat": "World",
+  "when": "A glass pane shatters.",
+  "trigger_use": "Something breaking in, a window smashed."
+ },
+ {
+  "name": "droid-chirp1",
+  "cat": "Machines",
+  "when": "A little service droid chatters to itself now and then."
+ },
+ {
+  "name": "droid-chirp2",
+  "cat": "Machines",
+  "when": "A little service droid chatters to itself now and then."
+ },
+ {
+  "name": "droid-chirp3",
+  "cat": "Machines",
+  "when": "A service droid is startled: you walked into it or shot it."
+ },
+ {
+  "name": "droid-break",
+  "cat": "Machines",
+  "when": "A little service droid is destroyed."
+ },
+ {
+  "name": "spawn",
+  "cat": "Machines",
+  "when": "A machine appears out of nowhere: summoned, out of a broken specimen tank, a slot machine, network ICE.",
+  "trigger_use": "Reinforcements arriving."
+ },
+ {
+  "name": "thief-steal",
+  "cat": "Machines",
+  "when": "A thief bot grabs something of yours."
+ },
+ {
+  "name": "eyebot-beep",
+  "cat": "Machines",
+  "when": "An eyebot beeps as it rushes at you, faster as it closes in."
+ },
+ {
+  "name": "eyebot-rush",
+  "cat": "Machines",
+  "when": "An eyebot starts its kamikaze rush at you."
+ },
+ {
+  "name": "robodog-bark1",
+  "cat": "Machines",
+  "when": "A robot guard dog barks on seeing you (waking machines near) and while it chases you (one of four)."
+ },
+ {
+  "name": "robodog-bark2",
+  "cat": "Machines",
+  "when": "A robot guard dog barks on seeing you (waking machines near) and while it chases you (one of four)."
+ },
+ {
+  "name": "robodog-bark3",
+  "cat": "Machines",
+  "when": "A robot guard dog barks on seeing you (waking machines near) and while it chases you (one of four)."
+ },
+ {
+  "name": "robodog-bark4",
+  "cat": "Machines",
+  "when": "A robot guard dog barks on seeing you (waking machines near) and while it chases you (one of four)."
+ },
+ {
+  "name": "turret-flame",
+  "cat": "Machines",
+  "when": "A flame turret starts a burst of fire."
+ },
+ {
+  "name": "turret-spray",
+  "cat": "Machines",
+  "when": "A spray turret starts a burst of poison or acid."
+ },
+ {
+  "name": "turret-zap",
+  "cat": "Machines",
+  "when": "A lightning turret fires."
+ },
+ {
+  "name": "turret-missile",
+  "cat": "Machines",
+  "when": "A missile turret launches a missile."
+ },
+ {
+  "name": "alarm",
+  "cat": "Alarms & security",
+  "when": "Siren: an alarm raised (repeating), a room locking down, a hack failing into a lockout.",
+  "trigger_use": "Lockdown or alert."
+ },
+ {
+  "name": "alarm-press",
+  "cat": "Alarms & security",
+  "when": "An alarm switch is hit - by you or a guard - raising the alarm."
+ },
+ {
+  "name": "alarm-arm",
+  "cat": "Alarms & security",
+  "when": "A security console switches the alarms on."
+ },
+ {
+  "name": "alarm-disarm",
+  "cat": "Alarms & security",
+  "when": "An alarm is switched off, at its switch or a security console."
+ },
+ {
+  "name": "keypad-beep",
+  "cat": "Alarms & security",
+  "when": "Pressing a keypad key, or nudging a launch control's numbers."
+ },
+ {
+  "name": "keypad-ok",
+  "cat": "Alarms & security",
+  "when": "The right code at a keypad, or a launch control's setting accepted.",
+  "trigger_use": "Access granted."
+ },
+ {
+  "name": "keypad-bad",
+  "cat": "Alarms & security",
+  "when": "A wrong code at a keypad.",
+  "trigger_use": "Access denied."
+ },
+ {
+  "name": "safe-open",
+  "cat": "Alarms & security",
+  "when": "A safe swings open."
+ },
+ {
+  "name": "search",
+  "cat": "Alarms & security",
+  "when": "Searching a desk or bookshelf."
+ },
+ {
+  "name": "repair",
+  "cat": "Alarms & security",
+  "when": "A repair kit fixes a broken computer."
+ },
+ {
+  "name": "camera",
+  "cat": "Alarms & security",
+  "when": "Switching to a security camera view, or to the next camera."
+ },
+ {
+  "name": "note",
+  "cat": "Alarms & security",
+  "when": "Reading a note."
+ },
+ {
+  "name": "hoard-open",
+  "cat": "World",
+  "when": "A chest opens, or a thieves' hoard is found or opened.",
+  "trigger_use": "Treasure revealed."
+ },
+ {
+  "name": "fanfare",
+  "cat": "Events",
+  "when": "A win: an event room beaten, a hack or puzzle solved, a jackpot or high score.",
+  "trigger_use": "A challenge completed."
+ },
+ {
+  "name": "fail",
+  "cat": "Events",
+  "when": "A loss: a wrong puzzle answer, a timed room failed, a hack or arcade game lost.",
+  "trigger_use": "A challenge failed."
+ },
+ {
+  "name": "core",
+  "cat": "Network",
+  "when": "Taking a data core in the network, solving a terminal puzzle, and pressing any USE trigger.",
+  "trigger_use": "Already plays when a 'use' trigger is pressed."
+ },
+ {
+  "name": "jack-in",
+  "cat": "Network",
+  "when": "You jack into the network."
+ },
+ {
+  "name": "jack-out",
+  "cat": "Network",
+  "when": "You jack out of the network."
+ },
+ {
+  "name": "achievement",
+  "cat": "UI",
+  "when": "An achievement unlocks and its notice pops up.",
+  "trigger_use": "A reward chime."
+ },
+ {
+  "name": "MONSTER-alert / -attack / -shoot / -hit / -pain / -die / -idle / -hunt",
+  "cat": "Monster voices",
+  "when": "Per machine: idle mutter, alert on spotting you, hunt while chasing, attack/shoot, hit when shot, pain on headshots, die.",
+  "trigger_use": "e.g. sound sentry-alert: an unseen machine noticing you."
+ },
+ {
+  "name": "menu-*",
+  "cat": "UI",
+  "when": "Menu clicks: move, select, back, slider step, toggle on/off, choice; menu-move/select also in the arcade game."
+ }
+]

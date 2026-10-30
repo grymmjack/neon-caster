@@ -299,7 +299,7 @@ SUB BuildLevel STATIC
                 CASE "E" : worldMap(x, y) = 2 : doorType(x, y) = DOOR_EXIT
                 CASE "R", "B", "Y" ' Key door: needs that keycard
                     worldMap(x, y) = 2 : doorKey(x, y) = INSTR("RBY", cell$)
-                CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8", "9", ")", "(", "{", "}", "`", "," ' Something to pick up (every one of ItemChars$ - a new pickup's character goes here too)
+                CASE "r", "b", "y", "+", "a", "e", "2", "3", "u", "*", "4", "M", "q", "j", "8", "9", "5", "(", "{", "}", "`", "," ' Something to pick up (every one of ItemChars$ - a new pickup's character goes here too)
                     IF numItems < MAX_ITEMS AND NOT SkillDrop(ItemOfChar(cell$), x, y) THEN ' (at a harder DIFFICULTY, some health, armour and ammo isn't there: GAME/SKILL.BM)
                         numItems = numItems + 1
                         itemX(numItems) = x + 0.5 : itemY(numItems) = y + 0.5 : itemOn(numItems) = -1
@@ -338,7 +338,7 @@ SUB BuildLevel STATIC
                             decoZ(numDecos) = (k - 1) * BarrelHigh(dk) : decoLeak(numDecos) = 0 : decoOpen(numDecos) = 0 ' (one on another: as high as those under it)
                         END IF
                     NEXT
-                CASE "m", "g", "h", "c", "s", "k", "w", "z", "T", "1", "5", "6", "7", "0", "~", "_", "|", "]" ' A monster (MonChars$)
+                CASE "m", "g", "h", "c", "s", "k", "w", "z", "T", "1", ")", "6", "7", "0", "~", "_", "|", "]" ' A monster (MonChars$)
                     IF numMonsters < MAX_MON THEN
                         numMonsters = numMonsters + 1
                         monsterX(numMonsters) = x + 0.5 : monsterY(numMonsters) = y + 0.5 : monsterType(numMonsters) = MonOfChar(cell$)

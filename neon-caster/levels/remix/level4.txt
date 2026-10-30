@@ -851,7 +851,7 @@ cryopod  = overcharge:15, medkit:30, -, -
 #KK.....KK#C$\.........\/........./CCC#KK...g.KK
 #KK....OK...CC\................../CCCC#KK.....KK
 #KK.....=.ZFCCC\................/CCCCC#KK.....KK
-#KK...i.=.VACCCC\...s.......g../CCCCCC#KI)i...KK
+#KK...i.=.VACCCC\...s.......g../CCCCCC#KI5i...KK
 #KK..{..=.ZFCCCCC\............/CCCCCCC#KK.....KK
 #KK.....?...CCCCCC\........../CCCCCCCC#KK.....KK
 #KKKKKKDKK#OCCCCCCC\....m{../CCCCCCCCC#KKBKKKKKK

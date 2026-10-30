@@ -870,7 +870,7 @@ SUB ConExec STATIC
                 BuildLights : glMeshVersion = glMeshVersion + 1
                 IF k = 2 THEN SpawnSparks x + 0.5, y + 0.5, 0.3, 14, 160, 150, 140 : SfxAt sndCloset&, x + 0.5, y + 0.5, playerX, playerY
             END IF
-        CASE "light", "ambient", "celllight" ' light N on|off|toggle|colour|bright|fx, ambient BRIGHT [RRGGBB] [FX], celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]|off - lights that change as a sector plays (LightCmd$, RENDER/LIGHT.BM)
+        CASE "light", "ambient", "cell-light", "celllight" ' light N on|off|toggle|colour|bright|fx, ambient BRIGHT [RRGGBB] [FX], cell-light (celllight) X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]|off - lights that change as a sector plays (LightCmd$, RENDER/LIGHT.BM)
             e$ = LightCmd$(conCmd$) : IF LEN(e$) THEN ConPrint e$
         CASE "liftgo" ' liftgo N up|down: a lift on its way
             l = VAL(conA$)
@@ -1500,7 +1500,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet glassreflect glass jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange textart ascii ansi petscii mac retro retroshade photo matrix grid quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet glassreflect glass jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient cell-light celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange textart ascii ansi petscii mac retro retroshade photo matrix grid quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1526,7 +1526,7 @@ SUB ConHelp(c$)
             ConPrint "            ^7savelevel  ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]"
             ConPrint "            ^7jumppad^8 X Y ...  ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N"
             ConPrint "            ^7glassreflect^8 [X Y] [N]  ^7glass^8 X Y [reflect|frost|style|strength... N]"
-            ConPrint "            ^7ambient^8 [BRIGHT RRGGBB FX]  ^7celllight^8 X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]|off"
+            ConPrint "            ^7ambient^8 [BRIGHT RRGGBB FX]  ^7cell-light^8 X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]|off"
             ConPrint "  ^6playing   ^7use  ^7fire^8 [FRAMES]  ^7kick  ^7jackin  ^7jackout^8 [win]  ^7program^8 NAME  ^7puzzle^8 NAME"
             ConPrint "            ^7flashlight^8 [on|off|width|reach|bright|soft|haze|colour|fx|battery ...]"
             ConPrint "  ^6scripts   ^7alias^8 NAME " + CHR$(34) + "..." + CHR$(34) + "  ^7unalias^8 NAME  ^7wait^8 FRAMES  ^7echo^8 TEXT  ^7exec^8 FILE"
@@ -1738,9 +1738,9 @@ SUB ConHelp(c$)
         CASE "ambient"
             ConPrint "^3ambient [BRIGHT [RRGGBB] [FX]]^0: the sector's own light - cells with none of their own"
             ConPrint "  (alone: how it is). Below 0, to -255: none, and every light dimmer - -255 is pitch black"
-        CASE "celllight"
-            ConPrint "^3celllight X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]^0: those cells a light of their own (0: dark) - ^3... off^0: the sector's again"
-            ConPrint "  FX steady flicker pulse strobe fire dying. An alarm's red: alarm : celllight 10 4 18 9 150 FF2020 pulse"
+        CASE "cell-light", "celllight"
+            ConPrint "^3cell-light X0 Y0 X1 Y1 BRIGHT RRGGBB [FX]^0: those cells a light of their own (0: dark) - ^3... off^0: the sector's again"
+            ConPrint "  FX steady flicker pulse strobe fire dying. An alarm's red: alarm : cell-light 10 4 18 9 150 FF2020 pulse"
         CASE "liftgo" : ConPrint "^3liftgo N up|down^0: lift N on its way (a mode 3 lift waits for this)"
         CASE "trigger"
             ConPrint "^3trigger WHEN ... [repeat] : COMMAND | COMMAND^0 - a new trigger for this level (| for ; when typed). WHEN:"

@@ -19,7 +19,7 @@ CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11
 ' The items on the menu screen showing now: label, kind (MI_), what it
 ' refers to (a screen, a setting, a binding or a save slot), its action
 ' (MA_), whether it can be chosen, and a line of small print beside it
-CONST MAX_MI = 48 ' (a screen's items at most - EFFECTS has 28: past this AddMenuItem drops them, SAVE AS PRESET and BACK went)
+CONST MAX_MI = 64 ' (a screen's items at most - EFFECTS has 28, a SECTORS folder up to 59: past this AddMenuItem drops them, SAVE AS PRESET and BACK went)
 DIM SHARED miLabel$(MAX_MI), miKind(MAX_MI), miRef(MAX_MI), miAct(MAX_MI), miOn(MAX_MI), miInfo$(MAX_MI)
 DIM SHARED menuPanR ' (the panel's right edge this screen: as wide as its widest row, mirrored round the middle - MenuPanelR; 0 when a screen opens)
 DIM SHARED numMI, menuTitle$, menuSel, menuCapture, menuWide, menuScreen, menuInGame

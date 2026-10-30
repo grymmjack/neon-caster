@@ -38,7 +38,7 @@ SUB HitMonster STATIC
         monsterState(target) = 2 : monsterTimer(target) = MON_DYING : kills = kills + 1
         mt = monsterType(target) ' (its drop - monsters.txt)
         IF NOT cyberOn THEN ' (achievements: the network's ICE doesn't count)
-            AchAdd "Kills", 1 : IF mt >= 1 AND mt <= MON_TYPES AND mt <> MT_ICE AND mt <> MT_EYEBOT THEN AchBit "KillKinds", mt + (mt > MT_ICE) - 1 ' (bits 0-14: every kind but ICE)
+            AchAdd "Kills", 1 : IF mt >= 1 AND mt <= MON_TYPES AND mt <> MT_ICE THEN AchBit "KillKinds", mt + (mt > MT_ICE) - 1 ' (bits 0-18: every kind but ICE)
             IF mt = 8 THEN Achieve "NC_OVERSEER", 0
             IF mt = MT_THIEF THEN Achieve "NC_THIEF", 0
             IF ampTimer > 0 THEN achAmpKills = achAmpKills + 1 : IF achAmpKills >= 5 THEN Achieve "NC_AMPED", 0
@@ -412,10 +412,10 @@ END SUB
 ' The monsters' map characters, in type order (chapter 3): m drone, g
 ' gunner, h heavy, c crawler, s sentry, k stalker, w spitter, z the
 ' overseer, T thief, (ICE: only in the network - no character), 1 sniper,
-' 5 trooper, 6 ripper, 7 the warden, 0 the colossus, ~ a turret (from the
+' ) trooper, 6 ripper, 7 the warden, 0 the colossus, ~ a turret (from the
 ' ceiling; _ is one from the floor)
 FUNCTION MonChars$
-    MonChars$ = "mghcskwzT" + CHR$(1) + "15670~]" + CHR$(1) + CHR$(1) ' (] the mimic: the chest's [ the other way round; the robot dog: a thing, ")
+    MonChars$ = "mghcskwzT" + CHR$(1) + "1)670~]" + CHR$(1) + CHR$(1) ' (] the mimic: the chest's [ the other way round; the robot dog: a thing, ")
 END FUNCTION
 
 ' The monster type of map character c$ - 0 if it's no monster's

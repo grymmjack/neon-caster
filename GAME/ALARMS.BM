@@ -37,7 +37,7 @@ END SUB
 
 ' The alarm, sounding, stopped in play (run out, shut off at a switch, the
 ' console's alarm stop): quiet - and every "calm" trigger runs (a room lit
-' red for the alarm put back: calm : celllight ... off)
+' red for the alarm put back: calm : cell-light ... off)
 SUB AlarmCalm
     DIM k ' (its own: the main program shares these names)
     IF alarmTimer > 0 THEN AlarmQuiet

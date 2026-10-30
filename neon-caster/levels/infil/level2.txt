@@ -167,10 +167,10 @@ ambient  = 160, 210, 225, 255
 
 [triggers]
 ' when (enter X0 Y0 X1 Y1 / use X Y / shoot X Y / clear X0 Y0 X1 Y1 / time S) [repeat] : console commands ; ...
-alarm : celllight 5 18 15 30 150 FF2020 pulse ; message ALARM - every machine near here is awake
-calm : celllight 5 18 15 30 off
-alarm : celllight 33 47 44 59 150 FF2020 pulse ; message ALARM - every machine near here is awake
-calm : celllight 33 47 44 59 off
+alarm : cell-light 5 18 15 30 150 FF2020 pulse ; message ALARM - every machine near here is awake
+calm : cell-light 5 18 15 30 off
+alarm : cell-light 33 47 44 59 150 FF2020 pulse ; message ALARM - every machine near here is awake
+calm : cell-light 33 47 44 59 off
 
 [barrels]
 ' a barrel's own: x, y, its liquid (0 a plain barrel o, 1 water, 2 poison, 3 slime, 4 lava, 5 acid - a : barrel), how many stand on each other (1-8, as fit under the ceiling)
@@ -1185,12 +1185,12 @@ crate    = cells:30, shells:25, medkit:20, armor:10
 #################CCCCCCCC.CCCCC########################.########
 #####CCCCCCCCC###########.#############################.########
 #####C...A...C###########.#############################.########
-#####CF...5..C###########.######NNNNNNNNNNNNN#####PPEPP.PPPPP###
+#####CF...)..C###########.######NNNNNNNNNNNNN#####PPEPP.PPPPP###
 #####C....e..C#####NNNNNNXNNNNN#N......Qp...N#####P.........P###
 #####C....a..C#####N..d.......N#N..m....k...N#####P.........P###
 #####C.2b...UC#####N..Z.......N#N...........N#####P.........P###
 #####C......"C#####N"...........D.......+..nN#####P......e..P###
-#####C..5....C#####N...a......N#N...........N#####P....g....P###
+#####C..)....C#####N...a......N#N...........N#####P....g....P###
 #####C.......C#####N.........dN#N...........N#####P.........P###
 #####C....M..C#####N.........ZN#N.........."N#####P....m....P###
 #####C......"C#####N.........tN#N...........N#####P.........P###

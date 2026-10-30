@@ -11,7 +11,7 @@
 ' and the like were used this game - achievements wait for a new one.
 ' achToast$: the pop-ups waiting to show, achToastT how long the one up
 ' has been showing.
-CONST KILL_KINDS = MON_TYPES - 2 ' (Bestiary: every kind of monster - but the network's ICE, and the eyebot (it came later: Steam's tables say 18); its AchDef says 18, for steam/make_tables.py)
+CONST KILL_KINDS = MON_TYPES - 1 ' (Bestiary: every kind of monster but the network's ICE - 19; its AchDef says 19 too, for steam/make_tables.py)
 CONST NUM_ACH = 50, NUM_ACHSTATS = 13, NEON_APP_ID = 0 ' (NEON_APP_ID: the game's Steam App ID, once there is one - 0 keeps to the stand-in)
 DIM SHARED achApi$(NUM_ACH), achTitle$(NUM_ACH), achDesc$(NUM_ACH), achHidden(NUM_ACH) AS INTEGER, achStat$(NUM_ACH), achGoal(NUM_ACH) AS LONG
 DIM SHARED achN AS INTEGER, achStatName$(NUM_ACHSTATS), achStatN AS INTEGER, achCheat AS INTEGER, achTest AS INTEGER, achReady AS INTEGER

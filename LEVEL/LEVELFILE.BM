@@ -191,23 +191,36 @@
 '   *        big medkit: +50 health (up to 100)
 '   u        armour: +50 armour (up to 100). Armour takes a third of the
 '            damage you'd take, until it runs out.
-'   a        energy cells: +15 cells (up to 99) - ammo for the blaster, the
-'            repeater and the railgun
+'   a        energy cells: +15 cells (up to 99) - the blaster's ammo
 '   e        shells: +8 shells (up to 40) - ammo for the scatter gun
+'   {        repeater rounds: +40 (up to 200)
+'   }        railgun slugs: +5 (up to 25)
+'   (        rockets: +5 (up to 50)
 '   2        scatter gun (+8 shells): 7 pellets in a spread, 1 shot every
 '            2/3 s. You switch to it when you first pick it up.
-'   3        repeater (+30 cells): fast automatic fire, about 12 shots a
+'   3        repeater (+60 rounds): fast automatic fire, about 12 shots a
 '            second. Picked up again later, a gun is just ammo.
-'   4        railgun (+30 cells): 5 cells a shot, about 1 a second; each
+'   4        railgun (+6 slugs): a slug a shot, about 1 a second; each
 '            shot does 5 damage to every monster in its line (up to the
 '            wall), and sets off every barrel in it.
 '   q        overcharge: +100 health, past full, up to 200 (the extra shows
 '            in blue on the health bar)
 '   j        damage amp: every shot does double damage for 30 seconds
-'   8        night vision headset: a minute of battery (two at most); N
+'   5        rocket launcher (+5 rockets): a rocket bursts on whatever it
+'            hits - and the blast hurts you too, close up. The guns are
+'            2 to 5 on the map, as on the keys.
+'   8        night vision headset: yours till you die, as a gun is; N
 '            (NIGHT VISION in CONTROLS) switches it on and off. On, you see
 '            the world in green, the dark lifted - as through a soldier's
-'            goggles - and the battery runs down.
+'            goggles.
+'   9        hazmat suit: poison, slime and acid wear it instead of you
+'            (about 45 seconds of poison, 20 of acid); fire and lava go
+'            straight through it. Lost when you die.
+'   `        jetpack: hold FLY / JET UP (or look up and walk) and it pushes
+'            you up, burning fuel; let go and you fall.
+'   ,        jet fuel: +40 (a tank holds 100; [fuel] sets a can's own)
+'   More pickups are things (a " with a [things] line, LEVEL/THINGS.BM):
+'   repairkit, invuln, flashlight, battery.
 '
 ' MONSTERS - each waits where it stands until it can see you (within 14
 ' tiles, with no wall or shut door in the way) or until you shoot it. Then
@@ -241,6 +254,21 @@
 '               each hit knocks some of it loose. But if it gets home with
 '               your things, it slips inside - and that hoard is locked for
 '               good.
+'   1  sniper:  4 hits. Keeps well back and aims a laser that follows you,
+'               a little behind - then a white-hot beam. Step out of line.
+'   )  trooper: 6 hits. A burst rifle: three bolts at a time.
+'   6  ripper:  3 hits. Quicker than you walk: lunges in, slashes, leaps
+'               back out of reach.
+'   7  warden:  a field boss, 60 hits. A laser, then a ring of ten bolts
+'               and three at you, turn about.
+'   0  colossus: a field boss, 90 hits. Slams the floor up close, heavy
+'               bolts further off.
+'   ~  _  |  turret in the ceiling, the floor, a wall: 6 hits, hidden till
+'               it sees you (and can't be hit till it's out). A turret
+'               control panel (;) switches it off.
+'   ]  mimic:   8 hits. Asleep it looks just like a treasure chest ([).
+'   The robot dog, the guard and the eyebot are things (" and [things]).
+'   The network's ICE lives only inside a jacked-in computer.
 '
 ' DECORATIONS - stand on the floor; you, monsters and bolts can't go through
 ' them, but they don't block sight. Shoot them and they break (a barrel's

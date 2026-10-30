@@ -38,10 +38,10 @@ DIM SHARED lightR(MAX_LIGHTS), lightG(MAX_LIGHTS), lightB(MAX_LIGHTS), lightPhas
 DIM SHARED lightEffect(MAX_LIGHTS) AS INTEGER, lightDeco(MAX_LIGHTS) AS INTEGER, lightTimer(MAX_LIGHTS) AS INTEGER
 DIM SHARED numLightsBase AS INTEGER ' (the level's own lights - those after them are pools flooded in play: LiquidGlows)
 ' Lights a sector changes as it plays (light N colour/bright/fx, ambient,
-' celllight - LightCmd$, RENDER/LIGHT.BM): each light's brightness and
+' cell-light - LightCmd$, RENDER/LIGHT.BM): each light's brightness and
 ' colour (lightBri, lightHue~&: lightR/G/B are made from them), the
 ' sector's own light (ambBri, ambHue~&, ambFx), which cells have a light
-' of their own (cellAmbOwn: a [cell lights] cell, or a celllight's) - and
+' of their own (cellAmbOwn: a [cell lights] cell, or a cell-light's) - and
 ' every change made, a line each (lightLog$), for a saved game to make again
 DIM SHARED lightBri(MAX_LIGHTS) AS SINGLE, lightHue(MAX_LIGHTS) AS _UNSIGNED LONG
 DIM SHARED ambDim AS SINGLE ' (1 - or less, a sector's light below 0: every light in it turned down by that much, -255 out - UpdateLight)

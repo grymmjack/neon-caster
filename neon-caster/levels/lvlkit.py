@@ -13,8 +13,8 @@ N = 48
 WALLS = set("#NCKPG")
 DOORS = set("DHXRBYE!")  # ! a door sealed until its data station (@) is hacked
 DIAG = set("/\\")
-ITEMS = set("rby+ae23u*4Mqj89)({}`,")  # ` a jetpack, , jet fuel; ... q overcharge, j damage amp, 8 night vision, 9 hazmat suit, ) rocket launcher, ( rockets
-MONS = set("mghcskwzT15670~_|]")  # ] the mimic (a chest that bites); ... k stalker, w spitter, z the overseer, T thief, 1 sniper, 5 trooper, 6 ripper, 7 warden, 0 colossus, ~ _ | turrets (ceiling, floor, wall)
+ITEMS = set("rby+ae23u*4Mqj895({}`,")  # ` a jetpack, , jet fuel; ... q overcharge, j damage amp, 8 night vision, 9 hazmat suit, 5 rocket launcher, ( rockets
+MONS = set("mghcskwzT1)670~_|]")  # ] the mimic (a chest that bites); ... k stalker, w spitter, z the overseer, T thief, 1 sniper, ) trooper, 6 ripper, 7 warden, 0 colossus, ~ _ | turrets (ceiling, floor, wall)
 BARREL_STACK = 8  # (the game's GAME/DECOS.BI: how many barrels can stand on each other)
 DECO = set("oiptxlnfSdAFIJLOQUWZV:['\"")  # ' a note (its words in [notes]), " a thing (its kind in [things]: THINGS); : a liquid barrel (its liquid and stack in [barrels]), [ a treasure chest; ... Z chair, V a body; x crate, l rack, n vending, f tank, S spawner, d desk, A console, F monitors, I specimen, J lab bench, L generator, O cryo pod, Q hologram, U lockers, W bench
 START = set("<>^v")
@@ -497,7 +497,7 @@ LOOT_PICKUPS = {"red", "blue", "yellow", "health", "cells", "ammo", "shells", "s
 # [liquid]: the game's LQ_CHARS$ and LQ_DEPTH; the map characters a liquid can lie on (EDIT_OPEN$)
 LIQUID_CHARS = "wpsla"
 LIQUID_DEPTH = 3
-LIQUID_ON = ".rby+*uae234Mqj89)(mghcskwzT15670~_|oiptxlnfSdAFIJLOQUWZV<>^v&"
+LIQUID_ON = ".rby+*uae2345Mqj89(mghcskwzT1)670~_|oiptxlnfSdAFIJLOQUWZV<>^v&"
 
 
 def check_liquid(lv):
@@ -671,7 +671,7 @@ def check_loot(line):
         if ":" not in d:
             return "loot '%s': each drop is pickup:chance (or -)" % line
         k, c = [x.strip() for x in d.split(":", 1)]
-        if k.lower() not in LOOT_PICKUPS and not (len(k) == 1 and k in "rby+ae23u*4Mqj89)({}`,"):
+        if k.lower() not in LOOT_PICKUPS and not (len(k) == 1 and k in "rby+ae23u*4Mqj895({}`,"):
             return "loot '%s': no pickup called %s" % (line, k)
         try:
             if not 0 <= float(c) <= 100:

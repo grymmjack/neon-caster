@@ -2801,7 +2801,7 @@ FUNCTION GlyphColor~&(c0$)
         CASE "&" : col~& = _RGB32(190, 110, 255)
         CASE "<", ">", "^", "v" : col~& = _RGB32(255, 255, 255)
         CASE ELSE
-            IF INSTR("rby+*uae234Mqj89)({}`,", c$) THEN col~& = _RGB32(80, 230, 120)
+            IF INSTR("rby+*uae2345Mqj89({}`,", c$) THEN col~& = _RGB32(80, 230, 120)
             IF MonOfChar(c$) THEN col~& = _RGB32(255, 70, 90)
             IF INSTR(DecoChars$, c$) THEN col~& = _RGB32(230, 200, 90)
     END SELECT
@@ -2830,7 +2830,7 @@ SUB DrawEditor(hx, hy, onMap, rectOn, rx, ry, px, py, fx, fy, lev, lname$)
     VIEW SCREEN (0, 0)-(ED_VIEWW, ED_VIEWH) ' (the map stays in its part of the screen)
     FOR y = vy0 TO vy1 : FOR x = vx0 TO vx1
         c$ = MID$(lvlRow$(y), x + 1, 1) : sx = edMapX + x * edCell : sy = edMapY + y * edCell
-        IF INSTR("rby+*uae234Mqj89)({}`,mghcskwzT15670~_|]oiptxlnfSdAFIJLOQUWZV:['<>^v" + CHR$(34), c$) THEN
+        IF INSTR("rby+*uae2345Mqj89({}`,mghcskwzT1)670~_|]oiptxlnfSdAFIJLOQUWZV:['<>^v" + CHR$(34), c$) THEN
             LINE (sx, sy)-STEP(edCell - 1, edCell - 1), GlyphColor~&("."), BF
             LINE (sx + ins, sy + ins)-STEP(MaxOf(0, edCell - 1 - 2 * ins), MaxOf(0, edCell - 1 - 2 * ins)), GlyphColor~&(c$), BF
             IF INSTR("<>^v", c$) THEN LINE (sx + 1, sy + 1)-STEP(edCell - 3, edCell - 3), _RGB32(255, 255, 255), B
@@ -3450,8 +3450,8 @@ SUB EditPkBuild
         CASE 2 : g$ = "." : pre$ = "floor" ' (open floor first: PLACE it to carve a room bigger)
         CASE 3 : pre$ = "ceiling" : pre2$ = "sky-" ' (and the skies: a ceiling that's open to the sky)
         CASE 4 : g$ = "DHXRBY!E"
-        CASE 5 : g$ = "rby+*uae234Mqj89)({}`,"
-        CASE 6 : g$ = "mghcskwzT15670~_|]"
+        CASE 5 : g$ = "rby+*uae2345Mqj89({}`,"
+        CASE 6 : g$ = "mghcskwzT1)670~_|]"
         CASE 7 : g$ = DecoChars$
         CASE 8 : g$ = "<>^v&@$;-."
     END SELECT
@@ -4896,8 +4896,8 @@ FUNCTION EditTrigLight$(q)
                 IF d < bd THEN bd = d : t = k
             NEXT
             IF t THEN EditTrigLight$ = "light" + STR$(t) + " toggle" ELSE EditNote "No light in this sector to switch - LIGHT puts one"
-        CASE 2 : EditTrigLight$ = "celllight" + STR$(x0) + STR$(y0) + STR$(x1) + STR$(y1) + " 150 FF2020 pulse"
-        CASE ELSE : EditTrigLight$ = "celllight" + STR$(x0) + STR$(y0) + STR$(x1) + STR$(y1) + " off"
+        CASE 2 : EditTrigLight$ = "cell-light" + STR$(x0) + STR$(y0) + STR$(x1) + STR$(y1) + " 150 FF2020 pulse"
+        CASE ELSE : EditTrigLight$ = "cell-light" + STR$(x0) + STR$(y0) + STR$(x1) + STR$(y1) + " off"
     END SELECT
 END FUNCTION
 
@@ -5472,7 +5472,7 @@ SUB EditPickThing(sx, sy)
     y0 = MaxOf(0, INT(edCamPY) - 16) : y1 = MinOf(mapN - 1, INT(edCamPY) + 16)
     FOR y = y0 TO y1 : FOR x = x0 TO x1
         c$ = MID$(lvlRow$(y), x + 1, 1)
-        IF INSTR("mghcskwzT15670~_|]rby+*uae234Mqj89)({}`,oiptxlnfSdAFIJLOQUWZV:['&" + CHR$(34), c$) THEN
+        IF INSTR("mghcskwzT1)670~_|]rby+*uae2345Mqj89({}`,oiptxlnfSdAFIJLOQUWZV:['&" + CHR$(34), c$) THEN
             tz = floorH(x, y) + 0.35 ' (where it is: a thing on the floor - a turret on the ceiling, or on a wall)
             IF c$ = "~" THEN tz = ceilH(x, y) - 0.3 ELSE IF c$ = "|" THEN tz = floorH(x, y) + 0.57
             EditCam x + 0.5, y + 0.5, tz, r, u, a

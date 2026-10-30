@@ -1,0 +1,411 @@
+<title>NEON-CASTER Builder's Sheet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: a sticky bar (search + jump links) over a stack of reference panels;
+   pictures as tight tile grids, map characters as compact cards. One dark look, by choice: the game's. */
+:root {
+  --bg: #0a0c12;
+  --panel: #11141d;
+  --line: #222838;
+  --ink: #dde1f0;
+  --mute: #8088a6;
+  --cyan: #46e6ff;
+  --pink: #ff5cd6;
+  --gold: #ffd25a;
+  --red: #ff5a5a;
+  --blue: #5a9bff;
+  --yel: #ffe14a;
+  --f-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); max-width: 1500px; margin: 0 auto; }
+html { scroll-padding-top: calc(var(--barh, 90px) + 14px); }
+[id] { scroll-margin-top: calc(var(--barh, 90px) + 14px); }
+header.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+header.bar .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding-block: 10px; }
+h1 { font: 700 20px/1 var(--f-display); letter-spacing: .06em; margin: 0; text-transform: uppercase; white-space: nowrap; }
+h1 span { color: var(--cyan); text-shadow: 0 0 12px color-mix(in srgb, var(--cyan) 60%, transparent); }
+#q { flex: 1 1 220px; min-width: 0; max-width: 360px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; padding: 7px 10px; font: 500 14px var(--f-mono); }
+#q:focus { outline: 2px solid var(--cyan); outline-offset: 1px; }
+nav.jump { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 500 12px var(--f-display); letter-spacing: .08em; text-transform: uppercase; }
+nav.jump a { color: var(--mute); text-decoration: none; }
+nav.jump a:hover, nav.jump a:focus-visible { color: var(--cyan); }
+main.wrap { padding-block: 18px 60px; display: grid; gap: 26px; }
+section { min-width: 0; }
+h2 { font: 700 15px/1.2 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--cyan); margin: 0 0 4px; display: flex; align-items: baseline; gap: 10px; }
+h2 small b { color: var(--ink); font-weight: 600; }
+h2 small { font: 500 12px var(--f-body); letter-spacing: 0; text-transform: none; color: var(--mute); }
+h3 { font: 700 12px/1.2 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--pink); margin: 14px 0 6px; }
+.lead { color: var(--mute); margin: 0 0 10px; max-width: 75ch; }
+code, .mono { font-family: var(--f-mono); font-size: 12.5px; color: var(--gold); }
+.grid-t { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.tile { all: unset; cursor: pointer; display: grid; justify-items: center; gap: 3px; padding: 6px 4px 7px; border-radius: 6px; border: 1px solid transparent; text-align: center; }
+.tile:hover, .tile:focus-visible { background: var(--panel); border-color: var(--line); }
+.tile:focus-visible { outline: 2px solid var(--cyan); }
+.tile img { width: 64px; height: 64px; image-rendering: pixelated; border-radius: 2px; box-shadow: 0 0 0 1px var(--line); }
+.tile .nm { font: 500 11px/1.2 var(--f-mono); color: var(--ink); word-break: break-word; }
+.tile .tag { font: 600 10px/1.2 var(--f-body); color: var(--mute); }
+.tile.hot .tag { color: var(--red); }
+.tile.own { opacity: .6; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.cc { display: grid; grid-template-columns: 34px 40px 1fr; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px 5px 5px; min-width: 0; }
+.cc .ch { font: 700 20px/1 var(--f-mono); color: var(--gold); text-align: center; background: #070910; border-radius: 4px; padding: 7px 0; cursor: pointer; }
+.cc .ch:hover { color: var(--cyan); }
+.cc .ch.dim { color: var(--mute); font-size: 12px; cursor: default; }
+.cc .ch.thing { color: var(--pink); }
+.cc.red .ch { color: var(--red); } .cc.blue .ch { color: var(--blue); } .cc.yellow .ch { color: var(--yel); }
+.cc.red img { filter: sepia(1) saturate(6) hue-rotate(-40deg); } .cc.blue img { filter: sepia(1) saturate(6) hue-rotate(180deg); } .cc.yellow img { filter: sepia(1) saturate(5) hue-rotate(10deg); }
+.cc .im img { width: 40px; height: 40px; image-rendering: pixelated; display: block; }
+.cc .noimg { display: block; width: 40px; height: 40px; border: 1px dashed var(--line); border-radius: 3px; }
+.cc .tx { display: grid; min-width: 0; }
+.cc .nm { font-weight: 600; font-size: 13px; }
+.cc .nt { font-size: 12px; color: var(--mute); overflow-wrap: anywhere; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 18px 26px; }
+.two > * { min-width: 0; }
+.kvs { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.kv { display: grid; grid-template-columns: minmax(120px, 42%) 1fr; gap: 10px; background: var(--panel); padding: 5px 9px; align-items: baseline; }
+.kv span { font-size: 13px; overflow-wrap: anywhere; }
+.kv code { overflow-wrap: anywhere; }
+.kvs.wide .kv { grid-template-columns: minmax(150px, 30%) 1fr; }
+.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { text-align: left; font: 700 11px var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); background: #0d1018; padding: 6px 9px; }
+td { padding: 5px 9px; border-top: 1px solid var(--line); background: var(--panel); font-variant-numeric: tabular-nums; }
+.note { font-size: 12.5px; color: var(--mute); margin: 6px 0 0; }
+.note b { color: var(--ink); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { all: unset; cursor: pointer; font: 500 12px var(--f-mono); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 2px 7px; }
+.chip:hover, .chip:focus-visible { border-color: var(--cyan); color: var(--cyan); }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--cyan); color: #04121a; font: 700 13px var(--f-mono); padding: 7px 14px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.toast.on { opacity: 1; }
+.hide { display: none !important; }
+table.names td { vertical-align: top; }
+table.names .pic { width: 60px; } table.names .pic img { width: 52px; height: 52px; image-rendering: pixelated; display: block; }
+table.names .pic.red img { filter: sepia(1) saturate(6) hue-rotate(-40deg); } table.names .pic.blue img { filter: sepia(1) saturate(6) hue-rotate(180deg); } table.names .pic.yellow img { filter: sepia(1) saturate(5) hue-rotate(10deg); }
+table.names th .sm { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.sm { font-size: 12px; color: var(--mute); margin-top: 2px; } .sm2 { font-size: 12.5px; color: var(--mute); }
+.warn { color: #ffb36b; }
+.num { white-space: nowrap; }
+.nmc { all: unset; cursor: pointer; font: 700 13.5px var(--f-mono); color: var(--cyan); }
+.nmc:hover, .nmc:focus-visible { text-decoration: underline; }
+.chs { font: 700 14px var(--f-mono); color: var(--gold); background: #070910; border-radius: 3px; padding: 0 6px; cursor: pointer; }
+.dim { color: var(--mute); }
+.flag { display: block; width: fit-content; white-space: nowrap; margin: 3px 0 1px; font: 600 9px/1.5 var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--pink); border: 1px solid var(--pink); border-radius: 3px; padding: 0 4px; }
+table.names:not(.snd) { min-width: 900px; }
+.snd td.pl { width: 34px; }
+.play { all: unset; cursor: pointer; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); color: var(--cyan); font-size: 11px; }
+.play:hover, .play:focus-visible, .play.on { border-color: var(--cyan); background: color-mix(in srgb, var(--cyan) 15%, transparent); }
+.divider { border-top: 2px solid var(--cyan); padding-top: 26px; margin-top: 30px; box-shadow: 0 -1px 0 color-mix(in srgb, var(--cyan) 35%, transparent), inset 0 12px 30px -24px var(--cyan); }
+.dv-head { max-width: 80ch; margin-bottom: 14px; }
+.dv-kicker { font: 700 12px var(--f-display); letter-spacing: .2em; text-transform: uppercase; color: var(--pink); }
+.dv-title { font: 700 clamp(30px, 5vw, 46px)/1.05 var(--f-display); letter-spacing: .04em; color: var(--ink); text-transform: uppercase; margin: 4px 0 10px; display: block; text-shadow: 0 0 22px color-mix(in srgb, var(--cyan) 45%, transparent); }
+.dv-sub { color: var(--mute); font-size: 15px; margin: 0; }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 7px; font-size: 13.5px; }
+.steps b { color: var(--ink); }
+.code pre { margin: 0; padding: 12px 14px; font: 500 12.5px/1.5 var(--f-mono); color: var(--ink); background: #070910; white-space: pre; }
+.ovw { margin: 8px 0 14px; }
+.conlines { font: 500 12.5px/1.55 var(--f-mono); color: #c5cbe0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ovw .conlines { background: #070910; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; white-space: pre; }
+.connav { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.connav a { font: 600 12px var(--f-display); letter-spacing: .06em; text-transform: uppercase; color: var(--cyan); text-decoration: none; border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; }
+.connav a:hover, .connav a:focus-visible { border-color: var(--cyan); }
+.cmds { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 8px; }
+@media (max-width: 480px) { .cmds { grid-template-columns: 1fr; } }
+.cmd { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 11px 10px; min-width: 0; }
+.cmd header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 4px; }
+.cname { all: unset; cursor: pointer; font: 700 15px var(--f-mono); color: var(--cyan); }
+.cname:hover, .cname:focus-visible { text-decoration: underline; }
+.also { font-size: 12px; color: var(--mute); }
+.c-red { color: #ff6a6a; } .c-green { color: #6be675; } .c-syn { color: var(--gold); } .c-blue { color: #6aa5ff; } .c-cyan { color: var(--cyan); }
+.c-mag { color: var(--pink); } .c-white { color: #fff; } .c-grey { color: #8a92ad; } .c-orange { color: #ff9a3c; }
+.ev { display: inline-flex; align-items: center; gap: 7px; }
+.q { all: unset; cursor: help; display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; border: 1px solid var(--mute); color: var(--mute); font: 700 11px/1 var(--f-mono); }
+.q:hover, .q:focus-visible, .q[aria-expanded="true"] { border-color: var(--cyan); color: var(--cyan); }
+.q:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+#tip { position: fixed; z-index: 20; max-width: min(360px, calc(100vw - 32px)); background: #1a2030; color: var(--ink); border: 1px solid var(--cyan); border-radius: 6px; padding: 9px 11px; font-size: 13px; line-height: 1.45; box-shadow: 0 8px 24px rgb(0 0 0 / .5); pointer-events: none; }
+#none { color: var(--mute); }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+
+<header class="bar"><div class="wrap">
+  <h1>Neon-Caster <span>Builder's Sheet</span></h1>
+  <input id="q" type="search" placeholder="Filter: lava, keypad, turret, [glass]…" autocomplete="off" aria-label="Filter the sheet">
+  <nav class="jump">
+    <a href="#pictures">Textures</a><a href="#chars">Map chars</a><a href="#things">Things</a>
+    <a href="#heights">Heights</a><a href="#lights">Lights</a><a href="#events">Events</a>
+    <a href="#triggers">Triggers</a><a href="#file">Level file</a><a href="#names">Names</a><a href="#console">Console</a>
+  </nav>
+</div></header>
+
+<main class="wrap">
+<p id="none" class="hide">Nothing matches that filter.</p>
+
+<section id="pictures">
+  <h2>Walls <small>{{NWALLS}} · click a texture to copy its file name</small></h2>
+  <p class="lead"><code>walls =</code> takes exactly six, for <code>#</code> <code>N</code> <code>C</code> <code>K</code> <code>P</code> <code>G</code> in that order. PAINT puts any texture on any face (<code>[faces]</code>) without touching the list. Made colours need no file: <code>#FF2040</code>, or a gradient <code>#FF2040-2040FF-V</code> (V down · H across · D slant · R round · M band).</p>
+  <div class="grid-t">{{WALLS}}</div>
+  <h3>Floors · {{NFLOORS}}</h3>
+  <p class="lead"><code>floors =</code> takes four (zones 1–4). A name with <code>molten</code> or <code>lava</code> burns; one with <code>murky</code> or <code>slime</code> slows you.</p>
+  <div class="grid-t">{{FLOORS}}</div>
+  <h3>Ceilings · {{NCEILS}}</h3>
+  <p class="lead"><code>ceilings =</code> takes two (zones 1–2).</p>
+  <div class="grid-t">{{CEILS}}</div>
+  <h3>Skies</h3>
+  <p class="lead">Put a sky in <code>ceilings =</code> and give the open-air cells that ceiling. Raise those ceilings 2–4 walls up. A sky has no lamps or light shafts.</p>
+  <div class="grid-t">{{SKIES}}</div>
+  <h3>Smears</h3>
+  <p class="lead"><code>[smears]</code> x, y, face, <code>blood1</code>–<code>3</code> or <code>oil1</code>–<code>2</code>, or PAINT with one.</p>
+  <div class="grid-t">{{SMEARS}}</div>
+</section>
+
+<section id="chars">
+  <h2>Map characters <small>case matters · click a character to copy it</small></h2>
+  <h3>Structure</h3>
+  <div class="cards">{{STRUCT}}</div>
+  <h3>Doors <small class="note">a door sits between two walls</small></h3>
+  <div class="cards">{{DOORS}}</div>
+  <h3>Pickups <small class="note">256 a sector</small></h3>
+  <div class="cards">{{PICKUPS}}</div>
+  <h3>Monsters <small class="note">hits to kill · 192 a sector, spawns included</small></h3>
+  <div class="cards">{{MONSTERS}}</div>
+  <p class="note"><b>[monsters]</b> x, y, sight, hearing, hp%, speed%, wake (<span>{{WAKE}}</span>), then for a turret: weapon (<span>{{TURRETW}}</span>), turn °/s, frames out, mode (0 out on waking · 1 folded · 2 out).</p>
+  <h3>Decorations <small class="note">160 a sector · they block, most break</small></h3>
+  <div class="cards">{{DECOS}}</div>
+</section>
+
+<section id="things">
+  <h2>Things <small>one <code>"</code> on the map + a <code>[things]</code> line: x, y, kind [, more]</small></h2>
+  <div class="cards">{{THINGS}}</div>
+  <p class="note">Any decoration, pickup or monster can be a thing by its name too. A <code>"</code> with no line is a table on its side.</p>
+</section>
+
+<section id="heights" class="two">
+  <div>
+    <h2>Heights <small>eighths of a wall</small></h2>
+    {{HEIGHTS}}
+    <p class="note">Past <code>z</code>: <code>[floor high]</code> / <code>[ceiling high]</code> count the 36s.</p>
+  </div>
+  <div>
+    <h2>Rules</h2>
+    <div class="kvs">{{HRULES}}</div>
+  </div>
+  <div>
+    <h2>Liquids <small>[liquid] map + [liquid depth] (. = 3, 1–8)</small></h2>
+    {{LIQ}}
+    <p class="note">Deeper than 3 you float. Sink the floor, fill to near the top.</p>
+  </div>
+</section>
+
+<section id="lights" class="two">
+  <div>
+    <h2>Lights <small>[lights] · 1024 a sector, automatic ones included</small></h2>
+    <div class="kvs">
+      <div class="kv" data-k="light line lights"><code>x, y</code><span>20.5 = the middle of cell 20; 0.12 off a wall's face tints that face</span></div>
+      <div class="kv" data-k="light radius"><code>radius</code><span>in cells</span></div>
+      <div class="kv" data-k="light brightness"><code>brightness</code><span>0–400, added to ambient</span></div>
+      <div class="kv" data-k="light colour"><code>r, g, b</code><span>0–255</span></div>
+      <div class="kv" data-k="light lamp"><code>9th: 1</code><span>no ceiling lamp, no beam</span></div>
+    </div>
+  </div>
+  <div>
+    <h2>Effects <small>a light's 8th number, a cell light's 9th</small></h2>
+    {{LFX}}
+    <p class="note">The console and triggers take the name (<code>light 3 fx pulse</code>). <b>ambient</b> 256 = pictures in their own colours; below 0 (to −255) dims every light too.</p>
+  </div>
+</section>
+
+<section id="events" class="two">
+  <div>
+    <h2>Events <small>[events] <b>kind</b>, x0, y0, x1, y1, a, b, reward</small></h2>
+    {{EVENTS}}
+    <p class="note"><b>reward</b> {{REWARDS}}</p>
+  </div>
+  <div>
+    <h2>Lifts <small>[lifts] x0, y0, x1, y1, low, high, <b>mode</b>, speed</small></h2>
+    {{LIFTS}}
+    <h2 style="margin-top:18px">Faces <small>[faces] face codes</small></h2>
+    <div class="kvs">{{FACES}}</div>
+    <p class="note">divided: 0 whole · 1 left|right · 2 top|bottom · 3 pieces (<code>H.V..</code>, each <code>pic*turn*slide*stretch*tint*amt*RRGGBB*start*filters</code>)</p>
+  </div>
+</section>
+
+<section id="triggers" class="two">
+  <div>
+    <h2>Triggers <small>WHEN [repeat] : CMD ; CMD</small></h2>
+    <div class="kvs wide">{{WHENS}}</div>
+    <p class="note">No <code>repeat</code> on <code>time</code> or <code>clear</code>: they'd fire every frame.</p>
+    <p class="note"><code>use 12 8 repeat : light 3 toggle</code><br><code>alarm : cell-light 10 4 18 9 150 FF2020 pulse</code><br><code>shoot 27 19 : secret 21 15 ; message The vault opens</code></p>
+  </div>
+  <div>
+    <h2>Commands <small>for triggers</small></h2>
+    <div class="kvs wide">{{CMDS}}</div>
+  </div>
+</section>
+
+<section id="anatomy" class="divider">
+  <div class="dv-head">
+    <span class="dv-kicker">Part two</span>
+    <h2 class="dv-title">The level file</h2>
+    <p class="dv-sub">Everything above ends up in one plain text file: <code>neon-caster/levels/custom/customN.txt</code> for your own sector N+10. The editor writes it when you press Ctrl+S, and you can open it in any text editor. Below is how that file is put together, part by part.</p>
+  </div>
+  <div class="two anat">
+    <div>
+      <h3>How it reads, top to bottom</h3>
+      <ol class="steps">
+        <li><b>Comments.</b> Any line starting with <code>'</code>. Ctrl+S keeps only the ones at the very top, so keep your notes there.</li>
+        <li><b>The header.</b> <code>key = value</code> lines: the sector's name, its six wall, four floor and two ceiling textures, its light. These come first, before any section.</li>
+        <li><b>Sections.</b> A name in brackets, <code>[lights]</code>, then one line per thing, numbers split by commas. A section you don't need is left out. Order doesn't matter, but the editor writes them in a fixed order.</li>
+        <li><b>The map.</b> <code>[map]</code>: one text row per row of cells, one character per cell, from the map characters above. The rows set the sector's size (square, 16 to 256 across). Its edge is always wall.</li>
+        <li><b>Height maps</b> (optional). <code>[floor]</code> and <code>[ceiling]</code> are the same shape as the map, one height character per cell. <code>[liquid]</code>, <code>[liquid depth]</code> and the other per-cell maps work the same way.</li>
+      </ol>
+      <p class="note"><b>Coordinates.</b> x counts across from 0 at the left, y down from 0 at the top. A cell is one map character, and 20.5 is the middle of cell 20. In the example, the start <code>&gt;</code> is at x 2, y 2.</p>
+      <p class="note"><b>A broken file still loads.</b> Numbers out of range are clamped, the edge is made wall, a missing start is added, and a misspelt picture is drawn as <code>wall.png</code> (the console says which).</p>
+    </div>
+    <div>
+      <h3>An example sector, complete</h3>
+      <p class="note">16 × 16: a start room, an ambush room holding the red card (four monsters, then an overcharge), a vault behind the red door with the rocket launcher, and the exit past a tinted, oversized trooper. The level kit checks it clean.</p>
+      <div class="tw code"><pre>{{EXAMPLE}}</pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="file" class="two">
+  <div>
+    <h2>Header <small>key = value, before the sections</small></h2>
+    <div class="kvs">{{HEADER}}</div>
+  </div>
+  <div>
+    <h2>Sections</h2>
+    <div class="kvs wide">{{SECTIONS}}</div>
+  </div>
+</section>
+
+<section id="names">
+  <h2>Names <small>for spawn, summon, item, [loot], puzzles = and sound · click a name to copy it</small></h2>
+  <h3>Monsters <small class="note">spawn TYPE X Y [N] · summon TYPE [N] · TYPE is a name or its number</small></h3>
+  <p class="lead">Health is in blaster hits (the blaster does 1) at EASY, with all four difficulties under it. Damage is what one hit does to you at EASY. Speeds are cells a frame: you walk 0.06 and run 0.12.</p>
+  {{MONTAB}}
+  <p class="note">{{NOTEM}}</p>
+  <h3>Pickups <small class="note">item KIND X Y · [loot] · [things]</small></h3>
+  <p class="lead">Amounts as shipped, at EASY. <code>health</code> is the small <code>+</code> pack and <code>medkit</code> the big <code>*</code> one: easy to mix up in <code>[loot]</code>.</p>
+  {{ITEMTAB}}
+  <h3>Puzzles <small class="note">puzzles = NAME, NAME… · one per $ code terminal, in reading order</small></h3>
+  <p class="lead">Each is a real QB64 program cut into pieces: the player puts it back together and the game compiles and runs it. A sector with no <code>puzzles =</code> line gets one by its sector number.</p>
+  {{PUZTAB}}
+  <h3>Sounds <small class="note">sound NAME · {{NSOUNDS}} here, every monster voice too</small></h3>
+  <p class="lead">▶ plays it. A <b>use</b> trigger already plays <code>core</code> before its commands, so a <code>sound</code> in it plays on top of that.</p>
+  {{SNDTAB}}
+</section>
+
+<section id="console" class="divider">
+  <div class="dv-head">
+    <span class="dv-kicker">Part three</span>
+    <h2 class="dv-title">The console</h2>
+    <p class="dv-sub">Press <code>`</code> in the game or the 3D editor. Anything typed here can also go in a trigger, in <code>autoexec.cfg</code>, or after a <code>+</code> on the command line. Below are all {{NCMDS}} commands, in the game's own words from <code>help NAME</code>.</p>
+  </div>
+  <div class="two anat">
+    <div>
+      <h3>Typing</h3>
+      <ul class="steps">
+        <li><code>;</code> puts several commands on one line: <code>god ; give all ; map 5</code>. A <code>;</code> inside quotes doesn't split.</li>
+        <li><b>Tab</b> finishes a command's name. <b>Up/Down</b> bring back earlier lines. <b>PgUp/PgDn</b> or the wheel scroll back, <b>Home/End</b> jump to the oldest or newest line. <b>Ctrl+V</b> pastes and <b>F11</b> fills the screen.</li>
+        <li><code>help</code> lists everything; <code>help NAME</code> explains one command. Those are the texts below.</li>
+        <li>Coloured text: <span class="c-syn">yellow</span> is a command's syntax. CAPITALS are values you fill in, <code>[brackets]</code> are optional, and <code>a|b</code> means one of them.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Scripting</h3>
+      <ul class="steps">
+        <li><b>Triggers</b> run console commands: <code>use 12 8 repeat : light 3 toggle</code>. Building commands rebuild the sector, which resets monsters and pickups, so triggers stick to the "running level" ones (door, light, spawn, message, sound...).</li>
+        <li><b>Aliases:</b> <code>alias heal "give health ; give armor"</code>, with <code>$1</code>–<code>$9</code> and <code>$*</code> for what follows the alias. <code>unalias NAME</code> removes one. A sector you share should spell commands out, since the player may not have your aliases.</li>
+        <li><b>autoexec.cfg</b> in the saves folder runs at start-up, before any <code>+</code> commands.</li>
+        <li><b>Command line:</b> <code>neon-caster.run +map 5 +give all +wait 60 +screenshot five.png +quit</code>. A game started with <code>+</code> commands never saves its settings.</li>
+        <li><b>Cheats hold achievements.</b> <code>map</code>, <code>god</code>, <code>give</code>, <code>tp</code> and the like mark the game as a cheat run: no achievements or records until a new game. A sector's own triggers don't count.</li>
+      </ul>
+    </div>
+  </div>
+  <h3>The game's overview <small class="note">help, as the console prints it</small></h3>
+  {{CONSOLE}}
+</section>
+</main>
+<div id="tip" role="tooltip" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () { // anchors land below the sticky bar, however tall it wraps
+  var bar = document.querySelector('header.bar');
+  function fit() { document.documentElement.style.setProperty('--barh', bar.offsetHeight + 'px'); }
+  fit(); window.addEventListener('resize', fit);
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(bar);
+})();
+(function () {
+  var toast = document.getElementById('toast'), tt;
+  function say(t) { toast.textContent = t; toast.classList.add('on'); clearTimeout(tt); tt = setTimeout(function () { toast.classList.remove('on'); }, 1100); }
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-copy]'); if (!el) return;
+    var t = el.getAttribute('data-copy');
+    function fallback() { var r = document.createRange(); r.selectNodeContents(el); var s = getSelection(); s.removeAllRanges(); s.addRange(r); say('Selected ' + t); }
+    try { navigator.clipboard.writeText(t).then(function () { say('Copied ' + t); }, fallback); } catch (err) { fallback(); }
+  });
+  var tip = document.getElementById('tip'), tipOn = null;
+  function showTip(b) {
+    if (tipOn && tipOn !== b) tipOn.setAttribute('aria-expanded', 'false');
+    tipOn = b; b.setAttribute('aria-expanded', 'true');
+    tip.textContent = b.getAttribute('data-tip'); tip.hidden = false;
+    var r = b.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    var x = Math.max(16, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 16));
+    var y = r.bottom + 8; if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 8);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  }
+  function hideTip() { if (tipOn) tipOn.setAttribute('aria-expanded', 'false'); tipOn = null; tip.hidden = true; }
+  document.querySelectorAll('.q').forEach(function (b) {
+    b.setAttribute('aria-expanded', 'false');
+    b.addEventListener('mouseenter', function () { showTip(b); });
+    b.addEventListener('mouseleave', hideTip);
+    b.addEventListener('focus', function () { showTip(b); });
+    b.addEventListener('blur', hideTip);
+    b.addEventListener('click', function (e) { e.stopPropagation(); if (tipOn === b) hideTip(); else showTip(b); });
+  });
+  document.addEventListener('click', hideTip);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideTip(); });
+  addEventListener('scroll', hideTip, { passive: true });
+  var au = new Audio(), playing = null;
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.play'); if (!b) return;
+    if (playing) playing.classList.remove('on');
+    if (playing === b && !au.paused) { au.pause(); playing = null; return; }
+    au.src = b.getAttribute('data-snd'); au.currentTime = 0; playing = b; b.classList.add('on');
+    au.play().catch(function () { b.classList.remove('on'); });
+  });
+  au.addEventListener('ended', function () { if (playing) playing.classList.remove('on'); playing = null; });
+  var q = document.getElementById('q'), none = document.getElementById('none');
+  var items = Array.prototype.slice.call(document.querySelectorAll('[data-k]'));
+  items.forEach(function (el) { el._k = el.getAttribute('data-k').toLowerCase(); });
+  var blocks = Array.prototype.slice.call(document.querySelectorAll('main section, main section > div, .grid-t, .cards, .kvs, .tw, .chips'));
+  function run() {
+    var v = q.value.trim().toLowerCase();
+    items.forEach(function (el) { el.classList.toggle('hide', v !== '' && el._k.indexOf(v) < 0); });
+    // headings, notes and leads only while not filtering
+    document.querySelectorAll('main h3, main .lead, main .note').forEach(function (el) { el.classList.toggle('hide', v !== ''); });
+    var any = false;
+    blocks.slice().reverse().forEach(function (b) {
+      if (v === '') { b.classList.remove('hide'); return; }
+      var vis = b.querySelector('[data-k]:not(.hide)');
+      b.classList.toggle('hide', !vis);
+      if (vis) any = true;
+    });
+    none.classList.toggle('hide', v === '' || any);
+    try { localStorage.setItem('nc-sheet-q', q.value); } catch (e) {}
+  }
+  q.addEventListener('input', run);
+  try { var s = localStorage.getItem('nc-sheet-q'); if (s) { q.value = s; run(); } } catch (e) {}
+  document.addEventListener('keydown', function (e) { if (e.key === '/' && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
+})();
+</script>

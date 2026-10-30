@@ -74,6 +74,7 @@
 
 ' MENU ------------------------------------------------------------------------
 '$INCLUDE:'./MENU/MENU.BM'
+'$INCLUDE:'./MENU/FOLDERS.BM'
 '$INCLUDE:'./MENU/SPLASH.BM'
 '$INCLUDE:'./MENU/CONSOLE.BM'
 '$INCLUDE:'./MENU/SAVES.BM'
