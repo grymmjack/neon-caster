@@ -29,7 +29,7 @@
 ' library, a copy of it in lib/steam (included next to GLSL) - with a stand-in (the "mock") that
 ' keeps them in a file when there's no Steam, so they work anywhere.
 ' Which release this is (the create-release skill bumps it: major.minor.patch)
-CONST GAME_VERSION$ = "0.11.0"
+CONST GAME_VERSION$ = "0.12.0"
 _TITLE "NEON-CASTER " + GAME_VERSION$
 ON ERROR GOTO GameError ' (a runtime error: logged, and the game carries on - chapter 21)
 DIM SHARED mouseSettle AS INTEGER ' (frames the mouse can't turn you: just captured again after a screen of its own - the pointer's snap back isn't a turn)

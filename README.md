@@ -101,7 +101,13 @@ halls, reactors, server farms, gardens, turret towers with lifts, arenas
 that lock round you while the turrets come out of the walls - three
 keycards on the way to each exit, and a field boss waiting at the end of
 the later ones. **INFILTRATION** is ten more, 64 cells
-across (`levels/infil/`). Each set runs 1 to 10 on its own, and a save remembers which set
+across: break into a facility gate by gate - find the keycard, the
+keypad code on a note or in a safe, the repair kit for a broken computer,
+the data station that unseals a door - past alarm wings and their guards,
+turret gauntlets, a blackout to cross by flashlight, acid to jump over by
+jump pad, a reactor and a strongroom, every room dressed for what it is.
+Every set has had a looks pass too: trim and neon lines along the walls,
+wall lights, lit doors, a colour a room. Each set runs 1 to 10 on its own, and a save remembers which set
 it's from.
 
 **Make your own:** **GAME > SECTORS > NEW SECTOR** (in any folder) gives you a
