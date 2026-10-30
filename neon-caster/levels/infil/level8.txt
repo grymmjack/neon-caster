@@ -2,7 +2,7 @@
 ' part of it. Lines starting with ' are comments. The level kit
 ' (levels.py --write) and the editor in the game write these files.
 ' INFILTRATION: LOW ORBIT, made by maker.py - Gravity at sixty percent. A jetpack, fuel, and shafts to climb.
-' lvldress: lights 74, faces 361, cell_lights 13, looks 14, wet keep - what the builder made; the rest is lvldress.py's (read_plain takes it off)
+' lvldress: lights 74, faces 361, cell_lights 13, looks 16, wet keep - what the builder made; the rest is lvldress.py's (read_plain takes it off)
 
 name     = SECTOR 8: LOW ORBIT
 droids   = 3
@@ -1130,6 +1130,8 @@ crate    = cells:30, shells:25, medkit:20, armor:10
 18, 23, 0, 0, FFFFFF, 150
 30, 23, 0, 0, FFFFFF, 150
 18, 24, 0, 0, FFFFFF, 150
+54, 28, 0, 0, FFFFFF, 200
+10, 35, 0, 0, FFFFFF, 200
 9, 50, 0, 0, FFFFFF, 150
 36, 51, 0, 0, FFFFFF, 150
 36, 58, 0, 0, FFFFFF, 150

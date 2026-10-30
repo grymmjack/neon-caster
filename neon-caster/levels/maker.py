@@ -1379,22 +1379,24 @@ def playthrough(L, lv):
 # ---------------------------------------------------------------------------
 # All of it
 # ---------------------------------------------------------------------------
-DESK_SIZE = 150   # (percent: the game's desk is knee high next to its chair - looks only)
+# Props drawn bigger than the game makes them ([looks] size, percent - looks only): the
+# desk was knee high beside its chair, the workbench (W, 0.35 of a wall) a footstool
+PROP_SIZE = {"d": 150, "W": 200}
 
 
 def desks(L):
-    """Every desk drawn bigger ([looks] size), keeping any look its cell already has."""
+    """Desks and workbenches drawn bigger (PROP_SIZE, a [looks] size), keeping any look the cell has."""
     had = {tuple(int(v) for v in l.split(",")[:2]): i for i, l in enumerate(L.looks)}
     for y, row in enumerate(L.g):
         for x, ch in enumerate(row):
-            if ch != "d":
+            if ch not in PROP_SIZE:
                 continue
             if (x, y) in had:
                 f = [v.strip() for v in L.looks[had[(x, y)]].split(",")]
-                f[5] = str(DESK_SIZE)
+                f[5] = str(PROP_SIZE[ch])
                 L.looks[had[(x, y)]] = ", ".join(f)
             else:
-                L.looks.append("%d, %d, 0, 0, FFFFFF, %d" % (x, y, DESK_SIZE))
+                L.looks.append("%d, %d, 0, 0, FFFFFF, %d" % (x, y, PROP_SIZE[ch]))
 
 
 def build(k, show=False):

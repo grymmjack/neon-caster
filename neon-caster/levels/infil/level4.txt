@@ -2,7 +2,7 @@
 ' part of it. Lines starting with ' are comments. The level kit
 ' (levels.py --write) and the editor in the game write these files.
 ' INFILTRATION: SPILLWAY, made by maker.py - Acid and slime between every room. A hazmat suit, or the jump pads.
-' lvldress: lights 76, faces 400, cell_lights 12, looks 13, wet keep - what the builder made; the rest is lvldress.py's (read_plain takes it off)
+' lvldress: lights 76, faces 400, cell_lights 12, looks 14, wet keep - what the builder made; the rest is lvldress.py's (read_plain takes it off)
 
 name     = SECTOR 4: SPILLWAY
 droids   = 3
@@ -1186,6 +1186,7 @@ crate    = cells:30, shells:25, medkit:20, armor:10
 51, 26, 3, 35, C8FFE6, 100
 8, 34, 3, 35, FF3B3B, 100
 11, 34, 3, 35, FF3B3B, 100
+3, 7, 0, 0, FFFFFF, 200
 50, 35, 0, 0, FFFFFF, 150
 57, 41, 0, 0, FFFFFF, 150
 50, 42, 0, 0, FFFFFF, 150

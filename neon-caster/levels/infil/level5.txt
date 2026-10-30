@@ -2,7 +2,7 @@
 ' part of it. Lines starting with ' are comments. The level kit
 ' (levels.py --write) and the editor in the game write these files.
 ' INFILTRATION: LIGHTS OUT, made by maker.py - The power's failing. A flashlight, its batteries - and the eyebots that like the dark.
-' lvldress: lights 75, faces 393, cell_lights 12, looks 13, wet keep - what the builder made; the rest is lvldress.py's (read_plain takes it off)
+' lvldress: lights 75, faces 393, cell_lights 12, looks 16, wet keep - what the builder made; the rest is lvldress.py's (read_plain takes it off)
 
 name     = SECTOR 5: LIGHTS OUT
 droids   = 3
@@ -1200,7 +1200,10 @@ crate    = cells:30, shells:25, medkit:20, armor:10
 51, 5, 0, 0, FFFFFF, 150
 56, 5, 0, 0, FFFFFF, 150
 60, 11, 0, 0, FFFFFF, 150
+12, 29, 0, 0, FFFFFF, 200
+50, 38, 0, 0, FFFFFF, 200
 26, 42, 0, 0, FFFFFF, 150
+8, 48, 0, 0, FFFFFF, 200
 30, 5, 2, 30, 9FEFFF, 100
 32, 51, 2, 30, 9FEFFF, 100
 

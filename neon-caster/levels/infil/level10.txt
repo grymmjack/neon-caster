@@ -2,7 +2,7 @@
 ' part of it. Lines starting with ' are comments. The level kit
 ' (levels.py --write) and the editor in the game write these files.
 ' INFILTRATION: CORE BREACH, made by maker.py - The core. Lava round it, its guardian on it.
-' lvldress: lights 80, faces 462, cell_lights 13, looks 20, wet keep - what the builder made; the rest is lvldress.py's (read_plain takes it off)
+' lvldress: lights 80, faces 462, cell_lights 13, looks 22, wet keep - what the builder made; the rest is lvldress.py's (read_plain takes it off)
 
 name     = SECTOR 10: CORE BREACH
 puzzles  = sum
@@ -1355,6 +1355,8 @@ crate    = cells:30, shells:25, medkit:20, armor:10
 27, 57, 3, 35, 50C8FF, 100
 28, 23, 0, 0, FFFFFF, 150
 28, 24, 0, 0, FFFFFF, 150
+50, 42, 0, 0, FFFFFF, 200
+8, 44, 0, 0, FFFFFF, 200
 8, 50, 0, 0, FFFFFF, 150
 54, 59, 0, 0, FFFFFF, 150
 55, 59, 0, 0, FFFFFF, 150

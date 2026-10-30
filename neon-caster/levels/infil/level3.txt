@@ -2,7 +2,7 @@
 ' part of it. Lines starting with ' are comments. The level kit
 ' (levels.py --write) and the editor in the game write these files.
 ' INFILTRATION: TURRET LINE, made by maker.py - The corridors are covered. Every turret line has a panel within reach - get to it.
-' lvldress: lights 80, faces 390, cell_lights 13, looks 19, wet clear - what the builder made; the rest is lvldress.py's (read_plain takes it off)
+' lvldress: lights 80, faces 390, cell_lights 13, looks 20, wet clear - what the builder made; the rest is lvldress.py's (read_plain takes it off)
 
 name     = SECTOR 3: TURRET LINE
 droids   = 3
@@ -1176,6 +1176,7 @@ crate    = cells:30, shells:25, medkit:20, armor:10
 34, 28, 3, 35, 50C8FF, 100
 36, 29, 3, 35, 50C8FF, 100
 44, 29, 3, 35, 50C8FF, 100
+33, 11, 0, 0, FFFFFF, 200
 8, 18, 0, 0, FFFFFF, 150
 12, 19, 0, 0, FFFFFF, 150
 5, 24, 0, 0, FFFFFF, 150
