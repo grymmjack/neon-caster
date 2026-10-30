@@ -1048,7 +1048,7 @@ def validate(rows, name="map", want_exit=True, pairs=()):
     count = lambda s: sum(1 for r in g for c in r if c in s)
     info = "%s: %d monsters, %d items, %d deco, keys %s, reach %d cells" % (
         name, count(MONS), count(ITEMS), count(DECO), "".join(sorted(keys)) or "-", len(reach))
-    big = N > 64  # (a sector over 64 cells across has room for more: the game's MAX_MON, MAX_ITEMS, MAX_DECO)
+    big = N > 48  # (a sector over 48 cells across has room for more: the game's MAX_MON, MAX_ITEMS, MAX_DECO)
     if count(MONS) > (128 if big else 64) or count(ITEMS) > (160 if big else 64) or count(DECO) > (160 if big else 64):
         errs.append("too many things (max %s each)" % ("128 monsters, 160 pickups and decorations" if big else "64"))
     return errs, warns + [info]
@@ -1345,8 +1345,8 @@ def check_level(lv, assets=None):
             warns.append("event %s: no doors to lock round its room" % (e,))
     if len(lv.get("events", [])) > (32 if N > 64 else 16):
         errs.append("too many events (max %d)" % (32 if N > 64 else 16))
-    if len(lv.get("lights", [])) > 256:
-        errs.append("too many lights (%d, max 256: RENDER/LIGHT.BI's MAX_LIGHTS)" % len(lv["lights"]))
+    if len(lv.get("lights", [])) > (640 if N > 64 else 256):  # (RENDER/LIGHT.BI's MAX_LIGHTS is 1024: the rest is room for the lamps and glows the game adds)
+        errs.append("too many lights (%d, max %d: RENDER/LIGHT.BI's MAX_LIGHTS, less room for lamps and glows)" % (len(lv["lights"]), 640 if N > 64 else 256))
     for sec, most, where in (("zones", 256, "LEVEL/LEVELFILE.BI's MAX_ZONES"), ("lifts", 32, "WORLD/LIFTS.BI's MAX_LIFTS"),
                              ("pads", 16, "LEVEL/LEVELFILE.BI's MAX_PAIRS"), ("blocks", 256, "WORLD/MAP.BI's MAX_BOXES"),
                              ("nudges", 160, "GAME/DECOS.BI's MAX_NUDGES"), ("barrels", 96, "GAME/DECOS.BI's MAX_BARRELS"), ("triggers", 96, "GAME/TRIGGERS.BI's MAX_TRIGS"),

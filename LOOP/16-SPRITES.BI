@@ -333,8 +333,10 @@
     NEXT : NEXT
     invDet = 1 /(planeX * dirY - dirX * planeY)
     ' (with GLASS REFLECTIONS, what's behind you goes to OpenGL too, within
-    ' GLASS_BEHIND cells: a pane in front of you shows it - GL/OPENGL.BM's GLMirrors)
+    ' GLASS_BEHIND cells: a pane in front of you shows it - GL/OPENGL.BM's GLMirrors -
+    ' but only with such a pane near enough to get a mirror: GlassMirNear)
     glassBehind = glMode AND setting(SET_GLASSREF) <> 0 AND glassRefAny
+    IF glassBehind THEN glassBehind = GlassMirNear
     FOR drawIdx = 1 TO numDraw
         i = drawOrder(drawIdx)
         lkS = 1 : IF drawLk(i) THEN lkS = lkSize(drawLk(i)) : IF lkS <> 1 THEN drawScale(i) = drawScale(i) * lkS ' (sized by its look: [looks])

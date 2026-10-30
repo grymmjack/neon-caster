@@ -125,6 +125,7 @@ FUNCTION SetDir$(s)
         CASE 1 : SetDir$ = "new/"
         CASE 2 : SetDir$ = "remix/"
         CASE 3 : SetDir$ = "huge/"
+        CASE 4 : SetDir$ = "infil/"
         CASE ELSE : SetDir$ = ""
     END SELECT
 END FUNCTION
@@ -135,6 +136,7 @@ FUNCTION SetName$(s)
         CASE 1 : SetName$ = "NEW SECTORS"
         CASE 2 : SetName$ = "OLD SECTORS NEW"
         CASE 3 : SetName$ = "HUGE SECTORS"
+        CASE 4 : SetName$ = "INFILTRATION"
         CASE ELSE : SetName$ = "THE ORIGINAL TEN"
     END SELECT
 END FUNCTION

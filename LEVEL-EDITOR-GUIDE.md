@@ -858,7 +858,7 @@ The editor trusts you: it saves a level with no start, no exit or a gap in its w
 - [ ] A map pickup `M` somewhere, or the minimap never appears
 - [ ] Picture names in the file are spelled right (a wrong one in `walls =`, `floors =` or `ceilings =` quits the game; in `[faces]` it's just ignored)
 
-**The other sets.** NEW SECTORS, OLD SECTORS NEW and HUGE SECTORS are plain level files too, in `neon-caster/levels/new/`, `remix/` and `huge/`. Play one and press F2, and the editor edits that set's file (Ctrl+S saves it there; `sectorset` waits till you've left the editor, so a save can't land in another set's file). They're built by `newsectors.py`, `remaster.py` and `hugesectors.py`, and their `--write` rewrites all ten, so copy a change you want to keep into the script first.
+**The other sets.** NEW SECTORS, OLD SECTORS NEW, HUGE SECTORS and INFILTRATION are plain level files too, in `neon-caster/levels/new/`, `remix/`, `huge/` and `infil/`. Play one and press F2, and the editor edits that set's file (Ctrl+S saves it there; `sectorset` waits till you've left the editor, so a save can't land in another set's file). They're built by `newsectors.py`, `remaster.py`, `hugesectors.py` and `maker.py`, and their `--write` rewrites all ten, so copy a change you want to keep into the script first.
 
 **Check it with the level kit.** `levels.py --check` only checks the game's own ten sectors, but its checker works on one of yours too. From `neon-caster/levels/`:
 
@@ -867,6 +867,16 @@ python3 -c "import lvlkit; lvlkit.check_level(lvlkit.read_level_file('custom/cus
 ```
 
 It reports anything you can't reach (following your `[pads]` pairs), doors without walls, a missing start or exit, and more. Never run `levels.py --write` on a level you've edited by hand or in the editor: it regenerates all ten game sectors from the kit and overwrites them. Your own sectors in `custom/` are safe from it.
+
+**Dress it with the level kit's looks pass.** The game's four sets are dressed by `lvldress.py`, and it will dress one of yours too: every room gets a job and a colour (the start, the exit's green, a keycard's room in the card's colour, a hazard in its liquid's), a dark skirting and a neon line in pieces round its walls (a second line high up in the rooms that matter), wall lights that are a lit strip on the wall with a light in front, a light of its colour each side of every key door, sealed door and the exit, with the floor in front tinted to match, its own ambient leaning to its colour, wetter floors by liquid and its glowing props tinted. It changes only looks - nothing you walk on, shoot or pick up - and leaves anything you set yourself alone. From `neon-caster/levels/`:
+
+```
+python3 lvldress.py custom/custom22.txt -o custom/custom23.txt    a dressed copy, as sector 33
+python3 lvldress.py custom/custom22.txt --report                  what it would do
+python3 lvldress.py custom/custom22.txt --style cold              neon infernal cold toxic data clinical outdoor
+```
+
+A dressed file says so in a comment line near its top (`lvldress:`); `--redo` takes the old dressing off before dressing it again.
 
 **Things that lose your work:**
 

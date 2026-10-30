@@ -17,7 +17,7 @@ SUB SaveGame STATIC
     fileNum = FREEFILE
     OPEN saveFile$ FOR BINARY AS #fileNum
     saveTag$ = SAVE_TAG : PUT #fileNum, , saveTag$
-    setTag$ = "" : IF sectorSet = 1 THEN setTag$ = "NEW: " ELSE IF sectorSet = 2 THEN setTag$ = "OLD NEW: " ELSE IF sectorSet = 3 THEN setTag$ = "HUGE: " ' (another set's: says so)
+    setTag$ = "" : IF sectorSet = 1 THEN setTag$ = "NEW: " ELSE IF sectorSet = 2 THEN setTag$ = "OLD NEW: " ELSE IF sectorSet = 3 THEN setTag$ = "HUGE: " ELSE IF sectorSet = 4 THEN setTag$ = "INFIL: " ' (another set's: says so)
     saveInfo$ = LEFT$(setTag$ + levelName$ + "  " + DATE$ + " " + LEFT$(TIME$, 5) + SPACE$(SAVE_INFO_LEN), SAVE_INFO_LEN)
     PUT #fileNum, , saveInfo$
     levelSaved = level : IF sectorSet AND level <= NUM_LEVELS THEN levelSaved = sectorSet * 100 + level ' (another set's sector: 100 a set on - an old save is the game's own)

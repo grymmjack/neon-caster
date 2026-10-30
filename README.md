@@ -1,9 +1,10 @@
 # NEON-CASTER
 
 A first-person shooter in QB64 Phoenix Edition BASIC, and a course in
-how it's made. Forty sectors of a neon space station in four
+how it's made. Fifty sectors of a neon space station in five
 sets of ten - the originals, ten NEW SECTORS, OLD SECTORS NEW (the
-first ten remade) and ten HUGE SECTORS, up to 192 cells across - twenty kinds of monster (turrets with seven weapons among them, and eyebots that zap you, then rush you and blow up), five guns, each with its own ammo - a rocket launcher the fifth - and a kick, glass you can shoot through, floors and
+first ten remade), ten HUGE SECTORS, up to 192 cells across, and ten
+INFILTRATION sectors, 64 cells across - twenty kinds of monster (turrets with seven weapons among them, and eyebots that zap you, then rush you and blow up), five guns, each with its own ammo - a rocket launcher the fifth - and a kick, glass you can shoot through, floors and
 ceilings at every height, lifts and bottomless pits, open skies, teleporters, data
 stations that turn the level into a wireframe network, code terminals that
 lock you in until you fix a real QB64 program, DOOM-style secrets in
@@ -80,7 +81,7 @@ folders), so you may find it's already set. Without QB64PE the terminals
 still let you through, but they only check your lines against the answer:
 nothing is compiled or run.
 
-**Three sets of ten:** **GAME > NEW GAME** (or SELECT SECTOR) plays the
+**Five sets of ten:** **GAME > NEW GAME** (or SELECT SECTOR) plays the
 original ten. **GAME > NEW SECTORS** is ten more, built on everything the
 game has grown since: blocks inside cells (slim lit pillars, thin walls,
 alcoves with terminals glowing in them), water, slime, poison, acid and
@@ -92,7 +93,8 @@ districts of every kind - plazas under the sky, office floors, flooded
 halls, reactors, server farms, gardens, turret towers with lifts, arenas
 that lock round you while the turrets come out of the walls - three
 keycards on the way to each exit, and a field boss waiting at the end of
-the later ones. Each set runs 1 to 10 on its own, and a save remembers which set
+the later ones. **GAME > INFILTRATION** is ten more, 64 cells
+across (`levels/infil/`). Each set runs 1 to 10 on its own, and a save remembers which set
 it's from.
 
 **Make your own:** **GAME > YOUR SECTORS > NEW SECTOR** gives you a

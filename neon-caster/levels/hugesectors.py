@@ -786,7 +786,9 @@ def one(k, write):
         if write:
             os.makedirs(OUT, exist_ok=True)
             doc = ["HUGE SECTORS: %s, built by hugesectors.py (seed %d): %d districts, %d x %d cells." % (th["name"], seed, len(info["regions"]), lvlkit.N, lvlkit.N)]
-            lvlkit.write_level_file(os.path.join(OUT, "level%d.txt" % k), lv, doc)
+            import lvldress
+            lvldress.dress(lv)   # (the looks pass - lvldress.py)
+            lvldress.write_dressed(os.path.join(OUT, "level%d.txt" % k), lv, doc)
             print("  wrote", os.path.join(OUT, "level%d.txt" % k))
         print("  GOOD")
         return True

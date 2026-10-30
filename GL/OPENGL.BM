@@ -710,6 +710,7 @@ SUB GLMirrors(b, rw, rh)
         cx = glassListX(k) : cy = glassListY(k)
         IF glassHP(cx, cy) <= 0 THEN _CONTINUE
         IF NOT GLNearSeen(cx, cy, b) THEN _CONTINUE
+        IF GLMirFade(cx, cy) <= 0 THEN _CONTINUE ' (too far to be worth the world drawn again)
         IF glassDir(cx, cy) = 1 THEN dd = 1 : c = cy + 0.5 : e = glRealY ELSE dd = 2 : c = cx + 0.5 : e = glRealX
         IF ABS(e - c) < 0.03 THEN _CONTINUE ' (in it: edge on)
         sd = SGN(e - c)
@@ -733,6 +734,7 @@ SUB GLMirrors(b, rw, rh)
     NEXT
     IF glMirN = 0 THEN EXIT SUB
     tw = MaxOf(16, rw \ 2) : th = MaxOf(16, rh \ 2)
+    IF tw > GLASS_MIR_W THEN th = MaxOf(16, th * GLASS_MIR_W \ tw) : tw = GLASS_MIR_W ' (a big window: no need of more - it's glass)
     FOR m = 1 TO glMirN
         IF glMirTarg(m) = 0 THEN glMirTarg(m) = GLSL_target_new&(tw, th, -1)
         IF glMirTarg(m) = 0 THEN glMirN = m - 1 : EXIT FOR
@@ -808,7 +810,7 @@ SUB GLGlassMirrors(b)
                 cx = glassListX(k) : cy = glassListY(k)
                 IF glassHP(cx, cy) > 0 AND GLPaneOn(cx, cy, m) THEN
                     IF GLNearSeen(cx, cy, b) THEN
-                        GLSL_uniform_1f glMirProg, "amt", glassRefK(k) / 9
+                        GLSL_uniform_1f glMirProg, "amt", glassRefK(k) / 9 * GLMirFade(cx, cy)
                         GLSL_uniform_1f glMirProg, "blur", glassBlurK(k) : GLSL_uniform_1f glMirProg, "rip", glassRipK(k)
                         GLSL_uniform_1f glMirProg, "frost", glassFrostK(k) * glassClrK(k) ' (THROUGH CLEAR: its frost on the reflection, not what's behind it)
                         IF glassDir(cx, cy) = 1 THEN x0 = cx : y0 = cy + 0.5 : x1 = cx + 1 : y1 = y0 ELSE x0 = cx + 0.5 : y0 = cy : x1 = x0 : y1 = cy + 1
@@ -827,6 +829,34 @@ SUB GLGlassMirrors(b)
         FOR m = 1 TO glMirN : GLFlashGlare m, b : NEXT
     END IF
 END SUB
+
+' How much of pane (cx, cy)'s reflection shows by how far it is from you:
+' all of it within GLASS_MIR_FADE cells, none past GLASS_MIR_FAR (GLMirrors
+' gives it no mirror then)
+FUNCTION GLMirFade(cx, cy)
+    DIM d ' (its own: the main program shares these names)
+    d = SQR((cx + 0.5 - glRealX) ^ 2 + (cy + 0.5 - glRealY) ^ 2)
+    IF d <= GLASS_MIR_FADE THEN GLMirFade = 1 : EXIT FUNCTION
+    IF d >= GLASS_MIR_FAR THEN EXIT FUNCTION
+    GLMirFade = (GLASS_MIR_FAR - d) / (GLASS_MIR_FAR - GLASS_MIR_FADE)
+END FUNCTION
+
+' Is a pane that reflects within a mirror's reach of you (GLASS_MIR_FAR, and
+' a cell for its width), and in view? Without one, nothing behind you need go to OpenGL
+' (chapter 16's glassBehind) - models behind you cost their corners every frame
+FUNCTION GlassMirNear
+    DIM k, cx, cy ' (its own: the main program shares these names)
+    FOR k = 1 TO numGlass
+        IF glassRefK(k) = 0 THEN _CONTINUE
+        cx = glassListX(k) : cy = glassListY(k)
+        IF glassHP(cx, cy) <= 0 THEN _CONTINUE
+        IF (cx + 0.5 - playerX) ^ 2 + (cy + 0.5 - playerY) ^ 2 >= (GLASS_MIR_FAR + 1) ^ 2 THEN _CONTINUE
+        ' ...and seen this frame, it or a neighbour (chapter 15's marks - GLNearSeen's test: an unseen pane gets no mirror)
+        IF glSeen(cx, cy, glWrite) = glFrameNo OR glSeen(cx + 1, cy, glWrite) = glFrameNo OR glSeen(cx, cy + 1, glWrite) = glFrameNo THEN GlassMirNear = -1 : EXIT FUNCTION
+        IF cx > 0 THEN IF glSeen(cx - 1, cy, glWrite) = glFrameNo THEN GlassMirNear = -1 : EXIT FUNCTION
+        IF cy > 0 THEN IF glSeen(cx, cy - 1, glWrite) = glFrameNo THEN GlassMirNear = -1 : EXIT FUNCTION
+    NEXT
+END FUNCTION
 
 ' Is pane (cx, cy) on mirror m's line, with you on the side it was drawn for?
 FUNCTION GLPaneOn(cx, cy, m)

@@ -419,12 +419,9 @@ END FUNCTION
 FUNCTION NpLevelList$
     DIM d, v, base$, sb$, f$, b$, sl, r$ ' (its own)
     base$ = AssetPath$("levels/level1.txt") : base$ = LEFT$(base$, LEN(base$) - LEN("level1.txt")) : r$ = ""
-    FOR d = 1 TO 5
+    FOR d = 1 TO NUM_SETS + 2
         SELECT CASE d
-            CASE 1 : sb$ = ""
-            CASE 2 : sb$ = "new/"
-            CASE 3 : sb$ = "remix/"
-            CASE 4 : sb$ = "huge/"
+            CASE 1 TO NUM_SETS + 1 : sb$ = SetDir$(d - 1) ' (the sets' folders: "" new/ remix/ huge/ infil/)
             CASE ELSE : sb$ = "custom/"
         END SELECT
         FOR v = 0 TO 1

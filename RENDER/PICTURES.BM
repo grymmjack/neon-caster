@@ -512,14 +512,16 @@ SUB MakeCorpse(mtype)
     src = mtypeSprite(mtype) : sz = spriteSize(src) : dst = S_CORPSE + mtype
     IF _FILEEXISTS(AssetPath$("dead-" + mtypeName$(mtype) + ".png")) THEN
         ' How wide the monster is in its picture: its body is drawn that wide
-        mx0 = sz : mx1 = -1
+        mx0 = sz : mx1 = -1 : my0 = sz : my1 = -1 ' (and how tall it stands: my0 to my1)
         FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1
             IF _ALPHA32(spriteTex(x, y, src)) > 128 THEN
                 IF x < mx0 THEN mx0 = x
                 IF x > mx1 THEN mx1 = x
+                IF y < my0 THEN my0 = y
+                IF y > my1 THEN my1 = y
             END IF
         NEXT : NEXT
-        IF mx1 < mx0 THEN mx0 = 0 : mx1 = sz - 1
+        IF mx1 < mx0 THEN mx0 = 0 : mx1 = sz - 1 : my0 = 0 : my1 = sz - 1
         LoadSprite "dead-" + mtypeName$(mtype) + ".png", dst
         dsz = spriteSize(dst) : x0 = dsz : y0 = dsz : x1 = -1 : y1 = -1
         FOR y = 0 TO dsz - 1 : FOR x = 0 TO dsz - 1
@@ -539,6 +541,7 @@ SUB MakeCorpse(mtype)
         FOR ny = 0 TO w - 1 : FOR nx = 0 TO w - 1 : spriteTex(nx, ny, dst) = crop(nx, ny) : NEXT : NEXT
         spriteSize(dst) = w
         corpseScale(mtype) = mtypeScale(mtype) * (mx1 - mx0 + 1) / sz * 1.15 : corpseSquash(mtype) = h / w
+        CorpseCap mtype, (my1 - my0 + 1) / sz
         EXIT SUB
     END IF
     x0 = sz : y0 = sz : x1 = -1 : y1 = -1 ' The monster's own edges
@@ -562,6 +565,20 @@ SUB MakeCorpse(mtype)
         spriteTex(nx, ny, dst) = col~&
     NEXT : NEXT
     corpseScale(mtype) = mtypeScale(mtype) * h / sz : corpseSquash(mtype) = w / h
+    CorpseCap mtype, h / sz
+END SUB
+
+' A wreck no taller than CORPSE_TALL of the machine standing (liveH: how
+' tall it is in its picture, a part of the square). A dead- picture drawn
+' from above at three quarters (the trooper's) came out as tall as the
+' trooper. What's over is taken half by drawing it smaller, half by
+' flattening it - all one or the other looks wrong. Only looks.
+SUB CorpseCap(mtype, liveH)
+    DIM k ' (its own: the main program shares these names)
+    IF liveH <= 0 OR corpseScale(mtype) <= 0 OR corpseSquash(mtype) <= 0 THEN EXIT SUB
+    k = CORPSE_TALL * liveH * mtypeScale(mtype) / (corpseScale(mtype) * corpseSquash(mtype))
+    IF k >= 1 THEN EXIT SUB
+    k = SQR(k) : corpseScale(mtype) = corpseScale(mtype) * k : corpseSquash(mtype) = corpseSquash(mtype) * k
 END SUB
 
 ' An explosion's animation, into sprite slots S_BOOM + 1 to S_BOOM +

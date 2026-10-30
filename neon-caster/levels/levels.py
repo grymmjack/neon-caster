@@ -15,6 +15,7 @@ editor is lost - copy what you changed back into its builder here first
 """
 import os, sys
 import lvlkit
+import lvldress
 from lvlkit import Map, validate, parse_bas, check_level, N, write_level_file, level_files
 from collections import deque
 
@@ -1805,7 +1806,8 @@ def main():
             print("not writing: fix the problems above first")
             return 1
         for i, (lv, comment) in enumerate(out, 1):
-            write_level_file(os.path.join(HERE, "level%d.txt" % i), lv, comment)
+            lvldress.dress(lv)   # (the looks pass: trim, wall lights, door colours... - lvldress.py)
+            lvldress.write_dressed(os.path.join(HERE, "level%d.txt" % i), lv, comment)
         print("wrote %d level files into %s" % (len(out), os.path.normpath(HERE)))
     return 0 if ok else 1
 

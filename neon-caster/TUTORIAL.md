@@ -396,7 +396,7 @@ In the console:
 
 `steam/README.md` covers what Steamworks needs to go live.
 
-## The other three sets
+## The other four sets
 
 **NEW SECTORS** (GAME > NEW SECTORS, `levels/new/`) are ten more, built by
 `levels/newsectors.py` on everything the game grew after the first ten:
@@ -439,7 +439,11 @@ held turrets come out of the walls. The campaign's dressers then add
 closets, windows, lasers, plates, a hoard, a data station, teleporters, a
 code terminal and a secret stash, and the level kit checks every one.
 
-Each set is played 1 to 10 on its own (`sectorset 0|1|2` in the console
+**INFILTRATION** (GAME > INFILTRATION, `levels/infil/`) is the fifth set:
+ten sectors 64 cells across (`sectorset infil` in the console). The menu
+shows it greyed until its files are there.
+
+Each set is played 1 to 10 on its own (`sectorset 0|1|2|3|4` in the console
 picks one for `map`), and a save remembers its set. Both scripts check
 what they build with the level kit, as `levels.py` does - `--write` to
 write the files, `--check` to check them as they are.
@@ -718,7 +722,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/programs/` | programs the computers in a level can run (`program NAME` in a trigger): `invaders.bas`, NEON INVADERS - copy it and make your own |
 | `neon-caster/speech/` | NEXUS's lines - a greeting for every sector - and the monsters' voices and barks: text-to-speech voices through a channel vocoder |
 | `neon-caster/levels/` | the levels (`level1.txt`...: plain text - chapter 22), the level kit that builds and checks them (`levels.py`, `lvlkit.py`), the showcase sectors' builder (`showcase.py`), the other sets' builders (`newsectors.py`, `remaster.py`) and the skies' painter (`skies.py`) |
-| `neon-caster/levels/new/`, `remix/`, `huge/` | NEW SECTORS, OLD SECTORS NEW and HUGE SECTORS, `level1.txt`... each |
+| `neon-caster/levels/new/`, `remix/`, `huge/`, `infil/` | NEW SECTORS, OLD SECTORS NEW, HUGE SECTORS and INFILTRATION, `level1.txt`... each |
 | `neon-caster/levels/custom/` | your own sectors (`customN.txt` is sector 10+N), made by NEW SECTOR - the level kit leaves them alone; 1-11 are the showcase sectors (19-21 outdoors), 14 is THE NEON EXPO (sector 24: every feature in one, built by `levels/megasector.py`), 18 is THE MONOLITH (sector 28: 256 x 256 and 30 walls high, the biggest a sector can be, built by `levels/giant.py`), 19 is THE STOCKPILE (sector 29: liquid barrels stacked three high, treasure chests and mimics, a jetpack - `levels/stockpile.py`), 20 THE COMPOUND (sector 30: stronghold and keypad doors, notes, safes, cameras, alarms and guards, robot dogs - `levels/compound.py`), 21 THE LAUNCH BAY (sector 31: jump pads and their launch control, 60% gravity, the jetpack - `levels/launchbay.py`) |
 | `neon-caster/puzzles/` | the code terminals' QB64 programs, one a file (`README.txt` says how to write one) |
 | `neon-caster/achievements/` | each achievement's badge (`NAME.png`) and its grey, locked one (`NAME_locked.png`) |
@@ -727,7 +731,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/tuning-defaults.txt` | the game's tuning as it ships (the TUNER's defaults: only what differs from the code's own numbers); `tuning-original.txt` is every number as the code has it. Your own changes go in `tuning.txt` |
 | `neon-caster/fonts/` | Tiny5, the editors' small print (SIL Open Font License, `OFL.txt`) |
 | `neon-caster/palettes/` | GIMP palettes (`.gpl`) for the editor's colour helper - click a colour wherever one is typed |
-| `neon-caster/music/` | a track for each sector of every set and each showcase (`level3.ogg`, `new3.ogg`, `remix3.ogg`, `huge3.ogg`, `sector11.ogg`...), the menu's, and the network's (`cyber.ogg`), each 3-4 minutes arranged from a ~45 second take by `arrange.py`; `NAME.arr` beside it is that arrangement as text (the take's tempo and bars, its clips, the order they play in - the MUSIC ARRANGER changes it); `NAME.viz` is what the SOUND TEST's player draws for it (its waveform and spectrum, worked out by `viz.py` - the game can't read an Ogg's samples). `daw.py` takes the arrangements to Renoise and Bitwig and back; `README.md` there has the steps. (The takes themselves are in `src/`, left out of the downloads.) |
+| `neon-caster/music/` | a track for each sector of every set and each showcase (`level3.ogg`, `new3.ogg`, `remix3.ogg`, `huge3.ogg`, `infil3.ogg` once made, `sector11.ogg`...), the menu's, and the network's (`cyber.ogg`), each 3-4 minutes arranged from a ~45 second take by `arrange.py`; `NAME.arr` beside it is that arrangement as text (the take's tempo and bars, its clips, the order they play in - the MUSIC ARRANGER changes it); `NAME.viz` is what the SOUND TEST's player draws for it (its waveform and spectrum, worked out by `viz.py` - the game can't read an Ogg's samples). `daw.py` takes the arrangements to Renoise and Bitwig and back; `README.md` there has the steps. (The takes themselves are in `src/`, left out of the downloads.) |
 | `lib/glsl/`, `lib/steam/` | libraries from QB64_GJ_LIB: the OpenGL shaders' helpers, and Steam's achievements and stats (with a stand-in until the game is on Steam) |
 
 ## Further reading

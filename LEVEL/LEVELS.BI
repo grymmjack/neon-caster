@@ -7,10 +7,11 @@
 CONST NUM_LEVELS = 10 ' NUM_ = how many there are
 ' Sector sets: the game's own ten (0), NEW SECTORS (1), OLD SECTORS NEW
 ' (2, the first ten remade) and HUGE SECTORS (3, ten big ones, up to 200
-' cells across - levels/hugesectors.py) - each numbered 1 to NUM_LEVELS, so a sector's
+' cells across - levels/hugesectors.py) and INFILTRATION (4, 64 x 64, levels/infil/)
+' - each numbered 1 to NUM_LEVELS, so a sector's
 ' music, NEXUS's words for it and the tally at the end go by its number,
 ' and each in a folder of its own (SetDir$). sectorSet is the one played.
-CONST NUM_SETS = 3
+CONST NUM_SETS = 4
 DIM SHARED sectorSet AS INTEGER
 ' Your own sectors (GAME > YOUR SECTORS - chapter 22; MORE SECTORS past ten): up to MAX_CUSTOM,
 ' numbered on from the game's - sector 11 is levels/custom/custom1.txt

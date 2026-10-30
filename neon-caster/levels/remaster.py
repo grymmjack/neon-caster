@@ -28,6 +28,7 @@ import os, sys, random
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import lvlkit
+import lvldress
 from lvlkit import N, validate, check_level, write_level_file, read_level_file
 import newsectors as ns
 import levels as original
@@ -46,7 +47,7 @@ def hval(c, dflt):
 
 def load(n):
     """Original sector n as a Sector, everything in it."""
-    lv = read_level_file(os.path.join(HERE, "level%d.txt" % n), "level%d" % n)
+    lv = lvldress.read_plain(os.path.join(HERE, "level%d.txt" % n), "level%d" % n)   # (as levels.py made it: its looks pass taken off)
     m = Sector.from_rows(lv["rows"])
     m.ambient = tuple(lv["ambient"]) if lv["ambient"] else m.ambient
     m.zones = [tuple(z) for z in lv["zones"]]
@@ -415,7 +416,8 @@ def build_all(write=False, show=False):
             return False
         os.makedirs(OUT, exist_ok=True)
         for lv, doc in outs:
-            write_level_file(os.path.join(OUT, lv["label"] + ".txt"), lv, doc)
+            lvldress.dress(lv)   # (the looks pass - lvldress.py)
+            lvldress.write_dressed(os.path.join(OUT, lv["label"] + ".txt"), lv, doc)
         print("wrote %d sectors into %s" % (len(outs), os.path.normpath(OUT)))
     print("ALL GOOD" if ok else "PROBLEMS")
     return ok

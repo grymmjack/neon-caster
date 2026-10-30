@@ -41,6 +41,7 @@ CONST GL_NEAR = 0.05, GL_FAR = 100 ' (the fog's black by 16 cells: past that onl
 ' for the heat shimmer (all chapter 24)
 CONST GL_DYN = 4, MAX_PART = 800, GL_HEAT = 4
 DIM SHARED glReady AS INTEGER, glBuf AS INTEGER, glFrameNo AS LONG, glMode AS INTEGER
+DIM SHARED glGPU AS INTEGER ' (the world mesh is on: SUB _GL sets it each frame - shared, so GLMirrors draws a pane's reflection from the mesh too; it was a local of _GL, and every reflection went the slow way, cell by cell)
 DIM SHARED glCamZ(1), glEyeZ ' (your eye's height, for OpenGL's camera)
 DIM SHARED glFrame(1) AS LONG, glCamX(1), glCamY(1), glDirX(1), glDirY(1), glPlaneLen(1), glZoom(1)
 DIM SHARED glShakeX(1), glShakeY(1), glShakeEdge(1), glFullMode(1) AS INTEGER
@@ -126,6 +127,8 @@ DIM SHARED glEyeX, glEyeY, glEyeDX, glEyeDY, glLR, glLG, glLB, glShade
 ' (the shader's view, the sprites turned to it); glRealX... are yours.
 ' GLASS_BEHIND: how far behind you things are handed over (chapter 16).
 CONST GLASS_MIRRORS = 2, GLASS_PLANES = 16, GLASS_BEHIND = 12
+' (a pane further than GLASS_MIR_FAR cells gets no mirror - each costs the whole world drawn again - its reflection fading out from GLASS_MIR_FADE; a mirror drawn at most GLASS_MIR_W wide: half a 4K window was 1920)
+CONST GLASS_MIR_FAR = 8, GLASS_MIR_FADE = 6, GLASS_MIR_W = 1280
 DIM SHARED glGlassMir AS INTEGER, glMirN AS INTEGER, glMirDir(GLASS_MIRRORS) AS INTEGER, glMirC(GLASS_MIRRORS) AS SINGLE, glMirSide(GLASS_MIRRORS) AS INTEGER
 DIM SHARED glMirTarg(GLASS_MIRRORS) AS LONG, glMirProg AS _UNSIGNED LONG, glMirTried AS INTEGER, glMirView(3) AS SINGLE
 DIM SHARED glFxProg AS _UNSIGNED LONG, glFxTarg AS LONG ' (frosted and rippled glass: GLGlassFrost)

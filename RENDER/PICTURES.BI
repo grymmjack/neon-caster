@@ -11,6 +11,7 @@
 ' Sunk a little, it sits on the floor instead of hovering over it (OpenGL
 ' hides what's under the floor).
 CONST CORPSE_SINK = 0.18
+CONST CORPSE_TALL = 0.55 ' (a wreck at most this much of the machine's standing height: CorpseCap)
 '-----------------------------------------------------------------------------
 ' CHAPTER 5: PICTURES IN ARRAYS
 '-----------------------------------------------------------------------------

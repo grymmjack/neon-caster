@@ -24,7 +24,7 @@ def num_key(s): return [int(t) if t.isdigit() else t for t in re.split(r'(\d+)',
 out = []
 # MUSIC: the title's, the ten's, the network's - then any set's or sector's own
 names = {}
-for d in ('', 'new/', 'remix/', 'huge/'):
+for d in ('', 'new/', 'remix/', 'huge/', 'infil/'):
     for n in range(1, 11):
         p = os.path.join(ROOT, 'levels', d + 'level%d.txt' % n)
         if os.path.exists(p):
@@ -41,7 +41,7 @@ for f in music:
     if not f.endswith(('.ogg', '.flac', '.mp3', '.wav')): continue
     s = stem(f)
     lab = {'menu': 'THE TITLE MENU', 'cyber': 'THE NETWORK'}.get(s) or names.get(s) or s.upper()
-    if s.startswith(('new', 'remix', 'huge')) and s in names: lab = {'new': 'NEW ', 'remix': 'OLD NEW ', 'huge': 'HUGE '}[re.match(r'[a-z]+', s).group()] + lab
+    if s.startswith(('new', 'remix', 'huge', 'infil')) and s in names: lab = {'new': 'NEW ', 'remix': 'OLD NEW ', 'huge': 'HUGE ', 'infil': 'INFILTRATION '}[re.match(r'[a-z]+', s).group()] + lab
     out.append('music/%s|%s' % (f, lab))
 
 sfx = sorted(stem(f) for f in os.listdir(HERE) if f.endswith('.wav'))

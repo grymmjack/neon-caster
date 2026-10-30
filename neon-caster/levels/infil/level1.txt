@@ -1,0 +1,1368 @@
+' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
+' INFILTRATION: INTAKE, made by maker.py - Intake processing: the way in is through the offices. Read what people left on their desks.
+' lvldress: lights 78, faces 458, cell_lights 12, looks 25, wet clear - what the builder made; the rest is lvldress.py's (read_plain takes it off)
+
+name     = SECTOR 1: INTAKE
+droids   = 3
+wetness  = 3
+glass_reflect = 4
+walls    = wall-white.png, wall-tiles.png, wall-terminals.png, wall-pipes.png, wall-vault.png, wall-biolab.png
+floors   = floor-white.png, floor-lab.png, floor-plates.png, floor-concrete.png
+ceilings = ceiling-lights.png, ceiling-vents.png
+ambient  = 170, 225, 235, 255
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+6, 3, 12, 15, 2, 1, 0
+5, 20, 12, 30, 1, 1, 0
+6, 34, 15, 42, 3, 2, 0
+19, 5, 30, 13, 2, 1, 0
+20, 21, 28, 28, 3, 2, 0
+19, 34, 29, 45, 4, 2, 0
+20, 51, 29, 58, 2, 1, 0
+36, 3, 44, 15, 2, 1, 0
+34, 19, 42, 30, 1, 1, 0
+34, 34, 44, 44, 1, 1, 0
+36, 51, 42, 57, 3, 2, 0
+50, 6, 57, 12, 1, 1, 0
+49, 20, 58, 29, 1, 1, 0
+50, 34, 59, 42, 2, 1, 0
+
+[lights]
+' x, y, radius, brightness, red, green, blue, effect
+44.75, 6.5, 3.5, 160, 255, 220, 170, 0, 1
+44.75, 12.5, 3.5, 160, 255, 220, 170, 0, 1
+37.5, 4.5, 4.5, 150, 238, 228, 216, 0
+42.5, 4.5, 4.5, 150, 238, 228, 216, 0
+37.5, 9.5, 4.5, 150, 238, 228, 216, 0
+42.5, 9.5, 4.5, 150, 238, 228, 216, 0
+37.5, 14.5, 4.5, 150, 238, 228, 216, 0
+42.5, 14.5, 4.5, 150, 238, 228, 216, 0
+51.5, 7.5, 4.5, 150, 225, 235, 255, 0
+56.5, 7.5, 4.5, 150, 225, 235, 255, 0
+35.5, 20.5, 4.5, 150, 225, 235, 255, 0
+40.5, 20.5, 4.5, 150, 225, 235, 255, 0
+35.5, 25.5, 4.5, 150, 225, 235, 255, 0
+40.5, 25.5, 4.5, 150, 225, 235, 255, 0
+58.75, 23.5, 3.5, 160, 255, 59, 59, 0, 1
+58.75, 27.5, 3.5, 160, 255, 59, 59, 0, 1
+50.5, 21.5, 4.5, 150, 238, 155, 166, 0
+55.5, 21.5, 4.5, 150, 238, 155, 166, 0
+50.5, 26.5, 4.5, 150, 238, 155, 166, 0
+55.5, 26.5, 4.5, 150, 238, 155, 166, 0
+60.5, 23.5, 2, 200, 255, 59, 59, 2
+59.75, 37.5, 3.5, 160, 255, 220, 170, 0, 1
+59.75, 41.5, 3.5, 160, 255, 220, 170, 0, 1
+51.5, 35.5, 4.5, 150, 238, 228, 216, 0
+56.5, 35.5, 4.5, 150, 238, 228, 216, 0
+51.5, 40.5, 4.5, 150, 238, 228, 216, 0
+56.5, 40.5, 4.5, 150, 238, 228, 216, 0
+23.5, 58.75, 3.5, 160, 255, 220, 170, 0, 1
+27.5, 58.75, 3.5, 160, 255, 220, 170, 0, 1
+21.5, 52.5, 4.5, 150, 238, 228, 216, 0
+26.5, 52.5, 4.5, 150, 238, 228, 216, 0
+21.5, 57.5, 4.5, 150, 238, 228, 216, 0
+26.5, 57.5, 4.5, 150, 238, 228, 216, 0
+37.5, 34.25, 3.5, 160, 200, 255, 230, 0, 1
+41.5, 34.25, 3.5, 160, 200, 255, 230, 0, 1
+35.5, 35.5, 5.5, 150, 213, 244, 243, 0
+41.5, 35.5, 5.5, 150, 213, 244, 243, 0
+35.5, 41.5, 5.5, 150, 213, 244, 243, 0
+41.5, 41.5, 5.5, 150, 213, 244, 243, 0
+38.5, 32.5, 2, 200, 200, 255, 230, 2
+42.75, 54.5, 3.5, 160, 255, 120, 80, 0, 1
+37.5, 52.5, 4.5, 150, 238, 183, 176, 0
+8.5, 20.25, 3.5, 160, 200, 255, 230, 0, 1
+12.5, 20.25, 3.5, 160, 200, 255, 230, 0, 1
+6.5, 21.5, 4.5, 150, 213, 244, 243, 0
+11.5, 21.5, 4.5, 150, 213, 244, 243, 0
+6.5, 26.5, 4.5, 150, 213, 244, 243, 0
+11.5, 26.5, 4.5, 150, 213, 244, 243, 0
+9.5, 42.75, 3.5, 160, 255, 60, 120, 0, 1
+13.5, 42.75, 3.5, 160, 255, 60, 120, 0, 1
+7.5, 35.5, 4.5, 150, 238, 156, 194, 2
+12.5, 35.5, 4.5, 150, 238, 156, 194, 2
+7.5, 40.5, 4.5, 150, 238, 156, 194, 2
+12.5, 40.5, 4.5, 150, 238, 156, 194, 2
+28.75, 24.5, 3.5, 160, 90, 255, 120, 0, 1
+28.75, 28.5, 3.5, 160, 90, 255, 120, 0, 1
+21.5, 22.5, 4.5, 150, 164, 244, 194, 0
+26.5, 22.5, 4.5, 150, 164, 244, 194, 0
+21.5, 27.5, 4.5, 150, 164, 244, 194, 0
+26.5, 27.5, 4.5, 150, 164, 244, 194, 0
+29.75, 36.5, 3.5, 160, 255, 200, 120, 0, 1
+29.75, 40.5, 3.5, 160, 255, 200, 120, 0, 1
+29.75, 44.5, 3.5, 160, 255, 200, 120, 0, 1
+20.5, 35.5, 4.5, 150, 238, 219, 194, 0
+25.5, 35.5, 4.5, 150, 238, 219, 194, 0
+20.5, 40.5, 4.5, 150, 238, 219, 194, 0
+25.5, 40.5, 4.5, 150, 238, 219, 194, 0
+6.25, 6.5, 3.5, 160, 255, 220, 170, 0, 1
+6.25, 10.5, 3.5, 160, 255, 220, 170, 0, 1
+6.25, 14.5, 3.5, 160, 255, 220, 170, 0, 1
+7.5, 4.5, 4.5, 150, 238, 228, 216, 0
+7.5, 9.5, 4.5, 150, 238, 228, 216, 0
+7.5, 14.5, 4.5, 150, 238, 228, 216, 0
+30.75, 8.5, 3.5, 160, 255, 220, 170, 0, 1
+20.5, 6.5, 4.5, 150, 238, 228, 216, 0
+25.5, 6.5, 4.5, 150, 238, 228, 216, 0
+20.5, 11.5, 4.5, 150, 238, 228, 216, 0
+25.5, 11.5, 4.5, 150, 238, 228, 216, 0
+21.5, 21.2, 1.8, 150, 90, 255, 120, 2, 1
+44.8, 36.5, 1.8, 150, 255, 59, 59, 0, 1
+46.2, 36.5, 1.8, 150, 255, 59, 59, 0, 1
+23.5, 21.25, 3.5, 160, 90, 255, 120, 0, 1
+20.25, 27.5, 3.5, 160, 90, 255, 120, 0, 1
+51.5, 20.25, 3.5, 160, 255, 59, 59, 0, 1
+56.5, 20.25, 3.5, 160, 255, 59, 59, 0, 1
+49.25, 23.5, 3.5, 160, 255, 59, 59, 0, 1
+50.5, 29.75, 3.5, 160, 255, 59, 59, 0, 1
+51.5, 6.25, 3.5, 160, 150, 222, 255, 0, 1
+57.75, 10.5, 3.5, 160, 150, 222, 255, 0, 1
+21.5, 34.25, 3.5, 160, 150, 222, 255, 0, 1
+19.25, 37.5, 3.5, 160, 150, 222, 255, 0, 1
+19.25, 42.5, 3.5, 160, 150, 222, 255, 0, 1
+21.5, 45.75, 3.5, 160, 150, 222, 255, 0, 1
+26.5, 45.75, 3.5, 160, 150, 222, 255, 0, 1
+34.25, 35.5, 3.5, 160, 150, 222, 255, 0, 1
+44.75, 38.5, 3.5, 160, 150, 222, 255, 0, 1
+34.25, 40.5, 3.5, 160, 150, 222, 255, 0, 1
+44.75, 43.5, 3.5, 160, 150, 222, 255, 0, 1
+35.5, 44.75, 3.5, 160, 150, 222, 255, 0, 1
+37.5, 3.25, 3.5, 160, 150, 222, 255, 0, 1
+43.5, 3.25, 3.5, 160, 150, 222, 255, 0, 1
+36.25, 7.5, 3.5, 160, 150, 222, 255, 0, 1
+36.25, 12.5, 3.5, 160, 150, 222, 255, 0, 1
+40.5, 15.75, 3.5, 160, 150, 222, 255, 0, 1
+22.5, 5.25, 3.5, 160, 150, 222, 255, 0, 1
+27.5, 5.25, 3.5, 160, 150, 222, 255, 0, 1
+19.25, 12.5, 3.5, 160, 150, 222, 255, 0, 1
+23.5, 13.75, 3.5, 160, 150, 222, 255, 0, 1
+35.5, 19.25, 3.5, 160, 150, 222, 255, 0, 1
+40.5, 19.25, 3.5, 160, 150, 222, 255, 0, 1
+34.25, 23.5, 3.5, 160, 150, 222, 255, 0, 1
+34.25, 28.5, 3.5, 160, 150, 222, 255, 0, 1
+10.5, 3.25, 3.5, 160, 150, 222, 255, 0, 1
+12.75, 7.5, 3.5, 160, 150, 222, 255, 0, 1
+12.75, 12.5, 3.5, 160, 150, 222, 255, 0, 1
+7.5, 15.75, 3.5, 160, 150, 222, 255, 0, 1
+10.5, 34.25, 3.5, 160, 150, 222, 255, 0, 1
+6.25, 35.5, 3.5, 160, 150, 222, 255, 0, 1
+15.75, 35.5, 3.5, 160, 150, 222, 255, 0, 1
+6.25, 40.5, 3.5, 160, 150, 222, 255, 0, 1
+51.5, 34.25, 3.5, 160, 150, 222, 255, 0, 1
+57.5, 34.25, 3.5, 160, 150, 222, 255, 0, 1
+50.25, 38.5, 3.5, 160, 150, 222, 255, 0, 1
+52.5, 42.75, 3.5, 160, 150, 222, 255, 0, 1
+5.25, 21.5, 3.5, 160, 150, 222, 255, 0, 1
+12.75, 21.5, 3.5, 160, 150, 222, 255, 0, 1
+5.25, 26.5, 3.5, 160, 150, 222, 255, 0, 1
+12.75, 27.5, 3.5, 160, 150, 222, 255, 0, 1
+25.5, 51.25, 3.5, 160, 150, 222, 255, 0, 1
+20.25, 53.5, 3.5, 160, 150, 222, 255, 0, 1
+29.75, 56.5, 3.5, 160, 150, 222, 255, 0, 1
+41.5, 51.25, 3.5, 160, 150, 222, 255, 0, 1
+36.25, 56.5, 3.5, 160, 150, 222, 255, 0, 1
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+9, 8, 34, 8, 42, 60, 60, 0
+9, 11, 34, 11, 42, 80, 60, 0
+1, 36, 51, 42, 57, 4, 0, 9
+
+[cell lights]
+' cells with an ambient light of their own: x0, y0, x1, y1, brightness (0-256), red, green, blue, effect (0 steady, 1 flicker, 2 pulse, 3 strobe, 4 fire, 5 dying)
+36, 3, 44, 15, 170, 235, 229, 225, 0
+49, 20, 58, 29, 180, 216, 242, 246, 0
+50, 34, 59, 42, 170, 235, 229, 225, 0
+20, 51, 29, 58, 170, 235, 229, 225, 0
+34, 34, 44, 44, 180, 216, 242, 246, 0
+36, 51, 42, 57, 170, 235, 194, 193, 0
+5, 20, 12, 30, 180, 216, 242, 246, 0
+6, 34, 15, 42, 170, 235, 173, 207, 0
+20, 21, 28, 28, 180, 177, 242, 207, 0
+19, 34, 29, 45, 170, 235, 222, 207, 0
+6, 3, 12, 15, 170, 235, 229, 225, 0
+19, 5, 30, 13, 170, 235, 229, 225, 0
+34, 19, 42, 30, 176, 210, 232, 255, 0
+50, 6, 57, 12, 170, 203, 230, 255, 0
+
+[loot]
+' breakable = up to four drops, A B C D - each pickup:chance (in %), or - for none. Breaking one rolls 1-100 once: the first drop whose chance (added to those before it) covers it comes out
+crate    = cells:30, shells:25, medkit:20, armor:10
+
+[faces]
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side - DG a diagonal's slanted face, DE a door's edges, DT its track), divided (0, 1 left|right, 2 top|bottom), picture, second half's picture
+5, 3, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+45, 3, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+5, 4, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+7, 4, C, 0, ceiling-lamp.png
+37, 4, C, 0, ceiling-lamp.png
+42, 4, C, 0, ceiling-lamp.png
+45, 4, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+5, 5, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+9, 5, F, 0, floor-plates.png
+31, 5, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+39, 5, F, 0, floor-plates.png
+41, 5, F, 0, floor-plates.png
+45, 5, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+5, 6, E, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+8, 6, F, 0, floor-plates.png
+10, 6, F, 0, floor-plates.png
+20, 6, C, 0, ceiling-lamp.png
+25, 6, C, 0, ceiling-lamp.png
+31, 6, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+38, 6, F, 0, floor-plates.png
+40, 6, F, 0, floor-plates.png
+42, 6, F, 0, floor-plates.png
+45, 6, W, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+51, 6, F, 3, VVV...., #60D4FF|||
+52, 6, F, 3, VVV...., #60D4FF|||
+53, 6, F, 3, VVV...., #60D4FF|||
+54, 6, F, 3, VVV...., #60D4FF|||
+55, 6, F, 3, VVV...., #60D4FF|||
+56, 6, F, 3, VVV...., #60D4FF|||
+5, 7, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+9, 7, F, 0, floor-plates.png
+21, 7, F, 0, floor-plates.png
+23, 7, F, 0, floor-plates.png
+25, 7, F, 0, floor-plates.png
+27, 7, F, 0, floor-plates.png
+31, 7, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+39, 7, F, 0, floor-plates.png
+41, 7, F, 0, floor-plates.png
+45, 7, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+50, 7, F, 3, HHH...., #60D4FF|||
+51, 7, C, 0, ceiling-lamp.png
+56, 7, C, 0, ceiling-lamp.png
+57, 7, F, 3, H.H.H.., |||#60D4FF
+5, 8, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+8, 8, F, 0, floor-plates.png
+10, 8, F, 0, floor-plates.png
+22, 8, F, 0, floor-plates.png
+24, 8, F, 0, floor-plates.png
+26, 8, F, 0, floor-plates.png
+28, 8, F, 0, floor-plates.png
+31, 8, W, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+38, 8, F, 0, floor-plates.png
+40, 8, F, 0, floor-plates.png
+42, 8, F, 0, floor-plates.png
+52, 8, F, 0, floor-lab.png
+54, 8, F, 0, floor-lab.png
+57, 8, F, 3, H.H.H.., |||#60D4FF
+5, 9, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+7, 9, C, 0, ceiling-lamp.png
+9, 9, F, 0, floor-plates.png
+21, 9, F, 0, floor-plates.png
+23, 9, F, 0, floor-plates.png
+25, 9, F, 0, floor-plates.png
+27, 9, F, 0, floor-plates.png
+37, 9, C, 0, ceiling-lamp.png
+39, 9, F, 0, floor-plates.png
+41, 9, F, 0, floor-plates.png
+42, 9, C, 0, ceiling-lamp.png
+53, 9, F, 0, floor-lab.png
+55, 9, F, 0, floor-lab.png
+57, 9, F, 3, H.H.H.., |||#60D4FF
+5, 10, E, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+8, 10, F, 0, floor-plates.png
+10, 10, F, 0, floor-plates.png
+22, 10, F, 0, floor-plates.png
+24, 10, F, 0, floor-plates.png
+26, 10, F, 0, floor-plates.png
+28, 10, F, 0, floor-plates.png
+38, 10, F, 0, floor-plates.png
+40, 10, F, 0, floor-plates.png
+42, 10, F, 0, floor-plates.png
+45, 10, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+50, 10, F, 3, HHH...., #60D4FF|||
+52, 10, F, 0, floor-lab.png
+54, 10, F, 0, floor-lab.png
+57, 10, F, 3, H.H.H.., |||#60D4FF
+5, 11, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+9, 11, F, 0, floor-plates.png
+20, 11, C, 0, ceiling-lamp.png
+21, 11, F, 0, floor-plates.png
+23, 11, F, 0, floor-plates.png
+25, 11, C, 0, ceiling-lamp.png
+25, 11, F, 0, floor-plates.png
+27, 11, F, 0, floor-plates.png
+31, 11, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+39, 11, F, 0, floor-plates.png
+41, 11, F, 0, floor-plates.png
+45, 11, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+50, 11, F, 3, HHH...., #60D4FF|||
+57, 11, F, 3, H.H.H.., |||#60D4FF
+5, 12, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+8, 12, F, 0, floor-plates.png
+10, 12, F, 0, floor-plates.png
+31, 12, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+38, 12, F, 0, floor-plates.png
+40, 12, F, 0, floor-plates.png
+42, 12, F, 0, floor-plates.png
+45, 12, W, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+51, 12, F, 3, V.V.V.., |||#60D4FF
+52, 12, F, 3, V.V.V.., |||#60D4FF
+53, 12, F, 3, V.V.V.., |||#60D4FF
+54, 12, F, 3, V.V.V.., |||#60D4FF
+55, 12, F, 3, V.V.V.., |||#60D4FF
+56, 12, F, 3, V.V.V.., |||#60D4FF
+5, 13, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+9, 13, F, 0, floor-plates.png
+31, 13, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+39, 13, F, 0, floor-plates.png
+41, 13, F, 0, floor-plates.png
+45, 13, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+5, 14, E, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+7, 14, C, 0, ceiling-lamp.png
+37, 14, C, 0, ceiling-lamp.png
+42, 14, C, 0, ceiling-lamp.png
+45, 14, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+5, 15, E, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+45, 15, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+5, 19, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+6, 19, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+7, 19, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+8, 19, S, 3, HH.H.H..HHH...., |||#C8FFE6|#C8FFE6|||
+9, 19, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+10, 19, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+11, 19, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+12, 19, S, 3, HH.H.H..HHH...., |||#C8FFE6|#C8FFE6|||
+35, 19, F, 3, VVV...., #60D4FF|||
+36, 19, F, 3, VVV...., #60D4FF|||
+37, 19, F, 3, VVV...., #60D4FF|||
+39, 19, F, 3, VVV...., #60D4FF|||
+40, 19, F, 3, VVV...., #60D4FF|||
+41, 19, F, 3, VVV...., #60D4FF|||
+6, 20, F, 3, VVV...., #CDFFE8|||
+7, 20, F, 3, VVV...., #CDFFE8|||
+8, 20, F, 3, VVV...., #CDFFE8|||
+9, 20, F, 3, VVV...., #CDFFE8|||
+10, 20, F, 3, VVV...., #CDFFE8|||
+11, 20, F, 3, VVV...., #CDFFE8|||
+34, 20, F, 3, HHH...., #60D4FF|||
+35, 20, C, 0, ceiling-lamp.png
+40, 20, C, 0, ceiling-lamp.png
+42, 20, F, 3, H.H.H.., |||#60D4FF
+50, 20, F, 3, VVV...., #FF4E4E|||
+51, 20, F, 3, VVV...., #FF4E4E|||
+52, 20, F, 3, VVV...., #FF4E4E|||
+53, 20, F, 3, VVV...., #FF4E4E|||
+54, 20, F, 3, VVV...., #FF4E4E|||
+55, 20, F, 3, VVV...., #FF4E4E|||
+56, 20, F, 3, VVV...., #FF4E4E|||
+57, 20, F, 3, VVV...., #FF4E4E|||
+59, 20, W, 3, VV..V.V.V.., #721A1A|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#FF3B3B|#1C2026
+5, 21, F, 3, HHH...., #CDFFE8|||
+6, 21, C, 0, ceiling-lights.png
+11, 21, C, 0, ceiling-lights.png
+12, 21, F, 3, H.H.H.., |||#CDFFE8
+22, 21, F, 3, VVV...., #6AFF85|||
+23, 21, F, 3, VVV...., #6AFF85|||
+24, 21, F, 3, VVV...., #6AFF85|||
+25, 21, F, 3, VVV...., #6AFF85|||
+26, 21, F, 3, VVV...., #6AFF85|||
+27, 21, F, 3, VVV...., #6AFF85|||
+29, 21, W, 3, VV..V.V.V.., #287236|wall-vault.png*0*0*0*0*50*FFFFFF*1|wall-vault.png*0*0*0*0*50*FFFFFF*1||#5AFF78|#1C2026
+34, 21, F, 3, HHH...., #60D4FF|||
+37, 21, F, 0, floor-lab.png
+39, 21, F, 0, floor-lab.png
+42, 21, F, 3, H.H.H.., |||#60D4FF
+49, 21, F, 3, HHH...., #FF4E4E|||
+50, 21, C, 0, ceiling-lights.png
+55, 21, C, 0, ceiling-lights.png
+58, 21, F, 3, H.H.H.., |||#FF4E4E
+59, 21, W, 3, VV..V.V.V.., #721A1A|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#FF3B3B|#1C2026
+5, 22, F, 3, HHH...., #CDFFE8|||
+12, 22, F, 3, H.H.H.., |||#CDFFE8
+20, 22, F, 3, HHH...., #6AFF85|||
+21, 22, C, 0, ceiling-lamp.png
+26, 22, C, 0, ceiling-lamp.png
+28, 22, F, 3, H.H.H.., |||#6AFF85
+29, 22, W, 3, VV..V.V.V.., #287236|wall-vault.png*0*0*0*0*50*FFFFFF*1|wall-vault.png*0*0*0*0*50*FFFFFF*1||#5AFF78|#1C2026
+34, 22, F, 3, HHH...., #60D4FF|||
+36, 22, F, 0, floor-lab.png
+38, 22, F, 0, floor-lab.png
+40, 22, F, 0, floor-lab.png
+42, 22, F, 3, H.H.H.., |||#60D4FF
+49, 22, F, 3, HHH...., #FF4E4E|||
+58, 22, F, 3, H.H.H.., |||#FF4E4E
+59, 22, W, 3, VV..V.V.V.., #721A1A|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#FF3B3B|#1C2026
+5, 23, F, 3, HHH...., #CDFFE8|||
+12, 23, F, 3, H.H.H.., |||#CDFFE8
+20, 23, F, 3, HHH...., #6AFF85|||
+23, 23, F, 0, floor-concrete.png
+25, 23, F, 0, floor-concrete.png
+28, 23, F, 3, H.H.H.., |||#6AFF85
+29, 23, W, 3, VV..V.V.V.., #287236|wall-vault.png*0*0*0*0*50*FFFFFF*1|wall-vault.png*0*0*0*0*50*FFFFFF*1||#5AFF78|#1C2026
+34, 23, F, 3, HHH...., #60D4FF|||
+37, 23, F, 0, floor-lab.png
+39, 23, F, 0, floor-lab.png
+42, 23, F, 3, H.H.H.., |||#60D4FF
+49, 23, F, 3, HHH...., #FF4E4E|||
+58, 23, F, 3, H.H.H.., |||#FF4E4E
+59, 23, W, 3, HH.H.H..HHH...., |||#FF3B3B|#FF3B3B|||
+5, 24, F, 3, HHH...., #CDFFE8|||
+22, 24, F, 0, floor-concrete.png
+24, 24, F, 0, floor-concrete.png
+26, 24, F, 0, floor-concrete.png
+28, 24, F, 3, H.H.H.., |||#6AFF85
+29, 24, W, 3, HH.H.H..HHH...., |||#5AFF78|#5AFF78|||
+34, 24, F, 3, HHH...., #60D4FF|||
+36, 24, F, 0, floor-lab.png
+38, 24, F, 0, floor-lab.png
+40, 24, F, 0, floor-lab.png
+42, 24, F, 3, H.H.H.., |||#60D4FF
+49, 24, F, 3, HHH...., #FF4E4E|||
+58, 24, F, 3, H.H.H.., |||#FF4E4E
+59, 24, W, 3, VV..V.V.V.., #721A1A|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#FF3B3B|#1C2026
+5, 25, F, 3, HHH...., #CDFFE8|||
+23, 25, F, 0, floor-concrete.png
+25, 25, F, 0, floor-concrete.png
+28, 25, F, 3, H.H.H.., |||#6AFF85
+29, 25, W, 3, VV..V.V.V.., #287236|wall-vault.png*0*0*0*0*50*FFFFFF*1|wall-vault.png*0*0*0*0*50*FFFFFF*1||#5AFF78|#1C2026
+34, 25, F, 3, HHH...., #60D4FF|||
+35, 25, C, 0, ceiling-lamp.png
+37, 25, F, 0, floor-lab.png
+39, 25, F, 0, floor-lab.png
+40, 25, C, 0, ceiling-lamp.png
+42, 25, F, 3, H.H.H.., |||#60D4FF
+49, 25, F, 3, HHH...., #FF4E4E|||
+58, 25, F, 3, H.H.H.., |||#FF4E4E
+59, 25, W, 3, VV..V.V.V.., #721A1A|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#FF3B3B|#1C2026
+5, 26, F, 3, HHH...., #CDFFE8|||
+6, 26, C, 0, ceiling-lights.png
+11, 26, C, 0, ceiling-lights.png
+12, 26, F, 3, H.H.H.., |||#CDFFE8
+20, 26, F, 3, HHH...., #6AFF85|||
+22, 26, F, 0, floor-concrete.png
+24, 26, F, 0, floor-concrete.png
+26, 26, F, 0, floor-concrete.png
+28, 26, F, 3, H.H.H.., |||#6AFF85
+29, 26, W, 3, VV..V.V.V.., #287236|wall-vault.png*0*0*0*0*50*FFFFFF*1|wall-vault.png*0*0*0*0*50*FFFFFF*1||#5AFF78|#1C2026
+34, 26, F, 3, HHH...., #60D4FF|||
+36, 26, F, 0, floor-lab.png
+38, 26, F, 0, floor-lab.png
+40, 26, F, 0, floor-lab.png
+42, 26, F, 3, H.H.H.., |||#60D4FF
+49, 26, F, 3, HHH...., #FF4E4E|||
+50, 26, C, 0, ceiling-lights.png
+55, 26, C, 0, ceiling-lights.png
+58, 26, F, 3, H.H.H.., |||#FF4E4E
+59, 26, W, 3, VV..V.V.V.., #721A1A|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#FF3B3B|#1C2026
+5, 27, F, 3, HHH...., #CDFFE8|||
+12, 27, F, 3, H.H.H.., |||#CDFFE8
+20, 27, F, 3, HHH...., #6AFF85|||
+21, 27, C, 0, ceiling-lamp.png
+26, 27, C, 0, ceiling-lamp.png
+28, 27, F, 3, H.H.H.., |||#6AFF85
+29, 27, W, 3, VV..V.V.V.., #287236|wall-vault.png*0*0*0*0*50*FFFFFF*1|wall-vault.png*0*0*0*0*50*FFFFFF*1||#5AFF78|#1C2026
+34, 27, F, 3, HHH...., #60D4FF|||
+37, 27, F, 0, floor-lab.png
+39, 27, F, 0, floor-lab.png
+58, 27, F, 3, H.H.H.., |||#FF4E4E
+59, 27, W, 3, HH.H.H..HHH...., |||#FF3B3B|#FF3B3B|||
+5, 28, F, 3, HHH...., #CDFFE8|||
+12, 28, F, 3, H.H.H.., |||#CDFFE8
+21, 28, F, 3, V.V.V.., |||#6AFF85
+22, 28, F, 3, V.V.V.., |||#6AFF85
+23, 28, F, 3, V.V.V.., |||#6AFF85
+24, 28, F, 3, V.V.V.., |||#6AFF85
+27, 28, F, 3, V.V.V.., |||#6AFF85
+29, 28, W, 3, HH.H.H..HHH...., |||#5AFF78|#5AFF78|||
+34, 28, F, 3, HHH...., #60D4FF|||
+36, 28, F, 0, floor-lab.png
+38, 28, F, 0, floor-lab.png
+40, 28, F, 0, floor-lab.png
+42, 28, F, 3, H.H.H.., |||#60D4FF
+49, 28, F, 3, HHH...., #FF4E4E|||
+58, 28, F, 3, H.H.H.., |||#FF4E4E
+59, 28, W, 3, VV..V.V.V.., #721A1A|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#FF3B3B|#1C2026
+5, 29, F, 3, HHH...., #CDFFE8|||
+12, 29, F, 3, H.H.H.., |||#CDFFE8
+34, 29, F, 3, HHH...., #60D4FF|||
+42, 29, F, 3, H.H.H.., |||#60D4FF
+50, 29, F, 3, V.V.V.., |||#FF4E4E
+51, 29, F, 3, V.V.V.., |||#FF4E4E
+52, 29, F, 3, V.V.V.., |||#FF4E4E
+53, 29, F, 3, V.V.V.., |||#FF4E4E
+56, 29, F, 3, V.V.V.., |||#FF4E4E
+57, 29, F, 3, V.V.V.., |||#FF4E4E
+59, 29, W, 3, VV..V.V.V.., #721A1A|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#FF3B3B|#1C2026
+6, 30, F, 3, V.V.V.., |||#CDFFE8
+7, 30, F, 3, V.V.V.., |||#CDFFE8
+9, 30, F, 3, V.V.V.., |||#CDFFE8
+10, 30, F, 3, V.V.V.., |||#CDFFE8
+11, 30, F, 3, V.V.V.., |||#CDFFE8
+35, 30, F, 3, V.V.V.., |||#60D4FF
+36, 30, F, 3, V.V.V.., |||#60D4FF
+37, 30, F, 3, V.V.V.., |||#60D4FF
+38, 30, F, 3, V.V.V.., |||#60D4FF
+39, 30, F, 3, V.V.V.., |||#60D4FF
+40, 30, F, 3, V.V.V.., |||#60D4FF
+41, 30, F, 3, V.V.V.., |||#60D4FF
+34, 31, N, 3, VV..V.V.V.., #235D72|wall-tiles.png*0*0*0*0*50*FFFFFF*1|wall-tiles.png*0*0*0*0*50*FFFFFF*1||#4FD0FF|#1C2026
+35, 31, N, 3, VV..V.V.V.., #235D72|wall-tiles.png*0*0*0*0*50*FFFFFF*1|wall-tiles.png*0*0*0*0*50*FFFFFF*1||#4FD0FF|#1C2026
+36, 31, N, 3, VV..V.V.V.., #235D72|wall-tiles.png*0*0*0*0*50*FFFFFF*1|wall-tiles.png*0*0*0*0*50*FFFFFF*1||#4FD0FF|#1C2026
+37, 31, N, 3, VV..V.V.V.., #235D72|*0*0*0*0*50*FFFFFF*0*B-20|*0*0*0*0*50*FFFFFF*0*B-20||#4FD0FF|#1C2026
+38, 31, N, 3, VV..V.V.V.., #235D72|wall-tiles.png*0*0*0*0*50*FFFFFF*1|wall-tiles.png*0*0*0*0*50*FFFFFF*1||#4FD0FF|#1C2026
+39, 31, N, 3, VV..V.V.V.., #235D72|wall-tiles.png*0*0*0*0*50*FFFFFF*1|wall-tiles.png*0*0*0*0*50*FFFFFF*1||#4FD0FF|#1C2026
+40, 31, N, 3, VV..V.V.V.., #235D72|wall-tiles.png*0*0*0*0*50*FFFFFF*1|wall-tiles.png*0*0*0*0*50*FFFFFF*1||#4FD0FF|#1C2026
+41, 31, N, 3, VV..V.V.V.., #235D72|*0*0*0*0*50*FFFFFF*0*B-20|*0*0*0*0*50*FFFFFF*0*B-20||#4FD0FF|#1C2026
+42, 31, N, 3, VV..V.V.V.., #235D72|wall-tiles.png*0*0*0*0*50*FFFFFF*1|wall-tiles.png*0*0*0*0*50*FFFFFF*1||#4FD0FF|#1C2026
+34, 33, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+35, 33, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+36, 33, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+37, 33, S, 3, HH.H.H..HHH...., |||#C8FFE6|#C8FFE6|||
+38, 33, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+39, 33, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+40, 33, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+41, 33, S, 3, HH.H.H..HHH...., |||#C8FFE6|#C8FFE6|||
+42, 33, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+43, 33, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+44, 33, S, 3, VV..V.V.V.., #597267|wall-biolab.png*0*0*0*0*50*FFFFFF*1|wall-biolab.png*0*0*0*0*50*FFFFFF*1||#C8FFE6|#1C2026
+29, 34, W, 3, VV..V.V.V.., #725936|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20||#FFC878|#1C2026
+35, 34, F, 3, VVV...., #CDFFE8|||
+36, 34, F, 3, VVV...., #CDFFE8|||
+37, 34, F, 3, VVV...., #CDFFE8|||
+38, 34, F, 3, VVV...., #CDFFE8|||
+39, 34, F, 3, VVV...., #CDFFE8|||
+40, 34, F, 3, VVV...., #CDFFE8|||
+41, 34, F, 3, VVV...., #CDFFE8|||
+42, 34, F, 3, VVV...., #CDFFE8|||
+43, 34, F, 3, VVV...., #CDFFE8|||
+60, 34, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+7, 35, C, 0, ceiling-lamp.png
+12, 35, C, 0, ceiling-lamp.png
+20, 35, C, 0, ceiling-lamp.png
+25, 35, C, 0, ceiling-lamp.png
+30, 35, W, 3, VV..V.V.V.., #725936|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20||#FFC878|#1C2026
+34, 35, F, 3, HHH...., #CDFFE8|||
+35, 35, C, 0, ceiling-lights.png
+41, 35, C, 0, ceiling-lights.png
+44, 35, F, 3, H.H.H.., |||#CDFFE8
+51, 35, C, 0, ceiling-lamp.png
+56, 35, C, 0, ceiling-lamp.png
+60, 35, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+30, 36, W, 3, HH.H.H..HHH...., |||#FFC878|#FFC878|||
+34, 36, F, 3, HHH...., #CDFFE8|||
+52, 36, F, 0, floor-plates.png
+54, 36, F, 0, floor-plates.png
+56, 36, F, 0, floor-plates.png
+60, 36, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+30, 37, W, 3, VV..V.V.V.., #725936|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20||#FFC878|#1C2026
+34, 37, F, 3, HHH...., #CDFFE8|||
+44, 37, F, 3, H.H.H.., |||#CDFFE8
+53, 37, F, 0, floor-plates.png
+55, 37, F, 0, floor-plates.png
+57, 37, F, 0, floor-plates.png
+60, 37, W, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+30, 38, W, 3, VV..V.V.V.., #725936|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20||#FFC878|#1C2026
+34, 38, F, 3, HHH...., #CDFFE8|||
+44, 38, F, 3, H.H.H.., |||#CDFFE8
+52, 38, F, 0, floor-plates.png
+54, 38, F, 0, floor-plates.png
+56, 38, F, 0, floor-plates.png
+60, 38, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+30, 39, W, 3, VV..V.V.V.., #725936|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20||#FFC878|#1C2026
+34, 39, F, 3, HHH...., #CDFFE8|||
+44, 39, F, 3, H.H.H.., |||#CDFFE8
+53, 39, F, 0, floor-plates.png
+55, 39, F, 0, floor-plates.png
+57, 39, F, 0, floor-plates.png
+60, 39, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+7, 40, C, 0, ceiling-lamp.png
+12, 40, C, 0, ceiling-lamp.png
+20, 40, C, 0, ceiling-lamp.png
+25, 40, C, 0, ceiling-lamp.png
+30, 40, W, 3, HH.H.H..HHH...., |||#FFC878|#FFC878|||
+34, 40, F, 3, HHH...., #CDFFE8|||
+44, 40, F, 3, H.H.H.., |||#CDFFE8
+51, 40, C, 0, ceiling-lamp.png
+52, 40, F, 0, floor-plates.png
+54, 40, F, 0, floor-plates.png
+56, 40, C, 0, ceiling-lamp.png
+56, 40, F, 0, floor-plates.png
+60, 40, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+30, 41, W, 3, VV..V.V.V.., #725936|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20||#FFC878|#1C2026
+34, 41, F, 3, HHH...., #CDFFE8|||
+35, 41, C, 0, ceiling-lights.png
+41, 41, C, 0, ceiling-lights.png
+44, 41, F, 3, H.H.H.., |||#CDFFE8
+60, 41, W, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+30, 42, W, 3, VV..V.V.V.., #725936|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20||#FFC878|#1C2026
+34, 42, F, 3, HHH...., #CDFFE8|||
+44, 42, F, 3, H.H.H.., |||#CDFFE8
+60, 42, W, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+6, 43, N, 3, VV..V.V.V.., #721B36|wall-terminals.png*0*0*0*0*50*FFFFFF*1|wall-terminals.png*0*0*0*0*50*FFFFFF*1||#FF3C78|#1C2026
+7, 43, N, 3, VV..V.V.V.., #721B36|wall-terminals.png*0*0*0*0*50*FFFFFF*1|wall-terminals.png*0*0*0*0*50*FFFFFF*1||#FF3C78|#1C2026
+8, 43, N, 3, VV..V.V.V.., #721B36|wall-terminals.png*0*0*0*0*50*FFFFFF*1|wall-terminals.png*0*0*0*0*50*FFFFFF*1||#FF3C78|#1C2026
+9, 43, N, 3, HH.H.H..HHH...., |||#FF3C78|#FF3C78|||
+10, 43, N, 3, VV..V.V.V.., #721B36|wall-terminals.png*0*0*0*0*50*FFFFFF*1|wall-terminals.png*0*0*0*0*50*FFFFFF*1||#FF3C78|#1C2026
+11, 43, N, 3, VV..V.V.V.., #721B36|wall-terminals.png*0*0*0*0*50*FFFFFF*1|wall-terminals.png*0*0*0*0*50*FFFFFF*1||#FF3C78|#1C2026
+12, 43, N, 3, VV..V.V.V.., #721B36|wall-terminals.png*0*0*0*0*50*FFFFFF*1|wall-terminals.png*0*0*0*0*50*FFFFFF*1||#FF3C78|#1C2026
+13, 43, N, 3, HH.H.H..HHH...., |||#FF3C78|#FF3C78|||
+14, 43, N, 3, VV..V.V.V.., #721B36|wall-terminals.png*0*0*0*0*50*FFFFFF*1|wall-terminals.png*0*0*0*0*50*FFFFFF*1||#FF3C78|#1C2026
+15, 43, N, 3, VV..V.V.V.., #721B36|wall-terminals.png*0*0*0*0*50*FFFFFF*1|wall-terminals.png*0*0*0*0*50*FFFFFF*1||#FF3C78|#1C2026
+30, 43, W, 3, VV..V.V.V.., #725936|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20||#FFC878|#1C2026
+34, 43, F, 3, HHH...., #CDFFE8|||
+44, 43, F, 3, H.H.H.., |||#CDFFE8
+30, 44, W, 3, HH.H.H..HHH...., |||#FFC878|#FFC878|||
+35, 44, F, 3, V.V.V.., |||#CDFFE8
+36, 44, F, 3, V.V.V.., |||#CDFFE8
+37, 44, F, 3, V.V.V.., |||#CDFFE8
+38, 44, F, 3, V.V.V.., |||#CDFFE8
+40, 44, F, 3, V.V.V.., |||#CDFFE8
+41, 44, F, 3, V.V.V.., |||#CDFFE8
+42, 44, F, 3, V.V.V.., |||#CDFFE8
+43, 44, F, 3, V.V.V.., |||#CDFFE8
+29, 45, W, 3, VV..V.V.V.., #725936|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20|wall-pipes.png*0*0*0*0*50*FFFFFF*1*B-10S-20||#FFC878|#1C2026
+43, 51, W, 3, VV..V.V.V.., #723624|wall-pipes.png*0*0*0*0*50*FFFFFF*1|wall-pipes.png*0*0*0*0*50*FFFFFF*1||#FF7850|#1C2026
+21, 52, C, 0, ceiling-lamp.png
+26, 52, C, 0, ceiling-lamp.png
+37, 52, C, 0, ceiling-lamp.png
+43, 52, W, 3, VV..V.V.V.., #723624|wall-pipes.png*0*0*0*0*50*FFFFFF*1|wall-pipes.png*0*0*0*0*50*FFFFFF*1||#FF7850|#1C2026
+23, 53, F, 0, floor-plates.png
+25, 53, F, 0, floor-plates.png
+27, 53, F, 0, floor-plates.png
+43, 53, W, 3, VV..V.V.V.., #723624|wall-pipes.png*0*0*0*0*50*FFFFFF*1|wall-pipes.png*0*0*0*0*50*FFFFFF*1||#FF7850|#1C2026
+22, 54, F, 0, floor-plates.png
+24, 54, F, 0, floor-plates.png
+26, 54, F, 0, floor-plates.png
+43, 54, W, 3, HH.H.H..HHH...., |||#FF7850|#FF7850|||
+23, 55, F, 0, floor-plates.png
+25, 55, F, 0, floor-plates.png
+27, 55, F, 0, floor-plates.png
+43, 55, W, 3, VV..V.V.V.., #723624|wall-pipes.png*0*0*0*0*50*FFFFFF*1|wall-pipes.png*0*0*0*0*50*FFFFFF*1||#FF7850|#1C2026
+22, 56, F, 0, floor-plates.png
+24, 56, F, 0, floor-plates.png
+26, 56, F, 0, floor-plates.png
+43, 56, W, 3, VV..V.V.V.., #723624|wall-pipes.png*0*0*0*0*50*FFFFFF*1|wall-pipes.png*0*0*0*0*50*FFFFFF*1||#FF7850|#1C2026
+21, 57, C, 0, ceiling-lamp.png
+26, 57, C, 0, ceiling-lamp.png
+43, 57, W, 3, VV..V.V.V.., #723624|wall-pipes.png*0*0*0*0*50*FFFFFF*1|wall-pipes.png*0*0*0*0*50*FFFFFF*1||#FF7850|#1C2026
+20, 59, N, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+21, 59, N, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+22, 59, N, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+23, 59, N, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+24, 59, N, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+25, 59, N, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+26, 59, N, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+27, 59, N, 3, HH.H.H..HHH...., |||#FFDCAA|#FFDCAA|||
+28, 59, N, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+29, 59, N, 3, VV..V.V.V.., #72624C|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25|wall-terminals.png*0*0*0*0*50*FFFFFF*1*S-25||#FFDCAA|#1C2026
+21, 21, F, 3, ., *0*0*0*2*38*5AFF78
+44, 36, F, 3, ., *0*0*0*2*38*FF3B3B
+46, 36, F, 3, ., *0*0*0*2*38*FF3B3B
+20, 20, S, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+19, 21, E, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+22, 20, S, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+23, 20, S, 3, HH.H.H..HHH...., |||#5AFF78|#5AFF78|||
+24, 20, S, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+25, 20, S, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+26, 20, S, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+27, 20, S, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+28, 20, S, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+19, 22, E, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+19, 23, E, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+19, 26, E, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+19, 27, E, 3, HH.H.H..HHH...., |||#5AFF78|#5AFF78|||
+20, 29, N, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+19, 28, E, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+21, 29, N, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+22, 29, N, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+23, 29, N, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+24, 29, N, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+27, 29, N, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+28, 29, N, 3, VVVV....V.V.V.., #4ED268||||||#5AFF78|#1C2026
+49, 19, S, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+48, 20, E, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+50, 19, S, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+51, 19, S, 3, HH.H.H..HHH...., |||#FF3B3B|#FF3B3B|||
+52, 19, S, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+53, 19, S, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+54, 19, S, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+55, 19, S, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+56, 19, S, 3, HH.H.H..HHH...., |||#FF3B3B|#FF3B3B|||
+57, 19, S, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+58, 19, S, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+48, 21, E, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+48, 22, E, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+48, 23, E, 3, HH.H.H..HHH...., |||#FF3B3B|#FF3B3B|||
+48, 24, E, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+48, 25, E, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+48, 26, E, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+48, 28, E, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+49, 30, N, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+48, 29, E, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+50, 30, N, 3, HH.H.H..HHH...., |||#FF3B3B|#FF3B3B|||
+51, 30, N, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+52, 30, N, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+53, 30, N, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+56, 30, N, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+57, 30, N, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+58, 30, N, 3, VVVV....V.V.V.., #D23637||||||#FF3B3B|#1C2026
+50, 5, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 6, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+51, 5, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+52, 5, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+53, 5, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+54, 5, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+55, 5, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+56, 5, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+57, 5, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+58, 6, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 7, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+58, 7, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+58, 8, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+58, 9, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 10, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+58, 10, W, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+49, 11, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+58, 11, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+50, 13, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 12, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+51, 13, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+52, 13, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+53, 13, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+54, 13, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+55, 13, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+56, 13, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+57, 13, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+58, 12, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+20, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 34, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+21, 33, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+22, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+23, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+24, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+27, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+28, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 34, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 35, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+29, 34, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 36, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 37, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+18, 38, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 41, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 42, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+18, 43, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 45, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 44, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+29, 45, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+20, 46, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 45, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+21, 46, N, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+22, 46, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+24, 46, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+25, 46, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+26, 46, N, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+27, 46, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+28, 46, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 34, E, 3, V.V.V.V.., |||#38819D|#1C2026
+45, 34, W, 3, V.V.V.V.., |||#38819D|#1C2026
+33, 35, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+45, 35, W, 3, V.V.V.V.., |||#38819D|#1C2026
+33, 36, E, 3, V.V.V.V.., |||#38819D|#1C2026
+33, 37, E, 3, V.V.V.V.., |||#38819D|#1C2026
+45, 37, W, 3, V.V.V.V.., |||#38819D|#1C2026
+33, 38, E, 3, V.V.V.V.., |||#38819D|#1C2026
+45, 38, W, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+33, 39, E, 3, V.V.V.V.., |||#38819D|#1C2026
+45, 39, W, 3, V.V.V.V.., |||#38819D|#1C2026
+33, 40, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+45, 40, W, 3, V.V.V.V.., |||#38819D|#1C2026
+33, 41, E, 3, V.V.V.V.., |||#38819D|#1C2026
+45, 41, W, 3, V.V.V.V.., |||#38819D|#1C2026
+33, 42, E, 3, V.V.V.V.., |||#38819D|#1C2026
+45, 42, W, 3, V.V.V.V.., |||#38819D|#1C2026
+33, 43, E, 3, V.V.V.V.., |||#38819D|#1C2026
+45, 43, W, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+34, 45, N, 3, V.V.V.V.., |||#38819D|#1C2026
+33, 44, E, 3, V.V.V.V.., |||#38819D|#1C2026
+35, 45, N, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+36, 45, N, 3, V.V.V.V.., |||#38819D|#1C2026
+37, 45, N, 3, V.V.V.V.., |||#38819D|#1C2026
+38, 45, N, 3, V.V.V.V.., |||#38819D|#1C2026
+40, 45, N, 3, V.V.V.V.., |||#38819D|#1C2026
+41, 45, N, 3, V.V.V.V.., |||#38819D|#1C2026
+42, 45, N, 3, V.V.V.V.., |||#38819D|#1C2026
+43, 45, N, 3, V.V.V.V.., |||#38819D|#1C2026
+44, 45, N, 3, V.V.V.V.., |||#38819D|#1C2026
+45, 44, W, 3, V.V.V.V.., |||#38819D|#1C2026
+36, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 3, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+37, 2, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+38, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+39, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+40, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+41, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+42, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 2, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+44, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 4, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 5, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 6, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 7, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+35, 8, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 11, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 12, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+35, 13, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 14, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+36, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 15, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+37, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+39, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+40, 16, N, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+41, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+42, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+44, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 5, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+20, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+21, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+22, 4, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+23, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+24, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+25, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+26, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+27, 4, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+28, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+29, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+30, 4, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 6, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 7, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 8, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 11, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 12, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+19, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+18, 13, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+20, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+21, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+22, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+23, 14, N, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+24, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+25, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+26, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+27, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+28, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+29, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+30, 14, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+34, 18, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 19, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+35, 18, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+36, 18, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+37, 18, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+39, 18, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+40, 18, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+41, 18, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+42, 18, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 19, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 20, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 20, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 21, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 21, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 22, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 22, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 23, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+43, 23, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 24, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 24, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 25, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 25, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 26, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 26, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 27, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 28, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+43, 28, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 29, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 29, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+33, 30, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+43, 30, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+6, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+7, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+8, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+9, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+10, 2, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+11, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+12, 2, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 3, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 4, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 5, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 6, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 7, W, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+13, 8, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 11, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 12, W, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+13, 13, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 14, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+6, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+7, 16, N, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+8, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+9, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+10, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+11, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+12, 16, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 15, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+6, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+5, 34, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+7, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+9, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+10, 33, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+11, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+12, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+14, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+15, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+16, 34, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+5, 35, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+16, 35, W, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+5, 36, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+16, 36, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+5, 37, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+16, 37, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+5, 38, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+16, 38, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+5, 39, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+5, 40, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+5, 41, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+16, 41, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+5, 42, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+16, 42, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+50, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 34, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+51, 33, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+52, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+53, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+56, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+57, 33, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+58, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+59, 33, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 35, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 37, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 38, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+49, 39, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 40, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 41, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+50, 43, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+49, 42, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+51, 43, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+52, 43, N, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+53, 43, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+54, 43, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+55, 43, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+56, 43, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+57, 43, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+58, 43, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+59, 43, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+4, 20, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 20, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+4, 21, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+13, 21, W, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+4, 22, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 22, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+4, 23, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 23, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+4, 24, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+4, 25, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+4, 26, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+13, 26, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+4, 27, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 27, W, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+4, 28, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 28, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+4, 29, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 29, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+5, 31, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+4, 30, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+6, 31, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+7, 31, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+9, 31, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+10, 31, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+11, 31, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+12, 31, N, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+13, 30, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+20, 50, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 51, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+21, 50, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+22, 50, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+24, 50, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+25, 50, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+26, 50, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+27, 50, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+28, 50, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+29, 50, S, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+30, 51, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 52, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+30, 52, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 53, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+19, 54, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 55, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+30, 55, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 56, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+30, 56, W, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+19, 57, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+30, 57, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+19, 58, E, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+30, 58, W, 3, VVVV....V.V.V.., #45ADD4||||||#4FD0FF|#1C2026
+36, 50, S, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+35, 51, E, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+37, 50, S, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+38, 50, S, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+40, 50, S, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+41, 50, S, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+42, 50, S, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+35, 52, E, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+35, 55, E, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+35, 56, E, 3, HH.H.H..HHH...., |||#4FD0FF|#4FD0FF|||
+36, 58, N, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+35, 57, E, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+37, 58, N, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+38, 58, N, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+39, 58, N, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+40, 58, N, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+41, 58, N, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+42, 58, N, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+37, 16, E, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+39, 16, W, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+37, 17, E, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+39, 17, W, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+7, 31, E, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+9, 31, W, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+7, 32, E, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+9, 32, W, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+60, 22, S, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+60, 24, N, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+61, 23, W, 3, V.V.V.V.., |||#4FD0FF|#1C2026
+38, 31, S, 3, V.V.V.V.., |||#38819D|#1C2026
+37, 32, E, 3, V.V.V.V.., |||#38819D|#1C2026
+39, 32, W, 3, V.V.V.V.., |||#38819D|#1C2026
+13, 23, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+14, 23, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+15, 23, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+16, 23, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+17, 23, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+18, 23, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+19, 23, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+13, 26, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+14, 26, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+15, 26, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+16, 26, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+17, 26, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+18, 26, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+19, 26, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+13, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+14, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+15, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+16, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+17, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+18, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+13, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+14, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+15, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+16, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+17, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+18, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+30, 52, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+31, 52, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+32, 52, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+33, 52, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+34, 52, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+35, 52, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+30, 55, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+31, 55, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+32, 55, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+33, 55, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+34, 55, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+35, 55, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+45, 7, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+46, 7, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+47, 7, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+48, 7, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+49, 7, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+45, 10, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+46, 10, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+47, 10, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+48, 10, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+49, 10, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+31, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+32, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+33, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+34, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+35, 8, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+31, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+32, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+33, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+34, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+35, 11, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+24, 29, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+27, 29, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+24, 30, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+27, 30, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+24, 31, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+27, 31, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+24, 32, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+27, 32, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+24, 33, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+27, 33, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+53, 30, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+56, 30, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+53, 31, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+56, 31, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+53, 32, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+56, 32, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+53, 33, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+56, 33, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+43, 26, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+43, 28, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+44, 26, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+44, 28, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+45, 26, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+45, 28, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+46, 26, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+46, 28, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+47, 26, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+47, 28, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+48, 26, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+48, 28, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+16, 38, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+17, 38, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+18, 38, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+16, 41, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+17, 41, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+18, 41, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+38, 45, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#2B4656|#1C2026
+40, 45, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#2B4656|#1C2026
+38, 46, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+40, 46, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+38, 47, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+40, 47, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+38, 48, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+40, 48, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+38, 49, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+40, 49, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+46, 35, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+46, 37, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+47, 35, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+47, 37, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+48, 35, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+48, 37, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+49, 35, S, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+49, 37, N, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+22, 47, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+24, 47, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+22, 48, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+24, 48, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+22, 49, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+24, 49, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+22, 50, E, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+24, 50, W, 3, V.V.V.V.., *0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|*0*0*0*0*50*FFFFFF*0*B-8S-35|#37667D|#1C2026
+
+[doors]
+' a door's own: x, y, kicks (a stronghold door: how many kicks break it down - 0 none), code (a keypad door's digits - ? one made up each time; none: no keypad)
+23, 46, 0, ?
+38, 18, 0, ?
+
+[things]
+' what a " is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, repairkit, invuln, flashlight, battery, robodog, guard - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm)
+6, 4, bookshelf
+21, 5, bookshelf
+29, 57, bookshelf
+44, 4, bookshelf
+40, 53, table
+40, 54, table
+39, 55, table
+40, 55, table
+59, 36, bookshelf
+40, 56, deadscientist
+
+[notes]
+' a note's (or what a desk, bookshelf or safe at x, y has in it): x, y, picture (- none), its words - | starts a new line, {code x y} is that door's or safe's code
+37, 51, -, Reminder: the STORAGE keypad is {code 23 46}|Change it next week.
+6, 14, -, Door code for SECTOR 2: {code 38 18}. Don't write it down. - M.
+
+[smears]
+' x, y, face (E S W N a wall's side, F floor, C ceiling), what (blood1 blood2 blood3 oil1 oil2)
+40, 57, F, blood2
+39, 56, F, blood2
+22, 38, F, oil1
+28, 41, F, oil1
+24, 36, F, oil2
+
+[difficulty]
+' which difficulties what starts at x, y (a pickup, monster, decoration, thing) is in: x, y, easy normal hard nightmare - or none; no line, every one
+8, 9, hard nightmare
+20, 43, hard nightmare
+40, 11, hard nightmare
+36, 21, hard nightmare
+
+[looks]
+' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)
+36, 30, 3, 35, 4FD0FF, 100
+58, 22, 3, 35, FF3B3B, 100
+58, 24, 3, 35, FF3B3B, 100
+37, 34, 3, 35, C8FFE6, 100
+37, 44, 3, 35, C8FFE6, 100
+7, 20, 3, 35, C8FFE6, 100
+5, 23, 3, 35, C8FFE6, 100
+8, 3, 0, 0, FFFFFF, 150
+9, 3, 0, 0, FFFFFF, 150
+39, 3, 0, 0, FFFFFF, 150
+41, 3, 0, 0, FFFFFF, 150
+20, 5, 0, 0, FFFFFF, 150
+12, 6, 0, 0, FFFFFF, 150
+36, 6, 0, 0, FFFFFF, 150
+6, 9, 0, 0, FFFFFF, 150
+27, 13, 0, 0, FFFFFF, 150
+6, 14, 0, 0, FFFFFF, 150
+36, 14, 0, 0, FFFFFF, 150
+59, 35, 0, 0, FFFFFF, 150
+55, 42, 0, 0, FFFFFF, 150
+58, 42, 0, 0, FFFFFF, 150
+21, 51, 0, 0, FFFFFF, 150
+37, 51, 0, 0, FFFFFF, 150
+20, 52, 0, 0, FFFFFF, 150
+28, 58, 0, 0, FFFFFF, 150
+60, 23, 2, 30, 4FD0FF, 100
+38, 32, 2, 30, 4FD0FF, 100
+
+[glass]
+' the pane of glass at x, y: x, y, how much it reflects (OpenGL) 0 none - 9 a mirror (. or no line: the sector's, glass_reflect), then blur (the reflection's), frost, ripple - each 0-9 - its style (. the sector's, glass_style: 0 streaks 1 clear 2 sheer 3 panes 4 grid 5 bricks 6 leaded 7 privacy), 1 to keep what's seen through it clear, its strength (0 as tuned, 999 unbreakable)
+59, 23, 5, 1, 0, 2, 1, 0, 999
+38, 33, 5, 1, 0, 2, 1, 0, 999
+
+[map]
+################################################################
+################################################################
+#####NNNNNNNNN#####################NNNNNNNNNNN##################
+#####N.tdd...N#####################N...d.dt..N##################
+#####N".ZZ...N####NNNNNNNNNNNNNN###N...Z.Z.."N##################
+#####N.2....ZN####N.d".........N###NZ..+....pN##################
+#####N...M..dN####N.Z..e......pN###Nd........N####........######
+#####N.......N####N............N###N.........N####........######
+#####NZ......N####N............N###N......................######
+#####Nd.g............................................<....######
+#####Np......................................N####........######
+#####N...e...N####N............N###N....g....N####.......t######
+#####N.......N####N........Z+..N###N.........N####.....U..######
+#####NZ......N####N........d.t.N###NZ........N##################
+#####Nd...e..N####NNNNNNNNNNNNNN###Nd........N##################
+#####N.......N#####################N.........N##################
+#####NNNNNNNNN#####################NNN.NNNNNNN##################
+######################################.#########################
+#################################NNNNNDNNNNN####################
+####GGGGGGGGGG###################N.........N####GGGGGGGGGGGG####
+####G..IJJ...G#####PPEPPPPPPPP###N......m..N####G.J........G####
+####G........G#####P.........P###N..g......N####G..........G####
+####G........G#####P.........P###N.......g.N####G.........OG####
+####GO.......G#####P.......g.P###N.........N####G...e.r....=I###
+####G........................P###N..*......N####G.........IG####
+####G...m....................P###N.........N####G..........G####
+####G.....a..G#####P.........P###N.........N####G..........G####
+####G........G#####P.+.......P###Np........................G####
+####G........G#####P.........P###N....m....N####G..........G####
+####G........G#####PPPPPP..PPP###N.........N####G........J.G####
+####G........G###########..######N..Q....n.N####GGGGGG..GGGG####
+####GGGG.GGGGG###########..######NNNNNNNNNNN##########..########
+########.################..###########O###############..########
+#####CCCDCCCCCCCC#KKKKKKK..KKKK##GGGGG=GGGGGGG###NNNNN..NNNNN###
+#####C..........C#KK/.......\KK##G...O.JJ....G###N.........ZN###
+#####C.....e....C#K/...c.....\K##G....g......G###N.........dN###
+#####C..........C#K.........e.K##G..a........R............."N###
+#####C..........C#K.....x..x..K##G......g....G###N......u...N###
+#####C..........C#K...........K##G...........G###N..........N###
+#####C........................K##G...........G###N..........N###
+#####C........................K##G...........G###N..........N###
+#####C..........C#K...x.......K##G...........G###N.m...Z..Z.N###
+#####C..........C#K..o........K##G...........G###N.t.p.d..d.N###
+#####CCCCCCCCCCCC#K.g.........K##G...........G###NNNNNNNNNNNN###
+##################K\........m/K##G...I.......G##################
+##################KK\......./KK##GGGGGG.GGGGGG##################
+##################KKKKKDKKKKKKK########.########################
+#######################.###############.########################
+#######################.###############.########################
+#######################.###############.########################
+###################NNNN.NNNNNNN########D########################
+###################NZd........N#####Zd.....#####################
+###################NdZ........N#####.......#####################
+###################N...................."g.#####################
+###################N.....*m............."a.#####################
+###################N...g......N#####...""..#####################
+###################N..........N#####...."c.#####################
+###################N........Z"N#####.......#####################
+###################N....t.p.d.N#################################
+###################NNNNNNNNNNNN#################################
+################################################################
+################################################################
+################################################################
+################################################################
+
+[ceiling]
+' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's
+................................................................
+................................................................
+................................................................
+......ccccccc.......................ccccccccc...................
+......ccccccc.......................ccccccccc...................
+......ccccccc......cccccccccccc.....ccccccccc...................
+......ccccccc......cccccccccccc.....ccccccccc.....cccccccc......
+......ccccccc......cccccccccccc.....ccccccccc.....cccccccc......
+......ccccccc......cccccccccccc.....cccccccccc...ccccccccc......
+......cccccccc....cccccccccccccc...ccccccccccc...ccccccccc......
+......cccccccc....cccccccccccccc...cccccccccc.....cccccccc......
+......ccccccc......cccccccccccc.....ccccccccc.....cccccccc......
+......ccccccc......cccccccccccc.....ccccccccc.....cccccccc......
+......ccccccc......cccccccccccc.....ccccccccc...................
+......ccccccc.......................ccccccccc...................
+......ccccccc.......................ccccccccc...................
+......................................c.........................
+................................................................
+......................................g.........................
+..................................ggggggggg.....................
+.....gggggggg.....................ggggggggg......gggggggggg.....
+.....gggggggg.......ggggggggg.....ggggggggg......gggggggggg.....
+.....gggggggg.......ggggggggg.....ggggggggg......gggggggggg.....
+.....gggggggg.......ggggggggg.....ggggggggg......gggggggggggg...
+.....ggggggggg.....gggggggggg.....ggggggggg......gggggggggg.....
+.....ggggggggg.....gggggggggg.....ggggggggg......gggggggggg.....
+.....gggggggg.......ggggggggg.....ggggggggg......gggggggggg.....
+.....gggggggg.......ggggggggg.....gggggggggg....ggggggggggg.....
+.....gggggggg.......ggggggggg.....ggggggggg......gggggggggg.....
+.....gggggggg............gg.......ggggggggg......gggggggggg.....
+.....gggggggg.....................ggggggggg...........gg........
+........g.......................................................
+......................................o.........................
+........g................cc...........o...............cc........
+......gggggggggg....ccccccccc.....ooooooooooo.....cccccccccc....
+......gggggggggg...ccccccccccc....ooooooooooo.....cccccccccc....
+......gggggggggg...ccccccccccc....oooooooooooo...ccccccccccc....
+......gggggggggg...ccccccccccc....ooooooooooo.....cccccccccc....
+......gggggggggg...ccccccccccc....ooooooooooo.....cccccccccc....
+......ggggggggggg.cccccccccccc....ooooooooooo.....cccccccccc....
+......ggggggggggg.cccccccccccc....ooooooooooo.....cccccccccc....
+......gggggggggg...ccccccccccc....ooooooooooo.....cccccccccc....
+......gggggggggg...ccccccccccc....ooooooooooo.....cccccccccc....
+...................ccccccccccc....ooooooooooo...................
+...................ccccccccccc....ooooooooooo...................
+....................ccccccccc..........o........................
+.......................c........................................
+................................................................
+................................................................
+................................................................
+.......................c...............c........................
+....................cccccccccc......ccccccc.....................
+....................cccccccccc......ccccccc.....................
+....................ccccccccccc....cccccccc.....................
+....................ccccccccccc....cccccccc.....................
+....................cccccccccc......ccccccc.....................
+....................cccccccccc......ccccccc.....................
+....................cccccccccc......ccccccc.....................
+....................cccccccccc..................................
+................................................................
+................................................................
+................................................................
+................................................................
+................................................................

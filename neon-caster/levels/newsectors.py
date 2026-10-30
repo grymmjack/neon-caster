@@ -50,6 +50,7 @@ from collections import deque
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import lvlkit
+import lvldress
 from lvlkit import N, validate, check_level, write_level_file, read_level_file
 from showcase import Show
 import levels as camp   # the first ten's dressing (closets, windows, stations, terminals...)
@@ -452,7 +453,8 @@ def build_all(write=False, show=False):
             return False
         os.makedirs(OUT, exist_ok=True)
         for lv, doc in out:
-            write_level_file(os.path.join(OUT, lv["label"] + ".txt"), lv, doc)
+            lvldress.dress(lv)   # (the looks pass - lvldress.py)
+            lvldress.write_dressed(os.path.join(OUT, lv["label"] + ".txt"), lv, doc)
         print("wrote %d sectors into %s" % (len(out), os.path.normpath(OUT)))
     print("ALL GOOD" if ok else "PROBLEMS")
     return ok

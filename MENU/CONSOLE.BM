@@ -221,11 +221,12 @@ SUB ConExec STATIC
                     CASE "1", "new" : ns = 1
                     CASE "2", "remix", "oldnew", "remaster" : ns = 2
                     CASE "3", "huge", "big" : ns = 3
+                    CASE "4", "infil", "infiltration" : ns = 4
                 END SELECT
                 IF editMode AND ns >= 0 THEN
                     ConPrint "sectorset: not in the editor - its sector's file is the set's it came from (leave it, F2 or Esc, first)"
                 ELSEIF ns < 0 THEN
-                    ConPrint "sectorset 0|1|2|3 (original, new, remix, huge)"
+                    ConPrint "sectorset 0|1|2|3|4 (original, new, remix, huge, infil)"
                 ELSEIF ns > 0 AND LEN(SetSectorName$(ns, 1)) = 0 THEN
                     ConPrint "sectorset: " + SetName$(ns) + " isn't there (levels/" + SetDir$(ns) + ")"
                 ELSE
@@ -1509,7 +1510,7 @@ SUB ConHelp(c$)
     SELECT CASE LCASE$(c$)
         CASE ""
             ConPrint "^3^5Commands^0 - ^7help NAME^0 for more (and how each one goes); ^7;^0 separates several on a line^0:"
-            ConPrint "  ^6sectors   ^7map^8 N|NAME  ^7maps  ^7sectorset^8 0-3  ^7restart  ^7newgame  ^7finish  ^7newsector"
+            ConPrint "  ^6sectors   ^7map^8 N|NAME  ^7maps  ^7sectorset^8 0-4  ^7restart  ^7newgame  ^7finish  ^7newsector"
             ConPrint "            ^7sectorname^8 NAME  ^7mapsize^8 N  ^7resetlevel  ^7reloadlevel  ^7savesectorcopy"
             ConPrint "            ^7saveleveltodisk^8 [FILE]  ^7loadlevelfromdisk^8 [FILE]"
             ConPrint "  ^6cheats    ^7god  ^7buddha  ^7fly  ^7notarget  ^7give^8 WHAT  ^7take^8 WHAT  ^7kill  ^7respawn  ^7die  ^7tp^8 X Y [ANGLE]"
@@ -1545,7 +1546,7 @@ SUB ConHelp(c$)
         ' --- sectors
         CASE "map", "level", "sector" : ConPrint "^3map N (1-" + LTRIM$(STR$(NUM_LEVELS)) + ", yours from" + STR$(NUM_LEVELS + 1) + ") or map NAME (part of one)^0: go to that sector, keeping what you carry"
         CASE "maps", "levels", "sectors" : ConPrint "^3maps^0: every sector there is - this set's ten (sectorset changes them), then yours"
-        CASE "sectorset", "campaign", "set10" : ConPrint "^3sectorset 0|1|2|3 (original, new, remix, huge)^0: which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS, OLD SECTORS NEW or HUGE SECTORS. sectorset on its own: which it is"
+        CASE "sectorset", "campaign", "set10" : ConPrint "^3sectorset 0|1|2|3|4 (original, new, remix, huge, infil)^0: which ten sectors map 1-10 and the next sector mean - THE ORIGINAL TEN, NEW SECTORS, OLD SECTORS NEW, HUGE SECTORS or INFILTRATION. sectorset on its own: which it is"
         CASE "restart", "reset" : ConPrint "^3restart^0: this sector again from its start - with what you started the game with"
         CASE "mapsize" : ConPrint "^3mapsize [N]^0: the sector's map N x N cells (16 to" + STR$(MAP_SIZE) + "; the game's are 48) - grown with wall all round, or cut down. savelevel keeps it"
         CASE "resetlevel" : ConPrint "^3resetlevel^0: the sector as it starts - monsters, doors, pickups back - as it is now in the editor, and you where you are"
