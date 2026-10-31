@@ -25,6 +25,7 @@
     photoKeyWas = _KEYDOWN(17408)
     IF photoOn AND frameAt! <> 0 AND frameGap! <= 0.5 THEN levelStart! = levelStart! + frameGap! ' (the sector clock waits too - a longer frame it skips already, above)
     IF NOT editMode AND NOT photoOn THEN lvFrame = lvFrame + 1 ' (the sector's clock in frames: a trigger's "time", and a demo's)
+    PropWatch ' (a prop's model exported again - bu1ld0r: loaded again, RENDER/MODELS.BM)
     IF dead THEN deadTicks = deadTicks + 1 ELSE deadTicks = 0
     IF dead AND NOT achDeadSeen THEN achDeadSeen = -1 : AchAdd "Deaths", 1 ELSE IF NOT dead THEN achDeadSeen = 0
     gridOn = editMode AND edGrid : gridW = MaxOf(1, texSize \ 64) : gridA = edGridAlpha ' (the editor's grid this frame: chapter 21)

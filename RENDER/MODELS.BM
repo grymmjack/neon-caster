@@ -61,9 +61,50 @@ SUB LoadModels
             IF k <= 3 THEN itemMdl(k) = NewModel("keycard", CardRGB~&(k)) ELSE itemMdl(k) = NewModel(ItemPicName$(k), 0) ' (the keycard: one model, three colours - as LoadCards tints its picture)
         NEXT
     END IF
+    mdlMatTop = 0 ' (their materials too: hd/models/ has its own, at the painting's size)
     FOR m = 1 TO numModels
+        IF mdlProp(m) THEN IF NOT PropReady(mdlName$(m)) THEN _CONTINUE ' (a prop's files gone meanwhile: what it had stays)
         LoadSprite "models/" + mdlName$(m) + "_tex.png", S_MODEL + m - 1
         IF mdlTint(m) THEN TintSlot S_MODEL + m - 1, mdlTint(m)
+        LoadModelMat m
+    NEXT
+END SUB
+
+' Model m's material picture, models/NAME_mat.png (or hd/'s - ArtPath$), if
+' it has one: into mdlMatPix, square (nearest pixel: each is eight values,
+' never blended), and each triangle's SEE from the pixel under its middle.
+' No file: none, and every triangle solid (mdlSee 0). The file's optional -
+' a missing one is no error, as a missing _tex.png is.
+SUB LoadModelMat(m)
+    DIM c AS _UNSIGNED LONG, f$, img AS LONG, mm AS _MEM, n AS LONG, sz AS LONG, t AS LONG, w AS LONG, h AS LONG, x AS LONG, y AS LONG, u!, v! ' (its own: the main program shares these names)
+    mdlMatSize(m) = 0 : mdlMatUp(m) = 0
+    FOR t = mdlFirst(m) TO mdlFirst(m) + mdlCount(m) - 1 : mdlSee(t) = 0 : NEXT
+    f$ = ArtPath$("models/" + mdlName$(m) + "_mat.png")
+    IF NOT _FILEEXISTS(f$) THEN EXIT SUB
+    img = _LOADIMAGE(f$, 32) : IF img >= -1 THEN EXIT SUB
+    w = _WIDTH(img) : h = _HEIGHT(img)
+    sz = w : IF h > sz THEN sz = h
+    IF sz > MDL_MAT_MAX THEN sz = MDL_MAT_MAX
+    n = mdlMatTop + sz * sz
+    IF n > UBOUND(mdlMatPix) + 1 THEN REDIM _PRESERVE mdlMatPix(n + MDL_MAT_MAX * MDL_MAT_MAX) AS _UNSIGNED LONG
+    mdlMatAt(m) = mdlMatTop : mdlMatTop = n
+    mm = _MEMIMAGE(img)
+    FOR y = 0 TO sz - 1 : FOR x = 0 TO sz - 1 ' (a picture not square, or too big, stretched to one - its spots run 0 to 1 either way)
+        mdlMatPix(mdlMatAt(m) + y * sz + x) = _MEMGET(mm, mm.OFFSET + ((y * h \ sz) * w + x * w \ sz) * 4, _UNSIGNED LONG)
+    NEXT : NEXT
+    _MEMFREE mm : _FREEIMAGE img
+    mdlMatSize(m) = sz
+    ' Each triangle's SEE: at its middle on the picture (mdlU, mdlV run from
+    ' its top left, as OpenGL reads it) - the red's high 4 bits, 0-15
+    FOR t = mdlFirst(m) TO mdlFirst(m) + mdlCount(m) - 1
+        u! = (mdlU(t * 3) + mdlU(t * 3 + 1) + mdlU(t * 3 + 2)) / 3 : v! = (mdlV(t * 3) + mdlV(t * 3 + 1) + mdlV(t * 3 + 2)) / 3
+        x = INT(u! * sz) : y = INT(v! * sz)
+        IF x < 0 THEN x = 0
+        IF x > sz - 1 THEN x = sz - 1
+        IF y < 0 THEN y = 0
+        IF y > sz - 1 THEN y = sz - 1
+        c = mdlMatPix(mdlMatAt(m) + y * sz + x)
+        mdlSee(t) = (_SHR(c, 20) AND 15) / 15
     NEXT
 END SUB
 
@@ -228,4 +269,143 @@ FUNCTION ModelFacing(i)
     END IF
     k = (INT(decoX(i) * 4) * 31 + INT(decoY(i) * 4) * 17) MOD 8
     ModelFacing = k * _PI / 4
+END FUNCTION
+
+' A decoration's model: a prop's own (decoMdlOf), else its kind's - 0 none
+FUNCTION DecoModel(i)
+    IF decoMdlOf(i) THEN DecoModel = decoMdlOf(i) ELSE DecoModel = decoMdl(decoKind(i))
+END FUNCTION
+
+' A prop's model by its name, models/NAME.obj: the one loaded already (the
+' game's own too - prop vending is the vending machine's), else loaded now
+' and watched (PropWatch). 0 if there's none: no NAME.obj, or no
+' NAME_tex.png, or no room. A name is letters, digits, - and _ only.
+FUNCTION PropModel(n$)
+    DIM m, t$ ' (its own: the main program shares these names)
+    t$ = LTRIM$(RTRIM$(n$))
+    IF NOT PropNameOk(t$) THEN EXIT FUNCTION
+    FOR m = 1 TO numModels
+        IF LCASE$(mdlName$(m)) = LCASE$(t$) AND mdlTint(m) = 0 THEN
+            IF NOT mdlProp(m) THEN mdlProp(m) = -1 : mdlSum(m) = PropSum~&(mdlName$(m)) : mdlSumNew(m) = mdlSum(m)
+            PropModel = m : EXIT FUNCTION
+        END IF
+    NEXT
+    IF NOT PropReady(t$) THEN EXIT FUNCTION
+    m = NewModel(t$, 0) : IF m = 0 THEN EXIT FUNCTION
+    LoadSprite "models/" + t$ + "_tex.png", S_MODEL + m - 1
+    LoadModelMat m
+    mdlProp(m) = -1 : mdlSum(m) = PropSum~&(t$) : mdlSumNew(m) = mdlSum(m)
+    glRetexVersion = glRetexVersion + 1 ' (OpenGL: its pictures to the card)
+    PropModel = m
+END FUNCTION
+
+' A model already loaded, by its name (0: none) - PropModel loads one
+FUNCTION PropFind(n$)
+    DIM m ' (its own: the main program shares these names)
+    FOR m = 1 TO numModels
+        IF LCASE$(mdlName$(m)) = LCASE$(LTRIM$(RTRIM$(n$))) AND mdlTint(m) = 0 THEN PropFind = m : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Is n$ a name a prop can have? (Letters, digits, - and _: never a folder)
+FUNCTION PropNameOk(n$)
+    DIM i ' (its own: the main program shares these names)
+    IF LEN(n$) = 0 OR LEN(n$) > 48 THEN EXIT FUNCTION
+    FOR i = 1 TO LEN(n$)
+        IF INSTR("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_", MID$(n$, i, 1)) = 0 THEN EXIT FUNCTION
+    NEXT
+    PropNameOk = -1
+END FUNCTION
+
+' Can model n$ be loaded? Its .obj there, and its _tex.png a picture
+' (LoadSprite stops the game on one that isn't)
+FUNCTION PropReady(n$)
+    DIM img AS LONG ' (its own: the main program shares these names)
+    IF NOT _FILEEXISTS(AssetPath$("models/" + n$ + ".obj")) THEN EXIT FUNCTION
+    IF NOT _FILEEXISTS(ArtPath$("models/" + n$ + "_tex.png")) THEN EXIT FUNCTION
+    img = _LOADIMAGE(ArtPath$("models/" + n$ + "_tex.png"), 32) : IF img >= -1 THEN EXIT FUNCTION
+    _FREEIMAGE img
+    PropReady = -1
+END FUNCTION
+
+' Model n$'s files, as one checksum: its .obj, texture, material and first
+' picture (bu1ld0r's export writes them all)
+FUNCTION PropSum~&(n$)
+    DIM f$, k, s$ ' (its own: the main program shares these names)
+    FOR k = 1 TO 4
+        SELECT CASE k
+            CASE 1 : f$ = AssetPath$("models/" + n$ + ".obj")
+            CASE 2 : f$ = ArtPath$("models/" + n$ + "_tex.png")
+            CASE 3 : f$ = ArtPath$("models/" + n$ + "_mat.png")
+            CASE 4 : f$ = AssetPath$("models/" + n$ + "_0.png")
+        END SELECT
+        IF _FILEEXISTS(f$) THEN s$ = s$ + _READFILE$(f$) + CHR$(k) ELSE s$ = s$ + CHR$(k + 8)
+    NEXT
+    PropSum~& = _CRC32(s$)
+END FUNCTION
+
+' Every PROP_WATCH frames: a prop whose files changed (bu1ld0r exported it
+' again) is loaded again - once they read the same twice running, so a file
+' half written isn't
+SUB PropWatch
+    DIM m, s AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    propWatchT = propWatchT + 1 : IF propWatchT < PROP_WATCH THEN EXIT SUB
+    propWatchT = 0
+    FOR m = 1 TO numModels
+        IF mdlProp(m) THEN
+            s = PropSum~&(mdlName$(m))
+            IF s <> mdlSum(m) THEN
+                IF s = mdlSumNew(m) THEN PropReload m ELSE mdlSumNew(m) = s
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' Model m read again from its files: its triangles (after the rest - or
+' where they were, if it's the last), texture, 8 pictures, material.
+' OpenGL waits while it's done (glEdHold, as the editor's rebuild)
+SUB PropReload(m)
+    DIM a, holdT!, n$ ' (its own: the main program shares these names)
+    n$ = mdlName$(m)
+    IF NOT PropReady(n$) THEN EXIT SUB
+    IF glReady AND NOT artHold THEN
+        glEdAck = 0 : glEdHold = -1 : holdT! = TIMER
+        DO WHILE glEdAck = 0 AND ABS(TIMER - holdT!) < 0.25 : _LIMIT 1000 : LOOP
+    END IF
+    IF mdlFirst(m) + mdlCount(m) = mdlTris THEN mdlTris = mdlFirst(m) ' (the last loaded: its room used again)
+    LoadObj m, AssetPath$("models/" + n$ + ".obj")
+    FOR a = 0 TO MDL_ANGLES - 1 : LoadModelPic (m - 1) * MDL_ANGLES + a + 1, AssetPath$("models/" + n$ + "_" + LTRIM$(STR$(a)) + ".png"), mdlTint(m) : NEXT
+    LoadSprite "models/" + n$ + "_tex.png", S_MODEL + m - 1
+    IF mdlTint(m) THEN TintSlot S_MODEL + m - 1, mdlTint(m)
+    LoadModelMat m
+    glEdHold = 0
+    mdlSum(m) = PropSum~&(n$) : mdlSumNew(m) = mdlSum(m)
+    glRetexVersion = glRetexVersion + 1
+    ConPrint "model " + n$ + " loaded again (" + LTRIM$(STR$(mdlCount(m))) + " triangles)"
+END SUB
+
+' Every model in models/ (its name, without .obj), sorted, commas between -
+' read once (the editor's MODEL < >)
+FUNCTION PropNames$
+    DIM d$, i, j, k, n, f$, t$ ' (its own: the main program shares these names)
+    IF propListed THEN PropNames$ = propNamesC$ : EXIT FUNCTION
+    propListed = -1 : propNamesC$ = ""
+    d$ = AssetPath$("models") + "/"
+    IF NOT _DIREXISTS(AssetPath$("models")) THEN EXIT FUNCTION
+    DIM nm$(400)
+    f$ = _FILES$(d$ + "*.obj")
+    DO WHILE LEN(f$) AND n < 400
+        IF LCASE$(RIGHT$(f$, 4)) = ".obj" THEN t$ = LEFT$(f$, LEN(f$) - 4) : IF PropNameOk(t$) THEN n = n + 1 : nm$(n) = t$
+        f$ = _FILES$
+    LOOP
+    FOR i = 2 TO n ' (sorted: a few hundred at most)
+        t$ = nm$(i) : j = i - 1
+        DO WHILE j >= 1
+            IF LCASE$(nm$(j)) <= LCASE$(t$) THEN EXIT DO
+            nm$(j + 1) = nm$(j) : j = j - 1
+        LOOP
+        nm$(j + 1) = t$
+    NEXT
+    FOR k = 1 TO n : propNamesC$ = propNamesC$ + MID$(",", 1, -(k > 1)) + nm$(k) : NEXT
+    PropNames$ = propNamesC$
 END FUNCTION

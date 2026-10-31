@@ -486,6 +486,7 @@ A **barrel of a liquid** (`:`) shot springs a leak, hisses for a moment, then bu
 | secmon | A security monitor. USE (Space as made) on it shows what the cameras see, Duke-style: USE again the next camera, past the last (or a step) back to you. While you watch, nothing else works - no shooting, turning or jumping - but the world goes on. With the map pickup every camera is marked on the map (a red eye and the way it looks); without it, the ones you've seen |
 | jumppad | A jump pad, flat on the floor: step on its plate and it SHOOTS you through the air - its pane's DIR (degrees: 0 east, 90 south, 180 west, 270 north), ANGLE (up from the floor, 5-90) and POWER (hundredths of a cell a frame, 5-100). In the air you can look and shoot, not walk; the sector's gravity brings you down, and a long drop hurts as any fall (water, or the jetpack fired on the way down, softens it). Monsters that walk onto one are shot off too. How far, on the level: POWER x POWER x sin(2 x ANGLE) / (100 x gravity%) cells - POWER 30, ANGLE 45: 9 cells |
 | padpc | A launch control: Space opens its pad's numbers (its pane's PAD (X, Y)) - click - and +, or the arrows, or type them; SET. Point at it (or at a pad) and its numbers show without a Space. A note with a target's coordinates, and a player works the shot out. Pads with no console keep the numbers you gave them |
+| prop | Any model in `neon-caster/models/` - one you made in bu1ld0r, or one of the game's own. Its pane's MODEL `<` `>` steps through every model there is; `MODEL, HP` (TYPE) takes a name and, after a comma, how many hits break it (none: shots don't). It stands in its cell, solid, its back to a wall like furniture (or the way FACING says), at its own size. A name with no model (no `NAME.obj`, or no `NAME_tex.png`) shows a cyan box. See *Your own models (bu1ld0r)* below |
 | repairkit, invuln, flashlight, battery, robodog, guard, eyebot | The pickups and the monsters above |
 
 A **desk** (`d`) is searched with Space as a bookshelf is. A note can be in a desk, a bookshelf or a safe as well as lying about (`'`): its pane on any of them has NOTE - WORDS, PICTURE, NONE. In a note's words, `|` starts a new line, and `{code X Y}` shows the code of the door or safe at X, Y.
@@ -493,6 +494,16 @@ A **desk** (`d`) is searched with Space as a bookshelf is. A note can be in a de
 Some do more than break. Space at a **vending machine** (`n`) is a pull on a **slot machine**: three reels, and three alike pays out - three bombs, a big bang (stand back); three monsters, three come out of it; three guns, a gun you haven't got; three medkits, cells or armour, plenty of it; three 7s, the jackpot. A pair gives a little of it; nothing alike, nothing. One pull a machine. Space at a **computer** (`t`, `A`, `F`) plays NEON PONG (first to 3; win and it pays out). A **specimen tank** (`I`) broken open lets out what's in it half the time. Monsters' bolts break things too, and what's inside still drops.
 
 **The start.** `<` `>` `^` `v` put you there, facing left, right, up or down the map. Keep exactly one.
+
+### Your own models (bu1ld0r)
+
+[bu1ld0r](https://github.com/grymmjack/bu1ld0r) builds 3D models for the game. To put one in a level:
+
+1. In bu1ld0r, save the model under the name it'll have in the game (`statue`, say), then EXPORT (Ctrl+E) with the game's folder set in bu1ld0r.cfg (`neon_dir=/path/to/neon-caster/neon-caster`): it writes `models/statue.obj`, its texture, its 8 pictures (for the software renderer) and, if it has any, its materials, into the game's folder.
+2. In the editor, put down a thing (`"`), turn it to **prop** (the pane's `<` `>`), and pick **statue** with MODEL `<` `>` - or type `prop X Y statue` in the console.
+3. Save the level. Its `[things]` line is `x, y, prop, statue`.
+
+Export again while the game is running and the prop changes within a second or two - no restart, no reload (the console's `reload statue` does it at once). A model is 1 unit = 1 cell, standing on its own floor; the game's own models share room for 64,000 triangles, about 11,000 of them taken.
 
 ## Heights
 
@@ -688,7 +699,7 @@ Monster types are numbered in the order of the monster table: 1 drone to 9 thief
 
 **`[doors]`** (a door's pane: KICKS, KEYPAD CODE): `x, y, kicks, code` - kicks a stronghold door takes to break (0: none), code a keypad's digits (up to 8; `?` one made up each time the sector starts; nothing after the comma: no keypad).
 
-**`[things]`** (a `"` cell's pane): `x, y, kind[, more]` - kind one of `table`, `brokenmonitor`, `deadscientist`, `deadguard`, `deadcyborg`, `bookshelf`, `safe`, `brokenpc`, `computer`, `camera`, `secmon`, `alarm`, `alarmpc`, `jumppad`, `padpc`, `repairkit`, `invuln`, `robodog`, `guard`, `eyebot` (or any decoration, pickup or monster by its name). After it: a safe's code (digits or `?`); a computer's (fixed or broken) `x, y` of the door, safe or alarm switch it opens (or switches off); a camera's name; `off` for an alarm switch off at first; a security console's `x, y` of its alarm (none: every alarm); a jump pad's `DIR, ANGLE, POWER`; a launch control's `x, y` of its pad. A `"` with no line is a table on its side.
+**`[things]`** (a `"` cell's pane): `x, y, kind[, more]` - kind one of `table`, `brokenmonitor`, `deadscientist`, `deadguard`, `deadcyborg`, `bookshelf`, `safe`, `brokenpc`, `computer`, `camera`, `secmon`, `alarm`, `alarmpc`, `jumppad`, `padpc`, `prop`, `repairkit`, `invuln`, `robodog`, `guard`, `eyebot` (or any decoration, pickup or monster by its name). After it: a safe's code (digits or `?`); a computer's (fixed or broken) `x, y` of the door, safe or alarm switch it opens (or switches off); a camera's name; `off` for an alarm switch off at first; a security console's `x, y` of its alarm (none: every alarm); a jump pad's `DIR, ANGLE, POWER`; a launch control's `x, y` of its pad; a prop's model's name and its health (`x, y, prop, statue` or `x, y, prop, crate2, 3`). A `"` with no line is a table on its side.
 
 **`[notes]`** (NOTE on a `'` note's, a desk's, a bookshelf's or a safe's pane): `x, y, picture, words` - picture a file in `neon-caster/` (`-` for none: say `achievements/NC_BESTIARY.png`), then the words, commas and all; `|` starts a new line, `{code X Y}` is the code of the door or safe at X, Y.
 
@@ -774,6 +785,8 @@ The console (`` ` ``, in the game or the 3D view) can build with exact coordinat
 | `edit` / `edit walk` / `edit off` | Open the editor at the map or 3D view, or close it | |
 | `put X Y CHAR` | Put one character in a cell | Yes |
 | `box X0 Y0 X1 Y1 CHAR` | Fill a rectangle (one undo step) | Yes |
+| `prop X Y NAME [HP]` | A prop in a cell: `models/NAME.obj` (bu1ld0r's); `prop` alone lists the models | Yes |
+| `reload [NAME]` | A model read again from its files (every prop, with no name) - props are watched anyway | |
 | `raise X Y EIGHTHS [ceil]` | Raise (or lower, with a minus) one cell's floor or ceiling | Yes |
 | `raise X0 Y0 X1 Y1 EIGHTHS [ceil]` | The same for a rectangle | Yes |
 | `lamp X Y [1-8]` | A light over a cell, in a preset | Yes |

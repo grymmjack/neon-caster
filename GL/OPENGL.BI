@@ -156,3 +156,20 @@ glKU = 1 : glKV = 1
 DIM SHARED glFaceNX, glFaceNY, glFaceNZ, glFaceTX, glFaceTY, glFaceTZ, glCellLX, glCellLY, glCellDir
 DIM SHARED glCornerLX, glCornerLY, glCornerLZ
 DIM SHARED glMat(15) AS SINGLE, glMs
+' MODEL MATERIALS (RENDER/MODELS.BI): each model's material picture's name on
+' the card (glMatTex, by model: on texture unit 4 while its texture is -
+' GLBindSlot), and whether the world shader has hasMat on now (glMatNow).
+DIM SHARED glMatTex(MAX_MODELS) AS _UNSIGNED LONG, glMatNow AS INTEGER
+' ...and its see-through triangles (SEE: mdlSee), held back from the solid
+' sprites' batch (GLDrawModel) and drawn after them, blended, far to near
+' (GLSeeThrough): each corner's place, texture spot and colour (glThruP: 8
+' numbers a corner, 24 a triangle), each triangle's normal, tangent and how
+' far it is (squared: glThruF, 7 a triangle), glThruN triangles; and in
+' groups, one a prop drawn (glThruG of them): its first triangle and how
+' many, its picture, its look, its light (the cell's middle, how much is
+' from there, the moving lights reaching it) and how far it is
+CONST GL_THRU_TRIS = 8000, GL_THRU_GROUPS = 128
+DIM SHARED glThruP(GL_THRU_TRIS * 24) AS SINGLE, glThruF(GL_THRU_TRIS * 7) AS SINGLE, glThruN AS LONG, glThruOrd(GL_THRU_TRIS) AS LONG
+DIM SHARED glThruG AS INTEGER, glThruG0(GL_THRU_GROUPS) AS LONG, glThruGN(GL_THRU_GROUPS) AS LONG, glThruGSlot(GL_THRU_GROUPS) AS INTEGER, glThruGLk(GL_THRU_GROUPS) AS INTEGER
+DIM SHARED glThruGL((GL_THRU_GROUPS + 1) * 3) AS SINGLE, glThruGDyn((GL_THRU_GROUPS + 1) * 4) AS SINGLE, glThruGD(GL_THRU_GROUPS) AS SINGLE, glThruGOrd(GL_THRU_GROUPS) AS INTEGER
+DIM SHARED glMdlLk AS INTEGER ' (the look of the prop GLDrawModel is drawing - its see-through triangles keep it)

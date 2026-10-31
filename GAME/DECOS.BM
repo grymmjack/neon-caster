@@ -36,7 +36,7 @@ END SUB
 
 SUB HitDeco STATIC
     IF DecoFlat(decoKind(targetDeco)) AND decoKind(targetDeco) <> DK_CAMERA THEN EXIT SUB ' (bodies don't break - nor anything lying flat; a camera does)
-    IF decoKind(targetDeco) = DK_CHEST OR decoKind(targetDeco) = DK_SAFE THEN SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY : EXIT SUB ' (nor do chests: Space opens one)
+    IF decoKind(targetDeco) = DK_CHEST OR decoKind(targetDeco) = DK_SAFE OR (decoKind(targetDeco) = DK_PROP AND decoHP(targetDeco) >= 99) THEN SfxAt sndDecoHit&, decoX(targetDeco), decoY(targetDeco), playerX, playerY : EXIT SUB ' (nor do chests: Space opens one)
     IF NOT decoByMon THEN ShotAt INT(decoX(targetDeco)), INT(decoY(targetDeco)) ' (a "shoot" trigger on it? - yours, not a monster's stray bolt)
     ' Its loot, if it breaks: kicked, back the way you're facing (towards you,
     ' give or take); shot or blown up, any way at all
@@ -124,6 +124,7 @@ FUNCTION DecoKindOf(n$)
         CASE "alarmpc", "alarmconsole", "securityconsole" : k = DK_ALARMPC
         CASE "jumppad", "launchpad", "jumpad" : k = DK_JUMPPAD
         CASE "padpc", "launchcontrol", "padconsole" : k = DK_PADPC
+        CASE "prop", "model" : k = DK_PROP
         CASE ELSE : k = 0
     END SELECT
     DecoKindOf = k
@@ -133,7 +134,7 @@ END FUNCTION
 FUNCTION DecoName$(k)
     IF k > DK_LQBARREL AND k < DK_CHEST THEN DecoName$ = lqName$(k - DK_LQBARREL) + "barrel" : EXIT FUNCTION
     IF k = DK_CHEST THEN DecoName$ = "chest" : EXIT FUNCTION
-    IF k >= DK_TABLE THEN DecoName$ = ListItem$("table,brokenmonitor,deadscientist,deadguard,deadcyborg,bookshelf,safe,brokenpc,computer,camera,secmon,note,alarm,alarmpc,jumppad,padpc", k - DK_TABLE + 1) : EXIT FUNCTION
+    IF k >= DK_TABLE THEN DecoName$ = ListItem$("table,brokenmonitor,deadscientist,deadguard,deadcyborg,bookshelf,safe,brokenpc,computer,camera,secmon,note,alarm,alarmpc,jumppad,padpc,prop", k - DK_TABLE + 1) : EXIT FUNCTION
     DecoName$ = RTRIM$(MID$("barrel   lamp     plant    terminal crate    rack     vending  coolant  spawner  desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", k * 9 - 8, 9))
 END FUNCTION
 
@@ -146,7 +147,7 @@ END FUNCTION
 FUNCTION DecoFile$(kind)
     IF kind > DK_LQBARREL AND kind < DK_CHEST THEN DecoFile$ = "barrel-" + lqName$(kind - DK_LQBARREL) + ".png" : EXIT FUNCTION
     IF kind = DK_CHEST THEN DecoFile$ = "chest.png" : EXIT FUNCTION
-    IF kind >= DK_TABLE THEN DecoFile$ = ListItem$("table-flipped,monitor-broken,body-scientist,body-guard,body-cyborg,bookshelf,safe,terminal-broken,terminal,camera,screens,note,alarm,alarmpc,jumppad,console", kind - DK_TABLE + 1) + ".png" : EXIT FUNCTION
+    IF kind >= DK_TABLE THEN DecoFile$ = ListItem$("table-flipped,monitor-broken,body-scientist,body-guard,body-cyborg,bookshelf,safe,terminal-broken,terminal,camera,screens,note,alarm,alarmpc,jumppad,console,prop", kind - DK_TABLE + 1) + ".png" : EXIT FUNCTION
     DecoFile$ = RTRIM$(MID$("desk     console  screens  specimen labbench generatorcryopod  hologram locker   bench    chair    body     ", (kind - 10) * 9 + 1, 9)) + ".png"
 END FUNCTION
 
@@ -177,6 +178,7 @@ FUNCTION DecoBaseHP(kind)
         CASE DK_MONBROKE, DK_SCIENTIST, DK_GUARD, DK_CYBORG, DK_NOTE, DK_JUMPPAD : DecoBaseHP = 99 ' (flat: DecoFlat)
         CASE DK_CAMERA : DecoBaseHP = 3 ' (a camera: three hits and it's down)
         CASE DK_PADPC : DecoBaseHP = 4
+        CASE DK_PROP : DecoBaseHP = 99 ' (a prop: shots don't break it - unless its [things] line gives it health: LoadLevel)
         CASE DK_SHELF, DK_PC, DK_SECMON, DK_ALARMPC : DecoBaseHP = 4
         CASE DK_ALARM : DecoBaseHP = 2 ' (an alarm switch: shoot it, and nobody sets it off)
         CASE DK_PCBROKE : DecoBaseHP = 3
@@ -222,6 +224,7 @@ FUNCTION DecoScale(kind)
         CASE DK_ALARMPC : DecoScale = 0.6 ' A security console
         CASE DK_JUMPPAD : DecoScale = 0.85 ' A jump pad (flat on the floor)
         CASE DK_PADPC : DecoScale = 0.5 ' A launch control
+        CASE DK_PROP : DecoScale = 0.55 ' A prop (its model, if it has one, is its own size)
         CASE ELSE : DecoScale = 0.55 ' Terminal
     END SELECT
 END FUNCTION

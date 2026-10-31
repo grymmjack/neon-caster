@@ -175,14 +175,14 @@
             ELSEIF NOT decoOn(i) THEN ' Broken: what's left of it (MakeWreck)
                 drawSprite(numDraw) = S_WRECK + decoKind(i) : drawScale(numDraw) = wreckScale(decoKind(i))
                 drawSquash(numDraw) = wreckSquash(decoKind(i)) : drawMinShade(numDraw) = 0 : drawLift(numDraw) = -CORPSE_SINK * drawScale(numDraw) * drawSquash(numDraw)
-                IF decoMdl(decoKind(i)) AND glMode THEN ' (a 3D prop - OpenGL, near: its own model, broken - crumpled to half its height, knocked askew, charred; far off, its wreck's picture)
-                    drawMdl(numDraw) = decoMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) + (i MOD 5 - 2) * 0.35 : drawMZ(numDraw) = 0.45 + (i MOD 3) * 0.06
+                IF DecoModel(i) AND glMode THEN ' (a 3D prop - OpenGL, near: its own model, broken - crumpled to half its height, knocked askew, charred; far off, its wreck's picture)
+                    drawMdl(numDraw) = DecoModel(i) : drawAng(numDraw) = ModelFacing(i) + (i MOD 5 - 2) * 0.35 : drawMZ(numDraw) = 0.45 + (i MOD 3) * 0.06
                     wa = (i * 2.399) : drawUpX(numDraw) = DCos(wa) * 0.34 : drawUpY(numDraw) = DSin(wa) * 0.34 : drawUpZ(numDraw) = 0.94 ' (leaning, a different way each)
                     drawOX(numDraw) = decoX(i) : drawOY(numDraw) = decoY(i) : drawOZ(numDraw) = FloorAt(decoX(i), decoY(i)) - 0.02
                     drawTint(numDraw) = _RGB32(46, 40, 36) : drawMinShade(numDraw) = 0
                 END IF
-            ELSEIF decoMdl(decoKind(i)) THEN ' A 3D prop: OpenGL draws its model; we draw its picture from nearest where you are (RENDER/MODELS.BM)
-                drawMdl(numDraw) = decoMdl(decoKind(i)) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0
+            ELSEIF DecoModel(i) THEN ' A 3D prop: OpenGL draws its model; we draw its picture from nearest where you are (RENDER/MODELS.BM)
+                drawMdl(numDraw) = DecoModel(i) : drawAng(numDraw) = ModelFacing(i) : drawFace(numDraw) = 0
                 drawPic(numDraw) = ModelPic(drawMdl(numDraw), drawAng(numDraw), decoX(i), decoY(i))
             END IF
             IF decoKind(i) = DK_ALARM AND alarmTimer > 0 AND vendState(i) = 0 THEN drawMinShade(numDraw) = 120 + 120 * ((lvFrame \ 15) MOD 2) ' (sounding: its switch flashing)

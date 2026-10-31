@@ -158,6 +158,7 @@ THINGS = [
     ("alarmpc", "alarmpc", "switches alarms off/on", "X, Y of its alarm"),
     ("jumppad", "jumppad", "launches you", "DIR, ANGLE, POWER"),
     ("padpc", "console", "sets a pad's numbers", "X, Y of its pad"),
+    ("prop", "prop", "any model: bu1ld0r's", "NAME, HP"),
 ]
 
 def charcards(rows, kind):

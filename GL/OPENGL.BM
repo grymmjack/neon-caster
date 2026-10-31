@@ -269,7 +269,7 @@ SUB _GL
     IF editMode THEN keepframe_save GLSL_window_width&, GLSL_window_height& ELSE keepframe_forget
 
     ' Leave OpenGL as we found it
-    FOR u = 3 TO 1 STEP -1 : GLSL_texture_unit u : _glBindTexture _GL_TEXTURE_2D, 0 : NEXT : GLSL_texture_unit 0
+    FOR u = 4 TO 1 STEP -1 : GLSL_texture_unit u : _glBindTexture _GL_TEXTURE_2D, 0 : NEXT : GLSL_texture_unit 0
     _glDisable _GL_TEXTURE_2D : _glDisable _GL_BLEND
     _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA
     _glBindTexture _GL_TEXTURE_2D, 0
@@ -1024,6 +1024,7 @@ SUB GLSpritesAndExtras(b, mirror)
     DIM i, lk, slot, sx, sy, x0, y0, y1, uL, uR, tr, tg, tb, mir ' (its own: the main program shares these names)
     mir = (mirror <> 0 OR glGlassMir <> 0) ' (a reflection: the floor's, or a pane's)
     glCellLitMode = 0 ' (sprites have their own light, worked out in chapter 16)
+    glThruN = 0 : glThruG = 0 ' (no see-through models held back yet: GLDrawModel, GLSeeThrough)
 
     ' Sprites: a rectangle across your view, right = (-dirY, dirX), one
     ' colour all over (worked out in chapter 16). With the world shader
@@ -1068,6 +1069,7 @@ SUB GLSpritesAndExtras(b, mirror)
             END IF
         END IF
         glMdlK = glSprSz(i, b)
+        glMdlLk = 0 : IF lk AND glShaderOn THEN glMdlLk = lk ' (its see-through triangles keep its look - GLThruGroup)
         IF glSprMdl(i, b) AND NOT mir THEN ' (a 3D prop: its model, not its picture - but in a reflection, its picture: half the cost, and you can't tell)
             IF glSprHead(i, b) THEN ' (a turret: its base on its mount, and its head on that, aimed at you)
                 GLDrawModel turBaseMdl, sx, sy, zLow, glSprAng(i, b), glSprPitch(i, b), red, green, blue, glSprUpX(i, b), glSprUpY(i, b), glSprUpZ(i, b), 0, 1
@@ -1086,6 +1088,8 @@ SUB GLSpritesAndExtras(b, mirror)
         glMdlK = 1 : IF lk AND glShaderOn THEN GLStopDrawing : GLSL_uniform_1f glWorldProg, "lookMode", 0
     NEXT
     GLStopDrawing
+    glMdlLk = 0
+    GLSeeThrough ' (models' see-through faces - their materials' SEE: after every solid thing, before the liquids and glass)
     _glDisable _GL_ALPHA_TEST
     IF liqAny AND NOT mirror AND NOT cyberOn THEN GLLiquids b ' (after the sprites, so what's in a pool shows through it)
     GLShaderStop
@@ -1143,7 +1147,7 @@ END SUB
 ' sides towards the cell's light (glCellLX, GLSetLight) brighter than
 ' those away from it - as models.py shades the 8 pictures.
 SUB GLDrawModel(m, sx, sy, sz, ang, pit, red, green, blue, ux, uy, uz, cap~&, zs)
-    DIM c, j, k, l, lx, ly, n, nx, ny, nz, s, slot, t, uvk, fx, fy, fz, rx, ry, rz, cr, cg, cb, mk ' (its own: the main program shares these names)
+    DIM c, j, k, l, lx, ly, n, nx, ny, nz, s, slot, t, uvk, fx, fy, fz, rx, ry, rz, cr, cg, cb, mk, gs, q AS LONG, qa AS LONG, muz, ex, ey, ez ' (its own: the main program shares these names)
     IF mdlCount(m) = 0 THEN EXIT SUB
     mk = glMdlK : IF mk <= 0 THEN mk = 1 ' (sized by its look: [looks])
     slot = S_MODEL + m - 1 : GLUseTexture T_SLOTS + slot
@@ -1160,6 +1164,7 @@ SUB GLDrawModel(m, sx, sy, sz, ang, pit, red, green, blue, ux, uy, uz, cap~&, zs
     IF cap~& THEN cr = _RED32(cap~&) / 200 : cg = _GREEN32(cap~&) / 200 : cb = _BLUE32(cap~&) / 200 ' (its muzzles: its weapon's colour, glowing)
     lx = glCellLX - sx : ly = glCellLY - sy : l = SQR(lx * lx + ly * ly)
     IF l > 0.001 THEN lx = lx / l : ly = ly / l ELSE lx = 0 : ly = 0
+    gs = -1 : IF glShaderOn AND mdlMatUp(m) <> 0 THEN gs = 0 ' (gs: its group of see-through triangles, made at the first - -1 none: no material, or no shader to blend them)
     FOR t = mdlFirst(m) TO mdlFirst(m) + mdlCount(m) - 1
         nx = mdlNX(t) * fx + mdlNY(t) * rx + mdlNZ(t) * ux : ny = mdlNX(t) * fy + mdlNY(t) * ry + mdlNZ(t) * uy : nz = mdlNX(t) * fz + mdlNY(t) * rz + mdlNZ(t) * uz
         k = 0.62 + 0.3 * nz + 0.25 * (nx * lx + ny * ly) : IF k < 0.35 THEN k = 0.35
@@ -1168,6 +1173,35 @@ SUB GLDrawModel(m, sx, sy, sz, ang, pit, red, green, blue, ux, uy, uz, cap~&, zs
         IF ABS(nz) < 0.9 THEN glFaceTX = -ny : glFaceTY = nx ELSE glFaceTX = c : glFaceTY = s ' (along it, level)
         glFaceTZ = 0
         n = t * 3
+        IF gs >= 0 THEN ' A see-through triangle (its material's SEE): held back, drawn after the solid things (GLSeeThrough) - while there's room
+            IF mdlSee(t) > 0.004 THEN
+                IF gs = 0 THEN gs = GLThruGroup(sx, sy, sz, slot) : IF gs = 0 THEN gs = -1
+                IF gs > 0 AND glThruN < GL_THRU_TRIS THEN
+                    q = glThruN : glThruN = q + 1 : glThruGN(gs) = glThruGN(gs) + 1
+                    muz = (cap~& <> 0 AND mdlU(n) > 0.95 AND mdlV(n) > 0.95)
+                    ex = 0 : ey = 0 : ez = 0
+                    FOR j = 0 TO 2
+                        n = t * 3 + j : qa = q * 24 + j * 8
+                        glThruP(qa) = sx + mdlPX(n) * mk * fx + mdlPY(n) * mk * rx + mdlPZ(n) * mk * zs * ux
+                        glThruP(qa + 1) = sy + mdlPX(n) * mk * fy + mdlPY(n) * mk * ry + mdlPZ(n) * mk * zs * uy
+                        glThruP(qa + 2) = sz + mdlPX(n) * mk * fz + mdlPY(n) * mk * rz + mdlPZ(n) * mk * zs * uz
+                        glThruP(qa + 3) = mdlU(n) * uvk : glThruP(qa + 4) = mdlV(n) * uvk
+                        IF muz THEN
+                            glThruP(qa + 5) = cr : glThruP(qa + 6) = cg : glThruP(qa + 7) = cb
+                        ELSE
+                            glThruP(qa + 5) = red * k : glThruP(qa + 6) = green * k : glThruP(qa + 7) = blue * k
+                        END IF
+                        ex = ex + glThruP(qa) : ey = ey + glThruP(qa + 1) : ez = ez + glThruP(qa + 2)
+                    NEXT
+                    qa = q * 7
+                    glThruF(qa) = glFaceNX : glThruF(qa + 1) = glFaceNY : glThruF(qa + 2) = glFaceNZ
+                    glThruF(qa + 3) = glFaceTX : glThruF(qa + 4) = glFaceTY : glThruF(qa + 5) = glFaceTZ
+                    ex = ex / 3 - glEyeX : ey = ey / 3 - glEyeY : ez = ez / 3 - glEyeZ
+                    glThruF(qa + 6) = ex * ex + ey * ey + ez * ez ' (how far its middle is, squared: they're drawn far to near)
+                    _CONTINUE
+                END IF
+            END IF
+        END IF
         IF cap~& AND mdlU(n) > 0.95 AND mdlV(n) > 0.95 THEN ' (a muzzle - textured from the white corner: models.py)
             FOR j = 0 TO 2
                 n = t * 3 + j
@@ -1181,6 +1215,91 @@ SUB GLDrawModel(m, sx, sy, sz, ang, pit, red, green, blue, ux, uy, uz, cap~&, zs
         NEXT
     NEXT
     glFaceNZ = 0 : glFaceTZ = 0 ' (the sprites after it stand upright)
+END SUB
+
+' A new group of see-through triangles (GLDrawModel): the prop being drawn
+' (standing at sx, sy, sz, its picture sprite slot slot) - its number, or 0
+' if there's no room for more this frame. It keeps what the prop is drawn
+' with - its look, its light - as they'll have changed by the time it's drawn.
+FUNCTION GLThruGroup(sx, sy, sz, slot)
+    DIM g, k, dx, dy, dz ' (its own: the main program shares these names)
+    IF glThruG >= GL_THRU_GROUPS THEN EXIT FUNCTION
+    g = glThruG + 1 : glThruG = g
+    glThruG0(g) = glThruN : glThruGN(g) = 0 : glThruGSlot(g) = T_SLOTS + slot : glThruGLk(g) = glMdlLk
+    glThruGL(g * 3) = glCellLX : glThruGL(g * 3 + 1) = glCellLY : glThruGL(g * 3 + 2) = glCellDir
+    FOR k = 1 TO GL_DYN : glThruGDyn(g * 4 + k - 1) = glCellDyn(k) : NEXT
+    dx = sx - glEyeX : dy = sy - glEyeY : dz = sz - glEyeZ : glThruGD(g) = dx * dx + dy * dy + dz * dz
+    GLThruGroup = g
+END FUNCTION
+
+' SEE-THROUGH MODELS: the triangles GLDrawModel held back (their material's
+' SEE - RENDER/MODELS.BM's mdlSee), drawn now, after every solid sprite and
+' model, so whatever's behind them is already there to show through. Mixed
+' over it (_GL_BLEND: the shader's alpha is 1 - SEE), hidden by anything in
+' front (the depth test), hiding nothing (_glDepthMask off) - and far to
+' near, so a nearer one goes over a further one: the props furthest first,
+' and each one's triangles furthest first. A prop at a time (GLDraw sorts a
+' batch by picture, which would undo far to near between props). Then the
+' liquids and the glass, so a pool and a pane still cover them.
+SUB GLSeeThrough
+    DIM g, gi, k, lk, d, tr, tg, tb, a AS LONG, z AS LONG, q AS LONG, qa AS LONG, h AS LONG, i AS LONG, j AS LONG, gap AS LONG, tk(13) ' (its own: the main program shares these names)
+    IF glThruG = 0 THEN glThruN = 0 : EXIT SUB
+    GLStopDrawing
+    tk(0) = glFaceNX : tk(1) = glFaceNY : tk(2) = glFaceNZ : tk(3) = glFaceTX : tk(4) = glFaceTY : tk(5) = glFaceTZ ' (kept, and put back after: the drawing after this goes on with them)
+    tk(6) = glCellLX : tk(7) = glCellLY : tk(8) = glCellDir : tk(13) = glCurSlot
+    FOR k = 1 TO GL_DYN : tk(8 + k) = glCellDyn(k) : NEXT
+    _glEnable _GL_BLEND : _glBlendFunc _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA : _glDepthMask _GL_FALSE
+    FOR g = 1 TO glThruG : glThruGOrd(g) = g : NEXT
+    FOR g = 2 TO glThruG ' The props, furthest first (a few: one at a time into place)
+        gi = glThruGOrd(g) : d = glThruGD(gi) : j = g - 1
+        DO WHILE j >= 1
+            IF glThruGD(glThruGOrd(j)) >= d THEN EXIT DO
+            glThruGOrd(j + 1) = glThruGOrd(j) : j = j - 1
+        LOOP
+        glThruGOrd(j + 1) = gi
+    NEXT
+    FOR g = 1 TO glThruG
+        gi = glThruGOrd(g) : a = glThruG0(gi) : z = glThruGN(gi)
+        IF z = 0 THEN _CONTINUE
+        FOR q = 0 TO z - 1 : glThruOrd(q) = a + q : NEXT
+        gap = z \ 2 ' Its triangles, furthest first (Shell's sort: in steps that halve)
+        DO WHILE gap > 0
+            FOR i = gap TO z - 1
+                h = glThruOrd(i) : d = glThruF(h * 7 + 6) : j = i
+                DO WHILE j >= gap
+                    IF glThruF(glThruOrd(j - gap) * 7 + 6) >= d THEN EXIT DO
+                    glThruOrd(j) = glThruOrd(j - gap) : j = j - gap
+                LOOP
+                glThruOrd(j) = h
+            NEXT
+            gap = gap \ 2
+        LOOP
+        glCellLX = glThruGL(gi * 3) : glCellLY = glThruGL(gi * 3 + 1) : glCellDir = glThruGL(gi * 3 + 2)
+        FOR k = 1 TO GL_DYN : glCellDyn(k) = glThruGDyn(gi * 4 + k - 1) : NEXT
+        GLUseTexture glThruGSlot(gi)
+        lk = glThruGLk(gi)
+        IF lk THEN ' (its look, as GLSpritesAndExtras sets it)
+            tr = ((lkCol(lk) \ 65536) AND 255) / 255 : tg = ((lkCol(lk) \ 256) AND 255) / 255 : tb = (lkCol(lk) AND 255) / 255
+            GLSL_uniform_1f glWorldProg, "lookMode", lkMode(lk) : GLSL_uniform_4f glWorldProg, "lookCol", tr, tg, tb, lkAmt(lk)
+        END IF
+        FOR q = 0 TO z - 1
+            h = glThruOrd(q) : qa = h * 7
+            glFaceNX = glThruF(qa) : glFaceNY = glThruF(qa + 1) : glFaceNZ = glThruF(qa + 2)
+            glFaceTX = glThruF(qa + 3) : glFaceTY = glThruF(qa + 4) : glFaceTZ = glThruF(qa + 5)
+            qa = h * 24
+            FOR k = 0 TO 2
+                GLSpriteCorner glThruP(qa), glThruP(qa + 1), glThruP(qa + 2), glThruP(qa + 3), glThruP(qa + 4), glThruP(qa + 5), glThruP(qa + 6), glThruP(qa + 7)
+                qa = qa + 8
+            NEXT
+        NEXT
+        GLStopDrawing
+        IF lk THEN GLSL_uniform_1f glWorldProg, "lookMode", 0
+    NEXT
+    _glDepthMask _GL_TRUE : _glDisable _GL_BLEND
+    glFaceNX = tk(0) : glFaceNY = tk(1) : glFaceNZ = tk(2) : glFaceTX = tk(3) : glFaceTY = tk(4) : glFaceTZ = tk(5)
+    glCellLX = tk(6) : glCellLY = tk(7) : glCellDir = tk(8) : glCurSlot = tk(13)
+    FOR k = 1 TO GL_DYN : glCellDyn(k) = tk(8 + k) : NEXT
+    glThruN = 0 : glThruG = 0
 END SUB
 
 ' A turret's laser sight (i): a thin glowing line, ADDED like a glow - in
@@ -1638,6 +1757,12 @@ SUB GLSendTextures
         GLSendPicture glTexName(T_SLOTS + SPR_SLOTS + slot), MDL_PIC, _OFFSET(mdlPic(0, 0, slot)), 0, 0
         glTexShine(T_SLOTS + SPR_SLOTS + slot) = 0.3 : glTexReflect(T_SLOTS + SPR_SLOTS + slot) = 0 : glTexNeon(T_SLOTS + SPR_SLOTS + slot) = 0.6 : glTexAnim(T_SLOTS + SPR_SLOTS + slot) = 0
     NEXT
+    ' The models' materials (NAME_mat.png - RENDER/MODELS.BM): pictures of
+    ' their own, never smoothed (each pixel is eight numbers, not a colour)
+    IF glMatTex(1) = 0 THEN _glGenTextures MAX_MODELS, _OFFSET(glMatTex(1))
+    FOR slot = 1 TO numModels
+        IF mdlMatSize(slot) THEN GLSendPicture glMatTex(slot), mdlMatSize(slot), _OFFSET(mdlMatPix(mdlMatAt(slot))), 0, 0 : mdlMatUp(slot) = -1
+    NEXT
     ' The glows' spot: white, see-through at its edge, solid in the middle
     FOR y = 0 TO 63 : FOR x = 0 TO 63
         d = SQR((x - 31.5) ^ 2 + (y - 31.5) ^ 2) / 32 : IF d > 1 THEN d = 1
@@ -1773,6 +1898,7 @@ END SUB
 ' how see-through (a wet floor), neon and animated, its pixel size, and
 ' whether it's a sprite
 SUB GLBindSlot(slot)
+    DIM k, m ' (its own: the main program shares these names)
     _glBindTexture _GL_TEXTURE_2D, glTexName(slot)
     IF glShaderOn THEN
         p~& = glWorldProg
@@ -1788,6 +1914,23 @@ SUB GLBindSlot(slot)
         ELSE
             GLSL_uniform_1f p~&, "isSprite", 0 : GLSL_uniform_1f p~&, "texel", 1 / texSize
             GLSL_uniform_1f p~&, "bump", GL_BUMP * glBumpOn * glTexBump(slot) : GLSL_uniform_1f p~&, "shine", glTexShine(slot)
+        END IF
+        ' A model's own texture (S_MODEL on) with a material picture: that on
+        ' unit 4 (matTex), hasMat on, and matK - how much bigger its spots
+        ' are than the texture's (a smaller picture uses part of its square:
+        ' GLDrawModel's uvk), and BUMP on or off. Anything else: hasMat off
+        ' (set only when it changes - most binds are walls and sprites)
+        m = 0
+        IF slot >= T_SLOTS + S_MODEL AND slot <= T_SLOTS + SPR_SLOTS THEN
+            m = slot - T_SLOTS - S_MODEL + 1
+            IF m > numModels THEN m = 0 ELSE IF mdlMatUp(m) = 0 THEN m = 0
+        END IF
+        IF m THEN
+            GLSL_texture_unit 4 : _glBindTexture _GL_TEXTURE_2D, glMatTex(m) : GLSL_texture_unit 0
+            k = spriteSize(slot - T_SLOTS) : IF k < 1 THEN k = sprTex
+            GLSL_uniform_1f p~&, "hasMat", 1 : GLSL_uniform_2f p~&, "matK", sprTex / k, glBumpOn : glMatNow = -1
+        ELSEIF glMatNow THEN
+            GLSL_uniform_1f p~&, "hasMat", 0 : glMatNow = 0
         END IF
     END IF
 END SUB
@@ -1810,6 +1953,7 @@ SUB GLShaderStart(b)
     GLSL_uniform_1f p~&, "eyeZ", glEyeZ ' (the sky's: where the eye really is, up and down)
     GLSL_uniform_2f p~&, "viewDir", glEyeDX, glEyeDY
     GLSL_uniform_1f p~&, "lookMode", 0 ' (no look: a thing with one sets it while it's drawn)
+    GLSL_uniform_1f p~&, "hasMat", 0 : glMatNow = 0 ' (no material: a model with one sets it - GLBindSlot)
     IF glGlassMir THEN GLSL_uniform_4f p~&, "clipPl", glMirPlane(0), glMirPlane(1), glMirPlane(2), glMirPlane(3) ELSE GLSL_uniform_4f p~&, "clipPl", 0, 0, 0, 1 ' (a pane's reflection: only your side of it)
     glBumpOn = (glSet(SET_BUMP, b) <> 0) * -1 ' (1 or 0: GLBindSlot uses it)
     GLSL_uniform_1f p~&, "smoothOn", (glSet(SET_SMOOTH, b) <> 0) * -1
@@ -2721,11 +2865,17 @@ SUB GLBuildShaders
     fs$ = fs$ + "uniform vec3 flashCone;     // ...the cosines of its edge and of where it's full, and its reach" + nl$
     fs$ = fs$ + "uniform sampler2D litTex, infoTex, dynTex;  // the light tables (cellLit)" + nl$
     fs$ = fs$ + "uniform float cellLit, smoothOn;  // light from the tables, not the corners; blended between cells" + nl$
+    fs$ = fs$ + "uniform sampler2D matTex;   // a model's material picture (models/NAME_mat.png: eight values a pixel, 0-15 each)" + nl$
+    fs$ = fs$ + "uniform float hasMat;       // ...1 while one's drawn - 0 for everything else, which draws exactly as without" + nl$
+    fs$ = fs$ + "uniform vec2 matK;          // ...its spots times x (the texture's are in part of a square), and BUMP on (y)" + nl$
     fs$ = fs$ + "varying vec3 vPos, vNormal, vTangent;" + nl$
     fs$ = fs$ + "varying vec4 vLight, vDyn;" + nl$
     fs$ = fs$ + "float height(vec2 p) {" + nl$
     fs$ = fs$ + "    vec4 t = texture2D(tex, p);" + nl$
     fs$ = fs$ + "    return isSprite > 0.5 ? dot(t.rgb, vec3(0.3, 0.59, 0.11)) : t.a;" + nl$
+    fs$ = fs$ + "}" + nl$
+    fs$ = fs$ + "float spec(float x, float ex) {  // a highlight's power: 24 - a material's ROUGH sets its own" + nl$
+    fs$ = fs$ + "    return hasMat > 0.5 ? pow(x, ex) : pow(x, 24.0);" + nl$
     fs$ = fs$ + "}" + nl$
     fs$ = fs$ + "void main() {" + nl$
     fs$ = fs$ + "    if (mirrorCut > 0.5 && vPos.z < 0.0) discard;  // WET FLOORS: a pit's sides would reflect up into the room" + nl$
@@ -2751,6 +2901,15 @@ SUB GLBuildShaders
     fs$ = fs$ + "    float hl = height(uv - vec2(texel, 0.0)), hr = height(uv + vec2(texel, 0.0));" + nl$
     fs$ = fs$ + "    float hu = height(uv - vec2(0.0, texel)), hd = height(uv + vec2(0.0, texel));" + nl$
     fs$ = fs$ + "    vec3 nb = normalize(n + (t * (hl - hr) + b * (hu - hd)) * bump);  // tilted down the slope" + nl$
+    fs$ = fs$ + "    float mSee = 0.0, mGlow = 0.0, mShine = 0.0, mRough = 0.0, mMetal = 0.0, mCoat = 0.0, mSheen = 0.0, sh = shine, ex = 24.0;  // A MODEL'S MATERIAL: none, all 0" + nl$
+    fs$ = fs$ + "    if (hasMat > 0.5) {" + nl$
+    fs$ = fs$ + "        vec4 mq = floor(texture2D(matTex, uv * matK.x) * 255.0 + 0.5); mq.a = 255.0 - mq.a;" + nl$
+    fs$ = fs$ + "        vec4 mh = floor(mq / 16.0); vec4 ml = (mq - mh * 16.0) / 15.0; mh = mh / 15.0;  // two to a channel: the high 4 bits, the low" + nl$
+    fs$ = fs$ + "        mSee = mh.r; mGlow = ml.r; mShine = mh.g; mRough = ml.g; mMetal = mh.b; mCoat = mh.a; mSheen = ml.a;" + nl$
+    fs$ = fs$ + "        ex = mix(64.0, 6.0, mRough);  // ROUGH: how broad its highlight (64 a small hard spot, 6 spread wide)..." + nl$
+    fs$ = fs$ + "        sh = shine + (mShine * 1.2 + mMetal * 0.8) * (1.0 - 0.75 * mRough);  // ...SHINE how strong (metal shines too) - broad, dimmer: as bu1ld0r shows it" + nl$
+    fs$ = fs$ + "        if (ml.b > 0.0) { float mk = ml.b * 2.5 * matK.y; nb = normalize(n + t * ((hl - hr) * mk) + cross(n, t) * ((hu - hd) * mk)); }  // BUMP: relief from the texture's light and dark, as the walls'" + nl$
+    fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    float fog = clamp(1.0 - dot(vPos.xy - eye.xy, viewDir) / 16.0, 0.0, 1.0);  // as chapters 14 and 15" + nl$
     fs$ = fs$ + "    vec3 lightCol = gl_Color.rgb; vec4 lv = vLight; vec4 reach = vDyn;" + nl$
     fs$ = fs$ + "    if (cellLit > 0.5) {  // the world: look the light up in the tables, at the cell in front of the surface" + nl$
@@ -2774,7 +2933,9 @@ SUB GLBuildShaders
     fs$ = fs$ + "    vec3 l = normalize(normalize(lv.xyz + vec3(0.0, 0.0, 0.0001)) * lv.w + vec3(0.0, 0.0, 1.0 - lv.w));" + nl$
     fs$ = fs$ + "    float shade = clamp(1.0 + (dot(nb, l) - dot(n, l)) * 1.5, 0.4, 1.8);  // brighter facing it, darker facing away" + nl$
     fs$ = fs$ + "    vec3 toEye = normalize(eye - vPos);" + nl$
-    fs$ = fs$ + "    float highlight = pow(max(dot(nb, normalize(l + toEye)), 0.0), 24.0) * shine * step(0.0, dot(n, l));" + nl$
+    fs$ = fs$ + "    float highlight = spec(max(dot(nb, normalize(l + toEye)), 0.0), ex) * sh * step(0.0, dot(n, l));" + nl$
+    fs$ = fs$ + "    float coat = 0.0, dynCoat = 0.0;  // COAT: a second highlight, sharp, over the rest (car paint)" + nl$
+    fs$ = fs$ + "    if (hasMat > 0.5 && mCoat > 0.0) coat = pow(max(dot(nb, normalize(l + toEye)), 0.0), 96.0) * mCoat * 0.9 * step(0.0, dot(n, l));" + nl$
     fs$ = fs$ + "    vec3 dyn = vec3(0.0); float dynShine = 0.0;" + nl$
     fs$ = fs$ + "    for (int i = 0; i < 4; i++) {" + nl$
     fs$ = fs$ + "        float r = i == 0 ? reach.x : (i == 1 ? reach.y : (i == 2 ? reach.z : reach.w));" + nl$
@@ -2783,7 +2944,8 @@ SUB GLBuildShaders
     fs$ = fs$ + "        vec3 dn = d / max(dist, 0.001);" + nl$
     fs$ = fs$ + "        float facing = isSprite > 0.5 ? 0.8 : max(dot(nb, dn), 0.0);" + nl$
     fs$ = fs$ + "        dyn += dynCol[i] * fall * facing;" + nl$
-    fs$ = fs$ + "        dynShine += fall * pow(max(dot(nb, normalize(dn + toEye)), 0.0), 24.0) * (dynCol[i].r + dynCol[i].g + dynCol[i].b);" + nl$
+    fs$ = fs$ + "        dynShine += fall * spec(max(dot(nb, normalize(dn + toEye)), 0.0), ex) * (dynCol[i].r + dynCol[i].g + dynCol[i].b);" + nl$
+    fs$ = fs$ + "        if (hasMat > 0.5 && mCoat > 0.0) dynCoat += fall * pow(max(dot(nb, normalize(dn + toEye)), 0.0), 96.0) * (dynCol[i].r + dynCol[i].g + dynCol[i].b);" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    vec3 flash = vec3(0.0); float flashSpec = 0.0;" + nl$
     fs$ = fs$ + "    if (flashCol.r + flashCol.g + flashCol.b > 0.0) {  // THE FLASHLIGHT: a cone from you, brighter in its middle, fading to its reach" + nl$
@@ -2793,14 +2955,31 @@ SUB GLBuildShaders
     fs$ = fs$ + "        float ffr = clamp(fdist / flashCone.z, 0.0, 1.0); float ffall = 1.0 - ffr * ffr;  // (strong till near its reach, then gone)" + nl$
     fs$ = fs$ + "        float ffacing = isSprite > 0.5 ? 0.85 : max(dot(nb, -fdn), 0.0);" + nl$
     fs$ = fs$ + "        flash = flashCol * fcone * ffall * (0.3 + 0.7 * ffacing);" + nl$
-    fs$ = fs$ + "        flashSpec = pow(max(dot(nb, -fdn), 0.0), 24.0) * shine * fcone * ffall * 0.35;" + nl$
+    fs$ = fs$ + "        flashSpec = spec(max(dot(nb, -fdn), 0.0), ex) * sh * fcone * ffall * 0.35;" + nl$
     fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    vec3 col = c.rgb * (lightCol * shade + dyn * fog + flash) + lightCol * highlight + vec3(dynShine * shine * fog * 0.3) + flashCol * flashSpec;" + nl$
+    ' (A model's material, below: none of its products may be the line above's,
+    ' nor toEye's - given a second use, the card fuses that line's multiplies
+    ' and adds another way, and without a material a pixel came out a step
+    ' different: checked old shader against new, every byte, on radeonsi)
+    fs$ = fs$ + "    if (hasMat > 0.5) {  // a model's material: METAL colours its highlights its own colour, and darkens the rest" + nl$
+    fs$ = fs$ + "        float md = 1.0 - 0.6 * mMetal; vec3 hc = mix(vec3(1.0), c.rgb, mMetal);" + nl$
+    fs$ = fs$ + "        col = c.rgb * (lightCol * (shade * md) + dyn * (fog * md) + flash * md) + lightCol * (hc * highlight) + hc * (dynShine * sh * fog * 0.3) + flashCol * (hc * flashSpec);" + nl$
+    fs$ = fs$ + "        col += lightCol * coat + vec3(dynCoat * mCoat * 0.9 * fog * 0.3);  // COAT" + nl$
+    fs$ = fs$ + "        vec3 te = eye - vPos; vec3 tn = te * inversesqrt(max(dot(te, te), 1e-8));  // (toEye again, worked out apart)" + nl$
+    fs$ = fs$ + "        col += lightCol * mix(vec3(1.0), c.rgb, 0.5) * (pow(1.0 - abs(dot(n, tn)), 3.0) * mSheen * 0.6);  // SHEEN: soft light along its edges, seen side on (velvet)" + nl$
+    fs$ = fs$ + "        vec3 rf = reflect(-tn, nb); float sky = rf.z * 0.5 + 0.5; sky = 0.12 + 0.88 * sky * sky;  // ENV: a sky it reflects, bright above - so metal isn't black but for one spot" + nl$
+    fs$ = fs$ + "        col += lightCol * (hc * ((mShine * 0.2 + mMetal * 0.55 + mCoat * 0.25) * (1.0 - 0.6 * mRough) * sky));  // (lit as the room is: no shine in the dark)" + nl$
+    fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    float hi = max(c.r, max(c.g, c.b)), lo = min(c.r, min(c.g, c.b));" + nl$
     fs$ = fs$ + "    float e = smoothstep(0.68, 0.95, hi) * smoothstep(0.45, 0.75, (hi - lo) / (hi + 0.0001)) * neon;  // neon: bright and colourful" + nl$
     fs$ = fs$ + "    if (anim > 0.5 && anim < 1.5) e *= 0.45 + 0.55 * step(0.35, fract(sin(dot(floor(uv * 8.0), vec2(12.9898, 78.233)) + floor(secs * 6.0)) * 43758.5453));" + nl$
     fs$ = fs$ + "    else if (anim > 1.5 && anim < 2.5) e *= 0.55 + 0.45 * sin(uv.x * 12.0 - secs * 4.0);" + nl$
     fs$ = fs$ + "    else if (anim > 2.5) e *= 0.75 + 0.25 * sin(secs * 2.5 + vPos.x + vPos.y);" + nl$
+    fs$ = fs$ + "    if (hasMat > 0.5 && mGlow > 0.0) {  // GLOW: lit by itself, not the room - and bright, so BLOOM's bright pass takes it" + nl$
+    fs$ = fs$ + "        col = mix(col, c.rgb * 1.15, mGlow);" + nl$
+    fs$ = fs$ + "        e = max(e, mGlow * 0.5);  // (and the neon mix after: brighter near, fogged far - as the world's neon)" + nl$
+    fs$ = fs$ + "    }" + nl$
     fs$ = fs$ + "    col = mix(col, c.rgb * 1.3 * (0.35 + 0.65 * fog), clamp(e, 0.0, 0.85));" + nl$
     fs$ = fs$ + "    if (gridAmt > 0.0 && isSprite < 0.5) {  // the editor's grid: a line where each cell (and each wall-high picture) starts" + nl$
     fs$ = fs$ + "        vec3 an = abs(n);" + nl$
@@ -2809,14 +2988,15 @@ SUB GLBuildShaders
     fs$ = fs$ + "        float gl = 1.0 - clamp(min(d.x, d.y) - 1.0, 0.0, 1.0);  // two pixels wide, whatever the distance" + nl$
     fs$ = fs$ + "        col = mix(col, vec3(0.35, 0.9, 1.0), gl * gridAmt);" + nl$
     fs$ = fs$ + "    }" + nl$
-    fs$ = fs$ + "    gl_FragColor = vec4(col, 1.0 - reflectAmt);" + nl$
+    fs$ = fs$ + "    gl_FragColor = vec4(col, (1.0 - reflectAmt) * (1.0 - mSee * 0.85));  // (SEE: how see-through - only blended in GLSeeThrough's pass)" + nl$
     fs$ = fs$ + "}" + nl$
     glWorldProg = GLSL_program~&(vs$, fs$)
     IF glWorldProg = 0 THEN glShaderError$ = "world: " + GLSL_error$ : EXIT SUB
     glTanLoc = GLSL_attrib&(glWorldProg, "aTangent") : glLightLoc = GLSL_attrib&(glWorldProg, "aLight") : glDynLoc = GLSL_attrib&(glWorldProg, "aDyn")
-    GLSL_use glWorldProg ' (the texture is on unit 0, the light tables on 1, 2 and 3)
+    GLSL_use glWorldProg ' (the texture is on unit 0, the light tables on 1, 2 and 3, a model's material on 4)
     GLSL_uniform_1i glWorldProg, "tex", 0 : GLSL_uniform_1i glWorldProg, "litTex", 1
     GLSL_uniform_1i glWorldProg, "infoTex", 2 : GLSL_uniform_1i glWorldProg, "dynTex", 3
+    GLSL_uniform_1i glWorldProg, "matTex", 4 : GLSL_uniform_1f glWorldProg, "hasMat", 0 ' (a model's material picture on unit 4: GLBindSlot)
     GLSL_use 0
 
     ' --- Post-processing. All three draw one rectangle over everything

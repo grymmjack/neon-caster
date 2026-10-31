@@ -336,6 +336,11 @@ SUB BuildLevel STATIC
                             decoX(numDecos) = x + 0.5 : decoY(numDecos) = y + 0.5 : decoKind(numDecos) = dk : decoOn(numDecos) = -1 : decoFuse(numDecos) = 0 : vendState(numDecos) = 0 : decoFace(numDecos) = 0
                             decoHP(numDecos) = DecoMaxHP(dk) : decoTimer(numDecos) = 0 : decoLootA(numDecos) = NO_AIM
                             decoZ(numDecos) = (k - 1) * BarrelHigh(dk) : decoLeak(numDecos) = 0 : decoOpen(numDecos) = 0 ' (one on another: as high as those under it)
+                            decoMdlOf(numDecos) = 0
+                            IF dk = DK_PROP THEN ' (a prop: its model, by name - and its health, if its line gives it any: else shots don't break it)
+                                j = XtraFind("things", x, y, 0)
+                                IF j THEN decoMdlOf(numDecos) = PropModel(XtraField$(j, 4)) : IF VAL(XtraField$(j, 5)) >= 1 THEN decoHP(numDecos) = MinOf(98, VAL(XtraField$(j, 5)))
+                            END IF
                         END IF
                     NEXT
                 CASE "m", "g", "h", "c", "s", "k", "w", "z", "T", "1", ")", "6", "7", "0", "~", "_", "|", "]" ' A monster (MonChars$)
@@ -415,7 +420,7 @@ SUB BuildLevel STATIC
     ' Chairs aren't on the list: they're 3D (ModelFacing turns one to its desk).
     FOR i = 1 TO numDecos
         IF decoFace(i) = -1 THEN decoFace(i) = 0 : _CONTINUE
-        IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|33|34|35|36|37|38|40|41|43|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
+        IF decoFace(i) = 0 AND INSTR("|4|6|7|10|11|12|14|15|16|18|19|33|34|35|36|37|38|40|41|43|44|", "|" + LTRIM$(STR$(decoKind(i))) + "|") THEN
             x = INT(decoX(i)) : y = INT(decoY(i))
             IF DecoWall(x - 1, y) AND NOT DecoWall(x + 1, y) THEN ' (a wall behind it, and open floor in front)
                 decoFace(i) = 1

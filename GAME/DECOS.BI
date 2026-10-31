@@ -19,6 +19,7 @@ DIM SHARED lvlNumNudges AS INTEGER, lvlNudge(MAX_NUDGES, 5) AS SINGLE ' (5: whic
 CONST MAX_DECO = 160, DECO_RADIUS = 0.3, DECO_BREAK_FRAMES = 14
 DIM SHARED decoX(MAX_DECO) AS SINGLE, decoY(MAX_DECO) AS SINGLE, decoKind(MAX_DECO) AS INTEGER
 DIM SHARED decoOn(MAX_DECO) AS INTEGER, decoFuse(MAX_DECO) AS INTEGER, numDecos AS INTEGER
+DIM SHARED decoMdlOf(MAX_DECO) AS INTEGER ' (a prop's own model: DK_PROP, below)
 ' decoCharge: how charged a spawner is, 0..1 (0 = asleep), and decoBurst:
 ' frames left of the flash as it sends a monster out - both only for show
 DIM SHARED decoCharge(MAX_DECO) AS SINGLE, decoBurst(MAX_DECO) AS INTEGER
@@ -57,6 +58,11 @@ CONST DK_SHELF = 33, DK_SAFE = 34, DK_PCBROKE = 35, DK_PC = 36, DK_CAMERA = 37, 
 CONST DK_JUMPPAD = 42, DK_PADPC = 43 ' (a jump pad - it shoots you through the air; a launch control that sets one's numbers: GAME/JUMPPADS.BM)
 CONST DK_ALARM = 40, DK_ALARMPC = 41 ' (an alarm switch on its wall - a guard runs to it; a security console that switches alarms on and off: GAME/ALARMS.BM)
 CONST DK_DESK = 10
-CONST DECO_KINDS = 43, ITEM_KINDS = 27 ' (kinds of decoration and of pickup - see chapter 3)
+' A prop (a thing, prop NAME - LEVEL/THINGS.BM): any model in models/,
+' bu1ld0r's or the game's own, standing in its cell - solid, not broken by
+' shots unless its line gives it health. decoMdlOf(i): decoration i's own
+' model (PropModel), drawn instead of its kind's; 0 none (prop.png).
+CONST DK_PROP = 44
+CONST DECO_KINDS = 44, ITEM_KINDS = 27 ' (kinds of decoration and of pickup - see chapter 3)
 ' ...and each decoration's wreck, the same way (MakeWreck)
 DIM SHARED wreckScale(DECO_KINDS), wreckSquash(DECO_KINDS)

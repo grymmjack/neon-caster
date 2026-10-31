@@ -22,11 +22,26 @@ DIM SHARED decoMdl(DECO_KINDS) AS INTEGER, itemMdl(ITEM_KINDS) AS INTEGER, mtype
 ' y its right-hand side, z up from its floor) and where on the texture
 ' (mdlU, V: 0 to 1 from its top left). Each triangle's normal - the way it
 ' faces - is worked out once, as it's loaded (mdlNX, NY, NZ).
-CONST MAX_MDL_TRIS = 16000
+CONST MAX_MDL_TRIS = 64000 ' (the game's own are about 11,000: the rest for props)
 DIM SHARED mdlFirst(MAX_MODELS) AS LONG, mdlCount(MAX_MODELS) AS LONG, mdlTris AS LONG
 DIM SHARED mdlPX(MAX_MDL_TRIS * 3) AS SINGLE, mdlPY(MAX_MDL_TRIS * 3) AS SINGLE, mdlPZ(MAX_MDL_TRIS * 3) AS SINGLE
 DIM SHARED mdlU(MAX_MDL_TRIS * 3) AS SINGLE, mdlV(MAX_MDL_TRIS * 3) AS SINGLE
 DIM SHARED mdlNX(MAX_MDL_TRIS) AS SINGLE, mdlNY(MAX_MDL_TRIS) AS SINGLE, mdlNZ(MAX_MDL_TRIS) AS SINGLE
+' MATERIALS (bu1ld0r's): models/NAME_mat.png, if there, is a second picture
+' laid on the same spots as NAME_tex.png - each pixel eight values, 0-15
+' each, two to a channel (high 4 bits first): R = SEE * 16 + GLOW, G =
+' SHINE * 16 + ROUGH, B = METAL * 16 + BUMP, A = 255 - (COAT * 16 + SHEEN).
+' (0, 0, 0, 255) is a plain face; no file, every face plain - drawn just as
+' without. OpenGL's world shader reads it (GLBindSlot: texture unit 4).
+' mdlMatSize(m): its picture's side (square, at most MDL_MAT_MAX - 0: none),
+' its pixels at mdlMatPix(mdlMatAt(m)) on, a row at a time; mdlMatUp(m):
+' OpenGL has them (GLSendTextures). mdlSee(t): triangle t's SEE (0-1), read
+' at its middle - over 0, it's drawn after the solid things, blended
+' (GLSeeThrough).
+CONST MDL_MAT_MAX = 256
+DIM SHARED mdlMatSize(MAX_MODELS) AS LONG, mdlMatAt(MAX_MODELS) AS LONG, mdlMatTop AS LONG, mdlMatUp(MAX_MODELS) AS INTEGER
+REDIM SHARED mdlMatPix(0) AS _UNSIGNED LONG
+DIM SHARED mdlSee(MAX_MDL_TRIS) AS SINGLE
 ' The 8 pictures of each, for the software renderer (MDL_PIC square, ART or
 ' not: it never draws a sprite bigger): model m's picture a (0-7) is
 ' mdlPic(x, y, (m - 1) * MDL_ANGLES + a + 1). They're mdlFrame(m) cells
@@ -43,3 +58,13 @@ CONST MDL_ANGLES = 8, MDL_PIC = 64
 ' of corners a frame.
 CONST MODEL_NEAR = 12, MODEL_NEAR_SMALL = 6, MODEL_NEAR_MID = 9 ' (under a cell across - a vending machine, a desk: 9)
 DIM SHARED mdlPic(MDL_PIC - 1, MDL_PIC - 1, MAX_MODELS * MDL_ANGLES) AS _UNSIGNED LONG, mdlFrame(MAX_MODELS) AS SINGLE
+' PROPS (a thing, prop NAME - LEVEL/THINGS.BM): any models/NAME.obj, loaded
+' the first time a level has one (PropModel) and kept. mdlProp(m): model m
+' is one; mdlSum(m): its files' checksum (PropSum~&) - PropWatch, every
+' PROP_WATCH frames, loads it again (PropReload) when bu1ld0r - or anything
+' - writes them anew, once they've stopped changing (mdlSumNew: the same
+' twice running). propNames$: every model there is, for the editor's
+' MODEL < > (PropNames$, read once).
+CONST PROP_WATCH = 60
+DIM SHARED mdlProp(MAX_MODELS) AS INTEGER, mdlSum(MAX_MODELS) AS _UNSIGNED LONG, mdlSumNew(MAX_MODELS) AS _UNSIGNED LONG
+DIM SHARED propWatchT AS LONG, propNamesC$, propListed AS INTEGER

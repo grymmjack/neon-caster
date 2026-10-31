@@ -823,9 +823,27 @@ SUB EditPaneClick STATIC
                 END IF
             NEXT
             EditApply : EditNote ThingTitle$(t$)
+        CASE 288, 289 ' A prop's model: the one before, after (in PropNames$)
+            t$ = EditXtra$("things", edPnCX, edPnCY, 4) : hp$ = EditXtra$("things", edPnCX, edPnCY, 5) : n = 1 : j = 0
+            DO : IF ListItem$(PropNames$, n) = "" THEN EXIT DO
+                IF LCASE$(ListItem$(PropNames$, n)) = LCASE$(t$) THEN j = n
+                n = n + 1
+            LOOP
+            n = n - 1
+            IF n = 0 THEN
+                EditNote "No models in models/ - export one from bu1ld0r (EXPORT, NEON-CASTER)"
+            ELSE
+                IF pnHit = 288 THEN j = j - 1 ELSE j = j + 1
+                IF j < 1 THEN j = n
+                IF j > n THEN j = 1
+                t$ = ListItem$(PropNames$, j) : EditPushUndo
+                IF hp$ = "" THEN XtraSet "things", edPnCX, edPnCY, "prop, " + t$ ELSE XtraSet "things", edPnCX, edPnCY, "prop, " + t$ + ", " + hp$
+                EditApply
+                IF PropModel(t$) THEN EditNote "Model: " + t$ + " (" + LTRIM$(STR$(mdlCount(PropModel(t$)))) + " triangles)" ELSE EditNote "Model: " + t$ + " - it has no " + t$ + "_tex.png, or there's no room for it"
+            END IF
         CASE 261 ' A thing's own: type it
             IF edTyping AND edTypeFor = 4 THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 4 : edTypeFresh = -1 : edTypeX = edPnCX : edTypeY = edPnCY : k = XtraFind("things", edPnCX, edPnCY, 0) : edTypeBuf$ = "" : IF k THEN edTypeBuf$ = XtraRest$(k, 4)
-            IF edTyping AND edTypeFor = 4 THEN EditNote "A safe: its code (or ?); a computer: x, y it opens; a camera: its name - Enter keeps it"
+            IF edTyping AND edTypeFor = 4 THEN EditNote "A safe: its code (or ?); a computer: x, y it opens; a camera: its name; a prop: its model, health - Enter keeps it"
         CASE 262 ' A note's words
             IF edTyping AND edTypeFor = 5 THEN EditTypeDone ELSE edTyping = -1 : edTypeFor = 5 : edTypeFresh = 0 : edTypeX = edPnCX : edTypeY = edPnCY : edTypeBuf$ = EditNoteWords$(edPnCX, edPnCY)
             IF edTyping AND edTypeFor = 5 THEN EditNote "Type its words (| a new line, {code x y} that door's or safe's code) - Enter keeps them"
@@ -4418,6 +4436,7 @@ SUB EditPaneNudge(x0, y)
             CASE "camera" : lab$ = "NAME"
             CASE "alarmpc" : lab$ = "ALARM (X, Y)"
             CASE "padpc" : lab$ = "PAD (X, Y)"
+            CASE "prop" : lab$ = "MODEL, HP"
             CASE ELSE : lab$ = ""
         END SELECT
         IF tn$ = "jumppad" THEN ' (a jump pad: which way, how steep, how hard)
@@ -4425,6 +4444,11 @@ SUB EditPaneNudge(x0, y)
             EditPaneAdd -1, x0, y + 2, 140, "DIR" + STR$(jd), 0 : EditPaneAdd 294, x0 + 146, y, 24, "<", 0 : EditPaneAdd 295, x0 + 174, y, 24, ">", 0 : y = y + 23
             EditPaneAdd -1, x0, y + 2, 140, "ANGLE" + STR$(ja), 0 : EditPaneAdd 296, x0 + 146, y, 24, "-", 0 : EditPaneAdd 297, x0 + 174, y, 24, "+", 0 : y = y + 23
             EditPaneAdd -1, x0, y + 2, 140, "POWER" + STR$(jp), 0 : EditPaneAdd 298, x0 + 146, y, 24, "-", 0 : EditPaneAdd 299, x0 + 174, y, 24, "+", 0 : y = y + 23
+        END IF
+        IF tn$ = "prop" THEN ' (a prop: which model - every one in models/, bu1ld0r's exports too)
+            t$ = EditXtra$("things", edPnCX, edPnCY, 4) : IF t$ = "" THEN t$ = "NONE" ELSE IF PropFind(t$) = 0 THEN t$ = t$ + "?"
+            EditPaneAdd -1, x0, y + 2, 140, UCASE$(LEFT$(t$, 14)), 0 : EditPaneAdd 288, x0 + 146, y, 24, "<", 0 : EditPaneAdd 289, x0 + 174, y, 24, ">", 0
+            y = y + 23
         END IF
         IF tn$ = "alarm" THEN ' (an alarm switch: on at first, or off till a console - or a trigger - switches it on)
             IF LCASE$(EditXtra$("things", edPnCX, edPnCY, 4)) = "off" THEN t$ = "OFF AT FIRST" ELSE t$ = "ON AT FIRST"

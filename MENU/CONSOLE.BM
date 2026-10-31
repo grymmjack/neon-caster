@@ -157,7 +157,7 @@ SUB ConExec STATIC
     END IF
     IF NOT conFromTrig THEN ' (you typed a cheat: achievements wait for a new game)
         SELECT CASE conVerb$
-            CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
+            CASE "god", "noclip", "iddqd", "buddha", "fly", "notarget", "give", "kill", "killall", "spawn", "summon", "item", "finish", "exitlevel", "nextlevel", "tp", "teleport", "goto", "door", "secret", "wall", "put", "prop", "box", "block", "liquid", "flood", "raise", "lift", "liftgo", "achieve", _
                  "map", "level", "sector", "jackin", "jackout", "respawn", "lamp", "trigger", "monsters", _
                  "drop", "liquids", "blocks", "resetlevel", "reloadlevel", "loadlevelfromdisk", "mapsize", "infinitefuel", "infjet"
                 IF NOT achCheat AND NOT achTest THEN ConPrint "^9(cheats on: achievements wait for a new game)"
@@ -776,6 +776,31 @@ SUB ConExec STATIC
                 EditPushUndo : EditPut VAL(conA$), VAL(conB$), pc$ : EditApply : ConPrint "put " + pc$ + " at" + STR$(VAL(conA$)) + STR$(VAL(conB$))
             ELSE
                 ConPrint "put X Y CHAR"
+            END IF
+        CASE "prop" ' prop X Y NAME [HP]: a prop - models/NAME.obj, bu1ld0r's - in cell X Y, built at once (prop: every model there is)
+            IF conC$ = "" THEN
+                ConPrint "prop X Y NAME [HP] - the models: " + PropNames$
+            ELSEIF NOT PropNameOk(conC$) THEN
+                ConPrint "prop: a model's name is letters, digits, - and _"
+            ELSE
+                pc$ = ConRawWord$(conRest$, 3) ' (as typed: file names care about case)
+                pcx = ConCell(VAL(conA$)) : pcy = ConCell(VAL(conB$)) : prHp$ = ConWord$(conCmd$, 5)
+                EditPushUndo : EditPut pcx, pcy, CHR$(34)
+                IF VAL(prHp$) >= 1 THEN XtraSet "things", pcx, pcy, "prop, " + pc$ + ", " + LTRIM$(STR$(VAL(prHp$))) ELSE XtraSet "things", pcx, pcy, "prop, " + pc$
+                EditApply
+                IF PropModel(pc$) THEN ConPrint "prop " + pc$ + " at" + STR$(pcx) + STR$(pcy) ELSE ConPrint "prop at" + STR$(pcx) + STR$(pcy) + ": no models/" + pc$ + ".obj with its " + pc$ + "_tex.png - it shows as a box"
+            END IF
+        CASE "reload", "reloadmodel" ' reload [NAME]: a model read again from its files (bu1ld0r's export) - every prop, with no name
+            IF conA$ = "" THEN
+                k = 0
+                FOR j = 1 TO numModels : IF mdlProp(j) THEN PropReload j : k = k + 1
+                NEXT
+                IF k = 0 THEN ConPrint "reload NAME: no props loaded"
+            ELSE
+                pc$ = ConRawWord$(conRest$, 1) : k = 0
+                FOR j = 1 TO numModels : IF LCASE$(mdlName$(j)) = LCASE$(pc$) THEN k = j
+                NEXT
+                IF k THEN PropReload k ELSE ConPrint "reload: no model " + pc$ + " loaded (prop X Y " + pc$ + " puts one in)"
             END IF
         CASE "box" ' box X0 Y0 X1 Y1 CHAR: fill a rectangle
             bw$ = ConWord$(conCmd$, 6) : pc$ = MID$(conRest$, LEN(conRest$), 1)
@@ -1415,6 +1440,18 @@ FUNCTION ConWord$(c$, n)
     LOOP
 END FUNCTION
 
+' Word n of c$ as typed (ConWord$'s are made small: a file's name cares)
+FUNCTION ConRawWord$(c$, n)
+    DIM t$, w, sp ' (its own: the main program shares these names)
+    t$ = LTRIM$(RTRIM$(c$)) : w = 0
+    DO WHILE LEN(t$)
+        sp = INSTR(t$, " ") : IF sp = 0 THEN sp = LEN(t$) + 1
+        w = w + 1
+        IF w = n THEN ConRawWord$ = LEFT$(t$, sp - 1) : EXIT FUNCTION
+        t$ = LTRIM$(MID$(t$, sp + 1))
+    LOOP
+END FUNCTION
+
 ' on / off / 1 / 0 / yes / no as -1 or 0
 FUNCTION ConOn(v$)
     ConOn = (v$ = "1" OR v$ = "on" OR v$ = "yes" OR v$ = "true")
@@ -1500,7 +1537,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet glassreflect glass jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put box block liquid raise lift lamp wall door light ambient cell-light celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange textart ascii ansi petscii mac retro retroshade photo matrix grid quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet glassreflect glass jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put prop reload box block liquid raise lift lamp wall door light ambient cell-light celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange textart ascii ansi petscii mac retro retroshade photo matrix grid quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1521,7 +1558,7 @@ SUB ConHelp(c$)
             ConPrint "  ^6settings  ^7set^8 NAME VALUE  ^7get^8 NAME  ^7settings  ^7NAME^8 [VALUE]  ^7bind^8 ACTION KEY  ^7binds"
             ConPrint "            ^7qb64pe^8 [PATH|auto]  ^7difficulty^8 [easy|normal|hard|nightmare]"
             ConPrint "            ^7imageeditor^8 [PATH|auto]"
-            ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
+            ConPrint "  ^6the level ^7edit^8 [walk|off]  ^7put  ^7prop^8 X Y NAME  ^7reload  ^7box  ^7block  ^7liquid  ^7raise  ^7lift  ^7lamp  ^7wall  ^7door  ^7light"
             ConPrint "            ^7liftgo  ^7trigger  ^7turret^8 WHO WHAT  ^7secret^8 X Y  ^7loot^8 BREAKABLE ...  ^7undo  ^7redo"
             ConPrint "            ^7savelevel  ^7alarm^8 [on|off|raise|stop]  ^7drain^8 X Y [SPEED]  ^7gravity^8 [N]"
             ConPrint "            ^7jumppad^8 X Y ...  ^7wetness^8 [0-9|auto]  ^7wet^8 X0 Y0 X1 Y1 N"
@@ -1682,6 +1719,8 @@ SUB ConHelp(c$)
         ' --- the level (the editor's commands, built at once; savelevel keeps them)
         CASE "edit", "editor" : ConPrint "^3edit [walk|off]^0: the level editor (F2) - the map from above, or walk: inside it, or off: back to the game"
         CASE "put" : ConPrint "^3put X Y CHAR^0: a map character (the editor's picker and LEVEL-EDITOR-GUIDE.md have them all) into cell X Y, built at once"
+        CASE "prop" : ConPrint "^3prop X Y NAME [HP]^0: a prop in cell X Y - models/NAME.obj (bu1ld0r's EXPORT, NEON-CASTER, writes them); HP: shots break it (none: they don't). prop alone lists the models"
+        CASE "reload", "reloadmodel" : ConPrint "^3reload [NAME]^0: model NAME read again from its files - every prop, with no name. Props are watched: an export from bu1ld0r shows within a second or two"
         CASE "box" : ConPrint "^3box X0 Y0 X1 Y1 CHAR^0: fill that rectangle of cells with a map character"
         CASE "block", "blocks"
             ConPrint "^3block X Y X0 Y0 X1 Y1 [WALL]^0: a solid block standing in open cell X Y - a pillar, a thin wall, the back"
