@@ -50,7 +50,7 @@ it yourself:
 | W A S D | walk and strafe |
 | Shift (hold) | run |
 | F | kick (Fire with no ammo kicks too) |
-| Q | jump (higher in a sector with low gravity) |
+| Q | jump (higher in a sector with low gravity) - land on a barrel, crate or any prop and you can stand on it |
 | E / C | with a jetpack: hold E to fire it (or look up and walk) - let go and you fall; in fly mode, up and down |
 | Middle button (hold) | ROCKET CAM: with the launcher out, fires a rocket and you ride it while it's held |
 | Click or Ctrl | fire - on the blaster or the railgun, hold to charge a shot and let go for twice the damage (twice the ammo; CHARGED SHOTS in SETTINGS > GAMEPLAY) |
@@ -718,7 +718,7 @@ as you set them. Set RENDERER to SOFTWARE to see chapters 14-17 at work.)
 | `neon-caster/*.png` | textures (64 x 64), sprites, the guns: the CLASSIC pixel art |
 | `neon-caster/hd/` | the same pictures painted again at high resolution (textures 512, sprites 256): the MODERN art (ART in SETTINGS > VIDEO) |
 | `neon-caster/sfx/` | sound effects, made with soundmon (the droids' chirps are synthesized whistles), every one mastered by `mastering/` (`README.md` there); `soundtest.txt` lists them all for the SOUND TEST (`soundtest.py` writes it); `pwmsfxr/` has the first set, PC-speaker style, built by `make-sfx.sh` with PWMSFXR |
-| `neon-caster/models/` | 3D props: decorations and pickups as models. `NAME.obj` is the model OpenGL draws; `NAME_0.png` to `NAME_7.png`, it seen from 8 ways round, for the software renderer (as DOOM did); `NAME_tex.png`, its texture (MODERN: `hd/models/`). `models.py` builds them from the paintings - each prop's outline pushed out to a depth (boxes, guns, cards) or spun round (barrels, tanks, jars); the chair and plant from `src/`, models pixelmon made - delete a prop's `.obj` and it's a sprite again |
+| `neon-caster/models/` | 3D props: decorations and pickups as models. `NAME.obj` is the model OpenGL draws; `NAME_0.png` to `NAME_7.png`, it seen from 8 ways round, for the software renderer (as DOOM did); `NAME_tex.png`, its texture (MODERN: `hd/models/`). `models.py` builds them from the paintings - each prop's outline pushed out to a depth (boxes, guns, cards) or spun round (barrels, tanks, jars); the chair and plant from `src/`, models pixelmon made - delete a prop's `.obj` and it's a sprite again. Any other `NAME.obj` there (bu1ld0r's exports) can go in a level as a prop (`prop X Y NAME [HP]`); an optional `NAME_mat.png` gives it materials (see-through, glow, shine, metal, bumps). A model whose files change while you play is read again by itself (`reload` does it at once) |
 | `neon-caster/demos/` | demos that come with the game: the autopilot playing every sector of the first four sets and the showcases - INFILTRATION's aren't recorded yet (`sector1.ncd`..., `new1.ncd`, `remix1.ncd`, `huge1.ncd`...; `playdemo sector3`) - plain text, a line a frame |
 | `neon-caster/programs/` | programs the computers in a level can run (`program NAME` in a trigger): `invaders.bas`, NEON INVADERS - copy it and make your own |
 | `neon-caster/speech/` | NEXUS's lines - a greeting for every sector - and the monsters' voices and barks: text-to-speech voices through a channel vocoder |

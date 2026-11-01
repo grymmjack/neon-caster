@@ -16,14 +16,14 @@ or on the map from above, with a picker of every wall, floor, door, item,
 monster and light, and a paint program of its own to draw the pictures in place, palettes to pick colours from - and a monster editor and a HUD editor. Twelve more
 sectors built with the editor come with it, three of them outdoors, and
 one, THE NEON EXPO, that shows off every feature at once - and THE MONOLITH,
-256 cells across and 30 walls high, as big as a sector gets - and THE STOCKPILE, THE COMPOUND and THE LAUNCH BAY, built to show off the newest of what follows. Jumping, rocket jumps, a jetpack, a flashlight for the dark (mind its battery), flying
+256 cells across and 30 walls high, as big as a sector gets - and THE STOCKPILE, THE COMPOUND and THE LAUNCH BAY, built to show off the newest of what follows. Jumping (onto barrels, crates and any prop - and stand there), rocket jumps, a jetpack, a flashlight for the dark (mind its battery), flying
 drones, barrels of poison, lava and acid that leak and burst (stacked up to eight high),
 treasure chests - and mimics that only look like them - ambushes of turrets that slide out of walls, floors and ceilings,
 stronghold doors to kick down, keypad doors and safes whose codes are on notes you find, desks and
 bookshelves to search, broken computers to fix and hack, security cameras to watch through, robot
 guard dogs and guards who run to raise the alarm, a rocket camera (hold the middle button as you fire), charged shots (hold fire on the blaster or railgun, let go for twice the damage), jump pads that
 shoot you across a sector (some set from a launch control, by sums you work out), a sector's own gravity, floors
-as wet or dry as a level says, lights a sector switches and recolours as it plays (light switches, alarms that turn a room red), glass that cracks where you shoot it (or never breaks: bulletproof), sectors dark enough to need the flashlight, a window you can drag to any size, a harder network (hunters, sentinels, tracers and black ICE, firewalls, and a TRACE that climbs while ICE sees you - full, and more hunters come), a map
+as wet or dry as a level says, lights a sector switches and recolours as it plays (light switches, alarms that turn a room red), glass that cracks where you shoot it (or never breaks: bulletproof), sectors dark enough to need the flashlight, a window you can drag to any size, 3D props of your own (models with materials: see-through, glowing, shiny, metal) that reload as you re-export them, a harder network (hunters, sentinels, tracers and black ICE, firewalls, and a TRACE that climbs while ICE sees you - full, and more hunters come), a map
 textured from above like Duke3D's, and a
 console you can script (aliases, and an autoexec.cfg run at start-up). And 50
 achievements, each with its own badge, ready for Steam, with each
