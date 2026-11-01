@@ -67,6 +67,7 @@ SUB LoadModels
         LoadSprite "models/" + mdlName$(m) + "_tex.png", S_MODEL + m - 1
         IF mdlTint(m) THEN TintSlot S_MODEL + m - 1, mdlTint(m)
         LoadModelMat m
+        mdlSum(m) = PropSum~&(mdlName$(m)) : mdlSumNew(m) = mdlSum(m) ' (its files as loaded: PropWatch notices an export over them)
     NEXT
 END SUB
 
@@ -346,19 +347,31 @@ END FUNCTION
 
 ' Every PROP_WATCH frames: a prop whose files changed (bu1ld0r exported it
 ' again) is loaded again - once they read the same twice running, so a file
-' half written isn't
+' half written isn't. The game's own models (a barrel, a crate - bu1ld0r can
+' export over them too) are looked at one a frame, in turn: each about every
+' second or two, at a few files' reading a frame
 SUB PropWatch
     DIM m, s AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    IF numModels > 0 THEN
+        propWatchM = propWatchM + 1 : IF propWatchM > numModels THEN propWatchM = 1
+        m = propWatchM
+        IF NOT mdlProp(m) THEN PropWatchOne m
+    END IF
     propWatchT = propWatchT + 1 : IF propWatchT < PROP_WATCH THEN EXIT SUB
     propWatchT = 0
     FOR m = 1 TO numModels
-        IF mdlProp(m) THEN
-            s = PropSum~&(mdlName$(m))
-            IF s <> mdlSum(m) THEN
-                IF s = mdlSumNew(m) THEN PropReload m ELSE mdlSumNew(m) = s
-            END IF
-        END IF
+        IF mdlProp(m) THEN PropWatchOne m
     NEXT
+END SUB
+
+' Model m's files looked at: changed, and the same as last time looked (not
+' half written) - loaded again
+SUB PropWatchOne(m)
+    DIM s AS _UNSIGNED LONG ' (its own: the main program shares these names)
+    s = PropSum~&(mdlName$(m))
+    IF s <> mdlSum(m) THEN
+        IF s = mdlSumNew(m) THEN PropReload m ELSE mdlSumNew(m) = s
+    END IF
 END SUB
 
 ' Model m read again from its files: its triangles (after the rest - or

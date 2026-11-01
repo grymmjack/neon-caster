@@ -35,6 +35,9 @@ DIM SHARED decoCell(MAP_SIZE, MAP_SIZE) AS INTEGER ' Which decoration stands in 
 ' (0 on the floor), decoLeak a liquid barrel's frames of leaking (its fuse,
 ' shown), decoOpen a chest opened
 DIM SHARED decoZ(MAX_DECO) AS SINGLE, decoLeak(MAX_DECO) AS INTEGER, decoOpen(MAX_DECO) AS INTEGER
+' Standing on props (PropsOn): a demo's own - one recorded before has no
+' "props 1" line, and plays back with props as walls all the way up
+DIM SHARED demoProps AS INTEGER
 ' [barrels]: x, y, liquid (0 a plain barrel, 1-5 LQ_), stack (1-BARREL_STACK high, as fits under its ceiling: StackFits)
 CONST MAX_BARRELS = 96, BARREL_STACK = 8
 DIM SHARED lvlNumBarrels AS INTEGER, lvlBarrel(MAX_BARRELS, 4) AS INTEGER

@@ -48,7 +48,7 @@
     IF knockX <> 0 OR knockY <> 0 THEN ' (a blast's knock - GAME/ROCKETS.BM: easing off; in the air, it carries you)
         moveX = moveX + knockX : moveY = moveY + knockY
         IF padAir THEN ' (shot from a jump pad: it carries you all the way - a cannonball's arc)
-        ELSEIF playerVZ < 0 OR playerZ > floorH(INT(playerX), INT(playerY)) + 0.02 THEN
+        ELSEIF playerVZ < 0 OR playerZ > MaxOf(floorH(INT(playerX), INT(playerY)), DecoGround!(playerX, playerY, playerZ)) + 0.02 THEN
             knockX = knockX * 0.96 : knockY = knockY * 0.96
         ELSE
             knockX = knockX * 0.75 : knockY = knockY * 0.75
@@ -62,7 +62,7 @@
         IF playerY < 1.01 THEN playerY = 1.01
         IF playerY > mapN - 1.01 THEN playerY = mapN - 1.01
     ELSE
-        walkZ = playerZ : MoveBody playerX, playerY, moveX, moveY : walkZ = -999
+        walkZ = playerZ : walkProps = PropsOn : MoveBody playerX, playerY, moveX, moveY : walkZ = -999 : walkProps = 0
     END IF
     ' Up and down (chapter 22's heights): step up onto anything low enough
     ' (MoveBody wouldn't have let you onto anything higher), fall off
@@ -93,7 +93,9 @@
     jumpDown = (inBits AND DB_JUMP) <> 0
     IF jumpDown AND NOT jumpWas AND NOT dead AND NOT editMode AND NOT flyMode AND NOT cyberOn AND NOT jetOn AND playerVZ = 0 THEN
         jfz = floorH(INT(playerX), INT(playerY)) : IF liqKind(INT(playerX), INT(playerY)) THEN jfz = MaxOf(jfz, liqZ(INT(playerX), INT(playerY)) - LQ_FULL)
-        IF playerZ <= jfz + 0.02 AND ceilH(INT(playerX), INT(playerY)) - playerZ > BODY_H + 0.1 THEN playerVZ = -JUMP_V : jumpAir = -1 : levelFlat = 0 : PlaySfx sndStep1&, 0.5 : PlaySfx JumpGrunt&, 0.8 ' (and a grunt)
+        jfz = MaxOf(jfz, DecoGround!(playerX, playerY, playerZ)) ' (standing on a prop: a hop from there)
+        jRoom = BODY_H : IF PropsOn THEN jRoom = CROUCH_H ' (props: a hop under a low ceiling too - up on to a barrel, crouching)
+        IF playerZ <= jfz + 0.02 AND ceilH(INT(playerX), INT(playerY)) - playerZ > jRoom + 0.1 THEN playerVZ = -JUMP_V : jumpAir = -1 : levelFlat = 0 : PlaySfx sndStep1&, 0.5 : PlaySfx JumpGrunt&, 0.8 ' (and a grunt)
     END IF
     jumpWas = jumpDown
     IF editMode OR (flyMode AND NOT dead) THEN ' The editor, fly (god mode) or a jetpack lit: you fly - Space (the editor) or E (fly) up, C down (Shift faster), or on the way you look - no falling
@@ -122,13 +124,18 @@
         END IF
         fz = floorH(INT(playerX), INT(playerY))
         IF liqKind(INT(playerX), INT(playerY)) AND NOT cyberOn THEN fz = MaxOf(fz, liqZ(INT(playerX), INT(playerY)) - LQ_FULL) ' (in deep liquid you float, your head above it)
+        fz = MaxOf(fz, DecoGround!(playerX, playerY, playerZ)) ' (a prop's top under you: you stand on it - GAME/DECOS.BM)
         IF playerZ < fz THEN playerZ = fz : playerVZ = 0
         IF liftCell(INT(playerX), INT(playerY)) THEN IF playerZ - fz < MaxOf(0.06, liftSpeed(liftCell(INT(playerX), INT(playerY))) + 0.02) AND playerVZ < 0.03 AND playerVZ >= 0 THEN playerZ = fz : playerVZ = 0 ' (riding a lift down - however fast it goes)
         IF playerZ > fz OR playerVZ < 0 THEN ' (in the air - or a jetpack lifting you off the floor)
             IF lvlGravity = 100 THEN grav = FALL_G ELSE grav = FALL_G * lvlGravity / 100 ' (the sector's own gravity - exactly FALL_G as made: old demos)
             IF rocketAir THEN playerVZ = playerVZ + grav * ROCKET_FALL ELSE IF jumpAir AND playerVZ > 0 THEN playerVZ = playerVZ + grav * JUMP_FALL ELSE playerVZ = playerVZ + grav ' (a rocket jump: floatier - a jump's way down too, a little)
             playerZ = playerZ - playerVZ
-            IF playerVZ < 0 AND playerZ > ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 : playerVZ = 0 ' (thrown up: your head on the ceiling)
+            IF PropsOn THEN ' (props: you tuck up - a hop on to a barrel in a room a wall high)
+                IF playerVZ < 0 AND playerZ > ceilH(INT(playerX), INT(playerY)) - CROUCH_H - 0.01 THEN playerZ = MaxOf(fz, ceilH(INT(playerX), INT(playerY)) - CROUCH_H - 0.01) : playerVZ = 0
+            ELSE
+                IF playerVZ < 0 AND playerZ > ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 THEN playerZ = ceilH(INT(playerX), INT(playerY)) - BODY_H - 0.01 : playerVZ = 0 ' (thrown up: your head on the ceiling)
+            END IF
             IF playerZ <= fz THEN
                 IF liqKind(INT(playerX), INT(playerY)) THEN playerVZ = playerVZ * 0.5 ' (into a liquid: it breaks the fall)
                 IF playerVZ > 0.13 AND NOT dead AND NOT godMode AND NOT rocketAir THEN ' (a fall that hurts - not a rocket jump's, you meant that - - about a wall's drop or more: the thud, the jolt; anything less is just a step down, and the footsteps carry on)
@@ -219,7 +226,7 @@
     IF flyMode THEN IF playerZ > floorH(INT(playerX), INT(playerY)) + 0.05 THEN moved = 0 ' (or in the air, flying)
     SwishSound moved, liqWas, dead ' (through a liquid: the water swishing round you)
     IF numSecrets THEN SecretHints ' (a closet cleared: its stash clicks)
-    IF NOT levelFlat THEN IF playerZ - floorH(INT(playerX), INT(playerY)) > 0.05 AND liqWas = 0 THEN moved = 0 ' (in the air: none either)
+    IF NOT levelFlat THEN IF playerZ - MaxOf(floorH(INT(playerX), INT(playerY)), DecoGround!(playerX, playerY, playerZ)) > 0.05 AND liqWas = 0 THEN moved = 0 ' (in the air: none either - up on a prop, you walk)
     IF moved > 0 THEN
         stride = STEP_WALK + (STEP_RUN - STEP_WALK) * MaxOf(0, MinOf(1, (moveSpeed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)))
         beatWas = INT((bobPhase - 3.14159265) / 6.2831853)

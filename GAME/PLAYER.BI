@@ -42,6 +42,7 @@ DIM SHARED kickTimer AS INTEGER, kickImg&, sndKick&, sndKickSwing& ' (the kick: 
 CONST STEP_WALK = 1.4, STEP_RUN = 2.2 ' Cells walked per footstep: walking (about 2.6 steps a second) and running (3.3 - longer strides)
 
 DIM SHARED playerX AS SINGLE, playerY AS SINGLE ' (where you are - shared, so FireBolt aims a bolt's climb at you and TrapFx hears its hum from you)
+DIM SHARED walkProps AS INTEGER ' (Walkable for you, not a machine: props' tops and a crouch's room count - STANDING ON PROPS)
 DIM SHARED playerZ AS SINGLE, playerVZ AS SINGLE, eyeZ AS SINGLE, walkZ AS SINGLE
 DIM SHARED boltZ(MAX_BOLTS) AS SINGLE, boltDZ(MAX_BOLTS) AS SINGLE
 

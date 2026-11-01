@@ -27,6 +27,9 @@ FOR hk = 1 TO 255 ' (every character but . 0-9 a-z A-H - and none the editor's u
     IF INSTR(".ABCDEFGH" + H_UP$, hc$) = 0 AND hk <> 3 AND hk <> 10 AND hk <> 13 THEN H_HIGH$ = H_HIGH$ + hc$
 NEXT
 CONST STEP_UP = 0.32, EYE_H = 0.5, BODY_H = 0.7, FALL_G = 0.01, PIT_DEPTH = -0.99
+' CROUCH_H: the least room you need up on a prop or in the air (a barrel in a
+' room a wall high: you crouch on it) - on a floor you still need BODY_H
+CONST CROUCH_H = 0.35
 ' A sector's own gravity (gravity = in its file: percent of FALL_G, 1-300 (a few: near zero-g) -
 ' 100 as made); a jump's push off the floor (JUMP: 0.6 of a wall up, at
 ' 100 - v * v / 2g, less half a step); jumpWas: the key held last frame.

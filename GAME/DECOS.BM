@@ -283,6 +283,48 @@ FUNCTION DecoChars$
     DecoChars$ = "oiptxlnfSdAFIJLOQUWZV:['"
 END FUNCTION
 
+' --- STANDING ON PROPS: a barrel, a crate, a desk - jump up (or drop) onto
+' one and stand there. Its top is a floor under you; walking into it from
+' its foot still stops you (none is a step low). Always on in play; a demo
+' plays by its own "props" line (none: as before - shipped demos stay in step)
+FUNCTION PropsOn
+    IF demoRec OR demoPlay OR demoStarting THEN PropsOn = demoProps ELSE PropsOn = -1
+END FUNCTION
+
+' The top of decoration j (walls up from the floor's zero): its foot, how
+' high it's stacked, how tall it stands - as big as its [looks] draw it
+FUNCTION DecoTop!(j)
+    DIM s! ' (its own: the main program shares these names)
+    s! = 1 : IF decoLk(j) THEN s! = lkSize(decoLk(j))
+    DecoTop! = FloorAt(decoX(j), decoY(j)) + decoZ(j) + DecoScale(decoKind(j)) * s!
+END FUNCTION
+
+' The highest top of the props standing at map point (x, y) - -999 none
+FUNCTION DecoTopAt!(x, y)
+    DIM j, t!, g! ' (its own: the main program shares these names)
+    g! = -999
+    IF NOT cyberOn THEN
+        FOR j = 1 TO numDecos
+            IF decoOn(j) THEN
+                IF NOT DecoFlat(decoKind(j)) THEN
+                    IF (x - decoX(j)) ^ 2 + (y - decoY(j)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN t! = DecoTop!(j) : IF t! > g! THEN g! = t!
+                END IF
+            END IF
+        NEXT
+    END IF
+    DecoTopAt! = g!
+END FUNCTION
+
+' The prop top under your feet at (x, y), z high - one you're on, or a step
+' below, or one you're falling onto: -999 none (or props aren't for standing on)
+FUNCTION DecoGround!(x, y, z)
+    DIM t! ' (its own: the main program shares these names)
+    DecoGround! = -999
+    IF NOT PropsOn THEN EXIT FUNCTION
+    t! = DecoTopAt!(x, y)
+    IF t! > -900 AND t! <= z + STEP_UP + 0.01 THEN DecoGround! = t!
+END FUNCTION
+
 ' Does decoration kind k lie flat - you walk over it, shots pass it, it
 ' never breaks (a body, a note, a smashed monitor, a camera up on a wall)?
 FUNCTION DecoFlat(k)

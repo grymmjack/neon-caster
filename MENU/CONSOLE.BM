@@ -790,12 +790,13 @@ SUB ConExec STATIC
                 EditApply
                 IF PropModel(pc$) THEN ConPrint "prop " + pc$ + " at" + STR$(pcx) + STR$(pcy) ELSE ConPrint "prop at" + STR$(pcx) + STR$(pcy) + ": no models/" + pc$ + ".obj with its " + pc$ + "_tex.png - it shows as a box"
             END IF
-        CASE "reload", "reloadmodel" ' reload [NAME]: a model read again from its files (bu1ld0r's export) - every prop, with no name
+        CASE "reload", "reloadmodel" ' reload [NAME]: a model read again from its files (bu1ld0r's export) - with no name, every model whose files changed
             IF conA$ = "" THEN
                 k = 0
-                FOR j = 1 TO numModels : IF mdlProp(j) THEN PropReload j : k = k + 1
+                FOR j = 1 TO numModels
+                    IF PropSum~&(mdlName$(j)) <> mdlSum(j) THEN PropReload j : k = k + 1
                 NEXT
-                IF k = 0 THEN ConPrint "reload NAME: no props loaded"
+                IF k = 0 THEN ConPrint "reload: no model's files changed (reload NAME reads one again anyway)"
             ELSE
                 pc$ = ConRawWord$(conRest$, 1) : k = 0
                 FOR j = 1 TO numModels : IF LCASE$(mdlName$(j)) = LCASE$(pc$) THEN k = j
@@ -1720,7 +1721,7 @@ SUB ConHelp(c$)
         CASE "edit", "editor" : ConPrint "^3edit [walk|off]^0: the level editor (F2) - the map from above, or walk: inside it, or off: back to the game"
         CASE "put" : ConPrint "^3put X Y CHAR^0: a map character (the editor's picker and LEVEL-EDITOR-GUIDE.md have them all) into cell X Y, built at once"
         CASE "prop" : ConPrint "^3prop X Y NAME [HP]^0: a prop in cell X Y - models/NAME.obj (bu1ld0r's EXPORT, NEON-CASTER, writes them); HP: shots break it (none: they don't). prop alone lists the models"
-        CASE "reload", "reloadmodel" : ConPrint "^3reload [NAME]^0: model NAME read again from its files - every prop, with no name. Props are watched: an export from bu1ld0r shows within a second or two"
+        CASE "reload", "reloadmodel" : ConPrint "^3reload [NAME]^0: model NAME read again from its files - with no name, every model whose files changed. Every model is watched: an export from bu1ld0r shows within a second or two"
         CASE "box" : ConPrint "^3box X0 Y0 X1 Y1 CHAR^0: fill that rectangle of cells with a map character"
         CASE "block", "blocks"
             ConPrint "^3block X Y X0 Y0 X1 Y1 [WALL]^0: a solid block standing in open cell X Y - a pillar, a thin wall, the back"

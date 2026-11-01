@@ -152,7 +152,7 @@ SUB ClearDecalsOn(x, y)
 END SUB
 
 SUB ShotMark(x, y, z, dx, dy, surface, size)
-    DIM bx, by, cx, cy, l, mx, my, nx, ny ' (its own: the main program shares these names)
+    DIM bx, by, cx, cy, l, mx, my, nx, ny, ux, uy, px, py, k, sx, sy, ddx, ddy, tx, ty, t, ox, oy, ex, ey ' (its own: the main program shares these names)
     SELECT CASE surface
         CASE 1
             cx = INT(x) : cy = INT(y)
@@ -168,30 +168,56 @@ SUB ShotMark(x, y, z, dx, dy, surface, size)
             IF x >= 0 AND y >= 0 AND x < mapN AND y < mapN THEN IF liftCell(INT(x), INT(y)) THEN EXIT SUB ' (a lift moves: its mark would hang where it was)
             AddDecal x, y, FloorAt(x, y) + 0.001, 0, 0, 1, size
         CASE ELSE
-            bx = INT(x + dx * 0.02) : by = INT(y + dy * 0.02) ' (the cell it went into)
-            IF bx < 0 OR by < 0 OR bx >= mapN OR by >= mapN THEN EXIT SUB
-            IF worldMap(bx, by) = 2 THEN EXIT SUB
+            ' The face it hit, found by walking along the shot from a little
+            ' way back: a bolt is caught a step short of the wall (up to
+            ' BOLT_SPEED), a rocket a little way into it, a step's face
+            ' between two samples - taking the cell (x, y) is in put a bolt's
+            ' mark on the far side of the open cell before the wall, a cell
+            ' out in the air. No face near (a shot past a wall's end): no mark.
+            l = SQR(dx * dx + dy * dy) : IF l < 0.0001 THEN EXIT SUB
+            ux = dx / l : uy = dy / l
+            px = x - ux * 0.3 : py = y - uy * 0.3
+            FOR k = 1 TO 4 ' (back out of a wall the shot went into)
+                cx = INT(px) : cy = INT(py)
+                IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT SUB
+                IF worldMap(cx, cy) <= 0 OR diagCorner(cx, cy) OR boxOn(cx, cy) THEN EXIT FOR
+                px = px - ux * 0.3 : py = py - uy * 0.3
+            NEXT
+            IF k > 4 THEN EXIT SUB
+            ' (from there, cell by cell along the shot - as chapter 15's rays go)
+            cx = INT(px) : cy = INT(py) : bx = -1
+            IF diagCorner(cx, cy) OR boxOn(cx, cy) THEN bx = cx : by = cy
+            sx = SGN(ux) : sy = SGN(uy)
+            IF ABS(ux) > 0.00001 THEN ddx = ABS(1 / ux) ELSE ddx = 1E+30
+            IF ABS(uy) > 0.00001 THEN ddy = ABS(1 / uy) ELSE ddy = 1E+30
+            IF ux < 0 THEN tx = (px - cx) * ddx ELSE tx = (cx + 1 - px) * ddx
+            IF uy < 0 THEN ty = (py - cy) * ddy ELSE ty = (cy + 1 - py) * ddy
+            DO WHILE bx < 0
+                IF tx < ty THEN
+                    t = tx : tx = tx + ddx : nx = -sx : ny = 0 : ox = cx : oy = cy : cx = cx + sx
+                ELSE
+                    t = ty : ty = ty + ddy : nx = 0 : ny = -sy : ox = cx : oy = cy : cy = cy + sy
+                END IF
+                IF t > (x - px) * ux + (y - py) * uy + 0.35 THEN EXIT SUB ' (nothing there)
+                IF cx < 0 OR cy < 0 OR cx >= mapN OR cy >= mapN THEN EXIT SUB
+                IF worldMap(cx, cy) = 2 THEN EXIT SUB ' (a door: it moves)
+                IF diagCorner(cx, cy) OR boxOn(cx, cy) THEN bx = cx : by = cy : EXIT DO
+                ' A face: a wall, the face of a step up, or a lintel's
+                IF worldMap(cx, cy) > 0 OR (floorH(cx, cy) > floorH(ox, oy) + 0.01 AND z < floorH(cx, cy) + 0.03) OR (ceilH(cx, cy) < ceilH(ox, oy) - 0.01 AND z > ceilH(cx, cy) - 0.03) THEN
+                    AddDecal px + ux * t, py + uy * t, z, nx, ny, 0, size
+                    EXIT SUB
+                END IF
+            LOOP
+            ' A diagonal wall (just facing back at you) or a block (which of
+            ' its own sides it's nearest)
+            mx = x : my = y
             IF diagCorner(bx, by) THEN
-                nx = -dx : ny = -dy
-            ELSEIF boxOn(bx, by) THEN ' (a block: which of its own sides it's nearest)
+                nx = -ux : ny = -uy
+            ELSE
                 ex = MinOf(ABS(x - bx - boxX0(bx, by)), ABS(x - bx - boxX1(bx, by))) : ey = MinOf(ABS(y - by - boxY0(bx, by)), ABS(y - by - boxY1(bx, by)))
                 IF ex < ey THEN nx = -SGN(dx) : ny = 0 ELSE nx = 0 : ny = -SGN(dy)
-            ELSEIF ABS(x - INT(x + 0.5)) < ABS(y - INT(y + 0.5)) THEN
-                nx = -SGN(dx) : ny = 0
-            ELSE
-                nx = 0 : ny = -SGN(dy)
-            END IF
-            ' (on the face itself: a fast bolt - a rocket, a puff of acid - is
-            ' caught a little way into the wall, where the mark would be hidden)
-            mx = x : my = y
-            IF diagCorner(bx, by) = 0 THEN
-                IF boxOn(bx, by) THEN
-                    IF nx < 0 THEN mx = bx + boxX0(bx, by) ELSE IF nx > 0 THEN mx = bx + boxX1(bx, by)
-                    IF ny < 0 THEN my = by + boxY0(bx, by) ELSE IF ny > 0 THEN my = by + boxY1(bx, by)
-                ELSE
-                    IF nx < 0 THEN mx = bx ELSE IF nx > 0 THEN mx = bx + 1
-                    IF ny < 0 THEN my = by ELSE IF ny > 0 THEN my = by + 1
-                END IF
+                IF nx < 0 THEN mx = bx + boxX0(bx, by) ELSE IF nx > 0 THEN mx = bx + boxX1(bx, by)
+                IF ny < 0 THEN my = by + boxY0(bx, by) ELSE IF ny > 0 THEN my = by + boxY1(bx, by)
             END IF
             AddDecal mx, my, z, nx, ny, 0, size
     END SELECT

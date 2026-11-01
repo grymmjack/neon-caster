@@ -21,7 +21,13 @@ FUNCTION Walkable%(x, y)
     IF boxOn(cellX, cellY) THEN IF InBox(x, y) THEN EXIT FUNCTION ' (a box: solid where it stands, open round it)
     deco = decoCell(cellX, cellY) : IF cyberOn THEN deco = 0 ' (the network has none)
     IF deco THEN
-        IF NOT DecoFlat(decoKind(deco)) AND (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN EXIT FUNCTION
+        IF NOT DecoFlat(decoKind(deco)) AND (x - decoX(deco)) ^ 2 + (y - decoY(deco)) ^ 2 < DECO_RADIUS * DECO_RADIUS THEN
+            IF walkZ > -900 AND walkProps THEN ' (you: over it, or a step below its top - up on it; else it's in your way)
+                IF DecoTopAt!(x, y) > walkZ + STEP_UP THEN EXIT FUNCTION
+            ELSE
+                EXIT FUNCTION
+            END IF
+        END IF
     END IF
     IF glassHP(cellX, cellY) > 0 THEN IF InGlass(x, y) THEN EXIT FUNCTION
     IF walkFromHaz = 10 THEN IF FloorHazard(cellX, cellY) = HAZ_BURN THEN EXIT FUNCTION ' (a monster, not in fire: it won't step in)
@@ -31,7 +37,9 @@ FUNCTION Walkable%(x, y)
     END IF
     IF NOT levelFlat AND walkZ > -900 THEN ' Heights: too high a step up, or too little room
         IF floorH(cellX, cellY) > walkZ + STEP_UP THEN EXIT FUNCTION
-        IF ceilH(cellX, cellY) - MaxOf(floorH(cellX, cellY), walkZ) < BODY_H THEN IF liftCell(cellX, cellY) = 0 THEN EXIT FUNCTION ELSE IF liftMode(liftCell(cellX, cellY)) < LIFT_CRUSHER THEN EXIT FUNCTION ' (a crusher coming down: you can still run out from under it)
+        wRoom = BODY_H ' (up on a prop or in the air - props on - a crouch will do; on the floor, room to stand)
+        IF walkProps THEN IF walkZ > floorH(cellX, cellY) + 0.02 THEN IF ceilH(cellX, cellY) - floorH(cellX, cellY) >= BODY_H THEN wRoom = CROUCH_H
+        IF ceilH(cellX, cellY) - MaxOf(floorH(cellX, cellY), walkZ) < wRoom THEN IF liftCell(cellX, cellY) = 0 THEN EXIT FUNCTION ELSE IF liftMode(liftCell(cellX, cellY)) < LIFT_CRUSHER THEN EXIT FUNCTION ' (a crusher coming down: you can still run out from under it)
     END IF
     Walkable% = wDiag OR worldMap(cellX, cellY) <= 0 OR doorOpen(cellX, cellY) > 0.8
 END FUNCTION
