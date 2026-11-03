@@ -1,4 +1,13 @@
-# NEON-CASTER prop: chair - its texture, for 3D viewers
-newmtl chair
+# chair - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads chair_mat.png instead
+
+newmtl chair_custom_00680230
 Kd 1 1 1
 map_Kd ../hd/models/chair_tex.png
+Ks 0.4 0.4 0.4
+Ns 228.691
+Pm 0
+Pr 0.53
+Pc 0.2
+Pcr 0.03
+map_Bump -bm 0.13 ../hd/models/chair_tex.png

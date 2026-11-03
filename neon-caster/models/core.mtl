@@ -1,4 +1,14 @@
-# NEON-CASTER prop: core - its texture, for 3D viewers
-newmtl core
+# core - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads core_mat.png instead
+
+newmtl core_custom_04b30070
 Kd 1 1 1
 map_Kd ../hd/models/core_tex.png
+Ks 0.73 0.73 0.73
+Ns 643.6
+Ke 0.27 0.27 0.27
+map_Ke ../hd/models/core_tex.png
+Pm 0
+Pr 0.2
+Pc 0.47
+Pcr 0.03

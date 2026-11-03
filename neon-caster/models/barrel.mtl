@@ -1,4 +1,31 @@
-# NEON-CASTER prop: barrel - its texture, for 3D viewers
-newmtl barrel
+# barrel - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads barrel_mat.png instead
+
+newmtl barrel_custom_003b0730
 Kd 1 1 1
 map_Kd ../hd/models/barrel_tex.png
+Ks 0.2 0.2 0.2
+Ns 82.17099
+Pm 0
+Pr 0.73
+Pc 0.2
+Pcr 0.03
+map_Bump -bm 0.47 ../hd/models/barrel_tex.png
+
+newmtl barrel_custom_0069d400
+Kd 1 1 1
+map_Kd ../hd/models/barrel_tex.png
+Ks 0.4 0.4 0.4
+Ns 168.4
+Pm 0.87
+Pr 0.6
+map_Bump -bm 0.27 ../hd/models/barrel_tex.png
+
+newmtl barrel_custom_0096f200
+Kd 1 1 1
+map_Kd ../hd/models/barrel_tex.png
+Ks 0.6 0.6 0.6
+Ns 366.4
+Pm 1
+Pr 0.4
+map_Bump -bm 0.13 ../hd/models/barrel_tex.png

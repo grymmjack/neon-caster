@@ -1,4 +1,13 @@
-# NEON-CASTER prop: ammo - its texture, for 3D viewers
-newmtl ammo
+# ammo - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads ammo_mat.png instead
+
+newmtl ammo_custom_00680230
 Kd 1 1 1
 map_Kd ../hd/models/ammo_tex.png
+Ks 0.4 0.4 0.4
+Ns 228.691
+Pm 0
+Pr 0.53
+Pc 0.2
+Pcr 0.03
+map_Bump -bm 0.13 ../hd/models/ammo_tex.png

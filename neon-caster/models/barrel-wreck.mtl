@@ -1,0 +1,13 @@
+# barrel-wreck - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads barrel-wreck_mat.png instead
+
+newmtl barrel-wreck_custom_003b0730
+Kd 1 1 1
+map_Kd ../hd/models/barrel-wreck_tex.png
+Ks 0.2 0.2 0.2
+Ns 82.17099
+Pm 0
+Pr 0.73
+Pc 0.2
+Pcr 0.03
+map_Bump -bm 0.47 ../hd/models/barrel-wreck_tex.png

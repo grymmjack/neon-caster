@@ -1,4 +1,13 @@
-# NEON-CASTER prop: invuln - its texture, for 3D viewers
-newmtl invuln
+# invuln - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads invuln_mat.png instead
+
+newmtl invuln_custom_00d27150
 Kd 1 1 1
 map_Kd ../hd/models/invuln_tex.png
+Ks 0.87 0.87 0.87
+Ns 759.331
+Pm 0.47
+Pr 0.13
+Pc 0.33
+Pcr 0.03
+map_Bump -bm 0.07 ../hd/models/invuln_tex.png

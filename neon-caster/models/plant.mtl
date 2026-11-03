@@ -1,4 +1,13 @@
-# NEON-CASTER prop: plant - its texture, for 3D viewers
-newmtl plant
+# plant - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads plant_mat.png instead
+
+newmtl plant_custom_00680230
 Kd 1 1 1
 map_Kd ../hd/models/plant_tex.png
+Ks 0.4 0.4 0.4
+Ns 228.691
+Pm 0
+Pr 0.53
+Pc 0.2
+Pcr 0.03
+map_Bump -bm 0.13 ../hd/models/plant_tex.png

@@ -1,4 +1,11 @@
-# NEON-CASTER prop: crate - its texture, for 3D viewers
-newmtl crate
+# crate - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads crate_mat.png instead
+
+newmtl crate_custom_001d0600
 Kd 1 1 1
 map_Kd ../hd/models/crate_tex.png
+Ks 0.07 0.07 0.07
+Ns 26.731
+Pm 0
+Pr 0.87
+map_Bump -bm 0.4 ../hd/models/crate_tex.png

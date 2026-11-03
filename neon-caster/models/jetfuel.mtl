@@ -1,4 +1,13 @@
-# NEON-CASTER prop: jetfuel - its texture, for 3D viewers
-newmtl jetfuel
+# jetfuel - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads jetfuel_mat.png instead
+
+newmtl jetfuel_custom_00570250
 Kd 1 1 1
 map_Kd ../hd/models/jetfuel_tex.png
+Ks 0.33 0.33 0.33
+Ns 288.091
+Pm 0
+Pr 0.47
+Pc 0.33
+Pcr 0.03
+map_Bump -bm 0.13 ../hd/models/jetfuel_tex.png
