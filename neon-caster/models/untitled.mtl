@@ -1,0 +1,6 @@
+# untitled - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads untitled_mat.png instead
+
+newmtl untitled
+Kd 1 1 1
+map_Kd ../hd/models/untitled_tex.png

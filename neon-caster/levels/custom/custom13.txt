@@ -1,23 +1,39 @@
 ' NEON-CASTER level file - see chapter 22 of neon-caster.bas for every
-' part of it. Lines starting with ' are comments.
+' part of it. Lines starting with ' are comments. The level kit
+' (levels.py --write) and the editor in the game write these files.
 ' Blocks: an alcove with a terminal, two lit pillars, a free-standing post.
+
 name     = THE ALCOVE
 walls    = wall.png, wall2.png, wall-concrete.png, wall-servers.png, wall-pipes.png, wall-biolab.png
 floors   = floor.png, floor-plates.png, floor-concrete.png, floor-lab.png
 ceilings = ceiling.png, ceiling-lights.png
 ambient  = 165, 225, 220, 255
+
+[zones]
+' x0, y0, x1, y1, floor, ceiling, shape
+
 [lights]
+' x, y, radius, brightness, red, green, blue, effect (and 1 if it hangs no lamp on its ceiling)
 23.8125, 20.495, 2, 120, 255, 60, 220, 2
 24.5, 19.8, 3, 200, 60, 220, 255, 2
 23.5, 23.5, 7, 150, 220, 230, 255, 0
+
+[events]
+' kind, x0, y0, x1, y1, a, b, reward
+
 [blocks]
+' a solid block in an open cell: x, y, then its edges in eighths of the cell (x0, y0, x1, y1: 0 to 8), and its wall (1-6: # N C K P G)
 24, 19, 0, 0, 8, 4, 1
 23, 20, 5, 0, 8, 3, 4
 25, 20, 0, 0, 3, 3, 4
 22, 22, 3, 3, 5, 5, 3
+
 [nudges]
+' a decoration moved off its cell's middle: x, y, then across and down in eighths (-3 to 3), and which way it faces (0 it turns to face you; 1-4 it stands flat facing east, south, west, north)
 24, 19, 0, 2, 2
+
 [faces]
+' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom, 3 in pieces: the tree, H V and . - then each piece as picture*turn*slide*stretch*tint*amount*RRGGBB, joined by |), picture, second half's picture, then its offset if it has one (64ths of the picture - its pixels at 64: across, up) and stretch (percent: across, up)
 23, 20, BS, 0, wall-lightstrip.png
 23, 20, BW, 0, wall-lightstrip.png
 25, 20, BS, 0, wall-lightstrip.png
@@ -72,7 +88,9 @@ ambient  = 165, 225, 220, 255
 ################################################
 ################################################
 ################################################
+
 [floor]
+' each cell's floor: . as usual, 0-9 a-z eighths of a wall up, A-H down
 ................................................
 ................................................
 ................................................
@@ -92,7 +110,7 @@ ambient  = 165, 225, 220, 255
 ................................................
 ................................................
 ................................................
-........................4.......................
+........................2.......................
 ................................................
 ................................................
 ................................................
@@ -121,7 +139,9 @@ ambient  = 165, 225, 220, 255
 ................................................
 ................................................
 ................................................
+
 [ceiling]
+' each cell's ceiling: . as usual (1), or its height in eighths, as the floor's
 ................................................
 ................................................
 ................................................

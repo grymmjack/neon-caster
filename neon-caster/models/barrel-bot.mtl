@@ -1,0 +1,32 @@
+# barrel-bot - its texture and materials, for 3D programs (Pm Pr Pc Ps: the PBR
+# words Blender's importer reads). NEON-CASTER reads barrel-bot_mat.png instead
+
+newmtl barrel-bot_metal_0097f200
+Kd 1 1 1
+map_Kd ../hd/models/barrel-bot_tex.png
+Ks 0.6 0.6 0.6
+Ns 288.091
+Pm 1
+Pr 0.47
+map_Bump -bm 0.13 ../hd/models/barrel-bot_tex.png
+
+newmtl barrel-bot
+Kd 1 1 1
+map_Kd ../hd/models/barrel-bot_tex.png
+
+newmtl barrel-bot_chrome_00f1f000
+Kd 1 1 1
+map_Kd ../hd/models/barrel-bot_tex.png
+Ks 1 1 1
+Ns 866.251
+Pm 1
+Pr 0.07
+
+newmtl barrel-bot_glass_b0e10000
+Kd 1 1 1
+map_Kd ../hd/models/barrel-bot_tex.png
+Ks 0.93 0.93 0.93
+Ns 866.251
+d 0.3795
+Pm 0
+Pr 0.07

@@ -8,30 +8,32 @@ droids   = 0
 walls    = wall-concrete.png, wall2.png, wall-concrete.png, wall-servers.png, wall-pipes.png, wall-biolab.png
 floors   = floor-concrete.png, floor-plates.png, floor-concrete.png, floor-lab.png
 ceilings = ceiling-lights.png, ceiling-lights.png
-ambient  = 0, 225, 220, 255
+ambient  = -75, 225, 220, 255
 
 [zones]
 ' x0, y0, x1, y1, floor, ceiling, shape
 
 [lights]
 ' x, y, radius, brightness, red, green, blue, effect (and 1 if it hangs no lamp on its ceiling)
-27.5, 24.5, 12, 140, 90, 255, 120, 2
-23.5, 28.5, 1, 70, 90, 255, 120, 1, 1
-22.5, 28.5, 1, 70, 90, 255, 120, 1, 1
-24.5, 28.5, 1, 70, 90, 255, 120, 1, 1
-21.5, 28.5, 1, 70, 90, 255, 120, 1, 1
-25.5, 28.5, 1, 70, 90, 255, 120, 1, 1
-20.5, 28.5, 1, 70, 90, 255, 120, 1, 1
-26.5, 28.5, 1, 70, 90, 255, 120, 1, 1
-27.5, 28.5, 1, 70, 90, 255, 120, 1, 1
-20.5, 20.5, 1, 70, 90, 255, 120, 1, 1
-21.5, 20.5, 1, 70, 90, 255, 120, 1, 1
-22.5, 20.5, 1, 70, 90, 255, 120, 1, 1
-23.5, 20.5, 1, 70, 90, 255, 120, 1, 1
-24.5, 20.5, 1, 70, 90, 255, 120, 1, 1
-25.5, 20.5, 1, 70, 90, 255, 120, 1, 1
-26.5, 20.5, 1, 70, 90, 255, 120, 1, 1
-27.5, 20.5, 1, 70, 90, 255, 120, 1, 1
+27.5, 24.5, 12, 75, 197, 255, 197, 2
+23.5, 28.5, 1, 75, 197, 255, 197, 1, 1
+22.5, 28.5, 1, 75, 197, 255, 197, 1, 1
+24.5, 28.5, 1, 75, 197, 255, 197, 1, 1
+21.5, 28.5, 1, 75, 197, 255, 197, 1, 1
+25.5, 28.5, 1, 75, 197, 255, 197, 1, 1
+20.5, 28.5, 1, 75, 197, 255, 197, 1, 1
+26.5, 28.5, 1, 75, 197, 255, 197, 1, 1
+27.5, 28.5, 1, 75, 197, 255, 197, 1, 1
+20.5, 20.5, 1, 75, 197, 255, 197, 1, 1
+21.5, 20.5, 1, 75, 197, 255, 197, 1, 1
+22.5, 20.5, 1, 75, 197, 255, 197, 1, 1
+23.5, 20.5, 1, 75, 197, 255, 197, 1, 1
+24.5, 20.5, 1, 75, 197, 255, 197, 1, 1
+25.5, 20.5, 1, 75, 197, 255, 197, 1, 1
+26.5, 20.5, 1, 75, 197, 255, 197, 1, 1
+27.5, 20.5, 1, 75, 197, 255, 197, 1, 1
+14.5, 28.5, 2.5, 185, 255, 150, 60, 0, 1
+15.5, 26.5, 2.5, 185, 255, 150, 60, 0, 1
 
 [events]
 ' kind, x0, y0, x1, y1, a, b, reward
@@ -65,15 +67,21 @@ use 18 28 repeat : PROGRAM INVADERS
 
 [cell lights]
 ' cells with an ambient light of their own: x0, y0, x1, y1, brightness (0-256), red, green, blue, effect (0 steady, 1 flicker, 2 pulse, 3 strobe, 4 fire, 5 dying)
-12, 20, 12, 28, 48, 90, 255, 120, 0
-13, 20, 18, 20, 0, 230, 235, 255, 0
-13, 21, 17, 27, 48, 90, 255, 120, 0
-18, 21, 18, 28, 0, 230, 235, 255, 0
-27, 23, 27, 23, 256, 90, 255, 120, 2
+12, 20, 12, 28, 16, 90, 255, 120, 0
+13, 20, 18, 20, 16, 230, 235, 255, 0
+20, 20, 27, 28, 48, 197, 255, 197, 0
+13, 21, 17, 23, 16, 90, 255, 120, 0
+18, 21, 18, 28, 16, 230, 235, 255, 0
+13, 24, 14, 27, 16, 90, 255, 120, 0
+15, 24, 15, 24, 48, 197, 255, 197, 0
+16, 24, 17, 24, 16, 90, 255, 120, 0
 19, 24, 19, 24, 64, 230, 235, 255, 0
-27, 24, 27, 24, 256, 90, 255, 120, 0
-27, 25, 27, 25, 256, 90, 255, 120, 2
-13, 28, 17, 28, 0, 230, 235, 255, 0
+15, 25, 16, 27, 16, 90, 255, 120, 0
+17, 25, 17, 25, 16, 230, 235, 255, 0
+17, 26, 17, 27, 16, 90, 255, 120, 0
+13, 28, 13, 28, 16, 230, 235, 255, 0
+14, 28, 14, 28, 16, 90, 255, 120, 0
+15, 28, 17, 28, 16, 230, 235, 255, 0
 
 [faces]
 ' x, y, face (E S W N: a side - LE LS LW LN: a lintel's side - F floor, C ceiling - BE BS BW BN: a block's side), divided (0, 1 left|right, 2 top|bottom, 3 in pieces: the tree, H V and . - then each piece as picture*turn*slide*stretch*tint*amount*RRGGBB, joined by |), picture, second half's picture, then its offset if it has one (64ths of the picture - its pixels at 64: across, up) and stretch (percent: across, up)
@@ -117,7 +125,6 @@ use 18 28 repeat : PROGRAM INVADERS
 27, 20, C, 0, wall-servers.png
 19, 24, W, 3, ., door-split.png*0*15*200*1*100*5AFF78*1
 19, 24, C, 0, ceiling-pipes.png
-15, 24, C, 0, ceiling-stone.png
 14, 24, C, 0, ceiling-stone.png
 16, 24, C, 0, ceiling-stone.png
 15, 23, C, 0, ceiling-stone.png
@@ -136,7 +143,7 @@ use 18 28 repeat : PROGRAM INVADERS
 14, 22, C, 0, ceiling-stone.png
 14, 26, C, 0, ceiling-stone.png
 17, 23, C, 0, ceiling-stone.png
-17, 25, C, 0, ceiling-stone.png
+14, 28, C, 0, ceiling-core.png
 16, 22, C, 0, ceiling-stone.png
 16, 26, C, 0, ceiling-stone.png
 15, 21, C, 0, ceiling-stone.png
@@ -158,7 +165,6 @@ use 18 28 repeat : PROGRAM INVADERS
 13, 21, C, 0, ceiling-stone.png
 13, 27, C, 0, ceiling-stone.png
 14, 20, C, 0, ceiling-core.png
-14, 28, C, 0, ceiling-core.png
 17, 21, C, 0, ceiling-stone.png
 17, 27, C, 0, ceiling-stone.png
 16, 20, C, 0, ceiling-core.png
@@ -204,7 +210,7 @@ use 18 28 repeat : PROGRAM INVADERS
 17, 27, LS, 0, ceiling-girders.png, , 0, 8
 17, 27, LE, 0, ceiling-girders.png, , 0, 8
 17, 26, LE, 0, ceiling-girders.png, , 0, 8
-17, 25, LE, 0, ceiling-girders.png, , 0, 8
+14, 28, LE, 0, ceiling-girders.png, , 0, 8
 18, 24, LS, 0, ceiling-girders.png, , 0, 8
 18, 24, LN, 0, ceiling-girders.png, , 0, 8
 17, 23, LE, 0, ceiling-girders.png, , 0, 8
@@ -219,7 +225,6 @@ use 18 28 repeat : PROGRAM INVADERS
 11, 27, E, 0, wall-control.png, , 48, 0, 200, 125
 11, 26, E, 3, ., *0*0*0*1*50*FFFFFF
 11, 25, E, 3, ., *0*0*0*1*50*FFFFFF
-11, 24, E, 3, ., *0*0*0*1*50*FFFFFF
 11, 23, E, 3, ., *0*0*0*1*50*FFFFFF
 11, 22, E, 3, ., *0*0*0*1*50*FFFFFF
 11, 21, E, 3, ., *0*0*0*1*50*FFFFFF
@@ -231,11 +236,13 @@ use 18 28 repeat : PROGRAM INVADERS
 18, 25, LW, 3, ., wall-sheet1-3.png*0*0*0*3*70*5AFF78*2
 
 [things]
-' what a " is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, repairkit, invuln, robodog, guard, eyebot - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm); a jump pad's DIR ANGLE POWER; a launch control's x, y of its pad
+' what a " is: x, y, kind (table, brokenmonitor, deadscientist, deadguard, deadcyborg, bookshelf, safe, brokenpc, computer, camera, secmon, alarm, alarmpc, prop, repairkit, invuln, flashlight, battery, robodog, guard, eyebot - or any decoration, pickup or monster by name), then its own: a safe's code; a computer's (or a fixed one's) x, y it opens; a camera's name; an alarm's off (off at first); a security console's x, y of its alarm (none: every alarm); a jump pad's DIR ANGLE POWER; a launch control's x, y of its pad; a prop's model (models/NAME.obj) and health (none: shots don't break it)
 18, 21, camera
 18, 20, alarm
 14, 20, secmon
 20, 26, camera
+14, 28, prop, barrel-bot,20
+15, 26, prop, barrel,10
 
 [looks]
 ' how what starts at x, y looks (a pane of glass or bars, a decoration, a pickup, a monster): x, y, tint (0 none, 1 TINT, 2 WASH, 3 GLOW), amount 0-100, colour RRGGBB, size percent (100 as made)
@@ -243,13 +250,26 @@ use 18 28 repeat : PROGRAM INVADERS
 16, 27, 2, 50, 5AFF78, 100
 12, 28, 3, 20, 5AFF78, 100
 12, 27, 3, 20, 5AFF78, 100
-12, 26, 3, 20, 5AFF78, 100
-12, 25, 3, 20, 5AFF78, 100
-12, 24, 3, 20, 5AFF78, 100
-12, 23, 3, 20, 5AFF78, 100
-12, 22, 3, 20, 5AFF78, 100
-12, 21, 3, 20, 5AFF78, 100
+12, 26, 3, 20, FFE63C, 100
+12, 25, 3, 20, FF963C, 100
+12, 24, 3, 20, FF2828, 100
+12, 23, 3, 20, AA50FF, 100
+12, 22, 3, 20, 3C6EFF, 100
+12, 21, 3, 20, 3CDCFF, 100
 12, 20, 3, 20, 5AFF78, 100
+15, 26, 3, 40, FF963C, 100
+
+[glass]
+' the pane of glass at x, y: x, y, how much it reflects (OpenGL) 0 none - 9 a mirror (. or no line: the sector's, glass_reflect), then blur (the reflection's), frost, ripple - each 0-9 - its style (. the sector's, glass_style: 0 streaks 1 clear 2 sheer 3 panes 4 grid 5 bricks 6 leaded 7 privacy), 1 to keep what's seen through it clear, its strength (0 as tuned, 999 unbreakable)
+12, 24, 5, 1, 2, 2, 4, 1
+12, 20, 5, 1, 2, 2, 1, 1
+12, 21, 5, 1, 2, 2, 1, 1
+12, 22, 5, 1, 2, 2, 3, 1
+12, 23, 5, 1, 2, 2, 6, 1
+12, 25, 5, 6, 9, 7, 5, 1
+12, 26, 5, 1, 2, 2, ., 1
+12, 27, ., 7, 2, 0, 1
+12, 28, 5, 1, 2, 2, 1, 1
 
 [map]
 ################################################
@@ -276,11 +296,11 @@ use 18 28 repeat : PROGRAM INVADERS
 ############=....."#........####################
 ############=.....t#........####################
 ############=......#........####################
-############=......X.>......E###################
+############=..>...X........E###################
 ############=......#........####################
-############=......#".......####################
+############=.."...#".......####################
 ############=......#........####################
-############=...n.l#........####################
+############=.".n.l#........####################
 ################################################
 ################################################
 ################################################
@@ -378,8 +398,8 @@ use 18 28 repeat : PROGRAM INVADERS
 ............9eeeee9.gggggggg....................
 ............9eeeee9.gggggggg....................
 ............9eeeee9.gggggggg....................
-............9eeeee9.ggggggg.g...................
-............9eeeee9.gggggggg....................
+............9eegee9.ggggggg.g...................
+............9eeee99.gggggggg....................
 ............9eeeee9.gggggggg....................
 ............9eeeee9.gggggggg....................
 ............9999999.............................
