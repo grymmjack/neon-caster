@@ -69,7 +69,7 @@ SUB RunMenu STATIC
         glFrozenAt# = TIMER(0.001) : glFrozen = -1
     END IF
     _MOUSESHOW
-    IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusicIntro menuMusic&, menuIntro&
+    IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) : MusicPreload 0 ELSE PlayMusicIntro menuMusic&, menuIntro& ' (paused: a quiet moment to load the playlist's next track - AUDIO/MUSIC.BM)
     menuGamWas = setting(SET_GAMMA) : IF nvOn THEN menuGamWas = 0 ' (the brightness that frame was drawn at - 0: none, it's night vision's green)
     menuPointWait = 0
     menuDepth = 0 : menuScreen = SCR_MAIN : EnterMenuScreen : menuIdle = 0 : menuActive = 0

@@ -43,10 +43,13 @@ SUB PlaySectorMusic(snd&)
     IF snd& <= 0 THEN musList = 0 : PlayMusic 0 : EXIT SUB
     IF musList AND musSector = code AND musTrack& > 0 THEN
         IF nowPlaying& <> musTrack& THEN PlayMusic musTrack&
+        MusicPreload 0 ' (a quiet moment: the next, if it isn't loaded yet)
         EXIT SUB
     END IF
     musList = -1 : musSector = code
     MusicStart snd&, MusicFileOf$(snd&)
+    IF mixMusic& > 0 AND mixMusic& <> nowPlaying& THEN _SNDCLOSE mixMusic& : mixMusic& = 0 : mixMusicFile$ = "" ' (the last sector's whole track: let go)
+    MusicPreload 0 ' (what follows this one, loaded while the sector loads)
 END SUB
 
 ' The file a music handle was opened from (one of the ten's, a set's or a
@@ -96,13 +99,28 @@ SUB MusicModeApply
     IF was <> MUS_OWN AND musList AND musTrack& > 0 AND nowPlaying& = musTrack& THEN MusicNext
 END SUB
 
-' The next track: SHUFFLE's at random (none of the last few, nor this one),
-' else the one after this in the pool (the first, when this one isn't in it)
+' The next track. The playlist's tracks are held whole in memory, not
+' streamed (a stream opened mid-play stuttered - the job thread that reads
+' its pages fell behind): the one after this is loaded ahead (MusicPreload,
+' ~0.4 s) as a sector loads or the menu opens, so the switch is at once. Only
+' when none's ready - a second switch with no pause between - does it load
+' here, a moment's wait.
 SUB MusicNext
-    DIM k, tries ' (its own)
     MusicPoolMake
     IF musPoolN = 0 THEN IF musTrack& > 0 THEN MusicStart musTrack&, musFile$ ' (no others: this one again)
     IF musPoolN = 0 THEN EXIT SUB
+    IF musPre& <= 0 THEN MusicPreload -1
+    IF musPre& <= 0 THEN MusicStart musTrack&, musFile$ : EXIT SUB ' (it couldn't be loaded: this one again)
+    MusicTake musPre&, musPreFile$ : musPre& = 0 : musPreFile$ = ""
+END SUB
+
+' Which track comes next: SHUFFLE's at random (none of the last few, nor
+' this one), else the one after this in the pool (the first, when this one
+' isn't in it)
+FUNCTION MusicPick
+    DIM k, tries ' (its own)
+    MusicPoolMake
+    IF musPoolN = 0 THEN EXIT FUNCTION
     IF setting(SET_MUSICMODE) = MUS_SHUFFLE AND musPoolN > 1 THEN
         DO
             k = 1 + INT(RND * musPoolN) : tries = tries + 1
@@ -110,27 +128,47 @@ SUB MusicNext
     ELSE
         k = musAt MOD musPoolN + 1
     END IF
-    MusicPlayFile musPool$(k)
+    MusicPick = k
+END FUNCTION
+
+' Load the next track ahead, whole (musPre&) - at a quiet moment: a sector
+' loading (PlaySectorMusic), the menu opening. Not with SECTOR'S OWN, nor
+' outside a sector's music; now <> 0 loads it even so (MusicNext needs it)
+SUB MusicPreload(now)
+    DIM k ' (its own)
+    IF musPre& > 0 THEN EXIT SUB
+    IF NOT now THEN
+        IF musList = 0 OR musTrack& <= 0 OR setting(SET_MUSICMODE) = MUS_OWN THEN EXIT SUB
+    END IF
+    k = MusicPick : IF k = 0 THEN EXIT SUB
+    musPre& = LoadMusicWhole&(musPool$(k)) : IF musPre& > 0 THEN musPreFile$ = musPool$(k)
 END SUB
 
-' Play music/f$ for the playlist: one of the ten's is already open, the
-' sector's own too; anything else is opened (the last such one closed)
-SUB MusicPlayFile(f$)
-    DIM h&, k ' (its own)
+' A track whole, in memory (~70 MB for 3 minutes): "noasync", unpacked
+' there and then, not streamed
+FUNCTION LoadMusicWhole&(file$)
+    DIM p$ ' (its own)
+    p$ = AssetPath$("music/" + file$)
+    IF _FILEEXISTS(p$) THEN LoadMusicWhole& = _SNDOPEN(p$, "noasync")
+END FUNCTION
+
+' Play the whole track h& (file f$) now: it becomes mixMusic&, and the one
+' that held that place is let go
+SUB MusicTake(h&, f$)
+    DIM old& ' (its own)
+    IF h& <= 0 THEN EXIT SUB
     IF musList = 0 THEN musList = -1 : musSector = level : IF level <= NUM_LEVELS THEN musSector = sectorSet * 100 + level
-    FOR k = 1 TO NUM_LEVELS
-        IF LCASE$(f$) = "level" + LTRIM$(STR$(k)) + ".ogg" THEN h& = levelMusic&(k)
-    NEXT
-    IF h& = 0 AND LCASE$(f$) = LCASE$(ownMusicFile$) AND ownMusic& > 0 THEN h& = ownMusic&
-    IF h& = 0 AND LCASE$(f$) = LCASE$(mixMusicFile$) AND mixMusic& > 0 THEN h& = mixMusic& : _SNDSTOP h& : _SNDSETPOS h&, 0
-    IF h& = 0 THEN
-        IF mixMusic& > 0 THEN
-            IF nowPlaying& = mixMusic& THEN _SNDSTOP mixMusic& : nowPlaying& = 0
-            _SNDCLOSE mixMusic& : mixMusic& = 0 : mixMusicFile$ = ""
-        END IF
-        mixMusic& = LoadMusic&(f$) : mixMusicFile$ = f$ : h& = mixMusic&
-    END IF
-    IF h& > 0 THEN MusicStart h&, f$ ELSE ConPrint "music: no music/" + f$
+    old& = mixMusic& : mixMusic& = h& : mixMusicFile$ = f$
+    MusicStart h&, f$ ' (stops the one playing)
+    IF old& > 0 AND old& <> h& THEN _SNDSTOP old& : _SNDCLOSE old&
+END SUB
+
+' Play music/f$ for the playlist now (the console's music TRACK): loaded
+' whole, here
+SUB MusicPlayFile(f$)
+    DIM h& ' (its own)
+    h& = LoadMusicWhole&(f$)
+    IF h& > 0 THEN MusicTake h&, f$ ELSE ConPrint "music: no music/" + f$
 END SUB
 
 ' The playlist's tracks (once): every music/*.ogg but menu*, cyber and

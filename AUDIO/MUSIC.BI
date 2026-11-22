@@ -20,7 +20,8 @@ CONST MUS_OWN = 0, MUS_ORDER = 1, MUS_SHUFFLE = 2, MUS_POOL_MAX = 160, MUS_RECEN
 DIM SHARED musPool$(MUS_POOL_MAX), musPoolN, musPoolMade
 DIM SHARED musList, musSector, musAt ' (the sector's music is on: MusicFrame moves on when a track ends - which sector it's for - the pool's track playing, 0 none)
 DIM SHARED musTrack&, musFile$, musStartT# ' (the playlist's track playing - its file - when it started)
-DIM SHARED mixMusic&, mixMusicFile$, musRecent$ ' (a track opened for the playlist; the last few played, |name|name|)
+DIM SHARED mixMusic&, mixMusicFile$, musRecent$ ' (the playlist's track playing, held whole in memory; the last few played, |name|name|)
+DIM SHARED musPre&, musPreFile$ ' (the next, loaded whole ahead at a quiet moment: MusicPreload)
 menuMusic& = LoadMusic&("menu.ogg")
 menuIntro& = LoadMusic&("menu-intro.ogg")
 FOR k = 1 TO NUM_LEVELS : levelMusic&(k) = LoadMusic&("level" + LTRIM$(STR$(k)) + ".ogg") : NEXT
