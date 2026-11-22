@@ -11,7 +11,7 @@ lock you in until you fix a real QB64 program, DOOM-style secrets in
 every sector (walls that slide away, switches you shoot, closets that hide
 stashes), slot machines that pay out, blow up or let monsters out, NEON PONG on the
 computers, a night vision headset, service droids going about their
-business, spawners you can see charging, and a villain who talks to you - NEXUS greets you in every sector, and the monsters have voices of their own. Every sector has its own music. With a level editor built in - point and click inside the level in 3D
+business, spawners you can see charging, and a villain who talks to you - NEXUS greets you in every sector, and the monsters have voices of their own. Every sector has its own music, and the game's other tracks follow it (SETTINGS > AUDIO > MUSIC: SHUFFLE, IN ORDER, or the sector's own looped). With a level editor built in - point and click inside the level in 3D
 or on the map from above, with a picker of every wall, floor, door, item,
 monster and light, and a paint program of its own to draw the pictures in place, palettes to pick colours from - and a monster editor and a HUD editor. Twelve more
 sectors built with the editor come with it, three of them outdoors, and

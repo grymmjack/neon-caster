@@ -101,7 +101,7 @@ SUB JackOut STATIC
     planeX = -dirY * fovPlane : planeY = dirX * fovPlane
     IF NOT levelFlat THEN playerZ = floorH(INT(playerX), INT(playerY)) : playerVZ = 0 : eyeZ = playerZ + EYE_H
     PlaySfx sndJackOut&, 1 : pickFlash = 20
-    PlayMusic SectorMusic&(level)
+    PlaySectorMusic SectorMusic&(level)
     IF cyberWon THEN
         stationDone(cyberStation) = -1 : Achieve "NC_JACKED", 0 : WallDone stationX(cyberStation), stationY(cyberStation), T_JACKOK
         FOR y = 0 TO mapN - 1 : FOR x = 0 TO mapN - 1

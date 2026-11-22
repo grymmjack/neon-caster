@@ -1081,6 +1081,24 @@ SUB ConExec STATIC
             conLogN = 0
         CASE "menu"
             menuInGame = -1 : RunMenu : conLevelChanged = -1
+        CASE "music" ' music [next|own|order|shuffle|list|TRACK]: THE PLAYLIST (AUDIO/MUSIC.BM)
+            SELECT CASE conA$
+                CASE "", "now"
+                    IF musList AND musTrack& > 0 AND nowPlaying& = musTrack& THEN ConPrint "music: " + LEFT$(musFile$, LEN(musFile$) - 4) + "  " + TimeText$(INT(_SNDGETPOS(musTrack&))) + " of " + TimeText$(INT(_SNDLEN(musTrack&))) + MID$("  (stopped)", 1, 11 * -(NOT _SNDPLAYING(musTrack&))) + "  (" + SettingText$(SET_MUSICMODE) + ")" ELSE ConPrint "music: no sector's music playing  (" + SettingText$(SET_MUSICMODE) + ")"
+                CASE "next", "skip"
+                    IF musList AND musTrack& > 0 AND nowPlaying& = musTrack& THEN MusicNext ELSE ConPrint "music next: only while a sector's music plays"
+                CASE "own", "loop" : ConSet "music_mode", "0"
+                CASE "order", "inorder" : ConSet "music_mode", "1"
+                CASE "shuffle", "random" : ConSet "music_mode", "2"
+                CASE "list"
+                    MusicPoolMake : musL$ = ""
+                    FOR k = 1 TO musPoolN
+                        musL$ = musL$ + LEFT$(musPool$(k), LEN(musPool$(k)) - 4) + " "
+                        IF LEN(musL$) > 80 OR k = musPoolN THEN ConPrint musL$ : musL$ = ""
+                    NEXT
+                CASE ELSE
+                    IF _FILEEXISTS(AssetPath$("music/" + conA$ + ".ogg")) THEN MusicPlayFile conA$ + ".ogg" ELSE ConPrint "music: no music/" + conA$ + ".ogg (music list shows them)"
+            END SELECT
         CASE "soundtest", "jukebox" ' The menu, at SOUND TEST
             menuInGame = -1 : menuOpenSound = -1 : RunMenu : conLevelChanged = -1
         CASE "arranger", "arrange" ' arranger TRACK: the MUSIC ARRANGER (EDITOR/ARRANGER.BM) on music/TRACK.arr
@@ -1538,7 +1556,7 @@ END FUNCTION
 
 ' Every command's name (for Tab and help)
 FUNCTION ConNames$
-    ConNames$ = "alias unalias turret alarm drain gravity wetness wet glassreflect glass jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put prop reload box block liquid raise lift lamp wall door light ambient cell-light celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox arranger arrange textart ascii ansi petscii mac retro retroshade photo matrix grid quit "
+    ConNames$ = "alias unalias turret alarm drain gravity wetness wet glassreflect glass jumppad help version map maps sectorset restart mapsize resetlevel reloadlevel savesectorcopy saveleveltodisk loadlevelfromdisk newgame finish newsector sectorname god buddha infinitefuel fly notarget give take kill respawn summon spawn item die tp pitch pos info status mons events triggers stations cores droids thieves secret locks loot save load quicksave quickload set get settings difficulty skill bind binds qb64pe imageeditor edit put prop reload box block liquid raise lift lamp wall door light ambient cell-light celllight liftgo trigger undo redo savelevel hud monsters tuning tuner use fire kick flashlight torch jackin jackout program puzzle wait echo exec logfile screenshot message sound say cutscene record playdemo stopdemo playlist demos bot achievements achieve resetachievements clear menu soundtest jukebox music arranger arrange textart ascii ansi petscii mac retro retroshade photo matrix grid quit "
 END FUNCTION
 
 ' help: what the commands are (or one of them, in more detail). Every
@@ -1576,7 +1594,7 @@ SUB ConHelp(c$)
             ConPrint "  ^6looks     ^7textart^8 [SET] [COLOURS] [SHAPES] [RULES] [DITHER] [size N]  ^7ascii  ^7ansi  ^7petscii"
             ConPrint "            ^7mac  ^7retro^8 (^7help textart^8: every word, presets)  ^7photo  ^7matrix  ^7grid^8 [on|off|N]"
             ConPrint "  ^6editors   ^7hud  ^7monsters  ^7tuning  ^7achievements  ^7achieve^8 NAME  ^7resetachievements"
-            ConPrint "  ^6the rest  ^7version  ^7clear  ^7menu  ^7soundtest  ^7arranger^8 TRACK  ^7quit"
+            ConPrint "  ^6the rest  ^7version  ^7clear  ^7menu  ^7soundtest  ^7music^8 [next]  ^7arranger^8 TRACK  ^7quit"
             ConPrint "^3^5Keys^0: ^7Up Down^8 earlier lines  ^7Tab^8 finish a name  ^7Ctrl+V^8 paste  ^7PgUp PgDn wheel^8 scroll back"
             ConPrint "  ^7Home End^8 oldest, newest  ^7F11^8 fill the screen  ^7` Esc^8 close"
             ConPrint "^3^5From the command line^0, each command starts with ^7+^0 ^0:"
@@ -1842,6 +1860,7 @@ SUB ConHelp(c$)
         CASE "clear", "cls" : ConPrint "^3clear^0: empty the console"
         CASE "menu" : ConPrint "^3menu^0: the menu (Esc)"
         CASE "arranger", "arrange" : ConPrint "^3arranger TRACK^0 (or arrange): the MUSIC ARRANGER - a track's clips and arrangement (music/TRACK.arr)" : ConPrint "  played live from its take (music/edit/TRACK.flac: arrange.py --sources); launch clips, record them," : ConPrint "  change the arrangement; Ctrl+S saves the .arr, Ctrl+E renders the .ogg. (SOUND TEST: E on a track)"
+        CASE "music" : ConPrint "^3music^0: the track playing, and the MUSIC setting (SETTINGS > AUDIO). ^3music next^0: the next track" : ConPrint "  ^3music own^0 (the sector's track, looped), ^3music order^0, ^3music shuffle^0 (it, then the rest)" : ConPrint "  ^3music list^0: every track the playlist picks from. ^3music TRACK^0: that one now (music level3)"
         CASE "soundtest", "jukebox" : ConPrint "^3soundtest^0 (or ^3jukebox^0): the menu at SOUND TEST - every sound, voice and track" : ConPrint "  O marks one OK, N types a note (saves/soundreview.txt), F flags it (saves/soundflags.txt)" : ConPrint "  P pauses, [ and ] skip 5 seconds, a click or drag on the waveform plays from there" : ConPrint "  C: AUTO - when one ends, the next in its category plays (a track: once round)"
         CASE "quit", "exit" : ConPrint "^3quit^0: leave the game"
         CASE "help", "?", "commands" : ConPrint "^3help [NAME]^0: the commands, or one of them in more detail"

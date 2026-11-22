@@ -13,7 +13,7 @@
 ' settings file, its label in the menu, what kind of control it gets (a
 ' slider, an on/off toggle, or a "< choice >"), its lowest and highest
 ' value, how much one press changes it, and its value to start with.
-CONST NUM_SETTINGS = 72
+CONST NUM_SETTINGS = 73
 CONST RES_NATIVE = 1, RES_RETRO = 7
 CONST SET_SFX = 1, SET_MUSIC = 2, SET_SPEECH = 3, SET_FOV = 4, SET_XSTYLE = 5
 CONST SET_XCOLOR = 6, SET_XSIZE = 7, SET_BOB = 8, SET_SHAKE = 9, SET_MOUSE = 10
@@ -25,7 +25,7 @@ CONST SET_SCANGAP = 32, SET_SCANTHICK = 33, SET_DISPLAY = 34, SET_AIMSENS = 35
 CONST SET_SPATIAL = 36, SET_LIMITER = 37, SET_CUTSCENES = 38, SET_TAUNTS = 39, SET_ART = 40
 CONST SET_MODE = 41, SET_TIMER = 42, SET_GAMMA = 43, SET_POISON = 44, SET_SOFTEN = 45, SET_SKILL = 46, SET_CHARGE = 47, SET_WINSIZE = 48
 CONST SET_FL_WIDTH = 49, SET_FL_REACH = 50, SET_FL_BRIGHT = 51, SET_FL_SOFT = 52, SET_FL_COLOUR = 53, SET_FL_HAZE = 54, SET_FL_FX = 55, SET_FL_BATTERY = 56 ' (the flashlight's: GAME/FLASHLIGHT.BI)
-CONST SET_GLASSREF = 57
+CONST SET_GLASSREF = 57, SET_MUSICMODE = 73 ' (MUSIC: the playlist - AUDIO/MUSIC.BI)
 CONST SET_GRID = 58, SET_GRIDA = 59, SET_ASCII = 60, SET_ASCIISIZE = 61, SET_ASCIICOL = 62, SET_ASCIIRULE = 63, SET_MACDITH = 64, SET_TABLOCK = 65, SET_TA9 = 66, SET_TAPRESET = 67, SET_RETROW = 68, SET_RETROH = 69, SET_RETROPAL = 70, SET_RETRODITH = 71, SET_RETROAMT = 72 ' (the grid in play - ' ; : - and TEXT ART)
 ' MODE: a whole look at once (ModeWants) - or CUSTOM, when the settings
 ' don't all match one
@@ -139,6 +139,8 @@ DefineSetting SET_CUTSCENES, "cutscenes",          "CUTSCENES",          MI_TOGG
 DefineSetting SET_TAUNTS,    "taunts",             "NEXUS TAUNTS",       MI_TOGGLE, 0,  1,   1,   1
 ' SOFTEN HIGHS: a low-pass over every sound effect and voice (AUDIO/SOFTEN.BM) - OFF, LIGHT (10 kHz) or STRONG (7 kHz, steeper)
 DefineSetting SET_SOFTEN,    "soften_highs",       "SOFTEN HIGHS",       MI_CHOICE, 0,  2,   1,   0
+' MUSIC: SECTOR'S OWN (its track, looped - as the game always was), IN ORDER or SHUFFLE (its track, then the game's others: AUDIO/MUSIC.BM's playlist)
+DefineSetting SET_MUSICMODE, "music_mode",         "MUSIC",              MI_CHOICE, 0,  2,   1,   2
 ' DIFFICULTY: EASY (the game as made), NORMAL, HARD, NIGHTMARE - GAME/SKILL.BM; a sector takes it as it loads
 DefineSetting SET_SKILL,     "difficulty",         "DIFFICULTY",         MI_CHOICE, 0,  3,   1,   0
 ' CHARGED SHOTS: hold fire on the blaster or the railgun to charge a shot - let go full for twice the damage, at twice the ammo (GAME/GUNS.BM's ChargeStep)

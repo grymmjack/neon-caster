@@ -48,6 +48,7 @@ SUB ApplySettings
     turnSpeed = setting(SET_MOUSE) * 0.0006
     SetMusicVol
     SoftenAll setting(SET_SOFTEN) ' (SOFTEN HIGHS: every sound filtered - or unfiltered - when it changes)
+    MusicModeApply ' (MUSIC: IN ORDER or SHUFFLE chosen - the next track now)
     ' ART: which pictures, how big (the game loop reloads them - ArtReload)
     artWant = 0 : IF setting(SET_ART) = 2 THEN artWant = 1 : IF setting(SET_RENDERER) = 2 THEN artWant = 2
     ApplyDisplay
@@ -311,6 +312,7 @@ FUNCTION SettingText$(id)
         CASE SET_RES : SettingText$ = ResName$(setting(id))
         CASE SET_SKILL : SettingText$ = SkillName$(setting(id))
         CASE SET_SOFTEN : SettingText$ = MID$("OFF   LIGHT STRONG", setting(id) * 6 + 1, 6)
+        CASE SET_MUSICMODE : SettingText$ = RTRIM$(MID$("SECTOR'S OWNIN ORDER    SHUFFLE     ", setting(id) * 12 + 1, 12))
         CASE SET_DISPLAY : SettingText$ = RTRIM$(MID$("WINDOWED    FULL WIDE   FULL 4:3    FULL STRETCH", setting(id) * 12 - 11, 12))
         CASE SET_WINSIZE : SettingText$ = LTRIM$(STR$(WinSizeW(setting(id)))) + " X" + STR$(winSizeH(setting(id))) + MID$(" (TOO BIG HERE)", 1, 15 * -(NOT WinSizeFits(setting(id))))
         CASE ELSE : SettingText$ = v$

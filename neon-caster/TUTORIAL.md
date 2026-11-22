@@ -78,7 +78,7 @@ nearly everything: `map 7` or `map vault` jumps to a sector (`sectorset new` or 
 `load quick`, `restart`, `finish`, `difficulty hard` (easy, normal, hard, nightmare), any setting by its name (`fov 100`,
 `renderer 2`, `display 2` - `settings` lists them), `bind`, `events`,
 `screenshot`, `record`, `playdemo`, `playlist` and `bot` (demos - below), `cutscene 4` (a sector's transmission), `say taunt2`
-(any of NEXUS's lines), `soundtest` (every sound, voice and track, to listen to), `arranger level3` (a track's clips and arrangement: the MUSIC ARRANGER), `tuner` (every machine's health and gun's damage, a value per difficulty: the TUNER; `tuning export` writes it as a spreadsheet) and `achievements` (with `achieve NAME` and
+(any of NEXUS's lines), `soundtest` (every sound, voice and track, to listen to), `music next` (the next track: SETTINGS > AUDIO > MUSIC plays each sector's own, then the rest in SHUFFLE or IN ORDER - `music list`, `music shuffle`), `arranger level3` (a track's clips and arrangement: the MUSIC ARRANGER), `tuner` (every machine's health and gun's damage, a value per difficulty: the TUNER; `tuning export` writes it as a spreadsheet) and `achievements` (with `achieve NAME` and
 `resetachievements` - see below). There are commands for building too: `edit`, `put
 X Y CHAR`, `box X0 Y0 X1 Y1 CHAR`, `raise`, `lift`, `trigger`, `undo`,
 `savelevel` - and `door`, `wall`, `light` (`light 3 toggle`, `colour FF2020`, `bright`, `fx pulse`), `ambient`

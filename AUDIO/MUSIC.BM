@@ -22,8 +22,153 @@ SUB PlayMusic(snd&)
     IF snd& = nowPlaying& THEN EXIT SUB
     MusicStop
     nowPlaying& = snd&
-    IF snd& > 0 THEN _SNDVOL snd&, MusicVol! : _SNDLOOP snd&
+    IF snd& <= 0 THEN EXIT SUB
+    _SNDVOL snd&, MusicVol!
+    IF musList AND snd& = musTrack& AND setting(SET_MUSICMODE) <> MUS_OWN THEN ' (the playlist's track back - after SOUND TEST, the arranger: once, then the next)
+        _SNDPLAY snd& : musStartT# = TIMER(0.001)
+    ELSE
+        _SNDLOOP snd&
+    END IF
 END SUB
+
+' --- THE PLAYLIST -------------------------------------------------------------
+
+' A sector's music starting (BuildLevel, back from the network): with the
+' playlist on, its own track plays once and MusicFrame moves on from there.
+' Back in the sector it's playing for (a restart, out of the network), the
+' playlist carries on with the track it's at.
+SUB PlaySectorMusic(snd&)
+    DIM code ' (its own)
+    code = level : IF level <= NUM_LEVELS THEN code = sectorSet * 100 + level
+    IF snd& <= 0 THEN musList = 0 : PlayMusic 0 : EXIT SUB
+    IF musList AND musSector = code AND musTrack& > 0 THEN
+        IF nowPlaying& <> musTrack& THEN PlayMusic musTrack&
+        EXIT SUB
+    END IF
+    musList = -1 : musSector = code
+    MusicStart snd&, MusicFileOf$(snd&)
+END SUB
+
+' The file a music handle was opened from (one of the ten's, a set's or a
+' showcase's own, or the playlist's)
+FUNCTION MusicFileOf$(h&)
+    DIM k ' (its own)
+    IF h& <= 0 THEN EXIT FUNCTION
+    IF h& = ownMusic& THEN MusicFileOf$ = ownMusicFile$ : EXIT FUNCTION
+    IF h& = mixMusic& THEN MusicFileOf$ = mixMusicFile$ : EXIT FUNCTION
+    FOR k = 1 TO NUM_LEVELS
+        IF h& = levelMusic&(k) THEN MusicFileOf$ = "level" + LTRIM$(STR$(k)) + ".ogg" : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' Play track h& (file f$) for the playlist - once, or looped with SECTOR'S OWN
+SUB MusicStart(h&, f$)
+    DIM k, n, p ' (its own)
+    IF h& <= 0 THEN EXIT SUB
+    MusicStop
+    musTrack& = h& : musFile$ = f$ : musAt = 0
+    MusicPoolMake
+    FOR k = 1 TO musPoolN
+        IF LCASE$(musPool$(k)) = LCASE$(f$) THEN musAt = k
+    NEXT
+    IF LEN(f$) THEN ' (the last few played, newest first: |this|before|...| - MUS_RECENT of them)
+        IF musRecent$ = "" THEN musRecent$ = "|"
+        musRecent$ = "|" + LCASE$(f$) + musRecent$
+        n = 0
+        FOR p = 2 TO LEN(musRecent$)
+            IF MID$(musRecent$, p, 1) = "|" THEN n = n + 1 : IF n = MUS_RECENT THEN musRecent$ = LEFT$(musRecent$, p) : EXIT FOR
+        NEXT
+    END IF
+    nowPlaying& = h& : _SNDVOL h&, MusicVol!
+    IF setting(SET_MUSICMODE) = MUS_OWN THEN _SNDLOOP h& ELSE _SNDPLAY h&
+    musStartT# = TIMER(0.001)
+    IF LEN(f$) THEN ConPrint "^8music: " + LEFT$(f$, LEN(f$) - 4) + MID$(" (" + LTRIM$(STR$(musAt)) + " of" + STR$(musPoolN) + ")", 1, 99 * -(musAt > 0))
+END SUB
+
+' The MUSIC setting changed (ApplySettings): to IN ORDER or SHUFFLE, the
+' next track now - you hear the change; to SECTOR'S OWN, this one plays to
+' its end and then loops (MusicFrame)
+SUB MusicModeApply
+    STATIC was, seen
+    IF NOT seen THEN seen = -1 : was = setting(SET_MUSICMODE) : EXIT SUB
+    IF setting(SET_MUSICMODE) = was THEN EXIT SUB
+    was = setting(SET_MUSICMODE)
+    IF was <> MUS_OWN AND musList AND musTrack& > 0 AND nowPlaying& = musTrack& THEN MusicNext
+END SUB
+
+' The next track: SHUFFLE's at random (none of the last few, nor this one),
+' else the one after this in the pool (the first, when this one isn't in it)
+SUB MusicNext
+    DIM k, tries ' (its own)
+    MusicPoolMake
+    IF musPoolN = 0 THEN IF musTrack& > 0 THEN MusicStart musTrack&, musFile$ ' (no others: this one again)
+    IF musPoolN = 0 THEN EXIT SUB
+    IF setting(SET_MUSICMODE) = MUS_SHUFFLE AND musPoolN > 1 THEN
+        DO
+            k = 1 + INT(RND * musPoolN) : tries = tries + 1
+        LOOP WHILE tries < 60 AND (k = musAt OR INSTR(musRecent$, "|" + LCASE$(musPool$(k)) + "|") > 0)
+    ELSE
+        k = musAt MOD musPoolN + 1
+    END IF
+    MusicPlayFile musPool$(k)
+END SUB
+
+' Play music/f$ for the playlist: one of the ten's is already open, the
+' sector's own too; anything else is opened (the last such one closed)
+SUB MusicPlayFile(f$)
+    DIM h&, k ' (its own)
+    IF musList = 0 THEN musList = -1 : musSector = level : IF level <= NUM_LEVELS THEN musSector = sectorSet * 100 + level
+    FOR k = 1 TO NUM_LEVELS
+        IF LCASE$(f$) = "level" + LTRIM$(STR$(k)) + ".ogg" THEN h& = levelMusic&(k)
+    NEXT
+    IF h& = 0 AND LCASE$(f$) = LCASE$(ownMusicFile$) AND ownMusic& > 0 THEN h& = ownMusic&
+    IF h& = 0 AND LCASE$(f$) = LCASE$(mixMusicFile$) AND mixMusic& > 0 THEN h& = mixMusic& : _SNDSTOP h& : _SNDSETPOS h&, 0
+    IF h& = 0 THEN
+        IF mixMusic& > 0 THEN
+            IF nowPlaying& = mixMusic& THEN _SNDSTOP mixMusic& : nowPlaying& = 0
+            _SNDCLOSE mixMusic& : mixMusic& = 0 : mixMusicFile$ = ""
+        END IF
+        mixMusic& = LoadMusic&(f$) : mixMusicFile$ = f$ : h& = mixMusic&
+    END IF
+    IF h& > 0 THEN MusicStart h&, f$ ELSE ConPrint "music: no music/" + f$
+END SUB
+
+' The playlist's tracks (once): every music/*.ogg but menu*, cyber and
+' intros - in order by set and number (level2 before level10)
+SUB MusicPoolMake
+    DIM f$, t$, i, j ' (its own)
+    IF musPoolMade THEN EXIT SUB
+    musPoolMade = -1 : musPoolN = 0
+    IF NOT _DIREXISTS(AssetPath$("music")) THEN EXIT SUB
+    f$ = _FILES$(AssetPath$("music") + "/*.ogg")
+    DO WHILE LEN(f$) AND musPoolN < MUS_POOL_MAX
+        t$ = LCASE$(f$)
+        IF RIGHT$(t$, 4) = ".ogg" AND LEFT$(t$, 4) <> "menu" AND t$ <> "cyber.ogg" AND RIGHT$(t$, 10) <> "-intro.ogg" THEN musPoolN = musPoolN + 1 : musPool$(musPoolN) = f$
+        f$ = _FILES$
+    LOOP
+    FOR i = 2 TO musPoolN
+        t$ = musPool$(i) : j = i - 1
+        DO WHILE j >= 1
+            IF MusicSortKey$(musPool$(j)) <= MusicSortKey$(t$) THEN EXIT DO
+            musPool$(j + 1) = musPool$(j) : j = j - 1
+        LOOP
+        musPool$(j + 1) = t$
+    NEXT
+END SUB
+
+' A track's place in the pool: the ten, then NEW, OLD SECTORS NEW, HUGE,
+' INFILTRATION, the rest by name - each by its number
+FUNCTION MusicSortKey$(f$)
+    DIM n$, d$, p ' (its own)
+    n$ = LCASE$(LEFT$(f$, LEN(f$) - 4)) : p = LEN(n$)
+    DO WHILE p > 0
+        IF INSTR("0123456789", MID$(n$, p, 1)) = 0 THEN EXIT DO
+        p = p - 1
+    LOOP
+    d$ = MID$(n$, p + 1) : n$ = LEFT$(n$, p)
+    p = INSTR("|level|new|remix|huge|infil|sector|", "|" + n$ + "|") : IF p = 0 THEN p = 99
+    MusicSortKey$ = RIGHT$("00" + LTRIM$(STR$(p)), 2) + n$ + RIGHT$("0000" + d$, 4)
+END FUNCTION
 
 ' The same, starting with an intro (NAME-intro.ogg, from an arrangement
 ' with a | in it - music/README.md): it plays once, and MusicFrame hands
@@ -48,7 +193,13 @@ END SUB
 ' comes. (An intro that already stopped - a loop of its own that didn't
 ' show frames - starts the loop from the top.)
 SUB MusicFrame
-    DIM p#, core# ' (its own)
+    DIM p#, core#, t# ' (its own)
+    IF musList AND musTrack& > 0 AND nowPlaying& = musTrack& AND musIntro& <= 0 THEN ' (THE PLAYLIST: a track that's ended - a second in, so a start isn't taken for an end)
+        t# = TIMER(0.001) : IF t# < musStartT# THEN musStartT# = t# ' (past midnight)
+        IF t# - musStartT# > 1 AND NOT _SNDPLAYING(musTrack&) THEN
+            IF setting(SET_MUSICMODE) = MUS_OWN THEN _SNDLOOP musTrack& : musStartT# = t# ELSE MusicNext ' (set back to SECTOR'S OWN meanwhile: it loops)
+        END IF
+    END IF
     IF musIntro& <= 0 THEN EXIT SUB
     p# = _SNDGETPOS(musIntro&)
     core# = _SNDLEN(musIntro&) - INTRO_TAIL
