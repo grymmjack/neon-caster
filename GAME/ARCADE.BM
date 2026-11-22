@@ -244,7 +244,9 @@ END SUB
 SUB ArcadeRun STATIC
     IF demoPlay THEN demoKind$ = "a" : DemoTakeRes : arcWon = (demoRes = 1) : arcDone = (demoRes = 2) : ArcadeEnd : EXIT SUB ' (a demo: the game's result, as recorded)
     WorldLoopsOff : _MOUSESHOW : _KEYCLEAR : WHILE _MOUSEINPUT : WEND
+    PongSounds
     arcPY = 300 : arcCY = 300 : arcMe = 0 : arcIt = 0 : arcDone = 0 : arcWon = 0 : arcServe = 60 : arcDir = 1
+    arcPEdge = 0 : arcCEdge = 0 ' (a paddle against the court's edge: its bump plays once, as it gets there)
     arcBX = 400 : arcBY = 300 : arcVX = 0 : arcVY = 0 : arcMouseY = _MOUSEY
     DO
         _LIMIT 60
@@ -253,6 +255,9 @@ SUB ArcadeRun STATIC
         IF _KEYDOWN(18432) THEN arcPY = arcPY - 8
         IF _KEYDOWN(20480) THEN arcPY = arcPY + 8
         arcPY = MaxOf(ARC_TOP + ARC_PAD / 2, MinOf(ARC_BOT - ARC_PAD / 2, arcPY))
+        arcE = (arcPY <= ARC_TOP + ARC_PAD / 2 OR arcPY >= ARC_BOT - ARC_PAD / 2)
+        IF arcE AND NOT arcPEdge THEN PlaySfxPan pongEdge&, 0.55, -0.7
+        arcPEdge = arcE
         k& = _KEYHIT
         DO WHILE k&
             IF k& = 27 THEN arcDone = -1
@@ -263,21 +268,25 @@ SUB ArcadeRun STATIC
         t = arcBY : IF arcVX < 0 THEN t = 300 ' (the ball going away: back to the middle)
         arcCY = arcCY + MaxOf(-5.2, MinOf(5.2, (t - arcCY) * 0.14))
         arcCY = MaxOf(ARC_TOP + ARC_PAD / 2, MinOf(ARC_BOT - ARC_PAD / 2, arcCY))
+        arcE = (arcCY <= ARC_TOP + ARC_PAD / 2 OR arcCY >= ARC_BOT - ARC_PAD / 2)
+        IF arcE AND NOT arcCEdge THEN PlaySfxPan pongEdge&, 0.4, 0.7
+        arcCEdge = arcE
         IF arcServe > 0 THEN ' (a moment between points, then a serve - towards whoever lost the last one)
             arcServe = arcServe - 1 : arcBX = 400 : arcBY = 300
-            IF arcServe = 0 THEN arcVX = 5 * arcDir : arcVY = (RND - 0.5) * 6
+            IF arcServe = 0 THEN arcVX = 5 * arcDir : arcVY = (RND - 0.5) * 6 : PlaySfx pongServe&, 0.45
         ELSE
             arcBX = arcBX + arcVX : arcBY = arcBY + arcVY
-            IF arcBY < ARC_TOP + 6 THEN arcBY = ARC_TOP + 6 : arcVY = ABS(arcVY) : PlaySfx sndMenuMove&, 0.4
-            IF arcBY > ARC_BOT - 6 THEN arcBY = ARC_BOT - 6 : arcVY = -ABS(arcVY) : PlaySfx sndMenuMove&, 0.4
+            ' (the sounds: higher the faster the ball - PongStep - and from the side they're on)
+            IF arcBY < ARC_TOP + 6 THEN arcBY = ARC_TOP + 6 : arcVY = ABS(arcVY) : PlaySfxPan pongWall&(PongStep(arcVX)), 0.5, (arcBX - 400) / 570
+            IF arcBY > ARC_BOT - 6 THEN arcBY = ARC_BOT - 6 : arcVY = -ABS(arcVY) : PlaySfxPan pongWall&(PongStep(arcVX)), 0.5, (arcBX - 400) / 570
             IF arcVX < 0 AND arcBX < 70 AND arcBX > 50 AND ABS(arcBY - arcPY) < ARC_PAD / 2 + 6 THEN ' Your paddle
-                arcVX = MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcPY) / (ARC_PAD / 2) * 7 : PlaySfx sndMenuSelect&, 0.6
+                arcVX = MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcPY) / (ARC_PAD / 2) * 7 : PlaySfxPan pongHit&(PongStep(arcVX)), 0.6, -0.7
             END IF
             IF arcVX > 0 AND arcBX > 730 AND arcBX < 750 AND ABS(arcBY - arcCY) < ARC_PAD / 2 + 6 THEN ' Its paddle
-                arcVX = -MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcCY) / (ARC_PAD / 2) * 7 : PlaySfx sndMenuSelect&, 0.6
+                arcVX = -MinOf(14, ABS(arcVX) * 1.07) : arcVY = (arcBY - arcCY) / (ARC_PAD / 2) * 7 : PlaySfxPan pongHit&(PongStep(arcVX)), 0.6, 0.7
             END IF
-            IF arcBX < 10 THEN arcIt = arcIt + 1 : arcServe = 60 : arcDir = -1 : PlaySfx sndLocked&, 0.6
-            IF arcBX > 790 THEN arcMe = arcMe + 1 : arcServe = 60 : arcDir = 1 : PlaySfx sndPlate&, 0.8
+            IF arcBX < 10 THEN arcIt = arcIt + 1 : arcServe = 60 : arcDir = -1 : PlaySfxPan pongLost&, 0.6, -0.5 ' (past you: down)
+            IF arcBX > 790 THEN arcMe = arcMe + 1 : arcServe = 60 : arcDir = 1 : PlaySfxPan pongWon&, 0.6, 0.5 ' (past the machine: up)
         END IF
         IF arcMe >= ARC_WIN OR arcIt >= ARC_WIN THEN arcWon = (arcMe >= ARC_WIN) : EXIT DO
         DrawArcade arcPY, arcCY, arcBX, arcBY, arcMe, arcIt, (arcServe = 0 OR (arcServe \ 8) MOD 2 = 0), ""
@@ -313,6 +322,62 @@ SUB ArcadeEnd STATIC
         ShowMsg "GAME OVER - insert coin (Space) to try again"
     END IF
 END SUB
+
+' NEON PONG's sounds, made once, the first time it's played: tones, as the
+' first Pong's were. A paddle's hit (pongHit&, from C5) and the wall's
+' (pongWall&, an octave down) each in PONG_STEPS + 1 pitches a semitone
+' apart - the ball's speed picks one (PongStep), so a long rally climbs an
+' octave. pongEdge& is a paddle run into the court's edge (a low bump),
+' pongServe& the serve, pongWon& a ball past the machine (sliding up an
+' octave), pongLost& one past you (sliding down).
+SUB PongSounds
+    DIM k ' (its own)
+    IF pongMade THEN EXIT SUB
+    pongMade = -1
+    FOR k = 0 TO PONG_STEPS
+        pongHit&(k) = PongTone&(523.25 * 2 ^ (k / 12), 0, 0.075, 0.8, -1, 4)
+        pongWall&(k) = PongTone&(261.63 * 2 ^ (k / 12), 0, 0.06, 0.65, -1, 4)
+    NEXT
+    pongEdge& = PongTone&(110, 65, 0.09, 0.6, 0, 3)
+    pongServe& = PongTone&(392, 0, 0.05, 0.5, -1, 4)
+    pongWon& = PongTone&(523.25, 1046.5, 0.3, 0.65, -1, 1.2)
+    pongLost& = PongTone&(330, 98, 0.5, 0.65, -1, 1.2)
+END SUB
+
+' Which of the PONG_STEPS + 1 pitches a ball moving vx across plays: the
+' serve's 5 the lowest, the fastest 14 the highest
+FUNCTION PongStep(vx)
+    DIM s ' (its own)
+    s = INT((ABS(vx) - 5) / 9 * PONG_STEPS + 0.5)
+    IF s < 0 THEN s = 0
+    IF s > PONG_STEPS THEN s = PONG_STEPS
+    PongStep = s
+END FUNCTION
+
+' A tone made in memory (_SNDNEW): f0! Hz, sliding to f1! over its length
+' (0: it stays), secs! long, peaking at peak!. bright: a little of the 3rd
+' and 5th harmonics (a soft square, an old machine's beep) - else a plain
+' sine. fall!: how quickly it dies away. 0 if the sound couldn't be made.
+FUNCTION PongTone&(f0!, f1!, secs!, peak!, bright, fall!)
+    DIM h&, m AS _MEM, mb AS _MEM, n AS LONG, i AS LONG, att AS LONG, t!, f!, ph#, s!, v! ' (its own)
+    n = _SNDRATE * secs! : IF n < 16 THEN EXIT FUNCTION
+    h& = _SNDNEW(n, 1, 32) : IF h& < 1 THEN EXIT FUNCTION
+    m = _MEMSOUND(h&, 0)
+    IF m.SIZE < n * 4 OR m.TYPE <> 260 THEN _MEMFREE m : _SNDCLOSE h& : EXIT FUNCTION ' (not the 32-bit floats asked for)
+    DIM buf(n - 1) AS SINGLE
+    att = _SNDRATE * 0.003 ' (3 ms in: no click)
+    FOR i = 0 TO n - 1
+        t! = i / n
+        IF f1! > 0 THEN f! = f0! * (f1! / f0!) ^ t! ELSE f! = f0!
+        ph# = ph# + 6.283185307179586# * f! / _SNDRATE
+        s! = SIN(ph#) : IF bright THEN s! = (s! + 0.22 * SIN(3 * ph#) + 0.08 * SIN(5 * ph#)) / 1.15
+        v! = EXP(-fall! * t!) * (1 - t!) : IF i < att THEN v! = v! * i / att
+        buf(i) = s! * v! * peak!
+    NEXT
+    mb = _MEM(buf()) : _MEMCOPY mb, mb.OFFSET, n * 4 TO m, m.OFFSET
+    _MEMFREE mb : _MEMFREE m
+    PongTone& = h&
+END FUNCTION
 
 ' NEON PONG's screen (ArcadeRun): the court, the paddles (you: py, the
 ' machine: cy), the ball at (bx, by) if ballOn, the score, and big$ (YOU

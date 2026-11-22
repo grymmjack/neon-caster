@@ -9,6 +9,12 @@
 DIM SHARED arcDone, arcWon, pgName$, rc
 DIM SHARED pgShowOn AS INTEGER, pgShowT0 AS DOUBLE, pgShowAt AS DOUBLE ' (the window kept shown a while after a program: ProgramShowFrame)
 
+' NEON PONG's sounds: tones made in memory the first time it's played
+' (PongSounds) - a paddle's hit and the wall's in PONG_STEPS + 1 pitches a
+' semitone apart, higher the faster the ball (PongStep)
+CONST PONG_STEPS = 12
+DIM SHARED pongHit&(PONG_STEPS), pongWall&(PONG_STEPS), pongEdge&, pongServe&, pongWon&, pongLost&, pongMade
+
 ' The full screen mode in effect now (fullnow.h: _FULLSCREEN is the one asked for)
 DECLARE LIBRARY "fullnow"
     FUNCTION fullnow_mode& ()
