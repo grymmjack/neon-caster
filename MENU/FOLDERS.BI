@@ -26,3 +26,10 @@ DIM SHARED fdMove ' (a folder or sector picked up to move (X): V puts it in the 
 DIM SHARED fdTypeNode, fdTypeNew ' (a folder being named: R, or a NEW FOLDER - Esc takes a new one away again)
 DIM SHARED fdRow(MAX_MI) ' (each menu row's node: 0 none)
 DIM SHARED fdNote$ ' (a word on the last thing done, under the list)
+' DEMO REPLAYS has a tree of its own, as SECTORS does - the same code, one
+' tree loaded at a time (fdTree): folders holding demos (fdKind 3, by name:
+' fdName$). The game's is neon-caster/demos/folders.txt (AI: the autopilot's,
+' HUMAN: yours); once changed, yours is saves/demofolders.txt.
+CONST FD_SECTORS = 0, FD_DEMOS = 1
+DIM SHARED fdTree ' (which tree is loaded)
+DIM SHARED fdAuto ' (DEMOS: the folder the autopilot's new demos go in - an "auto" line - 0: the top)

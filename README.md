@@ -161,7 +161,7 @@ STEAM library in QB64_GJ_LIB. Until the game is on Steam they're kept in
 guns and ammo you came into it with - recorded as you play it - every key
 and turn, frame by frame, not a video - till Ctrl+R again or the exit.
 Reach the exit and the next sector goes on recording by itself, with
-everything you're carrying (`run1`, `run2`...). **DEMO REPLAYS** in the main menu plays it back exactly: the
+everything you're carrying (`run1`, `run2`...). **DEMO REPLAYS** in the main menu plays it back exactly (in folders: AI for the autopilot's, HUMAN for yours, and any you make): the
 same monsters, shots and loot. (In the console: `record NAME`, `playdemo
 NAME`.) `bot` hands the controls to an autopilot that plays like
 someone new to the sector - exploring, fighting what it notices, missing

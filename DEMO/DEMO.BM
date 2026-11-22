@@ -11,6 +11,7 @@ SUB DemoInput STATIC
     IF demoPlay THEN DemoReadFrame
     IF botOn AND NOT demoPlay AND NOT editMode THEN
         BotThink ' (the autopilot's keys, in place of yours)
+        IF demoRec THEN demoBotN = demoBotN + 1
         IF ChargeOn AND fireWas THEN inBits = inBits AND NOT DB_FIRE ' (CHARGED SHOTS: it taps - held, it'd charge)
     ELSEIF NOT demoPlay THEN
         inBits = 0 : inWheel = mouseWheel
@@ -186,7 +187,9 @@ END SUB
 ' new game, the editor): recording, the demo's saved; playing, it stops
 SUB DemoStop STATIC
     IF demoRec THEN
-        DemoFlush : DemoStateNow : DemoPut "e " + ds$ : CLOSE #demoFH : demoRec = 0 : demoChain = 0
+        DemoFlush : DemoStateNow
+        IF demoBotN THEN DemoPut "# autopilot" + STR$(demoBotN) + " frames" ' (a comment - never read in play - by the end, where DemoByBot looks)
+        DemoPut "e " + ds$ : CLOSE #demoFH : demoRec = 0 : demoChain = 0
         ConPrint "demo: " + demoName$ + " saved -" + STR$(demoFrame) + " frames (" + TimeText$(demoFrame / 60) + ")" : ShowMsg "DEMO SAVED: " + demoName$ + " - in DEMO REPLAYS"
         ApplySettings ' (the view's width: yours again)
     END IF
@@ -321,7 +324,7 @@ SUB DemoRecordStart STATIC
     IF LEN(dCarry$) THEN DemoPut "carry " + dCarry$ ' (what you bring into it - a Ctrl+R recording's: one with none starts with nothing)
     DemoPut "begin"
     DemoFresh
-    demoRec = -1 : demoFrame = 0 : demoPendN = 0
+    demoRec = -1 : demoFrame = 0 : demoPendN = 0 : demoBotN = 0
     IF LEN(dCarry$) THEN dWhy$ = ", from its start with what you brought" ELSE dWhy$ = ", from its start"
     ConPrint "demo: recording " + demoName$ + " - " + sectorName$(level) + dWhy$ + " (the exit, or stopdemo, ends it)"
     ShowMsg "RECORDING " + demoName$
@@ -559,6 +562,22 @@ SUB DemoListLoad
         LOOP
     NEXT
 END SUB
+
+' Was demo k (DEMO REPLAYS' list) played by the autopilot? The game's own
+' all were; one of yours, if it ends with an "# autopilot" line (DemoStop)
+FUNCTION DemoByBot% (k)
+    DIM fh, ln&, b$, d$ ' (its own: the main program shares these names)
+    d$ = AssetPath$("demos/")
+    IF LEFT$(demoListFile$(k), LEN(d$)) = d$ THEN DemoByBot% = -1 : EXIT FUNCTION
+    IF NOT _FILEEXISTS(demoListFile$(k)) THEN EXIT FUNCTION
+    fh = FREEFILE : OPEN demoListFile$(k) FOR BINARY AS #fh
+    ln& = LOF(fh)
+    IF ln& > 0 THEN
+        b$ = SPACE$(MinOf(2000, ln&)) : GET #fh, ln& - LEN(b$) + 1, b$
+        IF INSTR(b$, CHR$(10) + "# autopilot") THEN DemoByBot% = -1
+    END IF
+    CLOSE #fh
+END FUNCTION
 
 ' A demo's name to sort by: lower case, its last number five digits long
 ' (so sector2 comes before sector10)

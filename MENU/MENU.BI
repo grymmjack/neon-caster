@@ -9,7 +9,7 @@ CONST SCR_MAIN = 1, SCR_GAME = 2, SCR_SAVE = 3, SCR_LOAD = 4, SCR_SETTINGS = 5
 CONST SCR_AUDIO = 6, SCR_GAMEPLAY = 7, SCR_CONTROLS = 8, SCR_CREDITS = 9, SCR_QUIT = 10, SCR_VIDEO = 11, SCR_EFFECTS = 12
 CONST MA_RESUME = 1, MA_NEW = 2, MA_SAVE = 3, MA_LOAD = 4, MA_QUIT = 5, MA_KEYS_DEFAULT = 6, MA_SECTOR = 7
 CONST SCR_SECTOR = 13, SCR_QB64 = 14, SCR_CUSTOM = 15, SCR_CUSTOM2 = 16, SCR_SET1 = 17 ' (SCR_SET1 + s - 1: set s's sectors)
-CONST SCR_DEMOS = 30, MA_DEMO = 14, MA_DEMOPAGE = 15, MA_STOPDEMO = 16, MA_DEMOFOLDER = 17 ' (DEMO REPLAYS: the demos on disk - DemoListLoad - ten a page; Enter plays one; OPEN FOLDER, or F, shows your own)
+CONST SCR_DEMOS = 30, MA_DEMO = 14, MA_STOPDEMO = 16, MA_DEMOFOLDER = 17 ' (DEMO REPLAYS: the demos on disk - DemoListLoad - in folders (MENU/FOLDERS.BM); Enter plays one; YOUR FILES, or F, shows your own)
 ' (The demo playlist - DEMO/PLAYLIST.BM: its screen of options, PLAY LIST, an option - miRef 1-6: PlOptText$ -, CLEAR MARKS, and NEXT / PREVIOUS / RANDOM DEMO on the PAUSED menu - miRef 1, -1, 2)
 CONST MA_TASAVE = 44, MA_TADEL = 45 ' (EFFECTS: SAVE AS PRESET, DELETE PRESET - TEXT ART's: GL/TEXTART.BM)
 CONST MA_TUNER = 40 ' (GAMEPLAY's TUNER...: EDITOR/TUNER.BM)
@@ -19,7 +19,7 @@ CONST MA_QB64_TYPE = 8, MA_QB64_BROWSE = 9, MA_QB64_AUTO = 10, MA_NEWSECTOR = 11
 ' The items on the menu screen showing now: label, kind (MI_), what it
 ' refers to (a screen, a setting, a binding or a save slot), its action
 ' (MA_), whether it can be chosen, and a line of small print beside it
-CONST MAX_MI = 64 ' (a screen's items at most - EFFECTS has 28, a SECTORS folder up to 59: past this AddMenuItem drops them, SAVE AS PRESET and BACK went)
+CONST MAX_MI = 256 ' (a screen's items at most - EFFECTS has 28, a SECTORS folder up to 251, a DEMO REPLAYS folder every demo (MAX_DEMOLIST 200): past this AddMenuItem drops them, SAVE AS PRESET and BACK went)
 DIM SHARED miLabel$(MAX_MI), miKind(MAX_MI), miRef(MAX_MI), miAct(MAX_MI), miOn(MAX_MI), miInfo$(MAX_MI)
 DIM SHARED menuPanR ' (the panel's right edge this screen: as wide as its widest row, mirrored round the middle - MenuPanelR; 0 when a screen opens)
 DIM SHARED numMI, menuTitle$, menuSel, menuCapture, menuWide, menuScreen, menuInGame

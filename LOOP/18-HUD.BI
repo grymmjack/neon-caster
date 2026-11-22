@@ -334,10 +334,19 @@
     ' The sector timer (SECTOR TIMER): how long you've been in it, the
     ' clock green while you're inside your best and red once past it
     ' (the keycards you hold sit top right too: the demo's lines go under them)
-    ddy = 0 : IF hudShow(HE_CARDS) AND hudX(HE_CARDS) > 560 AND hudY(HE_CARDS) < 110 AND (hasCard(1) OR hasCard(2) OR hasCard(3)) THEN ddy = MaxOf(0, hudY(HE_CARDS) + hudW(HE_CARDS) + 6 - 38)
-    HudAtE HE_DEMO ' (a demo's lines: top right - its own part, dmX/dmY from where it was made)
-    dmX = hudX(HE_DEMO) - 784 : dmY = hudY(HE_DEMO) - 40
-    IF hudEdit AND NOT demoPlay AND NOT demoRec AND hudShow(HE_DEMO) THEN dh$ = "REC 0:12" : HudText 784 + dmX - LEN(dh$) * 8, 58 + dmY, dh$, HudColor~&(HE_DEMO, _RGB32(255, 70, 80)) ' (the HUD editor: a sample)
+    dmX = hudX(HE_DEMO) - 784 : dmY = hudY(HE_DEMO) - 40 ' (a demo's lines: its own part, dmX/dmY from where it was made)
+    ddy = 0 ' (keycards over the demo's top line, in its column: the lines go under them)
+    IF hudShow(HE_CARDS) AND hudX(HE_CARDS) > 560 AND hudX(HE_DEMO) > 560 AND hudY(HE_CARDS) < hudY(HE_DEMO) + 20 AND (hasCard(1) OR hasCard(2) OR hasCard(3)) THEN ddy = MaxOf(0, hudY(HE_CARDS) + hudW(HE_CARDS) + 6 - (38 + dmY))
+    HudAtE HE_DEMO
+    IF hudEdit AND NOT demoPlay AND NOT demoRec AND hudShow(HE_DEMO) THEN ' (the HUD editor: a sample of every line a demo playing shows)
+        dpc~& = HudColor~&(HE_DEMO, _RGB32(90, 255, 130)) : dpx = 784 + dmX - 80
+        FOR dpy = 0 TO 10 : LINE (dpx, 42 + dmY + dpy)-(dpx + (5 - ABS(dpy - 5)) * 1.6, 42 + dmY + dpy), dpc~& : NEXT
+        HudText dpx + 14, 40 + dmY, "PLAYING", dpc~&
+        dh$ = "1/3  DEMO 0:12" : HudText 784 + dmX - LEN(dh$) * 8, 58 + dmY, dh$, HudColor~&(HE_DEMO, _RGB32(90, 230, 255))
+        dh$ = "RUN1  5:05" : HudText 784 + dmX - LEN(dh$) * 8, 76 + dmY, dh$, _RGB32(160, 220, 255)
+        dh$ = "SECTOR 1: NEON STATION" : HudText 784 + dmX - LEN(dh$) * 8, 92 + dmY, dh$, _RGB32(120, 150, 190)
+        dh$ = ". NEXT  , BACK  / RANDOM  - = SPEED" : HudText 784 + dmX - LEN(dh$) * 8, 108 + dmY, dh$, _RGB32(90, 110, 150)
+    END IF
     IF demoPlay AND hudShow(HE_DEMO) THEN ' Playing one: a green play arrow and PLAYING over the clock - and, small, which demo, how long, what
         dpw = 8 * 8 + 16 : dpx = 784 + dmX - dpw : dpc~& = HudColor~&(HE_DEMO, _RGB32(90, 255, 130))
         FOR dpy = 0 TO 10 : LINE (dpx, 42 + ddy + dmY + dpy)-(dpx + (5 - ABS(dpy - 5)) * 1.6, 42 + ddy + dmY + dpy), dpc~& : NEXT ' (the arrow: a little triangle)
@@ -370,12 +379,13 @@
         IF best! > 0 THEN IF lt! <= best! THEN tc~& = _RGB32(90, 255, 140) ELSE tc~& = _RGB32(255, 90, 90)
         IF achCheat AND NOT achTest THEN tc~& = _RGB32(150, 140, 170) ' (cheats on: it can't make a record)
         tmr$ = TimeText$(INT(lt!)) + "." + LTRIM$(STR$(INT((lt! - INT(lt!)) * 10)))
-        tdy = 0 ' (a demo's lines in the same corner: the clock goes down under them)
-        IF (demoRec OR demoPlay) AND hudX(HE_TIMER) > 560 AND hudY(HE_TIMER) < 140 THEN
-            dbot = 74 + ddy : IF demoPlay THEN dbot = 92 + ddy + 16
+        tdy = 0 ' (a demo's lines above the clock, in its column, reaching down into it: the clock goes under them)
+        IF (demoRec OR demoPlay) AND hudShow(HE_DEMO) AND hudX(HE_TIMER) > 560 AND hudX(HE_DEMO) > 560 AND hudY(HE_DEMO) <= hudY(HE_TIMER) THEN
+            dbot = 74 + ddy + dmY : IF demoPlay THEN dbot = 92 + ddy + dmY + 16
             IF demoPlay AND NOT demoAttract AND NOT demoQuit THEN dbot = dbot + 16 ' (and the line of keys under it: DEMO/PLAYLIST.BM's)
             tdy = MaxOf(0, dbot + 8 - hudY(HE_TIMER))
         END IF
+        IF hudEdit AND best! <= 0 THEN best! = 81 ' (the HUD editor: a sample BEST line, so it can be seen and kept clear)
         HudAtE HE_TIMER : MenuText hudX(HE_TIMER), hudY(HE_TIMER) + tdy, tmr$, 2, HudColor~&(HE_TIMER, tc~&), 2
         IF best! > 0 THEN tmr$ = "BEST " + TimeText$(INT(best!)) : HudText hudX(HE_TIMER) - LEN(tmr$) * 8, hudY(HE_TIMER) + tdy + 34, tmr$, _RGB32(255, 220, 80)
         HudAt 1

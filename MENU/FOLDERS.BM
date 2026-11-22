@@ -19,11 +19,22 @@
 '   rest                    the folder new sectors of yours go in
 ' Then anything not in it - a sector made since, a set added - is put in:
 ' yours in the rest folder, a set's in a folder named for the set.
+' DEMO REPLAYS' tree (fdTree FD_DEMOS: saves/demofolders.txt, else
+' demos/folders.txt) has its own lines instead:
+'   demo NAME               a demo (NAME.ncd, yours or the game's)
+'   auto                    the folder the autopilot's demos go in
+'   rest                    the folder the rest - yours - go in
 SUB FdLoad
-    DIM f$, l$, t$, w$, r$, fh, d, s, n, a, b, node, lv(FD_DEEP), placed(NUM_SETS * 100 + 10 + MAX_CUSTOM), j, tok$ ' (its own: the main program shares these names)
+    DIM f$, l$, t$, w$, r$, fh, d, s, n, a, b, node, lv(FD_DEEP), placed(NUM_SETS * 100 + 10 + MAX_CUSTOM), j, tok$, dPlaced(MAX_DEMOLIST) ' (its own: the main program shares these names)
     FOR j = 0 TO FD_MAX : fdKind(j) = 0 : fdName$(j) = "" : fdCode(j) = 0 : fdUp(j) = 0 : fdOrd(j) = 0 : NEXT
-    fdN = 0 : fdOrdNext = 0 : fdRest = 0 : fdKind(0) = 1 : fdName$(0) = "SECTORS"
-    f$ = SaveDir$ + "folders.txt" : IF NOT _FILEEXISTS(f$) THEN f$ = AssetPath$("levels/folders.txt")
+    fdN = 0 : fdOrdNext = 0 : fdRest = 0 : fdAuto = 0 : fdKind(0) = 1
+    IF fdTree = FD_DEMOS THEN
+        fdName$(0) = "DEMO REPLAYS" : DemoListLoad
+        f$ = SaveDir$ + "demofolders.txt" : IF NOT _FILEEXISTS(f$) THEN f$ = AssetPath$("demos/folders.txt")
+    ELSE
+        fdName$(0) = "SECTORS"
+        f$ = SaveDir$ + "folders.txt" : IF NOT _FILEEXISTS(f$) THEN f$ = AssetPath$("levels/folders.txt")
+    END IF
     IF _FILEEXISTS(f$) THEN
         fh = FREEFILE : OPEN f$ FOR INPUT AS #fh
         DO UNTIL EOF(fh)
@@ -49,6 +60,13 @@ SUB FdLoad
                     END IF
                 CASE "rest"
                     fdRest = node
+                CASE "auto"
+                    fdAuto = node
+                CASE "demo"
+                    IF fdTree = FD_DEMOS THEN
+                        a = DemoListAt(r$)
+                        IF a THEN IF dPlaced(a) = 0 THEN dPlaced(a) = -1 : b = FdNew(3, node, demoList$(a), 0)
+                    END IF
                 CASE "set"
                     s = FdSetOf(r$)
                     IF s >= 0 THEN
@@ -78,6 +96,15 @@ SUB FdLoad
         LOOP
         CLOSE #fh
     END IF
+    IF fdTree = FD_DEMOS THEN ' Demos it doesn't have yet: the autopilot's in the auto folder, the rest in the rest folder
+        FOR a = 1 TO demoListN
+            IF dPlaced(a) = 0 THEN
+                IF DemoByBot(a) THEN node = fdAuto ELSE node = fdRest
+                b = FdNew(3, node, demoList$(a), 0)
+            END IF
+        NEXT
+        EXIT SUB
+    END IF
     ' What the tree doesn't have yet: yours in the rest folder, a set's in a folder named for it
     FOR s = 0 TO NUM_SETS
         node = -1
@@ -95,14 +122,23 @@ SUB FdLoad
     NEXT
 END SUB
 
-' --- The tree, written: saves/folders.txt (as FdLoad reads it)
+' --- The tree, written: saves/folders.txt - or saves/demofolders.txt (as FdLoad reads them)
 SUB FdSave
     DIM fh ' (its own)
     MakeSaveDir
-    fh = FREEFILE : OPEN SaveDir$ + "folders.txt" FOR OUTPUT AS #fh
-    PRINT #fh, "' NEON-CASTER - your sector folders (GAME / EDIT > SECTORS). Written by the"
-    PRINT #fh, "' menu; delete this file to go back to the game's (levels/folders.txt)."
-    PRINT #fh, "' folder NAME / set NAME / sector SET N / custom N / rest - two spaces in a folder"
+    fh = FREEFILE
+    IF fdTree = FD_DEMOS THEN
+        OPEN SaveDir$ + "demofolders.txt" FOR OUTPUT AS #fh
+        PRINT #fh, "' NEON-CASTER - your demo folders (DEMO REPLAYS). Written by the menu;"
+        PRINT #fh, "' delete this file to go back to the game's (demos/folders.txt)."
+        PRINT #fh, "' folder NAME / demo NAME / auto (the autopilot's go here) / rest - two spaces in a folder"
+        IF fdAuto = 0 THEN PRINT #fh, "auto"
+    ELSE
+        OPEN SaveDir$ + "folders.txt" FOR OUTPUT AS #fh
+        PRINT #fh, "' NEON-CASTER - your sector folders (GAME / EDIT > SECTORS). Written by the"
+        PRINT #fh, "' menu; delete this file to go back to the game's (levels/folders.txt)."
+        PRINT #fh, "' folder NAME / set NAME / sector SET N / custom N / rest - two spaces in a folder"
+    END IF
     IF fdRest = 0 THEN PRINT #fh, "rest"
     FdWrite 0, 0, fh
     CLOSE #fh
@@ -117,7 +153,10 @@ SUB FdWrite (p, d, fh)
         IF fdKind(node) = 1 THEN
             PRINT #fh, ind$ + "folder " + fdName$(node)
             IF node = fdRest THEN PRINT #fh, ind$ + "  rest"
+            IF node = fdAuto AND fdTree = FD_DEMOS THEN PRINT #fh, ind$ + "  auto"
             FdWrite node, d + 1, fh
+        ELSEIF fdKind(node) = 3 THEN
+            PRINT #fh, ind$ + "demo " + fdName$(node)
         ELSE
             c = fdCode(node)
             IF c > NUM_LEVELS AND c <= NUM_LEVELS + MAX_CUSTOM THEN
@@ -144,7 +183,7 @@ FUNCTION FdKids% (p, kid() AS INTEGER)
     FdKids% = kn
 END FUNCTION
 
-' --- A new folder (kind 1) or sector (2) at the end of folder up's list: its node (0: no room)
+' --- A new folder (kind 1), sector (2) or demo (3) at the end of folder up's list: its node (0: no room)
 FUNCTION FdNew% (kind, up, name$, code)
     DIM j ' (its own)
     FOR j = 1 TO fdN
@@ -274,7 +313,7 @@ FUNCTION FdPath$ (node)
         END IF
         j = fdUp(j) : g = g + 1
     LOOP
-    IF p$ = "" THEN p$ = "SECTORS"
+    IF p$ = "" THEN p$ = fdName$(0)
     FdPath$ = p$
 END FUNCTION
 
@@ -283,12 +322,13 @@ FUNCTION FdCount$ (node)
     DIM j, nf, ns, o$ ' (its own)
     FOR j = 1 TO fdN
         IF fdUp(j) = node AND fdKind(j) = 1 THEN nf = nf + 1
-        IF fdUp(j) = node AND fdKind(j) = 2 THEN ns = ns + 1
+        IF fdUp(j) = node AND fdKind(j) >= 2 THEN ns = ns + 1
     NEXT
     IF nf THEN o$ = LTRIM$(STR$(nf)) + " folder" : IF nf > 1 THEN o$ = o$ + "s"
     IF ns THEN
         IF LEN(o$) THEN o$ = o$ + ", "
-        o$ = o$ + LTRIM$(STR$(ns)) + " sector" : IF ns > 1 THEN o$ = o$ + "s"
+        IF fdTree = FD_DEMOS THEN o$ = o$ + LTRIM$(STR$(ns)) + " demo" ELSE o$ = o$ + LTRIM$(STR$(ns)) + " sector"
+        IF ns > 1 THEN o$ = o$ + "s"
     END IF
     IF o$ = "" THEN o$ = "empty"
     FdCount$ = o$
@@ -302,14 +342,79 @@ FUNCTION FdFreeCustom%
     NEXT
 END FUNCTION
 
-' --- SECTORS opened (from GAME or EDIT): the tree read again, at the top
-SUB FdEnter
-    FdLoad : fdAt = 0 : fdFwdN = 0 : fdMove = 0 : fdNote$ = ""
+' --- SECTORS opened (from GAME or EDIT), or DEMO REPLAYS (tree): the tree read again, at the top
+SUB FdEnter (tree)
+    fdTree = tree : FdLoad : fdAt = 0 : fdFwdN = 0 : fdMove = 0 : fdNote$ = ""
+END SUB
+
+' --- Back at DEMO REPLAYS after a demo: in the folder it was played from,
+' on it (the tree read again - a recording may have been made meanwhile)
+SUB FdBackToDemos
+    DIM was, j ' (its own)
+    was = 0 : IF fdTree = FD_DEMOS THEN was = fdAt
+    fdTree = FD_DEMOS : FdLoad : fdFwdN = 0 : fdMove = 0 : fdNote$ = ""
+    fdAt = 0 : IF was > 0 AND was <= fdN THEN IF fdKind(was) = 1 THEN fdAt = was
+    EnterMenuScreen
+    FOR j = 1 TO numMI
+        IF miAct(j) = MA_DEMO AND miKind(j) = MI_ACTION THEN
+            IF LCASE$(demoList$(miRef(j))) = LCASE$(demoName$) THEN menuSel = j : EXIT FOR
+        END IF
+    NEXT
+END SUB
+
+' --- Demo NAME's place in DEMO REPLAYS' list (0: no such demo)
+FUNCTION DemoListAt% (n$)
+    DIM k, t$ ' (its own)
+    t$ = LCASE$(LTRIM$(RTRIM$(n$)))
+    FOR k = 1 TO demoListN
+        IF LCASE$(demoList$(k)) = t$ THEN DemoListAt% = k : EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' --- DEMO REPLAYS' folder showing, as menu rows: the PLAYLIST and your
+' files at the top, then its folders and demos
+SUB FdDemoRows
+    DIM kid(FD_MAX) AS INTEGER, kn, j, node, k, d$, info$ ' (its own)
+    menuWide = -1
+    IF fdKind(fdAt) <> 1 THEN fdAt = 0
+    menuTitle$ = FdPath$(fdAt)
+    FOR j = 0 TO MAX_MI : fdRow(j) = 0 : NEXT
+    IF fdAt = 0 AND demoListN > 0 THEN AddMenuItem "PLAYLIST", MI_SUBMENU, SCR_PLAYLIST, 0, -1, PlSummary$ + " - P plays it" ' (DEMO/PLAYLIST.BM: Space marks a demo)
+    IF demoListN = 0 THEN
+        AddMenuItem "NO DEMOS YET", MI_TEXT, 0, 0, 0, ""
+        AddMenuItem "IN THE CONSOLE, record NAME MAKES ONE", MI_TEXT, 0, 0, 0, ""
+        AddMenuItem "", MI_TEXT, 0, 0, 0, ""
+    END IF
+    kn = FdKids(fdAt, kid())
+    FOR j = 1 TO kn
+        node = kid(j)
+        IF numMI >= MAX_MI - 5 THEN EXIT FOR ' (room left for the rows under the list)
+        IF fdKind(node) = 1 THEN
+            d$ = fdName$(node) : IF LEN(d$) > 20 THEN d$ = LEFT$(d$, 19) + "~"
+            info$ = FdCount$(node) : IF node = fdMove THEN info$ = "MOVING - V puts it in a folder"
+            AddMenuItem d$ + " /", MI_ACTION, node, MA_FDOPEN, -1, info$
+            fdRow(numMI) = node
+        ELSE
+            k = DemoListAt(fdName$(node))
+            IF k THEN
+                d$ = UCASE$(demoList$(k)) : IF LEN(d$) > 9 THEN d$ = LEFT$(d$, 8) + "~" ' (nine big letters, then its description beside it)
+                info$ = "  " + demoListInfo$(k) : IF node = fdMove THEN info$ = "  MOVING - V puts it in a folder" ' (room before it for the playlist's mark)
+                AddMenuItem d$, MI_ACTION, k, MA_DEMO, -1, info$
+                fdRow(numMI) = node
+            END IF
+        END IF
+    NEXT
+    IF kn = 0 AND demoListN > 0 THEN AddMenuItem "EMPTY", MI_TEXT, 0, 0, 0, ""
+    IF fdMove THEN AddMenuItem "MOVE HERE", MI_ACTION, 0, MA_FDHERE, FdCanMove(fdMove, fdAt), LEFT$(fdName$(fdMove), 30)
+    AddMenuItem "NEW FOLDER", MI_ACTION, 0, MA_FDNEW, FdDepth(fdAt) < FD_DEEP, ""
+    IF fdAt = 0 THEN AddMenuItem "YOUR FILES", MI_ACTION, 0, MA_DEMOFOLDER, -1, "your recordings on disk, to copy, rename or delete (F)"
+    IF fdAt THEN AddMenuItem "BACK", MI_ACTION, 0, MA_FDUP, -1, "up to " + LCASE$(FdPath$(fdUp(fdAt))) ELSE AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
 END SUB
 
 ' --- The folder showing, as menu rows (BuildMenu)
 SUB FdRows
     DIM kid(FD_MAX) AS INTEGER, kn, j, node, c, nm$, info$, sets, setWas, s ' (its own)
+    IF fdTree = FD_DEMOS THEN FdDemoRows : EXIT SUB
     menuWide = -1
     IF fdKind(fdAt) <> 1 THEN fdAt = 0
     menuTitle$ = FdPath$(fdAt)
@@ -501,6 +606,8 @@ FUNCTION FdKey% (k&)
                     fdKind(node) = 0
                     fdNote$ = "FOLDER GONE" : IF kn THEN fdNote$ = fdNote$ + " - WHAT WAS IN IT IS HERE NOW"
                     FdSave : FdRefresh 0 : PlaySfx sndMenuBack&, 0.6
+                ELSEIF fdTree = FD_DEMOS THEN
+                    fdNote$ = "A DEMO ISN'T DELETED HERE - X MOVES IT, F SHOWS ITS FILE" : PlaySfx sndMenuBack&, 0.6
                 ELSE
                     fdNote$ = "A SECTOR ISN'T DELETED HERE - X MOVES IT" : PlaySfx sndMenuBack&, 0.6
                 END IF

@@ -17,3 +17,7 @@ neon-caster/music/edit/*.log
 # Editor backups, and programs built in the old place (now saves/programs)
 neon-caster/levels/**/*.bak
 neon-caster/programs/*.run
+
+# test builds anywhere, and your own HUD layout (the game's is hud-defaults.txt)
+*.run
+neon-caster/hud.txt

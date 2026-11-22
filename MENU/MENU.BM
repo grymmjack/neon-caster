@@ -71,10 +71,11 @@ SUB RunMenu STATIC
     _MOUSESHOW
     IF menuInGame THEN menuBackdrop& = _COPYIMAGE(0) ELSE PlayMusicIntro menuMusic&, menuIntro&
     menuGamWas = setting(SET_GAMMA) : IF nvOn THEN menuGamWas = 0 ' (the brightness that frame was drawn at - 0: none, it's night vision's green)
+    menuPointWait = 0
     menuDepth = 0 : menuScreen = SCR_MAIN : EnterMenuScreen : menuIdle = 0 : menuActive = 0
     IF menuOpenSound THEN menuOpenSound = 0 : menuDepth = 1 : menuStack(1) = SCR_MAIN : menuStackSel(1) = 1 : menuScreen = SCR_SOUNDTEST : EnterMenuScreen ' (the soundtest command: there, BACK to the main menu)
-    IF menuOpenDemos THEN menuOpenDemos = 0 : menuDepth = 1 : menuStack(1) = SCR_MAIN : menuStackSel(1) = menuSel + 1 : menuScreen = SCR_DEMOS : demoListPage = 0 : EnterMenuScreen ' (back from a demo: at DEMO REPLAYS, BACK to the main menu's line for it)
-    menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1 : menuDispWas = displayModeNow : menuPointWait = 0
+    IF menuOpenDemos THEN menuOpenDemos = 0 : menuDepth = 1 : menuStack(1) = SCR_MAIN : menuStackSel(1) = menuSel + 1 : menuScreen = SCR_DEMOS : FdBackToDemos : menuPointWait = 2 ' (back from a demo: at DEMO REPLAYS, in its folder, on it - the pointer resting where the game left it picks nothing - BACK to the main menu's line for it)
+    menuDone = 0 : menuCapture = 0 : menuTyping = 0 : menuDrag = 0 : mouseWasDown = -1 : menuDispWas = displayModeNow ' (menuPointWait: 0 above - back from a demo sets it)
     _KEYCLEAR
     DO
         _LIMIT 60
@@ -93,7 +94,7 @@ SUB RunMenu STATIC
                 ELSEIF menuTyping THEN
                     MenuTypeKey
                 ELSE
-                    fdKeyed = 0 : IF menuScreen = SCR_FOLDERS THEN fdKeyed = FdKey(keyCode&) ' (SECTORS' folders: their own keys first - MENU/FOLDERS.BM)
+                    fdKeyed = 0 : IF menuScreen = SCR_FOLDERS OR menuScreen = SCR_DEMOS THEN fdKeyed = FdKey(keyCode&) ' (SECTORS' and DEMO REPLAYS' folders: their own keys first - MENU/FOLDERS.BM)
                     IF NOT fdKeyed THEN
                         SELECT CASE keyCode&
                             CASE 18432, 119, 87 : menuMove = -1 : MenuMoveSel ' Up, W
@@ -326,8 +327,9 @@ SUB MenuActivate STATIC
             PlaySfx sndMenuSelect&, 0.6
             menuDepth = menuDepth + 1 : menuStack(menuDepth) = menuScreen : menuStackSel(menuDepth) = menuSel
             IF menuScreen = SCR_EDIT THEN menuEditPick = -1 ELSE IF menuScreen = SCR_GAME THEN menuEditPick = 0 ' (the sector lists: to play, from GAME - to edit, from EDIT)
-            menuScreen = miRef(menuSel) : IF menuScreen = SCR_DEMOS THEN demoListPage = 0
-            IF menuScreen = SCR_FOLDERS THEN FdEnter ' (SECTORS: the folders read again, from the top)
+            menuScreen = miRef(menuSel)
+            IF menuScreen = SCR_FOLDERS THEN FdEnter FD_SECTORS ' (SECTORS: the folders read again, from the top)
+            IF menuScreen = SCR_DEMOS THEN FdEnter FD_DEMOS ' (DEMO REPLAYS: its folders, the same way)
             IF menuScreen >= SCR_ST1 AND menuScreen < SCR_ST1 + ST_CATS THEN stPage = 0
             EnterMenuScreen
         CASE MI_BACK
@@ -354,8 +356,6 @@ SUB MenuActivate STATIC
                     dFile$ = demoListFile$(n) : demoName$ = demoList$(n) : demoQuit = 0 : demoMenuWant = 0
                     PlLoad : DemoLoading 1, 1 : DemoPlayStart : IF demoPlay THEN demoSpeed = plSpeed ' (at the playlist's SPEED: DEMO/PLAYLIST.BM)
                     IF demoPlay THEN demoFromMenu = -1 : menuDone = -1 ELSE ShowMsg "That demo won't play - see the console"
-                CASE MA_DEMOPAGE ' DEMO REPLAYS: the next ten
-                    demoListPage = demoListPage + 1 : EnterMenuScreen
                 CASE MA_DEMOFOLDER ' DEMO REPLAYS: your recordings' folder, in the file manager
                     OpenDemoFolder
                 CASE MA_STOPDEMO ' (paused, a demo playing)
@@ -428,7 +428,7 @@ END SUB
 ' means look for it) - and Esc leaves it as it was.
 SUB MenuTypeKey STATIC
     menuTypeBad = 0
-    IF menuScreen = SCR_FOLDERS THEN FdTypeKey : EXIT SUB ' (a folder's name: MENU/FOLDERS.BM)
+    IF menuScreen = SCR_FOLDERS OR menuScreen = SCR_DEMOS THEN FdTypeKey : EXIT SUB ' (a folder's name: MENU/FOLDERS.BM)
     IF miAct(menuSel) = MA_TASAVE THEN ' (a TEXT ART preset's name: Enter saves it, Esc doesn't)
         SELECT CASE keyCode&
             CASE 13
@@ -550,6 +550,7 @@ SUB BuildMenu(scr)
             NEXT
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
         CASE SCR_FOLDERS ' SECTORS: the folder you're in (MENU/FOLDERS.BM)
+            IF fdTree <> FD_SECTORS THEN FdEnter FD_SECTORS ' (the demos' tree was loaded: this one, from the top)
             FdRows
         CASE SCR_CUSTOM, SCR_CUSTOM2 ' Your own sectors (chapter 22): play one, or make a new one - ten a page
             IF scr = SCR_CUSTOM THEN menuTitle$ = "YOUR SECTORS" : n0 = NUM_LEVELS + 1 ELSE menuTitle$ = "MORE SECTORS" : n0 = NUM_LEVELS + 11
@@ -595,24 +596,9 @@ SUB BuildMenu(scr)
             AddMenuItem "CONTROLS", MI_SUBMENU, SCR_CONTROLS, 0, -1, ""
             AddMenuItem "QB64PE COMPILER", MI_SUBMENU, SCR_QB64, 0, -1, ""
             AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
-        CASE SCR_DEMOS ' DEMO REPLAYS: the demos on disk (DemoListLoad - yours, then the game's own), ten a page - Enter plays one
-            menuTitle$ = "DEMO REPLAYS" : menuWide = -1
-            DemoListLoad
-            IF demoListPage * 10 >= demoListN THEN demoListPage = 0
-            IF demoListN THEN AddMenuItem "PLAYLIST", MI_SUBMENU, SCR_PLAYLIST, 0, -1, PlSummary$ + " - P plays it" ' (DEMO/PLAYLIST.BM: Space marks a demo)
-            IF demoListN = 0 THEN
-                AddMenuItem "NO DEMOS YET", MI_TEXT, 0, 0, 0, ""
-                AddMenuItem "IN THE CONSOLE, record NAME MAKES ONE", MI_TEXT, 0, 0, 0, ""
-                AddMenuItem "", MI_TEXT, 0, 0, 0, ""
-            ELSE
-                FOR n = demoListPage * 10 + 1 TO MinOf(demoListPage * 10 + 10, demoListN)
-                    d$ = UCASE$(demoList$(n)) : IF LEN(d$) > 9 THEN d$ = LEFT$(d$, 8) + "~" ' (nine big letters, then its description beside it)
-                    AddMenuItem d$, MI_ACTION, n, MA_DEMO, -1, "  " + demoListInfo$(n) ' (room before it for the playlist's mark)
-                NEXT
-                IF demoListN > 10 THEN AddMenuItem "MORE", MI_ACTION, 0, MA_DEMOPAGE, -1, "page" + STR$(demoListPage + 1) + " of" + STR$((demoListN + 9) \ 10)
-            END IF
-            AddMenuItem "FOLDER", MI_ACTION, 0, MA_DEMOFOLDER, -1, "open it: your recordings, to copy, rename or delete (F)"
-            AddMenuItem "BACK", MI_BACK, 0, 0, -1, ""
+        CASE SCR_DEMOS ' DEMO REPLAYS: the demos on disk (DemoListLoad - yours, then the game's own), in folders (MENU/FOLDERS.BM: AI and HUMAN to start) - Enter plays one
+            IF fdTree <> FD_DEMOS THEN FdEnter FD_DEMOS
+            FdRows
         CASE SCR_PLAYLIST ' DEMO REPLAYS' PLAYLIST: the demos one after another (DEMO/PLAYLIST.BM) - and how
             menuTitle$ = "PLAYLIST" : menuWide = -1
             DemoListLoad
@@ -907,7 +893,7 @@ SUB DrawMenu(t)
                 cur$ = " " : IF (t \ 15) MOD 2 = 0 THEN cur$ = "_"
                 MenuText MENU_LABEL_X + 160 + slide, rowY + 9, PathTail$(menuTyped$, 47) + cur$, 1, _RGBA32(255, 230, 60, alpha), 0 ' (48 small letters from MENU_LABEL_X + 160 end inside the panel)
             END IF
-        ELSEIF menuTyping AND menuScreen = SCR_FOLDERS AND i = menuSel THEN ' A folder's name being typed (MENU/FOLDERS.BM)
+        ELSEIF menuTyping AND (menuScreen = SCR_FOLDERS OR menuScreen = SCR_DEMOS) AND i = menuSel THEN ' A folder's name being typed (MENU/FOLDERS.BM)
             cur$ = " " : IF (t \ 15) MOD 2 = 0 THEN cur$ = "_"
             LINE (MENU_LABEL_X - 4 + slide, rowY + 1)-(MENU_LABEL_X + 512 + slide, rowY + 28), _RGBA32(30, 6, 48, alpha), BF ' (over its old name: the new one in the same big letters)
             MenuText MENU_LABEL_X + slide, rowY, "NAME: " + menuTyped$ + cur$, 2, _RGBA32(255, 230, 60, alpha), 0
@@ -934,9 +920,7 @@ SUB DrawMenu(t)
         LINE (690, 96)-(750, 156), _RGBA32(90, 230, 255, 160), B
         flashWas = crossFlash : crossFlash = 0 : DrawCrosshair 720, 126 : crossFlash = flashWas ' (not white from a hit just before the menu opened: its countdown waits in the game loop)
     END IF
-    IF menuScreen = SCR_DEMOS THEN
-        MenuText 400, 574, "ENTER  PLAY     SPACE  MARK     P  PLAY LIST     F  OPEN FOLDER     ESC  BACK", 1, _RGB32(140, 135, 175), 1
-    ELSEIF menuScreen = SCR_FOLDERS THEN ' SECTORS: the folders' keys - or what the last one did, or the name being typed
+    IF menuScreen = SCR_FOLDERS OR menuScreen = SCR_DEMOS THEN ' SECTORS and DEMO REPLAYS: the folders' keys - or what the last one did, or the name being typed
         IF menuTyping THEN
             MenuText 400, 574, "TYPE ITS NAME     ENTER  KEEP IT     ESC  DROP IT", 1, _RGB32(255, 230, 60), 1
         ELSEIF LEN(fdNote$) THEN
@@ -944,7 +928,11 @@ SUB DrawMenu(t)
         ELSEIF fdMove THEN
             MenuText 400, 574, "X MOVING:  OPEN A FOLDER, THEN  V  MOVE HERE     ESC  PUT IT DOWN", 1, _RGB32(255, 230, 60), 1
         ELSE
-            MenuText 400, 574, "RIGHT OPEN  LEFT BACK  N NEW FOLDER  R RENAME  X MOVE  V PUT  [ ] ORDER  DEL DELETE", 1, _RGB32(140, 135, 175), 1
+            IF menuScreen = SCR_DEMOS THEN
+                MenuText 400, 574, "ENTER PLAY  SPACE MARK  P PLAYLIST  F FILES  N NEW FOLDER  R RENAME  X MOVE  V PUT  [ ] ORDER", 1, _RGB32(140, 135, 175), 1
+            ELSE
+                MenuText 400, 574, "RIGHT OPEN  LEFT BACK  N NEW FOLDER  R RENAME  X MOVE  V PUT  [ ] ORDER  DEL DELETE", 1, _RGB32(140, 135, 175), 1
+            END IF
         END IF
     ELSEIF menuScreen = SCR_PLAYLIST THEN
         MenuText 400, 574, "LEFT / RIGHT  CHANGE     P  PLAY     WATCHING:  . NEXT  , BACK  / RANDOM  - = SPEED", 1, _RGB32(140, 135, 175), 1

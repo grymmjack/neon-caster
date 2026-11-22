@@ -1,0 +1,10 @@
+' NEON-CASTER - DEMO REPLAYS' folders, as the game comes. Change them in the
+' menu (N, R, X, V, [ ]) and yours are kept in saves/demofolders.txt.
+'   folder NAME   a folder (the lines two spaces in from it are inside it)
+'   demo NAME     a demo (NAME.ncd: yours, in saves/demos, or the game's)
+'   auto          where demos the autopilot played go (all the game's own)
+'   rest          where the rest - the ones you played - go
+folder AI
+  auto
+folder HUMAN
+  rest

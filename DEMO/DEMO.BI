@@ -18,7 +18,8 @@ CONST DEMO_TURN = 6.283185307179586# / 65536 ' (a demo's turns are in 65536ths o
 demoDebug = LEN(ENVIRON$("NEON_DEMO_DEBUG")) > 0 : demoTrace = LEN(ENVIRON$("NEON_DEMO_TRACE")) > 0
 DIM SHARED demoFast AS INTEGER : demoFast = LEN(ENVIRON$("NEON_DEMO_FAST")) > 0 ' (NEON_DEMO_FAST=1: a demo plays back as fast as it can - no 60 a second - to check demos quickly; the game goes by frames, so it plays the same)
 CONST MAX_DEMOLIST = 200
-DIM SHARED demoListN AS INTEGER, demoList$(MAX_DEMOLIST), demoListFile$(MAX_DEMOLIST), demoListInfo$(MAX_DEMOLIST), demoListPage AS INTEGER
+DIM SHARED demoListN AS INTEGER, demoList$(MAX_DEMOLIST), demoListFile$(MAX_DEMOLIST), demoListInfo$(MAX_DEMOLIST)
+DIM SHARED demoBotN AS LONG ' (recording: frames the autopilot played - any, and the demo ends with a "# autopilot" line: DEMO REPLAYS puts it in AI)
 DIM SHARED demoFromMenu AS INTEGER, demoMenuWant AS INTEGER, demoStarting AS INTEGER, demoTotal AS LONG, demoInfoNow$
 DIM SHARED demoAttract AS INTEGER, demoAttractMenu AS INTEGER, attractPlayed$, attractQuit AS INTEGER, menuIdle AS LONG ' (attract mode: the title menu left alone ATTRACT_SECONDS - the demo playlist plays, till a key; attractPlayed$: the last it showed)
 CONST ATTRACT_SECONDS = 15 ' (a demo started from DEMO REPLAYS: when it's over, back to that list)

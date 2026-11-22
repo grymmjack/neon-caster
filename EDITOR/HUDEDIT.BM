@@ -88,7 +88,7 @@ SUB HudBox(e, x0, y0, x1, y1)
         CASE HE_GUNS : x0 = x : y0 = y : x1 = x + NUM_GUNS * 20 - 4 : y1 = y + 16
         CASE HE_MINIMAP : x0 = x : y0 = y : x1 = x + MinOf(mapN, 48) * hudW(e) : y1 = y + MinOf(mapN, 48) * hudW(e)
         CASE HE_CARDS : x0 = x - 3 * (hudW(e) + 4) : y0 = y : x1 = x : y1 = y + hudW(e)
-        CASE HE_TIMER : x0 = x - 112 : y0 = y : x1 = x : y1 = y + 34
+        CASE HE_TIMER : x0 = x - 112 : y0 = y : x1 = x : y1 = y + 50 ' (and the BEST line under it)
         CASE HE_MESSAGE, HE_SUBTITLE, HE_EVENT, HE_NETWORK, HE_FPS : x0 = x - 160 : y0 = y : x1 = x + 160 : y1 = y + 22
         CASE HE_INVULN : x0 = x - 110 : y0 = y : x1 = x + 110 : y1 = y + 24 ' (their middle)
         CASE HE_ALARM : x0 = x - 50 : y0 = y : x1 = x + 50 : y1 = y + 32

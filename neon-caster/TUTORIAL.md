@@ -114,8 +114,11 @@ commands it runs a frame at a time. `alias` on its own lists them,
 comment) and the game runs it every time it starts.
 
 **Demos.** **DEMO REPLAYS** in the main menu lists every demo - yours
-and the ones that come with the game, one for every sector of the four sets and every showcase - and Enter plays one (Esc, then
-STOP DEMO, ends it early). F (or FOLDER) opens the folder yours are kept in,
+and the ones that come with the game, one for every sector of the four sets and every showcase - in folders, as SECTORS are:
+**AI** holds the ones the autopilot played (all the game's own, and any you record with `bot` on - they end with an `# autopilot` line),
+**HUMAN** the ones you played. N makes a folder, R names it, X picks up a demo or folder and V puts it in the folder showing, [ ] order them
+(kept in `saves/demofolders.txt`; delete it to go back). Enter plays one (Esc, then
+STOP DEMO, ends it early), and when it's over you're back in its folder. F (or YOUR FILES) opens the folder yours are kept in,
 `neon-caster/saves/demos`, to copy, rename or delete them. Space marks a
 demo (a cyan diamond) for the **playlist**, and P plays it - one demo
 after another. Its screen (PLAYLIST, at the top of the list) sets how:
