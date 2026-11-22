@@ -30,8 +30,10 @@ definitions and references: it follows the includes.
 ## Build
 
 ```
-~/git/qb64pe/qb64pe -w -x neon-caster.bas -o neon-caster.run
+make            # or: make dev (no C++ -O), make run ARGS="+map 3", make help
 ```
+
+The Makefile (as DRAW's) runs `qb64pe -w -x -f:MaxCompilerProcesses=16 -f:SplitObjectfiles=true -f:ExtraCppFlags=-ffp-contract=off neon-caster.bas -o neon-caster.run` (~35 s) and fails unless QB64PE printed its `Output:` line.
 
 The output must not be called `neon-caster`: that's the asset folder. CI pins
 QB64PE to the commit in `.github/workflows/build-release.yml` (`QB64PE_REF`).
